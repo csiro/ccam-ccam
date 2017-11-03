@@ -21,7 +21,9 @@
 
 ! CABLE interface originally developed by the CABLE group
 ! Subsequently modified by MJT for maxtile=5 tile mosaic and SEAESF radiation scheme
-  
+
+! Thanks to Paul Ryan for OMP routines
+    
 ! - Currently all tiles have the same soil texture, but independent soil temperatures,
 !   moisture, etc.
 ! - Data can be read as CSIRO PFT or as IGBP
@@ -111,6 +113,7 @@ use cable_albedo_module
 use cable_canopy_module
 use cable_carbon_module
 use cable_ccam3
+use cable_ccam4
 use cable_common_module
 use cable_data_module
 use cable_def_types_mod, cbm_ms => ms
@@ -133,6 +136,7 @@ public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop
 public fwsoil_switch, cable_litter, gs_switch, cable_climate
 public POP_NPATCH, POP_NCOHORT
+public climate_daycount
 
 ! CABLE - CCAM options.
 integer, save :: proglai            = -1         ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
@@ -153,13 +157,10 @@ integer, parameter :: POP_NCOHORT = 20           ! Can POP communicate this numb
 integer, parameter :: POP_HEIGHT_BINS = 12       ! Can POP communicate this number?
 integer, parameter :: POP_NDISTURB = 1           ! Can POP communicate this number?
 real, parameter :: minfrac = 0.01                ! minimum non-zero tile fraction (improves load balancing)
+integer, save :: climate_daycount = 0            ! cable_climate - counter for daily averages
 
-integer, dimension(maxtile,2), save :: tind ! tile reference index
-integer, dimension(maxtile,2), save :: pind ! POP reference index
 integer, save :: maxnb                      ! maximum number of actual tiles
-real, dimension(:), allocatable, save :: sv, vl1, vl2, vl3, vl4
-logical, dimension(:,:), allocatable, save :: tmap ! tile map
-logical, dimension(:,:), allocatable, save :: pmap ! POP map
+real, dimension(:), allocatable, target, save :: sv, vl1, vl2, vl3, vl4
 
 contains
 ! ****************************************************************************
@@ -167,6 +168,7 @@ contains
 ! CABLE-CCAM interface
 subroutine sib4
 
+use cc_omp, only : ntiles, imax
 use arrays_m
 use carbpools_m
 use const_phys
@@ -188,37 +190,337 @@ use screen_m
 use sigs_m
 use soil_m
 use soilsnow_m
+use tracers_m
 use vegpar_m
 use work2_m, only : qsttg,zo,zoh,zoq,theta,vmod,wetfac
 use work3_m, only : ga
 use zenith_m
+
+implicit none
+
+integer, dimension(maxtile,2) :: ltind
+integer, dimension(imax) :: lisflag
+integer :: lmaxnb, tile, is, ie, js, je
+real, dimension(imax,kl,ntrac) :: ltr
+real, dimension(imax,kl) :: lphi_nh, lqg, lt
+real, dimension(imax,mlitter) :: lclitter, lnilitter, lplitter
+real, dimension(imax,mplant) :: lcplant, lniplant, lpplant
+real, dimension(imax,msoil) :: lcsoil, lnisoil, lpsoil
+real, dimension(imax,ms) :: ltgg, lwb, lwbice
+real, dimension(imax,3) :: lsmass, lssdn, ltggsn
+real, dimension(imax) :: lalbnirdif, lalbnirdir, lalbnirsav, lalbvisdif, lalbvisdir, lalbvissav
+real, dimension(imax) :: lcansto, lcdtq, lcduv, lcnbp, lcnpp, lcondg, lconds, lcondx, leg
+real, dimension(imax) :: lepot, lfbeamnir, lfbeamvis, lfg, lfnee, lfpn, lfrd, lfrp, lfrpr
+real, dimension(imax) :: lfrpw, lfrs, lfwet, lga, lps, lqsttg, lrgsave, lrlatt, lrlongg
+real, dimension(imax) :: lrnet, lrsmin, lrunoff, lrunoff_surface, lsgsave, lsigmf, lsnage
+real, dimension(imax) :: lsnowd, lsnowmelt, lssdnn, lswrsave, ltheta, ltss, lustar, lvlai
+real, dimension(imax) :: lvmod, lwetfac, lzo, lzoh, lzoq
+real, dimension(:), pointer :: lsv, lvl1, lvl2, lvl3, lvl4
+logical, dimension(imax,maxtile) :: ltmap
+logical, dimension(imax) :: lland
+type(air_type) :: lair
+type(balances_type) :: lbal
+type(canopy_type) :: lcanopy
+type(casa_balance) :: lcasabal
+type(casa_biome) :: lcasabiome
+type(casa_flux) :: lcasaflux
+type(casa_met) :: lcasamet
+type(casa_pool) :: lcasapool
+type(climate_type) :: lclimate
+type(met_type) :: lmet
+type(phen_variable) :: lphen
+type(pop_type) :: lpop
+type(radiation_type) :: lrad
+type(roughness_type) :: lrough
+type(soil_parameter_type) :: lsoil
+type(soil_snow_type) :: lssnow
+type(sum_flux_type) :: lsum_flux
+type(veg_parameter_type) :: lveg
+type(bgc_pool_type) :: lbgc
+
+!$omp do schedule(static) private(is,ie,js,je,ltind,ltmap,lmaxnb),                                             &
+!$omp private(lalbnirdif,lalbnirdir,lalbnirsav,lalbvisdif,lalbvisdir,lalbvissav,lcansto,lcdtq,lcduv,lclitter), &
+!$omp private(lcnbp,lcnpp,lcondg,lconds,lcondx,lcplant,lcsoil,leg,lepot,lfbeamnir,lfbeamvis,lfg,lfnee,lfpn),   &
+!$omp private(lfrd,lfrp,lfrpr,lfrpw,lfrs,lfwet,lga,lisflag,lland,lnilitter,lniplant,lnisoil,lphi_nh,lplitter), &
+!$omp private(lpplant,lps,lpsoil,lqg,lqsttg,lrgsave,lrlatt,lrlongg,lrnet,lrsmin,lrunoff,lrunoff_surface),      &
+!$omp private(lsgsave,lsigmf,lsmass,lsnage,lsnowd,lsnowmelt,lssdn,lssdnn,lswrsave,lt,ltgg,ltggsn,ltheta,ltss), &
+!$omp private(ltr,lustar,lvlai,lvmod,lwb,lwbice,lwetfac,lzo,lzoh,lzoq,lair,lbal,lcanopy,lcasabal,lcasabiome),  &
+!$omp private(lsv,lvl1,lvl2,lvl3,lvl4),                                                                        &
+!$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg)
+do tile=1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+
+  mp = tdata(tile)%mp
+  lmaxnb = tdata(tile)%maxnb
+  
+  js = tdata(tile)%toffset + 1
+  je = tdata(tile)%toffset + tdata(tile)%mp
+
+  ltind = tdata(tile)%tind - tdata(tile)%toffset
+
+  if ( mp>0 ) then
+    ltmap = tdata(tile)%tmap  
+    lphi_nh = phi_nh(is:ie,:)      
+    lalbnirdif = albnirdif(is:ie)
+    lalbnirdir = albnirdir(is:ie)
+    lalbnirsav = albnirsav(is:ie)
+    lalbvisdif = albvisdif(is:ie)
+    lalbvisdir = albvisdir(is:ie)
+    lalbvissav = albvissav(is:ie)
+    lcansto = cansto(is:ie)
+    lcdtq = cdtq(is:ie)
+    lcduv = cduv(is:ie)
+    lcondg = condg(is:ie)
+    lconds = conds(is:ie)
+    lcondx = condx(is:ie)
+    leg = eg(is:ie)
+    lepot = epot(is:ie)
+    lfbeamnir = fbeamnir(is:ie)
+    lfbeamvis = fbeamvis(is:ie)
+    lfg = fg(is:ie)
+    lfwet = fwet(is:ie)
+    lga = ga(is:ie)
+    lps = ps(is:ie)
+    lqg = qg(is:ie,:)
+    lqsttg = qsttg(is:ie)
+    lrgsave = rgsave(is:ie)
+    lrlatt = rlatt(is:ie)
+    lrlongg = rlongg(is:ie)
+    lrnet = rnet(is:ie)
+    lrsmin = rsmin(is:ie)
+    lrunoff = runoff(is:ie)
+    lrunoff_surface = runoff_surface(is:ie)
+    lsgsave = sgsave(is:ie)
+    lsigmf = sigmf(is:ie)
+    lsmass = smass(is:ie,:)
+    lsnage = snage(is:ie)
+    lsnowd = snowd(is:ie)
+    lsnowmelt = snowmelt(is:ie)
+    lssdn = ssdn(is:ie,:)
+    lssdnn = ssdnn(is:ie)
+    lswrsave = swrsave(is:ie)
+    lt = t(is:ie,:)
+    ltgg = tgg(is:ie,:)
+    ltggsn = tggsn(is:ie,:)
+    ltheta = theta(is:ie)
+    ltss = tss(is:ie)
+    lustar = ustar(is:ie)
+    lvlai = vlai(is:ie)
+    lvmod = vmod(is:ie)
+    lwb = wb(is:ie,:)
+    lwbice = wbice(is:ie,:)
+    lwetfac = wetfac(is:ie)
+    lzo = zo(is:ie)
+    lzoh = zoh(is:ie)
+    lzoq = zoq(is:ie)
+    lisflag = isflag(is:ie)
+    lland = land(is:ie)
+    if ( icycle/=0 ) then
+      lclitter = clitter(is:ie,:)
+      lcnbp = cnbp(is:ie)
+      lcnpp = cnpp(is:ie)
+      lcplant = cplant(is:ie,:)
+      lcsoil = csoil(is:ie,:)
+      lfnee = fnee(is:ie)
+      lfpn = fpn(is:ie)
+      lfrd = frd(is:ie)
+      lfrp = frp(is:ie)
+      lfrpr = frpr(is:ie)
+      lfrpw = frpw(is:ie)
+      lfrs = frs(is:ie)
+      lnilitter = nilitter(is:ie,:)
+      lniplant = niplant(is:ie,:)
+      lnisoil = nisoil(is:ie,:)
+      lplitter = plitter(is:ie,:)
+      lpplant = pplant(is:ie,:)
+      lpsoil = psoil(is:ie,:)
+    end if  
+    if ( tracerco2==1 ) then
+      ltr = tr(is:ie,:,:)
+    end if  
+  
+    !set pointers to pass through
+    call setp(air,lair,tile)
+    call setp(bal,lbal,tile)
+    call setp(canopy,lcanopy,tile)
+    call setp(casabal,lcasabal,tile)
+    call setp(casaflux,lcasaflux,tile)
+    call setp(casamet,lcasamet,tile)
+    call setp(casapool,lcasapool,tile)
+    call setp(climate,lclimate,tile)
+    call setp(met,lmet,tile)
+    call setp(phen,lphen,tile)
+    call setp(pop,lpop,tile)
+    call setp(rad,lrad,tile)
+    call setp(rough,lrough,tile)
+    call setp(soil,lsoil,tile)
+    call setp(ssnow,lssnow,tile)
+    call setp(sum_flux,lsum_flux,tile)
+    call setp(veg,lveg,tile)
+
+    lsv => sv(js:je)
+    lvl1 => vl1(js:je)
+    lvl2 => vl2(js:je)
+    lvl3 => vl3(js:je)
+    lvl4 => vl4(js:je)
+
+    call sib4_work(lalbnirdif,lalbnirdir,lalbnirsav,lalbvisdif,lalbvisdir,lalbvissav,lcansto,lcdtq,lcduv,lclitter,lcnbp, &
+                   lcnpp,lcondg,lconds,lcondx,lcplant,lcsoil,leg,lepot,lfbeamnir,lfbeamvis,lfg,lfnee,lfpn,lfrd,lfrp,     &
+                   lfrpr,lfrpw,lfrs,lfwet,lga,lisflag,lland,lmaxnb,mp,lnilitter,lniplant,lnisoil,lphi_nh,lplitter,       &
+                   lpplant,lps,lpsoil,lqg,lqsttg,lrgsave,lrlatt,lrlongg,lrnet,lrsmin,lrunoff,lrunoff_surface,lsgsave,    &
+                   lsigmf,lsmass,lsnage,lsnowd,lsnowmelt,lssdn,lssdnn,lsv,lswrsave,lt,ltgg,ltggsn,ltheta,ltind,ltmap,    &
+                   ltr,ltss,lustar,lvlai,lvl1,lvl2,lvl3,lvl4,lvmod,lwb,lwbice,lwetfac,lzo,lzoh,lzoq,lair,lbal,c,lcanopy, &
+                   lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,    &
+                   lsum_flux,lveg,imax)
+
+    albnirdif(is:ie) = lalbnirdif
+    albnirdir(is:ie) = lalbnirdir
+    albnirsav(is:ie) = lalbnirsav
+    albvisdif(is:ie) = lalbvisdif
+    albvisdir(is:ie) = lalbvisdir
+    albvissav(is:ie) = lalbvissav
+    cansto(is:ie) = lcansto
+    cdtq(is:ie) = lcdtq
+    cduv(is:ie) = lcduv
+    eg(is:ie) = leg
+    epot(is:ie) = lepot
+    fg(is:ie) = lfg
+    fwet(is:ie) = lfwet
+    ga(is:ie) = lga
+    qsttg(is:ie) = lqsttg
+    rnet(is:ie) = lrnet
+    rsmin(is:ie) = lrsmin
+    runoff(is:ie) = lrunoff
+    runoff_surface(is:ie) = lrunoff_surface
+    sigmf(is:ie) = lsigmf
+    smass(is:ie,:) = lsmass
+    snage(is:ie) = lsnage
+    snowd(is:ie) = lsnowd
+    snowmelt(is:ie) = lsnowmelt
+    ssdn(is:ie,:) = lssdn
+    ssdnn(is:ie) = lssdnn
+    tgg(is:ie,:) = ltgg
+    tggsn(is:ie,:) = ltggsn
+    tss(is:ie) = ltss
+    ustar(is:ie) = lustar
+    vlai(is:ie) = lvlai
+    wb(is:ie,:) = lwb
+    wbice(is:ie,:) = lwbice
+    wetfac(is:ie) = lwetfac
+    zo(is:ie) = lzo
+    zoh(is:ie) = lzoh
+    zoq(is:ie) = lzoq
+    isflag(is:ie) = lisflag
+    if ( icycle/=0 ) then
+      clitter(is:ie,:) = lclitter
+      cnbp(is:ie) = lcnbp
+      cnpp(is:ie) = lcnpp
+      cplant(is:ie,:) = lcplant
+      csoil(is:ie,:) = lcsoil
+      fnee(is:ie) = lfnee
+      fpn(is:ie) = lfpn
+      frd(is:ie) = lfrd
+      frp(is:ie) = lfrp
+      frpr(is:ie) = lfrpr
+      frpw(is:ie) = lfrpw
+      frs(is:ie) = lfrs
+      nilitter(is:ie,:) = lnilitter
+      niplant(is:ie,:) = lniplant
+      nisoil(is:ie,:) = lnisoil
+      plitter(is:ie,:) = lplitter
+      pplant(is:ie,:) = lpplant
+      psoil(is:ie,:) = lpsoil
+    end if  
+  end if
+
+end do
+!$omp end do nowait
+
+return
+end subroutine sib4
+
+! CABLE-CCAM interface
+subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav,cansto,cdtq,cduv,clitter,cnbp, &
+                     cnpp,condg,conds,condx,cplant,csoil,eg,epot,fbeamnir,fbeamvis,fg,fnee,fpn,frd,frp,frpr,    &
+                     frpw,frs,fwet,ga,isflag,land,maxnb,mp,nilitter,niplant,nisoil,phi_nh,plitter,pplant,ps,    &
+                     psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sgsave,sigmf,smass,    &
+                     snage,snowd,snowmelt,ssdn,ssdnn,sv,swrsave,t,tgg,tggsn,theta,tind,tmap,tr,tss,ustar,vlai,  &
+                     vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,air,bal,c,canopy,casabal,casabiome,        &
+                     casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,veg,imax)
+
+use const_phys
+use dates_m
+use estab, only : qsat
+use infile, only : getzinp
+use newmpar_m
+use parm_m
+use sigs_m
+use soil_m, only : zmin
+use tracers_m, only : ntrac
+use zenith_m, only : solargh, zenith
   
 implicit none
 
-real fjd, r1, dlt, slag, dhr, alp
-real, dimension(ifull) :: coszro2, taudar2, tmps, atmco2
-real, dimension(ifull) :: swdwn, alb, qsttg_land
-real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
-real(kind=8), dimension(mp) :: nleaf2met, nleaf2str, nroot2met, nroot2str, nwood2cwd
-real(kind=8), dimension(mp) :: pleaf2met, pleaf2str, proot2met, proot2str, pwood2cwd
-real(kind=8) :: dtr8
-real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
-real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
-real(r_2), dimension(mp) :: xksoil
-integer, dimension(12) :: ndoy
-integer, dimension(12), parameter :: odoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /) 
+integer, intent(in) :: imax, maxnb, mp
 integer jyear, jmonth, jday, jhour, jmin, idoy
 integer k, mins, nb, j
 integer is, ie, casaperiod, npercasa
 integer lalloc
 integer mp_POP, loy
+integer, dimension(maxtile,2), intent(in) :: tind
+integer, dimension(imax), intent(inout) :: isflag
+integer, dimension(12) :: ndoy
+integer, dimension(12), parameter :: odoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /) 
+real fjd, r1, dlt, slag, dhr, alp
+real, dimension(imax,kl,ntrac), intent(in) :: tr
+real, dimension(imax,kl), intent(in) :: phi_nh, qg, t
+real, dimension(imax,mlitter), intent(inout) :: clitter, nilitter, plitter
+real, dimension(imax,mplant), intent(inout) :: cplant, niplant, pplant
+real, dimension(imax,msoil), intent(inout) :: csoil, nisoil, psoil
+real, dimension(imax,ms), intent(inout) :: tgg, wb, wbice
+real, dimension(imax,3), intent(inout) :: smass, ssdn, tggsn
+real, dimension(imax), intent(inout) :: albnirdif, albnirdir, albnirsav, albvisdif, albvisdir, albvissav
+real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot, fg, fnee, fpn, frd
+real, dimension(imax), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, rnet, rsmin, runoff
+real, dimension(imax), intent(inout) :: runoff_surface, sigmf, snage, snowd, snowmelt, ssdnn, tss, ustar
+real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
+real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
+real, dimension(imax), intent(in) :: sgsave, swrsave, theta, vmod
+real, dimension(imax) :: coszro2, taudar2, tmps, atmco2, swdwn, alb, qsttg_land
+real, dimension(mp), intent(in) :: sv, vl1, vl2, vl3, vl4
+real(kind=8) :: dtr8
+real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
+real(kind=8), dimension(mp) :: nleaf2met, nleaf2str, nroot2met, nroot2str, nwood2cwd
+real(kind=8), dimension(mp) :: pleaf2met, pleaf2str, proot2met, proot2str, pwood2cwd
+real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
+real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
+real(r_2), dimension(mp) :: xksoil
+logical, dimension(imax,maxtile), intent(in) :: tmap
+logical, dimension(imax), intent(in) :: land
+type(air_type), intent(inout) :: air
+type(balances_type), intent(inout) :: bal
+type(physical_constants), intent(in) :: c
+type(canopy_type), intent(inout) :: canopy
+type(casa_balance), intent(inout) :: casabal
+type(casa_biome), intent(inout) :: casabiome
+type(casa_flux), intent(inout) :: casaflux
+type(casa_met), intent(inout) :: casamet
+type(casa_pool), intent(inout) :: casapool
+type(climate_type), intent(inout) :: climate
+type(met_type), intent(inout) :: met
+type(phen_variable), intent(inout) :: phen
+type(pop_type), intent(inout) :: pop
+type(radiation_type), intent(inout) :: rad
+type(roughness_type), intent(inout) :: rough
+type(soil_parameter_type), intent(inout) :: soil
+type(soil_snow_type), intent(inout) :: ssnow
+type(sum_flux_type), intent(inout) :: sum_flux
+type(veg_parameter_type), intent(inout) :: veg
 
 cansto = 0.
 fwet = 0.
 vlai = 0.
-
-! abort calculation if no land points on this processor  
-if ( mp<=0 ) return
 
 ! calculate time from beginning of the simulation
 ! jyear, jmonth, jday, jhour, jmin are for the start date of the simulation
@@ -231,7 +533,7 @@ call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
 fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 idoy = int(fjd)
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
-call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
+call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,imax,coszro2,taudar2)
 
 ! calculate end of the month
 ndoy(1:12) = odoy(1:12)
@@ -242,7 +544,7 @@ if ( leap==1 ) then
 end if
 
 ! calculate CO2 concentration
-call setco2for(atmco2)
+call setco2for(atmco2,tr,imax)
 if ( any(atmco2<1.) ) then
   write(6,*) "ERROR: Invalid CO2 mixing ratio in cable_ccam2 ",minval(atmco2)
   stop
@@ -265,8 +567,8 @@ do nb = 1,maxnb
   met%ua(is:ie)          = real(pack(vmod,   tmap(:,nb)), 8)
   met%ca(is:ie)          = real(pack(atmco2, tmap(:,nb))*1.e-6, 8)
   met%coszen(is:ie)      = real(pack(coszro2,tmap(:,nb)), 8)              ! use instantaneous value
-  met%qv(is:ie)          = real(pack(qg(1:ifull,1),tmap(:,nb)),8 )        ! specific humidity in kg/kg
-  met%pmb(is:ie)         = real(pack(ps(1:ifull),  tmap(:,nb))*0.01, 8)   ! pressure in mb at ref height
+  met%qv(is:ie)          = real(pack(qg(1:imax,1),tmap(:,nb)),8 )         ! specific humidity in kg/kg
+  met%pmb(is:ie)         = real(pack(ps(1:imax),  tmap(:,nb))*0.01, 8)    ! pressure in mb at ref height
   met%precip(is:ie)      = real(pack(condx,  tmap(:,nb)), 8)              ! in mm not mm/sec
   met%precip_sn(is:ie)   = real(pack(conds+condg,  tmap(:,nb)), 8)        ! in mm not mm/sec
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
@@ -277,7 +579,8 @@ do nb = 1,maxnb
   met%fld(is:ie)         = real(pack(-rgsave,              tmap(:,nb)), 8)      ! long wave down (positive) W/m^2
   rad%fbeam(is:ie,1)     = real(pack(fbeamvis,             tmap(:,nb)), 8)
   rad%fbeam(is:ie,2)     = real(pack(fbeamnir,             tmap(:,nb)), 8)
-  rough%za_tq(is:ie)     = real(pack(bet(1)*t(1:ifull,1)+phi_nh(:,1),tmap(:,nb))/grav, 8) ! reference height
+  rough%za_tq(is:ie)     = real(pack(bet(1)*t(1:imax,1)+phi_nh(:,1),tmap(:,nb))/grav, 8) ! reference height
+  rough%za_tq(is:ie)     = max( rough%za_tq(is:ie), veg%hc(is:ie)+1. )
 end do
 met%doy         = real(fjd, 8)
 met%hod         = (met%doy-int(met%doy))*24._8 + rad%longitude/15._8
@@ -291,10 +594,10 @@ rough%za_uv     = rough%za_tq
 rad%fbeam(:,3)  = 0._8            ! dummy for now
 
 ! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
-call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
+call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp,sv,vl1,vl2,vl3,vl4,casamet,veg,imax,tind,tmap,maxnb)
 
 ! Calculate vcmax
-call vcmax_feedback
+call vcmax_feedback(casabiome,casamet,casapool,veg)
 
 !--------------------------------------------------------------
 ! CABLE
@@ -378,7 +681,7 @@ end if
 
 !--------------------------------------------------------------
 ! CABLE CLIMATE
-call cableclimate(idoy,jmonth,ndoy)
+call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad)
 
 !--------------------------------------------------------------
 ! CASA CNP
@@ -416,7 +719,7 @@ select case (icycle)
       casamet%moist=casamet%moist/real(npercasa,8)
       xKNlimiting = 1._8
       if ( cable_climate==1 ) then
-        call cable_phenology_clim
+        call cable_phenology_clim(climate,phen,rad,veg)
       else
         call phenology(idoy,veg,phen)
       end if
@@ -429,7 +732,7 @@ select case (icycle)
       call casa_coeffplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome,casapool,casaflux,casamet,phen)
       call casa_xnp(xnplimit,xNPuptake,veg,casabiome,casapool,casaflux,casamet)
       if ( cable_pop==1 ) then
-        call casa_pop_firstcall(lalloc)  
+        call casa_pop_firstcall(lalloc,casabiome,casaflux,casamet,casapool,phen,pop,soil,veg)  
       end if  
       call casa_xratesoil(xklitter,xksoil,veg,soil,casamet,casabiome)
       call casa_coeffsoil(xklitter,xksoil,veg,soil,casabiome,casaflux,casamet)
@@ -448,7 +751,7 @@ select case (icycle)
       casaflux%Cplant_turnover_resource_limitation = 0
       if ( cable_pop==1 ) then
         mp_POP = size(POP%pop_grid)  
-        call casa_pop_secondcall(mp_POP)  
+        call casa_pop_secondcall(mp_POP,casaflux,pop)  
       end if
       call casa_delsoil(veg,casapool,casaflux,casamet,casabiome)
       call casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet,lalloc)
@@ -529,7 +832,7 @@ end select
 if ( cable_pop==1 ) then
   ! update once per year
   if ( idoy==ndoy(12) ) then
-     call popdriver
+     call popdriver(casabal,casaflux,pop,veg)
      ! reset stemnpp, LAImax, Cleafmean and Crootmean for next call
      casaflux%stemnpp = 0._8
      casabal%LAImax = 0._8
@@ -546,20 +849,20 @@ end if
 ! albvisnir(:,2) are the VIS and NIR albedo used by the radiation scheme for the
 ! current time step.
 do k = 1,ms
-  where ( land(1:ifull) )
+  where ( land(1:imax) )
     tgg(:,k) = 0.
     wb(:,k) = 0.
     wbice(:,k) = 0.
   end where
 end do
 do k = 1,3
-  where ( land(1:ifull) )
+  where ( land(1:imax) )
     tggsn(:,k) = 0.
     smass(:,k) = 0.
     ssdn(:,k) = 0.
   end where
 end do
-where ( land(1:ifull) )
+where ( land(1:imax) )
   albvisdir = 0.
   albvisdif = 0.
   albnirdir = 0.
@@ -638,34 +941,7 @@ do nb = 1,maxnb
   !qgscrn = qgscrn + unpack(sv(is:ie)*real(canopy%qscrn(is:ie)),tmap(:,nb),0.)
 end do
 
-if ( icycle==0 ) then
-  !cplant = 0.
-  !csoil = 0.
-  !fnee = 0.
-  !fpn = 0.
-  !frd = 0.
-  !frp = 0.
-  !frpw = 0.
-  !frpr = 0.
-  !frs = 0.
-  !do nb = 1,maxnb
-  !  is = tind(nb,1)
-  !  ie = tind(nb,2)
-  !  do k = 1,ncp
-  !    cplant(:,k) = cplant(:,k) + unpack(sv(is:ie)*real(bgc%cplant(is:ie,k)),tmap(:,nb),0.)
-  !  end do
-  !  do k = 1,ncs
-  !    csoil(:,k) = csoil(:,k) + unpack(sv(is:ie)*real(bgc%csoil(is:ie,k)),   tmap(:,nb),0.)
-  !  end do
-  !end do
-  ! carbon cycle
-  !fnee = fnee + unpack(sv(is:ie)*real(canopy%fnee(is:ie)), tmap(:,nb),0.)
-  !fpn  = fpn  + unpack(sv(is:ie)*real(canopy%fpn(is:ie)),  tmap(:,nb),0.)
-  !frd  = frd  + unpack(sv(is:ie)*real(canopy%frday(is:ie)),tmap(:,nb),0.)
-  !frp  = frp  + unpack(sv(is:ie)*real(canopy%frp(is:ie)),  tmap(:,nb),0.)
-  !frpw = frpw + unpack(sv(is:ie)*real(canopy%frpw(is:ie)), tmap(:,nb),0.)
-  !frs  = frs  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),  tmap(:,nb),0.)
-else
+if ( icycle/=0 ) then
   cplant = 0.
   niplant = 0.
   pplant = 0.
@@ -675,7 +951,6 @@ else
   csoil = 0.
   nisoil = 0.
   psoil = 0.
-  !glai = 0.
   fnee = 0.
   fpn = 0.
   frd = 0.
@@ -721,7 +996,7 @@ end if
 ! zoh, zoq and zo are passed to the scrnout diagnostics routines
 ! rsmin is typically used by CTM
 
-where ( land(1:ifull) )
+where ( land(1:imax) )
   zo        = zmin*exp(-1./sqrt(zo))
   zoh       = zo/7.4
   zoq       = zoh
@@ -737,34 +1012,36 @@ where ( land(1:ifull) )
   !rnet      = sgsave - rgsave - stefbo*tss**4
   isflag(:) = nint(tmps(:)) ! tmps is average isflag
 end where
-qsttg_land(:) = qsat(ps(1:ifull),tss(1:ifull)) ! must wait for tss to be updated first
-where ( land(1:ifull) )
+qsttg_land(:) = qsat(ps(1:imax),tss(1:imax)) ! must wait for tss to be updated first
+where ( land(1:imax) )
   qsttg(:)  = qsttg_land(:)
 end where
 
 return
-end subroutine sib4
+end subroutine sib4_work
 
 ! *************************************************************************************
-subroutine setco2for(atmco2)
+subroutine setco2for(atmco2,tr,imax)
 ! set co2 forcing for cable
 ! constant: atmospheric co2 = 360 ppm 
 ! host: atmospheric co2 follows that from CCAM radiation scheme
 ! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
 
-use cc_mpi, only : myid
 use newmpar_m
 use parm_m
 use radisw_m, only : rrvco2
-use tracers_m, only : tr,ngas,tractype,tracname
+use tracers_m, only : ngas,ntrac,tractype,tracname
 
 implicit none
 
 integer ico2,igas
-real, dimension(ifull), intent(out) :: atmco2
+integer, intent(in) :: imax
+real, dimension(imax), intent(out) :: atmco2
+real, dimension(imax,kl,ntrac), intent(in) :: tr
+
+atmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
 
 ico2=0
-atmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
 if ( tracerco2==1 ) then
   do igas=1,ngas
     if ( trim(tractype(igas))=='online' .and. trim(tracname(igas))=='cbmnep' ) then
@@ -773,14 +1050,7 @@ if ( tracerco2==1 ) then
     end if
   end do
   if ( ico2>0 ) then
-    atmco2 = tr(1:ifull,1,ico2) ! use interactive tracers
-  end if
-end if
-if ( myid==0 .and. ktau==1 ) then
-  if ( ico2==0 ) then
-    write(6,*) "CABLE using prescribed CO2 from radiative forcings"
-  else
-    write(6,*) "CABLE using prognostic CO2 from tracer"
+    atmco2 = tr(1:imax,1,ico2) ! use interactive tracers
   end if
 end if
 
@@ -797,15 +1067,30 @@ implicit none
   
 integer, intent(in) :: tile,imax
 integer, intent(in) :: mvegt,mode
+real, dimension(imax), intent(out) :: trsrc
+
+call cbmemiss_work(trsrc,mvegt,mode,imax,tdata(tile)%tind,tdata(tile)%tmap,tdata(tile)%maxnb)
+  
+return
+end subroutine cbmemiss
+
+subroutine cbmemiss_work(trsrc,mvegt,mode,imax,tind,tmap,maxnb)
+  
+use newmpar_m
+use parm_m
+
+implicit none
+  
+integer, intent(in) :: imax
+integer, intent(in) :: mvegt,mode
 integer nb
 real, dimension(imax), intent(out) :: trsrc
-real, dimension(ifull) :: fpn,frd,frp,frs
+integer, dimension(maxtile,2), intent(in) :: tind
+logical, dimension(imax,maxtile), intent(in) :: tmap
+integer, intent(in) :: maxnb
+real, dimension(imax) :: fpn,frd,frp,frs
 integer :: is, ie
-integer :: js, je
 
-js=(tile-1)*imax+1
-je=tile*imax
-  
 if ( nsib/=6 .and. nsib/=7 ) then
   write(6,*) "ERROR: Attempted to read CABLE emissions with CABLE disabled"
   stop
@@ -828,21 +1113,21 @@ end do
   
 select case( mode )
   case(1)
-    trsrc = fpn(js:je) - frd(js:je)
+    trsrc = fpn - frd
   case(2)
-    trsrc = frp(js:je) + frd(js:je)
+    trsrc = frp + frd
   case(3)
-    trsrc = frs(js:je)
+    trsrc = frs
   case default
     write(6,*) "ERROR: Unknown mode for cbmemiss ",mode
     stop
 end select
   
 return
-end subroutine cbmemiss
+end subroutine cbmemiss_work
 
 ! *************************************************************************************
-subroutine setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
+subroutine setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp,sv,vl1,vl2,vl3,vl4,casamet,veg,imax,tind,tmap,maxnb)
 
 use cc_mpi
 use dates_m
@@ -852,12 +1137,19 @@ use parm_m
 implicit none
   
 integer, intent(in) :: jyear,jmonth,jday,jhour,jmin,mp
+integer, intent(in) :: imax
+integer, optional :: maxnb
 integer monthstart, nb, is, ie
 integer, dimension(12) :: imonth
+integer, dimension(maxtile,2), intent(in), optional :: tind
+real, dimension(mp), intent(in) :: sv, vl1, vl2, vl3, vl4
 real, parameter :: vextkn = 0.4
-real, dimension(ifull), intent(out) :: sigmf
+real, dimension(imax), intent(out) :: sigmf
 real, dimension(mp) :: a0, a1, a2, aa, bb, cc, mp1, mp2, c2, c3, c4
 real x
+logical, dimension(imax,maxtile), intent(in), optional :: tmap
+type(casa_met), intent(in) :: casamet
+type(veg_parameter_type), intent(inout) :: veg
 
 select case( proglai )
   case(-1) ! piece-wise linear interpolated LAI
@@ -924,11 +1216,16 @@ end select
 
 ! diagnose greeness fraction (e.g., for aerosols)  
 sigmf(:) = 0.
-do nb = 1,maxnb
-  is = tind(nb,1)
-  ie = tind(nb,2)
-  sigmf(:) = sigmf(:) + unpack(sv(is:ie)*(1.-exp(-vextkn*real(veg%vlai(is:ie)))),tmap(:,nb),0.)
-end do
+if ( present(tind) .and. present(tmap) .and. present(maxnb) ) then
+  !inside OpenMP region
+  do nb = 1,maxnb
+    is = tind(nb,1)
+    ie = tind(nb,2)
+    sigmf(:) = sigmf(:) + unpack(sv(is:ie)*(1.-exp(-vextkn*real(veg%vlai(is:ie)))),tmap(:,nb),0.)
+  end do
+else
+  call cable_unpack(sv*(1.-exp(-vextkn*real(veg%vlai))),sigmf)
+endif
 sigmf = min( sigmf, 1. )
   
 return
@@ -936,12 +1233,18 @@ end subroutine setlai
 
 ! *************************************************************************************
 ! Calculate prognostic vcmax from CASA-CNP
-subroutine vcmax_feedback
+subroutine vcmax_feedback(casabiome,casamet,casapool,veg)
 
 use newmpar_m, only : mxvt
 
 implicit none
 
+!global
+type(casa_biome), intent(in) :: casabiome
+type(casa_met), intent(in) :: casamet
+type(casa_pool), intent(in) :: casapool
+type(veg_parameter_type), intent(inout) :: veg
+!
 integer np, ivt
 real(kind=8), dimension(mp) :: ncleafx, npleafx, pleafx, nleafx
 real(kind=8), dimension(mxvt), parameter :: xnslope = (/ 0.8,1.,2.,1.,1.,1.,0.5,1.,0.34,1.,1.,1.,1.,1.,1.,1.,1. /)
@@ -1018,7 +1321,7 @@ end subroutine vcmax_feedback
 
 ! *************************************************************************************
 ! Update phenology depending on climate
-subroutine cable_phenology_clim
+subroutine cable_phenology_clim(climate,phen,rad,veg)
 
 implicit none
 
@@ -1028,6 +1331,10 @@ real(kind=8) :: phengdd5ramp
 real(kind=8) :: phen_tmp
 real(kind=8), parameter :: k_chilla = 0._8, k_chillb = 100._8, k_chillk = 0.05_8
 real(kind=8), parameter :: APHEN_MAX = 200._8, mmoisture_min=0.30_8
+type(climate_type), intent(in) :: climate
+type(phen_variable), intent(inout) :: phen
+type(radiation_type), intent(in) :: rad
+type(veg_parameter_type), intent(in) :: veg
 
 !phen%doyphase(np,1) ! DOY for greenup
 !phen%doyphase(np,2) ! DOY for steady LAI
@@ -1105,11 +1412,19 @@ end subroutine cable_phenology_clim
 
 ! *************************************************************************************
 ! POP subroutines
-subroutine casa_pop_firstcall(lalloc)
+subroutine casa_pop_firstcall(lalloc,casabiome,casaflux,casamet,casapool,phen,pop,soil,veg)
 
 implicit none
 
 integer, intent(in) :: lalloc
+type(casa_biome), intent(inout) :: casabiome
+type(casa_flux), intent(inout) :: casaflux
+type(casa_met), intent(inout) :: casamet
+type(casa_pool), intent(inout) :: casapool
+type(phen_variable), intent(inout) :: phen
+type(pop_type), intent(inout) :: pop
+type(soil_parameter_type), intent(inout) :: soil
+type(veg_parameter_type), intent(inout) :: veg
 
 call casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,lalloc)
 
@@ -1146,11 +1461,13 @@ end if
 return
 end subroutine casa_pop_firstcall
 
-subroutine casa_pop_secondcall(mp_POP)
+subroutine casa_pop_secondcall(mp_POP,casaflux,pop)
 
 implicit none
 
 integer, intent(in) :: mp_POP
+type(casa_flux), intent(inout) :: casaflux
+type(pop_type), intent(inout) :: pop
 real(kind=dp), dimension(mp_POP) :: tmp
 
 if ( mp_POP>0 ) then
@@ -1172,10 +1489,14 @@ end if
 return
 end subroutine casa_pop_secondcall
 
-subroutine POPdriver
+subroutine POPdriver(casabal,casaflux,pop,veg)
 
 implicit none
   
+type(casa_balance), intent(in) :: casabal
+type(casa_flux), intent(in) :: casaflux
+type(pop_type), intent(inout) :: pop
+type(veg_parameter_type), intent(in) :: veg
 integer, dimension(POP%np) :: Iw
 integer(kind=i4b), dimension(POP%np,2) :: disturbance_interval_tmp
 real(kind=dp), dimension(POP%np,2) :: disturbance_intensity_tmp, stemNPP_tmp
@@ -1209,7 +1530,7 @@ end subroutine POPdriver
 
 ! *************************************************************************************
 ! track climate feedback into CABLE
-subroutine cableclimate(idoy,imonth,ndoy)
+subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad)
 
 use parm_m, only : dt
 
@@ -1217,9 +1538,12 @@ implicit none
 
 real(kind=8), dimension(mp) :: mtemp_last
 integer, intent(in) :: idoy, imonth
-integer, save :: climate_daycount = 0  ! counter for daily averages
 integer d
 integer, dimension(12), intent(in) :: ndoy
+type(canopy_type), intent(in) :: canopy
+type(climate_type), intent(inout) :: climate
+type(met_type), intent(in) :: met
+type(radiation_type), intent(inout) :: rad
 
 !real(kind=8), dimension(mp) :: RhoA, PPc, EpsA, phiEq, tmp
 !real(kind=8), parameter :: Gaero  = 0.015_8    ! (m s-1) aerodynmaic conductance (for use in PT evap)
@@ -1360,7 +1684,6 @@ if ( real(climate_daycount)*dt>86400. ) then
   ! reset climate data for next year
   climate%dtemp   = 0._8
   climate%dmoist  = 0._8
-  climate_daycount = 0
  
 end if      ! end of day
 
@@ -1368,7 +1691,6 @@ end if      ! end of day
 !climate%aevap   = climate%aevap + met%precip ! mm
 climate%dtemp  = climate%dtemp + met%tk - 273.15_8
 climate%dmoist = climate%dmoist + canopy%fwsoil
-climate_daycount = climate_daycount + 1
 
 return
 end subroutine cableclimate
@@ -2027,6 +2349,7 @@ subroutine cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2, &
 
 use carbpools_m
 use cc_mpi
+use cc_omp, only : ntiles, imax
 use const_phys
 use infile
 use latlong_m
@@ -2073,6 +2396,7 @@ real, dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
 real, dimension(ifull) :: albsoil
 real, dimension(12) :: xkmlabp,xpsorbmax,xfPleach
 logical, dimension(:), allocatable, save :: pmap_temp
+integer :: tile, popcount
 
 if ( myid==0 ) write(6,*) "Initialising CABLE"
 
@@ -2099,23 +2423,32 @@ albnirdif = 0.08
 zolnd     = 0.
 !cplant   = 0.
 !csoil    = 0.
-tind = ifull + 1
 mvtype = mxvt
 mstype = mxst
 
 ! calculate CABLE vector length
-mp = 0
-do iq = 1,ifull
-  if ( land(iq) ) then
-    landcount = count(svs(iq,:)>0.)
-    mp = mp + landcount
-    if ( landcount==0 ) then
-      write(6,*) "ERROR: No CABLE tiles assigned to land point: myid,iq",myid,iq
-      call ccmpi_abort(-1)
+allocate(tdata(ntiles))
+do tile=1,ntiles
+  tdata(tile)%mp = 0
+  is=1+(tile-1)*imax
+  ie=tile*imax
+  do iq = is,ie
+    if ( land(iq) ) then
+      landcount = count(svs(iq,:)>0.)
+      tdata(tile)%mp = tdata(tile)%mp + landcount
+      if ( landcount==0 ) then
+        write(6,*) "ERROR: No CABLE tiles assigned to land point: myid,iq,tile",myid,iq,tile
+        call ccmpi_abort(-1)
+      end if
     end if
-  end if
+  end do
 end do
-
+mp = tdata(1)%mp
+tdata(1)%toffset = 0
+do tile=2,ntiles
+  mp = mp + tdata(tile)%mp
+  tdata(tile)%toffset=tdata(tile-1)%toffset+tdata(tile-1)%mp
+end do
 
 !if ( nmaxpr==1 ) then
 !  !write(6,*) "myid,landtile ",myid,mp
@@ -2146,17 +2479,22 @@ if ( myid==0 ) then
   end if
 end if
 
-tind(:,1) = 1
-tind(:,2) = 0
-pind(:,1) = 1
-pind(:,2) = 0
 maxnb = 0
+
+do tile=1,ntiles
+  allocate(tdata(tile)%tind(maxtile,2))
+  tdata(tile)%tind(:,1) = 1
+  tdata(tile)%tind(:,2) = 0
+  allocate(tdata(tile)%pind(maxtile,2))
+  tdata(tile)%pind(:,1) = 1
+  tdata(tile)%pind(:,2) = 0
+  tdata(tile)%maxnb = 0
+end do
 
 if ( mp>0 ) then
   
   allocate(sv(mp))
   allocate(vl1(mp),vl2(mp),vl3(mp),vl4(mp))
-  allocate(tmap(ifull,maxtile))
   allocate(cveg(mp))  
   call alloc_cbm_var(air, mp)
   call alloc_cbm_var(bgc, mp)
@@ -2247,38 +2585,48 @@ if ( mp>0 ) then
   vl2=0.
   vl3=0.
   vl4=0.
-  tmap=.false.
   cveg=0
 
   ! pack biome data into CABLE vector
   ! prepare LAI arrays for temporal interpolation (PWCB)  
   ! now up to maxtile=5 PFT tiles from 5 IGBP classes (need correct order for vectorisation)
+  do tile=1,ntiles
+    allocate(tdata(tile)%tmap(imax,maxtile))
+    tdata(tile)%tmap = .false.
+  end do
+
   ipos = 0
-  do n = 1,maxtile
-    tind(n,1) = ipos + 1
-    do iq = 1,ifull
-      if ( land(iq) ) then
-        if ( svs(iq,n)>0. ) then
-          ipos = ipos + 1
-          tmap(iq,n)        = .true.
-          iv                = ivs(iq,n)
-          sv(ipos)          = svs(iq,n)
-          cveg(ipos)        = iv
-          soil%isoilm(ipos) = isoilm(iq)
-          vl1(ipos) = max( vlinprev(iq,n), 0.01 )
-          vl2(ipos) = max( vlin(iq,n), 0.01 )
-          vl3(ipos) = max( vlinnext(iq,n), 0.01 )
-          vl4(ipos) = max( vlinnext2(iq,n), 0.01 )
+  do tile=1,ntiles
+    is=1+(tile-1)*imax
+    ie=tile*imax
+    do n = 1,maxtile
+      tdata(tile)%tind(n,1) = ipos + 1
+      do iq = is,ie
+        if ( land(iq) ) then
+          if ( svs(iq,n)>0. ) then
+            ipos = ipos + 1
+            tdata(tile)%tmap(iq-is+1,n) = .true.
+          end if
         end if
-      end if
+      end do
+      tdata(tile)%tind(n,2) = ipos
     end do
-    tind(n,2) = ipos
   end do
   
   if ( ipos/=mp ) then
     write(6,*) "ERROR: Internal memory allocation error for CABLE set-up"
     call ccmpi_abort(-1)
   end if
+
+  do n = 1,maxtile
+    call cable_pack(svs(:,n),sv,n)
+    call cable_pack(ivs(:,n),cveg,n)
+    call cable_pack(isoilm,soil%isoilm,n)
+    call cable_pack(max( vlinprev(:,n), 0.01 ),vl1,n)
+    call cable_pack(max( vlin(:,n), 0.01 ),vl2,n)
+    call cable_pack(max( vlinnext(:,n), 0.01 ),vl3,n)
+    call cable_pack(max( vlinnext2(:,n), 0.01 ),vl4,n)
+  end do
 
   ! Load CABLE biophysical arrays
   do iq = 1,ifull
@@ -2304,11 +2652,18 @@ if ( mp>0 ) then
   
   deallocate( cveg )
 
+  do tile=1,ntiles
+    tdata(tile)%maxnb = 0
+    do n = 1,maxtile
+      if ( tdata(tile)%tind(n,2)>=tdata(tile)%tind(n,1) ) then
+        tdata(tile)%maxnb = n
+      end if
+    end do
+  end do
+
   ! calculate actual max tile number
-  do n = 1,maxtile
-    if ( tind(n,1)<=mp ) then
-      maxnb = n
-    end if
+  do tile=1,ntiles
+    maxnb = max(tdata(tile)%maxnb,maxnb)
   end do
   
   ! Load CABLE soil data
@@ -2343,12 +2698,8 @@ if ( mp>0 ) then
   !bgc%ratecs(:) = real(ratecs(:),8)
 
   ! store bare soil albedo and define snow free albedo
-  do n = 1,maxnb
-    is = tind(n,1)
-    ie = tind(n,2)
-    soil%albsoil(is:ie,1) = real(pack(albvisnir(:,1),tmap(:,n)),8)
-    soil%albsoil(is:ie,2) = real(pack(albvisnir(:,2),tmap(:,n)),8)
-  end do
+  call cable_pack(albvisnir(:,1),soil%albsoil(:,1))
+  call cable_pack(albvisnir(:,2),soil%albsoil(:,2))
   soil%albsoil(:,3) = 0.05_8
     
   where ( land(1:ifull) )
@@ -2368,19 +2719,15 @@ if ( mp>0 ) then
     albsoilsn(1:ifull,2) = (2.00/1.68)*albsoil(1:ifull)
   end where
 
-  do n = 1,maxnb
-    is = tind(n,1)
-    ie = tind(n,2)
-    ! MJT patch
-    soil%albsoil(is:ie,1)   =real(pack(albsoil,       tmap(:,n)),8)
-    soil%albsoil(is:ie,2)   =real(pack(albsoil,       tmap(:,n)),8)
-    ssnow%albsoilsn(is:ie,1)=real(pack(albsoilsn(:,1),tmap(:,n)),8) ! overwritten by CABLE
-    ssnow%albsoilsn(is:ie,2)=real(pack(albsoilsn(:,2),tmap(:,n)),8) ! overwritten by CABLE
-    rad%albedo_T(is:ie)     =real(pack(albsoil,       tmap(:,n)),8)
-    rad%trad(is:ie)         =real(pack(tss,           tmap(:,n)),8)
-    rad%latitude(is:ie)     =real(pack(rlatt,         tmap(:,n))*180./pi,8)
-    rad%longitude(is:ie)    =real(pack(rlongg,        tmap(:,n))*180./pi,8)
-  end do
+  ! MJT patch
+  call cable_pack(albsoil,soil%albsoil(:,1))
+  call cable_pack(albsoil,soil%albsoil(:,2))
+  call cable_pack(albsoilsn(:,1),ssnow%albsoilsn(:,1)) ! overwritten by CABLE
+  call cable_pack(albsoilsn(:,2),ssnow%albsoilsn(:,2)) ! overwritten by CABLE
+  call cable_pack(albsoil,rad%albedo_T(:))
+  call cable_pack(tss,rad%trad(:))
+  call cable_pack(rlatt*180./pi,rad%latitude(:))
+  call cable_pack(rlongg*180./pi,rad%longitude(:))
     
   ssnow%albsoilsn(:,3)=0.05_8    
   ssnow%t_snwlr=0.05_8
@@ -2455,13 +2802,11 @@ if ( mp>0 ) then
     ! Initialise CABLE carbon pools
     !cplant=0.
     !csoil=0.
-    !do n=1,maxnb
-    !  do k=1,ncp
-    !    cplant(:,k)=cplant(:,k)+unpack(sv(tind(n,1):tind(n,2))*tcplant(veg%iveg(tind(n,1):tind(n,2)),k),tmap(:,n),0.)
-    !  end do
-    !  do k=1,ncs
-    !    csoil(:,k) =csoil(:,k) +unpack(sv(tind(n,1):tind(n,2))*tcsoil(veg%iveg(tind(n,1):tind(n,2)),k), tmap(:,n),0.)
-    !  end do
+    !do k=1,ncp
+    !  call cable_unpack(sv*tcplant(veg%iveg,k),cplant(:,k))
+    !end do
+    !do k=1,ncs
+    !  call cable_unpack(sv*tcsoil(veg%iveg,k),csoil(:,k))
     !end do
     if ( cable_pop==1 ) then
       write(6,*) "ERROR: cable_pop=1 requires ccycle>0"
@@ -2474,15 +2819,11 @@ if ( mp>0 ) then
     
     casamet%lat=rad%latitude
     
-    do n = 1,maxnb
-      is = tind(n,1)
-      ie = tind(n,2)
-      casamet%isorder(is:ie)  = nint(pack(casapoint(:,1),tmap(:,n)))
-      casaflux%Nmindep(is:ie) = real(pack(casapoint(:,2),tmap(:,n))/365.*1.E-3,8)
-      casaflux%Nminfix(is:ie) = real(pack(casapoint(:,3),tmap(:,n))/365.,8)
-      casaflux%Pdep(is:ie)    = real(pack(casapoint(:,4),tmap(:,n))/365.,8)
-      casaflux%Pwea(is:ie)    = real(pack(casapoint(:,5),tmap(:,n))/365.,8)
-    end do
+    call cable_pack(casapoint(:,1),casamet%isorder)
+    call cable_pack(casapoint(:,2)/365.*1.E-3,casaflux%Nmindep)
+    call cable_pack(casapoint(:,3)/365.,casaflux%Nminfix)
+    call cable_pack(casapoint(:,4)/365.,casaflux%Pdep)
+    call cable_pack(casapoint(:,5)/365.,casaflux%Pwea)
 
     where ( veg%iveg==9 .or. veg%iveg==10 ) ! crops
       ! P fertilizer =13 Mt P globally in 1994
@@ -2858,53 +3199,81 @@ if ( mp>0 ) then
     plitter=0.
     psoil=0.
     !glai=0.
-    do n=1,maxnb
-      is = tind(n,1)
-      ie = tind(n,2)
-      do k=1,mplant
-        cplant(:,k) =cplant(:,k) +unpack(sv(is:ie)*real(casapool%cplant(is:ie,k)),tmap(:,n),0.)
-        niplant(:,k)=niplant(:,k)+unpack(sv(is:ie)*real(casapool%nplant(is:ie,k)),tmap(:,n),0.)
-        pplant(:,k) =pplant(:,k) +unpack(sv(is:ie)*real(casapool%pplant(is:ie,k)),tmap(:,n),0.)
-      end do
-      do k=1,mlitter
-        clitter(:,k) =clitter(:,k) +unpack(sv(is:ie)*real(casapool%clitter(is:ie,k)),tmap(:,n),0.)
-        nilitter(:,k)=nilitter(:,k)+unpack(sv(is:ie)*real(casapool%nlitter(is:ie,k)),tmap(:,n),0.)
-        plitter(:,k) =plitter(:,k) +unpack(sv(is:ie)*real(casapool%plitter(is:ie,k)),tmap(:,n),0.)
-      end do
-      do k=1,msoil
-        csoil(:,k) =csoil(:,k) +unpack(sv(is:ie)*real(casapool%csoil(is:ie,k)),tmap(:,n),0.)
-        nisoil(:,k)=nisoil(:,k)+unpack(sv(is:ie)*real(casapool%nsoil(is:ie,k)),tmap(:,n),0.)
-        psoil(:,k) =psoil(:,k) +unpack(sv(is:ie)*real(casapool%psoil(is:ie,k)),tmap(:,n),0.)
-      end do
-      !glai(:)=glai(:)+unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,n),0.)
+    do k=1,mplant
+      call cable_unpack(sv*real(casapool%cplant(:,k)),cplant(:,k))
+      call cable_unpack(sv*real(casapool%nplant(:,k)),niplant(:,k))
+      call cable_unpack(sv*real(casapool%pplant(:,k)),pplant(:,k))
     end do
+    do k=1,mlitter
+      call cable_unpack(sv*real(casapool%clitter(:,k)),clitter(:,k))
+      call cable_unpack(sv*real(casapool%nlitter(:,k)),nilitter(:,k))
+      call cable_unpack(sv*real(casapool%plitter(:,k)),plitter(:,k))
+    end do
+    do k=1,msoil
+      call cable_unpack(sv*real(casapool%csoil(:,k)),csoil(:,k))
+      call cable_unpack(sv*real(casapool%nsoil(:,k)),nisoil(:,k))
+      call cable_unpack(sv*real(casapool%psoil(:,k)),psoil(:,k))
+    end do
+    !call cable_unpack(sv*real(casamet%glai(:)),glai(:))
 
     
     ! POP
     if ( cable_pop==1 ) then
       mp_POP = count(casamet%iveg2==forest.or.casamet%iveg2==shrub)
-      allocate( pmap(ifull,maxtile), pmap_temp(mp) )      
+      allocate( pmap_temp(mp) )      
       allocate( Iwood(mp_POP), disturbance_interval(mp_POP,2) )
-      pmap(:,:) = .false.
+
+      do tile=1,ntiles
+        allocate(tdata(tile)%pmap(imax,maxtile))
+        tdata(tile)%pmap = .false.
+      end do
+      pmap_temp(:) = .false.
       ipos = 0
-      do n = 1,maxtile
-        is = tind(n,1)
-        ie = tind(n,2)
-        pind(n,1) = ipos + 1
-        do i = is,ie
-          if ( casamet%iveg2(i)==forest .or. casamet%iveg2(i)==shrub ) then
-            ipos = ipos + 1
-            Iwood(ipos) = i
-            pmap_temp(i) = .true.
-          end if
-        end do    
-        pind(n,2) = ipos
-        pmap(:,n) = unpack(pmap_temp(is:ie),tmap(:,n),.false.)
+      do tile=1,ntiles
+        popcount = 0
+        do n = 1,maxtile
+          is = tdata(tile)%tind(n,1)
+          ie = tdata(tile)%tind(n,2)
+          tdata(tile)%pind(n,1) = ipos + 1
+          do i = is,ie
+            if ( casamet%iveg2(i)==forest .or. casamet%iveg2(i)==shrub ) then
+              ipos = ipos + 1
+              popcount = popcount + 1
+              Iwood(ipos) = i
+              pmap_temp(i) = .true.
+            end if
+          end do    
+          tdata(tile)%pind(n,2) = ipos
+          tdata(tile)%pmap(:,n) = unpack(pmap_temp(is:ie),tdata(tile)%tmap(:,n),.false.)
+        end do  
+        tdata(tile)%np = tdata(tile)%np + popcount
       end do  
+      tdata(1)%poffset = 0
+      do tile=2,ntiles
+        tdata(tile)%poffset=tdata(tile-1)%poffset+tdata(tile-1)%np
+      end do
+
       disturbance_interval(:,:) = veg%disturbance_interval(Iwood(1:mp_POP),:)  
+
+      !Iwood only used inside threaded region from now on, remap so it is relative per tile
+      ipos = 0
+      do tile=1,ntiles
+        do n = 1,maxtile
+          is = tdata(tile)%tind(n,1)
+          ie = tdata(tile)%tind(n,2)
+          do i = is,ie
+            if ( casamet%iveg2(i)==forest .or. casamet%iveg2(i)==shrub ) then
+              ipos = ipos + 1
+              Iwood(ipos) = i - tdata(tile)%toffset
+            end if
+          end do    
+        end do  
+      end do  
+
       call POP_init(POP, disturbance_interval, mp_POP, Iwood(1:mp_POP)) 
       deallocate( pmap_temp )
       deallocate( Iwood, disturbance_interval )
+
     end if
     
   else  
@@ -2916,13 +3285,9 @@ if ( mp>0 ) then
   ! Calculate LAI and veg fraction diagnostics
   ! (needs to occur after CASA-CNP in case prognostic LAI is required)
   call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-  call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
+  call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp,sv,vl1,vl2,vl3,vl4,casamet,veg,ifull)
   vlai(:) = 0.
-  do n = 1,maxnb
-    is = tind(n,1)
-    ie = tind(n,2)
-    vlai(:) = vlai(:) + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,n),0.)
-  end do
+  call cable_unpack(sv*real(veg%vlai),vlai)
 
   ! MJT suggestion to get an approx inital albedo (before cable is called)
   where ( land(1:ifull) )
@@ -3502,26 +3867,22 @@ implicit none
 integer k, n, is, ie
 
 if ( mp>0 ) then
-  do n = 1,maxnb
-    is = tind(n,1)
-    ie = tind(n,2)
-    do k = 1,ms
-      ssnow%tgg(is:ie,k)   = real(pack(tgg(:,k),  tmap(:,n)),8)
-      ssnow%wb(is:ie,k)    = real(pack(wb(:,k),   tmap(:,n)),8)
-      ssnow%wbice(is:ie,k) = real(pack(wbice(:,k),tmap(:,n)),8)
-    end do
-    do k = 1,3
-      ssnow%tggsn(is:ie,k)  = real(pack(tggsn(:,k),tmap(:,n)),8)
-      ssnow%smass(is:ie,k)  = real(pack(smass(:,k),tmap(:,n)),8)
-      ssnow%ssdn(is:ie,k)   = real(pack(ssdn(:,k), tmap(:,n)),8)
-      ssnow%sdepth(is:ie,k) = real(pack(smass(:,k)/ssdn(:,k),tmap(:,n)),8)
-      ssnow%sconds(is:ie,k) = 0.3_8
-    end do      
-    ssnow%ssdnn(is:ie)  = real(pack(ssdnn, tmap(:,n)),8)
-    ssnow%isflag(is:ie) = pack(isflag,tmap(:,n))
-    ssnow%snowd(is:ie)  = real(pack(snowd, tmap(:,n)),8)
-    ssnow%snage(is:ie)  = real(pack(snage, tmap(:,n)),8)
+  do k = 1,ms
+    call cable_pack(tgg(:,k),ssnow%tgg(:,k))
+    call cable_pack(wb(:,k),ssnow%wb(:,k))
+    call cable_pack(wbice(:,k),ssnow%wbice(:,k))
   end do
+  do k = 1,3
+    call cable_pack(tggsn(:,k),ssnow%tggsn(:,k))
+    call cable_pack(smass(:,k),ssnow%smass(:,k))
+    call cable_pack(ssdn(:,k),ssnow%ssdn(:,k))
+    call cable_pack(smass(:,k)/ssdn(:,k),ssnow%sdepth(:,k))
+    ssnow%sconds(:,k) = 0.3_8
+  end do      
+  call cable_pack(ssdnn,ssnow%ssdnn)
+  call cable_pack(isflag,ssnow%isflag)
+  call cable_pack(snowd,ssnow%snowd)
+  call cable_pack(snage,ssnow%snage)
   if ( soil_struc==0 ) then
     do k = 1,ms
       ssnow%wb(:,k) = max(ssnow%wb(:,k), 0.5_8*soil%swilt)
@@ -3607,35 +3968,29 @@ integer k, n, is, ie
 if ( mp>0 ) then
     
   if ( icycle==0 ) then
-    !do n = 1,maxnb
-    !  do k = 1,ncp
-    !    bgc%cplant(tind(n,1):tind(n,2),k) = pack(cplant(:,k),tmap(:,n))
-    !  end do
-    !  do k = 1,ncs
-    !    bgc%csoil(tind(n,1):tind(n,2),k) = pack(csoil(:,k),tmap(:,n))
-    !  end do
+    !do k = 1,ncp
+    !  call cable_pack(cplant(:,k),bgc%cplant(:,k))
+    !end do
+    !do k = 1,ncs
+    !  call cable_pack(csoil(:,k),bgc%csoil(:,k))
     !end do
   else if ( icycle>=1 .and. icycle<=3 ) then
-    do n = 1,maxnb
-      is = tind(n,1)
-      ie = tind(n,2)
-      do k = 1,mplant
-        casapool%cplant(is:ie,k) = real(pack(cplant(:,k), tmap(:,n)),8)
-        casapool%nplant(is:ie,k) = real(pack(niplant(:,k),tmap(:,n)),8)
-        casapool%pplant(is:ie,k) = real(pack(pplant(:,k), tmap(:,n)),8)
-      end do
-      do k = 1,mlitter
-        casapool%clitter(is:ie,k) = real(pack(clitter(:,k), tmap(:,n)),8)
-        casapool%nlitter(is:ie,k) = real(pack(nilitter(:,k),tmap(:,n)),8)
-        casapool%plitter(is:ie,k) = real(pack(plitter(:,k), tmap(:,n)),8)
-      end do
-      do k = 1,msoil
-        casapool%csoil(is:ie,k) = real(pack(csoil(:,k), tmap(:,n)),8)
-        casapool%nsoil(is:ie,k) = real(pack(nisoil(:,k),tmap(:,n)),8)
-        casapool%psoil(is:ie,k) = real(pack(psoil(:,k), tmap(:,n)),8)
-      end do
-      !casamet%glai(is:ie) = real(pack(vlai,tmap(:,n)),8)
+    do k = 1,mplant
+      call cable_pack(cplant(:,k),casapool%cplant(:,k))
+      call cable_pack(niplant(:,k),casapool%nplant(:,k))
+      call cable_pack(pplant(:,k),casapool%pplant(:,k))
     end do
+    do k = 1,mlitter
+      call cable_pack(clitter(:,k),casapool%clitter(:,k))
+      call cable_pack(nilitter(:,k),casapool%nlitter(:,k))
+      call cable_pack(plitter(:,k),casapool%plitter(:,k))
+    end do
+    do k = 1,msoil
+      call cable_pack(csoil(:,k),casapool%csoil(:,k))
+      call cable_pack(nisoil(:,k),casapool%nsoil(:,k))
+      call cable_pack(psoil(:,k),casapool%psoil(:,k))
+    end do
+    !call cable_pack(vlai,casamet%glai(:))
   else
     write(6,*) "ERROR: Unknown ccycle option ",ccycle
     call ccmpi_abort(-1)
@@ -3657,12 +4012,8 @@ implicit none
 integer k, n, is, ie
 
 if ( mp>0 ) then
-  do n = 1,maxnb
-    is = tind(n,1)
-    ie = tind(n,2)
-    do k = 1,ms
-      ssnow%wb(is:ie,k)    = real(pack(wb(:,k),   tmap(:,n)),8)
-    end do
+  do k = 1,ms
+    call cable_pack(wb(:,k),ssnow%wb(:,k))
   end do
 end if
 
@@ -3685,7 +4036,7 @@ use vegpar_m
 implicit none
   
 logical, intent(in), optional :: usedefault
-integer k, n, ierr, idv, is, ie, ierr_casa, ierr_sli, ierr_pop
+integer k, n, ierr, idv, ierr_casa, ierr_sli, ierr_pop
 integer jyear,jmonth,jday,jhour,jmin,mins, ll, cc, hh, dd
 integer, dimension(4) :: ierr_check
 real(kind=8), dimension(ifull) :: dat
@@ -3762,97 +4113,95 @@ else
   ! Located CABLE tile data
   if ( myid==0 ) write(6,*) "Use tiled data to initialise CABLE"
   do n = 1,maxtile
-    is = tind(n,1)
-    ie = tind(n,2)
     write(vname,'("t",I1.1,"_tgg")') n
     call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
-        ssnow%tgg(is:ie,k) = pack(datms(:,k),tmap(:,n))
+        call cable_pack(datms(:,k),ssnow%tgg(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_wb")') n
     call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
-        ssnow%wb(is:ie,k) = pack(datms(:,k),tmap(:,n))
+        call cable_pack(datms(:,k),ssnow%wb(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_wbice")') n
     call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
-        ssnow%wbice(is:ie,k) = pack(datms(:,k),tmap(:,n))
+        call cable_pack(datms(:,k),ssnow%wbice(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_tggsn")') n
     call histrd4(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
-        ssnow%tggsn(is:ie,k) = pack(dat3(:,k),tmap(:,n))
+        call cable_pack(dat3(:,k),ssnow%tggsn(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_smass")') n
     call histrd4(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
-        ssnow%smass(is:ie,k) = pack(dat3(:,k),tmap(:,n))
+        call cable_pack(dat3(:,k),ssnow%smass(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_ssdn")') n
     call histrd4(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
-        ssnow%ssdn(is:ie,k) = pack(dat3(:,k),tmap(:,n))
+        call cable_pack(dat3(:,k),ssnow%ssdn(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_sdepth",I1.1)') n
     call histrd4(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
-        ssnow%sdepth(is:ie,k) = pack(dat3(:,k),tmap(:,n))
+        call cable_pack(dat3(:,k),ssnow%sdepth(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_sconds")') n
     call histrd4(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
-        ssnow%sconds(is:ie,k) = pack(dat3(:,k),tmap(:,n))
+        call cable_pack(dat3(:,k),ssnow%sconds(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_ssdnn")') n
     call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%ssdnn(is:ie)=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) call cable_pack(dat,ssnow%ssdnn(:),n)
     write(vname,'("t",I1.1,"_sflag")') n
     call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%isflag(is:ie)=nint(pack(dat,tmap(:,n)))
+    if ( n<=maxnb ) call cable_pack(nint(dat),ssnow%isflag(:),n)
     write(vname,'("t",I1.1,"_snd")') n
     call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%snowd(is:ie)=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) call cable_pack(dat,ssnow%snowd(:),n)
     write(vname,'("t",I1.1,"_osnd")') n
     call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%osnowd(is:ie)=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) call cable_pack(dat,ssnow%osnowd(:),n)
     write(vname,'("t",I1.1,"_snage")') n
     call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%snage(is:ie)=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) call cable_pack(dat,ssnow%snage(:),n)
     write(vname,'("t",I1.1,"_rtsoil")') n
     call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%rtsoil(is:ie)=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) call cable_pack(dat,ssnow%rtsoil(:),n)
     write(vname,'("t",I1.1,"_cansto")') n
     call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) canopy%cansto(is:ie)=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) call cable_pack(dat,canopy%cansto(:),n)
     write(vname,'("t",I1.1,"_us")') n
     call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) canopy%us(is:ie)=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) call cable_pack(dat,canopy%us(:),n)
     write(vname,'("t",I1.1,"_pudsto")') n
     call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%pudsto(is:ie)=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) call cable_pack(dat,ssnow%pudsto(:),n)
     write(vname,'("t",I1.1,"_wetfac")') n
     call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) ssnow%wetfac(is:ie)=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) call cable_pack(dat,ssnow%wetfac(:),n)
     write(vname,'("t",I1.1,"_ga")') n
     call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-    if ( n<=maxnb ) canopy%ga(is:ie)=pack(dat,tmap(:,n))
+    if ( n<=maxnb ) call cable_pack(dat,canopy%ga(:),n)
   end do
   if ( soil_struc==1 ) then
     if ( ierr_sli/=0 ) then
@@ -3860,63 +4209,59 @@ else
       call defaulttile_sli
     else    
       do n = 1,maxtile
-        is = tind(n,1)
-        ie = tind(n,2)
         write(vname,'("t",I1.1,"_hzero")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) ssnow%h0(is:ie)=pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,ssnow%h0(:),n)
         write(vname,'("t",I1.1,"_s")') n
         call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
         if ( n<=maxnb ) then
           do k = 1,ms
-            ssnow%S(is:ie,k) = pack(datms(:,k),tmap(:,n))
+            call cable_pack(datms(:,k),ssnow%S(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_tsoil")') n
         call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
         if ( n<=maxnb ) then
           do k = 1,ms
-            ssnow%tsoil(is:ie,k) = pack(datms(:,k),tmap(:,n))
+            call cable_pack(datms(:,k),ssnow%tsoil(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_thetai")') n
         call histrd4(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
         if ( n<=maxnb ) then
           do k = 1,ms
-            ssnow%thetai(is:ie,k) = pack(datms(:,k),tmap(:,n))
+            call cable_pack(datms(:,k),ssnow%thetai(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) ssnow%snowliq(is:ie,1) = pack(dat,tmap(:,n)) ! currently nsnow_max=1
+        if ( n<=maxnb ) call cable_pack(dat,ssnow%snowliq(:,1),n) ! currently nsnow_max=1
         write(vname,'("t",I1.1,"_tsurface")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) ssnow%tsurface(is:ie)=pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,ssnow%tsurface(:),n)
         write(vname,'("t",I1.1,"_nsnow")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) ssnow%nsnow(is:ie)=nint(pack(dat,tmap(:,n)))
+        if ( n<=maxnb ) call cable_pack(nint(dat),ssnow%nsnow(:),n)
         write(vname,'("t",I1.1,"_fwsoil")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) canopy%fwsoil(is:ie)=pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,canopy%fwsoil(:),n)
       end do  
     end if
   end if
   if ( icycle==0 ) then
     !do n = 1,maxtile
-    !  is = tind(n,1)
-    !  ie = tind(n,2)
     !  write(vname,'("t",I1.1,"_cplant")') n
     !  call histrd4(iarchi-1,ierr,vname,il_g,ncp,datncp(:,1:ncp),ifull)
     !  if ( n<=maxnb ) then
     !    do k = 1,ncp
-    !      bgc%cplant(is:ie,k) = pack(datncp(:,k),tmap(:,n))
+    !      call cable_pack(datncp(:,k),bgc%cplant(:,k),n)
     !    end do
     !  end if
     !  write(vname,'("t",I1.1,"_csoil")') n
     !  call histrd4(iarchi-1,ierr,vname,il_g,ncs,datncs(:,1:ncs),ifull)
     !  if ( n<=maxnb ) then
     !    do k = 1,ncs
-    !      bgc%csoil(is:ie,k) = pack(datncs(:,k),tmap(:,n))
+    !      call cable_pack(datncs(:,k),bgc%csoil(:,k),n)
     !    end do
     !  end if
     !end do  
@@ -3927,144 +4272,142 @@ else
     else
       if ( myid==0 ) write(6,*) "Use tiled data to initialise CASA-CNP"  
       do n = 1,maxtile
-        is = tind(n,1)
-        ie = tind(n,2)
         write(vname,'("t",I1.1,"_cplant")') n
         call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
-            casapool%cplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
+            call cable_pack(datmplant(:,k),casapool%cplant(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_nplant")') n
         call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
-            casapool%nplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
+            call cable_pack(datmplant(:,k),casapool%nplant(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_pplant")') n
         call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
-            casapool%pplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
+            call cable_pack(datmplant(:,k),casapool%pplant(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_clitter")') n
         call histrd4(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
         if ( n<=maxnb ) then
           do k = 1,mlitter
-            casapool%clitter(is:ie,k) = pack(datmlitter(:,k),tmap(:,n))
+            call cable_pack(datmlitter(:,k),casapool%clitter(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_nlitter")') n
         call histrd4(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
         if ( n<=maxnb ) then
           do k = 1,mlitter
-            casapool%nlitter(is:ie,k) = pack(datmlitter(:,k),tmap(:,n))
+            call cable_pack(datmlitter(:,k),casapool%nlitter(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_plitter")') n
         call histrd4(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
         if ( n<=maxnb ) then
           do k = 1,mlitter
-            casapool%plitter(is:ie,k) = pack(datmlitter(:,k),tmap(:,n))
+            call cable_pack(datmlitter(:,k),casapool%plitter(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_csoil")') n
         call histrd4(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
         if ( n<=maxnb ) then
           do k = 1,msoil
-            casapool%csoil(is:ie,k) = pack(datmsoil(:,k),tmap(:,n))
+            call cable_pack(datmsoil(:,k),casapool%csoil(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_nsoil")') n
         call histrd4(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
         if ( n<=maxnb ) then
           do k = 1,msoil
-            casapool%nsoil(is:ie,k) = pack(datmsoil(:,k),tmap(:,n))
+            call cable_pack(datmsoil(:,k),casapool%nsoil(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_psoil")') n
         call histrd4(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
         if ( n<=maxnb ) then
           do k = 1,msoil
-            casapool%psoil(is:ie,k) = pack(datmsoil(:,k),tmap(:,n))
+            call cable_pack(datmsoil(:,k),casapool%psoil(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_glai")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casamet%glai(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casamet%glai,n)
         write(vname,'("t",I1.1,"_phen")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) phen%phen(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,phen%phen,n)
         write(vname,'("t",I1.1,"_aphen")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) phen%aphen(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,phen%aphen,n)
         write(vname,'("t",I1.1,"_phenphase")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) phen%phase(is:ie) = nint(pack(dat,tmap(:,n)))
+        if ( n<=maxnb ) call cable_pack(nint(dat),phen%phase,n)
         write(vname,'("t",I1.1,"_doyphase3")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) phen%doyphase(is:ie,3) = nint(pack(dat,tmap(:,n)))
+        if ( n<=maxnb ) call cable_pack(nint(dat),phen%doyphase(:,3),n)
         write(vname,'("t",I1.1,"_clabile")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casapool%clabile(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casapool%clabile,n)
         write(vname,'("t",I1.1,"_nsoilmin")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casapool%nsoilmin(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casapool%nsoilmin,n)
         write(vname,'("t",I1.1,"_psoillab")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casapool%psoillab(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casapool%psoillab,n)
         write(vname,'("t",I1.1,"_psoilsorb")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casapool%psoilsorb(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casapool%psoilsorb,n)
         write(vname,'("t",I1.1,"_psoilocc")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casapool%psoilocc(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casapool%psoilocc,n)
         write(vname,'("t",I1.1,"_crmplant")') n
         call histrd4(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
-            casaflux%crmplant(is:ie,k) = pack(datmplant(:,k),tmap(:,n))
+            call cable_pack(datmplant(:,k),casaflux%crmplant(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_fracsapwood")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casaflux%frac_sapwood(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%frac_sapwood,n)
         write(vname,'("t",I1.1,"_sapwoodarea")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casaflux%sapwood_area(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%sapwood_area,n)
         write(vname,'("t",I1.1,"_crsoil")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casaflux%crsoil(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%crsoil,n)
         write(vname,'("t",I1.1,"_cnpp")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casaflux%cnpp(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%cnpp,n)
         write(vname,'("t",I1.1,"_clabloss")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casaflux%clabloss(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%clabloss,n)
         write(vname,'("t",I1.1,"_crgplant")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casaflux%crgplant(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%crgplant,n)
         write(vname,'("t",I1.1,"_stemnpp")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casaflux%stemnpp(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%stemnpp,n)
         write(vname,'("t",I1.1,"_LAImax")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casabal%laimax(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casabal%laimax,n)
         write(vname,'("t",I1.1,"_Cleafmean")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casabal%cleafmean(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casabal%cleafmean,n)
         write(vname,'("t",I1.1,"_Crootmean")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) casabal%crootmean(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,casabal%crootmean,n)
         write(vname,'("t",I1.1,"_fpn")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) canopy%fpn(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,canopy%fpn,n)
         write(vname,'("t",I1.1,"_frday")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( n<=maxnb ) canopy%frday(is:ie) = pack(dat,tmap(:,n))
+        if ( n<=maxnb ) call cable_pack(dat,canopy%frday,n)
       end do  
     end if
   end if
@@ -4074,48 +4417,46 @@ else
     dat91days = 0._8
     dat31days = 0._8
     do n = 1,maxtile
-      is = tind(n,1)
-      ie = tind(n,2)
       !write(vname,'("t",I1.1,"_climateevapPT")') n
       !call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      !if ( n<=maxnb ) climate%evap_PT(is:ie) = pack(dat,tmap(:,n))
+      !if ( n<=maxnb ) call cable_pack(dat,climate%evap_PT,n)
       !write(vname,'("t",I1.1,"_climateaevap")') n
       !call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      !if ( n<=maxnb ) climate%aevap(is:ie) = pack(dat,tmap(:,n))
+      !if ( n<=maxnb ) call cable_pack(dat,climate%aevap,n)
       write(vname,'("t",I1.1,"_climatemtempmax")') n
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%mtemp_max(is:ie) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) call cable_pack(dat,climate%mtemp_max,n)
       write(vname,'("t",I1.1,"_climatemtempmin")') n
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%mtemp_min(is:ie) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) call cable_pack(dat,climate%mtemp_min,n)
       write(vname,'("t",I1.1,"_climateqtempmax")') n
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%qtemp_max(is:ie) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) call cable_pack(dat,climate%qtemp_max,n)
       write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%qtemp_max_last_year(is:ie) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) call cable_pack(dat,climate%qtemp_max_last_year,n)
       write(vname,'("t",I1.1,"_climategdd0")') n
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%gdd0(is:ie) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) call cable_pack(dat,climate%gdd0,n)
       write(vname,'("t",I1.1,"_climategdd5")') n
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%gdd5(is:ie) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) call cable_pack(dat,climate%gdd5,n)
       write(vname,'("t",I1.1,"_climateagdd0")') n
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%agdd0(is:ie) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) call cable_pack(dat,climate%agdd0,n)
       write(vname,'("t",I1.1,"_climateagdd5")') n
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%agdd5(is:ie) = pack(dat,tmap(:,n))
+      if ( n<=maxnb ) call cable_pack(dat,climate%agdd5,n)
       write(vname,'("t",I1.1,"_climatechilldays")') n
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      if ( n<=maxnb ) climate%chilldays(is:ie) = nint(pack(dat,tmap(:,n)))
+      if ( n<=maxnb ) call cable_pack(nint(dat),climate%chilldays,n)
       write(vname,'("t",I1.1,"_climatedtemp")') 1 ! all tiles have the same data
       call histrd4(iarchi-1,ierr,vname,il_g,91,dat91days,ifull)
       if ( n<=maxnb ) then
         do k = 1,91  
-          climate%dtemp_91(is:ie,k) = pack(dat91days(:,k),tmap(:,n))
+          call cable_pack(dat91days(:,k),climate%dtemp_91(:,k),n)
           if ( k>60 ) then
-            climate%dtemp_31(is:ie,k-60) = pack(dat91days(:,k),tmap(:,n))
+            call cable_pack(dat91days(:,k),climate%dtemp_31(:,k-60),n)
           end if
         end do
       end if
@@ -4123,7 +4464,7 @@ else
       call histrd4(iarchi-1,ierr,vname,il_g,31,dat31days,ifull)
       if ( n<=maxnb ) then
         do k = 1,31  
-          climate%dmoist_31(is:ie,k) = pack(dat31days(:,k),tmap(:,n))
+          call cable_pack(dat31days(:,k),climate%dmoist_31(:,k),n)
         end do  
       end if
     end do  
@@ -4140,620 +4481,506 @@ else
       datpatch = 0._8
       datpc = 0._8
       do n = 1,maxtile  
-        is = pind(n,1)
-        ie = pind(n,2)
         write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%cmass_sum = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%cmass_sum,n)
         write(vname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%cmass_sum_old = pack(dat,pmap(:,n))
+        call  pop_pack(dat,pop%pop_grid(:)%cmass_sum_old,n)
         write(vname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%cheartwood_sum = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%cheartwood_sum,n)
         write(vname,'("t",I1.1,"_pop_grid_csapwood_sum")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%csapwood_sum = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%csapwood_sum,n)
         write(vname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%csapwood_sum_old = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%csapwood_sum_old,n)
         write(vname,'("t",I1.1,"_pop_grid_densindiv")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%densindiv = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%densindiv,n)
         write(vname,'("t",I1.1,"_pop_grid_height_mean")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%height_mean = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%height_mean,n)
         write(vname,'("t",I1.1,"_pop_grid_height_max")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%height_max = pack(dat,pmap(:,n))        
+        call pop_pack(dat,pop%pop_grid(:)%height_max,n)        
         write(vname,'("t",I1.1,"_pop_grid_basal_area")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%basal_area = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%basal_area,n)
         write(vname,'("t",I1.1,"_pop_grid_sapwood_loss")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%sapwood_loss = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%sapwood_loss,n)
         write(vname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%sapwood_area_loss = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%sapwood_area_loss,n)
         write(vname,'("t",I1.1,"_pop_grid_stress_mortality")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%stress_mortality = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%stress_mortality,n)
         write(vname,'("t",I1.1,"_pop_grid_crowding_mortality")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%crowding_mortality = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%crowding_mortality,n)
         write(vname,'("t",I1.1,"_pop_grid_fire_mortality")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%fire_mortality = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%fire_mortality,n)
         write(vname,'("t",I1.1,"_pop_grid_cat_mortality")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%cat_mortality = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%cat_mortality,n)
         write(vname,'("t",I1.1,"_pop_grid_res_mortality")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%res_mortality = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%res_mortality,n)
         write(vname,'("t",I1.1,"_pop_grid_growth")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%growth = pack(dat,pmap(:,n))        
+        call pop_pack(dat,pop%pop_grid(:)%growth,n)        
         write(vname,'("t",I1.1,"_pop_grid_area_growth")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%area_growth = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%area_growth,n)
         write(vname,'("t",I1.1,"_pop_grid_crown_cover")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%crown_cover = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%crown_cover,n)
         write(vname,'("t",I1.1,"_pop_grid_crown_area")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%crown_area = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%crown_area,n)
         write(vname,'("t",I1.1,"_pop_grid_crown_volume")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%crown_volume = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%crown_volume,n)
         write(vname,'("t",I1.1,"_pop_grid_sapwood_area")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%sapwood_area = pack(dat,pmap(:,n))        
+        call pop_pack(dat,pop%pop_grid(:)%sapwood_area,n)        
         write(vname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%sapwood_area_old = pack(dat,pmap(:,n))
+        call pop_pack(dat,pop%pop_grid(:)%sapwood_area_old,n)
         write(vname,'("t",I1.1,"_pop_grid_KClump")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        if ( is<=ie ) pop%pop_grid(is:ie)%KClump = pack(dat,pmap(:,n))    
+        call pop_pack(dat,pop%pop_grid(:)%KClump,n)    
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll  
           call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-          if ( is<=ie ) pop%pop_grid(is:ie)%biomass(ll) = pack(dat,pmap(:,n))
+          call pop_pack(dat,pop%pop_grid(:)%biomass(ll),n)
         end do
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll
           call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-          if ( is<=ie ) pop%pop_grid(is:ie)%density(ll) = pack(dat,pmap(:,n))
+          call pop_pack(dat,pop%pop_grid(:)%density(ll),n)
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll  
           call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-          if ( is<=ie ) pop%pop_grid(is:ie)%hmean(ll) = pack(dat,pmap(:,n))
+          call pop_pack(dat,pop%pop_grid(:)%hmean(ll),n)
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll
           call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-          if ( is<=ie ) pop%pop_grid(is:ie)%hmax(ll) = pack(dat,pmap(:,n))
+          call pop_pack(dat,pop%pop_grid(:)%hmax(ll),n)
         end do
         do hh = 1,POP_HEIGHT_BINS
           write(vname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh  
           call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-          if ( is<=ie ) pop%pop_grid(is:ie)%cmass_stem_bin(hh) = pack(dat,pmap(:,n)) 
+          call pop_pack(dat,pop%pop_grid(:)%cmass_stem_bin(hh),n) 
         end do  
         do hh = 1,POP_HEIGHT_BINS
           write(vname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh
           call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-          if ( is<=ie ) pop%pop_grid(is:ie)%densindiv_bin(hh) = pack(dat,pmap(:,n))
+          call pop_pack(dat,pop%pop_grid(:)%densindiv_bin(hh),n)
         end do
         do hh = 1,POP_HEIGHT_BINS
           write(vname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh  
           call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-          if ( is<=ie ) pop%pop_grid(is:ie)%height_bin(hh) = pack(dat,pmap(:,n))        
+          call pop_pack(dat,pop%pop_grid(:)%height_bin(hh),n)        
         end do
         do hh = 1,POP_HEIGHT_BINS
           write(vname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh
           call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-          if ( is<=ie ) pop%pop_grid(is:ie)%diameter_bin(hh) = pack(dat,pmap(:,n))
+          call pop_pack(dat,pop%pop_grid(:)%diameter_bin(hh),n)
         end do
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd  
           call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-          if ( is<=ie ) pop%pop_grid(is:ie)%n_age(dd) = nint(pack(dat,pmap(:,n)))
+          call pop_pack(nint(dat),pop%pop_grid(:)%n_age(dd),n)
         end do  
         write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%id = nint(pack(datpatch(:,k),pmap(:,n)))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(nint(datpatch(:,k)),pop%pop_grid(:)%patch(k)%id,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_freq")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%freq(k) = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%freq(k),n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_freq_old")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%freq_old(k) = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if 
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%freq_old(k),n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%factor_recruit = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%factor_recruit,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%pgap = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%pgap,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_lai")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%lai = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%lai,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_biomass")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%biomass = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%biomass,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%biomass_old = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%biomass_old,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%sapwood = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%sapwood,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%heartwood = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%heartwood,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%sapwood_old = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%sapwood_old,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%sapwood_area = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%sapwood_area,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%sapwood_area_old = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%sapwood_area_old,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%stress_mortality = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%stress_mortality,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%fire_mortality = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%fire_mortality,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%cat_mortality = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%cat_mortality,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%crowding_mortality = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%crowding_mortality,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%cpc = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%cpc,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%sapwood_loss = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%sapwood_loss,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%sapwood_area_loss = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%sapwood_area_loss,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_growth")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%growth = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%growth,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%area_growth = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%area_growth,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%frac_NPP = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%frac_NPP,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%frac_respiration = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%frac_respiration,n)
+        end do
         write(vname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-        if ( is<=ie ) then
-          do k = 1,POP_NPATCH
-            pop%pop_grid(is:ie)%patch(k)%frac_light_uptake = pack(datpatch(:,k),pmap(:,n))
-          end do
-        end if  
+        do k = 1,POP_NPATCH
+          call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%frac_light_uptake,n)
+        end do
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
           call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-          if ( is<=ie ) then
-            do k = 1,POP_NPATCH
-              pop%pop_grid(is:ie)%patch(k)%disturbance_interval(dd) = nint(pack(datpatch(:,k),pmap(:,n)))
-            end do
-          end if  
+          do k = 1,POP_NPATCH
+            call pop_pack(nint(datpatch(:,k)),pop%pop_grid(:)%patch(k)%disturbance_interval(dd),n)
+          end do
         end do  
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
           call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-          if ( is<=ie ) then
-            do k = 1,POP_NPATCH
-              pop%pop_grid(is:ie)%patch(k)%first_disturbance_year(dd) = nint(pack(datpatch(:,k),pmap(:,n)))
-            end do
-          end if  
+          do k = 1,POP_NPATCH
+            call pop_pack(nint(datpatch(:,k)),pop%pop_grid(:)%patch(k)%first_disturbance_year(dd),n)
+          end do
         end do  
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
           call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-          if ( is<=ie ) then
-            do k = 1,POP_NPATCH
-              pop%pop_grid(is:ie)%patch(k)%age(dd) = nint(pack(datpatch(:,k),pmap(:,n)))
-            end do
-          end if  
+          do k = 1,POP_NPATCH
+            call pop_pack(nint(datpatch(:,k)),pop%pop_grid(:)%patch(k)%age(dd),n)
+          end do
         end do  
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
           call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-          if ( is<=ie ) then
-            do k = 1,POP_NPATCH
-              pop%pop_grid(is:ie)%ranked_age_unique(k,dd) = nint(pack(datpatch(:,k),pmap(:,n)))
-            end do
-          end if  
+          do k = 1,POP_NPATCH
+            call pop_pack(nint(datpatch(:,k)),pop%pop_grid(:)%ranked_age_unique(k,dd),n)
+          end do
         end do  
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
           call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-          if ( is<=ie ) then
-            do k = 1,POP_NPATCH
-              pop%pop_grid(is:ie)%freq_ranked_age_unique(k,dd) = pack(datpatch(:,k),pmap(:,n))
-            end do
-          end if  
+          do k = 1,POP_NPATCH
+            call pop_pack(datpatch(:,k),pop%pop_grid(:)%freq_ranked_age_unique(k,dd),n)
+          end do
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
           call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-          if ( is<=ie ) then
-            do k = 1,POP_NPATCH  
-              pop%pop_grid(is:ie)%patch(k)%layer(ll)%ncohort = nint(pack(datpatch(:,k),pmap(:,n)))
-            end do  
-          end if  
+          do k = 1,POP_NPATCH  
+            call pop_pack(nint(datpatch(:,k)),pop%pop_grid(:)%patch(k)%layer(ll)%ncohort,n)
+          end do  
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
           call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-          if ( is<=ie ) then
-            do k = 1,POP_NPATCH  
-              pop%pop_grid(is:ie)%patch(k)%layer(ll)%biomass = pack(datpatch(:,k),pmap(:,n))
-            end do  
-          end if  
+          do k = 1,POP_NPATCH  
+            call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%layer(ll)%biomass,n)
+          end do  
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
           call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-          if ( is<=ie ) then
-            do k = 1,POP_NPATCH  
-              pop%pop_grid(is:ie)%patch(k)%layer(ll)%density = pack(datpatch(:,k),pmap(:,n))
-            end do  
-          end if  
+          do k = 1,POP_NPATCH  
+            call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%layer(ll)%density,n)
+          end do  
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
           call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-          if ( is<=ie ) then
-            do k = 1,POP_NPATCH  
-              pop%pop_grid(is:ie)%patch(k)%layer(ll)%hmean = pack(datpatch(:,k),pmap(:,n))
-            end do  
-          end if  
+          do k = 1,POP_NPATCH  
+            call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%layer(ll)%hmean,n)
+          end do  
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
           call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
-          if ( is<=ie ) then
-            do k = 1,POP_NPATCH  
-              pop%pop_grid(is:ie)%patch(k)%layer(ll)%hmax = pack(datpatch(:,k),pmap(:,n))
-            end do  
-          end if  
+          do k = 1,POP_NPATCH  
+            call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%layer(ll)%hmax,n)
+          end do  
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT                  
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%age = nint(pack(datpc(:,k,cc),pmap(:,n)))
-              end do  
+          do cc = 1,POP_NCOHORT                  
+            do k = 1,POP_NPATCH  
+              call pop_pack(nint(datpc(:,k,cc)),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%age,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT    
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%id = nint(pack(datpc(:,k,cc),pmap(:,n)))
-              end do  
+          do cc = 1,POP_NCOHORT    
+            do k = 1,POP_NPATCH  
+              call pop_pack(nint(datpc(:,k,cc)),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%id,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT    
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%biomass = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT    
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%biomass,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT    
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%density = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT    
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%density,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT    
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT    
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT    
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT    
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake,n)
             end do  
-          end if  
+          end do  
         end do        
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_interception = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_interception,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_respiration = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_respiration,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_NPP = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_NPP,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar,n)
             end do  
-          end if  
+          end do  
         end do         
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%crown_area = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%crown_area,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Pgap = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Pgap,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%height = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%height,n)
             end do  
-          end if  
+          end do  
         end do         
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%diameter = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%diameter,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%sapwood = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%heartwood = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%heartwood,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%sapwood_area = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood_area,n)
             end do  
-          end if  
+          end do  
         end do         
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%basal_area = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%basal_area,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%LAI = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%LAI,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Cleaf = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Cleaf,n)
             end do  
-          end if  
+          end do  
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
           call histrd5(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
-          if ( is<=ie ) then
-            do cc = 1,POP_NCOHORT
-              do k = 1,POP_NPATCH  
-                pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Croot = pack(datpc(:,k,cc),pmap(:,n))
-              end do  
+          do cc = 1,POP_NCOHORT
+            do k = 1,POP_NPATCH  
+              call pop_pack(datpc(:,k,cc),pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Croot,n)
             end do  
-          end if  
+          end do  
         end do 
       end do
       deallocate( datpatch )
@@ -4762,14 +4989,12 @@ else
   end if    
   ! CABLE correction terms
   !do n = 1,maxtile
-  !  is = tind(n,1)
-  !  ie = tind(n,2)
   !  write(vname,'("t",I1.1,"_fhscor")') n
   !  call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-  !  if ( n<=maxnb ) canopy%fhs_cor(is:ie) = pack(dat,tmap(:,n))
+  !  if ( n<=maxnb ) call cable_pack(dat,canopy%fhs_cor,n)
   !  write(vname,'("t",I1.1,"_fescor")') n
   !  call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-  !  if ( n<=maxnb ) canopy%fes_cor(is:ie) = pack(dat,tmap(:,n))
+  !  if ( n<=maxnb ) call cable_pack(dat,canopy%fes_cor,n)
   !end do
   ! albvisdir, albvisdif, albnirdir, albnirdif are used when nrad=5
   vname = 'albvisdir'
@@ -4795,12 +5020,8 @@ vlai(:) = 0.
 sigmf(:) = 0.
 if ( mp>0 ) then
   call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-  call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp)
-  do n = 1,maxnb
-    is = tind(n,1)
-    ie = tind(n,2)
-    vlai(:) = vlai(:) + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,n),0.)
-  end do
+  call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp,sv,vl1,vl2,vl3,vl4,casamet,veg,ifull)
+  call cable_unpack(sv*real(veg%vlai),vlai)
 end if
 
 return
@@ -5633,7 +5854,7 @@ use vegpar_m
 implicit none
   
 integer, intent(in) :: idnc,iarch
-integer k,n,is,ie
+integer k,n
 integer cc,dd,hh,ll
 real(kind=8), dimension(ifull) :: dat
 real(kind=8), dimension(:,:), allocatable, save :: datpatch
@@ -5644,158 +5865,152 @@ character(len=80) vname
 logical, intent(in) :: local
   
 do n = 1,maxtile  ! tile
-  is = tind(n,1)
-  ie = tind(n,2)
   do k = 1,ms     ! soil layer
     dat=real(tgg(:,k),8)
-    if (n<=maxnb) dat=unpack(ssnow%tgg(is:ie,k),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(ssnow%tgg(:,k),dat,n)
     write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
   do k = 1,ms
     dat=real(wb(:,k),8)
-    if (n<=maxnb) dat=unpack(ssnow%wb(is:ie,k),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(ssnow%wb(:,k),dat,n)
     write(vname,'("t",I1.1,"_wb",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
   do k = 1,ms
     dat=real(wbice(:,k),8)
-    if (n<=maxnb) dat=unpack(ssnow%wbice(is:ie,k),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(ssnow%wbice(:,k),dat,n)
     write(vname,'("t",I1.1,"_wbice",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
   do k = 1,3 ! snow layer
     dat=real(tggsn(:,k),8)
-    if (n<=maxnb) dat=unpack(ssnow%tggsn(is:ie,k),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(ssnow%tggsn(:,k),dat,n)
     write(vname,'("t",I1.1,"_tggsn",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
   do k = 1,3
     dat=real(smass(:,k),8)
-    if (n<=maxnb) dat=unpack(ssnow%smass(is:ie,k),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(ssnow%smass(:,k),dat,n)
     write(vname,'("t",I1.1,"_smass",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
   do k = 1,3
     dat=real(ssdn(:,k),8)
-    if (n<=maxnb) dat=unpack(ssnow%ssdn(is:ie,k),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(ssnow%ssdn(:,k),dat,n)
     write(vname,'("t",I1.1,"_ssdn",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do  
   do k = 1,3
     dat=real(snowd/3.,8)
-    if (n<=maxnb) dat=unpack(ssnow%sdepth(is:ie,k),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(ssnow%sdepth(:,k),dat,n)
     write(vname,'("t",I1.1,"_sdepth",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
   do k = 1,3
     dat=0.2_8
-    if (n<=maxnb) dat=unpack(ssnow%sconds(is:ie,k),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(ssnow%sconds(:,k),dat,n)
     write(vname,'("t",I1.1,"_sconds",I1.1)') n,k
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
   dat=real(ssdnn,8)
-  if (n<=maxnb) dat=unpack(ssnow%ssdnn(is:ie),tmap(:,n),dat)
+  if (n<=maxnb) call cable_unpack(ssnow%ssdnn,dat,n)
   write(vname,'("t",I1.1,"_ssdnn")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=real(isflag,8)
-  if (n<=maxnb) dat=unpack(real(ssnow%isflag(is:ie),8),tmap(:,n),dat)
+  if (n<=maxnb) call cable_unpack(real(ssnow%isflag,8),dat,n)
   write(vname,'("t",I1.1,"_sflag")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=real(snowd,8)
-  if (n<=maxnb) dat=unpack(ssnow%snowd(is:ie),tmap(:,n),dat)
+  if (n<=maxnb) call cable_unpack(ssnow%snowd,dat,n)
   write(vname,'("t",I1.1,"_snd")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=real(snowd,8)
-  if (n<=maxnb) dat=unpack(ssnow%osnowd(is:ie),tmap(:,n),dat)
+  if (n<=maxnb) call cable_unpack(ssnow%osnowd,dat,n)
   write(vname,'("t",I1.1,"_osnd")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=real(snage,8)
-  if (n<=maxnb) dat=unpack(ssnow%snage(is:ie),tmap(:,n),dat)
+  if (n<=maxnb) call cable_unpack(ssnow%snage,dat,n)
   write(vname,'("t",I1.1,"_snage")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=100._8
-  if (n<=maxnb) dat=unpack(ssnow%rtsoil(is:ie),tmap(:,n),dat)
+  if (n<=maxnb) call cable_unpack(ssnow%rtsoil,dat,n)
   write(vname,'("t",I1.1,"_rtsoil")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)   
   dat=0._8
-  if (n<=maxnb) dat=unpack(canopy%cansto(is:ie),tmap(:,n),dat)
+  if (n<=maxnb) call cable_unpack(canopy%cansto,dat,n)
   write(vname,'("t",I1.1,"_cansto")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=0.01_8 ! ustar
-  if (n<=maxnb) dat=unpack(canopy%us(is:ie),tmap(:,n),dat)
+  if (n<=maxnb) call cable_unpack(canopy%us,dat,n)
   write(vname,'("t",I1.1,"_us")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)  
   dat=0._8
-  if (n<=maxnb) dat=unpack(ssnow%pudsto(is:ie),tmap(:,n),dat)
+  if (n<=maxnb) call cable_unpack(ssnow%pudsto,dat,n)
   write(vname,'("t",I1.1,"_pudsto")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=0._8
-  if (n<=maxnb) dat=unpack(ssnow%wetfac(is:ie),tmap(:,n),dat)
+  if (n<=maxnb) call cable_unpack(ssnow%wetfac,dat,n)
   write(vname,'("t",I1.1,"_wetfac")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   dat=0._8
-  if (n<=maxnb) dat=unpack(canopy%ga(is:ie),tmap(:,n),dat)
+  if (n<=maxnb) call cable_unpack(canopy%ga,dat,n)
   write(vname,'("t",I1.1,"_ga")') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
 end do
 if ( soil_struc==1 ) then
   do n = 1,maxtile  ! tile
-    is = tind(n,1)
-    ie = tind(n,2)
     dat=0._8
-    if (n<=maxnb) dat=unpack(ssnow%h0(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(ssnow%h0,dat,n)
     write(vname,'("t",I1.1,"_hzero")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)   
     do k = 1,ms     ! soil layer
       dat=0._8
-      if (n<=maxnb) dat=unpack(ssnow%S(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(ssnow%S(:,k),dat,n)
       write(vname,'("t",I1.1,"_s",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,ms
       dat=0._8
-      if (n<=maxnb) dat=unpack(ssnow%tsoil(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(ssnow%tsoil(:,k),dat,n)
       write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,ms
       dat=0._8
-      if (n<=maxnb) dat=unpack(ssnow%thetai(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(ssnow%thetai(:,k),dat,n)
       write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     dat=0._8
-    if (n<=maxnb) dat=unpack(ssnow%snowliq(is:ie,1),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(ssnow%snowliq(:,1),dat,n)
     write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(ssnow%tsurface(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(ssnow%tsurface,dat,n)
     write(vname,'("t",I1.1,"_tsurface")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)   
     dat=0._8
-    if (n<=maxnb) dat=unpack(real(ssnow%nsnow(is:ie),8),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(real(ssnow%nsnow,8),dat,n)
     write(vname,'("t",I1.1,"_nsnow")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)   
     dat=0._8
-    if (n<=maxnb) dat=unpack(canopy%fwsoil(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(canopy%fwsoil,dat,n)
     write(vname,'("t",I1.1,"_fwsoil")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.) 
   end do
 end if
 if ( icycle==0 ) then
   !do n = 1,maxtile  ! tile
-  !  is = tind(n,1)
-  !  ie = tind(n,2)
     !do k = 1,ncp
     !  dat=real(cplant(:,k),8)
-    !  if (n<=maxnb) dat=unpack(bgc%cplant(is:ie,k),tmap(:,n),dat)
+    !  if (n<=maxnb) call cable_unpack(bgc%cplant(:,k),dat,n)
     !  write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
     !  call histwrt3(dat,vname,idnc,iarch,local,.true.)    
     !end do
     !do k = 1,ncs
     !  dat=real(csoil(:,k),8)
-    !  if (n<=maxnb) dat=unpack(bgc%csoil(is:ie,k),tmap(:,n),dat)
+    !  if (n<=maxnb) call cable_unpack(bgc%csoil(:,k),dat,n)
     !  write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
     !  call histwrt3(dat,vname,idnc,iarch,local,.true.)
     !end do
@@ -5803,154 +6018,152 @@ if ( icycle==0 ) then
 else
   ! MJT notes - possible rounding error when using CASA CNP  
   do n = 1,maxtile  ! tile
-    is = tind(n,1)
-    ie = tind(n,2)
     do k = 1,mplant     
       dat=0._8
-      if (n<=maxnb) dat=unpack(casapool%cplant(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(casapool%cplant(:,k),dat,n)
       write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,mplant
       dat=0._8
-      if (n<=maxnb) dat=unpack(casapool%nplant(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(casapool%nplant(:,k),dat,n)
       write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,mplant
       dat=0._8
-      if (n<=maxnb) dat=unpack(casapool%pplant(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(casapool%pplant(:,k),dat,n)
       write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,mlitter
       dat=0._8
-      if (n<=maxnb) dat=unpack(casapool%clitter(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(casapool%clitter(:,k),dat,n)
       write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,mlitter
       dat=0._8
-      if (n<=maxnb) dat=unpack(casapool%nlitter(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(casapool%nlitter(:,k),dat,n)
       write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do  
     do k = 1,mlitter
       dat=0._8
-      if (n<=maxnb) dat=unpack(casapool%plitter(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(casapool%plitter(:,k),dat,n)
       write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,msoil
       dat=0._8
-      if (n<=maxnb) dat=unpack(casapool%csoil(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(casapool%csoil(:,k),dat,n)
       write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,msoil
       dat=0._8
-      if (n<=maxnb) dat=unpack(casapool%nsoil(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(casapool%nsoil(:,k),dat,n)
       write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,msoil
       dat=0._8
-      if (n<=maxnb) dat=unpack(casapool%psoil(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(casapool%psoil(:,k),dat,n)
       write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     dat=0._8
-    if (n<=maxnb) dat=unpack(casamet%glai(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casamet%glai(:),dat,n)
     write(vname,'("t",I1.1,"_glai")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(phen%phen(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(phen%phen(:),dat,n)
     write(vname,'("t",I1.1,"_phen")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(phen%aphen(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(phen%aphen(:),dat,n)
     write(vname,'("t",I1.1,"_aphen")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(real(phen%phase(is:ie),8),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(real(phen%phase(:),8),dat,n)
     write(vname,'("t",I1.1,"_phenphase")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(real(phen%doyphase(is:ie,3),8),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(real(phen%doyphase(:,3),8),dat,n)
     write(vname,'("t",I1.1,"_doyphase3")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casapool%clabile(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casapool%clabile(:),dat,n)
     write(vname,'("t",I1.1,"_clabile")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casapool%nsoilmin(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casapool%nsoilmin(:),dat,n)
     write(vname,'("t",I1.1,"_nsoilmin")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casapool%psoillab(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casapool%psoillab(:),dat,n)
     write(vname,'("t",I1.1,"_psoillab")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casapool%psoilsorb(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casapool%psoilsorb(:),dat,n)
     write(vname,'("t",I1.1,"_psoilsorb")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casapool%psoilocc(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casapool%psoilocc(:),dat,n)
     write(vname,'("t",I1.1,"_psoilocc")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     do k = 1,mplant     
       dat=0._8
-      if (n<=maxnb) dat=unpack(casaflux%crmplant(is:ie,k),tmap(:,n),dat)
+      if (n<=maxnb) call cable_unpack(casaflux%crmplant(:,k),dat,n)
       write(vname,'("t",I1.1,"_crmplant",I1.1)') n,k
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     dat=0._8
-    if (n<=maxnb) dat=unpack(casaflux%frac_sapwood(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casaflux%frac_sapwood(:),dat,n)
     write(vname,'("t",I1.1,"_fracsapwood")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casaflux%sapwood_area(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casaflux%sapwood_area(:),dat,n)
     write(vname,'("t",I1.1,"_sapwoodarea")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casaflux%Crsoil(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casaflux%Crsoil(:),dat,n)
     write(vname,'("t",I1.1,"_crsoil")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casaflux%cnpp(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casaflux%cnpp(:),dat,n)
     write(vname,'("t",I1.1,"_cnpp")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casaflux%clabloss(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casaflux%clabloss(:),dat,n)
     write(vname,'("t",I1.1,"_clabloss")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casaflux%crgplant(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casaflux%crgplant(:),dat,n)
     write(vname,'("t",I1.1,"_crgplant")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casaflux%stemnpp(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casaflux%stemnpp(:),dat,n)
     write(vname,'("t",I1.1,"_stemnpp")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casabal%laimax(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casabal%laimax(:),dat,n)
     write(vname,'("t",I1.1,"_LAImax")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casabal%cleafmean(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casabal%cleafmean(:),dat,n)
     write(vname,'("t",I1.1,"_Cleafmean")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(casabal%crootmean(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(casabal%crootmean(:),dat,n)
     write(vname,'("t",I1.1,"_Crootmean")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(canopy%fpn(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(canopy%fpn(:),dat,n)
     write(vname,'("t",I1.1,"_fpn")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(canopy%frday(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(canopy%frday(:),dat,n)
     write(vname,'("t",I1.1,"_frday")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
   end do
@@ -5961,57 +6174,55 @@ if ( cable_climate==1 ) then
   dat91days = 0._8
   dat31days = 0._8
   do n = 1,maxtile  ! tile
-    is = tind(n,1)
-    ie = tind(n,2)
     !dat=0._8
-    !if (n<=maxnb) dat=unpack(climate%evap_PT(is:ie),tmap(:,n),dat)
+    !if (n<=maxnb) call cable_unpack(climate%evap_PT,dat,n)
     !write(vname,'("t",I1.1,"_climateevapPT")') n
     !call histwrt3(dat,vname,idnc,iarch,local,.true.)
     !dat=0._8
-    !if (n<=maxnb) dat=unpack(climate%aevap(is:ie),tmap(:,n),dat)
+    !if (n<=maxnb) call cable_unpack(climate%aevap,dat,n)
     !write(vname,'("t",I1.1,"_climateaevap")') n
     !call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(climate%mtemp_max(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(climate%mtemp_max,dat,n)
     write(vname,'("t",I1.1,"_climatemtempmax")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(climate%mtemp_min(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(climate%mtemp_min,dat,n)
     write(vname,'("t",I1.1,"_climatemtempmin")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(climate%qtemp_max(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(climate%qtemp_max,dat,n)
     write(vname,'("t",I1.1,"_climateqtempmax")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(climate%qtemp_max_last_year(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(climate%qtemp_max_last_year,dat,n)
     write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(climate%gdd0(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(climate%gdd0,dat,n)
     write(vname,'("t",I1.1,"_climategdd0")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(climate%gdd5(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(climate%gdd5,dat,n)
     write(vname,'("t",I1.1,"_climategdd5")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(climate%agdd0(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(climate%agdd0,dat,n)
     write(vname,'("t",I1.1,"_climateagdd0")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(climate%agdd5(is:ie),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(climate%agdd5,dat,n)
     write(vname,'("t",I1.1,"_climateagdd5")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) dat=unpack(real(climate%chilldays(is:ie),8),tmap(:,n),dat)
+    if (n<=maxnb) call cable_unpack(real(climate%chilldays,8),dat,n)
     write(vname,'("t",I1.1,"_climatechilldays")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     if ( n==1 ) then
       dat91days = 0._8
       if ( n<=maxnb ) then
         do k = 1,91  
-          dat91days(:,k)=unpack(climate%dtemp_91(is:ie,k),tmap(:,n),dat91days(:,k))
+          call cable_unpack(climate%dtemp_91(:,k),dat91days(:,k),n)
         end do  
       end if  
       write(vname,'("t",I1.1,"_climatedtemp")') n
@@ -6019,7 +6230,7 @@ if ( cable_climate==1 ) then
       dat31days = 0._8  
       if ( n<=maxnb ) then
         do k = 1,31  
-          dat31days(:,k)=unpack(climate%dmoist_31(is:ie,k),tmap(:,n),dat31days(:,k))
+          call cable_unpack(climate%dmoist_31(:,k),dat31days(:,k),n)
         end do  
       end if  
       write(vname,'("t",I1.1,"_climatedmoist")') n
@@ -6035,646 +6246,509 @@ if ( cable_pop==1 ) then
   datpatch = 0._8
   datpc = 0._8
   do n = 1,maxtile
-    is = pind(n,1)
-    ie = pind(n,2)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%cmass_sum,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%cmass_sum,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%cmass_sum_old,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%cmass_sum_old,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%cheartwood_sum,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%cheartwood_sum,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%csapwood_sum,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%csapwood_sum,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_csapwood_sum")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%csapwood_sum_old,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%csapwood_sum_old,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%densindiv,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%densindiv,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_densindiv")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%height_mean,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%height_mean,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_height_mean")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%height_max,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%height_max,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_height_max")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%basal_area,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%basal_area,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_basal_area")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%sapwood_loss,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%sapwood_loss,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_sapwood_loss")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%sapwood_area_loss,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%sapwood_area_loss,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%stress_mortality,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%stress_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_stress_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%crowding_mortality,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%crowding_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_crowding_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%fire_mortality,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%fire_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_fire_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%cat_mortality,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%cat_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cat_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%res_mortality,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%res_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_res_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%growth,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%growth,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_growth")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%area_growth,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%area_growth,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_area_growth")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%crown_cover,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%crown_cover,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_crown_cover")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%crown_area,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%crown_area,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_crown_area")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%crown_volume,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%crown_volume,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_crown_volume")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%sapwood_area,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%sapwood_area,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_sapwood_area")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%sapwood_area_old,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%sapwood_area_old,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%KClump,pmap(:,n),0._dp),8)
+    call pop_unpack(pop%pop_grid(:)%KClump,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_KClump")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     do ll = 1,POP_NLAYER
-      if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%biomass(ll),pmap(:,n),0._dp),8)
+      call pop_unpack(pop%pop_grid(:)%biomass(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%density(ll),pmap(:,n),0._dp),8)
+      call pop_unpack(pop%pop_grid(:)%density(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%hmean(ll),pmap(:,n),0._dp),8)
+      call pop_unpack(pop%pop_grid(:)%hmean(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%hmax(ll),pmap(:,n),0._dp),8)
+      call pop_unpack(pop%pop_grid(:)%hmax(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do hh = 1,POP_HEIGHT_BINS
-      if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%cmass_stem_bin(hh),pmap(:,n),0._dp),8)
+      call pop_unpack(pop%pop_grid(:)%cmass_stem_bin(hh),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do hh = 1,POP_HEIGHT_BINS
-      if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%densindiv_bin(hh),pmap(:,n),0._dp),8)
+      call pop_unpack(pop%pop_grid(:)%densindiv_bin(hh),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do hh = 1,POP_HEIGHT_BINS
-      if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%height_bin(hh),pmap(:,n),0._dp),8)
+      call pop_unpack(pop%pop_grid(:)%height_bin(hh),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do hh = 1,POP_HEIGHT_BINS
-      if (is<=ie) dat=real(unpack(pop%pop_grid(is:ie)%diameter_bin(hh),pmap(:,n),0._dp),8)
+      call pop_unpack(pop%pop_grid(:)%diameter_bin(hh),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh 
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB
-      if (is<=ie) dat=unpack(real(pop%pop_grid(is:ie)%n_age(dd),8),pmap(:,n),0._8)
+      call pop_unpack(pop%pop_grid(:)%n_age(dd),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd 
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=unpack(real(pop%pop_grid(is:ie)%patch(k)%id,8),pmap(:,n),0._8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%id,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%freq(k),pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%freq(k),datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_freq")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%freq_old(k),pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%freq_old(k),datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_freq_old")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%factor_recruit,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%factor_recruit,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%pgap,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%pgap,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%lai,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%lai,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_lai")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%biomass,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%biomass,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_biomass")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%biomass_old,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%biomass_old,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)    
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%sapwood,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%heartwood,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%heartwood,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%sapwood_old,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_old,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%sapwood_area,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%sapwood_area_old,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_old,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%stress_mortality,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%stress_mortality,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%fire_mortality,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%fire_mortality,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%pgap,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%pgap,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%cat_mortality,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%cat_mortality,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%crowding_mortality,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%crowding_mortality,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%cpc,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%cpc,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%sapwood_loss,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_loss,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%sapwood_area_loss,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_loss,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%growth,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%growth,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_growth")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%area_growth,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%area_growth,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%frac_NPP,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%frac_NPP,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%frac_respiration,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%frac_respiration,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    if (is<=ie ) then
-      do k = 1,POP_NPATCH
-        datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%frac_light_uptake,pmap(:,n),0._dp),8)
-      end do
-    end if  
+    do k = 1,POP_NPATCH
+      call pop_unpack(pop%pop_grid(:)%patch(k)%frac_light_uptake,datpatch(:,k),n)
+    end do
     write(vname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do dd = 1,POP_NDISTURB  
-      if (is<=ie) then
-        do k = 1,POP_NPATCH  
-          datpatch(:,k)=unpack(real(pop%pop_grid(is:ie)%patch(k)%disturbance_interval(dd),8),pmap(:,n),0._8)
-        end do  
-      end if  
+      do k = 1,POP_NPATCH  
+        call pop_unpack(pop%pop_grid(:)%patch(k)%disturbance_interval(dd),datpatch(:,k),n)
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB  
-      if (is<=ie) then
-        do k = 1,POP_NPATCH  
-          datpatch(:,k)=unpack(real(pop%pop_grid(is:ie)%patch(k)%first_disturbance_year(dd),8),pmap(:,n),0._8)
-        end do  
-      end if  
+      do k = 1,POP_NPATCH  
+        call pop_unpack(pop%pop_grid(:)%patch(k)%first_disturbance_year(dd),datpatch(:,k),n)
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB  
-      if (is<=ie) then
-        do k = 1,POP_NPATCH  
-          datpatch(:,k)=unpack(real(pop%pop_grid(is:ie)%patch(k)%age(dd),8),pmap(:,n),0._8)
-        end do  
-      end if  
+      do k = 1,POP_NPATCH  
+        call pop_unpack(pop%pop_grid(:)%patch(k)%age(dd),datpatch(:,k),n)
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB  
-      if (is<=ie) then
-        do k = 1,POP_NPATCH  
-          datpatch(:,k)=unpack(real(pop%pop_grid(is:ie)%ranked_age_unique(k,dd),8),pmap(:,n),0._8)
-        end do  
-      end if  
+      do k = 1,POP_NPATCH  
+        call pop_unpack(pop%pop_grid(:)%ranked_age_unique(k,dd),datpatch(:,k),n)
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB  
-      if (is<=ie) then
-        do k = 1,POP_NPATCH  
-          datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%freq_ranked_age_unique(k,dd),pmap(:,n),0._dp),8)
-        end do  
-      end if  
+      do k = 1,POP_NPATCH  
+        call pop_unpack(pop%pop_grid(:)%freq_ranked_age_unique(k,dd),datpatch(:,k),n)
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do k = 1,POP_NPATCH  
-          datpatch(:,k)=unpack(real(pop%pop_grid(is:ie)%patch(k)%layer(ll)%ncohort,8),pmap(:,n),0._8)
-        end do
-      end if  
+      do k = 1,POP_NPATCH  
+        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%ncohort,datpatch(:,k),n)
+      end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do k = 1,POP_NPATCH  
-          datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%biomass,pmap(:,n),0._dp),8)
-        end do
-      end if  
+      do k = 1,POP_NPATCH  
+        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%biomass,datpatch(:,k),n)
+      end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do k = 1,POP_NPATCH  
-          datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%density,pmap(:,n),0._dp),8)
-        end do
-      end if  
+      do k = 1,POP_NPATCH  
+        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%density,datpatch(:,k),n)
+      end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do k = 1,POP_NPATCH  
-          datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%hmean,pmap(:,n),0._dp),8)
-        end do
-      end if  
+      do k = 1,POP_NPATCH  
+        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmean,datpatch(:,k),n)
+      end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do k = 1,POP_NPATCH  
-          datpatch(:,k)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%hmax,pmap(:,n),0._dp),8)
-        end do
-      end if  
+      do k = 1,POP_NPATCH  
+        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmax,datpatch(:,k),n)
+      end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT            
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=unpack(real(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%age,8),pmap(:,n), &
-                                 0._8)
-          end do  
+      do cc = 1,POP_NCOHORT            
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%age,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT  
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=unpack(real(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%id,8),pmap(:,n), &
-                                 0._8)
-          end do  
+      do cc = 1,POP_NCOHORT  
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%id,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT            
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%biomass,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT            
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%biomass,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%density,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%density,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT  
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT  
+        do k = 1,POP_NPATCH  
+         call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT            
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_interception,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT            
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_interception,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_respiration,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_respiration,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%frac_NPP,pmap(:,n), &
-                                 0._dp),8)
-          end do
-        end do  
-      end if  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_NPP,datpc(:,k,cc),n)
+        end do
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT            
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%crown_area,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT            
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%crown_area,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Pgap,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Pgap,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT  
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%height,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT  
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%height,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%diameter,pmap(:,n), &
-                                 0._dp),8)
-          end do 
-        end do  
-      end if  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%diameter,datpc(:,k,cc),n)
+        end do 
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%sapwood,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%heartwood,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%heartwood,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT            
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%sapwood_area,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT            
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood_area,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%basal_area,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%basal_area,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%LAI,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%LAI,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Cleaf,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Cleaf,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      if (is<=ie) then
-        do cc = 1,POP_NCOHORT    
-          do k = 1,POP_NPATCH  
-            datpc(:,k,cc)=real(unpack(pop%pop_grid(is:ie)%patch(k)%layer(ll)%cohort(cc)%Croot,pmap(:,n), &
-                                 0._dp),8)
-          end do  
+      do cc = 1,POP_NCOHORT    
+        do k = 1,POP_NPATCH  
+          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Croot,datpc(:,k,cc),n)
         end do  
-      end if  
+      end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
       call histwrt5(datpc,vname,idnc,iarch,local,.true.)
     end do
@@ -6683,14 +6757,12 @@ if ( cable_pop==1 ) then
   deallocate( datpc )
 end if    
 !do n = 1,maxtile  ! tile
-!  is = tind(n,1)
-!  ie = tind(n,2)
   !dat=0._8
-  !if (n<=maxnb) dat=unpack(canopy%fhs_cor(is:ie),tmap(:,n),dat)
+  !if (n<=maxnb) call cable_unpack(canopy%fhs_cor(:),dat,n)
   !write(vname,'("t",I1.1,"_fhscor")') n
   !call histwrt3(dat,vname,idnc,iarch,local,.true.)
   !dat=0._8
-  !if (n<=maxnb) dat=unpack(canopy%fes_cor(is:ie),tmap(:,n),dat)
+  !if (n<=maxnb) call cable_unpack(canopy%fes_cor(:),dat,n)
   !write(vname,'("t",I1.1,"_fescor")') n
   !call histwrt3(dat,vname,idnc,iarch,local,.true.)
 !end do
@@ -6726,9 +6798,7 @@ real, dimension(mp) :: xx, ll, delxx
 
 if ( mp<=0 ) return
 
-do nb = 1,maxnb
-  xx(tind(nb,1):tind(nb,2)) = pack( inflow(1:ifull), tmap(:,nb) )
-end do
+call cable_pack( inflow(1:ifull), xx )
 delxx(1:mp) = 0.
 do k = 1,cbm_ms
   ll(1:mp) = real( max( soil%sfc(1:mp)-ssnow%wb(1:mp,k), 0._8 )*1000._8*soil%zse(k) )
@@ -6737,11 +6807,7 @@ do k = 1,cbm_ms
   delxx(1:mp) = delxx(1:mp) - ll(1:mp)
 end do
 delflow(1:ifull) = 0.
-do nb = 1,maxnb
-  is = tind(nb,1)
-  ie = tind(nb,2)
-  delflow(1:ifull) = delflow(1:ifull) + unpack(sv(is:ie)*delxx(is:ie),tmap(:,nb),0.)
-end do
+call cable_unpack(sv(1:mp)*delxx(1:mp),delflow(1:ifull))
 inflow(1:ifull) = inflow(1:ifull) + delflow(1:ifull)
 
 return

@@ -48,6 +48,7 @@ MODULE cable_canopy_module
   PRIVATE
 
   TYPE( icanopy_type ) :: C
+!$omp threadprivate(C)
 
 
 CONTAINS
@@ -262,14 +263,8 @@ CONTAINS
              phist = 1 + 5.0*(zstar - rough%disp)*rL
 
              where (canopy%zetar(:,iter) .gt. 1.e-6)! stable conditions
-
-#ifdef CCAM
-                tmp1 = canopy%zetar(:,iter)*(veg%hc-rough%disp)/max(rough%zref_tq-rough%disp,1.)
-                tmp2 = canopy%zetar(:,iter)*rough%z0m/max(rough%zref_tq-rough%disp,1.)
-#else
                 tmp1 = canopy%zetar(:,iter)*(veg%hc-rough%disp)/(rough%zref_tq-rough%disp)
                 tmp2 = canopy%zetar(:,iter)*rough%z0m/(rough%zref_tq-rough%disp)
-#endif
                 csw = min(0.3*((log((veg%hc-rough%disp)/rough%z0m) + phist*psihat - &
                      psim(tmp1)+ &
                      psim(tmp2))/0.4)**2/2., 3.0)* c%csw

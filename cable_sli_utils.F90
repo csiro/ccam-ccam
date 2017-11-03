@@ -31,6 +31,7 @@ MODULE sli_utils
   TYPE(params),     DIMENSION(:),     ALLOCATABLE :: plit
   TYPE(solve_type), DIMENSION(:),     ALLOCATABLE :: sol
   REAL(r_2),        DIMENSION(:,:),   ALLOCATABLE :: x
+!$omp threadprivate(dx,dxL,par,plit,sol,x)
 
   !MC solute not done yet
   !REAL(r_2),        DIMENSION(:,:),   ALLOCATABLE         :: bd
@@ -41,6 +42,7 @@ MODULE sli_utils
   REAL(r_2),        DIMENSION(:),   ALLOCATABLE         :: dis
   TYPE(rapointer),  DIMENSION(:,:), ALLOCATABLE         :: isopar
   CHARACTER(LEN=2), DIMENSION(:,:), ALLOCATABLE         :: isotype
+!$omp threadprivate(bd,dis,isopar,isotype)
 
   ! Subroutine interfaces
 

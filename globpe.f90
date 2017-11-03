@@ -41,6 +41,8 @@ use aerosolldr, only : xtosav,xtg        & ! LDR prognostic aerosols
     ,so4e,so4wd,so4dd,so4_burden
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
+use cable_ccam, only : cable_climate     & ! CABLE
+    ,climate_daycount
 use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
     ,frpw,frpr,frs,cnpp,cnbp
 use cc_mpi                                 ! CC MPI routines
@@ -1011,11 +1013,21 @@ if ( myid<nproc ) then
 
 !$omp end parallel
 
+
     ! MISC (SINGLE) ---------------------------------------------------------
     ! Update aerosol timer
     if ( sday_update ) then
       sday = mins
     end if
+    ! update cable timer
+    if ( nsib==7 ) then
+      if ( cable_climate==1 ) then
+        if ( real(climate_daycount)*dt>86400. ) then
+          climate_daycount = 0  
+        end if
+        climate_daycount = climate_daycount + 1
+      end if  
+    end if    
        
         
 #ifdef loadbal    

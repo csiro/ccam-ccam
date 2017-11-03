@@ -39,6 +39,7 @@ MODULE cable_def_types_mod
               mvtype,& ! total # vegetation types,   from input
               mstype,& ! total # soil types,         from input
               mland                           ! # land grid cells
+!$omp threadprivate(mp)
 
    INTEGER, PARAMETER ::                                                        &
       i_d  = KIND(9), &

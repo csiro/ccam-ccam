@@ -42,6 +42,7 @@ MODULE cable_soil_snow_module
    PRIVATE
 
    TYPE ( issnow_type ) :: C
+!$omp threadprivate(C)
 
    REAL, PARAMETER ::                                                          &
       cgsnow = 2090.0,     & ! specific heat capacity for snow
@@ -54,9 +55,11 @@ MODULE cable_soil_snow_module
       frozen_limit = 0.85    ! EAK Feb2011 (could be 0.95)
 
    REAL :: cp    ! specific heat capacity for air
+!$omp threadprivate(cp)
 
    !jhan:make parameter
    REAL :: max_glacier_snowd
+!$omp threadprivate(max_glacier_snowd)
 
    ! This module contains the following subroutines:
    PUBLIC soil_snow ! must be available outside this module
@@ -1685,6 +1688,9 @@ END SUBROUTINE remove_trans
 ! Output
 !        ssnow
 SUBROUTINE soil_snow(dels, soil, ssnow, canopy, met, bal, veg)
+#ifdef CCAM
+   USE parm_m, only : ktau
+#endif
    USE cable_common_module
    REAL, INTENT(IN)                    :: dels ! integration time step (s)
    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
@@ -1700,12 +1706,16 @@ SUBROUTINE soil_snow(dels, soil, ssnow, canopy, met, bal, veg)
    REAL, DIMENSION(mp) :: xxx, tgg_old, tggsn_old
    REAL(r_2), DIMENSION(mp) :: xx,deltat,sinfil1,sinfil2,sinfil3
    REAL                :: zsetot
+#ifndef CCAM
    INTEGER, SAVE :: ktau =0
+#endif
 
    CALL point2constants( C )
    cp = C%CAPP
 
+#ifndef CCAM
    ktau = ktau +1
+#endif
 
    !jhan - make switchable
    ! appropriate for ACCESS1.0

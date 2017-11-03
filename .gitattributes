@@ -14,6 +14,7 @@
 /cable_carbon.F90 -text
 /cable_ccam2.f90 -text
 /cable_ccam3.f90 -text
+/cable_ccam4.f90 -text
 /cable_common.F90 -text
 /cable_data.F90 -text
 /cable_define_types.F90 -text
