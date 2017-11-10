@@ -81,6 +81,11 @@ if ( epsp<-2. ) then
   end where
 end if  ! (epsp<-2.)
 
+! *** save t to avoid overshoot
+do k = 1,kl
+  tsav(1:ifull,k) = t(1:ifull,k)  
+end do
+
 ! *** following qgsav should be before first vadv call
 do k = 1,kl
   qgsav(1:ifull,k) = qg(1:ifull,k)      ! for qg  conservation in adjust5
@@ -295,6 +300,7 @@ phiv(ifull+1:ifull+iextra,kl+1) = 0. ! avoids float invalid errors
 call bounds(phiv,nehalf=.true.)
 psl(ifull+1:ifull+iextra) = phiv(ifull+1:ifull+iextra,kl+1)
 
+
 call unpack_ne(psl,psl_n,psl_e)
 
 do k = 1,kl
@@ -322,8 +328,11 @@ if ( diag ) then
   end if
 end if                     ! (diag)
 
+
+! Bounds call for unstaggering winds
 call unstaguv(aa,bb,ux,vx) ! convert to unstaggered positions
 call unstaguv(un,vn,un,vn)
+
 
 if ( diag ) then
   call printa('aa  ',aa,ktau,nlv,ia,ib,ja,jb,0.,1.)

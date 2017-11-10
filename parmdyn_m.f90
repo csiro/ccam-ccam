@@ -24,7 +24,7 @@ module parmdyn_m
 implicit none
 
 private
-public mex,mfix,mfix_qg,mfix_tr,mfix_aero
+public mex,mfix,mfix_qg,mfix_tr,mfix_aero,mfix_t
 public nh,nritch_t,mspec,mup
 public nstag,nstagu,ntbar,precon,helmmeth
 public nstagoff
@@ -43,7 +43,7 @@ public epsp,epsu,epsf,epsh,restol
 !            (ntbar=0)           ! 0 for standard
 !            (ntbar=(kl+1)/2)    ! level# for tbar2d with T set in nonlin
 
-integer, save :: mex=30,mfix=3,mfix_qg=1,mfix_tr=0,mfix_aero=0
+integer, save :: mex=30,mfix=3,mfix_qg=1,mfix_tr=0,mfix_aero=0,mfix_t=0
 integer, save :: nh=0,nritch_t=300,mspec,mup=1
 integer, save :: nstag=-10,nstagu=-1,ntbar,precon=-2900,helmmeth=1
 integer, save :: nstagoff=0

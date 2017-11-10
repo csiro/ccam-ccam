@@ -77,6 +77,7 @@ real, dimension(ifull) :: dd_isv, cc_iwu, em_isv, em_iwu
 real, dimension(ifull) :: p_n, p_s, p_e, p_w
 real, dimension(ifull) :: alf_n, alf_e
 real, dimension(ifull) :: alff_n, alff_s, alff_e, alff_w
+real, dimension(ifull) :: ptemp, ptempsav
 real hdt, hdtds
 real alph_p, alph_pm, delneg, delpos
 real const_nh
@@ -160,8 +161,10 @@ do k = 1,kl
   cc(1:ifull,k) = ux(1:ifull,k)/emu(1:ifull)*alfu(1:ifull)  ! Eq. 136
   dd(1:ifull,k) = vx(1:ifull,k)/emv(1:ifull)*alfv(1:ifull)  ! Eq. 137
 end do
-      
+
+
 call boundsuv(cc,dd,stag=-9) ! only update isv and iwu
+
 
 do k = 1,kl
   ! N.B. the omgfnl term on LHS of Eq. 121 not yet added in
@@ -228,6 +231,7 @@ do k = 1,kl
   rhsl(1:ifull,k) = rhsl(1:ifull,k)/hdtds - helm(1:ifull,k)*pe(1:ifull,k) ! Eq. 161 mult
 end do    ! k loop
 
+
 if ( precon<-9999 ) then
   ! Multi-grid
   call mghelm(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
@@ -239,6 +243,7 @@ else
   call bounds(pe)
   call helmsol(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
 end if ! (precon<-9999) .. else ..
+
 
 #ifdef debug
 if ( diag .or. nmaxpr==1 ) then   !  only for last k of loop (i.e. 1)
@@ -416,6 +421,7 @@ do k = 1,kl
   dpsldt(1:ifull,k) = omgfnl(1:ifull,k)/(1.+epst(1:ifull)) + omgf(1:ifull,k)
   t(1:ifull,k) = tx(1:ifull,k) + hdt*(1.+epst(1:ifull))*tbar2d(1:ifull)*omgf(1:ifull,k)*roncp/sig(k) ! Eq 121 F26
 end do     ! k  loop
+
 #ifdef debug
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,"('omgf_a2',10f8.3)") ps(idjd)*dpsldt(idjd,1:kl)
@@ -451,31 +457,13 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
     phi(1:ifull,k) = phi(1:ifull,k-1) + bet(k)*t(1:ifull,k) + betm(k)*t(1:ifull,k-1)
   end do
   phi(1:ifull,1:kl) = phi(1:ifull,1:kl) + phi_nh(1:ifull,1:kl)
-  
-  ! limit non-hydrostatic correction to remain consistent with Miller-White approximation
-  !test_nh(1:ifull) = phi_nh(1:ifull,1)/(phi_hs(1:ifull,1)-zs(1:ifull))
-  !max_test = maxval( test_nh )
-  !min_test = minval( test_nh )
-  !do k = 2,kl
-  !  test_nh(1:ifull) = (phi_nh(1:ifull,k)-phi_nh(1:ifull,k-1))/(phi_hs(1:ifull,k)-phi_hs(1:ifull,k-1))
-  !  max_test = max( max_test, maxval( test_nh ) )
-  !  min_test = min( min_test, minval( test_nh ) )
-  !end do
-  !if ( min_test<-0.5 .or. max_test>0.5  ) then
-  !  ! MJT notes - if this triggers, then increasing epsh may be helpful
-  !  write(6,*) "WARN: NHS adjustment ",min_test,max_test
-  !  phi_nh(1:ifull,1) = max( min( phi_nh(1:ifull,1), 0.5*(phi_hs(1:ifull,1)-zs(1:ifull)) ), -0.5*(phi_hs(1:ifull,1)-zs(1:ifull)) )
-  !  do k = 2,kl
-  !    phi_nh(1:ifull,k) = phi_nh(1:ifull,k-1) + max( min( phi_nh(1:ifull,k)-phi_nh(1:ifull,k-1), &
-  !        0.5*(phi_hs(1:ifull,k)-phi(1:ifull,k-1)) ), -0.5*(phi_hs(1:ifull,k)-phi(1:ifull,k-1)) )
-  !  end do
-  !end if
 
 #ifdef debug        
   if ( nmaxpr==1 .and. mydiag ) then
     write(6,*) 'phi_nh ',(phi_nh(idjd,k),k=1,kl)
   end if
 #endif
+
 end if  ! (nh/=0.and.(ktau>knh.or.lrestart))
 
 
@@ -545,6 +533,22 @@ if ( epsp>1. .and. epsp<2. ) then
   dpsdtb(1:ifull)      = dpsdt(1:ifull)    
 end if
 dpsdt(1:ifull) = (ps(1:ifull)-ps_sav(1:ifull))*24.*3600./(100.*dt)
+
+!------------------------------------------------------------------------
+! Air temperature conservation
+if ( mfix_t/=0 ) then
+  ptemp(1:ifull) = ps(1:ifull)**.286
+  ptempsav(1:ifull) = ps_sav(1:ifull)**.286
+  do k = 1,kl
+    dums(1:ifull,k,1) = t(1:ifull,k)/ptemp(1:ifull)
+    dumssav(1:ifull,k,1) = tsav(1:ifull,k)/ptempsav(1:ifull)
+  end do  
+  llim(1) = .false.
+  call massfix(mfix_t,1,dums(:,:,1:1),dumssav(:,:,1:1),ps,ps_sav,llim(1:1))
+  do k = 1,kl
+    t(1:ifull,k) = dums(1:ifull,k,1)*ptemp(1:ifull)
+  end do
+end if
 
 !------------------------------------------------------------------------
 ! Cloud water conservation

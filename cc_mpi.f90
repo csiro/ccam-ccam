@@ -461,6 +461,9 @@ contains
       
       
       ! Decompose grid over processes
+      if ( myid==0 ) then
+         write(6,*) "  Decompose grid"
+      end if
       if ( uniform_decomp ) then
          call proc_setup_uniform(id,jd,idjd)
          ! may require two boundries from the same process
@@ -478,8 +481,8 @@ contains
       maxvertlen = max( kl, ol )
       
       ! Distribute global arrays over processes
-      
-      if ( myid == 0 ) then
+      if ( myid==0 ) then
+         write(6,*) "  Distribute global arrays" 
          call ccmpi_distribute(wts,wts_g) 
          call ccmpi_distribute(em,em_g)
          call ccmpi_distribute(emu,emu_g)
@@ -524,8 +527,14 @@ contains
       end if
 
       
-      ! Configure halos      
+      ! Configure halos
+      if ( myid==0 ) then
+         write(6,*) "  Calling bounds_setup"
+      end if  
       call bounds_setup(dt)
+      if ( myid==0 ) then
+         write(6,*) " Update halos for constant arrays"  
+      end if
       call bounds(em,corner=.true.)
       call bounds(f,corner=.true.)
       call boundsuv(emu,emv)
@@ -535,6 +544,9 @@ contains
 
       
       ! Off processor departure points
+      if ( myid==0 ) then
+         write(6,*) "  Allocate memory for depature points"
+      end if  
       allocate( dpoints(neighnum) )
       allocate( dbuf(0:neighnum) )
       allocate( dindex(0:neighnum) )
@@ -557,6 +569,9 @@ contains
 
 
       ! Pack colour indices
+      if ( myid==0 ) then
+         write(6,*) "  Setup colour indices"  
+      end if    
       do n = 1,npan
          do j = 1,jpan
             do i = 1,ipan
@@ -566,7 +581,6 @@ contains
             end do
          end do
       end do
-
       do n = 1,maxcolour
          ifullcol(n) = count( colourmask == n )
       end do
@@ -634,12 +648,18 @@ contains
 
 
       ! Create MPI_SUMDR for calculating global sums with high precision
+      ! operator MPI_SUMDR is created based on an external function DRPDR.
+      if ( myid==0 ) then
+         write(6,*) "  Create SUMDR operator"  
+      end if    
       ltrue = .true. 
-!     operator MPI_SUMDR is created based on an external function DRPDR.
       call MPI_OP_CREATE(DRPDR, ltrue, MPI_SUMDR, ierr)
       
       
       ! prepare comm groups - used by scale-selective filter
+      if ( myid==0 ) then
+         write(6,*) "  Setup communication groups"
+      end if
       if ( uniform_decomp ) then
          npta = 6                     ! number of panels per processor
          mproc = nproc                ! number of processors per panel
@@ -653,27 +673,23 @@ contains
          pprocx = pprocn + npta - 1   ! end panel
          hproc = pprocn*mproc/npta    ! host processor for panel
       end if
-
       ! comm between work groups with captain hproc
       colour = hproc
       rank = myid - hproc
       lcommin = comm_world
       call MPI_Comm_Split(lcommin, colour, rank, lcommout, ierr)
       comm_proc = lcommout
-      
       ! comm between columns in work group
       colour = ioff
       rank = joff/jpan
       lcommin = comm_proc
       call MPI_Comm_Split(lcommin, colour, rank, lcommout, ierr)
       comm_cols = lcommout
-      
       ! comm between rows in work group      
       colour = joff
       rank = ioff/ipan
       call MPI_Comm_Split(lcommin, colour, rank, lcommout, ierr)
       comm_rows = lcommout
-      
       if ( myid == hproc ) then
          if ( ioff/=0 .or. joff/=0 ) then
             write(6,*) "ERROR: hproc incorrectly assigned"
@@ -683,6 +699,9 @@ contains
       
       ! prep RMA windows for gathermap
       if ( nproc > 1 ) then
+         if ( myid==0 ) then
+            write(6,*) "  Setup RMA window for spectral filter"  
+         end if    
          call MPI_Type_size(ltype, asize, ierr)
          sshape(:) = (/ ifull, kx /)
          wsize = asize*sshape(1)*sshape(2)
@@ -697,6 +716,10 @@ contains
          allocate( specstore(sshape(1),sshape(2)) )                ! Fortran allocate memory
          call MPI_Win_Create(specstore, wsize, asize, MPI_INFO_NULL, lcommin, localwin, ierr)
          !call MPI_Info_free(info,ierr)                            ! MPI optimise
+      end if
+      
+      if ( myid==0 ) then
+         write(6,*) "  ccmpi_setup completed sucessfully"
       end if
       
    return
@@ -2573,6 +2596,10 @@ contains
       lnnw = huge(1)
       lnee = huge(1)
       lnne = huge(1)
+      
+      if ( myid==0 ) then
+         write(6,*) "    Define local scalar and vector indices on local process"
+      end if
       do n=1,npan
          do j=1,jpan
             do i=1,ipan
@@ -2751,6 +2778,9 @@ contains
       rcolsp(:)%ihbg(1) = 1
       rcolsp(:)%ihfn(1) = 0
       
+      if ( myid==0 ) then
+         write(6,*) "    Define local scalar indices for remote processes"
+      end if
       do icol = 1,maxcolour
       
          do n = 1,npan
@@ -3107,6 +3137,9 @@ contains
       end do ! n=1,npan
 
 !     Now handle the second order special corner values
+      if ( myid==0 ) then
+         write(6,*) "    Define special corner indices"
+      end if      
       do n = 1,npan
          ! NE corner, lnee, leen, lenn, lnne
          iqg = indg(ipan,jpan,n)
@@ -3194,7 +3227,10 @@ contains
 
       end do
 
-!     Indices that are missed above (should be a better way to get these)
+      ! Indices that are missed above (should be a better way to get these)
+      if ( myid==0 ) then
+         write(6,*) "    Define remaining scalar indices"
+      end if       
       do n = 1,npan
          do j = 1,jpan
             iww(indp(2,j,n)) = iw(indp(1,j,n))
@@ -3255,6 +3291,9 @@ contains
       end if
 
       ! determine neighbour processes
+      if ( myid==0 ) then
+         write(6,*) "    Identify ranks of neighbour processes"
+      end if       
       allocate( neigharray_g(0:nproc-1) )
       ! default neighbour list
       neigharray_g(:) = bnds(:)%rlen2 > 0
@@ -3345,6 +3384,9 @@ contains
 
       
 !     Communicate lengths for rlenh, rlen, rlenx and rlen2
+      if ( myid==0 ) then
+         write(6,*) "    Communicate scalar halo lengths"
+      end if      
       scolsp(:)%ihfn(1) = 0
       scolsp(:)%ihfn(2) = 0
       scolsp(:)%ihfn(3) = 0
@@ -3411,6 +3453,9 @@ contains
       ! The state of being a neighbour is reflexive so only expect to
       ! recv from those processors I send to (are there grid arrangements for
       ! which this would not be true?)
+      if ( myid==0 ) then
+         write(6,*) "    Communicate scalar index request lists"
+      end if
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
@@ -3437,7 +3482,10 @@ contains
       end do      
       call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
 
-!     Now deallocate arrays that are no longer needed
+      ! Now deallocate arrays that are no longer needed
+      if ( myid==0 ) then
+         write(6,*) "    Deallocate temporary scalar arrays"
+      end if
       allocate( dumi(maxbuflen) )
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
@@ -3467,6 +3515,10 @@ contains
       rsplit(:)%isvbg = 1
       rsplit(:)%iwufn = 0
 
+      if ( myid==0 ) then
+         write(6,*) "    Define vector indices for remote processes"
+      end if
+      
       !     S edge, V
       j = 1
       do n = 1,npan
@@ -3899,6 +3951,9 @@ contains
       allocate( dums(9,neighnum), dumr(9,neighnum) )
       
       ! Communicate lengths for rlen_uv and rlenx_uv, etc
+      if ( myid==0 ) then
+         write(6,*) "    Communicate vector halo lengths"
+      end if
       ssplit(:)%iwufn  = 0
       ssplit(:)%ieufn  = 0
       ssplit(:)%iwwufn = 0
@@ -3961,6 +4016,9 @@ contains
       
       ! Now, for each processor send the list of points I want.
       ! Also have to send the swap list
+      if ( myid==0 ) then
+         write(6,*) "    Communicate vector index request lists"
+      end if
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
@@ -3989,6 +4047,9 @@ contains
 
       ! Deallocate arrays that are no longer needed
       ! Note that the request_list for myid is still allocated
+      if ( myid==0 ) then
+         write(6,*) "    Deallocate temporary vector arrays"
+      end if      
       allocate( dumi(maxbuflen) )
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
@@ -4006,6 +4067,9 @@ contains
       allocate( dumsl(maxbuflen,neighnum), dumrl(maxbuflen,neighnum) )
       
       ! Only send the swap list once
+      if ( myid==0 ) then
+         write(6,*) "    Communicate vector index swap lists"
+      end if
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
@@ -4047,6 +4111,9 @@ contains
       
 
       ! Only send the neg list once
+      if ( myid==0 ) then
+         write(6,*) "    Communicate vector index neg lists"
+      end if
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
@@ -4087,6 +4154,9 @@ contains
       
       
       ! Indices that are missed above (should be a better way to get these)
+      if ( myid==0 ) then
+         write(6,*) "    Define remaining vector indices"
+      end if
       do n = 1,npan
          do j = 1,jpan
             iwwu(indp(2,j,n)) = iwu(indp(1,j,n))
@@ -4129,6 +4199,9 @@ contains
 
       
       ! Allocate buffer arrays
+      if ( myid==0 ) then
+         write(6,*) "    Allocate halo buffer arrays"
+      end if      
       do iproc = 0,nproc-1
          bnds(iproc)%sbuflen = nagg*bnds(iproc)%len
          bnds(iproc)%rbuflen = nagg*bnds(iproc)%len
@@ -4145,6 +4218,9 @@ contains
       
 
       ! Final check for values that haven't been set properly
+      if ( myid==0 ) then
+         write(6,*) "    Check for index errors"
+      end if       
       do n = 1,npan
          do j = 1,jpan
             do i = 1,ipan
@@ -4199,6 +4275,11 @@ contains
          call check_set( lnne(n), "LNNE", 1, 1, n, 1)
       end do
 
+      if ( myid==0 ) then
+         write(6,*) "    bounds_setup completed sucessfully"
+      end if 
+      
+   return   
    end subroutine bounds_setup
    
    subroutine check_set(ind,str,i,j,n,iq)

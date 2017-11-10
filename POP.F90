@@ -263,7 +263,7 @@ CONTAINS
     INTEGER, OPTIONAL, INTENT(IN) ::n
     INTEGER:: g,k,l,c, np,a,b
 
-    IF ( .NOT. ALLOCATED(pop%pop_grid) ) THEN
+    IF ( .NOT. ASSOCIATED(pop%pop_grid) ) THEN
        WRITE(*,*)" POP not allocated! Abort in ZeroPOP."
        !STOP -1
        STOP ! MJT suggestion

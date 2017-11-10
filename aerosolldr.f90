@@ -2287,10 +2287,12 @@ do n = 1, ndust
   b = Veff / dz1
 
   ! Update mixing ratio
-  ! Write in form dx/dt = a - bx (a = source term, b = drydep term)
-  ! solution is x = a/b*(1.-exp(-b*tdt))+X0*exp(-b*tdt) which is approximately
-  ! x /approx a*tdt + X0*exp(-b*tdt) + O( a*b*tdt^2 )
-  xtg(1:imax,1,n+itracdu-1) = xtg(1:imax,1,n+itracdu-1)*exp(-b*tdt) + a*tdt
+  ! Write in form dx/dt = a - b*x (a = source term, b = drydep term)
+  ! solution is x = a/b + X0*exp(-b*tdt).  However, in split form
+  ! x = a*tdt
+  ! x = X0*exp(-b*tdt)
+  ! x = (X0 + a*tdt)*exp(-b*tdt)
+  xtg(1:imax,1,n+itracdu-1) = (xtg(1:imax,1,n+itracdu-1)+a*tdt)*exp(-b*tdt)
   xtg(1:imax,1,n+itracdu-1) = max( 0., xtg(1:imax,1,n+itracdu-1) )
 
 end do

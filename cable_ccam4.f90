@@ -62,7 +62,7 @@ subroutine cable_pack_r4_2_r4(indata,outdata,inb)
   implicit none
 
   real, dimension(ifull), intent(in) :: indata
-  real, dimension(mp), intent(out) :: outdata
+  real, dimension(:), intent(out) :: outdata
   integer, intent(in), optional :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -73,7 +73,10 @@ subroutine cable_pack_r4_2_r4(indata,outdata,inb)
       je=tile*imax
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
-      outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+      print *,"is,ie ",is,ie
+      if ( is<=ie ) then
+        outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+      end if  
     end do
   else
     do tile = 1,ntiles
@@ -82,7 +85,9 @@ subroutine cable_pack_r4_2_r4(indata,outdata,inb)
       do nb = 1,tdata(tile)%maxnb
         is = tdata(tile)%tind(nb,1)
         ie = tdata(tile)%tind(nb,2)
-        outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+        if ( is<=ie ) then
+          outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+        end if  
       end do
     end do
   end if
@@ -96,7 +101,7 @@ subroutine cable_pack_r4_2_r8(indata,outdata,inb)
   implicit none
 
   real, dimension(ifull), intent(in) :: indata
-  real(kind=8), dimension(mp), intent(out) :: outdata
+  real(kind=8), dimension(:), intent(out) :: outdata
   integer, intent(in), optional :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -107,7 +112,9 @@ subroutine cable_pack_r4_2_r8(indata,outdata,inb)
       je=tile*imax
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
-      outdata(is:ie) =  real(pack(indata(js:je),tdata(tile)%tmap(:,nb)),8)
+      if ( is<=ie ) then
+        outdata(is:ie) =  real(pack(indata(js:je),tdata(tile)%tmap(:,nb)),8)
+      end if  
     end do
   else
     do tile = 1,ntiles
@@ -116,7 +123,9 @@ subroutine cable_pack_r4_2_r8(indata,outdata,inb)
       do nb = 1,tdata(tile)%maxnb
         is = tdata(tile)%tind(nb,1)
         ie = tdata(tile)%tind(nb,2)
-        outdata(is:ie) =  real(pack(indata(js:je),tdata(tile)%tmap(:,nb)),8)
+        if ( is<=ie ) then
+          outdata(is:ie) =  real(pack(indata(js:je),tdata(tile)%tmap(:,nb)),8)
+        end if  
       end do
     end do
   end if
@@ -130,7 +139,7 @@ subroutine cable_pack_r8_2_r8(indata,outdata,inb)
   implicit none
 
   real(kind=8), dimension(ifull), intent(in) :: indata
-  real(kind=8), dimension(mp), intent(out) :: outdata
+  real(kind=8), dimension(:), intent(out) :: outdata
   integer, intent(in), optional :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -141,7 +150,9 @@ subroutine cable_pack_r8_2_r8(indata,outdata,inb)
       je=tile*imax
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
-      outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+      if ( is<=ie ) then
+        outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+      end if  
     end do
   else
     do tile = 1,ntiles
@@ -150,7 +161,9 @@ subroutine cable_pack_r8_2_r8(indata,outdata,inb)
       do nb = 1,tdata(tile)%maxnb
         is = tdata(tile)%tind(nb,1)
         ie = tdata(tile)%tind(nb,2)
-        outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+        if ( is<=ie ) then
+          outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+        end if  
       end do
     end do
   end if
@@ -164,7 +177,7 @@ subroutine cable_pack_i4_2_i4(indata,outdata,inb)
   implicit none
 
   integer, dimension(ifull), intent(in) :: indata
-  integer, dimension(mp), intent(out) :: outdata
+  integer, dimension(:), intent(out) :: outdata
   integer, intent(in), optional :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -175,7 +188,9 @@ subroutine cable_pack_i4_2_i4(indata,outdata,inb)
       je=tile*imax
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
-      outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+      if ( is<=ie ) then
+        outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+      end if  
     end do
   else
     do tile = 1,ntiles
@@ -184,7 +199,9 @@ subroutine cable_pack_i4_2_i4(indata,outdata,inb)
       do nb = 1,tdata(tile)%maxnb
         is = tdata(tile)%tind(nb,1)
         ie = tdata(tile)%tind(nb,2)
-        outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+        if ( is<=ie ) then
+          outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+        end if  
       end do
     end do
   end if
@@ -198,7 +215,7 @@ subroutine cable_pack_r4_2_i4(indata,outdata,inb)
   implicit none
 
   real, dimension(ifull), intent(in) :: indata
-  integer, dimension(mp), intent(out) :: outdata
+  integer, dimension(:), intent(out) :: outdata
   integer, intent(in), optional :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -209,7 +226,9 @@ subroutine cable_pack_r4_2_i4(indata,outdata,inb)
       je=tile*imax
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
-      outdata(is:ie) =  nint(pack(indata(js:je),tdata(tile)%tmap(:,nb)))
+      if ( is<=ie ) then
+        outdata(is:ie) =  nint(pack(indata(js:je),tdata(tile)%tmap(:,nb)))
+      end if  
     end do
   else
     do tile = 1,ntiles
@@ -218,7 +237,9 @@ subroutine cable_pack_r4_2_i4(indata,outdata,inb)
       do nb = 1,tdata(tile)%maxnb
         is = tdata(tile)%tind(nb,1)
         ie = tdata(tile)%tind(nb,2)
-        outdata(is:ie) =  nint(pack(indata(js:je),tdata(tile)%tmap(:,nb)))
+        if ( is<=ie ) then
+          outdata(is:ie) =  nint(pack(indata(js:je),tdata(tile)%tmap(:,nb)))
+        end if  
       end do
     end do
   end if
@@ -231,7 +252,7 @@ subroutine cable_unpack_r4_2_r4(indata,outdata)
 
   implicit none
 
-  real, dimension(mp), intent(in) :: indata
+  real, dimension(:), intent(in) :: indata
   real, dimension(ifull), intent(inout) :: outdata
   real :: lfillvalue
   integer :: is, ie, js, je, tile, nb
@@ -244,7 +265,9 @@ subroutine cable_unpack_r4_2_r4(indata,outdata)
     do nb = 1,tdata(tile)%maxnb
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
-      outdata(js:je) = outdata(js:je) + unpack(indata(is:ie),tdata(tile)%tmap(:,nb),lfillvalue)
+      if ( is<=ie ) then
+        outdata(js:je) = outdata(js:je) + unpack(indata(is:ie),tdata(tile)%tmap(:,nb),lfillvalue)
+      end if  
     end do
   end do
 
@@ -256,18 +279,20 @@ subroutine cable_unpack_r8_2_r8(indata,outdata,inb)
 
   implicit none
 
-  real(kind=8), dimension(mp), intent(in) :: indata
+  real(kind=8), dimension(:), intent(in) :: indata
   real(kind=8), dimension(ifull), intent(inout) :: outdata
   integer, intent(in) :: inb
   integer :: is, ie, js, je, tile, nb
 
   nb = inb
-  do tile =1,ntiles
+  do tile = 1,ntiles
     is = tdata(tile)%tind(nb,1)
     ie = tdata(tile)%tind(nb,2)
-    js=1+(tile-1)*imax
-    je=tile*imax
-    outdata(js:je) = unpack(indata(is:ie),tdata(tile)%tmap(:,nb),outdata(js:je))
+    if ( is<=ie ) then
+      js=1+(tile-1)*imax
+      je=tile*imax
+      outdata(js:je) = unpack(indata(is:ie),tdata(tile)%tmap(:,nb),outdata(js:je))
+    end if  
   end do
 
 end subroutine cable_unpack_r8_2_r8
@@ -285,11 +310,13 @@ subroutine pop_pack_r8_2_r8(indata,outdata,inb)
 
   nb = inb
   do tile = 1,ntiles
-    js=1+(tile-1)*imax
-    je=tile*imax
     is = tdata(tile)%pind(nb,1)
     ie = tdata(tile)%pind(nb,2)
-    if ( is<=ie ) outdata(is:ie) =  pack(indata(js:je),tdata(tile)%pmap(:,nb))
+    if ( is<=ie ) then
+      js=1+(tile-1)*imax
+      je=tile*imax
+      outdata(is:ie) =  pack(indata(js:je),tdata(tile)%pmap(:,nb))
+    end if  
   end do
 
 end subroutine pop_pack_r8_2_r8
@@ -307,11 +334,13 @@ subroutine pop_pack_i4_2_i4(indata,outdata,inb)
 
   nb = inb
   do tile = 1,ntiles
-    js=1+(tile-1)*imax
-    je=tile*imax
     is = tdata(tile)%pind(nb,1)
     ie = tdata(tile)%pind(nb,2)
-    if ( is<=ie ) outdata(is:ie) =  pack(indata(js:je),tdata(tile)%pmap(:,nb))
+    if ( is<=ie ) then
+      js=1+(tile-1)*imax
+      je=tile*imax
+      outdata(is:ie) =  pack(indata(js:je),tdata(tile)%pmap(:,nb))
+    end if  
   end do
 
 end subroutine pop_pack_i4_2_i4
@@ -331,9 +360,11 @@ subroutine pop_unpack_r8_2_r8(indata,outdata,inb)
   do tile =1,ntiles
     is = tdata(tile)%pind(nb,1)
     ie = tdata(tile)%pind(nb,2)
-    js=1+(tile-1)*imax
-    je=tile*imax
-    if ( is<=ie ) outdata(js:je) = unpack(indata(is:ie),tdata(tile)%pmap(:,nb),0._dp)
+    if ( is<=ie ) then
+      js=1+(tile-1)*imax
+      je=tile*imax
+      outdata(js:je) = unpack(indata(is:ie),tdata(tile)%pmap(:,nb),0._dp)
+    end if  
   end do
 
 end subroutine pop_unpack_r8_2_r8
@@ -353,9 +384,11 @@ subroutine pop_unpack_i4_2_r8(indata,outdata,inb)
   do tile =1,ntiles
     is = tdata(tile)%pind(nb,1)
     ie = tdata(tile)%pind(nb,2)
-    js=1+(tile-1)*imax
-    je=tile*imax
-    if ( is<=ie ) outdata(js:je) = unpack(real(indata(is:ie),8),tdata(tile)%pmap(:,nb),0._dp)
+    if ( is<=ie ) then
+      js=1+(tile-1)*imax
+      je=tile*imax
+      outdata(js:je) = unpack(real(indata(is:ie),8),tdata(tile)%pmap(:,nb),0._dp)
+    end if  
   end do
 
 end subroutine pop_unpack_i4_2_r8

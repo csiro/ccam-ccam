@@ -1999,7 +1999,7 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     nurban,ktopdav,mbd_mlo,mbd_maxscale_mlo,nud_sst,nud_sss,      &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
-    cgmap_scale,nriver,atebnmlfile,nud_period,                    &
+    cgmap_scale,nriver,atebnmlfile,nud_period,mfix_t,             &
     procformat,procmode,compression,                              & ! file io
     maxtilesize,                                                  & ! OMP
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn              ! backwards compatible
@@ -2093,7 +2093,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion,mins_rad)
 end if
-allocate( dumr(33), dumi(114) ) 
+allocate( dumr(33), dumi(115) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -2245,6 +2245,7 @@ if ( myid==0 ) then
   dumi(112) = compression
   dumi(113) = nmr
   dumi(114) = maxtilesize
+  dumi(115) = mfix_t
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2395,6 +2396,7 @@ procmode         = dumi(111)
 compression      = dumi(112)
 nmr              = dumi(113)
 maxtilesize      = dumi(114)
+mfix_t           = dumi(115)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -3242,10 +3244,6 @@ if ( myid<nproc ) then
   end if
   if ( mfix_qg>0 .and. nkuo==4 ) then
     write(6,*) 'nkuo=4: mfix_qg>0 not allowed'
-    call ccmpi_abort(-1)
-  end if
-  if ( mfix>3 ) then
-    write(6,*) 'mfix >3 not allowed now'
     call ccmpi_abort(-1)
   end if
   nstagin  = nstag    ! -ve nstagin gives swapping & its frequency
@@ -4310,7 +4308,7 @@ if ( any(tss(js:je)/=tss(js:je)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(tss(js:je)<100.) .or. any(tss(js:je)>425.) ) then
+if ( any(tss(js:je)<75.) .or. any(tss(js:je)>425.) ) then
   write(6,*) "ERROR: Out-of-range detected in tss on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(tss(js:je)),maxval(tss(js:je))
   write(6,*) "minloc,maxloc ",minloc(tss(js:je)),maxloc(tss(js:je))

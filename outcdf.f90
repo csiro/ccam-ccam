@@ -610,6 +610,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mfix',mfix)
     call ccnf_put_attg(idnc,'mfix_aero',mfix_aero)
     call ccnf_put_attg(idnc,'mfix_qg',mfix_qg)
+    call ccnf_put_attg(idnc,'mfix_t',mfix_t)
     call ccnf_put_attg(idnc,'mfix_tr',mfix_tr)
     call ccnf_put_attg(idnc,'mh_bs',mh_bs)
     call ccnf_put_attg(idnc,'mloalpha',mloalpha)
