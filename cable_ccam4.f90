@@ -73,7 +73,6 @@ subroutine cable_pack_r4_2_r4(indata,outdata,inb)
       je=tile*imax
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
-      print *,"is,ie ",is,ie
       if ( is<=ie ) then
         outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
       end if  
