@@ -42,15 +42,10 @@ MODULE TypeDef
   INTEGER,PARAMETER :: i2b = SELECTED_INT_KIND(4)
   INTEGER,PARAMETER :: i1b = SELECTED_INT_KIND(2)
   ! Define single and double precision real kind parameters:
-#ifdef CCAM
-  INTEGER,PARAMETER :: sp = SELECTED_REAL_KIND(6, 37)
-  INTEGER,PARAMETER :: dp = SELECTED_REAL_KIND(15,307)
-#else
   ! * Kind(1.0)   defines sp as the machine's default size for single precision
   ! * Kind(1.0d0) defines dp as the machine's default size for double precision
   INTEGER,PARAMETER :: sp  = KIND(1.0)
   INTEGER,PARAMETER :: dp  = KIND(1.0d0)
-#endif
   ! lgt is set to the default kind required for representing logical values.
   INTEGER,PARAMETER :: lgt = KIND(.TRUE.)
 
