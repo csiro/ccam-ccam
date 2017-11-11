@@ -299,11 +299,12 @@ end subroutine cable_unpack_r8_2_r8
 subroutine pop_pack_r8_2_r8(indata,outdata,inb)
   use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
+  use TypeDef, only : dp
 
   implicit none
 
   real(kind=8), dimension(ifull), intent(in) :: indata
-  real(kind=8), dimension(:), intent(inout) :: outdata
+  real(kind=dp), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -314,7 +315,7 @@ subroutine pop_pack_r8_2_r8(indata,outdata,inb)
     if ( is<=ie ) then
       js=1+(tile-1)*imax
       je=tile*imax
-      outdata(is:ie) =  pack(indata(js:je),tdata(tile)%pmap(:,nb))
+      outdata(is:ie) =  pack(real(indata(js:je),dp),tdata(tile)%pmap(:,nb))
     end if  
   end do
 
@@ -347,10 +348,11 @@ end subroutine pop_pack_i4_2_i4
 subroutine pop_unpack_r8_2_r8(indata,outdata,inb)
   use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
+  use TypeDef, only : dp
 
   implicit none
 
-  real(kind=8), dimension(:), intent(in) :: indata
+  real(kind=dp), dimension(:), intent(in) :: indata
   real(kind=8), dimension(ifull), intent(out) :: outdata
   integer, intent(in) :: inb
   integer :: is, ie, js, je, tile, nb
@@ -362,7 +364,7 @@ subroutine pop_unpack_r8_2_r8(indata,outdata,inb)
     if ( is<=ie ) then
       js=1+(tile-1)*imax
       je=tile*imax
-      outdata(js:je) = unpack(indata(is:ie),tdata(tile)%pmap(:,nb),0._dp)
+      outdata(js:je) = unpack(real(indata(is:ie),8),tdata(tile)%pmap(:,nb),0._8)
     end if  
   end do
 
@@ -386,7 +388,7 @@ subroutine pop_unpack_i4_2_r8(indata,outdata,inb)
     if ( is<=ie ) then
       js=1+(tile-1)*imax
       je=tile*imax
-      outdata(js:je) = unpack(real(indata(is:ie),8),tdata(tile)%pmap(:,nb),0._dp)
+      outdata(js:je) = unpack(real(indata(is:ie),8),tdata(tile)%pmap(:,nb),0._8)
     end if  
   end do
 
