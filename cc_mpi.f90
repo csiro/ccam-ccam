@@ -2530,6 +2530,7 @@ contains
       integer :: iproc, rproc, sproc
       integer :: iqg, iql, iloc, jloc, nloc, icol
       integer :: iext, iextu, iextv
+      integer :: iqg_base, i_g, j_g
       integer, dimension(:), allocatable :: dumi
       integer, dimension(:,:), allocatable :: dums, dumr
       integer(kind=4) :: ierr, itag=0, lcount
@@ -3300,56 +3301,148 @@ contains
       ! estimate maximum distance for departure points
       ! assume wind speed is less than 350 m/s
       maxdis = 350.*dt/rearth ! unit sphere
-      do n = 1,npan
-         j = 1
-         do i = 1,ipan
-            iqq = indg(i,j,n)
-            do iqg = 1,ifull_g
-               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-               if ( disarray_g < maxdis ) then
-                  iproc = qproc(iqg)
-                  neigharray_g(iproc) = .true.
-               end if
-            end do
+      do iqg_base = 1,ifull_g,ifull
+         do i_g = 1,ipan
+            iqg = iqg_base + i_g - 1 
+            iproc = qproc(iqg)
+            if ( .not.neigharray_g(iproc) ) then
+               do n = 1,npan
+                  j = 1
+                  do i = 1,ipan
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+                  j = jpan
+                  do i = 1,ipan
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+                  i = 1
+                  do j = 2,jpan-1
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+                  i = ipan
+                  do j = 2,jpan-1
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+               end do
+            end if   
+            iqg = iqg_base + ifull + i_g - ipan - 1
+            iproc = qproc(iqg)
+            if ( .not.neigharray_g(iproc) ) then
+               do n = 1,npan
+                  j = 1
+                  do i = 1,ipan
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+                  j = jpan
+                  do i = 1,ipan
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+                  i = 1
+                  do j = 2,jpan-1
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+                  i = ipan
+                  do j = 2,jpan-1
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+               end do
+            end if   
+         end do  
+         do j_g = 2,jpan-1
+            iqg = iqg_base + (j_g-1)*ipan 
+            iproc = qproc(iqg)
+            if ( .not.neigharray_g(iproc) ) then
+               do n = 1,npan
+                  j = 1
+                  do i = 1,ipan
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+                  j = jpan
+                  do i = 1,ipan
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+                  i = 1
+                  do j = 2,jpan-1
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+                  i = ipan
+                  do j = 2,jpan-1
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+               end do
+            end if   
+            iqg = iqg_base + j_g*ipan - 1
+            iproc = qproc(iqg)
+            if ( .not.neigharray_g(iproc) ) then
+               do n = 1,npan
+                  j = 1
+                  do i = 1,ipan
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+                  j = jpan
+                  do i = 1,ipan
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+                  i = 1
+                  do j = 2,jpan-1
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+                  i = ipan
+                  do j = 2,jpan-1
+                     iqq = indg(i,j,n)
+                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
+                  end do
+               end do
+            end if   
          end do
-         j = jpan
-         do i = 1,ipan
-            iqq = indg(i,j,n)
-            do iqg = 1,ifull_g
-               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-               if ( disarray_g < maxdis ) then
-                  iproc = qproc(iqg)
-                  neigharray_g(iproc) = .true.
-               end if
-            end do
-         end do
-         i = 1
-         do j = 1,jpan
-            iqq = indg(i,j,n)
-            do iqg = 1,ifull_g
-               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-               if ( disarray_g < maxdis ) then
-                  iproc = qproc(iqg)
-                  neigharray_g(iproc) = .true.
-               end if
-            end do
-         end do
-         i = ipan
-         do j = 1,jpan
-            iqq = indg(i,j,n)
-            do iqg = 1,ifull_g
-               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-               if ( disarray_g < maxdis ) then
-                  iproc = qproc(iqg)
-                  neigharray_g(iproc) = .true.
-               end if
-            end do
-         end do
-      end do
+      end do   
       neigharray_g(myid) = .false.
       neighnum = count( neigharray_g )
       where( neigharray_g )
@@ -3528,7 +3621,7 @@ contains
             rproc = qproc(iqq)
             swap = edge_s .and. swap_s(n-noff)
             if ( rproc /= myid .or. swap ) then
-               bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1                
+               bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
                call check_bnds_alloc(rproc, iextv)
                bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqq
                rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1

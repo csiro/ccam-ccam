@@ -604,6 +604,10 @@ call vcmax_feedback(casabiome,casamet,casapool,veg)
 ! CABLE
 ktau_gl          = 900
 kend_gl          = 999
+canopy%fev       = 0._8
+canopy%fes       = 0._8
+canopy%fhv       = 0._8
+canopy%fhs       = 0._8
 met%ofsd         = met%fsd(:,1) + met%fsd(:,2)
 ssnow%owetfac    = ssnow%wetfac
 canopy%oldcansto = canopy%cansto
@@ -630,8 +634,8 @@ canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
 canopy%fes       = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
 canopy%fns       = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
 canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
-!canopy%fhs_cor   = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
-!canopy%fes_cor   = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
+!canopy%fhs_cor  = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
+!canopy%fes_cor  = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
 canopy%fh        = canopy%fhv + canopy%fhs
 canopy%fev       = canopy%fevc + canopy%fevw
 canopy%fe        = canopy%fev + canopy%fes
@@ -658,6 +662,14 @@ if ( any( canopy%fhv/=canopy%fhv ) ) then
 end if
 if ( any( canopy%fhs/=canopy%fhs ) ) then
   write(6,*) "ERROR: NaN found in canopy%fhs after CABLE"
+  stop -1
+end if
+if ( any( canopy%fev/=canopy%fev ) ) then
+  write(6,*) "ERROR: NaN found in canopy%fev after CABLE"
+  stop -1
+end if
+if ( any( canopy%fes/=canopy%fes ) ) then
+  write(6,*) "ERROR: NaN found in canopy%fes after CABLE"
   stop -1
 end if
 if ( any( canopy%tv/=canopy%tv ) ) then

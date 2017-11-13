@@ -233,7 +233,7 @@ do iq_tile = 1,ifull,imax
   iend   = istart + imax - 1
   
   call ccomp_mythread(mythread)
-
+  
   ! Calculate zenith angle for the solarfit calculation.
   dhr = dt/3600.
   call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),rlongg(istart:iend),dhr,imax,coszro2,taudar2)
@@ -1520,6 +1520,13 @@ do mythread = 0,maxthreads-1
   Rad_gases(mythread)%rrvf12  = real(rrvf12 ,8)
   Rad_gases(mythread)%rrvf113 = real(rrvf113,8)
   Rad_gases(mythread)%rrvf22  = real(rrvf22 ,8)
+  Rad_gases(mythread)%time_varying_co2 = .false.
+  Rad_gases(mythread)%time_varying_f11 = .false.
+  Rad_gases(mythread)%time_varying_f12 = .false.
+  Rad_gases(mythread)%time_varying_f113 = .false.
+  Rad_gases(mythread)%time_varying_f22 = .false.
+  Rad_gases(mythread)%time_varying_ch4 = .false.
+  Rad_gases(mythread)%time_varying_n2o = .false.
   if ( mythread==0 ) then
     call sealw99_time_vary(Rad_time, Rad_gases(mythread)) ! sets values in gas_tf.f90
   end if    
