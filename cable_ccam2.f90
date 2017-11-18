@@ -630,12 +630,14 @@ select case ( soil_struc )
 end select
 ! adjust for new soil temperature
 ssnow%deltss     = ssnow%tss - ssnow%otss
-canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
-canopy%fes       = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
-canopy%fns       = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
-canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
-!canopy%fhs_cor  = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
-!canopy%fes_cor  = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
+if ( soil_struc==0 ) then
+  canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
+  canopy%fes       = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
+  canopy%fns       = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
+  canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
+  !canopy%fhs_cor  = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
+  !canopy%fes_cor  = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
+end if
 canopy%fh        = canopy%fhv + canopy%fhs
 canopy%fev       = canopy%fevc + canopy%fevw
 canopy%fe        = canopy%fev + canopy%fes

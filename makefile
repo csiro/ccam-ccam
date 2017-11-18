@@ -17,9 +17,9 @@ FHOST = -O3 -xCORE-AVX2
 endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
-OMPFLAG = -qopenmp
+OMPFLAG = -qopenmp -mPAROPT_openmp=TRUE
 else
-OMPFLAG = -qopenmp-simd
+OMPFLAG =
 endif
 # Default intel compiler options
 FFLAGS = $(FHOST) -ftz -fp-model precise -no-fma -traceback $(MPIFLAG) $(NCFLAG) $(OMPFLAG)

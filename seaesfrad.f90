@@ -1521,12 +1521,13 @@ do mythread = 0,maxthreads-1
   Rad_gases(mythread)%rrvf113 = real(rrvf113,8)
   Rad_gases(mythread)%rrvf22  = real(rrvf22 ,8)
   Rad_gases(mythread)%time_varying_co2 = .false.
+  Rad_gases(mythread)%time_varying_ch4 = .false.
+  Rad_gases(mythread)%time_varying_n2o = .false.
   Rad_gases(mythread)%time_varying_f11 = .false.
   Rad_gases(mythread)%time_varying_f12 = .false.
   Rad_gases(mythread)%time_varying_f113 = .false.
   Rad_gases(mythread)%time_varying_f22 = .false.
-  Rad_gases(mythread)%time_varying_ch4 = .false.
-  Rad_gases(mythread)%time_varying_n2o = .false.
+  Rad_gases(mythread)%use_model_supplied_co2 = .false.
   if ( mythread==0 ) then
     call sealw99_time_vary(Rad_time, Rad_gases(mythread)) ! sets values in gas_tf.f90
   end if    

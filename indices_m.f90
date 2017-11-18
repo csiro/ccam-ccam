@@ -224,7 +224,7 @@ end do
 return
 end subroutine unpack_svwu
 
-pure function in_g(iq) result(iqq)
+function in_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -244,7 +244,7 @@ else
 end if
 end function in_g
 
-pure function is_g(iq) result(iqq)
+function is_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -264,7 +264,7 @@ else
 end if
 end function is_g
 
-pure function ie_g(iq) result(iqq)
+function ie_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -284,7 +284,7 @@ else
 end if
 end function ie_g
 
-pure function iw_g(iq) result(iqq)
+function iw_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -304,7 +304,7 @@ else
 end if
 end function iw_g
 
-pure function inn_g(iq) result(iqq)
+function inn_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -320,7 +320,7 @@ else
 end if
 end function inn_g
 
-pure function iss_g(iq) result(iqq)
+function iss_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -336,7 +336,7 @@ else
 end if
 end function iss_g
 
-pure function iee_g(iq) result(iqq)
+function iee_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -352,7 +352,7 @@ else
 end if
 end function iee_g
 
-pure function iww_g(iq) result(iqq)
+function iww_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -368,7 +368,7 @@ else
 end if
 end function iww_g
 
-pure function ine_g(iq) result(iqq)
+function ine_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -384,7 +384,7 @@ else
 end if
 end function ine_g
 
-pure function ise_g(iq) result(iqq)
+function ise_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -400,7 +400,7 @@ else
 end if
 end function ise_g
 
-pure function ien_g(iq) result(iqq)
+function ien_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -416,7 +416,7 @@ else
 end if
 end function ien_g
 
-pure function iwn_g(iq) result(iqq)
+function iwn_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -432,7 +432,7 @@ else
 end if
 end function iwn_g
 
-pure function inw_g(iq) result(iqq)
+function inw_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -448,7 +448,7 @@ else
 end if
 end function inw_g
 
-pure function isw_g(iq) result(iqq)
+function isw_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -464,7 +464,7 @@ else
 end if
 end function isw_g
 
-pure function ies_g(iq) result(iqq)
+function ies_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -480,7 +480,7 @@ else
 end if
 end function ies_g
 
-pure function iws_g(iq) result(iqq)
+function iws_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -496,7 +496,7 @@ else
 end if
 end function iws_g
 
-pure function iwu2_g(iq) result(iqq)
+function iwu2_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -512,7 +512,7 @@ else
 end if
 end function iwu2_g
 
-pure function isv2_g(iq) result(iqq)
+function isv2_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
@@ -528,7 +528,7 @@ else
 end if
 end function isv2_g
 
-pure function leen_g(n) result(iqq)
+function leen_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -540,7 +540,7 @@ else
 end if
 end function leen_g
 
-pure function lenn_g(n) result(iqq)
+function lenn_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -552,7 +552,7 @@ else
 end if
 end function lenn_g
 
-pure function lwnn_g(n) result(iqq)
+function lwnn_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -564,7 +564,7 @@ else
 end if
 end function lwnn_g
 
-pure function lsee_g(n) result(iqq)
+function lsee_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -576,7 +576,7 @@ else
 end if
 end function lsee_g
 
-pure function lnee_g(n) result(iqq)
+function lnee_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -588,7 +588,7 @@ else
 end if
 end function lnee_g
 
-pure function lnne_g(n) result(iqq)
+function lnne_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -600,7 +600,7 @@ else
 end if
 end function lnne_g
 
-pure function lsww_g(n) result(iqq)
+function lsww_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -612,7 +612,7 @@ else
 end if
 end function lsww_g
 
-pure function lssw_g(n) result(iqq)
+function lssw_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -624,7 +624,7 @@ else
 end if
 end function lssw_g
 
-pure function lnww_g(n) result(iqq)
+function lnww_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -636,7 +636,7 @@ else
 end if
 end function lnww_g
 
-pure function lwws_g(n) result(iqq)
+function lwws_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -648,7 +648,7 @@ else
 end if
 end function lwws_g
 
-pure function lwss_g(n) result(iqq)
+function lwss_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -660,7 +660,7 @@ else
 end if
 end function lwss_g
 
-pure function less_g(n) result(iqq)
+function less_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -672,7 +672,7 @@ else
 end if
 end function less_g
 
-pure function lwwn_g(n) result(iqq)
+function lwwn_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -684,7 +684,7 @@ else
 end if
 end function lwwn_g
 
-pure function lsse_g(n) result(iqq)
+function lsse_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -696,7 +696,7 @@ else
 end if
 end function lsse_g
 
-pure function lnnw_g(n) result(iqq)
+function lnnw_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -708,7 +708,7 @@ else
 end if
 end function lnnw_g
 
-pure function lees_g(n) result(iqq)
+function lees_g(n) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: n
@@ -720,7 +720,7 @@ else
 end if
 end function lees_g
 
-pure function jn_g(iq,mil_g) result(iqq)
+function jn_g(iq,mil_g) result(iqq)
 implicit none
 integer, intent(in) :: iq, mil_g
 integer iqq
@@ -739,7 +739,7 @@ else
 end if
 end function jn_g
 
-pure function je_g(iq,mil_g) result(iqq)
+function je_g(iq,mil_g) result(iqq)
 implicit none
 integer, intent(in) :: iq, mil_g
 integer iqq
@@ -758,7 +758,7 @@ else
 end if
 end function je_g
 
-pure function js_g(iq,mil_g) result(iqq)
+function js_g(iq,mil_g) result(iqq)
 implicit none
 integer, intent(in) :: iq, mil_g
 integer iqq
@@ -777,7 +777,7 @@ else
 end if
 end function js_g
 
-pure function jw_g(iq,mil_g) result(iqq)
+function jw_g(iq,mil_g) result(iqq)
 implicit none
 integer, intent(in) :: iq, mil_g
 integer iqq
@@ -796,7 +796,7 @@ else
 end if
 end function jw_g
 
-pure function jne_g(iq,mil_g) result(iqq)
+function jne_g(iq,mil_g) result(iqq)
 implicit none
 integer, intent(in) :: iq, mil_g
 integer iqq
@@ -811,7 +811,7 @@ else
 end if
 end function jne_g
 
-pure function jse_g(iq,mil_g) result(iqq)
+function jse_g(iq,mil_g) result(iqq)
 implicit none
 integer, intent(in) :: iq, mil_g
 integer iqq
@@ -826,7 +826,7 @@ else
 end if
 end function jse_g
 
-pure function jsw_g(iq,mil_g) result(iqq)
+function jsw_g(iq,mil_g) result(iqq)
 implicit none
 integer, intent(in) :: iq, mil_g
 integer iqq
@@ -841,7 +841,7 @@ else
 end if
 end function jsw_g
 
-pure function jnw_g(iq,mil_g) result(iqq)
+function jnw_g(iq,mil_g) result(iqq)
 implicit none
 integer, intent(in) :: iq, mil_g
 integer iqq

@@ -451,6 +451,9 @@ contains
       integer, dimension(ifull) :: colourmask
       integer, dimension(2) :: sshape
       real, intent(in) :: dt
+      real, dimension(:,:), allocatable :: dum, dum_g
+      real, dimension(:,:), allocatable :: dumu, dumv
+      real(kind=8), dimension(:,:), allocatable :: dumr8, dumr8_g
       logical(kind=4) :: ltrue
       !type(c_ptr) :: baseptr
 
@@ -461,9 +464,6 @@ contains
       
       
       ! Decompose grid over processes
-      if ( myid==0 ) then
-         write(6,*) "  Decompose grid"
-      end if
       if ( uniform_decomp ) then
          call proc_setup_uniform(id,jd,idjd)
          ! may require two boundries from the same process
@@ -478,75 +478,126 @@ contains
             maxbuflen = (max(ipan,jpan)+4)*4 
          end if    
       end if
-      maxvertlen = max( kl, ol )
+      maxvertlen = max( kl, ol, 15 )
       
       ! Distribute global arrays over processes
-      if ( myid==0 ) then
-         write(6,*) "  Distribute global arrays" 
-         call ccmpi_distribute(wts,wts_g) 
-         call ccmpi_distribute(em,em_g)
-         call ccmpi_distribute(emu,emu_g)
-         call ccmpi_distribute(emv,emv_g)
-         call ccmpi_distribute(ax,ax_g)
-         call ccmpi_distribute(ay,ay_g)
-         call ccmpi_distribute(az,az_g)
-         call ccmpi_distribute(bx,bx_g)
-         call ccmpi_distribute(by,by_g)
-         call ccmpi_distribute(bz,bz_g)
-         call ccmpi_distribute(f,f_g)
-         call ccmpi_distribute(fu,fu_g)
-         call ccmpi_distribute(fv,fv_g)
-         call ccmpi_distribute(rlatt,rlatt_g)
-         call ccmpi_distribute(rlongg,rlongg_g)
-         call ccmpi_distribute(rlat4_l,rlat4)
-         call ccmpi_distribute(rlong4_l,rlong4)
-         call ccmpi_distributer8(x,x_g)
-         call ccmpi_distributer8(y,y_g)
-         call ccmpi_distributer8(z,z_g)
+      if ( myid == 0 ) then
+         allocate( dum_g(ifull_g,15), dum(ifull,15) ) 
+         dum_g(1:ifull_g,1) = wts_g(1:ifull_g)
+         dum_g(1:ifull_g,2) = em_g(1:ifull_g)
+         dum_g(1:ifull_g,3) = emu_g(1:ifull_g)
+         dum_g(1:ifull_g,4) = emv_g(1:ifull_g)
+         dum_g(1:ifull_g,5) = ax_g(1:ifull_g)
+         dum_g(1:ifull_g,6) = ay_g(1:ifull_g)
+         dum_g(1:ifull_g,7) = az_g(1:ifull_g)
+         dum_g(1:ifull_g,8) = bx_g(1:ifull_g)
+         dum_g(1:ifull_g,9) = by_g(1:ifull_g)
+         dum_g(1:ifull_g,10) = bz_g(1:ifull_g)
+         dum_g(1:ifull_g,11) = f_g(1:ifull_g)
+         dum_g(1:ifull_g,12) = fu_g(1:ifull_g)
+         dum_g(1:ifull_g,13) = fv_g(1:ifull_g)
+         dum_g(1:ifull_g,14) = rlatt_g(1:ifull_g)
+         dum_g(1:ifull_g,15) = rlongg_g(1:ifull_g)
+         call ccmpi_distribute(dum(:,1:15),dum_g(:,1:15)) 
+         wts(1:ifull) = dum(1:ifull,1)
+         em(1:ifull) = dum(1:ifull,2)
+         emu(1:ifull) = dum(1:ifull,3)
+         emv(1:ifull) = dum(1:ifull,4)
+         ax(1:ifull) = dum(1:ifull,5)
+         ay(1:ifull) = dum(1:ifull,6)
+         az(1:ifull) = dum(1:ifull,7)
+         bx(1:ifull) = dum(1:ifull,8)
+         by(1:ifull) = dum(1:ifull,9)
+         bz(1:ifull) = dum(1:ifull,10)
+         f(1:ifull) = dum(1:ifull,11)
+         fu(1:ifull) = dum(1:ifull,12)
+         fv(1:ifull) = dum(1:ifull,13)
+         rlatt(1:ifull) = dum(1:ifull,14)
+         rlongg(1:ifull) = dum(1:ifull,15)
+         deallocate( dum_g, dum )
+         allocate( dum_g(ifull_g,8), dum(ifull,8) )
+         dum_g(1:ifull_g,1:4) = rlat4(1:ifull_g,1:4)
+         dum_g(1:ifull_g,5:8) = rlong4(1:ifull_g,1:4)
+         call ccmpi_distribute(dum(:,1:8),dum_g(:,1:8))
+         rlat4_l(1:ifull,1:4) = dum(1:ifull,1:4)
+         rlong4_l(1:ifull,1:4) = dum(1:ifull,5:8)
+         deallocate( dum_g, dum )
+         allocate( dumr8_g(ifull_g,3), dumr8(ifull,3) )
+         dumr8_g(1:ifull_g,1) = x_g(1:ifull_g)
+         dumr8_g(1:ifull_g,2) = y_g(1:ifull_g)
+         dumr8_g(1:ifull_g,3) = z_g(1:ifull_g)
+         call ccmpi_distributer8(dumr8(:,1:3),dumr8_g(:,1:3))
+         x(1:ifull) = dumr8(1:ifull,1)
+         y(1:ifull) = dumr8(1:ifull,2)
+         z(1:ifull) = dumr8(1:ifull,3)
+         deallocate( dumr8_g, dumr8 )
       else
-         call ccmpi_distribute(wts) 
-         call ccmpi_distribute(em)
-         call ccmpi_distribute(emu)
-         call ccmpi_distribute(emv)
-         call ccmpi_distribute(ax)
-         call ccmpi_distribute(ay)
-         call ccmpi_distribute(az)
-         call ccmpi_distribute(bx)
-         call ccmpi_distribute(by)
-         call ccmpi_distribute(bz)
-         call ccmpi_distribute(f)
-         call ccmpi_distribute(fu)
-         call ccmpi_distribute(fv)
-         call ccmpi_distribute(rlatt)
-         call ccmpi_distribute(rlongg)
-         call ccmpi_distribute(rlat4_l)
-         call ccmpi_distribute(rlong4_l)
-         call ccmpi_distributer8(x)
-         call ccmpi_distributer8(y)
-         call ccmpi_distributer8(z)
+         allocate( dum(ifull,15) )
+         call ccmpi_distribute(dum(:,1:15))
+         wts(1:ifull) = dum(1:ifull,1)
+         em(1:ifull) = dum(1:ifull,2)
+         emu(1:ifull) = dum(1:ifull,3)
+         emv(1:ifull) = dum(1:ifull,4)
+         ax(1:ifull) = dum(1:ifull,5)
+         ay(1:ifull) = dum(1:ifull,6)
+         az(1:ifull) = dum(1:ifull,7)
+         bx(1:ifull) = dum(1:ifull,8)
+         by(1:ifull) = dum(1:ifull,9)
+         bz(1:ifull) = dum(1:ifull,10)
+         f(1:ifull) = dum(1:ifull,11)
+         fu(1:ifull) = dum(1:ifull,12)
+         fv(1:ifull) = dum(1:ifull,13)
+         rlatt(1:ifull) = dum(1:ifull,14)
+         rlongg(1:ifull) = dum(1:ifull,15)
+         deallocate( dum )
+         allocate( dum(ifull,8) )
+         call ccmpi_distribute(dum(:,1:8))
+         rlat4_l(1:ifull,1:4) = dum(1:ifull,1:4)
+         rlong4_l(1:ifull,1:4) = dum(1:ifull,5:8)
+         deallocate( dum )         
+         allocate( dumr8(ifull,3) )
+         call ccmpi_distributer8(dumr8(:,1:3))
+         x(1:ifull) = dumr8(1:ifull,1)
+         y(1:ifull) = dumr8(1:ifull,2)
+         z(1:ifull) = dumr8(1:ifull,3)
+         deallocate( dumr8 )
       end if
 
       
-      ! Configure halos
-      if ( myid==0 ) then
-         write(6,*) "  Calling bounds_setup"
-      end if  
+      ! Configure halos      
       call bounds_setup(dt)
-      if ( myid==0 ) then
-         write(6,*) " Update halos for constant arrays"  
-      end if
-      call bounds(em,corner=.true.)
-      call bounds(f,corner=.true.)
-      call boundsuv(emu,emv)
-      call boundsuv(ax,bx)
-      call boundsuv(ay,by)
-      call boundsuv(az,bz)
-
+      allocate( dum(1:ifull+iextra,2) )
+      dum = 0.
+      dum(1:ifull,1) = em(1:ifull)
+      dum(1:ifull,2) = f(1:ifull)
+      call bounds(dum(:,1:2),corner=.true.)
+      em(ifull+1:ifull+iextra) = dum(ifull+1:ifull+iextra,1)
+      f(ifull+1:ifull+iextra) = dum(ifull+1:ifull+iextra,2)
+      deallocate( dum )
+      allocate( dumu(ifull+iextra,4), dumv(ifull+iextra,4) )
+      dumu = 0.
+      dumv = 0.
+      dumu(1:ifull,1) = emu(1:ifull)
+      dumv(1:ifull,1) = emv(1:ifull)
+      dumu(1:ifull,2) = ax(1:ifull)
+      dumv(1:ifull,2) = bx(1:ifull)
+      dumu(1:ifull,3) = ay(1:ifull)
+      dumv(1:ifull,3) = by(1:ifull)
+      dumu(1:ifull,4) = az(1:ifull)
+      dumv(1:ifull,4) = bz(1:ifull)
+      call boundsuv(dumu(:,1:4),dumv(:,1:4))
+      emu(ifull+1:ifull+iextra) = dumu(ifull+1:ifull+iextra,1)     
+      emv(ifull+1:ifull+iextra) = dumv(ifull+1:ifull+iextra,1)
+      ax(ifull+1:ifull+iextra) = dumu(ifull+1:ifull+iextra,2)     
+      bx(ifull+1:ifull+iextra) = dumv(ifull+1:ifull+iextra,2)
+      ay(ifull+1:ifull+iextra) = dumu(ifull+1:ifull+iextra,3)     
+      by(ifull+1:ifull+iextra) = dumv(ifull+1:ifull+iextra,3)
+      az(ifull+1:ifull+iextra) = dumu(ifull+1:ifull+iextra,4)     
+      bz(ifull+1:ifull+iextra) = dumv(ifull+1:ifull+iextra,4)
+      deallocate( dumu, dumv )
+      
       
       ! Off processor departure points
-      if ( myid==0 ) then
-         write(6,*) "  Allocate memory for depature points"
-      end if  
       allocate( dpoints(neighnum) )
       allocate( dbuf(0:neighnum) )
       allocate( dindex(0:neighnum) )
@@ -569,9 +620,6 @@ contains
 
 
       ! Pack colour indices
-      if ( myid==0 ) then
-         write(6,*) "  Setup colour indices"  
-      end if    
       do n = 1,npan
          do j = 1,jpan
             do i = 1,ipan
@@ -581,6 +629,7 @@ contains
             end do
          end do
       end do
+
       do n = 1,maxcolour
          ifullcol(n) = count( colourmask == n )
       end do
@@ -648,18 +697,12 @@ contains
 
 
       ! Create MPI_SUMDR for calculating global sums with high precision
-      ! operator MPI_SUMDR is created based on an external function DRPDR.
-      if ( myid==0 ) then
-         write(6,*) "  Create SUMDR operator"  
-      end if    
       ltrue = .true. 
+!     operator MPI_SUMDR is created based on an external function DRPDR.
       call MPI_OP_CREATE(DRPDR, ltrue, MPI_SUMDR, ierr)
       
       
       ! prepare comm groups - used by scale-selective filter
-      if ( myid==0 ) then
-         write(6,*) "  Setup communication groups"
-      end if
       if ( uniform_decomp ) then
          npta = 6                     ! number of panels per processor
          mproc = nproc                ! number of processors per panel
@@ -673,23 +716,27 @@ contains
          pprocx = pprocn + npta - 1   ! end panel
          hproc = pprocn*mproc/npta    ! host processor for panel
       end if
+
       ! comm between work groups with captain hproc
       colour = hproc
       rank = myid - hproc
       lcommin = comm_world
       call MPI_Comm_Split(lcommin, colour, rank, lcommout, ierr)
       comm_proc = lcommout
+      
       ! comm between columns in work group
       colour = ioff
       rank = joff/jpan
       lcommin = comm_proc
       call MPI_Comm_Split(lcommin, colour, rank, lcommout, ierr)
       comm_cols = lcommout
+      
       ! comm between rows in work group      
       colour = joff
       rank = ioff/ipan
       call MPI_Comm_Split(lcommin, colour, rank, lcommout, ierr)
       comm_rows = lcommout
+      
       if ( myid == hproc ) then
          if ( ioff/=0 .or. joff/=0 ) then
             write(6,*) "ERROR: hproc incorrectly assigned"
@@ -699,9 +746,6 @@ contains
       
       ! prep RMA windows for gathermap
       if ( nproc > 1 ) then
-         if ( myid==0 ) then
-            write(6,*) "  Setup RMA window for spectral filter"  
-         end if    
          call MPI_Type_size(ltype, asize, ierr)
          sshape(:) = (/ ifull, kx /)
          wsize = asize*sshape(1)*sshape(2)
@@ -716,10 +760,6 @@ contains
          allocate( specstore(sshape(1),sshape(2)) )                ! Fortran allocate memory
          call MPI_Win_Create(specstore, wsize, asize, MPI_INFO_NULL, lcommin, localwin, ierr)
          !call MPI_Info_free(info,ierr)                            ! MPI optimise
-      end if
-      
-      if ( myid==0 ) then
-         write(6,*) "  ccmpi_setup completed sucessfully"
       end if
       
    return
@@ -2356,57 +2396,39 @@ contains
       displ = 0
       assert = 0
       
-      if ( npan==1 ) then
-          
-         call MPI_Win_fence(assert, localwin, ierr)   
+      call MPI_Win_fence(assert, localwin, ierr)
+      do w = 1,ncount
+         call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
+      end do
+      call MPI_Win_fence(assert, localwin, ierr)
+
+      if ( uniform_decomp ) then
+         do w = 1,ncount
+            iproc = specmap(w)
+            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+            ipak = ipoff/ipan
+            jpak = jpoff/jpan
+            do n = 1,npan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iq = (n-1)*ipan*jpan
+               globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+                  reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
+            end do
+         end do
+      else
          do w = 1,ncount
             iproc = specmap(w)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             ipak = ipoff/ipan
             jpak = jpoff/jpan
-            ! Global indices are i+ipoff, j+jpoff, n-npoff
-            call MPI_Get(globalpack(ipak,jpak,1-npoff)%localdata(:,:,kref+1), lsize, ltype, specmap(w), displ, lsize, &
-                         ltype, localwin, ierr)
-         end do   
-         call MPI_Win_fence(assert, localwin, ierr)
-          
-      else    
-      
-         call MPI_Win_fence(assert, localwin, ierr)
-         do w = 1,ncount
-            call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
+            do n = 1,npan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iq = (n-1)*ipan*jpan
+               globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+                  reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
+            end do
          end do
-         call MPI_Win_fence(assert, localwin, ierr)
-
-         if ( uniform_decomp ) then
-            do w = 1,ncount
-               iproc = specmap(w)
-               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
-               do n = 1,npan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iq = (n-1)*ipan*jpan
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
-                     reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
-               end do
-            end do
-         else
-            do w = 1,ncount
-               iproc = specmap(w)
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
-               do n = 1,npan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iq = (n-1)*ipan*jpan
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
-                     reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
-               end do
-            end do
-         end if
-         
-      end if   
+      end if
       
       call END_LOG(gatherrma_end)
    
@@ -2460,60 +2482,42 @@ contains
       displ = 0   
       assert = 0
       
-      if ( npan==1 ) then
-      
-         call MPI_Win_fence(assert, localwin, ierr) 
+      call MPI_Win_fence(assert, localwin, ierr)
+      do w = 1,ncount
+         call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
+      end do
+      call MPI_Win_fence(assert, localwin, ierr)
+
+      if ( uniform_decomp ) then
+         do w = 1,ncount
+            iproc = specmap(w)
+            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+            ipak = ipoff/ipan
+            jpak = jpoff/jpan
+            do k = 1,kx
+               do n = 1,npan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iq = (n-1)*ipan*jpan + (k-1)*ifull
+                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+                     reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
+               end do
+            end do
+         end do
+      else
          do w = 1,ncount
             iproc = specmap(w)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             ipak = ipoff/ipan
             jpak = jpoff/jpan
-            ! Global indices are i+ipoff, j+jpoff, n-npoff
-            call MPI_Get(globalpack(ipak,jpak,1-npoff)%localdata(:,:,kref+1:kref+kx), lsize, ltype, specmap(w), &
-                         displ, lsize, ltype, localwin, ierr)
-         end do
-         call MPI_Win_fence(assert, localwin, ierr)
-          
-      else
-          
-         call MPI_Win_fence(assert, localwin, ierr)
-         do w = 1,ncount
-            call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
-         end do
-         call MPI_Win_fence(assert, localwin, ierr)
-
-         if ( uniform_decomp ) then
-            do w = 1,ncount
-               iproc = specmap(w)
-               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
-               do k = 1,kx
-                  do n = 1,npan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iq = (n-1)*ipan*jpan + (k-1)*ifull
-                     globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
-                        reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
-                  end do
+            do k = 1,kx
+               do n = 1,npan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iq = (n-1)*ipan*jpan + (k-1)*ifull
+                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+                    reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
                end do
             end do
-         else
-            do w = 1,ncount
-               iproc = specmap(w)
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
-               do k = 1,kx
-                  do n = 1,npan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iq = (n-1)*ipan*jpan + (k-1)*ifull
-                     globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
-                        reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
-                  end do
-               end do
-            end do
-         end if
-      
+         end do
       end if
       
       call END_LOG(gatherrma_end)
@@ -2524,13 +2528,11 @@ contains
 
       use const_phys, only : rearth
       use indices_m
-      use xyzinfo_m, only : x_g, y_g, z_g
       
       integer :: n, i, j, iq, iqq, mycol, ncount
       integer :: iproc, rproc, sproc
       integer :: iqg, iql, iloc, jloc, nloc, icol
       integer :: iext, iextu, iextv
-      integer :: iqg_base, i_g, j_g
       integer, dimension(:), allocatable :: dumi
       integer, dimension(:,:), allocatable :: dums, dumr
       integer(kind=4) :: ierr, itag=0, lcount
@@ -2597,10 +2599,6 @@ contains
       lnnw = huge(1)
       lnee = huge(1)
       lnne = huge(1)
-      
-      if ( myid==0 ) then
-         write(6,*) "    Define local scalar and vector indices on local process"
-      end if
       do n=1,npan
          do j=1,jpan
             do i=1,ipan
@@ -2779,9 +2777,6 @@ contains
       rcolsp(:)%ihbg(1) = 1
       rcolsp(:)%ihfn(1) = 0
       
-      if ( myid==0 ) then
-         write(6,*) "    Define local scalar indices for remote processes"
-      end if
       do icol = 1,maxcolour
       
          do n = 1,npan
@@ -3138,9 +3133,6 @@ contains
       end do ! n=1,npan
 
 !     Now handle the second order special corner values
-      if ( myid==0 ) then
-         write(6,*) "    Define special corner indices"
-      end if      
       do n = 1,npan
          ! NE corner, lnee, leen, lenn, lnne
          iqg = indg(ipan,jpan,n)
@@ -3228,10 +3220,7 @@ contains
 
       end do
 
-      ! Indices that are missed above (should be a better way to get these)
-      if ( myid==0 ) then
-         write(6,*) "    Define remaining scalar indices"
-      end if       
+!     Indices that are missed above (should be a better way to get these)
       do n = 1,npan
          do j = 1,jpan
             iww(indp(2,j,n)) = iw(indp(1,j,n))
@@ -3292,157 +3281,34 @@ contains
       end if
 
       ! determine neighbour processes
-      if ( myid==0 ) then
-         write(6,*) "    Identify ranks of neighbour processes"
-      end if       
       allocate( neigharray_g(0:nproc-1) )
       ! default neighbour list
       neigharray_g(:) = bnds(:)%rlen2 > 0
       ! estimate maximum distance for departure points
       ! assume wind speed is less than 350 m/s
       maxdis = 350.*dt/rearth ! unit sphere
-      do iqg_base = 1,ifull_g,ifull
-         do i_g = 1,ipan
-            iqg = iqg_base + i_g - 1 
-            iproc = qproc(iqg)
-            if ( .not.neigharray_g(iproc) ) then
-               do n = 1,npan
-                  j = 1
-                  do i = 1,ipan
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-                  j = jpan
-                  do i = 1,ipan
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-                  i = 1
-                  do j = 2,jpan-1
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-                  i = ipan
-                  do j = 2,jpan-1
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-               end do
-            end if   
-            iqg = iqg_base + ifull + i_g - ipan - 1
-            iproc = qproc(iqg)
-            if ( .not.neigharray_g(iproc) ) then
-               do n = 1,npan
-                  j = 1
-                  do i = 1,ipan
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-                  j = jpan
-                  do i = 1,ipan
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-                  i = 1
-                  do j = 2,jpan-1
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-                  i = ipan
-                  do j = 2,jpan-1
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-               end do
-            end if   
-         end do  
-         do j_g = 2,jpan-1
-            iqg = iqg_base + (j_g-1)*ipan 
-            iproc = qproc(iqg)
-            if ( .not.neigharray_g(iproc) ) then
-               do n = 1,npan
-                  j = 1
-                  do i = 1,ipan
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-                  j = jpan
-                  do i = 1,ipan
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-                  i = 1
-                  do j = 2,jpan-1
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-                  i = ipan
-                  do j = 2,jpan-1
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-               end do
-            end if   
-            iqg = iqg_base + j_g*ipan - 1
-            iproc = qproc(iqg)
-            if ( .not.neigharray_g(iproc) ) then
-               do n = 1,npan
-                  j = 1
-                  do i = 1,ipan
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-                  j = jpan
-                  do i = 1,ipan
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-                  i = 1
-                  do j = 2,jpan-1
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-                  i = ipan
-                  do j = 2,jpan-1
-                     iqq = indg(i,j,n)
-                     disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-                     disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-                     if ( disarray_g < maxdis ) neigharray_g(iproc) = .true.
-                  end do
-               end do
-            end if   
+      do n = 1,npan
+         j = 1
+         do i = 1,ipan
+            iqq = indg(i,j,n)
+            call checkdistance(iqq,maxdis,neigharray_g)
          end do
-      end do   
+         j = jpan
+         do i = 1,ipan
+            iqq = indg(i,j,n)
+            call checkdistance(iqq,maxdis,neigharray_g)
+         end do
+         i = 1
+         do j = 1,jpan
+            iqq = indg(i,j,n)
+            call checkdistance(iqq,maxdis,neigharray_g)
+         end do
+         i = ipan
+         do j = 1,jpan
+            iqq = indg(i,j,n)
+            call checkdistance(iqq,maxdis,neigharray_g)
+         end do
+      end do
       neigharray_g(myid) = .false.
       neighnum = count( neigharray_g )
       where( neigharray_g )
@@ -3477,9 +3343,6 @@ contains
 
       
 !     Communicate lengths for rlenh, rlen, rlenx and rlen2
-      if ( myid==0 ) then
-         write(6,*) "    Communicate scalar halo lengths"
-      end if      
       scolsp(:)%ihfn(1) = 0
       scolsp(:)%ihfn(2) = 0
       scolsp(:)%ihfn(3) = 0
@@ -3546,9 +3409,6 @@ contains
       ! The state of being a neighbour is reflexive so only expect to
       ! recv from those processors I send to (are there grid arrangements for
       ! which this would not be true?)
-      if ( myid==0 ) then
-         write(6,*) "    Communicate scalar index request lists"
-      end if
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
@@ -3575,10 +3435,7 @@ contains
       end do      
       call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
 
-      ! Now deallocate arrays that are no longer needed
-      if ( myid==0 ) then
-         write(6,*) "    Deallocate temporary scalar arrays"
-      end if
+!     Now deallocate arrays that are no longer needed
       allocate( dumi(maxbuflen) )
       do iproc = 1,neighnum
          rproc = neighlist(iproc)  ! Recv from
@@ -3608,10 +3465,6 @@ contains
       rsplit(:)%isvbg = 1
       rsplit(:)%iwufn = 0
 
-      if ( myid==0 ) then
-         write(6,*) "    Define vector indices for remote processes"
-      end if
-      
       !     S edge, V
       j = 1
       do n = 1,npan
@@ -3621,7 +3474,7 @@ contains
             rproc = qproc(iqq)
             swap = edge_s .and. swap_s(n-noff)
             if ( rproc /= myid .or. swap ) then
-               bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+               bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1                
                call check_bnds_alloc(rproc, iextv)
                bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqq
                rsplit(rproc)%iwufn = rsplit(rproc)%iwufn + 1
@@ -4044,9 +3897,6 @@ contains
       allocate( dums(9,neighnum), dumr(9,neighnum) )
       
       ! Communicate lengths for rlen_uv and rlenx_uv, etc
-      if ( myid==0 ) then
-         write(6,*) "    Communicate vector halo lengths"
-      end if
       ssplit(:)%iwufn  = 0
       ssplit(:)%ieufn  = 0
       ssplit(:)%iwwufn = 0
@@ -4109,9 +3959,6 @@ contains
       
       ! Now, for each processor send the list of points I want.
       ! Also have to send the swap list
-      if ( myid==0 ) then
-         write(6,*) "    Communicate vector index request lists"
-      end if
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
@@ -4140,9 +3987,6 @@ contains
 
       ! Deallocate arrays that are no longer needed
       ! Note that the request_list for myid is still allocated
-      if ( myid==0 ) then
-         write(6,*) "    Deallocate temporary vector arrays"
-      end if      
       allocate( dumi(maxbuflen) )
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
@@ -4160,9 +4004,6 @@ contains
       allocate( dumsl(maxbuflen,neighnum), dumrl(maxbuflen,neighnum) )
       
       ! Only send the swap list once
-      if ( myid==0 ) then
-         write(6,*) "    Communicate vector index swap lists"
-      end if
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
@@ -4204,9 +4045,6 @@ contains
       
 
       ! Only send the neg list once
-      if ( myid==0 ) then
-         write(6,*) "    Communicate vector index neg lists"
-      end if
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
@@ -4247,9 +4085,6 @@ contains
       
       
       ! Indices that are missed above (should be a better way to get these)
-      if ( myid==0 ) then
-         write(6,*) "    Define remaining vector indices"
-      end if
       do n = 1,npan
          do j = 1,jpan
             iwwu(indp(2,j,n)) = iwu(indp(1,j,n))
@@ -4292,9 +4127,6 @@ contains
 
       
       ! Allocate buffer arrays
-      if ( myid==0 ) then
-         write(6,*) "    Allocate halo buffer arrays"
-      end if      
       do iproc = 0,nproc-1
          bnds(iproc)%sbuflen = nagg*bnds(iproc)%len
          bnds(iproc)%rbuflen = nagg*bnds(iproc)%len
@@ -4311,9 +4143,6 @@ contains
       
 
       ! Final check for values that haven't been set properly
-      if ( myid==0 ) then
-         write(6,*) "    Check for index errors"
-      end if       
       do n = 1,npan
          do j = 1,jpan
             do i = 1,ipan
@@ -4368,12 +4197,64 @@ contains
          call check_set( lnne(n), "LNNE", 1, 1, n, 1)
       end do
 
-      if ( myid==0 ) then
-         write(6,*) "    bounds_setup completed sucessfully"
-      end if 
-      
-   return   
    end subroutine bounds_setup
+
+   subroutine checkdistance(iqq,maxdis,neigharray_g)
+
+      use xyzinfo_m, only : x_g, y_g, z_g
+   
+      integer, intent(in) :: iqq
+      integer :: iqg, i_g, j_g, iproc, ioff_g, joff_g
+      real, intent(in) :: maxdis
+      real :: disarray_g
+      logical, dimension(0:nproc-1), intent(inout) :: neigharray_g
+   
+      do joff_g = 0,jl_g/jpan-1
+         do ioff_g = 0,il_g/ipan-1
+            j_g = 1
+            do i_g = 1,ipan
+               iqg = i_g + ioff_g*ipan + (j_g + joff_g*jpan - 1)*il_g
+               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+               if ( disarray_g < maxdis ) then
+                  iproc = qproc(iqg)
+                  neigharray_g(iproc) = .true.
+               end if
+            end do
+            j_g = jpan
+            do i_g = 1,ipan
+               iqg = i_g + ioff_g*ipan + (j_g + joff_g*jpan - 1)*il_g
+               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+               if ( disarray_g < maxdis ) then
+                  iproc = qproc(iqg)
+                  neigharray_g(iproc) = .true.
+               end if
+            end do
+            i_g = 1
+            do j_g = 1,jpan
+               iqg = i_g + ioff_g*ipan + (j_g + joff_g*jpan - 1)*il_g
+               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+               if ( disarray_g < maxdis ) then
+                  iproc = qproc(iqg)
+                  neigharray_g(iproc) = .true.
+               end if
+            end do
+            i_g = ipan
+            do j_g = 1,jpan
+               iqg = i_g + ioff_g*ipan + (j_g + joff_g*jpan - 1)*il_g
+               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
+               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
+               if ( disarray_g < maxdis ) then
+                  iproc = qproc(iqg)
+                  neigharray_g(iproc) = .true.
+               end if
+            end do
+         end do
+      end do   
+            
+   end subroutine checkdistance            
    
    subroutine check_set(ind,str,i,j,n,iq)
       integer, intent(in) :: ind,i,j,n,iq
@@ -8838,7 +8719,7 @@ contains
       
       if ( newnproc < nproc ) then
          if ( myid == 0 ) then
-            write(6,*) "Reducing number of processes to ",newnproc  
+            write(6,*) "Reducing number of processes from ",nproc," to ",newnproc  
          end if
          if ( myid < newnproc ) then
             lcolour = 1
@@ -8855,69 +8736,69 @@ contains
       if ( myid < nproc ) then
    
 #ifdef usempi3
-        if ( nproc > 1 ) then
+         if ( nproc > 1 ) then
 
-           ! Intra-node communicator 
-           lid = myid
-           lcommin = comm_world
-           call MPI_Comm_split_type(lcommin, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
-           call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
-           call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
-           comm_node  = lcommout
-           node_nproc = lproc
-           node_myid  = lid
+            ! Intra-node communicator 
+            lid = myid
+            lcommin = comm_world
+            call MPI_Comm_split_type(lcommin, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
+            call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
+            call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
+            comm_node  = lcommout
+            node_nproc = lproc
+            node_myid  = lid
 
-           ! Inter-node commuicator
-           lcolour = node_myid
-           lid = myid
-           lcommin = comm_world
-           call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
-           call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of nodes that have rank node_myid
-           call MPI_Comm_rank(lcommout, lid, lerr)   ! Node id for process rank node_myid
-           comm_nodecaptian  = lcommout
-           nodecaptian_nproc = lproc
-           nodecaptian_myid  = lid
+            ! Inter-node commuicator
+            lcolour = node_myid
+            lid = myid
+            lcommin = comm_world
+            call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
+            call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of nodes that have rank node_myid
+            call MPI_Comm_rank(lcommout, lid, lerr)   ! Node id for process rank node_myid
+            comm_nodecaptian  = lcommout
+            nodecaptian_nproc = lproc
+            nodecaptian_myid  = lid
 
-           ! Communicate node id 
-           lid = nodecaptian_myid
-           lcommout = comm_node
-           call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
-           node_captianid = lid
-      else
-           comm_node  = comm_world
-           node_nproc = nproc
-           node_myid  = myid
+            ! Communicate node id 
+            lid = nodecaptian_myid
+            lcommout = comm_node
+            call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
+            node_captianid = lid
+         else
+            comm_node  = comm_world
+            node_nproc = nproc
+            node_myid  = myid
          
-           comm_nodecaptian  = comm_world
-           nodecaptian_nproc = nproc
-           nodecaptian_myid  = myid
+            comm_nodecaptian  = comm_world
+            nodecaptian_nproc = nproc
+            nodecaptian_myid  = myid
          
-           node_captianid = myid
-        end if
+            node_captianid = myid
+         end if
       
-        if ( myid==0 .and. (node_myid/=0.or.nodecaptian_myid/=0) ) then
-           write(6,*) "ERROR: Intra-node communicator failed"
-           write(6,*) "myid, node_myid, nodecaptian_myid ",myid,node_myid,nodecaptian_myid
-           call ccmpi_abort(-1)
-        end if
+         if ( myid==0 .and. (node_myid/=0.or.nodecaptian_myid/=0) ) then
+            write(6,*) "ERROR: Intra-node communicator failed"
+            write(6,*) "myid, node_myid, nodecaptian_myid ",myid,node_myid,nodecaptian_myid
+            call ccmpi_abort(-1)
+         end if
 #else
-        ! each process is treated as a node
-        lcommin = comm_world
-        lcolour = myid
-        lid = 0
-        call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
-        comm_node  = lcommout
-        node_nproc = 1
-        node_myid  = 0
+         ! each process is treated as a node
+         lcommin = comm_world
+         lcolour = myid
+         lid = 0
+         call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
+         comm_node  = lcommout
+         node_nproc = 1
+         node_myid  = 0
       
-        comm_nodecaptian = comm_world
-        nodecaptian_nproc = nproc
-        nodecaptian_myid = myid
+         comm_nodecaptian = comm_world
+         nodecaptian_nproc = nproc
+         nodecaptian_myid = myid
       
-        node_captianid = myid
+         node_captianid = myid
 #endif
 
-   end if
+      end if
 
    end subroutine ccmpi_reinit
    
@@ -8966,6 +8847,9 @@ contains
             call MPI_Comm_rank(lcommout, lid, lerr)                ! find local processor id
             comm_world = lcommout
             myid = lid
+            if ( lcommin/=MPI_COMM_WORLD .and. lcommin/=MPI_COMM_NULL ) then
+               call MPI_Comm_Free(lcommin, lerr) 
+            end if
          end if
       end if
    
