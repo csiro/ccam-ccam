@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -58,9 +58,9 @@ include 'kuocom.h'      ! Convection parameters
 integer iq, k, n
 integer, save :: num = 0
 real invconst_nh, contv
-real, dimension(ifull,kl) :: aa, bb
-real, dimension(ifull+iextra,kl) :: p, tv
-real, dimension(ifull+iextra,kl+1) :: phiv ! +1 level for psl
+real, dimension(ifull,2*kl) :: aa, bb, ee, ff
+real, dimension(ifull+iextra,kl) :: p, tv, phiv
+real, dimension(ifull+iextra,2*kl) :: duma
 real, dimension(ifull) :: t_nh, spmax2, termlin
 real, dimension(ifull) :: p_n, p_e, tv_n, tv_e, phiv_n, phiv_e, psl_n, psl_e
 real, allocatable, save, dimension(:) :: epstsav
@@ -293,12 +293,17 @@ end do
 
 ! MJT notes - This is the first bounds call after the physics
 ! routines, so load balance is a significant issue
-call bounds(p,nehalf=.true.)
-call bounds(tv,nehalf=.true.)
-phiv(1:ifull,kl+1) = psl(1:ifull)
-phiv(ifull+1:ifull+iextra,kl+1) = 0. ! avoids float invalid errors
-call bounds(phiv,nehalf=.true.)
-psl(ifull+1:ifull+iextra) = phiv(ifull+1:ifull+iextra,kl+1)
+duma(ifull+1:ifull+iextra,:) = 0. ! avoids float invalid errors
+duma(1:ifull,1:kl)      = p(1:ifull,:)
+duma(1:ifull,kl+1:2*kl) = tv(1:ifull,:)
+call bounds(duma(:,1:2*kl),nehalf=.true.)
+p(ifull+1:ifull+iextra,:)  = duma(ifull+1:ifull+iextra,1:kl)
+tv(ifull+1:ifull+iextra,:) = duma(ifull+1:ifull+iextra,kl+1:2*kl)
+duma(1:ifull,1:kl) = phiv(1:ifull,:)
+duma(1:ifull,kl+1) = psl(1:ifull)
+call bounds(duma(:,1:kl+1))
+phiv(ifull+1:ifull+iextra,1:kl) = duma(ifull+1:ifull+iextra,1:kl)
+psl(ifull+1:ifull+iextra)       = duma(ifull+1:ifull+iextra,kl+1)
 
 
 call unpack_ne(psl,psl_n,psl_e)
@@ -317,6 +322,8 @@ do k = 1,kl
   vn(1:ifull,k) = emv(1:ifull)*(phiv_n-phiv(1:ifull,k)-0.5*rdry*(tv_n+tv(1:ifull,k))*(psl_n-psl(1:ifull)))/ds
   aa(1:ifull,k) = aa(1:ifull,k) + 0.5*dt*un(1:ifull,k) ! still staggered
   bb(1:ifull,k) = bb(1:ifull,k) + 0.5*dt*vn(1:ifull,k) ! still staggered
+  aa(1:ifull,k+kl) = un(1:ifull,k)
+  bb(1:ifull,k+kl) = vn(1:ifull,k)
 end do    ! k loop
 
 if ( diag ) then
@@ -330,8 +337,12 @@ end if                     ! (diag)
 
 
 ! Bounds call for unstaggering winds
-call unstaguv(aa,bb,ux,vx) ! convert to unstaggered positions
-call unstaguv(un,vn,un,vn)
+call unstaguv(aa,bb,ee,ff) ! convert to unstaggered positions
+
+ux(1:ifull,1:kl) = ee(1:ifull,1:kl)
+vx(1:ifull,1:kl) = ff(1:ifull,1:kl)
+un(1:ifull,1:kl) = ee(1:ifull,kl+1:2*kl)
+vn(1:ifull,1:kl) = ff(1:ifull,kl+1:2*kl)
 
 
 if ( diag ) then

@@ -1785,7 +1785,7 @@ call getwflux(atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,atm_
 call iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg,   &
              atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_ndsn,d_ndic,d_nsto,          &
              d_delstore,d_imass,atm_oldu,atm_oldv,diag, &
-             dgice,ice,water,wfull)
+             dgice,ice,water,depth,wfull)
 
 if ( calcprog ) then
 
@@ -3927,7 +3927,7 @@ end subroutine thomas
 subroutine iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg, &
                    atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,                             &
                    d_ndsn,d_ndic,d_nsto,d_delstore,d_imass,atm_oldu,atm_oldv,diag,                       &
-                   dgice,ice,water,wfull)
+                   dgice,ice,water,depth,wfull)
 
 implicit none
 
@@ -3942,6 +3942,7 @@ integer, dimension(wfull), intent(inout) :: d_nk
 type(dgicedata), intent(inout) :: dgice
 type(icedata), intent(inout) :: ice
 type(waterdata), intent(inout) :: water
+type(depthdata), intent(in) :: depth
 real, intent(in) :: dt
 real, dimension(wfull) :: qsat,dqdt,ri,rho,srcp,tnew,qsatnew,gamm,bot
 real, dimension(wfull) :: fm,fh,fq,af,aft,afq
@@ -3951,6 +3952,7 @@ real, dimension(wfull) :: uu,vv,du,dv,vmagn,icemagn
 real, dimension(wfull) :: ustar,g,h,dgu,dgv,dhu,dhv,det
 real, dimension(wfull) :: newiu,newiv,dtsurf
 real, dimension(wfull) :: dumazmin, dumazmins
+real, dimension(wfull) :: wavail, f0
 real zohseaice, zoqseaice
 
 if (diag>=1) write(6,*) "Calculate ice fluxes"
@@ -4072,8 +4074,14 @@ dgice%tauyicw=-rhowt*0.00536*icemagn*dv
 !dgice%tauyicw=(ice%v-newiv)*d_imass/dt+dgice%tauyica
 ustar=sqrt(sqrt(max(dgice%tauxicw*dgice%tauxicw+dgice%tauyicw*dgice%tauyicw,0.))/rhowt)
 ustar=max(ustar,5.E-4)
+
+! bottom flux
 d_fb=cp0*rhowt*0.006*ustar*(d_tb-d_timelt)
-d_fb=min(max(d_fb,-1000.),1000.)  
+d_fb=min(max(d_fb,-1000.),1000.)
+
+wavail=max(depth%depth_hl(:,wlev+1)+water%eta-minwater,0.)
+f0=wavail*rhowt/rhoic*qice/dt
+d_fb=max(d_fb,-f0)
 
 ! Re-calculate fluxes to prevent overshoot (predictor-corrector)
 ! MJT notes - use dtsurf for outgoing longwave for consistency with radiation code
