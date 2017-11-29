@@ -59,6 +59,12 @@ do k = 1,kl
   z3d(1:ifull,k) = z(1:ifull) - real(wc(1:ifull,k),8)
 end do
 
+if ( any(x3d(1:ifull,1:kl)/=x3d(1:ifull,1:kl)) .or. any(y3d(1:ifull,1:kl)/=y3d(1:ifull,1:kl)) .or. &
+     any(z3d(1:ifull,1:kl)/=z3d(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected for winds in depts1 calculation (A)"
+  call ccmpi_abort(-1)
+end if
+
 ! convert to grid point numbering
 call toij5 (x3d,y3d,z3d)
 
@@ -316,6 +322,13 @@ do k = 1,kl
   y3d(1:ifull,k) = y(1:ifull) - 0.5_8*(real(vc(1:ifull,k),8)+real(s(1:ifull,k,2),8)) ! 2nd guess
   z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! 2nd guess
 end do
+
+if ( any(x3d(1:ifull,1:kl)/=x3d(1:ifull,1:kl)) .or. any(y3d(1:ifull,1:kl)/=y3d(1:ifull,1:kl)) .or. &
+     any(z3d(1:ifull,1:kl)/=z3d(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected for winds in depts1 calculation (B)"
+  call ccmpi_abort(-1)
+end if
+
 call toij5 (x3d,y3d,z3d)
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
@@ -482,6 +495,12 @@ do k = 1,kl
   y3d(1:ifull,k) = y(1:ifull) - 0.5_8*(real(vc(1:ifull,k),8)+real(s(1:ifull,k,2),8)) ! 3rd guess
   z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! 3rd guess
 end do
+
+if ( any(x3d(1:ifull,1:kl)/=x3d(1:ifull,1:kl)) .or. any(y3d(1:ifull,1:kl)/=y3d(1:ifull,1:kl)) .or. &
+     any(z3d(1:ifull,1:kl)/=z3d(1:ifull,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected for winds in depts1 calculation (C)"
+  call ccmpi_abort(-1)
+end if
 
 call toij5(x3d,y3d,z3d)
 

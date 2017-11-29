@@ -122,20 +122,17 @@ include 'kuocom.h'                         ! Convection parameters
       
 integer, dimension(8) :: tvals1, tvals2, nper3hr
 integer, dimension(8) :: times_total_a, times_total_b
-integer iq, irest, isoil, jalbfix, k
+integer iq, irest, isoil, jalbfix, i, j, k, nn, js, je, tile
 integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
-integer nlx, nmaxprsav, n3hr, mins_rad
+integer nlx, nmaxprsav, n3hr, mins_rad, opt, nopt
 integer nstagin, nstaguin, nwrite, nwtsav, mtimer_sav
-integer nn, i, j, js, je, tile, opt, nopt
 integer jyear, jmonth, jday, jhour, jmin, mins
 real, dimension(:,:), allocatable, save :: dums
-real, dimension(:), allocatable, save :: spare1, spare2
-real, dimension(:), allocatable, save :: spmean
+real, dimension(:), allocatable, save :: spare1, spare2, spmean
 real, dimension(9) :: temparray, gtemparray
-real clhav, cllav, clmav, cltav, es
+real clhav, cllav, clmav, cltav, es, qtot, aa, bb, cc 
 real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
-real pslavge, pwater, spavge, pwatr
-real qtot, aa, bb, cc, bb_2, cc_2, rat
+real pslavge, pwater, spavge, pwatr, bb_2, cc_2, rat
 real siburbanfrac
 logical sday_update
 character(len=1024) nmlfile
@@ -194,10 +191,8 @@ do
     case ( "c" )
       nmlfile = optarg
     case default
-      if ( myid == 0 ) then
-        write(6,*) "Error unknown option "
-      end if
-      call usage()
+      if ( myid==0 ) write(6,*) "ERROR: Unknown command line option ",char(opt)
+      call usage
   end select
 end do
 
@@ -477,6 +472,12 @@ if ( myid<nproc ) then
         ubar(:,:) = (u(1:ifull,:)*15.-savu(:,:)*10.+savu1(:,:)*3.)/8.
         vbar(:,:) = (v(1:ifull,:)*15.-savv(:,:)*10.+savv1(:,:)*3.)/8.
       endif    ! (ktau==1) .. else ..
+      
+      if ( any( ubar/=ubar ) .or. any( vbar/=vbar ) ) then
+        write(6,*) "ERROR: NaN detected in ubar or vbar in globpe on myid ",myid
+        call ccmpi_abort(-1)
+      end if
+      
       if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
         nlx = max( 2, nlv )  ! as savs not defined for k=1
         write (6,"(i4,' savu2,savu1,savu,u,ubar',5f8.2)") ktau,savu2(idjd,nlv),savu1(idjd,nlv),savu(idjd,nlv), &
@@ -2995,7 +2996,9 @@ nsig    = nint(temparray(8))
 ! more MPI message passing.
 call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp,uniform_decomp)
 call ccmpi_reinit(new_nproc) 
+
 if ( myid<nproc ) then
+    
   if ( myid==0 ) then
     write(6,'(a20," running for nproc =",i7)') version,nproc
     if ( using_omp ) then

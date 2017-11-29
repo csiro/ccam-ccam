@@ -775,6 +775,11 @@ do ii = 1,wlev
   nvh(:,ii) = (15.*nv(1:ifull,ii)-10.*oldv1(:,ii)+3.*oldv2(:,ii))*ee(1:ifull)/8. ! V at t+1/2
 end do
 
+if ( any( nuh/=nuh ) .or. any( nvh/=nvh ) ) then
+  write(6,*) "ERROR: NaN detected in nuh or nvh in mlodynamics on myid ",myid
+  call ccmpi_abort(-1)
+end if
+
 ! Calculate depature points
 call mlodeps(dt,nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
@@ -1630,6 +1635,12 @@ do k = 1,wlev
   z3d(:,k) = z - wc(:,k)
 end do
 
+if ( any(x3d(1:ifull,1:wlev)/=x3d(1:ifull,1:wlev)) .or. any(y3d(1:ifull,1:wlev)/=y3d(1:ifull,1:wlev)) .or. &
+     any(z3d(1:ifull,1:wlev)/=z3d(1:ifull,1:wlev)) ) then
+  write(6,*) "ERROR: NaN detected for currents in mlodeps calculation (A)"
+  call ccmpi_abort(-1)
+end if
+
 ! convert to grid point numbering
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 ! Share off processor departure points.
@@ -1893,6 +1904,13 @@ do k = 1,wlev
     z3d(:,k) = z
   end where
 end do
+
+if ( any(x3d(1:ifull,1:wlev)/=x3d(1:ifull,1:wlev)) .or. any(y3d(1:ifull,1:wlev)/=y3d(1:ifull,1:wlev)) .or. &
+     any(z3d(1:ifull,1:wlev)/=z3d(1:ifull,1:wlev)) ) then
+  write(6,*) "ERROR: NaN detected for currents in mlodeps calculation (B)"
+  call ccmpi_abort(-1)
+end if
+
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
@@ -2053,6 +2071,12 @@ do k = 1,wlev
     z3d(:,k) = z
   end where
 end do
+
+if ( any(x3d(1:ifull,1:wlev)/=x3d(1:ifull,1:wlev)) .or. any(y3d(1:ifull,1:wlev)/=y3d(1:ifull,1:wlev)) .or. &
+     any(z3d(1:ifull,1:wlev)/=z3d(1:ifull,1:wlev)) ) then
+  write(6,*) "ERROR: NaN detected for currents in mlodeps calculation (C)"
+  call ccmpi_abort(-1)
+end if
 
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 !     Share off processor departure points.
