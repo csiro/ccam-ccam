@@ -493,12 +493,6 @@ if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
   write (6,"('qf  ',9f8.3/4x,9f8.3)") diag_temp
   diag_temp(:) = qlg(idjd,:)
   write (6,"('ql  ',9f8.3/4x,9f8.3)") diag_temp
-  !diag_temp(:) = qrg(idjd,:)
-  !write (6,"('qr  ',9f8.3/4x,9f8.3)") diag_temp
-  !diag_temp(:) = qsng(idjd,:)
-  !write (6,"('qs  ',9f8.3/4x,9f8.3)") diag_temp
-  !diag_temp(:) = qgrg(idjd,:)
-  !write (6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp
 endif
 if ( diag .and. ntiles==1 ) then
   call maxmin(t,' t',ktau,1.,kl)
@@ -914,8 +908,8 @@ if ( ncloud<=3 ) then
     hlrvap(1:imax) = (hl+fice(1:imax,k)*hlf)/rvap
     ! Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
     pk(1:imax) = 100.0*prf(1:imax,k)
-    qsi(1:imax,k) = qsati(pk,tliq(:,k))                               !Ice value
-    deles(1:imax) = esdiffx(tliq(:,k))                                ! MJT suggestion
+    qsi(1:imax,k) = qsati(pk,tliq(:,k))                            !Ice value
+    deles(1:imax) = esdiffx(tliq(:,k))                             ! MJT suggestion
     qsl(1:imax,k) = qsi(1:imax,k) + epsil*deles(1:imax)/pk(1:imax) !qs over liquid
     qsw(1:imax,k) = fice(1:imax,k)*qsi(1:imax,k) +    & 
                      (1.-fice(1:imax,k))*qsl(1:imax,k) !Weighted qs at temperature Tliq
@@ -928,10 +922,10 @@ if ( ncloud<=3 ) then
       cfrac(1:imax,k) = 0.
       qcg(1:imax,k) = 0.
     else where ( qc(1:imax)<=0. )
-      cfrac(1:imax,k) = max( 1.e-6, 0.5*((qc(1:imax)+delq(1:imax))/delq(1:imax))**2 )             ! for roundoff
+      cfrac(1:imax,k) = max( 1.e-6, 0.5*((qc(1:imax)+delq(1:imax))/delq(1:imax))**2 )            ! for roundoff
       qcg(1:imax,k) = max( 1.e-8, al(1:imax)*(qc(1:imax)+delq(1:imax))**3/(6.*delq(1:imax)**2) ) ! for roundoff
     else where ( qc(1:imax)<delq(1:imax) )
-      cfrac(1:imax,k) = max( 1.e-6, 1.-0.5*((qc(1:imax)-delq(1:imax))/delq(1:imax))**2 )                        ! for roundoff
+      cfrac(1:imax,k) = max( 1.e-6, 1.-0.5*((qc(1:imax)-delq(1:imax))/delq(1:imax))**2 )                      ! for roundoff
       qcg(1:imax,k) = max( 1.e-8, al(1:imax)*(qc(1:imax)-(qc(1:imax)-delq(1:imax))**3/(6.*delq(1:imax)**2)) ) ! for roundoff
     else where
       cfrac(1:imax,k) = 1.
@@ -1388,6 +1382,7 @@ else
       ql1_c(1:imax_c)   = 1./pow75(qcic_c(1:imax_c)**(-4./3.)+(4./3.)*Crate_c(1:imax_c)*tdt)
       ql1_c(1:imax_c)   = max( ql1_c(1:imax_c), qcrit_c(1:imax_c) ) !Intermediate qlg after auto
       Frb_c(1:imax_c)   = dz_c(1:imax_c)*rhoa_c(1:imax_c)*(qcic_c(1:imax_c)-ql1_c(1:imax_c))/tdt
+      Frb_c(1:imax_c)   = min( Frb_c(1:imax_c), 1.e10 ) ! prevent overflow
       cdt_c(1:imax_c)   = tdt*0.5*Ecol*0.24*pow75(Frb_c(1:imax_c)) ! old
       selfcoll_c(1:imax_c) = min( ql1_c(1:imax_c), ql1_c(1:imax_c)*cdt_c(1:imax_c) )
       ql2_c(1:imax_c)   = ql1_c(1:imax_c) - selfcoll_c(1:imax_c)

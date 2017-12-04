@@ -56,7 +56,7 @@ real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
 
-real, dimension(:,:,:,:), allocatable :: sx                   ! working array for interpolation
+real, dimension(:,:,:,:), allocatable, save :: sx             ! working array for interpolation
 
 contains
 
@@ -280,8 +280,8 @@ use cloudmod                                   ! Prognostic strat cloud
 use const_phys                                 ! Physical constants
 use darcdf_m                                   ! Netcdf data
 use extraout_m                                 ! Additional diagnostics      
-use histave_m, only : cbas_ave,ctop_ave, &     ! Time average arrays
-    wb_ave,tscr_ave
+use histave_m, only : cbas_ave,ctop_ave,      &     
+    wb_ave,tscr_ave                            ! Time average arrays
 use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
@@ -495,12 +495,12 @@ if ( newfile .and. .not.iop_test ) then
 end if ! newfile .and. .not.iop_test
 
 allocate( ucc(fwsize), tss_a(fwsize) )
+allocate( isoilm_a(fwsize) )
 if ( fnresid*fncount==1 ) then
   allocate( sx(-1:ik+2,-1:ik+2,0:npanels,kblock) )  
 else
   allocate( sx(-1:ik+2,-1:ik+2,0:npanels,1) )
 end if  
-allocate( isoilm_a(fwsize) )
 
 ! -------------------------------------------------------------------
 ! read time invariant data when file is first opened
@@ -554,11 +554,11 @@ if ( newfile ) then
     iers(1:5)   = nint(dumr(kk+1:kk+5))
   end if
   
-  mixr_found    = (iers(1)==0)
-  siced_found   = (iers(2)==0)
-  fracice_found = (iers(3)==0)
-  soilt_found   = (iers(4)==0)
-  mlo_found     = (iers(5)==0)
+  mixr_found    = iers(1)==0
+  siced_found   = iers(2)==0
+  fracice_found = iers(3)==0
+  soilt_found   = iers(4)==0
+  mlo_found     = iers(5)==0
 
   ! determine whether surface temperature needs to be interpolated (tsstest=.false.)
   tsstest = siced_found .and. fracice_found .and. iotest
@@ -1299,6 +1299,9 @@ if ( nested/=1 ) then
     where ( snowd(1:ifull)>0. .and. land(1:ifull) )
       tgg(1:ifull,1) = min( tgg(1:ifull,1), 270.1 )
     endwhere
+    do k = 1,ms
+      tgg(1:ifull,k) = max( min( tgg(1:ifull,k), 400. ), 200. )
+    end do  
   end if
 
   !--------------------------------------------------
@@ -1747,15 +1750,9 @@ if ( iotest ) then
     sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,1), (/ ipan*jpan /) )
   end do
 else
-  !if ( nord==1 ) then   ! bilinear
-  !  do mm = 1,m_fly     !  was 4, now may be 1
-  !    call ints_blb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-  !  end do
-  !else                  ! bicubic
-    do mm = 1,m_fly     !  was 4, now may be 1
-      call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-    end do
-  !end if   ! (nord==1)  .. else ..
+  do mm = 1,m_fly     !  was 4, now may be 1
+    call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+  end do
   sout(1:ifull) = sum(wrk(:,:), dim=2)/real(m_fly)
 end if
 
@@ -1794,15 +1791,9 @@ if ( iotest ) then
     sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,1), (/ ipan*jpan /) )
   end do
 else
-  !if ( nord==1 ) then   ! bilinear
-  !  do mm = 1,m_fly     !  was 4, now may be 1
-  !    call ints_blb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-  !  end do
-  !else                  ! bicubic
-    do mm = 1,m_fly      !  was 4, now may be 1
-      call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-    end do
-  !end if   ! (nord==1)  .. else ..
+  do mm = 1,m_fly      !  was 4, now may be 1
+    call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+  end do
   sout(1:ifull) = sum(wrk(1:ifull,1:m_fly), dim=2)/real(m_fly)
 end if
 
@@ -1867,27 +1858,15 @@ do kb = 1,kx,kblock
       end do
     end do
   else
-    !if ( nord==1 ) then   ! bilinear
-    !  do k = 1,kn
-    !    sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
-    !    call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,:,k))
-    !    call sxpanelbounds(sx(:,:,:,1))
-    !    do mm = 1,m_fly     !  was 4, now may be 1
-    !      call ints_blb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-    !    end do
-    !    sout(1:ifull,k+kb-1) = sum(wrk(:,:), dim=2)/real(m_fly)
-    !  end do
-    !else                  ! bicubic
-      do k = 1,kn
-        sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
-        call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,:,k))
-        call sxpanelbounds(sx(:,:,:,1))
-        do mm = 1,m_fly     !  was 4, now may be 1
-          call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-        end do
-        sout(1:ifull,k+kb-1) = sum(wrk(:,:), dim=2)/real(m_fly)
+    do k = 1,kn
+      sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
+      call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,:,k))
+      call sxpanelbounds(sx(:,:,:,1))
+      do mm = 1,m_fly     !  was 4, now may be 1
+        call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
       end do
-    !end if   ! (nord==1)  .. else ..
+      sout(1:ifull,k+kb-1) = sum(wrk(:,:), dim=2)/real(m_fly)
+    end do
   end if
 
 end do
@@ -1921,12 +1900,12 @@ if ( kx/=size(s, 2) ) then
 end if
 
 if ( size(s,1)<fwsize ) then
-  write(6,*) "ERROR: s array is too small in doints4_nogather"
+  write(6,*) "ERROR: s array is too small in doints4_gather"
   call ccmpi_abort(-1)
 end if
 
 if ( size(sout,1)<ifull ) then
-  write(6,*) "ERROR: sout array is too small in doints4_nogather"
+  write(6,*) "ERROR: sout array is too small in doints4_gather"
   call ccmpi_abort(-1)
 end if
 
@@ -1954,21 +1933,12 @@ do kb = 1,kx,kblock
       end do
     end do
   else
-    !if ( nord==1 ) then   ! bilinear
-    !  do k = 1,kn 
-    !    do mm = 1,m_fly     !  was 4, now may be 1
-    !      call ints_blb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-    !    end do
-    !    sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
-    !  end do
-    !else                  ! bicubic
-      do k = 1,kn
-        do mm = 1,m_fly     !  was 4, now may be 1
-          call intsb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-        end do
-        sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
+    do k = 1,kn
+      do mm = 1,m_fly     !  was 4, now may be 1
+        call intsb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
       end do
-    !end if   ! (nord==1)  .. else ..
+      sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
+    end do
   end if
   
 end do
@@ -2104,35 +2074,6 @@ end do    ! iq loop
 
 return
 end subroutine intsb
-
-!subroutine ints_blb(sx_l,sout,nface_l,xg_l,yg_l) 
-!      
-!!     this one does bi-linear interpolation only
-!
-!use newmpar_m              ! Grid parameters
-!use parm_m                 ! Model configuration
-!
-!implicit none
-!
-!integer :: n, iq, idel, jdel
-!integer, intent(in), dimension(ifull) :: nface_l
-!real, dimension(ifull), intent(inout) :: sout
-!real, intent(in), dimension(ifull) :: xg_l, yg_l
-!real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
-!real :: xxg, yyg
-!
-!do iq = 1,ifull  ! runs through list of target points
-!  n = nface_l(iq)
-!  idel = int(xg_l(iq))
-!  xxg = xg_l(iq) - real(idel)
-!  jdel = int(yg_l(iq))
-!  yyg = yg_l(iq) - real(jdel)
-!  sout(iq) = yyg*(xxg*sx_l(idel+1,jdel+1,n) + (1.-xxg)*sx_l(idel,jdel+1,n)) + &
-!          (1.-yyg)*(xxg*sx_l(idel+1,jdel,n) + (1.-xxg)*sx_l(idel,jdel,n))
-!enddo    ! iq loop
-!
-!return
-!end subroutine ints_blb
 
 ! *****************************************************************************
 ! FILL ROUTINES

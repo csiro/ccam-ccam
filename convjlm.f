@@ -54,9 +54,7 @@
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
       integer kpos(1)
 
-      !if (.not.allocated(upin)) then
         kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
-!        kpos=maxloc(sig,sig<.98)   Marcus suggestion
         k980=kpos(1)
         kpos=minloc(abs(sig-.9)) ! finds k value closest to sig=.9
         k900=kpos(1)
@@ -99,9 +97,8 @@
           call ccmpi_abort(-1)
         endif
        if(methprec==0)detrarr(:,:,:)=0.
-      !end if
 
-      !if(ktau==1)then   !----------------------------------------------------------------
+      !----------------------------------------------------------------
        entrainn(:)=entrain  ! N.B. for nevapcc.ne.0, entrain handles type of scheme   
        if ((mbase<0.and.mbase.ne.-10).or.mbase>4
      &        .or.alflnd<0.or.alfsea<0)then
@@ -305,7 +302,7 @@
 !           tied_over=10 gives factor [1, .917, .786, .611, .306] for ds = [200, 100, 50, 25, 8} km     
           enddo
         endif  ! (tied_a>1.)
-      !endif    ! (ktau==1)   !----------------------------------------------------------------
+      !----------------------------------------------------------------
 
       end subroutine convjlm_init
       
@@ -360,24 +357,17 @@
         is=(tile-1)*imax+1
         ie=tile*imax
 
+        lps       = ps(is:ie)
         ldpsldt   = dpsldt(is:ie,:)
         lt        = t(is:ie,:)
-        lqg       = qg(is:ie,:)
         lphi_nh   = phi_nh(is:ie,:)
-        lfluxtot  = fluxtot(is:ie,:)
+        lqg       = qg(is:ie,:)
         lqlg      = qlg(is:ie,:)
         lqfg      = qfg(is:ie,:)
         lcfrac    = cfrac(is:ie,:)
         lu        = u(is:ie,:)
         lv        = v(is:ie,:)
         lalfin    = alfin(is:ie)        
-        lps       = ps(is:ie)
-        lconvpsav = convpsav(is:ie)
-        lcape     = cape(is:ie)
-        lcondc    = condc(is:ie)
-        lcondx    = condx(is:ie)
-        lconds    = conds(is:ie)
-        lcondg    = condg(is:ie)
         lprecc    = precc(is:ie)
         lprecip   = precip(is:ie)
         lpblh     = pblh(is:ie)
@@ -515,7 +505,7 @@
       real, dimension(imax,kl), intent(inout)          :: qg
       real, dimension(imax,kl), intent(inout)          :: qlg
       real, dimension(imax,kl), intent(inout)          :: qfg
-      real, dimension(imax,kl), intent(inout)          :: fluxtot
+      real, dimension(imax,kl), intent(out)            :: fluxtot
       real, dimension(imax,kl), intent(inout)          :: u
       real, dimension(imax,kl), intent(inout)          :: v
       real, dimension(imax,ndust), intent(inout)       :: dustwd
@@ -527,17 +517,17 @@
       real, dimension(imax), intent(in)                :: entrainn
       real, dimension(imax), intent(in)                :: em
       real, dimension(imax), intent(in)                :: sgsave
-      real, dimension(imax), intent(inout)             :: convpsav
-      real, dimension(imax), intent(inout)             :: cape
+      real, dimension(imax), intent(out)               :: convpsav
+      real, dimension(imax), intent(out)               :: cape
       real, dimension(imax), intent(inout)             :: so2wd
       real, dimension(imax), intent(inout)             :: so4wd
       real, dimension(imax), intent(inout)             :: bcwd
       real, dimension(imax), intent(inout)             :: ocwd
-      real, dimension(imax), intent(inout)             :: condc
+      real, dimension(imax), intent(out)               :: condc
       real, dimension(imax), intent(inout)             :: precc
-      real, dimension(imax), intent(inout)             :: condx
-      real, dimension(imax), intent(inout)             :: conds
-      real, dimension(imax), intent(inout)             :: condg
+      real, dimension(imax), intent(out)               :: condx
+      real, dimension(imax), intent(out)               :: conds
+      real, dimension(imax), intent(out)               :: condg
       real, dimension(imax), intent(inout)             :: precip
       real, dimension(imax), intent(inout)             :: timeconv
       integer, dimension(imax), intent(inout)          :: kbsav
@@ -581,8 +571,8 @@
       alfqarr(:)=alfin(:)
       omega(1:imax)=dpsldt(1:imax,komega)
        
-      tt(1:imax,:)=t(1:imax,:)       
-      qq(1:imax,:)=qg(1:imax,:)      
+      tt(:,:)=t(:,:)       
+      qq(:,:)=qg(:,:)      
       phi(:,1)=bet(1)*tt(:,1)  ! moved up here May 2012
       do k=2,kl
        do iq=1,imax
@@ -713,7 +703,7 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
 
       nuv=0
       fluxt(:,:)=0.     ! just for some compilers
-      fluxtot(:,:)=0.  ! diag for MJT  - total mass flux at level k-.5
+      fluxtot(:,:)=0.   ! diag for MJT  - total mass flux at level k-.5
    
 !__________beginning of convective calculation loop____#################################
       do itn=1,abs(iterconv)
@@ -997,11 +987,12 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
         ka=1
         do iq=1,imax
          if(kb_sav(iq)>kkbb(iq).and.kb_sav(iq)<kl-1)
-     & print *,'iq,kkbb,kb_sav,kt_sav',iq,kkbb(iq),kb_sav(iq),kt_sav(iq)
+     & write(6,*) 'iq,kkbb,kb_sav,kt_sav',
+     &             iq,kkbb(iq),kb_sav(iq),kt_sav(iq)
          if(kb_sav(iq)>ka.and.kb_sav(iq)<kl-1)then
            ka=kb_sav(iq)
-           print *,'itn,iq,running_kb_sav_max,kt_sav',
-     &             itn,iq,ka,kt_sav(iq)
+           write(6,*) 'itn,iq,running_kb_sav_max,kt_sav',
+     &                 itn,iq,ka,kt_sav(iq)
          endif
         enddo
        endif

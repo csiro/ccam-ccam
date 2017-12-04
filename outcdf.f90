@@ -766,6 +766,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'cm0',cm0)
     call ccnf_put_attg(idnc,'cq',cq)
     call ccnf_put_attg(idnc,'dtrc0',dtrc0)
+    call ccnf_put_attg(idnc,'ent_min',ent_min)
     call ccnf_put_attg(idnc,'ent0',ent0)
     call ccnf_put_attg(idnc,'ent1',ent1)
     call ccnf_put_attg(idnc,'entc0',entc0)

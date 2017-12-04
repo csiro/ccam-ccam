@@ -1124,12 +1124,12 @@ if ( myid<nproc ) then
       end if
     endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
   
-    if ( ndi == -ktau ) then
+    if ( ndi==-ktau ) then
       nmaxpr = 1         ! diagnostic prints; reset 6 lines on
-      if ( ndi2 == 0 ) ndi2 = ktau + 40
+      if ( ndi2==0 ) ndi2 = ktau + 40
     endif
-    if ( ktau == ndi2 ) then
-      if ( myid == 0 ) write(6,*)'reset nmaxpr'
+    if ( ktau==ndi2 ) then
+      if ( myid==0 ) write(6,*) 'reset nmaxpr'
       nmaxpr = nmaxprsav
     endif
     if ( mod(ktau,nmaxpr)==0 .or. ktau==ntau ) then
@@ -1148,13 +1148,13 @@ if ( myid<nproc ) then
       call maxmin(qfg,'qf',ktau,1.e3,kl)
       call maxmin(qlg,'ql',ktau,1.e3,kl)
       call maxmin(sdot,'sd',ktau,1.,kl)  ! grid length units 
-      if ( myid == 0 ) then
+      if ( myid==0 ) then
         write(6,'("spmean ",9f8.3)') spmean
         write(6,'("spavge ",f8.3)') spavge
       end if
       dums = qg(1:ifull,:)
       call average(dums,spmean,spavge)
-      if ( myid == 0 ) then
+      if ( myid==0 ) then
         write(6,'("qgmean ",9f8.5)') spmean
         write(6,'("qgavge ",f8.5)') spavge
       end if
@@ -1186,7 +1186,7 @@ if ( myid<nproc ) then
       ! All this combined into a single reduction
       temparray = (/ psavge, pslavge, preccavge, precavge, gke, cllav, clmav,clhav, cltav /)
       call ccmpi_reduce(temparray(1:9),gtemparray(1:9),"sum",0,comm_world)
-      if ( myid == 0 ) then
+      if ( myid==0 ) then
         write(6,97) gtemparray(1:5) ! psavge,pslavge,preccavge,precavge,gke
 97      format(' average ps, psl, precc, prec, gke: ',f10.2,f10.6,2f6.2,f7.2)
         write(6,971) gtemparray(6:9) ! cllav,clmav,clhav,cltav
@@ -1195,7 +1195,7 @@ if ( myid<nproc ) then
       if ( mydiag ) then
         write(6,98) ktau,diagvals(ps)
 98      format(i7,' ps diag:',9f9.1)
-        if ( t(idjd,kl) > 258. ) then
+        if ( t(idjd,kl)>258. ) then
           write(6,*) 't(idjd,kl) > 258. for idjd = ',idjd
           write(6,91) ktau,(t(idjd,k),k=kl-8,kl)
 91        format(i7,'    t',9f7.2)
@@ -1205,6 +1205,8 @@ if ( myid<nproc ) then
       end if               ! myid==0
     endif                  ! (mod(ktau,nmaxpr)==0)
 
+    
+    ! TIME AVERAGED OUTPUT ---------------------------------------
     ! update diag_averages and daily max and min screen temps 
     ! N.B. runoff is accumulated in sflux
     tmaxscr(1:ifull)           = max( tmaxscr(1:ifull), tscrn )
@@ -1328,7 +1330,7 @@ if ( myid<nproc ) then
       fbeam_ave(1:ifull)  = fbeam_ave(1:ifull)/max(koundiag,1)
       cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
       ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
-      if ( ngas > 0 ) then
+      if ( ngas>0 ) then
         traver(1:ifull,1:kl,1:ngas) = traver(1:ifull,1:kl,1:ngas)/min(ntau,nperavg)
       end if
       if ( ccycle/=0 ) then
@@ -1370,6 +1372,7 @@ if ( myid<nproc ) then
       end if
     end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
 
+    
     call log_off()
   
     if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
@@ -1379,9 +1382,7 @@ if ( myid<nproc ) then
         call END_LOG(maincalc_end)
         ! write restart file
         call outfile(19,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)
-        if ( myid == 0 ) then
-          write(6,*)'finished writing restart file in outfile'
-        end if
+        if ( myid==0 ) write(6,*) 'finished writing restart file in outfile'
         call START_LOG(maincalc_begin)
       endif  ! (ktau==ntau.and.irest==1)
     endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
@@ -1393,9 +1394,11 @@ if ( myid<nproc ) then
   
     call log_on()
  
-    if ( mod(ktau,nperavg) == 0 ) then   
+    
+    ! RESET TIME AVERAGED ARRAYS ---------------------------------
+    if ( mod(ktau,nperavg)==0 ) then   
       ! produce some diags & reset most averages once every nperavg
-      if ( nmaxpr == 1 ) then
+      if ( nmaxpr==1 ) then
         precavge = sum(precip(1:ifull)*wts(1:ifull))
         evapavge = sum(evap(1:ifull)*wts(1:ifull))   ! in mm/day
         pwatr    = 0.   ! in mm
@@ -1404,7 +1407,7 @@ if ( myid<nproc ) then
         enddo
         temparray(1:3) = (/ precavge, evapavge, pwatr /)
         call ccmpi_reduce(temparray(1:3),gtemparray(1:3),"max",0,comm_world)
-        if ( myid == 0 ) then
+        if ( myid==0 ) then
           precavge = gtemparray(1)
           evapavge = gtemparray(2)
           pwatr    = gtemparray(3)
@@ -1467,7 +1470,7 @@ if ( myid<nproc ) then
       u10mx(:)             = 0.
       cape_max(:)          = 0.
       cape_ave(:)          = 0.
-      if ( ngas > 0 ) then
+      if ( ngas>0 ) then
         traver = 0.
       end if
       if ( ccycle/=0 ) then
@@ -1509,6 +1512,8 @@ if ( myid<nproc ) then
       end if
     endif  ! (mod(ktau,nperavg)==0)
 
+    
+    ! STATION DIAGNOSTICS ----------------------------------------
     if ( mod(ktau,nperday)==0 ) then   ! re-set at the end of each 24 hours
       if ( ntau<10*nperday .and. nstn>0 ) then     ! print stn info
         do nn = 1,nstn
@@ -1540,13 +1545,13 @@ if ( myid<nproc ) then
       end if
     endif   ! (mod(ktau,nperday)==0)
   
+    
+    ! AMIP SSTs --------------------------------------------------
     if ( namip/=0 ) then
       call START_LOG(amipsst_begin)
       if ( nmlo==0 ) then
         if ( mod(ktau,nperday)==0 ) then
-          if ( myid==0 ) then
-            write(6,*) 'amipsst called at end of day for ktau,mtimer,namip ',ktau,mtimer,namip  
-          end if
+          if ( myid==0 ) write(6,*) 'amipsst called at end of day for ktau,mtimer,namip ',ktau,mtimer,namip  
           call amipsst
         end if
       else
@@ -1556,22 +1561,25 @@ if ( myid<nproc ) then
       call END_LOG(amipsst_end)
     end if
 
+    
     ! Flush trace information to disk to save memory.
     call log_flush()
 
+    
   end do                  ! *** end of main time loop
+  
   
   call END_LOG(maincalc_end)
   call log_off()
 
+  
   ! Report timings of run
-  if ( myid == 0 ) then
+  if ( myid==0 ) then
     call date_and_time(time=timeval,values=tvals2)
     write(6,*) "End of time loop ", timeval
     write(6,*) "normal termination of run"
-    call date_and_time(time=timeval)
     write(6,*) "End time ", timeval
-    aa = sum( real(tvals2(5:8) - tvals1(5:8))*(/ 3600., 60., 1., 0.001 /) )
+    aa = sum( real(tvals2(5:8)-tvals1(5:8))*(/ 3600., 60., 1., 0.001 /) )
     if ( aa<0. ) aa = aa + 86400.
     write(6,*) "Model time in main loop",aa
   end if
@@ -1580,19 +1588,19 @@ if ( myid<nproc ) then
   if ( mbd/=0 .or. nbd/=0 ) then
     call histclose
   end if
+
+#ifdef csircoupled
+  ! finalize VCOM
+  call vcom_finialize
+#endif
   
   call date_and_time(values=times_total_b)
-  total_time = sum( real(times_total_b(5:8) - times_total_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
+  total_time = sum( real(times_total_b(5:8)-times_total_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
   if ( total_time<0 ) total_time = total_time + 86400.
   
 #ifdef simple_timer
   ! report subroutine timings
   call simple_timer_finalize
-#endif
-
-#ifdef csircoupled
-  ! finalize VCOM MPI comms
-  call vcom_finialize
 #endif
 
   ! Complete
@@ -2032,7 +2040,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
-    stabmeth,tke_umin,tkemeth,qcmf,ezmin,                         &
+    stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,                 &
     amxlsq,                                                       & !JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj                                !GWdrag
 ! land, urban and carbon namelist
@@ -2632,7 +2640,7 @@ nclddia        = dumi(19)
 nmr            = dumi(20)
 nevapls        = dumi(21)
 deallocate( dumr, dumi )
-allocate( dumr(28), dumi(4) )
+allocate( dumr(29), dumi(4) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2669,6 +2677,7 @@ if ( myid==0 ) then
   dumr(26) = fc2
   dumr(27) = sigbot_gwd
   dumr(28) = alphaj
+  dumr(29) = ent_min
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
@@ -2703,6 +2712,7 @@ helim      = dumr(25)
 fc2        = dumr(26)
 sigbot_gwd = dumr(27)
 alphaj     = dumr(28)
+ent_min    = dumr(29)
 buoymeth   = dumi(1)
 stabmeth   = dumi(2)
 tkemeth    = dumi(3)

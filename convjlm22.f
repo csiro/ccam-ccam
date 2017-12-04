@@ -53,177 +53,176 @@
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
       integer kpos(1)
 
-      !if (.not.allocated(upin)) then
-!        kpos=maxloc(sig,sig<.98)   Marcus suggestion
-        kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
-        k980=kpos(1)
-        kpos=minloc(abs(sig-.97)) ! finds k value closest to sig=.97  level 3 for L18 & L27
-        k970=kpos(1)
-        kpos=minloc(abs(sig-.95)) ! finds k value closest to sig=.95
-        k950=kpos(1)
-        kpos=minloc(abs(sig-.9)) ! finds k value closest to sig=.9
-        k900=kpos(1)
-        kpos=minloc(abs(sig-.7)) ! finds k value closest to sig=.7
-        k700=kpos(1)
-        kpos=minloc(abs(sig-.6)) ! finds k value closest to sig=.6
-        k600=kpos(1)
-        komega=1  ! JLM
-        if(dsig4>.4)then ! JLM
-          kpos=minloc(abs(sig-dsig4)) ! finds k value closest to dsig4    JLM
-          komega=kpos(1) ! JLM
-        endif ! JLM
-        k500=1
-        do while(sig(k500)>0.5)
-          k500=k500+1
-        enddo
-        k500=k500-1    ! level just below .5
-        if (myid==0) then
-          write(6,*) 'k980 ',k980,sig(k980)
-          write(6,*) 'k970 ',k970,sig(k970)
-          write(6,*) 'k900 ',k900,sig(k900)
-          write(6,*) 'k700 ',k700,sig(k700)
-          write(6,*) 'k600 ',k600,sig(k600)
-          write(6,*) 'k500 ',k500,sig(k500)
-          write(6,*) 'komega',komega,sig(komega)  ! JLM
-        end if
-        allocate(timeconv(ifull))  ! init for ktau=1 (allocate needed for mdelay>0)
-        allocate(alfin(ifull))          ! init for ktau=1
-        allocate(kb_saved(ifull))  ! init for ktau=1 
-        allocate(kt_saved(ifull))   ! init for ktau=1 
-        allocate(upin(kl,kl))
-        allocate(upin4(kl,kl))
-        allocate(downex(kl,kl))
-        if(methdetr>=0.or.entrain>0)then
-          write(6,*) "not permitted that methdetr>=0.or.entrain>0."
-          call ccmpi_abort(-1)
-        endif
-      !end if
+      kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
+      k980=kpos(1)
+      kpos=minloc(abs(sig-.97)) ! finds k value closest to sig=.97  level 3 for L18 & L27
+      k970=kpos(1)
+      kpos=minloc(abs(sig-.95)) ! finds k value closest to sig=.95
+      k950=kpos(1)
+      kpos=minloc(abs(sig-.9)) ! finds k value closest to sig=.9
+      k900=kpos(1)
+      kpos=minloc(abs(sig-.7)) ! finds k value closest to sig=.7
+      k700=kpos(1)
+      kpos=minloc(abs(sig-.6)) ! finds k value closest to sig=.6
+      k600=kpos(1)
+      komega=1  ! JLM
+      if(dsig4>.4)then ! JLM
+        kpos=minloc(abs(sig-dsig4)) ! finds k value closest to dsig4    JLM
+        komega=kpos(1) ! JLM
+      endif ! JLM
+      k500=1
+      do while(sig(k500)>0.5)
+        k500=k500+1
+      enddo
+      k500=k500-1    ! level just below .5
+      if (myid==0) then
+        write(6,*) 'k980 ',k980,sig(k980)
+        write(6,*) 'k970 ',k970,sig(k970)
+        write(6,*) 'k900 ',k900,sig(k900)
+        write(6,*) 'k700 ',k700,sig(k700)
+        write(6,*) 'k600 ',k600,sig(k600)
+        write(6,*) 'k500 ',k500,sig(k500)
+        write(6,*) 'komega',komega,sig(komega)  ! JLM
+      end if
+      allocate(timeconv(ifull))  ! init for ktau=1 (allocate needed for mdelay>0)
+      allocate(alfin(ifull))     ! init for ktau=1
+      allocate(kb_saved(ifull))  ! init for ktau=1 
+      allocate(kt_saved(ifull))  ! init for ktau=1 
+      allocate(upin(kl,kl))
+      allocate(upin4(kl,kl))
+      allocate(downex(kl,kl))
+      if ( methdetr>=0 .or. entrain>0 ) then
+        write(6,*) "not permitted that methdetr>=0.or.entrain>0."
+        call ccmpi_abort(-1)
+      endif
 
-      !if(ktau==1)then   !----------------------------------------------------------------
-       if (mbase.ne.1.or.nbase.ne.3.or.alflnd<0.or.alfsea<0)then
-         write(6,*) "ERROR: negative alflnd and alfsea or"
-         write(6,*) "unsupported mbase, nbase in convjlm22"
-         call ccmpi_abort(-1)
-       endif
-       !fg(:)=0.        ! JLM default for ktau=1  1601
-       kb_saved(:)=kl-1
-       kt_saved(:)=kl-1
-       timeconv(:)=0.
-       do k=1,kl
-         if(sig(k)> .5)klon2=k
-       enddo
-       if(myid==0)write(6,*) 'klon2,k500',klon2,k500
-!      methdetr (for >0) gives the fraction of precip detrained
+      !----------------------------------------------------------------
+      if (mbase.ne.1.or.nbase.ne.3.or.alflnd<0.or.alfsea<0)then
+        write(6,*) "ERROR: negative alflnd and alfsea or"
+        write(6,*) "unsupported mbase, nbase in convjlm22"
+        call ccmpi_abort(-1)
+      end if
+      kb_saved(:)=kl-1
+      kt_saved(:)=kl-1
+      timeconv(:)=0.
+      do k=1,kl
+        if(sig(k)> .5)klon2=k
+      enddo
+      if(myid==0)write(6,*) 'klon2,k500',klon2,k500
+!     methdetr (for >0) gives the fraction of precip detrained
 
 !     precalculate below-base downdraft & updraft environmental contrib terms (ktau=1)
-       do kb=1,kl-1   ! original proposal, kscsea=0 (small upin near sfce, large downex)
+      do kb=1,kl-1   ! original proposal, kscsea=0 (small upin near sfce, large downex)
         summ=0.
         sumb=0.
         do k=1,kb
-         downex(k,kb)=(sig(k)-sigmh(kb+1))*dsig(k)
-         summ=summ+downex(k,kb)
-         upin(k,kb)=(sig(k)-1.)*dsig(k)
-         sumb=sumb+upin(k,kb)
+          downex(k,kb)=(sig(k)-sigmh(kb+1))*dsig(k)
+          summ=summ+downex(k,kb)
+          upin(k,kb)=(sig(k)-1.)*dsig(k)
+          sumb=sumb+upin(k,kb)
         enddo
         do k=1,kb
-         downex(k,kb)=downex(k,kb)/summ
-         upin(k,kb)=upin(k,kb)/sumb
+          downex(k,kb)=downex(k,kb)/summ
+          upin(k,kb)=upin(k,kb)/sumb
         enddo
-       enddo
+      enddo
 !     precalculate below-base downdraft & updraft environmental contrib terms
       if(kscsea==-1.or.kscsea==-2)then   ! trying to be backward compatible for upin
-!      this one gives linearly increasing mass fluxes at each half level      
-       do kb=1,k500
-        upin4(1,kb)=(1.-sigmh(1+1))/(1.-sigmh(kb+1))
-        upin(1,kb)=upin4(1,kb)
-        do k=2,kb
-         upin4(k,kb)=(1.-sigmh(k+1))/(1.-sigmh(kb+1))
-         upin(k,kb)=upin4(k,kb)-upin4(k-1,kb)
+!       this one gives linearly increasing mass fluxes at each half level      
+        do kb=1,k500
+          upin4(1,kb)=(1.-sigmh(1+1))/(1.-sigmh(kb+1))
+          upin(1,kb)=upin4(1,kb)
+          do k=2,kb
+            upin4(k,kb)=(1.-sigmh(k+1))/(1.-sigmh(kb+1))
+            upin(k,kb)=upin4(k,kb)-upin4(k-1,kb)
+          enddo
+          if(ntest==1.and.myid==0)then
+            write (6,"('upinx kb ',i3,15f7.3)") kb,(upin(k,kb),k=1,kb)
+          endif
         enddo
-        if(ntest==1.and.myid==0)then
-          write (6,"('upinx kb ',i3,15f7.3)") kb,(upin(k,kb),k=1,kb)
-        endif
-       enddo
       endif  ! kscsea==-1.or.kscsea==-2  
-      if(kscsea<=-2)then   ! trying to be backward compatible for downex
-!      gives relatively larger downdraft fluxes near surface      
-       do kb=1,k500
-        summ=0.
-        do k=1,kb
-         downex(k,kb)=dsig(k)
-         summ=summ+downex(k,kb)
+      if ( kscsea<=-2 ) then   ! trying to be backward compatible for downex
+!       gives relatively larger downdraft fluxes near surface      
+        do kb=1,k500
+          summ=0.
+          do k=1,kb
+            downex(k,kb)=dsig(k)
+            summ=summ+downex(k,kb)
+          enddo
+          do k=1,kb
+            downex(k,kb)=downex(k,kb)/summ
+          enddo
         enddo
-        do k=1,kb
-         downex(k,kb)=downex(k,kb)/summ
-        enddo
-       enddo
       endif  ! kscsea<=-2
-      if(myid==0)then
+      if (myid==0) then
         do kb=1,kl-1
-         write (6,"('upin1-kb ',17f7.3)") (upin(k,kb),k=1,kb)
-        if(ntest==1)write (6,"('downex',17f7.3)") (downex(k,kb),k=1,kb)
+          write (6,"('upin1-kb ',17f7.3)") (upin(k,kb),k=1,kb)
+          if(ntest==1) then
+            write(6,"('downex',17f7.3)") (downex(k,kb),k=1,kb)
+          end if  
         enddo
         do kb=1,kl-1
-         write (6,"('downex',17f7.3)") (downex(k,kb),k=1,kb)
+          write (6,"('downex',17f7.3)") (downex(k,kb),k=1,kb)
         enddo
       endif
 
-       if(nint(convtime)==-23)convtime=3030.6
-       if(nint(convtime)==-24)convtime=4040.6
-        if(convtime>100.)then   ! new general style  May 2014
-!         1836.45 is old 36;  4040.6 is old -24; 2020.001 is old .33
-          mcontlnd=int(.01*convtime)         ! in minutes
-          mcontsea=int(convtime-real(100*mcontlnd)) ! in minutes
-          convt_frac=convtime-100*mcontlnd-mcontsea  ! changeover sigma value of cloud thickness
-          convt_frac=max(convt_frac,1.e-7)  ! allows for zero entry
-         elseif(convtime<-100.)then
-          mcontlnd=-int(.01*convtime)         ! in minutes
-          mcontsea=int(-convtime-real(100*mcontlnd)) ! in minutes
-          convt_frac=-convtime-100*mcontlnd-mcontsea  ! changeover sigma value of cloud thickness
-          convt_frac=max(convt_frac,1.e-7)  ! allows for zero entry
-         elseif(convtime>0.)then  ! using old values provided as hours
-          mcontlnd=nint(60.*convtime)         ! in minutes
-          mcontsea=nint(60.*convtime)         ! in minutes
-          convt_frac=.001
-          convtime=100*mcontlnd + mcontsea
-         else
-           write(6,*) 'unsupported convtime value'
-           call ccmpi_abort(-1)
-        endif  ! (convtime >100) .. else ..
-        if(mydiag)write(6,*) 'convtime,mcontlnd,mcontsea,convt_frac',
+      if(nint(convtime)==-23)convtime=3030.6
+      if(nint(convtime)==-24)convtime=4040.6
+      if(convtime>100.)then   ! new general style  May 2014
+!       1836.45 is old 36;  4040.6 is old -24; 2020.001 is old .33
+        mcontlnd=int(.01*convtime)         ! in minutes
+        mcontsea=int(convtime-real(100*mcontlnd)) ! in minutes
+        convt_frac=convtime-100*mcontlnd-mcontsea  ! changeover sigma value of cloud thickness
+        convt_frac=max(convt_frac,1.e-7)  ! allows for zero entry
+      elseif(convtime<-100.)then
+        mcontlnd=-int(.01*convtime)         ! in minutes
+        mcontsea=int(-convtime-real(100*mcontlnd)) ! in minutes
+        convt_frac=-convtime-100*mcontlnd-mcontsea  ! changeover sigma value of cloud thickness
+        convt_frac=max(convt_frac,1.e-7)  ! allows for zero entry
+      elseif(convtime>0.)then  ! using old values provided as hours
+        mcontlnd=nint(60.*convtime)         ! in minutes
+        mcontsea=nint(60.*convtime)         ! in minutes
+        convt_frac=.001
+        convtime=100*mcontlnd + mcontsea
+      else
+        write(6,*) 'unsupported convtime value'
+        call ccmpi_abort(-1)
+      endif  ! (convtime >100) .. else ..
+      if(mydiag)write(6,*) 'convtime,mcontlnd,mcontsea,convt_frac',
      &           convtime,mcontlnd,mcontsea,convt_frac
 
-        where(land(1:ifull))
-          alfin(:)=alflnd
-        elsewhere
-          alfin(:)=alfsea
-        end where
+      where(land(1:ifull))
+        alfin(:)=alflnd
+      elsewhere
+        alfin(:)=alfsea
+      end where
         
-        if(tied_over>0.)then   ! e.g. 2626.   b then a.  2600 to get old -26
-          tied_b=int(tied_over/100.)
-          tied_a=tied_over-100.*tied_b
-        else
-          tied_b=abs(tied_over)
-          tied_a=0.
-        endif
-        if (myid==0) then
-          write(6,*) 'ds,tied_over,tied_a,tied_b',
-     &                ds,tied_over,tied_a,tied_b
-        end if
-       if(tied_a>1.)then  ! e.g. 20 or 26  
-!         alfin may be reduced over land and sea for finer resolution than 200 km grid            
-          do iq=1,ifull
-            summ=ds/(em(iq)*208498.)
-            alfin(iq)=1.+(alfin(iq)-1.) *
+      if(tied_over>0.)then   ! e.g. 2626.   b then a.  2600 to get old -26
+        tied_b=int(tied_over/100.)
+        tied_a=tied_over-100.*tied_b
+      else
+        tied_b=abs(tied_over)
+        tied_a=0.
+      endif
+      if (myid==0) then
+        write(6,*) 'ds,tied_over,tied_a,tied_b',
+     &              ds,tied_over,tied_a,tied_b
+      end if
+      if(tied_a>1.)then  ! e.g. 20 or 26  
+!       alfin may be reduced over land and sea for finer resolution than 200 km grid            
+        do iq=1,ifull
+          summ=ds/(em(iq)*208498.)
+          alfin(iq)=1.+(alfin(iq)-1.) *
      &      (1.+tied_a)*summ/(1.+tied_a*summ)
-            !if(iq<200)print *,'iq,alfin',iq,alfin(iq)
-!           tied_over=26 gives factor [1, .964, .900, .794, .529] for ds = [200, 100, 50, 25, 8} km     
-!           tied_over=10 gives factor [1, .917, .786, .611, .306] for ds = [200, 100, 50, 25, 8} km     
-          enddo
-        endif  ! (tied_a>1.)
-      !endif    ! (ktau==1)   !--------------------------------------------------------
+          !if(iq<200)print *,'iq,alfin',iq,alfin(iq)
+!         tied_over=26 gives factor [1, .964, .900, .794, .529] for ds = [200, 100, 50, 25, 8} km     
+!         tied_over=10 gives factor [1, .917, .786, .611, .306] for ds = [200, 100, 50, 25, 8} km     
+        enddo
+      endif  ! (tied_a>1.)
+      !--------------------------------------------------------
          
       end subroutine convjlm22_init
+      
       
       subroutine convjlm22
       
@@ -334,19 +333,19 @@
         fluxtot(is:ie,:) = lfluxtot
         u(is:ie,:)       = lu
         v(is:ie,:)       = lv
-        convpsav(is:ie) = lconvpsav
-        cape(is:ie)     = lcape
-        condc(is:ie)    = lcondc
-        condx(is:ie)    = lcondx
-        conds(is:ie)    = lconds
-        condg(is:ie)    = lcondg
-        precc(is:ie)    = lprecc
-        precip(is:ie)   = lprecip
-        timeconv(is:ie) = ltimeconv
-        kbsav(is:ie)    = lkbsav
-        ktsav(is:ie)    = lktsav
-        kt_saved(is:ie) = lkt_saved
-        kb_saved(is:ie) = lkb_saved
+        convpsav(is:ie)  = lconvpsav
+        cape(is:ie)      = lcape
+        condc(is:ie)     = lcondc
+        condx(is:ie)     = lcondx
+        conds(is:ie)     = lconds
+        condg(is:ie)     = lcondg
+        precc(is:ie)     = lprecc
+        precip(is:ie)    = lprecip
+        timeconv(is:ie)  = ltimeconv
+        kbsav(is:ie)     = lkbsav
+        ktsav(is:ie)     = lktsav
+        kt_saved(is:ie)  = lkt_saved
+        kb_saved(is:ie)  = lkb_saved
         if ( abs(iaero)>=2 ) then
           xtg(is:ie,:,:)  = lxtg
           dustwd(is:ie,:) = ldustwd
@@ -365,6 +364,7 @@
       return
       end subroutine convjlm22     ! jlm convective scheme
        
+      
       subroutine convjlm22_work(alfin,dpsldt,t,qg,phi_nh,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
@@ -500,7 +500,7 @@
 !     just does convective; L/S rainfall done later by LDR scheme
       qliqw(:,:)=0.  ! before itn
       kmin(:)=0
-      conrev(1:imax)=1000.*ps(1:imax)/(grav*dt) ! factor to convert precip to g/m2/s
+      conrev(:)=1000.*ps(:)/(grav*dt) ! factor to convert precip to g/m2/s
       rnrt(:)=0.       ! initialize large-scale rainfall array; before itn
       rnrtc(:)=0.      ! initialize convective  rainfall array; before itn
       kbsav_ls(:)=0    ! for L/S
