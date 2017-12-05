@@ -95,7 +95,7 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
 
       ! Extinction coefficient for diffuse radiation for black leaves:
       rad%extkd = -LOG( SUM(                                                   &
-                  SPREAD( C%GAUSS_W, 1, mp ) * EXP( -xk * xvlai2 ), 2) )       &
+                  SPREAD( C%GAUSS_W, 1, mp ) * EXP( -min(xk * xvlai2,20.) ), 2) )       &
                   / canopy%vlaiw
 
    ELSEWHERE ! i.e. bare soil

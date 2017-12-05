@@ -5110,6 +5110,9 @@ if ( mp_global>0 ) then
   do k = 1,ms
     totdepth = totdepth + real(soil%zse(k))*100.
   enddo
+  
+  ssnow%tgg = max(ssnow%tgg, 200._8)
+  ssnow%tggsn = max(ssnow%tggsn, 200._8)
 
   ssnow%wb = max(ssnow%wb,0._8)
   ssnow%wbice = min( max(ssnow%wbice, 0._8), ssnow%wb )
