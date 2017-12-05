@@ -252,9 +252,6 @@ MODULE cable_def_types_mod
      REAL(r_2), DIMENSION(:),   POINTER :: TsurfaceFR  !  tepmerature at surface (soil, pond or litter) (edit vh 22/10/08)
      REAL(r_2), DIMENSION(:,:), POINTER :: Ta_daily        ! air temp averaged over last 24h
      INTEGER, DIMENSION(:),     POINTER :: nsnow ! number of layers in snow-pack (0-nsnow_max)
-#ifdef CCAM
-     INTEGER, DIMENSION(:),     POINTER :: nsnow_last
-#endif
      REAL(r_2), DIMENSION(:),   POINTER :: Qadv_daily  ! advective heat flux into surface , daily average (W m-2)
      REAL(r_2), DIMENSION(:),   POINTER :: G0_daily  ! conductive heat flux into surface , daily average (W m-2)
      REAL(r_2), DIMENSION(:),   POINTER :: Qevap_daily ! evaporative flux at surface, daily average (m s-1)
@@ -860,9 +857,6 @@ SUBROUTINE alloc_soil_snow_type(var, mp)
     ALLOCATE ( var % snowliq(mp,3) )
     ALLOCATE ( var % nsteps(mp) )
     ALLOCATE ( var % nsnow(mp) )
-#ifdef CCAM
-    ALLOCATE ( var % nsnow_last(mp) )
-#endif
     ALLOCATE ( var % TsurfaceFR(mp) )
     ALLOCATE ( var % Ta_daily(mp,100))
     ALLOCATE ( var % Qadv_daily(mp) )
@@ -1405,9 +1399,6 @@ SUBROUTINE dealloc_soil_snow_type(var)
     DEALLOCATE (var % snowliq)
     DEALLOCATE (var % nsteps)
     DEALLOCATE (var % nsnow)
-#ifdef CCAM
-    DEALLOCATE (var % nsnow_last )
-#endif
     DEALLOCATE ( var % TsurfaceFR )
     DEALLOCATE ( var % Ta_daily )
     DEALLOCATE ( var % G0_daily )

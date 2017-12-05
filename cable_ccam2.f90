@@ -3924,6 +3924,8 @@ if ( mp_global>0 ) then
       ssnow%wb(:,k) = min(ssnow%wb(:,k), soil%sfc)
     end do    
   end if
+  dummy_pack = real(1-isflag)*tgg(:,1) + real(isflag)*tggsn(:,1) - 273.15
+  call cable_pack(dummy_pack,ssnow%tsurface)
   ssnow%rtsoil = 50._8
   canopy%cansto = 0._8
   canopy%ga = 0._8
@@ -3966,17 +3968,19 @@ implicit none
 integer k
 
 if ( mp_global>0 ) then
-  ssnow%h0 = 0._8
-  ssnow%snowliq = 0._8
-  ssnow%Tsurface = 25._8
-  ssnow%nsnow = 0
-  ssnow%nsnow_last = 0
+  ssnow%h0 = 0._8      ! pond height
+  ssnow%snowliq = 0._8 ! liquid snow
   ssnow%Tsoil = ssnow%tgg - 273.15_8
-  ssnow%thetai = 0._8
+  ssnow%thetai = ssnow%wbice
   do k = 1,ms
     ssnow%S(:,k) = ssnow%wb(:,k)/soil%ssat
   end do
-  ssnow%isflag = 0
+  !where ( ssnow%snowd>0. )
+  !  ssnow%nsnow = 1
+  !elsewhere
+  !  ssnow%nsnow = 0
+  !end where
+  ssnow%nsnow = 0
   ssnow%snowd = 0.
   
   call fixtile
@@ -4284,10 +4288,6 @@ else
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         dati = nint(dat)
         if ( n<=maxnb ) call cable_pack(dati,ssnow%nsnow(:),n)
-        write(vname,'("t",I1.1,"_nsnow_last")') n
-        call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-        dati = nint(dat)
-        if ( n<=maxnb ) call cable_pack(dati,ssnow%nsnow_last(:),n)
         write(vname,'("t",I1.1,"_fwsoil")') n
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,canopy%fwsoil(:),n)
@@ -5329,9 +5329,6 @@ if (myid==0.or.local) then
       write(lname,'("nsnow tile ",I1.1)') n
       write(vname,'("t",I1.1,"_nsnow")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("nsnow_last tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_nsnow_last")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8      
       write(lname,'("fwsoil tile ",I1.1)') n
       write(vname,'("t",I1.1,"_fwsoil")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -6065,13 +6062,6 @@ if ( soil_struc==1 ) then
     end if  
     write(vname,'("t",I1.1,"_nsnow")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)   
-    dat=0._8
-    if (n<=maxnb) then
-      dummy_unpack = real(ssnow%nsnow_last,8)  
-      call cable_unpack(dummy_unpack,dat,n)
-    end if  
-    write(vname,'("t",I1.1,"_nsnow_last")') n
-    call histwrt3(dat,vname,idnc,iarch,local,.true.)       
     dat=0._8
     if (n<=maxnb) call cable_unpack(canopy%fwsoil,dat,n)
     write(vname,'("t",I1.1,"_fwsoil")') n

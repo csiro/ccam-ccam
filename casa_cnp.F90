@@ -665,7 +665,7 @@ IF (cable_user%CALL_climate) then
 
            ENDWHERE
            !vh! prevent floating underflow with this mask
-           !WHERE (casapool%Clabile(:).gt.1.e-8) & ! MJT suggestion
+           WHERE (casapool%Clabile(:).gt.1.e-8) &
               casaflux%clabloss(:)  =  casabiome%kclabrate(veg%iveg(:)) &
                    * max(0.0,casapool%Clabile(:))      &
                    * exp(308.56*(1.0/56.02-1.0         &

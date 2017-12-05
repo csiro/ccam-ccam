@@ -249,9 +249,7 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
         vsnow(kk)%hliq       = zero
         vsnow(kk)%melt       = zero
         vsnow(kk)%nsnow      = 0
-#ifndef CCAM
         vsnow(kk)%nsnow_last = 0
-#endif        
         ssnow%cls(kk)        = one
         vsnow(kk)%J                      = zero
         vsnow(kk)%fsnowliq_max           = 0.03_r_2
@@ -336,9 +334,6 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
 
   do kk=1, mp
      vsnow(kk)%nsnow = ssnow%nsnow(kk)
-#ifdef CCAM
-     vsnow(kk)%nsnow_last = ssnow%nsnow_last(kk)
-#endif
      vsnow(kk)%wcol  = ssnow%snowd(kk)/thousand ! diagnostic SWE (with or without dedicated snow pack)
      if ( vsnow(kk)%nsnow > 0)  then ! dedicated snow pack
         ! define variables associated with snow
@@ -667,9 +662,6 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
         ! amount of melted snow leaving bottom of snow pack (mm/dt)
         ssnow%smelt(kk)               = reaL(vsnow(kk)%Qmelt*thousand/dt)
         ssnow%nsnow(kk)               = vsnow(kk)%nsnow
-#ifdef CCAM
-        ssnow%nsnow_last(kk)          = vsnow(kk)%nsnow_last
-#endif
         if (sum(ssnow%sdepth(kk,1:nsnow_max)) > zero) then
            ssnow%ssdnn(kk) = ssnow%snowd(kk)/sum(ssnow%sdepth(kk,1:nsnow_max))
         endif
