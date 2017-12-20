@@ -3011,7 +3011,8 @@ if ( mp_global>0 ) then
     casabiome%fracligninplant(:,wood) =0.4_8
     casabiome%fracligninplant(:,xroot)=real((/ 0.25,0.20,0.20,0.20,0.20,0.10,0.10,0.10,0.10,0.10,0.15,0.15,0.15,0.15,0.15,  &
                                                0.25,0.10 /),8)
-    casabiome%glaimax=real((/ 7.,7.,7.,7.,3.,3.,3.,3.,6.,6., 5., 5., 5., 1.,6., 1.,0. /),8)
+    !casabiome%glaimax=real((/ 7.,7.,7.,7.,3.,3.,3.,3.,6.,6., 5., 5., 5., 1.,6., 1.,0. /),8)
+    casabiome%glaimax=real((/ 10.,10.,10.,10.,10.,3.,3.,3.,6.,6., 5., 5., 5., 1.,6., 1.,0. /),8)
     casabiome%glaimin=real((/ 1.,1.,.5,.5,.1,.1,.1,.1,.1,.1,.05,.05,.05,.05,0.,.05,0. /),8)
     phen%TKshed=real((/ 268.,260.,263.15,268.15,277.15,275.15,275.15,275.15,278.15,278.15,277.15,277.15,277.15,277.15,277.15, &
                    277.15,283.15 /),8)
@@ -5192,7 +5193,7 @@ if ( mp_global>0 ) then
     casabal%FPupyear     = 0._8
     casabal%FPleachyear  = 0._8
     casabal%FPlossyear   = 0._8
-    casamet%glai         = max(min( casamet%glai, casabiome%glaimax(veg%iveg)), casabiome%glaimin(veg%iveg))
+    !casamet%glai         = max(min( casamet%glai, casabiome%glaimax(veg%iveg)), casabiome%glaimin(veg%iveg))
   end if
 end if
   

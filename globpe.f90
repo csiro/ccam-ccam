@@ -577,11 +577,9 @@ if ( myid<nproc ) then
         if ( myid==0 ) write(6,*) "After adjust5"
       end if
 
-      call nantest("after atmosphere dynamics",1,ifull)
-      
       call fixqg(1,ifull)
   
-      call nantest("after fixqg",1,ifull)
+      call nantest("after atmosphere dynamics",1,ifull)
       
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers

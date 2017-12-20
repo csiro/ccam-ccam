@@ -389,19 +389,19 @@ SUBROUTINE casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,LAL
 !! , leading to decline in mineral nitrogen availability and spikes in fracCalloc,
 !! causing spikes in tree mortality and lack of model convergence in productive
 !! regions where LAI is hitting LAImax.
-!!$        ! IF Prognostic LAI reached glaimax, no C is allocated to leaf
-!!$        ! Q.Zhang 17/03/2011
-!!$        WHERE(casamet%glai(:)>=casabiome%glaimax(veg%iveg(:)))
-!!$           casaflux%fracCalloc(:,leaf)  = 0.0
-!!$           casaflux%fracCalloc(:,froot) =  casaflux%fracCalloc(:,froot) &
-!!$                /(casaflux%fracCalloc(:,froot) &
-!!$                +casaflux%fracCalloc(:,wood))
-!!$           WHERE (casamet%lnonwood==0)
-!!$              casaflux%fracCalloc(:,wood)  = 1.0 -casaflux%fracCalloc(:,froot)
-!!$           ELSEWHERE
-!!$              casaflux%fracCalloc(:,wood) = 0.0
-!!$           ENDWHERE
-!!$        ENDWHERE
+        ! IF Prognostic LAI reached glaimax, no C is allocated to leaf
+        ! Q.Zhang 17/03/2011
+        WHERE(casamet%glai(:)>=casabiome%glaimax(veg%iveg(:)))
+           casaflux%fracCalloc(:,leaf)  = 0.0
+           casaflux%fracCalloc(:,froot) =  casaflux%fracCalloc(:,froot) &
+                /(casaflux%fracCalloc(:,froot) &
+                +casaflux%fracCalloc(:,wood))
+           WHERE (casamet%lnonwood==0)
+              casaflux%fracCalloc(:,wood)  = 1.0 -casaflux%fracCalloc(:,froot)
+           ELSEWHERE
+              casaflux%fracCalloc(:,wood) = 0.0
+           ENDWHERE
+        ENDWHERE
 
         WHERE(casamet%glai(:)<casabiome%glaimin(veg%iveg(:)))
            casaflux%fracCalloc(:,leaf)  = 0.8
@@ -2126,9 +2126,9 @@ SUBROUTINE casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet, LALLOC)
     casamet%glai(np)   = MAX(casabiome%glaimin(veg%iveg(np)), &
                                casabiome%sla(veg%iveg(np)) * casapool%cplant(np,leaf))
    ! vh !
-    IF (LALLOC.ne.3) THEN
+    !IF (LALLOC.ne.3) THEN
        casamet%glai(np)   = MIN(casabiome%glaimax(veg%iveg(np)), casamet%glai(np))
-    ENDIF
+    !ENDIF
     casapool%clitter(np,:) = casapool%clitter(np,:) &
                            + casapool%dClitterdt(np,:) * deltpool
     casapool%csoil(np,:)   = casapool%csoil(np,:)   &

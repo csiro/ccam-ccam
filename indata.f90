@@ -859,7 +859,7 @@ do iq = 1,ifull
   end if  ! (sicedep(iq)>0.)
 end do   ! iq loop
 ipsice = indexs - 1
-if ( mydiag ) write(6,*)'ipland,ipsea: ',ipland,ipsea
+
 
 !-----------------------------------------------------------------
 ! READ INITIAL CONDITIONS FROM IFILE (io_in)
@@ -2029,7 +2029,10 @@ end select
   
 !-----------------------------------------------------------------
 ! UPDATE RADIATION
-call seaesfrad_init
+select case(nrad)
+  case(5)
+    call seaesfrad_init
+end select
 
 
 !-----------------------------------------------------------------

@@ -302,15 +302,17 @@ end function esdiffx_v
 pure function pow75_s(x) result(ans)
 implicit none
 real, intent(in) :: x
-real ans
-ans=sqrt(x*sqrt(x))
+real ans, y
+y=sqrt(x)
+ans=y*sqrt(y)
 end function pow75_s
 
 pure function pow75_v(x) result(ans)
 implicit none
 real, dimension(:), intent(in) :: x
-real, dimension(size(x)) :: ans
-ans=sqrt(x*sqrt(x))
+real, dimension(size(x)) :: ans, y
+y=sqrt(x)
+ans=y*sqrt(y)
 end function pow75_v
 
 end module estab

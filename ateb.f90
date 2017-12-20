@@ -4381,7 +4381,7 @@ call getinvres(acond_roof,cdroof,z_on_l,lzohroof,lzomroof,d_rfdzmin,dts,dtt,a_um
 
 ! update green roof and snow temperature
 rfveg%temp=d_tempr
-rfsntemp  =roof%nodetemp(:,0)
+rfsntemp  =max(min(roof%nodetemp(:,0),300.-urbtemp),100.-urbtemp)
 rg_vegr = fp_roof%emiss*(a_rg-sbconst*(roof%nodetemp(:,0)+urbtemp)**4) ! 1st guess
 rg_rfsn = fp_roof%emiss*(a_rg-sbconst*(roof%nodetemp(:,0)+urbtemp)**4) ! 1st guess
 eg_vegr = 0.
@@ -4420,7 +4420,7 @@ if ( any( d_rfsndelta>0. .or. rfveg%sigma>0. ) ) then
       rfveg%temp=newval
     end where
     where ( abs(evctx(:,2))>tol .and. d_rfsndelta>0. )
-      newval=min(rfsntemp-alpha*evctveg(:,2)*(rfsntemp-oldval(:,2))/evctx(:,2), 300.-urbtemp)
+      newval=max(min(rfsntemp-alpha*evctveg(:,2)*(rfsntemp-oldval(:,2))/evctx(:,2), 300.-urbtemp),100.-urbtemp)
       oldval(:,2)=rfsntemp
       rfsntemp=newval
     end where
