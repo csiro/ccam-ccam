@@ -788,7 +788,7 @@ if ( myid==0 .or. local ) then
 
     ! land, urban and carbon
     call ccnf_put_attg(idnc,'ateb_alpha',ateb_alpha)
-    call ccnf_put_attg(idnc,'atev_ac_cap',ateb_ac_cap)
+    call ccnf_put_attg(idnc,'ateb_ac_cap',ateb_ac_cap)
     call ccnf_put_attg(idnc,'ateb_acmeth',ateb_acmeth)    
     call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)
     call ccnf_put_attg(idnc,'ateb_intairtmeth',ateb_intairtmeth)

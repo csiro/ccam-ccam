@@ -2702,10 +2702,6 @@ integer iproc
 integer, dimension(0:3) :: maps
 integer, dimension(0:3) :: astr,bstr,cstr
 logical, dimension(0:nproc-1) :: lproc
-logical, save :: firstcall = .true.
-
-if ( .not.firstcall ) return
-firstcall = .false.
       
 ! length of the 1D convolution for each 'pass'
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)

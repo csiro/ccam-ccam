@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -490,8 +490,11 @@ do iq_tile = 1,ifull,imax
           end if
           k = ktop + 1
         end do
-        do k = 1,kl
-          kr = kl + 1 - k
+      end do  
+      do k = 1,kl
+        kr = kl + 1 - k
+        do i = 1,imax
+          iq = i + istart - 1  
           ! Max+Rnd overlap clouds for SW
           Cld_spec(mythread)%camtsw(i,1,kr) = real(cfrac(iq,k), 8)                                   
           ! Max overlap for LW
@@ -501,10 +504,10 @@ do iq_tile = 1,ifull,imax
         end do
       end do
     else
-      do i = 1,imax ! random overlap
-        iq = i + istart - 1
-        do k = 1,kl
-          kr = kl + 1 - k
+      do k = 1,kl
+        kr = kl + 1 - k  
+        do i = 1,imax ! random overlap
+          iq = i + istart - 1
           Cld_spec(mythread)%camtsw(i,1,kr) = real(cfrac(iq,k), 8) ! Max+Rnd overlap clouds for SW
           Cld_spec(mythread)%crndlw(i,1,kr) = real(cfrac(iq,k), 8) ! Rnd overlap for LW
           Cld_spec(mythread)%cmxolw(i,1,kr) = 0._8
@@ -1034,11 +1037,10 @@ real(kind=8), dimension(imax,kl), intent(out) :: Rdrop, Rice, conl, coni
 real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa
 real, dimension(imax,kl) :: eps, rk, Wice, basesize, xwgt
 real :: liqparm
-logical :: do_brenguier ! Adjust effective radius for vertically
-                        ! stratified cloud
-
-real, parameter :: scale_factor = 1.         ! account for the plane-parallel homogenous
-                                             ! cloud bias  (e.g. Cahalan effect)
+logical :: do_brenguier   ! Adjust effective radius for vertically
+                          ! stratified cloud
+real :: scale_factor      ! account for the plane-parallel homogenous
+                          ! cloud bias  (e.g. Cahalan effect)
 
 rhoa(:,:) = prf(:,:)/(rdry*ttg(:,:))
 
@@ -1046,21 +1048,27 @@ select case(liqradmethod)
   case(0)
     liqparm = -0.003e-6 ! mid range
     do_brenguier = .false.
+    scale_factor = 1.
   case(1)
     liqparm = -0.001e-6 ! lower bound
     do_brenguier = .false.
+    scale_factor = 1.
   case(2)
     liqparm = -0.008e-6 ! upper bound
     do_brenguier = .false.
+    scale_factor = 1.
   case(3)
     liqparm = -0.003e-6 ! mid range
     do_brenguier = .true.
+    scale_factor = 0.85
   case(4)
     liqparm = -0.001e-6 ! lower bound
     do_brenguier = .true.
+    scale_factor = 0.85
   case(5)
     liqparm = -0.008e-6 ! upper bound
     do_brenguier = .true.
+    scale_factor = 0.85
   case default
     write(6,*) "ERROR: Unknown option for liqradmethod ",liqradmethod
     call ccmpi_abort(-1)
@@ -1103,23 +1111,19 @@ if ( do_brenguier ) then
   if ( nmr>=1 ) then
     ! Max-Rnd overlap
     where ( cfrac(:,2)<1.e-10 )
-      !reffl(:,1) = reffl(:,1)*1.134
-      reffl(:,1) = reffl(:,1)*1.2599
+      reffl(:,1) = reffl(:,1)*1.134
     end where
     do k = 2,kl-1
       where ( cfrac(:,k-1)<1.e-10 .and. cfrac(:,k+1)<1.e-10 )
-        !reffl(:,k) = reffl(:,k)*1.134
-        reffl(:,k) = reffl(:,k)*1.2599
+        reffl(:,k) = reffl(:,k)*1.134
       end where
     end do
     where ( cfrac(:,kl-1)<1.e-10 )
-      !reffl(:,kl) = reffl(:,kl)*1.134
-      reffl(:,kl) = reffl(:,kl)*1.2599
+      reffl(:,kl) = reffl(:,kl)*1.134
     end where 
   else
     ! Rnd overlap
-    !reffl(:,:) = reffl(:,:)*1.134
-    reffl(:,:) = reffl(:,:)*1.2599
+    reffl(:,:) = reffl(:,:)*1.134
   end if
 end if
 

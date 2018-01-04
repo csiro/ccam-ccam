@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1489,7 +1489,7 @@ if ( nested/=1 ) then
     call fillhist1('roadsna',atebdwn(:,32),sea_a,filllimit=399.)
     if ( all(atebdwn(:,32)<1.e-20) ) atebdwn(:,32)=0.85
     do k = 1,20
-      where ( atebdwn(:,k)>100. )
+      where ( atebdwn(:,k)>150. )
         atebdwn(:,k) = atebdwn(:,k) - urbtemp
       end where
     end do

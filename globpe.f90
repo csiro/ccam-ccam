@@ -173,6 +173,7 @@ end if
 call setstacklimit(-1)
 #endif
 
+
 !--------------------------------------------------------------
 ! INITALISE TIMING LOGS
 call log_off()
@@ -180,7 +181,7 @@ call log_setup()
 
 
 !--------------------------------------------------------------
-! GET COMMAND LINE OPTIONS
+! READ COMMAND LINE OPTIONS
 nmlfile = "input"
 do
   call getopt("hc:",nopt,opt,optarg)
@@ -383,11 +384,11 @@ if ( myid<nproc ) then
     mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
     mins_gmt = mod(mtimer+60*ktime/100,24*60)
 
+    
     ! ***********************************************************************
     ! START ATMOSPHERE DYNAMICS
     ! ***********************************************************************
     
-    call nantest("before atmosphere dynamics",1,ifull)
     
     ! NESTING ---------------------------------------------------------------
     if ( nbd/=0 ) then
@@ -404,8 +405,9 @@ if ( myid<nproc ) then
       call interp_tracerflux(kdate,hrs_dt)
     end if
 
-  
+
     ! DYNAMICS --------------------------------------------------------------
+    call nantest("before atmosphere dynamics",1,ifull)   
     if ( nstaguin>0 .and. ktau>=1 ) then   ! swapping here for nstaguin>0
       if ( nstagin<0 .and. mod(ktau-nstagoff,abs(nstagin))==0 ) then
         nstag  = 7 - nstag  ! swap between 3 & 4
@@ -580,6 +582,7 @@ if ( myid<nproc ) then
       call fixqg(1,ifull)
   
       call nantest("after atmosphere dynamics",1,ifull)
+
       
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
@@ -602,14 +605,18 @@ if ( myid<nproc ) then
       end if
       call END_LOG(nestin_end)
     
+      
       ! DYNAMICS --------------------------------------------------------------
       if ( mspec==2 ) then     ! for very first step restore mass & T fields
         call gettin(1)
       endif    !  (mspec==2) 
       dt = dtin
+      
     end do ! ****** end of introductory time loop
+
     mspeca = 1
   
+    
     ! HORIZONTAL DIFFUSION ----------------------------------------------------
     call START_LOG(hordifg_begin)
     if ( nmaxpr==1 ) then
@@ -621,7 +628,7 @@ if ( myid<nproc ) then
     if ( diag .and. mydiag ) then
       write(6,*) 'after hordifgt t ',t(idjd,:)
     end if
-    call nantest("after horizontal diffusion",1,ifull)    
+    call nantest("after atm horizontal diffusion",1,ifull)    
     if ( nmaxpr==1 ) then
       if ( myid==0 ) write(6,*) "After atm horizontal diffusion"
     end if
@@ -654,9 +661,9 @@ if ( myid<nproc ) then
       call END_LOG(river_end)
     end if
   
-    call START_LOG(waterdynamics_begin)
     if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
       ! DYNAMICS & DIFFUSION ------------------------------------------------
+      call START_LOG(waterdynamics_begin)
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "Before MLO dynamics"
       end if
@@ -664,8 +671,10 @@ if ( myid<nproc ) then
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "After MLO dynamics"
       end if
+      call END_LOG(waterdynamics_end)
     else if ( abs(nmlo)==2 ) then
       ! DIFFUSION ONLY ------------------------------------------------------
+      call START_LOG(waterdynamics_begin)
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "Before MLO diffusion"
       end if
@@ -673,8 +682,8 @@ if ( myid<nproc ) then
       if ( nmaxpr==1 ) then
         if ( myid==0 ) write(6,*) "After MLO diffusion"
       end if
+      call END_LOG(waterdynamics_end)
     end if
-    call END_LOG(waterdynamics_end)
       
       
 #ifdef csircoupled
@@ -690,6 +699,7 @@ if ( myid<nproc ) then
     ! ***********************************************************************
     call START_LOG(phys_begin)
 
+    
     ! MISC (SINGLE) ---------------------------------------------------------
     ! radiation timer calculations
     if ( nrad==5 ) then
@@ -706,6 +716,7 @@ if ( myid<nproc ) then
     call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
     sday_update = sday<=mins-updateoxidant
 
+    
     ! MISC (PARALLEL) -------------------------------------------------------
 !$omp parallel
 !$omp do schedule(static) private(js,je)
@@ -868,7 +879,7 @@ if ( myid<nproc ) then
         do tile = 1,ntiles
           js = (tile-1)*imax + 1
           je = tile*imax 
-          slwa(js:je) = -10*nrad
+          slwa(js:je) = -real(10*nrad)
         end do  
 !$omp end do nowait
     end select
@@ -1029,15 +1040,7 @@ if ( myid<nproc ) then
         climate_daycount = climate_daycount + 1
       end if  
     end if    
-       
-        
-#ifdef loadbal    
-    ! PHYSICS LOAD BALANCING ------------------------------------------------
-    ! This is the end of the physics. The next routine makes the load imbalance
-    ! overhead explicit rather than having it hidden in one of the diagnostic
-    ! calls.
-    call phys_loadbal
-#endif
+
 
     call END_LOG(phys_end)
 

@@ -191,16 +191,15 @@ end if
 !$omp master
 call START_LOG(sfluxwater_begin)
 !$omp end master
-if ( nmlo==0 ) then ! prescribed SSTs                                                            ! sea
-                                                                                                 ! sea
+if ( nmlo==0 ) then ! prescribed SSTs
+!$omp barrier
+!$omp single
   call sflux_sea(ri,vmag,af,aft,factch,rho,                                       &              ! sea
                  fg_ocn,fg_ice,eg_ocn,eg_ice,taux_ocn,taux_ice,tauy_ocn,tauy_ice, &              ! sea
                  river_inflow,nalpha)                                                            ! sea
-
+!$omp endsingle
 elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                                      ! MLO
-                                                                                                 ! MLO
   call sflux_mlo(ri,vmag,rho,azmin,uav,vav,factch)                                               ! MLO
-                                                                                                 ! MLO
 end if                                                                                           ! MLO
 !$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles                                                                               ! sea
@@ -259,7 +258,7 @@ call END_LOG(sfluxland_end)
 
 
 !$omp master
-call START_LOG(sfluxurban_begin)                                                                 ! urban
+call START_LOG(sfluxurban_begin)
 !$omp end master
 call sflux_urban(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt)                            ! urban
 !$omp do schedule(static) private(is,ie)
@@ -270,9 +269,10 @@ do tile = 1,ntiles                                                              
 end do                                                                                           ! urban
 !$omp end do nowait
 !$omp master
-call END_LOG(sfluxurban_end)                                                                     ! urban
+call END_LOG(sfluxurban_end)
 !$omp end master
 ! ----------------------------------------------------------------------
+
 
 #ifdef csircoupled
 !$omp barrier
@@ -356,12 +356,14 @@ return
 end subroutine sflux
 
 
-subroutine sflux_sea(ri,vmag,af,aft,factch,rho, &
+subroutine sflux_sea(ri,vmag,af,aft,factch,rho,                                       &
                      fg_ocn,fg_ice,eg_ocn,eg_ice,taux_ocn,taux_ice,tauy_ocn,tauy_ice, &
                      river_inflow,nalpha)
 
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
-use cc_omp, only : imax, ntiles     ! CC OpenMP routines
+use cc_mpi                          ! CC MPI routines
+use const_phys                      ! Physical constants
+use estab                           ! Liquid saturation function
 use extraout_m                      ! Additional diagnostics
 use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m, only : ifull,ms,kl   ! Grid parameters
@@ -377,184 +379,14 @@ use work3_m                         ! Mk3 land-surface diagnostic arrays
 implicit none
 
 integer, intent(in) :: nalpha
-integer tile, is, ie
-
+integer iq, it
 real, dimension(ifull), intent(in) :: vmag,rho
 real, dimension(ifull), intent(inout) :: ri,af,aft,factch
 real, dimension(ifull), intent(inout) :: fg_ocn,fg_ice,eg_ocn,eg_ice
 real, dimension(ifull), intent(inout) :: taux_ocn,taux_ice,tauy_ocn,tauy_ice
 real, dimension(ifull), intent(inout) :: river_inflow
-
-real, dimension(imax,kl) :: lt,lqg,lu,lv
-real, dimension(imax,ms) :: ltgg
-real, dimension(imax,3) :: ltggsn
-real, dimension(imax) :: lu10,lwetfac,lsgsave,lvmod,ltpan,lps,lqsttg,lri,lvmag
-real, dimension(imax) :: laf,laft,lzo,lfactch,lrho,lfg,leg,lrnet,lzoh,lzoq,lcduv,lcdtq,lustar
-real, dimension(imax) :: ltaux,ltauy,lepot,lepan,lga,lsno,lgrpl,lcondx,ltheta,lrgsave,ltss
-real, dimension(imax) :: lslwa,lconds,lcondg,lsicedep,lfracice,lwatbdy,lsnowd,lgflux
-real, dimension(imax) :: lfg_ocn,lfg_ice,leg_ocn,leg_ice
-real, dimension(imax) :: ltaux_ocn,ltaux_ice,ltauy_ocn,ltauy_ice
-real, dimension(imax) :: lriver_inflow
-logical, dimension(imax) :: lland
-
-!$omp do schedule(static) private(is,ie),                                            &
-!$omp private(lt,lqg,lu,lv,ltgg,ltggsn,lu10,lwetfac,lsgsave,lvmod,ltpan,lps,lqsttg), &
-!$omp private(lri,lvmag,laf,laft,lzo,lzoh,lzoq,lfactch,lrho,lfg,leg,lrnet,lcduv),    &
-!$omp private(lcdtq,lustar,ltaux,ltauy,lepot,lepan,lga,lsno,lgrpl,lcondx,ltheta),    &
-!$omp private(lrgsave,ltss,lslwa,lconds,lcondg,lsicedep,lfracice,lwatbdy,lsnowd),    &
-!$omp private(lgflux,lland,lfg_ocn,lfg_ice,leg_ocn,leg_ice,ltaux_ocn,ltauy_ocn),     &
-!$omp private(ltaux_ice,ltauy_ice,lriver_inflow)
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  
-  lt = t(is:ie,1:kl)
-  lqg = qg(is:ie,1:kl)
-  lu = u(is:ie,1:kl)
-  lv = v(is:ie,1:kl)
-  ltgg = tgg(is:ie,1:ms)
-  ltggsn = tggsn(is:ie,1:3)
-  lu10 = u10(is:ie)
-  lwetfac = wetfac(is:ie)
-  lsgsave = sgsave(is:ie)
-  lvmod = vmod(is:ie)
-  ltpan = tpan(is:ie)
-  lps = ps(is:ie)
-  lqsttg = qsttg(is:ie)
-  lri = ri(is:ie)
-  lvmag = vmag(is:ie)
-  laf = af(is:ie)
-  laft = aft(is:ie)
-  lzo = zo(is:ie)
-  lzoh = zoh(is:ie)
-  lzoq = zoq(is:ie)
-  lfactch = factch(is:ie)
-  lrho = rho(is:ie)
-  lfg = fg(is:ie)
-  leg = eg(is:ie)
-  lrnet = rnet(is:ie)
-  lcduv = cduv(is:ie)
-  lcdtq = cdtq(is:ie)
-  lustar = ustar(is:ie)
-  ltaux = taux(is:ie)
-  ltauy = tauy(is:ie)
-  lepot = epot(is:ie)
-  lepan = epan(is:ie)
-  lga = ga(is:ie)
-  lsno = sno(is:ie)
-  lgrpl = grpl(is:ie)
-  lcondx = condx(is:ie)
-  ltheta = theta(is:ie)
-  lrgsave = rgsave(is:ie)
-  ltss = tss(is:ie)
-  lslwa = slwa(is:ie)
-  lconds = conds(is:ie)
-  lcondg = condg(is:ie)
-  lsicedep = sicedep(is:ie)
-  lfracice = fracice(is:ie)
-  lsnowd = snowd(is:ie)
-  lgflux = gflux(is:ie)
-  lland = land(is:ie)
-  lfg_ocn = fg_ocn(is:ie)
-  lfg_ice = fg_ice(is:ie)
-  leg_ocn = eg_ocn(is:ie)
-  leg_ice = eg_ice(is:ie)
-  ltaux_ocn = taux_ocn(is:ie)
-  ltauy_ocn = tauy_ocn(is:ie)
-  ltaux_ice = taux_ice(is:ie)
-  ltauy_ice = tauy_ice(is:ie)
-  lriver_inflow = river_inflow(is:ie)
-  if ( nriver/=0 ) then
-    lwatbdy = watbdy(is:ie)
-  end if  
-
-  call sflux_sea_work(lu10,lwetfac,lsgsave,lvmod,ltpan,ltgg,lt,lps,lqsttg,lri,lvmag,laf,laft,lzo,  &
-                      lfactch,lrho,lfg,leg,lrnet,lzoh,lzoq,lcduv,lcdtq,lustar,ltaux,ltauy,lepot,   &
-                      lepan,lga,lsno,lgrpl,lcondx,ltheta,lqg,lrgsave,lu,lv,ltss,lslwa,lconds,      &
-                      lcondg,lsicedep,ltggsn,lfracice,lwatbdy,lsnowd,lgflux,lland,                 &
-                      lfg_ocn,lfg_ice,leg_ocn,leg_ice,ltaux_ocn,ltaux_ice,ltauy_ocn,ltauy_ice,     &
-                      lriver_inflow,nalpha)
-  
-  tggsn(is:ie,1:3) = ltggsn
-  wetfac(is:ie) = lwetfac
-  tpan(is:ie) = ltpan
-  qsttg(is:ie) = lqsttg
-  ri(is:ie) = lri
-  af(is:ie) = laf
-  aft(is:ie) = laft
-  zo(is:ie) = lzo
-  zoh(is:ie) = lzoh
-  zoq(is:ie) = lzoq
-  factch(is:ie) = lfactch
-  fg(is:ie) = lfg
-  eg(is:ie) = leg
-  rnet(is:ie) = lrnet
-  cduv(is:ie) = lcduv
-  cdtq(is:ie) = lcdtq
-  ustar(is:ie) = lustar
-  taux(is:ie) = ltaux
-  tauy(is:ie) = ltauy
-  epot(is:ie) = lepot
-  epan(is:ie) = lepan
-  ga(is:ie) = lga
-  sno(is:ie) = lsno
-  grpl(is:ie) = lgrpl
-  tss(is:ie) = ltss
-  snowd(is:ie) = lsnowd
-  gflux(is:ie) = lgflux
-  fg_ocn(is:ie) = lfg_ocn
-  fg_ice(is:ie) = lfg_ice
-  eg_ocn(is:ie) = leg_ocn
-  eg_ice(is:ie) = leg_ice
-  taux_ocn(is:ie) = ltaux_ocn
-  tauy_ocn(is:ie) = ltauy_ocn
-  taux_ice(is:ie) = ltaux_ice
-  tauy_ice(is:ie) = ltauy_ice
-  river_inflow(is:ie) = lriver_inflow
-  if ( nriver/=0 ) then
-    watbdy(is:ie) = lwatbdy      
-  end if    
-  
-end do
-!$omp end do nowait
-
-return
-end subroutine sflux_sea
-
-subroutine sflux_sea_work(u10,wetfac,sgsave,vmod,tpan,tgg,t,ps,qsttg,ri,vmag,af,aft,zo,    &
-                          factch,rho,fg,eg,rnet,zoh,zoq,cduv,cdtq,ustar,taux,tauy,epot,    &
-                          epan,ga,sno,grpl,condx,theta,qg,rgsave,u,v,tss,slwa,conds,       &
-                          condg,sicedep,tggsn,fracice,watbdy,snowd,gflux,land,             &
-                          fg_ocn,fg_ice,eg_ocn,eg_ice,taux_ocn,taux_ice,tauy_ocn,tauy_ice, &
-                          river_inflow,nalpha)
-
-use cc_mpi                         ! CC MPI routines
-use cc_omp, only : imax, ntiles    ! CC OpenMP routines
-use const_phys                     ! Physical constants
-use estab                          ! Liquid saturation function
-use newmpar_m, only : ms,kl        ! Grid parameters
-use parm_m                         ! Model configuration
-use soil_m, only : zmin            ! Soil and surface data
-
-implicit none
-
-integer, intent(in) :: nalpha
-real, dimension(imax,kl), intent(in) :: t,qg,u,v
-real, dimension(imax,ms), intent(in) :: tgg
-real, dimension(imax,3), intent(inout) :: tggsn
-real, dimension(imax), intent(in) :: u10,sgsave,rgsave,vmod,ps,vmag,rho,condx,theta,slwa,conds,condg
-real, dimension(imax), intent(in) :: sicedep,fracice
-real, dimension(imax), intent(inout) :: tpan,ri,af,aft,zo,factch,fg,eg,rnet,zoh,zoq,cduv,cdtq,ustar
-real, dimension(imax), intent(inout) :: taux,tauy,epot,epan,ga,sno,grpl,wetfac,qsttg,tss,watbdy
-real, dimension(imax), intent(inout) :: snowd,gflux
-real, dimension(imax), intent(inout) :: fg_ocn,fg_ice,eg_ocn,eg_ice
-real, dimension(imax), intent(inout) :: taux_ocn,tauy_ocn,taux_ice,tauy_ice
-real, dimension(imax), intent(inout) :: river_inflow
-logical, dimension(imax), intent(in) :: land
-
-integer iq, it
-real, dimension(imax) :: charnck,fgf,rgg,fev,dirad,dfgdt,degdt
-real, dimension(imax) :: cie,gamm,fh
+real, dimension(ifull) :: charnck,fgf,rgg,fev,dirad,dfgdt,degdt
+real, dimension(ifull) :: cie,gamm,fh
 real afrootpan,es,constz,xx,afroot,fm,consea,con,daf,den,dden,dfm
 real dtsol,con1,conw,zminlog,drst,ri_ice,factchice,zoice,zologice
 real conh,epotice,qtgnet,qtgair,eg2,gbot,deltat,b1,deg,eg1,denha
@@ -564,7 +396,7 @@ integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
 
 gamm=3.471e+05 ! dummy value
 
-if(ntest==2.and.mydiag.and.ntiles==1)write(6,*) 'before sea loop'                                ! sea
+if(ntest==2.and.mydiag)write(6,*) 'before sea loop'                                              ! sea
 ! from June '03 use basic sea temp from tgg1 (so leads is sensible)                              ! sea
 ! all sea points in this loop; also open water of leads                                          ! sea
 if(charnock>0.)then                                                                              ! sea
@@ -574,7 +406,7 @@ elseif(charnock<-1.)then  ! zo like Moon (2004)                                 
 else                      ! like Makin (2002)                                                    ! sea
   charnck(:)=.008+3.e-4*(u10(:)-9.)**2/(1.+(.006+.00008*u10(:))*u10(:)**2)                       ! sea
 endif                                                                                            ! sea
-do iq=1,imax                                                                                     ! sea
+do iq=1,ifull                                                                                    ! sea
   if(.not.land(iq))then                                                                          ! sea
     wetfac(iq)=1.                                                                                ! sea
     ! tpan holds effective sea for this loop                                                     ! sea
@@ -597,7 +429,7 @@ enddo   ! iq loop                                                               
                                                                                                  ! sea
 ! here calculate fluxes for sea point, and nominal pan points                                    ! sea
 afrootpan=vkar/log(zmin/panzo)                                                                   ! sea
-do iq=1,imax                                                                                     ! sea
+do iq=1,ifull                                                                                    ! sea
   ! drag coefficients  for momentum cduv                                                         ! sea
   ! for heat and moisture  cdtq                                                                  ! sea
   es = establ(tpan(iq))                                                                          ! sea
@@ -660,7 +492,7 @@ else                                                                            
   end where                                                                                      ! sea
 endif  ! (newztsea==0)                                                                           ! sea
                                                                                                  ! sea
-do iq=1,imax ! done for all points; overwritten later for land                                   ! sea
+do iq=1,ifull ! done for all points; overwritten later for land                                  ! sea
   ! Having settled on zo & af now do actual fh and fm calcs                                      ! sea
   if(ri(iq)>0.)then                                                                              ! sea
     fm=vmod(iq)/(1.+bprm*ri(iq))**2  ! no zo contrib for stable                                  ! sea
@@ -697,7 +529,7 @@ do iq=1,imax ! done for all points; overwritten later for land                  
   taux_ocn(iq)=taux(iq)                                                                          ! sea
   tauy_ocn(iq)=tauy(iq)                                                                          ! sea
   ! note that iq==idjd  can only be true on the correct processor                                ! sea
-  if(ntest==1.and.iq==idjd.and.mydiag.and.ntiles==1)then                                         ! sea
+  if(ntest==1.and.iq==idjd.and.mydiag)then                                                       ! sea
     write(6,*) 'in sea-type loop for iq,idjd: ',iq,idjd                                          ! sea
     write(6,*) 'zmin,zo,factch ',zmin,zo(iq),factch(iq)                                          ! sea
     write(6,*) 'ri,ustar,es ',ri(iq),ustar(iq),es                                                ! sea
@@ -711,7 +543,7 @@ enddo     ! iq loop                                                             
 epot(:) = eg(:)                                                                                  ! sea
 epan(:) = eg(:)                                                                                  ! sea
 ! section to update pan temperatures                                                             ! sea
-do iq=1,imax                                                                                     ! sea
+do iq=1,ifull                                                                                    ! sea
   if(land(iq))then                                                                               ! sea
     rgg(iq)=5.67e-8*tpan(iq)**4                                                                  ! sea
     ! assume gflux = 0                                                                           ! sea
@@ -725,7 +557,7 @@ do iq=1,imax                                                                    
   endif  ! (land(iq))                                                                            ! sea
 enddo   ! iq loop                                                                                ! sea
                                                                                                  ! sea
-if(nmaxpr==1.and.mydiag.and.ntiles==1)then                                                       ! sea
+if(nmaxpr==1.and.mydiag)then                                                                     ! sea
   iq=idjd                                                                                        ! sea
   write (6,"('after sea loop fg,tpan,epan,ri,fh,vmod',9f9.4)")           &                       ! sea
       fg(idjd),tpan(idjd),epan(idjd),ri(idjd),fh(idjd),vmod(idjd)                                ! sea
@@ -746,7 +578,7 @@ zminlog=log(zmin)                                                               
 
 fgf=0.                                                                                           ! sice
 fev=0.                                                                                           ! sice
-do iq=1,imax                                                                                     ! sice
+do iq=1,ifull                                                                                    ! sice
   if(sicedep(iq)>0.)then                                                                         ! sice
     ! non-leads for sea ice points                                                               ! sice
     ! N.B. tggsn( ,1) holds tice                                                                 ! sice
@@ -785,7 +617,7 @@ do iq=1,imax                                                                    
     ! fgice & egice renamed as fgf and fev from Aug 05 to aid diags                              ! sice	
     fgf(iq)=conh*fh(iq)*(tggsn(iq,1)-theta(iq))                                                  ! sice
     dfgdt(iq)=conh*fh(iq)                                                                        ! sice
-    if(ntest==1.and.iq==idjd.and.mydiag.and.ntiles==1)then                                       ! sice
+    if(ntest==1.and.iq==idjd.and.mydiag)then                                                     ! sice
       write(6,*) 'in sice loop'                                                                  ! sice
       write(6,*) 'zmin,zo,wetfac ',zmin,zoice,wetfac(iq)                                         ! sice
       write(6,*) 'ri_ice,es ',ri_ice,es                                                          ! sice
@@ -866,7 +698,7 @@ enddo       ! iq loop                                                           
 where (.not.land)                                                                                ! sice
   snowd=0.                                                                                       ! sice
 end where                                                                                        ! sice
-if(mydiag.and.nmaxpr==1.and.ntiles==1)then                                                       ! sice
+if(mydiag.and.nmaxpr==1)then                                                                     ! sice
   write(6,*) 'after sice loop'                                                                   ! sice
   iq=idjd                                                                                        ! sice
   if(sicedep(iq)>0.)then                                                                         ! sice
@@ -884,13 +716,13 @@ if(mydiag.and.nmaxpr==1.and.ntiles==1)then                                      
 endif    ! (mydiag.and.nmaxpr==1)                                                                ! sice
 
 if ( abs(nriver)==1 ) then
-  where ( .not.land(1:imax) )
-    watbdy(1:imax) = 0. ! water enters ocean and is removed from rivers
+  where ( .not.land(1:ifull) )
+    watbdy(1:ifull) = 0. ! water enters ocean and is removed from rivers
   end where
 end if  
 
 return
-end subroutine sflux_sea_work
+end subroutine sflux_sea
 
 subroutine sflux_mlo(ri,vmag,rho,azmin,uav,vav,factch)
 
@@ -1231,7 +1063,7 @@ implicit none
 integer :: tile, is, ie
 real, dimension(ifull), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
 real, dimension(ifull), intent(inout) :: factch
-real, dimension(imax,kl) :: lqg, lt, lu, lv
+real, dimension(imax) :: lqg, lt, lu, lv
 real, dimension(imax,2) :: lalbvisnir
 real, dimension(imax) :: lazmin, luav, lvav, loldrunoff, lrho, lfactch, lvmag, loldsnowmelt
 real, dimension(imax) :: lax, lbx, lay, lby, laz, lbz
@@ -1277,7 +1109,7 @@ do tile=1,ntiles
   lfg = fg(is:ie)
   lland = land(is:ie)
   lps = ps(is:ie)
-  lqg = qg(is:ie,:)
+  lqg = qg(is:ie,1)
   lqsttg = qsttg(is:ie)
   lrgsave = rgsave(is:ie)
   lrnet = rnet(is:ie)
@@ -1285,13 +1117,13 @@ do tile=1,ntiles
   lsgsave = sgsave(is:ie)
   lsnowmelt = snowmelt(is:ie)
   lswrsave = swrsave(is:ie)
-  lt = t(is:ie,:)
+  lt = t(is:ie,1)
   ltaux = taux(is:ie)
   ltauy = tauy(is:ie)
   ltss = tss(is:ie)
-  lu = u(is:ie,:)
+  lu = u(is:ie,1)
   lustar = ustar(is:ie)
-  lv = v(is:ie,:)
+  lv = v(is:ie,1)
   lvmod = vmod(is:ie)
   lwetfac = wetfac(is:ie)
   lx = x(is:ie)
@@ -1387,7 +1219,7 @@ real, dimension(imax), intent(inout) :: eg, fg, qsttg
 real, dimension(imax), intent(inout) :: rnet, runoff, snowmelt
 real, dimension(imax), intent(inout) :: taux, tauy, tss, ustar, wetfac
 real, dimension(imax), intent(inout) :: zo, zoh, zoq
-real, dimension(imax,kl), intent(in) :: qg, t, u, v
+real, dimension(imax), intent(in) :: qg, t, u, v
 real(kind=8), dimension(imax), intent(in) :: x, y, z
 logical, dimension(imax), intent(in) :: land, upack
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
@@ -1402,86 +1234,89 @@ if (nmaxpr==1.and.ntiles==1) then                                               
   if (myid==0) write(6,*) "Before urban"                                                         ! urban
 end if                                                                                           ! urban
 if (nurban/=0) then                                                                              ! urban
-  ! calculate zonal and meridonal winds                                                          ! urban
-  zonx=real(                       -sin(rlat0*pi/180.)*y(:))                                     ! urban
-  zony=real(sin(rlat0*pi/180.)*x(:)+cos(rlat0*pi/180.)*z(:))                                     ! urban
-  zonz=real(-cos(rlat0*pi/180.)*y(:)                       )                                     ! urban
-  costh= (zonx*ax(1:imax)+zony*ay(1:imax)+zonz*az(1:imax)) &                                     ! urban
-        /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )                                              ! urban
-  sinth=-(zonx*bx(1:imax)+zony*by(1:imax)+zonz*bz(1:imax)) &                                     ! urban
-        /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )                                              ! urban
-  uzon= costh*uav-sinth*vav  ! zonal wind                                                        ! urban
-  vmer= sinth*uav+costh*vav  ! meridonal wind                                                    ! urban
-  newrunoff=runoff-oldrunoff ! new runoff since entering sflux                                   ! urban
-  ! since ateb will blend non-urban and urban runoff, it is                                      ! urban
-  ! easier to remove the new runoff and add it again after the                                   ! urban
-  ! urban scheme has been updated                                                                ! urban
-  ! call aTEB                                                                                    ! urban
-  dumsg=sgsave/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                           ! urban
-  dumrg=-rgsave                                                                                  ! urban
-  dumx=condx/dt                                                                                  ! urban
-  dums=(conds+condg)/dt                                                                          ! urban
-  u_fg = 0.                                                                                      ! urban
-  u_eg = 0.                                                                                      ! urban
-  u_ts = 0.                                                                                      ! urban
-  u_wf = 0.                                                                                      ! urban
-  u_rn = 0.                                                                                      ! urban
-  call atebcalc(u_fg,u_eg,u_ts,u_wf,u_rn,dt,azmin,dumsg,dumrg,dumx,dums,rho,               &     ! urban
-                t(1:imax,1),qg(1:imax,1),ps(1:imax),uzon,vmer,vmodmin,                     &     ! urban
-                fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road, &     ! urban
-                roof,room,slab,walle,wallw,cnveg,int,upack,ufull,0,raw=.true.)                   ! urban
-  urban_ts     = u_ts                                                                            ! urban
-  urban_wetfac = u_wf                                                                            ! urban
-  if ( ufull>0 ) then                                                                            ! urban
-    u_sigma = unpack(fp%sigmau,upack,0.)                                                         ! urban
-  else                                                                                           ! urban
-    u_sigma = 0.                                                                                 ! urban
-  end if                                                                                         ! urban
-  fg = (1.-u_sigma)*fg + u_sigma*u_fg                                                            ! urban
-  eg = (1.-u_sigma)*eg + u_sigma*u_eg                                                            ! urban
-  tss = (1.-u_sigma)*tss + u_sigma*u_ts                                                          ! urban
-  wetfac = (1.-u_sigma)*wetfac + u_sigma*u_wf                                                    ! urban
-  newrunoff = (1.-u_sigma)*newrunoff + u_sigma*u_rn                                              ! urban
-  runoff = oldrunoff + newrunoff ! add new runoff after including urban                          ! urban
-  u_zo  = 1.e-10                                                                                 ! urban
-  u_zoh = 1.e-10                                                                                 ! urban
-  u_zoq = 1.e-10                                                                                 ! urban
-  ! here we blend zo with the urban part                                                         ! urban
-  call atebzo(u_zo,u_zoh,u_zoq,0,pd,fp,upack,ufull,raw=.true.)                                   ! urban
-  urban_zom = u_zo                                                                               ! urban
-  urban_zoh = u_zoh                                                                              ! urban
-  urban_zoq = u_zoq                                                                              ! urban
-  zo_work  = sqrt((1.-u_sigma)/log(azmin/zo)**2+u_sigma/log(azmin/u_zo)**2)                      ! urban
-  zoh_work = (1.-u_sigma)/(log(azmin/zo)*log(azmin/zoh))                                    &    ! urban
-             +u_sigma/(log(azmin/u_zo)*log(azmin/u_zoh))                                         ! urban
-  zoh_work = zoh_work/zo_work                                                                    ! urban
-  zoq_work = (1.-u_sigma)/(log(azmin/zo)*log(azmin/zoq))                                    &    ! urban
-             +u_sigma/(log(azmin/u_zo)*log(azmin/u_zoq))                                         ! urban
-  zoq_work = zoq_work/zo_work                                                                    ! urban
-  zo  = azmin*exp(-1./zo_work)                                                                   ! urban
-  zoh = azmin*exp(-1./zoh_work)                                                                  ! urban
-  zoq = azmin*exp(-1./zoq_work)                                                                  ! urban
-  factch = sqrt(zo/zoh)                                                                          ! urban
-  ! calculate ustar                                                                              ! urban
-  cduv = cduv/vmag                                                                               ! urban
-  cdtq = cdtq/vmag                                                                               ! urban
-  call atebcd(cduv,cdtq,0,pd,fp,upack,ufull)                                                     ! urban
-  cduv=cduv*vmag                                                                                 ! urban
-  cdtq=cdtq*vmag                                                                                 ! urban
-  ustar=sqrt(vmod*cduv)                                                                          ! urban
-  ! calculate snowmelt                                                                           ! urban
-  newsnowmelt=snowmelt-oldsnowmelt                                                               ! urban
-  call atebhydro(newsnowmelt,"snowmelt",0,pd,fp,upack,ufull)                                     ! urban
-  snowmelt=oldsnowmelt+newsnowmelt                                                               ! urban
-  ! calculate anthropogenic flux                                                                 ! urban
+  urban_ts = 0.                                                                                  ! urban
+  urban_wetfac = 0.                                                                              ! urban
+  urban_zom = 1.e-10                                                                             ! urban
+  urban_zoh = 1.e-10                                                                             ! urban
+  urban_zoq = 1.e-10                                                                             ! urban
   anthropogenic_flux = 0.                                                                        ! urban
-  call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,upack,ufull)                        ! urban
-  where ( land(1:imax) )                                                                         ! urban
-    qsttg(1:imax) = qsat(ps(1:imax),tss(1:imax))                                                 ! urban
-    rnet(1:imax) = sgsave(1:imax) - rgsave(1:imax) - stefbo*tss(1:imax)**4                       ! urban
-    taux(1:imax) = rho(1:imax)*cduv(1:imax)*u(1:imax,1)                                          ! urban
-    tauy(1:imax) = rho(1:imax)*cduv(1:imax)*v(1:imax,1)                                          ! urban
-  end where                                                                                      ! urban
+  if ( ufull>0 ) then                                                                            ! urban
+    ! calculate zonal and meridonal winds                                                        ! urban
+    zonx=real(                       -sin(rlat0*pi/180.)*y(:))                                   ! urban
+    zony=real(sin(rlat0*pi/180.)*x(:)+cos(rlat0*pi/180.)*z(:))                                   ! urban
+    zonz=real(-cos(rlat0*pi/180.)*y(:)                       )                                   ! urban
+    costh= (zonx*ax(1:imax)+zony*ay(1:imax)+zonz*az(1:imax)) &                                   ! urban
+          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )                                            ! urban
+    sinth=-(zonx*bx(1:imax)+zony*by(1:imax)+zonz*bz(1:imax)) &                                   ! urban
+          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )                                            ! urban
+    uzon= costh*uav-sinth*vav  ! zonal wind                                                      ! urban
+    vmer= sinth*uav+costh*vav  ! meridonal wind                                                  ! urban
+    newrunoff=runoff-oldrunoff ! new runoff since entering sflux                                 ! urban
+    ! since ateb will blend non-urban and urban runoff, it is                                    ! urban
+    ! easier to remove the new runoff and add it again after the                                 ! urban
+    ! urban scheme has been updated                                                              ! urban
+    ! call aTEB                                                                                  ! urban
+    dumsg=sgsave/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                         ! urban
+    dumrg=-rgsave                                                                                ! urban
+    dumx=condx/dt                                                                                ! urban
+    dums=(conds+condg)/dt                                                                        ! urban
+    u_fg = 0.                                                                                    ! urban
+    u_eg = 0.                                                                                    ! urban
+    u_ts = 0.                                                                                    ! urban
+    u_wf = 0.                                                                                    ! urban
+    u_rn = 0.                                                                                    ! urban
+    call atebcalc(u_fg,u_eg,u_ts,u_wf,u_rn,dt,azmin,dumsg,dumrg,dumx,dums,rho,               &   ! urban
+                  t(1:imax),qg(1:imax),ps(1:imax),uzon,vmer,vmodmin,                         &   ! urban
+                  fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road, &   ! urban
+                  roof,room,slab,walle,wallw,cnveg,int,upack,ufull,0,raw=.true.)                 ! urban
+    urban_ts     = u_ts                                                                          ! urban
+    urban_wetfac = u_wf                                                                          ! urban
+    u_sigma = unpack(fp%sigmau,upack,0.)                                                         ! urban
+    fg = (1.-u_sigma)*fg + u_sigma*u_fg                                                          ! urban
+    eg = (1.-u_sigma)*eg + u_sigma*u_eg                                                          ! urban
+    tss = (1.-u_sigma)*tss + u_sigma*u_ts                                                        ! urban
+    wetfac = (1.-u_sigma)*wetfac + u_sigma*u_wf                                                  ! urban
+    newrunoff = (1.-u_sigma)*newrunoff + u_sigma*u_rn                                            ! urban
+    runoff = oldrunoff + newrunoff ! add new runoff after including urban                        ! urban
+    u_zo  = 1.e-10                                                                               ! urban
+    u_zoh = 1.e-10                                                                               ! urban
+    u_zoq = 1.e-10                                                                               ! urban
+    ! here we blend zo with the urban part                                                       ! urban
+    call atebzo(u_zo,u_zoh,u_zoq,0,pd,fp,upack,ufull,raw=.true.)                                 ! urban
+    urban_zom = u_zo                                                                             ! urban
+    urban_zoh = u_zoh                                                                            ! urban
+    urban_zoq = u_zoq                                                                            ! urban
+    zo_work  = sqrt((1.-u_sigma)/log(azmin/zo)**2+u_sigma/log(azmin/u_zo)**2)                    ! urban
+    zoh_work = (1.-u_sigma)/(log(azmin/zo)*log(azmin/zoh))                                  &    ! urban
+               +u_sigma/(log(azmin/u_zo)*log(azmin/u_zoh))                                       ! urban
+    zoh_work = zoh_work/zo_work                                                                  ! urban
+    zoq_work = (1.-u_sigma)/(log(azmin/zo)*log(azmin/zoq))                                  &    ! urban
+               +u_sigma/(log(azmin/u_zo)*log(azmin/u_zoq))                                       ! urban
+    zoq_work = zoq_work/zo_work                                                                  ! urban
+    zo  = azmin*exp(-1./zo_work)                                                                 ! urban
+    zoh = azmin*exp(-1./zoh_work)                                                                ! urban
+    zoq = azmin*exp(-1./zoq_work)                                                                ! urban
+    factch = sqrt(zo/zoh)                                                                        ! urban
+    ! calculate ustar                                                                            ! urban
+    cduv = cduv/vmag                                                                             ! urban
+    cdtq = cdtq/vmag                                                                             ! urban
+    call atebcd(cduv,cdtq,0,pd,fp,upack,ufull)                                                   ! urban
+    cduv=cduv*vmag                                                                               ! urban
+    cdtq=cdtq*vmag                                                                               ! urban
+    ustar=sqrt(vmod*cduv)                                                                        ! urban
+    ! calculate snowmelt                                                                         ! urban
+    newsnowmelt=snowmelt-oldsnowmelt                                                             ! urban
+    call atebhydro(newsnowmelt,"snowmelt",0,pd,fp,upack,ufull)                                   ! urban
+    snowmelt=oldsnowmelt+newsnowmelt                                                             ! urban
+    ! calculate anthropogenic flux                                                               ! urban
+    call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,upack,ufull)                      ! urban
+    where ( land(1:imax) )                                                                       ! urban
+      qsttg(1:imax) = qsat(ps(1:imax),tss(1:imax))                                               ! urban
+      rnet(1:imax) = sgsave(1:imax) - rgsave(1:imax) - stefbo*tss(1:imax)**4                     ! urban
+      taux(1:imax) = rho(1:imax)*cduv(1:imax)*u(1:imax)                                          ! urban
+      tauy(1:imax) = rho(1:imax)*cduv(1:imax)*v(1:imax)                                          ! urban
+    end where                                                                                    ! urban
+  end if                                                                                         ! urban
 end if                                                                                           ! urban
 if (nmaxpr==1.and.ntiles==1) then                                                                ! urban
   if (myid==0) write(6,*) "After urban"                                                          ! urban

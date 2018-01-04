@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -81,7 +81,7 @@ module cc_mpi
    integer(kind=4), allocatable, dimension(:), save, public :: specmap     ! gather map for spectral filter
    integer, allocatable, dimension(:), save, public :: specmapext          ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
-   real, allocatable, dimension(:,:), save, private :: specstore           ! window for gather map
+   real, dimension(:,:), save, pointer, private :: specstore               ! window for gather map
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata
    end type globalpack_info
@@ -95,7 +95,7 @@ module cc_mpi
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
    integer(kind=4), allocatable, dimension(:), save, public :: filemap     ! file map for onthefly
-   real, allocatable, dimension(:,:,:), save, private :: filestore         ! window for file map
+   real, dimension(:,:,:), save, pointer, private :: filestore             ! window for file map
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -103,7 +103,7 @@ module cc_mpi
    public :: ccmpi_setup, ccmpi_distribute, ccmpi_gather, ccmpi_gatherr8,   &
              ccmpi_distributer8, ccmpi_gatherall, bounds, boundsuv,         &
              deptsync, intssync_send, intssync_recv, start_log, end_log,    &
-             log_on, log_off, log_flush, log_setup, phys_loadbal,           &
+             log_on, log_off, log_flush, log_setup,                         &
              ccglobal_posneg, readglobvar, writeglobvar, ccmpi_reduce,      &
              ccmpi_reducer8, ccmpi_allreduce, ccmpi_abort, ccmpi_bcast,     &
              ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_gatherxr8,  &
@@ -351,7 +351,6 @@ module cc_mpi
    integer, public, save :: stag_begin, stag_end
    integer, public, save :: ocnstag_begin, ocnstag_end
    integer, public, save :: toij_begin, toij_end
-   integer, public, save :: physloadbal_begin, physloadbal_end
    integer, public, save :: phys_begin, phys_end
    integer, public, save :: outfile_begin, outfile_end
    integer, public, save :: onthefly_begin, onthefly_end
@@ -411,7 +410,7 @@ module cc_mpi
    integer, public, save :: mgup_begin, mgup_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
    integer, public, save :: mgdown_begin, mgdown_end
-   integer, parameter :: nevents = 74
+   integer, parameter :: nevents = 73
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -427,7 +426,7 @@ module cc_mpi
 contains
 
    subroutine ccmpi_setup(kx,id,jd,idjd,dt)
-      !use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
       use indices_m
       use latlong_m
       use map_m
@@ -446,7 +445,7 @@ contains
       integer(kind=4) :: ierr
       integer(kind=4) :: colour, rank, lcommin, lcommout
       integer(kind=4) :: asize
-      !integer(kind=4) :: info
+      integer(kind=4) :: info
       integer(kind=MPI_ADDRESS_KIND) :: wsize
       integer, dimension(ifull) :: colourmask
       integer, dimension(2) :: sshape
@@ -455,7 +454,7 @@ contains
       real, dimension(:,:), allocatable :: dumu, dumv
       real(kind=8), dimension(:,:), allocatable :: dumr8, dumr8_g
       logical(kind=4) :: ltrue
-      !type(c_ptr) :: baseptr
+      type(c_ptr) :: baseptr
 
       nreq = 0
       allocate( bnds(0:nproc-1) )
@@ -467,15 +466,15 @@ contains
       if ( uniform_decomp ) then
          call proc_setup_uniform(id,jd,idjd)
          ! may require two boundries from the same process
-         maxbuflen = (max(ipan,jpan)+4)*4*2*npan
+         maxbuflen = (max(ipan,jpan)+4)*2*2*2*npan
       else
          call proc_setup(id,jd,idjd)
          if ( nproc < npanels+1 ) then
             ! possible to have two boundaries from the same process 
-            maxbuflen = (il_g+4)*4*2*npan
+            maxbuflen = (il_g+4)*2*2*2*npan
          else
             ! only one boundary can be sent from a process 
-            maxbuflen = (max(ipan,jpan)+4)*4 
+            maxbuflen = (max(ipan,jpan)+4)*2*2 
          end if    
       end if
       maxvertlen = max( kl, ol, 15 )
@@ -483,15 +482,15 @@ contains
       ! Distribute global arrays over processes
       if ( myid == 0 ) then
          allocate( dum_g(ifull_g,15), dum(ifull,15) ) 
-         dum_g(1:ifull_g,1) = wts_g(1:ifull_g)
-         dum_g(1:ifull_g,2) = em_g(1:ifull_g)
-         dum_g(1:ifull_g,3) = emu_g(1:ifull_g)
-         dum_g(1:ifull_g,4) = emv_g(1:ifull_g)
-         dum_g(1:ifull_g,5) = ax_g(1:ifull_g)
-         dum_g(1:ifull_g,6) = ay_g(1:ifull_g)
-         dum_g(1:ifull_g,7) = az_g(1:ifull_g)
-         dum_g(1:ifull_g,8) = bx_g(1:ifull_g)
-         dum_g(1:ifull_g,9) = by_g(1:ifull_g)
+         dum_g(1:ifull_g,1)  = wts_g(1:ifull_g)
+         dum_g(1:ifull_g,2)  = em_g(1:ifull_g)
+         dum_g(1:ifull_g,3)  = emu_g(1:ifull_g)
+         dum_g(1:ifull_g,4)  = emv_g(1:ifull_g)
+         dum_g(1:ifull_g,5)  = ax_g(1:ifull_g)
+         dum_g(1:ifull_g,6)  = ay_g(1:ifull_g)
+         dum_g(1:ifull_g,7)  = az_g(1:ifull_g)
+         dum_g(1:ifull_g,8)  = bx_g(1:ifull_g)
+         dum_g(1:ifull_g,9)  = by_g(1:ifull_g)
          dum_g(1:ifull_g,10) = bz_g(1:ifull_g)
          dum_g(1:ifull_g,11) = f_g(1:ifull_g)
          dum_g(1:ifull_g,12) = fu_g(1:ifull_g)
@@ -499,27 +498,25 @@ contains
          dum_g(1:ifull_g,14) = rlatt_g(1:ifull_g)
          dum_g(1:ifull_g,15) = rlongg_g(1:ifull_g)
          call ccmpi_distribute(dum(:,1:15),dum_g(:,1:15)) 
-         wts(1:ifull) = dum(1:ifull,1)
-         em(1:ifull) = dum(1:ifull,2)
-         emu(1:ifull) = dum(1:ifull,3)
-         emv(1:ifull) = dum(1:ifull,4)
-         ax(1:ifull) = dum(1:ifull,5)
-         ay(1:ifull) = dum(1:ifull,6)
-         az(1:ifull) = dum(1:ifull,7)
-         bx(1:ifull) = dum(1:ifull,8)
-         by(1:ifull) = dum(1:ifull,9)
-         bz(1:ifull) = dum(1:ifull,10)
-         f(1:ifull) = dum(1:ifull,11)
-         fu(1:ifull) = dum(1:ifull,12)
-         fv(1:ifull) = dum(1:ifull,13)
-         rlatt(1:ifull) = dum(1:ifull,14)
+         wts(1:ifull)    = dum(1:ifull,1)
+         em(1:ifull)     = dum(1:ifull,2)
+         emu(1:ifull)    = dum(1:ifull,3)
+         emv(1:ifull)    = dum(1:ifull,4)
+         ax(1:ifull)     = dum(1:ifull,5)
+         ay(1:ifull)     = dum(1:ifull,6)
+         az(1:ifull)     = dum(1:ifull,7)
+         bx(1:ifull)     = dum(1:ifull,8)
+         by(1:ifull)     = dum(1:ifull,9)
+         bz(1:ifull)     = dum(1:ifull,10)
+         f(1:ifull)      = dum(1:ifull,11)
+         fu(1:ifull)     = dum(1:ifull,12)
+         fv(1:ifull)     = dum(1:ifull,13)
+         rlatt(1:ifull)  = dum(1:ifull,14)
          rlongg(1:ifull) = dum(1:ifull,15)
-         deallocate( dum_g, dum )
-         allocate( dum_g(ifull_g,8), dum(ifull,8) )
          dum_g(1:ifull_g,1:4) = rlat4(1:ifull_g,1:4)
          dum_g(1:ifull_g,5:8) = rlong4(1:ifull_g,1:4)
          call ccmpi_distribute(dum(:,1:8),dum_g(:,1:8))
-         rlat4_l(1:ifull,1:4) = dum(1:ifull,1:4)
+         rlat4_l(1:ifull,1:4)  = dum(1:ifull,1:4)
          rlong4_l(1:ifull,1:4) = dum(1:ifull,5:8)
          deallocate( dum_g, dum )
          allocate( dumr8_g(ifull_g,3), dumr8(ifull,3) )
@@ -549,8 +546,6 @@ contains
          fv(1:ifull) = dum(1:ifull,13)
          rlatt(1:ifull) = dum(1:ifull,14)
          rlongg(1:ifull) = dum(1:ifull,15)
-         deallocate( dum )
-         allocate( dum(ifull,8) )
          call ccmpi_distribute(dum(:,1:8))
          rlat4_l(1:ifull,1:4) = dum(1:ifull,1:4)
          rlong4_l(1:ifull,1:4) = dum(1:ifull,5:8)
@@ -610,13 +605,13 @@ contains
         allocate( dpoints(dproc)%a(4,bnds(iproc)%len) )
         allocate( dbuf(dproc)%a(4,bnds(iproc)%len) )
         allocate( dbuf(dproc)%b(nagg*bnds(iproc)%len) )
-        allocate( dindex(dproc)%a(2,bnds(iproc)%len) )
+        allocate( dindex(dproc)%a(bnds(iproc)%len,2) )
         allocate( sextra(dproc)%a(nagg*bnds(iproc)%len) )
       end do
       ! store invalid points in dproc=0
       allocate( dbuf(0)%a(4,1) )
       allocate( dbuf(0)%b(1) )
-      allocate( dindex(0)%a(2,1) )
+      allocate( dindex(0)%a(1,2) )
 
 
       ! Pack colour indices
@@ -745,22 +740,19 @@ contains
       end if
       
       ! prep RMA windows for gathermap
-      if ( nproc > 1 ) then
-         call MPI_Type_size(ltype, asize, ierr)
-         sshape(:) = (/ ifull, kx /)
-         wsize = asize*sshape(1)*sshape(2)
-         lcommin = comm_world
-         ! below is a more optimised version for MPI_Win_Create
-         !call MPI_Info_create(info, ierr)                         ! MPI optimise
-         !call MPI_Info_set(info, "no_locks", "true", ierr)        ! MPI optimise
-         !call MPI_Info_set(info, "same_size", "true", ierr)       ! MPI optimise
-         !call MPI_Info_set(info, "same_disp_unit", "true", ierr)  ! MPI optimise
-         !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)  ! MPI allocate memory
-         !call c_f_pointer(baseptr, specstore, sshape)             ! MPI allocate memory
-         allocate( specstore(sshape(1),sshape(2)) )                ! Fortran allocate memory
-         call MPI_Win_Create(specstore, wsize, asize, MPI_INFO_NULL, lcommin, localwin, ierr)
-         !call MPI_Info_free(info,ierr)                            ! MPI optimise
-      end if
+      call MPI_Type_size(ltype, asize, ierr)
+      sshape(:) = (/ ifull, kx /)
+      wsize = asize*sshape(1)*sshape(2)
+      lcommin = comm_world
+      ! below is a more optimised version for MPI_Win_Create
+      call MPI_Info_create(info, ierr)
+      call MPI_Info_set(info, "no_locks", "true", ierr)
+      call MPI_Info_set(info, "same_size", "true", ierr)
+      call MPI_Info_set(info, "same_disp_unit", "true", ierr)
+      call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
+      call c_f_pointer(baseptr, specstore, sshape)
+      call MPI_Win_Create(specstore, wsize, asize, MPI_INFO_NULL, lcommin, localwin, ierr)
+      call MPI_Info_free(info,ierr)
       
    return
    end subroutine ccmpi_setup
@@ -1017,22 +1009,9 @@ contains
 
       call START_LOG(distribute_begin)
 
-      if ( size(af,1) < ifull ) then
-         write(6,*) "Error: ccmpi_distribute argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(af,2) /= size(a1,2) ) then
-            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(a1,1) < ifull_g ) then
-            write(6,*) "Error: ccmpi_distribute argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_distribute3(af,a1)
@@ -1137,23 +1116,10 @@ contains
       real(kind=8), dimension(:,:), intent(in), optional :: a1
 
       call START_LOG(distribute_begin)
-
-      if ( size(af,1) < ifull ) then
-         write(6,*) "Error: ccmpi_distribute argument is too small"
-         call ccmpi_abort(-1)
-      end if
       
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(af,2) /= size(a1,2) ) then
-            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(a1,1) < ifull_g ) then
-            write(6,*) "Error: ccmpi_distribute argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_distribute3r8(af,a1)
@@ -1247,22 +1213,9 @@ contains
 
       call START_LOG(distribute_begin)
       
-      if ( size(af,1) < ifull ) then
-         write(6,*) "Error: ccmpi_distribute argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(af,2) /= size(a1,2) ) then
-            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(a1,1) < ifull_g ) then
-            write(6,*) "Error: ccmpi_distribute argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_distribute3i(af,a1)
@@ -1369,23 +1322,10 @@ contains
       real, dimension(:,:,:), intent(in), optional :: a1
 
       call START_LOG(distribute_begin)
-
-      if ( size(af,1) < ifull ) then
-         write(6,*) "Error: ccmpi_distribute argument is too small"
-         call ccmpi_abort(-1)
-      end if
       
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(af,2) /= size(a1,2) .or. size(af,3) /= size(a1,3) ) then
-            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(a1,1) < ifull_g ) then
-            write(6,*) "Error: ccmpi_distribute argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_distribute4(af,a1)
@@ -1497,22 +1437,9 @@ contains
 
       call START_LOG(distribute_begin)
 
-      if ( size(af,1) < ifull ) then
-         write(6,*) "Error: ccmpi_distribute argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
       if ( myid == 0 ) then
          if ( .not. present(a1) ) then
             write(6,*) "Error: ccmpi_distribute argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(af,2) /= size(a1,2) .or. size(af,3) /= size(a1,3) ) then
-            write(6,*) "Error: ccmpi_distribute argument vertical level mistmatch"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(a1,1) < ifull_g ) then
-            write(6,*) "Error: ccmpi_distribute argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_distribute4r8(af,a1)
@@ -1776,23 +1703,10 @@ contains
       real, dimension(:,:), intent(out), optional :: ag
 
       call START_LOG(gather_begin)
-
-      if ( size(a,1) < ifull ) then
-         write(6,*) "Error: ccmpi_gather argument is too small"
-         call ccmpi_abort(-1)
-      end if
       
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(a,2) /= size(ag,2) ) then
-            write(6,*) "Error: ccmpi_gather argument vertical level mismatch"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(ag,1) < ifull_g ) then
-            write(6,*) "Error: ccmpi_gather argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_gather3(a,ag)
@@ -1893,23 +1807,10 @@ contains
       real(kind=8), dimension(:,:), intent(out), optional :: ag
 
       call START_LOG(gather_begin)
-
-      if ( size(a,1) < ifull ) then
-         write(6,*) "Error: ccmpi_gather argument is too small"
-         call ccmpi_abort(-1)
-      end if
       
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(a,2) /= size(ag,2) ) then
-            write(6,*) "Error: ccmpi_gather argument vertical level mismatch"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(ag,1) < ifull_g ) then
-            write(6,*) "Error: ccmpi_gather argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_gather3r8(a,ag)
@@ -2003,22 +1904,9 @@ contains
 
       call START_LOG(gather_begin)
 
-      if ( size(a,1) < ifull ) then
-         write(6,*) "Error: ccmpi_gather argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(a,2) /= size(ag,2) .or. size(a,3) /= size(ag,3) ) then
-            write(6,*) "Error: ccmpi_gather argument vertical level mismatch"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(ag,1) < ifull_g ) then
-            write(6,*) "Error: ccmpi_gather argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_gather4(a,ag)
@@ -2125,23 +2013,10 @@ contains
       real(kind=8), dimension(:,:,:), intent(out), optional :: ag
 
       call START_LOG(gather_begin)
-
-      if ( size(a,1) < ifull ) then
-         write(6,*) "Error: ccmpi_gather argument is too small"
-         call ccmpi_abort(-1)
-      end if
       
       if ( myid == 0 ) then
          if ( .not. present(ag) ) then
             write(6,*) "Error: ccmpi_gather argument required on proc 0"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(a,2) /= size(ag,2) .or. size(a,3) /= size(ag,3) ) then
-            write(6,*) "Error: ccmpi_gather argument vertical level mismatch"
-            call ccmpi_abort(-1)
-         end if
-         if ( size(ag,1) < ifull_g ) then
-            write(6,*) "Error: ccmpi_gather argument is too small"
             call ccmpi_abort(-1)
          end if
          call host_gather4r8(a,ag)
@@ -2303,21 +2178,6 @@ contains
 
       call START_LOG(gather_begin)
 
-      if ( size(a,1) < ifull ) then
-         write(6,*) "Error: ccmpi_gatherall argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(ag,1) < ifull_g ) then
-         write(6,*) "Error: ccmpi_gatherall argument is too small"
-         call ccmpi_abort(-1)
-      end if
-
-      if ( size(a,2) /= size(ag,2) ) then
-         write(6,*) "Error: ccmpi_gatherall argument vertical level mistmatch"
-         call ccmpi_abort(-1)
-      end if
-     
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
@@ -2379,15 +2239,6 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
       
-      if ( nproc==1 ) then
-         do n = 1,npan
-            iq = (n-1)*ipan*jpan
-            globalpack(0,0,n-noff)%localdata(:,:,kref+1) = &
-               reshape( a(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
-         end do
-         return
-      end if
-   
       call START_LOG(gatherrma_begin)
    
       ncount = size(specmap)
@@ -2450,26 +2301,9 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
       
-      kx = size(a,2)
-      
-      if ( size(a,1) < ifull ) then
-         write(6,*) "Error: ccmpi_gathermap argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( nproc==1 ) then
-         do k = 1,kx
-            do n = 1,npan
-               iq = (n-1)*ipan*jpan
-               globalpack(0,0,n-noff)%localdata(:,:,kref+k) = &
-                  reshape( a(iq+1:iq+ipan*jpan,k), (/ ipan, jpan /) )
-            end do
-         end do
-         return
-      end if
-   
       call START_LOG(gatherrma_begin)
-   
+
+      kx = size(a,2)
       ncount = size(specmap)
       
       if ( kx>size(specstore,2) ) then
@@ -3342,7 +3176,7 @@ contains
       allocate( dums(10,neighnum), dumr(10,neighnum) )
 
       
-!     Communicate lengths for rlenh, rlen, rlenx and rlen2
+      ! Communicate lengths for rlenh, rlen, rlenx and rlen2
       scolsp(:)%ihfn(1) = 0
       scolsp(:)%ihfn(2) = 0
       scolsp(:)%ihfn(3) = 0
@@ -3572,7 +3406,7 @@ contains
          end do
       end do
 
-!     Second pass
+      ! Second pass
       bnds(:)%rlen2_uv = bnds(:)%rlen_uv
       bnds(:)%slen2_uv = bnds(:)%slen_uv
       ieeu = iee
@@ -4403,11 +4237,6 @@ contains
 
       call START_LOG(bounds_begin)
       
-      if ( size(t,1) < ifull+iextra ) then
-         write(6,*) "Error: bounds3 argument is too small"
-         call ccmpi_abort(-1)
-      end if
-
       kx = size(t,2)
       double = .false.
       extra  = .false.
@@ -4526,11 +4355,6 @@ contains
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 
       call START_LOG(bounds_begin)
-
-      if ( size(t,1) < ifull+iextra ) then
-         write(6,*) "Error: boundsr8 argument is too small"
-         call ccmpi_abort(-1)
-      end if    
       
       kx = size(t,2)
       double = .false.
@@ -4653,11 +4477,6 @@ contains
 #endif  
 
       call START_LOG(bounds_begin)
-
-      if ( size(t,1) < ifull+iextra ) then
-         write(6,*) "Error: bounds4 argument is too small"
-         call ccmpi_abort(-1)
-      end if
       
       kx = size(t,2)
       ntr = size(t,3)
@@ -4777,18 +4596,9 @@ contains
 #endif 
 
       call START_LOG(bounds_begin)
-
-      if ( size(t,1) < ifull ) then
-         write(6,*) "Error: bounds_colour_send argument is too small"
-         call ccmpi_abort(-1)
-      end if
       
       if ( present(klim) ) then
          kx = klim
-         if ( kx > size(t,2) ) then
-            write(6,*) "Error: bounds_colour_send argument vertical level mistmatch"
-            call ccmpi_abort(-1)
-         end if
       else
          kx = size(t, 2)
       end if
@@ -4861,17 +4671,8 @@ contains
 
       call START_LOG(bounds_begin)
 
-      if ( size(t,1) < ifull+iextra ) then
-         write(6,*) "Error: bounds_colour_recv argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
       if ( present(klim) ) then
          kx = klim
-         if ( kx > size(t,2) ) then
-            write(6,*) "Error: bounds_colour_recv argument vertical level mistmatch"
-            call ccmpi_abort(-1)
-         end if
       else
          kx = size(t, 2)
       end if
@@ -5306,16 +5107,6 @@ contains
 
       call START_LOG(boundsuv_begin)
       
-      if ( size(u,1) < ifull+iextra .or. size(v,1) < ifull+iextra ) then
-         write(6,*) "Error: boundsuv argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(u,2) /= size(v,2) ) then
-         write(6,*) "Error: boundsuv argument vertical level mismatch"
-         call ccmpi_abort(-1)
-      end if
-      
       kx = size(u, 2)
       double = .false.
       extra = .false.
@@ -5709,16 +5500,6 @@ contains
 #endif   
       logical :: double
       
-      if ( size(u,1) < ifull+iextra .or. size(v,1) < ifull+iextra ) then
-         write(6,*) "Error: boundsuv_allvec argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(u,2) /= size(v,2) ) then
-         write(6,*) "Error: boundsuv_allvec argument vertical level mismatch"
-         call ccmpi_abort(-1)
-      end if
-      
       kx = size(u,2)
       myrlen = bnds(myid)%rlenx_uv
       
@@ -5936,10 +5717,9 @@ contains
       ! Need floor(xxg) in range [0:ipan]
       integer, dimension(:,:), intent(in) :: nface
       real, dimension(:,:), intent(in) :: xg, yg
-      real :: xf, yf
       integer :: iproc, jproc, dproc
       integer :: ip, jp, xn, kx
-      integer :: iq, k, idel, jdel, nf, gf
+      integer :: iq, k, idel, jdel, nf
       integer :: rcount
       integer(kind=4) :: itag=99, ierr, llen, ncount, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -5955,31 +5735,6 @@ contains
       if ( neighnum < 1 ) return
 
       call START_LOG(deptsync_begin)      
-
-      if ( size(nface,1) < ifull ) then
-         write(6,*) "Error: deptsync argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(xg,1) < ifull ) then
-         write(6,*) "Error: deptsync argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(yg,1) < ifull ) then
-         write(6,*) "Error: deptsync argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(nface,2) /= size(xg,2) ) then
-         write(6,*) "Error: deptsync argument vertical level mismatch"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(nface,2) /= size(yg,2) ) then
-         write(6,*) "Error: deptsync argument vertical level mismatch"
-         call ccmpi_abort(-1)
-      end if
       
       kx = size(nface,2)
       dslen(:) = 0
@@ -5987,9 +5742,9 @@ contains
       dproc = 0
       lcomm = comm_world
       
-!     In this case the length of each buffer is unknown and will not
-!     be symmetric between processors. Therefore need to get the length
-!     from the message status
+      ! In this case the length of each buffer is unknown and will not
+      ! be symmetric between processors. Therefore need to get the length
+      ! from the message status
       do iproc = 1,neighnum
          lproc = neighlist(iproc)  ! Recv from
          ! Use the maximum size in the recv call.
@@ -6002,17 +5757,14 @@ contains
       ! Calculate request list
       do k = 1,kx
          do iq = 1,ifull
-            gf = nface(iq,k)
-            nf = gf + noff ! Make this a local index
-            xf = xg(iq,k)
-            yf = yg(iq,k)
-            idel = int(xf) - ioff
-            jdel = int(yf) - joff
+            nf = nface(iq,k) + noff ! Make this a local index
+            idel = int(xg(iq,k)) - ioff
+            jdel = int(yg(iq,k)) - joff
             if ( idel<0 .or. idel>ipan .or. jdel<0 .or. jdel>jpan .or. nf<1 .or. nf>npan ) then
                ! If point is on a different processor, add to a list 
-               ip = min( il_g, max( 1, nint(xf) ) )
-               jp = min( il_g, max( 1, nint(yf) ) )
-               iproc = fproc(ip,jp,gf) ! processor that owns global grid point
+               ip = min( il_g, max( 1, nint(xg(iq,k)) ) )
+               jp = min( il_g, max( 1, nint(yg(iq,k)) ) )
+               iproc = fproc(ip,jp,nface(iq,k)) ! processor that owns global grid point
                dproc = neighmap(iproc) ! returns 0 if not in neighlist
                ! Add this point to the list of requests I need to send to iproc
                dslen(dproc) = dslen(dproc) + 1
@@ -6020,21 +5772,21 @@ contains
                xn = max( min( dslen(dproc), bnds(iproc)%len ), 1 )
                ! Since nface is a small integer it can be exactly represented by a
                ! real. It is simpler to send like this than use a proper structure.
-               dbuf(dproc)%a(:,xn) = (/ real(gf), xf, yf, real(k) /)
-               dindex(dproc)%a(:,xn) = (/ iq, k /)
+               dbuf(dproc)%a(:,xn) = (/ real(nface(iq,k)), xg(iq,k), yg(iq,k), real(k) /)
+               dindex(dproc)%a(xn,1) = iq
+               dindex(dproc)%a(xn,2) = k
             end if
          end do
       end do
  
       ! Check for errors
       if ( dslen(0) > 0 ) then
-         gf = nint(dbuf(0)%a(1,1))
          ip = min( il_g, max( 1, nint(dbuf(0)%a(2,1)) ) )
          jp = min( il_g, max( 1, nint(dbuf(0)%a(3,1)) ) )
-         iproc = fproc(ip,jp,gf)
+         iproc = fproc(ip,jp,nint(dbuf(0)%a(1,1)))
          write(6,*) "myid,dslen,len ",myid,dslen(0),0
-         write(6,*) "Example error iq,k,iproc ",dindex(0)%a(:,1),iproc
-         write(6,*) "dbuf ", dbuf(0)%a(:,1)
+         write(6,*) "Example error iq,k,iproc ",dindex(0)%a(1,1),dindex(0)%a(1,2),iproc
+         write(6,*) "dbuf ",dbuf(0)%a(:,1)
          write(6,*) "neighlist ",neighlist
          write(6,*) "ERROR: Wind speed is very large and the departure point is"
          write(6,*) "       further away than the neighbouring processes. This"
@@ -6047,7 +5799,7 @@ contains
          iproc = neighlist(dproc)
          if ( dslen(dproc) > bnds(iproc)%len ) then
             write(6,*) "myid,dslen,len ",myid,dslen(dproc),bnds(iproc)%len
-            write(6,*) "Example error iq,k,iproc ",dindex(dproc)%a(:,1),iproc
+            write(6,*) "Example error iq,k,iproc ",dindex(dproc)%a(1,1),dindex(dproc)%a(1,2),iproc
             write(6,*) "dbuf ",dbuf(dproc)%a(:,1)
             write(6,*) "neighlist ",neighlist
             write(6,*) "ERROR: Wind speed is very large and the departure point is"
@@ -6147,11 +5899,6 @@ contains
 
       call START_LOG(intssync_begin)
       
-      if ( size(s,1) < ifull+iextra ) then
-         write(6,*) "Error: intssync_recv argument is too small"
-         call ccmpi_abort(-1)
-      end if
-      
       ntr = size(s,3)
       
       ! Unpack incomming messages
@@ -6166,7 +5913,7 @@ contains
             do l = 1,ntr
 !$omp simd
                do iq = 1,dslen(iproc)
-                  s(dindex(iproc)%a(1,iq),dindex(iproc)%a(2,iq),l) = dbuf(iproc)%b(iq+(l-1)*dslen(iproc))
+                  s(dindex(iproc)%a(iq,1),dindex(iproc)%a(iq,2),l) = dbuf(iproc)%b(iq+(l-1)*dslen(iproc))
                end do
             end do   
          end do
@@ -6715,11 +6462,7 @@ contains
       phys_end =  phys_begin
       event_name(phys_begin) = "Phys"
 
-      physloadbal_begin = phys_begin + 1
-      physloadbal_end =  physloadbal_begin
-      event_name(physloadbal_begin) = "PhysLoadBal"
-    
-      nonlin_begin = physloadbal_begin + 1
+      nonlin_begin = phys_begin + 1
       nonlin_end = nonlin_begin 
       event_name(nonlin_begin) = "Nonlin"
 
@@ -7010,17 +6753,6 @@ contains
       end if
      
    end subroutine log_setup
-   
-   subroutine phys_loadbal()
-!     This forces a sychronisation to make the physics load imbalance overhead
-!     explicit. 
-      integer(kind=4) :: ierr, lcomm
-
-      call START_LOG(physloadbal_begin)
-      lcomm = comm_world
-      call MPI_Barrier( lcomm, ierr )
-      call END_LOG(physloadbal_end)
-   end subroutine phys_loadbal
 
 #ifdef simple_timer
    subroutine simple_timer_finalize()
@@ -7121,16 +6853,6 @@ contains
 
        call START_LOG(posneg_begin)
        
-       if ( size(array,1) < ifull ) then
-          write(6,*) "Error: ccglobal_posneg argument is too small"
-          call ccmpi_abort(-1)
-       end if
-       
-       if ( size(array,2) /= size(dsig) ) then
-          write(6,*) "Error: ccglobap_posneg argument vertical level mismatch"
-          call ccmpi_abort(-1)
-       end if
-
        kx = size(array,2)
        
        local_sum(1:2) = cmplx(0., 0.)
@@ -7170,21 +6892,6 @@ contains
 
        call START_LOG(posneg_begin)
 
-       if ( size(array,1) < ifull ) then
-          write(6,*) "Error: ccglobal_posneg argument is too small"
-          call ccmpi_abort(-1)
-       end if
-       
-       if ( size(array,2) /= size(dsig) ) then
-          write(6,*) "Error: ccglobap_posneg argument vertical level mismatch"
-          call ccmpi_abort(-1)
-       end if
-       
-       if ( size(array,3) /= size(delpos) .or. size(array,3) /= size(delneg) ) then
-          write(6,*) "Error: ccglobap_posneg argument index mismatch"
-          call ccmpi_abort(-1)
-       end if
-       
        kx  = size(array,2)
        ntr = size(array,3)
 
@@ -7413,11 +7120,6 @@ contains
       
       call START_LOG(reduce_begin)
       
-      if ( size(ldat) /= size(gdat) ) then
-         write(6,*) "Error: ccmpi_reduce argument mismatch"
-         call ccmpi_abort(-1)
-      end if    
-      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -7496,11 +7198,6 @@ contains
       
       call START_LOG(reduce_begin)
       
-      if ( size(ldat) /= size(gdat) ) then
-         write(6,*) "Error: ccmpi_reduce argument mismatch"
-         call ccmpi_abort(-1)
-      end if   
-      
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -7563,11 +7260,6 @@ contains
       character(len=*), intent(in) :: op
       
       call START_LOG(reduce_begin)
-
-      if ( size(ldat) /= size(gdat) ) then
-         write(6,*) "Error: ccmpi_reduce argument mismatch"
-         call ccmpi_abort(-1)
-      end if   
       
       lhost = host
       lcomm = comm
@@ -7639,11 +7331,6 @@ contains
       
       call START_LOG(reduce_begin)
       
-      if ( size(ldat) /= size(gdat) ) then
-         write(6,*) "Error: ccmpi_reduce argument mismatch"
-         call ccmpi_abort(-1)
-      end if   
-      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -7677,11 +7364,6 @@ contains
       character(len=*), intent(in) :: op
       
       call START_LOG(reduce_begin)
-      
-      if ( size(ldat) /= size(gdat) ) then
-         write(6,*) "Error: ccmpi_reduce argument mismatch"
-         call ccmpi_abort(-1)
-      end if   
       
       select case( op )
          case( "or" )
@@ -7786,11 +7468,6 @@ contains
       
       call START_LOG(reduce_begin)
       
-      if ( size(ldat) /= size(gdat) ) then
-         write(6,*) "Error: ccmpi_reduce argument mismatch"
-         call ccmpi_abort(-1)
-      end if   
-      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -7861,11 +7538,6 @@ contains
       
       call START_LOG(reduce_begin)
       
-      if ( size(ldat) /= size(gdat) ) then
-         write(6,*) "Error: ccmpi_reduce argument mismatch"
-         call ccmpi_abort(-1)
-      end if   
-      
       lcomm = comm
       lsize = size(ldat)
       
@@ -7898,11 +7570,6 @@ contains
       character(len=*), intent(in) :: op
       
       call START_LOG(reduce_begin)
-      
-      if ( size(ldat) /= size(gdat) ) then
-         write(6,*) "Error: ccmpi_reduce argument mismatch"
-         call ccmpi_abort(-1)
-      end if   
       
       lcomm = comm
       lsize = size(ldat)
@@ -8859,10 +8526,9 @@ contains
    
       integer(kind=4) :: lerr
       
-      if ( nproc>1 .and. myid<nproc ) then
+      if ( myid<nproc ) then
          call MPI_Win_free( localwin, lerr )
-         !call MPI_Free_Mem( specstore, lerr ) ! MPI allocate memory
-         deallocate( specstore )               ! Fortran allocate memory
+         call MPI_Free_Mem( specstore, lerr )
       end if
       call MPI_Barrier(MPI_COMM_WORLD, lerr)
       call MPI_Finalize(lerr)
@@ -8922,58 +8588,6 @@ contains
       end if
    
    end subroutine ccmpi_commfree
-
-!   subroutine setglobalpack_m(datain,istart,iend,ibase,astep,aoffset,k)
-!   
-!      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
-!      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
-!      real, dimension(:), intent(in) :: datain
-!      
-!      if ( size(datain) < iend-istart+ibase ) then
-!         write(6,*) "Error: setglobalpack_m argument is too small"
-!         call ccmpi_abort(-1)
-!      end if
-!      
-!      il2   = il_g*il_g
-!      do iql = istart,iend
-!         iqgm1 = astep*iql + aoffset - 1
-!         npak  = iqgm1/il2
-!         jm1   = (iqgm1 - npak*il2)/il_g
-!         im1   = iqgm1 - npak*il2 - jm1*il_g
-!         ipak  = im1/ipan
-!         jpak  = jm1/jpan
-!         iloc  = im1 + 1 - ipak*ipan
-!         jloc  = jm1 + 1 - jpak*jpan
-!         globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k) = datain(iql+ibase-istart)
-!      end do
-!      
-!   end subroutine setglobalpack_m
-!   
-!   subroutine getglobalpack_m(dataout,istart,iend,ibase,astep,aoffset,k)
-!
-!      integer, intent(in) :: istart, iend, ibase, astep, aoffset, k
-!      integer :: il2, iql, iqgm1, npak, jm1, im1, ipak, jpak, iloc, jloc
-!      real, dimension(:), intent(out) :: dataout
-!   
-!      if ( size(dataout) < iend-istart+ibase ) then
-!         write(6,*) "Error: getglobalpack_m argument is too small"
-!         call ccmpi_abort(-1)
-!      end if
-!      
-!      il2 = il_g*il_g
-!      do iql = istart,iend
-!         iqgm1 = astep*iql + aoffset - 1
-!         npak  = iqgm1/il2
-!         jm1   = (iqgm1 - npak*il2)/il_g
-!         im1   = iqgm1 - npak*il2 - jm1*il_g
-!         ipak  = im1/ipan
-!         jpak  = jm1/jpan
-!         iloc  = im1 + 1 - ipak*ipan
-!         jloc  = jm1 + 1 - jpak*jpan
-!         dataout(iql+ibase-istart) = globalpack(ipak,jpak,npak)%localdata(iloc,jloc,k)
-!      end do
-!      
-!   end subroutine getglobalpack_m
    
    subroutine setglobalpack_v(datain,jbeg,ibeg,iend,k)
    
@@ -9253,11 +8867,6 @@ contains
 
       call START_LOG(mgbounds_begin)
       
-      if ( size(vdat) < mg(g)%ifull+mg(g)%iextra ) then
-         write(6,*) "Error: mgbounds argument size is too small"
-         call ccmpi_abort(-1)
-      end if    
-      
       if (present(corner)) then
          extra = corner
       else
@@ -9353,17 +8962,8 @@ contains
 
       call START_LOG(mgbounds_begin)
       
-      if ( size(vdat,1) < mg(g)%ifull+mg(g)%iextra ) then
-         write(6,*) "Error: mgbounds argument size is too small"
-         call ccmpi_abort(-1)
-      end if    
-      
       if (present(klim)) then
          kx = klim
-         if ( kx > size(vdat,2) ) then
-            write(6,*) "Error: mgbounds argument vertical level mismatch"
-            call ccmpi_abort(-1)
-         end if    
       else
          kx = size(vdat,2)
       end if
@@ -9457,23 +9057,9 @@ contains
       if ( mg(g)%merge_len <= 1 ) return
 
       call START_LOG(mgcollect_begin)
-      
-      if ( size(vdat,1) < mg(g)%ifull ) then
-         write(6,*) "Error: mgcollect argument size is too small"
-         call ccmpi_abort(-1)
-      end if   
-      
-      if ( size(vdat,2) > size(dsolmax) ) then
-         write(6,*) "Error: mgcollect argument vertical level mismatch"
-         call ccmpi_abort(-1)
-      end if   
 
       if ( present(klim) ) then
          kx = klim
-         if ( kx > size(vdat,2) ) then
-            write(6,*) "Error: mgcollect argument vertical level mismatch"
-            call ccmpi_abort(-1)
-         end if    
       else
          kx = size(vdat,2)      
       end if
@@ -9555,18 +9141,9 @@ contains
       if ( mg(g)%merge_len <= 1 ) return
 
       call START_LOG(mgcollect_begin)
-
-      if ( size(vdat,1) < mg(g)%ifull ) then
-         write(6,*) "Error: mgcollect argument size is too small"
-         call ccmpi_abort(-1)
-      end if   
       
       if (present(klim)) then
          kx = klim
-         if ( kx > size(vdat,2) ) then
-            write(6,*) "Error: mgcollect argument vertical level mismatch"
-            call ccmpi_abort(-1)
-         end if
       else
          kx = size(vdat,2)
       end if
@@ -9645,28 +9222,9 @@ contains
       if ( mg(g)%merge_len <= 1 ) return
 
       call START_LOG(mgcollect_begin)
-
-      if ( size(vdat,1) < mg(g)%ifull ) then
-         write(6,*) "Error: mgcollectxn argument size is too small"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(vdat,2) /= size(smaxmin,1) ) then
-         write(6,*) "Error: mgcollectxn argument vertical level mismatch"
-         call ccmpi_abort(-1)
-      end if 
-      
-      if ( size(smaxmin,2) /= 2 ) then
-         write(6,*) "Error: mgcollectxn argument size is too small"
-         call ccmpi_abort(-1)
-      end if    
       
       if (present(klim)) then
          kx = klim
-         if ( kx > size(vdat,2) ) then
-            write(6,*) "Error: mgcollectxn argument vertical level mismatch"
-            call ccmpi_abort(-1)
-         end if
       else
          kx = size(vdat,2)
       end if
@@ -9757,11 +9315,6 @@ contains
    
       call START_LOG(mgbcast_begin)
    
-      if ( size(vdat) < mg(g)%ifull+mg(g)%iextra ) then
-         write(6,*) "Error: mgbcast argument size is too small"
-         call ccmpi_abort(-1)
-      end if
-   
       out_len = mg(g)%ifull + mg(g)%iextra
       
       ! pack contiguous buffer
@@ -9799,23 +9352,9 @@ contains
       if ( mg(g)%merge_len <= 1 ) return
    
       call START_LOG(mgbcast_begin)
-   
-      if ( size(vdat,1) < mg(g)%ifull+mg(g)%iextra ) then
-         write(6,*) "Error: mgbcast argument size is too small"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(vdat,2) > size(dsolmax) ) then
-         write(6,*) "Error: mgbcast argument vertical level mismatch"
-         call ccmpi_abort(-1)
-      end if    
       
       if ( present(klim) ) then
          kx = klim
-         if ( kx > size(vdat,2) ) then
-            write(6,*) "Error: mgbcast argument vertical level mismatch"
-            call ccmpi_abort(-1)
-         end if    
       else
          kx = size(vdat,2)
       end if
@@ -9854,11 +9393,6 @@ contains
       if ( mg(g)%merge_len <= 1 ) return
    
       call START_LOG(mgbcast_begin)
-   
-      if ( size(vdat) < mg(g)%ifull+mg(g)%iextra ) then
-         write(6,*) "Error: mgbcasta argument size is too small"
-         call ccmpi_abort(-1)
-      end if
       
       out_len = mg(g)%ifull + mg(g)%iextra
 
@@ -9887,11 +9421,6 @@ contains
       if ( mg(g)%merge_len <= 1 ) return
    
       call START_LOG(mgbcast_begin)
-   
-      if ( size(vdat,1) < mg(g)%ifull+mg(g)%iextra ) then
-         write(6,*) "Error: mgbcasta argument size is too small"
-         call ccmpi_abort(-1)
-      end if
       
       kx = size(vdat,2)
       out_len = mg(g)%ifull + mg(g)%iextra
@@ -9929,28 +9458,9 @@ contains
       if ( mg(g)%merge_len <= 1 ) return
    
       call START_LOG(mgbcast_begin)
-   
-      if ( size(vdat,1) < mg(g)%ifull+mg(g)%iextra ) then
-         write(6,*) "Error: mgbcastxn argument size is too small"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(vdat,2) > size(smaxmin,1) ) then
-         write(6,*) "Error: mgbcastxn argument vertical level mismatch"
-         call ccmpi_abort(-1)
-      end if    
-      
-      if ( size(smaxmin,2) /= 2 ) then
-         write(6,*) "Error: mgbcastxn argument size is too small"
-         call ccmpi_abort(-1)
-      end if    
       
       if (present(klim)) then
          kx = klim
-         if ( kx > size(vdat,2) ) then
-            write(6,*) "Error: mgbcastxn argument vertical level mismatch"
-            call ccmpi_abort(-1)
-         end if
       else
          kx = size(vdat,2)
       end if
@@ -10663,39 +10173,35 @@ contains
    end function findcolour
 
    subroutine ccmpi_filewincreate(kx)
-      !use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
       
       integer, intent(in) :: kx
       integer, dimension(3) :: sshape
       integer(kind=4) :: asize, ierr, lcomm
-      !integer(kind=4) :: info
+      integer(kind=4) :: info
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: wsize
-      !type(c_ptr) :: baseptr
+      type(c_ptr) :: baseptr
       
-      
-      if ( nproc > 1 ) then
-         call MPI_Type_size(ltype, asize, ierr)
-         if ( myid < fnresid ) then 
-           sshape(:) = (/ pil*pjl*pnpan, fncount, kx /)  
-         else
-           sshape(:) = (/ 1, 1, 1 /)
-         end if
-         lcomm = comm_world
-         wsize = asize*sshape(1)*sshape(2)*sshape(3)
-         !call MPI_Info_create(info, ierr)                        ! MPI optimise
-         !call MPI_Info_set(info, "no_locks", "true", ierr)       ! MPI optimise
-         !call MPI_Info_set(info, "same_disp_unit", "true", ierr) ! MPI optimise
-         !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr) ! MPI allocate memory
-         !call c_f_pointer(baseptr, filestore, sshape)            ! MPI allocate memory
-         allocate( filestore(sshape(1),sshape(2),sshape(3)) )     ! Fortran allocate memory
-         call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
-         !call MPI_Info_free(info,ierr)                           ! MPI optimise
+      call MPI_Type_size(ltype, asize, ierr)
+      if ( myid < fnresid ) then 
+        sshape(:) = (/ pil*pjl*pnpan, fncount, kx /)  
+      else
+        sshape(:) = (/ 1, 1, 1 /)
       end if
+      lcomm = comm_world
+      wsize = asize*sshape(1)*sshape(2)*sshape(3)
+      call MPI_Info_create(info, ierr)
+      call MPI_Info_set(info, "no_locks", "true", ierr)
+      call MPI_Info_set(info, "same_disp_unit", "true", ierr)
+      call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
+      call c_f_pointer(baseptr, filestore, sshape)
+      call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
+      call MPI_Info_free(info,ierr)
    
    end subroutine ccmpi_filewincreate
    
@@ -10703,11 +10209,8 @@ contains
    
       integer(kind=4) ierr
    
-      if ( nproc > 1 ) then
-         call MPI_Win_Free( filewin, ierr )
-         !call MPI_Free_Mem( filestore, ierr ) ! MPI allocate memory
-         deallocate ( filestore )              ! Fortran allocate memory
-      end if
+      call MPI_Win_Free( filewin, ierr )
+      call MPI_Free_Mem( filestore, ierr )
    
    end subroutine ccmpi_filewinfree
    
@@ -10724,25 +10227,6 @@ contains
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:), intent(in) :: sinp
       real, dimension(pil*pjl*pnpan,fncount,size(filemap)), intent(out) :: abuf 
-   
-      if ( myid < fnresid ) then
-         if ( size(sinp,1) < pil*pjl*pnpan*fncount ) then
-            write(6,*) "Error: ccmpi_filewinget 2nd argument is too small"
-            write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(sinp,1)
-            call ccmpi_abort(-1)
-         end if
-      end if  
-      
-      if ( nproc == 1 ) then
-         do ipf = 0,fncount-1
-            do n = 0,pnpan-1
-               ca = n*pil*pjl
-               cc = n*pil*pjl + pil*pjl*pnpan*ipf
-               abuf(1+ca:pil*pjl+ca,ipf+1,1) = sinp(1+cc:pil*pjl+cc)
-            end do
-         end do
-         return
-      end if
    
       call START_LOG(gatherrma_begin)
    
@@ -10783,67 +10267,20 @@ contains
       real, dimension(:,:), intent(in) :: sinp
       real, dimension(:,:,:,:), intent(out) :: abuf
       real, dimension(pil*pjl*pnpan,fncount,size(sinp,2),size(filemap)) :: bbuf
-   
-      kx = size(sinp,2)
-      
-      if ( myid < fnresid ) then
-         if ( size(sinp,1) < pil*pjl*pnpan*fncount ) then
-            write(6,*) "Error: ccmpi_filewinget 2nd argument is too small"
-            write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(sinp,1)
-            call ccmpi_abort(-1)
-         end if
-      end if   
-      
-      if ( size(abuf,1) < pil*pjl*pnpan ) then
-         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
-         write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(abuf,1)
-         call ccmpi_abort(-1)
-      end if
 
-      if ( size(abuf,2) < fncount ) then
-         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
-         write(6,*) "Expecting 2nd index ",fncount,"  Found ",size(abuf,2)
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(abuf,3) < size(filemap) ) then
-         write(6,*) "Error: ccmpi_filewinget 1st argument is too small"
-         write(6,*) "Expecting 3rd index ",size(filemap),"  Found ",size(abuf,3)
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( kx /= size(abuf,4) ) then
-         write(6,*) "Error: ccmpi_filewinget argument vertical level mistmatch"
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( nproc == 1 ) then
-         do ipf = 0,fncount-1
-            do k = 1,kx
-               do n = 0,pnpan-1
-                  ca = n*pil*pjl
-                  cc = n*pil*pjl + pil*pjl*pnpan*ipf
-                  abuf(1+ca:pil*pjl+ca,ipf+1,1,k) = sinp(1+cc:pil*pjl+cc,k)
-               end do
-            end do
-         end do
-         return
-      end if
-
-      if ( kx>size(filestore,3) .and. myid<fnresid ) then
-         write(6,*) "ERROR: Size of file window is too small to support input array size"
-         write(6,*) "Window levels ",size(filestore,2)
-         write(6,*) "Input levels ",kx
-         call ccmpi_abort(-1)
-      end if
-      
       call START_LOG(gatherrma_begin)
-      
+
+      kx = size(sinp,2)
       ncount = size(filemap)
       nlen = pil*pjl*pnpan
       lsize = nlen*fncount*kx
       displ = 0
       assert = 0
+      
+      if ( kx>size(filestore,3) .and. myid<fnresid ) then
+         write(6,*) "ERROR: Size of file window is too small to support input array size"
+         call ccmpi_abort(-1)
+      end if
       
       if ( myid < fnresid ) then
          do k = 1,kx 
@@ -10874,24 +10311,6 @@ contains
       real, dimension(:,:,:), intent(in) :: abuf
 
       ncount = size(filemap)
-      
-      if ( size(abuf,1) /= pil*pjl*pnpan ) then
-         write(6,*) "Error: ccmpi_filewinunpack 2nd argument is too small"
-         write(6,*) "Expecting 1st index ",pil*pjl*pnpan,"  Found ",size(abuf,1)
-         call ccmpi_abort(-1)
-      end if
-
-      if ( size(abuf,2) < fncount ) then
-         write(6,*) "Error: ccmpi_filewinunpack 2nd argument is too small"
-         write(6,*) "Expecting 2nd index ",fncount,"  Found ",size(abuf,2)
-         call ccmpi_abort(-1)
-      end if
-      
-      if ( size(abuf,3) < size(filemap) ) then
-         write(6,*) "Error: ccmpi_filewinunpack 2nd argument is too small"
-         write(6,*) "Expecting 3rd index ",size(filemap),"  Found ",size(abuf,3)
-         call ccmpi_abort(-1)
-      end if
       
       do w = 1,ncount
          do ipf = 1,fncount ! fncount=fnproc/fnresid   
@@ -10963,29 +10382,29 @@ contains
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
-               filebnds(iproc)%request_list(1,filebnds(iproc)%rlen) = i + ca
-               filebnds(iproc)%request_list(2,filebnds(iproc)%rlen) = cb
-               filebnds(iproc)%request_list(3,filebnds(iproc)%rlen) = no
-               filebnds(iproc)%request_list(4,filebnds(iproc)%rlen) = floc
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,1) = i + ca
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,2) = cb
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,3) = no
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,4) = floc
                ! store local index
-               filebnds(iproc)%unpack_list(1,filebnds(iproc)%rlen) = i
-               filebnds(iproc)%unpack_list(2,filebnds(iproc)%rlen) = 0
-               filebnds(iproc)%unpack_list(3,filebnds(iproc)%rlen) = n
-               filebnds(iproc)%unpack_list(4,filebnds(iproc)%rlen) = ipf + 1
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,1) = i
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = 0
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
                iproc = mod(procarray(i+ca,pjl+1+cb,no), fnresid) ! North
                floc  = procarray(i+ca,pjl+1+cb,no)/fnresid + 1
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
-               filebnds(iproc)%request_list(1,filebnds(iproc)%rlen) = i + ca
-               filebnds(iproc)%request_list(2,filebnds(iproc)%rlen) = pjl + 1 + cb
-               filebnds(iproc)%request_list(3,filebnds(iproc)%rlen) = no
-               filebnds(iproc)%request_list(4,filebnds(iproc)%rlen) = floc
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,1) = i + ca
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,2) = pjl + 1 + cb
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,3) = no
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,4) = floc
                ! store local index
-               filebnds(iproc)%unpack_list(1,filebnds(iproc)%rlen) = i
-               filebnds(iproc)%unpack_list(2,filebnds(iproc)%rlen) = pjl + 1
-               filebnds(iproc)%unpack_list(3,filebnds(iproc)%rlen) = n
-               filebnds(iproc)%unpack_list(4,filebnds(iproc)%rlen) = ipf + 1
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,1) = i
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = pjl + 1
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
             end do
             do j = 1,pjl
                iproc = mod(procarray(ca,j+cb,no), fnresid) ! West
@@ -10993,29 +10412,29 @@ contains
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
-               filebnds(iproc)%request_list(1,filebnds(iproc)%rlen) = ca
-               filebnds(iproc)%request_list(2,filebnds(iproc)%rlen) = j + cb
-               filebnds(iproc)%request_list(3,filebnds(iproc)%rlen) = no
-               filebnds(iproc)%request_list(4,filebnds(iproc)%rlen) = floc
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,1) = ca
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,2) = j + cb
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,3) = no
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,4) = floc
                ! store local index
-               filebnds(iproc)%unpack_list(1,filebnds(iproc)%rlen) = 0
-               filebnds(iproc)%unpack_list(2,filebnds(iproc)%rlen) = j
-               filebnds(iproc)%unpack_list(3,filebnds(iproc)%rlen) = n
-               filebnds(iproc)%unpack_list(4,filebnds(iproc)%rlen) = ipf + 1
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,1) = 0
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = j
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
                iproc = mod(procarray(pil+1+ca,j+cb,no), fnresid) ! East
                floc  = procarray(pil+1+ca,j+cb,no)/fnresid + 1
                filebnds(iproc)%rlen = filebnds(iproc)%rlen + 1
                call check_filebnds_alloc(iproc,filemaxbuflen)
                ! store global index
-               filebnds(iproc)%request_list(1,filebnds(iproc)%rlen) = pil + 1 + ca
-               filebnds(iproc)%request_list(2,filebnds(iproc)%rlen) = j + cb
-               filebnds(iproc)%request_list(3,filebnds(iproc)%rlen) = no
-               filebnds(iproc)%request_list(4,filebnds(iproc)%rlen) = floc
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,1) = pil + 1 + ca
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,2) = j + cb
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,3) = no
+               filebnds(iproc)%request_list(filebnds(iproc)%rlen,4) = floc
                ! store local index
-               filebnds(iproc)%unpack_list(1,filebnds(iproc)%rlen) = pil + 1
-               filebnds(iproc)%unpack_list(2,filebnds(iproc)%rlen) = j
-               filebnds(iproc)%unpack_list(3,filebnds(iproc)%rlen) = n
-               filebnds(iproc)%unpack_list(4,filebnds(iproc)%rlen) = ipf + 1
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,1) = pil + 1
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,2) = j
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,3) = n
+               filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) = ipf + 1
             end do
          end do
       end do
@@ -11062,61 +10481,65 @@ contains
       call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
       
       ! send unpack_list to file neighbours
-      nreq = 0
-      do jproc = 1,fileneighnum
-         iproc = fileneighlist(jproc)  ! Recv from
-         allocate(filebnds(iproc)%send_list(4,filebnds(iproc)%slen))
-         nreq = nreq + 1
-         ! Use the maximum size in the recv call.
-         llen = 4*filebnds(iproc)%slen
-         lproc = iproc
-         call MPI_IRecv( filebnds(iproc)%send_list, llen, &
-              ltype, lproc, itag, lcomm, ireq(nreq), ierr )
-      end do
-      do jproc = fileneighnum,1,-1
-         iproc = fileneighlist(jproc)  ! Send to
-         ! Send list of requests
-         nreq = nreq + 1
-         llen = 4*filebnds(iproc)%rlen
-         lproc = iproc
-         call MPI_ISend( filebnds(iproc)%request_list, llen, &
-              ltype, lproc, itag, lcomm, ireq(nreq), ierr )
-      end do      
-      call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
+      do i = 1,4
+         nreq = 0
+         do jproc = 1,fileneighnum
+            iproc = fileneighlist(jproc)  ! Recv from
+            if ( i == 1 ) then
+               allocate(filebnds(iproc)%send_list(filebnds(iproc)%slen,4))
+            end if   
+            nreq = nreq + 1
+            ! Recv list of requests
+            llen = filebnds(iproc)%slen
+            lproc = iproc
+            call MPI_IRecv( filebnds(iproc)%send_list(:,i), llen, &
+                 ltype, lproc, itag, lcomm, ireq(nreq), ierr )
+         end do
+         do jproc = fileneighnum,1,-1
+            iproc = fileneighlist(jproc)  ! Send to
+            ! Send list of requests
+            nreq = nreq + 1
+            llen = filebnds(iproc)%rlen
+            lproc = iproc
+            call MPI_ISend( filebnds(iproc)%request_list(:,i), llen, &
+                 ltype, lproc, itag, lcomm, ireq(nreq), ierr )
+         end do      
+         call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
+      end do   
       
 
       ! convert send_list and unpack_list to local indices
-      allocate( dumi(4,filemaxbuflen) )
+      allocate( dumi(filemaxbuflen,4) )
       do jproc = 1,fileneighnum
          iproc = fileneighlist(jproc)  ! Send to
          deallocate( filebnds(iproc)%request_list )
-         dumi(1:4,1:filebnds(iproc)%rlen) = filebnds(iproc)%unpack_list(1:4,1:filebnds(iproc)%rlen)
+         dumi(1:filebnds(iproc)%rlen,1:4) = filebnds(iproc)%unpack_list(1:filebnds(iproc)%rlen,1:4)
          deallocate( filebnds(iproc)%unpack_list )
-         allocate( filebnds(iproc)%unpack_list(4,filebnds(iproc)%rlen) )
-         filebnds(iproc)%unpack_list(1:4,1:filebnds(iproc)%rlen) = dumi(1:4,1:filebnds(iproc)%rlen)
+         allocate( filebnds(iproc)%unpack_list(filebnds(iproc)%rlen,4) )
+         filebnds(iproc)%unpack_list(1:filebnds(iproc)%rlen,1:4) = dumi(1:filebnds(iproc)%rlen,1:4)
          do iq = 1,filebnds(iproc)%slen
-            iloc = filebnds(iproc)%send_list(1,iq)
-            jloc = filebnds(iproc)%send_list(2,iq)
-            nloc = filebnds(iproc)%send_list(3,iq)
-            floc = filebnds(iproc)%send_list(4,iq)
+            iloc = filebnds(iproc)%send_list(iq,1)
+            jloc = filebnds(iproc)%send_list(iq,2)
+            nloc = filebnds(iproc)%send_list(iq,3)
+            floc = filebnds(iproc)%send_list(iq,4)
             call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid,pil_g)
-            filebnds(iproc)%send_list(1,iq) = iloc
-            filebnds(iproc)%send_list(2,iq) = jloc
-            filebnds(iproc)%send_list(3,iq) = nloc
-            filebnds(iproc)%send_list(4,iq) = floc
+            filebnds(iproc)%send_list(iq,1) = iloc
+            filebnds(iproc)%send_list(iq,2) = jloc
+            filebnds(iproc)%send_list(iq,3) = nloc
+            filebnds(iproc)%send_list(iq,4) = floc
          end do
       end do
       deallocate( dumi )
       do iq = 1,filebnds(myid)%rlen
-         iloc = filebnds(myid)%request_list(1,iq)
-         jloc = filebnds(myid)%request_list(2,iq)
-         nloc = filebnds(myid)%request_list(3,iq)
-         floc = filebnds(myid)%request_list(4,iq)
+         iloc = filebnds(myid)%request_list(iq,1)
+         jloc = filebnds(myid)%request_list(iq,2)
+         nloc = filebnds(myid)%request_list(iq,3)
+         floc = filebnds(myid)%request_list(iq,4)
          call file_ijnpg2ijnp(iloc,jloc,nloc,floc,myid,pil_g)
-         filebnds(myid)%request_list(1,iq) = iloc
-         filebnds(myid)%request_list(2,iq) = jloc
-         filebnds(myid)%request_list(3,iq) = nloc
-         filebnds(myid)%request_list(4,iq) = floc
+         filebnds(myid)%request_list(iq,1) = iloc
+         filebnds(myid)%request_list(iq,2) = jloc
+         filebnds(myid)%request_list(iq,3) = nloc
+         filebnds(myid)%request_list(iq,4) = floc
       end do
    
       ! set up buffers
@@ -11152,8 +10575,8 @@ contains
       
       if ( filebnds(iproc)%len<=0 ) then
          filebnds(iproc)%len = filemaxbuflen
-         allocate(filebnds(iproc)%request_list(4,filemaxbuflen))
-         allocate(filebnds(iproc)%unpack_list(4,filemaxbuflen))
+         allocate(filebnds(iproc)%request_list(filemaxbuflen,4))
+         allocate(filebnds(iproc)%unpack_list(filemaxbuflen,4))
       else
          if ( filebnds(iproc)%rlen > filemaxbuflen ) then
             write(6,*) "ERROR: file grid is undersized in check_filebnds_alloc"
@@ -11173,7 +10596,7 @@ contains
       proc_out = -1 ! missing
 
       ! adjust grid index for halo points
-      if ( mod(n_in,2)==0 ) then
+      if ( mod(n_in,2) == 0 ) then
          n_w = mod(n_in+5, 6)
          n_e = mod(n_in+2, 6)
          n_n = mod(n_in+1, 6)
@@ -11498,8 +10921,8 @@ contains
          lproc = fileneighlist(iproc)  ! Send to
 !$omp simd
          do iq = 1,send_len
-            bnds(lproc)%sbuf(iq) = sdat(filebnds(lproc)%send_list(1,iq),filebnds(lproc)%send_list(2,iq), &
-                                        filebnds(lproc)%send_list(3,iq),filebnds(lproc)%send_list(4,iq))
+            bnds(lproc)%sbuf(iq) = sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2), &
+                                        filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4))
          end do
          nreq  = nreq + 1
          call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
@@ -11510,10 +10933,10 @@ contains
 !$omp simd
       do iq = 1,myrlen
          ! request_list is same as send_list in this case
-         sdat(filebnds(myid)%unpack_list(1,iq),filebnds(myid)%unpack_list(2,iq),   &
-              filebnds(myid)%unpack_list(3,iq),filebnds(myid)%unpack_list(4,iq)) = &
-         sdat(filebnds(myid)%request_list(1,iq),filebnds(myid)%request_list(2,iq), &
-              filebnds(myid)%request_list(3,iq),filebnds(myid)%request_list(4,iq))
+         sdat(filebnds(myid)%unpack_list(iq,1),filebnds(myid)%unpack_list(iq,2),   &
+              filebnds(myid)%unpack_list(iq,3),filebnds(myid)%unpack_list(iq,4)) = &
+         sdat(filebnds(myid)%request_list(iq,1),filebnds(myid)%request_list(iq,2), &
+              filebnds(myid)%request_list(iq,3),filebnds(myid)%request_list(iq,4))
       end do
 
       ! Unpack incomming messages
@@ -11530,8 +10953,8 @@ contains
             ! unpack_list(iq) is index into extended region
 !$omp simd
             do iq = 1,rslen(iproc)
-               sdat(filebnds(lproc)%unpack_list(1,iq),filebnds(lproc)%unpack_list(2,iq),   &
-                    filebnds(lproc)%unpack_list(3,iq),filebnds(lproc)%unpack_list(4,iq)) = &
+               sdat(filebnds(lproc)%unpack_list(iq,1),filebnds(lproc)%unpack_list(iq,2),   &
+                    filebnds(lproc)%unpack_list(iq,3),filebnds(lproc)%unpack_list(iq,4)) = &
                bnds(lproc)%rbuf(iq)
             end do
          end do
@@ -11565,11 +10988,6 @@ contains
 
       call START_LOG(bounds_begin)
       
-      if ( size(sdat,1) < pil+2 .or. size(sdat,2) < pjl+2 .or. size(sdat,3)< pnpan .or. size(sdat,4) < fncount ) then
-         write(6,*) "Error: filebounds argument size is too small"
-         call ccmpi_abort(-1)
-      end if   
-      
       kx = size(sdat,5)
       lcomm = comm
 
@@ -11594,8 +11012,8 @@ contains
          do k = 1,kx
 !$omp simd
             do iq = 1,send_len
-               bnds(lproc)%sbuf(iq+(k-1)*send_len) = sdat(filebnds(lproc)%send_list(1,iq),filebnds(lproc)%send_list(2,iq),      &
-                                                          filebnds(lproc)%send_list(3,iq),filebnds(lproc)%send_list(4,iq),k)
+               bnds(lproc)%sbuf(iq+(k-1)*send_len) = sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2),      &
+                                                          filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4),k)
             end do
          end do   
          nreq = nreq + 1
@@ -11608,10 +11026,10 @@ contains
 !$omp simd
          do iq = 1,myrlen
             ! request_list is same as send_list in this case
-            sdat(filebnds(myid)%unpack_list(1,iq),filebnds(myid)%unpack_list(2,iq),     &
-                 filebnds(myid)%unpack_list(3,iq),filebnds(myid)%unpack_list(4,iq),k) = &
-            sdat(filebnds(myid)%request_list(1,iq),filebnds(myid)%request_list(2,iq),   &
-                 filebnds(myid)%request_list(3,iq),filebnds(myid)%request_list(4,iq),k)
+            sdat(filebnds(myid)%unpack_list(iq,1),filebnds(myid)%unpack_list(iq,2),     &
+                 filebnds(myid)%unpack_list(iq,3),filebnds(myid)%unpack_list(iq,4),k) = &
+            sdat(filebnds(myid)%request_list(iq,1),filebnds(myid)%request_list(iq,2),   &
+                 filebnds(myid)%request_list(iq,3),filebnds(myid)%request_list(iq,4),k)
          end do   
       end do
 
@@ -11629,8 +11047,8 @@ contains
             do k = 1,kx
 !$omp simd
                do iq = 1,rslen(iproc)
-                  sdat(filebnds(lproc)%unpack_list(1,iq),filebnds(lproc)%unpack_list(2,iq),     &
-                       filebnds(lproc)%unpack_list(3,iq),filebnds(lproc)%unpack_list(4,iq),k) = &
+                  sdat(filebnds(lproc)%unpack_list(iq,1),filebnds(lproc)%unpack_list(iq,2),     &
+                       filebnds(lproc)%unpack_list(iq,3),filebnds(lproc)%unpack_list(iq,4),k) = &
                   bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc))
                end do
             end do   

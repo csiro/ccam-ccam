@@ -1,6 +1,6 @@
 ! aTEB urban canopy model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the aTEB urban canopy model
 !
@@ -636,19 +636,19 @@ do tile = 1,ntiles
   if ( ufull_g(tile)>0 ) then
     do ii = 0,nl
       roof_g(tile)%nodetemp(:,ii) =pack(urban(is:ie,0*nl+ii+1),   upack_g(:,tile))
-      where ( roof_g(tile)%nodetemp(:,ii)>100. )
+      where ( roof_g(tile)%nodetemp(:,ii)>150. )
         roof_g(tile)%nodetemp(:,ii) = roof_g(tile)%nodetemp(:,ii) - urbtemp
       end where
       walle_g(tile)%nodetemp(:,ii)=pack(urban(is:ie,1*nl+ii+2), upack_g(:,tile))
-      where ( walle_g(tile)%nodetemp(:,ii)>100. )
+      where ( walle_g(tile)%nodetemp(:,ii)>150. )
         walle_g(tile)%nodetemp(:,ii) = walle_g(tile)%nodetemp(:,ii) - urbtemp
       end where
       wallw_g(tile)%nodetemp(:,ii)=pack(urban(is:ie,2*nl+ii+3), upack_g(:,tile))
-      where ( wallw_g(tile)%nodetemp(:,ii)>100. )
+      where ( wallw_g(tile)%nodetemp(:,ii)>150. )
         wallw_g(tile)%nodetemp(:,ii) = wallw_g(tile)%nodetemp(:,ii) - urbtemp
       end where
       road_g(tile)%nodetemp(:,ii) =pack(urban(is:ie,3*nl+ii+4),upack_g(:,tile))
-      where ( road_g(tile)%nodetemp(:,ii)>100. )
+      where ( road_g(tile)%nodetemp(:,ii)>150. )
         road_g(tile)%nodetemp(:,ii) = road_g(tile)%nodetemp(:,ii) - urbtemp
       end where
     end do
@@ -695,7 +695,7 @@ do ii = 0,nl
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
         roof_g(tile)%nodetemp(:,ii)=pack(urban(is:ie),upack_g(:,tile))
-        where ( roof_g(tile)%nodetemp(:,ii)>100. )
+        where ( roof_g(tile)%nodetemp(:,ii)>150. )
           roof_g(tile)%nodetemp(:,ii) = roof_g(tile)%nodetemp(:,ii) - urbtemp  
         end where    
       end if
@@ -709,7 +709,7 @@ do ii = 0,nl
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
         walle_g(tile)%nodetemp(:,ii)=pack(urban(is:ie),upack_g(:,tile))
-        where ( walle_g(tile)%nodetemp(:,ii)>100. )
+        where ( walle_g(tile)%nodetemp(:,ii)>150. )
           walle_g(tile)%nodetemp(:,ii) = walle_g(tile)%nodetemp(:,ii) - urbtemp  
         end where  
       end if
@@ -723,7 +723,7 @@ do ii = 0,nl
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
         wallw_g(tile)%nodetemp(:,ii)=pack(urban(is:ie),upack_g(:,tile))
-        where ( wallw_g(tile)%nodetemp(:,ii)>100. )
+        where ( wallw_g(tile)%nodetemp(:,ii)>150. )
           wallw_g(tile)%nodetemp(:,ii) = wallw_g(tile)%nodetemp(:,ii) - urbtemp  
         end where  
       end if
@@ -737,7 +737,7 @@ do ii = 0,nl
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
         road_g(tile)%nodetemp(:,ii)=pack(urban(is:ie),upack_g(:,tile))
-        where ( road_g(tile)%nodetemp(:,ii)>100. )
+        where ( road_g(tile)%nodetemp(:,ii)>150. )
           road_g(tile)%nodetemp(:,ii) = road_g(tile)%nodetemp(:,ii) - urbtemp  
         end where  
       end if
@@ -751,7 +751,7 @@ do ii = 0,nl
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
         slab_g(tile)%nodetemp(:,ii)=pack(urban(is:ie),upack_g(:,tile))
-        where ( slab_g(tile)%nodetemp(:,ii)>100. )
+        where ( slab_g(tile)%nodetemp(:,ii)>150. )
           slab_g(tile)%nodetemp(:,ii) = slab_g(tile)%nodetemp(:,ii) - urbtemp  
         end where  
       end if
@@ -765,7 +765,7 @@ do ii = 0,nl
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
         intm_g(tile)%nodetemp(:,ii)=pack(urban(is:ie),upack_g(:,tile))
-        where ( intm_g(tile)%nodetemp(:,ii)>100. )
+        where ( intm_g(tile)%nodetemp(:,ii)>150. )
           intm_g(tile)%nodetemp(:,ii) = intm_g(tile)%nodetemp(:,ii) - urbtemp  
         end where  
       end if
@@ -1238,11 +1238,13 @@ implicit none
 
 integer, parameter :: maxtype = 8
 integer, intent(in) :: diag
-integer tile, is, ie
+integer tile, is, ie, i
 integer, dimension(ifull), intent(in) :: typedata
 integer, dimension(imax) :: itmp
 real, dimension(maxtype), intent(in) :: paramdata
+logical found
 character(len=*), intent(in) :: paramname
+character(len=20) :: vname
 
 if ( diag>=1 ) write(6,*) "Load aTEB parameters ",trim(paramname)
 if ( .not.ateb_active ) return
@@ -1392,8 +1394,166 @@ select case(paramname)
       end if
     end do  
   case default
-    write(6,*) "ERROR: Unknown aTEB parameter name ",trim(paramname)
-    stop
+    found = .false.
+    do i = 1,4
+      write(vname,'("roofthick",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+            if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+              write(6,*) "ERROR: Urban type is out of range"
+              stop 
+            end if
+            f_roof(tile)%depth(:,i) = paramdata(itmp(1:ufull_g(tile)))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("roofcp",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+            if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+              write(6,*) "ERROR: Urban type is out of range"
+              stop 
+            end if
+            f_roof(tile)%volcp(:,i) = paramdata(itmp(1:ufull_g(tile)))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("roofcond",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+            if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+              write(6,*) "ERROR: Urban type is out of range"
+              stop 
+            end if
+            f_roof(tile)%lambda(:,i) = paramdata(itmp(1:ufull_g(tile)))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("wallthick",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+            if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+              write(6,*) "ERROR: Urban type is out of range"
+              stop 
+            end if
+            f_wall(tile)%depth(:,i) = paramdata(itmp(1:ufull_g(tile)))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("wallcp",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+            if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+              write(6,*) "ERROR: Urban type is out of range"
+              stop 
+            end if
+            f_wall(tile)%volcp(:,i) = paramdata(itmp(1:ufull_g(tile)))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("wallcond",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+            if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+              write(6,*) "ERROR: Urban type is out of range"
+              stop 
+            end if
+            f_wall(tile)%lambda(:,i) = paramdata(itmp(1:ufull_g(tile)))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("roadthick",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+            if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+              write(6,*) "ERROR: Urban type is out of range"
+              stop 
+            end if
+            f_road(tile)%depth(:,i) = paramdata(itmp(1:ufull_g(tile)))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("roadcp",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+            if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+              write(6,*) "ERROR: Urban type is out of range"
+              stop 
+            end if
+            f_road(tile)%volcp(:,i) = paramdata(itmp(1:ufull_g(tile)))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("roadcond",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+            if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+              write(6,*) "ERROR: Urban type is out of range"
+              stop 
+            end if
+            f_road(tile)%lambda(:,i) = paramdata(itmp(1:ufull_g(tile)))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+    end do
+    if ( .not.found ) then
+      write(6,*) "ERROR: Unknown aTEB parameter name ",trim(paramname)
+      stop
+    end if  
 end select
 
 do tile = 1,ntiles

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -136,6 +136,7 @@ integer, dimension(1) :: nstart, ncount
 
 character(len=1024) :: surfin
 character(len=80) :: header
+character(len=20) :: vname
 
 real, intent(in) :: siburbanfrac
 real, intent(out) :: hourst
@@ -153,7 +154,7 @@ real, dimension(9) :: swilt_diag, sfc_diag
 real, dimension(ms) :: wb_tmpry
 real, dimension(ifull,maxtile) :: svs,vlin,vlinprev,vlinnext,vlinnext2
 real, dimension(ifull,maxtile) :: casapoint
-real, dimension(8,10) :: atebparm
+real, dimension(8,36) :: atebparm
 real rlonx, rlatx, alf
 real c, cent
 real coslat, coslong, costh, den, diffb, diffg, dist
@@ -734,7 +735,7 @@ if ( nurban/=0 ) then
   end where
   call atebinit(ifull,sigmu(:),0)
   call atebtype(urbantype,0)  
-  if ( abs(urbanformat-1.)<1.e-10 ) then
+  if ( urbanformat>0.99 .and. urbanformat<2.01 ) then
     if ( myid==0 ) then
       write(6,*) "Using user defined aTEB urban parameters"  
       nstart(1) = 1
@@ -761,6 +762,54 @@ if ( nurban/=0 ) then
     call atebdeftype(atebparm(1:8,8),urbantype,'wallalpha',0)
     call atebdeftype(atebparm(1:8,9),urbantype,'roadalpha',0)
     call atebdeftype(atebparm(1:8,10),urbantype,'vegalphac',0)
+  end if
+  ! extended ateb format
+  if ( urbanformat>1.99 .and. urbanformat<2.01 ) then
+    if ( myid==0 ) then
+      nstart(1) = 1
+      ncount(1) = 8
+      do i = 1,4
+        write(vname,'("roof_thick_l",(I1.1))') i
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,i))
+        write(vname,'("roof_cp_l",(I1.1))') i
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,4+i))
+        write(vname,'("roof_cond_l",(I1.1))') i
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,8+i))
+        write(vname,'("wall_thick_l",(I1.1))') i
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,12+i))
+        write(vname,'("wall_cp_l",(I1.1))') i
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,16+i))
+        write(vname,'("wall_cond_l",(I1.1))') i
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,20+i))  
+        write(vname,'("road_thick_l",(I1.1))') i
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,24+i))
+        write(vname,'("road_cp_l",(I1.1))') i
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,28+i))
+        write(vname,'("road_cond_l",(I1.1))') i
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,32+i))
+      end do
+    end if
+    call ccmpi_bcast(atebparm(1:8,1:36),0,comm_world)
+    do i = 1,4
+      write(vname,'("roofthick",(I1.1))') i  
+      call atebdeftype(atebparm(1:8,i),urbantype,vname,0)  
+      write(vname,'("roofcp",(I1.1))') i  
+      call atebdeftype(atebparm(1:8,4+i),urbantype,vname,0) 
+      write(vname,'("roofcond",(I1.1))') i  
+      call atebdeftype(atebparm(1:8,8+i),urbantype,vname,0) 
+      write(vname,'("wallthick",(I1.1))') i  
+      call atebdeftype(atebparm(1:8,12+i),urbantype,vname,0)  
+      write(vname,'("wallcp",(I1.1))') i  
+      call atebdeftype(atebparm(1:8,16+i),urbantype,vname,0) 
+      write(vname,'("wallcond",(I1.1))') i  
+      call atebdeftype(atebparm(1:8,20+i),urbantype,vname,0)
+      write(vname,'("roadthick",(I1.1))') i  
+      call atebdeftype(atebparm(1:8,24+i),urbantype,vname,0)  
+      write(vname,'("roadcp",(I1.1))') i  
+      call atebdeftype(atebparm(1:8,28+i),urbantype,vname,0) 
+      write(vname,'("roadcond",(I1.1))') i  
+      call atebdeftype(atebparm(1:8,32+i),urbantype,vname,0) 
+    end do
   end if
 else
   sigmu(:) = 0.
@@ -2071,28 +2120,28 @@ end if
 if ( nurban/=0 ) then
   if ( myid==0 ) write(6,*) 'Importing ateb urban data'
   where( atebdwn(:,1)>=399. ) ! must be the same as spval in onthefly.f
-    atebdwn(:,1)=tss                ! roof temp 1  
-    atebdwn(:,2)=tss                ! roof temp 2
-    atebdwn(:,3)=0.5*(tss+291.16)   ! roof temp 3
-    atebdwn(:,4)=0.5*(tss+291.16)   ! roof temp 4
-    atebdwn(:,5)=291.16             ! roof temp 5
-    atebdwn(:,6)=tss                ! walleast temp 1
-    atebdwn(:,7)=tss                ! walleast temp 2
-    atebdwn(:,8)=0.5*(tss+291.16)   ! walleast temp 3
-    atebdwn(:,9)=0.5*(tss+291.16)   ! walleast temp 4
-    atebdwn(:,10)=291.16            ! walleast temp 5
-    atebdwn(:,11)=tss               ! wallwest temp 1
-    atebdwn(:,12)=tss               ! wallwest temp 2
-    atebdwn(:,13)=0.5*(tss+291.16)  ! wallwest temp 3
-    atebdwn(:,14)=0.5*(tss+291.16)  ! wallwest temp 4
-    atebdwn(:,15)=291.16            ! wallwest temp 5
-    atebdwn(:,16)=tss               ! road temp 1
-    atebdwn(:,17)=tss               ! road temp 2
-    atebdwn(:,18)=tss               ! road temp 3
-    atebdwn(:,19)=tss               ! road temp 4
-    atebdwn(:,20)=tss               ! road temp 5
-    atebdwn(:,21)=0.5*0.26+0.5*0.18 ! Soil water road
-    atebdwn(:,22)=0.18              ! Green roof water
+    atebdwn(:,1)=tss-urbtemp                ! roof temp 1  
+    atebdwn(:,2)=tss-urbtemp                ! roof temp 2
+    atebdwn(:,3)=0.5*(tss+291.16)-urbtemp   ! roof temp 3
+    atebdwn(:,4)=0.5*(tss+291.16)-urbtemp   ! roof temp 4
+    atebdwn(:,5)=291.16-urbtemp             ! roof temp 5
+    atebdwn(:,6)=tss-urbtemp                ! walleast temp 1
+    atebdwn(:,7)=tss-urbtemp                ! walleast temp 2
+    atebdwn(:,8)=0.5*(tss+291.16)-urbtemp   ! walleast temp 3
+    atebdwn(:,9)=0.5*(tss+291.16)-urbtemp   ! walleast temp 4
+    atebdwn(:,10)=291.16-urbtemp            ! walleast temp 5
+    atebdwn(:,11)=tss-urbtemp               ! wallwest temp 1
+    atebdwn(:,12)=tss-urbtemp               ! wallwest temp 2
+    atebdwn(:,13)=0.5*(tss+291.16)-urbtemp  ! wallwest temp 3
+    atebdwn(:,14)=0.5*(tss+291.16)-urbtemp  ! wallwest temp 4
+    atebdwn(:,15)=291.16-urbtemp            ! wallwest temp 5
+    atebdwn(:,16)=tss-urbtemp               ! road temp 1
+    atebdwn(:,17)=tss-urbtemp               ! road temp 2
+    atebdwn(:,18)=tss-urbtemp               ! road temp 3
+    atebdwn(:,19)=tss-urbtemp               ! road temp 4
+    atebdwn(:,20)=tss-urbtemp               ! road temp 5
+    atebdwn(:,21)=0.5*0.26+0.5*0.18         ! Soil water road
+    atebdwn(:,22)=0.18                      ! Green roof water
     atebdwn(:,23)=0.   ! roof water
     atebdwn(:,24)=0.   ! road water
     atebdwn(:,25)=0.   ! canyon leaf water
