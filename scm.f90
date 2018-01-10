@@ -8,9 +8,60 @@ use aerosolldr, only : xtosav,xtg,naero  & ! LDR prognostic aerosols
     ,dmse,dmsso2o,dms_burden             &
     ,so2e,so2so4o,so2wd,so2dd,so2_burden &
     ,so4e,so4wd,so4dd,so4_burden         &
-    ,Ch_dust,zvolcemi,aeroindir
+    ,Ch_dust,zvolcemi,aeroindir          &
+    ,so4mtn,carbmtn                      &
+    ,saltsmallmtn,saltlargemtn
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
-use cable_ccam, only : proglai             ! CABLE
+use ateb, only : atebnmlfile             & ! Urban
+    ,ateb_energytol=>energytol           &
+    ,ateb_resmeth=>resmeth               &
+    ,ateb_useonewall=>useonewall         &
+    ,ateb_zohmeth=>zohmeth               &
+    ,ateb_acmeth=>acmeth                 &
+    ,ateb_nrefl=>nrefl                   &
+    ,ateb_vegmode=>vegmode               &
+    ,ateb_soilunder=>soilunder           &
+    ,ateb_conductmeth=>conductmeth       &
+    ,ateb_scrnmeth=>scrnmeth             &
+    ,ateb_wbrelaxc=>wbrelaxc             &
+    ,ateb_wbrelaxr=>wbrelaxr             &
+    ,ateb_lweff=>lweff                   &
+    ,ateb_ncyits=>ncyits                 &
+    ,ateb_nfgits=>nfgits                 &
+    ,ateb_tol=>tol                       &
+    ,ateb_alpha=>alpha                   &
+    ,ateb_zosnow=>zosnow                 &
+    ,ateb_snowemiss=>snowemiss           &
+    ,ateb_maxsnowalpha=>maxsnowalpha     &
+    ,ateb_minsnowalpha=>minsnowalpha     &
+    ,ateb_maxsnowden=>maxsnowden         &
+    ,ateb_minsnowden=>minsnowden         &
+    ,ateb_refheight=>refheight           &
+    ,ateb_zomratio=>zomratio             &
+    ,ateb_zocanyon=>zocanyon             &
+    ,ateb_zoroof=>zoroof                 &
+    ,ateb_maxrfwater=>maxrfwater         &
+    ,ateb_maxrdwater=>maxrdwater         &
+    ,ateb_maxrfsn=>maxrfsn               &
+    ,ateb_maxrdsn=>maxrdsn               &
+    ,ateb_maxvwatf=>maxvwatf             &
+    ,ateb_intairtmeth=>intairtmeth       &
+    ,ateb_intmassmeth=>intmassmeth       &
+    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
+    ,ateb_statsmeth=>statsmeth           &
+    ,ateb_behavmeth=>behavmeth           &
+    ,ateb_infilmeth=>infilmeth           &
+    ,ateb_ac_heatcap=>ac_heatcap         &
+    ,ateb_ac_coolcap=>ac_coolcap         &
+    ,ateb_ac_heatprop=>ac_heatprop       &
+    ,ateb_ac_coolprop=>ac_coolprop       &
+    ,ateb_ac_smooth=>ac_smooth           &
+    ,ateb_ac_deltat=>ac_deltat
+use cable_ccam, only : proglai           & ! CABLE
+    ,soil_struc,cable_pop,progvcmax      &
+    ,fwsoil_switch,cable_litter          &
+    ,gs_switch,cable_climate             &
+    ,climate_daycount
 use carbpools_m, only : carbpools_init   & ! Carbon pools
     ,fpn,frs,frp
 use cc_mpi                                 ! CC MPI routines
@@ -19,6 +70,7 @@ use cfrac_m                                ! Cloud fraction
 use cloudmod                               ! Prognostic cloud fraction
 use const_phys                             ! Physical constants
 use convjlm_m                              ! Convection
+use convjlm22_m                            ! Convection v2
 use dates_m                                ! Date data
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
@@ -26,13 +78,17 @@ use filnames_m                             ! Filenames
 use gdrag_m, only : gdrag_init,gwdrag    & ! Gravity wave drag
     ,gdrag_sbl
 use histave_m                              ! Time average arrays
+use infile                                 ! Input file routines
 use kuocomb_m                              ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
 use leoncld_mod                            ! Prognostic cloud condensate
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use mlo, only : mlodiag,wlev,mxd,mindep  & ! Ocean physics and prognostic arrays
-   ,minwater,zomode,zoseaice,factchseaice
+   ,minwater,zomode,zoseaice             &
+   ,factchseaice,minwater,mxd,mindep     &
+   ,alphavis_seaice,alphanir_seaice      &
+   ,otaumode
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use nharrs_m, only : nharrs_init         & ! Non-hydrostatic atmosphere arrays
@@ -51,6 +107,7 @@ use radisw_m
 use savuvt_m                               ! Saved dynamic arrays
 use screen_m                               ! Screen level diagnostics
 use seaesfrad_m                            ! SEA-ESF radiation
+use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
 use soil_m                                 ! Soil and surface data
 use soilsnow_m                             ! Soil, snow and surface data
@@ -70,16 +127,19 @@ include 'version.h'                        ! Model version data
 
 integer irest, io_nest, npa, npb, jalbfix, mstn
 integer mins_rad, secs_rad
-integer iq
+integer iq, k
 integer ivegt_in, isoil_in, gablsflux
+integer jyear, jmonth, jday, jhour, jmin, mins
+integer nalpha
 real, dimension(1000) :: press_in
 real press_surf, gridres
-real nalpha, nwrite, es
+real nwrite, es
 real rlong_in, rlat_in, z_in
 character(len=60) comm, comment
 character(len=80) metforcing, timeoutput, profileoutput
 character(len=80) lsmforcing, lsmoutput
-logical odcalc, fixtsurf, nolatent, noradiation
+logical sday_update
+logical fixtsurf, nolatent, noradiation
 
 namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     z_in,ivegt_in,isoil_in,metforcing,lsmforcing,lsmoutput,       &
@@ -106,9 +166,12 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     knh,ccycle,kblock,nud_aero,ch_dust,zvolcemi,aeroindir,helim,  &
     fc2,sigbot_gwd,alphaj,proglai,cgmap_offset,cgmap_scale,       &
     nriver,amxlsq
-! radiation namelist
-namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            &
-    liqradmethod,iceradmethod,carbonradmethod
+! radiation and aerosol namelist
+namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
+    liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
+    dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
+    ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
+    saltlargemtn
 ! file namelist
 namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &
@@ -129,11 +192,30 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
-    stabmeth,tke_umin,tkemeth,qcmf,                               &
+    stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,                 &
     amxlsq,                                                       & !JH PBL scheme
-    helim,fc2,sigbot_gwd,alphaj                                     !GWdrag
-! land and carbon namelist
-namelist/landnml/proglai,ccycle
+    ngwd,helim,fc2,sigbot_gwd,alphaj                                !GWdrag
+! land, urban and carbon namelist
+namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
+    progvcmax,fwsoil_switch,cable_litter,                         &
+    gs_switch,cable_climate,                                      &
+    ateb_energytol,ateb_resmeth,ateb_useonewall,ateb_zohmeth,     & ! urban
+    ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &
+    ateb_conductmeth,ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,   &
+    ateb_lweff,ateb_ncyits,ateb_nfgits,ateb_tol,ateb_alpha,       &
+    ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,                 &
+    ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
+    ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
+    ateb_maxrfwater,ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,    &
+    ateb_maxvwatf,ateb_intairtmeth,ateb_intmassmeth,              &
+    ateb_cvcoeffmeth,ateb_statsmeth,ateb_behavmeth,               &
+    ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
+    ateb_ac_heatprop,ateb_ac_coolprop,ateb_ac_smooth,             &
+    ateb_ac_deltat
+! ocean namelist
+namelist/mlonml/zomode,zoseaice,                                  &
+    factchseaice,minwater,mxd,mindep,otaumode,                    &
+    alphavis_seaice,alphanir_seaice
 
 data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
 data mins_rad/-1/,nwrite/0/
@@ -146,6 +228,9 @@ nh = 5
 gablsflux = 0
 nproc = 1
 maxthreads = 1
+maxtilesize = 1
+ntiles = 1
+imax = 1
 
 #ifndef stacklimit
 ! For linux only - removes stacklimit on all processors
@@ -362,14 +447,29 @@ savs(1:ifull,:) = sdot(1:ifull,2:kl)
 call outputscm(timeoutput,profileoutput,lsmoutput)
 
 call gdrag_sbl
-call convjlm_init(ifull,kl)
-call vertmix_init(ifull,kl)
+select case ( nkuo )
+  case(21,22)
+    call convjlm22_init
+  case(23,24)
+    call convjlm_init
+  end select
+select case(nrad)
+  case(5)
+    call seaesfrad_init
+end select
+call sflux_init
+call vertmix_init
 
 do ktau = 1,ntau
   write(6,*) "Time ",ktau,ntau
-  write(6,*) "tggsn ",tggsn,isflag
-  !write(6,*) "ssdn ",ssdn
-  !write(6,*) "snowd ",snowd
+  if ( isoilm(1)==9 ) then
+    write(6,*) "tggsn ",tggsn,isflag
+    !write(6,*) "ssdn ",ssdn
+    !write(6,*) "snowd ",snowd
+  end if
+  if ( abs(nurban)>0 ) then
+    write(6,*) "rnet,fg,eg ",rnet(1),fg(1),eg(1)
+  end if
   if ( nvmix==6 ) then
     write(6,*) "tke,eps,kh ",tke(1,1),eps(1,1),cm0*tke(1,1)*tke(1,1)/eps(1,1)
   end if
@@ -479,47 +579,69 @@ do ktau = 1,ntau
   savu(1:ifull,:) = u(1:ifull,:)
   savv(1:ifull,:) = v(1:ifull,:)
   savs(1:ifull,:) = sdot(1:ifull,2:kl)
+
+  ! MISC
+  if ( nrad==5 ) then
+    call seaesfrad_settime
+  end if    
+  ! aerosol timer calculations
+  call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
+  sday_update = sday<=mins-updateoxidant
+  ! initialse surface rainfall to zero
+  condc(:) = 0. ! default convective rainfall (assumed to be rain)
+  condx(:) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
+  conds(:) = 0. ! default total ice + snow (convection and large scale)
+  condg(:) = 0. ! default total graupel (convection and large scale)
+  ! Save aerosol concentrations for outside convective fraction of grid box
+  if ( abs(iaero)>=2 ) then
+    xtosav(:,:,:) = xtg(:,:,:) ! Aerosol mixing ratio outside convective cloud
+  end if
+  call nantest("start of physics",1,ifull)
   
   ! GWDRAG
   if ( ngwd<0 ) then
     call gwdrag  ! <0 for split - only one now allowed
   end if
+  call nantest("after gravity wave drag",1,ifull)
 
   ! CONVECTION
-  condc     = 0. ! default convective rainfall (assumed to be rain)
-  condx     = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
-  conds     = 0. ! default total ice + snow (convection and large scale)
-  condg     = 0. ! default total graupel (convection and large scale)
-  ! Save aerosol concentrations for outside convective fraction of grid box
-  if ( abs(iaero) >= 2 ) then
-    xtosav(:,:,:) = xtg(1:ifull,:,:) ! Aerosol mixing ratio outside convective cloud
-  end if
+  convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) - t(1:ifull,1:kl)*real(nperday)/real(nperavg)
   ! Select convection scheme
   select case ( nkuo )
+    case(21,22)
+      call convjlm22              ! split convjlm 
     case(23,24)
       call convjlm                ! split convjlm 
   end select
+  call fixqg(1,ifull)
+  call nantest("after convection",1,ifull)    
 
   ! CLOUD MICROPHYSICS
   if ( ldr/=0 ) then
     ! LDR microphysics scheme
     call leoncld
   end if
+  convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) + t(1:ifull,1:kl)*real(nperday)/real(nperavg)    
+  call nantest("after cloud microphysics",1,ifull) 
 
   ! RADIATON
-  odcalc = mod(ktau,kountr)==0 .or. ktau==1 ! ktau-1 better
+  if ( ncloud>=4 ) then
+    nettend(1:ifull,1:kl) = nettend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
+  end if  
   if ( .not.noradiation ) then
     select case ( nrad )
       case(5)
         ! GFDL SEA-EFS radiation
-        call seaesfrad(il*nrows_rad,odcalc)
+        call seaesfrad
     end select
   end if
+  call nantest("after radiation",1,ifull)   
 
   ! SURFACE FLUXES
   if ( ntsur>1 ) then  ! should be better after convjlm
     call sflux(nalpha)
-  endif   ! (ntsur>1)  
+  endif   ! (ntsur>1) 
+  call nantest("after surface fluxes",1,ifull)
   
   call nudgescm(metforcing,fixtsurf)
   
@@ -542,21 +664,45 @@ do ktau = 1,ntau
 
   ! AEROSOLS
   if ( abs(iaero) >= 2 ) then
-    call aerocalc
+    call aerocalc(sday_update,mins)
   end if
+  call nantest("after aerosols",1,ifull)
 
   ! VERTICAL MIXING
   if ( ntsur>=1 ) then ! calls vertmix but not sflux for ntsur=1
     call vertmix
   endif  ! (ntsur>=1)
-  if ( ncloud>=4 ) then
-    nettend = (nettend-t(1:ifull,:)/dt)
-  end if
+  call fixqg(1,ifull)
+  call nantest("after PBL mixing",1,ifull)
   
   ! DIAGNOSTICS
   if ( rescrn > 0 ) then
-    call autoscrn
+    call autoscrn(1,ifull)
   end if
+  ! Convection diagnostic output
+  cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
+  ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
+  ! Microphysics diagnostic output
+  do k = 1,kl
+    riwp_ave(1:ifull) = riwp_ave(1:ifull) - qfrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
+    rlwp_ave(1:ifull) = rlwp_ave(1:ifull) - qlrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
+  end do
+  rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + condx(1:ifull)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+
+  ! MISC    
+  ! Update aerosol timer
+  if ( sday_update ) then
+    sday = mins
+  end if
+  ! update cable timer
+  if ( nsib==7 ) then
+    if ( cable_climate==1 ) then
+      if ( real(climate_daycount)*dt>86400. ) then
+        climate_daycount = 0  
+      end if
+      climate_daycount = climate_daycount + 1
+    end if  
+  end if        
   
   ! OUTPUT
   call outputscm(timeoutput,profileoutput,lsmoutput)
@@ -693,6 +839,7 @@ real, dimension(:), allocatable, save :: new_in
 real, dimension(1) :: psurf_in
 real gwdfac, hefact, c
 character(len=*), intent(in) :: metforcing, lsmforcing
+character(len=20) vname
 logical, save :: lsmonly = .false.
 
 allocate( sdepth(ifull,3) )
@@ -1007,7 +1154,7 @@ end if
 ! nurban=-1 urban (save in history and restart files)
 if (nurban/=0) then
   write(6,*) 'Initialising ateb urban scheme'
-  sigmu(:) = 0.
+  sigmu(:) = 1.
   where ( .not.land(1:ifull) .or. sigmu<0.01 )
     sigmu(:) = 0.
   end where
@@ -1114,36 +1261,93 @@ end if
 ! UPDATE URBAN DATA (nurban)
 if (nurban/=0) then
   write(6,*) 'Importing ateb urban data'
-  allocate( atebdwn(ifull,28) )
+  allocate( atebdwn(ifull,5) )
   atebdwn(:,1)=tss                ! roof temp 1
   atebdwn(:,2)=0.5*(tss+291.16)   ! roof temp 2
   atebdwn(:,3)=0.5*(tss+291.16)   ! roof temp 3
-  atebdwn(:,4)=291.16             ! roof temp 4
-  atebdwn(:,5)=tss                ! walleast temp 1
-  atebdwn(:,6)=0.5*(tss+291.16)   ! walleast temp 2
-  atebdwn(:,7)=0.5*(tss+291.16)   ! walleast temp 3
-  atebdwn(:,8)=291.16             ! walleast temp 4
-  atebdwn(:,9)=tss                ! wallwest temp 1
-  atebdwn(:,10)=0.5*(tss+291.16)  ! wallwest temp 2
-  atebdwn(:,11)=0.5*(tss+291.16)  ! wallwest temp 3
-  atebdwn(:,12)=291.16            ! wallwest temp 4
-  atebdwn(:,13)=tss               ! road temp 1
-  atebdwn(:,14)=tss               ! road temp 2
-  atebdwn(:,15)=tss               ! road temp 3
-  atebdwn(:,16)=tss               ! road temp 4
-  atebdwn(:,17)=0.5*0.26+0.5*0.18 ! Soil water road
-  atebdwn(:,18)=0.18              ! Green roof water
-  atebdwn(:,19)=0.   ! roof water
-  atebdwn(:,20)=0.   ! road water
-  atebdwn(:,21)=0.   ! canyon leaf water
-  atebdwn(:,22)=0.   ! roof leaf water
-  atebdwn(:,23)=0.   ! roof snow
-  atebdwn(:,24)=0.   ! road snow
-  atebdwn(:,25)=100. ! roof snow density
-  atebdwn(:,26)=100. ! road snow density
-  atebdwn(:,27)=0.85 ! roof snow albedo
-  atebdwn(:,28)=0.85 ! road snow albedo
-  call atebload(atebdwn,0)
+  atebdwn(:,4)=0.5*(tss+291.16)   ! roof temp 4
+  atebdwn(:,5)=291.16             ! roof temp 5
+  do k = 1,5
+    write(vname,'("rooftemp",I1.1)') k  
+    atebdwn(:,k) = atebdwn(:,k) - urbtemp
+    call atebloadd(atebdwn(:,k),vname,0)
+  end do 
+  atebdwn(:,1)=tss                ! walleast temp 1
+  atebdwn(:,2)=0.5*(tss+291.16)   ! walleast temp 2
+  atebdwn(:,3)=0.5*(tss+291.16)   ! walleast temp 3
+  atebdwn(:,4)=0.5*(tss+291.16)   ! walleast temp 4
+  atebdwn(:,5)=291.16             ! walleast temp 5
+  do k = 1,5
+    write(vname,'("walletemp",I1.1)') k  
+    atebdwn(:,k) = atebdwn(:,k) - urbtemp
+    call atebloadd(atebdwn(:,k),vname,0)
+  end do
+  atebdwn(:,1)=tss                ! wallwest temp 1
+  atebdwn(:,2)=0.5*(tss+291.16)   ! wallwest temp 2
+  atebdwn(:,3)=0.5*(tss+291.16)   ! wallwest temp 3
+  atebdwn(:,4)=0.5*(tss+291.16)   ! wallwest temp 4
+  atebdwn(:,5)=291.16             ! wallwest temp 5
+  do k = 1,5
+    write(vname,'("wallwtemp",I1.1)') k  
+    atebdwn(:,k) = atebdwn(:,k) - urbtemp
+    call atebloadd(atebdwn(:,k),vname,0)
+  end do
+  atebdwn(:,1)=tss                ! road temp 1
+  atebdwn(:,2)=tss                ! road temp 2
+  atebdwn(:,3)=tss                ! road temp 3
+  atebdwn(:,4)=tss                ! road temp 4
+  atebdwn(:,5)=tss                ! road temp 5
+  do k = 1,5
+    write(vname,'("roadtemp",I1.1)') k  
+    atebdwn(:,k) = atebdwn(:,k) - urbtemp
+    call atebloadd(atebdwn(:,k),vname,0)
+  end do
+  atebdwn(:,1)=291.16             ! slab temp 1
+  atebdwn(:,2)=291.16             ! slab temp 2
+  atebdwn(:,3)=291.16             ! slab temp 3
+  atebdwn(:,4)=291.16             ! slab temp 4
+  atebdwn(:,5)=291.16             ! slab temp 5
+  do k = 1,5
+    write(vname,'("slabtemp",I1.1)') k  
+    atebdwn(:,k) = atebdwn(:,k) - urbtemp
+    call atebloadd(atebdwn(:,k),vname,0)
+  end do
+  atebdwn(:,1)=291.16             ! intm temp 1
+  atebdwn(:,2)=291.16             ! intm temp 2
+  atebdwn(:,3)=291.16             ! intm temp 3
+  atebdwn(:,4)=291.16             ! intm temp 4
+  atebdwn(:,5)=291.16             ! intm temp 5
+  do k = 1,5
+    write(vname,'("intmtemp",I1.1)') k  
+    atebdwn(:,k) = atebdwn(:,k) - urbtemp
+    call atebloadd(atebdwn(:,k),vname,0)
+  end do
+  atebdwn(:,1) = 291.16           ! room air temp
+  call atebloadd(atebdwn(:,1),"roomtemp",0)
+  atebdwn(:,1)=0.5*0.26+0.5*0.18  ! Soil water road
+  call atebloadd(atebdwn(:,1),"canyonsoilmoisture",0)
+  atebdwn(:,1)=0.18               ! Green roof water
+  call atebloadd(atebdwn(:,1),"roofsoilmoisture",0)
+  atebdwn(:,1)=0.   ! road water
+  call atebloadd(atebdwn(:,1),"roadsurfacewater",0)
+  atebdwn(:,1)=0.   ! roof water
+  call atebloadd(atebdwn(:,1),"roofsurfacewater",0)
+  atebdwn(:,1)=0.   ! canyon leaf water
+  call atebloadd(atebdwn(:,1),"canyonleafwater",0)
+  atebdwn(:,1)=0.   ! roof leaf water
+  call atebloadd(atebdwn(:,1),"roofleafwater",0)
+  atebdwn(:,1)=0.   ! road snow
+  call atebloadd(atebdwn(:,1),"roadsnowdepth",0)
+  atebdwn(:,1)=0.   ! roof snow
+  call atebloadd(atebdwn(:,1),"roofsnowdepth",0)
+  atebdwn(:,1)=100. ! road snow density
+  call atebloadd(atebdwn(:,1),"roadsnowdensity",0)
+  atebdwn(:,1)=100. ! roof snow density
+  call atebloadd(atebdwn(:,1),"roofsnowdensity",0)
+  atebdwn(:,1)=0.85 ! road snow albedo
+  call atebloadd(atebdwn(:,1),"roadsnowalbedo",0)
+  atebdwn(:,1)=0.85 ! roof snow albedo
+  call atebloadd(atebdwn(:,1),"roofsnowalbedo",0)
   deallocate( atebdwn )
 end if
 
@@ -2608,6 +2812,317 @@ write(6,*) "====================================================================
 return
 end    
 
+    
+!--------------------------------------------------------------------
+! Fix water vapour mixing ratio
+subroutine fixqg(js,je)
+
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use const_phys                        ! Physical constants
+use liqwpar_m                         ! Cloud water mixing ratios
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+
+implicit none
+
+integer, intent(in) :: js, je
+integer k
+real, dimension(js:je) :: dumqtot, dumliq
+
+if ( js<1 .or. je>ifull ) then
+  write(6,*) "ERROR: Invalid index for fixqg"
+  stop
+end if
+
+do k = 1,kl
+  dumqtot(js:je) = qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k) ! qtot
+  dumqtot(js:je) = max( dumqtot(js:je), qgmin )
+  dumliq(js:je)  = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
+  qfg(js:je,k)   = max( qfg(js:je,k), 0. ) 
+  qlg(js:je,k)   = max( qlg(js:je,k), 0. )
+  qrg(js:je,k)   = max( qrg(js:je,k), 0. )
+  qsng(js:je,k)  = max( qsng(js:je,k), 0. )
+  qgrg(js:je,k)  = max( qgrg(js:je,k), 0. )
+  qg(js:je,k)    = dumqtot(js:je) - qlg(js:je,k) - qfg(js:je,k)
+  qg(js:je,k)    = max( qg(js:je,k), 0. )
+  t(js:je,k)     = dumliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
+end do
+
+return
+end subroutine fixqg   
+    
+!-------------------------------------------------------------------- 
+! Check for NaN errors
+subroutine nantest(message,js,je)
+
+use aerosolldr, only : xtg,ssn,naero  ! LDR prognostic aerosols
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use cc_mpi                            ! CC MPI routines
+use cfrac_m                           ! Cloud fraction
+use extraout_m                        ! Additional diagnostics
+use liqwpar_m                         ! Cloud water mixing ratios
+use morepbl_m                         ! Additional boundary layer diagnostics
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+use pbl_m                             ! Boundary layer arrays
+use work2_m                           ! Diagnostic arrays
+use work3f_m                          ! Grid work arrays
+
+implicit none
+
+integer, intent(in) :: js, je
+character(len=*), intent(in) :: message
+
+if ( js<1 .or. je>ifull ) then
+  write(6,*) "ERROR: Invalid index for nantest - ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(t(js:je,1:kl)/=t(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in t on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(t(js:je,1:kl)<75.) .or. any(t(js:je,1:kl)>425.) ) then
+  write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(t(js:je,1:kl)),maxloc(t(js:je,1:kl))
+  call ccmpi_abort(-1)
+end if
+
+if ( any(u(js:je,1:kl)/=u(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in u on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(u(js:je,1:kl)<-400.) .or. any(u(js:je,1:kl)>400.) ) then
+  write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(u(js:je,1:kl)),maxval(u(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(u(js:je,1:kl)),maxloc(u(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(v(js:je,1:kl)/=v(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in v on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(v(js:je,1:kl)<-400.) .or. any(v(js:je,1:kl)>400.) ) then
+  write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(v(js:je,1:kl)),maxval(v(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(v(js:je,1:kl)),maxloc(v(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(qg(js:je,1:kl)/=qg(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>7.e-2) ) then
+  write(6,*) "ERROR: Out-of-range detected in qg on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(qg(js:je,1:kl)),maxval(qg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qg(js:je,1:kl)),maxloc(qg(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(qlg(js:je,1:kl)/=qlg(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qlg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>7.e-2) ) then
+  write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(qlg(js:je,1:kl)),maxval(qlg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qlg(js:je,1:kl)),maxloc(qlg(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(qfg(js:je,1:kl)/=qfg(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qfg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>7.e-2) ) then
+  write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(qfg(js:je,1:kl)),maxval(qfg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qfg(js:je,1:kl)),maxloc(qfg(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(qrg(js:je,1:kl)/=qrg(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qrg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qrg(js:je,1:kl)<-1.e-8) .or. any(qrg(js:je,1:kl)>7.e-2) ) then
+  write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(qrg(js:je,1:kl)),maxval(qrg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qrg(js:je,1:kl)),maxloc(qrg(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(qsng(js:je,1:kl)/=qsng(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qsng on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qsng(js:je,1:kl)<-1.e-8) .or. any(qsng(js:je,1:kl)>7.e-2) ) then
+  write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(qsng(js:je,1:kl)),maxval(qsng(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qsng(js:je,1:kl)),maxloc(qsng(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(qgrg(js:je,1:kl)/=qgrg(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qgrg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qgrg(js:je,1:kl)<-1.e-8) .or. any(qgrg(js:je,1:kl)>7.e-2) ) then
+  write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(qgrg(js:je,1:kl)),maxval(qgrg(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qgrg(js:je,1:kl)),maxloc(qgrg(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(qlrad(js:je,1:kl)/=qlrad(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qlrad on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>7.e-2) ) then
+  write(6,*) "ERROR: Out-of-range detected in qlrad on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(qlrad(js:je,1:kl)),maxval(qlrad(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qlrad(js:je,1:kl)),maxloc(qlrad(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(qfrad(js:je,1:kl)/=qfrad(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in qfrad on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>7.e-2) ) then
+  write(6,*) "ERROR: Out-of-range detected in qfrad on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(qfrad(js:je,1:kl)),maxval(qfrad(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(qfrad(js:je,1:kl)),maxloc(qfrad(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(cfrac(js:je,1:kl)/=cfrac(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in cfrac on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(cfrac(js:je,1:kl)<-1.e-8) .or. any(cfrac(js:je,1:kl)>1.) ) then
+  write(6,*) "ERROR: Out-of-range detected in cfrac on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(cfrac(js:je,1:kl)),maxval(cfrac(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(cfrac(js:je,1:kl)),maxloc(cfrac(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(rfrac(js:je,1:kl)/=rfrac(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in rfrac on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(rfrac(js:je,1:kl)<-1.e-8) .or. any(rfrac(js:je,1:kl)>1.) ) then
+  write(6,*) "ERROR: Out-of-range detected in rfrac on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(rfrac(js:je,1:kl)),maxval(rfrac(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(rfrac(js:je,1:kl)),maxloc(rfrac(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(sfrac(js:je,1:kl)/=sfrac(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in sfrac on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(sfrac(js:je,1:kl)<-1.e-8) .or. any(sfrac(js:je,1:kl)>1.) ) then
+  write(6,*) "ERROR: Out-of-range detected in sfrac on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(sfrac(js:je,1:kl)),maxval(sfrac(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(sfrac(js:je,1:kl)),maxloc(sfrac(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(gfrac(js:je,1:kl)/=gfrac(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in gfrac on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)    
+end if
+
+if ( any(gfrac(js:je,1:kl)<-1.e-8) .or. any(gfrac(js:je,1:kl)>1.) ) then
+  write(6,*) "ERROR: Out-of-range detected in gfrac on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(gfrac(js:je,1:kl)),maxval(gfrac(js:je,1:kl))
+  write(6,*) "minloc,maxloc ",minloc(gfrac(js:je,1:kl)),maxloc(gfrac(js:je,1:kl))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(psl(js:je)/=psl(js:je)) ) then
+  write(6,*) "ERROR: NaN detected in psl on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(psl(js:je)<-1.4) .or. any(psl(js:je)>0.3) ) then
+  write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(psl(js:je)),maxval(psl(js:je))
+  write(6,*) "minloc,maxloc ",minloc(psl(js:je)),maxloc(psl(js:je))
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(ps(js:je)/=ps(js:je)) ) then
+  write(6,*) "ERROR: NaN detected in ps on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(tss(js:je)/=tss(js:je)) ) then
+  write(6,*) "ERROR: NaN detected in tss on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(tss(js:je)<75.) .or. any(tss(js:je)>425.) ) then
+  write(6,*) "ERROR: Out-of-range detected in tss on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(tss(js:je)),maxval(tss(js:je))
+  write(6,*) "minloc,maxloc ",minloc(tss(js:je)),maxloc(tss(js:je))
+  call ccmpi_abort(-1) 
+end if
+
+if ( abs(iaero)>=2 ) then
+  if ( any(xtg(js:je,1:kl,1:naero)/=xtg(js:je,1:kl,1:naero)) ) then
+    write(6,*) "ERROR: NaN detected in xtg on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
+  if ( any(xtg(js:je,1:kl,1:naero)<-1.e-8) .or. any(xtg(js:je,1:kl,1:naero)>6.5e-5) ) then
+    write(6,*) "ERROR: Out-of-range detected in xtg on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(xtg(js:je,1:kl,1:naero)),maxval(xtg(js:je,1:kl,1:naero))
+    write(6,*) "minloc,maxloc ",minloc(xtg(js:je,1:kl,1:naero)),maxloc(xtg(js:je,1:kl,1:naero))
+    call ccmpi_abort(-1) 
+  end if  
+  if ( any(ssn(js:je,1:kl,1:2)/=ssn(js:je,1:kl,1:2)) ) then
+    write(6,*) "ERROR: NaN detected in ssn on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
+  if ( any(ssn(js:je,1:kl,1:2)<-1.e-8) .or. any(ssn(js:je,1:kl,1:2)>6.5e9) ) then
+    write(6,*) "ERROR: Out-of-range detected in ssn on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(ssn(js:je,1:kl,1:2)),maxval(ssn(js:je,1:kl,1:2))
+    write(6,*) "minloc,maxloc ",minloc(ssn(js:je,1:kl,1:2)),maxloc(ssn(js:je,1:kl,1:2))
+    call ccmpi_abort(-1) 
+  end if    
+end if
+
+if ( any( fg(js:je)/=fg(js:je) ) ) then
+  write(6,*) "ERROR: NaN detected in fg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any( eg(js:je)/=eg(js:je) ) ) then
+  write(6,*) "ERROR: NaN detected in eg on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine nantest    
+    
 !subroutine gabls_flux(xtg,pps,pta,ppa,pu,pv,prhoa,zref,z0, &
 !                      psfth,zustar,zvmod)
 !

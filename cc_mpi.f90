@@ -11592,9 +11592,10 @@ contains
    interface ccmpi_distribute
       module procedure ccmpi_distribute2, ccmpi_distribute2i,  &    
                        ccmpi_distribute3, ccmpi_distribute3i
+      module procedure ccmpi_distribute4
    end interface
    interface ccmpi_distributer8
-      module procedure ccmpi_distribute2r8, ccmpi_distribute3r8
+      module procedure ccmpi_distribute2r8, ccmpi_distribute3r8, ccmpi_distribute4r8
    end interface
    interface ccmpi_reduce
       module procedure ccmpi_reduce2i, ccmpi_reduce1r, ccmpi_reduce2r, ccmpi_reduce3r, &
@@ -11833,6 +11834,11 @@ contains
       real, dimension(:,:), intent(in), optional :: a1
    end subroutine ccmpi_distribute3
 
+   subroutine ccmpi_distribute4(af,a1)
+      real, dimension(:,:,:), intent(out) :: af
+      real, dimension(:,:,:), intent(in), optional :: a1
+   end subroutine ccmpi_distribute4
+   
    subroutine ccmpi_distribute3i(af,a1)
       integer, dimension(:,:), intent(out) :: af
       integer, dimension(:,:), intent(in), optional :: a1
@@ -11847,6 +11853,11 @@ contains
       real(kind=8), dimension(:,:), intent(out) :: af
       real(kind=8), dimension(:,:), intent(in), optional :: a1
    end subroutine ccmpi_distribute3r8
+ 
+   subroutine ccmpi_distribute4r8(af,a1)
+      real(kind=8), dimension(:,:,:), intent(out) :: af
+      real(kind=8), dimension(:,:,:), intent(in), optional :: a1
+   end subroutine ccmpi_distribute4r8
    
    subroutine ccmpi_reduce2i(ldat,gdat,op,host,comm)
       integer, intent(in) :: host,comm

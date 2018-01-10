@@ -110,9 +110,11 @@ use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : land             ! Soil and surface data
 use soilsnow_m, only : fracice      ! Soil, snow and surface data
 use tkeeps                          ! TKE-EPS boundary layer
+#ifndef scm
 use trvmix, only : tracervmix       ! Tracer mixing routines
 use tracermodule                    ! Tracer routines
 use tracers_m                       ! Tracer data
+#endif
 use work2_m                         ! Diagnostic arrays
 
 implicit none
@@ -122,35 +124,39 @@ include 'kuocom.h'                  ! Convection parameters
 integer :: is, ie, tile
 integer, dimension(imax) :: lkbsav, lktsav
 real, dimension(imax,kl,naero) :: lxtg
-real, dimension(imax,kl,ntrac) :: ltr
 real, dimension(imax,kl) :: lphi_nh, lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lcfrac, lu, lv, lclcon
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
 real, dimension(imax,kl) :: lat, lct
-real, dimension(imax,kl) :: loh, lstrloss, ljmcf
-real, dimension(imax,numtracer) :: lco2em
 real, dimension(imax) :: lem, ltss, leg, lfg
-real, dimension(imax) :: lconvpsav, lps, lcdtq, lcondc, lcduv
+real, dimension(imax) :: lconvpsav, lps, lcondc, lcduv
 real, dimension(imax) :: lpblh, lzo, ltscrn, lqgscrn, lustar
 real, dimension(imax) :: lf, lcondx, lzs
 real, dimension(imax) :: lou, lov, liu, liv
-real, dimension(imax) :: lfnee, lfpn, lfrp, lfrs, lmcfdep
 logical, dimension(imax) :: lland
 
 #ifdef scm
 real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
 real, dimension(imax,kl) :: ltkesave, lrkmsave, lrkhsave
 real, dimension(imax,kl-1) :: lmfsave
+#else
+real, dimension(imax,numtracer) :: lco2em
+real, dimension(imax,kl,ntrac) :: ltr
+real, dimension(imax,kl) :: loh, lstrloss, ljmcf
+real, dimension(imax) :: lfnee, lfpn, lfrp, lfrs, lmcfdep
+real, dimension(imax) :: lcdtq
 #endif
 
 !$omp do schedule(static) private(is,ie),                                                                                &
-!$omp private(lphi_nh,lt,lem,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lcdtq,lqg,lqfg,lqlg,lcondc,lclcon),                &
+!$omp private(lphi_nh,lt,lem,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lqg,lqfg,lqlg,lcondc,lclcon),                      &
 !$omp private(lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
 !$omp private(lou,lov,lat,lct),                                                                                          &
 #ifdef scm
-!$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave),                                  &
+!$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave)
+#else
+!$omp private(ltr,lfnee,lfpn,lfrp,lfrs,lco2em,loh,lstrloss,ljmcf,lmcfdep.lcdtq)
 #endif
-!$omp private(ltr,lfnee,lfpn,lfrp,lfrs,lco2em,loh,lstrloss,ljmcf,lmcfdep)
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -259,7 +265,7 @@ do tile = 1,ntiles
     lfrp     = frp(is:ie)
     lfrs     = frs(is:ie)
     lmcfdep  = mcfdep(is:ie)
-    lcdtq     = cdtq(is:ie)
+    lcdtq    = cdtq(is:ie)
     
     ! Tracers/
     call tracervmix(lat,lct,lphi_nh,lt,lps,lcdtq,ltr,lfnee,lfpn,lfrp,lfrs,lco2em,loh,lstrloss,ljmcf,lmcfdep,tile,imax)

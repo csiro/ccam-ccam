@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -693,11 +693,7 @@ call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad)
 ! CASA CNP
 select case (icycle)
   case(0) ! off
-    !call plantcarb(veg,bgc,met,canopy)
-    !call soilcarb(soil,ssnow,veg,bgc,met,canopy)
-    !call carbon_pl(dt,soil,ssnow,veg,canopy,bgc)
-    !canopy%fnpp = -canopy%fpn - canopy%frp
-    !canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
+
   case(1,2,3) ! C, C+N, C+N+P
     ! update casamet
     if ( cable_pop==1 ) then
@@ -707,12 +703,12 @@ select case (icycle)
     end if
     ! run CASA CNP once per day
     casaperiod = nint(86400._8*deltpool)
-    if ( abs(mod(real(casaperiod),dt))>1.e-20 ) then
-      write(6,*) "ERROR: Invalid casaperiod ",casaperiod
-      write(6,*) "Period must be an integer multiple of the time-step dt ",dt
-      write(6,*) "Please adjust deltpool from CABLE CASA-CNP accordingly"
-      stop
-    end if
+    !if ( abs(mod(real(casaperiod),dt))>1.e-20 ) then
+    !  write(6,*) "ERROR: Invalid casaperiod ",casaperiod
+    !  write(6,*) "Period must be an integer multiple of the time-step dt ",dt
+    !  write(6,*) "Please adjust deltpool from CABLE CASA-CNP accordingly"
+    !  stop
+    !end if
     npercasa = max( nint(real(casaperiod,8)/dtr8), 1 )
     casamet%tairk = casamet%tairk + met%tk
     casamet%tsoil = casamet%tsoil + ssnow%tgg
@@ -795,7 +791,7 @@ select case (icycle)
       ! update for POP
       if ( cable_pop==1 ) then
         loy = ndoy(12)
-        casaflux%stemnpp = casaflux%stemnpp + casaflux%cnpp * casaflux%fracCalloc(:,2)*0.7_8
+        casaflux%stemnpp = casaflux%stemnpp + casaflux%cnpp*casaflux%fracCalloc(:,2)*0.7_8
         casabal%LAImax = max(casamet%glai, casabal%LAImax)
         casabal%Cleafmean = casabal%Cleafmean + casapool%cplant(:,1)/real(loy,8)/1000._8
         casabal%Crootmean = casabal%Crootmean + casapool%cplant(:,3)/real(loy,8)/1000._8
@@ -840,8 +836,8 @@ if ( cable_pop==1 ) then
   if ( idoy==ndoy(12) ) then
      call popdriver(casabal,casaflux,pop,veg)
      ! reset stemnpp, LAImax, Cleafmean and Crootmean for next call
-     casaflux%stemnpp = 0._8
-     casabal%LAImax = 0._8
+     casaflux%stemnpp  = 0._8
+     casabal%LAImax    = 0._8
      casabal%Cleafmean = 0._8
      casabal%Crootmean = 0._8
   end if
@@ -881,6 +877,7 @@ where ( land(1:imax) )
   tss = 0.
   zo = 0.
   zoh = 0.
+  zoq = 0.
   cduv = 0.
   cdtq = 0.
   ustar = 0.
@@ -1436,11 +1433,11 @@ call casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,lalloc)
 
 if ( POP%np>0 ) then
 
-  where (pop%pop_grid(:)%cmass_sum_old>0.001_8 .and. pop%pop_grid(:)%cmass_sum>0.001_8 )
+  where ( pop%pop_grid(:)%cmass_sum_old>0.001_8 .and. pop%pop_grid(:)%cmass_sum>0.001_8 )
     casaflux%frac_sapwood(POP%Iwood) = real( POP%pop_grid(:)%csapwood_sum/ POP%pop_grid(:)%cmass_sum, 8)
     casaflux%sapwood_area(POP%Iwood) = real( max(POP%pop_grid(:)%sapwood_area/10000._dp, 1.e-6_dp), 8)
     veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
-    where (pop%pop_grid(:)%LU==2)
+    where ( pop%pop_grid(:)%LU==2 )
       casaflux%kplant(POP%Iwood,2) = real( 1._dp -            &
         (1._dp-  max( min((POP%pop_grid(:)%stress_mortality + &
         POP%pop_grid(:)%crowding_mortality                    &
@@ -1511,7 +1508,7 @@ real(kind=dp), dimension(mp) :: NPPtoGPP
 
 if ( cable_pop==1 .and. POP%np>0 ) then ! CALL_POP
   Iw = POP%Iwood
-  where ( casabal%FCgppyear>1.e-5 .and. casabal%FCnppyear>1.e-5 )
+  where ( casabal%FCgppyear>1.e-5_8 .and. casabal%FCnppyear>1.e-5_8 )
     NPPtoGPP = casabal%FCnppyear/casabal%FCgppyear
   elsewhere
     NPPtoGPP = 0.5_dp
@@ -2816,14 +2813,6 @@ if ( mp_global>0 ) then
   
   if ( icycle==0 ) then
     ! Initialise CABLE carbon pools
-    !cplant=0.
-    !csoil=0.
-    !do k=1,ncp
-    !  call cable_unpack(sv*tcplant(veg%iveg,k),cplant(:,k))
-    !end do
-    !do k=1,ncs
-    !  call cable_unpack(sv*tcsoil(veg%iveg,k),csoil(:,k))
-    !end do
     if ( cable_pop==1 ) then
       write(6,*) "ERROR: cable_pop=1 requires ccycle>0"
       call ccmpi_abort(-1)
@@ -3969,21 +3958,26 @@ implicit none
 integer k
 
 if ( mp_global>0 ) then
-  ssnow%h0 = 0._8      ! pond height
-  ssnow%snowliq = 0._8 ! liquid snow
-  ssnow%Tsoil = ssnow%tgg - 273.15_8
-  ssnow%thetai = ssnow%wbice
-  do k = 1,ms
-    ssnow%S(:,k) = ssnow%wb(:,k)/soil%ssat
-  end do
-  !where ( ssnow%snowd>0. )
-  !  ssnow%nsnow = 1
-  !elsewhere
-  !  ssnow%nsnow = 0
-  !end where
-  ssnow%nsnow = 0
-  ssnow%snowd = 0.
+    
+  if ( soil_struc==1 ) then  
+    
+    ssnow%h0 = 0._8      ! pond height
+    ssnow%snowliq = 0._8 ! liquid snow
+    ssnow%Tsoil = ssnow%tgg - 273.15_8
+    ssnow%thetai = ssnow%wbice
+    do k = 1,ms
+      ssnow%S(:,k) = ssnow%wb(:,k)/soil%ssat
+    end do
+    !where ( ssnow%snowd>0. )
+    !  ssnow%nsnow = 1
+    !elsewhere
+    !  ssnow%nsnow = 0
+    !end where
+    ssnow%nsnow = 0
+    ssnow%snowd = 0.
   
+  end if  
+    
   call fixtile
   
 end if

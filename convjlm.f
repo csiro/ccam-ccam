@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -328,9 +328,7 @@
       use work2_m   ! for wetfa!    JLM
 
       implicit none
-      
-#ifdef _OPENMP
-      
+
       integer :: tile, is, ie
       integer, dimension(imax)          :: lkbsav, lktsav
       real, dimension(imax,kl,naero)    :: lxtg
@@ -432,17 +430,6 @@
        
       end do
 !$omp end do nowait
-      
-#else
-
-      call convjlm_work(alfin,dpsldt,t,qg,phi_nh,ps,
-     &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
-     &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
-     &       pblh,fg,wetfac,land,entrainn,u,v,timeconv,em,
-     &       kbsav,ktsav,tr,qfg,cfrac,sgsave,ifull,1)     ! jlm convective scheme
-
-
-#endif
       
       return
       end subroutine convjlm     ! jlm convective scheme

@@ -3951,6 +3951,7 @@ d_canyontemp    = d_tempc
 d_canyonmix     = d_mixrc
 cnveg%temp      = d_tempc
 rdsntemp        = road%nodetemp(:,1)
+iroomtemp       = room%nodetemp(:,1)
 rdsnmelt        = 0.
 dumvegdelta     = 0. ! cray compiler bug
 if ( conductmeth==0 ) then
@@ -4127,7 +4128,6 @@ do l = 1,ncyits
   ! first internal temperature estimation - used for ggint calculation
   select case(intairtmeth)
     case(0) ! fixed internal air temperature
-      iroomtemp = fp%bldairtemp
       call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,  & 
                           cvcoeff_intm1,cvcoeff_intm2,roof,room,slab,intm,ufull)
       ! (use split form to estimate G_{*,4} flux into room for AC.  newtemp is an estimate of the temperature at tau+1)
@@ -4173,7 +4173,6 @@ do l = 1,ncyits
                     +ff*wallw%nodetemp(:,0)+d_traf+d_ac_canyon+int_infilfg)/(aa+bb+cc+dd+ee+ff)
 
     case(1) ! floating internal air temperature
-      iroomtemp = room%nodetemp(:,1)  
       ! estimate internal surface convection coefficients
       call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,       & 
                           cvcoeff_intm1,cvcoeff_intm2,roof,room,slab,intm,ufull)
