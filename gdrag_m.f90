@@ -87,6 +87,8 @@ use pbl_m
 
 implicit none
 
+#ifdef _OPENMP
+
 integer :: tile, is, ie
 real, dimension(imax,kl) :: lphi_nh, lt, lu, lv
 real, dimension(imax) :: ltss, lhe
@@ -104,13 +106,19 @@ do tile = 1,ntiles
   ltss    = tss(is:ie)
   lhe     = he(is:ie)
   
-  call gwdrag_work(lphi_nh,lt,lu,lv,ltss,lhe)
+  call gwdrag_work(lphi_nh,lt,lu,lv,ltss,lhe,imax,ntiles)
 
   u(is:ie,:) = lu
   v(is:ie,:) = lv
  
 end do
 !$omp end do nowait
+
+#else
+
+call gwdrag_work(phi_nh,t,u,v,tss,he,ifull,1)
+
+#endif
 
 return
 end subroutine gwdrag
@@ -123,10 +131,9 @@ end subroutine gwdrag
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
-subroutine gwdrag_work(phi_nh,t,u,v,tss,he)   ! globpea/darlam (but not staggered)
+subroutine gwdrag_work(phi_nh,t,u,v,tss,he,imax,ntiles)   ! globpea/darlam (but not staggered)
 
 use cc_mpi, only : mydiag
-use cc_omp, only : imax, ntiles
 use const_phys
 use newmpar_m
 use parm_m
@@ -135,15 +142,16 @@ use sigs_m
 implicit none
 
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
+integer, intent(in) :: imax, ntiles
 integer iq, k
 real dzx
-real, dimension(imax,kl), intent(in)    :: phi_nh, t
-real, dimension(imax,kl), intent(inout) :: u, v
+real, dimension(:,:), intent(in)    :: phi_nh, t
+real, dimension(:,:), intent(inout) :: u, v
 real, dimension(imax,kl) :: uu,fni,bvnf
 real, dimension(imax,kl) :: theta_full
 real, dimension(imax,kl) :: tnhs
 real, dimension(imax,kl) :: dtheta_dz_kmh
-real, dimension(imax), intent(in) :: tss, he
+real, dimension(:), intent(in) :: tss, he
 real, dimension(imax) :: dzi, uux, xxx, froude2_inv
 real, dimension(imax) :: temp,fnii
 real, dimension(imax) :: bvng ! to be depreciated

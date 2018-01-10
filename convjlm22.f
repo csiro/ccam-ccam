@@ -247,6 +247,8 @@
 
       implicit none
       
+#ifdef _OPENMP      
+      
       integer :: tile, is, ie
       integer, dimension(imax)          :: lkbsav, lktsav  
       integer, dimension(imax)          :: lkb_saved,lkt_saved 
@@ -324,7 +326,8 @@
      &       lfluxtot,lconvpsav,lcape,lxtg,lso2wd,lso4wd,lbcwd,locwd,
      &       ldustwd,lqlg,lcondc,lprecc,lcondx,lconds,lcondg,lprecip,
      &       lpblh,lfg,lwetfac,lland,lu,lv,ltimeconv,lem,
-     &       lkbsav,lktsav,ltr,lqfg,lcfrac,lsgsave,lkt_saved,lkb_saved)
+     &       lkbsav,lktsav,ltr,lqfg,lcfrac,lsgsave,lkt_saved,lkb_saved,
+     &       imax,ntiles)
 
         t(is:ie,:)       = lt
         qg(is:ie,:)      = lqg
@@ -361,6 +364,17 @@
       end do
 !$omp end do nowait
 
+#else
+
+      call convjlm22_work(alfin,dpsldt,t,qg,phi_nh,ps,
+     &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
+     &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
+     &       pblh,fg,wetfac,land,u,v,timeconv,em,
+     &       kbsav,ktsav,tr,qfg,cfrac,sgsave,kt_saved,kb_saved,
+     &       ifull,1)
+
+#endif
+      
       return
       end subroutine convjlm22     ! jlm convective scheme
        
@@ -369,7 +383,8 @@
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,u,v,timeconv,em,
-     &       kbsav,ktsav,tr,qfg,cfrac,sgsave,kt_saved,kb_saved)
+     &       kbsav,ktsav,tr,qfg,cfrac,sgsave,kt_saved,kb_saved,
+     &       imax,ntiles)
       !jlm convective scheme - latest and cleaned up
 !     unused switches: nevapcc, rhsat, shaltime 
 !     unused switches if ksc=0:  kscmom, 
@@ -379,7 +394,6 @@
       use aerosolldr, only : itracso2,itracbc,itracoc,itracdu,ndust,
      &                       naero,convscav
       use cc_mpi, only : mydiag, ccmpi_abort
-      use cc_omp, only : imax, ntiles
       use const_phys
       use diag_m, only : maxmin
       use estab      
@@ -393,6 +407,7 @@
       
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
 
+      integer, intent(in) :: imax, ntiles
       integer itn,iq,k,kt,ntest,ntr,nums,nuv,kb
       real convmax,delq_av,delt_av,den1,den2,den3,dprec
       real facuv,fldownn,fluxup,hbase,heatlev,pwater,pwater0,qsk
@@ -411,17 +426,17 @@
 !     parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing (base layers too)
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
 
-      real, dimension(imax,kl,naero), intent(inout)    :: xtg
-      real, dimension(imax,kl,ntrac), intent(inout)    :: tr
+      real, dimension(:,:,:), intent(inout)    :: xtg
+      real, dimension(:,:,:), intent(inout)    :: tr
       real, dimension(imax,kl), intent(in)             :: dpsldt
       real, dimension(imax,kl), intent(in)             :: phi_nh
       real, dimension(imax,kl), intent(in)             :: cfrac
-      real, dimension(imax,kl), intent(inout)          :: t
-      real, dimension(imax,kl), intent(inout)          :: qg
-      real, dimension(imax,kl), intent(inout)          :: qlg
-      real, dimension(imax,kl), intent(inout)          :: qfg
-      real, dimension(imax,kl), intent(inout)          :: u
-      real, dimension(imax,kl), intent(inout)          :: v
+      real, dimension(:,:), intent(inout)          :: t
+      real, dimension(:,:), intent(inout)          :: qg
+      real, dimension(:,:), intent(inout)          :: qlg
+      real, dimension(:,:), intent(inout)          :: qfg
+      real, dimension(:,:), intent(inout)          :: u
+      real, dimension(:,:), intent(inout)          :: v
       real, dimension(imax,kl), intent(out)            :: fluxtot      
       real, dimension(imax,ndust), intent(inout)       :: dustwd
       real, dimension(imax), intent(in)                :: alfin

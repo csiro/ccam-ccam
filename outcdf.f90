@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -189,7 +189,16 @@ use ateb, only :                         & ! Urban
     ,ateb_maxvwatf=>maxvwatf             &
     ,ateb_intairtmeth=>intairtmeth       &
     ,ateb_intmassmeth=>intmassmeth       &
-    ,ateb_ac_cap=>ac_cap
+    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
+    ,ateb_statsmeth=>statsmeth           &
+    ,ateb_behavmeth=>behavmeth           &
+    ,ateb_infilmeth=>infilmeth           &
+    ,ateb_ac_heatcap=>ac_heatcap         &
+    ,ateb_ac_coolcap=>ac_coolcap         &
+    ,ateb_ac_heatprop=>ac_heatprop       &
+    ,ateb_ac_coolprop=>ac_coolprop       &
+    ,ateb_ac_smooth=>ac_smooth           &
+    ,ateb_ac_deltat=>ac_deltat
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
     ,fwsoil_switch                       &
@@ -787,10 +796,18 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
 
     ! land, urban and carbon
+    call ccnf_put_attg(idnc,'ateb_ac_coolcap',ateb_ac_coolcap)
+    call ccnf_put_attg(idnc,'ateb_ac_coolprop',ateb_ac_coolprop)
+    call ccnf_put_attg(idnc,'ateb_ac_deltat',ateb_ac_deltat)
+    call ccnf_put_attg(idnc,'ateb_ac_heatcap',ateb_ac_heatcap)
+    call ccnf_put_attg(idnc,'ateb_ac_heatprop',ateb_ac_heatprop)
+    call ccnf_put_attg(idnc,'ateb_ac_smooth',ateb_ac_smooth)
     call ccnf_put_attg(idnc,'ateb_alpha',ateb_alpha)
-    call ccnf_put_attg(idnc,'ateb_ac_cap',ateb_ac_cap)
-    call ccnf_put_attg(idnc,'ateb_acmeth',ateb_acmeth)    
+    call ccnf_put_attg(idnc,'ateb_behavmeth',ateb_behavmeth)   
     call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)
+    call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)
+    call ccnf_put_attg(idnc,'ateb_cvcoeffmeth',ateb_cvcoeffmeth)
+    call ccnf_put_attg(idnc,'ateb_infilmeth',ateb_infilmeth)
     call ccnf_put_attg(idnc,'ateb_intairtmeth',ateb_intairtmeth)
     call ccnf_put_attg(idnc,'ateb_intmassmeth',ateb_intmassmeth)
     call ccnf_put_attg(idnc,'ateb_lweff',ateb_lweff)
@@ -811,6 +828,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_scrnmeth',ateb_scrnmeth)
     call ccnf_put_attg(idnc,'ateb_snowemiss',ateb_snowemiss)
     call ccnf_put_attg(idnc,'ateb_soilunder',ateb_soilunder)
+    call ccnf_put_attg(idnc,'ateb_statsmeth',ateb_statsmeth)
     call ccnf_put_attg(idnc,'ateb_tol',ateb_tol)
     call ccnf_put_attg(idnc,'ateb_useonewall',ateb_useonewall)
     call ccnf_put_attg(idnc,'ateb_vegmode',ateb_vegmode)
@@ -1862,6 +1880,28 @@ if( myid==0 .or. local ) then
       call attrib(idnc,jdim,jsize,'roadtgg4',lname,'K',100.,425.,0,itype)
       lname = 'road temperature lev 5'
       call attrib(idnc,jdim,jsize,'roadtgg5',lname,'K',100.,425.,0,itype)
+      lname = 'slab temperature lev 1'
+      call attrib(idnc,jdim,jsize,'slabtgg1',lname,'K',100.,425.,0,itype)
+      lname = 'slab temperature lev 2'
+      call attrib(idnc,jdim,jsize,'slabtgg2',lname,'K',100.,425.,0,itype)
+      lname = 'slab temperature lev 3'
+      call attrib(idnc,jdim,jsize,'slabtgg3',lname,'K',100.,425.,0,itype)
+      lname = 'slab temperature lev 4'
+      call attrib(idnc,jdim,jsize,'slabtgg4',lname,'K',100.,425.,0,itype)
+      lname = 'slab temperature lev 5'
+      call attrib(idnc,jdim,jsize,'slabtgg5',lname,'K',100.,425.,0,itype)
+      lname = 'interior mass temperature lev 1'
+      call attrib(idnc,jdim,jsize,'intmtgg1',lname,'K',100.,425.,0,itype)
+      lname = 'interior mass temperature lev 2'
+      call attrib(idnc,jdim,jsize,'intmtgg2',lname,'K',100.,425.,0,itype)
+      lname = 'interior mass temperature lev 3'
+      call attrib(idnc,jdim,jsize,'intmtgg3',lname,'K',100.,425.,0,itype)
+      lname = 'interior mass temperature lev 4'
+      call attrib(idnc,jdim,jsize,'intmtgg4',lname,'K',100.,425.,0,itype)
+      lname = 'interior mass temperature lev 5'
+      call attrib(idnc,jdim,jsize,'intmtgg5',lname,'K',100.,425.,0,itype)
+      lname = 'urban room temperature'
+      call attrib(idnc,jdim,jsize,'roomtgg1',lname,'K',100.,425.,0,itype)  
       lname = 'urban canyon soil moisture'
       call attrib(idnc,jdim,jsize,'urbnsmc',lname,'m3/m3',0.,1.3,0,itype)
       lname = 'urban roof soil moisture'
@@ -2861,6 +2901,29 @@ if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
     write(vname,'("roadtgg",I1.1)') k
     call histwrt3(aa,vname,idnc,iarch,local,.true.)
   end do
+  do k = 1,5
+    write(vname,'("slabtemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("slabtgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do
+  do k = 1,5
+    write(vname,'("intmtemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("intmtgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do
+  aa = 999.
+  call atebsaved(aa,"roomtemp",0)
+  call histwrt3(aa,'roomtgg1', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"canyonsoilmoisture",0)
   call histwrt3(aa,'urbnsmc', idnc,iarch,local,.true.)

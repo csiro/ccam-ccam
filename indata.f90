@@ -2116,49 +2116,6 @@ end if
 
 
 !-----------------------------------------------------------------
-! UPDATE URBAN DATA (nurban)
-if ( nurban/=0 ) then
-  if ( myid==0 ) write(6,*) 'Importing ateb urban data'
-  where( atebdwn(:,1)>=399. ) ! must be the same as spval in onthefly.f
-    atebdwn(:,1)=tss-urbtemp                ! roof temp 1  
-    atebdwn(:,2)=tss-urbtemp                ! roof temp 2
-    atebdwn(:,3)=0.5*(tss+291.16)-urbtemp   ! roof temp 3
-    atebdwn(:,4)=0.5*(tss+291.16)-urbtemp   ! roof temp 4
-    atebdwn(:,5)=291.16-urbtemp             ! roof temp 5
-    atebdwn(:,6)=tss-urbtemp                ! walleast temp 1
-    atebdwn(:,7)=tss-urbtemp                ! walleast temp 2
-    atebdwn(:,8)=0.5*(tss+291.16)-urbtemp   ! walleast temp 3
-    atebdwn(:,9)=0.5*(tss+291.16)-urbtemp   ! walleast temp 4
-    atebdwn(:,10)=291.16-urbtemp            ! walleast temp 5
-    atebdwn(:,11)=tss-urbtemp               ! wallwest temp 1
-    atebdwn(:,12)=tss-urbtemp               ! wallwest temp 2
-    atebdwn(:,13)=0.5*(tss+291.16)-urbtemp  ! wallwest temp 3
-    atebdwn(:,14)=0.5*(tss+291.16)-urbtemp  ! wallwest temp 4
-    atebdwn(:,15)=291.16-urbtemp            ! wallwest temp 5
-    atebdwn(:,16)=tss-urbtemp               ! road temp 1
-    atebdwn(:,17)=tss-urbtemp               ! road temp 2
-    atebdwn(:,18)=tss-urbtemp               ! road temp 3
-    atebdwn(:,19)=tss-urbtemp               ! road temp 4
-    atebdwn(:,20)=tss-urbtemp               ! road temp 5
-    atebdwn(:,21)=0.5*0.26+0.5*0.18         ! Soil water road
-    atebdwn(:,22)=0.18                      ! Green roof water
-    atebdwn(:,23)=0.   ! roof water
-    atebdwn(:,24)=0.   ! road water
-    atebdwn(:,25)=0.   ! canyon leaf water
-    atebdwn(:,26)=0.   ! roof leaf water
-    atebdwn(:,27)=0.   ! roof snow
-    atebdwn(:,28)=0.   ! road snow
-    atebdwn(:,29)=100. ! roof snow density
-    atebdwn(:,30)=100. ! road snow density
-    atebdwn(:,31)=0.85 ! roof snow albedo
-    atebdwn(:,32)=0.85 ! road snow albedo
-  end where
-  call atebload(atebdwn,0)
-  deallocate(atebdwn)
-end if
-
-
-!-----------------------------------------------------------------
 ! UPDATE AEROSOL DATA (iaero)
 if ( abs(iaero)>=2 ) then
   xtg(1:ifull,1:kl,1:naero) = xtgdwn(1:ifull,1:kl,1:naero)

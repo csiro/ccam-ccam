@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -467,18 +467,13 @@ if ( myid<nproc ) then
             cc = rat*cc + (1.-rat)*cc_2 
             bb = rat*bb + (1.-rat)*bb_2 
             vbar(iq,k) = v(iq,k)+.5*bb+.25*cc
-          enddo  ! iq loop
+          enddo ! iq loop
         enddo   ! k loop 
       else      ! i.e. mex >=4 and ktau>=3
         ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
         ubar(:,:) = (u(1:ifull,:)*15.-savu(:,:)*10.+savu1(:,:)*3.)/8.
         vbar(:,:) = (v(1:ifull,:)*15.-savv(:,:)*10.+savv1(:,:)*3.)/8.
-      endif    ! (ktau==1) .. else ..
-      
-      if ( any( ubar/=ubar ) .or. any( vbar/=vbar ) ) then
-        write(6,*) "ERROR: NaN detected in ubar or vbar in globpe on myid ",myid
-        call ccmpi_abort(-1)
-      end if
+      end if    ! (ktau==1) .. else ..
       
       if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
         nlx = max( 2, nlv )  ! as savs not defined for k=1
@@ -493,7 +488,6 @@ if ( myid<nproc ) then
             write(6,*)'using epsp= ',epsp
           end if
         end if
-        !where ( (sign(1.,dpsdt(1:ifull))/=sign(1.,dpsdtb(1:ifull))) .and. (sign(1.,dpsdtbb(1:ifull))/=sign(1.,dpsdtb(1:ifull))) )
         where ( dpsdt(1:ifull)*dpsdtb(1:ifull)<0. .and. dpsdtbb(1:ifull)*dpsdtb(1:ifull)<0. )
           epst(1:ifull) = epsp - 1.
         elsewhere
@@ -1057,17 +1051,20 @@ if ( myid<nproc ) then
     ! DIAGNOSTICS AND OUTPUT
     ! ***********************************************************************
 
+
     ! TRACER OUTPUT ----------------------------------------------
     if ( ngas>0 ) then
       call tracer_mass !also updates average tracer array
       call write_ts(ktau,ntau,dt)
     endif
 
+    
     ! STATION OUTPUT ---------------------------------------------
     if ( nstn>0 ) then
       call stationa ! write every time step
     end if
-       
+    
+    
     ! DIAGNOSTICS ------------------------------------------------
     if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
       write(6,*)
@@ -1376,6 +1373,7 @@ if ( myid<nproc ) then
     end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
 
     
+    ! WRITE DATA TO HISTORY AND RESTART FILES --------------------
     call log_off()
   
     if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
@@ -1572,6 +1570,8 @@ if ( myid<nproc ) then
   end do                  ! *** end of main time loop
   
   
+  !------------------------------------------------------------------
+  ! SIMULATION COMPLETE
   call END_LOG(maincalc_end)
   call log_off()
 
@@ -1874,7 +1874,16 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_maxvwatf=>maxvwatf             &
     ,ateb_intairtmeth=>intairtmeth       &
     ,ateb_intmassmeth=>intmassmeth       &
-    ,ateb_ac_cap=>ac_cap
+    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
+    ,ateb_statsmeth=>statsmeth           &
+    ,ateb_behavmeth=>behavmeth           &
+    ,ateb_infilmeth=>infilmeth           &
+    ,ateb_ac_heatcap=>ac_heatcap         &
+    ,ateb_ac_coolcap=>ac_coolcap         &
+    ,ateb_ac_heatprop=>ac_heatprop       &
+    ,ateb_ac_coolprop=>ac_coolprop       &
+    ,ateb_ac_smooth=>ac_smooth           &
+    ,ateb_ac_deltat=>ac_deltat
 use bigxy4_m                               ! Grid interpolation
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
@@ -2058,7 +2067,11 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
     ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
     ateb_maxrfwater,ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,    &
-    ateb_maxvwatf,ateb_intairtmeth,ateb_intmassmeth,ateb_ac_cap,  &
+    ateb_maxvwatf,ateb_intairtmeth,ateb_intmassmeth,              &
+    ateb_cvcoeffmeth,ateb_statsmeth,ateb_behavmeth,               &
+    ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
+    ateb_ac_heatprop,ateb_ac_coolprop,ateb_ac_smooth,             &
+    ateb_ac_deltat,                                               &
     siburbanfrac
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
@@ -2721,7 +2734,7 @@ stabmeth   = dumi(2)
 tkemeth    = dumi(3)
 ngwd       = dumi(4)
 deallocate( dumr, dumi )
-allocate( dumr8(1), dumr(19), dumi(25) )
+allocate( dumr8(1), dumr(24), dumi(29) )
 dumr8 = 0._8
 dumr = 0.
 dumi = 0
@@ -2750,8 +2763,13 @@ if ( myid==0 ) then
   dumr(15) = ateb_maxrfsn
   dumr(16) = ateb_maxrdsn
   dumr(17) = ateb_maxvwatf
-  dumr(18) = ateb_ac_cap
-  dumr(19) = siburbanfrac
+  dumr(18) = ateb_ac_heatcap
+  dumr(19) = ateb_ac_coolcap
+  dumr(20) = ateb_ac_heatprop
+  dumr(21) = ateb_ac_coolprop
+  dumr(22) = ateb_ac_smooth
+  dumr(23) = ateb_ac_deltat
+  dumr(24) = siburbanfrac
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -2777,6 +2795,10 @@ if ( myid==0 ) then
   dumi(23) = ateb_nfgits
   dumi(24) = ateb_intairtmeth
   dumi(25) = ateb_intmassmeth
+  dumi(26) = ateb_cvcoeffmeth
+  dumi(27) = ateb_statsmeth
+  dumi(28) = ateb_behavmeth
+  dumi(29) = ateb_infilmeth
 end if
 call ccmpi_bcastr8(dumr8,0,comm_world)
 call ccmpi_bcast(dumr,0,comm_world)
@@ -2799,8 +2821,13 @@ ateb_maxrdwater   = dumr(14)
 ateb_maxrfsn      = dumr(15)
 ateb_maxrdsn      = dumr(16)
 ateb_maxvwatf     = dumr(17) 
-ateb_ac_cap       = dumr(18) 
-siburbanfrac      = dumr(19) 
+ateb_ac_heatcap   = dumr(18)
+ateb_ac_coolcap   = dumr(19)
+ateb_ac_heatprop  = dumr(20)
+ateb_ac_coolprop  = dumr(21)
+ateb_ac_smooth    = dumr(22)
+ateb_ac_deltat    = dumr(23)
+siburbanfrac      = dumr(24) 
 proglai           = dumi(1)
 ccycle            = dumi(2)
 soil_struc        = dumi(3)
@@ -2826,6 +2853,10 @@ ateb_ncyits       = dumi(22)
 ateb_nfgits       = dumi(23) 
 ateb_intairtmeth  = dumi(24)
 ateb_intmassmeth  = dumi(25) 
+ateb_cvcoeffmeth  = dumi(26) 
+ateb_statsmeth    = dumi(27) 
+ateb_behavmeth    = dumi(28) 
+ateb_infilmeth    = dumi(29) 
 deallocate( dumr, dumi )
 allocate( dumr(10), dumi(7) )
 dumr = 0.

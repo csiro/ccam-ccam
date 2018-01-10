@@ -271,7 +271,7 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
       
 use aerosolldr, only : ssn,aeromode,          &
     xtg_solub                                  ! LDR aerosol scheme
-use ateb, only : atebdwn, urbtemp              ! Urban
+use ateb, only : atebdwn, urbtemp, atebloadd   ! Urban
 use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
 use carbpools_m                                ! Carbon pools
 use cc_mpi                                     ! CC MPI routines
@@ -346,7 +346,7 @@ real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
 real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_l
 real, dimension(kk+5) :: dumr
-character(len=8) vname
+character(len=20) vname
 character(len=3) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tsstest, tst
@@ -1467,32 +1467,89 @@ if ( nested/=1 ) then
   !------------------------------------------------------------------
   ! Read urban data
   if ( nurban/=0 ) then
-    if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,32))
+    if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,5))
     call fillhist4('rooftgg',atebdwn(:,1:5),  sea_a,filllimit=399.)
-    call fillhist4('waletgg',atebdwn(:,6:10), sea_a,filllimit=399.)
-    call fillhist4('walwtgg',atebdwn(:,11:15),sea_a,filllimit=399.)
-    call fillhist4('roadtgg',atebdwn(:,16:20),sea_a,filllimit=399.)
-    call fillhist1('urbnsmc',atebdwn(:,21),sea_a,filllimit=399.)
-    call fillhist1('urbnsmr',atebdwn(:,22),sea_a,filllimit=399.)
-    call fillhist1('roofwtr',atebdwn(:,23),sea_a,filllimit=399.)
-    call fillhist1('roadwtr',atebdwn(:,24),sea_a,filllimit=399.)
-    call fillhist1('urbwtrc',atebdwn(:,25),sea_a,filllimit=399.)
-    call fillhist1('urbwtrr',atebdwn(:,26),sea_a,filllimit=399.)
-    call fillhist1('roofsnd',atebdwn(:,27),sea_a,filllimit=399.)
-    call fillhist1('roadsnd',atebdwn(:,28),sea_a,filllimit=399.)
-    call fillhist1('roofden',atebdwn(:,29),sea_a,filllimit=399.)
-    if ( all(atebdwn(:,29)<1.e-20) ) atebdwn(:,29)=100.
-    call fillhist1('roadden',atebdwn(:,30),sea_a,filllimit=399.)
-    if ( all(atebdwn(:,30)<1.e-20) ) atebdwn(:,30)=100.
-    call fillhist1('roofsna',atebdwn(:,31),sea_a,filllimit=399.)
-    if ( all(atebdwn(:,31)<1.e-20) ) atebdwn(:,31)=0.85
-    call fillhist1('roadsna',atebdwn(:,32),sea_a,filllimit=399.)
-    if ( all(atebdwn(:,32)<1.e-20) ) atebdwn(:,32)=0.85
-    do k = 1,20
-      where ( atebdwn(:,k)>150. )
+    do k = 1,5
+      write(vname,'("rooftemp",I1.1)') k  
+      where ( atebdwn(:,k)>150. )  
         atebdwn(:,k) = atebdwn(:,k) - urbtemp
-      end where
-    end do
+      end where 
+      call atebloadd(atebdwn(:,k),vname,0)
+    end do  
+    call fillhist4('waletgg',atebdwn(:,1:5), sea_a,filllimit=399.)
+    do k = 1,5
+      write(vname,'("walletemp",I1.1)') k
+      where ( atebdwn(:,k)>150. )  
+        atebdwn(:,k) = atebdwn(:,k) - urbtemp
+      end where 
+      call atebloadd(atebdwn(:,k),vname,0)
+    end do  
+    call fillhist4('walwtgg',atebdwn(:,1:5),sea_a,filllimit=399.)
+    do k = 1,5
+      write(vname,'("wallwtemp",I1.1)') k
+      where ( atebdwn(:,k)>150. )  
+        atebdwn(:,k) = atebdwn(:,k) - urbtemp
+      end where 
+      call atebloadd(atebdwn(:,k),vname,0)
+    end do  
+    call fillhist4('roadtgg',atebdwn(:,1:5),sea_a,filllimit=399.)
+    do k = 1,5
+      write(vname,'("roadtemp",I1.1)') k
+      where ( atebdwn(:,k)>150. )  
+        atebdwn(:,k) = atebdwn(:,k) - urbtemp
+      end where 
+      call atebloadd(atebdwn(:,k),vname,0)
+    end do  
+    call fillhist4('slabtgg',atebdwn(:,1:5),sea_a,filllimit=399.)
+    do k = 1,5
+      write(vname,'("slabtemp",I1.1)') k
+      where ( atebdwn(:,k)>150. )  
+        atebdwn(:,k) = atebdwn(:,k) - urbtemp
+      end where 
+      call atebloadd(atebdwn(:,k),vname,0)
+    end do  
+    call fillhist4('intmtgg',atebdwn(:,1:5),sea_a,filllimit=399.)
+    do k = 1,5
+      write(vname,'("intmtemp",I1.1)') k 
+      where ( atebdwn(:,k)>150. )  
+        atebdwn(:,k) = atebdwn(:,k) - urbtemp
+      end where 
+      call atebloadd(atebdwn(:,k),vname,0)
+    end do  
+    call fillhist1('roomtgg1',atebdwn(:,1),sea_a,filllimit=399.)
+    where ( atebdwn(:,1)>150. )
+      atebdwn(:,1) = atebdwn(:,1) - urbtemp
+    end where
+    call atebloadd(atebdwn(:,1),"roomtemp",0)
+    call fillhist1('urbnsmc',atebdwn(:,1),sea_a,filllimit=399.)
+    call atebloadd(atebdwn(:,1),"canyonsoilmoisture",0)
+    call fillhist1('urbnsmr',atebdwn(:,1),sea_a,filllimit=399.)
+    call atebloadd(atebdwn(:,1),"roofsoilmoisture",0)
+    call fillhist1('roofwtr',atebdwn(:,1),sea_a,filllimit=399.)
+    call atebloadd(atebdwn(:,1),"roadsurfacewater",0)
+    call fillhist1('roadwtr',atebdwn(:,1),sea_a,filllimit=399.)
+    call atebloadd(atebdwn(:,1),"roofsurfacewater",0)
+    call fillhist1('urbwtrc',atebdwn(:,1),sea_a,filllimit=399.)
+    call atebloadd(atebdwn(:,1),"canyonleafwater",0)
+    call fillhist1('urbwtrr',atebdwn(:,1),sea_a,filllimit=399.)
+    call atebloadd(atebdwn(:,1),"roofleafwater",0)
+    call fillhist1('roofsnd',atebdwn(:,1),sea_a,filllimit=399.)
+    call atebloadd(atebdwn(:,1),"roadsnowdepth",0)
+    call fillhist1('roadsnd',atebdwn(:,1),sea_a,filllimit=399.)
+    call atebloadd(atebdwn(:,1),"roofsnowdepth",0)
+    call fillhist1('roofden',atebdwn(:,1),sea_a,filllimit=399.)
+    if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
+    call atebloadd(atebdwn(:,1),"roadsnowdensity",0)
+    call fillhist1('roadden',atebdwn(:,1),sea_a,filllimit=399.)
+    if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
+    call atebloadd(atebdwn(:,1),"roofsnowdensity",0)
+    call fillhist1('roofsna',atebdwn(:,1),sea_a,filllimit=399.)
+    if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
+    call atebloadd(atebdwn(:,1),"roadsnowalbedo",0)
+    call fillhist1('roadsna',atebdwn(:,1),sea_a,filllimit=399.)
+    if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
+    call atebloadd(atebdwn(:,1),"roofsnowalbedo",0)
+    deallocate( atebdwn )
   end if
 
   ! -----------------------------------------------------------------

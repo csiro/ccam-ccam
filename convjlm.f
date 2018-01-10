@@ -329,6 +329,8 @@
 
       implicit none
       
+#ifdef _OPENMP
+      
       integer :: tile, is, ie
       integer, dimension(imax)          :: lkbsav, lktsav
       real, dimension(imax,kl,naero)    :: lxtg
@@ -396,7 +398,7 @@
      &       lfluxtot,lconvpsav,lcape,lxtg,lso2wd,lso4wd,lbcwd,locwd,
      &       ldustwd,lqlg,lcondc,lprecc,lcondx,lconds,lcondg,lprecip,
      &       lpblh,lfg,lwetfac,lland,lentrainn,lu,lv,ltimeconv,lem,
-     &       lkbsav,lktsav,ltr,lqfg,lcfrac,lsgsave)     ! jlm convective scheme
+     &       lkbsav,lktsav,ltr,lqfg,lcfrac,lsgsave,imax,ntiles)     ! jlm convective scheme
 
         t(is:ie,:)       = lt
         qg(is:ie,:)      = lqg
@@ -431,6 +433,17 @@
       end do
 !$omp end do nowait
       
+#else
+
+      call convjlm_work(alfin,dpsldt,t,qg,phi_nh,ps,
+     &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
+     &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
+     &       pblh,fg,wetfac,land,entrainn,u,v,timeconv,em,
+     &       kbsav,ktsav,tr,qfg,cfrac,sgsave,ifull,1)     ! jlm convective scheme
+
+
+#endif
+      
       return
       end subroutine convjlm     ! jlm convective scheme
 
@@ -438,7 +451,7 @@
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,entrainn,u,v,timeconv,em,
-     &       kbsav,ktsav,tr,qfg,cfrac,sgsave)     ! jlm convective scheme
+     &       kbsav,ktsav,tr,qfg,cfrac,sgsave,imax,ntiles)     ! jlm convective scheme
 !     version 1503e removes various fluxh, and keeps prior defn fluxv
 !     version 1503d changes reflux(k) to fluxv()
 !     version 1503c changes fluxv(k) to fluxv(k-1)
@@ -453,7 +466,6 @@
       use aerosolldr, only : itracso2,itracbc,itracoc,itracdu,ndust,
      &                       naero,convscav
       use cc_mpi, only : mydiag, ccmpi_abort
-      use cc_omp
       use const_phys
       use diag_m, only : maxmin
       use estab      
@@ -467,6 +479,7 @@
       
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
 
+      integer, intent(in) :: imax, ntiles
       integer itn,iq,k
      .       ,khalfp,kt
      .       ,nlayersp
@@ -496,18 +509,18 @@
 !     parameter (nuvconv=0)    ! usually 0, >0 or <0 to turn on momentum mixing
 !     parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing (base layers too)
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
-      real, dimension(imax,kl,naero), intent(inout)    :: xtg
-      real, dimension(imax,kl,ntrac), intent(inout)    :: tr
+      real, dimension(:,:,:), intent(inout)    :: xtg
+      real, dimension(:,:,:), intent(inout)    :: tr
       real, dimension(imax,kl), intent(in)             :: dpsldt
       real, dimension(imax,kl), intent(in)             :: phi_nh
       real, dimension(imax,kl), intent(in)             :: cfrac
-      real, dimension(imax,kl), intent(inout)          :: t
-      real, dimension(imax,kl), intent(inout)          :: qg
-      real, dimension(imax,kl), intent(inout)          :: qlg
-      real, dimension(imax,kl), intent(inout)          :: qfg
+      real, dimension(:,:), intent(inout)          :: t
+      real, dimension(:,:), intent(inout)          :: qg
+      real, dimension(:,:), intent(inout)          :: qlg
+      real, dimension(:,:), intent(inout)          :: qfg
+      real, dimension(:,:), intent(inout)          :: u
+      real, dimension(:,:), intent(inout)          :: v
       real, dimension(imax,kl), intent(out)            :: fluxtot
-      real, dimension(imax,kl), intent(inout)          :: u
-      real, dimension(imax,kl), intent(inout)          :: v
       real, dimension(imax,ndust), intent(inout)       :: dustwd
       real, dimension(imax), intent(in)                :: alfin
       real, dimension(imax), intent(in)                :: ps
@@ -571,8 +584,8 @@
       alfqarr(:)=alfin(:)
       omega(1:imax)=dpsldt(1:imax,komega)
        
-      tt(:,:)=t(:,:)       
-      qq(:,:)=qg(:,:)      
+      tt(:,:)=t(1:imax,:)       
+      qq(:,:)=qg(1:imax,:)      
       phi(:,1)=bet(1)*tt(:,1)  ! moved up here May 2012
       do k=2,kl
        do iq=1,imax
