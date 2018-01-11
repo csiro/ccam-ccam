@@ -102,9 +102,9 @@ public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,veg
 public upack_g,ufull_g,nl
 public f_roof,f_wall,f_road,f_slab,f_intm
 public intm_g,rdhyd_g,rfhyd_g,rfveg_g
-public road_g,roof_g,room_g,slab_g,walle_g,wallw_g,cnveg_g,int_g
+public road_g,roof_g,room_g,slab_g,walle_g,wallw_g,cnveg_g,intl_g
 public f_g,p_g
-public facetparams,facetdata,hydrodata,vegdata,intdata
+public facetparams,facetdata,hydrodata,vegdata,intldata
 public fparmdata,pdiagdata
 #endif
 
@@ -152,10 +152,10 @@ type vegdata
   real, dimension(:), allocatable :: rsmin         ! Minimum stomatal resistance of veg
 end type vegdata
 
-type intdata
+type intldata
   real, dimension(:,:,:), allocatable :: psi   ! internal radiation
   real, dimension(:,:,:), allocatable :: viewf ! internal radiation
-end type intdata
+end type intldata
 
 type fparmdata
   real, dimension(:), allocatable :: hwratio,coeffbldheight,effhwratio,sigmabld
@@ -181,7 +181,7 @@ type(facetdata), dimension(:), allocatable,   save :: roof_g, road_g, walle_g, w
 type(facetparams), dimension(:), allocatable, save :: f_roof, f_road, f_wall, f_slab, f_intm
 type(hydrodata), dimension(:), allocatable,   save :: rfhyd_g, rdhyd_g
 type(vegdata), dimension(:), allocatable,     save :: cnveg_g, rfveg_g
-type(intdata), dimension(:), allocatable,     save :: int_g
+type(intldata), dimension(:), allocatable,    save :: intl_g
 type(fparmdata), dimension(:), allocatable,   save :: f_g
 type(pdiagdata), dimension(:), allocatable,   save :: p_g
 
@@ -328,7 +328,7 @@ allocate( room_g(ntiles) )
 allocate( f_roof(ntiles), f_road(ntiles), f_wall(ntiles), f_slab(ntiles), f_intm(ntiles) )
 allocate( rfhyd_g(ntiles), rdhyd_g(ntiles) )
 allocate( cnveg_g(ntiles), rfveg_g(ntiles) )
-allocate( int_g(ntiles) )
+allocate( intl_g(ntiles) )
 allocate( f_g(ntiles) )
 allocate( p_g(ntiles) )
 allocate( ufull_g(ntiles) )
@@ -376,7 +376,7 @@ do tile = 1,ntiles
   allocate(rdhyd_g(tile)%snowalpha(ufull_g(tile)))
   allocate(rdhyd_g(tile)%leafwater(ufull_g(tile)),rdhyd_g(tile)%soilwater(ufull_g(tile)))
   allocate(rfhyd_g(tile)%leafwater(ufull_g(tile)),rfhyd_g(tile)%soilwater(ufull_g(tile)))
-  allocate(int_g(tile)%viewf(ufull_g(tile),4,4),int_g(tile)%psi(ufull_g(tile),4,4))
+  allocate(intl_g(tile)%viewf(ufull_g(tile),4,4),intl_g(tile)%psi(ufull_g(tile),4,4))
   allocate(f_g(tile)%rfvegdepth(ufull_g(tile)))
   allocate(f_g(tile)%ctime(ufull_g(tile)),f_g(tile)%bldairtemp(ufull_g(tile)))
   allocate(f_g(tile)%hangle(ufull_g(tile)),f_g(tile)%vangle(ufull_g(tile)),f_g(tile)%fbeam(ufull_g(tile)))
@@ -491,7 +491,7 @@ do tile = 1,ntiles
     utype=1 ! default urban
     call atebtype(utype,diag,f_g(tile),cnveg_g(tile),rfveg_g(tile),      &
                   f_roof(tile),f_road(tile),f_wall(tile),f_slab(tile),   &
-                  f_intm(tile),int_g(tile),upack_g(:,tile),              &
+                  f_intm(tile),intl_g(tile),upack_g(:,tile),             &
                   ufull_g(tile))
     
     room_g(tile)%nodetemp(:,1)=f_g(tile)%bldairtemp
@@ -591,7 +591,7 @@ if ( ateb_active ) then
     deallocate(slab_g(tile)%nodetemp,intm_g(tile)%nodetemp,room_g(tile)%nodetemp)
     deallocate(road_g(tile)%storage,roof_g(tile)%storage,walle_g(tile)%storage,wallw_g(tile)%storage)
     deallocate(slab_g(tile)%storage,intm_g(tile)%storage,room_g(tile)%storage)
-    deallocate(int_g(tile)%viewf,int_g(tile)%psi)
+    deallocate(intl_g(tile)%viewf,intl_g(tile)%psi)
     deallocate(f_g(tile)%sigmabld,f_g(tile)%hwratio,f_g(tile)%bldheight,f_g(tile)%coeffbldheight)
     deallocate(f_g(tile)%effhwratio)
     deallocate(f_g(tile)%industryfg,f_g(tile)%intgains_flr,f_g(tile)%trafficfg,f_g(tile)%vangle)
@@ -613,7 +613,7 @@ if ( ateb_active ) then
   deallocate( f_roof, f_road, f_wall, f_slab, f_intm )
   deallocate( rfhyd_g, rdhyd_g )
   deallocate( cnveg_g, rfveg_g )
-  deallocate( int_g )
+  deallocate( intl_g )
   deallocate( f_g )
   deallocate( p_g )
   deallocate( ufull_g )
@@ -942,7 +942,7 @@ do tile = 1,ntiles
   if ( ufull_g(tile)>0 ) then
     call atebtype_thread(itype(is:ie),diag,f_g(tile),cnveg_g(tile),rfveg_g(tile), &
                          f_roof(tile),f_road(tile),f_wall(tile),f_slab(tile),     &
-                         f_intm(tile),int_g(tile),upack_g(:,tile),                &
+                         f_intm(tile),intl_g(tile),upack_g(:,tile),               &
                          ufull_g(tile))
   end if
 end do
@@ -951,7 +951,7 @@ return
 end subroutine atebtype_standard
 
 subroutine atebtype_thread(itype,diag,fp,cnveg,rfveg,fp_roof,fp_road,fp_wall,fp_slab, &
-                           fp_intm,int,upack,ufull)
+                           fp_intm,intl,upack,ufull)
 
 implicit none
 
@@ -1049,7 +1049,7 @@ logical, dimension(imax), intent(in) :: upack
 type(fparmdata), intent(inout) :: fp
 type(vegdata), intent(inout) :: cnveg, rfveg
 type(facetparams), intent(inout) :: fp_roof, fp_road, fp_wall, fp_slab, fp_intm
-type(intdata), intent(inout) :: int
+type(intldata), intent(inout) :: intl
 
 
 namelist /atebnml/  resmeth,useonewall,zohmeth,acmeth,intairtmeth,intmassmeth,nrefl,vegmode,soilunder, &
@@ -1248,7 +1248,7 @@ fp%coeffbldheight = max(fp%bldheight-6.*cnveg%zo,0.2)/fp%bldheight
 fp%effhwratio   = fp%hwratio*fp%coeffbldheight
 
 call init_internal(fp)
-call init_lwcoeff(fp,int,ufull)
+call init_lwcoeff(fp,intl,ufull)
 
 if ( diag>0 ) then
   write(6,*) 'hwratio, eff',fp%hwratio, fp%effhwratio
@@ -1591,7 +1591,7 @@ do tile = 1,ntiles
   ie = tile*imax
   if ( ufull_g(tile)>0 ) then
     call init_internal(f_g(tile))
-    call init_lwcoeff(f_g(tile),int_g(tile),ufull_g(tile))
+    call init_lwcoeff(f_g(tile),intl_g(tile),ufull_g(tile))
   end if
 end do
 
@@ -1600,7 +1600,7 @@ end subroutine atebdeftype
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-subroutine init_lwcoeff(fp,int,ufull)
+subroutine init_lwcoeff(fp,intl,ufull)
 ! This subroutine calculates longwave reflection coefficients (int_psi) at each surface
 ! longwave coefficients do not change, so this subroutine should only be run once
 ! Infinite reflections per Harman et al., (2004) "Radiative Exchange in Urban Street Canyons"
@@ -1615,33 +1615,33 @@ real, dimension(ufull)     :: h, w
 real, dimension(ufull,4)   :: epsil   ! floor, wall, ceiling, wall emissivity array
 integer :: i, j
 integer :: ierr       ! inverse matrix error flag
-type(intdata), intent(inout) :: int
+type(intldata), intent(inout) :: intl
 type(fparmdata), intent(in) :: fp
 
 
 krondelta = 0.
 chi = 0.
-int%psi = 0.
+intl%psi = 0.
 h = fp%bldheight
 w = fp%sigmabld*(fp%bldheight/fp%hwratio)/(1.-fp%sigmabld)
 
 ! set int_vfactors
-int%viewf(:,1,1) = 0.                                    ! floor to self
-int%viewf(:,1,2) = 0.5*(1.+(h/w)-sqrt(1.+(h/w)**2))      ! floor to wallw
-int%viewf(:,1,3) = sqrt(1.+(h/w)**2)-(h/w)               ! floor to ceiling
-int%viewf(:,1,4) = int%viewf(:,1,2)                      ! floor to walle
-int%viewf(:,2,1) = 0.5*(1.+(w/h)-sqrt(1.+(w/h)**2))      ! wallw to floor
-int%viewf(:,2,2) = 0.                                    ! wallw to self
-int%viewf(:,2,3) = int%viewf(:,2,1)                      ! wallw to ceiling
-int%viewf(:,2,4) = sqrt(1.+(w/h)**2)-(w/h)               ! wallw to walle
-int%viewf(:,3,1) = int%viewf(:,1,3)                      ! ceiling to floor
-int%viewf(:,3,2) = int%viewf(:,1,2)                      ! ceiling to wallw
-int%viewf(:,3,3) = 0.                                    ! ceiling to self
-int%viewf(:,3,4) = int%viewf(:,1,2)                      ! ceiling walle
-int%viewf(:,4,1) = int%viewf(:,2,1)                      ! walle to floor
-int%viewf(:,4,2) = int%viewf(:,2,4)                      ! walle to wallw
-int%viewf(:,4,3) = int%viewf(:,2,1)                      ! walle to ceiling
-int%viewf(:,4,4) = 0.                                    ! walle to self
+intl%viewf(:,1,1) = 0.                                    ! floor to self
+intl%viewf(:,1,2) = 0.5*(1.+(h/w)-sqrt(1.+(h/w)**2))      ! floor to wallw
+intl%viewf(:,1,3) = sqrt(1.+(h/w)**2)-(h/w)               ! floor to ceiling
+intl%viewf(:,1,4) = intl%viewf(:,1,2)                     ! floor to walle
+intl%viewf(:,2,1) = 0.5*(1.+(w/h)-sqrt(1.+(w/h)**2))      ! wallw to floor
+intl%viewf(:,2,2) = 0.                                    ! wallw to self
+intl%viewf(:,2,3) = intl%viewf(:,2,1)                     ! wallw to ceiling
+intl%viewf(:,2,4) = sqrt(1.+(w/h)**2)-(w/h)               ! wallw to walle
+intl%viewf(:,3,1) = intl%viewf(:,1,3)                     ! ceiling to floor
+intl%viewf(:,3,2) = intl%viewf(:,1,2)                     ! ceiling to wallw
+intl%viewf(:,3,3) = 0.                                    ! ceiling to self
+intl%viewf(:,3,4) = intl%viewf(:,1,2)                     ! ceiling walle
+intl%viewf(:,4,1) = intl%viewf(:,2,1)                     ! walle to floor
+intl%viewf(:,4,2) = intl%viewf(:,2,4)                     ! walle to wallw
+intl%viewf(:,4,3) = intl%viewf(:,2,1)                     ! walle to ceiling
+intl%viewf(:,4,4) = 0.                                    ! walle to self
 
 !epsil = reshape((/(f_slab%emiss,f_wall%emiss,f_roof%emiss,f_wall%emiss, & 
 !                    i=1,ufull_g)/), (/ufull_g,4/))
@@ -1652,13 +1652,13 @@ do i = 1,4
 end do
 do j = 1,4
   do i = 1,4
-    chi(:,i,j) = (krondelta(i,j) - (1.-epsil(:,i))*int%viewf(:,i,j))/(epsil(:,i))
+    chi(:,i,j) = (krondelta(i,j) - (1.-epsil(:,i))*intl%viewf(:,i,j))/(epsil(:,i))
   end do
 end do
 
 ! invert matrix
-int%psi = chi
-call minverse(int%psi,ierr)
+intl%psi = chi
+call minverse(intl%psi,ierr)
 
 end subroutine init_lwcoeff
 
@@ -2786,7 +2786,7 @@ do tile = 1,ntiles
                         f_g(tile),f_intm(tile),f_road(tile),f_roof(tile),f_slab(tile),f_wall(tile), &
                         intm_g(tile),p_g(tile),rdhyd_g(tile),rfhyd_g(tile),rfveg_g(tile),           &
                         road_g(tile),roof_g(tile),room_g(tile),slab_g(tile),walle_g(tile),          &
-                        wallw_g(tile),cnveg_g(tile),int_g(tile),upack_g(:,tile),ufull_g(tile),      &
+                        wallw_g(tile),cnveg_g(tile),intl_g(tile),upack_g(:,tile),ufull_g(tile),     &
                         diag,raw=mode)
   end if
 end do
@@ -2796,7 +2796,7 @@ end subroutine atebcalc_standard
 
 subroutine atebcalc_thread(ofg,oeg,ots,owf,orn,dt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,    &
                     umin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,              &
-                    rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,int,                      &
+                    rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl,                     &
                     upack,ufull,diag,raw)
 
 implicit none
@@ -2816,7 +2816,7 @@ type(hydrodata), intent(inout) :: rdhyd, rfhyd
 type(vegdata), intent(inout) :: rfveg
 type(facetdata), intent(inout) :: road, roof, room, slab, walle, wallw, intm
 type(vegdata), intent(inout) :: cnveg
-type(intdata), intent(in) :: int
+type(intldata), intent(in) :: intl
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(inout) :: pd
 
@@ -2843,7 +2843,7 @@ a_snd =pack(snd,                  upack)
 ! Update urban prognostic variables
 call atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,dt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin,       &
               fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,room,                   &
-              slab,walle,wallw,cnveg,int,ufull,diag)
+              slab,walle,wallw,cnveg,intl,ufull,diag)
 
 ! export urban fluxes on host grid
 if (mode) then
@@ -2906,7 +2906,7 @@ end subroutine atebcalc_thread
 
 subroutine atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,ddt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin, &
                     fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,                             &
-                    road,roof,room,slab,walle,wallw,cnveg,int,ufull,diag)
+                    road,roof,room,slab,walle,wallw,cnveg,intl,ufull,diag)
 
 implicit none
 
@@ -2948,7 +2948,7 @@ type(hydrodata), intent(inout) :: rdhyd, rfhyd
 type(vegdata), intent(inout) :: rfveg
 type(facetdata), intent(inout) :: road, roof, room, slab, walle, wallw, intm
 type(vegdata), intent(inout) :: cnveg
-type(intdata), intent(in) :: int
+type(intldata), intent(in) :: intl
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(inout) :: pd
 
@@ -3161,7 +3161,7 @@ select case(intairtmeth)
     
   case(1) ! floating internal air temperature
     call internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle,            &
-                         fp,int,roof,slab,walle,wallw,ufull)
+                         fp,intl,roof,slab,walle,wallw,ufull)
                 
   case DEFAULT
     write(6,*) "ERROR: Unknown intairtmeth mode ",intairtmeth
@@ -5364,7 +5364,7 @@ end subroutine atebdisable
 ! This subroutine calculates net longwave radiation flux (flux_rg) at each surface
 ! longwave flux is temperature dependent, so this subroutine should be run at each timestep
 subroutine internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle, &
-                           fp,int,roof,slab,walle,wallw,ufull)
+                           fp,intl,roof,slab,walle,wallw,ufull)
 
 implicit none
 integer, intent(in) :: ufull
@@ -5375,7 +5375,7 @@ real, dimension(ufull,4) :: radnet    ! net flux density on ith surface (+ve lea
 real, dimension(ufull)   :: radtot    ! net leaving flux density (B) on ith surface
 real, dimension(ufull), intent(out) :: rgint_slab,rgint_wallw,rgint_roof,rgint_walle
 type(facetdata), intent(in) :: roof, slab, walle, wallw
-type(intdata), intent(in) :: int
+type(intldata), intent(in) :: intl
 type(fparmdata), intent(in) :: fp
 
 radnet = 0.
@@ -5392,7 +5392,7 @@ skintemp = reshape((/ slab%nodetemp(:,nl),    &
 
 do j = 1,4
   radnet(:,j) = epsil(:,j)/(1.-epsil(:,j))*((sbconst*skintemp(:,j)**4)  & 
-               - sum(int%psi(:,j,:)*(sbconst*skintemp(:,:)**4),dim=2))
+               - sum(intl%psi(:,j,:)*(sbconst*skintemp(:,:)**4),dim=2))
 end do
 
 ! energy conservation check

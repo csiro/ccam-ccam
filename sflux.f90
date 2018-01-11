@@ -1152,7 +1152,7 @@ do tile=1,ntiles
   call sflux_urban_work(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,f_g(tile),                       &
                         f_intm(tile),f_road(tile),f_roof(tile),f_slab(tile),f_wall(tile),intm_g(tile),p_g(tile),     &
                         rdhyd_g(tile),rfhyd_g(tile),rfveg_g(tile),road_g(tile),roof_g(tile),room_g(tile),            &
-                        slab_g(tile),walle_g(tile),wallw_g(tile),cnveg_g(tile),int_g(tile),                          &
+                        slab_g(tile),walle_g(tile),wallw_g(tile),cnveg_g(tile),intl_g(tile),                         &
                         lalbvisnir,luzon,lvmer,lcdtq,lcduv,lconds,lcondg,                                            &
                         lcondx,leg,lfg,lland,lps,lqg,lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,     &
                         ltaux,ltauy,ltss,lu,lustar,lv,lvmod,lwetfac,lzo,lzoh,lzoq,                                   &
@@ -1190,7 +1190,7 @@ return
 end subroutine sflux_urban
 
 subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,       &
-                            fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,int,  &
+                            fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl, &
                             albvisnir,uzon,vmer,cdtq,cduv,                                                        &
                             conds,condg,condx,eg,fg,land,ps,qg,qsttg,rgsave,rnet,runoff,sgsave,snowmelt,swrsave,  &
                             t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,                                     &
@@ -1213,7 +1213,7 @@ real, dimension(imax), intent(in) :: uzon,vmer
 real, dimension(imax) :: newrunoff
 real, dimension(imax) :: dumsg,dumrg,dumx,dums
 real, dimension(imax) :: newsnowmelt
-real, dimension(imax) :: u_fg, u_eg, u_ts, u_wf, u_rn
+real, dimension(imax) :: u_fg, u_eg, u_wf, u_rn
 real, dimension(imax) :: u_zo, u_zoh, u_zoq, zo_work, zoh_work, zoq_work, u_sigma
 real, dimension(imax), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
 real, dimension(imax), intent(inout) :: factch
@@ -1233,7 +1233,7 @@ type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
 type(hydrodata), intent(inout) :: rdhyd, rfhyd
 type(vegdata), intent(inout) :: rfveg, cnveg
 type(facetdata), intent(inout) :: intm, road, roof, room, slab, walle, wallw
-type(intdata), intent(in) :: int
+type(intldata), intent(in) :: intl
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(inout) :: pd
 
@@ -1253,19 +1253,18 @@ if ( ufull>0 ) then                                                             
   dums=(conds+condg)/dt                                                                          ! urban
   u_fg = 0.                                                                                      ! urban
   u_eg = 0.                                                                                      ! urban
-  u_ts = 0.                                                                                      ! urban
+  urban_ts = 0.                                                                                  ! urban
   u_wf = 0.                                                                                      ! urban
   u_rn = 0.                                                                                      ! urban
-  call atebcalc(u_fg,u_eg,u_ts,u_wf,u_rn,dt,azmin,dumsg,dumrg,dumx,dums,rho,               &     ! urban
+  call atebcalc(u_fg,u_eg,urban_ts,u_wf,u_rn,dt,azmin,dumsg,dumrg,dumx,dums,rho,           &     ! urban
                 t(1:imax),qg(1:imax),ps(1:imax),uzon,vmer,vmodmin,                         &     ! urban
                 fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road, &     ! urban
-                roof,room,slab,walle,wallw,cnveg,int,upack,ufull,0,raw=.true.)                   ! urban
-  urban_ts     = u_ts                                                                            ! urban
+                roof,room,slab,walle,wallw,cnveg,intl,upack,ufull,0,raw=.true.)                  ! urban
   urban_wetfac = u_wf                                                                            ! urban
   u_sigma = unpack(fp%sigmau,upack,0.)                                                           ! urban
   fg = (1.-u_sigma)*fg + u_sigma*u_fg                                                            ! urban
   eg = (1.-u_sigma)*eg + u_sigma*u_eg                                                            ! urban
-  tss = (1.-u_sigma)*tss + u_sigma*u_ts                                                          ! urban
+  tss = (1.-u_sigma)*tss + u_sigma*urban_ts                                                      ! urban
   wetfac = (1.-u_sigma)*wetfac + u_sigma*u_wf                                                    ! urban
   newrunoff = (1.-u_sigma)*newrunoff + u_sigma*u_rn                                              ! urban
   runoff = oldrunoff + newrunoff ! add new runoff after including urban                          ! urban

@@ -1470,7 +1470,7 @@ if ( nested/=1 ) then
     if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,5))
     call fillhist4('rooftgg',atebdwn(:,1:5),  sea_a,filllimit=399.)
     do k = 1,5
-      write(vname,'("rooftemp",I1.1)') k  
+      write(vname,'("rooftemp",I1.1)') k
       where ( atebdwn(:,k)>150. )  
         atebdwn(:,k) = atebdwn(:,k) - urbtemp
       end where 
@@ -2171,8 +2171,9 @@ ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )
 call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
 if ( nrem==6*ik*ik ) then
   if ( myid==0 ) then
-    write(6,*) "Cannot perfom fill as all points are trivial"    
+    write(6,*) "Cannot perform fill as all points are trivial"    
   end if
+  a_io = 0.
   return
 end if
 if ( nrem==0 ) then
@@ -2257,7 +2258,8 @@ where ( land_a(1:6*ik*ik) )
   a_io(1:6*ik*ik) = value
 end where
 if ( all(abs(a_io(1:6*ik*ik)-value)<1.E-6) ) then
-  write(6,*) "Cannot perfom fill as all points are trivial"    
+  write(6,*) "Cannot perform fill as all points are trivial"
+  a_io = 0.
   return
 end if
 if ( all(abs(a_io(1:6*ik*ik)-value)>=1.E-6) ) then
@@ -2503,8 +2505,9 @@ ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
 call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
 if ( nrem==6*ik*ik*kx ) then
   if ( myid==0 ) then
-    write(6,*) "Cannot perfom fill as all points are trivial"    
+    write(6,*) "Cannot perform fill as all points are trivial"    
   end if
+  a_io = 0.
   return
 end if
 if ( nrem==0 ) then
