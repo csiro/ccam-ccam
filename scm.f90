@@ -135,16 +135,31 @@ real, dimension(1000) :: press_in
 real press_surf, gridres
 real nwrite, es
 real rlong_in, rlat_in, z_in
+real ateb_bldheight, ateb_hwratio, ateb_sigvegc, ateb_sigmabld
+real ateb_industryfg, ateb_trafficfg, ateb_roofalpha
+real ateb_wallalpha, ateb_roadalpha, ateb_vegalphac
+real, dimension(4) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
+real, dimension(4) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
+real, dimension(4) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
+real, dimension(4) :: ateb_slab_thick, ateb_slab_cp, ateb_slab_cond
 character(len=60) comm, comment
 character(len=80) metforcing, timeoutput, profileoutput
 character(len=80) lsmforcing, lsmoutput
+character(len=80) scm_mode
 logical sday_update
 logical fixtsurf, nolatent, noradiation
 
 namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     z_in,ivegt_in,isoil_in,metforcing,lsmforcing,lsmoutput,       &
     fixtsurf,nolatent,timeoutput,profileoutput,noradiation,       &
-    gablsflux
+    gablsflux,scm_mode,                                           &
+    ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,       &
+    ateb_industryfg,ateb_trafficfg,ateb_roofalpha,                &
+    ateb_wallalpha,ateb_roadalpha,ateb_vegalphac,                 &
+    ateb_roof_thick,ateb_roof_cp,ateb_roof_cond,                  &
+    ateb_wall_thick,ateb_wall_cp,ateb_wall_cond,                  &
+    ateb_road_thick,ateb_road_cp,ateb_road_cond,                  &
+    ateb_slab_thick,ateb_slab_cp,ateb_slab_cond
 ! main namelist
 namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,             &
@@ -231,6 +246,29 @@ maxthreads = 1
 maxtilesize = 1
 ntiles = 1
 imax = 1
+scm_mode = "gabls4"
+ateb_bldheight = -999.
+ateb_hwratio = -999.
+ateb_sigvegc = -999.
+ateb_sigmabld = -999.
+ateb_industryfg = -999.
+ateb_trafficfg = -999.
+ateb_roofalpha = -999.
+ateb_wallalpha = -999.
+ateb_roadalpha = -999.
+ateb_vegalphac = -999.
+ateb_roof_thick = -999.
+ateb_roof_cp = -999.
+ateb_roof_cond = -999.
+ateb_wall_thick = -999. 
+ateb_wall_cp = -999.
+ateb_wall_cond = -999.
+ateb_road_thick = -999.
+ateb_road_cp = -999.
+ateb_road_cond = -999.
+ateb_slab_thick = -999.
+ateb_slab_cp = -999.
+ateb_slab_cond = -999.
 
 #ifndef stacklimit
 ! For linux only - removes stacklimit on all processors
@@ -332,7 +370,14 @@ dtin = dt
 rrvco2 = 330./1.e6
 
 write(6,*) "Calling initialscm"
-call initialscm(metforcing,lsmforcing,press_in(1:kl),press_surf,z_in,ivegt_in,isoil_in)
+call initialscm(metforcing,lsmforcing,press_in(1:kl),press_surf,z_in,ivegt_in,isoil_in, &
+                ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,                 &
+                ateb_industryfg,ateb_trafficfg,ateb_roofalpha,                          &
+                ateb_wallalpha,ateb_roadalpha,ateb_vegalphac,                           &
+                ateb_roof_thick,ateb_roof_cp,ateb_roof_cond,                            &
+                ateb_wall_thick,ateb_wall_cp,ateb_wall_cond,                            &
+                ateb_road_thick,ateb_road_cp,ateb_road_cond,                            &
+                ateb_slab_thick,ateb_slab_cp,ateb_slab_cond)
 
 kountr = 1
 if ( myid==0 ) then
@@ -782,7 +827,14 @@ end if
 
 end subroutine calcshear
     
-subroutine initialscm(metforcing,lsmforcing,press_in,press_surf,z_in,ivegt_in,isoil_in)
+subroutine initialscm(metforcing,lsmforcing,press_in,press_surf,z_in,ivegt_in,isoil_in, &
+                      ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,           &
+                      ateb_industryfg,ateb_trafficfg,ateb_roofalpha,                    &
+                      ateb_wallalpha,ateb_roadalpha,ateb_vegalphac,                     &
+                      ateb_roof_thick,ateb_roof_cp,ateb_roof_cond,                      &
+                      ateb_wall_thick,ateb_wall_cp,ateb_wall_cond,                      &
+                      ateb_road_thick,ateb_road_cp,ateb_road_cond,                      &
+                      ateb_slab_thick,ateb_slab_cp,ateb_slab_cond)
 
 use aerointerface                          ! Aerosol interface
 use aerosolldr                             ! LDR prognostic aerosols
@@ -824,6 +876,7 @@ integer ncid, ncstatus, nlev, slev, tlev
 integer, dimension(ifull,5) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
 integer, dimension(2) :: spos, npos
+integer, dimension(ifull) :: urbantype
 real, dimension(kl), intent(in) :: press_in
 real, intent(in) :: press_surf, z_in
 real, dimension(ifull,5) :: svs, vlin, vlinprev, vlinnext, vlinnext2
@@ -837,6 +890,14 @@ real, dimension(:), allocatable, save :: dat_in, sig_in, dep_in
 real, dimension(:), allocatable, save :: dephl_in, thick_in
 real, dimension(:), allocatable, save :: new_in
 real, dimension(1) :: psurf_in
+real, intent(in) :: ateb_bldheight, ateb_hwratio, ateb_sigvegc, ateb_sigmabld
+real, intent(in) :: ateb_industryfg, ateb_trafficfg, ateb_roofalpha
+real, intent(in) :: ateb_wallalpha, ateb_roadalpha, ateb_vegalphac
+real, dimension(4), intent(in) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
+real, dimension(4), intent(in) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
+real, dimension(4), intent(in) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
+real, dimension(4), intent(in) :: ateb_slab_thick, ateb_slab_cp, ateb_slab_cond
+real, dimension(8) :: atebparm
 real gwdfac, hefact, c
 character(len=*), intent(in) :: metforcing, lsmforcing
 character(len=20) vname
@@ -1159,6 +1220,135 @@ if (nurban/=0) then
     sigmu(:) = 0.
   end where
   call atebinit(ifull,sigmu(:),0)
+  urbantype = 1
+  if ( ateb_bldheight>-900. ) then
+    atebparm(1:8) = ateb_bldheight
+    call atebdeftype(atebparm(1:8),urbantype,'bldheight',0)
+  end if
+  if ( ateb_hwratio>-900. ) then
+    atebparm(1:8) = ateb_hwratio
+    call atebdeftype(atebparm(1:8),urbantype,'hwratio',0)
+  end if
+  if ( ateb_sigvegc>-900. ) then
+    atebparm(1:8) = ateb_sigvegc
+    call atebdeftype(atebparm(1:8),urbantype,'sigvegc',0)
+  end if
+  if ( ateb_sigmabld>-900. ) then
+    atebparm(1:8) = ateb_sigmabld
+    call atebdeftype(atebparm(1:8),urbantype,'sigmabld',0)
+  end if
+  if ( ateb_industryfg>-900. ) then
+    atebparm(1:8) = ateb_industryfg
+    call atebdeftype(atebparm(1:8),urbantype,'industryfg',0)
+  end if
+  if ( ateb_trafficfg>-900. ) then
+    atebparm(1:8) = ateb_trafficfg
+    call atebdeftype(atebparm(1:8),urbantype,'trafficfg',0)
+  end if
+  if ( ateb_roadalpha>-900. ) then
+    atebparm(1:8) = ateb_roadalpha
+    call atebdeftype(atebparm(1:8),urbantype,'roadalpha',0)
+  end if
+  if ( ateb_wallalpha>-900. ) then
+    atebparm(1:8) = ateb_wallalpha
+    call atebdeftype(atebparm(1:8),urbantype,'wallalpha',0)
+  end if
+  if ( ateb_roofalpha>-900. ) then
+    atebparm(1:8) = ateb_roofalpha
+    call atebdeftype(atebparm(1:8),urbantype,'roofalpha',0)
+  end if
+  if ( ateb_roadalpha>-900. ) then
+    atebparm(1:8) = ateb_roadalpha
+    call atebdeftype(atebparm(1:8),urbantype,'roadalpha',0)
+  end if
+  if ( ateb_vegalphac>-900. ) then
+    atebparm(1:8) = ateb_vegalphac
+    call atebdeftype(atebparm(1:8),urbantype,'vegalphac',0)
+  end if
+  if ( all( ateb_roof_thick>-900. ) ) then
+    do k = 1,4  
+      write(vname,'("roofthick",(I1.1))') k  
+      atebparm(1:8) = ateb_roof_thick(k)
+      call atebdeftype(atebparm(1:8),urbantype,vname,0)
+    end do
+  end if
+  if ( all( ateb_roof_cp>-900. ) ) then
+    do k = 1,4  
+      write(vname,'("roofcp",(I1.1))') k  
+      atebparm(1:8) = ateb_roof_cp(k)
+      call atebdeftype(atebparm(1:8),urbantype,vname,0)
+    end do
+  end if
+  if ( all( ateb_roof_cond>-900. ) ) then
+    do k = 1,4  
+      write(vname,'("roofcond",(I1.1))') k  
+      atebparm(1:8) = ateb_roof_cond(k)
+      call atebdeftype(atebparm(1:8),urbantype,vname,0)
+    end do
+  end if
+  if ( all( ateb_wall_thick>-900. ) ) then
+    do k = 1,4  
+      write(vname,'("wallthick",(I1.1))') k  
+      atebparm(1:8) = ateb_wall_thick(k)
+      call atebdeftype(atebparm(1:8),urbantype,vname,0)
+    end do
+  end if
+  if ( all( ateb_wall_cp>-900. ) ) then
+    do k = 1,4  
+      write(vname,'("wallcp",(I1.1))') k  
+      atebparm(1:8) = ateb_wall_cp(k)
+      call atebdeftype(atebparm(1:8),urbantype,vname,0)
+    end do
+  end if
+  if ( all( ateb_wall_cond>-900. ) ) then
+    do k = 1,4  
+      write(vname,'("wallcond",(I1.1))') k  
+      atebparm(1:8) = ateb_wall_cond(k)
+      call atebdeftype(atebparm(1:8),urbantype,vname,0)
+    end do
+  end if
+  if ( all( ateb_road_thick>-900. ) ) then
+    do k = 1,4  
+      write(vname,'("roadthick",(I1.1))') k  
+      atebparm(1:8) = ateb_road_thick(k)
+      call atebdeftype(atebparm(1:8),urbantype,vname,0)
+    end do
+  end if
+  if ( all( ateb_road_cp>-900. ) ) then
+    do k = 1,4  
+      write(vname,'("roadcp",(I1.1))') k  
+      atebparm(1:8) = ateb_road_cp(k)
+      call atebdeftype(atebparm(1:8),urbantype,vname,0)
+    end do
+  end if
+  if ( all( ateb_road_cond>-900. ) ) then
+    do k = 1,4  
+      write(vname,'("roadcond",(I1.1))') k  
+      atebparm(1:8) = ateb_road_cond(k)
+      call atebdeftype(atebparm(1:8),urbantype,vname,0)
+    end do
+  end if
+  if ( all( ateb_slab_thick>-900. ) ) then
+    do k = 1,4  
+      write(vname,'("slabthick",(I1.1))') k  
+      atebparm(1:8) = ateb_slab_thick(k)
+      call atebdeftype(atebparm(1:8),urbantype,vname,0)
+    end do
+  end if
+  if ( all( ateb_slab_cp>-900. ) ) then
+    do k = 1,4  
+      write(vname,'("slabcp",(I1.1))') k  
+      atebparm(1:8) = ateb_slab_cp(k)
+      call atebdeftype(atebparm(1:8),urbantype,vname,0)
+    end do
+  end if
+  if ( all( ateb_slab_cond>-900. ) ) then
+    do k = 1,4  
+      write(vname,'("slabcond",(I1.1))') k  
+      atebparm(1:8) = ateb_slab_cond(k)
+      call atebdeftype(atebparm(1:8),urbantype,vname,0)
+    end do
+  end if
 else
   sigmu(:) = 0.
   call atebdisable(0) ! disable urban
