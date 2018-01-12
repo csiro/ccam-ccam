@@ -187,6 +187,7 @@ use parm_m
 use pbl_m
 use permsurf_m
 use prec_m
+use radisw_m
 use screen_m
 use sigs_m
 use soil_m
@@ -200,25 +201,16 @@ use zenith_m
 implicit none
 
 integer, dimension(maxtile,2) :: ltind
-integer, dimension(imax) :: lisflag
 integer :: lmaxnb, tile, is, ie, js, je
-real, dimension(imax,kl,ntrac) :: ltr
-real, dimension(imax,kl) :: lphi_nh, lqg, lt
+integer :: ico2, igas
 real, dimension(imax,mlitter) :: lclitter, lnilitter, lplitter
 real, dimension(imax,mplant) :: lcplant, lniplant, lpplant
 real, dimension(imax,msoil) :: lcsoil, lnisoil, lpsoil
 real, dimension(imax,ms) :: ltgg, lwb, lwbice
 real, dimension(imax,3) :: lsmass, lssdn, ltggsn
-real, dimension(imax) :: lalbnirdif, lalbnirdir, lalbnirsav, lalbvisdif, lalbvisdir, lalbvissav
-real, dimension(imax) :: lcansto, lcdtq, lcduv, lcnbp, lcnpp, lcondg, lconds, lcondx, leg
-real, dimension(imax) :: lepot, lfbeamnir, lfbeamvis, lfg, lfnee, lfpn, lfrd, lfrp, lfrpr
-real, dimension(imax) :: lfrpw, lfrs, lfwet, lga, lps, lqsttg, lrgsave, lrlatt, lrlongg
-real, dimension(imax) :: lrnet, lrsmin, lrunoff, lrunoff_surface, lsgsave, lsigmf, lsnage
-real, dimension(imax) :: lsnowd, lsnowmelt, lssdnn, lswrsave, ltheta, ltss, lustar, lvlai
-real, dimension(imax) :: lvmod, lwetfac, lzo, lzoh, lzoq
-real, dimension(:), pointer :: lsv, lvl1, lvl2, lvl3, lvl4
+real, dimension(imax) :: lcnbp, lcnpp, lfnee, lfpn, lfrd, lfrp, lfrpr, lfrpw, lfrs
+real, dimension(imax) :: latmco2
 logical, dimension(imax,maxtile) :: ltmap
-logical, dimension(imax) :: lland
 type(air_type) :: lair
 type(balances_type) :: lbal
 type(canopy_type) :: lcanopy
@@ -240,13 +232,9 @@ type(veg_parameter_type) :: lveg
 type(bgc_pool_type) :: lbgc
 
 !$omp do schedule(static) private(is,ie,js,je,ltind,ltmap,lmaxnb),                                             &
-!$omp private(lalbnirdif,lalbnirdir,lalbnirsav,lalbvisdif,lalbvisdir,lalbvissav,lcansto,lcdtq,lcduv,lclitter), &
-!$omp private(lcnbp,lcnpp,lcondg,lconds,lcondx,lcplant,lcsoil,leg,lepot,lfbeamnir,lfbeamvis,lfg,lfnee,lfpn),   &
-!$omp private(lfrd,lfrp,lfrpr,lfrpw,lfrs,lfwet,lga,lisflag,lland,lnilitter,lniplant,lnisoil,lphi_nh,lplitter), &
-!$omp private(lpplant,lps,lpsoil,lqg,lqsttg,lrgsave,lrlatt,lrlongg,lrnet,lrsmin,lrunoff,lrunoff_surface),      &
-!$omp private(lsgsave,lsigmf,lsmass,lsnage,lsnowd,lsnowmelt,lssdn,lssdnn,lswrsave,lt,ltgg,ltggsn,ltheta,ltss), &
-!$omp private(ltr,lustar,lvlai,lvmod,lwb,lwbice,lwetfac,lzo,lzoh,lzoq,lair,lbal,lcanopy,lcasabal,lcasabiome),  &
-!$omp private(lsv,lvl1,lvl2,lvl3,lvl4),                                                                        &
+!$omp private(lclitter,lcnbp,lcnpp,lcplant,lcsoil,lfnee,lfpn),                                                 &
+!$omp private(lfrd,lfrp,lfrpr,lfrpw,lfrs,lnilitter,lniplant,lnisoil,lplitter,lpplant,lpsoil),                  &
+!$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,lcasabiome,latmco2),              &
 !$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
@@ -261,62 +249,13 @@ do tile=1,ntiles
   ltind = tdata(tile)%tind - tdata(tile)%toffset
 
   if ( mp>0 ) then
-    ltmap = tdata(tile)%tmap  
-    lphi_nh = phi_nh(is:ie,:)      
-    lalbnirdif = albnirdif(is:ie)
-    lalbnirdir = albnirdir(is:ie)
-    lalbnirsav = albnirsav(is:ie)
-    lalbvisdif = albvisdif(is:ie)
-    lalbvisdir = albvisdir(is:ie)
-    lalbvissav = albvissav(is:ie)
-    lcansto = cansto(is:ie)
-    lcdtq = cdtq(is:ie)
-    lcduv = cduv(is:ie)
-    lcondg = condg(is:ie)
-    lconds = conds(is:ie)
-    lcondx = condx(is:ie)
-    leg = eg(is:ie)
-    lepot = epot(is:ie)
-    lfbeamnir = fbeamnir(is:ie)
-    lfbeamvis = fbeamvis(is:ie)
-    lfg = fg(is:ie)
-    lfwet = fwet(is:ie)
-    lga = ga(is:ie)
-    lps = ps(is:ie)
-    lqg = qg(is:ie,:)
-    lqsttg = qsttg(is:ie)
-    lrgsave = rgsave(is:ie)
-    lrlatt = rlatt(is:ie)
-    lrlongg = rlongg(is:ie)
-    lrnet = rnet(is:ie)
-    lrsmin = rsmin(is:ie)
-    lrunoff = runoff(is:ie)
-    lrunoff_surface = runoff_surface(is:ie)
-    lsgsave = sgsave(is:ie)
-    lsigmf = sigmf(is:ie)
+    ltmap = tdata(tile)%tmap       
     lsmass = smass(is:ie,:)
-    lsnage = snage(is:ie)
-    lsnowd = snowd(is:ie)
-    lsnowmelt = snowmelt(is:ie)
     lssdn = ssdn(is:ie,:)
-    lssdnn = ssdnn(is:ie)
-    lswrsave = swrsave(is:ie)
-    lt = t(is:ie,:)
     ltgg = tgg(is:ie,:)
     ltggsn = tggsn(is:ie,:)
-    ltheta = theta(is:ie)
-    ltss = tss(is:ie)
-    lustar = ustar(is:ie)
-    lvlai = vlai(is:ie)
-    lvmod = vmod(is:ie)
     lwb = wb(is:ie,:)
     lwbice = wbice(is:ie,:)
-    lwetfac = wetfac(is:ie)
-    lzo = zo(is:ie)
-    lzoh = zoh(is:ie)
-    lzoq = zoq(is:ie)
-    lisflag = isflag(is:ie)
-    lland = land(is:ie)
     if ( icycle/=0 ) then
       lclitter = clitter(is:ie,:)
       lcnbp = cnbp(is:ie)
@@ -337,10 +276,25 @@ do tile=1,ntiles
       lpplant = pplant(is:ie,:)
       lpsoil = psoil(is:ie,:)
     end if  
+    
+    ! set co2 forcing for cable
+    ! constant: atmospheric co2 = 360 ppm 
+    ! host: atmospheric co2 follows that from CCAM radiation scheme
+    ! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
+    latmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
+    ico2=0
     if ( tracerco2==1 ) then
-      ltr = tr(is:ie,:,:)
-    end if  
-  
+      do igas=1,ngas
+        if ( trim(tractype(igas))=='online' .and. trim(tracname(igas))=='cbmnep' ) then
+          ico2=igas
+          exit
+        end if
+      end do
+      if ( ico2>0 ) then
+        latmco2 = tr(1:imax,1,ico2) ! use interactive tracers
+      end if
+    end if
+    
     !set pointers to pass through
     call setp(air,lair,tile)
     call setp(bal,lbal,tile)
@@ -360,59 +314,26 @@ do tile=1,ntiles
     call setp(sum_flux,lsum_flux,tile)
     call setp(veg,lveg,tile)
 
-    lsv => sv(js:je)
-    lvl1 => vl1(js:je)
-    lvl2 => vl2(js:je)
-    lvl3 => vl3(js:je)
-    lvl4 => vl4(js:je)
-
-    call sib4_work(lalbnirdif,lalbnirdir,lalbnirsav,lalbvisdif,lalbvisdir,lalbvissav,lcansto,lcdtq,lcduv,lclitter,lcnbp, &
-                   lcnpp,lcondg,lconds,lcondx,lcplant,lcsoil,leg,lepot,lfbeamnir,lfbeamvis,lfg,lfnee,lfpn,lfrd,lfrp,     &
-                   lfrpr,lfrpw,lfrs,lfwet,lga,lisflag,lland,lmaxnb,mp,lnilitter,lniplant,lnisoil,lphi_nh,lplitter,       &
-                   lpplant,lps,lpsoil,lqg,lqsttg,lrgsave,lrlatt,lrlongg,lrnet,lrsmin,lrunoff,lrunoff_surface,lsgsave,    &
-                   lsigmf,lsmass,lsnage,lsnowd,lsnowmelt,lssdn,lssdnn,lsv,lswrsave,lt,ltgg,ltggsn,ltheta,ltind,ltmap,    &
-                   ltr,ltss,lustar,lvlai,lvl1,lvl2,lvl3,lvl4,lvmod,lwb,lwbice,lwetfac,lzo,lzoh,lzoq,lair,lbal,c,lcanopy, &
+    call sib4_work(albnirdif(is:ie),albnirdir(is:ie),albnirsav(is:ie),albvisdif(is:ie),albvisdir(is:ie),                 &
+                   albvissav(is:ie),cansto(is:ie),cdtq(is:ie),cduv(is:ie),lclitter,lcnbp,                                &
+                   lcnpp,condg(is:ie),conds(is:ie),condx(is:ie),lcplant,lcsoil,eg(is:ie),epot(is:ie),fbeamnir(is:ie),    &
+                   fbeamvis(is:ie),fg(is:ie),lfnee,lfpn,lfrd,lfrp,                                                       &
+                   lfrpr,lfrpw,lfrs,fwet(is:ie),ga(is:ie),isflag(is:ie),land(is:ie),lmaxnb,mp,lnilitter,lniplant,        &
+                   lnisoil,phi_nh(is:ie,1),lplitter,lpplant,ps(is:ie),lpsoil,qg(is:ie,1),qsttg(is:ie),rgsave(is:ie),     &
+                   rlatt(is:ie),rlongg(is:ie),rnet(is:ie),rsmin(is:ie),runoff(is:ie),runoff_surface(is:ie),              &
+                   sgsave(is:ie),sigmf(is:ie),lsmass,snage(is:ie),snowd(is:ie),snowmelt(is:ie),lssdn,ssdnn(is:ie),       &
+                   sv(js:je),swrsave(is:ie),t(is:ie,1),ltgg,ltggsn,theta(is:ie),ltind,ltmap,                             &
+                   latmco2,tss(is:ie),ustar(is:ie),vlai(is:ie),vl1(js:je),vl2(js:je),vl3(js:je),vl4(js:je),vmod(is:ie),  &
+                   lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),lair,lbal,c,lcanopy,                         &
                    lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,    &
                    lsum_flux,lveg,imax)
 
-    albnirdif(is:ie) = lalbnirdif
-    albnirdir(is:ie) = lalbnirdir
-    albnirsav(is:ie) = lalbnirsav
-    albvisdif(is:ie) = lalbvisdif
-    albvisdir(is:ie) = lalbvisdir
-    albvissav(is:ie) = lalbvissav
-    cansto(is:ie) = lcansto
-    cdtq(is:ie) = lcdtq
-    cduv(is:ie) = lcduv
-    eg(is:ie) = leg
-    epot(is:ie) = lepot
-    fg(is:ie) = lfg
-    fwet(is:ie) = lfwet
-    ga(is:ie) = lga
-    qsttg(is:ie) = lqsttg
-    rnet(is:ie) = lrnet
-    rsmin(is:ie) = lrsmin
-    runoff(is:ie) = lrunoff
-    runoff_surface(is:ie) = lrunoff_surface
-    sigmf(is:ie) = lsigmf
     smass(is:ie,:) = lsmass
-    snage(is:ie) = lsnage
-    snowd(is:ie) = lsnowd
-    snowmelt(is:ie) = lsnowmelt
     ssdn(is:ie,:) = lssdn
-    ssdnn(is:ie) = lssdnn
     tgg(is:ie,:) = ltgg
     tggsn(is:ie,:) = ltggsn
-    tss(is:ie) = ltss
-    ustar(is:ie) = lustar
-    vlai(is:ie) = lvlai
     wb(is:ie,:) = lwb
     wbice(is:ie,:) = lwbice
-    wetfac(is:ie) = lwetfac
-    zo(is:ie) = lzo
-    zoh(is:ie) = lzoh
-    zoq(is:ie) = lzoq
-    isflag(is:ie) = lisflag
     if ( icycle/=0 ) then
       clitter(is:ie,:) = lclitter
       cnbp(is:ie) = lcnbp
@@ -446,8 +367,8 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      cnpp,condg,conds,condx,cplant,csoil,eg,epot,fbeamnir,fbeamvis,fg,fnee,fpn,frd,frp,frpr,    &
                      frpw,frs,fwet,ga,isflag,land,maxnb,mp,nilitter,niplant,nisoil,phi_nh,plitter,pplant,ps,    &
                      psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sgsave,sigmf,smass,    &
-                     snage,snowd,snowmelt,ssdn,ssdnn,sv,swrsave,t,tgg,tggsn,theta,tind,tmap,tr,tss,ustar,vlai,  &
-                     vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,air,bal,c,canopy,casabal,casabiome,        &
+                     snage,snowd,snowmelt,ssdn,ssdnn,sv,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,ustar,   &
+                     vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,air,bal,c,canopy,casabal,casabiome,   &
                      casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,veg,imax)
 
 use const_phys
@@ -474,8 +395,8 @@ integer, dimension(imax), intent(inout) :: isflag
 integer, dimension(12) :: ndoy
 integer, dimension(12), parameter :: odoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /) 
 real fjd, r1, dlt, slag, dhr, alp
-real, dimension(imax,kl,ntrac), intent(in) :: tr
-real, dimension(imax,kl), intent(in) :: phi_nh, qg, t
+real, dimension(imax), intent(in) :: atmco2
+real, dimension(imax), intent(in) :: phi_nh, qg, t
 real, dimension(imax,mlitter), intent(inout) :: clitter, nilitter, plitter
 real, dimension(imax,mplant), intent(inout) :: cplant, niplant, pplant
 real, dimension(imax,msoil), intent(inout) :: csoil, nisoil, psoil
@@ -488,7 +409,7 @@ real, dimension(imax), intent(inout) :: runoff_surface, sigmf, snage, snowd, sno
 real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
 real, dimension(imax), intent(in) :: sgsave, swrsave, theta, vmod
-real, dimension(imax) :: coszro2, taudar2, tmps, atmco2, swdwn, alb, qsttg_land
+real, dimension(imax) :: coszro2, taudar2, tmps, swdwn, alb, qsttg_land
 real, dimension(mp), intent(in) :: sv, vl1, vl2, vl3, vl4
 real(kind=8) :: dtr8
 real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
@@ -544,8 +465,6 @@ if ( leap==1 ) then
   if ( mod(jyear,400)==0 ) ndoy(3:12) = odoy(3:12) + 1
 end if
 
-! calculate CO2 concentration
-call setco2for(atmco2,tr,imax)
 if ( any(atmco2<1.) ) then
   write(6,*) "ERROR: Invalid CO2 mixing ratio in cable_ccam2 ",minval(atmco2)
   stop
@@ -568,7 +487,7 @@ do nb = 1,maxnb
   met%ua(is:ie)          = real(pack(vmod,   tmap(:,nb)), 8)
   met%ca(is:ie)          = real(pack(atmco2, tmap(:,nb))*1.e-6, 8)
   met%coszen(is:ie)      = real(pack(coszro2,tmap(:,nb)), 8)              ! use instantaneous value
-  met%qv(is:ie)          = real(pack(qg(1:imax,1),tmap(:,nb)),8 )         ! specific humidity in kg/kg
+  met%qv(is:ie)          = real(pack(qg(1:imax),tmap(:,nb)),8 )           ! specific humidity in kg/kg
   met%pmb(is:ie)         = real(pack(ps(1:imax),  tmap(:,nb))*0.01, 8)    ! pressure in mb at ref height
   met%precip(is:ie)      = real(pack(condx,  tmap(:,nb)), 8)              ! in mm not mm/sec
   met%precip_sn(is:ie)   = real(pack(conds+condg,  tmap(:,nb)), 8)        ! in mm not mm/sec
@@ -580,7 +499,7 @@ do nb = 1,maxnb
   met%fld(is:ie)         = real(pack(-rgsave,              tmap(:,nb)), 8)      ! long wave down (positive) W/m^2
   rad%fbeam(is:ie,1)     = real(pack(fbeamvis,             tmap(:,nb)), 8)
   rad%fbeam(is:ie,2)     = real(pack(fbeamnir,             tmap(:,nb)), 8)
-  rough%za_tq(is:ie)     = real(pack(bet(1)*t(1:imax,1)+phi_nh(:,1),tmap(:,nb))/grav, 8) ! reference height
+  rough%za_tq(is:ie)     = real(pack(bet(1)*t(1:imax)+phi_nh(:),tmap(:,nb))/grav, 8) ! reference height
   rough%za_tq(is:ie)     = max( rough%za_tq(is:ie), veg%hc(is:ie)+1. )
 end do
 met%doy         = real(fjd, 8)
@@ -1022,43 +941,6 @@ end where
 
 return
 end subroutine sib4_work
-
-! *************************************************************************************
-subroutine setco2for(atmco2,tr,imax)
-! set co2 forcing for cable
-! constant: atmospheric co2 = 360 ppm 
-! host: atmospheric co2 follows that from CCAM radiation scheme
-! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
-
-use newmpar_m
-use parm_m
-use radisw_m, only : rrvco2
-use tracers_m, only : ngas,ntrac,tractype,tracname
-
-implicit none
-
-integer ico2,igas
-integer, intent(in) :: imax
-real, dimension(imax), intent(out) :: atmco2
-real, dimension(imax,kl,ntrac), intent(in) :: tr
-
-atmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
-
-ico2=0
-if ( tracerco2==1 ) then
-  do igas=1,ngas
-    if ( trim(tractype(igas))=='online' .and. trim(tracname(igas))=='cbmnep' ) then
-      ico2=igas
-      exit
-    end if
-  end do
-  if ( ico2>0 ) then
-    atmco2 = tr(1:imax,1,ico2) ! use interactive tracers
-  end if
-end if
-
-return
-end subroutine setco2for
 
 ! *************************************************************************************
 subroutine cbmemiss(trsrc,mvegt,mode,tile,imax)

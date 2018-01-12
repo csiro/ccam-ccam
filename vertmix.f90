@@ -1,7 +1,7 @@
 
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -122,19 +122,12 @@ implicit none
 include 'kuocom.h'                  ! Convection parameters
 
 integer :: is, ie, tile
-integer, dimension(imax) :: lkbsav, lktsav
 real, dimension(imax,kl,naero) :: lxtg
 real, dimension(imax,kl) :: lphi_nh, lt, lqg, lqfg,  lqlg
-real, dimension(imax,kl) :: lcfrac, lu, lv, lclcon
+real, dimension(imax,kl) :: lcfrac, lu, lv
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
 real, dimension(imax,kl) :: lat, lct
-real, dimension(imax) :: lem, ltss, leg, lfg
-real, dimension(imax) :: lconvpsav, lps, lcondc, lcduv
-real, dimension(imax) :: lpblh, lzo, ltscrn, lqgscrn, lustar
-real, dimension(imax) :: lf, lcondx, lzs
 real, dimension(imax) :: lou, lov, liu, liv
-logical, dimension(imax) :: lland
-
 #ifdef scm
 real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
 real, dimension(imax,kl) :: ltkesave, lrkmsave, lrkhsave
@@ -143,18 +136,16 @@ real, dimension(imax,kl-1) :: lmfsave
 real, dimension(imax,numtracer) :: lco2em
 real, dimension(imax,kl,ntrac) :: ltr
 real, dimension(imax,kl) :: loh, lstrloss, ljmcf
-real, dimension(imax) :: lfnee, lfpn, lfrp, lfrs, lmcfdep
-real, dimension(imax) :: lcdtq
 #endif
 
-!$omp do schedule(static) private(is,ie),                                                                                &
-!$omp private(lphi_nh,lt,lem,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lqg,lqfg,lqlg,lcondc,lclcon),                      &
-!$omp private(lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear), &
-!$omp private(lou,lov,lat,lct),                                                                                          &
+!$omp do schedule(static) private(is,ie),                                  &
+!$omp private(lphi_nh,lt,lqg,lqfg,lqlg),                                   &
+!$omp private(lcfrac,lxtg,lu,lv,lsavu,lsavv,ltke,leps,lshear),             &
+!$omp private(lou,lov,liu,liv,lat,lct),                                                                                          &
 #ifdef scm
 !$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave)
 #else
-!$omp private(ltr,lfnee,lfpn,lfrp,lfrs,lco2em,loh,lstrloss,ljmcf,lmcfdep.lcdtq)
+!$omp private(ltr,lco2em,loh,lstrloss,ljmcf)
 #endif
 
 do tile = 1,ntiles
@@ -171,25 +162,6 @@ do tile = 1,ntiles
   lsavu     = savu(is:ie,:)
   lsavv     = savv(is:ie,:)
   lcfrac    = stratcloud(is:ie,:)
-  lem       = em(is:ie)
-  ltss      = tss(is:ie)
-  leg       = eg(is:ie)
-  lfg       = fg(is:ie)
-  lconvpsav = convpsav(is:ie)
-  lps       = ps(is:ie)
-  lcduv     = cduv(is:ie)
-  lcondc    = condc(is:ie)
-  lcondx    = condx(is:ie)  
-  lzo       = zo(is:ie)
-  lf        = f(is:ie)
-  lzs       = zs(is:ie)
-  ltscrn    = tscrn(is:ie)
-  lqgscrn   = qgscrn(is:ie)
-  lpblh     = pblh(is:ie)
-  lustar    = ustar(is:ie)
-  lkbsav    = kbsav(is:ie)
-  lktsav    = ktsav(is:ie)
-  lland     = land(is:ie)
   if ( abs(iaero)>=2 ) then
     lxtg = xtg(is:ie,:,:)
   end if
@@ -221,11 +193,13 @@ do tile = 1,ntiles
     lov = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
   end if
   
-  call vertmix_work(lphi_nh,lt,lem,ltss,leg,lfg,lkbsav,lktsav,lconvpsav,lps,lqg,lqfg,lqlg,lcondc,                             &
-                    lcfrac,lxtg,lcduv,lu,lv,lpblh,lzo,lsavu,lsavv,lland,ltscrn,lqgscrn,lustar,lf,lcondx,lzs,ltke,leps,lshear, &
-                    lou,lov,lat,lct                                                                                           &
+  call vertmix_work(lphi_nh,lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),   &
+                    ps(is:ie),lqg,lqfg,lqlg,                                                                         &
+                    condc(is:ie),lcfrac,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),zo(is:ie),lsavu,lsavv,land(is:ie),        &
+                    tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),ltke,leps,lshear,        &
+                    lou,lov,lat,lct                                                                                  &
 #ifdef scm
-                    ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave                                  &
+                    ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave                         &
 #endif
                     )
                     
@@ -236,8 +210,6 @@ do tile = 1,ntiles
   u(is:ie,:)          = lu
   v(is:ie,:)          = lv
   stratcloud(is:ie,:) = lcfrac
-  pblh(is:ie)         = lpblh
-  ustar(is:ie)        = lustar
   if ( abs(iaero)>=2 ) then
     xtg(is:ie,:,:) = lxtg
   end if
@@ -260,15 +232,10 @@ do tile = 1,ntiles
     loh      = oh(is:ie,:)
     lstrloss = strloss(is:ie,:)
     ljmcf    = jmcf(is:ie,:)
-    lfnee    = fnee(is:ie)
-    lfpn     = fpn(is:ie)
-    lfrp     = frp(is:ie)
-    lfrs     = frs(is:ie)
-    lmcfdep  = mcfdep(is:ie)
-    lcdtq    = cdtq(is:ie)
     
     ! Tracers/
-    call tracervmix(lat,lct,lphi_nh,lt,lps,lcdtq,ltr,lfnee,lfpn,lfrp,lfrs,lco2em,loh,lstrloss,ljmcf,lmcfdep,tile,imax)
+    call tracervmix(lat,lct,lphi_nh,lt,ps(is:ie),cdtq(is:ie),ltr,fnee(is:ie),fpn(is:ie),    &
+                    frp(is:ie),frs(is:ie),lco2em,loh,lstrloss,ljmcf,mcfdep(is:ie),tile,imax)
     
     tr(is:ie,:,:) = ltr
   end if   

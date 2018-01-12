@@ -123,22 +123,18 @@ implicit none
 include 'kuocom.h'                ! Convection parameters
 
 integer tile, is, ie
-integer, dimension(imax) :: lkbsav, lktsav
 real, dimension(imax,kl) :: lcfrac, lgfrac, lphi_nh, lppfevap, lppfmelt, lppfprec, lppfsnow
 real, dimension(imax,kl) :: lppfstayice, lppfstayliq, lppfsubl, lpplambs, lppmaccr, lppmrate
 real, dimension(imax,kl) :: lppqfsedice, lpprfreeze, lpprscav, lqccon, lqfg, lqfrad
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfrac, lt
 real, dimension(imax,kl) :: ldpsldt, lfluxtot, lnettend, lstratcloud
-real, dimension(imax) :: lcondc, lcondg, lconds, lcondx, lprecip, lps, lem
-logical, dimension(imax) :: lland
-
 
 !$omp do schedule(static) private(is,ie),                                             &
-!$omp private(lcfrac,lcondc,lcondg,lconds,lcondx,lgfrac,lkbsav,lktsav,lland,lphi_nh), &
+!$omp private(lcfrac,lgfrac,lphi_nh),                                                 &
 !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl),  &
-!$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,lprecip,lps),&
+!$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt),  &
-!$omp private(ldpsldt,lfluxtot,lnettend,lstratcloud,lem)
+!$omp private(ldpsldt,lfluxtot,lnettend,lstratcloud)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -159,26 +155,17 @@ do tile = 1,ntiles
   lt       = t(is:ie,:)
   ldpsldt  = dpsldt(is:ie,:)
   lfluxtot = fluxtot(is:ie,:)
-  lcondc   = condc(is:ie)
-  lcondg   = condg(is:ie)
-  lconds   = conds(is:ie)
-  lcondx   = condx(is:ie)
-  lprecip  = precip(is:ie)
-  lps      = ps(is:ie)
-  lem      = em(is:ie)
-  lkbsav   = kbsav(is:ie)
-  lktsav   = ktsav(is:ie)
-  lland    = land(is:ie)
   if ( ncloud>=4 ) then
     lnettend    = nettend(is:ie,:)
     lstratcloud = stratcloud(is:ie,:)
   end if
 
-  call leoncld_work(lcfrac,lcondc,lcondg,lconds,lcondx,lgfrac,lkbsav,lktsav,lland,lphi_nh,    &
-                    lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl,     &
-                    lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,lprecip,       &
-                    lps,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-                    ldpsldt,lfluxtot,lnettend,lstratcloud,lem,is)
+  call leoncld_work(lcfrac,condc(is:ie),condg(is:ie),conds(is:ie),condx(is:ie),lgfrac,              &
+                    kbsav(is:ie),ktsav(is:ie),land(is:ie),lphi_nh,                                  &
+                    lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl,           &
+                    lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
+                    ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
+                    ldpsldt,lfluxtot,lnettend,lstratcloud,em(is:ie),is)
 
   cfrac(is:ie,:) = lcfrac
   gfrac(is:ie,:) = lgfrac
@@ -194,10 +181,6 @@ do tile = 1,ntiles
   qlrad(is:ie,:) = lqlrad
   qfrad(is:ie,:) = lqfrad
   t(is:ie,:)     = lt
-  condg(is:ie)   = lcondg
-  conds(is:ie)   = lconds
-  condx(is:ie)   = lcondx
-  precip(is:ie)  = lprecip
   if ( abs(iaero)>=2 ) then
     ppfevap(is:ie,:)    = lppfevap
     ppfmelt(is:ie,:)    = lppfmelt
@@ -741,7 +724,6 @@ real, dimension(imax) :: hlrvap, pk, deles, dqsdt
 real, dimension(imax) :: al, qs, delq, qcic, wliq
 real, dimension(imax) :: r6c, eps, beta6, r3c
 real, dimension(imax) :: qcrit, qc2, qto, qc
-real, dimension(imax) :: cfrac1,qfg1,qlg1
 real, dimension(kl) :: diag_temp
 
 integer k
@@ -999,7 +981,7 @@ if ( ncloud<=3 ) then
   where( ttg(1:imax,:)>=Tice )
     qfg(1:imax,:) = fice*qcg(:,:)
     qlg(1:imax,:) = qcg(:,:) - qfg(1:imax,:)
-  elsewhere                                    ! Cirrus T range
+  elsewhere                                 ! Cirrus T range
     qfg(1:imax,:) = qcold(:,:)*decayfac + qcg(:,:)*(1.-decayfac)
     qlg(1:imax,:) = 0.
     qcg(1:imax,:) = qfg(1:imax,:)
@@ -1023,11 +1005,13 @@ else
   cfa(:,:) = 0.
   qca(:,:) = 0.
 
+  decayfac = exp ( -tdt/7200. )             ! Try 2 hrs
+  !decayfac = 0.                            ! Instant adjustment (old scheme)
   where( ttg(1:imax,:)>=Tice )
-    qfg(1:imax,:) = fice(:,:)*qcg(:,:)
+    qfg(1:imax,:) = fice*qcg(:,:)
     qlg(1:imax,:) = qcg(:,:) - qfg(1:imax,:)
-  elsewhere
-    qfg(1:imax,:) = qcg(:,:)
+  elsewhere                                 ! Cirrus T range
+    qfg(1:imax,:) = qcold(:,:)*decayfac + qcg(:,:)*(1.-decayfac)
     qlg(1:imax,:) = 0.
     qcg(1:imax,:) = qfg(1:imax,:)
   end where
@@ -1041,14 +1025,11 @@ end if ! ncloud<=3 ..else..
 pk_v(:) = 1.e5 ! default
 Tk(:) = 300.   ! default
 do k = 1,kl  
-  cfrac1(:) = cfrac(:,k)
-  qlg1(:)   = qlg(:,k)
-  qfg1(:)   = qfg(:,k)
-  where ( cfrac1>0. )
-    Tk(:) = tliq(:,k) + hlcp*(qlg1+qfg1)/cfrac1 !T in liq cloud
-    !fl(:) = qlg(1:imax,k)/max(qfg1+qlg1,1.e-30)
+  where ( cfrac(:,k)>0. )
+    Tk(:) = tliq(:,k) + hlcp*(qlg(:,k)+qfg(:,k))/cfrac(:,k) !T in liq cloud
+    !fl(:) = qlg(1:imax,k)/max(qfg(:,k)+qlg(:,k),1.e-30)
   end where
-  where ( cfrac1>0. .and. Tk(:)<tfrz .and. qlg1>1.e-8 )
+  where ( cfrac(:,k)>0. .and. Tk(:)<tfrz .and. qlg(:,k)>1.e-8 )
     pk_v(:)    = 100.*prf(:,k)
     qs_v(:)    = qsati(pk_v(:),Tk(:))
     es_v(:)    = qs_v(:)*pk_v(:)/0.622 !ice value
@@ -1058,18 +1039,18 @@ do k = 1,kl
     Cice(:)    = 1.e3*exp(12.96*deles_v(:)/es_v(:) - 0.639) !Meyers et al 1992
     qi0(:)     = cm0*Cice(:)/rhoa(:,k) !Initial ice mixing ratio
     ! Next 2 lines are for assumption of fully mixed ql and qf (also a line further down).
-    qi0(:)     = max(qi0(:), qfg1/cfrac1) !Assume all qf and ql are mixed
+    qi0(:)     = max(qi0(:), qfg(:,k)/cfrac(:,k)) !Assume all qf and ql are mixed
     fd(:)      = 1.       !Fraction of cloud in which deposition occurs
     !fd(:)     = fl(:)   !Or, use option of adjacent ql,qf
     Crate(:)   = 7.8*((Cice(:)/rhoa(:,k))**2/rhoic)**(1./3.)*deles_v(:)/((Aprpr(:)+Bprpr(:))*es_v(:))
-    qfdep(:)   = fd(:)*cfrac1*sqrt(((2./3.)*Crate(:)*tdt+qi0(:)**(2./3.))**3)
+    qfdep(:)   = fd(:)*cfrac(:,k)*sqrt(((2./3.)*Crate(:)*tdt+qi0(:)**(2./3.))**3)
     ! Also need this line for fully-mixed option...
-    qfdep(:)   = qfdep(:) - qfg1
-    qfdep(:)   = min(qfdep(:), qlg1)
-    qlg(1:imax,k) = qlg1 - qfdep(:)
-    qfg(1:imax,k) = qfg1 + qfdep(:)
+    qfdep(:)   = qfdep(:) - qfg(:,k)
+    qfdep(:)   = min(qfdep(:), qlg(:,k))
+    qlg(1:imax,k) = qlg(:,k) - qfdep(:)
+    qfg(1:imax,k) = qfg(:,k) + qfdep(:)
   end where
-  !fice(1:imax,k) = qfg1/max(qfg1+qlg1,1.e-30)
+  !fice(1:imax,k) = qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-30)
 end do    
 
 ! Calculate new values of vapour mixing ratio and temperature
@@ -1250,7 +1231,7 @@ real, parameter :: qi0_crt = 8.e-5   ! ice -> snow density threshold
 real, parameter :: qs0_crt = 6.e-3   ! snow -> graupel density threshold
 real, parameter :: c_piacr = 0.1     ! accretion rate of rain -> ice
 real, parameter :: c_psaut = 1.e-3   ! autoconversion rate of ice -> snow
-!real, parameter :: c_pgacs = 1.e-3   ! snow -> graupel "accretion" eff
+!real, parameter :: c_pgacs = 1.e-3  ! snow -> graupel "accretion" eff
 real, parameter :: sfcrho = 1.2      ! reference density rho_0
 real, parameter :: vdifu = 2.11e-5
 real, parameter :: tcond = 2.36e-2

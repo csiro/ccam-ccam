@@ -91,10 +91,9 @@ implicit none
 
 integer :: tile, is, ie
 real, dimension(imax,kl) :: lphi_nh, lt, lu, lv
-real, dimension(imax) :: ltss, lhe
 
 !$omp do schedule(static) private(is,ie),        &
-!$omp private(lphi_nh,lt,lu,lv,ltss,lhe)
+!$omp private(lphi_nh,lt,lu,lv)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -103,10 +102,8 @@ do tile = 1,ntiles
   lt      = t(is:ie,:)
   lu      = u(is:ie,:)
   lv      = v(is:ie,:)
-  ltss    = tss(is:ie)
-  lhe     = he(is:ie)
   
-  call gwdrag_work(lphi_nh,lt,lu,lv,ltss,lhe,imax,ntiles)
+  call gwdrag_work(lphi_nh,lt,lu,lv,tss(is:ie),he(is:ie),imax,ntiles)
 
   u(is:ie,:) = lu
   v(is:ie,:) = lv

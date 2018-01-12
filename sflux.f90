@@ -750,129 +750,55 @@ use work3_m                        ! Mk3 land-surface diagnostic arrays
 
 implicit none
 
-integer tile, is, ie
+integer tile, is, ie, k
 real, dimension(ifull), intent(inout) :: ri, factch
 real, dimension(ifull), intent(in) :: vmag, rho, azmin, uav, vav
-real, dimension(imax,kl) :: lt, lqg
-real, dimension(imax,wlev) :: loldu1, loldv1
-real, dimension(imax,ms) :: ltgg
-real, dimension(imax,3) :: ltggsn
-real, dimension(imax,2) :: lalbvisnir
-real, dimension(imax) :: lps, lsgsave, lrgsave, lswrsave, lfbeamvis, lfbeamnir, ltaux, ltauy
-real, dimension(imax) :: lustar, lf, ltpan, lepan, lrnet, lcondx, lconds, lcondg, lfg, leg
-real, dimension(imax) :: lepot, ltss, lcduv, lcdtq, lwatbdy
-real, dimension(imax) :: lfracice, lsicedep, lsnowd, lsno, lgrpl, lqsttg, lvmod, lzo, lwetfac
-real, dimension(imax) :: lzoh, lzoq, ltheta, lga, lri, lvmag, lrho, lazmin, luav, lvav
-real, dimension(imax) :: lfactch
-logical, dimension(imax) :: loutflowmask, lland
+real, dimension(imax) :: loldu1, loldv1
+real, dimension(imax) :: lwatbdy
+logical, dimension(imax) :: loutflowmask
 
-!$omp do schedule(static) private(is,ie),                                           &
-!$omp private(lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy), &
-!$omp private(lustar,lf,loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg),  &
-!$omp private(leg,lepot,ltss,lcduv,lcdtq,lwatbdy,loutflowmask,lland,lalbvisnir),    &
-!$omp private(lfracice,lsicedep,lsnowd,ltgg,ltggsn,lsno,lgrpl,lqsttg,lvmod,lzo),    &
-!$omp private(lwetfac,lzoh,lzoq,ltheta,lga,lri,lvmag,lrho,lazmin,luav,lvav),        &
-!$omp private(lfactch)
+!$omp do schedule(static) private(is,ie,k),                                         &
+!$omp private(loldu1,loldv1,lwatbdy,loutflowmask)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
 
-  lt         = t(is:ie,:)
-  lqg        = qg(is:ie,:)
-  ltgg       = tgg(is:ie,:)
-  ltggsn     = tggsn(is:ie,:)
-  lalbvisnir = albvisnir(is:ie,:)
-  lps = ps(is:ie)
-  lsgsave = sgsave(is:ie)
-  lrgsave = rgsave(is:ie)
-  lswrsave = swrsave(is:ie)
-  lfbeamvis = fbeamvis(is:ie)
-  lfbeamnir = fbeamnir(is:ie)
-  ltaux = taux(is:ie)
-  ltauy = tauy(is:ie)
-  lustar = ustar(is:ie)
-  lf = f(is:ie)
-  ltpan = tpan(is:ie)
-  lepan = epan(is:ie)
-  lrnet = rnet(is:ie)
-  lcondx = condx(is:ie)
-  lconds = conds(is:ie)
-  lcondg = condg(is:ie)
-  lfg = fg(is:ie)
-  leg = eg(is:ie)
-  lepot = epot(is:ie)
-  ltss = tss(is:ie)
-  lcduv = cduv(is:ie)
-  lcdtq = cdtq(is:ie)
-  lfracice = fracice(is:ie)
-  lsicedep = sicedep(is:ie)
-  lsnowd = snowd(is:ie)
-  lsno = sno(is:ie)
-  lgrpl = grpl(is:ie)
-  lqsttg = qsttg(is:ie)
-  lvmod = vmod(is:ie)
-  lzo = zo(is:ie)
-  lwetfac = wetfac(is:ie)
-  lzoh = zoh(is:ie)
-  lzoq = zoq(is:ie)
-  ltheta = theta(is:ie)
-  lga = ga(is:ie)
-  lri = ri(is:ie)
-  lvmag = vmag(is:ie)
-  lrho = rho(is:ie)
-  lazmin = azmin(is:ie)
-  luav = uav(is:ie)
-  lvav = vav(is:ie)
-  lfactch = factch(is:ie)
-  lland = land(is:ie)
   if ( nriver/=0 ) then
     lwatbdy      = watbdy(is:ie)
     loutflowmask = outflowmask(is:ie)
   end if
   if ( abs(nmlo)>=3 ) then
-    loldu1 = oldu1(is:ie,:)
-    loldv1 = oldv1(is:ie,:)
+    loldu1 = oldu1(is:ie,1)
+    loldv1 = oldv1(is:ie,1)
   end if
   
-  call sflux_mlo_work(lri,srcp,lvmag,ri_max,bprm,chs,ztv,chnsea,lrho,lazmin,luav,lvav,lfactch,           &
-                      lps,lt,lqg,lsgsave,lrgsave,lswrsave,lfbeamvis,lfbeamnir,ltaux,ltauy,lustar,lf,     &
+  call sflux_mlo_work(ri(is:ie),srcp,vmag(is:ie),ri_max,bprm,chs,ztv,chnsea,rho(is:ie),azmin(is:ie),     &
+                      uav(is:ie),vav(is:ie),factch(is:ie),                                               &
+                      ps(is:ie),t(is:ie,1),qg(is:ie,1),sgsave(is:ie),rgsave(is:ie),swrsave(is:ie),       &
+                      fbeamvis(is:ie),fbeamnir(is:ie),taux(is:ie),tauy(is:ie),ustar(is:ie),f(is:ie),     &
                       water_g(tile),wpack_g(:,tile),wfull_g(tile),depth_g(tile),                         &
                       dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),ice_g(tile),                          &
-                      loldu1,loldv1,ltpan,lepan,lrnet,lcondx,lconds,lcondg,lfg,leg,lepot,                &
-                      ltss,lcduv,lcdtq,lwatbdy,loutflowmask,lland,lalbvisnir,                            &
-                      lfracice,lsicedep,lsnowd,ltgg,ltggsn,lsno,lgrpl,lqsttg,lvmod,lzo,lwetfac,          &
-                      lzoh,lzoq,ltheta,lga)
+                      loldu1,loldv1,tpan(is:ie),epan(is:ie),rnet(is:ie),condx(is:ie),                    &
+                      conds(is:ie),condg(is:ie),fg(is:ie),eg(is:ie),epot(is:ie),                         &
+                      tss(is:ie),cduv(is:ie),cdtq(is:ie),lwatbdy,loutflowmask,land(is:ie),               &
+                      albvisnir(is:ie,1),albvisnir(is:ie,2),                                             &
+                      fracice(is:ie),sicedep(is:ie),snowd(is:ie),sno(is:ie),grpl(is:ie),qsttg(is:ie),    &
+                      vmod(is:ie),zo(is:ie),wetfac(is:ie),                                               &
+                      zoh(is:ie),zoq(is:ie),theta(is:ie),ga(is:ie))
 
-  taux(is:ie) = ltaux
-  tauy(is:ie) = ltauy
-  ustar(is:ie) = lustar
-  tpan(is:ie) = ltpan
-  epan(is:ie) = lepan
-  rnet(is:ie) = lrnet
-  fg(is:ie) = lfg
-  eg(is:ie) = leg
-  epot(is:ie) = lepot
-  tss(is:ie) = ltss
-  cduv(is:ie) = lcduv
-  cdtq(is:ie) = lcdtq
-  fracice(is:ie) = lfracice
-  sicedep(is:ie) = lsicedep
-  snowd(is:ie) = lsnowd
-  tgg(is:ie,:) = ltgg
-  tggsn(is:ie,:) = ltggsn
-  sno(is:ie) = lsno
-  grpl(is:ie) = lgrpl
-  qsttg(is:ie) = lqsttg
-  zo(is:ie) = lzo
-  wetfac(is:ie) = lwetfac
-  zoh(is:ie) = lzoh
-  zoq(is:ie) = lzoq
-  ga(is:ie) = lga
-  ri(is:ie) = lri
-  factch(is:ie) = lfactch
   if ( nriver/=0 ) then
     watbdy(is:ie) = lwatbdy
   end if
+  
+  do k = 1,ms 
+    call mloexport(0,tgg(is:ie,k),k,0,water_g(tile),wpack_g(:,tile),wfull_g(tile)) 
+    where ( tgg(is:ie,k)<100. )     
+      tgg(is:ie,k) = tgg(is:ie,k) + wrtemp 
+    end where                 
+  end do                      
+  do k = 1,3                   
+    call mloexpice(tggsn(is:ie,k),k,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile)) 
+  end do 
 
 end do
 !$omp end do nowait
@@ -884,8 +810,8 @@ subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,
                           ps,t,qg,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy,ustar,f,   &
                           water,wpack,wfull,depth,dgice,dgscrn,dgwater,ice,                    &
                           oldu1,oldv1,tpan,epan,rnet,condx,conds,condg,fg,eg,epot,             &
-                          tss,cduv,cdtq,watbdy,outflowmask,land,albvisnir,                     &
-                          fracice,sicedep,snowd,tgg,tggsn,sno,grpl,qsttg,vmod,zo,wetfac,       &
+                          tss,cduv,cdtq,watbdy,outflowmask,land,albvis,albnir,                 &
+                          fracice,sicedep,snowd,sno,grpl,qsttg,vmod,zo,wetfac,                 &
                           zoh,zoq,theta,ga)
 use cc_mpi                           ! CC MPI routines
 use cc_omp                           ! CC OpenMP routines
@@ -906,11 +832,9 @@ integer iq, k
 integer, intent(in) :: wfull
 real root, denha, esatf
 real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
-real, dimension(imax,kl), intent(in) :: t, qg
-real, dimension(imax,wlev), intent(in) :: oldu1, oldv1
-real, dimension(imax,2), intent(in) :: albvisnir
-real, dimension(imax,ms), intent(inout) :: tgg
-real, dimension(imax,3), intent(inout) :: tggsn
+real, dimension(imax), intent(in) :: t, qg
+real, dimension(imax), intent(in) :: oldu1, oldv1
+real, dimension(imax), intent(in) :: albvis, albnir
 real, dimension(imax), intent(inout) :: ri, factch, taux, tauy, ustar, tpan, epan, rnet
 real, dimension(imax), intent(inout) :: fg, eg, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
 real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh, zoq, ga
@@ -939,7 +863,7 @@ end if                                                                          
 qsttg=qsat(ps(1:imax),tpan)                                                                    ! MLO
 do iq=1,imax                                                                                   ! MLO
   if ( land(iq) ) then                                                                         ! MLO  
-    ri(iq)=min(grav*zmin*(1.-tpan(iq)*srcp/t(iq,1))/vmag(iq)**2,ri_max)                        ! MLO
+    ri(iq)=min(grav*zmin*(1.-tpan(iq)*srcp/t(iq))/vmag(iq)**2,ri_max)                          ! MLO
     if(ri(iq)>0.)then                                                                          ! MLO
       fh(iq)=vmod(iq)/(1.+bprm*ri(iq))**2                                                      ! MLO
     else                                                                                       ! MLO
@@ -947,7 +871,7 @@ do iq=1,imax                                                                    
       denha=1.+chs*2.*bprm*sqrt(panzo*ztv)*chnsea*root                                         ! MLO
       fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                                           ! MLO
     endif                                                                                      ! MLO
-    epan(iq)=rho(iq)*chnsea*hl*fh(iq)*(qsttg(iq)-qg(iq,1))                                     ! MLO
+    epan(iq)=rho(iq)*chnsea*hl*fh(iq)*(qsttg(iq)-qg(iq))                                       ! MLO
   end if                                                                                       ! MLO  
 end do                                                                                         ! MLO
                                                                                                ! MLO
@@ -974,19 +898,19 @@ end if                                                                          
 where (.not.land(1:imax))                                                                      ! MLO
   rnet(:)=sgsave(:)-rgsave(:)-stefbo*tss(:)**4 ! use tss as should be tss(t=tau) for MLO       ! MLO
 end where                                                                                      ! MLO
-dumsg(:)=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                     ! MLO
+dumsg(:)=sgsave(:)/(1.-swrsave*albvis(:)-(1.-swrsave)*albnir(:))                               ! MLO
 dumrg(:)=-rgsave(:)                                                                            ! MLO
 dumx(:)=condx(:)/dt ! total precip                                                             ! MLO
 dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
 if (abs(nmlo)>=3) then                                                                         ! MLO
   call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,             & ! MLO
-               azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax,1),qg(1:imax,1),           & ! MLO
+               azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),               & ! MLO
                ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                 & ! MLO
                depth,dgice,dgscrn,dgwater,ice,water,wfull,wpack,                             & ! MLO
-               oldu=oldu1(:,1),oldv=oldv1(:,1))                                                ! MLO
+               oldu=oldu1(:),oldv=oldv1(:))                                                    ! MLO
 else                                                                                           ! MLO
   call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,             & ! MLO
-               azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax,1),qg(1:imax,1),           & ! MLO
+               azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),               & ! MLO
                ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                 & ! MLO
                depth,dgice,dgscrn,dgwater,ice,water,wfull,wpack)                               ! MLO
 end if                                                                                         ! MLO
@@ -994,18 +918,9 @@ call mloextra(0,zoh,azmin,0,dgwater,dgice,ice,wpack,wfull)                      
 call mloextra(3,zoq,azmin,0,dgwater,dgice,ice,wpack,wfull)                                     ! MLO
 call mloextra(1,taux,azmin,0,dgwater,dgice,ice,wpack,wfull)                                    ! MLO
 call mloextra(2,tauy,azmin,0,dgwater,dgice,ice,wpack,wfull)                                    ! MLO
-do k=1,ms                                                                                      ! MLO
-  call mloexport(0,tgg(:,k),k,0,water,wpack,wfull)                                             ! MLO
-  where ( tgg(:,k)<100. )                                                                      ! MLO
-    tgg(:,k) = tgg(:,k) + wrtemp                                                               ! MLO
-  end where                                                                                    ! MLO
-end do                                                                                         ! MLO
-do k=1,3                                                                                       ! MLO
-  call mloexpice(tggsn(:,k),k,0,ice,wpack,wfull)                                               ! MLO
-end do                                                                                         ! MLO
                                                                                                ! MLO
 ! stuff to keep tpan over land working                                                         ! MLO
-rid=min(grav*zmin*(1.-tpan*srcp/t(1:imax,1))/vmag**2,ri_max)                                   ! MLO
+rid=min(grav*zmin*(1.-tpan*srcp/t(1:imax))/vmag**2,ri_max)                                     ! MLO
 where (rid>0.)                                                                                 ! MLO
   fhd=vmod/(1.+bprm*rid)**2                                                                    ! MLO
 elsewhere                                                                                      ! MLO
@@ -1016,7 +931,7 @@ where ( .not.land(1:imax) )                                                     
   snowd=snowd*1000.                                                                            ! MLO
   ga=0.                                                                                        ! MLO
   ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rho)                                                    ! MLO
-  tpan=tgg(:,1)                                                                                ! MLO
+  tpan=tss                                                                               ! MLO
   factch=sqrt(zo/zoh)                                                                          ! MLO
   sno=sno+conds                                                                                ! MLO
   grpl=grpl+condg                                                                              ! MLO
@@ -1067,72 +982,13 @@ implicit none
 integer :: tile, is, ie
 real, dimension(ifull), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
 real, dimension(ifull), intent(inout) :: factch
-real, dimension(imax) :: lqg, lt, lu, lv
-real, dimension(imax,2) :: lalbvisnir
-real, dimension(imax) :: lazmin, luav, lvav, loldrunoff, lrho, lfactch, lvmag, loldsnowmelt
-real, dimension(imax) :: lcdtq, lcduv, lconds, lcondg, lcondx, leg, lfg, lps, lqsttg
-real, dimension(imax) :: lrgsave, lrnet, lrunoff, lsgsave, lsnowmelt, lswrsave, ltaux, ltauy
-real, dimension(imax) :: ltss, lustar, lvmod, lwetfac, lzo, lzoh, lzoq
-real, dimension(imax) :: lanthropogenic_flux, lurban_ts, lurban_wetfac
-real, dimension(imax) :: lurban_zom, lurban_zoh, lurban_zoq
-real, dimension(imax) :: zonx,zony,zonz,costh
-real, dimension(imax) :: sinth,luzon,lvmer
-logical, dimension(imax) :: lland
+real, dimension(imax) :: luzon, lvmer, costh, sinth, zonx, zony, zonz
 
-!$omp do schedule(static) private(is,ie),                                                                     &
-!$omp private(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,lalbvisnir),                        &
-!$omp private(lax,lbx,lay,lby,laz,lbz,lcdtq,lcduv,lconds,lcondg,lcondx,leg,lfg,lland,lps,lqg),                &
-!$omp private(lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,ltaux,ltauy,ltss,lu,lustar,lv),      &
-!$omp private(lvmod,lwetfac,lx,ly,lz,lzo,lzoh,lzoq),                                                          &
-!$omp private(lanthropogenic_flux,lurban_ts,lurban_wetfac,lurban_zom,lurban_zoh,lurban_zoq) 
+!$omp do schedule(static) private(is,ie),                                 &
+!$omp private(luzon, lvmer, costh, sinth, zonx, zony, zonz) 
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-
-  lazmin = azmin(is:ie)
-  luav = uav(is:ie)
-  lvav = vav(is:ie)
-  loldrunoff = oldrunoff(is:ie)
-  lrho = rho(is:ie)
-  lfactch = factch(is:ie)
-  lvmag = vmag(is:ie)
-  loldsnowmelt = oldsnowmelt(is:ie)
-  lalbvisnir = albvisnir(is:ie,:)
-  lcdtq = cdtq(is:ie)
-  lcduv = cduv(is:ie)
-  lconds = conds(is:ie)
-  lcondg = condg(is:ie)
-  lcondx = condx(is:ie)
-  leg = eg(is:ie)
-  lfg = fg(is:ie)
-  lland = land(is:ie)
-  lps = ps(is:ie)
-  lqg = qg(is:ie,1)
-  lqsttg = qsttg(is:ie)
-  lrgsave = rgsave(is:ie)
-  lrnet = rnet(is:ie)
-  lrunoff = runoff(is:ie)
-  lsgsave = sgsave(is:ie)
-  lsnowmelt = snowmelt(is:ie)
-  lswrsave = swrsave(is:ie)
-  lt = t(is:ie,1)
-  ltaux = taux(is:ie)
-  ltauy = tauy(is:ie)
-  ltss = tss(is:ie)
-  lu = u(is:ie,1)
-  lustar = ustar(is:ie)
-  lv = v(is:ie,1)
-  lvmod = vmod(is:ie)
-  lwetfac = wetfac(is:ie)
-  lzo = zo(is:ie)
-  lzoh = zoh(is:ie)
-  lzoq = zoq(is:ie)
-  lanthropogenic_flux = anthropogenic_flux(is:ie)
-  lurban_ts = urban_ts(is:ie)
-  lurban_wetfac = urban_wetfac(is:ie)
-  lurban_zom = urban_zom(is:ie)
-  lurban_zoh = urban_zoh(is:ie)
-  lurban_zoq = urban_zoq(is:ie)
 
 #ifdef scm
     luzon = uav(is:ie) ! zonal wind
@@ -1149,39 +1005,19 @@ do tile=1,ntiles
     lvmer= sinth*uav(is:ie)+costh*vav(is:ie)  ! meridonal wind
 #endif
 
-  call sflux_urban_work(lazmin,luav,lvav,loldrunoff,lrho,lfactch,lvmag,loldsnowmelt,f_g(tile),                       &
+  call sflux_urban_work(azmin(is:ie),uav(is:ie),vav(is:ie),oldrunoff(is:ie),rho(is:ie),factch(is:ie),vmag(is:ie),    &
+                        oldsnowmelt(is:ie),f_g(tile),                                                                &
                         f_intm(tile),f_road(tile),f_roof(tile),f_slab(tile),f_wall(tile),intm_g(tile),p_g(tile),     &
                         rdhyd_g(tile),rfhyd_g(tile),rfveg_g(tile),road_g(tile),roof_g(tile),room_g(tile),            &
                         slab_g(tile),walle_g(tile),wallw_g(tile),cnveg_g(tile),intl_g(tile),                         &
-                        lalbvisnir,luzon,lvmer,lcdtq,lcduv,lconds,lcondg,                                            &
-                        lcondx,leg,lfg,lland,lps,lqg,lqsttg,lrgsave,lrnet,lrunoff,lsgsave,lsnowmelt,lswrsave,lt,     &
-                        ltaux,ltauy,ltss,lu,lustar,lv,lvmod,lwetfac,lzo,lzoh,lzoq,                                   &
-                        lanthropogenic_flux,lurban_ts,lurban_wetfac,lurban_zom,lurban_zoh,lurban_zoq,                &
+                        albvisnir(is:ie,1),albvisnir(is:ie,2),luzon,lvmer,cdtq(is:ie),cduv(is:ie),conds(is:ie),      &
+                        condg(is:ie),condx(is:ie),eg(is:ie),fg(is:ie),land(is:ie),ps(is:ie),qg(is:ie,1),             &
+                        qsttg(is:ie),rgsave(is:ie),rnet(is:ie),runoff(is:ie),sgsave(is:ie),snowmelt(is:ie),          &
+                        swrsave(is:ie),t(is:ie,1),taux(is:ie),tauy(is:ie),tss(is:ie),u(is:ie,1),ustar(is:ie),        &
+                        v(is:ie,1),vmod(is:ie),wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),                        &
+                        anthropogenic_flux(is:ie),urban_ts(is:ie),urban_wetfac(is:ie),urban_zom(is:ie),              &
+                        urban_zoh(is:ie),urban_zoq(is:ie),                                                           &
                         upack_g(:,tile),ufull_g(tile))
-
-  factch(is:ie) = lfactch
-  cdtq(is:ie) = lcdtq
-  cduv(is:ie) = lcduv
-  eg(is:ie) = leg
-  fg(is:ie) = lfg
-  qsttg(is:ie) = lqsttg
-  rnet(is:ie) = lrnet
-  runoff(is:ie) = lrunoff
-  snowmelt(is:ie) = lsnowmelt
-  taux(is:ie) = ltaux
-  tauy(is:ie) = ltauy
-  tss(is:ie) = ltss
-  ustar(is:ie) = lustar
-  wetfac(is:ie) = lwetfac
-  zo(is:ie) = lzo
-  zoh(is:ie) = lzoh
-  zoq(is:ie) = lzoq
-  anthropogenic_flux(is:ie) = lanthropogenic_flux
-  urban_ts(is:ie) = lurban_ts
-  urban_wetfac(is:ie) = lurban_wetfac
-  urban_zom(is:ie) = lurban_zom
-  urban_zoh(is:ie) = lurban_zoh
-  urban_zoq(is:ie) = lurban_zoq
 
 end do
 !$omp end do nowait
@@ -1191,7 +1027,7 @@ end subroutine sflux_urban
 
 subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,       &
                             fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl, &
-                            albvisnir,uzon,vmer,cdtq,cduv,                                                        &
+                            albvis,albnir,uzon,vmer,cdtq,cduv,                                                    &
                             conds,condg,condx,eg,fg,land,ps,qg,qsttg,rgsave,rnet,runoff,sgsave,snowmelt,swrsave,  &
                             t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,                                     &
                             anthropogenic_flux,urban_ts,urban_wetfac,urban_zom,urban_zoh,urban_zoq,               &
@@ -1217,7 +1053,7 @@ real, dimension(imax) :: u_fg, u_eg, u_wf, u_rn
 real, dimension(imax) :: u_zo, u_zoh, u_zoq, zo_work, zoh_work, zoq_work, u_sigma
 real, dimension(imax), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
 real, dimension(imax), intent(inout) :: factch
-real, dimension(imax,2), intent(in) :: albvisnir
+real, dimension(imax), intent(in) :: albvis, albnir
 real, dimension(imax), intent(inout) :: anthropogenic_flux, urban_ts, urban_wetfac
 real, dimension(imax), intent(inout) :: urban_zom, urban_zoh, urban_zoq
 real, dimension(imax), intent(in) :: conds, condg, condx
@@ -1247,7 +1083,7 @@ if ( ufull>0 ) then                                                             
   ! easier to remove the new runoff and add it again after the                                   ! urban
   ! urban scheme has been updated                                                                ! urban
   ! call aTEB                                                                                    ! urban
-  dumsg=sgsave/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                           ! urban
+  dumsg=sgsave/(1.-swrsave*albvis(:)-(1.-swrsave)*albnir(:))                                     ! urban
   dumrg=-rgsave                                                                                  ! urban
   dumx=condx/dt                                                                                  ! urban
   dums=(conds+condg)/dt                                                                          ! urban

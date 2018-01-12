@@ -248,8 +248,6 @@
       implicit none
 
       integer :: tile, is, ie
-      integer, dimension(imax)          :: lkbsav, lktsav  
-      integer, dimension(imax)          :: lkb_saved,lkt_saved 
       real, dimension(imax,kl,naero)    :: lxtg
       real, dimension(imax,kl,ntrac)    :: ltr
       real, dimension(imax,kl)          :: ldpsldt, lt, lqg
@@ -257,22 +255,13 @@
       real, dimension(imax,kl)          :: lqlg, lqfg, lcfrac
       real, dimension(imax,kl)          :: lu, lv
       real, dimension(imax,ndust)       :: ldustwd
-      real, dimension(imax)             :: lalfin, lps
-      real, dimension(imax)             :: lconvpsav, lcape
       real, dimension(imax)             :: lso2wd, lso4wd, lbcwd
-      real, dimension(imax)             :: locwd, lcondc, lprecc
-      real, dimension(imax)             :: lcondx, lconds, lcondg
-      real, dimension(imax)             :: lprecip, lpblh, lfg
-      real, dimension(imax)             :: lwetfac, ltimeconv, lem
-      real, dimension(imax)             :: lsgsave
-      logical, dimension(imax)          :: lland
+      real, dimension(imax)             :: locwd
 
 !$omp  do schedule(static) private(is,ie),
 !$omp& private(ldpsldt,lt,lqg,lqlg,lqfg,lphi_nh,lfluxtot,lcfrac),
-!$omp& private(lu,lv,lalfin,lps,lconvpsav,lcape,lcondc,lprecc),
-!$omp& private(lcondx,lconds,lcondg,lprecip,lpblh,lfg,lwetfac),
-!$omp& private(lland,ltimeconv,lem,lkbsav,lktsav,lsgsave,lkb_saved),
-!$omp& private(lkt_saved,lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd),
+!$omp& private(lu,lv),
+!$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd),
 !$omp& private(ltr)
       do tile = 1,ntiles
         is = (tile-1)*imax + 1
@@ -287,27 +276,7 @@
         lcfrac    = cfrac(is:ie,:)
         lu        = u(is:ie,:)
         lv        = v(is:ie,:)
-        lalfin    = alfin(is:ie)
-        lps       = ps(is:ie)
-        lcape     = cape(is:ie)
-        lcondc    = condc(is:ie)
-        lcondx    = condx(is:ie)
-        lconds    = conds(is:ie)
-        lcondg    = condg(is:ie)
-        lprecc    = precc(is:ie)
-        lprecip   = precip(is:ie)
-        lpblh     = pblh(is:ie)
-        lfg       = fg(is:ie)
-        lwetfac   = wetfac(is:ie)
-        ltimeconv = timeconv(is:ie)
-        lem       = em(is:ie)
-        lsgsave   = sgsave(is:ie)
-        lkbsav    = kbsav(is:ie)
-        lktsav    = ktsav(is:ie)
-        lkb_saved = kb_saved(is:ie)
-        lkt_saved = kt_saved(is:ie)
-        lland     = land(is:ie)
-        if ( abs(iaero)>=2 ) then
+         if ( abs(iaero)>=2 ) then
           lxtg    = xtg(is:ie,:,:)
           ldustwd = dustwd(is:ie,:)
           lso2wd  = so2wd(is:ie)
@@ -320,12 +289,15 @@
         end if
 
         ! jlm convective scheme
-        call convjlm22_work(lalfin,ldpsldt,lt,lqg,lphi_nh,lps,
-     &       lfluxtot,lconvpsav,lcape,lxtg,lso2wd,lso4wd,lbcwd,locwd,
-     &       ldustwd,lqlg,lcondc,lprecc,lcondx,lconds,lcondg,lprecip,
-     &       lpblh,lfg,lwetfac,lland,lu,lv,ltimeconv,lem,
-     &       lkbsav,lktsav,ltr,lqfg,lcfrac,lsgsave,lkt_saved,lkb_saved,
-     &       imax,ntiles)
+        call convjlm22_work(alfin(is:ie),ldpsldt,lt,lqg,lphi_nh,
+     &       ps(is:ie),lfluxtot,convpsav(is:ie),cape(is:ie),
+     &       lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,
+     &       lqlg,condc(is:ie),precc(is:ie),condx(is:ie),conds(is:ie),
+     &       condg(is:ie),precip(is:ie),
+     &       pblh(is:ie),fg(is:ie),wetfac(is:ie),land(is:ie),lu,lv,
+     &       timeconv(is:ie),em(is:ie),
+     &       kbsav(is:ie),ktsav(is:ie),ltr,lqfg,lcfrac,sgsave(is:ie),
+     &       kt_saved(is:ie),kb_saved(is:ie))
 
         t(is:ie,:)       = lt
         qg(is:ie,:)      = lqg
@@ -334,19 +306,6 @@
         fluxtot(is:ie,:) = lfluxtot
         u(is:ie,:)       = lu
         v(is:ie,:)       = lv
-        convpsav(is:ie)  = lconvpsav
-        cape(is:ie)      = lcape
-        condc(is:ie)     = lcondc
-        condx(is:ie)     = lcondx
-        conds(is:ie)     = lconds
-        condg(is:ie)     = lcondg
-        precc(is:ie)     = lprecc
-        precip(is:ie)    = lprecip
-        timeconv(is:ie)  = ltimeconv
-        kbsav(is:ie)     = lkbsav
-        ktsav(is:ie)     = lktsav
-        kt_saved(is:ie)  = lkt_saved
-        kb_saved(is:ie)  = lkb_saved
         if ( abs(iaero)>=2 ) then
           xtg(is:ie,:,:)  = lxtg
           dustwd(is:ie,:) = ldustwd
@@ -370,8 +329,7 @@
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,u,v,timeconv,em,
-     &       kbsav,ktsav,tr,qfg,cfrac,sgsave,kt_saved,kb_saved,
-     &       imax,ntiles)
+     &       kbsav,ktsav,tr,qfg,cfrac,sgsave,kt_saved,kb_saved)
       !jlm convective scheme - latest and cleaned up
 !     unused switches: nevapcc, rhsat, shaltime 
 !     unused switches if ksc=0:  kscmom, 
@@ -381,6 +339,7 @@
       use aerosolldr, only : itracso2,itracbc,itracoc,itracdu,ndust,
      &                       naero,convscav
       use cc_mpi, only : mydiag, ccmpi_abort
+      use cc_omp, only : imax, ntiles
       use const_phys
       use diag_m, only : maxmin
       use estab      
@@ -394,7 +353,6 @@
       
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
 
-      integer, intent(in) :: imax, ntiles
       integer itn,iq,k,kt,ntest,ntr,nums,nuv,kb
       real convmax,delq_av,delt_av,den1,den2,den3,dprec
       real facuv,fldownn,fluxup,hbase,heatlev,pwater,pwater0,qsk
