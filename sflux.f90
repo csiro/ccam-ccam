@@ -131,43 +131,44 @@ real, dimension(ifull) :: river_inflow
 !     eg is latent heat flux (was wv)
 !     dfgdt is dfgdt (was csen in surfupa/b)
 !     degdt is degdt (was ceva in surfupa/b)
+  
+! local arrays
+oldrunoff(:)=runoff(:)
+oldsnowmelt(:)=snowmelt(:)
+factch(:)=1.      ! dummy value
+taux(:)=0.        ! dummy value
+tauy(:)=0.        ! dummy value
+fg_ocn(:)=0.      ! dummy value
+fg_ice(:)=0.      ! dummy value
+eg_ocn(:)=0.      ! dummy value
+eg_ice(:)=0.      ! dummy value
+taux_ocn(:)=0.    ! dummy value
+taux_ice(:)=0.    ! dummy value
+tauy_ocn(:)=0.    ! dummy value
+tauy_ice(:)=0.    ! dummy value
+!     using av_vmod (1. for no time averaging)
+!     sflux called at beginning of time loop, hence savu, savv
+azmin(:) = (bet(1)*t(:,1)+phi_nh(:,1))/grav
+rho(:) = ps(:)/(rdry*tss(:))
+uav(:) = av_vmod*u(:,1) + (1.-av_vmod)*savu(:,1)   
+vav(:) = av_vmod*v(:,1) + (1.-av_vmod)*savv(:,1)  
+vmag(:) = max( sqrt(uav(:)**2+vav(:)**2), vmodmin )    ! vmag used to calculate ri
 
-
+! allocated arrays
 !$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax  
-
-  oldrunoff(is:ie)=runoff(is:ie)
-  oldsnowmelt(is:ie)=snowmelt(is:ie)
   zo(is:ie)=0.          ! dummy value
   zoh(is:ie)=0.         ! dummy value
   zoq(is:ie)=0.         ! dummy value
-  factch(is:ie)=1.      ! dummy value
-  taux(is:ie)=0.        ! dummy value
-  tauy(is:ie)=0.        ! dummy value
-  fg_ocn(is:ie)=0.      ! dummy value
-  fg_ice(is:ie)=0.      ! dummy value
-  eg_ocn(is:ie)=0.      ! dummy value
-  eg_ice(is:ie)=0.      ! dummy value
-  taux_ocn(is:ie)=0.    ! dummy value
-  taux_ice(is:ie)=0.    ! dummy value
-  tauy_ocn(is:ie)=0.    ! dummy value
-  tauy_ice(is:ie)=0.    ! dummy value
-
-  !     using av_vmod (1. for no time averaging)
-  !      *****  check next comment
-  !       sflux called at beginning of time loop, hence savu, savv
-  azmin(is:ie) = (bet(1)*t(is:ie,1)+phi_nh(is:ie,1))/grav
-  ga(is:ie) = 0.              !  for ocean points in ga_ave diagnostic
+  ga(is:ie) = 0.        !  for ocean points in ga_ave diagnostic
   theta(is:ie) = t(is:ie,1)/srcp
-  rho(is:ie) = ps(is:ie)/(rdry*tss(is:ie))
-  uav(is:ie) = av_vmod*u(is:ie,1) + (1.-av_vmod)*savu(is:ie,1)   
-  vav(is:ie) = av_vmod*v(is:ie,1) + (1.-av_vmod)*savv(is:ie,1)  
-  vmod(is:ie) = sqrt(uav(is:ie)**2+vav(is:ie)**2)  ! i.e. vmod for tss_sh
-  vmag(is:ie) = max( vmod(is:ie), vmodmin )    ! vmag used to calculate ri
-  if ( ntsur/=7 ) vmod(is:ie) = vmag(is:ie)    ! gives usual way
-
+  if ( ntsur==7 ) then
+    vmod(is:ie) = sqrt(uav(is:ie)**2+vav(is:ie)**2)  
+  else
+    vmod(is:ie) = vmag(is:ie)  
+  end if
 end do
 !$omp end do nowait
 
@@ -197,8 +198,8 @@ if ( nmlo==0 ) then ! prescribed SSTs
   call sflux_sea(ri,vmag,af,aft,factch,rho,                                       &              ! sea
                  fg_ocn,fg_ice,eg_ocn,eg_ice,taux_ocn,taux_ice,tauy_ocn,tauy_ice, &              ! sea
                  river_inflow,nalpha)                                                            ! sea
-!$omp endsingle
-elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then                                                      ! MLO
+!$omp end single
+elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then ! prognostic SSTs                                    ! MLO
   call sflux_mlo(ri,vmag,rho,azmin,uav,vav,factch)                                               ! MLO
 end if                                                                                           ! MLO
 !$omp do schedule(static) private(is,ie)
@@ -227,7 +228,7 @@ select case(nsib)                                                               
     ! call cable                                                                                 ! cable
     call sib4                                                                                    ! cable
     ! update remaining diagnostic arrays                                                         ! cable
-!$omp do schedule(static) private(is,ie)
+!$omp do schedule(static) private(is,ie,iq)
     do tile = 1,ntiles                                                                           ! cable
       is = (tile-1)*imax + 1                                                                     ! cable
       ie = tile*imax                                                                             ! cable
