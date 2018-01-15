@@ -66,7 +66,6 @@
 /getopt_m.f90 -text
 /gettin.f90 -text
 /globpe.f90 -text
-/globpea -text
 /gnulicense.txt -text
 /hcon.h -text
 /hconst.f -text
