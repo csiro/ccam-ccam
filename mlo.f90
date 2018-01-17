@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1927,13 +1927,15 @@ select case( otaumode )
     atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*atm_oldv               ! implicit
     vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                                 ! implicit
     rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))                     ! implicit
-    bb(:,1) = 1._8 - cc(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn      ! implicit  
+    bb(:,1) = 1._8 - cc(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn &
+                                           /(rhowt*depth%dz(:,1)*d_zcr)      ! implicit  
   case(2)
     atu = atm_u - fluxwgt*water%u(:,1) - (1.-fluxwgt)*atm_oldu               ! mixed
     atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*atm_oldv               ! mixed
     vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                                 ! mixed
     rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))                     ! mixed
-    bb(:,1) = 1._8 - cc(:,1) + 0.5*dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn  ! mixed
+    bb(:,1) = 1._8 - cc(:,1) + 0.5*dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn &
+                                               /(rhowt*depth%dz(:,1)*d_zcr)  ! mixed
   case default
     bb(:,1) = 1._8 - cc(:,1)                                                 ! explicit  
 end select

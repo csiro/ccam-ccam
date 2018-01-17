@@ -114,7 +114,7 @@ integer is,ie,tile,iq,k
 integer, intent(in) :: nalpha
 real, dimension(ifull) :: vmag,azmin,uav,vav
 real, dimension(ifull) :: oldrunoff,newrunoff
-real, dimension(ifull) :: af,factch,aft,ri,rho
+real, dimension(ifull) :: af,aft,ri,rho
 real, dimension(ifull) :: oldsnowmelt
 real, dimension(ifull) :: fg_ocn, fg_ice, eg_ocn, eg_ice
 real, dimension(ifull) :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
@@ -135,9 +135,6 @@ real, dimension(ifull) :: river_inflow
 ! local arrays
 oldrunoff(:)=runoff(:)
 oldsnowmelt(:)=snowmelt(:)
-factch(:)=1.      ! dummy value
-taux(:)=0.        ! dummy value
-tauy(:)=0.        ! dummy value
 fg_ocn(:)=0.      ! dummy value
 fg_ice(:)=0.      ! dummy value
 eg_ocn(:)=0.      ! dummy value
@@ -159,6 +156,8 @@ vmag(:) = max( sqrt(uav(:)**2+vav(:)**2), vmodmin )    ! vmag used to calculate 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax  
+  taux(is:ie)=0.        ! dummy value
+  tauy(is:ie)=0.        ! dummy value  
   zo(is:ie)=0.          ! dummy value
   zoh(is:ie)=0.         ! dummy value
   zoq(is:ie)=0.         ! dummy value
@@ -195,12 +194,12 @@ call START_LOG(sfluxwater_begin)
 if ( nmlo==0 ) then ! prescribed SSTs
 !$omp barrier
 !$omp single
-  call sflux_sea(ri,vmag,af,aft,factch,rho,                                       &              ! sea
+  call sflux_sea(ri,vmag,af,aft,rho,                                              &              ! sea
                  fg_ocn,fg_ice,eg_ocn,eg_ice,taux_ocn,taux_ice,tauy_ocn,tauy_ice, &              ! sea
                  river_inflow,nalpha)                                                            ! sea
 !$omp end single
 elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then ! prognostic SSTs                                    ! MLO
-  call sflux_mlo(ri,vmag,rho,azmin,uav,vav,factch)                                               ! MLO
+  call sflux_mlo(ri,vmag,rho,azmin,uav,vav)                                                      ! MLO
 end if                                                                                           ! MLO
 !$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles                                                                               ! sea
@@ -222,7 +221,7 @@ select case(nsib)                                                               
   case(3,5)                                                                                      ! land
 !$omp barrier
 !$omp single
-    call sflux_land(ri,vmag,af,aft,factch,rho,nalpha)                                            ! land
+    call sflux_land(ri,vmag,af,aft,rho,nalpha)                                                   ! land
 !$omp end single
   case(7)                                                                                        ! cable
     ! call cable                                                                                 ! cable
@@ -234,7 +233,6 @@ select case(nsib)                                                               
       ie = tile*imax                                                                             ! cable
       do iq = is,ie                                                                              ! cable
         if ( land(iq) ) then                                                                     ! cable
-          factch(iq) = sqrt(zo(iq)/zoh(iq))                                                      ! cable 
           qsttg(iq) = qsat(ps(iq),tss(iq))                                                       ! cable
           taux(iq) = rho(iq)*cduv(iq)*u(iq,1)                                                    ! cable
           tauy(iq) = rho(iq)*cduv(iq)*v(iq,1)                                                    ! cable
@@ -262,7 +260,7 @@ call END_LOG(sfluxland_end)
 call START_LOG(sfluxurban_begin)
 !$omp end master
 if (nurban/=0) then                                                                              ! urban
-  call sflux_urban(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt)                          ! urban
+  call sflux_urban(azmin,uav,vav,oldrunoff,rho,vmag,oldsnowmelt)                                 ! urban
 end if                                                                                           ! urban
 !$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles                                                                               ! urban
@@ -308,7 +306,7 @@ do tile = 1,ntiles
   ! scrnout is the standard CCAM screen level diagnostics.
   ! autoscrn contains the newer diagnostic calculation
   if (nmlo==0.and.(nsib==3.or.nsib==5).and.rescrn==0) then
-    call scrnout(zo(is:ie),ustar(is:ie),factch(is:ie),wetfac(is:ie),qsttg(is:ie),   &
+    call scrnout(zo(is:ie),ustar(is:ie),zoh(is:ie),wetfac(is:ie),qsttg(is:ie),      &
                  qgscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie),rhscrn(is:ie),  &
                  af(is:ie),aft(is:ie),ri(is:ie),vmod(is:ie),bprm,cms,chs,chnsea,    &
                  nalpha,is,ie)
@@ -359,7 +357,7 @@ return
 end subroutine sflux
 
 
-subroutine sflux_sea(ri,vmag,af,aft,factch,rho,                                       &
+subroutine sflux_sea(ri,vmag,af,aft,rho,                                              &
                      fg_ocn,fg_ice,eg_ocn,eg_ice,taux_ocn,taux_ice,tauy_ocn,tauy_ice, &
                      river_inflow,nalpha)
 
@@ -384,12 +382,12 @@ implicit none
 integer, intent(in) :: nalpha
 integer iq, it
 real, dimension(ifull), intent(in) :: vmag,rho
-real, dimension(ifull), intent(inout) :: ri,af,aft,factch
+real, dimension(ifull), intent(inout) :: ri,af,aft
 real, dimension(ifull), intent(inout) :: fg_ocn,fg_ice,eg_ocn,eg_ice
 real, dimension(ifull), intent(inout) :: taux_ocn,taux_ice,tauy_ocn,tauy_ice
 real, dimension(ifull), intent(inout) :: river_inflow
 real, dimension(ifull) :: charnck,fgf,rgg,fev,dirad,dfgdt,degdt
-real, dimension(ifull) :: cie,gamm,fh
+real, dimension(ifull) :: cie,gamm,fh,factch
 real afrootpan,es,constz,xx,afroot,fm,consea,con,daf,den,dden,dfm
 real dtsol,con1,conw,zminlog,drst,ri_ice,factchice,zoice,zologice
 real conh,epotice,qtgnet,qtgair,eg2,gbot,deltat,b1,deg,eg1,denha
@@ -727,7 +725,7 @@ end if
 return
 end subroutine sflux_sea
 
-subroutine sflux_mlo(ri,vmag,rho,azmin,uav,vav,factch)
+subroutine sflux_mlo(ri,vmag,rho,azmin,uav,vav)
 
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use cc_mpi                         ! CC MPI routines
@@ -752,7 +750,7 @@ use work3_m                        ! Mk3 land-surface diagnostic arrays
 implicit none
 
 integer tile, is, ie, k
-real, dimension(ifull), intent(inout) :: ri, factch
+real, dimension(ifull), intent(inout) :: ri
 real, dimension(ifull), intent(in) :: vmag, rho, azmin, uav, vav
 real, dimension(imax) :: loldu1, loldv1
 real, dimension(imax) :: lwatbdy
@@ -774,7 +772,7 @@ do tile = 1,ntiles
   end if
   
   call sflux_mlo_work(ri(is:ie),srcp,vmag(is:ie),ri_max,bprm,chs,ztv,chnsea,rho(is:ie),azmin(is:ie),     &
-                      uav(is:ie),vav(is:ie),factch(is:ie),                                               &
+                      uav(is:ie),vav(is:ie),                                                             &
                       ps(is:ie),t(is:ie,1),qg(is:ie,1),sgsave(is:ie),rgsave(is:ie),swrsave(is:ie),       &
                       fbeamvis(is:ie),fbeamnir(is:ie),taux(is:ie),tauy(is:ie),ustar(is:ie),f(is:ie),     &
                       water_g(tile),wpack_g(:,tile),wfull_g(tile),depth_g(tile),                         &
@@ -807,7 +805,7 @@ end do
 return
 end subroutine sflux_mlo
 
-subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,factch,    &
+subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,           &
                           ps,t,qg,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy,ustar,f,   &
                           water,wpack,wfull,depth,dgice,dgscrn,dgwater,ice,                    &
                           oldu1,oldv1,tpan,epan,rnet,condx,conds,condg,fg,eg,epot,             &
@@ -836,7 +834,7 @@ real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
 real, dimension(imax), intent(in) :: t, qg
 real, dimension(imax), intent(in) :: oldu1, oldv1
 real, dimension(imax), intent(in) :: albvis, albnir
-real, dimension(imax), intent(inout) :: ri, factch, taux, tauy, ustar, tpan, epan, rnet
+real, dimension(imax), intent(inout) :: ri, taux, tauy, ustar, tpan, epan, rnet
 real, dimension(imax), intent(inout) :: fg, eg, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
 real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh, zoq, ga
 real, dimension(imax), intent(in) :: vmag, rho, azmin, uav, vav, ps, sgsave, rgsave, swrsave
@@ -932,8 +930,7 @@ where ( .not.land(1:imax) )                                                     
   snowd=snowd*1000.                                                                            ! MLO
   ga=0.                                                                                        ! MLO
   ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rho)                                                    ! MLO
-  tpan=tss                                                                               ! MLO
-  factch=sqrt(zo/zoh)                                                                          ! MLO
+  tpan=tss                                                                                     ! MLO
   sno=sno+conds                                                                                ! MLO
   grpl=grpl+condg                                                                              ! MLO
   ! This cduv accounts for a moving surface                                                    ! MLO
@@ -958,7 +955,7 @@ end if                                                                          
 return
 end subroutine sflux_mlo_work
     
-subroutine sflux_urban(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt)
+subroutine sflux_urban(azmin,uav,vav,oldrunoff,rho,vmag,oldsnowmelt)
 
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use ateb                           ! Urban
@@ -982,7 +979,6 @@ implicit none
 
 integer :: tile, is, ie
 real, dimension(ifull), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
-real, dimension(ifull), intent(inout) :: factch
 real, dimension(imax) :: luzon, lvmer, costh, sinth, zonx, zony, zonz
 
 !$omp do schedule(static) private(is,ie),                                 &
@@ -1006,7 +1002,7 @@ do tile=1,ntiles
     lvmer= sinth*uav(is:ie)+costh*vav(is:ie)  ! meridonal wind
 #endif
 
-  call sflux_urban_work(azmin(is:ie),uav(is:ie),vav(is:ie),oldrunoff(is:ie),rho(is:ie),factch(is:ie),vmag(is:ie),    &
+  call sflux_urban_work(azmin(is:ie),uav(is:ie),vav(is:ie),oldrunoff(is:ie),rho(is:ie),vmag(is:ie),                  &
                         oldsnowmelt(is:ie),f_g(tile),                                                                &
                         f_intm(tile),f_road(tile),f_roof(tile),f_slab(tile),f_wall(tile),intm_g(tile),p_g(tile),     &
                         rdhyd_g(tile),rfhyd_g(tile),rfveg_g(tile),road_g(tile),roof_g(tile),room_g(tile),            &
@@ -1026,7 +1022,7 @@ end do
 return
 end subroutine sflux_urban
 
-subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,factch,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,       &
+subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,              &
                             fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl, &
                             albvis,albnir,uzon,vmer,cdtq,cduv,                                                    &
                             conds,condg,condx,eg,fg,land,ps,qg,qsttg,rgsave,rnet,runoff,sgsave,snowmelt,swrsave,  &
@@ -1053,7 +1049,6 @@ real, dimension(imax) :: newsnowmelt
 real, dimension(imax) :: u_fg, u_eg, u_wf, u_rn
 real, dimension(imax) :: u_zo, u_zoh, u_zoq, zo_work, zoh_work, zoq_work, u_sigma
 real, dimension(imax), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
-real, dimension(imax), intent(inout) :: factch
 real, dimension(imax), intent(in) :: albvis, albnir
 real, dimension(imax), intent(inout) :: anthropogenic_flux, urban_ts, urban_wetfac
 real, dimension(imax), intent(inout) :: urban_zom, urban_zoh, urban_zoq
@@ -1123,7 +1118,6 @@ if ( ufull>0 ) then                                                             
   zo  = azmin*exp(-1./zo_work)                                                                   ! urban
   zoh = azmin*exp(-1./zoh_work)                                                                  ! urban
   zoq = azmin*exp(-1./zoq_work)                                                                  ! urban
-  factch = sqrt(zo/zoh)                                                                          ! urban
   ! calculate ustar                                                                              ! urban
   cduv = cduv/vmag                                                                               ! urban
   cdtq = cdtq/vmag                                                                               ! urban
@@ -1152,7 +1146,7 @@ end subroutine sflux_urban_work
 
     
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine sflux_land(ri,vmag,af,aft,factch,rho,nalpha)
+subroutine sflux_land(ri,vmag,af,aft,rho,nalpha)
 
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use cc_mpi                         ! CC MPI routines
@@ -1175,8 +1169,8 @@ implicit none
 integer, intent(in) :: nalpha
 integer iq
 real, dimension(ifull), intent(in) :: vmag,rho
-real, dimension(ifull), intent(inout) :: ri,af,aft,factch
-real, dimension(ifull) :: fh,taftfhg_temp
+real, dimension(ifull), intent(inout) :: ri,af,aft
+real, dimension(ifull) :: fh,taftfhg_temp,factch
 real zologx,xx,fhbg,es,afroot,fm,con,daf,den,dden,dfm,root,denma,denha
 real deg,b1,zobg,zologbg,afland,aftlandg,rootbg,denhabg,thnew,thgnew,thnewa,aftland
 real thgnewa,ri_tmp,fh_tmp

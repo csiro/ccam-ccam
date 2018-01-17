@@ -19,7 +19,7 @@
 
 !------------------------------------------------------------------------------
     
-subroutine scrnout(zo,ustar,factch,wetfac,qsttg,qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod, &
+subroutine scrnout(zo,ustar,zoh,wetfac,qsttg,qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod, &
                    bprm,cms,chs,chnsea,nalpha,is,ie)
 
 use arrays_m
@@ -57,11 +57,13 @@ real bprm,cms,chs,denha,denma,ri2x,root,vmag,zlog,es
 real deltaq,deltat
 real, dimension(is:ie) :: ri,vmod,af,aft
 real, dimension(is:ie) :: qgscrn,tscrn,uscrn,u10,rhscrn
-real, dimension(is:ie) :: wetfac,factch,qsttg,ustar,zo,theta
+real, dimension(is:ie) :: wetfac,zoh,qsttg,ustar,zo,theta
 real, dimension(is:ie) :: qsurf,tsurf,af2,af10,afroot2,afroot10
 real, dimension(is:ie) :: aft2,aft10,rich2,rich10,qstarx,tstarx
 real, dimension(is:ie) :: fh2,fh10,fh38,fm2,fm10,fm38
+real, dimension(is:ie) :: factch
 
+factch(is:ie) = sqrt(zo(is:ie)/zoh(is:ie))
 srcp =sig(1)**(rdry/cp)
 ztv=exp(vkar/sqrt(chn10))/10.  ! proper inverse of ztsea
 zscronzt=zscr*ztv
