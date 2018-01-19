@@ -39,6 +39,10 @@ implicit none
 integer, intent(in) :: ifull
 
 allocate(cduv(ifull),cdtq(ifull),tss(ifull),slwa(ifull))
+cduv = 0.
+cdtq = 0.
+tss = 300.
+slwa = 0.
 
 return
 end subroutine pbl_init

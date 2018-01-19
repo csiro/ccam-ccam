@@ -2618,7 +2618,6 @@ if ( mp_global>0 ) then
   call cable_pack(albsoilsn(:,1),ssnow%albsoilsn(:,1)) ! overwritten by CABLE
   call cable_pack(albsoilsn(:,2),ssnow%albsoilsn(:,2)) ! overwritten by CABLE
   call cable_pack(albsoil,rad%albedo_T(:))
-  call cable_pack(tss,rad%trad(:))
   dummy_pack = rlatt*180./pi
   call cable_pack(dummy_pack,rad%latitude(:))
   dummy_pack = rlongg*180./pi
@@ -3786,6 +3785,7 @@ if ( mp_global>0 ) then
     call cable_pack(dummy_pack,ssnow%sdepth(:,k))
     ssnow%sconds(:,k) = 0.3_8
   end do      
+  call cable_pack(tss,rad%trad(:))
   call cable_pack(ssdnn,ssnow%ssdnn)
   call cable_pack(isflag,ssnow%isflag)
   call cable_pack(snowd,ssnow%snowd)

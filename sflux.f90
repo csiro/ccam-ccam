@@ -112,10 +112,9 @@ implicit none
     
 integer is,ie,tile,iq,k
 integer, intent(in) :: nalpha
-real, dimension(ifull) :: vmag,azmin,uav,vav
-real, dimension(ifull) :: oldrunoff,newrunoff
-real, dimension(ifull) :: af,aft,ri,rho
-real, dimension(ifull) :: oldsnowmelt
+real, dimension(ifull) :: vmag,azmin,uav,vav,rho
+real, dimension(ifull) :: oldrunoff,oldsnowmelt
+real, dimension(ifull) :: af,aft,ri
 real, dimension(ifull) :: fg_ocn, fg_ice, eg_ocn, eg_ice
 real, dimension(ifull) :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
 real, dimension(ifull) :: river_inflow
@@ -133,8 +132,8 @@ real, dimension(ifull) :: river_inflow
 !     degdt is degdt (was ceva in surfupa/b)
   
 ! local arrays
-oldrunoff(:)=runoff(:)
-oldsnowmelt(:)=snowmelt(:)
+oldrunoff(:) = runoff(:)
+oldsnowmelt(:) = snowmelt(:)
 fg_ocn(:)=0.      ! dummy value
 fg_ice(:)=0.      ! dummy value
 eg_ocn(:)=0.      ! dummy value
@@ -156,12 +155,12 @@ vmag(:) = max( sqrt(uav(:)**2+vav(:)**2), vmodmin )    ! vmag used to calculate 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax  
-  taux(is:ie)=0.        ! dummy value
-  tauy(is:ie)=0.        ! dummy value  
-  zo(is:ie)=0.          ! dummy value
-  zoh(is:ie)=0.         ! dummy value
-  zoq(is:ie)=0.         ! dummy value
-  ga(is:ie) = 0.        !  for ocean points in ga_ave diagnostic
+  taux(is:ie) = 0.      ! dummy value
+  tauy(is:ie) = 0.      ! dummy value  
+  zo(is:ie) = 0.        ! dummy value
+  zoh(is:ie) = 0.       ! dummy value
+  zoq(is:ie) = 0.       ! dummy value
+  ga(is:ie) = 0.        ! for ocean points in ga_ave diagnostic
   theta(is:ie) = t(is:ie,1)/srcp
   if ( ntsur==7 ) then
     vmod(is:ie) = sqrt(uav(is:ie)**2+vav(is:ie)**2)  
@@ -314,14 +313,12 @@ do tile = 1,ntiles
     call autoscrn(is,ie)
   end if
 
-
   ! ----------------------------------------------------------------------
   evap(is:ie) = evap(is:ie) + dt*eg(is:ie)/hl        !time integ value in mm (wrong for snow)
 
   ! Update runoff for river routing
   if ( abs(nriver)==1 ) then
-    newrunoff(is:ie) = runoff(is:ie) - oldrunoff(is:ie)
-    watbdy(is:ie) = watbdy(is:ie) + newrunoff(is:ie) ! runoff in mm
+    watbdy(is:ie) = watbdy(is:ie) + runoff(is:ie) - oldrunoff(is:ie) ! runoff in mm
   end if
 
   !***  end of surface updating loop
@@ -481,6 +478,7 @@ do iq=1,ifull                                                                   
   aft(iq)=chnsea                                                                                 ! sea
 enddo  ! iq loop                                                                                 ! sea
                                                                                                  ! sea
+factch=1. ! default (includes land)                                                              ! sea
 if(newztsea==0)then ! 0 for original, 1 for different zt over sea                                ! sea
   ! enhanced formula used in Feb '92 Air-Sea conference follows:                                 ! sea
   ! factch=sqrt(zo*exp(vkar*vkar/(chnsea*log(zmin/zo)))/zmin)                                    ! sea
@@ -1073,8 +1071,6 @@ if (nmaxpr==1.and.ntiles==1) then                                               
   if (myid==0) write(6,*) "Before urban"                                                         ! urban
 end if                                                                                           ! urban
 if ( ufull>0 ) then                                                                              ! urban
-  ! calculate zonal and meridonal winds                                                          ! urban
-  newrunoff=runoff-oldrunoff ! new runoff since entering sflux                                   ! urban
   ! since ateb will blend non-urban and urban runoff, it is                                      ! urban
   ! easier to remove the new runoff and add it again after the                                   ! urban
   ! urban scheme has been updated                                                                ! urban
@@ -1098,8 +1094,7 @@ if ( ufull>0 ) then                                                             
   eg = (1.-u_sigma)*eg + u_sigma*u_eg                                                            ! urban
   tss = (1.-u_sigma)*tss + u_sigma*urban_ts                                                      ! urban
   wetfac = (1.-u_sigma)*wetfac + u_sigma*u_wf                                                    ! urban
-  newrunoff = (1.-u_sigma)*newrunoff + u_sigma*u_rn                                              ! urban
-  runoff = oldrunoff + newrunoff ! add new runoff after including urban                          ! urban
+  runoff = oldrunoff + (1.-u_sigma)*(runoff-oldrunoff) + u_sigma*u_rn                            ! urban
   u_zo  = 1.e-10                                                                                 ! urban
   u_zoh = 1.e-10                                                                                 ! urban
   u_zoq = 1.e-10                                                                                 ! urban
@@ -1126,9 +1121,9 @@ if ( ufull>0 ) then                                                             
   cdtq=cdtq*vmag                                                                                 ! urban
   ustar=sqrt(vmod*cduv)                                                                          ! urban
   ! calculate snowmelt                                                                           ! urban
-  newsnowmelt=snowmelt-oldsnowmelt                                                               ! urban
+  newsnowmelt = snowmelt - oldsnowmelt                                                           ! urban
   call atebhydro(newsnowmelt,"snowmelt",0,pd,fp,upack,ufull)                                     ! urban
-  snowmelt=oldsnowmelt+newsnowmelt                                                               ! urban
+  snowmelt = oldsnowmelt + newsnowmelt                                                           ! urban
   ! calculate anthropogenic flux                                                                 ! urban
   call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,upack,ufull)                        ! urban
   where ( land(1:imax) )                                                                         ! urban

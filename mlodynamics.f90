@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -714,7 +714,8 @@ call END_LOG(watermisc_end)
 call START_LOG(watereos_begin)
 
 ! Calculate adjusted depths and thicknesses
-xodum = max( dd(:)+neta(:), minwater )
+!xodum = max( dd(:)+neta(:), minwater )
+xodum = dd(:)
 do ii = 1,wlev
   depdum(:,ii) = gosig(ii)*xodum(1:ifull)
   dzdum(:,ii)  = godsig(ii)*xodum(1:ifull)
@@ -775,11 +776,6 @@ do ii = 1,wlev
   nvh(:,ii) = (15.*nv(1:ifull,ii)-10.*oldv1(:,ii)+3.*oldv2(:,ii))*ee(1:ifull)/8. ! V at t+1/2
 end do
 
-if ( any( nuh/=nuh ) .or. any( nvh/=nvh ) ) then
-  write(6,*) "ERROR: NaN detected in nuh or nvh in mlodynamics on myid ",myid
-  call ccmpi_abort(-1)
-end if
-
 ! Calculate depature points
 call mlodeps(dt,nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
@@ -801,11 +797,11 @@ call START_LOG(waterhadv_begin)
 ! true vertical velocity = nw-u*((1-sig)*deta/dx-sig*d(dd)/dx)-v*((1-sig)*deta/dy-sig*d(dd)/dy)-(1-sig)*deta/dt
 call mlostaguv(nu,nv,eou,eov)
 ! surface height at staggered coordinate
-eou(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_e)*eeu(1:ifull) ! height at staggered coordinate
-eov(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_n)*eev(1:ifull) ! height at staggered coordinate
-call boundsuv(eou,eov,stag=-9)
-oeu(1:ifull+iextra) = eou(1:ifull+iextra,wlev+1)
-oev(1:ifull+iextra) = eov(1:ifull+iextra,wlev+1)
+!eou(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_e)*eeu(1:ifull) ! height at staggered coordinate
+!eov(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_n)*eev(1:ifull) ! height at staggered coordinate
+call boundsuv(eou(:,1:wlev),eov(:,1:wlev),stag=-9)
+!oeu(1:ifull+iextra) = eou(1:ifull+iextra,wlev+1)
+!oev(1:ifull+iextra) = eov(1:ifull+iextra,wlev+1)
 ! integrate currents
 ccu(:,1) = eou(:,1)*godsig(1)
 ccv(:,1) = eov(:,1)*godsig(1)
@@ -814,11 +810,16 @@ do ii = 2,wlev
   ccv(:,ii) = (ccv(:,ii-1)+eov(:,ii)*godsig(ii))
 end do
 ! calculate vertical velocity
-call unpack_svwu(oeu,oev,oev_isv,oeu_iwu)
-ddu_e(:) = max( ddu(1:ifull)+oeu(1:ifull), 0. )/emu(1:ifull)
-ddv_n(:) = max( ddv(1:ifull)+oev(1:ifull), 0. )/emv(1:ifull)
-ddu_w(:) = max( dd_iwu+oeu_iwu, 0. )/em_iwu
-ddv_s(:) = max( dd_isv+oev_isv, 0. )/em_isv
+!call unpack_svwu(oeu,oev,oev_isv,oeu_iwu)
+!ddu_e(:) = max( ddu(1:ifull)+oeu(1:ifull), 0. )/emu(1:ifull)
+!ddv_n(:) = max( ddv(1:ifull)+oev(1:ifull), 0. )/emv(1:ifull)
+!ddu_w(:) = max( dd_iwu+oeu_iwu, 0. )/em_iwu
+!ddv_s(:) = max( dd_isv+oev_isv, 0. )/em_isv
+! MJT suggestion
+ddu_e(:) = ddu(1:ifull)/emu(1:ifull)
+ddv_n(:) = ddv(1:ifull)/emv(1:ifull)
+ddu_w(:) = dd_iwu/em_iwu
+ddv_s(:) = dd_isv/em_isv
 call unpack_svwu(ccu(:,wlev),ccv(:,wlev),cc_isv,cc_iwu)
 sdiv(:) = (ccu(1:ifull,wlev)*ddu_e(:)-cc_iwu*ddu_w(:)  &
           +ccv(1:ifull,wlev)*ddv_n(:)-cc_isv*ddv_s(:)) &
@@ -831,10 +832,15 @@ do ii = 1,wlev-1
            *em(1:ifull)*em(1:ifull)/ds)
 end do
 ! compute contunity equation horizontal transport terms
-ddu_e(:) = (dd(1:ifull)+neta(1:ifull))/emu(1:ifull)
-ddv_n(:) = (dd(1:ifull)+neta(1:ifull))/emv(1:ifull)
-ddu_w(:) = (dd(1:ifull)+neta(1:ifull))/em_iwu
-ddv_s(:) = (dd(1:ifull)+neta(1:ifull))/em_isv
+!ddu_e(:) = (dd(1:ifull)+neta(1:ifull))/emu(1:ifull)
+!ddv_n(:) = (dd(1:ifull)+neta(1:ifull))/emv(1:ifull)
+!ddu_w(:) = (dd(1:ifull)+neta(1:ifull))/em_iwu
+!ddv_s(:) = (dd(1:ifull)+neta(1:ifull))/em_isv
+! MJT suggestion
+ddu_e(:) = dd(1:ifull)/emu(1:ifull)
+ddv_n(:) = dd(1:ifull)/emv(1:ifull)
+ddu_w(:) = dd(1:ifull)/em_iwu
+ddv_s(:) = dd(1:ifull)/em_isv
 do ii = 1,wlev
   call unpack_svwu(eou(:,ii),eov(:,ii),eo_isv,eo_iwu)  
   mps(1:ifull,ii) = neta(1:ifull) - (1.-ocneps)*0.5*dt*ee(1:ifull)*  &
@@ -859,9 +865,16 @@ do ii = 1,wlev
   !tav(:,ii) = grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/(rhov+wrtrho)        &
   !           +((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds) &
   !           + dpsdyv/(rhov+wrtrho) + grav*dttdyv
-  tau(:,ii) = grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii)/wrtrho        &
+    
+  !tau(:,ii) = grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii)/wrtrho        &
+  !           +(2.-gosig(ii))*difneta_e) + dpsdxu/wrtrho + grav*dttdxu ! staggered
+  !tav(:,ii) = grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/wrtrho        &
+  !           +(2.-gosig(ii))*difneta_n) + dpsdyv/wrtrho + grav*dttdyv
+  
+  ! MJT suggestion (neglect oeu and oev terms)
+  tau(:,ii) = grav*(gosig(ii)*ddu(1:ifull)*drhobardxu(:,ii)/wrtrho        &
              +(2.-gosig(ii))*difneta_e) + dpsdxu/wrtrho + grav*dttdxu ! staggered
-  tav(:,ii) = grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/wrtrho        &
+  tav(:,ii) = grav*(gosig(ii)*ddv(1:ifull)*drhobardyv(:,ii)/wrtrho        &
              +(2.-gosig(ii))*difneta_n) + dpsdyv/wrtrho + grav*dttdyv
 end do
 ! ice
@@ -1247,10 +1260,16 @@ oev(1:ifull)=0.5*(neta(1:ifull)+neta_n)
 ! Update currents once neta is calculated
 do ii=1,wlev
   ! update currents (staggered)
-  nu(1:ifull,ii)=kku(:,ii)+ppu(:,ii)+oou(:,ii)*oeu(1:ifull)+llu(:,ii)*max(oeu(1:ifull)+ddu(1:ifull),0.) &
+  !nu(1:ifull,ii)=kku(:,ii)+ppu(:,ii)+oou(:,ii)*oeu(1:ifull)+llu(:,ii)*max(oeu(1:ifull)+ddu(1:ifull),0.) &
+  !               +mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
+  !nv(1:ifull,ii)=kkv(:,ii)+ppv(:,ii)+oov(:,ii)*oev(1:ifull)+llv(:,ii)*max(oev(1:ifull)+ddv(1:ifull),0.) &
+  !               +mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
+  
+  ! MJT suggestion (neglect oeu and oev terms)
+  nu(1:ifull,ii)=kku(:,ii)+ppu(:,ii)+oou(:,ii)*oeu(1:ifull)+llu(:,ii)*ddu(1:ifull) &
                  +mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
-  nv(1:ifull,ii)=kkv(:,ii)+ppv(:,ii)+oov(:,ii)*oev(1:ifull)+llv(:,ii)*max(oev(1:ifull)+ddv(1:ifull),0.) &
-                 +mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
+  nv(1:ifull,ii)=kkv(:,ii)+ppv(:,ii)+oov(:,ii)*oev(1:ifull)+llv(:,ii)*ddv(1:ifull) &
+                 +mmv(:,ii)*detadyv+nnv(:,ii)*detadxv  
 end do
 
 call END_LOG(waterhelm_end)
@@ -1366,13 +1385,13 @@ if ( nud_sfh==0 ) then
   delpos(1) = 0.
   delneg(1) = 0.
   neta(1:ifull) = max(min(neta(1:ifull), 120.), -120.)
-  odum = (neta(1:ifull)-w_e)*ee(1:ifull)
+  !odum = (neta(1:ifull)-w_e)*ee(1:ifull)
+  odum = neta(1:ifull)*ee(1:ifull)
   call ccglobal_posneg(odum,delpos(1),delneg(1))
   alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-30))
   if ( abs(alph_p)>1.e-20 ) then
-    neta(1:ifull) = w_e(1:ifull) + max(0.,odum)*alph_p + min(0.,odum)/alph_p
-  else
-    neta(1:ifull) = w_e(1:ifull)      
+    !neta(1:ifull) = w_e(1:ifull) + max(0.,odum)*alph_p + min(0.,odum)/alph_p
+    neta(1:ifull) = max(0.,odum)*alph_p + min(0.,odum)/alph_p
   end if
 end if
 
@@ -1634,12 +1653,6 @@ do k = 1,wlev
   y3d(:,k) = y - vc(:,k)
   z3d(:,k) = z - wc(:,k)
 end do
-
-if ( any(x3d(1:ifull,1:wlev)/=x3d(1:ifull,1:wlev)) .or. any(y3d(1:ifull,1:wlev)/=y3d(1:ifull,1:wlev)) .or. &
-     any(z3d(1:ifull,1:wlev)/=z3d(1:ifull,1:wlev)) ) then
-  write(6,*) "ERROR: NaN detected for currents in mlodeps calculation (A)"
-  call ccmpi_abort(-1)
-end if
 
 ! convert to grid point numbering
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
@@ -1905,12 +1918,6 @@ do k = 1,wlev
   end where
 end do
 
-if ( any(x3d(1:ifull,1:wlev)/=x3d(1:ifull,1:wlev)) .or. any(y3d(1:ifull,1:wlev)/=y3d(1:ifull,1:wlev)) .or. &
-     any(z3d(1:ifull,1:wlev)/=z3d(1:ifull,1:wlev)) ) then
-  write(6,*) "ERROR: NaN detected for currents in mlodeps calculation (B)"
-  call ccmpi_abort(-1)
-end if
-
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
@@ -2071,12 +2078,6 @@ do k = 1,wlev
     z3d(:,k) = z
   end where
 end do
-
-if ( any(x3d(1:ifull,1:wlev)/=x3d(1:ifull,1:wlev)) .or. any(y3d(1:ifull,1:wlev)/=y3d(1:ifull,1:wlev)) .or. &
-     any(z3d(1:ifull,1:wlev)/=z3d(1:ifull,1:wlev)) ) then
-  write(6,*) "ERROR: NaN detected for currents in mlodeps calculation (C)"
-  call ccmpi_abort(-1)
-end if
 
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 !     Share off processor departure points.
@@ -5062,22 +5063,35 @@ ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
 ! zz*(DIV^2 neta) + yy*neta*(DIV^2 neta) + hh*neta = rhs
 
 ! ocean
-yyn= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)*em(1:ifull)/ds
-yys=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)*em(1:ifull)/ds
-yye= (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)*em(1:ifull)/ds
-yyw=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)*em(1:ifull)/ds
-yy = (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
+!yyn= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)*em(1:ifull)/ds
+!yys=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)*em(1:ifull)/ds
+!yye= (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)*em(1:ifull)/ds
+!yyw=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)*em(1:ifull)/ds
+!yy = (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
+! MJT suggestion (neglect neta terms)
+yyn=0.
+yys=0.
+yye=0.
+yyw=0.
+yy =0.
 
-zzn(:,1)=yyn(:)*dd(1:ifull)
-zzs(:,1)=yys(:)*dd(1:ifull)
-zze(:,1)=yye(:)*dd(1:ifull)
-zzw(:,1)=yyw(:)*dd(1:ifull)
-zz(:,1) =yy(:)*dd(1:ifull)
+
+!zzn(:,1)= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+!zzs(:,1)=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+!zze(:,1)= (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+!zzw(:,1)=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+!zz(:,1) = (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)*dd(1:ifull)
+zzn(:,1)= (1.+ocneps)*0.5*dt*(qvn+svn)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+zzs(:,1)=-(1.+ocneps)*0.5*dt*(qvs+svs)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+zze(:,1)= (1.+ocneps)*0.5*dt*(que+sue)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+zzw(:,1)=-(1.+ocneps)*0.5*dt*(quw+suw)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+zz(:,1) = (1.+ocneps)*0.5*dt*(qdiv+sdiv)*dd(1:ifull)
 
 dum(:) = (1.+ocneps)*0.5*dt*(odiv                                           &
         +(pvn*dd(in)-pvs*dd(is)+pue*dd(ie)-puw*dd(iw))*em(1:ifull)**2/ds    &
         +pdiv*dd(1:ifull))
-hh     =1. + dum(:)
+!hh     =1. + dum(:)
+hh     =1.
 rhs(:,1)=xps-dd(1:ifull)*dum(:)
 
 ! ice
@@ -5268,24 +5282,36 @@ call mgsor_init
 ! ocean
 ! zz*(DIV^2 neta) + yy*neta*(DIV^2 neta) + hh*neta = rhs
 
-yyn =  (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)*em(1:ifull)/ds
-yys = -(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)*em(1:ifull)/ds
-yye =  (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)*em(1:ifull)/ds
-yyw = -(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)*em(1:ifull)/ds
-yy  =  (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
+!yyn =  (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)*em(1:ifull)/ds
+!yys = -(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)*em(1:ifull)/ds
+!yye =  (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)*em(1:ifull)/ds
+!yyw = -(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)*em(1:ifull)/ds
+!yy  =  (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)
+! MJT suggestion (neglect neta terms)
+yyn =0.
+yys =0.
+yye =0.
+yyw =0.
+yy  =0.
 
-zzn(:,1) = yyn(:)*dd(1:ifull)
-zzs(:,1) = yys(:)*dd(1:ifull)
-zze(:,1) = yye(:)*dd(1:ifull)
-zzw(:,1) = yyw(:)*dd(1:ifull)
-zz(:,1)  = yy(:)*dd(1:ifull)
+!zzn(:,1)= (1.+ocneps)*0.5*dt*(qvn+svn+pvn)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+!zzs(:,1)=-(1.+ocneps)*0.5*dt*(qvs+svs+pvs)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+!zze(:,1)= (1.+ocneps)*0.5*dt*(que+sue+pue)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+!zzw(:,1)=-(1.+ocneps)*0.5*dt*(quw+suw+puw)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+!zz(:,1) = (1.+ocneps)*0.5*dt*(qdiv+sdiv+pdiv)*dd(1:ifull)
+zzn(:,1)= (1.+ocneps)*0.5*dt*(qvn+svn)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+zzs(:,1)=-(1.+ocneps)*0.5*dt*(qvs+svs)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+zze(:,1)= (1.+ocneps)*0.5*dt*(que+sue)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+zzw(:,1)=-(1.+ocneps)*0.5*dt*(quw+suw)*em(1:ifull)*em(1:ifull)/ds*dd(1:ifull)
+zz(:,1) = (1.+ocneps)*0.5*dt*(qdiv+sdiv)*dd(1:ifull)
 
 call unpack_nsew(dd,dd_n,dd_s,dd_e,dd_w)
 
 dum(:)   = (1.+ocneps)*0.5*dt*(odiv                                           &
           +(pvn*dd_n-pvs*dd_s+pue*dd_e-puw*dd_w)*em(1:ifull)*em(1:ifull)/ds   &
           +pdiv*dd(1:ifull))
-hh(:)    = 1. + dum(:)
+!hh(:)    = 1. + dum(:)
+hh(:)    = 1.
 rhs(:,1) = xps(1:ifull) - dd(1:ifull)*dum(:)
 
 ! ice
