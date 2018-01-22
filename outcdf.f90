@@ -3219,6 +3219,7 @@ integer, dimension(:), allocatable :: procmap
 integer, dimension(5) :: adim
 integer, dimension(4) :: sdim
 integer, dimension(1) :: start,ncount,gpdim
+integer, dimension(5) :: outdim
 integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics,ti
 integer i,j,n,fiarch
@@ -3311,14 +3312,18 @@ if ( first ) then
     end if
     ! Define coords.
     if ( procformat ) then
-      call ccnf_def_var(fncid,'longitude','float',2,(/adim(1),adim(dproc)/),ixp)        
+      outdim(1) = adim(1)
+      outdim(2) = adim(dproc)
+      call ccnf_def_var(fncid,'longitude','float',2,outdim(1:2),ixp)        
     else
       call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
     end if
     call ccnf_put_att(fncid,ixp,'point_spacing','even')
     call ccnf_put_att(fncid,ixp,'units','degrees_east')
     if ( procformat ) then
-      call ccnf_def_var(fncid,'latitude','float',2,(/adim(2),adim(dproc)/),iyp)
+      outdim(1) = adim(2)
+      outdim(2) = adim(dproc)
+      call ccnf_def_var(fncid,'latitude','float',2,outdim(1:2),iyp)
     else
       call ccnf_def_var(fncid,'latitude','float',1,adim(2:2),iyp)
     end if
