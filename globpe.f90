@@ -3104,45 +3104,49 @@ if ( myid<nproc ) then
     write(6,*) 'setting nbd=0 because mbd/=0'
     nbd = 0
   end if
-  mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale))
-  if ( mbd<mbd_min .and. mbd/=0 ) then
-    if ( myid==0 ) then
-      write(6,*) "Increasing mbd to satisfy mbd_maxscale ",mbd_maxscale
-      write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
+  if ( mbd/=0 ) then  
+    mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale))
+    if ( mbd<mbd_min .and. mbd/=0 ) then
+      if ( myid==0 ) then
+        write(6,*) "Increasing mbd to satisfy mbd_maxscale ",mbd_maxscale
+        write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
+      end if
+      mbd = mbd_min
     end if
-    mbd = mbd_min
-  end if
-  mbd_min = int(20.*real(il_g)/real(mbd_maxgrid))
-  if ( mbd<mbd_min .and. mbd/=0 ) then
-    if ( myid==0 ) then
-      write(6,*) "Adjusting mbd to satisfy mbd_maxgrid = ",mbd_maxgrid
-      write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
+    mbd_min = int(20.*real(il_g)/real(mbd_maxgrid))
+    if ( mbd<mbd_min .and. mbd/=0 ) then
+      if ( myid==0 ) then
+        write(6,*) "Adjusting mbd to satisfy mbd_maxgrid = ",mbd_maxgrid
+        write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
+      end if
+      mbd = mbd_min
     end if
-    mbd = mbd_min
-  end if
-  nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
-  if ( nudu_hrs==0 ) then
-    nudu_hrs = nud_hrs
-  end if
+    nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
+    if ( nudu_hrs==0 ) then
+      nudu_hrs = nud_hrs
+    end if
+  end if  
   if ( kblock<0 ) then
     kblock = max(kl, ol) ! must occur before indata
     if ( myid==0 ) then
       write(6,*) "Adjusting kblock to ",kblock
     end if
   end if
-  mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale_mlo))
-  if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
-    mbd_mlo = max(nud_sst, nud_sss, nud_ouv, nud_sfh, mbd, mbd_mlo )
-    if ( mbd_mlo<mbd_min ) then
-      if ( myid==0 ) then
-        write(6,*) "Adjusting mbd_mlo to satisfy mbd_maxscale_mlo = ",mbd_maxscale_mlo
-        write(6,*) "Original mbd_mlo and final mbd_mlo = ",mbd_mlo,mbd_min
+  if ( mbd_mlo/=0 ) then
+    mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale_mlo))
+    if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
+      mbd_mlo = max(nud_sst, nud_sss, nud_ouv, nud_sfh, mbd, mbd_mlo )
+      if ( mbd_mlo<mbd_min ) then
+        if ( myid==0 ) then
+          write(6,*) "Adjusting mbd_mlo to satisfy mbd_maxscale_mlo = ",mbd_maxscale_mlo
+          write(6,*) "Original mbd_mlo and final mbd_mlo = ",mbd_mlo,mbd_min
+        end if
+        mbd_mlo = mbd_min
       end if
-      mbd_mlo = mbd_min
+    else
+      mbd_mlo = 0
     end if
-  else
-    mbd_mlo = 0
-  end if
+  end if  
 
   ! **** do namelist fixes above this line ***
 
