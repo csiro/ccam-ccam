@@ -38,7 +38,7 @@ implicit none
 private
 public mlodiffusion,mlohadv,mlodyninit
 public gosig,gosigh,godsig,ocnsmag,ocneps
-public mlodiff,usetide,mlomfix
+public mlodiff,usetide,mlomfix,mlojacobi
 public dd
 public nstagoffmlo,mstagf
 
@@ -56,6 +56,7 @@ integer, parameter :: nxtrrho   = 1       ! Estimate rho at t+1 (0=off, 1=on)
 integer, parameter :: usepice   = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
 integer, save      :: mlodiff   = 0       ! diffusion (0=all, 1=scalars only)
 integer, save      :: mlomfix   = 0       ! conservation method (0=wrt DD, 1=JLM split, 2=wrt DD+w_e)
+integer, save      :: mlojacobi = 1       ! density gradient method (0=off, 1=non-local, 2=linear)
 real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
 real, parameter :: rhoic      = 900.      ! density ice  (kg m^-3)
 real, parameter :: grav       = 9.80616   ! gravitational constant (m s^-2)
@@ -210,13 +211,14 @@ do iq=1,ifull
     end do
   end if
 end do
-dumz(1:wlev)=sig
-dumz(wlev+1:2*wlev)=sigh
-dumz(2*wlev+1:3*wlev)=dsig
+
+dumz(1:wlev)          = sig
+dumz(wlev+1:2*wlev)   = sigh
+dumz(2*wlev+1:3*wlev) = dsig
 call ccmpi_allreduce(dumz(1:3*wlev),gdumz(1:3*wlev),"max",comm_world)
-gosig=gdumz(1:wlev)
-gosigh=gdumz(wlev+1:2*wlev)
-godsig=gdumz(2*wlev+1:3*wlev)
+gosig  = gdumz(1:wlev)
+gosigh = gdumz(wlev+1:2*wlev)
+godsig = gdumz(2*wlev+1:3*wlev)
 
 return
 end subroutine mlodyninit
@@ -718,8 +720,8 @@ call START_LOG(watereos_begin)
 xodum = dd(:)
 do ii = 1,wlev
   depdum(:,ii) = gosig(ii)*xodum(1:ifull)
-  dzdum(:,ii)  = godsig(ii)*xodum(1:ifull)
-  dzdum_rho(:,ii) = godsig(ii)*dd(:) ! MJT suggestion to avoid density oscillations  
+  dzdum_rho(:,ii) = godsig(ii)*xodum(:)
+  dzdum(:,ii) = dzdum_rho(1:ifull,ii)
 end do
 
 ! Calculate normalised density coeffs dalpha and dbeta (unstaggered at time t)
@@ -4504,26 +4506,46 @@ real, dimension(ifull) :: absu, bbsu, absv, bbsv
 real, dimension(ifull) :: alphabar_n, alphabar_e, betabar_n, betabar_e
 real, dimension(ifull,wlev,2) :: dnadxu, dnadxv, dnadyu, dnadyv
 
-na(:,:,1)=min(max(271.-wrtemp,nti),373.-wrtemp)
-na(:,:,2)=min(max(0.,  nsi),50. )-34.72
+select case( mlojacobi )
+  case(0) ! off
+    do ii = 1,wlev
+      drhobardxu(1:ifull,ii) = 0.
+      drhobardxv(1:ifull,ii) = 0.
+      drhobardyu(1:ifull,ii) = 0.
+      drhobardyv(1:ifull,ii) = 0.
+    end do
 
-call seekdelta(na,dnadxu,dnadyu,dnadxv,dnadyv)
+  case(1) ! non-local  
+    na(:,:,1)=min(max(271.-wrtemp,nti),373.-wrtemp)
+    na(:,:,2)=min(max(0.,  nsi),50. )-34.72
 
-do ii=1,wlev
-  call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
-  call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
-  absu=0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull)
-  bbsu=0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull)
-  absv=0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull)
-  bbsv=0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull)
+    call seekdelta(na,dnadxu,dnadyu,dnadxv,dnadyv)
 
-  ! This relationship neglects compression effects due to neta from the EOS.
-  drhobardxu(1:ifull,ii)=-absu*dnadxu(1:ifull,ii,1)+bbsu*dnadxu(1:ifull,ii,2)
-  drhobardxv(1:ifull,ii)=-absv*dnadxv(1:ifull,ii,1)+bbsv*dnadxv(1:ifull,ii,2)
-  drhobardyu(1:ifull,ii)=-absu*dnadyu(1:ifull,ii,1)+bbsu*dnadyu(1:ifull,ii,2)
-  drhobardyv(1:ifull,ii)=-absv*dnadyv(1:ifull,ii,1)+bbsv*dnadyv(1:ifull,ii,2)
-end do
+    do ii=1,wlev
+      call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
+      call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
+      absu=0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull)
+      bbsu=0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull)
+      absv=0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull)
+      bbsv=0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull)
 
+      ! This relationship neglects compression effects due to neta from the EOS.
+      drhobardxu(1:ifull,ii)=-absu*dnadxu(1:ifull,ii,1)+bbsu*dnadxu(1:ifull,ii,2)
+      drhobardxv(1:ifull,ii)=-absv*dnadxv(1:ifull,ii,1)+bbsv*dnadxv(1:ifull,ii,2)
+      drhobardyu(1:ifull,ii)=-absu*dnadyu(1:ifull,ii,1)+bbsu*dnadyu(1:ifull,ii,2)
+      drhobardyv(1:ifull,ii)=-absv*dnadyv(1:ifull,ii,1)+bbsv*dnadyv(1:ifull,ii,2)
+    end do
+
+  case(2) ! linear
+    write(6,*) "ERROR: mlojacobi option 2 is not yet enabled"
+    stop
+    
+  case default
+    write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
+    stop
+
+end select
+    
 return
 end subroutine tsjacobi
 

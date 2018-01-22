@@ -858,6 +858,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mindep',mindep)
     call ccnf_put_attg(idnc,'minwater',minwater)
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
+    call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
     call ccnf_put_attg(idnc,'mlomfix',mlomfix)
     call ccnf_put_attg(idnc,'mxd',mxd)
     call ccnf_put_attg(idnc,'ocneps',ocneps)
