@@ -178,7 +178,7 @@ real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
 real, dimension(imax) :: sg, sint, sout, sgdn, rg, rt, rgdn, sgdnvis, sgdnnir
 real, dimension(imax) :: soutclr, sgclr, rtclr, rgclr
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
-real, dimension(imax) :: dzrho, dumfbeam, tnhs
+real, dimension(imax) :: dzrho, dumfbeam, tnhs, dumtss
 real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
@@ -276,7 +276,7 @@ do iq_tile = 1,ifull,imax
         cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
         cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
       end where
-      call calc_snow_albedo(coszro,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif)
+      call calc_snow_albedo(coszro,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,iq_tile)
     end if
 
     ! Water/Ice albedo --------------------------------------------
@@ -436,31 +436,32 @@ do iq_tile = 1,ifull,imax
     end if
 
     ! Prepare SEA-ESF arrays ----------------------------------------
+    dumtss = min( max( tss(istart:iend), 100.), 370.)
     do k = 1,kl
       kr = kl + 1 - k
-      dumt(:,k) = t(istart:iend,k)
+      dumt(:,k) = min( max( t(istart:iend,k), 100.), 370.)
       p2(:,k) = ps(istart:iend)*sig(k)
       Atmos_input(mythread)%deltaz(:,1,kr)  = real(dz(:,k), 8)
       Atmos_input(mythread)%rh2o(:,1,kr)    = max(real(qg(istart:iend,k), 8), 2.E-7_8)
-      Atmos_input(mythread)%temp(:,1,kr)    = min(max(real(dumt(:,k),8), 100._8), 370._8)    
+      Atmos_input(mythread)%temp(:,1,kr)    = real(dumt(:,k),8)    
       Atmos_input(mythread)%press(:,1,kr)   = real(p2(:,k), 8)
       Atmos_input(mythread)%rel_hum(:,1,kr) = min(real(qg(istart:iend,k)/qsat(p2(:,k),dumt(:,k)), 8), 1._8)
     end do
-    Atmos_input(mythread)%temp(:,1,kl+1)  = min(max(real(tss(istart:iend), 8), 100._8), 370._8)
+    Atmos_input(mythread)%temp(:,1,kl+1)  = real(dumtss, 8)
     Atmos_input(mythread)%press(:,1,kl+1) = real(ps(istart:iend), 8)
     Atmos_input(mythread)%pflux(:,1,1  )  = 0._8
     Atmos_input(mythread)%tflux(:,1,1  )  = Atmos_input(mythread)%temp(:,1,1)
     do k = 1,kl-1
       kr = kl + 1 - k
       Atmos_input(mythread)%pflux(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1), 8)
-      Atmos_input(mythread)%tflux(:,1,kr) = min(max(real(rathb(k)*dumt(:,k)+ratha(k)*dumt(:,k+1), 8), 100._8), 370._8)
+      Atmos_input(mythread)%tflux(:,1,kr) = real(rathb(k)*dumt(:,k)+ratha(k)*dumt(:,k+1), 8)
     end do
     Atmos_input(mythread)%pflux(:,1,kl+1) = real(ps(istart:iend), 8)
-    Atmos_input(mythread)%tflux(:,1,kl+1) = min(max(real(tss(istart:iend), 8), 100._8), 370._8)
+    Atmos_input(mythread)%tflux(:,1,kl+1) = real(dumtss, 8)
     Atmos_input(mythread)%clouddeltaz     = Atmos_input(mythread)%deltaz
 
     Atmos_input(mythread)%psfc(:,1)    = real(ps(istart:iend), 8)
-    Atmos_input(mythread)%tsfc(:,1)    = min(max(real(tss(istart:iend), 8), 100._8), 370._8)
+    Atmos_input(mythread)%tsfc(:,1)    = real(dumtss, 8)
     Atmos_input(mythread)%phalf(:,1,1) = 0._8
     do k = 1,kl-1
       kr = kl + 1 - k
@@ -1037,10 +1038,10 @@ real(kind=8), dimension(imax,kl), intent(out) :: Rdrop, Rice, conl, coni
 real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa
 real, dimension(imax,kl) :: eps, rk, Wice, basesize, xwgt
 real :: liqparm
-logical :: do_brenguier   ! Adjust effective radius for vertically
-                          ! stratified cloud
-real :: scale_factor      ! account for the plane-parallel homogenous
-                          ! cloud bias  (e.g. Cahalan effect)
+! parameters
+logical :: do_brenguier   ! Adjust effective radius for vertically stratified cloud
+real :: scale_factor      ! account for the plane-parallel homogenous cloud bias  (e.g. Cahalan effect)
+
 
 rhoa(:,:) = prf(:,:)/(rdry*ttg(:,:))
 
@@ -1073,7 +1074,7 @@ select case(liqradmethod)
     write(6,*) "ERROR: Unknown option for liqradmethod ",liqradmethod
     call ccmpi_abort(-1)
 end select
-    
+
 ! Reffl is the effective radius calculated following
 ! Martin etal 1994, JAS 51, 1823-1842
 where ( qlg(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
@@ -1081,7 +1082,7 @@ where ( qlg(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
   eps(:,:) = 1.-0.7*exp(liqparm*cdrop(:,:))
   rk(:,:)  = (1.+eps(:,:)**2)/(1.+2.*eps(:,:)**2)**2
-  
+
   ! k_ratio = rk**(-1./3.)  
   ! GFDL        k_ratio (land) 1.143 (water) 1.077
   ! mid range   k_ratio (land) 1.393 (water) 1.203
@@ -1231,7 +1232,7 @@ Rice(:,:) = min(max(Rice(:,:), 18.6_8), 130.2_8)
 return
 end subroutine cloud3
 
-subroutine calc_snow_albedo(coszro,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif)
+subroutine calc_snow_albedo(coszro,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,iq_tile)
 
 use cc_omp                                          ! CC OpenMP routines
 use nsibd_m                                         ! Land-surface arrays
@@ -1241,7 +1242,8 @@ use soilsnow_m                                      ! Soil, snow and surface dat
 
 implicit none
 
-integer i, iq, iq_tile
+integer, intent(in) :: iq_tile
+integer i, iq
 real, dimension(imax) :: coszro
 real, dimension(imax), intent(inout) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
 real alvo, aliro, dnsnow, ttbg, ar1, exp_ar1, ar2, exp_ar2, snr, ar3
