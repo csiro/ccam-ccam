@@ -521,8 +521,6 @@ real(kind=8), dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
-integer pos(2)
-
 ! sigma = (z+neta)/(D+neta)
 
 ! We use a modified form of JLM's trick where:
@@ -4545,9 +4543,7 @@ select case( mlojacobi )
     end do
 
   case(2) ! linear
-    write(6,*) "ERROR: mlojacobi option 2 is not yet enabled"
-    stop
-    
+   
     na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
     na(:,:,2) = min(max(0.,  nsi),50. )-34.72
     
