@@ -1318,12 +1318,13 @@ end subroutine mloalb4
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Regrid MLO data
 
-subroutine mloregrid(wlin,depin,mloin,mlodat,mode)
+subroutine mloregrid(wlin,sigin,depin,mloin,mlodat,mode)
 
 implicit none
 
 integer, intent(in) :: wlin,mode
 integer tile, is, ie
+real, dimension(wlin), intent(in) :: sigin
 real, dimension(ifull), intent(in) :: depin
 real, dimension(ifull,wlin), intent(in) :: mloin
 real, dimension(ifull,wlev), intent(inout) :: mlodat
@@ -1338,7 +1339,7 @@ do tile = 1,ntiles
   if ( wfull_g(tile)>0 ) then
     mloin_tmp(1:imax,1:wlin) = mloin(is:ie,1:wlin)
     mlodat_tmp(1:imax,1:wlev) = mlodat(is:ie,1:wlev)
-    call mloregrid_work(wlin,depin(is:ie),mloin_tmp,mlodat_tmp,mode, &
+    call mloregrid_work(wlin,sigin,depin(is:ie),mloin_tmp,mlodat_tmp,mode, &
                         depth_g(tile),wpack_g(:,tile),wfull_g(tile))
     mlodat(is:ie,1:wlev) = mlodat_tmp(1:imax,1:wlev)
   end if
@@ -1347,21 +1348,21 @@ end do
 return
 end subroutine mloregrid
 
-subroutine mloregrid_work(wlin,depin,mloin,mlodat,mode, &
+subroutine mloregrid_work(wlin,sigin,depin,mloin,mlodat,mode, &
                           depth,wpack,wfull)
 
 implicit none
 
 integer, intent(in) :: wlin,mode,wfull
 integer iqw,ii,pos(1)
+real, dimension(wlin), intent(in) :: sigin
 real, dimension(imax), intent(in) :: depin
 real, dimension(imax,wlin), intent(in) :: mloin
 real, dimension(imax,wlev), intent(inout) :: mlodat
 real, dimension(wfull,wlin) :: newdata
 real, dimension(wfull,wlev) :: newdatb
 real, dimension(wfull) :: deptmp
-real, dimension(wlin) :: dpin,sgin
-real, dimension(wlin+1) :: dp_hlin
+real, dimension(wlin) :: dpin
 real, dimension(wlev) :: sig
 real x
 logical, dimension(wfull), intent(in) :: wpack
@@ -1377,7 +1378,7 @@ end do
 select case(mode)
   case(0,1)
     do iqw=1,wfull
-      call vgrid(wlin,deptmp(iqw),dpin,dp_hlin)
+      dpin = sigin(:)*deptmp(iqw)  
       if ( wlev==wlin ) then
         if ( all(abs(depth%depth(iqw,:)-dpin(:))<0.0001) ) then
           newdatb(iqw,:) = newdata(iqw,:)
@@ -1401,23 +1402,21 @@ select case(mode)
   case(2,3)
     do iqw=1,wfull
       sig=depth%depth(iqw,:)/max(depth%depth_hl(iqw,wlev),1.e-20)
-      call vgrid(wlin,deptmp(iqw),dpin,dp_hlin)
-      sgin=dpin/max(dp_hlin(wlin),1.e-20)
       if ( wlev==wlin ) then
-        if ( all(abs(sig(:)-sgin(:))<0.0001) ) then
+        if ( all(abs(sig(:)-sigin(:))<0.0001) ) then
           newdatb(iqw,:) = newdata(iqw,:)
           cycle
         end if
       end if
       do ii=1,wlev
-        if (sig(ii)>=sgin(wlin)) then
+        if (sig(ii)>=sigin(wlin)) then
           newdatb(iqw,ii)=newdata(iqw,wlin)
-        else if (sig(ii)<=sgin(1)) then
+        else if (sig(ii)<=sigin(1)) then
           newdatb(iqw,ii)=newdata(iqw,1)
         else
-          pos=maxloc(sgin,sgin<sig(ii))
+          pos=maxloc(sigin,sigin<sig(ii))
           pos(1)=max(1,min(wlin-1,pos(1)))
-          x=(sig(ii)-sgin(pos(1)))/max(sgin(pos(1)+1)-sgin(pos(1)),1.e-20)
+          x=(sig(ii)-sigin(pos(1)))/max(sigin(pos(1)+1)-sigin(pos(1)),1.e-20)
           x=max(0.,min(1.,x))
           newdatb(iqw,ii)=newdata(iqw,pos(1)+1)*x+newdata(iqw,pos(1))*(1.-x)
         end if

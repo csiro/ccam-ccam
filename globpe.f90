@@ -2858,7 +2858,7 @@ ateb_statsmeth    = dumi(27)
 ateb_behavmeth    = dumi(28) 
 ateb_infilmeth    = dumi(29) 
 deallocate( dumr, dumi )
-allocate( dumr(10), dumi(7) )
+allocate( dumr(10), dumi(8) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2885,6 +2885,7 @@ if ( myid==0 ) then
   dumi(5)  = otaumode
   dumi(6)  = rivermd
   dumi(7)  = basinmd
+  dumi(8) = mlojacobi
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2905,6 +2906,7 @@ mlomfix         = dumi(4)
 otaumode        = dumi(5) 
 rivermd         = dumi(6)
 basinmd         = dumi(7)
+mlojacobi       = dumi(8)
 deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0

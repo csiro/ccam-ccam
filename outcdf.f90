@@ -876,9 +876,9 @@ if ( myid==0 .or. local ) then
 endif ! (myid==0.or.local)
       
 ! openhist writes some fields so needs to be called by all processes
-call openhist(iarch,itype,dima,cpdim,c2pdim,c91pdim,c31pdim,local,idnc,  &
-              nstagin,ixp,iyp,idlev,idms,idoc,idproc,idgproc,idcp,idc2p, &
-              idc91p,idc31p)
+call openhist(iarch,itype,dima,dimo,cpdim,c2pdim,c91pdim,c31pdim,local,  &
+              idnc,nstagin,ixp,iyp,idlev,idms,idoc,idproc,idgproc,idcp,  &
+              idc2p,idc91p,idc31p)
 
 if ( myid==0 .or. local ) then
   if ( ktau==ntau ) then
@@ -897,9 +897,9 @@ end subroutine cdfout
       
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
-subroutine openhist(iarch,itype,idim,cpdim,c2pdim,c91pdim,c31pdim,local,idnc,  &
-                    nstagin,ixp,iyp,idlev,idms,idoc,idproc,idgproc,idcp,idc2p, &
-                    idc91p,idc31p)
+subroutine openhist(iarch,itype,idim,odim,cpdim,c2pdim,c91pdim,c31pdim,local,  &
+                    idnc,nstagin,ixp,iyp,idlev,idms,idoc,idproc,idgproc,idcp,  &
+                    idc2p,idc91p,idc31p)
 
 use aerointerface                                ! Aerosol interface
 use aerosolldr                                   ! LDR prognostic aerosols
@@ -965,9 +965,10 @@ integer, intent(in) :: cpdim, c2pdim, c91pdim, c31pdim, idcp, idc2p, idc91p, idc
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer iarch, itype, nstagin, idum
-integer isize, jsize, ksize, dproc, d4, gprocrank
+integer isize, osize, jsize, ksize, dproc, d4, gprocrank
 integer csize, c2size, c3size, c4size
 integer, dimension(5), intent(in) :: idim
+integer, dimension(5), intent(in) :: odim
 integer, dimension(4) :: jdim
 integer, dimension(3) :: kdim
 integer, dimension(5) :: cdim
@@ -988,6 +989,7 @@ real, dimension(ms) :: zsoil
 real, dimension(ifull,10) :: micdwn
 real, dimension(ifull,kl) :: tmpry
 real, dimension(ifull,kl) :: rhoa
+real, dimension(ifull,wlev) :: oo
 real, dimension(ifull,wlev,4) :: mlodwn
 real scale_factor
 character(len=50) expdesc
@@ -1017,7 +1019,8 @@ lday_0   = mod(ktau,nperday)==0.or.ktau==ntau
 lday_0   = lday_0.and.lwrite_0
 l3hr = (real(nwt)*dt>10800.)
 
-! idim is for 4-D (3 dimensions+time)
+! idim is for 4-D atm (3 dimensions+time)
+! odim is for 4-D ocn (3 dimensions+time)
 ! jdim is for 3-D (2 dimensions+time)
 ! kdim is for 2-D (1 dimension+time)
 ! cdim is for cable POP npatch (3 dimensions+time)
@@ -1039,6 +1042,7 @@ if ( procformat ) then
   dproc = 4
   d4 = 5
   isize = 5
+  osize = 5
   jsize = 4
   ksize = 3
   csize = 5
@@ -1063,6 +1067,7 @@ else
   dproc = -1 ! ?
   d4 = 4
   isize = 4
+  osize = 4
   jsize = 3
   ksize = 2
   csize = 4
@@ -1261,24 +1266,6 @@ if( myid==0 .or. local ) then
     call attrib(idnc,jdim,jsize,'tgg6',lname,'K',100.,425.,0,itype)
  
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
-      do k=ms+1,wlev
-        write(lname,'("soil/ocean temperature lev ",I2)') k
-        write(vname,'("tgg",I2.2)') k
-        call attrib(idnc,jdim,jsize,vname,lname,'K',100.,425.,0,itype)
-      end do
-      do k=1,wlev
-        write(lname,'("ocean salinity lev ",I2)') k
-        write(vname,'("sal",I2.2)') k
-        call attrib(idnc,jdim,jsize,vname,lname,'PSU',0.,130.,0,itype)
-      end do
-      do k=1,wlev
-        write(lname,'("x-component current lev ",I2)') k
-        write(vname,'("uoc",I2.2)') k
-        call attrib(idnc,jdim,jsize,vname,lname,'m/s',-65.,65.,0,itype)
-        write(lname,'("y-component current lev ",I2)') k
-        write(vname,'("voc",I2.2)') k
-        call attrib(idnc,jdim,jsize,vname,lname,'m/s',-65.,65.,0,itype)
-      end do
       lname = 'water surface height'
       call attrib(idnc,jdim,jsize,'ocheight',lname,'m',-130.,130.,0,itype)          
       lname = 'Snow/Sea-ice temperature lev 1'
@@ -1957,7 +1944,18 @@ if( myid==0 .or. local ) then
       lname = 'Convective heating'
       call attrib(idnc,idim,isize,'convh_ave',lname,'K/day',-10.,20.,0,itype)
     end if
-        
+
+    if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
+      lname = "Ocean temperature"
+      call attrib(idnc,odim,osize,"thetao",lname,'K',100.,425.,0,itype)
+      lname = "Ocean salinity"
+      call attrib(idnc,odim,osize,"so",lname,'PSU',0.,130.,0,itype)
+      lname = "x-component current"
+      call attrib(idnc,odim,osize,"uo",lname,'m/s',-65.,65.,0,itype)
+      lname = "y-component current"
+      call attrib(idnc,odim,osize,"vo",lname,'m/s',-65.,65.,0,itype)
+    end if
+    
     ! CLOUD MICROPHYSICS --------------------------------------------
     if ( ldr/=0 .and. save_cloud ) then
       call attrib(idnc,idim,isize,'qfg','Frozen water','kg/kg',0.,.065,0,itype)
@@ -2069,20 +2067,14 @@ if( myid==0 .or. local ) then
       lname= 'savv2'
       call attrib(idnc,idim,isize,'savv2',lname,'m/s',-1.E2,1.E2,0,itype)
       if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
-        do k=1,wlev
-          write(lname,'("oldu1 ",I2)') k
-          write(vname,'("oldu1",I2.2)') k
-          call attrib(idnc,jdim,jsize,vname,lname,'m/s',-100.,100.,0,itype)
-          write(lname,'("oldv1 ",I2)') k
-          write(vname,'("oldv1",I2.2)') k
-          call attrib(idnc,jdim,jsize,vname,lname,'m/s',-100.,100.,0,itype)
-          write(lname,'("oldu2 ",I2)') k
-          write(vname,'("oldu2",I2.2)') k
-          call attrib(idnc,jdim,jsize,vname,lname,'m/s',-100.,100.,0,itype)
-          write(lname,'("oldv2 ",I2)') k
-          write(vname,'("oldv2",I2.2)') k
-          call attrib(idnc,jdim,jsize,vname,lname,'m/s',-100.,100.,0,itype)
-        end do
+        lname = "old1_uo"
+        call attrib(idnc,odim,osize,"old1_uo",lname,'m/s',-65.,65.,0,itype)
+        lname = "old1_vo"
+        call attrib(idnc,odim,osize,"old1_vo",lname,'m/s',-65.,65.,0,itype)
+        lname = "old2_uo"
+        call attrib(idnc,odim,osize,"old2_uo",lname,'m/s',-65.,65.,0,itype)
+        lname = "old2_vo"
+        call attrib(idnc,odim,osize,"old2_vo",lname,'m/s',-65.,65.,0,itype)
         lname= 'ipice'
         call attrib(idnc,jdim,jsize,'ipice',lname,'Pa',0.,1.E6,0,itype)
       end if
@@ -2446,25 +2438,6 @@ end do
 
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   if ( nmlo<0 .or. (nmlo>0.and.itype==-1) ) then
-    do k = ms+1,wlev
-      where ( mlodwn(:,k,1)<100. .and. itype==1 )
-        aa(:) = mlodwn(:,k,1) + wrtemp
-      elsewhere
-        aa(:) = mlodwn(:,k,1)  
-      end where
-      write(vname,'("tgg",I2.2)') k        
-      call histwrt3(aa,vname,idnc,iarch,local,.true.)
-    end do
-    do k=1,wlev
-      write(vname,'("sal",I2.2)') k
-      call histwrt3(mlodwn(:,k,2),vname,idnc,iarch,local,.true.)
-    end do
-    do k=1,wlev
-      write(vname,'("uoc",I2.2)') k
-      call histwrt3(mlodwn(:,k,3),vname,idnc,iarch,local,.true.)
-      write(vname,'("voc",I2.2)') k
-      call histwrt3(mlodwn(:,k,4),vname,idnc,iarch,local,.true.)
-    end do
     call histwrt3(ocnheight,'ocheight',idnc,iarch,local,.true.)
     call histwrt3(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
     call histwrt3(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
@@ -3001,7 +2974,23 @@ call histwrt4(qg,'mixr',idnc,iarch,local,.true.)
 if ( save_cloud ) then
   call histwrt4(convh_ave,'convh_ave',idnc,iarch,local,lave)
 end if
-      
+
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+  if ( nmlo<0 .or. (nmlo>0.and.itype==-1) ) then
+    do k = 1,wlev
+      where ( mlodwn(:,k,1)<100. .and. itype==1 )
+        oo(:,k) = mlodwn(:,k,1) + wrtemp
+      elsewhere
+        oo(:,k) = mlodwn(:,k,1)  
+      end where
+    end do  
+    call histwrt4(oo,"thetao",idnc,iarch,local,.true.)
+    call histwrt4(mlodwn(:,:,2),"so",idnc,iarch,local,.true.)
+    call histwrt4(mlodwn(:,:,3),"uo",idnc,iarch,local,.true.)
+    call histwrt4(mlodwn(:,:,4),"vo",idnc,iarch,local,.true.)
+  end if
+end if
+
 ! MICROPHYSICS ------------------------------------------------
 if ( ldr/=0 .and. save_cloud ) then
   call histwrt4(qfg,'qfg',idnc,iarch,local,.true.)
@@ -3126,16 +3115,10 @@ if ( itype==-1 ) then
   call histwrt4(savu2,     'savu2', idnc,iarch,local,.true.)
   call histwrt4(savv2,     'savv2', idnc,iarch,local,.true.)
   if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
-    do k = 1,wlev
-      write(vname,'("oldu1",I2.2)') k
-      call histwrt3(oldu1(:,k),vname,idnc,iarch,local,.true.)
-      write(vname,'("oldv1",I2.2)') k
-      call histwrt3(oldv1(:,k),vname,idnc,iarch,local,.true.)
-      write(vname,'("oldu2",I2.2)') k
-      call histwrt3(oldu2(:,k),vname,idnc,iarch,local,.true.)
-      write(vname,'("oldv2",I2.2)') k
-      call histwrt3(oldv2(:,k),vname,idnc,iarch,local,.true.)
-    end do
+    call histwrt4(oldu1,"old1_uo",idnc,iarch,local,.true.)
+    call histwrt4(oldv1,"old1_vo",idnc,iarch,local,.true.)
+    call histwrt4(oldu2,"old2_uo",idnc,iarch,local,.true.)
+    call histwrt4(oldv2,"old2_vo",idnc,iarch,local,.true.)
     call histwrt3(ipice,'ipice',idnc,iarch,local,.true.)
   end if
   call histwrt3(wbice(:,1),'wbice1',idnc,iarch,local,.true.)

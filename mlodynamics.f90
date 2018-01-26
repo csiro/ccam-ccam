@@ -521,6 +521,8 @@ real(kind=8), dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
+integer pos(2)
+
 ! sigma = (z+neta)/(D+neta)
 
 ! We use a modified form of JLM's trick where:
@@ -777,6 +779,9 @@ do ii = 1,wlev
   nuh(:,ii) = (15.*nu(1:ifull,ii)-10.*oldu1(:,ii)+3.*oldu2(:,ii))*ee(1:ifull)/8. ! U at t+1/2
   nvh(:,ii) = (15.*nv(1:ifull,ii)-10.*oldv1(:,ii)+3.*oldv2(:,ii))*ee(1:ifull)/8. ! V at t+1/2
 end do
+
+nuh = min( max( nuh, -50. ), 50. )
+nvh = min( max( nvh, -50. ), 50. )
 
 ! Calculate depature points
 call mlodeps(dt,nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
@@ -4493,17 +4498,22 @@ end subroutine mlotvd
 subroutine tsjacobi(nti,nsi,alphabar,betabar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
+use map_m, only : f, emu, emv
 use mlo, only : wlev,wrtemp
 use newmpar_m
+use parm_m, only : ds
 
 implicit none
 
-integer ii
+integer ii, jj
 real, dimension(ifull+iextra,wlev), intent(in) :: nti, nsi, alphabar, betabar
 real, dimension(ifull,wlev), intent(out) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
 real, dimension(ifull+iextra,wlev,2) :: na
 real, dimension(ifull) :: absu, bbsu, absv, bbsv
 real, dimension(ifull) :: alphabar_n, alphabar_e, betabar_n, betabar_e
+real, dimension(ifull) :: m, c
+real, dimension(ifull) :: y_u, y_nu, y_eu, y_su, y_neu, y_seu
+real, dimension(ifull) :: y_v, y_nv, y_ev, y_wv, y_env, y_wnv
 real, dimension(ifull,wlev,2) :: dnadxu, dnadxv, dnadyu, dnadyv
 
 select case( mlojacobi )
@@ -4516,29 +4526,201 @@ select case( mlojacobi )
     end do
 
   case(1) ! non-local  
-    na(:,:,1)=min(max(271.-wrtemp,nti),373.-wrtemp)
-    na(:,:,2)=min(max(0.,  nsi),50. )-34.72
-
+    na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
+    na(:,:,2) = min(max(0.,  nsi),50. )-34.72
     call seekdelta(na,dnadxu,dnadyu,dnadxv,dnadyv)
-
-    do ii=1,wlev
+    do ii = 1,wlev
       call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
       call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
-      absu=0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull)
-      bbsu=0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull)
-      absv=0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull)
-      bbsv=0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull)
+      absu = 0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull)
+      bbsu = 0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull)
+      absv = 0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull)
+      bbsv = 0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull)
 
       ! This relationship neglects compression effects due to neta from the EOS.
-      drhobardxu(1:ifull,ii)=-absu*dnadxu(1:ifull,ii,1)+bbsu*dnadxu(1:ifull,ii,2)
-      drhobardxv(1:ifull,ii)=-absv*dnadxv(1:ifull,ii,1)+bbsv*dnadxv(1:ifull,ii,2)
-      drhobardyu(1:ifull,ii)=-absu*dnadyu(1:ifull,ii,1)+bbsu*dnadyu(1:ifull,ii,2)
-      drhobardyv(1:ifull,ii)=-absv*dnadyv(1:ifull,ii,1)+bbsv*dnadyv(1:ifull,ii,2)
+      drhobardxu(1:ifull,ii) = -absu*dnadxu(1:ifull,ii,1) + bbsu*dnadxu(1:ifull,ii,2)
+      drhobardxv(1:ifull,ii) = -absv*dnadxv(1:ifull,ii,1) + bbsv*dnadxv(1:ifull,ii,2)
+      drhobardyu(1:ifull,ii) = -absu*dnadyu(1:ifull,ii,1) + bbsu*dnadyu(1:ifull,ii,2)
+      drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
     end do
 
   case(2) ! linear
     write(6,*) "ERROR: mlojacobi option 2 is not yet enabled"
     stop
+    
+    na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
+    na(:,:,2) = min(max(0.,  nsi),50. )-34.72
+    
+    do jj = 1,2
+      m = (na(1:ifull,1,jj) - na(1:ifull,2,jj))/((gosig(1)-gosig(2))*dd(1:ifull))
+      c = na(1:ifull,1,jj) - m*gosig(1)*dd(1:ifull)
+      y_u = m*gosig(1)*ddu(1:ifull) + c
+      y_v = m*gosig(1)*ddv(1:ifull) + c
+        
+      m = (na(in,1,jj)-na(in,2,jj))/((gosig(1)-gosig(2))*dd(in))
+      c = na(in,1,jj) - m*gosig(1)*dd(in)
+      y_nu = m*gosig(1)*ddu(1:ifull) + c
+      y_nv = m*gosig(1)*ddv(1:ifull) + c
+        
+      m = (na(ie,1,jj)-na(ie,2,jj))/((gosig(1)-gosig(2))*dd(ie))
+      c = na(ie,1,jj) - m*gosig(1)*dd(ie)
+      y_eu = m*gosig(1)*ddu(1:ifull) + c
+      y_ev = m*gosig(1)*ddv(1:ifull) + c
+
+      m = (na(is,1,jj)-na(is,2,jj))/((gosig(1)-gosig(2))*dd(is))
+      c = na(is,1,jj) - m*gosig(1)*dd(is)
+      y_su = m*gosig(1)*ddu(1:ifull) + c
+        
+      m = (na(iw,1,jj)-na(iw,2,jj))/((gosig(1)-gosig(2))*dd(iw))
+      c = na(iw,1,jj) - m*gosig(1)*dd(iw)
+      y_wv = m*gosig(1)*ddv(1:ifull) + c
+        
+      m = (na(ine,1,jj)-na(ine,2,jj))/((gosig(1)-gosig(2))*dd(ine))
+      c = na(ine,1,jj) - m*gosig(1)*dd(ine)
+      y_neu = m*gosig(1)*ddu(1:ifull) + c
+
+      m = (na(ien,1,jj)-na(ien,2,jj))/((gosig(1)-gosig(2))*dd(ien))
+      c = na(ien,1,jj) - m*gosig(1)*dd(ien)
+      y_env = m*gosig(1)*ddv(1:ifull) + c
+        
+      m = (na(ise,1,jj)-na(ise,2,jj))/((gosig(1)-gosig(2))*dd(ise))
+      c = na(ise,1,jj) - m*gosig(1)*dd(ise)
+      y_seu = m*gosig(1)*ddu(1:ifull) + c
+        
+      m = (na(iwn,1,jj)-na(iwn,2,jj))/((gosig(1)-gosig(2))*dd(iwn))
+      c = na(iwn,1,jj) - m*gosig(1)*dd(iwn)
+      y_wnv = m*gosig(1)*ddv(1:ifull) + c        
+        
+      dnadxu(1:ifull,1,jj) = (y_eu - y_u)*emu(1:ifull)/ds*eeu(1:ifull)
+      dnadxv(1:ifull,1,jj) = 0.25*stwgt(1:ifull,3)*(y_ev*f(ie)+y_env*f(ien)-y_v*f(1:ifull)-y_nv*f(in))*emv(1:ifull)/ds &
+                            -0.125*stwgt(1:ifull,3)*(y_v+y_nv)*(f(ie)+f(ien)-f(1:ifull)-f(in))*emv(1:ifull)/ds         &
+                            +0.25*stwgt(1:ifull,4)*(y_v*f(1:ifull)+y_nv*f(in)-y_wv*f(iw)-y_wnv*f(iwn))*emv(1:ifull)/ds &
+                            -0.125*stwgt(1:ifull,4)*(y_v+y_nv)*(f(1:ifull)+f(in)-f(iw)-f(iwn))*emv(1:ifull)/ds
+      dnadyv(1:ifull,1,jj) = (y_nv - y_v)*emv(1:ifull)/ds*eev(1:ifull)
+      dnadyu(1:ifull,1,jj) = 0.25*stwgt(1:ifull,1)*(y_nu*f(in)+y_neu*f(ine)-y_u*f(1:ifull)-y_eu*f(ie))*emu(1:ifull)/ds &
+                            -0.125*stwgt(1:ifull,1)*(y_u+y_eu)*(f(in)+f(ine)-f(1:ifull)-f(ie))*emu(1:ifull)/ds         &
+                            +0.25*stwgt(1:ifull,2)*(y_u*f(1:ifull)+y_eu*f(ie)-y_su*f(is)-y_seu*f(ise))*emu(1:ifull)/ds &
+                            -0.125*stwgt(1:ifull,2)*(y_u+y_eu)*(f(1:ifull)+f(ie)-f(is)-f(ise))*emu(1:ifull)/ds
+
+        do ii = 2,wlev-1
+        m = (na(1:ifull,ii-1,jj) - na(1:ifull,ii+1,jj))/((gosig(ii-1)-gosig(ii+1))*dd(1:ifull))
+        c = na(1:ifull,ii,jj) - m*gosig(ii)*dd(1:ifull)
+        y_u = m*gosig(ii)*ddu(1:ifull) + c
+        y_v = m*gosig(ii)*ddv(1:ifull) + c
+        
+        m = (na(in,ii-1,jj)-na(in,ii+1,jj))/((gosig(ii-1)-gosig(ii+1))*dd(in))
+        c = na(in,ii,jj) - m*gosig(ii)*dd(in)
+        y_nu = m*gosig(ii)*ddu(1:ifull) + c
+        y_nv = m*gosig(ii)*ddv(1:ifull) + c
+        
+        m = (na(ie,ii-1,jj)-na(ie,ii+1,jj))/((gosig(ii-1)-gosig(ii+1))*dd(ie))
+        c = na(ie,ii,jj) - m*gosig(ii)*dd(ie)
+        y_eu = m*gosig(ii)*ddu(1:ifull) + c
+        y_ev = m*gosig(ii)*ddv(1:ifull) + c
+
+        m = (na(is,ii-1,jj)-na(is,ii+1,jj))/((gosig(ii-1)-gosig(ii+1))*dd(is))
+        c = na(is,ii,jj) - m*gosig(ii)*dd(is)
+        y_su = m*gosig(ii)*ddu(1:ifull) + c
+        
+        m = (na(iw,ii-1,jj)-na(iw,ii+1,jj))/((gosig(ii-1)-gosig(ii+1))*dd(iw))
+        c = na(iw,ii,jj) - m*gosig(ii)*dd(iw)
+        y_wv = m*gosig(ii)*ddv(1:ifull) + c
+        
+        m = (na(ine,ii-1,jj)-na(ine,ii+1,jj))/((gosig(ii-1)-gosig(ii+1))*dd(ine))
+        c = na(ine,ii,jj) - m*gosig(ii)*dd(ine)
+        y_neu = m*gosig(ii)*ddu(1:ifull) + c
+
+        m = (na(ien,ii-1,jj)-na(ien,ii+1,jj))/((gosig(ii-1)-gosig(ii+1))*dd(ien))
+        c = na(ien,ii,jj) - m*gosig(ii)*dd(ien)
+        y_env = m*gosig(ii)*ddv(1:ifull) + c
+        
+        m = (na(ise,ii-1,jj)-na(ise,ii+1,jj))/((gosig(ii-1)-gosig(ii+1))*dd(ise))
+        c = na(ise,ii,jj) - m*gosig(ii)*dd(ise)
+        y_seu = m*gosig(ii)*ddu(1:ifull) + c
+        
+        m = (na(iwn,ii-1,jj)-na(iwn,ii+1,jj))/((gosig(ii-1)-gosig(ii+1))*dd(iwn))
+        c = na(iwn,ii,jj) - m*gosig(ii)*dd(iwn)
+        y_wnv = m*gosig(ii)*ddv(1:ifull) + c        
+        
+        dnadxu(1:ifull,ii,jj) = (y_eu - y_u)*emu(1:ifull)/ds*eeu(1:ifull)
+        dnadxv(1:ifull,ii,jj) = 0.25*stwgt(1:ifull,3)*(y_ev*f(ie)+y_env*f(ien)-y_v*f(1:ifull)-y_nv*f(in))*emv(1:ifull)/ds &
+                               -0.125*stwgt(1:ifull,3)*(y_v+y_nv)*(f(ie)+f(ien)-f(1:ifull)-f(in))*emv(1:ifull)/ds         &
+                               +0.25*stwgt(1:ifull,4)*(y_v*f(1:ifull)+y_nv*f(in)-y_wv*f(iw)-y_wnv*f(iwn))*emv(1:ifull)/ds &
+                               -0.125*stwgt(1:ifull,4)*(y_v+y_nv)*(f(1:ifull)+f(in)-f(iw)-f(iwn))*emv(1:ifull)/ds
+        dnadyv(1:ifull,ii,jj) = (y_nv - y_v)*emv(1:ifull)/ds*eev(1:ifull)
+        dnadyu(1:ifull,ii,jj) = 0.25*stwgt(1:ifull,1)*(y_nu*f(in)+y_neu*f(ine)-y_u*f(1:ifull)-y_eu*f(ie))*emu(1:ifull)/ds &
+                               -0.125*stwgt(1:ifull,1)*(y_u+y_eu)*(f(in)+f(ine)-f(1:ifull)-f(ie))*emu(1:ifull)/ds         &
+                               +0.25*stwgt(1:ifull,2)*(y_u*f(1:ifull)+y_eu*f(ie)-y_su*f(is)-y_seu*f(ise))*emu(1:ifull)/ds &
+                               -0.125*stwgt(1:ifull,2)*(y_u+y_eu)*(f(1:ifull)+f(ie)-f(is)-f(ise))*emu(1:ifull)/ds
+
+      end do
+
+      m = (na(1:ifull,wlev-1,jj) - na(1:ifull,wlev,jj))/((gosig(wlev-1)-gosig(wlev))*dd(1:ifull))
+      c = na(1:ifull,wlev,jj) - m*gosig(wlev)*dd(1:ifull)
+      y_u = m*gosig(wlev)*ddu(1:ifull) + c
+      y_v = m*gosig(wlev)*ddv(1:ifull) + c
+        
+      m = (na(in,wlev-1,jj)-na(in,wlev,jj))/((gosig(wlev-1)-gosig(wlev))*dd(in))
+      c = na(in,wlev,jj) - m*gosig(wlev)*dd(in)
+      y_nu = m*gosig(wlev)*ddu(1:ifull) + c
+      y_nv = m*gosig(wlev)*ddv(1:ifull) + c
+        
+      m = (na(ie,wlev-1,jj)-na(ie,wlev,jj))/((gosig(wlev-1)-gosig(wlev))*dd(ie))
+      c = na(ie,wlev,jj) - m*gosig(wlev)*dd(ie)
+      y_eu = m*gosig(wlev)*ddu(1:ifull) + c
+      y_ev = m*gosig(wlev)*ddv(1:ifull) + c
+
+      m = (na(is,wlev-1,jj)-na(is,wlev,jj))/((gosig(wlev-1)-gosig(wlev))*dd(is))
+      c = na(is,wlev,jj) - m*gosig(wlev)*dd(is)
+      y_su = m*gosig(wlev)*ddu(1:ifull) + c
+        
+      m = (na(iw,wlev-1,jj)-na(iw,wlev,jj))/((gosig(wlev-1)-gosig(wlev))*dd(iw))
+      c = na(iw,wlev,jj) - m*gosig(wlev)*dd(iw)
+      y_wv = m*gosig(wlev)*ddv(1:ifull) + c
+        
+      m = (na(ine,wlev-1,jj)-na(ine,wlev,jj))/((gosig(wlev-1)-gosig(wlev))*dd(ine))
+      c = na(ine,wlev,jj) - m*gosig(wlev)*dd(ine)
+      y_neu = m*gosig(wlev)*ddu(1:ifull) + c
+
+      m = (na(ien,wlev-1,jj)-na(ien,wlev,jj))/((gosig(wlev-1)-gosig(wlev))*dd(ien))
+      c = na(ien,wlev,jj) - m*gosig(wlev)*dd(ien)
+      y_env = m*gosig(wlev)*ddv(1:ifull) + c
+        
+      m = (na(ise,wlev-1,jj)-na(ise,wlev,jj))/((gosig(wlev-1)-gosig(wlev))*dd(ise))
+      c = na(ise,wlev,jj) - m*gosig(wlev)*dd(ise)
+      y_seu = m*gosig(wlev)*ddu(1:ifull) + c
+        
+      m = (na(iwn,wlev-1,jj)-na(iwn,wlev,jj))/((gosig(wlev-1)-gosig(wlev))*dd(iwn))
+      c = na(iwn,wlev,jj) - m*gosig(wlev)*dd(iwn)
+      y_wnv = m*gosig(wlev)*ddv(1:ifull) + c        
+        
+      dnadxu(1:ifull,wlev,jj) = (y_eu - y_u)*emu(1:ifull)/ds*eeu(1:ifull)
+      dnadxv(1:ifull,wlev,jj) = 0.25*stwgt(1:ifull,3)*(y_ev*f(ie)+y_env*f(ien)-y_v*f(1:ifull)-y_nv*f(in))*emv(1:ifull)/ds &
+                               -0.125*stwgt(1:ifull,3)*(y_v+y_nv)*(f(ie)+f(ien)-f(1:ifull)-f(in))*emv(1:ifull)/ds         &
+                               +0.25*stwgt(1:ifull,4)*(y_v*f(1:ifull)+y_nv*f(in)-y_wv*f(iw)-y_wnv*f(iwn))*emv(1:ifull)/ds &
+                               -0.125*stwgt(1:ifull,4)*(y_v+y_nv)*(f(1:ifull)+f(in)-f(iw)-f(iwn))*emv(1:ifull)/ds
+      dnadyv(1:ifull,wlev,jj) = (y_nv - y_v)*emv(1:ifull)/ds*eev(1:ifull)
+      dnadyu(1:ifull,wlev,jj) = 0.25*stwgt(1:ifull,1)*(y_nu*f(in)+y_neu*f(ine)-y_u*f(1:ifull)-y_eu*f(ie))*emu(1:ifull)/ds &
+                               -0.125*stwgt(1:ifull,1)*(y_u+y_eu)*(f(in)+f(ine)-f(1:ifull)-f(ie))*emu(1:ifull)/ds         &
+                               +0.25*stwgt(1:ifull,2)*(y_u*f(1:ifull)+y_eu*f(ie)-y_su*f(is)-y_seu*f(ise))*emu(1:ifull)/ds &
+                               -0.125*stwgt(1:ifull,2)*(y_u+y_eu)*(f(1:ifull)+f(ie)-f(is)-f(ise))*emu(1:ifull)/ds
+
+    end do
+    
+    do ii = 1,wlev
+      call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
+      call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
+      absu = 0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull)
+      bbsu = 0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull)
+      absv = 0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull)
+      bbsv = 0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull)
+
+      ! This relationship neglects compression effects due to neta from the EOS.
+      drhobardxu(1:ifull,ii) = -absu*dnadxu(1:ifull,ii,1) + bbsu*dnadxu(1:ifull,ii,2)
+      drhobardxv(1:ifull,ii) = -absv*dnadxv(1:ifull,ii,1) + bbsv*dnadxv(1:ifull,ii,2)
+      drhobardyu(1:ifull,ii) = -absu*dnadyu(1:ifull,ii,1) + bbsu*dnadyu(1:ifull,ii,2)
+      drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
+    end do
     
   case default
     write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi

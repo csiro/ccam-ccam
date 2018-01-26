@@ -105,7 +105,10 @@ use work2_m                        ! Diagnostic arrays
 use work3_m                        ! Mk3 land-surface diagnostic arrays
       
 #ifdef csircoupled
+use parmgeom_m
 use vcom_ccam
+use vecsuv_m
+use xyzinfo_m
 #endif
 
 implicit none
@@ -118,6 +121,12 @@ real, dimension(ifull) :: af,aft,ri
 real, dimension(ifull) :: fg_ocn, fg_ice, eg_ocn, eg_ice
 real, dimension(ifull) :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
 real, dimension(ifull) :: river_inflow
+
+#ifdef csircoupled
+real, dimension(ifull) :: dumsg, dumrg, dumx
+real, dimension(ifull) :: dumtaux_ocn, dumtauy_ocn, dumtaux_ice, dumtauy_ice
+real, dimension(ifull) :: zonx, zony, zonz, costh, sinth
+#endif
 
 !     stability dependent drag coefficients using Louis (1979,blm) f'
 !     n.b. cduv, cdtq are returned as drag coeffs mult by vmod
@@ -283,9 +292,23 @@ if ( nmlo==0 ) then                                                             
   dumsg(:)=sgsave(:)/(1.-swrsave*albvisnir(:,1)-(1.-swrsave)*albvisnir(:,2))                     ! VCOM
   dumrg(:)=-rgsave(:)                                                                            ! VCOM
   dumx(:)=condx(:)/dt ! total precip                                                             ! VCOM
+                                                                                                 ! VCOM
+  zonx=real(                             -sin(rlat0*pi/180.)*y(1:ifull))                         ! VCOM  
+  zony=real(sin(rlat0*pi/180.)*x(1:ifull)+cos(rlat0*pi/180.)*z(1:ifull))                         ! VCOM
+  zonz=real(-cos(rlat0*pi/180.)*y(1:ifull)                       )                               ! VCOM
+  costh= (zonx*ax(1:ifull)+zony*ay(1:ifull)+zonz*az(1:ifull)) &                                  ! VCOM
+        /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )                                              ! VCOM
+  sinth=-(zonx*bx(1:ifull)+zony*by(1:ifull)+zonz*bz(1:ifull)) &                                  ! VCOM
+        /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )                                              ! VCOM 
+                                                                                                 ! VCOM             
+  dumtaux_ocn(:) = costh*taux_ocn - sinth*tauy_ocn                                               ! VCOM
+  dumtauy_ocn(:) = sinth*taux_ocn + costh*tauy_ocn                                               ! VCOM
+  dumtaux_ice(:) = costh*taux_ice - sinth*tauy_ice                                               ! VCOM
+  dumtauy_ice(:) = sinth*taux_ice + costh*tauy_ice                                               ! VCOM
+                                                                                                 ! VCOM
   call vcom_ccam_physics(dumsg,dumrg,condx,river_inflow,    &                                    ! VCOM
-                 taux_ocn,tauy_ocn,fg_ocn,eg_ocn,           &                                    ! VCOM
-                 taux_ice,tauy_ice,fg_ice,eg_ice,           &                                    ! VCOM
+                 dumtaux_ocn,dumtauy_ocn,fg_ocn,eg_ocn,     &                                    ! VCOM
+                 dumtaux_ice,dumtauy_ice,fg_ice,eg_ice,     &                                    ! VCOM
                  tgg(:,1),tggsn(:,1),fracice,sicedep)                                            ! VCOM
   tss(:) = (1.-fracice(:))*tgg(:,1) + fracice(:)*tggsn(:,1)                                      ! VCOM
                                                                                                  ! VCOM  

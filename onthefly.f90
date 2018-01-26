@@ -54,6 +54,7 @@ real, dimension(:), allocatable, save :: bxs_a, bys_a, bzs_a  ! vector rotation 
 real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation data (multiple files)
 real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data (multiple files)
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
+real, dimension(:), allocatable, save :: gosig_in             ! input ocean levels
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
 
 real, dimension(:,:,:,:), allocatable, save :: sx             ! working array for interpolation
@@ -330,7 +331,8 @@ integer i, j, k, mm, iq
 integer, dimension(:), allocatable :: isoilm_a
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
-integer, dimension(5), save :: iers
+integer, dimension(6), save :: iers
+real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
 real, dimension(:,:,:), intent(out) :: xtgdwn
 real, dimension(:,:), intent(out) :: ocndwn
@@ -345,13 +347,13 @@ real, dimension(:), allocatable :: fracice_a, sicedep_a
 real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
 real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_l
-real, dimension(kk+5) :: dumr
+real, dimension(kk+6) :: dumr
 character(len=20) vname
 character(len=3) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tsstest, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
-logical u10_found, carbon_found, mlo_found
+logical u10_found, carbon_found, mlo_found, mlo2_found
 logical, dimension(:), allocatable, save :: land_a, sea_a
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
@@ -408,9 +410,9 @@ if ( .not.allocated(nface4) ) then
 end if
 if ( newfile ) then
   if ( allocated(sigin) ) then
-    deallocate( sigin, land_a, sea_a )
+    deallocate( sigin, gosig_in, land_a, sea_a )
   end if
-  allocate( sigin(kk), land_a(fwsize), sea_a(fwsize) )
+  allocate( sigin(kk), gosig_in(ok), land_a(fwsize), sea_a(fwsize) )
 end if
       
 !--------------------------------------------------------------------
@@ -526,8 +528,27 @@ if ( newfile ) then
       call ccnf_get_vara(ncid,idv,1,kk,sigin)
       if ( myid==0 ) write(6,'(" sigin=",(9f7.4))') (sigin(k),k=1,kk)
     end if
+    if ( ok>0 ) then
+      call ccnf_inq_varid(ncid,'olev',idv,tst)
+      if ( tst ) then
+        mxd_o = 5000.
+        x_o = real(wlev)
+        al_o = mxd_o*(x_o/mxd_o-1.)/(x_o-x_o*x_o*x_o)         ! sigma levels
+        bt_o = mxd_o*(x_o*x_o*x_o/mxd_o-1.)/(x_o*x_o*x_o-x_o) ! sigma levels 
+        do k = 1,wlev
+          x_o = real(k-1)
+          y_o = real(k)
+          depth_hl_xo = (al_o*x_o*x_o*x_o+bt_o*x_o)/mxd_o ! ii is for half level ii-0.5
+          depth_hl_yo = (al_o*y_o*y_o*y_o+bt_o*y_o)/mxd_o ! ii+1 is for half level ii+0.5
+          gosig_in(k) = 0.5*(depth_hl_xo+depth_hl_yo)
+        end do
+        print *,"gosig_in ",gosig_in
+      else
+        call ccnf_get_vara(ncid,idv,1,ok,gosig_in)
+      end if  
+    end if
     ! check for missing data
-    iers(1:4) = 0
+    iers(1:6) = 0
     call ccnf_inq_varid(ncid,'mixr',idv,tst)
     if ( tst ) iers(1) = -1
     call ccnf_inq_varid(ncid,'siced',idv,tst)
@@ -538,6 +559,8 @@ if ( newfile ) then
     if ( tst ) iers(4) = -1
     call ccnf_inq_varid(ncid,'ocndepth',idv,tst)
     if ( tst ) iers(5) = -1
+    call ccnf_inq_varid(ncid,'thetao',idv,tst)
+    if ( tst ) iers(6) = -1
     call ccnf_inq_varid(ncid,'tsu',idv,tst)
     if ( tst ) then
       write(6,*) "ERROR: Cannot locate tsu in input file"
@@ -548,10 +571,13 @@ if ( newfile ) then
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk)      = sigin(1:kk)
-    dumr(kk+1:kk+5) = real(iers(1:5))
+    dumr(kk+1:kk+6) = real(iers(1:6))
     call ccmpi_bcast(dumr(1:kk+5),0,comm_world)
     sigin(1:kk) = dumr(1:kk)
-    iers(1:5)   = nint(dumr(kk+1:kk+5))
+    iers(1:6)   = nint(dumr(kk+1:kk+6))
+    if ( ok>0 ) then
+      call ccmpi_bcast(gosig_in,0,comm_world)  
+    end if
   end if
   
   mixr_found    = iers(1)==0
@@ -559,6 +585,7 @@ if ( newfile ) then
   fracice_found = iers(3)==0
   soilt_found   = iers(4)==0
   mlo_found     = iers(5)==0
+  mlo2_found    = iers(6)==0
 
   ! determine whether surface temperature needs to be interpolated (tsstest=.false.)
   tsstest = siced_found .and. fracice_found .and. iotest
@@ -613,11 +640,12 @@ if ( newfile ) then
 else
     
   ! use saved metadata  
-  mixr_found    = (iers(1)==0)
-  siced_found   = (iers(2)==0)
-  fracice_found = (iers(3)==0)
-  soilt_found   = (iers(4)==0)
-  mlo_found     = (iers(5)==0)
+  mixr_found    = iers(1)==0
+  siced_found   = iers(2)==0
+  fracice_found = iers(3)==0
+  soilt_found   = iers(4)==0
+  mlo_found     = iers(5)==0
+  mlo2_found    = iers(6)==0
   tsstest = siced_found .and. fracice_found .and. iotest
   
 end if ! newfile ..else..
@@ -728,45 +756,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   ! defalt values
   ocndwn(1:ifull,1) = ocndep_l(1:ifull) ! depth in host
   ocndwn(1:ifull,2) = 0.                ! surface height
-  do k = 1,wlev
-    call mloexpdep(0,depth,k,0)
-    ! This polynomial fit is from MOM3, based on Levitus
-    where (depth(:)<2000.)
-      mlodwn(1:ifull,k,1) = 18.4231944       &
-        - 0.43030662E-1*depth(1:ifull)       &
-        + 0.607121504E-4*depth(1:ifull)**2   &
-        - 0.523806281E-7*depth(1:ifull)**3   &
-        + 0.272989082E-10*depth(1:ifull)**4  &
-        - 0.833224666E-14*depth(1:ifull)**5  &
-        + 0.136974583E-17*depth(1:ifull)**6  &
-        - 0.935923382E-22*depth(1:ifull)**7
-      mlodwn(1:ifull,k,1) = mlodwn(1:ifull,k,1) + 273.16 - wrtemp
-    elsewhere
-      mlodwn(1:ifull,k,1) = 275.16 - wrtemp
-    end where
-    mlodwn(1:ifull,k,2) = 34.72 ! sal
-    mlodwn(1:ifull,k,3) = 0.    ! uoc
-    mlodwn(1:ifull,k,4) = 0.    ! voc
-  end do  
   if ( mlo_found ) then
-    ! ocean potential temperature
-    ! ocean temperature and soil temperature use the same arrays
-    ! as no fractional land or sea cover is allowed in CCAM
-    if ( ( nested/=1 .or. nud_sst/=0 ) .and. ok>0 ) then
-      call fillhist4o('tgg',mlodwn(:,:,1),land_a,ocndwn(:,1))
-      where ( mlodwn(1:ifull,1:wlev,1)>100. )
-        mlodwn(1:ifull,1:wlev,1) = mlodwn(1:ifull,1:wlev,1) - wrtemp ! remove temperature offset for precision
-      end where
-    end if ! (nestesd/=1.or.nud_sst/=0) ..else..
-    ! ocean salinity
-    if ( ( nested/=1 .or. nud_sss/=0 ) .and. ok>0 ) then
-      call fillhist4o('sal',mlodwn(:,:,2),land_a,ocndwn(:,1))
-      mlodwn(1:ifull,1:wlev,2) = max( mlodwn(1:ifull,1:wlev,2), 0. )
-    end if ! (nestesd/=1.or.nud_sss/=0) ..else..
-    ! ocean currents
-    if ( ( nested/=1 .or. nud_ouv/=0 ) .and. ok>0 ) then
-      call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_a,ocndwn(:,1))
-    end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
     ! water surface height
     if ( nested/=1 .or. nud_sfh/=0 ) then
       call fillhist1('ocheight',ocndwn(:,2),land_a)
@@ -976,6 +966,62 @@ else
   qg(1:ifull,1:kl) = qgmin
 end if ! (nested==0.or.(nested==1.and.nud_q/=0))
 
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+  ! defalt values
+  do k = 1,wlev
+    call mloexpdep(0,depth,k,0)
+    ! This polynomial fit is from MOM3, based on Levitus
+    where (depth(:)<2000.)
+      mlodwn(1:ifull,k,1) = 18.4231944       &
+        - 0.43030662E-1*depth(1:ifull)       &
+        + 0.607121504E-4*depth(1:ifull)**2   &
+        - 0.523806281E-7*depth(1:ifull)**3   &
+        + 0.272989082E-10*depth(1:ifull)**4  &
+        - 0.833224666E-14*depth(1:ifull)**5  &
+        + 0.136974583E-17*depth(1:ifull)**6  &
+        - 0.935923382E-22*depth(1:ifull)**7
+      mlodwn(1:ifull,k,1) = mlodwn(1:ifull,k,1) + 273.16 - wrtemp
+    elsewhere
+      mlodwn(1:ifull,k,1) = 275.16 - wrtemp
+    end where
+    mlodwn(1:ifull,k,2) = 34.72 ! sal
+    mlodwn(1:ifull,k,3) = 0.    ! uoc
+    mlodwn(1:ifull,k,4) = 0.    ! voc
+  end do  
+  if ( mlo_found ) then
+    ! ocean potential temperature
+    ! ocean temperature and soil temperature use the same arrays
+    ! as no fractional land or sea cover is allowed in CCAM
+    if ( ( nested/=1 .or. nud_sst/=0 ) .and. ok>0 ) then
+      if ( mlo2_found ) then
+        call fillhist4o('thetao',mlodwn(:,:,1),land_a,ocndwn(:,1))  
+      else
+        call fillhist4o('tgg',mlodwn(:,:,1),land_a,ocndwn(:,1))
+      end if  
+      where ( mlodwn(1:ifull,1:wlev,1)>100. )
+        mlodwn(1:ifull,1:wlev,1) = mlodwn(1:ifull,1:wlev,1) - wrtemp ! remove temperature offset for precision
+      end where
+    end if ! (nestesd/=1.or.nud_sst/=0) ..else..
+    ! ocean salinity
+    if ( ( nested/=1 .or. nud_sss/=0 ) .and. ok>0 ) then
+      if ( mlo2_found ) then
+        call fillhist4o('so',mlodwn(:,:,2),land_a,ocndwn(:,1))  
+      else    
+        call fillhist4o('sal',mlodwn(:,:,2),land_a,ocndwn(:,1))
+      end if  
+      mlodwn(1:ifull,1:wlev,2) = max( mlodwn(1:ifull,1:wlev,2), 0. )
+    end if ! (nestesd/=1.or.nud_sss/=0) ..else..
+    ! ocean currents
+    if ( ( nested/=1 .or. nud_ouv/=0 ) .and. ok>0 ) then
+      if ( mlo2_found ) then
+        call fillhistuv4o('uo','vo',mlodwn(:,:,3),mlodwn(:,:,4),land_a,ocndwn(:,1))  
+      else    
+        call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_a,ocndwn(:,1))
+      end if  
+    end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
+  end if
+end if
+
 !------------------------------------------------------------
 ! Aerosol data
 if ( abs(iaero)>=2 .and. ( nested/=1.or.nud_aero/=0 ) ) then
@@ -1168,14 +1214,25 @@ if ( nested/=1 ) then
         end if
         if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
           if ( ok==wlev ) then
-            call ccnf_inq_varid(ncid,'oldu101',idv,tst)
-            if ( tst ) lrestart = .false.
-            call ccnf_inq_varid(ncid,'oldv101',idv,tst)
-            if ( tst ) lrestart = .false.
-            call ccnf_inq_varid(ncid,'oldu201',idv,tst)
-            if ( tst ) lrestart = .false.
-            call ccnf_inq_varid(ncid,'oldv201',idv,tst)
-            if ( tst ) lrestart = .false.
+            if ( mlo2_found ) then
+              call ccnf_inq_varid(ncid,'old1_uo',idv,tst)
+              if ( tst ) lrestart = .false.
+              call ccnf_inq_varid(ncid,'old1_vo',idv,tst)
+              if ( tst ) lrestart = .false.
+              call ccnf_inq_varid(ncid,'old2_uo',idv,tst)
+              if ( tst ) lrestart = .false.
+              call ccnf_inq_varid(ncid,'old2_vo',idv,tst)
+              if ( tst ) lrestart = .false.                
+            else    
+              call ccnf_inq_varid(ncid,'oldu101',idv,tst)
+              if ( tst ) lrestart = .false.
+              call ccnf_inq_varid(ncid,'oldv101',idv,tst)
+              if ( tst ) lrestart = .false.
+              call ccnf_inq_varid(ncid,'oldu201',idv,tst)
+              if ( tst ) lrestart = .false.
+              call ccnf_inq_varid(ncid,'oldv201',idv,tst)
+              if ( tst ) lrestart = .false.
+            end if  
             call ccnf_inq_varid(ncid,'ipice',idv,tst)
             if ( tst ) lrestart = .false.
             call ccnf_inq_varid(ncid,'nstagoffmlo',idv,tst)
@@ -1697,10 +1754,17 @@ if ( nested/=1 ) then
       oldv2(:,:) = 0.
       ipice(:) = 0.
       if ( lrestart ) then
-        call histrd4(iarchi,ier,'oldu1',ik,ok,oldu1,ifull)
-        call histrd4(iarchi,ier,'oldv1',ik,ok,oldv1,ifull)
-        call histrd4(iarchi,ier,'oldu2',ik,ok,oldu2,ifull)
-        call histrd4(iarchi,ier,'oldv2',ik,ok,oldv2,ifull)
+        if ( mlo2_found ) then
+          call histrd4(iarchi,ier,'old1_uo',ik,ok,oldu1,ifull)
+          call histrd4(iarchi,ier,'old1_vo',ik,ok,oldv1,ifull)
+          call histrd4(iarchi,ier,'old2_uo',ik,ok,oldu2,ifull)
+          call histrd4(iarchi,ier,'old2_vo',ik,ok,oldv2,ifull)            
+        else    
+          call histrd4(iarchi,ier,'oldu1',ik,ok,oldu1,ifull)
+          call histrd4(iarchi,ier,'oldv1',ik,ok,oldv1,ifull)
+          call histrd4(iarchi,ier,'oldu2',ik,ok,oldu2,ifull)
+          call histrd4(iarchi,ier,'oldv2',ik,ok,oldv2,ifull)
+        end if  
         call histrd3(iarchi,ier,'ipice',ik,ipice,ifull)
       end if
     end if
@@ -3393,7 +3457,7 @@ end if ! iop_test
 
 ! vertical interpolation
 varout=0.
-call mloregrid(ok,bath,u_k,varout,0)
+call mloregrid(ok,gosig_in,bath,u_k,varout,0) ! should use mode 3 or 4?
 
 return
 end subroutine fillhist4o
@@ -3456,8 +3520,8 @@ else
 end if ! iop_test
 
 ! vertical interpolation
-call mloregrid(ok,bath,u_k,uarout,0)
-call mloregrid(ok,bath,v_k,varout,0)
+call mloregrid(ok,gosig_in,bath,u_k,uarout,0)
+call mloregrid(ok,gosig_in,bath,v_k,varout,0)
 
 return
 end subroutine fillhistuv4o

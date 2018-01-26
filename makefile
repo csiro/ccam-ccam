@@ -112,7 +112,7 @@ FFLAGS += -Dusenc3
 endif
 
 # CABLE, MLO, aTEB, etc
-FFLAGS += -DCCAM
+FFLAGS += -DCCAM -Dmlodebug
 
 # Object files for dynamical model
 OBJS = adjust5.o amipsst.o convjlm.o convjlm22.o depts.o estab.o gettin.o \
