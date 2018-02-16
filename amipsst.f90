@@ -662,6 +662,8 @@ if ( iernc==0 ) then
     write(6,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',il_g,il_in,jl_g,jl_in,rlong0,rlon_in
     write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',rlat0,rlat_in,schmidt,schmidt_in
     write(6,*) 'wrong amipsst file'
+    write(6,*) "NOTE: amipsst usually requires a uniform grid that matches the input amimsst file"
+    write(6,*) "Please check your grid configuration"
     call ccmpi_abort(-1)
   endif
   call ccnf_get_attg(ncidx,'leap',leap_in,tst)

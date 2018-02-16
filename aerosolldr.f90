@@ -112,7 +112,6 @@ integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+
 integer, save :: aeromode   = 0                 ! Aerosol configuration (0=No evaporation in wet deposition, 
                                                 !   1=prognostic variable for wet deposition)
 real, parameter :: zmin     = 1.e-20            ! Minimum concentration tolerance
-logical, parameter :: debugaero = .false.       ! Print debug messages
 
 ! physical constants
 real, parameter :: grav      = 9.80616          ! Gravitation constant
@@ -450,12 +449,12 @@ real, dimension(imax,ndust) :: oldduste
 real, parameter :: beta = 0.65
 integer nt,k
 
-if ( debugaero ) then
-  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
-    write(6,*) "xtg out-of-range at start of aldrcalc"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-  end if
+#ifdef debugaero
+if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+  write(6,*) "xtg out-of-range at start of aldrcalc"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
+#endif
 
 conwd=0.
 cgssnowd=1.E-3*snowd
@@ -499,12 +498,12 @@ call xtemiss(dt, rhoa, ts, fracice, vefn, land, tsigmf, cgssnowd, wg, dz,  & !In
              imax)                                                     !Inputs
 xtg(1:imax,:,:) = max( xtg(1:imax,:,:)+xte(:,:,:)*dt, 0. )
 
-if ( debugaero ) then
-  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
-    write(6,*) "xtg out-of-range after xtemiss"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-  end if
+#ifdef debugaero
+if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+  write(6,*) "xtg out-of-range after xtemiss"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
+#endif
 
 ! Emission and dry deposition of dust
 do k = 1,kl
@@ -518,12 +517,12 @@ do k = 1,ndust
 end do  
 ! Calculate the settling of large dust particles
 call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl),xtg,imax)
-if ( debugaero ) then
-  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
-    write(6,*) "xtg out-of-range after dsettling"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-  end if
+#ifdef debugaero
+if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+  write(6,*) "xtg out-of-range after dsettling"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
+#endif
 ! Calculate dust emission and turbulent dry deposition at the surface
 call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,erod,duste,xtg,imax)
 do k = 1,ndust
@@ -533,33 +532,33 @@ do k = 1,ndust
   dustdd(:,k) = dustdd(:,k) + (dcola(:,k)-dcolb(:,k))/dt + duste(:,k) - oldduste(:,k)  
 end do  
 
-if ( debugaero ) then
-  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
-    write(6,*) "xtg out-of-range after dustem"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-  end if
+#ifdef debugaero
+if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+  write(6,*) "xtg out-of-range after dustem"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
+#endif
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
 call xtsink(dt,xte,xtg,imax)
 xtg(1:imax,:,:) = max( xtg(1:imax,:,:)+xte(:,:,:)*dt, 0. )
 
-if ( debugaero ) then
-  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
-    write(6,*) "xtg out-of-range after xtsink"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-  end if
+#ifdef debugaero
+if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+  write(6,*) "xtg out-of-range after xtsink"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
+#endif
 
 ! Compute diagnostic sea salt aerosol
 call seasalt(land,fracice,zz,pblh,veff,ssn,imax)
 
-if ( debugaero ) then
-  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
-    write(6,*) "xtg out-of-range after seasalt"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-  end if
+#ifdef debugaero
+if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+  write(6,*) "xtg out-of-range after seasalt"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
+#endif
 
 ! Aerosol chemistry and wet deposition
 ! Need to invert vertical levels for ECHAM code... Don't you hate that?
@@ -623,12 +622,12 @@ end if
 dmsso2o(:) = dmsso2o(:) + dmsoh(:) + dmsn3(:)             ! oxidation of DMS to SO2
 so2so4o(:) = so2so4o(:) + so2oh(:) + so2h2(:) + so2o3(:)  ! oxidation of SO2 to SO4
 
-if ( debugaero ) then
-  if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
-    write(6,*) "xtg out-of-range after xtchemie"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-  end if
+#ifdef debugaero
+if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+  write(6,*) "xtg out-of-range after xtchemie"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
+#endif
 
 do nt = 1,ndust
   burden(:) = sum( xtg(1:imax,:,nt+itracdu-1)*rhoa(:,:)*dz(:,:), dim=2 )
@@ -1265,13 +1264,13 @@ do jt=1,naero
 enddo
 xto=max(0.,xto)
 
-if ( debugaero ) then
-  if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
-    write(6,*) "xtg is out-of-range at start of xtchemie"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
-                                    maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
-  end if
+#ifdef debugaero
+if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
+  write(6,*) "xtg is out-of-range at start of xtchemie"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
+                                  maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
 end if
+#endif
 
 !   CALCULATE THE ZRDAYL (=0 --> NIGHT; =1 --> DAY) AND
 !                 ZAMUO  =  ZENITH ANGLE
@@ -1731,13 +1730,13 @@ DO JT=ITRACSO2,naero
   xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
 end do
 
-if ( debugaero ) then
-  if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
-    write(6,*) "xtg out-of-range after xtwepdep"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
-                                    maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
-  end if
+#ifdef debugaero
+if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
+  write(6,*) "xtg out-of-range after xtwepdep"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
+                                  maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
 end if
+#endif
 
 !   CALCULATE THE DAY-LENGTH
 ! Need to hack this because of irritating CSIRO coding! (NH+SH latitudes concatenated!)
@@ -1822,13 +1821,13 @@ DO JK=1,kl
   end do
 end do
 
-if ( debugaero ) then
-  if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
-    write(6,*) "xtg out-of-range after day/night chemistry"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
-                                    maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
-  end if
+#ifdef debugaero
+if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
+  write(6,*) "xtg out-of-range after day/night chemistry"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
+                                  maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
 end if
+#endif
 
 
 ! Calculate tendency of SO2 due to oxidation by OH (diagnostic) and ox. tendencies of DMS

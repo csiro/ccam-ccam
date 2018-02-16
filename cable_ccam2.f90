@@ -26,7 +26,6 @@
     
 ! - Currently all tiles have the same soil texture, but independent soil temperatures,
 !   moisture, etc.
-! - Data can be read as CSIRO PFT or as IGBP
 ! - LAI can be interpolated between timesteps using a PW-linear fit to the LAI integral
 !   or LAI can be taken as constant for the month.  CASA-CNP can predict LAI and vcmax,
 !   although this can take considerable time to spin-up.
@@ -36,6 +35,39 @@
 ! - Options exist for using SLI soil model (soil_struc=1), climate feedbacks
 !   (cable_climate=1) and the POP model (cable_pop=1)
 
+! CSIRO PFT index
+! 1  Evergreen Needleleaf
+! 2  Evergreen Broadleaf
+! 3  Deciduous Needleaf
+! 4  Deciduous Broadleaf
+! 5  Shrub
+! 6  C3 grass
+! 7  C4 grass
+! 8  Tundra
+! 9  C3 crop
+! 10 C4 crop
+! 11 Wetland
+! 12 Not used
+! 13 Not used
+! 14 Barren
+! 15 Urban
+! 16 Lakes
+! 17 Ice
+! (18 Evergreen Broadleaf (Savanna)) - MJT defined
+  
+! isoilm  type
+! 0       water/ocean
+! 1       coarse               sand/loamy_sand
+! 2       medium               clay-loam/silty-clay-loam/silt-loam
+! 3       fine                 clay
+! 4       coarse-medium        sandy-loam/loam
+! 5       coarse-fine          sandy-clay
+! 6       medium-fine          silty-clay 
+! 7       coarse-medium-fine   sandy-clay-loam
+! 8       organi!              peat
+! 9       land ice
+   
+    
 ! The following mappings between IGBP and CSIRO PFT were recommended by Rachel Law
     
 ! ivegt   IGBP type                             CSIRO PFT
@@ -74,38 +106,6 @@
 ! *** NOTE MJT SPECIAL
 ! The PFT evergreen broadleaf's canopy height is reduced for woody savannas for improved roughness length
 
-! CSIRO PFT index
-! 1  Evergreen Needleleaf
-! 2  Evergreen Broadleaf
-! 3  Deciduous Needleaf
-! 4  Deciduous Broadleaf
-! 5  Shrub
-! 6  C3 grass
-! 7  C4 grass
-! 8  Tundra
-! 9  C3 crop
-! 10 C4 crop
-! 11 Wetland
-! 12 Not used
-! 13 Not used
-! 14 Barren
-! 15 Urban
-! 16 Lakes
-! 17 Ice
-! (18 Evergreen Broadleaf (Savanna)) - MJT defined
-  
-! isoilm  type
-! 0       water/ocean
-! 1       coarse               sand/loamy_sand
-! 2       medium               clay-loam/silty-clay-loam/silt-loam
-! 3       fine                 clay
-! 4       coarse-medium        sandy-loam/loam
-! 5       coarse-fine          sandy-clay
-! 6       medium-fine          silty-clay 
-! 7       coarse-medium-fine   sandy-clay-loam
-! 8       organi!              peat
-! 9       land ice
-
 module cable_ccam
 
 use cable_air_module
@@ -136,7 +136,6 @@ public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop
 public fwsoil_switch, cable_litter, gs_switch, cable_climate
 public POP_NPATCH, POP_NCOHORT
-public climate_daycount
 
 ! CABLE - CCAM options.
 integer, save :: proglai            = -1         ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
@@ -157,7 +156,6 @@ integer, parameter :: POP_NCOHORT = 20           ! Can POP communicate this numb
 integer, parameter :: POP_HEIGHT_BINS = 12       ! Can POP communicate this number?
 integer, parameter :: POP_NDISTURB = 1           ! Can POP communicate this number?
 real, parameter :: minfrac = 0.01                ! minimum non-zero tile fraction (improves load balancing)
-integer, save :: climate_daycount = 0            ! cable_climate - counter for daily averages
 
 integer, save :: maxnb                      ! maximum number of actual tiles
 integer, save :: mp_global                  ! maximum number of land-points on this process
@@ -201,6 +199,7 @@ use zenith_m
 implicit none
 
 integer, dimension(maxtile,2) :: ltind
+integer, dimension(imax) :: lclimate_biome, lclimate_iveg
 integer :: lmaxnb, tile, is, ie, js, je
 integer :: ico2, igas
 real, dimension(imax,mlitter) :: lclitter, lnilitter, lplitter
@@ -235,7 +234,8 @@ type(bgc_pool_type) :: lbgc
 !$omp private(lclitter,lcnbp,lcnpp,lcplant,lcsoil,lfnee,lfpn),                                                 &
 !$omp private(lfrd,lfrp,lfrpr,lfrpw,lfrs,lnilitter,lniplant,lnisoil,lplitter,lpplant,lpsoil),                  &
 !$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,lcasabiome,latmco2),              &
-!$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg)
+!$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg),  &
+!$omp private(lclimate_biome,lclimate_iveg)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -275,14 +275,18 @@ do tile=1,ntiles
       lplitter = plitter(is:ie,:)
       lpplant = pplant(is:ie,:)
       lpsoil = psoil(is:ie,:)
-    end if  
+    end if 
+    if ( cable_climate==1 ) then
+      lclimate_biome = 999
+      lclimate_iveg = 0
+    end if
     
     ! set co2 forcing for cable
     ! constant: atmospheric co2 = 360 ppm 
     ! host: atmospheric co2 follows that from CCAM radiation scheme
     ! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
     latmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
-    ico2=0
+    ico2 = 0
     if ( tracerco2==1 ) then
       do igas=1,ngas
         if ( trim(tractype(igas))=='online' .and. trim(tracname(igas))=='cbmnep' ) then
@@ -326,7 +330,7 @@ do tile=1,ntiles
                    latmco2,tss(is:ie),ustar(is:ie),vlai(is:ie),vl1(js:je),vl2(js:je),vl3(js:je),vl4(js:je),vmod(is:ie),  &
                    lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),lair,lbal,c,lcanopy,                         &
                    lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,    &
-                   lsum_flux,lveg,imax)
+                   lsum_flux,lveg,lclimate_iveg,lclimate_biome,imax)
 
     smass(is:ie,:) = lsmass
     ssdn(is:ie,:) = lssdn
@@ -354,6 +358,10 @@ do tile=1,ntiles
       pplant(is:ie,:) = lpplant
       psoil(is:ie,:) = lpsoil
     end if  
+    if ( cable_climate==1 ) then
+      climate_biome(is:ie) = lclimate_biome
+      climate_ivegt(is:ie) = lclimate_iveg
+    end if
   end if
 
 end do
@@ -369,7 +377,8 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sgsave,sigmf,smass,    &
                      snage,snowd,snowmelt,ssdn,ssdnn,sv,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,ustar,   &
                      vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,air,bal,c,canopy,casabal,casabiome,   &
-                     casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,veg,imax)
+                     casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,veg,          &
+                     climate_ivegt,climate_biome,imax)
 
 use const_phys
 use dates_m
@@ -385,6 +394,7 @@ use zenith_m, only : solargh, zenith
 implicit none
 
 integer, intent(in) :: imax, maxnb, mp
+integer, dimension(imax), intent(inout) :: climate_ivegt, climate_biome
 integer jyear, jmonth, jday, jhour, jmin, idoy
 integer k, mins, nb, j
 integer is, ie, casaperiod, npercasa
@@ -603,10 +613,13 @@ if ( any( ssnow%tss/=ssnow%tss ) ) then
 end if
 #endif
 
+! run CASA CNP once per day
+casaperiod = nint(86400._8*deltpool)
+npercasa = max( nint(real(casaperiod,8)/dtr8), 1 )
 
 !--------------------------------------------------------------
 ! CABLE CLIMATE
-call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad)
+call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,npercasa,ktau)
 
 !--------------------------------------------------------------
 ! CASA CNP
@@ -620,15 +633,12 @@ select case (icycle)
     else
       lalloc = 0  
     end if
-    ! run CASA CNP once per day
-    casaperiod = nint(86400._8*deltpool)
     !if ( abs(mod(real(casaperiod),dt))>1.e-20 ) then
     !  write(6,*) "ERROR: Invalid casaperiod ",casaperiod
     !  write(6,*) "Period must be an integer multiple of the time-step dt ",dt
     !  write(6,*) "Please adjust deltpool from CABLE CASA-CNP accordingly"
     !  stop
     !end if
-    npercasa = max( nint(real(casaperiod,8)/dtr8), 1 )
     casamet%tairk = casamet%tairk + met%tk
     casamet%tsoil = casamet%tsoil + ssnow%tgg
     casamet%moist = casamet%moist + ssnow%wb
@@ -912,6 +922,11 @@ if ( icycle/=0 ) then
     cnpp = cnpp + unpack(sv(is:ie)*real(casaflux%cnpp(is:ie)),tmap(:,nb),0.)/real(casaperiod)
     cnbp = cnbp + unpack(sv(is:ie)*real(casaflux%Crsoil-casaflux%cnpp-casapool%dClabiledt),tmap(:,nb),0.)/real(casaperiod)
   end do
+end if
+
+if ( cable_climate==1 ) then
+  climate_ivegt = unpack(climate%iveg,tmap(:,1),0)
+  climate_biome = unpack(climate%biome,tmap(:,1),0)
 end if
 
 ! MJT notes - ustar, cduv, fg and eg are passed to the boundary layer turbulence scheme
@@ -1415,50 +1430,55 @@ end subroutine POPdriver
 
 ! *************************************************************************************
 ! track climate feedback into CABLE
-subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad)
+subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,npercasa,ktau)
 
 use parm_m, only : dt
 
 implicit none
 
-real(kind=8), dimension(mp) :: mtemp_last
-integer, intent(in) :: idoy, imonth
-integer d
+integer, intent(in) :: idoy, imonth, npercasa, ktau
+integer d, y
 integer, dimension(12), intent(in) :: ndoy
+real(kind=8), dimension(mp) :: mtemp_last
+real(kind=8), dimension(mp) :: RhoA, PPc, EpsA, phiEq, tmp
 type(canopy_type), intent(in) :: canopy
 type(climate_type), intent(inout) :: climate
 type(met_type), intent(in) :: met
 type(radiation_type), intent(inout) :: rad
 
-!real(kind=8), dimension(mp) :: RhoA, PPc, EpsA, phiEq, tmp
-!real(kind=8), parameter :: Gaero  = 0.015_8    ! (m s-1) aerodynmaic conductance (for use in PT evap)
-!real(kind=8), parameter :: Capp   = 29.09_8    ! isobaric spec heat air    [J/molA/K]
-!real(kind=8), parameter :: SBoltz = 5.67e-8_8  ! Stefan-Boltzmann constant [W/m2/K4]
-!real(kind=8), parameter :: CoeffPT = 1.26_8
+real(kind=8), parameter :: Gaero   = 0.015_8    ! (m s-1) aerodynmaic conductance (for use in PT evap)
+real(kind=8), parameter :: Capp    = 29.09_8    ! isobaric spec heat air    [J/molA/K]
+real(kind=8), parameter :: SBoltz  = 5.67e-8_8  ! Stefan-Boltzmann constant [W/m2/K4]
+real(kind=8), parameter :: CoeffPT = 1.26_8
 
 if ( cable_climate==0 ) return
 
 climate%doy = idoy
 
 ! accumulate annual evaporation and potential evaporation
-!RhoA = met%pmb*100._8/(8.314_8*met%tk) ! air density [molA/m3]
-!PPc  = Gaero/(Gaero+4._8*SBoltz*(met%tk**3/(RhoA*Capp)))
-!tmp = met%tk - 273.16_8 ! avoid array temporary
-!EpSA  = Epsif(tmp, met%pmb)
-!phiEq = canopy%rniso*(PPc*EpsA)/(PPc*EpsA+1.) ! equil ltnt heat flux  [W/m2]
+RhoA  = met%pmb*100._8/(8.314_8*met%tk) ! air density [molA/m3]
+PPc   = Gaero/(Gaero+4._8*SBoltz*(met%tk**3/(RhoA*Capp)))
+tmp   = met%tk - 273.16_8 ! avoid array temporary
+EpSA  = Epsif(tmp, met%pmb)
+phiEq = canopy%rniso*(PPc*EpsA)/(PPc*EpsA+1._8) ! equil ltnt heat flux  [W/m2]
+
+climate%evap_PT = climate%evap_PT + max(phiEq,1._8)*CoeffPT/air%rlam*dt  ! mm
+climate%aevap   = climate%aevap + met%precip ! mm
+climate%dtemp   = climate%dtemp + met%tk - 273.15_8
+climate%dmoist  = climate%dmoist + canopy%fwsoil
 
 ! accumulate daily temperature, evap and potential evap
-if ( real(climate_daycount)*dt>86400. ) then
+if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
 
-  climate%dtemp = climate%dtemp/real(climate_daycount,8)
-  climate%dmoist = climate%dmoist/real(climate_daycount,8)
+  climate%dtemp = climate%dtemp/real(npercasa,8)
+  climate%dmoist = climate%dmoist/real(npercasa,8)
 
   ! On first day of year ...
   if ( idoy==1 ) then
-    climate%agdd5 = 0._8
-    climate%agdd0 = 0._8
-    !climate%evap_PT = 0._8     ! annual PT evap [mm]
-    !climate%aevap  = 0._8      ! annual evap [mm]  
+    climate%agdd5   = 0._8
+    climate%agdd0   = 0._8
+    climate%evap_PT = 0._8     ! annual PT evap [mm]
+    climate%aevap   = 0._8     ! annual evap [mm]  
   end if
   
   ! In midwinter, reset GDD counter for summergreen phenology  
@@ -1505,7 +1525,7 @@ if ( real(climate_daycount)*dt>86400. ) then
   ! temperature
   where ( mtemp_last>=5._8 .and. climate%mtemp<5._8 )
     climate%gdd5 = 0._8
-    climate%chilldays = 0_8
+    climate%chilldays = 0._8
   end where
   
   ! check if end of month
@@ -1528,42 +1548,39 @@ if ( real(climate_daycount)*dt>86400. ) then
 
     ! On 31 December update records of minimum monthly temperatures for the last
     ! 20 years and find minimum monthly temperature for the last 20 years
-    !if ( imonth==12 ) then
-    !  climate%nyears = climate%nyears + 1
-    !
-    !  startyear=20-min(19,climate%nyears-1)
-    !  climate%mtemp_min20=0._8
-    !  climate%mtemp_max20=0._8
-    !  climate%alpha_PT20 = 0._8
-    ! 
-    !  if (startyear<20) then
-    !    do y = startyear,19
-    !      climate%mtemp_min_20(:,y) = climate%mtemp_min_20(:,y+1)
-    !      climate%mtemp_min20 = climate%mtemp_min20 + climate%mtemp_min_20(:,y)
-    !      climate%mtemp_max_20(:,y) = climate%mtemp_max_20(:,y+1)
-    !      climate%mtemp_max20 = climate%mtemp_max20 + climate%mtemp_max_20(:,y)
-    !      climate%alpha_PT_20(:,y) = climate%alpha_PT_20(:,y+1)
-    !      climate%alpha_PT20 = climate%alpha_PT20 + climate%alpha_PT_20(:,y)
-    !    end do
-    !    climate%mtemp_min20=climate%mtemp_min20/real(20-startyear,8)
-    !    climate%mtemp_max20=climate%mtemp_max20/real(20-startyear,8)
-    !    climate%alpha_PT20=climate%alpha_PT20/real(20-startyear,8)
-    !  else
-    !    ! only occurs when climate%nyears = 1
-    !    climate%mtemp_min20 = climate%mtemp_min
-    !    climate%mtemp_max20 = climate%mtemp_max
-    !    climate%alpha_PT20 = climate%alpha_PT
-    !  end if
-    ! 
-    !  climate%mtemp_min_20(:,20)=climate%mtemp_min
-    !  climate%mtemp_max_20(:,20)=climate%mtemp_max
-    !  climate%alpha_PT = max(climate%aevap/climate%evap_PT, 0._8) ! ratio of annual evap to annual PT evap
-    !  climate%alpha_PT_20(:,20)=climate%alpha_PT
-    ! 
-    !  call biome1_pft
-    !
-    !end if  ! last month of year
+    if ( imonth==12 ) then
+
+      do y = 1,19
+        climate%mtemp_min_20(:,y) = climate%mtemp_min_20(:,y+1)
+        climate%mtemp_max_20(:,y) = climate%mtemp_max_20(:,y+1)
+        climate%alpha_PT_20(:,y) = climate%alpha_PT_20(:,y+1)
+      end do
+      climate%mtemp_min_20(:,20) = climate%mtemp_min
+      climate%mtemp_max_20(:,20) = climate%mtemp_max
+      climate%alpha_PT_20(:,20) = climate%alpha_PT
+
+      climate%mtemp_min20 = 0._8
+      climate%mtemp_max20 = 0._8
+      climate%alpha_PT20 = 0._8
+      climate%nyears = 0
+      do y = 1,20      
+        if ( .not.(all(climate%mtemp_min_20(:,y)==0._8).and.all(climate%mtemp_max_20(:,y)==0._8)) ) then
+          climate%nyears = climate%nyears + 1
+          climate%mtemp_min20 = climate%mtemp_min20 + climate%mtemp_min_20(:,y)
+          climate%mtemp_max20 = climate%mtemp_max20 + climate%mtemp_max_20(:,y)
+          climate%alpha_PT20 = climate%alpha_PT20 + climate%alpha_PT_20(:,y)
+        end if
+      end do
+      
+      if ( climate%nyears>0 ) then
+        climate%mtemp_min20 = climate%mtemp_min20/real(climate%nyears,8)
+        climate%mtemp_max20 = climate%mtemp_max20/real(climate%nyears,8)
+        climate%alpha_PT20 = climate%alpha_PT20/real(climate%nyears,8)
+        climate%alpha_PT = max(climate%aevap/climate%evap_PT, 0._8) ! ratio of annual evap to annual PT evap
+        call biome1_pft
+      end if  
     
+    end if  ! last month of year
   end if    ! last day of month
 
   ! reset climate data for next year
@@ -1572,262 +1589,261 @@ if ( real(climate_daycount)*dt>86400. ) then
  
 end if      ! end of day
 
-!climate%evap_PT = climate%evap_PT + max(phiEq,1.)*CoeffPT/air%rlam*dt  ! mm
-!climate%aevap   = climate%aevap + met%precip ! mm
-climate%dtemp  = climate%dtemp + met%tk - 273.15_8
-climate%dmoist = climate%dmoist + canopy%fwsoil
-
 return
 end subroutine cableclimate
 
-!function epsif(tc,pmb) result(epsif_out)
-!
-!implicit none
-!
-!real(kind=8), dimension(mp), intent(in) :: tc, pmb
-!real(kind=8), dimension(mp) :: epsif_out
-!real(kind=8), dimension(mp) :: tctmp, es, desdt
-!real(kind=8), parameter:: A = 6.106_8      ! Teten coefficients
-!real(kind=8), parameter:: B = 17.27_8      ! Teten coefficients
-!real(kind=8), parameter:: C = 237.3_8      ! Teten coefficients
-!real(kind=8), parameter:: Rlat      = 44140._8   ! lat heat evap H2O at 20C  [J/molW]
-!real(kind=8), parameter:: Capp      = 29.09_8    ! isobaric spec heat air    [J/molA/K]
-!
-!TCtmp = max( min( TC, 100._8), -40._8 ) ! constrain TC to (-40.0,100.0)
-!ES    = A*EXP(B*TCtmp/(C+TCtmp))        ! sat vapour pressure
-!dESdT = ES*B*C/(C+TCtmp)**2             ! d(sat VP)/dT: (mb/K)
-!Epsif_out = (Rlat/Capp)*dESdT/Pmb       ! dimensionless (ES/Pmb = molW/molA)
-!
-!return
-!end function epsif
+function epsif(tc,pmb) result(epsif_out)
 
-!subroutine biome1_pft
-!
-!implicit none
-!
-!integer :: k, npft
-!integer, dimension(4) :: pft_biome1
-!real(kind=8) :: alpha_pt_scaled
-!
-!! TABLE 1 , Prentice et al. J. Biogeog., 19, 117-134, 1992
-!! pft_biome1: Trees (1)tropical evergreen; (2) tropical raingreen; (3) warm temp evergreen ;
-!! (4) temperate summergreen; (5) cool-temperate conifer; (6) boreal evergreen conifer;
-!! (7) boreal summergreen;  
-!! Non-trees: (8) sclerophyll/succulent; (9) warm grass/shrub; (10) cool grass/shrub; 
-!! (11) cold grass/shrub; (12) hot desert shrub; (13) cold desert shrub.
-!
-!do k = 1,mp
-!
-!   alpha_PT_scaled =  min(climate%alpha_PT20(k), 1.)
-!   pft_biome1(:) = 999
-!
-!   IF ( climate%mtemp_min20(k)>=15.5_8 ) THEN
-!     IF ( alpha_PT_scaled>=0.80_8 ) THEN
-!       pft_biome1(1) = 1
-!       IF ( alpha_PT_scaled<=0.85_8 ) THEN
-!         pft_biome1(2) = 2
-!       ENDIF
-!     ELSEIF ( alpha_PT_scaled>=0.4_8 .and. alpha_PT_scaled<0.80_8 ) THEN
-!       pft_biome1(1) = 2
-!     END IF
-!   END IF
-!   
-!   IF ( climate%mtemp_min20(k)>=5 .and. alpha_PT_scaled>=0.4_8 .and. &
-!        pft_biome1(1)==999 ) THEN
-!     pft_biome1(1) = 3
-!   END IF
-!   
-!   IF ( climate%mtemp_min20(k)>=-15 .and. climate%mtemp_min20(k)<=15.5_8 .and. &
-!        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(k)>1200 .and.              &
-!        pft_biome1(1)>3 ) THEN
-!     pft_biome1(1) = 4
-!   END IF
-!   
-!   IF ( climate%mtemp_min20(k)>=-19 .and. climate%mtemp_min20(k)<=5 .and. &
-!        alpha_PT_scaled>=0.35 .and. climate%agdd5(k)>900 )  THEN
-!     IF (pft_biome1(1)>4 ) THEN
-!       pft_biome1(1) = 5
-!     ELSEIF (pft_biome1(1)==4 ) THEN
-!       pft_biome1(2) = 5
-!     END IF
-!   END IF
-!   
-!   IF ( climate%mtemp_min20(k)>=-35 .and. climate%mtemp_min20(k)<=-2 .and. &
-!        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(k)>350 )  THEN
-!     IF ( pft_biome1(1)==999 ) THEN
-!       pft_biome1(1) = 6
-!     ELSEIF ( pft_biome1(2)==999 ) THEN
-!       pft_biome1(2) = 6
-!     ELSE
-!       pft_biome1(3) = 6
-!     END IF
-!   END IF
-!   
-!   IF ( climate%mtemp_min20(k)<=5 .and. alpha_PT_scaled>=0.45_8 .and. &
-!        climate%agdd5(k)>350 ) THEN
-!     IF (pft_biome1(1)==999 ) THEN
-!       pft_biome1(1) = 7
-!     ELSEIF (pft_biome1(2)==999 ) THEN
-!       pft_biome1(2) = 7
-!     ELSEIF (pft_biome1(3)==999 ) THEN
-!       pft_biome1(3) = 7  
-!     ELSE
-!       pft_biome1(4) = 7
-!     END IF
-!   END IF
-!   
-!   IF ( climate%mtemp_min20(k)>=5 .and. alpha_PT_scaled>=0.2_8 .and. &
-!        pft_biome1(1)==999 ) THEN
-!     pft_biome1(1) = 8
-!   END IF
-!   
-!   IF (climate%mtemp_max20(k)>=22 .and.alpha_PT_scaled>=0.1_8 &
-!        .and. pft_biome1(1).eq.999 ) THEN
-!     pft_biome1(1) = 9
-!   END IF
-!   
-!   IF ( climate%agdd5(k)>=500 .and.alpha_PT_scaled>=0.33_8 .and. &
-!        pft_biome1(1)==999 ) THEN
-!     pft_biome1(1) = 10
-!   END IF
-!   
-!   IF ( climate%agdd0(k)>=100 .and. alpha_PT_scaled>=0.33_8 ) THEN 
-!     IF ( pft_biome1(1)==999 ) THEN
-!       pft_biome1(1) = 11
-!     ELSEIF ( pft_biome1(1)==10 ) THEN
-!       pft_biome1(2) = 11
-!     END IF
-!   END IF
-!   
-!   IF ( climate%mtemp_max20(k)>=22 .and. pft_biome1(1)==999 ) THEN
-!     pft_biome1(1) = 12
-!   END IF
-!   
-!   IF ( climate%agdd0(k)>=100 .and. pft_biome1(1)==999 ) THEN
-!     pft_biome1(1) = 13
-!   END IF
-!   
-!  ! end of evironmental constraints on pft
-!  npft = count( pft_biome1(:)/=999 )
-!  
-!  ! MAP to Biome1 biome and CABLE pft
-!  
-!  ! (1) Tropical Rainforest
-!  if ( pft_biome1(1)==1 .and. npft==1 ) then
-!    climate%biome(k) = 1
-!    climate%iveg(k) = 2
-!  end if
-!
-!  ! (2) Tropical Seasonal forest
-!  if ( pft_biome1(1)==1 .and. pft_biome1(2)==2 .and. npft==2 ) then
-!    climate%biome(k) = 2
-!    climate%iveg(k) = 2
-!  end if
-!
-!  ! (3) Tropical dry forest/savanna
-!  if ( pft_biome1(1)==2 .and. npft==1 ) then
-!    climate%biome(k) = 3
-!    climate%iveg(k) = 2  ! N.B. need to include c4 grass
-!  end if
-!
-!  ! (4) Broad-leaved evergreen/warm mixed-forest
-!  if ( pft_biome1(1)==3 .and. npft==1 ) then
-!    climate%biome(k) = 4
-!    climate%iveg(k) = 2
-!  end if
-!
-!  ! (5) Temperate deciduous forest
-!  if ( pft_biome1(1)==4 .and. pft_biome1(2)==5 .and. &
-!       pft_biome1(3)==7 .and. npft==3 ) then
-!    climate%biome(k) = 5
-!    climate%iveg(k) = 4
-!  end if
-!
-!  ! (6) Cool mixed forest
-!  if ( pft_biome1(1)==4 .and. pft_biome1(2)==5 .and. &
-!       pft_biome1(3)==6 .and. pft_biome1(4)==7 .and. &
-!       npft==4 ) then
-!    climate%biome(k) = 6
-!    climate%iveg(k) = 4
-!  end if
-!
-!  ! (7) Cool conifer forest
-!  if ( pft_biome1(1)==5 .and. pft_biome1(2)==6 .and. &
-!       pft_biome1(3)==7 .and. npft==3 ) then
-!    climate%biome(k) = 7
-!    climate%iveg(k) = 1
-!  end if
-!      
-!  ! (8) Taiga
-!  if ( pft_biome1(1)==6 .and. pft_biome1(2)==7 .and. npft==2 ) then
-!    climate%biome(k) = 8
-!    climate%iveg(k) = 1
-!  end if
-!
-!  ! (9) Cold mixed forest
-!  if ( pft_biome1(1)==5 .and. pft_biome1(2)==7 .and. npft==2 ) then
-!    climate%biome(k) = 9
-!    climate%iveg(k) = 1
-!  end if
-!
-!  ! (10) Cold deciduous forest
-!  if ( pft_biome1(k,1)==7 .and. npft==1 ) then
-!    climate%biome(k) = 10
-!    climate%iveg(k) = 3
-!  end if
-!
-!  ! (11) Xerophytic woods/scrub
-!  if ( pft_biome1(1)==8 .and. npft==1 ) then
-!    climate%biome(k) = 11
-!    climate%iveg(k) = 5
-!  end if
-!
-!  ! (12) Warm grass/shrub
-!  if ( pft_biome1(1)==9 .and. npft==1 ) then
-!    climate%biome(k) = 12
-!    climate%iveg(k) = 5  ! include C4 grass tile ?
-!  end if
-!
-!  ! (13) Cool grass/shrub
-!  if ( pft_biome1(1)==10 .and. pft_biome1(2)==11 .and. npft==2 ) then
-!    climate%biome(k) = 13
-!    climate%iveg(k) = 5  ! include C3 grass tile ?
-!  end if
-!
-!  ! (14) Tundra
-!  if ( pft_biome1(1)==11 .and. npft==1 ) then
-!    climate%biome(k) = 14
-!    climate%iveg(k) = 8
-!  end if
-!
-!  ! (15) Hot desert
-!  if ( pft_biome1(1)==12 .and. npft==1 ) then
-!    climate%biome(k) = 15
-!    climate%iveg(k) = 14
-!  end if
-!
-!  ! (16) Semidesert
-!  if ( pft_biome1(1)==13 .and. npft==1 ) then
-!    climate%biome(k) = 16
-!    climate%iveg(k) = 5
-!  end if
-!
-!  ! (17) Ice/polar desert
-!  if ( climate%biome(k)==999 ) then
-!    climate%biome(k) = 17
-!    climate%iveg(k) = 17
-!  end if
-!
-!  ! check for DBL or NEL in SH: set to EBL instead
-!  if ( (climate%iveg(k)==1.or.climate%iveg(k)==3.or.climate%iveg(k)==4) &
-!     .and. rad%latitude(k)<0._8 ) then
-!    climate%iveg(k) = 2
-!  end if
-!     
-!end do
-!
-!return
-!end subroutine biome1_pft
+implicit none
+
+real(kind=8), dimension(mp), intent(in) :: tc, pmb
+real(kind=8), dimension(mp) :: epsif_out
+real(kind=8), dimension(mp) :: tctmp, es, desdt
+real(kind=8), parameter:: A = 6.106_8      ! Teten coefficients
+real(kind=8), parameter:: B = 17.27_8      ! Teten coefficients
+real(kind=8), parameter:: C = 237.3_8      ! Teten coefficients
+real(kind=8), parameter:: Rlat = 44140._8  ! lat heat evap H2O at 20C  [J/molW]
+real(kind=8), parameter:: Capp = 29.09_8   ! isobaric spec heat air    [J/molA/K]
+
+TCtmp = max( min( TC, 100._8), -40._8 ) ! constrain TC to (-40.0,100.0)
+ES    = A*exp(B*TCtmp/(C+TCtmp))        ! sat vapour pressure
+dESdT = ES*B*C/(C+TCtmp)**2             ! d(sat VP)/dT: (mb/K)
+Epsif_out = (Rlat/Capp)*dESdT/Pmb       ! dimensionless (ES/Pmb = molW/molA)
+
+return
+end function epsif
+
+subroutine biome1_pft
+
+implicit none
+
+integer :: iq
+integer, dimension(mp) :: npft
+integer, dimension(mp,4) :: pft_biome1
+real(kind=8) :: alpha_pt_scaled
+
+! TABLE 1 , Prentice et al. J. Biogeog., 19, 117-134, 1992
+! pft_biome1: Trees (1)tropical evergreen; (2) tropical raingreen; (3) warm temp evergreen ;
+! (4) temperate summergreen; (5) cool-temperate conifer; (6) boreal evergreen conifer;
+! (7) boreal summergreen;  
+! Non-trees: (8) sclerophyll/succulent; (9) warm grass/shrub; (10) cool grass/shrub; 
+! (11) cold grass/shrub; (12) hot desert shrub; (13) cold desert shrub.
+
+pft_biome1 = 999
+climate%biome = 999
+climate%iveg = 0
+
+do iq = 1,mp
+
+   alpha_PT_scaled =  min(climate%alpha_PT20(iq), 1._8)
+
+   if ( climate%mtemp_min20(iq)>=15.5_8 ) then
+     if ( alpha_PT_scaled>=0.80_8 ) then
+       pft_biome1(iq,1) = 1
+       if ( alpha_PT_scaled<=0.85_8 ) then
+         pft_biome1(iq,2) = 2
+       end if
+     else if ( alpha_PT_scaled>=0.4_8 .and. alpha_PT_scaled<0.80_8 ) then
+       pft_biome1(iq,1) = 2
+     end if
+   end if
+   
+   if ( climate%mtemp_min20(iq)>=5. .and. alpha_PT_scaled>=0.4_8 .and. &
+        pft_biome1(iq,1)==999 ) then
+     pft_biome1(iq,1) = 3
+   end if
+   
+   if ( climate%mtemp_min20(iq)>=-15 .and. climate%mtemp_min20(iq)<=15.5_8 .and. &
+        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(iq)>1200 .and.               &
+        pft_biome1(iq,1)>3 ) then
+     pft_biome1(iq,1) = 4
+   end if
+   
+   if ( climate%mtemp_min20(iq)>=-19 .and. climate%mtemp_min20(iq)<=5 .and. &
+        alpha_PT_scaled>=0.35 .and. climate%agdd5(iq)>900 ) then
+     if (pft_biome1(iq,1)>4 ) then
+       pft_biome1(iq,1) = 5
+     else if (pft_biome1(iq,1)==4 ) then
+       pft_biome1(iq,2) = 5
+     end if
+   end if
+   
+   if ( climate%mtemp_min20(iq)>=-35 .and. climate%mtemp_min20(iq)<=-2 .and. &
+        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(iq)>350 ) then
+     if ( pft_biome1(iq,1)==999 ) then
+       pft_biome1(iq,1) = 6
+     else if ( pft_biome1(iq,2)==999 ) then
+       pft_biome1(iq,2) = 6
+     else
+       pft_biome1(iq,3) = 6
+     end if
+   end if
+   
+   if ( climate%mtemp_min20(iq)<=5 .and. alpha_PT_scaled>=0.45_8 .and. &
+        climate%agdd5(iq)>350 ) then
+     if (pft_biome1(iq,1)==999 ) then
+       pft_biome1(iq,1) = 7
+     else if (pft_biome1(iq,2)==999 ) then
+       pft_biome1(iq,2) = 7
+     else if (pft_biome1(iq,3)==999 ) then
+       pft_biome1(iq,3) = 7  
+     else
+       pft_biome1(iq,4) = 7
+     end if
+   end if
+   
+   if ( climate%mtemp_min20(iq)>=5 .and. alpha_PT_scaled>=0.2_8 .and. &
+        pft_biome1(iq,1)==999 ) then
+     pft_biome1(iq,1) = 8
+   end if
+   
+   if (climate%mtemp_max20(iq)>=22 .and.alpha_PT_scaled>=0.1_8 &
+        .and. pft_biome1(iq,1)==999 ) then
+     pft_biome1(iq,1) = 9
+   end if
+   
+   if ( climate%agdd5(iq)>=500 .and.alpha_PT_scaled>=0.33_8 .and. &
+        pft_biome1(iq,1)==999 ) then
+     pft_biome1(iq,1) = 10
+   end if
+   
+   if ( climate%agdd0(iq)>=100 .and. alpha_PT_scaled>=0.33_8 ) then 
+     if ( pft_biome1(iq,1)==999 ) then
+       pft_biome1(iq,1) = 11
+     else if ( pft_biome1(iq,1)==10 ) then
+       pft_biome1(iq,2) = 11
+     end if
+   end if
+   
+   if ( climate%mtemp_max20(iq)>=22 .and. pft_biome1(iq,1)==999 ) then
+     pft_biome1(iq,1) = 12
+   end if
+   
+   if ( climate%agdd0(iq)>=100 .and. pft_biome1(iq,1)==999 ) then
+     pft_biome1(iq,1) = 13
+   end if
+   
+end do
+
+! end of evironmental constraints on pft
+npft = count( pft_biome1(:,:)/=999, dim=2 )
+  
+! MAP to Biome1 biome and CABLE pft
+  
+! (1) Tropical Rainforest
+where ( pft_biome1(:,1)==1 .and. npft==1 )
+    climate%biome(:) = 1
+    climate%iveg(:) = 2
+end where
+
+! (2) Tropical Seasonal forest
+where ( pft_biome1(:,1)==1 .and. pft_biome1(:,2)==2 .and. npft==2 )
+  climate%biome(:) = 2
+  climate%iveg(:) = 2
+end where
+
+! (3) Tropical dry forest/savanna
+where ( pft_biome1(:,1)==2 .and. npft==1 )
+  climate%biome(:) = 3
+  climate%iveg(:) = 2  ! N.B. need to include c4 grass
+end where
+
+! (4) Broad-leaved evergreen/warm mixed-forest
+where ( pft_biome1(:,1)==3 .and. npft==1 )
+  climate%biome(:) = 4
+  climate%iveg(:) = 2
+end where
+
+! (5) Temperate deciduous forest
+where ( pft_biome1(:,1)==4 .and. pft_biome1(:,2)==5 .and. &
+        pft_biome1(:,3)==7 .and. npft==3 )
+  climate%biome(:) = 5
+  climate%iveg(:) = 4
+end where
+
+! (6) Cool mixed forest
+where ( pft_biome1(:,1)==4 .and. pft_biome1(:,2)==5 .and. &
+        pft_biome1(:,3)==6 .and. pft_biome1(:,4)==7 .and. &
+        npft==4 )
+  climate%biome(:) = 6
+  climate%iveg(:) = 4
+end where
+
+! (7) Cool conifer forest
+where ( pft_biome1(:,1)==5 .and. pft_biome1(:,2)==6 .and. &
+        pft_biome1(:,3)==7 .and. npft==3 )
+  climate%biome(:) = 7
+  climate%iveg(:) = 1
+end where
+      
+! (8) Taiga
+where ( pft_biome1(:,1)==6 .and. pft_biome1(:,2)==7 .and. npft==2 )
+  climate%biome(:) = 8
+  climate%iveg(:) = 1
+end where
+
+! (9) Cold mixed forest
+where ( pft_biome1(:,1)==5 .and. pft_biome1(:,2)==7 .and. npft==2 )
+  climate%biome(:) = 9
+  climate%iveg(:) = 1
+end where
+
+! (10) Cold deciduous forest
+where ( pft_biome1(:,1)==7 .and. npft==1 )
+  climate%biome(:) = 10
+  climate%iveg(:) = 3
+end where
+
+! (11) Xerophytic woods/scrub
+where ( pft_biome1(:,1)==8 .and. npft==1 )
+  climate%biome(:) = 11
+  climate%iveg(:) = 5
+end where
+
+! (12) Warm grass/shrub
+where ( pft_biome1(:,1)==9 .and. npft==1 )
+  climate%biome(:) = 12
+  climate%iveg(:) = 5  ! include C4 grass tile ?
+end where
+
+! (13) Cool grass/shrub
+where ( pft_biome1(:,1)==10 .and. pft_biome1(:,2)==11 .and. npft==2 )
+  climate%biome(:) = 13
+  climate%iveg(:) = 5  ! include C3 grass tile ?
+end where
+
+! (14) Tundra
+where ( pft_biome1(:,1)==11 .and. npft==1 )
+  climate%biome(:) = 14
+  climate%iveg(:) = 8
+end where
+
+! (15) Hot desert
+where ( pft_biome1(:,1)==12 .and. npft==1 )
+  climate%biome(:) = 15
+  climate%iveg(:) = 14
+end where
+
+! (16) Semidesert
+where ( pft_biome1(:,1)==13 .and. npft==1 )
+  climate%biome(:) = 16
+  climate%iveg(:) = 5
+end where
+
+! (17) Ice/polar desert
+where ( climate%biome(:)==999 )
+  climate%biome(:) = 17
+  climate%iveg(:) = 17
+end where
+
+! check for DBL or NEL in SH: set to EBL instead
+where ( (climate%iveg(:)==1.or.climate%iveg(:)==3.or.climate%iveg(:)==4) .and. &
+        rad%latitude(:)<0._8 )
+  climate%iveg(:) = 2
+end where
+
+return
+end subroutine biome1_pft
 
 ! *************************************************************************************
 subroutine loadcbmparm(fveg,fvegprev,fvegnext,fvegnext2,fphen,casafile, &
@@ -2317,8 +2333,8 @@ mstype = mxst
 allocate( tdata(ntiles) )
 do tile=1,ntiles
   tdata(tile)%mp = 0
-  is=1+(tile-1)*imax
-  ie=tile*imax
+  is = 1 + (tile-1)*imax
+  ie = tile*imax
   do iq = is,ie
     if ( land(iq) ) then
       landcount = count(svs(iq,:)>0.)
@@ -2337,17 +2353,6 @@ do tile=2,ntiles
   tdata(tile)%toffset=tdata(tile-1)%toffset+tdata(tile-1)%mp
 end do
 mp = 0 ! defined when CABLE model is integrated
-
-!if ( nmaxpr==1 ) then
-!  !write(6,*) "myid,landtile ",myid,mp_global
-!
-!  lndtst(1) = 0
-!  if ( mp_global>0 ) lndtst(1) = 1
-!  call ccmpi_reduce(lndtst(1:1),lndtst_g(1:1),"sum",0,comm_world)
-!  if ( myid==0 ) then
-!    write(6,*) "Processors with land ",lndtst_g(1),nproc
-!  end if
-!end if
 
 ! if CABLE is present on this processor, then start allocating arrays
 ! Write messages here in case myid==0 has no land-points (mp_global==0)
@@ -2660,9 +2665,9 @@ if ( mp_global>0 ) then
   
   if ( cable_climate==1 ) then
     climate%doy = 0
-    climate%nyears = 0    ! not used?
-    climate%biome = 0     ! not used?
-    climate%iveg = 0      ! not used?
+    climate%nyears = 0
+    climate%biome = 999
+    climate%iveg = 0
     climate%chilldays = 0 ! used by phenology
     climate%gdd5 = 0._8   ! used by phenology
     climate%gdd0 = 0._8
@@ -2673,8 +2678,8 @@ if ( mp_global>0 ) then
     climate%mtemp = 0._8
     climate%mmoist = 0._8
     climate%qtemp = 0._8
-    climate%evap_PT = 0._8      ! not used?
-    climate%aevap = 0._8        ! not used?
+    climate%evap_PT = 0._8
+    climate%aevap = 0._8
     climate%mtemp_max = 0._8
     climate%mtemp_min = 0._8
     climate%qtemp_max = 0._8
@@ -2682,14 +2687,14 @@ if ( mp_global>0 ) then
     climate%dtemp_91 = 0._8
     climate%dtemp_31 = 0._8
     climate%dmoist_31 = 0._8
-    climate%atemp_mean = 0._8   ! not used?
-    climate%mtemp_min_20 = 0._8 ! not used?
-    climate%mtemp_min20 = 0._8  ! not used?
-    climate%mtemp_max_20 = 0._8 ! not used?
-    climate%mtemp_max20 = 0._8  ! not used?
-    climate%alpha_PT_20 = 0._8  ! not used?
-    climate%alpha_PT20 = 0._8   ! not used?
-    climate%alpha_PT = 0._8     ! not used?
+    climate%atemp_mean = 0._8
+    climate%mtemp_min_20 = 0._8 ! missing flag
+    climate%mtemp_min20 = 0._8
+    climate%mtemp_max_20 = 0._8 ! missing flag
+    climate%mtemp_max20 = 0._8
+    climate%alpha_PT_20 = 0._8  ! missing flag
+    climate%alpha_PT20 = 0._8
+    climate%alpha_PT = 0._8
   end if
   
   if ( icycle==0 ) then
@@ -3970,6 +3975,7 @@ real(kind=8), dimension(:,:), allocatable, save :: datpatch
 real(kind=8), dimension(:,:,:), allocatable, save :: datpc
 real(kind=8), dimension(:,:), allocatable, save :: dat91days
 real(kind=8), dimension(:,:), allocatable, save :: dat31days
+real(kind=8), dimension(:,:), allocatable, save :: dat20years
 logical tst
 logical defaultmode
 character(len=80) vname
@@ -4339,15 +4345,25 @@ else
   if ( cable_climate==1 ) then
     allocate( dat91days(ifull,91) )  
     allocate( dat31days(ifull,31) )
+    allocate( dat20years(ifull,20) )
     dat91days = 0._8
     dat31days = 0._8
+    dat20years = 0._8
     do n = 1,maxtile
-      !write(vname,'("t",I1.1,"_climateevapPT")') n
-      !call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      !if ( n<=maxnb ) call cable_pack(dat,climate%evap_PT,n)
-      !write(vname,'("t",I1.1,"_climateaevap")') n
-      !call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
-      !if ( n<=maxnb ) call cable_pack(dat,climate%aevap,n)
+      write(vname,'("t",I1.1,"_climateiveg")') n
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
+      dati = nint(dat)
+      if ( n<=maxnb ) call cable_pack(dati,climate%iveg,n)
+      write(vname,'("t",I1.1,"_climatebiome")') n
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
+      dati = nint(dat)
+      if ( n<=maxnb ) call cable_pack(dati,climate%biome,n)
+      write(vname,'("t",I1.1,"_climateevapPT")') n
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
+      if ( n<=maxnb ) call cable_pack(dat,climate%evap_PT,n)
+      write(vname,'("t",I1.1,"_climateaevap")') n
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
+      if ( n<=maxnb ) call cable_pack(dat,climate%aevap,n)
       write(vname,'("t",I1.1,"_climatemtempmax")') n
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%mtemp_max,n)
@@ -4376,7 +4392,7 @@ else
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       dati = nint(dat)
       if ( n<=maxnb ) call cable_pack(dati,climate%chilldays,n)
-      write(vname,'("t",I1.1,"_climatedtemp")') 1 ! all tiles have the same data
+      write(vname,'("t",I1.1,"_climatedtemp")') n
       call histrd4(iarchi-1,ierr,vname,il_g,91,dat91days,ifull)
       if ( n<=maxnb ) then
         do k = 1,91  
@@ -4386,16 +4402,38 @@ else
           end if
         end do
       end if
-      write(vname,'("t",I1.1,"_climatedmoist")') 1 ! all tiles have the same data
+      write(vname,'("t",I1.1,"_climatedmoist")') n
       call histrd4(iarchi-1,ierr,vname,il_g,31,dat31days,ifull)
       if ( n<=maxnb ) then
         do k = 1,31  
           call cable_pack(dat31days(:,k),climate%dmoist_31(:,k),n)
         end do  
       end if
+      write(vname,'("t",I1.1,"_climatemtemp_min_20")') n
+      call histrd4(iarchi-1,ierr,vname,il_g,20,dat20years,ifull)
+      if ( n<=maxnb ) then
+        do k = 1,20  
+          call cable_pack(dat20years(:,k),climate%mtemp_min_20(:,k),n)
+        end do  
+      end if
+      write(vname,'("t",I1.1,"_climatemtemp_max_20")') n
+      call histrd4(iarchi-1,ierr,vname,il_g,20,dat20years,ifull)
+      if ( n<=maxnb ) then
+        do k = 1,20  
+          call cable_pack(dat20years(:,k),climate%mtemp_max_20(:,k),n)
+        end do  
+      end if
+      write(vname,'("t",I1.1,"_climatealpha_PT_20")') n
+      call histrd4(iarchi-1,ierr,vname,il_g,20,dat20years,ifull)
+      if ( n<=maxnb ) then
+        do k = 1,20  
+          call cable_pack(dat20years(:,k),climate%alpha_PT_20(:,k),n)
+        end do  
+      end if
     end do  
     deallocate( dat91days )
     deallocate( dat31days )
+    deallocate( dat20years )
   end if
   if ( cable_pop==1 ) then
     if ( ierr_pop/=0 ) then
@@ -5079,7 +5117,7 @@ end subroutine fixtile
 ! *************************************************************************************
 ! This subroutine saves CABLE tile data
 subroutine savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size, &
-                       c3dim,c3size,c4dim,c4size)
+                       c3dim,c3size,c4dim,c4size,c5dim,c5size)
 
 use carbpools_m
 use cc_mpi, only : myid
@@ -5089,7 +5127,7 @@ use newmpar_m
 implicit none
   
 integer, intent(in) :: idnc, jsize, csize, c2size
-integer, intent(in) :: c3size, c4size
+integer, intent(in) :: c3size, c4size, c5size
 integer k,n
 integer ll,dd,hh
 integer, dimension(jsize), intent(in) :: jdim  
@@ -5097,6 +5135,7 @@ integer, dimension(csize), intent(in) :: cdim
 integer, dimension(c2size), intent(in) :: c2dim
 integer, dimension(c3size), intent(in) :: c3dim
 integer, dimension(c4size), intent(in) :: c4dim
+integer, dimension(c5size), intent(in) :: c5dim
 character(len=80) vname
 character(len=80) lname
 logical, intent(in) :: local
@@ -5354,12 +5393,18 @@ if (myid==0.or.local) then
   end if
   if ( cable_climate==1 ) then
     do n=1,maxtile  
-      !write(lname,'("climate evapPT tile ",I1.1)') n
-      !write(vname,'("t",I1.1,"_climateevapPT")') n
-      !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      !write(lname,'("climate aevap tile ",I1.1)') n
-      !write(vname,'("t",I1.1,"_climateaevap")') n
-      !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate iveg tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climateiveg")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate biome tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climatebiome")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate evapPT tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climateevapPT")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate aevap tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climateaevap")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate mtempmax tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatemtempmax")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -5387,14 +5432,21 @@ if (myid==0.or.local) then
       write(lname,'("climate chilldays tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatechilldays")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      if ( n==1 ) then
-        write(lname,'("climate dtemp tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatedtemp")') n
-        call attrib(idnc,c3dim,c3size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate dmoist tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatedmoist")') n
-        call attrib(idnc,c4dim,c4size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end if
+      write(lname,'("climate dtemp tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climatedtemp")') n
+      call attrib(idnc,c3dim,c3size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate dmoist tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climatedmoist")') n
+      call attrib(idnc,c4dim,c4size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate mtemp_min_20 tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climatemtemp_min_20")') n
+      call attrib(idnc,c5dim,c5size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate mtemp_max_20 tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climatemtemp_max_20")') n
+      call attrib(idnc,c5dim,c5size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate alpha_PT_20 tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climatealpha_PT_20")') n
+      call attrib(idnc,c5dim,c5size,vname,lname,'none',0.,65000.,0,2) ! kind=8
     end do  
   end if
   if ( cable_pop==1 ) then
@@ -5801,6 +5853,7 @@ real(kind=8), dimension(:,:), allocatable, save :: datpatch
 real(kind=8), dimension(:,:,:), allocatable, save :: datpc
 real(kind=8), dimension(:,:), allocatable, save :: dat91days
 real(kind=8), dimension(:,:), allocatable, save :: dat31days
+real(kind=8), dimension(:,:), allocatable, save :: dat20years
 character(len=80) vname
 logical, intent(in) :: local
   
@@ -6125,17 +6178,29 @@ end if
 if ( cable_climate==1 ) then
   allocate( dat91days(ifull,91) )
   allocate( dat31days(ifull,31) )
+  allocate( dat20years(ifull,20) )
   dat91days = 0._8
   dat31days = 0._8
+  dat20years = 0._8
   do n = 1,maxtile  ! tile
-    !dat=0._8
-    !if (n<=maxnb) call cable_unpack(climate%evap_PT,dat,n)
-    !write(vname,'("t",I1.1,"_climateevapPT")') n
-    !call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    !dat=0._8
-    !if (n<=maxnb) call cable_unpack(climate%aevap,dat,n)
-    !write(vname,'("t",I1.1,"_climateaevap")') n
-    !call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    dummy_unpack = real(climate%iveg,8)
+    if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+    write(vname,'("t",I1.1,"_climateiveg")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    dummy_unpack = real(climate%biome,8)
+    if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+    write(vname,'("t",I1.1,"_climatebiome")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) call cable_unpack(climate%evap_PT,dat,n)
+    write(vname,'("t",I1.1,"_climateevapPT")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) call cable_unpack(climate%aevap,dat,n)
+    write(vname,'("t",I1.1,"_climateaevap")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
     if (n<=maxnb) call cable_unpack(climate%mtemp_max,dat,n)
     write(vname,'("t",I1.1,"_climatemtempmax")') n
@@ -6175,27 +6240,50 @@ if ( cable_climate==1 ) then
     end if  
     write(vname,'("t",I1.1,"_climatechilldays")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    if ( n==1 ) then
-      dat91days = 0._8
-      if ( n<=maxnb ) then
-        do k = 1,91  
-          call cable_unpack(climate%dtemp_91(:,k),dat91days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatedtemp")') n
-      call histwrt4(dat91days,vname,idnc,iarch,local,.true.)
-      dat31days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,31  
-          call cable_unpack(climate%dmoist_31(:,k),dat31days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatedmoist")') n
-      call histwrt4(dat31days,vname,idnc,iarch,local,.true.)
-    end if
+    dat91days = 0._8
+    if ( n<=maxnb ) then
+      do k = 1,91  
+        call cable_unpack(climate%dtemp_91(:,k),dat91days(:,k),n)
+      end do  
+    end if  
+    write(vname,'("t",I1.1,"_climatedtemp")') n
+    call histwrt4(dat91days,vname,idnc,iarch,local,.true.)
+    dat31days = 0._8  
+    if ( n<=maxnb ) then
+      do k = 1,31  
+        call cable_unpack(climate%dmoist_31(:,k),dat31days(:,k),n)
+      end do  
+    end if  
+    write(vname,'("t",I1.1,"_climatedmoist")') n
+    call histwrt4(dat31days,vname,idnc,iarch,local,.true.)
+    dat20years = 0._8  
+    if ( n<=maxnb ) then
+      do k = 1,20  
+        call cable_unpack(climate%mtemp_min_20(:,k),dat20years(:,k),n)
+      end do  
+    end if  
+    write(vname,'("t",I1.1,"_climatemtemp_min_20")') n
+    call histwrt4(dat20years,vname,idnc,iarch,local,.true.)
+    dat20years = 0._8  
+    if ( n<=maxnb ) then
+      do k = 1,20  
+        call cable_unpack(climate%mtemp_max_20(:,k),dat20years(:,k),n)
+      end do  
+    end if  
+    write(vname,'("t",I1.1,"_climatemtemp_max_20")') n
+    call histwrt4(dat20years,vname,idnc,iarch,local,.true.)
+    dat20years = 0._8  
+    if ( n<=maxnb ) then
+      do k = 1,20  
+        call cable_unpack(climate%alpha_PT_20(:,k),dat20years(:,k),n)
+      end do  
+    end if  
+    write(vname,'("t",I1.1,"_climatealpha_PT_20")') n
+    call histwrt4(dat20years,vname,idnc,iarch,local,.true.)
   end do  
   deallocate( dat91days )
   deallocate( dat31days )
+  deallocate( dat20years )
 end if
 if ( cable_pop==1 ) then
   allocate( datpatch(ifull,POP_NPATCH) )  

@@ -26,19 +26,21 @@ implicit none
 private
 public rsmin,sigmf,tgf,sigmu
 public ivegt,isoilm,isoilm_in
+public climate_ivegt,climate_biome
 public nsibd_init,nsibd_end
 
 real, dimension(:), allocatable, save :: rsmin,tgf,sigmu
 real, dimension(:), allocatable, save :: sigmf
 integer, dimension(:), allocatable, save :: ivegt,isoilm,isoilm_in
+integer, dimension(:), allocatable, save :: climate_ivegt,climate_biome
 
 contains
 
-subroutine nsibd_init(ifull,nsib)
+subroutine nsibd_init(ifull,nsib,cable_climate)
 
 implicit none
 
-integer, intent(in) :: ifull,nsib
+integer, intent(in) :: ifull,nsib,cable_climate
 
 
 allocate(ivegt(ifull),isoilm(ifull))
@@ -50,6 +52,11 @@ rsmin=995.
 if (nsib==3.or.nsib==5) then
   allocate(tgf(ifull))
   tgf=293.
+end if
+if (cable_climate==1) then
+  allocate(climate_ivegt(ifull),climate_biome(ifull))
+  climate_ivegt = 0
+  climate_biome = 0
 end if
 
 return
@@ -64,6 +71,9 @@ deallocate(sigmf,sigmu)
 deallocate(rsmin,isoilm_in)
 if (allocated(tgf)) then
   deallocate(tgf)
+end if
+if (allocated(climate_ivegt)) then
+  deallocate(climate_ivegt,climate_biome)
 end if
 
 return

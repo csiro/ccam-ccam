@@ -1375,6 +1375,11 @@ do ii=1,wlin
   newdata(:,ii)=pack(mloin(:,ii),wpack)
 end do
 
+if ( sigin(1)>sigin(wlin) ) then
+  write(6,*) "ERROR: Input sigma levels for MLO are in reverse order"
+  stop
+end if
+
 select case(mode)
   case(0,1)
     do iqw=1,wfull
@@ -1732,6 +1737,12 @@ if (diag>=1) write(6,*) "Evaluate MLO"
 
 #ifdef mlodebug
 call mlocheck("MLO-start",water_temp=water%temp,ice_tsurf=ice%tsurf,ice_temp=ice%temp)
+if ( any(abs(water%u)>20.) .or. any(abs(water%v)>20.) ) then
+  write(6,*) "ERROR: current out-of-range in MLO-start"
+  write(6,*) "u ",minval(water%u),maxval(water%u)
+  write(6,*) "v ",minval(water%v),maxval(water%v)
+  stop
+end if
 #endif
 
 ! adjust levels for free surface
@@ -1813,6 +1824,12 @@ call scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag, &
 
 #ifdef mlodebug
 call mlocheck("MLO-end",water_temp=water%temp,ice_tsurf=ice%tsurf,ice_temp=ice%temp)
+if ( any(abs(water%u)>20.) .or. any(abs(water%v)>20.) ) then
+  write(6,*) "ERROR: current out-of-range in MLO-end"
+  write(6,*) "u ",minval(water%u),maxval(water%u)
+  write(6,*) "v ",minval(water%v),maxval(water%v)
+  stop
+end if
 #endif
 
 ! energy conservation check

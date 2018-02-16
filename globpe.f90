@@ -41,8 +41,7 @@ use aerosolldr, only : xtosav,xtg        & ! LDR prognostic aerosols
     ,so4e,so4wd,so4dd,so4_burden
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
-use cable_ccam, only : cable_climate     & ! CABLE
-    ,climate_daycount
+use cable_ccam, only : cable_climate       ! CABLE
 use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
     ,frpw,frpr,frs,cnpp,cnbp
 use cc_mpi                                 ! CC MPI routines
@@ -1025,16 +1024,6 @@ if ( myid<nproc ) then
     if ( sday_update ) then
       sday = mins
     end if
-    ! update cable timer
-    if ( nsib==7 ) then
-      if ( cable_climate==1 ) then
-        if ( real(climate_daycount)*dt>86400. ) then
-          climate_daycount = 0  
-        end if
-        climate_daycount = climate_daycount + 1
-      end if  
-    end if    
-
 
     call END_LOG(phys_end)
 
@@ -3137,7 +3126,7 @@ if ( myid<nproc ) then
   if ( mbd_mlo/=0 ) then
     mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale_mlo))
     if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
-      mbd_mlo = max(nud_sst, nud_sss, nud_ouv, nud_sfh, mbd, mbd_mlo )
+      mbd_mlo = max( nud_sst, nud_sss, nud_ouv, nud_sfh, mbd, mbd_mlo )
       if ( mbd_mlo<mbd_min ) then
         if ( myid==0 ) then
           write(6,*) "Adjusting mbd_mlo to satisfy mbd_maxscale_mlo = ",mbd_maxscale_mlo
@@ -3538,7 +3527,7 @@ if ( myid<nproc ) then
   call morepbl_init(ifull)
   call nharrs_init(ifull,iextra,kl)
   call nlin_init(ifull,kl)
-  call nsibd_init(ifull,nsib)
+  call nsibd_init(ifull,nsib,cable_climate)
   call parmhdff_init(kl)
   call pbl_init(ifull)
   call permsurf_init(ifull)

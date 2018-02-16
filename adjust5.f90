@@ -594,7 +594,7 @@ end if !  (mfix_tr/=0.and.mspec==1.and.ngas>0)
 !--------------------------------------------------------------
 ! Aerosol conservation
 if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)>=2 ) then
-  xtg(1:ifull,1:kl,1:naero) = max( xtg(1:ifull,1:kl,1:naero), 0. )    
+  xtg(1:ifull,1:kl,1:naero) = max( xtg(1:ifull,1:kl,1:naero), 0. )
   llim(1:3) = .true.
   do nstart = 1,naero,3
     nend = min( nstart+2, naero )

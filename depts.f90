@@ -20,7 +20,6 @@
 !------------------------------------------------------------------------------
     
 subroutine depts1(x3d,y3d,z3d)  ! input ubar,vbar are unstaggered vels for level k
-!     3D version
 
 use cc_mpi
 use const_phys
@@ -59,14 +58,8 @@ do k = 1,kl
   z3d(1:ifull,k) = z(1:ifull) - real(wc(1:ifull,k),8)
 end do
 
-if ( any(x3d(1:ifull,1:kl)/=x3d(1:ifull,1:kl)) .or. any(y3d(1:ifull,1:kl)/=y3d(1:ifull,1:kl)) .or. &
-     any(z3d(1:ifull,1:kl)/=z3d(1:ifull,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected for winds in depts1 calculation (A)"
-  call ccmpi_abort(-1)
-end if
-
 ! convert to grid point numbering
-call toij5 (x3d,y3d,z3d)
+call toij5(x3d,y3d,z3d)
 
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
@@ -323,12 +316,6 @@ do k = 1,kl
   z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! 2nd guess
 end do
 
-if ( any(x3d(1:ifull,1:kl)/=x3d(1:ifull,1:kl)) .or. any(y3d(1:ifull,1:kl)/=y3d(1:ifull,1:kl)) .or. &
-     any(z3d(1:ifull,1:kl)/=z3d(1:ifull,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected for winds in depts1 calculation (B)"
-  call ccmpi_abort(-1)
-end if
-
 call toij5 (x3d,y3d,z3d)
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
@@ -496,12 +483,6 @@ do k = 1,kl
   z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! 3rd guess
 end do
 
-if ( any(x3d(1:ifull,1:kl)/=x3d(1:ifull,1:kl)) .or. any(y3d(1:ifull,1:kl)/=y3d(1:ifull,1:kl)) .or. &
-     any(z3d(1:ifull,1:kl)/=z3d(1:ifull,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected for winds in depts1 calculation (C)"
-  call ccmpi_abort(-1)
-end if
-
 call toij5(x3d,y3d,z3d)
 
 if ( diag .and. mydiag ) then
@@ -521,7 +502,7 @@ end subroutine depts1
 
 subroutine toij5(x3d,y3d,z3d)
 
-use bigxy4_m ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
+use bigxy4_m
 use cc_mpi
 use newmpar_m
 use parm_m
@@ -548,8 +529,7 @@ real, dimension(0:5), parameter :: ygz = (/ 1., 0., 0., 0., 0., 1. /)
 #endif
 
 integer, parameter :: nmaploop = 3
-integer k
-integer iq,loop,i,j,is,js
+integer k, iq, loop, i, j, is, js
 real, dimension(ifull) :: ri,rj
 real, dimension(ifull) :: xstr,ystr,zstr
 real, dimension(ifull) :: denxyz,xd,yd,zd
@@ -557,13 +537,14 @@ real(kind=8) alf,alfonsch  ! 6/11/07 esp for 200m
 real(kind=8) dxx,dxy,dyx,dyy
 real(kind=8), dimension(ifull,kl), intent(in) :: x3d,y3d,z3d
 real(kind=8), dimension(ifull) :: den
+logical, dimension(ifull) :: xytest, xztest, yztest
 
 call START_LOG(toij_begin)
 
 #ifdef cray
 ! check if divide by itself is working
 if ( num==0 ) then
-  if ( myid==0 ) write(6,*)'checking for ncray = ',ncray
+  if ( myid==0 ) write(6,*)'checking for ncray'
   call checkdiv(xstr,ystr,zstr)
 end if
 num = 1
@@ -571,8 +552,8 @@ num = 1
 
 ! if necessary, transform (x3d, y3d, z3d) to equivalent
 ! coordinates (xstr, ystr, zstr) on regular gnomonic panels
-alf           = (1._8-schmidt*schmidt)/(1._8+schmidt*schmidt)
-alfonsch      = 2._8*schmidt/(1._8+schmidt*schmidt)  ! same but bit more accurate
+alf           = (1._8-real(schmidt,8)*real(schmidt,8))/(1._8+real(schmidt,8)*real(schmidt,8))
+alfonsch      = 2._8*real(schmidt,8)/(1._8+real(schmidt,8)*real(schmidt,8))  ! same but bit more accurate
 
 do k = 1,kl
     
@@ -586,44 +567,47 @@ do k = 1,kl
 !      The faces are:
 !      0: X=1   1: Z=1   2: Y=1   3: X=-1   4: Z=-1   5: Y=-1
 
-  denxyz(1:ifull) = max( abs(xstr(1:ifull)),abs(ystr(1:ifull)),abs(zstr(1:ifull)) )
+  denxyz(1:ifull) = max(abs(xstr(1:ifull)),abs(ystr(1:ifull)),abs(zstr(1:ifull)) )
   xd(1:ifull) = xstr(1:ifull)/denxyz(1:ifull)
   yd(1:ifull) = ystr(1:ifull)/denxyz(1:ifull)
   zd(1:ifull) = zstr(1:ifull)/denxyz(1:ifull)
 
 #ifndef cray
+  xytest = abs(xd(1:ifull))>abs(yd(1:ifull))
+  xztest = abs(xd(1:ifull))>abs(zd(1:ifull))
+  yztest = abs(yd(1:ifull))>abs(zd(1:ifull))
   ! all these if statements are replaced by the subsequent cunning code
-  where (abs(xstr(1:ifull)-denxyz(1:ifull))<1.e-20)     ! Cray
+  where ( xytest .and. xztest .and. xd(1:ifull)>0. )    ! Cray
     nface(1:ifull,k)    =0                              ! Cray
     xg(1:ifull,k) =       yd(1:ifull)                   ! Cray
     yg(1:ifull,k) =       zd(1:ifull)                   ! Cray
-  elsewhere (abs(xstr(1:ifull)+denxyz(1:ifull))<1.e-20) ! Cray
+  elsewhere ( xytest .and. xztest )                     ! Cray
     nface(1:ifull,k)    =3                              ! Cray
     xg(1:ifull,k) =     -zd(1:ifull)                    ! Cray
     yg(1:ifull,k) =     -yd(1:ifull)                    ! Cray
-  elsewhere (abs(zstr(1:ifull)-denxyz(1:ifull))<1.e-20) ! Cray
-    nface(1:ifull,k)    =1                              ! Cray
-    xg(1:ifull,k) =      yd(1:ifull)                    ! Cray
-    yg(1:ifull,k) =     -xd(1:ifull)                    ! Cray
-  elsewhere (abs(zstr(1:ifull)+denxyz(1:ifull))<1.e-20) ! Cray
-    nface(1:ifull,k)    =4                              ! Cray
-    xg(1:ifull,k) =      xd(1:ifull)                    ! Cray
-    yg(1:ifull,k) =     -yd(1:ifull)                    ! Cray
-  elsewhere (abs(ystr(1:ifull)-denxyz(1:ifull))<1.e-20) ! Cray
+  elsewhere ( yztest .and. yd(1:ifull)>0. )             ! Cray
     nface(1:ifull,k)    =2                              ! Cray
     xg(1:ifull,k) =     -zd(1:ifull)                    ! Cray
     yg(1:ifull,k) =     -xd(1:ifull)                    ! Cray
-  elsewhere (abs(ystr(1:ifull)+denxyz(1:ifull))<1.e-20) ! Cray
+  elsewhere ( yztest )                                  ! Cray
     nface(1:ifull,k)    =5                              ! Cray
     xg(1:ifull,k) =      xd(1:ifull)                    ! Cray
     yg(1:ifull,k) =      zd(1:ifull)                    ! Cray
+  elsewhere ( zd(1:ifull)>0. )                          ! Cray
+    nface(1:ifull,k)    =1                              ! Cray
+    xg(1:ifull,k) =      yd(1:ifull)                    ! Cray
+    yg(1:ifull,k) =     -xd(1:ifull)                    ! Cray
+  elsewhere                                             ! Cray
+    nface(1:ifull,k)    =4                              ! Cray
+    xg(1:ifull,k) =      xd(1:ifull)                    ! Cray
+    yg(1:ifull,k) =     -yd(1:ifull)                    ! Cray
   end where                                             ! Cray
 #else
   ! N.B. the Cray copes poorly with the following (sometimes .ne.1),
   ! with e.g. division of  .978 by itself giving  .99999.....53453
   ! max() allows for 2 of x,y,z being 1.  This is the cunning code:
   nf(1:ifull)=max( int(xd(1:ifull))*(3*int(xd(1:ifull))-3) , int(zd(1:ifull))*(5*int(zd(1:ifull))-3) , &
-                   int(yd(1:ifull))*(7*int(yd(1:ifull))-3) )/2
+                   int(yd(1:ifull))*(7*int(yd(1:ifull))-3) )/2.
   nface(1:ifull,k)=nf(1:ifull)
   xg(1:ifull,k)=xgx(nf(1:ifull))*xd(1:ifull)+xgy(nf(1:ifull))*yd(1:ifull)+xgz(nf(1:ifull))*zd(1:ifull)  ! -1 to 1
   yg(1:ifull,k)=ygx(nf(1:ifull))*xd(1:ifull)+ygy(nf(1:ifull))*yd(1:ifull)+ygz(nf(1:ifull))*zd(1:ifull)
@@ -667,22 +651,22 @@ do k = 1,kl
       is = nint(sign(1.,ri(iq)-real(i)))
       js = nint(sign(1.,rj(iq)-real(j)))
       ! predict new value for ri, rj
-      dxx = xx4(i+is,j)-xx4(i,j)
-      dyx = xx4(i,j+js)-xx4(i,j)
-      dxy = yy4(i+is,j)-yy4(i,j)
-      dyy = yy4(i,j+js)-yy4(i,j)       
-      den(iq) = dxx*dyy-dyx*dxy
+      dxx = xx4(i+is,j) - xx4(i,j)
+      dyx = xx4(i,j+js) - xx4(i,j)
+      dxy = yy4(i+is,j) - yy4(i,j)
+      dyy = yy4(i,j+js) - yy4(i,j)       
+      den(iq) = dxx*dyy - dyx*dxy
       ri(iq) = real(i) + real(is)*real(((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/real(den(iq),8))
       rj(iq) = real(j) + real(js)*real(((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/real(den(iq),8))
     end do        
-    ri(1:ifull) = min( ri(1:ifull), 1.0+1.99999*real(2*il_g) )
-    ri(1:ifull) = max( ri(1:ifull), 1.0+0.00001*real(2*il_g) )
-    rj(1:ifull) = min( rj(1:ifull), 1.0+1.99999*real(2*il_g) )
-    rj(1:ifull) = max( rj(1:ifull), 1.0+0.00001*real(2*il_g) )
+    ri(1:ifull) = min( ri(1:ifull), 1.+1.99999*real(2*il_g) )
+    ri(1:ifull) = max( ri(1:ifull), 1.+0.00001*real(2*il_g) )
+    rj(1:ifull) = min( rj(1:ifull), 1.+1.99999*real(2*il_g) )
+    rj(1:ifull) = max( rj(1:ifull), 1.+0.00001*real(2*il_g) )
   end do  ! loop loop
   ! expect xg, yg to range between .5 and il+.5
-  xg(1:ifull,k) = .25*(ri(1:ifull)+3.) - .5  ! -.5 for stag; back to normal ri, rj defn
-  yg(1:ifull,k) = .25*(rj(1:ifull)+3.) - .5  ! -.5 for stag
+  xg(1:ifull,k) = 0.25*(ri(1:ifull)+3.) - 0.5  ! -.5 for stag; back to normal ri, rj defn
+  yg(1:ifull,k) = 0.25*(rj(1:ifull)+3.) - 0.5  ! -.5 for stag
   
 end do
 
@@ -714,7 +698,7 @@ xstr(1:ifull) = xstr(1:ifull)/denxyz(1:ifull)
 ystr(1:ifull) = ystr(1:ifull)/denxyz(1:ifull)
 zstr(1:ifull) = zstr(1:ifull)/denxyz(1:ifull)
 if ( any(xstr(1:n)/=1.0) ) then
-  write(6,*) "Error, must use ncray=1 on this machine"
+  write(6,*) "Error, must not use -Dcray on this machine"
   stop
 end if
 return

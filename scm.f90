@@ -60,8 +60,7 @@ use ateb, only : atebnmlfile             & ! Urban
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
-    ,gs_switch,cable_climate             &
-    ,climate_daycount
+    ,gs_switch,cable_climate
 use carbpools_m, only : carbpools_init   & ! Carbon pools
     ,fpn,frs,frp
 use cc_mpi                                 ! CC MPI routines
@@ -131,6 +130,7 @@ integer iq, k
 integer ivegt_in, isoil_in, gablsflux
 integer jyear, jmonth, jday, jhour, jmin, mins
 integer nalpha
+integer spinup, spinup_start, ntau_end, ntau_spinup
 real, dimension(1000) :: press_in
 real press_surf, gridres
 real nwrite, es
@@ -148,11 +148,13 @@ character(len=80) lsmforcing, lsmoutput
 character(len=80) scm_mode
 logical sday_update
 logical fixtsurf, nolatent, noradiation
+logical nogwdrag, noconvection, nocloud, noaerosol, novertmix
 
 namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     z_in,ivegt_in,isoil_in,metforcing,lsmforcing,lsmoutput,       &
     fixtsurf,nolatent,timeoutput,profileoutput,noradiation,       &
-    gablsflux,scm_mode,                                           &
+    nogwdrag,noconvection,nocloud,noaerosol,novertmix,            &
+    gablsflux,scm_mode,spinup_start,ntau_spinup,                  &
     ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,       &
     ateb_industryfg,ateb_trafficfg,ateb_roofalpha,                &
     ateb_wallalpha,ateb_roadalpha,ateb_vegalphac,                 &
@@ -247,6 +249,15 @@ maxtilesize = 1
 ntiles = 1
 imax = 1
 scm_mode = "gabls4"
+spinup_start = 1
+fixtsurf = .false.
+nolatent = .false.
+noradiation = .false.
+nogwdrag = .false.
+noconvection = .false.
+nocloud = .false.
+noaerosol = .false.
+novertmix = .false.
 ateb_bldheight = -999.
 ateb_hwratio = -999.
 ateb_sigvegc = -999.
@@ -295,6 +306,8 @@ read(99,skyin)
 read(99,datafile)
 read(99,kuonml)
 read(99,turbnml)
+
+write(6,*) "scm_mode ",trim(scm_mode)
 
 myid = 0
 mydiag = .false.
@@ -345,7 +358,7 @@ call latlong_init(ifull_g,ifull,myid)
 call liqwpar_init(ifull,iextra,kl)
 call morepbl_init(ifull,kl)
 call nharrs_init(ifull,iextra,kl)
-call nsibd_init(ifull,nsib)
+call nsibd_init(ifull,nsib,cable_climate)
 call pbl_init(ifull)
 call prec_init(ifull)
 call raddiag_init(ifull,kl)
@@ -370,14 +383,16 @@ dtin = dt
 rrvco2 = 330./1.e6
 
 write(6,*) "Calling initialscm"
-call initialscm(metforcing,lsmforcing,press_in(1:kl),press_surf,z_in,ivegt_in,isoil_in, &
-                ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,                 &
+call initialscm(scm_mode,metforcing,lsmforcing,press_in(1:kl),press_surf,z_in,ivegt_in, &
+                isoil_in,ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,        &
                 ateb_industryfg,ateb_trafficfg,ateb_roofalpha,                          &
                 ateb_wallalpha,ateb_roadalpha,ateb_vegalphac,                           &
                 ateb_roof_thick,ateb_roof_cp,ateb_roof_cond,                            &
                 ateb_wall_thick,ateb_wall_cp,ateb_wall_cond,                            &
                 ateb_road_thick,ateb_road_cp,ateb_road_cond,                            &
                 ateb_slab_thick,ateb_slab_cp,ateb_slab_cond)
+
+call nantest("after initialisation",1,ifull)
 
 kountr = 1
 if ( myid==0 ) then
@@ -482,7 +497,8 @@ end if
 
 ! NUDGING
 ktau = 0
-call nudgescm(metforcing,fixtsurf)
+call nudgescm(scm_mode,metforcing,fixtsurf)
+call nantest("after nudging",1,ifull)
 
 savu(1:ifull,:) = u(1:ifull,:)
 savv(1:ifull,:) = v(1:ifull,:)
@@ -505,254 +521,263 @@ end select
 call sflux_init
 call vertmix_init
 
-do ktau = 1,ntau
-  write(6,*) "Time ",ktau,ntau
-  if ( isoilm(1)==9 ) then
-    write(6,*) "tggsn ",tggsn,isflag
-    !write(6,*) "ssdn ",ssdn
-    !write(6,*) "snowd ",snowd
-  end if
-  if ( abs(nurban)>0 ) then
-    write(6,*) "rnet,fg,eg ",rnet(1),fg(1),eg(1)
-  end if
-  if ( nvmix==6 ) then
-    write(6,*) "tke,eps,kh ",tke(1,1),eps(1,1),cm0*tke(1,1)*tke(1,1)/eps(1,1)
-  end if
-  
-  ! RESET AVERAGES
-  rndmax(:)      = 0.
-  tmaxscr(:)     = 0.
-  tminscr(:)     = 400.
-  rhmaxscr(:)    = 0.
-  rhminscr(:)    = 400.
-  u10max(:)      = 0.
-  v10max(:)      = 0.
-  u1max(:)       = 0.
-  v1max(:)       = 0.
-  u2max(:)       = 0.
-  v2max(:)       = 0.
-  cape_max(:)    = 0.
-  cape_ave(:)    = 0.
-  u10mx(:)       = 0.
-  tscr_ave(:)    = 0.
-  qscrn_ave(:)   = 0.
-  dew_ave(:)     = 0.
-  epan_ave(:)    = 0.
-  epot_ave(:)    = 0.
-  eg_ave(:)      = 0.
-  fg_ave(:)      = 0.
-  ga_ave(:)      = 0.
-  rnet_ave(:)    = 0.
-  sunhours(:)    = 0.
-  riwp_ave(:)    = 0.
-  rlwp_ave(:)    = 0.
-  evap(:)        = 0.
-  precc(:)       = 0.
-  precip(:)      = 0.
-  convh_ave(:,:) = 0.
-  rnd_3hr(:,8)   = 0. ! i.e. rnd24(:)=0.
-  cbas_ave(:)    = 0.
-  ctop_ave(:)    = 0.
-  sno(:)         = 0.
-  grpl(:)        = 0.
-  runoff(:)      = 0.
-  wb_ave(:,:)    = 0.
-  tsu_ave(:)     = 0.
-  alb_ave(:)     = 0.
-  fbeam_ave(:)   = 0.
-  psl_ave(:)     = 0.
-  mixdep_ave(:)  = 0.
-  koundiag       = 0
-  sint_ave(:)    = 0.  ! solar_in_top
-  sot_ave(:)     = 0.  ! solar_out_top
-  soc_ave(:)     = 0.  ! solar_out_top (clear sky)
-  sgdn_ave(:)    = 0.  ! solar_ground (down-welling) +ve down
-  sgn_ave(:)     = 0.  ! solar_ground (net) +ve down
-  rtu_ave(:)     = 0.  ! LW_out_top 
-  rtc_ave(:)     = 0.  ! LW_out_top (clear sky)
-  rgdn_ave(:)    = 0.  ! LW_ground (down-welling)  +ve down
-  rgn_ave(:)     = 0.  ! LW_ground (net)  +ve up
-  rgc_ave(:)     = 0.  ! LW_ground (clear sky)
-  sgc_ave(:)     = 0.  ! SW_ground (clear sky)
-  cld_ave(:)     = 0.
-  cll_ave(:)     = 0.
-  clm_ave(:)     = 0.
-  clh_ave(:)     = 0.
-  if ( ccycle>0 ) then
-    fnee_ave = 0.  
-    fpn_ave  = 0.
-    frd_ave  = 0.
-    frp_ave  = 0.
-    frpw_ave = 0.
-    frpr_ave = 0.
-    frs_ave  = 0.
+! spin-up?
+do spinup = spinup_start,1,-1
+
+  if ( spinup>1 ) then
+    ntau_end = ntau_spinup
+    write(6,*) "Spin-up Phase ",spinup
+  else
+    ntau_end = ntau
+    write(6,*) "Main simulation"
   end if  
-  if ( abs(iaero)==2 ) then
-    duste         = 0.  ! Dust emissions
-    dustdd        = 0.  ! Dust dry deposition
-    dustwd        = 0.  ! Dust wet deposition
-    dust_burden   = 0.  ! Dust burden
-    bce           = 0.  ! Black carbon emissions
-    bcdd          = 0.  ! Black carbon dry deposition
-    bcwd          = 0.  ! Black carbon wet deposition
-    bc_burden     = 0.  ! Black carbon burden
-    oce           = 0.  ! Organic carbon emissions
-    ocdd          = 0.  ! Organic carbon dry deposition
-    ocwd          = 0.  ! Organic carbon wet deposition
-    oc_burden     = 0.  ! Organic carbon burden
-    dmse          = 0.  ! DMS emissions
-    dmsso2o       = 0.  ! DMS -> SO2 oxidation
-    so2e          = 0.  ! SO2 emissions
-    so2so4o       = 0.  ! SO2 -> SO4 oxidation
-    so2dd         = 0.  ! SO2 dry deposition
-    so2wd         = 0.  ! SO2 wet deposiion
-    so4e          = 0.  ! SO4 emissions
-    so4dd         = 0.  ! SO4 dry deposition
-    so4wd         = 0.  ! SO4 wet deposition
-    dms_burden    = 0.  ! DMS burden
-    so2_burden    = 0.  ! SO2 burden
-    so4_burden    = 0.  ! SO4 burden
-  end if
 
+  ! main simulation
+  do ktau = 1,ntau_end
+    write(6,*) "Time ",ktau,ntau
+    if ( isoilm(1)==9 ) then
+      write(6,*) "tggsn ",tggsn,isflag
+      !write(6,*) "ssdn ",ssdn
+      !write(6,*) "snowd ",snowd
+    end if
+    if ( abs(nurban)>0 ) then
+      write(6,*) "rnet,fg,eg ",rnet(1),fg(1),eg(1)
+    end if
+    if ( nvmix==6 ) then
+      write(6,*) "tke,eps,kh ",tke(1,1),eps(1,1),cm0*tke(1,1)*tke(1,1)/eps(1,1)
+    end if
   
-  mtimer = nint(real(ktau)*dt/60.)
-
-  ! calculate shear
-  call calcshear
-  
-  ! Update saved arrays
-  savu(1:ifull,:) = u(1:ifull,:)
-  savv(1:ifull,:) = v(1:ifull,:)
-  savs(1:ifull,:) = sdot(1:ifull,2:kl)
-
-  ! MISC
-  if ( nrad==5 ) then
-    call seaesfrad_settime
-  end if    
-  ! aerosol timer calculations
-  call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-  sday_update = sday<=mins-updateoxidant
-  ! initialse surface rainfall to zero
-  condc(:) = 0. ! default convective rainfall (assumed to be rain)
-  condx(:) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
-  conds(:) = 0. ! default total ice + snow (convection and large scale)
-  condg(:) = 0. ! default total graupel (convection and large scale)
-  ! Save aerosol concentrations for outside convective fraction of grid box
-  if ( abs(iaero)>=2 ) then
-    xtosav(:,:,:) = xtg(:,:,:) ! Aerosol mixing ratio outside convective cloud
-  end if
-  call nantest("start of physics",1,ifull)
-  
-  ! GWDRAG
-  if ( ngwd<0 ) then
-    call gwdrag  ! <0 for split - only one now allowed
-  end if
-  call nantest("after gravity wave drag",1,ifull)
-
-  ! CONVECTION
-  convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) - t(1:ifull,1:kl)*real(nperday)/real(nperavg)
-  ! Select convection scheme
-  select case ( nkuo )
-    case(21,22)
-      call convjlm22              ! split convjlm 
-    case(23,24)
-      call convjlm                ! split convjlm 
-  end select
-  call fixqg(1,ifull)
-  call nantest("after convection",1,ifull)    
-
-  ! CLOUD MICROPHYSICS
-  if ( ldr/=0 ) then
-    ! LDR microphysics scheme
-    call leoncld
-  end if
-  convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) + t(1:ifull,1:kl)*real(nperday)/real(nperavg)    
-  call nantest("after cloud microphysics",1,ifull) 
-
-  ! RADIATON
-  if ( ncloud>=4 ) then
-    nettend(1:ifull,1:kl) = nettend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
-  end if  
-  if ( .not.noradiation ) then
-    select case ( nrad )
-      case(5)
-        ! GFDL SEA-EFS radiation
-        call seaesfrad
-    end select
-  end if
-  call nantest("after radiation",1,ifull)   
-
-  ! SURFACE FLUXES
-  if ( ntsur>1 ) then  ! should be better after convjlm
-    call sflux(nalpha)
-  endif   ! (ntsur>1) 
-  call nantest("after surface fluxes",1,ifull)
-  
-  call nudgescm(metforcing,fixtsurf)
-  
-  !if ( gablsflux>0 ) then
-  !  ppa(:) = sig(1)*ps(:) 
-  !  prhoa(:) = ppa(:)/(rdry*t(1:ifull,1))
-  !  zref(:) = (bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav
-  !  call gabls_flux(tss,ps,t(1:ifull,1),ppa,u(1:ifull,1),v(1:ifull,1),prhoa,zref,zolnd, &
-  !                    psfth,ustar,vmod)
-  !  rhos(:) = ps(1:ifull)/(rdry*tss(1:ifull))
-  !  fg(:) = rhos(:)*cp*psfth(:)
-  !  eg(:) = 0.
-  !  cduv(:) = ustar(:)**2/vmod(:)  ! ustar = sqrt(cd)*vmod = sqrt(cduv*vmod)
-  !end if
-  
-  if ( nolatent ) then
-    eg(:) = 0.
-    cdtq(:) = 0.
-  end if
-
-  ! AEROSOLS
-  if ( abs(iaero) >= 2 ) then
-    call aerocalc(sday_update,mins)
-  end if
-  call nantest("after aerosols",1,ifull)
-
-  ! VERTICAL MIXING
-  if ( ntsur>=1 ) then ! calls vertmix but not sflux for ntsur=1
-    call vertmix
-  endif  ! (ntsur>=1)
-  call fixqg(1,ifull)
-  call nantest("after PBL mixing",1,ifull)
-  
-  ! DIAGNOSTICS
-  if ( rescrn > 0 ) then
-    call autoscrn(1,ifull)
-  end if
-  ! Convection diagnostic output
-  cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
-  ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
-  ! Microphysics diagnostic output
-  do k = 1,kl
-    riwp_ave(1:ifull) = riwp_ave(1:ifull) - qfrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
-    rlwp_ave(1:ifull) = rlwp_ave(1:ifull) - qlrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
-  end do
-  rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + condx(1:ifull)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
-
-  ! MISC    
-  ! Update aerosol timer
-  if ( sday_update ) then
-    sday = mins
-  end if
-  ! update cable timer
-  if ( nsib==7 ) then
-    if ( cable_climate==1 ) then
-      if ( real(climate_daycount)*dt>86400. ) then
-        climate_daycount = 0  
-      end if
-      climate_daycount = climate_daycount + 1
+    ! RESET AVERAGES
+    rndmax(:)      = 0.
+    tmaxscr(:)     = 0.
+    tminscr(:)     = 400.
+    rhmaxscr(:)    = 0.
+    rhminscr(:)    = 400.
+    u10max(:)      = 0.
+    v10max(:)      = 0.
+    u1max(:)       = 0.
+    v1max(:)       = 0.
+    u2max(:)       = 0.
+    v2max(:)       = 0.
+    cape_max(:)    = 0.
+    cape_ave(:)    = 0.
+    u10mx(:)       = 0.
+    tscr_ave(:)    = 0.
+    qscrn_ave(:)   = 0.
+    dew_ave(:)     = 0.
+    epan_ave(:)    = 0.
+    epot_ave(:)    = 0.
+    eg_ave(:)      = 0.
+    fg_ave(:)      = 0.
+    ga_ave(:)      = 0.
+    rnet_ave(:)    = 0.
+    sunhours(:)    = 0.
+    riwp_ave(:)    = 0.
+    rlwp_ave(:)    = 0.
+    evap(:)        = 0.
+    precc(:)       = 0.
+    precip(:)      = 0.
+    convh_ave(:,:) = 0.
+    rnd_3hr(:,8)   = 0. ! i.e. rnd24(:)=0.
+    cbas_ave(:)    = 0.
+    ctop_ave(:)    = 0.
+    sno(:)         = 0.
+    grpl(:)        = 0.
+    runoff(:)      = 0.
+    wb_ave(:,:)    = 0.
+    tsu_ave(:)     = 0.
+    alb_ave(:)     = 0.
+    fbeam_ave(:)   = 0.
+    psl_ave(:)     = 0.
+    mixdep_ave(:)  = 0.
+    koundiag       = 0
+    sint_ave(:)    = 0.  ! solar_in_top
+    sot_ave(:)     = 0.  ! solar_out_top
+    soc_ave(:)     = 0.  ! solar_out_top (clear sky)
+    sgdn_ave(:)    = 0.  ! solar_ground (down-welling) +ve down
+    sgn_ave(:)     = 0.  ! solar_ground (net) +ve down
+    rtu_ave(:)     = 0.  ! LW_out_top 
+    rtc_ave(:)     = 0.  ! LW_out_top (clear sky)
+    rgdn_ave(:)    = 0.  ! LW_ground (down-welling)  +ve down
+    rgn_ave(:)     = 0.  ! LW_ground (net)  +ve up
+    rgc_ave(:)     = 0.  ! LW_ground (clear sky)
+    sgc_ave(:)     = 0.  ! SW_ground (clear sky)
+    cld_ave(:)     = 0.
+    cll_ave(:)     = 0.
+    clm_ave(:)     = 0.
+    clh_ave(:)     = 0.
+    if ( ccycle>0 ) then
+      fnee_ave = 0.  
+      fpn_ave  = 0.
+      frd_ave  = 0.
+      frp_ave  = 0.
+      frpw_ave = 0.
+      frpr_ave = 0.
+      frs_ave  = 0.
     end if  
-  end if        
+    if ( abs(iaero)==2 ) then
+      duste         = 0.  ! Dust emissions
+      dustdd        = 0.  ! Dust dry deposition
+      dustwd        = 0.  ! Dust wet deposition
+      dust_burden   = 0.  ! Dust burden
+      bce           = 0.  ! Black carbon emissions
+      bcdd          = 0.  ! Black carbon dry deposition
+      bcwd          = 0.  ! Black carbon wet deposition
+      bc_burden     = 0.  ! Black carbon burden
+      oce           = 0.  ! Organic carbon emissions
+      ocdd          = 0.  ! Organic carbon dry deposition
+      ocwd          = 0.  ! Organic carbon wet deposition
+      oc_burden     = 0.  ! Organic carbon burden
+      dmse          = 0.  ! DMS emissions
+      dmsso2o       = 0.  ! DMS -> SO2 oxidation
+      so2e          = 0.  ! SO2 emissions
+      so2so4o       = 0.  ! SO2 -> SO4 oxidation
+      so2dd         = 0.  ! SO2 dry deposition
+      so2wd         = 0.  ! SO2 wet deposiion
+      so4e          = 0.  ! SO4 emissions
+      so4dd         = 0.  ! SO4 dry deposition
+      so4wd         = 0.  ! SO4 wet deposition
+      dms_burden    = 0.  ! DMS burden
+      so2_burden    = 0.  ! SO2 burden
+      so4_burden    = 0.  ! SO4 burden
+    end if
+
   
-  ! OUTPUT
-  call outputscm(timeoutput,profileoutput,lsmoutput)
+    mtimer = nint(real(ktau)*dt/60.)
+
+    ! calculate shear
+    call calcshear
+  
+    ! Update saved arrays
+    savu(1:ifull,:) = u(1:ifull,:)
+    savv(1:ifull,:) = v(1:ifull,:)
+    savs(1:ifull,:) = sdot(1:ifull,2:kl)
+
+    ! MISC
+    if ( nrad==5 ) then
+      call seaesfrad_settime
+    end if    
+    ! aerosol timer calculations
+    call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
+    sday_update = sday<=mins-updateoxidant
+    ! initialse surface rainfall to zero
+    condc(:) = 0. ! default convective rainfall (assumed to be rain)
+    condx(:) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
+    conds(:) = 0. ! default total ice + snow (convection and large scale)
+    condg(:) = 0. ! default total graupel (convection and large scale)
+    ! Save aerosol concentrations for outside convective fraction of grid box
+    if ( abs(iaero)>=2 ) then
+      xtosav(:,:,:) = xtg(:,:,:) ! Aerosol mixing ratio outside convective cloud
+    end if
+    call nantest("start of physics",1,ifull)
+  
+    ! GWDRAG
+    if ( ngwd<0 .and. .not.nogwdrag ) then
+      call gwdrag  ! <0 for split - only one now allowed
+    end if
+    call nantest("after gravity wave drag",1,ifull)
+
+    ! CONVECTION
+    convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) - t(1:ifull,1:kl)*real(nperday)/real(nperavg)
+    ! Select convection scheme
+    if ( .not.noconvection ) then
+      select case ( nkuo )
+        case(21,22)
+          call convjlm22              ! split convjlm 
+        case(23,24)
+          call convjlm                ! split convjlm 
+      end select
+    end if    
+    call fixqg(1,ifull)
+    call nantest("after convection",1,ifull)    
+
+    ! CLOUD MICROPHYSICS
+    if ( ldr/=0 .and. .not.nocloud ) then
+      ! LDR microphysics scheme
+      call leoncld
+    end if
+    convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) + t(1:ifull,1:kl)*real(nperday)/real(nperavg)    
+    call nantest("after cloud microphysics",1,ifull) 
+
+    ! RADIATON
+    if ( ncloud>=4 ) then
+      nettend(1:ifull,1:kl) = nettend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
+    end if  
+    if ( .not.noradiation ) then
+      select case ( nrad )
+        case(5)
+          ! GFDL SEA-EFS radiation
+          call seaesfrad
+      end select
+    end if
+    call nantest("after radiation",1,ifull)   
+
+    ! SURFACE FLUXES
+    if ( ntsur>1 ) then  ! should be better after convjlm
+      call sflux(nalpha)
+    endif   ! (ntsur>1) 
+    call nantest("after surface fluxes",1,ifull)
+  
+    call nudgescm(scm_mode,metforcing,fixtsurf)
+  
+    !if ( gablsflux>0 ) then
+    !  ppa(:) = sig(1)*ps(:) 
+    !  prhoa(:) = ppa(:)/(rdry*t(1:ifull,1))
+    !  zref(:) = (bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav
+    !  call gabls_flux(tss,ps,t(1:ifull,1),ppa,u(1:ifull,1),v(1:ifull,1),prhoa,zref,zolnd, &
+    !                    psfth,ustar,vmod)
+    !  rhos(:) = ps(1:ifull)/(rdry*tss(1:ifull))
+    !  fg(:) = rhos(:)*cp*psfth(:)
+    !  eg(:) = 0.
+    !  cduv(:) = ustar(:)**2/vmod(:)  ! ustar = sqrt(cd)*vmod = sqrt(cduv*vmod)
+    !end if
+  
+    if ( nolatent ) then
+      eg(:) = 0.
+      cdtq(:) = 0.
+    end if
+
+    ! AEROSOLS
+    if ( abs(iaero)>=2 .and. .not.noaerosol ) then
+      call aerocalc(sday_update,mins)
+    end if
+    call nantest("after aerosols",1,ifull)
+
+    ! VERTICAL MIXING
+    if ( ntsur>=1 .and. .not.novertmix ) then ! calls vertmix but not sflux for ntsur=1
+      call vertmix
+    endif  ! (ntsur>=1)
+    call fixqg(1,ifull)
+    call nantest("after PBL mixing",1,ifull)
+  
+    ! DIAGNOSTICS
+    if ( rescrn > 0 ) then
+      call autoscrn(1,ifull)
+    end if
+    ! Convection diagnostic output
+    cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
+    ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
+    ! Microphysics diagnostic output
+    do k = 1,kl
+      riwp_ave(1:ifull) = riwp_ave(1:ifull) - qfrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
+      rlwp_ave(1:ifull) = rlwp_ave(1:ifull) - qlrad(1:ifull,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
+    end do
+    rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + condx(1:ifull)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+
+    ! MISC    
+    ! Update aerosol timer
+    if ( sday_update ) then
+      sday = mins
+    end if
+  
+    ! OUTPUT
+    if ( spinup==1 ) then
+      call outputscm(timeoutput,profileoutput,lsmoutput)
+    end if
+  
+  end do ! ktau
     
-end do
+end do   ! spinup
 
 write(6,*) "SCM complete"
 
@@ -827,8 +852,8 @@ end if
 
 end subroutine calcshear
     
-subroutine initialscm(metforcing,lsmforcing,press_in,press_surf,z_in,ivegt_in,isoil_in, &
-                      ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,           &
+subroutine initialscm(scm_mode,metforcing,lsmforcing,press_in,press_surf,z_in,ivegt_in, &
+                      isoil_in,ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,  &
                       ateb_industryfg,ateb_trafficfg,ateb_roofalpha,                    &
                       ateb_wallalpha,ateb_roadalpha,ateb_vegalphac,                     &
                       ateb_roof_thick,ateb_roof_cp,ateb_roof_cond,                      &
@@ -871,11 +896,11 @@ use scmarrays_m
 implicit none
 
 integer, intent(in) :: ivegt_in, isoil_in
-integer iq, k, lapsbot
+integer iq, i, k, lapsbot
 integer ncid, ncstatus, nlev, slev, tlev
 integer, dimension(ifull,5) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
-integer, dimension(2) :: spos, npos
+integer, dimension(3) :: spos, npos
 integer, dimension(ifull) :: urbantype
 real, dimension(kl), intent(in) :: press_in
 real, intent(in) :: press_surf, z_in
@@ -889,6 +914,7 @@ real, dimension(kl) :: datout
 real, dimension(:), allocatable, save :: dat_in, sig_in, dep_in
 real, dimension(:), allocatable, save :: dephl_in, thick_in
 real, dimension(:), allocatable, save :: new_in
+real, dimension(:), allocatable, save :: height_in, height_model
 real, dimension(1) :: psurf_in
 real, intent(in) :: ateb_bldheight, ateb_hwratio, ateb_sigvegc, ateb_sigmabld
 real, intent(in) :: ateb_industryfg, ateb_trafficfg, ateb_roofalpha
@@ -899,7 +925,7 @@ real, dimension(4), intent(in) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
 real, dimension(4), intent(in) :: ateb_slab_thick, ateb_slab_cp, ateb_slab_cond
 real, dimension(8) :: atebparm
 real gwdfac, hefact, c
-character(len=*), intent(in) :: metforcing, lsmforcing
+character(len=*), intent(in) :: metforcing, lsmforcing, scm_mode
 character(len=20) vname
 logical, save :: lsmonly = .false.
 
@@ -950,7 +976,7 @@ elseif(lapsbot==3)then ! possibly suits nh
   bet(1)=-rdry*log(sig(1))
 endif
 
-zmin = -rdry*280.*log(sig(1))/grav
+zmin = 280.*bet(1)/grav
 write(6,*) 'zmin = ',zmin
 
 ! define map factors
@@ -961,7 +987,7 @@ f(:) = real(2._8*2._8*real(pi,8)*sin(real(rlatt(:),8))/86400._8)
 
 ! Main prognostic variables
 write(6,*) "Initialise main prognostic variables"
-t(:,:) = 300.
+t(:,:) = 280.
 u(:,:) = 0.
 v(:,:) = 0.
 qg(:,:) = 0.
@@ -995,6 +1021,14 @@ if ( ccycle>0 ) then
   cplant(:,:) = 0.
   csoil(:,:) = 0.
 end if    
+isflag(:) = 0
+snowd(:) = 0.
+tggsn(:,:) = 240.
+ssdn(:,:) = 300.
+ssdnn(:) = 300.
+smass(:,:) = 10.*ssdn(:,:)
+tss(:) = tggsn(:,1)
+tgg(:,:) = 240. 
 
 ! Assume constant surface pressure for now
 dpsldt(:,:) = 0.
@@ -1004,131 +1038,209 @@ zs(:) = grav*z_in
 he(:) = 0.
 
 ! LOAD INITIAL CONDITIONS
-if ( .not.lsmonly ) then
+if ( scm_mode=="sublime" ) then
+    
   write(6,*) "Loading MET initial conditions"
   call ccnf_open(metforcing,ncid,ncstatus)
+    
+  call ccnf_inq_dimlen(ncid,'atmospheric_layers',nlev)
+ 
+  allocate( height_in(nlev), height_model(kl) )
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'height',spos(1:3),npos(1:3),height_in)
   
-  call ccnf_inq_dimlen(ncid,'lev',nlev)
-  spos = (/ 1, 1 /)
-  npos = (/ nlev, 1 /)
-  allocate( dat_in(nlev), sig_in(nlev), new_in(nlev) )
-  call ccnf_get_vara(ncid,'psurf',psurf_in(1:1))
-  call ccnf_get_vara(ncid,'pf',spos(1:1),npos(1:1),dat_in)
-  do k=1,nlev
-    sig_in(nlev-k+1) = dat_in(k)/psurf_in(1)
-  end do
-  write(6,*) "sig_in ",sig_in(:)
-  call ccnf_get_vara(ncid,'t',spos(1:1),npos(1:1),new_in)
-  do k=1,nlev
-    dat_in(nlev-k+1) = new_in(k)
-  end do
-  call vinterpolate(dat_in,sig_in,datout,sig,nlev,kl)
-  t(1,:) = datout(:)
-  call ccnf_get_vara(ncid,'qv',spos(1:1),npos(1:1),new_in)
-  do k=1,nlev
-    dat_in(nlev-k+1) = new_in(k)
-  end do
-  call vinterpolate(dat_in,sig_in,datout,sig,nlev,kl)
-  qg(1,:) = datout(:)/(1.-datout(:))
-  call ccnf_get_vara(ncid,'u',spos(1:1),npos(1:1),new_in)
-  do k=1,nlev
-    dat_in(nlev-k+1) = new_in(k)
-  end do
-  call vinterpolate(dat_in,sig_in,datout,sig,nlev,kl)
-  u(1,:) = datout(:)
-  call ccnf_get_vara(ncid,'v',spos(1:1),npos(1:1),new_in)
-  do k=1,nlev
-    dat_in(nlev-k+1) = new_in(k)
-  end do
-  call vinterpolate(dat_in,sig_in,datout,sig,nlev,kl)
-  v(1,:) = datout(:)
-  deallocate( dat_in, sig_in, new_in )
+  ! surface pressure
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, 1 /)
+  call ccnf_get_vara(ncid,'PSFC',spos(1:3),npos(1:3),ps)
+  psl(:) = log(ps(:)/1.e5)
   
-  call ccnf_inq_dimlen(ncid,'levs',slev)
-  spos = (/ 1, 1 /)
-  npos = (/ slev, 1 /)  
-  allocate( dat_in(slev), dep_in(slev), dephl_in(0:slev), thick_in(slev) )  
-  call ccnf_get_vara(ncid,'depth_sn',spos(1:1),npos(1:1),dep_in)
-  write(6,*) "dep_in ",dep_in(:)
-  dephl_in(0) = 0.
-  dephl_in(1:slev-1) = 0.5*(dep_in(1:slev-1)+dep_in(2:slev))
-  dephl_in(slev) = 2.*dep_in(slev) - dephl_in(slev-1)
-  thick_in(1:slev) = dephl_in(1:slev) - dephl_in(0:slev-1)
-  sdepth(:,:) = 0.
-  tlev=15
-  do k=1,3
-    sdepth(:,1) = sdepth(:,1) + thick_in(k)
-  end do
-  do k = 4,tlev
-    sdepth(:,2) = sdepth(:,2) + thick_in(k)  
-  end do
-  do k = tlev+1,slev
-    sdepth(:,3) = sdepth(:,3) + thick_in(k)  
-  end do
-  write(6,*) "sdepth ",sdepth
-  call ccnf_get_vara(ncid,'Tsnow',spos(1:1),npos(1:1),dat_in)
-  tggsn(:,:) = 0.
-  do k=1,3
-    tggsn(:,1) = tggsn(:,1) + dat_in(k)*thick_in(k)/sdepth(:,1)
-  end do
-  do k = 4,tlev
-    tggsn(:,2) = tggsn(:,2) + dat_in(k)*thick_in(k)/sdepth(:,2)
-  end do
-  do k = tlev+1,slev
-    tggsn(:,3) = tggsn(:,3) + dat_in(k)*thick_in(k)/sdepth(:,3)
-  end do
-  write(6,*) "tggsn ",tggsn
-  call ccnf_get_vara(ncid,'snow_density',spos(1:1),npos(1:1),dat_in)
-  ssdn(:,:) = 0.
-  do k=1,3
-    ssdn(:,1) = ssdn(:,1) + dat_in(k)*thick_in(k)/sdepth(:,1)
-  end do
-  do k = 4,tlev
-    ssdn(:,2) = ssdn(:,2) + dat_in(k)*thick_in(k)/sdepth(:,2)
-  end do
-  do k = tlev+1,slev
-    ssdn(:,3) = ssdn(:,3) + dat_in(k)*thick_in(k)/sdepth(:,3)
-  end do
-  write(6,*) "ssdn ",ssdn
-  smass(:,:) = sdepth(:,:)*ssdn(:,:)
-  write(6,*) "smass ",smass
-  deallocate( dat_in, dep_in, dephl_in, thick_in )
+  ! terrain height
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, 1 /)
+  call ccnf_get_vara(ncid,'HGT',spos(1:3),npos(1:3),zs)
+  zs(1) = zs(1)*grav ! convert to geopotential
+  
+  allocate( dat_in(nlev), new_in(nlev) )
+
+  ! potential temperature
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'Theta',spos(1:3),npos(1:3),dat_in)
+
+  ! need to iterate to get consistent solution with temperature
+  do i = 1,5
+    height_model(1) = bet(1)*t(1,1)/grav
+    do k = 2,kl
+      height_model(k) = height_model(k-1) + (bet(k)*t(1,k) + betm(k)*t(1,k-1))/grav
+    end do
+    call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+    do k=1,kl
+      t(1,k) = datout(k)*(1.e5/(ps(1)*sig(k)))**(-rdry/cp)
+    end do
+  end do ! iterative i loop
+  write(6,*) "height_model ",height_model(1:kl)
+  
+  ! U wind
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'U',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  u(1,1:kl) = datout
+    
+  ! V wind
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'V',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  v(1,1:kl) = datout
+  
+  ! qv mixing ratio
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'Qvapor',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  qg(1,1:kl) = max(datout,2.e-7)
+  
+  ! ignore tke initial conditions for now
+  
   call ccnf_close(ncid)
-  isflag(:) = 1
-  snowd(:) = sum(sdepth*ssdn,2)
-  write(6,*) "snowd ",snowd
-  ssdnn(:) = sum(ssdn(:,:)*smass(:,:),2)/snowd
-  write(6,*) "ssdnn ",ssdnn  
-  tss(:) = tggsn(:,1)
-  do k=1,ms
-    tgg(:,k) = tggsn(:,3)
-  end do
   
+  deallocate(dat_in, new_in )
+  deallocate(height_in, height_model)  
+    
+else if ( scm_mode=="gabls4" ) then
+  if ( .not.lsmonly ) then
+    write(6,*) "Loading MET initial conditions"
+    call ccnf_open(metforcing,ncid,ncstatus)
+  
+    call ccnf_inq_dimlen(ncid,'lev',nlev)
+    spos(1:2) = (/ 1, 1 /)
+    npos(1:2) = (/ nlev, 1 /)
+    allocate( dat_in(nlev), sig_in(nlev), new_in(nlev) )
+    call ccnf_get_vara(ncid,'psurf',psurf_in(1:1))
+    call ccnf_get_vara(ncid,'pf',spos(1:1),npos(1:1),dat_in)
+    do k=1,nlev
+      sig_in(nlev-k+1) = dat_in(k)/psurf_in(1)
+    end do
+    write(6,*) "sig_in ",sig_in(:)
+    call ccnf_get_vara(ncid,'t',spos(1:1),npos(1:1),new_in)
+    do k=1,nlev
+      dat_in(nlev-k+1) = new_in(k)
+    end do
+    call vinterpolate(dat_in,sig_in,datout,sig,nlev,kl)
+    t(1,:) = datout(:)
+    call ccnf_get_vara(ncid,'qv',spos(1:1),npos(1:1),new_in)
+    do k=1,nlev
+      dat_in(nlev-k+1) = new_in(k)
+    end do
+    call vinterpolate(dat_in,sig_in,datout,sig,nlev,kl)
+    qg(1,:) = datout(:)/(1.-datout(:))
+    call ccnf_get_vara(ncid,'u',spos(1:1),npos(1:1),new_in)
+    do k=1,nlev
+      dat_in(nlev-k+1) = new_in(k)
+    end do
+    call vinterpolate(dat_in,sig_in,datout,sig,nlev,kl)
+    u(1,:) = datout(:)
+    call ccnf_get_vara(ncid,'v',spos(1:1),npos(1:1),new_in)
+    do k=1,nlev
+      dat_in(nlev-k+1) = new_in(k)
+    end do
+    call vinterpolate(dat_in,sig_in,datout,sig,nlev,kl)
+    v(1,:) = datout(:)
+    deallocate( dat_in, sig_in, new_in )
+  
+    call ccnf_inq_dimlen(ncid,'levs',slev)
+    spos(1:2) = (/ 1, 1 /)
+    npos(1:2) = (/ slev, 1 /)  
+    allocate( dat_in(slev), dep_in(slev), dephl_in(0:slev), thick_in(slev) )  
+    call ccnf_get_vara(ncid,'depth_sn',spos(1:1),npos(1:1),dep_in)
+    write(6,*) "dep_in ",dep_in(:)
+    dephl_in(0) = 0.
+    dephl_in(1:slev-1) = 0.5*(dep_in(1:slev-1)+dep_in(2:slev))
+    dephl_in(slev) = 2.*dep_in(slev) - dephl_in(slev-1)
+    thick_in(1:slev) = dephl_in(1:slev) - dephl_in(0:slev-1)
+    sdepth(:,:) = 0.
+    tlev=15
+    do k=1,3
+      sdepth(:,1) = sdepth(:,1) + thick_in(k)
+    end do
+    do k = 4,tlev
+      sdepth(:,2) = sdepth(:,2) + thick_in(k)  
+    end do
+    do k = tlev+1,slev
+      sdepth(:,3) = sdepth(:,3) + thick_in(k)  
+    end do
+    write(6,*) "sdepth ",sdepth
+    call ccnf_get_vara(ncid,'Tsnow',spos(1:1),npos(1:1),dat_in)
+    tggsn(:,:) = 0.
+    do k=1,3
+      tggsn(:,1) = tggsn(:,1) + dat_in(k)*thick_in(k)/sdepth(:,1)
+    end do
+    do k = 4,tlev
+      tggsn(:,2) = tggsn(:,2) + dat_in(k)*thick_in(k)/sdepth(:,2)
+    end do
+    do k = tlev+1,slev
+      tggsn(:,3) = tggsn(:,3) + dat_in(k)*thick_in(k)/sdepth(:,3)
+    end do
+    write(6,*) "tggsn ",tggsn
+    call ccnf_get_vara(ncid,'snow_density',spos(1:1),npos(1:1),dat_in)
+    ssdn(:,:) = 0.
+    do k=1,3
+      ssdn(:,1) = ssdn(:,1) + dat_in(k)*thick_in(k)/sdepth(:,1)
+    end do
+    do k = 4,tlev
+      ssdn(:,2) = ssdn(:,2) + dat_in(k)*thick_in(k)/sdepth(:,2)
+    end do
+    do k = tlev+1,slev
+      ssdn(:,3) = ssdn(:,3) + dat_in(k)*thick_in(k)/sdepth(:,3)
+    end do
+    write(6,*) "ssdn ",ssdn
+    smass(:,:) = sdepth(:,:)*ssdn(:,:)
+    write(6,*) "smass ",smass
+    deallocate( dat_in, dep_in, dephl_in, thick_in )
+    call ccnf_close(ncid)
+    isflag(:) = 1
+    snowd(:) = sum(sdepth*ssdn,2)
+    write(6,*) "snowd ",snowd
+    ssdnn(:) = sum(ssdn(:,:)*smass(:,:),2)/snowd
+    write(6,*) "ssdnn ",ssdnn  
+    tss(:) = tggsn(:,1)
+    do k=1,ms
+      tgg(:,k) = tggsn(:,3)
+    end do
+  
+  else
+    write(6,*) "Loading LSM initial conditions"
+    call ccnf_open(lsmforcing,ncid,ncstatus)
+    call ccnf_inq_dimlen(ncid,'nsnow_layer',slev)
+    spos(1:2) = (/ 1, 1 /)
+    npos(1:2) = (/ slev, 1 /) 
+    allocate( dat_in(slev), dep_in(slev) )
+    call ccnf_get_vara(ncid,'mid_layer_depth',spos(1:1),npos(1:1),dep_in)
+    write(6,*) "dep_in ",dep_in(:)
+    call ccnf_get_vara(ncid,'snow_temperature',spos(1:1),npos(1:1),dat_in)
+    ! interpolate .... unfinished
+    call ccnf_get_vara(ncid,'snow_density',spos(1:1),npos(1:1),dat_in)
+    ! interpolate .... unfinished
+    deallocate( dat_in, dep_in )  
+    call ccnf_close(ncid)
+    isflag(:) = 1
+    snowd(:) = 10.
+    tggsn(:,:) = 240. ! fix with initial conditions
+    ssdn(:,:) = 300.
+    ssdnn(:) = 300.
+    smass(:,:) = 10.*ssdn(:,:)
+    tss(:) = tggsn(:,1)
+    tgg(:,:) = 240.
+  end if
+
 else
-  write(6,*) "Loading LSM initial conditions"
-  call ccnf_open(lsmforcing,ncid,ncstatus)
-  call ccnf_inq_dimlen(ncid,'nsnow_layer',slev)
-  spos = (/ 1, 1 /)
-  npos = (/ slev, 1 /) 
-  allocate( dat_in(slev), dep_in(slev) )
-  call ccnf_get_vara(ncid,'mid_layer_depth',spos(1:1),npos(1:1),dep_in)
-  write(6,*) "dep_in ",dep_in(:)
-  call ccnf_get_vara(ncid,'snow_temperature',spos(1:1),npos(1:1),dat_in)
-  ! interpolate .... unfinished
-  call ccnf_get_vara(ncid,'snow_density',spos(1:1),npos(1:1),dat_in)
-  ! interpolate .... unfinished
-  deallocate( dat_in, dep_in )  
-  call ccnf_close(ncid)
-  isflag(:) = 1
-  snowd(:) = 10.
-  tggsn(:,:) = 240. ! fix with initial conditions
-  ssdn(:,:) = 300.
-  ssdnn(:) = 300.
-  smass(:,:) = 10.*ssdn(:,:)
-  tss(:) = tggsn(:,1)
-  tgg(:,:) = 240.
+    
+  write(6,*) "ERROR: Unknown option for scm_mode ",trim(scm_mode)
+  stop
 end if
-  
 
 ! UPDATE GRAVITY WAVE DRAG DATA (lgwd)
 write(6,*) "Initialise gravity wave drag"
@@ -1377,7 +1489,7 @@ end if
 ! iaero=1 prescribed aerosol direct effect
 ! iaero=2 LDR prognostic aerosol (direct only with nrad=4, direct+indirect with nrad=5)
 select case(abs(iaero))
-case(2)
+  case(2)
     write(6,*) "Initialise aerosols"
     write(6,*) "ERROR: Prognostic aerosols not implemented in SCM"
     stop -1
@@ -1551,7 +1663,7 @@ write(6,*) "Finised initialisation"
 return
 end subroutine initialscm
     
-subroutine nudgescm(metforcing,fixtsurf)
+subroutine nudgescm(scm_mode,metforcing,fixtsurf)
 
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use cable_ccam
@@ -1570,9 +1682,9 @@ implicit none
 
 integer, save :: ncid
 integer, save :: iarch = 0
-integer, save :: nlev
-integer :: ncstatus, k
-integer, dimension(2) :: spos, npos
+integer, save :: nlev, ntimes
+integer :: ncstatus, k, l
+integer, dimension(4) :: spos, npos
 real, save :: time_a = -1.
 real, save :: time_b = -1.
 real :: time_ktau, x
@@ -1580,120 +1692,237 @@ real, dimension(1) :: tset
 real, dimension(:), allocatable, save :: t_force_a, q_force_a, u_force_a, v_force_a
 real, dimension(:), allocatable, save :: t_force_b, q_force_b, u_force_b, v_force_b
 real, dimension(:), allocatable, save :: new_in, dat_in, sig_in
+real, dimension(:), allocatable, save :: ug_file_a, vg_file_a, time_file, height_file, height_file_a, height_file_b
+real, dimension(:), allocatable, save :: ug_file_b, vg_file_b, ug_file, vg_file
+real, dimension(:), allocatable, save :: theta_adv, qv_adv, u_adv, v_adv
+real, dimension(:), allocatable, save :: theta_adv_a, theta_adv_b, qv_adv_a, qv_adv_b
+real, dimension(:), allocatable, save :: u_adv_a, u_adv_b, v_adv_a, v_adv_b 
 real, dimension(1) :: psurf_in
-real, dimension(kl) :: tadv, qadv, um, vm
+real, dimension(kl) :: uadv, vadv, tadv, qadv, um, vm, height_model
 real, save :: tsurf_a, tsurf_b
-character(len=*), intent(in) :: metforcing
+character(len=*), intent(in) :: scm_mode, metforcing
 logical, intent(in) :: fixtsurf
 
-if ( iarch==0 ) then
-  iarch = 1
-  write(6,*) "Starting MET forcing"
-  call ccnf_open(metforcing,ncid,ncstatus)
-  call ccnf_inq_dimlen(ncid,'lev',nlev)
-  spos(1:2) = (/ 1, iarch  /)
-  npos(1:2) = (/ nlev, 1 /)  
-  allocate( t_force_a(kl), q_force_a(kl), u_force_a(kl), v_force_a(kl) )
-  allocate( t_force_b(kl), q_force_b(kl), u_force_b(kl), v_force_b(kl) )
-  allocate( new_in(nlev), dat_in(nlev), sig_in(nlev) )
-  allocate( ug(kl), vg(kl), t_tend(kl), q_tend(kl) )
-  call ccnf_get_vara(ncid,'psurf',psurf_in(1:1))
-  call ccnf_get_vara(ncid,'pf',spos(1:1),npos(1:1),dat_in)
-  do k=1,nlev
-    sig_in(nlev-k+1) = dat_in(k)/psurf_in(1)
-  end do  
-  call ccnf_get_vara(ncid,'time',iarch,time_b)  
-  call ccnf_get_vara(ncid,'Tg',iarch,tsurf_b) 
-  call ccnf_get_vara(ncid,'Ug',spos,npos,new_in)
-  do k = 1,nlev
-    dat_in(nlev-k+1) = new_in(k)
-  end do
-  call vinterpolate(dat_in,sig_in,u_force_b,sig,nlev,kl)
-  call ccnf_get_vara(ncid,'Vg',spos,npos,new_in)
-  do k = 1,nlev
-    dat_in(nlev-k+1) = new_in(k)
-  end do
-  call vinterpolate(dat_in,sig_in,v_force_b,sig,nlev,kl)
-  call ccnf_get_vara(ncid,'hadvT',spos,npos,new_in)
-  do k = 1,nlev
-    dat_in(nlev-k+1) = new_in(k)
-  end do
-  call vinterpolate(dat_in,sig_in,t_force_b,sig,nlev,kl)
-  call ccnf_get_vara(ncid,'hadvQ',spos,npos,new_in)
-  do k = 1,nlev
-    dat_in(nlev-k+1) = new_in(k)
-  end do
-  call vinterpolate(dat_in,sig_in,q_force_b,sig,nlev,kl)
-  ug(:) = u_force_b(:)
-  vg(:) = v_force_b(:)
-  t_tend(:) = t_force_b(:)
-  q_tend(:) = q_force_b(:)
-end if
-
 time_ktau = real(ktau)*dt
-if ( time_ktau>time_b ) then
-  write(6,*) "Updating MET forcing"  
-  iarch = iarch + 1
-  spos(1:2) = (/ 1, iarch  /)
-  npos(1:2) = (/ nlev, 1 /)  
-  time_a = time_b
-  tsurf_a = tsurf_b
-  t_force_a(:) = t_force_b(:)
-  q_force_a(:) = q_force_b(:)
-  u_force_a(:) = u_force_b(:)
-  v_force_a(:) = v_force_b(:)
-  call ccnf_get_vara(ncid,'time',iarch,time_b)  
-  call ccnf_get_vara(ncid,'Tg',iarch,tsurf_b) 
-  call ccnf_get_vara(ncid,'Ug',spos(1:2),npos(1:2),new_in)
-  do k = 1,nlev
-    dat_in(nlev-k+1) = new_in(k)
+
+if ( scm_mode=="sublime" ) then
+    
+  if ( iarch==0 ) then
+    iarch = 1  
+    allocate( ug(kl), vg(kl), t_tend(kl), q_tend(kl) )
+    
+    call ccnf_open(metforcing,ncid,ncstatus)
+    call ccnf_inq_dimlen(ncid,'force_layers',nlev)
+    
+    call ccnf_inq_dimlen(ncid,'time',ntimes)
+    
+    allocate( ug_file_b(nlev), vg_file_b(nlev), time_file(ntimes) )
+    allocate( ug_file_a(nlev), vg_file_a(nlev), ug_file(nlev), vg_file(nlev) )
+    allocate( theta_adv(nlev), qv_adv(nlev), u_adv(nlev), v_adv(nlev) )
+    allocate( theta_adv_a(nlev), theta_adv_b(nlev), qv_adv_a(nlev), qv_adv_b(nlev) )
+    allocate( u_adv_a(nlev), u_adv_b(nlev), v_adv_a(nlev), v_adv_b(nlev) )
+    allocate( height_file_a(nlev), height_file_b(nlev), height_file(nlev) )
+    
+    do l = 1,ntimes
+      time_file(l) = real(l-1)*3600.*(54./real(ntimes-1))
+    end do
+
+    spos(1:4) = (/ 1, 1, 1, iarch /)
+    npos(1:4) = (/ 1, 1, nlev, 1 /)
+    call ccnf_get_vara(ncid,'Forcing_height',spos,npos,height_file_b)
+    
+    ! geostropic winds
+    call ccnf_get_vara(ncid,'Ug',spos,npos,ug_file_b)
+    call ccnf_get_vara(ncid,'Vg',spos,npos,vg_file_b)
+
+    ! theta advection
+    call ccnf_get_vara(ncid,'Th_advection',spos,npos,theta_adv_b)
+    
+    ! water vapor mixing ratio advection
+    call ccnf_get_vara(ncid,'Qv_advection',spos,npos,qv_adv_b)
+    
+    ! momentum advection
+    call ccnf_get_vara(ncid,'U_advection',spos,npos,u_adv_b)
+    call ccnf_get_vara(ncid,'V_advection',spos,npos,v_adv_b)
+    
+  end if
+  
+  if ( time_ktau>time_b ) then
+    write(6,*) "Updating MET forcing"  
+    iarch = iarch + 1
+    time_a = time_file(iarch-1)
+    time_b = time_file(iarch)
+    
+    height_file_a = height_file_b
+    spos(1:4) = (/ 1, 1, 1, iarch /)
+    npos(1:4) = (/ 1, 1, nlev, 1 /)
+    call ccnf_get_vara(ncid,'Forcing_height',spos,npos,height_file_b)
+
+    ug_file_a = ug_file_b
+    call ccnf_get_vara(ncid,'Ug',spos,npos,ug_file_b)
+    vg_file_a = vg_file_b
+    call ccnf_get_vara(ncid,'Vg',spos,npos,vg_file_b)
+    theta_adv_a = theta_adv_b
+    call ccnf_get_vara(ncid,'Th_advection',spos,npos,theta_adv_b)
+    qv_adv_a = qv_adv_b
+    call ccnf_get_vara(ncid,'Qv_advection',spos,npos,qv_adv_b)    
+    u_adv_a = u_adv_b    
+    call ccnf_get_vara(ncid,'U_advection',spos,npos,u_adv_b)
+    v_adv_a = v_adv_b
+    call ccnf_get_vara(ncid,'V_advection',spos,npos,v_adv_b)
+    
+  end if
+
+  height_model(1) = bet(1)*t(1,1)
+  do k = 2,kl
+    height_model(k) = height_model(k-1) + bet(k)*t(1,k) + betm(k)*t(1,k-1)
   end do
-  call vinterpolate(dat_in,sig_in,u_force_b,sig,nlev,kl)
-  call ccnf_get_vara(ncid,'Vg',spos(1:2),npos(1:2),new_in)
-  do k = 1,nlev
-    dat_in(nlev-k+1) = new_in(k)
-  end do
-  call vinterpolate(dat_in,sig_in,v_force_b,sig,nlev,kl)
-  call ccnf_get_vara(ncid,'hadvT',spos(1:2),npos(1:2),new_in)
-  do k = 1,nlev
-    dat_in(nlev-k+1) = new_in(k)
-  end do
-  call vinterpolate(dat_in,sig_in,t_force_b,sig,nlev,kl)
-  call ccnf_get_vara(ncid,'hadvQ',spos(1:2),npos(1:2),new_in)
-  do k = 1,nlev
-    dat_in(nlev-k+1) = new_in(k)
-  end do
-  call vinterpolate(dat_in,sig_in,q_force_b,sig,nlev,kl)
+    
+  x = (time_ktau - time_a)/(time_b-time_a)
+  height_file(:) = (1.-x)*height_file_a(:) + x*height_file_b(:)
+  ug_file(:) = (1.-x)*ug_file_a(:) + x*ug_file_b(:)
+  vg_file(:) = (1.-x)*vg_file_a(:) + x*vg_file_b(:)
+  theta_adv(:) = (1.-x)*theta_adv_a(:) + x*theta_adv_b(:)
+  qv_adv(:) = (1.-x)*qv_adv_a(:) + x*qv_adv_b(:)
+  u_adv(:) = (1.-x)*u_adv_a(:) + x*u_adv_b(:)
+  v_adv(:) = (1.-x)*v_adv_a(:) + x*v_adv_b(:)
+  
+  call vinterp2m(height_file,height_model,ug_file,ug,nlev,kl)
+  call vinterp2m(height_file,height_model,vg_file,vg,nlev,kl)
+  call vinterp2m(height_file,height_model,u_adv,uadv,nlev,kl)
+  call vinterp2m(height_file,height_model,v_adv,vadv,nlev,kl)
+  call vinterp2m(height_file,height_model,theta_adv,tadv,nlev,kl)
+  call vinterp2m(height_file,height_model,qv_adv,qadv,nlev,kl)
+  do k = 1,kl
+    tadv(k) = tadv(k)*(1.e5/(sig(k)*ps(1)))**(-rdry/cp) ! convert from potential temperature to temperature
+  end do  
+  
+elseif ( scm_mode=="gabls4" ) then
+    
+  uadv(:) = 0.
+  vadv(:) = 0.
+    
+  if ( iarch==0 ) then
+    iarch = 1
+    write(6,*) "Starting MET forcing"
+    call ccnf_open(metforcing,ncid,ncstatus)
+    call ccnf_inq_dimlen(ncid,'lev',nlev)
+    spos(1:2) = (/ 1, iarch  /)
+    npos(1:2) = (/ nlev, 1 /)  
+    allocate( t_force_a(kl), q_force_a(kl), u_force_a(kl), v_force_a(kl) )
+    allocate( t_force_b(kl), q_force_b(kl), u_force_b(kl), v_force_b(kl) )
+    allocate( new_in(nlev), dat_in(nlev), sig_in(nlev) )
+    allocate( ug(kl), vg(kl), t_tend(kl), q_tend(kl) )
+    call ccnf_get_vara(ncid,'psurf',psurf_in(1:1))
+    call ccnf_get_vara(ncid,'pf',spos(1:1),npos(1:1),dat_in)
+    do k=1,nlev
+      sig_in(nlev-k+1) = dat_in(k)/psurf_in(1)
+    end do  
+    call ccnf_get_vara(ncid,'time',iarch,time_b)  
+    call ccnf_get_vara(ncid,'Tg',iarch,tsurf_b) 
+    call ccnf_get_vara(ncid,'Ug',spos,npos,new_in)
+    do k = 1,nlev
+      dat_in(nlev-k+1) = new_in(k)
+    end do
+    call vinterpolate(dat_in,sig_in,u_force_b,sig,nlev,kl)
+    call ccnf_get_vara(ncid,'Vg',spos,npos,new_in)
+    do k = 1,nlev
+      dat_in(nlev-k+1) = new_in(k)
+    end do
+    call vinterpolate(dat_in,sig_in,v_force_b,sig,nlev,kl)
+    call ccnf_get_vara(ncid,'hadvT',spos,npos,new_in)
+    do k = 1,nlev
+      dat_in(nlev-k+1) = new_in(k)
+    end do
+    call vinterpolate(dat_in,sig_in,t_force_b,sig,nlev,kl)
+    call ccnf_get_vara(ncid,'hadvQ',spos,npos,new_in)
+    do k = 1,nlev
+      dat_in(nlev-k+1) = new_in(k)
+    end do
+    call vinterpolate(dat_in,sig_in,q_force_b,sig,nlev,kl)
+    ug(:) = u_force_b(:)
+    vg(:) = v_force_b(:)
+    t_tend(:) = t_force_b(:)
+    q_tend(:) = q_force_b(:)
+  end if
+
+  if ( time_ktau>time_b ) then
+    write(6,*) "Updating MET forcing"  
+    iarch = iarch + 1
+    spos(1:2) = (/ 1, iarch  /)
+    npos(1:2) = (/ nlev, 1 /)  
+    time_a = time_b
+    tsurf_a = tsurf_b
+    t_force_a(:) = t_force_b(:)
+    q_force_a(:) = q_force_b(:)
+    u_force_a(:) = u_force_b(:)
+    v_force_a(:) = v_force_b(:)
+    call ccnf_get_vara(ncid,'time',iarch,time_b)  
+    call ccnf_get_vara(ncid,'Tg',iarch,tsurf_b) 
+    call ccnf_get_vara(ncid,'Ug',spos(1:2),npos(1:2),new_in)
+    do k = 1,nlev
+      dat_in(nlev-k+1) = new_in(k)
+    end do
+    call vinterpolate(dat_in,sig_in,u_force_b,sig,nlev,kl)
+    call ccnf_get_vara(ncid,'Vg',spos(1:2),npos(1:2),new_in)
+    do k = 1,nlev
+      dat_in(nlev-k+1) = new_in(k)
+    end do
+    call vinterpolate(dat_in,sig_in,v_force_b,sig,nlev,kl)
+    call ccnf_get_vara(ncid,'hadvT',spos(1:2),npos(1:2),new_in)
+    do k = 1,nlev
+      dat_in(nlev-k+1) = new_in(k)
+    end do
+    call vinterpolate(dat_in,sig_in,t_force_b,sig,nlev,kl)
+    call ccnf_get_vara(ncid,'hadvQ',spos(1:2),npos(1:2),new_in)
+    do k = 1,nlev
+      dat_in(nlev-k+1) = new_in(k)
+    end do
+    call vinterpolate(dat_in,sig_in,q_force_b,sig,nlev,kl)
+  end if
+
+  if ( ktau>0 ) then
+    x = (time_ktau - time_a)/(time_b-time_a)
+    ug(:) = (1.-x)*u_force_a(:) + x*u_force_b(:)
+    vg(:) = (1.-x)*v_force_a(:) + x*v_force_b(:)
+    tadv(:) = (1.-x)*t_force_a(:) + x*t_force_b(:)
+    qadv(:) = (1.-x)*q_force_a(:) + x*q_force_b(:)
+
+    t_tend(:) = tadv(:)
+    q_tend(:) = qadv(:)
+
+    if ( fixtsurf ) then
+      tset(:) = (1.-x)*tsurf_a + x*tsurf_b
+      tggsn(:,:) = tset(1)
+      tss(:) = tset(1)
+      tgg(:,:) = tset(1)
+      if (nsib==6.or.nsib==7) then
+        call cablesettemp(tset)
+      end if
+    end if
+  end if
+
+else
+    
+  write(6,*) "ERROR: Invalid option for scm_mode in nudging ",trim(scm_mode)
+  stop
+  
 end if
 
 if ( ktau>0 ) then
-  x = (time_ktau - time_a)/(time_b-time_a)
-  ug(:) = (1.-x)*u_force_a(:) + x*u_force_b(:)
-  vg(:) = (1.-x)*v_force_a(:) + x*v_force_b(:)
-  tadv(:) = (1.-x)*t_force_a(:) + x*t_force_b(:)
-  qadv(:) = (1.-x)*q_force_a(:) + x*q_force_b(:)
-
+    
   um(:) = u(1,:)
   vm(:) = v(1,:)
   u(1,:) = (um(:)+dt*f(1)*(vm(:)-vg(:))+(dt*f(1))**2*ug(:))/(1.+(dt*f(1))**2)
   v(1,:) = (vm(:)-dt*f(1)*(um(:)-ug(:))+(dt*f(1))**2*vg(:))/(1.+(dt*f(1))**2)
 
-  t_tend(:) = tadv(:)
-  q_tend(:) = qadv(:)
-
+  u(1,:) = u(1,:) + dt*uadv(:)
+  v(1,:) = v(1,:) + dt*vadv(:)
   t(1,:) = t(1,:) + dt*tadv(:)
   qg(1,:) = qg(1,:) + dt*qadv(:)
-
-  if ( fixtsurf ) then
-    tset(:) = (1.-x)*tsurf_a + x*tsurf_b
-    tggsn(:,:) = tset(1)
-    tss(:) = tset(1)
-    tgg(:,:) = tset(1)
-    if (nsib==6.or.nsib==7) then
-      call cablesettemp(tset)
-    end if
-  end if
+    
 end if
+
 
 return
 end subroutine nudgescm
@@ -2990,6 +3219,38 @@ end do
 return
 end subroutine vinterpolate
 
+subroutine vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+
+implicit none
+
+integer, intent(in) :: nlev, kl
+integer :: k, kin
+real x
+real, dimension(nlev), intent(in) :: height_in
+real, dimension(nlev), intent(in) :: dat_in
+real, dimension(kl), intent(in) :: height_model
+real, dimension(kl), intent(out) :: datout
+
+do k = 1,kl
+  if ( height_model(k)<=height_in(1) ) then
+    ! extrapolate
+    datout(k) = dat_in(1)
+  elseif ( height_model(k)>=height_in(nlev) ) then
+    ! extrapolate
+    datout(k) = dat_in(nlev)
+  else
+    ! interpolate
+    do kin = 2,nlev
+      if ( height_model(k)<height_in(kin) ) exit
+    end do
+    x = (height_model(k)-height_in(kin-1))/(height_in(kin)-height_in(kin-1))
+    datout(k) = (1.-x)*dat_in(kin-1) + x*dat_in(kin)
+  end if
+end do
+
+return
+end subroutine vinterp2m
+    
 subroutine finishbanner
 
 implicit none
