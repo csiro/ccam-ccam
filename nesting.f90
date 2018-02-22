@@ -2703,6 +2703,10 @@ integer, dimension(0:3) :: maps
 integer, dimension(0:3) :: astr,bstr,cstr
 logical, dimension(0:nproc-1) :: lproc
 logical, save :: firstcall = .true.
+#ifdef nompiget
+logical, dimension(:,:), allocatable :: lproc_g
+logical, dimension(0:nproc-1) :: lproc_t
+#endif
 
 if ( .not.firstcall ) return
 firstcall = .false.
@@ -2770,14 +2774,37 @@ end do
 ! specify required RMA windows from the list of processor ranks in specmap
 ! cc_mpi employs specmap when calling gathermap
 ncount = count(lproc)
-allocate(specmap(ncount))
+allocate(specmap_recv(ncount))
 ncount = 0
 do iproc = 0,nproc-1
   if ( lproc(iproc) ) then
     ncount = ncount + 1
-    specmap(ncount) = iproc
+    specmap_recv(ncount) = iproc
   end if
 end do
+
+#ifdef nompiget
+! Construct a map of processes that need this file
+if ( myid==0 ) then
+  allocate( lproc_g(0:nproc-1,0:nproc-1) )
+else
+  allocate( lproc_g(0,0) )
+end if  
+call ccmpi_gatherx(lproc_g,lproc,0,comm_world)
+lproc_g = transpose( lproc_g )
+call ccmpi_scatterx(lproc_g,lproc_t,0,comm_world)
+deallocate( lproc_g )  
+ncount = count(lproc_t(0:nproc-1))
+allocate( specmap_send(ncount) )
+ncount = 0
+do iproc = 0,nproc-1
+  if ( lproc_t(iproc) ) then
+    ncount = ncount + 1
+    specmap_send(ncount) = iproc
+  end if
+end do
+#endif
+
       
 ! Include final filter pass before allocating global sparse arrays
 do ppass = pprocn,pprocx

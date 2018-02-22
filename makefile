@@ -47,7 +47,7 @@ endif
 # CRAY compiler options
 ifeq ($(CRAY),yes)
 FC = ftn
-FCSCM = ftn
+FCSCM = ftn -h noomp -Dusenc_mod -Dnompiget
 FFLAGS =
 PPFLAG90 = -eZ
 PPFLAG77 = -eZ
