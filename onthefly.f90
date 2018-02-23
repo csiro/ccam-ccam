@@ -542,7 +542,6 @@ if ( newfile ) then
           depth_hl_yo = (al_o*y_o*y_o*y_o+bt_o*y_o)/mxd_o ! ii+1 is for half level ii+0.5
           gosig_in(k) = 0.5*(depth_hl_xo+depth_hl_yo)
         end do
-        print *,"gosig_in ",gosig_in
       else
         call ccnf_get_vara(ncid,idv,1,ok,gosig_in)
       end if  
@@ -1680,6 +1679,7 @@ if ( nested/=1 ) then
     end if
     call gethist4a('seasalt1',ssn(:,:,1),5)
     call gethist4a('seasalt2',ssn(:,:,2),5)
+    ssn = max( ssn, 0. ) ! patch for rounding error with cray compiler
   end if
   
   ! -----------------------------------------------------------------
@@ -1849,14 +1849,9 @@ integer mm, n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(pil*pjl*pnpan,fncount,size(filemap)) :: abuf
+real, dimension(pil*pjl*pnpan,fncount,size(filemap_recv)) :: abuf
 
 call START_LOG(otf_ints1_begin)
-
-if ( .not.allocated(filemap) ) then
-  write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
-  call ccmpi_abort(-1)
-end if
 
 ! This version uses MPI RMA to distribute data
 call ccmpi_filewinget(abuf,s)
@@ -1936,7 +1931,7 @@ integer mm, k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(pil*pjl*pnpan,fncount,size(filemap),kblock) :: abuf
+real, dimension(pil*pjl*pnpan,fncount,size(filemap_recv),kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
 
@@ -1953,11 +1948,6 @@ end if
 
 if ( size(sout,1)<ifull ) then
   write(6,*) "ERROR: sout array is too small in doints4_nogather"
-  call ccmpi_abort(-1)
-end if
-
-if ( .not.allocated(filemap) ) then
-  write(6,*) "ERROR: Mapping for RMA file windows has not been defined"
   call ccmpi_abort(-1)
 end if
 
@@ -2222,11 +2212,6 @@ logical, dimension(pil) :: mask_sum
 
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
-  
-if ( .not.allocated(filemap) ) then
-  write(6,*) "ERROR: filemap must be allocated to use fill_cc4_nogather"
-  call ccmpi_abort(-1)
-end if
 
 where ( land_a(1:fwsize) )
   a_io(1:fwsize) = value
@@ -2552,11 +2537,6 @@ kx = size(a_io,2)
 
 if ( size(a_io,1)<fwsize ) then
   write(6,*) "ERROR: a_io is too small in fill_cc4_nogather"
-  call ccmpi_abort(-1)
-end if
-
-if ( .not.allocated(filemap) ) then
-  write(6,*) "ERROR: filemap must be allocated to use fill_cc4_nogather"
   call ccmpi_abort(-1)
 end if
 
@@ -3541,11 +3521,17 @@ implicit none
 
 integer i, n
 integer mm, iq, idel, jdel
-integer ncount, iproc, rproc
+integer ncount, iproc
 logical, dimension(0:nproc-1) :: lproc
+#ifdef nompiget
+logical, dimension(:,:), allocatable :: lproc_g
+#endif
 
-if ( allocated(filemap) ) then
-  deallocate( filemap )
+if ( allocated(filemap_recv) ) then
+  deallocate( filemap_recv )
+#ifdef nompiget
+  deallocate( filemap_send )
+#endif
 end if
 if ( allocated(axs_w) ) then
   deallocate( axs_w, ays_w, azs_w )
@@ -3582,18 +3568,38 @@ do mm = 1,m_fly
   end do
 end do
 
-! Construct a map of files to be accessed by MPI_Get
+! Construct a map of files to be accessed by this process
 ncount = count(lproc(0:nproc-1))
-allocate( filemap(ncount) )
+allocate( filemap_recv(ncount) )
 ncount = 0
 do iproc = 0,nproc-1
-  ! stagger reading of windows - does this make any difference with active RMA?
-  rproc = modulo( myid+iproc, nproc )
-  if ( lproc(rproc) ) then
+  if ( lproc(iproc) ) then
     ncount = ncount + 1
-    filemap(ncount) = rproc
+    filemap_recv(ncount) = iproc
   end if
 end do
+
+#ifdef nompiget
+! Construct a map of processes that need this file
+if ( myid==0 ) then
+  allocate( lproc_g(0:nproc-1,0:nproc-1) )
+else
+  allocate( lproc_g(0,0) )
+end if  
+call ccmpi_gatherx(lproc_g,lproc,0,comm_world)
+lproc_g = transpose( lproc_g )
+call ccmpi_scatterx(lproc_g,lproc,0,comm_world)
+deallocate( lproc_g )  
+ncount = count(lproc(0:nproc-1))
+allocate( filemap_send(ncount) )
+ncount = 0
+do iproc = 0,nproc-1
+  if ( lproc(iproc) ) then
+    ncount = ncount + 1
+    filemap_send(ncount) = iproc
+  end if
+end do
+#endif
 
 ! Define halo indices for ccmpi_filebounds
 if ( myid==0 ) then

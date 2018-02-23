@@ -463,7 +463,7 @@ integer ii,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart, iq
 integer, dimension(ifull,wlev) :: nface
-real maxglobseta,maxglobip
+real maxglobseta,maxglobip,hdt
 real alph_p
 real, dimension(2) :: delpos, delneg
 real, dimension(ifull+iextra) :: neta,pice,imass,xodum
@@ -521,8 +521,6 @@ real(kind=8), dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
-integer pos(2)
-
 ! sigma = (z+neta)/(D+neta)
 
 ! We use a modified form of JLM's trick where:
@@ -537,6 +535,9 @@ integer pos(2)
 ! atmospheric dynamical core.
 
 call START_LOG(watermisc_begin)
+
+! Half time-step
+hdt = 0.5*dt
 
 ! Define land/sea mask
 wtr(:) = ee(:)>0.5
@@ -878,17 +879,17 @@ do ii = 1,wlev
   !tav(:,ii) = grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/(rhov+wrtrho)        &
   !           +((rhobarv+wrtrho)/(rhov+wrtrho)+1.-gosig(ii))*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds) &
   !           + dpsdyv/(rhov+wrtrho) + grav*dttdyv
-    
-  !tau(:,ii) = grav*(gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii)/wrtrho        &
-  !           +(2.-gosig(ii))*difneta_e) + dpsdxu/wrtrho + grav*dttdxu ! staggered
-  !tav(:,ii) = grav*(gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/wrtrho        &
-  !           +(2.-gosig(ii))*difneta_n) + dpsdyv/wrtrho + grav*dttdyv
+
+  !tau(:,ii) = grav*gosig(ii)*max(oeu(1:ifull)+ddu(1:ifull),0.)*drhobardxu(:,ii)/wrtrho        &
+  !           +grav*(2.-gosig(ii))*difneta_e + dpsdxu/wrtrho + grav*dttdxu ! staggered
+  !tav(:,ii) = grav*gosig(ii)*max(oev(1:ifull)+ddv(1:ifull),0.)*drhobardyv(:,ii)/wrtrho        &
+  !           +grav*(2.-gosig(ii))*difneta_n + dpsdyv/wrtrho + grav*dttdyv
   
   ! MJT suggestion (neglect oeu and oev terms)
-  tau(:,ii) = grav*(gosig(ii)*ddu(1:ifull)*drhobardxu(:,ii)/wrtrho        &
-             +(2.-gosig(ii))*difneta_e) + dpsdxu/wrtrho + grav*dttdxu ! staggered
-  tav(:,ii) = grav*(gosig(ii)*ddv(1:ifull)*drhobardyv(:,ii)/wrtrho        &
-             +(2.-gosig(ii))*difneta_n) + dpsdyv/wrtrho + grav*dttdyv
+  tau(:,ii) = grav*gosig(ii)*ddu(1:ifull)*drhobardxu(:,ii)/wrtrho        &
+             + dpsdxu/wrtrho + grav*dttdxu + grav*difneta_e !+ grav*(1.-gosig(ii))*difneta_e ! staggered
+  tav(:,ii) = grav*gosig(ii)*ddv(1:ifull)*drhobardyv(:,ii)/wrtrho        &
+             + dpsdyv/wrtrho + grav*dttdyv + grav*difneta_n !+ grav*(1.-gosig(ii))*difneta_n 
 end do
 ! ice
 !tau(:,wlev+1)=grav*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
@@ -908,24 +909,11 @@ snv(1:ifull) = i_v !-dt*ttav(:,wlev+1)
 
 call END_LOG(waterhadv_end)
 
-#ifdef mlodebug
-if ( any(abs(uau(1:ifull,:))>20.) .or. any(abs(uav(1:ifull,:))>20.) ) then
-  write(6,*) "ERROR: current out-of-range before vertical advection 1"
-  write(6,*) "u ",minval(uau(1:ifull,:)),maxval(uau(1:ifull,:))
-  write(6,*) "v ",minval(uav(1:ifull,:)),maxval(uav(1:ifull,:))
-  pos=maxloc(uau)
-  print *,"ttau,tau ",ttau(pos(1),pos(2)),tau(pos(1),pos(2))
-  print *,"ddu,drhobardxu ",ddu(pos(1)),drhobardxu(pos(1),pos(2))
-  print *,"difneta_e,dpsdxu ",difneta_e(pos(1)),dpsdxu(pos(1))
-  print *,"dttdxu ",dttdxu(pos(1))
-  stop
-end if
-#endif
 
 call START_LOG(watervadv_begin)
 
 ! Vertical advection (first call for 0.5*dt)
-call mlovadv(0.5*dt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),1)
+call mlovadv(hdt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),1)
 
 #ifdef mlodebug
 if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
@@ -1010,7 +998,7 @@ call START_LOG(watervadv_begin)
 ! Vertical advection (second call for 0.5*dt)
 ! use explicit nw and depdum,dzdum from t=tau step (i.e., following JLM in CCAM atmospheric dynamics)
 ! Could use nuh and nvh to estimate nw at t+1/2, but also require an estimate of neta at t+1/2
-call mlovadv(0.5*dt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),2)
+call mlovadv(hdt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),2)
 
 #ifdef mlodebug
 if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
@@ -1131,10 +1119,10 @@ do ii=1,wlev
   cv(:) = -(1.+ocneps)*0.5*dt*bv(:) ! fv now included in dpdx
 
   ! Note pressure gradients are along constant z surfaces
-  !dppdxu=dpsdxu+grav*sig*(etau+ddu)*drhobardxu|neta=0+grav*(rhobaru+(1-sig)*rhou)*detadxu
-  !dppdyu=dpsdyu+grav*sig*(etau+ddu)*drhobardyu|neta=0+grav*(rhobaru+(1-sig)*rhou)*detadyu
-  !dppdxv=dpsdxv+grav*sig*(etav+ddv)*drhobardxv|neta=0+grav*(rhobarv+(1-sig)*rhov)*detadxv
-  !dppdyv=dpsdyv+grav*sig*(etav+ddv)*drhobardyv|neta=0+grav*(rhobarv+(1-sig)*rhov)*detadyv
+  !dppdxu=dpsdxu+grav*sig*(etau+ddu)*drhobardxu|neta=0+grav*rhou*detadxu
+  !dppdyu=dpsdyu+grav*sig*(etau+ddu)*drhobardyu|neta=0+grav*rhou*detadyu
+  !dppdxv=dpsdxv+grav*sig*(etav+ddv)*drhobardxv|neta=0+grav*rhov*detadxv
+  !dppdyv=dpsdyv+grav*sig*(etav+ddv)*drhobardyv|neta=0+grav*rhov*detadyv
 
   ! Create arrays for u and v at t+1 in terms of neta gradients
     
@@ -1142,15 +1130,15 @@ do ii=1,wlev
   !nv=kkv+ppv+oov*etav+llv*(etav+ddv)+mmv*detadyv+nnv*detadxv (staggered)
 
   llu(:,ii) = grav*gosig(ii)*(bu*drhobardxu(:,ii)+cu*drhobardyu(:,ii))/wrtrho ! drhobardyu contains dfdyu term
-  mmu(:,ii) = bu*grav*(2.-gosig(ii))
-  nnu(:,ii) = cu*grav*(2.-gosig(ii))
+  mmu(:,ii) = bu*grav !+ bu*grav*(1.-gosig(ii))
+  nnu(:,ii) = cu*grav !+ cu*grav*(1.-gosig(ii))
   oou(:,ii) = -nnu(:,ii)*dfdyu
   kku(:,ii) = au+bu*(dpsdxu/wrtrho+grav*dttdxu)-cu*dfdyu*(piceu/wrtrho+grav*tideu)
   ppu(:,ii) = cu*(dpsdyu/wrtrho+grav*dttdyu)
 
   llv(:,ii) = grav*gosig(ii)*(bv*drhobardyv(:,ii)+cv*drhobardxv(:,ii))/wrtrho ! drhobardxv contains dfdxv term
-  mmv(:,ii) = bv*grav*(2.-gosig(ii))
-  nnv(:,ii) = cv*grav*(2.-gosig(ii))
+  mmv(:,ii) = bv*grav !+ bv*grav*(1.-gosig(ii))
+  nnv(:,ii) = cv*grav !+ cv*grav*(1.-gosig(ii))
   oov(:,ii) = -nnv(:,ii)*dfdxv
   kkv(:,ii) = av+bv*(dpsdyv/wrtrho+grav*dttdyv)-cv*dfdxv*(picev/wrtrho+grav*tidev)
   ppv(:,ii) = cv*(dpsdxv/wrtrho+grav*dttdxv)
@@ -5009,7 +4997,7 @@ real, dimension(ifull) :: f_in,f_ine,f_ie,f_is,f_ise,f_ien,f_iw,f_iwn
 
 ! drhobar/dx = drhobar/dx|neta=0 + (1-sigma) / (sigma*(D+neta)) rho dneta/dx
 !
-! dP/dx = g ( rhobar + (1-sigma) rho ) dneta/dx + g sigma (D+neta) drhobar/dx|neta=0
+! dP/dx = g rho_0 dneta/dx + g sigma (D+neta) drhobar/dx|neta=0
 
 do ii = 1,wlev
   dd_i(:,ii) = gosig(ii)*dd(:)

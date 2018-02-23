@@ -27,10 +27,12 @@ private
 public rsmin,sigmf,tgf,sigmu
 public ivegt,isoilm,isoilm_in
 public climate_ivegt,climate_biome
+public climate_min20,climate_max20,climate_alpha20
 public nsibd_init,nsibd_end
 
 real, dimension(:), allocatable, save :: rsmin,tgf,sigmu
 real, dimension(:), allocatable, save :: sigmf
+real, dimension(:), allocatable, save :: climate_min20, climate_max20, climate_alpha20
 integer, dimension(:), allocatable, save :: ivegt,isoilm,isoilm_in
 integer, dimension(:), allocatable, save :: climate_ivegt,climate_biome
 
@@ -55,8 +57,12 @@ if (nsib==3.or.nsib==5) then
 end if
 if (cable_climate==1) then
   allocate(climate_ivegt(ifull),climate_biome(ifull))
+  allocate(climate_min20(ifull),climate_max20(ifull),climate_alpha20(ifull))
   climate_ivegt = 0
   climate_biome = 0
+  climate_min20 = 0.
+  climate_max20 = 0.
+  climate_alpha20 = 0.
 end if
 
 return
@@ -74,6 +80,7 @@ if (allocated(tgf)) then
 end if
 if (allocated(climate_ivegt)) then
   deallocate(climate_ivegt,climate_biome)
+  deallocate(climate_min20,climate_max20,climate_alpha20)
 end if
 
 return

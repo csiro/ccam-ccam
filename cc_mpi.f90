@@ -77,11 +77,17 @@ module cc_mpi
    integer, allocatable, dimension(:), save, private :: neighmap           ! map of processor to neighbour index
    integer, save, public :: neighnum                                       ! number of neighbours
    
+   integer(kind=4), allocatable, dimension(:), save, public ::              &
+      specmap_recv                                                         ! gather map recived for spectral filter
+#ifdef nompiget
+   integer(kind=4), allocatable, dimension(:), save, public ::              &
+      specmap_send                                                         ! gather map sent for spectral filter
+#else
    integer(kind=4), save, private :: localwin                              ! local window handle for spectral filter
-   integer(kind=4), allocatable, dimension(:), save, public :: specmap     ! gather map for spectral filter
+#endif
    integer, allocatable, dimension(:), save, public :: specmapext          ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
-   real, dimension(:,:), save, pointer, private :: specstore               ! window for gather map
+   real, dimension(:,:), save, allocatable, private :: specstore           ! window for gather map
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata
    end type globalpack_info
@@ -93,8 +99,14 @@ module cc_mpi
    integer, save, public :: fnproc, fnresid, fncount, mynproc              ! number and decomposition of input files
    integer, allocatable, dimension(:), save, public :: pnoff               ! file window panel offset
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
+   integer(kind=4), allocatable, dimension(:), save, public ::              &
+      filemap_recv                                                         ! file map received for onthefly
+#ifdef nompiget
+   integer(kind=4), allocatable, dimension(:), save, public ::              &
+      filemap_send                                                         ! file map sent for onthefly
+#else
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
-   integer(kind=4), allocatable, dimension(:), save, public :: filemap     ! file map for onthefly
+#endif
    real, dimension(:,:,:), save, pointer, private :: filestore             ! window for file map
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
@@ -192,6 +204,7 @@ module cc_mpi
       module procedure ccmpi_gatherx2r, ccmpi_gatherx3r, ccmpi_gatherx4r
       module procedure ccmpi_gatherx23r, ccmpi_gatherx34r, ccmpi_gatherx45r
       module procedure ccmpi_gatherx2i, ccmpi_gatherx3i
+      module procedure ccmpi_gatherx23l
    end interface
    interface ccmpi_gatherxr8
      module procedure ccmpi_gatherx2rr8, ccmpi_gatherx3rr8
@@ -199,6 +212,7 @@ module cc_mpi
    end interface
    interface ccmpi_scatterx
       module procedure ccmpi_scatterx2r, ccmpi_scatterx32r, ccmpi_scatterx3r
+      module procedure ccmpi_scatterx32l
    end interface
    interface ccmpi_allgatherx
       module procedure ccmpi_allgatherx2i, ccmpi_allgatherx2r
@@ -445,7 +459,6 @@ contains
       integer(kind=4) :: ierr
       integer(kind=4) :: colour, rank, lcommin, lcommout
       integer(kind=4) :: asize
-      integer(kind=4) :: info
       integer(kind=MPI_ADDRESS_KIND) :: wsize
       integer, dimension(ifull) :: colourmask
       integer, dimension(2) :: sshape
@@ -454,7 +467,6 @@ contains
       real, dimension(:,:), allocatable :: dumu, dumv
       real(kind=8), dimension(:,:), allocatable :: dumr8, dumr8_g
       logical(kind=4) :: ltrue
-      type(c_ptr) :: baseptr
 
       nreq = 0
       allocate( bnds(0:nproc-1) )
@@ -740,19 +752,23 @@ contains
       end if
       
       ! prep RMA windows for gathermap
-      call MPI_Type_size(ltype, asize, ierr)
+      
       sshape(:) = (/ ifull, kx /)
+      allocate( specstore(sshape(1),sshape(2)) )
+#ifndef nompiget
+      call MPI_Type_size(ltype, asize, ierr)
       wsize = asize*sshape(1)*sshape(2)
       lcommin = comm_world
       ! below is a more optimised version for MPI_Win_Create
-      call MPI_Info_create(info, ierr)
-      call MPI_Info_set(info, "no_locks", "true", ierr)
-      call MPI_Info_set(info, "same_size", "true", ierr)
-      call MPI_Info_set(info, "same_disp_unit", "true", ierr)
-      call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
-      call c_f_pointer(baseptr, specstore, sshape)
+      !call MPI_Info_create(info, ierr)
+      !call MPI_Info_set(info, "no_locks", "true", ierr)
+      !call MPI_Info_set(info, "same_size", "true", ierr)
+      !call MPI_Info_set(info, "same_disp_unit", "true", ierr)
+      !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
+      !call c_f_pointer(baseptr, specstore, sshape)
       call MPI_Win_Create(specstore, wsize, asize, MPI_INFO_NULL, lcommin, localwin, ierr)
-      call MPI_Info_free(info,ierr)
+      !call MPI_Info_free(info,ierr)
+#endif
       
    return
    end subroutine ccmpi_setup
@@ -2227,7 +2243,7 @@ contains
 
       integer, intent(in) :: kref
       real, dimension(ifull), intent(in) :: a
-      real, dimension(ifull,size(specmap)) :: abuf 
+      real, dimension(ifull,size(specmap_recv)) :: abuf 
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -2238,24 +2254,47 @@ contains
       integer :: ncount, w, iproc, n, iq
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
+#ifdef nompiget
+      integer(kind=4) :: lcomm
+      integer(kind=4) :: itag = 52
+      integer(kind=4), dimension(size(specmap_rec)+size(specmap_send)) :: i_req
+#endif
       
       call START_LOG(gatherrma_begin)
    
-      ncount = size(specmap)
+      ncount = size(specmap_recv)
       specstore(1:ifull,1) = a(1:ifull)
       lsize = ifull
       displ = 0
       assert = 0
       
+#ifdef nompiget
+      lcomm = comm_world
+      !     Set up the buffers to recv
+      nreq = 0
+      do w = 1,ncount
+         nreq  = nreq + 1
+         call MPI_IRecv( abuf(:,w), lsize, ltype, specmap_recv(w), itag, lcomm, i_req(nreq), ierr )
+      end do
+      !     Set up the buffers to send
+      do w = 1,size(specmap_send)
+         nreq  = nreq + 1
+         call MPI_ISend( specstore(:,1), lsize, ltype, specmap_send(w), itag, lcomm, i_req(nreq), ierr )
+      end do
+      call START_LOG(mpiwait_begin)
+      call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
+      call END_LOG(mpiwait_end)          
+#else
       call MPI_Win_fence(assert, localwin, ierr)
       do w = 1,ncount
-         call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
+         call MPI_Get(abuf(:,w), lsize, ltype, specmap_recv(w), displ, lsize, ltype, localwin, ierr)
       end do
       call MPI_Win_fence(assert, localwin, ierr)
+#endif
 
       if ( uniform_decomp ) then
          do w = 1,ncount
-            iproc = specmap(w)
+            iproc = specmap_recv(w)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
             ipak = ipoff/ipan
             jpak = jpoff/jpan
@@ -2268,7 +2307,7 @@ contains
          end do
       else
          do w = 1,ncount
-            iproc = specmap(w)
+            iproc = specmap_recv(w)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             ipak = ipoff/ipan
             jpak = jpoff/jpan
@@ -2289,7 +2328,7 @@ contains
 
       integer, intent(in) :: kref
       real, dimension(:,:), intent(in) :: a
-      real, dimension(ifull*size(a,2),size(specmap)) :: abuf 
+      real, dimension(ifull*size(a,2),size(specmap_recv)) :: abuf 
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -2300,11 +2339,16 @@ contains
       integer :: ncount, w, iproc, k, n, iq, kx
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
+#ifdef nompiget
+      integer(kind=4) :: lcomm
+      integer(kind=4) :: itag = 52
+      integer(kind=4), dimension(size(specmap_rec)+size(specmap_send)) :: i_req
+#endif
       
       call START_LOG(gatherrma_begin)
 
       kx = size(a,2)
-      ncount = size(specmap)
+      ncount = size(specmap_recv)
       
       if ( kx>size(specstore,2) ) then
          write(6,*) "ERROR: gathermap array is too large for window buffer"
@@ -2316,15 +2360,33 @@ contains
       displ = 0   
       assert = 0
       
+#ifdef nompiget
+      lcomm = comm_world
+      !     Set up the buffers to recv
+      nreq = 0
+      do w = 1,ncount
+         nreq  = nreq + 1
+         call MPI_IRecv( abuf(:,w), lsize, ltype, specmap_recv(w), itag, lcomm, i_req(nreq), ierr )
+      end do
+      !     Set up the buffers to send
+      do w = 1,size(specmap_send)
+         nreq  = nreq + 1
+         call MPI_ISend( specstore(:,:), lsize, ltype, specmap_send(w), itag, lcomm, i_req(nreq), ierr )
+      end do
+      call START_LOG(mpiwait_begin)
+      call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
+      call END_LOG(mpiwait_end)          
+#else
       call MPI_Win_fence(assert, localwin, ierr)
       do w = 1,ncount
-         call MPI_Get(abuf(:,w), lsize, ltype, specmap(w), displ, lsize, ltype, localwin, ierr)
+         call MPI_Get(abuf(:,w), lsize, ltype, specmap_recv(w), displ, lsize, ltype, localwin, ierr)
       end do
       call MPI_Win_fence(assert, localwin, ierr)
+#endif
 
       if ( uniform_decomp ) then
          do w = 1,ncount
-            iproc = specmap(w)
+            iproc = specmap_recv(w)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
             ipak = ipoff/ipan
             jpak = jpoff/jpan
@@ -2339,7 +2401,7 @@ contains
          end do
       else
          do w = 1,ncount
-            iproc = specmap(w)
+            iproc = specmap_recv(w)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             ipak = ipoff/ipan
             jpak = jpoff/jpan
@@ -8134,6 +8196,24 @@ contains
       
    end subroutine ccmpi_gatherx3i
    
+   subroutine ccmpi_gatherx23l(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      logical, dimension(:,:), intent(out) :: gdat
+      logical, dimension(:), intent(in) :: ldat
+
+      call START_LOG(gatherx_begin)
+
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Gather(ldat,lsize,MPI_LOGICAL,gdat,lsize,MPI_LOGICAL,lhost,lcomm,lerr)
+
+      call END_LOG(gatherx_end)
+      
+   end subroutine ccmpi_gatherx23l
+   
    subroutine ccmpi_gatherx2rr8(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
@@ -8297,6 +8377,29 @@ contains
       call END_LOG(scatterx_end)
       
    end subroutine ccmpi_scatterx3r
+   
+   subroutine ccmpi_scatterx32l(gdat,ldat,host,comm)
+   
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
+      logical, dimension(:,:), intent(in) :: gdat
+      logical, dimension(:), intent(out) :: ldat
+
+      call START_LOG(scatterx_begin)
+      
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+   
+      call END_LOG(scatterx_end)
+      
+   end subroutine ccmpi_scatterx32l
    
    subroutine ccmpi_allgatherx2i(gdat,ldat,comm)
    
@@ -8527,8 +8630,11 @@ contains
       integer(kind=4) :: lerr
       
       if ( myid<nproc ) then
+#ifndef nompiget
          call MPI_Win_free( localwin, lerr )
-         call MPI_Free_Mem( specstore, lerr )
+         !call MPI_Free_Mem( specstore, lerr )
+#endif
+         deallocate( specstore )
       end if
       call MPI_Barrier(MPI_COMM_WORLD, lerr)
       call MPI_Finalize(lerr)
@@ -8770,10 +8876,10 @@ contains
       integer :: w, n, ncount, iproc, ipak, jpak
       integer :: ipoff, jpoff, npoff
    
-      ncount = size(specmap)
+      ncount = size(specmap_recv)
       if ( uniform_decomp ) then
          do w = 1,ncount
-            iproc = specmap(w)
+            iproc = specmap_recv(w)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
             ipak = ipoff/ipan
             jpak = jpoff/jpan
@@ -8785,7 +8891,7 @@ contains
          end do
       else
          do w = 1,ncount
-            iproc = specmap(w)
+            iproc = specmap_recv(w)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             ipak = ipoff/ipan
             jpak = jpoff/jpan
@@ -9585,32 +9691,28 @@ contains
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%in(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%in(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = js_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%is(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%is(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = je_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%ie(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%ie(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jw_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%iw(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%iw(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   ! Note that the model only needs a limited set of the diagonal
@@ -9619,32 +9721,28 @@ contains
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%ine(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%ine(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jse_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%ise(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%ise(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jnw_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%inw(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%inw(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jsw_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%isw(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%isw(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                end do
@@ -9938,10 +10036,8 @@ contains
             allocate( mg_bnds(sproc,g)%unpack_list(mg_bnds(sproc,g)%rlenx) )
             mg_bnds(sproc,g)%unpack_list(1:mg_bnds(sproc,g)%rlenx) = dumi(1:mg_bnds(sproc,g)%rlenx)
             do iq = 1,mg_bnds(sproc,g)%slenx
-               ! send_list(iq) is global point index, i, j, n are local
-               iqq = mg_bnds(sproc,g)%send_list(iq)
-               call indv_mpix(iqq,i,j,n,mil_g,mioff,mjoff,noff)
-               mg_bnds(sproc,g)%send_list(iq) = indx(i,j,n-1,mipan,mjpan)
+               mg_bnds(sproc,g)%send_list(iq) =  &
+                  indx_indv(mg_bnds(sproc,g)%send_list(iq),mil_g,mipan,mjpan,mioff,mjoff,noff)
             end do
          end do
          deallocate( dumi )
@@ -10064,27 +10160,23 @@ contains
    return
    end subroutine mgcheck_bnds_alloc
 
-   pure subroutine indv_mpix(iq, i, j, n, mil_g, mioff, mjoff, mnoff)
+   pure function indx_indv(iq_g, mil_g, mipan, mjpan, mioff, mjoff, mnoff) result(iq)
+      ! converts a global index to a local index
+      integer, intent(in) :: iq_g, mil_g, mipan, mjpan, mioff, mjoff, mnoff
+      integer iq
+      integer i, j, n
+      
+      n = (iq_g - 1)/(mil_g*mil_g)
+      j = 1 + (iq_g - n*mil_g*mil_g - 1)/mil_g
+      i = iq_g - (j - 1)*mil_g - n*mil_g*mil_g
 
-      integer, intent(in) :: iq, mil_g, mnoff
-      integer, intent(in) :: mioff, mjoff
-      integer, intent(out) :: i
-      integer, intent(out) :: j
-      integer, intent(out) :: n
-
-      ! Calculate local i, j, n from global iq
-
-      ! Global i, j, n
-      n = (iq - 1)/(mil_g*mil_g)
-      j = 1 + (iq - n*mil_g*mil_g - 1)/mil_g
-      i = iq - (j - 1)*mil_g - n*mil_g*mil_g
-
-      ! Reduced to values on my processor
       n = n + mnoff  
       j = j - mjoff
       i = i - mioff
-
-   end subroutine indv_mpix
+      
+      iq = i + (j-1)*mipan + (n-1)*mipan*mjpan
+   
+   end function indx_indv
 
    pure function mg_fproc_1(g,i,j,n) result(mg_fpout)
      ! locates processor that owns a global grid point
@@ -10178,30 +10270,31 @@ contains
       integer, intent(in) :: kx
       integer, dimension(3) :: sshape
       integer(kind=4) :: asize, ierr, lcomm
-      integer(kind=4) :: info
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: wsize
-      type(c_ptr) :: baseptr
       
-      call MPI_Type_size(ltype, asize, ierr)
       if ( myid < fnresid ) then 
-        sshape(:) = (/ pil*pjl*pnpan, fncount, kx /)  
+         sshape(:) = (/ pil*pjl*pnpan, fncount, kx /)  
       else
-        sshape(:) = (/ 1, 1, 1 /)
+         sshape(:) = (/ 1, 1, 1 /)
       end if
+      allocate( filestore(sshape(1),sshape(2),sshape(3)) )
+#ifndef nompiget
       lcomm = comm_world
+      call MPI_Type_size(ltype, asize, ierr)
       wsize = asize*sshape(1)*sshape(2)*sshape(3)
-      call MPI_Info_create(info, ierr)
-      call MPI_Info_set(info, "no_locks", "true", ierr)
-      call MPI_Info_set(info, "same_disp_unit", "true", ierr)
-      call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
-      call c_f_pointer(baseptr, filestore, sshape)
+      !call MPI_Info_create(info, ierr)
+      !call MPI_Info_set(info, "no_locks", "true", ierr)
+      !call MPI_Info_set(info, "same_disp_unit", "true", ierr)
+      !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
+      !call c_f_pointer(baseptr, filestore, sshape)
       call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
-      call MPI_Info_free(info,ierr)
+      !call MPI_Info_free(info,ierr)
+#endif
    
    end subroutine ccmpi_filewincreate
    
@@ -10209,8 +10302,11 @@ contains
    
       integer(kind=4) ierr
    
+#ifndef nompiget
       call MPI_Win_Free( filewin, ierr )
-      call MPI_Free_Mem( filestore, ierr )
+      !call MPI_Free_Mem( filestore, ierr )
+#endif
+      deallocate( filestore )
    
    end subroutine ccmpi_filewinfree
    
@@ -10226,11 +10322,16 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:), intent(in) :: sinp
-      real, dimension(pil*pjl*pnpan,fncount,size(filemap)), intent(out) :: abuf 
+      real, dimension(pil*pjl*pnpan,fncount,size(filemap_recv)), intent(out) :: abuf 
+#ifdef nompiget
+      integer(kind=4) :: lcomm
+      integer(kind=4) :: itag = 50
+      integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req
+#endif
    
       call START_LOG(gatherrma_begin)
    
-      ncount = size(filemap)
+      ncount = size(filemap_recv)
       nlen = pil*pjl*pnpan
       lsize = nlen*fncount
       displ = 0
@@ -10243,12 +10344,30 @@ contains
          end do   
       end if
  
+#ifdef nompiget
+      lcomm = comm_world
+      !     Set up the buffers to recv
+      nreq = 0
+      do w = 1,ncount
+         nreq  = nreq + 1
+         call MPI_IRecv( abuf(:,:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
+      end do
+      !     Set up the buffers to send
+      do w = 1,size(filemap_send)
+         nreq  = nreq + 1
+         call MPI_ISend( filestore(:,:,1), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
+      end do
+      call START_LOG(mpiwait_begin)
+      call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
+      call END_LOG(mpiwait_end)          
+#else
       call MPI_Win_fence(assert, filewin, ierr)
       do w = 1,ncount
-         call MPI_Get(abuf(:,:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
+         call MPI_Get(abuf(:,:,w), lsize, ltype, filemap_recv(w), displ, lsize, ltype, filewin, ierr)
       end do
       call MPI_Win_fence(assert, filewin, ierr)
-      
+#endif
+
       call END_LOG(gatherrma_end)
       
    end subroutine ccmpi_filewinget2
@@ -10266,12 +10385,17 @@ contains
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:,:), intent(in) :: sinp
       real, dimension(:,:,:,:), intent(out) :: abuf
-      real, dimension(pil*pjl*pnpan,fncount,size(sinp,2),size(filemap)) :: bbuf
+      real, dimension(pil*pjl*pnpan,fncount,size(sinp,2),size(filemap_recv)) :: bbuf
+#ifdef nompiget
+      integer(kind=4) :: lcomm
+      integer(kind=4) :: itag = 51
+      integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req
+#endif
 
       call START_LOG(gatherrma_begin)
 
       kx = size(sinp,2)
-      ncount = size(filemap)
+      ncount = size(filemap_recv)
       nlen = pil*pjl*pnpan
       lsize = nlen*fncount*kx
       displ = 0
@@ -10291,11 +10415,29 @@ contains
          end do
       end if   
    
+#ifdef nompiget
+      lcomm = comm_world
+      !     Set up the buffers to recv
+      nreq = 0
+      do w = 1,ncount
+         nreq  = nreq + 1
+         call MPI_IRecv( bbuf(:,:,:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
+      end do
+      !     Set up the buffers to send
+      do w = 1,size(filemap_send)
+         nreq  = nreq + 1
+         call MPI_ISend( filestore(:,:,:), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
+      end do
+      call START_LOG(mpiwait_begin)
+      call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
+      call END_LOG(mpiwait_end)          
+#else
       call MPI_Win_fence(assert, filewin, ierr)
       do w = 1,ncount
-         call MPI_Get(bbuf(:,:,:,w), lsize, ltype, filemap(w), displ, lsize, ltype, filewin, ierr)
+         call MPI_Get(bbuf(:,:,:,w), lsize, ltype, filemap_recv(w), displ, lsize, ltype, filewin, ierr)
       end do
       call MPI_Win_fence(assert, filewin, ierr)
+#endif
       
       abuf(1:nlen,1:fncount,1:ncount,1:kx) = reshape( bbuf(1:nlen,1:fncount,1:kx,1:ncount), &
           (/ nlen, fncount, ncount, kx /), order=(/ 1, 2, 4, 3 /) )
@@ -10310,11 +10452,11 @@ contains
       real, dimension(-1:,-1:,0:), intent(inout) :: sout
       real, dimension(:,:,:), intent(in) :: abuf
 
-      ncount = size(filemap)
+      ncount = size(filemap_recv)
       
       do w = 1,ncount
          do ipf = 1,fncount ! fncount=fnproc/fnresid   
-            ip = filemap(w) + (ipf-1)*fnresid
+            ip = filemap_recv(w) + (ipf-1)*fnresid
             do n = 0,pnpan-1
                no = n - pnoff(ip) + 1
                ca = pioff(ip,no)

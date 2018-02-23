@@ -209,6 +209,7 @@ real, dimension(imax,ms) :: ltgg, lwb, lwbice
 real, dimension(imax,3) :: lsmass, lssdn, ltggsn
 real, dimension(imax) :: lcnbp, lcnpp, lfnee, lfpn, lfrd, lfrp, lfrpr, lfrpw, lfrs
 real, dimension(imax) :: latmco2
+real, dimension(imax) :: lclimate_min20, lclimate_max20, lclimate_alpha20
 logical, dimension(imax,maxtile) :: ltmap
 type(air_type) :: lair
 type(balances_type) :: lbal
@@ -235,7 +236,7 @@ type(bgc_pool_type) :: lbgc
 !$omp private(lfrd,lfrp,lfrpr,lfrpw,lfrs,lnilitter,lniplant,lnisoil,lplitter,lpplant,lpsoil),                  &
 !$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,lcasabiome,latmco2),              &
 !$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg),  &
-!$omp private(lclimate_biome,lclimate_iveg)
+!$omp private(lclimate_biome,lclimate_iveg,lclimate_min20,lclimate_max20,lclimate_alpha20)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -279,6 +280,9 @@ do tile=1,ntiles
     if ( cable_climate==1 ) then
       lclimate_biome = 999
       lclimate_iveg = 0
+      lclimate_min20 = 0.
+      lclimate_max20 = 0.
+      lclimate_alpha20 = 0.
     end if
     
     ! set co2 forcing for cable
@@ -330,7 +334,7 @@ do tile=1,ntiles
                    latmco2,tss(is:ie),ustar(is:ie),vlai(is:ie),vl1(js:je),vl2(js:je),vl3(js:je),vl4(js:je),vmod(is:ie),  &
                    lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),lair,lbal,c,lcanopy,                         &
                    lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,    &
-                   lsum_flux,lveg,lclimate_iveg,lclimate_biome,imax)
+                   lsum_flux,lveg,lclimate_iveg,lclimate_biome,lclimate_min20,lclimate_max20,lclimate_alpha20,imax)
 
     smass(is:ie,:) = lsmass
     ssdn(is:ie,:) = lssdn
@@ -361,6 +365,9 @@ do tile=1,ntiles
     if ( cable_climate==1 ) then
       climate_biome(is:ie) = lclimate_biome
       climate_ivegt(is:ie) = lclimate_iveg
+      climate_min20(is:ie) = lclimate_min20
+      climate_max20(is:ie) = lclimate_max20
+      climate_alpha20(is:ie) = lclimate_alpha20
     end if
   end if
 
@@ -378,7 +385,7 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      snage,snowd,snowmelt,ssdn,ssdnn,sv,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,ustar,   &
                      vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,air,bal,c,canopy,casabal,casabiome,   &
                      casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,veg,          &
-                     climate_ivegt,climate_biome,imax)
+                     climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,imax)
 
 use const_phys
 use dates_m
@@ -402,8 +409,7 @@ integer lalloc
 integer mp_POP, loy
 integer, dimension(maxtile,2), intent(in) :: tind
 integer, dimension(imax), intent(inout) :: isflag
-integer, dimension(12) :: ndoy
-integer, dimension(12), parameter :: odoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /) 
+integer, dimension(13), parameter :: ndoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 0 /) 
 real fjd, r1, dlt, slag, dhr, alp
 real, dimension(imax), intent(in) :: atmco2
 real, dimension(imax), intent(in) :: phi_nh, qg, t
@@ -417,6 +423,7 @@ real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot
 real, dimension(imax), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, rnet, rsmin, runoff
 real, dimension(imax), intent(inout) :: runoff_surface, sigmf, snage, snowd, snowmelt, ssdnn, tss, ustar
 real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
+real, dimension(imax), intent(inout) :: climate_min20, climate_max20, climate_alpha20
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
 real, dimension(imax), intent(in) :: sgsave, swrsave, theta, vmod
 real, dimension(imax) :: coszro2, taudar2, tmps, swdwn, alb, qsttg_land
@@ -466,14 +473,6 @@ fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 idoy = int(fjd)
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,imax,coszro2,taudar2)
-
-! calculate end of the month
-ndoy(1:12) = odoy(1:12)
-if ( leap==1 ) then
-  if ( mod(jyear,4)  ==0 ) ndoy(3:12) = odoy(3:12) + 1
-  if ( mod(jyear,100)==0 ) ndoy(3:12) = odoy(3:12)
-  if ( mod(jyear,400)==0 ) ndoy(3:12) = odoy(3:12) + 1
-end if
 
 if ( any(atmco2<1.) ) then
   write(6,*) "ERROR: Invalid CO2 mixing ratio in cable_ccam2 ",minval(atmco2)
@@ -719,11 +718,13 @@ select case (icycle)
       casaflux%crmplant(:,leaf) = 0._8
       ! update for POP
       if ( cable_pop==1 ) then
-        loy = ndoy(12)
-        casaflux%stemnpp = casaflux%stemnpp + casaflux%cnpp*casaflux%fracCalloc(:,2)*0.7_8
-        casabal%LAImax = max(casamet%glai, casabal%LAImax)
-        casabal%Cleafmean = casabal%Cleafmean + casapool%cplant(:,1)/real(loy,8)/1000._8
-        casabal%Crootmean = casabal%Crootmean + casapool%cplant(:,3)/real(loy,8)/1000._8
+        if ( jmonth/=12 .or. idoy/=1 ) then
+          ! do not update for extra day in leap year  
+          casaflux%stemnpp = casaflux%stemnpp + casaflux%cnpp*casaflux%fracCalloc(:,2)*0.7_8
+          casabal%LAImax = max(casamet%glai, casabal%LAImax)
+          casabal%Cleafmean = casabal%Cleafmean + casapool%cplant(:,1)/365._8/1000._8
+          casabal%Crootmean = casabal%Crootmean + casapool%cplant(:,3)/365._8/1000._8
+        end if  
       else
         casaflux%stemnpp = 0._8
       end if
@@ -762,13 +763,13 @@ end select
 ! POP
 if ( cable_pop==1 ) then
   ! update once per year
-  if ( idoy==ndoy(12) ) then
-     call popdriver(casabal,casaflux,pop,veg)
-     ! reset stemnpp, LAImax, Cleafmean and Crootmean for next call
-     casaflux%stemnpp  = 0._8
-     casabal%LAImax    = 0._8
-     casabal%Cleafmean = 0._8
-     casabal%Crootmean = 0._8
+  if ( jmonth==12 .and. idoy==0 .and. mod(ktau,npercasa)==0 ) then
+    call popdriver(casabal,casaflux,pop,veg)
+    ! reset stemnpp, LAImax, Cleafmean and Crootmean for next call
+    casaflux%stemnpp  = 0._8
+    casabal%LAImax    = 0._8
+    casabal%Cleafmean = 0._8
+    casabal%Crootmean = 0._8
   end if
 end if
 
@@ -925,8 +926,12 @@ if ( icycle/=0 ) then
 end if
 
 if ( cable_climate==1 ) then
+  ! just extract the first tile for now  
   climate_ivegt = unpack(climate%iveg,tmap(:,1),0)
   climate_biome = unpack(climate%biome,tmap(:,1),0)
+  climate_min20 = unpack(climate%mtemp_min20,tmap(:,1),0.)
+  climate_max20 = unpack(climate%mtemp_max20,tmap(:,1),0.)
+  climate_alpha20 = unpack(climate%alpha_PT20,tmap(:,1),0.)
 end if
 
 ! MJT notes - ustar, cduv, fg and eg are passed to the boundary layer turbulence scheme
@@ -1040,7 +1045,7 @@ integer, intent(in) :: jyear,jmonth,jday,jhour,jmin,mp
 integer, intent(in) :: imax
 integer, optional :: maxnb
 integer monthstart, nb, is, ie
-integer, dimension(12) :: imonth
+integer, dimension(12), parameter :: imonth = (/ 31,28,31,30,31,30,31,31,30,31,30,31 /)
 integer, dimension(maxtile,2), intent(in), optional :: tind
 real, dimension(mp), intent(in) :: sv, vl1, vl2, vl3, vl4
 real, parameter :: vextkn = 0.4
@@ -1054,12 +1059,6 @@ type(veg_parameter_type), intent(inout) :: veg
 
 select case( proglai )
   case(-1) ! piece-wise linear interpolated LAI
-    imonth = (/ 31,28,31,30,31,30,31,31,30,31,30,31 /)
-    if ( leap==1 ) then
-      if ( mod(jyear,4)  ==0 ) imonth(2)=29
-      if ( mod(jyear,100)==0 ) imonth(2)=28
-      if ( mod(jyear,400)==0 ) imonth(2)=29
-    end if
     monthstart = 1440*(jday-1) + 60*jhour + jmin ! mins from start month
     x = min(max(real(mtimer+monthstart)/real(1440*imonth(jmonth)),0.),1.)
     a0(:) = 0.5*vl1(:)
@@ -1438,7 +1437,7 @@ implicit none
 
 integer, intent(in) :: idoy, imonth, npercasa, ktau
 integer d, y
-integer, dimension(12), intent(in) :: ndoy
+integer, dimension(13), intent(in) :: ndoy
 real(kind=8), dimension(mp) :: mtemp_last
 real(kind=8), dimension(mp) :: RhoA, PPc, EpsA, phiEq, tmp
 type(canopy_type), intent(in) :: canopy
@@ -1464,7 +1463,7 @@ phiEq = canopy%rniso*(PPc*EpsA)/(PPc*EpsA+1._8) ! equil ltnt heat flux  [W/m2]
 
 climate%evap_PT = climate%evap_PT + max(phiEq,1._8)*CoeffPT/air%rlam*dt  ! mm
 climate%aevap   = climate%aevap + met%precip ! mm
-climate%dtemp   = climate%dtemp + met%tk - 273.15_8
+climate%dtemp   = climate%dtemp + met%tk - 273.16_8
 climate%dmoist  = climate%dmoist + canopy%fwsoil
 
 ! accumulate daily temperature, evap and potential evap
@@ -1473,14 +1472,6 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
   climate%dtemp = climate%dtemp/real(npercasa,8)
   climate%dmoist = climate%dmoist/real(npercasa,8)
 
-  ! On first day of year ...
-  if ( idoy==1 ) then
-    climate%agdd5   = 0._8
-    climate%agdd0   = 0._8
-    climate%evap_PT = 0._8     ! annual PT evap [mm]
-    climate%aevap   = 0._8     ! annual evap [mm]  
-  end if
-  
   ! In midwinter, reset GDD counter for summergreen phenology  
   where ( (rad%latitude>=0._8.and.idoy==COLDEST_DAY_NHEMISPHERE) .or. &
           (rad%latitude<0._8.and.idoy==COLDEST_DAY_SHEMISPHERE) )
@@ -1529,7 +1520,7 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
   end where
   
   ! check if end of month
-  if ( idoy==ndoy(imonth) ) then
+  if ( idoy==ndoy(imonth+1) ) then
 
     ! Update mean temperature for the last 12 months
     ! atemp_mean_new = atemp_mean_old * (11/12) + mtemp * (1/12)
@@ -1550,6 +1541,8 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
     ! 20 years and find minimum monthly temperature for the last 20 years
     if ( imonth==12 ) then
 
+      climate%alpha_PT = max(climate%aevap/climate%evap_PT, 0._8) ! ratio of annual evap to annual PT evap  
+        
       do y = 1,19
         climate%mtemp_min_20(:,y) = climate%mtemp_min_20(:,y+1)
         climate%mtemp_max_20(:,y) = climate%mtemp_max_20(:,y+1)
@@ -1576,17 +1569,22 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
         climate%mtemp_min20 = climate%mtemp_min20/real(climate%nyears,8)
         climate%mtemp_max20 = climate%mtemp_max20/real(climate%nyears,8)
         climate%alpha_PT20 = climate%alpha_PT20/real(climate%nyears,8)
-        climate%alpha_PT = max(climate%aevap/climate%evap_PT, 0._8) ! ratio of annual evap to annual PT evap
         call biome1_pft
       end if  
-    
+ 
+      ! reset climate data for next year
+      climate%agdd5   = 0._8
+      climate%agdd0   = 0._8
+      climate%evap_PT = 0._8     ! annual PT evap [mm]
+      climate%aevap   = 0._8     ! annual evap [mm]  
+      
     end if  ! last month of year
   end if    ! last day of month
 
-  ! reset climate data for next year
+  ! reset climate data for next day
   climate%dtemp   = 0._8
   climate%dmoist  = 0._8
- 
+  
 end if      ! end of day
 
 return
@@ -1648,18 +1646,18 @@ do iq = 1,mp
      end if
    end if
    
-   if ( climate%mtemp_min20(iq)>=5. .and. alpha_PT_scaled>=0.4_8 .and. &
+   if ( climate%mtemp_min20(iq)>=5._8 .and. alpha_PT_scaled>=0.4_8 .and. &
         pft_biome1(iq,1)==999 ) then
      pft_biome1(iq,1) = 3
    end if
    
-   if ( climate%mtemp_min20(iq)>=-15 .and. climate%mtemp_min20(iq)<=15.5_8 .and. &
-        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(iq)>1200 .and.               &
+   if ( climate%mtemp_min20(iq)>=-15._8 .and. climate%mtemp_min20(iq)<=15.5_8 .and. &
+        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(iq)>1200 .and.                  &
         pft_biome1(iq,1)>3 ) then
      pft_biome1(iq,1) = 4
    end if
    
-   if ( climate%mtemp_min20(iq)>=-19 .and. climate%mtemp_min20(iq)<=5 .and. &
+   if ( climate%mtemp_min20(iq)>=-19._8 .and. climate%mtemp_min20(iq)<=5._8 .and. &
         alpha_PT_scaled>=0.35 .and. climate%agdd5(iq)>900 ) then
      if (pft_biome1(iq,1)>4 ) then
        pft_biome1(iq,1) = 5
@@ -1668,7 +1666,7 @@ do iq = 1,mp
      end if
    end if
    
-   if ( climate%mtemp_min20(iq)>=-35 .and. climate%mtemp_min20(iq)<=-2 .and. &
+   if ( climate%mtemp_min20(iq)>=-35._8 .and. climate%mtemp_min20(iq)<=-2._8 .and. &
         alpha_PT_scaled>=0.35_8 .and. climate%agdd5(iq)>350 ) then
      if ( pft_biome1(iq,1)==999 ) then
        pft_biome1(iq,1) = 6
@@ -1679,7 +1677,7 @@ do iq = 1,mp
      end if
    end if
    
-   if ( climate%mtemp_min20(iq)<=5 .and. alpha_PT_scaled>=0.45_8 .and. &
+   if ( climate%mtemp_min20(iq)<=5._8 .and. alpha_PT_scaled>=0.45_8 .and. &
         climate%agdd5(iq)>350 ) then
      if (pft_biome1(iq,1)==999 ) then
        pft_biome1(iq,1) = 7
@@ -1692,12 +1690,12 @@ do iq = 1,mp
      end if
    end if
    
-   if ( climate%mtemp_min20(iq)>=5 .and. alpha_PT_scaled>=0.2_8 .and. &
+   if ( climate%mtemp_min20(iq)>=5._8 .and. alpha_PT_scaled>=0.2_8 .and. &
         pft_biome1(iq,1)==999 ) then
      pft_biome1(iq,1) = 8
    end if
    
-   if (climate%mtemp_max20(iq)>=22 .and.alpha_PT_scaled>=0.1_8 &
+   if (climate%mtemp_max20(iq)>=22._8 .and.alpha_PT_scaled>=0.1_8 &
         .and. pft_biome1(iq,1)==999 ) then
      pft_biome1(iq,1) = 9
    end if
@@ -1715,7 +1713,7 @@ do iq = 1,mp
      end if
    end if
    
-   if ( climate%mtemp_max20(iq)>=22 .and. pft_biome1(iq,1)==999 ) then
+   if ( climate%mtemp_max20(iq)>=22._8 .and. pft_biome1(iq,1)==999 ) then
      pft_biome1(iq,1) = 12
    end if
    
@@ -4392,6 +4390,15 @@ else
       call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
       dati = nint(dat)
       if ( n<=maxnb ) call cable_pack(dati,climate%chilldays,n)
+      write(vname,'("t",I1.1,"_climatemtempmin20")') n
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
+      if ( n<=maxnb ) call cable_pack(dat,climate%mtemp_min20,n)
+      write(vname,'("t",I1.1,"_climatemtempmax20")') n
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
+      if ( n<=maxnb ) call cable_pack(dat,climate%mtemp_max20,n)
+      write(vname,'("t",I1.1,"_climatealphaPT20")') n
+      call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
+      if ( n<=maxnb ) call cable_pack(dat,climate%alpha_PT20,n)
       write(vname,'("t",I1.1,"_climatedtemp")') n
       call histrd4(iarchi-1,ierr,vname,il_g,91,dat91days,ifull)
       if ( n<=maxnb ) then
@@ -5432,6 +5439,15 @@ if (myid==0.or.local) then
       write(lname,'("climate chilldays tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatechilldays")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate mtemp_min20 tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climatemtempmin20")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate mtemp_max20 tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climatemtempmax20")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate alpha_PT20 tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climatealphaPT20")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate dtemp tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatedtemp")') n
       call attrib(idnc,c3dim,c3size,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -6239,6 +6255,18 @@ if ( cable_climate==1 ) then
       call cable_unpack(dummy_unpack,dat,n)
     end if  
     write(vname,'("t",I1.1,"_climatechilldays")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) call cable_unpack(climate%mtemp_min20,dat,n)
+    write(vname,'("t",I1.1,"_climatemtempmin20")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) call cable_unpack(climate%mtemp_max20,dat,n)
+    write(vname,'("t",I1.1,"_climatemtempmax20")') n
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    dat=0._8
+    if (n<=maxnb) call cable_unpack(climate%alpha_PT20,dat,n)
+    write(vname,'("t",I1.1,"_climatealphaPT20")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat91days = 0._8
     if ( n<=maxnb ) then

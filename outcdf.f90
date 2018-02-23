@@ -1830,6 +1830,12 @@ if( myid==0 .or. local ) then
           call attrib(idnc,jdim,jsize,'climate_ivegt',lname,'none',0.,650.,0,itype)
           lname = 'Climate biome'
           call attrib(idnc,jdim,jsize,'climate_biome',lname,'none',0.,1300.,0,itype)
+          lname = 'Climate average minimum annual temperature'
+          call attrib(idnc,jdim,jsize,'climate_min20',lname,'none',0.,1300.,0,itype)
+          lname = 'Climate average maximum annual temperature'
+          call attrib(idnc,jdim,jsize,'climate_max20',lname,'none',0.,1300.,0,itype)
+          lname = 'Climate average ratio of precip to PT evap'
+          call attrib(idnc,jdim,jsize,'climate_alpha20',lname,'none',0.,1300.,0,itype)
         end if
       end if
     end if
@@ -2836,7 +2842,10 @@ if ( nsib==6 .or. nsib==7 ) then
       aa = real(climate_ivegt)  
       call histwrt3(aa,'climate_ivegt',idnc,iarch,local,lday)
       aa = real(climate_biome)  
-      call histwrt3(aa,'climate_biome',idnc,iarch,local,lday)      
+      call histwrt3(aa,'climate_biome',idnc,iarch,local,lday)  
+      call histwrt3(climate_min20,'climate_min20',idnc,iarch,local,lday)  
+      call histwrt3(climate_max20,'climate_max20',idnc,iarch,local,lday)
+      call histwrt3(climate_alpha20,'climate_alpha20',idnc,iarch,local,lday)
     end if
   end if
 endif   

@@ -2063,7 +2063,7 @@ integer, intent(in) :: ufull, diag
 real, dimension(:), intent(inout) :: o_data
 real, dimension(ufull) :: ctmp, dtmp
 character(len=*), intent(in) :: mode
-logical, dimension(size(o_data)), intent(in) :: upack
+logical, dimension(:), intent(in) :: upack
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(in) :: pd
 
@@ -2126,7 +2126,7 @@ real, dimension(ufull) :: workb,workc,workd,zmtmp,zhtmp,zqtmp
 real, parameter :: zr=1.e-15 ! limits minimum roughness length for heat
 logical, intent(in), optional :: raw
 logical mode
-logical, dimension(size(zom)), intent(in) :: upack
+logical, dimension(:), intent(in) :: upack
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(in) :: pd
 
@@ -2202,7 +2202,7 @@ real, dimension(:), intent(inout) :: cduv, cdtq
 real, dimension(ufull) :: ctmp
 logical, intent(in), optional :: raw
 logical outmode
-logical, dimension(size(cduv)), intent(in) :: upack
+logical, dimension(:), intent(in) :: upack
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(in) :: pd
  
@@ -2266,7 +2266,7 @@ integer, intent(in) :: ufull, diag
 real, dimension(:), intent(inout) :: hydroout
 real, dimension(ufull) :: ctmp
 character(len=*), intent(in) :: mode
-logical, dimension(size(hydroout)), intent(in) :: upack
+logical, dimension(:), intent(in) :: upack
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(in) :: pd
  
@@ -2519,12 +2519,12 @@ subroutine getnetalbedo(alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg
 implicit none
 
 real, dimension(:), intent(out) :: alb
-real, dimension(size(alb)), intent(in) :: sg_roof, sg_vegr, sg_road, sg_walle, sg_wallw, sg_vegc
-real, dimension(size(alb)), intent(in) :: sg_rfsn, sg_rdsn
-real, dimension(size(alb)), intent(in) :: fp_hwratio, fp_sigmabld
-real, dimension(size(alb)), intent(in) :: fp_vegsigmar, fp_roofalpha, fp_vegalphar
-real, dimension(size(alb)), intent(in) :: fp_vegsigmac, fp_roadalpha, fp_vegalphac, fp_wallalpha
-real, dimension(size(alb)), intent(in) :: roofalpha, roadalpha, snowdeltar, snowdeltac
+real, dimension(:), intent(in) :: sg_roof, sg_vegr, sg_road, sg_walle, sg_wallw, sg_vegc
+real, dimension(:), intent(in) :: sg_rfsn, sg_rdsn
+real, dimension(:), intent(in) :: fp_hwratio, fp_sigmabld
+real, dimension(:), intent(in) :: fp_vegsigmar, fp_roofalpha, fp_vegalphar
+real, dimension(:), intent(in) :: fp_vegsigmac, fp_roadalpha, fp_vegalphac, fp_wallalpha
+real, dimension(:), intent(in) :: roofalpha, roadalpha, snowdeltar, snowdeltac
 real, dimension(size(alb)) :: albu, albr
 
 ! canyon
@@ -2810,7 +2810,7 @@ real, dimension(ufull) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd
 real, dimension(ufull) :: u_fg,u_eg,u_ts,u_wf,u_rn
 logical, intent(in), optional :: raw
 logical mode
-logical, dimension(size(sg)), intent(in) :: upack
+logical, dimension(:), intent(in) :: upack
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
 type(hydrodata), intent(inout) :: rdhyd, rfhyd
 type(vegdata), intent(inout) :: rfveg
@@ -3618,8 +3618,8 @@ subroutine getqsat(qsat,temp,ps)
 implicit none
 
 real, dimension(:), intent(in) :: temp
-real, dimension(size(temp)), intent(in) :: ps
-real, dimension(size(temp)), intent(out) :: qsat
+real, dimension(:), intent(in) :: ps
+real, dimension(:), intent(out) :: qsat
 real, dimension(size(temp)) :: esatf,tdiff,rx
 integer, dimension(size(temp)) :: ix
 
@@ -3641,10 +3641,10 @@ implicit none
 
 integer, intent(in) :: mode
 real, dimension(:), intent(in) :: ilzom
-real, dimension(size(ilzom)), intent(in) :: zmin,sthetav,thetav
-real, dimension(size(ilzom)), intent(in) :: a_umag
-real, dimension(size(ilzom)), intent(out) :: invres,cd,z_on_l
-real, dimension(size(ilzom)), intent(inout) :: olzoh
+real, dimension(:), intent(in) :: zmin,sthetav,thetav
+real, dimension(:), intent(in) :: a_umag
+real, dimension(:), intent(out) :: invres,cd,z_on_l
+real, dimension(:), intent(inout) :: olzoh
 real, dimension(size(ilzom)) :: lna,thetavstar,integralh
 
 lna=olzoh-ilzom
@@ -3665,10 +3665,10 @@ implicit none
 integer, intent(in) :: mode
 integer ic
 real, dimension(:), intent(in) :: thetav
-real, dimension(size(thetav)), intent(in) :: sthetav,umagin,zmin,ilzom
-real, dimension(size(thetav)), intent(inout) :: lna
-real, dimension(size(thetav)), intent(out) :: cd,thetavstar
-real, dimension(size(thetav)), intent(out) :: integralh,z_on_l
+real, dimension(:), intent(in) :: sthetav,umagin,zmin,ilzom
+real, dimension(:), intent(inout) :: lna
+real, dimension(:), intent(out) :: cd,thetavstar
+real, dimension(:), intent(out) :: integralh,z_on_l
 real, dimension(size(thetav)) :: z0_on_l,zt_on_l,olzoh,umag
 real, dimension(size(thetav)) :: pm0,ph0,pm1,ph1,integralm
 !real, parameter :: aa1 = 3.8
@@ -3729,7 +3729,7 @@ implicit none
 
 integer, intent(in) :: mode
 real, dimension(:), intent(out) :: lna
-real, dimension(size(lna)), intent(in) :: cd,umag,zmin,ilzom
+real, dimension(:), intent(in) :: cd,umag,zmin,ilzom
 real, dimension(size(lna)) :: re
 real, parameter :: nu = 1.461E-5
 !real, parameter :: eta0 = 1.827E-5
@@ -3768,12 +3768,12 @@ implicit none
 
 integer k
 real, dimension(:), intent(in) :: rdsndelta
-real, dimension(size(rdsndelta)), intent(in) :: ird_alpha
-real, dimension(size(rdsndelta)), intent(out) :: wallpsi,roadpsi
-real, dimension(size(rdsndelta)), intent(in) :: fp_hwratio
-real, dimension(size(rdsndelta)), intent(in) :: fp_vangle,fp_hangle,fp_fbeam,fp_vegsigmac,fp_roadalpha,fp_vegalphac
-real, dimension(size(rdsndelta)), intent(in) :: fp_wallalpha
-real, dimension(size(rdsndelta)), intent(out) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
+real, dimension(:), intent(in) :: ird_alpha
+real, dimension(:), intent(out) :: wallpsi,roadpsi
+real, dimension(:), intent(in) :: fp_hwratio
+real, dimension(:), intent(in) :: fp_vangle,fp_hangle,fp_fbeam,fp_vegsigmac,fp_roadalpha,fp_vegalphac
+real, dimension(:), intent(in) :: fp_wallalpha
+real, dimension(:), intent(out) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
 real, dimension(size(rdsndelta)) :: thetazero,walles,wallws,roads,ta,tc,xa,ya,roadnetalpha
 real, dimension(size(rdsndelta)) :: nwalles,nwallws,nroads
 
@@ -3834,9 +3834,9 @@ implicit none
 
 integer k
 real, dimension(:), intent(inout) :: d_netemiss
-real, dimension(size(d_netemiss)), intent(inout) :: d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,d_cwr,d_rdsndelta
-real, dimension(size(d_netemiss)), intent(in) :: fp_vegsigmac,fp_roademiss,fp_vegemissc,fp_wallemiss
-real, dimension(size(d_netemiss)), intent(in) :: wallpsi,roadpsi
+real, dimension(:), intent(inout) :: d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,d_cwr,d_rdsndelta
+real, dimension(:), intent(in) :: fp_vegsigmac,fp_roademiss,fp_vegemissc,fp_wallemiss
+real, dimension(:), intent(in) :: wallpsi,roadpsi
 real, dimension(size(d_netemiss)) :: rcwa,rcra,rcwe,rcww,rcrw,rcrr,rcwr
 real, dimension(size(d_netemiss)) :: ncwa,ncra,ncwe,ncww,ncrw,ncrr,ncwr
 
@@ -5322,7 +5322,7 @@ subroutine solvequartic(x,a,d,e)
 implicit none
 
 real, dimension(:), intent(out) :: x
-real, dimension(size(x)), intent(in) :: a,d,e
+real, dimension(:), intent(in) :: a,d,e
 real, dimension(size(x)) :: t1,q,s,qq,d0,d1
 
 d0=12.*a*e
@@ -5390,10 +5390,13 @@ skintemp = reshape((/ slab%nodetemp(:,nl),    &
                       walle%nodetemp(:,nl)    &
                    /),(/ufull,4/)) + urbtemp
 
-do j = 1,4
+do j = 2,4
   radnet(:,j) = epsil(:,j)/(1.-epsil(:,j))*((sbconst*skintemp(:,j)**4)  & 
                - sum(intl%psi(:,j,:)*(sbconst*skintemp(:,:)**4),dim=2))
 end do
+
+! MJT suggestion
+radnet(:,1) = -fp%bldheight*(radnet(:,2)+radnet(:,4))/fp%bldwidth - radnet(:,3)
 
 ! energy conservation check
 radtot(:) = abs(fp%bldwidth(:)*(radnet(:,1)+radnet(:,3)) + fp%bldheight*(radnet(:,2)+radnet(:,4)))
