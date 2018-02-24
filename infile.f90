@@ -4840,25 +4840,15 @@ implicit none
 
 integer, intent(out) :: ncid
 integer ncstatus
-integer(kind=4) :: lncid, lcmode
+integer(kind=4) :: lncid
 character(len=*), intent(in) :: fname
 
 #ifdef usenc3
-if ( synchist ) then
-  lcmode = ior(nf90_64bit_offset, nf90_share)
-else
-  lcmode = nf90_64bit_offset
-end if
-ncstatus = nf90_create(fname,lcmode,lncid)
+ncstatus = nf90_create(fname,nf90_64bit_offset,lncid)
 #else
-if ( synchist ) then
-  lcmode = ior(nf90_netcdf4, nf90_share)
-else
-  lcmode = nf90_netcdf4
-end if
-ncstatus = nf90_create(fname,lcmode,lncid)
+ncstatus = nf90_create(fname,nf90_netcdf4,lncid)
 #endif
-ncid=lncid
+ncid = lncid
 call ncmsg("create",ncstatus)
 
 return

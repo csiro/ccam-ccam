@@ -888,7 +888,11 @@ call openhist(iarch,itype,dima,dimo,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,  &
 if ( myid==0 .or. local ) then
   if ( ktau==ntau ) then
     if ( myid==0 ) then
-      write(6,*) "closing netCDF file idnc=",idnc      
+      if ( itype==1 ) then  
+        write(6,*) "closing netCDF ofile idnc=",idnc
+      else
+        write(6,*) "closing netCDF restart idnc=",idnc
+      end if  
     end if
     !if ( procformat ) then
     !  call init_iobuffer(idnc,itype)
@@ -3187,17 +3191,12 @@ if ( itype==-1 ) then
   
 endif  ! (itype==-1)
 
-! flush output buffers so that data can be used
-! for initial conditions
-!if ( synchist ) then
-!  if ( myid==0 .or. local ) then
-!    !if ( procformat ) then
-!    !  call init_iobuffer(idnc,itype)
-!    !else
-!    call ccnf_sync(idnc)
-!    !end if
-!  end if
-!end if
+! flush output buffers
+if ( synchist ) then
+  if ( myid==0 .or. local ) then
+    call ccnf_sync(idnc)
+  end if
+end if
 
 if ( myid==0 ) then
   write(6,*) "finished writing to ofile"    

@@ -929,9 +929,9 @@ if ( cable_climate==1 ) then
   ! just extract the first tile for now  
   climate_ivegt = unpack(climate%iveg,tmap(:,1),0)
   climate_biome = unpack(climate%biome,tmap(:,1),0)
-  climate_min20 = unpack(climate%mtemp_min20,tmap(:,1),0.)
-  climate_max20 = unpack(climate%mtemp_max20,tmap(:,1),0.)
-  climate_alpha20 = unpack(climate%alpha_PT20,tmap(:,1),0.)
+  climate_min20 = unpack(climate%mtemp_min20,tmap(:,1),0._8)
+  climate_max20 = unpack(climate%mtemp_max20,tmap(:,1),0._8)
+  climate_alpha20 = unpack(climate%alpha_PT20,tmap(:,1),0._8)
 end if
 
 ! MJT notes - ustar, cduv, fg and eg are passed to the boundary layer turbulence scheme
