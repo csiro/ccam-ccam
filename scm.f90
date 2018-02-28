@@ -1613,69 +1613,74 @@ end if
 if (nurban/=0) then
   write(6,*) 'Importing ateb urban data'
   allocate( atebdwn(ifull,5) )
-  atebdwn(:,1)=tss                ! roof temp 1
-  atebdwn(:,2)=0.5*(tss+291.16)   ! roof temp 2
-  atebdwn(:,3)=0.5*(tss+291.16)   ! roof temp 3
-  atebdwn(:,4)=0.5*(tss+291.16)   ! roof temp 4
-  atebdwn(:,5)=291.16             ! roof temp 5
+  atebdwn(:,1)=289.                     ! roof temp 1
+  atebdwn(:,2)=(0.75*289.)+(0.25*293.)  ! roof temp 2
+  atebdwn(:,3)=(0.50*289.)+(0.50*293.)  ! roof temp 3
+  atebdwn(:,4)=(0.25*289.)+(0.75*293.)  ! roof temp 4
+  atebdwn(:,5)=293.                     ! roof temp 5
   do k = 1,5
     write(vname,'("rooftemp",I1.1)') k  
     atebdwn(:,k) = atebdwn(:,k) - urbtemp
     call atebloadd(atebdwn(:,k),vname,0)
   end do 
-  atebdwn(:,1)=tss                ! walleast temp 1
-  atebdwn(:,2)=0.5*(tss+291.16)   ! walleast temp 2
-  atebdwn(:,3)=0.5*(tss+291.16)   ! walleast temp 3
-  atebdwn(:,4)=0.5*(tss+291.16)   ! walleast temp 4
-  atebdwn(:,5)=291.16             ! walleast temp 5
+
+  atebdwn(:,1)=290.5                    ! walleast temp 1
+  atebdwn(:,2)=(0.75*290.5)+(0.25*293.) ! walleast temp 2
+  atebdwn(:,3)=(0.50*290.5)+(0.50*293.) ! walleast temp 3
+  atebdwn(:,4)=(0.25*290.5)+(0.75*293.) ! walleast temp 4
+  atebdwn(:,5)=293.                     ! walleast temp 5
   do k = 1,5
     write(vname,'("walletemp",I1.1)') k  
     atebdwn(:,k) = atebdwn(:,k) - urbtemp
     call atebloadd(atebdwn(:,k),vname,0)
   end do
-  atebdwn(:,1)=tss                ! wallwest temp 1
-  atebdwn(:,2)=0.5*(tss+291.16)   ! wallwest temp 2
-  atebdwn(:,3)=0.5*(tss+291.16)   ! wallwest temp 3
-  atebdwn(:,4)=0.5*(tss+291.16)   ! wallwest temp 4
-  atebdwn(:,5)=291.16             ! wallwest temp 5
+
+  atebdwn(:,1)=290.5                    ! wallwest temp 1
+  atebdwn(:,2)=(0.75*290.5)+(0.25*293.) ! wallwest temp 2
+  atebdwn(:,3)=(0.50*290.5)+(0.50*293.) ! wallwest temp 3
+  atebdwn(:,4)=(0.25*290.5)+(0.75*293.) ! wallwest temp 4
+  atebdwn(:,5)=293.                     ! wallwest temp 5
   do k = 1,5
     write(vname,'("wallwtemp",I1.1)') k  
     atebdwn(:,k) = atebdwn(:,k) - urbtemp
     call atebloadd(atebdwn(:,k),vname,0)
   end do
-  atebdwn(:,1)=tss                ! road temp 1
-  atebdwn(:,2)=tss                ! road temp 2
-  atebdwn(:,3)=tss                ! road temp 3
-  atebdwn(:,4)=tss                ! road temp 4
-  atebdwn(:,5)=tss                ! road temp 5
+
+  atebdwn(:,1)=289.                      ! road temp 1
+  atebdwn(:,2)=(0.966*289.)+(0.034*287.) ! road temp 2
+  atebdwn(:,3)=(0.833*289.)+(0.167*287.) ! road temp 3
+  atebdwn(:,4)=(0.533*289.)+(0.467*287.) ! road temp 4
+  atebdwn(:,5)=287.                      ! road temp 5
   do k = 1,5
     write(vname,'("roadtemp",I1.1)') k  
     atebdwn(:,k) = atebdwn(:,k) - urbtemp
     call atebloadd(atebdwn(:,k),vname,0)
   end do
-  atebdwn(:,1)=291.16             ! slab temp 1
-  atebdwn(:,2)=291.16             ! slab temp 2
-  atebdwn(:,3)=291.16             ! slab temp 3
-  atebdwn(:,4)=291.16             ! slab temp 4
-  atebdwn(:,5)=291.16             ! slab temp 5
+
+  atebdwn(:,1)=293.          ! slab temp 1 (internal air temp)
+  atebdwn(:,2)=293.          ! slab temp 2 (internal air temp)
+  atebdwn(:,3)=293.          ! slab temp 3 (internal air temp) 
+  atebdwn(:,4)=293.          ! slab temp 4 (internal air temp)
+  atebdwn(:,5)=293.          ! slab temp 5 (internal air temp)
   do k = 1,5
     write(vname,'("slabtemp",I1.1)') k  
     atebdwn(:,k) = atebdwn(:,k) - urbtemp
     call atebloadd(atebdwn(:,k),vname,0)
   end do
-  atebdwn(:,1)=291.16             ! intm temp 1
-  atebdwn(:,2)=291.16             ! intm temp 2
-  atebdwn(:,3)=291.16             ! intm temp 3
-  atebdwn(:,4)=291.16             ! intm temp 4
-  atebdwn(:,5)=291.16             ! intm temp 5
+
+  atebdwn(:,1)=293.          ! intm temp 1 (internal air temp)
+  atebdwn(:,2)=293.          ! intm temp 2 (internal air temp)
+  atebdwn(:,3)=293.          ! intm temp 3 (internal air temp)
+  atebdwn(:,4)=293.          ! intm temp 4 (internal air temp)
+  atebdwn(:,5)=293.          ! intm temp 5 (internal air temp)
   do k = 1,5
     write(vname,'("intmtemp",I1.1)') k  
     atebdwn(:,k) = atebdwn(:,k) - urbtemp
     call atebloadd(atebdwn(:,k),vname,0)
   end do
-  atebdwn(:,1) = 291.16           ! room air temp
+  atebdwn(:,1) = 293.             ! room air temp
   call atebloadd(atebdwn(:,1),"roomtemp",0)
-  atebdwn(:,1)=0.5*0.26+0.5*0.18  ! Soil water road
+  atebdwn(:,1)=0.5*0.26+0.5*0.34  ! Soil water road
   call atebloadd(atebdwn(:,1),"canyonsoilmoisture",0)
   atebdwn(:,1)=0.18               ! Green roof water
   call atebloadd(atebdwn(:,1),"roofsoilmoisture",0)
@@ -1701,6 +1706,7 @@ if (nurban/=0) then
   call atebloadd(atebdwn(:,1),"roofsnowalbedo",0)
   deallocate( atebdwn )
 end if
+
 
 if ( abs(iaero)>=2 ) then
    write(6,*) "Aerosol initial conditions"
