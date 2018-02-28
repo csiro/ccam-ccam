@@ -2556,7 +2556,7 @@ sg_walle=sg_walle*f_g(tile)%coeffbldheight(is:ie)
 sg_wallw=sg_wallw*f_g(tile)%coeffbldheight(is:ie)
 
 call getnetalbedo(alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,            &
-                  f_g(tile)%effhwratio(is:ie),f_g(tile)%sigmabld(is:ie),rfveg_g(tile)%sigma(is:ie), &
+                  f_g(tile)%hwratio(is:ie),f_g(tile)%sigmabld(is:ie),rfveg_g(tile)%sigma(is:ie), &
                   f_roof(tile)%alpha(is:ie),rfveg_g(tile)%alpha(is:ie),                             &
                   cnveg_g(tile)%sigma(is:ie),f_road(tile)%alpha(is:ie),                             &
                   f_wall(tile)%alpha(is:ie),cnveg_g(tile)%alpha(is:ie),                             &
@@ -3056,7 +3056,7 @@ call getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rds
 sg_walle = sg_walle*fp%coeffbldheight ! shadow due to in-canyon vegetation
 sg_wallw = sg_wallw*fp%coeffbldheight ! shadow due to in-canyon vegetation
 call getnetalbedo(u_alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,  &
-                  fp%effhwratio,fp%sigmabld,rfveg%sigma,fp_roof%alpha,rfveg%alpha,          &
+                  fp%hwratio,fp%sigmabld,rfveg%sigma,fp_roof%alpha,rfveg%alpha,             &
                   cnveg%sigma,fp_road%alpha,fp_wall%alpha,cnveg%alpha,                      &
                   rfhyd%snowalpha,rdhyd%snowalpha,d_rfsndelta,d_rdsndelta)
 sg_roof  = (1.-fp_roof%alpha)*sg_roof*a_sg

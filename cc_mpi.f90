@@ -2257,7 +2257,7 @@ contains
 #ifdef nompiget
       integer(kind=4) :: lcomm
       integer(kind=4) :: itag = 52
-      integer(kind=4), dimension(size(specmap_rec)+size(specmap_send)) :: i_req
+      integer(kind=4), dimension(size(specmap_recv)+size(specmap_send)) :: i_req
 #endif
       
       call START_LOG(gatherrma_begin)
@@ -2342,7 +2342,7 @@ contains
 #ifdef nompiget
       integer(kind=4) :: lcomm
       integer(kind=4) :: itag = 52
-      integer(kind=4), dimension(size(specmap_rec)+size(specmap_send)) :: i_req
+      integer(kind=4), dimension(size(specmap_recv)+size(specmap_send)) :: i_req
 #endif
       
       call START_LOG(gatherrma_begin)
@@ -2365,12 +2365,12 @@ contains
       !     Set up the buffers to recv
       nreq = 0
       do w = 1,ncount
-         nreq  = nreq + 1
+         nreq = nreq + 1
          call MPI_IRecv( abuf(:,w), lsize, ltype, specmap_recv(w), itag, lcomm, i_req(nreq), ierr )
       end do
       !     Set up the buffers to send
       do w = 1,size(specmap_send)
-         nreq  = nreq + 1
+         nreq = nreq + 1
          call MPI_ISend( specstore(:,:), lsize, ltype, specmap_send(w), itag, lcomm, i_req(nreq), ierr )
       end do
       call START_LOG(mpiwait_begin)
