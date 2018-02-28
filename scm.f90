@@ -146,6 +146,8 @@ real, dimension(4) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
 real, dimension(4) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
 real, dimension(4) :: ateb_slab_thick, ateb_slab_cp, ateb_slab_cond
+real, dimension(:,:), allocatable :: t_save, qg_save, u_save, v_save
+real, dimension(:), allocatable :: psl_save
 character(len=60) comm, comment
 character(len=80) metforcing, timeoutput, profileoutput
 character(len=80) lsmforcing, lsmoutput
@@ -419,6 +421,14 @@ call initialscm(scm_mode,metforcing,lsmforcing,press_in(1:kl),press_surf,z_in,iv
                 ateb_road_thick,ateb_road_cp,ateb_road_cond,                            &
                 ateb_slab_thick,ateb_slab_cp,ateb_slab_cond)
 
+allocate( t_save(ifull,kl), qg_save(ifull,kl), u_save(ifull,kl), v_save(ifull,kl) )
+allocate( psl_save(ifull) )
+t_save = t
+u_save = u
+v_save = v
+qg_save = qg
+psl_save = psl
+
 call nantest("after initialisation",1,ifull)
 
 kountr = 1
@@ -560,6 +570,11 @@ do spinup = spinup_start,1,-1
   end if  
   
   iarch_nudge = 0 ! reset nudging
+  t = t_save
+  qg = qg_save
+  u = u_save
+  v = v_save
+  psl = psl_save
 
   ! main simulation
   do ktau = 1,ntau_end
@@ -574,6 +589,9 @@ do spinup = spinup_start,1,-1
     end if
     if ( nvmix==6 ) then
       write(6,*) "tke,eps,kh ",tke(1,1),eps(1,1),cm0*tke(1,1)*tke(1,1)/eps(1,1)
+    end if
+    if ( abs(nurban)==1 ) then
+      write(6,*) "tss,t1,pblh ",tss(1),t(1,1),pblh(1)
     end if
   
     ! RESET AVERAGES
@@ -1138,6 +1156,8 @@ if ( scm_mode=="sublime" ) then
   
   deallocate(dat_in, new_in )
   deallocate(height_in, height_model)  
+  
+  tss = t(:,1)
     
 else if ( scm_mode=="gabls4" ) then
   if ( .not.lsmonly ) then
