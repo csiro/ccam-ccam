@@ -1579,6 +1579,57 @@ select case(paramname)
         found = .true.
         exit
       end if
+      write(vname,'("slabthick",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+            if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+              write(6,*) "ERROR: Urban type is out of range"
+              stop 
+            end if
+            f_slab(tile)%depth(:,i) = paramdata(itmp(1:ufull_g(tile)))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("slabcp",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+            if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+              write(6,*) "ERROR: Urban type is out of range"
+              stop 
+            end if
+            f_slab(tile)%volcp(:,i) = paramdata(itmp(1:ufull_g(tile)))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("slabcond",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+            if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+              write(6,*) "ERROR: Urban type is out of range"
+              stop 
+            end if
+            f_slab(tile)%lambda(:,i) = paramdata(itmp(1:ufull_g(tile)))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
     end do
     if ( .not.found ) then
       write(6,*) "ERROR: Unknown aTEB parameter name ",trim(paramname)

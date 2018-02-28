@@ -168,7 +168,8 @@ pbl_m.o pbldif.o permsurf_m.o prec_m.o rad_utilities.o raddiag_m.o radisw_m.o \
 riverarrays_m.o savuvt_m.o scm.o scmarrays_m.o screen_m.o scrnout.o \
 seaesfrad.o sealw99.o sflux.o sigs_m.o soil_m.o soilsnow.o soilsnow_m.o soilv_m.o \
 stime_m.o tkeeps.o tracers_m.o vecsuv_m.o vegpar_m.o vertmix.o vvel_m.o work2_m.o \
-work3_m.o work3b_m.o work3f_m.o xyzinfo_m.o zenith.o stacklimit.o
+work3_m.o work3b_m.o work3f_m.o xyzinfo_m.o zenith.o \
+getopt_m.o stacklimit.o
 
 ifeq ($(SCM),yes)
 FFLAGS += -Dscm

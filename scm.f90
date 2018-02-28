@@ -56,7 +56,8 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_ac_heatprop=>ac_heatprop       &
     ,ateb_ac_coolprop=>ac_coolprop       &
     ,ateb_ac_smooth=>ac_smooth           &
-    ,ateb_ac_deltat=>ac_deltat
+    ,ateb_ac_deltat=>ac_deltat           &
+    ,ateb_acfactor=>acfactor
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
@@ -74,6 +75,7 @@ use dates_m                                ! Date data
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
+use getopt_m                               ! Command option parsing
 use gdrag_m, only : gdrag_init,gwdrag    & ! Gravity wave drag
     ,gdrag_sbl
 use histave_m                              ! Time average arrays
@@ -131,6 +133,8 @@ integer ivegt_in, isoil_in, gablsflux
 integer jyear, jmonth, jday, jhour, jmin, mins
 integer nalpha
 integer spinup, spinup_start, ntau_end, ntau_spinup
+integer opt, nopt
+integer, save :: iarch_nudge = 0
 real, dimension(1000) :: press_in
 real press_surf, gridres
 real nwrite, es
@@ -146,6 +150,8 @@ character(len=60) comm, comment
 character(len=80) metforcing, timeoutput, profileoutput
 character(len=80) lsmforcing, lsmoutput
 character(len=80) scm_mode
+character(len=1024) nmlfile
+character(len=MAX_ARGLEN) :: optarg
 logical sday_update
 logical fixtsurf, nolatent, noradiation
 logical nogwdrag, noconvection, nocloud, noaerosol, novertmix
@@ -228,7 +234,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_cvcoeffmeth,ateb_statsmeth,ateb_behavmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
     ateb_ac_heatprop,ateb_ac_coolprop,ateb_ac_smooth,             &
-    ateb_ac_deltat
+    ateb_ac_deltat,ateb_acfactor
 ! ocean namelist
 namelist/mlonml/zomode,zoseaice,                                  &
     factchseaice,minwater,mxd,mindep,otaumode,                    &
@@ -299,14 +305,30 @@ if ( kind(iq)/=4 .or. kind(es)/=4 ) then
 end if
 #endif
 
+!--------------------------------------------------------------
+! READ COMMAND LINE OPTIONS
+nmlfile = "input"
+do
+  call getopt("c:",nopt,opt,optarg)
+  if ( opt==-1 ) exit  ! End of options
+  select case ( char(opt) )
+    case ( "c" )
+      nmlfile = optarg
+    case default
+      if ( myid==0 ) write(6,*) "ERROR: Unknown command line option ",char(opt)
+      stop
+  end select
+end do
+
 write(6,*) "Reading namelist"
-open(99,file="input",form="formatted",status="old")
+open(99,file=nmlfile,form="formatted",status="old")
 read(99,scmnml)
 read(99,cardin)
 read(99,skyin)
 read(99,datafile)
 read(99,kuonml)
 read(99,turbnml)
+read(99,landnml)
 
 write(6,*) "scm_mode ",trim(scm_mode)
 
@@ -501,7 +523,7 @@ end if
 
 ! NUDGING
 ktau = 0
-call nudgescm(scm_mode,metforcing,fixtsurf)
+call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge)
 call nantest("after nudging",1,ifull)
 
 savu(1:ifull,:) = u(1:ifull,:)
@@ -509,7 +531,7 @@ savv(1:ifull,:) = v(1:ifull,:)
 savs(1:ifull,:) = sdot(1:ifull,2:kl)
 
 ! INITIAL OUTPUT
-call outputscm(timeoutput,profileoutput,lsmoutput)
+call outputscm(scm_mode,timeoutput,profileoutput,lsmoutput)
 
 call gdrag_sbl
 select case ( nkuo )
@@ -535,6 +557,8 @@ do spinup = spinup_start,1,-1
     ntau_end = ntau
     write(6,*) "Main simulation"
   end if  
+  
+  iarch_nudge = 0 ! reset nudging
 
   ! main simulation
   do ktau = 1,ntau_end
@@ -722,7 +746,7 @@ do spinup = spinup_start,1,-1
     endif   ! (ntsur>1) 
     call nantest("after surface fluxes",1,ifull)
   
-    call nudgescm(scm_mode,metforcing,fixtsurf)
+    call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge)
   
     !if ( gablsflux>0 ) then
     !  ppa(:) = sig(1)*ps(:) 
@@ -1031,8 +1055,8 @@ tggsn(:,:) = 240.
 ssdn(:,:) = 300.
 ssdnn(:) = 300.
 smass(:,:) = 10.*ssdn(:,:)
-tss(:) = tggsn(:,1)
-tgg(:,:) = 240. 
+!tss(:) = tggsn(:,1)
+!tgg(:,:) = 240. 
 
 ! Assume constant surface pressure for now
 dpsldt(:,:) = 0.
@@ -1667,7 +1691,7 @@ write(6,*) "Finised initialisation"
 return
 end subroutine initialscm
     
-subroutine nudgescm(scm_mode,metforcing,fixtsurf)
+subroutine nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge)
 
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use cable_ccam
@@ -1684,8 +1708,8 @@ use scmarrays_m
 
 implicit none
 
+integer, intent(inout) :: iarch_nudge
 integer, save :: ncid
-integer, save :: iarch = 0
 integer, save :: nlev, ntimes
 integer :: ncstatus, k, l
 integer, dimension(4) :: spos, npos
@@ -1711,8 +1735,21 @@ time_ktau = real(ktau)*dt
 
 if ( scm_mode=="sublime" ) then
     
-  if ( iarch==0 ) then
-    iarch = 1  
+  if ( iarch_nudge==0 ) then
+    iarch_nudge = 1 
+    if ( allocated(ug) ) then
+      deallocate( ug, vg, t_tend, q_tend )
+      deallocate( ug_file_b, vg_file_b, time_file )
+      deallocate( ug_file_a, vg_file_a, ug_file, vg_file )
+      deallocate( theta_adv, qv_adv, u_adv, v_adv )
+      deallocate( theta_adv_a, theta_adv_b, qv_adv_a, qv_adv_b )
+      deallocate( u_adv_a, u_adv_b, v_adv_a, v_adv_b )
+      deallocate( height_file_a, height_file_b, height_file )
+      call ccnf_close(ncid)
+    end if
+    time_a = -1.
+    time_b = -1.
+
     allocate( ug(kl), vg(kl), t_tend(kl), q_tend(kl) )
     
     call ccnf_open(metforcing,ncid,ncstatus)
@@ -1731,7 +1768,7 @@ if ( scm_mode=="sublime" ) then
       time_file(l) = real(l-1)*3600.*(54./real(ntimes-1))
     end do
 
-    spos(1:4) = (/ 1, 1, 1, iarch /)
+    spos(1:4) = (/ 1, 1, 1, iarch_nudge /)
     npos(1:4) = (/ 1, 1, nlev, 1 /)
     call ccnf_get_vara(ncid,'Forcing_height',spos,npos,height_file_b)
     
@@ -1753,12 +1790,12 @@ if ( scm_mode=="sublime" ) then
   
   if ( time_ktau>time_b ) then
     write(6,*) "Updating MET forcing"  
-    iarch = iarch + 1
-    time_a = time_file(iarch-1)
-    time_b = time_file(iarch)
+    iarch_nudge = iarch_nudge + 1
+    time_a = time_file(iarch_nudge-1)
+    time_b = time_file(iarch_nudge)
     
     height_file_a = height_file_b
-    spos(1:4) = (/ 1, 1, 1, iarch /)
+    spos(1:4) = (/ 1, 1, 1, iarch_nudge /)
     npos(1:4) = (/ 1, 1, nlev, 1 /)
     call ccnf_get_vara(ncid,'Forcing_height',spos,npos,height_file_b)
 
@@ -1806,12 +1843,20 @@ elseif ( scm_mode=="gabls4" ) then
   uadv(:) = 0.
   vadv(:) = 0.
     
-  if ( iarch==0 ) then
-    iarch = 1
+  if ( iarch_nudge==0 ) then
+    iarch_nudge = 1
+    if ( allocated( t_force_a ) ) then
+      deallocate( t_force_a, q_force_a, u_force_a, v_force_a )
+      deallocate( t_force_b, q_force_b, u_force_b, v_force_b )
+      deallocate( new_in, dat_in, sig_in )
+      deallocate( ug, vg, t_tend, q_tend )
+      call ccnf_close(ncid)  
+    end if
+    
     write(6,*) "Starting MET forcing"
     call ccnf_open(metforcing,ncid,ncstatus)
     call ccnf_inq_dimlen(ncid,'lev',nlev)
-    spos(1:2) = (/ 1, iarch  /)
+    spos(1:2) = (/ 1, iarch_nudge  /)
     npos(1:2) = (/ nlev, 1 /)  
     allocate( t_force_a(kl), q_force_a(kl), u_force_a(kl), v_force_a(kl) )
     allocate( t_force_b(kl), q_force_b(kl), u_force_b(kl), v_force_b(kl) )
@@ -1822,8 +1867,8 @@ elseif ( scm_mode=="gabls4" ) then
     do k=1,nlev
       sig_in(nlev-k+1) = dat_in(k)/psurf_in(1)
     end do  
-    call ccnf_get_vara(ncid,'time',iarch,time_b)  
-    call ccnf_get_vara(ncid,'Tg',iarch,tsurf_b) 
+    call ccnf_get_vara(ncid,'time',iarch_nudge,time_b)  
+    call ccnf_get_vara(ncid,'Tg',iarch_nudge,tsurf_b) 
     call ccnf_get_vara(ncid,'Ug',spos,npos,new_in)
     do k = 1,nlev
       dat_in(nlev-k+1) = new_in(k)
@@ -1852,8 +1897,8 @@ elseif ( scm_mode=="gabls4" ) then
 
   if ( time_ktau>time_b ) then
     write(6,*) "Updating MET forcing"  
-    iarch = iarch + 1
-    spos(1:2) = (/ 1, iarch  /)
+    iarch_nudge = iarch_nudge + 1
+    spos(1:2) = (/ 1, iarch_nudge  /)
     npos(1:2) = (/ nlev, 1 /)  
     time_a = time_b
     tsurf_a = tsurf_b
@@ -1861,8 +1906,8 @@ elseif ( scm_mode=="gabls4" ) then
     q_force_a(:) = q_force_b(:)
     u_force_a(:) = u_force_b(:)
     v_force_a(:) = v_force_b(:)
-    call ccnf_get_vara(ncid,'time',iarch,time_b)  
-    call ccnf_get_vara(ncid,'Tg',iarch,tsurf_b) 
+    call ccnf_get_vara(ncid,'time',iarch_nudge,time_b)  
+    call ccnf_get_vara(ncid,'Tg',iarch_nudge,tsurf_b) 
     call ccnf_get_vara(ncid,'Ug',spos(1:2),npos(1:2),new_in)
     do k = 1,nlev
       dat_in(nlev-k+1) = new_in(k)
@@ -1931,7 +1976,7 @@ end if
 return
 end subroutine nudgescm
 
-subroutine outputscm(timeoutput,profileoutput,lsmoutput)
+subroutine outputscm(scm_mode,timeoutput,profileoutput,lsmoutput)
 
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use const_phys                             ! Physical constants
@@ -1964,6 +2009,7 @@ real, dimension(1,kl+1) :: wtflux
 real, dimension(kl) :: zf, pf, rh
 real, dimension(kl+1) :: zh
 real, dimension(kl) :: qs, tmp
+integer, intent(in) :: scm_mode
 integer, save :: timencid, profilencid, lsmncid
 integer, save :: iarch = 1
 integer zfdim, zhdim, zsdim, tdim_time, tdim_prof

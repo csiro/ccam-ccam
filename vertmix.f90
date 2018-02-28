@@ -223,6 +223,7 @@ do tile = 1,ntiles
 #ifdef scm
   rkmsave(is:ie,:) = lrkmsave
   rkhsave(is:ie,:) = lrkhsave  
+  tkesave(is:ie,:) = ltkesave
 #endif
 
 #ifndef scm
