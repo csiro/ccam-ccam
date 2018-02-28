@@ -1305,7 +1305,7 @@ select case(paramname)
         end if
         f_g(tile)%hwratio = paramdata(itmp(1:ufull_g(tile)))
       end if
-    end do  
+    end do
   case('sigvegc')
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
@@ -1590,6 +1590,10 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   if ( ufull_g(tile)>0 ) then
+    ! Here we modify the effective canyon geometry to account for in-canyon vegetation tall vegetation
+    f_g(tile)%coeffbldheight = max(f_g(tile)%bldheight-6.*cnveg_g(tile)%zo,0.2)/f_g(tile)%bldheight
+    f_g(tile)%effhwratio     = f_g(tile)%hwratio*f_g(tile)%coeffbldheight   
+    
     call init_internal(f_g(tile))
     call init_lwcoeff(f_g(tile),intl_g(tile),ufull_g(tile))
   end if
@@ -2500,12 +2504,12 @@ call getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rds
 sg_walle=sg_walle*f_g(tile)%coeffbldheight(is:ie)
 sg_wallw=sg_wallw*f_g(tile)%coeffbldheight(is:ie)
 
-call getnetalbedo(alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,         &
-                  f_g(tile)%hwratio(is:ie),f_g(tile)%sigmabld(is:ie),rfveg_g(tile)%sigma(is:ie), &
-                  f_roof(tile)%alpha(is:ie),rfveg_g(tile)%alpha(is:ie),                          &
-                  cnveg_g(tile)%sigma(is:ie),f_road(tile)%alpha(is:ie),                          &
-                  f_wall(tile)%alpha(is:ie),cnveg_g(tile)%alpha(is:ie),                          &
-                  rfhyd_g(tile)%snowalpha(is:ie),rdhyd_g(tile)%snowalpha(is:ie),snowdeltar,      &
+call getnetalbedo(alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,            &
+                  f_g(tile)%effhwratio(is:ie),f_g(tile)%sigmabld(is:ie),rfveg_g(tile)%sigma(is:ie), &
+                  f_roof(tile)%alpha(is:ie),rfveg_g(tile)%alpha(is:ie),                             &
+                  cnveg_g(tile)%sigma(is:ie),f_road(tile)%alpha(is:ie),                             &
+                  f_wall(tile)%alpha(is:ie),cnveg_g(tile)%alpha(is:ie),                             &
+                  rfhyd_g(tile)%snowalpha(is:ie),rdhyd_g(tile)%snowalpha(is:ie),snowdeltar,         &
                   snowdeltac)
 
 return
@@ -3001,7 +3005,7 @@ call getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rds
 sg_walle = sg_walle*fp%coeffbldheight ! shadow due to in-canyon vegetation
 sg_wallw = sg_wallw*fp%coeffbldheight ! shadow due to in-canyon vegetation
 call getnetalbedo(u_alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,  &
-                  fp%hwratio,fp%sigmabld,rfveg%sigma,fp_roof%alpha,rfveg%alpha,             &
+                  fp%effhwratio,fp%sigmabld,rfveg%sigma,fp_roof%alpha,rfveg%alpha,          &
                   cnveg%sigma,fp_road%alpha,fp_wall%alpha,cnveg%alpha,                      &
                   rfhyd%snowalpha,rdhyd%snowalpha,d_rfsndelta,d_rdsndelta)
 sg_roof  = (1.-fp_roof%alpha)*sg_roof*a_sg

@@ -1961,7 +1961,7 @@ include 'version.h'                        ! Model version data
 integer, dimension(:), allocatable, save :: dumi
 integer, intent(inout) :: nstagin, nstaguin, jalbfix, nalpha
 integer, intent(inout) :: nwrite, irest, mins_rad
-integer ierr, k, new_nproc, ilx, jlx, i, nperhr, ng
+integer ierr, k, new_nproc, ilx, jlx, i, ng
 integer isoth, nsig, lapsbot
 integer secs_rad, nversion, npa, npb
 integer mstn, io_nest, mbd_min

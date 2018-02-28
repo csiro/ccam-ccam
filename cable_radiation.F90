@@ -56,10 +56,17 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
       xphi1,   & ! leaf angle parmameter 1
       xphi2      ! leaf angle parmameter 2
 
+#ifdef CCAM
+   REAL, DIMENSION(mp,nrb) ::                                  &
+      ! subr to calc these curr. appears twice. fix this
+      c1,      & !
+      rhoch
+#else
    REAL, DIMENSION(:,:), ALLOCATABLE, SAVE ::                                  &
       ! subr to calc these curr. appears twice. fix this
       c1,      & !
       rhoch
+#endif
 !$omp threadprivate(c1,rhoch)
 
 
@@ -70,8 +77,10 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
 
    CALL point2constants( C )
 
+#ifndef CCAM
    IF(.NOT. ALLOCATED(c1) ) ALLOCATE( c1(mp,nrb), rhoch(mp,nrb) )
-
+#endif
+   
    cos3 = COS(C%PI180 * (/ 15.0, 45.0, 75.0 /))
 
    ! See Sellers 1985, eq.13 (leaf angle parameters):
@@ -111,9 +120,9 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
    DO ictr=1,nrb
 
      rad%rhocdf(:,ictr) = rhoch(:,ictr) *                                      &
-                          ( C%GAUSS_W(1) * xk(:,1) / ( xk(:,1) + rad%extkd(:) )&
-                          + C%GAUSS_W(2) * xk(:,2) / ( xk(:,2) + rad%extkd(:) )&
-                          + C%GAUSS_W(3) * xk(:,3) / ( xk(:,3) + rad%extkd(:) ) )
+                          ( C%GAUSS_W(1) * 2. * xk(:,1) / ( xk(:,1) + rad%extkd(:) )&
+                          + C%GAUSS_W(2) * 2. * xk(:,2) / ( xk(:,2) + rad%extkd(:) )&
+                          + C%GAUSS_W(3) * 2. * xk(:,3) / ( xk(:,3) + rad%extkd(:) ) )
 
    ENDDO
 
@@ -157,8 +166,10 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
       rad%extkb=1.0e5 
    END WHERE
 
+#ifndef CCAM
    DEALLOCATE( c1, rhoch )
-
+#endif
+   
 END SUBROUTINE init_radiation
 
 ! ------------------------------------------------------------------------------
@@ -354,7 +365,7 @@ SUBROUTINE calc_rhoch(veg,c1,rhoch)
 
    TYPE (veg_parameter_type), INTENT(INOUT) :: veg
    REAL, INTENT(INOUT), DIMENSION(:,:) :: c1, rhoch
-
+   
    c1(:,1) = SQRT(1. - veg%taul(:,1) - veg%refl(:,1))
    c1(:,2) = SQRT(1. - veg%taul(:,2) - veg%refl(:,2))
    c1(:,3) = 1.
@@ -409,6 +420,7 @@ FUNCTION spitter(doy, coszen, fsd) RESULT(fbeam)
       tmprat        !
 
    REAL, PARAMETER :: solcon = 1370.0
+   INTEGER :: k
 
    fbeam = 0.0
    tmpr = 0.847 + coszen * (1.04 * coszen - 1.61)
@@ -426,6 +438,10 @@ FUNCTION spitter(doy, coszen, fsd) RESULT(fbeam)
    WHERE ( tmprat > 0.35 ) fbeam = MIN( 1.66 * tmprat - 0.4728, 1.0 )
 
    WHERE ( tmprat > tmpk ) fbeam = MAX( 1.0 - tmpr, 0.0 )
+   
+   DO k = 1,mp
+     IF ( fbeam(k) .le. 0.01 ) fbeam(k) = 0.
+   END DO
 
 END FUNCTION spitter
 

@@ -27,14 +27,18 @@ private
 public rsmin,sigmf,tgf,sigmu
 public ivegt,isoilm,isoilm_in
 public climate_ivegt,climate_biome
-public climate_min20,climate_max20,climate_alpha20
+public climate_min20,climate_max20,climate_alpha20,climate_agdd5
+public climate_gmd,climate_dmoist_min20,climate_dmoist_max20
 public nsibd_init,nsibd_end
 
 real, dimension(:), allocatable, save :: rsmin,tgf,sigmu
 real, dimension(:), allocatable, save :: sigmf
 real, dimension(:), allocatable, save :: climate_min20, climate_max20, climate_alpha20
+real, dimension(:), allocatable, save :: climate_agdd5
+real, dimension(:), allocatable, save :: climate_dmoist_min20, climate_dmoist_max20
 integer, dimension(:), allocatable, save :: ivegt,isoilm,isoilm_in
 integer, dimension(:), allocatable, save :: climate_ivegt,climate_biome
+integer, dimension(:), allocatable, save :: climate_gmd
 
 contains
 
@@ -43,7 +47,6 @@ subroutine nsibd_init(ifull,nsib,cable_climate)
 implicit none
 
 integer, intent(in) :: ifull,nsib,cable_climate
-
 
 allocate(ivegt(ifull),isoilm(ifull))
 allocate(sigmf(ifull),sigmu(ifull))
@@ -58,11 +61,17 @@ end if
 if (cable_climate==1) then
   allocate(climate_ivegt(ifull),climate_biome(ifull))
   allocate(climate_min20(ifull),climate_max20(ifull),climate_alpha20(ifull))
+  allocate(climate_agdd5(ifull))
+  allocate(climate_gmd(ifull),climate_dmoist_min20(ifull),climate_dmoist_max20(ifull))
   climate_ivegt = 0
   climate_biome = 0
   climate_min20 = 0.
   climate_max20 = 0.
   climate_alpha20 = 0.
+  climate_agdd5 = 0.
+  climate_gmd = 0
+  climate_dmoist_min20 = 0.
+  climate_dmoist_max20 = 0.
 end if
 
 return
@@ -81,6 +90,8 @@ end if
 if (allocated(climate_ivegt)) then
   deallocate(climate_ivegt,climate_biome)
   deallocate(climate_min20,climate_max20,climate_alpha20)
+  deallocate(climate_agdd5)
+  deallocate(climate_gmd,climate_dmoist_min20,climate_dmoist_max20)
 end if
 
 return

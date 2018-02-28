@@ -39,7 +39,6 @@ MODULE cable_def_types_mod
               mvtype,& ! total # vegetation types,   from input
               mstype,& ! total # soil types,         from input
               mland                           ! # land grid cells
-!$omp threadprivate(mp)
 
    INTEGER, PARAMETER ::                                                        &
       i_d  = KIND(9), &
@@ -269,11 +268,14 @@ MODULE cable_def_types_mod
 
       INTEGER, DIMENSION(:), POINTER ::                                        &
          iveg , &      ! vegetation type
+         ivegp , &      ! dominant potential vegetation type
          iLU ! land use type
       REAL, DIMENSION(:), POINTER ::                                           &
          canst1,  & ! max intercepted water by canopy (mm/LAI)
          dleaf,   & ! chararacteristc legnth of leaf (m)
          ejmax,   & ! max pot. electron transp rate top leaf(mol/m2/s)
+         ejmax_shade,   & ! max pot. electron transp rate top leaf(mol/m2/s)
+         ejmax_sun,   & ! max pot. electron transp rate top leaf(mol/m2/s)
          meth,    & ! method for calculation of canopy fluxes and temp.
          frac4,   & ! fraction of c4 plants
          hc,      & ! roughness height of canopy (veg - snow)
@@ -289,6 +291,8 @@ MODULE cable_def_types_mod
          tmaxvj,  & ! max temperature of the start of photosynthesis
          vbeta,   & !
          vcmax,   & ! max RuBP carboxylation rate top leaf (mol/m2/s)
+         vcmax_shade,   & ! max RuBP carboxylation rate top leaf (mol/m2/s)
+         vcmax_sun,   & ! max RuBP carboxylation rate top leaf (mol/m2/s)
          xfang,   & ! leaf angle PARAMETER
          extkn,   & ! extinction coef for vertical
          vlaimax, & ! extinction coef for vertical
@@ -380,8 +384,9 @@ MODULE cable_def_types_mod
          uscrn,   & ! wind speed at screen height (m/s)
          vlaiw,   & ! lai adj for snow depth for calc of resistances
          rghlai,  & ! lai adj for snow depth for calc of resistances
-         fwet       ! fraction of canopy wet
-
+         fwet     ! fraction of canopy wet
+      
+         
       REAL, DIMENSION(:,:), POINTER ::                                         &
          evapfbl, &
          gswx,    & ! stom cond for water
@@ -396,7 +401,21 @@ MODULE cable_def_types_mod
          fes,     & ! latent heatfl from soil (W/m2)
          fes_cor, & ! latent heatfl from soil (W/m2)
          fevc,     &  ! dry canopy transpiration (W/m2)
-         ofes     ! latent heatfl from soil (W/m2)
+         ofes,     &   ! latent heatfl from soil (W/m2)
+         A_sh,    & ! gross photosynthesis from shaded leaves
+         A_sl,    & ! gross photosynthesis from sunlit leaves
+         A_slC,   & ! gross photosynthesis from sunlit leaves (rubisco limited)
+         A_shC,   & ! gross photosynthesis from shaded leaves  (rubisco limited)
+         A_slJ,   & ! gross photosynthesis from sunlit leaves (rubp limited)
+         A_shJ, &     ! gross photosynthesis from shaded leaves  (rubp limited)
+         eta_A_cs, &      ! elasticity of photosynthesis wrt cs, mulitplied by gross photosythesis
+         dAdcs, & ! sensitivity of photosynthesis wrt cs, mulitplied by gross photosythesis
+         cs, &       ! leaf surface CO2 (ppm), mulitplied by gross photosythesis
+         cs_sl, &    !  leaf surface CO2 (ppm) (sunlit)
+         cs_sh, &    !  leaf surface CO2 (ppm) (shaded)
+         tlf, &      ! dry leaf temperature
+         dlf         ! dryleaf vp minus in-canopy vp (Pa)
+
 
      ! Additional variables:
      REAL(r_2), DIMENSION(:,:),   POINTER :: gw     ! dry canopy conductance (ms-1) edit vh 6/7/09
@@ -541,7 +560,8 @@ MODULE cable_def_types_mod
          da,      & ! water vap pressure deficit at ref height (Pa)
          dva,     & ! in canopy water vap pressure deficit (Pa)
          coszen,   &  ! cos(zenith angle of sun)
-         Ndep        ! nitrogen deposition (gN m-2 d-1)
+         Ndep,     &   ! nitrogen deposition (gN m-2 d-1)
+         Pdep ! P deposition (gP m-2 d-1)
 
       REAL, DIMENSION(:,:), POINTER ::                                         &
          fsd  ! downward short-wave radiation (W/m2)
@@ -563,11 +583,16 @@ MODULE cable_def_types_mod
        INTEGER, DIMENSION(:), POINTER ::                                   &
        chilldays, &   ! length of chilling period (period with T<5deg)
        iveg, &        ! potential vegetation type based on climatic constraints
-       biome
+       biome, &
+       GMD            ! growing moisture days (== number days since min moisture threshold)
 
       REAL, DIMENSION(:), POINTER ::                                           &
-      dtemp,        & ! daily temperature
+      dtemp,        & ! daily mean temperature
       dmoist,        & ! daily moisture availability
+      dmoist_min,        & ! minimum daily moisture availability over the year
+      dmoist_min20,        & ! min daily moisture avail over the year, averaged over 20 y
+      dmoist_max,        & ! maximum daily moisture availability over the year
+      dmoist_max20,        & ! max daily moisture avail over the year, averaged over 20 y
       mtemp,       & ! mean temperature over the last 31 days
       qtemp,       & ! mean temperature over the last 91 days
       mmoist,        & ! monthly moisture availability
@@ -585,16 +610,46 @@ MODULE cable_def_types_mod
       alpha_PT,    & ! ratio of annual evap to annual PT evap
       evap_PT,    & ! annual PT evap [mm]
       aevap , &       ! annual evap [mm]
-      alpha_PT20
+      alpha_PT20, &   
+      GDD0_rec, &    ! growing degree day sum related to spring photosynthetic recovery
+      frec, &           ! fractional photosynthetic recovery
+      dtemp_min, &      ! daily minimum temperature
+      fdorm ! dormancy fraction (1 prior to first autumn frost; 0 after 10 severe frosts)
 
       REAL, DIMENSION(:,:), POINTER ::                                   &
       mtemp_min_20, & ! mimimum monthly temperatures for the last 20 y
       mtemp_max_20, & ! maximum monthly temperatures for the last 20 y
+      dmoist_min_20, & ! min daily moisture for the last 20 y
+      dmoist_max_20, & ! max daily moisture for the last 20 y
       dtemp_31 , &    ! daily temperature for the last 31 days
       dmoist_31 , &    ! daily moisture availability for the last 31 days
       alpha_PT_20, &      ! priestley Taylor Coefft for last 20 y
-      dtemp_91     ! daily temperature for the last 91 days
-
+      dtemp_91, &     ! daily temperature for the last 91 days
+      APAR_leaf_sun, &  ! flux of PAR absrobed by sunlit leaves (subdiurnal time-step)
+      APAR_leaf_shade, & ! flux of PAR absrobed by shaded leaves (subdiurnal time-step)
+      Dleaf_sun, & ! leaf-air vapour pressure difference (sun leaves, subdiurnal time-step)
+      Dleaf_shade,  & ! leaf-air vapour pressure difference (shade leaves, subdiurnal time-step)
+      Tleaf_sun, & ! leaf T (sun leaves, subdiurnal time-step)
+      Tleaf_shade, &  ! leaf T  (shade leaves, subdiurnal time-step)
+      cs_sun, &     ! sun leaf cs (ppm CO2)
+      cs_shade, &          ! shade leaf cs (ppm CO2)
+      scalex_sun, & ! canopy depth scaling factor on vcmax and jmax (sun leaves)
+      scalex_shade ! canopy depth scaling factor on vcmax and jmax (shade leaves)
+      
+#ifdef CCAM
+      REAL, DIMENSION(:), POINTER :: &
+      APAR_leaf_sun_save,   &
+      APAR_leaf_shade_save, &
+      Dleaf_sun_save,       &
+      Dleaf_shade_save,     &
+      Tleaf_sun_save,       &
+      Tleaf_shade_save,     &
+      cs_sun_save,          &
+      cs_shade_save,        &
+      scalex_sun_save,      &
+      scalex_shade_save
+#endif
+      
    END TYPE climate_type
 
 ! .............................................................................
@@ -879,7 +934,10 @@ SUBROUTINE alloc_veg_parameter_type(var, mp)
    ALLOCATE( var% canst1(mp) )
    ALLOCATE( var% dleaf(mp) )
    ALLOCATE( var% ejmax(mp) )
+   ALLOCATE( var% ejmax_shade(mp) )
+   ALLOCATE( var% ejmax_sun(mp) )
    ALLOCATE( var% iveg(mp) )
+   ALLOCATE( var% ivegp(mp) )
    ALLOCATE( var% iLU(mp) )
    ALLOCATE( var% meth(mp) )
    ALLOCATE( var% frac4(mp) )
@@ -896,6 +954,8 @@ SUBROUTINE alloc_veg_parameter_type(var, mp)
    ALLOCATE( var% tmaxvj(mp) )
    ALLOCATE( var% vbeta(mp) )
    ALLOCATE( var% vcmax(mp) )
+   ALLOCATE( var% vcmax_shade(mp) )
+   ALLOCATE( var% vcmax_sun(mp) )
    ALLOCATE( var% xfang(mp) )
    ALLOCATE( var%extkn(mp) )
    ALLOCATE( var%wai(mp) )
@@ -980,6 +1040,20 @@ SUBROUTINE alloc_canopy_type(var, mp)
    ALLOCATE( var% rghlai(mp) )
    ALLOCATE( var% vlaiw(mp) )
    ALLOCATE( var% fwet(mp) )
+   ALLOCATE( var% A_sh(mp) )
+   ALLOCATE( var% A_sl(mp) )
+   ALLOCATE( var% A_slC(mp) )
+   ALLOCATE( var% A_shC(mp) )
+   ALLOCATE( var% A_slJ(mp) )
+   ALLOCATE( var% A_shJ(mp) )
+   ALLOCATE( var% eta_A_cs(mp) )
+   ALLOCATE( var% cs(mp) )
+   ALLOCATE( var% dAdcs(mp) )
+   ALLOCATE( var% cs_sl(mp) )
+   ALLOCATE( var% cs_sh(mp) )
+   ALLOCATE( var% tlf(mp) )
+   ALLOCATE( var% dlf(mp) )
+
    ALLOCATE ( var % evapfbl(mp,ms) )
    ALLOCATE( var% epot(mp) )
    ALLOCATE( var% fnpp(mp) )
@@ -1004,6 +1078,7 @@ SUBROUTINE alloc_canopy_type(var, mp)
     ALLOCATE ( var % ecy(mp,mf) )    ! sunlit and shaded leaf transpiration (dry canopy)
     ALLOCATE ( var % ecx(mp,mf) )    ! sunlit and shaded leaf latent heat flux
     ALLOCATE ( var % ci(mp,mf,3) )   ! intra-cellular CO2 vh 6/7/09
+    ALLOCATE ( var % fwsoil (mp) )
 
 !! vh_js !! liiter resistances to heat and vapour transfer
    ALLOCATE (var % kthLitt(mp))
@@ -1132,24 +1207,29 @@ SUBROUTINE alloc_met_type(var, mp)
    ALLOCATE ( var % dva(mp) )
    ALLOCATE ( var % coszen(mp) )
    ALLOCATE ( var % Ndep(mp) )
-
+   ALLOCATE ( var % Pdep(mp) )
 END SUBROUTINE alloc_met_type
 
 ! ------------------------------------------------------------------------------
 
-SUBROUTINE alloc_climate_type(var, mp)
+SUBROUTINE alloc_climate_type(var, mp, ktauday)
 
    IMPLICIT NONE
 
    TYPE(climate_type), INTENT(inout) :: var
-   INTEGER, INTENT(in) :: mp
+   INTEGER, INTENT(in) :: mp, ktauday
    INTEGER :: ny, nd
    ny = var%nyear_average
    nd = var%nday_average
+
 !   ALLOCATE ( var %  nyears )
 !   ALLOCATE ( var %  doy )
    ALLOCATE ( var %  dtemp(mp) )
    ALLOCATE ( var %  dmoist(mp) )
+   ALLOCATE ( var %  dmoist_min(mp) )
+   ALLOCATE ( var %  dmoist_min20(mp) )
+   ALLOCATE ( var %  dmoist_max(mp) )
+   ALLOCATE ( var %  dmoist_max20(mp) )
    ALLOCATE ( var % mtemp(mp) )
    ALLOCATE ( var % qtemp(mp) )
    ALLOCATE ( var % mmoist(mp) )
@@ -1166,19 +1246,49 @@ SUBROUTINE alloc_climate_type(var, mp)
    ALLOCATE ( var % GDD0(mp) )
    ALLOCATE ( var % chilldays(mp) )
    ALLOCATE ( var % iveg(mp) )
-    ALLOCATE ( var % biome(mp) )
+   ALLOCATE ( var % biome(mp) )
+   ALLOCATE ( var % GMD(mp) )
    ALLOCATE ( var % alpha_PT(mp) )
    ALLOCATE ( var % alpha_PT20(mp) )
    ALLOCATE ( var % evap_PT(mp) )
    ALLOCATE ( var % aevap(mp) )
+   ALLOCATE ( var % GDD0_rec(mp) )
+   ALLOCATE ( var % frec(mp) )
+   ALLOCATE ( var % dtemp_min(mp) )
+   ALLOCATE ( var % fdorm(mp) )
 
    ALLOCATE ( var % mtemp_min_20(mp,ny) )
    ALLOCATE ( var %     mtemp_max_20(mp,ny) )
+   ALLOCATE ( var % dmoist_min_20(mp,ny) )
+   ALLOCATE ( var % dmoist_max_20(mp,ny) )
    ALLOCATE ( var %     dtemp_31(mp,nd) )
    ALLOCATE ( var %     dmoist_31(mp,nd) )
    ALLOCATE ( var %     dtemp_91(mp,91) )
    ALLOCATE ( var %     alpha_PT_20(mp,ny) )
+   ALLOCATE ( var %   APAR_leaf_sun(mp,ktauday*5) )
+   ALLOCATE ( var %   APAR_leaf_shade(mp,ktauday*5) )
+   ALLOCATE ( var %   Dleaf_sun(mp,ktauday*5) )
+   ALLOCATE ( var %   Dleaf_shade(mp,ktauday*5) )
+   ALLOCATE ( var %   Tleaf_sun(mp,ktauday*5) )
+   ALLOCATE ( var %   Tleaf_shade(mp,ktauday*5) )
+   ALLOCATE ( var %   cs_sun(mp,ktauday*5) )
+   ALLOCATE ( var %   cs_shade(mp,ktauday*5) )
+   ALLOCATE ( var %   scalex_sun(mp,ktauday*5) )
+   ALLOCATE ( var %   scalex_shade(mp,ktauday*5) )
 
+#ifdef CCAM
+   ALLOCATE ( var %   APAR_leaf_sun_save(mp) )
+   ALLOCATE ( var %   APAR_leaf_shade_save(mp) )
+   ALLOCATE ( var %   Dleaf_sun_save(mp) )
+   ALLOCATE ( var %   Dleaf_shade_save(mp) )
+   ALLOCATE ( var %   Tleaf_sun_save(mp) )
+   ALLOCATE ( var %   Tleaf_shade_save(mp) )
+   ALLOCATE ( var %   cs_sun_save(mp) )
+   ALLOCATE ( var %   cs_shade_save(mp) )
+   ALLOCATE ( var %   scalex_sun_save(mp) )
+   ALLOCATE ( var %   scalex_shade_save(mp) )
+#endif
+   
 END SUBROUTINE alloc_climate_type
 
 ! ------------------------------------------------------------------------------
@@ -1420,7 +1530,10 @@ SUBROUTINE dealloc_veg_parameter_type(var)
    DEALLOCATE( var% canst1 )
    DEALLOCATE( var% dleaf )
    DEALLOCATE( var% ejmax )
+   DEALLOCATE( var% ejmax_shade )
+   DEALLOCATE( var% ejmax_sun )
    DEALLOCATE( var% iveg )
+   DEALLOCATE( var% ivegp )
    DEALLOCATE( var% iLU )
    DEALLOCATE( var% meth )
    DEALLOCATE( var% frac4 )
@@ -1437,6 +1550,8 @@ SUBROUTINE dealloc_veg_parameter_type(var)
    DEALLOCATE( var% tmaxvj )
    DEALLOCATE( var% vbeta)
    DEALLOCATE( var% vcmax )
+   DEALLOCATE( var% vcmax_shade )
+   DEALLOCATE( var% vcmax_sun )
    DEALLOCATE( var% xfang )
    DEALLOCATE( var%extkn )
    DEALLOCATE( var%wai )
@@ -1518,6 +1633,21 @@ SUBROUTINE dealloc_canopy_type(var)
    DEALLOCATE( var% rghlai )
    DEALLOCATE( var% vlaiw )
    DEALLOCATE( var% fwet )
+   DEALLOCATE( var% A_sh )
+   DEALLOCATE( var% A_sl )
+   DEALLOCATE( var% A_slC )
+   DEALLOCATE( var% A_shC)
+   DEALLOCATE( var% A_slJ )
+   DEALLOCATE( var% A_shJ )
+   DEALLOCATE( var% eta_A_cs )
+   DEALLOCATE( var% cs )
+   DEALLOCATE( var% dAdcs )
+   DEALLOCATE( var% cs_sl)
+   DEALLOCATE( var% cs_sh )
+   DEALLOCATE( var% tlf )
+   DEALLOCATE( var% dlf )
+
+   
    DEALLOCATE ( var % evapfbl )
    DEALLOCATE( var% epot )
    DEALLOCATE( var% fnpp )
@@ -1657,7 +1787,7 @@ SUBROUTINE dealloc_met_type(var)
    DEALLOCATE ( var % dva )
    DEALLOCATE ( var % coszen )
    DEALLOCATE ( var % Ndep )
-
+   DEALLOCATE ( var % Pdep )
 END SUBROUTINE dealloc_met_type
 
 ! ------------------------------------------------------------------------------

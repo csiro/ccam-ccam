@@ -250,6 +250,7 @@ ntiles = 1
 imax = 1
 scm_mode = "gabls4"
 spinup_start = 1
+ntau_spinup = 0
 fixtsurf = .false.
 nolatent = .false.
 noradiation = .false.
@@ -333,6 +334,9 @@ vnode_vleaderid = myid
 
 maxtilesize = 1
 ntiles = 1
+
+nperday = nint(24.*3600./dt)           ! time-steps in one day
+nperhr  = nint(3600./dt)               ! time-steps in one hour
 
 schmidt = gridres*real(il_g)/(90.*112.)
 write(6,*) "gridres,schmidt ",gridres,schmidt

@@ -107,23 +107,23 @@ subroutine cable_pack_r4_2_r8(indata,outdata,inb)
   if ( present(inb) ) then
     nb = inb
     do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
+      js = 1 + (tile-1)*imax
+      je = tile*imax
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
-        outdata(is:ie) =  real(pack(indata(js:je),tdata(tile)%tmap(:,nb)),8)
+        outdata(is:ie) =  pack(real(indata(js:je),8),tdata(tile)%tmap(:,nb))
       end if  
     end do
   else
     do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
+      js = 1 + (tile-1)*imax
+      je = tile*imax
       do nb = 1,tdata(tile)%maxnb
         is = tdata(tile)%tind(nb,1)
         ie = tdata(tile)%tind(nb,2)
         if ( is<=ie ) then
-          outdata(is:ie) =  real(pack(indata(js:je),tdata(tile)%tmap(:,nb)),8)
+          outdata(is:ie) =  pack(real(indata(js:je),8),tdata(tile)%tmap(:,nb))
         end if  
       end do
     end do
@@ -532,6 +532,20 @@ subroutine setp_canopy(canopy,lcanopy,tile)
   lcanopy%fes_cor => canopy%fes_cor(is:ie)
   lcanopy%fevc => canopy%fevc(is:ie)
   lcanopy%ofes => canopy%ofes(is:ie)
+  
+  lcanopy%A_sh => canopy%A_sh(is:ie)
+  lcanopy%A_sl => canopy%A_sl(is:ie)
+  lcanopy%A_slC => canopy%A_slC(is:ie)
+  lcanopy%A_shC => canopy%A_shC(is:ie)
+  lcanopy%A_slJ => canopy%A_slJ(is:ie)
+  lcanopy%A_shJ => canopy%A_shJ(is:ie)
+  lcanopy%eta_A_cs => canopy%eta_A_cs(is:ie)
+  lcanopy%dAdcs => canopy%dAdcs(is:ie)
+  lcanopy%cs => canopy%cs(is:ie)
+  lcanopy%cs_sl => canopy%cs_sl(is:ie)
+  lcanopy%cs_sh => canopy%cs_sh(is:ie)
+  lcanopy%tlf => canopy%tlf(is:ie)
+  lcanopy%dlf => canopy%dlf(is:ie)
 
   lcanopy%gw => canopy%gw(is:ie,:)
   lcanopy%ancj => canopy%ancj(is:ie,:,:)
@@ -756,6 +770,11 @@ subroutine setp_casaflux(casaflux,lcasaflux,tile)
   lcasaflux%FluxPtoclear => casaflux%FluxPtoclear(is:ie)
   lcasaflux%CtransferLUC => casaflux%CtransferLUC(is:ie)
 
+  lcasaflux%fHarvest => casaflux%fHarvest(is:ie)
+  lcasaflux%NHarvest => casaflux%NHarvest(is:ie)
+  lcasaflux%CHarvest => casaflux%CHarvest(is:ie)
+  lcasaflux%fcrop => casaflux%fcrop(is:ie)
+  
 end subroutine setp_casaflux
 
 subroutine setp_casamet(casamet,lcasamet,tile)
@@ -899,22 +918,55 @@ subroutine setp_climate(climate,lclimate,tile)
   lclimate%mtemp_min20 => climate%mtemp_min20(is:ie)
   lclimate%mtemp_max20 => climate%mtemp_max20(is:ie)
   lclimate%atemp_mean => climate%atemp_mean(is:ie)
+  lclimate%dmoist_min => climate%dmoist_min(is:ie)
+  lclimate%dmoist_max => climate%dmoist_max(is:ie)
+  lclimate%dmoist_min20 => climate%dmoist_min20(is:ie)
+  lclimate%dmoist_max20 => climate%dmoist_max20(is:ie)
   lclimate%AGDD5 => climate%AGDD5(is:ie)
   lclimate%GDD5 => climate%GDD5(is:ie)
   lclimate%AGDD0 => climate%AGDD0(is:ie)
   lclimate%GDD0 => climate%GDD0(is:ie)
+  lclimate%gdd0_rec => climate%gdd0_rec(is:ie)
   lclimate%alpha_PT => climate%alpha_PT(is:ie)
   lclimate%evap_PT => climate%evap_PT(is:ie)
   lclimate%aevap => climate%aevap(is:ie)
   lclimate%alpha_PT20 => climate%alpha_PT20(is:ie)
-
+  lclimate%dtemp_min => climate%dtemp_min(is:ie)
+  lclimate%fdorm => climate%fdorm(is:ie)
+  lclimate%frec => climate%frec(is:ie)
+  lclimate%gmd => climate%gmd(is:ie)
+  
   lclimate%mtemp_min_20 => climate%mtemp_min_20(is:ie,:)
   lclimate%mtemp_max_20 => climate%mtemp_max_20(is:ie,:)
+  lclimate%dmoist_min_20 => climate%dmoist_min_20(is:ie,:)
+  lclimate%dmoist_max_20 => climate%dmoist_max_20(is:ie,:)
   lclimate%dtemp_31 => climate%dtemp_31(is:ie,:)
   lclimate%dmoist_31 => climate%dmoist_31(is:ie,:)
   lclimate%alpha_PT_20 => climate%alpha_PT_20(is:ie,:)
   lclimate%dtemp_91 => climate%dtemp_91(is:ie,:)
-
+  
+  lclimate%APAR_leaf_sun => climate%APAR_leaf_sun(is:ie,:)
+  lclimate%APAR_leaf_shade => climate%APAR_leaf_shade(is:ie,:)
+  lclimate%Dleaf_sun => climate%Dleaf_sun(is:ie,:)
+  lclimate%Dleaf_shade => climate%Dleaf_shade(is:ie,:)
+  lclimate%Tleaf_sun => climate%Tleaf_sun(is:ie,:)
+  lclimate%Tleaf_shade => climate%Tleaf_shade(is:ie,:)
+  lclimate%cs_sun => climate%cs_sun(is:ie,:)
+  lclimate%cs_shade => climate%cs_shade(is:ie,:)
+  lclimate%scalex_sun => climate%scalex_sun(is:ie,:)
+  lclimate%scalex_shade => climate%scalex_shade(is:ie,:)
+  
+  lclimate%APAR_leaf_sun_save => climate%APAR_leaf_sun_save(is:ie)
+  lclimate%APAR_leaf_shade_save => climate%APAR_leaf_shade_save(is:ie)
+  lclimate%Dleaf_sun_save => climate%Dleaf_sun_save(is:ie)
+  lclimate%Dleaf_shade_save => climate%Dleaf_shade_save(is:ie)
+  lclimate%Tleaf_sun_save => climate%Tleaf_sun_save(is:ie)
+  lclimate%Tleaf_shade_save => climate%Tleaf_shade_save(is:ie)
+  lclimate%cs_sun_save => climate%cs_sun_save(is:ie)
+  lclimate%cs_shade_save => climate%cs_shade_save(is:ie)
+  lclimate%scalex_sun_save => climate%scalex_sun_save(is:ie)
+  lclimate%scalex_shade_save => climate%scalex_shade_save(is:ie)
+  
 end subroutine setp_climate
 
 subroutine setp_met(met,lmet,tile)
@@ -1332,6 +1384,11 @@ subroutine setp_veg(veg,lveg,tile)
 
   lveg%disturbance_interval => veg%disturbance_interval(is:ie,:)
   lveg%disturbance_intensity => veg%disturbance_intensity(is:ie,:)
+  
+  lveg%vcmax_shade => veg%vcmax_shade
+  lveg%ejmax_shade => veg%ejmax_shade
+  lveg%vcmax_sun => veg%vcmax_sun
+  lveg%ejmax_sun => veg%ejmax_sun
 
 end subroutine setp_veg
 

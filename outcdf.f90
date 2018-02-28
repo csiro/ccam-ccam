@@ -241,13 +241,14 @@ integer, dimension(6), save :: dimc2
 integer, dimension(5), save :: dimc3
 integer, dimension(5), save :: dimc4
 integer, dimension(5), save :: dimc5
+integer, dimension(5), save :: dimc6
 integer, dimension(2) :: dimp
 integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgproc
-integer idcp, idc2p, idc91p, idc31p, idc20y
+integer idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer itype, nstagin, tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim
-integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim
+integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim
 integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3
 integer, save :: idnc=0, iarch=0
@@ -355,6 +356,8 @@ if ( myid==0 .or. local ) then
     c2pdim = 0
     c91pdim = 0
     c31pdim = 0
+    c20ydim = 0
+    c5ddim = 0
     if ( itype==-1 ) then
       if ( cable_pop==1 ) then
         call ccnf_def_dim(idnc,'cable_patch',POP_NPATCH,cpdim)  
@@ -364,6 +367,7 @@ if ( myid==0 .or. local ) then
         call ccnf_def_dim(idnc,'cable_91days',91,c91pdim)
         call ccnf_def_dim(idnc,'cable_31days',31,c31pdim)
         call ccnf_def_dim(idnc,'cable_20years',20,c20ydim)
+        call ccnf_def_dim(idnc,'cable_5days',120,c5ddim)
       end if
     end if  
     
@@ -380,6 +384,7 @@ if ( myid==0 .or. local ) then
       dimc3 = (/ xdim, ydim, c91pdim, pdim, tdim /)
       dimc4 = (/ xdim, ydim, c31pdim, pdim, tdim /)
       dimc5 = (/ xdim, ydim, c20ydim, pdim, tdim /)
+      dimc6 = (/ xdim, ydim, c5ddim, pdim, tdim /)
     else
       ! atmosphere dimensions
       dima = (/ xdim, ydim, zdim, tdim, 0 /)
@@ -393,6 +398,7 @@ if ( myid==0 .or. local ) then
       dimc3 = (/ xdim, ydim, c91pdim, tdim, 0 /)
       dimc4 = (/ xdim, ydim, c31pdim, tdim, 0 /)
       dimc5 = (/ xdim, ydim, c20ydim, tdim, 0 /)
+      dimc6 = (/ xdim, ydim, c5ddim, tdim, 0 /)
     end if
 
     ! Define coords.
@@ -467,7 +473,8 @@ if ( myid==0 .or. local ) then
         call ccnf_def_var(idnc,'cable_91days','float',1,dimc3(3:3),idc91p)
         call ccnf_def_var(idnc,'cable_31days','float',1,dimc4(3:3),idc31p)
         call ccnf_def_var(idnc,'cable_20years','float',1,dimc5(3:3),idc20y)
-        if ( myid==0 ) write(6,*) 'idc91p,idc31p,idc20y=',idc91p,idc31p,idc20y
+        call ccnf_def_var(idnc,'cable_5days','float',1,dimc6(3:3),idc5d)
+        if ( myid==0 ) write(6,*) 'idc91p,idc31p,idc20y,idc5d=',idc91p,idc31p,idc20y,idc5d
       end if
     end if    
 
@@ -881,9 +888,9 @@ if ( myid==0 .or. local ) then
 endif ! (myid==0.or.local)
       
 ! openhist writes some fields so needs to be called by all processes
-call openhist(iarch,itype,dima,dimo,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,  &
-              local,idnc,nstagin,ixp,iyp,idlev,idms,idoc,idproc,idgproc,   &
-              idcp,idc2p,idc91p,idc31p,idc20y)
+call openhist(iarch,itype,dima,dimo,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,c5ddim,  &
+              local,idnc,nstagin,ixp,iyp,idlev,idms,idoc,idproc,idgproc,          &
+              idcp,idc2p,idc91p,idc31p,idc20y,idc5d)
 
 if ( myid==0 .or. local ) then
   if ( ktau==ntau ) then
@@ -906,9 +913,9 @@ end subroutine cdfout
       
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
-subroutine openhist(iarch,itype,idim,odim,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,  &
-                    local,idnc,nstagin,ixp,iyp,idlev,idms,idoc,idproc,idgproc,   &
-                    idcp,idc2p,idc91p,idc31p,idc20y)
+subroutine openhist(iarch,itype,idim,odim,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,c5ddim,  &
+                    local,idnc,nstagin,ixp,iyp,idlev,idms,idoc,idproc,idgproc,          &
+                    idcp,idc2p,idc91p,idc31p,idc20y,idc5d)
 
 use aerointerface                                ! Aerosol interface
 use aerosolldr                                   ! LDR prognostic aerosols
@@ -970,12 +977,12 @@ include 'kuocom.h'                               ! Convection parameters
 include 'version.h'                              ! Model version data
 
 integer, intent(inout) :: ixp, iyp, idlev, idms, idoc, idproc, idgproc
-integer, intent(in) :: cpdim, c2pdim, c91pdim, c31pdim, c20ydim, idcp, idc2p, idc91p, idc31p, idc20y
+integer, intent(in) :: cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer iarch, itype, nstagin, idum
 integer isize, osize, jsize, ksize, dproc, d4, gprocrank
-integer csize, c2size, c3size, c4size, c5size
+integer csize, c2size, c3size, c4size, c5size, c6size
 integer, dimension(5), intent(in) :: idim
 integer, dimension(5), intent(in) :: odim
 integer, dimension(4) :: jdim
@@ -985,6 +992,7 @@ integer, dimension(6) :: c2dim
 integer, dimension(5) :: c3dim
 integer, dimension(5) :: c4dim
 integer, dimension(5) :: c5dim
+integer, dimension(5) :: c6dim
 integer, dimension(:), allocatable, save :: vnode_dat
 integer, dimension(:), allocatable, save :: procmap
 real, dimension(:,:), allocatable, save :: xpnt2
@@ -1051,6 +1059,8 @@ if ( procformat ) then
   c4dim(3)   = c31pdim
   c5dim(1:5) = idim(1:5)
   c5dim(3)   = c20ydim
+  c6dim(1:5) = idim(1:5)
+  c6dim(3)   = c5ddim
   dproc = 4
   d4 = 5
   isize = 5
@@ -1062,6 +1072,7 @@ if ( procformat ) then
   c3size = 5
   c4size = 5
   c5size = 5
+  c6size = 5
   !call init_iobuffer(idnc,itype)
 else
   jdim(1:2) = idim(1:2)
@@ -1079,6 +1090,8 @@ else
   c4dim(3)   = c31pdim
   c5dim(1:4) = idim(1:4)
   c5dim(3)   = c20ydim
+  c6dim(1:4) = idim(1:4)
+  c6dim(3)   = c5ddim
   dproc = -1 ! ?
   d4 = 4
   isize = 4
@@ -1090,6 +1103,7 @@ else
   c3size = 4
   c4size = 4
   c5size = 4
+  c6size = 4
 end if
 
 if( myid==0 .or. local ) then
@@ -1831,15 +1845,23 @@ if( myid==0 .or. local ) then
         end if
         if ( cable_climate==1 ) then
           lname = 'Climate ivegt'
-          call attrib(idnc,jdim,jsize,'climate_ivegt',lname,'none',0.,650.,0,itype)
+          call attrib(idnc,jdim,jsize,'climate_ivegt',lname,'none',0.,65.,0,itype)
           lname = 'Climate biome'
-          call attrib(idnc,jdim,jsize,'climate_biome',lname,'none',0.,1300.,0,itype)
+          call attrib(idnc,jdim,jsize,'climate_biome',lname,'none',0.,65.,0,itype)
           lname = 'Climate average minimum annual temperature'
-          call attrib(idnc,jdim,jsize,'climate_min20',lname,'none',0.,1300.,0,itype)
+          call attrib(idnc,jdim,jsize,'climate_min20',lname,'K',-130.,130.,0,itype)
           lname = 'Climate average maximum annual temperature'
-          call attrib(idnc,jdim,jsize,'climate_max20',lname,'none',0.,1300.,0,itype)
+          call attrib(idnc,jdim,jsize,'climate_max20',lname,'K',-130.,130.,0,itype)
           lname = 'Climate average ratio of precip to PT evap'
-          call attrib(idnc,jdim,jsize,'climate_alpha20',lname,'none',0.,1300.,0,itype)
+          call attrib(idnc,jdim,jsize,'climate_alpha20',lname,'none',0.,13.,0,itype)
+          lname = 'Climate annual growing degree days above -5C'
+          call attrib(idnc,jdim,jsize,'climate_agdd5',lname,'K',0.,13000.,0,itype)
+          lname = 'Climate growing moisture days'
+          call attrib(idnc,jdim,jsize,'climate_gmd',lname,'none',0.,650.,0,itype)
+          lname = 'Climate average minimum annual moisture'
+          call attrib(idnc,jdim,jsize,'climate_dmoist_min20',lname,'none',0.,13.,0,itype)
+          lname = 'Climate average maximum annual moisture'
+          call attrib(idnc,jdim,jsize,'climate_dmoist_max20',lname,'none',0.,13.,0,itype)
         end if
       end if
     end if
@@ -2147,7 +2169,8 @@ if( myid==0 .or. local ) then
       
       if ( nsib==6 .or. nsib==7 ) then
         call savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size, &
-                         c3dim,c3size,c4dim,c4size,c5dim,c5size)
+                         c3dim,c3size,c4dim,c4size,c5dim,c5size,        &
+                         c6dim,c6size)
       end if
       
     endif  ! (itype==-1)
@@ -2278,6 +2301,13 @@ if( myid==0 .or. local ) then
           cabledata(i) = real(i)
         end do
         call ccnf_put_vara(idnc,idc20y,1,20,cabledata)
+        deallocate( cabledata )
+        allocate( cabledata(120) )
+        do i = 1,120
+          cabledata(i) = real(i)
+        end do
+        call ccnf_put_vara(idnc,idc5d,1,120,cabledata)
+        deallocate( cabledata )
       end if    
     end if    
     
@@ -2850,6 +2880,11 @@ if ( nsib==6 .or. nsib==7 ) then
       call histwrt3(climate_min20,'climate_min20',idnc,iarch,local,lday)  
       call histwrt3(climate_max20,'climate_max20',idnc,iarch,local,lday)
       call histwrt3(climate_alpha20,'climate_alpha20',idnc,iarch,local,lday)
+      call histwrt3(climate_agdd5,'climate_agdd5',idnc,iarch,local,lday)
+      aa = real(climate_gmd)
+      call histwrt3(aa,'climate_gmd',idnc,iarch,local,lday)
+      call histwrt3(climate_dmoist_min20,'climate_dmoist_min20',idnc,iarch,local,lday)
+      call histwrt3(climate_dmoist_max20,'climate_dmoist_max20',idnc,iarch,local,lday)
     end if
   end if
 endif   

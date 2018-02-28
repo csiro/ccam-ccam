@@ -18,6 +18,7 @@
 /cable_common.F90 -text
 /cable_data.F90 -text
 /cable_define_types.F90 -text
+/cable_optimiseJVratio.F90 -text
 /cable_radiation.F90 -text
 /cable_roughness.F90 -text
 /cable_sli_main.F90 -text

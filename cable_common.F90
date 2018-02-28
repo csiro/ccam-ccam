@@ -106,7 +106,8 @@ MODULE cable_common_module
           CALL_Climate           = .FALSE., &
           Climate_fromZero       = .FALSE., &
           CASA_fromZero          = .FALSE., &
-          POPLUC                 = .FALSE.
+          POPLUC                 = .FALSE., &
+          finite_gm              = .FALSE.    ! finite mesophyll conductance
     
      INTEGER  :: &
           CASA_SPIN_STARTYEAR = 1950, &
@@ -126,8 +127,8 @@ MODULE cable_common_module
 
      ! Custom soil respiration - see Ticket #42
      CHARACTER(LEN=10) ::                                                     &
-          SMRF_NAME,   & ! Soil Moist Respiration Function
-          STRF_NAME      ! Soil Temp Respiration Function
+          SMRF_NAME = "Trudinger2016",   & ! Soil Moist Respiration Function
+          STRF_NAME = "LT1994"             ! Soil Temp Respiration Function
 
      LOGICAL ::                                                               &
           INITIALIZE_MAPPING    = .FALSE., & !
@@ -142,7 +143,7 @@ MODULE cable_common_module
           L_NEW_REDUCE_SOILEVP  = .FALSE., & !
 
                                 ! Switch for customized soil respiration - see Ticket #42
-          SRF = .FALSE., &
+          SRF = .TRUE., &
 
           !! vh_js !!
          litter = .FALSE.
