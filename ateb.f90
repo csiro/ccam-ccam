@@ -23,13 +23,20 @@
 ! The snow scheme is based on Douville, Royer and Mahfouf, Climate Dynamics, 12, p21 (1995)
 ! The in-canyon vegetation is based on Kowalczyk et al, DAR Tech Paper 32 (1994), but simplified by assiming sigmaf=1.
 
-! The main changes include an alternative formulation for in-canyon aerodynamical resistances based on Harman, et al (2004)
-! and Kanada et al (2007), combined with a second canyon wall for completeness.  The scheme includes nrefl order reflections
-! in the canyon for both longwave and shortwave radiation (in TEB infinite reflections are used for shortwave and 1st order
-! reflections in longwave). A big-leaf vegetation tile is included in the canyon using the Kowalczyk et al (1994) scheme but
-! with a simplified soil moisture budget and no modelling of the soil temperature since sigmaf=1.  Snow is also included in
-! the canyon and on roofs using a single-layer scheme based on Douville, et al (1995).  Time dependent traffic heat fluxes
-! are based on Coutts, et al (2007).
+! The main changes include an alternative formaulation of the conduction model by Lipson et al (2017), an alternative
+! formulation for in-canyon aerodynamical resistances based on Harman, et al (2004) and Kanada et al (2007), combined with
+! a second canyon wall for completeness.  The scheme includes nrefl order reflections in the canyon for both longwave and
+! shortwave radiation (in TEB infinite reflections are used for shortwave and 1st order reflections in longwave). A big-leaf
+! vegetation tile is included in the canyon using the Kowalczyk et al (1994) scheme but with a simplified soil moisture
+! budget and no modelling of the soil temperature since sigmaf=1.  Snow is also included in the canyon and on roofs using
+! a single-layer scheme based on Douville, et al (1995).  Time dependent traffic heat fluxes are based on Coutts, et al
+! (2007).
+    
+! The Urban CLimate Energy Model (UCLEM) results when the exterior canyon model (aTEB) is combined with an interior model
+! of energy use from Lipson, et al (2018).  This model includes a representation of energy storage and conduction for the
+! interior slab, prognostic internal air temperature, as well as dynamic anthropogenic energy generation as a function
+! of internal air temperature and a representation of human behaviours over the diurnal cycle based on Thatcher (2007).
+    
 
 ! Usual practice is:
 !   call atebinit            ! to initalise state arrays, etc (use tebdisable to disable calls to ateb subroutines)
@@ -1397,6 +1404,45 @@ select case(paramname)
         f_road(tile)%alpha = paramdata(itmp(1:ufull_g(tile)))
       end if
     end do  
+  case('roofemiss')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+        if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+          write(6,*) "ERROR: Urban type is out of range"
+          stop 
+        end if
+        f_roof(tile)%emiss = paramdata(itmp(1:ufull_g(tile)))
+      end if
+    end do  
+  case('wallemiss')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+        if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+          write(6,*) "ERROR: Urban type is out of range"
+          stop 
+        end if
+        f_wall(tile)%emiss = paramdata(itmp(1:ufull_g(tile)))
+      end if
+    end do  
+  case('roademiss')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+        if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+          write(6,*) "ERROR: Urban type is out of range"
+          stop 
+        end if
+        f_road(tile)%emiss = paramdata(itmp(1:ufull_g(tile)))
+      end if
+    end do   
   case('vegalphac')
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
@@ -1421,6 +1467,32 @@ select case(paramname)
           stop 
         end if
         cnveg_g(tile)%zo = paramdata(itmp(1:ufull_g(tile)))
+      end if
+    end do  
+  case('infilach')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+        if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+          write(6,*) "ERROR: Urban type is out of range"
+          stop 
+        end if
+        f_g(tile)%infilach = paramdata(itmp(1:ufull_g(tile)))
+      end if
+    end do  
+  case('intgains')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+        if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+          write(6,*) "ERROR: Urban type is out of range"
+          stop 
+        end if
+        f_g(tile)%intgains_flr = paramdata(itmp(1:ufull_g(tile)))
       end if
     end do  
   case default
@@ -2548,15 +2620,15 @@ snowdeltar=rfhyd_g(tile)%snow(is:ie)/(rfhyd_g(tile)%snow(is:ie)+maxrfsn)
 ! canyon
 snowdeltac=rdhyd_g(tile)%snow(is:ie)/(rdhyd_g(tile)%snow(is:ie)+maxrdsn)
 call getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi, &
-                f_g(tile)%effhwratio(is:ie),f_g(tile)%vangle(is:ie),f_g(tile)%hangle(is:ie),       &
-                dumfbeam,cnveg_g(tile)%sigma(is:ie),f_road(tile)%alpha(is:ie),                     &
-                cnveg_g(tile)%alpha(is:ie),f_wall(tile)%alpha(is:ie),                              &
+                f_g(tile)%hwratio(is:ie),f_g(tile)%effhwratio(is:ie),f_g(tile)%vangle(is:ie),      &
+                f_g(tile)%hangle(is:ie),dumfbeam,cnveg_g(tile)%sigma(is:ie),                       &
+                f_road(tile)%alpha(is:ie),cnveg_g(tile)%alpha(is:ie),f_wall(tile)%alpha(is:ie),    &
                 rdhyd_g(tile)%snowalpha(is:ie),snowdeltac)
 sg_walle=sg_walle*f_g(tile)%coeffbldheight(is:ie)
 sg_wallw=sg_wallw*f_g(tile)%coeffbldheight(is:ie)
 
 call getnetalbedo(alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,            &
-                  f_g(tile)%hwratio(is:ie),f_g(tile)%sigmabld(is:ie),rfveg_g(tile)%sigma(is:ie), &
+                  f_g(tile)%hwratio(is:ie),f_g(tile)%sigmabld(is:ie),rfveg_g(tile)%sigma(is:ie),    &
                   f_roof(tile)%alpha(is:ie),rfveg_g(tile)%alpha(is:ie),                             &
                   cnveg_g(tile)%sigma(is:ie),f_road(tile)%alpha(is:ie),                             &
                   f_wall(tile)%alpha(is:ie),cnveg_g(tile)%alpha(is:ie),                             &
@@ -3050,9 +3122,9 @@ call getc1(d_c1r,ufull)
 
 ! calculate shortwave reflections
 ! Here we modify the effective canyon geometry to account for in-canyon vegetation
-call getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,fp%effhwratio,  &
-                fp%vangle,fp%hangle,fp%fbeam,cnveg%sigma,fp_road%alpha,cnveg%alpha,fp_wall%alpha,rdhyd%snowalpha, &
-                d_rdsndelta)
+call getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,fp%hwratio,   &
+                fp%effhwratio,fp%vangle,fp%hangle,fp%fbeam,cnveg%sigma,fp_road%alpha,cnveg%alpha,fp_wall%alpha, &
+                rdhyd%snowalpha,d_rdsndelta)
 sg_walle = sg_walle*fp%coeffbldheight ! shadow due to in-canyon vegetation
 sg_wallw = sg_wallw*fp%coeffbldheight ! shadow due to in-canyon vegetation
 call getnetalbedo(u_alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,  &
@@ -3193,7 +3265,7 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,         
                  d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
                  d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,int_infilflux,                &
                  int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,           &
-                 ggint_intm1,ggint_intm2,cyc_translation,cyc_proportion,ddt,                     &
+                 ggint_intm1,ggint_intm2,cyc_proportion,ddt,                                     &
                  cnveg,fp,fp_intm,fp_road,fp_roof,fp_wall,intm,pd,rdhyd,rfveg,road,              &
                  roof,room,slab,walle,wallw,ufull)
 
@@ -3353,7 +3425,7 @@ call energyclosure(sg_roof,rg_roof,fg_roof,sg_walle,rg_walle,fg_walle,     &
                    sg_road,rg_road,fg_road,sg_wallw,rg_wallw,fg_wallw,     &
                    rgint_roof,rgint_walle,rgint_wallw,rgint_slab,          &
                    eg_roof,eg_road,garfsn,gardsn,d_rfsndelta,d_rdsndelta,  &
-                   a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt,a_rho,            &
+                   a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt,                  &
                    ggint_roof,ggint_road,ggint_walle,ggint_wallw,          &
                    ggint_intm1,ggint_slab,ggint_intm2,d_intgains_bld,      &
                    int_infilflux,d_ac_inside,fp,ddt,                       &
@@ -3474,7 +3546,7 @@ subroutine energyclosure(sg_roof,rg_roof,fg_roof,sg_walle,rg_walle,fg_walle,    
                          sg_road,rg_road,fg_road,sg_wallw,rg_wallw,fg_wallw,     &
                          rgint_roof,rgint_walle,rgint_wallw,rgint_slab,          &
                          eg_roof,eg_road,garfsn,gardsn,d_rfsndelta,d_rdsndelta,  &
-                         a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt,a_rho,            &
+                         a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt,                  &
                          ggint_roof,ggint_road,ggint_walle,ggint_wallw,          &
                          ggint_intm1,ggint_slab,ggint_intm2,d_intgains_bld,      &
                          int_infilflux,d_ac_inside,fp,ddt,cnveg,fp_intm,fp_road, &
@@ -3489,7 +3561,7 @@ real, dimension(ufull), intent(in) :: sg_roof,rg_roof,fg_roof,sg_walle,rg_walle,
 real, dimension(ufull), intent(in) :: sg_road,rg_road,fg_road,sg_wallw,rg_wallw,fg_wallw
 real, dimension(ufull), intent(in) :: rgint_roof,rgint_walle,rgint_wallw,rgint_slab
 real, dimension(ufull), intent(in) :: eg_roof,eg_road,garfsn,gardsn,d_rfsndelta,d_rdsndelta
-real, dimension(ufull), intent(in) :: a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt,a_rho
+real, dimension(ufull), intent(in) :: a_sg,a_rg,u_ts,u_fg,u_eg,u_alb,u_melt
 real, dimension(ufull), intent(in) :: ggint_roof,ggint_road,ggint_walle,ggint_wallw
 real, dimension(ufull), intent(in) :: ggint_intm1,ggint_slab,ggint_intm2,d_intgains_bld
 real, dimension(ufull), intent(in) :: int_infilflux,d_ac_inside
@@ -3518,7 +3590,8 @@ roomstorage_prev(:,:)  = room%storage(:,:)
 pd%surferr = 0.
 
 
-room%storage(:,1) = real(fp%bldheight(:),8)*real(a_rho(:),8)*real(aircp,8)*real(room%nodetemp(:,1),8)
+! assume a_rho=1 for interior
+room%storage(:,1) = real(fp%bldheight(:)*aircp*room%nodetemp(:,1),8)
 ! Sum heat stored in urban materials from layer 1 to nl
 select case(conductmeth)
   case(0) ! half-layer conduction
@@ -3579,7 +3652,7 @@ if (intairtmeth==1) then
   pd%surferr = pd%surferr + d_faceterr
   if (any(abs(d_faceterr)>=energytol)) write(6,*) "aTEB intm facet closure error:", maxval(abs(d_faceterr))
   d_roomstor = (room%storage(:,1)-roomstorage_prev(:,1))/real(ddt,8)
-  d_roomflux = real(ggint_roof,8)+real(ggint_slab,8)-real(fp%intmassn,8)*real(d_intmflux,8)            & 
+  d_roomflux = real(ggint_roof,8)+real(ggint_slab,8)-real(fp%intmassn,8)*d_intmflux                    & 
             + (real(fp%bldheight,8)/real(fp%bldwidth,8))*(real(ggint_walle,8) + real(ggint_wallw,8))   &
             + real(int_infilflux,8) + real(d_ac_inside,8) + real(d_intgains_bld,8)
   d_faceterr = d_roomstor - d_roomflux
@@ -3815,9 +3888,9 @@ end subroutine getlna
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! calculate shortwave radiation coefficents (modified to include 2nd wall)
 
-subroutine getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,fp_hwratio, &
-                      fp_vangle,fp_hangle,fp_fbeam,fp_vegsigmac,fp_roadalpha,fp_vegalphac,fp_wallalpha,ird_alpha,   &
-                      rdsndelta)
+subroutine getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,fp_hwratio,   &
+                      fp_effhwratio,fp_vangle,fp_hangle,fp_fbeam,fp_vegsigmac,fp_roadalpha,fp_vegalphac,fp_wallalpha, &
+                      ird_alpha,rdsndelta)
 
 implicit none
 
@@ -3825,15 +3898,15 @@ integer k
 real, dimension(:), intent(in) :: rdsndelta
 real, dimension(:), intent(in) :: ird_alpha
 real, dimension(:), intent(out) :: wallpsi,roadpsi
-real, dimension(:), intent(in) :: fp_hwratio
+real, dimension(:), intent(in) :: fp_hwratio, fp_effhwratio
 real, dimension(:), intent(in) :: fp_vangle,fp_hangle,fp_fbeam,fp_vegsigmac,fp_roadalpha,fp_vegalphac
 real, dimension(:), intent(in) :: fp_wallalpha
 real, dimension(:), intent(out) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
 real, dimension(size(rdsndelta)) :: thetazero,walles,wallws,roads,ta,tc,xa,ya,roadnetalpha
 real, dimension(size(rdsndelta)) :: nwalles,nwallws,nroads
 
-wallpsi=0.5*(fp_hwratio+1.-sqrt(fp_hwratio*fp_hwratio+1.))/fp_hwratio
-roadpsi=sqrt(fp_hwratio*fp_hwratio+1.)-fp_hwratio
+wallpsi=0.5*(fp_effhwratio+1.-sqrt(fp_effhwratio*fp_effhwratio+1.))/fp_effhwratio
+roadpsi=sqrt(fp_effhwratio*fp_effhwratio+1.)-fp_effhwratio
 
 ! integrate through 180 deg instead of 360 deg.  Hence paritioning to east and west facing walls
 where (fp_vangle>=0.5*pi)
@@ -3951,7 +4024,7 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,   
                        d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
                        d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,int_infilflux,                &
                        int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,           &
-                       ggint_intm1,ggint_intm2,cyc_translation,cyc_proportion,ddt,                     &
+                       ggint_intm1,ggint_intm2,cyc_proportion,ddt,                                     &
                        cnveg,fp,fp_intm,fp_road,fp_roof,fp_wall,intm,pd,rdhyd,rfveg,road,              &
                        roof,room,slab,walle,wallw,ufull)
 implicit none
@@ -3983,7 +4056,7 @@ real, dimension(ufull) :: aa,bb,cc,dd,ee,ff,infl,can,rm,rf,we,ww,sl,im1,im2
 real, dimension(ufull) :: lwflux_walle_road, lwflux_wallw_road, lwflux_walle_rdsn, lwflux_wallw_rdsn
 real, dimension(ufull) :: lwflux_walle_vegc, lwflux_wallw_vegc
 real, dimension(ufull) :: skintemp, ac_coeff, d_ac_cool, d_ac_heat
-real, dimension(ufull) :: ac_load,d_ac_behavprop,cyc_translation,cyc_proportion,d_openwindows,xtemp
+real, dimension(ufull) :: ac_load,d_ac_behavprop,cyc_proportion,d_openwindows,xtemp
 real, dimension(ufull) :: cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2
 real, dimension(ufull) :: iroomtemp, infl_dynamic
 real, dimension(ufull,2) :: evct,evctx,oldval
@@ -4242,9 +4315,9 @@ do l = 1,ncyits
         case(2) ! AccuRate (Chen, 2010)
           ! not yet implemented
       end select
-      infl = aircp*a_rho*fp%bldheight*(infl_dynamic+d_openwindows*fp%ventilach)/3600.
+      infl = a_rho*fp%bldheight*(infl_dynamic+d_openwindows*fp%ventilach)/3600.
 
-      rm = a_rho*aircp*fp%bldheight/ddt
+      rm = aircp*fp%bldheight/ddt
       rf = cvcoeff_roof
       we = (fp%bldheight/fp%bldwidth)*cvcoeff_walle
       ww = (fp%bldheight/fp%bldwidth)*cvcoeff_wallw
@@ -4270,12 +4343,12 @@ do l = 1,ncyits
         case(0) ! asynchronous heating and cooling, no behavioural smoothing
           ! heating load
           where ( iroomtemp < (fp%bldairtemp - ac_deltat) )
-            ac_load = (a_rho*aircp*fp%bldheight/ddt)*(fp%bldairtemp-ac_deltat-iroomtemp)
+            ac_load = (aircp*fp%bldheight/ddt)*(fp%bldairtemp-ac_deltat-iroomtemp)
             d_ac_heat = min(ac_heatcap*fp%bldheight,ac_load)*ac_heatprop*cyc_proportion
           end where
           ! cooling load
           where ( iroomtemp > (fp%bldairtemp + ac_deltat) )
-            ac_load = (a_rho*aircp*fp%bldheight/ddt)*(iroomtemp-fp%bldairtemp-ac_deltat)
+            ac_load = (aircp*fp%bldheight/ddt)*(iroomtemp-fp%bldairtemp-ac_deltat)
             d_ac_cool = min(ac_coolcap*fp%bldheight,ac_load)*ac_coolprop*cyc_proportion
           end where
         case(1) ! synchronous heating and cooling, behavioural smoothing
@@ -4348,11 +4421,11 @@ do l = 1,ncyits
                           iroomtemp,cvcoeff_intm2, ddt, ggint_intm2,ufull)
         end if
         ! update final implicit air temperature calculation with ac flux
-        iroomtemp = iroomtemp + d_ac_inside*ddt/(a_rho*aircp*fp%bldheight)
-        ! explicit calculation of conduction into slab
-        ggint_slab = (a_rho*aircp*fp%bldheight/ddt)*(iroomtemp-room%nodetemp(:,1))  &
-                   - (ggint_walle + ggint_wallw)*fp%bldheight/fp%bldwidth           &
-                   - ggint_roof - fp%intmassn*(ggint_intm2 + ggint_intm1)           &
+        iroomtemp = iroomtemp + d_ac_inside*ddt/(aircp*fp%bldheight)
+        ! explicit calculation of conduction into slab (assume a_rho=1)
+        ggint_slab = (aircp*fp%bldheight/ddt)*(iroomtemp-room%nodetemp(:,1))  &
+                   - (ggint_walle + ggint_wallw)*fp%bldheight/fp%bldwidth     &
+                   - ggint_roof - fp%intmassn*(ggint_intm2 + ggint_intm1)     &
                    - int_infilflux - d_ac_inside - d_intgains_bld
 
         room%nodetemp(:,1) = iroomtemp

@@ -1738,8 +1738,6 @@ end if
 
 ! zz*(DIV^2 ipice) = rhs
 
-! No upscaling for cavitating fluid
-
 call START_LOG(mgsetup_begin)
 
 ng = 0

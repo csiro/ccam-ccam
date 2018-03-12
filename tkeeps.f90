@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -427,31 +427,13 @@ do kcount = 1,mcount
   ! calculate tke and eps boundary condition at 1st vertical level
   z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
   z_on_l=min(z_on_l,10.) ! See fig 10 in Beljarrs and Holtslag (1991)
-  select case(stabmeth)
-    case(0)
-      where (z_on_l<0.)
-        phim=(1.-16.*z_on_l)**(-0.25)
-      elsewhere
-        phim=1.+z_on_l*(a_1+b_1*exp(-d_1*z_on_l)*(1.+c_1-d_1*z_on_l)) ! Beljarrs and Holtslag (1991)
-      end where
-    case(1)
-      where (z_on_l<0.)
-        phim=(1.-16.*z_on_l)**(-0.25)
-      elsewhere (z_on_l<=0.4)
-        phim=1.+z_on_l*(a_1+b_1*exp(-d_1*z_on_l)*(1.+c_1-d_1*z_on_l)) ! Beljarrs and Holtslag (1991)
-      elsewhere
-        phim=aa1*bb1*(z_on_l**bb1)*(1.+cc1/bb1*z_on_l**(1.-bb1)) ! Luhar
-      end where
-    case default
-      write(6,*) "ERROR: Invalid option for stabmeth in tkeeps ",stabmeth
-      stop
-  end select
-  tke(1:imax,1)=cm12*ustar*ustar+ce3*wstar*wstar
-  eps(1:imax,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
-  tke(1:imax,1)=max(tke(1:imax,1),mintke)
-  tff=cm34*tke(1:imax,1)*sqrt(tke(1:imax,1))
-  eps(1:imax,1)=min(eps(1:imax,1),tff/minl)
-  eps(1:imax,1)=max(eps(1:imax,1),tff/maxl,mineps)
+  call calc_phi(phim,z_on_l)
+  tke(1:imax,1) = cm12*ustar*ustar+ce3*wstar*wstar
+  eps(1:imax,1) = ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
+  tke(1:imax,1) = max( tke(1:imax,1), mintke )
+  tff = cm34*tke(1:imax,1)*sqrt(tke(1:imax,1))
+  eps(1:imax,1) = min( eps(1:imax,1), tff/minl )
+  eps(1:imax,1) = max( eps(1:imax,1), tff/maxl, mineps )
 
 
   ! Update TKE and eps terms
@@ -816,12 +798,12 @@ real, dimension(imax,kl), intent(in) :: eps
 real, dimension(imax_p,kl) :: mflx_p, tlup_p, qvup_p, qlup_p, qfup_p, cfup_p
 real, dimension(imax_p,kl) :: arup_p
 real, dimension(imax_p,kl) :: zz_p
-real, dimension(imax_p,kl-1) :: dz_hl_p
+real, dimension(imax_p,0:kl-1) :: dz_hl_p
 real, dimension(imax_p,kl) ::  qtup, thup, tvup, w2up, nn
 real, dimension(imax_p) :: zi_p, aero_p, tke_p, eps_p, km_p, thetal_p, theta_p, thetav_p
 real, dimension(imax_p) :: qvg_p, qlg_p, qfg_p
 real, dimension(imax_p) :: ustar_p, wstar_p, wt0_p, wq0_p, wtv0_p, ps_p
-real, dimension(imax_p) :: tke1, dzht, ent, templ, pres, sigqtup, rng, upf, qxup, dqdash, qupsat
+real, dimension(imax_p) :: tke1, dzht, ent, templ, pres, sigqtup, upf, qxup, qupsat
 real, dimension(imax_p) :: tempd, fice, lx, qcup, dqsdt, al, xp, as, bs, cs
 logical, dimension(imax), intent(in) :: lmask
 #ifdef offline
@@ -857,6 +839,7 @@ do k = 1,kl
   cfup_p(:,k) = 0.
   zz_p(:,k) = pack( zz(:,k), lmask )
 end do
+dz_hl_p(:,0) = zz_p(:,1)
 do k = 1,kl-1
   dz_hl_p(:,k) = pack( dz_hl(:,k), lmask )  
 end do
@@ -866,7 +849,7 @@ tke1 = cm12*ustar_p*ustar_p + ce3*wstar_p*wstar_p
 tke1 = max(tke1, mintke)
 w2up = 0.
 nn = 0.
-dzht = zz_p(:,1)
+dzht = dz_hl_p(:,0)
 ktopmax = 0
 
 ! Entrainment and detrainment rates
@@ -902,9 +885,6 @@ w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent)      ! Hurley 2007
 pres(:) = ps_p(:)*sig(1)
 call getqsat(qupsat,templ(:),pres(:))
 sigqtup = 1.E-5
-rng = sqrt(6.)*sigqtup           ! variance of triangle distribution
-dqdash = (qtup(:,1)-qupsat)/rng  ! scaled variance
-dqdash = min(dqdash, -1.)
 cfup_p(:,1) = 0.
 
 ! updraft with condensation
@@ -922,8 +902,8 @@ do k = 2,kl
   eps_p = pack( eps(1:imax,k), lmask )
   km_p  = pack( km(:,k), lmask )
   where ( w2up(:,k-1)>0. )
-    ! update thermodynamics of plume
-    ! split qtot into components (conservation is maintained)
+    ! entrain air into plume
+    ! split qtot into components (conservation of qtot is maintained)
     tlup_p(:,k) = (tlup_p(:,k-1)+dzht*ent*thetal_p)/(1.+dzht*ent)
     qvup_p(:,k) = (qvup_p(:,k-1)+dzht*ent*qvg_p   )/(1.+dzht*ent)
     qlup_p(:,k) = (qlup_p(:,k-1)+dzht*ent*qlg_p   )/(1.+dzht*ent)
@@ -942,35 +922,17 @@ do k = 2,kl
   call getqsat(qupsat,templ(:),pres(:))
   ! estimate variance of qtup in updraft (following Hurley and TAPM)
   sigqtup = sqrt(max(1.E-10, 1.6*tke_p/eps_p*cq*km_p*((qtup(:,k)-qtup(:,k-1))/dzht)**2))
-  ! MJT condensation scheme -  follow Smith 1990 and assume
+  ! Smith 1990 condensation scheme -  assume
   ! triangle distribution for qtup.  The average qvup is qxup
   ! after accounting for saturation
-  rng = sqrt(6.)*sigqtup           ! variance of triangle distribution
-  dqdash = (qtup(:,k)-qupsat)/rng  ! scaled variance
-  where ( dqdash<-1. .and. w2up(:,k-1)>0. )
-    ! gridbox all unsaturated
-    qxup = qtup(:,k)
-    cfup_p(:,k) = 0.
-  elsewhere ( dqdash<0. .and. w2up(:,k-1)>0. )
-    ! gridbox minority saturated
-    qxup = qtup(:,k) + 0.5*rng*(-1./3.-dqdash-dqdash**2-1./3.*dqdash**3)
-    cfup_p(:,k) = 0.5*(dqdash+1.)**2
-  elsewhere ( dqdash<1. .and. w2up(:,k-1)>0. )
-    ! gridbox majority saturated
-    qxup = qtup(:,k) + 0.5*rng*(-1./3.-dqdash-dqdash**2+1./3.*dqdash**3)
-    cfup_p(:,k) = 1. - 0.5*(dqdash-1.)**2
-  elsewhere ( w2up(:,k-1)>0. )
-    ! gridbox all saturated
-    qxup = qupsat
-    cfup_p(:,k) = 1.
-  elsewhere
-    ! no plume  
+  call calc_smithcloud(cfup_p(:,k),qxup,sigqtup,qtup(:,k),qupsat)
+  where ( w2up(:,k-1)<=0. )
     qxup = qtup(:,k)
     cfup_p(:,k) = 0.
   end where
   thup(:,k) = tlup_p(:,k) + sigkap(k)*(lv*qlup_p(:,k)+ls*qfup_p(:,k))/cp ! theta,up before redistribution
   tempd = thup(:,k)/sigkap(k)                                            ! temp,up before redistribution
-  fice = min(max(273.16-tempd,0.),40.)/40. ! approximate ice fraction based on temperature (not templ)
+  fice = min(max((273.16-tempd)/40.,0.),1.) ! approximate ice fraction based on temperature (not templ)
   lx = lv + lf*fice
   dqsdt = qupsat*lx/(rv*templ*templ)
   al = cp/(cp+lx*dqsdt)
@@ -997,10 +959,10 @@ do k = 2,kl
   end where
   ! test if maximum plume height is reached
   where ( w2up(:,k)<=0. .and. w2up(:,k-1)>0. )
-    as = min(2.*b2*(nn(:,k)-nn(:,k-1))/dzht,-1.e-20)
-    bs = 2.*b2*nn(:,k-1)
-    cs = w2up(:,k-1)
-    xp = 0.5*(-bs-sqrt(max(bs*bs-4.*as*cs,0.)))/as
+    as = (nn(:,k)-nn(:,k-1))/dzht
+    bs = nn(:,k-1)
+    cs = w2up(:,k-1)/(2.*b2)
+    xp = -2.*cs/(bs-sqrt(max(bs*bs-4.*as*cs,0.)))
     xp = min(max(xp,0.),dzht)
     zi_p(:) = xp + zz_p(:,k-1)
   end where
@@ -1278,6 +1240,73 @@ cd = (vkar/integralm)**2
 
 return
 end subroutine dyerhicks
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate phi_m for atmospheric stability
+
+subroutine calc_phi(phim,z_on_l)
+
+implicit none
+
+real, dimension(:), intent(in) :: z_on_l
+real, dimension(:), intent(out) :: phim
+
+select case(stabmeth)
+  case(0)
+    where ( z_on_l<0. )
+      phim = (1.-16.*z_on_l)**(-0.25)
+    elsewhere
+      phim = 1.+z_on_l*(a_1+b_1*exp(-d_1*z_on_l)*(1.+c_1-d_1*z_on_l)) ! Beljarrs and Holtslag (1991)
+    end where
+  case(1)
+    where ( z_on_l<0. )
+      phim = (1.-16.*z_on_l)**(-0.25)
+    elsewhere (z_on_l<=0.4)
+      phim = 1.+z_on_l*(a_1+b_1*exp(-d_1*z_on_l)*(1.+c_1-d_1*z_on_l)) ! Beljarrs and Holtslag (1991)
+    elsewhere
+      phim = aa1*bb1*(z_on_l**bb1)*(1.+cc1/bb1*z_on_l**(1.-bb1)) ! Luhar
+    end where
+  case default
+    write(6,*) "ERROR: Invalid option for stabmeth in tkeeps ",stabmeth
+    stop
+end select
+
+return
+end subroutine calc_phi
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Diagnose cloud fraction
+
+subroutine calc_smithcloud(cfup,qxup,sigqtup,qtup,qupsat)
+
+implicit none
+
+real, dimension(:), intent(in) :: sigqtup,qtup,qupsat
+real, dimension(:), intent(out) :: cfup, qxup
+real, dimension(size(cfup)) :: rng, dqdash
+
+rng = sqrt(6.)*sigqtup           ! variance of triangle distribution
+dqdash = (qtup-qupsat)/rng  ! scaled variance
+where ( dqdash<-1. )
+  ! gridbox all unsaturated
+  qxup = qtup
+  cfup = 0.
+elsewhere ( dqdash<0. )
+  ! gridbox minority saturated
+  qxup = qtup + 0.5*rng*(-1./3.-dqdash-dqdash**2-1./3.*dqdash**3)
+  cfup = 0.5*(dqdash+1.)**2
+elsewhere ( dqdash<1. )
+  ! gridbox majority saturated
+  qxup = qtup + 0.5*rng*(-1./3.-dqdash-dqdash**2+1./3.*dqdash**3)
+  cfup = 1. - 0.5*(dqdash-1.)**2
+elsewhere
+  ! gridbox all saturated
+  qxup = qupsat
+  cfup = 1.
+end where
+
+return
+end subroutine calc_smithcloud
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! End TKE-eps
