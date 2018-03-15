@@ -1205,7 +1205,7 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      call drpdr_fast(me,ra,asum,at,local_sum)
+      call drpdr_fast(me,ra,asum,at,local_sum) ! calculates sum(ra(1:me)*at(1:me,k)) and sum(ra(1:me)*asum(1:me))
       do k = 1,klt+1
          ibase = (j-1)*ipan + (k-1)*ipan*jpan 
          ff(n+ibase) = local_sum(k) ! = dot_product(ra(1:me)*at(1:me,k))
@@ -2984,20 +2984,20 @@ integer :: i, kx, kn
 kn = size(at,2)
 kx = kn + 1
 
-if ( size(at,1)<ilen ) then
-  write(6,*) "ERROR: at is too small in drpdr_fast"
-  stop
-end if
+!if ( size(at,1)<ilen ) then
+!  write(6,*) "ERROR: at is too small in drpdr_fast"
+!  stop
+!end if
 
-if ( size(ra)<ilen ) then
-  write(6,*) "ERROR: ra is too small in drpdr_fast"
-  stop
-end if
+!if ( size(ra)<ilen ) then
+!  write(6,*) "ERROR: ra is too small in drpdr_fast"
+!  stop
+!end if
 
-if ( size(out_sum)<kx ) then
-  write(6,*) "ERROR: out_sum is too small in drpdr_fast"
-  stop
-end if
+!if ( size(out_sum)<kx ) then
+!  write(6,*) "ERROR: out_sum is too small in drpdr_fast"
+!  stop
+!end if
 
 local_sum(1:kx) = (0.,0.)
 
