@@ -424,7 +424,7 @@ module cc_mpi
    integer, public, save :: mgup_begin, mgup_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
    integer, public, save :: mgdown_begin, mgdown_end
-   integer, parameter :: nevents = 73
+   integer, parameter :: nevents = 74
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -6512,309 +6512,101 @@ contains
 #endif
 #endif
 
-      maincalc_begin = 1
-      maincalc_end =  maincalc_begin
-      event_name(maincalc_begin) = "MainCalc"
-
-      indata_begin = maincalc_begin + 1
-      indata_end =  indata_begin
-      event_name(indata_begin) = "Indata"
+      call add_event(maincalc_begin,      maincalc_end,      "MainCalc")
+      call add_event(indata_begin,        indata_end,        "Indata")
+      call add_event(phys_begin,          phys_end,          "Phys")
+      call add_event(nonlin_begin,        nonlin_end,        "Nonlin")
+      call add_event(upglobal_begin,      upglobal_end,      "Upglobal")
+      call add_event(adjust_begin,        adjust_end,        "Adjust")
+      call add_event(hordifg_begin,       hordifg_end,       "Hordifg")
+      call add_event(helm_begin,          helm_end,          "Adv_Helm")
+      call add_event(vadv_begin,          vadv_end,          "Adv_Vadv")
+      call add_event(depts_begin,         depts_end,         "Adv_Depts")
+      call add_event(ints_begin,          ints_end,          "Adv_Ints")
+      call add_event(toij_begin,          toij_end,          "Adv_Toij")
+      call add_event(stag_begin,          stag_end,          "Adv_Stag")
+      call add_event(waterdynamics_begin, waterdynamics_end, "Waterdynamics")
+      call add_event(watermisc_begin,     watermisc_end,     "Water_misc")
+      call add_event(waterdeps_begin,     waterdeps_end,     "Water_deps")
+      call add_event(watereos_begin,      watereos_end,      "Water_EOS")
+      call add_event(waterhadv_begin,     waterhadv_end,     "Water_Hadv")
+      call add_event(watervadv_begin,     watervadv_end,     "Water_Vadv")
+      call add_event(waterhelm_begin,     waterhelm_end,     "Water_helm")
+      call add_event(wateriadv_begin,     wateriadv_end,     "Water_Iadv")
+      call add_event(ocnstag_begin,       ocnstag_end,       "Water_stag")
+      call add_event(waterdiff_begin,     waterdiff_end,     "Waterdiff")
+      call add_event(river_begin,         river_end,         "River")
+      call add_event(outfile_begin,       outfile_end,       "Outfile")
+      call add_event(onthefly_begin,      onthefly_end,      "Onthefly")
+      call add_event(otf_ints1_begin,     otf_ints1_end,     "IO_Doints1")
+      call add_event(otf_ints4_begin,     otf_ints4_end,     "IO_Doints4")
+      call add_event(histrd3_begin,       histrd3_end,       "IO_HistRd3")
+      call add_event(histrd4_begin,       histrd4_end,       "IO_HistRd4")
+      call add_event(histrd5_begin,       histrd5_end,       "IO_HistRd5")
+      call add_event(nestin_begin,        nestin_end,        "Nestin")
+      call add_event(nestotf_begin,       nestotf_end,       "Nest_OTF")
+      call add_event(nestrma_begin,       nestrma_end,       "Nest_RMA")
+      call add_event(nestcalc_begin,      nestcalc_end,      "Nest_calc")
+      call add_event(nestcomm_begin,      nestcomm_end,      "Nest_comm")
+      call add_event(amipsst_begin,       amipsst_end,       "AMIPSST")
+      call add_event(gwdrag_begin,        gwdrag_end,        "GWdrag")
+      call add_event(convection_begin,    convection_end,    "Convection")
+      call add_event(cloud_begin,         cloud_end,         "Cloud")
+      call add_event(radnet_begin,        radnet_end,        "Rad_net")
+      call add_event(radinit_begin,       radinit_end,       "Rad_init")
+      call add_event(sfluxnet_begin,      sfluxnet_end,      "Sflux_net")
+      call add_event(sfluxwater_begin,    sfluxwater_end,    "Sflux_water")
+      call add_event(sfluxland_begin,     sfluxland_end,     "Sflux_land")
+      call add_event(sfluxurban_begin,    sfluxurban_end,    "Sflux_urban")
+      call add_event(vertmix_begin,       vertmix_end,       "Vertmix")
+      call add_event(aerosol_begin,       aerosol_end,       "Aerosol")
+      call add_event(bounds_begin,        bounds_end,        "Bounds")
+      call add_event(boundsuv_begin,      boundsuv_end,      "BoundsUV")
+      call add_event(deptsync_begin,      deptsync_end,      "Deptsync")
+      call add_event(intssync_begin,      intssync_end,      "Intssync")
+      call add_event(gatherrma_begin,     gatherrma_end,     "GatherRMA")
+      call add_event(gather_begin,        gather_end,        "Gather")
+      call add_event(distribute_begin,    distribute_end,    "Distribute")
+      call add_event(posneg_begin,        posneg_end,        "Posneg")
+      call add_event(globsum_begin,       globsum_end,       "Globsum")
+      call add_event(precon_begin,        precon_end,        "Precon")
+      call add_event(mgsetup_begin,       mgsetup_end,       "MG_Setup")
+      call add_event(mgfine_begin,        mgfine_end,        "MG_Fine")
+      call add_event(mgup_begin,          mgup_end,          "MG_Up")
+      call add_event(mgcoarse_begin,      mgcoarse_end,      "MG_Coarse")
+      call add_event(mgdown_begin,        mgdown_end,        "MG_Down")
+      call add_event(mgbounds_begin,      mgbounds_end,      "MG_bounds")
+      call add_event(mgcollect_begin,     mgcollect_end,     "MG_collect")
+      call add_event(mgbcast_begin,       mgbcast_end,       "MG_bcast")
+      call add_event(bcast_begin,         bcast_end,         "MPI_Bcast")
+      call add_event(allgatherx_begin,    allgatherx_end,    "MPI_AllGather")
+      call add_event(gatherx_begin,       gatherx_end,       "MPI_Gather")
+      call add_event(scatterx_begin,      scatterx_end,      "MPI_Scatter")
+      call add_event(reduce_begin,        reduce_end,        "MPI_Reduce")
+      call add_event(mpiwait_begin,       mpiwait_end,       "MPI_Wait")
+      call add_event(mpiwaitdep_begin,    mpiwaitdep_end,    "MPI_WaitDEP")
+      call add_event(mpiwaitmg_begin,     mpiwaitmg_end,     "MPI_WaitMG")
       
-      phys_begin = indata_begin + 1
-      phys_end =  phys_begin
-      event_name(phys_begin) = "Phys"
+   end subroutine log_setup
 
-      nonlin_begin = phys_begin + 1
-      nonlin_end = nonlin_begin 
-      event_name(nonlin_begin) = "Nonlin"
+   subroutine add_event(e_begin, e_end, e_name)
+      integer, intent(out) :: e_begin, e_end
+      character(len=*), intent(in) :: e_name
+      integer, save :: e_counter = 0
 
-      upglobal_begin = nonlin_begin + 1
-      upglobal_end = upglobal_begin
-      event_name(upglobal_begin) = "Upglobal"
+      e_counter = e_counter + 1
 
-      adjust_begin = upglobal_begin + 1
-      adjust_end = adjust_begin
-      event_name(Adjust_begin) = "Adjust"
-
-      hordifg_begin = adjust_begin + 1
-      hordifg_end = hordifg_begin
-      event_name(hordifg_begin) = "Hordifg"
-
-      helm_begin = hordifg_begin + 1
-      helm_end = helm_begin
-      event_name(helm_begin) = "Adv_Helm"
-      
-      vadv_begin = helm_begin + 1
-      vadv_end = vadv_begin
-      event_name(vadv_begin) = "Adv_Vadv"
-
-      depts_begin = vadv_begin + 1
-      depts_end = depts_begin
-      event_name(depts_begin) = "Adv_Depts"
-
-      ints_begin = depts_begin + 1
-      ints_end = ints_begin 
-      event_name(ints_begin) = "Adv_Ints"
-
-      toij_begin = ints_begin + 1
-      toij_end =  toij_begin
-      event_name(toij_begin) = "Adv_Toij"
-      
-      stag_begin = toij_begin + 1
-      stag_end = stag_begin
-      event_name(stag_begin) = "Adv_Stag"
-
-      waterdynamics_begin = stag_begin + 1
-      waterdynamics_end =  waterdynamics_begin
-      event_name(waterdynamics_begin) = "Waterdynamics"
-
-      watermisc_begin = waterdynamics_begin + 1
-      watermisc_end =  watermisc_begin
-      event_name(watermisc_begin) = "Water_misc"
-
-      waterdeps_begin = watermisc_begin + 1
-      waterdeps_end =  waterdeps_begin
-      event_name(waterdeps_begin) = "Water_deps"
-
-      watereos_begin = waterdeps_begin + 1
-      watereos_end =  watereos_begin
-      event_name(watereos_begin) = "Water_EOS"
-
-      waterhadv_begin = watereos_begin + 1
-      waterhadv_end =  waterhadv_begin
-      event_name(waterhadv_begin) = "Water_Hadv"
-
-      watervadv_begin = waterhadv_begin + 1
-      watervadv_end =  watervadv_begin
-      event_name(watervadv_begin) = "Water_Vadv"
-
-      waterhelm_begin = watervadv_begin + 1
-      waterhelm_end =  waterhelm_begin
-      event_name(waterhelm_begin) = "Water_helm"
-
-      wateriadv_begin = waterhelm_begin + 1
-      wateriadv_end =  wateriadv_begin
-      event_name(wateriadv_begin) = "Water_Iadv"
-      
-      ocnstag_begin = wateriadv_begin + 1
-      ocnstag_end = ocnstag_begin
-      event_name(ocnstag_begin) = "Water_stag"      
-
-      waterdiff_begin = ocnstag_begin + 1
-      waterdiff_end =  waterdiff_begin
-      event_name(waterdiff_begin) = "Waterdiff"
-
-      river_begin = waterdiff_begin + 1
-      river_end =  river_begin
-      event_name(river_begin) = "River"
-
-      outfile_begin = river_begin + 1
-      outfile_end = outfile_begin
-      event_name(outfile_begin) = "Outfile"
-
-      onthefly_begin = outfile_begin + 1
-      onthefly_end = onthefly_begin
-      event_name(onthefly_begin) = "Onthefly"
-
-      otf_ints1_begin = onthefly_begin + 1
-      otf_ints1_end = otf_ints1_begin
-      event_name(otf_ints1_begin) = "IO_Doints1"      
-
-      otf_ints4_begin = otf_ints1_begin + 1
-      otf_ints4_end = otf_ints4_begin
-      event_name(otf_ints4_begin) = "IO_Doints4"       
-      
-      histrd3_begin = otf_ints4_begin + 1
-      histrd3_end = histrd3_begin
-      event_name(histrd3_begin) = "IO_HistRd3"
-      
-      histrd4_begin = histrd3_begin + 1
-      histrd4_end = histrd4_begin
-      event_name(histrd4_begin) = "IO_HistRd4"
-      
-      histrd5_begin = histrd4_begin + 1
-      histrd5_end = histrd5_begin
-      event_name(histrd5_begin) = "IO_HistRd5"
-      
-      nestin_begin = histrd5_begin + 1
-      nestin_end =  nestin_begin
-      event_name(nestin_begin) = "Nestin"
-
-      nestotf_begin = nestin_begin + 1
-      nestotf_end =  nestotf_begin
-      event_name(nestotf_begin) = "Nest_OTF"
-
-      nestrma_begin = nestotf_begin + 1
-      nestrma_end =  nestrma_begin
-      event_name(nestrma_begin) = "Nest_RMA"
-      
-      nestcalc_begin = nestrma_begin + 1
-      nestcalc_end =  nestcalc_begin
-      event_name(nestcalc_begin) = "Nest_calc"
-
-      nestcomm_begin = nestcalc_begin + 1
-      nestcomm_end =  nestcomm_begin
-      event_name(nestcomm_begin) = "Nest_comm"
-
-      amipsst_begin = nestcomm_begin + 1
-      amipsst_end = amipsst_begin
-      event_name(amipsst_begin) = "AMIPSST"
-
-      gwdrag_begin = amipsst_begin + 1
-      gwdrag_end =  gwdrag_begin
-      event_name(gwdrag_begin) = "GWdrag"
-
-      convection_begin = gwdrag_begin + 1
-      convection_end =  convection_begin
-      event_name(convection_begin) = "Convection"
-
-      cloud_begin = convection_begin + 1
-      cloud_end =  cloud_begin
-      event_name(cloud_begin) = "Cloud"
-      
-      radnet_begin = cloud_begin + 1
-      radnet_end =  radnet_begin
-      event_name(radnet_begin) = "Rad_net"
-
-      radinit_begin = radnet_begin + 1
-      radinit_end =  radinit_begin
-      event_name(radinit_begin) = "Rad_init"
-      
-      sfluxnet_begin = radinit_begin + 1
-      sfluxnet_end =  sfluxnet_begin
-      event_name(sfluxnet_begin) = "Sflux_net"
-      
-      sfluxwater_begin = sfluxnet_begin + 1
-      sfluxwater_end =  sfluxwater_begin
-      event_name(sfluxwater_begin) = "Sflux_water"
-
-      sfluxland_begin = sfluxwater_begin + 1
-      sfluxland_end =  sfluxland_begin
-      event_name(sfluxland_begin) = "Sflux_land"
-
-      sfluxurban_begin = sfluxland_begin + 1
-      sfluxurban_end =  sfluxurban_begin
-      event_name(sfluxurban_begin) = "Sflux_urban"
-
-      vertmix_begin = sfluxurban_begin + 1
-      vertmix_end =  vertmix_begin
-      event_name(vertmix_begin) = "Vertmix"
-
-      aerosol_begin = vertmix_begin + 1
-      aerosol_end =  aerosol_begin
-      event_name(aerosol_begin) = "Aerosol"
-
-      bounds_begin = aerosol_begin + 1
-      bounds_end = bounds_begin
-      event_name(bounds_begin) = "Bounds"
-
-      boundsuv_begin = bounds_begin + 1
-      boundsuv_end = boundsuv_begin
-      event_name(boundsuv_begin) = "BoundsUV"
-
-      deptsync_begin = boundsuv_begin + 1
-      deptsync_end = deptsync_begin
-      event_name(deptsync_begin) = "Deptsync"
-
-      intssync_begin = deptsync_begin + 1
-      intssync_end = intssync_begin
-      event_name(intssync_begin) = "Intssync"
-
-      gatherrma_begin = intssync_begin + 1
-      gatherrma_end = gatherrma_begin
-      event_name(gatherrma_begin) = "GatherRMA"      
-      
-      gather_begin = gatherrma_begin + 1
-      gather_end = gather_begin
-      event_name(gather_begin) = "Gather"
-
-      distribute_begin = gather_begin + 1
-      distribute_end = distribute_begin
-      event_name(distribute_begin) = "Distribute"
-
-      posneg_begin = distribute_begin + 1
-      posneg_end = posneg_begin
-      event_name(posneg_begin) = "Posneg"
-
-      globsum_begin = posneg_begin + 1
-      globsum_end = globsum_begin
-      event_name(globsum_begin) = "Globsum"
-      
-      precon_begin = globsum_begin
-      precon_end = precon_begin
-      event_name(precon_begin) = "Precon"
-      
-      mgsetup_begin = precon_begin + 1
-      mgsetup_end =  mgsetup_begin
-      event_name(mgsetup_begin) = "MG_Setup"
-
-      mgfine_begin = mgsetup_begin + 1
-      mgfine_end =  mgfine_begin
-      event_name(mgfine_begin) = "MG_Fine"
-
-      mgup_begin = mgfine_begin + 1
-      mgup_end =  mgup_begin
-      event_name(mgup_begin) = "MG_Up"
-
-      mgcoarse_begin = mgup_begin + 1
-      mgcoarse_end =  mgcoarse_begin
-      event_name(mgcoarse_begin) = "MG_Coarse"
-
-      mgdown_begin = mgcoarse_begin + 1
-      mgdown_end = mgdown_begin
-      event_name(mgdown_begin) = "MG_Down"
-
-      mgbounds_begin = mgdown_begin + 1
-      mgbounds_end = mgbounds_begin
-      event_name(mgbounds_begin) = "MG_bounds"
-      
-      mgcollect_begin = mgbounds_begin + 1
-      mgcollect_end = mgcollect_begin
-      event_name(mgcollect_begin) = "MG_collect"      
-
-      mgbcast_begin = mgcollect_begin + 1
-      mgbcast_end = mgbcast_begin
-      event_name(mgbcast_begin) = "MG_bcast"   
-
-      bcast_begin = mgbcast_begin + 1
-      bcast_end = bcast_begin
-      event_name(bcast_begin) = "MPI_Bcast"
-
-      allgatherx_begin = bcast_begin + 1
-      allgatherx_end = allgatherx_begin
-      event_name(allgatherx_begin) = "MPI_AllGather" 
-      
-      gatherx_begin = allgatherx_begin + 1
-      gatherx_end = gatherx_begin
-      event_name(gatherx_begin) = "MPI_Gather"
-
-      scatterx_begin = gatherx_begin + 1
-      scatterx_end = scatterx_begin
-      event_name(scatterx_begin) = "MPI_Scatter"
-      
-      reduce_begin = scatterx_begin + 1
-      reduce_end = reduce_begin
-      event_name(reduce_begin) = "MPI_Reduce"
-      
-      mpiwait_begin = reduce_begin + 1
-      mpiwait_end = mpiwait_begin
-      event_name(mpiwait_begin) = "MPI_Wait"
-
-      mpiwaitdep_begin = mpiwait_begin + 1
-      mpiwaitdep_end = mpiwaitdep_begin
-      event_name(mpiwaitdep_begin) = "MPI_WaitDEP"
-
-      mpiwaitmg_begin = mpiwaitdep_begin + 1
-      mpiwaitmg_end = mpiwaitmg_begin
-      event_name(mpiwaitmg_begin) = "MPI_WaitMG"
-      
-      if ( mpiwaitmg_begin /= nevents ) then
+      if ( e_counter > nevents ) then
          write(6,*) "ERROR: nevents is incorrectly specified"
-         write(6,*) mpiwaitmg_begin, nevents
+         write(6,*) e_counter, nevents
          stop
       end if
-     
-   end subroutine log_setup
+
+      e_begin = e_counter
+      e_end = e_counter
+      event_name(e_counter) = e_name
+        
+   end subroutine add_event
 
 #ifdef simple_timer
    subroutine simple_timer_finalize()
