@@ -424,7 +424,7 @@ module cc_mpi
    integer, public, save :: mgup_begin, mgup_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
    integer, public, save :: mgdown_begin, mgdown_end
-   integer, parameter :: nevents = 73
+   integer, parameter :: nevents = 74
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
