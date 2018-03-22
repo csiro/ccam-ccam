@@ -59,6 +59,10 @@ logical iotest, newfile, iop_test                             ! tests for interp
 
 real, dimension(:,:,:,:), allocatable, save :: sx             ! working array for interpolation
 
+integer, dimension(0:5), save :: comm_face                     ! communicator for broadcasting single file input data
+logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels required for interpolation
+logical, save :: bcast_allocated = .false.                    ! true when comm_face is assigned
+
 contains
 
 ! *****************************************************************************
@@ -493,6 +497,9 @@ if ( newfile .and. .not.iop_test ) then
   
   ! Define filemap for MPI RMA method
   call file_wininit
+  
+  ! Define comm_face for MPI Bcast method
+  call splitface
       
 end if ! newfile .and. .not.iop_test
 
@@ -1848,7 +1855,7 @@ implicit none
 integer mm, n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
-real, dimension(ifull,m_fly) :: wrk
+real, dimension(ifull) :: wrk
 real, dimension(pil*pjl*pnpan,fncount,size(filemap_recv)) :: abuf
 
 call START_LOG(otf_ints1_begin)
@@ -1866,10 +1873,11 @@ if ( iotest ) then
     sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,1), (/ ipan*jpan /) )
   end do
 else
+  sout(1:ifull) = 0.  
   do mm = 1,m_fly     !  was 4, now may be 1
-    call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    call intsb(sx(:,:,:,1),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    sout(1:ifull) = sout(1:ifull) + wrk/real(m_fly)
   end do
-  sout(1:ifull) = sum(wrk(:,:), dim=2)/real(m_fly)
 end if
 
 call END_LOG(otf_ints1_end)
@@ -1889,7 +1897,7 @@ implicit none
 integer mm, n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
-real, dimension(ifull,m_fly) :: wrk
+real, dimension(ifull) :: wrk
 
 call START_LOG(otf_ints1_begin)
 
@@ -1899,7 +1907,11 @@ if ( myid==0 ) then
   sx(1:ik,1:ik,0:npanels,1) = reshape( s(1:(npanels+1)*ik*ik), (/ ik, ik, npanels+1 /) )
   call sxpanelbounds(sx(:,:,:,1))
 end if
-call ccmpi_bcast(sx(:,:,:,1),0,comm_world)
+do n = 0,npanels
+  if ( nfacereq(n) ) then
+    call ccmpi_bcast(sx(:,:,n,1),0,comm_face(n))
+  end if
+end do
 
 if ( iotest ) then
   do n = 1,npan
@@ -1907,10 +1919,11 @@ if ( iotest ) then
     sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,1), (/ ipan*jpan /) )
   end do
 else
+  sout(1:ifull) = 0.  
   do mm = 1,m_fly      !  was 4, now may be 1
-    call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    call intsb(sx(:,:,:,1),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    sout(1:ifull) = sout(1:ifull) + wrk/real(m_fly)
   end do
-  sout(1:ifull) = sum(wrk(1:ifull,1:m_fly), dim=2)/real(m_fly)
 end if
 
 call END_LOG(otf_ints1_end)
@@ -1930,7 +1943,7 @@ implicit none
 integer mm, k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
-real, dimension(ifull,m_fly) :: wrk
+real, dimension(ifull) :: wrk
 real, dimension(pil*pjl*pnpan,fncount,size(filemap_recv),kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
@@ -1971,12 +1984,13 @@ do kb = 1,kx,kblock
   else
     do k = 1,kn
       sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
+      sout(1:ifull,k+kb-1) = 0.
       call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,:,k))
       call sxpanelbounds(sx(:,:,:,1))
       do mm = 1,m_fly     !  was 4, now may be 1
-        call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+        call intsb(sx(:,:,:,1),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
+        sout(1:ifull,k+kb-1) = sout(1:ifull,k+kb-1) + wrk/real(m_fly)
       end do
-      sout(1:ifull,k+kb-1) = sum(wrk(:,:), dim=2)/real(m_fly)
     end do
   end if
 
@@ -2000,7 +2014,8 @@ integer mm, k, kx, ik2, n, iq
 integer kb, ke, kn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
-real, dimension(ifull,m_fly) :: wrk
+real, dimension(ifull) :: wrk
+real, dimension(-1:ik+2,-1:ik+2,kblock) :: sy
 
 call START_LOG(otf_ints4_begin)
 
@@ -2034,7 +2049,13 @@ do kb = 1,kx,kblock
       call sxpanelbounds(sx(:,:,:,k))
     end do
   end if
-  call ccmpi_bcast(sx,0,comm_world)
+  do n = 0,npanels
+    if ( nfacereq(n) ) then
+      sy(:,:,:) = sx(:,:,n,:)  
+      call ccmpi_bcast(sy,0,comm_face(n))
+      sx(:,:,n,:) = sy(:,:,:)
+    end if
+  end do
 
   if ( iotest ) then
     do k = 1,kn
@@ -2045,10 +2066,11 @@ do kb = 1,kx,kblock
     end do
   else
     do k = 1,kn
+      sout(1:ifull,k+kb-1) = 0.  
       do mm = 1,m_fly     !  was 4, now may be 1
-        call intsb(sx(:,:,:,k),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+        call intsb(sx(:,:,:,k),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
+        sout(1:ifull,k+kb-1) = sout(1:ifull,k+kb-1) + wrk/real(m_fly)
       end do
-      sout(1:ifull,k+kb-1) = sum( wrk(:,:), dim=2 )/real(m_fly)
     end do
   end if
   
@@ -3640,6 +3662,55 @@ end if
 
 return
 end subroutine file_wininit
+
+subroutine splitface
+
+use cc_mpi
+use newmpar_m
+
+implicit none
+
+integer n, colour
+
+if ( bcast_allocated ) then
+  do n = 0,npanels
+    call ccmpi_commfree(comm_face(n))
+  end do
+  bcast_allocated = .false.
+end if
+
+! no broadcast for multiple input files
+if ( fnresid*fncount>1 ) return
+
+if ( myid==0 ) then
+  nfacereq(:) = .true.  
+else
+  nfacereq(:) = .false.
+  do n = 0,npanels
+    nfacereq(n) = any( nface4(:,:)==n )
+  end do
+end if
+
+if ( myid==0 ) then
+  write(6,*) "Create communication groups for Bcast method"
+end if
+
+do n = 0,npanels
+  if ( nfacereq(n) ) then
+    colour = 1
+  else
+    colour = -1 ! undefined
+  end if
+  call ccmpi_commsplit(comm_face(n),comm_world,colour,myid)
+end do
+bcast_allocated = .true.
+
+if ( myid==0 ) then
+  write(6,*) "Finished creating communication groups for Bcast method"
+end if
+
+return
+end subroutine splitface
 
 subroutine processdatestring(datestring,kdate_rsav,ktime_rsav)
 
