@@ -2828,15 +2828,11 @@ endif  ! (itype==-1)
 
 ! flush output buffers so that data can be used
 ! for initial conditions
-!if ( synchist ) then
-!  if ( myid==0 .or. local ) then
-!    !if ( procformat ) then
-!    !  call init_iobuffer(idnc,itype)
-!    !else
-!    call ccnf_sync(idnc)
-!    !end if
-!  end if
-!end if
+if ( synchist ) then
+  if ( myid==0 .or. local ) then
+    call ccnf_sync(idnc)
+  end if
+end if
 
 if ( myid==0 ) then
   write(6,*) "finished writing to ofile"    

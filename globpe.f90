@@ -370,14 +370,6 @@ if ( trim(nmlfile) == "" ) then
 end if
 open(99,file=trim(nmlfile),form="formatted",status="old")
 read(99, defaults)
-if ( myid==0 ) then
-  write(6,'(a20," running for nproc =",i7)') version,nproc
-  write(6,*) 'Using defaults for nversion = ',nversion
-#ifdef usempi3
-  write(6,*) 'Using shared memory with number of nodes ',nodecaptian_nproc
-#endif
-  write(6,*) 'Reading namelist from ',trim(nmlfile)
-end if
 if ( nversion/=0 ) then
   call change_defaults(nversion,mins_rad)
 end if
@@ -479,8 +471,6 @@ if ( myid==0 ) then
       read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
     end if ! (ierr==0) ..else..
     il_g = ilx        
-    write(6,*) 'ilx,jlx              ',ilx,jlx
-    write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
   end if
   ! store grid dimensions for broadcast below
   temparray(1) = rlong0
@@ -502,8 +492,6 @@ if ( myid==0 ) then
   end if
   read(28,*)kmax,lapsbot,isoth,nsig
   kl = kmax
-  write(6,*)'kl,ol:              ',kl,ol
-  write(6,*)'lapsbot,isoth,nsig: ',lapsbot,isoth,nsig
   temparray(5) = real(kl)
   temparray(6) = real(lapsbot)
   temparray(7) = real(isoth)
@@ -535,6 +523,19 @@ procmode_save = nint(temparray(9))
 call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp,uniform_decomp)
 call ccmpi_reinit(new_nproc)
 if ( myid==0 ) then
+  write(6,'(a20," running for nproc =",i7)') version,nproc
+  if ( using_omp ) then
+    write(6,*) 'Using OpenMP with number of threads = ',maxthreads
+  end if
+  write(6,*) 'Using defaults for nversion = ',nversion
+#ifdef usempi3
+  write(6,*) 'Using shared memory with number of nodes = ',nodecaptian_nproc
+#endif
+  write(6,*) 'Reading namelist from ',trim(nmlfile)
+  write(6,*) 'ilx,jlx              ',ilx,jlx
+  write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
+  write(6,*) 'kl,ol                ',kl,ol
+  write(6,*) 'lapsbot,isoth,nsig   ',lapsbot,isoth,nsig
   if ( uniform_decomp ) then
     write(6,*) "Using uniform grid decomposition"
   else
@@ -809,6 +810,12 @@ if ( procformat ) then
   ! configure procmode
   lastprocmode = node_captianid==nodecaptian_nproc-1  
   if ( procmode==0 ) then
+    ! Need to bcast some information after ccmpi_reinit
+    if ( myid==0 ) then
+      temparray(1) = real(node_nproc)
+    end if
+    call ccmpi_bcast(temparray(1:1),0,comm_world)
+    procmode_save = nint(temparray(1))
     ! first guess with procmode = node_nproc from myid=0 (stored as procmode_save)
     procmode = procmode_save
     ! test if procmode is a factor of node_nproc on all processes
