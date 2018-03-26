@@ -524,9 +524,6 @@ call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp,uniform_decomp)
 call ccmpi_reinit(new_nproc)
 if ( myid==0 ) then
   write(6,'(a20," running for nproc =",i7)') version,nproc
-  if ( using_omp ) then
-    write(6,*) 'Using OpenMP with number of threads = ',maxthreads
-  end if
   write(6,*) 'Using defaults for nversion = ',nversion
 #ifdef usempi3
   write(6,*) 'Using shared memory with number of nodes = ',nodecaptian_nproc
