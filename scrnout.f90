@@ -20,7 +20,7 @@
 !------------------------------------------------------------------------------
     
 subroutine scrnout(zo,ustar,zoh,wetfac,qsttg,qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod, &
-                   bprm,cms,chs,chnsea,nalpha,is,ie)
+                   bprm,cms,chs,chnsea,is,ie)
 
 use arrays_m
 use cc_mpi, only : mydiag,myid
@@ -48,7 +48,7 @@ implicit none
 integer, parameter :: nits=2  ! nits=2 for 2 iterations
 integer, parameter :: ntest=0 ! ntest= 0 for diags off; ntest>= 1 for diags 
 integer, intent(in) :: is, ie
-integer iq,nalpha,numq,numt,numu
+integer iq,numq,numt,numu
 real, parameter :: vkar=.4, zscr=1.8
 real alf,chnscr,chnsea,fact,qtgnet
 real rho,srcp,vfact,zscronzt,zscrr,ztv,z10

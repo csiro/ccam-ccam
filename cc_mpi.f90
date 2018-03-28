@@ -395,7 +395,6 @@ module cc_mpi
    integer, public, save :: gatherrma_begin, gatherrma_end
    integer, public, save :: gather_begin, gather_end
    integer, public, save :: distribute_begin, distribute_end
-   integer, public, save :: globsum_begin, globsum_end
    integer, public, save :: posneg_begin, posneg_end   
    integer, public, save :: precon_begin, precon_end
    integer, public, save :: waterdynamics_begin, waterdynamics_end
@@ -424,7 +423,7 @@ module cc_mpi
    integer, public, save :: mgup_begin, mgup_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
    integer, public, save :: mgdown_begin, mgdown_end
-   integer, parameter :: nevents = 74
+   integer, parameter :: nevents = 73
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -6568,7 +6567,6 @@ contains
       call add_event(gather_begin,        gather_end,        "Gather")
       call add_event(distribute_begin,    distribute_end,    "Distribute")
       call add_event(posneg_begin,        posneg_end,        "Posneg")
-      call add_event(globsum_begin,       globsum_end,       "Globsum")
       call add_event(precon_begin,        precon_end,        "Precon")
       call add_event(mgsetup_begin,       mgsetup_end,       "MG_Setup")
       call add_event(mgfine_begin,        mgfine_end,        "MG_Fine")

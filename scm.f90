@@ -126,18 +126,17 @@ implicit none
 include 'kuocom.h'                         ! Convection parameters
 include 'version.h'                        ! Model version data
 
-integer irest, io_nest, npa, npb, jalbfix, mstn
-integer mins_rad, secs_rad
+integer io_nest, npa, npb, mstn
+integer secs_rad
 integer iq, k
 integer ivegt_in, isoil_in, gablsflux
 integer jyear, jmonth, jday, jhour, jmin, mins
-integer nalpha
 integer spinup, spinup_start, ntau_end, ntau_spinup
 integer opt, nopt
 integer, save :: iarch_nudge = 0
 real, dimension(1000) :: press_in
 real press_surf, gridres
-real nwrite, es
+real es
 real rlong_in, rlat_in, z_in
 real ateb_bldheight, ateb_hwratio, ateb_sigvegc, ateb_sigmabld
 real ateb_industryfg, ateb_trafficfg, ateb_vegalphac
@@ -246,8 +245,7 @@ namelist/mlonml/zomode,zoseaice,                                  &
     factchseaice,minwater,mxd,mindep,otaumode,                    &
     alphavis_seaice,alphanir_seaice
 
-data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
-data mins_rad/-1/,nwrite/0/
+data comment/' '/,comm/' '/
 
 write(6,*) "CCAM SCM"
 write(6,*) version
@@ -772,7 +770,7 @@ do spinup = spinup_start,1,-1
 
     ! SURFACE FLUXES
     if ( ntsur>1 ) then  ! should be better after convjlm
-      call sflux(nalpha)
+      call sflux
     endif   ! (ntsur>1) 
     call nantest("after surface fluxes",1,ifull)
   

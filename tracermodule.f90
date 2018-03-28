@@ -158,18 +158,19 @@ return
 end subroutine init_tracer
 
 ! *********************************************************************
-subroutine readtracerflux(kdate)
+subroutine readtracerflux
 !     needs to happen further down the code than reading the tracer
 !     list file
 
 use cc_mpi, only : myid
+use dates_m, only : kdate
 use newmpar_m
 use parm_m
 use tracers_m
 
 implicit none
 
-integer nt,jyear,jmonth,kdate
+integer nt,jyear,jmonth
 real, dimension(3) :: ajunk
 character(len=50) :: filename
 character(len=13) :: varname
@@ -640,20 +641,21 @@ end subroutine readoh
 
    
 ! *************************************************************************
-subroutine interp_tracerflux(kdate,hrs_dt)
+subroutine interp_tracerflux
 !     interpolates tracer flux to current timestep if required
 !     tracinterp 0 for no interpolation, 1 for monthly, 2 for daily/hourly
 !     co2em123(:,1,:) contains prev month, co2em123(:,2,:) current month/year 
 !     co2em123(:,3,:) next month
 use cc_mpi, only : myid, ccmpi_abort
+use dates_m, only : kdate
 use newmpar_m
 use parm_m
 
 implicit none
 
 integer, dimension(0:13) :: mdays
-integer iyr,month,m1,m2,igas,igh,kdate
-real a1,a2,a3,ratlm,ratlm2,hrmodel,hrs_dt
+integer iyr,month,m1,m2,igas,igh
+real a1,a2,a3,ratlm,ratlm2,hrmodel
 real, dimension(ifull) :: c2,c3,c4
 logical found
    
@@ -661,9 +663,9 @@ ratlm=0.
 m1=0
 m2=0
 
-!     this could go in the case section but then we'd do it for
-!     every monthly tracer.  This way we do it once but may not
-!     need it.
+! this could go in the case section but then we'd do it for
+! every monthly tracer.  This way we do it once but may not
+! need it.
 iyr=kdate/10000
 month=(kdate-10000*iyr)/100
 mdays=(/31,31,28,31,30,31,30,31,31,30,31,30,31,31/)
@@ -698,7 +700,7 @@ do igas=1,numtracer
 
    ! daily or hourly linear interpolation
    case(2)
-       hrmodel = (ktau-1)*hrs_dt
+       hrmodel = real(ktau-1)*dt/3600.
        igh=igashr(igas)
        if (ktau==1) nghr(igh)=1
        found=.false.
