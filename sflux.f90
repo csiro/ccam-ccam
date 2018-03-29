@@ -41,11 +41,24 @@ public sflux, sflux_init
 
 real, save :: ri_max, zologbgin, ztv, z1onzt, chnsea
 real, save :: srcp
-real, dimension(:), allocatable, save :: taftfh,taftfhg
+real, dimension(:), allocatable, save :: taftfh, taftfhg
 
 integer, parameter :: ntest=0   ! ntest= 0 for diags off; ntest= 1 for diags on
 real, parameter :: bprm=5.,cms=5.,chs=2.6,vkar=.4
 real, parameter :: fmroot=.57735     ! was .4 till 7 Feb 1996
+
+real, dimension(:), allocatable :: vmag,azmin,uav,vav,rho
+real, dimension(:), allocatable :: oldrunoff,oldsnowmelt
+real, dimension(:), allocatable :: af,aft,ri
+real, dimension(:), allocatable :: fg_ocn, fg_ice, eg_ocn, eg_ice
+real, dimension(:), allocatable :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
+real, dimension(:), allocatable :: river_inflow
+
+#ifdef csircoupled
+real, dimension(:), allocatable :: dumsg, dumrg, dumx
+real, dimension(:), allocatable :: dumtaux_ocn, dumtauy_ocn, dumtaux_ice, dumtauy_ice
+real, dimension(:), allocatable :: zonx, zony, zonz, costh, sinth
+#endif
 
 contains
 
@@ -73,6 +86,40 @@ ztv=exp(vkar/sqrt(chn10))/10.  ! proper inverse of ztsea
 z1onzt=300.*rdry*(1.-sig(1))*ztv/grav
 chnsea=(vkar/log(z1onzt))**2   ! should give .00085 for csiro9
 srcp = sig(1)**(rdry/cp)
+
+allocate( vmag(ifull) )
+allocate( azmin(ifull) )
+allocate( uav(ifull) )
+allocate( vav(ifull) )
+allocate( rho(ifull) )
+allocate( oldrunoff(ifull) )
+allocate( oldsnowmelt(ifull) )
+allocate( af(ifull) )
+allocate( aft(ifull) )
+allocate( ri(ifull) )
+allocate( fg_ocn(ifull) )
+allocate( fg_ice(ifull) )
+allocate( eg_ocn(ifull) )
+allocate( eg_ice(ifull) )
+allocate( taux_ocn(ifull) )
+allocate( taux_ice(ifull) )
+allocate( tauy_ocn(ifull) )
+allocate( tauy_ice(ifull) )
+allocate( river_inflow(ifull) )
+#ifdef csircoupled
+allocate( dumsg(ifull) )
+allocate( dumrg(ifull) )
+allocate( dumx(ifull) )
+allocate( dumtaux_ocn(ifull) )
+allocate( dumtauy_ocn(ifull) )
+allocate( dumtaux_ice(ifull) )
+allocate( dumtauy_ice(ifull) )
+allocate( zonx(ifull) )
+allocate( zony(ifull) )
+allocate( zonz(ifull) )
+allocate( costh(ifull) )
+allocate( sinth(ifull) )
+#endif
 
 return
 end subroutine sflux_init
@@ -114,18 +161,6 @@ use xyzinfo_m
 implicit none
     
 integer is,ie,tile,iq,k
-real, dimension(ifull) :: vmag,azmin,uav,vav,rho
-real, dimension(ifull) :: oldrunoff,oldsnowmelt
-real, dimension(ifull) :: af,aft,ri
-real, dimension(ifull) :: fg_ocn, fg_ice, eg_ocn, eg_ice
-real, dimension(ifull) :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
-real, dimension(ifull) :: river_inflow
-
-#ifdef csircoupled
-real, dimension(ifull) :: dumsg, dumrg, dumx
-real, dimension(ifull) :: dumtaux_ocn, dumtauy_ocn, dumtaux_ice, dumtauy_ice
-real, dimension(ifull) :: zonx, zony, zonz, costh, sinth
-#endif
 
 !     stability dependent drag coefficients using Louis (1979,blm) f'
 !     n.b. cduv, cdtq are returned as drag coeffs mult by vmod
@@ -139,30 +174,29 @@ real, dimension(ifull) :: zonx, zony, zonz, costh, sinth
 !     dfgdt is dfgdt (was csen in surfupa/b)
 !     degdt is degdt (was ceva in surfupa/b)
   
-! local arrays
-oldrunoff(:) = runoff(:)
-oldsnowmelt(:) = snowmelt(:)
-fg_ocn(:)=0.      ! dummy value
-fg_ice(:)=0.      ! dummy value
-eg_ocn(:)=0.      ! dummy value
-eg_ice(:)=0.      ! dummy value
-taux_ocn(:)=0.    ! dummy value
-taux_ice(:)=0.    ! dummy value
-tauy_ocn(:)=0.    ! dummy value
-tauy_ice(:)=0.    ! dummy value
-!     using av_vmod (1. for no time averaging)
-!     sflux called at beginning of time loop, hence savu, savv
-azmin(:) = (bet(1)*t(:,1)+phi_nh(:,1))/grav
-rho(:) = ps(:)/(rdry*tss(:))
-uav(:) = av_vmod*u(:,1) + (1.-av_vmod)*savu(:,1)   
-vav(:) = av_vmod*v(:,1) + (1.-av_vmod)*savv(:,1)  
-vmag(:) = max( sqrt(uav(:)**2+vav(:)**2), vmodmin )    ! vmag used to calculate ri
-
 ! allocated arrays
 !$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax  
+  oldrunoff(is:ie) = runoff(is:ie)
+  oldsnowmelt(is:ie) = snowmelt(is:ie)
+  fg_ocn(is:ie)=0.      ! dummy value
+  fg_ice(is:ie)=0.      ! dummy value
+  eg_ocn(is:ie)=0.      ! dummy value
+  eg_ice(is:ie)=0.      ! dummy value
+  taux_ocn(is:ie)=0.    ! dummy value
+  taux_ice(is:ie)=0.    ! dummy value
+  tauy_ocn(is:ie)=0.    ! dummy value
+  tauy_ice(is:ie)=0.    ! dummy value
+!     using av_vmod (1. for no time averaging)
+!     sflux called at beginning of time loop, hence savu, savv
+  azmin(is:ie) = (bet(1)*t(is:ie,1)+phi_nh(is:ie,1))/grav
+  rho(is:ie) = ps(is:ie)/(rdry*tss(is:ie))
+  uav(is:ie) = av_vmod*u(is:ie,1) + (1.-av_vmod)*savu(is:ie,1)   
+  vav(is:ie) = av_vmod*v(is:ie,1) + (1.-av_vmod)*savv(is:ie,1)  
+  vmag(is:ie) = max( sqrt(uav(is:ie)**2+vav(is:ie)**2), vmodmin )    ! vmag used to calculate ri
+
   taux(is:ie) = 0.      ! dummy value
   tauy(is:ie) = 0.      ! dummy value  
   zo(is:ie) = 0.        ! dummy value
@@ -201,12 +235,10 @@ call START_LOG(sfluxwater_begin)
 if ( nmlo==0 ) then ! prescribed SSTs
 !$omp barrier
 !$omp single
-  call sflux_sea(ri,vmag,af,aft,rho,                                              &              ! sea
-                 fg_ocn,fg_ice,eg_ocn,eg_ice,taux_ocn,taux_ice,tauy_ocn,tauy_ice, &              ! sea
-                 river_inflow)                                                                   ! sea
+  call sflux_sea                                                                                 ! sea
 !$omp end single
 elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then ! prognostic SSTs                                    ! MLO
-  call sflux_mlo(ri,vmag,rho,azmin,uav,vav)                                                      ! MLO
+  call sflux_mlo                                                                                 ! MLO
 end if                                                                                           ! MLO
 !$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles                                                                               ! sea
@@ -228,7 +260,7 @@ select case(nsib)                                                               
   case(3,5)                                                                                      ! land
 !$omp barrier
 !$omp single
-    call sflux_land(ri,vmag,af,aft,rho)                                                          ! land
+    call sflux_land                                                                              ! land
 !$omp end single
   case(7)                                                                                        ! cable
     ! call cable                                                                                 ! cable
@@ -267,7 +299,7 @@ call END_LOG(sfluxland_end)
 call START_LOG(sfluxurban_begin)
 !$omp end master
 if (nurban/=0) then                                                                              ! urban
-  call sflux_urban(azmin,uav,vav,oldrunoff,rho,vmag,oldsnowmelt)                                 ! urban
+  call sflux_urban                                                                               ! urban
 end if                                                                                           ! urban
 !$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles                                                                               ! urban
@@ -376,9 +408,7 @@ return
 end subroutine sflux
 
 
-subroutine sflux_sea(ri,vmag,af,aft,rho,                                              &
-                     fg_ocn,fg_ice,eg_ocn,eg_ice,taux_ocn,taux_ice,tauy_ocn,tauy_ice, &
-                     river_inflow)
+subroutine sflux_sea
 
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
@@ -399,11 +429,6 @@ use work3_m                         ! Mk3 land-surface diagnostic arrays
 implicit none
 
 integer iq, it
-real, dimension(ifull), intent(in) :: vmag,rho
-real, dimension(ifull), intent(inout) :: ri,af,aft
-real, dimension(ifull), intent(inout) :: fg_ocn,fg_ice,eg_ocn,eg_ice
-real, dimension(ifull), intent(inout) :: taux_ocn,taux_ice,tauy_ocn,tauy_ice
-real, dimension(ifull), intent(inout) :: river_inflow
 real, dimension(ifull) :: charnck,fgf,rgg,fev,dirad,dfgdt,degdt
 real, dimension(ifull) :: cie,gamm,fh,factch
 real afrootpan,es,constz,xx,afroot,fm,consea,con,daf,den,dden,dfm
@@ -744,7 +769,7 @@ end if
 return
 end subroutine sflux_sea
 
-subroutine sflux_mlo(ri,vmag,rho,azmin,uav,vav)
+subroutine sflux_mlo
 
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use cc_mpi                         ! CC MPI routines
@@ -769,8 +794,6 @@ use work3_m                        ! Mk3 land-surface diagnostic arrays
 implicit none
 
 integer tile, is, ie, k
-real, dimension(ifull), intent(inout) :: ri
-real, dimension(ifull), intent(in) :: vmag, rho, azmin, uav, vav
 real, dimension(imax) :: loldu1, loldv1
 real, dimension(imax) :: lwatbdy
 logical, dimension(imax) :: loutflowmask
@@ -974,7 +997,7 @@ end if                                                                          
 return
 end subroutine sflux_mlo_work
     
-subroutine sflux_urban(azmin,uav,vav,oldrunoff,rho,vmag,oldsnowmelt)
+subroutine sflux_urban
 
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use ateb                           ! Urban
@@ -997,7 +1020,6 @@ use xyzinfo_m                      ! Grid coordinate arrays
 implicit none
 
 integer :: tile, is, ie
-real, dimension(ifull), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
 real, dimension(imax) :: luzon, lvmer, costh, sinth, zonx, zony, zonz
 
 !$omp do schedule(static) private(is,ie),                                 &
@@ -1162,7 +1184,7 @@ end subroutine sflux_urban_work
 
     
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine sflux_land(ri,vmag,af,aft,rho)
+subroutine sflux_land
 
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use cc_mpi                         ! CC MPI routines
@@ -1183,8 +1205,6 @@ use work2_m                        ! Diagnostic arrays
 implicit none
 
 integer iq
-real, dimension(ifull), intent(in) :: vmag,rho
-real, dimension(ifull), intent(inout) :: ri,af,aft
 real, dimension(ifull) :: fh,taftfhg_temp,factch
 real zologx,xx,fhbg,es,afroot,fm,con,daf,den,dden,dfm,root,denma,denha
 real deg,b1,zobg,zologbg,afland,aftlandg,rootbg,denhabg,thnew,thgnew,thnewa,aftland
@@ -1327,7 +1347,7 @@ if(ntest>0.and.mydiag)then                                                      
   write(6,*) 'av_vmod,u,v',av_vmod,u(idjd,1),v(idjd,1)                                         ! land
 endif                                                                                          ! land
                                                                                                ! land
-call sib3(taftfh,taftfhg,aft,rho) ! for nsib=3, 5                                              ! land
+call sib3                 ! for nsib=3, 5                                                      ! land
                                                                                                ! land
 if(diag.or.ntest>0)then                                                                        ! land
   if (mydiag) write(6,*) 'before call scrnout'                                                 ! land
@@ -1362,7 +1382,7 @@ endif  ! (ntsur==6)                                                             
 return
 end subroutine sflux_land
     
-subroutine sib3(taftfh,taftfhg,aft,rho)
+subroutine sib3
 
 ! This is the standard land-surface scheme
       
@@ -1397,8 +1417,6 @@ real qtgair,eg1,eg2,deg,egg_alph1,sstar,ff,rsi,den
 real wbav,f1,f2,f3,f4,esatf,qsatgf,beta,etr,betetrdt
 real prz,dirad1,devf,ewwwa,delta_t0
 real delta_t,deltat,es,tsoil
-real, dimension(ifull), intent(in) :: taftfh,taftfhg,rho
-real, dimension(ifull), intent(inout) :: aft
 real, dimension(ifull) :: airr,cc,ccs,condxg,condsg,delta_tx,evapfb1,evapfb2,evapfb3,evapfb4
 real, dimension(ifull) :: evapfb5,evapfb1a,evapfb2a,evapfb3a,evapfb4a,evapfb5a,otgf,rmcmax
 real, dimension(ifull) :: tgfnew,evapfb,dqsttg,tstom,cls,omc
