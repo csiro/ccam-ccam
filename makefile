@@ -172,9 +172,10 @@ work3_m.o work3b_m.o work3f_m.o xyzinfo_m.o zenith.o \
 getopt_m.o stacklimit.o
 
 ifeq ($(SCM),yes)
+FC = $(FCSCM)
 FFLAGS += -Dscm
 scm: $(OBJSCM)
-	$(FCSCM) -o scm $(FFLAGS) $(OBJSCM) $(LIBS)
+	$(FC) -o scm $(FFLAGS) $(OBJSCM) $(LIBS)
 else
 globpea: $(OBJS)
 	$(FC) -o globpea $(FFLAGS) $(OBJS) $(LIBS)

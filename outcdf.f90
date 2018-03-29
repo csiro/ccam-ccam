@@ -40,7 +40,7 @@ character(len=3), dimension(12), parameter :: month = (/'jan','feb','mar','apr',
 
 contains
 
-subroutine outfile(iout,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)
+subroutine outfile(iout)
       
 use arrays_m
 use cc_mpi
@@ -54,12 +54,9 @@ use tracers_m
       
 implicit none
 
-integer iout,nwrite,nstagin
-integer, intent(in) :: jalbfix,nalpha,mins_rad
-real, intent(in) :: siburbanfrac
+integer, intent(in) :: iout
 character(len=1024) :: surfout
 character(len=20) :: qgout
-character(len=8) :: rundate
 
 call START_LOG(outfile_begin)
       
@@ -122,7 +119,7 @@ if ( iout==19 ) then
     case(0)  ! No output
     case(1)  ! NetCDF 
       if ( myid==0 ) write(6,*) "restart write of data to netCDF"
-      call cdfout(rundate,-1,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)
+      call cdfout(-1)
     case default
       if ( myid==0 ) then
         write(6,*) "ERROR: unsupported file format io_rest ",io_rest
@@ -134,7 +131,7 @@ else
   select case(io_out)
     case(0)  ! No output
     case(1)  ! NetCDF
-      call cdfout(rundate,1,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)
+      call cdfout(1)
     case default
       if ( myid==0 ) then
         write(6,*) "ERROR: unsupported file format io_out ",io_out
@@ -152,7 +149,7 @@ end subroutine outfile
     
 !--------------------------------------------------------------
 ! CONFIGURE DIMENSIONS FOR OUTPUT NETCDF FILES
-subroutine cdfout(rundate,itype,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)
+subroutine cdfout(itype)
 
 use aerosolldr                             ! LDR prognostic aerosols
 use ateb, only :                         & ! Urban
@@ -243,23 +240,20 @@ integer, dimension(5), save :: dimc4
 integer, dimension(5), save :: dimc5
 integer, dimension(5), save :: dimc6
 integer, dimension(2) :: dimp
-integer, intent(in) :: jalbfix,nalpha,mins_rad
 integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgproc
 integer idcp, idc2p, idc91p, idc31p, idc20y, idc5d
-integer itype, nstagin, tlen
+integer itype, tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim
 integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim
 integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3
 integer, save :: idnc=0, iarch=0
 
-real, intent(in) :: siburbanfrac
 real, dimension(nrhead) :: ahead
 logical local
 character(len=1024) cdffile
 character(len=33) grdtim
 character(len=20) timorg
-character(len=8) rundate
 
 ! localhist=.true. indicates that the output will be written in parallel.  procformat=.true.
 ! requires localhist=.true. to work.
@@ -572,7 +566,6 @@ if ( myid==0 .or. local ) then
     end if
     call ccnf_put_attg(idnc,'int_header',nahead)   ! to be depreciated
     call ccnf_put_attg(idnc,'real_header',ahead)   ! to be depreciated
-    call ccnf_put_attg(idnc,'date_header',rundate) ! to be depreciated
     call ccnf_def_var(idnc,'ds','float',idv)
     call ccnf_def_var(idnc,'dt','float',idv)
 
@@ -889,7 +882,7 @@ endif ! (myid==0.or.local)
       
 ! openhist writes some fields so needs to be called by all processes
 call openhist(iarch,itype,dima,dimo,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,c5ddim,  &
-              local,idnc,nstagin,ixp,iyp,idlev,idms,idoc,idproc,idgproc,          &
+              local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgproc,                  &
               idcp,idc2p,idc91p,idc31p,idc20y,idc5d)
 
 if ( myid==0 .or. local ) then
@@ -914,7 +907,7 @@ end subroutine cdfout
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
 subroutine openhist(iarch,itype,idim,odim,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,c5ddim,  &
-                    local,idnc,nstagin,ixp,iyp,idlev,idms,idoc,idproc,idgproc,          &
+                    local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgproc,                  &
                     idcp,idc2p,idc91p,idc31p,idc20y,idc5d)
 
 use aerointerface                                ! Aerosol interface
@@ -980,7 +973,7 @@ integer, intent(inout) :: ixp, iyp, idlev, idms, idoc, idproc, idgproc
 integer, intent(in) :: cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
-integer iarch, itype, nstagin, idum
+integer iarch, itype, idum
 integer isize, osize, jsize, ksize, dproc, d4, gprocrank
 integer csize, c2size, c3size, c4size, c5size, c6size
 integer, dimension(5), intent(in) :: idim
@@ -3165,10 +3158,9 @@ if ( abs(iaero)>=2 ) then
     call histwrt4(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
     if ( iaero<=-2 ) then
       do k = 1,kl
-        qtot(:)   = qg(1:ifull,k) + qlg(1:ifull,k) + qrg(1:ifull,k)    &
-                  + qfg(1:ifull,k) + qsng(1:ifull,k) + qgrg(1:ifull,k)
+        qtot(:)   = qg(1:ifull,k) + qlg(1:ifull,k) + qfg(1:ifull,k)
         tv(:)     = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))   ! virtual temperature
-        rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*tv(:))                !density of air
+        rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*tv(:))                ! density of air
       end do
       call aerodrop(1,ifull,tmpry(:,1:kl),rhoa)
       call histwrt4(tmpry(:,1:kl),'cdn',idnc,iarch,local,.true.)

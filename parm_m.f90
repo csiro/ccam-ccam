@@ -41,12 +41,13 @@ public qgmin
 public av_vmod, vmodmin, snmin, tss_sh, charnock, chn10, zobgin
 public rlongdn, rlongdx, rlatdn, rlatdx, ds, dt, dtin, panfg, panzo
 public bpyear, helim, fc2, sigbot_gwd, alphaj, cgmap_offset, cgmap_scale
-public sigramplow, sigramphigh, amxlsq
+public sigramplow, sigramphigh, amxlsq, siburbanfrac
 public diag, localhist, unlimitedhist, synchist, amipo3
 public save_aerosols, save_pbl, save_cloud, save_land, save_maxmin
 public save_ocean, save_radiation, save_urban, save_carbon, save_river
 public procmode, procformat, compression
-public nud_period
+public nud_period, mins_rad, nalpha, jalbfix, irest, nwrite
+public nstagin, nstaguin
 
 integer, save :: ngwd=-5, nrungcm=-1, newtop=1
 integer, save :: kountr=0, nrad=4, nvmix=3, nlocal=6
@@ -62,13 +63,14 @@ integer, save :: mloalpha=0, nud_ouv=0, nud_sfh=0, kblock=-1, rescrn=0, knh=-1, 
 integer, save :: nud_aero=0, mbd_maxscale=3000, mbd_maxgrid=999999, mbd_maxscale_mlo=3000, nriver=0
 integer, save :: leap=0, nbarewet=0, nsigmf=1
 integer, save :: procmode=0, compression=1
-integer, save :: nud_period=-1
+integer, save :: nud_period=-1, mins_rad=-1, nalpha=1, jalbfix=1, irest=1, nwrite=0
+integer, save :: nstagin=0, nstaguin=0
 !integer, save :: filemode=0, ioreaders=-1
 real, save :: qgmin=1.e-6
 real, save :: av_vmod=0.7, vmodmin=0.2, snmin=0.11, tss_sh=1., charnock=0.018, chn10=0.00125, zobgin=0.02
 real, save :: rlongdn=0., rlongdx=0., rlatdn=0., rlatdx=0., ds=0., dt=0., dtin=0., panfg=4., panzo=0.001
 real, save :: bpyear=0., helim=800., fc2=1., sigbot_gwd=0., alphaj=1.e-6, cgmap_offset=0., cgmap_scale=1.
-real, save :: sigramplow=0., sigramphigh=0., amxlsq=100.
+real, save :: sigramplow=0., sigramphigh=0., amxlsq=100., siburbanfrac=1.
 logical, save :: diag=.false., localhist=.false., unlimitedhist=.true., synchist=.false., amipo3=.false.
 logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_land=.true., save_maxmin=.true.
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.

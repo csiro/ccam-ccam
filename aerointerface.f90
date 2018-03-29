@@ -34,10 +34,10 @@ private
 public load_aerosolldr, aerocalc, aerodrop
 public ppfprec, ppfmelt, ppfsnow, ppfevap, ppfsubl, pplambs, ppmrate
 public ppmaccr, ppfstayice, ppfstayliq, ppqfsedice, pprscav, pprfreeze
-public opticaldepth, updateoxidant, sday
+public opticaldepth, updateoxidant, oxidant_timer
 
 integer, save :: ilon, ilat, ilev
-integer, save :: sday = -9999
+integer, save :: oxidant_timer = -9999
 integer, parameter :: naerofamilies = 7      ! Number of aerosol families for optical depth
 integer, parameter :: updateoxidant = 1440   ! update prescribed oxidant fields once per day
 real, dimension(:,:,:), allocatable, save :: oxidantprev_g
@@ -437,7 +437,7 @@ if ( myid==0 ) write(6,*) "Finished initialising prognostic aerosols"
 return
 end subroutine load_aerosolldr
 
-subroutine aerocalc(sday_update,mins)
+subroutine aerocalc(oxidant_update,mins)
 
 use aerosolldr           ! LDR prognostic aerosols
 use arrays_m             ! Atmosphere dyamics prognostic arrays
@@ -479,7 +479,7 @@ real, dimension(imax,kl) :: lpprscav, lpprfreeze
 real, dimension(imax,ndust) :: lduste, ldustdd, ldust_burden, ldustwd
 real, dimension(imax,ndcls) :: lerod
 real, dimension(imax,15) :: lemissfield
-logical, intent(in) :: sday_update
+logical, intent(in) :: oxidant_update
 
 !$omp do schedule(static) private(is,ie),                                                              &
 !$omp private(loxidantprev,loxidantnow,loxidantnext,lphi_nh,lt,lqg,lqlg,lqfg),                         &
@@ -538,7 +538,7 @@ do tile = 1,ntiles
                      so2_burden(is:ie),so4_burden(is:ie),lerod,lssn,so2wd(is:ie),so4wd(is:ie),bcwd(is:ie),         &
                      ocwd(is:ie),ldustwd,lemissfield,vso2(is:ie),dmse(is:ie),                                      &
                      so2e(is:ie),so4e(is:ie),bce(is:ie),oce(is:ie),so2dd(is:ie),so4dd(is:ie),bcdd(is:ie),          &
-                     ocdd(is:ie),mins,sday_update)
+                     ocdd(is:ie),mins,oxidant_update)
 
   zoxidant_g(is:ie,1:kl,1:4) = lzoxidant(1:imax,1:kl,1:4)
   xtg(is:ie,1:kl,1:naero)    = lxtg(1:imax,1:kl,1:naero)
@@ -565,14 +565,13 @@ subroutine aerocalc_work(oxidantprev,oxidantnow,oxidantnext,ps,zdayfac,rlatt,rlo
                          ppfstayice,ppfstayliq,ppqfsedice,pprscav,pprfreeze,so4t,xtg,zoxidant,duste,dustdd, &
                          xtosav,xtg_solub,dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,       &
                          so2_burden,so4_burden,erod,ssn,so2wd,so4wd,bcwd,ocwd,dustwd,emissfield,vso2,dmse,  &
-                         so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,mins,sday_update)
+                         so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,mins,oxidant_update)
 
 use aerosolldr, only : naero,ndcls,aldrcalc,ndust                  ! LDR prognostic aerosols
 use cc_mpi                                                         ! CC MPI routines
 use cc_omp, only : imax, ntiles                                    ! CC OpenMP routines
 use cloudmod, only : convectivecloudfrac                           ! Prognostic strat cloud
 use const_phys                                                     ! Physical constants
-use infile, only : getzinp                                         ! Input file routines
 use newmpar_m                                                      ! Grid parameters
 use ozoneread, only : fieldinterpolate                             ! Ozone input routines
 use parm_m                                                         ! Model configuration
@@ -623,11 +622,11 @@ real, dimension(imax,kl) :: tnhs,dz
 real, dimension(imax) :: coszro,taudar
 real, dimension(imax) :: cldcon,wg
 logical, dimension(imax), intent(in) :: land
-logical, intent(in) :: sday_update
+logical, intent(in) :: oxidant_update
 
 ! update prescribed oxidant fields
 dhr = dt/3600.
-if ( sday_update ) then
+if ( oxidant_update ) then
   do j = 1,4 
     ! note levels are inverted by fieldinterpolate
     call fieldinterpolate(zoxidant(:,:,j),oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
@@ -645,7 +644,6 @@ if ( sday_update ) then
       zdayfac(:) = zdayfac(:) + 1.
     end where
   end do
-  ! final taudar is for current timestep - used to indicate sunlit
   where ( zdayfac>0.5 )
     zdayfac(:) = real(ttx)/zdayfac(:)
   end where

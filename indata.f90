@@ -46,7 +46,7 @@ end interface datacheck
 
 contains
     
-subroutine indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest,siburbanfrac)
+subroutine indataf(lapsbot,isoth,nsig,io_nest)
      
 use aerointerface                                ! Aerosol interface
 use aerosolldr, only : xtg,naero,aeromode        ! LDR prognostic aerosols
@@ -120,7 +120,6 @@ real, parameter :: delty    = 60.   ! pole to equator variation in equal tempera
 real, parameter :: deltheta = 10.   ! vertical variation
 real, parameter :: rkappa   = 2./7.
 
-integer, intent(in) :: jalbfix
 integer, intent(inout) :: io_nest
 integer ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth
 integer iveg, iyr, jj, k, kdate_sav, ktime_sav, l
@@ -133,13 +132,6 @@ integer, dimension(ifull) :: urbantype, river_acc
 integer, dimension(ifull,maxtile) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
 integer, dimension(1) :: nstart, ncount
-
-character(len=1024) :: surfin
-character(len=80) :: header
-character(len=20) :: vname
-
-real, intent(in) :: siburbanfrac
-real, intent(out) :: hourst
 real, dimension(ifull) :: zss, aa, zsmask
 real, dimension(ifull) :: rlai, depth
 real, dimension(ifull,5) :: duma
@@ -168,7 +160,9 @@ real xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent
 real deli, delj, centi, distnew, distx, rhs, ril2
 real newzo, visalb, niralb
 real urbanformat
-
+character(len=1024) :: surfin
+character(len=80) :: header
+character(len=20) :: vname
 logical tst
 
 ! The following look-up tables are for the Mk3 land-surface scheme
@@ -221,7 +215,6 @@ fg(:)          = 0.
 cduv(:)        = 0.
 cdtq(:)        = 0.
 swrsave(:)     = 0.5
-hourst         = 0.
 albvissav(:)   = -1.
 albvisnir(:,:) = 0.3
 vlai(:)        = 0.
@@ -880,7 +873,7 @@ if ( ngas>0 ) then
   if ( myid==0 ) write(6,*)'Initialising tracers'
   ! tracer initialisation (if start of run)
   call init_ts(ngas,dt)
-  call readtracerflux(kdate)
+  call readtracerflux
   if ( myid==0 ) write(6,*)'Finished initialising tracers'
 endif   
   
@@ -960,12 +953,11 @@ if ( io_in<4 ) then
     end do
   end if ! (newtop==2)
   tss(1:ifull) = abs(tss(1:ifull)) ! not done in infile because -ve needed for onthefly
-  hourst = 0.01*ktime
+  
   if ( myid==0 ) then
     write(6,*)'rlongg(1),rlongg(ifull) ',rlongg(1),rlongg(ifull)
     write(6,*)'using em: ',(em(ii),ii=1,10)
     write(6,*)'using  f: ',(f(ii),ii=1,10)
-    write(6,*)'in indata hourst = ',hourst
     write(6,*)'sigmas: ',sig
     write(6,*)'sigmh: ',sigmh
   end if

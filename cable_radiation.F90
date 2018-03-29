@@ -66,9 +66,8 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
       ! subr to calc these curr. appears twice. fix this
       c1,      & !
       rhoch
-#endif
 !$omp threadprivate(c1,rhoch)
-
+#endif
 
    LOGICAL, DIMENSION(mp)    :: mask   ! select points for calculation
 

@@ -36,12 +36,12 @@ use aerosolldr, only : xtosav,xtg        & ! LDR prognostic aerosols
     ,duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
-    ,dmse,dmsso2o,dms_burden             &
-    ,so2e,so2so4o,so2wd,so2dd,so2_burden &
-    ,so4e,so4wd,so4dd,so4_burden
+    ,dmse,dms_burden                     &
+    ,so2e,so2wd,so2dd,so2_burden         &
+    ,so4e,so4wd,so4dd,so4_burden         &
+    ,dmsso2o,so2so4o
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
-use cable_ccam, only : cable_climate       ! CABLE
 use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
     ,frpw,frpr,frs,cnpp,cnbp
 use cc_mpi                                 ! CC MPI routines
@@ -60,7 +60,6 @@ use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
 use gdrag_m, only : gwdrag                 ! Gravity wave drag
-use getopt_m                               ! Command option parsing
 use histave_m                              ! Time average arrays
 use hs_phys_m                              ! Held & Suarez
 use indata                                 ! Data initialisation
@@ -100,7 +99,6 @@ use timeseries, only : write_ts            ! Tracer time series
 use tracermodule, only : tracer_mass     & ! Tracer routines
    ,interp_tracerflux
 use tracers_m                              ! Tracer data
-use usage_m                                ! Usage message
 use uvbar_m                                ! Saved dynamic arrays
 use vegpar_m                               ! Vegetation arrays
 use vertmix_m                              ! Boundary layer turbulent mixing
@@ -121,10 +119,10 @@ include 'kuocom.h'                         ! Convection parameters
       
 integer, dimension(8) :: tvals1, tvals2, nper3hr
 integer, dimension(8) :: times_total_a, times_total_b
-integer iq, irest, isoil, jalbfix, i, j, k, nn, js, je, tile
-integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha
-integer nlx, nmaxprsav, n3hr, mins_rad, opt, nopt
-integer nstagin, nstaguin, nwrite, nwtsav, mtimer_sav
+integer iq, isoil, i, j, k, nn, js, je, tile
+integer mins_gmt, mspeca, mtimer_in
+integer nlx, nmaxprsav, n3hr
+integer nwtsav, mtimer_sav
 integer jyear, jmonth, jday, jhour, jmin, mins
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: spare1, spare2, spmean
@@ -132,16 +130,14 @@ real, dimension(9) :: temparray, gtemparray
 real clhav, cllav, clmav, cltav, es, qtot, aa, bb, cc 
 real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
 real pslavge, pwater, spavge, pwatr, bb_2, cc_2, rat
-real siburbanfrac
-logical sday_update
-character(len=1024) nmlfile
+logical oxidant_update
 character(len=10) timeval
-character(len=8) rundate
-character(len=MAX_ARGLEN) :: optarg
 
 ! Start model timer
 call date_and_time(values=times_total_a)
 
+
+! Compile options tests
 #ifdef i8r8
 if ( kind(iq)/=8 .or. kind(es)/=8 ) then
   write(6,*) "ERROR: CCAM compiled for double precision, but single precision code was detected"
@@ -175,59 +171,26 @@ call setstacklimit(-1)
 
 !--------------------------------------------------------------
 ! INITALISE TIMING LOGS
-call log_off()
-call log_setup()
-
-
-!--------------------------------------------------------------
-! READ COMMAND LINE OPTIONS
-nmlfile = "input"
-do
-  call getopt("hc:",nopt,opt,optarg)
-  if ( opt==-1 ) exit  ! End of options
-  select case ( char(opt) )
-    case ( "h" )
-      call help
-    case ( "c" )
-      nmlfile = optarg
-    case default
-      if ( myid==0 ) write(6,*) "ERROR: Unknown command line option ",char(opt)
-      call usage
-  end select
-end do
+call log_off
+call log_setup
 
 
 !----------------------------------------------------------------
 ! READ NAMELIST AND INITIALISE MODEL
-irest        = 1
-jalbfix      = 1
-mins_rad     = -1
-mtimer_sav   = 0                  ! saved value for minute timer
-nalpha       = 1
-nlx          = 0                  ! diagnostic level
-nwrite       = 0
-siburbanfrac = 1.
-call globpe_init(nmlfile,rundate,timeval,nstagin,nstaguin,jalbfix,nalpha,nwrite, &
-                 irest,mins_rad,hourst,siburbanfrac)
-do n3hr = 1,8
-  nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
-end do
+call globpe_init
 
 
 !****************************************************************
 ! only perform calculation on processes that are still active
 if ( myid<nproc ) then
     
-  allocate( dums(ifull,kl) )
-  allocate( spare1(ifull), spare2(ifull), spmean(kl) )
-
-  
+    
   !--------------------------------------------------------------
   ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
   if ( nwt>0 ) then
     ! write out the first ofile data set
-    if ( myid==0 ) write(6,*)'calling outfile'
-    call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)  ! which calls outcdf
+    if ( myid==0 ) write(6,*) "calling outfile"
+    call outfile(20)  ! which calls outcdf
     if ( newtop<0 ) then
       ! just for outcdf to plot zs  & write fort.22      
       if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"
@@ -238,6 +201,13 @@ if ( myid<nproc ) then
 
   !-------------------------------------------------------------
   ! SETUP DIAGNOSTIC ARRAYS
+  allocate( dums(ifull,kl) )
+  allocate( spare1(ifull), spare2(ifull), spmean(kl) )
+  do n3hr = 1,8
+    nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
+  end do
+  n3hr = 1   ! initial value at start of run
+  nlx = 0    ! diagnostic level
   rndmax(:)            = 0.
   tmaxscr(:)           = 0.
   tminscr(:)           = 400.
@@ -348,23 +318,26 @@ if ( myid<nproc ) then
   !--------------------------------------------------------------
   ! INITIALISE DYNAMICS
   dtin = dt
-  n3hr = 1   ! initial value at start of run
   if ( myid==0 ) then
     write(6,*) "number of time steps per day = ",nperday
     write(6,*) "nper3hr,nper6hr .. ",nper3hr(:)
   end if
   mspeca = 1
+  ! use half time-step for initialisation
   if ( mex/=1 .and. .not.lrestart ) then
     mspeca = 2
     dt     = 0.5*dtin
   endif
-  call gettin(0)              ! preserve initial mass & T fields
+  call gettin(0) ! preserve initial mass & T fields
 
-  nmaxprsav = nmaxpr
-  nwtsav    = nwt
-  hrs_dt    = dtin/3600.      ! time step in hours
-  mins_dt   = nint(dtin/60.)  ! time step in minutes
-  mtimer_in = mtimer
+  
+  !--------------------------------------------------------------
+  ! SET-UP TIMERS
+  mtimer_sav = 0                                                       ! saved value for minute timer
+  nmaxprsav  = nmaxpr
+  nwtsav     = nwt
+  hourst     = real(nint(0.01*real(ktime))) + real(mod(ktime,100))/60. ! for tracers
+  mtimer_in  = mtimer
 
  
   !--------------------------------------------------------------
@@ -373,16 +346,25 @@ if ( myid<nproc ) then
     call date_and_time(time=timeval,values=tvals1)
     write(6,*) "Start of loop time ", timeval
   end if
-  call log_on()
+  call log_on
   call START_LOG(maincalc_begin)
 
   do ktau = 1,ntau   ! ****** start of main time loop
 
-    timer    = timer + hrs_dt                            ! timer now only used to give timeg
-    timeg    = mod(timer+hourst,24.)
+    timer    = timer + real(ktau)*dtin/3600.             ! timer now only used to give timeg
+    timeg    = mod( timer+hourst, 24. )                  ! UTC time for tracers
     mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
-    mins_gmt = mod(mtimer+60*ktime/100,24*60)
-
+    mins_gmt = mod( mtimer+60*ktime/100, 24*60 )         ! for radiation
+    call getzinp(jyear,jmonth,jday,jhour,jmin,mins)      ! define mins as time since start of the year
+    
+    ! set diagnostic printout flag
+    diag = ( ktau>=abs(ndi) .and. ktau<=ndi2 )
+    if ( ndi<0 ) then
+      if ( ktau==(ktau/ndi)*ndi ) then
+        diag = .true.
+      end if
+    endif
+    
     
     ! ***********************************************************************
     ! START ATMOSPHERE DYNAMICS
@@ -401,7 +383,7 @@ if ( myid<nproc ) then
     ! TRACERS ---------------------------------------------------------------
     ! interpolate tracer fluxes to current timestep
     if ( ngas>0 ) then
-      call interp_tracerflux(kdate,hrs_dt)
+      call interp_tracerflux
     end if
 
 
@@ -510,22 +492,10 @@ if ( myid<nproc ) then
       savu(1:ifull,:)  = u(1:ifull,:)  ! before any time-splitting occurs
       savv(1:ifull,:)  = v(1:ifull,:)
 
-      ! set diagnostic printout flag
-      diag = ( ktau>=abs(ndi) .and. ktau<=ndi2 )
-      if ( ndi<0 ) then
-        if ( ktau == (ktau/ndi)*ndi ) then
-          diag = .true.
-        end if
-      endif
 
       ! update non-linear dynamic terms
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "Before nonlin"
-      end if
       call nonlin
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "After nonlin"
-      end if
+      
       if ( diag ) then
         if ( mydiag ) write(6,*) 'before hadv'
         call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -542,20 +512,17 @@ if ( myid<nproc ) then
       endif
 
       ! evaluate horizontal advection for combined quantities
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "Before upglobal"
-      end if
       call upglobal
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "After upglobal"
-      end if
+      
       if ( diag ) then
         if ( mydiag ) then
           write(6,*) 'after hadv'
           write (6,"('tx  ',9f8.2)") (tx(idjd,k),k=nlx,nlx+8)
         end if
         call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,200.,1.)
-        if ( mydiag ) write(6,'(i2," qgh ",18f7.4)')ktau,1000.*qg(idjd,:)
+        if ( mydiag ) then
+          write(6,'(i2," qgh ",18f7.4)')ktau,1000.*qg(idjd,:)
+        end if  
       end if
 
       if ( nstaguin<0 .and. ktau>=1 ) then  ! swapping here (lower down) for nstaguin<0
@@ -564,14 +531,11 @@ if ( myid<nproc ) then
           nstagu = nstag
         end if
       end if
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "Before adjust5"
-      end if
+      
+      ! Update the semi-implicit solution to the augumented geopotential
       call adjust5
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "After adjust5"
-      end if
 
+      ! check for rounding errors
       call fixqg(1,ifull)
   
       call nantest("after atmosphere dynamics",1,ifull)
@@ -580,9 +544,6 @@ if ( myid<nproc ) then
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
       call START_LOG(nestin_begin)
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "Before nesting"
-      end if
       if ( mspec==1 ) then
         if ( mbd/=0 ) then
           ! scale-selective filter
@@ -593,9 +554,6 @@ if ( myid<nproc ) then
         end if
       end if
       call nantest("after nesting",1,ifull)      
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "After nesting"
-      end if
       call END_LOG(nestin_end)
     
       
@@ -612,9 +570,6 @@ if ( myid<nproc ) then
     
     ! HORIZONTAL DIFFUSION ----------------------------------------------------
     call START_LOG(hordifg_begin)
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "Before atm horizontal diffusion"
-    end if
     if ( nhor<0 ) then
       call hordifgt  ! now not tendencies
     end if
@@ -622,9 +577,6 @@ if ( myid<nproc ) then
       write(6,*) 'after hordifgt t ',t(idjd,:)
     end if
     call nantest("after atm horizontal diffusion",1,ifull)    
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "After atm horizontal diffusion"
-    end if
     call END_LOG(hordifg_end)
    
     
@@ -644,37 +596,19 @@ if ( myid<nproc ) then
       ! RIVER ROUTING ------------------------------------------------------
       ! This option can also be used with PCOM
       call START_LOG(river_begin)
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "Before river"
-      end if
       call rvrrouter
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "After river"
-      end if
       call END_LOG(river_end)
     end if
   
     if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
       ! DYNAMICS & DIFFUSION ------------------------------------------------
       call START_LOG(waterdynamics_begin)
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "Before MLO dynamics"
-      end if
       call mlohadv
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "After MLO dynamics"
-      end if
       call END_LOG(waterdynamics_end)
     else if ( abs(nmlo)==2 ) then
       ! DIFFUSION ONLY ------------------------------------------------------
       call START_LOG(waterdynamics_begin)
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "Before MLO diffusion"
-      end if
       call mlodiffusion
-      if ( nmaxpr==1 ) then
-        if ( myid==0 ) write(6,*) "After MLO diffusion"
-      end if
       call END_LOG(waterdynamics_end)
     end if
       
@@ -706,8 +640,7 @@ if ( myid<nproc ) then
       end if    ! (nhstest<0)      
     end if    
     ! aerosol timer calculations
-    call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-    sday_update = sday<=mins-updateoxidant
+    oxidant_update = oxidant_timer<=mins-updateoxidant
 
     
     ! MISC (PARALLEL) -------------------------------------------------------
@@ -742,9 +675,6 @@ if ( myid<nproc ) then
     ! GWDRAG ----------------------------------------------------------------
 !$omp master
     call START_LOG(gwdrag_begin)
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "Before gwdrag"
-    end if
 !$omp end master
     if ( ngwd<0 ) then
       call gwdrag  ! <0 for split - only one now allowed
@@ -757,9 +687,6 @@ if ( myid<nproc ) then
     end do  
 !$omp end do nowait
 !$omp master
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "After gwdrag"
-    end if
     call END_LOG(gwdrag_end)
 !$omp end master
 
@@ -767,9 +694,6 @@ if ( myid<nproc ) then
     ! CONVECTION ------------------------------------------------------------
 !$omp master
     call START_LOG(convection_begin)
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "Before convection"
-    end if
 !$omp end master
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -799,9 +723,6 @@ if ( myid<nproc ) then
     end do  
 !$omp end do nowait
 !$omp master
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "After convection"
-    end if
     call END_LOG(convection_end)
 !$omp end master
 
@@ -809,9 +730,6 @@ if ( myid<nproc ) then
     ! CLOUD MICROPHYSICS ----------------------------------------------------
 !$omp master
     call START_LOG(cloud_begin)
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "Before cloud microphysics"
-    end if
 !$omp end master
     if ( ldr/=0 ) then
       ! LDR microphysics scheme
@@ -826,9 +744,6 @@ if ( myid<nproc ) then
     end do  
 !$omp end do nowait
 !$omp master    
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "After cloud microphysics"
-    end if
     call END_LOG(cloud_end)
 !$omp end master
     
@@ -836,9 +751,6 @@ if ( myid<nproc ) then
     ! RADIATION -------------------------------------------------------------
 !$omp master
     call START_LOG(radnet_begin)
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "Before radiation"
-    end if
 !$omp end master
     if ( ncloud>=4 ) then
 !$omp do schedule(static) private(js,je)
@@ -884,9 +796,6 @@ if ( myid<nproc ) then
     end do  
 !$omp end do nowait
 !$omp master
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "After radiation"
-    end if
     call END_LOG(radnet_end)
 !$omp end master
 
@@ -901,9 +810,6 @@ if ( myid<nproc ) then
     ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
 !$omp master
     call START_LOG(sfluxnet_begin)
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "Before surface fluxes"
-    end if
 !$omp end master
     if ( diag .and. ntiles==1 ) then
       call maxmin(u,'#u',ktau,1.,kl)
@@ -912,7 +818,7 @@ if ( myid<nproc ) then
       call maxmin(qg,'qg',ktau,1.e3,kl)     
     end if
     if ( ntsur>1 ) then
-      call sflux(nalpha)
+      call sflux
     endif   ! (ntsur>1)    
 !$omp do schedule(static) private(js,je)  
     do tile = 1,ntiles
@@ -922,9 +828,6 @@ if ( myid<nproc ) then
     end do  
 !$omp end do nowait
 !$omp master
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "After surface fluxes"
-    end if
     call END_LOG(sfluxnet_end)
 !$omp end master
 
@@ -935,12 +838,9 @@ if ( myid<nproc ) then
     ! cloud microphysics
 !$omp master
     call START_LOG(aerosol_begin)
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "Before aerosols"
-    end if
 !$omp end master
     if ( abs(iaero)>=2 ) then
-      call aerocalc(sday_update,mins)
+      call aerocalc(oxidant_update,mins)
     end if
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -950,9 +850,6 @@ if ( myid<nproc ) then
     end do  
 !$omp end do nowait
 !$omp master
-    if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "After aerosols"
-    end if
     call END_LOG(aerosol_end)
 !$omp end master
     
@@ -961,7 +858,6 @@ if ( myid<nproc ) then
 !$omp master
     call START_LOG(vertmix_begin)
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "Before PBL mixing"
       if ( mydiag .and. ntiles==1 ) then
         write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
       end if
@@ -980,7 +876,6 @@ if ( myid<nproc ) then
 !$omp end do nowait
 !$omp master
     if ( nmaxpr==1 ) then
-      if ( myid==0 ) write(6,*) "After PBL mixing"
       if ( mydiag .and. ntiles==1 ) then
         write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
       end if
@@ -1021,8 +916,8 @@ if ( myid<nproc ) then
 
     ! MISC (SINGLE) ---------------------------------------------------------
     ! Update aerosol timer
-    if ( sday_update ) then
-      sday = mins
+    if ( oxidant_update ) then
+      oxidant_timer = mins
     end if
 
     call END_LOG(phys_end)
@@ -1039,6 +934,154 @@ if ( myid<nproc ) then
     ! ***********************************************************************
     ! DIAGNOSTICS AND OUTPUT
     ! ***********************************************************************
+
+    ! TIME AVERAGED OUTPUT ---------------------------------------
+    ! update diag_averages and daily max and min screen temps 
+    ! N.B. runoff is accumulated in sflux
+    tmaxscr(1:ifull)           = max( tmaxscr(1:ifull), tscrn )
+    tminscr(1:ifull)           = min( tminscr(1:ifull), tscrn )
+    rhmaxscr(1:ifull)          = max( rhmaxscr(1:ifull), rhscrn )
+    rhminscr(1:ifull)          = min( rhminscr(1:ifull), rhscrn )
+    rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
+    cape_max(1:ifull)          = max( cape_max(1:ifull), cape )
+    cape_ave(1:ifull)          = cape_ave(1:ifull) + cape
+    u10mx(1:ifull)             = max( u10mx(1:ifull), u10 )  ! for hourly scrnfile
+    dew_ave(1:ifull)           = dew_ave(1:ifull) - min( 0., eg )    
+    epan_ave(1:ifull)          = epan_ave(1:ifull) + epan
+    epot_ave(1:ifull)          = epot_ave(1:ifull) + epot 
+    eg_ave(1:ifull)            = eg_ave(1:ifull) + eg    
+    fg_ave(1:ifull)            = fg_ave(1:ifull) + fg
+    ga_ave(1:ifull)            = ga_ave(1:ifull) + ga
+    anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
+    tasurban_ave(1:ifull)      = tasurban_ave(1:ifull) + urban_tas
+    tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urban_tas )
+    tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
+    rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
+    tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
+    qscrn_ave(1:ifull)         = qscrn_ave(1:ifull) + qgscrn 
+    wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
+    wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
+    tsu_ave(1:ifull)           = tsu_ave(1:ifull) + tss
+    call mslp(spare2,psl,zs,t) ! calculate MSLP from psl
+    spare2 = spare2/100.       ! convert MSLP to hPa
+    psl_ave(1:ifull)           = psl_ave(1:ifull) + spare2(1:ifull)
+    spare1(1:ifull)            = 0.
+    call mlodiag(spare1,0)     ! obtain ocean mixed level depth
+    mixdep_ave(1:ifull)        = mixdep_ave(1:ifull) + spare1(1:ifull)
+    spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
+    spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
+    do iq = 1,ifull
+      if ( u10(iq)**2 > u10max(iq)**2 +v10max(iq)**2 ) then
+        u10max(iq) = u10(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
+        v10max(iq) = u10(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
+      end if
+      if ( spare1(iq) > u1max(iq)**2+v1max(iq)**2 ) then
+        u1max(iq) = u(iq,1)
+        v1max(iq) = v(iq,1)
+      end if
+      if ( spare2(iq) > u2max(iq)**2+v2max(iq)**2 ) then
+        u2max(iq) = u(iq,2)
+        v2max(iq) = v(iq,2)
+      end if
+    end do
+    if ( ngas>0 ) then
+      traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(:,:,1:ngas)
+    end if
+    if ( ccycle/=0 ) then
+      fnee_ave(1:ifull) = fnee_ave(1:ifull) + fnee  
+      fpn_ave(1:ifull)  = fpn_ave(1:ifull) + fpn
+      frd_ave(1:ifull)  = frd_ave(1:ifull) + frd
+      frp_ave(1:ifull)  = frp_ave(1:ifull) + frp
+      frpw_ave(1:ifull) = frpw_ave(1:ifull) + frpw
+      frpr_ave(1:ifull) = frpr_ave(1:ifull) + frpr
+      frs_ave(1:ifull)  = frs_ave(1:ifull) + frs
+      cnpp_ave(1:ifull) = cnpp_ave(1:ifull) + cnpp
+      cnbp_ave(1:ifull) = cnbp_ave(1:ifull) + cnbp
+    end if
+
+    if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
+      cape_ave(1:ifull)          = cape_ave(1:ifull)/min(ntau,nperavg)
+      dew_ave(1:ifull)           = dew_ave(1:ifull)/min(ntau,nperavg)
+      epan_ave(1:ifull)          = epan_ave(1:ifull)/min(ntau,nperavg)
+      epot_ave(1:ifull)          = epot_ave(1:ifull)/min(ntau,nperavg)
+      eg_ave(1:ifull)            = eg_ave(1:ifull)/min(ntau,nperavg)
+      fg_ave(1:ifull)            = fg_ave(1:ifull)/min(ntau,nperavg)
+      ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg)   
+      anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull)/min(ntau,nperavg)
+      tasurban_ave(1:ifull)      = tasurban_ave(1:ifull)/min(ntau,nperavg)
+      rnet_ave(1:ifull)          = rnet_ave(1:ifull)/min(ntau,nperavg)
+      sunhours(1:ifull)          = sunhours(1:ifull)/min(ntau,nperavg)
+      riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
+      rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
+      tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
+      qscrn_ave(1:ifull)         = qscrn_ave(1:ifull)/min(ntau,nperavg)
+      do k = 1,ms
+        wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
+        wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)
+      end do
+      tsu_ave(1:ifull)    = tsu_ave(1:ifull)/min(ntau,nperavg)
+      psl_ave(1:ifull)    = psl_ave(1:ifull)/min(ntau,nperavg)
+      mixdep_ave(1:ifull) = mixdep_ave(1:ifull)/min(ntau,nperavg)
+      sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
+      sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
+      sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)
+      sot_ave(1:ifull)    = sot_ave(1:ifull)/max(koundiag,1)
+      soc_ave(1:ifull)    = soc_ave(1:ifull)/max(koundiag,1)
+      rtu_ave(1:ifull)    = rtu_ave(1:ifull)/max(koundiag,1)
+      rtc_ave(1:ifull)    = rtc_ave(1:ifull)/max(koundiag,1)
+      rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
+      rgn_ave(1:ifull)    = rgn_ave(1:ifull)/max(koundiag,1)
+      rgc_ave(1:ifull)    = rgc_ave(1:ifull)/max(koundiag,1)
+      sgc_ave(1:ifull)    = sgc_ave(1:ifull)/max(koundiag,1)
+      cld_ave(1:ifull)    = cld_ave(1:ifull)/max(koundiag,1)
+      cll_ave(1:ifull)    = cll_ave(1:ifull)/max(koundiag,1)
+      clm_ave(1:ifull)    = clm_ave(1:ifull)/max(koundiag,1)
+      clh_ave(1:ifull)    = clh_ave(1:ifull)/max(koundiag,1)
+      alb_ave(1:ifull)    = alb_ave(1:ifull)/max(koundiag,1)
+      fbeam_ave(1:ifull)  = fbeam_ave(1:ifull)/max(koundiag,1)
+      cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
+      ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
+      if ( ngas>0 ) then
+        traver(1:ifull,1:kl,1:ngas) = traver(1:ifull,1:kl,1:ngas)/min(ntau,nperavg)
+      end if
+      if ( ccycle/=0 ) then
+        fnee_ave(1:ifull)   = fnee_ave(1:ifull)/min(ntau,nperavg)  
+        fpn_ave(1:ifull)    = fpn_ave(1:ifull)/min(ntau,nperavg)
+        frd_ave(1:ifull)    = frd_ave(1:ifull)/min(ntau,nperavg)
+        frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
+        frpw_ave(1:ifull)   = frpw_ave(1:ifull)/min(ntau,nperavg)
+        frpr_ave(1:ifull)   = frpr_ave(1:ifull)/min(ntau,nperavg)
+        frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
+        cnpp_ave(1:ifull)   = cnpp_ave(1:ifull)/min(ntau,nperavg)
+        cnbp_ave(1:ifull)   = cnbp_ave(1:ifull)/min(ntau,nperavg)
+      end if
+      if ( abs(iaero)>=2 ) then
+        duste         = duste/min(ntau,nperavg)        ! Dust emissions
+        dustdd        = dustdd/min(ntau,nperavg)       ! Dust dry deposition
+        dustwd        = dustwd/min(ntau,nperavg)       ! Dust wet deposition
+        dust_burden   = dust_burden/min(ntau,nperavg)  ! Dust burden
+        bce           = bce/min(ntau,nperavg)          ! Black carbon emissions
+        bcdd          = bcdd/min(ntau,nperavg)         ! Black carbon dry deposition
+        bcwd          = bcwd/min(ntau,nperavg)         ! Black carbon wet deposition
+        bc_burden     = bc_burden/min(ntau,nperavg)    ! Black carbon burden
+        oce           = oce/min(ntau,nperavg)          ! Organic carbon emissions
+        ocdd          = ocdd/min(ntau,nperavg)         ! Organic carbon dry deposition
+        ocwd          = ocwd/min(ntau,nperavg)         ! Organic carbon wet deposition
+        oc_burden     = oc_burden/min(ntau,nperavg)    ! Organic carbon burden
+        dmse          = dmse/min(ntau,nperavg)         ! DMS emissions
+        dmsso2o       = dmsso2o/min(ntau,nperavg)      ! DMS -> SO2 oxidation
+        so2e          = so2e/min(ntau,nperavg)         ! SO2 emissions
+        so2so4o       = so2so4o/min(ntau,nperavg)      ! SO2 -> SO4 oxidation
+        so2dd         = so2dd/min(ntau,nperavg)        ! SO2 dry deposition
+        so2wd         = so2wd/min(ntau,nperavg)        ! SO2 wet deposiion
+        so4e          = so4e/min(ntau,nperavg)         ! SO4 emissions
+        so4dd         = so4dd/min(ntau,nperavg)        ! SO4 dry deposition
+        so4wd         = so4wd/min(ntau,nperavg)        ! SO4 wet deposition
+        dms_burden    = dms_burden/min(ntau,nperavg)   ! DMS burden
+        so2_burden    = so2_burden/min(ntau,nperavg)   ! SO2 burden
+        so4_burden    = so4_burden/min(ntau,nperavg)   ! SO4 burden
+      end if
+    end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
 
 
     ! TRACER OUTPUT ----------------------------------------------
@@ -1195,74 +1238,12 @@ if ( myid<nproc ) then
     endif                  ! (mod(ktau,nmaxpr)==0)
 
     
-    ! TIME AVERAGED OUTPUT ---------------------------------------
-    ! update diag_averages and daily max and min screen temps 
-    ! N.B. runoff is accumulated in sflux
-    tmaxscr(1:ifull)           = max( tmaxscr(1:ifull), tscrn )
-    tminscr(1:ifull)           = min( tminscr(1:ifull), tscrn )
-    rhmaxscr(1:ifull)          = max( rhmaxscr(1:ifull), rhscrn )
-    rhminscr(1:ifull)          = min( rhminscr(1:ifull), rhscrn )
-    rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
-    cape_max(1:ifull)          = max( cape_max(1:ifull), cape )
-    cape_ave(1:ifull)          = cape_ave(1:ifull) + cape
-    u10mx(1:ifull)             = max( u10mx(1:ifull), u10 )  ! for hourly scrnfile
-    dew_ave(1:ifull)           = dew_ave(1:ifull) - min( 0., eg )    
-    epan_ave(1:ifull)          = epan_ave(1:ifull) + epan
-    epot_ave(1:ifull)          = epot_ave(1:ifull) + epot 
-    eg_ave(1:ifull)            = eg_ave(1:ifull) + eg    
-    fg_ave(1:ifull)            = fg_ave(1:ifull) + fg
-    ga_ave(1:ifull)            = ga_ave(1:ifull) + ga
-    anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
-    tasurban_ave(1:ifull)      = tasurban_ave(1:ifull) + urban_tas
-    tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urban_tas )
-    tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
-    rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
-    tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
-    qscrn_ave(1:ifull)         = qscrn_ave(1:ifull) + qgscrn 
-    wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
-    wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
-    tsu_ave(1:ifull)           = tsu_ave(1:ifull) + tss
-    call mslp(spare2,psl,zs,t) ! calculate MSLP from psl
-    spare2 = spare2/100.       ! convert MSLP to hPa
-    psl_ave(1:ifull)           = psl_ave(1:ifull) + spare2(1:ifull)
-    spare1(1:ifull)            = 0.
-    call mlodiag(spare1,0)     ! obtain ocean mixed level depth
-    mixdep_ave(1:ifull)        = mixdep_ave(1:ifull) + spare1(1:ifull)
-    spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
-    spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
-    do iq = 1,ifull
-      if ( u10(iq)**2 > u10max(iq)**2 +v10max(iq)**2 ) then
-        u10max(iq) = u10(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
-        v10max(iq) = u10(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
-      end if
-      if ( spare1(iq) > u1max(iq)**2+v1max(iq)**2 ) then
-        u1max(iq) = u(iq,1)
-        v1max(iq) = v(iq,1)
-      end if
-      if ( spare2(iq) > u2max(iq)**2+v2max(iq)**2 ) then
-        u2max(iq) = u(iq,2)
-        v2max(iq) = v(iq,2)
-      end if
-    end do
-    if ( ngas>0 ) then
-      traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(:,:,1:ngas)
-    end if
-    if ( ccycle/=0 ) then
-      fnee_ave(1:ifull) = fnee_ave(1:ifull) + fnee  
-      fpn_ave(1:ifull)  = fpn_ave(1:ifull) + fpn
-      frd_ave(1:ifull)  = frd_ave(1:ifull) + frd
-      frp_ave(1:ifull)  = frp_ave(1:ifull) + frp
-      frpw_ave(1:ifull) = frpw_ave(1:ifull) + frpw
-      frpr_ave(1:ifull) = frpr_ave(1:ifull) + frpr
-      frs_ave(1:ifull)  = frs_ave(1:ifull) + frs
-      cnpp_ave(1:ifull) = cnpp_ave(1:ifull) + cnpp
-      cnbp_ave(1:ifull) = cnbp_ave(1:ifull) + cnbp
-    end if
-
-    ! rnd03 to rnd21 are accumulated in mm     
     if ( myid==0 ) then
       write(6,*) 'ktau,mod,nper3hr ',ktau,mod(ktau-1,nperday)+1,nper3hr(n3hr)
     end if
+
+    
+    ! rnd03 to rnd21 are accumulated in mm     
     if ( mod(ktau-1,nperday)+1 == nper3hr(n3hr) ) then
       rnd_3hr(1:ifull,n3hr) = rnd_3hr(1:ifull,8)
       if ( nextout >= 2 ) then
@@ -1276,117 +1257,31 @@ if ( myid<nproc ) then
       n3hr = n3hr + 1
       if ( n3hr>8 ) n3hr = 1
     endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
-
-    if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
-      cape_ave(1:ifull)          = cape_ave(1:ifull)/min(ntau,nperavg)
-      dew_ave(1:ifull)           = dew_ave(1:ifull)/min(ntau,nperavg)
-      epan_ave(1:ifull)          = epan_ave(1:ifull)/min(ntau,nperavg)
-      epot_ave(1:ifull)          = epot_ave(1:ifull)/min(ntau,nperavg)
-      eg_ave(1:ifull)            = eg_ave(1:ifull)/min(ntau,nperavg)
-      fg_ave(1:ifull)            = fg_ave(1:ifull)/min(ntau,nperavg)
-      ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg)   
-      anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull)/min(ntau,nperavg)
-      tasurban_ave(1:ifull)      = tasurban_ave(1:ifull)/min(ntau,nperavg)
-      rnet_ave(1:ifull)          = rnet_ave(1:ifull)/min(ntau,nperavg)
-      sunhours(1:ifull)          = sunhours(1:ifull)/min(ntau,nperavg)
-      riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
-      rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
-      tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
-      qscrn_ave(1:ifull)         = qscrn_ave(1:ifull)/min(ntau,nperavg)
-      do k = 1,ms
-        wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
-        wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)
-      end do
-      tsu_ave(1:ifull)    = tsu_ave(1:ifull)/min(ntau,nperavg)
-      psl_ave(1:ifull)    = psl_ave(1:ifull)/min(ntau,nperavg)
-      mixdep_ave(1:ifull) = mixdep_ave(1:ifull)/min(ntau,nperavg)
-      sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
-      sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
-      sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)
-      sot_ave(1:ifull)    = sot_ave(1:ifull)/max(koundiag,1)
-      soc_ave(1:ifull)    = soc_ave(1:ifull)/max(koundiag,1)
-      rtu_ave(1:ifull)    = rtu_ave(1:ifull)/max(koundiag,1)
-      rtc_ave(1:ifull)    = rtc_ave(1:ifull)/max(koundiag,1)
-      rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
-      rgn_ave(1:ifull)    = rgn_ave(1:ifull)/max(koundiag,1)
-      rgc_ave(1:ifull)    = rgc_ave(1:ifull)/max(koundiag,1)
-      sgc_ave(1:ifull)    = sgc_ave(1:ifull)/max(koundiag,1)
-      cld_ave(1:ifull)    = cld_ave(1:ifull)/max(koundiag,1)
-      cll_ave(1:ifull)    = cll_ave(1:ifull)/max(koundiag,1)
-      clm_ave(1:ifull)    = clm_ave(1:ifull)/max(koundiag,1)
-      clh_ave(1:ifull)    = clh_ave(1:ifull)/max(koundiag,1)
-      alb_ave(1:ifull)    = alb_ave(1:ifull)/max(koundiag,1)
-      fbeam_ave(1:ifull)  = fbeam_ave(1:ifull)/max(koundiag,1)
-      cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
-      ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
-      if ( ngas>0 ) then
-        traver(1:ifull,1:kl,1:ngas) = traver(1:ifull,1:kl,1:ngas)/min(ntau,nperavg)
-      end if
-      if ( ccycle/=0 ) then
-        fnee_ave(1:ifull)   = fnee_ave(1:ifull)/min(ntau,nperavg)  
-        fpn_ave(1:ifull)    = fpn_ave(1:ifull)/min(ntau,nperavg)
-        frd_ave(1:ifull)    = frd_ave(1:ifull)/min(ntau,nperavg)
-        frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
-        frpw_ave(1:ifull)   = frpw_ave(1:ifull)/min(ntau,nperavg)
-        frpr_ave(1:ifull)   = frpr_ave(1:ifull)/min(ntau,nperavg)
-        frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
-        cnpp_ave(1:ifull)   = cnpp_ave(1:ifull)/min(ntau,nperavg)
-        cnbp_ave(1:ifull)   = cnbp_ave(1:ifull)/min(ntau,nperavg)
-      end if
-      if ( abs(iaero)>=2 ) then
-        duste         = duste/min(ntau,nperavg)        ! Dust emissions
-        dustdd        = dustdd/min(ntau,nperavg)       ! Dust dry deposition
-        dustwd        = dustwd/min(ntau,nperavg)       ! Dust wet deposition
-        dust_burden   = dust_burden/min(ntau,nperavg)  ! Dust burden
-        bce           = bce/min(ntau,nperavg)         ! Black carbon emissions
-        bcdd          = bcdd/min(ntau,nperavg)        ! Black carbon dry deposition
-        bcwd          = bcwd/min(ntau,nperavg)        ! Black carbon wet deposition
-        bc_burden     = bc_burden/min(ntau,nperavg)   ! Black carbon burden
-        oce           = oce/min(ntau,nperavg)         ! Organic carbon emissions
-        ocdd          = ocdd/min(ntau,nperavg)        ! Organic carbon dry deposition
-        ocwd          = ocwd/min(ntau,nperavg)        ! Organic carbon wet deposition
-        oc_burden     = oc_burden/min(ntau,nperavg)   ! Organic carbon burden
-        dmse          = dmse/min(ntau,nperavg)        ! DMS emissions
-        dmsso2o       = dmsso2o/min(ntau,nperavg)     ! DMS -> SO2 oxidation
-        so2e          = so2e/min(ntau,nperavg)        ! SO2 emissions
-        so2so4o       = so2so4o/min(ntau,nperavg)     ! SO2 -> SO4 oxidation
-        so2dd         = so2dd/min(ntau,nperavg)       ! SO2 dry deposition
-        so2wd         = so2wd/min(ntau,nperavg)       ! SO2 wet deposiion
-        so4e          = so4e/min(ntau,nperavg)        ! SO4 emissions
-        so4dd         = so4dd/min(ntau,nperavg)       ! SO4 dry deposition
-        so4wd         = so4wd/min(ntau,nperavg)       ! SO4 wet deposition
-        dms_burden    = dms_burden/min(ntau,nperavg)  ! DMS burden
-        so2_burden    = so2_burden/min(ntau,nperavg)  ! SO2 burden
-        so4_burden    = so4_burden/min(ntau,nperavg)  ! SO4 burden
-      end if
-    end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
-
-    
-    ! WRITE DATA TO HISTORY AND RESTART FILES --------------------
-    call log_off()
   
+
+    ! WRITE DATA TO HISTORY AND RESTART FILES --------------------
+    call log_off
     if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
-      call outfile(20,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)  ! which calls outcdf
+      call outfile(20)  ! which calls outcdf
       if ( ktau==ntau .and. irest==1 ) then
         ! Don't include the time for writing the restart file
         call END_LOG(maincalc_end)
         ! write restart file
-        call outfile(19,rundate,nwrite,nstagin,jalbfix,nalpha,mins_rad,siburbanfrac)
+        call outfile(19)
         if ( myid==0 ) write(6,*) 'finished writing restart file in outfile'
         call START_LOG(maincalc_begin)
       endif  ! (ktau==ntau.and.irest==1)
     endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
-      
     ! write high temporal frequency fields
     if ( surfile /= ' ' ) then
       call freqfile
     end if
-  
-    call log_on()
+    call log_on
  
     
-    ! RESET TIME AVERAGED ARRAYS ---------------------------------
-    if ( mod(ktau,nperavg)==0 ) then   
+    ! TIME AVERAGED DIAGNOSTICS ---------------------------------
+    if ( mod(ktau,nperavg)==0 ) then  
+        
       ! produce some diags & reset most averages once every nperavg
       if ( nmaxpr==1 ) then
         precavge = sum(precip(1:ifull)*wts(1:ifull))
@@ -1500,22 +1395,24 @@ if ( myid<nproc ) then
         so2_burden    = 0.  ! SO2 burden
         so4_burden    = 0.  ! SO4 burden
       end if
+      
     endif  ! (mod(ktau,nperavg)==0)
 
-    
-    ! STATION DIAGNOSTICS ----------------------------------------
+    ! DAILY DIAGNOSTICS ----------------------------------------
     if ( mod(ktau,nperday)==0 ) then   ! re-set at the end of each 24 hours
+        
       if ( ntau<10*nperday .and. nstn>0 ) then     ! print stn info
         do nn = 1,nstn
-          if ( .not.mystn(nn) ) cycle
-          i = istn(nn)
-          j = jstn(nn)
-          iq = i+(j-1)*il
-          write(6,956) ktau,iunp(nn),name_stn(nn),rnd_3hr(iq,4),rnd_3hr(iq,8), &
-                       tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
-                       tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
-                       tmaxscr(iq)-273.16,tminscr(iq)-273.16
-956       format(i5,i3,a5,6f7.1)
+          if ( mystn(nn) ) then
+            i = istn(nn)
+            j = jstn(nn)
+            iq = i+(j-1)*il
+            write(6,956) ktau,iunp(nn),name_stn(nn),rnd_3hr(iq,4),rnd_3hr(iq,8), &
+                         tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
+                         tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
+                         tmaxscr(iq)-273.16,tminscr(iq)-273.16
+956         format(i5,i3,a5,6f7.1)
+          end if               
         end do
       end if  ! (ntau<10*nperday)
       rndmax (:)  = 0.
@@ -1531,8 +1428,9 @@ if ( myid<nproc ) then
       v2max(:)    = 0.
       rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
       if ( nextout >= 4 ) then
-        call setllp ! from Nov 11, reset once per day
+        call setllp ! reset once per day
       end if
+      
     endif   ! (mod(ktau,nperday)==0)
   
     
@@ -1821,8 +1719,7 @@ end subroutine stationa
     
 !--------------------------------------------------------------
 ! INITIALISE CCAM
-subroutine globpe_init(nmlfile,rundate,timeval,nstagin,nstaguin,jalbfix,nalpha,nwrite, &
-                       irest,mins_rad,hourst,siburbanfrac)
+subroutine globpe_init
 
 use aerosolldr, only : naero,ch_dust     & ! LDR prognostic aerosols
     ,zvolcemi,aeroindir,so4mtn,carbmtn   &
@@ -1893,6 +1790,7 @@ use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
 use gdrag_m, only : gdrag_init             ! Gravity wave drag
+use getopt_m                               ! Command option parsing
 use histave_m                              ! Time average arrays
 use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
@@ -1940,6 +1838,7 @@ use tracermodule, only : tracerlist      & ! Tracer routines
     ,init_tracer
 use tracers_m                              ! Tracer data
 use unn_m                                  ! Saved dynamic arrays
+use usage_m                                ! Usage message
 use uvbar_m                                ! Saved dynamic arrays
 use vecs_m, only : vecs_init               ! Eigenvectors for atmosphere dynamics
 use vecsuv_m                               ! Map to cartesian coordinates
@@ -1959,25 +1858,23 @@ include 'kuocom.h'                         ! Convection parameters
 include 'version.h'                        ! Model version data
 
 integer, dimension(:), allocatable, save :: dumi
-integer, intent(inout) :: nstagin, nstaguin, jalbfix, nalpha
-integer, intent(inout) :: nwrite, irest, mins_rad
 integer ierr, k, new_nproc, ilx, jlx, i, ng
 integer isoth, nsig, lapsbot
 integer secs_rad, nversion, npa, npb
 integer mstn, io_nest, mbd_min
+integer opt, nopt
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr
 real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
-real, intent(inout) :: hourst, siburbanfrac
 real targetlev, dsx, pwatr_l, pwatr
 real(kind=8), dimension(:), allocatable, save :: dumr8
-character(len=*), intent(in) :: nmlfile
-character(len=*), intent(inout) :: rundate
-character(len=*), intent(inout) :: timeval
+character(len=1024) nmlfile
+character(len=MAX_ARGLEN) optarg
 character(len=60) comm, comment
 character(len=47) header
-character(len=8) :: text
+character(len=10) timeval
+character(len=8) text, rundate
 
 #ifdef usempi3
 integer, dimension(3) :: shsize
@@ -2072,6 +1969,24 @@ namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
 
 
 !--------------------------------------------------------------
+! READ COMMAND LINE OPTIONS
+nmlfile = "input"
+do
+  call getopt("hc:",nopt,opt,optarg)
+  if ( opt==-1 ) exit  ! End of options
+  select case ( char(opt) )
+    case ( "h" )
+      call help
+    case ( "c" )
+      nmlfile = optarg
+    case default
+      if ( myid==0 ) write(6,*) "ERROR: Unknown command line option ",char(opt)
+      call usage
+  end select
+end do
+
+
+!--------------------------------------------------------------
 ! READ NAMELISTS AND SET PARAMETER DEFAULTS
 nversion         = 0
 comm             = ' '
@@ -2105,7 +2020,7 @@ if ( myid==0 ) then
 end if
 call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
-  call change_defaults(nversion,mins_rad)
+  call change_defaults(nversion)
 end if
 allocate( dumr(33), dumi(115) ) 
 dumr(:) = 0.
@@ -3293,7 +3208,7 @@ if ( myid<nproc ) then
   if ( nstagin==5 .or. nstagin<0 ) then
     nstag  = 4
     nstagu = 4
-    if ( nstagin == 5 ) then  ! for backward compatability
+    if ( nstagin==5 ) then  ! for backward compatability
       nstagin  = -1 
       nstaguin = 5  
     endif
@@ -3586,7 +3501,7 @@ if ( myid<nproc ) then
   if ( myid==0 ) then
     write(6,*) "Calling indata"
   end if
-  call indataf(hourst,jalbfix,lapsbot,isoth,nsig,io_nest,siburbanfrac)
+  call indataf(lapsbot,isoth,nsig,io_nest)
 
 
   !--------------------------------------------------------------
@@ -3824,7 +3739,7 @@ end subroutine globpe_init
     
 !--------------------------------------------------------------
 ! PREVIOUS VERSION DEFAULT PARAMETERS
-subroutine change_defaults(nversion,mins_rad)
+subroutine change_defaults(nversion)
 
 use newmpar_m               ! Grid parameters
 use parm_m                  ! Model configuration
@@ -3837,7 +3752,6 @@ implicit none
 include 'kuocom.h'          ! Convection parameters
 
 integer, intent(in) :: nversion
-integer, intent(inout) :: mins_rad
 
 if ( nversion < 1510 ) then
   mins_rad = 60
@@ -3907,7 +3821,7 @@ if ( nversion < 703 ) then
   nbase = 1        ! new is -2
 end if
 if ( nversion < 701 ) then
-  nbase = 0        ! new is 1  new variable
+  nbase = 0        ! new is 1
 end if
 if ( nversion < 608 ) then
   epsp = -20.      ! new is -15.
@@ -3933,7 +3847,7 @@ if ( nversion < 601 ) then
 end if
 if ( nversion < 511 ) then
   nstag = 3        ! new is -10
-  ! mins_rad = 120   ! new is 72   not in common block, so can't assign here
+  mins_rad = 120   ! new is 72
   detrain = .1     ! new is .3
   mbase = 1        ! new is 10
   nuvconv = 5      ! new is 0
@@ -3950,7 +3864,7 @@ if ( nversion < 510 ) then
   nhorps = 1       ! new is -1
   nlocal = 5       ! new is 6
   ntsur = 7        ! new is 6
-  ! jalbfix = 0      ! new is 1  not in common block, so can't assign here
+  jalbfix = 0      ! new is 1
   tss_sh = 0.      ! new is 1.
   zobgin = .05     ! new is .02
   detrain = .4     ! new is .1

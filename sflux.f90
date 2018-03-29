@@ -78,7 +78,7 @@ return
 end subroutine sflux_init
 
 
-subroutine sflux(nalpha)
+subroutine sflux
       
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use cable_ccam, only : sib4        ! CABLE interface
@@ -114,7 +114,6 @@ use xyzinfo_m
 implicit none
     
 integer is,ie,tile,iq,k
-integer, intent(in) :: nalpha
 real, dimension(ifull) :: vmag,azmin,uav,vav,rho
 real, dimension(ifull) :: oldrunoff,oldsnowmelt
 real, dimension(ifull) :: af,aft,ri
@@ -204,7 +203,7 @@ if ( nmlo==0 ) then ! prescribed SSTs
 !$omp single
   call sflux_sea(ri,vmag,af,aft,rho,                                              &              ! sea
                  fg_ocn,fg_ice,eg_ocn,eg_ice,taux_ocn,taux_ice,tauy_ocn,tauy_ice, &              ! sea
-                 river_inflow,nalpha)                                                            ! sea
+                 river_inflow)                                                                   ! sea
 !$omp end single
 elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then ! prognostic SSTs                                    ! MLO
   call sflux_mlo(ri,vmag,rho,azmin,uav,vav)                                                      ! MLO
@@ -229,7 +228,7 @@ select case(nsib)                                                               
   case(3,5)                                                                                      ! land
 !$omp barrier
 !$omp single
-    call sflux_land(ri,vmag,af,aft,rho,nalpha)                                                   ! land
+    call sflux_land(ri,vmag,af,aft,rho)                                                          ! land
 !$omp end single
   case(7)                                                                                        ! cable
     ! call cable                                                                                 ! cable
@@ -331,7 +330,7 @@ do tile = 1,ntiles
     call scrnout(zo(is:ie),ustar(is:ie),zoh(is:ie),wetfac(is:ie),qsttg(is:ie),      &
                  qgscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie),rhscrn(is:ie),  &
                  af(is:ie),aft(is:ie),ri(is:ie),vmod(is:ie),bprm,cms,chs,chnsea,    &
-                 nalpha,is,ie)
+                 is,ie)
   else
     call autoscrn(is,ie)
   end if
@@ -379,7 +378,7 @@ end subroutine sflux
 
 subroutine sflux_sea(ri,vmag,af,aft,rho,                                              &
                      fg_ocn,fg_ice,eg_ocn,eg_ice,taux_ocn,taux_ice,tauy_ocn,tauy_ice, &
-                     river_inflow,nalpha)
+                     river_inflow)
 
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
@@ -399,7 +398,6 @@ use work3_m                         ! Mk3 land-surface diagnostic arrays
 
 implicit none
 
-integer, intent(in) :: nalpha
 integer iq, it
 real, dimension(ifull), intent(in) :: vmag,rho
 real, dimension(ifull), intent(inout) :: ri,af,aft
@@ -1164,7 +1162,7 @@ end subroutine sflux_urban_work
 
     
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine sflux_land(ri,vmag,af,aft,rho,nalpha)
+subroutine sflux_land(ri,vmag,af,aft,rho)
 
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use cc_mpi                         ! CC MPI routines
@@ -1184,7 +1182,6 @@ use work2_m                        ! Diagnostic arrays
 
 implicit none
 
-integer, intent(in) :: nalpha
 integer iq
 real, dimension(ifull), intent(in) :: vmag,rho
 real, dimension(ifull), intent(inout) :: ri,af,aft
@@ -1330,7 +1327,7 @@ if(ntest>0.and.mydiag)then                                                      
   write(6,*) 'av_vmod,u,v',av_vmod,u(idjd,1),v(idjd,1)                                         ! land
 endif                                                                                          ! land
                                                                                                ! land
-call sib3(nalpha,taftfh,taftfhg,aft,rho) ! for nsib=3, 5                                       ! land
+call sib3(taftfh,taftfhg,aft,rho) ! for nsib=3, 5                                              ! land
                                                                                                ! land
 if(diag.or.ntest>0)then                                                                        ! land
   if (mydiag) write(6,*) 'before call scrnout'                                                 ! land
@@ -1365,7 +1362,7 @@ endif  ! (ntsur==6)                                                             
 return
 end subroutine sflux_land
     
-subroutine sib3(nalpha,taftfh,taftfhg,aft,rho)
+subroutine sib3(taftfh,taftfhg,aft,rho)
 
 ! This is the standard land-surface scheme
       
@@ -1395,7 +1392,6 @@ use work3_m                      ! Mk3 land-surface diagnostic arrays
 implicit none
       
 integer iq,k,iveg,layer,isoil,ip,icount
-integer, intent(in) :: nalpha
 real xxx,tgss,esattg,tgss2,fle,frac,conw_fh,qtgnet
 real qtgair,eg1,eg2,deg,egg_alph1,sstar,ff,rsi,den
 real wbav,f1,f2,f3,f4,esatf,qsatgf,beta,etr,betetrdt
