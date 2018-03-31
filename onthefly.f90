@@ -1711,7 +1711,7 @@ integer mm, n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(pil*pjl*pnpan,fncount,size(filemap_recv)) :: abuf
+real, dimension(pil*pjl*pnpan,size(filemap_recv)) :: abuf
 
 call START_LOG(otf_ints1_begin)
 
@@ -1805,7 +1805,7 @@ integer mm, k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull,m_fly) :: wrk
-real, dimension(pil*pjl*pnpan,fncount,size(filemap_recv),kblock) :: abuf
+real, dimension(pil*pjl*pnpan,size(filemap_recv),kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
 
@@ -1830,12 +1830,12 @@ do kb = 1,kx,kblock
   kn = ke - kb + 1
 
   ! This version uses MPI RMA to distribute data
-  call ccmpi_filewinget(abuf(:,:,:,1:kn),s(:,kb:ke))
+  call ccmpi_filewinget(abuf(:,:,1:kn),s(:,kb:ke))
     
   if ( iotest ) then
     do k = 1,kn
       sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
-      call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,:,k))
+      call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,k))
       call sxpanelbounds(sx(:,:,:,1))
       do n = 1,npan
         iq = (n-1)*ipan*jpan
@@ -1856,7 +1856,7 @@ do kb = 1,kx,kblock
     !else                  ! bicubic
       do k = 1,kn
         sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
-        call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,:,k))
+        call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,k))
         call sxpanelbounds(sx(:,:,:,1))
         do mm = 1,m_fly     !  was 4, now may be 1
           call intsb(sx(:,:,:,1),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
@@ -3442,16 +3442,19 @@ implicit none
 
 integer i, n
 integer mm, iq, idel, jdel
-integer ncount, iproc, rproc
-logical, dimension(0:nproc-1) :: lproc
+integer ncount, w, rproc
+logical, dimension(0:fnproc-1) :: lfile
 #ifdef nompiget
+integer ipf
+integer, dimension(:), allocatable :: tempmap_send, tempmap_smod
+logical, dimension(:), allocatable :: lproc
 logical, dimension(:,:), allocatable :: lproc_g
 #endif
 
 if ( allocated(filemap_recv) ) then
-  deallocate( filemap_recv )
+  deallocate( filemap_recv, filemap_rmod )
 #ifdef nompiget
-  deallocate( filemap_send )
+  deallocate( filemap_send, filemap_smod )
 #endif
 end if
 if ( allocated(axs_w) ) then
@@ -3467,36 +3470,37 @@ if ( myid==0 ) then
 end if
 
 ! calculate which grid points and input files are needed by this processor
-lproc(0:nproc-1) = .false.
+lfile(:) = .false.
 do mm = 1,m_fly
   do iq = 1,ifull
     idel = int(xg4(iq,mm))
     jdel = int(yg4(iq,mm))
     n = nface4(iq,mm)
     ! search stencil of bi-cubic interpolation
-    lproc(mod(procarray(idel,  jdel+2,n), fnresid)) = .true.
-    lproc(mod(procarray(idel+1,jdel+2,n), fnresid)) = .true.
-    lproc(mod(procarray(idel-1,jdel+1,n), fnresid)) = .true.
-    lproc(mod(procarray(idel  ,jdel+1,n), fnresid)) = .true.
-    lproc(mod(procarray(idel+1,jdel+1,n), fnresid)) = .true.
-    lproc(mod(procarray(idel+2,jdel+1,n), fnresid)) = .true.
-    lproc(mod(procarray(idel-1,jdel,  n), fnresid)) = .true.
-    lproc(mod(procarray(idel  ,jdel,  n), fnresid)) = .true.
-    lproc(mod(procarray(idel+1,jdel,  n), fnresid)) = .true.
-    lproc(mod(procarray(idel+2,jdel,  n), fnresid)) = .true.
-    lproc(mod(procarray(idel,  jdel-1,n), fnresid)) = .true.
-    lproc(mod(procarray(idel+1,jdel-1,n), fnresid)) = .true.
+    lfile(procarray(idel,  jdel+2,n)) = .true.
+    lfile(procarray(idel+1,jdel+2,n)) = .true.
+    lfile(procarray(idel-1,jdel+1,n)) = .true.
+    lfile(procarray(idel  ,jdel+1,n)) = .true.
+    lfile(procarray(idel+1,jdel+1,n)) = .true.
+    lfile(procarray(idel+2,jdel+1,n)) = .true.
+    lfile(procarray(idel-1,jdel,  n)) = .true.
+    lfile(procarray(idel  ,jdel,  n)) = .true.
+    lfile(procarray(idel+1,jdel,  n)) = .true.
+    lfile(procarray(idel+2,jdel,  n)) = .true.
+    lfile(procarray(idel,  jdel-1,n)) = .true.
+    lfile(procarray(idel+1,jdel-1,n)) = .true.
   end do
 end do
 
 ! Construct a map of files to be accessed by this process
-ncount = count(lproc(0:nproc-1))
-allocate( filemap_recv(ncount) )
+ncount = count(lfile(0:fnproc-1))
+allocate( filemap_recv(ncount), filemap_rmod(ncount) )
 ncount = 0
-do iproc = 0,nproc-1
-  if ( lproc(iproc) ) then
+do w = 0,fnproc-1
+  if ( lfile(w) ) then
     ncount = ncount + 1
-    filemap_recv(ncount) = iproc
+    filemap_recv(ncount) = mod( w, fnresid )
+    filemap_rmod(ncount) = w/fnresid
   end if
 end do
 
@@ -3507,19 +3511,34 @@ if ( myid==0 ) then
 else
   allocate( lproc_g(0,0) )
 end if  
-call ccmpi_gatherx(lproc_g,lproc,0,comm_world)
-lproc_g = transpose( lproc_g )
-call ccmpi_scatterx(lproc_g,lproc,0,comm_world)
-deallocate( lproc_g )  
-ncount = count(lproc(0:nproc-1))
-allocate( filemap_send(ncount) )
+allocate( lproc(0:nproc-1) )
+allocate( tempmap_send(fnproc), tempmap_smod(fnproc) )
+tempmap_send(:) = -1
+tempmap_smod(:) = -1
 ncount = 0
-do iproc = 0,nproc-1
-  if ( lproc(iproc) ) then
-    ncount = ncount + 1
-    filemap_send(ncount) = iproc
-  end if
+do ipf = 0,fncount-1
+  lproc(:) = .false.
+  do w = 1,size(filemap_recv)
+    if ( filemap_rmod(w) == ipf ) then
+      lproc(filemap_recv(w)) = .true.
+    end if
+  end do
+  call ccmpi_gatherx(lproc_g,lproc,0,comm_world)
+  lproc_g = transpose( lproc_g )
+  call ccmpi_scatterx(lproc_g,lproc,0,comm_world)
+  do w = 0,nproc-1
+    if ( lproc(w) ) then
+      ncount = ncount + 1
+      tempmap_send(ncount) = w
+      tempmap_smod(ncount) = ipf
+    end if
+  end do
 end do
+deallocate( lproc_g )
+allocate( filemap_send(ncount), filemap_smod(ncount) )
+filemap_send(1:ncount) = tempmap_send(1:ncount)
+filemap_smod(1:ncount) = tempmap_smod(1:ncount)
+deallocate( tempmap_send, tempmap_smod )
 #endif
 
 ! Define halo indices for ccmpi_filebounds
