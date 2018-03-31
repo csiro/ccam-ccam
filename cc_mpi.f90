@@ -10344,16 +10344,14 @@ contains
          do w = 1,ncount
             if ( filemap_rmod(w) == ipf ) then
                nreq  = nreq + 1
-               call MPI_IRecv( abuf(:,w), lsize, ltype, filemap_recv(w), itag,
-lcomm, i_req(nreq), ierr )
+               call MPI_IRecv( abuf(:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
             end if
          end do
          !     Set up the buffers to send
          do w = 1,size(filemap_send)
             if ( filemap_smod(w) == ipf ) then
                nreq  = nreq + 1
-               call MPI_ISend( filestore(:,1), lsize, ltype, filemap_send(w),
-itag, lcomm, i_req(nreq), ierr )
+               call MPI_ISend( filestore(:,1), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
             end if
          end do
          call START_LOG(mpiwait_begin)
@@ -10423,16 +10421,14 @@ itag, lcomm, i_req(nreq), ierr )
          do w = 1,ncount
             if ( filemap_rmod(w) == ipf ) then
                nreq  = nreq + 1
-               call MPI_IRecv( bbuf(:,:,w), lsize, ltype, filemap_recv(w), itag,
-lcomm, i_req(nreq), ierr )
+               call MPI_IRecv( bbuf(:,:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
             end if
          end do
          !     Set up the buffers to send
          do w = 1,size(filemap_send)
             if ( filemap_smod(w) == ipf ) then
                nreq  = nreq + 1
-               call MPI_ISend( filestore(:,:), lsize, ltype, filemap_send(w),
-itag, lcomm, i_req(nreq), ierr )
+               call MPI_ISend( filestore(:,:), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
             end if
          end do
          call START_LOG(mpiwait_begin)
