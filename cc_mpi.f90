@@ -100,14 +100,14 @@ module cc_mpi
    integer, allocatable, dimension(:), save, public :: pnoff               ! file window panel offset
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), allocatable, dimension(:), save, public ::              &
-      filemap_recv                                                         ! file map received for onthefly
+      filemap_recv, filemap_rmod                                           ! file map received for onthefly
 #ifdef nompiget
    integer(kind=4), allocatable, dimension(:), save, public ::              &
-      filemap_send                                                         ! file map sent for onthefly
+      filemap_send, filemap_smod                                           ! file map sent for onthefly
 #else
    integer(kind=4), save, private :: filewin                               ! local window handle for onthefly 
 #endif
-   real, dimension(:,:,:), save, pointer, private :: filestore             ! window for file map
+   real, allocatable, dimension(:,:), save, private :: filestore           ! window for file map
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -10058,7 +10058,7 @@ contains
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
       
       integer, intent(in) :: kx
-      integer, dimension(3) :: sshape
+      integer, dimension(2) :: sshape
       integer(kind=4) :: asize, ierr, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -10068,22 +10068,16 @@ contains
       integer(kind=MPI_ADDRESS_KIND) :: wsize
       
       if ( myid < fnresid ) then 
-         sshape(:) = (/ pil*pjl*pnpan, fncount, kx /)  
+         sshape(:) = (/ pil*pjl*pnpan, kx /)  
       else
-         sshape(:) = (/ 1, 1, 1 /)
+         sshape(:) = (/ 1, 1 /)
       end if
-      allocate( filestore(sshape(1),sshape(2),sshape(3)) )
+      allocate( filestore(sshape(1),sshape(2)) )
 #ifndef nompiget
       lcomm = comm_world
       call MPI_Type_size(ltype, asize, ierr)
-      wsize = asize*sshape(1)*sshape(2)*sshape(3)
-      !call MPI_Info_create(info, ierr)
-      !call MPI_Info_set(info, "no_locks", "true", ierr)
-      !call MPI_Info_set(info, "same_disp_unit", "true", ierr)
-      !call MPI_Alloc_Mem(wsize, MPI_INFO_NULL, baseptr, ierr)
-      !call c_f_pointer(baseptr, filestore, sshape)
+      wsize = asize*sshape(1)*sshape(2)
       call MPI_Win_create(filestore, wsize, asize, MPI_INFO_NULL, lcomm, filewin, ierr)
-      !call MPI_Info_free(info,ierr)
 #endif
    
    end subroutine ccmpi_filewincreate
@@ -10094,7 +10088,6 @@ contains
    
 #ifndef nompiget
       call MPI_Win_Free( filewin, ierr )
-      !call MPI_Free_Mem( filestore, ierr )
 #endif
       deallocate( filestore )
    
@@ -10112,7 +10105,7 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:), intent(in) :: sinp
-      real, dimension(pil*pjl*pnpan,fncount,size(filemap_recv)), intent(out) :: abuf 
+      real, dimension(pil*pjl*pnpan,size(filemap_recv)), intent(out) :: abuf 
 #ifdef nompiget
       integer(kind=4) :: lcomm
       integer(kind=4) :: itag = 50
@@ -10123,40 +10116,48 @@ contains
    
       ncount = size(filemap_recv)
       nlen = pil*pjl*pnpan
-      lsize = nlen*fncount
+      lsize = nlen
       displ = 0
       assert = 0
 
-      if ( myid < fnresid ) then
-         do ipf = 0,fncount-1
+      do ipf = 0,fncount-1
+      
+         if ( myid < fnresid ) then
             cc = nlen*ipf             
-            filestore(1:nlen,ipf+1,1) = sinp(1+cc:nlen+cc)
-         end do   
-      end if
+            filestore(1:nlen,1) = sinp(1+cc:nlen+cc)
+         end if
  
 #ifdef nompiget
-      lcomm = comm_world
-      !     Set up the buffers to recv
-      nreq = 0
-      do w = 1,ncount
-         nreq  = nreq + 1
-         call MPI_IRecv( abuf(:,:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
-      end do
-      !     Set up the buffers to send
-      do w = 1,size(filemap_send)
-         nreq  = nreq + 1
-         call MPI_ISend( filestore(:,:,1), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
-      end do
-      call START_LOG(mpiwait_begin)
-      call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
-      call END_LOG(mpiwait_end)          
+         lcomm = comm_world
+         !     Set up the buffers to recv
+         nreq = 0
+         do w = 1,ncount
+            if ( filemap_rmod(w) == ipf ) then 
+               nreq  = nreq + 1
+               call MPI_IRecv( abuf(:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
+            end if   
+         end do
+         !     Set up the buffers to send
+         do w = 1,size(filemap_send)
+            if ( filemap_smod(w) == ipf ) then
+               nreq  = nreq + 1
+               call MPI_ISend( filestore(:,1), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
+            end if   
+         end do
+         call START_LOG(mpiwait_begin)
+         call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwait_end)          
 #else
-      call MPI_Win_fence(assert, filewin, ierr)
-      do w = 1,ncount
-         call MPI_Get(abuf(:,:,w), lsize, ltype, filemap_recv(w), displ, lsize, ltype, filewin, ierr)
-      end do
-      call MPI_Win_fence(assert, filewin, ierr)
+         call MPI_Win_fence(assert, filewin, ierr)
+         do w = 1,ncount
+            if ( filemap_rmod(w) == ipf ) then 
+               call MPI_Get(abuf(:,w), lsize, ltype, filemap_recv(w), displ, lsize, ltype, filewin, ierr)
+            end if
+         end do   
+         call MPI_Win_fence(assert, filewin, ierr)
 #endif
+
+      end do
 
       call END_LOG(gatherrma_end)
       
@@ -10174,8 +10175,8 @@ contains
 #endif
       integer(kind=MPI_ADDRESS_KIND) :: displ
       real, dimension(:,:), intent(in) :: sinp
-      real, dimension(:,:,:,:), intent(out) :: abuf
-      real, dimension(pil*pjl*pnpan,fncount,size(sinp,2),size(filemap_recv)) :: bbuf
+      real, dimension(:,:,:), intent(out) :: abuf
+      real, dimension(pil*pjl*pnpan,size(sinp,2),size(filemap_recv)) :: bbuf
 #ifdef nompiget
       integer(kind=4) :: lcomm
       integer(kind=4) :: itag = 51
@@ -10187,50 +10188,56 @@ contains
       kx = size(sinp,2)
       ncount = size(filemap_recv)
       nlen = pil*pjl*pnpan
-      lsize = nlen*fncount*kx
+      lsize = nlen*kx
       displ = 0
       assert = 0
       
-      if ( kx>size(filestore,3) .and. myid<fnresid ) then
+      if ( kx>size(filestore,2) .and. myid<fnresid ) then
          write(6,*) "ERROR: Size of file window is too small to support input array size"
          call ccmpi_abort(-1)
       end if
       
-      if ( myid < fnresid ) then
-         do k = 1,kx 
-            do ipf = 0,fncount-1
-               cc = nlen*ipf             
-               filestore(1:nlen,ipf+1,k) = sinp(1+cc:nlen+cc,k)
-            end do   
-         end do
-      end if   
+      do ipf = 0,fncount-1
+      
+         if ( myid < fnresid ) then
+             cc = nlen*ipf             
+             filestore(1:nlen,1:kx) = sinp(1+cc:nlen+cc,1:kx)
+         end if   
    
 #ifdef nompiget
-      lcomm = comm_world
-      !     Set up the buffers to recv
-      nreq = 0
-      do w = 1,ncount
-         nreq  = nreq + 1
-         call MPI_IRecv( bbuf(:,:,:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
-      end do
-      !     Set up the buffers to send
-      do w = 1,size(filemap_send)
-         nreq  = nreq + 1
-         call MPI_ISend( filestore(:,:,:), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
-      end do
-      call START_LOG(mpiwait_begin)
-      call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
-      call END_LOG(mpiwait_end)          
+         lcomm = comm_world
+         !     Set up the buffers to recv
+         nreq = 0
+         do w = 1,ncount
+            if ( filemap_rmod(w) == ipf ) then 
+               nreq  = nreq + 1
+               call MPI_IRecv( bbuf(:,:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
+            end if   
+         end do
+         !     Set up the buffers to send
+         do w = 1,size(filemap_send)
+            if ( filemap_smod(w) == ipf ) then 
+               nreq  = nreq + 1
+               call MPI_ISend( filestore(:,:), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
+            end if   
+         end do
+         call START_LOG(mpiwait_begin)
+         call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwait_end)          
 #else
-      call MPI_Win_fence(assert, filewin, ierr)
-      do w = 1,ncount
-         call MPI_Get(bbuf(:,:,:,w), lsize, ltype, filemap_recv(w), displ, lsize, ltype, filewin, ierr)
-      end do
-      call MPI_Win_fence(assert, filewin, ierr)
+         call MPI_Win_fence(assert, filewin, ierr)
+         do w = 1,ncount
+            if ( filemap_rmod(w) == ipf ) then
+               call MPI_Get(bbuf(:,:,w), lsize, ltype, filemap_recv(w), displ, lsize, ltype, filewin, ierr)
+            end if   
+         end do
+         call MPI_Win_fence(assert, filewin, ierr)
 #endif
       
-      abuf(1:nlen,1:fncount,1:ncount,1:kx) = reshape( bbuf(1:nlen,1:fncount,1:kx,1:ncount), &
-          (/ nlen, fncount, ncount, kx /), order=(/ 1, 2, 4, 3 /) )
+      end do
+
+      abuf(1:nlen,1:ncount,1:kx) = reshape( bbuf(1:nlen,1:kx,1:ncount), &
+          (/ nlen, ncount, kx /), order=(/ 1, 3, 2 /) )
       
       call END_LOG(gatherrma_end)
       
@@ -10238,22 +10245,20 @@ contains
    
    subroutine ccmpi_filewinunpack(sout,abuf)
 
-      integer :: ncount, ipf, w, ip, n, no, ca, cb, cc
+      integer :: ncount, w, ip, n, no, ca, cb, cc
       real, dimension(-1:,-1:,0:), intent(inout) :: sout
-      real, dimension(:,:,:), intent(in) :: abuf
+      real, dimension(:,:), intent(in) :: abuf
 
       ncount = size(filemap_recv)
       
       do w = 1,ncount
-         do ipf = 1,fncount ! fncount=fnproc/fnresid   
-            ip = filemap_recv(w) + (ipf-1)*fnresid
-            do n = 0,pnpan-1
-               no = n - pnoff(ip) + 1
-               ca = pioff(ip,no)
-               cb = pjoff(ip,no)
-               cc = n*pil*pjl
-               sout(1+ca:pil+ca,1+cb:pjl+cb,no) = reshape( abuf(1+cc:pil*pjl+cc,ipf,w), (/ pil, pjl /) )
-            end do
+         ip = filemap_recv(w) + filemap_rmod(w)*fnresid
+         do n = 0,pnpan-1
+            no = n - pnoff(ip) + 1
+            ca = pioff(ip,no)
+            cb = pjoff(ip,no)
+            cc = n*pil*pjl
+            sout(1+ca:pil+ca,1+cb:pjl+cb,no) = reshape( abuf(1+cc:pil*pjl+cc,w), (/ pil, pjl /) )
          end do
       end do
       
