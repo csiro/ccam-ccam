@@ -3545,21 +3545,16 @@ use parm_m             ! Model configuration
 
 implicit none
 
-integer i, n
+integer i, n, ipf
 integer mm, iq, idel, jdel
 integer ncount, w
 logical, dimension(0:fnproc-1) :: lfile
-#ifdef nompiget
-integer ipf
 integer, dimension(fnproc) :: tempmap_send, tempmap_smod
 logical, dimension(0:nproc-1) :: lproc
-#endif
 
 if ( allocated(filemap_recv) ) then
   deallocate( filemap_recv, filemap_rmod )
-#ifdef nompiget
   deallocate( filemap_send, filemap_smod )
-#endif
 end if
 if ( allocated(axs_w) ) then
   deallocate( axs_w, ays_w, azs_w )
@@ -3608,7 +3603,6 @@ do w = 0,fnproc-1
   end if
 end do
 
-#ifdef nompiget
 ! Construct a map of processes that need this file
 tempmap_send(:) = -1
 tempmap_smod(:) = -1
@@ -3632,7 +3626,6 @@ end do
 allocate( filemap_send(ncount), filemap_smod(ncount) )
 filemap_send(1:ncount) = tempmap_send(1:ncount)
 filemap_smod(1:ncount) = tempmap_smod(1:ncount)
-#endif
 
 ! Define halo indices for ccmpi_filebounds
 if ( myid==0 ) then

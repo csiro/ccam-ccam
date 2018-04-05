@@ -195,7 +195,9 @@ use ateb, only :                         & ! Urban
     ,ateb_ac_heatprop=>ac_heatprop       &
     ,ateb_ac_coolprop=>ac_coolprop       &
     ,ateb_ac_smooth=>ac_smooth           &
-    ,ateb_ac_deltat=>ac_deltat
+    ,ateb_ac_deltat=>ac_deltat           &
+    ,ateb_acfactor=>acfactor             &
+    ,ateb_ac_copmax=>ac_copmax
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
     ,fwsoil_switch                       &
@@ -803,10 +805,12 @@ if ( myid==0 .or. local ) then
     ! land, urban and carbon
     call ccnf_put_attg(idnc,'ateb_ac_coolcap',ateb_ac_coolcap)
     call ccnf_put_attg(idnc,'ateb_ac_coolprop',ateb_ac_coolprop)
+    call ccnf_put_attg(idnc,'ateb_ac_copmax',ateb_ac_copmax)
     call ccnf_put_attg(idnc,'ateb_ac_deltat',ateb_ac_deltat)
     call ccnf_put_attg(idnc,'ateb_ac_heatcap',ateb_ac_heatcap)
     call ccnf_put_attg(idnc,'ateb_ac_heatprop',ateb_ac_heatprop)
     call ccnf_put_attg(idnc,'ateb_ac_smooth',ateb_ac_smooth)
+    call ccnf_put_attg(idnc,'ateb_acfactor',ateb_acfactor)
     call ccnf_put_attg(idnc,'ateb_alpha',ateb_alpha)
     call ccnf_put_attg(idnc,'ateb_behavmeth',ateb_behavmeth)   
     call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)

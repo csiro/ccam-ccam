@@ -2,35 +2,35 @@
     
 ! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
-! This file is part of the aTEB urban canopy model
+! This file is part of the UCLEM urban canopy model
 !
-! aTEB is free software: you can redistribute it and/or modify
+! UCLEM is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
 !
-! aTEB is distributed in the hope that it will be useful,
+! UCLEM is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
 !
 ! You should have received a copy of the GNU General Public License
-! along with aTEB.  If not, see <http://www.gnu.org/licenses/>.
+! along with UCLEM.  If not, see <http://www.gnu.org/licenses/>.
 
 !------------------------------------------------------------------------------
 
-! This code was originally based on the TEB scheme of Masson, Boundary-Layer Meteorology, 94, p357 (2000)
+! This code was originally inspired by the TEB scheme of Masson, Boundary-Layer Meteorology, 94, p357 (2000)
 ! The snow scheme is based on Douville, Royer and Mahfouf, Climate Dynamics, 12, p21 (1995)
 ! The in-canyon vegetation is based on Kowalczyk et al, DAR Tech Paper 32 (1994), but simplified by assiming sigmaf=1.
 
-! The main changes include an alternative formaulation of the conduction model by Lipson et al (2017), an alternative
-! formulation for in-canyon aerodynamical resistances based on Harman, et al (2004) and Kanada et al (2007), combined with
-! a second canyon wall for completeness.  The scheme includes nrefl order reflections in the canyon for both longwave and
-! shortwave radiation (in TEB infinite reflections are used for shortwave and 1st order reflections in longwave). A big-leaf
-! vegetation tile is included in the canyon using the Kowalczyk et al (1994) scheme but with a simplified soil moisture
-! budget and no modelling of the soil temperature since sigmaf=1.  Snow is also included in the canyon and on roofs using
-! a single-layer scheme based on Douville, et al (1995).  Time dependent traffic heat fluxes are based on Coutts, et al
-! (2007).
+! The important differences from previous models include an alternative formaulation of the conduction model by
+! Lipson et al (2017), an alternative formulation for in-canyon aerodynamical resistances based on Harman, et al (2004)
+! and Kanada et al (2007), combined with a second canyon wall for completeness.  The scheme includes nrefl order
+! reflections in the canyon for both longwave and shortwave radiation (in TEB infinite reflections are used for
+! shortwave and 1st order reflections in longwave). A big-leaf  vegetation tile is included in the canyon using the
+! Kowalczyk et al (1994) scheme but with a simplified soil moisture  budget and no modelling of the soil temperature
+! since sigmaf=1.  Snow is also included in the canyon and on roofs using a single-layer scheme based on
+! Douville, et al (1995).  Time dependent traffic heat fluxes are based on Coutts, et al (2007).
     
 ! The Urban CLimate Energy Model (UCLEM) results when the exterior canyon model (aTEB) is combined with an interior model
 ! of energy use from Lipson, et al (2018).  This model includes a representation of energy storage and conduction for the
@@ -103,7 +103,7 @@ public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,veg
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
        zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf,        &
        intairtmeth,intmassmeth,statsmeth,behavmeth,cvcoeffmeth,infilmeth,acfactor,     &
-       ac_heatcap,ac_coolcap,ac_heatprop,ac_coolprop,ac_smooth,ac_deltat
+       ac_heatcap,ac_coolcap,ac_heatprop,ac_coolprop,ac_smooth,ac_deltat,ac_copmax
 
 #ifdef CCAM
 public upack_g,ufull_g,nl
@@ -128,7 +128,7 @@ real, dimension(:,:), allocatable, save :: atebdwn ! These variables are for CCA
 real, dimension(0:220), save :: table
 
 type facetdata
-  real, dimension(:,:), allocatable :: nodetemp        ! Temperature of node (prognostic)         [K]
+  real, dimension(:,:), allocatable :: nodetemp        ! Temperature of node (prognostic)       [K]
   real(kind=8), dimension(:,:), allocatable :: storage ! Facet energy storage (diagnostic)
 end type facetdata
 
@@ -263,6 +263,7 @@ real, save         :: ac_heatprop=1.       ! Proportion of heated spaces (W m^-3
 real, save         :: ac_coolprop=1.       ! Proportion of cooled spaces (W m^-3)
 real, save         :: ac_smooth=0.5        ! Synchronous heating/cooling smoothing parameter
 real, save         :: ac_deltat=1.         ! Comfort range for temperatures (+-K)
+real, save         :: ac_copmax=10.        ! Maximum COP for air-conditioner
 ! atmosphere stability parameters
 integer, save      :: icmax=5              ! number of iterations for stability functions (default=5)
 real, save         :: a_1=1.
@@ -1806,7 +1807,7 @@ select case(intmassmeth)
   case(1) ! one floor of internal mass
     fp%intmassn = 1
   case(2) ! dynamic floors of internal mass
-    fp%intmassn = max((nint(fp%bldheight/3.)-1),1)
+    fp%intmassn = max((nint(fp%bldheight/3.)-1),0)
 end select
 
 end subroutine init_internal
@@ -4300,7 +4301,11 @@ do l = 1,ncyits
 
       ! ---0.4: Calculate acflux into canyon and update canyon temperature-----
       ! update heat pumped into canyon
-      ac_coeff = max(1.+acfactor*(d_canyontemp-iroomtemp)/(iroomtemp+urbtemp),1.01) ! T&H Eq. 10
+      where (d_ac_inside < 0.)
+        ac_coeff = max(1.+acfactor*(d_canyontemp-iroomtemp)/(iroomtemp+urbtemp), 1.+1./ac_copmax) ! T&H2012 Eq. 10
+      elsewhere 
+        ac_coeff = 1.
+      end where
       select case(acmeth) ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible, COP of 1.0)
         case(0) ! unrealistic cooling (buildings act as heat sink)
           d_ac_canyon  = 0.
@@ -4349,7 +4354,7 @@ do l = 1,ncyits
       end select
 
       ! ---1.3: Calculate internal air temperature implicitly -----------------
-      infl = a_rho*fp%bldheight*(infl_dynamic+d_openwindows*fp%ventilach)/3600.
+      infl = aircp*a_rho*fp%bldheight*(infl_dynamic+d_openwindows*fp%ventilach)/3600.
       rm = aircp*fp%bldheight/ddt
       rf = cvcoeff_roof
       we = (fp%bldheight/fp%bldwidth)*cvcoeff_walle
@@ -5729,7 +5734,7 @@ do ns = 1,s
   end do
  
   if ( any(amax<0.) ) then
-    ierr=1
+    ierr = 1 ! cannot invert matrix
     return
   end if
 
@@ -5751,13 +5756,13 @@ do ns = 1,s
   d(:) = d(:)*amax(:)
  
   if ( any(abs(d)<=0.) ) then
-    ierr=1
+    ierr = 1 ! cannot invert matrix
     return
   end if
  
   amax(:) = 1./amax(:)
   do iq = 1,nu
-    a(iq,pcol(iq),pcol(iq))=1.
+    a(iq,pcol(iq),pcol(iq)) = 1.
     a(iq,pcol(iq),1:s) = a(iq,pcol(iq),1:s)*amax(iq)
   end do  
  
@@ -5767,7 +5772,7 @@ do ns = 1,s
         y = a(iq,i,pcol(iq))
         a(iq,i,pcol(iq)) = 0.
         do j = 1,s
-          a(iq,i,j)=a(iq,i,j)-y*a(iq,pcol(iq),j)
+          a(iq,i,j) = a(iq,i,j) - y*a(iq,pcol(iq),j)
         end do
       end if
     end do  

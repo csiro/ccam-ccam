@@ -57,7 +57,8 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_ac_coolprop=>ac_coolprop       &
     ,ateb_ac_smooth=>ac_smooth           &
     ,ateb_ac_deltat=>ac_deltat           &
-    ,ateb_acfactor=>acfactor
+    ,ateb_acfactor=>acfactor             &
+    ,ateb_ac_copmax=>ac_copmax
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
@@ -239,7 +240,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_cvcoeffmeth,ateb_statsmeth,ateb_behavmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
     ateb_ac_heatprop,ateb_ac_coolprop,ateb_ac_smooth,             &
-    ateb_ac_deltat,ateb_acfactor
+    ateb_ac_deltat,ateb_acfactor,ateb_ac_copmax
 ! ocean namelist
 namelist/mlonml/zomode,zoseaice,                                  &
     factchseaice,minwater,mxd,mindep,otaumode,                    &

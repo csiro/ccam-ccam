@@ -2700,10 +2700,7 @@ integer a,b,c,ns
 integer iproc
 integer, dimension(0:3) :: maps
 integer, dimension(0:3) :: astr,bstr,cstr
-logical, dimension(0:nproc-1) :: lproc
-#ifdef nompiget
-logical, dimension(0:nproc-1) :: lproc_t
-#endif
+logical, dimension(0:nproc-1) :: lproc, lproc_t
       
 ! length of the 1D convolution for each 'pass'
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
@@ -2777,10 +2774,9 @@ do iproc = 0,nproc-1
   end if
 end do
 
-#ifdef nompiget
 ! Construct a map of processes that need this file
 lproc_t = lproc
-call ccmpi_alltoall(lproc_t,comm_world)
+call ccmpi_alltoall(lproc_t,comm_world) ! global transpose
 ncount = count(lproc_t(0:nproc-1))
 allocate( specmap_send(ncount) )
 ncount = 0
@@ -2790,7 +2786,6 @@ do iproc = 0,nproc-1
     specmap_send(ncount) = iproc
   end if
 end do
-#endif
       
 ! Include final filter pass before allocating global sparse arrays
 do ppass = pprocn,pprocx
@@ -2845,12 +2840,12 @@ do ppass = pprocn,pprocx
 end do
 
 ncount = count(lproc)
-allocate(specmapext(ncount))
+allocate(specmap_ext(ncount))
 ncount = 0
 do iproc = 0,nproc-1
   if ( lproc(iproc) ) then
     ncount = ncount + 1
-    specmapext(ncount) = iproc
+    specmap_ext(ncount) = iproc
   end if
 end do
    

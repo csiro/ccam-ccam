@@ -37,7 +37,6 @@ use arrays_m                               ! Atmosphere dyamics prognostic array
 use bigxy4_m                               ! Grid interpolation
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
-!use cfrac_m                                ! Cloud fraction
 use cloudmod                               ! Prognostic cloud fraction
 use const_phys                             ! Physical constants
 use convjlm_m                              ! Convection
@@ -343,7 +342,7 @@ if ( myid<nproc ) then
       if ( ktau>2 .and. epsp>1. .and. epsp<2. ) then
         if ( ktau==3 .and. nmaxpr==1 ) then
           if ( myid==0 ) then
-            write(6,*)'using epsp= ',epsp
+            write(6,*) "using epsp= ",epsp
           end if
         end if
         where ( dpsdt(1:ifull)*dpsdtb(1:ifull)<0. .and. dpsdtbb(1:ifull)*dpsdtb(1:ifull)<0. )
@@ -842,7 +841,7 @@ if ( myid<nproc ) then
     ! rnd03 to rnd21 are accumulated in mm     
     if ( mod(ktau-1,nperday)+1 == nper3hr(n3hr) ) then
       rnd_3hr(1:ifull,n3hr) = rnd_3hr(1:ifull,8)
-      if ( nextout >= 2 ) then
+      if ( nextout>=2 ) then
         spare1(:) = max( .001, sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2) )
         u10_3hr(:,n3hr) = u10(:)*u(1:ifull,1)/spare1(:)
         v10_3hr(:,n3hr) = u10(:)*v(1:ifull,1)/spare1(:)
@@ -1259,7 +1258,9 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_ac_heatprop=>ac_heatprop       &
     ,ateb_ac_coolprop=>ac_coolprop       &
     ,ateb_ac_smooth=>ac_smooth           &
-    ,ateb_ac_deltat=>ac_deltat
+    ,ateb_ac_deltat=>ac_deltat           &
+    ,ateb_acfactor=>acfactor             &
+    ,ateb_ac_copmax=>ac_copmax
 use bigxy4_m                               ! Grid interpolation
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
@@ -1447,7 +1448,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_cvcoeffmeth,ateb_statsmeth,ateb_behavmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
     ateb_ac_heatprop,ateb_ac_coolprop,ateb_ac_smooth,             &
-    ateb_ac_deltat,                                               &
+    ateb_ac_deltat,ateb_acfactor,ateb_ac_copmax,                  &
     siburbanfrac
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
@@ -2128,7 +2129,7 @@ stabmeth   = dumi(2)
 tkemeth    = dumi(3)
 ngwd       = dumi(4)
 deallocate( dumr, dumi )
-allocate( dumr8(1), dumr(24), dumi(29) )
+allocate( dumr8(1), dumr(26), dumi(29) )
 dumr8 = 0._8
 dumr = 0.
 dumi = 0
@@ -2163,7 +2164,9 @@ if ( myid==0 ) then
   dumr(21) = ateb_ac_coolprop
   dumr(22) = ateb_ac_smooth
   dumr(23) = ateb_ac_deltat
-  dumr(24) = siburbanfrac
+  dumr(24) = ateb_acfactor
+  dumr(25) = ateb_ac_copmax
+  dumr(26) = siburbanfrac
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -2221,7 +2224,9 @@ ateb_ac_heatprop  = dumr(20)
 ateb_ac_coolprop  = dumr(21)
 ateb_ac_smooth    = dumr(22)
 ateb_ac_deltat    = dumr(23)
-siburbanfrac      = dumr(24) 
+ateb_acfactor     = dumr(24)
+ateb_ac_copmax    = dumr(25)
+siburbanfrac      = dumr(26) 
 proglai           = dumi(1)
 ccycle            = dumi(2)
 soil_struc        = dumi(3)
@@ -3035,9 +3040,7 @@ if ( myid<nproc ) then
   end if
 
   ! fix ocean nuding levels
-  if ( kbotmlo==-1000 ) then
-    kbotmlo = ol
-  else if ( kbotmlo<0 )  then
+  if ( kbotmlo<0 )  then
     targetlev = real(-kbotmlo)/1000.
     do k = ol,1,-1
       if ( gosig(k)<=targetlev ) then
