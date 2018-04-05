@@ -346,7 +346,7 @@ do ipf = 0,mynproc-1
     var(1+ca:pil*pjl*pnpan+ca) = rvar(:)
   else
     ! e.g., mesonest file or nogather=.false.
-    if ( myid==0 .and. fnresid*fncount==1 ) then
+    if ( myid==0 .and. fnproc==1 ) then
       var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
     else if ( myid==0 ) then
       call host_hr3p(ipf,rvar,var)
@@ -419,7 +419,7 @@ if ( mynproc>0 ) then
       var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
     else
       ! e.g., mesonest file or nogather=.false.
-      if ( myid==0 .and. fnresid*fncount==1 ) then
+      if ( myid==0 .and. fnproc==1 ) then
         var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
       else if ( myid==0 ) then
         call host_hr3p(ipf,rvar,var)
@@ -2674,12 +2674,14 @@ pnoff(0:fnproc-1)     = dum_off(0:fnproc-1,13)
 deallocate( dum_off )
 
 
-if ( fnresid*fncount>1 ) then
+#ifndef nompiget
+if ( fnproc>1 ) then
   if ( myid==0 ) then
     write(6,*) "Create file RMA windows with kblock = ",kblock
   end if
   call ccmpi_filewincreate(kblock)
 end if
+#endif
 
   
 if ( myid==0 ) then
@@ -2728,12 +2730,16 @@ if (allocated(pioff)) then
   deallocate(pioff,pjoff,pnoff)
 end if
 
-if ( fnresid*fncount>1 ) then
+
+#ifndef nompiget
+if ( fnproc>1 ) then
   if ( myid==0 ) then
     write(6,*) 'Removing file RMA windows'
   end if
   call ccmpi_filewinfree
 end if  
+#endif
+
 
 ncidold = -1 ! flag onthefly to load metadata
 
@@ -2987,23 +2993,23 @@ logical, intent(in), optional :: allleap ! force use of leap days even if leap=0
 logical lleap
 
 if ( present(allleap) ) then
-  lleap=allleap
+  lleap = allleap
 else
-  lleap=.false.    
+  lleap = .false.    
 end if
 
-jyear =kdate/10000
-jmonth=(kdate-jyear*10000)/100
-jday  =kdate-jyear*10000-jmonth*100
-jhour =ktime/100
-jmin  =ktime-jhour*100
+jyear  = kdate/10000
+jmonth = (kdate-jyear*10000)/100
+jday   = kdate - jyear*10000 - jmonth*100
+jhour  = ktime/100
+jmin   = ktime - jhour*100
       
 if ( jmonth<1 .or. jmonth>12 ) then
   write(6,*) "ERROR: Invalid month ",jmonth," for kdate ",kdate
   call ccmpi_abort(-1)
 end if 
 
-ndoy=odoy
+ndoy(:) = odoy(:)
 if ( leap==1 .or. lleap ) then
   if ( mod(jyear,4)  ==0 ) ndoy(3:12)=odoy(3:12)+1
   if ( mod(jyear,100)==0 ) ndoy(3:12)=odoy(3:12)

@@ -3551,9 +3551,8 @@ integer ncount, w
 logical, dimension(0:fnproc-1) :: lfile
 #ifdef nompiget
 integer ipf
-integer, dimension(:), allocatable :: tempmap_send, tempmap_smod
-logical, dimension(:), allocatable :: lproc
-logical, dimension(:,:), allocatable :: lproc_g
+integer, dimension(fnproc) :: tempmap_send, tempmap_smod
+logical, dimension(0:nproc-1) :: lproc
 #endif
 
 if ( allocated(filemap_recv) ) then
@@ -3611,13 +3610,6 @@ end do
 
 #ifdef nompiget
 ! Construct a map of processes that need this file
-if ( myid==0 ) then
-  allocate( lproc_g(0:nproc-1,0:nproc-1) )
-else
-  allocate( lproc_g(0,0) )
-end if
-allocate( lproc(0:nproc-1) )
-allocate( tempmap_send(fnproc), tempmap_smod(fnproc) )
 tempmap_send(:) = -1
 tempmap_smod(:) = -1
 ncount = 0
@@ -3628,9 +3620,7 @@ do ipf = 0,fncount-1
       lproc(filemap_recv(w)) = .true.
     end if
   end do  
-  call ccmpi_gatherx(lproc_g,lproc,0,comm_world)
-  lproc_g = transpose( lproc_g )
-  call ccmpi_scatterx(lproc_g,lproc,0,comm_world)
+  call ccmpi_alltoall(lproc,comm_world) ! global transpose
   do w = 0,nproc-1
     if ( lproc(w) ) then
       ncount = ncount + 1
@@ -3639,11 +3629,9 @@ do ipf = 0,fncount-1
     end if
   end do  
 end do
-deallocate( lproc_g )
 allocate( filemap_send(ncount), filemap_smod(ncount) )
 filemap_send(1:ncount) = tempmap_send(1:ncount)
 filemap_smod(1:ncount) = tempmap_smod(1:ncount)
-deallocate( tempmap_send, tempmap_smod )
 #endif
 
 ! Define halo indices for ccmpi_filebounds

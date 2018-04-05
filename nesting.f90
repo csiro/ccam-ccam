@@ -94,8 +94,8 @@ use stime_m                      ! File date data
 implicit none
 
 integer, dimension(ifull) :: dumm
-integer i
-integer kdate_r, ktime_r, kdhour, kdmin, kddate, khour_r, kmin_r, khour, kmin
+integer i, kdate_r, ktime_r, kdhour, kdmin, kddate
+integer khour_r, kmin_r, khour, kmin
 real timerm, cona, conb
 real, dimension(2) :: depthcheck
 real, dimension(ifull) :: zsb, timelt
@@ -356,9 +356,8 @@ use stime_m                      ! File date data
 implicit none
  
 integer, dimension(ifull) :: dumm
-integer kdate_r, ktime_r
+integer kdate_r, ktime_r, i ,ntr
 integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
-integer i, ntr
 real cona, timerm
 real, dimension(2) :: depthcheck
 real, dimension(ifull,kl) :: tc, uc, vc, qc
@@ -2703,7 +2702,6 @@ integer, dimension(0:3) :: maps
 integer, dimension(0:3) :: astr,bstr,cstr
 logical, dimension(0:nproc-1) :: lproc
 #ifdef nompiget
-logical, dimension(:,:), allocatable :: lproc_g
 logical, dimension(0:nproc-1) :: lproc_t
 #endif
       
@@ -2781,15 +2779,8 @@ end do
 
 #ifdef nompiget
 ! Construct a map of processes that need this file
-if ( myid==0 ) then
-  allocate( lproc_g(0:nproc-1,0:nproc-1) )
-else
-  allocate( lproc_g(0,0) )
-end if  
-call ccmpi_gatherx(lproc_g,lproc,0,comm_world)
-lproc_g = transpose( lproc_g )
-call ccmpi_scatterx(lproc_g,lproc_t,0,comm_world)
-deallocate( lproc_g )  
+lproc_t = lproc
+call ccmpi_alltoall(lproc_t,comm_world)
 ncount = count(lproc_t(0:nproc-1))
 allocate( specmap_send(ncount) )
 ncount = 0
