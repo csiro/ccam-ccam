@@ -21,14 +21,14 @@
 
 ! This code was originally inspired by the TEB scheme of Masson, Boundary-Layer Meteorology, 94, p357 (2000)
 ! The snow scheme is based on Douville, Royer and Mahfouf, Climate Dynamics, 12, p21 (1995)
-! The in-canyon vegetation is based on Kowalczyk et al, DAR Tech Paper 32 (1994), but simplified by assiming sigmaf=1.
+! The in-canyon vegetation is based on Kowalczyk et al, DAR Tech Paper 32 (1994), but simplified by assuming sigmaf=1.
 
 ! The important differences from previous models include an alternative formaulation of the conduction model by
 ! Lipson et al (2017), an alternative formulation for in-canyon aerodynamical resistances based on Harman, et al (2004)
 ! and Kanada et al (2007), combined with a second canyon wall for completeness.  The scheme includes nrefl order
 ! reflections in the canyon for both longwave and shortwave radiation (in TEB infinite reflections are used for
-! shortwave and 1st order reflections in longwave). A big-leaf  vegetation tile is included in the canyon using the
-! Kowalczyk et al (1994) scheme but with a simplified soil moisture  budget and no modelling of the soil temperature
+! shortwave and 1st order reflections in longwave). A big-leaf vegetation tile is included in the canyon using the
+! Kowalczyk et al (1994) scheme but with a simplified soil moisture budget and no modelling of the soil temperature
 ! since sigmaf=1.  Snow is also included in the canyon and on roofs using a single-layer scheme based on
 ! Douville, et al (1995).  Time dependent traffic heat fluxes are based on Coutts, et al (2007).
     
@@ -4406,7 +4406,11 @@ do l = 1,ncyits
       d_ac_inside = d_ac_heat-d_ac_cool
 
       ! ---1.5: Calculate acflux into canyon and update canyon temperature-----
-      ac_coeff = max(1.+acfactor*(d_canyontemp-iroomtemp)/(iroomtemp+urbtemp),1.01) ! T&H Eq. 10
+      where (d_ac_cool > 0.)
+        ac_coeff = max(1.+acfactor*(d_canyontemp-iroomtemp)/(iroomtemp+urbtemp), 1.+1./ac_copmax) ! T&H2012 Eq. 10
+      elsewhere 
+        ac_coeff = 1.
+      end where
       select case(acmeth) ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible)
         case(0) ! unrealistic cooling (buildings act as heat sink)
           d_ac_canyon  = 0.
