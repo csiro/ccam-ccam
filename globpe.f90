@@ -3040,43 +3040,45 @@ if ( myid<nproc ) then
   end if
 
   ! fix ocean nuding levels
-  if ( kbotmlo<0 )  then
-    targetlev = real(-kbotmlo)/1000.
-    do k = ol,1,-1
-      if ( gosig(k)<=targetlev ) then
-        kbotmlo = k
-        if ( myid==0 ) then
-          write(6,*) "kbotmlo adjusted to ",kbotmlo,"for sig ",gosig(kbotmlo)
+  if ( nmlo/=0 ) then
+    if ( kbotmlo<0 )  then
+      targetlev = real(-kbotmlo)/1000.
+      do k = ol,1,-1
+        if ( gosig(k)<=targetlev ) then
+          kbotmlo = k
+          if ( myid==0 ) then
+            write(6,*) "kbotmlo adjusted to ",kbotmlo,"for sig ",gosig(kbotmlo)
+          end if
+          exit
         end if
-        exit
-      end if
-    end do
-    if ( kbotmlo<0 ) then
-      write(6,*) "ERROR: Cannot locate nudging level for kbotmlo ",kbotmlo
-      call ccmpi_abort(-1)
-    end if   
-  end if
-  if ( ktopmlo<0 ) then
-    targetlev = real(-ktopmlo)/1000.
-    do k = 1,ol
-      if ( gosig(k)>=targetlev ) then
-        ktopmlo = k
-        if ( myid==0 ) then
-          write(6,*) "ktopmlo adjusted to ",ktopmlo,"for sig ",gosig(ktopmlo)
-        end if
-        exit
-      end if
-    end do
+      end do
+      if ( kbotmlo<0 ) then
+        write(6,*) "ERROR: Cannot locate nudging level for kbotmlo ",kbotmlo
+        call ccmpi_abort(-1)
+      end if   
+    end if
     if ( ktopmlo<0 ) then
-      write(6,*) "ERROR: Cannot locate nudging level for ktopmlo ",ktopmlo
+      targetlev = real(-ktopmlo)/1000.
+      do k = 1,ol
+        if ( gosig(k)>=targetlev ) then
+          ktopmlo = k
+          if ( myid==0 ) then
+            write(6,*) "ktopmlo adjusted to ",ktopmlo,"for sig ",gosig(ktopmlo)
+          end if
+          exit
+        end if
+      end do
+      if ( ktopmlo<0 ) then
+        write(6,*) "ERROR: Cannot locate nudging level for ktopmlo ",ktopmlo
+        call ccmpi_abort(-1)
+      end if
+    end if
+    if ( ktopmlo<1 .or. kbotmlo>ol .or. ktopmlo>kbotmlo ) then
+      write(6,*) "ERROR: Invalid kbotmlo"
+      write(6,*) "kbotmlo,ktopmlo ",kbotmlo,ktopmlo
       call ccmpi_abort(-1)
     end if
-  end if
-  if ( (ktopmlo<1.or.kbotmlo>ol.or.ktopmlo>kbotmlo) .and. nmlo/=0 ) then
-    write(6,*) "ERROR: Invalid kbotmlo"
-    write(6,*) "kbotmlo,ktopmlo ",kbotmlo,ktopmlo
-    call ccmpi_abort(-1)
-  end if
+  end if  
   if ( kbotdav<1 .or. ktopdav>kl .or. kbotdav>ktopdav ) then
     write(6,*) "ERROR: Invalid kbotdav and ktopdav"
     write(6,*) "kbotdav,ktopdav ",kbotdav,ktopdav

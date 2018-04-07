@@ -622,7 +622,7 @@ end if
 ! kblock can be reduced to save memory
 do kb = kbotdav,ktopdav,kblock
   if ( myid==0 ) then     
-    write(6,*) "Gather data for spectral filter      ",kb
+    write(6,*) "Gather data for spectral filter      ",kb,kb+kblock-1
   end if      
   kln = kb                          ! lower limit of block
   klx = min( kb+kblock-1, ktopdav ) ! upper limit of block
@@ -633,19 +633,19 @@ do kb = kbotdav,ktopdav,kblock
   ! select nudging option
   if ( nud_uv==9 ) then 
     if ( myid==0 ) then
-      write(6,*) "Two dimensional spectral filter      ",kb
+      write(6,*) "Two dimensional spectral filter      ",kb,kb+kblock-1
     end if
     call slowspecmpi(.1*real(mbd)/(pi*schmidt),pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
   else
     if ( myid==0 ) then
-      write(6,*) "Separable 1D filter                  ",kb
+      write(6,*) "Separable 1D filter                  ",kb,kb+kblock-1
     end if
     call specfastmpi(.1*real(mbd)/(pi*schmidt),pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
   endif  ! (nud_uv==9) .. else ..
   !-----------------------------------------------------------------------
 
   if ( myid==0 ) then
-    write(6,*) "Distribute data from spectral filter ",kb
+    write(6,*) "Distribute data from spectral filter ",kb,kb+kblock-1
   end if
         
 end do
@@ -1708,8 +1708,10 @@ kc = min(kbotmlo, ktopmlo+wl-1)
 
 if ( mloalpha==0 ) then
   nudgewgt = 1.
+else if ( nud_period == -1 ) then
+  nudgewgt = (mtimeb-mtimea)/(144.*real(mloalpha))  ! mloalpha=10 implies 24 hours
 else
-  nudgewgt = (mtimeb-mtimea)/(144.*real(mloalpha)) ! mloalpha=10 implies 24 hours
+  nudgewgt = real(nud_period)/(144.*real(mloalpha)) ! mloalpha=10 implies 24 hours
 end if
 
 if ( nud_sfh/=0 ) then
@@ -1725,7 +1727,7 @@ end if
 do kbb = ktopmlo,kc,kblock
       
   if ( myid==0 ) then
-    write(6,*) "Gather data for MLO filter     ",kbb
+    write(6,*) "Gather data for MLO filter     ",kbb,kbb+kblock-1
   end if
             
   kln = kbb
@@ -1745,7 +1747,7 @@ do kbb = ktopmlo,kc,kblock
       end where
     end do
   end if
-
+  
   if ( nud_sss/=0 ) then
     do k = kln,klx
       kb = k - kln + 1
@@ -1786,9 +1788,9 @@ do kbb = ktopmlo,kc,kblock
   end if
 
   if ( myid==0 ) then
-    write(6,*) "Distribute data for MLO filter ",kbb
+    write(6,*) "Distribute data for MLO filter ",kbb,kbb+kblock-1
   end if
-
+  
   if ( nud_sst/=0 ) then
     do k = kln,klx
       ka = min(wl, k)
@@ -1916,11 +1918,10 @@ real, dimension(ifull) :: xa_l, xb_l
 logical, intent(in) :: lblock
 
 if (myid==0) then
-  write(6,*) "MLO 2D scale-selective filter"
   if (kd==1) then
-    write(6,*) "Single level filter"
+    write(6,*) "MLO 2D scale-selective filter - Single level filter"
   else
-    write(6,*) "Multiple level filter"
+    write(6,*) "MLO 2D scale-selective filter - Multiple level filter"
   end if
 end if
 
