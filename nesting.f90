@@ -391,7 +391,6 @@ if ( mtimer>mtimeb ) then
     allocate( sssa(ifull,wlev,4) )
     allocate( xtghostb(ifull,kl,naero) )
     allocate( xtghosta(ifull,kl,naero) )
-    
     pslb(1:ifull) = psl(1:ifull)
     tssb(:) = tss(:)
     sicedepb(:) = sicedep(:)
@@ -400,7 +399,6 @@ if ( mtimer>mtimeb ) then
     qb(:,:) = qg(1:ifull,:)
     ub(:,:) = u(1:ifull,:)
     vb(:,:) = v(1:ifull,:)
-
     ! Save host ocean data
     if ( nmlo/=0 ) then
       ocndep(:,:) = 0.
@@ -412,14 +410,12 @@ if ( mtimer>mtimeb ) then
         call mloexport3d(i-1,sssb(:,:,i),0)
       end do
     end if
-          
     ! Save host aerosol data
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
       xtghostb(:,:,:) = xtg(1:ifull,:,:)
     end if
-    
+    ! initialise arrays for 1D filter
     if ( nud_uv/=9 ) then
-      ! initialise arrays for 1D filter
       call specinit
     end if
     ! define vertical weights
@@ -499,19 +495,21 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
   cona = (real(mtimeb)-timerm)/real(mtimeb-mtimea)
   
   ! atmospheric nudging if required
-  if ( nud_p/=0 .or. nud_t/=0 .or. nud_uv/=0 .or. nud_q/=0 .or. nud_aero/=0 ) then
-    pslc(:) = cona*psla(:) + (1.-cona)*pslb(:) - psl(1:ifull)
-    uc(:,:) = cona*ua(:,:) + (1.-cona)*ub(:,:) - u(1:ifull,:)
-    vc(:,:) = cona*va(:,:) + (1.-cona)*vb(:,:) - v(1:ifull,:)
-    tc(:,:) = cona*ta(:,:) + (1.-cona)*tb(:,:) - t(1:ifull,:)
-    qc(:,:) = cona*qa(:,:) + (1.-cona)*qb(:,:) - qg(1:ifull,:)
-    if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      do ntr = 1,naero
-        xtghostc(:,:,ntr) = cona*xtghosta(:,:,ntr) + (1.-cona)*xtghostb(:,:,ntr) - xtg(1:ifull,:,ntr)        
-      end do
+  if ( mbd/=0 ) then
+    if ( nud_p/=0 .or. nud_t/=0 .or. nud_uv/=0 .or. nud_q/=0 .or. nud_aero/=0 ) then
+      pslc(:) = cona*psla(:) + (1.-cona)*pslb(:) - psl(1:ifull)
+      uc(:,:) = cona*ua(:,:) + (1.-cona)*ub(:,:) - u(1:ifull,:)
+      vc(:,:) = cona*va(:,:) + (1.-cona)*vb(:,:) - v(1:ifull,:)
+      tc(:,:) = cona*ta(:,:) + (1.-cona)*tb(:,:) - t(1:ifull,:)
+      qc(:,:) = cona*qa(:,:) + (1.-cona)*qb(:,:) - qg(1:ifull,:)
+      if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
+        do ntr = 1,naero
+          xtghostc(:,:,ntr) = cona*xtghosta(:,:,ntr) + (1.-cona)*xtghostb(:,:,ntr) - xtg(1:ifull,:,ntr)        
+        end do
+      end if
+      call getspecdata(pslc,uc,vc,tc,qc,xtghostc)
     end if
-    call getspecdata(pslc,uc,vc,tc,qc,xtghostc)
-  end if
+  end if  
 
   ! specify sea-ice if not AMIP or Mixed-Layer-Ocean
   if ( namip==0 ) then  ! namip SSTs/sea-ice take precedence
@@ -530,28 +528,31 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
       end where  ! (.not.land(iq))
     else
       ! nudge Mixed-Layer-Ocean
-      if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
-        sssc(:,:,:) = cona*sssa(:,:,:) + (1.-cona)*sssb(:,:,:)  
-        ! check host for 2D or 3D data
-        if ( wl<1 ) then
-          depthcheck(1) = maxval(ocndep(:,1)) ! check for 3D ocean data in host model
-          call ccmpi_allreduce(depthcheck(1:1),depthcheck(2:2),"max",comm_world)
-          if ( depthcheck(2)<0.5 ) then
-            wl = 1
-          else
-            wl = wlev
+      if ( mbd_mlo/=0 ) then  
+        if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
+          sssc(:,:,:) = cona*sssa(:,:,:) + (1.-cona)*sssb(:,:,:)  
+          ! check host for 2D or 3D data
+          if ( wl<1 ) then
+            depthcheck(1) = maxval(ocndep(:,1)) ! check for 3D ocean data in host model
+            call ccmpi_allreduce(depthcheck(1:1),depthcheck(2:2),"max",comm_world)
+            if ( depthcheck(2)<0.5 ) then
+              wl = 1
+            else
+              wl = wlev
+            end if
           end if
+          if ( wl==1 ) then ! switch to 2D data if 3D is missing
+            call mloexpmelt(timelt)
+            timelt(:) = min( timelt(:), 271.2, tgg(:,1) )
+            sssc(:,1,1) = (cona*tssa(:) + (1.-cona)*tssb(:))*(1.-fraciceb(:)) + timelt*fraciceb(:)
+            sssc(:,1,1) = sssc(:,1,1) - wrtemp
+          end if
+          call mlofilterhub(sssc(:,:,1),sssc(:,:,2),sssc(:,:,3:4),ocndep(:,2),wl)
         end if
-        if ( wl==1 ) then ! switch to 2D data if 3D is missing
-          call mloexpmelt(timelt)
-          timelt(:) = min( timelt(:), 271.2, tgg(:,1) )
-          sssc(:,1,1) = (cona*tssa(:) + (1.-cona)*tssb(:))*(1.-fraciceb(:)) + timelt*fraciceb(:)
-          sssc(:,1,1) = sssc(:,1,1) - wrtemp
-        end if
-        call mlofilterhub(sssc(:,:,1),sssc(:,:,2),sssc(:,:,3:4),ocndep(:,2),wl)
-      end if
+      end if  
     end if ! (nmlo==0) ..else..
   end if   ! (namip==0)
+  
 end if     ! (mtimer==mtimec).and.(mod(nint(ktau*dt),60)==0)
 
 return
@@ -622,7 +623,7 @@ end if
 ! kblock can be reduced to save memory
 do kb = kbotdav,ktopdav,kblock
   if ( myid==0 ) then     
-    write(6,*) "Gather data for spectral filter      ",kb,kb+kblock-1
+    write(6,*) "Gather data for spectral filter      ",kb,min(kb+kblock-1,ktopdav)
   end if      
   kln = kb                          ! lower limit of block
   klx = min( kb+kblock-1, ktopdav ) ! upper limit of block
@@ -633,19 +634,19 @@ do kb = kbotdav,ktopdav,kblock
   ! select nudging option
   if ( nud_uv==9 ) then 
     if ( myid==0 ) then
-      write(6,*) "Two dimensional spectral filter      ",kb,kb+kblock-1
+      write(6,*) "Two dimensional spectral filter      ",kb,min(kb+kblock-1,ktopdav)
     end if
     call slowspecmpi(.1*real(mbd)/(pi*schmidt),pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
   else
     if ( myid==0 ) then
-      write(6,*) "Separable 1D filter                  ",kb,kb+kblock-1
+      write(6,*) "Separable 1D filter                  ",kb,min(kb+kblock-1,ktopdav)
     end if
     call specfastmpi(.1*real(mbd)/(pi*schmidt),pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
   endif  ! (nud_uv==9) .. else ..
   !-----------------------------------------------------------------------
 
   if ( myid==0 ) then
-    write(6,*) "Distribute data from spectral filter ",kb,kb+kblock-1
+    write(6,*) "Distribute data from spectral filter ",kb,min(kb+kblock-1,ktopdav)
   end if
         
 end do
@@ -1727,7 +1728,7 @@ end if
 do kbb = ktopmlo,kc,kblock
       
   if ( myid==0 ) then
-    write(6,*) "Gather data for MLO filter     ",kbb,kbb+kblock-1
+    write(6,*) "Gather data for MLO filter     ",kbb,min(kbb+kblock-1,kc)
   end if
             
   kln = kbb
@@ -1788,7 +1789,7 @@ do kbb = ktopmlo,kc,kblock
   end if
 
   if ( myid==0 ) then
-    write(6,*) "Distribute data for MLO filter ",kbb,kbb+kblock-1
+    write(6,*) "Distribute data for MLO filter ",kbb,min(kbb+kblock-1,kc)
   end if
   
   if ( nud_sst/=0 ) then

@@ -421,7 +421,7 @@ if ( myid<nproc ) then
       ! nesting now after mass fixers
       call START_LOG(nestin_begin)
       if ( mspec==1 ) then
-        if ( mbd/=0 ) then
+        if ( mbd/=0 .or. mbd_mlo/=0 ) then
           ! scale-selective filter
           call nestinb
         else if ( nbd/=0 ) then
@@ -2502,10 +2502,16 @@ if ( myid<nproc ) then
 
   ! check nudging settings - adjust mbd scale parameter to satisfy mbd_maxscale and mbd_maxgrid settings
   if ( mbd/=0 .and. nbd/=0 ) then
-    write(6,*) 'setting nbd=0 because mbd/=0'
+    if ( myid==0 ) then  
+      write(6,*) 'WARN: setting nbd=0 because mbd/=0'
+    end if  
     nbd = 0
   end if
-  if ( mbd/=0 ) then  
+  if ( mbd/=0 ) then
+    if ( mbd_maxscale==0 ) then
+      write(6,*) "ERROR: mbd_maxscale must be >0 when mbd/=0"
+      call ccmpi_abort(-1)
+    end if
     mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale))
     if ( mbd<mbd_min .and. mbd/=0 ) then
       if ( myid==0 ) then
@@ -2513,6 +2519,10 @@ if ( myid<nproc ) then
         write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
       end if
       mbd = mbd_min
+    end if
+    if ( mbd_maxgrid==0 ) then
+      write(6,*) "ERROR: mbd_maxgrid must be >0 when mbd/=0"
+      call ccmpi_abort(-1)
     end if
     mbd_min = int(20.*real(il_g)/real(mbd_maxgrid))
     if ( mbd<mbd_min .and. mbd/=0 ) then
@@ -2526,32 +2536,34 @@ if ( myid<nproc ) then
     if ( nudu_hrs==0 ) then
       nudu_hrs = nud_hrs
     end if
-  end if  
+  end if
+  if ( mbd_mlo/=0 .or. nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
+    mbd_mlo = max( nud_sst, nud_sss, nud_ouv, nud_sfh, mbd, mbd_mlo )
+  end if
+  if ( mbd_mlo/=0 ) then
+    if ( mbd_maxscale_mlo==0 ) then
+      write(6,*) "ERROR: mbd_maxscale_mlo must be >0 when mbd_mlo/=0"
+      call ccmpi_abort(-1)
+    end if
+    mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale_mlo))
+    if ( mbd_mlo<mbd_min ) then
+      if ( myid==0 ) then
+        write(6,*) "Adjusting mbd_mlo to satisfy mbd_maxscale_mlo = ",mbd_maxscale_mlo
+        write(6,*) "Original mbd_mlo and final mbd_mlo = ",mbd_mlo,mbd_min
+      end if
+      mbd_mlo = mbd_min
+    end if
+  end if
   if ( kblock<0 ) then
     kblock = max(kl, ol) ! must occur before indata
     if ( myid==0 ) then
       write(6,*) "Adjusting kblock to ",kblock
     end if
   end if
-  if ( mbd_mlo/=0 ) then
-    mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale_mlo))
-    if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
-      mbd_mlo = max( nud_sst, nud_sss, nud_ouv, nud_sfh, mbd, mbd_mlo )
-      if ( mbd_mlo<mbd_min ) then
-        if ( myid==0 ) then
-          write(6,*) "Adjusting mbd_mlo to satisfy mbd_maxscale_mlo = ",mbd_maxscale_mlo
-          write(6,*) "Original mbd_mlo and final mbd_mlo = ",mbd_mlo,mbd_min
-        end if
-        mbd_mlo = mbd_min
-      end if
-    else
-      mbd_mlo = 0
-    end if
-  end if  
 
   ! **** do namelist fixes above this line ***
 
-  !--------------------------------------------------------------
+  !----------------------------------dos----------------------------
   ! REMAP MPI PROCESSES
 
   ! MJT notes - this basically optimises the MPI process ranks to
