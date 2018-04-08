@@ -1369,8 +1369,6 @@ character(len=8) text, rundate
 
 #ifdef usempi3
 integer, dimension(3) :: shsize
-integer colour, procerr, procerr_g, procmode_save
-logical lastprocmode
 #endif
 
 #ifdef debug
@@ -2738,96 +2736,10 @@ if ( myid<nproc ) then
   !--------------------------------------------------------------
   ! SHARED MEMORY AND FILE IO CONFIGURATION
 
-#ifdef usempi3
-  ! MJT notes - this is the new procformat IO system where a single
-  ! output file is written per node.  procformat=.false. writes a single
-  ! output file per process.
-  if ( procformat ) then
-    ! configure procmode
-    lastprocmode = node_captianid==nodecaptian_nproc-1  
-    if ( procmode==0 ) then
-      ! Need to bcast some information after ccmpi_reinit
-      if ( myid==0 ) then
-        temparray(1) = real(node_nproc)    
-      end if
-      call ccmpi_bcast(temparray(1:1),0,comm_world)
-      procmode_save = nint(temparray(1))
-      ! first guess with procmode = node_nproc from myid=0 (stored as procmode_save)
-      procmode = procmode_save
-      ! test if procmode is a factor of node_nproc on all processes
-      ! last node is allowed to have a residual number of processes
-      ! MJT notes - probably faster to gather all node_nprocs on myid=0
-      ! and then test.  In practice, the first guess is usually successful.
-      if ( lastprocmode ) then
-        procerr = 0
-        call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
-        do while ( procerr_g/=0 )
-          procmode = procmode - 1
-          call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
-        end do
-      else
-        procerr = mod(node_nproc, procmode)    
-        call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
-        do while ( procerr_g/=0 )
-          procmode = procmode - 1
-          procerr = mod(node_nproc, procmode)    
-          call ccmpi_allreduce(procerr,procerr_g,'max',comm_world)
-        end do
-      end if
-    end if
-    !! configure ioreaders
-    !if ( ioreaders<1 ) then
-    !  ioreaders = procmode
-    !end if
-    ! define commuication groups
-    if ( myid==0 ) then
-      write(6,*) "Configure procformat output with procmode=",procmode
-    end if
-    if ( .not.lastprocmode ) then
-      if ( mod(node_nproc, procmode)/=0 ) then
-        write(6,*) "ERROR: procmode must be a factor of the number of ranks on a node"
-        write(6,*) "node_nproc,procmode ",node_nproc,procmode
-        call ccmpi_abort(-1)
-      end if
-    end if
-    colour = node_myid/procmode
-    call ccmpi_commsplit(comm_vnode,comm_node,colour,node_myid) ! Intra-procmode communicator
-    call ccmpi_commsize(comm_vnode,vnode_nproc)
-    call ccmpi_commrank(comm_vnode,vnode_myid)
-    colour = vnode_myid
-    call ccmpi_commsplit(comm_vleader,comm_world,colour,myid)   ! Inter-procmode communicator
-    call ccmpi_commsize(comm_vleader,vleader_nproc)
-    call ccmpi_commrank(comm_vleader,vleader_myid)
-    vnode_vleaderid = vleader_myid
-    call ccmpi_bcast(vnode_vleaderid,0,comm_vnode)              ! Communicate procmode id
-    !call ccmpi_node_leader ! setup comm_vleader and comm_reordered with myid2
-    !call ccmpi_node_ioreaders
-  else
-    procmode = nproc
-    comm_vnode  = comm_node ! Should not be used for procformat=.false.
-    vnode_nproc = 1
-    vnode_myid  = 0
-    comm_vleader  = comm_world
-    vleader_nproc = nproc
-    vleader_myid  = myid
-    vnode_vleaderid = myid
-  end if
-#else
-  if ( procformat ) then
-    if ( myid==0 ) then  
-      write(6,*) "Disable procformat as CCAM was compiled without -Dusempi3"
-    end if  
-    procformat = .false.
-    procmode = nproc
-    comm_vnode  = comm_node ! Should not be used for procformat=.false.
-    vnode_nproc = 1
-    vnode_myid  = 0
-    comm_vleader  = comm_world
-    vleader_nproc = nproc
-    vleader_myid  = myid
-    vnode_vleaderid = myid
-  end if
-#endif
+  ! This is the procformat IO system where a single output file is
+  ! written per node.  procformat=.false. writes a single output
+  ! file per process.
+  call ccmpi_procformat_init(procformat,procmode) 
   if ( procformat .and. .not.localhist ) then
     write(6,*) "ERROR: procformat=.true. requires localhist=.true."
     call ccmpi_abort(-1)

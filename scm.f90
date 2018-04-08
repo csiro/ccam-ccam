@@ -156,7 +156,7 @@ character(len=80) lsmforcing, lsmoutput
 character(len=80) scm_mode
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) :: optarg
-logical sday_update
+logical oxidant_update
 logical fixtsurf, nolatent, noradiation
 logical nogwdrag, noconvection, nocloud, noaerosol, novertmix
 
@@ -716,7 +716,7 @@ do spinup = spinup_start,1,-1
     end if    
     ! aerosol timer calculations
     call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-    sday_update = sday<=mins-updateoxidant
+    oxidant_update = oxidant_timer<=mins-updateoxidant
     ! initialse surface rainfall to zero
     condc(:) = 0. ! default convective rainfall (assumed to be rain)
     condx(:) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
@@ -796,7 +796,7 @@ do spinup = spinup_start,1,-1
 
     ! AEROSOLS
     if ( abs(iaero)>=2 .and. .not.noaerosol ) then
-      call aerocalc(sday_update,mins)
+      call aerocalc(oxidant_update,mins)
     end if
     call nantest("after aerosols",1,ifull)
 
@@ -823,8 +823,8 @@ do spinup = spinup_start,1,-1
 
     ! MISC    
     ! Update aerosol timer
-    if ( sday_update ) then
-      sday = mins
+    if ( oxidant_update ) then
+      oxidant_timer = mins
     end if
   
     ! OUTPUT
