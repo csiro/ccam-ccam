@@ -1996,9 +1996,6 @@ elseif ( scm_mode=="gabls4" ) then
     tadv(:) = (1.-x)*t_force_a(:) + x*t_force_b(:)
     qadv(:) = (1.-x)*q_force_a(:) + x*q_force_b(:)
 
-    t_tend(:) = tadv(:)
-    q_tend(:) = qadv(:)
-
     if ( fixtsurf ) then
       tset(:) = (1.-x)*tsurf_a + x*tsurf_b
       tggsn(:,:) = tset(1)
@@ -2028,6 +2025,9 @@ if ( ktau>0 ) then
   v(1,:) = v(1,:) + dt*vadv(:)
   t(1,:) = t(1,:) + dt*tadv(:)
   qg(1,:) = qg(1,:) + dt*qadv(:)
+  
+  t_tend(:) = tadv(:)
+  q_tend(:) = qadv(:)
     
 end if
 
@@ -2784,12 +2784,6 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m2 s-2')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
-    jdim(1) = zhdim
-    ! lname = 'Total turbulent energy'
-    ! call ccnf_def_var(profilencid,'TTE','float',2,jdim(1:2),idnt)
-    ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
-    ! call ccnf_put_att(profilencid,idnt,'units','m2 s-2')  
-    ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'shear production'
     call ccnf_def_var(profilencid,'shear','float',2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
@@ -2810,6 +2804,12 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m2 s-3')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
+    jdim(1) = zhdim
+    ! lname = 'Total turbulent energy'
+    ! call ccnf_def_var(profilencid,'TTE','float',2,jdim(1:2),idnt)
+    ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
+    ! call ccnf_put_att(profilencid,idnt,'units','m2 s-2')  
+    ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
 
     jdim(1) = zsdim
     jdim(2) = tdim_prof
@@ -2860,6 +2860,7 @@ if ( scm_mode=="sublime" ) then
   qs(1:kl) = qsat(pf,t(1,:))
   rh(:) = qg(1,:)/qs(:)
 
+  wtflux(1,1) = 0.
   do k=1,kl-1
     wtflux(1,k+1) = wth_flux(1,k)*sigmh(k)**(rdry/cp)
   end do
@@ -3261,18 +3262,18 @@ if ( scm_mode=="sublime" ) then
   ! call ccnf_put_vara(profilencid,'dT_dt_lwrad',spos(1:2),npos(1:2),bb)
   bb(1,:) = tkesave(1,1:kl)
   call ccnf_put_vara(profilencid,'TKE',spos(1:2),npos(1:2),bb)
+  bb(1,:) = shearproduction(1,1:kl)
+  call ccnf_put_vara(profilencid,'shear',spos(1:2),npos(1:2),bb)
+  bb(1,:) = buoyproduction(1,1:kl)
+  call ccnf_put_vara(profilencid,'buoy',spos(1:2),npos(1:2),bb)
+  bb(1,:) = totaltransport(1,1:kl)
+  call ccnf_put_vara(profilencid,'trans',spos(1:2),npos(1:2),bb)
+  bb(1,:) = epssave(1,1:kl)
+  call ccnf_put_vara(profilencid,'dissi',spos(1:2),npos(1:2),bb)
   npos(1) = kl+1
   ! cc(:,:) = nf90_fill_float
-  ! call ccnf_put_vara(profilencid,'TTE',spos(1:2),npos(1:2),cc)
-  cc(:,:) = nf90_fill_float
-  call ccnf_put_vara(profilencid,'shear',spos(1:2),npos(1:2),cc)
-  cc(:,:) = nf90_fill_float
-  call ccnf_put_vara(profilencid,'buoy',spos(1:2),npos(1:2),cc)
-  cc(:,:) = nf90_fill_float
-  call ccnf_put_vara(profilencid,'trans',spos(1:2),npos(1:2),cc)
-  cc(:,:) = nf90_fill_float
-  call ccnf_put_vara(profilencid,'dissi',spos(1:2),npos(1:2),cc)
-
+  ! call ccnf_put_vara(profilencid,'TTE',spos(1:2),npos(1:2),cc) 
+  
   spos(1) = 1
   spos(2) = iarch
   npos(1) = 3

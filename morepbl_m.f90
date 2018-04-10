@@ -28,12 +28,13 @@ public condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
 public conds,condg
 public anthropogenic_flux, urban_tas, urban_ts, urban_wetfac
 public urban_zom, urban_zoh, urban_zoq
-public morepbl_init,morepbl_end
+public morepbl_init, morepbl_end
 
 #ifdef scm
 public wth_flux, wq_flux, uw_flux, vw_flux
-public tkesave, mfsave
+public tkesave, epssave, mfsave
 public rkmsave, rkhsave
+public buoyproduction, shearproduction, totaltransport
 #endif
 
 real, dimension(:), allocatable, save :: epot,rnet,epan,tpan
@@ -43,8 +44,9 @@ real, dimension(:), allocatable, save :: condc, condx, conds, condg, pblh, fg, e
 
 #ifdef scm
 real, dimension(:,:), allocatable, save :: wth_flux, wq_flux, uw_flux, vw_flux
-real, dimension(:,:), allocatable, save :: tkesave, mfsave
+real, dimension(:,:), allocatable, save :: tkesave, epssave, mfsave
 real, dimension(:,:), allocatable, save :: rkmsave, rkhsave
+real, dimension(:,:), allocatable, save :: buoyproduction, shearproduction, totaltransport
 #endif
 
 contains
@@ -91,16 +93,22 @@ urban_zoq          = 0.
 #ifdef scm
 allocate( wth_flux(ifull,kl), wq_flux(ifull,kl) )
 allocate( uw_flux(ifull,kl), vw_flux(ifull,kl) )
-allocate( tkesave(ifull,kl), mfsave(ifull,kl-1) )
+allocate( tkesave(ifull,kl), epssave(ifull,kl), mfsave(ifull,kl-1) )
 allocate( rkmsave(ifull,kl), rkhsave(ifull,kl) )
+allocate( buoyproduction(ifull,kl), shearproduction(ifull,kl) )
+allocate( totaltransport(ifull,kl) )
 wth_flux=0.
 wq_flux=0.
 uw_flux=0.
 vw_flux=0.
 tkesave=0.
+epssave=0.
 mfsave=0.
 rkmsave=0.
 rkhsave=0.
+buoyproduction=0.
+shearproduction=0.
+totaltransport=0.
 #endif
 
 return
@@ -117,8 +125,10 @@ deallocate( urban_zom, urban_zoh, urban_zoq )
 
 #ifdef scm
 deallocate( wth_flux, wq_flux, uw_flux, vw_flux )
-deallocate( tkesave, mfsave )
+deallocate( tkesave, epssave, mfsave )
 deallocate( rkmsave, rkhsave )
+deallocate( buoyproduction, shearproduction )
+deallocate( totaltransport )
 #endif
 
 return

@@ -92,7 +92,7 @@ use xarrs_m                                ! Saved dynamic arrays
 use xyzinfo_m                              ! Grid coordinate arrays
 
 #ifdef csircoupled
-use vcom_ccam
+use vcom_ccam                              ! CSIR (SA) ocean model
 #endif
 
 implicit none
@@ -150,14 +150,10 @@ call setstacklimit(-1)
 #endif
 
 
-!--------------------------------------------------------------
-! INITALISE TIMING LOGS
+!----------------------------------------------------------------
+! INITALISE TIMING LOGS, READ NAMELIST AND INITIALISE MODEL
 call log_off
 call log_setup
-
-
-!----------------------------------------------------------------
-! READ NAMELIST AND INITIALISE MODEL
 call globpe_init
 
 
@@ -171,7 +167,7 @@ if ( myid<nproc ) then
   if ( nwt>0 ) then
     ! write out the first ofile data set
     if ( myid==0 ) write(6,*) "calling outfile"
-    call outfile(20)  ! which calls outcdf
+    call outfile(20)
     if ( newtop<0 ) then
       ! just for outcdf to plot zs  & write fort.22      
       if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"
@@ -179,7 +175,7 @@ if ( myid<nproc ) then
     end if
   end if    ! (nwt>0)
 
-
+  
   !-------------------------------------------------------------
   ! SETUP DIAGNOSTIC ARRAYS
   allocate( spare1(ifull) )
@@ -191,6 +187,7 @@ if ( myid<nproc ) then
   call zero_nperavg
   call zero_nperday
 
+  
   !--------------------------------------------------------------
   ! INITIALISE DYNAMICS
   dtin = dt
@@ -205,7 +202,7 @@ if ( myid<nproc ) then
     dt     = 0.5*dtin
   endif
   call gettin(0) ! preserve initial mass & T fields
-
+  
   
   !--------------------------------------------------------------
   ! SET-UP TIMERS
@@ -232,20 +229,22 @@ if ( myid<nproc ) then
     mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
     mins_gmt = mod( mtimer+60*ktime/100, 24*60 )         ! for radiation
     call getzinp(jyear,jmonth,jday,jhour,jmin,mins)      ! define mins as time since start of the year
-    
-    ! set diagnostic printout flag
-    diag = ( ktau>=abs(ndi) .and. ktau<=ndi2 )
+    diag = ( ktau>=abs(ndi) .and. ktau<=ndi2 )           ! set diagnostic printout flag
     if ( ndi<0 ) then
       if ( ktau==(ktau/ndi)*ndi ) then
         diag = .true.
       end if
     endif
+
+    ! interpolate tracer fluxes to current timestep
+    if ( ngas>0 ) then
+      call interp_tracerflux
+    end if
     
     
     ! ***********************************************************************
     ! START ATMOSPHERE DYNAMICS
     ! ***********************************************************************
-    
     
     ! NESTING ---------------------------------------------------------------
     if ( nbd/=0 ) then
@@ -255,14 +254,7 @@ if ( myid<nproc ) then
       call END_LOG(nestin_end)
     end if
       
-  
-    ! TRACERS ---------------------------------------------------------------
-    ! interpolate tracer fluxes to current timestep
-    if ( ngas>0 ) then
-      call interp_tracerflux
-    end if
-
-
+    
     ! DYNAMICS --------------------------------------------------------------
     call nantest("before atmosphere dynamics",1,ifull)   
     if ( nstaguin>0 .and. ktau>=1 ) then   ! swapping here for nstaguin>0
@@ -368,7 +360,6 @@ if ( myid<nproc ) then
       savu(1:ifull,:)  = u(1:ifull,:)  ! before any time-splitting occurs
       savv(1:ifull,:)  = v(1:ifull,:)
 
-
       ! update non-linear dynamic terms
       call nonlin
       
@@ -445,16 +436,27 @@ if ( myid<nproc ) then
   
     
     ! HORIZONTAL DIFFUSION ----------------------------------------------------
-    call START_LOG(hordifg_begin)
     if ( nhor<0 ) then
-      call hordifgt  ! now not tendencies
+      call START_LOG(hordifg_begin)  
+      call hordifgt
+      if ( diag .and. mydiag ) then
+        write(6,*) 'after hordifgt t ',t(idjd,:)
+      end if
+      call nantest("after atm horizontal diffusion",1,ifull)    
+      call END_LOG(hordifg_end)
+    end if  
+
+    
+    ! ***********************************************************************
+    ! START RIVER ROUTING
+    ! ***********************************************************************
+    
+    if ( abs(nriver)==1 ) then  
+      call START_LOG(river_begin)
+      call rvrrouter
+      call END_LOG(river_end)
     end if
-    if ( diag .and. mydiag ) then
-      write(6,*) 'after hordifgt t ',t(idjd,:)
-    end if
-    call nantest("after atm horizontal diffusion",1,ifull)    
-    call END_LOG(hordifg_end)
-   
+
     
     ! ***********************************************************************
     ! START OCEAN DYNAMICS
@@ -465,16 +467,6 @@ if ( myid<nproc ) then
     ! nmlo=2   nmlo=1 plus river-routing and horiontal diffusion
     ! nmlo=3   nmlo=2 plus 3D dynamics
     ! nmlo>9   Use external PCOM ocean model
-  
-    ! nriver=1 allows the rivers to work without the ocean model
-
-    if ( abs(nriver)==1 ) then
-      ! RIVER ROUTING ------------------------------------------------------
-      ! This option can also be used with PCOM
-      call START_LOG(river_begin)
-      call rvrrouter
-      call END_LOG(river_end)
-    end if
   
     if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
       ! DYNAMICS & DIFFUSION ------------------------------------------------
@@ -837,7 +829,6 @@ if ( myid<nproc ) then
       write(6,*) 'ktau,mod,nper3hr ',ktau,mod(ktau-1,nperday)+1,nper3hr(n3hr)
     end if
 
-    
     ! rnd03 to rnd21 are accumulated in mm     
     if ( mod(ktau-1,nperday)+1 == nper3hr(n3hr) ) then
       rnd_3hr(1:ifull,n3hr) = rnd_3hr(1:ifull,8)
@@ -945,12 +936,12 @@ if ( myid<nproc ) then
     
   end do                  ! *** end of main time loop
   
+  call END_LOG(maincalc_end)
+  call log_off
+  
   
   !------------------------------------------------------------------
   ! SIMULATION COMPLETE
-  call END_LOG(maincalc_end)
-  call log_off
-
   
   ! Report timings of run
   if ( myid==0 ) then
@@ -1043,7 +1034,7 @@ implicit none
       
 integer k
       
-if ( nllp < 3 ) then
+if ( nllp<3 ) then
   write(6,*) "ERROR: Incorrect setting of nllp",nllp
   call ccmpi_abort(-1)
 end if
@@ -1370,7 +1361,6 @@ character(len=8) text, rundate
 #ifdef usempi3
 integer, dimension(3) :: shsize
 #endif
-
 #ifdef debug
 real, dimension(1) :: gtemparray
 #endif
@@ -2434,9 +2424,9 @@ nsig    = nint(temparray(8))
 !--------------------------------------------------------------
 ! DEFINE newmpar VARIABLES AND DEFAULTS
 ! CCAM supports face and uniform grid decomposition over processes
-! Face decomposition reduces MPI message passing, but only works for factors or multiples of six
-! processes.  Uniform decomposition is less restrictive on the number of processes, but requires
-! more MPI message passing.
+! Face decomposition reduces the number of MPI messages, but only works for factors or multiples
+! of six processes.  Uniform decomposition is less restrictive on the number of processes, but
+! requires a larger number of MPI messages.
 call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp,uniform_decomp)
 call ccmpi_reinit(new_nproc) 
 
@@ -2561,11 +2551,10 @@ if ( myid<nproc ) then
 
   ! **** do namelist fixes above this line ***
 
-  !----------------------------------dos----------------------------
+  !--------------------------------------------------------------
   ! REMAP MPI PROCESSES
 
-  ! MJT notes - this basically optimises the MPI process ranks to
-  ! reduce inter-node message passing
+  ! Optimise the MPI process ranks to reduce inter-node message passing
   call ccmpi_remap
 
 
@@ -2737,8 +2726,7 @@ if ( myid<nproc ) then
   ! SHARED MEMORY AND FILE IO CONFIGURATION
 
   ! This is the procformat IO system where a single output file is
-  ! written per node.  procformat=.false. writes a single output
-  ! file per process.
+  ! written per node
   call ccmpi_procformat_init(procformat,procmode) 
   if ( procformat .and. .not.localhist ) then
     write(6,*) "ERROR: procformat=.true. requires localhist=.true."
@@ -2794,7 +2782,7 @@ if ( myid<nproc ) then
   ! xx4 and yy4 are used for calculating depature points
   ! em_g, x_g, y_g and z_g are for the scale-selective filter (1D and 2D versions)
 #ifdef usempi3
-  ! MJT nodes - use shared memory for global arrays common to all processes
+  ! use shared memory for global arrays common to all processes
   call ccmpi_shepoch(xx4_win)
   if ( node_myid==0 ) call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
   call ccmpi_shepoch(xx4_win)
@@ -2902,6 +2890,7 @@ if ( myid<nproc ) then
   ! Remaining arrays are allocated in indata.f90, since their
   ! definition requires additional input data (e.g, land-surface)
 
+  
   !--------------------------------------------------------------
   ! DISPLAY DIAGNOSTIC INDEX AND TIMER DATA
   if ( mydiag ) then
@@ -2962,6 +2951,12 @@ if ( myid<nproc ) then
       call ccmpi_abort(-1)
     end if
   end if
+  if ( kbotdav<1 .or. ktopdav>kl .or. kbotdav>ktopdav ) then
+    write(6,*) "ERROR: Invalid kbotdav and ktopdav"
+    write(6,*) "kbotdav,ktopdav ",kbotdav,ktopdav
+    call ccmpi_abort(-1)
+  end if
+  if ( kbotu==0 ) kbotu = kbotdav
 
   ! fix ocean nuding levels
   if ( nmlo/=0 ) then
@@ -3003,12 +2998,6 @@ if ( myid<nproc ) then
       call ccmpi_abort(-1)
     end if
   end if  
-  if ( kbotdav<1 .or. ktopdav>kl .or. kbotdav>ktopdav ) then
-    write(6,*) "ERROR: Invalid kbotdav and ktopdav"
-    write(6,*) "kbotdav,ktopdav ",kbotdav,ktopdav
-    call ccmpi_abort(-1)
-  end if
-  if ( kbotu==0 ) kbotu = kbotdav
 
   ! identify reference level ntbar for temperature
   if ( ntbar==-1 ) then
@@ -3073,7 +3062,6 @@ if ( myid<nproc ) then
       end do
     end if   ! (ntrac>0)
   end if  
-
 
   ! convection
   ! sig(kuocb) occurs for level just BELOW sigcb
@@ -3370,7 +3358,7 @@ return
 end subroutine reducenproc
 
 !--------------------------------------------------------------
-! TEST GRID DECOMPOSITION    
+! TEST GRID DECOMPOSITION - FACE   
 subroutine proctest_face(npanels,il_g,nproc,nxp,nyp)
 
 implicit none
@@ -3395,6 +3383,8 @@ end if
 return
 end subroutine proctest_face
     
+!--------------------------------------------------------------
+! TEST GRID DECOMPOSITION - UNIFORM
 subroutine proctest_uniform(npanels,il_g,nproc,nxp,nyp)
 
 implicit none
@@ -3415,7 +3405,6 @@ end do
 return
 end subroutine proctest_uniform
     
-
 !--------------------------------------------------------------------
 ! Fix water vapour mixing ratio
 subroutine fixqg(js,je)
@@ -3454,6 +3443,8 @@ end do
 return
 end subroutine fixqg
 
+!--------------------------------------------------------------
+! Reset diagnostics for averaging period    
 subroutine zero_nperavg
 
 use aerosolldr, only :                   & ! LDR prognostic aerosols
@@ -3578,6 +3569,8 @@ end if
 return
 end subroutine zero_nperavg
     
+!--------------------------------------------------------------
+! Reset diagnostics for daily averages    
 subroutine zero_nperday
 
 use histave_m                              ! Time average arrays
@@ -3607,6 +3600,8 @@ end if
 return
 end subroutine zero_nperday
     
+!--------------------------------------------------------------
+! Update diagnostics for averaging period    
 subroutine calculate_timeaverage
 
 use aerosolldr, only :                   & ! LDR prognostic aerosols
@@ -3793,6 +3788,8 @@ end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
 return
 end subroutine calculate_timeaverage
 
+!--------------------------------------------------------------
+! output diagnostics to log file    
 subroutine write_diagnostics(mins_gmt,nmaxprsav)
 
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
