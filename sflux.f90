@@ -1054,7 +1054,7 @@ do tile=1,ntiles
                         swrsave(is:ie),t(is:ie,1),taux(is:ie),tauy(is:ie),tss(is:ie),u(is:ie,1),ustar(is:ie),        &
                         v(is:ie,1),vmod(is:ie),wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),                        &
                         anthropogenic_flux(is:ie),urban_ts(is:ie),urban_wetfac(is:ie),urban_zom(is:ie),              &
-                        urban_zoh(is:ie),urban_zoq(is:ie),                                                           &
+                        urban_zoh(is:ie),urban_zoq(is:ie),urban_emiss(is:ie),                                        &
                         upack_g(:,tile),ufull_g(tile))
 
 end do
@@ -1068,7 +1068,7 @@ subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,vmag,oldsnowmelt,fp,fp_i
                             albvis,albnir,uzon,vmer,cdtq,cduv,                                                    &
                             conds,condg,condx,eg,fg,land,ps,qg,qsttg,rgsave,rnet,runoff,sgsave,snowmelt,swrsave,  &
                             t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,                                     &
-                            anthropogenic_flux,urban_ts,urban_wetfac,urban_zom,urban_zoh,urban_zoq,               &
+                            anthropogenic_flux,urban_ts,urban_wetfac,urban_zom,urban_zoh,urban_zoq,urban_emiss,   &
                             upack,ufull)
 
 use ateb                           ! Urban
@@ -1092,7 +1092,7 @@ real, dimension(imax) :: u_zo, u_zoh, u_zoq, zo_work, zoh_work, zoq_work, u_sigm
 real, dimension(imax), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
 real, dimension(imax), intent(in) :: albvis, albnir
 real, dimension(imax), intent(inout) :: anthropogenic_flux, urban_ts, urban_wetfac
-real, dimension(imax), intent(inout) :: urban_zom, urban_zoh, urban_zoq
+real, dimension(imax), intent(inout) :: urban_zom, urban_zoh, urban_zoq, urban_emiss
 real, dimension(imax), intent(in) :: conds, condg, condx
 real, dimension(imax), intent(in) :: ps, rgsave, sgsave, swrsave, vmod
 real, dimension(imax), intent(inout) :: cdtq, cduv
@@ -1175,6 +1175,8 @@ if ( ufull>0 ) then                                                             
     taux(1:imax) = rho(1:imax)*cduv(1:imax)*u(1:imax)                                            ! urban
     tauy(1:imax) = rho(1:imax)*cduv(1:imax)*v(1:imax)                                            ! urban
   end where                                                                                      ! urban
+  ! calculate emissivity                                                                         ! urban
+  call atebmisc(urban_emiss,"emissivity",0,fp,pd,upack,ufull)                                    ! urban
 end if                                                                                           ! urban
 if (nmaxpr==1.and.ntiles==1) then                                                                ! urban
   if (myid==0) write(6,*) "After urban"                                                          ! urban

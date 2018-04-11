@@ -2046,6 +2046,7 @@ use infile                                 ! Input file routines
 use liqwpar_m                              ! Cloud water mixing ratios
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
+use nsibd_m                                ! Land-surface arrays
 use parm_m                                 ! Model configuration
 use pbl_m                                  ! Boundary layer arrays
 use prec_m                                 ! Precipitation
@@ -2974,7 +2975,7 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_vara(timencid,'alb',iarch,aa(1))
     call ccnf_put_vara(timencid,'z0m',iarch,zo(1))
     call ccnf_put_vara(timencid,'z0h',iarch,zoh(1))
-    aa(:) = nf90_fill_float
+    aa(1) = 1.*(1.-sigmu(1)) + urban_emiss(1)*sigmu(1)
     call ccnf_put_vara(timencid,'emis',iarch,aa(1))
     call ccnf_put_vara(timencid,'t2m',iarch,tscrn(1))
     aa(:) = qgscrn(:)/(1.+qgscrn(:))

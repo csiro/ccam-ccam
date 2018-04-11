@@ -97,7 +97,7 @@ private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebalb1,           &
        atebnewangle1,atebccangle,atebdisable,atebcd,                                   &
        atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord,atebdeftype,  &
-       atebhydro,atebenergy,atebloadd,atebsaved
+       atebhydro,atebenergy,atebloadd,atebsaved,atebmisc
 public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,vegmode,  &
        soilunder,conductmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,ncyits,nfgits,tol,alpha, &
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
@@ -294,6 +294,10 @@ end interface
 
 interface atebtype
   module procedure atebtype_standard, atebtype_thread
+end interface
+
+interface atebmisc
+  module procedure atebmisc_standard, atebmisc_thread
 end interface
 
 contains
@@ -2211,6 +2215,58 @@ end select
 
 return
 end subroutine atebenergy_thread
+
+subroutine atebmisc_standard(o_data,mode,diag)
+
+implicit none
+
+integer, intent(in) :: diag
+integer tile, is, ie
+real, dimension(:), intent(inout) :: o_data
+character(len=*), intent(in) :: mode
+
+if ( diag>=1 ) write(6,*) "Extract energy output"
+if (.not.ateb_active) return
+
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  if ( ufull_g(tile)>0 ) then
+    call atebenergy_thread(o_data(is:ie),mode,diag,f_g(tile),p_g(tile),upack_g(:,tile),ufull_g(tile))
+  end if
+end do
+
+return
+end subroutine atebmisc_standard
+
+subroutine atebmisc_thread(o_data,mode,diag,fp,pd,upack,ufull)
+
+implicit none
+
+integer, intent(in) :: ufull, diag
+real, dimension(:), intent(inout) :: o_data
+real, dimension(ufull) :: ctmp, dtmp
+character(len=*), intent(in) :: mode
+logical, dimension(:), intent(in) :: upack
+type(fparmdata), intent(in) :: fp
+type(pdiagdata), intent(in) :: pd
+
+if ( diag>=2 ) write(6,*) "THREAD: Extract energy output"
+if ( ufull==0 ) return
+
+select case(mode)
+  case("emissivity")
+    ctmp = pack(o_data, upack)
+    dtmp = pd%emiss
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
+  case default
+    write(6,*) "ERROR: Unknown atebmisc mode ",trim(mode)
+    stop
+end select    
+
+return
+end subroutine atebmisc_thread
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine blends urban momentum and heat roughness lengths
@@ -4301,7 +4357,7 @@ do l = 1,ncyits
 
       ! ---0.4: Calculate acflux into canyon and update canyon temperature-----
       ! update heat pumped into canyon
-      where (d_ac_inside < 0.)
+      where ( d_ac_inside<0. )
         ac_coeff = max(1.+acfactor*(d_canyontemp-iroomtemp)/(iroomtemp+urbtemp), 1.+1./ac_copmax) ! T&H2012 Eq. 10
       elsewhere 
         ac_coeff = 1.
@@ -4375,9 +4431,9 @@ do l = 1,ncyits
                  )/(rm+rf+we+ww+sl+im1+im2+infl)
   
       ! ---1.4: Calculate cooling/heating fluxes (varying air temp)------------
-      d_ac_inside=0.
-      d_ac_heat=0.
-      d_ac_cool=0.
+      d_ac_inside = 0.
+      d_ac_heat   = 0.
+      d_ac_cool   = 0.
       select case(behavmeth)
         case(0) ! asynchronous heating and cooling, no behavioural smoothing
           ! heating load
@@ -4403,10 +4459,10 @@ do l = 1,ncyits
           write(6,*) "ERROR: Unknown behavmeth mode ",behavmeth
           stop
       end select
-      d_ac_inside = d_ac_heat-d_ac_cool
+      d_ac_inside = d_ac_heat - d_ac_cool
 
       ! ---1.5: Calculate acflux into canyon and update canyon temperature-----
-      where (d_ac_cool > 0.)
+      where ( d_ac_cool>0. )
         ac_coeff = max(1.+acfactor*(d_canyontemp-iroomtemp)/(iroomtemp+urbtemp), 1.+1./ac_copmax) ! T&H2012 Eq. 10
       elsewhere 
         ac_coeff = 1.
@@ -4443,14 +4499,14 @@ do l = 1,ncyits
       can = fp%sigmabld/(1.-fp%sigmabld)
 
       d_canyontemp = (aa*d_tempc + bb*rdsntemp+cc*road%nodetemp(:,0)+dd*cnveg%temp + ee*walle%nodetemp(:,0) & 
-                    + ff*wallw%nodetemp(:,0) + d_traf + d_ac_canyon + infl*can*iroomtemp)                       & 
+                    + ff*wallw%nodetemp(:,0) + d_traf + d_ac_canyon + infl*can*iroomtemp)                   & 
                     / ( aa + bb + cc + dd + ee + ff + infl*can )
 
       ! ---1.6: Finalise infiltration fluxes with new canyontemp -----------------
       int_infilflux = infl*(d_canyontemp-iroomtemp)
       int_infilfg = can*int_infilflux
 
-      if (l==ncyits) then
+      if ( l==ncyits ) then
         
         ! ---1.7: Calculate internal conducted flux (ggint) in final loop -----
         call calc_ggint(fp_slab%depth(:,nl),fp_slab%volcp(:,nl),fp_slab%lambda(:,nl),   &
