@@ -97,7 +97,7 @@ private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebalb1,           &
        atebnewangle1,atebccangle,atebdisable,atebcd,                                   &
        atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord,atebdeftype,  &
-       atebhydro,atebenergy,atebloadd,atebsaved,atebmisc
+       atebhydro,atebenergy,atebloadd,atebsaved,atebmisc,atebdeftype_export
 public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,vegmode,  &
        soilunder,conductmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,ncyits,nfgits,tol,alpha, &
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
@@ -124,7 +124,7 @@ integer, save :: imax = 0       ! Emulate OMP
 integer, dimension(:), allocatable, save :: ufull_g
 logical, save :: ateb_active = .false.
 logical, dimension(:,:), allocatable, save :: upack_g
-real, dimension(:,:), allocatable, save :: atebdwn ! These variables are for CCAM onthefly.f
+real, dimension(:,:), allocatable, save :: atebdwn ! This array is for CCAM onthefly.f
 real, dimension(0:220), save :: table
 
 type facetdata
@@ -1288,7 +1288,7 @@ logical found
 character(len=*), intent(in) :: paramname
 character(len=20) :: vname
 
-if ( diag>=1 ) write(6,*) "Load aTEB parameters ",trim(paramname)
+if ( diag>=1 ) write(6,*) "Load aTEB parameter: ",trim(paramname)
 if ( .not.ateb_active ) return
 
 select case(paramname)
@@ -1341,6 +1341,7 @@ select case(paramname)
           write(6,*) "ERROR: Urban type is out of range"
           stop 
         end if
+        cnveg_g(tile)%sigma = cnveg_g(tile)%sigma*(1.-f_g(tile)%sigmabld)/(1.-paramdata(itmp(1:ufull_g(tile))))
         f_g(tile)%sigmabld = paramdata(itmp(1:ufull_g(tile)))
       end if
     end do  
@@ -1729,6 +1730,306 @@ end do
 
 return
 end subroutine atebdeftype
+
+subroutine atebdeftype_export(paramdata,paramname,diag)
+
+implicit none
+
+integer, intent(in) :: diag
+integer tile, is, ie, i
+real, dimension(ifull), intent(inout) :: paramdata
+logical found
+character(len=*), intent(in) :: paramname
+character(len=20) :: vname
+
+if ( diag>=1 ) write(6,*) "Export aTEB parameter: ",trim(paramname)
+if ( .not.ateb_active ) return
+
+select case(paramname)
+  case('bldheight')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_g(tile)%bldheight,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('hwratio')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax 
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_g(tile)%hwratio,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do
+  case('sigvegc')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(cnveg_g(tile)%sigma*(1.-f_g(tile)%sigmabld),upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('sigmabld')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax 
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_g(tile)%sigmabld,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('industryfg')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_g(tile)%industryfg,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('trafficfg')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_g(tile)%trafficfg,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('roofalpha')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_roof(tile)%alpha,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('wallalpha')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_wall(tile)%alpha,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('roadalpha')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax 
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_road(tile)%alpha,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('roofemiss')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax 
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_roof(tile)%emiss,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('wallemiss')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax 
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_wall(tile)%emiss,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('roademiss')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_road(tile)%emiss,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do   
+  case('vegalphac')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax 
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(cnveg_g(tile)%alpha,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('zovegc')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(cnveg_g(tile)%zo,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('infilach')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_g(tile)%infilach,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case('intgains')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        paramdata(is:ie)=unpack(f_g(tile)%intgains_flr,upack_g(:,tile),paramdata(is:ie))
+      end if
+    end do  
+  case default
+    found = .false.
+    do i = 1,4
+      write(vname,'("roofthick",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax
+          if ( ufull_g(tile)>0 ) then
+            paramdata(is:ie)=unpack(f_roof(tile)%depth(:,i),upack_g(:,tile),paramdata(is:ie))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("roofcp",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax 
+          if ( ufull_g(tile)>0 ) then
+            paramdata(is:ie)=unpack(f_roof(tile)%volcp(:,i),upack_g(:,tile),paramdata(is:ie))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("roofcond",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            paramdata(is:ie)=unpack(f_roof(tile)%lambda(:,i),upack_g(:,tile),paramdata(is:ie))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("wallthick",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax 
+          if ( ufull_g(tile)>0 ) then
+            paramdata(is:ie)=unpack(f_wall(tile)%depth(:,i),upack_g(:,tile),paramdata(is:ie))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("wallcp",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax 
+          if ( ufull_g(tile)>0 ) then
+            paramdata(is:ie)=unpack(f_wall(tile)%volcp(:,i),upack_g(:,tile),paramdata(is:ie))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("wallcond",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax
+          if ( ufull_g(tile)>0 ) then
+            paramdata(is:ie)=unpack(f_wall(tile)%lambda(:,i),upack_g(:,tile),paramdata(is:ie))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("roadthick",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax
+          if ( ufull_g(tile)>0 ) then
+            paramdata(is:ie)=unpack(f_road(tile)%depth(:,i),upack_g(:,tile),paramdata(is:ie))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("roadcp",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            paramdata(is:ie)=unpack(f_road(tile)%volcp(:,i),upack_g(:,tile),paramdata(is:ie))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("roadcond",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax
+          if ( ufull_g(tile)>0 ) then
+            paramdata(is:ie)=unpack(f_road(tile)%lambda(:,i),upack_g(:,tile),paramdata(is:ie))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("slabthick",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax
+          if ( ufull_g(tile)>0 ) then
+            paramdata(is:ie)=unpack(f_slab(tile)%depth(:,i),upack_g(:,tile),paramdata(is:ie))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("slabcp",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax
+          if ( ufull_g(tile)>0 ) then
+            paramdata(is:ie)=unpack(f_slab(tile)%volcp(:,i),upack_g(:,tile),paramdata(is:ie))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+      write(vname,'("slabcond",(I1.1))') i
+      if ( trim(paramname)==trim(vname) ) then
+        do tile = 1,ntiles
+          is = (tile-1)*imax + 1
+          ie = tile*imax  
+          if ( ufull_g(tile)>0 ) then
+            paramdata(is:ie)=unpack(f_slab(tile)%lambda(:,i),upack_g(:,tile),paramdata(is:ie))
+          end if
+        end do 
+        found = .true.
+        exit
+      end if
+    end do
+    if ( .not.found ) then
+      write(6,*) "ERROR: Unknown aTEB parameter name ",trim(paramname)
+      stop
+    end if  
+end select
+
+return
+end subroutine atebdeftype_export
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

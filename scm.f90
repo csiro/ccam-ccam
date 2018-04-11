@@ -2037,6 +2037,7 @@ end subroutine nudgescm
 
 subroutine outputscm(scm_mode,timeoutput,profileoutput,lsmoutput)
 
+use ateb
 use arrays_m                               ! Atmosphere dynamics prognostic arrays
 use const_phys                             ! Physical constants
 use dates_m                                ! Date data
@@ -2065,13 +2066,14 @@ real, dimension(1) :: aa      ! surface
 real, dimension(1,kl) :: bb   ! full levels
 real, dimension(1,kl+1) :: cc ! half levels
 real, dimension(1,3) :: dd    ! snow
+real, dimension(1,4) :: uu    ! urban
 real, dimension(1,kl+1) :: wtflux
 real, dimension(kl) :: zf, pf, rh
 real, dimension(kl+1) :: zh
 real, dimension(kl) :: qs, tmp
 integer, save :: timencid, profilencid, lsmncid
 integer, save :: iarch = 1
-integer zfdim, zhdim, zsdim, tdim_time, tdim_prof
+integer zfdim, zhdim, zsdim, tdim_time, tdim_prof, udim
 integer, dimension(2) :: jdim
 integer, dimension(2) :: spos, npos
 integer icy, icm, icd, ich, icmi, ics
@@ -2120,7 +2122,11 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_attg(timencid,'snowlayers','1-3')
     call ccnf_put_attg(timencid,'surfaceprog','temp,moisture,ice,canopywater,snowtemp,snowmass,snowage')
     
+    call ccnf_def_dim(timencid,'urban_layer',4,udim)
     call ccnf_def_dimu(timencid,'time',tdim_time)
+    
+    jdim(1) = udim
+    call ccnf_def_var(timencid,'urban_layer','float',1,jdim(1:1),idnt)
 
     jdim(1) = tdim_time
     call ccnf_def_var(timencid,'time','float',1,jdim(1:1),idnt)
@@ -2163,6 +2169,11 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'latent heat flux (liq+sol)'
     call ccnf_def_var(timencid,'lhf','float',1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','W m-2')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = 'Anthropogenic heat flux'
+    call ccnf_def_var(timencid,'qf','float',1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','W m-2')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
@@ -2546,8 +2557,101 @@ if ( scm_mode=="sublime" ) then
     ! call ccnf_put_att(timencid,idnt,'long_name',lname)
     ! call ccnf_put_att(timencid,idnt,'units','m^2/s^2')  
     ! call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-
+    lname = "Sky view factor"
+    call ccnf_def_var(timencid,'svf','float',1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','none')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "Aspect ratio"
+    call ccnf_def_var(timencid,'asr','float',1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','none')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "Urban surface cover fraction"
+    call ccnf_def_var(timencid,'urf','float',1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','none')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "Roof height"
+    call ccnf_def_var(timencid,'rfh','float',1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','m')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "Standard deviation of roof heights"
+    call ccnf_def_var(timencid,'sd_rfh','float',1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','m')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)   
+    lname = "Emissivity wall"
+    call ccnf_def_var(timencid,'emis_w','float',1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','none')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "Emissivity road"
+    call ccnf_def_var(timencid,'emis_g','float',1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','none')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)   
+    lname = "Emissivity roof"
+    call ccnf_def_var(timencid,'emis_r','float',1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','none')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "Albedo wall"
+    call ccnf_def_var(timencid,'alb_w','float',1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','none')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)   
+     lname = "Albedo road"
+    call ccnf_def_var(timencid,'alb_g','float',1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','none')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "Albedo roof"
+    call ccnf_def_var(timencid,'alb_r','float',1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','none')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    jdim(1) = udim
+    jdim(2) = tdim_time
+    lname = "Thermal conductivity wall"
+    call ccnf_def_var(timencid,'thc_w','float',2,jdim(1:2),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','J/m/s/K')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "Thermal conductivity road"
+    call ccnf_def_var(timencid,'thc_g','float',2,jdim(1:2),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','J/m/s/K')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "Thermal conductivity roof"
+    call ccnf_def_var(timencid,'thc_r','float',2,jdim(1:2),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','J/m/s/K')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "Heat capacity wall"
+    call ccnf_def_var(timencid,'hc_w','float',2,jdim(1:2),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','J/m^3/K')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "Heat capacity road"
+    call ccnf_def_var(timencid,'hc_g','float',2,jdim(1:2),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','J/m^3/K')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "Heat capacity roof"
+    call ccnf_def_var(timencid,'hc_r','float',2,jdim(1:2),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','J/m^3/K')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    
     call ccnf_enddef(timencid)
+    
+    uu(1,:) = (/ 1., 2., 3., 4. /)
+    spos(1) = 1
+    npos(1) = 4
+    call ccnf_put_vara(timencid,'urban_layer',spos(1),npos(1),uu(1,:))
+    
     
     write(6,*) "Creating profile output file"  
     call ccnf_create(profileoutput,profilencid)
@@ -2875,6 +2979,7 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_vara(timencid,'qup',iarch,aa(1))
     call ccnf_put_vara(timencid,'shf',iarch,aa(1))
     call ccnf_put_vara(timencid,'lhf',iarch,aa(1))
+    call ccnf_put_vara(timencid,'qf',iarch,aa(1))
     ! call ccnf_put_vara(timencid,'evap',iarch,aa(1))
     call ccnf_put_vara(timencid,'ustar',iarch,aa(1))
     ! call ccnf_put_vara(timencid,'rain',iarch,aa(1))
@@ -2951,6 +3056,29 @@ if ( scm_mode=="sublime" ) then
     ! call ccnf_put_vara(timencid,'vw_38m',iarch,aa(1))
     ! call ccnf_put_vara(timencid,'wt_38m',iarch,aa(1))
     ! call ccnf_put_vara(timencid,'TKE_38m',iarch,aa(1))
+    call ccnf_put_vara(timencid,'svf',iarch,aa(1))
+    call ccnf_put_vara(timencid,'asr',iarch,aa(1))
+    call ccnf_put_vara(timencid,'urf',iarch,aa(1))
+    call ccnf_put_vara(timencid,'rfh',iarch,aa(1))
+    call ccnf_put_vara(timencid,'sd_rfh',iarch,aa(1))
+    call ccnf_put_vara(timencid,'emis_w',iarch,aa(1))
+    call ccnf_put_vara(timencid,'emis_g',iarch,aa(1))
+    call ccnf_put_vara(timencid,'emis_r',iarch,aa(1))
+    call ccnf_put_vara(timencid,'alb_w',iarch,aa(1))
+    call ccnf_put_vara(timencid,'alb_g',iarch,aa(1))
+    call ccnf_put_vara(timencid,'alb_r',iarch,aa(1))
+     
+    spos(1) = 1
+    spos(2) = iarch
+    npos(1) = 4
+    npos(2) = 1
+    uu = nf90_fill_float
+    call ccnf_put_vara(timencid,'thc_w',spos(1:2),npos(1:2),uu)
+    call ccnf_put_vara(timencid,'thc_g',spos(1:2),npos(1:2),uu)
+    call ccnf_put_vara(timencid,'thc_r',spos(1:2),npos(1:2),uu)
+    call ccnf_put_vara(timencid,'hc_w',spos(1:2),npos(1:2),uu)
+    call ccnf_put_vara(timencid,'hc_g',spos(1:2),npos(1:2),uu)
+    call ccnf_put_vara(timencid,'hc_r',spos(1:2),npos(1:2),uu)
     
   else
       
@@ -2962,7 +3090,8 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_vara(timencid,'qup',iarch,aa(1))
     call ccnf_put_vara(timencid,'shf',iarch,fg(1))
     call ccnf_put_vara(timencid,'lhf',iarch,eg(1))
-    aa(:) = eg(:)*86400./hls ! this assumes sublimation
+    call ccnf_put_vara(timencid,'qf',iarch,anthropogenic_flux(1))
+    !aa(:) = eg(:)*86400./hls ! this assumes sublimation
     ! call ccnf_put_vara(timencid,'evap',iarch,aa(1))
     call ccnf_put_vara(timencid,'ustar',iarch,ustar(1))
     ! call ccnf_put_vara(timencid,'rain',iarch,precip(1))
@@ -3166,6 +3295,64 @@ if ( scm_mode=="sublime" ) then
     ! tmp=tkesave(1,:)
     ! call vout(tmp,aa(1),zf,38.,kl)
     ! call ccnf_put_vara(timencid,'TKE_38m',iarch,aa(1))
+    aa(1) = nf90_fill_float 
+    call ccnf_put_vara(timencid,'svf',iarch,aa(1))
+    call atebdeftype_export(aa(1:1),'hwratio',0)
+    call ccnf_put_vara(timencid,'asr',iarch,aa(1))
+    call atebdeftype_export(aa(1:1),'sigvegc',0)
+    aa(1) = 1. - aa(1) ! urban cover after removing canyon vegetation
+    call ccnf_put_vara(timencid,'urf',iarch,aa(1))
+    call atebdeftype_export(aa(1:1),'bldheight',0)
+    call ccnf_put_vara(timencid,'rfh',iarch,aa(1))
+    aa(1) = 0.
+    call ccnf_put_vara(timencid,'sd_rfh',iarch,aa(1))
+    call atebdeftype_export(aa(1:1),'wallemiss',0)
+    call ccnf_put_vara(timencid,'emis_w',iarch,aa(1))
+    call atebdeftype_export(aa(1:1),'roademiss',0)
+    call ccnf_put_vara(timencid,'emis_g',iarch,aa(1))
+    call atebdeftype_export(aa(1:1),'roofemiss',0)
+    call ccnf_put_vara(timencid,'emis_r',iarch,aa(1))
+    call atebdeftype_export(aa(1:1),'wallalpha',0)
+    call ccnf_put_vara(timencid,'alb_w',iarch,aa(1))
+    call atebdeftype_export(aa(1:1),'roadalpha',0)
+    call ccnf_put_vara(timencid,'alb_g',iarch,aa(1))
+    call atebdeftype_export(aa(1:1),'roofalpha',0)
+    call ccnf_put_vara(timencid,'alb_r',iarch,aa(1))
+     
+    spos(1) = 1
+    spos(2) = iarch
+    npos(1) = 4
+    npos(2) = 1
+    do k = 1,4
+      write(lname,'("wallcond",(I1.1))') k
+      call atebdeftype_export(uu(1:1,k),lname,0)  
+    end do
+    call ccnf_put_vara(timencid,'thc_w',spos(1:2),npos(1:2),uu)
+    do k = 1,4
+      write(lname,'("roadcond",(I1.1))') k
+      call atebdeftype_export(uu(1:1,k),lname,0)  
+    end do
+    call ccnf_put_vara(timencid,'thc_g',spos(1:2),npos(1:2),uu)
+    do k = 1,4
+      write(lname,'("roofcond",(I1.1))') k
+      call atebdeftype_export(uu(1:1,k),lname,0)  
+    end do
+    call ccnf_put_vara(timencid,'thc_r',spos(1:2),npos(1:2),uu)
+    do k = 1,4
+      write(lname,'("wallcp",(I1.1))') k
+      call atebdeftype_export(uu(1:1,k),lname,0)  
+    end do
+    call ccnf_put_vara(timencid,'hc_w',spos(1:2),npos(1:2),uu)
+    do k = 1,4
+      write(lname,'("roadcp",(I1.1))') k
+      call atebdeftype_export(uu(1:1,k),lname,0)  
+    end do
+    call ccnf_put_vara(timencid,'hc_g',spos(1:2),npos(1:2),uu)
+    do k = 1,4
+      write(lname,'("roofcp",(I1.1))') k
+      call atebdeftype_export(uu(1:1,k),lname,0)  
+    end do
+    call ccnf_put_vara(timencid,'hc_r',spos(1:2),npos(1:2),uu)
   end if
 
   call ccnf_put_vara(profilencid,'time',iarch,real(ktau)*dt)
