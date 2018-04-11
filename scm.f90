@@ -2860,12 +2860,10 @@ if ( scm_mode=="sublime" ) then
   qs(1:kl) = qsat(pf,t(1,:))
   rh(:) = qg(1,:)/qs(:)
 
-  wtflux(1,1) = 0.
-  do k=1,kl-1
-    wtflux(1,k+1) = wth_flux(1,k)*sigmh(k)**(rdry/cp)
+  do k=1,kl
+    wtflux(1,k) = wth_flux(1,k)*sigmh(k)**(rdry/cp)
   end do
-  wtflux(1,kl+1) = 0.
-
+  
   call ccnf_put_vara(timencid,'time',iarch,real(ktau)*dt)
 
   if ( ktau==0 ) then
@@ -3183,8 +3181,8 @@ if ( scm_mode=="sublime" ) then
   call ccnf_put_vara(profilencid,'th',spos(1:2),npos(1:2),bb)
   bb(:,:) = qg(:,:)/(1.+qg(:,:))
   call ccnf_put_vara(profilencid,'q',spos(1:2),npos(1:2),bb)
-  bb(:,:) = qlg(:,:) + qfg(:,:)
-  bb(:,:) = bb(:,:)/(1.+bb(:,:))
+  !bb(:,:) = qlg(:,:) + qfg(:,:)
+  !bb(:,:) = bb(:,:)/(1.+bb(:,:))
   ! call ccnf_put_vara(profilencid,'qc',spos(1:2),npos(1:2),bb)
   call ccnf_put_vara(profilencid,'u',spos(1:2),npos(1:2),u)
   call ccnf_put_vara(profilencid,'v',spos(1:2),npos(1:2),v)
@@ -3219,16 +3217,16 @@ if ( scm_mode=="sublime" ) then
   call ccnf_put_vara(profilencid,'ph',spos(1:2),npos(1:2),cc)
   cc(1,1:kl) = wtflux(1,1:kl)
   cc(1,kl+1) = 0.
-  call ccnf_put_vara(profilencid,'wt',spos(1:2),npos(1:2),wtflux)
+  call ccnf_put_vara(profilencid,'wt',spos(1:2),npos(1:2),cc)
   cc(1,1:kl) = wq_flux(1,1:kl)
   cc(1,kl+1) = 0.
-  call ccnf_put_vara(profilencid,'wq',spos(1:2),npos(1:2),wq_flux)
+  call ccnf_put_vara(profilencid,'wq',spos(1:2),npos(1:2),cc)
   cc(1,1:kl) = uw_flux(1,1:kl)
   cc(1,kl+1) = 0.
-  call ccnf_put_vara(profilencid,'uw',spos(1:2),npos(1:2),uw_flux)
+  call ccnf_put_vara(profilencid,'uw',spos(1:2),npos(1:2),cc)
   cc(1,1:kl) = vw_flux(1,1:kl)
   cc(1,kl+1) = 0.
-  call ccnf_put_vara(profilencid,'vw',spos(1:2),npos(1:2),vw_flux)
+  call ccnf_put_vara(profilencid,'vw',spos(1:2),npos(1:2),cc)
   ! cc(:,:) = nf90_fill_float
   ! call ccnf_put_vara(profilencid,'uu',spos(1:2),npos(1:2),cc)
   ! cc(:,:) = nf90_fill_float
