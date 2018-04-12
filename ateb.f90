@@ -23,7 +23,7 @@
 ! The snow scheme is based on Douville, Royer and Mahfouf, Climate Dynamics, 12, p21 (1995)
 ! The in-canyon vegetation is based on Kowalczyk et al, DAR Tech Paper 32 (1994), but simplified by assuming sigmaf=1.
 
-! The important differences from previous models include an alternative formaulation of the conduction model by
+! The important differences from previous models include an alternative formulation of the conduction model by
 ! Lipson et al (2017), an alternative formulation for in-canyon aerodynamical resistances based on Harman, et al (2004)
 ! and Kanada et al (2007), combined with a second canyon wall for completeness.  The scheme includes nrefl order
 ! reflections in the canyon for both longwave and shortwave radiation (in TEB infinite reflections are used for
@@ -53,15 +53,15 @@
 !     call atebalb1          ! returns net urban albedo (i.e., default split=0)
 !     ...
 !     call atebcalc          ! calculates urban temperatures, fluxes, etc and blends with input
-!     call atebcd            ! returns urban drag coefficent (or use atebzo for roughness length)
+!     call atebcd            ! returns urban drag coefficient (or use atebzo for roughness length)
 !     call atebscrnout       ! returns screen level diagnostics
 !     ...
 !   end do
 !   ...
 !   call atebsavem           ! to save current state arrays (for use by tebloadm)
-!   call atebend             ! to deallocate memory before quiting
+!   call atebend             ! to deallocate memory before quitting
 
-! only atebinit and atebcalc are manditory.  All other subroutine calls are optional.
+! only atebinit and atebcalc are mandatory.  All other subroutine calls are optional.
 
 
 ! DEPENDICES:
@@ -180,8 +180,8 @@ type pdiagdata
   real, dimension(:), allocatable :: tscrn, qscrn, uscrn, u10, emiss, snowmelt
   real, dimension(:), allocatable :: bldheat, bldcool, traf, intgains_full
   real(kind=8), dimension(:), allocatable :: surferr, atmoserr, surferr_bias, atmoserr_bias
-  real(kind=8), dimension(:), allocatable :: storagetot_net
-  real(kind=8), dimension(:,:), allocatable :: storagetot_road, storagetot_walle, storagetot_wallw, storagetot_roof
+  real(kind=8), dimension(:), allocatable :: storage_flux
+  ! real(kind=8), dimension(:,:), allocatable :: storagetot_road, storagetot_walle, storagetot_wallw, storagetot_roof
 end type pdiagdata
 
 type(facetdata), dimension(:), allocatable,   save :: roof_g, road_g, walle_g, wallw_g, slab_g, intm_g, room_g
@@ -203,7 +203,7 @@ integer, save      :: acmeth=1             ! AC heat pump into canyon (0=Off, 1=
 integer, save      :: intairtmeth=1        ! Internal air temperature (0=fixed, 1=implicit varying)
 integer, save      :: intmassmeth=2        ! Internal thermal mass (0=none, 1=one floor, 2=dynamic floor number)
 integer, save      :: cvcoeffmeth=1        ! Internal surface convection heat transfer coefficient (0=DOE,1=ISO6946,2=fixed)
-integer, save      :: statsmeth=1          ! Use statistically based diurnal QF ammendments (0=off, 1=on) from Thatcher 2007 
+integer, save      :: statsmeth=1          ! Use statistically based diurnal QF amendments (0=off, 1=on) from Thatcher 2007 
 integer, save      :: behavmeth=1          ! Use smooth behavioural functions for AC and windows (0=off,1=on) from Rijal 2007
 integer, save      :: infilmeth=1          ! Method to calculate infiltration rate (0=constant,1=EnergyPlus/BLAST,2=ISO)
 integer, save      :: nrefl=3              ! Number of canyon reflections for radiation (default=3)
@@ -221,14 +221,14 @@ integer, save      :: iqt=314              ! Diagnostic point (in terms of host 
 ! sectant solver parameters
 integer, save      :: ncyits=6             ! Number of iterations for balancing canyon sensible and latent heat fluxes (default=6)
 integer, save      :: nfgits=3             ! Number of iterations for balancing veg and snow energy budgets (default=3)
-real, save         :: tol=0.001            ! Sectant method tolarance for sensible heat flux (default=0.001)
+real, save         :: tol=0.001            ! Sectant method tolerance for sensible heat flux (default=0.001)
 real, save         :: alpha=1.             ! Weighting for determining the rate of convergence when calculating canyon temperatures
 real(kind=8), save :: energytol=0.005_8    ! Tolerance for acceptable energy closure in each timestep
 real, save         :: urbtemp=290.         ! reference temperature to improve precision
 ! physical parameters
 real, parameter    :: waterden=1000.       ! water density (kg m^-3)
 real, parameter    :: icelambda=2.22       ! conductance of ice (W m^-1 K^-1)
-real, parameter    :: aircp=1004.64        ! Heat capapcity of dry air (J kg^-1 K^-1)
+real, parameter    :: aircp=1004.64        ! Heat capacity of dry air (J kg^-1 K^-1)
 real, parameter    :: icecp=2100.          ! Heat capacity of ice (J kg^-1 K^-1)
 real, parameter    :: grav=9.80616         ! gravity (m s^-2)
 real, parameter    :: vkar=0.4             ! von Karman constant
@@ -237,11 +237,11 @@ real, parameter    :: lf=3.337e5           ! Latent heat of fusion (J kg^-1)
 real, parameter    :: ls=lv+lf             ! Latent heat of sublimation (J kg^-1)
 real, parameter    :: pi=3.14159265        ! pi (must be rounded down for shortwave)
 real, parameter    :: rd=287.04            ! Gas constant for dry air
-real, parameter    :: rv=461.5             ! Gas constant for water vapor
+real, parameter    :: rv=461.5             ! Gas constant for water vapour
 real, parameter    :: sbconst=5.67e-8      ! Stefan-Boltzmann constant
 ! snow parameters
 real, save         :: zosnow=0.001         ! Roughness length for snow (m)
-real, save         :: snowemiss=1.         ! snow emissitivity
+real, save         :: snowemiss=1.         ! snow emissivity
 real, save         :: maxsnowalpha=0.85    ! max snow albedo
 real, save         :: minsnowalpha=0.5     ! min snow albedo
 real, save         :: maxsnowden=300.      ! max snow density (kg m^-3)
@@ -305,7 +305,7 @@ contains
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine prepare the arrays used by the aTEB scheme
 ! This is a compulsory subroutine that must be called during
-! model initalisation
+! model initialisation
 
 subroutine atebinit(ifin,sigu,diag)
 
@@ -407,7 +407,7 @@ do tile = 1,ntiles
   allocate(p_g(tile)%u10(ufull_g(tile)),p_g(tile)%emiss(ufull_g(tile)))
   allocate(p_g(tile)%bldheat(ufull_g(tile)),p_g(tile)%bldcool(ufull_g(tile)),p_g(tile)%traf(ufull_g(tile)))
   allocate(p_g(tile)%intgains_full(ufull_g(tile)))
-  allocate(p_g(tile)%surferr(ufull_g(tile)),p_g(tile)%atmoserr(ufull_g(tile)))
+  allocate(p_g(tile)%surferr(ufull_g(tile)),p_g(tile)%atmoserr(ufull_g(tile)),p_g(tile)%storage_flux(ufull_g(tile)))
   allocate(p_g(tile)%surferr_bias(ufull_g(tile)),p_g(tile)%atmoserr_bias(ufull_g(tile)))
   allocate(p_g(tile)%snowmelt(ufull_g(tile)))
 
@@ -526,6 +526,7 @@ do tile = 1,ntiles
     p_g(tile)%atmoserr=0._8
     p_g(tile)%surferr_bias=0._8
     p_g(tile)%atmoserr_bias=0._8
+    p_g(tile)%storage_flux=0._8
 
   end if
   
@@ -615,7 +616,7 @@ if ( ateb_active ) then
     deallocate(p_g(tile)%lzom,p_g(tile)%lzoh,p_g(tile)%cndzmin,p_g(tile)%cduv,p_g(tile)%cdtq)
     deallocate(p_g(tile)%tscrn,p_g(tile)%qscrn,p_g(tile)%uscrn,p_g(tile)%u10,p_g(tile)%emiss)
     deallocate(p_g(tile)%surferr,p_g(tile)%atmoserr,p_g(tile)%surferr_bias,p_g(tile)%atmoserr_bias)
-    deallocate(p_g(tile)%bldheat,p_g(tile)%bldcool,p_g(tile)%traf,p_g(tile)%intgains_full)
+    deallocate(p_g(tile)%bldheat,p_g(tile)%bldcool,p_g(tile)%traf,p_g(tile)%intgains_full,p_g(tile)%storage_flux)
     deallocate(p_g(tile)%snowmelt)
 
   end do
@@ -984,7 +985,7 @@ real, dimension(maxtype) ::   csigmabld=(/ 0.45, 0.40, 0.45, 0.46, 0.65, 0.40, 0
 real, dimension(maxtype) ::  cbldheight=(/   6.,   4.,   6.,   8.,  18.,   4.,   8.,  12. /)
 ! Building height to width ratio
 real, dimension(maxtype) ::    chwratio=(/  0.4,  0.2,  0.4,  0.6,   2.,  0.5,   1.,  1.5 /)
-! Industral sensible heat flux (W m^-2)
+! Industrial sensible heat flux (W m^-2)
 real, dimension(maxtype) :: cindustryfg=(/   0.,   0.,   0.,   0.,   0.,  10.,  20.,  30. /)
 ! Internal gains sensible heat flux [floor] (W m^-2)
 real, dimension(maxtype) :: cintgains=(/ 5.,   5.,   5.,   5.,   5.,   5.,   5.,   5. /)
@@ -1002,17 +1003,17 @@ real, dimension(maxtype) ::  croadalpha=(/ 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0
 real, dimension(maxtype) ::  cvegalphac=(/ 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20 /)
 ! Roof veg albedo
 real, dimension(maxtype) ::  cvegalphar=(/ 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20 /)
-! Roof emissitivity
+! Roof emissivity
 real, dimension(maxtype) ::  croofemiss=(/ 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90 /)
-! Wall emissitivity
+! Wall emissivity
 real, dimension(maxtype) ::  cwallemiss=(/ 0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85 /) 
-! Road emissitivity
+! Road emissivity
 real, dimension(maxtype) ::  croademiss=(/ 0.94, 0.94, 0.94, 0.94, 0.94, 0.94, 0.94, 0.94 /)
-! Slab emissitivity
+! Slab emissivity
 real, dimension(maxtype) ::  cslabemiss=(/ 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90 /) 
-! Canyon veg emissitivity
+! Canyon veg emissivity
 real, dimension(maxtype) ::  cvegemissc=(/ 0.96, 0.96, 0.96, 0.96, 0.96, 0.96, 0.96, 0.96 /)
-! Roof veg emissitivity
+! Roof veg emissivity
 real, dimension(maxtype) ::  cvegemissr=(/ 0.96, 0.96, 0.96, 0.96, 0.96, 0.96, 0.96, 0.96 /)
 ! Green roof soil depth
 real, dimension(maxtype) ::   cvegdeptr=(/ 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10 /)
@@ -2509,6 +2510,11 @@ select case(mode)
     dtmp = pd%bldheat + pd%bldcool + pd%traf + fp%industryfg + pd%intgains_full
     ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
     o_data = unpack(ctmp, upack, o_data)
+  case("storage")
+    ctmp = pack(o_data, upack)
+    dtmp = pd%storage_flux
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
   case default
     write(6,*) "ERROR: Unknown atebenergy mode ",trim(mode)
     stop
@@ -2880,7 +2886,7 @@ return
 end subroutine atebspitter
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This subroutine calculates the urban contrabution to albedo.
+! This subroutine calculates the urban contribution to albedo.
 ! (selected grid points only)
 
 ! raw   (.false.=blend, .true.=output only)
@@ -3136,7 +3142,7 @@ return
 end subroutine atebccangle
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This subroutine calcuates screen level diagnostics
+! This subroutine calculates screen level diagnostics
 !
 
 subroutine atebscrnout(tscrn,qscrn,uscrn,u10,diag,raw)
@@ -3525,13 +3531,13 @@ d_rfdzmin = max(a_zmin-fp%bldheight,zoroof+0.2,rfveg%zo+0.2) ! distance to roof 
 pd%cndzmin = max(a_zmin-refheight*fp%bldheight,1.5,zom+0.2)  ! distance to canyon displacement height
 pd%lzom    = log(pd%cndzmin/zom)
 
-! calculate canyon wind speed and bulk transfer coefficents
+! calculate canyon wind speed and bulk transfer coefficients
 ! (i.e., acond = 1/(aerodynamic resistance) )
 ! some terms are updated when calculating canyon air temperature
 select case(resmeth)
   case(0) ! Masson (2000)
     cu=exp(-0.25*fp%effhwratio)
-    abase_road =cu ! bulk transfer coefficents are updated in canyonflux
+    abase_road =cu ! bulk transfer coefficients are updated in canyonflux
     abase_walle=cu
     abase_wallw=cu
     abase_rdsn =cu
@@ -3560,7 +3566,7 @@ select case(resmeth)
     abase_rdsn=a*wr                  ! road snow bulk transfer
   case(2) ! Kusaka et al (2001)
     cu=exp(-0.386*fp%effhwratio)
-    abase_road =cu ! bulk transfer coefficents are updated in canyonflux
+    abase_road =cu ! bulk transfer coefficients are updated in canyonflux
     abase_walle=cu
     abase_wallw=cu
     abase_rdsn =cu
@@ -3650,7 +3656,7 @@ ggext_road = (1.-d_rdsndelta)*(sg_road+rg_road-eg_road+aircp*a_rho*d_canyontemp*
 ! define rgint_zero
 rgint_zero = 0.
 
-! tridiagonal solver coefficents for calculating roof, road and wall temperatures
+! tridiagonal solver coefficients for calculating roof, road and wall temperatures
 ggext_impl = (1.-d_rfsndelta)*aircp*a_rho*acond_roof  ! later update fg_roof with final roof skin T
 call solvetridiag(ggext_roof,ggint_roof,rgint_roof,ggext_impl,roof%nodetemp,ddt,      &
                   fp_roof%depth,fp_roof%volcp,fp_roof%lambda,ufull)
@@ -3782,8 +3788,8 @@ return
 end subroutine atebeval
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Estimate of internal skin surface temperatures at tau+1 using a taylor expansion
-! This taylor expansion is necassary for stability when 
+! Estimate of internal skin surface temperatures at tau+1 using a Taylor expansion
+! This Taylor expansion is necessary for stability when 
 ! internal wall/roof layer has low heat capacity (insulation).
 ! May be depreciated in future.
 
@@ -3912,7 +3918,7 @@ real, dimension(ufull), intent(in) :: int_infilflux,d_ac_inside
 real(kind=8), dimension(ufull) :: d_roofflux,d_walleflux,d_wallwflux,d_roadflux,d_slabflux,d_intmflux,d_roomflux 
 real(kind=8), dimension(ufull) :: d_roofstor,d_wallestor,d_wallwstor,d_roadstor,d_slabstor,d_intmstor,d_roomstor
 real(kind=8), dimension(ufull) :: d_faceterr
-real(kind=8), dimension(ufull) :: d_storageflux,d_atmosflux
+real(kind=8), dimension(ufull) :: d_atmosflux
 real(kind=8), dimension(ufull,nl) :: roadstorage_prev, roofstorage_prev, wallestorage_prev, wallwstorage_prev
 real(kind=8), dimension(ufull,nl) :: slabstorage_prev, intmstorage_prev
 real(kind=8), dimension(ufull,1) :: roomstorage_prev
@@ -4008,15 +4014,15 @@ else
   d_roomstor = 0._8
 end if
 
-d_storageflux = d_roofstor*real(fp%sigmabld,8)*(1._8-real(rfveg%sigma,8))           &
-              + d_roadstor*(1._8-real(fp%sigmabld,8))*(1._8-real(cnveg%sigma,8))    &
-              + d_wallestor*(1._8-real(fp%sigmabld,8))*real(fp%hwratio,8)           &
-              + d_wallwstor*(1._8-real(fp%sigmabld,8))*real(fp%hwratio,8)           &
-              + d_slabstor*real(fp%sigmabld,8)                                      &
-              + d_intmstor*real(fp%sigmabld,8)*real(fp%intmassn,8)                  &
-              + d_roomstor*real(fp%sigmabld,8)
+pd%storage_flux = d_roofstor*real(fp%sigmabld,8)*(1._8-real(rfveg%sigma,8))           &
+                + d_roadstor*(1._8-real(fp%sigmabld,8))*(1._8-real(cnveg%sigma,8))    &
+                + d_wallestor*(1._8-real(fp%sigmabld,8))*real(fp%hwratio,8)           &
+                + d_wallwstor*(1._8-real(fp%sigmabld,8))*real(fp%hwratio,8)           &
+                + d_slabstor*real(fp%sigmabld,8)                                      &
+                + d_intmstor*real(fp%sigmabld,8)*real(fp%intmassn,8)                  &
+                + d_roomstor*real(fp%sigmabld,8)
 
-! print *, 'd_storageflux',d_storageflux
+! print *, 'storageflux',pd%storage_flux
 ! print *, 'roof  Qs' ,real(d_roofstor,8)*real(fp%sigmabld,8)*(1-real(rfveg%sigma,8))      
 ! print *, 'road  Qs' ,real(d_roadstor,8)*(1-real(fp%sigmabld,8))*(1-real(cnveg%sigma,8))  
 ! print *, 'walle Qs' ,real(d_wallestor,8)*(1-real(fp%sigmabld,8))*real(fp%hwratio,8)       
@@ -4031,7 +4037,7 @@ d_storageflux = d_roofstor*real(fp%sigmabld,8)*(1._8-real(rfveg%sigma,8))       
 d_atmosflux = (real(a_sg,8)-real(a_sg,8)*real(u_alb,8)) + (real(a_rg,8)-real(sbconst,8)*(real(u_ts,8)+urbtemp)**4) &
             - (real(u_fg,8)+real(u_eg,8)+real(u_melt,8)) + real(pd%bldheat,8) + real(pd%bldcool,8)                 & 
             + real(pd%traf,8) + real(fp%industryfg,8) + real(pd%intgains_full,8)
-pd%atmoserr = d_storageflux - d_atmosflux
+pd%atmoserr = pd%storage_flux - d_atmosflux
 
 if ( any(abs(pd%atmoserr)>=energytol) ) then
   write(6,*) "aTEB energy not conserved! Atmos. error:", maxval(abs(pd%atmoserr))
@@ -4105,7 +4111,7 @@ return
 end subroutine getqsat
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-! Interface for calcuating ustar and thetastar
+! Interface for calculating ustar and thetastar
 
 subroutine getinvres(invres,cd,z_on_l,olzoh,ilzom,zmin,sthetav,thetav,a_umag,mode)
 
@@ -4128,7 +4134,7 @@ return
 end subroutine getinvres
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate stability functions using Dyerhicks
+! Calculate stability functions using Dyer-Hicks
 
 subroutine dyerhicks(integralh,z_on_l,cd,thetavstar,thetav,sthetav,umagin,zmin,ilzom,lna,mode)
 
@@ -4230,7 +4236,7 @@ return
 end subroutine getlna
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! calculate shortwave radiation coefficents (modified to include 2nd wall)
+! calculate shortwave radiation coefficients (modified to include 2nd wall)
 
 subroutine getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,fp_hwratio,   &
                       fp_effhwratio,fp_vangle,fp_hangle,fp_fbeam,fp_vegsigmac,fp_roadalpha,fp_vegalphac,fp_wallalpha, &
@@ -4252,7 +4258,7 @@ real, dimension(size(rdsndelta)) :: nwalles,nwallws,nroads
 wallpsi=0.5*(fp_effhwratio+1.-sqrt(fp_effhwratio*fp_effhwratio+1.))/fp_effhwratio
 roadpsi=sqrt(fp_effhwratio*fp_effhwratio+1.)-fp_effhwratio
 
-! integrate through 180 deg instead of 360 deg.  Hence paritioning to east and west facing walls
+! integrate through 180 deg instead of 360 deg.  Hence partitioning to east and west facing walls
 where (fp_vangle>=0.5*pi)
   walles=0.
   wallws=1./fp_hwratio
@@ -4297,7 +4303,7 @@ return
 end subroutine getswcoeff
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! calculate longwave radiation coefficents (modified to include 2nd wall)
+! calculate longwave radiation coefficients (modified to include 2nd wall)
 
 subroutine getlwcoeff(d_netemiss,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,d_cwr,d_rdsndelta,wallpsi,roadpsi,fp_vegsigmac, &
                       fp_roademiss,fp_vegemissc,fp_wallemiss)
@@ -4458,7 +4464,7 @@ sndepth  = rdhyd%snow*waterden/rdhyd%den
 snlambda = icelambda*(rdhyd%den/waterden)**1.88
 
 ! first guess for canyon and room air temperature 
-! also guess for canyon veg, snow temperatures and water vapor mixing ratio
+! also guess for canyon veg, snow temperatures and water vapour mixing ratio
 d_canyontemp    = d_tempc
 d_canyonmix     = d_mixrc
 cnveg%temp      = d_tempc
@@ -4475,7 +4481,7 @@ d_netrad=sbconst*(d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                   
         +(1.-d_rdsndelta)*(1.-cnveg%sigma)*fp_road%emiss*(road%nodetemp(:,0)+urbtemp)**4 &
         +(1.-d_rdsndelta)*cnveg%sigma*cnveg%emiss*(cnveg%temp+urbtemp)**4)
 
-! Solve for canyon air temperature and water vapor mixing ratio
+! Solve for canyon air temperature and water vapour mixing ratio
 do l = 1,ncyits
   !  solve for aerodynamical resistance between canyon and atmosphere  
   ! assume zoh=zom when coupling to canyon air temperature
@@ -4561,7 +4567,7 @@ do l = 1,ncyits
   ! MJT notes - This could be included within the iterative solver for snow and vegetation temperatures.
   ! However, it creates a (weak) coupling between these two variables and therefore could require
   ! a multivariate root finding method (e.g,. Broyden's method). Instead we explicitly solve for d_netrad, 
-  ! which allows us to decouple the solutions for snow and vegtation temperatures.
+  ! which allows us to decouple the solutions for snow and vegetation temperatures.
   d_netrad=sbconst*(d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                             &
           +(1.-d_rdsndelta)*((1.-cnveg%sigma)*fp_road%emiss*(road%nodetemp(:,0)+urbtemp)**4 &
           +cnveg%sigma*cnveg%emiss*(cnveg%temp+urbtemp)**4))
@@ -4862,8 +4868,8 @@ end do
 ! print *, ' '
 
 ! solve for canyon sensible heat flux
-fg_walle = aircp*a_rho*(walle%nodetemp(:,0)-d_canyontemp)*acond_walle*fp%coeffbldheight ! canyon vegetation blocks turblent flux
-fg_wallw = aircp*a_rho*(wallw%nodetemp(:,0)-d_canyontemp)*acond_wallw*fp%coeffbldheight ! canyon vegetation blocks turblent flux
+fg_walle = aircp*a_rho*(walle%nodetemp(:,0)-d_canyontemp)*acond_walle*fp%coeffbldheight ! canyon vegetation blocks turbulent flux
+fg_wallw = aircp*a_rho*(wallw%nodetemp(:,0)-d_canyontemp)*acond_wallw*fp%coeffbldheight ! canyon vegetation blocks turbulent flux
 fg_road  = aircp*a_rho*(road%nodetemp(:,0)-d_canyontemp)*acond_road
 fg_vegc  = sg_vegc+rg_vegc-eg_vegc
 fg_rdsn  = sg_rdsn+rg_rdsn-eg_rdsn-lf*rdsnmelt-gardsn*(1.-cnveg%sigma)
@@ -5010,7 +5016,7 @@ snevap=min(a_rho*max(0.,rdsnqsat-d_canyonmix)*acond_rdsn,rdhyd%snow/ddt+a_snd-rd
 eg_rdsn=lv*snevap
 rdsnmelt=rdsnmelt+snevap
 gardsn=(rdsntemp-road%nodetemp(:,0))/ldratio ! use road temperature to represent canyon bottom surface temperature
-                                             ! (i.e., we have ommited soil under vegetation temperature)
+                                             ! (i.e., we have omitted soil under vegetation temperature)
 
 ! vegetation energy budget error term
 evct(:,1) = sg_vegc+rg_vegc-fg_vegc-eg_vegc
@@ -5316,7 +5322,7 @@ real, dimension(ufull), intent(in) :: a_udir
 type(fparmdata), intent(in) :: fp
 
 ! rotate wind direction so that all cases are between 0 and pi
-! walls are fliped at the end of the subroutine to account for additional pi rotation
+! walls are flipped at the end of the subroutine to account for additional pi rotation
 where (a_udir>=0.)
   wdir=a_udir
 elsewhere
@@ -5533,7 +5539,7 @@ dh=max(2.*w/3.-h,0.)
 u0=exp(-0.9*sqrt(13./4.)*dh/h)
 
 zolog=log(max(h,z0+0.2)/z0)
-! MJT suggestion (cuven is multipled by dh to avoid divide by zero)
+! MJT suggestion (cuven is multiplied by dh to avoid divide by zero)
 cuven=h-(h-dh)*log(max(h-dh,z0+0.2)/z0)/zolog-dh/zolog
 ! MJT cuven is back to the correct units of m/s
 cuven=max(cuven/h,(u0/a)*(1.-exp(-a*dh/h)))
@@ -6035,7 +6041,7 @@ type(fparmdata), intent(in) :: fp
 ! mean radiant temperature estimation
 mrt = 0.5*(fp%bldheight/(fp%bldwidth+fp%bldheight)*(walle%nodetemp(:,nl) + wallw%nodetemp(:,nl))) & 
     + 0.5*(fp%bldwidth/ (fp%bldwidth+fp%bldheight)*(roof%nodetemp(:,nl) + slab%nodetemp(:,nl)))
-! globe temperature approximation (average of mrt and air temperature) [Celcius]
+! globe temperature approximation (average of mrt and air temperature) [Celsius]
 xtemp = 0.5*(iroomtemp + mrt) + urbtemp - 273.15
 
 select case(behavmeth)
