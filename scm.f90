@@ -3295,7 +3295,8 @@ if ( scm_mode=="sublime" ) then
     ! tmp=tkesave(1,:)
     ! call vout(tmp,aa(1),zf,38.,kl)
     ! call ccnf_put_vara(timencid,'TKE_38m',iarch,aa(1))
-    aa(1) = nf90_fill_float 
+    call atebdeftype_export(aa(1:1),'hwratio',0)
+    aa(1) = sqrt(aa(1)*aa(1)+1.) - aa(1) ! skyview factor for road
     call ccnf_put_vara(timencid,'svf',iarch,aa(1))
     call atebdeftype_export(aa(1:1),'hwratio',0)
     call ccnf_put_vara(timencid,'asr',iarch,aa(1))
