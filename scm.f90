@@ -159,11 +159,13 @@ character(len=MAX_ARGLEN) :: optarg
 logical oxidant_update
 logical fixtsurf, nolatent, noradiation
 logical nogwdrag, noconvection, nocloud, noaerosol, novertmix
+logical lsm_only
 
 namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     z_in,ivegt_in,isoil_in,metforcing,lsmforcing,lsmoutput,       &
     fixtsurf,nolatent,timeoutput,profileoutput,noradiation,       &
     nogwdrag,noconvection,nocloud,noaerosol,novertmix,            &
+    lsm_only,                                                     &
     gablsflux,scm_mode,spinup_start,ntau_spinup,                  &
     ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,       &
     ateb_industryfg,ateb_trafficfg,ateb_vegalphac,                &
@@ -270,6 +272,7 @@ noconvection = .false.
 nocloud = .false.
 noaerosol = .false.
 novertmix = .false.
+lsm_only = .false.
 ateb_bldheight = -999.
 ateb_hwratio = -999.
 ateb_sigvegc = -999.
@@ -770,6 +773,12 @@ do spinup = spinup_start,1,-1
     end if
     call nantest("after radiation",1,ifull)   
 
+    ! REPLACE SCM WITH INPUT DATA, PRIOR TO SFLUX
+    if ( lsm_only ) then
+      call replace_scm(lsmforcing)
+      call nantest("after replace_scm",1,ifull)   
+    end if
+    
     ! SURFACE FLUXES
     if ( ntsur>1 ) then  ! should be better after convjlm
       call sflux
@@ -2036,6 +2045,79 @@ end if
 return
 end subroutine nudgescm
 
+subroutine replace_scm(lsmforcing)
+
+use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use estab
+use extraout_m                             ! Additional diagnostics
+use infile                                 ! Input file routines
+use morepbl_m                              ! Additional boundary layer diagnostics
+use newmpar_m                              ! Grid parameters
+use parm_m                                 ! Model configuration
+use sigs_m                                 ! Atmosphere sigma levels
+use soilsnow_m                             ! Soil, snow and surface data
+
+implicit none
+
+integer, save :: ncid
+integer iarch, ncstatus
+real t_lsm_a, t_lsm_b
+real u_lsm_a, u_lsm_b
+real v_lsm_a, v_lsm_b
+real rh_lsm_a, rh_lsm_b
+real sgdwn_lsm_a, sgdwn_lsm_b
+real rgdwn_lsm_a, rgdwn_lsm_b
+real pr_lsm_a, pr_lsm_b
+real ps_lsm_a, ps_lsm_b
+real, dimension(kl) :: qs, pf, ta
+character(len=*), intent(in) :: lsmforcing
+
+if ( dt/=1800 ) then
+  write(6,*) "ERROR: Currently lsm_only mode requires dt=1800"
+  stop
+end if
+
+if ( ktau==1 ) then
+  call ccnf_open(lsmforcing,ncid,ncstatus)
+end if    
+ 
+! average variables over the integration period?
+iarch = ktau
+call ccnf_get_vara(ncid,'Temperature',iarch,t_lsm_a) 
+call ccnf_get_vara(ncid,'Relative_humidity',iarch,rh_lsm_a)
+call ccnf_get_vara(ncid,'Uwind',iarch,u_lsm_a)
+call ccnf_get_vara(ncid,'Vwind',iarch,v_lsm_a)
+call ccnf_get_vara(ncid,'SW_down',iarch,sgdwn_lsm_a)
+call ccnf_get_vara(ncid,'LW_down',iarch,rgdwn_lsm_a)
+call ccnf_get_vara(ncid,'Rain',iarch,pr_lsm_a)
+call ccnf_get_vara(ncid,'PSFC',iarch,ps_lsm_a)
+
+iarch = ktau + 1
+call ccnf_get_vara(ncid,'Temperature',iarch,t_lsm_b) 
+call ccnf_get_vara(ncid,'Relative_humidity',iarch,rh_lsm_b)
+call ccnf_get_vara(ncid,'Uwind',iarch,u_lsm_b)
+call ccnf_get_vara(ncid,'Vwind',iarch,v_lsm_b)
+call ccnf_get_vara(ncid,'SW_down',iarch,sgdwn_lsm_b)
+call ccnf_get_vara(ncid,'LW_down',iarch,rgdwn_lsm_b)
+call ccnf_get_vara(ncid,'Rain',iarch,pr_lsm_b)
+call ccnf_get_vara(ncid,'PSFC',iarch,ps_lsm_b)
+
+t(1,1) = 0.5*(t_lsm_a+t_lsm_b)
+u(1,1) = 0.5*(u_lsm_a+u_lsm_b)
+v(1,1) = 0.5*(v_lsm_a+v_lsm_b)
+sgsave(1) = 0.5*(sgdwn_lsm_a+sgdwn_lsm_b)*(1.-swrsave(1)*albvisnir(1,1)-swrsave(1)*albvisnir(1,2))
+rgsave(1) = -0.5*(rgdwn_lsm_a+rgdwn_lsm_b)
+condx(1) = 0.5*(pr_lsm_a+pr_lsm_b) 
+ps(1) = 0.5*(ps_lsm_a+ps_lsm_b)
+psl(1) = log(ps(1)/1.e5)
+pf(1) = sig(1)*ps(1)
+ta(1) = t(1,1)
+qs(1) = qsat(pf(1),ta(1))
+qg(1,1) = qs(1)*0.5*(rh_lsm_a+rh_lsm_b)/100.
+
+return
+end subroutine replace_scm
+    
 subroutine outputscm(scm_mode,timeoutput,profileoutput,lsmoutput)
 
 use ateb
