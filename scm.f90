@@ -1152,6 +1152,7 @@ if ( scm_mode=="sublime" ) then
     end do
   end do ! iterative i loop
   write(6,*) "height_model ",height_model(1:kl)
+  write(6,*) "temperature_model ",t(1,1:kl)
   
   ! U wind
   spos(1:3) = (/ 1, 1, 1 /)
@@ -1883,9 +1884,9 @@ if ( scm_mode=="sublime" ) then
     
   end if
 
-  height_model(1) = bet(1)*t(1,1)
+  height_model(1) = bet(1)*t(1,1)/grav
   do k = 2,kl
-    height_model(k) = height_model(k-1) + bet(k)*t(1,k) + betm(k)*t(1,k-1)
+    height_model(k) = height_model(k-1) + (bet(k)*t(1,k) + betm(k)*t(1,k-1))/grav
   end do
     
   x = (time_ktau - time_a)/(time_b-time_a)
