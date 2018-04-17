@@ -774,13 +774,13 @@ do spinup = spinup_start,1,-1
     end if
     call nantest("after radiation",1,ifull)   
 
+    call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
+    
     ! REPLACE SCM WITH INPUT DATA, PRIOR TO SFLUX
     if ( lsm_only ) then
       call replace_scm(lsmforcing)
       call nantest("after replace_scm",1,ifull)   
     end if
-
-    call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
     
     ! SURFACE FLUXES
     if ( ntsur>1 ) then  ! should be better after convjlm
@@ -2967,8 +2967,9 @@ if ( scm_mode=="sublime" ) then
     
   else
       
-    call ccnf_put_vara(timencid,'ldw',iarch,rgdn_ave(1))
-    aa(:) = rgdn_ave(:) + rgn_ave(:)
+    !call ccnf_put_vara(timencid,'ldw',iarch,rgdn_ave(1))
+    call ccnf_put_vara(timencid,'ldw',iarch,-rgsave(1))
+    aa(:) = stefbo*tss(:)**4
     call ccnf_put_vara(timencid,'lup',iarch,aa(1))
     call ccnf_put_vara(timencid,'qdw',iarch,sgdn_ave(1))
     aa(:) = sgdn_ave(:) - sgn_ave(:)
