@@ -159,13 +159,13 @@ character(len=MAX_ARGLEN) :: optarg
 logical oxidant_update
 logical fixtsurf, nolatent, noradiation
 logical nogwdrag, noconvection, nocloud, noaerosol, novertmix
-logical lsm_only
+logical lsm_only, vert_adv
 
 namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     z_in,ivegt_in,isoil_in,metforcing,lsmforcing,lsmoutput,       &
     fixtsurf,nolatent,timeoutput,profileoutput,noradiation,       &
     nogwdrag,noconvection,nocloud,noaerosol,novertmix,            &
-    lsm_only,                                                     &
+    lsm_only,vert_adv,                                            &
     gablsflux,scm_mode,spinup_start,ntau_spinup,                  &
     ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,       &
     ateb_industryfg,ateb_trafficfg,ateb_vegalphac,                &
@@ -273,6 +273,7 @@ nocloud = .false.
 noaerosol = .false.
 novertmix = .false.
 lsm_only = .false.
+vert_adv = .false.
 ateb_bldheight = -999.
 ateb_hwratio = -999.
 ateb_sigvegc = -999.
@@ -547,7 +548,7 @@ end if
 
 ! NUDGING
 ktau = 0
-call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge)
+call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
 call nantest("after nudging",1,ifull)
 
 savu(1:ifull,:) = u(1:ifull,:)
@@ -778,14 +779,14 @@ do spinup = spinup_start,1,-1
       call replace_scm(lsmforcing)
       call nantest("after replace_scm",1,ifull)   
     end if
+
+    call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
     
     ! SURFACE FLUXES
     if ( ntsur>1 ) then  ! should be better after convjlm
       call sflux
     endif   ! (ntsur>1) 
     call nantest("after surface fluxes",1,ifull)
-  
-    call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge)
   
     !if ( gablsflux>0 ) then
     !  ppa(:) = sig(1)*ps(:) 
@@ -1759,27 +1760,33 @@ write(6,*) "Finised initialisation"
 return
 end subroutine initialscm
     
-subroutine nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge)
+subroutine nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
 
+use aerosolldr, only : xtg,naero           ! LDR prognostic aerosols
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use cable_ccam
+use cloudmod                               ! Prognostic cloud fraction
 use const_phys                             ! Physical constants
 use infile                                 ! Input file routines
+use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use newmpar_m                              ! Grid parameters
 use parm_m                                 ! Model configuration
 use pbl_m                                  ! Boundary layer arrays
 use sigs_m                                 ! Atmosphere sigma levels
 use soilsnow_m                             ! Soil, snow and surface data
+use tkeeps                                 ! TKE-EPS boundary layer
 
 use scmarrays_m
 
 implicit none
 
+include 'kuocom.h'
+
 integer, intent(inout) :: iarch_nudge
 integer, save :: ncid
 integer, save :: nlev, ntimes
-integer :: ncstatus, k, l
+integer :: ncstatus, k, l, ntr
 integer, dimension(4) :: spos, npos
 real, save :: time_a = -1.
 real, save :: time_b = -1.
@@ -1790,14 +1797,15 @@ real, dimension(:), allocatable, save :: t_force_b, q_force_b, u_force_b, v_forc
 real, dimension(:), allocatable, save :: new_in, dat_in, sig_in
 real, dimension(:), allocatable, save :: ug_file_a, vg_file_a, time_file, height_file, height_file_a, height_file_b
 real, dimension(:), allocatable, save :: ug_file_b, vg_file_b, ug_file, vg_file
-real, dimension(:), allocatable, save :: theta_adv, qv_adv, u_adv, v_adv
+real, dimension(:), allocatable, save :: theta_adv, qv_adv, u_adv, v_adv, w_adv
 real, dimension(:), allocatable, save :: theta_adv_a, theta_adv_b, qv_adv_a, qv_adv_b
-real, dimension(:), allocatable, save :: u_adv_a, u_adv_b, v_adv_a, v_adv_b 
+real, dimension(:), allocatable, save :: u_adv_a, u_adv_b, v_adv_a, v_adv_b, w_adv_a, w_adv_b 
 real, dimension(1) :: psurf_in
-real, dimension(kl) :: tadv, qadv, um, vm, height_model
+real, dimension(kl) :: tadv, qadv, um, vm, height_model, dz_model
+real, dimension(0:kl) :: hl_model
 real, save :: tsurf_a, tsurf_b
 character(len=*), intent(in) :: scm_mode, metforcing
-logical, intent(in) :: fixtsurf
+logical, intent(in) :: fixtsurf, vert_adv
 
 time_ktau = real(ktau)*dt
 
@@ -1807,12 +1815,13 @@ if ( scm_mode=="sublime" ) then
     iarch_nudge = 1 
     if ( allocated(ug) ) then
       deallocate( ug, vg, t_tend, q_tend )
-      deallocate( uadv, vadv )
+      deallocate( uadv, vadv, wadv )
       deallocate( ug_file_b, vg_file_b, time_file )
       deallocate( ug_file_a, vg_file_a, ug_file, vg_file )
-      deallocate( theta_adv, qv_adv, u_adv, v_adv )
+      deallocate( theta_adv, qv_adv, u_adv, v_adv, w_adv )
       deallocate( theta_adv_a, theta_adv_b, qv_adv_a, qv_adv_b )
       deallocate( u_adv_a, u_adv_b, v_adv_a, v_adv_b )
+      deallocate( w_adv_a, w_adv_b )
       deallocate( height_file_a, height_file_b, height_file )
       call ccnf_close(ncid)
     end if
@@ -1820,7 +1829,7 @@ if ( scm_mode=="sublime" ) then
     time_b = -1.
 
     allocate( ug(kl), vg(kl), t_tend(kl), q_tend(kl) )
-    allocate( uadv(kl), vadv(kl) )
+    allocate( uadv(kl), vadv(kl), wadv(0:kl) )
     
     call ccnf_open(metforcing,ncid,ncstatus)
     call ccnf_inq_dimlen(ncid,'force_layers',nlev)
@@ -1829,9 +1838,10 @@ if ( scm_mode=="sublime" ) then
     
     allocate( ug_file_b(nlev), vg_file_b(nlev), time_file(ntimes) )
     allocate( ug_file_a(nlev), vg_file_a(nlev), ug_file(nlev), vg_file(nlev) )
-    allocate( theta_adv(nlev), qv_adv(nlev), u_adv(nlev), v_adv(nlev) )
+    allocate( theta_adv(nlev), qv_adv(nlev), u_adv(nlev), v_adv(nlev), w_adv(nlev) )
     allocate( theta_adv_a(nlev), theta_adv_b(nlev), qv_adv_a(nlev), qv_adv_b(nlev) )
     allocate( u_adv_a(nlev), u_adv_b(nlev), v_adv_a(nlev), v_adv_b(nlev) )
+    allocate( w_adv_a(nlev), w_adv_b(nlev) )
     allocate( height_file_a(nlev), height_file_b(nlev), height_file(nlev) )
     
     do l = 1,ntimes
@@ -1855,6 +1865,9 @@ if ( scm_mode=="sublime" ) then
     ! momentum advection
     call ccnf_get_vara(ncid,'U_advection',spos,npos,u_adv_b)
     call ccnf_get_vara(ncid,'V_advection',spos,npos,v_adv_b)
+    
+    ! vertical velocity
+    call ccnf_get_vara(ncid,'W_sub',spos,npos,w_adv_b)
     
   end if
   
@@ -1881,6 +1894,8 @@ if ( scm_mode=="sublime" ) then
     call ccnf_get_vara(ncid,'U_advection',spos,npos,u_adv_b)
     v_adv_a = v_adv_b
     call ccnf_get_vara(ncid,'V_advection',spos,npos,v_adv_b)
+    w_adv_a = w_adv_b
+    call ccnf_get_vara(ncid,'W_sub',spos,npos,w_adv_b)
     
   end if
 
@@ -1888,7 +1903,17 @@ if ( scm_mode=="sublime" ) then
   do k = 2,kl
     height_model(k) = height_model(k-1) + (bet(k)*t(1,k) + betm(k)*t(1,k-1))/grav
   end do
-    
+  
+  hl_model(0) = 0.
+  hl_model(1) = (-rdry/grav)*(dsig(1)/sig(1))*t(1,1)
+  do k = 2,kl
+    hl_model(k) = hl_model(k-1) + t(1,k)*(-rdry/grav)*(dsig(k)/sig(k))
+  end do
+
+  do k = 1,kl
+    dz_model(k) = hl_model(k) - hl_model(k-1)  
+  end do
+  
   x = (time_ktau - time_a)/(time_b-time_a)
   height_file(:) = (1.-x)*height_file_a(:) + x*height_file_b(:)
   ug_file(:) = (1.-x)*ug_file_a(:) + x*ug_file_b(:)
@@ -1897,6 +1922,7 @@ if ( scm_mode=="sublime" ) then
   qv_adv(:) = (1.-x)*qv_adv_a(:) + x*qv_adv_b(:)
   u_adv(:) = (1.-x)*u_adv_a(:) + x*u_adv_b(:)
   v_adv(:) = (1.-x)*v_adv_a(:) + x*v_adv_b(:)
+  w_adv(:) = (1.-x)*w_adv_a(:) + x*w_adv_b(:)
   
   call vinterp2m(height_file,height_model,ug_file,ug,nlev,kl)
   call vinterp2m(height_file,height_model,vg_file,vg,nlev,kl)
@@ -1904,9 +1930,40 @@ if ( scm_mode=="sublime" ) then
   call vinterp2m(height_file,height_model,v_adv,vadv,nlev,kl)
   call vinterp2m(height_file,height_model,theta_adv,tadv,nlev,kl)
   call vinterp2m(height_file,height_model,qv_adv,qadv,nlev,kl)
+  wadv(0) = 0.
+  call vinterp2m(height_file,hl_model(1:kl),w_adv,wadv(1:kl),nlev,kl)
+  wadv(kl) = 0.
   do k = 1,kl
     tadv(k) = tadv(k)*(1.e5/(sig(k)*ps(1)))**(-rdry/cp) ! convert from potential temperature to temperature
   end do  
+  
+  ! apply vertical velocity
+  ! dq/dt + w*dq/dz = dq/dt + d(w*q)/dz - q*dw/dz
+  ! split form
+  ! dq/dt + d(w*q)/dz = 0, dq/dt -q*dw/dz=0
+  
+  if ( vert_adv .and. ktau>0 ) then
+    call vertadv(t,wadv,height_model,dz_model)
+    call vertadv(u,wadv,height_model,dz_model)
+    call vertadv(v,wadv,height_model,dz_model)
+    call vertadv(qg,wadv,height_model,dz_model)
+    if ( ldr/=0 ) then
+      call vertadv(qlg,wadv,height_model,dz_model)
+      call vertadv(qfg,wadv,height_model,dz_model)
+      if ( ncloud>=4 ) then
+        call vertadv(stratcloud,wadv,height_model,dz_model)  
+      end if
+    end if
+    if ( nvmix==6 ) then
+      call vertadv(eps,wadv,height_model,dz_model)
+      call vertadv(tke,wadv,height_model,dz_model)
+    end if
+    if ( abs(iaero)>=2 ) then
+      do ntr = 1,naero
+        call vertadv(xtg(:,:,ntr),wadv,height_model,dz_model)  
+      end do
+    end if
+  end if  
   
 elseif ( scm_mode=="gabls4" ) then
     
@@ -2046,6 +2103,60 @@ end if
 return
 end subroutine nudgescm
 
+subroutine vertadv(q,wadv,zz,dz)
+
+use newmpar_m
+use parm_m
+
+implicit none
+
+integer k, its, i, kp, kx
+real, dimension(ifull,kl), intent(inout) :: q
+real, dimension(0:kl), intent(in) :: wadv
+real, dimension(kl), intent(in) :: zz, dz
+real, dimension(kl-1) :: ff
+real, dimension(0:kl) :: delu
+real dtnew, fl, fh, cc, rr
+
+dtnew = dt
+do k = 1,kl-1
+  dtnew = min(dtnew,0.3*dz(k)/max(abs(wadv(k)),1.E-12))
+end do
+its = int(dt/(dtnew+0.01)) + 1
+dtnew = dt/real(its)
+
+do i = 1,its
+ 
+  delu(0) = 0.
+  do k = 1,kl-1
+    delu(k) = q(1,k+1) - q(1,k)
+  end do
+  delu(kl) = 0.
+
+  ! TVD part
+  do k = 1,kl-1
+    ! +ve ww is downwards to the ocean floor
+    kp = nint(sign(1.,wadv(k)))
+    kx = k + (1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
+    rr = delu(k-kp)/(delu(k)+sign(1.E-20,delu(k)))
+    fl = wadv(k)*q(1,kx)
+    cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
+    fh = wadv(k)*0.5*(q(1,k)+q(1,k+1))          &
+        -0.5*(q(1,k+1)-q(1,k))*wadv(k)**2*dtnew &
+        /max(zz(k+1)-zz(k),1.E-10)
+    ff(k) = fl + cc*(fh-fl)
+  end do
+  q(1,1) = q(1,1) + dtnew*(q(1,1)*wadv(1)-ff(1))/dz(1)
+  do k = 2,kl-1
+    q(1,k) = q(1,k) + dtnew*(q(1,k)*(wadv(k)-wadv(k-1))-ff(k)+ff(k-1))/dz(k)
+  end do
+  q(1,kl) = q(1,kl) + dtnew*(-q(1,kl)*wadv(kl-1)+ff(kl-1))/dz(kl)
+
+end do
+
+return
+end subroutine vertadv
+    
 subroutine replace_scm(lsmforcing)
 
 use arrays_m                               ! Atmosphere dyamics prognostic arrays

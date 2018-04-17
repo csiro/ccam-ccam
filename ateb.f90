@@ -988,7 +988,7 @@ real, dimension(maxtype) ::    chwratio=(/  0.4,  0.2,  0.4,  0.6,   2.,  0.5,  
 ! Industrial sensible heat flux (W m^-2)
 real, dimension(maxtype) :: cindustryfg=(/   0.,   0.,   0.,   0.,   0.,  10.,  20.,  30. /)
 ! Internal gains sensible heat flux [floor] (W m^-2)
-real, dimension(maxtype) :: cintgains=(/ 5.,   5.,   5.,   5.,   5.,   5.,   5.,   5. /)
+real, dimension(maxtype) ::   cintgains=(/ 5.,   5.,   5.,   5.,   5.,   5.,   5.,   5. /)
 ! Daily averaged traffic sensible heat flux (W m^-2)
 real, dimension(maxtype) ::  ctrafficfg=(/  1.5,  1.5,  1.5,  1.5,  1.5,  1.5,  1.5,  1.5 /)
 ! Comfort temperature (K)
