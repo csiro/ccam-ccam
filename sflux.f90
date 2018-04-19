@@ -142,6 +142,7 @@ use nsibd_m                        ! Land-surface arrays
 use parm_m                         ! Model configuration
 use pbl_m                          ! Boundary layer arrays
 use prec_m                         ! Precipitation
+use raddiag_m                      ! Radiation diagnostic
 use riverarrays_m                  ! River data
 use savuvt_m                       ! Saved dynamic arrays
 use screen_m                       ! Screen level diagnostics
@@ -161,6 +162,7 @@ use xyzinfo_m
 implicit none
     
 integer is,ie,tile,iq,k
+real, dimension(imax) :: rg_error, tss_save
 
 !     stability dependent drag coefficients using Louis (1979,blm) f'
 !     n.b. cduv, cdtq are returned as drag coeffs mult by vmod
@@ -196,6 +198,7 @@ do tile = 1,ntiles
   uav(is:ie) = av_vmod*u(is:ie,1) + (1.-av_vmod)*savu(is:ie,1)   
   vav(is:ie) = av_vmod*v(is:ie,1) + (1.-av_vmod)*savv(is:ie,1)  
   vmag(is:ie) = max( sqrt(uav(is:ie)**2+vav(is:ie)**2), vmodmin )    ! vmag used to calculate ri
+  tss_save(:) = tss(is:ie)
 
   taux(is:ie) = 0.      ! dummy value
   tauy(is:ie) = 0.      ! dummy value  
@@ -374,7 +377,17 @@ do tile = 1,ntiles
   if ( abs(nriver)==1 ) then
     watbdy(is:ie) = watbdy(is:ie) + runoff(is:ie) - oldrunoff(is:ie) ! runoff in mm
   end if
-
+  
+  ! correct longwave radiation due to change in tss
+  if ( odcalc ) then
+    rg_error(1:imax) = stefbo*( tss_save(is:ie)**4 - tss(1:imax)**4 )
+    rtu_ave(is:ie) = rtu_ave(is:ie) + rg_error(1:imax)
+    rtc_ave(is:ie) = rtc_ave(is:ie) + rg_error(1:imax)
+    rgn_ave(is:ie) = rgn_ave(is:ie) - rg_error(1:imax)
+    rgc_ave(is:ie) = rgc_ave(is:ie) - rg_error(1:imax)
+  end if  
+  
+  
   !***  end of surface updating loop
   ! ----------------------------------------------------------------------
 end do

@@ -2967,9 +2967,9 @@ if ( scm_mode=="sublime" ) then
     
   else
       
-    !call ccnf_put_vara(timencid,'ldw',iarch,rgdn_ave(1))
-    call ccnf_put_vara(timencid,'ldw',iarch,-rgsave(1))
-    aa(:) = stefbo*tss(:)**4
+    aa(:) = -rgdn_ave(:1)  
+    call ccnf_put_vara(timencid,'ldw',iarch,aa(1))
+    aa(:) = -rgdn_ave(:) + rgn_ave(:)
     call ccnf_put_vara(timencid,'lup',iarch,aa(1))
     call ccnf_put_vara(timencid,'qdw',iarch,sgdn_ave(1))
     aa(:) = sgdn_ave(:) - sgn_ave(:)

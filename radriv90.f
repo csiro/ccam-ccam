@@ -92,8 +92,6 @@ c     parameters for the aerosol calculation
       real beta_ave, alpha
       parameter(beta_ave = 0.29, alpha = 8.00)
 
-      logical odcalc  ! True for full radiation calculation
-
       real sigh(kl+1)
 
 !     Radiation fields (CSIRO GCM names)
@@ -101,6 +99,7 @@ c     parameters for the aerosol calculation
       real rg(ixin), rgclr(ixin), rt(ixin), rtclr(ixin)
       real sgdn(ixin), rgdn(ixin)
       real, dimension(:,:), allocatable, save :: hlwsav,hswsav
+      real, dimension(:,:), allocatable, save :: sw_tend_amp
       real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
       
 c     Following are for cloud2 routine
@@ -202,6 +201,7 @@ c     Stuff from cldset
 
          allocate(hlwsav(ifull,kl),hswsav(ifull,kl))
          allocate(sgn_amp(ifull),sgdn_amp(ifull))
+         allocate(sw_tend_amp(ifull,kl))
       
          if(ntest==1)write(6,*)'id,jd,imax,idrad,jdrad0,jdrad ',
      .                          id,jd,imax,idrad,jdrad0,jdrad
@@ -603,6 +603,8 @@ c----     note : htk now in Watts/M**2 (no pressure at level weighting)
 c         Convert from cgs to SI units
           hswsav(iq,kl+1-k) = 0.001*hsw(i,k)
           hlwsav(iq,kl+1-k) = 0.001*heatra(i,k)
+          sw_tend(iq,k)=-hswsav(iq,k)/(cong*ps(iq)*dsig(k))
+          lw_tend(iq,k)=-hlwsav(iq,k)/(cong*ps(iq)*dsig(k))
          end do
       end do
 
@@ -618,18 +620,22 @@ c       to remove these factors.
            if ( coszro(i)*taudar(i) .le. 1.e-5 ) then ! 1.e-5 to avoid precision problems
 c             The sun isn't up at all over the radiation period so no 
 c             fitting need be done.
-              sgn_amp(iq)  = 0.
-              sgdn_amp(iq) = 0.
+              sgn_amp(iq)     = 0.
+              sgdn_amp(iq)    = 0.
+              sw_tend_amp(iq,1:kl) = 0.
            else
-              sgn_amp(iq)  = sg(i) / (coszro(i)*taudar(i))
-              sgdn_amp(iq) = sgdn(i) / (coszro(i)*taudar(i))
+              sgn_amp(iq)     = sg(i) / (coszro(i)*taudar(i))
+              sgdn_amp(iq)    = sgdn(i) / (coszro(i)*taudar(i))
+              sw_tend_amp(iq,1:kl) = sw_tend(iq,1:kl)
+     &                        / (coszro(i)*taudar(i))
            end if
         end do
       else
         do i=1,imax
           iq=i+(j-1)*il  
-          sgn_amp(iq)  = 0.
-          sgdn_amp(iq) = 0.
+          sgn_amp(iq)     = 0.
+          sgdn_amp(iq)    = 0.
+          sw_tend_amp(iq,1:kl) = 0.
         end do
       end if    !  ( solarfit )
 
@@ -730,23 +736,24 @@ c slwa is negative net radiational htg at ground
 ! Calculate rtt, the net radiational cooling of atmosphere (K/s) from htk (in
 ! W/m^2 for the layer). Note that dsig is negative which does the conversion
 ! to a cooling rate.
-      do k=1,kl
-         do i=1,imax
-            iq=i+(j-1)*il
-            t(iq,k)=t(iq,k)-dt*(hswsav(iq,k)+hlwsav(iq,k)) /
-     &                   (cong*ps(iq)*dsig(k)) ! MJT
-#ifdef scm
-            sw_tend(iq,k)=-hswsav(iq,k)/(cong*ps(iq)*dsig(k))
-            lw_tend(iq,k)=-hlwsav(iq,k)/(cong*ps(iq)*dsig(k))
-#endif
-         end do
-      end do
-!     k = 1  ! these 6 lines removed 18/6/03
-!     do i=1,imax
-!      iq=i+(j-1)*il
-!      rtt(iq,k)=(hswsav(iq,k)+hlwsav(iq,k)+fractss*stefbo*tss(iq)**4)/
-!    &           (cong*ps(iq)*dsig(k))
-!     end do
+      if ( solarfit ) then
+        do k=1,kl
+           do i=1,imax
+              iq=i+(j-1)*il
+              t(iq,k)=t(iq,k)
+     &        +dt*(sw_tend_amp(iq,k)*coszro2(i)*taudar2(i)
+     &            +lw_tend(iq,k)) ! MJT
+           end do
+        end do
+      else
+        do k=1,kl
+           do i=1,imax
+              iq=i+(j-1)*il
+              t(iq,k)=t(iq,k)+dt*(sw_tend(iq,k)+lw_tend(iq,k)) ! MJT
+           end do
+        end do
+      end if  
+
       
  100  continue  ! Row loop (j)  j=1,jl,imax/il
       if(ntest>0.and.mydiag)then
