@@ -780,7 +780,7 @@ do spinup = spinup_start,1,-1
     
     ! REPLACE SCM WITH INPUT DATA, PRIOR TO SFLUX
     if ( lsm_only ) then
-      call replace_scm(lsmforcing)
+      call replace_scm(lsmforcing,noradiation,nocloud,noconvection,novertmix)
       call nantest("after replace_scm",1,ifull)   
     end if
     
@@ -2159,7 +2159,7 @@ end do
 return
 end subroutine vertadv
     
-subroutine replace_scm(lsmforcing)
+subroutine replace_scm(lsmforcing,noradiation,nocloud,noconvection,novertmix)
 
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use const_phys                             ! Physical constants
@@ -2186,20 +2186,17 @@ real sgdwn_lsm_a, sgdwn_lsm_b
 real rgdwn_lsm_a, rgdwn_lsm_b
 real pr_lsm_a, pr_lsm_b
 real ps_lsm_a, ps_lsm_b
+real wgt
 real, dimension(kl) :: qs, pf, ta
 character(len=*), intent(in) :: lsmforcing
-
-if ( dt/=1800 ) then
-  write(6,*) "ERROR: Currently lsm_only mode requires dt=1800"
-  stop
-end if
+logical, intent(in) :: noradiation, nocloud, noconvection, novertmix
 
 if ( ktau==1 ) then
   call ccnf_open(lsmforcing,ncid,ncstatus)
 end if    
  
 ! average variables over the integration period?
-iarch = ktau
+iarch = max(int(real(ktau)*dt/1800.), 1)
 call ccnf_get_vara(ncid,'Temperature',iarch,t_lsm_a) 
 call ccnf_get_vara(ncid,'Relative_humidity',iarch,rh_lsm_a)
 call ccnf_get_vara(ncid,'Uwind',iarch,u_lsm_a)
@@ -2209,7 +2206,7 @@ call ccnf_get_vara(ncid,'LW_down',iarch,rgdwn_lsm_a)
 call ccnf_get_vara(ncid,'Rain',iarch,pr_lsm_a)
 call ccnf_get_vara(ncid,'PSFC',iarch,ps_lsm_a)
 
-iarch = ktau + 1
+iarch = iarch + 1
 call ccnf_get_vara(ncid,'Temperature',iarch,t_lsm_b) 
 call ccnf_get_vara(ncid,'Relative_humidity',iarch,rh_lsm_b)
 call ccnf_get_vara(ncid,'Uwind',iarch,u_lsm_b)
@@ -2219,22 +2216,31 @@ call ccnf_get_vara(ncid,'LW_down',iarch,rgdwn_lsm_b)
 call ccnf_get_vara(ncid,'Rain',iarch,pr_lsm_b)
 call ccnf_get_vara(ncid,'PSFC',iarch,ps_lsm_b)
 
-t(1,1) = 0.5*(t_lsm_a+t_lsm_b)
-u(1,1) = 0.5*(u_lsm_a+u_lsm_b)
-v(1,1) = 0.5*(v_lsm_a+v_lsm_b)
-sgdn_ave(1) = 0.5*(sgdwn_lsm_a+sgdwn_lsm_b)
-sgsave(1) = 0.5*(sgdwn_lsm_a+sgdwn_lsm_b)*(1.-swrsave(1)*albvisnir(1,1)-swrsave(1)*albvisnir(1,2))
-sgn_ave(1) = sgsave(1)
-rgdn_ave(1) = 0.5*(rgdwn_lsm_a+rgdwn_lsm_b)
-rgsave(1) = -0.5*(rgdwn_lsm_a+rgdwn_lsm_b)
-rgn_ave(1) = stefbo*tss(1)**4 - 0.5*(rgdwn_lsm_a+rgdwn_lsm_b)
-condx(1) = 0.5*(pr_lsm_a+pr_lsm_b) 
-ps(1) = 0.5*(ps_lsm_a+ps_lsm_b)
+wgt = (real(iarch)*1800. - real(ktau)*dt)/1800. 
+
+if ( noradiation ) then
+  sgdn_ave(1) = wgt*sgdwn_lsm_a + (1.-wgt)*sgdwn_lsm_b
+  sgsave(1) = (wgt*sgdwn_lsm_a+(1.-wgt)*sgdwn_lsm_b)*(1.-swrsave(1)*albvisnir(1,1)-swrsave(1)*albvisnir(1,2))
+  sgn_ave(1) = sgsave(1)
+  rgdn_ave(1) = wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b
+  rgsave(1) = -(wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b)
+  rgn_ave(1) = stefbo*tss(1)**4 - (wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b)
+end if
+if ( nocloud.and.noconvection ) then
+  condx(1) = wgt*pr_lsm_a+(1.-wgt)*pr_lsm_b 
+end if  
+
+ps(1) = wgt*ps_lsm_a+(1.-wgt)*ps_lsm_b
 psl(1) = log(ps(1)/1.e5)
-pf(1) = sig(1)*ps(1)
-ta(1) = t(1,1)
-qs(1) = qsat(pf(1),ta(1))
-qg(1,1) = qs(1)*0.5*(rh_lsm_a+rh_lsm_b)/100.
+if ( novertmix ) then
+  t(1,1) = wgt*t_lsm_a + (1.-wgt)*t_lsm_b
+  u(1,1) = wgt*u_lsm_a + (1.-wgt)*u_lsm_b
+  v(1,1) = wgt*v_lsm_a + (1.-wgt)*v_lsm_b
+  pf(1) = sig(1)*ps(1)
+  ta(1) = t(1,1)
+  qs(1) = qsat(pf(1),ta(1))
+  qg(1,1) = qs(1)*0.5*(rh_lsm_a+rh_lsm_b)/100.
+end if
 
 return
 end subroutine replace_scm
