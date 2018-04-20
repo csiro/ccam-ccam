@@ -380,7 +380,7 @@ do tile = 1,ntiles
   
   ! correct longwave radiation due to change in tss
   if ( odcalc ) then
-    rg_error(1:imax) = stefbo*( tss_save(is:ie)**4 - tss(1:imax)**4 )
+    rg_error(1:imax) = stefbo*( tss_save(1:imax)**4 - tss(is:ie)**4 )
     rtu_ave(is:ie) = rtu_ave(is:ie) + rg_error(1:imax)
     rtc_ave(is:ie) = rtc_ave(is:ie) + rg_error(1:imax)
     rgn_ave(is:ie) = rgn_ave(is:ie) - rg_error(1:imax)
