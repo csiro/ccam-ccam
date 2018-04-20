@@ -2160,12 +2160,15 @@ end subroutine vertadv
 subroutine replace_scm(lsmforcing)
 
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use const_phys                             ! Physical constants
 use estab
 use extraout_m                             ! Additional diagnostics
 use infile                                 ! Input file routines
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use parm_m                                 ! Model configuration
+use pbl_m                                  ! Boundary layer arrays
+use raddiag_m                              ! Radiation diagnostic
 use sigs_m                                 ! Atmosphere sigma levels
 use soilsnow_m                             ! Soil, snow and surface data
 
@@ -2217,8 +2220,12 @@ call ccnf_get_vara(ncid,'PSFC',iarch,ps_lsm_b)
 t(1,1) = 0.5*(t_lsm_a+t_lsm_b)
 u(1,1) = 0.5*(u_lsm_a+u_lsm_b)
 v(1,1) = 0.5*(v_lsm_a+v_lsm_b)
+sgdn_ave(1) = 0.5*(sgdwn_lsm_a+sgdwn_lsm_b)
 sgsave(1) = 0.5*(sgdwn_lsm_a+sgdwn_lsm_b)*(1.-swrsave(1)*albvisnir(1,1)-swrsave(1)*albvisnir(1,2))
+sgn_ave(1) = sgsave(1)
+rgdn_ave(1) = 0.5*(rgdwn_lsm_a+rgdwn_lsm_b)
 rgsave(1) = -0.5*(rgdwn_lsm_a+rgdwn_lsm_b)
+rgn_ave(1) = 0.5*(rgdwn_lsm_a+rgdwn_lsm_b) - stefbo*tss(1)**4
 condx(1) = 0.5*(pr_lsm_a+pr_lsm_b) 
 ps(1) = 0.5*(ps_lsm_a+ps_lsm_b)
 psl(1) = log(ps(1)/1.e5)
