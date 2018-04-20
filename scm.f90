@@ -96,6 +96,7 @@ use newmpar_m                              ! Grid parameters
 use nharrs_m, only : nharrs_init         & ! Non-hydrostatic atmosphere arrays
    ,lrestart
 use nsibd_m                                ! Land-surface arrays
+use ozoneread                              ! Ozone input routines
 use parm_m                                 ! Model configuration
 use parmdyn_m                              ! Dynamics parameters
 use parmgeom_m                             ! Coordinate data
@@ -202,7 +203,8 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
-    saltlargemtn
+    saltlargemtn,                                                 &
+    o3_vert_interpolate,o3_time_interpolate                         ! ozone
 ! file namelist
 namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &
@@ -2225,7 +2227,7 @@ sgsave(1) = 0.5*(sgdwn_lsm_a+sgdwn_lsm_b)*(1.-swrsave(1)*albvisnir(1,1)-swrsave(
 sgn_ave(1) = sgsave(1)
 rgdn_ave(1) = 0.5*(rgdwn_lsm_a+rgdwn_lsm_b)
 rgsave(1) = -0.5*(rgdwn_lsm_a+rgdwn_lsm_b)
-rgn_ave(1) = 0.5*(rgdwn_lsm_a+rgdwn_lsm_b) - stefbo*tss(1)**4
+rgn_ave(1) = stefbo*tss(1)**4 - 0.5*(rgdwn_lsm_a+rgdwn_lsm_b)
 condx(1) = 0.5*(pr_lsm_a+pr_lsm_b) 
 ps(1) = 0.5*(ps_lsm_a+ps_lsm_b)
 psl(1) = log(ps(1)/1.e5)
