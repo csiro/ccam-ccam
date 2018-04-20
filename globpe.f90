@@ -2854,7 +2854,7 @@ if ( myid<nproc ) then
   call pbl_init(ifull)
   call permsurf_init(ifull)
   call prec_init(ifull)
-  call raddiag_init(ifull)
+  call raddiag_init(ifull,kl)
   call riverarrays_init(ifull,iextra,nriver)
   call savuvt_init(ifull,kl)
   call savuv1_init(ifull,kl)

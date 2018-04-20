@@ -2277,10 +2277,17 @@ integer k
 character(len=*), intent(in) :: timeoutput, profileoutput, lsmoutput, scm_mode
 character(len=40) :: lname
 character(len=33) :: grdtim
+character(len=6) :: vtype
 logical :: firstcall, lastcall
 
 firstcall = ktau==0
 lastcall = ktau==ntau
+
+#ifdef i8r8
+vtype='double'
+#else
+vtype='float'
+#endif
 
 if ( scm_mode=="sublime" ) then
 
@@ -2324,10 +2331,10 @@ if ( scm_mode=="sublime" ) then
     call ccnf_def_dimu(timencid,'time',tdim_time)
     
     jdim(1) = udim
-    call ccnf_def_var(timencid,'urban_layer','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'urban_layer',vtype,1,jdim(1:1),idnt)
 
     jdim(1) = tdim_time
-    call ccnf_def_var(timencid,'time','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'time',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'point_spacing','even')
     icy = kdate/10000
     icm = max(1, min(12, (kdate-icy*10000)/100))
@@ -2341,240 +2348,240 @@ if ( scm_mode=="sublime" ) then
     
     jdim(1) = tdim_time
     lname = 'longwave downward radiation at surface'
-    call ccnf_def_var(timencid,'ldw','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'ldw',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','W/m2')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'longwave upward radiation at surface'
-    call ccnf_def_var(timencid,'lup','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'lup',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','W/m2')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'shortwave downward radiation at surface'
-    call ccnf_def_var(timencid,'qdw','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'qdw',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','W/m2')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'shorwave upward radiation at surface'
-    call ccnf_def_var(timencid,'qup','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'qup',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','W/m2')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'sensible heat flux'
-    call ccnf_def_var(timencid,'shf','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'shf',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','W/m2')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'latent heat flux (liq+sol)'
-    call ccnf_def_var(timencid,'lhf','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'lhf',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','W/m2')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'anthropogenic heat flux'
-    call ccnf_def_var(timencid,'qf','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'qf',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','W/m2')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'urban storage heat flux'
-    call ccnf_def_var(timencid,'g','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'g',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','W/m2')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     ! lname = 'Evaporation + sublimation flux'
-    ! call ccnf_def_var(timencid,'evap','float',1,jdim(1:1),idnt)
+    ! call ccnf_def_var(timencid,'evap',vtype,1,jdim(1:1),idnt)
     ! call ccnf_put_att(timencid,idnt,'long_name',lname)
     ! call ccnf_put_att(timencid,idnt,'units','mm/day')
     ! call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'friction velocity'
-    call ccnf_def_var(timencid,'ustar','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'ustar',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m/s')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     ! lname = 'Precipitation (liq+sol) rate'
-    ! call ccnf_def_var(timencid,'rain','float',1,jdim(1:1),idnt)
+    ! call ccnf_def_var(timencid,'rain',vtype,1,jdim(1:1),idnt)
     ! call ccnf_put_att(timencid,idnt,'long_name',lname)
     ! call ccnf_put_att(timencid,idnt,'units','mm/day')
     ! call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     ! lname = 'Surface pressure'
-    ! call ccnf_def_var(timencid,'psurf','float',1,jdim(1:1),idnt)
+    ! call ccnf_def_var(timencid,'psurf',vtype,1,jdim(1:1),idnt)
     ! call ccnf_put_att(timencid,idnt,'long_name',lname)
     ! call ccnf_put_att(timencid,idnt,'units','Pa')
     ! call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'boundary layer height'
-    call ccnf_def_var(timencid,'hpbl','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'hpbl',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'temperature skin layer'
-    call ccnf_def_var(timencid,'tsk','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'tsk',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','K')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     ! lname = 'Radiative temperature if different from tsurf'
-    ! call ccnf_def_var(timencid,'trad','float',1,jdim(1:1),idnt)
+    ! call ccnf_def_var(timencid,'trad',vtype,1,jdim(1:1),idnt)
     ! call ccnf_put_att(timencid,idnt,'long_name',lname)
     ! call ccnf_put_att(timencid,idnt,'units','K')
     ! call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'surface albedo'
-    call ccnf_def_var(timencid,'alb','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'alb',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','0-1')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'roughness length momentum'
-    call ccnf_def_var(timencid,'z0m','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'z0m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'roughness length heat'
-    call ccnf_def_var(timencid,'z0h','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'z0h',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'surface emissivity'
-    call ccnf_def_var(timencid,'emis','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'emis',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','0-1')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = '2m temperature'
-    call ccnf_def_var(timencid,'t2m','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'t2m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','K')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = '2m specific humidity'
-    call ccnf_def_var(timencid,'q2m','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'q2m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','kg/kg')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = '2m relative humidity'
-    call ccnf_def_var(timencid,'rh2m','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'rh2m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','0-100') 
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = '10m u-component wind'
-    call ccnf_def_var(timencid,'u10m','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'u10m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m/s')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = '10m v-component wind'
-    call ccnf_def_var(timencid,'v10m','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'v10m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m/s')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = '50m temperature'
-    call ccnf_def_var(timencid,'t50m','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'t50m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','K')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)    
     lname = '50m specific humidity'
-    call ccnf_def_var(timencid,'q50m','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'q50m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','kg/kg')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'Relative humidity at 50 metre above the surface'
-    call ccnf_def_var(timencid,'rh50m','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'rh50m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','0-100')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = '50m u-component wind'
-    call ccnf_def_var(timencid,'u50m','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'u50m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m/s')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = '50m v-component wind'
-    call ccnf_def_var(timencid,'v50m','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'v50m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m/s')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'cloud cover fraction'
-    call ccnf_def_var(timencid,'cc','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'cc',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','0-1')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
 
     lname = "sky view factor"
-    call ccnf_def_var(timencid,'svf','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'svf',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','none')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = "aspect ratio"
-    call ccnf_def_var(timencid,'asr','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'asr',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','none')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = "urban surface cover fraction"
-    call ccnf_def_var(timencid,'urf','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'urf',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','none')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = "roof height"
-    call ccnf_def_var(timencid,'rfh','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'rfh',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = "standard deviation of roof heights"
-    call ccnf_def_var(timencid,'sd_rfh','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'sd_rfh',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)   
     lname = "emissivity wall"
-    call ccnf_def_var(timencid,'emis_w','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'emis_w',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','none')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = "emissivity road"
-    call ccnf_def_var(timencid,'emis_g','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'emis_g',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','none')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)   
     lname = "emissivity roof"
-    call ccnf_def_var(timencid,'emis_r','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'emis_r',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','none')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = "albedo wall"
-    call ccnf_def_var(timencid,'alb_w','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'alb_w',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','none')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)   
      lname = "albedo road"
-    call ccnf_def_var(timencid,'alb_g','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'alb_g',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','none')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = "albedo roof"
-    call ccnf_def_var(timencid,'alb_r','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(timencid,'alb_r',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','none')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     jdim(1) = udim
     jdim(2) = tdim_time
     lname = "thermal conductivity wall"
-    call ccnf_def_var(timencid,'thc_w','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(timencid,'thc_w',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','J/m/s/K')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = "thermal conductivity road"
-    call ccnf_def_var(timencid,'thc_g','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(timencid,'thc_g',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','J/m/s/K')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = "thermal conductivity roof"
-    call ccnf_def_var(timencid,'thc_r','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(timencid,'thc_r',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','J/m/s/K')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = "heat capacity wall"
-    call ccnf_def_var(timencid,'hc_w','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(timencid,'hc_w',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','J/m3/K')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = "heat capacity road"
-    call ccnf_def_var(timencid,'hc_g','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(timencid,'hc_g',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','J/m3/K')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = "heat capacity roof"
-    call ccnf_def_var(timencid,'hc_r','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(timencid,'hc_r',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','J/m3/K')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
@@ -2628,19 +2635,19 @@ if ( scm_mode=="sublime" ) then
     call ccnf_def_dimu(profilencid,'time',tdim_prof)
 
     jdim(1) = zfdim
-    call ccnf_def_var(profilencid,'levf','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(profilencid,'levf',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(profilencid,idnt,'units','Pa')
 
     jdim(1) = zhdim
-    call ccnf_def_var(profilencid,'levh','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(profilencid,'levh',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(profilencid,idnt,'units','Pa')
 
     jdim(1) = zsdim
-    call ccnf_def_var(profilencid,'levs','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(profilencid,'levs',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(profilencid,idnt,'units','index')
     
     jdim(1) = tdim_prof
-    call ccnf_def_var(profilencid,'time','float',1,jdim(1:1),idnt)
+    call ccnf_def_var(profilencid,'time',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(profilencid,idnt,'point_spacing','even')
     icy = kdate/10000
     icm = max(1, min(12, (kdate-icy*10000)/100))
@@ -2655,47 +2662,47 @@ if ( scm_mode=="sublime" ) then
     jdim(1) = zfdim
     jdim(2) = tdim_prof
     lname = 'height of full level'
-    call ccnf_def_var(profilencid,'zf','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'zf',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     lname = 'pressure at full level'
-    call ccnf_def_var(profilencid,'pf','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'pf',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','Pa')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     lname = 'temperature'
-    call ccnf_def_var(profilencid,'t','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'t',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','K')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     ! lname = 'Temperature'
-    ! call ccnf_def_var(profilencid,'temp','float',2,jdim(1:2),idnt)
+    ! call ccnf_def_var(profilencid,'temp',vtype,2,jdim(1:2),idnt)
     ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
     ! call ccnf_put_att(profilencid,idnt,'units','K')  
     ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     lname = 'potential temperature'
-    call ccnf_def_var(profilencid,'th','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'th',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','K')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     lname = 'specific humidity'
-    call ccnf_def_var(profilencid,'q','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'q',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','kg/kg')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     ! lname = 'Cloud water and ice'
-    ! call ccnf_def_var(profilencid,'qc','float',2,jdim(1:2),idnt)
+    ! call ccnf_def_var(profilencid,'qc',vtype,2,jdim(1:2),idnt)
     ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
     ! call ccnf_put_att(profilencid,idnt,'units','kg/kg')  
     ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     lname = 'zonal component wind'
-    call ccnf_def_var(profilencid,'u','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'u',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m/s')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     lname = 'meridional component wind'
-    call ccnf_def_var(profilencid,'v','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'v',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m/s')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
@@ -2703,37 +2710,37 @@ if ( scm_mode=="sublime" ) then
     jdim(1) = zfdim
     jdim(2) = tdim_prof
     lname = 'u-component geostrophic wind'
-    call ccnf_def_var(profilencid,'ugeo','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'ugeo',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m/s')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'v-component geostrophic wind'
-    call ccnf_def_var(profilencid,'vgeo','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'vgeo',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m/s')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'u-component momentum advection'
-    call ccnf_def_var(profilencid,'dudt_ls','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'dudt_ls',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m/s2')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'v-component momentum advection'
-    call ccnf_def_var(profilencid,'dvdt_ls','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'dvdt_ls',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m/s2')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'temperature advection'
-    call ccnf_def_var(profilencid,'dtdt_ls','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'dtdt_ls',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','K/s')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'moisture advection'
-    call ccnf_def_var(profilencid,'dqdt_ls','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'dqdt_ls',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','kg/kg/s')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'vertical velocity'
-    call ccnf_def_var(profilencid,'w','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'w',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m/s')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
@@ -2741,114 +2748,114 @@ if ( scm_mode=="sublime" ) then
     jdim(1) = zhdim
     jdim(2) = tdim_prof
     lname = 'height of half level'
-    call ccnf_def_var(profilencid,'zh','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'zh',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     lname = 'pressure at half level'
-    call ccnf_def_var(profilencid,'ph','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'ph',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','Pa')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     lname = 'vertical temperature flux'
-    call ccnf_def_var(profilencid,'wt','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'wt',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','K m/s')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     lname = 'vertical moisture flux'
-    call ccnf_def_var(profilencid,'wq','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'wq',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','kg/kg m/s')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     lname = 'vertical flux u-component momentum'
-    call ccnf_def_var(profilencid,'uw','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'uw',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m2/s2')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     lname = 'vertical flux v-component momentum'
-    call ccnf_def_var(profilencid,'vw','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'vw',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m/s')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     ! lname = 'u-variance'
-    ! call ccnf_def_var(profilencid,'uu','float',2,jdim(1:2),idnt)
+    ! call ccnf_def_var(profilencid,'uu',vtype,2,jdim(1:2),idnt)
     ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
     ! call ccnf_put_att(profilencid,idnt,'units','m2/s2')  
     ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     ! lname = 'v-variance'
-    ! call ccnf_def_var(profilencid,'vv','float',2,jdim(1:2),idnt)
+    ! call ccnf_def_var(profilencid,'vv',vtype,2,jdim(1:2),idnt)
     ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
     ! call ccnf_put_att(profilencid,idnt,'units','m2/s2')  
     ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     ! lname = 'w-variance'
-    ! call ccnf_def_var(profilencid,'ww','float',2,jdim(1:2),idnt)
+    ! call ccnf_def_var(profilencid,'ww',vtype,2,jdim(1:2),idnt)
     ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
     ! call ccnf_put_att(profilencid,idnt,'units','m2/s2')  
     ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     ! lname = 'Potential temperature variance'
-    ! call ccnf_def_var(profilencid,'th^2','float',2,jdim(1:2),idnt)
+    ! call ccnf_def_var(profilencid,'th^2',vtype,2,jdim(1:2),idnt)
     ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
     ! call ccnf_put_att(profilencid,idnt,'units','K^2')  
     ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'eddy diffusivity momentum'
-    call ccnf_def_var(profilencid,'Km','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'Km',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m2/s')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     lname = 'eddy diffusivity heat'
-    call ccnf_def_var(profilencid,'Kh','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'Kh',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m2/s')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
     ! lname = 'Massflux'
-    ! call ccnf_def_var(profilencid,'mf','float',2,jdim(1:2),idnt)
+    ! call ccnf_def_var(profilencid,'mf',vtype,2,jdim(1:2),idnt)
     ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
     ! call ccnf_put_att(profilencid,idnt,'units','kg/m2/s')  
     ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     jdim(1) = zfdim
     ! lname = 'Temperature tendency from radiation'
-    ! call ccnf_def_var(profilencid,'dT_dt_rad','float',2,jdim(1:2),idnt)
+    ! call ccnf_def_var(profilencid,'dT_dt_rad',vtype,2,jdim(1:2),idnt)
     ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
     ! call ccnf_put_att(profilencid,idnt,'units','K/s')  
     ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     ! lname = 'Temperature tendency from short wave radiation'
-    ! call ccnf_def_var(profilencid,'dT_dt_swrad','float',2,jdim(1:2),idnt)
+    ! call ccnf_def_var(profilencid,'dT_dt_swrad',vtype,2,jdim(1:2),idnt)
     ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
     ! call ccnf_put_att(profilencid,idnt,'units','K/s')  
     ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     ! lname = 'Temperature tendency from long wave radiation'
-    ! call ccnf_def_var(profilencid,'dT_dt_lwrad','float',2,jdim(1:2),idnt)
+    ! call ccnf_def_var(profilencid,'dT_dt_lwrad',vtype,2,jdim(1:2),idnt)
     ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
     ! call ccnf_put_att(profilencid,idnt,'units','K/s')  
     ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'turbulent kinetic energy'
-    call ccnf_def_var(profilencid,'TKE','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'TKE',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m2/s2')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'shear production'
-    call ccnf_def_var(profilencid,'shear','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'shear',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m2/s3')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'buoyancy production'
-    call ccnf_def_var(profilencid,'buoy','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'buoy',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m2/s3')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'total transport'
-    call ccnf_def_var(profilencid,'trans','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'trans',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m2/s3')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     lname = 'dissipation'
-    call ccnf_def_var(profilencid,'dissi','float',2,jdim(1:2),idnt)
+    call ccnf_def_var(profilencid,'dissi',vtype,2,jdim(1:2),idnt)
     call ccnf_put_att(profilencid,idnt,'long_name',lname)
     call ccnf_put_att(profilencid,idnt,'units','m2/s3')  
     call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
     jdim(1) = zhdim
     ! lname = 'Total turbulent energy'
-    ! call ccnf_def_var(profilencid,'TTE','float',2,jdim(1:2),idnt)
+    ! call ccnf_def_var(profilencid,'TTE',vtype,2,jdim(1:2),idnt)
     ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
     ! call ccnf_put_att(profilencid,idnt,'units','m2/s2')  
     ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
@@ -2856,7 +2863,7 @@ if ( scm_mode=="sublime" ) then
     jdim(1) = zsdim
     jdim(2) = tdim_prof
     ! lname = 'Snow temperature'
-    ! call ccnf_def_var(profilencid,'tsn','float',2,jdim(1:2),idnt)
+    ! call ccnf_def_var(profilencid,'tsn',vtype,2,jdim(1:2),idnt)
     ! call ccnf_put_att(profilencid,idnt,'long_name',lname)
     ! call ccnf_put_att(profilencid,idnt,'units','K')  
     ! call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
@@ -3231,7 +3238,7 @@ else if ( scm_mode=="gabls4" ) then
   !   call ccnf_def_dimu(timencid,'time',tdim_time)
 
   !   jdim(1) = tdim_time
-  !   call ccnf_def_var(timencid,'time','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'time',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'point_spacing','even')
   !   icy = kdate/10000
   !   icm = max(1, min(12, (kdate-icy*10000)/100))
@@ -3245,387 +3252,387 @@ else if ( scm_mode=="gabls4" ) then
     
   !   jdim(1) = tdim_time
   !   lname = 'Long wave downward radiation at surface'
-  !   call ccnf_def_var(timencid,'lwdw','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'lwdw',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','W/m2')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Long wave upward radiation at surface'
-  !   call ccnf_def_var(timencid,'lwup','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'lwup',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','W/m2')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Short wave downward radiation at surface'
-  !   call ccnf_def_var(timencid,'swdw','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'swdw',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','W/m2')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Short wave upward radiation at surface'
-  !   call ccnf_def_var(timencid,'swup','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'swup',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','W/m2')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Sensible heat flux'
-  !   call ccnf_def_var(timencid,'shf','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'shf',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','W/m2')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Latent (Liq+sol) heat flux'
-  !   call ccnf_def_var(timencid,'lhf','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'lhf',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','W/m2')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Evaporation + sublimation flux'
-  !   call ccnf_def_var(timencid,'evap','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'evap',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','mm/day')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Friction velocity'
-  !   call ccnf_def_var(timencid,'ustar','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'ustar',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Precipitation (liq+sol) rate'
-  !   call ccnf_def_var(timencid,'rain','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'rain',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','mm/day')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Surface pressure'
-  !   call ccnf_def_var(timencid,'psurf','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'psurf',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','Pa')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Boundary layer height'
-  !   call ccnf_def_var(timencid,'hpbl','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'hpbl',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Surface temperature'
-  !   call ccnf_def_var(timencid,'tsurf','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'tsurf',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','K')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Radiative temperature if different from tsurf'
-  !   call ccnf_def_var(timencid,'trad','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'trad',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','K')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Surface albedo'
-  !   call ccnf_def_var(timencid,'alb','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'alb',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','0-1')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Momentum roughness length'
-  !   call ccnf_def_var(timencid,'z0m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'z0m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Heat roughness length'
-  !   call ccnf_def_var(timencid,'z0h','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'z0h',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Surface emissivity'
-  !   call ccnf_def_var(timencid,'emis','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'emis',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','0-1')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = '2m temperature'
-  !   call ccnf_def_var(timencid,'t2m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'t2m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','K')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = '2m specific humidity'
-  !   call ccnf_def_var(timencid,'q2m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'q2m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','kg/kg')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = '2m relative humidity'
-  !   call ccnf_def_var(timencid,'rh2m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'rh2m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','0-100') 
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = '10m u-component wind'
-  !   call ccnf_def_var(timencid,'u10m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'u10m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = '10m v-component wind'
-  !   call ccnf_def_var(timencid,'v10m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'v10m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Temperature at 3.3 meter above the surface'
-  !   call ccnf_def_var(timencid,'t3m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'t3m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','K')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)    
   !   lname = 'Specific humdity at 3.3 meter above surface'
-  !   call ccnf_def_var(timencid,'q3m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'q3m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','kg/kg')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Relative humidity at 3.3 meter above the surface'
-  !   call ccnf_def_var(timencid,'rh3m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'rh3m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','0-100')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'u-component wind at 3.3 meter above surface'
-  !   call ccnf_def_var(timencid,'u3m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'u3m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'v-component wind at 3.3 meter above surface'
-  !   call ccnf_def_var(timencid,'v3m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'v3m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Temperature at 8.8 meter above the surface'
-  !   call ccnf_def_var(timencid,'t9m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'t9m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','K')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)    
   !   lname = 'Specific humdity at 8.8 meter above surface'
-  !   call ccnf_def_var(timencid,'q9m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'q9m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','kg/kg')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Relative humidity at 8.8 meter above the surface'
-  !   call ccnf_def_var(timencid,'rh9m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'rh9m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','0-100')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'u-component wind at 8.8 meter above surface'
-  !   call ccnf_def_var(timencid,'u9m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'u9m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'v-component wind at 8.8 meter above surface'
-  !   call ccnf_def_var(timencid,'v9m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'v9m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Temperature at 17.9 meter above the surface'
-  !   call ccnf_def_var(timencid,'t18m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'t18m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','K')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)    
   !   lname = 'Specific humdity at 17.9 meter above surface'
-  !   call ccnf_def_var(timencid,'q18m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'q18m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','kg/kg')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Relative humidity at 17.9 meter above the surface'
-  !   call ccnf_def_var(timencid,'rh18m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'rh18m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','0-100')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'u-component wind at 17.9 meter above surface'
-  !   call ccnf_def_var(timencid,'u18m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'u18m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'v-component wind at 17.9 meter above surface'
-  !   call ccnf_def_var(timencid,'v18m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'v18m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Temperature at 25.3 meter above the surface'
-  !   call ccnf_def_var(timencid,'t25m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'t25m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','K')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)    
   !   lname = 'Specific humdity at 25.3 meter above surface'
-  !   call ccnf_def_var(timencid,'q25m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'q25m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','kg/kg')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Relative humidity at 25.3 meter above the surface'
-  !   call ccnf_def_var(timencid,'rh25m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'rh25m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','0-100')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'u-component wind at 25.3 meter above surface'
-  !   call ccnf_def_var(timencid,'u25m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'u25m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'v-component wind at 25.3 meter above surface'
-  !   call ccnf_def_var(timencid,'v25m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'v25m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Temperature at 32.7 meter above the surface'
-  !   call ccnf_def_var(timencid,'t33m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'t33m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','K')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)    
   !   lname = 'Specific humdity at 32.7 meter above surface'
-  !   call ccnf_def_var(timencid,'q33m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'q33m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','kg/kg')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Relative humidity at 32.7 meter above the surface'
-  !   call ccnf_def_var(timencid,'rh33m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'rh33m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','0-100')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'u-component wind at 32.7 meter above surface'
-  !   call ccnf_def_var(timencid,'u33m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'u33m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'v-component wind at 32.7 meter above surface'
-  !   call ccnf_def_var(timencid,'v33m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'v33m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Temperature at 41.9 meter above the surface'
-  !   call ccnf_def_var(timencid,'t42m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'t42m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','K')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)    
   !   lname = 'Specific humdity at 41.9 meter above surface'
-  !   call ccnf_def_var(timencid,'q42m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'q42m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','kg/kg')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Relative humidity at 41.9 meter above the surface'
-  !   call ccnf_def_var(timencid,'rh42m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'rh42m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','0-100')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'u-component wind at 41.9 meter above surface'
-  !   call ccnf_def_var(timencid,'u42m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'u42m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'v-component wind at 41.9 meter above surface'
-  !   call ccnf_def_var(timencid,'v42m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'v42m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Total cloudcover fraction'
-  !   call ccnf_def_var(timencid,'cc','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'cc',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','0-1')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux u-component momentum at 3.3 meter above surface'
-  !   call ccnf_def_var(timencid,'uw_3m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'uw_3m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux v-component momentum at 3.3 meter above surface'
-  !   call ccnf_def_var(timencid,'vw_3m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'vw_3m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical temperature flux at 3.3 meter above surface'
-  !   call ccnf_def_var(timencid,'wt_3m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'wt_3m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','Km/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Turbulent kinetic energy at 3.3 meter above surface'
-  !   call ccnf_def_var(timencid,'TKE_3m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'TKE_3m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m^2/s^2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux u-component momentum at 7.03 meter above surface'
-  !   call ccnf_def_var(timencid,'uw_7m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'uw_7m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux v-component momentum at 7.03 meter above surface'
-  !   call ccnf_def_var(timencid,'vw_7m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'vw_7m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical temperature flux at 7.03 meter above surface'
-  !   call ccnf_def_var(timencid,'wt_7m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'wt_7m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','Km/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Turbulent kinetic energy at 7.03 meter above surface'
-  !   call ccnf_def_var(timencid,'TKE_7m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'TKE_7m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m^2/s^2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux u-component momentum at 15.43 meter above surface'
-  !   call ccnf_def_var(timencid,'uw_15m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'uw_15m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux v-component momentum at 15.43 meter above surface'
-  !   call ccnf_def_var(timencid,'vw_15m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'vw_15m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical temperature flux at 15.43 meter above surface'
-  !   call ccnf_def_var(timencid,'wt_15m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'wt_15m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','Km/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Turbulent kinetic energy at 15.43 meter above surface'
-  !   call ccnf_def_var(timencid,'TKE_15m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'TKE_15m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m^2/s^2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux u-component momentum at 22.79 meter above surface'
-  !   call ccnf_def_var(timencid,'uw_23m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'uw_23m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux v-component momentum at 22.79 meter above surface'
-  !   call ccnf_def_var(timencid,'vw_23m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'vw_23m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical temperature flux at 22.79 meter above surface'
-  !   call ccnf_def_var(timencid,'wt_23m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'wt_23m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','Km/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Turbulent kinetic energy at 22.79 meter above surface'
-  !   call ccnf_def_var(timencid,'TKE_23m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'TKE_23m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m^2/s^2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux u-component momentum at 30.15 meter above surface'
-  !   call ccnf_def_var(timencid,'uw_30m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'uw_30m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux v-component momentum at 30.15 meter above surface'
-  !   call ccnf_def_var(timencid,'vw_30m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'vw_30m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical temperature flux at 30.15 meter above surface'
-  !   call ccnf_def_var(timencid,'wt_30m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'wt_30m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','Km/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Turbulent kinetic energy at 30.15 meter above surface'
-  !   call ccnf_def_var(timencid,'TKE_30m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'TKE_30m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m^2/s^2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux u-component momentum at 37.51 meter above surface'
-  !   call ccnf_def_var(timencid,'uw_38m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'uw_38m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux v-component momentum at 37.51 meter above surface'
-  !   call ccnf_def_var(timencid,'vw_38m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'vw_38m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical temperature flux at 37.51 meter above surface'
-  !   call ccnf_def_var(timencid,'wt_38m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'wt_38m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','Km/s')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Turbulent kinetic energy at 37.51 meter above surface'
-  !   call ccnf_def_var(timencid,'TKE_38m','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(timencid,'TKE_38m',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(timencid,idnt,'long_name',lname)
   !   call ccnf_put_att(timencid,idnt,'units','m^2/s^2')  
   !   call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
@@ -3670,19 +3677,19 @@ else if ( scm_mode=="gabls4" ) then
   !   call ccnf_def_dimu(profilencid,'time',tdim_prof)
 
   !   jdim(1) = zfdim
-  !   call ccnf_def_var(profilencid,'levf','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(profilencid,'levf',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(profilencid,idnt,'units','Pa')
 
   !   jdim(1) = zhdim
-  !   call ccnf_def_var(profilencid,'levh','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(profilencid,'levh',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(profilencid,idnt,'units','Pa')
 
   !   jdim(1) = zsdim
-  !   call ccnf_def_var(profilencid,'levs','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(profilencid,'levs',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(profilencid,idnt,'units','index')
     
   !   jdim(1) = tdim_prof
-  !   call ccnf_def_var(profilencid,'time','float',1,jdim(1:1),idnt)
+  !   call ccnf_def_var(profilencid,'time',vtype,1,jdim(1:1),idnt)
   !   call ccnf_put_att(profilencid,idnt,'point_spacing','even')
   !   icy = kdate/10000
   !   icm = max(1, min(12, (kdate-icy*10000)/100))
@@ -3697,47 +3704,47 @@ else if ( scm_mode=="gabls4" ) then
   !   jdim(1) = zfdim
   !   jdim(2) = tdim_prof
   !   lname = 'Height of full level'
-  !   call ccnf_def_var(profilencid,'zf','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'zf',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Presure at full level'
-  !   call ccnf_def_var(profilencid,'pf','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'pf',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','Pa')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Temperature'
-  !   call ccnf_def_var(profilencid,'t','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'t',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','K')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Temperature'
-  !   call ccnf_def_var(profilencid,'temp','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'temp',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','K')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Potential temperature'
-  !   call ccnf_def_var(profilencid,'th','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'th',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','K')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Specific humidity'
-  !   call ccnf_def_var(profilencid,'q','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'q',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','kg/kg')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Cloud water and ice'
-  !   call ccnf_def_var(profilencid,'qc','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'qc',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','kg/kg')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Zonal component wind'
-  !   call ccnf_def_var(profilencid,'u','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'u',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Meridional component wind'
-  !   call ccnf_def_var(profilencid,'v','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'v',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
@@ -3745,37 +3752,37 @@ else if ( scm_mode=="gabls4" ) then
   !   jdim(1) = zfdim
   !   jdim(2) = tdim_prof
   !   lname = 'u-component geostrophic wind'
-  !   call ccnf_def_var(profilencid,'ugeo','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'ugeo',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'v-component geostrophic wind'
-  !   call ccnf_def_var(profilencid,'vgeo','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'vgeo',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'u-component momentum advection'
-  !   call ccnf_def_var(profilencid,'dudt_ls','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'dudt_ls',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m/s/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'v-component momentum advection'
-  !   call ccnf_def_var(profilencid,'dvdt_ls','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'dvdt_ls',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m/s/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'Temperature advection'
-  !   call ccnf_def_var(profilencid,'dtdt_ls','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'dtdt_ls',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','K/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'Moisture advection advection'
-  !   call ccnf_def_var(profilencid,'dqdt_ls','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'dqdt_ls',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','kg/kg/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'vertical movement'
-  !   call ccnf_def_var(profilencid,'w','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'w',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
@@ -3783,114 +3790,114 @@ else if ( scm_mode=="gabls4" ) then
   !   jdim(1) = zhdim
   !   jdim(2) = tdim_prof
   !   lname = 'Height of half level'
-  !   call ccnf_def_var(profilencid,'zh','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'zh',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Presure at half level'
-  !   call ccnf_def_var(profilencid,'ph','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'ph',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','Pa')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical temperature flux'
-  !   call ccnf_def_var(profilencid,'wt','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'wt',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','Km/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical moisture flux'
-  !   call ccnf_def_var(profilencid,'wq','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'wq',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','kg/kg m/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux u-component momentum'
-  !   call ccnf_def_var(profilencid,'uw','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'uw',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Vertical flux v-component momentum'
-  !   call ccnf_def_var(profilencid,'vw','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'vw',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'u-variance'
-  !   call ccnf_def_var(profilencid,'uu','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'uu',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'v-variance'
-  !   call ccnf_def_var(profilencid,'vv','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'vv',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'w-variance'
-  !   call ccnf_def_var(profilencid,'ww','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'ww',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m2/s2')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'Potential temperature variance'
-  !   call ccnf_def_var(profilencid,'th^2','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'th^2',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','K^2')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'Eddy diffusivity momentum'
-  !   call ccnf_def_var(profilencid,'Km','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'Km',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m2/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Eddy diffusivity heat'
-  !   call ccnf_def_var(profilencid,'Kh','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'Kh',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m2/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)
   !   lname = 'Massflux'
-  !   call ccnf_def_var(profilencid,'mf','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'mf',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','kg/m2/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   jdim(1) = zfdim
   !   lname = 'Temperature tendency from radiation'
-  !   call ccnf_def_var(profilencid,'dT_dt_rad','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'dT_dt_rad',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','K/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'Temperature tendency from short wave radiation'
-  !   call ccnf_def_var(profilencid,'dT_dt_swrad','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'dT_dt_swrad',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','K/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'Temperature tendency from long wave radiation'
-  !   call ccnf_def_var(profilencid,'dT_dt_lwrad','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'dT_dt_lwrad',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','K/s')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'Turbulent kinetic energy'
-  !   call ccnf_def_var(profilencid,'TKE','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'TKE',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m^2/s^2')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   jdim(1) = zhdim
   !   lname = 'Total turbulent energy'
-  !   call ccnf_def_var(profilencid,'TTE','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'TTE',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m^2/s^2')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'Shear production'
-  !   call ccnf_def_var(profilencid,'shear','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'shear',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m2/s3')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'Bouyancy production'
-  !   call ccnf_def_var(profilencid,'buoy','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'buoy',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m2/s3')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'Total transport'
-  !   call ccnf_def_var(profilencid,'trans','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'trans',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m2/s3')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
   !   lname = 'Dissipation'
-  !   call ccnf_def_var(profilencid,'dissi','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'dissi',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','m2/s3')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  
@@ -3898,7 +3905,7 @@ else if ( scm_mode=="gabls4" ) then
   !   jdim(1) = zsdim
   !   jdim(2) = tdim_prof
   !   lname = 'Snow temperature'
-  !   call ccnf_def_var(profilencid,'tsn','float',2,jdim(1:2),idnt)
+  !   call ccnf_def_var(profilencid,'tsn',vtype,2,jdim(1:2),idnt)
   !   call ccnf_put_att(profilencid,idnt,'long_name',lname)
   !   call ccnf_put_att(profilencid,idnt,'units','K')  
   !   call ccnf_put_att(profilencid,idnt,'missing_value',nf90_fill_float)  

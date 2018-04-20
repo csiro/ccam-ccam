@@ -5934,11 +5934,11 @@ character(len=*), intent(in) :: name
 
 lncid=ncid
 ncstatus=nf90_inq_varid(lncid,name,lvid)
-call ncmsg("put_vara_real2r",ncstatus)
+call ncmsg("put_vara_real2r_t"//trim(name),ncstatus)
 lstart=start
 lncount=ncount
 ncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("put_vara_real2r",ncstatus)
+call ncmsg("put_vara_real2r_t "//trim(name),ncstatus)
 
 return
 end subroutine ccnf_put_vara_real2r_t
@@ -5962,7 +5962,7 @@ lvid=vid
 lstart=start
 lncount=ncount
 ncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("put_vara_real2r",ncstatus)
+call ncmsg("put_vara_real2r_s",ncstatus)
 
 return
 end subroutine ccnf_put_vara_real2r_s
@@ -5984,11 +5984,11 @@ character(len=*), intent(in) :: name
 
 lncid=ncid
 ncstatus=nf90_inq_varid(lncid,name,lvid)
-call ncmsg("put_vara_real2r",ncstatus)
+call ncmsg("put_vara_real3r_t",ncstatus)
 lstart(:)=start(:)
 lncount(:)=ncount(:)
 ncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("put_vara_real2r",ncstatus)
+call ncmsg("put_vara_real3r_t",ncstatus)
 
 return
 end subroutine ccnf_put_vara_real3r_t
