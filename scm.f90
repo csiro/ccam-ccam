@@ -144,7 +144,7 @@ real ateb_bldheight, ateb_hwratio, ateb_sigvegc, ateb_sigmabld
 real ateb_industryfg, ateb_trafficfg, ateb_vegalphac
 real ateb_wallalpha, ateb_roadalpha, ateb_roofalpha
 real ateb_wallemiss, ateb_roademiss, ateb_roofemiss
-real ateb_infilach,  ateb_intgains
+real ateb_infilach,  ateb_intgains, ateb_bldairtemp
 real, dimension(4) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
 real, dimension(4) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
@@ -176,7 +176,7 @@ namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     ateb_wall_thick,ateb_wall_cp,ateb_wall_cond,                  &
     ateb_road_thick,ateb_road_cp,ateb_road_cond,                  &
     ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                  &
-    ateb_infilach,ateb_intgains
+    ateb_infilach,ateb_intgains,ateb_bldairtemp
 ! main namelist
 namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,             &
@@ -303,6 +303,7 @@ ateb_slab_cp = -999.
 ateb_slab_cond = -999.
 ateb_infilach = -999.
 ateb_intgains = -999.
+ateb_bldairtemp = -999.
 ateb_energytol = 0.005_8
 
 #ifndef stacklimit
@@ -435,7 +436,7 @@ call initialscm(scm_mode,metforcing,lsmforcing,press_in(1:kl),press_surf,z_in,iv
                 ateb_wall_thick,ateb_wall_cp,ateb_wall_cond,                            &
                 ateb_road_thick,ateb_road_cp,ateb_road_cond,                            &
                 ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                            &
-                ateb_infilach,ateb_intgains)
+                ateb_infilach,ateb_intgains,ateb_bldairtemp)
 
 allocate( t_save(ifull,kl), qg_save(ifull,kl), u_save(ifull,kl), v_save(ifull,kl) )
 allocate( psl_save(ifull) )
@@ -931,7 +932,7 @@ subroutine initialscm(scm_mode,metforcing,lsmforcing,press_in,press_surf,z_in,iv
                       ateb_wall_thick,ateb_wall_cp,ateb_wall_cond,                      &
                       ateb_road_thick,ateb_road_cp,ateb_road_cond,                      &
                       ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                      &
-                      ateb_infilach,ateb_intgains)
+                      ateb_infilach,ateb_intgains,ateb_bldairtemp)
 
 use aerointerface                          ! Aerosol interface
 use aerosolldr                             ! LDR prognostic aerosols
@@ -992,7 +993,7 @@ real, intent(in) :: ateb_bldheight, ateb_hwratio, ateb_sigvegc, ateb_sigmabld
 real, intent(in) :: ateb_industryfg, ateb_trafficfg, ateb_vegalphac
 real, intent(in) :: ateb_roofalpha, ateb_wallalpha, ateb_roadalpha
 real, intent(in) :: ateb_roofemiss, ateb_wallemiss, ateb_roademiss
-real, intent(in) :: ateb_infilach,  ateb_intgains
+real, intent(in) :: ateb_infilach,  ateb_intgains, ateb_bldairtemp
 real, dimension(4), intent(in) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4), intent(in) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
 real, dimension(4), intent(in) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
@@ -1469,6 +1470,10 @@ if (nurban/=0) then
   if ( ateb_intgains>-900. ) then
     atebparm(1:8) = ateb_intgains
     call atebdeftype(atebparm(1:8),urbantype,'intgains',0)
+  end if
+  if ( ateb_bldairtemp>-900. ) then
+    atebparm(1:8) = ateb_bldairtemp
+    call atebdeftype(atebparm(1:8),urbantype,'bldairtemp',0)
   end if
   if ( all( ateb_roof_thick>-900. ) ) then
     do k = 1,4  
@@ -2239,7 +2244,7 @@ if ( novertmix ) then
   pf(1) = sig(1)*ps(1)
   ta(1) = t(1,1)
   qs(1) = qsat(pf(1),ta(1))
-  qg(1,1) = qs(1)*0.5*(rh_lsm_a+rh_lsm_b)/100.
+  qg(1,1) = qs(1)*(wgt*rh_lsm_a+(1.-wgt)*rh_lsm_b)/100.
 end if
 
 return
@@ -2922,7 +2927,7 @@ if ( scm_mode=="sublime" ) then
   pf(1:kl) = sig(1:kl)*ps(1)
 
   qs(1:kl) = qsat(pf,t(1,:))
-  rh(:) = qg(1,:)/qs(:)
+  rh(:) = 100.*qg(1,:)/qs(:)
 
   do k=1,kl
     wtflux(1,k) = wth_flux(1,k)*sigmh(k)**(rdry/cp)
@@ -3020,11 +3025,9 @@ if ( scm_mode=="sublime" ) then
     aa(:) = qgscrn(:)/(1.+qgscrn(:))
     call ccnf_put_vara(timencid,'q2m',iarch,aa(1))
     call ccnf_put_vara(timencid,'rh2m',iarch,rhscrn(1))
-    tmp(:)=u(1,:)
-    call vout(tmp,aa(1),zf,10.,kl)
+    aa(1)=u(1,1)*u10(1)/sqrt(u(1,1)**2+v(1,1)**2)
     call ccnf_put_vara(timencid,'u10m',iarch,aa(1))
-    tmp(:)=v(1,:)
-    call vout(tmp,aa(1),zf,10.,kl)
+    aa(1)=v(1,1)*u10(1)/sqrt(u(1,1)**2+v(1,1)**2)
     call ccnf_put_vara(timencid,'v10m',iarch,aa(1))
     tmp=t(1,:)
     call vout(tmp,aa(1),zf,50.,kl)

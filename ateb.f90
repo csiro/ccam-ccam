@@ -506,8 +506,6 @@ do tile = 1,ntiles
                   f_intm(tile),intl_g(tile),upack_g(:,tile),             &
                   ufull_g(tile))
     
-    room_g(tile)%nodetemp(:,1)=f_g(tile)%bldairtemp
-    
     p_g(tile)%cndzmin=max(10.,0.1*f_g(tile)%bldheight+2.)           ! updated in atebcalc
     p_g(tile)%lzom=log(p_g(tile)%cndzmin/(0.1*f_g(tile)%bldheight)) ! updated in atebcalc
     p_g(tile)%lzoh=6.+p_g(tile)%lzom ! (Kanda et al 2005)           ! updated in atebcalc
@@ -988,7 +986,7 @@ real, dimension(maxtype) ::    chwratio=(/  0.4,  0.2,  0.4,  0.6,   2.,  0.5,  
 ! Industrial sensible heat flux (W m^-2)
 real, dimension(maxtype) :: cindustryfg=(/   0.,   0.,   0.,   0.,   0.,  10.,  20.,  30. /)
 ! Internal gains sensible heat flux [floor] (W m^-2)
-real, dimension(maxtype) ::   cintgains=(/ 5.,   5.,   5.,   5.,   5.,   5.,   5.,   5. /)
+real, dimension(maxtype) ::   cintgains=(/   5.,   5.,   5.,   5.,   5.,   5.,   5.,   5. /)
 ! Daily averaged traffic sensible heat flux (W m^-2)
 real, dimension(maxtype) ::  ctrafficfg=(/  1.5,  1.5,  1.5,  1.5,  1.5,  1.5,  1.5,  1.5 /)
 ! Comfort temperature (K)
@@ -1063,7 +1061,6 @@ type(fparmdata), intent(inout) :: fp
 type(vegdata), intent(inout) :: cnveg, rfveg
 type(facetparams), intent(inout) :: fp_roof, fp_road, fp_wall, fp_slab, fp_intm
 type(intldata), intent(inout) :: intl
-
 
 namelist /atebnml/  resmeth,useonewall,zohmeth,acmeth,intairtmeth,intmassmeth,nrefl,vegmode,soilunder, &
                     conductmeth,cvcoeffmeth,statsmeth,behavmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,iqt,  &
@@ -1502,6 +1499,20 @@ select case(paramname)
         f_g(tile)%intgains_flr = paramdata(itmp(1:ufull_g(tile)))
       end if
     end do  
+  case('bldairtemp')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+        if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+          write(6,*) "ERROR: Urban type is out of range"
+          stop 
+        end if
+        f_g(tile)%bldairtemp = paramdata(itmp(1:ufull_g(tile))) - urbtemp
+        room_g(tile)%nodetemp(:,1) = f_g(tile)%bldairtemp
+      end if
+    end do      
   case default
     found = .false.
     do i = 1,4
@@ -4643,6 +4654,8 @@ do l = 1,ncyits
     case(0) ! fixed internal air temperature
       if ( diag>=1 ) write(6,*) "Evaluating with fixed internal air temperature"
 
+      iroomtemp = fp%bldairtemp
+      
       ! ---0.1: Estimate internal surface convection coefficients -------------
       call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,  & 
                           cvcoeff_intm1,cvcoeff_intm2,roof,room,slab,intm,ufull)
