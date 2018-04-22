@@ -2223,14 +2223,14 @@ call ccnf_get_vara(ncid,'PSFC',iarch,ps_lsm_b)
 
 wgt = (real(iarch)*1800. - real(ktau)*dt)/1800. 
 
-if ( noradiation ) then
+!if ( noradiation ) then
   sgdn_ave(1) = wgt*sgdwn_lsm_a + (1.-wgt)*sgdwn_lsm_b
   sgsave(1) = (wgt*sgdwn_lsm_a+(1.-wgt)*sgdwn_lsm_b)*(1.-swrsave(1)*albvisnir(1,1)-swrsave(1)*albvisnir(1,2))
   sgn_ave(1) = sgsave(1)
   rgdn_ave(1) = wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b
   rgsave(1) = -(wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b)
   rgn_ave(1) = stefbo*tss(1)**4 - (wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b)
-end if
+!end if
 if ( nocloud.and.noconvection ) then
   condx(1) = wgt*pr_lsm_a+(1.-wgt)*pr_lsm_b 
 end if  
