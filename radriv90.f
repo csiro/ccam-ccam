@@ -733,23 +733,12 @@ c slwa is negative net radiational htg at ground
      &           rgsave(idjd),rg(idjd),tss(idjd),grnflx(idjd)
       endif
 
-! Calculate rtt, the net radiational cooling of atmosphere (K/s) from htk (in
-! W/m^2 for the layer). Note that dsig is negative which does the conversion
-! to a cooling rate.
+! Update SW if solarfit is true
       if ( solarfit ) then
         do k=1,kl
            do i=1,imax
               iq=i+(j-1)*il
-              t(iq,k)=t(iq,k)
-     &        +dt*(sw_tend_amp(iq,k)*coszro2(i)*taudar2(i)
-     &            +lw_tend(iq,k)) ! MJT
-           end do
-        end do
-      else
-        do k=1,kl
-           do i=1,imax
-              iq=i+(j-1)*il
-              t(iq,k)=t(iq,k)+dt*(sw_tend(iq,k)+lw_tend(iq,k)) ! MJT
+              sw_tend(iq,k)=sw_tend_amp(iq,k)*coszro2(i)*taudar2(i)
            end do
         end do
       end if  

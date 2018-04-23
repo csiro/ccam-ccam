@@ -145,6 +145,7 @@ real ateb_industryfg, ateb_trafficfg, ateb_vegalphac
 real ateb_wallalpha, ateb_roadalpha, ateb_roofalpha
 real ateb_wallemiss, ateb_roademiss, ateb_roofemiss
 real ateb_infilach,  ateb_intgains, ateb_bldairtemp
+real ateb_zovegc
 real, dimension(4) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
 real, dimension(4) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
@@ -176,7 +177,8 @@ namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     ateb_wall_thick,ateb_wall_cp,ateb_wall_cond,                  &
     ateb_road_thick,ateb_road_cp,ateb_road_cond,                  &
     ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                  &
-    ateb_infilach,ateb_intgains,ateb_bldairtemp
+    ateb_infilach,ateb_intgains,ateb_bldairtemp,                  &
+    ateb_zovegc
 ! main namelist
 namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,             &
@@ -304,6 +306,7 @@ ateb_slab_cond = -999.
 ateb_infilach = -999.
 ateb_intgains = -999.
 ateb_bldairtemp = -999.
+ateb_zovegc = -999.
 ateb_energytol = 0.005_8
 
 #ifndef stacklimit
@@ -436,7 +439,7 @@ call initialscm(scm_mode,metforcing,lsmforcing,press_in(1:kl),press_surf,z_in,iv
                 ateb_wall_thick,ateb_wall_cp,ateb_wall_cond,                            &
                 ateb_road_thick,ateb_road_cp,ateb_road_cond,                            &
                 ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                            &
-                ateb_infilach,ateb_intgains,ateb_bldairtemp)
+                ateb_infilach,ateb_intgains,ateb_bldairtemp,ateb_zovegc)
 
 allocate( t_save(ifull,kl), qg_save(ifull,kl), u_save(ifull,kl), v_save(ifull,kl) )
 allocate( psl_save(ifull) )
@@ -768,13 +771,16 @@ do spinup = spinup_start,1,-1
     if ( ncloud>=4 ) then
       nettend(1:ifull,1:kl) = nettend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
     end if  
-    if ( .not.noradiation ) then
-      select case ( nrad )
-        case(5)
-          ! GFDL SEA-EFS radiation
-          call seaesfrad
-      end select
-    end if
+    select case ( nrad )
+      case(5)
+        ! GFDL SEA-EFS radiation
+        call seaesfrad
+        if ( .not.noradiation ) then
+          do k = 1,kl
+            t(1:ifull,k) = t(1:ifull,k) - dt*(sw_tend(1:ifull,k)+lw_tend(1:ifull,k))
+          end do            
+        end if    
+    end select
     call nantest("after radiation",1,ifull)   
 
     call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
@@ -932,7 +938,7 @@ subroutine initialscm(scm_mode,metforcing,lsmforcing,press_in,press_surf,z_in,iv
                       ateb_wall_thick,ateb_wall_cp,ateb_wall_cond,                      &
                       ateb_road_thick,ateb_road_cp,ateb_road_cond,                      &
                       ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                      &
-                      ateb_infilach,ateb_intgains,ateb_bldairtemp)
+                      ateb_infilach,ateb_intgains,ateb_bldairtemp,ateb_zovegc)
 
 use aerointerface                          ! Aerosol interface
 use aerosolldr                             ! LDR prognostic aerosols
@@ -994,6 +1000,7 @@ real, intent(in) :: ateb_industryfg, ateb_trafficfg, ateb_vegalphac
 real, intent(in) :: ateb_roofalpha, ateb_wallalpha, ateb_roadalpha
 real, intent(in) :: ateb_roofemiss, ateb_wallemiss, ateb_roademiss
 real, intent(in) :: ateb_infilach,  ateb_intgains, ateb_bldairtemp
+real, intent(in) :: ateb_zovegc
 real, dimension(4), intent(in) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4), intent(in) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
 real, dimension(4), intent(in) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
@@ -1474,6 +1481,10 @@ if (nurban/=0) then
   if ( ateb_bldairtemp>-900. ) then
     atebparm(1:8) = ateb_bldairtemp
     call atebdeftype(atebparm(1:8),urbantype,'bldairtemp',0)
+  end if
+  if ( ateb_zovegc>-900. ) then
+    atebparm(1:8) = ateb_zovegc
+    call atebdeftype(atebparm(1:8),urbantype,'zovegc',0)
   end if
   if ( all( ateb_roof_thick>-900. ) ) then
     do k = 1,4  
@@ -2223,14 +2234,14 @@ call ccnf_get_vara(ncid,'PSFC',iarch,ps_lsm_b)
 
 wgt = (real(iarch)*1800. - real(ktau)*dt)/1800. 
 
-!if ( noradiation ) then
+if ( noradiation ) then
   sgdn_ave(1) = wgt*sgdwn_lsm_a + (1.-wgt)*sgdwn_lsm_b
   sgsave(1) = (wgt*sgdwn_lsm_a+(1.-wgt)*sgdwn_lsm_b)*(1.-swrsave(1)*albvisnir(1,1)-swrsave(1)*albvisnir(1,2))
   sgn_ave(1) = sgsave(1)
   rgdn_ave(1) = wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b
   rgsave(1) = -(wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b)
   rgn_ave(1) = stefbo*tss(1)**4 - (wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b)
-!end if
+end if
 if ( nocloud.and.noconvection ) then
   condx(1) = wgt*pr_lsm_a+(1.-wgt)*pr_lsm_b 
 end if  

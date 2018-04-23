@@ -172,7 +172,6 @@ include 'kuocom.h'                                  ! Convection parameters
 integer k
 integer i, iq, istart, iend, kr, nr, iq_tile
 integer ktop, kbot, mythread
-real, dimension(imax) :: rtt
 real, dimension(imax,kl) :: duo3n, rhoa
 real, dimension(imax,kl) :: p2, cd2, dumcf, dumql, dumqf, dumt, dz
 real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
@@ -823,11 +822,9 @@ do iq_tile = 1,ifull,imax
   sgsave(istart:iend) = sg(1:imax)   ! Net solar radiation (after solar fit)
   slwa(istart:iend) = -sgsave(istart:iend) + rgsave(istart:iend)
 
-  ! Calculate net radiational heating/cooling of atmosphere (K/s)
+  ! Update tendencies
   do k = 1,kl
-    rtt(1:imax) = sw_tend_amp(istart:iend,k)*coszro2(1:imax)*taudar2(1:imax) &
-                + lw_tend(istart:iend,k)
-    t(istart:iend,k) = t(istart:iend,k) - dt*rtt(1:imax)
+    sw_tend(istart:iend,k) = sw_tend_amp(istart:iend,k)*coszro2(1:imax)*taudar2(1:imax)
   end do  
 
 end do  ! iq_tile = 1,ifull,imax
