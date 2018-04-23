@@ -71,6 +71,7 @@ use parmdyn_m                              ! Dynamics parameters
 use parmhdff_m                             ! Horizontal diffusion parameters
 use pbl_m                                  ! Boundary layer arrays
 use prec_m                                 ! Precipitation
+use raddiag_m                              ! Radiation diagnostic
 use river                                  ! River routing
 use savuvt_m                               ! Saved dynamic arrays
 use savuv1_m                               ! Saved dynamic arrays

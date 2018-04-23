@@ -58,7 +58,8 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_ac_smooth=>ac_smooth           &
     ,ateb_ac_deltat=>ac_deltat           &
     ,ateb_acfactor=>acfactor             &
-    ,ateb_ac_copmax=>ac_copmax
+    ,ateb_ac_copmax=>ac_copmax           &
+    ,atebscrnout
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
@@ -831,6 +832,9 @@ do spinup = spinup_start,1,-1
     if ( rescrn > 0 ) then
       call autoscrn(1,ifull)
     end if
+    
+    call atebscrnout(tscrn,qgscrn,uscrn,u10,0,raw=.true.)
+    
     ! Convection diagnostic output
     cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
     ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
@@ -2939,6 +2943,9 @@ if ( scm_mode=="sublime" ) then
 
   qs(1:kl) = qsat(pf,t(1,:))
   rh(:) = 100.*qg(1,:)/qs(:)
+  
+  qs(1) = qsat(ps(1),tscrn(1))
+  rhscrn(1) = 100.*qgscrn(1)/qs(1)
 
   do k=1,kl
     wtflux(1,k) = wth_flux(1,k)*sigmh(k)**(rdry/cp)
