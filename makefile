@@ -17,7 +17,7 @@ FHOST = -O3 -xCORE-AVX2
 endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
-OMPFLAG = -qopenmp
+OMPFLAG = -qopenmp -qno-openmp-simd
 else
 OMPFLAG =
 endif
