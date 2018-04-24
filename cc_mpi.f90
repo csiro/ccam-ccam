@@ -609,7 +609,7 @@ contains
       
       
       ! Off processor departure points
-!$omp parallel
+!$omp parallel private(dproc,iproc)
       allocate( dpoints(neighnum) )
       allocate( dbuf(0:neighnum) )
       allocate( dindex(0:neighnum) )
