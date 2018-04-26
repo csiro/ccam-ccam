@@ -24,17 +24,14 @@ module raddiag_m
 implicit none
 
 private
-public koundiag
+public koundiag, odcalc
 public sint_ave,sot_ave,soc_ave,sgn_ave
 public sgdn_ave,rgdn_ave
 public rtu_ave,rtc_ave,rgn_ave,rgc_ave,sgc_ave
 public cld_ave,cll_ave,clm_ave,clh_ave
 public sunhours
 public raddiag_init,raddiag_end
-
-#ifdef scm
 public sw_tend, lw_tend
-#endif
 
 integer, save :: koundiag = 0
 real, dimension(:), allocatable, save :: sint_ave,sot_ave,soc_ave,sgn_ave
@@ -42,32 +39,23 @@ real, dimension(:), allocatable, save :: sgdn_ave,rgdn_ave
 real, dimension(:), allocatable, save :: rtu_ave,rtc_ave,rgn_ave,rgc_ave,sgc_ave
 real, dimension(:), allocatable, save :: cld_ave,cll_ave,clm_ave,clh_ave
 real, dimension(:), allocatable, save :: sunhours
-
-#ifdef scm
 real, dimension(:,:), allocatable, save :: sw_tend, lw_tend
-#endif
+logical, save :: odcalc = .false.
 
-    contains
+contains
 
-#ifdef scm
 subroutine raddiag_init(ifull,kl)
-#else
-subroutine raddiag_init(ifull)
-#endif
 
 implicit none
 
-#ifdef scm
 integer, intent(in) :: ifull,kl
-#else
-integer, intent(in) :: ifull
-#endif
 
 allocate(sint_ave(ifull),sot_ave(ifull),soc_ave(ifull),sgn_ave(ifull))
 allocate(sgdn_ave(ifull),rgdn_ave(ifull))
 allocate(rtu_ave(ifull),rtc_ave(ifull),rgn_ave(ifull),rgc_ave(ifull),sgc_ave(ifull))
 allocate(cld_ave(ifull),cll_ave(ifull),clm_ave(ifull),clh_ave(ifull))
 allocate(sunhours(ifull))
+allocate(sw_tend(ifull,kl),lw_tend(ifull,kl))
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
 sint_ave=0.
@@ -86,12 +74,8 @@ cll_ave=0.
 clm_ave=0.
 clh_ave=0.
 sunhours=0.
-
-#ifdef scm
-allocate(sw_tend(ifull,kl),lw_tend(ifull,kl))
 sw_tend=0.
 lw_tend=0.
-#endif
 
 return
 end subroutine raddiag_init
@@ -105,10 +89,7 @@ deallocate(sgdn_ave,rgdn_ave)
 deallocate(rtu_ave,rtc_ave,rgn_ave,rgc_ave,sgc_ave)
 deallocate(cld_ave,cll_ave,clm_ave,clh_ave)
 deallocate(sunhours)
-
-#ifdef scm
 deallocate(sw_tend,lw_tend)
-#endif
 
 return
 end subroutine raddiag_end

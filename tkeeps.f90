@@ -207,7 +207,8 @@ end subroutine tkeinit
 subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,rhos,      &
                   ustar_ave,dt,qgmin,mode,diag,naero,aero,cgmap,                          &
 #ifdef scm
-                  wthflux,wqvflux,uwflux,vwflux,mfout,                                    &
+                  wthflux,wqvflux,uwflux,vwflux,mfout,buoyproduction,                     &
+                  shearproduction,totaltransport,                                         &
 #endif
                   tke,eps,shear,                                                          &
 #ifdef offline
@@ -244,9 +245,10 @@ real, dimension(imax,kl) :: rhoa,rhoahl
 real, dimension(imax,kl) :: qtot,qthl
 real, dimension(imax,kl) :: tlup,qvup,qlup,qfup
 real, dimension(imax,kl) :: cfup,mflx
+real, dimension(imax,kl) :: pps,ppt,ppb
 real, dimension(imax,2:kl) :: idzm
 real, dimension(imax,1:kl-1) :: idzp
-real, dimension(imax,2:kl) :: aa,qq,pps,ppt,ppb
+real, dimension(imax,2:kl) :: aa,qq
 real, dimension(imax,kl)   :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(imax,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(imax,kl-1) :: fzzh
@@ -281,6 +283,8 @@ real, dimension(imax,kl), intent(inout) :: wqf
 
 #ifdef scm
 real, dimension(imax,kl), intent(out) :: wthflux, wqvflux, uwflux, vwflux
+real, dimension(imax,kl), intent(out) :: buoyproduction, shearproduction
+real, dimension(imax,kl), intent(out) :: totaltransport
 real, dimension(imax,kl-1), intent(out) :: mfout
 real, dimension(imax,kl) :: wthlflux, wqlflux
 real, dimension(imax,kl) :: wqfflux
@@ -332,11 +336,12 @@ dz_fl(:,1)    = zzh(:,1)
 dz_fl(:,2:kl) = zzh(:,2:kl) - zzh(:,1:kl-1)
 
 ! Calculate shear term on full levels
-pps(:,2:kl-1) = km(:,2:kl-1)*shear(:,2:kl-1)
+pps(:,1:kl-1) = km(:,1:kl-1)*shear(:,1:kl-1)
 
 ! set top boundary condition for TKE-eps source terms
 pps(:,kl) = 0.
 ppb(:,kl) = 0.
+ppt(:,1)  = 0.
 ppt(:,kl) = 0.
 
 ! interpolate diffusion coeff and air density to half levels
@@ -478,10 +483,22 @@ do kcount = 1,mcount
             +ls*(qfhl(:,k)-qfhl(:,k-1))))/thetac(:)+lv/cp*(qshl(:,k)-qshl(:,k-1))/tempc(:))              &
             -qshl(:,k)-qlhl(:,k)-qfhl(:,k)+qshl(:,k-1)+qlhl(:,k-1)+qfhl(:,k-1))/dz_fl(:,k)
         ! unsaturated
-        tcc=-grav*km(:,k)*(thetalhl(:,k)-thetalhl(:,k-1)+thetal(1:imax,k)*0.61*(quhl(:,k)-quhl(:,k-1))) &
+        tcc=-grav*km(:,k)*(thetalhl(:,k)-thetalhl(:,k-1)+thetal(1:imax,k)*0.61*(quhl(:,k)-quhl(:,k-1)))  &
                          /(thetal(1:imax,k)*dz_fl(:,k))
         ppb(:,k)=(1.-cfrac(1:imax,k))*tcc+cfrac(1:imax,k)*tbb ! cloud fraction weighted (e.g., Smith 1990)
       end do
+      ! saturated
+      thetac(:)=thetal(:,1)+sigkap(1)*(lv*dd(:,1)+ls*ff(:,1))/cp              ! inside cloud value
+      tempc(:)=thetac(:)/sigkap(1)                                            ! inside cloud value          
+      tqq=(1.+lv*qsatc(:,1)/(rd*tempc(:)))/(1.+lv*lv*qsatc(:,1)/(cp*rv*tempc(:)*tempc(:)))
+      tbb=-grav*km(:,1)*(tqq*((thetalhl(:,1)-thetal(:,1)+sigkap(1)/cp*(lv*(qlhl(:,1)-qlg(:,1))         &
+          +ls*(qfhl(:,1)-qfg(:,1))))/thetac(:)+lv/cp*(qshl(:,1)-qsatc(:,1))/tempc(:))                  &
+          -qshl(:,1)-qlhl(:,1)-qfhl(:,1)+qsatc(:,1)+qlg(:,1)+qfg(:,1))/(zzh(:,1)-zz(:,1))
+      ! unsaturated
+      tcc=-grav*km(:,1)*(thetalhl(:,1)-thetal(:,1)+thetal(1:imax,1)*0.61*(quhl(:,1)-qgnc(:,1)))        &
+                       /(thetal(1:imax,1)*(zzh(:,1)-zz(:,1)))
+      ppb(:,1)=(1.-cfrac(1:imax,1))*tcc+cfrac(1:imax,1)*tbb ! cloud fraction weighted (e.g., Smith 1990)
+
       
     case(1) ! Marquet and Geleyn QJRMS (2012) for partially saturated
       call updatekmo(thetalhl,thetal,fzzh,imax)
@@ -497,6 +514,15 @@ do kcount = 1,mcount
            +grav*(mc*fc*1.61-1.)*(temp/tempv)*(qthl(:,k)-qthl(:,k-1))/dz_fl(:,k)
         ppb(:,k)=-km(:,k)*bvf
       end do
+      temp(:)  = theta(1:imax,1)/sigkap(1)
+      tempv(:) = thetav(1:imax,1)/sigkap(1)
+      rvar=rd*tempv/temp ! rvar = qd*rd+qv*rv
+      fc=(1.-cfrac(1:imax,1))+cfrac(1:imax,1)*(lv*rvar/(cp*rv*temp))
+      dc=(1.+0.61*qvg(1:imax,1))*lv*qvg(1:imax,1)/(rd*tempv)
+      mc=(1.+dc)/(1.+lv*qlg(1:imax,1)/(cp*temp)+dc*fc)
+      bvf=grav*mc*(thetalhl(:,1)-thetal(:,1))/(thetal(1:imax,1)*(zzh(:,1)-zz(:,1)))         &
+         +grav*(mc*fc*1.61-1.)*(temp/tempv)*(qthl(:,1)-qtot(:,1))/(zzh(:,1)-zz(:,1))
+      ppb(:,1) = -km(:,1)*bvf
       
     case(2) ! dry convection from Hurley 2007
       call updatekmo(thetavhl,thetav,fzzh,imax)
@@ -504,6 +530,8 @@ do kcount = 1,mcount
         tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
         ppb(:,k)=tcc
       end do
+      tcc=-grav*km(:,1)*(thetavhl(:,1)-thetav(:,1))/(thetav(:,1)*(zzh(:,1)-zz(:,1)))
+      ppb(:,1)=tcc 
       
    case default
      write(6,*) "ERROR: Unknown buoymeth option ",buoymeth
@@ -767,6 +795,11 @@ do kcount = 1,mcount
   
 end do
 
+#ifdef scm
+buoyproduction = ppb
+shearproduction = pps
+totaltransport = ppt
+#endif
 
 return
 end subroutine tkemix
@@ -798,7 +831,7 @@ real, dimension(imax,kl), intent(in) :: eps
 real, dimension(imax_p,kl) :: mflx_p, tlup_p, qvup_p, qlup_p, qfup_p, cfup_p
 real, dimension(imax_p,kl) :: arup_p
 real, dimension(imax_p,kl) :: zz_p
-real, dimension(imax_p,0:kl-1) :: dz_hl_p
+real, dimension(imax_p,kl-1) :: dz_hl_p
 real, dimension(imax_p,kl) ::  qtup, thup, tvup, w2up, nn
 real, dimension(imax_p) :: zi_p, aero_p, tke_p, eps_p, km_p, thetal_p, theta_p, thetav_p
 real, dimension(imax_p) :: qvg_p, qlg_p, qfg_p
@@ -839,7 +872,6 @@ do k = 1,kl
   cfup_p(:,k) = 0.
   zz_p(:,k) = pack( zz(:,k), lmask )
 end do
-dz_hl_p(:,0) = zz_p(:,1)
 do k = 1,kl-1
   dz_hl_p(:,k) = pack( dz_hl(:,k), lmask )  
 end do
@@ -849,7 +881,7 @@ tke1 = cm12*ustar_p*ustar_p + ce3*wstar_p*wstar_p
 tke1 = max(tke1, mintke)
 w2up = 0.
 nn = 0.
-dzht = dz_hl_p(:,0)
+dzht = zz_p(:,1)
 ktopmax = 0
 
 ! Entrainment and detrainment rates
@@ -959,9 +991,9 @@ do k = 2,kl
   end where
   ! test if maximum plume height is reached
   where ( w2up(:,k)<=0. .and. w2up(:,k-1)>0. )
-    as = (nn(:,k)-nn(:,k-1))/dzht
-    bs = nn(:,k-1)
-    cs = w2up(:,k-1)/(2.*b2)
+    as = 2.*b2*(nn(:,k)-nn(:,k-1))/dzht
+    bs = 2.*b2*nn(:,k-1)
+    cs = w2up(:,k-1)
     xp = -2.*cs/(bs-sqrt(max(bs*bs-4.*as*cs,0.)))
     xp = min(max(xp,0.),dzht)
     zi_p(:) = xp + zz_p(:,k-1)

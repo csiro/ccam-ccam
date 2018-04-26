@@ -260,7 +260,11 @@ CONTAINS
   !*******************************************************************************
   SUBROUTINE ZeroPOP(POP,n)
     TYPE(POP_TYPE), INTENT(INOUT) :: POP
+#ifdef CCAM
+    INTEGER(i4b), OPTIONAL, INTENT(IN) ::n
+#else
     INTEGER, OPTIONAL, INTENT(IN) ::n
+#endif
     INTEGER:: g,k,l,c, np,a,b
 
     IF ( .NOT. ASSOCIATED(pop%pop_grid) ) THEN

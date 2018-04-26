@@ -130,7 +130,8 @@ real, dimension(imax,kl) :: lat, lct
 real, dimension(imax) :: lou, lov, liu, liv
 #ifdef scm
 real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
-real, dimension(imax,kl) :: ltkesave, lrkmsave, lrkhsave
+real, dimension(imax,kl) :: ltkesave, lepssave, lrkmsave, lrkhsave
+real, dimension(imax,kl) :: lbuoyproduction, lshearproduction, ltotaltransport
 real, dimension(imax,kl-1) :: lmfsave
 #else
 real, dimension(imax,numtracer) :: lco2em
@@ -143,7 +144,9 @@ real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 !$omp private(lcfrac,lxtg,lu,lv,lsavu,lsavv,ltke,leps,lshear),             &
 !$omp private(lou,lov,liu,liv,lat,lct),                                                                                          &
 #ifdef scm
-!$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave)
+!$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave),      &
+!$omp private(lepssave,lrkmsave,lrkhsave,lbuoyproduction,),                &
+!$omp private(lshearproduction,ltotaltransport)
 #else
 !$omp private(ltr,lco2em,loh,lstrloss,ljmcf)
 #endif
@@ -177,6 +180,10 @@ do tile = 1,ntiles
   lvw_flux  = vw_flux(is:ie,:)
   lmfsave   = mfsave(is:ie,:)
   ltkesave  = tkesave(is:ie,:)
+  lepssave  = epssave(is:ie,:)
+  lbuoyproduction = buoyproduction
+  lshearproduction = shearproduction
+  ltotaltransport = totaltransport
 #endif
 
   ! Adjustment for moving ocean surface
@@ -199,7 +206,8 @@ do tile = 1,ntiles
                     tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),ltke,leps,lshear,        &
                     lou,lov,lat,lct                                                                                  &
 #ifdef scm
-                    ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lrkmsave,lrkhsave                         &
+                    ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave                &
+                    ,lbuoyproduction,lshearproduction,ltotaltransport                                                &
 #endif
                     )
                     
@@ -224,6 +232,15 @@ do tile = 1,ntiles
   rkmsave(is:ie,:) = lrkmsave
   rkhsave(is:ie,:) = lrkhsave  
   tkesave(is:ie,:) = ltkesave
+  epssave(is:ie,:) = lepssave
+  wth_flux(is:ie,:) = lwth_flux 
+  wq_flux(is:ie,:) = lwq_flux 
+  uw_flux(is:ie,:) = luw_flux 
+  vw_flux(is:ie,:) = lvw_flux 
+  mfsave(is:ie,:) = lmfsave 
+  buoyproduction(is:ie,:) = lbuoyproduction
+  shearproduction(is:ie,:) = lshearproduction
+  totaltransport(is:ie,:) = ltotaltransport
 #endif
 
 #ifndef scm
@@ -254,7 +271,8 @@ subroutine vertmix_work(phi_nh,t,em,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg
                         xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear,   &
                         ou,ov,at,ct                                                                        &
 #ifdef scm
-                        ,wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,rkmsave,rkhsave                   &
+                        ,wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave           &
+                        ,buoyproduction,shearproduction,totaltransport                                     &
 #endif
                         )
 
@@ -301,8 +319,10 @@ logical, dimension(imax), intent(in) :: land
 
 #ifdef scm
 real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
-real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave
+real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave, epssave
 real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
+real, dimension(imax,kl), intent(inout) :: buoyproduction, shearproduction
+real, dimension(imax,kl), intent(inout) :: totaltransport
 real, dimension(imax,kl-1), intent(inout) :: mfsave
 real, dimension(imax,kl) :: mfout
 #endif
@@ -636,14 +656,16 @@ else
     case(0) ! no counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
                   ustar,dt,qgmin,1,0,tnaero,xtg,cgmap,                                  &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,                               &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,                &
+                  shearproduction,totaltransport,                                       &
                   tke,eps,shear,                                                        &
                   imax)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
                   ustar,dt,qgmin,1,0,tnaero,xtg,cgmap,                                  &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,                               &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,                &
+                  shearproduction,totaltransport,                                       &
                   tke,eps,shear,                                                        &
                   imax)
       rkh = rkm
@@ -657,7 +679,8 @@ else
     case(7) ! mass-flux counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
                   ustar,dt,qgmin,0,0,tnaero,xtg,cgmap,                                  &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,                               &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,                &
+                  shearproduction,totaltransport,                                       &
                   tke,eps,shear,                                                        &
                   imax)
       rkh = rkm
@@ -709,7 +732,8 @@ else
   ! save Km and Kh for output
   rkmsave(:,:) = rkm(:,:)
   rkhsave(:,:) = rkh(:,:)
-  tkesave(:,:) = tke(:,:)
+  tkesave(:,:) = tke(1:ifull,:)
+  epssave(:,:) = eps(1:ifull,:)
   mfsave(:,:) = mfout(:,:)
 #endif
 

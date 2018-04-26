@@ -70,12 +70,11 @@ logical, save :: do_aerosol_forcing ! =.true. when abs(iaero)>=2
 
 integer, save :: nlow, nmid
 real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
-real, dimension(:,:), allocatable, save :: rtt
+real, dimension(:,:), allocatable, save :: sw_tend_amp
 real(kind=8), dimension(:,:), allocatable, save :: pref
 
 integer, save :: mins
 real, save :: r1, dlt, alp, slag, fjd
-logical, save :: odcalc
 
 type(time_type), save ::                                           Rad_time
 type(aerosol_properties_type), save ::                             Aerosol_props
@@ -107,6 +106,7 @@ subroutine seaesfrad_settime
 
 use infile                                          ! Input file routines
 use parm_m                                          ! Model configuration
+use raddiag_m                                       ! Radiation diagnostic
 use zenith_m                                        ! Astronomy routines
 
 implicit none
@@ -587,7 +587,6 @@ do iq_tile = 1,ifull,imax
     sgdnvisdif = real(Sw_output(mythread)%dfsw_vis_sfc_dif(:,1,1))
     sgdnnirdir = real(Sw_output(mythread)%dfsw_dir_sfc(:,1,1)) - sgdnvisdir
     sgdnnirdif = real(Sw_output(mythread)%dfsw_dif_sfc(:,1,1)) - sgdnvisdif
-    
     where ( sgdn<0.001 )
       swrsave(istart:iend)  = 0.5
     elsewhere  
@@ -613,7 +612,7 @@ do iq_tile = 1,ifull,imax
     ! longwave output -----------------------------------------------
     rg(1:imax) = real(Lw_output(mythread)%flxnet(:,1,kl+1))          ! longwave at surface
     rt(1:imax) = real(Lw_output(mythread)%flxnet(:,1,1))             ! longwave at top
-    ! rg is net upwards = stefbo T^4 - Rdown
+    ! rg = -Rnet = stefbo T^4 - Rdown
     rgdn(1:imax) = stefbo*tss(istart:iend)**4 - rg(1:imax)
 
     ! shortwave output ----------------------------------------------
@@ -638,12 +637,8 @@ do iq_tile = 1,ifull,imax
     ! heating rate --------------------------------------------------
     do k = 1,kl
       ! total heating rate (convert deg K/day to deg K/sec)
-      rtt(istart:iend,kl+1-k) = -real(Sw_output(mythread)%hsw(:,1,k,1)/86400._8   &
-                                     +Lw_output(mythread)%heatra(:,1,k)/86400._8)
-#ifdef scm
-      sw_tend(istart:iend,kl+1-k) = -real(Sw_output(mythread)%hsw(:,1,k,1))/86400.
-      lw_tend(istart:iend,kl+1-k) = -real(Lw_output(mythread)%heatra(:,1,k))/86400.
-#endif
+      sw_tend(istart:iend,kl+1-k) = -real(Sw_output(mythread)%hsw(:,1,k,1)/86400._8)
+      lw_tend(istart:iend,kl+1-k) = -real(Lw_output(mythread)%heatra(:,1,k)/86400._8)
     end do
     
 #ifdef seaesfdebug
@@ -756,9 +751,16 @@ do iq_tile = 1,ifull,imax
       sgn_amp(istart:iend)  = 0.
       sgdn_amp(istart:iend) = 0.
     elsewhere
-      sgn_amp(istart:iend)  = sg(1:imax)/(coszro(1:imax)*taudar(1:imax))
-      sgdn_amp(istart:iend) = sgdn(1:imax)/(coszro(1:imax)*taudar(1:imax))
+      sgn_amp(istart:iend)     = sg(1:imax)/(coszro(1:imax)*taudar(1:imax))
+      sgdn_amp(istart:iend)    = sgdn(1:imax)/(coszro(1:imax)*taudar(1:imax))
     end where
+    do k = 1,kl
+      where ( coszro(1:imax)*taudar(1:imax)<=1.E-5 )
+        sw_tend_amp(istart:iend,k)  = 0.
+      elsewhere
+        sw_tend_amp(istart:iend,k) = sw_tend(1:imax,k)/(coszro(1:imax)*taudar(1:imax))
+      end where   
+    end do
 
     ! Save things for non-radiation time steps ----------------------
     sgsave(istart:iend)   = sg(1:imax)   ! repeated after solarfit
@@ -816,14 +818,15 @@ do iq_tile = 1,ifull,imax
   ! Set up the CC model radiation fields
   ! slwa is negative net radiational htg at ground
   ! Note that this does not include the upward LW radiation from the surface.
-  ! That is included in sflux.f
-  sgsave(istart:iend) = sg(1:imax)   ! this is the repeat after solarfit
+  ! That is included in sflux.f90
+  sgsave(istart:iend) = sg(1:imax)   ! Net solar radiation (after solar fit)
   slwa(istart:iend) = -sgsave(istart:iend) + rgsave(istart:iend)
 
-  ! Calculate net radiational heating/cooling of atmosphere (K/s)
-  t(istart:iend,:) = t(istart:iend,:) - dt*rtt(istart:iend,:)
+  ! Update tendencies
+  do k = 1,kl
+    sw_tend(istart:iend,k) = sw_tend_amp(istart:iend,k)*coszro2(1:imax)*taudar2(1:imax)
+  end do  
 
-  
 end do  ! iq_tile = 1,ifull,imax
 !$omp end do nowait
 
@@ -1331,7 +1334,7 @@ fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 ! Calculate sun position
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 
-allocate(sgn_amp(ifull),sgdn_amp(ifull),rtt(ifull,kl))
+allocate(sgn_amp(ifull),sgdn_amp(ifull),sw_tend_amp(ifull,kl))
 
 ! initialise co2
 call co2_read(sig,jyear)

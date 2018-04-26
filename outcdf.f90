@@ -195,7 +195,9 @@ use ateb, only :                         & ! Urban
     ,ateb_ac_heatprop=>ac_heatprop       &
     ,ateb_ac_coolprop=>ac_coolprop       &
     ,ateb_ac_smooth=>ac_smooth           &
-    ,ateb_ac_deltat=>ac_deltat
+    ,ateb_ac_deltat=>ac_deltat           &
+    ,ateb_acfactor=>acfactor             &
+    ,ateb_ac_copmax=>ac_copmax
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
     ,fwsoil_switch                       &
@@ -803,10 +805,12 @@ if ( myid==0 .or. local ) then
     ! land, urban and carbon
     call ccnf_put_attg(idnc,'ateb_ac_coolcap',ateb_ac_coolcap)
     call ccnf_put_attg(idnc,'ateb_ac_coolprop',ateb_ac_coolprop)
+    call ccnf_put_attg(idnc,'ateb_ac_copmax',ateb_ac_copmax)
     call ccnf_put_attg(idnc,'ateb_ac_deltat',ateb_ac_deltat)
     call ccnf_put_attg(idnc,'ateb_ac_heatcap',ateb_ac_heatcap)
     call ccnf_put_attg(idnc,'ateb_ac_heatprop',ateb_ac_heatprop)
     call ccnf_put_attg(idnc,'ateb_ac_smooth',ateb_ac_smooth)
+    call ccnf_put_attg(idnc,'ateb_acfactor',ateb_acfactor)
     call ccnf_put_attg(idnc,'ateb_alpha',ateb_alpha)
     call ccnf_put_attg(idnc,'ateb_behavmeth',ateb_behavmeth)   
     call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)
@@ -1484,16 +1488,16 @@ if( myid==0 .or. local ) then
         lname = 'Avg liquid water path'
         call attrib(idnc,jdim,jsize,'lwp_ave',lname,'kg/m2',0.,6.,0,itype)
       end if
-      if ( save_cloud ) then
-        lname = 'Low cloud ave'
-        call attrib(idnc,jdim,jsize,'cll',lname,'frac',0.,1.,0,itype)
-        lname = 'Mid cloud ave'
-        call attrib(idnc,jdim,jsize,'clm',lname,'frac',0.,1.,0,itype)
-        lname = 'Hi cloud ave'
-        call attrib(idnc,jdim,jsize,'clh',lname,'frac',0.,1.,0,itype)
-        lname = 'Total cloud ave'
-        call attrib(idnc,jdim,jsize,'cld',lname,'frac',0.,1.,0,itype)
-      end if
+    end if
+    if ( save_cloud ) then
+      lname = 'Low cloud ave'
+      call attrib(idnc,jdim,jsize,'cll',lname,'frac',0.,1.,0,itype)
+      lname = 'Mid cloud ave'
+      call attrib(idnc,jdim,jsize,'clm',lname,'frac',0.,1.,0,itype)
+      lname = 'Hi cloud ave'
+      call attrib(idnc,jdim,jsize,'clh',lname,'frac',0.,1.,0,itype)
+      lname = 'Total cloud ave'
+      call attrib(idnc,jdim,jsize,'cld',lname,'frac',0.,1.,0,itype)
     end if
     if ( save_land .or. itype==-1 ) then
       lname = 'Avg soil moisture 1'
