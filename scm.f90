@@ -58,7 +58,8 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_ac_smooth=>ac_smooth           &
     ,ateb_ac_deltat=>ac_deltat           &
     ,ateb_acfactor=>acfactor             &
-    ,ateb_ac_copmax=>ac_copmax
+    ,ateb_ac_copmax=>ac_copmax           &
+    ,atebscrnout
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
@@ -161,13 +162,13 @@ character(len=MAX_ARGLEN) :: optarg
 logical oxidant_update
 logical fixtsurf, nolatent, noradiation
 logical nogwdrag, noconvection, nocloud, noaerosol, novertmix
-logical lsm_only, vert_adv
+logical lsm_only, vert_adv, urbanscrn
 
 namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     z_in,ivegt_in,isoil_in,metforcing,lsmforcing,lsmoutput,       &
     fixtsurf,nolatent,timeoutput,profileoutput,noradiation,       &
     nogwdrag,noconvection,nocloud,noaerosol,novertmix,            &
-    lsm_only,vert_adv,                                            &
+    lsm_only,vert_adv,urbanscrn,                                  &
     gablsflux,scm_mode,spinup_start,ntau_spinup,                  &
     ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,       &
     ateb_industryfg,ateb_trafficfg,ateb_vegalphac,                &
@@ -831,6 +832,9 @@ do spinup = spinup_start,1,-1
     if ( rescrn > 0 ) then
       call autoscrn(1,ifull)
     end if
+    if ( urbanscrn ) then
+      call atebscrnout(tscrn,qgscrn,uscrn,u10,0)  
+    end if
     ! Convection diagnostic output
     cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
     ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
@@ -848,7 +852,7 @@ do spinup = spinup_start,1,-1
     end if
   
     ! OUTPUT
-    if ( spinup==1 ) then
+    if ( spinup==1 .and. mod(ktau,nwt)==0 ) then
       call outputscm(scm_mode,timeoutput,profileoutput,lsmoutput)
     end if
   
@@ -2940,6 +2944,9 @@ if ( scm_mode=="sublime" ) then
   qs(1:kl) = qsat(pf,t(1,:))
   rh(:) = 100.*qg(1,:)/qs(:)
   
+  qs(1) = qsat(ps(1),tscrn(1))
+  rhscrn(1) = 100.*qgscrn(1)/qs(1)
+
   do k=1,kl
     wtflux(1,k) = wth_flux(1,k)*sigmh(k)**(rdry/cp)
   end do
@@ -3155,7 +3162,7 @@ if ( scm_mode=="sublime" ) then
   call ccnf_put_vara(profilencid,'dtdt_ls',spos(1:2),npos(1:2),bb)
   bb(1,:) = q_tend(:)
   call ccnf_put_vara(profilencid,'dqdt_ls',spos(1:2),npos(1:2),bb)
-  bb(:,:) = nf90_fill_float
+  bb(1,:) = wadv(:)
   call ccnf_put_vara(profilencid,'w',spos(1:2),npos(1:2),bb)
 
   spos(1) = 1
