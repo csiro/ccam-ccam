@@ -138,7 +138,7 @@ integer spinup, spinup_start, ntau_end, ntau_spinup
 integer opt, nopt
 integer, save :: iarch_nudge = 0
 real, dimension(1000) :: press_in
-real press_surf, gridres
+real press_surf, gridres, soil_albedo
 real es
 real rlong_in, rlat_in, z_in
 real ateb_bldheight, ateb_hwratio, ateb_sigvegc, ateb_sigmabld
@@ -168,7 +168,7 @@ namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     z_in,ivegt_in,isoil_in,metforcing,lsmforcing,lsmoutput,       &
     fixtsurf,nolatent,timeoutput,profileoutput,noradiation,       &
     nogwdrag,noconvection,nocloud,noaerosol,novertmix,            &
-    lsm_only,vert_adv,urbanscrn,                                  &
+    lsm_only,vert_adv,urbanscrn,soil_albedo,                      &
     gablsflux,scm_mode,spinup_start,ntau_spinup,                  &
     ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,       &
     ateb_industryfg,ateb_trafficfg,ateb_vegalphac,                &
@@ -269,6 +269,7 @@ imax = 1
 scm_mode = "gabls4"
 spinup_start = 1
 ntau_spinup = 0
+soil_albedo = 0.81 ! for GABLS
 fixtsurf = .false.
 nolatent = .false.
 noradiation = .false.
@@ -432,8 +433,8 @@ rrvco2 = 330./1.e6
 
 write(6,*) "Calling initialscm"
 call initialscm(scm_mode,metforcing,lsmforcing,press_in(1:kl),press_surf,z_in,ivegt_in, &
-                isoil_in,ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,        &
-                ateb_industryfg,ateb_trafficfg,ateb_vegalphac,                          &
+                isoil_in,soil_albedo,ateb_bldheight,ateb_hwratio,ateb_sigvegc,          &
+                ateb_sigmabld,ateb_industryfg,ateb_trafficfg,ateb_vegalphac,            &
                 ateb_roofalpha,ateb_wallalpha,ateb_roadalpha,                           &
                 ateb_roofemiss,ateb_wallemiss,ateb_roademiss,                           &
                 ateb_roof_thick,ateb_roof_cp,ateb_roof_cond,                            &
@@ -934,8 +935,8 @@ end if
 end subroutine calcshear
     
 subroutine initialscm(scm_mode,metforcing,lsmforcing,press_in,press_surf,z_in,ivegt_in, &
-                      isoil_in,ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,  &
-                      ateb_industryfg,ateb_trafficfg,ateb_vegalphac,                    &
+                      isoil_in,soil_albedo,ateb_bldheight,ateb_hwratio,ateb_sigvegc,    &
+                      ateb_sigmabld,ateb_industryfg,ateb_trafficfg,ateb_vegalphac,      &
                       ateb_roofalpha,ateb_wallalpha,ateb_roadalpha,                     &
                       ateb_roofemiss,ateb_wallemiss,ateb_roademiss,                     &
                       ateb_roof_thick,ateb_roof_cp,ateb_roof_cond,                      &
@@ -985,7 +986,7 @@ integer, dimension(ifull,5) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
 integer, dimension(3) :: spos, npos
 integer, dimension(ifull) :: urbantype
-real, dimension(kl), intent(in) :: press_in
+real, dimension(kl), intent(in) :: press_in, soil_albedo
 real, intent(in) :: press_surf, z_in
 real, dimension(ifull,5) :: svs, vlin, vlinprev, vlinnext, vlinnext2
 real, dimension(ifull,5) :: casapoint
@@ -1365,12 +1366,12 @@ endif     ! (ngwd/=0)
 if (nsib>=1) then
   write(6,*) "Initialise land-surface"
   call insoil
-  albvisnir(:,1) = 0.81
-  albvisnir(:,2) = 0.81
-  albvisdir(:) = 0.81
-  albvisdif(:) = 0.81
-  albnirdir(:) = 0.81
-  albnirdif(:) = 0.81
+  albvisnir(:,1) = soil_albedo
+  albvisnir(:,2) = soil_albedo
+  albvisdir(:) = soil_albedo
+  albvisdif(:) = soil_albedo
+  albnirdir(:) = soil_albedo
+  albnirdif(:) = soil_albedo
   rsmin(:) = 300.
   zolnd(:) = 0.001
   vlai(:) = 0.
@@ -2588,6 +2589,16 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','none')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "displacement height"
+    call ccnf_def_var(timencid,'d',vtype,1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','m')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "first model level"
+    call ccnf_def_var(timencid,'AH_method',vtype,1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','m')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     jdim(1) = udim
     jdim(2) = tdim_time
     lname = "thermal conductivity wall"
@@ -2620,6 +2631,22 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','J/m3/K')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "height of soil level"
+    call ccnf_def_var(timencid,'zs',vtype,2,jdim(1:2),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','m')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "soil temperature"
+    call ccnf_def_var(timencid,'ts',vtype,2,jdim(1:2),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','K')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = "soil water content"
+    call ccnf_def_var(timencid,'ths',vtype,2,jdim(1:2),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','m3/m3')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+
     
     call ccnf_enddef(timencid)
     
@@ -2997,6 +3024,8 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_vara(timencid,'alb_w',iarch,aa(1))
     call ccnf_put_vara(timencid,'alb_g',iarch,aa(1))
     call ccnf_put_vara(timencid,'alb_r',iarch,aa(1))
+    call ccnf_put_vara(timencid,'d',iarch,aa(1))
+    call ccnf_put_vara(timencid,'AH_method',iarch,aa(1))
      
     spos(1) = 1
     spos(2) = iarch
@@ -3009,6 +3038,9 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_vara(timencid,'hc_w',spos(1:2),npos(1:2),uu)
     call ccnf_put_vara(timencid,'hc_g',spos(1:2),npos(1:2),uu)
     call ccnf_put_vara(timencid,'hc_r',spos(1:2),npos(1:2),uu)
+    call ccnf_put_vara(timencid,'zs',spos(1:2),npos(1:2),uu)
+    call ccnf_put_vara(timencid,'ts',spos(1:2),npos(1:2),uu)
+    call ccnf_put_vara(timencid,'ths',spos(1:2),npos(1:2),uu)
     
   else
       
@@ -3089,6 +3121,12 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_vara(timencid,'alb_g',iarch,aa(1))
     call atebdeftype_export(aa(1:1),'roofalpha',0)
     call ccnf_put_vara(timencid,'alb_r',iarch,aa(1))
+    call atebdeftype_export(aa(1:1),'bldheight',0)
+    aa(1) = aa(1)*refheight
+    call ccnf_put_vara(timencid,'d',iarch,aa(1))
+    aa(1) = zf(1)
+    call ccnf_put_vara(timencid,'AH_method',iarch,aa(1))
+    
      
     spos(1) = 1
     spos(2) = iarch
@@ -3124,6 +3162,24 @@ if ( scm_mode=="sublime" ) then
       call atebdeftype_export(uu(1:1,k),lname,0)  
     end do
     call ccnf_put_vara(timencid,'hc_r',spos(1:2),npos(1:2),uu)
+    do k = 1,4
+      write(lname,'("roadthick",(I1.1))') k
+      call atebdeftype_export(uu(1:1,k),lname,0)
+      if ( k>1 ) then
+        uu(1,k) = uu(1,k) + uu(1,k-1)
+      end if  
+    end do
+    call ccnf_put_vara(timencid,'zs',spos(1:2),npos(1:2),uu)
+    do k = 1,4
+      write(lname,'("roadtemp",(I1.1))') k
+      call atebsaved(uu(1:1,k),lname,0)  
+    end do
+    call ccnf_put_vara(timencid,'ts',spos(1:2),npos(1:2),uu)
+    call atebsaved(uu(1:1,1),"canyonsoilmoisture",0)
+    do k = 2,4
+      uu(1,k) = uu(1,1)
+    end do
+    call ccnf_put_vara(timencid,'ths',spos(1:2),npos(1:2),uu)
   end if
 
   call ccnf_put_vara(profilencid,'time',iarch,real(ktau)*dt)
