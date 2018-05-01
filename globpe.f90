@@ -643,16 +643,22 @@ if ( myid<nproc ) then
         else
           call radrive(il*nrows_rad)  
           do k = 1,kl
-            t(js:je,k) = t(js:je,k) - dt*(sw_tend(js:je,k)+lw_tend(js:je,k))
+            t(1:ifull,k) = t(1:ifull,k) - dt*(sw_tend(1:ifull,k)+lw_tend(1:ifull,k))
           end do
         end if    ! (nhstest<0)
 !$omp end single
       case(5)
         ! GFDL SEA-EFS radiation
         call seaesfrad
-        do k = 1,kl
-          t(js:je,k) = t(js:je,k) - dt*(sw_tend(js:je,k)+lw_tend(js:je,k))
-        end do
+!$omp do schedule(static) private(js,je,k)
+        do tile = 1,ntiles
+          js = (tile-1)*imax + 1
+          je = tile*imax 
+          do k = 1,kl
+            t(js:je,k) = t(js:je,k) - dt*(sw_tend(js:je,k)+lw_tend(js:je,k))
+          end do
+        end do  
+!$omp end do nowait
       case DEFAULT
         ! use preset slwa array (use +ve nrad)
 !$omp do schedule(static) private(js,je)

@@ -2158,7 +2158,7 @@ do i = 1,its
 
   ! TVD part
   do k = 1,kl-1
-    ! +ve ww is downwards to the ocean floor
+    ! +ve ww is upwards
     kp = nint(sign(1.,wadv(k)))
     kx = k + (1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
     rr = delu(k-kp)/(delu(k)+sign(1.E-20,delu(k)))
@@ -2217,7 +2217,7 @@ if ( ktau==1 ) then
 end if    
  
 ! average variables over the integration period?
-iarch = max(int(real(ktau)*dt/1800.), 1)
+iarch = min(int(real(ktau)*dt/1800.) + 1, 108)
 call ccnf_get_vara(ncid,'Temperature',iarch,t_lsm_a) 
 call ccnf_get_vara(ncid,'Relative_humidity',iarch,rh_lsm_a)
 call ccnf_get_vara(ncid,'Uwind',iarch,u_lsm_a)
@@ -2237,7 +2237,7 @@ call ccnf_get_vara(ncid,'LW_down',iarch,rgdwn_lsm_b)
 call ccnf_get_vara(ncid,'Rain',iarch,pr_lsm_b)
 call ccnf_get_vara(ncid,'PSFC',iarch,ps_lsm_b)
 
-wgt = (real(iarch)*1800. - real(ktau)*dt)/1800. 
+wgt = (real(iarch-1)*1800. - real(ktau)*dt)/1800. 
 
 if ( noradiation ) then
   sgdn_ave(1) = wgt*sgdwn_lsm_a + (1.-wgt)*sgdwn_lsm_b
@@ -3065,7 +3065,11 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_vara(timencid,'tsk',iarch,tss(1))
     aa(:) = ((rgdn_ave(:)+rgn_ave(:))/(0.98*stefbo))**(0.25)
     ! call ccnf_put_vara(timencid,'trad',iarch,aa(1))
-    aa(:) = swrsave*albvisnir(:,1) + (1.-swrsave)*albvisnir(:,2)
+    where ( sgdn_ave(:)>0. )
+      aa(:) = swrsave*albvisnir(:,1) + (1.-swrsave)*albvisnir(:,2)
+    elsewhere
+      aa(:) = nf90_fill_float  
+    end where
     call ccnf_put_vara(timencid,'alb',iarch,aa(1))
     call ccnf_put_vara(timencid,'z0m',iarch,zo(1))
     call ccnf_put_vara(timencid,'z0h',iarch,zoh(1))

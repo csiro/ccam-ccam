@@ -758,7 +758,7 @@ do iq_tile = 1,ifull,imax
       where ( coszro(1:imax)*taudar(1:imax)<=1.E-5 )
         sw_tend_amp(istart:iend,k)  = 0.
       elsewhere
-        sw_tend_amp(istart:iend,k) = sw_tend(1:imax,k)/(coszro(1:imax)*taudar(1:imax))
+        sw_tend_amp(istart:iend,k) = sw_tend(istart:iend,k)/(coszro(1:imax)*taudar(1:imax))
       end where   
     end do
 

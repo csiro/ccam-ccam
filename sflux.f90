@@ -53,6 +53,7 @@ real, dimension(:), allocatable :: af,aft,ri
 real, dimension(:), allocatable :: fg_ocn, fg_ice, eg_ocn, eg_ice
 real, dimension(:), allocatable :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
 real, dimension(:), allocatable :: river_inflow
+real, dimension(:), allocatable :: tss_save
 
 #ifdef csircoupled
 real, dimension(:), allocatable :: dumsg, dumrg, dumx
@@ -106,6 +107,7 @@ allocate( taux_ice(ifull) )
 allocate( tauy_ocn(ifull) )
 allocate( tauy_ice(ifull) )
 allocate( river_inflow(ifull) )
+allocate( tss_save(ifull) )
 #ifdef csircoupled
 allocate( dumsg(ifull) )
 allocate( dumrg(ifull) )
@@ -162,7 +164,7 @@ use xyzinfo_m
 implicit none
     
 integer is,ie,tile,iq,k
-real, dimension(imax) :: rg_error, tss_save
+real, dimension(imax) :: rg_error
 
 !     stability dependent drag coefficients using Louis (1979,blm) f'
 !     n.b. cduv, cdtq are returned as drag coeffs mult by vmod
@@ -198,7 +200,7 @@ do tile = 1,ntiles
   uav(is:ie) = av_vmod*u(is:ie,1) + (1.-av_vmod)*savu(is:ie,1)   
   vav(is:ie) = av_vmod*v(is:ie,1) + (1.-av_vmod)*savv(is:ie,1)  
   vmag(is:ie) = max( sqrt(uav(is:ie)**2+vav(is:ie)**2), vmodmin )    ! vmag used to calculate ri
-  tss_save(:) = tss(is:ie)
+  tss_save(is:ie) = tss(is:ie)
 
   taux(is:ie) = 0.      ! dummy value
   tauy(is:ie) = 0.      ! dummy value  
@@ -380,7 +382,7 @@ do tile = 1,ntiles
   
   ! correct longwave radiation due to change in tss
   if ( odcalc ) then
-    rg_error(1:imax) = stefbo*( tss_save(1:imax)**4 - tss(is:ie)**4 )
+    rg_error(1:imax) = stefbo*( tss_save(is:ie)**4 - tss(is:ie)**4 )
     rtu_ave(is:ie) = rtu_ave(is:ie) + rg_error(1:imax)
     rtc_ave(is:ie) = rtc_ave(is:ie) + rg_error(1:imax)
     rgn_ave(is:ie) = rgn_ave(is:ie) - rg_error(1:imax)
