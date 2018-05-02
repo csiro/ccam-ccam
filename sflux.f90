@@ -1102,8 +1102,9 @@ real, dimension(imax), intent(in) :: uzon,vmer
 real, dimension(imax) :: newrunoff
 real, dimension(imax) :: dumsg,dumrg,dumx,dums
 real, dimension(imax) :: newsnowmelt
-real, dimension(imax) :: u_fg, u_eg, u_wf, u_rn
-real, dimension(imax) :: u_zo, u_zoh, u_zoq, zo_work, zoh_work, zoq_work, u_sigma
+real, dimension(imax) :: u_fg, u_eg, u_rn
+real, dimension(imax) :: zo_work, zoh_work, zoq_work, u_sigma
+real, dimension(imax) :: cduv_work, cdtq_work
 real, dimension(imax), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
 real, dimension(imax), intent(in) :: albvis, albnir
 real, dimension(imax), intent(inout) :: anthropogenic_flux, urban_ts, urban_wetfac
@@ -1134,59 +1135,65 @@ dumsg=sgsave/(1.-swrsave*albvis(:)-(1.-swrsave)*albnir(:))                      
 dumrg=-rgsave                                                                                    ! urban
 dumx=condx/dt                                                                                    ! urban
 dums=(conds+condg)/dt                                                                            ! urban
+! default fluxes                                                                                 ! urban
 u_fg = 0.                                                                                        ! urban
 u_eg = 0.                                                                                        ! urban
 urban_ts = 0.                                                                                    ! urban
-u_wf = 0.                                                                                        ! urban
+urban_wetfac = 0.                                                                                ! urban
 u_rn = 0.                                                                                        ! urban
 ! call aTEB                                                                                      ! urban
-call atebcalc(u_fg,u_eg,urban_ts,u_wf,u_rn,dt,azmin,dumsg,dumrg,dumx,dums,rho,           &       ! urban
+call atebcalc(u_fg,u_eg,urban_ts,urban_wetfac,u_rn,dt,azmin,dumsg,dumrg,dumx,dums,rho,   &       ! urban
               t(1:imax),qg(1:imax),ps(1:imax),uzon,vmer,vmodmin,                         &       ! urban
               fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road, &       ! urban
               roof,room,slab,walle,wallw,cnveg,intl,upack,ufull,0,raw=.true.)                    ! urban
-urban_wetfac = u_wf                                                                              ! urban
 u_sigma = unpack(fp%sigmau,upack,0.)                                                             ! urban
-fg = (1.-u_sigma)*fg + u_sigma*u_fg                                                              ! urban
-eg = (1.-u_sigma)*eg + u_sigma*u_eg                                                              ! urban
-tss = (1.-u_sigma)*tss + u_sigma*urban_ts                                                        ! urban
-wetfac = (1.-u_sigma)*wetfac + u_sigma*u_wf                                                      ! urban
-! since ateb will blend non-urban and urban runoff, it is                                        ! urban
-! easier to remove the new runoff and add it again after the                                     ! urban
-! urban scheme has been updated                                                                  ! urban
-runoff = oldrunoff + (1.-u_sigma)*(runoff-oldrunoff) + u_sigma*u_rn                              ! urban
-u_zo  = 1.e-10                                                                                   ! urban
-u_zoh = 1.e-10                                                                                   ! urban
-u_zoq = 1.e-10                                                                                   ! urban
-! here we blend zo with the urban part                                                           ! urban
-call atebzo(u_zo,u_zoh,u_zoq,0,pd,fp,upack,ufull,raw=.true.)                                     ! urban
-urban_zom = u_zo                                                                                 ! urban
-urban_zoh = u_zoh                                                                                ! urban
-urban_zoq = u_zoq                                                                                ! urban
-zo_work  = sqrt((1.-u_sigma)/log(azmin/zo)**2+u_sigma/log(azmin/u_zo)**2)                        ! urban
+where ( u_sigma>0. )                                                                             ! urban
+  fg = (1.-u_sigma)*fg + u_sigma*u_fg                                                            ! urban
+  eg = (1.-u_sigma)*eg + u_sigma*u_eg                                                            ! urban
+  tss = (1.-u_sigma)*tss + u_sigma*urban_ts                                                      ! urban
+  wetfac = (1.-u_sigma)*wetfac + u_sigma*urban_wetfac                                            ! urban
+  ! since ateb will blend non-urban and urban runoff, it is                                      ! urban
+  ! easier to remove the new runoff and add it again after the                                   ! urban
+  ! urban scheme has been updated                                                                ! urban
+  runoff = oldrunoff + (1.-u_sigma)*(runoff-oldrunoff) + u_sigma*u_rn                            ! urban
+end where                                                                                        ! urban
+! default urban roughness lengths                                                                ! urban
+urban_zom = 1.e-10                                                                               ! urban
+urban_zoh = 1.e-10                                                                               ! urban
+urban_zoq = 1.e-10                                                                               ! urban
+call atebzo(urban_zom,urban_zoh,urban_zoq,0,pd,fp,upack,ufull,raw=.true.)                        ! urban
+! blend zo with the urban part                                                                   ! urban
+zo_work  = sqrt((1.-u_sigma)/log(azmin/zo)**2+u_sigma/log(azmin/urban_zom)**2)                   ! urban
 zoh_work = (1.-u_sigma)/(log(azmin/zo)*log(azmin/zoh))                                  &        ! urban
-           +u_sigma/(log(azmin/u_zo)*log(azmin/u_zoh))                                           ! urban
+           +u_sigma/(log(azmin/urban_zom)*log(azmin/urban_zoh))                                  ! urban
 zoh_work = zoh_work/zo_work                                                                      ! urban
 zoq_work = (1.-u_sigma)/(log(azmin/zo)*log(azmin/zoq))                                  &        ! urban
-           +u_sigma/(log(azmin/u_zo)*log(azmin/u_zoq))                                           ! urban
+           +u_sigma/(log(azmin/urban_zom)*log(azmin/urban_zoq))                                  ! urban
 zoq_work = zoq_work/zo_work                                                                      ! urban
-zo  = azmin*exp(-1./zo_work)                                                                     ! urban
-zoh = azmin*exp(-1./zoh_work)                                                                    ! urban
-zoq = azmin*exp(-1./zoq_work)                                                                    ! urban
+where ( u_sigma>0. )                                                                             ! urban
+  zo  = azmin*exp(-1./zo_work)                                                                   ! urban
+  zoh = azmin*exp(-1./zoh_work)                                                                  ! urban
+  zoq = azmin*exp(-1./zoq_work)                                                                  ! urban
+end where                                                                                        ! urban
 ! calculate ustar                                                                                ! urban
-cduv = cduv/vmag                                                                                 ! urban
-cdtq = cdtq/vmag                                                                                 ! urban
-call atebcd(cduv,cdtq,0,pd,fp,upack,ufull)                                                       ! urban
-cduv=cduv*vmag                                                                                   ! urban
-cdtq=cdtq*vmag                                                                                   ! urban
-ustar=sqrt(vmod*cduv)                                                                            ! urban
+cduv_work = cduv/vmag                                                                            ! urban
+cdtq_work = cdtq/vmag                                                                            ! urban
+call atebcd(cduv_work,cdtq_work,0,pd,fp,upack,ufull)                                             ! urban
+where ( u_sigma>0. )                                                                             ! urban
+  cduv=cduv_work*vmag                                                                            ! urban
+  cdtq=cdtq_work*vmag                                                                            ! urban
+  ustar=sqrt(vmod*cduv)                                                                          ! urban
+end where                                                                                        ! urban
 ! calculate snowmelt                                                                             ! urban
 newsnowmelt = snowmelt - oldsnowmelt                                                             ! urban
 call atebhydro(newsnowmelt,"snowmelt",0,pd,fp,upack,ufull)                                       ! urban
-snowmelt = oldsnowmelt + newsnowmelt                                                             ! urban
+where ( u_sigma>0. )                                                                             ! urban
+  snowmelt = oldsnowmelt + newsnowmelt                                                           ! urban
+end where                                                                                        ! urban
 ! calculate anthropogenic flux                                                                   ! urban
 call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,upack,ufull)                          ! urban
 call atebenergy(urban_storage_flux,"storage",0,fp,pd,upack,ufull)                                ! urban
-where ( land(1:imax) )                                                                           ! urban
+where ( u_sigma>0. )                                                                             ! urban
   qsttg(1:imax) = qsat(ps(1:imax),tss(1:imax))                                                   ! urban
   rnet(1:imax) = sgsave(1:imax) - rgsave(1:imax) - stefbo*tss(1:imax)**4                         ! urban
   taux(1:imax) = rho(1:imax)*cduv(1:imax)*u(1:imax)                                              ! urban
