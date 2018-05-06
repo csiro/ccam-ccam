@@ -203,7 +203,7 @@ use cable_ccam, only : proglai           & ! CABLE
     ,fwsoil_switch                       &
     ,cable_litter,gs_switch              &
     ,cable_climate,POP_NPATCH            &
-    ,POP_NCOHORT
+    ,POP_NCOHORT,ccycle
 use cc_mpi                                 ! CC MPI routines
 use cloudmod                               ! Prognostic cloud fraction
 use dates_m                                ! Date data
@@ -921,7 +921,7 @@ use ateb, only : atebsaved, urbtemp              ! Urban
 use cable_ccam, only : savetile, savetiledef, &  ! CABLE interface
                        cable_pop,POP_NPATCH,  &
                        POP_NCOHORT,           &
-                       cable_climate
+                       cable_climate,ccycle
 use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
 use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines

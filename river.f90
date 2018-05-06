@@ -450,7 +450,6 @@ else
 
   !--------------------------------------------------------------------
   ! calculate slope
-  call bounds(watbdy,corner=.true.)
   river_slope(:) = 0.
   do iq = 1,ifull
     if ( river_outdir(iq)>0 ) then  

@@ -34,7 +34,7 @@ public nmaxpr,nlv,ia,ib,ja,jb,id,jd,idjd
 public io_in,io_out,io_rest
 public nwt,nrun,nextout,m_fly,nsemble,tblock,tbave
 public nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss,kbotmlo,ktopmlo
-public mloalpha,nud_ouv,nud_sfh,kblock,rescrn,knh,ccycle,iaero
+public mloalpha,nud_ouv,nud_sfh,kblock,rescrn,knh,iaero
 public nud_aero,mbd_maxscale,mbd_maxgrid,mbd_maxscale_mlo,nriver
 public leap,nbarewet,nsigmf
 public qgmin
@@ -59,7 +59,7 @@ integer, save :: nmaxpr=99, nlv=1, ia=1, ib=3, ja=1, jb=10, id=2, jd=5, idjd
 integer, save :: io_in=1, io_out=1, io_rest=1
 integer, save :: nwt=-99, nrun=0, nextout=3, m_fly=4, nsemble=0, tblock=1, tbave=1
 integer, save :: nurban=0, nmr=0, nmlo=0, ktopdav=0, nud_sst=0, nud_sss=0, kbotmlo=-1000, ktopmlo=1
-integer, save :: mloalpha=0, nud_ouv=0, nud_sfh=0, kblock=-1, rescrn=0, knh=-1, ccycle=0, iaero=0
+integer, save :: mloalpha=0, nud_ouv=0, nud_sfh=0, kblock=-1, rescrn=0, knh=-1, iaero=0
 integer, save :: nud_aero=0, mbd_maxscale=3000, mbd_maxgrid=999999, mbd_maxscale_mlo=3000, nriver=0
 integer, save :: leap=0, nbarewet=0, nsigmf=1
 integer, save :: procmode=0, compression=1

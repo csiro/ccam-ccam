@@ -183,12 +183,13 @@ if ( myid==0 .or. pfall ) then
   if ( ltest ) then
     ! ran out of file before correct date was located
     ktime_r = -1
-  end if
-  if ( myid==0 ) then
-    if ( ltest ) then
+    if ( myid==0 ) then
       write(6,*) 'Search failed with ltest,iarchi =',ltest, iarchi
-      write(6,*) '                kdate_r,ktime_r =',kdate_r, ktime_r
-    else
+      write(6,*) '                kdate_r,ktime_r =',kdate_r, ktime_r 
+    end if
+  else
+    ! valid date found  
+    if ( myid==0 ) then
       write(6,*) 'Search succeeded with ltest,iarchi =',ltest, iarchi
       write(6,*) '                   kdate_r,ktime_r =',kdate_r, ktime_r
     end if
@@ -277,6 +278,7 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
 use aerosolldr, only : ssn,aeromode,          &
     xtg_solub                                  ! LDR aerosol scheme
 use ateb, only : atebdwn, urbtemp, atebloadd   ! Urban
+use cable_ccam, only : ccycle                  ! CABLE
 use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
 use carbpools_m                                ! Carbon pools
 use cc_mpi                                     ! CC MPI routines
@@ -1029,8 +1031,8 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
         call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_a,ocndwn(:,1))
       end if  
     end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
-  end if
-end if
+  end if   ! mlo_found
+end if     ! abs(nmlo)>=1 .and. abs(nmlo)<=9
 
 !------------------------------------------------------------
 ! Aerosol data
