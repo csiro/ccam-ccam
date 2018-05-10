@@ -2703,7 +2703,12 @@ integer iproc
 integer, dimension(0:3) :: maps
 integer, dimension(0:3) :: astr,bstr,cstr
 logical, dimension(0:nproc-1) :: lproc, lproc_t
+logical, save :: first = .true.
       
+! can be called from nestinb or amipsst
+if ( .not.first ) return
+first = .false.
+
 ! length of the 1D convolution for each 'pass'
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 ! flag for data required from processor rank
