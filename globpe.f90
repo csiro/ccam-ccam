@@ -413,7 +413,7 @@ if ( myid<nproc ) then
       ! nesting now after mass fixers
       call START_LOG(nestin_begin)
       if ( mspec==1 ) then
-        if ( mbd/=0 .or. mbd_mlo/=0 ) then
+        if ( mbd/=0 .or. (mbd_mlo/=0.and.namip==0) ) then
           ! scale-selective filter
           call nestinb
         else if ( nbd/=0 ) then
