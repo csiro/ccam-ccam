@@ -369,7 +369,7 @@ real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y_a_dummy
 
 ! iotest   indicates no interpolation required
-! ptest    indicates the grid decomposition is the same as the model, including the same number of processes
+! ptest    indicates the grid decomposition of the mesonest file is the same as the model, including the same number of processes
 ! iop_test indicates that both iotest and ptest are true and hence no MPI communication is required
 ! tsstest  indicates that iotest is true, as well as seaice fraction and seaice depth are present in the input file
 ! fnresid  is the number of processes reading input files.
@@ -615,28 +615,21 @@ if ( newfile ) then
     ! load local surface temperature
     allocate( zss_a(ifull) )
     call histrd3(iarchi,ier,'zht',ik,zss_a,ifull)
-  else if ( fnproc==1 ) then
-    ! load global surface temperature using gather
+  else
+    ! load global surface temperature
     allocate( zss_a(fwsize) )
-    call histrd3(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.false.)
-    call histrd3(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.false.)
+    if ( fnproc==1 ) then
+      call histrd3(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.false.)
+      call histrd3(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.false.)
+    else
+      call histrd3(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.true.)
+      call histrd3(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.true.)
+    end if    
     if ( fwsize>0 ) then
       if ( .not.soilt_found ) then
         isoilm_a(:) = -100 ! missing value flag
       else
         isoilm_a(:) = nint(ucc(:))
-      end if
-    end if
-  else
-    ! load global surface temperature using RMA
-    allocate( zss_a(fwsize) )
-    call histrd3(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.true.)
-    call histrd3(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.true.)
-    if ( fwsize>0 ) then
-      if ( .not.soilt_found ) then
-        isoilm_a(:) = -100 ! missing value flag
-      else
-        isoilm_a(:) = nint(ucc(:))          
       end if
     end if
   end if
@@ -688,12 +681,11 @@ if ( nested==0 .or. ( nested==1 .and. nud_test/=0 ) ) then
   if ( iop_test ) then
     call histrd3(iarchi,ier,'psf',ik,psl,ifull)
   else
-    allocate( psl_a(fwsize) )  
+    allocate( psl_a(fwsize) )
+    psl_a(:) = 0.
     if ( fnproc==1 ) then
-      psl_a(:) = 0.
       call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.false.)
     else
-      psl_a(:) = 0.
       call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik,nogather=.true.)
     end if  
   end if
@@ -2241,6 +2233,8 @@ logical, dimension(pil) :: mask_sum
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
 
+call START_LOG(otf_fill_begin)
+
 where ( land_a(1:fwsize) )
   a_io(1:fwsize) = value
 end where
@@ -2254,42 +2248,45 @@ if ( nrem==6*ik*ik ) then
   return
 end if
 if ( nrem==0 ) then
-  if ( myid==0 ) then
-    write(6,*) "Fill is not required"    
-  end if
+  ! fill is not required  
   return
 end if
 
 do while ( nrem>0 )
   c_io(1:pil,1:pjl,1:pnpan,1:mynproc) = reshape( a_io(1:fwsize), (/ pil, pjl, pnpan, mynproc /) )
   call ccmpi_filebounds(c_io,comm_ip)
-  do ipf = 1,mynproc
-    do n = 1,pnpan
-      do j = 1,pjl
-        c(1:pil,1) = c_io(1:pil,j+1,n,ipf) ! north
-        c(1:pil,2) = c_io(1:pil,j-1,n,ipf) ! south
-        c(1:pil,3) = c_io(2:pil+1,j,n,ipf) ! east
-        c(1:pil,4) = c_io(0:pil-1,j,n,ipf) ! west
-        maskc(1:pil,1:4) = abs(c(1:pil,1:4)-value)>=1.e-20
-        neighc(1:pil) = count( maskc(1:pil,1:4), dim=2 )
-        cc = (j-1)*pil + (n-1)*pil*pjl + (ipf-1)*pil*pjl*pnpan
-        mask_sum(1:pil) = neighc(1:pil)>0 .and. abs(a_io(1+cc:pil+cc)-value)<1.e-20
-        where ( mask_sum(1:pil) )
-          a_io(1+cc:pil+cc) = 0.
-        end where
-        do l = 1,4
-          where ( mask_sum(1:pil) .and. maskc(1:pil,l) )
-            a_io(1+cc:pil+cc) = a_io(1+cc:pil+cc) + c(1:pil,l)/real(neighc(1:pil))  
-          end where  
-        end do    
+  ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )
+  if ( ncount>0 ) then
+    do ipf = 1,mynproc
+      do n = 1,pnpan
+        do j = 1,pjl
+          c(1:pil,1) = c_io(1:pil,j+1,n,ipf) ! north
+          c(1:pil,2) = c_io(1:pil,j-1,n,ipf) ! south
+          c(1:pil,3) = c_io(2:pil+1,j,n,ipf) ! east
+          c(1:pil,4) = c_io(0:pil-1,j,n,ipf) ! west
+          maskc(1:pil,1:4) = abs(c(1:pil,1:4)-value)>=1.e-20
+          neighc(1:pil) = count( maskc(1:pil,1:4), dim=2 )
+          cc = (j-1)*pil + (n-1)*pil*pjl + (ipf-1)*pil*pjl*pnpan
+          mask_sum(1:pil) = neighc(1:pil)>0 .and. abs(a_io(1+cc:pil+cc)-value)<1.e-20
+          where ( mask_sum(1:pil) )
+            a_io(1+cc:pil+cc) = 0.
+          end where
+          do l = 1,4
+            where ( mask_sum(1:pil) .and. maskc(1:pil,l) )
+              a_io(1+cc:pil+cc) = a_io(1+cc:pil+cc) + c(1:pil,l)/real(neighc(1:pil))  
+            end where  
+          end do    
+        end do
       end do
     end do
-  end do
+    ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )  
+  end if  
   ! test for convergence
-  ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )
   call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
 end do
       
+call END_LOG(otf_fill_end)
+
 return
 end subroutine fill_cc1_nogather
 
@@ -2323,11 +2320,7 @@ logical, dimension(ik,4) :: mask
 logical, dimension(ik) :: mask_sum
 logical lflag
 
-! only perform fill on myid==0
-if ( myid/=0 ) then
-  write(6,*) "ERROR: Internal error - fill_cc1_gather should only be called by myid=0"
-  call ccmpi_abort(-1)
-end if
+call START_LOG(otf_fill_begin)
 
 allocate( b_io(6*ik*ik) )
 
@@ -2340,7 +2333,7 @@ if ( all(abs(a_io(1:6*ik*ik)-value)<1.E-6) ) then
   return
 end if
 if ( all(abs(a_io(1:6*ik*ik)-value)>=1.E-6) ) then
-  write(6,*) "Fill is not required"
+  ! fill is not required  
   return
 end if
 
@@ -2534,6 +2527,8 @@ end do
   
 deallocate( b_io )
 
+call END_LOG(otf_fill_end)
+
 return
 end subroutine fill_cc1_gather
 
@@ -2561,12 +2556,9 @@ logical, dimension(pil) :: mask_sum
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
 
-kx = size(a_io,2)
+call START_LOG(otf_fill_begin)
 
-if ( size(a_io,1)<fwsize ) then
-  write(6,*) "ERROR: a_io is too small in fill_cc4_nogather"
-  call ccmpi_abort(-1)
-end if
+kx = size(a_io,2)
 
 do k = 1,kx
   where ( land_a(1:fwsize) )
@@ -2583,44 +2575,47 @@ if ( nrem==6*ik*ik*kx ) then
   return
 end if
 if ( nrem==0 ) then
-  if ( myid==0 ) then
-    write(6,*) "Fill is not required"
-  end if
+  ! fill is not required  
   return
 end if
  
 do while ( nrem>0 )
   c_io(1:pil,1:pjl,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pil, pjl, pnpan, mynproc, kx /) )
   call ccmpi_filebounds(c_io,comm_ip)
-  do k = 1,kx
-    do ipf = 1,mynproc
-      do n = 1,pnpan
-        do j = 1,pjl
-          c(1:pil,1) = c_io(1:pil,j+1,n,ipf,k)
-          c(1:pil,2) = c_io(1:pil,j-1,n,ipf,k)
-          c(1:pil,3) = c_io(2:pil+1,j,n,ipf,k)
-          c(1:pil,4) = c_io(0:pil-1,j,n,ipf,k)
-          maskc(1:pil,1:4) = abs(c(1:pil,1:4)-value)>=1.e-20
-          neighc(1:pil) = count( maskc(1:pil,1:4), dim=2)
-          cc = (j-1)*pil + (n-1)*pil*pjl + (ipf-1)*pil*pjl*pnpan
-          mask_sum(1:pil) = neighc(1:pil)>0 .and. abs(c_io(1:pil,j,n,ipf,k)-value)<1.e-20
-          where ( mask_sum(1:pil) )
-            a_io(1+cc:pil+cc,k) = 0.  
-          end where  
-          do l = 1,4
-            where ( mask_sum(1:pil) .and. maskc(1:pil,l) )
-              a_io(1+cc:pil+cc,k) = a_io(1+cc:pil+cc,k) + c(1:pil,l)/real(neighc(1:pil))
-            end where
-          end do  
+  ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
+  if ( ncount>0 ) then
+    do k = 1,kx
+      do ipf = 1,mynproc
+        do n = 1,pnpan
+          do j = 1,pjl
+            c(1:pil,1) = c_io(1:pil,j+1,n,ipf,k)
+            c(1:pil,2) = c_io(1:pil,j-1,n,ipf,k)
+            c(1:pil,3) = c_io(2:pil+1,j,n,ipf,k)
+            c(1:pil,4) = c_io(0:pil-1,j,n,ipf,k)
+            maskc(1:pil,1:4) = abs(c(1:pil,1:4)-value)>=1.e-20
+            neighc(1:pil) = count( maskc(1:pil,1:4), dim=2)
+            cc = (j-1)*pil + (n-1)*pil*pjl + (ipf-1)*pil*pjl*pnpan
+            mask_sum(1:pil) = neighc(1:pil)>0 .and. abs(c_io(1:pil,j,n,ipf,k)-value)<1.e-20
+            where ( mask_sum(1:pil) )
+              a_io(1+cc:pil+cc,k) = 0.  
+            end where  
+            do l = 1,4
+              where ( mask_sum(1:pil) .and. maskc(1:pil,l) )
+                a_io(1+cc:pil+cc,k) = a_io(1+cc:pil+cc,k) + c(1:pil,l)/real(neighc(1:pil))
+              end where
+            end do  
+          end do
         end do
       end do
     end do
-  end do
+    ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
+  end if
   ! test for convergence
-  ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
   call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
 end do
-      
+
+call END_LOG(otf_fill_end)
+
 return
 end subroutine fill_cc4_nogather
 

@@ -366,6 +366,7 @@ module cc_mpi
    integer, public, save :: phys_begin, phys_end
    integer, public, save :: outfile_begin, outfile_end
    integer, public, save :: onthefly_begin, onthefly_end
+   integer, public, save :: otf_fill_begin, otf_fill_end
    integer, public, save :: otf_ints1_begin, otf_ints1_end
    integer, public, save :: otf_ints4_begin, otf_ints4_end
    integer, public, save :: histrd3_begin, histrd3_end
@@ -421,7 +422,7 @@ module cc_mpi
    integer, public, save :: mgup_begin, mgup_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
    integer, public, save :: mgdown_begin, mgdown_end
-   integer, parameter :: nevents = 73
+   integer, parameter :: nevents = 74
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -6813,6 +6814,7 @@ contains
       call add_event(river_begin,         river_end,         "River")
       call add_event(outfile_begin,       outfile_end,       "Outfile")
       call add_event(onthefly_begin,      onthefly_end,      "Onthefly")
+      call add_event(otf_fill_begin,      otf_fill_end,      "IO_Fill")
       call add_event(otf_ints1_begin,     otf_ints1_end,     "IO_Doints1")
       call add_event(otf_ints4_begin,     otf_ints4_end,     "IO_Doints4")
       call add_event(histrd3_begin,       histrd3_end,       "IO_HistRd3")
