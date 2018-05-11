@@ -6892,6 +6892,9 @@ contains
       
       llen = nevents
       lcomm = comm_world
+      emean = 0._8
+      emax = 0._8
+      emin = 0._8
       call MPI_Reduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, 0_4, lcomm, ierr )
       call MPI_Reduce(tot_time, emax, llen, MPI_DOUBLE_PRECISION,  &
@@ -6911,6 +6914,9 @@ contains
       end if
       
       llen = 2
+      time_mean = 0.
+      time_max = 0.
+      time_min = 0.
       time_l(1:2) = (/ mpiinit_time, total_time /)
       call MPI_Reduce(time_l, time_mean, llen, MPI_REAL, &
                       MPI_SUM, 0_4, lcomm, ierr )
@@ -8656,7 +8662,7 @@ contains
                procerr = 0
                lcomm = comm_world
                call MPI_Allreduce( procerr, procerr_g, 1_4, MPI_INTEGER, MPI_MAX, lcomm, lerr )
-               do while ( procerr_g/=0 )
+               do while ( procerr_g /= 0 )
                   procmode = procmode - 1
                   call MPI_Allreduce( procerr, procerr_g, 1_4, MPI_INTEGER, MPI_MAX, lcomm, lerr )
                end do

@@ -198,9 +198,12 @@ subroutine dav_end
 
 implicit none
 
-deallocate( davt, davu )
 deallocate( vertwgt )
-deallocate( psls, qgg, tt, uu, vv )
+
+if ( allocated(davt) ) then
+  deallocate( davt, davu )
+  deallocate( psls, qgg, tt, uu, vv )
+end if
 if ( allocated(xtgdav) ) then
   deallocate( xtgdav )
 end if

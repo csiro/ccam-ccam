@@ -76,7 +76,6 @@ integer, dimension(0:13) :: mdays
 integer idjd_g, iq, k
 integer, save :: iyr, imo, iday
 integer, parameter :: curr_month = 3 ! centre of 5-points
-integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)
 integer, parameter :: mlotime = 6 ! scale-select period in hours
 
 ! Do not call AMIPSST if namip=0
@@ -155,8 +154,8 @@ if ( ktau==0 ) then
     end do
   end if
   
-  ! initialise spectral filter arrays if required by mlomode=1
-  if ( mlomode==1 ) then
+  ! initialise spectral filter arrays if required
+  if ( mbd_mlo/=0 ) then
     call specinit  
   end if
   
@@ -554,13 +553,13 @@ elseif ( ktau>0 ) then
   dumd = 0.
   dume = 0. ! Depth
   if ( nud_ouv/=0 ) then
-    write(6,*) "ERROR: nud_ouv.ne.0 is not supported for"
-    write(6,*) "       namip.ne.0"
+    write(6,*) "ERROR: nud_ouv/=0 is not supported for"
+    write(6,*) "       namip/=0"
     call ccmpi_abort(-1)
   end if
   if ( nud_sfh/=0 ) then
-    write(6,*) "ERROR: nud_sfh.ne.0 is not supported for"
-    write(6,*) "       namip.ne.0"
+    write(6,*) "ERROR: nud_sfh/=0 is not supported for"
+    write(6,*) "       namip/=0"
     call ccmpi_abort(-1)
   end if
   call mloexpmelt(timelt)
@@ -569,19 +568,22 @@ elseif ( ktau>0 ) then
   dumb(:,1) = dumb(:,1) - wrtemp ! TEMP
   dumc(:,1,1:2) = 0.             ! U,V
   dumd(:,1) = sssb               ! SAL
-  select case(mlomode)
-    case(0) ! relax
-      call mlonudge(dumb,dumd,dumc,dume,1)
-    case(1)
-      if ( mod(mtimer,mlotime*60)==0 ) then
-        mtimeb = mlotime*60
-        mtimea = 0
-        call mlofilterhub(dumb,dumd,dumc,dume,1)
-      end if
-    case DEFAULT
-      write(6,*) "ERROR: Unknown mlomode ",mlomode
-      call ccmpi_abort(-1)
-  end select
+  if ( mbd_mlo/=0 ) then
+    ! scale-selective filter  
+    if ( mod(mtimer,mlotime*60)==0 ) then
+      mtimeb = mlotime*60
+      mtimea = 0
+      call mlofilterhub(dumb,dumd,dumc,dume,1)
+    end if
+  else if ( nud_hrs/=0 ) then  
+    ! relaxation
+    call mlonudge(dumb,dumd,dumc,dume,1)
+  else
+    write(6,*) "ERROR: AMIPSSTs (namip/=0) has been selected with in-line ocean model (nmlo/=0)"
+    write(6,*) "Ocean nudging method needs to be specified with either mbd_mlo/=0 for the"
+    write(6,*) "scale-selective filter or nud_hrs/=0 for relaxiation"
+    call ccmpi_abort(-1)
+  end if
   do k = 1,ms
     call mloexport(0,tgg(:,k),k,0)
     where ( tgg(:,k)<100. )
