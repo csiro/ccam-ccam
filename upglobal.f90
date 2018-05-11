@@ -88,7 +88,7 @@ call START_LOG(upglobal_begin)
 intsch = mod(ktau,2)
 
 !$omp parallel private(nstart,nend,ntot,denb,vecdot,vdot1,vdot2,vec1x,vec1y,vec1z) &
-!$omp private(vec2x,vec2y,vec2z,vec3x,vec3y,vec3z,js,je,tempry)
+!$omp private(vec2x,vec2y,vec2z,vec3x,vec3y,vec3z,js,je,tempry,k,iq,tile)
 !$omp do
 do k = 1,kl
   ! finish off RHS terms; this coriolis term was once in nonlin

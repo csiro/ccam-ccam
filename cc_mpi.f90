@@ -4840,7 +4840,7 @@ contains
             end do   
 !$omp end do nowait
             nreq = nreq + 1
-            llen = send_len*kx*ntr
+            llen = send_len*kk*ntr
             call MPI_ISend( sbuf(:,iproc), llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
