@@ -905,9 +905,6 @@ type(dgwaterdata), intent(inout) :: dgwater
 type(icedata), intent(inout) :: ice
 type(depthdata), intent(in) :: depth
 
-if ( nmaxpr==1 .and. ntiles==1 ) then                                                          ! MLO
-  if ( myid==0 ) write(6,*) "Before MLO mixing"                                                ! MLO
-end if                                                                                         ! MLO
 if ( abs(nmlo)==1 ) then                                                                       ! MLO
   ! Single column                                                                              ! MLO
   ! set free surface to zero when water is not conserved                                       ! MLO
@@ -1005,10 +1002,7 @@ do iq=1,imax                                                                    
     !rhscrn(iq)=100.*min(qgscrn(iq)/qsttg(iq),1.)                                              ! MLO
   end if                                                                                       ! MLO
 end do                                                                                         ! MLO
-if (nmaxpr==1 .and. ntiles==1) then                                                            ! MLO
-  if (myid==0) write(6,*) "After MLO mixing"                                                   ! MLO
-end if                                                                                         ! MLO
-                                                                                               ! MLO
+
 return
 end subroutine sflux_mlo_work
     
@@ -1127,14 +1121,11 @@ type(intldata), intent(in) :: intl
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(inout) :: pd
 
-if (nmaxpr==1.and.ntiles==1) then                                                                ! urban
-  if (myid==0) write(6,*) "Before urban"                                                         ! urban
-end if                                                                                           ! urban
 ! set-up radiative fluxes and precipitation                                                      ! urban
-dumsg=sgsave/(1.-swrsave*albvis(:)-(1.-swrsave)*albnir(:))                                       ! urban
-dumrg=-rgsave                                                                                    ! urban
-dumx=condx/dt                                                                                    ! urban
-dums=(conds+condg)/dt                                                                            ! urban
+dumsg = sgsave/(1.-swrsave*albvis(:)-(1.-swrsave)*albnir(:))                                     ! urban
+dumrg = -rgsave                                                                                  ! urban
+dumx = condx/dt                                                                                  ! urban
+dums = (conds+condg)/dt                                                                          ! urban
 ! default fluxes                                                                                 ! urban
 u_fg = 0.                                                                                        ! urban
 u_eg = 0.                                                                                        ! urban
@@ -1180,9 +1171,9 @@ cduv_work = cduv/vmag                                                           
 cdtq_work = cdtq/vmag                                                                            ! urban
 call atebcd(cduv_work,cdtq_work,0,pd,fp,upack,ufull)                                             ! urban
 where ( u_sigma>0. )                                                                             ! urban
-  cduv=cduv_work*vmag                                                                            ! urban
-  cdtq=cdtq_work*vmag                                                                            ! urban
-  ustar=sqrt(vmod*cduv)                                                                          ! urban
+  cduv = cduv_work*vmag                                                                          ! urban
+  cdtq = cdtq_work*vmag                                                                          ! urban
+  ustar = sqrt(vmod*cduv)                                                                        ! urban
 end where                                                                                        ! urban
 ! calculate snowmelt                                                                             ! urban
 newsnowmelt = snowmelt - oldsnowmelt                                                             ! urban
@@ -1202,9 +1193,6 @@ end where                                                                       
 ! calculate emissivity                                                                           ! urban
 urban_emiss = 0.                                                                                 ! urban
 call atebmisc(urban_emiss,"emissivity",0,fp,pd,upack,ufull)                                      ! urban
-if (nmaxpr==1.and.ntiles==1) then                                                                ! urban
-  if (myid==0) write(6,*) "After urban"                                                          ! urban
-end if                                                                                           ! urban
 
 end subroutine sflux_urban_work
 

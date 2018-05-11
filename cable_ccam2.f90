@@ -134,20 +134,24 @@ private
 public sib4
 public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcbmwb
 public cablesettemp, cableinflow, cbmemiss
-public proglai, progvcmax, maxtile, soil_struc, cable_pop
+public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle
 public fwsoil_switch, cable_litter, gs_switch, cable_climate
 public POP_NPATCH, POP_NCOHORT
 
-! CABLE - CCAM options.
-integer, save :: proglai            = -1         ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
-integer, save :: progvcmax          = 0          ! 0 prescribed, 1 prognostic vcmax (default), 2 prognostic vcmax (Walker2014)
+! CABLE biophysical options
 integer, save :: soil_struc         = 0          ! 0 default, 1 SLI soil model
 integer, save :: fwsoil_switch      = 0          ! 0 default, 1 non-linear, 2 Lai and Ktaul, 3 Haverd2013
-integer, save :: cable_pop          = 0          ! 0 POP off, 1 POP on
-integer, save :: cable_climate      = 0          ! 0 off, 1 on
-integer, save :: gs_switch          = 0          ! 0 leuning, 1 medlyn
 integer, save :: cable_litter       = 0          ! 0 off, 1 on
-integer, parameter :: tracerco2     = 0          ! 0 use radiation CO2, 1 use tracer CO2 
+integer, save :: gs_switch          = 0          ! 0 leuning, 1 medlyn
+! CABLE biochemical options
+integer, save :: ccycle             = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
+integer, save :: proglai            = -1         ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
+integer, save :: progvcmax          = 0          ! 0 prescribed, 1 prognostic vcmax (standard), 2 prognostic vcmax (Walker2014)
+! CABLE POP options
+integer, save :: cable_pop          = 0          ! 0 off, 1 on
+! CABLE climate options
+integer, save :: cable_climate      = 0          ! 0 off, 1 on
+! CABLE parameters
 integer, parameter :: maxtile       = 5          ! maximum possible number of tiles
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
 integer, parameter :: COLDEST_DAY_SHEMISPHERE = 172
@@ -261,7 +265,7 @@ do tile=1,ntiles
     ltggsn = tggsn(is:ie,:)
     lwb = wb(is:ie,:)
     lwbice = wbice(is:ie,:)
-    if ( icycle/=0 ) then
+    if ( ccycle/=0 ) then
       lclitter = clitter(is:ie,:)
       lcnbp = cnbp(is:ie)
       lcnpp = cnpp(is:ie)
@@ -299,16 +303,14 @@ do tile=1,ntiles
     ! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
     latmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
     ico2 = 0
-    if ( tracerco2==1 ) then
-      do igas=1,ngas
-        if ( trim(tractype(igas))=='online' .and. trim(tracname(igas))=='cbmnep' ) then
-          ico2=igas
-          exit
-        end if
-      end do
-      if ( ico2>0 ) then
-        latmco2 = tr(1:imax,1,ico2) ! use interactive tracers
+    do igas = 1,ngas
+      if ( trim(tractype(igas))=='online' .and. trim(tracname(igas))=='cbmnep' ) then
+        ico2 = igas
+        exit
       end if
+    end do
+    if ( ico2>0 ) then
+      latmco2 = tr(1:imax,1,ico2) ! use interactive tracers
     end if
     
     !set pointers to pass through
@@ -322,7 +324,7 @@ do tile=1,ntiles
     call setp(ssnow,lssnow,tile)
     call setp(sum_flux,lsum_flux,tile)
     call setp(veg,lveg,tile)
-    if ( icycle/=0 ) then
+    if ( ccycle/=0 ) then
       call setp(casabal,lcasabal,tile)
       call setp(casaflux,lcasaflux,tile)
       call setp(casamet,lcasamet,tile)
@@ -357,7 +359,7 @@ do tile=1,ntiles
     tggsn(is:ie,:) = ltggsn
     wb(is:ie,:) = lwb
     wbice(is:ie,:) = lwbice
-    if ( icycle/=0 ) then
+    if ( ccycle/=0 ) then
       clitter(is:ie,:) = lclitter
       cnbp(is:ie) = lcnbp
       cnpp(is:ie) = lcnpp
@@ -645,7 +647,7 @@ call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,npercasa,ktau)
 
 !--------------------------------------------------------------
 ! CASA CNP
-select case (icycle)
+select case (ccycle)
   case(0) ! off
 
   case(1,2,3) ! C, C+N, C+N+P
@@ -708,8 +710,8 @@ select case (icycle)
       end if
       call casa_delsoil(veg,casapool,casaflux,casamet,casabiome)
       call casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet,lalloc)
-      if ( icycle<2 ) call casa_ndummy(casapool)
-      if ( icycle<3 ) call casa_pdummy(casapool)
+      if ( ccycle<2 ) call casa_ndummy(casapool)
+      if ( ccycle<3 ) call casa_pdummy(casapool)
       call casa_cnpbal(casapool,casaflux,casabal)
       casabal%FCgppyear = casabal%FCgppyear + casaflux%Cgpp*deltpool
       casabal%FCrpyear  = casabal%FCrpyear  + casaflux%Crp*deltpool
@@ -758,7 +760,7 @@ select case (icycle)
     canopy%frpr = casaflux%crmplant(:,xroot)/real(casaperiod,8)
     ! Set net ecosystem exchange after adjustments to frs:
     canopy%fnpp = -canopy%fpn - canopy%frp
-    if ( icycle<=1 ) then
+    if ( ccycle<=1 ) then
       canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
     else
       if ( progvcmax>0 ) then
@@ -778,7 +780,7 @@ select case (icycle)
     sum_flux%dsumrp = sum_flux%dsumrp + canopy%frp*dtr8
     sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dtr8
   case default
-    write(6,*) "ERROR: Unsupported carbon cycle option with ccycle=",icycle
+    write(6,*) "ERROR: Unsupported carbon cycle option with ccycle=",ccycle
     stop
 end select  
 
@@ -897,7 +899,7 @@ do nb = 1,maxnb
   !qgscrn = qgscrn + unpack(sv(is:ie)*real(canopy%qscrn(is:ie)),tmap(:,nb),0.)
 end do
 
-if ( icycle/=0 ) then
+if ( ccycle/=0 ) then
   cplant = 0.
   niplant = 0.
   pplant = 0.
@@ -950,13 +952,13 @@ end if
 
 if ( cable_climate==1 ) then
   ! just extract the first tile for now  
-  climate_ivegt = unpack(climate%iveg,tmap(:,1),0)
-  climate_biome = unpack(climate%biome,tmap(:,1),0)
-  climate_min20 = unpack(climate%mtemp_min20,tmap(:,1),0._8)
-  climate_max20 = unpack(climate%mtemp_max20,tmap(:,1),0._8)
-  climate_alpha20 = unpack(climate%alpha_PT20,tmap(:,1),0._8)
-  climate_agdd5 = unpack(climate%agdd5,tmap(:,1),0._8)
-  climate_gmd = unpack(climate%gmd,tmap(:,1),0)
+  climate_ivegt        = unpack(climate%iveg,tmap(:,1),0)
+  climate_biome        = unpack(climate%biome,tmap(:,1),0)
+  climate_min20        = unpack(climate%mtemp_min20,tmap(:,1),0._8)
+  climate_max20        = unpack(climate%mtemp_max20,tmap(:,1),0._8)
+  climate_alpha20      = unpack(climate%alpha_PT20,tmap(:,1),0._8)
+  climate_agdd5        = unpack(climate%agdd5,tmap(:,1),0._8)
+  climate_gmd          = unpack(climate%gmd,tmap(:,1),0)
   climate_dmoist_min20 = unpack(climate%dmoist_min20,tmap(:,1),0._8)
   climate_dmoist_max20 = unpack(climate%dmoist_max20,tmap(:,1),0._8)
 end if
@@ -1124,7 +1126,7 @@ select case( proglai )
     call ccmpi_abort(-1)
 
   case(1) ! prognostic LAI
-    if ( icycle/=2 .and. icycle/=3 ) then
+    if ( ccycle/=2 .and. ccycle/=3 ) then
       write(6,*) "ERROR: CASA CNP LAI is not operational"
       write(6,*) "Prognostic LAI requires ccycle=2 or ccycle=3"
       call ccmpi_abort(-1)
@@ -1178,7 +1180,7 @@ real(kind=8) ajv, bjvref
 real(kind=8), dimension(mp) :: ncleafx, npleafx, pleafx, nleafx
 real(kind=8), dimension(mxvt), parameter :: xnslope = (/ 0.8,1.,2.,1.,1.,1.,0.5,1.,0.34,1.,1.,1.,1.,1.,1.,1.,1. /)
 
-if ( progvcmax>0 .and. icycle>=2 ) then
+if ( progvcmax>0 .and. ccycle>=2 ) then
 
   ! initialize
   ncleafx(:) = casabiome%ratioNCplantmax(veg%iveg(:),leaf)
@@ -1192,7 +1194,7 @@ if ( progvcmax>0 .and. icycle>=2 ) then
       ncleafx(np) = min( casabiome%ratioNCplantmax(ivt,leaf),                  &
                     max( casabiome%ratioNCplantmin(ivt,leaf),                  &
                          casapool%nplant(np,leaf)/casapool%cplant(np,leaf) ) )
-      if ( icycle>2 .and. casapool%pplant(np,leaf)>0._8 ) then
+      if ( ccycle>2 .and. casapool%pplant(np,leaf)>0._8 ) then
         npleafx(np) = min(30._8,max(8._8,casapool%nplant(np,leaf)/casapool%pplant(np,leaf)))
       end if
     end if
@@ -2519,8 +2521,6 @@ end if
 ! redefine rhos
 rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)
 
-icycle = ccycle
-
 if ( myid==0 ) write(6,*) "Define CABLE and CASA CNP arrays"
 
 ! default values (i.e., no land)  
@@ -2569,11 +2569,11 @@ if ( myid==0 ) then
   if ( soil_struc==1 ) then 
     write(6,*) "Using SLI soil model"
   end if
-  if ( icycle==0 ) then
+  if ( ccycle==0 ) then
     write(6,*) "Using CABLE without carbon cycle"
-  else if ( icycle==1 ) then
+  else if ( ccycle==1 ) then
     write(6,*) "Using CASA C"
-  else if ( icycle==2 ) then
+  else if ( ccycle==2 ) then
     write(6,*) "Using CASA CN"
   else
     write(6,*) "Using CASA CNP"
@@ -2663,7 +2663,7 @@ if ( mp_global>0 ) then
     case default
       cable_user%gs_switch = "leuning"
   end select
-  select case ( cable_litter ) ! only applys to cable_soilsnow (not SLI)?
+  select case ( cable_litter )
     case(1)
       cable_user%litter = .true.  
     case default
@@ -2946,13 +2946,13 @@ if ( mp_global>0 ) then
     climate%scalex_shade_save = 0._8
   end if
   
-  if ( icycle==0 ) then
+  if ( ccycle==0 ) then
     ! Initialise CABLE carbon pools
     if ( cable_pop==1 ) then
       write(6,*) "ERROR: cable_pop=1 requires ccycle>0"
       call ccmpi_abort(-1)
     end if    
-  else if ( icycle>=1 .and. icycle<=3 ) then
+  else if ( ccycle>=1 .and. ccycle<=3 ) then
     ! CASA CNP
     call alloc_casavariable(casabiome,casapool,casaflux,casamet,casabal,mp_global)
     call alloc_phenvariable(phen,mp_global)
@@ -3283,11 +3283,11 @@ if ( mp_global>0 ) then
     casapool%ratioPClitter  = casapool%plitter/(casapool%clitter(:,:)+1.0e-10_8)
     casapool%ratioPCsoil    = real(1./(ratioCNsoil(veg%iveg,:)*ratioNPsoil(casamet%isorder,:)),8)
     
-    if ( icycle<2 ) then
+    if ( ccycle<2 ) then
       casapool%Nplant         = casapool%Cplant*casapool%ratioNCplant
       casapool%Nsoil          = casapool%ratioNCsoil*casapool%Csoil
     end if
-    if ( icycle<3 ) then
+    if ( ccycle<3 ) then
       casapool%Psoil          = casapool%Nsoil/casapool%ratioNPsoil
       casapool%psoilsorb      = casaflux%psorbmax*casapool%psoillab &
                                 /(casaflux%kmlabp+casapool%psoillab)
@@ -3436,9 +3436,9 @@ if ( mp_global>0 ) then
     end if
     
   else  
-    write(6,*) "ERROR: Unknown option ccycle ",icycle
+    write(6,*) "ERROR: Unknown option ccycle ",ccycle
     call ccmpi_abort(-1)
-  end if ! icycle>0
+  end if ! ccycle>0
 
   
   ! Calculate LAI and veg fraction diagnostics
@@ -4144,14 +4144,14 @@ integer k, n, is, ie
 
 if ( mp_global>0 ) then
     
-  if ( icycle==0 ) then
+  if ( ccycle==0 ) then
     !do k = 1,ncp
     !  call cable_pack(cplant(:,k),bgc%cplant(:,k))
     !end do
     !do k = 1,ncs
     !  call cable_pack(csoil(:,k),bgc%csoil(:,k))
     !end do
-  else if ( icycle>=1 .and. icycle<=3 ) then
+  else if ( ccycle>=1 .and. ccycle<=3 ) then
     do k = 1,mplant
       call cable_pack(cplant(:,k),casapool%cplant(:,k))
       call cable_pack(niplant(:,k),casapool%nplant(:,k))
@@ -4431,7 +4431,7 @@ else
       end do  
     end if
   end if
-  if ( icycle==0 ) then
+  if ( ccycle==0 ) then
     !do n = 1,maxtile
     !  write(vname,'("t",I1.1,"_cplant")') n
     !  call histrd4(iarchi-1,ierr,vname,il_g,ncp,datncp(:,1:ncp),ifull)
@@ -5550,7 +5550,7 @@ if ( mp_global>0 ) then
         + (1.-ssnow%isflag)*2090._8*ssnow%snowd
   end do
 
-  if ( icycle == 0 ) then
+  if ( ccycle == 0 ) then
     !bgc%cplant = max(bgc%cplant,0.)
     !bgc%csoil = max(bgc%csoil,0.)
   else
@@ -5754,7 +5754,7 @@ if (myid==0.or.local) then
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
     end do
   end if
-  if ( icycle==0 ) then
+  if ( ccycle==0 ) then
     !do n=1,maxtile  
       !write(lname,'("Carbon leaf pool tile ",I1.1)') n
       !write(vname,'("t",I1.1,"_cplant1")') n    
@@ -6584,7 +6584,7 @@ if ( soil_struc==1 ) then
     call histwrt3(dat,vname,idnc,iarch,local,.true.) 
   end do
 end if
-if ( icycle==0 ) then
+if ( ccycle==0 ) then
   !do n = 1,maxtile  ! tile
     !do k = 1,ncp
     !  dat=real(cplant(:,k),8)

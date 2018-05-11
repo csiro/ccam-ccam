@@ -2282,6 +2282,9 @@ CONTAINS
 
     dAmc = 0.0
     dAme = 0.0
+#ifdef CCAM
+    ansinkz = 0.0
+#endif
 
     DO i=1,mp
 

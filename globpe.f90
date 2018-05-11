@@ -413,7 +413,7 @@ if ( myid<nproc ) then
       ! nesting now after mass fixers
       call START_LOG(nestin_begin)
       if ( mspec==1 ) then
-        if ( mbd/=0 .or. mbd_mlo/=0 ) then
+        if ( mbd/=0 .or. (mbd_mlo/=0.and.namip==0) ) then
           ! scale-selective filter
           call nestinb
         else if ( nbd/=0 ) then
@@ -499,7 +499,7 @@ if ( myid<nproc ) then
     ! MISC (SINGLE) ---------------------------------------------------------
     ! radiation timer calculations
     if ( nrad==5 ) then
-      if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
+      if ( nhstest<0 ) then      ! aquaplanet test -1 to -8  
         mtimer_sav = mtimer
         mtimer     = mins_gmt    ! so radn scheme repeatedly works thru same day
         call seaesfrad_settime
@@ -1269,7 +1269,7 @@ use bigxy4_m                               ! Grid interpolation
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
-    ,gs_switch,cable_climate
+    ,gs_switch,cable_climate,ccycle
 use carbpools_m, only : carbpools_init     ! Carbon pools
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
@@ -3468,6 +3468,7 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
     ,so2e,so2wd,so2dd,so2_burden         &
     ,so4e,so4wd,so4dd,so4_burden         &
     ,dmsso2o,so2so4o
+use cable_ccam, only : ccycle              ! CABLE
 use histave_m                              ! Time average arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
 use parm_m                                 ! Model configuration
@@ -3626,6 +3627,7 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
     ,so4e,so4wd,so4dd,so4_burden         &
     ,dmsso2o,so2so4o
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use cable_ccam, only : ccycle              ! CABLE
 use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
     ,frpw,frpr,frs,cnpp,cnbp
 use histave_m                              ! Time average arrays

@@ -40,6 +40,12 @@ integer, intent(in) :: ifull
 
 allocate(tscrn(ifull),qgscrn(ifull),uscrn(ifull),rhscrn(ifull),u10(ifull))
 
+tscrn = 0.
+qgscrn = 0.
+uscrn = 0.
+rhscrn = 0.
+u10 = 0.
+
 return
 end subroutine screen_init
 
