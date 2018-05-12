@@ -2242,20 +2242,8 @@ call START_LOG(otf_fill_begin)
 where ( land_a(1:fwsize) )
   a_io(1:fwsize) = value
 end where
-ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )
-call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
-if ( nrem==6*ik*ik ) then
-  if ( myid==0 ) then
-    write(6,*) "Cannot perform fill as all points are trivial"    
-  end if
-  a_io = 0.
-  return
-end if
-if ( nrem==0 ) then
-  ! fill is not required  
-  return
-end if
 
+nrem = 1
 local_count = 0
 
 do while ( nrem>0 )
@@ -2291,6 +2279,13 @@ do while ( nrem>0 )
   local_count = local_count + 1
   if ( local_count>=fill_count ) then
     call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
+    if ( nrem==6*ik*ik ) then
+      if ( myid==0 ) then
+        write(6,*) "Cannot perform fill as all points are trivial"    
+      end if
+      a_io = 0.
+      return
+    end if
   end if  
 end do
       
@@ -2576,20 +2571,8 @@ do k = 1,kx
     a_io(1:fwsize,k) = value
   end where
 end do
-ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
-call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
-if ( nrem==6*ik*ik*kx ) then
-  if ( myid==0 ) then
-    write(6,*) "Cannot perform fill as all points are trivial"    
-  end if
-  a_io = 0.
-  return
-end if
-if ( nrem==0 ) then
-  ! fill is not required  
-  return
-end if
- 
+
+nrem = 1
 local_count = 0
 
 do while ( nrem>0 )
@@ -2627,6 +2610,13 @@ do while ( nrem>0 )
   local_count = local_count + 1
   if ( local_count>=fill_count ) then
     call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
+    if ( nrem==6*ik*ik*kx ) then
+      if ( myid==0 ) then
+        write(6,*) "Cannot perform fill as all points are trivial"    
+      end if
+      a_io = 0.
+      return
+    end if
   end if  
 end do
 
