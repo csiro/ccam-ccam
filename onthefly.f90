@@ -45,6 +45,7 @@ public onthefly, retopo
 !integer, parameter :: nord = 3                               ! 1 for bilinear, 3 for bicubic interpolation
 integer, save :: ik, jk, kk, ok, nsibx                        ! input grid size
 integer fwsize                                                ! size of temporary arrays
+integer, save :: fill_count = 0                               ! number of iterations required for fill
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
 real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
@@ -425,6 +426,9 @@ end if
 !--------------------------------------------------------------------
 ! Determine input grid coordinates and interpolation arrays
 if ( newfile .and. .not.iop_test ) then
+    
+  ! reset fill counter
+  fill_count = 0
     
   allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
   xx4 => xx4_dummy
@@ -2220,7 +2224,7 @@ use infile          ! Input file routines
 implicit none
 
 integer nrem, j, n, l
-integer ncount, cc, ipf
+integer ncount, cc, ipf, local_count
 integer, dimension(pil) :: neighc
 real, parameter :: value=999.       ! missing value flag
 real, dimension(fwsize), intent(inout) :: a_io
@@ -2252,6 +2256,8 @@ if ( nrem==0 ) then
   return
 end if
 
+local_count = 0
+
 do while ( nrem>0 )
   c_io(1:pil,1:pjl,1:pnpan,1:mynproc) = reshape( a_io(1:fwsize), (/ pil, pjl, pnpan, mynproc /) )
   call ccmpi_filebounds(c_io,comm_ip)
@@ -2282,9 +2288,14 @@ do while ( nrem>0 )
     ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )  
   end if  
   ! test for convergence
-  call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
+  local_count = local_count + 1
+  if ( local_count>=fill_count ) then
+    call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
+  end if  
 end do
       
+fill_count = local_count
+
 call END_LOG(otf_fill_end)
 
 return
@@ -2543,7 +2554,7 @@ use infile          ! Input file routines
 implicit none
 
 integer nrem, j, n, k, kx, l
-integer ncount, cc, ipf
+integer ncount, cc, ipf, local_count
 integer, dimension(pil) :: neighc
 real, parameter :: value=999.       ! missing value flag
 real, dimension(:,:), intent(inout) :: a_io
@@ -2579,6 +2590,8 @@ if ( nrem==0 ) then
   return
 end if
  
+local_count = 0
+
 do while ( nrem>0 )
   c_io(1:pil,1:pjl,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pil, pjl, pnpan, mynproc, kx /) )
   call ccmpi_filebounds(c_io,comm_ip)
@@ -2611,8 +2624,13 @@ do while ( nrem>0 )
     ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
   end if
   ! test for convergence
-  call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
+  local_count = local_count + 1
+  if ( local_count>=fill_count ) then
+    call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
+  end if  
 end do
+
+fill_count = local_count
 
 call END_LOG(otf_fill_end)
 
