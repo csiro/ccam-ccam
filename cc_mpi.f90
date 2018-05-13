@@ -350,6 +350,7 @@ module cc_mpi
    ! Timer
    integer, public, save :: bounds_begin, bounds_end
    integer, public, save :: boundsuv_begin, boundsuv_end
+   integer, public, save :: boundsfile_begin, boundsfile_end
    integer, public, save :: ints_begin, ints_end
    integer, public, save :: nonlin_begin, nonlin_end
    integer, public, save :: helm_begin, helm_end
@@ -422,7 +423,7 @@ module cc_mpi
    integer, public, save :: mgup_begin, mgup_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
    integer, public, save :: mgdown_begin, mgdown_end
-   integer, parameter :: nevents = 74
+   integer, parameter :: nevents = 75
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -6839,6 +6840,7 @@ contains
       call add_event(aerosol_begin,       aerosol_end,       "Aerosol")
       call add_event(bounds_begin,        bounds_end,        "Bounds")
       call add_event(boundsuv_begin,      boundsuv_end,      "BoundsUV")
+      call add_event(boundsfile_begin,    boundsfile_end,    "BoundsFILE")
       call add_event(deptsync_begin,      deptsync_end,      "Deptsync")
       call add_event(intssync_begin,      intssync_end,      "Intssync")
       call add_event(gatherwin_begin,     gatherwin_end,     "GatherWIN")
@@ -10417,7 +10419,7 @@ contains
       integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:pil+1,0:pjl+1,pnpan,1:fncount), intent(inout) :: sdat
 
-      call START_LOG(bounds_begin)
+      call START_LOG(boundsfile_begin)
       
       lcomm = comm
       
@@ -10488,7 +10490,7 @@ contains
       call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
       call END_LOG(mpiwait_end)
 
-      call END_LOG(bounds_end)
+      call END_LOG(boundsfile_end)
 
    end subroutine ccmpi_filebounds2
 
@@ -10508,7 +10510,7 @@ contains
       integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:,0:,1:,1:,1:), intent(inout) :: sdat
 
-      call START_LOG(bounds_begin)
+      call START_LOG(boundsfile_begin)
       
       kx = size(sdat,5)
       lcomm = comm
@@ -10583,7 +10585,7 @@ contains
       call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
       call END_LOG(mpiwait_end)
 
-      call END_LOG(bounds_end)
+      call END_LOG(boundsfile_end)
       
    end subroutine ccmpi_filebounds3
    
