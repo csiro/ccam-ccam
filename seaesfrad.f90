@@ -225,7 +225,7 @@ end if
 ! main loop ---------------------------------------------------------
 !$omp do schedule(static) private(istart,iend,mythread,dhr,coszro2,taudar2,coszro,taudar), &
 !$omp private(sigh,duo3n,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,tnhs,rhoa,dz,i,iq,cosz),  &
-!$omp private(delta,k,kr,dzrho,cd2,cloudlo,cloudmi,cloudhi,mx,dumt,p2,ktop,kbot,dumcf),    &
+!$omp private(delta,k,kr,dzrho,cd2,mx,dumt,p2,ktop,kbot,dumcf),    &
 !$omp private(dumql,dumqf,sgdn,sgdnvis,sgdnnir,sg,sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir), &
 !$omp private(sgdnnirdif,rg,rt,rgdn,sint,sout,soutclr,sgclr,rtclr,rgclr,dumfbeam)
 do iq_tile = 1,ifull,imax
