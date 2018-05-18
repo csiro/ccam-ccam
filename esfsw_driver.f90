@@ -247,7 +247,6 @@ integer, parameter :: NSOLWG = 1
 real, dimension(NSOLWG), save :: gausswt
 logical, save      :: module_is_initialized = .false.
 logical, save      :: do_esfsw_band_diagnostics = .false.
-integer, save      :: naerosoltypes_used
 
 !---------------------------------------------------------------------
 !---------------------------------------------------------------------
@@ -3547,6 +3546,7 @@ real, dimension(:,:,:,:),      intent(out)   :: aeroextopdep, &
       integer     :: j, i, k, nband, nsc, irh
       integer     :: israd, jsrad, ierad, jerad, ksrad, kerad
       integer     :: opt_index_v4, opt_index_v5, opt_index_v6, opt_index_v7, opt_index_v8, opt_index_v9, opt_index_v10
+      integer     :: naerosoltypes_used
 
 
 !-----------------------------------------------------------------------
