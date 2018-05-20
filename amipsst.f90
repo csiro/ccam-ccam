@@ -581,7 +581,7 @@ elseif ( ktau>0 ) then
   else
     write(6,*) "ERROR: AMIPSSTs (namip/=0) has been selected with in-line ocean model (nmlo/=0)"
     write(6,*) "Ocean nudging method needs to be specified with either mbd_mlo/=0 for the"
-    write(6,*) "scale-selective filter or nud_hrs/=0 for relaxiation"
+    write(6,*) "scale-selective filter or nud_hrs/=0 for relaxation"
     call ccmpi_abort(-1)
   end if
   do k = 1,ms

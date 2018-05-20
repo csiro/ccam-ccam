@@ -56,7 +56,7 @@ integer, parameter :: nxtrrho   = 1       ! Estimate rho at t+1 (0=off, 1=on)
 integer, parameter :: usepice   = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
 integer, save      :: mlodiff   = 0       ! diffusion (0=all, 1=scalars only)
 integer, save      :: mlomfix   = 0       ! conservation method (0=wrt DD, 1=JLM split, 2=wrt DD+w_e)
-integer, save      :: mlojacobi = 1       ! density gradient method (0=off, 1=non-local)
+integer, save      :: mlojacobi = 1       ! density gradient method (0=off, 1=non-local spline, 2=non-local linear)
 real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
 real, parameter :: rhoic      = 900.      ! density ice  (kg m^-3)
 real, parameter :: grav       = 9.80616   ! gravitational constant (m s^-2)
@@ -4563,7 +4563,7 @@ select case( mlojacobi )
       drhobardyv(1:ifull,ii) = 0.
     end do
 
-  case(1) ! non-local  
+  case(1) ! non-local - spline  
     na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
     na(:,:,2) = min(max(0.,  nsi),50. )-34.72
     call seekdelta(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
@@ -4582,6 +4582,25 @@ select case( mlojacobi )
       drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
     end do
     
+  case(2) ! non-local - linear
+    na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
+    na(:,:,2) = min(max(0.,  nsi),50. )-34.72
+    call seekdelta_l(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+    do ii = 1,wlev
+      call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
+      call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
+      absu = 0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull)
+      bbsu = 0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull)
+      absv = 0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull)
+      bbsv = 0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull)
+
+      ! This relationship neglects compression effects due to neta from the EOS.
+      drhobardxu(1:ifull,ii) = -absu*dnadxu(1:ifull,ii,1) + bbsu*dnadxu(1:ifull,ii,2)
+      dfrhobardxv(1:ifull,ii) = -absv*dfnadxv(1:ifull,ii,1) + bbsv*dfnadxv(1:ifull,ii,2)
+      dfrhobardyu(1:ifull,ii) = -absu*dfnadyu(1:ifull,ii,1) + bbsu*dfnadyu(1:ifull,ii,2)
+      drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
+    end do      
+    
   case default
     write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
     stop
@@ -4592,7 +4611,7 @@ return
 end subroutine tsjacobi
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate gradients using an interpolation method
+! Calculate gradients using an interpolation method - spline
 
 subroutine seekdelta(rhobar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
@@ -4755,7 +4774,7 @@ return
 end subroutine seekdelta
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Interpolate to common depths
+! Interpolate to common depths - spline
 
 pure subroutine seekval(rout,ssin,ddin,ddseek,y2,ramp)
 
@@ -4814,7 +4833,7 @@ do  jj = 1,wlev
   h(:) = max(ddunpack1(:)-ddunpack0(:), 1.e-8)
   a(:) = (ddunpack1(:)-ddseek(:,jj))/h(:)
   b(:) = 1. - a(:)
-  temph(:) = h(:)*h(:)/6.
+  temph(:) = h(:)**2/6.
   tempa(:) = (a(:)**3-a(:))*temph(:)
   tempb(:) = (b(:)**3-b(:))*temph(:)
   
@@ -4870,6 +4889,225 @@ end do
 
 return
 end subroutine mlospline
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate gradients using an interpolation method - linear
+
+subroutine seekdelta_l(rhobar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+
+use indices_m
+use map_m
+use mlo, only : wlev
+use newmpar_m
+use parm_m
+
+implicit none
+
+integer ii, jj, iq
+real, dimension(ifull,wlev) :: ddux,ddvy
+real, dimension(ifull,wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
+real, dimension(ifull,wlev) :: ramp_a,ramp_c,ramp_e
+real, dimension(ifull+iextra,wlev) :: dd_i
+real, dimension(ifull,wlev,2) :: ri,re,rw,rn,rs,ren,rse,rne,rwn
+real, dimension(ifull,wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
+real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
+real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull) :: f_in,f_ine,f_ie,f_is,f_ise,f_ien,f_iw,f_iwn
+
+! Here we calculate the slow contribution of the pressure gradient
+
+! dP/dx = g rhobar dneta/dx + g sigma D drhobar/dx + g sigma neta drhobar/dx
+!                   (fast)               (slow)          (mixed)
+
+! rhobar = int_0^sigma rho dsigma / sigma
+
+! MJT notes - this version fades out extrapolated gradients using ramp_a, etc.
+!
+! Idealy, we want to separate the neta contribution to drhobar/dx so that it
+! can be included in the implicit solution to neta.
+
+
+do ii = 1,wlev
+  dd_i(:,ii) = gosig(ii)*dd(:)
+  ddux(:,ii) = gosig(ii)*ddu(1:ifull)
+  ddvy(:,ii) = gosig(ii)*ddv(1:ifull)
+end do
+
+do jj = 1,2
+  do ii = 1,wlev
+    ssi(:,ii,jj)=rhobar(1:ifull,ii,jj)
+    call unpack_ne(rhobar(:,ii,jj),ssn(:,ii,jj),sse(:,ii,jj))
+  end do
+end do  
+do ii = 1,wlev
+  ddi(:,ii)=dd_i(1:ifull,ii)
+  call unpack_ne(dd_i(:,ii),ddn(:,ii),dde(:,ii))
+end do  
+
+do jj = 1,2
+  do ii = 1,wlev
+!$omp simd
+    do iq = 1,ifull  
+      sss(iq,ii,jj) =rhobar(is(iq),ii,jj)
+      ssne(iq,ii,jj)=rhobar(ine(iq),ii,jj)
+      ssse(iq,ii,jj)=rhobar(ise(iq),ii,jj)
+    end do  
+  end do
+end do  
+do ii = 1,wlev
+!$omp simd
+  do iq = 1,ifull
+    dds(iq,ii)   =dd_i(is(iq),ii)
+    ddne(iq,ii)  =dd_i(ine(iq),ii)
+    ddse(iq,ii)  =dd_i(ise(iq),ii)
+  end do  
+end do  
+
+call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
+!$omp simd
+do iq = 1,ifull
+  f_ine(iq)=f(ine(iq))
+  f_ise(iq)=f(ise(iq))
+  f_ien(iq)=f(ien(iq))
+  f_iwn(iq)=f(iwn(iq))
+end do  
+  
+! process staggered u locations
+ramp_a(:,:)=1.
+call seekval_l(ri,ssi,ddi,ddux,ramp_a)
+call seekval_l(re,sse,dde,ddux,ramp_a)
+do jj=1,2
+  do ii=1,wlev
+    drhobardxu(:,ii,jj)=ramp_a(:,ii)*(re(:,ii,jj)-ri(:,ii,jj))*eeu(1:ifull)*emu(1:ifull)/ds
+  end do
+end do
+ramp_c(:,:)=1.
+ramp_e(:,:)=1.
+call seekval_l(rn, ssn, ddn, ddux,ramp_c)
+call seekval_l(rne,ssne,ddne,ddux,ramp_c)
+call seekval_l(rs, sss, dds, ddux,ramp_e)
+call seekval_l(rse,ssse,ddse,ddux,ramp_e)
+do jj=1,2
+  do ii=1,wlev
+    drhobardyu(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,1)*(rn(:,ii,jj)*f_in+rne(:,ii,jj)*f_ine           &
+                                                         -ri(:,ii,jj)*f(1:ifull)-re(:,ii,jj)*f_ie)*emu(1:ifull)/ds)     &
+                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,2)*(ri(:,ii,jj)*f(1:ifull)+re(:,ii,jj)*f_ie       &
+                                                         -rs(:,ii,jj)*f_is-rse(:,ii,jj)*f_ise)*emu(1:ifull)/ds)
+  end do
+end do
+
+do jj = 1,2
+  do ii = 1,wlev
+!$omp simd
+    do iq = 1,ifull  
+      ssw(iq,ii,jj) =rhobar(iw(iq),ii,jj)
+      ssen(iq,ii,jj)=rhobar(ien(iq),ii,jj)
+      sswn(iq,ii,jj)=rhobar(iwn(iq),ii,jj)
+    end do
+  end do
+end do 
+do ii = 1,wlev
+!$omp simd
+  do iq = 1,ifull  
+    ddw(iq,ii) =dd_i(iw(iq),ii)
+    dden(iq,ii)=dd_i(ien(iq),ii)
+    ddwn(iq,ii)=dd_i(iwn(iq),ii)
+  end do
+end do  
+
+! now process staggered v locations
+ramp_a(:,:)=1.
+call seekval_l(ri,ssi,ddi,ddvy,ramp_a)
+call seekval_l(rn,ssn,ddn,ddvy,ramp_a)
+do jj=1,2
+  do ii=1,wlev
+    drhobardyv(:,ii,jj)=ramp_a(:,ii)*(rn(:,ii,jj)-ri(:,ii,jj))*eev(1:ifull)*emv(1:ifull)/ds
+  end do
+end do
+ramp_c(:,:)=1.
+ramp_e(:,:)=1.
+call seekval_l(re, sse, dde, ddvy,ramp_c)
+call seekval_l(ren,ssen,dden,ddvy,ramp_c)
+call seekval_l(rw, ssw, ddw, ddvy,ramp_e)
+call seekval_l(rwn,sswn,ddwn,ddvy,ramp_e)
+do jj=1,2
+  do ii=1,wlev
+    drhobardxv(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,3)*(re(:,ii,jj)*f_ie+ren(:,ii,jj)*f_ien           &
+                                                         -ri(:,ii,jj)*f(1:ifull)-rn(:,ii,jj)*f_in)*emv(1:ifull)/ds)     &
+                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,4)*(ri(:,ii,jj)*f(1:ifull)+rn(:,ii,jj)*f_in       &
+                                                         -rw(:,ii,jj)*f_iw-rwn(:,ii,jj)*f_iwn)*emv(1:ifull)/ds)
+  end do
+end do
+
+return
+end subroutine seekdelta_l
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Interpolate to common depths - spline
+
+pure subroutine seekval_l(rout,ssin,ddin,ddseek,ramp)
+
+use cc_mpi
+use mlo, only : wlev
+use newmpar_m
+
+implicit none
+
+integer iq, ii, jj, ii_min, ii_max
+integer, dimension(1) :: pos
+integer, dimension(ifull,wlev) :: sindx
+real, dimension(ifull,wlev), intent(in) :: ddseek
+real, dimension(ifull,wlev), intent(in) :: ddin
+real, dimension(ifull,wlev), intent(inout) :: ramp
+real, dimension(ifull,wlev,2), intent(in) :: ssin
+real, dimension(ifull,wlev,2), intent(out) :: rout
+real, dimension(ifull,2) :: ssunpack1, ssunpack0
+real, dimension(ifull) :: ddunpack1, ddunpack0
+real, dimension(ifull) :: h, a, b
+real, parameter :: dzramp = 0.01 ! extrapolation limit
+
+sindx(:,:) = wlev
+do iq = 1,ifull
+  ii = 2
+  do jj = 1,wlev
+    if ( ddseek(iq,jj)<ddin(iq,wlev-1) .and. ii<wlev ) then
+      pos = maxloc( ddin(iq,ii:wlev-1), ddseek(iq,jj)<ddin(iq,ii:wlev-1) )
+      sindx(iq,jj) = pos(1) + ii - 1
+      ii = sindx(iq,jj)
+    else
+      exit
+    end if
+  end do
+end do
+  
+do  jj = 1,wlev
+  ! MJT notes - This calculation is slow
+  ii_min = minval( sindx(:,jj) )
+  ii_max = maxval( sindx(:,jj) )
+  do ii = ii_min,ii_max
+    where ( ii==sindx(:,jj) )
+      ddunpack1(:) = ddin(:,ii)
+      ddunpack0(:) = ddin(:,ii-1)
+      ssunpack1(:,1) = ssin(:,ii,1)
+      ssunpack1(:,2) = ssin(:,ii,2)
+      ssunpack0(:,1) = ssin(:,ii-1,1)
+      ssunpack0(:,2) = ssin(:,ii-1,2)
+    end where
+  end do
+
+  h(:) = max(ddunpack1(:)-ddunpack0(:), 1.e-8)
+  a(:) = (ddunpack1(:)-ddseek(:,jj))/h(:)
+  b(:) = 1. - a(:)
+  
+  rout(:,jj,1) = a(:)*ssunpack0(:,1)+b(:)*ssunpack1(:,1)
+  rout(:,jj,2) = a(:)*ssunpack0(:,2)+b(:)*ssunpack1(:,2)
+  
+  ! fade out extrapolation
+  ramp(:,jj) = ramp(:,jj)*min(max((a(:)+dzramp)/dzramp,0.),1.)*min(max((b(:)+dzramp)/dzramp,0.),1.)
+end do
+
+return
+end subroutine seekval_l
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate tidal potential
