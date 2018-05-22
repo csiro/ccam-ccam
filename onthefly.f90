@@ -47,7 +47,7 @@ integer, save :: ik, jk, kk, ok, nsibx                        ! input grid size
 integer fwsize                                                ! size of temporary arrays
 integer, save :: fill_land = 0                                ! number of iterations required for land fill
 integer, save :: fill_sea = 0                                 ! number of iterations required for ocean fill
-integer, save :: fill_urban = 0                               ! number of iterations required for urban fill
+integer, save :: fill_nourban = 0                             ! number of iterations required for urban fill
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
 real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
@@ -363,7 +363,7 @@ logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tsstest, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found
-logical, dimension(:), allocatable, save :: land_a, sea_a
+logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
@@ -381,7 +381,7 @@ real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y
 ! fwsize   is the size of the array for reading input data.  fwsize>0 implies this process id is reading data
 
 ! memory needed to read input files
-fwsize = pil*pjl*pnpan*mynproc 
+fwsize = pipan*pjpan*pnpan*mynproc 
 
 ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
 nemi = 3
@@ -420,9 +420,9 @@ if ( .not.allocated(nface4) ) then
 end if
 if ( newfile ) then
   if ( allocated(sigin) ) then
-    deallocate( sigin, gosig_in, land_a, sea_a )
+    deallocate( sigin, gosig_in, land_a, sea_a, nourban_a )
   end if
-  allocate( sigin(kk), gosig_in(ok), land_a(fwsize), sea_a(fwsize) )
+  allocate( sigin(kk), gosig_in(ok), land_a(fwsize), sea_a(fwsize), nourban_a(fwsize) )
 end if
       
 !--------------------------------------------------------------------
@@ -432,7 +432,7 @@ if ( newfile .and. .not.iop_test ) then
   ! reset fill counter
   fill_land = 0
   fill_sea = 0
-  fill_urban = 0
+  fill_nourban = 0
     
   allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
   xx4 => xx4_dummy
@@ -648,6 +648,20 @@ if ( newfile ) then
     call gethist1('ocndepth',ocndep_l)
   end if
   
+  ! read urban data
+  if ( nurban/=0 ) then  
+    if ( .not.iop_test ) then
+      if ( fnproc==1 ) then  
+        call histrd3(iarchi,ier,'rooftgg1',ik,ucc,6*ik*ik,nogather=.false.)
+      else
+        call histrd3(iarchi,ier,'rooftgg1',ik,ucc,6*ik*ik,nogather=.true.)
+      end if
+      if ( fwsize>0 ) then
+        nourban_a = ucc>=399.
+      end if
+    end if  
+  end if  
+    
   if ( myid==0 ) write(6,*) "Finished reading invariant fields"
   
 else
@@ -759,8 +773,9 @@ else
   
 end if ! (tsstest) ..else..
 
-deallocate( isoilm_a )      
+deallocate( isoilm_a )
 
+ 
 !--------------------------------------------------------------
 ! Read ocean data for nudging (sea-ice is read below)
 ! read when nested=0 or nested==1.and.nud/=0 or nested=2
@@ -1537,7 +1552,7 @@ if ( nested/=1 ) then
   ! Read urban data
   if ( nurban/=0 ) then
     if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,5))
-    call fillhist4('rooftgg',atebdwn(:,1:5),sea_a,fill_urban,filllimit=399.)
+    call fillhist4('rooftgg',atebdwn(:,1:5),nourban_a,fill_nourban)
     do k = 1,5
       write(vname,'("rooftemp",I1.1)') k
       where ( atebdwn(:,k)>150. )  
@@ -1545,7 +1560,7 @@ if ( nested/=1 ) then
       end where 
       call atebloadd(atebdwn(:,k),vname,0)
     end do  
-    call fillhist4('waletgg',atebdwn(:,1:5), sea_a,fill_urban,filllimit=399.)
+    call fillhist4('waletgg',atebdwn(:,1:5),nourban_a,fill_nourban)
     do k = 1,5
       write(vname,'("walletemp",I1.1)') k
       where ( atebdwn(:,k)>150. )  
@@ -1553,7 +1568,7 @@ if ( nested/=1 ) then
       end where 
       call atebloadd(atebdwn(:,k),vname,0)
     end do  
-    call fillhist4('walwtgg',atebdwn(:,1:5),sea_a,fill_urban,filllimit=399.)
+    call fillhist4('walwtgg',atebdwn(:,1:5),nourban_a,fill_nourban)
     do k = 1,5
       write(vname,'("wallwtemp",I1.1)') k
       where ( atebdwn(:,k)>150. )  
@@ -1561,7 +1576,7 @@ if ( nested/=1 ) then
       end where 
       call atebloadd(atebdwn(:,k),vname,0)
     end do  
-    call fillhist4('roadtgg',atebdwn(:,1:5),sea_a,fill_urban,filllimit=399.)
+    call fillhist4('roadtgg',atebdwn(:,1:5),nourban_a,fill_nourban)
     do k = 1,5
       write(vname,'("roadtemp",I1.1)') k
       where ( atebdwn(:,k)>150. )  
@@ -1569,7 +1584,7 @@ if ( nested/=1 ) then
       end where 
       call atebloadd(atebdwn(:,k),vname,0)
     end do  
-    call fillhist4('slabtgg',atebdwn(:,1:5),sea_a,fill_urban,filllimit=399.)
+    call fillhist4('slabtgg',atebdwn(:,1:5),nourban_a,fill_nourban)
     do k = 1,5
       write(vname,'("slabtemp",I1.1)') k
       where ( atebdwn(:,k)>150. )  
@@ -1577,7 +1592,7 @@ if ( nested/=1 ) then
       end where 
       call atebloadd(atebdwn(:,k),vname,0)
     end do  
-    call fillhist4('intmtgg',atebdwn(:,1:5),sea_a,fill_urban,filllimit=399.)
+    call fillhist4('intmtgg',atebdwn(:,1:5),nourban_a,fill_nourban)
     do k = 1,5
       write(vname,'("intmtemp",I1.1)') k 
       where ( atebdwn(:,k)>150. )  
@@ -1585,37 +1600,37 @@ if ( nested/=1 ) then
       end where 
       call atebloadd(atebdwn(:,k),vname,0)
     end do  
-    call fillhist1('roomtgg1',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('roomtgg1',atebdwn(:,1),nourban_a,fill_nourban)
     where ( atebdwn(:,1)>150. )
       atebdwn(:,1) = atebdwn(:,1) - urbtemp
     end where
     call atebloadd(atebdwn(:,1),"roomtemp",0)
-    call fillhist1('urbnsmc',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('urbnsmc',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"canyonsoilmoisture",0)
-    call fillhist1('urbnsmr',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('urbnsmr',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"roofsoilmoisture",0)
-    call fillhist1('roofwtr',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('roofwtr',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"roadsurfacewater",0)
-    call fillhist1('roadwtr',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('roadwtr',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"roofsurfacewater",0)
-    call fillhist1('urbwtrc',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('urbwtrc',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"canyonleafwater",0)
-    call fillhist1('urbwtrr',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('urbwtrr',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"roofleafwater",0)
-    call fillhist1('roofsnd',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('roofsnd',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"roadsnowdepth",0)
-    call fillhist1('roadsnd',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('roadsnd',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"roofsnowdepth",0)
-    call fillhist1('roofden',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('roofden',atebdwn(:,1),nourban_a,fill_nourban)
     if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
     call atebloadd(atebdwn(:,1),"roadsnowdensity",0)
-    call fillhist1('roadden',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('roadden',atebdwn(:,1),nourban_a,fill_nourban)
     if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
     call atebloadd(atebdwn(:,1),"roofsnowdensity",0)
-    call fillhist1('roofsna',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('roofsna',atebdwn(:,1),nourban_a,fill_nourban)
     if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
     call atebloadd(atebdwn(:,1),"roadsnowalbedo",0)
-    call fillhist1('roadsna',atebdwn(:,1),sea_a,fill_urban,filllimit=399.)
+    call fillhist1('roadsna',atebdwn(:,1),nourban_a,fill_nourban)
     if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
     call atebloadd(atebdwn(:,1),"roofsnowalbedo",0)
     deallocate( atebdwn )
@@ -1862,7 +1877,7 @@ integer mm, n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull) :: wrk
-real, dimension(pil*pjl*pnpan,size(filemap_recv)) :: abuf
+real, dimension(pipan*pjpan*pnpan,size(filemap_recv)) :: abuf
 
 call START_LOG(otf_ints1_begin)
 
@@ -1950,7 +1965,7 @@ integer mm, k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull) :: wrk
-real, dimension(pil*pjl*pnpan,size(filemap_recv),kblock) :: abuf
+real, dimension(pipan*pjpan*pnpan,size(filemap_recv),kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
 
@@ -2157,6 +2172,52 @@ end do       ! n loop
 return
 end subroutine sxpanelbounds
 
+subroutine panel_bounds_1(c_io)
+
+use newmpar_m
+
+implicit none
+
+integer i, n, n_w, n_e, n_n, n_s
+real, dimension(0:ik+1,0:ik+1,0:npanels), intent(inout) :: c_io
+
+do n = 0,npanels
+  if ( mod(n,2)==0 ) then
+    n_w = mod(n+5, 6)
+    n_e = mod(n+2, 6)
+    n_n = mod(n+1, 6)
+    n_s = mod(n+4, 6)
+    do i = 1,ik
+      c_io(0,i,n)    = c_io(ik,i,n_w)
+      c_io(ik+1,i,n) = c_io(ik+1-i,1,n_e)
+      c_io(i,0,n)    = c_io(ik,ik+1-i,n_s)
+      c_io(i,ik+1,n) = c_io(i,1,n_n)
+    end do ! i
+    c_io(0,0,n)       = c_io(ik,1,n_w)        ! ws
+    c_io(ik+1,0,n)    = c_io(ik,1,n_e)        ! es  
+    c_io(0,ik+1,n)    = c_io(ik,ik,n_w)       ! wn  
+    c_io(ik+1,ik+1,n) = c_io(1,1,n_e)         ! en  
+  else
+    n_w = mod(n+4, 6)
+    n_e = mod(n+1, 6)
+    n_n = mod(n+2, 6)
+    n_s = mod(n+5, 6)
+    do i = 1,ik
+      c_io(0,i,n)    = c_io(ik+1-i,ik,n_w)
+      c_io(ik+1,i,n) = c_io(1,i,n_e)
+      c_io(i,0,n)    = c_io(i,ik,n_s)
+      c_io(i,ik+1,n) = c_io(1,ik+1-i,n_n)
+    end do ! i
+    c_io(0,0,n)       = c_io(ik,ik,n_w)      ! ws
+    c_io(ik+1,0,n)    = c_io(1,1,n_e)        ! es
+    c_io(0,ik+1,n)    = c_io(1,ik,n_w)       ! wn       
+    c_io(ik+1,ik+1,n) = c_io(1,ik,n_e)       ! en  
+  end if   ! mod(n,2)==0 ..else..
+end do       ! n loop
+
+return
+end subroutine panel_bounds_1
+
 subroutine intsb(sx_l,sout,nface_l,xg_l,yg_l)
       
 !     same as subr ints, but with sout passed back and no B-S      
@@ -2230,13 +2291,13 @@ implicit none
 integer, intent(inout) :: fill_count
 integer nrem, j, n
 integer ncount, cc, ipf, local_count
-integer, dimension(pil) :: ccount
+integer, dimension(pipan) :: ccount
 real, parameter :: value=999.       ! missing value flag
 real, dimension(fwsize), intent(inout) :: a_io
-real, dimension(0:pil+1,0:pjl+1,pnpan,mynproc) :: c_io
-real, dimension(pil) :: csum
+real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc) :: c_io
+real, dimension(pipan) :: csum
 logical, dimension(fwsize), intent(in) :: land_a
-logical, dimension(pil) :: maska
+logical, dimension(pipan) :: maska
 
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
@@ -2252,36 +2313,36 @@ local_count = 0
 c_io = value
 
 do while ( nrem>0 )
-  c_io(1:pil,1:pjl,1:pnpan,1:mynproc) = reshape( a_io(1:fwsize), (/ pil, pjl, pnpan, mynproc /) )
+  c_io(1:pipan,1:pjpan,1:pnpan,1:mynproc) = reshape( a_io(1:fwsize), (/ pipan, pjpan, pnpan, mynproc /) )
   call ccmpi_filebounds(c_io,comm_ip)
   ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )
   if ( ncount>0 ) then
     do ipf = 1,mynproc
       do n = 1,pnpan
-        do j = 1,pjl
-          cc = (j-1)*pil + (n-1)*pil*pjl + (ipf-1)*pil*pjl*pnpan
-          maska(1:pil) = abs(a_io(1+cc:pil+cc)-value)<1.e-20
-          if ( any(maska(1:pil)) ) then
-            csum(1:pil) = 0.
-            ccount(1:pil) = 0
-            where ( abs(c_io(1:pil,j+1,n,ipf)-value)>=1.e-20 )
-              csum(1:pil) = csum(1:pil) + c_io(1:pil,j+1,n,ipf)
-              ccount(1:pil) = ccount(1:pil) + 1
+        do j = 1,pjpan
+          cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+          maska(1:pipan) = abs(a_io(1+cc:pipan+cc)-value)<1.e-20
+          if ( any(maska(1:pipan)) ) then
+            csum(1:pipan) = 0.
+            ccount(1:pipan) = 0
+            where ( abs(c_io(1:pipan,j+1,n,ipf)-value)>=1.e-20 )
+              csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,j+1,n,ipf)
+              ccount(1:pipan) = ccount(1:pipan) + 1
             end where
-            where ( abs(c_io(1:pil,j-1,n,ipf)-value)>=1.e-20 )
-              csum(1:pil) = csum(1:pil) + c_io(1:pil,j-1,n,ipf)
-              ccount(1:pil) = ccount(1:pil) + 1
+            where ( abs(c_io(1:pipan,j-1,n,ipf)-value)>=1.e-20 )
+              csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,j-1,n,ipf)
+              ccount(1:pipan) = ccount(1:pipan) + 1
             end where
-            where ( abs(c_io(2:pil+1,j,n,ipf)-value)>=1.e-20 )
-              csum(1:pil) = csum(1:pil) + c_io(2:pil+1,j,n,ipf)
-              ccount(1:pil) = ccount(1:pil) + 1
+            where ( abs(c_io(2:pipan+1,j,n,ipf)-value)>=1.e-20 )
+              csum(1:pipan) = csum(1:pipan) + c_io(2:pipan+1,j,n,ipf)
+              ccount(1:pipan) = ccount(1:pipan) + 1
             end where
-            where ( abs(c_io(0:pil-1,j,n,ipf)-value)>=1.e-20 )
-              csum(1:pil) = csum(1:pil) + c_io(0:pil-1,j,n,ipf)
-              ccount(1:pil) = ccount(1:pil) + 1
+            where ( abs(c_io(0:pipan-1,j,n,ipf)-value)>=1.e-20 )
+              csum(1:pipan) = csum(1:pipan) + c_io(0:pipan-1,j,n,ipf)
+              ccount(1:pipan) = ccount(1:pipan) + 1
             end where
-            where ( maska(1:pil) .and. ccount(1:pil)>0 )
-              a_io(1+cc:pil+cc) = csum(1:pil)/real(ccount(1:pil))
+            where ( maska(1:pipan) .and. ccount(1:pipan)>0 )
+              a_io(1+cc:pipan+cc) = csum(1:pipan)/real(ccount(1:pipan))
             end where
           end if  
         end do
@@ -2298,7 +2359,7 @@ do while ( nrem>0 )
         write(6,*) "Cannot perform fill as all points are trivial"    
       end if
       a_io = 0.
-      return
+      nrem = 0
     end if
   end if  
 end do
@@ -2325,27 +2386,18 @@ integer iminb, imaxb, jminb, jmaxb
 integer is, ie, js, je
 integer, dimension(0:5) :: imin, imax, jmin, jmax
 integer, dimension(ik) :: ccount
-integer, parameter, dimension(0:5) :: npann=(/1,103,3,105,5,101/)
-integer, parameter, dimension(0:5) :: npane=(/102,2,104,4,100,0/)
-integer, parameter, dimension(0:5) :: npanw=(/5,105,1,101,3,103/)
-integer, parameter, dimension(0:5) :: npans=(/104,0,100,2,102,4/)
 real, parameter :: value=999.       ! missing value flag
 real, dimension(6*ik*ik), intent(inout) :: a_io
-real, dimension(:), allocatable :: b_io
-real, dimension(0:ik+1) :: a
-real, dimension(ik) :: b_north, b_south, b_east, b_west
-real, dimension(ik) :: b, csum
+real, dimension(:,:,:), allocatable :: c_io, d_io
+real, dimension(ik) :: csum
 logical, dimension(6*ik*ik), intent(in) :: land_a
 logical, dimension(ik) :: maska
 logical lflag
 
-call START_LOG(otf_fill_begin)
-
-allocate( b_io(6*ik*ik) )
-
 where ( land_a(1:6*ik*ik) )
   a_io(1:6*ik*ik) = value
 end where
+
 if ( all(abs(a_io(1:6*ik*ik)-value)<1.E-6) ) then
   write(6,*) "Cannot perform fill as all points are trivial"
   a_io = 0.
@@ -2356,6 +2408,11 @@ if ( all(abs(a_io(1:6*ik*ik)-value)>=1.E-6) ) then
   return
 end if
 
+call START_LOG(otf_fill_begin)
+
+allocate( c_io(ik,ik,0:5), d_io(0:ik+1,0:ik+1,0:5) )
+c_io(1:ik,1:ik,0:5) = reshape( a_io(1:6*ik*ik), (/ ik, ik, 6 /) )
+
 imin(0:5) = 1
 imax(0:5) = ik
 jmin(0:5) = 1
@@ -2364,7 +2421,8 @@ jmax(0:5) = ik
 nrem = 1    ! Just for first iteration
 do while ( nrem>0 )
   nrem = 0
-  b_io(1:6*ik*ik) = a_io(1:6*ik*ik)
+  d_io(1:ik,1:ik,0:5) = c_io(1:ik,1:ik,0:5)
+  call panel_bounds_1(d_io)
   ! MJT restricted fill
   do n = 0,5
     
@@ -2372,139 +2430,34 @@ do while ( nrem>0 )
     imaxb = 1
     jminb = ik
     jmaxb = 1
-    
-    ! north
-    if (npann(n)<100) then
-      do i = 1,ik
-        iq=i+npann(n)*ik*ik
-        b_north(i) = b_io(iq)
-      end do
-    else
-      do i = 1,ik
-        iq=1+(ik-i)*ik+(npann(n)-100)*ik*ik
-        b_north(i) = b_io(iq)
-      end do
-    end if
-    ! south
-    if (npans(n)<100) then
-      do i = 1,ik
-        iq=i+(ik-1)*ik+npans(n)*ik*ik
-        b_south(i) = b_io(iq)
-      end do
-    else
-      do i = 1,ik
-        iq=ik+(ik-i)*ik+(npans(n)-100)*ik*ik
-        b_south(i) = b_io(iq)
-      end do
-    end if
-    ! east
-    if (npane(n)<100) then
-      do j = 1,ik
-        iq=1+(j-1)*ik+npane(n)*ik*ik
-        b_east(j) = b_io(iq)
-      end do
-    else
-      do j = 1,ik
-        iq=ik+1-j+(npane(n)-100)*ik*ik
-        b_east(j) = b_io(iq)
-      end do
-    end if
-    ! west
-    if (npanw(n)<100) then
-      do j = 1,ik
-        iq=ik+(j-1)*ik+npanw(n)*ik*ik
-        b_west(j) = b_io(iq)
-      end do
-    else
-      do j = 1,ik
-        iq=ik+1-j+(ik-1)*ik+(npanw(n)-100)*ik*ik
-        b_west(j) = b_io(iq)
-      end do
-    end if
 
     is = imin(n)
     ie = imax(n)
     js = jmin(n)
     je = jmax(n)
     
-    if ( js==1 ) then
-      ! j = 1
-      a(0)     = b_west(1)
-      a(ik+1)  = b_east(1)
-      a(max(is-1,1))  = b_io(max(is-1,1)+n*ik*ik)
-      a(min(ie+1,ik)) = b_io(min(ie+1,ik)+n*ik*ik)
-      a(is:ie) = b_io(is+n*ik*ik:ie+n*ik*ik)
-      maska(is:ie) = abs(a_io(is+n*ik*ik:ie+n*ik*ik)-value)<1.e-20  
+    do j = js,je
+      maska(is:ie) = abs(c_io(is:ie,j,n)-value)<1.e-20
       csum(is:ie) = 0.
       ccount(is:ie) = 0
-      b(is:ie) = b_io(is+ik+n*ik*ik:ie+ik+n*ik*ik)
-      where ( abs(b(is:ie)-value)>=1.e-20 )
-        csum(is:ie) = csum(is:ie) + b(is:ie)
+      where ( abs(d_io(is:ie,j+1,n)-value)>=1.e-20 )
+        csum(is:ie) = csum(is:ie) + d_io(is:ie,j+1,n)
         ccount(is:ie) = ccount(is:ie) + 1
       end where
-      b(is:ie) = b_south(is:ie)
-      where ( abs(b(is:ie)-value)>=1.e-20 )
-        csum(is:ie) = csum(is:ie) + b(is:ie)
+      where ( abs(d_io(is:ie,j-1,n)-value)>=1.e-20 )
+        csum(is:ie) = csum(is:ie) + d_io(is:ie,j-1,n)
         ccount(is:ie) = ccount(is:ie) + 1
       end where
-      b(is:ie) = a(is+1:ie+1)
-      where ( abs(b(is:ie)-value)>=1.e-20 )
-        csum(is:ie) = csum(is:ie) + b(is:ie)
+      where ( abs(d_io(is+1:ie+1,j,n)-value)>=1.e-20 )
+        csum(is:ie) = csum(is:ie) + d_io(is+1:ie+1,j,n)
         ccount(is:ie) = ccount(is:ie) + 1
       end where
-      b(is:ie) = a(is-1:ie-1)
-      where ( abs(b(is:ie)-value)>=1.e-20 )
-        csum(is:ie) = csum(is:ie) + b(is:ie)
+      where ( abs(d_io(is-1:ie-1,j,n)-value)>=1.e-20 )
+        csum(is:ie) = csum(is:ie) + d_io(is-1:ie-1,j,n)
         ccount(is:ie) = ccount(is:ie) + 1
-      end where
+      end where      
       where ( maska(is:ie) .and. ccount(is:ie)>0 )
-        a_io(is+n*ik*ik:ie+n*ik*ik) = csum(is:ie)/real(ccount(is:ie))
-      end where  
-      lflag = .false.
-      do i = is,ie
-        if ( ccount(i)==0 ) then
-          nrem = nrem + 1 ! current number of points without a neighbour
-          iminb = min(i, iminb)
-          imaxb = max(i, imaxb)
-          lflag = .true.
-        end if
-      end do
-      if ( lflag ) then
-        jminb = min(1, jminb)
-        jmaxb = max(1, jmaxb)
-      end if
-    end if
-    do j = max(js,2),min(je,ik-1)
-      a(0)     = b_west(j)
-      a(ik+1)  = b_east(j)
-      a(max(is-1,1))  = b_io(max(is-1,1)+(j-1)*ik+n*ik*ik)
-      a(min(ie+1,ik)) = b_io(min(ie+1,ik)+(j-1)*ik+n*ik*ik)
-      a(is:ie) = b_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik)
-      maska(is:ie) = abs(a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik)-value)<1.e-20  
-      csum(is:ie) = 0.
-      ccount(is:ie) = 0
-      b(is:ie) = b_io(is+j*ik+n*ik*ik:ie+j*ik+n*ik*ik)
-      where ( abs(b(is:ie)-value)>=1.e-20 )
-        csum(is:ie) = csum(is:ie) + b(is:ie)
-        ccount(is:ie) = ccount(is:ie) + 1
-      end where
-      b(is:ie) = b_io(is+(j-2)*ik+n*ik*ik:ie+(j-2)*ik+n*ik*ik)
-      where ( abs(b(is:ie)-value)>=1.e-20 )
-        csum(is:ie) = csum(is:ie) + b(is:ie)
-        ccount(is:ie) = ccount(is:ie) + 1
-      end where
-      b(is:ie) = a(is+1:ie+1)
-      where ( abs(b(is:ie)-value)>=1.e-20 )
-        csum(is:ie) = csum(is:ie) + b(is:ie)
-        ccount(is:ie) = ccount(is:ie) + 1
-      end where
-      b(is:ie) = a(is-1:ie-1)
-      where ( abs(b(is:ie)-value)>=1.e-20 )
-        csum(is:ie) = csum(is:ie) + b(is:ie)
-        ccount(is:ie) = ccount(is:ie) + 1
-      end where
-      where ( maska(is:ie) .and. ccount(is:ie)>0 )
-        a_io(is+(j-1)*ik+n*ik*ik:ie+(j-1)*ik+n*ik*ik) = csum(is:ie)/real(ccount(is:ie))
+        c_io(is:ie,j,n) = csum(is:ie)/real(ccount(is:ie))
       end where  
       lflag = .false.
       do i = is,ie
@@ -2520,53 +2473,6 @@ do while ( nrem>0 )
         jmaxb = max(j, jmaxb)
       end if
     end do
-    if ( je==ik ) then
-      ! j = ik
-      a(0)     = b_west(ik)
-      a(ik+1)  = b_east(ik)
-      a(max(is-1,1))  = b_io(max(is-1,1)-ik+(n+1)*ik*ik)
-      a(min(ie+1,ik)) = b_io(min(ie+1,ik)-ik+(n+1)*ik*ik)
-      a(is:ie) = b_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik)
-      maska(is:ie) = abs(a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik)-value)<1.e-20  
-      csum(is:ie) = 0.
-      ccount(is:ie) = 0
-      b(is:ie) = b_north(is:ie)
-      where ( abs(b(is:ie)-value)>=1.e-20 )
-        csum(is:ie) = csum(is:ie) + b(is:ie)
-        ccount(is:ie) = ccount(is:ie) + 1
-      end where
-      b(is:ie) = b_io(is-2*ik+(n+1)*ik*ik:ie-2*ik+(n+1)*ik*ik)
-      where ( abs(b(is:ie)-value)>=1.e-20 )
-        csum(is:ie) = csum(is:ie) + b(is:ie)
-        ccount(is:ie) = ccount(is:ie) + 1
-      end where
-      b(is:ie) = a(is+1:ie+1)
-      where ( abs(b(is:ie)-value)>=1.e-20 )
-        csum(is:ie) = csum(is:ie) + b(is:ie)
-        ccount(is:ie) = ccount(is:ie) + 1
-      end where
-      b(is:ie) = a(is-1:ie-1)
-      where ( abs(b(is:ie)-value)>=1.e-20 )
-        csum(is:ie) = csum(is:ie) + b(is:ie)
-        ccount(is:ie) = ccount(is:ie) + 1
-      end where
-      where ( maska(is:ie) .and. ccount(is:ie)>0 )
-        a_io(is-ik+(n+1)*ik*ik:ie-ik+(n+1)*ik*ik) = csum(is:ie)/real(ccount(is:ie))
-      end where  
-      lflag = .false.
-      do i = is,ie
-        if ( ccount(i)==0 ) then
-          nrem = nrem + 1 ! current number of points without a neighbour
-          iminb = min(i, iminb)
-          imaxb = max(i, imaxb)
-          lflag = .true.
-        end if
-      end do
-      if ( lflag ) then
-        jminb = min(ik, jminb)
-        jmaxb = max(ik, jmaxb)
-      end if
-    end if
     
     imin(n) = iminb
     imax(n) = imaxb
@@ -2574,8 +2480,10 @@ do while ( nrem>0 )
     jmax(n) = jmaxb
   end do
 end do
+
+a_io(1:6*ik*ik) = reshape( c_io(1:ik,1:ik,0:5), (/ 6*ik*ik /) )
   
-deallocate( b_io )
+deallocate( c_io, d_io )
 
 call END_LOG(otf_fill_end)
 
@@ -2595,13 +2503,13 @@ implicit none
 integer, intent(inout) :: fill_count
 integer nrem, j, n, k, kx
 integer ncount, cc, ipf, local_count
-integer, dimension(pil) :: ccount
+integer, dimension(pipan) :: ccount
 real, parameter :: value=999.       ! missing value flag
 real, dimension(:,:), intent(inout) :: a_io
-real, dimension(0:pil+1,0:pjl+1,pnpan,mynproc,size(a_io,2)) :: c_io
-real, dimension(pil) :: csum
+real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc,size(a_io,2)) :: c_io
+real, dimension(pipan) :: csum
 logical, dimension(fwsize), intent(in) :: land_a
-logical, dimension(pil) :: maska
+logical, dimension(pipan) :: maska
 
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
@@ -2621,37 +2529,37 @@ local_count = 0
 c_io = value
 
 do while ( nrem>0 )
-  c_io(1:pil,1:pjl,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pil, pjl, pnpan, mynproc, kx /) )
+  c_io(1:pipan,1:pjpan,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pipan, pjpan, pnpan, mynproc, kx /) )
   call ccmpi_filebounds(c_io,comm_ip)
   ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
   if ( ncount>0 ) then
     do k = 1,kx
       do ipf = 1,mynproc
         do n = 1,pnpan
-          do j = 1,pjl
-            cc = (j-1)*pil + (n-1)*pil*pjl + (ipf-1)*pil*pjl*pnpan
-            maska(1:pil) = abs(a_io(1+cc:pil+cc,k)-value)<1.e-20
-            if ( any(maska(1:pil)) ) then
-              csum(1:pil) = 0.
-              ccount(1:pil) = 0
-              where ( abs(c_io(1:pil,j+1,n,ipf,k)-value)>=1.e-20 )
-                csum(1:pil) = csum(1:pil) + c_io(1:pil,j+1,n,ipf,k)
-                ccount(1:pil) = ccount(1:pil) + 1
+          do j = 1,pjpan
+            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+            maska(1:pipan) = abs(a_io(1+cc:pipan+cc,k)-value)<1.e-20
+            if ( any(maska(1:pipan)) ) then
+              csum(1:pipan) = 0.
+              ccount(1:pipan) = 0
+              where ( abs(c_io(1:pipan,j+1,n,ipf,k)-value)>=1.e-20 )
+                csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,j+1,n,ipf,k)
+                ccount(1:pipan) = ccount(1:pipan) + 1
               end where
-              where ( abs(c_io(1:pil,j-1,n,ipf,k)-value)>=1.e-20 )
-                csum(1:pil) = csum(1:pil) + c_io(1:pil,j-1,n,ipf,k)
-                ccount(1:pil) = ccount(1:pil) + 1
+              where ( abs(c_io(1:pipan,j-1,n,ipf,k)-value)>=1.e-20 )
+                csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,j-1,n,ipf,k)
+                ccount(1:pipan) = ccount(1:pipan) + 1
               end where
-              where ( abs(c_io(2:pil+1,j,n,ipf,k)-value)>=1.e-20 )
-                csum(1:pil) = csum(1:pil) + c_io(2:pil+1,j,n,ipf,k)
-                ccount(1:pil) = ccount(1:pil) + 1
+              where ( abs(c_io(2:pipan+1,j,n,ipf,k)-value)>=1.e-20 )
+                csum(1:pipan) = csum(1:pipan) + c_io(2:pipan+1,j,n,ipf,k)
+                ccount(1:pipan) = ccount(1:pipan) + 1
               end where
-              where ( abs(c_io(0:pil-1,j,n,ipf,k)-value)>=1.e-20 )
-                csum(1:pil) = csum(1:pil) + c_io(0:pil-1,j,n,ipf,k)
-                ccount(1:pil) = ccount(1:pil) + 1
+              where ( abs(c_io(0:pipan-1,j,n,ipf,k)-value)>=1.e-20 )
+                csum(1:pipan) = csum(1:pipan) + c_io(0:pipan-1,j,n,ipf,k)
+                ccount(1:pipan) = ccount(1:pipan) + 1
               end where
-              where ( maska(1:pil) .and. ccount(1:pil)>0 )
-                a_io(1+cc:pil+cc,k) = csum(1:pil)/real(ccount(1:pil))
+              where ( maska(1:pipan) .and. ccount(1:pipan)>0 )
+                a_io(1+cc:pipan+cc,k) = csum(1:pipan)/real(ccount(1:pipan))
               end where
             end if  
           end do
@@ -2664,12 +2572,12 @@ do while ( nrem>0 )
   local_count = local_count + 1
   if ( local_count>=fill_count ) then
     call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
-    if ( nrem==6*ik*ik*kx ) then
+    if ( nrem==6*ik*ik ) then
       if ( myid==0 ) then
         write(6,*) "Cannot perform fill as all points are trivial"    
       end if
       a_io = 0.
-      return
+      nrem = 0
     end if
   end if  
 end do
@@ -3156,7 +3064,7 @@ return
 end subroutine gethist1
 
 ! This version reads, fills and interpolates a surface field
-subroutine fillhist1(vname,varout,mask_a,fill_count,filllimit)
+subroutine fillhist1(vname,varout,mask_a,fill_count)
       
 use cc_mpi             ! CC MPI routines
 use darcdf_m           ! Netcdf data
@@ -3167,7 +3075,6 @@ implicit none
       
 integer, intent(inout) :: fill_count
 integer ier
-real, intent(in), optional :: filllimit
 real, dimension(ifull), intent(out) :: varout
 real, dimension(fwsize) :: ucc
 logical, dimension(fwsize), intent(in) :: mask_a
@@ -3181,11 +3088,6 @@ else if ( fnproc==1 ) then
   ! requires interpolation and redistribution
   call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
   if ( .not.iop_test ) then
-    if ( present(filllimit) ) then
-      where ( ucc(:)>=filllimit )
-        ucc(:) = 999.
-      end where
-    end if  
     if ( myid==0 ) then
       call fill_cc1_gather(ucc,mask_a)
     end if
@@ -3196,11 +3098,6 @@ else
   ! requires interpolation and redistribution
   call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
   if ( .not.iop_test ) then
-    if ( present(filllimit) ) then
-      where ( ucc(:)>=filllimit )
-        ucc(:) = 999.
-      end where
-    end if  
     call fill_cc1_nogather(ucc,mask_a,fill_count)
   end if
   call doints1_nogather(ucc, varout)
@@ -3417,7 +3314,7 @@ return
 end subroutine gethistuv4a  
 
 ! This version reads, fills a 3D field for the ocean
-subroutine fillhist4(vname,varout,mask_a,fill_count,filllimit)
+subroutine fillhist4(vname,varout,mask_a,fill_count)
   
 use cc_mpi             ! CC MPI routines
 use darcdf_m           ! Netcdf data
@@ -3428,7 +3325,6 @@ implicit none
       
 integer, intent(inout) :: fill_count
 integer ier, kx
-real, intent(in), optional :: filllimit
 real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,size(varout,2)) :: ucc
 logical, dimension(fwsize), intent(in) :: mask_a
@@ -3450,11 +3346,6 @@ else if ( fnproc==1 ) then
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.false.)
   if ( .not.iotest ) then
     if ( myid==0 ) then
-      if ( present(filllimit) ) then
-        where ( ucc(:,:)>=filllimit )
-          ucc(:,:) = 999.
-        end where
-      end if
       call fill_cc4_gather(ucc,mask_a)
     end if
   end if
@@ -3464,11 +3355,6 @@ else
   ! requires interpolation and redistribution  
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.true.)
   if ( .not.iotest ) then
-    if ( present(filllimit) ) then
-      where ( ucc(:,:)>=filllimit )
-        ucc(:,:) = 999.
-      end where
-    end if
     call fill_cc4_nogather(ucc,mask_a,fill_count)
   end if
   call doints4_nogather(ucc, varout)
@@ -3595,7 +3481,7 @@ integer i, n, ipf
 integer mm, iq, idel, jdel
 integer ncount, w
 logical, dimension(0:fnproc-1) :: lfile
-integer, dimension(fnproc) :: tempmap_send, tempmap_smod
+integer, dimension(nproc) :: tempmap_send, tempmap_smod
 logical, dimension(0:nproc-1) :: lproc
 
 if ( allocated(filemap_recv) ) then
@@ -3689,21 +3575,21 @@ end if
 allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
 allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
 if ( myid==0 ) then
-  call file_distribute(axs_w,axs_a)
-  call file_distribute(ays_w,ays_a)
-  call file_distribute(azs_w,azs_a)
-  call file_distribute(bxs_w,bxs_a)
-  call file_distribute(bys_w,bys_a)
-  call file_distribute(bzs_w,bzs_a)
+  call ccmpi_filedistribute(axs_w,axs_a,comm_ip)
+  call ccmpi_filedistribute(ays_w,ays_a,comm_ip)
+  call ccmpi_filedistribute(azs_w,azs_a,comm_ip)
+  call ccmpi_filedistribute(bxs_w,bxs_a,comm_ip)
+  call ccmpi_filedistribute(bys_w,bys_a,comm_ip)
+  call ccmpi_filedistribute(bzs_w,bzs_a,comm_ip)
   deallocate( axs_a, ays_a, azs_a )
   deallocate( bxs_a, bys_a, bzs_a )
 else if ( fwsize>0 ) then
-  call file_distribute(axs_w)
-  call file_distribute(ays_w)
-  call file_distribute(azs_w)
-  call file_distribute(bxs_w)
-  call file_distribute(bys_w)
-  call file_distribute(bzs_w)
+  call ccmpi_filedistribute(axs_w,comm_ip)
+  call ccmpi_filedistribute(ays_w,comm_ip)
+  call ccmpi_filedistribute(azs_w,comm_ip)
+  call ccmpi_filedistribute(bxs_w,comm_ip)
+  call ccmpi_filedistribute(bys_w,comm_ip)
+  call ccmpi_filedistribute(bzs_w,comm_ip)
 end if
 
 if ( myid==0 ) then
