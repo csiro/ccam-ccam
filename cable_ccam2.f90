@@ -559,8 +559,6 @@ call vcmax_feedback(casabiome,casamet,casapool,veg,ktau)
 
 !--------------------------------------------------------------
 ! CABLE
-ktau_gl          = 900
-kend_gl          = 999
 canopy%fev       = 0._8
 canopy%fes       = 0._8
 canopy%fhv       = 0._8
@@ -2561,6 +2559,9 @@ do tile=2,ntiles
   tdata(tile)%toffset=tdata(tile-1)%toffset+tdata(tile-1)%mp
 end do
 mp = 0 ! defined when CABLE model is integrated
+
+ktau_gl          = 900
+kend_gl          = 999
 
 ! if CABLE is present on this processor, then start allocating arrays
 ! Write messages here in case myid==0 has no land-points (mp_global==0)

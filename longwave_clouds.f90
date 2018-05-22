@@ -76,7 +76,6 @@ real, parameter :: CP_AIR = RDGAS/KAPPA
 real, parameter :: SECONDS_PER_DAY  = 8.640000E+04
 real, parameter :: RADCON = ((1.0E+02*GRAV)/(1.0E+04*CP_AIR))*SECONDS_PER_DAY
 
-integer, save  :: NLWCLDB
 logical, save  :: module_is_initialized = .false.    ! module is initialized ?
 
 
@@ -223,6 +222,7 @@ type(lw_clouds_type),         intent(inout) :: Lw_clouds
       integer  :: is, ie, js, je, ks, ke
       integer   :: n, k, i, j
       integer   :: emiss_index, profile_index
+      integer   :: NLWCLDB
 
 !---------------------------------------------------------------------
 !  local variables:
@@ -407,6 +407,7 @@ real, dimension(:,:,:,:),     intent(out) :: cldtf
 
       integer   :: is, ie, js, je, ks, ke
       integer   :: i, j, kp, n
+      integer   :: NLWCLDB
 
 !---------------------------------------------------------------------
 !   local variables:
@@ -436,6 +437,7 @@ real, dimension(:,:,:,:),     intent(out) :: cldtf
       je = size(Cld_spec%cmxolw,2)
       ks = 1
       ke = size(Cld_spec%cmxolw, 3)
+      NLWCLDB = Cldrad_control%NLWCLDB
 
 !---------------------------------------------------------------------
 !    the definition of "within a max overlapped cloud" is:

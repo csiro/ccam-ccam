@@ -149,7 +149,9 @@ CONTAINS
 
     INTEGER :: j
 
+#ifndef CCAM
     INTEGER, SAVE :: call_number =0
+#endif
 
     ! END header
     
@@ -158,7 +160,9 @@ CONTAINS
     tmp2 = 0.
     tmp4 = 0.
 
+#ifndef CCAM
     call_number = call_number + 1
+#endif
 
     ! assign local ptrs to constants defined in cable_data_module
     CALL point2constants(C)

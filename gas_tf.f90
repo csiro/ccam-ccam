@@ -298,7 +298,7 @@ real, save     :: b1 = -0.18113332E-03
 real, save     :: b2 = -0.10680132E-05
 real, save     :: b3 = -0.67303519E-07
 
-integer, save          :: israd, ierad, jsrad, jerad, ksrad, kerad
+integer, save          :: ksrad, kerad
 integer, parameter     :: nvalids=1
 integer, save          :: ixprkminh2o
 logical, save          :: do_linearlblint, do_loglblint
@@ -673,6 +673,7 @@ type(atmos_input_type), intent(in)    :: Atmos_input
 
       real                                 ::  palog8, alogps8 
       integer                              ::  i, j, k   
+      integer                              :: israd, ierad, jsrad, jerad
 
 !---------------------------------------------------------------------
 !  local variables:

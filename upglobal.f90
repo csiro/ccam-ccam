@@ -24,6 +24,7 @@ subroutine upglobal
 use aerosolldr             ! LDR prognostic aerosols
 use arrays_m               ! Atmosphere dyamics prognostic arrays
 use cc_mpi                 ! CC MPI routines
+use cc_omp                 ! CC OpenMP routines
 use cfrac_m                ! Cloud fraction
 use cloudmod               ! Prognostic cloud fraction
 use const_phys             ! Physical constants
@@ -63,6 +64,7 @@ integer, dimension(ifull) :: nits, nvadh_pass
 #ifdef debug
 integer, save :: num_hight = 0
 #endif
+integer :: tile, js, je
 real, dimension(ifull+iextra,kl,nagg) :: duma
 real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
 real, dimension(ifull+iextra) :: aa
@@ -74,66 +76,80 @@ real, dimension(ifull) :: vec2x, vec2y, vec2z
 real, dimension(ifull) :: vec3x, vec3y, vec3z
 real, dimension(kl) :: factr
 real(kind=8), dimension(ifull,kl) :: x3d, y3d, z3d
+!work arrays
+real, dimension(ifull,kl) :: uc_w, vc_w, wc_w
+real, dimension(ifull+iextra,kl,3) :: s_w
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,nagg) :: sx_w
+real, dimension(0:ipan+1,0:jpan+1,1:npan,kl) :: sx_w1
+real, dimension(ifull+iextra,kl) :: ua_w, va_w, ud_w, vd_w, uin_w, vin_w
 
 call START_LOG(upglobal_begin)
 
 intsch = mod(ktau,2)
 
+!$omp parallel private(nstart,nend,ntot,denb,vecdot,vdot1,vdot2,vec1x,vec1y,vec1z) &
+!$omp private(vec2x,vec2y,vec2z,vec3x,vec3y,vec3z,js,je,tempry,k,iq,tile)
+!$omp do
 do k = 1,kl
   ! finish off RHS terms; this coriolis term was once in nonlin
   ux(1:ifull,k) = ux(1:ifull,k) + 0.5*dt*(1.-epsf)*f(1:ifull)*v(1:ifull,k) ! end of Eq. 129
   vx(1:ifull,k) = vx(1:ifull,k) - 0.5*dt*(1.-epsf)*f(1:ifull)*u(1:ifull,k) ! end of Eq. 130
 end do      ! k loop
+!$omp end do nowait
 
-call depts1(x3d,y3d,z3d)
+call depts1(x3d,y3d,z3d,uc_w,vc_w,wc_w,s_w,sx_w)
       
 !     calculate factr for choice of nt_adv, as usually used
-select case(nt_adv)
-  case(0)
-    factr(:) = 0.
-  case(3)  ! 1. up to sig=.3
-    where ( sig(1:kl) >= 0.3 )
-      factr(1:kl) = stdlapse*(rdry*nritch_t/grav)
-    elsewhere
-      factr(1:kl) = 0.      
-    end where
-  case(4) ! (1, .5, 0) for sig=(1, .75, .5)
-    factr(1:kl) = max(2.*sig(1:kl)-1., 0.)*stdlapse*(rdry*300./grav)
-  case(5) ! 1 to 0 for sig=1 to 0
-    factr(1:kl) = sig(1:kl)*stdlapse*(rdry*nritch_t/grav)
-  case(6) ! (1, .5625, 0) for sig=(1, .5, .2)
-    factr(1:kl) = max(0.,1.25*(sig(1:kl)-.2)*(2.-sig(1:kl)))*stdlapse*(rdry*nritch_t/grav)
-  case(7) ! 1 up to .4, then lin decr. to .2, then 0
-    factr(1:kl) = max(0.,min(1.,(sig(1:kl)-.2)/(.4-.2)))*stdlapse*(rdry*nritch_t/grav)
-  case(8) ! .8 up to .4, then lin decr. to .2, then 0
-    factr(1:kl) = .8*max(0.,min(1.,(sig(1:kl)-.2)/(.4-.2)))*stdlapse*(rdry*nritch_t/grav)
-  case(9) ! (1,1,.84375,.5,.15625,0) for sig=(1,.6,.5,.4,.3,.2)  
-    where ( sig(1:kl) > 0.6 )
-      factr(1:kl) = stdlapse*(rdry*nritch_t/grav)
-    elsewhere ( sig(1:kl) >= 0.2 )
-      factr(1:kl) = 3.*((sig(1:kl)-.2)/.4)**2 -2.*((sig(1:kl)-.2)/.4)**3*stdlapse*(rdry*nritch_t/grav)
-    elsewhere
-      factr(1:kl) = 0.
-    end where
-  case(10) ! (1,1,.741,.259,0) for sig=(1,.5,.4,.3,.2) 
-    where ( sig(1:kl) > 0.5 )
-      factr(1:kl) = stdlapse*(rdry*nritch_t/grav)
-    elsewhere ( sig(1:kl) >= 0.2 )
-      factr(1:kl) = 3.*((sig(1:kl)-.2)/.3)**2 -2.*((sig(1:kl)-.2)/.3)**3*stdlapse*(rdry*nritch_t/grav)  
-    elsewhere
-      factr(1:kl) = 0.
-    end where
-end select
+!$omp do
+do k = 1,kl
+  select case(nt_adv)
+    case(0)
+      factr(k) = 0.
+    case(3)  ! 1. up to sig=.3
+      if ( sig(k) >= 0.3 ) then
+        factr(k) = stdlapse*(rdry*nritch_t/grav)
+      else
+        factr(k) = 0.      
+      end if
+    case(4) ! (1, .5, 0) for sig=(1, .75, .5)
+      factr(k) = max(2.*sig(k)-1., 0.)*stdlapse*(rdry*300./grav)
+    case(5) ! 1 to 0 for sig=1 to 0
+      factr(k) = sig(k)*stdlapse*(rdry*nritch_t/grav)
+    case(6) ! (1, .5625, 0) for sig=(1, .5, .2)
+      factr(k) = max(0.,1.25*(sig(k)-.2)*(2.-sig(k)))*stdlapse*(rdry*nritch_t/grav)
+    case(7) ! 1 up to .4, then lin decr. to .2, then 0
+      factr(k) = max(0.,min(1.,(sig(k)-.2)/(.4-.2)))*stdlapse*(rdry*nritch_t/grav)
+    case(8) ! .8 up to .4, then lin decr. to .2, then 0
+      factr(k) = .8*max(0.,min(1.,(sig(k)-.2)/(.4-.2)))*stdlapse*(rdry*nritch_t/grav)
+    case(9) ! (1,1,.84375,.5,.15625,0) for sig=(1,.6,.5,.4,.3,.2)  
+      if ( sig(k) > 0.6 ) then
+        factr(k) = stdlapse*(rdry*nritch_t/grav)
+      else if ( sig(k) >= 0.2 ) then
+        factr(k) = 3.*((sig(k)-.2)/.4)**2 -2.*((sig(k)-.2)/.4)**3*stdlapse*(rdry*nritch_t/grav)
+      else
+        factr(k) = 0.
+      end if
+    case(10) ! (1,1,.741,.259,0) for sig=(1,.5,.4,.3,.2) 
+      if ( sig(k) > 0.5 ) then
+        factr(k) = stdlapse*(rdry*nritch_t/grav)
+      else  if ( sig(k) >= 0.2 ) then
+        factr(k) = 3.*((sig(k)-.2)/.3)**2 -2.*((sig(k)-.2)/.3)**3*stdlapse*(rdry*nritch_t/grav)  
+      else
+        factr(k) = 0.
+      end if
+  end select
+end do
+!$omp end do
 
 #ifdef debug  
-if ( mydiag ) then
+if ( mydiag .and. .not.using_omp ) then
   if ( tx(idjd,kl)>264. ) then  !cb
     write(6,*)
     write(6,*) 'upglobal a',ktau,id,jd,tx(idjd,kl)
   end if    ! (tx(idjd,kl)>264.)
 end if
 
-if ( num_hight<100 ) then
+if ( num_hight<100 .and. .not.using_omp ) then
   do iq = 1,ifull
     if ( tx(iq,kl)>264. ) then  !cb
       write(6,*) 'upglobal ktau,myid,iq,large_tx  ',ktau,myid,iq,tx(iq,kl)
@@ -144,18 +160,28 @@ if ( num_hight<100 ) then
 end if 
 #endif
 
-aa(1:ifull) = zs(1:ifull)/(rdry*nritch_t)    ! save zs/(r*t) for nt_adv schemes 
-do k = 1,kl   
-  dd(1:ifull,k) = aa(1:ifull)
-end do     ! k loop
+!$omp do
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+
+  aa(js:je) = zs(js:je)/(rdry*nritch_t)    ! save zs/(r*t) for nt_adv schemes 
 
 !-------------------------moved up here May 06---------------------------
 ! N.B. this moved one is doing vadv on just extra pslx terms      
-sdmx(:) = maxval(abs(sdot), 2)
-nits(:) = int(1.+sdmx(:)/2.)
-nvadh_pass(:) = 2*nits(:) ! use - for nvadu
-call vadvtvd(tx,ux,vx,nvadh_pass,nits)
-if ( (diag.or.nmaxpr==1) .and. mydiag ) then
+  sdmx(js:je) = maxval(abs(sdot(js:je,:)), 2)
+  nits(js:je) = int(1.+sdmx(js:je)/2.)
+  nvadh_pass(js:je) = 2*nits(js:je) ! use - for nvadu
+  call vadvtvd(tx,ux,vx,nvadh_pass(js:je),nits(js:je),tile,imax)
+end do
+!$omp end do
+
+!$omp do
+do k = 1,kl   
+  dd(1:ifull,k) = aa(1:ifull)
+end do     ! k loop
+!$omp end do nowait
+if ( (diag.or.nmaxpr==1) .and. mydiag .and. .not.using_omp ) then
   write(6,*) 'in upglobal after vadv1'
   write (6,"('tx_a',9f8.2)")   tx(idjd,:)
   write (6,"('ux_a',9f8.3)")   ux(idjd,:)
@@ -164,13 +190,15 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
 end if
 !------------------------------------------------------------------
 
+!$omp do
 do k = 1,kl   
   ! N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
   pslx(1:ifull,k) = psl(1:ifull) - pslx(1:ifull,k)*dt*.5*(1.-epst(:)) + aa(1:ifull)
   tx(1:ifull,k)   = tx(1:ifull,k) + aa(1:ifull)*factr(k)   !cy  
 end do   ! k
+!$omp end do nowait
 
-if ( nmaxpr==1 .and. nproc==1 ) then
+if ( nmaxpr==1 .and. nproc==1 .and. .not.using_omp ) then
   write(6,*) 'pslx_3p before advection'
   write (6,"('pslx_b',9f8.4)") pslx(idjd,:)
   write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
@@ -178,28 +206,38 @@ if ( nmaxpr==1 .and. nproc==1 ) then
 end if
 
 if ( mup/=0 ) then
-  call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
+  call ints_bl(dd,intsch,nface,xg,yg,sx_w1)  ! advection on all levels
   if ( nh/=0 ) then
     ! non-hydrostatic version
-    duma(1:ifull,:,1) = pslx(1:ifull,:)
-    duma(1:ifull,:,2) = h_nh(1:ifull,:)
-    call ints(2,duma,intsch,nface,xg,yg,1)
-    pslx(1:ifull,:) = duma(1:ifull,:,1)
-    h_nh(1:ifull,:) = duma(1:ifull,:,2)
+!$omp do
+    do k = 1,kl   
+      duma(1:ifull,k,1) = pslx(1:ifull,k)
+      duma(1:ifull,k,2) = h_nh(1:ifull,k)
+    end do
+!$omp end do nowait
+    call ints(2,duma,intsch,nface,xg,yg,1,sx_w(:,:,:,:,1:2))
+!$omp do
+    do k = 1,kl   
+      pslx(1:ifull,k) = duma(1:ifull,k,1)
+      h_nh(1:ifull,k) = duma(1:ifull,k,2)
+    end do
+!$omp end do nowait
   else
     ! hydrostatic version
-    call ints(1,pslx,intsch,nface,xg,yg,1)
+    call ints(1,pslx,intsch,nface,xg,yg,1,sx_w(:,:,:,:,1:1))
   end if ! nh/=0
-  call ints(1,tx,intsch,nface,xg,yg,3)
+  call ints(1,tx,intsch,nface,xg,yg,3,sx_w(:,:,:,:,1:1))
 end if    ! mup/=0
 
+!$omp do
 do k = 1,kl
   pslx(1:ifull,k) = pslx(1:ifull,k) - dd(1:ifull,k)      
   tx(1:ifull,k)   = tx(1:ifull,k)   - dd(1:ifull,k)*factr(k)
 end do
+!$omp end do nowait
 
 !------------------------------------------------------------------
-if ( nmaxpr==1 .and. nproc==1 ) then
+if ( nmaxpr==1 .and. nproc==1 .and. .not.using_omp ) then
   write(6,*) 'pslx_3p & dd after advection'
   write (6,"('pslx_a',9f8.4)") pslx(idjd,:)
   write (6,"('aa#',9f8.4)") ((aa(ii+jj*il),ii=idjd-1,idjd+1),jj=-1,1)
@@ -223,7 +261,7 @@ if ( nmaxpr==1 .and. nproc==1 ) then
   write (6,"(9f8.2)") ((1.e5*exp(uc(ii+jj*il,1)),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
 end if
 !     now comes ux & vx section
-if ( diag ) then
+if ( diag .and. .not.using_omp ) then
   if ( mydiag ) then
     write(6,*) 'unstaggered now as uavx and vavx: globpea uses ux & vx'
     write(6,*) 'ux ',(ux(idjd,kk),kk=1,nlv)
@@ -237,13 +275,15 @@ if ( diag ) then
 end if
 
 !      convert uavx, vavx to cartesian velocity components
+!$omp do
 do k = 1,kl
   uc(1:ifull,k) = ax(1:ifull)*ux(1:ifull,k) + bx(1:ifull)*vx(1:ifull,k)
   vc(1:ifull,k) = ay(1:ifull)*ux(1:ifull,k) + by(1:ifull)*vx(1:ifull,k)
   wc(1:ifull,k) = az(1:ifull)*ux(1:ifull,k) + bz(1:ifull)*vx(1:ifull,k)
 end do
+!$omp end do nowait
 
-if ( diag ) then
+if ( diag .and. .not.using_omp ) then
   if ( mydiag ) then
     write(6,*) 'uc,vc,wc before advection'
     write (6,'(a,18e20.10)') 'uc,vc,wc ',uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
@@ -257,16 +297,24 @@ if ( diag ) then
 end if
 
 if ( mup/=0 ) then
-  duma(1:ifull,:,1) = uc(1:ifull,:)
-  duma(1:ifull,:,2) = vc(1:ifull,:)
-  duma(1:ifull,:,3) = wc(1:ifull,:)
-  call ints(3,duma,intsch,nface,xg,yg,2)
-  uc(1:ifull,:) = duma(1:ifull,:,1)
-  vc(1:ifull,:) = duma(1:ifull,:,2)
-  wc(1:ifull,:) = duma(1:ifull,:,3)
+!$omp do
+  do k = 1,kl
+    duma(1:ifull,k,1) = uc(1:ifull,k)
+    duma(1:ifull,k,2) = vc(1:ifull,k)
+    duma(1:ifull,k,3) = wc(1:ifull,k)
+  end do
+!$omp end do nowait
+  call ints(3,duma,intsch,nface,xg,yg,2,sx_w(:,:,:,:,1:3))
+!$omp do
+  do k = 1,kl
+    uc(1:ifull,k) = duma(1:ifull,k,1)
+    vc(1:ifull,k) = duma(1:ifull,k,2)
+    wc(1:ifull,k) = duma(1:ifull,k,3)
+  end do
+!$omp end do nowait
 end if
 
-if ( diag ) then
+if ( diag .and. .not.using_omp ) then
   if ( mydiag ) write(6,*) 'uc,vc,wc after advection'
   call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -274,6 +322,7 @@ if ( diag ) then
 end if
 
 ! rotate wind vector to arrival point
+!$omp do
 do k = 1,kl
   ! the following normalization may be done, but has ~zero effect
   ! dena=sqrt(x3d(iq)**2+y3d(iq)**2+z3d(iq)**2)
@@ -302,8 +351,9 @@ do k = 1,kl
     wc(1:ifull,k) = vdot1(1:ifull)*vec1z(1:ifull) + vdot2(1:ifull)*vec3z(1:ifull)
   end where ! (denb>1.e-4)
 end do ! k
+!$omp end do nowait
 
-if ( diag ) then
+if ( diag .and. .not.using_omp ) then
   if ( mydiag ) then
     iq = idjd
     k = nlv
@@ -320,12 +370,14 @@ endif
 
 ! convert back to conformal-cubic velocity components (unstaggered)
 ! globpea: this can be sped up later
+!$omp do
 do k = 1,kl
   ux(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) + ay(1:ifull)*vc(1:ifull,k) + az(1:ifull)*wc(1:ifull,k)
   vx(1:ifull,k) = bx(1:ifull)*uc(1:ifull,k) + by(1:ifull)*vc(1:ifull,k) + bz(1:ifull)*wc(1:ifull,k)
 end do   ! k loop
+!$omp end do nowait
 
-if ( diag .and. k==nlv ) then
+if ( diag .and. k==nlv .and. .not.using_omp ) then
   if ( mydiag ) write(6,*) 'after advection in upglobal; unstaggered ux and vx:'
   call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -333,22 +385,30 @@ end if
 
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   if ( ldr/=0 ) then
-    duma(1:ifull,:,1) = qg(1:ifull,:)
-    duma(1:ifull,:,2) = qlg(1:ifull,:)
-    duma(1:ifull,:,3) = qfg(1:ifull,:)
-    call ints(3,duma,intsch,nface,xg,yg,4)
-    qg(1:ifull,:)  = duma(1:ifull,:,1)
-    qlg(1:ifull,:) = duma(1:ifull,:,2)
-    qfg(1:ifull,:) = duma(1:ifull,:,3)
+!$omp do
+    do k = 1,kl
+      duma(1:ifull,k,1) = qg(1:ifull,k)
+      duma(1:ifull,k,2) = qlg(1:ifull,k)
+      duma(1:ifull,k,3) = qfg(1:ifull,k)
+    end do
+!$omp end do nowait
+    call ints(3,duma,intsch,nface,xg,yg,4,sx_w(:,:,:,:,1:3))
+!$omp do
+    do k = 1,kl
+      qg(1:ifull,k)  = duma(1:ifull,k,1)
+      qlg(1:ifull,k) = duma(1:ifull,k,2)
+      qfg(1:ifull,k) = duma(1:ifull,k,3)
+    end do
+!$omp end do nowait
     if ( ncloud>=4 ) then
       ! prognostic cloud fraction and condensate version
-      call ints(1,stratcloud,intsch,nface,xg,yg,4)
+      call ints(1,stratcloud,intsch,nface,xg,yg,4,sx_w(:,:,:,:,1:1))
     end if
   else
-    call ints(1,qg,intsch,nface,xg,yg,3)
+    call ints(1,qg,intsch,nface,xg,yg,3,sx_w(:,:,:,:,1:1))
   end if    ! ldr/=0
   if ( ngas>0 .or. nextout>=4 ) then
-    if ( nmaxpr==1 .and. mydiag ) then
+    if ( nmaxpr==1 .and. mydiag .and. .not.using_omp ) then
       write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
       write (6,"('yg#',9f8.2)") diagvals(yg(:,nlv))
       write (6,"('nface#',9i8)") diagvals(nface(:,nlv))
@@ -360,40 +420,50 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       do nstart = 1, ngas, nagg
         nend = min(nstart+nagg-1, ngas)
         ntot = nend - nstart + 1
-        call ints(ntot,tr(:,:,nstart:nend),intsch,nface,xg,yg,5)
+        call ints(ntot,tr(:,:,nstart:nend),intsch,nface,xg,yg,5,sx_w(:,:,:,:,1:ntot))
       end do
     end if
-    if ( nmaxpr==1 .and. mydiag ) then
+    if ( nmaxpr==1 .and. mydiag .and. .not.using_omp ) then
       write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
       write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
       write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     endif
   endif  ! (ngas>0.or.nextout>=4)
   if ( nvmix==6 ) then
-    duma(1:ifull,:,1) = tke(1:ifull,:)
-    duma(1:ifull,:,2) = eps(1:ifull,:)
-    call ints(2,duma,intsch,nface,xg,yg,4)
-    tke(1:ifull,:) = duma(1:ifull,:,1)
-    eps(1:ifull,:) = duma(1:ifull,:,2)
+!$omp do
+    do k = 1,kl
+      duma(1:ifull,k,1) = tke(1:ifull,k)
+      duma(1:ifull,k,2) = eps(1:ifull,k)
+    end do
+!$omp end do nowait
+    call ints(2,duma,intsch,nface,xg,yg,4,sx_w(:,:,:,:,1:2))
+!$omp do
+    do k = 1,kl
+      tke(1:ifull,k) = duma(1:ifull,k,1)
+      eps(1:ifull,k) = duma(1:ifull,k,2)
+    end do
+!$omp end do nowait
   endif                 ! nvmix==6
   if ( abs(iaero)>=2 ) then
     do nstart = 1,naero,nagg
       nend = min(nstart+nagg-1, naero)
       ntot = nend - nstart + 1
-      call ints(ntot,xtg(:,:,nstart:nend),intsch,nface,xg,yg,5)
+      call ints(ntot,xtg(:,:,nstart:nend),intsch,nface,xg,yg,5,sx_w(:,:,:,:,1:ntot))
     end do
   end if
 end if     ! mspec==1
 
 
+!$omp do
 do k = 2,kl
   sdot(:,k) = sbar(:,k)
 end do  
+!$omp end do
 
-if ( mod(ktau, nmaxpr)==0 .and. mydiag ) then
+if ( mod(ktau, nmaxpr)==0 .and. mydiag .and. .not.using_omp ) then
   write(6,*) 'upglobal ktau,sdmx,nits,nvadh_pass ',ktau,sdmx(idjd),nits(idjd),nvadh_pass(idjd)
 endif
-if ( (diag.or.nmaxpr==1) .and. mydiag ) then
+if ( (diag.or.nmaxpr==1) .and. mydiag .and. .not.using_omp ) then
   write(6,*) 'in upglobal before vadv2'
   write (6,"('tx_b',9f8.2)")   tx(idjd,:)
   write (6,"('ux_b',9f8.3)")   ux(idjd,:)
@@ -401,9 +471,17 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('qg_b',9f8.3)")   qg(idjd,:)
 endif
 
-call vadvtvd(tx,ux,vx,nvadh_pass,nits)
+!$omp do
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
 
-if ( (diag.or.nmaxpr==1) .and. mydiag ) then
+  call vadvtvd(tx,ux,vx,nvadh_pass(js:je),nits(js:je),tile,imax)
+
+end do
+!$omp end do
+
+if ( (diag.or.nmaxpr==1) .and. mydiag .and. .not.using_omp ) then
   write(6,*) 'in upglobal after vadv2'
   write (6,"('tx_c',9f8.2)")   tx(idjd,:)
   write (6,"('ux_c',9f8.3)")   ux(idjd,:)
@@ -411,6 +489,7 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('qg_c',9f8.3)")   qg(idjd,:)
 endif
 
+!$omp do
 do k = 1,kl
   ! adding later (after 2nd vadv) than for npex=1
   ux(1:ifull,k) = ux(1:ifull,k) + 0.5*dt*un(1:ifull,k) ! dyn contrib
@@ -424,12 +503,13 @@ do k = 1,kl
   
   tx(1:ifull,k) = tx(1:ifull,k) + .5*dt*tn(1:ifull,k) 
 end do
+!$omp end do nowait
 
 
 !     now interpolate ux,vx to the staggered grid
-call staguv(ux,vx,ux,vx)
+call staguv(ux,vx,ux,vx,ua_w,va_w,ud_w,vd_w,uin_w,vin_w)
 
-if ( diag ) then
+if ( diag .and. .not.using_omp ) then
   if ( mydiag ) then
     write(6,*) 'near end of upglobal staggered ux and vx:'
     write(6,*) 'un_u ',un(idjd,:)
@@ -441,7 +521,7 @@ if ( diag ) then
   call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
 end if
 
-if ( ntest>4 ) then
+if ( ntest>4 .and. .not.using_omp ) then
   ! diagnostic check for unstable layers
   do iq = 1,ifull
     theta(iq,1:kl) = tx(iq,1:kl)*sig(1:kl)**(-rdry/cp)
@@ -456,13 +536,14 @@ if ( ntest>4 ) then
   end do
 end if
 
-if( (diag.or.nmaxpr==1) .and. mydiag ) then
+if( (diag.or.nmaxpr==1) .and. mydiag .and. .not.using_omp ) then
   write(6,*) 'near end of upglobal for ktau= ',ktau
   write (6,"('tx_u2',9f8.2/5x,9f8.2)")  tx(idjd,:)
   write (6,"('qg_u',9f8.3/4x,9f8.3)")   qg(idjd,:)
   write (6,"('ql_u',9f8.3/4x,9f8.3)")   qlg(idjd,:)
   write (6,"('qf_u',9f8.3/4x,9f8.3)")   qfg(idjd,:)
 end if 
+!$omp end parallel
 
 call END_LOG(upglobal_end)
       

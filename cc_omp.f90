@@ -39,6 +39,7 @@ module cc_omp
    public ::  ccomp_init
    public ::  ccomp_ntiles
    public ::  ccomp_mythread
+   public ::  ccomp_get_thread_num
 
    contains
 
@@ -52,6 +53,17 @@ module cc_omp
 #endif
 
    end function ccomp_get_max_threads
+
+   function ccomp_get_thread_num() result(threadn)
+      integer :: threadn
+
+#ifdef _OPENMP
+      threadn = omp_get_thread_num()
+#else
+      threadn = 0
+#endif
+
+   end function ccomp_get_thread_num
 
    subroutine ccomp_init
 

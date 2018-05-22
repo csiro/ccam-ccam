@@ -1091,9 +1091,14 @@ SUBROUTINE stempv(dels, canopy, ssnow, soil)
 
    INTEGER :: j,k
    REAL :: snow_ccnsw, exp_arg
+#ifndef CCAM
    LOGICAL :: direct2min = .FALSE.
+#else
+   LOGICAL :: direct2min
 
 
+   direct2min = .FALSE.
+#endif
    at = 0.0
    bt = 1.0
    ct = 0.0

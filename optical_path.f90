@@ -236,6 +236,7 @@ integer, save :: NBTRG, NBTRGE
 !!$integer   :: n
 
 integer, save   :: ks, ke
+!$omp threadprivate(ks,ke)
 
 logical, save :: module_is_initialized      = .false. ! module has been
                                                       ! initialized ?

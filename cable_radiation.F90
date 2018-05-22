@@ -200,9 +200,11 @@ SUBROUTINE radiation( ssnow, veg, air, met, rad, canopy )
 
    INTEGER :: b ! rad. band 1=visible, 2=near-infrared, 3=long-wave
 
+#ifndef CCAM
    INTEGER, SAVE :: call_number =0
 
    call_number = call_number + 1
+#endif
 
    ! Define vegetation mask:
    mask = canopy%vlaiw > C%LAI_THRESH .AND.                                    &

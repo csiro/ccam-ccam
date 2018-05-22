@@ -35,6 +35,7 @@ module cc_mpi
 
 ! i8r8 is for running in double precision mode
 
+   use cc_omp
 #ifndef scm
 #ifdef usempi_mod
    use mpi
@@ -71,6 +72,7 @@ module cc_mpi
    integer(kind=4), save, private :: nreq, rreq                            ! number of messages requested and to be received
    integer(kind=4), allocatable, dimension(:), save, private :: ireq       ! requested message index
    integer, allocatable, dimension(:), save, private :: rlist              ! map of processor index from requested message index
+!$omp threadprivate(nreq,rreq,ireq,rlist)
    
    integer, allocatable, dimension(:), save, public :: neighlist           ! list of neighbour processors
    integer, allocatable, dimension(:), save, private :: neighmap           ! map of processor to neighbour index
@@ -315,6 +317,7 @@ module cc_mpi
    type(sextra_t), allocatable, dimension(:), public, save :: sextra   ! send buffer
    ! Number of points for each processor.
    integer, dimension(:), allocatable, public, save :: dslen, drlen
+!$omp threadprivate(dpoints,dbuf,dindex,sextra,dslen,drlen)
 
    ! Multi-grid arrays
    type mgtype
@@ -469,7 +472,9 @@ contains
       real(kind=8), dimension(:,:), allocatable :: dumr8, dumr8_g
       logical(kind=4) :: ltrue
 
+!$omp parallel
       nreq = 0
+!$omp end parallel
       allocate( bnds(0:nproc-1) )
       allocate( rsplit(0:nproc-1), ssplit(0:nproc-1) )
       allocate( rcolsp(0:nproc-1), scolsp(0:nproc-1) )
@@ -606,6 +611,7 @@ contains
       
       
       ! Off processor departure points
+!$omp parallel private(dproc,iproc)
       allocate( dpoints(neighnum) )
       allocate( dbuf(0:neighnum) )
       allocate( dindex(0:neighnum) )
@@ -625,6 +631,7 @@ contains
       allocate( dbuf(0)%a(4,1) )
       allocate( dbuf(0)%b(1) )
       allocate( dindex(0)%a(1,2) )
+!$omp end parallel
 
 
       ! Pack colour indices
@@ -3481,7 +3488,9 @@ contains
       
       ! allocate arrays that depend on neighnum
       ! ireq needs 1 point for the MPI_Waitall which can use ireq(rreq+1)
+!$omp parallel
       allocate( ireq(max(2*neighnum,1)), rlist(max(neighnum,1)) )
+!$omp end parallel
       allocate( dums(10,neighnum), dumr(10,neighnum) )
 
       
@@ -4222,8 +4231,10 @@ contains
 
       
       ! Flag that all messages have been cleared
+!$omp parallel
       nreq = 0
       rreq = 0
+!$omp end parallel
       
       
       ! Indices that are missed above (should be a better way to get these)
@@ -4779,9 +4790,9 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
-      integer :: rcount, jproc, mproc, ntr, iq, k, l
+      integer :: rcount, jproc, mproc, ntr, iq, k, l, kk
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag=3, llen, sreq, lproc
+      integer(kind=4) :: ierr, itag, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
@@ -4789,9 +4800,13 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
+      real, dimension(nagg*maxbuflen*maxvertlen,neighnum) :: sbuf, rbuf
 
+!$omp master
       call START_LOG(bounds_begin)
+!$omp end master
       
+      itag = 3000 + ccomp_get_thread_num()
       kx = size(t,2)
       ntr = size(t,3)
       double = .false.
@@ -4838,7 +4853,7 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx*ntr
-            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
+            call MPI_IRecv( rbuf(:,iproc), llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -4847,17 +4862,21 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
-            do l = 1,ntr
-               do k = 1,kx 
+            kk = 0
+!$omp do
+            do k = 1,kx 
+               kk = kk + 1
+               do l = 1,ntr
 !$omp simd
                   do iq = 1,send_len
-                     bnds(lproc)%sbuf(iq+(k-1)*send_len+(l-1)*send_len*kx) = t(bnds(lproc)%send_list(iq),k,l)
+                     sbuf(iq+(l-1)*send_len+(kk-1)*send_len*ntr,iproc) = t(bnds(lproc)%send_list(iq),k,l)
                   end do
                end do
             end do   
+!$omp end do nowait
             nreq = nreq + 1
-            llen = send_len*kx*ntr
-            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
+            llen = send_len*kk*ntr
+            call MPI_ISend( sbuf(:,iproc), llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -4865,35 +4884,49 @@ contains
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
+!$omp master
          call START_LOG(mpiwait_begin)
+!$omp end master
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+!$omp master
          call END_LOG(mpiwait_end)
+!$omp end master
          rcount = rcount - ldone
          do jproc = 1,ldone
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
-            do l = 1,ntr
-               do k = 1,kx 
+            kk = 0
+!$omp do
+            do k = 1,kx 
+               kk = kk + 1
+               do l = 1,ntr
 !$omp simd
                   do iq = 1,rslen(iproc)  
                      t(ifull+bnds(lproc)%unpack_list(iq),k,l)                           &
-                          = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc)+(l-1)*rslen(iproc)*kx)
+                          = rbuf(iq+(l-1)*rslen(iproc)+(kk-1)*rslen(iproc)*ntr,iproc)
                   end do
                end do
             end do   
+!$omp end do nowait
          end do
       end do
 
       ! Clear any remaining messages
       sreq = nreq - rreq
       if ( sreq > 0 ) then
+!$omp master
          call START_LOG(mpiwait_begin)
+!$omp end master
          call MPI_Waitall(sreq,ireq(rreq+1:nreq),MPI_STATUSES_IGNORE,ierr)
+!$omp master
          call END_LOG(mpiwait_end)
-      end if   
+!$omp end master
+      end if
 
+!$omp master
       call END_LOG(bounds_end)
+!$omp end master
 
    end subroutine bounds4
 
@@ -5416,7 +5449,7 @@ contains
       logical :: fsuev, fnnueev
       integer :: iq, iqz, iproc, kx, rproc, sproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode, k
-      integer(kind=4) :: ierr, itag=6, llen, sreq, lproc
+      integer(kind=4) :: ierr, itag, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
@@ -5424,9 +5457,13 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
+      real, dimension(nagg*maxbuflen*maxvertlen,neighnum) :: sbuf, rbuf
 
+!$omp master
       call START_LOG(boundsuv_begin)
+!$omp end master
       
+      itag = 6000 + ccomp_get_thread_num()
       kx = size(u, 2)
       double = .false.
       extra = .false.
@@ -5554,7 +5591,7 @@ contains
             rlist(nreq) = iproc
             llen = recv_len
             lproc = rproc
-            call MPI_IRecv( bnds(rproc)%rbuf, llen, ltype, lproc, &
+            call MPI_IRecv( rbuf(:,iproc), llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -5564,6 +5601,7 @@ contains
          ! Build up list of points
          iqq = 0
          if ( fsvwu ) then
+!$omp do
             do k = 1,kx
                iqz = iqq - ssplit(sproc)%isvbg + 1 
 !$omp simd
@@ -5571,15 +5609,17 @@ contains
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqz+iq) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
                   else
-                     bnds(sproc)%sbuf(iqz+iq) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
                  end if
                end do
                iqq = iqq + ssplit(sproc)%iwufn - ssplit(sproc)%isvbg + 1
             end do   
+!$omp end do nowait
          end if
          if ( fnveu ) then
+!$omp do
             do k = 1,kx 
                iqz = iqq - ssplit(sproc)%invbg + 1 
 !$omp simd
@@ -5587,15 +5627,17 @@ contains
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqz+iq) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
                   else
-                     bnds(sproc)%sbuf(iqz+iq) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
                   end if 
                end do
                iqq = iqq + ssplit(sproc)%ieufn - ssplit(sproc)%invbg + 1
             end do   
+!$omp end do nowait
          end if
          if ( fssvwwu ) then
+!$omp do
             do k = 1,kx 
                iqz = iqq - ssplit(sproc)%issvbg + 1 
 !$omp simd
@@ -5603,15 +5645,17 @@ contains
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqz+iq) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
                   else
-                     bnds(sproc)%sbuf(iqz+iq) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
                   end if 
                end do
                iqq = iqq + ssplit(sproc)%iwwufn - ssplit(sproc)%issvbg + 1
             end do   
+!$omp end do nowait
          end if
          if ( fnnveeu ) then
+!$omp do
             do k = 1,kx
                iqz = iqq - ssplit(sproc)%innvbg + 1 
 !$omp simd
@@ -5619,15 +5663,17 @@ contains
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqz+iq) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
                   else
-                     bnds(sproc)%sbuf(iqz+iq) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
                   end if
                end do
                iqq = iqq + ssplit(sproc)%ieeufn - ssplit(sproc)%innvbg + 1
             end do   
+!$omp end do nowait
          end if
          if ( fsuev ) then
+!$omp do
             do k = 1,kx 
                iqz = iqq - ssplit(sproc)%isubg + 1 
 !$omp simd
@@ -5635,15 +5681,17 @@ contains
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqz+iq) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
                   else
-                     bnds(sproc)%sbuf(iqz+iq) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
                  end if
               end do
               iqq = iqq + ssplit(sproc)%ievfn - ssplit(sproc)%isubg + 1
             end do  
+!$omp end do nowait
          end if
          if ( fnnueev ) then
+!$omp do
             do k = 1,kx 
                iqz = iqq - ssplit(sproc)%innubg + 1 
 !$omp simd
@@ -5651,25 +5699,27 @@ contains
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                     bnds(sproc)%sbuf(iqz+iq) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
                   else
-                     bnds(sproc)%sbuf(iqz+iq) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
                   end if
                end do
                iqq = iqq + ssplit(sproc)%ieevfn - ssplit(sproc)%innubg + 1
             end do   
+!$omp end do nowait
          end if
          if ( iqq > 0 ) then
             nreq = nreq + 1
             llen = iqq
             lproc = sproc
-            call MPI_ISend( bnds(sproc)%sbuf, llen, ltype, lproc, &
+            call MPI_ISend( sbuf(:,iproc), llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
+!$omp do
       do k = 1,kx
 !$omp simd
          do iq = 1,myrlen
@@ -5686,13 +5736,18 @@ contains
             end if
          end do   
       end do
+!$omp end do nowait
       
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
+!$omp master
          call START_LOG(mpiwait_begin)
+!$omp end master
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+!$omp master
          call END_LOG(mpiwait_end)
+!$omp end master
          rcount = rcount - ldone
          do jproc = 1,ldone
             mproc = donelist(jproc)
@@ -5700,94 +5755,106 @@ contains
             rproc = neighlist(iproc)
             iqq = 0
             if ( fsvwu ) then
+!$omp do
                do k = 1,kx  
                   iqz = iqq - rsplit(rproc)%isvbg + 1 
 !$omp simd
                   do iq = rsplit(rproc)%isvbg,rsplit(rproc)%iwufn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq)
+                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
                      else
-                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq)
+                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
                      end if
                   end do
                   iqq = iqq + rsplit(rproc)%iwufn - rsplit(rproc)%isvbg + 1
                end do   
+!$omp end do nowait
             end if
             if ( fnveu ) then
+!$omp do
                do k = 1,kx 
                   iqz = iqq - rsplit(rproc)%invbg + 1 
 !$omp simd
                   do iq = rsplit(rproc)%invbg,rsplit(rproc)%ieufn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq)
+                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
                      else
-                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq)
+                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
                      end if
                   end do
                   iqq = iqq + rsplit(rproc)%ieufn - rsplit(rproc)%invbg + 1
                end do   
+!$omp end do nowait
             end if         
             if ( fssvwwu ) then
+!$omp do
                do k = 1,kx 
                   iqz = iqq - rsplit(rproc)%issvbg + 1 
 !$omp simd
                   do iq = rsplit(rproc)%issvbg,rsplit(rproc)%iwwufn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq)
+                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
                      else
-                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq)
+                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
                      end if
                   end do
                   iqq = iqq + rsplit(rproc)%iwwufn - rsplit(rproc)%issvbg + 1
                end do  
+!$omp end do nowait
             end if         
             if ( fnnveeu ) then
+!$omp do
                do k = 1,kx 
                   iqz = iqq - rsplit(rproc)%innvbg + 1 
 !$omp simd
                   do iq = rsplit(rproc)%innvbg,rsplit(rproc)%ieeufn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq)
+                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
                      else
-                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq)
+                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
                      end if
                   end do
                   iqq = iqq + rsplit(rproc)%ieeufn - rsplit(rproc)%innvbg + 1
                end do   
+!$omp end do nowait
             end if     
             if ( fsuev ) then
+!$omp do
                do k = 1,kx 
                   iqz = iqq - rsplit(rproc)%isubg + 1 
 !$omp simd
                   do iq = rsplit(rproc)%isubg,rsplit(rproc)%ievfn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq)
+                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
                      else
-                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq)
+                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
                      end if
                   end do
                   iqq = iqq + rsplit(rproc)%ievfn - rsplit(rproc)%isubg + 1
                end do
+!$omp end do nowait
             end if
             if ( fnnueev ) then
+!$omp do
                do k = 1,kx 
                   iqz = iqq - rsplit(rproc)%innubg + 1 
 !$omp simd
                   do iq = rsplit(rproc)%innubg,rsplit(rproc)%ieevfn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq)
+                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
                      else
-                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq)
+                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
                      end if
                   end do
                   iqq = iqq + rsplit(rproc)%ieevfn - rsplit(rproc)%innubg + 1
                end do   
+!$omp end do nowait
             end if
          end do
       end do
@@ -5795,12 +5862,18 @@ contains
       ! Clear any remaining messages
       sreq = nreq - rreq
       if ( sreq > 0 ) then
+!$omp master
          call START_LOG(mpiwait_begin)
+!$omp end master
          call MPI_Waitall(sreq,ireq(rreq+1:nreq),MPI_STATUSES_IGNORE,ierr)
+!$omp master
          call END_LOG(mpiwait_end)
-      end if   
+!$omp end master
+      end if
 
+!$omp master
       call END_LOG(boundsuv_end)
+!$omp end master
 
    end subroutine boundsuv3
    
@@ -6045,7 +6118,7 @@ contains
       integer :: ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf
       integer :: rcount
-      integer(kind=4) :: itag=99, ierr, llen, ncount, sreq, lproc
+      integer(kind=4) :: itag, ierr, llen, ncount, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
       integer(kind=4), dimension(neighnum) :: donelist
@@ -6058,8 +6131,11 @@ contains
       ! This does nothing in the one processor case
       if ( neighnum < 1 ) return
 
+!$omp master
       call START_LOG(deptsync_begin)      
+!$omp end master
       
+      itag = 9000 + ccomp_get_thread_num()
       kx = size(nface,2)
       dslen(:) = 0
       drlen(:) = 0
@@ -6079,6 +6155,7 @@ contains
       nreq = neighnum
       
       ! Calculate request list
+!$omp do
       do k = 1,kx
          do iq = 1,ifull
             nf = nface(iq,k) + noff ! Make this a local index
@@ -6102,6 +6179,7 @@ contains
             end if
          end do
       end do
+!$omp end do nowait
  
       ! Check for errors
       if ( dslen(0) > 0 ) then
@@ -6149,9 +6227,13 @@ contains
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
+!$omp master
          call START_LOG(mpiwaitdep_begin)
+!$omp end master
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+!$omp master
          call END_LOG(mpiwaitdep_end)
+!$omp end master
          rcount = rcount - ldone
          do jproc = 1,ldone
             ! Now get the actual sizes from the status
@@ -6163,28 +6245,37 @@ contains
       ! Clear any remaining message requests
       sreq = nreq - rreq
       if ( sreq > 0 ) then
+!$omp master
          call START_LOG(mpiwaitdep_begin)
+!$omp end master
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+!$omp master
          call END_LOG(mpiwaitdep_end)
-      end if   
+!$omp end master
+      end if
       
+!$omp master
       call END_LOG(deptsync_end)
+!$omp end master
 
    end subroutine deptsync
 
    subroutine intssync_send(ntr)
       integer, intent(in) :: ntr
       integer :: iproc
-      integer(kind=4) :: itag=98, ierr, llen, lproc, lcomm
+      integer(kind=4) :: itag, ierr, llen, lproc, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
 
+!$omp master
       call START_LOG(intssync_begin)
+!$omp end master
       
       ! When sending the results, roles of dslen and drlen are reversed
+      itag = 8000 + ccomp_get_thread_num()
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
@@ -6208,7 +6299,9 @@ contains
          end if
       end do
       
+!$omp master
       call END_LOG(intssync_end)
+!$omp end master
 
    end subroutine intssync_send
 
@@ -6219,16 +6312,22 @@ contains
       integer(kind=4) :: ierr, ldone, sreq
       integer(kind=4), dimension(neighnum) :: donelist
 
+!$omp master
       call START_LOG(intssync_begin)
+!$omp end master
       
       ntr = size(s,3)
       
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
+!$omp master
          call START_LOG(mpiwaitdep_begin)
+!$omp end master
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+!$omp master
          call END_LOG(mpiwaitdep_end)
+!$omp end master
          rcount = rcount - ldone
          do jproc = 1,ldone
             iproc = rlist(donelist(jproc))
@@ -6244,12 +6343,18 @@ contains
       ! Clear any remaining messages
       sreq = nreq - rreq
       if ( sreq > 0 ) then
+!$omp master
          call START_LOG(mpiwaitdep_begin)
+!$omp end master
          call MPI_Waitall(sreq,ireq(rreq+1:nreq),MPI_STATUSES_IGNORE,ierr)
+!$omp master
          call END_LOG(mpiwaitdep_end)
-      end if   
+!$omp end master
+      end if
 
+!$omp master
       call END_LOG(intssync_end)
+!$omp end master
 
    end subroutine intssync_recv
 
@@ -8511,9 +8616,9 @@ contains
 
       ! Global communicator
 #ifdef _OPENMP
-      call MPI_Init_Thread(MPI_THREAD_FUNNELED, lprovided, lerr)
-      if ( lprovided < MPI_THREAD_FUNNELED ) then
-         write(6,*) "ERROR: MPI does not support MPI_THREAD_FUNNELED"
+      call MPI_Init_Thread(MPI_THREAD_MULTIPLE, lprovided, lerr)
+      if ( lprovided < MPI_THREAD_MULTIPLE ) then
+         write(6,*) "ERROR: MPI does not support MPI_THREAD_MULTIPLE"
          call ccmpi_abort(-1)
       end if
 #else
@@ -9725,9 +9830,11 @@ contains
          ! increase size of request list if needed
          ntest = mg(g)%neighnum
          if ( 2*ntest > size(ireq) ) then
+!$omp parallel
             deallocate( ireq, rlist )
             allocate( ireq(max(2*ntest,1)) )
             allocate( rlist(max(ntest,1)) )
+!$omp end parallel
          end if
   
          ! set up neighbour lists
@@ -10527,9 +10634,11 @@ contains
 
       ! increase size of request list if needed
       if ( 2*fileneighnum > size(ireq) ) then
+!$omp parallel
          deallocate( ireq, rlist )
          allocate( ireq(max(2*fileneighnum,1)) )
          allocate( rlist(max(fileneighnum,1)) )
+!$omp end parallel
       end if
 
       ! Now, for each processor send the length of points I want.
