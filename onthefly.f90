@@ -515,7 +515,6 @@ if ( newfile .and. .not.iop_test ) then
 end if ! newfile .and. .not.iop_test
 
 allocate( ucc(fwsize), tss_a(fwsize) )
-allocate( isoilm_a(fwsize) )
 if ( fnproc==1 ) then
   allocate( sx(-1:ik+2,-1:ik+2,0:npanels,kblock) )  
 else
@@ -632,7 +631,8 @@ if ( newfile ) then
     else
       call histrd3(iarchi,ier,'zht',  ik,zss_a,6*ik*ik,nogather=.true.)
       call histrd3(iarchi,ier,'soilt',ik,ucc  ,6*ik*ik,nogather=.true.)
-    end if    
+    end if
+    allocate( isoilm_a(fwsize) )
     if ( fwsize>0 ) then
       if ( .not.soilt_found ) then
         isoilm_a(:) = -100 ! missing value flag
@@ -648,7 +648,7 @@ if ( newfile ) then
     call gethist1('ocndepth',ocndep_l)
   end if
   
-  ! read urban data
+  ! read urban data mask
   if ( nurban/=0 ) then  
     if ( .not.iop_test ) then
       if ( fnproc==1 ) then  
@@ -773,7 +773,7 @@ else
   
 end if ! (tsstest) ..else..
 
-deallocate( isoilm_a )
+if ( allocated(isoilm_a) ) deallocate( isoilm_a )
 
  
 !--------------------------------------------------------------
@@ -2314,45 +2314,125 @@ c_io = value
 
 do while ( nrem>0 )
   c_io(1:pipan,1:pjpan,1:pnpan,1:mynproc) = reshape( a_io(1:fwsize), (/ pipan, pjpan, pnpan, mynproc /) )
-  call ccmpi_filebounds(c_io,comm_ip)
   ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )
+  call ccmpi_filebounds_send(c_io,comm_ip)
+  ! update body
   if ( ncount>0 ) then
     do ipf = 1,mynproc
       do n = 1,pnpan
-        do j = 1,pjpan
+        do j = 2,pjpan-1
           cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-          maska(1:pipan) = abs(a_io(1+cc:pipan+cc)-value)<1.e-20
-          if ( any(maska(1:pipan)) ) then
-            csum(1:pipan) = 0.
-            ccount(1:pipan) = 0
-            where ( abs(c_io(1:pipan,j+1,n,ipf)-value)>=1.e-20 )
-              csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,j+1,n,ipf)
-              ccount(1:pipan) = ccount(1:pipan) + 1
-            end where
-            where ( abs(c_io(1:pipan,j-1,n,ipf)-value)>=1.e-20 )
-              csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,j-1,n,ipf)
-              ccount(1:pipan) = ccount(1:pipan) + 1
-            end where
-            where ( abs(c_io(2:pipan+1,j,n,ipf)-value)>=1.e-20 )
-              csum(1:pipan) = csum(1:pipan) + c_io(2:pipan+1,j,n,ipf)
-              ccount(1:pipan) = ccount(1:pipan) + 1
-            end where
-            where ( abs(c_io(0:pipan-1,j,n,ipf)-value)>=1.e-20 )
-              csum(1:pipan) = csum(1:pipan) + c_io(0:pipan-1,j,n,ipf)
-              ccount(1:pipan) = ccount(1:pipan) + 1
-            end where
-            where ( maska(1:pipan) .and. ccount(1:pipan)>0 )
-              a_io(1+cc:pipan+cc) = csum(1:pipan)/real(ccount(1:pipan))
-            end where
-          end if  
+          maska(2:pipan-1) = abs(a_io(2+cc:pipan-1+cc)-value)<1.e-20
+          csum(2:pipan-1) = 0.
+          ccount(2:pipan-1) = 0
+          where ( abs(c_io(2:pipan-1,j+1,n,ipf)-value)>=1.e-20 )
+            csum(2:pipan-1) = csum(2:pipan-1) + c_io(2:pipan-1,j+1,n,ipf)
+            ccount(2:pipan-1) = ccount(2:pipan-1) + 1
+          end where
+          where ( abs(c_io(2:pipan-1,j-1,n,ipf)-value)>=1.e-20 )
+            csum(2:pipan-1) = csum(2:pipan-1) + c_io(2:pipan-1,j-1,n,ipf)
+            ccount(2:pipan-1) = ccount(2:pipan-1) + 1
+          end where
+          where ( abs(c_io(3:pipan,j,n,ipf)-value)>=1.e-20 )
+            csum(2:pipan-1) = csum(2:pipan-1) + c_io(3:pipan,j,n,ipf)
+            ccount(2:pipan-1) = ccount(2:pipan-1) + 1
+          end where
+          where ( abs(c_io(1:pipan-2,j,n,ipf)-value)>=1.e-20 )
+            csum(2:pipan-1) = csum(2:pipan-1) + c_io(1:pipan-2,j,n,ipf)
+            ccount(2:pipan-1) = ccount(2:pipan-1) + 1
+          end where
+          where ( maska(2:pipan-1) .and. ccount(2:pipan-1)>0 )
+            a_io(2+cc:pipan-1+cc) = csum(2:pipan-1)/real(ccount(2:pipan-1))
+          end where
         end do
+      end do
+    end do
+  end if 
+  call ccmpi_filebounds_recv(c_io,comm_ip)
+  ! update halo
+  if ( ncount>0 ) then
+    do ipf = 1,mynproc
+      do n = 1,pnpan
+        cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+        maska(1:pipan) = abs(a_io(1+cc:pipan+cc)-value)<1.e-20
+        csum(1:pipan) = 0.
+        ccount(1:pipan) = 0
+        where ( abs(c_io(1:pipan,2,n,ipf)-value)>=1.e-20 )
+          csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,2,n,ipf)
+          ccount(1:pipan) = ccount(1:pipan) + 1
+        end where
+        where ( abs(c_io(1:pipan,0,n,ipf)-value)>=1.e-20 )
+          csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,0,n,ipf)
+          ccount(1:pipan) = ccount(1:pipan) + 1
+        end where
+        where ( abs(c_io(2:pipan+1,1,n,ipf)-value)>=1.e-20 )
+          csum(1:pipan) = csum(1:pipan) + c_io(2:pipan+1,1,n,ipf)
+          ccount(1:pipan) = ccount(1:pipan) + 1
+        end where
+        where ( abs(c_io(0:pipan-1,1,n,ipf)-value)>=1.e-20 )
+          csum(1:pipan) = csum(1:pipan) + c_io(0:pipan-1,1,n,ipf)
+          ccount(1:pipan) = ccount(1:pipan) + 1
+        end where
+        where ( maska(1:pipan) .and. ccount(1:pipan)>0 )
+          a_io(1+cc:pipan+cc) = csum(1:pipan)/real(ccount(1:pipan))
+        end where
+        do j = 2,pjpan-1
+          cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+          maska(1:pipan:pipan-1) = abs(a_io(1+cc:pipan+cc:pipan-1)-value)<1.e-20
+          csum(1:pipan:pipan-1) = 0.
+          ccount(1:pipan:pipan-1) = 0
+          where ( abs(c_io(1:pipan:pipan-1,j+1,n,ipf)-value)>=1.e-20 )
+            csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(1:pipan:pipan-1,j+1,n,ipf)
+            ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
+          end where
+          where ( abs(c_io(1:pipan:pipan-1,j-1,n,ipf)-value)>=1.e-20 )
+            csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(1:pipan:pipan-1,j-1,n,ipf)
+            ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
+          end where
+          where ( abs(c_io(2:pipan+1:pipan-1,j,n,ipf)-value)>=1.e-20 )
+            csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(2:pipan+1:pipan-1,j,n,ipf)
+            ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
+          end where
+          where ( abs(c_io(0:pipan-1:pipan-1,j,n,ipf)-value)>=1.e-20 )
+            csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(0:pipan-1:pipan-1,j,n,ipf)
+            ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
+          end where
+          where ( maska(1:pipan:pipan-1) .and. ccount(1:pipan:pipan-1)>0 )
+            a_io(1+cc:pipan+cc:pipan-1) = csum(1:pipan:pipan-1)/real(ccount(1:pipan:pipan-1))
+          end where
+        end do
+        cc = (pjpan-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+        maska(1:pipan) = abs(a_io(1+cc:pipan+cc)-value)<1.e-20
+        csum(1:pipan) = 0.
+        ccount(1:pipan) = 0
+        where ( abs(c_io(1:pipan,pjpan+1,n,ipf)-value)>=1.e-20 )
+          csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,pjpan+1,n,ipf)
+          ccount(1:pipan) = ccount(1:pipan) + 1
+        end where
+        where ( abs(c_io(1:pipan,pjpan-1,n,ipf)-value)>=1.e-20 )
+          csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,pjpan-1,n,ipf)
+          ccount(1:pipan) = ccount(1:pipan) + 1
+        end where
+        where ( abs(c_io(2:pipan+1,pjpan,n,ipf)-value)>=1.e-20 )
+          csum(1:pipan) = csum(1:pipan) + c_io(2:pipan+1,pjpan,n,ipf)
+          ccount(1:pipan) = ccount(1:pipan) + 1
+        end where
+        where ( abs(c_io(0:pipan-1,pjpan,n,ipf)-value)>=1.e-20 )
+          csum(1:pipan) = csum(1:pipan) + c_io(0:pipan-1,pjpan,n,ipf)
+          ccount(1:pipan) = ccount(1:pipan) + 1
+        end where
+        where ( maska(1:pipan) .and. ccount(1:pipan)>0 )
+          a_io(1+cc:pipan+cc) = csum(1:pipan)/real(ccount(1:pipan))
+        end where
       end do
     end do
     ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )  
   end if  
   ! test for convergence
   local_count = local_count + 1
-  if ( local_count>=fill_count ) then
+  if ( local_count==fill_count ) then
+    nrem = 0
+  else if ( local_count>fill_count ) then
     call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
     if ( nrem==6*ik*ik ) then
       if ( myid==0 ) then
@@ -2530,39 +2610,119 @@ c_io = value
 
 do while ( nrem>0 )
   c_io(1:pipan,1:pjpan,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pipan, pjpan, pnpan, mynproc, kx /) )
-  call ccmpi_filebounds(c_io,comm_ip)
   ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
+  call ccmpi_filebounds_send(c_io,comm_ip)
+  ! update body
   if ( ncount>0 ) then
     do k = 1,kx
       do ipf = 1,mynproc
         do n = 1,pnpan
-          do j = 1,pjpan
+          do j = 2,pjpan-1
             cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-            maska(1:pipan) = abs(a_io(1+cc:pipan+cc,k)-value)<1.e-20
-            if ( any(maska(1:pipan)) ) then
-              csum(1:pipan) = 0.
-              ccount(1:pipan) = 0
-              where ( abs(c_io(1:pipan,j+1,n,ipf,k)-value)>=1.e-20 )
-                csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,j+1,n,ipf,k)
-                ccount(1:pipan) = ccount(1:pipan) + 1
-              end where
-              where ( abs(c_io(1:pipan,j-1,n,ipf,k)-value)>=1.e-20 )
-                csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,j-1,n,ipf,k)
-                ccount(1:pipan) = ccount(1:pipan) + 1
-              end where
-              where ( abs(c_io(2:pipan+1,j,n,ipf,k)-value)>=1.e-20 )
-                csum(1:pipan) = csum(1:pipan) + c_io(2:pipan+1,j,n,ipf,k)
-                ccount(1:pipan) = ccount(1:pipan) + 1
-              end where
-              where ( abs(c_io(0:pipan-1,j,n,ipf,k)-value)>=1.e-20 )
-                csum(1:pipan) = csum(1:pipan) + c_io(0:pipan-1,j,n,ipf,k)
-                ccount(1:pipan) = ccount(1:pipan) + 1
-              end where
-              where ( maska(1:pipan) .and. ccount(1:pipan)>0 )
-                a_io(1+cc:pipan+cc,k) = csum(1:pipan)/real(ccount(1:pipan))
-              end where
-            end if  
+            maska(2:pipan-1) = abs(a_io(2+cc:pipan-1+cc,k)-value)<1.e-20
+            csum(2:pipan-1) = 0.
+            ccount(2:pipan-1) = 0
+            where ( abs(c_io(2:pipan-1,j+1,n,ipf,k)-value)>=1.e-20 )
+              csum(2:pipan-1) = csum(2:pipan-1) + c_io(2:pipan-1,j+1,n,ipf,k)
+              ccount(2:pipan-1) = ccount(2:pipan-1) + 1
+            end where
+            where ( abs(c_io(2:pipan-1,j-1,n,ipf,k)-value)>=1.e-20 )
+              csum(2:pipan-1) = csum(2:pipan-1) + c_io(2:pipan-1,j-1,n,ipf,k)
+              ccount(2:pipan-1) = ccount(2:pipan-1) + 1
+            end where
+            where ( abs(c_io(3:pipan,j,n,ipf,k)-value)>=1.e-20 )
+              csum(2:pipan-1) = csum(2:pipan-1) + c_io(3:pipan,j,n,ipf,k)
+              ccount(2:pipan-1) = ccount(2:pipan-1) + 1
+            end where
+            where ( abs(c_io(1:pipan-2,j,n,ipf,k)-value)>=1.e-20 )
+              csum(2:pipan-1) = csum(2:pipan-1) + c_io(1:pipan-2,j,n,ipf,k)
+              ccount(2:pipan-1) = ccount(2:pipan-1) + 1
+            end where
+            where ( maska(2:pipan-1) .and. ccount(2:pipan-1)>0 )
+              a_io(2+cc:pipan-1+cc,k) = csum(2:pipan-1)/real(ccount(2:pipan-1))
+            end where
           end do
+        end do
+      end do
+    end do
+  end if
+  call ccmpi_filebounds_recv(c_io,comm_ip)
+  ! update halo
+  if ( ncount>0 ) then
+    do k = 1,kx
+      do ipf = 1,mynproc
+        do n = 1,pnpan
+          cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+          maska(1:pipan) = abs(a_io(1+cc:pipan+cc,k)-value)<1.e-20
+          csum(1:pipan) = 0.
+          ccount(1:pipan) = 0
+          where ( abs(c_io(1:pipan,2,n,ipf,k)-value)>=1.e-20 )
+            csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,2,n,ipf,k)
+            ccount(1:pipan) = ccount(1:pipan) + 1
+          end where
+          where ( abs(c_io(1:pipan,0,n,ipf,k)-value)>=1.e-20 )
+            csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,0,n,ipf,k)
+            ccount(1:pipan) = ccount(1:pipan) + 1
+          end where
+          where ( abs(c_io(2:pipan+1,1,n,ipf,k)-value)>=1.e-20 )
+            csum(1:pipan) = csum(1:pipan) + c_io(2:pipan+1,1,n,ipf,k)
+            ccount(1:pipan) = ccount(1:pipan) + 1
+          end where
+          where ( abs(c_io(0:pipan-1,1,n,ipf,k)-value)>=1.e-20 )
+            csum(1:pipan) = csum(1:pipan) + c_io(0:pipan-1,1,n,ipf,k)
+            ccount(1:pipan) = ccount(1:pipan) + 1
+          end where
+          where ( maska(1:pipan) .and. ccount(1:pipan)>0 )
+            a_io(1+cc:pipan+cc,k) = csum(1:pipan)/real(ccount(1:pipan))
+          end where
+          do j = 2,pjpan-1
+            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+            maska(1:pipan:pipan-1) = abs(a_io(1+cc:pipan+cc:pipan-1,k)-value)<1.e-20
+            csum(1:pipan:pipan-1) = 0.
+            ccount(1:pipan:pipan-1) = 0
+            where ( abs(c_io(1:pipan:pipan-1,j+1,n,ipf,k)-value)>=1.e-20 )
+              csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(1:pipan:pipan-1,j+1,n,ipf,k)
+              ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
+            end where
+            where ( abs(c_io(1:pipan:pipan-1,j-1,n,ipf,k)-value)>=1.e-20 )
+              csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(1:pipan:pipan-1,j-1,n,ipf,k)
+              ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
+            end where
+            where ( abs(c_io(2:pipan+1:pipan-1,j,n,ipf,k)-value)>=1.e-20 )
+              csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(2:pipan+1:pipan-1,j,n,ipf,k)
+              ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
+            end where
+            where ( abs(c_io(0:pipan-1:pipan-1,j,n,ipf,k)-value)>=1.e-20 )
+              csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(0:pipan-1:pipan-1,j,n,ipf,k)
+              ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
+            end where
+            where ( maska(1:pipan:pipan-1) .and. ccount(1:pipan:pipan-1)>0 )
+              a_io(1+cc:pipan+cc:pipan-1,k) = csum(1:pipan:pipan-1)/real(ccount(1:pipan:pipan-1))
+            end where
+          end do
+          cc = (pjpan-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+          maska(1:pipan) = abs(a_io(1+cc:pipan+cc,k)-value)<1.e-20
+          csum(1:pipan) = 0.
+          ccount(1:pipan) = 0
+          where ( abs(c_io(1:pipan,pjpan+1,n,ipf,k)-value)>=1.e-20 )
+            csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,pjpan+1,n,ipf,k)
+            ccount(1:pipan) = ccount(1:pipan) + 1
+          end where
+          where ( abs(c_io(1:pipan,pjpan-1,n,ipf,k)-value)>=1.e-20 )
+            csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,pjpan-1,n,ipf,k)
+            ccount(1:pipan) = ccount(1:pipan) + 1
+          end where
+          where ( abs(c_io(2:pipan+1,pjpan,n,ipf,k)-value)>=1.e-20 )
+            csum(1:pipan) = csum(1:pipan) + c_io(2:pipan+1,pjpan,n,ipf,k)
+            ccount(1:pipan) = ccount(1:pipan) + 1
+          end where
+          where ( abs(c_io(0:pipan-1,pjpan,n,ipf,k)-value)>=1.e-20 )
+            csum(1:pipan) = csum(1:pipan) + c_io(0:pipan-1,pjpan,n,ipf,k)
+            ccount(1:pipan) = ccount(1:pipan) + 1
+          end where
+          where ( maska(1:pipan) .and. ccount(1:pipan)>0 )
+            a_io(1+cc:pipan+cc,k) = csum(1:pipan)/real(ccount(1:pipan))
+          end where
         end do
       end do
     end do
@@ -2570,7 +2730,9 @@ do while ( nrem>0 )
   end if
   ! test for convergence
   local_count = local_count + 1
-  if ( local_count>=fill_count ) then
+  if ( local_count==fill_count ) then
+    nrem = 0  
+  else if ( local_count>fill_count ) then
     call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
     if ( nrem==6*ik*ik ) then
       if ( myid==0 ) then
@@ -3388,8 +3550,9 @@ if ( size(varout,1)<ifull ) then
   call ccmpi_abort(-1)
 end if
 
-if ( ok/=size(varout,2) ) then
+if ( wlev/=size(varout,2) ) then
   write(6,*) "ERROR: Invalid number of vertical levels for varout in fillhist4o"
+  write(6,*) "wlev,varout ",wlev,size(varout,2)
   call ccmpi_abort(-1)
 end if
 

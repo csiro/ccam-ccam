@@ -122,8 +122,8 @@ module cc_mpi
    public :: allocateglobalpack, copyglobalpack, ccmpi_gathermap,           &
              getglobalpack_v, setglobalpack_v
    public :: ccmpi_filewinget, ccmpi_filewinunpack, ccmpi_filebounds_setup, &
-             ccmpi_filebounds, ccmpi_filegather, ccmpi_filedistribute,      &
-             procarray
+             ccmpi_filebounds_send, ccmpi_filebounds_recv,                  &
+             ccmpi_filegather, ccmpi_filedistribute, procarray
 #ifdef usempi3
    public :: ccmpi_allocshdata, ccmpi_allocshdatar8
    public :: ccmpi_shepoch, ccmpi_freeshdata
@@ -211,9 +211,12 @@ module cc_mpi
    interface ccmpi_gathermap
       module procedure ccmpi_gathermap2, ccmpi_gathermap3
    end interface
-   interface ccmpi_filebounds
-      module procedure ccmpi_filebounds2, ccmpi_filebounds3
-   end interface ccmpi_filebounds
+   interface ccmpi_filebounds_send
+      module procedure ccmpi_filebounds_send2, ccmpi_filebounds_send3
+   end interface ccmpi_filebounds_send
+   interface ccmpi_filebounds_recv
+      module procedure ccmpi_filebounds_recv2, ccmpi_filebounds_recv3
+   end interface ccmpi_filebounds_recv
    interface ccmpi_filegather
       module procedure host_filegather2, proc_filegather2
       module procedure host_filegather3, proc_filegather3
@@ -9443,32 +9446,28 @@ contains
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%in(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%in(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = js_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%is(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%is(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = je_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%ie(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%ie(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jw_g(iqg,mil_g)         ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%iw(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%iw(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   ! Note that the model only needs a limited set of the diagonal
@@ -9477,32 +9476,28 @@ contains
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%ine(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%ine(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jse_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%ise(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%ise(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jnw_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%inw(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%inw(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jsw_g(iqg,mil_g)        ! Global neighbour index
                   rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
                   if ( rproc == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
-                     call indv_mpix(iqq,iloc,jloc,nloc,mil_g,mioff,mjoff,noff)
-                     mg(g)%isw(iq) = indx(iloc,jloc,nloc-1,mipan,mjpan)
+                     mg(g)%isw(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                end do
@@ -9519,7 +9514,6 @@ contains
             do i = 1,mipan
                iq = indx(i,j,n-1,mipan,mjpan)  !  Local index 
                iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               
                iqq = jn_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
@@ -9551,7 +9545,6 @@ contains
             do j = 1,mjpan
                iq = indx(i,j,n-1,mipan,mjpan)  !  Local index 
                iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               
                iqq = je_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
@@ -9583,7 +9576,6 @@ contains
             do j = 1,mjpan
                iq = indx(i,j,n-1,mipan,mjpan)  !  Local index  
                iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               
                iqq = jw_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
@@ -9615,7 +9607,6 @@ contains
             do i = 1,mipan
                iq = indx(i,j,n-1,mipan,mjpan)  !  Local index
                iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
-               
                iqq = js_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
@@ -9703,7 +9694,7 @@ contains
                end if
             end if
 
-            ! WN
+            ! NW
             iq = indx(1,mjpan,n-1,mipan,mjpan)
             iqg = indx(1+mioff,mjpan+mjoff,n-noff,mil_g,mil_g)
             iqq = jnw_g(iqg,mil_g)
@@ -9884,30 +9875,19 @@ contains
             do iq = 1,mg_bnds(sproc,g)%slenx
                ! send_list(iq) is global point index, i, j, n are local
                iqq = mg_bnds(sproc,g)%send_list(iq)
-               call indv_mpix(iqq,i,j,n,mil_g,mioff,mjoff,noff)
-               mg_bnds(sproc,g)%send_list(iq) = indx(i,j,n-1,mipan,mjpan)
+               mg_bnds(sproc,g)%send_list(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
             end do
          end do
          if ( mg_bnds(myid,g)%rlenx /= 0 ) then
             write(6,*) "ERROR: Invalid rlenx in myid"
             call ccmpi_abort(-1)
          end if   
-         !do iq = 1,mg_bnds(myid,g)%rlenx
-         !   iqq = mg_bnds(myid,g)%request_list(iq)
-         !   call indv_mpix(iqq,i,j,n,mil_g,mioff,mjoff,noff)
-         !   mg_bnds(myid,g)%request_list(iq) = indx(i,j,n-1,mipan,mjpan)
-         !end do
 
          ! reduce array size where possible
          do iproc = 0,nproc-1
             xlen = mg_bnds(iproc,g)%rlenx
             if ( mg_bnds(iproc,g)%len > xlen ) then
-               dum(1:xlen) = mg_bnds(iproc,g)%request_list(1:xlen)
                deallocate( mg_bnds(iproc,g)%request_list )
-               if ( xlen > 0 ) then
-                 allocate( mg_bnds(iproc,g)%request_list(xlen) )
-                 mg_bnds(iproc,g)%request_list(1:xlen) = dum(1:xlen)
-               end if
                dum(1:xlen) = mg_bnds(iproc,g)%unpack_list(1:xlen)
                deallocate( mg_bnds(iproc,g)%unpack_list )
                if ( xlen > 0 ) then
@@ -9918,7 +9898,7 @@ contains
             end if
 
             ! set up buffers
-            xlev = max( kl, ol, 1 )
+            xlev = max( kl, 1 ) ! ol is not required
             xlen = xlev*mg_bnds(iproc,g)%rlenx
             if ( bnds(iproc)%rbuflen < xlen ) then
                if ( bnds(iproc)%rbuflen > 0 ) then
@@ -10024,29 +10004,6 @@ contains
 
    return
    end subroutine mgcheck_bnds_alloc
-   
-   pure subroutine indv_mpix(iq, i, j, n, mil_g, mioff, mjoff, mnoff)
-
-      integer, intent(in) :: iq, mil_g, mnoff
-      integer, intent(in) :: mioff, mjoff
-      integer, intent(out) :: i
-      integer, intent(out) :: j
-      integer, intent(out) :: n
-
-      ! Calculate local i, j, n from global iq
-
-      ! Global i, j, n
-      n = (iq - 1)/(mil_g*mil_g)
-      j = 1 + (iq - n*mil_g*mil_g - 1)/mil_g
-      i = iq - (j - 1)*mil_g - n*mil_g*mil_g
-
-      ! Reduced to values on my processor
-      n = n + mnoff  
-      j = j - mjoff
-      i = i - mioff
-
-   return
-   end subroutine indv_mpix
    
    subroutine mgbounds2(g,vdat,corner)
 
@@ -10773,20 +10730,18 @@ contains
    
    end subroutine check_filebnds_alloc
 
-   subroutine ccmpi_filebounds2(sdat,comm,corner)
+   subroutine ccmpi_filebounds_send2(sdat,comm,corner)
 
       integer, intent(in) :: comm
-      integer :: myrlen, iproc, jproc, mproc, iq, rcount
-      integer :: send_len
+      integer :: iproc, iq, send_len
       integer, dimension(fileneighnum) :: rslen, sslen
-      integer(kind=4) :: llen, lproc, ierr, ldone, sreq, lcomm
+      integer(kind=4) :: llen, lproc, ierr, lcomm
       integer(kind=4) :: itag=40
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:pipan+1,0:pjpan+1,pnpan,1:fncount), intent(inout) :: sdat
       logical, intent(in), optional :: corner
       logical :: extra
@@ -10808,7 +10763,6 @@ contains
          rslen(:) = filebnds(fileneighlist)%rlen
          sslen(:) = filebnds(fileneighlist)%slen
       end if 
-      myrlen = filebnds(myid)%rlenx
 
       !     Set up the buffers to recv
       nreq = 0
@@ -10838,6 +10792,44 @@ contains
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
          end if   
       end do
+
+      call END_LOG(boundsfile_end)
+
+   end subroutine ccmpi_filebounds_send2
+
+   subroutine ccmpi_filebounds_recv2(sdat,comm,corner)
+
+      integer, intent(in) :: comm
+      integer :: myrlen, iproc, jproc, mproc, iq, rcount
+      integer, dimension(fileneighnum) :: rslen
+      integer(kind=4) :: llen, lproc, ierr, ldone, sreq, lcomm
+      integer(kind=4) :: itag=40
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4), dimension(fileneighnum) :: donelist
+      real, dimension(0:pipan+1,0:pjpan+1,pnpan,1:fncount), intent(inout) :: sdat
+      logical, intent(in), optional :: corner
+      logical :: extra
+
+      call START_LOG(boundsfile_begin)
+      
+      lcomm = comm
+      
+      if ( present(corner) ) then
+         extra = corner
+      else
+         extra = .false.
+      end if   
+          
+      if ( extra ) then
+         rslen(:) = filebnds(fileneighlist)%rlenx
+      else    
+         rslen(:) = filebnds(fileneighlist)%rlen
+      end if 
+      myrlen = filebnds(myid)%rlenx
 
       ! See if there are any points on my own processor that need
       ! to be fixed up.
@@ -10881,22 +10873,21 @@ contains
 
       call END_LOG(boundsfile_end)
 
-   end subroutine ccmpi_filebounds2
-
-   subroutine ccmpi_filebounds3(sdat,comm,corner)
+   end subroutine ccmpi_filebounds_recv2
+   
+   subroutine ccmpi_filebounds_send3(sdat,comm,corner)
 
       integer, intent(in) :: comm
-      integer :: myrlen, iproc, jproc, mproc, iq, rcount, kx
+      integer :: iproc, iq, kx
       integer :: send_len, k
       integer, dimension(fileneighnum) :: rslen, sslen
-      integer(kind=4) :: llen, lproc, ierr, ldone, sreq, lcomm
+      integer(kind=4) :: llen, lproc, ierr, lcomm
       integer(kind=4) :: itag=41
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:,0:,1:,1:,1:), intent(inout) :: sdat
       logical, intent(in), optional :: corner
       logical :: extra
@@ -10919,7 +10910,6 @@ contains
          rslen(:) = filebnds(fileneighlist)%rlen
          sslen(:) = filebnds(fileneighlist)%slen
       end if 
-      myrlen = filebnds(myid)%rlenx
 
       !     Set up the buffers to send and recv
       nreq = 0
@@ -10949,6 +10939,46 @@ contains
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
          end if   
       end do
+
+      call END_LOG(boundsfile_end)
+      
+   end subroutine ccmpi_filebounds_send3
+
+   subroutine ccmpi_filebounds_recv3(sdat,comm,corner)
+
+      integer, intent(in) :: comm
+      integer :: myrlen, iproc, jproc, mproc, iq, rcount, kx
+      integer :: k
+      integer, dimension(fileneighnum) :: rslen
+      integer(kind=4) :: llen, lproc, ierr, ldone, sreq, lcomm
+      integer(kind=4) :: itag=41
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4), dimension(fileneighnum) :: donelist
+      real, dimension(0:,0:,1:,1:,1:), intent(inout) :: sdat
+      logical, intent(in), optional :: corner
+      logical :: extra
+
+      call START_LOG(boundsfile_begin)
+      
+      kx = size(sdat,5)
+      lcomm = comm
+
+      if ( present(corner) ) then
+         extra = corner
+      else
+         extra = .false.
+      end if   
+          
+      if ( extra ) then
+         rslen(:) = filebnds(fileneighlist)%rlenx
+      else    
+         rslen(:) = filebnds(fileneighlist)%rlen
+      end if 
+      myrlen = filebnds(myid)%rlenx
 
       ! See if there are any points on my own processor that need
       ! to be fixed up.
@@ -10995,7 +11025,7 @@ contains
 
       call END_LOG(boundsfile_end)
       
-   end subroutine ccmpi_filebounds3
+   end subroutine ccmpi_filebounds_recv3
    
    subroutine host_filegather2(a,ag,comm)
       ! Collect global arrays.
