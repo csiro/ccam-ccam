@@ -1,4 +1,3 @@
-
 ! Conformal Cubic Atmospheric Model
     
 ! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
@@ -292,7 +291,7 @@ include 'kuocom.h'                  ! Convection parameters
 
 integer, dimension(imax), intent(in) :: kbsav, ktsav
 integer, parameter :: ntest = 0
-integer k, tnaero, nt
+integer k, nt
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
 real, dimension(imax,kl), intent(inout) :: cfrac, u, v
@@ -636,13 +635,6 @@ else
   ! near surface air density (see sflux.f and cable_ccam2.f90)
   rhos(1:imax) = ps(1:imax)/(rdry*tss(1:imax))
     
-  ! Use counter gradient for aerosol tracers
-  if ( abs(iaero)>=2 ) then 
-    tnaero = naero
-  else
-    tnaero = 0
-  end if
-       
   ! transform to ocean reference frame and temp to theta
   do k = 1,kl
     u(1:imax,k) = u(1:imax,k) - ou
@@ -655,18 +647,16 @@ else
   select case(nlocal)
     case(0) ! no counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
-                  ustar,dt,qgmin,1,0,tnaero,xtg,cgmap,                                  &
+                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                               &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,                &
                   shearproduction,totaltransport,                                       &
-                  tke,eps,shear,                                                        &
                   imax)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
-                  ustar,dt,qgmin,1,0,tnaero,xtg,cgmap,                                  &
+                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                               &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,                &
                   shearproduction,totaltransport,                                       &
-                  tke,eps,shear,                                                        &
                   imax)
       rkh = rkm
       do k = 1,kl
@@ -678,10 +668,9 @@ else
                   wth_flux,wq_flux)
     case(7) ! mass-flux counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
-                  ustar,dt,qgmin,0,0,tnaero,xtg,cgmap,                                  &
+                  ustar,dt,qgmin,0,0,cgmap,tke,eps,shear,                               &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,                &
                   shearproduction,totaltransport,                                       &
-                  tke,eps,shear,                                                        &
                   imax)
       rkh = rkm
     case DEFAULT
@@ -693,14 +682,12 @@ else
   select case(nlocal)
     case(0) ! no counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,  &
-                  ustar,dt,qgmin,1,0,tnaero,xtg,cgmap,                           &
-                  tke,eps,shear,                                                 &
+                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                        &
                   imax) 
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,  &
-                  ustar,dt,qgmin,1,0,tnaero,xtg,cgmap,                           &
-                  tke,eps,shear,                                                 &
+                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                        &
                   imax) 
       rkh = rkm
       do k = 1,kl
@@ -711,8 +698,7 @@ else
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac)
     case(7) ! mass-flux counter gradient
       call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,  &
-                  ustar,dt,qgmin,0,0,tnaero,xtg,cgmap,                           &
-                  tke,eps,shear,                                                 &
+                  ustar,dt,qgmin,0,0,cgmap,tke,eps,shear,                        &
                   imax) 
       rkh = rkm
     case DEFAULT
@@ -756,6 +742,15 @@ else
     at=cq*at
     ct=cq*ct
   end if
+  
+  ! Aerosols
+  if ( abs(iaero)>=2 ) then
+    do nt = 1,naero
+      rhs(:,:) = xtg(1:imax,:,nt) ! Total grid-box
+      call trim(at,ct,rhs)
+      xtg(1:imax,:,nt) = rhs(:,:)
+    end do
+  end if ! (abs(iaero)>=2)  
        
 end if ! nvmix/=6 ..else..
       
