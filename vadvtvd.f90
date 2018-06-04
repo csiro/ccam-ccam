@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -158,12 +158,11 @@ use vvel_m
 
 implicit none
 
+integer, intent(in) :: tile, imax
+integer, dimension(imax), intent(in) :: nits
+integer :: is, ie
 real, dimension(imax), intent(in) :: tfact
 real, dimension(:,:), intent(inout) :: tarr
-integer, dimension(imax), intent(in) :: nits
-integer, intent(in) :: tile, imax
-integer :: is, ie
-!
 real, dimension(imax,kl) :: ltarr
 real, dimension(imax,kl+1) :: lsdot
 
