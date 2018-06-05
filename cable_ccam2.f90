@@ -111,6 +111,7 @@ module cable_ccam
 use cable_air_module
 use cable_albedo_module
 use cable_canopy_module
+use cable_carbon_module
 use cable_ccam3
 use cable_ccam4
 use cable_common_module

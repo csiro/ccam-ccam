@@ -53,6 +53,7 @@ public ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
 public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim, ccnf_def_dimu
 public ccnf_def_var, ccnf_get_vara, ccnf_get_att, ccnf_get_attg
 public ccnf_read, ccnf_put_vara, ccnf_put_att, ccnf_put_attg
+public file_distribute
 public comm_ip
 
 interface histrd3
@@ -134,6 +135,9 @@ interface ccnf_put_vara
   module procedure ccnf_put_vara_double1r_s, ccnf_put_vara_double2r
 #endif
 end interface ccnf_put_vara
+interface file_distribute
+  module procedure file_distribute2
+end interface file_distribute
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, dimension(:), allocatable, save :: pprid
@@ -308,12 +312,12 @@ ier = 0
 
 if ( mynproc>0 ) then
     
-  allocate( rvar(pipan*pjpan*pnpan) )
+  allocate( rvar(pil*pjl*pnpan) )
       
   do ipf = 0,mynproc-1
 
     start  = (/ 1, 1, pprid(ipf), iarchi /)
-    ncount = (/ pipan, pjpan*pnpan, 1, 1 /)
+    ncount = (/ pil, pjl*pnpan, 1, 1 /)
     
     rvar(:) = 0. ! default for missing field
   
@@ -342,12 +346,12 @@ if ( mynproc>0 ) then
       
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca) = rvar(:)
     else
       ! e.g., mesonest file or nogather=.false.
       if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan) = rvar(1:pipan*pjpan*pnpan)
+        var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
       else if ( myid==0 ) then
         call host_hr3p(ipf,rvar,var)
       else
@@ -386,9 +390,9 @@ ier = 0
 if ( mynproc>0 ) then
     
   start  = (/ 1, 1, iarchi /)
-  ncount = (/ pipan, pjpan*pnpan, 1 /)
+  ncount = (/ pil, pjl*pnpan, 1 /)
     
-  allocate( rvar(pipan*pjpan*pnpan) )
+  allocate( rvar(pil*pjl*pnpan) )
   
   do ipf = 0,mynproc-1
 
@@ -419,12 +423,12 @@ if ( mynproc>0 ) then
       
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca)=rvar(:)
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
     else
       ! e.g., mesonest file or nogather=.false.
       if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan) = rvar(1:pipan*pjpan*pnpan)
+        var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
       else if ( myid==0 ) then
         call host_hr3p(ipf,rvar,var)
       else
@@ -450,8 +454,8 @@ implicit none
 integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j
 real, dimension(:), intent(inout) :: var
-real, dimension(pipan*pjpan*pnpan), intent(in) :: rvar
-real, dimension(pipan*pjpan*pnpan,fnresid) :: gvar 
+real, dimension(pil*pjl*pnpan), intent(in) :: rvar
+real, dimension(pil*pjl*pnpan,fnresid) :: gvar 
 
 call ccmpi_gatherx(gvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
@@ -459,9 +463,9 @@ do jpf = 1,fnresid
   do n = 0,pnpan-1
     no = n - pnoff(ip) + 1
     ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
-    cc = n*pipan*pjpan - pipan
-    do j = 1,pjpan
-      var(1+j*pil_g+ca:pipan+j*pil_g+ca) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,jpf)
+    cc = n*pil*pjl - pil
+    do j = 1,pjl
+      var(1+j*pil_g+ca:pil+j*pil_g+ca) = gvar(1+j*pil+cc:pil+j*pil+cc,jpf)
     end do
   end do
 end do
@@ -475,7 +479,7 @@ use cc_mpi
 
 implicit none
 
-real, dimension(pipan*pjpan*pnpan), intent(in) :: rvar
+real, dimension(pil*pjl*pnpan), intent(in) :: rvar
 real, dimension(0,0) :: gvar 
 
 call ccmpi_gatherx(gvar,rvar,0,comm_ip)
@@ -644,12 +648,12 @@ ier = 0
 
 if ( mynproc>0 ) then
 
-  allocate( rvar(pipan*pjpan*pnpan) )
+  allocate( rvar(pil*pjl*pnpan) )
 
   do ipf = 0,mynproc-1
 
     start  = (/ 1, 1, pprid(ipf), iarchi /)
-    ncount = (/ pipan, pjpan*pnpan, 1, 1 /)
+    ncount = (/ pil, pjl*pnpan, 1, 1 /)
     
     rvar(:) = 0._8 ! default for missing field
   
@@ -679,12 +683,12 @@ if ( mynproc>0 ) then
       
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca) = rvar(:)
     else
       ! e.g., mesonest file or nogather=.false.
       if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan) = rvar(1:pipan*pjpan*pnpan)
+        var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
       else if ( myid==0 ) then
         call host_hr3pr8(ipf,rvar,var)
       else
@@ -723,9 +727,9 @@ ier = 0
 if ( mynproc>0 ) then
 
   start  = (/ 1, 1, iarchi /)
-  ncount = (/ pipan, pjpan*pnpan, 1 /)
+  ncount = (/ pil, pjl*pnpan, 1 /)
       
-  allocate( rvar(pipan*pjpan*pnpan) )
+  allocate( rvar(pil*pjl*pnpan) )
 
   do ipf = 0,mynproc-1
 
@@ -756,12 +760,12 @@ if ( mynproc>0 ) then
       
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca)=rvar(:)
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca)=rvar(:)
     else
       ! e.g., mesonest file or nogather=.false.
       if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan) = rvar(1:pipan*pjpan*pnpan)
+        var(1:pil*pjl*pnpan) = rvar(1:pil*pjl*pnpan)
       else if ( myid==0 ) then
         call host_hr3pr8(ipf,rvar,var)
       else
@@ -787,8 +791,8 @@ implicit none
 integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j
 real(kind=8), dimension(:), intent(inout) :: var
-real(kind=8), dimension(pipan*pjpan*pnpan), intent(in) :: rvar
-real(kind=8), dimension(pipan*pjpan*pnpan,fnresid) :: gvar 
+real(kind=8), dimension(pil*pjl*pnpan), intent(in) :: rvar
+real(kind=8), dimension(pil*pjl*pnpan,fnresid) :: gvar 
 
 call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
 do jpf = 1,fnresid
@@ -796,9 +800,9 @@ do jpf = 1,fnresid
   do n = 0,pnpan-1
     no = n - pnoff(ip) + 1
     ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
-    cc = n*pipan*pjpan - pipan
-    do j = 1,pjpan
-      var(1+j*pil_g+ca:pipan+j*pil_g+ca) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,jpf)
+    cc = n*pil*pjl - pil
+    do j = 1,pjl
+      var(1+j*pil_g+ca:pil+j*pil_g+ca) = gvar(1+j*pil+cc:pil+j*pil+cc,jpf)
     end do
   end do
 end do
@@ -812,7 +816,7 @@ use cc_mpi
 
 implicit none
 
-real(kind=8), dimension(pipan*pjpan*pnpan), intent(in) :: rvar
+real(kind=8), dimension(pil*pjl*pnpan), intent(in) :: rvar
 real(kind=8), dimension(0,0) :: gvar 
 
 call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
@@ -1002,7 +1006,7 @@ ier = 0
 
 if ( mynproc>0 ) then
 
-  allocate( rvar(pipan*pjpan*pnpan,kk) )
+  allocate( rvar(pil*pjl*pnpan,kk) )
 
   do ipf = 0,mynproc-1
     
@@ -1010,7 +1014,7 @@ if ( mynproc>0 ) then
     ier = nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier==nf90_noerr ) then
       start(:)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
-      ncount(:) = (/ pipan, pjpan*pnpan, kk, 1, 1 /)   
+      ncount(:) = (/ pil, pjl*pnpan, kk, 1, 1 /)   
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
       if ( ier/=nf90_noerr ) laddoff = 0.
@@ -1027,7 +1031,7 @@ if ( mynproc>0 ) then
       rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
     else
       start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
-      ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
+      ncount(1:4) = (/ pil, pjl*pnpan, 1, 1 /)
       do k = 1,kk        
         write(newname,'("'//trim(name)//'",I3.3)') k
         ier = nf90_inq_varid(pncid(ipf),newname,idv)
@@ -1064,12 +1068,12 @@ if ( mynproc>0 ) then
 
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
     else
       ! e.g., mesonest file
       if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk) = rvar(1:pipan*pjpan*pnpan,1:kk)
+        var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
       else if ( myid==0 ) then
         call host_hr4p(ipf,rvar,var)
       else
@@ -1108,7 +1112,7 @@ ier = 0
 
 if ( mynproc>0 ) then
 
-  allocate( rvar(pipan*pjpan*pnpan,kk) )
+  allocate( rvar(pil*pjl*pnpan,kk) )
 
   do ipf = 0,mynproc-1
 
@@ -1116,7 +1120,7 @@ if ( mynproc>0 ) then
     ier = nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier==nf90_noerr ) then
       start  = (/ 1, 1, 1, iarchi /)
-      ncount = (/ pipan, pjpan*pnpan, kk, 1 /)   
+      ncount = (/ pil, pjl*pnpan, kk, 1 /)   
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
       if ( ier/=nf90_noerr ) laddoff = 0.
@@ -1133,7 +1137,7 @@ if ( mynproc>0 ) then
       rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
     else
       start(1:3) = (/ 1, 1, iarchi /)
-      ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
+      ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
       do k = 1,kk        
         write(newname,'("'//trim(name)//'",I3.3)') k
         ier = nf90_inq_varid(pncid(ipf),newname,idv)
@@ -1171,12 +1175,12 @@ if ( mynproc>0 ) then
 
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
     else
       ! e.g., mesonest file
       if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk) = rvar(1:pipan*pjpan*pnpan,1:kk)
+        var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
       else if ( myid==0 ) then
         call host_hr4p(ipf,rvar,var)
       else
@@ -1203,7 +1207,7 @@ integer, intent(in) :: ipf
 integer :: jpf, ip, n, no, ca, cc, j, k, kk
 real, dimension(:,:), intent(inout) :: var
 real, dimension(:,:), intent(in) :: rvar
-real, dimension(pipan*pjpan*pnpan,size(rvar,2),fnresid) :: gvar 
+real, dimension(pil*pjl*pnpan,size(rvar,2),fnresid) :: gvar 
 
 kk = size(var,2)
 
@@ -1219,9 +1223,9 @@ do jpf = 1,fnresid
     do n = 0,pnpan-1
       no = n - pnoff(ip) + 1   ! global panel number of local file
       ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-      cc = n*pipan*pjpan - pipan
-      do j = 1,pjpan
-        var(1+j*pil_g+ca:pipan+j*pil_g+ca,k) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,jpf)
+      cc = n*pil*pjl - pil
+      do j = 1,pjl
+        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = gvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
       end do
     end do
   end do
@@ -1426,7 +1430,7 @@ ier = 0
       
 if ( mynproc>0 ) then
     
-  allocate( rvar(pipan*pjpan*pnpan,kk) )
+  allocate( rvar(pil*pjl*pnpan,kk) )
 
   do ipf = 0,mynproc-1
     
@@ -1434,7 +1438,7 @@ if ( mynproc>0 ) then
     ier = nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier==nf90_noerr ) then
       start(:)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
-      ncount(:) = (/ pipan, pjpan*pnpan, kk, 1, 1 /)   
+      ncount(:) = (/ pil, pjl*pnpan, kk, 1, 1 /)   
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
       if ( ier/=nf90_noerr ) laddoff = 0.
@@ -1451,7 +1455,7 @@ if ( mynproc>0 ) then
       rvar(:,:) = rvar(:,:)*real(lsf,8) + real(laddoff,8)
     else
       start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
-      ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
+      ncount(1:4) = (/ pil, pjl*pnpan, 1, 1 /)
       do k = 1,kk        
         write(newname,'("'//trim(name)//'",I3.3)') k
         ier = nf90_inq_varid(pncid(ipf),newname,idv)
@@ -1489,12 +1493,12 @@ if ( mynproc>0 ) then
 
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
     else
       ! e.g., mesonest file
       if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk) = rvar(1:pipan*pjpan*pnpan,1:kk)
+        var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
       else if ( myid==0 ) then
         call host_hr4pr8(ipf,rvar,var)
       else
@@ -1533,7 +1537,7 @@ ier = 0
 
 if ( mynproc>0 ) then
 
-  allocate( rvar(pipan*pjpan*pnpan,kk) )
+  allocate( rvar(pil*pjl*pnpan,kk) )
       
   do ipf = 0,mynproc-1
 
@@ -1541,7 +1545,7 @@ if ( mynproc>0 ) then
     ier = nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier==nf90_noerr ) then
       start  = (/ 1, 1, 1, iarchi /)
-      ncount = (/ pipan, pjpan*pnpan, kk, 1 /)   
+      ncount = (/ pil, pjl*pnpan, kk, 1 /)   
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
       if ( ier/=nf90_noerr ) laddoff = 0.
@@ -1558,7 +1562,7 @@ if ( mynproc>0 ) then
       rvar(:,:) = rvar(:,:)*real(lsf,8) + real(laddoff,8)
     else
       start(1:3) = (/ 1, 1, iarchi /)
-      ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
+      ncount(1:3) = (/ pil, pjl*pnpan, 1 /)
       do k = 1,kk        
         write(newname,'("'//trim(name)//'",I3.3)') k
         ier = nf90_inq_varid(pncid(ipf),newname,idv)
@@ -1596,12 +1600,12 @@ if ( mynproc>0 ) then
 
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk) = rvar(:,:)
     else
       ! e.g., mesonest file
       if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk) = rvar(1:pipan*pjpan*pnpan,1:kk)
+        var(1:pil*pjl*pnpan,1:kk) = rvar(1:pil*pjl*pnpan,1:kk)
       else if ( myid==0 ) then
         call host_hr4pr8(ipf,rvar,var)
       else
@@ -1628,7 +1632,7 @@ integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j, k, kk
 real(kind=8), dimension(:,:), intent(inout) :: var
 real(kind=8), dimension(:,:), intent(in) :: rvar
-real(kind=8), dimension(pipan*pjpan*pnpan,size(rvar,2),fnresid) :: gvar 
+real(kind=8), dimension(pil*pjl*pnpan,size(rvar,2),fnresid) :: gvar 
 
 kk = size(var,2)
 if ( size(rvar,2)/=kk ) then
@@ -1643,9 +1647,9 @@ do jpf = 1,fnresid
     do n = 0,pnpan-1
       no = n - pnoff(ip) + 1   ! global panel number of local file
       ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-      cc = n*pipan*pjpan - pipan
-      do j = 1,pjpan
-        var(1+j*pil_g+ca:pipan+j*pil_g+ca,k) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,jpf)
+      cc = n*pil*pjl - pil
+      do j = 1,pjl
+        var(1+j*pil_g+ca:pil+j*pil_g+ca,k) = gvar(1+j*pil+cc:pil+j*pil+cc,k,jpf)
       end do
     end do
   end do
@@ -1832,14 +1836,14 @@ ier = 0
 
 if ( mynproc>0 ) then
     
-  allocate( rvar(pipan*pjpan*pnpan,kk,ll) )
+  allocate( rvar(pil*pjl*pnpan,kk,ll) )
       
   do ipf = 0,mynproc-1
     
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
     start(:)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
-    ncount(:) = (/ pipan, pjpan*pnpan, kk, ll, 1, 1 /)   
+    ncount(:) = (/ pil, pjl*pnpan, kk, ll, 1, 1 /)   
     ! obtain scaling factors and offsets from attributes
     ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
     if ( ier/=nf90_noerr ) laddoff = 0.
@@ -1857,12 +1861,12 @@ if ( mynproc>0 ) then
 
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
     else
       ! e.g., mesonest file
       if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk,1:ll) = rvar(1:pipan*pjpan*pnpan,1:kk,1:ll)
+        var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
       else if ( myid==0 ) then
         call host_hr5p(ipf,rvar,var)
       else
@@ -1900,7 +1904,7 @@ ier = 0
 
 if ( mynproc>0 ) then
 
-  allocate( rvar(pipan*pjpan*pnpan,kk,ll) )
+  allocate( rvar(pil*pjl*pnpan,kk,ll) )
       
   do ipf = 0,mynproc-1
 
@@ -1909,7 +1913,7 @@ if ( mynproc>0 ) then
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
     start  = (/ 1, 1, 1, 1, iarchi /)
-    ncount = (/ pipan, pjpan*pnpan, kk, ll, 1 /)   
+    ncount = (/ pil, pjl*pnpan, kk, ll, 1 /)   
     ! obtain scaling factors and offsets from attributes
     ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
     if ( ier/=nf90_noerr ) laddoff = 0.
@@ -1927,12 +1931,12 @@ if ( mynproc>0 ) then
 
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
     else
       ! e.g., mesonest file
       if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk,1:ll) = rvar(1:pipan*pjpan*pnpan,1:kk,1:ll)
+        var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
       else if ( myid==0 ) then
         call host_hr5p(ipf,rvar,var)
       else
@@ -1959,7 +1963,7 @@ integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j, k, l, ll, kk
 real, dimension(:,:,:), intent(inout) :: var
 real, dimension(:,:,:), intent(in) :: rvar
-real, dimension(pipan*pjpan*pnpan,size(var,2),size(var,3),fnresid) :: gvar 
+real, dimension(pil*pjl*pnpan,size(var,2),size(var,3),fnresid) :: gvar 
 
 kk = size(var,2)
 ll = size(var,3)
@@ -1976,9 +1980,9 @@ do jpf = 1,fnresid
       do n = 0,pnpan-1
         no = n - pnoff(ip) + 1   ! global panel number of local file
         ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-        cc = n*pipan*pjpan - pipan
-        do j = 1,pjpan
-          var(1+j*pil_g+ca:pipan+j*pil_g+ca,k,l) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,l,jpf)
+        cc = n*pil*pjl - pil
+        do j = 1,pjl
+          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = gvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
         end do
       end do
     end do
@@ -2168,7 +2172,7 @@ ier = 0
 
 if ( mynproc>0 ) then
     
-  allocate( rvar(pipan*pjpan*pnpan,kk,ll) )
+  allocate( rvar(pil*pjl*pnpan,kk,ll) )
       
   do ipf = 0,mynproc-1
     
@@ -2177,7 +2181,7 @@ if ( mynproc>0 ) then
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
     start(:)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
-    ncount(:) = (/ pipan, pjpan*pnpan, kk, ll, 1, 1 /)   
+    ncount(:) = (/ pil, pjl*pnpan, kk, ll, 1, 1 /)   
     ! obtain scaling factors and offsets from attributes
     ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
     if ( ier/=nf90_noerr ) laddoff = 0.
@@ -2195,12 +2199,12 @@ if ( mynproc>0 ) then
 
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
     else
       ! e.g., mesonest file
       if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk,1:ll) = rvar(1:pipan*pjpan*pnpan,1:kk,1:ll)
+        var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
       else if ( myid==0 ) then
         call host_hr5pr8(ipf,rvar,var)
       else
@@ -2238,7 +2242,7 @@ ier = 0
 
 if ( mynproc>0 ) then
 
-  allocate( rvar(pipan*pjpan*pnpan,kk,ll) )
+  allocate( rvar(pil*pjl*pnpan,kk,ll) )
       
   do ipf = 0,mynproc-1
     
@@ -2247,7 +2251,7 @@ if ( mynproc>0 ) then
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
     start  = (/ 1, 1, 1, 1, iarchi /)
-    ncount = (/ pipan, pjpan*pnpan, kk, ll, 1 /)   
+    ncount = (/ pil, pjl*pnpan, kk, ll, 1 /)   
     ! obtain scaling factors and offsets from attributes
     ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
     if ( ier/=nf90_noerr ) laddoff = 0.
@@ -2265,12 +2269,12 @@ if ( mynproc>0 ) then
 
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
+      ca = pil*pjl*pnpan*ipf
+      var(1+ca:pil*pjl*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
     else
       ! e.g., mesonest file
       if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk,1:ll) = rvar(1:pipan*pjpan*pnpan,1:kk,1:ll)
+        var(1:pil*pjl*pnpan,1:kk,1:ll) = rvar(1:pil*pjl*pnpan,1:kk,1:ll)
       else if ( myid==0 ) then
         call host_hr5pr8(ipf,rvar,var)
       else
@@ -2297,7 +2301,7 @@ integer, intent(in) :: ipf
 integer jpf, ip, n, no, ca, cc, j, k, l, kk, ll
 real(kind=8), dimension(:,:,:), intent(inout) :: var
 real(kind=8), dimension(:,:,:), intent(in) :: rvar
-real(kind=8), dimension(pipan*pjpan*pnpan,size(rvar,2),size(rvar,3),fnresid) :: gvar 
+real(kind=8), dimension(pil*pjl*pnpan,size(rvar,2),size(rvar,3),fnresid) :: gvar 
 
 kk = size(var,2)
 ll = size(var,3)
@@ -2314,9 +2318,9 @@ do jpf = 1,fnresid
       do n = 0,pnpan-1
         no = n - pnoff(ip) + 1   ! global panel number of local file
         ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-        cc = n*pipan*pjpan - pipan
-        do j = 1,pjpan
-          var(1+j*pil_g+ca:pipan+j*pil_g+ca,k,l) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,l,jpf)
+        cc = n*pil*pjl - pil
+        do j = 1,pjl
+          var(1+j*pil_g+ca:pil+j*pil_g+ca,k,l) = gvar(1+j*pil+cc:pil+j*pil+cc,k,l,jpf)
         end do
       end do  
     end do
@@ -2377,8 +2381,8 @@ if ( myid==0 ) then
   fnproc = 1              ! number of files to be read over all processors
   dmode = 0               ! Single file (dmode=0), Face decomposition (dmode=1),
                           ! Depreciated (dmode=2) or Uniform decomposition (dmode=3)
-  pipan = 0               ! Number of X grid points within a file panel
-  pjpan = 0               ! Number of Y grid points within a file panel
+  pil = 0                 ! Number of X grid points within a file panel
+  pjl = 0                 ! Number of Y grid points within a file panel
   pnpan = 0               ! Number of panels in file
   ptest = .false.         ! Files match current processor (e.g., Restart file), allowing MPI gather/scatter to be avoided
   pfall = .false.         ! Every processor has been assigned at least one file, no need to Bcast metadata data
@@ -2479,26 +2483,26 @@ if ( myid==0 ) then
         pnoff=1
         pioff=0
         pjoff=0
-        pipan=pil_g
-        pjpan=pil_g
+        pil=pil_g
+        pjl=pil_g
       case(1) ! face decomposition
         pnpan=max(1,6/fnproc)
         do ipf=0,fnproc-1
-          call face_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
+          call face_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
           pioff(ipf,:)=duma(:)
           pjoff(ipf,:)=dumb(:)
         end do
       case(2) ! old uniform decomposition
         pnpan=6
         do ipf=0,fnproc-1
-          call uniform_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
+          call uniform_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
           pioff(ipf,:)=duma(:)
           pjoff(ipf,:)=dumb(:)
         end do
       case(3) ! new uniform decomposition
         pnpan=6
         do ipf=0,fnproc-1
-          call dix_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
+          call dix_set(pil,pjl,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
           pioff(ipf,:)=duma(:)
           pjoff(ipf,:)=dumb(:)
         end do
@@ -2532,8 +2536,8 @@ if ( myid==0 ) then
     idum(2) = 0
   end if
   idum(3) = resprocmode
-  idum(4) = pipan
-  idum(5) = pjpan
+  idum(4) = pil
+  idum(5) = pjl
   idum(6) = pnpan
   if (ptest) then
     idum(7) = 1
@@ -2562,8 +2566,8 @@ call ccmpi_bcast(idum(1:12),0,comm_world)
 fnproc        = idum(1)      ! number of files to be read
 resprocformat = (idum(2)==1) ! test for procformat file format
 resprocmode   = idum(3)      ! base number of 'files' per input in procformat
-pipan         = idum(4)      ! width of panel in each file
-pjpan         = idum(5)      ! length of panel in each file
+pil           = idum(4)      ! width of panel in each file
+pjl           = idum(5)      ! length of panel in each file
 pnpan         = idum(6)      ! number of panels in each file
 ptest         = (idum(7)==1) ! test for match between files and processes
 ier           = idum(8)      ! file error flag
@@ -6463,5 +6467,87 @@ end if
 
 return
 end subroutine ncmsg
+
+subroutine file_distribute2(rvar,gvar)
+
+use cc_mpi
+
+implicit none
+
+! Convert standard 1D arrays to face form and distribute to processors
+real, dimension(:), intent(out) :: rvar
+real, dimension(:), intent(in), optional :: gvar
+
+call START_LOG(distribute_begin)
+
+! Copy internal region
+if ( myid==0 ) then
+  if ( .not.present(gvar) ) then
+    write(6,*) "Error: file_distribute argument required on proc 0"
+    call ccmpi_abort(-1)
+  end if
+  call host_filedistribute2(rvar,gvar)
+else
+  call proc_filedistribute2(rvar)
+end if
+
+call END_LOG(distribute_end)
+
+return
+end subroutine file_distribute2
+
+subroutine host_filedistribute2(rvar,gvar)
+
+use cc_mpi
+
+implicit none
+
+integer ipf, jpf, ip, n, fsize, no, ca, cc, j
+real, dimension(:), intent(out) :: rvar
+real, dimension(:), intent(in) :: gvar
+real, dimension(pil*pjl*pnpan,fnresid) :: bufvar
+
+fsize = pil*pjl*pnpan
+
+! map array in order of processor rank
+do ipf = 0,mynproc-1
+  do jpf = 1,fnresid
+    ip = ipf*fnresid + jpf - 1
+    do n = 0,pnpan-1
+      no = n - pnoff(ip) + 1
+      ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
+      cc = n*pil*pjl - pil
+      do j = 1,pjl
+        bufvar(1+j*pil+cc:pil+j*pil+cc,jpf) = gvar(1+j*pil_g+ca:pil+j*pil_g+ca)
+      end do
+    end do
+  end do    
+  ca = ipf*fsize
+  call ccmpi_scatterx(bufvar,rvar(1+ca:fsize+ca),0,comm_ip)
+end do
+
+return
+end subroutine host_filedistribute2
+
+subroutine proc_filedistribute2(rvar)
+   
+use cc_mpi
+
+implicit none
+
+integer ipf, fsize, ca
+real, dimension(:), intent(out) :: rvar
+real, dimension(0,0) :: bufvar
+
+fsize = pil*pjl*pnpan
+
+do ipf = 0,mynproc-1
+  ca = ipf*fsize
+  call ccmpi_scatterx(bufvar,rvar(1+ca:fsize+ca),0,comm_ip)
+end do
+
+return
+end subroutine proc_filedistribute2
+
 
 end module infile
