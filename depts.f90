@@ -67,7 +67,11 @@ end do
 call toij5(x3d,y3d,z3d)
 
 ! Share off processor departure points.
+!$omp barrier
+!$omp master
 call deptsync(nface,xg,yg)
+!$omp end master
+!$omp barrier
 
 if ( diag .and. mydiag .and. .not.using_omp ) then
   write(6,*) 'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
@@ -85,9 +89,12 @@ do k = 1,kl
   s(1:ifull,k,2) = vc(1:ifull,k)
   s(1:ifull,k,3) = wc(1:ifull,k)
 end do
-!$omp end do nowait
+!$omp end do
 
+!$omp master
 call bounds(s,nrows=2)
+!$omp end master
+!$omp barrier
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -132,8 +139,9 @@ if ( intsch==1 ) then
       end do          ! n loop
     end do              ! nn loop
   end do            ! k loop
-!$omp end do nowait
+!$omp end do
 
+!$omp master
   ! Loop over points that need to be calculated for other processes
   do ii = neighnum,1,-1
     do nn = 1,3
@@ -170,6 +178,8 @@ if ( intsch==1 ) then
   end do            ! ii loop
 
   call intssync_send(3)
+!$omp end master
+!$omp barrier
 
 !$omp do
   do k = 1,kl
@@ -203,7 +213,7 @@ if ( intsch==1 ) then
       end do   ! iq loop
     end do       ! nn loop
   end do     ! k loop
-!$omp end do nowait
+!$omp end do
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -250,8 +260,9 @@ else     ! if(intsch==1)then
       end do              ! n loop
     end do                  ! nn loop
   end do                ! k loop
-!$omp end do nowait
+!$omp end do
 
+!$omp master
   ! For other processes
   do ii = neighnum,1,-1
     do nn = 1,3
@@ -287,6 +298,8 @@ else     ! if(intsch==1)then
   end do              ! ii
 
   call intssync_send(3)
+!$omp end master
+!$omp barrier
 
 !$omp do
   do k = 1,kl
@@ -320,12 +333,15 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do              ! nn loop
   end do            ! k loop
-!$omp end do nowait
+!$omp end do
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
+!$omp master
 call intssync_recv(s)
+!$omp end master
+!$omp barrier
 
 !$omp do
 do k = 1,kl
@@ -337,7 +353,11 @@ end do
 
 call toij5(x3d,y3d,z3d)
 !     Share off processor departure points.
+!$omp barrier
+!$omp master
 call deptsync(nface,xg,yg)
+!$omp end master
+!$omp barrier
 
 if ( diag .and. mydiag .and. .not.using_omp ) then
   write(6,*) '2nd guess for k = ',nlv
@@ -348,6 +368,7 @@ end if
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
 
+!$omp master
   ! Loop over points that need to be calculated for other processes
   do ii = neighnum,1,-1
     do nn = 1,3
@@ -384,6 +405,8 @@ if ( intsch==1 ) then
   end do            ! ii loop
 
   call intssync_send(3)
+!$omp end master
+!$omp barrier
 
 !$omp do
   do k = 1,kl
@@ -417,12 +440,13 @@ if ( intsch==1 ) then
       end do   ! iq loop
     end do       ! nn loop
   end do     ! k loop
-!$omp end do nowait
+!$omp end do
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 
+!$omp master
   ! For other processes
   do ii = neighnum,1,-1
     do nn = 1,3
@@ -459,6 +483,8 @@ else     ! if(intsch==1)then
   end do              ! ii
 
   call intssync_send(3)
+!$omp end master
+!$omp barrier
 
 !$omp do
   do k = 1,kl
@@ -493,12 +519,15 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do              ! k loop
   end do            ! nn loop
-!$omp end do nowait
+!$omp end do
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
+!$omp master
 call intssync_recv(s)
+!$omp end master
+!$omp barrier
 
 !$omp do
 do k = 1,kl
@@ -517,7 +546,11 @@ if ( diag .and. mydiag .and. .not.using_omp ) then
 end if
 
 ! Share off processor departure points.
+!$omp barrier
+!$omp master
 call deptsync(nface,xg,yg)
+!$omp end master
+!$omp barrier
 
 !$omp master
 call END_LOG(depts_end)
