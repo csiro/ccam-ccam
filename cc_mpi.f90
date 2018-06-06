@@ -4781,7 +4781,7 @@ contains
       integer :: rcount, jproc, mproc, ntr, iq, k, l
       integer :: nstart, nend, ntot
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag, llen, sreq, lproc
+      integer(kind=4) :: ierr, itag=3, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
@@ -4789,11 +4789,9 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif  
-      real, dimension(nagg*maxbuflen*maxvertlen,neighnum) :: sbuf, rbuf
 
       call START_LOG(bounds_begin)
       
-      itag = 3000 + ccomp_get_thread_num()
       kx = size(t,2)
       ntr = size(t,3)
       double = .false.
@@ -4845,7 +4843,7 @@ contains
                nreq = nreq + 1
                rlist(nreq) = iproc
                llen = recv_len*kx*ntot
-               call MPI_IRecv( rbuf(:,iproc), llen, ltype, lproc, &
+               call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                     itag, lcomm, ireq(nreq), ierr )
             end if
          end do
@@ -4858,13 +4856,13 @@ contains
                   do k = 1,kx 
 !$omp simd
                      do iq = 1,send_len
-                        sbuf(iq+(k-1)*send_len+(l-1)*send_len*kx,iproc) = t(bnds(lproc)%send_list(iq),k,l+nstart-1)
+                        bnds(lproc)%sbuf(iq+(k-1)*send_len+(l-1)*send_len*kx) = t(bnds(lproc)%send_list(iq),k,l+nstart-1)
                      end do
                   end do
                end do   
                nreq = nreq + 1
                llen = send_len*kx*ntot
-               call MPI_ISend( sbuf(:,iproc), llen, ltype, lproc, &
+               call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                     itag, lcomm, ireq(nreq), ierr )
             end if
          end do
@@ -4885,7 +4883,7 @@ contains
 !$omp simd
                      do iq = 1,rslen(iproc)  
                         t(ifull+bnds(lproc)%unpack_list(iq),k,l+nstart-1)              &
-                             = rbuf(iq+(k-1)*rslen(iproc)+(l-1)*rslen(iproc)*kx,iproc)
+                             = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc)+(l-1)*rslen(iproc)*kx)
                      end do
                   end do
                end do   
@@ -5426,7 +5424,7 @@ contains
       logical :: fsuev, fnnueev
       integer :: iq, iqz, iproc, kx, rproc, sproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode, k
-      integer(kind=4) :: ierr, itag, llen, sreq, lproc
+      integer(kind=4) :: ierr, itag=6, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
@@ -5438,7 +5436,6 @@ contains
 
       call START_LOG(boundsuv_begin)
       
-      itag = 6000 + ccomp_get_thread_num()
       kx = size(u, 2)
       double = .false.
       extra = .false.
@@ -5822,7 +5819,7 @@ contains
       integer :: ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf
       integer :: rcount
-      integer(kind=4) :: itag, ierr, llen, ncount, sreq, lproc
+      integer(kind=4) :: itag=99, ierr, llen, ncount, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(MPI_STATUS_SIZE,neighnum) :: status
       integer(kind=4), dimension(neighnum) :: donelist
@@ -5837,7 +5834,6 @@ contains
 
       call START_LOG(deptsync_begin)      
       
-      itag = 9000 + ccomp_get_thread_num()
       kx = size(nface,2)
       dslen(:) = 0
       drlen(:) = 0
@@ -5953,7 +5949,7 @@ contains
    subroutine intssync_send(ntr)
       integer, intent(in) :: ntr
       integer :: iproc
-      integer(kind=4) :: itag, ierr, llen, lproc, lcomm
+      integer(kind=4) :: itag=98, ierr, llen, lproc, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -5963,7 +5959,6 @@ contains
       call START_LOG(intssync_begin)
       
       ! When sending the results, roles of dslen and drlen are reversed
-      itag = 8000 + ccomp_get_thread_num()
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
