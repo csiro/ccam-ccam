@@ -80,19 +80,19 @@ if ( intsch==1 ) then
       do n = 1,npan
 !$omp simd
         do j = 1,jpan
-          iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+          iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
           sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
-          iq = j*ipan+(n-1)*ipan*jpan
+          iq = j*ipan + (n-1)*ipan*jpan
           sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
 !$omp simd
         do i = 1,ipan
-          iq = i+(n-1)*ipan*jpan
+          iq = i + (n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s(is(iq),k,nn)
           sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
-          iq = i-ipan+n*ipan*jpan
+          iq = i - ipan + n*ipan*jpan
           sx(i,jpan+1,n,k,nn) = s(in(iq),k,nn)
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
         end do            ! i loop

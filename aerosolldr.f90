@@ -981,22 +981,28 @@ bbem=emissfield(:,ibcb1)+emissfield(:,ibcb2)+1.3*(emissfield(:,iocb1)+emissfield
 ! ZVDRD(JL,2)  FOR AEROSOLS
 gdp=1./(rhoa(:,1)*dz(:,1))
 
-zhilso2=xtg(1:imax,1,itracso2)*(1.-exp(-ztmst*zvdrd(:,1)/dz(:,1)))/(ztmst*gdp)
+zhilso2=(xtg(1:imax,1,itracso2)+xte(1:imax,1,itracso2)*ztmst)   &
+       *(1.-exp(-ztmst*zvdrd(:,1)/dz(:,1)))/(ztmst*gdp)
 xte(:,1,ITRACSO2)  =xte(:,1,ITRACSO2)  -zhilso2*gdp
   
-zhilso4=xtg(1:imax,1,itracso4)*(1.-exp(-ztmst*zvdrd(:,2)/dz(:,1)))/(ztmst*gdp)
+zhilso4=(xtg(1:imax,1,itracso4)+xte(1:imax,1,itracso4)*ztmst)   &
+       *(1.-exp(-ztmst*zvdrd(:,2)/dz(:,1)))/(ztmst*gdp)
 xte(:,1,ITRACSO4)  =xte(:,1,ITRACSO4)  -zhilso4*gdp
 
-ZHILBCO=xtg(1:imax,1,ITRACBC)*(1.-exp(-ztmst*ZVDPHOBIC/dz(:,1)))/(ztmst*gdp)
+ZHILBCO=(xtg(1:imax,1,ITRACBC)+xte(1:imax,1,itracbc)*ztmst)     &
+       *(1.-exp(-ztmst*ZVDPHOBIC/dz(:,1)))/(ztmst*gdp)
 xte(:,1,itracbc)  =xte(:,1,itracbc)    -zhilbco*gdp
 
-ZHILBCY=xtg(1:imax,1,ITRACBC+1)*(1.-exp(-ztmst*ZVDRD(:,2)/dz(:,1)))/(ztmst*gdp)
+ZHILBCY=(xtg(1:imax,1,ITRACBC+1)+xte(1:imax,1,itracbc+1)*ztmst) &
+       *(1.-exp(-ztmst*ZVDRD(:,2)/dz(:,1)))/(ztmst*gdp)
 xte(:,1,itracbc+1)=xte(:,1,itracbc+1)  -zhilbcy*gdp
 
-ZHILOCO=xtg(1:imax,1,ITRACOC)*(1.-exp(-ztmst*ZVDPHOBIC/dz(:,1)))/(ztmst*gdp)
+ZHILOCO=(xtg(1:imax,1,ITRACOC)+xte(1:imax,1,itracoc)*ztmst)     &
+       *(1.-exp(-ztmst*ZVDPHOBIC/dz(:,1)))/(ztmst*gdp)
 xte(:,1,itracoc)  =xte(:,1,itracoc)    -zhiloco*gdp
 
-ZHILOCY=xtg(1:imax,1,ITRACOC+1)*(1.-exp(-ztmst*ZVDRD(:,2)/dz(:,1)))/(ztmst*gdp)
+ZHILOCY=(xtg(1:imax,1,ITRACOC+1)+xte(1:imax,1,itracoc+1)*ztmst) &
+       *(1.-exp(-ztmst*ZVDRD(:,2)/dz(:,1)))/(ztmst*gdp)
 xte(:,1,itracoc+1)=xte(:,1,itracoc+1)  -zhilocy*gdp
 
 so2dd=so2dd+zhilso2

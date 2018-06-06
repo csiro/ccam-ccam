@@ -29,7 +29,10 @@
 ! and ice processes.  Currently the code assumes the hydrostatic
 ! approximation which is reasonably valid to 1km resolution.
 
-! Ocean and sea-ice dynamics are based on the R-grid used by CCAM
+! Ocean and sea-ice dynamics are based on the R-grid used by CCAM.
+! sigma-z coordinates are used by the ocean to improve coastal
+! regions.  Flexible nudging options are used for error correction
+! (see nesting.f90).
 
 module mlodynamics
 
@@ -117,7 +120,7 @@ call boundsuv(eeu,eev,nrows=2)
 
 wtr = abs(ee-1.)<0.
 
-! The following is for the in-line MLO ocean model ------------------
+! The following is for the in-line MLO model ------------------------
 
 ! Calculate depth arrays (free suface term is included later)
 allocate( dd(ifull+iextra) )
@@ -289,7 +292,6 @@ call START_LOG(waterdiff_begin)
 
 ! Define diffusion scale and grid spacing
 hdif = dt*(ocnsmag/pi)**2
-!emi = max(dd(1:ifull)+etain(1:ifull), minwater)/em(1:ifull)
 emi = dd(1:ifull)/em(1:ifull)
 
 ! extract data from MLO
@@ -305,13 +307,13 @@ call unpack_svwu(eeu,eev,eev_s,eeu_w)
 do k = 1,wlev
   call unpack_nveu(uau(:,k),uav(:,k),v_n,u_e)  
   call unpack_svwu(uau(:,k),uav(:,k),v_s,u_w)
-  dudx = 0.5*((u_e-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
+  dudx = 0.5*((u_e-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull)        &
              +(uau(1:ifull,k)-u_w)*emu_w*eeu_w)/ds
   dudy = 0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
              +(uau(1:ifull,k)-uau(isu,k))*emv_s*eev_s)/ds
   dvdx = 0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
              +(uav(1:ifull,k)-uav(iwv,k))*emu_w*eeu_w)/ds
-  dvdy = 0.5*((v_n-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
+  dvdy = 0.5*((v_n-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull)        &
              +(uav(1:ifull,k)-v_s)*emv_s*eev_s)/ds
 
   !t_kh(1:ifull,k) = sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
@@ -427,7 +429,7 @@ end subroutine mlodiffusion_main
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine implements some basic hydrostatic dynamics for the
 ! ocean and ice.  The ocean component employs the R-grid design used
-! in CCAM semi-Lagragain dynamics, but uses sigma z vertical
+! in CCAM semi-Lagragain dynamics, but uses sigma-z vertical
 ! coordinates.  The staggered/unstaggered pivoting has been modified
 ! for the land-sea boundary.  Sea-ice is advected using an upwind
 ! scheme.  Internal sea-ice pressure follows a cavitating fluid
@@ -517,7 +519,9 @@ real(kind=8), dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
-! sigma = (z+neta)/(D+neta)
+! Vertical coordinates are defined as:
+!   sigma = (z+neta)/(D+neta)
+! which was optimised for coastal modelling problems.
 
 ! We use a modified form of JLM's trick where:
 !   dP/dx+f dP/dy = dP/dx + d(fP)/dy - P df/dy

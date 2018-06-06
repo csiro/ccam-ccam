@@ -205,12 +205,11 @@ end subroutine tkeinit
 ! mode=1 no mass flux
 
 subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,rhos,      &
-                  ustar_ave,dt,qgmin,mode,diag,naero,aero,cgmap,                          &
+                  ustar_ave,dt,qgmin,mode,diag,cgmap,tke,eps,shear,                       &
 #ifdef scm
                   wthflux,wqvflux,uwflux,vwflux,mfout,buoyproduction,                     &
                   shearproduction,totaltransport,                                         &
 #endif
-                  tke,eps,shear,                                                          &
 #ifdef offline
                   mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up,ents_up,dtrs_up,wthl,wqv,wql,wqf, &
 #endif
@@ -219,11 +218,10 @@ subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,r
 implicit none
 
 integer, intent(in) :: imax
-integer, intent(in) :: diag,mode,naero
+integer, intent(in) :: diag,mode
 integer k, j, imax_p
 integer kcount, mcount
 real, intent(in) :: dt, qgmin
-real, dimension(:,:,:), intent(inout) :: aero
 real, dimension(:,:), intent(inout) :: theta,cfrac,uo,vo
 real, dimension(:,:), intent(inout) :: qvg,qlg,qfg
 real, dimension(imax,kl), intent(out) :: kmo
@@ -235,7 +233,6 @@ real, dimension(imax), intent(inout) :: zi
 real, dimension(imax), intent(in) :: fg,eg,ps,zom,rhos,cgmap
 real, dimension(imax), intent(out) :: ustar_ave
 real, dimension(kl), intent(in) :: sig
-real, dimension(imax,kl,naero) :: arup
 real, dimension(imax,kl) :: km,thetav,thetal,qsat
 real, dimension(imax,kl) :: qsatc,qgnc,ff
 real, dimension(imax,kl) :: thetalhl,thetavhl
@@ -385,9 +382,6 @@ do kcount = 1,mcount
   qlup(:,:) = qlg(1:imax,:)
   qfup(:,:) = qfg(1:imax,:)
   cfup(:,:) = cfrac(1:imax,:)
-  if ( naero>0 ) then
-    arup(:,:,:) = aero(1:imax,:,:)
-  end if
 
 #ifdef scm
   mfout(:,:)=0.
@@ -410,10 +404,10 @@ do kcount = 1,mcount
 
     lmask = wtv0(1:imax)>0. ! unstable
     imax_p = count(lmask)
-    call plumerise(imax_p,naero,lmask,cm12,                           &
-                   zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,arup,       &
-                   zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,aero,km,  &
-                   ustar,wt0,wq0,wtv0,ps,                             &
+    call plumerise(imax_p,lmask,cm12,                            &
+                   zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,       &
+                   zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,km,  &
+                   ustar,wt0,wq0,wtv0,ps,                        &
                    sig,sigkap,tke,eps,imax)
 
     ! turn off MF term if small grid spacing
@@ -732,23 +726,8 @@ do kcount = 1,mcount
   call thomas(cfrac,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
   cfrac(1:imax,:)=min(max(cfrac(1:imax,:),0.),1.)
 
-
-  ! Aerosol vertical mixing
-  do j=1,naero
-    dd(:,1)=aero(1:imax,1,j)-ddts*(mflx(:,1)*arup(:,1,j)*(1.-fzzh(:,1))*idzp(:,1)                                &
-                                   +mflx(:,2)*arup(:,2,j)*fzzh(:,1)*idzp(:,1))
-    dd(:,2:kl-1)=aero(1:imax,2:kl-1,j)+ddts*(mflx(:,1:kl-2)*arup(:,1:kl-2,j)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)  &
-                                             +mflx(:,2:kl-1)*arup(:,2:kl-1,j)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)      &
-                                             -mflx(:,2:kl-1)*arup(:,2:kl-1,j)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1) &
-                                             -mflx(:,3:kl)*arup(:,3:kl,j)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-    dd(:,kl)=aero(1:imax,kl,j)+ddts*(mflx(:,kl-1)*arup(:,kl-1,j)*(1.-fzzh(:,kl-1))*idzm(:,kl)                    &
-                                     +mflx(:,kl)*arup(:,kl,j)*fzzh(:,kl-1)*idzm(:,kl))
-    call thomas(aero(:,:,j),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
-    aero(:,:,j) = max( aero(:,:,j), 0. )    
-  end do
-
-
-  ! wind vertical mixing
+  
+  ! momentum vertical mixing
   aa(:,2:kl)  =qq(:,2:kl)
   cc(:,1:kl-1)=rr(:,1:kl-1)
   bb(:,1)=1.-cc(:,1)+ddts*rhos*cdrag*umag/(rhoa(:,1)*dz_fl(:,1)) ! implicit
@@ -807,19 +786,17 @@ end subroutine tkemix
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Plume rise model
     
-subroutine plumerise(imax_p,naero,lmask,cm12,                               &
-                     zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,arup,           &
-                     zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,aero,km,      &
-                     ustar,wt0,wq0,wtv0,ps,                                 &
+subroutine plumerise(imax_p,lmask,cm12,                                &
+                     zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,           &
+                     zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,km,      &
+                     ustar,wt0,wq0,wtv0,ps,                            &
                      sig,sigkap,tke,eps,imax)
 
 integer, intent(in) :: imax
-integer, intent(in) :: imax_p, naero
-integer k, j, ktopmax
+integer, intent(in) :: imax_p
+integer k, ktopmax
 real, dimension(imax,kl), intent(inout) :: mflx, tlup, qvup, qlup, qfup, cfup
-real, dimension(imax,kl,naero), intent(inout) :: arup
 real, dimension(imax), intent(inout) :: zi, wstar
-real, dimension(:,:,:), intent(in) :: aero
 real, dimension(:,:), intent(in) :: theta, qvg, qlg, qfg
 real, dimension(imax,kl), intent(in) :: zz, thetal, thetav, km 
 real, dimension(imax,kl-1), intent(in) :: dz_hl
@@ -829,11 +806,10 @@ real, intent(in) :: cm12
 real, dimension(imax,kl), intent(inout) :: tke
 real, dimension(imax,kl), intent(in) :: eps
 real, dimension(imax_p,kl) :: mflx_p, tlup_p, qvup_p, qlup_p, qfup_p, cfup_p
-real, dimension(imax_p,kl) :: arup_p
 real, dimension(imax_p,kl) :: zz_p
 real, dimension(imax_p,kl-1) :: dz_hl_p
 real, dimension(imax_p,kl) ::  qtup, thup, tvup, w2up, nn
-real, dimension(imax_p) :: zi_p, aero_p, tke_p, eps_p, km_p, thetal_p, theta_p, thetav_p
+real, dimension(imax_p) :: zi_p, tke_p, eps_p, km_p, thetal_p, theta_p, thetav_p
 real, dimension(imax_p) :: qvg_p, qlg_p, qfg_p
 real, dimension(imax_p) :: ustar_p, wstar_p, wt0_p, wq0_p, wtv0_p, ps_p
 real, dimension(imax_p) :: tke1, dzht, ent, templ, pres, sigqtup, upf, qxup, qupsat
@@ -850,7 +826,6 @@ if ( imax_p==0 ) then
   qvup(:,:) = qvg(1:imax,:)
   qlup(:,:) = qlg(1:imax,:)
   qfup(:,:) = qfg(1:imax,:)
-  arup(:,:,:) = aero(1:imax,:,:)
   cfup(:,:) = 0.
   return
 end if
@@ -1017,24 +992,6 @@ do k = 2,ktopmax
   elsewhere
     mflx_p(:,k) = 0.
   end where
-end do
-
-! update reamining scalars which are not used in the iterative loop
-do j = 1,naero
-  aero_p = pack( aero(1:imax,1,j), lmask )  
-  arup_p(:,1) = aero_p
-  arup(:,1,j) = unpack( arup_p(:,1), lmask, arup(:,1,j) )
-  do k = 2,ktopmax
-    dzht = dz_hl_p(:,k-1)
-    ent = entfn(zz_p(:,k),zi_p(:))
-    aero_p = pack( aero(1:imax,k,j), lmask )
-    where ( w2up(:,k-1)>0. )
-      arup_p(:,k) = (arup_p(:,k-1)+dzht*ent*aero_p)/(1.+dzht*ent)
-    elsewhere
-      arup_p(:,k) = aero_p
-    end where
-    arup(:,k,j) = unpack( arup_p(:,k), lmask, aero(1:imax,k,j) )
-  end do
 end do
 
 ! unpacking
