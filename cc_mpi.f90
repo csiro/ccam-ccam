@@ -4748,7 +4748,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
-      integer :: rcount, jproc, mproc, ntr, iq, k, l
+      integer :: rcount, jproc, mproc, ntr, iq, k, l, kk
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
@@ -4818,16 +4818,18 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
+            kk = 0
             do k = 1,kx 
+               kk = kk + 1
                do l = 1,ntr
 !$omp simd
                   do iq = 1,send_len
-                     sbuf(iq+(l-1)*send_len+(k-1)*send_len*ntr,iproc) = t(bnds(lproc)%send_list(iq),k,l)
+                     sbuf(iq+(l-1)*send_len+(kk-1)*send_len*ntr,iproc) = t(bnds(lproc)%send_list(iq),k,l)
                   end do
                end do
             end do   
             nreq = nreq + 1
-            llen = send_len*kx*ntr
+            llen = send_len*kk*ntr
             call MPI_ISend( sbuf(:,iproc), llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -4844,12 +4846,14 @@ contains
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
+            kk = 0
             do k = 1,kx 
+               kk = kk + 1
                do l = 1,ntr
 !$omp simd
                   do iq = 1,rslen(iproc)  
                      t(ifull+bnds(lproc)%unpack_list(iq),k,l)                           &
-                          = rbuf(iq+(l-1)*rslen(iproc)+(k-1)*rslen(iproc)*ntr,iproc)
+                          = rbuf(iq+(l-1)*rslen(iproc)+(kk-1)*rslen(iproc)*ntr,iproc)
                   end do
                end do
             end do   
