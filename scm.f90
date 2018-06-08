@@ -63,7 +63,7 @@ use ateb, only : atebnmlfile             & ! Urban
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
-    ,gs_switch,cable_climate
+    ,gs_switch,cable_climate,ccycle
 use carbpools_m, only : carbpools_init   & ! Carbon pools
     ,fpn,frs,frp
 use cc_mpi                                 ! CC MPI routines
@@ -1199,6 +1199,82 @@ if ( scm_mode=="sublime" ) then
   deallocate(height_in, height_model)  
   
   tss = t(:,1)
+  
+else if ( scm_mode=="CCAM" ) then  
+    
+  write(6,*) "Loading MET initial conditions"
+  call ccnf_open(metforcing,ncid,ncstatus)
+    
+  call ccnf_inq_dimlen(ncid,'alt',nlev)
+ 
+  allocate( height_in(nlev), height_model(kl) )
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'alt',spos(1:3),npos(1:3),height_in)
+  
+  ! surface pressure
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, 1 /)
+  call ccnf_get_vara(ncid,'ps',spos(1:3),npos(1:3),ps)
+  psl(:) = log(ps(:)/1.e5)
+  
+  ! terrain height
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, 1 /)
+  call ccnf_get_vara(ncid,'zs',spos(1:3),npos(1:3),zs)
+  zs(1) = zs(1)*grav ! convert to geopotential
+  
+  allocate( dat_in(nlev), new_in(nlev) )
+
+  ! potential temperature
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'theta',spos(1:3),npos(1:3),dat_in)
+
+  ! need to iterate to get consistent solution with temperature
+  do i = 1,5
+    height_model(1) = bet(1)*t(1,1)/grav
+    do k = 2,kl
+      height_model(k) = height_model(k-1) + (bet(k)*t(1,k) + betm(k)*t(1,k-1))/grav
+    end do
+    call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+    do k=1,kl
+      t(1,k) = datout(k)*(1.e5/(ps(1)*sig(k)))**(-rdry/cp)
+    end do
+  end do ! iterative i loop
+  write(6,*) "height_model ",height_model(1:kl)
+  write(6,*) "temperature_model ",t(1,1:kl)
+  
+  ! U wind
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'u',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  u(1,1:kl) = datout
+    
+  ! V wind
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'v',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  v(1,1:kl) = datout
+  
+  ! qv mixing ratio
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'mixr',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  qg(1,1:kl) = max(datout,2.e-7)
+  
+  ! ignore tke initial conditions for now
+  
+  call ccnf_close(ncid)
+  
+  deallocate(dat_in, new_in )
+  deallocate(height_in, height_model)  
+  
+  tss = t(:,1)
+  
     
 else if ( scm_mode=="gabls4" ) then
   if ( .not.lsmonly ) then
@@ -1988,6 +2064,156 @@ if ( scm_mode=="sublime" ) then
     end if
   end if  
   
+elseif ( scm_mode=="CCAM" ) then
+    
+  if ( iarch_nudge==0 ) then
+    iarch_nudge = 1 
+    if ( allocated(ug) ) then
+      deallocate( ug, vg, t_tend, q_tend )
+      deallocate( uadv, vadv, wadv )
+      deallocate( time_file )
+      deallocate( theta_adv, qv_adv, u_adv, v_adv, w_adv )
+      deallocate( theta_adv_a, theta_adv_b, qv_adv_a, qv_adv_b )
+      deallocate( u_adv_a, u_adv_b, v_adv_a, v_adv_b )
+      deallocate( w_adv_a, w_adv_b )
+      deallocate( height_file_b, height_file )
+      call ccnf_close(ncid)
+    end if
+    time_a = -1.
+    time_b = -1.
+
+    allocate( ug(kl), vg(kl), t_tend(kl), q_tend(kl) )
+    allocate( uadv(kl), vadv(kl), wadv(0:kl) )
+    
+    call ccnf_open(metforcing,ncid,ncstatus)
+    call ccnf_inq_dimlen(ncid,'alt',nlev)
+    
+    call ccnf_inq_dimlen(ncid,'time',ntimes)
+    
+    allocate( time_file(ntimes) )
+    allocate( theta_adv(nlev), qv_adv(nlev), u_adv(nlev), v_adv(nlev), w_adv(nlev) )
+    allocate( theta_adv_a(nlev), theta_adv_b(nlev), qv_adv_a(nlev), qv_adv_b(nlev) )
+    allocate( u_adv_a(nlev), u_adv_b(nlev), v_adv_a(nlev), v_adv_b(nlev) )
+    allocate( w_adv_a(nlev), w_adv_b(nlev) )
+    allocate( height_file_b(nlev), height_file(nlev) )
+    
+    do l = 1,ntimes
+      time_file(l) = real(l-1)*3600.*(54./real(ntimes-1))
+    end do
+
+    spos(1:3) = (/ 1, 1, 1 /)
+    npos(1:3) = (/ 1, 1, nlev /)
+    call ccnf_get_vara(ncid,'alt',spos(1:3),npos(1:3),height_file_b)
+    
+    ! theta advection
+    call ccnf_get_vara(ncid,'theta',spos,npos,theta_adv_b)
+    
+    ! water vapor mixing ratio advection
+    call ccnf_get_vara(ncid,'mixr',spos,npos,qv_adv_b)
+    
+    ! momentum advection
+    call ccnf_get_vara(ncid,'u',spos,npos,u_adv_b)
+    call ccnf_get_vara(ncid,'v',spos,npos,v_adv_b)
+    
+    ! vertical velocity
+    call ccnf_get_vara(ncid,'w',spos,npos,w_adv_b)
+    
+  end if
+  
+  if ( time_ktau>time_b ) then
+    write(6,*) "Updating MET forcing"  
+    iarch_nudge = iarch_nudge + 1
+    time_a = time_file(iarch_nudge-1)
+    time_b = time_file(iarch_nudge)
+    
+    spos(1:4) = (/ 1, 1, 1, iarch_nudge /)
+    npos(1:4) = (/ 1, 1, nlev, 1 /)
+
+    theta_adv_a = theta_adv_b
+    call ccnf_get_vara(ncid,'theta',spos,npos,theta_adv_b)
+    qv_adv_a = qv_adv_b
+    call ccnf_get_vara(ncid,'mixr',spos,npos,qv_adv_b)    
+    u_adv_a = u_adv_b    
+    call ccnf_get_vara(ncid,'u',spos,npos,u_adv_b)
+    v_adv_a = v_adv_b
+    call ccnf_get_vara(ncid,'v',spos,npos,v_adv_b)
+    w_adv_a = w_adv_b
+    call ccnf_get_vara(ncid,'w',spos,npos,w_adv_b)
+    
+    call ccnf_get_vara(ncid,'ps',spos(4:4),npos(4:4),psurf_in(1:1))
+    psl(:) = log(psurf_in/1.e5)
+    
+  end if
+
+  height_model(1) = bet(1)*t(1,1)/grav
+  do k = 2,kl
+    height_model(k) = height_model(k-1) + (bet(k)*t(1,k) + betm(k)*t(1,k-1))/grav
+  end do
+  
+  hl_model(0) = 0.
+  hl_model(1) = (-rdry/grav)*(dsig(1)/sig(1))*t(1,1)
+  do k = 2,kl
+    hl_model(k) = hl_model(k-1) + t(1,k)*(-rdry/grav)*(dsig(k)/sig(k))
+  end do
+
+  do k = 1,kl
+    dz_model(k) = hl_model(k) - hl_model(k-1)  
+  end do
+  
+  x = (time_ktau - time_a)/(time_b-time_a)
+  height_file(:) = height_file_b(:)
+  theta_adv(:) = (1.-x)*theta_adv_a(:) + x*theta_adv_b(:)
+  qv_adv(:) = (1.-x)*qv_adv_a(:) + x*qv_adv_b(:)
+  u_adv(:) = (1.-x)*u_adv_a(:) + x*u_adv_b(:)
+  v_adv(:) = (1.-x)*v_adv_a(:) + x*v_adv_b(:)
+  w_adv(:) = (1.-x)*w_adv_a(:) + x*w_adv_b(:)
+  
+  ug = u(1,:)
+  vg = v(1,:)
+  call vinterp2m(height_file,height_model,u_adv,uadv,nlev,kl)
+  call vinterp2m(height_file,height_model,v_adv,vadv,nlev,kl)
+  call vinterp2m(height_file,height_model,theta_adv,tadv,nlev,kl)
+  call vinterp2m(height_file,height_model,qv_adv,qadv,nlev,kl)
+  wadv(0) = 0.
+  call vinterp2m(height_file,hl_model(1:kl),w_adv,wadv(1:kl),nlev,kl)
+  wadv(kl) = 0.
+  do k = 1,kl
+    tadv(k) = tadv(k)*(1.e5/(sig(k)*ps(1)))**(-rdry/cp) ! convert from potential temperature to temperature
+  end do  
+  uadv = (uadv - u(1,:))*dt/(3600.*real(nud_hrs))
+  vadv = (vadv - v(1,:))*dt/(3600.*real(nud_hrs))
+  tadv = (tadv - t(1,:))*dt/(3600.*real(nud_hrs))
+  qadv = (qadv - qg(1,:))*dt/(3600.*real(nud_hrs))
+  
+  ! apply vertical velocity
+  ! dq/dt + w*dq/dz = dq/dt + d(w*q)/dz - q*dw/dz
+  ! split form
+  ! dq/dt + d(w*q)/dz = 0, dq/dt -q*dw/dz=0
+  
+  if ( vert_adv .and. ktau>0 ) then
+    call vertadv(t,wadv,height_model,dz_model)
+    call vertadv(u,wadv,height_model,dz_model)
+    call vertadv(v,wadv,height_model,dz_model)
+    call vertadv(qg,wadv,height_model,dz_model)
+    if ( ldr/=0 ) then
+      call vertadv(qlg,wadv,height_model,dz_model)
+      call vertadv(qfg,wadv,height_model,dz_model)
+      if ( ncloud>=4 ) then
+        call vertadv(stratcloud,wadv,height_model,dz_model)  
+      end if
+    end if
+    if ( nvmix==6 ) then
+      call vertadv(eps,wadv,height_model,dz_model)
+      call vertadv(tke,wadv,height_model,dz_model)
+    end if
+    if ( abs(iaero)>=2 ) then
+      do ntr = 1,naero
+        call vertadv(xtg(:,:,ntr),wadv,height_model,dz_model)  
+      end do
+    end if
+  end if  
+    
+  
 elseif ( scm_mode=="gabls4" ) then
     
   uadv(:) = 0.
@@ -2325,7 +2551,7 @@ vtype='double'
 vtype='float'
 #endif
 
-if ( scm_mode=="sublime" ) then
+if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
 
   if ( firstcall ) then
     write(6,*) "Creating time output file"  

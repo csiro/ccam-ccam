@@ -4143,35 +4143,30 @@ implicit none
 integer k, n, is, ie
 
 if ( mp_global>0 ) then
+
+! MJT notes - may be better to use the default values for
+! carbon pools than interpolate low resolution data
     
-  if ( ccycle==0 ) then
-    !do k = 1,ncp
-    !  call cable_pack(cplant(:,k),bgc%cplant(:,k))
-    !end do
-    !do k = 1,ncs
-    !  call cable_pack(csoil(:,k),bgc%csoil(:,k))
-    !end do
-  else if ( ccycle>=1 .and. ccycle<=3 ) then
-    do k = 1,mplant
-      call cable_pack(cplant(:,k),casapool%cplant(:,k))
-      call cable_pack(niplant(:,k),casapool%nplant(:,k))
-      call cable_pack(pplant(:,k),casapool%pplant(:,k))
-    end do
-    do k = 1,mlitter
-      call cable_pack(clitter(:,k),casapool%clitter(:,k))
-      call cable_pack(nilitter(:,k),casapool%nlitter(:,k))
-      call cable_pack(plitter(:,k),casapool%plitter(:,k))
-    end do
-    do k = 1,msoil
-      call cable_pack(csoil(:,k),casapool%csoil(:,k))
-      call cable_pack(nisoil(:,k),casapool%nsoil(:,k))
-      call cable_pack(psoil(:,k),casapool%psoil(:,k))
-    end do
-    !call cable_pack(vlai,casamet%glai(:))
-  else
-    write(6,*) "ERROR: Unknown ccycle option ",ccycle
-    call ccmpi_abort(-1)
-  end if
+!  if ( ccycle>=1 .and. ccycle<=3 ) then
+!    do k = 1,mplant
+!      call cable_pack(cplant(:,k),casapool%cplant(:,k))
+!      call cable_pack(niplant(:,k),casapool%nplant(:,k))
+!      call cable_pack(pplant(:,k),casapool%pplant(:,k))
+!    end do
+!    do k = 1,mlitter
+!      call cable_pack(clitter(:,k),casapool%clitter(:,k))
+!      call cable_pack(nilitter(:,k),casapool%nlitter(:,k))
+!      call cable_pack(plitter(:,k),casapool%plitter(:,k))
+!    end do
+!    do k = 1,msoil
+!      call cable_pack(csoil(:,k),casapool%csoil(:,k))
+!      call cable_pack(nisoil(:,k),casapool%nsoil(:,k))
+!      call cable_pack(psoil(:,k),casapool%psoil(:,k))
+!    end do
+!  else
+!    write(6,*) "ERROR: Unknown ccycle option ",ccycle
+!    call ccmpi_abort(-1)
+!  end if
  
   call fixtile
   

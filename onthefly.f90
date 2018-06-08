@@ -47,7 +47,6 @@ integer, save :: ik, jk, kk, ok, nsibx                        ! input grid size
 integer fwsize                                                ! size of temporary arrays
 integer, save :: fill_land = 0                                ! number of iterations required for land fill
 integer, save :: fill_sea = 0                                 ! number of iterations required for ocean fill
-integer, save :: fill_nourban = 0                             ! number of iterations required for urban fill
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
 real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
@@ -348,6 +347,7 @@ real, dimension(:,:), intent(out) :: ocndwn
 real, dimension(:,:), intent(out) :: wb, wbice, tgg
 real, dimension(:,:), intent(out) :: tggsn, smass, ssdn
 real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
+real, dimension(:,:), allocatable :: ucc3
 real, dimension(:), intent(out) :: psl, zss, tss, fracice
 real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
@@ -363,7 +363,7 @@ logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tsstest, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found
-logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
+logical, dimension(:), allocatable, save :: land_a, sea_a
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
@@ -420,9 +420,9 @@ if ( .not.allocated(nface4) ) then
 end if
 if ( newfile ) then
   if ( allocated(sigin) ) then
-    deallocate( sigin, gosig_in, land_a, sea_a, nourban_a )
+    deallocate( sigin, gosig_in, land_a, sea_a )
   end if
-  allocate( sigin(kk), gosig_in(ok), land_a(fwsize), sea_a(fwsize), nourban_a(fwsize) )
+  allocate( sigin(kk), gosig_in(ok), land_a(fwsize), sea_a(fwsize) )
 end if
       
 !--------------------------------------------------------------------
@@ -432,7 +432,6 @@ if ( newfile .and. .not.iop_test ) then
   ! reset fill counter
   fill_land = 0
   fill_sea = 0
-  fill_nourban = 0
     
   allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
   xx4 => xx4_dummy
@@ -514,7 +513,7 @@ if ( newfile .and. .not.iop_test ) then
       
 end if ! newfile .and. .not.iop_test
 
-allocate( ucc(fwsize), tss_a(fwsize) )
+allocate( ucc(fwsize), tss_a(fwsize), ucc3(fwsize,3) )
 if ( fnproc==1 ) then
   allocate( sx(-1:ik+2,-1:ik+2,0:npanels,kblock) )  
 else
@@ -647,20 +646,6 @@ if ( newfile ) then
     if ( .not.allocated(ocndep_l) ) allocate(ocndep_l(ifull))
     call gethist1('ocndepth',ocndep_l)
   end if
-  
-  ! read urban data mask
-  if ( nurban/=0 ) then  
-    if ( .not.iop_test ) then
-      if ( fnproc==1 ) then  
-        call histrd3(iarchi,ier,'rooftgg1',ik,ucc,6*ik*ik,nogather=.false.)
-      else
-        call histrd3(iarchi,ier,'rooftgg1',ik,ucc,6*ik*ik,nogather=.true.)
-      end if
-      if ( fwsize>0 ) then
-        nourban_a = ucc>=399.
-      end if
-    end if  
-  end if  
     
   if ( myid==0 ) write(6,*) "Finished reading invariant fields"
   
@@ -865,15 +850,23 @@ else
     if ( fnproc==1 ) then
       if ( myid==0 ) then
         call fill_cc1_gather(tss_l_a,sea_a)
-        call fill_cc1_gather(tss_s_a,land_a)
-        call fill_cc1_gather(sicedep_a,land_a)
-        call fill_cc1_gather(fracice_a,land_a)
+        ucc3(:,1) = tss_s_a
+        ucc3(:,2) = sicedep_a
+        ucc3(:,3) = fracice_a
+        call fill_cc1_gather(ucc3(:,1:3),land_a)
+        tss_s_a   = ucc3(:,1)
+        sicedep_a = ucc3(:,2)
+        fracice_a = ucc3(:,3)
       end if
     else
       call fill_cc1_nogather(tss_l_a,sea_a,fill_sea)
-      call fill_cc1_nogather(tss_s_a,land_a,fill_land)
-      call fill_cc1_nogather(sicedep_a,land_a,fill_land)
-      call fill_cc1_nogather(fracice_a,land_a,fill_land)
+      ucc3(:,1) = tss_s_a
+      ucc3(:,2) = sicedep_a
+      ucc3(:,3) = fracice_a
+      call fill_cc1_nogather(ucc3(:,1:3),land_a,fill_land)
+      tss_s_a   = ucc3(:,1)
+      sicedep_a = ucc3(:,2)
+      fracice_a = ucc3(:,3)
     end if
   end if ! fwsize>0
 
@@ -1520,118 +1513,159 @@ if ( nested/=1 ) then
 
   !------------------------------------------------------------------
   ! Read CABLE/CASA aggregate C+N+P pools
-  if ( nsib>=6 ) then
-    if ( ccycle==0 ) then
-      !if ( carbon_found ) then
-      !  do k=1,ncp
-      !    write(vname,'("cplant",I1.1)') k
-      !    call fillhist1(vname,cplant(:,k),sea_a,fill_sea)
-      !  end do
-      !  do k=1,ncs
-      !    write(vname,'("csoil",I1.1)') k
-      !    call fillhist1(vname,csoil(:,k),sea_a,fill_sea)
-      !  end do
-      !end if
-    else
-      if ( carbon_found ) then
-        call fillhist4('cplant',cplant,sea_a,fill_sea)
-        call fillhist4('nplant',niplant,sea_a,fill_sea)
-        call fillhist4('pplant',pplant,sea_a,fill_sea)
-        call fillhist4('clitter',clitter,sea_a,fill_sea)
-        call fillhist4('nlitter',nilitter,sea_a,fill_sea)
-        call fillhist4('plitter',plitter,sea_a,fill_sea)
-        call fillhist4('csoil',csoil,sea_a,fill_sea)
-        call fillhist4('nsoil',nisoil,sea_a,fill_sea)
-        call fillhist4('psoil',psoil,sea_a,fill_sea)
-        !call fillhist1('glai',glai,sea_a,fill_sea)
-      end if ! carbon_found
-    end if   ! ccycle==0 ..else..
-  end if     ! if nsib==6.or.nsib==7
+  !if ( nsib>=6 ) then
+  !  if ( ccycle/=0 ) then
+  !    if ( carbon_found ) then
+  !      call fillhist4('cplant',cplant,sea_a,fill_sea)
+  !      call fillhist4('nplant',niplant,sea_a,fill_sea)
+  !      call fillhist4('pplant',pplant,sea_a,fill_sea)
+  !      call fillhist4('clitter',clitter,sea_a,fill_sea)
+  !      call fillhist4('nlitter',nilitter,sea_a,fill_sea)
+  !      call fillhist4('plitter',plitter,sea_a,fill_sea)
+  !      call fillhist4('csoil',csoil,sea_a,fill_sea)
+  !      call fillhist4('nsoil',nisoil,sea_a,fill_sea)
+  !      call fillhist4('psoil',psoil,sea_a,fill_sea)
+  !    end if ! carbon_found
+  !  end if   ! ccycle==0 ..else..
+  !end if     ! if nsib==6.or.nsib==7
 
   !------------------------------------------------------------------
   ! Read urban data
   if ( nurban/=0 ) then
     if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,5))
-    call fillhist4('rooftgg',atebdwn(:,1:5),nourban_a,fill_nourban)
+    call gethist4('rooftgg',atebdwn(:,1:5))
     do k = 1,5
       write(vname,'("rooftemp",I1.1)') k
       where ( atebdwn(:,k)>150. )  
         atebdwn(:,k) = atebdwn(:,k) - urbtemp
-      end where 
+      end where
+      where ( atebdwn(:,k)>100. .or. atebdwn(:,k)<-100. )
+        atebdwn(:,k) = tss - urbtemp
+      end where  
       call atebloadd(atebdwn(:,k),vname,0)
     end do  
-    call fillhist4('waletgg',atebdwn(:,1:5),nourban_a,fill_nourban)
+    call gethist4('waletgg',atebdwn(:,1:5))
     do k = 1,5
       write(vname,'("walletemp",I1.1)') k
       where ( atebdwn(:,k)>150. )  
         atebdwn(:,k) = atebdwn(:,k) - urbtemp
       end where 
+      where ( atebdwn(:,k)>100. .or. atebdwn(:,k)<-100. )
+        atebdwn(:,k) = tss - urbtemp
+      end where
       call atebloadd(atebdwn(:,k),vname,0)
     end do  
-    call fillhist4('walwtgg',atebdwn(:,1:5),nourban_a,fill_nourban)
+    call gethist4('walwtgg',atebdwn(:,1:5))
     do k = 1,5
       write(vname,'("wallwtemp",I1.1)') k
       where ( atebdwn(:,k)>150. )  
         atebdwn(:,k) = atebdwn(:,k) - urbtemp
       end where 
+      where ( atebdwn(:,k)>100. .or. atebdwn(:,k)<-100. )
+        atebdwn(:,k) = tss - urbtemp
+      end where
       call atebloadd(atebdwn(:,k),vname,0)
     end do  
-    call fillhist4('roadtgg',atebdwn(:,1:5),nourban_a,fill_nourban)
+    call gethist4('roadtgg',atebdwn(:,1:5))
     do k = 1,5
       write(vname,'("roadtemp",I1.1)') k
       where ( atebdwn(:,k)>150. )  
         atebdwn(:,k) = atebdwn(:,k) - urbtemp
       end where 
+      where ( atebdwn(:,k)>100. .or. atebdwn(:,k)<-100. )
+        atebdwn(:,k) = tss - urbtemp
+      end where
       call atebloadd(atebdwn(:,k),vname,0)
     end do  
-    call fillhist4('slabtgg',atebdwn(:,1:5),nourban_a,fill_nourban)
+    call gethist4('slabtgg',atebdwn(:,1:5))
     do k = 1,5
       write(vname,'("slabtemp",I1.1)') k
       where ( atebdwn(:,k)>150. )  
         atebdwn(:,k) = atebdwn(:,k) - urbtemp
       end where 
+      where ( atebdwn(:,k)>100. .or. atebdwn(:,k)<-100. )
+        atebdwn(:,k) = tss - urbtemp
+      end where
       call atebloadd(atebdwn(:,k),vname,0)
     end do  
-    call fillhist4('intmtgg',atebdwn(:,1:5),nourban_a,fill_nourban)
+    call gethist4('intmtgg',atebdwn(:,1:5))
     do k = 1,5
       write(vname,'("intmtemp",I1.1)') k 
       where ( atebdwn(:,k)>150. )  
         atebdwn(:,k) = atebdwn(:,k) - urbtemp
       end where 
+      where ( atebdwn(:,k)>100. .or. atebdwn(:,k)<-100. )
+        atebdwn(:,k) = tss - urbtemp
+      end where
       call atebloadd(atebdwn(:,k),vname,0)
     end do  
-    call fillhist1('roomtgg1',atebdwn(:,1),nourban_a,fill_nourban)
+    call gethist1('roomtgg1',atebdwn(:,1))
     where ( atebdwn(:,1)>150. )
       atebdwn(:,1) = atebdwn(:,1) - urbtemp
     end where
+    where ( atebdwn(:,1)>100. .or. atebdwn(:,1)<-100. )
+      atebdwn(:,1) = tss - urbtemp
+    end where
     call atebloadd(atebdwn(:,1),"roomtemp",0)
-    call fillhist1('urbnsmc',atebdwn(:,1),nourban_a,fill_nourban)
+    call gethist1('urbnsmc',atebdwn(:,1))
+    where ( atebdwn(:,1)>100. .or. atebdwn(:,1)<0. )
+      atebdwn(:,1) = 0.
+    end where
     call atebloadd(atebdwn(:,1),"canyonsoilmoisture",0)
-    call fillhist1('urbnsmr',atebdwn(:,1),nourban_a,fill_nourban)
+    call gethist1('urbnsmr',atebdwn(:,1))
+    where ( atebdwn(:,1)>100. .or. atebdwn(:,1)<0. )
+      atebdwn(:,1) = 0.
+    end where
     call atebloadd(atebdwn(:,1),"roofsoilmoisture",0)
-    call fillhist1('roofwtr',atebdwn(:,1),nourban_a,fill_nourban)
+    call gethist1('roofwtr',atebdwn(:,1))
+    where ( atebdwn(:,1)>100. .or. atebdwn(:,1)<0. )
+      atebdwn(:,1) = 0.
+    end where
     call atebloadd(atebdwn(:,1),"roadsurfacewater",0)
-    call fillhist1('roadwtr',atebdwn(:,1),nourban_a,fill_nourban)
+    call gethist1('roadwtr',atebdwn(:,1))
+    where ( atebdwn(:,1)>100. .or. atebdwn(:,1)<0. )
+      atebdwn(:,1) = 0.
+    end where
     call atebloadd(atebdwn(:,1),"roofsurfacewater",0)
-    call fillhist1('urbwtrc',atebdwn(:,1),nourban_a,fill_nourban)
+    call gethist1('urbwtrc',atebdwn(:,1))
+    where ( atebdwn(:,1)>100. .or. atebdwn(:,1)<0. )
+      atebdwn(:,1) = 0.
+    end where
     call atebloadd(atebdwn(:,1),"canyonleafwater",0)
-    call fillhist1('urbwtrr',atebdwn(:,1),nourban_a,fill_nourban)
+    call gethist1('urbwtrr',atebdwn(:,1))
+    where ( atebdwn(:,1)>100. .or. atebdwn(:,1)<0. )
+      atebdwn(:,1) = 0.
+    end where
     call atebloadd(atebdwn(:,1),"roofleafwater",0)
-    call fillhist1('roofsnd',atebdwn(:,1),nourban_a,fill_nourban)
+    call gethist1('roofsnd',atebdwn(:,1))
+    where ( atebdwn(:,1)>100. .or. atebdwn(:,1)<0. )
+      atebdwn(:,1) = 0.
+    end where
     call atebloadd(atebdwn(:,1),"roadsnowdepth",0)
-    call fillhist1('roadsnd',atebdwn(:,1),nourban_a,fill_nourban)
+    call gethist1('roadsnd',atebdwn(:,1))
+    where ( atebdwn(:,1)>100. .or. atebdwn(:,1)<0. )
+      atebdwn(:,1) = 0.
+    end where
     call atebloadd(atebdwn(:,1),"roofsnowdepth",0)
-    call fillhist1('roofden',atebdwn(:,1),nourban_a,fill_nourban)
-    if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
+    call gethist1('roofden',atebdwn(:,1))
+    where ( atebdwn(:,1)>500. .or. atebdwn(:,1)<1. )
+      atebdwn(:,1) = 100.
+    end where
     call atebloadd(atebdwn(:,1),"roadsnowdensity",0)
-    call fillhist1('roadden',atebdwn(:,1),nourban_a,fill_nourban)
-    if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
+    call gethist1('roadden',atebdwn(:,1))
+    where ( atebdwn(:,1)>500. .or. atebdwn(:,1)<1. )
+      atebdwn(:,1) = 100.
+    end where
     call atebloadd(atebdwn(:,1),"roofsnowdensity",0)
-    call fillhist1('roofsna',atebdwn(:,1),nourban_a,fill_nourban)
-    if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
+    call gethist1('roofsna',atebdwn(:,1))
+    where ( atebdwn(:,1)>1. .or. atebdwn(:,1)<1.e-20 )
+      atebdwn(:,1) = 0.85
+    end where
     call atebloadd(atebdwn(:,1),"roadsnowalbedo",0)
-    call fillhist1('roadsna',atebdwn(:,1),nourban_a,fill_nourban)
-    if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
+    call gethist1('roadsna',atebdwn(:,1))
+    where ( atebdwn(:,1)>1. .or. atebdwn(:,1)<1.e-20 )
+      atebdwn(:,1) = 0.85
+    end where
     call atebloadd(atebdwn(:,1),"roofsnowalbedo",0)
     deallocate( atebdwn )
   end if
@@ -1829,7 +1863,7 @@ if ( nested/=1 ) then
         
 endif    ! (nested/=1)
 
-deallocate( ucc, tss_a )
+deallocate( ucc, tss_a, ucc3 )
 deallocate( sx )
 
 !**************************************************************
@@ -3016,6 +3050,7 @@ implicit none
 integer, intent(inout) :: fill_count      
 real, dimension(fwsize), intent(inout) :: ucc, vcc
 real, dimension(fwsize) :: wcc
+real, dimension(fwsize,3) :: zcc3
 real, dimension(fwsize) :: uc, vc, wc
 real, dimension(ifull), intent(out) :: uct, vct
 real, dimension(ifull) :: wct
@@ -3052,9 +3087,13 @@ else
       wcc(1:fwsize) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
       ! interpolate all required arrays to new C-C positions
       ! do not need to do map factors and Coriolis on target grid
-      call fill_cc1_nogather(ucc, mask_a, fill_count)
-      call fill_cc1_nogather(vcc, mask_a, fill_count)
-      call fill_cc1_nogather(wcc, mask_a, fill_count)
+      zcc3(:,1) = ucc
+      zcc3(:,2) = vcc
+      zcc3(:,3) = wcc
+      call fill_cc1_nogather(zcc3(:,1:3), mask_a, fill_count)
+      ucc = zcc3(:,1)
+      vcc = zcc3(:,2)
+      wcc = zcc3(:,3)
     end if
     call doints1_nogather(ucc, uct)
     call doints1_nogather(vcc, vct)
@@ -3071,9 +3110,13 @@ else
       wcc(1:6*ik*ik) = uc(1:6*ik*ik)*rotpoles(3,1) + vc(1:6*ik*ik)*rotpoles(3,2) + wc(1:6*ik*ik)*rotpoles(3,3)
       ! interpolate all required arrays to new C-C positions
       ! do not need to do map factors and Coriolis on target grid
-      call fill_cc1_gather(ucc, mask_a)
-      call fill_cc1_gather(vcc, mask_a)
-      call fill_cc1_gather(wcc, mask_a)
+      zcc3(:,1) = ucc
+      zcc3(:,2) = vcc
+      zcc3(:,3) = wcc
+      call fill_cc1_gather(zcc3(:,1:3), mask_a)
+      ucc = zcc3(:,1)
+      vcc = zcc3(:,2)
+      wcc = zcc3(:,3)
     end if ! myid==0
     call doints1_gather(ucc, uct)
     call doints1_gather(vcc, vct)
