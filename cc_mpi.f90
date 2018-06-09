@@ -10449,7 +10449,7 @@ contains
       ! set up buffers
       do jproc = 1,fileneighnum
          iproc = fileneighlist(jproc)
-         xlen = maxvertlen*filebnds(iproc)%rlenx
+         xlen = nagg*maxvertlen*filebnds(iproc)%rlenx
          if ( bnds(iproc)%rbuflen < xlen ) then
             if ( bnds(iproc)%rbuflen > 0 ) then
                deallocate( bnds(iproc)%rbuf )
@@ -10459,7 +10459,7 @@ contains
             allocate( bnds(iproc)%r8buf(xlen) )
             bnds(iproc)%rbuflen = xlen
          end if
-         xlen = maxvertlen*filebnds(iproc)%slenx
+         xlen = nagg*maxvertlen*filebnds(iproc)%slenx
          if ( bnds(iproc)%sbuflen < xlen ) then
             if ( bnds(iproc)%sbuflen > 0 ) then
                deallocate( bnds(iproc)%sbuf )
