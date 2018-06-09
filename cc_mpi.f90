@@ -10073,7 +10073,7 @@ contains
       real, dimension(:,:), intent(in) :: sinp
       real, dimension(:,:,:), intent(out) :: abuf
       real, dimension(pipan*pjpan*pnpan,size(sinp,2),size(filemap_recv)) :: bbuf
-      real, dimension(pipan*pjpan*pnpan,size(sinp,2),fncount) :: cbuf
+      real, dimension(pipan*pjpan*pnpan,size(sinp,2),mynproc) :: cbuf
 
       call START_LOG(gatherwin_begin)
 
@@ -10083,7 +10083,7 @@ contains
       lsize = nlen*kx
       lcomm = comm_world
       
-      do ipf = 0,fncount-1
+      do ipf = 0,mynproc-1
          cc = nlen*ipf 
          cbuf(1:nlen,1:kx,ipf+1) = sinp(1+cc:nlen+cc,1:kx)
       end do  
