@@ -2880,6 +2880,8 @@ implicit none
 integer klow, khigh, k
 real siglow, sighigh
 
+if ( mbd==0 ) return
+
 siglow = sig(kbotdav) - sigramplow
 sighigh = sig(ktopdav) + sigramphigh
 

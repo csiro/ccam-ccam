@@ -411,18 +411,21 @@ if ( myid<nproc ) then
       
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
-      call START_LOG(nestin_begin)
       if ( mspec==1 ) then
         if ( mbd/=0 .or. (mbd_mlo/=0.and.namip==0) ) then
           ! scale-selective filter
+          call START_LOG(nestin_begin)
           call nestinb
+          call nantest("after nesting",1,ifull)      
+          call END_LOG(nestin_end)
         else if ( nbd/=0 ) then
           ! Newtonian relaxiation
+          call START_LOG(nestin_begin)
           call davies
+          call nantest("after nesting",1,ifull)      
+          call END_LOG(nestin_end)
         end if
       end if
-      call nantest("after nesting",1,ifull)      
-      call END_LOG(nestin_end)
     
       
       ! DYNAMICS --------------------------------------------------------------
@@ -2895,9 +2898,9 @@ if ( myid<nproc ) then
   call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
   if ( nbd/=0 .or. mbd/=0 ) then
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      call dav_init(ifull,kl,naero,nbd)
+      call dav_init(ifull,kl,naero,nbd,mbd)
     else
-      call dav_init(ifull,kl,0,nbd)
+      call dav_init(ifull,kl,0,nbd,mbd)
     end if
   end if
   ! Remaining arrays are allocated in indata.f90, since their
@@ -3146,7 +3149,12 @@ if ( myid<nproc ) then
     rewind 11
     write(11,*) nrun
     write(11,cardin)
+    write(11,skyin)
     write(11,datafile)
+    write(11,kuonml)
+    write(11,turbnml)
+    write(11,landnml)
+    write(11,mlonml)
     close(11)
   end if
 
