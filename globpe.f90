@@ -971,7 +971,7 @@ if ( myid<nproc ) then
   end if
   
   ! close mesonest files
-  if ( mbd/=0 .or. nbd/=0 ) then
+  if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) ) then
     call histclose
   end if
 
