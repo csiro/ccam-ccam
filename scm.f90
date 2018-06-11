@@ -2100,7 +2100,7 @@ elseif ( scm_mode=="CCAM" ) then
     allocate( height_file_b(nlev), height_file(nlev) )
     
     do l = 1,ntimes
-      time_file(l) = real(l-1)*3600.*(54./real(ntimes-1))
+      time_file(l) = real(l)*21600.
     end do
 
     spos(1:1) = (/ 1 /)
@@ -2170,6 +2170,7 @@ elseif ( scm_mode=="CCAM" ) then
   end do
   
   x = (time_ktau - time_a)/(time_b-time_a)
+  x = min(max(x,0.),1.)
   height_file(:) = height_file_b(:)
   theta_adv(:) = (1.-x)*theta_adv_a(:) + x*theta_adv_b(:)
   qv_adv(:) = (1.-x)*qv_adv_a(:) + x*qv_adv_b(:)
