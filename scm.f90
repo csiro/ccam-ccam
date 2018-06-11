@@ -786,7 +786,8 @@ do spinup = spinup_start,1,-1
     call nantest("after radiation",1,ifull)   
 
     call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
-    
+    call nantest("after nudging",1,ifull)
+
     ! REPLACE SCM WITH INPUT DATA, PRIOR TO SFLUX
     if ( lsm_only ) then
       call replace_scm(lsmforcing,noradiation,nocloud,noconvection,novertmix)
@@ -1208,14 +1209,15 @@ else if ( scm_mode=="CCAM" ) then
   call ccnf_inq_dimlen(ncid,'alt',nlev)
  
   allocate( height_in(nlev), height_model(kl) )
-  spos(1:3) = (/ 1, 1, 1 /)
-  npos(1:3) = (/ 1, 1, nlev /)
-  call ccnf_get_vara(ncid,'alt',spos(1:3),npos(1:3),height_in)
+  spos(1:1) = (/ 1 /)
+  npos(1:1) = (/ nlev /)
+  call ccnf_get_vara(ncid,'alt',spos(1:1),npos(1:1),height_in)
   
   ! surface pressure
   spos(1:3) = (/ 1, 1, 1 /)
   npos(1:3) = (/ 1, 1, 1 /)
   call ccnf_get_vara(ncid,'ps',spos(1:3),npos(1:3),ps)
+  ps = ps*100.
   psl(:) = log(ps(:)/1.e5)
   
   ! terrain height
@@ -2101,10 +2103,14 @@ elseif ( scm_mode=="CCAM" ) then
       time_file(l) = real(l-1)*3600.*(54./real(ntimes-1))
     end do
 
-    spos(1:3) = (/ 1, 1, 1 /)
-    npos(1:3) = (/ 1, 1, nlev /)
-    call ccnf_get_vara(ncid,'alt',spos(1:3),npos(1:3),height_file_b)
-    
+    spos(1:1) = (/ 1 /)
+    npos(1:1) = (/ nlev /)
+
+    call ccnf_get_vara(ncid,'alt',spos(1:1),npos(1:1),height_file_b)
+
+    spos(1:4) = (/ 1, 1, 1, iarch_nudge /)
+    npos(1:4) = (/ 1, 1, nlev, 1 /)
+
     ! theta advection
     call ccnf_get_vara(ncid,'theta',spos,npos,theta_adv_b)
     
@@ -2139,8 +2145,11 @@ elseif ( scm_mode=="CCAM" ) then
     call ccnf_get_vara(ncid,'v',spos,npos,v_adv_b)
     w_adv_a = w_adv_b
     call ccnf_get_vara(ncid,'w',spos,npos,w_adv_b)
-    
-    call ccnf_get_vara(ncid,'ps',spos(4:4),npos(4:4),psurf_in(1:1))
+
+    spos(1:3) = (/ 1, 1, iarch_nudge /)
+    npos(1:3) = (/ 1, 1, 1 /)
+    call ccnf_get_vara(ncid,'ps',spos(1:3),npos(1:3),psurf_in(1:1))
+    psurf_in = psurf_in*100.
     psl(:) = log(psurf_in/1.e5)
     
   end if
@@ -2180,10 +2189,10 @@ elseif ( scm_mode=="CCAM" ) then
   do k = 1,kl
     tadv(k) = tadv(k)*(1.e5/(sig(k)*ps(1)))**(-rdry/cp) ! convert from potential temperature to temperature
   end do  
-  uadv = (uadv - u(1,:))*dt/(3600.*real(nud_hrs))
-  vadv = (vadv - v(1,:))*dt/(3600.*real(nud_hrs))
-  tadv = (tadv - t(1,:))*dt/(3600.*real(nud_hrs))
-  qadv = (qadv - qg(1,:))*dt/(3600.*real(nud_hrs))
+  uadv = (uadv - u(1,:))/(3600.*real(nud_hrs))
+  vadv = (vadv - v(1,:))/(3600.*real(nud_hrs))
+  tadv = (tadv - t(1,:))/(3600.*real(nud_hrs))
+  qadv = (qadv - qg(1,:))/(3600.*real(nud_hrs))
   
   ! apply vertical velocity
   ! dq/dt + w*dq/dz = dq/dt + d(w*q)/dz - q*dw/dz
