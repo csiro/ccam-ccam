@@ -2252,7 +2252,7 @@ end if
 ! OPEN MESONEST FILE
 if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) ) then
   if ( myid==0 ) then
-    write(6,*) '========================================'  
+    write(6,*) "========================================"  
     write(6,*) "Opening mesonest file"
   end if
   kdate_s = kdate_sav

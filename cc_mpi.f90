@@ -12003,48 +12003,69 @@ contains
       integer, intent(in) :: host, comm
       real, dimension(:), intent(in) :: gdat
       real, dimension(:), intent(out) :: ldat
+      ldat = gdat
    end subroutine ccmpi_scatterx2r
 
    subroutine ccmpi_scatterx32r(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real, dimension(:,:), intent(in) :: gdat
       real, dimension(:), intent(out) :: ldat
+      ldat = reshape(gdat,(/size(ldat)/))
    end subroutine ccmpi_scatterx32r
 
    subroutine ccmpi_scatterx3r(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real, dimension(:,:), intent(in) :: gdat
       real, dimension(:,:), intent(out) :: ldat
+      ldat = gdat
    end subroutine ccmpi_scatterx3r
    
    subroutine host_gather2(a,ag)
       real, dimension(ifull), intent(in) :: a
       real, dimension(ifull_g), intent(out), optional :: ag
+      if ( present(ag) ) then
+        ag = a
+      end if  
    end subroutine host_gather2
 
    subroutine host_gather3(a,ag)
       real, dimension(:,:), intent(in) :: a
       real, dimension(:,:), intent(out), optional :: ag
+      if ( present(ag) ) then
+        ag = a
+      end if  
    end subroutine host_gather3
 
    subroutine host_gather4(a,ag)
       real, dimension(:,:,:), intent(in) :: a
       real, dimension(:,:,:), intent(out), optional :: ag
+      if ( present(ag) ) then
+        ag = a
+      end if  
    end subroutine host_gather4
    
    subroutine host_gather2r8(a,ag)
       real(kind=8), dimension(ifull), intent(in) :: a
       real(kind=8), dimension(ifull_g), intent(out), optional :: ag
+      if ( present(ag) ) then
+        ag = a
+      end if  
    end subroutine host_gather2r8
 
    subroutine host_gather3r8(a,ag)
       real(kind=8), dimension(:,:), intent(in) :: a
       real(kind=8), dimension(:,:), intent(out), optional :: ag
+      if ( present(ag) ) then
+        ag = a
+      end if  
    end subroutine host_gather3r8
 
    subroutine host_gather4r8(a,ag)
       real(kind=8), dimension(:,:,:), intent(in) :: a
       real(kind=8), dimension(:,:,:), intent(out), optional :: ag
+      if ( present(ag) ) then
+        ag = a
+      end if  
    end subroutine host_gather4r8
    
    subroutine ccmpi_filewinfree
@@ -12081,112 +12102,148 @@ contains
       integer, intent(in) :: host, comm
       real, dimension(:), intent(out) :: gdat
       real, dimension(:), intent(in) :: ldat
+      gdat = ldat
    end subroutine ccmpi_gatherx2r
    
    subroutine ccmpi_gatherx3r(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real, dimension(:,:), intent(out) :: gdat
       real, dimension(:,:), intent(in) :: ldat
+      gdat = ldat
    end subroutine ccmpi_gatherx3r
 
     subroutine ccmpi_gatherx4r(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real, dimension(:,:,:), intent(out) :: gdat
       real, dimension(:,:,:), intent(in) :: ldat
+      gdat = ldat
    end subroutine ccmpi_gatherx4r
   
    subroutine ccmpi_gatherx23r(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real, dimension(:,:), intent(out) :: gdat
       real, dimension(:), intent(in) :: ldat
+      gdat = reshape(ldat,(/size(gdat,1),size(gdat,2)/))
    end subroutine ccmpi_gatherx23r
    
    subroutine ccmpi_gatherx34r(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real, dimension(:,:,:), intent(out) :: gdat
       real, dimension(:,:), intent(in) :: ldat
+      gdat = reshape(ldat,(/size(gdat,1),size(gdat,2),size(gdat,3)/))
    end subroutine ccmpi_gatherx34r
 
    subroutine ccmpi_gatherx45r(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real, dimension(:,:,:,:), intent(out) :: gdat
       real, dimension(:,:,:), intent(in) :: ldat
+      gdat = reshape(ldat,(/size(gdat,1),size(gdat,2),size(gdat,3),size(gdat,4)/))
    end subroutine ccmpi_gatherx45r
    
    subroutine ccmpi_gatherx3i(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       integer, dimension(:,:), intent(out) :: gdat
       integer, dimension(:,:), intent(in) :: ldat
+      gdat = ldat
    end subroutine ccmpi_gatherx3i
  
    subroutine ccmpi_gatherx2rr8(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real(kind=8), dimension(:), intent(out) :: gdat
       real(kind=8), dimension(:), intent(in) :: ldat
+      gdat = ldat
    end subroutine ccmpi_gatherx2rr8
 
    subroutine ccmpi_gatherx3rr8(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real(kind=8), dimension(:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:), intent(in) :: ldat
+      gdat = ldat
    end subroutine ccmpi_gatherx3rr8
    
    subroutine ccmpi_gatherx23rr8(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real(kind=8), dimension(:,:), intent(out) :: gdat
       real(kind=8), dimension(:), intent(in) :: ldat
+      gdat = reshape(ldat,(/size(gdat,1),size(gdat,2)/))
    end subroutine ccmpi_gatherx23rr8
    
    subroutine ccmpi_gatherx34rr8(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real(kind=8), dimension(:,:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:), intent(in) :: ldat
+      gdat = reshape(ldat,(/size(gdat,1),size(gdat,2),size(gdat,3)/))
    end subroutine ccmpi_gatherx34rr8
 
    subroutine ccmpi_gatherx45rr8(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real(kind=8), dimension(:,:,:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:,:), intent(in) :: ldat
+      gdat = reshape(ldat,(/size(gdat,1),size(gdat,2),size(gdat,3),size(gdat,4)/))
    end subroutine ccmpi_gatherx45rr8
    
    subroutine host_distribute2(af,a1)
       real, dimension(ifull), intent(out) :: af
       real, dimension(ifull_g), intent(in), optional :: a1
+      if ( present(a1) ) then
+        af = a1
+      end if
    end subroutine host_distribute2
 
    subroutine host_distribute2i(af,a1)
       integer, dimension(ifull), intent(out) :: af
       integer, dimension(ifull_g), intent(in), optional :: a1
+      if ( present(a1) ) then
+        af = a1
+      end if
    end subroutine host_distribute2i
 
    subroutine host_distribute3(af,a1)
       real, dimension(:,:), intent(out) :: af
       real, dimension(:,:), intent(in), optional :: a1
+      if ( present(a1) ) then
+        af = a1
+      end if
    end subroutine host_distribute3
 
    subroutine host_distribute4(af,a1)
       real, dimension(:,:,:), intent(out) :: af
       real, dimension(:,:,:), intent(in), optional :: a1
+      if ( present(a1) ) then
+        af = a1
+      end if
    end subroutine host_distribute4
    
    subroutine host_distribute3i(af,a1)
       integer, dimension(:,:), intent(out) :: af
       integer, dimension(:,:), intent(in), optional :: a1
+      if ( present(a1) ) then
+        af = a1
+      end if
    end subroutine host_distribute3i
 
    subroutine host_distribute2r8(af,a1)
       real(kind=8), dimension(ifull), intent(out) :: af
       real(kind=8), dimension(ifull_g), intent(in), optional :: a1
+      if ( present(a1) ) then
+        af = a1
+      end if
    end subroutine host_distribute2r8
    
    subroutine host_distribute3r8(af,a1)
       real(kind=8), dimension(:,:), intent(out) :: af
       real(kind=8), dimension(:,:), intent(in), optional :: a1
+      if ( present(a1) ) then
+        af = a1
+      end if
    end subroutine host_distribute3r8
  
    subroutine host_distribute4r8(af,a1)
       real(kind=8), dimension(:,:,:), intent(out) :: af
       real(kind=8), dimension(:,:,:), intent(in), optional :: a1
+      if ( present(a1) ) then
+        af = a1
+      end if
    end subroutine host_distribute4r8
    
    subroutine ccmpi_reduce2i(ldat,gdat,op,host,comm)
@@ -12194,6 +12251,7 @@ contains
       integer, dimension(:), intent(in) :: ldat
       integer, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
+      gdat = ldat
    end subroutine ccmpi_reduce2i
 
    subroutine ccmpi_reduce1r(ldat,gdat,op,host,comm)
@@ -12201,6 +12259,7 @@ contains
       real, intent(in) :: ldat
       real, intent(out) :: gdat
       character(len=*), intent(in) :: op
+      gdat = ldat
    end subroutine ccmpi_reduce1r
    
    subroutine ccmpi_reduce2r(ldat,gdat,op,host,comm)
@@ -12208,6 +12267,7 @@ contains
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
+      gdat = ldat
    end subroutine ccmpi_reduce2r
 
    subroutine ccmpi_reduce3r(ldat,gdat,op,host,comm)
@@ -12215,6 +12275,7 @@ contains
       real, dimension(:,:), intent(in) :: ldat
       real, dimension(:,:), intent(out) :: gdat
       character(len=*), intent(in) :: op
+      gdat = ldat
    end subroutine ccmpi_reduce3r
 
    subroutine ccmpi_reduce2c(ldat,gdat,op,host,comm)
@@ -12222,6 +12283,7 @@ contains
       complex, dimension(:), intent(in) :: ldat
       complex, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
+      gdat = ldat
    end subroutine ccmpi_reduce2c
 
    subroutine ccmpi_reduce2l(ldat,gdat,op,host,comm)
@@ -12229,6 +12291,7 @@ contains
       logical, dimension(:), intent(in) :: ldat
       logical, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
+      gdat = ldat
    end subroutine ccmpi_reduce2l
 
    subroutine ccmpi_reduce1rr8(ldat,gdat,op,host,comm)
@@ -12236,6 +12299,7 @@ contains
       real(kind=8), intent(in) :: ldat
       real(kind=8), intent(out) :: gdat
       character(len=*), intent(in) :: op
+      gdat = ldat
    end subroutine ccmpi_reduce1rr8 
    
    subroutine ccmpi_bcast2r8(ldat,host,comm)

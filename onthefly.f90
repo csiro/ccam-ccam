@@ -1688,29 +1688,29 @@ if ( nested/=1 ) then
     call fillhist1('urbnsmr',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"roofsoilmoisture",0)
     call fillhist1('roofwtr',atebdwn(:,1),nourban_a,fill_nourban)
-    call atebloadd(atebdwn(:,1),"roadsurfacewater",0)
-    call fillhist1('roadwtr',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"roofsurfacewater",0)
+    call fillhist1('roadwtr',atebdwn(:,1),nourban_a,fill_nourban)
+    call atebloadd(atebdwn(:,1),"roadsurfacewater",0)
     call fillhist1('urbwtrc',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"canyonleafwater",0)
     call fillhist1('urbwtrr',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"roofleafwater",0)
     call fillhist1('roofsnd',atebdwn(:,1),nourban_a,fill_nourban)
-    call atebloadd(atebdwn(:,1),"roadsnowdepth",0)
-    call fillhist1('roadsnd',atebdwn(:,1),nourban_a,fill_nourban)
     call atebloadd(atebdwn(:,1),"roofsnowdepth",0)
+    call fillhist1('roadsnd',atebdwn(:,1),nourban_a,fill_nourban)
+    call atebloadd(atebdwn(:,1),"roadsnowdepth",0)
     call fillhist1('roofden',atebdwn(:,1),nourban_a,fill_nourban)
     if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
-    call atebloadd(atebdwn(:,1),"roadsnowdensity",0)
+    call atebloadd(atebdwn(:,1),"roofsnowdensity",0)
     call fillhist1('roadden',atebdwn(:,1),nourban_a,fill_nourban)
     if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
-    call atebloadd(atebdwn(:,1),"roofsnowdensity",0)
+    call atebloadd(atebdwn(:,1),"roadsnowdensity",0)
     call fillhist1('roofsna',atebdwn(:,1),nourban_a,fill_nourban)
     if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
-    call atebloadd(atebdwn(:,1),"roadsnowalbedo",0)
+    call atebloadd(atebdwn(:,1),"roofsnowalbedo",0)
     call fillhist1('roadsna',atebdwn(:,1),nourban_a,fill_nourban)
     if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
-    call atebloadd(atebdwn(:,1),"roofsnowalbedo",0)
+    call atebloadd(atebdwn(:,1),"roadsnowalbedo",0)
     deallocate( atebdwn )
   end if
 
