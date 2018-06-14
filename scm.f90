@@ -154,8 +154,8 @@ real, dimension(4) :: ateb_slab_thick, ateb_slab_cp, ateb_slab_cond
 real, dimension(:,:), allocatable :: t_save, qg_save, u_save, v_save
 real, dimension(:), allocatable :: psl_save
 character(len=60) comm, comment
-character(len=80) metforcing, timeoutput, profileoutput
-character(len=80) lsmforcing, lsmoutput
+character(len=1024) metforcing, timeoutput, profileoutput
+character(len=1024) lsmforcing, lsmoutput
 character(len=80) scm_mode
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) :: optarg
@@ -2104,10 +2104,11 @@ elseif ( scm_mode=="CCAM" ) then
     allocate( w_adv_a(nlev), w_adv_b(nlev) )
     allocate( height_file_b(nlev), height_file(nlev) )
     
-    do l = 1,ntimes
-      time_file(l) = real(l-1)*21600.
-    end do
-
+    spos(1:1) = (/ 1 /)
+    npos(1:1) = (/ ntimes /)
+    call ccnf_get_vara(ncid,'time',spos(1:1),npos(1:1),time_file)
+    time_file = 60.*time_file
+    
     spos(1:1) = (/ 1 /)
     npos(1:1) = (/ nlev /)
 
