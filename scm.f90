@@ -2122,6 +2122,7 @@ elseif ( scm_mode=="CCAM" ) then
     
     ! water vapor mixing ratio advection
     call ccnf_get_vara(ncid,'mixr',spos,npos,qv_adv_b)
+    qv_adv_b = max( qv_adv_b, 0.)
     
     ! momentum advection
     call ccnf_get_vara(ncid,'u',spos,npos,u_adv_b)
@@ -2144,7 +2145,8 @@ elseif ( scm_mode=="CCAM" ) then
     theta_adv_a = theta_adv_b
     call ccnf_get_vara(ncid,'theta',spos,npos,theta_adv_b)
     qv_adv_a = qv_adv_b
-    call ccnf_get_vara(ncid,'mixr',spos,npos,qv_adv_b)    
+    call ccnf_get_vara(ncid,'mixr',spos,npos,qv_adv_b)   
+    qv_adv_b = max(qv_adv_b,0.) 
     u_adv_a = u_adv_b    
     call ccnf_get_vara(ncid,'u',spos,npos,u_adv_b)
     v_adv_a = v_adv_b
@@ -2200,6 +2202,7 @@ elseif ( scm_mode=="CCAM" ) then
   vadv = (vadv - v(1,:))/(3600.*real(nud_hrs))
   tadv = (tadv - t(1,:))/(3600.*real(nud_hrs))
   qadv = (qadv - qg(1,:))/(3600.*real(nud_hrs))
+  qadv(:) = max( -qg(1,:)/dt, qadv(:) )
   
   ! apply vertical velocity
   ! dq/dt + w*dq/dz = dq/dt + d(w*q)/dz - q*dw/dz
