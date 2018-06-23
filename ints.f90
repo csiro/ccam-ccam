@@ -62,7 +62,11 @@ real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 call START_LOG(ints_begin)
 !$omp end master
 
+!$omp barrier
+!$omp master
 call bounds(s,nrows=2) ! also includes corners
+!$omp end master
+!$omp barrier
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -110,11 +114,12 @@ if ( intsch==1 ) then
       end do          ! n loop
     end do              ! nn loop
   end do            ! k loop
-!$omp end do nowait
+!$omp end do
 
 ! Loop over points that need to be calculated for other processes
   if ( nfield<mh_bs ) then
     
+!$omp master
     do ii = neighnum,1,-1
       do nn = 1,ntr
         do iq = 1,drlen(ii)
@@ -152,6 +157,8 @@ if ( intsch==1 ) then
     ! Send messages to other processors.  We then start the calculation for this processor while waiting for
     ! the messages to return, thereby overlapping computation with communication.
     call intssync_send(ntr)
+!$omp end master
+!$omp barrier
 
 !$omp do
     do k = 1,kl
@@ -185,10 +192,11 @@ if ( intsch==1 ) then
         end do       ! iq loop
       end do           ! nn loop
     end do         ! k loop
-!$omp end do nowait
+!$omp end do
     
   else              ! (nfield<mh_bs)
       
+!$omp master
     do ii = neighnum,1,-1
       do nn = 1,ntr
         do iq = 1,drlen(ii)
@@ -230,6 +238,8 @@ if ( intsch==1 ) then
     ! Send messages to other processors.  We then start the calculation for this processor while waiting for
     ! the messages to return, thereby overlapping computation with communication.
     call intssync_send(ntr)
+!$omp end master
+!$omp barrier
 
 !$omp do
     do k = 1,kl
@@ -268,7 +278,7 @@ if ( intsch==1 ) then
         end do      ! iq loop
       end do          ! nn loop
     end do        ! k loop
-!$omp end do nowait
+!$omp end do
     
   end if            ! (nfield<mh_bs)  .. else ..
             
@@ -318,11 +328,12 @@ else     ! if(intsch==1)then
       end do              ! n loop
     end do                  ! nn loop
   end do                ! k loop
-!$omp end do nowait
+!$omp end do
 
   ! For other processes
   if ( nfield < mh_bs ) then
       
+!$omp master
     do ii = neighnum,1,-1
       do nn = 1,ntr
         do iq = 1,drlen(ii)
@@ -358,6 +369,8 @@ else     ! if(intsch==1)then
     end do             ! ii
     
     call intssync_send(ntr)
+!$omp end master
+!$omp barrier
 
 !$omp do
     do k = 1,kl
@@ -392,10 +405,11 @@ else     ! if(intsch==1)then
         end do       ! iq loop
       end do           ! nn loop
     end do         ! k loop
-!$omp end do nowait
+!$omp end do
     
   else                 ! (nfield<mh_bs)
       
+!$omp master
     do ii = neighnum,1,-1
       do nn = 1,ntr
         do iq = 1,drlen(ii)
@@ -436,6 +450,8 @@ else     ! if(intsch==1)then
     end do          ! ii loop
   
     call intssync_send(ntr)
+!$omp end master
+!$omp barrier
 
 !$omp do
     do k = 1,kl
@@ -474,14 +490,17 @@ else     ! if(intsch==1)then
         end do       ! iq loop
       end do           ! nn loop
     end do         ! k loop
-!$omp end do nowait
+!$omp end do
     
   end if            ! (nfield<mh_bs)  .. else ..
 
 end if               ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
+!$omp master
 call intssync_recv(s)
+!$omp end master
+!$omp barrier
       
 !$omp master
 call END_LOG(ints_end)
@@ -518,7 +537,11 @@ real, dimension(ifull+iextra,kl,1), intent(inout) :: s
 call START_LOG(ints_begin)
 !$omp end master
 
+!$omp barrier
+!$omp master
 call bounds(s,corner=.true.)
+!$omp end master
+!$omp barrier
 
 !$omp do
 do k = 1,kl
@@ -543,8 +566,9 @@ do k = 1,kl
     sx(ipan+1,jpan+1,n,k) = s(ien(n*ipan*jpan),k,1)
   end do                 ! n loop
 end do                   ! k loop
-!$omp end do nowait
+!$omp end do
 
+!$omp master
 ! Loop over points that need to be calculated for other processes
 do ii = neighnum,1,-1
   do iq = 1,drlen(ii)
@@ -563,6 +587,8 @@ do ii = neighnum,1,-1
 end do
 
 call intssync_send(1)
+!$omp end master
+!$omp barrier
 
 !$omp do
 do k = 1,kl
@@ -579,9 +605,12 @@ do k = 1,kl
               + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
-!$omp end do nowait
+!$omp end do
 
+!$omp master
 call intssync_recv(s)
+!$omp end master
+!$omp barrier
 
 !$omp master
 call END_LOG(ints_end)

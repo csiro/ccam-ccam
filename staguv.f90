@@ -108,10 +108,13 @@ do k =1,kx
   uin(1:ifull,k) = u(1:ifull,k)
   vin(1:ifull,k) = v(1:ifull,k)
 end do
-!$omp end do nowait
+!$omp end do
       
 if (abs(nstag)<3) then
+!$omp master
   call boundsuv(uin,vin,stag=2)
+!$omp end master
+!$omp barrier
 !$omp do
   do k = 1,kx
     call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)
@@ -127,7 +130,10 @@ if (abs(nstag)<3) then
 endif  ! (nstag==0)
 
 if ( nstag==3 ) then
+!$omp master
   call boundsuv(uin,vin,stag=1) ! inv, innv, ieu, ieeu
+!$omp end master
+!$omp barrier
 #ifdef debug  
   if(ntest==1 .and. .not.using_omp)then
     write(6,*) 'staguv diags'
@@ -165,9 +171,12 @@ if ( nstag==3 ) then
       vd(iq,k)=vin(iq,k)/2.+v_n(iq)+vin(innv(iq),k)/10.
     end do
   end do  
-!$omp end do nowait
+!$omp end do
 
+!$omp master
   call boundsuv(ud,vd,stag=-10) ! inv, ieu
+!$omp end master
+!$omp barrier
 !$omp do
   do k = 1,kx
     call unpack_nveu(ud(:,k),vd(:,k),v_n,u_e)    
@@ -178,10 +187,13 @@ if ( nstag==3 ) then
       vg(iq,k)=va(iq,k)
     end do
   end do  
-!$omp end do nowait
+!$omp end do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
+!$omp master
     call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+!$omp end master
+!$omp barrier
 !$omp do
     do k = 1,kx
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
@@ -191,9 +203,12 @@ if ( nstag==3 ) then
         vin(iq,k)=(vg(iq,k)-v_s(iq)/10. +va(innv(iq),k)/4.)/.95
       end do
     end do  
-!$omp end do nowait
+!$omp end do
 
+!$omp master
     call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+!$omp end master
+!$omp barrier
 !$omp do
     do k = 1,kx
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)    
@@ -203,9 +218,12 @@ if ( nstag==3 ) then
         va(iq,k)=(vg(iq,k)-v_s(iq)/10. +vin(innv(iq),k)/4.)/.95
       end do
     end do  
-!$omp end do nowait
+!$omp end do
   end do                  ! itn=1,itnmax
+!$omp master
   call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+!$omp end master
+!$omp barrier
 !$omp do
   do k = 1,kx
     call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)    
@@ -215,8 +233,11 @@ if ( nstag==3 ) then
       vin(iq,k)=(vg(iq,k)-v_s(iq)/10. +va(innv(iq),k)/4.)/.95
     end do
   end do  
-!$omp end do nowait
+!$omp end do
+!$omp master
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+!$omp end master
+!$omp barrier
 !$omp do
   do k = 1,kx
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)    
@@ -229,7 +250,10 @@ if ( nstag==3 ) then
 !$omp end do nowait
 
 else !if ( nstag==4 ) then
+!$omp master
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+!$omp end master
+!$omp barrier
 
 !$omp do
   do k = 1,kx
@@ -243,10 +267,13 @@ else !if ( nstag==4 ) then
       vg(iq,k)=va(iq,k)
     end do
   end do  
-!$omp end do nowait
+!$omp end do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
+!$omp master
     call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+!$omp end master
+!$omp barrier
 !$omp do
     do k = 1,kx
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)    
@@ -256,9 +283,12 @@ else !if ( nstag==4 ) then
         vin(iq,k)=(vg(iq,k)-v_n(iq)/10. +va(issv(iq),k)/4.)/.95
       end do
     end do  
-!$omp end do nowait
+!$omp end do
 
+!$omp master
     call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+!$omp end master
+!$omp barrier
 !$omp do
     do k = 1,kx
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)      
@@ -268,9 +298,12 @@ else !if ( nstag==4 ) then
         va(iq,k)=(vg(iq,k)-v_n(iq)/10. +vin(issv(iq),k)/4.)/.95
       end do
     end do  
-!$omp end do nowait
+!$omp end do
   end do                 ! itn=1,itnmax
+!$omp master
   call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+!$omp end master
+!$omp barrier
 !$omp do
   do k = 1,kx
     call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)      
@@ -280,8 +313,11 @@ else !if ( nstag==4 ) then
       vin(iq,k)=(vg(iq,k)-v_n(iq)/10. +va(issv(iq),k)/4.)/.95
     end do
   end do  
-!$omp end do nowait
+!$omp end do
+!$omp master
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+!$omp end master
+!$omp barrier
 !$omp do
   do k = 1,kx
     call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)      

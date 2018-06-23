@@ -20,7 +20,7 @@
 !------------------------------------------------------------------------------
 
 !      PE model on conformal-cubic grid
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !      input files are :namelist (via file called "input")
 !                       "nrun.dat"
 !      data input and output file names are specified in namelist 'datafile'
@@ -28,7 +28,7 @@
 !     sign convention:
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
-
+    
 program globpe
 
 use aerointerface                          ! Aerosol interface
@@ -135,6 +135,9 @@ end if
 
 !--------------------------------------------------------------
 ! INITALISE MPI and OpenMP ROUTINES
+! CCAM has been optimised around MPI for parallel processing, although
+! CCAM does support OMP parallel threads for its physical
+! parameterisations
 call ccmpi_init
 call ccomp_init
 
@@ -169,12 +172,12 @@ if ( myid<nproc ) then
     ! write out the first ofile data set
     if ( myid==0 ) write(6,*) "calling outfile"
     call outfile(20)
-    if ( newtop<0 ) then
-      ! just for outcdf to plot zs  & write fort.22      
-      if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"
-      call ccmpi_abort(-1)
-    end if
   end if    ! (nwt>0)
+  if ( newtop<0 ) then
+    ! just for outcdf to plot zs  & write fort.22      
+    if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"
+    call ccmpi_abort(-1)
+  end if
 
   
   !-------------------------------------------------------------
@@ -183,10 +186,10 @@ if ( myid<nproc ) then
   do n3hr = 1,8
     nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
   end do
-  n3hr = 1   ! initial value at start of run
-  nlx = 0    ! diagnostic level
-  call zero_nperavg
-  call zero_nperday
+  n3hr = 1           ! initial value at start of run
+  nlx = 0            ! diagnostic level
+  call zero_nperavg  ! reset average period diagnostics
+  call zero_nperday  ! reset daily period diagnostics
 
   
   !--------------------------------------------------------------
@@ -207,7 +210,7 @@ if ( myid<nproc ) then
   
   !--------------------------------------------------------------
   ! SET-UP TIMERS
-  mtimer_sav = 0                                                       ! saved value for minute timer
+  mtimer_sav = 0      ! saved value for minute timer
   nmaxprsav  = nmaxpr
   nwtsav     = nwt
   hourst     = real(nint(0.01*real(ktime))) + real(mod(ktime,100))/60. ! for tracers
@@ -227,12 +230,12 @@ if ( myid<nproc ) then
 
     timer    = timer + real(ktau)*dtin/3600.             ! timer now only used to give timeg
     timeg    = mod( timer+hourst, 24. )                  ! UTC time for tracers
-    mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
+    mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! to allow dt < 1 minute
     mins_gmt = mod( mtimer+60*ktime/100, 24*60 )         ! for radiation
     call getzinp(jyear,jmonth,jday,jhour,jmin,mins)      ! define mins as time since start of the year
     diag = ( ktau>=abs(ndi) .and. ktau<=ndi2 )           ! set diagnostic printout flag
     if ( ndi<0 ) then
-      if ( ktau==(ktau/ndi)*ndi ) then
+      if ( mod(ktau,ndi)==0 ) then
         diag = .true.
       end if
     endif
@@ -262,8 +265,8 @@ if ( myid<nproc ) then
       if ( nstagin<0 .and. mod(ktau-nstagoff,abs(nstagin))==0 ) then
         nstag  = 7 - nstag  ! swap between 3 & 4
         nstagu = nstag
-      endif
-    endif
+      end if
+    end if
 
     do mspec = mspeca,1,-1    ! start of introductory time loop
    
@@ -275,7 +278,7 @@ if ( myid<nproc ) then
         call bounds(psl)
         ! updps called first step or to permit clean restart option      
         call updps(0) 
-      endif
+      end if
     
       if ( ktau<10 .and. nmaxpr==1 ) then
         if ( myid==0 ) then
@@ -288,15 +291,15 @@ if ( myid<nproc ) then
       if ( (ktau==1.and..not.lrestart) .or. mex==1 ) then
         ubar(:,:) = u(1:ifull,:)
         vbar(:,:) = v(1:ifull,:)
-      elseif ( (ktau==2.and..not.lrestart) .or. mex==2 ) then        
+      else if ( (ktau==2.and..not.lrestart) .or. mex==2 ) then        
         ! (tau+.5) from tau, tau-1
         ubar(:,:) = u(1:ifull,:)*1.5 - savu(:,:)*.5
         vbar(:,:) = v(1:ifull,:)*1.5 - savv(:,:)*.5
-      elseif ( mex==3 )then
+      else if ( mex==3 )then
         ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
         ubar(:,:) = u(1:ifull,:)+.5*(savu(:,:)-savu1(:,:))
         vbar(:,:) = v(1:ifull,:)+.5*(savv(:,:)-savv1(:,:))
-      elseif ( mex==30 ) then  ! using tau, tau-1, tau-2, tau-3
+      else if ( mex==30 ) then  ! using tau, tau-1, tau-2, tau-3
         do k = 1,kl
           do iq = 1,ifull
             bb = 1.5*u(iq,k) - 2.*savu(iq,k) + .5*savu1(iq,k)                             ! simple b
@@ -317,13 +320,13 @@ if ( myid<nproc ) then
             cc = rat*cc + (1.-rat)*cc_2 
             bb = rat*bb + (1.-rat)*bb_2 
             vbar(iq,k) = v(iq,k)+.5*bb+.25*cc
-          enddo ! iq loop
-        enddo   ! k loop 
-      else      ! i.e. mex >=4 and ktau>=3
+          end do ! iq loop
+        end do   ! k loop 
+      else       ! i.e. mex >=4 and ktau>=3
         ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
         ubar(:,:) = (u(1:ifull,:)*15.-savu(:,:)*10.+savu1(:,:)*3.)/8.
         vbar(:,:) = (v(1:ifull,:)*15.-savv(:,:)*10.+savv1(:,:)*3.)/8.
-      end if    ! (ktau==1) .. else ..
+      end if     ! (ktau==1) .. else ..
       
       if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
         nlx = max( 2, nlv )  ! as savs not defined for k=1
