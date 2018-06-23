@@ -570,7 +570,7 @@ if ( newfile ) then
       end if  
     end if
     ! check for missing data
-    iers(1:7) = 0
+    iers(1:6) = 0
     call ccnf_inq_varid(ncid,'mixr',idv,tst)
     if ( tst ) iers(1) = -1
     call ccnf_inq_varid(ncid,'siced',idv,tst)
@@ -1372,7 +1372,6 @@ if ( nested/=1 ) then
       call ccnf_inq_varid(ncid,'u10',idv,tst)
       if ( .not.tst ) ierc(2) = 1
     end if ! myid==0 .or. pfall
-    
   end if   ! nested==0  
     
   if ( .not.pfall ) then
@@ -3714,7 +3713,7 @@ integer i, n, ipf
 integer mm, iq, idel, jdel
 integer ncount, w
 logical, dimension(0:fnproc-1) :: lfile
-integer, dimension(nproc) :: tempmap_send, tempmap_smod
+integer, dimension(:), allocatable :: tempmap_send, tempmap_smod
 logical, dimension(0:nproc-1) :: lproc
 
 if ( allocated(filemap_recv) ) then
@@ -3769,6 +3768,7 @@ do w = 0,fnproc-1
 end do
 
 ! Construct a map of processes that need this file
+allocate( tempmap_send(nproc*fncount), tempmap_smod(nproc*fncount) )
 tempmap_send(:) = -1
 tempmap_smod(:) = -1
 ncount = 0
@@ -3791,6 +3791,7 @@ end do
 allocate( filemap_send(ncount), filemap_smod(ncount) )
 filemap_send(1:ncount) = tempmap_send(1:ncount)
 filemap_smod(1:ncount) = tempmap_smod(1:ncount)
+deallocate( tempmap_send, tempmap_smod )
 
 ! Define halo indices for ccmpi_filebounds
 if ( myid==0 ) then
