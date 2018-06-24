@@ -1,3 +1,22 @@
+! Conformal Cubic Atmospheric Model
+    
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
+   
 program ccamscm
 
 use aerointerface                          ! Aerosol interface
@@ -1272,6 +1291,8 @@ else if ( scm_mode=="CCAM" ) then
   call ccnf_get_vara(ncid,'mixr',spos(1:3),npos(1:3),dat_in)
   call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
   qg(1,1:kl) = max(datout,2.e-7)
+
+  ! ignore qlg and qfg initial conditions
   
   ! ignore tke initial conditions for now
   
@@ -1905,9 +1926,11 @@ real, dimension(:), allocatable, save :: ug_file_a, vg_file_a, time_file, height
 real, dimension(:), allocatable, save :: ug_file_b, vg_file_b, ug_file, vg_file
 real, dimension(:), allocatable, save :: theta_adv, qv_adv, u_adv, v_adv, w_adv
 real, dimension(:), allocatable, save :: theta_adv_a, theta_adv_b, qv_adv_a, qv_adv_b
-real, dimension(:), allocatable, save :: u_adv_a, u_adv_b, v_adv_a, v_adv_b, w_adv_a, w_adv_b 
+real, dimension(:), allocatable, save :: u_adv_a, u_adv_b, v_adv_a, v_adv_b, w_adv_a, w_adv_b
+real, dimension(:), allocatable, save :: ql_adv_a, ql_adv_b, qf_adv_a, qf_adv_b, ql_adv, qf_adv
 real, dimension(1) :: psurf_in
 real, dimension(kl) :: tadv, qadv, um, vm, height_model, dz_model
+real, dimension(kl) :: qladv, qfadv
 real, dimension(0:kl) :: hl_model
 real, save :: tsurf_a, tsurf_b
 character(len=*), intent(in) :: scm_mode, metforcing
@@ -2084,6 +2107,7 @@ elseif ( scm_mode=="CCAM" ) then
       deallocate( u_adv_a, u_adv_b, v_adv_a, v_adv_b )
       deallocate( w_adv_a, w_adv_b )
       deallocate( height_file_b, height_file )
+      deallocate( ql_adv_a, ql_adv_b, qf_adv_a, qf_adv_b, ql_adv, qf_adv )
       call ccnf_close(ncid)
     end if
     time_a = -1.
@@ -2103,6 +2127,7 @@ elseif ( scm_mode=="CCAM" ) then
     allocate( u_adv_a(nlev), u_adv_b(nlev), v_adv_a(nlev), v_adv_b(nlev) )
     allocate( w_adv_a(nlev), w_adv_b(nlev) )
     allocate( height_file_b(nlev), height_file(nlev) )
+    allocate( ql_adv_a(nlev), ql_adv_b(nlev), qf_adv_a(nlev), qf_adv_b(nlev), ql_adv(nlev), qf_adv(nlev) )
     
     spos(1:1) = (/ 1 /)
     npos(1:1) = (/ ntimes /)
@@ -2123,6 +2148,10 @@ elseif ( scm_mode=="CCAM" ) then
     ! water vapor mixing ratio advection
     call ccnf_get_vara(ncid,'mixr',spos,npos,qv_adv_b)
     qv_adv_b = max( qv_adv_b, 0.)
+    call ccnf_get_vara(ncid,'qlg',spos,npos,ql_adv_b)
+    ql_adv_b = max( ql_adv_b, 0.)
+    call ccnf_get_vara(ncid,'qfg',spos,npos,qf_adv_b)
+    qf_adv_b = max( qf_adv_b, 0.)
     
     ! momentum advection
     call ccnf_get_vara(ncid,'u',spos,npos,u_adv_b)
@@ -2147,6 +2176,12 @@ elseif ( scm_mode=="CCAM" ) then
     qv_adv_a = qv_adv_b
     call ccnf_get_vara(ncid,'mixr',spos,npos,qv_adv_b)   
     qv_adv_b = max(qv_adv_b,0.) 
+    ql_adv_a = ql_adv_b
+    call ccnf_get_vara(ncid,'qlg',spos,npos,ql_adv_b)   
+    ql_adv_b = max(ql_adv_b,0.) 
+    qf_adv_a = qf_adv_b
+    call ccnf_get_vara(ncid,'qfg',spos,npos,qf_adv_b)   
+    qf_adv_b = max(qf_adv_b,0.) 
     u_adv_a = u_adv_b    
     call ccnf_get_vara(ncid,'u',spos,npos,u_adv_b)
     v_adv_a = v_adv_b
@@ -2182,6 +2217,8 @@ elseif ( scm_mode=="CCAM" ) then
   height_file(:) = height_file_b(:)
   theta_adv(:) = (1.-x)*theta_adv_a(:) + x*theta_adv_b(:)
   qv_adv(:) = (1.-x)*qv_adv_a(:) + x*qv_adv_b(:)
+  ql_adv(:) = (1.-x)*ql_adv_a(:) + x*ql_adv_b(:)
+  qf_adv(:) = (1.-x)*qf_adv_a(:) + x*qf_adv_b(:)
   u_adv(:) = (1.-x)*u_adv_a(:) + x*u_adv_b(:)
   v_adv(:) = (1.-x)*v_adv_a(:) + x*v_adv_b(:)
   w_adv(:) = (1.-x)*w_adv_a(:) + x*w_adv_b(:)
@@ -2192,6 +2229,8 @@ elseif ( scm_mode=="CCAM" ) then
   call vinterp2m(height_file,height_model,v_adv,vadv,nlev,kl)
   call vinterp2m(height_file,height_model,theta_adv,tadv,nlev,kl)
   call vinterp2m(height_file,height_model,qv_adv,qadv,nlev,kl)
+  call vinterp2m(height_file,height_model,ql_adv,qladv,nlev,kl)
+  call vinterp2m(height_file,height_model,qf_adv,qfadv,nlev,kl)
   wadv(0) = 0.
   call vinterp2m(height_file,hl_model(1:kl),w_adv,wadv(1:kl),nlev,kl)
   wadv(kl) = 0.
@@ -2203,6 +2242,13 @@ elseif ( scm_mode=="CCAM" ) then
   tadv = (tadv - t(1,:))/(3600.*real(nud_hrs))
   qadv = (qadv - qg(1,:))/(3600.*real(nud_hrs))
   qadv(:) = max( -qg(1,:)/dt, qadv(:) )
+  qladv = (qladv - qlg(1,:))/(3600.*real(nud_hrs))
+  qladv(:) = max( -qlg(1,:)/dt, qladv(:) )
+  qfadv = (qfadv - qfg(1,:))/(3600.*real(nud_hrs))
+  qfadv(:) = max( -qfg(1,:)/dt, qfadv(:) )
+
+  qlg(1,:) = qlg(1,:) + dt*qladv(:)
+  qfg(1,:) = qfg(1,:) + dt*qfadv(:)
   
   ! apply vertical velocity
   ! dq/dt + w*dq/dz = dq/dt + d(w*q)/dz - q*dw/dz
