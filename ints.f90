@@ -35,7 +35,7 @@
 !     doing x-interpolation before y-interpolation
 !     nfield: 1 (psl), 2 (u, v), 3 (T), 4 (gases)
     
-subroutine ints(ntr,s,intsch,nface,xg,yg,nfield,sx)
+subroutine ints(ntr,s,intsch,nface,xg,yg,nfield)
 
 use cc_mpi             ! CC MPI routines
 use indices_m          ! Grid index arrays
@@ -50,33 +50,26 @@ integer, intent(in) :: intsch  ! method to interpolate panel corners
 integer, intent(in) :: nfield  ! use B&S if nfield>=mh_bs
 integer idel, iq, jdel, nn
 integer i, j, k, n, ii
-integer, dimension(ifull,kl), intent(in) :: nface                       ! interpolation coordinates
-real, dimension(ifull,kl), intent(in) :: xg, yg                         ! interpolation coordinates
-real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s                ! array of tracers
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,ntr), intent(inout) :: sx ! unpacked tracer array
+integer, dimension(ifull,kl), intent(in) :: nface        ! interpolation coordinates
+real, dimension(ifull,kl), intent(in) :: xg, yg          ! interpolation coordinates
+real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s ! array of tracers
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,ntr) :: sx ! unpacked tracer array
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
-!$omp master
 call START_LOG(ints_begin)
-!$omp end master
 
-!$omp barrier
-!$omp master
 call bounds(s,nrows=2) ! also includes corners
-!$omp end master
-!$omp barrier
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
 
+  sx(1:ipan,1:jpan,1:npan,1:kl,1:ntr) = reshape(s(1:ipan*jpan*npan,1:kl,1:ntr), (/ipan,jpan,npan,kl,ntr/))
   ! this is intsb           EW interps done first
   ! first extend s arrays into sx - this one -1:il+2 & -1:il+2
-!$omp do
-  do k = 1,kl
-    do nn = 1,ntr
-      sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,nn), (/ipan,jpan,npan/))
+  do nn = 1,ntr
+    do k = 1,kl
       do n = 1,npan
 !$omp simd
         do j = 1,jpan
@@ -112,14 +105,12 @@ if ( intsch==1 ) then
         sx(0,jpan+1,n,k,nn)      = s(iwn(1-ipan+n*ipan*jpan),k,nn)
         sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),k,nn)
       end do          ! n loop
-    end do              ! nn loop
-  end do            ! k loop
-!$omp end do
+    end do            ! k loop
+  end do              ! nn loop
 
 ! Loop over points that need to be calculated for other processes
   if ( nfield<mh_bs ) then
     
-!$omp master
     do ii = neighnum,1,-1
       do nn = 1,ntr
         do iq = 1,drlen(ii)
@@ -157,12 +148,9 @@ if ( intsch==1 ) then
     ! Send messages to other processors.  We then start the calculation for this processor while waiting for
     ! the messages to return, thereby overlapping computation with communication.
     call intssync_send(ntr)
-!$omp end master
-!$omp barrier
 
-!$omp do
-    do k = 1,kl
-      do nn = 1,ntr
+    do nn = 1,ntr
+      do k = 1,kl
         do iq = 1,ifull    ! non Berm-Stan option
           idel = int(xg(iq,k))
           xxg = xg(iq,k) - idel
@@ -190,13 +178,11 @@ if ( intsch==1 ) then
           rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
           s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
         end do       ! iq loop
-      end do           ! nn loop
-    end do         ! k loop
-!$omp end do
+      end do         ! k loop
+    end do           ! nn loop
     
   else              ! (nfield<mh_bs)
       
-!$omp master
     do ii = neighnum,1,-1
       do nn = 1,ntr
         do iq = 1,drlen(ii)
@@ -238,12 +224,9 @@ if ( intsch==1 ) then
     ! Send messages to other processors.  We then start the calculation for this processor while waiting for
     ! the messages to return, thereby overlapping computation with communication.
     call intssync_send(ntr)
-!$omp end master
-!$omp barrier
 
-!$omp do
-    do k = 1,kl
-      do nn = 1,ntr
+    do nn = 1,ntr
+      do k = 1,kl
         do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
           idel = int(xg(iq,k))
           xxg = xg(iq,k) - idel
@@ -276,9 +259,8 @@ if ( intsch==1 ) then
           s(iq,k,nn) = min( max( cmin, &
               rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
         end do      ! iq loop
-      end do          ! nn loop
-    end do        ! k loop
-!$omp end do
+      end do        ! k loop
+    end do          ! nn loop
     
   end if            ! (nfield<mh_bs)  .. else ..
             
@@ -287,10 +269,9 @@ else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 !       this is intsc           NS interps done first
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
-!$omp do
-  do k = 1,kl
-    do nn = 1,ntr
-      sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,nn), (/ipan,jpan,npan/))
+  sx(1:ipan,1:jpan,1:npan,1:kl,1:ntr) = reshape(s(1:ipan*jpan*npan,1:kl,1:ntr), (/ipan,jpan,npan,kl,ntr/))
+  do nn = 1,ntr
+    do k = 1,kl
       do n = 1,npan
 !$omp simd
         do j = 1,jpan
@@ -326,14 +307,12 @@ else     ! if(intsch==1)then
         sx(ipan+1,0,n,k,nn)      = s(ise(ipan+(n-1)*ipan*jpan),k,nn)
         sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),k,nn)
       end do              ! n loop
-    end do                  ! nn loop
-  end do                ! k loop
-!$omp end do
+    end do                ! k loop
+  end do                  ! nn loop
 
   ! For other processes
   if ( nfield < mh_bs ) then
       
-!$omp master
     do ii = neighnum,1,-1
       do nn = 1,ntr
         do iq = 1,drlen(ii)
@@ -369,12 +348,9 @@ else     ! if(intsch==1)then
     end do             ! ii
     
     call intssync_send(ntr)
-!$omp end master
-!$omp barrier
 
-!$omp do
-    do k = 1,kl
-      do nn = 1,ntr
+    do nn = 1,ntr
+      do k = 1,kl
         do iq = 1,ifull    ! non Berm-Stan option
           ! Convert face index from 0:npanels to array indices
           idel = int(xg(iq,k))
@@ -403,13 +379,11 @@ else     ! if(intsch==1)then
           rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
           s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
         end do       ! iq loop
-      end do           ! nn loop
-    end do         ! k loop
-!$omp end do
+      end do         ! k loop
+    end do           ! nn loop
     
   else                 ! (nfield<mh_bs)
       
-!$omp master
     do ii = neighnum,1,-1
       do nn = 1,ntr
         do iq = 1,drlen(ii)
@@ -450,12 +424,9 @@ else     ! if(intsch==1)then
     end do          ! ii loop
   
     call intssync_send(ntr)
-!$omp end master
-!$omp barrier
 
-!$omp do
-    do k = 1,kl
-      do nn = 1,ntr
+    do nn = 1,ntr
+      do k = 1,kl
         do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
           idel = int(xg(iq,k))
           xxg = xg(iq,k) - idel
@@ -488,28 +459,22 @@ else     ! if(intsch==1)then
           s(iq,k,nn) = min( max( cmin, &
               rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
         end do       ! iq loop
-      end do           ! nn loop
-    end do         ! k loop
-!$omp end do
+      end do         ! k loop
+    end do           ! nn loop
     
   end if            ! (nfield<mh_bs)  .. else ..
 
 end if               ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
-!$omp master
 call intssync_recv(s)
-!$omp end master
-!$omp barrier
       
-!$omp master
 call END_LOG(ints_end)
-!$omp end master
 
 return
 end subroutine ints
 
-subroutine ints_bl(s,intsch,nface,xg,yg,sx)  ! not usually called
+subroutine ints_bl(s,intsch,nface,xg,yg)  ! not usually called
 
 use cc_mpi             ! CC MPI routines
 use indices_m          ! Grid index arrays
@@ -526,26 +491,19 @@ integer, intent(in) :: intsch
 integer, dimension(ifull,kl), intent(in) :: nface
 real xxg, yyg
 real, dimension(ifull,kl), intent(in) :: xg,yg      ! now passed through call
-real, dimension(0:ipan+1,0:jpan+1,1:npan,kl), intent(inout) :: sx
+real, dimension(0:ipan+1,0:jpan+1,1:npan,kl) :: sx
 real, dimension(ifull+iextra,kl,1), intent(inout) :: s
 
 !     this one does bi-linear interpolation only
 !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
 !                    but for bi-linear only need 0:il+1 &  0:il+1
 
-!$omp master
 call START_LOG(ints_begin)
-!$omp end master
 
-!$omp barrier
-!$omp master
 call bounds(s,corner=.true.)
-!$omp end master
-!$omp barrier
 
-!$omp do
+sx(1:ipan,1:jpan,1:npan,1:kl) = reshape(s(1:ipan*jpan*npan,1:kl,1), (/ipan,jpan,npan,kl/))
 do k = 1,kl
-  sx(1:ipan,1:jpan,1:npan,k) = reshape(s(1:ipan*jpan*npan,k,1), (/ipan,jpan,npan/))
   do n = 1,npan
 !$omp simd
     do j = 1,jpan
@@ -566,9 +524,7 @@ do k = 1,kl
     sx(ipan+1,jpan+1,n,k) = s(ien(n*ipan*jpan),k,1)
   end do                 ! n loop
 end do                   ! k loop
-!$omp end do
 
-!$omp master
 ! Loop over points that need to be calculated for other processes
 do ii = neighnum,1,-1
   do iq = 1,drlen(ii)
@@ -587,10 +543,7 @@ do ii = neighnum,1,-1
 end do
 
 call intssync_send(1)
-!$omp end master
-!$omp barrier
 
-!$omp do
 do k = 1,kl
   do iq = 1,ifull
     ! Convert face index from 0:npanels to array indices
@@ -605,16 +558,10 @@ do k = 1,kl
               + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
-!$omp end do
 
-!$omp master
 call intssync_recv(s)
-!$omp end master
-!$omp barrier
 
-!$omp master
 call END_LOG(ints_end)
-!$omp end master
 
 return
 end subroutine ints_bl
