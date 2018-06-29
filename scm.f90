@@ -2243,7 +2243,7 @@ elseif ( scm_mode=="CCAM" ) then
   qadv = (qadv - qg(1,:))/(3600.*real(nud_hrs))
   qadv(:) = max( -qg(1,:)/dt, qadv(:) )
   !qladv = (qladv - qlg(1,:))/(3600.*real(nud_hrs))
-  !qladv(:) = max( -qlg(1,:)/dt, qladv(:) )
+  !ladv(:) = max( -qlg(1,:)/dt, qladv(:) )
   !qfadv = (qfadv - qfg(1,:))/(3600.*real(nud_hrs))
   !qfadv(:) = max( -qfg(1,:)/dt, qfadv(:) )
   qladv = (qladv - qlg(1,:))/dt
