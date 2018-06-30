@@ -1465,23 +1465,19 @@ if( myid==0 .or. local ) then
         lname = 'Avg dew flux'
         call attrib(idnc,dimj,jsize,'dew_ave',lname,'W/m2',-100.,1000.,0,itype)
         lname = 'Avg evaporation'
-        call attrib(idnc,dimj,jsize,'evap',lname,'mm',-100.,100.,0,itype)
+        call attrib(idnc,dimj,jsize,'evap',lname,'mm',-100.,100.,0,-1)         ! -1 = long
         lname = 'Avg potential "pan" evaporation'
         call attrib(idnc,dimj,jsize,'epan_ave',lname,'W/m2',-1000.,10.e3,0,itype)
         lname = 'Avg potential evaporation'
         call attrib(idnc,dimj,jsize,'epot_ave',lname,'W/m2',-1000.,10.e3,0,itype)
         lname = 'Avg latent heat flux'
-        call attrib(idnc,dimj,jsize,'eg_ave',lname,'W/m2',-3000.,3000.,0,itype)
+        call attrib(idnc,dimj,jsize,'eg_ave',lname,'W/m2',-3000.,3000.,0,-1)   ! -1 = long
         lname = 'Avg sensible heat flux'
-        call attrib(idnc,dimj,jsize,'fg_ave',lname,'W/m2',-3000.,3000.,0,itype)
-      end if
-      if ( save_radiation ) then
+        call attrib(idnc,dimj,jsize,'fg_ave',lname,'W/m2',-3000.,3000.,0,-1)   ! -1 = long
         lname = 'Avg net radiation'
-        call attrib(idnc,dimj,jsize,'rnet_ave',lname,'none',-3000.,3000.,0,itype)
-      end if
-      if ( save_land ) then
+        call attrib(idnc,dimj,jsize,'rnet_ave',lname,'none',-3000.,3000.,0,-1) ! -1 = long
         lname = 'Avg flux into tgg1 layer'
-        call attrib(idnc,dimj,jsize,'ga_ave',lname,'W/m2',-1000.,1000.,0,itype)
+        call attrib(idnc,dimj,jsize,'ga_ave',lname,'W/m2',-1000.,1000.,0,-1)   ! -1 = long
       end if
       if ( save_radiation ) then
         lname = 'Avg ice water path'
@@ -1575,25 +1571,25 @@ if( myid==0 .or. local ) then
         if ( myid==0 ) write(6,*) 'nextout=',nextout
         if ( save_radiation ) then
           lname = 'LW at TOA'
-          call attrib(idnc,dimj,jsize,'rtu_ave',lname,'W/m2',0.,800.,0,itype)
+          call attrib(idnc,dimj,jsize,'rtu_ave',lname,'W/m2',0.,800.,0,-1) ! -1 = long
           lname = 'Clear sky LW at TOA'
           call attrib(idnc,dimj,jsize,'rtc_ave',lname,'W/m2',0.,800.,0,itype)
           lname = 'LW downwelling at ground'
-          call attrib(idnc,dimj,jsize,'rgdn_ave',lname,'W/m2',-500.,1.e3,0,itype)
+          call attrib(idnc,dimj,jsize,'rgdn_ave',lname,'W/m2',-500.,1.e3,0,-1) ! -1 = long
           lname = 'LW net at ground (+ve up)'
-          call attrib(idnc,dimj,jsize,'rgn_ave',lname,'W/m2',-500.,1000.,0,itype)
+          call attrib(idnc,dimj,jsize,'rgn_ave',lname,'W/m2',-500.,1000.,0,-1) ! -1 = long
           lname = 'Clear sky LW at ground'
           call attrib(idnc,dimj,jsize,'rgc_ave',lname,'W/m2',-500.,1000.,0,itype)
           lname = 'Solar in at TOA'
-          call attrib(idnc,dimj,jsize,'sint_ave',lname,'W/m2',0.,1600.,0,itype)
+          call attrib(idnc,dimj,jsize,'sint_ave',lname,'W/m2',0.,1600.,0,-1) ! -1 = long
           lname = 'Solar out at TOA'
-          call attrib(idnc,dimj,jsize,'sot_ave',lname,'W/m2',0.,1000.,0,itype)
+          call attrib(idnc,dimj,jsize,'sot_ave',lname,'W/m2',0.,1000.,0,-1)  ! -1 = long
           lname = 'Clear sky SW out at TOA'
           call attrib(idnc,dimj,jsize,'soc_ave',lname,'W/m2',0.,900.,0,itype)
           lname = 'Solar downwelling at ground'
-          call attrib(idnc,dimj,jsize,'sgdn_ave',lname,'W/m2',-500.,2.e3,0,itype)
+          call attrib(idnc,dimj,jsize,'sgdn_ave',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
           lname = 'Solar net at ground (+ve down)'
-          call attrib(idnc,dimj,jsize,'sgn_ave',lname,'W/m2',-500.,2000.,0,itype)
+          call attrib(idnc,dimj,jsize,'sgn_ave',lname,'W/m2',-500.,2000.,0,-1) ! -1 = long
           lname = 'Clear sky SW at ground (+ve down)'
           call attrib(idnc,dimj,jsize,'sgc_ave',lname,'W/m2',-500.,2000.,0,itype)
           lname = 'Sunshine hours'
@@ -2633,11 +2629,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
     call histwrt3(epot_ave,'epot_ave',idnc,iarch,local,lave)
     call histwrt3(eg_ave,'eg_ave',idnc,iarch,local,lave)
     call histwrt3(fg_ave,'fg_ave',idnc,iarch,local,lave)
-  end if
-  if ( save_radiation ) then
     call histwrt3(rnet_ave,'rnet_ave',idnc,iarch,local,lave)
-  end if
-  if ( save_land ) then
     call histwrt3(ga_ave,'ga_ave',idnc,iarch,local,lave)
   end if
   if ( save_radiation ) then

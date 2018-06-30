@@ -161,8 +161,8 @@ integer, parameter :: POP_HEIGHT_BINS = 12       ! Can POP communicate this numb
 integer, parameter :: POP_NDISTURB = 1           ! Can POP communicate this number?
 real, parameter :: minfrac = 0.01                ! minimum non-zero tile fraction (improves load balancing)
 
-integer, save :: maxnb                      ! maximum number of actual tiles
-integer, save :: mp_global                  ! maximum number of land-points on this process
+integer, save :: maxnb                           ! maximum number of actual tiles
+integer, save :: mp_global                       ! maximum number of land-points on this process
 real, dimension(:), allocatable, target, save :: sv, vl1, vl2, vl3, vl4
 
 contains
@@ -458,6 +458,8 @@ real(kind=8), dimension(mp) :: pleaf2met, pleaf2str, proot2met, proot2str, pwood
 real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
 real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
+real(r_2), dimension(mp) :: delwb, deltgg, tbal
+real(r_2), dimension(mp,ms) :: bwb, btgg
 logical, dimension(imax,maxtile), intent(in) :: tmap
 logical, dimension(imax), intent(in) :: land
 type(air_type), intent(inout) :: air
@@ -496,6 +498,10 @@ fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 idoy = int(fjd)
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,imax,coszro2,taudar2)
+
+! store soil temperature and moisture for budget calculation
+bwb(:,:) = ssnow%wb(:,:)
+btgg(:,:) = ssnow%tgg(:,:)
 
 ! run CASA CNP once per day
 casaperiod = nint(86400._8*deltpool)
@@ -591,6 +597,9 @@ if ( soil_struc==0 ) then
   canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
   !canopy%fhs_cor  = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
   !canopy%fes_cor  = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
+  ! MJT fix
+  ssnow%wb(:,ms) = ssnow%wb(:,ms) - (ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg)*dtr8 &
+                                   /(ssnow%cls*air%rlam*soil%zse(ms)*1000.) 
 end if
 canopy%fh        = canopy%fhv + canopy%fhs
 canopy%fev       = canopy%fevc + canopy%fevw
@@ -610,6 +619,23 @@ canopy%cdtq =  max( 0._8, canopy%cdtq )
 ! MJT suggestion
 ssnow%wbice = max( ssnow%wbice, 0._8 )
 
+! change in soil temperature
+!deltgg(:) = 0._8
+!do k = 1,ms
+!  deltgg(:) = deltgg(:) + (ssnow%tgg(:,k)-btgg(:,k))*ssnow%gammzz(:,k)/dtr8
+!end do  
+!! energy balance
+!tbal = canopy%rnet - canopy%fh - canopy%fe - deltgg
+!write(6,*) "energy ",minval(tbal),maxval(tbal)
+!! change in soil moisture
+!delwb(:) = 0._8
+!do k = 1,ms
+!  delwb(:) = delwb(:) + (ssnow%wb(:,k)-bwb(:,k))*soil%zse(k)*1000.
+!end do  
+!! net water into soil
+!bal%wbal = met%precip - canopy%delwc - ssnow%snowd + ssnow%osnowd - ssnow%runoff    &
+!          - (canopy%fevw + canopy%fevc + canopy%fes/ssnow%cls)*dtr8/air%rlam - delwb
+!write(6,*) "bal%wbal ",minval(bal%wbal),maxval(bal%wbal)
 
 #ifdef cabledebug
 if ( any( canopy%fhv/=canopy%fhv ) ) then
@@ -650,7 +676,7 @@ select case (ccycle)
   case(1,2,3) ! C, C+N, C+N+P
     ! update casamet
     if ( cable_pop==1 ) then
-      lalloc = 3  
+      lalloc = 3
     else
       lalloc = 0  
     end if
