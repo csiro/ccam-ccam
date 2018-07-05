@@ -1897,9 +1897,11 @@ use const_phys                             ! Physical constants
 use infile                                 ! Input file routines
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
+use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use parm_m                                 ! Model configuration
 use pbl_m                                  ! Boundary layer arrays
+use prec_m                                 ! Precipitation
 use sigs_m                                 ! Atmosphere sigma levels
 use soilsnow_m                             ! Soil, snow and surface data
 use tkeeps                                 ! TKE-EPS boundary layer
@@ -1928,7 +1930,7 @@ real, dimension(:), allocatable, save :: theta_adv, qv_adv, u_adv, v_adv, w_adv
 real, dimension(:), allocatable, save :: theta_adv_a, theta_adv_b, qv_adv_a, qv_adv_b
 real, dimension(:), allocatable, save :: u_adv_a, u_adv_b, v_adv_a, v_adv_b, w_adv_a, w_adv_b
 real, dimension(:), allocatable, save :: ql_adv_a, ql_adv_b, qf_adv_a, qf_adv_b, ql_adv, qf_adv
-real, dimension(1) :: psurf_in
+real, dimension(1), save :: psurf_in, rnd_in
 real, dimension(kl) :: tadv, qadv, um, vm, height_model, dz_model
 real, dimension(kl) :: qladv, qfadv
 real, dimension(0:kl) :: hl_model
@@ -2193,9 +2195,16 @@ elseif ( scm_mode=="CCAM" ) then
     npos(1:3) = (/ 1, 1, 1 /)
     call ccnf_get_vara(ncid,'ps',spos(1:3),npos(1:3),psurf_in(1:1))
     psurf_in = psurf_in*100.
-    psl(:) = log(psurf_in/1.e5)
     
+    call ccnf_get_vara(ncid,'rnd',spos(1:3),npos(1:3),rnd_in(1:1))
+   
   end if
+
+  psl(:) = log(psurf_in/1.e5)
+  condx = rnd_in*dt/(time_b-time_a)
+  conds = 0.
+  condg = 0.
+  precip = condx
 
   height_model(1) = bet(1)*t(1,1)/grav
   do k = 2,kl
@@ -2726,11 +2735,11 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m/s')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    ! lname = 'Precipitation (liq+sol) rate'
-    ! call ccnf_def_var(timencid,'rain',vtype,1,jdim(1:1),idnt)
-    ! call ccnf_put_att(timencid,idnt,'long_name',lname)
-    ! call ccnf_put_att(timencid,idnt,'units','mm/day')
-    ! call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = 'Precipitation (liq+sol) rate'
+    call ccnf_def_var(timencid,'rain',vtype,1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','mm/day')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     ! lname = 'Surface pressure'
     ! call ccnf_def_var(timencid,'psurf',vtype,1,jdim(1:1),idnt)
     ! call ccnf_put_att(timencid,idnt,'long_name',lname)
@@ -3285,7 +3294,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_vara(timencid,'g',iarch,aa(1))
     ! call ccnf_put_vara(timencid,'evap',iarch,aa(1))
     call ccnf_put_vara(timencid,'ustar',iarch,aa(1))
-    ! call ccnf_put_vara(timencid,'rain',iarch,aa(1))
+    call ccnf_put_vara(timencid,'rain',iarch,aa(1))
     ! call ccnf_put_vara(timencid,'psurf',iarch,aa(1))
     call ccnf_put_vara(timencid,'hpbl',iarch,aa(1))
     call ccnf_put_vara(timencid,'tsk',iarch,aa(1))
