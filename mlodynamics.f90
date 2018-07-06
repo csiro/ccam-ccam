@@ -854,10 +854,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! calculate vertical velocity (use flux form)
   call unpack_svwu(oeu,oev,oev_isv,oeu_iwu)
   call unpack_svwu(ccu(:,wlev),ccv(:,wlev),cc_isv,cc_iwu)
-  sdiv(:) = (ccu(1:ifull,wlev)*(oeu(1:ifull)+ddu(1:ifull))/emu(1:ifull) &
-            -cc_iwu*(oeu_iwu+dd_iwu)/em_iwu                             &
-            +ccv(1:ifull,wlev)*(oev(1:ifull)+ddv(1:ifull))/emv(1:ifull) &
-            -cc_isv*(oev_isv+dd_isv)/em_isv)                            &
+  sdiv(:) = (ccu(1:ifull,wlev)*(oeu(1:ifull)+ddu(1:ifull))/emu(1:ifull)    &
+            -cc_iwu*(oeu_iwu+dd_iwu)/em_iwu                                &
+            +ccv(1:ifull,wlev)*(oev(1:ifull)+ddv(1:ifull))/emv(1:ifull)    &
+            -cc_isv*(oev_isv+dd_isv)/em_isv)                               &
             *em(1:ifull)**2/ds
   do ii = 1,wlev-1
     call unpack_svwu(ccu(:,ii),ccv(:,ii),cc_isv,cc_iwu)  
@@ -4678,7 +4678,6 @@ implicit none
 integer ii, jj, iq
 real, dimension(ifull,wlev) :: ddux,ddvy
 real, dimension(ifull,wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
-real, dimension(ifull,wlev) :: ramp_a,ramp_c,ramp_e
 real, dimension(ifull+iextra,wlev) :: dd_i
 real, dimension(ifull,wlev,2) :: ri,re,rw,rn,rs,ren,rse,rne,rwn
 real, dimension(ifull,wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
@@ -4691,15 +4690,9 @@ real, dimension(ifull) :: f_in,f_ine,f_ie,f_is,f_ise,f_ien,f_iw,f_iwn
 ! Here we calculate the slow contribution of the pressure gradient
 
 ! dP/dx = g rhobar dneta/dx + g sigma D drhobar/dx + g sigma neta drhobar/dx
-!                   (fast)               (slow)          (mixed)
+!                   (fast)               (slow)          (fast)
 
 ! rhobar = int_0^sigma rho dsigma / sigma
-
-! MJT notes - this version fades out extrapolated gradients using ramp_a, etc.
-!
-! Idealy, we want to separate the neta contribution to drhobar/dx so that it
-! can be included in the implicit solution to neta.
-
 
 do ii = 1,wlev
   dd_i(:,ii) = gosig(ii)*dd(:)
@@ -4753,26 +4746,23 @@ do iq = 1,ifull
 end do  
   
 ! process staggered u locations
-ramp_a(:,:)=1.
-call seekval(ri,ssi,ddi,ddux,y2i,ramp_a)
-call seekval(re,sse,dde,ddux,y2e,ramp_a)
+call seekval(ri,ssi,ddi,ddux,y2i)
+call seekval(re,sse,dde,ddux,y2e)
 do jj=1,2
   do ii=1,wlev
-    drhobardxu(:,ii,jj)=ramp_a(:,ii)*(re(:,ii,jj)-ri(:,ii,jj))*eeu(1:ifull)*emu(1:ifull)/ds
+    drhobardxu(:,ii,jj)=(re(:,ii,jj)-ri(:,ii,jj))*eeu(1:ifull)*emu(1:ifull)/ds
   end do
 end do
-ramp_c(:,:)=1.
-ramp_e(:,:)=1.
-call seekval(rn, ssn, ddn, ddux,y2n, ramp_c)
-call seekval(rne,ssne,ddne,ddux,y2ne,ramp_c)
-call seekval(rs, sss, dds, ddux,y2s, ramp_e)
-call seekval(rse,ssse,ddse,ddux,y2se,ramp_e)
+call seekval(rn, ssn, ddn, ddux,y2n)
+call seekval(rne,ssne,ddne,ddux,y2ne)
+call seekval(rs, sss, dds, ddux,y2s)
+call seekval(rse,ssse,ddse,ddux,y2se)
 do jj=1,2
   do ii=1,wlev
-    drhobardyu(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,1)*(rn(:,ii,jj)*f_in+rne(:,ii,jj)*f_ine           &
-                                                         -ri(:,ii,jj)*f(1:ifull)-re(:,ii,jj)*f_ie)*emu(1:ifull)/ds)     &
-                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,2)*(ri(:,ii,jj)*f(1:ifull)+re(:,ii,jj)*f_ie       &
-                                                         -rs(:,ii,jj)*f_is-rse(:,ii,jj)*f_ise)*emu(1:ifull)/ds)
+    drhobardyu(:,ii,jj)=(0.25*stwgt(1:ifull,1)*(rn(:,ii,jj)*f_in+rne(:,ii,jj)*f_ine           &
+                               -ri(:,ii,jj)*f(1:ifull)-re(:,ii,jj)*f_ie)*emu(1:ifull)/ds)     &
+                       +(0.25*stwgt(1:ifull,2)*(ri(:,ii,jj)*f(1:ifull)+re(:,ii,jj)*f_ie       &
+                               -rs(:,ii,jj)*f_is-rse(:,ii,jj)*f_ise)*emu(1:ifull)/ds)
   end do
 end do
 
@@ -4799,26 +4789,23 @@ do ii = 1,wlev
 end do  
 
 ! now process staggered v locations
-ramp_a(:,:)=1.
-call seekval(ri,ssi,ddi,ddvy,y2i,ramp_a)
-call seekval(rn,ssn,ddn,ddvy,y2n,ramp_a)
+call seekval(ri,ssi,ddi,ddvy,y2i)
+call seekval(rn,ssn,ddn,ddvy,y2n)
 do jj=1,2
   do ii=1,wlev
-    drhobardyv(:,ii,jj)=ramp_a(:,ii)*(rn(:,ii,jj)-ri(:,ii,jj))*eev(1:ifull)*emv(1:ifull)/ds
+    drhobardyv(:,ii,jj)=(rn(:,ii,jj)-ri(:,ii,jj))*eev(1:ifull)*emv(1:ifull)/ds
   end do
 end do
-ramp_c(:,:)=1.
-ramp_e(:,:)=1.
-call seekval(re, sse, dde, ddvy,y2e, ramp_c)
-call seekval(ren,ssen,dden,ddvy,y2en,ramp_c)
-call seekval(rw, ssw, ddw, ddvy,y2w, ramp_e)
-call seekval(rwn,sswn,ddwn,ddvy,y2wn,ramp_e)
+call seekval(re, sse, dde, ddvy,y2e)
+call seekval(ren,ssen,dden,ddvy,y2en)
+call seekval(rw, ssw, ddw, ddvy,y2w)
+call seekval(rwn,sswn,ddwn,ddvy,y2wn)
 do jj=1,2
   do ii=1,wlev
-    drhobardxv(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,3)*(re(:,ii,jj)*f_ie+ren(:,ii,jj)*f_ien           &
-                                                         -ri(:,ii,jj)*f(1:ifull)-rn(:,ii,jj)*f_in)*emv(1:ifull)/ds)     &
-                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,4)*(ri(:,ii,jj)*f(1:ifull)+rn(:,ii,jj)*f_in       &
-                                                         -rw(:,ii,jj)*f_iw-rwn(:,ii,jj)*f_iwn)*emv(1:ifull)/ds)
+    drhobardxv(:,ii,jj)=(0.25*stwgt(1:ifull,3)*(re(:,ii,jj)*f_ie+ren(:,ii,jj)*f_ien           &
+                               -ri(:,ii,jj)*f(1:ifull)-rn(:,ii,jj)*f_in)*emv(1:ifull)/ds)     &
+                       +(0.25*stwgt(1:ifull,4)*(ri(:,ii,jj)*f(1:ifull)+rn(:,ii,jj)*f_in       &
+                               -rw(:,ii,jj)*f_iw-rwn(:,ii,jj)*f_iwn)*emv(1:ifull)/ds)
   end do
 end do
 
@@ -4828,7 +4815,7 @@ end subroutine seekdelta
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Interpolate to common depths - spline
 
-pure subroutine seekval(rout,ssin,ddin,ddseek,y2,ramp)
+pure subroutine seekval(rout,ssin,ddin,ddseek,y2)
 
 use cc_mpi
 use mlo, only : wlev
@@ -4841,13 +4828,11 @@ integer, dimension(1) :: pos
 integer, dimension(ifull,wlev) :: sindx
 real, dimension(ifull,wlev), intent(in) :: ddseek
 real, dimension(ifull,wlev), intent(in) :: ddin
-real, dimension(ifull,wlev), intent(inout) :: ramp
 real, dimension(ifull,wlev,2), intent(in) :: ssin, y2
 real, dimension(ifull,wlev,2), intent(out) :: rout
 real, dimension(ifull,2) :: ssunpack1, ssunpack0, y2unpack1, y2unpack0
 real, dimension(ifull) :: ddunpack1, ddunpack0
 real, dimension(ifull) :: h, a, b, tempa, tempb, temph
-real, parameter :: dzramp = 0.01 ! extrapolation limit
 
 sindx(:,:) = wlev
 do iq = 1,ifull
@@ -4884,6 +4869,7 @@ do  jj = 1,wlev
 
   h(:) = max(ddunpack1(:)-ddunpack0(:), 1.e-8)
   a(:) = (ddunpack1(:)-ddseek(:,jj))/h(:)
+  a(:) = max( min( a(:), 1.), 0. )
   b(:) = 1. - a(:)
   temph(:) = h(:)**2/6.
   tempa(:) = (a(:)**3-a(:))*temph(:)
@@ -4894,9 +4880,6 @@ do  jj = 1,wlev
   rout(:,jj,2) = a(:)*ssunpack0(:,2)+b(:)*ssunpack1(:,2)            & ! linear interpolation
                  +tempa(:)*y2unpack0(:,2)+tempb(:)*y2unpack1(:,2)     ! cubic spline terms
 
-  
-  ! fade out extrapolation
-  ramp(:,jj) = ramp(:,jj)*min(max((a(:)+dzramp)/dzramp,0.),1.)*min(max((b(:)+dzramp)/dzramp,0.),1.)
 end do
 
 return
@@ -4958,7 +4941,6 @@ implicit none
 integer ii, jj, iq
 real, dimension(ifull,wlev) :: ddux,ddvy
 real, dimension(ifull,wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
-real, dimension(ifull,wlev) :: ramp_a,ramp_c,ramp_e
 real, dimension(ifull+iextra,wlev) :: dd_i
 real, dimension(ifull,wlev,2) :: ri,re,rw,rn,rs,ren,rse,rne,rwn
 real, dimension(ifull,wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
@@ -4969,15 +4951,9 @@ real, dimension(ifull) :: f_in,f_ine,f_ie,f_is,f_ise,f_ien,f_iw,f_iwn
 ! Here we calculate the slow contribution of the pressure gradient
 
 ! dP/dx = g rhobar dneta/dx + g sigma D drhobar/dx + g sigma neta drhobar/dx
-!                   (fast)               (slow)          (mixed)
+!                   (fast)               (slow)          (fast)
 
 ! rhobar = int_0^sigma rho dsigma / sigma
-
-! MJT notes - this version fades out extrapolated gradients using ramp_a, etc.
-!
-! Idealy, we want to separate the neta contribution to drhobar/dx so that it
-! can be included in the implicit solution to neta.
-
 
 do ii = 1,wlev
   dd_i(:,ii) = gosig(ii)*dd(:)
@@ -5025,26 +5001,23 @@ do iq = 1,ifull
 end do  
   
 ! process staggered u locations
-ramp_a(:,:)=1.
-call seekval_l(ri,ssi,ddi,ddux,ramp_a)
-call seekval_l(re,sse,dde,ddux,ramp_a)
+call seekval_l(ri,ssi,ddi,ddux)
+call seekval_l(re,sse,dde,ddux)
 do jj=1,2
   do ii=1,wlev
-    drhobardxu(:,ii,jj)=ramp_a(:,ii)*(re(:,ii,jj)-ri(:,ii,jj))*eeu(1:ifull)*emu(1:ifull)/ds
+    drhobardxu(:,ii,jj)=(re(:,ii,jj)-ri(:,ii,jj))*eeu(1:ifull)*emu(1:ifull)/ds
   end do
 end do
-ramp_c(:,:)=1.
-ramp_e(:,:)=1.
-call seekval_l(rn, ssn, ddn, ddux,ramp_c)
-call seekval_l(rne,ssne,ddne,ddux,ramp_c)
-call seekval_l(rs, sss, dds, ddux,ramp_e)
-call seekval_l(rse,ssse,ddse,ddux,ramp_e)
+call seekval_l(rn, ssn, ddn, ddux)
+call seekval_l(rne,ssne,ddne,ddux)
+call seekval_l(rs, sss, dds, ddux)
+call seekval_l(rse,ssse,ddse,ddux)
 do jj=1,2
   do ii=1,wlev
-    drhobardyu(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,1)*(rn(:,ii,jj)*f_in+rne(:,ii,jj)*f_ine           &
-                                                         -ri(:,ii,jj)*f(1:ifull)-re(:,ii,jj)*f_ie)*emu(1:ifull)/ds)     &
-                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,2)*(ri(:,ii,jj)*f(1:ifull)+re(:,ii,jj)*f_ie       &
-                                                         -rs(:,ii,jj)*f_is-rse(:,ii,jj)*f_ise)*emu(1:ifull)/ds)
+    drhobardyu(:,ii,jj)=(0.25*stwgt(1:ifull,1)*(rn(:,ii,jj)*f_in+rne(:,ii,jj)*f_ine           &
+                               -ri(:,ii,jj)*f(1:ifull)-re(:,ii,jj)*f_ie)*emu(1:ifull)/ds)     &
+                       +(0.25*stwgt(1:ifull,2)*(ri(:,ii,jj)*f(1:ifull)+re(:,ii,jj)*f_ie       &
+                               -rs(:,ii,jj)*f_is-rse(:,ii,jj)*f_ise)*emu(1:ifull)/ds)
   end do
 end do
 
@@ -5068,26 +5041,23 @@ do ii = 1,wlev
 end do  
 
 ! now process staggered v locations
-ramp_a(:,:)=1.
-call seekval_l(ri,ssi,ddi,ddvy,ramp_a)
-call seekval_l(rn,ssn,ddn,ddvy,ramp_a)
+call seekval_l(ri,ssi,ddi,ddvy)
+call seekval_l(rn,ssn,ddn,ddvy)
 do jj=1,2
   do ii=1,wlev
-    drhobardyv(:,ii,jj)=ramp_a(:,ii)*(rn(:,ii,jj)-ri(:,ii,jj))*eev(1:ifull)*emv(1:ifull)/ds
+    drhobardyv(:,ii,jj)=(rn(:,ii,jj)-ri(:,ii,jj))*eev(1:ifull)*emv(1:ifull)/ds
   end do
 end do
-ramp_c(:,:)=1.
-ramp_e(:,:)=1.
-call seekval_l(re, sse, dde, ddvy,ramp_c)
-call seekval_l(ren,ssen,dden,ddvy,ramp_c)
-call seekval_l(rw, ssw, ddw, ddvy,ramp_e)
-call seekval_l(rwn,sswn,ddwn,ddvy,ramp_e)
+call seekval_l(re, sse, dde, ddvy)
+call seekval_l(ren,ssen,dden,ddvy)
+call seekval_l(rw, ssw, ddw, ddvy)
+call seekval_l(rwn,sswn,ddwn,ddvy)
 do jj=1,2
   do ii=1,wlev
-    drhobardxv(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,3)*(re(:,ii,jj)*f_ie+ren(:,ii,jj)*f_ien           &
-                                                         -ri(:,ii,jj)*f(1:ifull)-rn(:,ii,jj)*f_in)*emv(1:ifull)/ds)     &
-                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,4)*(ri(:,ii,jj)*f(1:ifull)+rn(:,ii,jj)*f_in       &
-                                                         -rw(:,ii,jj)*f_iw-rwn(:,ii,jj)*f_iwn)*emv(1:ifull)/ds)
+    drhobardxv(:,ii,jj)=(0.25*stwgt(1:ifull,3)*(re(:,ii,jj)*f_ie+ren(:,ii,jj)*f_ien           &
+                               -ri(:,ii,jj)*f(1:ifull)-rn(:,ii,jj)*f_in)*emv(1:ifull)/ds)     &
+                       +(0.25*stwgt(1:ifull,4)*(ri(:,ii,jj)*f(1:ifull)+rn(:,ii,jj)*f_in       &
+                               -rw(:,ii,jj)*f_iw-rwn(:,ii,jj)*f_iwn)*emv(1:ifull)/ds)
   end do
 end do
 
@@ -5097,7 +5067,7 @@ end subroutine seekdelta_l
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Interpolate to common depths - spline
 
-pure subroutine seekval_l(rout,ssin,ddin,ddseek,ramp)
+pure subroutine seekval_l(rout,ssin,ddin,ddseek)
 
 use cc_mpi
 use mlo, only : wlev
@@ -5110,13 +5080,11 @@ integer, dimension(1) :: pos
 integer, dimension(ifull,wlev) :: sindx
 real, dimension(ifull,wlev), intent(in) :: ddseek
 real, dimension(ifull,wlev), intent(in) :: ddin
-real, dimension(ifull,wlev), intent(inout) :: ramp
 real, dimension(ifull,wlev,2), intent(in) :: ssin
 real, dimension(ifull,wlev,2), intent(out) :: rout
 real, dimension(ifull,2) :: ssunpack1, ssunpack0
 real, dimension(ifull) :: ddunpack1, ddunpack0
 real, dimension(ifull) :: h, a, b
-real, parameter :: dzramp = 0.01 ! extrapolation limit
 
 sindx(:,:) = wlev
 do iq = 1,ifull
@@ -5149,13 +5117,12 @@ do  jj = 1,wlev
 
   h(:) = max(ddunpack1(:)-ddunpack0(:), 1.e-8)
   a(:) = (ddunpack1(:)-ddseek(:,jj))/h(:)
+  a(:) = max( min( a(:), 1.), 0. )
   b(:) = 1. - a(:)
   
   rout(:,jj,1) = a(:)*ssunpack0(:,1)+b(:)*ssunpack1(:,1)
   rout(:,jj,2) = a(:)*ssunpack0(:,2)+b(:)*ssunpack1(:,2)
-  
-  ! fade out extrapolation
-  ramp(:,jj) = ramp(:,jj)*min(max((a(:)+dzramp)/dzramp,0.),1.)*min(max((b(:)+dzramp)/dzramp,0.),1.)
+
 end do
 
 return
