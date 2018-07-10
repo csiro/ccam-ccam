@@ -2524,6 +2524,7 @@ real, dimension(1,kl+1) :: wtflux
 real, dimension(kl) :: zf, pf, rh
 real, dimension(kl+1) :: zh
 real, dimension(kl) :: qs, tmp
+real scale_factor
 integer, save :: timencid, profilencid, lsmncid
 integer, save :: iarch = 1
 integer zfdim, zhdim, zsdim, tdim_time, tdim_prof, udim
@@ -3281,6 +3282,8 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     !aa(:) = eg(:)*86400./hls ! this assumes sublimation
     ! call ccnf_put_vara(timencid,'evap',iarch,aa(1))
     call ccnf_put_vara(timencid,'ustar',iarch,ustar(1))
+    scale_factor = real(nperday)/real(min(nwt,max(ktau,1)))
+    precip = precip*scale_factor
     call ccnf_put_vara(timencid,'rain',iarch,precip(1))
     call ccnf_put_vara(timencid,'psurf',iarch,ps(1))
     call ccnf_put_vara(timencid,'hpbl',iarch,pblh(1))
