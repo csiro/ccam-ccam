@@ -1728,7 +1728,7 @@ end if
 do kbb = ktopmlo,kc,kblock
       
   if ( myid==0 ) then
-    write(6,*) "Gather data for MLO filter     ",kbb,min(kbb+kblock-1,kc)
+    write(6,*) "Gather data for MLO filter           ",kbb,min(kbb+kblock-1,kc)
   end if
             
   kln = kbb
@@ -1789,7 +1789,7 @@ do kbb = ktopmlo,kc,kblock
   end if
 
   if ( myid==0 ) then
-    write(6,*) "Distribute data for MLO filter ",kbb,min(kbb+kblock-1,kc)
+    write(6,*) "Distribute data for MLO filter       ",kbb,min(kbb+kblock-1,kc)
   end if
   
   if ( nud_sst/=0 ) then

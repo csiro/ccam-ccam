@@ -479,99 +479,8 @@ end if
 
 !-------------------------------------------------------------
 ! SETUP DIAGNOSTIC ARRAYS
-rndmax(:)      = 0.
-tmaxscr(:)     = 0.
-tminscr(:)     = 400.
-rhmaxscr(:)    = 0.
-rhminscr(:)    = 400.
-u10max(:)      = 0.
-v10max(:)      = 0.
-u1max(:)       = 0.
-v1max(:)       = 0.
-u2max(:)       = 0.
-v2max(:)       = 0.
-cape_max(:)    = 0.
-cape_ave(:)    = 0.
-u10mx(:)       = 0.
-tscr_ave(:)    = 0.
-qscrn_ave(:)   = 0.
-dew_ave(:)     = 0.
-epan_ave(:)    = 0.
-epot_ave(:)    = 0.
-eg_ave(:)      = 0.
-fg_ave(:)      = 0.
-ga_ave(:)      = 0.
-rnet_ave(:)    = 0.
-sunhours(:)    = 0.
-riwp_ave(:)    = 0.
-rlwp_ave(:)    = 0.
-evap(:)        = 0.
-precc(:)       = 0.
-precip(:)      = 0.
-convh_ave(:,:) = 0.
-rnd_3hr(:,8)   = 0. ! i.e. rnd24(:)=0.
-cbas_ave(:)    = 0.
-ctop_ave(:)    = 0.
-sno(:)         = 0.
-grpl(:)        = 0.
-runoff(:)      = 0.
-wb_ave(:,:)    = 0.
-tsu_ave(:)     = 0.
-alb_ave(:)     = 0.
-fbeam_ave(:)   = 0.
-psl_ave(:)     = 0.
-mixdep_ave(:)  = 0.
-koundiag       = 0
-sint_ave(:)    = 0.  ! solar_in_top
-sot_ave(:)     = 0.  ! solar_out_top
-soc_ave(:)     = 0.  ! solar_out_top (clear sky)
-sgdn_ave(:)    = 0.  ! solar_ground (down-welling) +ve down
-sgn_ave(:)     = 0.  ! solar_ground (net) +ve down
-rtu_ave(:)     = 0.  ! LW_out_top 
-rtc_ave(:)     = 0.  ! LW_out_top (clear sky)
-rgdn_ave(:)    = 0.  ! LW_ground (down-welling)  +ve down
-rgn_ave(:)     = 0.  ! LW_ground (net)  +ve up
-rgc_ave(:)     = 0.  ! LW_ground (clear sky)
-sgc_ave(:)     = 0.  ! SW_ground (clear sky)
-cld_ave(:)     = 0.
-cll_ave(:)     = 0.
-clm_ave(:)     = 0.
-clh_ave(:)     = 0.
-if ( ccycle>0 ) then
-  fnee_ave = 0.  
-  fpn_ave  = 0.
-  frd_ave  = 0.
-  frp_ave  = 0.
-  frpw_ave = 0.
-  frpr_ave = 0.
-  frs_ave  = 0.
-end if
-if ( abs(iaero)==2 ) then
-  duste         = 0.  ! Dust emissions
-  dustdd        = 0.  ! Dust dry deposition
-  dustwd        = 0.  ! Dust wet deposition
-  dust_burden   = 0.  ! Dust burden
-  bce           = 0.  ! Black carbon emissions
-  bcdd          = 0.  ! Black carbon dry deposition
-  bcwd          = 0.  ! Black carbon wet deposition
-  bc_burden     = 0.  ! Black carbon burden
-  oce           = 0.  ! Organic carbon emissions
-  ocdd          = 0.  ! Organic carbon dry deposition
-  ocwd          = 0.  ! Organic carbon wet deposition
-  oc_burden     = 0.  ! Organic carbon burden
-  dmse          = 0.  ! DMS emissions
-  dmsso2o       = 0.  ! DMS -> SO2 oxidation
-  so2e          = 0.  ! SO2 emissions
-  so2so4o       = 0.  ! SO2 -> SO4 oxidation
-  so2dd         = 0.  ! SO2 dry deposition
-  so2wd         = 0.  ! SO2 wet deposiion
-  so4e          = 0.  ! SO4 emissions
-  so4dd         = 0.  ! SO4 dry deposition
-  so4wd         = 0.  ! SO4 wet deposition
-  dms_burden    = 0.  ! DMS burden
-  so2_burden    = 0.  ! SO2 burden
-  so4_burden    = 0.  ! SO4 burden
-end if
+call zero_nperavg  ! reset average period diagnostics
+call zero_nperday  ! reset daily period diagnostics
 
 ! NUDGING
 ktau = 0
@@ -872,11 +781,21 @@ do spinup = spinup_start,1,-1
       oxidant_timer = mins
     end if
   
+    call calculate_timeaverage
+    
     ! OUTPUT
     if ( spinup==1 .and. mod(ktau,nwt)==0 ) then
       call outputscm(scm_mode,timeoutput,profileoutput,lsmoutput)
     end if
   
+    if ( mod(ktau,nperavg)==0 ) then
+      call zero_nperavg
+    end if
+    
+    if ( mod(ktau,nperday)==0 ) then 
+      call zero_nperday  
+    end if    
+    
   end do ! ktau
     
 end do   ! spinup
@@ -2201,10 +2120,11 @@ elseif ( scm_mode=="CCAM" ) then
   end if
 
   psl(:) = log(psurf_in/1.e5)
+  ps(:) = 1.e5*exp(psl)
   condx = rnd_in*dt/(time_b-time_a)
   conds = 0.
   condg = 0.
-  precip = condx
+  precip = precip + condx
 
   height_model(1) = bet(1)*t(1,1)/grav
   do k = 2,kl
@@ -2740,11 +2660,11 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','mm/day')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    ! lname = 'Surface pressure'
-    ! call ccnf_def_var(timencid,'psurf',vtype,1,jdim(1:1),idnt)
-    ! call ccnf_put_att(timencid,idnt,'long_name',lname)
-    ! call ccnf_put_att(timencid,idnt,'units','Pa')
-    ! call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = 'Surface pressure'
+    call ccnf_def_var(timencid,'psurf',vtype,1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','Pa')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'boundary layer height'
     call ccnf_def_var(timencid,'hpbl',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
@@ -3295,7 +3215,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     ! call ccnf_put_vara(timencid,'evap',iarch,aa(1))
     call ccnf_put_vara(timencid,'ustar',iarch,aa(1))
     call ccnf_put_vara(timencid,'rain',iarch,aa(1))
-    ! call ccnf_put_vara(timencid,'psurf',iarch,aa(1))
+    call ccnf_put_vara(timencid,'psurf',iarch,aa(1))
     call ccnf_put_vara(timencid,'hpbl',iarch,aa(1))
     call ccnf_put_vara(timencid,'tsk',iarch,aa(1))
     ! call ccnf_put_vara(timencid,'trad',iarch,aa(1))
@@ -3361,8 +3281,8 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     !aa(:) = eg(:)*86400./hls ! this assumes sublimation
     ! call ccnf_put_vara(timencid,'evap',iarch,aa(1))
     call ccnf_put_vara(timencid,'ustar',iarch,ustar(1))
-    ! call ccnf_put_vara(timencid,'rain',iarch,precip(1))
-    ! call ccnf_put_vara(timencid,'psurf',iarch,ps(1))
+    call ccnf_put_vara(timencid,'rain',iarch,precip(1))
+    call ccnf_put_vara(timencid,'psurf',iarch,ps(1))
     call ccnf_put_vara(timencid,'hpbl',iarch,pblh(1))
     call ccnf_put_vara(timencid,'tsk',iarch,tss(1))
     aa(:) = ((rgdn_ave(:)+rgn_ave(:))/(0.98*stefbo))**(0.25)
@@ -6259,6 +6179,353 @@ write(6,*) "Finished creating restart file"
     
 return
 end subroutine saverestart
+    
+!--------------------------------------------------------------
+! Reset diagnostics for averaging period    
+subroutine zero_nperavg
+
+use aerosolldr, only :                   & ! LDR prognostic aerosols
+     duste,dustwd,dustdd,dust_burden     &
+    ,bce,bcwd,bcdd,bc_burden             &
+    ,oce,ocwd,ocdd,oc_burden             &
+    ,dmse,dms_burden                     &
+    ,so2e,so2wd,so2dd,so2_burden         &
+    ,so4e,so4wd,so4dd,so4_burden         &
+    ,dmsso2o,so2so4o
+use cable_ccam, only : ccycle              ! CABLE
+use histave_m                              ! Time average arrays
+use morepbl_m                              ! Additional boundary layer diagnostics
+use parm_m                                 ! Model configuration
+use prec_m                                 ! Precipitation
+use raddiag_m                              ! Radiation diagnostic
+use soilsnow_m                             ! Soil, snow and surface data
+use tracers_m                              ! Tracer data
+
+implicit none
+
+convh_ave(:,:)       = 0.
+cbas_ave(:)          = 0.
+ctop_ave(:)          = 0.
+dew_ave(:)           = 0.
+epan_ave(:)          = 0.
+epot_ave(:)          = 0.
+eg_ave(:)            = 0.
+fg_ave(:)            = 0.
+ga_ave(:)            = 0.
+anthropogenic_ave(:) = 0.
+tasurban_ave(:)      = 0.
+tmaxurban(:)         = urban_tas
+tminurban(:)         = urban_tas
+rnet_ave(:)          = 0.
+sunhours(:)          = 0.
+riwp_ave(:)          = 0.
+rlwp_ave(:)          = 0.
+qscrn_ave(:)         = 0.
+tscr_ave(:)          = 0.
+wb_ave(:,:)          = 0.
+wbice_ave(:,:)       = 0.
+tsu_ave(:)           = 0.
+alb_ave(:)           = 0.
+fbeam_ave(:)         = 0.
+psl_ave(:)           = 0.
+mixdep_ave(:)        = 0.
+
+! radiation
+koundiag             = 0
+sint_ave(:)          = 0.
+sot_ave(:)           = 0.
+soc_ave(:)           = 0.
+sgdn_ave(:)          = 0.
+sgn_ave(:)           = 0.
+rtu_ave(:)           = 0.
+rtc_ave(:)           = 0.
+rgdn_ave(:)          = 0.
+rgn_ave(:)           = 0.
+rgc_ave(:)           = 0.
+sgc_ave(:)           = 0.
+cld_ave(:)           = 0.
+cll_ave(:)           = 0.
+clm_ave(:)           = 0.
+clh_ave(:)           = 0.
+
+! zero evap, precip, precc, sno, runoff fields each nperavg (3/12/04) 
+evap(:)              = 0.  
+precip(:)            = 0.  ! converted to mm/day in outcdf
+precc(:)             = 0.  ! converted to mm/day in outcdf
+sno(:)               = 0.  ! converted to mm/day in outcdf
+grpl(:)              = 0.  ! converted to mm/day in outcdf
+runoff(:)            = 0.  ! converted to mm/day in outcdf
+runoff_surface(:)    = 0.  ! converted to mm/day in outcdf
+snowmelt(:)          = 0.  ! converted to mm/day in outcdf
+u10mx(:)             = 0.
+cape_max(:)          = 0.
+cape_ave(:)          = 0.
+
+if ( ngas>0 ) then
+  traver = 0.
+end if
+
+if ( ccycle/=0 ) then
+  fnee_ave = 0.  
+  fpn_ave  = 0.
+  frd_ave  = 0.
+  frp_ave  = 0.
+  frpw_ave = 0.
+  frpr_ave = 0.
+  frs_ave  = 0.
+  cnpp_ave = 0.
+  cnbp_ave = 0.
+end if
+
+if ( abs(iaero)>=2 ) then
+  duste         = 0.  ! Dust emissions
+  dustdd        = 0.  ! Dust dry deposition
+  dustwd        = 0.  ! Dust wet deposition
+  dust_burden   = 0.  ! Dust burden
+  bce           = 0.  ! Black carbon emissions
+  bcdd          = 0.  ! Black carbon dry deposition
+  bcwd          = 0.  ! Black carbon wet deposition
+  bc_burden     = 0.  ! Black carbon burden
+  oce           = 0.  ! Organic carbon emissions
+  ocdd          = 0.  ! Organic carbon dry deposition
+  ocwd          = 0.  ! Organic carbon wet deposition
+  oc_burden     = 0.  ! Organic carbon burden
+  dmse          = 0.  ! DMS emissions
+  dmsso2o       = 0.  ! DMS -> SO2 oxidation
+  so2e          = 0.  ! SO2 emissions
+  so2so4o       = 0.  ! SO2 -> SO4 oxidation
+  so2dd         = 0.  ! SO2 dry deposition
+  so2wd         = 0.  ! SO2 wet deposiion
+  so4e          = 0.  ! SO4 emissions
+  so4dd         = 0.  ! SO4 dry deposition
+  so4wd         = 0.  ! SO4 wet deposition
+  dms_burden    = 0.  ! DMS burden
+  so2_burden    = 0.  ! SO2 burden
+  so4_burden    = 0.  ! SO4 burden
+end if
+
+return
+end subroutine zero_nperavg
+    
+!--------------------------------------------------------------
+! Reset diagnostics for daily averages    
+subroutine zero_nperday
+
+use histave_m                              ! Time average arrays
+use parm_m                                 ! Model configuration
+use prec_m                                 ! Precipitation
+use screen_m                               ! Screen level diagnostics
+
+implicit none
+
+rndmax (:)  = 0.
+tmaxscr(:)  = tscrn(:) 
+tminscr(:)  = tscrn(:) 
+rhmaxscr(:) = rhscrn(:) 
+rhminscr(:) = rhscrn(:) 
+u10max(:)   = 0.
+v10max(:)   = 0.
+u1max(:)    = 0.
+v1max(:)    = 0.
+u2max(:)    = 0.
+v2max(:)    = 0.
+rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
+
+!if ( nextout >= 4 ) then
+!  call setllp ! reset once per day
+!end if
+
+return
+end subroutine zero_nperday
+    
+!--------------------------------------------------------------
+! Update diagnostics for averaging period    
+subroutine calculate_timeaverage
+
+use aerosolldr, only :                   & ! LDR prognostic aerosols
+     duste,dustwd,dustdd,dust_burden     &
+    ,bce,bcwd,bcdd,bc_burden             &
+    ,oce,ocwd,ocdd,oc_burden             &
+    ,dmse,dms_burden                     &
+    ,so2e,so2wd,so2dd,so2_burden         &
+    ,so4e,so4wd,so4dd,so4_burden         &
+    ,dmsso2o,so2so4o
+use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use cable_ccam, only : ccycle              ! CABLE
+use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
+    ,frpw,frpr,frs,cnpp,cnbp
+use histave_m                              ! Time average arrays
+use mlo, only : mlodiag                    ! Ocean physics and prognostic arrays
+use morepbl_m                              ! Additional boundary layer diagnostics
+use newmpar_m                              ! Grid parameters
+use parm_m                                 ! Model configuration
+use pbl_m                                  ! Boundary layer arrays
+use prec_m                                 ! Precipitation
+use raddiag_m                              ! Radiation diagnostic
+use screen_m                               ! Screen level diagnostics
+use soilsnow_m                             ! Soil, snow and surface data
+use tracers_m                              ! Tracer data
+use work3_m                                ! Mk3 land-surface diagnostic arrays
+
+implicit none
+
+integer iq, k
+real, dimension(ifull) :: spare1, spare2
+
+tmaxscr(1:ifull)           = max( tmaxscr(1:ifull), tscrn )
+tminscr(1:ifull)           = min( tminscr(1:ifull), tscrn )
+rhmaxscr(1:ifull)          = max( rhmaxscr(1:ifull), rhscrn )
+rhminscr(1:ifull)          = min( rhminscr(1:ifull), rhscrn )
+rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
+cape_max(1:ifull)          = max( cape_max(1:ifull), cape )
+cape_ave(1:ifull)          = cape_ave(1:ifull) + cape
+u10mx(1:ifull)             = max( u10mx(1:ifull), u10 )  ! for hourly scrnfile
+dew_ave(1:ifull)           = dew_ave(1:ifull) - min( 0., eg )    
+epan_ave(1:ifull)          = epan_ave(1:ifull) + epan
+epot_ave(1:ifull)          = epot_ave(1:ifull) + epot 
+eg_ave(1:ifull)            = eg_ave(1:ifull) + eg    
+fg_ave(1:ifull)            = fg_ave(1:ifull) + fg
+ga_ave(1:ifull)            = ga_ave(1:ifull) + ga
+anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
+tasurban_ave(1:ifull)      = tasurban_ave(1:ifull) + urban_tas
+tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urban_tas )
+tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
+rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
+tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
+qscrn_ave(1:ifull)         = qscrn_ave(1:ifull) + qgscrn 
+wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
+wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
+tsu_ave(1:ifull)           = tsu_ave(1:ifull) + tss
+!call mslp(spare2,psl,zs,t) ! calculate MSLP from psl
+!spare2 = spare2/100.       ! convert MSLP to hPa
+!psl_ave(1:ifull)           = psl_ave(1:ifull) + spare2(1:ifull)
+spare1(1:ifull)            = 0.
+call mlodiag(spare1,0)     ! obtain ocean mixed level depth
+mixdep_ave(1:ifull)        = mixdep_ave(1:ifull) + spare1(1:ifull)
+spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
+spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
+do iq = 1,ifull
+  if ( u10(iq)**2 > u10max(iq)**2 +v10max(iq)**2 ) then
+    u10max(iq) = u10(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
+    v10max(iq) = u10(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
+  end if
+  if ( spare1(iq) > u1max(iq)**2+v1max(iq)**2 ) then
+    u1max(iq) = u(iq,1)
+    v1max(iq) = v(iq,1)
+  end if
+  if ( spare2(iq) > u2max(iq)**2+v2max(iq)**2 ) then
+    u2max(iq) = u(iq,2)
+    v2max(iq) = v(iq,2)
+  end if
+end do
+
+if ( ngas>0 ) then
+  traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(:,:,1:ngas)
+end if
+
+if ( ccycle/=0 ) then
+  fnee_ave(1:ifull) = fnee_ave(1:ifull) + fnee  
+  fpn_ave(1:ifull)  = fpn_ave(1:ifull) + fpn
+  frd_ave(1:ifull)  = frd_ave(1:ifull) + frd
+  frp_ave(1:ifull)  = frp_ave(1:ifull) + frp
+  frpw_ave(1:ifull) = frpw_ave(1:ifull) + frpw
+  frpr_ave(1:ifull) = frpr_ave(1:ifull) + frpr
+  frs_ave(1:ifull)  = frs_ave(1:ifull) + frs
+  cnpp_ave(1:ifull) = cnpp_ave(1:ifull) + cnpp
+  cnbp_ave(1:ifull) = cnbp_ave(1:ifull) + cnbp
+end if
+
+if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
+  cape_ave(1:ifull)          = cape_ave(1:ifull)/min(ntau,nperavg)
+  dew_ave(1:ifull)           = dew_ave(1:ifull)/min(ntau,nperavg)
+  epan_ave(1:ifull)          = epan_ave(1:ifull)/min(ntau,nperavg)
+  epot_ave(1:ifull)          = epot_ave(1:ifull)/min(ntau,nperavg)
+  eg_ave(1:ifull)            = eg_ave(1:ifull)/min(ntau,nperavg)
+  fg_ave(1:ifull)            = fg_ave(1:ifull)/min(ntau,nperavg)
+  ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg)   
+  anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull)/min(ntau,nperavg)
+  tasurban_ave(1:ifull)      = tasurban_ave(1:ifull)/min(ntau,nperavg)
+  rnet_ave(1:ifull)          = rnet_ave(1:ifull)/min(ntau,nperavg)
+  sunhours(1:ifull)          = sunhours(1:ifull)/min(ntau,nperavg)
+  riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
+  rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
+  tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
+  qscrn_ave(1:ifull)         = qscrn_ave(1:ifull)/min(ntau,nperavg)
+  do k = 1,ms
+    wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
+    wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)
+  end do
+  tsu_ave(1:ifull)    = tsu_ave(1:ifull)/min(ntau,nperavg)
+  psl_ave(1:ifull)    = psl_ave(1:ifull)/min(ntau,nperavg)
+  mixdep_ave(1:ifull) = mixdep_ave(1:ifull)/min(ntau,nperavg)
+  sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
+  sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
+  sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)
+  sot_ave(1:ifull)    = sot_ave(1:ifull)/max(koundiag,1)
+  soc_ave(1:ifull)    = soc_ave(1:ifull)/max(koundiag,1)
+  rtu_ave(1:ifull)    = rtu_ave(1:ifull)/max(koundiag,1)
+  rtc_ave(1:ifull)    = rtc_ave(1:ifull)/max(koundiag,1)
+  rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
+  rgn_ave(1:ifull)    = rgn_ave(1:ifull)/max(koundiag,1)
+  rgc_ave(1:ifull)    = rgc_ave(1:ifull)/max(koundiag,1)
+  sgc_ave(1:ifull)    = sgc_ave(1:ifull)/max(koundiag,1)
+  cld_ave(1:ifull)    = cld_ave(1:ifull)/max(koundiag,1)
+  cll_ave(1:ifull)    = cll_ave(1:ifull)/max(koundiag,1)
+  clm_ave(1:ifull)    = clm_ave(1:ifull)/max(koundiag,1)
+  clh_ave(1:ifull)    = clh_ave(1:ifull)/max(koundiag,1)
+  alb_ave(1:ifull)    = alb_ave(1:ifull)/max(koundiag,1)
+  fbeam_ave(1:ifull)  = fbeam_ave(1:ifull)/max(koundiag,1)
+  cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
+  ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
+ 
+  if ( ngas>0 ) then
+    traver(1:ifull,1:kl,1:ngas) = traver(1:ifull,1:kl,1:ngas)/min(ntau,nperavg)
+  end if
+
+  if ( ccycle/=0 ) then
+    fnee_ave(1:ifull)   = fnee_ave(1:ifull)/min(ntau,nperavg)  
+    fpn_ave(1:ifull)    = fpn_ave(1:ifull)/min(ntau,nperavg)
+    frd_ave(1:ifull)    = frd_ave(1:ifull)/min(ntau,nperavg)
+    frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
+    frpw_ave(1:ifull)   = frpw_ave(1:ifull)/min(ntau,nperavg)
+    frpr_ave(1:ifull)   = frpr_ave(1:ifull)/min(ntau,nperavg)
+    frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
+    cnpp_ave(1:ifull)   = cnpp_ave(1:ifull)/min(ntau,nperavg)
+    cnbp_ave(1:ifull)   = cnbp_ave(1:ifull)/min(ntau,nperavg)
+  end if
+   
+  if ( abs(iaero)>=2 ) then
+    duste         = duste/min(ntau,nperavg)        ! Dust emissions
+    dustdd        = dustdd/min(ntau,nperavg)       ! Dust dry deposition
+    dustwd        = dustwd/min(ntau,nperavg)       ! Dust wet deposition
+    dust_burden   = dust_burden/min(ntau,nperavg)  ! Dust burden
+    bce           = bce/min(ntau,nperavg)          ! Black carbon emissions
+    bcdd          = bcdd/min(ntau,nperavg)         ! Black carbon dry deposition
+    bcwd          = bcwd/min(ntau,nperavg)         ! Black carbon wet deposition
+    bc_burden     = bc_burden/min(ntau,nperavg)    ! Black carbon burden
+    oce           = oce/min(ntau,nperavg)          ! Organic carbon emissions
+    ocdd          = ocdd/min(ntau,nperavg)         ! Organic carbon dry deposition
+    ocwd          = ocwd/min(ntau,nperavg)         ! Organic carbon wet deposition
+    oc_burden     = oc_burden/min(ntau,nperavg)    ! Organic carbon burden
+    dmse          = dmse/min(ntau,nperavg)         ! DMS emissions
+    dmsso2o       = dmsso2o/min(ntau,nperavg)      ! DMS -> SO2 oxidation
+    so2e          = so2e/min(ntau,nperavg)         ! SO2 emissions
+    so2so4o       = so2so4o/min(ntau,nperavg)      ! SO2 -> SO4 oxidation
+    so2dd         = so2dd/min(ntau,nperavg)        ! SO2 dry deposition
+    so2wd         = so2wd/min(ntau,nperavg)        ! SO2 wet deposiion
+    so4e          = so4e/min(ntau,nperavg)         ! SO4 emissions
+    so4dd         = so4dd/min(ntau,nperavg)        ! SO4 dry deposition
+    so4wd         = so4wd/min(ntau,nperavg)        ! SO4 wet deposition
+    dms_burden    = dms_burden/min(ntau,nperavg)   ! DMS burden
+    so2_burden    = so2_burden/min(ntau,nperavg)   ! SO2 burden
+    so4_burden    = so4_burden/min(ntau,nperavg)   ! SO4 burden
+  end if
+
+end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
+
+return
+end subroutine calculate_timeaverage
+    
     
 !subroutine gabls_flux(xtg,pps,pta,ppa,pu,pv,prhoa,zref,z0, &
 !                      psfth,zustar,zvmod)
