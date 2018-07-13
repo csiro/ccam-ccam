@@ -156,6 +156,7 @@ integer jyear, jmonth, jday, jhour, jmin, mins
 integer spinup, spinup_start, ntau_end, ntau_spinup
 integer opt, nopt
 integer, save :: iarch_nudge = 0
+integer nud_ql, nud_qf
 real, dimension(1000) :: press_in
 real press_surf, gridres, soil_albedo
 real es
@@ -184,6 +185,7 @@ logical nogwdrag, noconvection, nocloud, noaerosol, novertmix
 logical lsm_only, vert_adv, urbanscrn
 logical use_file_for_rain, use_file_for_cloud
 
+
 namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     z_in,ivegt_in,isoil_in,metforcing,lsmforcing,lsmoutput,       &
     fixtsurf,nolatent,timeoutput,profileoutput,noradiation,       &
@@ -191,6 +193,7 @@ namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     lsm_only,vert_adv,urbanscrn,soil_albedo,                      &
     gablsflux,scm_mode,spinup_start,ntau_spinup,                  &
     use_file_for_rain, use_file_for_cloud,                        &
+    nud_ql, nud_qf,                                               &
     ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,       &
     ateb_industryfg,ateb_trafficfg,ateb_vegalphac,                &
     ateb_wallalpha,ateb_roadalpha,ateb_roofalpha,                 &
@@ -303,6 +306,8 @@ lsm_only = .false.
 vert_adv = .false.
 use_file_for_rain = .false.
 use_file_for_cloud = .false.
+nud_ql = 1
+nud_qf = 1
 ateb_bldheight = -999.
 ateb_hwratio = -999.
 ateb_sigvegc = -999.
@@ -488,7 +493,7 @@ call zero_nperday  ! reset daily period diagnostics
 ! NUDGING
 ktau = 0
 call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv, &
-              use_file_for_rain,use_file_for_cloud)
+              use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf)
 call nantest("after nudging",1,ifull)
 
 savu(1:ifull,:) = u(1:ifull,:)
@@ -630,7 +635,7 @@ do spinup = spinup_start,1,-1
     call nantest("after radiation",1,ifull)   
 
     call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv, &
-                  use_file_for_rain,use_file_for_cloud)
+                  use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf)
     call nantest("after nudging",1,ifull)
 
     ! REPLACE SCM WITH INPUT DATA, PRIOR TO SFLUX
@@ -1736,7 +1741,7 @@ return
 end subroutine initialscm
     
 subroutine nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv, &
-                    use_file_for_rain,use_file_for_cloud)
+                    use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf)
 
 use aerosolldr, only : xtg,naero           ! LDR prognostic aerosols
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
@@ -1762,6 +1767,7 @@ implicit none
 include 'kuocom.h'
 
 integer, intent(inout) :: iarch_nudge
+integer, intent(in) :: nud_ql, nud_qf
 integer, save :: ncid
 integer, save :: nlev, ntimes
 integer :: ncstatus, k, l, ntr
@@ -2114,8 +2120,12 @@ elseif ( scm_mode=="CCAM" ) then
     qfadv(:) = max( -qfg(1,:)/dt, qfadv(:) )
   end if  
 
-  qlg(1,:) = qlg(1,:) + dt*qladv(:)
-  qfg(1,:) = qfg(1,:) + dt*qfadv(:)
+  if ( nud_ql>0 ) then
+    qlg(1,:) = qlg(1,:) + dt*qladv(:)
+  end if
+  if ( nud_qf>0 ) then
+    qfg(1,:) = qfg(1,:) + dt*qfadv(:)
+  end if  
   
   ! apply vertical velocity
   ! dq/dt + w*dq/dz = dq/dt + d(w*q)/dz - q*dw/dz
