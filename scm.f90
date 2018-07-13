@@ -405,6 +405,7 @@ ntiles = 1
 
 nperday = nint(24.*3600./dt)           ! time-steps in one day
 nperhr  = nint(3600./dt)               ! time-steps in one hour
+nperavg = nwt
 
 schmidt = gridres*real(il_g)/(90.*112.)
 write(6,*) "gridres,schmidt ",gridres,schmidt
@@ -480,6 +481,9 @@ kountr = 1
 if ( myid==0 ) then
   write(6,*) "Radiation will use kountr ",kountr
 end if
+
+call zero_nperavg  ! reset average period diagnostics
+call zero_nperday  ! reset daily period diagnostics
 
 ! NUDGING
 ktau = 0
@@ -3215,8 +3219,8 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     ! call ccnf_put_vara(timencid,'evap',iarch,aa(1))
     call ccnf_put_vara(timencid,'ustar',iarch,ustar(1))
     scale_factor = real(nperday)/real(min(nwt,max(ktau,1)))
-    precip = precip*scale_factor
-    call ccnf_put_vara(timencid,'rain',iarch,precip(1))
+    aa = precip*scale_factor
+    call ccnf_put_vara(timencid,'rain',iarch,aa(1))
     call ccnf_put_vara(timencid,'psurf',iarch,ps(1))
     call ccnf_put_vara(timencid,'hpbl',iarch,pblh(1))
     call ccnf_put_vara(timencid,'tsk',iarch,tss(1))
