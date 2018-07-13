@@ -182,6 +182,7 @@ logical oxidant_update
 logical fixtsurf, nolatent, noradiation
 logical nogwdrag, noconvection, nocloud, noaerosol, novertmix
 logical lsm_only, vert_adv, urbanscrn
+logical use_file_for_rain, use_file_for_cloud
 
 namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     z_in,ivegt_in,isoil_in,metforcing,lsmforcing,lsmoutput,       &
@@ -189,6 +190,7 @@ namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     nogwdrag,noconvection,nocloud,noaerosol,novertmix,            &
     lsm_only,vert_adv,urbanscrn,soil_albedo,                      &
     gablsflux,scm_mode,spinup_start,ntau_spinup,                  &
+    use_file_for_rain, use_file_for_cloud,                        &
     ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,       &
     ateb_industryfg,ateb_trafficfg,ateb_vegalphac,                &
     ateb_wallalpha,ateb_roadalpha,ateb_roofalpha,                 &
@@ -299,6 +301,8 @@ noaerosol = .false.
 novertmix = .false.
 lsm_only = .false.
 vert_adv = .false.
+use_file_for_rain = .false.
+use_file_for_cloud = .false.
 ateb_bldheight = -999.
 ateb_hwratio = -999.
 ateb_sigvegc = -999.
@@ -477,14 +481,10 @@ if ( myid==0 ) then
   write(6,*) "Radiation will use kountr ",kountr
 end if
 
-!-------------------------------------------------------------
-! SETUP DIAGNOSTIC ARRAYS
-call zero_nperavg  ! reset average period diagnostics
-call zero_nperday  ! reset daily period diagnostics
-
 ! NUDGING
 ktau = 0
-call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
+call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv, &
+              use_file_for_rain,use_file_for_cloud)
 call nantest("after nudging",1,ifull)
 
 savu(1:ifull,:) = u(1:ifull,:)
@@ -518,6 +518,9 @@ do spinup = spinup_start,1,-1
     ntau_end = ntau
     write(6,*) "Main simulation"
   end if  
+
+  call zero_nperavg  ! reset average period diagnostics
+  call zero_nperday  ! reset daily period diagnostics
   
   iarch_nudge = 0 ! reset nudging
   t = t_save
@@ -544,102 +547,6 @@ do spinup = spinup_start,1,-1
     if ( abs(nurban)==1 ) then
       write(6,*) "tss,t1,pblh ",tss(1),t(1,1),pblh(1)
     end if
-  
-    ! RESET AVERAGES
-    rndmax(:)      = 0.
-    tmaxscr(:)     = 0.
-    tminscr(:)     = 400.
-    rhmaxscr(:)    = 0.
-    rhminscr(:)    = 400.
-    u10max(:)      = 0.
-    v10max(:)      = 0.
-    u1max(:)       = 0.
-    v1max(:)       = 0.
-    u2max(:)       = 0.
-    v2max(:)       = 0.
-    cape_max(:)    = 0.
-    cape_ave(:)    = 0.
-    u10mx(:)       = 0.
-    tscr_ave(:)    = 0.
-    qscrn_ave(:)   = 0.
-    dew_ave(:)     = 0.
-    epan_ave(:)    = 0.
-    epot_ave(:)    = 0.
-    eg_ave(:)      = 0.
-    fg_ave(:)      = 0.
-    ga_ave(:)      = 0.
-    rnet_ave(:)    = 0.
-    sunhours(:)    = 0.
-    riwp_ave(:)    = 0.
-    rlwp_ave(:)    = 0.
-    evap(:)        = 0.
-    precc(:)       = 0.
-    precip(:)      = 0.
-    convh_ave(:,:) = 0.
-    rnd_3hr(:,8)   = 0. ! i.e. rnd24(:)=0.
-    cbas_ave(:)    = 0.
-    ctop_ave(:)    = 0.
-    sno(:)         = 0.
-    grpl(:)        = 0.
-    runoff(:)      = 0.
-    wb_ave(:,:)    = 0.
-    tsu_ave(:)     = 0.
-    alb_ave(:)     = 0.
-    fbeam_ave(:)   = 0.
-    psl_ave(:)     = 0.
-    mixdep_ave(:)  = 0.
-    koundiag       = 0
-    sint_ave(:)    = 0.  ! solar_in_top
-    sot_ave(:)     = 0.  ! solar_out_top
-    soc_ave(:)     = 0.  ! solar_out_top (clear sky)
-    sgdn_ave(:)    = 0.  ! solar_ground (down-welling) +ve down
-    sgn_ave(:)     = 0.  ! solar_ground (net) +ve down
-    rtu_ave(:)     = 0.  ! LW_out_top 
-    rtc_ave(:)     = 0.  ! LW_out_top (clear sky)
-    rgdn_ave(:)    = 0.  ! LW_ground (down-welling)  +ve down
-    rgn_ave(:)     = 0.  ! LW_ground (net)  +ve up
-    rgc_ave(:)     = 0.  ! LW_ground (clear sky)
-    sgc_ave(:)     = 0.  ! SW_ground (clear sky)
-    cld_ave(:)     = 0.
-    cll_ave(:)     = 0.
-    clm_ave(:)     = 0.
-    clh_ave(:)     = 0.
-    if ( ccycle>0 ) then
-      fnee_ave = 0.  
-      fpn_ave  = 0.
-      frd_ave  = 0.
-      frp_ave  = 0.
-      frpw_ave = 0.
-      frpr_ave = 0.
-      frs_ave  = 0.
-    end if  
-    if ( abs(iaero)==2 ) then
-      duste         = 0.  ! Dust emissions
-      dustdd        = 0.  ! Dust dry deposition
-      dustwd        = 0.  ! Dust wet deposition
-      dust_burden   = 0.  ! Dust burden
-      bce           = 0.  ! Black carbon emissions
-      bcdd          = 0.  ! Black carbon dry deposition
-      bcwd          = 0.  ! Black carbon wet deposition
-      bc_burden     = 0.  ! Black carbon burden
-      oce           = 0.  ! Organic carbon emissions
-      ocdd          = 0.  ! Organic carbon dry deposition
-      ocwd          = 0.  ! Organic carbon wet deposition
-      oc_burden     = 0.  ! Organic carbon burden
-      dmse          = 0.  ! DMS emissions
-      dmsso2o       = 0.  ! DMS -> SO2 oxidation
-      so2e          = 0.  ! SO2 emissions
-      so2so4o       = 0.  ! SO2 -> SO4 oxidation
-      so2dd         = 0.  ! SO2 dry deposition
-      so2wd         = 0.  ! SO2 wet deposiion
-      so4e          = 0.  ! SO4 emissions
-      so4dd         = 0.  ! SO4 dry deposition
-      so4wd         = 0.  ! SO4 wet deposition
-      dms_burden    = 0.  ! DMS burden
-      so2_burden    = 0.  ! SO2 burden
-      so4_burden    = 0.  ! SO4 burden
-    end if
-
   
     mtimer = nint(real(ktau)*dt/60.)
 
@@ -697,6 +604,11 @@ do spinup = spinup_start,1,-1
     convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) + t(1:ifull,1:kl)*real(nperday)/real(nperavg)    
     call nantest("after cloud microphysics",1,ifull) 
 
+    if ( use_file_for_rain ) then
+      ! avoid multiple counting of rainfall, since it will be replaced in nudging  
+      precip = precip - condx 
+    end if
+    
     ! RADIATON
     if ( ncloud>=4 ) then
       nettend(1:ifull,1:kl) = nettend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
@@ -713,7 +625,8 @@ do spinup = spinup_start,1,-1
     end select
     call nantest("after radiation",1,ifull)   
 
-    call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
+    call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv, &
+                  use_file_for_rain,use_file_for_cloud)
     call nantest("after nudging",1,ifull)
 
     ! REPLACE SCM WITH INPUT DATA, PRIOR TO SFLUX
@@ -1211,7 +1124,19 @@ else if ( scm_mode=="CCAM" ) then
   call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
   qg(1,1:kl) = max(datout,2.e-7)
 
-  ! ignore qlg and qfg initial conditions
+  ! ql mixing ratio
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'qlg',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  qlg(1,1:kl) = max(datout,2.e-7)
+  
+  ! ql mixing ratio
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'qfg',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  qfg(1,1:kl) = max(datout,2.e-7)
   
   ! ignore tke initial conditions for now
   
@@ -1806,7 +1731,8 @@ write(6,*) "Finised initialisation"
 return
 end subroutine initialscm
     
-subroutine nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
+subroutine nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv, &
+                    use_file_for_rain,use_file_for_cloud)
 
 use aerosolldr, only : xtg,naero           ! LDR prognostic aerosols
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
@@ -1856,6 +1782,7 @@ real, dimension(0:kl) :: hl_model
 real, save :: tsurf_a, tsurf_b
 character(len=*), intent(in) :: scm_mode, metforcing
 logical, intent(in) :: fixtsurf, vert_adv
+logical, intent(in) :: use_file_for_rain, use_file_for_cloud
 
 time_ktau = real(ktau)*dt
 
@@ -2121,10 +2048,12 @@ elseif ( scm_mode=="CCAM" ) then
 
   psl(:) = log(psurf_in/1.e5)
   ps(:) = 1.e5*exp(psl)
-  condx = rnd_in*dt/(time_b-time_a)
-  conds = 0.
-  condg = 0.
-  precip = precip + condx
+  if ( use_file_for_rain ) then
+    condx = rnd_in*dt/(time_b-time_a)
+    conds = 0.
+    condg = 0.
+    precip = precip + condx
+  end if  
 
   height_model(1) = bet(1)*t(1,1)/grav
   do k = 2,kl
@@ -2171,12 +2100,15 @@ elseif ( scm_mode=="CCAM" ) then
   tadv = (tadv - t(1,:))/(3600.*real(nud_hrs))
   qadv = (qadv - qg(1,:))/(3600.*real(nud_hrs))
   qadv(:) = max( -qg(1,:)/dt, qadv(:) )
-  !qladv = (qladv - qlg(1,:))/(3600.*real(nud_hrs))
-  !qladv(:) = max( -qlg(1,:)/dt, qladv(:) )
-  !qfadv = (qfadv - qfg(1,:))/(3600.*real(nud_hrs))
-  !qfadv(:) = max( -qfg(1,:)/dt, qfadv(:) )
-  qladv = (qladv - qlg(1,:))/dt
-  qfadv = (qfadv - qfg(1,:))/dt  
+  if ( use_file_for_cloud ) then
+    qladv = (qladv - qlg(1,:))/dt
+    qfadv = (qfadv - qfg(1,:))/dt     
+  else
+    qladv = (qladv - qlg(1,:))/(3600.*real(nud_hrs))
+    qladv(:) = max( -qlg(1,:)/dt, qladv(:) )
+    qfadv = (qfadv - qfg(1,:))/(3600.*real(nud_hrs))
+    qfadv(:) = max( -qfg(1,:)/dt, qfadv(:) )
+  end if  
 
   qlg(1,:) = qlg(1,:) + dt*qladv(:)
   qfg(1,:) = qfg(1,:) + dt*qfadv(:)
@@ -3288,7 +3220,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_vara(timencid,'psurf',iarch,ps(1))
     call ccnf_put_vara(timencid,'hpbl',iarch,pblh(1))
     call ccnf_put_vara(timencid,'tsk',iarch,tss(1))
-    aa(:) = ((rgdn_ave(:)+rgn_ave(:))/(0.98*stefbo))**(0.25)
+    !aa(:) = ((rgdn_ave(:)+rgn_ave(:))/(0.98*stefbo))**(0.25)
     ! call ccnf_put_vara(timencid,'trad',iarch,aa(1))
     where ( sgdn_ave(:)>0. )
       aa(:) = swrsave*albvisnir(:,1) + (1.-swrsave)*albvisnir(:,2)
