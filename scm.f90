@@ -167,6 +167,7 @@ real ateb_wallalpha, ateb_roadalpha, ateb_roofalpha
 real ateb_wallemiss, ateb_roademiss, ateb_roofemiss
 real ateb_infilach,  ateb_intgains, ateb_bldairtemp
 real ateb_zovegc
+real ps_adj
 real, dimension(4) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
 real, dimension(4) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
@@ -193,7 +194,7 @@ namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     lsm_only,vert_adv,urbanscrn,soil_albedo,                      &
     gablsflux,scm_mode,spinup_start,ntau_spinup,                  &
     use_file_for_rain, use_file_for_cloud,                        &
-    nud_ql, nud_qf,                                               &
+    nud_ql, nud_qf, ps_adj,                                       &
     ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,       &
     ateb_industryfg,ateb_trafficfg,ateb_vegalphac,                &
     ateb_wallalpha,ateb_roadalpha,ateb_roofalpha,                 &
@@ -308,6 +309,7 @@ use_file_for_rain = .false.
 use_file_for_cloud = .false.
 nud_ql = 1
 nud_qf = 1
+ps_adj = 0.
 ateb_bldheight = -999.
 ateb_hwratio = -999.
 ateb_sigvegc = -999.
@@ -492,8 +494,9 @@ call zero_nperday  ! reset daily period diagnostics
 
 ! NUDGING
 ktau = 0
-call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv, &
-              use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf)
+call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv,  &
+              use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf, &
+              ps_adj)
 call nantest("after nudging",1,ifull)
 
 savu(1:ifull,:) = u(1:ifull,:)
@@ -634,8 +637,9 @@ do spinup = spinup_start,1,-1
     end select
     call nantest("after radiation",1,ifull)   
 
-    call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv, &
-                  use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf)
+    call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv,  &
+                  use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf, &
+                  ps_adj)
     call nantest("after nudging",1,ifull)
 
     ! REPLACE SCM WITH INPUT DATA, PRIOR TO SFLUX
@@ -1740,8 +1744,9 @@ write(6,*) "Finised initialisation"
 return
 end subroutine initialscm
     
-subroutine nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv, &
-                    use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf)
+subroutine nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv,  &
+                    use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf, &
+                    ps_adj)
 
 use aerosolldr, only : xtg,naero           ! LDR prognostic aerosols
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
@@ -1772,6 +1777,7 @@ integer, save :: ncid
 integer, save :: nlev, ntimes
 integer :: ncstatus, k, l, ntr
 integer, dimension(4) :: spos, npos
+real, intent(in) :: ps_adj
 real, save :: time_a = -1.
 real, save :: time_b = -1.
 real :: time_ktau, x
@@ -2050,7 +2056,7 @@ elseif ( scm_mode=="CCAM" ) then
     spos(1:3) = (/ 1, 1, iarch_nudge /)
     npos(1:3) = (/ 1, 1, 1 /)
     call ccnf_get_vara(ncid,'ps',spos(1:3),npos(1:3),psurf_in(1:1))
-    psurf_in = psurf_in*100.
+    psurf_in = psurf_in*100. + ps_adj
     
     call ccnf_get_vara(ncid,'rnd',spos(1:3),npos(1:3),rnd_in(1:1))
    
