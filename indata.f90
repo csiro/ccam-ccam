@@ -49,7 +49,8 @@ contains
 subroutine indataf(lapsbot,isoth,nsig,io_nest)
      
 use aerointerface                                ! Aerosol interface
-use aerosolldr, only : xtg,naero,aeromode        ! LDR prognostic aerosols
+use aerosolldr, only : xtg,naero,aeromode, &
+                       itracdu                   ! LDR prognostic aerosols
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use ateb, ateb_energytol => energytol            ! Urban
 use bigxy4_m                                     ! Grid interpolation
@@ -64,6 +65,7 @@ use darcdf_m                                     ! Netcdf data
 use dates_m                                      ! Date data
 use daviesnudge                                  ! Far-field nudging
 use diag_m                                       ! Diagnostic routines
+use ensemble                                     ! Ensemble
 use epst_m                                       ! Off-centre terms
 use extraout_m                                   ! Additional diagnostics
 use filnames_m                                   ! Filenames
@@ -124,7 +126,7 @@ integer, intent(inout) :: io_nest
 integer ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth
 integer iveg, iyr, jj, k, kdate_sav, ktime_sav, l
 integer nface, nn, nsig, i, j, n
-integer ierr, ic, jc, iqg, ig, jg
+integer ierr, ic, jc, iqg, ig, jg, jdf, nd
 integer isav, jsav, ier, lapsbot, idv
 integer lncriver
 integer iernc
@@ -159,6 +161,7 @@ real uzon, vmer, wet3, zonx, zony, zonz, zsdiff, tstom
 real xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent
 real deli, delj, centi, distnew, distx, rhs, ril2
 real newzo, visalb, niralb
+real qd, dz, dxy, rhoa
 real urbanformat
 character(len=1024) :: surfin
 character(len=80) :: header
@@ -1637,6 +1640,28 @@ if (nspecial==43) then
   end do
 end if
 #endif 
+if (nspecial==48) then
+  do k = 1,kl
+    if ( sig(k)<0.05 ) exit
+  end do
+  k = k - 1
+  jg = il_g/2 + il_g
+  do ig = il_g/2-2,il_g/2+2
+    nd = (jg-1)/il_g
+    jdf = jg - nd*il_g
+    if ( fproc(ig,jdf,nd)==myid ) then
+      iqg = ig + (jg-1)*il_g  
+      call indv_mpi(iqg,i,j,n)
+      iq = indp(i,j,n)
+      rhoa = ps(iq)*sig(k)/(rdry*t(iq,k))
+      dz = -rdry*dsig(k)*t(iq,k)/(grav*sig(k)) !m
+      dxy = (ds/em(iq))**2 ! m2
+      qd = (1./5.)/(rhoa*dz*dxy) ! 1km over 5 grid boxes
+      xtgdwn(iq,k,itracdu) = xtgdwn(iq,k,itracdu) + qd 
+      write(6,*) "NSPECIAL==48 myid,k,sig,ig,jg,iq,qd,dz,dxy ",myid,k,sig(k),ig,jg,iq,qd,dz,dxy
+    end if
+  end do  
+end if
 
 
 !--------------------------------------------------------------
@@ -2250,13 +2275,13 @@ end if
     
 !--------------------------------------------------------------
 ! OPEN MESONEST FILE
-if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) ) then
+if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) then
   if ( myid==0 ) then
     write(6,*) "========================================"  
     write(6,*) "Opening mesonest file"
   end if
   kdate_s = kdate_sav
-  ktime_s = ktime_sav + 1
+  ktime_s = ktime_sav
   io_in = io_nest                  ! Needs to be seen by all processors
   call histopen(ncid,mesonest,ier) ! open parallel mesonest files
   call ncmsg("mesonest",ier)       ! report error messages

@@ -88,6 +88,7 @@ if ( nud_q/=0 ) then
     do iq = 1,ifull
       qgg(iq,k) = vertwgt(k)*(qgg(iq,k)-qg(iq,k))*davt(iq)*dt/3600.
       qg(iq,k) = qg(iq,k) + qgg(iq,k)
+      qg(iq,k) = max(qg(iq,k),0.)
     enddo  ! iq loop
   enddo    ! k loop
 endif      ! (nud_q.ne.0)
@@ -171,7 +172,7 @@ implicit none
 
 integer, intent(in) :: ifull, kl, naero, nbd, mbd
 
-if ( mbd/=0 ) then
+if ( mbd/=0 .or. nbd/=0 ) then
   allocate( vertwgt(kl) )
   vertwgt(:) = 1.
 end if  

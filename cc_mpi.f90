@@ -26,6 +26,9 @@ module cc_mpi
 ! the Vampir trace routines and upgrading the timer calls.  Thanks to Paul Ryan for the design of the
 ! shared memory arrays.
 
+
+! Preprocessor directives:
+
 ! usempi_mod is for users that want to link to MPI using Fortran 90 bindings
 
 ! usempi3 exploits MPI-3 shared memory that is currently used for sharing global arrays within a node to reduce
@@ -178,7 +181,7 @@ module cc_mpi
    end interface
    interface ccmpi_allreduce
       module procedure ccmpi_allreduce1i, ccmpi_allreduce2i, ccmpi_allreduce1r, ccmpi_allreduce2r
-      module procedure ccmpi_allreduce3r, ccmpi_allreduce2c
+      module procedure ccmpi_allreduce3r, ccmpi_allreduce1c, ccmpi_allreduce2c
    end interface
    interface ccmpi_bcast
       module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast1r, ccmpi_bcast2r
@@ -390,6 +393,7 @@ module cc_mpi
    integer, public, save :: nestWIN_begin, nestWIN_end
    integer, public, save :: nestcalc_begin, nestcalc_end
    integer, public, save :: nestcomm_begin, nestcomm_end
+   integer, public, save :: ensemble_begin, ensemble_end
    integer, public, save :: amipsst_begin, amipsst_end
    integer, public, save :: gwdrag_begin, gwdrag_end
    integer, public, save :: convection_begin, convection_end
@@ -403,7 +407,7 @@ module cc_mpi
    integer, public, save :: vertmix_begin, vertmix_end
    integer, public, save :: aerosol_begin, aerosol_end
    integer, public, save :: maincalc_begin, maincalc_end
-   integer, public, save :: gatherwin_begin, gatherwin_end
+   integer, public, save :: gathermap_begin, gathermap_end
    integer, public, save :: gather_begin, gather_end
    integer, public, save :: distribute_begin, distribute_end
    integer, public, save :: gatherfile_begin, gatherfile_end
@@ -426,7 +430,7 @@ module cc_mpi
    integer, public, save :: scatterx_begin, scatterx_end
    integer, public, save :: reduce_begin, reduce_end
    integer, public, save :: mpiwait_begin, mpiwait_end
-   integer, public, save :: mpiwaitwin_begin, mpiwaitwin_end
+   integer, public, save :: mpiwaitmap_begin, mpiwaitmap_end
    integer, public, save :: mpiwaitdep_begin, mpiwaitdep_end
    integer, public, save :: mpiwaitmg_begin, mpiwaitmg_end
    integer, public, save :: mpiwaitfile_begin, mpiwaitfile_end
@@ -438,7 +442,7 @@ module cc_mpi
    integer, public, save :: mgup_begin, mgup_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
    integer, public, save :: mgdown_begin, mgdown_end
-   integer, parameter :: nevents = 79
+   integer, parameter :: nevents = 80
 #ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -2117,34 +2121,34 @@ contains
       integer(kind=4), dimension(size(specmap_recv)+size(specmap_send)) :: i_req
       integer(kind=4), dimension(size(specmap_recv)) :: i_list, donelist
 
-      call START_LOG(gatherwin_begin)
-   
+      call START_LOG(gathermap_begin)
+
       ncount = size(specmap_recv)
       lsize = ifull
       lcomm = comm_world
-      
-      !     Set up the buffers to recv
+
+      ! Set up the buffers to recv
       nreq = 0
       do w = 1,ncount
-         nreq  = nreq + 1
+         nreq = nreq + 1
          i_list(nreq) = w
          call MPI_IRecv( abuf(:,w), lsize, ltype, specmap_recv(w), itag, lcomm, i_req(nreq), ierr )
       end do
       rreq = nreq
-      
-      !     Set up the buffers to send
+
+      ! Set up the buffers to send
       do w = 1,size(specmap_send)
-         nreq  = nreq + 1
+         nreq = nreq + 1
          call MPI_ISend( a, lsize, ltype, specmap_send(w), itag, lcomm, i_req(nreq), ierr )
-      end do 
-      
+      end do
+
       ! Unpack incomming messages
       rcount = rreq
       if ( uniform_decomp ) then
          do while ( rcount > 0 )
-            call START_LOG(mpiwaitwin_begin) 
+            call START_LOG(mpiwaitmap_begin) 
             call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-            call END_LOG(mpiwaitwin_end)
+            call END_LOG(mpiwaitmap_end)
             rcount = rcount - ldone
             do jproc = 1,ldone
                w = i_list(donelist(jproc))
@@ -2162,9 +2166,9 @@ contains
          end do   
       else
          do while ( rcount > 0 )
-            call START_LOG(mpiwaitwin_begin) 
+            call START_LOG(mpiwaitmap_begin) 
             call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-            call END_LOG(mpiwaitwin_end)
+            call END_LOG(mpiwaitmap_end)
             rcount = rcount - ldone
             do jproc = 1,ldone
                w = i_list(donelist(jproc))
@@ -2184,12 +2188,12 @@ contains
       
       sreq = nreq - rreq
       if ( sreq > 0 ) then
-         call START_LOG(mpiwaitwin_begin) 
+         call START_LOG(mpiwaitmap_begin) 
          call MPI_Waitall( sreq, i_req(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaitwin_end)
+         call END_LOG(mpiwaitmap_end)
       end if   
       
-      call END_LOG(gatherwin_end)
+      call END_LOG(gathermap_end)
    
    end subroutine ccmpi_gathermap2
 
@@ -2214,7 +2218,7 @@ contains
       integer(kind=4), dimension(size(specmap_recv)+size(specmap_send)) :: i_req
       integer(kind=4), dimension(size(specmap_recv)) :: i_list, donelist
       
-      call START_LOG(gatherwin_begin)
+      call START_LOG(gathermap_begin)
 
       kx = size(a,2)
       ncount = size(specmap_recv)
@@ -2223,7 +2227,7 @@ contains
 
       cbuf(1:ifull,1:kx) = a(1:ifull,1:kx)
 
-      !     Set up the buffers to recv
+      ! Set up the buffers to recv
       nreq = 0
       do w = 1,ncount
          nreq = nreq + 1
@@ -2232,7 +2236,7 @@ contains
       end do
       rreq = nreq
       
-      !     Set up the buffers to send
+      ! Set up the buffers to send
       do w = 1,size(specmap_send)
          nreq = nreq + 1
          call MPI_ISend( cbuf, lsize, ltype, specmap_send(w), itag, lcomm, i_req(nreq), ierr )
@@ -2242,9 +2246,9 @@ contains
       rcount = rreq
       if ( uniform_decomp ) then
          do while ( rcount > 0 )
-            call START_LOG(mpiwaitwin_begin) 
+            call START_LOG(mpiwaitmap_begin) 
             call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-            call END_LOG(mpiwaitwin_end)
+            call END_LOG(mpiwaitmap_end)
             rcount = rcount - ldone
             do jproc = 1,ldone
                w = i_list(donelist(jproc))        
@@ -2264,9 +2268,9 @@ contains
          end do   
       else
          do while ( rcount > 0 )
-            call START_LOG(mpiwaitwin_begin) 
+            call START_LOG(mpiwaitmap_begin) 
             call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-            call END_LOG(mpiwaitwin_end)
+            call END_LOG(mpiwaitmap_end)
             rcount = rcount - ldone
             do jproc = 1,ldone
                w = i_list(donelist(jproc))
@@ -2288,12 +2292,12 @@ contains
       
       sreq = nreq - rreq
       if ( sreq > 0 ) then
-         call START_LOG(mpiwaitwin_begin) 
+         call START_LOG(mpiwaitmap_begin) 
          call MPI_Waitall( sreq, i_req(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaitwin_end)
+         call END_LOG(mpiwaitmap_end)
       end if   
 
-      call END_LOG(gatherwin_end)
+      call END_LOG(gathermap_end)
    
    end subroutine ccmpi_gathermap3
    
@@ -2576,7 +2580,7 @@ contains
       call drpdr_local(tmparr, local_sum(2))
       global_sum(1:2) = cmplx(0., 0.)
       lcomm = comm_world
-      call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, lcomm, ierr )
+      call MPI_Allreduce( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, lcomm, ierr )
       delpos = real(global_sum(1))
       delneg = real(global_sum(2))
 
@@ -2613,7 +2617,7 @@ contains
       end do ! k loop
       global_sum(1:2) = cmplx(0., 0.)
       lcomm = comm_world
-      call MPI_Allreduce ( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, lcomm, ierr )
+      call MPI_Allreduce( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, lcomm, ierr )
       delpos = real(global_sum(1))
       delneg = real(global_sum(2))
 
@@ -2654,7 +2658,7 @@ contains
       mnum = 2*ntr
       global_sum(1:2*ntr) = cmplx(0.,0.)
       lcomm = comm_world
-      call MPI_Allreduce ( local_sum, global_sum, mnum, ltype, MPI_SUMDR, lcomm, ierr )
+      call MPI_Allreduce( local_sum, global_sum, mnum, ltype, MPI_SUMDR, lcomm, ierr )
       delpos(1:ntr) = real(global_sum(1:ntr))
       delneg(1:ntr) = real(global_sum(ntr+1:2*ntr))
 
@@ -2892,10 +2896,14 @@ contains
 
       do n = 0,nproc-1
          bnds(n)%len = 0
-         bnds(n)%rlenh_bg(:) = 0
-         bnds(n)%slenh_fn(:) = 0
-         bnds(n)%rlen_bg(:) = 0
-         bnds(n)%slen_fn(:) = 0
+         bnds(n)%rlenh_bg(1:maxcolour) = 0
+         bnds(n)%rlenh_fn(1:maxcolour) = 0
+         bnds(n)%slenh_bg(1:maxcolour) = 0
+         bnds(n)%slenh_fn(1:maxcolour) = 0
+         bnds(n)%rlen_bg(1:maxcolour) = 0
+         bnds(n)%rlen_fn(1:maxcolour) = 0
+         bnds(n)%slen_bg(1:maxcolour) = 0
+         bnds(n)%slen_fn(1:maxcolour) = 0
          bnds(n)%rlenx = 0
          bnds(n)%slenx = 0
          bnds(n)%rlen2 = 0
@@ -4329,6 +4337,8 @@ contains
          if ( testlen >  bnds(rproc)%len ) then
             write(6,*) "Error, maximum length error in check_bnds_alloc"
             write(6,*) myid, rproc, testlen,  bnds(rproc)%len, maxvertlen
+            write(6,*) bnds(rproc)%rlenh_fn(1), bnds(rproc)%rlenh_fn(2), bnds(rproc)%rlen_fn(1), bnds(rproc)%rlen_fn(2)
+            write(6,*) bnds(rproc)%rlenx, bnds(rproc)%rlen2
             call ccmpi_abort(-1)
          end if
          if ( iext >= iextra ) then
@@ -6610,6 +6620,7 @@ contains
       call add_event(nestwin_begin,       nestwin_end,       "Nest_WIN")
       call add_event(nestcalc_begin,      nestcalc_end,      "Nest_calc")
       call add_event(nestcomm_begin,      nestcomm_end,      "Nest_comm")
+      call add_event(ensemble_begin,      ensemble_end,      "Ensemble")
       call add_event(amipsst_begin,       amipsst_end,       "AMIPSST")
       call add_event(gwdrag_begin,        gwdrag_end,        "GWdrag")
       call add_event(convection_begin,    convection_end,    "Convection")
@@ -6627,7 +6638,7 @@ contains
       call add_event(boundsfile_begin,    boundsfile_end,    "BoundsFILE")
       call add_event(deptsync_begin,      deptsync_end,      "Deptsync")
       call add_event(intssync_begin,      intssync_end,      "Intssync")
-      call add_event(gatherwin_begin,     gatherwin_end,     "GatherWIN")
+      call add_event(gathermap_begin,     gathermap_end,     "GatherMAP")
       call add_event(gather_begin,        gather_end,        "Gather")
       call add_event(distribute_begin,    distribute_end,    "Distribute")
       call add_event(gatherfile_begin,    gatherfile_end,    "GatherFILE")
@@ -6648,7 +6659,7 @@ contains
       call add_event(scatterx_begin,      scatterx_end,      "MPI_Scatter")
       call add_event(reduce_begin,        reduce_end,        "MPI_Reduce")
       call add_event(mpiwait_begin,       mpiwait_end,       "MPI_Wait")
-      call add_event(mpiwaitwin_begin,    mpiwaitwin_end,    "MPI_WaitWIN")
+      call add_event(mpiwaitmap_begin,    mpiwaitmap_end,    "MPI_WaitMAP")
       call add_event(mpiwaitdep_begin,    mpiwaitdep_end,    "MPI_WaitDEP")
       call add_event(mpiwaitmg_begin,     mpiwaitmg_end,     "MPI_WaitMG")
       call add_event(mpiwaitfile_begin,   mpiwaitfile_end,   "MPI_WaitFILE")
@@ -7432,6 +7443,44 @@ contains
       call END_LOG(reduce_end)
    
    end subroutine ccmpi_allreduce3r
+
+   subroutine ccmpi_allreduce1c(ldat,gdat,op,comm)
+   
+      use sumdd_m
+   
+      integer, intent(in) :: comm
+      integer(kind=4) :: lop, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
+#else
+      integer(kind=4), parameter :: ltype = MPI_COMPLEX
+#endif 
+      complex, intent(in) :: ldat
+      complex, intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      
+      call START_LOG(reduce_begin)
+      
+      select case( op )
+         case( "max" )
+            lop = MPI_MAX
+         case( "min" )
+            lop = MPI_MIN
+         case( "sum" )
+            lop = MPI_SUM
+         case( "sumdr" )
+            lop = MPI_SUMDR
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
+            call ccmpi_abort(-1)
+      end select
+      
+      lcomm = comm
+      call MPI_AllReduce(ldat, gdat, 1_4, ltype, lop, lcomm, lerr )
+   
+      call END_LOG(reduce_end)
+   
+   end subroutine ccmpi_allreduce1c
    
    subroutine ccmpi_allreduce2c(ldat,gdat,op,comm)
    
@@ -9890,7 +9939,7 @@ contains
       real, dimension(:), intent(in) :: sinp
       real, dimension(pipan*pjpan*pnpan,size(filemap_recv)), intent(out) :: abuf 
 
-      call START_LOG(gatherwin_begin)
+      call START_LOG(gathermap_begin)
    
       ncount = size(filemap_recv)
       nlen = pipan*pjpan*pnpan
@@ -9915,11 +9964,11 @@ contains
          call MPI_ISend( sinp(1+cc:nlen+cc), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
       end do
       
-      call START_LOG(mpiwaitwin_begin) 
+      call START_LOG(mpiwaitmap_begin) 
       call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
-      call END_LOG(mpiwaitwin_end)
+      call END_LOG(mpiwaitmap_end)
 
-      call END_LOG(gatherwin_end)
+      call END_LOG(gathermap_end)
       
    end subroutine ccmpi_filewinget2
 
@@ -9943,7 +9992,7 @@ contains
       real, dimension(pipan*pjpan*pnpan,size(sinp,2),size(filemap_recv)) :: bbuf
       real, dimension(pipan*pjpan*pnpan,size(sinp,2),mynproc) :: cbuf
 
-      call START_LOG(gatherwin_begin)
+      call START_LOG(gathermap_begin)
 
       kx = size(sinp,2)
       ncount = size(filemap_recv)
@@ -9978,9 +10027,9 @@ contains
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
-         call START_LOG(mpiwaitwin_begin) 
+         call START_LOG(mpiwaitmap_begin) 
          call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaitwin_end)
+         call END_LOG(mpiwaitmap_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
             w = i_list(donelist(jproc))
@@ -9990,12 +10039,12 @@ contains
       
       sreq = nreq - rreq
       if ( sreq > 0 ) then
-         call START_LOG(mpiwaitwin_begin) 
+         call START_LOG(mpiwaitmap_begin) 
          call MPI_Waitall( sreq, i_req(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaitwin_end)
+         call END_LOG(mpiwaitmap_end)
       end if   
       
-      call END_LOG(gatherwin_end)
+      call END_LOG(gathermap_end)
       
    end subroutine ccmpi_filewinget3
    

@@ -45,6 +45,7 @@ use dates_m                                ! Date data
 use daviesnudge                            ! Far-field nudging
 use diag_m                                 ! Diagnostic routines
 use dpsdt_m                                ! Vertical velocity
+use ensemble                               ! Ensemble
 use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
@@ -171,7 +172,7 @@ if ( myid<nproc ) then
   if ( nwt>0 ) then
     ! write out the first ofile data set
     if ( myid==0 ) write(6,*) "calling outfile"
-    call outfile(20)
+    call outfile(20,ofile,psl,u,v,t,qg)
   end if    ! (nwt>0)
   if ( newtop<0 ) then
     ! just for outcdf to plot zs  & write fort.22      
@@ -249,18 +250,22 @@ if ( myid<nproc ) then
     ! ***********************************************************************
     ! START ATMOSPHERE DYNAMICS
     ! ***********************************************************************
-    
+
+
     ! NESTING ---------------------------------------------------------------
     if ( nbd/=0 ) then
       ! Newtonian relaxiation
+      call nantest("before nesting",1,ifull)  
       call START_LOG(nestin_begin)
       call nestin
       call END_LOG(nestin_end)
+      call nantest("after nesting",1,ifull)
+    else
+      call nantest("before atmosphere dynamics",1,ifull)   
     end if
-      
+    
     
     ! DYNAMICS --------------------------------------------------------------
-    call nantest("before atmosphere dynamics",1,ifull)   
     if ( nstaguin>0 .and. ktau>=1 ) then   ! swapping here for nstaguin>0
       if ( nstagin<0 .and. mod(ktau-nstagoff,abs(nstagin))==0 ) then
         nstag  = 7 - nstag  ! swap between 3 & 4
@@ -289,16 +294,16 @@ if ( myid<nproc ) then
       ! set up tau +.5 velocities in ubar, vbar
       sbar(:,2:kl) = sdot(:,2:kl)
       if ( (ktau==1.and..not.lrestart) .or. mex==1 ) then
-        ubar(:,:) = u(1:ifull,:)
-        vbar(:,:) = v(1:ifull,:)
+        ubar(1:ifull,1:kl) = u(1:ifull,1:kl)
+        vbar(1:ifull,1:kl) = v(1:ifull,1:kl)
       else if ( (ktau==2.and..not.lrestart) .or. mex==2 ) then        
         ! (tau+.5) from tau, tau-1
-        ubar(:,:) = u(1:ifull,:)*1.5 - savu(:,:)*.5
-        vbar(:,:) = v(1:ifull,:)*1.5 - savv(:,:)*.5
+        ubar(1:ifull,1:kl) = u(1:ifull,1:kl)*1.5 - savu(1:ifull,1:kl)*.5
+        vbar(1:ifull,1:kl) = v(1:ifull,1:kl)*1.5 - savv(1:ifull,1:kl)*.5
       else if ( mex==3 )then
         ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
-        ubar(:,:) = u(1:ifull,:)+.5*(savu(:,:)-savu1(:,:))
-        vbar(:,:) = v(1:ifull,:)+.5*(savv(:,:)-savv1(:,:))
+        ubar(1:ifull,1:kl) = u(1:ifull,1:kl)+.5*(savu(1:ifull,1:kl)-savu1(1:ifull,1:kl))
+        vbar(1:ifull,1:kl) = v(1:ifull,1:kl)+.5*(savv(1:ifull,1:kl)-savv1(1:ifull,1:kl))
       else if ( mex==30 ) then  ! using tau, tau-1, tau-2, tau-3
         do k = 1,kl
           do iq = 1,ifull
@@ -311,10 +316,10 @@ if ( myid<nproc ) then
             cc = rat*cc + (1.-rat)*cc_2 
             bb = rat*bb + (1.-rat)*bb_2 
             ubar(iq,k) = u(iq,k) + .5*bb + .25*cc
-            bb = 1.5*v(iq,k) - 2.*savv(iq,k) + .5*savv1(iq,k)                           ! simple b
-            bb_2 = (40.*v(iq,k)-35.*savv(iq,k)-16.*savv1(iq,k)+11.*savv2(iq,k))/34.     ! cwqls b
-            cc = .5*v(iq,k) - savv(iq,k) + .5*savv1(iq,k)                               ! simple c
-            cc_2 = (10.*v(iq,k)-13.*savv(iq,k)-4.*savv1(iq,k)+7.*savv2(iq,k))/34.       ! cwqls c
+            bb = 1.5*v(iq,k) - 2.*savv(iq,k) + .5*savv1(iq,k)                             ! simple b
+            bb_2 = (40.*v(iq,k)-35.*savv(iq,k)-16.*savv1(iq,k)+11.*savv2(iq,k))/34.       ! cwqls b
+            cc = .5*v(iq,k) - savv(iq,k) + .5*savv1(iq,k)                                 ! simple c
+            cc_2 = (10.*v(iq,k)-13.*savv(iq,k)-4.*savv1(iq,k)+7.*savv2(iq,k))/34.         ! cwqls c
             aa = cc_2 - cc
             rat = max( 0., min( 1., cc_2/(aa+sign(1.e-9,aa)) ) )
             cc = rat*cc + (1.-rat)*cc_2 
@@ -324,8 +329,8 @@ if ( myid<nproc ) then
         end do   ! k loop 
       else       ! i.e. mex >=4 and ktau>=3
         ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
-        ubar(:,:) = (u(1:ifull,:)*15.-savu(:,:)*10.+savu1(:,:)*3.)/8.
-        vbar(:,:) = (v(1:ifull,:)*15.-savv(:,:)*10.+savv1(:,:)*3.)/8.
+        ubar(1:ifull,1:kl) = (u(1:ifull,1:kl)*15.-savu(1:ifull,1:kl)*10.+savu1(1:ifull,1:kl)*3.)/8.
+        vbar(1:ifull,1:kl) = (v(1:ifull,1:kl)*15.-savv(1:ifull,1:kl)*10.+savv1(1:ifull,1:kl)*3.)/8.
       end if     ! (ktau==1) .. else ..
       
       if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
@@ -648,10 +653,10 @@ if ( myid<nproc ) then
           mtimer = mtimer_sav
         else
           call radrive(il*nrows_rad)  
-          do k = 1,kl
-            t(1:ifull,k) = t(1:ifull,k) - dt*(sw_tend(1:ifull,k)+lw_tend(1:ifull,k))
-          end do
         end if    ! (nhstest<0)
+        do k = 1,kl
+          t(1:ifull,k) = t(1:ifull,k) - dt*(sw_tend(1:ifull,k)+lw_tend(1:ifull,k))
+        end do
 !$omp end single
       case(5)
         ! GFDL SEA-EFS radiation
@@ -864,19 +869,22 @@ if ( myid<nproc ) then
     endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
   
 
-    ! WRITE DATA TO HISTORY AND RESTART FILES --------------------
+    ! WRITE DATA TO HISTORY, ENSEMBLE AND RESTART FILES ---------------
     call log_off
     if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
-      call outfile(20)  ! which calls outcdf
+      call outfile(20,ofile,psl,u,v,t,qg)  ! which calls outcdf
       if ( ktau==ntau .and. irest==1 ) then
         ! Don't include the time for writing the restart file
         call END_LOG(maincalc_end)
         ! write restart file
-        call outfile(19)
+        call outfile(19,restfile,psl,u,v,t,qg)
         if ( myid==0 ) write(6,*) 'finished writing restart file in outfile'
         call START_LOG(maincalc_begin)
       endif  ! (ktau==ntau.and.irest==1)
     endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
+    if ( ensemble_mode>0 ) then
+      call update_ensemble  
+    end if
     ! write high temporal frequency fields
     if ( surfile /= ' ' ) then
       call freqfile
@@ -974,7 +982,7 @@ if ( myid<nproc ) then
   end if
   
   ! close mesonest files
-  if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) ) then
+  if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) then
     call histclose
   end if
 
@@ -1286,6 +1294,7 @@ use darcdf_m                               ! Netcdf data
 use daviesnudge                            ! Far-field nudging
 use diag_m                                 ! Diagnostic routines
 use dpsdt_m                                ! Vertical velocity
+use ensemble                               ! Ensemble routines
 use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
@@ -1405,8 +1414,9 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
     cgmap_scale,nriver,atebnmlfile,nud_period,mfix_t,             &
-    procformat,procmode,compression,                              & ! file io
+    procformat,procmode,compression,hp_output,                    & ! file io
     maxtilesize,                                                  & ! OMP
+    ensemble_mode,ensemble_period,                                & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn              ! backwards compatible
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
@@ -1421,6 +1431,7 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     surfile,topofile,vegfile,zofile,surf_00,surf_12,laifile,      &
     albnirfile,urbanfile,bathfile,vegprev,vegnext,vegnext2,       &
     cnsdir,salfile,oxidantfile,casafile,phenfile,                 &
+    ensembleoutfile,                                              &
     save_aerosols,save_pbl,save_cloud,save_land,save_maxmin,      &
     save_ocean,save_radiation,save_urban,save_carbon,save_river
 ! convection and cloud microphysics namelist
@@ -1434,11 +1445,11 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     rcm,                                                          &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
 ! boundary layer turbulence and gravity wave namelist
-namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL scheme
+namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & ! EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
     stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,                 &
-    amxlsq,                                                       & !JH PBL scheme
-    ngwd,helim,fc2,sigbot_gwd,alphaj                                !GWdrag
+    amxlsq,                                                       & ! JH PBL scheme
+    ngwd,helim,fc2,sigbot_gwd,alphaj                                ! GWdrag
 ! land, urban and carbon namelist
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
@@ -1458,13 +1469,12 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_ac_deltat,ateb_acfactor,ateb_ac_copmax,                  &
     siburbanfrac
 ! ocean namelist
-namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
+namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,mlomfix,otaumode,            &
     alphavis_seaice,alphanir_seaice,mlojacobi,                    &
     rivermd,basinmd,rivercoeff                                      ! River
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
-
 
 !--------------------------------------------------------------
 ! READ COMMAND LINE OPTIONS
@@ -1520,7 +1530,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(115) ) 
+allocate( dumr(33), dumi(118) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1673,6 +1683,9 @@ if ( myid==0 ) then
   dumi(113) = nmr
   dumi(114) = maxtilesize
   dumi(115) = mfix_t
+  dumi(116) = ensemble_mode
+  dumi(117) = ensemble_period
+  dumi(118) = hp_output
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1824,6 +1837,9 @@ compression      = dumi(112)
 nmr              = dumi(113)
 maxtilesize      = dumi(114)
 mfix_t           = dumi(115)
+ensemble_mode    = dumi(116)
+ensemble_period  = dumi(117)
+hp_output        = dumi(118)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -1910,6 +1926,7 @@ call ccmpi_bcast(cnsdir,0,comm_world)
 call ccmpi_bcast(vegprev,0,comm_world)
 call ccmpi_bcast(vegnext,0,comm_world)
 call ccmpi_bcast(vegnext2,0,comm_world)
+call ccmpi_bcast(ensembleoutfile,0,comm_world)
 !call ccmpi_bcast(albfile,0,comm_world)
 !call ccmpi_bcast(eigenv,0,comm_world)
 !call ccmpi_bcast(icefile,0,comm_world)
@@ -2508,6 +2525,10 @@ if ( myid<nproc ) then
   dsig4 = max(dsig2+.01, dsig4)  ! convection
 
   ! check nudging settings - adjust mbd scale parameter to satisfy mbd_maxscale and mbd_maxgrid settings
+  if ( ensemble_mode>0 .and. (mbd/=0.or.nbd/=0.or.mbd_mlo/=0.or.nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0) ) then
+    write(6,*) "ERROR: mbd=0, nbd=0, mbd_mlo=0, nud_sst=0, nud_sss=0, nud_ouv and nud_sfg=0 are required for ensemble_mode>0"
+    call ccmpi_abort(-1)
+  end if
   if ( mbd/=0 .and. nbd/=0 ) then
     if ( myid==0 ) then  
       write(6,*) 'WARN: setting nbd=0 because mbd/=0'

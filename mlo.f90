@@ -2479,7 +2479,7 @@ type(depthdata), intent(in) :: depth
 
 ! buoyancy frequency (calculated at half levels)
 do ii=2,wlev
-  d_nsq(:,ii)=-grav/(0.5*(d_rho(:,ii-1)+d_rho(:,ii))+wrtrho)*(d_rho(:,ii-1)-d_rho(:,ii))/(depth%dz_hl(:,ii)*d_zcr)
+  d_nsq(:,ii)=-grav/wrtrho*(d_rho(:,ii-1)-d_rho(:,ii))/(depth%dz_hl(:,ii)*d_zcr)
 end do
 d_nsq(:,1)=2.*d_nsq(:,2)-d_nsq(:,3) ! not used
 
@@ -2516,7 +2516,7 @@ d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0) ! -ve sign to compensate for s
                                                   ! is same sign as Large used for Bf (+ve stable, -ve unstable)
 
 return
-                    end subroutine getwflux
+end subroutine getwflux
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate density
@@ -2650,15 +2650,6 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:)                   &
                 + 2.059331e-7*t2(:)) + 1.5*1.480266e-4*p1(:)*sqrt(s(:)) &
                 +p2(:)*(-2.040237e-6                                    &
                 + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
-!    dskdp=(3.186519 + 2.212276e-2*t(:)                                 &
-!                - 2.984642e-4*t2(:) + 1.956415e-6*t3(:))               &
-!                + 2.*p1*(2.102898e-4 - 1.202016e-5*t(:)                &
-!                + 1.394680e-7*t2(:))                                   &
-!                + s(:)*(6.704388e-3  -1.847318e-4*t(:)                 &
-!                + 2.059331e-7*t2(:))                                   &
-!                + 1.480266e-4*s32(:)                                   &
-!                + 2.*p1(:)*s(:)*(-2.040237e-6                          &
-!                + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
        
     d_rho(:,ii)=(rho0+wrtrho)/(1.-p1/sk)
   

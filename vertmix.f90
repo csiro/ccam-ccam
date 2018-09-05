@@ -542,7 +542,7 @@ if ( nvmix/=6 ) then
     do nt = 1,naero
       rhs(:,:) = xtg(1:imax,:,nt) ! Total grid-box
       call trim(at,ct,rhs)
-      xtg(1:imax,:,nt) = rhs(:,:)
+      xtg(1:imax,:,nt) = max( rhs(:,:), 0. )
     end do
   end if ! (abs(iaero)>=2)
 

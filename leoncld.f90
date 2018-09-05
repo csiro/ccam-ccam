@@ -1363,7 +1363,7 @@ if ( ncloud>=3 ) then
     ! autoconversion of ice to snow (from Lin et al 1983)
     ! Threshold from WSM6 scheme, Hong et al 2004, Eq(13) : qi0_crt ~8.e-5
     do iq = 1,imax
-      if ( ttg(iq,k)<tfrz .and. qfg(iq,k)*rhoa(iq,k)>qi0_crt ) then
+      if ( qfg(iq,k)*rhoa(iq,k)>qi0_crt ) then
         qfs  = max( qfg(iq,k)-qi0_crt/rhoa(iq,k), 0. )
         cdts = tdt*c_psaut*exp(0.025*(ttg(iq,k)-tfrz))
         dqfs = max( min( qfg(iq,k), qfs*cdts ), 0. )
@@ -1375,7 +1375,7 @@ if ( ncloud>=3 ) then
     
     ! autoconversion of snow to graupel (from Lin et al 1983)
     do iq = 1,imax
-      if ( ttg(iq,k)<tfrz .and. qsng(iq,k)*rhoa(iq,k)>qs0_crt ) then
+      if ( qsng(iq,k)*rhoa(iq,k)>qs0_crt ) then
         qfs  = max( qsng(iq,k)-qs0_crt/rhoa(iq,k), 0. )
         cdts = tdt*1.e-3*exp(0.09*(ttg(iq,k)-tfrz))
         dqfs = max( min( qsng(iq,k), qfs*cdts ), 0.) 
@@ -1874,7 +1874,6 @@ do n = 1,njumps
       case(1)
         where ( cifr(1:imax,k)>=1.e-10 )
           vi2(1:imax) = max( 0.1, 3.23*(max( rhoi(:,k), 0. )/cifr(:,k))**0.17 )  ! Ice fall speed from LDR 1997
-          !vi2(1:imax) = max( 0.1, 3.29*(max( rhoi(:,k), 0. )/cifr(:,k))**0.16 ) ! from Lin et al 1983
         end where
       case(2)
         where ( cifr(:,k)>=1.e-10 )
@@ -1888,6 +1887,10 @@ do n = 1,njumps
         where ( cifr(1:imax,k)>=1.e-10 )
           vi2(1:imax) = 1.4*3.23*(rhoi(:,k)/cifr(1:imax,k))**0.17
         end where
+      case(5)
+        where ( cifr(1:imax,k)>=1.e-10 )  
+          vi2(1:imax) = max( 0.1, 3.29*(max( rhoi(:,k), 0. )/cifr(:,k))**0.16 ) ! from Lin et al 1983 
+        end where  
       case(11)
         ! following are alternative slightly-different versions of above
         ! used for I runs from 29/4/05 till 30/8/05
@@ -1901,6 +1904,8 @@ do n = 1,njumps
       case(33)
         ! following max gives vi2=.1 for qfg=cifr=0
         vi2(1:imax) = max( vi2(1:imax), 2.05+0.35*log10(max(rhoi(:,k)/rhoa(:,k),2.68e-36)/max(cifr(1:imax,k),1.e-30)) )
+      case(55)
+        vi2(1:imax) = max( vi2(1:imax), 3.29*(max( rhoi(:,k), 0. )/cifr(:,k))**0.16 ) ! from Lin et al 1983   
     end select
 
     ! Set up the parameters for the flux-divergence calculation

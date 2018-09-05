@@ -125,34 +125,23 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
     allocate( xtghosta(ifull,kl,naero) )
     allocate( xtghostb(ifull,kl,naero) )
 
-    ! Save host atmospheric data
-    if ( myid==0 ) write(6,*) 'set nesting fields to those already read in via indata'
-    pslb(:) = psl(:)
-    tssb(:) = tss(:)
-    sicedepb(:) = sicedep(:)
-    fraciceb(:) = fracice(:)
-    tb(:,:) = t(1:ifull,:)
-    qb(:,:) = qg(1:ifull,:)
-    ub(:,:) = u(1:ifull,:)
-    vb(:,:) = v(1:ifull,:)
-
-    ! Save host ocean data
-    if ( nmlo/=0 ) then
-      ocndep(:,:) = 0.
-      sssb(:,:,1) = 293.16
-      sssb(:,:,2) = 34.72
-      sssb(:,:,3) = 0.
-      sssb(:,:,4) = 0.
-      do i = 1,4
-        call mloexport3d(i-1,sssb(:,:,i),0)
-      end do
-    end if
-          
-    ! Save host aerosol data
-    if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      xtghostb(:,:,:) = xtg(1:ifull,:,:)
-    end if
-        
+    if ( abs(io_in)==1 ) then
+      call START_LOG(nestotf_begin)
+      call onthefly(1,kdate_r,ktime_r,                            &
+                    pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
+                    dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          &
+                    duma(:,1),dumv(:,:,1),dumv(:,:,2),            &
+                    dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
+                    dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
+                    duma(:,2),duma(:,3),dumm,sssb,ocndep,xtghostb)
+      call END_LOG(nestotf_end)
+      tssb(:) = abs(tssb(:))
+      qb = max(qb,0.)
+    else
+      write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
+      call ccmpi_abort(-1)
+    endif   ! (io_in==1)
+    
     call setdavvertwgt
     
     ! record time of saved data
@@ -291,7 +280,7 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
       tggsn(:,1) = min( 271.2, tssb(:) )
     end where
     ! SSTs read from host model
-    where ( .not.land )
+    where ( .not.land(1:ifull) )
       tss = cona*tssa + conb*tssb
       tgg(:,1) = tss
       sicedep(:) = sicedepb(:)
@@ -391,29 +380,21 @@ if ( mtimer>mtimeb ) then
     allocate( sssa(ifull,wlev,4) )
     allocate( xtghostb(ifull,kl,naero) )
     allocate( xtghosta(ifull,kl,naero) )
-    pslb(1:ifull) = psl(1:ifull)
-    tssb(:) = tss(:)
-    sicedepb(:) = sicedep(:)
-    fraciceb(:) = fracice(:)
-    tb(:,:) = t(1:ifull,:)
-    qb(:,:) = qg(1:ifull,:)
-    ub(:,:) = u(1:ifull,:)
-    vb(:,:) = v(1:ifull,:)
-    ! Save host ocean data
-    if ( nmlo/=0 ) then
-      ocndep(:,:) = 0.
-      sssb(:,:,1) = 293.16
-      sssb(:,:,2) = 34.72
-      sssb(:,:,3) = 0.
-      sssb(:,:,4) = 0.
-      do i = 1,4
-        call mloexport3d(i-1,sssb(:,:,i),0)
-      end do
-    end if
-    ! Save host aerosol data
-    if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      xtghostb(:,:,:) = xtg(1:ifull,:,:)
-    end if
+    if ( abs(io_in)==1 ) then
+      call START_LOG(nestotf_begin)
+      call onthefly(1,kdate_r,ktime_r,                            &
+                    pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
+                    dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          &
+                    duma(:,1),dumv(:,:,1),dumv(:,:,2),            &
+                    dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
+                    dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
+                    duma(:,2),duma(:,3),dumm,sssb,ocndep,xtghostb)
+      call END_LOG(nestotf_end)
+      tssb(:) = abs(tssb(:))
+    else
+      write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
+      call ccmpi_abort(-1)
+    endif   ! (abs(io_in)==1)
     ! initialise arrays for 1D filter
     if ( nud_uv/=9 ) then
       call specinit
@@ -461,7 +442,7 @@ if ( mtimer>mtimeb ) then
   kdhour = khour_r - khour
   kmin_r = ktime_r - 100*khour_r
   kmin   = ktime   - 100*khour
-  kdmin = kmin_r - kmin
+  kdmin  = kmin_r - kmin
   kddate = iabsdate(kdate_r,kdate) - iabsdate(kdate,kdate)
   mtimeb = 1440*kddate + 60*kdhour + kdmin
   

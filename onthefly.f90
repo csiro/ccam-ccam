@@ -24,6 +24,7 @@
 !   nested=0  Initial conditions
 !   nested=1  Nudging fields
 !   nested=2  Surface data recycling
+!   nested=3  Ensemble fields
       
 ! This version supports the parallel file routines contained
 ! in infile.f90.  Hence, restart files do not require any
@@ -42,7 +43,6 @@ implicit none
 private
 public onthefly, retopo
     
-!integer, parameter :: nord = 3                               ! 1 for bilinear, 3 for bicubic interpolation
 integer, save :: ik, jk, kk, ok, nsibx                        ! input grid size
 integer fwsize                                                ! size of temporary arrays
 integer, save :: nemi = -1                                    ! land-sea mask method (3=soilt, 2=zht, 1=ocndepth, -1=fail)
@@ -113,7 +113,9 @@ character(len=80) datestring
 
 call START_LOG(onthefly_begin)
 
-if ( myid==0 ) write(6,*) 'Entering onthefly for nested,ktau = ',nested,ktau
+if ( myid==0 ) then
+  write(6,*) 'Entering onthefly for nested,ktau = ',nested,ktau
+end if  
 
 !--------------------------------------------------------------------
 ! pfall indicates all processors have a parallel input file and there
@@ -123,7 +125,9 @@ if ( myid==0 .or. pfall ) then
     
     ! Locate new file and read grid metadata --------------------------
   if ( ncid/=ncidold ) then
-    if ( myid==0 ) write(6,*) 'Reading new file metadata'
+    if ( myid==0 ) then
+      write(6,*) 'Reading new file metadata'
+    end if  
     iarchi = 1    ! default time index for input file
     maxarchi = 0  ! default number of timesteps in input file
     ik = pil_g    ! grid size
@@ -398,7 +402,7 @@ end if
       
 ! Determine if interpolation is required
 iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
-         abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1)
+         abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3)
 iop_test = iotest .and. ptest
 
 if ( iotest ) then
@@ -613,7 +617,8 @@ if ( newfile ) then
   mlo2_found    = iers(6)==0
   
   ! determine whether zht needs to be read
-  zht_found = nested==0 .or. (nested==1.and.retopo_test/=0) .or. .not.(soilt_found.or.mlo_found)
+  zht_found = nested==0 .or. (nested==1.and.retopo_test/=0) .or.          &
+      nested==3 .or. .not.(soilt_found.or.mlo_found)
   if ( myid==0 ) then
     if ( zht_found ) then
       write(6,*) "Surface height is required with zht_found =",zht_found
@@ -712,7 +717,7 @@ if ( newfile ) then
   
   ! read urban data mask
   ! read urban mask for urban and initial conditions and interpolation
-  if ( nurban/=0 .and. nested/=1 .and. .not.iop_test ) then
+  if ( nurban/=0 .and. nested/=1 .and. nested/=3 .and. .not.iop_test ) then
     if ( myid==0 ) then
       write(6,*) "Determine urban mask from rooftgg1"
     end if  
@@ -737,7 +742,8 @@ else
   soilt_found   = iers(4)==0
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
-  zht_found     = nested==0 .or. (nested==1.and.retopo_test/=0) .or. .not.(soilt_found.or.mlo_found)
+  zht_found     = nested==0 .or. (nested==1.and.retopo_test/=0) .or.      &
+      nested==3 .or. .not.(soilt_found.or.mlo_found)
   tss_test      = siced_found .and. fracice_found .and. iotest
   
 end if ! newfile ..else..
@@ -746,7 +752,7 @@ end if ! newfile ..else..
 ! detemine the reference level below sig=0.9 (used to calculate psl)
 levk = 0
 levkin = 0
-if ( nested==0 .or. ( nested==1.and.retopo_test/=0 ) ) then
+if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
   do while( sig(levk+1)>0.9 ) ! nested grid
     levk = levk + 1
   end do
@@ -762,9 +768,9 @@ end if
 
 !--------------------------------------------------------------------
 ! Read surface pressure
-! psf read when nested=0 or nested=1.and.retopo_test/=0
+! psf read when nested=0 or nested=1.and.retopo_test/=0 or nested=3
 psl(1:ifull) = 0.
-if ( nested==0 .or. ( nested==1.and.retopo_test/=0 ) ) then
+if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
   if ( iop_test ) then
     call histrd3(iarchi,ier,'psf',ik,psl,ifull)
   else
@@ -808,15 +814,15 @@ end if ! (tss_test) ..else..
  
 !--------------------------------------------------------------
 ! Read ocean data for nudging (sea-ice is read below)
-! read when nested=0 or nested==1.and.nud/=0 or nested=2
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+! read when nested=0 or nested=1.and.nud/=0 or nested=2
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
   ! defalt values
   ocndwn(1:ifull,2) = 0.                ! surface height
   if ( mlo_found ) then
     ! water surface height
     if ( nested/=1 .or. nud_sfh/=0 ) then
       call fillhist1('ocheight',ocndwn(:,2),land_a,fill_land)
-    end if ! (nested/=1.or.nud_sfh/=0) ..else..
+    end if
   end if
 end if
 !--------------------------------------------------------------
@@ -1052,29 +1058,29 @@ end if ! (tss_test .and. iop_test ) ..else..
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 ! -------------------------------------------------------------------
-! read atmospheric fields for nested=0 or nested=1.and.nud/=0
+! read atmospheric fields for nested=0 or nested=1.and.nud/=0 or nested=3
 
 ! air temperature
-! read for nested=0 or nested=1.and.retopo_test/=0
-if ( nested==0 .or. ( nested==1.and.retopo_test/=0 ) ) then
+! read for nested=0 or nested=1.and.retopo_test/=0 or nested=3
+if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
   allocate( t_a_lev(fwsize) )  
   call gethist4a('temp',t,2,levkin=levkin,t_a_lev=t_a_lev)
 else
   t(1:ifull,1:kl) = 300.    
-end if ! (nested==0.or.(nested==1.and.retopo_test/=0))
+end if ! (nested==0.or.(nested==1.and.retopo_test/=0).or.nested==3)
 
 ! winds
-! read for nested=0 or nested=1.and.nud_uv/=0
-if ( nested==0 .or. ( nested==1.and.nud_uv/=0 ) ) then
+! read for nested=0 or nested=1.and.nud_uv/=0 or nested=3
+if ( nested==0 .or. (nested==1.and.nud_uv/=0) .or. nested==3 ) then
   call gethistuv4a('u','v',u,v,3,4)
 else
   u(1:ifull,1:kl) = 0.
   v(1:ifull,1:kl) = 0.
-end if ! (nested==0.or.(nested==1.and.nud_uv/=0))
+end if ! (nested==0.or.(nested==1.and.nud_uv/=0).or.nested==3)
 
 ! mixing ratio
-! read for nested=0 or nested=1.and.nud_q/=0
-if ( nested==0 .or. ( nested==1.and.nud_q/=0 ) ) then
+! read for nested=0 or nested=1.and.nud_q/=0 or nested=3
+if ( nested==0 .or. (nested==1.and.nud_q/=0) .or. nested==3 ) then
   if ( mixr_found ) then
     call gethist4a('mixr',qg,2)      !     mixing ratio
   else
@@ -1083,9 +1089,9 @@ if ( nested==0 .or. ( nested==1.and.nud_q/=0 ) ) then
   qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), 0. )
 else
   qg(1:ifull,1:kl) = qgmin
-end if ! (nested==0.or.(nested==1.and.nud_q/=0))
+end if ! (nested==0.or.(nested==1.and.nud_q/=0).or.nested==3)
 
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
   ! defalt values
   do k = 1,wlev
     call mloexpdep(0,depth,k,0)
@@ -1111,7 +1117,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     ! ocean potential temperature
     ! ocean temperature and soil temperature use the same arrays
     ! as no fractional land or sea cover is allowed in CCAM
-    if ( ( nested/=1 .or. nud_sst/=0 ) .and. ok>0 ) then
+    if ( (nested/=1.or.nud_sst/=0) .and. ok>0 ) then
       if ( mlo2_found ) then
         call fillhist4o('thetao',mlodwn(:,:,1),land_a,fill_land,ocndwn(:,1))  
       else
@@ -1122,7 +1128,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
       end where
     end if ! (nestesd/=1.or.nud_sst/=0) ..else..
     ! ocean salinity
-    if ( ( nested/=1 .or. nud_sss/=0 ) .and. ok>0 ) then
+    if ( (nested/=1.or.nud_sss/=0) .and. ok>0 ) then
       if ( mlo2_found ) then
         call fillhist4o('so',mlodwn(:,:,2),land_a,fill_land,ocndwn(:,1))  
       else    
@@ -1131,7 +1137,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
       mlodwn(1:ifull,1:wlev,2) = max( mlodwn(1:ifull,1:wlev,2), 0. )
     end if ! (nestesd/=1.or.nud_sss/=0) ..else..
     ! ocean currents
-    if ( ( nested/=1 .or. nud_ouv/=0 ) .and. ok>0 ) then
+    if ( (nested/=1.or.nud_ouv/=0) .and. ok>0 ) then
       if ( mlo2_found ) then
         call fillhistuv4o('uo','vo',mlodwn(:,:,3),mlodwn(:,:,4),land_a,fill_land,ocndwn(:,1))  
       else    
@@ -1139,84 +1145,86 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
       end if  
     end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
   end if   ! mlo_found
-end if     ! abs(nmlo)>=1 .and. abs(nmlo)<=9
+end if     ! abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3
 
 !------------------------------------------------------------
 ! Aerosol data
-if ( abs(iaero)>=2 .and. ( nested/=1.or.nud_aero/=0 ) ) then
-  call gethist4a('dms',  xtgdwn(:,:,1), 5)
-  if ( any(xtgdwn(:,:,1)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DMS aerosol data in host"
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,1))
-    call ccmpi_abort(-1)
+if ( abs(iaero)>=2 .and. nested/=3 ) then
+  if ( nested/=1 .or. nud_aero/=0 ) then 
+    call gethist4a('dms',  xtgdwn(:,:,1), 5)
+    if ( any(xtgdwn(:,:,1)>aerosol_tol) ) then
+      write(6,*) "ERROR: Bad DMS aerosol data in host"
+      write(6,*) "Maxval ",maxval(xtgdwn(:,:,1))
+      call ccmpi_abort(-1)
+    end if  
+    call gethist4a('so2',  xtgdwn(:,:,2), 5)
+    if ( any(xtgdwn(:,:,2)>aerosol_tol) ) then
+      write(6,*) "ERROR: Bad SO2 aerosol data in host"
+      write(6,*) "Maxval ",maxval(xtgdwn(:,:,2))
+      call ccmpi_abort(-1)
+    end if  
+    call gethist4a('so4',  xtgdwn(:,:,3), 5)
+    if ( any(xtgdwn(:,:,3)>aerosol_tol) ) then
+      write(6,*) "ERROR: Bad SO4 aerosol data in host"
+      write(6,*) "Maxval ",maxval(xtgdwn(:,:,3))
+      call ccmpi_abort(-1)
+    end if  
+    call gethist4a('bco',  xtgdwn(:,:,4), 5)
+    if ( any(xtgdwn(:,:,4)>aerosol_tol) ) then
+      write(6,*) "ERROR: Bad BCO aerosol data in host"
+      write(6,*) "Maxval ",maxval(xtgdwn(:,:,4))
+      call ccmpi_abort(-1)
+    end if  
+    call gethist4a('bci',  xtgdwn(:,:,5), 5)
+    if ( any(xtgdwn(:,:,5)>aerosol_tol) ) then
+      write(6,*) "ERROR: Bad BCI aerosol data in host"
+      write(6,*) "Maxval ",maxval(xtgdwn(:,:,5))
+      call ccmpi_abort(-1)
+    end if  
+    call gethist4a('oco',  xtgdwn(:,:,6), 5)
+    if ( any(xtgdwn(:,:,6)>aerosol_tol) ) then
+      write(6,*) "ERROR: Bad OCO aerosol data in host"
+      write(6,*) "Maxval ",maxval(xtgdwn(:,:,6))
+      call ccmpi_abort(-1)
+    end if  
+    call gethist4a('oci',  xtgdwn(:,:,7), 5)
+    if ( any(xtgdwn(:,:,7)>aerosol_tol) ) then
+      write(6,*) "ERROR: Bad OCI aerosol data in host"
+      write(6,*) "Maxval ",maxval(xtgdwn(:,:,7))
+      call ccmpi_abort(-1)
+    end if  
+    call gethist4a('dust1',xtgdwn(:,:,8), 5)
+    if ( any(xtgdwn(:,:,8)>aerosol_tol) ) then
+      write(6,*) "ERROR: Bad DUST1 aerosol data in host"
+      write(6,*) "Maxval ",maxval(xtgdwn(:,:,8))
+      call ccmpi_abort(-1)
+    end if  
+    call gethist4a('dust2',xtgdwn(:,:,9), 5)
+    if ( any(xtgdwn(:,:,9)>aerosol_tol) ) then
+      write(6,*) "ERROR: Bad DUST2 aerosol data in host"
+      write(6,*) "Maxval ",maxval(xtgdwn(:,:,9))
+      call ccmpi_abort(-1)
+    end if  
+    call gethist4a('dust3',xtgdwn(:,:,10),5)
+    if ( any(xtgdwn(:,:,10)>aerosol_tol) ) then
+      write(6,*) "ERROR: Bad DUST3 aerosol data in host"
+      write(6,*) "Maxval ",maxval(xtgdwn(:,:,10))
+      call ccmpi_abort(-1)
+    end if  
+    call gethist4a('dust4',xtgdwn(:,:,11),5)
+    if ( any(xtgdwn(:,:,11)>aerosol_tol) ) then
+      write(6,*) "ERROR: Bad DUST4 aerosol data in host"
+      write(6,*) "Maxval ",maxval(xtgdwn(:,:,11))
+      call ccmpi_abort(-1)
+    end if  
+    xtgdwn(:,:,:) = max( xtgdwn(:,:,:), 0. )
   end if  
-  call gethist4a('so2',  xtgdwn(:,:,2), 5)
-  if ( any(xtgdwn(:,:,2)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad SO2 aerosol data in host"
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,2))
-    call ccmpi_abort(-1)
-  end if  
-  call gethist4a('so4',  xtgdwn(:,:,3), 5)
-  if ( any(xtgdwn(:,:,3)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad SO4 aerosol data in host"
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,3))
-    call ccmpi_abort(-1)
-  end if  
-  call gethist4a('bco',  xtgdwn(:,:,4), 5)
-  if ( any(xtgdwn(:,:,4)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad BCO aerosol data in host"
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,4))
-    call ccmpi_abort(-1)
-  end if  
-  call gethist4a('bci',  xtgdwn(:,:,5), 5)
-  if ( any(xtgdwn(:,:,5)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad BCI aerosol data in host"
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,5))
-    call ccmpi_abort(-1)
-  end if  
-  call gethist4a('oco',  xtgdwn(:,:,6), 5)
-  if ( any(xtgdwn(:,:,6)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad OCO aerosol data in host"
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,6))
-    call ccmpi_abort(-1)
-  end if  
-  call gethist4a('oci',  xtgdwn(:,:,7), 5)
-  if ( any(xtgdwn(:,:,7)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad OCI aerosol data in host"
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,7))
-    call ccmpi_abort(-1)
-  end if  
-  call gethist4a('dust1',xtgdwn(:,:,8), 5)
-  if ( any(xtgdwn(:,:,8)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DUST1 aerosol data in host"
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,8))
-    call ccmpi_abort(-1)
-  end if  
-  call gethist4a('dust2',xtgdwn(:,:,9), 5)
-  if ( any(xtgdwn(:,:,9)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DUST2 aerosol data in host"
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,9))
-    call ccmpi_abort(-1)
-  end if  
-  call gethist4a('dust3',xtgdwn(:,:,10),5)
-  if ( any(xtgdwn(:,:,10)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DUST3 aerosol data in host"
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,10))
-    call ccmpi_abort(-1)
-  end if  
-  call gethist4a('dust4',xtgdwn(:,:,11),5)
-  if ( any(xtgdwn(:,:,11)>aerosol_tol) ) then
-    write(6,*) "ERROR: Bad DUST4 aerosol data in host"
-    write(6,*) "Maxval ",maxval(xtgdwn(:,:,11))
-    call ccmpi_abort(-1)
-  end if  
-  xtgdwn(:,:,:) = max( xtgdwn(:,:,:), 0. )
 end if
 
 !------------------------------------------------------------
 ! re-grid surface pressure by mapping to MSLP, interpolating and then map to surface pressure
 ! requires psl_a, zss, zss_a, t and t_a_lev
-if ( nested==0 .or. ( nested==1.and.retopo_test/=0 ) ) then
+if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
   if ( .not.iop_test ) then
     if ( iotest ) then
       if ( fnproc==1 ) then
@@ -1243,12 +1251,14 @@ if ( nested==0 .or. ( nested==1.and.retopo_test/=0 ) ) then
 end if
 
 
-if ( abs(iaero)>=2 .and. ( nested/=1.or.nud_aero/=0 ) ) then
-  ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
-  so4t(:) = 0.
-  do k = 1,kl
-    so4t(1:ifull) = so4t(1:ifull) + 3.e3*xtgdwn(1:ifull,k,3)*(-1.e5*exp(psl(1:ifull))*dsig(k))/grav
-  end do   
+if ( abs(iaero)>=2 .and. nested/=3 ) then
+  if ( nested/=1.or.nud_aero/=0 ) then
+    ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
+    so4t(:) = 0.
+    do k = 1,kl
+      so4t(1:ifull) = so4t(1:ifull) + 3.e3*xtgdwn(1:ifull,k,3)*(-1.e5*exp(psl(1:ifull))*dsig(k))/grav
+    end do
+  end if  
 end if
 
 
@@ -1259,7 +1269,7 @@ end if
 
 !--------------------------------------------------------------
 ! The following data is only read for initial conditions
-if ( nested/=1 ) then
+if ( nested/=1 .and. nested/=3 ) then
 
   ierc(:) = 0  ! flag for located variables
     
@@ -1904,17 +1914,17 @@ if ( nested/=1 ) then
     call gethist1('sgsave',sgsave)
   end if
         
-endif    ! (nested/=1)
+endif    ! (nested/=1.and.nested/=3)
+
+!**************************************************************
+! This is the end of reading the initial arrays
+!**************************************************************  
 
 deallocate( ucc, tss_a, ucc6 )
 deallocate( sx )
 
-!**************************************************************
-! This is the end of reading the initial arrays
-!**************************************************************         
-
 ! -------------------------------------------------------------------
-! tgg holds file surface temperature when no MLO
+! tgg holds file surface temperature when there is no MLO
 if ( nmlo==0 .or. abs(nmlo)>9 ) then
   where ( .not.land(1:ifull) )
     tgg(1:ifull,1) = tss(1:ifull)
