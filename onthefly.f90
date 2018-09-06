@@ -29,10 +29,6 @@
 ! This version supports the parallel file routines contained
 ! in infile.f90.  Hence, restart files do not require any
 ! gathers and scatters.
-
-! In the case where the grid needs to be interpolated, RMA
-! is used to distribute host data from processes, which
-! reduces the amount of message passing.
     
 ! Thanks to Paul Ryan for optimising NetCDF routines
     
@@ -63,7 +59,7 @@ logical iotest, newfile, iop_test                             ! tests for interp
 
 real, dimension(:,:,:,:), allocatable, save :: sx             ! working array for interpolation
 
-integer, dimension(0:5), save :: comm_face                     ! communicator for broadcasting single file input data
+integer, dimension(0:5), save :: comm_face                    ! communicator for broadcasting single file input data
 logical, dimension(0:5), save :: nfacereq = .false.           ! list of panels required for interpolation
 logical, save :: bcast_allocated = .false.                    ! true when comm_face is assigned
 
@@ -269,7 +265,7 @@ if ( myid==0 ) write(6,*) "Leaving onthefly"
 call END_LOG(onthefly_end)
 
 return
-end subroutine onthefly
+                    end subroutine onthefly
 
 
 ! *****************************************************************************
@@ -277,8 +273,8 @@ end subroutine onthefly
       
 ! Input usually consists of either a single input file that is
 ! scattered across processes, or multiple input files that are read
-! by many processes and shared by RMA.  In the case of restart
-! files, then there is no need for message passing.
+! by many processes.  In the case of restart files, then there is
+! no need for message passing.
 subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                          snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
                          ocndwn,xtgdwn)
@@ -517,10 +513,10 @@ if ( newfile .and. .not.iop_test ) then
   nullify( xx4, yy4 )
   deallocate( xx4_dummy, yy4_dummy )  
   
-  ! Define filemap for MPI RMA method
+  ! Define filemap for multi-file method
   call file_wininit
   
-  ! Define comm_face for MPI Bcast method
+  ! Define comm_face for single file method
   call splitface
       
 end if ! newfile .and. .not.iop_test
@@ -1105,7 +1101,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
         - 0.833224666E-14*depth(1:ifull)**5  &
         + 0.136974583E-17*depth(1:ifull)**6  &
         - 0.935923382E-22*depth(1:ifull)**7
-      mlodwn(1:ifull,k,1) = mlodwn(1:ifull,k,1) + 273.16 - wrtemp
+      mlodwn(1:ifull,k,1) = mlodwn(1:ifull,k,1) - wrtemp + tss(1:ifull) - 18.4231944
     elsewhere
       mlodwn(1:ifull,k,1) = 275.16 - wrtemp
     end where
@@ -1964,12 +1960,14 @@ integer mm, n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull) :: wrk
-real, dimension(pipan*pjpan*pnpan,size(filemap_recv)) :: abuf
+real, dimension(pipan*pjpan*pnpan,size(fileunpack_recv)) :: abuf
 
 call START_LOG(otf_ints1_begin)
 
-! This version uses MPI RMA to distribute data
+! This version distributes mutli-file data
 call ccmpi_filewinget(abuf,s)
+
+call ccmpi_bcast(abuf,0,comm_node)
 
 sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
 call ccmpi_filewinunpack(sx(:,:,:,1),abuf)
@@ -2052,7 +2050,7 @@ integer mm, k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull) :: wrk
-real, dimension(pipan*pjpan*pnpan,size(filemap_recv),kblock) :: abuf
+real, dimension(pipan*pjpan*pnpan,size(fileunpack_recv),kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
 
@@ -2062,8 +2060,10 @@ do kb = 1,kx,kblock
   ke = min(kb+kblock-1, kx)
   kn = ke - kb + 1
 
-  ! This version uses MPI RMA to distribute data
+  ! This version distributes multi-file data
   call ccmpi_filewinget(abuf(:,:,1:kn),s(:,kb:ke))
+  
+  call ccmpi_bcast(abuf(:,:,1:kn),0,comm_node)
     
   if ( iotest ) then
     do k = 1,kn
@@ -2114,20 +2114,6 @@ real, dimension(-1:ik+2,-1:ik+2,kblock) :: sy
 call START_LOG(otf_ints4_begin)
 
 kx = size(sout,2)
-if ( kx/=size(s, 2) ) then
-  write(6,*) "ERROR: Mismatch in number of vertical levels in doints4_gather"
-  call ccmpi_abort(-1)
-end if
-
-if ( size(s,1)<fwsize ) then
-  write(6,*) "ERROR: s array is too small in doints4_gather"
-  call ccmpi_abort(-1)
-end if
-
-if ( size(sout,1)<ifull ) then
-  write(6,*) "ERROR: sout array is too small in doints4_gather"
-  call ccmpi_abort(-1)
-end if
 
 sx(-1:ik+2,-1:ik+2,0:npanels,1:kblock) = 0.
 do kb = 1,kx,kblock
@@ -3290,13 +3276,11 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd3(iarchi,ier,vname,ik,varout,ifull)
 else if ( fnproc==1 ) then
-  ! use bcast method for single input file
-  ! requires interpolation and redistribution
+  ! for single input file
   call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
   call doints1_gather(ucc, varout)
 else
-  ! use RMA method for multiple input files
-  ! requires interpolation and redistribution
+  ! for multiple input files
   call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
   call doints1_nogather(ucc, varout)
 end if ! iop_test
@@ -3325,8 +3309,7 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd3(iarchi,ier,vname,ik,varout,ifull)
 else if ( fnproc==1 ) then
-  ! use bcast method for single input file
-  ! requires interpolation and redistribution
+  ! for single input file
   call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
   if ( .not.iop_test ) then
     if ( myid==0 ) then
@@ -3335,8 +3318,7 @@ else if ( fnproc==1 ) then
   end if
   call doints1_gather(ucc, varout)
 else
-  ! use RMA method for multiple input files
-  ! requires interpolation and redistribution
+  ! for multiple input files
   call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
   if ( .not.iop_test ) then
     call fill_cc1_nogather(ucc,mask_a,fill_count)
@@ -3369,14 +3351,12 @@ if ( iop_test ) then
   call histrd3(iarchi,ier,uname,ik,uarout,ifull)
   call histrd3(iarchi,ier,vname,ik,varout,ifull)
 else if ( fnproc==1 ) then
-  ! use bcast method for single input file
-  ! requires interpolation and redistribution
+  ! for single input file
   call histrd3(iarchi,ier,uname,ik,ucc,6*ik*ik,nogather=.false.)
   call histrd3(iarchi,ier,vname,ik,vcc,6*ik*ik,nogather=.false.)
   call interpcurrent1(uarout,varout,ucc,vcc,mask_a,fill_count,nogather=.false.)
 else
-  ! use RMA method for multiple input files
-  ! requires interpolation and redistribution
+  ! for multiple input files
   call histrd3(iarchi,ier,uname,ik,ucc,6*ik*ik,nogather=.true.)
   call histrd3(iarchi,ier,vname,ik,vcc,6*ik*ik,nogather=.true.)
   call interpcurrent1(uarout,varout,ucc,vcc,mask_a,fill_count,nogather=.true.)
@@ -3411,13 +3391,11 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
 else if ( fnproc==1 ) then
-  ! use bcast method for single input file
-  ! requires interpolation and redistribution
+  ! for single input file
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.false.)
   call doints4_gather(ucc, varout)
 else
-  ! use RMA method for multiple input files
-  ! requires interpolation and redistribution
+  ! for multiple input files
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.true.)
   call doints4_nogather(ucc,varout)
 end if ! iop_test
@@ -3460,8 +3438,7 @@ if ( iop_test ) then
   call histrd4(iarchi,ier,vname,ik,kk,u_k,ifull)
 else
   if ( fnproc==1 ) then
-    ! use bcast method for single input file
-    ! requires interpolation and redistribution
+    ! for single input file
     call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.false.)
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
       if ( levkin<1 .or. levkin>kk ) then
@@ -3472,8 +3449,7 @@ else
     end if
     call doints4_gather(ucc, u_k)
   else
-    ! use RMA method for multiple input files
-    ! requires interpolation and redistribution
+    ! for multiple input files
     call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik,nogather=.true.)
     if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
       if ( levkin<1 .or. levkin>kk ) then
@@ -3534,14 +3510,12 @@ if ( iop_test ) then
   call histrd4(iarchi,ier,uname,ik,kk,u_k,ifull)
   call histrd4(iarchi,ier,vname,ik,kk,v_k,ifull)
 else if ( fnproc==1 ) then
-  ! use bcast method for single input file
-  ! requires interpolation and redistribution
+  ! for single input file
   call histrd4(iarchi,ier,uname,ik,kk,ucc,6*ik*ik,nogather=.false.)
   call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik,nogather=.false.)
   call interpwind4(u_k,v_k,ucc,vcc,nogather=.false.)
 else
-  ! use RMA method for multiple input files
-  ! requires interpolation and redistribution
+  ! for multiple input files
   call histrd4(iarchi,ier,uname,ik,kk,ucc,6*ik*ik,nogather=.true.)
   call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik,nogather=.true.)
   call interpwind4(u_k,v_k,ucc,vcc,nogather=.true.)
@@ -3582,8 +3556,7 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
 else if ( fnproc==1 ) then
-  ! use bcast method for single input file
-  ! requires interpolation and redistribution
+  ! for single input file
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.false.)
   if ( .not.iotest ) then
     if ( myid==0 ) then
@@ -3592,8 +3565,7 @@ else if ( fnproc==1 ) then
   end if
   call doints4_gather(ucc, varout)
 else
-  ! use RMA method for multiple input files
-  ! requires interpolation and redistribution  
+  ! for multiple input files
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.true.)
   if ( .not.iotest ) then
     call fill_cc4_nogather(ucc,mask_a,fill_count)
@@ -3639,16 +3611,14 @@ if ( iop_test ) then
   ! read without interpolation or redistribution
   call histrd4(iarchi,ier,vname,ik,ok,u_k,ifull)
 else if ( fnproc==1 ) then
-  ! use bcast method for single input file
-  ! requires interpolation and redistribution
+  ! for single input file
   call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik,nogather=.false.)
   if ( myid==0 ) then
     call fill_cc4_gather(ucc,mask_a)
   end if
   call doints4_gather(ucc,u_k)
 else
-  ! use RMA method for multiple input files
-  ! requires interpolation and redistribution
+  ! for multiple input files
   call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik,nogather=.true.)
   call fill_cc4_nogather(ucc,mask_a,fill_count)
   call doints4_nogather(ucc,u_k)
@@ -3686,14 +3656,12 @@ if ( iop_test ) then
   call histrd4(iarchi,ier,uname,ik,ok,u_k,ifull)
   call histrd4(iarchi,ier,vname,ik,ok,v_k,ifull)
 else if ( fnproc==1 ) then
-  ! use bcast method for single input file
-  ! requires interpolation and redistribution
+  ! for single input file
   call histrd4(iarchi,ier,uname,ik,ok,ucc,6*ik*ik,nogather=.false.)
   call histrd4(iarchi,ier,vname,ik,ok,vcc,6*ik*ik,nogather=.false.)
   call interpcurrent4(u_k,v_k,ucc,vcc,mask_a,fill_count,nogather=.false.)
 else
-  ! use RMA method for multiple input files
-  ! requires interpolation and redistribution
+  ! for multiple input files
   call histrd4(iarchi,ier,uname,ik,ok,ucc,6*ik*ik,nogather=.true.)
   call histrd4(iarchi,ier,vname,ik,ok,vcc,6*ik*ik,nogather=.true.)
   call interpcurrent4(u_k,v_k,ucc,vcc,mask_a,fill_count,nogather=.true.)
@@ -3709,7 +3677,7 @@ end subroutine fillhistuv4o
 ! *****************************************************************************
 ! FILE DATA MESSAGE PASSING ROUTINES
 
-! Define RMA windows for distributing file data to processors
+! Define mapping for distributing file data to processors
 subroutine file_wininit
 
 use cc_mpi             ! CC MPI routines
@@ -3722,9 +3690,10 @@ implicit none
 integer i, n, ipf
 integer mm, iq, idel, jdel
 integer ncount, w
-logical, dimension(0:fnproc-1) :: lfile
 integer, dimension(:), allocatable :: tempmap_send, tempmap_smod
+logical, dimension(0:fnproc-1) :: lfile, gfile
 logical, dimension(0:nproc-1) :: lproc
+
 
 if ( allocated(filemap_recv) ) then
   deallocate( filemap_recv, filemap_rmod )
@@ -3735,11 +3704,11 @@ if ( allocated(axs_w) ) then
   deallocate( bxs_w, bys_w, bzs_w )
 end if
 
-! No RMA window for single input file
+! No window for single input file
 if ( fnproc<=1 ) return
 
 if ( myid==0 ) then
-  write(6,*) "Create map for file RMA windows"
+  write(6,*) "Create map for input file data"
 end if
 
 ! calculate which grid points and input files are needed by this processor
@@ -3765,6 +3734,19 @@ do mm = 1,m_fly
   end do
 end do
 
+! collect node data by node captian
+if ( nodecaptian_nproc>1 ) then
+  if ( myid==0 ) then
+    write(6,*) "Combine map with node captians"  
+  end if
+  call ccmpi_reduce(lfile,gfile,"or",0,comm_node)
+  if ( node_myid==0 ) then
+    lfile = gfile
+  else
+    lfile = .false.
+  end if
+end if  
+
 ! Construct a map of files to be accessed by this process
 ncount = count(lfile(0:fnproc-1))
 allocate( filemap_recv(ncount), filemap_rmod(ncount) )
@@ -3776,6 +3758,25 @@ do w = 0,fnproc-1
     filemap_rmod(ncount) = w/fnresid
   end if
 end do
+
+! communicate fileunpack with node
+if ( nodecaptian_nproc>1 ) then
+  call ccmpi_bcast(ncount,0,comm_node)
+  allocate( fileunpack_recv(ncount), fileunpack_rmod(ncount) )
+  allocate( tempmap_send(2*ncount) )
+  if ( node_myid==0 ) then
+    tempmap_send(1:ncount) = filemap_recv(1:ncount)
+    tempmap_send(ncount+1:2*ncount) = filemap_rmod(1:ncount)
+  end if
+  call ccmpi_bcast(tempmap_send,0,comm_node)
+  fileunpack_recv(1:ncount) = tempmap_send(1:ncount)
+  fileunpack_rmod(1:ncount) = tempmap_send(ncount+1:2*ncount)
+  deallocate( tempmap_send )
+else
+  allocate( fileunpack_recv(ncount), fileunpack_rmod(ncount) )
+  fileunpack_recv(1:ncount) = filemap_recv(1:ncount)
+  fileunpack_rmod(1:ncount) = filemap_rmod(1:ncount)
+end if
 
 ! Construct a map of processes that need this file
 allocate( tempmap_send(nproc*fncount), tempmap_smod(nproc*fncount) )
@@ -3837,7 +3838,7 @@ else if ( fwsize>0 ) then
 end if
 
 if ( myid==0 ) then
-  write(6,*) "Finished creating control data for file RMA windows"
+  write(6,*) "Finished creating control data for input file data"
 end if
 
 return

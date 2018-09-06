@@ -102,6 +102,8 @@ module cc_mpi
       filemap_recv, filemap_rmod                                           ! file map received for onthefly
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       filemap_send, filemap_smod                                           ! file map sent for onthefly
+   integer(kind=4), allocatable, dimension(:), save, public ::              &
+      fileunpack_recv, fileunpack_rmod                                     ! file map unpacked for onthefly
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -10057,7 +10059,7 @@ contains
       ncount = size(filemap_recv)
       
       do w = 1,ncount
-         ip = filemap_recv(w) + filemap_rmod(w)*fnresid
+         ip = fileunpack_recv(w) + fileunpack_rmod(w)*fnresid
          do n = 0,pnpan-1
             no = n - pnoff(ip) + 1
             ca = pioff(ip,no)
