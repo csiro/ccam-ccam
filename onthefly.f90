@@ -3698,6 +3698,7 @@ logical, dimension(0:nproc-1) :: lproc
 if ( allocated(filemap_recv) ) then
   deallocate( filemap_recv, filemap_rmod )
   deallocate( filemap_send, filemap_smod )
+  deallocate( fileunpack_recv, fileunpack_rmod )
 end if
 if ( allocated(axs_w) ) then
   deallocate( axs_w, ays_w, azs_w )
