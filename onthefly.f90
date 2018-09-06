@@ -1960,14 +1960,12 @@ integer mm, n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull) :: wrk
-real, dimension(pipan*pjpan*pnpan,size(fileunpack_recv)) :: abuf
+real, dimension(pipan*pjpan*pnpan,size(filemap_recv)) :: abuf
 
 call START_LOG(otf_ints1_begin)
 
 ! This version distributes mutli-file data
 call ccmpi_filewinget(abuf,s)
-
-call ccmpi_bcast(abuf,0,comm_node)
 
 sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
 call ccmpi_filewinunpack(sx(:,:,:,1),abuf)
@@ -2050,7 +2048,7 @@ integer mm, k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull) :: wrk
-real, dimension(pipan*pjpan*pnpan,size(fileunpack_recv),kblock) :: abuf
+real, dimension(pipan*pjpan*pnpan,size(filemap_recv),kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
 
@@ -2062,8 +2060,6 @@ do kb = 1,kx,kblock
 
   ! This version distributes multi-file data
   call ccmpi_filewinget(abuf(:,:,1:kn),s(:,kb:ke))
-  
-  call ccmpi_bcast(abuf(:,:,1:kn),0,comm_node)
     
   if ( iotest ) then
     do k = 1,kn
@@ -2114,6 +2110,20 @@ real, dimension(-1:ik+2,-1:ik+2,kblock) :: sy
 call START_LOG(otf_ints4_begin)
 
 kx = size(sout,2)
+if ( kx/=size(s, 2) ) then
+  write(6,*) "ERROR: Mismatch in number of vertical levels in doints4_gather"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(s,1)<fwsize ) then
+  write(6,*) "ERROR: s array is too small in doints4_gather"
+  call ccmpi_abort(-1)
+end if
+
+if ( size(sout,1)<ifull ) then
+  write(6,*) "ERROR: sout array is too small in doints4_gather"
+  call ccmpi_abort(-1)
+end if
 
 sx(-1:ik+2,-1:ik+2,0:npanels,1:kblock) = 0.
 do kb = 1,kx,kblock
@@ -3690,15 +3700,13 @@ implicit none
 integer i, n, ipf
 integer mm, iq, idel, jdel
 integer ncount, w
+logical, dimension(0:fnproc-1) :: lfile
 integer, dimension(:), allocatable :: tempmap_send, tempmap_smod
-logical, dimension(0:fnproc-1) :: lfile, gfile
 logical, dimension(0:nproc-1) :: lproc
-
 
 if ( allocated(filemap_recv) ) then
   deallocate( filemap_recv, filemap_rmod )
   deallocate( filemap_send, filemap_smod )
-  deallocate( fileunpack_recv, fileunpack_rmod )
 end if
 if ( allocated(axs_w) ) then
   deallocate( axs_w, ays_w, azs_w )
@@ -3735,19 +3743,6 @@ do mm = 1,m_fly
   end do
 end do
 
-! collect node data by node captian
-if ( nodecaptian_nproc>1 ) then
-  if ( myid==0 ) then
-    write(6,*) "Combine map with node captians"  
-  end if
-  call ccmpi_reduce(lfile,gfile,"or",0,comm_node)
-  if ( node_myid==0 ) then
-    lfile = gfile
-  else
-    lfile = .false.
-  end if
-end if  
-
 ! Construct a map of files to be accessed by this process
 ncount = count(lfile(0:fnproc-1))
 allocate( filemap_recv(ncount), filemap_rmod(ncount) )
@@ -3759,25 +3754,6 @@ do w = 0,fnproc-1
     filemap_rmod(ncount) = w/fnresid
   end if
 end do
-
-! communicate fileunpack with node
-if ( nodecaptian_nproc>1 ) then
-  call ccmpi_bcast(ncount,0,comm_node)
-  allocate( fileunpack_recv(ncount), fileunpack_rmod(ncount) )
-  allocate( tempmap_send(2*ncount) )
-  if ( node_myid==0 ) then
-    tempmap_send(1:ncount) = filemap_recv(1:ncount)
-    tempmap_send(ncount+1:2*ncount) = filemap_rmod(1:ncount)
-  end if
-  call ccmpi_bcast(tempmap_send,0,comm_node)
-  fileunpack_recv(1:ncount) = tempmap_send(1:ncount)
-  fileunpack_rmod(1:ncount) = tempmap_send(ncount+1:2*ncount)
-  deallocate( tempmap_send )
-else
-  allocate( fileunpack_recv(ncount), fileunpack_rmod(ncount) )
-  fileunpack_recv(1:ncount) = filemap_recv(1:ncount)
-  fileunpack_rmod(1:ncount) = filemap_rmod(1:ncount)
-end if
 
 ! Construct a map of processes that need this file
 allocate( tempmap_send(nproc*fncount), tempmap_smod(nproc*fncount) )
