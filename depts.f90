@@ -539,8 +539,6 @@ real(kind=8), dimension(ifull,kl), intent(in) :: x3d,y3d,z3d
 real(kind=8), dimension(ifull) :: den
 logical, dimension(ifull) :: xytest, xztest, yztest
 
-call START_LOG(toij_begin)
-
 #ifdef cray
 ! check if divide by itself is working
 if ( num==0 ) then
@@ -669,8 +667,6 @@ do k = 1,kl
   yg(1:ifull,k) = 0.25*(rj(1:ifull)+3.) - 0.5  ! -.5 for stag
   
 end do
-
-call END_LOG(toij_end)
 
 return
 end subroutine toij5

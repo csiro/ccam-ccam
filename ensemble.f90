@@ -81,8 +81,8 @@ real, dimension(ifull) :: zsb, timelt
 real, dimension(ifull,3) :: duma
 real, dimension(ifull,2) :: dumd
 real, dimension(ifull,kl) :: ee
-real, dimension(:,:), allocatable :: u_pos, v_pos, t_pos, q_pos
-real, dimension(:,:), allocatable :: u_neg, v_neg, t_neg, q_neg
+real, dimension(:,:), allocatable :: u_pos, v_pos, t_pos
+real, dimension(:,:), allocatable :: u_neg, v_neg, t_neg
 real, dimension(ifull,ms,3) :: dumg
 real, dimension(ifull,kl,5) :: dumv
 real, dimension(ifull,3,3) :: dums
@@ -91,7 +91,6 @@ real, dimension(ifull,kl,naero) :: dumr
 real, save :: psl_rms
 real, dimension(:), allocatable, save :: u_rms, v_rms
 real, dimension(:), allocatable, save :: t_rms
-real, dimension(:), allocatable, save :: q_rms
 
 
 if ( mtimer>mtimeb ) then
@@ -101,7 +100,11 @@ if ( mtimer>mtimeb ) then
     allocate( tb(ifull,kl), ub(ifull,kl), vb(ifull,kl), qb(ifull,kl) )
     allocate( pslb(ifull), tssb(ifull), fraciceb(ifull) )
     allocate( sicedepb(ifull) )
-    allocate( u_rms(kl), v_rms(kl), t_rms(kl), q_rms(kl) )
+    allocate( u_rms(kl), v_rms(kl), t_rms(kl) )
+    psl_rms = 1.
+    u_rms(:) = 1.
+    v_rms(:) = 1.
+    t_rms(:) = 1.
     if ( abs(io_in)==1 ) then
       call onthefly(3,kdate_r,ktime_r,                            &
                     pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
@@ -110,35 +113,26 @@ if ( mtimer>mtimeb ) then
                     dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
                     duma(:,2),duma(:,3),dumm,dumo,dumd,dumr)
+      call retopo(pslb,zsb,zs,tb,qb)
     else
       write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
       call ccmpi_abort(-1)
     endif   ! (abs(io_in)==1)
-    select case(ensemble_mode)
-      case(1)
-        psl_rms = 1.
-        u_rms(:) = 1.
-        v_rms(:) = 1.
-        t_rms(:) = 1.
-        q_rms(:) = 1.
-      case(2)
-        psl_rms = -1.
-        u_rms(:) = -1.
-        v_rms(:) = -1.
-        t_rms(:) = -1.
-        q_rms(:) = -1.
-        ! estimate RMS of perturbation
-        dd(:) = psl(1:ifull) - pslb
-        call rmse(dd,psl_rms)
-        ee(:,:) = u(1:ifull,:) - ub
-        call rmse(ee,u_rms)
-        ee(:,:) = v(1:ifull,:) - vb
-        call rmse(ee,v_rms)
-        ee(:,:) = t(1:ifull,:) - tb
-        call rmse(ee,t_rms)
-        ee(:,:) = qg(1:ifull,:) - qb
-        call rmse(ee,q_rms)
-    end select
+    if ( ensemble_mode==2 ) then
+      ! calculate RMSE of perturbation
+      psl_rms = -1.
+      u_rms(:) = -1.
+      v_rms(:) = -1.
+      t_rms(:) = -1.
+      dd(:) = psl(1:ifull) - pslb
+      call rmse(dd,psl_rms)
+      ee(:,:) = u(1:ifull,:) - ub
+      call rmse(ee,u_rms)
+      ee(:,:) = v(1:ifull,:) - vb
+      call rmse(ee,v_rms)
+      ee(:,:) = t(1:ifull,:) - tb
+      call rmse(ee,t_rms)
+    end if
     mtimeb = 0
   end if
 
@@ -186,46 +180,42 @@ if ( mtimer>=mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
   ! create or breed ensemble members
   select case(ensemble_mode)
     case(1) ! control
+      if ( myid==0 ) then
+        write(6,*) "Create ensemble initial conditions"  
+      end if    
       allocate( psl_pos(ifull), psl_neg(ifull) )
       allocate( u_pos(ifull,kl), u_neg(ifull,kl) )
       allocate( v_pos(ifull,kl), v_neg(ifull,kl) )
       allocate( t_pos(ifull,kl), t_neg(ifull,kl) )
-      allocate( q_pos(ifull,kl), q_neg(ifull,kl) )
       dd(:) = psl(1:ifull) - pslb
-      call rmse(dd,psl_rms)
       psl_pos(:) = pslb + dd
       psl_neg(:) = pslb - dd
       ee(:,:) = u(1:ifull,:) - ub
-      call rmse(ee,u_rms)
       u_pos(:,:) = ub + ee
       u_neg(:,:) = ub - ee
       ee(:,:) = v(1:ifull,:) - vb
-      call rmse(ee,v_rms)
       v_pos(:,:) = vb + ee
       v_neg(:,:) = vb - ee
       ee(:,:) = t(1:ifull,:) - tb
-      call rmse(ee,t_rms)
       t_pos(:,:) = tb + ee
       t_neg(:,:) = tb - ee
-      ee(:,:) = qg(1:ifull,:) - qb
-      call rmse(ee,q_rms)
-      q_pos(:,:) = qb + ee
-      q_neg(:,:) = qb - ee
       num = num + 1 ! odd = pos
-      call saveoutput(num,psl_pos,u_pos,v_pos,t_pos,q_pos)
+      call saveoutput(num,psl_pos,u_pos,v_pos,t_pos,qg)
       num = num + 1 ! even = neg
-      call saveoutput(num,psl_neg,u_neg,v_neg,t_neg,q_neg)
+      call saveoutput(num,psl_neg,u_neg,v_neg,t_neg,qg)
       deallocate( psl_pos, psl_neg )
       deallocate( u_pos, u_neg )
       deallocate( v_pos, v_neg )
       deallocate( t_pos, t_neg )
-      deallocate( q_pos, q_neg )
       psl(1:ifull) = pslb(:)
       u(1:ifull,:) = ub(:,:)
       v(1:ifull,:) = vb(:,:)
       t(1:ifull,:) = tb(:,:)
       qg(1:ifull,:) = qb(:,:)
     case(2) ! breed
+      if ( myid==0 ) then
+        write(6,*) "Update ensemble breeding"  
+      end if    
       dd(:) = psl(1:ifull) - pslb
       call rmse(dd,psl_rms)
       psl(1:ifull) = pslb + dd
@@ -238,9 +228,6 @@ if ( mtimer>=mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
       ee(:,:) = t(1:ifull,:) - tb
       call rmse(ee,t_rms)
       t(1:ifull,:) = tb + ee
-      ee(:,:) = qg(1:ifull,:) - qb
-      call rmse(ee,q_rms)
-      qg(1:ifull,:) = qb + ee
   end select  
 
   ! specify sea-ice if not AMIP or Mixed-Layer-Ocean
@@ -307,13 +294,10 @@ real :: datsum, datrms
 
 ! calculate RMSE
 datsq = datin*datin
-
-! calculate mean
 call calcmean(datsq,datsum)
-
-! RMS
 datrms = sqrt(datsum)
 
+! update reference RMSE if required
 if ( ref_rms<0. ) then
   ref_rms = datrms
 end if
@@ -338,15 +322,12 @@ real, dimension(size(datin,2)) :: datrms, datsum
 do k = 1,size(datin,2)
   datsq(:,k) = datin(:,k)*datin(:,k)
 end do  
-
-! calculate mean
 call calcmean(datsq,datsum)
-
-! RMS
 do k = 1,size(datin,2)
   datrms(k) = sqrt(datsum(k))
 end do  
 
+! update reference RMSE if required
 if ( ref_rms(1)<0. ) then
   ref_rms(:) = datrms(:)
 end if

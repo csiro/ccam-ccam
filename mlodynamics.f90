@@ -220,46 +220,16 @@ return
 end subroutine mlodyninit
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This subroutine processes horizontal diffusion, if mlohadv is
-! not called.  Calling diffusion from mlodadv avoids additional
-! unpacking and packing
-subroutine mlodiffusion
-
-use mlo
-use newmpar_m
-
-implicit none
-
-real, dimension(ifull,wlev) :: u,v,tt,ss
-real, dimension(ifull) :: eta
-
-! extract data from MLO
-u=0.
-v=0.
-eta=0.
-tt=0.
-ss=0.
-call mloexport3d(0,tt,0)
-call mloexport3d(1,ss,0)
-call mloexport3d(2,u,0)
-call mloexport3d(3,v,0)
-call mloexport(4,eta(1:ifull),0,0)
-
-call mlodiffusion_main(u,v,u,v,tt,ss)
-
-return
-end subroutine mlodiffusion
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine processes horizontal diffusion, based on Griffies (2000)
 ! and McGregor's hordifg.f routines for CCAM.
-subroutine mlodiffusion_main(uauin,uavin,u,v,tt,ss)
+subroutine mlodiffusion
 
 use cc_mpi
 use const_phys
 use indices_m
 use map_m
 use mlo
+use mlodynamicsarrays_m
 use newmpar_m
 use parm_m
 use soil_m
@@ -269,12 +239,11 @@ implicit none
 
 integer k, iq
 real hdif
-real, dimension(ifull,wlev), intent(in) :: uauin,uavin
-real, dimension(:,:), intent(in) :: u,v,tt,ss
 real, dimension(ifull+iextra,wlev,3) :: duma
 real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact
 real, dimension(ifull+iextra,wlev+1) :: t_kh
+real, dimension(ifull,wlev) :: u,v,tt,ss
 real, dimension(ifull,wlev) :: fs,base,outu,outv
 real, dimension(ifull,wlev) :: xfact_iwu, yfact_isv
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
@@ -288,16 +257,31 @@ real, dimension(ifull) :: t_kh_n, t_kh_e
 
 call START_LOG(waterdiff_begin)
 
+! extract data from MLO
+u=0.
+v=0.
+tt=0.
+ss=0.
+call mloexport3d(0,tt,0)
+call mloexport3d(1,ss,0)
+call mloexport3d(2,u,0)
+call mloexport3d(3,v,0)
+if ( abs(nmlo)>=3 ) then
+  do k = 1,wlev  
+    uau(1:ifull,k) = (av_vmod*u(1:ifull,k)+(1.-av_vmod)*oldu1(1:ifull,k))*ee(1:ifull)
+    uav(1:ifull,k) = (av_vmod*v(1:ifull,k)+(1.-av_vmod)*oldv1(1:ifull,k))*ee(1:ifull)
+  end do  
+else
+  do k = 1,wlev  
+    uau(1:ifull,k) = u(1:ifull,k)*ee(1:ifull)
+    uav(1:ifull,k) = v(1:ifull,k)*ee(1:ifull)
+  end do
+end if
+call boundsuv(uau,uav,allvec=.true.)
+
 ! Define diffusion scale and grid spacing
 hdif = dt*(ocnsmag/pi)**2
 emi = dd(1:ifull)/em(1:ifull)
-
-! extract data from MLO
-do k = 1,wlev
-  uau(1:ifull,k) = uauin(:,k)*ee(1:ifull)
-  uav(1:ifull,k) = uavin(:,k)*ee(1:ifull)
-end do
-call boundsuv(uau,uav,allvec=.true.)
 
 ! calculate diffusion following Smagorinsky
 call unpack_svwu(emu,emv,emv_s,emu_w)
@@ -422,7 +406,7 @@ call mloimport3d(3,outv,0)
 call END_LOG(waterdiff_end)
 
 return
-end subroutine mlodiffusion_main
+end subroutine mlodiffusion
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine implements some basic hydrostatic dynamics for the
@@ -531,8 +515,6 @@ logical lleap
 ! grid and define a land/sea mask.  This allows us to
 ! use the same index and map factor arrays from the
 ! atmospheric dynamical core.
-
-call START_LOG(watermisc_begin)
 
 ! save time-step
 dtin_mlo = dt
@@ -739,8 +721,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   tideu = 0.5*(tide(1:ifull)+tide_e)
   tidev = 0.5*(tide(1:ifull)+tide_n)
 
-  call END_LOG(watermisc_end)
-
 
   call START_LOG(watereos_begin)
 
@@ -784,8 +764,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   call END_LOG(watereos_end)
 
 
-  call START_LOG(waterdeps_begin)
-
   ! ADVECT WATER AND ICE ----------------------------------------------
   ! Water currents are advected using semi-Lagrangian advection
   ! based on McGregor's CCAM advection routines.
@@ -808,10 +786,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   oldu1(1:ifull,1:wlev) = nu(1:ifull,1:wlev)
   oldv1(1:ifull,1:wlev) = nv(1:ifull,1:wlev)
 
-  call END_LOG(waterdeps_end)
-
-
-  call START_LOG(waterhadv_begin)
 
   ! Define horizontal transport
   ! dH(phi)/dt = d(phi)/dt + u*d(phi)/dx + v*d(phi)/dy
@@ -915,11 +889,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! ice
   snu(1:ifull) = i_u !-dt*ttau(:,wlev+1)
   snv(1:ifull) = i_v !-dt*ttav(:,wlev+1)
-
-  call END_LOG(waterhadv_end)
-
   
-  call START_LOG(watervadv_begin)
 
   ! Vertical advection (first call for 0.5*dt)
   call mlovadv(hdt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr(1:ifull),1)
@@ -940,10 +910,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   end if
 #endif
 
-  call END_LOG(watervadv_end)
-
-
-  call START_LOG(waterhadv_begin)
 
   ! Convert (u,v) to cartesian coordinates (U,V,W)
   do ii = 1,wlev
@@ -997,10 +963,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   end if
 #endif
 
-  call END_LOG(waterhadv_end)
-
-
-  call START_LOG(watervadv_begin)
 
   ! Vertical advection (second call for 0.5*dt)
   ! use explicit nw and depdum,dzdum from t=tau step (i.e., following JLM in CCAM atmospheric dynamics)
@@ -1028,8 +990,6 @@ do mspec_mlo = mspeca_mlo,1,-1
     xps(:) = xps(:) + mps(1:ifull,ii)*godsig(ii)
   end do
   xps(:) = xps(:)*ee(1:ifull)
-
-  call END_LOG(watervadv_end)
 
 
   call START_LOG(watereos_begin)
@@ -1063,8 +1023,6 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   call END_LOG(watereos_end)
 
-
-  call START_LOG(waterhelm_begin)
 
   ! FREE SURFACE CALCULATION ----------------------------------------
 
@@ -1314,8 +1272,7 @@ do mspec_mlo = mspeca_mlo,1,-1
                    +mmv(:,ii)*detadyv+nnv(:,ii)*dfetadxv  
   end do
 
-  call END_LOG(waterhelm_end)
-
+  
 #ifdef mlodebug
   if ( any(abs(nu(1:ifull,:))>20.) .or. any(abs(nv(1:ifull,:))>20.) ) then
     write(6,*) "ERROR: current out-of-range after solver"
@@ -1427,7 +1384,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   call END_LOG(wateriadv_end)
 
 
-  call START_LOG(watermisc_begin)
+  call START_LOG(watermfix_begin)
 
   ! volume conservation for water
   if ( nud_sfh==0 ) then
@@ -1625,7 +1582,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     write(6,*) "MLODYNAMICS ",totits,maxglobseta,maxglobip
   end if
 
-  call END_LOG(watermisc_end)
+  call END_LOG(watermfix_end)
 
 
   ! reset time-step
@@ -1637,16 +1594,6 @@ end do ! mspec_mlo
 mspeca_mlo = 1
 
 
-! DIFFUSION -------------------------------------------------------------------
-
-uau = av_vmod*nu(1:ifull,:) + (1.-av_vmod)*oldu1
-uav = av_vmod*nv(1:ifull,:) + (1.-av_vmod)*oldv1
-call mlodiffusion_main(uau,uav,nu,nv,nt,ns)
-call mloimport(4,neta(1:ifull),0,0) ! neta
-
-
-call START_LOG(watermisc_begin)
-
 #ifdef mlodebug
 if ( any(abs(nu(1:ifull,:))>20.) .or. any(abs(nv(1:ifull,:))>20.) ) then
   write(6,*) "ERROR: current out-of-range at end of mlodynamics"
@@ -1657,8 +1604,11 @@ end if
 #endif
 
 ! EXPORT ----------------------------------------------------------------------
-! Water data is exported in mlodiffusion
-
+call mloimport(4,neta(1:ifull),0,0)
+call mloimport3d(0,nt,0)
+call mloimport3d(1,ns,0)
+call mloimport3d(2,nu,0)
+call mloimport3d(3,nv,0)
 do ii=1,4
   call mloimpice(nit(1:ifull,ii),ii,0)
 end do
@@ -1673,8 +1623,6 @@ where (wtr(1:ifull))
   sicedep=ndic(1:ifull)
   snowd=ndsn(1:ifull)*1000.
 end where
-
-call END_LOG(watermisc_end)
 
 return
 end subroutine mlohadv
@@ -1710,6 +1658,8 @@ real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real xxg,yyg
 logical, dimension(ifull+iextra), intent(in) :: wtr
+
+call START_LOG(waterdeps_begin)
 
 ! departure point x, y, z is called x3d, y3d, z3d
 ! first find corresponding cartesian vels
@@ -2151,6 +2101,8 @@ call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
 
+call END_LOG(waterdeps_end)
+
 return
 end subroutine mlodeps
 
@@ -2291,6 +2243,8 @@ real xxg,yyg
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 logical, dimension(ifull+iextra), intent(in) :: wtr
+
+call START_LOG(waterints_begin)
 
 ntr=size(s,3)
 intsch=mod(ktau,2)
@@ -2550,6 +2504,8 @@ do nn=1,ntr
   end do
 end do
 
+call END_LOG(waterints_end)
+
 return
 end subroutine mlob2ints_uv
 
@@ -2580,6 +2536,8 @@ real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real, parameter :: cxx = -9999. ! missing value flag
 logical, dimension(ifull+iextra), intent(in) :: wtr
+
+call START_LOG(waterints_begin)
 
 ntr=size(s,3)
 intsch=mod(ktau,2)
@@ -2874,6 +2832,8 @@ do nn=1,ntr
   end do
 end do
 
+call END_LOG(waterints_end)
+
 return
 end subroutine mlob2ints
 
@@ -2904,6 +2864,8 @@ real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real, parameter :: cxx = -9999. ! missing value flag
 logical, dimension(ifull+iextra), intent(in) :: wtr
+
+call START_LOG(waterints_begin)
 
 ntr = size(s,3)
 intsch = mod(ktau,2)
@@ -3220,6 +3182,8 @@ do nn=1,ntr
     end where
   end do
 end do
+
+call END_LOG(waterints_end)
 
 return
 end subroutine mlob2ints_bs
@@ -4441,6 +4405,7 @@ real, dimension(imax,0:wlev) :: ww_l
 real, dimension(imax,wlev) :: dat_l, depdum_l, dzdum
 logical, dimension(ifull), intent(in) :: wtr
 
+call START_LOG(watervadv_begin)
 
 !$omp parallel private(tile,iq,ii,its,js,je,its_g,ww_l)
 !$omp do
@@ -4488,6 +4453,8 @@ do tile = 1,ntiles
 end do
 !$omp end do
 !$omp end parallel
+
+call END_LOG(watervadv_end)
 
 return
 end subroutine mlovadv

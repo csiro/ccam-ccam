@@ -32,7 +32,7 @@
 program globpe
 
 use aerointerface                          ! Aerosol interface
-use aerosolldr, only : xtosav,xtg          ! LDR prognostic aerosols
+use aerosolldr, only : naero,xtosav,xtg    ! LDR prognostic aerosols
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
 use cc_mpi                                 ! CC MPI routines
@@ -481,12 +481,13 @@ if ( myid<nproc ) then
     ! nmlo>9   Use external PCOM ocean model
   
     if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
-      ! DYNAMICS & DIFFUSION ------------------------------------------------
+      ! DYNAMICS ------------------------------------------------------------
       call START_LOG(waterdynamics_begin)
       call mlohadv
       call END_LOG(waterdynamics_end)
-    else if ( abs(nmlo)==2 ) then
-      ! DIFFUSION ONLY ------------------------------------------------------
+    end if
+    if ( abs(nmlo)>=2 .and. abs(nmlo)<=9 ) then
+      ! DIFFUSION -----------------------------------------------------------
       call START_LOG(waterdynamics_begin)
       call mlodiffusion
       call END_LOG(waterdynamics_end)
@@ -519,7 +520,7 @@ if ( myid<nproc ) then
         call seaesfrad_settime  
       end if    ! (nhstest<0)      
     end if    
-    ! aerosol timer calculations
+    ! aerosol timer (true indicates update oxidants, etc)
     oxidant_update = oxidant_timer<=mins-updateoxidant
 
     
@@ -528,7 +529,7 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax  
+      je = tile*imax
       ! initialse surface rainfall to zero
       condc(js:je) = 0. ! default convective rainfall (assumed to be rain)
       condx(js:je) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
@@ -543,15 +544,15 @@ if ( myid<nproc ) then
       end if     ! (ntsur<=1.or.nhstest==2) 
       ! Save aerosol concentrations for outside convective fraction of grid box
       if ( abs(iaero)>=2 ) then
-        xtosav(js:je,:,:) = xtg(js:je,:,:) ! Aerosol mixing ratio outside convective cloud
+        xtosav(js:je,1:kl,1:naero) = xtg(js:je,1:kl,1:naero) ! Aerosol mixing ratio outside convective cloud
       end if
       js = (tile-1)*imax + 1
-      je = tile*imax  
+      je = tile*imax
       call nantest("start of physics",js,je)
     end do  
 !$omp end do nowait
-    
-    
+
+
     ! GWDRAG ----------------------------------------------------------------
 !$omp master
     call START_LOG(gwdrag_begin)
@@ -562,7 +563,7 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax  
+      je = tile*imax
       call nantest("after gravity wave drag",js,je)
     end do  
 !$omp end do nowait
@@ -578,7 +579,7 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax  
+      je = tile*imax
       convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) - t(js:je,1:kl)*real(nperday)/real(nperavg)        
     end do
 !$omp end do nowait
@@ -597,7 +598,7 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax  
+      je = tile*imax
       call fixqg(js,je)
       call nantest("after convection",js,je)
     end do  
@@ -618,7 +619,7 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax  
+      je = tile*imax
       convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) + t(js:je,1:kl)*real(nperday)/real(nperavg)    
       call nantest("after cloud microphysics",js,je) 
     end do  
@@ -636,7 +637,7 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je)
       do tile = 1,ntiles
         js = (tile-1)*imax + 1
-        je = tile*imax 
+        je = tile*imax
         nettend(js:je,1:kl) = nettend(js:je,1:kl) + t(js:je,1:kl)/dt
       end do
 !$omp end do nowait
@@ -654,9 +655,7 @@ if ( myid<nproc ) then
         else
           call radrive(il*nrows_rad)  
         end if    ! (nhstest<0)
-        do k = 1,kl
-          t(1:ifull,k) = t(1:ifull,k) - dt*(sw_tend(1:ifull,k)+lw_tend(1:ifull,k))
-        end do
+        t(1:ifull,1:kl) = t(1:ifull,1:kl) - dt*(sw_tend(1:ifull,1:kl)+lw_tend(1:ifull,1:kl))
 !$omp end single
       case(5)
         ! GFDL SEA-EFS radiation
@@ -664,28 +663,26 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je,k)
         do tile = 1,ntiles
           js = (tile-1)*imax + 1
-          je = tile*imax 
-          do k = 1,kl
-            t(js:je,k) = t(js:je,k) - dt*(sw_tend(js:je,k)+lw_tend(js:je,k))
-          end do
-        end do  
+          je = tile*imax
+          t(js:je,1:kl) = t(js:je,1:kl) - dt*(sw_tend(js:je,1:kl)+lw_tend(js:je,1:kl))
+        end do
 !$omp end do nowait
       case DEFAULT
         ! use preset slwa array (use +ve nrad)
 !$omp do schedule(static) private(js,je)
         do tile = 1,ntiles
           js = (tile-1)*imax + 1
-          je = tile*imax 
+          je = tile*imax
           slwa(js:je) = -real(10*nrad)
-        end do  
+        end do
 !$omp end do nowait
     end select
 !$omp do schedule(static) private(js,je)  
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax 
+      je = tile*imax
       call nantest("after radiation",js,je)    
-    end do  
+    end do
 !$omp end do nowait
 !$omp master
     call END_LOG(radnet_end)
@@ -775,7 +772,7 @@ if ( myid<nproc ) then
     call END_LOG(vertmix_end)
 !$omp end master
 
-    
+
     ! MISC (PARALLEL) -------------------------------------------------------
     ! Update diagnostics for consistancy in history file
     if ( rescrn>0 ) then

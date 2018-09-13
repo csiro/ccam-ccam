@@ -1738,6 +1738,8 @@ end if
 
 ! zz*(DIV^2 ipice) = rhs
 
+call START_LOG(waterhelm_begin)
+
 call START_LOG(mgsetup_begin)
 
 ng = 0
@@ -3089,6 +3091,8 @@ ipice(ifull+1:ifull+iextra) = dumc(ifull+iextra,2)
 totits      = itr
 maxglobseta = dsolmax_g(1)
 maxglobip   = dsolmax_g(2)
+
+call END_LOG(waterhelm_end)
 
 return
 end subroutine mgmlo
