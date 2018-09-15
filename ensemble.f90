@@ -188,17 +188,17 @@ if ( mtimer>=mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
       allocate( v_pos(ifull,kl), v_neg(ifull,kl) )
       allocate( t_pos(ifull,kl), t_neg(ifull,kl) )
       dd(:) = psl(1:ifull) - pslb
-      psl_pos(:) = pslb + dd
-      psl_neg(:) = pslb - dd
+      psl_pos(:) = max( min( pslb + dd, 0.3 ), -1.4 )
+      psl_neg(:) = max( min( pslb - dd, 0.3 ), -1.4 )
       ee(:,:) = u(1:ifull,:) - ub
-      u_pos(:,:) = ub + ee
-      u_neg(:,:) = ub - ee
+      u_pos(:,:) = max( min( ub + ee, 350. ), -350. )
+      u_neg(:,:) = max( min( ub - ee, 350. ), -350. )
       ee(:,:) = v(1:ifull,:) - vb
-      v_pos(:,:) = vb + ee
-      v_neg(:,:) = vb - ee
+      v_pos(:,:) = max( min( vb + ee, 350. ), -350. )
+      v_neg(:,:) = max( min( vb - ee, 350. ), -350. )
       ee(:,:) = t(1:ifull,:) - tb
-      t_pos(:,:) = tb + ee
-      t_neg(:,:) = tb - ee
+      t_pos(:,:) = max( min( tb + ee, 400. ), 100. )
+      t_neg(:,:) = max( min( tb - ee, 400. ), 100. )
       num = num + 1 ! odd = pos
       call saveoutput(num,psl_pos,u_pos,v_pos,t_pos,qg)
       num = num + 1 ! even = neg
