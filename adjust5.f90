@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -298,13 +298,13 @@ do k = 1,kl
   call unpack_nsew(p(:,k),p_n,p_s,p_e,p_w)  
 !$omp simd
   do iq = 1,ifull
-    cc(iq,k) = alfu(iq)*ux(iq,k) - hdtds*emu(iq)*(                                       &
-               alf_e(iq)*p_e(iq)-alf(iq)*p(iq,k)-.5*alfe(iq)*(p(iq,k)+p_e(iq))           &
-               +.25*(alff_n(iq)*p_n(iq) +alff(ine(iq))*p(ine(iq),k)                      &
+    cc(iq,k) = alfu(iq)*ux(iq,k) - hdtds*emu(iq)*(                              &
+               alf_e(iq)*p_e(iq)-alf(iq)*p(iq,k)-.5*alfe(iq)*(p(iq,k)+p_e(iq))  &
+               +.25*(alff_n(iq)*p_n(iq) +alff(ine(iq))*p(ine(iq),k)             &
                -alff_s(iq)*p_s(iq) -alff(ise(iq))*p(ise(iq),k)) ) ! Eq. 139
-    dd(iq,k) = alfv(iq)*vx(iq,k) - hdtds*emv(iq)*(                                       &
-               alf_n(iq)*p_n(iq)-alf(iq)*p(iq,k)-.5*alfn(iq)*(p(iq,k)+p_n(iq))           &
-               -.25*(alff(ien(iq))*p(ien(iq),k) +alff_e(iq)*p_e(iq)                      &
+    dd(iq,k) = alfv(iq)*vx(iq,k) - hdtds*emv(iq)*(                              &
+               alf_n(iq)*p_n(iq)-alf(iq)*p(iq,k)-.5*alfn(iq)*(p(iq,k)+p_n(iq))  &
+               -.25*(alff(ien(iq))*p(ien(iq),k) +alff_e(iq)*p_e(iq)             &
                -alff(iwn(iq))*p(iwn(iq),k) -alff_w(iq)*p_w(iq)) ) ! Eq. 140
   end do  
 end do     !  k loop 
@@ -467,6 +467,8 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
 end if  ! (nh/=0.and.(ktau>knh.or.lrestart))
 
 
+call START_LOG(mfix_begin)
+
 if ( mfix==-1 ) then   ! perform conservation fix on psl
   ! delpos is the sum of all positive changes over globe
   ! delneg is the sum of all negative changes over globe
@@ -604,6 +606,9 @@ if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)>=2 ) then
   xtg(1:ifull,1:kl,1:naero) = max( xtg(1:ifull,1:kl,1:naero), 0. )
 end if ! (mfix_aero/=0.and.mspec==1.and.abs(iaero)>=2)
 !--------------------------------------------------------------
+      
+call END_LOG(mfix_end)
+
 
 #ifdef debug
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then

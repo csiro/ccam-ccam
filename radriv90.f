@@ -603,8 +603,8 @@ c----     note : htk now in Watts/M**2 (no pressure at level weighting)
 c         Convert from cgs to SI units
           hswsav(iq,kl+1-k) = 0.001*hsw(i,k)
           hlwsav(iq,kl+1-k) = 0.001*heatra(i,k)
-          sw_tend(iq,k)=-hswsav(iq,k)/(cong*ps(iq)*dsig(k))
-          lw_tend(iq,k)=-hlwsav(iq,k)/(cong*ps(iq)*dsig(k))
+          sw_tend(iq,kl+1-k)=-hswsav(iq,kl+1-k)/(cong*ps(iq)*dsig(k))
+          lw_tend(iq,kl+1-k)=-hlwsav(iq,kl+1-k)/(cong*ps(iq)*dsig(k))
          end do
       end do
 

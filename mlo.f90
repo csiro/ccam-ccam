@@ -2479,7 +2479,7 @@ type(depthdata), intent(in) :: depth
 
 ! buoyancy frequency (calculated at half levels)
 do ii=2,wlev
-  d_nsq(:,ii)=-grav/(0.5*(d_rho(:,ii-1)+d_rho(:,ii))+wrtrho)*(d_rho(:,ii-1)-d_rho(:,ii))/(depth%dz_hl(:,ii)*d_zcr)
+  d_nsq(:,ii)=-grav/wrtrho*(d_rho(:,ii-1)-d_rho(:,ii))/(depth%dz_hl(:,ii)*d_zcr)
 end do
 d_nsq(:,1)=2.*d_nsq(:,2)-d_nsq(:,3) ! not used
 
@@ -2521,13 +2521,21 @@ end subroutine getwflux
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate density
 
+!     compute unesco insitu density (rho in units of gm/cm^3) from
+!     salinity (ss in psu), potential temperature (tt in deg C)
+!     and pressure (p in bars)
+!
+!     Reference: Jackett and McDougall, Minimal Adjustment of 
+!     Hydrographic Profiles to Achieve Static Stablilty, Journal of
+!     Atmospehric and Oceanic Technology, Vol 12, 381-389,  April 1995
+                    
 subroutine calcdensity(d_rho,d_alpha,d_beta,rho0,tt,ss,ddz,pxtr)
 
 implicit none
 
 integer wsize,wlx,ii
 !integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
-real, dimension(:,:), intent(in) :: tt
+real, dimension(:,:), intent(in) :: tt ! potential temperature
 real, dimension(:,:), intent(in) :: ss,ddz
 real, dimension(:,:), intent(out) :: d_rho,d_alpha,d_beta
 real, dimension(:), intent(in) :: pxtr
@@ -2642,20 +2650,11 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:)                   &
                 + 2.059331e-7*t2(:)) + 1.5*1.480266e-4*p1(:)*sqrt(s(:)) &
                 +p2(:)*(-2.040237e-6                                    &
                 + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
-!    dskdp=(3.186519 + 2.212276e-2*t(:)                                 &
-!                - 2.984642e-4*t2(:) + 1.956415e-6*t3(:))               &
-!                + 2.*p1*(2.102898e-4 - 1.202016e-5*t(:)                &
-!                + 1.394680e-7*t2(:))                                   &
-!                + s(:)*(6.704388e-3  -1.847318e-4*t(:)                 &
-!                + 2.059331e-7*t2(:))                                   &
-!                + 1.480266e-4*s32(:)                                   &
-!                + 2.*p1(:)*s(:)*(-2.040237e-6                          &
-!                + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
        
-    d_rho(:,ii)=rho0/(1.-p1/sk) + wrtrho*p1/(sk-p1)
+    d_rho(:,ii)=(rho0+wrtrho)/(1.-p1/sk)
   
-    drhodt=drho0dt/(1.-p1/sk)-(rho0+wrtrho)*p1*dskdt/((sk-p1)**2) ! neglected dp1drho*drhodt terms
-    drhods=drho0ds/(1.-p1/sk)-(rho0+wrtrho)*p1*dskds/((sk-p1)**2) ! neglected dp1drho*drhods terms
+    drhodt=drho0dt/(1.-p1/sk)-(rho0+wrtrho)*p1*dskdt/((sk-p1)**2)
+    drhods=drho0ds/(1.-p1/sk)-(rho0+wrtrho)*p1*dskds/((sk-p1)**2)
     
     d_alpha(:,ii)=-drhodt              ! Large et al (1993) convention
     d_beta(:,ii)=drhods                ! Large et al (1993) convention

@@ -1,3 +1,22 @@
+! Conformal Cubic Atmospheric Model
+    
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+    
+! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
+!
+! CCAM is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! CCAM is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
+   
 program ccamscm
 
 use aerointerface                          ! Aerosol interface
@@ -63,7 +82,7 @@ use ateb, only : atebnmlfile             & ! Urban
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
-    ,gs_switch,cable_climate
+    ,gs_switch,cable_climate,ccycle
 use carbpools_m, only : carbpools_init   & ! Carbon pools
     ,fpn,frs,frp
 use cc_mpi                                 ! CC MPI routines
@@ -137,6 +156,7 @@ integer jyear, jmonth, jday, jhour, jmin, mins
 integer spinup, spinup_start, ntau_end, ntau_spinup
 integer opt, nopt
 integer, save :: iarch_nudge = 0
+integer nud_ql, nud_qf
 real, dimension(1000) :: press_in
 real press_surf, gridres, soil_albedo
 real es
@@ -147,6 +167,7 @@ real ateb_wallalpha, ateb_roadalpha, ateb_roofalpha
 real ateb_wallemiss, ateb_roademiss, ateb_roofemiss
 real ateb_infilach,  ateb_intgains, ateb_bldairtemp
 real ateb_zovegc
+real ps_adj
 real, dimension(4) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
 real, dimension(4) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
@@ -154,8 +175,8 @@ real, dimension(4) :: ateb_slab_thick, ateb_slab_cp, ateb_slab_cond
 real, dimension(:,:), allocatable :: t_save, qg_save, u_save, v_save
 real, dimension(:), allocatable :: psl_save
 character(len=60) comm, comment
-character(len=80) metforcing, timeoutput, profileoutput
-character(len=80) lsmforcing, lsmoutput
+character(len=1024) metforcing, timeoutput, profileoutput
+character(len=1024) lsmforcing, lsmoutput
 character(len=80) scm_mode
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) :: optarg
@@ -163,6 +184,8 @@ logical oxidant_update
 logical fixtsurf, nolatent, noradiation
 logical nogwdrag, noconvection, nocloud, noaerosol, novertmix
 logical lsm_only, vert_adv, urbanscrn
+logical use_file_for_rain, use_file_for_cloud
+
 
 namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     z_in,ivegt_in,isoil_in,metforcing,lsmforcing,lsmoutput,       &
@@ -170,6 +193,8 @@ namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     nogwdrag,noconvection,nocloud,noaerosol,novertmix,            &
     lsm_only,vert_adv,urbanscrn,soil_albedo,                      &
     gablsflux,scm_mode,spinup_start,ntau_spinup,                  &
+    use_file_for_rain, use_file_for_cloud,                        &
+    nud_ql, nud_qf, ps_adj,                                       &
     ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,       &
     ateb_industryfg,ateb_trafficfg,ateb_vegalphac,                &
     ateb_wallalpha,ateb_roadalpha,ateb_roofalpha,                 &
@@ -280,6 +305,11 @@ noaerosol = .false.
 novertmix = .false.
 lsm_only = .false.
 vert_adv = .false.
+use_file_for_rain = .false.
+use_file_for_cloud = .false.
+nud_ql = 1
+nud_qf = 1
+ps_adj = 0.
 ateb_bldheight = -999.
 ateb_hwratio = -999.
 ateb_sigvegc = -999.
@@ -382,6 +412,7 @@ ntiles = 1
 
 nperday = nint(24.*3600./dt)           ! time-steps in one day
 nperhr  = nint(3600./dt)               ! time-steps in one hour
+nperavg = nwt
 
 schmidt = gridres*real(il_g)/(90.*112.)
 write(6,*) "gridres,schmidt ",gridres,schmidt
@@ -458,105 +489,14 @@ if ( myid==0 ) then
   write(6,*) "Radiation will use kountr ",kountr
 end if
 
-!-------------------------------------------------------------
-! SETUP DIAGNOSTIC ARRAYS
-rndmax(:)      = 0.
-tmaxscr(:)     = 0.
-tminscr(:)     = 400.
-rhmaxscr(:)    = 0.
-rhminscr(:)    = 400.
-u10max(:)      = 0.
-v10max(:)      = 0.
-u1max(:)       = 0.
-v1max(:)       = 0.
-u2max(:)       = 0.
-v2max(:)       = 0.
-cape_max(:)    = 0.
-cape_ave(:)    = 0.
-u10mx(:)       = 0.
-tscr_ave(:)    = 0.
-qscrn_ave(:)   = 0.
-dew_ave(:)     = 0.
-epan_ave(:)    = 0.
-epot_ave(:)    = 0.
-eg_ave(:)      = 0.
-fg_ave(:)      = 0.
-ga_ave(:)      = 0.
-rnet_ave(:)    = 0.
-sunhours(:)    = 0.
-riwp_ave(:)    = 0.
-rlwp_ave(:)    = 0.
-evap(:)        = 0.
-precc(:)       = 0.
-precip(:)      = 0.
-convh_ave(:,:) = 0.
-rnd_3hr(:,8)   = 0. ! i.e. rnd24(:)=0.
-cbas_ave(:)    = 0.
-ctop_ave(:)    = 0.
-sno(:)         = 0.
-grpl(:)        = 0.
-runoff(:)      = 0.
-wb_ave(:,:)    = 0.
-tsu_ave(:)     = 0.
-alb_ave(:)     = 0.
-fbeam_ave(:)   = 0.
-psl_ave(:)     = 0.
-mixdep_ave(:)  = 0.
-koundiag       = 0
-sint_ave(:)    = 0.  ! solar_in_top
-sot_ave(:)     = 0.  ! solar_out_top
-soc_ave(:)     = 0.  ! solar_out_top (clear sky)
-sgdn_ave(:)    = 0.  ! solar_ground (down-welling) +ve down
-sgn_ave(:)     = 0.  ! solar_ground (net) +ve down
-rtu_ave(:)     = 0.  ! LW_out_top 
-rtc_ave(:)     = 0.  ! LW_out_top (clear sky)
-rgdn_ave(:)    = 0.  ! LW_ground (down-welling)  +ve down
-rgn_ave(:)     = 0.  ! LW_ground (net)  +ve up
-rgc_ave(:)     = 0.  ! LW_ground (clear sky)
-sgc_ave(:)     = 0.  ! SW_ground (clear sky)
-cld_ave(:)     = 0.
-cll_ave(:)     = 0.
-clm_ave(:)     = 0.
-clh_ave(:)     = 0.
-if ( ccycle>0 ) then
-  fnee_ave = 0.  
-  fpn_ave  = 0.
-  frd_ave  = 0.
-  frp_ave  = 0.
-  frpw_ave = 0.
-  frpr_ave = 0.
-  frs_ave  = 0.
-end if
-if ( abs(iaero)==2 ) then
-  duste         = 0.  ! Dust emissions
-  dustdd        = 0.  ! Dust dry deposition
-  dustwd        = 0.  ! Dust wet deposition
-  dust_burden   = 0.  ! Dust burden
-  bce           = 0.  ! Black carbon emissions
-  bcdd          = 0.  ! Black carbon dry deposition
-  bcwd          = 0.  ! Black carbon wet deposition
-  bc_burden     = 0.  ! Black carbon burden
-  oce           = 0.  ! Organic carbon emissions
-  ocdd          = 0.  ! Organic carbon dry deposition
-  ocwd          = 0.  ! Organic carbon wet deposition
-  oc_burden     = 0.  ! Organic carbon burden
-  dmse          = 0.  ! DMS emissions
-  dmsso2o       = 0.  ! DMS -> SO2 oxidation
-  so2e          = 0.  ! SO2 emissions
-  so2so4o       = 0.  ! SO2 -> SO4 oxidation
-  so2dd         = 0.  ! SO2 dry deposition
-  so2wd         = 0.  ! SO2 wet deposiion
-  so4e          = 0.  ! SO4 emissions
-  so4dd         = 0.  ! SO4 dry deposition
-  so4wd         = 0.  ! SO4 wet deposition
-  dms_burden    = 0.  ! DMS burden
-  so2_burden    = 0.  ! SO2 burden
-  so4_burden    = 0.  ! SO4 burden
-end if
+call zero_nperavg  ! reset average period diagnostics
+call zero_nperday  ! reset daily period diagnostics
 
 ! NUDGING
 ktau = 0
-call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
+call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv,  &
+              use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf, &
+              ps_adj)
 call nantest("after nudging",1,ifull)
 
 savu(1:ifull,:) = u(1:ifull,:)
@@ -572,7 +512,7 @@ select case ( nkuo )
     call convjlm22_init
   case(23,24)
     call convjlm_init
-  end select
+end select
 select case(nrad)
   case(5)
     call seaesfrad_init
@@ -590,6 +530,9 @@ do spinup = spinup_start,1,-1
     ntau_end = ntau
     write(6,*) "Main simulation"
   end if  
+
+  call zero_nperavg  ! reset average period diagnostics
+  call zero_nperday  ! reset daily period diagnostics
   
   iarch_nudge = 0 ! reset nudging
   t = t_save
@@ -616,102 +559,6 @@ do spinup = spinup_start,1,-1
     if ( abs(nurban)==1 ) then
       write(6,*) "tss,t1,pblh ",tss(1),t(1,1),pblh(1)
     end if
-  
-    ! RESET AVERAGES
-    rndmax(:)      = 0.
-    tmaxscr(:)     = 0.
-    tminscr(:)     = 400.
-    rhmaxscr(:)    = 0.
-    rhminscr(:)    = 400.
-    u10max(:)      = 0.
-    v10max(:)      = 0.
-    u1max(:)       = 0.
-    v1max(:)       = 0.
-    u2max(:)       = 0.
-    v2max(:)       = 0.
-    cape_max(:)    = 0.
-    cape_ave(:)    = 0.
-    u10mx(:)       = 0.
-    tscr_ave(:)    = 0.
-    qscrn_ave(:)   = 0.
-    dew_ave(:)     = 0.
-    epan_ave(:)    = 0.
-    epot_ave(:)    = 0.
-    eg_ave(:)      = 0.
-    fg_ave(:)      = 0.
-    ga_ave(:)      = 0.
-    rnet_ave(:)    = 0.
-    sunhours(:)    = 0.
-    riwp_ave(:)    = 0.
-    rlwp_ave(:)    = 0.
-    evap(:)        = 0.
-    precc(:)       = 0.
-    precip(:)      = 0.
-    convh_ave(:,:) = 0.
-    rnd_3hr(:,8)   = 0. ! i.e. rnd24(:)=0.
-    cbas_ave(:)    = 0.
-    ctop_ave(:)    = 0.
-    sno(:)         = 0.
-    grpl(:)        = 0.
-    runoff(:)      = 0.
-    wb_ave(:,:)    = 0.
-    tsu_ave(:)     = 0.
-    alb_ave(:)     = 0.
-    fbeam_ave(:)   = 0.
-    psl_ave(:)     = 0.
-    mixdep_ave(:)  = 0.
-    koundiag       = 0
-    sint_ave(:)    = 0.  ! solar_in_top
-    sot_ave(:)     = 0.  ! solar_out_top
-    soc_ave(:)     = 0.  ! solar_out_top (clear sky)
-    sgdn_ave(:)    = 0.  ! solar_ground (down-welling) +ve down
-    sgn_ave(:)     = 0.  ! solar_ground (net) +ve down
-    rtu_ave(:)     = 0.  ! LW_out_top 
-    rtc_ave(:)     = 0.  ! LW_out_top (clear sky)
-    rgdn_ave(:)    = 0.  ! LW_ground (down-welling)  +ve down
-    rgn_ave(:)     = 0.  ! LW_ground (net)  +ve up
-    rgc_ave(:)     = 0.  ! LW_ground (clear sky)
-    sgc_ave(:)     = 0.  ! SW_ground (clear sky)
-    cld_ave(:)     = 0.
-    cll_ave(:)     = 0.
-    clm_ave(:)     = 0.
-    clh_ave(:)     = 0.
-    if ( ccycle>0 ) then
-      fnee_ave = 0.  
-      fpn_ave  = 0.
-      frd_ave  = 0.
-      frp_ave  = 0.
-      frpw_ave = 0.
-      frpr_ave = 0.
-      frs_ave  = 0.
-    end if  
-    if ( abs(iaero)==2 ) then
-      duste         = 0.  ! Dust emissions
-      dustdd        = 0.  ! Dust dry deposition
-      dustwd        = 0.  ! Dust wet deposition
-      dust_burden   = 0.  ! Dust burden
-      bce           = 0.  ! Black carbon emissions
-      bcdd          = 0.  ! Black carbon dry deposition
-      bcwd          = 0.  ! Black carbon wet deposition
-      bc_burden     = 0.  ! Black carbon burden
-      oce           = 0.  ! Organic carbon emissions
-      ocdd          = 0.  ! Organic carbon dry deposition
-      ocwd          = 0.  ! Organic carbon wet deposition
-      oc_burden     = 0.  ! Organic carbon burden
-      dmse          = 0.  ! DMS emissions
-      dmsso2o       = 0.  ! DMS -> SO2 oxidation
-      so2e          = 0.  ! SO2 emissions
-      so2so4o       = 0.  ! SO2 -> SO4 oxidation
-      so2dd         = 0.  ! SO2 dry deposition
-      so2wd         = 0.  ! SO2 wet deposiion
-      so4e          = 0.  ! SO4 emissions
-      so4dd         = 0.  ! SO4 dry deposition
-      so4wd         = 0.  ! SO4 wet deposition
-      dms_burden    = 0.  ! DMS burden
-      so2_burden    = 0.  ! SO2 burden
-      so4_burden    = 0.  ! SO4 burden
-    end if
-
   
     mtimer = nint(real(ktau)*dt/60.)
 
@@ -769,6 +616,11 @@ do spinup = spinup_start,1,-1
     convh_ave(1:ifull,1:kl) = convh_ave(1:ifull,1:kl) + t(1:ifull,1:kl)*real(nperday)/real(nperavg)    
     call nantest("after cloud microphysics",1,ifull) 
 
+    if ( use_file_for_rain ) then
+      ! avoid multiple counting of rainfall, since it will be replaced in nudging  
+      precip = precip - condx 
+    end if
+    
     ! RADIATON
     if ( ncloud>=4 ) then
       nettend(1:ifull,1:kl) = nettend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
@@ -785,8 +637,11 @@ do spinup = spinup_start,1,-1
     end select
     call nantest("after radiation",1,ifull)   
 
-    call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
-    
+    call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv,  &
+                  use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf, &
+                  ps_adj)
+    call nantest("after nudging",1,ifull)
+
     ! REPLACE SCM WITH INPUT DATA, PRIOR TO SFLUX
     if ( lsm_only ) then
       call replace_scm(lsmforcing,noradiation,nocloud,noconvection,novertmix)
@@ -852,14 +707,27 @@ do spinup = spinup_start,1,-1
       oxidant_timer = mins
     end if
   
+    call calculate_timeaverage
+    
     ! OUTPUT
     if ( spinup==1 .and. mod(ktau,nwt)==0 ) then
       call outputscm(scm_mode,timeoutput,profileoutput,lsmoutput)
     end if
   
+    if ( mod(ktau,nperavg)==0 ) then
+      call zero_nperavg
+    end if
+    
+    if ( mod(ktau,nperday)==0 ) then 
+      call zero_nperday  
+    end if    
+    
   end do ! ktau
     
 end do   ! spinup
+
+! save restart file
+call saverestart
 
 write(6,*) "SCM complete"
 
@@ -1125,7 +993,9 @@ zs(:) = grav*z_in
 he(:) = 0.
 
 ! LOAD INITIAL CONDITIONS
-if ( scm_mode=="sublime" ) then
+if ( ifile/=" " .and. ifile/="" ) then
+  call loadrestart
+else if ( scm_mode=="sublime" ) then
     
   write(6,*) "Loading MET initial conditions"
   call ccnf_open(metforcing,ncid,ncstatus)
@@ -1199,6 +1069,97 @@ if ( scm_mode=="sublime" ) then
   deallocate(height_in, height_model)  
   
   tss = t(:,1)
+  
+else if ( scm_mode=="CCAM" ) then  
+    
+  write(6,*) "Loading MET initial conditions from ",trim(metforcing)
+  call ccnf_open(metforcing,ncid,ncstatus)
+    
+  call ccnf_inq_dimlen(ncid,'alt',nlev)
+ 
+  allocate( height_in(nlev), height_model(kl) )
+  spos(1:1) = (/ 1 /)
+  npos(1:1) = (/ nlev /)
+  call ccnf_get_vara(ncid,'alt',spos(1:1),npos(1:1),height_in)
+  
+  ! surface pressure
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, 1 /)
+  call ccnf_get_vara(ncid,'ps',spos(1:3),npos(1:3),ps)
+  ps = ps*100.
+  psl(:) = log(ps(:)/1.e5)
+  
+  ! terrain height
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, 1 /)
+  call ccnf_get_vara(ncid,'zs',spos(1:3),npos(1:3),zs)
+  zs(1) = zs(1)*grav ! convert to geopotential
+  
+  allocate( dat_in(nlev), new_in(nlev) )
+
+  ! potential temperature
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'theta',spos(1:3),npos(1:3),dat_in)
+
+  ! need to iterate to get consistent solution with temperature
+  do i = 1,5
+    height_model(1) = bet(1)*t(1,1)/grav
+    do k = 2,kl
+      height_model(k) = height_model(k-1) + (bet(k)*t(1,k) + betm(k)*t(1,k-1))/grav
+    end do
+    call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+    do k=1,kl
+      t(1,k) = datout(k)*(1.e5/(ps(1)*sig(k)))**(-rdry/cp)
+    end do
+  end do ! iterative i loop
+  write(6,*) "height_model ",height_model(1:kl)
+  write(6,*) "temperature_model ",t(1,1:kl)
+  
+  ! U wind
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'u',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  u(1,1:kl) = datout
+    
+  ! V wind
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'v',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  v(1,1:kl) = datout
+  
+  ! qv mixing ratio
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'mixr',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  qg(1,1:kl) = max(datout,2.e-7)
+
+  ! ql mixing ratio
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'qlg',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  qlg(1,1:kl) = max(datout,2.e-7)
+  
+  ! ql mixing ratio
+  spos(1:3) = (/ 1, 1, 1 /)
+  npos(1:3) = (/ 1, 1, nlev /)
+  call ccnf_get_vara(ncid,'qfg',spos(1:3),npos(1:3),dat_in)
+  call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
+  qfg(1,1:kl) = max(datout,2.e-7)
+  
+  ! ignore tke initial conditions for now
+  
+  call ccnf_close(ncid)
+  
+  deallocate(dat_in, new_in )
+  deallocate(height_in, height_model)  
+  
+  tss = t(:,1)
+  
     
 else if ( scm_mode=="gabls4" ) then
   if ( .not.lsmonly ) then
@@ -1783,7 +1744,9 @@ write(6,*) "Finised initialisation"
 return
 end subroutine initialscm
     
-subroutine nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv)
+subroutine nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv,  &
+                    use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf, &
+                    ps_adj)
 
 use aerosolldr, only : xtg,naero           ! LDR prognostic aerosols
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
@@ -1793,9 +1756,11 @@ use const_phys                             ! Physical constants
 use infile                                 ! Input file routines
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
+use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use parm_m                                 ! Model configuration
 use pbl_m                                  ! Boundary layer arrays
+use prec_m                                 ! Precipitation
 use sigs_m                                 ! Atmosphere sigma levels
 use soilsnow_m                             ! Soil, snow and surface data
 use tkeeps                                 ! TKE-EPS boundary layer
@@ -1807,10 +1772,12 @@ implicit none
 include 'kuocom.h'
 
 integer, intent(inout) :: iarch_nudge
+integer, intent(in) :: nud_ql, nud_qf
 integer, save :: ncid
 integer, save :: nlev, ntimes
 integer :: ncstatus, k, l, ntr
 integer, dimension(4) :: spos, npos
+real, intent(in) :: ps_adj
 real, save :: time_a = -1.
 real, save :: time_b = -1.
 real :: time_ktau, x
@@ -1822,13 +1789,16 @@ real, dimension(:), allocatable, save :: ug_file_a, vg_file_a, time_file, height
 real, dimension(:), allocatable, save :: ug_file_b, vg_file_b, ug_file, vg_file
 real, dimension(:), allocatable, save :: theta_adv, qv_adv, u_adv, v_adv, w_adv
 real, dimension(:), allocatable, save :: theta_adv_a, theta_adv_b, qv_adv_a, qv_adv_b
-real, dimension(:), allocatable, save :: u_adv_a, u_adv_b, v_adv_a, v_adv_b, w_adv_a, w_adv_b 
-real, dimension(1) :: psurf_in
+real, dimension(:), allocatable, save :: u_adv_a, u_adv_b, v_adv_a, v_adv_b, w_adv_a, w_adv_b
+real, dimension(:), allocatable, save :: ql_adv_a, ql_adv_b, qf_adv_a, qf_adv_b, ql_adv, qf_adv
+real, dimension(1), save :: psurf_in, rnd_in
 real, dimension(kl) :: tadv, qadv, um, vm, height_model, dz_model
+real, dimension(kl) :: qladv, qfadv
 real, dimension(0:kl) :: hl_model
 real, save :: tsurf_a, tsurf_b
 character(len=*), intent(in) :: scm_mode, metforcing
 logical, intent(in) :: fixtsurf, vert_adv
+logical, intent(in) :: use_file_for_rain, use_file_for_cloud
 
 time_ktau = real(ktau)*dt
 
@@ -1987,6 +1957,210 @@ if ( scm_mode=="sublime" ) then
       end do
     end if
   end if  
+  
+elseif ( scm_mode=="CCAM" ) then
+    
+  if ( iarch_nudge==0 ) then
+    iarch_nudge = 1 
+    if ( allocated(ug) ) then
+      deallocate( ug, vg, t_tend, q_tend )
+      deallocate( uadv, vadv, wadv )
+      deallocate( time_file )
+      deallocate( theta_adv, qv_adv, u_adv, v_adv, w_adv )
+      deallocate( theta_adv_a, theta_adv_b, qv_adv_a, qv_adv_b )
+      deallocate( u_adv_a, u_adv_b, v_adv_a, v_adv_b )
+      deallocate( w_adv_a, w_adv_b )
+      deallocate( height_file_b, height_file )
+      deallocate( ql_adv_a, ql_adv_b, qf_adv_a, qf_adv_b, ql_adv, qf_adv )
+      call ccnf_close(ncid)
+    end if
+    time_a = -1.
+    time_b = -1.
+
+    allocate( ug(kl), vg(kl), t_tend(kl), q_tend(kl) )
+    allocate( uadv(kl), vadv(kl), wadv(0:kl) )
+    
+    call ccnf_open(metforcing,ncid,ncstatus)
+    call ccnf_inq_dimlen(ncid,'alt',nlev)
+    
+    call ccnf_inq_dimlen(ncid,'time',ntimes)
+    
+    allocate( time_file(ntimes) )
+    allocate( theta_adv(nlev), qv_adv(nlev), u_adv(nlev), v_adv(nlev), w_adv(nlev) )
+    allocate( theta_adv_a(nlev), theta_adv_b(nlev), qv_adv_a(nlev), qv_adv_b(nlev) )
+    allocate( u_adv_a(nlev), u_adv_b(nlev), v_adv_a(nlev), v_adv_b(nlev) )
+    allocate( w_adv_a(nlev), w_adv_b(nlev) )
+    allocate( height_file_b(nlev), height_file(nlev) )
+    allocate( ql_adv_a(nlev), ql_adv_b(nlev), qf_adv_a(nlev), qf_adv_b(nlev), ql_adv(nlev), qf_adv(nlev) )
+    
+    spos(1:1) = (/ 1 /)
+    npos(1:1) = (/ ntimes /)
+    call ccnf_get_vara(ncid,'time',spos(1:1),npos(1:1),time_file)
+    time_file = 60.*time_file
+    
+    spos(1:1) = (/ 1 /)
+    npos(1:1) = (/ nlev /)
+
+    call ccnf_get_vara(ncid,'alt',spos(1:1),npos(1:1),height_file_b)
+
+    spos(1:4) = (/ 1, 1, 1, iarch_nudge /)
+    npos(1:4) = (/ 1, 1, nlev, 1 /)
+
+    ! theta advection
+    call ccnf_get_vara(ncid,'theta',spos,npos,theta_adv_b)
+    
+    ! water vapor mixing ratio advection
+    call ccnf_get_vara(ncid,'mixr',spos,npos,qv_adv_b)
+    qv_adv_b = max( qv_adv_b, 0.)
+    call ccnf_get_vara(ncid,'qlg',spos,npos,ql_adv_b)
+    ql_adv_b = max( ql_adv_b, 0.)
+    call ccnf_get_vara(ncid,'qfg',spos,npos,qf_adv_b)
+    qf_adv_b = max( qf_adv_b, 0.)
+    
+    ! momentum advection
+    call ccnf_get_vara(ncid,'u',spos,npos,u_adv_b)
+    call ccnf_get_vara(ncid,'v',spos,npos,v_adv_b)
+    
+    ! vertical velocity
+    call ccnf_get_vara(ncid,'w',spos,npos,w_adv_b)
+    
+  end if
+  
+  if ( time_ktau>time_b ) then
+    write(6,*) "Updating MET forcing"  
+    iarch_nudge = iarch_nudge + 1
+    time_a = time_file(iarch_nudge-1)
+    time_b = time_file(iarch_nudge)
+    
+    spos(1:4) = (/ 1, 1, 1, iarch_nudge /)
+    npos(1:4) = (/ 1, 1, nlev, 1 /)
+
+    theta_adv_a = theta_adv_b
+    call ccnf_get_vara(ncid,'theta',spos,npos,theta_adv_b)
+    qv_adv_a = qv_adv_b
+    call ccnf_get_vara(ncid,'mixr',spos,npos,qv_adv_b)   
+    qv_adv_b = max(qv_adv_b,0.) 
+    ql_adv_a = ql_adv_b
+    call ccnf_get_vara(ncid,'qlg',spos,npos,ql_adv_b)   
+    ql_adv_b = max(ql_adv_b,0.) 
+    qf_adv_a = qf_adv_b
+    call ccnf_get_vara(ncid,'qfg',spos,npos,qf_adv_b)   
+    qf_adv_b = max(qf_adv_b,0.) 
+    u_adv_a = u_adv_b    
+    call ccnf_get_vara(ncid,'u',spos,npos,u_adv_b)
+    v_adv_a = v_adv_b
+    call ccnf_get_vara(ncid,'v',spos,npos,v_adv_b)
+    w_adv_a = w_adv_b
+    call ccnf_get_vara(ncid,'w',spos,npos,w_adv_b)
+
+    spos(1:3) = (/ 1, 1, iarch_nudge /)
+    npos(1:3) = (/ 1, 1, 1 /)
+    call ccnf_get_vara(ncid,'ps',spos(1:3),npos(1:3),psurf_in(1:1))
+    psurf_in = psurf_in*100. + ps_adj
+    
+    call ccnf_get_vara(ncid,'rnd',spos(1:3),npos(1:3),rnd_in(1:1))
+   
+  end if
+
+  psl(:) = log(psurf_in/1.e5)
+  ps(:) = 1.e5*exp(psl)
+  if ( use_file_for_rain ) then
+    condx = rnd_in*dt/(time_b-time_a)
+    conds = 0.
+    condg = 0.
+    precip = precip + condx
+  end if  
+
+  height_model(1) = bet(1)*t(1,1)/grav
+  do k = 2,kl
+    height_model(k) = height_model(k-1) + (bet(k)*t(1,k) + betm(k)*t(1,k-1))/grav
+  end do
+  
+  hl_model(0) = 0.
+  hl_model(1) = (-rdry/grav)*(dsig(1)/sig(1))*t(1,1)
+  do k = 2,kl
+    hl_model(k) = hl_model(k-1) + t(1,k)*(-rdry/grav)*(dsig(k)/sig(k))
+  end do
+
+  do k = 1,kl
+    dz_model(k) = hl_model(k) - hl_model(k-1)  
+  end do
+  
+  x = (time_ktau - time_a)/(time_b-time_a)
+  x = min(max(x,0.),1.)
+  height_file(:) = height_file_b(:)
+  theta_adv(:) = (1.-x)*theta_adv_a(:) + x*theta_adv_b(:)
+  qv_adv(:) = (1.-x)*qv_adv_a(:) + x*qv_adv_b(:)
+  ql_adv(:) = (1.-x)*ql_adv_a(:) + x*ql_adv_b(:)
+  qf_adv(:) = (1.-x)*qf_adv_a(:) + x*qf_adv_b(:)
+  u_adv(:) = (1.-x)*u_adv_a(:) + x*u_adv_b(:)
+  v_adv(:) = (1.-x)*v_adv_a(:) + x*v_adv_b(:)
+  w_adv(:) = (1.-x)*w_adv_a(:) + x*w_adv_b(:)
+  
+  ug = u(1,:)
+  vg = v(1,:)
+  call vinterp2m(height_file,height_model,u_adv,uadv,nlev,kl)
+  call vinterp2m(height_file,height_model,v_adv,vadv,nlev,kl)
+  call vinterp2m(height_file,height_model,theta_adv,tadv,nlev,kl)
+  call vinterp2m(height_file,height_model,qv_adv,qadv,nlev,kl)
+  call vinterp2m(height_file,height_model,ql_adv,qladv,nlev,kl)
+  call vinterp2m(height_file,height_model,qf_adv,qfadv,nlev,kl)
+  wadv(0) = 0.
+  call vinterp2m(height_file,hl_model(1:kl),w_adv,wadv(1:kl),nlev,kl)
+  wadv(kl) = 0.
+  do k = 1,kl
+    tadv(k) = tadv(k)*(1.e5/(sig(k)*ps(1)))**(-rdry/cp) ! convert from potential temperature to temperature
+  end do  
+  uadv = (uadv - u(1,:))/(3600.*real(nud_hrs))
+  vadv = (vadv - v(1,:))/(3600.*real(nud_hrs))
+  tadv = (tadv - t(1,:))/(3600.*real(nud_hrs))
+  qadv = (qadv - qg(1,:))/(3600.*real(nud_hrs))
+  qadv(:) = max( -qg(1,:)/dt, qadv(:) )
+  if ( use_file_for_cloud ) then
+    qladv = (qladv - qlg(1,:))/dt
+    qfadv = (qfadv - qfg(1,:))/dt     
+  else
+    qladv = (qladv - qlg(1,:))/(3600.*real(nud_hrs))
+    qladv(:) = max( -qlg(1,:)/dt, qladv(:) )
+    qfadv = (qfadv - qfg(1,:))/(3600.*real(nud_hrs))
+    qfadv(:) = max( -qfg(1,:)/dt, qfadv(:) )
+  end if  
+
+  if ( nud_ql>0 ) then
+    qlg(1,:) = qlg(1,:) + dt*qladv(:)
+  end if
+  if ( nud_qf>0 ) then
+    qfg(1,:) = qfg(1,:) + dt*qfadv(:)
+  end if  
+  
+  ! apply vertical velocity
+  ! dq/dt + w*dq/dz = dq/dt + d(w*q)/dz - q*dw/dz
+  ! split form
+  ! dq/dt + d(w*q)/dz = 0, dq/dt -q*dw/dz=0
+  
+  if ( vert_adv .and. ktau>0 ) then
+    call vertadv(t,wadv,height_model,dz_model)
+    call vertadv(u,wadv,height_model,dz_model)
+    call vertadv(v,wadv,height_model,dz_model)
+    call vertadv(qg,wadv,height_model,dz_model)
+    if ( ldr/=0 ) then
+      call vertadv(qlg,wadv,height_model,dz_model)
+      call vertadv(qfg,wadv,height_model,dz_model)
+      if ( ncloud>=4 ) then
+        call vertadv(stratcloud,wadv,height_model,dz_model)  
+      end if
+    end if
+    if ( nvmix==6 ) then
+      call vertadv(eps,wadv,height_model,dz_model)
+      call vertadv(tke,wadv,height_model,dz_model)
+    end if
+    if ( abs(iaero)>=2 ) then
+      do ntr = 1,naero
+        call vertadv(xtg(:,:,ntr),wadv,height_model,dz_model)  
+      end do
+    end if
+  end if  
+    
   
 elseif ( scm_mode=="gabls4" ) then
     
@@ -2302,6 +2476,7 @@ real, dimension(1,kl+1) :: wtflux
 real, dimension(kl) :: zf, pf, rh
 real, dimension(kl+1) :: zh
 real, dimension(kl) :: qs, tmp
+real scale_factor
 integer, save :: timencid, profilencid, lsmncid
 integer, save :: iarch = 1
 integer zfdim, zhdim, zsdim, tdim_time, tdim_prof, udim
@@ -2325,7 +2500,7 @@ vtype='double'
 vtype='float'
 #endif
 
-if ( scm_mode=="sublime" ) then
+if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
 
   if ( firstcall ) then
     write(6,*) "Creating time output file"  
@@ -2433,16 +2608,16 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m/s')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    ! lname = 'Precipitation (liq+sol) rate'
-    ! call ccnf_def_var(timencid,'rain',vtype,1,jdim(1:1),idnt)
-    ! call ccnf_put_att(timencid,idnt,'long_name',lname)
-    ! call ccnf_put_att(timencid,idnt,'units','mm/day')
-    ! call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    ! lname = 'Surface pressure'
-    ! call ccnf_def_var(timencid,'psurf',vtype,1,jdim(1:1),idnt)
-    ! call ccnf_put_att(timencid,idnt,'long_name',lname)
-    ! call ccnf_put_att(timencid,idnt,'units','Pa')
-    ! call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = 'Precipitation (liq+sol) rate'
+    call ccnf_def_var(timencid,'rain',vtype,1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','mm/day')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = 'Surface pressure'
+    call ccnf_def_var(timencid,'psurf',vtype,1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','Pa')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'boundary layer height'
     call ccnf_def_var(timencid,'hpbl',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
@@ -2992,8 +3167,8 @@ if ( scm_mode=="sublime" ) then
     call ccnf_put_vara(timencid,'g',iarch,aa(1))
     ! call ccnf_put_vara(timencid,'evap',iarch,aa(1))
     call ccnf_put_vara(timencid,'ustar',iarch,aa(1))
-    ! call ccnf_put_vara(timencid,'rain',iarch,aa(1))
-    ! call ccnf_put_vara(timencid,'psurf',iarch,aa(1))
+    call ccnf_put_vara(timencid,'rain',iarch,aa(1))
+    call ccnf_put_vara(timencid,'psurf',iarch,aa(1))
     call ccnf_put_vara(timencid,'hpbl',iarch,aa(1))
     call ccnf_put_vara(timencid,'tsk',iarch,aa(1))
     ! call ccnf_put_vara(timencid,'trad',iarch,aa(1))
@@ -3059,11 +3234,13 @@ if ( scm_mode=="sublime" ) then
     !aa(:) = eg(:)*86400./hls ! this assumes sublimation
     ! call ccnf_put_vara(timencid,'evap',iarch,aa(1))
     call ccnf_put_vara(timencid,'ustar',iarch,ustar(1))
-    ! call ccnf_put_vara(timencid,'rain',iarch,precip(1))
-    ! call ccnf_put_vara(timencid,'psurf',iarch,ps(1))
+    scale_factor = real(nperday)/real(min(nwt,max(ktau,1)))
+    aa = precip*scale_factor
+    call ccnf_put_vara(timencid,'rain',iarch,aa(1))
+    call ccnf_put_vara(timencid,'psurf',iarch,ps(1))
     call ccnf_put_vara(timencid,'hpbl',iarch,pblh(1))
     call ccnf_put_vara(timencid,'tsk',iarch,tss(1))
-    aa(:) = ((rgdn_ave(:)+rgn_ave(:))/(0.98*stefbo))**(0.25)
+    !aa(:) = ((rgdn_ave(:)+rgn_ave(:))/(0.98*stefbo))**(0.25)
     ! call ccnf_put_vara(timencid,'trad',iarch,aa(1))
     where ( sgdn_ave(:)>0. )
       aa(:) = swrsave*albvisnir(:,1) + (1.-swrsave)*albvisnir(:,2)
@@ -4901,6 +5078,1409 @@ end if
 
 return
 end subroutine nantest    
+    
+subroutine loadrestart
+
+use aerosolldr
+use arrays_m
+use ateb, only : atebdwn, urbtemp, atebloadd
+use cable_ccam
+use cc_mpi
+use cfrac_m
+use const_phys
+use extraout_m
+use filnames_m, only : ifile
+use infile
+use liqwpar_m
+use mlo
+use morepbl_m
+use newmpar_m
+use parm_m
+use pbl_m
+use sigs_m
+use soil_m
+use soilsnow_m 
+use tkeeps, only : tke,eps
+
+implicit none
+
+include 'kuocom.h'
+
+integer iarchi, ncid, ik, ier
+integer k
+real, dimension(ifull,wlev) :: mlodwn
+real, dimension(ifull) :: ocndwn
+real, dimension(ifull) :: dum6
+
+iarchi = 1
+ik = 1
+fnproc = 1
+fnresid = 1
+fncount = 1
+mynproc = 1
+pipan = 1
+pjpan = 1
+pnpan = 1
+ptest = .true.
+pfall = .true.
+resprocformat = .false.
+
+write(6,*) "Reading restart file ",trim(ifile)
+
+call ccnf_open(ifile,ncid)
+allocate( pncid(0:0) )
+pncid(0) = ncid
+
+call histrd3(iarchi,ier,'psf',ik,psl,ifull)
+call histrd3(iarchi,ier,'tsu',ik,tss,ifull)
+
+call histrd3(iarchi,ier,'snd',ik,snowd,ifull)
+call histrd3(iarchi,ier,'tgg1',ik,tgg(:,1),ifull)
+call histrd3(iarchi,ier,'tgg2',ik,tgg(:,2),ifull)
+call histrd3(iarchi,ier,'tgg3',ik,tgg(:,3),ifull)
+call histrd3(iarchi,ier,'tgg4',ik,tgg(:,4),ifull)
+call histrd3(iarchi,ier,'tgg5',ik,tgg(:,5),ifull)
+call histrd3(iarchi,ier,'tgg6',ik,tgg(:,6),ifull)
+
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+  call histrd3(iarchi,ier,'ocheight',ik,ocndwn,ifull)  
+  call mloimport(4,ocndwn,0,0)
+  call histrd3(iarchi,ier,'tggsn1',ik,tggsn(:,1),ifull)
+  call histrd3(iarchi,ier,'tggsn2',ik,tggsn(:,2),ifull)
+  call histrd3(iarchi,ier,'tggsn3',ik,tggsn(:,3),ifull)
+  call histrd3(iarchi,ier,'tggsn4',ik,ocndwn,ifull)
+  call mloimpice(tggsn(:,1),1,0)
+  call mloimpice(tggsn(:,2),2,0)
+  call mloimpice(tggsn(:,3),3,0)
+  call mloimpice(ocndwn,4,0)
+  call histrd3(iarchi,ier,'sto',ik,ocndwn,ifull)
+  call mloimpice(ocndwn,8,0)
+  call histrd3(iarchi,ier,'uic',ik,ocndwn,ifull)
+  call mloimpice(ocndwn,9,0)
+  call histrd3(iarchi,ier,'vic',ik,ocndwn,ifull)
+  call mloimpice(ocndwn,10,0)
+end if
+
+call histrd3(iarchi,ier,'wb1',ik,wb(:,1),ifull)
+call histrd3(iarchi,ier,'wb2',ik,wb(:,2),ifull)
+call histrd3(iarchi,ier,'wb3',ik,wb(:,3),ifull)
+call histrd3(iarchi,ier,'wb4',ik,wb(:,4),ifull)
+call histrd3(iarchi,ier,'wb5',ik,wb(:,5),ifull)
+call histrd3(iarchi,ier,'wb6',ik,wb(:,6),ifull)
+
+call histrd3(iarchi,ier,'siced',  ik,sicedep,ifull)
+call histrd3(iarchi,ier,'fracice',ik,fracice,ifull)
+
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+  call mloimpice(fracice,5,0)
+  call mloimpice(sicedep,6,0)
+  ocndwn = snowd*1.e-3
+  call mloimpice(ocndwn,7,0)
+end if
+
+call histrd3(iarchi,ier,'pblh',ik,pblh,ifull)
+
+if ( nurban/=0 ) then
+  allocate( atebdwn(ifull,1) )  
+  call histrd3(iarchi,ier,'rooftgg1',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'rooftemp1',0)
+  call histrd3(iarchi,ier,'rooftgg2',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'rooftemp2',0)
+  call histrd3(iarchi,ier,'rooftgg3',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'rooftemp3',0)
+  call histrd3(iarchi,ier,'rooftgg4',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'rooftemp4',0)
+  call histrd3(iarchi,ier,'rooftgg5',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'rooftemp5',0)
+  call histrd3(iarchi,ier,'waletgg1',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'walletemp1',0)
+  call histrd3(iarchi,ier,'waletgg2',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'walletemp2',0)
+  call histrd3(iarchi,ier,'waletgg3',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'walletemp3',0)
+  call histrd3(iarchi,ier,'waletgg4',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'walletemp4',0)
+  call histrd3(iarchi,ier,'waletgg5',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'walletemp5',0)
+  call histrd3(iarchi,ier,'walwtgg1',ik,atebdwn(:,1),ifull)  
+  call atebloadd(atebdwn(:,1),'wallwtemp1',0)
+  call histrd3(iarchi,ier,'walwtgg2',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'wallwtemp2',0)
+  call histrd3(iarchi,ier,'walwtgg3',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'wallwtemp3',0)
+  call histrd3(iarchi,ier,'walwtgg4',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'wallwtemp4',0)
+  call histrd3(iarchi,ier,'walwtgg5',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'wallwtemp5',0)
+  call histrd3(iarchi,ier,'roadtgg1',ik,atebdwn(:,1),ifull)  
+  call atebloadd(atebdwn(:,1),'roadtemp1',0)
+  call histrd3(iarchi,ier,'roadtgg2',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roadtemp2',0)
+  call histrd3(iarchi,ier,'roadtgg3',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roadtemp3',0)
+  call histrd3(iarchi,ier,'roadtgg4',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roadtemp4',0)
+  call histrd3(iarchi,ier,'roadtgg5',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roadtemp5',0)
+  call histrd3(iarchi,ier,'slabtgg1',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'slabtemp1',0)
+  call histrd3(iarchi,ier,'slabtgg2',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'slabtemp2',0)
+  call histrd3(iarchi,ier,'slabtgg3',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'slabtemp3',0)
+  call histrd3(iarchi,ier,'slabtgg4',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'slabtemp4',0)
+  call histrd3(iarchi,ier,'slabtgg5',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'slabtemp5',0)
+  call histrd3(iarchi,ier,'intmtgg1',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'intmtemp1',0)
+  call histrd3(iarchi,ier,'intmtgg2',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'intmtemp2',0)
+  call histrd3(iarchi,ier,'intmtgg3',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'intmtemp3',0)
+  call histrd3(iarchi,ier,'intmtgg4',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'intmtemp4',0)
+  call histrd3(iarchi,ier,'intmtgg5',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'intmtemp5',0)  
+  call histrd3(iarchi,ier,'roomtgg1',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roomtemp',0)  
+  call histrd3(iarchi,ier,'urbnsmc',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'canyonsoilmoisture',0)  
+  call histrd3(iarchi,ier,'urbnsmr',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roofsoilmoisture',0)  
+  call histrd3(iarchi,ier,'roofwtr',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roofsurfacewater',0)  
+  call histrd3(iarchi,ier,'roadwtr',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roadsurfacewater',0)
+  call histrd3(iarchi,ier,'urbwtrc',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'canyonleafwater',0)  
+  call histrd3(iarchi,ier,'urbwtrr',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roofleafwater',0) 
+  call histrd3(iarchi,ier,'roofsnd',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roofsnowdepth',0)  
+  call histrd3(iarchi,ier,'roadsnd',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roadsnowdepth',0) 
+  call histrd3(iarchi,ier,'roofden',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roofsnowdensity',0)  
+  call histrd3(iarchi,ier,'roadden',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roadsnowdensity',0) 
+  call histrd3(iarchi,ier,'roofsna',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roofsnowalbedo',0)  
+  call histrd3(iarchi,ier,'roadsna',ik,atebdwn(:,1),ifull)
+  call atebloadd(atebdwn(:,1),'roadsnowalbedo',0) 
+  deallocate( atebdwn )
+end if    
+
+call histrd4(iarchi,ier,'temp',ik,kl,t,ifull)
+call histrd4(iarchi,ier,'u',ik,kl,u,ifull)
+call histrd4(iarchi,ier,'v',ik,kl,v,ifull)
+call histrd4(iarchi,ier,'mixr',ik,kl,qg,ifull)
+
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+  call histrd4(iarchi,ier,'thetao',ik,ol,mlodwn,ifull)
+  call mloimport3d(0,mlodwn,0)
+  call histrd4(iarchi,ier,'so',ik,ol,mlodwn,ifull)
+  call mloimport3d(1,mlodwn,0)
+  call histrd4(iarchi,ier,'uo',ik,ol,mlodwn,ifull)
+  call mloimport3d(2,mlodwn,0)
+  call histrd4(iarchi,ier,'vo',ik,ol,mlodwn,ifull)
+  call mloimport3d(3,mlodwn,0)
+end if
+
+if ( ldr/=0 ) then
+  call histrd4(iarchi,ier,'qfg',ik,kl,qfg,ifull)
+  call histrd4(iarchi,ier,'qlg',ik,kl,qlg,ifull)
+  if ( ncloud>=2 ) then
+    call histrd4(iarchi,ier,'qrg',ik,kl,qrg,ifull)
+  end if
+  if ( ncloud>=3 ) then
+    call histrd4(iarchi,ier,'qsng',ik,kl,qsng,ifull)
+    call histrd4(iarchi,ier,'qgrg',ik,kl,qgrg,ifull)
+  end if    
+  call histrd4(iarchi,ier,'cfrac',ik,kl,cfrac,ifull)
+  if ( ncloud>=2 ) then
+    call histrd4(iarchi,ier,'rfrac',ik,kl,rfrac,ifull)
+  end if
+  if ( ncloud>=3 ) then
+    call histrd4(iarchi,ier,'sfrac',ik,kl,sfrac,ifull)
+    call histrd4(iarchi,ier,'gfrac',ik,kl,gfrac,ifull)
+  end if    
+end if
+
+if ( nvmix==6 ) then
+  call histrd4(iarchi,ier,'tke',ik,kl,tke,ifull)
+  call histrd4(iarchi,ier,'eps',ik,kl,eps,ifull)
+end if
+
+if ( abs(iaero)>=2 ) then
+  call histrd4(iarchi,ier,'dms',ik,kl,xtg(:,:,1),ifull)  
+  call histrd4(iarchi,ier,'so2',ik,kl,xtg(:,:,2),ifull)
+  call histrd4(iarchi,ier,'so4',ik,kl,xtg(:,:,3),ifull)
+  call histrd4(iarchi,ier,'bco',ik,kl,xtg(:,:,4),ifull)
+  call histrd4(iarchi,ier,'bci',ik,kl,xtg(:,:,5),ifull)
+  call histrd4(iarchi,ier,'oco',ik,kl,xtg(:,:,6),ifull)
+  call histrd4(iarchi,ier,'oci',ik,kl,xtg(:,:,7),ifull)
+  call histrd4(iarchi,ier,'dust1',ik,kl,xtg(:,:,8),ifull)
+  call histrd4(iarchi,ier,'dust2',ik,kl,xtg(:,:,9),ifull)
+  call histrd4(iarchi,ier,'dust3',ik,kl,xtg(:,:,10),ifull)
+  call histrd4(iarchi,ier,'dust4',ik,kl,xtg(:,:,11),ifull)
+  call histrd4(iarchi,ier,'seasalt1',ik,kl,ssn(:,:,1),ifull)
+  call histrd4(iarchi,ier,'seasalt2',ik,kl,ssn(:,:,2),ifull)
+  ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
+  so4t(:) = 0.
+  do k = 1,kl
+    so4t(1:ifull) = so4t(1:ifull) + 3.e3*xtg(1:ifull,k,3)*(-1.e5*exp(psl(1:ifull))*dsig(k))/grav
+  end do   
+end if
+
+call histrd3(iarchi,ier,'wbice1',ik,wbice(:,1),ifull)
+call histrd3(iarchi,ier,'wbice2',ik,wbice(:,2),ifull)
+call histrd3(iarchi,ier,'wbice3',ik,wbice(:,3),ifull)
+call histrd3(iarchi,ier,'wbice4',ik,wbice(:,4),ifull)
+call histrd3(iarchi,ier,'wbice5',ik,wbice(:,5),ifull)
+call histrd3(iarchi,ier,'wbice6',ik,wbice(:,6),ifull)
+if ( .not.(abs(nmlo)>=1 .and. abs(nmlo)<=9) ) then
+  call histrd3(iarchi,ier,'tggsn1',ik,tggsn(:,1),ifull)
+  call histrd3(iarchi,ier,'tggsn2',ik,tggsn(:,2),ifull)
+  call histrd3(iarchi,ier,'tggsn3',ik,tggsn(:,3),ifull)
+end if  
+call histrd3(iarchi,ier,'smass1',ik,smass(:,1),ifull)
+call histrd3(iarchi,ier,'smass2',ik,smass(:,2),ifull)
+call histrd3(iarchi,ier,'smass3',ik,smass(:,3),ifull)
+call histrd3(iarchi,ier,'ssdn1',ik,ssdn(:,1),ifull)
+call histrd3(iarchi,ier,'ssdn2',ik,ssdn(:,2),ifull)
+call histrd3(iarchi,ier,'ssdn3',ik,ssdn(:,3),ifull)
+call histrd3(iarchi,ier,'snage',ik,snage,ifull)
+call histrd3(iarchi,ier,'sflag',ik,dum6,ifull)
+isflag = nint(dum6)
+call histrd3(iarchi,ier,'sgsave',ik,sgsave,ifull)
+
+if ( nsib==6 .or. nsib==7 ) then
+  call loadtile
+end if
+  
+call ccnf_close(ncid)
+deallocate( pncid )
+
+write(6,*) "Finished resading restart file"
+
+return
+end subroutine loadrestart
+    
+subroutine saverestart
+
+use aerointerface
+use aerosolldr
+use arrays_m
+use ateb, only : atebsaved, urbtemp
+use cable_ccam, only : savetile, savetiledef, &  ! CABLE interface
+                       cable_pop,POP_NPATCH,  &
+                       POP_NCOHORT,           &
+                       cable_climate,ccycle
+use cfrac_m
+use dates_m
+use extraout_m
+use filnames_m, only : restfile
+use infile
+use latlong_m
+use liqwpar_m
+use mlo, only : wlev,mlosave,mlodiag, &          ! Ocean physics and prognostic arrays
+                mloexpdep,wrtemp
+use morepbl_m
+use newmpar_m
+use parm_m
+use pbl_m
+use sigs_m
+use soil_m
+use soilsnow_m 
+use soilv_m
+use tkeeps, only : tke,eps,cm0,mintke,mineps
+
+implicit none
+
+include 'kuocom.h'
+
+integer idnc, iarch, itype, i, k
+integer xdim, ydim, tdim
+integer zdim, msdim, ocdim
+integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim
+integer ixp, iyp, idnt
+integer idlev, idms, idoc
+integer idcp, idc2p, idc91p, idc31p, idc20y, idc5d
+integer icy, icm, icd, ich, icmi, ics, idv
+integer asize, jsize, osize
+integer csize, c2size, c3size, c4size, c5size, c6size
+integer, dimension(3) :: dimj
+integer, dimension(4) :: dima, dims, dimo
+integer, dimension(4) :: dimc, dimc3, dimc4, dimc5, dimc6
+integer, dimension(5) :: dimc2
+real, dimension(:), allocatable, save :: cabledata
+real, dimension(ifull) :: aa
+real, dimension(ifull) :: ocndep, ocnheight
+real, dimension(ms) :: zsoil
+real, dimension(ifull,wlev) :: oo
+real, dimension(ifull,10) :: micdwn
+real, dimension(ifull,wlev,4) :: mlodwn
+real, dimension(wlev) :: gosig
+real, dimension(ifull) :: rlong_out, rlat_out
+logical local
+character(len=50) lname
+character(len=33) grdtim
+character(len=20) vname
+
+if ( restfile==" " .or. restfile=="" ) return
+
+write(6,*) "Saving restart file ",trim(restfile)
+
+ocdim = 0
+cpdim = 0
+c2pdim = 0
+c91pdim = 0
+c31pdim = 0
+c20ydim = 0
+c5ddim = 0
+iarch = 1
+itype = -1
+local = .false.
+
+call ccnf_create(restfile,idnc)
+call ccnf_nofill(idnc)
+
+call ccnf_def_dim(idnc,'longitude',1,xdim)
+call ccnf_def_dim(idnc,'latitude',1,ydim)
+call ccnf_def_dim(idnc,'lev',kl,zdim)
+call ccnf_def_dim(idnc,'zsoil',ms,msdim)
+if ( abs(nmlo)>0. .and. abs(nmlo)<=9 ) then
+  call ccnf_def_dim(idnc,'olev',ol,ocdim)
+end if
+if ( cable_pop==1 ) then
+  call ccnf_def_dim(idnc,'cable_patch',POP_NPATCH,cpdim)  
+  call ccnf_def_dim(idnc,'cable_cohort',POP_NCOHORT,c2pdim)  
+end if
+if ( cable_climate==1 ) then
+  call ccnf_def_dim(idnc,'cable_91days',91,c91pdim)
+  call ccnf_def_dim(idnc,'cable_31days',31,c31pdim)
+  call ccnf_def_dim(idnc,'cable_20years',20,c20ydim)
+  call ccnf_def_dim(idnc,'cable_5days',120,c5ddim)
+end if
+call ccnf_def_dimu(idnc,'time',tdim)
+      
+dima(1:4) = (/ xdim, ydim, zdim, tdim /)
+dims(1:4) = (/ xdim, ydim, msdim, tdim /)
+dimo(1:4) = (/ xdim, ydim, ocdim, tdim /)
+dimc(1:4) = (/ xdim, ydim, cpdim, tdim /)
+dimc2(1:5) = (/ xdim, ydim, cpdim, c2pdim, tdim /)
+dimc3(1:4) = (/ xdim, ydim, c91pdim, tdim /)
+dimc4(1:4) = (/ xdim, ydim, c31pdim, tdim /)
+dimc5(1:4) = (/ xdim, ydim, c20ydim, tdim /)
+dimc6(1:4) = (/ xdim, ydim, c5ddim, tdim /)
+
+dimj(1:2)  = dima(1:2)
+dimj(3)    = dima(4)
+dimc(1:4)  = dima(1:4)
+dimc(3)    = cpdim
+dimc2(1:2) = dima(1:2)
+dimc2(3)   = cpdim
+dimc2(4)   = c2pdim
+dimc2(5)   = dima(4)
+dimc3(1:4) = dima(1:4)
+dimc3(3)   = c91pdim
+dimc4(1:4) = dima(1:4)
+dimc4(3)   = c31pdim
+dimc5(1:4) = dima(1:4)
+dimc5(3)   = c20ydim
+dimc6(1:4) = dima(1:4)
+dimc6(3)   = c5ddim
+
+asize = 4
+jsize = 3
+osize = 4
+csize = 4
+c2size = 5
+c3size = 4
+c4size = 4
+c5size = 4
+c6size = 4
+
+call ccnf_def_var(idnc,'longitude','float',2,dima(1:2),ixp)
+call ccnf_put_att(idnc,ixp,'point_spacing','even')
+call ccnf_put_att(idnc,ixp,'units','degrees_east')
+
+call ccnf_def_var(idnc,'latitude','float',2,dima(1:2),iyp)
+call ccnf_put_att(idnc,iyp,'point_spacing','even')
+call ccnf_put_att(idnc,iyp,'units','degrees_north')
+
+call ccnf_def_var(idnc,'lev','float',1,dima(3:3),idlev)
+call ccnf_put_att(idnc,idlev,'positive','down')
+call ccnf_put_att(idnc,idlev,'point_spacing','uneven')
+call ccnf_put_att(idnc,idlev,'units','sigma_level')
+call ccnf_put_att(idnc,idlev,'long_name','sigma_level')
+
+call ccnf_def_var(idnc,'zsoil','float',1,dims(3:3),idms)
+call ccnf_put_att(idnc,idms,'point_spacing','uneven')
+call ccnf_put_att(idnc,idms,'units','m')
+
+if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
+  call ccnf_def_var(idnc,'olev','float',1,dimo(3:3),idoc)
+  call ccnf_put_att(idnc,idoc,'point_spacing','uneven')
+  call ccnf_put_att(idnc,idoc,'units','sigma_level')
+end if
+
+if ( cable_pop==1 ) then
+  call ccnf_def_var(idnc,'cable_patch','float',1,dimc(3:3),idcp)  
+  call ccnf_def_var(idnc,'cable_cohort','float',1,dimc2(4:4),idc2p)  
+end if
+if ( cable_climate==1 ) then
+  call ccnf_def_var(idnc,'cable_91days','float',1,dimc3(3:3),idc91p)
+  call ccnf_def_var(idnc,'cable_31days','float',1,dimc4(3:3),idc31p)
+  call ccnf_def_var(idnc,'cable_20years','float',1,dimc5(3:3),idc20y)
+  call ccnf_def_var(idnc,'cable_5days','float',1,dimc6(3:3),idc5d)
+end if
+
+call ccnf_def_var(idnc,'time','float',1,dima(4:4),idnt)
+call ccnf_put_att(idnc,idnt,'point_spacing','even')
+icy = kdate/10000
+icm = max(1, min(12, (kdate-icy*10000)/100))
+icd = max(1, min(31, (kdate-icy*10000-icm*100)))
+ich = ktime/100
+icmi = (ktime-ich*100)
+ics = 0
+write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
+call ccnf_put_att(idnc,idnt,'units',grdtim)
+if ( leap==0 ) then
+  call ccnf_put_att(idnc,idnt,'calendar','noleap')
+end if
+
+lname ='Scaled Log Surface pressure'
+call attrib(idnc,dimj,jsize,'psf',lname,'none',-1.3,0.2,0,itype)
+lname = 'Surface temperature'
+call attrib(idnc,dimj,jsize,'tsu',lname,'K',100.,425.,0,itype)
+
+lname = 'Snow depth (liquid water)'
+call attrib(idnc,dimj,jsize,'snd',lname,'mm',0.,6500.,0,-1)  ! -1=long
+lname = 'Soil temperature lev 1'
+call attrib(idnc,dimj,jsize,'tgg1',lname,'K',100.,425.,0,itype)
+lname = 'Soil temperature lev 2'
+call attrib(idnc,dimj,jsize,'tgg2',lname,'K',100.,425.,0,itype)
+lname = 'Soil temperature lev 3'
+call attrib(idnc,dimj,jsize,'tgg3',lname,'K',100.,425.,0,itype)
+lname = 'Soil temperature lev 4'
+call attrib(idnc,dimj,jsize,'tgg4',lname,'K',100.,425.,0,itype)
+lname = 'Soil temperature lev 5'
+call attrib(idnc,dimj,jsize,'tgg5',lname,'K',100.,425.,0,itype)
+lname = 'Soil temperature lev 6'
+call attrib(idnc,dimj,jsize,'tgg6',lname,'K',100.,425.,0,itype)
+ 
+if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
+  lname = 'water surface height'
+  call attrib(idnc,dimj,jsize,'ocheight',lname,'m',-130.,130.,0,itype)          
+  lname = 'Snow/Sea-ice temperature lev 1'
+  call attrib(idnc,dimj,jsize,'tggsn1',lname,'K',100.,425.,0,itype)
+  lname = 'Snow/Sea-ice temperature lev 2'
+  call attrib(idnc,dimj,jsize,'tggsn2',lname,'K',100.,425.,0,itype)
+  lname = 'Snow/Sea-ice temperature lev 3'
+  call attrib(idnc,dimj,jsize,'tggsn3',lname,'K',100.,425.,0,itype)
+  lname = 'Sea-ice temperature lev 4'
+  call attrib(idnc,dimj,jsize,'tggsn4',lname,'K',100.,425.,0,itype)
+  lname = 'Sea-ice heat store'
+  call attrib(idnc,dimj,jsize,'sto',lname,'J/m2',0.,1.3e10,0,itype)
+  lname = 'x-component sea-ice velocity'
+  call attrib(idnc,dimj,jsize,'uic',lname,'m/s',-65.,65.,0,itype)
+  lname = 'y-component sea-ice velocity'
+  call attrib(idnc,dimj,jsize,'vic',lname,'m/s',-65.,65.,0,itype)
+end if
+
+lname = 'Soil moisture 1'
+call attrib(idnc,dimj,jsize,'wb1',lname,'m3/m3',0.,1.,0,itype)
+lname = 'Soil moisture 2'
+call attrib(idnc,dimj,jsize,'wb2',lname,'m3/m3',0.,1.,0,itype)
+lname = 'Soil moisture 3'
+call attrib(idnc,dimj,jsize,'wb3',lname,'m3/m3',0.,1.,0,itype)
+lname = 'Soil moisture 4'
+call attrib(idnc,dimj,jsize,'wb4',lname,'m3/m3',0.,1.,0,itype)
+lname = 'Soil moisture 5'
+call attrib(idnc,dimj,jsize,'wb5',lname,'m3/m3',0.,1.,0,itype)
+lname = 'Soil moisture 6'
+call attrib(idnc,dimj,jsize,'wb6',lname,'m3/m3',0.,1.,0,itype)
+
+lname = 'Sea ice depth'
+call attrib(idnc,dimj,jsize,'siced',lname,'m',0.,65.,0,-1)
+lname = 'Sea ice fraction'
+call attrib(idnc,dimj,jsize,'fracice',lname,'none',0.,6.5,0,itype)
+
+lname = 'PBL depth'
+call attrib(idnc,dimj,jsize,'pblh',lname,'m',0.,13000.,0,itype)
+
+if ( nurban/=0 ) then
+  lname = 'roof temperature lev 1'
+  call attrib(idnc,dimj,jsize,'rooftgg1',lname,'K',100.,425.,0,itype)
+  lname = 'roof temperature lev 2'
+  call attrib(idnc,dimj,jsize,'rooftgg2',lname,'K',100.,425.,0,itype)
+  lname = 'roof temperature lev 3'
+  call attrib(idnc,dimj,jsize,'rooftgg3',lname,'K',100.,425.,0,itype)
+  lname = 'roof temperature lev 4'
+  call attrib(idnc,dimj,jsize,'rooftgg4',lname,'K',100.,425.,0,itype)
+  lname = 'roof temperature lev 5'
+  call attrib(idnc,dimj,jsize,'rooftgg5',lname,'K',100.,425.,0,itype)
+  lname = 'east wall temperature lev 1'
+  call attrib(idnc,dimj,jsize,'waletgg1',lname,'K',100.,425.,0,itype)
+  lname = 'east wall temperature lev 2'
+  call attrib(idnc,dimj,jsize,'waletgg2',lname,'K',100.,425.,0,itype)
+  lname = 'east wall temperature lev 3'
+  call attrib(idnc,dimj,jsize,'waletgg3',lname,'K',100.,425.,0,itype)
+  lname = 'east wall temperature lev 4'
+  call attrib(idnc,dimj,jsize,'waletgg4',lname,'K',100.,425.,0,itype)
+  lname = 'east wall temperature lev 5'
+  call attrib(idnc,dimj,jsize,'waletgg5',lname,'K',100.,425.,0,itype)
+  lname = 'west wall temperature lev 1'
+  call attrib(idnc,dimj,jsize,'walwtgg1',lname,'K',100.,425.,0,itype)
+  lname = 'west wall temperature lev 2'
+  call attrib(idnc,dimj,jsize,'walwtgg2',lname,'K',100.,425.,0,itype)
+  lname = 'west wall temperature lev 3'
+  call attrib(idnc,dimj,jsize,'walwtgg3',lname,'K',100.,425.,0,itype)
+  lname = 'west wall temperature lev 4'
+  call attrib(idnc,dimj,jsize,'walwtgg4',lname,'K',100.,425.,0,itype)
+  lname = 'west wall temperature lev 5'
+  call attrib(idnc,dimj,jsize,'walwtgg5',lname,'K',100.,425.,0,itype)
+  lname = 'road temperature lev 1'
+  call attrib(idnc,dimj,jsize,'roadtgg1',lname,'K',100.,425.,0,itype)
+  lname = 'road temperature lev 2'
+  call attrib(idnc,dimj,jsize,'roadtgg2',lname,'K',100.,425.,0,itype)
+  lname = 'road temperature lev 3'
+  call attrib(idnc,dimj,jsize,'roadtgg3',lname,'K',100.,425.,0,itype)
+  lname = 'road temperature lev 4'
+  call attrib(idnc,dimj,jsize,'roadtgg4',lname,'K',100.,425.,0,itype)
+  lname = 'road temperature lev 5'
+  call attrib(idnc,dimj,jsize,'roadtgg5',lname,'K',100.,425.,0,itype)
+  lname = 'slab temperature lev 1'
+  call attrib(idnc,dimj,jsize,'slabtgg1',lname,'K',100.,425.,0,itype)
+  lname = 'slab temperature lev 2'
+  call attrib(idnc,dimj,jsize,'slabtgg2',lname,'K',100.,425.,0,itype)
+  lname = 'slab temperature lev 3'
+  call attrib(idnc,dimj,jsize,'slabtgg3',lname,'K',100.,425.,0,itype)
+  lname = 'slab temperature lev 4'
+  call attrib(idnc,dimj,jsize,'slabtgg4',lname,'K',100.,425.,0,itype)
+  lname = 'slab temperature lev 5'
+  call attrib(idnc,dimj,jsize,'slabtgg5',lname,'K',100.,425.,0,itype)
+  lname = 'interior mass temperature lev 1'
+  call attrib(idnc,dimj,jsize,'intmtgg1',lname,'K',100.,425.,0,itype)
+  lname = 'interior mass temperature lev 2'
+  call attrib(idnc,dimj,jsize,'intmtgg2',lname,'K',100.,425.,0,itype)
+  lname = 'interior mass temperature lev 3'
+  call attrib(idnc,dimj,jsize,'intmtgg3',lname,'K',100.,425.,0,itype)
+  lname = 'interior mass temperature lev 4'
+  call attrib(idnc,dimj,jsize,'intmtgg4',lname,'K',100.,425.,0,itype)
+  lname = 'interior mass temperature lev 5'
+  call attrib(idnc,dimj,jsize,'intmtgg5',lname,'K',100.,425.,0,itype)
+  lname = 'urban room temperature'
+  call attrib(idnc,dimj,jsize,'roomtgg1',lname,'K',100.,425.,0,itype)  
+  lname = 'urban canyon soil moisture'
+  call attrib(idnc,dimj,jsize,'urbnsmc',lname,'m3/m3',0.,1.3,0,itype)
+  lname = 'urban roof soil moisture'
+  call attrib(idnc,dimj,jsize,'urbnsmr',lname,'m3/m3',0.,1.3,0,itype)
+  lname = 'urban roof water'
+  call attrib(idnc,dimj,jsize,'roofwtr',lname,'mm',0.,1.3,0,itype)
+  lname = 'urban road water'
+  call attrib(idnc,dimj,jsize,'roadwtr',lname,'mm',0.,1.3,0,itype)
+  lname = 'urban canyon leaf water'
+  call attrib(idnc,dimj,jsize,'urbwtrc',lname,'mm',0.,1.3,0,itype)
+  lname = 'urban roof leaf water'
+  call attrib(idnc,dimj,jsize,'urbwtrr',lname,'mm',0.,1.3,0,itype)
+  lname = 'urban roof snow (liquid water)'
+  call attrib(idnc,dimj,jsize,'roofsnd',lname,'mm',0.,1.3,0,itype)
+  lname = 'urban road snow (liquid water)'
+  call attrib(idnc,dimj,jsize,'roadsnd',lname,'mm',0.,1.3,0,itype)
+  lname = 'urban roof snow density'
+  call attrib(idnc,dimj,jsize,'roofden',lname,'kg/m3',0.,650.,0,itype)
+  lname = 'urban road snow density'
+  call attrib(idnc,dimj,jsize,'roadden',lname,'kg/m3',0.,650.,0,itype)
+  lname = 'urban roof snow albedo'
+  call attrib(idnc,dimj,jsize,'roofsna',lname,'none',0.,1.3,0,itype)
+  lname = 'urban road snow albedo'
+  call attrib(idnc,dimj,jsize,'roadsna',lname,'none',0.,1.3,0,itype)
+end if
+
+! STANDARD 3D VARIABLES -------------------------------------
+lname = 'Air temperature'
+call attrib(idnc,dima,asize,'temp',lname,'K',100.,425.,0,itype)
+lname = 'x-component wind'
+call attrib(idnc,dima,asize,'u',lname,'m/s',-150.,150.,0,itype)
+lname = 'y-component wind'
+call attrib(idnc,dima,asize,'v',lname,'m/s',-150.,150.,0,itype)
+lname = 'Water mixing ratio'
+call attrib(idnc,dima,asize,'mixr',lname,'kg/kg',0.,.065,0,itype)
+
+if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
+  lname = "Ocean temperature"
+  call attrib(idnc,dimo,osize,"thetao",lname,'K',100.,425.,0,itype)
+  lname = "Ocean salinity"
+  call attrib(idnc,dimo,osize,"so",lname,'PSU',0.,130.,0,itype)
+  lname = "x-component current"
+  call attrib(idnc,dimo,osize,"uo",lname,'m/s',-65.,65.,0,itype)
+  lname = "y-component current"
+  call attrib(idnc,dimo,osize,"vo",lname,'m/s',-65.,65.,0,itype)
+end if
+
+if ( ldr/=0 ) then
+  call attrib(idnc,dima,asize,'qfg','Frozen water','kg/kg',0.,.065,0,itype)
+  call attrib(idnc,dima,asize,'qlg','Liquid water','kg/kg',0.,.065,0,itype)
+  if ( ncloud>=2 ) then
+    call attrib(idnc,dima,asize,'qrg','Rain',      'kg/kg',0.,.065,0,itype)
+  end if
+  if ( ncloud>=3 ) then
+    call attrib(idnc,dima,asize,'qsng','Snow',     'kg/kg',0.,.065,0,itype)
+    call attrib(idnc,dima,asize,'qgrg','Graupel',  'kg/kg',0.,.065,0,itype)
+  end if
+  call attrib(idnc,dima,asize,'cfrac','Cloud fraction',    'none',0.,1.,0,itype)
+  if ( ncloud>=2 ) then
+    call attrib(idnc,dima,asize,'rfrac','Rain fraction',   'none',0.,1.,0,itype)
+  end if
+  if ( ncloud>=3 ) then
+    call attrib(idnc,dima,asize,'sfrac','Snow fraction',   'none',0.,1.,0,itype)
+    call attrib(idnc,dima,asize,'gfrac','Graupel fraction','none',0.,1.,0,itype)
+  end if
+end if    
+
+if ( nvmix==6 ) then
+  call attrib(idnc,dima,asize,'tke','Turbulent Kinetic Energy','m2/s2',0.,65.,0,itype)
+  call attrib(idnc,dima,asize,'eps','Eddy dissipation rate','m2/s3',0.,6.5,0,itype)
+end if
+    
+if ( abs(iaero)>=2 ) then  
+  call attrib(idnc,dima,asize,'dms','Dimethyl sulfide','kg/kg',0.,6.5E-7,0,itype)
+  call attrib(idnc,dima,asize,'so2','Sulfur dioxide','kg/kg',0.,6.5E-7,0,itype)
+  call attrib(idnc,dima,asize,'so4','Sulfate','kg/kg',0.,6.5E-7,0,itype)
+  call attrib(idnc,dima,asize,'bco','Black carbon hydrophobic','kg/kg',0.,6.5E-6,0,itype)
+  call attrib(idnc,dima,asize,'bci','Black carbon hydrophilic','kg/kg',0.,6.5E-6,0,itype)
+  call attrib(idnc,dima,asize,'oco','Organic aerosol hydrophobic','kg/kg',0.,6.5E-6,0,itype)
+  call attrib(idnc,dima,asize,'oci','Organic aerosol hydrophilic','kg/kg',0.,6.5E-6,0,itype)
+  call attrib(idnc,dima,asize,'dust1','Dust 0.1-1 micrometers','kg/kg',0.,6.5E-6,0,itype)
+  call attrib(idnc,dima,asize,'dust2','Dust 1-2 micrometers','kg/kg',0.,6.5E-6,0,itype)
+  call attrib(idnc,dima,asize,'dust3','Dust 2-3 micrometers','kg/kg',0.,6.5E-6,0,itype)
+  call attrib(idnc,dima,asize,'dust4','Dust 3-6 micrometers','kg/kg',0.,6.5E-6,0,itype)
+  call attrib(idnc,dima,asize,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,itype)
+  call attrib(idnc,dima,asize,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,itype)
+end if
+
+lname = 'Soil ice lev 1'
+call attrib(idnc,dimj,jsize,'wbice1',lname,'m3/m3',0.,1.,0,itype)
+lname = 'Soil ice lev 2'
+call attrib(idnc,dimj,jsize,'wbice2',lname,'m3/m3',0.,1.,0,itype)
+lname = 'Soil ice lev 3'
+call attrib(idnc,dimj,jsize,'wbice3',lname,'m3/m3',0.,1.,0,itype)
+lname = 'Soil ice lev 4'
+call attrib(idnc,dimj,jsize,'wbice4',lname,'m3/m3',0.,1.,0,itype)
+lname = 'Soil ice lev 5'
+call attrib(idnc,dimj,jsize,'wbice5',lname,'m3/m3',0.,1.,0,itype)
+lname = 'Soil ice lev 6'
+call attrib(idnc,dimj,jsize,'wbice6',lname,'m3/m3',0.,1.,0,itype)
+if ( .not.(abs(nmlo)>0 .and. abs(nmlo)<=9) ) then
+  lname = 'Snow temperature lev 1'
+  call attrib(idnc,dimj,jsize,'tggsn1',lname,'K',100.,425.,0,itype)
+  lname = 'Snow temperature lev 2'
+  call attrib(idnc,dimj,jsize,'tggsn2',lname,'K',100.,425.,0,itype)
+  lname = 'Snow temperature lev 3'
+  call attrib(idnc,dimj,jsize,'tggsn3',lname,'K',100.,425.,0,itype)
+end if
+lname = 'Snow mass lev 1'
+call attrib(idnc,dimj,jsize,'smass1',lname,'K',0.,425.,0,itype)
+lname = 'Snow mass lev 2'
+call attrib(idnc,dimj,jsize,'smass2',lname,'K',0.,425.,0,itype)
+lname = 'Snow mass lev 3'
+call attrib(idnc,dimj,jsize,'smass3',lname,'K',0.,425.,0,itype)
+lname = 'Snow density lev 1'
+call attrib(idnc,dimj,jsize,'ssdn1',lname,'K',0.,425.,0,itype)
+lname = 'Snow density lev 2'
+call attrib(idnc,dimj,jsize,'ssdn2',lname,'K',0.,425.,0,itype)
+lname = 'Snow density lev 3'
+call attrib(idnc,dimj,jsize,'ssdn3',lname,'K',0.,425.,0,itype)
+lname = 'Snow age'
+call attrib(idnc,dimj,jsize,'snage',lname,'none',0.,20.,0,itype)   
+lname = 'Snow flag'
+call attrib(idnc,dimj,jsize,'sflag',lname,'none',0.,4.,0,itype)
+lname = 'Solar net at ground (+ve down)'
+call attrib(idnc,dimj,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,itype)
+
+if ( nsib==6 .or. nsib==7 ) then
+  call savetiledef(idnc,local,dimj,jsize,dimc,csize,dimc2,c2size, &
+                   dimc3,c3size,dimc4,c4size,dimc5,c5size,        &
+                   dimc6,c6size)
+end if
+
+call ccnf_enddef(idnc)
+
+rlong_out(1) = rlongg(1)*180./3.1415927
+rlat_out(1) = rlatt(1)*180./3.1415927
+call ccnf_put_vara(idnc,ixp,1,1,rlong_out)
+call ccnf_put_vara(idnc,iyp,1,1,rlat_out)
+call ccnf_put_vara(idnc,idlev,1,kl,sig)
+
+zsoil(1)=0.5*zse(1)
+zsoil(2)=zse(1)+zse(2)*0.5
+do k = 3,ms
+  zsoil(k)=sum(zse(1:k-1))+zse(k)*0.5
+end do
+call ccnf_put_vara(idnc,idms,1,ms,zsoil)
+
+if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
+  mlodwn(:,:,1:2) = 999. ! temp, sal
+  mlodwn(:,:,3:4) = 0.   ! u, v
+  micdwn(:,1:7)   = 999. ! tggsn1-4, fracice, siced, snowd
+  micdwn(:,8:10)  = 0.   ! sto, uic, vic
+  ocndep(:)       = 0.   ! ocean depth
+  ocnheight(:)    = 0.   ! free surface height
+  call mlosave(mlodwn,ocndep,ocnheight,micdwn,0)
+  ocnheight(:) = min(max(ocnheight(:), -130.), 130.)
+  do k = 1,wlev  
+    call mloexpdep(0,oo(:,k),k,0)
+  end do
+  gosig(:) = oo(1,:)/ocndep(1) ! needs to be definined  
+  call ccnf_put_vara(idnc,idoc,1,wlev,gosig)
+end if
+    
+if ( cable_pop==1 ) then
+  allocate( cabledata(POP_NPATCH) )
+  do i = 1,POP_NPATCH
+    cabledata(i) = real(i)
+  end do  
+  call ccnf_put_vara(idnc,idcp,1,POP_NPATCH,cabledata)
+  deallocate( cabledata )
+  allocate( cabledata(POP_NCOHORT) )
+  do i = 1,POP_NCOHORT
+    cabledata(i) = real(i)
+  end do  
+  call ccnf_put_vara(idnc,idc2p,1,POP_NCOHORT,cabledata)
+  deallocate( cabledata )
+end if
+if ( cable_climate==1 ) then
+  allocate( cabledata(91) )
+  do i = 1,91
+    cabledata(i) = real(i)
+  end do  
+  call ccnf_put_vara(idnc,idc91p,1,91,cabledata)
+  deallocate( cabledata )
+  allocate( cabledata(31) )
+  do i = 1,31
+    cabledata(i) = real(i)
+  end do  
+  call ccnf_put_vara(idnc,idc31p,1,31,cabledata)
+  deallocate( cabledata )
+  allocate( cabledata(20) )
+  do i = 1,20
+    cabledata(i) = real(i)
+  end do
+  call ccnf_put_vara(idnc,idc20y,1,20,cabledata)
+  deallocate( cabledata )
+  allocate( cabledata(120) )
+  do i = 1,120
+    cabledata(i) = real(i)
+  end do
+  call ccnf_put_vara(idnc,idc5d,1,120,cabledata)
+  deallocate( cabledata )
+end if    
+
+call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
+
+call histwrt3(psl,'psf',idnc,iarch,local,.true.)
+call histwrt3(tss,'tsu',idnc,iarch,local,.true.)
+
+! Export ocean data
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+  do k = 1,ms
+    where (.not.land(1:ifull))
+      tgg(:,k) = mlodwn(:,k,1)
+    end where
+  end do
+  do k = 1,3
+    where (.not.land(1:ifull))
+      tggsn(:,k) = micdwn(:,k)
+    end where
+  end do
+  where (.not.land(1:ifull))
+    fracice = micdwn(:,5)
+    sicedep = micdwn(:,6)
+    snowd   = micdwn(:,7)*1000.
+  end where
+end if
+
+call histwrt3(snowd,'snd', idnc,iarch,local,.true.)  ! long write
+do k=1,ms
+  where ( tgg(:,k)<100. .and. itype==1 )
+    aa(:) = tgg(:,k) + wrtemp
+  elsewhere
+    aa(:) = tgg(:,k)      ! Allows ocean temperatures to use a 290K offset
+  end where
+  write(vname,'("tgg",I1.1)') k
+  call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  where ( tgg(:,k)<100. )
+    tgg(:,k) = tgg(:,k) + wrtemp
+  end where
+end do
+
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+  call histwrt3(ocnheight,'ocheight',idnc,iarch,local,.true.)
+  call histwrt3(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
+  call histwrt3(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
+  call histwrt3(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
+  call histwrt3(micdwn(:,4),'tggsn4',idnc,iarch,local,.true.)
+  call histwrt3(micdwn(:,8),'sto',idnc,iarch,local,.true.)
+  call histwrt3(micdwn(:,9),'uic',idnc,iarch,local,.true.)
+  call histwrt3(micdwn(:,10),'vic',idnc,iarch,local,.true.)
+end if
+
+call histwrt3(wb(:,1),'wb1',idnc,iarch,local,.true.)
+call histwrt3(wb(:,2),'wb2',idnc,iarch,local,.true.)
+call histwrt3(wb(:,3),'wb3',idnc,iarch,local,.true.)
+call histwrt3(wb(:,4),'wb4',idnc,iarch,local,.true.)
+call histwrt3(wb(:,5),'wb5',idnc,iarch,local,.true.)
+call histwrt3(wb(:,6),'wb6',idnc,iarch,local,.true.)
+
+call histwrt3(sicedep,'siced',idnc,iarch,local,.true.)
+call histwrt3(fracice,'fracice',idnc,iarch,local,.true.)
+
+call histwrt3(pblh,'pblh',idnc,iarch,local,.true.)
+
+if ( nurban/=0 ) then
+  do k = 1,5
+    write(vname,'("rooftemp",I1.1)') k
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("rooftgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do  
+  do k = 1,5
+    write(vname,'("walletemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("waletgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do  
+  do k = 1,5
+    write(vname,'("wallwtemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("walwtgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do  
+  do k = 1,5
+    write(vname,'("roadtemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("roadtgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do
+  do k = 1,5
+    write(vname,'("slabtemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("slabtgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do
+  do k = 1,5
+    write(vname,'("intmtemp",I1.1)') k  
+    aa = 999.
+    call atebsaved(aa,vname,0,rawtemp=.true.)
+    where ( aa<100. .and. itype==1 )
+      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+    end where  
+    write(vname,'("intmtgg",I1.1)') k
+    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  end do
+  aa = 999.
+  call atebsaved(aa,"roomtemp",0)
+  call histwrt3(aa,'roomtgg1', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"canyonsoilmoisture",0)
+  call histwrt3(aa,'urbnsmc', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsoilmoisture",0)
+  call histwrt3(aa,'urbnsmr', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsurfacewater",0)
+  call histwrt3(aa,'roofwtr', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roadsurfacewater",0)
+  call histwrt3(aa,'roadwtr', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"canyonleafwater",0)
+  call histwrt3(aa,'urbwtrc', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofleafwater",0)
+  call histwrt3(aa,'urbwtrr', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsnowdepth",0)
+  call histwrt3(aa,'roofsnd', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roadsnowdepth",0)
+  call histwrt3(aa,'roadsnd', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsnowdensity",0)
+  call histwrt3(aa,'roofden', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roadsnowdensity",0)
+  call histwrt3(aa,'roadden', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roofsnowalbedo",0)
+  call histwrt3(aa,'roofsna', idnc,iarch,local,.true.)
+  aa = 999.
+  call atebsaved(aa,"roadsnowalbedo",0)
+  call histwrt3(aa,'roadsna', idnc,iarch,local,.true.)
+end if
+
+call histwrt4(t,'temp',idnc,iarch,local,.true.)
+call histwrt4(u,'u',idnc,iarch,local,.true.)
+call histwrt4(v,'v',idnc,iarch,local,.true.)
+call histwrt4(qg,'mixr',idnc,iarch,local,.true.)
+
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+  do k = 1,wlev
+    where ( mlodwn(:,k,1)<100. .and. itype==1 )
+      oo(:,k) = mlodwn(:,k,1) + wrtemp
+    elsewhere
+      oo(:,k) = mlodwn(:,k,1)  
+    end where
+  end do  
+  call histwrt4(oo,"thetao",idnc,iarch,local,.true.)
+  call histwrt4(mlodwn(:,:,2),"so",idnc,iarch,local,.true.)
+  call histwrt4(mlodwn(:,:,3),"uo",idnc,iarch,local,.true.)
+  call histwrt4(mlodwn(:,:,4),"vo",idnc,iarch,local,.true.)
+end if
+
+if ( ldr/=0 ) then
+  call histwrt4(qfg,'qfg',idnc,iarch,local,.true.)
+  call histwrt4(qlg,'qlg',idnc,iarch,local,.true.)
+  if ( ncloud>=2 ) then
+    call histwrt4(qrg,'qrg',idnc,iarch,local,.true.)
+  end if
+  if ( ncloud>=3 ) then
+    call histwrt4(qsng,'qsng',idnc,iarch,local,.true.)
+    call histwrt4(qgrg,'qgrg',idnc,iarch,local,.true.)
+  end if
+  call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
+  if ( ncloud>=2 ) then
+    call histwrt4(rfrac,'rfrac',idnc,iarch,local,.true.)
+  end if
+  if ( ncloud>=3 ) then
+    call histwrt4(sfrac,'sfrac',idnc,iarch,local,.true.)
+    call histwrt4(gfrac,'gfrac',idnc,iarch,local,.true.)
+  end if
+end if
+
+if ( nvmix==6 ) then
+  call histwrt4(tke,'tke',idnc,iarch,local,.true.)
+  call histwrt4(eps,'eps',idnc,iarch,local,.true.)
+end if
+    
+if ( abs(iaero)>=2 ) then
+  call histwrt4(xtg(:,:,1), 'dms',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,2), 'so2',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,3), 'so4',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,4), 'bco',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,5), 'bci',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,6), 'oco',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,7), 'oci',  idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,8), 'dust1',idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,9), 'dust2',idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,10),'dust3',idnc,iarch,local,.true.)
+  call histwrt4(xtg(:,:,11),'dust4',idnc,iarch,local,.true.)
+  call histwrt4(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
+  call histwrt4(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
+end if
+  
+call histwrt3(wbice(:,1),'wbice1',idnc,iarch,local,.true.)
+call histwrt3(wbice(:,2),'wbice2',idnc,iarch,local,.true.)
+call histwrt3(wbice(:,3),'wbice3',idnc,iarch,local,.true.)
+call histwrt3(wbice(:,4),'wbice4',idnc,iarch,local,.true.)
+call histwrt3(wbice(:,5),'wbice5',idnc,iarch,local,.true.)
+call histwrt3(wbice(:,6),'wbice6',idnc,iarch,local,.true.)
+if ( nmlo==0 ) then ! otherwise already written above
+  call histwrt3(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
+  call histwrt3(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
+  call histwrt3(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
+end if
+call histwrt3(smass(:,1),'smass1',idnc,iarch,local,.true.)
+call histwrt3(smass(:,2),'smass2',idnc,iarch,local,.true.)
+call histwrt3(smass(:,3),'smass3',idnc,iarch,local,.true.)
+call histwrt3(ssdn(:,1), 'ssdn1', idnc,iarch,local,.true.)
+call histwrt3(ssdn(:,2), 'ssdn2', idnc,iarch,local,.true.)
+call histwrt3(ssdn(:,3), 'ssdn3', idnc,iarch,local,.true.)
+call histwrt3(snage,     'snage', idnc,iarch,local,.true.)
+aa(:) = isflag(:)
+call histwrt3(aa,    'sflag', idnc,iarch,local,.true.)
+call histwrt3(sgsave,'sgsave',idnc,iarch,local,.true.)       
+
+if ( nsib==6 .or. nsib==7 ) then
+  call savetile(idnc,local,iarch)
+end if
+  
+call ccnf_close(idnc)
+
+write(6,*) "Finished creating restart file"    
+    
+return
+end subroutine saverestart
+    
+!--------------------------------------------------------------
+! Reset diagnostics for averaging period    
+subroutine zero_nperavg
+
+use aerosolldr, only :                   & ! LDR prognostic aerosols
+     duste,dustwd,dustdd,dust_burden     &
+    ,bce,bcwd,bcdd,bc_burden             &
+    ,oce,ocwd,ocdd,oc_burden             &
+    ,dmse,dms_burden                     &
+    ,so2e,so2wd,so2dd,so2_burden         &
+    ,so4e,so4wd,so4dd,so4_burden         &
+    ,dmsso2o,so2so4o
+use cable_ccam, only : ccycle              ! CABLE
+use histave_m                              ! Time average arrays
+use morepbl_m                              ! Additional boundary layer diagnostics
+use parm_m                                 ! Model configuration
+use prec_m                                 ! Precipitation
+use raddiag_m                              ! Radiation diagnostic
+use soilsnow_m                             ! Soil, snow and surface data
+use tracers_m                              ! Tracer data
+
+implicit none
+
+convh_ave(:,:)       = 0.
+cbas_ave(:)          = 0.
+ctop_ave(:)          = 0.
+dew_ave(:)           = 0.
+epan_ave(:)          = 0.
+epot_ave(:)          = 0.
+eg_ave(:)            = 0.
+fg_ave(:)            = 0.
+ga_ave(:)            = 0.
+anthropogenic_ave(:) = 0.
+tasurban_ave(:)      = 0.
+tmaxurban(:)         = urban_tas
+tminurban(:)         = urban_tas
+rnet_ave(:)          = 0.
+sunhours(:)          = 0.
+riwp_ave(:)          = 0.
+rlwp_ave(:)          = 0.
+qscrn_ave(:)         = 0.
+tscr_ave(:)          = 0.
+wb_ave(:,:)          = 0.
+wbice_ave(:,:)       = 0.
+tsu_ave(:)           = 0.
+alb_ave(:)           = 0.
+fbeam_ave(:)         = 0.
+psl_ave(:)           = 0.
+mixdep_ave(:)        = 0.
+
+! radiation
+koundiag             = 0
+sint_ave(:)          = 0.
+sot_ave(:)           = 0.
+soc_ave(:)           = 0.
+sgdn_ave(:)          = 0.
+sgn_ave(:)           = 0.
+rtu_ave(:)           = 0.
+rtc_ave(:)           = 0.
+rgdn_ave(:)          = 0.
+rgn_ave(:)           = 0.
+rgc_ave(:)           = 0.
+sgc_ave(:)           = 0.
+cld_ave(:)           = 0.
+cll_ave(:)           = 0.
+clm_ave(:)           = 0.
+clh_ave(:)           = 0.
+
+! zero evap, precip, precc, sno, runoff fields each nperavg (3/12/04) 
+evap(:)              = 0.  
+precip(:)            = 0.  ! converted to mm/day in outcdf
+precc(:)             = 0.  ! converted to mm/day in outcdf
+sno(:)               = 0.  ! converted to mm/day in outcdf
+grpl(:)              = 0.  ! converted to mm/day in outcdf
+runoff(:)            = 0.  ! converted to mm/day in outcdf
+runoff_surface(:)    = 0.  ! converted to mm/day in outcdf
+snowmelt(:)          = 0.  ! converted to mm/day in outcdf
+u10mx(:)             = 0.
+cape_max(:)          = 0.
+cape_ave(:)          = 0.
+
+if ( ngas>0 ) then
+  traver = 0.
+end if
+
+if ( ccycle/=0 ) then
+  fnee_ave = 0.  
+  fpn_ave  = 0.
+  frd_ave  = 0.
+  frp_ave  = 0.
+  frpw_ave = 0.
+  frpr_ave = 0.
+  frs_ave  = 0.
+  cnpp_ave = 0.
+  cnbp_ave = 0.
+end if
+
+if ( abs(iaero)>=2 ) then
+  duste         = 0.  ! Dust emissions
+  dustdd        = 0.  ! Dust dry deposition
+  dustwd        = 0.  ! Dust wet deposition
+  dust_burden   = 0.  ! Dust burden
+  bce           = 0.  ! Black carbon emissions
+  bcdd          = 0.  ! Black carbon dry deposition
+  bcwd          = 0.  ! Black carbon wet deposition
+  bc_burden     = 0.  ! Black carbon burden
+  oce           = 0.  ! Organic carbon emissions
+  ocdd          = 0.  ! Organic carbon dry deposition
+  ocwd          = 0.  ! Organic carbon wet deposition
+  oc_burden     = 0.  ! Organic carbon burden
+  dmse          = 0.  ! DMS emissions
+  dmsso2o       = 0.  ! DMS -> SO2 oxidation
+  so2e          = 0.  ! SO2 emissions
+  so2so4o       = 0.  ! SO2 -> SO4 oxidation
+  so2dd         = 0.  ! SO2 dry deposition
+  so2wd         = 0.  ! SO2 wet deposiion
+  so4e          = 0.  ! SO4 emissions
+  so4dd         = 0.  ! SO4 dry deposition
+  so4wd         = 0.  ! SO4 wet deposition
+  dms_burden    = 0.  ! DMS burden
+  so2_burden    = 0.  ! SO2 burden
+  so4_burden    = 0.  ! SO4 burden
+end if
+
+return
+end subroutine zero_nperavg
+    
+!--------------------------------------------------------------
+! Reset diagnostics for daily averages    
+subroutine zero_nperday
+
+use histave_m                              ! Time average arrays
+use parm_m                                 ! Model configuration
+use prec_m                                 ! Precipitation
+use screen_m                               ! Screen level diagnostics
+
+implicit none
+
+rndmax (:)  = 0.
+tmaxscr(:)  = tscrn(:) 
+tminscr(:)  = tscrn(:) 
+rhmaxscr(:) = rhscrn(:) 
+rhminscr(:) = rhscrn(:) 
+u10max(:)   = 0.
+v10max(:)   = 0.
+u1max(:)    = 0.
+v1max(:)    = 0.
+u2max(:)    = 0.
+v2max(:)    = 0.
+rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
+
+!if ( nextout >= 4 ) then
+!  call setllp ! reset once per day
+!end if
+
+return
+end subroutine zero_nperday
+    
+!--------------------------------------------------------------
+! Update diagnostics for averaging period    
+subroutine calculate_timeaverage
+
+use aerosolldr, only :                   & ! LDR prognostic aerosols
+     duste,dustwd,dustdd,dust_burden     &
+    ,bce,bcwd,bcdd,bc_burden             &
+    ,oce,ocwd,ocdd,oc_burden             &
+    ,dmse,dms_burden                     &
+    ,so2e,so2wd,so2dd,so2_burden         &
+    ,so4e,so4wd,so4dd,so4_burden         &
+    ,dmsso2o,so2so4o
+use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use cable_ccam, only : ccycle              ! CABLE
+use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
+    ,frpw,frpr,frs,cnpp,cnbp
+use histave_m                              ! Time average arrays
+use mlo, only : mlodiag                    ! Ocean physics and prognostic arrays
+use morepbl_m                              ! Additional boundary layer diagnostics
+use newmpar_m                              ! Grid parameters
+use parm_m                                 ! Model configuration
+use pbl_m                                  ! Boundary layer arrays
+use prec_m                                 ! Precipitation
+use raddiag_m                              ! Radiation diagnostic
+use screen_m                               ! Screen level diagnostics
+use soilsnow_m                             ! Soil, snow and surface data
+use tracers_m                              ! Tracer data
+use work3_m                                ! Mk3 land-surface diagnostic arrays
+
+implicit none
+
+integer iq, k
+real, dimension(ifull) :: spare1, spare2
+
+tmaxscr(1:ifull)           = max( tmaxscr(1:ifull), tscrn )
+tminscr(1:ifull)           = min( tminscr(1:ifull), tscrn )
+rhmaxscr(1:ifull)          = max( rhmaxscr(1:ifull), rhscrn )
+rhminscr(1:ifull)          = min( rhminscr(1:ifull), rhscrn )
+rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
+cape_max(1:ifull)          = max( cape_max(1:ifull), cape )
+cape_ave(1:ifull)          = cape_ave(1:ifull) + cape
+u10mx(1:ifull)             = max( u10mx(1:ifull), u10 )  ! for hourly scrnfile
+dew_ave(1:ifull)           = dew_ave(1:ifull) - min( 0., eg )    
+epan_ave(1:ifull)          = epan_ave(1:ifull) + epan
+epot_ave(1:ifull)          = epot_ave(1:ifull) + epot 
+eg_ave(1:ifull)            = eg_ave(1:ifull) + eg    
+fg_ave(1:ifull)            = fg_ave(1:ifull) + fg
+ga_ave(1:ifull)            = ga_ave(1:ifull) + ga
+anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
+tasurban_ave(1:ifull)      = tasurban_ave(1:ifull) + urban_tas
+tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urban_tas )
+tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
+rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
+tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
+qscrn_ave(1:ifull)         = qscrn_ave(1:ifull) + qgscrn 
+wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
+wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
+tsu_ave(1:ifull)           = tsu_ave(1:ifull) + tss
+!call mslp(spare2,psl,zs,t) ! calculate MSLP from psl
+!spare2 = spare2/100.       ! convert MSLP to hPa
+!psl_ave(1:ifull)           = psl_ave(1:ifull) + spare2(1:ifull)
+spare1(1:ifull)            = 0.
+call mlodiag(spare1,0)     ! obtain ocean mixed level depth
+mixdep_ave(1:ifull)        = mixdep_ave(1:ifull) + spare1(1:ifull)
+spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
+spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
+do iq = 1,ifull
+  if ( u10(iq)**2 > u10max(iq)**2 +v10max(iq)**2 ) then
+    u10max(iq) = u10(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
+    v10max(iq) = u10(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
+  end if
+  if ( spare1(iq) > u1max(iq)**2+v1max(iq)**2 ) then
+    u1max(iq) = u(iq,1)
+    v1max(iq) = v(iq,1)
+  end if
+  if ( spare2(iq) > u2max(iq)**2+v2max(iq)**2 ) then
+    u2max(iq) = u(iq,2)
+    v2max(iq) = v(iq,2)
+  end if
+end do
+
+if ( ngas>0 ) then
+  traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(:,:,1:ngas)
+end if
+
+if ( ccycle/=0 ) then
+  fnee_ave(1:ifull) = fnee_ave(1:ifull) + fnee  
+  fpn_ave(1:ifull)  = fpn_ave(1:ifull) + fpn
+  frd_ave(1:ifull)  = frd_ave(1:ifull) + frd
+  frp_ave(1:ifull)  = frp_ave(1:ifull) + frp
+  frpw_ave(1:ifull) = frpw_ave(1:ifull) + frpw
+  frpr_ave(1:ifull) = frpr_ave(1:ifull) + frpr
+  frs_ave(1:ifull)  = frs_ave(1:ifull) + frs
+  cnpp_ave(1:ifull) = cnpp_ave(1:ifull) + cnpp
+  cnbp_ave(1:ifull) = cnbp_ave(1:ifull) + cnbp
+end if
+
+if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
+  cape_ave(1:ifull)          = cape_ave(1:ifull)/min(ntau,nperavg)
+  dew_ave(1:ifull)           = dew_ave(1:ifull)/min(ntau,nperavg)
+  epan_ave(1:ifull)          = epan_ave(1:ifull)/min(ntau,nperavg)
+  epot_ave(1:ifull)          = epot_ave(1:ifull)/min(ntau,nperavg)
+  eg_ave(1:ifull)            = eg_ave(1:ifull)/min(ntau,nperavg)
+  fg_ave(1:ifull)            = fg_ave(1:ifull)/min(ntau,nperavg)
+  ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg)   
+  anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull)/min(ntau,nperavg)
+  tasurban_ave(1:ifull)      = tasurban_ave(1:ifull)/min(ntau,nperavg)
+  rnet_ave(1:ifull)          = rnet_ave(1:ifull)/min(ntau,nperavg)
+  sunhours(1:ifull)          = sunhours(1:ifull)/min(ntau,nperavg)
+  riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
+  rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
+  tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
+  qscrn_ave(1:ifull)         = qscrn_ave(1:ifull)/min(ntau,nperavg)
+  do k = 1,ms
+    wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
+    wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)
+  end do
+  tsu_ave(1:ifull)    = tsu_ave(1:ifull)/min(ntau,nperavg)
+  psl_ave(1:ifull)    = psl_ave(1:ifull)/min(ntau,nperavg)
+  mixdep_ave(1:ifull) = mixdep_ave(1:ifull)/min(ntau,nperavg)
+  sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
+  sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
+  sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)
+  sot_ave(1:ifull)    = sot_ave(1:ifull)/max(koundiag,1)
+  soc_ave(1:ifull)    = soc_ave(1:ifull)/max(koundiag,1)
+  rtu_ave(1:ifull)    = rtu_ave(1:ifull)/max(koundiag,1)
+  rtc_ave(1:ifull)    = rtc_ave(1:ifull)/max(koundiag,1)
+  rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
+  rgn_ave(1:ifull)    = rgn_ave(1:ifull)/max(koundiag,1)
+  rgc_ave(1:ifull)    = rgc_ave(1:ifull)/max(koundiag,1)
+  sgc_ave(1:ifull)    = sgc_ave(1:ifull)/max(koundiag,1)
+  cld_ave(1:ifull)    = cld_ave(1:ifull)/max(koundiag,1)
+  cll_ave(1:ifull)    = cll_ave(1:ifull)/max(koundiag,1)
+  clm_ave(1:ifull)    = clm_ave(1:ifull)/max(koundiag,1)
+  clh_ave(1:ifull)    = clh_ave(1:ifull)/max(koundiag,1)
+  alb_ave(1:ifull)    = alb_ave(1:ifull)/max(koundiag,1)
+  fbeam_ave(1:ifull)  = fbeam_ave(1:ifull)/max(koundiag,1)
+  cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
+  ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
+ 
+  if ( ngas>0 ) then
+    traver(1:ifull,1:kl,1:ngas) = traver(1:ifull,1:kl,1:ngas)/min(ntau,nperavg)
+  end if
+
+  if ( ccycle/=0 ) then
+    fnee_ave(1:ifull)   = fnee_ave(1:ifull)/min(ntau,nperavg)  
+    fpn_ave(1:ifull)    = fpn_ave(1:ifull)/min(ntau,nperavg)
+    frd_ave(1:ifull)    = frd_ave(1:ifull)/min(ntau,nperavg)
+    frp_ave(1:ifull)    = frp_ave(1:ifull)/min(ntau,nperavg)
+    frpw_ave(1:ifull)   = frpw_ave(1:ifull)/min(ntau,nperavg)
+    frpr_ave(1:ifull)   = frpr_ave(1:ifull)/min(ntau,nperavg)
+    frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
+    cnpp_ave(1:ifull)   = cnpp_ave(1:ifull)/min(ntau,nperavg)
+    cnbp_ave(1:ifull)   = cnbp_ave(1:ifull)/min(ntau,nperavg)
+  end if
+   
+  if ( abs(iaero)>=2 ) then
+    duste         = duste/min(ntau,nperavg)        ! Dust emissions
+    dustdd        = dustdd/min(ntau,nperavg)       ! Dust dry deposition
+    dustwd        = dustwd/min(ntau,nperavg)       ! Dust wet deposition
+    dust_burden   = dust_burden/min(ntau,nperavg)  ! Dust burden
+    bce           = bce/min(ntau,nperavg)          ! Black carbon emissions
+    bcdd          = bcdd/min(ntau,nperavg)         ! Black carbon dry deposition
+    bcwd          = bcwd/min(ntau,nperavg)         ! Black carbon wet deposition
+    bc_burden     = bc_burden/min(ntau,nperavg)    ! Black carbon burden
+    oce           = oce/min(ntau,nperavg)          ! Organic carbon emissions
+    ocdd          = ocdd/min(ntau,nperavg)         ! Organic carbon dry deposition
+    ocwd          = ocwd/min(ntau,nperavg)         ! Organic carbon wet deposition
+    oc_burden     = oc_burden/min(ntau,nperavg)    ! Organic carbon burden
+    dmse          = dmse/min(ntau,nperavg)         ! DMS emissions
+    dmsso2o       = dmsso2o/min(ntau,nperavg)      ! DMS -> SO2 oxidation
+    so2e          = so2e/min(ntau,nperavg)         ! SO2 emissions
+    so2so4o       = so2so4o/min(ntau,nperavg)      ! SO2 -> SO4 oxidation
+    so2dd         = so2dd/min(ntau,nperavg)        ! SO2 dry deposition
+    so2wd         = so2wd/min(ntau,nperavg)        ! SO2 wet deposiion
+    so4e          = so4e/min(ntau,nperavg)         ! SO4 emissions
+    so4dd         = so4dd/min(ntau,nperavg)        ! SO4 dry deposition
+    so4wd         = so4wd/min(ntau,nperavg)        ! SO4 wet deposition
+    dms_burden    = dms_burden/min(ntau,nperavg)   ! DMS burden
+    so2_burden    = so2_burden/min(ntau,nperavg)   ! SO2 burden
+    so4_burden    = so4_burden/min(ntau,nperavg)   ! SO4 burden
+  end if
+
+end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
+
+return
+end subroutine calculate_timeaverage
+    
     
 !subroutine gabls_flux(xtg,pps,pta,ppa,pu,pv,prhoa,zref,z0, &
 !                      psfth,zustar,zvmod)

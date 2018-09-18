@@ -146,8 +146,8 @@ elseif ( mup<4 .or. num==0 ) then  ! ************usual***********
   end if
   if ( diag ) then
     call bounds(ps)
-    write(6,*) 'after bounds in updps'
     if ( mydiag ) then
+      write(6,*) 'after bounds in updps'  
       iq = idjd
       write(6,*) 'in updps'
       write(6,*) 'dhatA ',(d(iq,k)-pslx(iq,k),k=1,kl)

@@ -48,6 +48,7 @@ public save_ocean, save_radiation, save_urban, save_carbon, save_river
 public procmode, procformat, compression
 public nud_period, mins_rad, nalpha, jalbfix, irest, nwrite
 public nstagin, nstaguin
+public hp_output
 
 integer, save :: ngwd=-5, nrungcm=-1, newtop=1
 integer, save :: kountr=0, nrad=4, nvmix=3, nlocal=6
@@ -65,6 +66,7 @@ integer, save :: leap=0, nbarewet=0, nsigmf=1
 integer, save :: procmode=0, compression=1
 integer, save :: nud_period=-1, mins_rad=-1, nalpha=1, jalbfix=1, irest=1, nwrite=0
 integer, save :: nstagin=0, nstaguin=0
+integer, save :: hp_output=0
 !integer, save :: filemode=0, ioreaders=-1
 real, save :: qgmin=1.e-6
 real, save :: av_vmod=0.7, vmodmin=0.2, snmin=0.11, tss_sh=1., charnock=0.018, chn10=0.00125, zobgin=0.02

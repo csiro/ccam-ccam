@@ -19,10 +19,9 @@
 
 !------------------------------------------------------------------------------
     
-subroutine depts1(x3d,y3d,z3d,uc,vc,wc,s,sx)  ! input ubar,vbar are unstaggered vels for level k
+subroutine depts1(x3d,y3d,z3d)  ! input ubar,vbar are unstaggered vels for level k
 
 use cc_mpi
-use cc_omp, only : using_omp
 use const_phys
 use indices_m
 use map_m
@@ -39,18 +38,15 @@ implicit none
 integer iq, k, intsch, idel, jdel, nn
 integer i, j, n, ii
 real xxg, yyg
-real, dimension(ifull,kl), intent(inout) :: uc, vc, wc
-real, dimension(ifull+iextra,kl,3), intent(inout) :: s
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,3), intent(inout) :: sx
+real, dimension(ifull,kl) :: uc, vc, wc
+real, dimension(ifull+iextra,kl,3) :: s
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,3) :: sx
 real(kind=8), dimension(ifull,kl) :: x3d, y3d, z3d   ! upglobal depts 
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
       
-!$omp master
 call START_LOG(depts_begin)
-!$omp end master
 
-!$omp do
 do k = 1,kl
   ! departure point x, y, z is called x3d, y3d, z3d
   ! first find corresponding cartesian vels
@@ -61,19 +57,14 @@ do k = 1,kl
   y3d(1:ifull,k) = y(1:ifull) - real(vc(1:ifull,k),8)
   z3d(1:ifull,k) = z(1:ifull) - real(wc(1:ifull,k),8)
 end do
-!$omp end do nowait
 
 ! convert to grid point numbering
 call toij5(x3d,y3d,z3d)
 
 ! Share off processor departure points.
-!$omp barrier
-!$omp master
 call deptsync(nface,xg,yg)
-!$omp end master
-!$omp barrier
 
-if ( diag .and. mydiag .and. .not.using_omp ) then
+if ( diag .and. mydiag ) then
   write(6,*) 'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
   write(6,*) 'uc,vc,wc ',uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
   write(6,*) 'x,y,z ',x(idjd),y(idjd),z(idjd)
@@ -83,25 +74,17 @@ if ( diag .and. mydiag .and. .not.using_omp ) then
 endif
 
 intsch = mod(ktau, 2)
-!$omp do
-do k = 1,kl
-  s(1:ifull,k,1) = uc(1:ifull,k)
-  s(1:ifull,k,2) = vc(1:ifull,k)
-  s(1:ifull,k,3) = wc(1:ifull,k)
-end do
-!$omp end do
+s(1:ifull,:,1) = uc(1:ifull,:)
+s(1:ifull,:,2) = vc(1:ifull,:)
+s(1:ifull,:,3) = wc(1:ifull,:)
 
-!$omp master
 call bounds(s,nrows=2)
-!$omp end master
-!$omp barrier
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
-!$omp do
-  do k = 1,kl
-    do nn = 1,3
-      sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,nn), (/ipan,jpan,npan/))
+  sx(1:ipan,1:jpan,1:npan,1:kl,1:3) = reshape(s(1:ipan*jpan*npan,1:kl,1:3), (/ipan,jpan,npan,kl,3/))
+  do nn = 1,3
+    do k = 1,kl
       do n = 1,npan
 !$omp simd
         do j = 1,jpan
@@ -137,11 +120,9 @@ if ( intsch==1 ) then
         sx(0,jpan+1,n,k,nn)      = s(iwn(1-ipan+n*ipan*jpan),k,nn)
         sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),k,nn)
       end do          ! n loop
-    end do              ! nn loop
-  end do            ! k loop
-!$omp end do
+    end do            ! k loop
+  end do              ! nn loop
 
-!$omp master
   ! Loop over points that need to be calculated for other processes
   do ii = neighnum,1,-1
     do nn = 1,3
@@ -178,12 +159,9 @@ if ( intsch==1 ) then
   end do            ! ii loop
 
   call intssync_send(3)
-!$omp end master
-!$omp barrier
 
-!$omp do
-  do k = 1,kl
-    do nn = 1,3
+  do nn = 1,3
+    do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
@@ -211,18 +189,16 @@ if ( intsch==1 ) then
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do   ! iq loop
-    end do       ! nn loop
-  end do     ! k loop
-!$omp end do
+    end do     ! k loop
+  end do       ! nn loop
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 
-!$omp do
-  do k = 1,kl
-    do nn = 1,3
-      sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,nn), (/ipan,jpan,npan/))
+  sx(1:ipan,1:jpan,1:npan,1:kl,1:3) = reshape(s(1:ipan*jpan*npan,1:kl,1:3), (/ipan,jpan,npan,kl,3/))
+  do nn = 1,3
+    do k = 1,kl
       do n = 1,npan
 !$omp simd
         do j = 1,jpan
@@ -258,11 +234,9 @@ else     ! if(intsch==1)then
         sx(ipan+1,0,n,k,nn)      = s(ise(ipan+(n-1)*ipan*jpan),k,nn)
         sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),k,nn)
       end do              ! n loop
-    end do                  ! nn loop
-  end do                ! k loop
-!$omp end do
+    end do                ! k loop
+  end do                  ! nn loop
 
-!$omp master
   ! For other processes
   do ii = neighnum,1,-1
     do nn = 1,3
@@ -298,12 +272,9 @@ else     ! if(intsch==1)then
   end do              ! ii
 
   call intssync_send(3)
-!$omp end master
-!$omp barrier
 
-!$omp do
-  do k = 1,kl
-    do nn = 1,3
+  do nn = 1,3
+    do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
@@ -331,35 +302,25 @@ else     ! if(intsch==1)then
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
-    end do              ! nn loop
-  end do            ! k loop
-!$omp end do
+    end do            ! k loop
+  end do              ! nn loop
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
-!$omp master
 call intssync_recv(s)
-!$omp end master
-!$omp barrier
 
-!$omp do
 do k = 1,kl
   x3d(1:ifull,k) = x(1:ifull) - 0.5_8*(real(uc(1:ifull,k),8)+real(s(1:ifull,k,1),8)) ! 2nd guess
   y3d(1:ifull,k) = y(1:ifull) - 0.5_8*(real(vc(1:ifull,k),8)+real(s(1:ifull,k,2),8)) ! 2nd guess
   z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! 2nd guess
 end do
-!$omp end do nowait
 
-call toij5(x3d,y3d,z3d)
+call toij5 (x3d,y3d,z3d)
 !     Share off processor departure points.
-!$omp barrier
-!$omp master
 call deptsync(nface,xg,yg)
-!$omp end master
-!$omp barrier
 
-if ( diag .and. mydiag .and. .not.using_omp ) then
+if ( diag .and. mydiag ) then
   write(6,*) '2nd guess for k = ',nlv
   write(6,*) 'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
   write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
@@ -368,7 +329,6 @@ end if
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
 
-!$omp master
   ! Loop over points that need to be calculated for other processes
   do ii = neighnum,1,-1
     do nn = 1,3
@@ -405,12 +365,9 @@ if ( intsch==1 ) then
   end do            ! ii loop
 
   call intssync_send(3)
-!$omp end master
-!$omp barrier
 
-!$omp do
-  do k = 1,kl
-    do nn = 1,3
+  do nn = 1,3
+    do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
@@ -438,15 +395,13 @@ if ( intsch==1 ) then
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do   ! iq loop
-    end do       ! nn loop
-  end do     ! k loop
-!$omp end do
+    end do     ! k loop
+  end do       ! nn loop
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 
-!$omp master
   ! For other processes
   do ii = neighnum,1,-1
     do nn = 1,3
@@ -483,12 +438,9 @@ else     ! if(intsch==1)then
   end do              ! ii
 
   call intssync_send(3)
-!$omp end master
-!$omp barrier
 
-!$omp do
-  do k = 1,kl
-    do nn = 1,3
+  do nn = 1,3
+    do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
         idel = int(xg(iq,k))
@@ -517,44 +469,32 @@ else     ! if(intsch==1)then
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
-    end do              ! k loop
-  end do            ! nn loop
-!$omp end do
+    end do            ! nn loop
+  end do              ! k loop
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
-!$omp master
 call intssync_recv(s)
-!$omp end master
-!$omp barrier
 
-!$omp do
 do k = 1,kl
   x3d(1:ifull,k) = x(1:ifull) - 0.5_8*(real(uc(1:ifull,k),8)+real(s(1:ifull,k,1),8)) ! 3rd guess
   y3d(1:ifull,k) = y(1:ifull) - 0.5_8*(real(vc(1:ifull,k),8)+real(s(1:ifull,k,2),8)) ! 3rd guess
   z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! 3rd guess
 end do
-!$omp end do nowait
 
 call toij5(x3d,y3d,z3d)
 
-if ( diag .and. mydiag .and. .not.using_omp ) then
+if ( diag .and. mydiag ) then
   write(6,*) '3rd guess for k = ',nlv
   write(6,*) 'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
   write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
 end if
 
 ! Share off processor departure points.
-!$omp barrier
-!$omp master
 call deptsync(nface,xg,yg)
-!$omp end master
-!$omp barrier
 
-!$omp master
 call END_LOG(depts_end)
-!$omp end master
       
 return
 end subroutine depts1
@@ -599,19 +539,13 @@ real(kind=8), dimension(ifull,kl), intent(in) :: x3d,y3d,z3d
 real(kind=8), dimension(ifull) :: den
 logical, dimension(ifull) :: xytest, xztest, yztest
 
-!$omp master
-call START_LOG(toij_begin)
-!$omp end master
-
 #ifdef cray
-!$omp master
 ! check if divide by itself is working
 if ( num==0 ) then
   if ( myid==0 ) write(6,*)'checking for ncray'
   call checkdiv(xstr,ystr,zstr)
 end if
 num = 1
-!$omp end master
 #endif
 
 ! if necessary, transform (x3d, y3d, z3d) to equivalent
@@ -619,7 +553,6 @@ num = 1
 alf           = (1._8-real(schmidt,8)*real(schmidt,8))/(1._8+real(schmidt,8)*real(schmidt,8))
 alfonsch      = 2._8*real(schmidt,8)/(1._8+real(schmidt,8)*real(schmidt,8))  ! same but bit more accurate
 
-!$omp do
 do k = 1,kl
     
   den(1:ifull)  = 1._8 - alf*z3d(1:ifull,k)
@@ -679,7 +612,7 @@ do k = 1,kl
 #endif
 
 #ifdef debug
-  if(ntest==1.and.k==nlv.and..not.using_omp)then
+  if(ntest==1.and.k==nlv)then
     iq=idjd
     write(6,*) 'x3d,y3d,z3d ',x3d(iq),y3d(iq),z3d(iq)
     den(iq)=1._8-alf*z3d(iq) ! to force real*8
@@ -693,7 +626,7 @@ do k = 1,kl
     write(6,*) 'xd,yd,zd,nface ',xd(iq),yd(iq),zd(iq),nface(iq,k)
     write(6,*) 'alf,alfonsch ',alf,alfonsch
   endif
-  if(ndiag==2 .and. .not.using_omp)then
+  if(ndiag==2)then
     call printp('xcub',xd)  ! need to reinstate as arrays for this diag
     call printp('ycub',yd)
     call printp('zcub',zd)
@@ -734,11 +667,6 @@ do k = 1,kl
   yg(1:ifull,k) = 0.25*(rj(1:ifull)+3.) - 0.5  ! -.5 for stag
   
 end do
-!$omp end do nowait
-
-!$omp master
-call END_LOG(toij_end)
-!$omp end master
 
 return
 end subroutine toij5

@@ -20,7 +20,7 @@
 !------------------------------------------------------------------------------
 
 !      PE model on conformal-cubic grid
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !      input files are :namelist (via file called "input")
 !                       "nrun.dat"
 !      data input and output file names are specified in namelist 'datafile'
@@ -28,11 +28,11 @@
 !     sign convention:
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
-
+    
 program globpe
 
 use aerointerface                          ! Aerosol interface
-use aerosolldr, only : xtosav,xtg          ! LDR prognostic aerosols
+use aerosolldr, only : naero,xtosav,xtg    ! LDR prognostic aerosols
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
 use cc_mpi                                 ! CC MPI routines
@@ -45,6 +45,7 @@ use dates_m                                ! Date data
 use daviesnudge                            ! Far-field nudging
 use diag_m                                 ! Diagnostic routines
 use dpsdt_m                                ! Vertical velocity
+use ensemble                               ! Ensemble
 use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
@@ -135,6 +136,9 @@ end if
 
 !--------------------------------------------------------------
 ! INITALISE MPI and OpenMP ROUTINES
+! CCAM has been optimised around MPI for parallel processing, although
+! CCAM does support OMP parallel threads for its physical
+! parameterisations
 call ccmpi_init
 call ccomp_init
 
@@ -168,13 +172,13 @@ if ( myid<nproc ) then
   if ( nwt>0 ) then
     ! write out the first ofile data set
     if ( myid==0 ) write(6,*) "calling outfile"
-    call outfile(20)
-    if ( newtop<0 ) then
-      ! just for outcdf to plot zs  & write fort.22      
-      if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"
-      call ccmpi_abort(-1)
-    end if
+    call outfile(20,ofile,psl,u,v,t,qg)
   end if    ! (nwt>0)
+  if ( newtop<0 ) then
+    ! just for outcdf to plot zs  & write fort.22      
+    if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"
+    call ccmpi_abort(-1)
+  end if
 
   
   !-------------------------------------------------------------
@@ -183,10 +187,10 @@ if ( myid<nproc ) then
   do n3hr = 1,8
     nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
   end do
-  n3hr = 1   ! initial value at start of run
-  nlx = 0    ! diagnostic level
-  call zero_nperavg
-  call zero_nperday
+  n3hr = 1           ! initial value at start of run
+  nlx = 0            ! diagnostic level
+  call zero_nperavg  ! reset average period diagnostics
+  call zero_nperday  ! reset daily period diagnostics
 
   
   !--------------------------------------------------------------
@@ -207,7 +211,7 @@ if ( myid<nproc ) then
   
   !--------------------------------------------------------------
   ! SET-UP TIMERS
-  mtimer_sav = 0                                                       ! saved value for minute timer
+  mtimer_sav = 0      ! saved value for minute timer
   nmaxprsav  = nmaxpr
   nwtsav     = nwt
   hourst     = real(nint(0.01*real(ktime))) + real(mod(ktime,100))/60. ! for tracers
@@ -227,12 +231,12 @@ if ( myid<nproc ) then
 
     timer    = timer + real(ktau)*dtin/3600.             ! timer now only used to give timeg
     timeg    = mod( timer+hourst, 24. )                  ! UTC time for tracers
-    mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
+    mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! to allow dt < 1 minute
     mins_gmt = mod( mtimer+60*ktime/100, 24*60 )         ! for radiation
     call getzinp(jyear,jmonth,jday,jhour,jmin,mins)      ! define mins as time since start of the year
     diag = ( ktau>=abs(ndi) .and. ktau<=ndi2 )           ! set diagnostic printout flag
     if ( ndi<0 ) then
-      if ( ktau==(ktau/ndi)*ndi ) then
+      if ( mod(ktau,ndi)==0 ) then
         diag = .true.
       end if
     endif
@@ -246,24 +250,28 @@ if ( myid<nproc ) then
     ! ***********************************************************************
     ! START ATMOSPHERE DYNAMICS
     ! ***********************************************************************
-    
+
+
     ! NESTING ---------------------------------------------------------------
     if ( nbd/=0 ) then
       ! Newtonian relaxiation
+      call nantest("before nesting",1,ifull)  
       call START_LOG(nestin_begin)
       call nestin
       call END_LOG(nestin_end)
+      call nantest("after nesting",1,ifull)
+    else
+      call nantest("before atmosphere dynamics",1,ifull)   
     end if
-      
+    
     
     ! DYNAMICS --------------------------------------------------------------
-    call nantest("before atmosphere dynamics",1,ifull)   
     if ( nstaguin>0 .and. ktau>=1 ) then   ! swapping here for nstaguin>0
       if ( nstagin<0 .and. mod(ktau-nstagoff,abs(nstagin))==0 ) then
         nstag  = 7 - nstag  ! swap between 3 & 4
         nstagu = nstag
-      endif
-    endif
+      end if
+    end if
 
     do mspec = mspeca,1,-1    ! start of introductory time loop
    
@@ -275,7 +283,7 @@ if ( myid<nproc ) then
         call bounds(psl)
         ! updps called first step or to permit clean restart option      
         call updps(0) 
-      endif
+      end if
     
       if ( ktau<10 .and. nmaxpr==1 ) then
         if ( myid==0 ) then
@@ -286,17 +294,17 @@ if ( myid<nproc ) then
       ! set up tau +.5 velocities in ubar, vbar
       sbar(:,2:kl) = sdot(:,2:kl)
       if ( (ktau==1.and..not.lrestart) .or. mex==1 ) then
-        ubar(:,:) = u(1:ifull,:)
-        vbar(:,:) = v(1:ifull,:)
-      elseif ( (ktau==2.and..not.lrestart) .or. mex==2 ) then        
+        ubar(1:ifull,1:kl) = u(1:ifull,1:kl)
+        vbar(1:ifull,1:kl) = v(1:ifull,1:kl)
+      else if ( (ktau==2.and..not.lrestart) .or. mex==2 ) then        
         ! (tau+.5) from tau, tau-1
-        ubar(:,:) = u(1:ifull,:)*1.5 - savu(:,:)*.5
-        vbar(:,:) = v(1:ifull,:)*1.5 - savv(:,:)*.5
-      elseif ( mex==3 )then
+        ubar(1:ifull,1:kl) = u(1:ifull,1:kl)*1.5 - savu(1:ifull,1:kl)*.5
+        vbar(1:ifull,1:kl) = v(1:ifull,1:kl)*1.5 - savv(1:ifull,1:kl)*.5
+      else if ( mex==3 )then
         ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
-        ubar(:,:) = u(1:ifull,:)+.5*(savu(:,:)-savu1(:,:))
-        vbar(:,:) = v(1:ifull,:)+.5*(savv(:,:)-savv1(:,:))
-      elseif ( mex==30 ) then  ! using tau, tau-1, tau-2, tau-3
+        ubar(1:ifull,1:kl) = u(1:ifull,1:kl)+.5*(savu(1:ifull,1:kl)-savu1(1:ifull,1:kl))
+        vbar(1:ifull,1:kl) = v(1:ifull,1:kl)+.5*(savv(1:ifull,1:kl)-savv1(1:ifull,1:kl))
+      else if ( mex==30 ) then  ! using tau, tau-1, tau-2, tau-3
         do k = 1,kl
           do iq = 1,ifull
             bb = 1.5*u(iq,k) - 2.*savu(iq,k) + .5*savu1(iq,k)                             ! simple b
@@ -308,22 +316,22 @@ if ( myid<nproc ) then
             cc = rat*cc + (1.-rat)*cc_2 
             bb = rat*bb + (1.-rat)*bb_2 
             ubar(iq,k) = u(iq,k) + .5*bb + .25*cc
-            bb = 1.5*v(iq,k) - 2.*savv(iq,k) + .5*savv1(iq,k)                           ! simple b
-            bb_2 = (40.*v(iq,k)-35.*savv(iq,k)-16.*savv1(iq,k)+11.*savv2(iq,k))/34.     ! cwqls b
-            cc = .5*v(iq,k) - savv(iq,k) + .5*savv1(iq,k)                               ! simple c
-            cc_2 = (10.*v(iq,k)-13.*savv(iq,k)-4.*savv1(iq,k)+7.*savv2(iq,k))/34.       ! cwqls c
+            bb = 1.5*v(iq,k) - 2.*savv(iq,k) + .5*savv1(iq,k)                             ! simple b
+            bb_2 = (40.*v(iq,k)-35.*savv(iq,k)-16.*savv1(iq,k)+11.*savv2(iq,k))/34.       ! cwqls b
+            cc = .5*v(iq,k) - savv(iq,k) + .5*savv1(iq,k)                                 ! simple c
+            cc_2 = (10.*v(iq,k)-13.*savv(iq,k)-4.*savv1(iq,k)+7.*savv2(iq,k))/34.         ! cwqls c
             aa = cc_2 - cc
             rat = max( 0., min( 1., cc_2/(aa+sign(1.e-9,aa)) ) )
             cc = rat*cc + (1.-rat)*cc_2 
             bb = rat*bb + (1.-rat)*bb_2 
             vbar(iq,k) = v(iq,k)+.5*bb+.25*cc
-          enddo ! iq loop
-        enddo   ! k loop 
-      else      ! i.e. mex >=4 and ktau>=3
+          end do ! iq loop
+        end do   ! k loop 
+      else       ! i.e. mex >=4 and ktau>=3
         ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
-        ubar(:,:) = (u(1:ifull,:)*15.-savu(:,:)*10.+savu1(:,:)*3.)/8.
-        vbar(:,:) = (v(1:ifull,:)*15.-savv(:,:)*10.+savv1(:,:)*3.)/8.
-      end if    ! (ktau==1) .. else ..
+        ubar(1:ifull,1:kl) = (u(1:ifull,1:kl)*15.-savu(1:ifull,1:kl)*10.+savu1(1:ifull,1:kl)*3.)/8.
+        vbar(1:ifull,1:kl) = (v(1:ifull,1:kl)*15.-savv(1:ifull,1:kl)*10.+savv1(1:ifull,1:kl)*3.)/8.
+      end if     ! (ktau==1) .. else ..
       
       if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
         nlx = max( 2, nlv )  ! as savs not defined for k=1
@@ -411,18 +419,21 @@ if ( myid<nproc ) then
       
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
-      call START_LOG(nestin_begin)
       if ( mspec==1 ) then
         if ( mbd/=0 .or. (mbd_mlo/=0.and.namip==0) ) then
           ! scale-selective filter
+          call START_LOG(nestin_begin)
           call nestinb
+          call nantest("after nesting",1,ifull)      
+          call END_LOG(nestin_end)
         else if ( nbd/=0 ) then
           ! Newtonian relaxiation
+          call START_LOG(nestin_begin)
           call davies
+          call nantest("after nesting",1,ifull)      
+          call END_LOG(nestin_end)
         end if
       end if
-      call nantest("after nesting",1,ifull)      
-      call END_LOG(nestin_end)
     
       
       ! DYNAMICS --------------------------------------------------------------
@@ -470,12 +481,13 @@ if ( myid<nproc ) then
     ! nmlo>9   Use external PCOM ocean model
   
     if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
-      ! DYNAMICS & DIFFUSION ------------------------------------------------
+      ! DYNAMICS ------------------------------------------------------------
       call START_LOG(waterdynamics_begin)
       call mlohadv
       call END_LOG(waterdynamics_end)
-    else if ( abs(nmlo)==2 ) then
-      ! DIFFUSION ONLY ------------------------------------------------------
+    end if
+    if ( abs(nmlo)>=2 .and. abs(nmlo)<=9 ) then
+      ! DIFFUSION -----------------------------------------------------------
       call START_LOG(waterdynamics_begin)
       call mlodiffusion
       call END_LOG(waterdynamics_end)
@@ -508,7 +520,7 @@ if ( myid<nproc ) then
         call seaesfrad_settime  
       end if    ! (nhstest<0)      
     end if    
-    ! aerosol timer calculations
+    ! aerosol timer (true indicates update oxidants, etc)
     oxidant_update = oxidant_timer<=mins-updateoxidant
 
     
@@ -517,7 +529,7 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax  
+      je = tile*imax
       ! initialse surface rainfall to zero
       condc(js:je) = 0. ! default convective rainfall (assumed to be rain)
       condx(js:je) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
@@ -532,15 +544,15 @@ if ( myid<nproc ) then
       end if     ! (ntsur<=1.or.nhstest==2) 
       ! Save aerosol concentrations for outside convective fraction of grid box
       if ( abs(iaero)>=2 ) then
-        xtosav(js:je,:,:) = xtg(js:je,:,:) ! Aerosol mixing ratio outside convective cloud
+        xtosav(js:je,1:kl,1:naero) = xtg(js:je,1:kl,1:naero) ! Aerosol mixing ratio outside convective cloud
       end if
       js = (tile-1)*imax + 1
-      je = tile*imax  
+      je = tile*imax
       call nantest("start of physics",js,je)
     end do  
 !$omp end do nowait
-    
-    
+
+
     ! GWDRAG ----------------------------------------------------------------
 !$omp master
     call START_LOG(gwdrag_begin)
@@ -551,7 +563,7 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax  
+      je = tile*imax
       call nantest("after gravity wave drag",js,je)
     end do  
 !$omp end do nowait
@@ -567,7 +579,7 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax  
+      je = tile*imax
       convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) - t(js:je,1:kl)*real(nperday)/real(nperavg)        
     end do
 !$omp end do nowait
@@ -586,7 +598,7 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax  
+      je = tile*imax
       call fixqg(js,je)
       call nantest("after convection",js,je)
     end do  
@@ -607,7 +619,7 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax  
+      je = tile*imax
       convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) + t(js:je,1:kl)*real(nperday)/real(nperavg)    
       call nantest("after cloud microphysics",js,je) 
     end do  
@@ -625,7 +637,7 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je)
       do tile = 1,ntiles
         js = (tile-1)*imax + 1
-        je = tile*imax 
+        je = tile*imax
         nettend(js:je,1:kl) = nettend(js:je,1:kl) + t(js:je,1:kl)/dt
       end do
 !$omp end do nowait
@@ -642,10 +654,8 @@ if ( myid<nproc ) then
           mtimer = mtimer_sav
         else
           call radrive(il*nrows_rad)  
-          do k = 1,kl
-            t(1:ifull,k) = t(1:ifull,k) - dt*(sw_tend(1:ifull,k)+lw_tend(1:ifull,k))
-          end do
         end if    ! (nhstest<0)
+        t(1:ifull,1:kl) = t(1:ifull,1:kl) - dt*(sw_tend(1:ifull,1:kl)+lw_tend(1:ifull,1:kl))
 !$omp end single
       case(5)
         ! GFDL SEA-EFS radiation
@@ -653,28 +663,26 @@ if ( myid<nproc ) then
 !$omp do schedule(static) private(js,je,k)
         do tile = 1,ntiles
           js = (tile-1)*imax + 1
-          je = tile*imax 
-          do k = 1,kl
-            t(js:je,k) = t(js:je,k) - dt*(sw_tend(js:je,k)+lw_tend(js:je,k))
-          end do
-        end do  
+          je = tile*imax
+          t(js:je,1:kl) = t(js:je,1:kl) - dt*(sw_tend(js:je,1:kl)+lw_tend(js:je,1:kl))
+        end do
 !$omp end do nowait
       case DEFAULT
         ! use preset slwa array (use +ve nrad)
 !$omp do schedule(static) private(js,je)
         do tile = 1,ntiles
           js = (tile-1)*imax + 1
-          je = tile*imax 
+          je = tile*imax
           slwa(js:je) = -real(10*nrad)
-        end do  
+        end do
 !$omp end do nowait
     end select
 !$omp do schedule(static) private(js,je)  
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax 
+      je = tile*imax
       call nantest("after radiation",js,je)    
-    end do  
+    end do
 !$omp end do nowait
 !$omp master
     call END_LOG(radnet_end)
@@ -764,7 +772,7 @@ if ( myid<nproc ) then
     call END_LOG(vertmix_end)
 !$omp end master
 
-    
+
     ! MISC (PARALLEL) -------------------------------------------------------
     ! Update diagnostics for consistancy in history file
     if ( rescrn>0 ) then
@@ -858,19 +866,23 @@ if ( myid<nproc ) then
     endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
   
 
-    ! WRITE DATA TO HISTORY AND RESTART FILES --------------------
+    ! WRITE DATA TO HISTORY, ENSEMBLE AND RESTART FILES ---------------
     call log_off
     if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
-      call outfile(20)  ! which calls outcdf
+      call outfile(20,ofile,psl,u,v,t,qg)  ! which calls outcdf
       if ( ktau==ntau .and. irest==1 ) then
         ! Don't include the time for writing the restart file
         call END_LOG(maincalc_end)
         ! write restart file
-        call outfile(19)
+        call outfile(19,restfile,psl,u,v,t,qg)
         if ( myid==0 ) write(6,*) 'finished writing restart file in outfile'
         call START_LOG(maincalc_begin)
       endif  ! (ktau==ntau.and.irest==1)
     endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
+    if ( ensemble_mode>0 ) then
+      call update_ensemble  
+      call fixqg(1,ifull)
+    end if
     ! write high temporal frequency fields
     if ( surfile /= ' ' ) then
       call freqfile
@@ -968,7 +980,7 @@ if ( myid<nproc ) then
   end if
   
   ! close mesonest files
-  if ( mbd/=0 .or. nbd/=0 ) then
+  if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) then
     call histclose
   end if
 
@@ -1280,6 +1292,7 @@ use darcdf_m                               ! Netcdf data
 use daviesnudge                            ! Far-field nudging
 use diag_m                                 ! Diagnostic routines
 use dpsdt_m                                ! Vertical velocity
+use ensemble                               ! Ensemble routines
 use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
@@ -1355,7 +1368,7 @@ include 'version.h'                        ! Model version data
 integer, dimension(:), allocatable, save :: dumi
 integer ierr, k, new_nproc, ilx, jlx, i, ng
 integer isoth, nsig, lapsbot
-integer secs_rad, nversion, npa, npb
+integer secs_rad, nversion
 integer mstn, io_nest, mbd_min
 integer opt, nopt
 real, dimension(:,:), allocatable, save :: dums
@@ -1381,7 +1394,7 @@ real, dimension(1) :: gtemparray
 ! version namelist
 namelist/defaults/nversion
 ! main namelist
-namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
+namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,             &
     mbd_maxscale,mbd_maxgrid,ndi,ndi2,nhor,nlv,nmaxpr,nrad,ntaft, &
     ntsea,ntsur,nvmix,restol,precon,kdate_s,ktime_s,leap,newtop,  &
@@ -1399,8 +1412,9 @@ namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
     cgmap_scale,nriver,atebnmlfile,nud_period,mfix_t,             &
-    procformat,procmode,compression,                              & ! file io
+    procformat,procmode,compression,hp_output,                    & ! file io
     maxtilesize,                                                  & ! OMP
+    ensemble_mode,ensemble_period,                                & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn              ! backwards compatible
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
@@ -1415,6 +1429,7 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     surfile,topofile,vegfile,zofile,surf_00,surf_12,laifile,      &
     albnirfile,urbanfile,bathfile,vegprev,vegnext,vegnext2,       &
     cnsdir,salfile,oxidantfile,casafile,phenfile,                 &
+    ensembleoutfile,                                              &
     save_aerosols,save_pbl,save_cloud,save_land,save_maxmin,      &
     save_ocean,save_radiation,save_urban,save_carbon,save_river
 ! convection and cloud microphysics namelist
@@ -1428,11 +1443,11 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     rcm,                                                          &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
 ! boundary layer turbulence and gravity wave namelist
-namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL scheme
+namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & ! EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
     stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,                 &
-    amxlsq,                                                       & !JH PBL scheme
-    ngwd,helim,fc2,sigbot_gwd,alphaj                                !GWdrag
+    amxlsq,                                                       & ! JH PBL scheme
+    ngwd,helim,fc2,sigbot_gwd,alphaj                                ! GWdrag
 ! land, urban and carbon namelist
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
@@ -1452,13 +1467,12 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_ac_deltat,ateb_acfactor,ateb_ac_copmax,                  &
     siburbanfrac
 ! ocean namelist
-namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   &
+namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,mlomfix,otaumode,            &
     alphavis_seaice,alphanir_seaice,mlojacobi,                    &
     rivermd,basinmd,rivercoeff                                      ! River
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
-
 
 !--------------------------------------------------------------
 ! READ COMMAND LINE OPTIONS
@@ -1514,7 +1528,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(115) ) 
+allocate( dumr(33), dumi(116) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1554,119 +1568,120 @@ if ( myid==0 ) then
   dumr(33)  = rhsat
   dumi(1)   = ntau
   dumi(2)   = nwt
-  dumi(3)   = npa
-  dumi(4)   = npb
-  dumi(5)   = nhorps
-  dumi(6)   = nperavg
-  dumi(7)   = ia
-  dumi(8)   = ib
-  dumi(9)   = ja
-  dumi(10)  = jb
-  dumi(11)  = id
-  dumi(12)  = jd
-  dumi(13)  = iaero
-  dumi(14)  = khdif
-  dumi(15)  = khor
-  dumi(16)  = nhorjlm
-  dumi(17)  = mex
-  dumi(18)  = mbd
-  dumi(19)  = nbd
-  dumi(20)  = mbd_maxscale
-  dumi(21)  = mbd_maxgrid
-  dumi(22)  = ndi
-  dumi(23)  = ndi2
-  dumi(24)  = nhor
-  dumi(25)  = nlv
-  dumi(26)  = nmaxpr
-  dumi(27)  = nrad
-  dumi(28)  = ntaft
-  dumi(29)  = ntsea
-  dumi(30)  = ntsur
-  dumi(31)  = nvmix
-  dumi(32)  = precon
-  dumi(33)  = kdate_s
-  dumi(34)  = ktime_s
-  dumi(35)  = leap
-  dumi(36)  = newtop
-  dumi(37)  = mup
-  dumi(38)  = lgwd
-  dumi(39)  = ngwd
-  dumi(40)  = nextout
-  dumi(41)  = jalbfix
-  dumi(42)  = nalpha
-  dumi(43)  = nstag
-  dumi(44)  = nstagu
-  dumi(45)  = ntbar
-  dumi(46)  = nwrite
-  dumi(47)  = irest
-  dumi(48)  = nrun
-  dumi(49)  = nstn
-  dumi(50)  = nrungcm
-  dumi(51)  = nsib
-  dumi(52)  = mh_bs
-  dumi(53)  = nritch_t
-  dumi(54)  = nt_adv
-  dumi(55)  = mfix
-  dumi(56)  = mfix_qg
-  dumi(57)  = namip
-  if ( amipo3 ) dumi(58) = 1
-  dumi(59)  = nh
-  dumi(60)  = nhstest
-  dumi(61)  = nsemble
-  dumi(62)  = nspecial
-  dumi(63)  = newrough
-  dumi(64)  = nglacier
-  dumi(65)  = newztsea
-  dumi(66)  = kbotdav
-  dumi(67)  = kbotu
-  dumi(68)  = nud_p
-  dumi(69)  = nud_q
-  dumi(70)  = nud_t
-  dumi(71)  = nud_uv
-  dumi(72)  = nud_hrs
-  dumi(73)  = nudu_hrs
-  dumi(74)  = nlocal
-  dumi(75)  = nbarewet
-  dumi(76)  = nsigmf
-  dumi(77)  = io_in
-  dumi(78)  = io_nest
-  dumi(79)  = io_out
-  dumi(80)  = io_rest
-  dumi(81)  = tblock
-  dumi(82)  = tbave
-  if ( localhist) dumi(83) = 1
-  if ( unlimitedhist ) dumi(84) = 1
-  if ( synchist ) dumi(85) = 1
-  dumi(86)  = m_fly
-  dumi(87)  = nurban
-  dumi(88)  = ktopdav
-  dumi(89)  = mbd_mlo
-  dumi(90)  = mbd_maxscale_mlo
-  dumi(91)  = nud_sst
-  dumi(92)  = nud_sss
-  dumi(93)  = mfix_tr
-  dumi(94)  = mfix_aero
-  dumi(95)  = kbotmlo
-  dumi(96)  = ktopmlo
-  dumi(97)  = mloalpha
-  dumi(98)  = nud_ouv
-  dumi(99)  = nud_sfh
-  dumi(100)  = rescrn
-  dumi(101) = helmmeth
-  dumi(102) = nmlo
-  dumi(103) = ol
-  dumi(104) = knh
-  dumi(105) = kblock
-  dumi(106) = nud_aero
-  dumi(107) = nriver
-  dumi(108) = atebnmlfile
-  dumi(109) = nud_period
-  if ( procformat ) dumi(110) = 1
-  dumi(111) = procmode
-  dumi(112) = compression
-  dumi(113) = nmr
-  dumi(114) = maxtilesize
-  dumi(115) = mfix_t
+  dumi(3)   = nhorps
+  dumi(4)   = nperavg
+  dumi(5)   = ia
+  dumi(6)   = ib
+  dumi(7)   = ja
+  dumi(8)  = jb
+  dumi(9)  = id
+  dumi(10)  = jd
+  dumi(11)  = iaero
+  dumi(12)  = khdif
+  dumi(13)  = khor
+  dumi(14)  = nhorjlm
+  dumi(15)  = mex
+  dumi(16)  = mbd
+  dumi(17)  = nbd
+  dumi(18)  = mbd_maxscale
+  dumi(19)  = mbd_maxgrid
+  dumi(20)  = ndi
+  dumi(21)  = ndi2
+  dumi(22)  = nhor
+  dumi(23)  = nlv
+  dumi(24)  = nmaxpr
+  dumi(25)  = nrad
+  dumi(26)  = ntaft
+  dumi(27)  = ntsea
+  dumi(28)  = ntsur
+  dumi(29)  = nvmix
+  dumi(30)  = precon
+  dumi(31)  = kdate_s
+  dumi(32)  = ktime_s
+  dumi(33)  = leap
+  dumi(34)  = newtop
+  dumi(35)  = mup
+  dumi(36)  = lgwd
+  dumi(37)  = ngwd
+  dumi(38)  = nextout
+  dumi(39)  = jalbfix
+  dumi(40)  = nalpha
+  dumi(41)  = nstag
+  dumi(42)  = nstagu
+  dumi(43)  = ntbar
+  dumi(44)  = nwrite
+  dumi(45)  = irest
+  dumi(46)  = nrun
+  dumi(47)  = nstn
+  dumi(48)  = nrungcm
+  dumi(49)  = nsib
+  dumi(50)  = mh_bs
+  dumi(51)  = nritch_t
+  dumi(52)  = nt_adv
+  dumi(53)  = mfix
+  dumi(54)  = mfix_qg
+  dumi(55)  = namip
+  if ( amipo3 ) dumi(56) = 1
+  dumi(57)  = nh
+  dumi(58)  = nhstest
+  dumi(59)  = nsemble
+  dumi(60)  = nspecial
+  dumi(61)  = newrough
+  dumi(62)  = nglacier
+  dumi(63)  = newztsea
+  dumi(64)  = kbotdav
+  dumi(65)  = kbotu
+  dumi(66)  = nud_p
+  dumi(67)  = nud_q
+  dumi(68)  = nud_t
+  dumi(69)  = nud_uv
+  dumi(70)  = nud_hrs
+  dumi(71)  = nudu_hrs
+  dumi(72)  = nlocal
+  dumi(73)  = nbarewet
+  dumi(74)  = nsigmf
+  dumi(75)  = io_in
+  dumi(76)  = io_nest
+  dumi(77)  = io_out
+  dumi(78)  = io_rest
+  dumi(79)  = tblock
+  dumi(80)  = tbave
+  if ( localhist) dumi(81) = 1
+  if ( unlimitedhist ) dumi(82) = 1
+  if ( synchist ) dumi(83) = 1
+  dumi(84)  = m_fly
+  dumi(85)  = nurban
+  dumi(86)  = ktopdav
+  dumi(87)  = mbd_mlo
+  dumi(88)  = mbd_maxscale_mlo
+  dumi(89)  = nud_sst
+  dumi(90)  = nud_sss
+  dumi(91)  = mfix_tr
+  dumi(92)  = mfix_aero
+  dumi(93)  = kbotmlo
+  dumi(94)  = ktopmlo
+  dumi(95)  = mloalpha
+  dumi(96)  = nud_ouv
+  dumi(97)  = nud_sfh
+  dumi(98)  = rescrn
+  dumi(99) = helmmeth
+  dumi(100) = nmlo
+  dumi(101) = ol
+  dumi(102) = knh
+  dumi(103) = kblock
+  dumi(104) = nud_aero
+  dumi(105) = nriver
+  dumi(106) = atebnmlfile
+  dumi(107) = nud_period
+  if ( procformat ) dumi(108) = 1
+  dumi(109) = procmode
+  dumi(110) = compression
+  dumi(111) = nmr
+  dumi(112) = maxtilesize
+  dumi(113) = mfix_t
+  dumi(114) = ensemble_mode
+  dumi(115) = ensemble_period
+  dumi(116) = hp_output
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1705,119 +1720,120 @@ qgmin            = dumr(32)
 rhsat            = dumr(33)
 ntau             = dumi(1)
 nwt              = dumi(2)
-npa              = dumi(3)
-npb              = dumi(4)
-nhorps           = dumi(5)
-nperavg          = dumi(6)
-ia               = dumi(7)
-ib               = dumi(8)
-ja               = dumi(9)
-jb               = dumi(10)
-id               = dumi(11)
-jd               = dumi(12)
-iaero            = dumi(13)
-khdif            = dumi(14)
-khor             = dumi(15)
-nhorjlm          = dumi(16)
-mex              = dumi(17)
-mbd              = dumi(18)
-nbd              = dumi(19)
-mbd_maxscale     = dumi(20)
-mbd_maxgrid      = dumi(21)
-ndi              = dumi(22)
-ndi2             = dumi(23)
-nhor             = dumi(24)
-nlv              = dumi(25)
-nmaxpr           = dumi(26)
-nrad             = dumi(27)
-ntaft            = dumi(28)
-ntsea            = dumi(29)
-ntsur            = dumi(30)
-nvmix            = dumi(31)
-precon           = dumi(32)
-kdate_s          = dumi(33)
-ktime_s          = dumi(34)
-leap             = dumi(35)
-newtop           = dumi(36)
-mup              = dumi(37)
-lgwd             = dumi(38)
-ngwd             = dumi(39)
-nextout          = dumi(40)
-jalbfix          = dumi(41)
-nalpha           = dumi(42)
-nstag            = dumi(43)
-nstagu           = dumi(44)
-ntbar            = dumi(45)
-nwrite           = dumi(46)
-irest            = dumi(47)
-nrun             = dumi(48)
-nstn             = dumi(49)
-nrungcm          = dumi(50)
-nsib             = dumi(51)
-mh_bs            = dumi(52)
-nritch_t         = dumi(53)
-nt_adv           = dumi(54)
-mfix             = dumi(55)
-mfix_qg          = dumi(56)
-namip            = dumi(57)
-amipo3           = dumi(58)==1
-nh               = dumi(59)
-nhstest          = dumi(60)
-nsemble          = dumi(61)
-nspecial         = dumi(62)
-newrough         = dumi(63)
-nglacier         = dumi(64)
-newztsea         = dumi(65)
-kbotdav          = dumi(66)
-kbotu            = dumi(67)
-nud_p            = dumi(68)
-nud_q            = dumi(69)
-nud_t            = dumi(70)
-nud_uv           = dumi(71)
-nud_hrs          = dumi(72)
-nudu_hrs         = dumi(73)
-nlocal           = dumi(74)
-nbarewet         = dumi(75)
-nsigmf           = dumi(76)
-io_in            = dumi(77)
-io_nest          = dumi(78)
-io_out           = dumi(79)
-io_rest          = dumi(80)
-tblock           = dumi(81)
-tbave            = dumi(82)
-localhist        = dumi(83)==1
-unlimitedhist    = dumi(84)==1
-synchist         = dumi(85)==1
-m_fly            = dumi(86)
-nurban           = dumi(87)
-ktopdav          = dumi(88)
-mbd_mlo          = dumi(89)
-mbd_maxscale_mlo = dumi(90)
-nud_sst          = dumi(91)
-nud_sss          = dumi(92)
-mfix_tr          = dumi(93)
-mfix_aero        = dumi(94)
-kbotmlo          = dumi(95)
-ktopmlo          = dumi(96)
-mloalpha         = dumi(97)
-nud_ouv          = dumi(98)
-nud_sfh          = dumi(99)
-rescrn           = dumi(100)
-helmmeth         = dumi(101)
-nmlo             = dumi(102)
-ol               = dumi(103)
-knh              = dumi(104)
-kblock           = dumi(105)
-nud_aero         = dumi(106)
-nriver           = dumi(107)
-atebnmlfile      = dumi(108)
-nud_period       = dumi(109)
-procformat       = dumi(110)==1
-procmode         = dumi(111)
-compression      = dumi(112)
-nmr              = dumi(113)
-maxtilesize      = dumi(114)
-mfix_t           = dumi(115)
+nhorps           = dumi(3)
+nperavg          = dumi(4)
+ia               = dumi(5)
+ib               = dumi(6)
+ja               = dumi(7)
+jb               = dumi(8)
+id               = dumi(9)
+jd               = dumi(10)
+iaero            = dumi(11)
+khdif            = dumi(12)
+khor             = dumi(13)
+nhorjlm          = dumi(14)
+mex              = dumi(15)
+mbd              = dumi(16)
+nbd              = dumi(17)
+mbd_maxscale     = dumi(18)
+mbd_maxgrid      = dumi(19)
+ndi              = dumi(20)
+ndi2             = dumi(21)
+nhor             = dumi(22)
+nlv              = dumi(23)
+nmaxpr           = dumi(24)
+nrad             = dumi(25)
+ntaft            = dumi(26)
+ntsea            = dumi(27)
+ntsur            = dumi(28)
+nvmix            = dumi(29)
+precon           = dumi(30)
+kdate_s          = dumi(31)
+ktime_s          = dumi(32)
+leap             = dumi(33)
+newtop           = dumi(34)
+mup              = dumi(35)
+lgwd             = dumi(36)
+ngwd             = dumi(37)
+nextout          = dumi(38)
+jalbfix          = dumi(39)
+nalpha           = dumi(40)
+nstag            = dumi(41)
+nstagu           = dumi(42)
+ntbar            = dumi(43)
+nwrite           = dumi(44)
+irest            = dumi(45)
+nrun             = dumi(46)
+nstn             = dumi(47)
+nrungcm          = dumi(48)
+nsib             = dumi(49)
+mh_bs            = dumi(50)
+nritch_t         = dumi(51)
+nt_adv           = dumi(52)
+mfix             = dumi(53)
+mfix_qg          = dumi(54)
+namip            = dumi(55)
+amipo3           = dumi(56)==1
+nh               = dumi(57)
+nhstest          = dumi(58)
+nsemble          = dumi(59)
+nspecial         = dumi(60)
+newrough         = dumi(61)
+nglacier         = dumi(62)
+newztsea         = dumi(63)
+kbotdav          = dumi(64)
+kbotu            = dumi(65)
+nud_p            = dumi(66)
+nud_q            = dumi(67)
+nud_t            = dumi(68)
+nud_uv           = dumi(69)
+nud_hrs          = dumi(70)
+nudu_hrs         = dumi(71)
+nlocal           = dumi(72)
+nbarewet         = dumi(73)
+nsigmf           = dumi(74)
+io_in            = dumi(75)
+io_nest          = dumi(76)
+io_out           = dumi(77)
+io_rest          = dumi(78)
+tblock           = dumi(79)
+tbave            = dumi(80)
+localhist        = dumi(81)==1
+unlimitedhist    = dumi(82)==1
+synchist         = dumi(83)==1
+m_fly            = dumi(84)
+nurban           = dumi(85)
+ktopdav          = dumi(86)
+mbd_mlo          = dumi(87)
+mbd_maxscale_mlo = dumi(88)
+nud_sst          = dumi(89)
+nud_sss          = dumi(90)
+mfix_tr          = dumi(91)
+mfix_aero        = dumi(92)
+kbotmlo          = dumi(93)
+ktopmlo          = dumi(94)
+mloalpha         = dumi(95)
+nud_ouv          = dumi(96)
+nud_sfh          = dumi(97)
+rescrn           = dumi(98)
+helmmeth         = dumi(99)
+nmlo             = dumi(100)
+ol               = dumi(101)
+knh              = dumi(102)
+kblock           = dumi(103)
+nud_aero         = dumi(104)
+nriver           = dumi(105)
+atebnmlfile      = dumi(106)
+nud_period       = dumi(107)
+procformat       = dumi(108)==1
+procmode         = dumi(109)
+compression      = dumi(110)
+nmr              = dumi(111)
+maxtilesize      = dumi(112)
+mfix_t           = dumi(113)
+ensemble_mode    = dumi(114)
+ensemble_period  = dumi(115)
+hp_output        = dumi(116)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -1904,6 +1920,7 @@ call ccmpi_bcast(cnsdir,0,comm_world)
 call ccmpi_bcast(vegprev,0,comm_world)
 call ccmpi_bcast(vegnext,0,comm_world)
 call ccmpi_bcast(vegnext2,0,comm_world)
+call ccmpi_bcast(ensembleoutfile,0,comm_world)
 !call ccmpi_bcast(albfile,0,comm_world)
 !call ccmpi_bcast(eigenv,0,comm_world)
 !call ccmpi_bcast(icefile,0,comm_world)
@@ -2502,6 +2519,10 @@ if ( myid<nproc ) then
   dsig4 = max(dsig2+.01, dsig4)  ! convection
 
   ! check nudging settings - adjust mbd scale parameter to satisfy mbd_maxscale and mbd_maxgrid settings
+  if ( ensemble_mode>0 .and. (mbd/=0.or.nbd/=0.or.mbd_mlo/=0.or.nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0) ) then
+    write(6,*) "ERROR: mbd=0, nbd=0, mbd_mlo=0, nud_sst=0, nud_sss=0, nud_ouv and nud_sfg=0 are required for ensemble_mode>0"
+    call ccmpi_abort(-1)
+  end if
   if ( mbd/=0 .and. nbd/=0 ) then
     if ( myid==0 ) then  
       write(6,*) 'WARN: setting nbd=0 because mbd/=0'
@@ -2895,9 +2916,9 @@ if ( myid<nproc ) then
   call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
   if ( nbd/=0 .or. mbd/=0 ) then
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      call dav_init(ifull,kl,naero,nbd)
+      call dav_init(ifull,kl,naero,nbd,mbd)
     else
-      call dav_init(ifull,kl,0,nbd)
+      call dav_init(ifull,kl,0,nbd,mbd)
     end if
   end if
   ! Remaining arrays are allocated in indata.f90, since their
@@ -3146,7 +3167,12 @@ if ( myid<nproc ) then
     rewind 11
     write(11,*) nrun
     write(11,cardin)
+    write(11,skyin)
     write(11,datafile)
+    write(11,kuonml)
+    write(11,turbnml)
+    write(11,landnml)
+    write(11,mlonml)
     close(11)
   end if
 

@@ -26,28 +26,10 @@ public staguv, unstaguv
 
 integer, parameter :: itnmax=3
 
-interface staguv
-  module procedure staguv_a, staguv_b
-end interface
-
 contains
 
-subroutine staguv_a(u,v,uout,vout)
-
-use newmpar_m
-
-implicit none
-
-real, dimension(:,:), intent(inout)  :: u, v ! in case u=uout and v=vout
-real, dimension(:,:), intent(out) :: uout, vout
-
-real, dimension(ifull+iextra,size(u,2)) :: ua, va, ud, vd, uin, vin
-
-call staguv_b(u,v,uout,vout,ua,va,ud,vd,uin,vin)
-
-end subroutine staguv_a
     
-subroutine staguv_b(u,v,uout,vout,ua,va,ud,vd,uin,vin)
+subroutine staguv(u,v,uout,vout)
 
 ! stripped down version just with nstag=nstagu=3, mstagpt=-3      
 ! also now includes nstag=nstagu=4 & 5
@@ -72,7 +54,7 @@ implicit none
 
 real, dimension(:,:), intent(inout)  :: u, v ! in case u=uout and v=vout
 real, dimension(:,:), intent(out) :: uout, vout
-real, dimension(ifull+iextra,size(u,2)), intent(inout) :: ua, va, ud, vd, uin, vin
+real, dimension(ifull+iextra,size(u,2)) :: ua, va, ud, vd, uin, vin
 real, dimension(ifull,size(u,2)) :: ug, vg
 real, dimension(ifull) :: v_n, v_s, u_e, u_w
 integer :: itn, kx, iq, k
@@ -80,7 +62,6 @@ integer :: itn, kx, iq, k
 integer, parameter :: ntest=0    ! usually 0, 1 for test prints
 #endif
 
-!$omp master
 call START_LOG(stag_begin)
 
 if ( size(u,1)<ifull .or. size(v,1)<ifull ) then
@@ -92,30 +73,21 @@ if ( size(uout,1)<ifull .or. size(vout,1)<ifull ) then
   write(6,*) "ERROR: arguments are too small in staguv"
   call ccmpi_abort(-1)
 end if
-!$omp end master
 
 kx = size(u,2)
 
 #ifdef debug
-if(nmaxpr==1.and.mydiag.and..not.using_omp)then
+if(nmaxpr==1.and.mydiag)then
   write(6,*) '  stag_ktau,nstag,nstagu',ktau,nstag,nstagu
 endif
 #endif
 
 ! Copying could be avoided if input arrays were dimensioned ifull+iextra
-!$omp do
-do k =1,kx
-  uin(1:ifull,k) = u(1:ifull,k)
-  vin(1:ifull,k) = v(1:ifull,k)
-end do
-!$omp end do
+uin(1:ifull,1:kx) = u(1:ifull,1:kx)
+vin(1:ifull,1:kx) = v(1:ifull,1:kx)
       
 if (abs(nstag)<3) then
-!$omp master
   call boundsuv(uin,vin,stag=2)
-!$omp end master
-!$omp barrier
-!$omp do
   do k = 1,kx
     call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)
@@ -125,17 +97,13 @@ if (abs(nstag)<3) then
       vout(iq,k)=(9.*(v_n(iq)+vin(iq,k))-v_s(iq)-vin(innv(iq),k))/16.
     end do
   end do  
-!$omp end do nowait
   return
 endif  ! (nstag==0)
 
 if ( nstag==3 ) then
-!$omp master
   call boundsuv(uin,vin,stag=1) ! inv, innv, ieu, ieeu
-!$omp end master
-!$omp barrier
 #ifdef debug  
-  if(ntest==1 .and. .not.using_omp)then
+  if(ntest==1)then
     write(6,*) 'staguv diags'
     write (6,"(2x,4i8,6x,4i8)") (i,i=1,4),(i,i=1,4)
     do j=93,96
@@ -162,7 +130,6 @@ if ( nstag==3 ) then
 #endif
          
   ! precalculate rhs terms with iwwu2 & issv2
-!$omp do
   do k = 1,kx
     call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
 !$omp simd
@@ -171,13 +138,8 @@ if ( nstag==3 ) then
       vd(iq,k)=vin(iq,k)/2.+v_n(iq)+vin(innv(iq),k)/10.
     end do
   end do  
-!$omp end do
 
-!$omp master
   call boundsuv(ud,vd,stag=-10) ! inv, ieu
-!$omp end master
-!$omp barrier
-!$omp do
   do k = 1,kx
     call unpack_nveu(ud(:,k),vd(:,k),v_n,u_e)    
     do iq = 1,ifull  
@@ -187,14 +149,9 @@ if ( nstag==3 ) then
       vg(iq,k)=va(iq,k)
     end do
   end do  
-!$omp end do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
-!$omp master
     call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-!$omp end master
-!$omp barrier
-!$omp do
     do k = 1,kx
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
 !$omp simd
@@ -203,13 +160,8 @@ if ( nstag==3 ) then
         vin(iq,k)=(vg(iq,k)-v_s(iq)/10. +va(innv(iq),k)/4.)/.95
       end do
     end do  
-!$omp end do
 
-!$omp master
     call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-!$omp end master
-!$omp barrier
-!$omp do
     do k = 1,kx
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)    
 !$omp simd
@@ -218,13 +170,8 @@ if ( nstag==3 ) then
         va(iq,k)=(vg(iq,k)-v_s(iq)/10. +vin(innv(iq),k)/4.)/.95
       end do
     end do  
-!$omp end do
   end do                  ! itn=1,itnmax
-!$omp master
   call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-!$omp end master
-!$omp barrier
-!$omp do
   do k = 1,kx
     call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)    
 !$omp simd
@@ -233,12 +180,7 @@ if ( nstag==3 ) then
       vin(iq,k)=(vg(iq,k)-v_s(iq)/10. +va(innv(iq),k)/4.)/.95
     end do
   end do  
-!$omp end do
-!$omp master
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-!$omp end master
-!$omp barrier
-!$omp do
   do k = 1,kx
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)    
 !$omp simd
@@ -247,15 +189,10 @@ if ( nstag==3 ) then
       vout(iq,k)=(vg(iq,k)-v_s(iq)/10. +vin(innv(iq),k)/4.)/.95
     end do
   end do  
-!$omp end do nowait
 
 else !if ( nstag==4 ) then
-!$omp master
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-!$omp end master
-!$omp barrier
 
-!$omp do
   do k = 1,kx
     call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)    
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)    
@@ -267,14 +204,9 @@ else !if ( nstag==4 ) then
       vg(iq,k)=va(iq,k)
     end do
   end do  
-!$omp end do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
-!$omp master
     call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-!$omp end master
-!$omp barrier
-!$omp do
     do k = 1,kx
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)    
 !$omp simd 
@@ -283,13 +215,8 @@ else !if ( nstag==4 ) then
         vin(iq,k)=(vg(iq,k)-v_n(iq)/10. +va(issv(iq),k)/4.)/.95
       end do
     end do  
-!$omp end do
 
-!$omp master
     call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-!$omp end master
-!$omp barrier
-!$omp do
     do k = 1,kx
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)      
 !$omp simd 
@@ -298,13 +225,8 @@ else !if ( nstag==4 ) then
         va(iq,k)=(vg(iq,k)-v_n(iq)/10. +vin(issv(iq),k)/4.)/.95
       end do
     end do  
-!$omp end do
   end do                 ! itn=1,itnmax
-!$omp master
   call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-!$omp end master
-!$omp barrier
-!$omp do
   do k = 1,kx
     call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)      
 !$omp simd 
@@ -313,12 +235,7 @@ else !if ( nstag==4 ) then
       vin(iq,k)=(vg(iq,k)-v_n(iq)/10. +va(issv(iq),k)/4.)/.95
     end do
   end do  
-!$omp end do
-!$omp master
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-!$omp end master
-!$omp barrier
-!$omp do
   do k = 1,kx
     call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)      
 !$omp simd 
@@ -327,16 +244,13 @@ else !if ( nstag==4 ) then
       vout(iq,k)=(vg(iq,k)-v_n(iq)/10. +vin(issv(iq),k)/4.)/.95
     end do
   end do  
-!$omp end do nowait
  
 end if
 
-!$omp master
 call END_LOG(stag_end)
-!$omp end master
 
 return
-end subroutine staguv_b
+end subroutine staguv
 
 
 subroutine unstaguv(u,v,uout,vout)
