@@ -27,9 +27,11 @@ MODULE cable_optimise_JV_module
  USE TypeDef,              ONLY: i4b, dp
 
  TYPE( icanopy_type ) :: C
+!$omp threadprivate(C)
 
  ! variables local to module
  REAL, ALLOCATABLE :: APAR(:), Dleaf(:), Tleaf(:), cs(:), scalex(:)
+!$omp threadprivate(APAR,Dleaf,Tleaf,cs,scalex)
  REAL :: Anet, vcmax00, bjv, g1, fwsoil, Kc0, Ko0, ekc, eko, alpha
  REAL ::     convex, Neff, Rd0
  INTEGER :: nt

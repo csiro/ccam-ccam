@@ -1576,10 +1576,10 @@ subroutine setp_veg(veg,lveg,tile)
   lveg%disturbance_interval => veg%disturbance_interval(is:ie,:)
   lveg%disturbance_intensity => veg%disturbance_intensity(is:ie,:)
   
-  lveg%vcmax_shade => veg%vcmax_shade
-  lveg%ejmax_shade => veg%ejmax_shade
-  lveg%vcmax_sun => veg%vcmax_sun
-  lveg%ejmax_sun => veg%ejmax_sun
+  lveg%vcmax_shade => veg%vcmax_shade(is:ie)
+  lveg%ejmax_shade => veg%ejmax_shade(is:ie)
+  lveg%vcmax_sun => veg%vcmax_sun(is:ie)
+  lveg%ejmax_sun => veg%ejmax_sun(is:ie)
 
 end subroutine setp_veg
 

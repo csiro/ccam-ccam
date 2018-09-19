@@ -666,7 +666,7 @@ end if
 
 !--------------------------------------------------------------
 ! CABLE CLIMATE
-call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,npercasa,ktau)
+call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,air,npercasa,ktau)
 
 !--------------------------------------------------------------
 ! CASA CNP
@@ -1536,7 +1536,7 @@ end subroutine POPdriver
 
 ! *************************************************************************************
 ! track climate feedback into CABLE
-subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,npercasa,ktau)
+subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,air,npercasa,ktau)
 
 use parm_m, only : dt, nperhr
 
@@ -1552,6 +1552,7 @@ type(canopy_type), intent(in) :: canopy
 type(climate_type), intent(inout) :: climate
 type(met_type), intent(in) :: met
 type(radiation_type), intent(inout) :: rad
+type(air_type), intent(inout) :: air
 
 real(kind=8), parameter :: Gaero   = 0.015_8    ! (m s-1) aerodynmaic conductance (for use in PT evap)
 real(kind=8), parameter :: Capp    = 29.09_8    ! isobaric spec heat air    [J/molA/K]
@@ -7056,6 +7057,7 @@ if ( cable_pop==1 ) then
   allocate( datpc(ifull,POP_NPATCH,POP_NCOHORT) )
   datpatch = 0._8
   datpc = 0._8
+  dat = 0._8
   do n = 1,maxtile
     call pop_unpack(pop%pop_grid(:)%cmass_sum,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n  
