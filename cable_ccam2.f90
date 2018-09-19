@@ -1848,7 +1848,7 @@ subroutine biome1_pft(climate,rad,mp)
 implicit none
 
 type(climate_type), intent(inout) :: climate
-type(radiation_type), intent(inout) :: rad
+type(radiation_type), intent(in) :: rad
 integer, intent(in) :: mp
 integer :: iq
 integer, dimension(mp) :: npft
