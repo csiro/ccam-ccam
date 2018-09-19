@@ -1799,7 +1799,7 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
         climate%alpha_PT20 = climate%alpha_PT20/real(climate%nyears,8)
         climate%dmoist_min20 = climate%dmoist_min20/real(climate%nyears,8)
         climate%dmoist_max20 = climate%dmoist_max20/real(climate%nyears,8)
-        call biome1_pft
+        call biome1_pft(climate,rad,mp)
       end if  
  
       ! reset climate data for next year
@@ -1843,10 +1843,13 @@ Epsif_out = (Rlat/Capp)*dESdT/Pmb       ! dimensionless (ES/Pmb = molW/molA)
 return
 end function epsif
 
-subroutine biome1_pft
+subroutine biome1_pft(climate,rad,mp)
 
 implicit none
 
+type(climate_type), intent(inout) :: climate
+type(radiation_type), intent(inout) :: rad
+integer, intent(in) :: mp
 integer :: iq
 integer, dimension(mp) :: npft
 integer, dimension(mp,4) :: pft_biome1
