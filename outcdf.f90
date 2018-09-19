@@ -269,7 +269,7 @@ logical local
 character(len=*), intent(in) :: cdffile_in
 character(len=1024) cdffile
 character(len=33) grdtim
-character(len=20) timorg
+!character(len=20) timorg
 
 ! localhist=.true. indicates that the output will be written in parallel.  procformat=.true.
 ! requires localhist=.true. to work.
@@ -490,15 +490,15 @@ if ( myid==0 .or. local ) then
     ich = ktime/100
     icmi = (ktime-ich*100)
     ics = 0
-    write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
-    call ccnf_put_att(idnc,idnt,'time_origin',timorg)
+    !write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
+    !call ccnf_put_att(idnc,idnt,'time_origin',timorg)
     write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
     call ccnf_put_att(idnc,idnt,'units',grdtim)
     if ( leap==0 ) then
       call ccnf_put_att(idnc,idnt,'calendar','noleap')
     end if
     if ( myid==0 ) then
-      write(6,*) 'timorg=',timorg
+      !write(6,*) 'timorg=',timorg
       write(6,*) 'grdtim=',grdtim
     end if
 
@@ -606,6 +606,9 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ch_dust',ch_dust)
     call ccnf_put_attg(idnc,'charnock',charnock)
     call ccnf_put_attg(idnc,'chn10',chn10)
+    call ccnf_put_attg(idnc,'ensemble_mode',ensemble_mode)
+    call ccnf_put_attg(idnc,'ensemble_period',ensemble_period)
+    call ccnf_put_attg(idnc,'ensemble_rsfactor',ensemble_rsfactor)
     call ccnf_put_attg(idnc,'epsf',epsf)
     call ccnf_put_attg(idnc,'epsh',epsh)
     call ccnf_put_attg(idnc,'epsp',epsp)
@@ -3315,7 +3318,7 @@ logical :: local
 character(len=1024) :: ffile
 character(len=40) :: lname
 character(len=33) :: grdtim
-character(len=20) :: timorg
+!character(len=20) :: timorg
 
 call START_LOG(outfile_begin)
 
@@ -3422,8 +3425,8 @@ if ( first ) then
     ich=ktime/100
     icmi=(ktime-ich*100)
     ics=0
-    write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
-    call ccnf_put_att(fncid,idnt,'time_origin',timorg)
+    !write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
+    !call ccnf_put_att(fncid,idnt,'time_origin',timorg)
     write(grdtim,'("seconds since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
     call ccnf_put_att(fncid,idnt,'units',grdtim)
     if ( leap==0 ) then

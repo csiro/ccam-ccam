@@ -30,6 +30,7 @@ public ifile, ofile, so4tfile, eigenv, radfile, o3file
 public mesonest, laifile, albnirfile, urbanfile, bathfile
 public vegprev, vegnext, vegnext2, cnsdir, salfile, oxidantfile
 public phenfile, casafile
+public ensembleoutfile
 
 character(len=1024), save :: albfile = ' '
 character(len=1024), save :: icefile = ' '
@@ -62,5 +63,6 @@ character(len=1024), save :: salfile = ' '
 character(len=1024), save :: oxidantfile = ' '
 character(len=1024), save :: phenfile = ' '
 character(len=1024), save :: casafile = ' '
+character(len=1024), save :: ensembleoutfile = ' '
 
 end module filnames_m
