@@ -20,22 +20,29 @@
 !------------------------------------------------------------------------------
     
 ! CCAM ensemble initialisation and breeding
+
+! This module is to assist with the creation and breeding of
+! ensemble members for forecasting applications
     
-! ensemble_mode = 0     off
-! ensemble_mode = 1     control
-! ensemble_mode = 2     breeding
+! ensemble_mode = 0       off
+! ensemble_mode = 1       control
+! ensemble_mode = 2       breeding
+
+! ensemble_period = 720   (12 hour update by default. 0 uses all time-steps)
     
+! ensemble_rsfactor = 0.1 (rescaling of initial perturbation)
+    
+! ensembleoutfile         (filename prefix when creating ensemble members)
+    
+
 module ensemble
 
 private
 public update_ensemble
-public ensemble_mode, ensembleoutfile, ensemble_period
+public ensembleoutfile
 
-integer, save :: ensemble_period = 720 ! 12 hour update by default (0 uses all time-steps)
-integer, save :: ensemble_mode = 0     ! 0=off, 1=control, 2=breed
 integer, save :: mtimeb = -1           ! timer for updating analysis data
 real, save :: refsum = -1.
-character(len=1024), save :: ensembleoutfile = ' '
 
 real, dimension(:), allocatable, save :: pslb, tssb, fraciceb
 real, dimension(:), allocatable, save :: sicedepb
@@ -126,12 +133,16 @@ if ( mtimer>mtimeb ) then
       t_rms(:) = -1.
       dd(:) = psl(1:ifull) - pslb
       call rmse(dd,psl_rms)
+      psl_rms = ensemble_rsfactor*psl_rms
       ee(:,:) = u(1:ifull,:) - ub
       call rmse(ee,u_rms)
+      u_rms = ensemble_rsfactor*u_rms
       ee(:,:) = v(1:ifull,:) - vb
       call rmse(ee,v_rms)
+      v_rms = ensemble_rsfactor*v_rms
       ee(:,:) = t(1:ifull,:) - tb
       call rmse(ee,t_rms)
+      t_rms = ensemble_rsfactor*t_rms
     end if
     mtimeb = 0
   end if
@@ -265,6 +276,7 @@ end subroutine update_ensemble
 
 subroutine saveoutput(num,psl_in,u_in,v_in,t_in,q_in)
 
+use filnames_m
 use newmpar_m
 use outcdf
 
