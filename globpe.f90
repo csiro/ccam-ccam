@@ -463,6 +463,9 @@ if ( myid<nproc ) then
     ! START RIVER ROUTING
     ! ***********************************************************************
     
+    ! nriver = 0   No transport of surface water
+    ! nriver = 1   River routing
+    
     if ( abs(nriver)==1 ) then  
       call START_LOG(river_begin)
       call rvrrouter
@@ -641,15 +644,15 @@ if ( myid<nproc ) then
         nettend(js:je,1:kl) = nettend(js:je,1:kl) + t(js:je,1:kl)/dt
       end do
 !$omp end do nowait
-    end if
+    end if   ! (ncloud>=4)
     select case ( nrad )
       case(4)
 !$omp barrier  
 !$omp single  
         ! Fels-Schwarzkopf radiation
-        if ( nhstest<0 ) then ! aquaplanet test -1 to -8  
+        if ( nhstest<0 ) then    ! aquaplanet test -1 to -8  
           mtimer_sav = mtimer
-          mtimer     = mins_gmt    ! so radn scheme repeatedly works thru same day
+          mtimer     = mins_gmt  ! so radn scheme repeatedly works thru same day
           call radrive(il*nrows_rad)
           mtimer = mtimer_sav
         else
@@ -866,7 +869,7 @@ if ( myid<nproc ) then
     endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
   
 
-    ! WRITE DATA TO HISTORY, ENSEMBLE AND RESTART FILES ---------------
+    ! WRITE DATA TO HISTORY AND RESTART FILES ---------------
     call log_off
     if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
       call outfile(20,ofile,psl,u,v,t,qg)  ! which calls outcdf
@@ -879,13 +882,16 @@ if ( myid<nproc ) then
         call START_LOG(maincalc_begin)
       endif  ! (ktau==ntau.and.irest==1)
     endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
-    if ( ensemble_mode>0 ) then
-      call update_ensemble  
-      call fixqg(1,ifull)
-    end if
     ! write high temporal frequency fields
     if ( surfile /= ' ' ) then
       call freqfile
+    end if
+
+    
+    ! ENSEMBLE --------------------------------------------------
+    if ( ensemble_mode>0 ) then
+      call update_ensemble  
+      call fixqg(1,ifull)
     end if
     call log_on
  
@@ -1468,7 +1474,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,mlomfix,otaumode,            &
-    alphavis_seaice,alphanir_seaice,mlojacobi,                    &
+    alphavis_seaice,alphanir_seaice,mlojacobi,mlo_rtest,          &
     rivermd,basinmd,rivercoeff                                      ! River
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
@@ -1573,8 +1579,8 @@ if ( myid==0 ) then
   dumi(5)   = ia
   dumi(6)   = ib
   dumi(7)   = ja
-  dumi(8)  = jb
-  dumi(9)  = id
+  dumi(8)   = jb
+  dumi(9)   = id
   dumi(10)  = jd
   dumi(11)  = iaero
   dumi(12)  = khdif
@@ -2276,7 +2282,7 @@ ateb_statsmeth    = dumi(27)
 ateb_behavmeth    = dumi(28) 
 ateb_infilmeth    = dumi(29) 
 deallocate( dumr, dumi )
-allocate( dumr(10), dumi(8) )
+allocate( dumr(11), dumi(8) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2296,6 +2302,7 @@ if ( myid==0 ) then
   dumr(8)  = alphavis_seaice
   dumr(9)  = alphanir_seaice
   dumr(10) = rivercoeff
+  dumr(11) = mlo_rtest
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2317,6 +2324,7 @@ mindep          = dumr(7)
 alphavis_seaice = dumr(8)
 alphanir_seaice = dumr(9)
 rivercoeff      = dumr(10)
+mlo_rtest       = dumr(11)
 mlodiff         = dumi(1)
 usetide         = dumi(2) 
 zomode          = dumi(3) 
@@ -2597,16 +2605,13 @@ if ( myid<nproc ) then
   ! DISPLAY NAMELIST
 
   if ( myid==0 ) then   
-    write(6,*)'Dynamics options A:'
+    write(6,*)'Dynamics options:'
     write(6,*)'   mex   mfix  mfix_qg   mup    nh    precon' 
     write(6,'(i4,i6,i10,3i7)')mex,mfix,mfix_qg,mup,nh,precon
-    write(6,*)'Dynamics options B:'
     write(6,*)'nritch_t ntbar  epsp    epsu   epsf   restol'
     write(6,'(i5,i7,1x,3f8.3,g9.2)')nritch_t,ntbar,epsp,epsu,epsf,restol
-    write(6,*)'Dynamics options C:'
     write(6,*)'helmmeth mfix_aero mfix_tr'
     write(6,'(i8,i10,i8)') helmmeth,mfix_aero,mfix_tr
-    write(6,*)'Dynamics options D:'
     write(6,*)'epsh'
     write(6,'(f8.3)') epsh
     write(6,*)'Horizontal advection/interpolation options:'
@@ -2618,22 +2623,21 @@ if ( myid<nproc ) then
     write(6,*)'Horizontal mixing options:'
     write(6,*)' khdif  khor   nhor   nhorps nhorjlm'
     write(6,'(i5,11i7)') khdif,khor,nhor,nhorps,nhorjlm
-    write(6,*)'Vertical mixing/physics options A:'
+    write(6,*)'Vertical mixing/physics options:'
     write(6,*)' nvmix nlocal ncvmix  lgwd' 
     write(6,'(i5,6i7)') nvmix,nlocal,ncvmix,lgwd
-    write(6,*)'Vertical mixing/physics options B:'
     write(6,*)' be   cm0  ce0  ce1  ce2  ce3  cq'
     write(6,'(7f5.2)') be,cm0,ce0,ce1,ce2,ce3,cq
-    write(6,*)'Vertical mixing/physics options C:'
-    write(6,*)' ent0  dtrc0   m0    b1    b2'
-    write(6,'(5f6.2)') ent0,dtrc0,m0,b1,b2
-    write(6,*)'Vertical mixing/physics options D:'
+    write(6,*)' ent0  ent1  entc0  dtrc0   m0    b1    b2'
+    write(6,'(7f6.2)') ent0,ent1,entc0,dtrc0,m0,b1,b2
     write(6,*)' buoymeth stabmeth maxdts qcmf'
     write(6,'(2i9,f8.2,g9.2)') buoymeth,stabmeth,maxdts,qcmf
-    write(6,*)'Vertical mixing/physics options E:'
     write(6,*)'  mintke   mineps     minl     maxl'
     write(6,'(4g9.2)') mintke,mineps,minl,maxl
-    write(6,*)'Vertical mixing/physics options F:'
+    write(6,*) ' tke_umin tkemeth qcmf ezmin ent_min'
+    write(6,'(f8.2,i5,3f8.2)') tke_umin,tkemeth,qcmf,ezmin,ent_min
+    write(6,*) ' amxlsq'
+    write(6,'(f8.2)') amxlsq
     write(6,*)'  cgmap_offset   cgmap_scale'
     write(6,'(2f14.2)') cgmap_offset,cgmap_scale  
     write(6,*)'Gravity wave drag options:'
@@ -2668,49 +2672,55 @@ if ( myid<nproc ) then
     write(6,'(i7,g9.2,f7.2)') iaero,ch_dust
     write(6,*)'  zvolcemi aeroindir'
     write(6,'(f7.2,i5)') zvolcemi,aeroindir
-    write(6,*)'Cloud options A:'
+    write(6,*)'Cloud options:'
     write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
     write(6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,sigcll
-    write(6,*)'Cloud options B:'
     write(6,*)'  ncloud'
     write(6,'(i5)') ncloud
-    write(6,*)'Soil, canopy and PBL options A:'
+    write(6,*)'Soil and canopy options:'
     write(6,*)' jalbfix nalpha nbarewet newrough nglacier nrungcm nsib  nsigmf'
     write(6,'(i5,9i8)') jalbfix,nalpha,nbarewet,newrough,nglacier,nrungcm,nsib,nsigmf
-    write(6,*)'Soil, canopy and PBL options B:'
     write(6,*)' ntaft ntsea ntsur av_vmod tss_sh vmodmin  zobgin charnock chn10'
     write(6,'(i5,2i6,4f8.2,f8.3,f9.5)') ntaft,ntsea,ntsur,av_vmod,tss_sh,vmodmin,zobgin,charnock,chn10
-    write(6,*)'Soil, canopy and PBL options C:'
-    write(6,*)' nurban ccycle'
-    write(6,'(2i7)') nurban,ccycle
+    write(6,*)' ccycle proglai soil_struc cable_pop progvcmax fwsoil_switch cable_litter'
+    write(6,'(7i7)') ccycle,proglai,soil_struc,cable_pop,progvcmax,fwsoil_switch,cable_litter
+    write(6,*)' gs_switch cable_climate'
+    write(6,'(2i7)') gs_switch,cable_climate
+    write(6,*)' nurban siburbanfrac'
+    write(6,'(i7,f8.4)') nurban,siburbanfrac
     write(6,*)'Ocean/lake options:'
     write(6,*)' nmlo  ol      mxd   mindep minwater  ocnsmag   ocneps'
     write(6,'(i5,i4,5f9.2)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
     write(6,*)' mlodiff  zomode zoseaice factchseaice otaumode'
     write(6,'(2i8,f9.6,f13.6,i8)') mlodiff,zomode,zoseaice,factchseaice,otaumode
+    write(6,*)' usetide mlomfix mlojacobi alphavis_seaice alphanir_seaice'
+    write(6,'(3i8,2f8.4)') usetide,mlomfix,mlojacobi,alphavis_seaice,alphanir_seaice
+    write(6,*)'River options:'
     write(6,*)' nriver rivermd basinmd rivercoeff'
     write(6,'(3i8,g9.2)') nriver,rivermd,basinmd,rivercoeff
-    write(6,*)'Nudging options A:'
+    write(6,*)'Nudging options:'
     write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
     write(6,'(i5,3i7,7i8)') nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
-    write(6,*)'Nudging options B:'
     write(6,*)' mbd    mbd_maxscale mbd_maxgrid mbd_maxscale_mlo ktopdav kblock'
     write(6,'(i5,2i12,i16,2i8)') mbd,mbd_maxscale,mbd_maxgrid,mbd_maxscale_mlo,ktopdav,kblock
-    write(6,*)'Nudging options C:'
     write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo kbotmlo mloalpha'
     write(6,'(6i8,i9)') nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
-    write(6,*)'Nudging options D:'
     write(6,*)' sigramplow sigramphigh nud_period'
+    write(6,*)'Ensemble options:'
+    write(6,*)' ensemble_mode ensemble_period ensemble_rsfactor'
+    write(6,'(2i5,f8.4)') ensemble_mode,ensemble_period,ensemble_rsfactor
     write(6,'(2f10.6,i9)') sigramplow,sigramphigh,nud_period
     write(6,*)'Special and test options A:'
     write(6,*)' namip amipo3 newtop nhstest nsemble nspecial panfg panzo'
     write(6,'(1i5,L7,3i7,i8,f9.1,f8.4)') namip,amipo3,newtop,nhstest,nsemble,nspecial,panfg,panzo
     write(6,*)'Special and test options B:'
-    write(6,*)' knh rescrn'
-    write(6,'(i4,i7)') knh,rescrn
+    write(6,*)' knh rescrn maxtilesize'
+    write(6,'(i4,2i7)') knh,rescrn,maxtilesize
     write(6,*)'I/O options:'
     write(6,*)' m_fly  io_in io_nest io_out io_rest  nwt  nperavg'
     write(6,'(i5,4i7,3i8)') m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg
+    write(6,*)' hp_output procformat procmode compression'
+    write(6,'(4i5)') hp_output,procformat,procmode,compression
 
     write(6, cardin)
     write(6, skyin)

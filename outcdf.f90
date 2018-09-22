@@ -879,6 +879,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'factchseaice',factchseaice)
     call ccnf_put_attg(idnc,'mindep',mindep)
     call ccnf_put_attg(idnc,'minwater',minwater)
+    call ccnf_put_attg(idnc,'mlo_rtest',mlo_rtest)
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
     call ccnf_put_attg(idnc,'mlomfix',mlomfix)
@@ -1757,28 +1758,7 @@ if( myid==0 .or. local ) then
     ! CABLE -----------------------------------------------------
     if ( nsib==6 .or. nsib==7 ) then
       if ( nextout>=1 .or. itype==-1 ) then
-        if ( ccycle==0 ) then
-          !lname = 'Carbon leaf pool'
-          !call attrib(idnc,dimj,jsize,'cplant1',lname,'gC/m2',0.,6500.,0,cptype)
-          !lname = 'Carbon wood pool'
-          !call attrib(idnc,dimj,jsize,'cplant2',lname,'gC/m2',0.,65000.,0,cptype)
-          !lname = 'Carbon root pool'
-          !call attrib(idnc,dimj,jsize,'cplant3',lname,'gC/m2',0.,6500.,0,cptype)
-          !lname = 'Carbon soil fast pool'
-          !call attrib(idnc,dimj,jsize,'csoil1',lname,'gC/m2',0.,6500.,0,cptype)
-          !lname = 'Carbon soil slow pool'
-          !call attrib(idnc,dimj,jsize,'csoil2',lname,'gC/m2',0.,6500.,0,cptype)
-          !if ( save_carbon ) then
-          !  lname = 'Avg Net CO2 flux'
-          !  call attrib(idnc,dimj,jsize,'fnee_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,cptype)
-          !  lname = 'Avg Photosynthesis CO2 flux'
-          !  call attrib(idnc,dimj,jsize,'fpn_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,cptype)
-          !  lname = 'Avg Plant respiration CO2 flux'
-          !  call attrib(idnc,dimj,jsize,'frp_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,cptype)
-          !  lname = 'Avg Soil respiration CO2 flux'
-          !  call attrib(idnc,dimj,jsize,'frs_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,cptype)
-          !end if
-        else
+        if ( ccycle/=0 ) then
           lname = 'Carbon leaf pool'
           call attrib(idnc,dimj,jsize,'cplant1',lname,'gC/m2',0.,6500.,0,cptype)
           lname = 'Nitrogen leaf pool'
@@ -2841,20 +2821,7 @@ end if
 ! CABLE -------------------------------------------------------
 if ( nsib==6 .or. nsib==7 ) then
   if ( nextout>=1 .or. itype==-1 ) then
-    if ( ccycle==0 ) then
-      !call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local,.true.)
-      !call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local,.true.)
-      !call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local,.true.)
-      !call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local,.true.)
-      !call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local,.true.)
-      !if ( save_carbon ) then
-      !  aa=fpn_ave+frp_ave+frs_ave
-      !  call histwrt3(aa,'fnee_ave',idnc,iarch,local,lave)
-      !  call histwrt3(fpn_ave,'fpn_ave',idnc,iarch,local,lave)
-      !  call histwrt3(frp_ave,'frp_ave',idnc,iarch,local,lave)
-      !  call histwrt3(frs_ave,'frs_ave',idnc,iarch,local,lave)
-      !end if
-    else
+    if ( ccycle/=0 ) then
       do k=1,mplant
         write(vname,'("cplant",I1.1)') k
         call histwrt3(cplant(:,k),vname,idnc,iarch,local,lday)
