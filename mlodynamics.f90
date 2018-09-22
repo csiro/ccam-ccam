@@ -167,7 +167,7 @@ if ( mlo_rtest>0. ) then
   call ccmpi_reduce(rmax_l,rmax_g,"max",0,comm_world)
   if ( myid==0 ) then
     write(6,*) "MLODYNAMICS rtest: rmax_g, mlo_rtest = ",rmax_g,mlo_rtest
-    if ( rmax_g*1.1>mlo_rtest ) then
+    if ( rmax_g>mlo_rtest*1.1 ) then
       write(6,*) "ERROR: mlodynamics rtest failed."
       write(6,*) "Please run ocnbath with bathfilt=t and rtest=",mlo_rtest
       call ccmpi_abort(-1)
