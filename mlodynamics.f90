@@ -41,7 +41,7 @@ implicit none
 private
 public mlodiffusion,mlohadv,mlodyninit
 public gosig,gosigh,godsig,ocnsmag,ocneps
-public mlodiff,usetide,mlomfix,mlojacobi
+public mlodiff,usetide,mlomfix,mlojacobi,mlo_rtest
 public dd
 public nstagoffmlo,mstagf
 
@@ -70,7 +70,7 @@ real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
 real, parameter :: maxicefrac = 0.999     ! maximum ice fraction
 real, parameter :: tol        = 5.E-4     ! Tolerance for SOR solver (water)
 real, parameter :: itol       = 1.E1      ! Tolerance for SOR solver (ice)
-
+real, save      :: mlo_rtest  = 0.        ! check bathymetry (0.=off, 0.2=recommended)
 
 contains
 
@@ -92,6 +92,7 @@ use soil_m
 implicit none
 
 integer ii,iq
+real rmax_l, rmax_g
 real, dimension(ifull,0:wlev) :: dephl
 real, dimension(ifull,wlev) :: dep,dz
 real, dimension(ifull) :: tnu,tsu,tev,twv,tee,tnn
@@ -149,6 +150,30 @@ where ( abs(eev(1:ifull))<1.e-20 )
   ddv(1:ifull) = 1.E-8
 end where
 call boundsuv(ddu,ddv,nrows=2)
+
+! r-test
+if ( mlo_rtest>0. ) then
+  rmax_l = 0.
+  do iq = 1,ifull
+    if ( dd(iq)>0.1 ) then
+      if ( dd(in(iq))>0.1 ) then  
+        rmax_l = max( rmax_l, abs(dd(in(iq))-dd(iq))/(dd(in(iq))+dd(iq)) )
+      end if
+      if ( dd(ie(iq))>0.1 ) then
+        rmax_l = max( rmax_l, abs(dd(ie(iq))-dd(iq))/(dd(ie(iq))+dd(iq)) )
+      end if
+    end if  
+  end do
+  call ccmpi_reduce(rmax_l,rmax_g,"max",0,comm_world)
+  if ( myid==0 ) then
+    write(6,*) "MLODYNAMICS rtest: rmax_g, mlo_rtest = ",rmax_g,mlo_rtest
+    if ( rmax_g>mlo_rtest*1.1 ) then
+      write(6,*) "ERROR: mlodynamics rtest failed."
+      write(6,*) "Please run ocnbath with bathfilt=t and rtest=",mlo_rtest
+      call ccmpi_abort(-1)
+    end if
+  end if  
+end if
 
 ! allocate memory for mlo dynamics arrays
 call mlodynamicsarrays_init(ifull,iextra,wlev)
@@ -371,9 +396,16 @@ if ( mlodiff==0 ) then
 !      /base(:,k)
 !  end do
 
-else
+  call mloimport3d(2,outu,0)
+  call mloimport3d(3,outv,0)
+  
+else if ( mlodiff==1 ) then
   outu(1:ifull,:) = u(1:ifull,:)
   outv(1:ifull,:) = v(1:ifull,:)
+  ! no need to call mloimport3d for u and v
+else
+  write(6,*) "ERROR: Unknown option for mlodiff = ",mlodiff
+  call ccmpi_abort(-1)
 end if
   
 ! Potential temperature and salinity
@@ -400,8 +432,6 @@ do k=1,wlev
 end do
 fs = max(fs+34.72, 0.)
 call mloimport3d(1,fs,0)
-call mloimport3d(2,outu,0)
-call mloimport3d(3,outv,0)
 
 call END_LOG(waterdiff_end)
 
@@ -551,7 +581,7 @@ nfracice = 0.
 ndic     = 0.
 ndsn     = 0.
 
-! IMPORT WATER AND ICE DATA -----------------------------------------
+! EXPORT WATER AND ICE DATA FROM MLO ------------------------------------------
 call mloexport3d(0,w_t,0)
 call mloexport3d(1,w_s,0)
 call mloexport3d(2,w_u,0)
@@ -1603,13 +1633,13 @@ if ( any(abs(nu(1:ifull,:))>20.) .or. any(abs(nv(1:ifull,:))>20.) ) then
 end if
 #endif
 
-! EXPORT ----------------------------------------------------------------------
+! IMPORT WATER AND ICE DATA INTO MLO ------------------------------------------
 call mloimport(4,neta(1:ifull),0,0)
 call mloimport3d(0,nt,0)
 call mloimport3d(1,ns,0)
 call mloimport3d(2,nu,0)
 call mloimport3d(3,nv,0)
-do ii=1,4
+do ii = 1,4
   call mloimpice(nit(1:ifull,ii),ii,0)
 end do
 call mloimpice(nfracice(1:ifull),5,0)
@@ -1618,10 +1648,10 @@ call mloimpice(ndsn(1:ifull),7,0)
 call mloimpice(nsto(1:ifull),8,0)
 call mloimpice(niu(1:ifull),9,0)
 call mloimpice(niv(1:ifull),10,0)
-where (wtr(1:ifull))
-  fracice=nfracice(1:ifull)
-  sicedep=ndic(1:ifull)
-  snowd=ndsn(1:ifull)*1000.
+where ( wtr(1:ifull) )
+  fracice = nfracice(1:ifull)
+  sicedep = ndic(1:ifull)
+  snowd = ndsn(1:ifull)*1000.
 end where
 
 return
@@ -4582,10 +4612,20 @@ select case( mlojacobi )
       drhobardyv(1:ifull,ii) = 0.
     end do
 
-  case(1) ! non-local - spline  
+  case(1,2,3) 
     na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
     na(:,:,2) = min(max(0.,  nsi),50. )-34.72
-    call seekdelta(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+    select case( mlojacobi )
+      case(1) ! non-local - spline  
+        call seekdelta(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+      case(2) ! non-local - linear
+        call seekdelta_l(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+      case(3) ! local - Song 1998
+        call seekdelta_song(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+      case default
+        write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
+        stop
+    end select  
     do ii = 1,wlev
       call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
       call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
@@ -4600,25 +4640,6 @@ select case( mlojacobi )
       dfrhobardyu(1:ifull,ii) = -absu*dfnadyu(1:ifull,ii,1) + bbsu*dfnadyu(1:ifull,ii,2)
       drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
     end do
-    
-  case(2) ! non-local - linear
-    na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
-    na(:,:,2) = min(max(0.,  nsi),50. )-34.72
-    call seekdelta_l(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
-    do ii = 1,wlev
-      call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
-      call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
-      absu = 0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull)
-      bbsu = 0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull)
-      absv = 0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull)
-      bbsv = 0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull)
-
-      ! This relationship neglects compression effects due to neta from the EOS.
-      drhobardxu(1:ifull,ii) = -absu*dnadxu(1:ifull,ii,1) + bbsu*dnadxu(1:ifull,ii,2)
-      dfrhobardxv(1:ifull,ii) = -absv*dfnadxv(1:ifull,ii,1) + bbsv*dfnadxv(1:ifull,ii,2)
-      dfrhobardyu(1:ifull,ii) = -absu*dfnadyu(1:ifull,ii,1) + bbsu*dfnadyu(1:ifull,ii,2)
-      drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
-    end do      
     
   case default
     write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
@@ -5062,7 +5083,7 @@ return
 end subroutine seekdelta_l
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Interpolate to common depths - spline
+! Interpolate to common depths - linear
 
 pure subroutine seekval_l(rout,ssin,ddin,ddseek,ramp)
 
@@ -5127,6 +5148,233 @@ end do
 
 return
 end subroutine seekval_l
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate gradients using an interpolation method - Song
+
+subroutine seekdelta_song(rhobar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+
+use indices_m
+use map_m
+use mlo, only : wlev
+use newmpar_m
+use parm_m
+
+implicit none
+
+integer ii, jj, kk, iq
+real, dimension(ifull+iextra,wlev) :: dd_i
+real, dimension(ifull,wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
+real, dimension(ifull,wlev) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
+real, dimension(ifull,2) :: tti,tte,ttw,ttn,tts,tten,ttse,ttne,ttwn
+real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
+real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull) :: f_in,f_ine,f_ie,f_is,f_ise,f_ien,f_iw,f_iwn
+
+! Here we calculate the slow contribution of the pressure gradient
+
+! dP/dx = g rhobar dneta/dx + g sigma D drhobar/dx + g sigma neta drhobar/dx
+!                   (fast)               (slow)          (mixed)
+
+! rhobar = int_0^sigma rho dsigma / sigma
+
+do ii = 1,wlev
+  dd_i(:,ii) = gosig(ii)*dd(:)
+  ddi(:,ii) = dd_i(1:ifull,ii)
+  call unpack_nsew(dd_i(:,ii),ddn(:,ii),dds(:,ii),dde(:,ii),ddw(:,ii))
+!$omp simd
+  do iq = 1,ifull
+    ddne(iq,ii) = dd_i(ine(iq),ii)
+    ddse(iq,ii) = dd_i(ise(iq),ii)
+    dden(iq,ii) = dd_i(ien(iq),ii)
+    ddwn(iq,ii) = dd_i(iwn(iq),ii)
+  end do  
+end do
+
+call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
+!$omp simd
+do iq = 1,ifull
+  f_ine(iq)=f(ine(iq))
+  f_ise(iq)=f(ise(iq))
+  f_ien(iq)=f(ien(iq))
+  f_iwn(iq)=f(iwn(iq))
+end do  
+
+do jj = 1,2
+  do ii = 1,wlev
+    ssi(:,ii) = rhobar(1:ifull,ii,jj)
+    call unpack_nsew(rhobar(:,ii,jj),ssn(:,ii),sss(:,ii),sse(:,ii),ssw(:,ii))
+!$omp simd
+    do iq = 1,ifull
+      ssne(iq,ii) = rhobar(ine(iq),ii,jj)
+      ssse(iq,ii) = rhobar(ise(iq),ii,jj)
+      ssen(iq,ii) = rhobar(ien(iq),ii,jj)
+      sswn(iq,ii) = rhobar(iwn(iq),ii,jj)
+    end do  
+  end do
+  
+  ! process staggered u locations
+  drhobardxu(:,1,jj)=ddsong(sse(:,2),sse(:,1),ssi(:,2),ssi(:,1), &
+                            dde(:,2),dde(:,1),ddi(:,2),ddi(:,1)) &
+                     *eeu(1:ifull)*emu(1:ifull)/ds
+  do ii=2,wlev-1
+    drhobardxu(:,ii,jj)=ddsong(sse(:,ii+1),sse(:,ii-1),ssi(:,ii+1),ssi(:,ii-1), &
+                               dde(:,ii+1),dde(:,ii-1),ddi(:,ii+1),ddi(:,ii-1)) &
+                        *eeu(1:ifull)*emu(1:ifull)/ds
+  end do
+  drhobardxu(:,wlev,jj)=ddsong(sse(:,wlev),sse(:,wlev-1),ssi(:,wlev),ssi(:,wlev-1), &
+                               dde(:,wlev),dde(:,wlev-1),ddi(:,wlev),ddi(:,wlev-1)) &
+                     *eeu(1:ifull)*emu(1:ifull)/ds
+
+  do kk = 1,2
+    ttn(:,kk) = ssn(:,kk)*f_in
+    tti(:,kk) = ssi(:,kk)*f(1:ifull)
+    ttne(:,kk) = ssne(:,kk)*f_ine
+    tte(:,kk) = sse(:,kk)*f_ie
+    tts(:,kk) = sss(:,kk)*f_is
+    ttse(:,kk) = ssse(:,kk)*f_ise
+  end do  
+  drhobardyu(:,1,jj)=0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds              &
+                     *(ddsong(ttn(:,2),ttn(:,1),tti(:,2),tti(:,1),      &
+                              ddn(:,2),ddn(:,1),ddi(:,2),ddi(:,1))      &
+                      +ddsong(ttne(:,2),ttne(:,1),tte(:,2),tte(:,1),    &
+                              ddne(:,2),ddne(:,1),dde(:,2),dde(:,1)))   &
+                    +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds              &
+                     *(ddsong(tti(:,2),tti(:,1),tts(:,2),tts(:,1),      &
+                              ddi(:,2),ddi(:,1),dds(:,2),dds(:,1))      &
+                      +ddsong(tte(:,2),tte(:,1),ttse(:,2),ttse(:,1),    &
+                              dde(:,2),dde(:,1),ddse(:,2),ddse(:,1)))
+  do ii = 2,wlev-1
+    do kk = 1,2
+      ttn(:,kk) = ssn(:,ii-3+2*kk)*f_in
+      tti(:,kk) = ssi(:,ii-3+2*kk)*f(1:ifull)
+      ttne(:,kk) = ssne(:,ii-3+2*kk)*f_ine
+      tte(:,kk) = sse(:,ii-3+2*kk)*f_ie
+      tts(:,kk) = sss(:,ii-3+2*kk)*f_is
+      ttse(:,kk) = ssse(:,ii-3+2*kk)*f_ise
+    end do  
+    drhobardyu(:,ii,jj)=0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds                          &
+                        *(ddsong(ttn(:,2),ttn(:,1),tti(:,2),tti(:,1),                  &
+                                 ddn(:,ii+1),ddn(:,ii-1),ddi(:,ii+1),ddi(:,ii-1))      &
+                         +ddsong(ttne(:,2),ttne(:,1),tte(:,2),tte(:,1),                &
+                                 ddne(:,ii+1),ddne(:,ii-1),dde(:,ii+1),dde(:,ii-1)))   &
+                       +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds                          &
+                        *(ddsong(tti(:,2),tti(:,1),tts(:,2),tts(:,1),                  &
+                                 ddi(:,ii+1),ddi(:,ii-1),dds(:,ii+1),dds(:,ii-1))      &
+                         +ddsong(tte(:,2),tte(:,1),ttse(:,2),ttse(:,1),                &
+                                 dde(:,ii+1),dde(:,ii-1),ddse(:,ii+1),ddse(:,ii-1)))
+  end do
+  do kk = 1,2
+    ttn(:,kk) = ssn(:,wlev-2+kk)*f_in
+    tti(:,kk) = ssi(:,wlev-2+kk)*f(1:ifull)
+    ttne(:,kk) = ssne(:,wlev-2+kk)*f_ine
+    tte(:,kk) = sse(:,wlev-2+kk)*f_ie
+    tts(:,kk) = sss(:,wlev-2+kk)*f_is
+    ttse(:,kk) = ssse(:,wlev-2+kk)*f_ise
+  end do  
+  drhobardyu(:,wlev,jj)=0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds                              &
+                        *(ddsong(ttn(:,2),ttn(:,1),tti(:,2),tti(:,1),                      &
+                                 ddn(:,wlev),ddn(:,wlev-1),ddi(:,wlev),ddi(:,wlev-1))      &
+                         +ddsong(ttne(:,2),ttne(:,1),tte(:,2),tte(:,1),                    &
+                                 ddne(:,wlev),ddne(:,wlev-1),dde(:,wlev),dde(:,wlev-1)))   &
+                       +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds                              &
+                        *(ddsong(tti(:,2),tti(:,1),tts(:,2),tts(:,1),                      &
+                                 ddi(:,wlev),ddi(:,wlev-1),dds(:,wlev),dds(:,wlev-1))      &
+                         +ddsong(tte(:,2),tte(:,1),ttse(:,2),ttse(:,1),                    &
+                                 dde(:,wlev),dde(:,wlev-1),ddse(:,wlev),ddse(:,wlev-1)))
+
+
+  ! now process staggered v locations
+  drhobardyv(:,1,jj)=ddsong(ssn(:,2),ssn(:,1),ssi(:,2),ssi(:,1), &
+                            ddn(:,2),ddn(:,1),ddi(:,2),ddi(:,1)) &
+                      *eev(1:ifull)*emv(1:ifull)/ds
+  do ii=2,wlev-1
+    drhobardyv(:,ii,jj)=ddsong(ssn(:,ii+1),ssn(:,ii-1),ssi(:,ii+1),ssi(:,ii-1), &
+                               ddn(:,ii+1),ddn(:,ii-1),ddi(:,ii+1),ddi(:,ii-1)) &
+                        *eev(1:ifull)*emv(1:ifull)/ds
+  end do
+  drhobardyv(:,wlev,jj)=ddsong(ssn(:,wlev),ssn(:,wlev-1),ssi(:,wlev),ssi(:,wlev-1), &
+                               ddn(:,wlev),ddn(:,wlev-1),ddi(:,wlev),ddi(:,wlev-1)) &
+                      *eev(1:ifull)*emv(1:ifull)/ds
+
+  do kk = 1,2  
+    tte(:,kk) = sse(:,kk)*f_ie
+    tti(:,kk) = ssi(:,kk)*f(1:ifull)
+    tten(:,kk) = ssen(:,kk)*f_ien
+    ttn(:,kk) = ssn(:,kk)*f_in
+    ttw(:,kk) = ssw(:,kk)*f_iw
+    ttwn(:,kk) = sswn(:,kk)*f_iwn
+  end do  
+  drhobardxv(:,1,jj)=0.25*stwgt(1:ifull,3)*emv(1:ifull)/ds                    &
+                     *(ddsong(tte(:,2),tte(:,1),tti(:,2),tti(:,1),            &
+                              dde(:,2),dde(:,1),ddi(:,2),ddi(:,1))            &
+                      +ddsong(tten(:,2),tten(:,1),ttn(:,2),ttn(:,1),          &
+                              dden(:,2),dden(:,1),ddn(:,2),ddn(:,1)))         &
+                    +0.25*stwgt(1:ifull,4)*emv(1:ifull)/ds                    &
+                     *(ddsong(tti(:,2),tti(:,1),ttw(:,2),ttw(:,1),            &
+                              ddi(:,2),ddi(:,1),ddw(:,2),ddw(:,1))            &
+                      +ddsong(ttn(:,2),ttn(:,1),ttwn(:,2),ttwn(:,1),          &
+                              ddn(:,2),ddn(:,1),ddwn(:,2),ddwn(:,1)))       
+  do ii=2,wlev-1
+    do kk = 1,2  
+      tte(:,kk) = sse(:,ii-3+2*kk)*f_ie
+      tti(:,kk) = ssi(:,ii-3+2*kk)*f(1:ifull)
+      tten(:,kk) = ssen(:,ii-3+2*kk)*f_ien
+      ttn(:,kk) = ssn(:,ii-3+2*kk)*f_in
+      ttw(:,kk) = ssw(:,ii-3+2*kk)*f_iw
+      ttwn(:,kk) = sswn(:,ii-3+2*kk)*f_iwn
+    end do  
+    drhobardxv(:,ii,jj)=0.25*stwgt(1:ifull,3)*emv(1:ifull)/ds                            &
+                        *(ddsong(tte(:,2),tte(:,1),tti(:,2),tti(:,1),                    &
+                                 dde(:,ii+1),dde(:,ii-1),ddi(:,ii+1),ddi(:,ii-1))        &
+                         +ddsong(tten(:,2),tten(:,1),ttn(:,2),ttn(:,1),                  &
+                                 dden(:,ii+1),dden(:,ii-1),ddn(:,ii+1),ddn(:,ii-1)))     &
+                       +0.25*stwgt(1:ifull,4)*emv(1:ifull)/ds                            &
+                        *(ddsong(tti(:,2),tti(:,1),ttw(:,2),ttw(:,1),                    &
+                                 ddi(:,ii+1),ddi(:,ii-1),ddw(:,ii+1),ddw(:,ii-1))        &
+                         +ddsong(ttn(:,2),ttn(:,1),ttwn(:,2),ttwn(:,1),                  &
+                                 ddn(:,ii+1),ddn(:,ii-1),ddwn(:,ii+1),ddwn(:,ii-1)))       
+  end do
+  do kk = 1,2  
+    tte(:,kk) = sse(:,wlev-2+kk)*f_ie
+    tti(:,kk) = ssi(:,wlev-2+kk)*f(1:ifull)
+    tten(:,kk) = ssen(:,wlev-2+kk)*f_ien
+    ttn(:,kk) = ssn(:,wlev-2+kk)*f_in
+    ttw(:,kk) = ssw(:,wlev-2+kk)*f_iw
+    ttwn(:,kk) = sswn(:,wlev-2+kk)*f_iwn
+  end do  
+  drhobardxv(:,wlev,jj)=0.25*stwgt(1:ifull,3)*emv(1:ifull)/ds                               &
+                        *(ddsong(tte(:,2),tte(:,1),tti(:,2),tti(:,1),                       &
+                                 dde(:,wlev),dde(:,wlev-1),ddi(:,wlev),ddi(:,wlev-1))       &
+                         +ddsong(tten(:,2),tten(:,1),ttn(:,2),ttn(:,1),                     &
+                                 dden(:,wlev),dden(:,wlev-1),ddn(:,wlev),ddn(:,wlev-1)))    &
+                       +0.25*stwgt(1:ifull,4)*emv(1:ifull)/ds                               &
+                        *(ddsong(tti(:,2),tti(:,1),ttw(:,2),ttw(:,1),                       &
+                                 ddi(:,wlev),ddi(:,wlev-1),ddw(:,wlev),ddw(:,wlev-1))       &
+                         +ddsong(ttn(:,2),ttn(:,1),ttwn(:,2),ttwn(:,1),                     &
+                                 ddn(:,wlev),ddn(:,wlev-1),ddwn(:,wlev),ddwn(:,wlev-1)))       
+
+end do
+
+return
+end subroutine seekdelta_song
+
+pure function ddsong(r1,r2,r3,r4,z1,z2,z3,z4) result(ans)
+
+implicit none
+
+real, dimension(:), intent(in) :: r1, r2, r3, r4
+real, dimension(:), intent(in) :: z1, z2, z3, z4
+real, dimension(size(z1)) :: ans
+
+where ( abs(z2-z1)<1.e-8 .or. abs(z4-z3)<1.e-8 )
+  ans = 0.
+elsewhere
+  ans = 0.25*((r1+r2-r3-r4)*(z2-z1+z4-z3)-(r2-r1+r4-r3)*(z1+z2-z3-z4))
+end where
+
+return
+end function ddsong
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate tidal potential

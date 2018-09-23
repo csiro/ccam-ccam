@@ -41,9 +41,11 @@ private
 public update_ensemble
 public ensembleoutfile
 
-integer, save :: mtimeb = -1           ! timer for updating analysis data
+integer, save :: mtimea = -1  ! previous mesonest time (mins)
+integer, save :: mtimeb = -1  ! timer for updating analysis data
 real, save :: refsum = -1.
 
+real, dimension(:), allocatable, save :: tssa
 real, dimension(:), allocatable, save :: pslb, tssb, fraciceb
 real, dimension(:), allocatable, save :: sicedepb
 real, dimension(:,:), allocatable, save :: tb, ub, vb, qb
@@ -81,10 +83,12 @@ integer, save :: num = 0
 integer kdate_r, ktime_r, k
 integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
 integer mtimeb_old
-real, dimension(ifull) :: dd
-real, dimension(:), allocatable :: psl_pos, psl_neg
-real, dimension(ifull) :: tssadj, old
+real timerm, cona, conb, wgt
+real, dimension(ifull) :: dd, old, new
 real, dimension(ifull) :: zsb, timelt
+real, dimension(:), allocatable :: psl_pos, psl_neg
+real, dimension(:), allocatable, save :: u_rms, v_rms
+real, dimension(:), allocatable, save :: t_rms
 real, dimension(ifull,3) :: duma
 real, dimension(ifull,2) :: dumd
 real, dimension(ifull,kl) :: ee
@@ -96,14 +100,12 @@ real, dimension(ifull,3,3) :: dums
 real, dimension(ifull,wlev,4) :: dumo
 real, dimension(ifull,kl,naero) :: dumr
 real, save :: psl_rms
-real, dimension(:), allocatable, save :: u_rms, v_rms
-real, dimension(:), allocatable, save :: t_rms
-
 
 if ( mtimer>mtimeb ) then
 
   ! allocate arrays on first call     
   if ( .not.allocated(tb) ) then
+    allocate( tssa(ifull) )
     allocate( tb(ifull,kl), ub(ifull,kl), vb(ifull,kl), qb(ifull,kl) )
     allocate( pslb(ifull), tssb(ifull), fraciceb(ifull) )
     allocate( sicedepb(ifull) )
@@ -146,6 +148,9 @@ if ( mtimer>mtimeb ) then
     end if
     mtimeb = 0
   end if
+  
+  mtimea = mtimeb
+  tssa(:) = tssb(:)
 
   ! following (till end of subr) reads in next bunch of data in readiness
   ! read tb etc  - for globpea, straight into tb etc
@@ -164,6 +169,7 @@ if ( mtimer>mtimeb ) then
       call ccmpi_abort(-1)
     endif   ! (abs(io_in)==1)
     tssb(:) = abs(tssb(:))  ! moved here Mar '03
+    qb(1:ifull,:) = max( qb(1:ifull,:), 0. )
 
     ! calculate time for next filter call
     khour_r = ktime_r/100
@@ -240,36 +246,48 @@ if ( mtimer>=mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
       call rmse(ee,t_rms)
       t(1:ifull,:) = tb + ee
   end select  
-
-  ! specify sea-ice if not AMIP or Mixed-Layer-Ocean
-  if ( namip==0 ) then  ! namip SSTs/sea-ice take precedence
-    if ( nmlo==0 ) then
-      ! check whether present ice points should change to/from sice points
-      where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
-        ! N.B. if already a sice point, keep present tice (in tggsn)
-        tggsn(:,1) = min( 271.2, tssb(:) )
-      end where
-      ! update tss 
-      where ( .not.land(1:ifull) )
-        tss(:) = tssb(:)
-        tgg(:,1) = tss(:)
-        sicedep(:) = sicedepb(:)
-        fracice(:) = fraciceb(:)
-      end where  ! (.not.land(iq))
-    else
-      ! nudge Mixed-Layer-Ocean
-      call mloexpmelt(timelt)
-      tssadj(:) = tssb(:)*(1.-fraciceb(:)) + timelt*fraciceb(:) - tss(:)
-      do k = 1,wlev
-        call mloexport(0,old,k,0)
-        old = old + tssadj
-        old = max( old, 260.-wrtemp )
-        call mloimport(0,old,k,0)
-      end do  
-    end if ! (nmlo==0) ..else..
-  end if   ! (namip==0)
   
 end if     ! (mtimer==mtimec).and.(mod(nint(ktau*dt),60)==0)
+
+
+! use time interpolated values for tss
+timerm = real(ktau)*dt/60.
+cona = (real(mtimeb)-timerm)/real(mtimeb-mtimea)
+conb = (timerm-real(mtimea))/real(mtimeb-mtimea)
+
+! specify sea-ice if not AMIP or if Mixed-Layer-Ocean
+if ( namip==0 ) then  ! namip SSTs/sea-ice take precedence
+  if ( nmlo==0 ) then
+    ! check whether present ice points should change to/from sice points
+    where ( fraciceb(:)>0. .and. fracice(:)<1.e-20 .and. .not.land(1:ifull) )
+      ! N.B. if already a sice point, keep present tice (in tggsn)
+      tggsn(:,1) = min( 271.2, tssb(:) )
+    end where
+    ! update tss 
+    where ( .not.land(1:ifull) )
+      tss(:) = cona*tssa(:) + conb*tssb(:)
+      tgg(:,1) = tss(:)
+      sicedep(:) = sicedepb(:)
+      fracice(:) = fraciceb(:)
+    end where  ! (.not.land(iq))
+  else
+    ! nudge Mixed-Layer-Ocean
+    if ( nud_hrs<=0 ) then
+      write(6,*) "ERROR: ensemble_mode/=0 has been selected with in-line ocean model (nmlo/=0)"  
+      write(6,*) "nud_hrs>0 must be specified for relaxiation of SSTs"
+      call ccmpi_abort(-1)
+    end if
+    old = cona*tssa + conb*tssb
+    call mloexpmelt(timelt)
+    timelt = min(timelt,271.2)
+    new = (cona*tssa + conb*tssb)*(1.-fraciceb(:)) + timelt*fraciceb(:) - wrtemp
+    wgt = dt/real(nud_hrs*3600)
+    call mloexport(0,old,1,0)
+    old = old*(1.-wgt) + new*wgt
+    call mloimport(0,old,1,0)
+  end if ! (nmlo==0) ..else..
+end if   ! (namip==0)
+
 
 return
 end subroutine update_ensemble

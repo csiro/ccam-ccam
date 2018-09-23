@@ -49,8 +49,8 @@ use arrays_m                                      ! Atmosphere dyamics prognosti
 use cc_mpi                                        ! CC MPI routines
 use dates_m                                       ! Date data
 use latlong_m                                     ! Lat/lon coordinates
-use mlo, only : mloexport,mloexpmelt,wlev,wrtemp  ! Ocean physics and prognostic arrays
-use nesting                                       ! Nesting and assimilation
+use mlo, only : mloexport,mloexpmelt,wlev,      &
+                wrtemp,mloimport                  ! Ocean physics and prognostic arrays
 use newmpar_m                                     ! Grid parameters
 use nharrs_m, only : lrestart                     ! Non-hydrostatic atmosphere arrays
 use parm_m                                        ! Model configuration
@@ -66,12 +66,11 @@ real, allocatable, save, dimension(:,:) :: aice
 real, allocatable, save, dimension(:,:) :: asal
 real, allocatable, save, dimension(:) :: res
 real, dimension(ifull) :: sssb, timelt, fraciceb
-real, dimension(ifull,wlev) :: dumb, dumd
-real, dimension(ifull,wlev,2) :: dumc
-real, dimension(ifull) :: dume
+real, dimension(ifull) :: old, new
 real x, c2, c3, c4, rat1, rat2
 real ssta2, ssta3, ssta4
 real a0, a1, a2, aa, bb, cc, mp1, mp2
+real wgt
 integer, dimension(0:13) :: mdays
 integer idjd_g, iq, k
 integer, save :: iyr, imo, iday
@@ -152,11 +151,6 @@ if ( ktau==0 ) then
         call ccmpi_abort(-1)
       end if
     end do
-  end if
-  
-  ! initialise spectral filter arrays if required
-  if ( mbd_mlo/=0 ) then
-    call specinit  
   end if
   
 end if ! ktau==0
@@ -548,42 +542,19 @@ if ( nmlo==0 ) then
     enddo
   end if  
 elseif ( ktau>0 ) then
-  dumb = 0.
-  dumc = 0.
-  dumd = 0.
-  dume = 0. ! Depth
-  if ( nud_ouv/=0 ) then
-    write(6,*) "ERROR: nud_ouv/=0 is not supported for"
-    write(6,*) "       namip/=0"
+  if ( nud_hrs<=0 ) then
+    write(6,*) "ERROR: namip/=0 has been selected with in-line ocean model (nmlo/=0)"  
+    write(6,*) "nud_hrs>0 must be specified for relaxiation of SSTs"
     call ccmpi_abort(-1)
   end if
-  if ( nud_sfh/=0 ) then
-    write(6,*) "ERROR: nud_sfh/=0 is not supported for"
-    write(6,*) "       namip/=0"
-    call ccmpi_abort(-1)
-  end if
+  old = tgg(:,1)
   call mloexpmelt(timelt)
   timelt = min(timelt,271.2)
-  dumb(:,1) = tgg(:,1)*(1.-fraciceb(:)) + timelt(:)*fraciceb(:)
-  dumb(:,1) = dumb(:,1) - wrtemp ! TEMP
-  dumc(:,1,1:2) = 0.             ! U,V
-  dumd(:,1) = sssb               ! SAL
-  if ( mbd_mlo/=0 ) then
-    ! scale-selective filter  
-    if ( mod(mtimer,mlotime*60)==0 ) then
-      mtimeb = mlotime*60
-      mtimea = 0
-      call mlofilterhub(dumb,dumd,dumc,dume,1)
-    end if
-  else if ( nud_hrs/=0 ) then  
-    ! relaxation
-    call mlonudge(dumb,dumd,dumc,dume,1)
-  else
-    write(6,*) "ERROR: AMIPSSTs (namip/=0) has been selected with in-line ocean model (nmlo/=0)"
-    write(6,*) "Ocean nudging method needs to be specified with either mbd_mlo/=0 for the"
-    write(6,*) "scale-selective filter or nud_hrs/=0 for relaxation"
-    call ccmpi_abort(-1)
-  end if
+  new = tgg(:,1)*(1.-fraciceb(:)) + timelt(:)*fraciceb(:) - wrtemp
+  wgt = dt/real(nud_hrs*3600)
+  call mloexport(0,old,1,0)
+  old = old*(1.-wgt) + new*wgt
+  call mloimport(0,old,1,0)
   do k = 1,ms
     call mloexport(0,tgg(:,k),k,0)
     where ( tgg(:,k)<100. )
