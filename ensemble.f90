@@ -69,7 +69,6 @@ use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data
 use mlo                          ! Ocean physics and prognostic arrays
-use nesting                      ! Nesting and assimilation
 use newmpar_m                    ! Grid parameters
 use onthefly_m                   ! Input interpolation routines
 use parm_m                       ! Model configuration
@@ -84,10 +83,12 @@ integer, save :: num = 0
 integer kdate_r, ktime_r, k
 integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
 integer mtimeb_old
-real timerm, cona, conb
-real, dimension(ifull) :: dd, dume
-real, dimension(:), allocatable :: psl_pos, psl_neg
+real timerm, cona, conb, wgt
+real, dimension(ifull) :: dd, old, new
 real, dimension(ifull) :: zsb, timelt
+real, dimension(:), allocatable :: psl_pos, psl_neg
+real, dimension(:), allocatable, save :: u_rms, v_rms
+real, dimension(:), allocatable, save :: t_rms
 real, dimension(ifull,3) :: duma
 real, dimension(ifull,2) :: dumd
 real, dimension(ifull,kl) :: ee
@@ -99,9 +100,6 @@ real, dimension(ifull,3,3) :: dums
 real, dimension(ifull,wlev,4) :: dumo
 real, dimension(ifull,kl,naero) :: dumr
 real, save :: psl_rms
-real, dimension(:), allocatable, save :: u_rms, v_rms
-real, dimension(:), allocatable, save :: t_rms
-
 
 if ( mtimer>mtimeb ) then
 
@@ -257,7 +255,7 @@ timerm = real(ktau)*dt/60.
 cona = (real(mtimeb)-timerm)/real(mtimeb-mtimea)
 conb = (timerm-real(mtimea))/real(mtimeb-mtimea)
 
-! specify sea-ice if not AMIP or Mixed-Layer-Ocean
+! specify sea-ice if not AMIP or if Mixed-Layer-Ocean
 if ( namip==0 ) then  ! namip SSTs/sea-ice take precedence
   if ( nmlo==0 ) then
     ! check whether present ice points should change to/from sice points
@@ -274,33 +272,19 @@ if ( namip==0 ) then  ! namip SSTs/sea-ice take precedence
     end where  ! (.not.land(iq))
   else
     ! nudge Mixed-Layer-Ocean
-    dumo = 0.
-    dume = 0.
-    if ( nud_ouv/=0 ) then
-      write(6,*) "ERROR: nud_ouv/=0 is not supported for ensemble_mode/=0"
+    if ( nud_hrs<=0 ) then
+      write(6,*) "ERROR: ensemble_mode/=0 has been selected with in-line ocean model (nmlo/=0)"  
+      write(6,*) "nud_hrs>0 must be specified for relaxiation of SSTs"
       call ccmpi_abort(-1)
     end if
-    if ( nud_sfh/=0 ) then
-      write(6,*) "ERROR: nud_sfh/=0 is not supported for ensemble_mode/=0"
-      call ccmpi_abort(-1)
-    end if
-    if ( nud_sss/=0 ) then
-      write(6,*) "ERROR: nud_sss/=0 is not supported for ensemble_mode/=0"
-      call ccmpi_abort(-1)
-    end if     
+    old = cona*tssa + conb*tssb
     call mloexpmelt(timelt)
     timelt = min(timelt,271.2)
-    dumo(:,1,1) = (cona*tssa + conb*tssb)*(1.-fraciceb(:)) + timelt*fraciceb(:) - wrtemp
-    dumo(:,1,2) = 0.   ! SAL
-    dumo(:,1,3:4) = 0. ! U,V
-    if ( nud_hrs/=0 ) then
-      ! relaxiation
-      call mlonudge(dumo(:,:,1),dumo(:,:,2),dumo(:,:,3:4),dume,1)
-    else
-      write(6,*) "ERROR: ensemble_mode/=0 has been selected with in-line ocean model (nmlo/=0)"  
-      write(6,*) "nud_hrs/=0 must be specified for relaxiation"
-      call ccmpi_abort(-1)
-    end if    
+    new = (cona*tssa + conb*tssb)*(1.-fraciceb(:)) + timelt*fraciceb(:) - wrtemp
+    wgt = dt/real(nud_hrs*3600)
+    call mloexport(0,old,1,0)
+    old = old*(1.-wgt) + new*wgt
+    call mloimport(0,old,1,0)
   end if ! (nmlo==0) ..else..
 end if   ! (namip==0)
 
