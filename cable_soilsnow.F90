@@ -54,12 +54,12 @@ MODULE cable_soil_snow_module
       max_sconds = 2.51,   & !
       frozen_limit = 0.85    ! EAK Feb2011 (could be 0.95)
 
-   REAL :: cp    ! specific heat capacity for air
-!$omp threadprivate(cp)
-
    !jhan:make parameter
-   REAL :: max_glacier_snowd
-!$omp threadprivate(max_glacier_snowd)
+   !jhan - make switchable
+   ! appropriate for ACCESS1.0
+   !REAL, PARAMETER :: max_glacier_snowd = 50000.0
+   ! appropriate for ACCESS1.3
+   REAL, PARAMETER :: max_glacier_snowd = 1100.0
 
    ! This module contains the following subroutines:
    PUBLIC soil_snow ! must be available outside this module
@@ -555,13 +555,9 @@ SUBROUTINE snowdensity (dels, ssnow, soil)
 
    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
 
-   !INTEGER, DIMENSION(mp,3) :: ssnow_isflag_ssdn ! MJT bug fix
    REAL, DIMENSION(mp) :: ssnow_tgg_min1
-   !REAL, DIMENSION(mp,3) :: dels_ssdn, ssnow_tgg_min ! MJT bug fix
 
-   !ssnow_isflag_ssdn = SPREAD( ssnow%isflag,2,mp) ! MJT bux fix
 
-   !dels_ssdn = SPREAD( SPREAD( dels, 1, mp ), 2,  mp ) ! MJT bug fix
    ssnow_tgg_min1 = MIN( C%TFRZ, ssnow%tgg(:,1) )
 
    WHERE( ssnow%snowd > 0.1 .AND. ssnow%isflag == 0 )
@@ -1714,6 +1710,7 @@ SUBROUTINE soil_snow(dels, soil, ssnow, canopy, met, bal, veg)
 #ifndef CCAM
    INTEGER, SAVE :: ktau =0
 #endif
+   REAL :: cp    ! specific heat capacity for air
 
    CALL point2constants( C )
    cp = C%CAPP
@@ -1721,12 +1718,6 @@ SUBROUTINE soil_snow(dels, soil, ssnow, canopy, met, bal, veg)
 #ifndef CCAM
    ktau = ktau +1
 #endif
-
-   !jhan - make switchable
-   ! appropriate for ACCESS1.0
-   !max_glacier_snowd = 50000.0
-   ! appropriate for ACCESS1.3
-   max_glacier_snowd = 1100.0
 
    zsetot = sum(soil%zse)
    ssnow%tggav = 0.

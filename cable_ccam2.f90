@@ -116,6 +116,7 @@ use cable_ccam4
 use cable_common_module
 use cable_data_module
 use cable_def_types_mod, cbm_ms => ms
+use cable_IO_vars_module, only : wlogn
 use cable_optimise_JV_module, only : optimise_JV
 use cable_radiation_module
 use cable_roughness_module
@@ -1207,16 +1208,19 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
 
   ! initialize
   ncleafx(:) = casabiome%ratioNCplantmax(veg%iveg(:),leaf)
-  npleafx(:) = 14.2_8
+  npleafx(:) = casabiome%ratioNPplantmin(veg%iveg(:),leaf)
   bjvref = 1.7_8 ! Walker 2014
 
   do np = 1,mp
     ivt = veg%iveg(np)
     if ( casamet%iveg2(np)/=icewater .and. casamet%glai(np)>casabiome%glaimin(ivt) .and. &
          casapool%cplant(np,leaf)>0._8 ) then
-      ncleafx(np) = min( casabiome%ratioNCplantmax(ivt,leaf),                  &
-                    max( casabiome%ratioNCplantmin(ivt,leaf),                  &
-                         casapool%nplant(np,leaf)/casapool%cplant(np,leaf) ) )
+
+      if (icycle>1 .and. casapool%cplant(np,leaf)>0._8) then
+         ncleafx(np) = min( casabiome%ratioNCplantmax(ivt,leaf),                  &
+                       max( casabiome%ratioNCplantmin(ivt,leaf),                  &
+                            casapool%nplant(np,leaf)/casapool%cplant(np,leaf) ) )
+      end if
       if ( ccycle>2 .and. casapool%pplant(np,leaf)>0._8 ) then
         npleafx(np) = min(30._8,max(8._8,casapool%nplant(np,leaf)/casapool%pplant(np,leaf)))
       end if
@@ -1263,10 +1267,11 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
           veg%ejmax(np) = bjvref*veg%vcmax(np)
         else if ( ivt==1 ) then
           ! account here for spring recovery  
-          veg%vcmax(np) = vcmax_np(nleafx(np),nleafx(np))*1.25_8*climate%frec(np)
+          veg%vcmax(np) = vcmax_np(nleafx(np),nleafx(np))*casabiome%vcmax_scalar(ivt) &
+               *climate%frec(np)
           veg%ejmax(np) = bjvref*veg%vcmax(np)
         else
-          veg%vcmax(np) = vcmax_np(nleafx(np),nleafx(np))*1.25_8
+          veg%vcmax(np) = vcmax_np(nleafx(np),nleafx(np))*casabiome%vcmax_scalar(ivt)
           veg%ejmax(np) = bjvref*veg%vcmax(np)
         end if
       end do
@@ -1300,7 +1305,7 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
   end select
   
   if ( mod(ktau,nperday)==1 ) then    
-    if ( cable_climate==1 .and. progvcmax==2 ) then
+    if ( cable_climate==1 .and. (progvcmax==2 .or. progvcmax==1) ) then
       if ( all(climate%tleaf_sun(:,1)>0.1_8) ) then  
         call optimise_JV(veg,climate,24,bjvref)
       end if
@@ -1319,7 +1324,7 @@ subroutine cable_phenology_clim(climate,phen,rad,veg)
 implicit none
 
 integer :: np, days, ivt
-integer, parameter :: ndays_raingreenup = 40
+integer, parameter :: ndays_raingreenup = 60
 real(kind=8) :: gdd0
 real(kind=8) :: phengdd5ramp
 real(kind=8) :: phen_tmp
@@ -1337,7 +1342,7 @@ type(veg_parameter_type), intent(in) :: veg
 
 do np = 1,mp
   ivt = veg%iveg(np)  
-  phen_tmp = 0._8
+  phen_tmp = 1.0_8
   
   ! evergreen pfts
   if ( ivt==1 .or. ivt==2 .or. ivt==5 ) then
@@ -1384,13 +1389,13 @@ do np = 1,mp
 
   if ( (ivt==3.or.ivt==4) .or. (ivt>=6.and.ivt<=10) ) then
 
-    if (phen_tmp>0._8 .and.( phen%phase(np)==3 .or. phen%phase(np)==0 )) then
+    if (phen_tmp>0._8 .and. (phen_tmp.lt.1.0_8)) then
       phen%phase(np) = 1 ! greenup
       phen%doyphase(np,1) = climate%doy
-    elseif (phen_tmp>=1._8 .and. phen%phase(np)==1) then
+    elseif (phen_tmp>=1._8) then
       phen%phase(np) = 2 ! steady LAI
       phen%doyphase(np,2) = climate%doy
-    elseif (phen_tmp<1._8 .and. phen%phase(np)==2) then
+    elseif (phen_tmp==0._8) then
       phen%phase(np) = 3 ! senescence
       phen%doyphase(np,3) = climate%doy
     endif
@@ -1517,7 +1522,7 @@ if ( cable_pop==1 .and. POP%np>0 ) then ! CALL_POP
     NPPtoGPP = 0.5_dp
   end where
   stemNPP_tmp(:,1) = real(max(casaflux%stemnpp(Iw)/1000._8,0.0001_8),dp)
-  stemNPP_tmp(:,2) = 0._dp
+  stemNPP_tmp(:,2) = 0.0001_dp !PAR to be consistent with original
   disturbance_interval_tmp = int(veg%disturbance_interval(Iw,:), i4b) 
   disturbance_intensity_tmp = real(veg%disturbance_intensity(Iw,:),8)
   LAImax_tmp = real(max(casabal%LAImax(Iw),0.001_8),dp)
@@ -1873,12 +1878,12 @@ do iq = 1,mp
    ! tropical evergreen (1)
    ! tropical raingreen (2)
    if ( climate%mtemp_min20(iq)>=15.5_8 ) then
-     if ( alpha_PT_scaled>=0.80_8 ) then
+     if ( alpha_PT_scaled>=0.85_8 ) then
        pft_biome1(iq,1) = 1
-       if ( alpha_PT_scaled<=0.85_8 ) then
+       if ( alpha_PT_scaled<=0.90_8 ) then
          pft_biome1(iq,2) = 2
        end if
-     else if ( alpha_PT_scaled>=0.4_8 ) then
+     else if ( alpha_PT_scaled>=0.4_8 .and. alpha_pt_scaled<0.85 ) then
        pft_biome1(iq,1) = 2
      end if
    end if
@@ -1896,7 +1901,7 @@ do iq = 1,mp
    
    if ( climate%mtemp_min20(iq)>=-19._8 .and. climate%mtemp_min20(iq)<=5._8 .and. &
         alpha_PT_scaled>=0.35 .and. climate%agdd5(iq)>900. ) then
-     if (pft_biome1(iq,1)==999 ) then
+     if (pft_biome1(iq,1)>4 ) then
        pft_biome1(iq,1) = 5
      else if (pft_biome1(iq,1)==4 ) then
        pft_biome1(iq,2) = 5
@@ -1904,7 +1909,7 @@ do iq = 1,mp
    end if
    
    if ( climate%mtemp_min20(iq)>=-35._8 .and. climate%mtemp_min20(iq)<=-2._8 .and. &
-        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(iq)>350. ) then
+        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(iq)>550. ) then
      if ( pft_biome1(iq,1)==999 ) then
        pft_biome1(iq,1) = 6
      else if ( pft_biome1(iq,2)==999 ) then
@@ -1914,8 +1919,8 @@ do iq = 1,mp
      end if
    end if
    
-   if ( climate%mtemp_min20(iq)<=5._8 .and. alpha_PT_scaled>=0.45_8 .and. &
-        climate%agdd5(iq)>350. ) then
+   if ( climate%mtemp_min20(iq)<=5._8 .and. alpha_PT_scaled>=0.35_8 .and. &
+        climate%agdd5(iq)>550. ) then
      if (pft_biome1(iq,1)==999 ) then
        pft_biome1(iq,1) = 7
      else if (pft_biome1(iq,2)==999 ) then
@@ -2077,6 +2082,7 @@ end where
 where ( (climate%iveg(:)==1.or.climate%iveg(:)==3.or.climate%iveg(:)==4) .and. &
         rad%latitude(:)<0._8 )
   climate%iveg(:) = 2
+  climate%biome(:) = 4
 end where
 
 return
@@ -2531,6 +2537,8 @@ real, dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpw
 real, dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
 real, dimension(mxvt) :: xxnpmax,xq10soil,xxkoptlitter,xxkoptsoil,xprodptase
 real, dimension(mxvt) :: xcostnpup,xmaxfinelitter,xmaxcwd,xnintercept,xnslope
+real, dimension(mxvt) :: xla_to_sa,xvcmax_scalar,xdisturbance_interval
+real, dimension(mxvt) :: xDAMM_EnzPool,xDAMM_KMO2,xDAMM_KMcp,xDAMM_Ea,xDAMM_alpha
 real, dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
 real, dimension(ifull) :: albsoil
 real, dimension(12) :: xkmlabp,xpsorbmax,xfPleach
@@ -2544,6 +2552,8 @@ if ( cbm_ms/=ms ) then
   write(6,*) "ERROR: CABLE and CCAM soil levels do not match"
   call ccmpi_abort(-1)
 end if
+
+wlogn = 10001
 
 ! redefine rhos
 rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)
@@ -3137,6 +3147,16 @@ if ( mp_global>0 ) then
     xnintercept = (/ 6.32, 4.19, 6.32, 5.73, 14.71, 6.42, 2., 14.71, 4.71, 14.71, 14.71, 7., 14.71, 14.71, 14.71, 14.71, 14.71 /)
     xnslope = (/ 18.15, 26.19, 18.15, 29.81, 23.15, 40.96, 8., 23.15, 59.23, 23.15, 23.15, 10., 23.15, 23.15, 23.15, 23.15, &
                  23.15 /)
+    xla_to_sa = (/ 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., &
+                   5000. /)
+    xvcmax_scalar = (/ 0.92, 1.10, 0.92, 0.92, 1.25, 1.25, 1.25, 1.25, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 /)
+    xdisturbance_interval = (/ 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100.,     &
+                               100. /)
+    xDAMM_EnzPool = (/ 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0 /)
+    xDAMM_KMO2 = (/ 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01 /)
+    xDAMM_KMcp = (/ 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1 /)
+    xDAMM_Ea = (/ 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62. /)
+    xDAMM_alpha = (/ 10.6, 10.4, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6 /)
     
     xxkplab = 0.001369863
     xxkpsorb = (/ 1.8356191E-05, 2.0547975E-05, 1.3698650E-05, 1.4794542E-05, 2.1369894E-05, 2.3835651E-05, 1.9452083E-05, &
@@ -3230,6 +3250,15 @@ if ( mp_global>0 ) then
     casabiome%maxcwd(:)          = xmaxcwd(:)
     casabiome%nintercept(:)      = xnintercept(:)
     casabiome%nslope(:)          = xnslope(:)    
+
+    casabiome%la_to_sa(:)             = xla_to_sa(:)
+    casabiome%vcmax_scalar(:)         = xvcmax_scalar(:)
+    casabiome%disturbance_interval(:) = xdisturbance_interval(:)
+    casabiome%DAMM_EnzPool(:)         = xDAMM_EnzPool(:)
+    casabiome%DAMM_KMO2(:)            = xDAMM_KMO2(:)
+    casabiome%DAMM_KMcp(:)            = xDAMM_KMcp(:)
+    casabiome%DAMM_Ea(:)              = xDAMM_Ea(:)
+    casabiome%DAMM_alpha(:)           = xDAMM_alpha(:)
     
     casabiome%xkplab = xxkplab
     casabiome%xkpsorb = xxkpsorb

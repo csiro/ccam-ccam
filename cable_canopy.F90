@@ -42,6 +42,7 @@
 MODULE cable_canopy_module
 
   USE cable_data_module, ONLY : icanopy_type, point2constants
+  USE cable_IO_vars_module, ONLY: wlogn
   IMPLICIT NONE
 
   PUBLIC define_canopy,  xvcmxt3,xejmxt3, ej3x , xrdt
@@ -61,7 +62,7 @@ CONTAINS
     USE cable_common_module
     USE cable_roughness_module
     USE sli_utils, ONLY : potential_evap
-
+   
 
     TYPE (balances_type), INTENT(INOUT)  :: bal
     TYPE (radiation_type), INTENT(INOUT) :: rad
@@ -105,7 +106,7 @@ CONTAINS
     ! temporary buffers to simplify equations
     REAL, DIMENSION(mp) ::                                                      &
          ftemp,z_eff,psim_arg, psim_1, psim_2, rlower_limit,                      &
-         term1, term2, term3, term5
+         term1, term2, term3, term5, denom
     ! arguments for potential_evap (sli)
     REAL(r_2), DIMENSION(mp) ::  Rn, rbh, rbw, Ta, rha,Ts, &
          kth, dz,lambdav, &
@@ -135,17 +136,18 @@ CONTAINS
          csx              ! leaf surface CO2 concentration
     REAL(r_2), DIMENSION(mp,mf) :: gmes ! mesophyll conductance
     REAL, PARAMETER :: kg = 0.08997
-    ! mesophyll conductance extinction coeff't (Sun et al. 2014 SI Eq S7)
+    !mesophyll conductance extinction coeff't (Sun et al. 2014 SI Eq S7)
     REAL :: gmax0 ! max mesophyll conductance at canopy top
     REAL  :: rt_min
     REAL, DIMENSION(mp)       :: zstar, rL, phist, csw, psihat,rt0bus
     real, dimension(mp) :: tmp, tmp1, tmp2, tmp4
-    
+
     REAL(r_2), PARAMETER                :: alpha1=4.0
     REAL(r_2), PARAMETER                :: beta1=0.5
     REAL(r_2), PARAMETER                :: gamma1=0.3
     REAL(r_2), DIMENSION(mp)            :: zeta1
     REAL(r_2), DIMENSION(mp)            :: zeta2
+
 
     INTEGER :: j
 
@@ -170,12 +172,6 @@ CONTAINS
     IF( .NOT. cable_runtime%um)                                                 &
          canopy%cansto =  canopy%oldcansto
 
-! MJT fix    
-!    ALLOCATE( cansat(mp), gbhu(mp,mf))
-!    ALLOCATE( dsx(mp), fwsoil(mp), tlfx(mp), tlfy(mp) )
-!    ALLOCATE( ecy(mp), hcy(mp), rny(mp))
-!    ALLOCATE( gbhf(mp,mf), csx(mp,mf))
-!    ALLOCATE( ghwet(mp))
 
     ! BATS-type canopy saturation proportional to LAI:
     cansat = veg%canst1 * canopy%vlaiw
@@ -227,6 +223,12 @@ CONTAINS
     canopy%zetash(:,1) = C%ZETA0 ! stability correction terms
     canopy%zetash(:,2) = C%ZETPOS + 1
 
+
+!!$    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+!!$	 ! SPECIAL for global offine met: set screen t and humidity as met inputs
+!!$       canopy%tscrn=   met%tk
+!!$       canopy%qscrn  = met%qv
+!!$    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     DO iter = 1, NITER
 
@@ -327,9 +329,8 @@ CONTAINS
           ELSE
              ssnow%rtsoil(j) = rt0(j) + rough%rt1(j)
           ENDif
-
        ENDDO
-       
+
        ssnow%rtsoil = min(ssnow%rtsoil, 1.e30) ! MJT suggestion
 
 
@@ -370,7 +371,7 @@ CONTAINS
              gbhu(j,2) = (2.0/rough%coexp(j))*gbvtop(j)*  &
                   (1.0-EXP(-min(0.5*rough%coexp(j)*canopy%vlaiw(j),20.0))) &
                   - gbhu(j,1)
-             
+
              if (cable_user%finite_gm) then
                 gmax0 = 2.47/10.1 ! molm-2s-1 
                 if (veg%iveg(j).eq.1) then
@@ -396,7 +397,6 @@ CONTAINS
                      (exp(-rad%extkb(j)*canopy%vlaiw(j)) - 1 + rad%extkb(j)*canopy%vlaiw(j))
                
              endif              !
-             
           ENDIF
 
        ENDDO
@@ -406,7 +406,6 @@ CONTAINS
        ecy = rny - hcy        ! init current estimate lat heat
 
        sum_rad_rniso = SUM(rad%rniso,2)
-
        CALL dryLeaf( dels, rad, rough, air, met,                                &
             veg, canopy, soil, ssnow, dsx,                             &
             fwsoil, tlfx, tlfy, ecy, hcy,                              &
@@ -460,6 +459,7 @@ CONTAINS
 
        ENDDO
 
+
        ! Calculate net rad to soil:
        canopy%fns = rad%qssabs + rad%transd*met%fld + (1.0-rad%transd)*C%EMLEAF* &
             C%SBOLTZ*canopy%tv**4 - C%EMSOIL*C%SBOLTZ* tss4
@@ -504,12 +504,35 @@ CONTAINS
           CALL sli_main(1,dels,veg,soil,ssnow,met,canopy,air,rad,1)
        ENDIF
 
+!!$!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+!!$	 ! SPECIAL for global offine met: set screen t and humidity as met inputs
+!!$    
+!!$       tstar = - (canopy%fhv+canopy%fhs) / ( air%rho*C%capp*canopy%us)
+!!$       qstar = - (canopy%fev+canopy%fes) / ( air%rho*air%rlam *canopy%us)
+!!$       zscrn = max(rough%z0m,1.8-rough%disp)
+!!$       denom = ( log(rough%zref_tq/zscrn)- psis(canopy%zetar(:,iter)) + &
+!!$            psis(canopy%zetar(:,iter) * zscrn / rough%zref_tq) ) /C%vonk
+!!$       
+!!$       where (canopy%zetar(:,iter) > 0.7)
+!!$          zeta2=canopy%zetar(:,iter) * zscrn / rough%zref_tq
+!!$          denom =alpha1* ((canopy%zetar(:,iter)**beta1* &
+!!$               (1.0+gamma1*canopy%zetar(:,iter)**(1.0-beta1)))  &
+!!$               - (zeta2**beta1*(1.0+gamma1*zeta2**(1.0-beta1)))) /C%vonk
+!!$       endwhere
+!!$
+!!$       where (abs( tstar*denom ).lt. 5.0)
+!!$          met%tk = canopy%tscrn + tstar*denom
+!!$          met%qv = max(canopy%qscrn + qstar*denom, 0.0)
+!!$       endwhere
+!!$!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
 
        CALL within_canopy( gbhu, gbhf )
 
        ! Saturation specific humidity at soil/snow surface temperature:
-       
-       ! MJT fix
+
        tmp = ssnow%tss-C%tfrz
        call qsatfjh(ssnow%qstss,tmp,met%pmb)
 
@@ -615,11 +638,12 @@ CONTAINS
          canopy%vlaiw(:))*canopy%gswx(:,2)
 
     ! The surface conductance below is required by dust scheme; it is composed from canopy and soil conductances
-    canopy%gswx_T = (1.-rad%transd)*max(1.e-06,canopy%gswx_T ) +  &   !contribution from  canopy conductance
-         rad%transd*(.01*ssnow%wb(:,1)/soil%sfc)**2 ! + soil conductance; this part is done as in Moses
+
+    !vh ! this line is causing a floating overflow error
+    !canopy%gswx_T = (1.-rad%transd)*max(1.e-06,canopy%gswx_T ) +  &   !contribution from  canopy conductance
+     !    rad%transd*(.01*ssnow%wb(:,1)/soil%sfc)**2 ! + soil conductance; this part is done as in Moses
     where ( soil%isoilm == 9 ) canopy%gswx_T = 1.e6   ! this is a value taken from Moses for ice points
 
-    ! MJT fix
     tmp1 = canopy%zetar(:,NITER) * rough%zref_uv/rough%zref_tq
     tmp2 = canopy%zetar(:,NITER) * rough%z0m/rough%zref_tq
     tmp4 = canopy%zetar(:,NITER)*0.1*rough%z0m/rough%zref_tq
@@ -696,10 +720,8 @@ CONTAINS
                   MAX( rough%zruffs(j)-rough%disp(j),                      &
                   rough%z0soilsn(j) ) ) - psis( (zscl(j)-rough%disp(j))    &
                   * canopy%zetar(j,iterplus) / rough%zref_tq(j) )          &
-!                  / (rough%zref_tq(j)/canopy%zetar(j,iterplus) ) )         & ! MJT suggestion
                   + psis( (rough%zruffs(j) - rough%disp(j) )               &
                   * canopy%zetar(j,iterplus ) / rough%zref_tq(j) ) )       & 
-!                  / (rough%zref_tq(j)/canopy%zetar(j,iterplus ) ) ) )      & ! MJT suggestion
                   / C%VONK
 
           ENDIF
@@ -796,12 +818,6 @@ CONTAINS
          + C%CAPP*C%rmair * (tlfy-met%tk) * SUM(rad%gradis,2) *          &
          canopy%fwet  ! YP nov2009
 
-! MJT fix
-!    DEALLOCATE(cansat,gbhu)
-!    DEALLOCATE(dsx, fwsoil, tlfx, tlfy)
-!    DEALLOCATE(ecy, hcy, rny)
-!    DEALLOCATE(gbhf, csx)
-!    DEALLOCATE(ghwet)
 
     RETURN
 
@@ -829,6 +845,7 @@ CONTAINS
 
       canopy%us = MAX(1.e-6, lower_limit )
 
+
     END SUBROUTINE comp_friction_vel
 
     ! ------------------------------------------------------------------------------
@@ -850,7 +867,6 @@ CONTAINS
       cc1=sss/(sss+air%psyc )
       cc2=air%psyc /(sss+air%psyc )
 
-      ! MJT fix
       tmp = met%tvair-C%tfrz
       CALL qsatfjh(qsatfvar,tmp,met%pmb)
 
@@ -1047,7 +1063,8 @@ CONTAINS
             met%qvair(j) =  MAX(met%qvair(j),lower_limit)
             met%qvair(j) =  MIN(met%qvair(j), upper_limit)
 
-            ! Saturated specific humidity in canopy:
+
+           ! Saturated specific humidity in canopy:
             CALL qsatfjh2(qstvair(j),met%tvair(j)-C%tfrz,met%pmb(j))
 
             ! Saturated vapour pressure deficit in canopy:
@@ -1057,6 +1074,12 @@ CONTAINS
 
       ENDDO
 
+!!$ write(3355,"(200e16.6)") ( qstvair - met%qv ) *  C%rmair/C%RMH2o         &
+!!$                 * met%pmb * 100.
+!!$ write(3356,"(200e16.6)") ( qstvair - met%qvair ) *  C%rmair/C%RMH2o         &
+!!$                 * met%pmb * 100.
+!!$write(3357,"(200e16.6)") canopy%fwsoil
+!!$write(3358,"(200e16.6)") veg%gamma
     END SUBROUTINE within_canopy
 
     ! -----------------------------------------------------------------------------
@@ -1073,7 +1096,6 @@ CONTAINS
          canopy%zetar(:,iterplus) = -( C%VONK * C%GRAV * rough%zref_tq *              &
               ( canopy%fh + 0.07 * canopy%fe ) ) /          &
               ( air%rho * C%CAPP * met%tk * canopy%us**3 )
-
          ! stability parameter at shear height: needed for Harman in-canopy stability correction
          IF (cable_user%soil_struc=='sli') THEN
             WHERE (canopy%vlaiw > C%LAI_THRESH .and. rough%hruff > rough%z0soilsn)
@@ -1392,9 +1414,12 @@ CONTAINS
     canopy%wcint = MERGE( MIN( upper_limit, ftemp ), 0.0,                       &
          ftemp > 0.0  .AND. met%tk > C%tfrz)  !EAK, 09/10
 
+
+
     ! Define canopy throughfall (100% of precip if temp < 0C, see above):
     canopy%through = met%precip_sn + MIN( met%precip - met%precip_sn ,          &
          MAX( 0.0, met%precip - met%precip_sn - canopy%wcint) )
+
 
     ! Add canopy interception to canopy storage term:
     canopy%cansto = canopy%cansto + canopy%wcint
@@ -1471,7 +1496,7 @@ CONTAINS
 
     REAL(R_2),INTENT(INOUT), DIMENSION(:,:) ::                                  & 
          gmes             ! mesophyll conductance
-    
+
     REAL,INTENT(IN), DIMENSION(:) :: cansat
 
     REAL(r_2), INTENT(OUT), DIMENSION(:) ::                                     &
@@ -1523,7 +1548,7 @@ CONTAINS
          anx,        & ! net photos. prev iteration
          an_y,       & ! net photosynthesis soln
          rdx3,       & ! daytime leaf resp rate, prev iteration
-         rdx4,       & ! daytime leaf resp rate, prev iteration    
+         rdx4,       & ! daytime leaf resp rate, prev iteration
          rdx,        & ! daytime leaf resp rate, prev iteration
          rdy,        & ! daytime leaf resp rate
          ejmax2,     & ! jmax of big leaf
@@ -1557,10 +1582,10 @@ CONTAINS
          eta_y, &
          eta_x
 
-    REAL, DIMENSION(mp,mf) :: gswmin ! min stomatal conductance ! MJT suggestion
+    REAL, DIMENSION(mp,mf) :: gswmin ! min stomatal conductance
 
     REAL, DIMENSION(mp,mf) :: cx1_tmp, cx2_tmp, abs_deltlf_tmp, fvlai_tmp
-    
+
     REAL, DIMENSION(mp,2) ::  gsw_term, lower_limit2  ! local temp var
 
     INTEGER :: i, j, k, kk  ! iteration count
@@ -1599,7 +1624,6 @@ CONTAINS
     lower_limit2 = rad%scalex * gsw_term
     gswmin = max(1.e-6,lower_limit2)
 
-
     gw = 1.0e-3 ! default values of conductance
     gh = 1.0e-3
     ghr= 1.0e-3
@@ -1635,9 +1659,9 @@ CONTAINS
     sum_rad_rniso = SUM(rad%rniso,2)
     sum_rad_gradis = SUM(rad%gradis,2)
 
-   cx1 = 0. ! MJT avoids float invalid
-   cx2 = 0. ! MJT avoids float invalid
-    
+    cx1 = 0. ! MJT avoids float invalid
+    cx2 = 0. ! MJT avoids float invalid
+
     DO kk=1,mp
 
        IF(canopy%vlaiw(kk) <= C%LAI_THRESH) THEN
@@ -1694,6 +1718,7 @@ CONTAINS
 
              ! Leuning 2002 (P C & E) equation for temperature response
              ! used for Vcmax for C3 plants:
+
              temp(i) =  xvcmxt3(tlfx(i)) * veg%vcmax(i) * (1.0-veg%frac4(i))
 
              vcmxt3(i,1) = rad%scalex(i,1) * temp(i)
@@ -1711,12 +1736,13 @@ CONTAINS
              ejmxt3(i,2) = rad%scalex(i,2) * temp(i)
 
              if (cable_user%CALL_climate) then
+
                 vcmxt3(i,1) = vcmxt3(i,1)/veg%vcmax(i) * veg%vcmax_sun(i)
                 vcmxt3(i,2) = vcmxt3(i,2)/veg%vcmax(i) * veg%vcmax_shade(i)
                 ejmxt3(i,1) = ejmxt3(i,1)/veg%ejmax(i) * veg%ejmax_sun(i)
                 ejmxt3(i,2) = ejmxt3(i,2)/veg%ejmax(i) * veg%ejmax_shade(i)
-             endif             
-             
+             endif
+
              ! Difference between leaf temperature and reference temperature:
              tdiff(i) = tlfx(i) - C%TREFK
 
@@ -1760,8 +1786,27 @@ CONTAINS
 
     
               if (cable_user%CALL_climate) then
-  
-                 ! Atkins et al. 2015, Table S4, 
+!!$                 if (veg%iveg(i).eq.1) then
+!!$
+!!$
+!!$                    temp2(i,1) = rad%qcan(i,1,1) * jtomol * (1.0-veg%frac4(i))
+!!$                    temp2(i,2) = rad%qcan(i,2,1) * jtomol * (1.0-veg%frac4(i))
+                    
+!!$
+!!$                    vx3(i,1)  = ej3x(temp2(i,1),climate%frec(i)*veg%alpha(i), &
+!!$                         veg%convex(i),ejmxt3(i,1))
+!!$                    vx3(i,2)  = ej3x(temp2(i,2),climate%frec(i)*veg%alpha(i), &
+!!$                         veg%convex(i),ejmxt3(i,2))
+!!$
+!!$
+!!$                    temp(i) =  xvcmxt3(tlfx(i)) * veg%vcmax(i) * (1.0-veg%frac4(i))
+!!$
+!!$                    vcmxt3(i,1) = rad%scalex(i,1) * temp(i) * climate%frec(i)
+!!$                    vcmxt3(i,2) = rad%scalex(i,2) * temp(i) * climate%frec(i)
+!!$                 endif
+
+
+                 ! Atkin et al. 2015, Table S4, 
                  ! modified by saling factor to reduce leaf respiration to 
                  ! expected proportion of GPP
                  !Broad-leaved trees: Rdark a25 = 
@@ -1834,7 +1879,6 @@ CONTAINS
                  rdx(i,2) = rdx(i,1)
               endif
               veg%cfrd(i) = rdx(i,1) / veg%vcmax(i)
-     
               ! modify for leaf area and instanteous temperature response (Rd25 -> Rd)
                  rdx(i,1) = rdx(i,1) * xrdt(tlfx(i)) * rad%scalex(i,1)
                  rdx(i,2) = rdx(i,2) * xrdt(tlfx(i)) * rad%scalex(i,2)
@@ -1866,13 +1910,8 @@ CONTAINS
                  rdx3(i,2) = rdx(i,2);
                  rdx4(i,1) = rdx(i,1);
                  rdx4(i,2) = rdx(i,2);
-                
              else !cable_user%call_climate
 
-!!$!Vanessa:note there is no xleuning to go into photosynthesis etc anymore
-!!$             gs_coeff = xleuning
-
-!#else
             rdx(i,1) = (veg%cfrd(i)*vcmxt3(i,1) + veg%cfrd(i)*vcmxt4(i,1))
             rdx(i,2) = (veg%cfrd(i)*vcmxt3(i,2) + veg%cfrd(i)*vcmxt4(i,2))
             ! special for YP photosynthesis
@@ -1882,6 +1921,8 @@ CONTAINS
             rdx4(i,2) = veg%cfrd(i)*vcmxt4(i,2) 
 
          endif !cable_user%call_climate
+
+
 
             ! Ticket #56 added switch for Belinda Medlyn's model
             IF (cable_user%GS_SWITCH == 'leuning') THEN
@@ -1893,17 +1934,20 @@ CONTAINS
                 
             ! Medlyn BE et al (2011) Global Change Biology 17: 2134-2144. 
             ELSEIF(cable_user%GS_SWITCH == 'medlyn') THEN
-                
                  gswmin(i,1) = veg%g0(i) 
-                 gswmin(i,2) = veg%g0(i)               
- 
+                 gswmin(i,2) = veg%g0(i)        
+       
                 IF (dsx(i) < 50.0) THEN
                     vpd  = 0.05 ! kPa
                 ELSE
                     vpd = dsx(i) * 1E-03 ! Pa -> kPa  
+                    !vpd = met%dva(i) * 1E-03 ! Pa -> kPa  
                 END IF
 
                 g1 = veg%g1(i)
+
+                !gs_coeff(i,1) = (1.0* fwsoil(i) + (g1 * fwsoil(i)) / SQRT(vpd)) / csx(i,1)
+                !gs_coeff(i,2) = (1.0* fwsoil(i) + (g1 * fwsoil(i)) / SQRT(vpd)) / csx(i,2)
 
                 if (fwsoil(i) .LE. 0.05) then
                    gs_coeff(i,1) = (1.0* fwsoil(i) + (g1 * fwsoil(i)) / SQRT(vpd)) / csx(i,1)
@@ -1926,7 +1970,7 @@ CONTAINS
        cx2_tmp = spread( cx2, 2, mf )
        abs_deltlf_tmp = spread( abs_deltlf, 2, mf )
        fvlai_tmp = rad%fvlai
-       
+    
        if (cable_user%finite_gm) then
 
           CALL photosynthesis_gm( csx(:,:),                        &
@@ -1934,7 +1978,7 @@ CONTAINS
                gswmin(:,:), rdx(:,:), vcmxt3(:,:),                 &
                vcmxt4(:,:), vx3(:,:), vx4(:,:),                    &
                ! Ticket #56, xleuning replaced with gs_coeff here
-               gs_coeff(:,:), fvlai_tmp,                           &  
+               gs_coeff(:,:), fvlai_tmp,                           & 
                abs_deltlf_tmp,                                     &
                anx(:,:), fwsoil(:),gmes(:,:), met,                 &
                 anrubiscox(:,:), anrubpx(:,:), eta_x(:,:), dAnx(:,:) )
@@ -1975,6 +2019,7 @@ CONTAINS
 
 
        ENDIF
+
 
        DO i=1,mp
 
@@ -2029,6 +2074,8 @@ CONTAINS
                  
                 canopy%fevc(i) = ecx(i)*(1.0-canopy%fwet(i))
 
+                
+                
                 call getrex_1d(real(ssnow%wb(i,:)-ssnow%wbice(i,:),r_2), ssnow%rex(i,:), &
                      canopy%fwsoil(i), &
                      real(veg%froot(i,:),r_2), SPREAD(real(soil%ssat(i),r_2),1,ms), &
@@ -2073,7 +2120,7 @@ CONTAINS
 
              ! Update leaf temperature:
              tlfx(i)=met%tvair(i)+REAL(hcx(i))/(C%capp*C%rmair*SUM(gh(i,:)))
-             
+
              ! Update net radiation for canopy:
              rnx(i) = SUM( rad%rniso(i,:)) -                                    &
                   C%CAPP * C%rmair *( tlfx(i)-met%tk(i) ) *                 &
@@ -2158,8 +2205,49 @@ CONTAINS
        END DO !over mp
 
     END DO  ! DO WHILE (ANY(abs_deltlf > 0.1) .AND.  k < C%MAXITER)
-
-
+!!$
+!!$  write(3333,"(200e16.6)") tlfx
+!!$  write(3334,"(200e16.6)") met%tvair
+!!$  write(3335,"(200e16.6)") met%tk
+!!$  write(3336,"(200e16.6)") canopy%gswx(:,1)
+!!$  write(3337,"(200e16.6)") canopy%gswx(:,2)
+!!$  write(3338,"(200e16.6)") gbhu(:,1)
+!!$  write(3339,"(200e16.6)") gbhu(:,2)
+!!$  write(3340,"(200e16.6)") gbhf(:,1)
+!!$  write(3341,"(200e16.6)") gbhf(:,2)
+!!$  write(3342,"(200e16.6)") rad%qcan(:,1,1)
+!!$  write(3343,"(200e16.6)") rad%qcan(:,2,1)
+!!$  write(3344,"(200e16.6)") gw(:,1)
+!!$  write(3345,"(200e16.6)") gw(:,2)
+!!$  write(3346,"(200e16.6)") met%dva
+!!$  write(3347,"(200e16.6)") met%ua
+!!$  write(3348,"(200e16.6)") rad%fvlai(:,1)
+!!$  write(3349,"(200e16.6)") rad%fvlai(:,2)
+!!$  write(3350,"(200e16.6)") dsx
+!!$  write(3351,"(200e16.6)") ecx
+!!$  write(3352,"(200e16.6)") met%hod
+!!$  write(3353,"(200e16.6)") an_y(:,1)
+!!$  write(3354,"(200e16.6)") an_y(:,2)
+!!$  write(3355,"(200e16.6)") veg%vcmax_sun
+!!$  write(3356,"(200e16.6)") veg%ejmax_sun
+!!$  write(3357,"(200e16.6)") gmes(:,1)
+!!$  write(3358,"(200e16.6)") gmes(:,2)
+!!$  write(3359,"(200e16.6)") met%ca
+!!$  write(3360,"(200e16.6)") csx(:,1)
+!!$
+!!$  write(3361,"(200e16.6)") csx(:,1) - C%RGBWC*anx(:,1) / (                &
+!!$                      max( canopy%gswx(:,1), 0.01) )
+!!$
+!!$write(3362,"(200e16.6)") csx(:,1) - C%RGBWC*anx(:,1) / (                &
+!!$                       max(canopy%gswx(:,1),0.01) )- anx(:,1) / (                &
+!!$                       max(gmes(:,1),0.01) )
+!!$ write(3363,"(200e16.6)") canopy%fwsoil
+!!$ write(3364,"(200e16.6)")  gs_coeff(:,1)
+!!$ write(3365,"(200e16.6)")  gs_coeff(:,2)
+!!$ write(3366,"(200e16.6)") veg%vcmax_shade
+!!$ write(3367,"(200e16.6)") veg%ejmax_shade
+!!$ write(3378,"(200e16.6)") anrubiscoy(:,2)
+!!$ write(3369,"(200e16.6)") anrubpy(:,2)
     ! dry canopy flux
     canopy%fevc = (1.0-canopy%fwet) * ecy
 
@@ -2240,7 +2328,7 @@ CONTAINS
     canopy%cs_sh =  csx(:,2)*1e6
     canopy%tlf = tlfy
     canopy%dlf = dsx
-    
+
     canopy%evapfbl = ssnow%evapfbl
 
   END SUBROUTINE dryLeaf
@@ -2504,9 +2592,9 @@ CONTAINS
 
   ! vh adpatation of photosynthesis calculation to 
   !account for finite mesophyll conductance (gm)
-  SUBROUTINE photosynthesis_gm( csxz, cx1z, cx2z, gswminz, &
+  SUBROUTINE photosynthesis_gm( csxz, cx1z, cx2z, gswminz,                          &
        rdxz, vcmxt3z, vcmxt4z, vx3z,                       &
-       vx4z, gs_coeffz, vlaiz, deltlfz, anxz, fwsoilz,     &
+       vx4z, gs_coeffz, vlaiz, deltlfz, anxz, fwsoilz, &
        gmes,met, anrubiscoz, anrubpz, eta, dA )
     USE cable_def_types_mod, only : mp, mf, r_2, met_type
 
@@ -2935,8 +3023,12 @@ END SUBROUTINE photosynthesis_gm
 
 END SUBROUTINE photosynthesis
 
+!---------------------------------------------------------------------------------------
 
-  ! ------------------------------------------------------------------------------
+
+
+
+
 
   FUNCTION ej3x(parx,alpha,convex,x) RESULT(z)
 
@@ -2955,12 +3047,13 @@ END SUBROUTINE photosynthesis
 
   FUNCTION ej4x(parx,alpha,convex,x) RESULT(z)
 
-    REAL, INTENT(IN)     :: parx
-    REAL, INTENT(IN)     :: alpha
-    REAL, INTENT(IN)     :: convex
-    REAL, INTENT(IN)     :: x
-    REAL                 :: z
+    REAL, INTENT(IN)     :: parx ! Q mol photon m-2 s-1
+    REAL, INTENT(IN)     :: alpha ! quantum efficiency in mol C (mol photon)-1
+    REAL, INTENT(IN)     :: convex ! convexity parameter
+    REAL, INTENT(IN)     :: x  ! vcmax
+    REAL                 :: z  ! rubsico-limited gross photosynthesis
 
+   
     z = MAX(0.0,                                                                &
          (alpha*parx+x-sqrt((alpha*parx+x)**2 -                           &
          4.0*convex*alpha*parx*x))/(2.0*convex))
@@ -2977,13 +3070,13 @@ END SUBROUTINE photosynthesis
     REAL :: z, xlim
 
    xlim = max( min(x, 100.), -100.) ! MJT suggestion
-   ! z tends to be non-trival between 0C and 70C
-    
-   ! z = q10c4 ** (0.1 * x - 2.5) /                                              &
-   !      ((1.0 + exp(0.3 * (13.0 - x))) * (1.0 + exp(0.3 * (x - 36.0))))
-   z = q10c4 ** (0.1 * xlim - 2.5) /                                            &
-        ((1.0 + exp(0.3 * (13.0 - xlim))) * (1.0 + exp(0.3 * (xlim - 36.0)))) ! MJT suggestion
+!!$    z = q10c4 ** (0.1 * x - 2.5) /                                              &
+!!$         ((1.0 + exp(0.3 * (13.0 - x))) * (1.0 + exp(0.3 * (x - 36.0))))
 
+    z = q10c4 ** (0.1 * xlim - 2.5) /                                              &
+         ((1.0 + exp(0.3 * (13.0 - xlim))) * (1.0 + exp(0.2 * (xlim - 38.0))))
+
+ 
   END FUNCTION xvcmxt4
 
   ! ------------------------------------------------------------------------------
@@ -3017,7 +3110,7 @@ END SUBROUTINE photosynthesis
   
  
   END FUNCTION xgmesT
-  
+
   ! ------------------------------------------------------------------------------
 
   FUNCTION xvcmxt3(x) RESULT(z)
@@ -3036,7 +3129,8 @@ END SUBROUTINE photosynthesis
     xvcnum=xvccoef*exp( ( ehavc / ( C%rgas*C%TREFK ) )* ( 1.-C%TREFK/x ) )
     xvcden=1.0+exp( ( entropvc*x-ehdvc ) / ( C%rgas*x ) )
     z = max( 0.0,xvcnum / xvcden )
-
+  
+ 
   END FUNCTION xvcmxt3
 
   ! ------------------------------------------------------------------------------
@@ -3071,7 +3165,7 @@ END SUBROUTINE photosynthesis
     xjxnum = xjxcoef*exp( ( ehajx / ( C%rgas*C%TREFK ) ) * ( 1.-C%TREFK / x ) )
     xjxden=1.0+exp( ( entropjx*x-ehdjx) / ( C%rgas*x ) )
     z = max(0.0, xjxnum/xjxden)
-
+  
   END FUNCTION xejmxt3
 
   ! ------------------------------------------------------------------------------
@@ -3252,7 +3346,7 @@ END SUBROUTINE photosynthesis
        alpha_root(:) = zero
     endwhere
 
-    where (Fs(:) > zero .and. layer_depth < zr )  ! where there are roots and we are aobe max rooting depth
+    where (Fs(:) > zero .and. layer_depth < zr )  ! where there are roots and we are above max rooting depth
        delta_root(:) = one
     elsewhere
        delta_root(:) = zero
@@ -3271,7 +3365,7 @@ END SUBROUTINE photosynthesis
 
     ! reduce extraction efficiency where total extraction depletes soil moisture below wilting point
     where (((rex*dt) > (theta(:)-thetaw(:))*dx(:)) .and. ((rex*dt) > zero))
-       alpha_root = alpha_root*(theta(:)-thetaw(:))*dx(:)/(1.1_r_2*rex*dt)
+      alpha_root = alpha_root*(theta(:)-thetaw(:))*dx(:)/(1.1_r_2*rex*dt)
     endwhere
     rex(:) = alpha_root(:)*Fs(:)
 
@@ -3301,6 +3395,7 @@ END SUBROUTINE photosynthesis
        fws    = maxval(alpha_root(2:)*delta_root(2:))
     endif
 
+
   END SUBROUTINE getrex_1d
 !*****************************************************************************************
 SUBROUTINE cubic_root_solver(a0,a1,a2,x1,x2,x3)
@@ -3329,8 +3424,11 @@ else
 
 endif
 
+
+
 END SUBROUTINE cubic_root_solver
 !*****************************************************************************************
+
 
 ! functions for infinite mesophyll conductance
 elemental pure subroutine fabc(Cs,g0,x,gamma,beta,Gammastar,Rd,a,b,c)

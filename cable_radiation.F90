@@ -56,18 +56,10 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
       xphi1,   & ! leaf angle parmameter 1
       xphi2      ! leaf angle parmameter 2
 
-#ifdef CCAM
    REAL, DIMENSION(mp,nrb) ::                                  &
       ! subr to calc these curr. appears twice. fix this
       c1,      & !
       rhoch
-#else
-   REAL, DIMENSION(:,:), ALLOCATABLE, SAVE ::                                  &
-      ! subr to calc these curr. appears twice. fix this
-      c1,      & !
-      rhoch
-!$omp threadprivate(c1,rhoch)
-#endif
 
    LOGICAL, DIMENSION(mp)    :: mask   ! select points for calculation
 
@@ -76,10 +68,6 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
 
    CALL point2constants( C )
 
-#ifndef CCAM
-   IF(.NOT. ALLOCATED(c1) ) ALLOCATE( c1(mp,nrb), rhoch(mp,nrb) )
-#endif
-   
    cos3 = COS(C%PI180 * (/ 15.0, 45.0, 75.0 /))
 
    ! See Sellers 1985, eq.13 (leaf angle parameters):
@@ -118,12 +106,26 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
    ! Canopy REFLection of diffuse radiation for black leaves:
    DO ictr=1,nrb
 
+!!$     rad%rhocdf(:,ictr) = rhoch(:,ictr) *                                      &
+!!$                          ( C%GAUSS_W(1) * xk(:,1) / ( xk(:,1) + rad%extkd(:) )&
+!!$                          + C%GAUSS_W(2) * xk(:,2) / ( xk(:,2) + rad%extkd(:) )&
+!!$                          + C%GAUSS_W(3) * xk(:,3) / ( xk(:,3) + rad%extkd(:) ) )
+   !! Ticket #147  (vh)
+   !! the above line is incorrect, as it is missing a factor of 2 in the numerator.
+   !! (See equation 6.21 from Goudriaan & van Laar 1994)
+   !! The correct version below doubles canopy reflectance for diffuse radiation.
+   !! (Note it is correctly implemented in the evaluation of canopy beam reflectance
+   !! rad%rhocbm in canopy_albedo.F90).
+
      rad%rhocdf(:,ictr) = rhoch(:,ictr) *                                      &
-                          ( C%GAUSS_W(1) * 2. * xk(:,1) / ( xk(:,1) + rad%extkd(:) )&
-                          + C%GAUSS_W(2) * 2. * xk(:,2) / ( xk(:,2) + rad%extkd(:) )&
-                          + C%GAUSS_W(3) * 2. * xk(:,3) / ( xk(:,3) + rad%extkd(:) ) )
+                          ( C%GAUSS_W(1) * 2. *xk(:,1) / ( xk(:,1) + rad%extkd(:) )&
+                          + C%GAUSS_W(2) * 2. *xk(:,2) / ( xk(:,2) + rad%extkd(:) )&
+                          + C%GAUSS_W(3) * 2. *xk(:,3) / ( xk(:,3) + rad%extkd(:) ) )
+
 
    ENDDO
+
+
 
 #ifndef CCAM
    IF( .NOT. cable_runtime%um) THEN
@@ -146,7 +148,7 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
 
 !!vh !! include RAD_THRESH in condition
    WHERE (canopy%vlaiw > C%LAI_THRESH .and. rad%fbeam(:,1).GE.C%RAD_THRESH   )
-
+  ! WHERE (canopy%vlaiw > C%LAI_THRESH) 
       ! SW beam extinction coefficient ("black" leaves, extinction neglects
       ! leaf SW transmittance and REFLectance):
       rad%extkb = xphi1 / met%coszen + xphi2
@@ -163,12 +165,9 @@ SUBROUTINE init_radiation( met, rad, veg, canopy )
       ! higher value precludes sunlit leaves at night. affects
       ! nighttime evaporation - Ticket #90 
       rad%extkb=1.0e5 
-   END WHERE
+    END WHERE
 
-#ifndef CCAM
-   DEALLOCATE( c1, rhoch )
-#endif
-   
+
 END SUBROUTINE init_radiation
 
 ! ------------------------------------------------------------------------------
@@ -366,7 +365,7 @@ SUBROUTINE calc_rhoch(veg,c1,rhoch)
 
    TYPE (veg_parameter_type), INTENT(INOUT) :: veg
    REAL, INTENT(INOUT), DIMENSION(:,:) :: c1, rhoch
-   
+
    c1(:,1) = SQRT(1. - veg%taul(:,1) - veg%refl(:,1))
    c1(:,2) = SQRT(1. - veg%taul(:,2) - veg%refl(:,2))
    c1(:,3) = 1.
@@ -439,10 +438,11 @@ FUNCTION spitter(doy, coszen, fsd) RESULT(fbeam)
    WHERE ( tmprat > 0.35 ) fbeam = MIN( 1.66 * tmprat - 0.4728, 1.0 )
 
    WHERE ( tmprat > tmpk ) fbeam = MAX( 1.0 - tmpr, 0.0 )
-   
-   DO k = 1,mp
-     IF ( fbeam(k) .le. 0.01 ) fbeam(k) = 0.
-   END DO
+
+   DO k=1,mp
+      IF (fbeam(k) .le. 0.01) fbeam(k) = 0.0
+   ENDDO
+              
 
 END FUNCTION spitter
 

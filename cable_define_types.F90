@@ -40,7 +40,7 @@ MODULE cable_def_types_mod
               mstype,& ! total # soil types,         from input
               mland                           ! # land grid cells
 !$omp threadprivate(mp)
-   
+
    INTEGER, PARAMETER ::                                                        &
       i_d  = KIND(9), &
       r_2  = SELECTED_REAL_KIND(12, 50), &
@@ -615,7 +615,9 @@ MODULE cable_def_types_mod
       GDD0_rec, &    ! growing degree day sum related to spring photosynthetic recovery
       frec, &           ! fractional photosynthetic recovery
       dtemp_min, &      ! daily minimum temperature
-      fdorm ! dormancy fraction (1 prior to first autumn frost; 0 after 10 severe frosts)
+      fdorm, & ! dormancy fraction (1 prior to first autumn frost; 0 after 10 severe frosts)
+      fapar_ann_max, & ! maximum midday fpar so far this year
+      fapar_ann_max_last_year ! maximum midday fpar last year
 
       REAL, DIMENSION(:,:), POINTER ::                                   &
       mtemp_min_20, & ! mimimum monthly temperatures for the last 20 y
@@ -635,8 +637,9 @@ MODULE cable_def_types_mod
       cs_sun, &     ! sun leaf cs (ppm CO2)
       cs_shade, &          ! shade leaf cs (ppm CO2)
       scalex_sun, & ! canopy depth scaling factor on vcmax and jmax (sun leaves)
-      scalex_shade ! canopy depth scaling factor on vcmax and jmax (shade leaves)
-      
+      scalex_shade, & ! canopy depth scaling factor on vcmax and jmax (shade leaves)
+      fwsoil         ! soil-moisture modifier to stomatal conductance
+
 #ifdef CCAM
       REAL, DIMENSION(:), POINTER :: &
       APAR_leaf_sun_save,   &
@@ -650,7 +653,7 @@ MODULE cable_def_types_mod
       scalex_sun_save,      &
       scalex_shade_save
 #endif
-      
+
    END TYPE climate_type
 
 ! .............................................................................
@@ -1257,6 +1260,8 @@ SUBROUTINE alloc_climate_type(var, mp, ktauday)
    ALLOCATE ( var % frec(mp) )
    ALLOCATE ( var % dtemp_min(mp) )
    ALLOCATE ( var % fdorm(mp) )
+   ALLOCATE ( var % fapar_ann_max(mp) )
+   ALLOCATE ( var % fapar_ann_max_last_year(mp) )
 
    ALLOCATE ( var % mtemp_min_20(mp,ny) )
    ALLOCATE ( var %     mtemp_max_20(mp,ny) )
@@ -1276,6 +1281,7 @@ SUBROUTINE alloc_climate_type(var, mp, ktauday)
    ALLOCATE ( var %   cs_shade(mp,ktauday*5) )
    ALLOCATE ( var %   scalex_sun(mp,ktauday*5) )
    ALLOCATE ( var %   scalex_shade(mp,ktauday*5) )
+   ALLOCATE ( var %   fwsoil(mp,ktauday*5) )
 
 #ifdef CCAM
    ALLOCATE ( var %   APAR_leaf_sun_save(mp) )
@@ -1289,6 +1295,7 @@ SUBROUTINE alloc_climate_type(var, mp, ktauday)
    ALLOCATE ( var %   scalex_sun_save(mp) )
    ALLOCATE ( var %   scalex_shade_save(mp) )
 #endif
+   
    
 END SUBROUTINE alloc_climate_type
 

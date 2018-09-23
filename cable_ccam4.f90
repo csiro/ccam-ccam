@@ -814,68 +814,6 @@ subroutine setp_casabal(casabal,lcasabal,tile)
 
 end subroutine setp_casabal
 
-subroutine setp_casabiome(casabiome,lcasabiome,tile)
-  implicit none
-
-  type(casa_biome), intent(in) :: casabiome
-  type(casa_biome), intent(inout) :: lcasabiome
-  integer, intent(in) :: tile
-  integer :: is, ie
-
-  is = tdata(tile)%toffset + 1
-  ie = tdata(tile)%toffset + tdata(tile)%mp
-
-  lcasabiome%ivt2 => casabiome%ivt2(is:ie)
-
-  lcasabiome%xkleafcoldmax => casabiome%xkleafcoldmax(is:ie)
-  lcasabiome%xkleafcoldexp => casabiome%xkleafcoldexp(is:ie)
-  lcasabiome%xkleafdrymax => casabiome%xkleafdrymax(is:ie)
-  lcasabiome%xkleafdryexp => casabiome%xkleafdryexp(is:ie)
-  lcasabiome%glaimax => casabiome%glaimax(is:ie)
-  lcasabiome%glaimin => casabiome%glaimin(is:ie)
-  lcasabiome%sla => casabiome%sla(is:ie)
-  lcasabiome%ratiofrootleaf => casabiome%ratiofrootleaf(is:ie)
-  lcasabiome%kroot => casabiome%kroot(is:ie)
-  lcasabiome%krootlen => casabiome%krootlen(is:ie)
-  lcasabiome%rootdepth => casabiome%rootdepth(is:ie)
-  lcasabiome%kuptake => casabiome%kuptake(is:ie)
-  lcasabiome%kminN => casabiome%kminN(is:ie)
-  lcasabiome%kuplabP => casabiome%kuplabP(is:ie)
-  lcasabiome%kclabrate => casabiome%kclabrate(is:ie)
-  lcasabiome%xnpmax => casabiome%xnpmax(is:ie)
-  lcasabiome%q10soil => casabiome%q10soil(is:ie)
-  lcasabiome%xkoptlitter => casabiome%xkoptlitter(is:ie)
-  lcasabiome%xkoptsoil => casabiome%xkoptsoil(is:ie)
-  lcasabiome%xkplab => casabiome%xkplab(is:ie)
-  lcasabiome%xkpsorb => casabiome%xkpsorb(is:ie)
-  lcasabiome%xkpocc => casabiome%xkpocc(is:ie)
-  lcasabiome%prodptase => casabiome%prodptase(is:ie)
-  lcasabiome%costnpup => casabiome%costnpup(is:ie)
-  lcasabiome%maxfinelitter => casabiome%maxfinelitter(is:ie)
-  lcasabiome%maxcwd => casabiome%maxcwd(is:ie)
-  lcasabiome%nintercept => casabiome%nintercept(is:ie)
-  lcasabiome%nslope => casabiome%nslope(is:ie)
-
-  lcasabiome%plantrate => casabiome%plantrate(is:ie,:)
-  lcasabiome%rmplant => casabiome%rmplant(is:ie,:)
-  lcasabiome%fracnpptoP => casabiome%fracnpptoP(is:ie,:)
-  lcasabiome%fraclignin => casabiome%fraclignin(is:ie,:)
-  lcasabiome%fraclabile => casabiome%fraclabile(is:ie,:)
-  lcasabiome%ratioNCplantmin => casabiome%ratioNCplantmin(is:ie,:)
-  lcasabiome%ratioNCplantmax => casabiome%ratioNCplantmax(is:ie,:)
-  lcasabiome%ratioNPplantmin => casabiome%ratioNPplantmin(is:ie,:)
-  lcasabiome%ratioNPplantmax => casabiome%ratioNPplantmax(is:ie,:)
-  lcasabiome%fracLigninplant => casabiome%fracLigninplant(is:ie,:)
-  lcasabiome%ftransNPtoL => casabiome%ftransNPtoL(is:ie,:)
-  lcasabiome%ftransPPtoL => casabiome%ftransPPtoL(is:ie,:)
-  lcasabiome%litterrate => casabiome%litterrate(is:ie,:)
-  lcasabiome%ratioPcplantmin => casabiome%ratioPcplantmin(is:ie,:)
-  lcasabiome%ratioPcplantmax => casabiome%ratioPcplantmax(is:ie,:)
-
-  lcasabiome%soilrate => casabiome%soilrate(is:ie,:)
-
-end subroutine setp_casabiome
-
 subroutine setp_casaflux(casaflux,lcasaflux,tile)
   implicit none
 
