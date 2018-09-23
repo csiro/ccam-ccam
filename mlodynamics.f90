@@ -396,9 +396,16 @@ if ( mlodiff==0 ) then
 !      /base(:,k)
 !  end do
 
-else
+  call mloimport3d(2,outu,0)
+  call mloimport3d(3,outv,0)
+  
+else if ( mlodiff==1 ) then
   outu(1:ifull,:) = u(1:ifull,:)
   outv(1:ifull,:) = v(1:ifull,:)
+  ! no need to call mloimport3d for u and v
+else
+  write(6,*) "ERROR: Unknown option for mlodiff = ",mlodiff
+  call ccmpi_abort(-1)
 end if
   
 ! Potential temperature and salinity
@@ -425,8 +432,6 @@ do k=1,wlev
 end do
 fs = max(fs+34.72, 0.)
 call mloimport3d(1,fs,0)
-call mloimport3d(2,outu,0)
-call mloimport3d(3,outv,0)
 
 call END_LOG(waterdiff_end)
 
@@ -576,7 +581,7 @@ nfracice = 0.
 ndic     = 0.
 ndsn     = 0.
 
-! IMPORT WATER AND ICE DATA -----------------------------------------
+! EXPORT WATER AND ICE DATA FROM MLO ------------------------------------------
 call mloexport3d(0,w_t,0)
 call mloexport3d(1,w_s,0)
 call mloexport3d(2,w_u,0)
@@ -1628,13 +1633,13 @@ if ( any(abs(nu(1:ifull,:))>20.) .or. any(abs(nv(1:ifull,:))>20.) ) then
 end if
 #endif
 
-! EXPORT ----------------------------------------------------------------------
+! IMPORT WATER AND ICE DATA INTO MLO ------------------------------------------
 call mloimport(4,neta(1:ifull),0,0)
 call mloimport3d(0,nt,0)
 call mloimport3d(1,ns,0)
 call mloimport3d(2,nu,0)
 call mloimport3d(3,nv,0)
-do ii=1,4
+do ii = 1,4
   call mloimpice(nit(1:ifull,ii),ii,0)
 end do
 call mloimpice(nfracice(1:ifull),5,0)
@@ -1643,10 +1648,10 @@ call mloimpice(ndsn(1:ifull),7,0)
 call mloimpice(nsto(1:ifull),8,0)
 call mloimpice(niu(1:ifull),9,0)
 call mloimpice(niv(1:ifull),10,0)
-where (wtr(1:ifull))
-  fracice=nfracice(1:ifull)
-  sicedep=ndic(1:ifull)
-  snowd=ndsn(1:ifull)*1000.
+where ( wtr(1:ifull) )
+  fracice = nfracice(1:ifull)
+  sicedep = ndic(1:ifull)
+  snowd = ndsn(1:ifull)*1000.
 end where
 
 return
@@ -4607,48 +4612,20 @@ select case( mlojacobi )
       drhobardyv(1:ifull,ii) = 0.
     end do
 
-  case(1) ! non-local - spline  
+  case(1,2,3) 
     na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
     na(:,:,2) = min(max(0.,  nsi),50. )-34.72
-    call seekdelta(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
-    do ii = 1,wlev
-      call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
-      call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
-      absu = 0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull)
-      bbsu = 0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull)
-      absv = 0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull)
-      bbsv = 0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull)
-
-      ! This relationship neglects compression effects due to neta from the EOS.
-      drhobardxu(1:ifull,ii) = -absu*dnadxu(1:ifull,ii,1) + bbsu*dnadxu(1:ifull,ii,2)
-      dfrhobardxv(1:ifull,ii) = -absv*dfnadxv(1:ifull,ii,1) + bbsv*dfnadxv(1:ifull,ii,2)
-      dfrhobardyu(1:ifull,ii) = -absu*dfnadyu(1:ifull,ii,1) + bbsu*dfnadyu(1:ifull,ii,2)
-      drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
-    end do
-    
-  case(2) ! non-local - linear
-    na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
-    na(:,:,2) = min(max(0.,  nsi),50. )-34.72
-    call seekdelta_l(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
-    do ii = 1,wlev
-      call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
-      call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
-      absu = 0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull)
-      bbsu = 0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull)
-      absv = 0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull)
-      bbsv = 0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull)
-
-      ! This relationship neglects compression effects due to neta from the EOS.
-      drhobardxu(1:ifull,ii) = -absu*dnadxu(1:ifull,ii,1) + bbsu*dnadxu(1:ifull,ii,2)
-      dfrhobardxv(1:ifull,ii) = -absv*dfnadxv(1:ifull,ii,1) + bbsv*dfnadxv(1:ifull,ii,2)
-      dfrhobardyu(1:ifull,ii) = -absu*dfnadyu(1:ifull,ii,1) + bbsu*dfnadyu(1:ifull,ii,2)
-      drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
-    end do      
-    
-  case(3) ! Song  1998  
-    na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
-    na(:,:,2) = min(max(0.,  nsi),50. )-34.72
-    call seekdelta_song(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+    select case( mlojacobi )
+      case(1) ! non-local - spline  
+        call seekdelta(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+      case(2) ! non-local - linear
+        call seekdelta_l(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+      case(3) ! local - Song 1998
+        call seekdelta_song(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+      case default
+        write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
+        stop
+    end select  
     do ii = 1,wlev
       call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
       call unpack_ne(betabar(:,ii),betabar_n,betabar_e)

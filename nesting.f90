@@ -137,6 +137,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
       call END_LOG(nestotf_end)
       tssb(:) = abs(tssb(:))
       qb = max(qb,0.)
+      call retopo(pslb,zsb,zs(1:ifull),tb,qb)
     else
       write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
       call ccmpi_abort(-1)
@@ -264,8 +265,8 @@ end if ! (mtimer>mtimeb)
 
 ! now use tt, uu, vv arrays for time interpolated values
 timerm = real(ktau)*dt/60.   ! real value in minutes (in case dt < 60 seconds)
-cona = (mtimeb-timerm)/real(mtimeb-mtimea)
-conb = (timerm-mtimea)/real(mtimeb-mtimea)
+cona = (real(mtimeb)-timerm)/real(mtimeb-mtimea)
+conb = (timerm-real(mtimea))/real(mtimeb-mtimea)
 psls(:) = cona*psla(:) + conb*pslb(:)
 tt (:,:) = cona*ta(:,:) + conb*tb(:,:)
 qgg(:,:) = cona*qa(:,:) + conb*qb(:,:)

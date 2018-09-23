@@ -316,7 +316,7 @@ diag_m.o : cc_mpi.o newmpar_m.o parm_m.o sigs_m.o sumdd_m.o xyzinfo_m.o
 e1e288.o : kdacom_m.o newmpar_m.o radisw_m.o tabcom_m.o tfcom_m.o hcon.h rdparm.h
 e3v88.o : newmpar_m.o tabcom_m.o hcon.h rdparm.h
 eig.o : cc_mpi.o const_phys.o newmpar_m.o vecs_m.o
-ensemble.o : aerosolldr.o arrays_m.o cc_mpi.o dates_m.o filnames_m.o mlo.o newmpar_m.o onthefly.o outcdf.o parm_m.o pbl_m.o soil_m.o soilsnow_m.o xyzinfo_m.o
+ensemble.o : aerosolldr.o arrays_m.o cc_mpi.o dates_m.o filnames_m.o mlo.o nesting.o newmpar_m.o onthefly.o outcdf.o parm_m.o pbl_m.o soil_m.o soilsnow_m.o xyzinfo_m.o
 esfsw_driver.o : esfsw_parameters.o rad_utilities.o
 esfsw_parameters.o : rad_utilities.o
 estab.o : const_phys.o
