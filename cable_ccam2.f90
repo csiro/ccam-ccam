@@ -7284,11 +7284,6 @@ if ( cable_pop==1 ) then
     write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%pgap,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
-    call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
       call pop_unpack(pop%pop_grid(:)%patch(k)%cat_mortality,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
