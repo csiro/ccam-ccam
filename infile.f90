@@ -4855,6 +4855,8 @@ integer ncstatus
 integer(kind=4) lncid
 character(len=*), intent(in) :: fname
 
+lncid=0
+
 ncstatus = nf90_open(fname,nf90_nowrite,lncid)
 ncid=lncid
 
