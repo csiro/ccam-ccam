@@ -1259,21 +1259,19 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
         ivt = veg%iveg(np)  
         nleafx(np) = ncleafx(np)/casabiome%sla(ivt) ! leaf N in g N m-2 leaf
         pleafx(np) = nleafx(np)/npleafx(np)         ! leaf P in g P m-2 leaf
-        if ( ivt==7 .or. ivt==9 ) then
-          veg%vcmax(np) = 1.e-5_8 ! special for C4 grass: set here to value from  parameter file
-          veg%ejmax(np) = 2._8*veg%vcmax(np)
-        else if ( ivt==2 ) then
-          veg%vcmax(np) = vcmax_np(nleafx(np),nleafx(np))*1.1_8
-          veg%ejmax(np) = bjvref*veg%vcmax(np)
-        else if ( ivt==1 ) then
-          ! account here for spring recovery  
-          veg%vcmax(np) = vcmax_np(nleafx(np),nleafx(np))*casabiome%vcmax_scalar(ivt) &
-               *climate%frec(np)
-          veg%ejmax(np) = bjvref*veg%vcmax(np)
+
+        if (ivt==7 .or. ivt==9  ) then
+          veg%vcmax(np) = 1.0e-5_8 ! special for C4 grass: set here to value from  parameter file
+          veg%ejmax(np) = 2.0_8 * veg%vcmax(np)
+        elseif (ivt==1) then
+          ! account here for spring recovery
+          veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*casabiome%vcmax_scalar(ivt) &
+                         *climate%frec(np) 
+          veg%ejmax(np) =bjvref * veg%vcmax(np)
         else
-          veg%vcmax(np) = vcmax_np(nleafx(np),nleafx(np))*casabiome%vcmax_scalar(ivt)
-          veg%ejmax(np) = bjvref*veg%vcmax(np)
-        end if
+          veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*casabiome%vcmax_scalar(ivt)
+          veg%ejmax(np) =bjvref * veg%vcmax(np)
+        endif
       end do
 
       if ( cable_user%finite_gm ) then
