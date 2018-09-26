@@ -1287,7 +1287,8 @@ use bigxy4_m                               ! Grid interpolation
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
-    ,gs_switch,cable_climate,ccycle
+    ,gs_switch,cable_climate,ccycle      &
+    ,smrf_switch,strf_switch
 use carbpools_m, only : carbpools_init     ! Carbon pools
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
@@ -1456,7 +1457,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & ! EDMF PBL s
 ! land, urban and carbon namelist
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
-    gs_switch,cable_climate,                                      &
+    gs_switch,cable_climate,smrf_switch,strf_switch,              &
     ateb_energytol,ateb_resmeth,ateb_useonewall,ateb_zohmeth,     & ! urban
     ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &
     ateb_conductmeth,ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,   &
@@ -2154,7 +2155,7 @@ stabmeth   = dumi(2)
 tkemeth    = dumi(3)
 ngwd       = dumi(4)
 deallocate( dumr, dumi )
-allocate( dumr8(1), dumr(26), dumi(29) )
+allocate( dumr8(1), dumr(26), dumi(31) )
 dumr8 = 0._8
 dumr = 0.
 dumi = 0
@@ -2201,26 +2202,28 @@ if ( myid==0 ) then
   dumi(7)  = cable_litter
   dumi(8)  = gs_switch
   dumi(9)  = cable_climate
-  dumi(10) = ateb_resmeth
-  dumi(11) = ateb_useonewall
-  dumi(12) = ateb_zohmeth
-  dumi(13) = ateb_acmeth
-  dumi(14) = ateb_nrefl
-  dumi(15) = ateb_vegmode
-  dumi(16) = ateb_soilunder
-  dumi(17) = ateb_conductmeth
-  dumi(18) = ateb_scrnmeth
-  dumi(19) = ateb_wbrelaxc
-  dumi(20) = ateb_wbrelaxr
-  dumi(21) = ateb_lweff
-  dumi(22) = ateb_ncyits
-  dumi(23) = ateb_nfgits
-  dumi(24) = ateb_intairtmeth
-  dumi(25) = ateb_intmassmeth
-  dumi(26) = ateb_cvcoeffmeth
-  dumi(27) = ateb_statsmeth
-  dumi(28) = ateb_behavmeth
-  dumi(29) = ateb_infilmeth
+  dumi(10) = smrf_switch
+  dumi(11) = strf_switch
+  dumi(12) = ateb_resmeth
+  dumi(13) = ateb_useonewall
+  dumi(14) = ateb_zohmeth
+  dumi(15) = ateb_acmeth
+  dumi(16) = ateb_nrefl
+  dumi(17) = ateb_vegmode
+  dumi(18) = ateb_soilunder
+  dumi(19) = ateb_conductmeth
+  dumi(20) = ateb_scrnmeth
+  dumi(21) = ateb_wbrelaxc
+  dumi(22) = ateb_wbrelaxr
+  dumi(23) = ateb_lweff
+  dumi(24) = ateb_ncyits
+  dumi(25) = ateb_nfgits
+  dumi(26) = ateb_intairtmeth
+  dumi(27) = ateb_intmassmeth
+  dumi(28) = ateb_cvcoeffmeth
+  dumi(29) = ateb_statsmeth
+  dumi(30) = ateb_behavmeth
+  dumi(31) = ateb_infilmeth
 end if
 call ccmpi_bcastr8(dumr8,0,comm_world)
 call ccmpi_bcast(dumr,0,comm_world)
@@ -2261,26 +2264,28 @@ fwsoil_switch     = dumi(6)
 cable_litter      = dumi(7)
 gs_switch         = dumi(8)
 cable_climate     = dumi(9)
-ateb_resmeth      = dumi(10)
-ateb_useonewall   = dumi(11)
-ateb_zohmeth      = dumi(12)
-ateb_acmeth       = dumi(13)
-ateb_nrefl        = dumi(14) 
-ateb_vegmode      = dumi(15) 
-ateb_soilunder    = dumi(16)
-ateb_conductmeth  = dumi(17) 
-ateb_scrnmeth     = dumi(18)
-ateb_wbrelaxc     = dumi(19) 
-ateb_wbrelaxr     = dumi(20) 
-ateb_lweff        = dumi(21) 
-ateb_ncyits       = dumi(22)
-ateb_nfgits       = dumi(23) 
-ateb_intairtmeth  = dumi(24)
-ateb_intmassmeth  = dumi(25) 
-ateb_cvcoeffmeth  = dumi(26) 
-ateb_statsmeth    = dumi(27) 
-ateb_behavmeth    = dumi(28) 
-ateb_infilmeth    = dumi(29) 
+smrf_switch       = dumi(10)
+strf_switch       = dumi(11)
+ateb_resmeth      = dumi(12)
+ateb_useonewall   = dumi(13)
+ateb_zohmeth      = dumi(14)
+ateb_acmeth       = dumi(15)
+ateb_nrefl        = dumi(16) 
+ateb_vegmode      = dumi(17) 
+ateb_soilunder    = dumi(18)
+ateb_conductmeth  = dumi(19) 
+ateb_scrnmeth     = dumi(20)
+ateb_wbrelaxc     = dumi(21) 
+ateb_wbrelaxr     = dumi(22) 
+ateb_lweff        = dumi(23) 
+ateb_ncyits       = dumi(24)
+ateb_nfgits       = dumi(25) 
+ateb_intairtmeth  = dumi(26)
+ateb_intmassmeth  = dumi(27) 
+ateb_cvcoeffmeth  = dumi(28) 
+ateb_statsmeth    = dumi(29) 
+ateb_behavmeth    = dumi(30) 
+ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
 allocate( dumr(11), dumi(8) )
 dumr = 0.
@@ -2684,8 +2689,8 @@ if ( myid<nproc ) then
     write(6,'(i5,2i6,4f8.2,f8.3,f9.5)') ntaft,ntsea,ntsur,av_vmod,tss_sh,vmodmin,zobgin,charnock,chn10
     write(6,*)' ccycle proglai soil_struc cable_pop progvcmax fwsoil_switch cable_litter'
     write(6,'(7i7)') ccycle,proglai,soil_struc,cable_pop,progvcmax,fwsoil_switch,cable_litter
-    write(6,*)' gs_switch cable_climate'
-    write(6,'(2i7)') gs_switch,cable_climate
+    write(6,*)' gs_switch cable_climate smrf_switch strf_switch'
+    write(6,'(4i7)') gs_switch,cable_climate,smrf_switch,strf_switch
     write(6,*)' nurban siburbanfrac'
     write(6,'(i7,f8.4)') nurban,siburbanfrac
     write(6,*)'Ocean/lake options:'

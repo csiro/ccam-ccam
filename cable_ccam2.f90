@@ -136,6 +136,7 @@ public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcb
 public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle
 public fwsoil_switch, cable_litter, gs_switch, cable_climate
+public smrf_switch, strf_switch
 public POP_NPATCH, POP_NCOHORT
 
 ! CABLE biophysical options
@@ -143,6 +144,8 @@ integer, save :: soil_struc         = 0          ! 0 default, 1 SLI soil model
 integer, save :: fwsoil_switch      = 0          ! 0 default, 1 non-linear, 2 Lai and Ktaul, 3 Haverd2013
 integer, save :: cable_litter       = 0          ! 0 off, 1 on
 integer, save :: gs_switch          = 0          ! 0 leuning, 1 medlyn
+integer, save :: smrf_switch        = 4          ! 1 CASA-CNP, 2 SOLIN, 3 TRIFFID, 4 Trudinger2016(default), 5 DAMM (Soil Moist Respiration Function)
+integer, save :: strf_switch        = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 4 LT1994(default),        5 DAMM (Soil Temp Respiration Function)
 ! CABLE biochemical options
 integer, save :: ccycle             = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
 integer, save :: proglai            = -1         ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
@@ -2734,6 +2737,34 @@ if ( mp_global>0 ) then
       cable_user%vcmax = "Walker2014"        
     case default
       cable_user%vcmax = "standard"    
+  end select
+  select case ( smrf_switch )
+    case(1)
+      cable_user%SMRF_NAME = "CASA-CNP"
+    case(2)
+      cable_user%SMRF_NAME = "SOILN"
+    case(3)
+      cable_user%SMRF_NAME = "TRIFFID"
+    case(4)
+      cable_user%SMRF_NAME = "Trudinger2016"
+    case(5)
+      cable_user%SMRF_NAME = "DAMM"
+    case default
+      cable_user%SMRF_NAME = "Trudinger2016"
+  end select
+  select case ( strf_switch )
+    case(1)
+      cable_user%STRF_NAME = "CASA-CNP"
+    case(2)
+      cable_user%STRF_NAME = "K1995"
+    case(3)
+      cable_user%STRF_NAME = "PnET-CN"
+    case(4)
+      cable_user%STRF_NAME = "LT1994"
+    case(5)
+      cable_user%STRF_NAME = "DAMM"
+    case default
+      cable_user%STRF_NAME = "LT1994"
   end select
   kwidth_gl = nint(dt) ! MJT notes - what happens when the timestep is less than a second?
   if ( kwidth_gl==0) then

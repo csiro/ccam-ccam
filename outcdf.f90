@@ -217,7 +217,8 @@ use cable_ccam, only : proglai           & ! CABLE
     ,fwsoil_switch                       &
     ,cable_litter,gs_switch              &
     ,cable_climate,POP_NPATCH            &
-    ,POP_NCOHORT,ccycle
+    ,POP_NCOHORT,ccycle                  &
+    ,smrf_switch,strf_switch
 use cc_mpi                                 ! CC MPI routines
 use cloudmod                               ! Prognostic cloud fraction
 use dates_m                                ! Date data
@@ -869,6 +870,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'gs_switch',gs_switch)
     call ccnf_put_attg(idnc,'proglai',proglai)
     call ccnf_put_attg(idnc,'progvcmax',progvcmax)
+    call ccnf_put_attg(idnc,'smrf_switch',smrf_switch)
+    call ccnf_put_attg(idnc,'strf_switch',strf_switch)
     call ccnf_put_attg(idnc,'siburbanfrac',siburbanfrac)
     call ccnf_put_attg(idnc,'soil_struc',soil_struc)
     
