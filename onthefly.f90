@@ -816,7 +816,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
   ocndwn(1:ifull,2) = 0.                ! surface height
   if ( mlo_found ) then
     ! water surface height
-    if ( nested/=1 .or. nud_sfh/=0 ) then
+    if ( (nested/=1.or.nud_sfh/=0) .and. ok>0 ) then
       call fillhist1('ocheight',ocndwn(:,2),land_a,fill_land)
     end if
   end if

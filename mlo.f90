@@ -605,6 +605,7 @@ do tile = 1,ntiles
 
 end do
 
+
 return
 end subroutine mloload
 
@@ -674,7 +675,7 @@ implicit none
 
 integer, intent(in) :: mode,ilev,diag
 integer tile, is, ie
-real, dimension(ifull), intent(in) :: sst
+real, dimension(:), intent(in) :: sst
 
 if (diag>=1) write(6,*) "Import MLO data"
 if (.not.mlo_active) return
@@ -726,7 +727,7 @@ implicit none
 
 integer, intent(in) :: mode,diag
 integer ii, tile, is, ie
-real, dimension(ifull,wlev), intent(in) :: sst
+real, dimension(:,:), intent(in) :: sst
 
 if (diag>=1) write(6,*) "Import 3D MLO data"
 if (.not.mlo_active) return
@@ -787,7 +788,7 @@ implicit none
 
 integer, intent(in) :: ilev,diag
 integer tile, is, ie
-real, dimension(ifull), intent(in) :: tsn
+real, dimension(:), intent(in) :: tsn
 
 if (diag>=1) write(6,*) "Import MLO ice data"
 if (.not.mlo_active) return
@@ -855,7 +856,7 @@ implicit none
 
 integer, intent(in) :: mode,ilev,diag
 integer tile, is, ie
-real, dimension(ifull), intent(inout) :: sst
+real, dimension(:), intent(inout) :: sst
 
 if (diag>=1) write(6,*) "Export MLO SST data"
 if (.not.mlo_active) return
@@ -907,7 +908,7 @@ implicit none
 
 integer, intent(in) :: mode,diag
 integer ii, tile, is, ie
-real, dimension(ifull,wlev), intent(inout) :: sst
+real, dimension(:,:), intent(inout) :: sst
 
 if (diag>=1) write(6,*) "Export 3D MLO data"
 if (.not.mlo_active) return
@@ -967,7 +968,7 @@ implicit none
 
 integer, intent(in) :: ilev,diag
 integer tile, is, ie
-real, dimension(ifull), intent(inout) :: tsn
+real, dimension(:), intent(inout) :: tsn
 
 if (diag>=1) write(6,*) "Export MLO ice data"
 if (.not.mlo_active) return
@@ -987,11 +988,10 @@ subroutine mloexpice_imax(tsn,ilev,diag,ice,wpack,wfull)
 
 implicit none
 
-integer, intent(in) :: ilev,diag
+integer, intent(in) :: ilev, diag, wfull
 real, dimension(imax), intent(inout) :: tsn
-type(icedata), intent(in) :: ice
 logical, dimension(imax), intent(in) :: wpack
-integer, intent(in) :: wfull
+type(icedata), intent(in) :: ice
 
 if (diag>=2) write(6,*) "THREAD: Export MLO ice data"
 if (.not.mlo_active) return
@@ -1035,7 +1035,7 @@ implicit none
 
 integer, intent(in) :: diag
 integer tile, is, ie
-real, dimension(ifull), intent(out) :: mld
+real, dimension(:), intent(out) :: mld
 
 if (diag>=1) write(6,*) "Export MLO mixed layer depth"
 mld=0.
@@ -1060,8 +1060,8 @@ implicit none
 
 integer, intent(in) :: mode,diag
 integer tile, is, ie
-real, dimension(ifull), intent(out) :: zoh
-real, dimension(ifull), intent(in) :: zmin
+real, dimension(:), intent(out) :: zoh
+real, dimension(:), intent(in) :: zmin
 
 if (diag>=1) write(6,*) "Export additional MLO data"
 zoh=0.
@@ -1144,7 +1144,7 @@ implicit none
 
 integer, intent(in) :: diag
 integer tile, is, ie
-real, dimension(ifull), intent(inout) :: tscrn,qgscrn,uscrn,u10
+real, dimension(:), intent(inout) :: tscrn,qgscrn,uscrn,u10
 
 if (diag>=1) write(6,*) "Export MLO 2m diagnostics"
 if (.not.mlo_active) return
@@ -1325,9 +1325,9 @@ implicit none
 integer, intent(in) :: wlin,mode
 integer tile, is, ie
 real, dimension(wlin), intent(in) :: sigin
-real, dimension(ifull), intent(in) :: depin
-real, dimension(ifull,wlin), intent(in) :: mloin
-real, dimension(ifull,wlev), intent(inout) :: mlodat
+real, dimension(:), intent(in) :: depin
+real, dimension(:,:), intent(in) :: mloin
+real, dimension(:,:), intent(inout) :: mlodat
 real, dimension(imax,wlin) :: mloin_tmp
 real, dimension(imax,wlev) :: mlodat_tmp
 
@@ -1370,9 +1370,9 @@ type(depthdata), intent(in) :: depth
 
 if ( wfull==0 ) return
 
-deptmp=pack(depin,wpack)
-do ii=1,wlin
-  newdata(:,ii)=pack(mloin(:,ii),wpack)
+deptmp = pack(depin,wpack)
+do ii = 1,wlin
+  newdata(:,ii) = pack(mloin(:,ii),wpack)
 end do
 
 if ( sigin(1)>sigin(wlin) ) then
@@ -1382,31 +1382,31 @@ end if
 
 select case(mode)
   case(0,1)
-    do iqw=1,wfull
-      dpin = sigin(:)*deptmp(iqw)  
+    do iqw = 1,wfull
+      dpin(1:wlin) = sigin(1:wlin)*deptmp(iqw)  
       if ( wlev==wlin ) then
         if ( all(abs(depth%depth(iqw,:)-dpin(:))<0.0001) ) then
           newdatb(iqw,:) = newdata(iqw,:)
           cycle
         end if
       end if
-      do ii=1,wlev
-        if (depth%depth(iqw,ii)>=dpin(wlin)) then
-          newdatb(iqw,ii)=newdata(iqw,wlin)
-        else if (depth%depth(iqw,ii)<=dpin(1)) then
-          newdatb(iqw,ii)=newdata(iqw,1)
+      do ii = 1,wlev
+        if ( depth%depth(iqw,ii)>=dpin(wlin) ) then
+          newdatb(iqw,ii) = newdata(iqw,wlin)
+        else if ( depth%depth(iqw,ii)<=dpin(1) ) then
+          newdatb(iqw,ii) = newdata(iqw,1)
         else
-          pos=maxloc(dpin,dpin<depth%depth(iqw,ii))
-          pos(1)=max(1,min(wlin-1,pos(1)))
-          x=(depth%depth(iqw,ii)-dpin(pos(1)))/max(dpin(pos(1)+1)-dpin(pos(1)),1.e-20)
-          x=max(0.,min(1.,x))
-          newdatb(iqw,ii)=newdata(iqw,pos(1)+1)*x+newdata(iqw,pos(1))*(1.-x)
+          pos = maxloc(dpin,dpin<depth%depth(iqw,ii))
+          pos(1) = max(1,min(wlin-1,pos(1)))
+          x = (depth%depth(iqw,ii)-dpin(pos(1)))/max(dpin(pos(1)+1)-dpin(pos(1)),1.e-20)
+          x = max(0.,min(1.,x))
+          newdatb(iqw,ii) = newdata(iqw,pos(1)+1)*x + newdata(iqw,pos(1))*(1.-x)
         end if
       end do
     end do
   case(2,3)
-    do iqw=1,wfull
-      sig=depth%depth(iqw,:)/max(depth%depth_hl(iqw,wlev),1.e-20)
+    do iqw = 1,wfull
+      sig = depth%depth(iqw,:)/max(depth%depth_hl(iqw,wlev),1.e-20)
       if ( wlev==wlin ) then
         if ( all(abs(sig(:)-sigin(:))<0.0001) ) then
           newdatb(iqw,:) = newdata(iqw,:)
@@ -1448,7 +1448,7 @@ implicit none
 
 integer, intent(in) :: mode,ii,diag
 integer tile, is, ie
-real, dimension(ifull), intent(out) :: odep
+real, dimension(:), intent(out) :: odep
 
 if (diag>=1) write(6,*) "Export MLO ocean depth data"
 odep=0.
@@ -1520,7 +1520,7 @@ subroutine mloexpmelt(omelt)
 implicit none
 
 integer tile, is, ie
-real, dimension(ifull), intent(out) :: omelt
+real, dimension(:), intent(out) :: omelt
 
 omelt=273.16
 if (.not.mlo_active) return
@@ -1564,12 +1564,12 @@ pure subroutine mloexpgamm(gamm,ip_dic,ip_dsn,diag)
 implicit none
 
 integer, intent(in) :: diag
-real, dimension(ifull), intent(in) :: ip_dic, ip_dsn
-real, dimension(ifull,3), intent(out) :: gamm
+real, dimension(:), intent(in) :: ip_dic, ip_dsn
+real, dimension(:,:), intent(out) :: gamm
 
-gamm(:,1)=gammi
-gamm(:,2)=max(ip_dsn,0.)*cps
-gamm(:,3)=max(ip_dic,0.)*0.5*cpi
+gamm(1:ifull,1)=gammi
+gamm(1:ifull,2)=max(ip_dsn,0.)*cps
+gamm(1:ifull,3)=max(ip_dic,0.)*0.5*cpi
 
 return
 end subroutine mloexpgamm
@@ -1586,9 +1586,9 @@ implicit none
 integer, intent(in) :: diag
 integer tile, is, ie
 real, intent(in) :: dt
-real, dimension(ifull), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
-real, dimension(ifull), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
-real, dimension(ifull), intent(in), optional :: oldu,oldv
+real, dimension(:), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
+real, dimension(:), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
+real, dimension(:), intent(in), optional :: oldu,oldv
 logical, intent(in) :: calcprog ! flag to update prognostic variables (or just calculate fluxes)
 
 if ( present(oldu).and.present(oldv) ) then
