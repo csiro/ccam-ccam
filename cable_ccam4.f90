@@ -1064,6 +1064,8 @@ subroutine setp_climate(climate,lclimate,tile)
   lclimate%fdorm => climate%fdorm(is:ie)
   lclimate%frec => climate%frec(is:ie)
   lclimate%gmd => climate%gmd(is:ie)
+  lclimate%fapar_ann_max => climate%fapar_ann_max(is:ie)
+  lclimate%fapar_ann_max_last_year => climate%fapar_ann_max_last_year(is:ie)
   
   lclimate%mtemp_min_20 => climate%mtemp_min_20(is:ie,:)
   lclimate%mtemp_max_20 => climate%mtemp_max_20(is:ie,:)
