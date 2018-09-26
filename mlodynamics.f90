@@ -507,6 +507,7 @@ real, dimension(ifull) :: oev_isv, oeu_iwu, cc_isv, cc_iwu
 real, dimension(ifull) :: eo_isv, eo_iwu, ni_isv, ni_iwu
 real, dimension(ifull) :: sp_isv, sp_iwu, sq_isv, sq_iwu, qu_isv, qu_iwu
 real, dimension(ifull) :: so_isv, so_iwu, ss_isv, ss_iwu
+real, dimension(ifull) :: dnetadx, dnetady, ddddx, ddddy
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,dzdum_rho
@@ -872,6 +873,19 @@ do mspec_mlo = mspeca_mlo,1,-1
                  -cc_isv*(oev_isv+dd_isv)/em_isv)                          &
                  *em(1:ifull)**2/ds)
   end do
+  
+  ! update vertical velocity at full levels
+  dnetadx = (oeu(1:ifull)/emu(1:ifull)-oeu_iwu/em_iwu)*em(1:ifull)**2/ds
+  dnetady = (oev(1:ifull)/emv(1:ifull)-oev_isv/em_isv)*em(1:ifull)**2/ds
+  ddddx = (ddu(1:ifull)/emu(1:ifull)-dd_iwu/em_iwu)*em(1:ifull)**2/ds
+  ddddy = (ddv(1:ifull)/emv(1:ifull)-dd_isv/em_isv)*em(1:ifull)**2/ds
+  do ii = 1,wlev
+    w_ocn(:,ii) = ee(1:ifull)*(0.5*(nw(:,ii-1)+nw(:,ii))                       &
+                   - nu(1:ifull,ii)*((1.-gosig(ii))*dnetadx + gosig(ii)*ddddx) &
+                   - nv(1:ifull,ii)*((1.-gosig(ii))*dnetady + gosig(ii)*ddddy))
+                  !- (1.-gosig(ii))*dnetadt ! neglect for now 
+  end do  
+           
 
   ! compute contunity equation horizontal transport terms
   do ii = 1,wlev

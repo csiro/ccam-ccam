@@ -2008,6 +2008,8 @@ if( myid==0 .or. local ) then
       call attrib(idnc,odim,osize,"uo",lname,'m/s',-65.,65.,0,cptype)
       lname = "y-component current"
       call attrib(idnc,odim,osize,"vo",lname,'m/s',-65.,65.,0,cptype)
+      lname = "Ocean vertical velocity (+ve down)"
+      call attrib(idnc,odim,osize,"wo",lname,'m/s',-6.5,6.5,0,cptype)
     end if
     
     ! CLOUD MICROPHYSICS --------------------------------------------
@@ -3052,6 +3054,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     call histwrt4(mlodwn(:,:,2),"so",idnc,iarch,local,.true.)
     call histwrt4(mlodwn(:,:,3),"uo",idnc,iarch,local,.true.)
     call histwrt4(mlodwn(:,:,4),"vo",idnc,iarch,local,.true.)
+    call histwrt4(w_ocn,"wo",idnc,iarch,local,.true.)
   end if
 end if
 

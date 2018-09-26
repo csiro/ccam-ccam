@@ -28,7 +28,7 @@
       integer, save :: k500,k600,k700,k900,k950,k970,k980,klon2,komega  
       integer, save :: mcontlnd,mcontsea           
       real,save :: convt_frac,tied_a,tied_b
-      real, dimension(:), allocatable, save :: timeconv, alfin
+      real, dimension(:), allocatable, save :: timeconv, alfin, aug
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       integer, dimension(:), allocatable, save :: kb_saved
       integer, dimension(:), allocatable, save :: kt_saved
@@ -86,6 +86,7 @@
       end if
       allocate(timeconv(ifull))  ! init for ktau=1 (allocate needed for mdelay>0)
       allocate(alfin(ifull))     ! init for ktau=1
+      allocate(aug(ifull))       ! init for ktau=1
       allocate(kb_saved(ifull))  ! init for ktau=1 
       allocate(kt_saved(ifull))  ! init for ktau=1 
       allocate(upin(kl,kl))
@@ -97,11 +98,11 @@
       endif
 
       !----------------------------------------------------------------
-      if (mbase.ne.1.or.nbase.ne.3.or.alflnd<0.or.alfsea<0)then
+      if (mbase<0.or.mbase>5.or.nbase.ne.3.or.alflnd<0.or.alfsea<0)then
         write(6,*) "ERROR: negative alflnd and alfsea or"
         write(6,*) "unsupported mbase, nbase in convjlm22"
         call ccmpi_abort(-1)
-      end if
+      endif
       kb_saved(:)=kl-1
       kt_saved(:)=kl-1
       timeconv(:)=0.
@@ -297,7 +298,7 @@
      &       pblh(is:ie),fg(is:ie),wetfac(is:ie),land(is:ie),lu,lv,
      &       timeconv(is:ie),em(is:ie),
      &       kbsav(is:ie),ktsav(is:ie),ltr,lqfg,lcfrac,sgsave(is:ie),
-     &       kt_saved(is:ie),kb_saved(is:ie))
+     &       kt_saved(is:ie),kb_saved(is:ie),aug(is:ie))
 
         t(is:ie,:)       = lt
         qg(is:ie,:)      = lqg
@@ -329,7 +330,8 @@
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,u,v,timeconv,em,
-     &       kbsav,ktsav,tr,qfg,cfrac,sgsave,kt_saved,kb_saved)
+     &       kbsav,ktsav,tr,qfg,cfrac,sgsave,kt_saved,kb_saved,
+     &       aug)
       !jlm convective scheme - latest and cleaned up
 !     unused switches: nevapcc, rhsat, shaltime 
 !     unused switches if ksc=0:  kscmom, 
@@ -404,6 +406,7 @@
       real, dimension(imax), intent(inout)             :: bcwd
       real, dimension(imax), intent(inout)             :: ocwd
       real, dimension(imax), intent(out)               :: convpsav
+      real, dimension(imax), intent(inout)             :: aug
       integer, dimension(imax), intent(inout)          :: kbsav
       integer, dimension(imax), intent(inout)          :: ktsav
       integer, dimension(imax), intent(inout)          :: kt_saved
@@ -529,13 +532,21 @@
         !splume(:,kl)=0. ! 0. just for diag prints  ! JLM
         qplume(:,:) = 0. ! MJT suggestion
         splume(:,:) = 0. ! MJT suggestion
-!       following just for setting up kb_sav values, so k700 OK
-        do k=1,k700+1
-         qplume(:,k)=qs(:,k) ! only used over sea
-         splume(:,k)=s(:,k)  
-        enddo  ! k loop
-!       if(mbase==1)then  ! finds proper maximum values for qplume & splume
-         qplume(:,1)=alfin(:)*qq(:,1)
+!      following just for setting up kb_sav values, so k700 OK
+       qplume(:,1)=alfin(:)*qq(:,1)
+       splume(:,1)=s(:,1)  
+       if(mbase==0.or.mbase==2)then  ! simple mbase=0 runs before 29/4/18 not correct          
+          do iq=1,imax
+           k=kkbb(iq)
+           splume(iq,k)=s(iq,k)+aug(iq)
+           qplume(iq,k)=alfin(iq)*qq(iq,k)
+          enddo  ! iq loop
+       endif  ! mbase==0.or.mbase==2)
+       if(mbase==1)then  ! finds proper maximum values for qplume & splume
+         do k=1,k700+1
+          qplume(:,k)=qs(:,k) ! only used over sea
+         enddo  ! k loop
+         qplume(:,1)=alfin(:)*qq(:,1) ! only relevant over land
          do k=2,k700+1
           do iq=1,imax
            if(k<=kkbb(iq))then
@@ -546,21 +557,79 @@
            endif
           enddo  ! iq loop
          enddo  ! k loop
-!       endif  ! mbase==1)
-!       N.B. only need qplume and splume at level kkbb; values above kkbb calculated later 
-!       and values below are not used   	
-        do iq=1,imax
+       endif  ! mbase==1)
+       if(mbase==3)then  ! same as mbase=0 but qs over sea; ignores alfsea
+          do iq=1,imax
+           k=kkbb(iq)
+           splume(iq,k)=s(iq,k)+aug(iq)
+           qplume(iq,k)=alfin(iq)*qq(iq,k)
+           if(.not.land(iq))then
+             qplume(iq,k)=qs(iq,k)
+           endif
+          enddo  ! iq loop
+       endif  ! mbase==3)
+       if(mbase==4)then  ! finds proper maximum values for qplume & splume
+         do k=2,k700+1
+          do iq=1,imax
+           if(k<=kkbb(iq))then
+             qplume(iq,k)=max(qplume(iq,k-1),alfin(iq)*qq(iq,k))
+	     
+             splume(iq,k)=max(splume(iq,k-1),s(iq,k))
+           endif
+          enddo  ! iq loop
+         enddo  ! k loop
+!      this will make the assumption that hbase changes at kb_sav add directly to hplume
+!      during the calculation of M	 
+       endif  ! mbase==4)
+       if(mbase==5)then  ! simple with max for qplume, splume          
+          do iq=1,imax
+           k=kkbb(iq)
+           qplume(iq,k)=alfin(iq)*qq(iq,k)
+           splume(iq,k)=max(splume(iq,k-1),s(iq,k))
+          enddo  ! iq loop
+       endif  ! mbase==5)
+!      N.B. only need qplume and splume at level kkbb; values above kkbb calculated later 
+!      and values below are not used   	
+       do iq=1,imax
          k=kkbb(iq)
          qplume(iq,k)=min(qplume(iq,k),max(qs(iq,k),qq(iq,k))) 
-        enddo  ! iq loop
+       enddo  ! iq loop
 
-      if(ktau==1.and.mydiag.and.ntiles==1)then
-      write(6,*) 'itn,iterconv,nuv,nuvconv ',itn,iterconv,nuv,nuvconv
-      write(6,*) 'ntest,methdetr,detrain',
-     .           ntest,methdetr,detrain
-      write(6,*) 'fldown ',fldown
-      write(6,*) 'alflnd,alfsea',alflnd,alfsea
-      endif  ! (ktau==1.and.mydiag)
+        if(ktau==1.and.mydiag)then
+         write(6,*) 'itn,iterconv,nuv,nuvconv ',itn,iterconv,nuv,nuvconv
+         write(6,*) 'ntest,methdetr,detrain',
+     &               ntest,methdetr,detrain
+         write(6,*) 'fldown ',fldown
+         write(6,*) 'alflnd,alfsea',alflnd,alfsea
+        endif  ! (ktau==1.and.mydiag)
+        do iq=1,imax
+         alfqarr(iq)=qplume(iq,kkbb(iq))/qq(iq,kkbb(iq))
+        enddo    ! iq loop             	 
+      endif  ! (itn==1) !--------------------------------------
+      
+      if(itn>1)then
+!      redefine qplume, splume at cloud base
+       do iq=1,imax
+        k=kkbb(iq)     
+        qplume(iq,k)=min(alfqarr(iq)*qq(iq,k)
+     &                ,max(qs(iq,k),qq(iq,k)))   
+        splume(iq,k)=s(iq,k)+aug(iq)  ! later probably use =max(splume(iq,k),s(iq,k))
+       enddo    ! iq loop             	 
+      endif  ! (itn>1)
+
+!     Following procedure chooses lowest valid cloud bottom (and base) (moved out of itn=1 loop in 2018)
+      kb_sav(:)=kl-1
+      kdown(:)=1     
+      do iq=1,imax
+       k=kkbb(iq)
+!      if(k>1.and.splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1).and. ! do not need K>1
+       if(splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1).and. 
+     &   qplume(iq,k)>max(qs(iq,k+1),qq(iq,k+1)))then
+         kb_sav(iq)=k
+         kt_sav(iq)=k+1
+       endif  
+      enddo    ! iq loop             
+
       if((ntest>0.or.nmaxpr==1).and.mydiag.and.ntiles==1) then
         iq=idjd
         write (6,"('near beginning of convjlm; ktau',i5,' itn',i1)") 
@@ -613,38 +682,6 @@
         write(6,*) 'h_sum   ',summ
       endif  ! ((ntest>0.or.nmaxpr==1).and.mydiag)
 
-!     Following procedure chooses lowest valid cloud bottom (and base)
-      kb_sav(:)=kl-1
-      kdown(:)=1     
-!     if(nbase>=0)then  ! simple kkbb at top of "PBL"
-         do iq=1,imax
-          k=kkbb(iq)
-!         if(k>1.and.splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1).and. ! do not need K>1
-          if(splume(iq,k)+hl*qplume(iq,k)>hs(iq,k+1).and. 
-     &       qplume(iq,k)>max(qs(iq,k+1),qq(iq,k+1)))then
-             kb_sav(iq)=k
-             kt_sav(iq)=k+1
-          endif  
-        enddo    ! iq loop             
-!     endif   !  nbase>=0
-      do iq=1,imax
-       alfqarr(iq)=qplume(iq,kb_sav(iq))/max(qq(iq,kb_sav(iq)),qgmin)
-      enddo    ! iq loop             	 
-      endif  ! (itn==1) 
-      if(itn>1)then
-!      check kb_sav still OK; redefine qplume, splume at cloud base
-       do iq=1,imax
-        k=kb_sav(iq)     
-        qplume(iq,k)=min(alfqarr(iq)*qq(iq,k)
-     &                ,max(qs(iq,k),qq(iq,k)))   
-        splume(iq,k)=s(iq,k)
-        if(splume(iq,k)+hl*qplume(iq,k)<hs(iq,k+1)
-     &   .or.qplume(iq,k)<max(qs(iq,k+1),qq(iq,k+1)))
-     &    kb_sav(iq)=kl-1 
-        kt_sav(iq)=k+1
-       enddo    ! iq loop             	 
-      endif  ! (itn>1)
-     
       entrsav(:,:)=0.
       fluxv0(:,:)=0.  
       do iq=1,imax
