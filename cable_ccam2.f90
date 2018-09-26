@@ -155,11 +155,11 @@ integer, save :: cable_climate      = 0          ! 0 off, 1 on
 integer, parameter :: maxtile       = 5          ! maximum possible number of tiles
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
 integer, parameter :: COLDEST_DAY_SHEMISPHERE = 172
-integer, parameter :: POP_NPATCH = 60            ! Can POP communicate this number?
-integer, parameter :: POP_NLAYER = 1             ! Can POP communicate this number?
-integer, parameter :: POP_NCOHORT = 20           ! Can POP communicate this number?
-integer, parameter :: POP_HEIGHT_BINS = 12       ! Can POP communicate this number?
-integer, parameter :: POP_NDISTURB = 1           ! Can POP communicate this number?
+integer, save :: POP_NPATCH = -1
+integer, save :: POP_NLAYER = -1
+integer, save :: POP_NCOHORT = -1
+integer, save :: POP_HEIGHT_BINS = -1
+integer, save :: POP_NDISTURB = -1
 real, parameter :: minfrac = 0.01                ! minimum non-zero tile fraction (improves load balancing)
 
 integer, save :: maxnb                           ! maximum number of actual tiles
@@ -2513,6 +2513,7 @@ use latlong_m
 use newmpar_m
 use nsibd_m
 use parm_m
+use pop_constants, only : NPATCH, NLAYER, NCOHORT_MAX, HEIGHT_BINS, NDISTURB
 use pbl_m
 use sigs_m
 use soil_m
@@ -2565,6 +2566,12 @@ if ( cbm_ms/=ms ) then
   write(6,*) "ERROR: CABLE and CCAM soil levels do not match"
   call ccmpi_abort(-1)
 end if
+
+POP_NPATCH = NPATCH
+POP_NLAYER = NLAYER
+POP_NCOHORT = NCOHORT_MAX
+POP_HEIGHT_BINS = HEIGHT_BINS
+POP_NDISTURB = NDISTURB
 
 wlogn = 10001
 
