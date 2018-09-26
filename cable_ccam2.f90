@@ -3013,6 +3013,8 @@ if ( mp_global>0 ) then
     climate%gdd0_rec = 0._8
     climate%dtemp_min = 0._8
     climate%fdorm = 1._8
+    climate%fapar_ann_max = 0._8
+    climate%fapar_ann_max_last_year = 0._8
     climate%frec = 1._8
     climate%gmd = 0
     climate%APAR_leaf_sun = 0._8
@@ -6878,12 +6880,12 @@ if ( cable_climate==1 ) then
   dat5days = 0._8
   do n = 1,maxtile  ! tile
     dat=0._8
-    dummy_unpack = real(climate%iveg,8)
+    if (n<=maxnb) dummy_unpack = real(climate%iveg,8)
     if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
     write(vname,'("t",I1.1,"_climateiveg")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    dummy_unpack = real(climate%biome,8)
+    if (n<=maxnb) dummy_unpack = real(climate%biome,8)
     if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
     write(vname,'("t",I1.1,"_climatebiome")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
@@ -7154,314 +7156,314 @@ if ( cable_pop==1 ) then
   datpc = 0._8
   dat = 0._8
   do n = 1,maxtile
-    call pop_unpack(pop%pop_grid(:)%cmass_sum,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_sum,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%cmass_sum_old,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_sum_old,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%cheartwood_sum,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cheartwood_sum,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%csapwood_sum,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%csapwood_sum,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_csapwood_sum")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%csapwood_sum_old,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%csapwood_sum_old,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%densindiv,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%densindiv,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_densindiv")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%height_mean,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%height_mean,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_height_mean")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%height_max,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%height_max,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_height_max")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%basal_area,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%basal_area,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_basal_area")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%sapwood_loss,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_loss,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_sapwood_loss")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%sapwood_area_loss,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_area_loss,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%stress_mortality,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%stress_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_stress_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%crowding_mortality,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crowding_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_crowding_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%fire_mortality,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%fire_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_fire_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%cat_mortality,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cat_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cat_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%res_mortality,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%res_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_res_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%growth,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%growth,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_growth")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%area_growth,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%area_growth,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_area_growth")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%crown_cover,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crown_cover,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_crown_cover")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%crown_area,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crown_area,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_crown_area")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%crown_volume,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crown_volume,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_crown_volume")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%sapwood_area,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_area,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_sapwood_area")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%sapwood_area_old,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_area_old,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%KClump,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%KClump,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_KClump")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     do ll = 1,POP_NLAYER
-      call pop_unpack(pop%pop_grid(:)%biomass(ll),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%biomass(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      call pop_unpack(pop%pop_grid(:)%density(ll),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%density(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      call pop_unpack(pop%pop_grid(:)%hmean(ll),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%hmean(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      call pop_unpack(pop%pop_grid(:)%hmax(ll),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%hmax(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do hh = 1,POP_HEIGHT_BINS
-      call pop_unpack(pop%pop_grid(:)%cmass_stem_bin(hh),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_stem_bin(hh),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do hh = 1,POP_HEIGHT_BINS
-      call pop_unpack(pop%pop_grid(:)%densindiv_bin(hh),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%densindiv_bin(hh),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do hh = 1,POP_HEIGHT_BINS
-      call pop_unpack(pop%pop_grid(:)%height_bin(hh),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%height_bin(hh),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do hh = 1,POP_HEIGHT_BINS
-      call pop_unpack(pop%pop_grid(:)%diameter_bin(hh),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%diameter_bin(hh),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh 
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB
-      call pop_unpack(pop%pop_grid(:)%n_age(dd),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%n_age(dd),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd 
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%id,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%id,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%freq(k),datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq(k),datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_freq")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%freq_old(k),datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq_old(k),datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_freq_old")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%factor_recruit,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%factor_recruit,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%pgap,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%pgap,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%lai,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%lai,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_lai")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%biomass,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%biomass,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_biomass")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%biomass_old,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%biomass_old,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)    
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%heartwood,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%heartwood,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_old,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_old,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_old,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_old,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%stress_mortality,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%stress_mortality,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%fire_mortality,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%fire_mortality,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%cat_mortality,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%cat_mortality,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%crowding_mortality,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%crowding_mortality,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%cpc,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%cpc,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_loss,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_loss,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_loss,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_loss,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%growth,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%growth,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_growth")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%area_growth,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%area_growth,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%frac_NPP,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%frac_NPP,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%frac_respiration,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%frac_respiration,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%frac_light_uptake,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%frac_light_uptake,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do dd = 1,POP_NDISTURB  
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%disturbance_interval(dd),datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%disturbance_interval(dd),datpatch(:,k),n)
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB  
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%first_disturbance_year(dd),datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%first_disturbance_year(dd),datpatch(:,k),n)
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB  
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%age(dd),datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%age(dd),datpatch(:,k),n)
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB  
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%ranked_age_unique(k,dd),datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%ranked_age_unique(k,dd),datpatch(:,k),n)
       end do  
       write(vname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB  
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%freq_ranked_age_unique(k,dd),datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq_ranked_age_unique(k,dd),datpatch(:,k),n)
       end do  
       write(vname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%ncohort,datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%ncohort,datpatch(:,k),n)
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%biomass,datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%biomass,datpatch(:,k),n)
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%density,datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%density,datpatch(:,k),n)
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmean,datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmean,datpatch(:,k),n)
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmax,datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmax,datpatch(:,k),n)
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
@@ -7469,7 +7471,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT            
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%age,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%age,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
@@ -7478,7 +7480,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT  
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%id,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%id,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
@@ -7487,7 +7489,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT            
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%biomass,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%biomass,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
@@ -7496,7 +7498,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%density,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%density,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
@@ -7505,7 +7507,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT  
         do k = 1,POP_NPATCH  
-         call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake,datpc(:,k,cc),n)
+         if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
@@ -7514,7 +7516,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
@@ -7523,7 +7525,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT            
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_interception,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_interception,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
@@ -7532,7 +7534,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_respiration,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_respiration,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
@@ -7541,7 +7543,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_NPP,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_NPP,datpc(:,k,cc),n)
         end do
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
@@ -7550,7 +7552,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
@@ -7559,7 +7561,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT            
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%crown_area,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%crown_area,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
@@ -7568,7 +7570,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Pgap,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Pgap,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
@@ -7577,7 +7579,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT  
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%height,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%height,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
@@ -7586,7 +7588,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%diameter,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%diameter,datpc(:,k,cc),n)
         end do 
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
@@ -7595,7 +7597,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
@@ -7604,7 +7606,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%heartwood,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%heartwood,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
@@ -7613,7 +7615,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT            
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood_area,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood_area,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
@@ -7622,7 +7624,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%basal_area,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%basal_area,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
@@ -7631,7 +7633,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%LAI,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%LAI,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
@@ -7640,7 +7642,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Cleaf,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Cleaf,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
@@ -7649,7 +7651,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Croot,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Croot,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
