@@ -1073,7 +1073,6 @@ SUBROUTINE alloc_canopy_type(var, mp)
    ALLOCATE( var% oldcansto(mp) )
    ALLOCATE( var% zetar(mp,NITER) )
    ALLOCATE( var% zetash(mp,NITER) )
-    ALLOCATE ( var % fwsoil(mp) )
     ALLOCATE ( var % ofes(mp) )
 
     ALLOCATE ( var % gw(mp,mf) )     ! dry canopy conductance (ms-1) edit vh 6/7/09

@@ -667,7 +667,7 @@ end if
 
 !--------------------------------------------------------------
 ! CABLE CLIMATE
-call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,air,npercasa,ktau)
+call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,air,ssnow,veg,npercasa,ktau)
 
 !--------------------------------------------------------------
 ! CASA CNP
@@ -1539,7 +1539,7 @@ end subroutine POPdriver
 
 ! *************************************************************************************
 ! track climate feedback into CABLE
-subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,air,npercasa,ktau)
+subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,air,ssnow,veg,npercasa,ktau)
 
 use parm_m, only : dt, nperhr
 
@@ -1556,10 +1556,13 @@ type(climate_type), intent(inout) :: climate
 type(met_type), intent(in) :: met
 type(radiation_type), intent(inout) :: rad
 type(air_type), intent(inout) :: air
+type (soil_snow_type), intent(in) :: ssnow
+type (veg_parameter_type), intent(in) :: veg
 
 real(kind=8), parameter :: Gaero   = 0.015_8    ! (m s-1) aerodynmaic conductance (for use in PT evap)
 real(kind=8), parameter :: Capp    = 29.09_8    ! isobaric spec heat air    [J/molA/K]
 real(kind=8), parameter :: SBoltz  = 5.67e-8_8  ! Stefan-Boltzmann constant [W/m2/K4]
+real(kind=8), parameter :: moisture_min = 0.15  ! threshold for setting "growing moisture days", as required for drought-deciduous phenology
 real(kind=8), parameter :: CoeffPT = 1.26_8
 real(kind=8), parameter :: T1 = 0._8
 real(kind=8), parameter :: T2 = -3._8
@@ -1581,13 +1584,13 @@ tmp   = met%tk - 273.16_8 ! avoid array temporary
 EpSA  = Epsif(tmp, met%pmb)
 phiEq = canopy%rniso*(PPc*EpsA)/(PPc*EpsA+1._8) ! equil ltnt heat flux  [W/m2]
 
-climate%evap_PT = climate%evap_PT + max(phiEq,1._8)*CoeffPT/air%rlam*dt  ! mm
+climate%evap_PT = climate%evap_PT + phiEq*CoeffPT/2.5014e6*dt  ! mm
 climate%aevap   = climate%aevap + met%precip ! mm
-climate%dtemp   = climate%dtemp + met%tk - 273.16_8
-climate%dmoist  = climate%dmoist + canopy%fwsoil
+climate%dtemp   = climate%dtemp + met%tk - 273.15_8
+climate%dmoist  = climate%dmoist + sum(ssnow%wb(:,:)*veg%froot(:,:),2)
 
-if ( mod(ktau,npercasa)==1 ) climate%dtemp_min = met%tk - 273.16_8
-climate%dtemp_min = min( climate%dtemp_min, met%tk - 273.16_8 )
+if ( mod(ktau,npercasa)==1 ) climate%dtemp_min = met%tk - 273.15_8
+climate%dtemp_min = min( climate%dtemp_min, met%tk - 273.15_8 )
 
 if ( mod(ktau,nperhr)==1 ) then
   climate%apar_leaf_sun_save = 0._8
@@ -1612,11 +1615,19 @@ climate%cs_shade_save = climate%cs_shade_save + canopy%cs_sh ! ppm
 climate%scalex_sun_save = climate%scalex_sun_save + rad%scalex(:,1)
 climate%scalex_shade_save = climate%scalex_shade_save + rad%scalex(:,2)
 
+! midday fraction of incoming visible radiation absorbed by the canopy
+!if ( mod(ktau,npercasa) == npercasa/2 ) THEN
+!  where (rad%fbeam(:,1)>=0.01)
+!    climate%fapar_ann_max = max(1.- rad%extkbm(:,1)*canopy%vlaiw, climate%fapar_ann_max)
+!  endwhere
+!endif
+
 ! accumulate sub-diurnal sub- and shade-leaf net variables that are revant for calc of Anet
 if ( mod(ktau,nperhr)==0 ) then
   climate%APAR_leaf_sun(:,1:nsd-1)   = climate%APAR_leaf_sun(:,2:nsd)
   climate%APAR_leaf_shade(:,1:nsd-1) = climate%APAR_leaf_shade(:,2:nsd)
   climate%Dleaf_sun(:,1:nsd-1)       = climate%Dleaf_sun(:,2:nsd)
+  climate%fwsoil(:,1:nsd-1)          = climate%fwsoil(:,2:nsd)
   climate%Dleaf_shade(:,1:nsd-1)     = climate%Dleaf_shade(:,2:nsd)
   climate%Tleaf_sun(:,1:nsd-1)       = climate%Tleaf_sun(:,2:nsd)
   climate%Tleaf_shade(:,1:nsd-1)     = climate%Tleaf_shade(:,2:nsd)
@@ -1627,6 +1638,7 @@ if ( mod(ktau,nperhr)==0 ) then
   climate%APAR_leaf_sun(:,nsd)   = climate%apar_leaf_sun_save/real(nperhr,8)
   climate%APAR_leaf_shade(:,nsd) = climate%apar_leaf_shade_save/real(nperhr,8)
   climate%Dleaf_sun(:,nsd)       = climate%dleaf_sun_save/real(nperhr,8)
+  climate%fwsoil(:,nsd)          = canopy%fwsoil/real(nperhr,8)
   climate%Dleaf_shade(:,nsd)     = climate%dleaf_shade_save/real(nperhr,8)
   climate%Tleaf_sun(:,nsd)       = climate%tleaf_sun_save/real(nperhr,8)
   climate%Tleaf_shade(:,nsd)     = climate%tleaf_shade_save/real(nperhr,8)
@@ -1645,7 +1657,7 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
   ! In midwinter, reset GDD counter for summergreen phenology  
   where ( (rad%latitude>=0._8.and.idoy==COLDEST_DAY_NHEMISPHERE) .or. &
           (rad%latitude<0._8.and.idoy==COLDEST_DAY_SHEMISPHERE) )
-    climate%gdd5 = 0._8
+    !climate%gdd5 = 0._8
     climate%gdd0 = 0._8
     ! reset day degree sum related to spring photosynthetic recovery
     climate%gdd0_rec = 0._8
@@ -1704,7 +1716,8 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
     climate%chilldays = min(climate%chilldays + 1, 365)
   end where
 
-  where ( climate%dmoist>climate%dmoist_min20+0.3_8*(climate%dmoist_max20-climate%dmoist_min20) .and. &
+  ! update GMD (growing moisture day) counter
+  where ( climate%dmoist>climate%dmoist_min20+moisture_min*(climate%dmoist_max20-climate%dmoist_min20) .and. &
           climate%dmoist_max20>climate%dmoist_min20 )
     climate%gmd = climate%gmd + 1
   elsewhere
@@ -1765,6 +1778,7 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
     if ( imonth==12 ) then
 
       climate%alpha_PT = max(climate%aevap/climate%evap_PT, 0._8) ! ratio of annual evap to annual PT evap  
+      !climate%fapar_ann_max_last_year = climate%fapar_ann_max 
         
       do y = 1,19
         climate%mtemp_min_20(:,y) = climate%mtemp_min_20(:,y+1)
@@ -1810,6 +1824,7 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
       climate%agdd0      = 0._8
       climate%evap_PT    = 0._8     ! annual PT evap [mm]
       climate%aevap      = 0._8     ! annual evap [mm]
+      !climate%fapar_ann_max = 0.0 
       climate%dmoist_min = climate%dmoist
       climate%dmoist_max = climate%dmoist
       
@@ -2965,6 +2980,7 @@ if ( mp_global>0 ) then
     climate%APAR_leaf_sun = 0._8
     climate%APAR_leaf_shade = 0._8
     climate%Dleaf_sun = 0._8
+    climate%fwsoil = 0._8
     climate%Dleaf_shade = 0._8
     climate%Tleaf_sun = 0._8
     climate%Tleaf_shade = 0._8
@@ -6048,6 +6064,9 @@ if (myid==0.or.local) then
       write(lname,'("climate Dleaf_sun tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatedleaf_sun")') n
       call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate fwsoil tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climatefwsoil")') n
+      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate Dleaf_shade tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatedleaf_shade")') n
       call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -7003,6 +7022,14 @@ if ( cable_climate==1 ) then
       end do  
     end if  
     write(vname,'("t",I1.1,"_climatedleaf_sun")') n
+    call histwrt4(dat5days,vname,idnc,iarch,local,.true.)
+    dat5days = 0._8  
+    if ( n<=maxnb ) then
+      do k = 1,120  
+        call cable_unpack(climate%fwsoil(:,k),dat5days(:,k),n)
+      end do  
+    end if  
+    write(vname,'("t",I1.1,"_climatefwsoil")') n
     call histwrt4(dat5days,vname,idnc,iarch,local,.true.)
     dat5days = 0._8  
     if ( n<=maxnb ) then
