@@ -1600,6 +1600,7 @@ if ( mod(ktau,nperhr)==1 ) then
   climate%apar_leaf_sun_save = 0._8
   climate%apar_leaf_shade_save = 0._8
   climate%dleaf_sun_save = 0._8
+  climate%fwsoil_save = 0._8
   climate%dleaf_shade_save = 0._8
   climate%tleaf_sun_save = 0._8
   climate%tleaf_shade_save = 0._8
@@ -1611,6 +1612,7 @@ end if
 climate%apar_leaf_sun_save = climate%apar_leaf_sun_save + rad%qcan(:,1,1)*4.6_8 ! umol m-2 s-1
 climate%apar_leaf_shade_save = climate%apar_leaf_shade_save + rad%qcan(:,2,1)*4.6_8 ! umod m-2 s-1
 climate%dleaf_sun_save = climate%dleaf_sun_save + canopy%dlf
+climate%fwsoil_save = climate%fwsoil_save + canopy%fwsoil
 climate%dleaf_shade_save = climate%dleaf_shade_save + canopy%dlf
 climate%tleaf_sun_save = climate%tleaf_sun_save + canopy%tlf
 climate%tleaf_shade_save = climate%tleaf_shade_save + canopy%tlf
@@ -1642,7 +1644,7 @@ if ( mod(ktau,nperhr)==0 ) then
   climate%APAR_leaf_sun(:,nsd)   = climate%apar_leaf_sun_save/real(nperhr,8)
   climate%APAR_leaf_shade(:,nsd) = climate%apar_leaf_shade_save/real(nperhr,8)
   climate%Dleaf_sun(:,nsd)       = climate%dleaf_sun_save/real(nperhr,8)
-  climate%fwsoil(:,nsd)          = canopy%fwsoil/real(nperhr,8)
+  climate%fwsoil(:,nsd)          = climate%fwsoil_save/real(nperhr,8)
   climate%Dleaf_shade(:,nsd)     = climate%dleaf_shade_save/real(nperhr,8)
   climate%Tleaf_sun(:,nsd)       = climate%tleaf_sun_save/real(nperhr,8)
   climate%Tleaf_shade(:,nsd)     = climate%tleaf_shade_save/real(nperhr,8)
@@ -3032,6 +3034,7 @@ if ( mp_global>0 ) then
     climate%APAR_leaf_sun_save = 0._8
     climate%APAR_leaf_shade_save = 0._8
     climate%Dleaf_sun_save = 0._8
+    climate%fwsoil_save = 0._8
     climate%Dleaf_shade_save = 0._8
     climate%Tleaf_sun_save = 0._8
     climate%Tleaf_shade_save = 0._8

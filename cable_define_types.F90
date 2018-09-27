@@ -645,6 +645,7 @@ MODULE cable_def_types_mod
       APAR_leaf_sun_save,   &
       APAR_leaf_shade_save, &
       Dleaf_sun_save,       &
+      fwsoil_save,          &
       Dleaf_shade_save,     &
       Tleaf_sun_save,       &
       Tleaf_shade_save,     &
@@ -1286,6 +1287,7 @@ SUBROUTINE alloc_climate_type(var, mp, ktauday)
    ALLOCATE ( var %   APAR_leaf_sun_save(mp) )
    ALLOCATE ( var %   APAR_leaf_shade_save(mp) )
    ALLOCATE ( var %   Dleaf_sun_save(mp) )
+   ALLOCATE ( var %   fwsoil_save(mp) )
    ALLOCATE ( var %   Dleaf_shade_save(mp) )
    ALLOCATE ( var %   Tleaf_sun_save(mp) )
    ALLOCATE ( var %   Tleaf_shade_save(mp) )
