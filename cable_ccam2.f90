@@ -564,7 +564,7 @@ rad%fbeam(:,3)  = 0._8            ! dummy for now
 call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp,sv,vl1,vl2,vl3,vl4,casamet,veg,imax,tind,tmap,maxnb)
 
 ! Calculate vcmax
-call vcmax_feedback(casabiome,casamet,casapool,veg,ktau)
+call vcmax_feedback(casabiome,casamet,casapool,veg,climate,ktau)
 
 !--------------------------------------------------------------
 ! CABLE
@@ -1190,7 +1190,7 @@ end subroutine setlai
 
 ! *************************************************************************************
 ! Calculate prognostic vcmax from CASA-CNP
-subroutine vcmax_feedback(casabiome,casamet,casapool,veg,ktau)
+subroutine vcmax_feedback(casabiome,casamet,casapool,veg,climate,ktau)
 
 use newmpar_m, only : mxvt
 use parm_m, only : nperday
@@ -1201,6 +1201,7 @@ type(casa_biome), intent(in) :: casabiome
 type(casa_met), intent(in) :: casamet
 type(casa_pool), intent(in) :: casapool
 type(veg_parameter_type), intent(inout) :: veg
+type(climate_type), intent(in) :: climate
 integer, intent(in) :: ktau
 integer np, ivt
 real(kind=8) ajv, bjvref
