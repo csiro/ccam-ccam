@@ -1376,6 +1376,7 @@ integer isoth, nsig, lapsbot
 integer secs_rad, nversion
 integer mstn, io_nest, mbd_min
 integer opt, nopt
+integer npa, npb ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr
 real, dimension(8) :: temparray
@@ -1420,7 +1421,8 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     procformat,procmode,compression,hp_output,                    & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
-    ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn              ! backwards compatible
+    ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
+    npa,npb                                                         ! depreciated
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &

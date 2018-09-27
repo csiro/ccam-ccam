@@ -818,6 +818,9 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     ! water surface height
     if ( (nested/=1.or.nud_sfh/=0) .and. ok>0 ) then
       call fillhist1('ocheight',ocndwn(:,2),land_a,fill_land)
+      where ( land(1:ifull) )
+        ocndwn(1:ifull,2) = 0.
+      end where  
     end if
   end if
 end if
@@ -3321,18 +3324,14 @@ if ( iop_test ) then
 else if ( fnproc==1 ) then
   ! for single input file
   call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.false.)
-  if ( .not.iop_test ) then
-    if ( myid==0 ) then
-      call fill_cc1_gather(ucc,mask_a)
-    end if
+  if ( myid==0 ) then
+    call fill_cc1_gather(ucc,mask_a)
   end if
   call doints1_gather(ucc, varout)
 else
   ! for multiple input files
   call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik,nogather=.true.)
-  if ( .not.iop_test ) then
-    call fill_cc1_nogather(ucc,mask_a,fill_count)
-  end if
+  call fill_cc1_nogather(ucc,mask_a,fill_count)
   call doints1_nogather(ucc, varout)
 end if ! iop_test
       
@@ -3568,18 +3567,14 @@ if ( iop_test ) then
 else if ( fnproc==1 ) then
   ! for single input file
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.false.)
-  if ( .not.iotest ) then
-    if ( myid==0 ) then
-      call fill_cc4_gather(ucc,mask_a)
-    end if
+  if ( myid==0 ) then
+    call fill_cc4_gather(ucc,mask_a)
   end if
   call doints4_gather(ucc, varout)
 else
   ! for multiple input files
   call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik,nogather=.true.)
-  if ( .not.iotest ) then
-    call fill_cc4_nogather(ucc,mask_a,fill_count)
-  end if
+  call fill_cc4_nogather(ucc,mask_a,fill_count)
   call doints4_nogather(ucc, varout)
 end if ! iop_test
 

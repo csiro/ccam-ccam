@@ -5384,7 +5384,7 @@ real, dimension(size(z1)) :: ans
 where ( abs(z2-z1)<1.e-8 .or. abs(z4-z3)<1.e-8 )
   ans = 0.
 elsewhere
-  ans = 0.25*((r1+r2-r3-r4)*(z2-z1+z4-z3)-(r2-r1+r4-r3)*(z1+z2-z3-z4))
+  ans = 0.5*((r1+r2-r3-r4)*(z2-z1+z4-z3)-(r2-r1+r4-r3)*(z1+z2-z3-z4))/(z2-z1+z4-z3)
 end where
 
 return
