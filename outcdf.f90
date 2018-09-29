@@ -21,12 +21,12 @@
 
 ! CCAM netCDF output routines
 
-! itype=1, iout=20                write outfile history file
+! itype=1,  iout=20               write outfile history file
 ! itype=-1, iout=19               write restart file (uncompressed)
 ! itype=-1, iout=21               write ensemble file (uncompressed)
-! hp_output=0                     compress history file
+! hp_output=0                     compressed history file
 ! hp_output=1                     uncompressed history file
-! localhist=f                     single processor output 
+! localhist=f                     single file output 
 ! localhist=t .and. procformat=f  parallel output for each processor
 ! localhist=t .and. procformat=t  parallel output for a group of processors (e.g., for a node)
 ! unlimitedhist=f                 fixed length time dimension (faster)
@@ -45,15 +45,15 @@ contains
 
 subroutine outfile(iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
       
-use arrays_m
-use cc_mpi
-use dates_m
-use filnames_m
-use newmpar_m
-use parm_m
-use pbl_m
-use soilsnow_m ! tgg,wb,snowd
-use tracers_m
+use arrays_m       ! Atmosphere dyamics prognostic arrays
+use cc_mpi         ! CC MPI routines
+use dates_m        ! Date data
+use filnames_m     ! Filenames
+use newmpar_m      ! Grid parameters
+use parm_m         ! Model configuration
+use pbl_m          ! Boundary layer arrays
+use soilsnow_m     ! Soil, snow and surface data
+use tracers_m      ! Tracer data
       
 implicit none
 
@@ -120,40 +120,41 @@ endif      ! (nrungcm.eq.-2.or.nrungcm.eq.-3.or.nrungcm.eq.-5)
 
 !---------------------------------------------------------------------------
 ! NetCDF files for history and restart
-if ( iout==19 ) then
-  select case(io_rest)  
-    case(0)  ! No output
-    case(1)  ! NetCDF 
-      if ( myid==0 ) write(6,*) "restart write of data to netCDF"
-      call cdfout(-1,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
-    case default
-      if ( myid==0 ) then
-        write(6,*) "ERROR: unsupported file format io_rest ",io_rest
-        write(6,*) "       valid options are 0=none, 1=NetCDF"
-        call ccmpi_abort(-1)
-      end if
-  end select
-else if ( iout==20 ) then
-  select case(io_out)
-    case(0)  ! No output
-    case(1)  ! NetCDF
-      call cdfout(1,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
-    case default
-      if ( myid==0 ) then
-        write(6,*) "ERROR: unsupported file format io_out ",io_out
-        write(6,*) "       valid options are 0=none, 1=NetCDF"
-        call ccmpi_abort(-1)
-      end if
-  end select
-else if ( iout==21 ) then
-  if ( myid==0 ) write(6,*) "ensemble write of data to netCDF"
-  call cdfout(-1,cdffile_in,psl_in,u_in,v_in,t_in,q_in)   
-else
-  if ( myid==0 ) then
-    write(6,*) "ERROR: Unknown output file option iout=",iout
-    call ccmpi_abort(-1)
-  end if  
-end if
+select case(iout)
+  case(19)  
+    select case(io_rest)  
+      case(0)  ! No output
+      case(1)  ! NetCDF 
+        if ( myid==0 ) write(6,*) "restart write of data to netCDF"
+        call cdfout(-1,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
+      case default
+        if ( myid==0 ) then
+          write(6,*) "ERROR: unsupported file format io_rest ",io_rest
+          write(6,*) "       valid options are 0=none, 1=NetCDF"
+          call ccmpi_abort(-1)
+        end if
+    end select
+  case(20)     
+    select case(io_out)
+      case(0)  ! No output
+      case(1)  ! NetCDF
+        call cdfout(1,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
+      case default
+        if ( myid==0 ) then
+          write(6,*) "ERROR: unsupported file format io_out ",io_out
+          write(6,*) "       valid options are 0=none, 1=NetCDF"
+          call ccmpi_abort(-1)
+        end if
+    end select
+  case(21)    
+    if ( myid==0 ) write(6,*) "ensemble write of data to netCDF"
+    call cdfout(-1,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
+  case default  
+    if ( myid==0 ) then
+      write(6,*) "ERROR: Unknown output file option iout=",iout
+      call ccmpi_abort(-1)
+    end if  
+end select
 
 call END_LOG(outfile_end)
       
@@ -243,7 +244,7 @@ use tracers_m                              ! Tracer data
 
 implicit none
 
-include 'kuocom.h'                    ! Convection parameters
+include 'kuocom.h'                         ! Convection parameters
 
 integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
@@ -269,7 +270,6 @@ logical local
 character(len=*), intent(in) :: cdffile_in
 character(len=1024) cdffile
 character(len=33) grdtim
-!character(len=20) timorg
 
 ! localhist=.true. indicates that the output will be written in parallel.  procformat=.true.
 ! requires localhist=.true. to work.
@@ -2331,11 +2331,11 @@ if( myid==0 .or. local ) then
   call ccnf_put_vara(idnc,'nstag',iarch,nstag)
   call ccnf_put_vara(idnc,'nstagu',iarch,nstagu)
   idum = mod(ktau-nstagoff,max(abs(nstagin),1))
-  idum = idum - max(abs(nstagin),1) ! should be -ve
+  idum = -idum ! new_nstagoff = new_ktau - nstagoff - idum, where new_ktau=0
   call ccnf_put_vara(idnc,'nstagoff',iarch,idum)
   if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
-    idum = mod(ktau-nstagoffmlo,max(2*mstagf,1))
-    idum = idum - max(2*mstagf,1) ! should be -ve
+    idum = mod(ktau-koff-nstagoffmlo,max(2*mstagf,1))
+    idum = -koff - idum ! new_nstagoffmlo = new_ktau - koff - idum, where new_ktau=0
     call ccnf_put_vara(idnc,'nstagoffmlo',iarch,idum)
   end if
   if ( myid==0 ) then

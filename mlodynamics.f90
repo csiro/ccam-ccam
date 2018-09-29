@@ -30,9 +30,13 @@
 ! approximation which is reasonably valid to 1km resolution.
 
 ! Ocean and sea-ice dynamics are based on the R-grid used by CCAM.
-! sigma-z coordinates are used by the ocean to improve coastal
+! sigma-s coordinates are used by the ocean to improve coastal
 ! regions.  Flexible nudging options are used for error correction
 ! (see nesting.f90).
+    
+! Several versions of the pressure gradient terms are avaliable and
+! are specified using mlojacobi.  mlo_rtest can also be used to
+! check that the grid is sufficently smooth for sigma coordinates.
 
 module mlodynamics
 
@@ -43,7 +47,7 @@ public mlodiffusion,mlohadv,mlodyninit
 public gosig,gosigh,godsig,ocnsmag,ocneps
 public mlodiff,usetide,mlomfix,mlojacobi,mlo_rtest
 public dd
-public nstagoffmlo,mstagf
+public nstagoffmlo,mstagf,koff
 
 real, dimension(:), allocatable, save :: ee,eeu,eev,dd,ddu,ddv,dfdyu,dfdxv
 real, dimension(:), allocatable, save :: gosig,gosigh,godsig
@@ -314,11 +318,7 @@ hdif = dt*(ocnsmag/pi)**2
 emi = dd(1:ifull)/em(1:ifull)
 
 select case(mlojacobi)
-  case(0)
-    xfact = 0.
-    yfact = 0.
-    
-  case(1,2)  
+  case(0,1,2) ! JLM method  
     ! calculate diffusion following Smagorinsky
     call unpack_svwu(emu,emv,emv_s,emu_w)
     call unpack_svwu(eeu,eev,eev_s,eeu_w)
@@ -354,7 +354,7 @@ select case(mlojacobi)
     end do
     call boundsuv(xfact,yfact,stag=-9)
   
-  case(3)  
+  case(3) ! Song method 
     ! calculate diffusion following Smagorinsky
     call unpack_svwu(emu,emv,emv_s,emu_w)
     call unpack_svwu(eeu,eev,eev_s,eeu_w)
@@ -401,7 +401,6 @@ select case(mlojacobi)
     call bounds(t_kh(:,1:wlev),nehalf=.true.)
     !eta(:) = t_kh(:,wlev+1)
 
-    ! reduce diffusion errors where bathymetry gradients are strong
     do k = 1,wlev
       call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
       xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*eeu(1:ifull)
@@ -881,9 +880,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   nuh = min( max( nuh, -50. ), 50. )
   nvh = min( max( nvh, -50. ), 50. )
 
-  ! Calculate depature points
-  call mlodeps(dt,nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
-
   ! save arrays for extrapolating currents at next time-step
   oldu2(1:ifull,1:wlev) = oldu1(1:ifull,1:wlev)
   oldv2(1:ifull,1:wlev) = oldv1(1:ifull,1:wlev)
@@ -975,6 +971,7 @@ do mspec_mlo = mspeca_mlo,1,-1
                       +(nw(:,ii)-nw(:,ii-1))/godsig(ii))
   end do
 
+  
   ! ocean
   ! Prepare pressure gradient terms at t=t and incorporate into velocity field
   detadxu = (neta_e-neta(1:ifull))*emu(1:ifull)/ds
@@ -1021,6 +1018,9 @@ do mspec_mlo = mspeca_mlo,1,-1
   end if
 #endif
 
+
+  ! Calculate depature points
+  call mlodeps(dt,nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
   ! Convert (u,v) to cartesian coordinates (U,V,W)
   do ii = 1,wlev
