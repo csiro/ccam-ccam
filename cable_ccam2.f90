@@ -116,7 +116,6 @@ use cable_ccam4
 use cable_common_module
 use cable_data_module
 use cable_def_types_mod, cbm_ms => ms
-use cable_IO_vars_module, only : wlogn
 use cable_optimise_JV_module, only : optimise_JV
 use cable_radiation_module
 use cable_roughness_module
@@ -2578,8 +2577,6 @@ POP_NLAYER = NLAYER
 POP_NCOHORT = NCOHORT_MAX
 POP_HEIGHT_BINS = HEIGHT_BINS
 POP_NDISTURB = NDISTURB
-
-wlogn = 10001
 
 ! redefine rhos
 rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)

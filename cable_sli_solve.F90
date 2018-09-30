@@ -84,13 +84,14 @@ MODULE sli_solve
        csat, slope_csat, potential_evap, tri, setsol, zerovars, &
        esat_ice, slope_esat_ice, Tfrozen, rtbis_Tfrozen, GTFrozen, &
        JSoilLayer, esat, forcerestore, SEB
-  USE cable_IO_vars_module, ONLY: wlogn
   
   IMPLICIT NONE
 
   PRIVATE
 
   PUBLIC :: solve ! solution routine
+
+  INTEGER, PARAMETER :: wlogn=6
 
   ! Definitions of public entities and private parameters (see above for default
   ! values):

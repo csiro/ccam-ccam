@@ -17,7 +17,9 @@ SUBROUTINE sli_main(ktau, dt, veg, soil, ssnow, met, canopy, air, rad, SEB_only)
        esat_ice, slope_esat_ice, thetalmax, Tfrz,  hyofS, SEB
   USE sli_roots,          ONLY: setroots, getrex
   USE sli_solve,          ONLY: solve
+#ifndef CCAM
   USE cable_IO_vars_module, ONLY: wlogn
+#endif
 
   IMPLICIT NONE
 

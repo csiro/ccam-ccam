@@ -42,7 +42,6 @@
 MODULE cable_canopy_module
 
   USE cable_data_module, ONLY : icanopy_type, point2constants
-  USE cable_IO_vars_module, ONLY: wlogn
   IMPLICIT NONE
 
   PUBLIC define_canopy,  xvcmxt3,xejmxt3, ej3x , xrdt

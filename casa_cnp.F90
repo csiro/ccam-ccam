@@ -56,7 +56,6 @@ USE casadimension
 USE casaparm
 USE casavariable
 USE phenvariable
-USE  cable_IO_vars_module, ONLY: wlogn
 USE cable_common_module, only: cable_user ! Custom soil respiration: Ticket #42
 IMPLICIT NONE
   REAL(r_2), PARAMETER :: zero = 0.0_r_2
