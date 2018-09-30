@@ -5189,6 +5189,13 @@ else
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%cpc,n)
           end do
         end if  
+        write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        if ( n<=maxnb ) then
+          do k = 1,POP_NPATCH
+            call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%mortality,n)
+          end do
+        end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
         call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
         if ( n<=maxnb ) then
@@ -6319,6 +6326,9 @@ if (myid==0.or.local) then
       write(lname,'("t",I1.1,"_pop_grid_patch_cpc")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
       call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      write(lname,'("t",I1.1,"_pop_grid_patch_mortality")') n
+      write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
+      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
       call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
@@ -7366,6 +7376,11 @@ if ( cable_pop==1 ) then
       if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%cpc,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
+    call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
+    do k = 1,POP_NPATCH
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%mortality,datpatch(:,k),n)
+    end do
+    write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
       if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_loss,datpatch(:,k),n)
