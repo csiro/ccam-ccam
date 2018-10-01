@@ -251,6 +251,11 @@ if ( myid==0 ) then
   write(6,*) 'kl,lapsbot,sig from eigenv file: ',kl,lapsbot,dumc(1:kl)
   write(6,*) 'tbar: ',dumc(2*kl+1:3*kl)
   write(6,*) 'bam:  ',bam
+  
+  if ( vegfile==" " ) then
+    write(6,*) "ERROR: vegfile has not been specified"
+    call ccmpi_abort(-1)
+  end if    
        
   ! test netcdf for CABLE input
   dumc(3*kl+1)=0.     ! lncveg 
@@ -277,16 +282,23 @@ if ( myid==0 ) then
     end if
   end if
   
+  if ( ((nmlo/=0.and.abs(nmlo)<=9).or.nriver/=0) .and. bathfile==" " ) then
+    write(6,*) "ERROR: bathfile has not been specified"
+    call ccmpi_abort(-1)
+  end if    
+  
   ! test netcdf for MLO input
   dumc(3*kl+2) = 0.      ! lncbath 
   dumc(3*kl+3) = 0.      ! lncriver
-  call ccnf_open(bathfile,ncidbath,ierr)
-  if ( ierr==0 ) then
-    dumc(3*kl+2) = 1.    ! lncbath
-    call ccnf_inq_varid(ncidbath,'riveracc',idv,tst)
-    if ( .not.tst ) then
-      dumc(3*kl+3) = 1.  ! lncriver  
-    end if
+  if ( bathfile/=" " ) then
+    call ccnf_open(bathfile,ncidbath,ierr)
+    if ( ierr==0 ) then
+      dumc(3*kl+2) = 1.    ! lncbath
+      call ccnf_inq_varid(ncidbath,'riveracc',idv,tst)
+      if ( .not.tst ) then
+        dumc(3*kl+3) = 1.  ! lncriver  
+      end if
+    end if  
   end if
  
 end if ! (myid==0)
@@ -1640,7 +1652,7 @@ if (nspecial==43) then
   end do
 end if
 #endif 
-if (nspecial==48) then
+if (nspecial==48.or.nspecial==49) then
   do k = 1,kl
     if ( sig(k)<0.05 ) exit
   end do
@@ -1656,7 +1668,11 @@ if (nspecial==48) then
       rhoa = ps(iq)*sig(k)/(rdry*t(iq,k))
       dz = -rdry*dsig(k)*t(iq,k)/(grav*sig(k)) !m
       dxy = (ds/em(iq))**2 ! m2
-      qd = (1./5.)/(rhoa*dz*dxy) ! 1km over 5 grid boxes
+      if ( nspecial==48 ) then
+        qd = (1./5.)/(rhoa*dz*dxy) ! 1kg over 5 grid boxes
+      else if ( nspecial==49 ) then
+        qd = (100./5.)/(rhoa*dz*dxy) ! 100kg over 5 grid boxes  
+      end if
       xtgdwn(iq,k,itracdu) = xtgdwn(iq,k,itracdu) + qd 
       write(6,*) "NSPECIAL==48 myid,k,sig,ig,jg,iq,qd,dz,dxy ",myid,k,sig(k),ig,jg,iq,qd,dz,dxy
     end if

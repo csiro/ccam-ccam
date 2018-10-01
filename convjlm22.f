@@ -595,7 +595,7 @@
          qplume(iq,k)=min(qplume(iq,k),max(qs(iq,k),qq(iq,k))) 
        enddo  ! iq loop
 
-        if(ktau==1.and.mydiag)then
+        if(ktau==1.and.mydiag.and.ntiles==1)then
          write(6,*) 'itn,iterconv,nuv,nuvconv ',itn,iterconv,nuv,nuvconv
          write(6,*) 'ntest,methdetr,detrain',
      &               ntest,methdetr,detrain

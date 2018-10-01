@@ -30,9 +30,13 @@
 ! approximation which is reasonably valid to 1km resolution.
 
 ! Ocean and sea-ice dynamics are based on the R-grid used by CCAM.
-! sigma-z coordinates are used by the ocean to improve coastal
+! sigma-s coordinates are used by the ocean to improve coastal
 ! regions.  Flexible nudging options are used for error correction
 ! (see nesting.f90).
+    
+! Several versions of the pressure gradient terms are avaliable and
+! are specified using mlojacobi.  mlo_rtest can also be used to
+! check that the grid is sufficently smooth for sigma coordinates.
 
 module mlodynamics
 
@@ -43,12 +47,11 @@ public mlodiffusion,mlohadv,mlodyninit
 public gosig,gosigh,godsig,ocnsmag,ocneps
 public mlodiff,usetide,mlomfix,mlojacobi,mlo_rtest
 public dd
-public nstagoffmlo,mstagf
+public nstagoffmlo,mstagf,koff
 
 real, dimension(:), allocatable, save :: ee,eeu,eev,dd,ddu,ddv,dfdyu,dfdxv
 real, dimension(:), allocatable, save :: gosig,gosigh,godsig
 real, dimension(:,:), allocatable, save :: stwgt
-integer, save :: mspeca_mlo     = 1       ! controls additional 0.5*dt time-step
 integer, save :: nstagoffmlo    = 0       ! staggering offset
 integer, save :: usetide        = 1       ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode   = 2       ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
@@ -263,6 +266,7 @@ use vecsuv_m
 implicit none
 
 integer k, iq
+integer kp1, km1
 real hdif
 real, dimension(ifull+iextra,wlev,3) :: duma
 real, dimension(ifull+iextra,wlev) :: uau,uav
@@ -275,9 +279,14 @@ real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
 real, dimension(ifull) :: nu,nv,nw
 real, dimension(ifull) :: tx_fact,ty_fact
 real, dimension(ifull) :: emi, emu_w, eeu_w, emv_s, eev_s
-real, dimension(ifull) :: dd_e, dd_n
+real, dimension(ifull) :: dd_e, dd_n, dd_w, dd_s
 real, dimension(ifull) :: duma_n, duma_s, duma_e, duma_w
 real, dimension(ifull) :: v_n, v_s, u_e, u_w
+real, dimension(ifull) :: v_e, v_w, u_n, u_s
+real, dimension(ifull) :: vm1_n, vm1_s, um1_e, um1_w
+real, dimension(ifull) :: vm1_e, vm1_w, um1_n, um1_s
+real, dimension(ifull) :: ddi, ddi_n, ddi_e, ddim1, ddim1_n, ddim1_e
+real, dimension(ifull) :: ddi_s, ddi_w, ddim1_s, ddim1_w
 real, dimension(ifull) :: t_kh_n, t_kh_e
 
 call START_LOG(waterdiff_begin)
@@ -308,40 +317,102 @@ call boundsuv(uau,uav,allvec=.true.)
 hdif = dt*(ocnsmag/pi)**2
 emi = dd(1:ifull)/em(1:ifull)
 
-! calculate diffusion following Smagorinsky
-call unpack_svwu(emu,emv,emv_s,emu_w)
-call unpack_svwu(eeu,eev,eev_s,eeu_w)
-do k = 1,wlev
-  call unpack_nveu(uau(:,k),uav(:,k),v_n,u_e)  
-  call unpack_svwu(uau(:,k),uav(:,k),v_s,u_w)
-  dudx = 0.5*((u_e-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull)        &
-             +(uau(1:ifull,k)-u_w)*emu_w*eeu_w)/ds
-  dudy = 0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
-             +(uau(1:ifull,k)-uau(isu,k))*emv_s*eev_s)/ds
-  dvdx = 0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
-             +(uav(1:ifull,k)-uav(iwv,k))*emu_w*eeu_w)/ds
-  dvdy = 0.5*((v_n-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull)        &
-             +(uav(1:ifull,k)-v_s)*emv_s*eev_s)/ds
+select case(mlojacobi)
+  case(0,1,2) ! JLM method  
+    ! calculate diffusion following Smagorinsky
+    call unpack_svwu(emu,emv,emv_s,emu_w)
+    call unpack_svwu(eeu,eev,eev_s,eeu_w)
+    do k = 1,wlev
+      call unpack_nveu(uau(:,k),uav(:,k),v_n,u_e)  
+      call unpack_svwu(uau(:,k),uav(:,k),v_s,u_w)
+      dudx = 0.5*((u_e-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull)        &
+                 +(uau(1:ifull,k)-u_w)*emu_w*eeu_w)/ds
+      dudy = 0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)*eev(1:ifull) &
+                 +(uau(1:ifull,k)-uau(isu,k))*emv_s*eev_s)/ds
+      dvdx = 0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)*eeu(1:ifull) &
+                 +(uav(1:ifull,k)-uav(iwv,k))*emu_w*eeu_w)/ds
+      dvdy = 0.5*((v_n-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull)        &
+                 +(uav(1:ifull,k)-v_s)*emv_s*eev_s)/ds
 
-  !t_kh(1:ifull,k) = sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
-  t_kh(1:ifull,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi
-end do
-!t_kh(1:ifull,wlev+1) = etain(1:ifull)
-call bounds(t_kh(:,1:wlev),nehalf=.true.)
-!eta(:) = t_kh(:,wlev+1)
+      !t_kh(1:ifull,k) = sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
+      t_kh(1:ifull,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi
+    end do
+    !t_kh(1:ifull,wlev+1) = etain(1:ifull)
+    call bounds(t_kh(:,1:wlev),nehalf=.true.)
+    !eta(:) = t_kh(:,wlev+1)
 
-! reduce diffusion errors where bathymetry gradients are strong
-call unpack_ne(dd,dd_n,dd_e)
-do k = 1,wlev
-  !depadj = gosig(k)*max(dd+eta,minwater) ! neglect eta
-  tx_fact = 1./(1.+(gosig(k)*abs(dd_e-dd(1:ifull))/delphi)**nf)
-  ty_fact = 1./(1.+(gosig(k)*abs(dd_n-dd(1:ifull))/delphi)**nf)
+    ! reduce diffusion errors where bathymetry gradients are strong
+    call unpack_ne(dd,dd_n,dd_e)
+    do k = 1,wlev
+      !depadj = gosig(k)*max(dd+eta,minwater) ! neglect eta
+      tx_fact = 1./(1.+(gosig(k)*abs(dd_e-dd(1:ifull))/delphi)**nf)
+      ty_fact = 1./(1.+(gosig(k)*abs(dd_n-dd(1:ifull))/delphi)**nf)
 
-  call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
-  xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*tx_fact*eeu(1:ifull) ! reduction factor
-  yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*ty_fact*eev(1:ifull) ! reduction factor
-end do
-call boundsuv(xfact,yfact,stag=-9)
+      call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
+      xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*tx_fact*eeu(1:ifull) ! reduction factor
+      yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*ty_fact*eev(1:ifull) ! reduction factor
+    end do
+    call boundsuv(xfact,yfact,stag=-9)
+  
+  case(3) ! Song method 
+    ! calculate diffusion following Smagorinsky
+    call unpack_svwu(emu,emv,emv_s,emu_w)
+    call unpack_svwu(eeu,eev,eev_s,eeu_w)
+    call unpack_ne(dd,dd_n,dd_e)
+    dd_s = dd(is)
+    dd_w = dd(iw)
+    do k = 1,wlev
+      kp1 = min(k+1,wlev)
+      km1 = max(k-1,1)
+      call unpack_nveu(uau(:,kp1),uav(:,kp1),v_n,u_e)  
+      call unpack_svwu(uau(:,kp1),uav(:,kp1),v_s,u_w)
+      call unpack_nveu(uau(:,km1),uav(:,km1),vm1_n,um1_e)  
+      call unpack_svwu(uau(:,km1),uav(:,km1),vm1_s,um1_w)
+      u_n = uau(inu,kp1)
+      u_s = uau(isu,kp1)
+      v_e = uav(iev,kp1)
+      v_w = uav(iwv,kp1)
+      um1_n = uau(inu,km1)
+      um1_s = uau(isu,km1)
+      vm1_e = uav(iev,km1)
+      vm1_w = uav(iwv,km1)
+      ddi(:) = gosig(kp1)*dd(1:ifull)
+      ddi_e(:) = gosig(kp1)*dd_e(1:ifull)
+      ddi_n(:) = gosig(kp1)*dd_n(1:ifull)
+      ddi_w(:) = gosig(kp1)*dd_w(1:ifull)
+      ddi_s(:) = gosig(kp1)*dd_s(1:ifull)
+      ddim1(:) = gosig(km1)*dd(1:ifull)
+      ddim1_e(:) = gosig(km1)*dd_e(1:ifull)
+      ddim1_n(:) = gosig(km1)*dd_n(1:ifull)
+      ddim1_w(:) = gosig(km1)*dd_w(1:ifull)
+      ddim1_s(:) = gosig(km1)*dd_s(1:ifull)
+      dudx = 0.5*(ddsong(u_e,um1_e,uau(:,kp1),uau(:,km1),ddi_e,ddim1_e,ddi,ddim1)*emu(1:ifull)*eeu(1:ifull) &
+                 +ddsong(uau(:,kp1),uau(:,km1),u_w,um1_w,ddi,ddim1,ddi_w,ddim1_w)*emu_w*eeu_w)/ds
+      dudy = 0.5*(ddsong(u_n,um1_n,uau(:,kp1),uau(:,km1),ddi_n,ddim1_n,ddi,ddim1)*emv(1:ifull)*eev(1:ifull) &
+                 +ddsong(uau(:,kp1),uau(:,km1),u_s,um1_s,ddi,ddim1,ddi_s,ddim1_s)*emv_s*eev_s)/ds      
+      dvdx = 0.5*(ddsong(v_e,vm1_e,uav(:,kp1),uav(:,km1),ddi_e,ddim1_e,ddi,ddim1)*emu(1:ifull)*eeu(1:ifull) &
+                 +ddsong(uav(:,kp1),uav(:,km1),v_w,vm1_w,ddi,ddim1,ddi_w,ddim1_w)*emu_w*eeu_w)/ds      
+      dvdy = 0.5*(ddsong(v_n,vm1_n,uav(:,k+1),uav(:,k-1),ddi_n,ddim1_n,ddi,ddim1)*emv(1:ifull)*eev(1:ifull) &
+                 +ddsong(uav(:,kp1),uav(:,km1),v_s,vm1_s,ddi,ddim1,ddi_s,ddim1_s)*emv_s*eev_s)/ds
+      !t_kh(1:ifull,k) = sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
+      t_kh(1:ifull,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi
+    end do
+    !t_kh(1:ifull,wlev+1) = etain(1:ifull)
+    call bounds(t_kh(:,1:wlev),nehalf=.true.)
+    !eta(:) = t_kh(:,wlev+1)
+
+    do k = 1,wlev
+      call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
+      xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*eeu(1:ifull)
+      yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*eev(1:ifull)
+    end do
+    call boundsuv(xfact,yfact,stag=-9)
+
+  case default
+    write(6,*) "ERROR: Unknown option mlojacobi = ",mlojacobi
+    call ccmpi_abort(-1)
+  
+end select    
 
 do k = 1,wlev
   call unpack_svwu(xfact(:,k),yfact(:,k),yfact_isv(:,k),xfact_iwu(:,k))  
@@ -469,7 +540,7 @@ implicit none
 
 integer ii,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
-integer tyear,jstart, iq, mspec_mlo
+integer tyear,jstart, iq, mspec_mlo, mspeca_mlo
 integer, dimension(ifull,wlev) :: nface
 real maxglobseta,maxglobip,hdt,dtin_mlo
 real alph_p
@@ -510,7 +581,7 @@ real, dimension(ifull) :: so_isv, so_iwu, ss_isv, ss_iwu
 real, dimension(ifull) :: dnetadx, dnetady, ddddx, ddddy
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
-real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,dzdum_rho
+real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,dzdum_rho
 real, dimension(ifull+iextra,wlev) :: dalpha,dbeta
 real, dimension(ifull+iextra,wlev) :: ccu,ccv
 real, dimension(ifull+iextra,9) :: dumc,dumd
@@ -523,7 +594,7 @@ real, dimension(ifull,wlev) :: kku,llu,mmu,nnu,oou,ppu,qqu
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv,oov,ppv,qqv
 real, dimension(ifull,wlev) :: drhobardxu,dfrhobardyu,dfrhobardxv,drhobardyv
 real, dimension(ifull,wlev) :: depdum,dzdum
-real, dimension(ifull,wlev) :: dd_adv
+real, dimension(ifull,wlev) :: dd_adv,mps
 real, dimension(ifull,0:wlev) :: nw
 real, dimension(ifull,4) :: i_it
 real, dimension(ifull,3) :: gamm
@@ -549,6 +620,7 @@ logical lleap
 
 ! save time-step
 dtin_mlo = dt
+mspeca_mlo = 1
 
 ! Define land/sea mask
 wtr(:) = ee(:)>0.5
@@ -799,7 +871,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Water currents are advected using semi-Lagrangian advection
   ! based on McGregor's CCAM advection routines.
   ! Velocity is set to zero at ocean boundaries.
-
+  
   ! Estimate currents at t+1/2 for semi-Lagrangian advection
   do ii = 1,wlev
     nuh(:,ii) = (15.*nu(1:ifull,ii)-10.*oldu1(:,ii)+3.*oldu2(:,ii))*ee(1:ifull)/8. ! U at t+1/2
@@ -807,9 +879,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
   nuh = min( max( nuh, -50. ), 50. )
   nvh = min( max( nvh, -50. ), 50. )
-
-  ! Calculate depature points
-  call mlodeps(dt,nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
   ! save arrays for extrapolating currents at next time-step
   oldu2(1:ifull,1:wlev) = oldu1(1:ifull,1:wlev)
@@ -842,7 +911,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! positive nw is moving downwards to the ocean floor
   ! Assume Boussinesq fluid and treat density in continuity equation as constant
   ! true vertical velocity = nw-u*((1-sig)*deta/dx-sig*d(dd)/dx)-v*((1-sig)*deta/dy-sig*d(dd)/dy)-(1-sig)*deta/dt
-  call mlostaguv(nu,nv,eou,eov)
+  call mlostaguv(nu(:,1:wlev),nv(:,1:wlev),eou(:,1:wlev),eov(:,1:wlev))
   ! surface height at staggered coordinate
   eou(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_e)*eeu(1:ifull) ! height at staggered coordinate
   eov(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_n)*eev(1:ifull) ! height at staggered coordinate
@@ -853,8 +922,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   ccu(:,1) = eou(:,1)*godsig(1)
   ccv(:,1) = eov(:,1)*godsig(1)
   do ii = 2,wlev
-    ccu(:,ii) = ccu(:,ii-1)+eou(:,ii)*godsig(ii)
-    ccv(:,ii) = ccv(:,ii-1)+eov(:,ii)*godsig(ii)
+    ccu(:,ii) = ccu(:,ii-1) + eou(:,ii)*godsig(ii)
+    ccv(:,ii) = ccv(:,ii-1) + eov(:,ii)*godsig(ii)
   end do
   ! calculate vertical velocity (use flux form)
   call unpack_svwu(oeu,oev,oev_isv,oeu_iwu)
@@ -902,12 +971,7 @@ do mspec_mlo = mspeca_mlo,1,-1
                       +(nw(:,ii)-nw(:,ii-1))/godsig(ii))
   end do
 
-  xps(:) = mps(1:ifull,1)*godsig(1)
-  do ii = 2,wlev
-    xps(:) = xps(:) + mps(1:ifull,ii)*godsig(ii)
-  end do
-  xps(:) = xps(:)*ee(1:ifull)
-
+  
   ! ocean
   ! Prepare pressure gradient terms at t=t and incorporate into velocity field
   detadxu = (neta_e-neta(1:ifull))*emu(1:ifull)/ds
@@ -955,6 +1019,9 @@ do mspec_mlo = mspeca_mlo,1,-1
 #endif
 
 
+  ! Calculate depature points
+  call mlodeps(dt,nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
+
   ! Convert (u,v) to cartesian coordinates (U,V,W)
   do ii = 1,wlev
     cou(1:ifull,ii,1) = ax(1:ifull)*uau(:,ii) + bx(1:ifull)*uav(:,ii)
@@ -974,9 +1041,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
 
   ! Horizontal advection for continuity
-  do ii = 1,wlev
-    cou(1:ifull,ii,1) = mps(1:ifull,ii)
-  end do  
+  cou(1:ifull,1:wlev,1) = mps(1:ifull,1:wlev)
   call mlob2ints(cou(:,:,1:1),nface,xg,yg,wtr)
   mps(1:ifull,1:wlev) = cou(1:ifull,1:wlev,1)
 
@@ -1273,9 +1338,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Iterative loop to estimate ice 'pressure'
   if ( precon<-9999 ) then
     ! Multi-grid
-    call mlomg(neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,                               &
-               pdiv,sdiv,odiv,odiv_d,qdiv,xps,                                                     &
-               ipice,ibu,ibv,idu,idv,niu,niv,ipmax,totits,maxglobseta,maxglobip,minwater)
+    call mlomg(neta,sue,svn,suw,svs,pue,pvn,puw,pvs,que,qvn,quw,qvs,   &
+               pdiv,sdiv,odiv,odiv_d,qdiv,xps,                         &
+               ipice,ibu,ibv,idu,idv,niu,niv,ipmax,                    &
+               totits,maxglobseta,maxglobip,minwater)
   else
     ! Usual SOR
     write(6,*) "ERROR: MLO dynamics requires precon=-10000"
@@ -1427,7 +1493,6 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   call END_LOG(wateriadv_end)
 
-
   call START_LOG(watermfix_begin)
 
   ! volume conservation for water
@@ -1435,7 +1500,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! this is a mfix=1 method.  mfix=3 may not be viable for neta  
     delpos(1) = 0.
     delneg(1) = 0.
-    neta(1:ifull) = max(min(neta(1:ifull), 120.), -120.)
+    neta(1:ifull) = max(min(neta(1:ifull), 130.), -130.)
     !odum = (neta(1:ifull)-w_e)*ee(1:ifull)
     odum = neta(1:ifull)*ee(1:ifull)
     call ccglobal_posneg(odum,delpos(1),delneg(1))
@@ -1633,9 +1698,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   dt = dtin_mlo
 
 end do ! mspec_mlo
-
-! turn-off half time-step
-mspeca_mlo = 1
 
 
 #ifdef mlodebug
@@ -5177,6 +5239,7 @@ use parm_m
 implicit none
 
 integer ii, jj, kk, iq
+integer iip1, iim1, kkpm
 real, dimension(ifull+iextra,wlev) :: dd_i
 real, dimension(ifull,wlev) :: ddi,dde,ddw,ddn,dds,dden,ddse,ddne,ddwn
 real, dimension(ifull,wlev) :: ssi,sse,ssw,ssn,sss,ssen,ssse,ssne,sswn
@@ -5228,145 +5291,58 @@ do jj = 1,2
   end do
   
   ! process staggered u locations
-  drhobardxu(:,1,jj)=ddsong(sse(:,2),sse(:,1),ssi(:,2),ssi(:,1), &
-                            dde(:,2),dde(:,1),ddi(:,2),ddi(:,1)) &
-                     *eeu(1:ifull)*emu(1:ifull)/ds
-  do ii=2,wlev-1
-    drhobardxu(:,ii,jj)=ddsong(sse(:,ii+1),sse(:,ii-1),ssi(:,ii+1),ssi(:,ii-1), &
-                               dde(:,ii+1),dde(:,ii-1),ddi(:,ii+1),ddi(:,ii-1)) &
+  do ii = 1,wlev
+    iip1 = min(ii + 1,wlev)
+    iim1 = max(ii - 1,1)
+    
+    drhobardxu(:,ii,jj)=ddsong(sse(:,iip1),sse(:,iim1),ssi(:,iip1),ssi(:,iim1), &
+                               dde(:,iip1),dde(:,iim1),ddi(:,iip1),ddi(:,iim1)) &
                         *eeu(1:ifull)*emu(1:ifull)/ds
-  end do
-  drhobardxu(:,wlev,jj)=ddsong(sse(:,wlev),sse(:,wlev-1),ssi(:,wlev),ssi(:,wlev-1), &
-                               dde(:,wlev),dde(:,wlev-1),ddi(:,wlev),ddi(:,wlev-1)) &
-                     *eeu(1:ifull)*emu(1:ifull)/ds
 
-  do kk = 1,2
-    ttn(:,kk) = ssn(:,kk)*f_in
-    tti(:,kk) = ssi(:,kk)*f(1:ifull)
-    ttne(:,kk) = ssne(:,kk)*f_ine
-    tte(:,kk) = sse(:,kk)*f_ie
-    tts(:,kk) = sss(:,kk)*f_is
-    ttse(:,kk) = ssse(:,kk)*f_ise
-  end do  
-  drhobardyu(:,1,jj)=0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds              &
-                     *(ddsong(ttn(:,2),ttn(:,1),tti(:,2),tti(:,1),      &
-                              ddn(:,2),ddn(:,1),ddi(:,2),ddi(:,1))      &
-                      +ddsong(ttne(:,2),ttne(:,1),tte(:,2),tte(:,1),    &
-                              ddne(:,2),ddne(:,1),dde(:,2),dde(:,1)))   &
-                    +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds              &
-                     *(ddsong(tti(:,2),tti(:,1),tts(:,2),tts(:,1),      &
-                              ddi(:,2),ddi(:,1),dds(:,2),dds(:,1))      &
-                      +ddsong(tte(:,2),tte(:,1),ttse(:,2),ttse(:,1),    &
-                              dde(:,2),dde(:,1),ddse(:,2),ddse(:,1)))
-  do ii = 2,wlev-1
     do kk = 1,2
-      ttn(:,kk) = ssn(:,ii-3+2*kk)*f_in
-      tti(:,kk) = ssi(:,ii-3+2*kk)*f(1:ifull)
-      ttne(:,kk) = ssne(:,ii-3+2*kk)*f_ine
-      tte(:,kk) = sse(:,ii-3+2*kk)*f_ie
-      tts(:,kk) = sss(:,ii-3+2*kk)*f_is
-      ttse(:,kk) = ssse(:,ii-3+2*kk)*f_ise
+      kkpm = min( max( ii-3+2*kk, 1 ), wlev )  
+      ttn(:,kk) = ssn(:,kkpm)*f_in
+      tti(:,kk) = ssi(:,kkpm)*f(1:ifull)
+      ttne(:,kk) = ssne(:,kkpm)*f_ine
+      tte(:,kk) = sse(:,kkpm)*f_ie
+      tts(:,kk) = sss(:,kkpm)*f_is
+      ttse(:,kk) = ssse(:,kkpm)*f_ise
     end do  
     drhobardyu(:,ii,jj)=0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds                          &
                         *(ddsong(ttn(:,2),ttn(:,1),tti(:,2),tti(:,1),                  &
-                                 ddn(:,ii+1),ddn(:,ii-1),ddi(:,ii+1),ddi(:,ii-1))      &
+                                 ddn(:,iip1),ddn(:,iim1),ddi(:,iip1),ddi(:,iim1))      &
                          +ddsong(ttne(:,2),ttne(:,1),tte(:,2),tte(:,1),                &
-                                 ddne(:,ii+1),ddne(:,ii-1),dde(:,ii+1),dde(:,ii-1)))   &
+                                 ddne(:,iip1),ddne(:,iim1),dde(:,iip1),dde(:,iim1)))   &
                        +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds                          &
                         *(ddsong(tti(:,2),tti(:,1),tts(:,2),tts(:,1),                  &
-                                 ddi(:,ii+1),ddi(:,ii-1),dds(:,ii+1),dds(:,ii-1))      &
+                                 ddi(:,iip1),ddi(:,iim1),dds(:,iip1),dds(:,iim1))      &
                          +ddsong(tte(:,2),tte(:,1),ttse(:,2),ttse(:,1),                &
-                                 dde(:,ii+1),dde(:,ii-1),ddse(:,ii+1),ddse(:,ii-1)))
-  end do
-  do kk = 1,2
-    ttn(:,kk) = ssn(:,wlev-2+kk)*f_in
-    tti(:,kk) = ssi(:,wlev-2+kk)*f(1:ifull)
-    ttne(:,kk) = ssne(:,wlev-2+kk)*f_ine
-    tte(:,kk) = sse(:,wlev-2+kk)*f_ie
-    tts(:,kk) = sss(:,wlev-2+kk)*f_is
-    ttse(:,kk) = ssse(:,wlev-2+kk)*f_ise
-  end do  
-  drhobardyu(:,wlev,jj)=0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds                              &
-                        *(ddsong(ttn(:,2),ttn(:,1),tti(:,2),tti(:,1),                      &
-                                 ddn(:,wlev),ddn(:,wlev-1),ddi(:,wlev),ddi(:,wlev-1))      &
-                         +ddsong(ttne(:,2),ttne(:,1),tte(:,2),tte(:,1),                    &
-                                 ddne(:,wlev),ddne(:,wlev-1),dde(:,wlev),dde(:,wlev-1)))   &
-                       +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds                              &
-                        *(ddsong(tti(:,2),tti(:,1),tts(:,2),tts(:,1),                      &
-                                 ddi(:,wlev),ddi(:,wlev-1),dds(:,wlev),dds(:,wlev-1))      &
-                         +ddsong(tte(:,2),tte(:,1),ttse(:,2),ttse(:,1),                    &
-                                 dde(:,wlev),dde(:,wlev-1),ddse(:,wlev),ddse(:,wlev-1)))
-
+                                 dde(:,iip1),dde(:,iim1),ddse(:,iip1),ddse(:,iim1)))
 
   ! now process staggered v locations
-  drhobardyv(:,1,jj)=ddsong(ssn(:,2),ssn(:,1),ssi(:,2),ssi(:,1), &
-                            ddn(:,2),ddn(:,1),ddi(:,2),ddi(:,1)) &
-                      *eev(1:ifull)*emv(1:ifull)/ds
-  do ii=2,wlev-1
-    drhobardyv(:,ii,jj)=ddsong(ssn(:,ii+1),ssn(:,ii-1),ssi(:,ii+1),ssi(:,ii-1), &
-                               ddn(:,ii+1),ddn(:,ii-1),ddi(:,ii+1),ddi(:,ii-1)) &
+    drhobardyv(:,ii,jj)=ddsong(ssn(:,iip1),ssn(:,iim1),ssi(:,iip1),ssi(:,iim1), &
+                               ddn(:,iip1),ddn(:,iim1),ddi(:,iip1),ddi(:,iim1)) &
                         *eev(1:ifull)*emv(1:ifull)/ds
-  end do
-  drhobardyv(:,wlev,jj)=ddsong(ssn(:,wlev),ssn(:,wlev-1),ssi(:,wlev),ssi(:,wlev-1), &
-                               ddn(:,wlev),ddn(:,wlev-1),ddi(:,wlev),ddi(:,wlev-1)) &
-                      *eev(1:ifull)*emv(1:ifull)/ds
-
-  do kk = 1,2  
-    tte(:,kk) = sse(:,kk)*f_ie
-    tti(:,kk) = ssi(:,kk)*f(1:ifull)
-    tten(:,kk) = ssen(:,kk)*f_ien
-    ttn(:,kk) = ssn(:,kk)*f_in
-    ttw(:,kk) = ssw(:,kk)*f_iw
-    ttwn(:,kk) = sswn(:,kk)*f_iwn
-  end do  
-  drhobardxv(:,1,jj)=0.25*stwgt(1:ifull,3)*emv(1:ifull)/ds                    &
-                     *(ddsong(tte(:,2),tte(:,1),tti(:,2),tti(:,1),            &
-                              dde(:,2),dde(:,1),ddi(:,2),ddi(:,1))            &
-                      +ddsong(tten(:,2),tten(:,1),ttn(:,2),ttn(:,1),          &
-                              dden(:,2),dden(:,1),ddn(:,2),ddn(:,1)))         &
-                    +0.25*stwgt(1:ifull,4)*emv(1:ifull)/ds                    &
-                     *(ddsong(tti(:,2),tti(:,1),ttw(:,2),ttw(:,1),            &
-                              ddi(:,2),ddi(:,1),ddw(:,2),ddw(:,1))            &
-                      +ddsong(ttn(:,2),ttn(:,1),ttwn(:,2),ttwn(:,1),          &
-                              ddn(:,2),ddn(:,1),ddwn(:,2),ddwn(:,1)))       
-  do ii=2,wlev-1
     do kk = 1,2  
-      tte(:,kk) = sse(:,ii-3+2*kk)*f_ie
-      tti(:,kk) = ssi(:,ii-3+2*kk)*f(1:ifull)
-      tten(:,kk) = ssen(:,ii-3+2*kk)*f_ien
-      ttn(:,kk) = ssn(:,ii-3+2*kk)*f_in
-      ttw(:,kk) = ssw(:,ii-3+2*kk)*f_iw
-      ttwn(:,kk) = sswn(:,ii-3+2*kk)*f_iwn
+      kkpm = min( max( ii-3+2*kk, 1 ), wlev )  
+      tte(:,kk) = sse(:,kkpm)*f_ie
+      tti(:,kk) = ssi(:,kkpm)*f(1:ifull)
+      tten(:,kk) = ssen(:,kkpm)*f_ien
+      ttn(:,kk) = ssn(:,kkpm)*f_in
+      ttw(:,kk) = ssw(:,kkpm)*f_iw
+      ttwn(:,kk) = sswn(:,kkpm)*f_iwn
     end do  
     drhobardxv(:,ii,jj)=0.25*stwgt(1:ifull,3)*emv(1:ifull)/ds                            &
                         *(ddsong(tte(:,2),tte(:,1),tti(:,2),tti(:,1),                    &
-                                 dde(:,ii+1),dde(:,ii-1),ddi(:,ii+1),ddi(:,ii-1))        &
+                                 dde(:,iip1),dde(:,iim1),ddi(:,iip1),ddi(:,iim1))        &
                          +ddsong(tten(:,2),tten(:,1),ttn(:,2),ttn(:,1),                  &
-                                 dden(:,ii+1),dden(:,ii-1),ddn(:,ii+1),ddn(:,ii-1)))     &
+                                 dden(:,iip1),dden(:,iim1),ddn(:,iip1),ddn(:,iim1)))     &
                        +0.25*stwgt(1:ifull,4)*emv(1:ifull)/ds                            &
                         *(ddsong(tti(:,2),tti(:,1),ttw(:,2),ttw(:,1),                    &
-                                 ddi(:,ii+1),ddi(:,ii-1),ddw(:,ii+1),ddw(:,ii-1))        &
+                                 ddi(:,iip1),ddi(:,iim1),ddw(:,iip1),ddw(:,iim1))        &
                          +ddsong(ttn(:,2),ttn(:,1),ttwn(:,2),ttwn(:,1),                  &
-                                 ddn(:,ii+1),ddn(:,ii-1),ddwn(:,ii+1),ddwn(:,ii-1)))       
+                                 ddn(:,iip1),ddn(:,iim1),ddwn(:,iip1),ddwn(:,iim1)))       
   end do
-  do kk = 1,2  
-    tte(:,kk) = sse(:,wlev-2+kk)*f_ie
-    tti(:,kk) = ssi(:,wlev-2+kk)*f(1:ifull)
-    tten(:,kk) = ssen(:,wlev-2+kk)*f_ien
-    ttn(:,kk) = ssn(:,wlev-2+kk)*f_in
-    ttw(:,kk) = ssw(:,wlev-2+kk)*f_iw
-    ttwn(:,kk) = sswn(:,wlev-2+kk)*f_iwn
-  end do  
-  drhobardxv(:,wlev,jj)=0.25*stwgt(1:ifull,3)*emv(1:ifull)/ds                               &
-                        *(ddsong(tte(:,2),tte(:,1),tti(:,2),tti(:,1),                       &
-                                 dde(:,wlev),dde(:,wlev-1),ddi(:,wlev),ddi(:,wlev-1))       &
-                         +ddsong(tten(:,2),tten(:,1),ttn(:,2),ttn(:,1),                     &
-                                 dden(:,wlev),dden(:,wlev-1),ddn(:,wlev),ddn(:,wlev-1)))    &
-                       +0.25*stwgt(1:ifull,4)*emv(1:ifull)/ds                               &
-                        *(ddsong(tti(:,2),tti(:,1),ttw(:,2),ttw(:,1),                       &
-                                 ddi(:,wlev),ddi(:,wlev-1),ddw(:,wlev),ddw(:,wlev-1))       &
-                         +ddsong(ttn(:,2),ttn(:,1),ttwn(:,2),ttwn(:,1),                     &
-                                 ddn(:,wlev),ddn(:,wlev-1),ddwn(:,wlev),ddwn(:,wlev-1)))       
 
 end do
 
@@ -5384,7 +5360,7 @@ real, dimension(size(z1)) :: ans
 where ( abs(z2-z1)<1.e-8 .or. abs(z4-z3)<1.e-8 )
   ans = 0.
 elsewhere
-  ans = 0.25*((r1+r2-r3-r4)*(z2-z1+z4-z3)-(r2-r1+r4-r3)*(z1+z2-z3-z4))
+  ans = 0.5*((r1+r2-r3-r4)*(z2-z1+z4-z3)-(r2-r1+r4-r3)*(z1+z2-z3-z4))/(z2-z1+z4-z3)
 end where
 
 return

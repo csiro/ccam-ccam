@@ -2269,13 +2269,13 @@ contains
    
    end subroutine ccmpi_gathermap3
    
-   subroutine setglobalpack_v(datain,jbeg,ibeg,iend,k)
+   subroutine setglobalpack_v(datain,ibeg,iend,k)
    
       ! This subroutine assigns a value to a gridpoint
       ! in the global sparse array
    
-      integer, intent(in) :: jbeg, ibeg, iend, k
-      integer :: il2, iqg, im1, jm1, ilen, jlen, iq
+      integer, intent(in) :: ibeg, iend, k
+      integer :: il2, iqg, im1, jm1, ilen, jlen, iq, iql
       integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
       integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
       integer :: s_ipak, s_jpak, s_iloc, s_jloc
@@ -2339,13 +2339,27 @@ contains
       end if   
       
       if ( jlen > ilen ) then
-         iq = jbeg - 1
+         iq = jlen*((e_jpak-b_jpak)/s_jpak+1)
+         if ( iq > size(datain) ) then
+            write(6,*) "ERROR: setglobalpack_v length of datain is too small"
+            write(6,*) "iq,size(datain) ",iq,size(datain)
+            write(6,*) "b_jpak,e_jpak,s_jpak,jlen ",b_jpak,e_jpak,s_jpak,jlen
+            call ccmpi_abort(-1)
+         end if   
+         iq = 0
          do c_jpak = b_jpak,e_jpak,s_jpak
             globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k) = datain(iq+1:iq+jlen)
             iq = iq + jlen
          end do
       else
-         iq = jbeg - 1
+         iq = ilen*((e_ipak-b_ipak)/s_ipak+1)
+         if ( iq > size(datain) ) then
+            write(6,*) "ERROR: setglobalpack_v length of datain is too small"
+            write(6,*) "iq,size(datain) ",iq,size(datain)
+            write(6,*) "b_ipak,e_ipak,s_ipak,ilen ",b_ipak,e_ipak,s_ipak,ilen
+            call ccmpi_abort(-1)
+         end if    
+         iq = 0
          do c_ipak = b_ipak,e_ipak,s_ipak
             globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k) = datain(iq+1:iq+ilen)
             iq = iq + ilen
@@ -2354,13 +2368,13 @@ contains
    
    end subroutine setglobalpack_v
    
-   subroutine getglobalpack_v(dataout,jbeg,ibeg,iend,k)
+   subroutine getglobalpack_v(dataout,ibeg,iend,k)
    
       ! This subroutine returns a value from a gridpoint
       ! in the global sparse array
 
-      integer, intent(in) :: jbeg, ibeg, iend, k
-      integer :: il2, iqg, im1, jm1, ilen, jlen, iq
+      integer, intent(in) :: ibeg, iend, k
+      integer :: il2, iqg, im1, jm1, ilen, jlen, iq, iql
       integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
       integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
       integer :: s_ipak, s_jpak, s_iloc, s_jloc
@@ -2424,13 +2438,27 @@ contains
       end if   
       
       if ( jlen > ilen ) then
-         iq = jbeg - 1
+         iq = jlen*((e_jpak-b_jpak)/s_jpak+1)
+         if ( iq > size(dataout) ) then
+            write(6,*) "ERROR: getglobalpack_v length of dataout is too small"
+            write(6,*) "iq,size(dataout) ",iq,size(dataout)
+            write(6,*) "b_jpak,e_jpak,s_jpak,jlen ",b_jpak,e_jpak,s_jpak,jlen
+            call ccmpi_abort(-1)
+         end if   
+         iq = 0
          do c_jpak = b_jpak,e_jpak,s_jpak
             dataout(iq+1:iq+jlen) = globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k)
             iq = iq + jlen
          end do
       else
-         iq = jbeg - 1
+         iq = ilen*((e_ipak-b_ipak)/s_ipak+1)
+         if ( iq > size(dataout) ) then
+            write(6,*) "ERROR: getglobalpack_v length of dataout is too small"
+            write(6,*) "iq,size(dataout) ",iq,size(dataout)
+            write(6,*) "b_ipak,e_ipak,s_ipak,ilen ",b_ipak,e_ipak,s_ipak,ilen
+            call ccmpi_abort(-1)
+         end if    
+         iq = 0
          do c_ipak = b_ipak,e_ipak,s_ipak
             dataout(iq+1:iq+ilen) = globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k)
             iq = iq + ilen
