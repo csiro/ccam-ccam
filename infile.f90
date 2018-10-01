@@ -44,7 +44,7 @@ use netcdf_m
 implicit none
             
 private
-public vertint, datefix, getzinp, ncmsg
+public vertint, datefix, getzinp, ncmsg, processdatestring
 public ptest, pfall, ncidold, resprocformat, pncid
 public histopen, histclose, histrd3, histrd4, histrd5, surfread
 public attrib, histwrt3, histwrt4, histwrt5, freqwrite
@@ -2997,6 +2997,83 @@ if ( myid==0 ) write(6,*)'leaving datefix kdate_r,ktime_r: ',kdate_r,ktime_r
 
 return
 end subroutine datefix
+
+!--------------------------------------------------------------------
+! This subroutine converts time units into a date
+subroutine processdatestring(datestring,kdate_rsav,ktime_rsav)
+
+use cc_mpi            ! CC MPI routines
+
+implicit none
+
+integer, intent(out) :: kdate_rsav, ktime_rsav
+integer iposa, iposb, ierx
+integer yyyy, mm, dd, hh, mt
+character(len=*), intent(in) :: datestring
+
+if ( datestring(1:7)/='minutes' ) then
+  write(6,*) "ERROR: Time units expected to be minutes"
+  write(6,*) "Found ",trim(datestring)
+  call ccmpi_abort(-1)
+end if
+
+! process year
+iposa = index(trim(datestring),'since')
+iposa = iposa + 5 ! skip 'since'
+iposb = index(trim(datestring(iposa:)),'-')
+iposb = iposa + iposb - 2 ! remove '-'
+read(datestring(iposa:iposb),FMT=*,iostat=ierx) yyyy
+if ( ierx/=0 ) then
+  write(6,*) "ERROR reading time units.  Expecting year but found ",datestring(iposa:iposb)
+  call ccmpi_abort(-1)
+end if
+
+! process month
+iposa = iposb + 2 ! skip '-'
+iposb = index(trim(datestring(iposa:)),'-')
+iposb = iposa + iposb - 2 ! remove '-'
+read(datestring(iposa:iposb),FMT=*,iostat=ierx) mm
+if ( ierx/=0 ) then
+  write(6,*) "ERROR reading time units.  Expecting month but found ",datestring(iposa:iposb)
+  call ccmpi_abort(-1)
+end if
+
+! process day
+iposa = iposb + 2 ! skip '-'
+iposb = index(trim(datestring(iposa:)),' ')
+iposb = iposa + iposb - 2 ! remove ' '
+read(datestring(iposa:iposb),FMT=*,iostat=ierx) dd
+if ( ierx/=0 ) then
+  write(6,*) "ERROR reading time units.  Expecting day but found ",datestring(iposa:iposb)
+  call ccmpi_abort(-1)
+end if
+
+! process hour
+iposa = iposb + 2 ! skip ' '
+iposb = index(trim(datestring(iposa:)),':')
+iposb = iposa + iposb - 2 ! remove ':'
+read(datestring(iposa:iposb),FMT=*,iostat=ierx) hh
+if ( ierx/=0 ) then
+  write(6,*) "ERROR reading time units.  Expecting hour but found ",datestring(iposa:iposb)
+  call ccmpi_abort(-1)
+end if
+
+! process mins
+iposa = iposb + 2 ! skip ':'
+iposb = index(trim(datestring(iposa:)),':')
+iposb = iposa + iposb - 2 ! remove ':'
+read(datestring(iposa:iposb),FMT=*,iostat=ierx) mt
+if ( ierx/=0 ) then
+  write(6,*) "ERROR reading time units.  Expecting minutes but found ",datestring(iposa:iposb)
+  call ccmpi_abort(-1)
+end if
+
+! final date and time
+kdate_rsav = yyyy*10000 + mm*100 + dd
+ktime_rsav = hh*100 + mt
+
+return
+end subroutine processdatestring
 
 !--------------------------------------------------------------------
 ! Set up number of minutes from beginning of year

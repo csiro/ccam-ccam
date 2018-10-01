@@ -1476,7 +1476,8 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,mlomfix,otaumode,            &
-    alphavis_seaice,alphanir_seaice,mlojacobi,mlo_rtest,          &
+    alphavis_seaice,alphanir_seaice,mlojacobi,mlo_rtest,mlosolve, &
+    usepice,                                                      &
     rivermd,basinmd,rivercoeff                                      ! River
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
@@ -2284,7 +2285,7 @@ ateb_statsmeth    = dumi(27)
 ateb_behavmeth    = dumi(28) 
 ateb_infilmeth    = dumi(29) 
 deallocate( dumr, dumi )
-allocate( dumr(11), dumi(8) )
+allocate( dumr(11), dumi(10) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2312,7 +2313,9 @@ if ( myid==0 ) then
   dumi(5)  = otaumode
   dumi(6)  = rivermd
   dumi(7)  = basinmd
-  dumi(8) = mlojacobi
+  dumi(8)  = mlojacobi
+  dumi(9)  = mlosolve
+  dumi(10) = usepice
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2335,6 +2338,8 @@ otaumode        = dumi(5)
 rivermd         = dumi(6)
 basinmd         = dumi(7)
 mlojacobi       = dumi(8)
+mlosolve        = dumi(9)
+usepice         = dumi(10)
 deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0

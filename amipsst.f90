@@ -586,6 +586,7 @@ integer imonth, iyear, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
 integer varid, ncidx, iarchx, maxarchi, iernc
 integer varid_date, varid_time, varid_timer
 integer mtimer_r, kdate_r, ktime_r
+integer kdate_rsav, ktime_rsav
 integer, dimension(3) :: spos, npos
 #ifdef i8r8
 integer, dimension(nihead) :: nahead
@@ -599,9 +600,11 @@ real, dimension(ifull_g,5) :: ssta_g
 real, dimension(nrhead) :: ahead
 real rlon_in, rlat_in, schmidt_in
 real of, sc
+real timer_r
 logical ltest, tst
 character(len=22) header
 character(len=10) unitstr
+character(len=80) datestring
 
 ssta_g = 0.
 ssta = 300.
@@ -648,32 +651,21 @@ if ( iernc==0 ) then
   iarchx = 0
   iyear  = -999
   imonth = -999
-  ltest  = .true.
-  call ccnf_inq_varid(ncidx,'kdate',varid_date,tst)
-  if (tst) then
-    write(6,*) "ERROR: Cannot locate kdate in ",trim(sstfile)
-    call ccmpi_abort(-1)
-  end if
-  call ccnf_inq_varid(ncidx,'ktime',varid_time,tst)
-  if (tst) then
-    write(6,*) "ERROR: Cannot locate ktime in ",trim(sstfile)
-    call ccmpi_abort(-1)
-  end if
-  call ccnf_inq_varid(ncidx,'mtimer',varid_timer,tst)
-  if (tst) then
-    write(6,*) "ERROR: Cannot locate mtimer in ",trim(sstfile)
-    call ccmpi_abort(-1)
-  end if
+  ltest = .true.
+  call ccnf_inq_varid(ncidx,'time',varid_time)
+  call ccnf_get_att(ncidx,varid_time,'units',datestring)
+  call processdatestring(datestring,kdate_rsav,ktime_rsav)
   do while ( ltest .and. iarchx<maxarchi )
     iarchx = iarchx + 1
-    call ccnf_get_vara(ncidx,varid_date,iarchx,kdate_r)
-    call ccnf_get_vara(ncidx,varid_time,iarchx,ktime_r)
-    call ccnf_get_vara(ncidx,varid_timer,iarchx,mtimer_r)
+    kdate_r = kdate_rsav
+    ktime_r = ktime_rsav
+    call ccnf_get_vara(ncidx,varid_time,iarchx,timer_r)
+    mtimer_r = nint(timer_r)
     call datefix(kdate_r,ktime_r,mtimer_r,allleap=leap_in)
     iyear  = kdate_r/10000
     imonth = (kdate_r-iyear*10000)/100
     ltest  = iyr_m/=iyear .or. imo_m/=imonth
-  end do
+  end do    
   if ( ltest ) then
     write(6,*) "ERROR: Cannot locate year ",iyr_m
     write(6,*) "       and month ",imo_m
