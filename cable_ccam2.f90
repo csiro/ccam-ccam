@@ -136,7 +136,7 @@ public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle
 public fwsoil_switch, cable_litter, gs_switch, cable_climate
 public smrf_switch, strf_switch
-public POP_NPATCH, POP_NCOHORT
+public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 
 ! CABLE biophysical options
 integer, save :: soil_struc         = 0          ! 0 default, 1 SLI soil model
@@ -162,6 +162,7 @@ integer, save :: POP_NLAYER = -1
 integer, save :: POP_NCOHORT = -1
 integer, save :: POP_HEIGHT_BINS = -1
 integer, save :: POP_NDISTURB = -1
+integer, save :: POP_AGEMAX= -1
 real, parameter :: minfrac = 0.01                ! minimum non-zero tile fraction (improves load balancing)
 
 integer, save :: maxnb                           ! maximum number of actual tiles
@@ -2518,7 +2519,7 @@ use latlong_m
 use newmpar_m
 use nsibd_m
 use parm_m
-use pop_constants, only : NPATCH, NLAYER, NCOHORT_MAX, HEIGHT_BINS, NDISTURB
+use pop_constants, only : NPATCH, NLAYER, NCOHORT_MAX, HEIGHT_BINS, NDISTURB, AGEMAX
 use pbl_m
 use sigs_m
 use soil_m
@@ -2577,6 +2578,7 @@ POP_NLAYER = NLAYER
 POP_NCOHORT = NCOHORT_MAX
 POP_HEIGHT_BINS = HEIGHT_BINS
 POP_NDISTURB = NDISTURB
+POP_AGEMAX = AGEMAX
 
 ! redefine rhos
 rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)
@@ -4334,6 +4336,7 @@ real(kind=8), dimension(ifull,mplant) :: datmplant
 real(kind=8), dimension(ifull,mlitter) :: datmlitter
 real(kind=8), dimension(ifull,msoil) :: datmsoil
 real(kind=8), dimension(:,:), allocatable, save :: datpatch
+real(kind=8), dimension(:,:), allocatable, save :: datage
 real(kind=8), dimension(:,:,:), allocatable, save :: datpc
 real(kind=8), dimension(:,:), allocatable, save :: dat91days
 real(kind=8), dimension(:,:), allocatable, save :: dat31days
@@ -4937,8 +4940,10 @@ else
     else
       if ( myid==0 ) write(6,*) "Use tiled data to initialise POP"    
       allocate( datpatch(ifull,POP_NPATCH) )  
+      allocate( datage(ifull,POP_AGEMAX) )  
       allocate( datpc(ifull,POP_NPATCH,POP_NCOHORT) )
       datpatch = 0._8
+      datage = 0._8
       datpc = 0._8
       do n = 1,maxtile  
         write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n  
@@ -5013,6 +5018,20 @@ else
         write(vname,'("t",I1.1,"_pop_grid_KClump")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%KClump,n)    
+        write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,POP_AGEMAX,datage,ifull)
+        if ( n<=maxnb ) then
+          do k = 1,POP_AGEMAX
+            call pop_pack(datage(:,k),pop%pop_grid(:)%freq_age(k),n)
+          end do
+        end if  
+        write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,POP_AGEMAX,datage,ifull)
+        if ( n<=maxnb ) then
+          do k = 1,POP_AGEMAX
+            call pop_pack(datage(:,k),pop%pop_grid(:)%biomass_age(k),n)
+          end do
+        end if  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll  
           call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
@@ -5572,6 +5591,7 @@ else
         end do 
       end do
       deallocate( datpatch )
+      deallocate( datage )
       deallocate( datpc )
     end if      
   end if    
@@ -5733,7 +5753,7 @@ end subroutine fixtile
 ! This subroutine saves CABLE tile data
 subroutine savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size, &
                        c3dim,c3size,c4dim,c4size,c5dim,c5size,        &
-                       c6dim,c6size)
+                       c6dim,c6size,c7dim,c7size)
 
 use carbpools_m
 use cc_mpi, only : myid
@@ -5743,7 +5763,7 @@ use newmpar_m
 implicit none
   
 integer, intent(in) :: idnc, jsize, csize, c2size
-integer, intent(in) :: c3size, c4size, c5size, c6size
+integer, intent(in) :: c3size, c4size, c5size, c6size, c7size
 integer k,n
 integer ll,dd,hh
 integer, dimension(jsize), intent(in) :: jdim  
@@ -5753,6 +5773,7 @@ integer, dimension(c3size), intent(in) :: c3dim
 integer, dimension(c4size), intent(in) :: c4dim
 integer, dimension(c5size), intent(in) :: c5dim
 integer, dimension(c6size), intent(in) :: c6dim
+integer, dimension(c6size), intent(in) :: c7dim
 character(len=80) vname
 character(len=80) lname
 logical, intent(in) :: local
@@ -6224,6 +6245,12 @@ if (myid==0.or.local) then
       write(lname,'("t",I1.1,"_pop_grid_KClump")') n
       write(vname,'("t",I1.1,"_pop_grid_KClump")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      write(lname,'("t",I1.1,"_pop_grid_freq_age")') n
+      write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
+      call attrib(idnc,c7dim,c7size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      write(lname,'("t",I1.1,"_pop_grid_biomass_age")') n
+      write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
+      call attrib(idnc,c7dim,c7size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       do ll = 1,POP_NLAYER
         write(lname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
         write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
@@ -6554,6 +6581,7 @@ integer cc,dd,hh,ll
 real(kind=8), dimension(ifull) :: dat
 real(kind=8), dimension(mp_global) :: dummy_unpack
 real(kind=8), dimension(:,:), allocatable, save :: datpatch
+real(kind=8), dimension(:,:), allocatable, save :: datage
 real(kind=8), dimension(:,:,:), allocatable, save :: datpc
 real(kind=8), dimension(:,:), allocatable, save :: dat91days
 real(kind=8), dimension(:,:), allocatable, save :: dat31days
@@ -7162,8 +7190,10 @@ if ( cable_climate==1 ) then
 end if
 if ( cable_pop==1 ) then
   allocate( datpatch(ifull,POP_NPATCH) )  
+  allocate( datage(ifull,POP_AGEMAX) )  
   allocate( datpc(ifull,POP_NPATCH,POP_NCOHORT) )
   datpatch = 0._8
+  datage = 0._8
   datpc = 0._8
   dat = 0._8
   do n = 1,maxtile
@@ -7239,6 +7269,16 @@ if ( cable_pop==1 ) then
     if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%KClump,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_KClump")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    do k = 1,POP_AGEMAX
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq_age(k),datage(:,k),n)
+    end do
+    write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
+    call histwrt4(datage,vname,idnc,iarch,local,.true.)
+    do k = 1,POP_AGEMAX
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%biomass_age(k),datage(:,k),n)
+    end do
+    write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
+    call histwrt4(datage,vname,idnc,iarch,local,.true.)
     do ll = 1,POP_NLAYER
       if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%biomass(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll  
@@ -7675,6 +7715,7 @@ if ( cable_pop==1 ) then
     end do
   end do
   deallocate( datpatch )
+  deallocate( datage )
   deallocate( datpc )
 end if    
 !do n = 1,maxtile  ! tile
