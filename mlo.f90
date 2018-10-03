@@ -60,7 +60,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
        mloimport3d,mloexport3d
 public micdwn
-public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode
+public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 
 #ifdef CCAM
 public water_g,ice_g,wpack_g,wfull_g
@@ -172,6 +172,7 @@ integer, parameter :: incradgam = 1       ! include shortwave in non-local term
 integer, save      :: zomode    = 2       ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: deprelax  = 0       ! surface height (0=vary, 1=relax, 2=set to zero)
 integer, save      :: otaumode  = 0       ! Momentum coupling (0=Explicit, 1=Implicit, 2=Mixed)
+integer, save      :: mlosigma  = 0       ! Sigma levels (0=cubic, 1=quad)
 ! model parameters
 real, save :: mxd      = 5002.18          ! Max depth (m)
 real, save :: mindep   = 1.               ! Thickness of first layer (m)
@@ -468,7 +469,7 @@ end subroutine mloinit
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Define vertical grid
 
-pure subroutine vgrid(wlin,depin,depthout,depth_hlout)
+subroutine vgrid(wlin,depin,depthout,depth_hlout)
 
 implicit none
 
@@ -477,29 +478,35 @@ integer ii
 real, intent(in) :: depin
 real, dimension(wlin), intent(out) :: depthout
 real, dimension(wlin+1), intent(out) :: depth_hlout
-real dd,x,al,bt
+real dd, x, al, bt
 
-dd=min(mxd,max(mindep,depin))
-x=real(wlin)
-!if (dd>x) then
-!  al=(mindep*x-dd)/(x-x*x*x)           ! hybrid levels
-!  bt=(mindep*x*x*x-dd)/(x*x*x-x)       ! hybrid levels
-  al=dd*(mindep*x/mxd-1.)/(x-x*x*x)     ! sigma levels
-  bt=dd*(mindep*x*x*x/mxd-1.)/(x*x*x-x) ! sigma levels 
-  do ii=1,wlin+1
-    x=real(ii-1)
-    depth_hlout(ii)=al*x*x*x+bt*x ! ii is for half level ii-0.5
-  end do
-!else
-!  depth_hlout(1)=0.
-!  depth_hlout(2)=mindep       ! hybrid levels
-!  do ii=3,wlev+1
-!    x=(dd-mindep)*real(ii-2)/real(wlev-1)+mindep             ! hybrid levels
-!    depth_hlout(ii)=x
-!  end do
-!end if
-do ii=1,wlin
-  depthout(ii)=0.5*(depth_hlout(ii)+depth_hlout(ii+1))
+dd = min( mxd, max( mindep, depin ) )
+x = real(wlin)
+select case(mlosigma)
+  case(0) ! cubic
+    al = dd*(mindep*x/mxd-1.)/(x-x*x*x)     ! sigma levels
+    bt = dd*(mindep*x*x*x/mxd-1.)/(x*x*x-x) ! sigma levels 
+    do ii = 1,wlin+1
+      x = real(ii-1)
+      depth_hlout(ii) = al*x*x*x + bt*x ! ii is for half level ii-0.5
+    end do
+    
+  case(1) ! quadratic
+    al = dd*(1.-mindep*x/mxd)/(x*x-x)
+    bt = dd*(1.-mindep*x*x/mxd)/(x-x*x)
+    do ii = 1,wlin+1
+      x = real(ii-1)
+      depth_hlout(ii) = al*x*x + bt*x ! ii is for half leel ii-0.5
+    end do
+
+  case default
+    write(6,*) "ERROR: Unknown option mlosigma=",mlosigma
+    stop
+    
+end select
+      
+do ii = 1,wlin
+  depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
 end do
 
 return
@@ -1385,8 +1392,8 @@ select case(mode)
     do iqw = 1,wfull
       dpin(1:wlin) = sigin(1:wlin)*deptmp(iqw)  
       if ( wlev==wlin ) then
-        if ( all(abs(depth%depth(iqw,:)-dpin(:))<0.0001) ) then
-          newdatb(iqw,:) = newdata(iqw,:)
+        if ( all(abs(depth%depth(iqw,1:wlev)-dpin(1:wlev))<0.0001) ) then
+          newdatb(iqw,1:wlev) = newdata(iqw,1:wlev)
           cycle
         end if
       end if
@@ -1408,8 +1415,8 @@ select case(mode)
     do iqw = 1,wfull
       sig = depth%depth(iqw,:)/max(depth%depth_hl(iqw,wlev),1.e-20)
       if ( wlev==wlin ) then
-        if ( all(abs(sig(:)-sigin(:))<0.0001) ) then
-          newdatb(iqw,:) = newdata(iqw,:)
+        if ( all(abs(sig(1:wlev)-sigin(1:wlev))<0.0001) ) then
+          newdatb(iqw,1:wlev) = newdata(iqw,1:wlev)
           cycle
         end if
       end if
