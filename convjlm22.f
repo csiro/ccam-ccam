@@ -194,8 +194,10 @@
 
       where(land(1:ifull))
         alfin(:)=alflnd
+        aug(:)=tied_rh*cp  ! 16/05
       elsewhere
         alfin(:)=alfsea
+        aug(:)=0.
       end where
         
       if(tied_over>0.)then   ! e.g. 2626.   b then a.  2600 to get old -26
