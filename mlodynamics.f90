@@ -98,7 +98,7 @@ use soil_m
 implicit none
 
 integer ii,iq
-real rmax_l, rmax_g
+real rmax_l, r0max_g, r1max_g
 real, dimension(ifull,0:wlev) :: dephl
 real, dimension(ifull,wlev) :: dep,dz
 real, dimension(ifull) :: tnu,tsu,tev,twv,tee,tnn
@@ -157,30 +157,6 @@ where ( abs(eev(1:ifull))<1.e-20 )
 end where
 call boundsuv(ddu,ddv,nrows=2)
 
-! r-test
-if ( mlo_rtest>0. ) then
-  rmax_l = 0.
-  do iq = 1,ifull
-    if ( dd(iq)>0.1 ) then
-      if ( dd(in(iq))>0.1 ) then  
-        rmax_l = max( rmax_l, abs(dd(in(iq))-dd(iq))/(dd(in(iq))+dd(iq)) )
-      end if
-      if ( dd(ie(iq))>0.1 ) then
-        rmax_l = max( rmax_l, abs(dd(ie(iq))-dd(iq))/(dd(ie(iq))+dd(iq)) )
-      end if
-    end if  
-  end do
-  call ccmpi_reduce(rmax_l,rmax_g,"max",0,comm_world)
-  if ( myid==0 ) then
-    write(6,*) "MLODYNAMICS rtest: rmax_g, mlo_rtest = ",rmax_g,mlo_rtest
-    if ( rmax_g>mlo_rtest*1.1 ) then
-      write(6,*) "ERROR: mlodynamics rtest failed."
-      write(6,*) "Please run ocnbath with bathfilt=t and rtest=",mlo_rtest
-      call ccmpi_abort(-1)
-    end if
-  end if  
-end if
-
 ! allocate memory for mlo dynamics arrays
 call mlodynamicsarrays_init(ifull,iextra,wlev)
 
@@ -233,7 +209,6 @@ do iq=1,ifull
       if (abs(sig(ii)*dd(iq)-dep(iq,ii))>0.01    .or. &
           abs(sigh(ii)*dd(iq)-dephl(iq,ii))>0.01 .or. &
           abs(dsig(ii)*dd(iq)-dz(iq,ii))>0.01) then
-        write(6,*) "ERROR: MLO not configured for sigma levels"
         call ccmpi_abort(-1)
       end if
     end do
@@ -246,6 +221,35 @@ call ccmpi_allreduce(dumz(1:3*wlev),gdumz(1:3*wlev),"max",comm_world)
 gosig  = gdumz(1:wlev)
 gosigh = gdumz(wlev+1:2*wlev)
 godsig = gdumz(2*wlev+1:3*wlev)
+
+
+! r-test
+rmax_l = 0.
+do iq = 1,ifull
+  if ( dd(iq)>0.1 ) then
+    if ( dd(in(iq))>0.1 ) then  
+      rmax_l = max( rmax_l, abs(dd(in(iq))-dd(iq))/(dd(in(iq))+dd(iq)) )
+    end if
+    if ( dd(ie(iq))>0.1 ) then
+      rmax_l = max( rmax_l, abs(dd(ie(iq))-dd(iq))/(dd(ie(iq))+dd(iq)) )
+    end if
+  end if  
+end do
+call ccmpi_reduce(rmax_l,r0max_g,"max",0,comm_world)
+if ( myid==0 ) then
+  r1max_g = 0.  
+  do ii = 1,wlev-1
+    r1max_g = max( r1max_g, r0max_g*(gosig(ii)+gosig(ii+1))/abs(gosig(ii)-gosig(ii+1)) )
+  end do  
+  write(6,*) "MLODYNAMICS rtest: r0max_g, r1max_g = ",r0max_g,r1max_g
+  if ( mlo_rtest>0. ) then
+    if ( r0max_g>mlo_rtest*1.1 ) then
+      write(6,*) "ERROR: mlodynamics rtest failed."
+      write(6,*) "Please run ocnbath with bathfilt=t and rtest=",mlo_rtest
+      call ccmpi_abort(-1)
+    end if
+  end if  
+end if
 
 return
 end subroutine mlodyninit
