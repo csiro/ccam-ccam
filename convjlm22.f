@@ -38,6 +38,7 @@
       subroutine convjlm22_init
       
       use cc_mpi, only : myid, ccmpi_abort, mydiag
+      use const_phys
       use map_m
       use newmpar_m, only : ifull, kl
       use parm_m
