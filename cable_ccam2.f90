@@ -7192,11 +7192,11 @@ if ( cable_pop==1 ) then
   allocate( datpatch(ifull,POP_NPATCH) )  
   allocate( datage(ifull,POP_AGEMAX) )  
   allocate( datpc(ifull,POP_NPATCH,POP_NCOHORT) )
-  datpatch = 0._8
-  datage = 0._8
-  datpc = 0._8
-  dat = 0._8
   do n = 1,maxtile
+    datpatch = 0._8
+    datage = 0._8
+    datpc = 0._8
+    dat = 0._8
     if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_sum,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
