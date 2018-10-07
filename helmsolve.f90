@@ -1092,7 +1092,6 @@ if ( mg_maxlevel_local>0 ) then
       klimc = knew
       if ( klimc<1 ) exit
     end do
-write(6,'(A,2I4,Z9)') "vtop9",myid,g,sum(v(1:ng,1:kl,g))
   end if
 
   ! downscale grid
