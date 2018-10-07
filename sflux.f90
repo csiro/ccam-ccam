@@ -1489,7 +1489,7 @@ else     ! i.e. nsib=5
 endif  !(nsib==3) .. else ..
 
 if(ktau==1)then
-  if(mydiag)write(6,*) 'ipland,ipsice,ipsea in sflux: ',ipland,ipsice,ipsea
+  !if(mydiag)write(6,*) 'ipland,ipsice,ipsea in sflux: ',ipland,ipsice,ipsea
   do iq=1,ifull     ! gives default over sea too
     tgf(iq)=t(iq,1)  ! was tss(iq)
     cansto(iq)=0.

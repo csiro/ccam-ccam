@@ -1092,6 +1092,7 @@ if ( mg_maxlevel_local>0 ) then
       klimc = knew
       if ( klimc<1 ) exit
     end do
+write(6,'(A,2I4,Z9)') "vtop9",myid,g,sum(v(1:ng,1:kl,g))
   end if
 
   ! downscale grid
@@ -4487,11 +4488,9 @@ do g = 2,mg_maxlevel
   dcol = mjpan/ncol
   npanx = mg_npan
   
-  if ( .not.uniform_decomp ) then
-    if ( lglob ) then
-      npanx = 1
-      dcol = 6*mjpan/ncol
-    end if
+  if ( .not.uniform_decomp .and. lglob ) then
+    npanx = 1
+    dcol = 6*mjpan/ncol
   end if
   
   np = mg(g)%ifull
@@ -4681,7 +4680,8 @@ do g = 2,mg_maxlevel
   
     ! adjust weights for panel corners
     do iq = 1,np
-      if ( mg(g)%coarse_d(iq)==mg(g)%coarse_b(iq) .or. mg(g)%coarse_d(iq)==mg(g)%coarse_c(iq) ) then
+      if ( mg(g)%coarse_d(iq)==mg(g)%coarse_b(iq) .or. &
+           mg(g)%coarse_d(iq)==mg(g)%coarse_c(iq) ) then
         mg(g)%wgt_a(iq) = 0.5
         mg(g)%wgt_bc(iq) = 0.25
         mg(g)%wgt_d(iq) = 0.
@@ -4808,59 +4808,39 @@ use indices_m
 implicit none
 
 integer, intent(in) :: g
-integer i, j, n, iq, mg_ipan, mg_jpan, mg_npan, ng
+integer ng
 real, dimension(:), intent(in) :: data_in
 real, dimension(:), intent(out) :: data_n, data_s, data_e, data_w
 
 ng = mg(g)%ifull
 
-if ( size(data_in)<ng+mg(g)%iextra ) then
-  write(6,*) "ERROR: Input argument is too small for mgunpack_nsew"
-  call ccmpi_abort(-1)
-end if
+data_n(1:ng) = data_in(mg(g)%in(1:ng))
+data_s(1:ng) = data_in(mg(g)%is(1:ng))
+data_e(1:ng) = data_in(mg(g)%ie(1:ng))
+data_w(1:ng) = data_in(mg(g)%iw(1:ng))
 
-if ( size(data_n)<ng ) then
-  write(6,*) "ERROR: Input argument is too small for mgunpack_nsew"
-  call ccmpi_abort(-1)
-end if    
-
-if ( size(data_s)<ng ) then
-  write(6,*) "ERROR: Input argument is too small for mgunpack_nsew"
-  call ccmpi_abort(-1)
-end if    
-
-if ( size(data_e)<ng ) then
-  write(6,*) "ERROR: Input argument is too small for mgunpack_nsew"
-  call ccmpi_abort(-1)
-end if    
-
-if ( size(data_w)<ng ) then
-  write(6,*) "ERROR: Input argument is too small for mgunpack_nsew"
-  call ccmpi_abort(-1)
-end if    
-
-mg_npan = mg(g)%npanx
-mg_ipan = mg(g)%ipan
-mg_jpan = ng/(mg(g)%ipan*mg_npan)
-
-data_e(1:ng-1)       = data_in(2:ng)
-data_w(2:ng)         = data_in(1:ng-1)
-data_n(1:ng-mg_ipan) = data_in(mg_ipan+1:ng)
-data_s(mg_ipan+1:ng) = data_in(1:ng-mg_ipan)
-do n = 1,mg_npan
-  do j = 1,mg_jpan
-    iq = 1 + (j-1)*mg_ipan + (n-1)*mg_ipan*mg_jpan
-    data_w(iq) = data_in(mg(g)%iw(iq))
-    iq = j*mg_ipan + (n-1)*mg_ipan*mg_jpan
-    data_e(iq) = data_in(mg(g)%ie(iq))
-  end do
-  do i = 1,mg_ipan
-    iq = i + (n-1)*mg_ipan*mg_jpan
-    data_s(iq) = data_in(mg(g)%is(iq))
-    iq = i - mg_ipan + n*mg_ipan*mg_jpan
-    data_n(iq) = data_in(mg(g)%in(iq))
-  end do
-end do
+!mg_npan = mg(g)%npanx
+!mg_ipan = mg(g)%ipan
+!mg_jpan = ng/(mg(g)%ipan*mg_npan)
+!
+!data_e(1:ng-1)       = data_in(2:ng)
+!data_w(2:ng)         = data_in(1:ng-1)
+!data_n(1:ng-mg_ipan) = data_in(mg_ipan+1:ng)
+!data_s(mg_ipan+1:ng) = data_in(1:ng-mg_ipan)
+!do n = 1,mg_npan
+!  do j = 1,mg_jpan
+!    iq = 1 + (j-1)*mg_ipan + (n-1)*mg_ipan*mg_jpan
+!    data_w(iq) = data_in(mg(g)%iw(iq))
+!    iq = j*mg_ipan + (n-1)*mg_ipan*mg_jpan
+!    data_e(iq) = data_in(mg(g)%ie(iq))
+!  end do
+!  do i = 1,mg_ipan
+!    iq = i + (n-1)*mg_ipan*mg_jpan
+!    data_s(iq) = data_in(mg(g)%is(iq))
+!    iq = i - mg_ipan + n*mg_ipan*mg_jpan
+!    data_n(iq) = data_in(mg(g)%in(iq))
+!  end do
+!end do
 
 return
 end subroutine mgunpack_nsew
