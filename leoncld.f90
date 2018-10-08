@@ -26,7 +26,7 @@
 ! and intercept to be consistent with Rotstayn 97. There is also an optional prognostic cloud fraction option
 ! based on Tiedtke (see cloudmod.f90).
 
-! ldr    = 0    Diagnosed cloud scheme (depreciated)
+! ldr    = 0    Diagnosed cloud condesnate (depreciated)
 ! ldr   /= 0    Prognostic cloud condensate (different ice fall speed options)
     
 ! ncloud = 0    Standard LDR cloud microphysics with water vapour, liquid cloud and ice cloud
@@ -1877,7 +1877,7 @@ do n = 1,njumps
         end where
       case(2)
         where ( cifr(:,k)>=1.e-10 )
-          vi2(:) = 0.9*3.23*(rhoi(:,k)/cifr(:,k))**0.17
+          vi2(:) = 0.9*3.23*(max(rhoi(:,k),0.)/cifr(:,k))**0.17
         end where
       case(3)
         where ( cifr(1:imax,k)>=1.e-10 )
@@ -2186,6 +2186,7 @@ do n = 1,njumps
           xwgt(1:imax)          = max( min( xwgt(1:imax), 1. ), 0. )
           drf(1:imax)           = max( min( clfra(1:imax)*rf(1:imax), rf(1:imax)*cdt(1:imax)/(1.+0.5*cdt(1:imax)) ), 0. ) ! mass
           iflux(1:imax)         = drf(:)*dz(:,k)                                                                          ! flux
+          dqf(1:imax)           = drf(:)/rhoa(:,k)
           rhoi(1:imax,k)        = rhoi(:,k)      - drf(:)
           fluxgraupel(1:imax)   = fluxgraupel(:) + iflux(:)*xwgt(:)
           fluxsnow(1:imax)      = fluxsnow(:)    + iflux(:)*(1.-xwgt(:))
