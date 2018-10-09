@@ -828,7 +828,7 @@ use parmdyn_m
 implicit none
 
 integer, dimension(kl) :: iters
-integer itr, ng, ng0, ng4, g, k, jj, i, j, iq
+integer itr, ng, ng4, g, k, jj, i, j, iq
 integer knew, klim, ir, ic, nc, n, iq_a, iq_c
 integer isc, iec, klimc, itrc
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
@@ -869,7 +869,6 @@ call START_LOG(mgsetup_begin)
 
 ng  = 0
 ng4 = 0
-ng0 = 0
 klim = kl
 
 do k = 1,kl
@@ -1100,23 +1099,24 @@ if ( mg_maxlevel_local>0 ) then
     ! send coarse grid solution to processors and also bcast global smaxmin_g
     call mgbcastxn(g+1,v(:,1:kl,g+1),smaxmin_g(:,1:2))
 
-    ng0 = mg(g+1)%ifull_coarse
+    ng = mg(g)%ifull
+    
     do k = 1,kl
       ! interpolation
 !$omp simd
-      do iq = 1,ng0  
-        w(iq,k) = mg(g+1)%wgt_a(iq)*v(mg(g+1)%coarse_a(iq),k,g+1)  + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_b(iq),k,g+1) &
-                + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_c(iq),k,g+1) + mg(g+1)%wgt_d(iq)*v(mg(g+1)%coarse_d(iq),k,g+1)
+      do iq = 1,ng  
+        w(iq,k) = 0.5*v(mg(g+1)%coarse_a(iq),k,g+1)  + 0.25*v(mg(g+1)%coarse_b(iq),k,g+1) &
+                + 0.25*v(mg(g+1)%coarse_c(iq),k,g+1)
       end do  
 
       ! extension
       ! No mgbounds as the v halo has already been updated and
       ! the coarse interpolation also updates the w halo
-      v(1:ng0,k,g) = v(1:ng0,k,g) + w(1:ng0,k)
+      v(1:ng,k,g) = v(1:ng,k,g) + w(1:ng,k)
     end do
 
-    ng = mg(g)%ifull
-    do i = 1,itrend-1
+    do i = 1,itrend
+      call mgbounds(g,v(:,1:kl,g))  
       do k = 1,kl
         ! post smoothing
         call mgunpack_nsew(g,v(:,k,g),v_n,v_s,v_e,v_w)  
@@ -1124,16 +1124,9 @@ if ( mg_maxlevel_local>0 ) then
                      + mg(g)%zzn(1:ng)*v_n(1:ng) + mg(g)%zzs(1:ng)*v_s(1:ng) &
                      - rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
       end do
-      call mgbounds(g,v(:,1:kl,g))
     end do
-    do k = 1,kl
-      ! post smoothing
-      call mgunpack_nsew(g,v(:,k,g),v_n,v_s,v_e,v_w)  
-      v(1:ng,k,g) = (mg(g)%zze(1:ng)*v_e(1:ng) + mg(g)%zzw(1:ng)*v_w(1:ng)   &
-                   + mg(g)%zzn(1:ng)*v_n(1:ng) + mg(g)%zzs(1:ng)*v_s(1:ng)   &
-                   - rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
-    end do    
-    call mgbounds(g,v(:,1:kl,g),corner=.true.)
+    
+    call mgbounds(g,v(:,1:kl,g)) ! for next mgbcast
 
   end do
 
@@ -1142,24 +1135,22 @@ if ( mg_maxlevel_local>0 ) then
   call mgbcastxn(2,v(:,1:kl,2),smaxmin_g(:,1:2))
 
   ! interpolation
-  ng0 = mg(2)%ifull_coarse
+  ng = mg(1)%ifull
   do k = 1,kl
 !$omp simd
-    do iq = 1,ng0  
-      w(iq,k) = mg(2)%wgt_a(iq)*v(mg(2)%coarse_a(iq),k,2)  &
-              + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_b(iq),k,2) &
-              + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_c(iq),k,2) &
-              + mg(2)%wgt_d(iq)*v(mg(2)%coarse_d(iq),k,2)
+    do iq = 1,ng 
+      w(iq,k) = 0.5*v(mg(2)%coarse_a(iq),k,2)  &
+              + 0.25*v(mg(2)%coarse_b(iq),k,2) &
+              + 0.25*v(mg(2)%coarse_c(iq),k,2)
     end do  
   end do
-  
   
 end if
 
 
 ! multi-grid solver bounds indices do not match standard iextra indices, so we need to remap the halo
 if ( mg(1)%merge_len>1 ) then
-  call mgbcastxn(1,w(:,1:kl),smaxmin_g(:,:))
+  call mgbcastxn(1,w(:,1:kl),smaxmin_g(:,:),nobounds=.true.)
   ir = mod(mg(1)%merge_pos-1, mg(1)%merge_row) + 1   ! index for proc row
   ic = (mg(1)%merge_pos-1)/mg(1)%merge_row + 1       ! index for proc col
   do k = 1,kl
@@ -1169,52 +1160,19 @@ if ( mg(1)%merge_len>1 ) then
         iq_c = 1 + (ir-1)*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
         vdum(iq_a:iq_a+ipan-1) = w(iq_c:iq_c+ipan-1,k)
       end do
-!$omp simd
-      do i = 1,ipan
-        iq_a = i + (n-1)*ipan*jpan
-        iq_c = i + (ir-1)*ipan + ((ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(is(iq_a)) = w(mg(1)%is(iq_c),k)
-        iq_a = i + (jpan-1)*ipan + (n-1)*ipan*jpan
-        iq_c = i + (ir-1)*ipan + (jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(in(iq_a)) = w(mg(1)%in(iq_c),k)
-      end do  
-!$omp simd
-      do j = 1,jpan
-        iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
-        iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(iw(iq_a)) = w(mg(1)%iw(iq_c),k)
-        iq_a = ipan + (j-1)*ipan + (n-1)*ipan*jpan
-        iq_c = ipan + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-        vdum(ie(iq_a)) = w(mg(1)%ie(iq_c),k)
-      end do
     end do  
     ! extension
-    iv(1:ifull+iextra,k) = iv(1:ifull+iextra,k) + vdum(1:ifull+iextra)
+    iv(1:ifull,k) = iv(1:ifull,k) + vdum(1:ifull)
   end do
 else
   ! remap mg halo to normal halo
   do k = 1,kl
-    vdum(1:ifull) = w(1:ifull,k)  
-    do n = 0,npan-1
-!$omp simd
-      do i = 1,ipan
-        iq = i + n*ipan*jpan
-        vdum(is(iq)) = w(mg(1)%is(iq),k)
-        iq = i + (jpan-1)*ipan + n*ipan*jpan
-        vdum(in(iq)) = w(mg(1)%in(iq),k)
-      end do
-!$omp simd
-      do j = 1,jpan
-        iq = 1 + (j-1)*ipan + n*ipan*jpan
-        vdum(iw(iq)) = w(mg(1)%iw(iq),k)
-        iq = j*ipan + n*ipan*jpan
-        vdum(ie(iq)) = w(mg(1)%ie(iq),k)
-      end do
-    end do  
     ! extension
-    iv(1:ifull+iextra,k) = iv(1:ifull+iextra,k) + vdum(1:ifull+iextra)
+    iv(1:ifull,k) = iv(1:ifull,k) + w(1:ifull,k)
   end do
 end if
+
+call bounds(iv)
 
 ! post smoothing
 do i = 1,itrend
@@ -1472,25 +1430,25 @@ do itr = 2,itr_mg
 
       call mgbcast(g+1,v(:,1:klim,g+1),dsolmax_g(:),klim=klim)
 
-      ng0 = mg(g+1)%ifull_coarse
+      ng = mg(g)%ifull 
+      
       do k = 1,klim
         ! interpolation
 !$omp simd
-        do iq = 1,ng0  
-          w(iq,k) = mg(g+1)%wgt_a(iq)*v(mg(g+1)%coarse_a(iq),k,g+1)  &
-                  + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_b(iq),k,g+1) &
-                  + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_c(iq),k,g+1) &
-                  + mg(g+1)%wgt_d(iq)*v(mg(g+1)%coarse_d(iq),k,g+1)
+        do iq = 1,ng
+          w(iq,k) = 0.5*v(mg(g+1)%coarse_a(iq),k,g+1)  &
+                  + 0.25*v(mg(g+1)%coarse_b(iq),k,g+1) &
+                  + 0.25*v(mg(g+1)%coarse_c(iq),k,g+1)
         end do  
 
         ! extension
         ! No mgbounds as the v halo has already been updated and
         ! the coarse interpolation also updates the w halo
-        v(1:ng0,k,g) = v(1:ng0,k,g) + w(1:ng0,k)
+        v(1:ng,k,g) = v(1:ng,k,g) + w(1:ng,k)
       end do
-
-      ng = mg(g)%ifull    
-      do i = 1,itrend-1
+    
+      do i = 1,itrend
+        call mgbounds(g,v(:,1:klim,g),klim=klim)
         do k = 1,klim
           ! post smoothing - all iterations except final iteration
           call mgunpack_nsew(g,v(:,k,g),v_n,v_s,v_e,v_w)  
@@ -1498,17 +1456,10 @@ do itr = 2,itr_mg
                        + mg(g)%zzn(1:ng)*v_n(1:ng)+mg(g)%zzs(1:ng)*v_s(1:ng) &
                        - rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
         end do
-        call mgbounds(g,v(:,1:klim,g),klim=klim)
       end do
-      do k = 1,klim
-        ! post smoothing - final iteration
-        call mgunpack_nsew(g,v(:,k,g),v_n,v_s,v_e,v_w)  
-        v(1:ng,k,g) = (mg(g)%zze(1:ng)*v_e(1:ng)+mg(g)%zzw(1:ng)*v_w(1:ng)   &
-                     + mg(g)%zzn(1:ng)*v_n(1:ng)+mg(g)%zzs(1:ng)*v_s(1:ng)   &
-                     - rhs(1:ng,k,g))/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
-      end do    
-      call mgbounds(g,v(:,1:klim,g),klim=klim,corner=.true.)
 
+      call mgbounds(g,v(:,1:klim,g),klim=klim) ! for next mgbcast
+      
     end do
   
     
@@ -1516,14 +1467,13 @@ do itr = 2,itr_mg
     call mgbcast(2,v(:,1:klim,2),dsolmax_g(:),klim=klim)
 
     ! interpolation
-    ng0 = mg(2)%ifull_coarse
+    ng = mg(1)%ifull
     do k = 1,klim
 !$omp simd
-      do iq = 1,ng0  
-        w(iq,k) = mg(2)%wgt_a(iq)*v(mg(2)%coarse_a(iq),k,2)  &
-                + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_b(iq),k,2) &
-                + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_c(iq),k,2) &
-                + mg(2)%wgt_d(iq)*v(mg(2)%coarse_d(iq),k,2)
+      do iq = 1,ng 
+        w(iq,k) = 0.5*v(mg(2)%coarse_a(iq),k,2)  &
+                + 0.25*v(mg(2)%coarse_b(iq),k,2) &
+                + 0.25*v(mg(2)%coarse_c(iq),k,2)
       end do  
     end do
 
@@ -1537,7 +1487,7 @@ do itr = 2,itr_mg
 
   ! multi-grid solver bounds indices do not match standard iextra indicies, so we need to remap the halo
   if ( mg(1)%merge_len>1 ) then
-    call mgbcast(1,w(:,1:klim),dsolmax_g(:),klim=klim)
+    call mgbcast(1,w(:,1:klim),dsolmax_g(:),klim=klim,nobounds=.true.)
     ir = mod(mg(1)%merge_pos-1, mg(1)%merge_row) + 1   ! index for proc row
     ic = (mg(1)%merge_pos-1)/mg(1)%merge_row + 1       ! index for proc col
     do k = 1,klim
@@ -1547,52 +1497,19 @@ do itr = 2,itr_mg
           iq_c = 1 + (ir-1)*ipan + (jj-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
           vdum(iq_a:iq_a+ipan-1) = w(iq_c:iq_c+ipan-1,k)
         end do
-!$omp simd
-        do i = 1,ipan
-          iq_a = i + (n-1)*ipan*jpan
-          iq_c = i + (ir-1)*ipan + ((ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          vdum(is(iq_a)) = w(mg(1)%is(iq_c),k)
-          iq_a = i + (jpan-1)*ipan + (n-1)*ipan*jpan
-          iq_c = i + (ir-1)*ipan + (jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          vdum(in(iq_a)) = w(mg(1)%in(iq_c),k)
-        end do  
-!$omp simd
-        do j = 1,jpan
-          iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
-          iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          vdum(iw(iq_a)) = w(mg(1)%iw(iq_c),k)
-          iq_a = ipan + (j-1)*ipan + (n-1)*ipan*jpan
-          iq_c = ipan + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
-          vdum(ie(iq_a)) = w(mg(1)%ie(iq_c),k)
-        end do
       end do
       ! extension
-      iv(1:ifull+iextra,k) = iv(1:ifull+iextra,k) + vdum(1:ifull+iextra)
+      iv(1:ifull,k) = iv(1:ifull,k) + vdum(1:ifull)
     end do
   else
     ! remap mg halo to normal halo
     do k = 1,klim
-      vdum(1:ifull) = w(1:ifull,k)  
-      do n = 0,npan-1
-!$omp simd
-        do i = 1,ipan
-          iq = i + n*ipan*jpan
-          vdum(is(iq)) = w(mg(1)%is(iq),k)
-          iq = i + (jpan-1)*ipan+n*ipan*jpan
-          vdum(in(iq)) = w(mg(1)%in(iq),k)
-        end do  
-!$omp simd
-        do j = 1,jpan
-          iq = 1 + (j-1)*ipan+n*ipan*jpan
-          vdum(iw(iq)) = w(mg(1)%iw(iq),k)
-          iq = j*ipan+n*ipan*jpan
-         vdum(ie(iq)) = w(mg(1)%ie(iq),k)
-        end do
-      end do  
       ! extension
-      iv(1:ifull+iextra,k) = iv(1:ifull+iextra,k) + vdum(1:ifull+iextra)
+      iv(1:ifull,k) = iv(1:ifull,k) + w(1:ifull,k)
     end do
   end if
+  
+  call bounds(iv(:,1:klim),klim=klim)
   
   do i = 1,itrend
     ! post smoothing
@@ -1681,7 +1598,7 @@ use newmpar_m
 implicit none
 
 integer, intent(out) :: totits
-integer itr, itrc, g, ng, ng4, ng0, n, i, j, ir, ic, iq
+integer itr, itrc, g, ng, ng4, n, i, j, ir, ic, iq
 integer iq_a, iq_c
 integer nc, isc, iec, k
 real, intent(in) :: tol, itol, minwater
@@ -1744,7 +1661,6 @@ call START_LOG(mgsetup_begin)
 
 ng = 0
 ng4 = 0
-ng0 = 0
 dumc = 0.
 dsolmax = 0.
 dsolmax_g = 0.
@@ -2258,26 +2174,24 @@ if ( mg_maxlevel_local>0 ) then
     call mgbcasta(g+1,v(:,1:2,g+1))
 
     ! interpolation
-    ng0 = mg(g+1)%ifull_coarse
+    ng = mg(g)%ifull
     do k = 1,2
 !$omp simd
-      do iq = 1,ng0
-        ws(iq,k) =  mg(g+1)%wgt_a(iq)*v(mg(g+1)%coarse_a(iq),k,g+1)   &
-                  + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_b(iq),k,g+1)  &
-                  + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_c(iq),k,g+1)  &
-                  + mg(g+1)%wgt_d(iq)*v(mg(g+1)%coarse_d(iq),k,g+1)
+      do iq = 1,ng
+        ws(iq,k) =  0.5*v(mg(g+1)%coarse_a(iq),k,g+1)   &
+                  + 0.25*v(mg(g+1)%coarse_b(iq),k,g+1)  &
+                  + 0.25*v(mg(g+1)%coarse_c(iq),k,g+1)
       end do  
     end do  
 
     ! extension
     ! No mgbounds as the v halo has already been updated and
     ! the coarse interpolation also updates the w halo
-    v(1:ng0,1:2,g) = v(1:ng0,1:2,g) + ws(1:ng0,1:2)
+    v(1:ng,1:2,g) = v(1:ng,1:2,g) + ws(1:ng,1:2)
    
     
-    ng = mg(g)%ifull
-    do i = 1,itrend-1
-
+    do i = 1,itrend
+      call mgbounds(g,v(:,1:2,g))
       ! ocean - post smoothing
       call mgunpack_nsew(g,v(:,1,g),v_n,v_s,v_e,v_w)  
       bu(1:ng)=yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng) &
@@ -2294,26 +2208,9 @@ if ( mg_maxlevel_local>0 ) then
                       - zzie(1:ng,g)*v_e(1:ng) - zziw(1:ng,g)*v_w(1:ng)   &
                       + rhsi(1:ng,g) ) / zzi(1:ng,g)
       
-      call mgbounds(g,v(:,1:2,g))
     end do
-
-    ! ocean - post smoothing
-    call mgunpack_nsew(g,v(:,1,g),v_n,v_s,v_e,v_w)
-    bu(1:ng)=yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng) &
-            +yye(1:ng,g)*v_e(1:ng)+yyw(1:ng,g)*v_w(1:ng) &
-            +zz(1:ng,g)+hh(1:ng,g)
-    cu(1:ng)=zzn(1:ng,g)*v_n(1:ng)+zzs(1:ng,g)*v_s(1:ng) &
-            +zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng) &
-            -rhs(1:ng,g)
-    v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng)))
-
-    ! ice - post smoothing
-    call mgunpack_nsew(g,v(:,2,g),v_n,v_s,v_e,v_w)  
-    v(1:ng,2,g) = ( - zzin(1:ng,g)*v_n(1:ng) - zzis(1:ng,g)*v_s(1:ng)   &
-                    - zzie(1:ng,g)*v_e(1:ng) - zziw(1:ng,g)*v_w(1:ng)   &
-                    + rhsi(1:ng,g) ) / zzi(1:ng,g)
     
-    call mgbounds(g,v(:,1:2,g),corner=.true.)
+    call mgbounds(g,v(:,1:2,g)) ! for next mgbcast
 
   end do
 
@@ -2322,14 +2219,13 @@ if ( mg_maxlevel_local>0 ) then
   call mgbcasta(2,v(:,1:2,2))
 
   ! interpolation
-  ng0 = mg(2)%ifull_coarse
+  ng = mg(1)%ifull
   do k = 1,2
 !$omp simd
-    do iq = 1,ng0
-      ws(iq,k) = mg(2)%wgt_a(iq)*v(mg(2)%coarse_a(iq),k,2)  &
-               + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_b(iq),k,2) &
-               + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_c(iq),k,2) &
-               + mg(2)%wgt_d(iq)*v(mg(2)%coarse_d(iq),k,2)
+    do iq = 1,ng
+      ws(iq,k) = 0.5*v(mg(2)%coarse_a(iq),k,2)  &
+               + 0.25*v(mg(2)%coarse_b(iq),k,2) &
+               + 0.25*v(mg(2)%coarse_c(iq),k,2)
     end do  
   end do  
 
@@ -2337,7 +2233,7 @@ end if
 
 vduma = 0.
 if ( mg(1)%merge_len>1 ) then
-  call mgbcasta(1,ws(:,1:2))
+  call mgbcasta(1,ws(:,1:2),nobounds=.true.)
   ir=mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
   ic=(mg(1)%merge_pos-1)/mg(1)%merge_row+1      ! index for proc col
   do n=1,npan
@@ -2346,54 +2242,22 @@ if ( mg(1)%merge_len>1 ) then
       iq_c=1+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
       vduma(iq_a:iq_a+ipan-1,1:2)=ws(iq_c:iq_c+ipan-1,1:2)
     end do
-!$omp simd
-    do i=1,ipan
-      iq_a=i+(n-1)*ipan*jpan
-      iq_c=i+(ir-1)*ipan+(ic-1)*jpan*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-      vduma(is(iq_a),1:2)=ws(mg(1)%is(iq_c),1:2)
-      iq_a=i+(jpan-1)*ipan+(n-1)*ipan*jpan
-      iq_c=i+(ir-1)*ipan+(jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-      vduma(in(iq_a),1:2)=ws(mg(1)%in(iq_c),1:2)
-    end do  
-!$omp simd
-    do j=1,jpan
-      iq_a=1+(j-1)*ipan+(n-1)*ipan*jpan
-      iq_c=1+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-      vduma(iw(iq_a),1:2)=ws(mg(1)%iw(iq_c),1:2)
-      iq_a=ipan+(j-1)*ipan+(n-1)*ipan*jpan
-      iq_c=ipan+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-      vduma(ie(iq_a),1:2)=ws(mg(1)%ie(iq_c),1:2)
-    end do
   end do
 else
   ! remap mg halo to normal halo 
   vduma(1:ifull,1:2) = ws(1:ifull,1:2)
-  do n = 0,npan-1
-!$omp simd
-    do i = 1,ipan
-      iq = i + n*ipan*jpan
-      vduma(is(iq),1:2) = ws(mg(1)%is(iq),1:2)
-      iq = i + (jpan-1)*ipan + n*ipan*jpan
-      vduma(in(iq),1:2) = ws(mg(1)%in(iq),1:2)
-    end do
-!$omp simd
-    do j = 1,jpan
-      iq = 1 + (j-1)*ipan + n*ipan*jpan
-      vduma(iw(iq),1:2) = ws(mg(1)%iw(iq),1:2)
-      iq = j*ipan + n*ipan*jpan        
-      vduma(ie(iq),1:2) = ws(mg(1)%ie(iq),1:2)
-    end do
-  end do
 end if
 
 ! extension
-vduma(1:ifull+iextra,1) = max( -10., min( 10., vduma(1:ifull+iextra,1) ) )
-neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra,1), -dd(1:ifull+iextra)+minwater )*ee(1:ifull+iextra)
-ipice(1:ifull+iextra) = max( min( ipice(1:ifull+iextra)+vduma(1:ifull+iextra,2), ipmax(1:ifull+iextra) ), 0. )*ee(1:ifull+iextra)
+vduma(1:ifull,1) = max( -10., min( 10., vduma(1:ifull,1) ) )
+neta(1:ifull) = max( neta(1:ifull)+vduma(1:ifull,1), -dd(1:ifull)+minwater )*ee(1:ifull)
+ipice(1:ifull) = max( min( ipice(1:ifull)+vduma(1:ifull,2), ipmax(1:ifull) ), 0. )*ee(1:ifull)
  
-dumc(1:ifull+iextra,1) = neta(1:ifull+iextra)
-dumc(1:ifull+iextra,2) = ipice(1:ifull+iextra)
-  
+dumc(1:ifull,1) = neta(1:ifull)
+dumc(1:ifull,2) = ipice(1:ifull)
+
+call bounds(dumc(:,1:2))
+
 do i = 1,itrend
   
   ! post smoothing
@@ -2866,24 +2730,23 @@ do itr = 2,itr_mgice
       call mgbcast(g+1,v(:,1:2,g+1),dsolmax_g(1:2))
 
       ! interpolation
-      ng0 = mg(g+1)%ifull_coarse
+      ng = mg(g)%ifull
       do k = 1,2
 !$omp simd
-        do iq = 1,ng0
-          ws(iq,k) =  mg(g+1)%wgt_a(iq)*v(mg(g+1)%coarse_a(iq),k,g+1)   &
-                    + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_b(iq),k,g+1)  &
-                    + mg(g+1)%wgt_bc(iq)*v(mg(g+1)%coarse_c(iq),k,g+1)  &
-                    + mg(g+1)%wgt_d(iq)*v(mg(g+1)%coarse_d(iq),k,g+1)
+        do iq = 1,ng
+          ws(iq,k) =  0.5*v(mg(g+1)%coarse_a(iq),k,g+1)   &
+                    + 0.25*v(mg(g+1)%coarse_b(iq),k,g+1)  &
+                    + 0.25*v(mg(g+1)%coarse_c(iq),k,g+1)
         end do  
       end do  
       
       ! extension
       ! No mgbounds as the v halo has already been updated and
       ! the coarse interpolation also updates the w halo
-      v(1:ng0,1:2,g) = v(1:ng0,1:2,g) + ws(1:ng0,1:2)
+      v(1:ng,1:2,g) = v(1:ng,1:2,g) + ws(1:ng,1:2)
 
-      ng = mg(g)%ifull
-      do i = 1,itrend-1
+      do i = 1,itrend
+        call mgbounds(g,v(:,1:2,g))  
         ! ocean - post smoothing
         call mgunpack_nsew(g,v(:,1,g),v_n,v_s,v_e,v_w)  
         bu(1:ng)=yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng) &
@@ -2898,24 +2761,9 @@ do itr = 2,itr_mgice
         v(1:ng,2,g) = ( - zzin(1:ng,g)*v_n(1:ng) - zzis(1:ng,g)*v_s(1:ng)   &
                         - zzie(1:ng,g)*v_e(1:ng) - zziw(1:ng,g)*v_w(1:ng)   &
                         + rhsi(1:ng,g) ) / zzi(1:ng,g)
-        call mgbounds(g,v(:,1:2,g))
       end do
-
-      ! ocean - post smoothing
-      call mgunpack_nsew(g,v(:,1,g),v_n,v_s,v_e,v_w)
-      bu(1:ng)=yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng) &
-              +yye(1:ng,g)*v_e(1:ng)+yyw(1:ng,g)*v_w(1:ng) &
-              +zz(1:ng,g)+hh(1:ng,g)
-      cu(1:ng)=zzn(1:ng,g)*v_n(1:ng)+zzs(1:ng,g)*v_s(1:ng) &
-              +zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng) &
-              -rhs(1:ng,g)
-      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng)))
-      ! ice - post smoothing
-      call mgunpack_nsew(g,v(:,2,g),v_n,v_s,v_e,v_w)  
-      v(1:ng,2,g) = ( - zzin(1:ng,g)*v_n(1:ng) - zzis(1:ng,g)*v_s(1:ng)   &
-                      - zzie(1:ng,g)*v_e(1:ng) - zziw(1:ng,g)*v_w(1:ng)   &
-                      + rhsi(1:ng,g) ) / zzi(1:ng,g)
-      call mgbounds(g,v(:,1:2,g),corner=.true.)
+      
+      call mgbounds(g,v(:,1:2,g)) ! for next mgbcast
 
     end do
 
@@ -2924,14 +2772,13 @@ do itr = 2,itr_mgice
     call mgbcast(2,v(:,1:2,2),dsolmax_g(1:2))
 
     ! interpolation
-    ng0 = mg(2)%ifull_coarse
+    ng = mg(1)%ifull
     do k = 1,2
 !$omp simd
-      do iq = 1,ng0
-        ws(iq,k) = mg(2)%wgt_a(iq)*v(mg(2)%coarse_a(iq),k,2)  &
-                 + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_b(iq),k,2) &
-                 + mg(2)%wgt_bc(iq)*v(mg(2)%coarse_c(iq),k,2) &
-                 + mg(2)%wgt_d(iq)*v(mg(2)%coarse_d(iq),k,2)
+      do iq = 1,ng
+        ws(iq,k) = 0.5*v(mg(2)%coarse_a(iq),k,2)  &
+                 + 0.25*v(mg(2)%coarse_b(iq),k,2) &
+                 + 0.25*v(mg(2)%coarse_c(iq),k,2)
       end do  
     end do  
     
@@ -2944,7 +2791,7 @@ do itr = 2,itr_mgice
 
   vduma = 0.
   if ( mg(1)%merge_len>1 ) then
-    call mgbcast(1,ws(:,1:2),dsolmax_g(1:2))
+    call mgbcast(1,ws(:,1:2),dsolmax_g(1:2),nobounds=.true.)
     ir=mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
     ic=(mg(1)%merge_pos-1)/mg(1)%merge_row+1      ! index for proc col
     do n=1,npan
@@ -2953,54 +2800,21 @@ do itr = 2,itr_mgice
         iq_c=1+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
         vduma(iq_a:iq_a+ipan-1,1:2)=ws(iq_c:iq_c+ipan-1,1:2)
       end do
-!$omp simd
-      do i=1,ipan
-        iq_a=i+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(ic-1)*jpan*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-        vduma(is(iq_a),1:2)=ws(mg(1)%is(iq_c),1:2)
-        iq_a=i+(jpan-1)*ipan+(n-1)*ipan*jpan
-        iq_c=i+(ir-1)*ipan+(jpan-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-        vduma(in(iq_a),1:2)=ws(mg(1)%in(iq_c),1:2)
-      end do  
-!$omp simd
-      do j=1,jpan
-        iq_a=1+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=1+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-        vduma(iw(iq_a),1:2)=ws(mg(1)%iw(iq_c),1:2)
-        iq_a=ipan+(j-1)*ipan+(n-1)*ipan*jpan
-        iq_c=ipan+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-        vduma(ie(iq_a),1:2)=ws(mg(1)%ie(iq_c),1:2)
-      end do
     end do
   else
     ! remap mg halo to normal halo 
     vduma(1:ifull,1:2) = ws(1:ifull,1:2)
-    do n = 0,npan-1
-!$omp simd
-      do i = 1,ipan
-        iq = i + n*ipan*jpan
-        vduma(is(iq),1:2) = ws(mg(1)%is(iq),1:2)
-        iq = i + (jpan-1)*ipan + n*ipan*jpan
-        vduma(in(iq),1:2) = ws(mg(1)%in(iq),1:2)
-      end do  
-!$omp simd
-      do j = 1,jpan
-        iq = 1 + (j-1)*ipan + n*ipan*jpan
-        vduma(iw(iq),1:2) = ws(mg(1)%iw(iq),1:2)
-        iq = j*ipan + n*ipan*jpan        
-        vduma(ie(iq),1:2) = ws(mg(1)%ie(iq),1:2)
-      end do
-    end do
   end if
  
   ! extension
-  vduma(1:ifull+iextra,1) = max( -10., min( 10., vduma(1:ifull+iextra,1) ) )
-  neta(1:ifull+iextra) = max( neta(1:ifull+iextra)+vduma(1:ifull+iextra,1), -dd(1:ifull+iextra)+minwater )*ee(1:ifull+iextra)
-  ipice(1:ifull+iextra) = max( min( ipice(1:ifull+iextra)+vduma(1:ifull+iextra,2), ipmax(1:ifull+iextra) ), 0. )*ee(1:ifull+iextra)
+  vduma(1:ifull,1) = max( -10., min( 10., vduma(1:ifull,1) ) )
+  neta(1:ifull) = max( neta(1:ifull)+vduma(1:ifull,1), -dd(1:ifull)+minwater )*ee(1:ifull)
+  ipice(1:ifull) = max( min( ipice(1:ifull)+vduma(1:ifull,2), ipmax(1:ifull) ), 0. )*ee(1:ifull)
   
   ! update fine spatial scales
-  dumc(1:ifull+iextra,1) = neta(1:ifull+iextra)
-  dumc(1:ifull+iextra,2) = ipice(1:ifull+iextra)
+  dumc(1:ifull,1) = neta(1:ifull)
+  dumc(1:ifull,2) = ipice(1:ifull)
+  call bounds(dumc(:,1:2))
   
   do i = 1,itrend
     do nc = 1,maxcolour
@@ -4190,6 +4004,9 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
     if ( myid==0 ) then
       write(6,*) "Multi-grid toplevel                   ",1,mipan,mjpan
     end if
+    if ( .not.uniform_decomp ) then
+      mg(1)%npanx = 1  
+    end if
     mg(1)%merge_pos = 1
   end if
     
@@ -4218,7 +4035,6 @@ mg(1)%ifull_fine = mg(1)%ifull/4
 
 np = mg(1)%ifull
 allocate( mg(1)%in(np), mg(1)%ie(np), mg(1)%is(np), mg(1)%iw(np) )
-allocate( mg(1)%ine(np), mg(1)%inw(np), mg(1)%ise(np), mg(1)%isw(np) )
 
 call mg_index(1,mil_g,mipan,mjpan)
 
@@ -4237,7 +4053,7 @@ if ( mg_maxlevel>1 ) then
   end do
   mg(1)%fine_n = mg(1)%in(mg(1)%fine)
   mg(1)%fine_e = mg(1)%ie(mg(1)%fine)
-  mg(1)%fine_ne = mg(1)%ine(mg(1)%fine)
+  mg(1)%fine_ne = mg(1)%in(mg(g)%ie(mg(1)%fine))
 end if
 
 mg_maxsize = max( mg_maxsize, mg(1)%ifull+mg(1)%iextra )
@@ -4452,6 +4268,9 @@ do g = 2,mg_maxlevel
       if ( myid==0 ) then
         write(6,*) "Multi-grid toplevel                   ",g,mipan,mjpan
       end if
+      if ( .not.uniform_decomp ) then
+        mg(g)%npanx = 1  
+      end if
       mg(g)%merge_pos = 1
     end if
 
@@ -4494,8 +4313,7 @@ do g = 2,mg_maxlevel
   
   np = mg(g)%ifull
   allocate( mg(g)%in(np), mg(g)%ie(np), mg(g)%is(np), mg(g)%iw(np) )
-  allocate( mg(g)%ine(np), mg(g)%inw(np), mg(g)%ise(np), mg(g)%isw(np) )
-
+  
   call mg_index(g,mil_g,mipan,mjpan)
 
   gmax = min( mg_maxlevel-1, mg_maxlevel_local )
@@ -4518,7 +4336,7 @@ do g = 2,mg_maxlevel
     end do
     mg(g)%fine_n = mg(g)%in(mg(g)%fine)
     mg(g)%fine_e = mg(g)%ie(mg(g)%fine)
-    mg(g)%fine_ne = mg(g)%ine(mg(g)%fine)
+    mg(g)%fine_ne = mg(g)%in(mg(g)%ie(mg(g)%fine))
   end if
   
   mg_maxsize = max( mg_maxsize, mg(g)%ifull+mg(g)%iextra )
@@ -4531,15 +4349,10 @@ do g = 2,mg_maxlevel
   ! always sits inside the fine grid.
 
   if ( g<=gmax+1 ) then
-    mg(g)%ifull_coarse = mg(g-1)%ifull + mg(g-1)%ixlen
+    mg(g)%ifull_coarse = mg(g-1)%ifull
     np = mg(g)%ifull_coarse
-    allocate( mg(g)%coarse_a(np), mg(g)%coarse_b(np), mg(g)%coarse_c(np), mg(g)%coarse_d(np) )
-    allocate( mg(g)%wgt_a(np), mg(g)%wgt_bc(np), mg(g)%wgt_d(np) )
+    allocate( mg(g)%coarse_a(np), mg(g)%coarse_b(np), mg(g)%coarse_c(np) )
     mg(g)%coarse_a = 0 ! unassigned
-    ! default weights
-    mg(g)%wgt_a = 0.5625
-    mg(g)%wgt_bc = 0.1875
-    mg(g)%wgt_d = 0.0625
  
     do n = 1,npanx
   
@@ -4563,146 +4376,35 @@ do g = 2,mg_maxlevel
           mg(g)%coarse_a(iq) =          iqq
           mg(g)%coarse_b(iq) = mg(g)%is(iqq)
           mg(g)%coarse_c(iq) = mg(g)%iw(iqq)
-          mg(g)%coarse_d(iq) = mg(g)%isw(iqq)
         
           ! odd, even
           iq = indx(iia,jja+1,n-1,2*drow,2*dcol)   ! fine grid
           mg(g)%coarse_a(iq) =          iqq
           mg(g)%coarse_b(iq) = mg(g)%in(iqq)
           mg(g)%coarse_c(iq) = mg(g)%iw(iqq)
-          mg(g)%coarse_d(iq) = mg(g)%inw(iqq)
           
           ! even, odd
           iq = indx(iia+1,jja,n-1,2*drow,2*dcol)   ! fine grid 
           mg(g)%coarse_a(iq) =          iqq
           mg(g)%coarse_b(iq) = mg(g)%is(iqq)
           mg(g)%coarse_c(iq) = mg(g)%ie(iqq)
-          mg(g)%coarse_d(iq) = mg(g)%ise(iqq)
 
           ! even, even
           iq = indx(iia+1,jja+1,n-1,2*drow,2*dcol) ! fine grid
           mg(g)%coarse_a(iq) =          iqq
           mg(g)%coarse_b(iq) = mg(g)%in(iqq)
           mg(g)%coarse_c(iq) = mg(g)%ie(iqq)
-          mg(g)%coarse_d(iq) = mg(g)%ine(iqq)
       
         end do
       end do
-
-      ! boundaries
-      ! Here we update the boundaries using the coarse
-      ! array which avoids an extra call to mgbounds
-      if ( mg(g-1)%ixlen>0 ) then 
-    
-        ! need to check every point as the current
-        ! grid may be the result of a global gather
-        do jj = sjj,ejj
-          jja = 2*(jj-sjj) + 1
-          do ii = sii,eii
-            iia = 2*(ii-sii) + 1
-        
-            iqq = indx(ii,jj,n-1,mipan,mjpan)   ! coarse grid
-        
-            ! odd, odd          
-            iq = indx(iia,jja,n-1,2*drow,2*dcol)     ! fine grid
-            iql = mg(g-1)%is(iq)
-            if ( mg(g)%coarse_a(iql)==0 ) then
-              mg(g)%coarse_a(iql) = mg(g)%is(iqq)
-              mg(g)%coarse_b(iql) =          iqq
-              mg(g)%coarse_c(iql) = mg(g)%isw(iqq)
-              mg(g)%coarse_d(iql) = mg(g)%iw(iqq)
-            end if
-            iql = mg(g-1)%iw(iq)
-            if ( mg(g)%coarse_a(iql)==0 ) then
-              mg(g)%coarse_a(iql) = mg(g)%iw(iqq)
-              mg(g)%coarse_b(iql) =          iqq
-              mg(g)%coarse_c(iql) = mg(g)%isw(iqq)
-              mg(g)%coarse_d(iql) = mg(g)%is(iqq)
-            end if
-          
-            ! odd, even
-            iq = indx(iia,jja+1,n-1,2*drow,2*dcol)   ! fine grid
-            iql = mg(g-1)%in(iq)
-            if ( mg(g)%coarse_a(iql)==0 ) then
-              mg(g)%coarse_a(iql) = mg(g)%in(iqq)
-              mg(g)%coarse_b(iql) =          iqq
-              mg(g)%coarse_c(iql) = mg(g)%inw(iqq)
-              mg(g)%coarse_d(iql) = mg(g)%iw(iqq)
-            end if
-            iql = mg(g-1)%iw(iq)
-            if ( mg(g)%coarse_a(iql)==0 ) then
-              mg(g)%coarse_a(iql) = mg(g)%iw(iqq)
-              mg(g)%coarse_b(iql) =          iqq
-              mg(g)%coarse_c(iql) = mg(g)%inw(iqq)
-              mg(g)%coarse_d(iql) = mg(g)%in(iqq)
-            end if
-          
-            ! even, odd
-            iq = indx(iia+1,jja,n-1,2*drow,2*dcol)   ! fine grid 
-            iql = mg(g-1)%is(iq)
-            if ( mg(g)%coarse_a(iql)==0 ) then
-              mg(g)%coarse_a(iql) = mg(g)%is(iqq)
-              mg(g)%coarse_b(iql) =          iqq
-              mg(g)%coarse_c(iql) = mg(g)%ise(iqq)
-              mg(g)%coarse_d(iql) = mg(g)%ie(iqq)
-            end if
-            iql = mg(g-1)%ie(iq)
-            if ( mg(g)%coarse_a(iql)==0 ) then
-              mg(g)%coarse_a(iql) = mg(g)%ie(iqq)
-              mg(g)%coarse_b(iql) =          iqq
-              mg(g)%coarse_c(iql) = mg(g)%ise(iqq)
-              mg(g)%coarse_d(iql) = mg(g)%is(iqq)
-            end if
-          
-            ! even, even
-            iq = indx(iia+1,jja+1,n-1,2*drow,2*dcol) ! fine grid
-            iql = mg(g-1)%in(iq)
-            if ( mg(g)%coarse_a(iql)==0 ) then
-              mg(g)%coarse_a(iql) = mg(g)%in(iqq)
-              mg(g)%coarse_b(iql) =          iqq
-              mg(g)%coarse_c(iql) = mg(g)%ine(iqq)
-              mg(g)%coarse_d(iql) = mg(g)%ie(iqq)
-            end if
-            iql = mg(g-1)%ie(iq)
-            if ( mg(g)%coarse_a(iql)==0 ) then
-              mg(g)%coarse_a(iql) = mg(g)%ie(iqq)
-              mg(g)%coarse_b(iql) =          iqq
-              mg(g)%coarse_c(iql) = mg(g)%ine(iqq)
-              mg(g)%coarse_d(iql) = mg(g)%in(iqq)
-            end if
-      
-          end do
-        end do
-      end if
     
     end do
   
-    ! adjust weights for panel corners
-    do iq = 1,np
-      if ( mg(g)%coarse_d(iq)==mg(g)%coarse_b(iq) .or. &
-           mg(g)%coarse_d(iq)==mg(g)%coarse_c(iq) ) then
-        mg(g)%wgt_a(iq) = 0.5
-        mg(g)%wgt_bc(iq) = 0.25
-        mg(g)%wgt_d(iq) = 0.
-      else if ( mg(g)%coarse_c(iq)==mg(g)%coarse_a(iq) ) then
-        iqq = mg(g)%coarse_d(iq)
-        mg(g)%coarse_c(iq) = mg(g)%coarse_d(iq)
-        mg(g)%coarse_d(iq) = iqq
-        mg(g)%wgt_a(iq) = 0.5
-        mg(g)%wgt_bc(iq) = 0.25
-        mg(g)%wgt_d(iq) = 0.
-      else if ( mg(g)%coarse_c(iq)==mg(g)%coarse_d(iq) ) then
-        mg(g)%wgt_a(iq) = 0.5
-        mg(g)%wgt_bc(iq) = 0.25
-        mg(g)%wgt_d(iq) = 0.
-      end if
-    end do
   end if
 
   ! free some memory
   if ( g>=gmax+2 ) then
     deallocate( mg(g)%in, mg(g)%ie, mg(g)%is, mg(g)%iw )
-    deallocate( mg(g)%ine, mg(g)%inw, mg(g)%ise, mg(g)%isw )
   end if
   
 end do
