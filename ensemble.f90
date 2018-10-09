@@ -84,7 +84,7 @@ integer kdate_r, ktime_r, k
 integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
 integer mtimeb_old
 real timerm, cona, conb, wgt
-real, dimension(ifull) :: dd, old, new
+real, dimension(ifull) :: dd, old, new, delta
 real, dimension(ifull) :: zsb, timelt
 real, dimension(:), allocatable :: psl_pos, psl_neg
 real, dimension(:), allocatable, save :: u_rms, v_rms
@@ -283,8 +283,12 @@ if ( namip==0 ) then  ! namip SSTs/sea-ice take precedence
     new = (cona*tssa + conb*tssb)*(1.-fraciceb(:)) + timelt*fraciceb(:) - wrtemp
     wgt = dt/real(nud_hrs*3600)
     call mloexport(0,old,1,0)
-    old = old*(1.-wgt) + new*wgt
-    call mloimport(0,old,1,0)
+    delta = new - old
+    do k = 1,wlev
+      call mloexport(0,old,k,0)
+      old = wgt*delta + old
+      call mloimport(0,old,k,0)
+    end do  
   end if ! (nmlo==0) ..else..
 end if   ! (namip==0)
 

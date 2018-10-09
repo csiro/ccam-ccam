@@ -66,7 +66,7 @@ real, allocatable, save, dimension(:,:) :: aice
 real, allocatable, save, dimension(:,:) :: asal
 real, allocatable, save, dimension(:) :: res
 real, dimension(ifull) :: sssb, timelt, fraciceb
-real, dimension(ifull) :: old, new
+real, dimension(ifull) :: old, new, delta
 real x, c2, c3, c4, rat1, rat2
 real ssta2, ssta3, ssta4
 real a0, a1, a2, aa, bb, cc, mp1, mp2
@@ -553,8 +553,12 @@ elseif ( ktau>0 ) then
   new = tgg(:,1)*(1.-fraciceb(:)) + timelt(:)*fraciceb(:) - wrtemp
   wgt = dt/real(nud_hrs*3600)
   call mloexport(0,old,1,0)
-  old = old*(1.-wgt) + new*wgt
-  call mloimport(0,old,1,0)
+  delta = new - old
+  do k = 1,wlev
+    call mloexport(0,old,k,0)
+    old = wgt*delta + old
+    call mloimport(0,old,k,0)
+  end do  
   do k = 1,ms
     call mloexport(0,tgg(:,k),k,0)
     where ( tgg(:,k)<100. )
