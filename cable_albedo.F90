@@ -23,7 +23,6 @@
 MODULE cable_albedo_module
 
    USE cable_data_module, ONLY : ialbedo_type, point2constants
-
    IMPLICIT NONE
 
    PUBLIC surface_albedo
@@ -55,8 +54,7 @@ SUBROUTINE surface_albedo(ssnow, veg, met, rad, soil, canopy)
       dummy2, & !
       dummy
 
-   REAL, DIMENSION(:,:), ALLOCATABLE, SAVE :: c1, rhoch
-!$omp threadprivate(c1,rhoch)
+   REAL, DIMENSION(mp,nrb) :: c1, rhoch
 
    LOGICAL, DIMENSION(mp)  :: mask ! select points for calculation
 
@@ -65,10 +63,6 @@ SUBROUTINE surface_albedo(ssnow, veg, met, rad, soil, canopy)
    ! END header
 
    CALL point2constants(C)
-
-   IF (.NOT. allocated(c1)) &
-      ALLOCATE( c1(mp,nrb), rhoch(mp,nrb) )
-
 
    CALL surface_albedosn(ssnow, veg, met, soil)
 
@@ -81,9 +75,9 @@ SUBROUTINE surface_albedo(ssnow, veg, met, rad, soil, canopy)
    rad%reffdf = ssnow%albsoilsn
    rad%albedo = ssnow%albsoilsn
 
-   ! Define vegetation mask:
+   ! Define sunlit vegetation mask:
    mask = canopy%vlaiw > C%LAI_THRESH .AND.                                    &
-          ( met%fsd(:,1) + met%fsd(:,2) ) > C%RAD_THRESH
+          ( met%fsd(:,1) + met%fsd(:,2) ) > C%RAD_THRESH 
 
    CALL calc_rhoch( veg, c1, rhoch )
 
@@ -129,7 +123,10 @@ SUBROUTINE surface_albedo(ssnow, veg, met, rad, soil, canopy)
 
    END DO
 
-   DEALLOCATE( c1, rhoch )
+!b=2
+!write(509,"(18e16.6)") met%hod,rad%fbeam(1,b),rad%reffdf(1,b),rad%rhocdf(:,b),rad%cexpkdm(:,b) , &
+!     rad%reffbm(1,b),rad%rhocbm(1,b) &
+!     , rad%cexpkbm(1,b),rhoch(1,b), rad%extkb, rad%extkd, c1(1,b), rad%albedo(1,b)
 
 END SUBROUTINE surface_albedo
 
@@ -166,6 +163,8 @@ SUBROUTINE surface_albedosn(ssnow, veg, met, soil)
    REAL, PARAMETER ::                                                          &
       alvo  = 0.95,  &  ! albedo for vis. on a new snow
       aliro = 0.70      ! albedo for near-infr. on a new snow
+
+   INTEGER:: k
 
    soil%albsoilf = soil%albsoil(:,1)
 
@@ -205,6 +204,9 @@ SUBROUTINE surface_albedosn(ssnow, veg, met, soil)
    fage  =0.
    fzenm =0.
 
+  
+
+  
    WHERE ( ssnow%snowd > 1. .AND. .NOT. cable_runtime%um_radiation )
 
       ! new snow (cm H2O)

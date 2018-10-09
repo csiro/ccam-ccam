@@ -218,7 +218,8 @@ use cable_ccam, only : proglai           & ! CABLE
     ,fwsoil_switch                       &
     ,cable_litter,gs_switch              &
     ,cable_climate,POP_NPATCH            &
-    ,POP_NCOHORT,ccycle
+    ,POP_NCOHORT,ccycle                  &
+    ,smrf_switch,strf_switch,POP_AGEMAX
 use cc_mpi                                 ! CC MPI routines
 use cloudmod                               ! Prognostic cloud fraction
 use dates_m                                ! Date data
@@ -253,13 +254,13 @@ integer, dimension(nihead) :: nahead
 integer, intent(in) :: itype
 integer, dimension(5) :: dima, dims, dimo, dimc
 integer, dimension(6) :: dimc2
-integer, dimension(5) :: dimc3, dimc4, dimc5, dimc6
+integer, dimension(5) :: dimc3, dimc4, dimc5, dimc6, dimc7
 integer, dimension(2) :: dimp
 integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgproc
 integer idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim
-integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim
+integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
 integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3
 integer, save :: idnc_hist=0, iarch_hist=0
@@ -364,10 +365,12 @@ if ( myid==0 .or. local ) then
     c31pdim = 0
     c20ydim = 0
     c5ddim = 0
+    cadim = 0
     if ( itype==-1 ) then
       if ( cable_pop==1 ) then
         call ccnf_def_dim(idnc,'cable_patch',POP_NPATCH,cpdim)  
         call ccnf_def_dim(idnc,'cable_cohort',POP_NCOHORT,c2pdim)  
+        call ccnf_def_dim(idnc,'cable_agemax',POP_AGEMAX,cadim)  
       end if
       if ( cable_climate==1 ) then
         call ccnf_def_dim(idnc,'cable_91days',91,c91pdim)
@@ -391,6 +394,7 @@ if ( myid==0 .or. local ) then
       dimc4 = (/ xdim, ydim, c31pdim, pdim, tdim /)
       dimc5 = (/ xdim, ydim, c20ydim, pdim, tdim /)
       dimc6 = (/ xdim, ydim, c5ddim, pdim, tdim /)
+      dimc7 = (/ xdim, ydim, cadim, pdim, tdim /)
     else
       ! atmosphere dimensions
       dima = (/ xdim, ydim, zdim, tdim, 0 /)
@@ -405,6 +409,7 @@ if ( myid==0 .or. local ) then
       dimc4 = (/ xdim, ydim, c31pdim, tdim, 0 /)
       dimc5 = (/ xdim, ydim, c20ydim, tdim, 0 /)
       dimc6 = (/ xdim, ydim, c5ddim, tdim, 0 /)
+      dimc7 = (/ xdim, ydim, cadim, tdim, 0 /)
     end if
 
     ! Define coords.
@@ -870,6 +875,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'gs_switch',gs_switch)
     call ccnf_put_attg(idnc,'proglai',proglai)
     call ccnf_put_attg(idnc,'progvcmax',progvcmax)
+    call ccnf_put_attg(idnc,'smrf_switch',smrf_switch)
+    call ccnf_put_attg(idnc,'strf_switch',strf_switch)
     call ccnf_put_attg(idnc,'siburbanfrac',siburbanfrac)
     call ccnf_put_attg(idnc,'soil_struc',soil_struc)
     
@@ -903,9 +910,9 @@ if ( myid==0 .or. local ) then
 endif ! (myid==0.or.local)
       
 ! openhist writes some fields so needs to be called by all processes
-call openhist(iarch,itype,dima,dimo,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,c5ddim,  &
-              local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgproc,                  &
-              idcp,idc2p,idc91p,idc31p,idc20y,idc5d,                              &
+call openhist(iarch,itype,dima,dimo,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,c5ddim,cadim,  &
+              local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgproc,                        &
+              idcp,idc2p,idc91p,idc31p,idc20y,idc5d,                                    &
               psl_in,u_in,v_in,t_in,q_in)
 
 if ( myid==0 .or. local ) then
@@ -935,9 +942,9 @@ end subroutine cdfout
       
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
-subroutine openhist(iarch,itype,dima,odim,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,c5ddim,  &
-                    local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgproc,                  &
-                    idcp,idc2p,idc91p,idc31p,idc20y,idc5d,                              &
+subroutine openhist(iarch,itype,dima,odim,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,c5ddim,cadim,  &
+                    local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgproc,                        &
+                    idcp,idc2p,idc91p,idc31p,idc20y,idc5d,                                    &
                     psl_in,u_in,v_in,t_in,q_in)
 
 use aerointerface                                ! Aerosol interface
@@ -1001,13 +1008,13 @@ include 'version.h'                              ! Model version data
 
 integer, intent(in) :: iarch, itype
 integer, intent(in) :: ixp, iyp, idlev, idms, idoc, idproc, idgproc
-integer, intent(in) :: cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim
+integer, intent(in) :: cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
 integer, intent(in) :: idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer idum, cptype
 integer asize, osize, jsize, ksize, dproc, d4, gprocrank
-integer csize, c2size, c3size, c4size, c5size, c6size
+integer csize, c2size, c3size, c4size, c5size, c6size, c7size
 integer, dimension(5), intent(in) :: dima
 integer, dimension(5), intent(in) :: odim
 integer, dimension(4) :: dimj
@@ -1018,6 +1025,7 @@ integer, dimension(5) :: dimc3
 integer, dimension(5) :: dimc4
 integer, dimension(5) :: dimc5
 integer, dimension(5) :: dimc6
+integer, dimension(5) :: dimc7
 integer, dimension(:), allocatable :: vnode_dat
 integer, dimension(:), allocatable :: procmap
 real, dimension(:,:), allocatable :: xpnt2
@@ -1094,6 +1102,8 @@ if ( procformat ) then
   dimc5(3)   = c20ydim
   dimc6(1:5) = dima(1:5)
   dimc6(3)   = c5ddim
+  dimc7(1:5) = dima(1:5)
+  dimc7(3)   = cadim
   dproc = 4
   d4 = 5
   asize = 5
@@ -1106,6 +1116,7 @@ if ( procformat ) then
   c4size = 5
   c5size = 5
   c6size = 5
+  c7size = 5
   !call init_iobuffer(idnc,itype)
 else
   dimj(1:2) = dima(1:2)
@@ -1125,6 +1136,8 @@ else
   dimc5(3)   = c20ydim
   dimc6(1:4) = dima(1:4)
   dimc6(3)   = c5ddim
+  dimc7(1:4) = dima(1:4)
+  dimc7(3)   = cadim
   dproc = -1 ! ?
   d4 = 4
   asize = 4
@@ -1137,6 +1150,7 @@ else
   c4size = 4
   c5size = 4
   c6size = 4
+  c7size = 4
 end if
 
 if( myid==0 .or. local ) then
@@ -2179,8 +2193,8 @@ if( myid==0 .or. local ) then
       
       if ( nsib==6 .or. nsib==7 ) then
         call savetiledef(idnc,local,dimj,jsize,dimc,csize,dimc2,c2size, &
-                         dimc3,c3size,dimc4,c4size,dimc5,c5size,        &
-                         dimc6,c6size)
+                         dimc3,c3size,dimc4,c4size,dimc5,c5size,              &
+                         dimc6,c6size,dimc7,c7size)
       end if
       
     endif  ! (itype==-1)

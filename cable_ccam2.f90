@@ -135,13 +135,16 @@ public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcb
 public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle
 public fwsoil_switch, cable_litter, gs_switch, cable_climate
-public POP_NPATCH, POP_NCOHORT
+public smrf_switch, strf_switch
+public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 
 ! CABLE biophysical options
 integer, save :: soil_struc         = 0          ! 0 default, 1 SLI soil model
 integer, save :: fwsoil_switch      = 0          ! 0 default, 1 non-linear, 2 Lai and Ktaul, 3 Haverd2013
 integer, save :: cable_litter       = 0          ! 0 off, 1 on
 integer, save :: gs_switch          = 0          ! 0 leuning, 1 medlyn
+integer, save :: smrf_switch        = 4          ! 1 CASA-CNP, 2 SOLIN, 3 TRIFFID, 4 Trudinger2016(default), 5 DAMM (Soil Moist Respiration Function)
+integer, save :: strf_switch        = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 4 LT1994(default),        5 DAMM (Soil Temp Respiration Function)
 ! CABLE biochemical options
 integer, save :: ccycle             = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
 integer, save :: proglai            = -1         ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
@@ -154,11 +157,12 @@ integer, save :: cable_climate      = 0          ! 0 off, 1 on
 integer, parameter :: maxtile       = 5          ! maximum possible number of tiles
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
 integer, parameter :: COLDEST_DAY_SHEMISPHERE = 172
-integer, parameter :: POP_NPATCH = 60            ! Can POP communicate this number?
-integer, parameter :: POP_NLAYER = 1             ! Can POP communicate this number?
-integer, parameter :: POP_NCOHORT = 20           ! Can POP communicate this number?
-integer, parameter :: POP_HEIGHT_BINS = 12       ! Can POP communicate this number?
-integer, parameter :: POP_NDISTURB = 1           ! Can POP communicate this number?
+integer, save :: POP_NPATCH = -1
+integer, save :: POP_NLAYER = -1
+integer, save :: POP_NCOHORT = -1
+integer, save :: POP_HEIGHT_BINS = -1
+integer, save :: POP_NDISTURB = -1
+integer, save :: POP_AGEMAX= -1
 real, parameter :: minfrac = 0.01                ! minimum non-zero tile fraction (improves load balancing)
 
 integer, save :: maxnb                           ! maximum number of actual tiles
@@ -560,7 +564,7 @@ rad%fbeam(:,3)  = 0._8            ! dummy for now
 call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp,sv,vl1,vl2,vl3,vl4,casamet,veg,imax,tind,tmap,maxnb)
 
 ! Calculate vcmax
-call vcmax_feedback(casabiome,casamet,casapool,veg,ktau)
+call vcmax_feedback(casabiome,casamet,casapool,veg,climate,ktau)
 
 !--------------------------------------------------------------
 ! CABLE
@@ -666,7 +670,7 @@ end if
 
 !--------------------------------------------------------------
 ! CABLE CLIMATE
-call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,air,npercasa,ktau)
+call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,air,ssnow,veg,npercasa,ktau)
 
 !--------------------------------------------------------------
 ! CASA CNP
@@ -1186,7 +1190,7 @@ end subroutine setlai
 
 ! *************************************************************************************
 ! Calculate prognostic vcmax from CASA-CNP
-subroutine vcmax_feedback(casabiome,casamet,casapool,veg,ktau)
+subroutine vcmax_feedback(casabiome,casamet,casapool,veg,climate,ktau)
 
 use newmpar_m, only : mxvt
 use parm_m, only : nperday
@@ -1197,6 +1201,7 @@ type(casa_biome), intent(in) :: casabiome
 type(casa_met), intent(in) :: casamet
 type(casa_pool), intent(in) :: casapool
 type(veg_parameter_type), intent(inout) :: veg
+type(climate_type), intent(in) :: climate
 integer, intent(in) :: ktau
 integer np, ivt
 real(kind=8) ajv, bjvref
@@ -1207,16 +1212,19 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
 
   ! initialize
   ncleafx(:) = casabiome%ratioNCplantmax(veg%iveg(:),leaf)
-  npleafx(:) = 14.2_8
+  npleafx(:) = casabiome%ratioNPplantmin(veg%iveg(:),leaf)
   bjvref = 1.7_8 ! Walker 2014
 
   do np = 1,mp
     ivt = veg%iveg(np)
     if ( casamet%iveg2(np)/=icewater .and. casamet%glai(np)>casabiome%glaimin(ivt) .and. &
          casapool%cplant(np,leaf)>0._8 ) then
-      ncleafx(np) = min( casabiome%ratioNCplantmax(ivt,leaf),                  &
-                    max( casabiome%ratioNCplantmin(ivt,leaf),                  &
-                         casapool%nplant(np,leaf)/casapool%cplant(np,leaf) ) )
+
+      if (icycle>1 .and. casapool%cplant(np,leaf)>0._8) then
+         ncleafx(np) = min( casabiome%ratioNCplantmax(ivt,leaf),                  &
+                       max( casabiome%ratioNCplantmin(ivt,leaf),                  &
+                            casapool%nplant(np,leaf)/casapool%cplant(np,leaf) ) )
+      end if
       if ( ccycle>2 .and. casapool%pplant(np,leaf)>0._8 ) then
         npleafx(np) = min(30._8,max(8._8,casapool%nplant(np,leaf)/casapool%pplant(np,leaf)))
       end if
@@ -1255,20 +1263,19 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
         ivt = veg%iveg(np)  
         nleafx(np) = ncleafx(np)/casabiome%sla(ivt) ! leaf N in g N m-2 leaf
         pleafx(np) = nleafx(np)/npleafx(np)         ! leaf P in g P m-2 leaf
-        if ( ivt==7 .or. ivt==9 ) then
-          veg%vcmax(np) = 1.e-5_8 ! special for C4 grass: set here to value from  parameter file
-          veg%ejmax(np) = 2._8*veg%vcmax(np)
-        else if ( ivt==2 ) then
-          veg%vcmax(np) = vcmax_np(nleafx(np),nleafx(np))*1.1_8
-          veg%ejmax(np) = bjvref*veg%vcmax(np)
-        else if ( ivt==1 ) then
-          ! account here for spring recovery  
-          veg%vcmax(np) = vcmax_np(nleafx(np),nleafx(np))*1.25_8*climate%frec(np)
-          veg%ejmax(np) = bjvref*veg%vcmax(np)
+
+        if (ivt==7 .or. ivt==9  ) then
+          veg%vcmax(np) = 1.0e-5_8 ! special for C4 grass: set here to value from  parameter file
+          veg%ejmax(np) = 2.0_8 * veg%vcmax(np)
+        elseif (ivt==1) then
+          ! account here for spring recovery
+          veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*casabiome%vcmax_scalar(ivt) &
+                         *climate%frec(np) 
+          veg%ejmax(np) =bjvref * veg%vcmax(np)
         else
-          veg%vcmax(np) = vcmax_np(nleafx(np),nleafx(np))*1.25_8
-          veg%ejmax(np) = bjvref*veg%vcmax(np)
-        end if
+          veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*casabiome%vcmax_scalar(ivt)
+          veg%ejmax(np) =bjvref * veg%vcmax(np)
+        endif
       end do
 
       if ( cable_user%finite_gm ) then
@@ -1300,7 +1307,7 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
   end select
   
   if ( mod(ktau,nperday)==1 ) then    
-    if ( cable_climate==1 .and. progvcmax==2 ) then
+    if ( cable_climate==1 .and. (progvcmax==2 .or. progvcmax==1) ) then
       if ( all(climate%tleaf_sun(:,1)>0.1_8) ) then  
         call optimise_JV(veg,climate,24,bjvref)
       end if
@@ -1319,7 +1326,7 @@ subroutine cable_phenology_clim(climate,phen,rad,veg)
 implicit none
 
 integer :: np, days, ivt
-integer, parameter :: ndays_raingreenup = 40
+integer, parameter :: ndays_raingreenup = 60
 real(kind=8) :: gdd0
 real(kind=8) :: phengdd5ramp
 real(kind=8) :: phen_tmp
@@ -1337,7 +1344,7 @@ type(veg_parameter_type), intent(in) :: veg
 
 do np = 1,mp
   ivt = veg%iveg(np)  
-  phen_tmp = 0._8
+  phen_tmp = 1.0_8
   
   ! evergreen pfts
   if ( ivt==1 .or. ivt==2 .or. ivt==5 ) then
@@ -1384,13 +1391,13 @@ do np = 1,mp
 
   if ( (ivt==3.or.ivt==4) .or. (ivt>=6.and.ivt<=10) ) then
 
-    if (phen_tmp>0._8 .and.( phen%phase(np)==3 .or. phen%phase(np)==0 )) then
+    if (phen_tmp>0._8 .and. (phen_tmp.lt.1.0_8)) then
       phen%phase(np) = 1 ! greenup
       phen%doyphase(np,1) = climate%doy
-    elseif (phen_tmp>=1._8 .and. phen%phase(np)==1) then
+    elseif (phen_tmp>=1._8) then
       phen%phase(np) = 2 ! steady LAI
       phen%doyphase(np,2) = climate%doy
-    elseif (phen_tmp<1._8 .and. phen%phase(np)==2) then
+    elseif (phen_tmp==0._8) then
       phen%phase(np) = 3 ! senescence
       phen%doyphase(np,3) = climate%doy
     endif
@@ -1517,7 +1524,7 @@ if ( cable_pop==1 .and. POP%np>0 ) then ! CALL_POP
     NPPtoGPP = 0.5_dp
   end where
   stemNPP_tmp(:,1) = real(max(casaflux%stemnpp(Iw)/1000._8,0.0001_8),dp)
-  stemNPP_tmp(:,2) = 0._dp
+  stemNPP_tmp(:,2) = 0.0001_dp !PAR to be consistent with original
   disturbance_interval_tmp = int(veg%disturbance_interval(Iw,:), i4b) 
   disturbance_intensity_tmp = real(veg%disturbance_intensity(Iw,:),8)
   LAImax_tmp = real(max(casabal%LAImax(Iw),0.001_8),dp)
@@ -1536,7 +1543,7 @@ end subroutine POPdriver
 
 ! *************************************************************************************
 ! track climate feedback into CABLE
-subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,air,npercasa,ktau)
+subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,air,ssnow,veg,npercasa,ktau)
 
 use parm_m, only : dt, nperhr
 
@@ -1553,10 +1560,13 @@ type(climate_type), intent(inout) :: climate
 type(met_type), intent(in) :: met
 type(radiation_type), intent(inout) :: rad
 type(air_type), intent(inout) :: air
+type (soil_snow_type), intent(in) :: ssnow
+type (veg_parameter_type), intent(in) :: veg
 
 real(kind=8), parameter :: Gaero   = 0.015_8    ! (m s-1) aerodynmaic conductance (for use in PT evap)
 real(kind=8), parameter :: Capp    = 29.09_8    ! isobaric spec heat air    [J/molA/K]
 real(kind=8), parameter :: SBoltz  = 5.67e-8_8  ! Stefan-Boltzmann constant [W/m2/K4]
+real(kind=8), parameter :: moisture_min = 0.15  ! threshold for setting "growing moisture days", as required for drought-deciduous phenology
 real(kind=8), parameter :: CoeffPT = 1.26_8
 real(kind=8), parameter :: T1 = 0._8
 real(kind=8), parameter :: T2 = -3._8
@@ -1578,18 +1588,19 @@ tmp   = met%tk - 273.16_8 ! avoid array temporary
 EpSA  = Epsif(tmp, met%pmb)
 phiEq = canopy%rniso*(PPc*EpsA)/(PPc*EpsA+1._8) ! equil ltnt heat flux  [W/m2]
 
-climate%evap_PT = climate%evap_PT + max(phiEq,1._8)*CoeffPT/air%rlam*dt  ! mm
+climate%evap_PT = climate%evap_PT + phiEq*CoeffPT/2.5014e6*dt  ! mm
 climate%aevap   = climate%aevap + met%precip ! mm
-climate%dtemp   = climate%dtemp + met%tk - 273.16_8
-climate%dmoist  = climate%dmoist + canopy%fwsoil
+climate%dtemp   = climate%dtemp + met%tk - 273.15_8
+climate%dmoist  = climate%dmoist + sum(ssnow%wb(:,:)*veg%froot(:,:),2)
 
-if ( mod(ktau,npercasa)==1 ) climate%dtemp_min = met%tk - 273.16_8
-climate%dtemp_min = min( climate%dtemp_min, met%tk - 273.16_8 )
+if ( mod(ktau,npercasa)==1 ) climate%dtemp_min = met%tk - 273.15_8
+climate%dtemp_min = min( climate%dtemp_min, met%tk - 273.15_8 )
 
 if ( mod(ktau,nperhr)==1 ) then
   climate%apar_leaf_sun_save = 0._8
   climate%apar_leaf_shade_save = 0._8
   climate%dleaf_sun_save = 0._8
+  climate%fwsoil_save = 0._8
   climate%dleaf_shade_save = 0._8
   climate%tleaf_sun_save = 0._8
   climate%tleaf_shade_save = 0._8
@@ -1601,6 +1612,7 @@ end if
 climate%apar_leaf_sun_save = climate%apar_leaf_sun_save + rad%qcan(:,1,1)*4.6_8 ! umol m-2 s-1
 climate%apar_leaf_shade_save = climate%apar_leaf_shade_save + rad%qcan(:,2,1)*4.6_8 ! umod m-2 s-1
 climate%dleaf_sun_save = climate%dleaf_sun_save + canopy%dlf
+climate%fwsoil_save = climate%fwsoil_save + canopy%fwsoil
 climate%dleaf_shade_save = climate%dleaf_shade_save + canopy%dlf
 climate%tleaf_sun_save = climate%tleaf_sun_save + canopy%tlf
 climate%tleaf_shade_save = climate%tleaf_shade_save + canopy%tlf
@@ -1609,11 +1621,19 @@ climate%cs_shade_save = climate%cs_shade_save + canopy%cs_sh ! ppm
 climate%scalex_sun_save = climate%scalex_sun_save + rad%scalex(:,1)
 climate%scalex_shade_save = climate%scalex_shade_save + rad%scalex(:,2)
 
+! midday fraction of incoming visible radiation absorbed by the canopy
+!if ( mod(ktau,npercasa) == npercasa/2 ) THEN
+!  where (rad%fbeam(:,1)>=0.01)
+!    climate%fapar_ann_max = max(1.- rad%extkbm(:,1)*canopy%vlaiw, climate%fapar_ann_max)
+!  endwhere
+!endif
+
 ! accumulate sub-diurnal sub- and shade-leaf net variables that are revant for calc of Anet
 if ( mod(ktau,nperhr)==0 ) then
   climate%APAR_leaf_sun(:,1:nsd-1)   = climate%APAR_leaf_sun(:,2:nsd)
   climate%APAR_leaf_shade(:,1:nsd-1) = climate%APAR_leaf_shade(:,2:nsd)
   climate%Dleaf_sun(:,1:nsd-1)       = climate%Dleaf_sun(:,2:nsd)
+  climate%fwsoil(:,1:nsd-1)          = climate%fwsoil(:,2:nsd)
   climate%Dleaf_shade(:,1:nsd-1)     = climate%Dleaf_shade(:,2:nsd)
   climate%Tleaf_sun(:,1:nsd-1)       = climate%Tleaf_sun(:,2:nsd)
   climate%Tleaf_shade(:,1:nsd-1)     = climate%Tleaf_shade(:,2:nsd)
@@ -1624,6 +1644,7 @@ if ( mod(ktau,nperhr)==0 ) then
   climate%APAR_leaf_sun(:,nsd)   = climate%apar_leaf_sun_save/real(nperhr,8)
   climate%APAR_leaf_shade(:,nsd) = climate%apar_leaf_shade_save/real(nperhr,8)
   climate%Dleaf_sun(:,nsd)       = climate%dleaf_sun_save/real(nperhr,8)
+  climate%fwsoil(:,nsd)          = climate%fwsoil_save/real(nperhr,8)
   climate%Dleaf_shade(:,nsd)     = climate%dleaf_shade_save/real(nperhr,8)
   climate%Tleaf_sun(:,nsd)       = climate%tleaf_sun_save/real(nperhr,8)
   climate%Tleaf_shade(:,nsd)     = climate%tleaf_shade_save/real(nperhr,8)
@@ -1642,7 +1663,7 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
   ! In midwinter, reset GDD counter for summergreen phenology  
   where ( (rad%latitude>=0._8.and.idoy==COLDEST_DAY_NHEMISPHERE) .or. &
           (rad%latitude<0._8.and.idoy==COLDEST_DAY_SHEMISPHERE) )
-    climate%gdd5 = 0._8
+    !climate%gdd5 = 0._8
     climate%gdd0 = 0._8
     ! reset day degree sum related to spring photosynthetic recovery
     climate%gdd0_rec = 0._8
@@ -1701,7 +1722,8 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
     climate%chilldays = min(climate%chilldays + 1, 365)
   end where
 
-  where ( climate%dmoist>climate%dmoist_min20+0.3_8*(climate%dmoist_max20-climate%dmoist_min20) .and. &
+  ! update GMD (growing moisture day) counter
+  where ( climate%dmoist>climate%dmoist_min20+moisture_min*(climate%dmoist_max20-climate%dmoist_min20) .and. &
           climate%dmoist_max20>climate%dmoist_min20 )
     climate%gmd = climate%gmd + 1
   elsewhere
@@ -1762,6 +1784,7 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
     if ( imonth==12 ) then
 
       climate%alpha_PT = max(climate%aevap/climate%evap_PT, 0._8) ! ratio of annual evap to annual PT evap  
+      !climate%fapar_ann_max_last_year = climate%fapar_ann_max 
         
       do y = 1,19
         climate%mtemp_min_20(:,y) = climate%mtemp_min_20(:,y+1)
@@ -1807,6 +1830,7 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
       climate%agdd0      = 0._8
       climate%evap_PT    = 0._8     ! annual PT evap [mm]
       climate%aevap      = 0._8     ! annual evap [mm]
+      !climate%fapar_ann_max = 0.0 
       climate%dmoist_min = climate%dmoist
       climate%dmoist_max = climate%dmoist
       
@@ -1873,12 +1897,12 @@ do iq = 1,mp
    ! tropical evergreen (1)
    ! tropical raingreen (2)
    if ( climate%mtemp_min20(iq)>=15.5_8 ) then
-     if ( alpha_PT_scaled>=0.80_8 ) then
+     if ( alpha_PT_scaled>=0.85_8 ) then
        pft_biome1(iq,1) = 1
-       if ( alpha_PT_scaled<=0.85_8 ) then
+       if ( alpha_PT_scaled<=0.90_8 ) then
          pft_biome1(iq,2) = 2
        end if
-     else if ( alpha_PT_scaled>=0.4_8 ) then
+     else if ( alpha_PT_scaled>=0.4_8 .and. alpha_pt_scaled<0.85 ) then
        pft_biome1(iq,1) = 2
      end if
    end if
@@ -1896,7 +1920,7 @@ do iq = 1,mp
    
    if ( climate%mtemp_min20(iq)>=-19._8 .and. climate%mtemp_min20(iq)<=5._8 .and. &
         alpha_PT_scaled>=0.35 .and. climate%agdd5(iq)>900. ) then
-     if (pft_biome1(iq,1)==999 ) then
+     if (pft_biome1(iq,1)>4 ) then
        pft_biome1(iq,1) = 5
      else if (pft_biome1(iq,1)==4 ) then
        pft_biome1(iq,2) = 5
@@ -1904,7 +1928,7 @@ do iq = 1,mp
    end if
    
    if ( climate%mtemp_min20(iq)>=-35._8 .and. climate%mtemp_min20(iq)<=-2._8 .and. &
-        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(iq)>350. ) then
+        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(iq)>550. ) then
      if ( pft_biome1(iq,1)==999 ) then
        pft_biome1(iq,1) = 6
      else if ( pft_biome1(iq,2)==999 ) then
@@ -1914,8 +1938,8 @@ do iq = 1,mp
      end if
    end if
    
-   if ( climate%mtemp_min20(iq)<=5._8 .and. alpha_PT_scaled>=0.45_8 .and. &
-        climate%agdd5(iq)>350. ) then
+   if ( climate%mtemp_min20(iq)<=5._8 .and. alpha_PT_scaled>=0.35_8 .and. &
+        climate%agdd5(iq)>550. ) then
      if (pft_biome1(iq,1)==999 ) then
        pft_biome1(iq,1) = 7
      else if (pft_biome1(iq,2)==999 ) then
@@ -2077,6 +2101,7 @@ end where
 where ( (climate%iveg(:)==1.or.climate%iveg(:)==3.or.climate%iveg(:)==4) .and. &
         rad%latitude(:)<0._8 )
   climate%iveg(:) = 2
+  climate%biome(:) = 4
 end where
 
 return
@@ -2494,6 +2519,7 @@ use latlong_m
 use newmpar_m
 use nsibd_m
 use parm_m
+use pop_constants, only : NPATCH, NLAYER, NCOHORT_MAX, HEIGHT_BINS, NDISTURB, AGEMAX
 use pbl_m
 use sigs_m
 use soil_m
@@ -2531,6 +2557,8 @@ real, dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpw
 real, dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
 real, dimension(mxvt) :: xxnpmax,xq10soil,xxkoptlitter,xxkoptsoil,xprodptase
 real, dimension(mxvt) :: xcostnpup,xmaxfinelitter,xmaxcwd,xnintercept,xnslope
+real, dimension(mxvt) :: xla_to_sa,xvcmax_scalar,xdisturbance_interval
+real, dimension(mxvt) :: xDAMM_EnzPool,xDAMM_KMO2,xDAMM_KMcp,xDAMM_Ea,xDAMM_alpha
 real, dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
 real, dimension(ifull) :: albsoil
 real, dimension(12) :: xkmlabp,xpsorbmax,xfPleach
@@ -2544,6 +2572,13 @@ if ( cbm_ms/=ms ) then
   write(6,*) "ERROR: CABLE and CCAM soil levels do not match"
   call ccmpi_abort(-1)
 end if
+
+POP_NPATCH = NPATCH
+POP_NLAYER = NLAYER
+POP_NCOHORT = NCOHORT_MAX
+POP_HEIGHT_BINS = HEIGHT_BINS
+POP_NDISTURB = NDISTURB
+POP_AGEMAX = AGEMAX
 
 ! redefine rhos
 rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)
@@ -2704,6 +2739,34 @@ if ( mp_global>0 ) then
       cable_user%vcmax = "Walker2014"        
     case default
       cable_user%vcmax = "standard"    
+  end select
+  select case ( smrf_switch )
+    case(1)
+      cable_user%SMRF_NAME = "CASA-CNP"
+    case(2)
+      cable_user%SMRF_NAME = "SOILN"
+    case(3)
+      cable_user%SMRF_NAME = "TRIFFID"
+    case(4)
+      cable_user%SMRF_NAME = "Trudinger2016"
+    case(5)
+      cable_user%SMRF_NAME = "DAMM"
+    case default
+      cable_user%SMRF_NAME = "Trudinger2016"
+  end select
+  select case ( strf_switch )
+    case(1)
+      cable_user%STRF_NAME = "CASA-CNP"
+    case(2)
+      cable_user%STRF_NAME = "K1995"
+    case(3)
+      cable_user%STRF_NAME = "PnET-CN"
+    case(4)
+      cable_user%STRF_NAME = "LT1994"
+    case(5)
+      cable_user%STRF_NAME = "DAMM"
+    case default
+      cable_user%STRF_NAME = "LT1994"
   end select
   kwidth_gl = nint(dt) ! MJT notes - what happens when the timestep is less than a second?
   if ( kwidth_gl==0) then
@@ -2952,11 +3015,14 @@ if ( mp_global>0 ) then
     climate%gdd0_rec = 0._8
     climate%dtemp_min = 0._8
     climate%fdorm = 1._8
+    climate%fapar_ann_max = 0._8
+    climate%fapar_ann_max_last_year = 0._8
     climate%frec = 1._8
     climate%gmd = 0
     climate%APAR_leaf_sun = 0._8
     climate%APAR_leaf_shade = 0._8
     climate%Dleaf_sun = 0._8
+    climate%fwsoil = 0._8
     climate%Dleaf_shade = 0._8
     climate%Tleaf_sun = 0._8
     climate%Tleaf_shade = 0._8
@@ -2967,6 +3033,7 @@ if ( mp_global>0 ) then
     climate%APAR_leaf_sun_save = 0._8
     climate%APAR_leaf_shade_save = 0._8
     climate%Dleaf_sun_save = 0._8
+    climate%fwsoil_save = 0._8
     climate%Dleaf_shade_save = 0._8
     climate%Tleaf_sun_save = 0._8
     climate%Tleaf_shade_save = 0._8
@@ -3137,6 +3204,16 @@ if ( mp_global>0 ) then
     xnintercept = (/ 6.32, 4.19, 6.32, 5.73, 14.71, 6.42, 2., 14.71, 4.71, 14.71, 14.71, 7., 14.71, 14.71, 14.71, 14.71, 14.71 /)
     xnslope = (/ 18.15, 26.19, 18.15, 29.81, 23.15, 40.96, 8., 23.15, 59.23, 23.15, 23.15, 10., 23.15, 23.15, 23.15, 23.15, &
                  23.15 /)
+    xla_to_sa = (/ 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., &
+                   5000. /)
+    xvcmax_scalar = (/ 0.92, 1.10, 0.92, 0.92, 1.25, 1.25, 1.25, 1.25, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 /)
+    xdisturbance_interval = (/ 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100.,     &
+                               100. /)
+    xDAMM_EnzPool = (/ 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0 /)
+    xDAMM_KMO2 = (/ 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01 /)
+    xDAMM_KMcp = (/ 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1 /)
+    xDAMM_Ea = (/ 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62. /)
+    xDAMM_alpha = (/ 10.6, 10.4, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6 /)
     
     xxkplab = 0.001369863
     xxkpsorb = (/ 1.8356191E-05, 2.0547975E-05, 1.3698650E-05, 1.4794542E-05, 2.1369894E-05, 2.3835651E-05, 1.9452083E-05, &
@@ -3230,6 +3307,15 @@ if ( mp_global>0 ) then
     casabiome%maxcwd(:)          = xmaxcwd(:)
     casabiome%nintercept(:)      = xnintercept(:)
     casabiome%nslope(:)          = xnslope(:)    
+
+    casabiome%la_to_sa(:)             = xla_to_sa(:)
+    casabiome%vcmax_scalar(:)         = xvcmax_scalar(:)
+    casabiome%disturbance_interval(:) = xdisturbance_interval(:)
+    casabiome%DAMM_EnzPool(:)         = xDAMM_EnzPool(:)
+    casabiome%DAMM_KMO2(:)            = xDAMM_KMO2(:)
+    casabiome%DAMM_KMcp(:)            = xDAMM_KMcp(:)
+    casabiome%DAMM_Ea(:)              = xDAMM_Ea(:)
+    casabiome%DAMM_alpha(:)           = xDAMM_alpha(:)
     
     casabiome%xkplab = xxkplab
     casabiome%xkpsorb = xxkpsorb
@@ -4250,6 +4336,7 @@ real(kind=8), dimension(ifull,mplant) :: datmplant
 real(kind=8), dimension(ifull,mlitter) :: datmlitter
 real(kind=8), dimension(ifull,msoil) :: datmsoil
 real(kind=8), dimension(:,:), allocatable, save :: datpatch
+real(kind=8), dimension(:,:), allocatable, save :: datage
 real(kind=8), dimension(:,:,:), allocatable, save :: datpc
 real(kind=8), dimension(:,:), allocatable, save :: dat91days
 real(kind=8), dimension(:,:), allocatable, save :: dat31days
@@ -4853,8 +4940,10 @@ else
     else
       if ( myid==0 ) write(6,*) "Use tiled data to initialise POP"    
       allocate( datpatch(ifull,POP_NPATCH) )  
+      allocate( datage(ifull,POP_AGEMAX) )  
       allocate( datpc(ifull,POP_NPATCH,POP_NCOHORT) )
       datpatch = 0._8
+      datage = 0._8
       datpc = 0._8
       do n = 1,maxtile  
         write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n  
@@ -4929,6 +5018,20 @@ else
         write(vname,'("t",I1.1,"_pop_grid_KClump")') n  
         call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%KClump,n)    
+        write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,POP_AGEMAX,datage,ifull)
+        if ( n<=maxnb ) then
+          do k = 1,POP_AGEMAX
+            call pop_pack(datage(:,k),pop%pop_grid(:)%freq_age(k),n)
+          end do
+        end if  
+        write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,POP_AGEMAX,datage,ifull)
+        if ( n<=maxnb ) then
+          do k = 1,POP_AGEMAX
+            call pop_pack(datage(:,k),pop%pop_grid(:)%biomass_age(k),n)
+          end do
+        end if  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll  
           call histrd3(iarchi-1,ierr,vname,il_g,dat,ifull)
@@ -5100,6 +5203,13 @@ else
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%cpc,n)
+          end do
+        end if  
+        write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
+        call histrd4(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        if ( n<=maxnb ) then
+          do k = 1,POP_NPATCH
+            call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%mortality,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
@@ -5481,6 +5591,7 @@ else
         end do 
       end do
       deallocate( datpatch )
+      deallocate( datage )
       deallocate( datpc )
     end if      
   end if    
@@ -5642,7 +5753,7 @@ end subroutine fixtile
 ! This subroutine saves CABLE tile data
 subroutine savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size, &
                        c3dim,c3size,c4dim,c4size,c5dim,c5size,        &
-                       c6dim,c6size)
+                       c6dim,c6size,c7dim,c7size)
 
 use carbpools_m
 use cc_mpi, only : myid
@@ -5652,7 +5763,7 @@ use newmpar_m
 implicit none
   
 integer, intent(in) :: idnc, jsize, csize, c2size
-integer, intent(in) :: c3size, c4size, c5size, c6size
+integer, intent(in) :: c3size, c4size, c5size, c6size, c7size
 integer k,n
 integer ll,dd,hh
 integer, dimension(jsize), intent(in) :: jdim  
@@ -5662,6 +5773,7 @@ integer, dimension(c3size), intent(in) :: c3dim
 integer, dimension(c4size), intent(in) :: c4dim
 integer, dimension(c5size), intent(in) :: c5dim
 integer, dimension(c6size), intent(in) :: c6dim
+integer, dimension(c6size), intent(in) :: c7dim
 character(len=80) vname
 character(len=80) lname
 logical, intent(in) :: local
@@ -6021,6 +6133,9 @@ if (myid==0.or.local) then
       write(lname,'("climate Dleaf_sun tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatedleaf_sun")') n
       call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      write(lname,'("climate fwsoil tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_climatefwsoil")') n
+      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate Dleaf_shade tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatedleaf_shade")') n
       call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -6130,6 +6245,12 @@ if (myid==0.or.local) then
       write(lname,'("t",I1.1,"_pop_grid_KClump")') n
       write(vname,'("t",I1.1,"_pop_grid_KClump")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      write(lname,'("t",I1.1,"_pop_grid_freq_age")') n
+      write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
+      call attrib(idnc,c7dim,c7size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      write(lname,'("t",I1.1,"_pop_grid_biomass_age")') n
+      write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
+      call attrib(idnc,c7dim,c7size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       do ll = 1,POP_NLAYER
         write(lname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
         write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
@@ -6228,6 +6349,9 @@ if (myid==0.or.local) then
       call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_cpc")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
+      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      write(lname,'("t",I1.1,"_pop_grid_patch_mortality")') n
+      write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
       call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
@@ -6457,6 +6581,7 @@ integer cc,dd,hh,ll
 real(kind=8), dimension(ifull) :: dat
 real(kind=8), dimension(mp_global) :: dummy_unpack
 real(kind=8), dimension(:,:), allocatable, save :: datpatch
+real(kind=8), dimension(:,:), allocatable, save :: datage
 real(kind=8), dimension(:,:,:), allocatable, save :: datpc
 real(kind=8), dimension(:,:), allocatable, save :: dat91days
 real(kind=8), dimension(:,:), allocatable, save :: dat31days
@@ -6794,12 +6919,12 @@ if ( cable_climate==1 ) then
   dat5days = 0._8
   do n = 1,maxtile  ! tile
     dat=0._8
-    dummy_unpack = real(climate%iveg,8)
+    if (n<=maxnb) dummy_unpack = real(climate%iveg,8)
     if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
     write(vname,'("t",I1.1,"_climateiveg")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    dummy_unpack = real(climate%biome,8)
+    if (n<=maxnb) dummy_unpack = real(climate%biome,8)
     if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
     write(vname,'("t",I1.1,"_climatebiome")') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
@@ -6980,6 +7105,14 @@ if ( cable_climate==1 ) then
     dat5days = 0._8  
     if ( n<=maxnb ) then
       do k = 1,120  
+        call cable_unpack(climate%fwsoil(:,k),dat5days(:,k),n)
+      end do  
+    end if  
+    write(vname,'("t",I1.1,"_climatefwsoil")') n
+    call histwrt4(dat5days,vname,idnc,iarch,local,.true.)
+    dat5days = 0._8  
+    if ( n<=maxnb ) then
+      do k = 1,120  
         call cable_unpack(climate%Dleaf_shade(:,k),dat5days(:,k),n)
       end do  
     end if  
@@ -7057,324 +7190,336 @@ if ( cable_climate==1 ) then
 end if
 if ( cable_pop==1 ) then
   allocate( datpatch(ifull,POP_NPATCH) )  
+  allocate( datage(ifull,POP_AGEMAX) )  
   allocate( datpc(ifull,POP_NPATCH,POP_NCOHORT) )
-  datpatch = 0._8
-  datpc = 0._8
-  dat = 0._8
   do n = 1,maxtile
-    call pop_unpack(pop%pop_grid(:)%cmass_sum,dat,n)
+    datpatch = 0._8
+    datage = 0._8
+    datpc = 0._8
+    dat = 0._8
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_sum,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%cmass_sum_old,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_sum_old,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%cheartwood_sum,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cheartwood_sum,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%csapwood_sum,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%csapwood_sum,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_csapwood_sum")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%csapwood_sum_old,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%csapwood_sum_old,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%densindiv,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%densindiv,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_densindiv")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%height_mean,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%height_mean,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_height_mean")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%height_max,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%height_max,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_height_max")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%basal_area,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%basal_area,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_basal_area")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%sapwood_loss,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_loss,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_sapwood_loss")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%sapwood_area_loss,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_area_loss,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%stress_mortality,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%stress_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_stress_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%crowding_mortality,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crowding_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_crowding_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%fire_mortality,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%fire_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_fire_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%cat_mortality,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cat_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_cat_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%res_mortality,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%res_mortality,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_res_mortality")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%growth,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%growth,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_growth")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%area_growth,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%area_growth,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_area_growth")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%crown_cover,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crown_cover,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_crown_cover")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%crown_area,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crown_area,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_crown_area")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%crown_volume,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crown_volume,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_crown_volume")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%sapwood_area,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_area,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_sapwood_area")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%sapwood_area_old,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_area_old,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    call pop_unpack(pop%pop_grid(:)%KClump,dat,n)
+    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%KClump,dat,n)
     write(vname,'("t",I1.1,"_pop_grid_KClump")') n  
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
+    do k = 1,POP_AGEMAX
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq_age(k),datage(:,k),n)
+    end do
+    write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
+    call histwrt4(datage,vname,idnc,iarch,local,.true.)
+    do k = 1,POP_AGEMAX
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%biomass_age(k),datage(:,k),n)
+    end do
+    write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
+    call histwrt4(datage,vname,idnc,iarch,local,.true.)
     do ll = 1,POP_NLAYER
-      call pop_unpack(pop%pop_grid(:)%biomass(ll),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%biomass(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      call pop_unpack(pop%pop_grid(:)%density(ll),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%density(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      call pop_unpack(pop%pop_grid(:)%hmean(ll),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%hmean(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
-      call pop_unpack(pop%pop_grid(:)%hmax(ll),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%hmax(ll),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do hh = 1,POP_HEIGHT_BINS
-      call pop_unpack(pop%pop_grid(:)%cmass_stem_bin(hh),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_stem_bin(hh),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do hh = 1,POP_HEIGHT_BINS
-      call pop_unpack(pop%pop_grid(:)%densindiv_bin(hh),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%densindiv_bin(hh),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh  
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do hh = 1,POP_HEIGHT_BINS
-      call pop_unpack(pop%pop_grid(:)%height_bin(hh),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%height_bin(hh),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do hh = 1,POP_HEIGHT_BINS
-      call pop_unpack(pop%pop_grid(:)%diameter_bin(hh),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%diameter_bin(hh),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh 
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB
-      call pop_unpack(pop%pop_grid(:)%n_age(dd),dat,n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%n_age(dd),dat,n)
       write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd 
       call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%id,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%id,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%freq(k),datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq(k),datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_freq")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%freq_old(k),datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq_old(k),datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_freq_old")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%factor_recruit,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%factor_recruit,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%pgap,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%pgap,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%lai,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%lai,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_lai")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%biomass,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%biomass,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_biomass")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%biomass_old,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%biomass_old,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)    
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%heartwood,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%heartwood,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_old,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_old,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_old,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_old,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%stress_mortality,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%stress_mortality,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%fire_mortality,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%fire_mortality,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%pgap,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
-    call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%cat_mortality,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%cat_mortality,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%crowding_mortality,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%crowding_mortality,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%cpc,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%cpc,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_loss,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%mortality,datpatch(:,k),n)
+    end do
+    write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
+    call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
+    do k = 1,POP_NPATCH
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_loss,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_loss,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_loss,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%growth,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%growth,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_growth")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%area_growth,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%area_growth,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%frac_NPP,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%frac_NPP,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%frac_respiration,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%frac_respiration,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do k = 1,POP_NPATCH
-      call pop_unpack(pop%pop_grid(:)%patch(k)%frac_light_uptake,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%frac_light_uptake,datpatch(:,k),n)
     end do
     write(vname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
     call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     do dd = 1,POP_NDISTURB  
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%disturbance_interval(dd),datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%disturbance_interval(dd),datpatch(:,k),n)
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB  
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%first_disturbance_year(dd),datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%first_disturbance_year(dd),datpatch(:,k),n)
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB  
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%age(dd),datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%age(dd),datpatch(:,k),n)
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB  
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%ranked_age_unique(k,dd),datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%ranked_age_unique(k,dd),datpatch(:,k),n)
       end do  
       write(vname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do dd = 1,POP_NDISTURB  
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%freq_ranked_age_unique(k,dd),datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq_ranked_age_unique(k,dd),datpatch(:,k),n)
       end do  
       write(vname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%ncohort,datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%ncohort,datpatch(:,k),n)
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%biomass,datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%biomass,datpatch(:,k),n)
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%density,datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%density,datpatch(:,k),n)
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmean,datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmean,datpatch(:,k),n)
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
     end do
     do ll = 1,POP_NLAYER
       do k = 1,POP_NPATCH  
-        call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmax,datpatch(:,k),n)
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmax,datpatch(:,k),n)
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
       call histwrt4(datpatch,vname,idnc,iarch,local,.true.)
@@ -7382,7 +7527,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT            
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%age,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%age,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
@@ -7391,7 +7536,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT  
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%id,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%id,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
@@ -7400,7 +7545,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT            
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%biomass,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%biomass,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
@@ -7409,7 +7554,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%density,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%density,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
@@ -7418,7 +7563,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT  
         do k = 1,POP_NPATCH  
-         call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake,datpc(:,k,cc),n)
+         if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
@@ -7427,7 +7572,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
@@ -7436,7 +7581,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT            
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_interception,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_interception,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
@@ -7445,7 +7590,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_respiration,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_respiration,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
@@ -7454,7 +7599,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_NPP,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_NPP,datpc(:,k,cc),n)
         end do
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
@@ -7463,7 +7608,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
@@ -7472,7 +7617,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT            
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%crown_area,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%crown_area,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
@@ -7481,7 +7626,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Pgap,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Pgap,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
@@ -7490,7 +7635,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT  
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%height,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%height,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
@@ -7499,7 +7644,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%diameter,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%diameter,datpc(:,k,cc),n)
         end do 
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
@@ -7508,7 +7653,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
@@ -7517,7 +7662,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%heartwood,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%heartwood,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
@@ -7526,7 +7671,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT            
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood_area,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood_area,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
@@ -7535,7 +7680,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%basal_area,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%basal_area,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
@@ -7544,7 +7689,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%LAI,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%LAI,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
@@ -7553,7 +7698,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Cleaf,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Cleaf,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
@@ -7562,7 +7707,7 @@ if ( cable_pop==1 ) then
     do ll = 1,POP_NLAYER
       do cc = 1,POP_NCOHORT    
         do k = 1,POP_NPATCH  
-          call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Croot,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Croot,datpc(:,k,cc),n)
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
@@ -7570,6 +7715,7 @@ if ( cable_pop==1 ) then
     end do
   end do
   deallocate( datpatch )
+  deallocate( datage )
   deallocate( datpc )
 end if    
 !do n = 1,maxtile  ! tile

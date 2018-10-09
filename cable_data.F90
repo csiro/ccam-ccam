@@ -76,8 +76,8 @@ module cable_data_module
       zetneg = -15.0, & ! negative limit on za/L when niter>=3
       zetpos = 1.0,  & ! positive limit on za/L when niter>=3
       zdlin  = 1.0,  & ! height frac of d below which TL linear
-      umin   = 0.01
-
+    !  umin   = 0.1
+      umin   = 1.0
    END TYPE physical_constants
 
 
@@ -101,7 +101,10 @@ module cable_data_module
 
    type photosynthetic_constants
       integer:: maxiter=20 ! max # interations for leaf temperature
-      real :: gam0 = 42.75E-6 ! (Bernacci 2001 )36.9 @ 25C (von Cammerer)
+      !real :: gam0 = 42.75E-6  ! (Bernacci 2001 )36.9 @ 25C (von Cammerer)
+      !real :: gam0 = 34.6E-6
+      real :: gam0 = 28.0E-6
+      !real :: gam0 = 34.6E-6
       real :: gam1 = 0.0509
       real :: gam2 = 0.0010
       real :: rgbwc  = 1.32
@@ -118,14 +121,10 @@ module cable_data_module
 
 
    ! instantiate major types of constants
-   !type( physical_constants ), TARGET :: phys
-   !type( math_constants ), TARGET  :: math
-   !type( other_constants ), TARGET  :: other
-   !type( photosynthetic_constants ), TARGET :: photo
-   type( physical_constants ), TARGET, save :: phys        ! MJT suggestion
-   type( math_constants ), TARGET, save  :: math           ! MJT suggestion
-   type( other_constants ), TARGET, save  :: other         ! MJT suggestion
-   type( photosynthetic_constants ), TARGET, save :: photo ! MJT suggestion
+   type( physical_constants ), TARGET, save :: phys
+   type( math_constants ), TARGET, save  :: math
+   type( other_constants ), TARGET, save  :: other
+   type( photosynthetic_constants ), TARGET, save :: photo
 
 
    ! TYPEs of local pointers to global constants defined above
@@ -244,8 +243,8 @@ module cable_data_module
 
    end TYPE cable_type
 
-   !TYPE (cable_type) :: cable
-   TYPE (cable_type), save :: cable ! MJT suggestion
+   TYPE (cable_type), save :: cable
+
 
 
    INTERFACE point2constants
