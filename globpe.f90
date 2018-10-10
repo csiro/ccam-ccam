@@ -1316,7 +1316,7 @@ use map_m                                  ! Grid map arrays
 use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,factchseaice,minwater,mxd,mindep    &
     ,alphavis_seaice,alphanir_seaice     &
-    ,otaumode,wlev
+    ,otaumode,mlosigma,wlev
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
@@ -1477,7 +1477,8 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,mlomfix,otaumode,            &
-    alphavis_seaice,alphanir_seaice,mlojacobi,mlo_rtest,          &
+    alphavis_seaice,alphanir_seaice,mlojacobi,mlo_rtest,mlosolve, &
+    usepice,mlosigma,                                             &
     rivermd,basinmd,rivercoeff                                      ! River
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
@@ -2289,7 +2290,7 @@ ateb_statsmeth    = dumi(29)
 ateb_behavmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(11), dumi(8) )
+allocate( dumr(11), dumi(11) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2317,7 +2318,10 @@ if ( myid==0 ) then
   dumi(5)  = otaumode
   dumi(6)  = rivermd
   dumi(7)  = basinmd
-  dumi(8) = mlojacobi
+  dumi(8)  = mlojacobi
+  dumi(9)  = mlosolve
+  dumi(10) = usepice
+  dumi(11) = mlosigma
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2340,6 +2344,9 @@ otaumode        = dumi(5)
 rivermd         = dumi(6)
 basinmd         = dumi(7)
 mlojacobi       = dumi(8)
+mlosolve        = dumi(9)
+usepice         = dumi(10)
+mlosigma        = dumi(11)
 deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0
@@ -2545,6 +2552,10 @@ if ( myid<nproc ) then
     end if  
     nbd = 0
   end if
+  if ( mbd<0 ) then
+    write(6,*) "ERROR: mbd<0 is invalid"
+    call ccmpi_abort(-1)
+  end if
   if ( mbd/=0 ) then
     if ( mbd_maxscale==0 ) then
       write(6,*) "ERROR: mbd_maxscale must be >0 when mbd/=0"
@@ -2577,6 +2588,10 @@ if ( myid<nproc ) then
   end if
   if ( mbd_mlo/=0 .or. nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
     mbd_mlo = max( nud_sst, nud_sss, nud_ouv, nud_sfh, mbd, mbd_mlo )
+  end if
+  if ( mbd_mlo<0 ) then
+    write(6,*) "ERROR: mbd_mlo<0 is invalid"
+    call ccmpi_abort(-1)
   end if
   if ( mbd_mlo/=0 ) then
     if ( mbd_maxscale_mlo==0 ) then
@@ -2727,7 +2742,7 @@ if ( myid<nproc ) then
     write(6,*)' m_fly  io_in io_nest io_out io_rest  nwt  nperavg'
     write(6,'(i5,4i7,3i8)') m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg
     write(6,*)' hp_output procformat procmode compression'
-    write(6,'(4i5)') hp_output,procformat,procmode,compression
+    write(6,'(i5,l5,2i5)') hp_output,procformat,procmode,compression
 
     write(6, cardin)
     write(6, skyin)

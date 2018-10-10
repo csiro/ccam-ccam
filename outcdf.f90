@@ -229,7 +229,8 @@ use liqwpar_m                              ! Cloud water mixing ratios
 use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,minwater,mxd,zomode,zoseaice        &
     ,factchseaice,otaumode               &
-    ,alphavis_seaice,alphanir_seaice
+    ,alphavis_seaice,alphanir_seaice     &
+    ,mlosigma
 use mlodynamics                            ! Ocean dynamics
 use newmpar_m                              ! Grid parameters
 use ozoneread                              ! Ozone input routines
@@ -890,12 +891,15 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
     call ccnf_put_attg(idnc,'mlomfix',mlomfix)
+    call ccnf_put_attg(idnc,'mlosigma',mlosigma)
+    call ccnf_put_attg(idnc,'mlosolve',mlosolve)
     call ccnf_put_attg(idnc,'mxd',mxd)
     call ccnf_put_attg(idnc,'ocneps',ocneps)
     call ccnf_put_attg(idnc,'ocnsmag',ocnsmag)
     call ccnf_put_attg(idnc,'otaumode',otaumode)
     call ccnf_put_attg(idnc,'rivercoeff',rivercoeff)
     call ccnf_put_attg(idnc,'rivermd',rivermd)
+    call ccnf_put_attg(idnc,'usepice',usepice)
     call ccnf_put_attg(idnc,'usetide',usetide)
     call ccnf_put_attg(idnc,'zomode',zomode)
     call ccnf_put_attg(idnc,'zoseaice',zoseaice)
