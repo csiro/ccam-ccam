@@ -2580,9 +2580,6 @@ POP_HEIGHT_BINS = HEIGHT_BINS
 POP_NDISTURB = NDISTURB
 POP_AGEMAX = AGEMAX
 
-! redefine rhos
-rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)
-
 if ( myid==0 ) write(6,*) "Define CABLE and CASA CNP arrays"
 
 ! default values (i.e., no land)  
@@ -2870,36 +2867,7 @@ if ( mp_global>0 ) then
     maxnb = max(tdata(tile)%maxnb,maxnb)
   end do
   
-  ! Load CABLE soil data
-  soil%bch       = real(bch(soil%isoilm),8)
-  soil%css       = real(css(soil%isoilm),8)
-  soil%rhosoil   = real(rhos(soil%isoilm),8)
-  soil%cnsd      = real(cnsd(soil%isoilm),8)
-  soil%hyds      = real(hyds(soil%isoilm),8)
-  soil%sucs      = real(sucs(soil%isoilm),8)
-  soil%hsbh      = real(hsbh(soil%isoilm),8)
-  soil%sfc       = real(sfc(soil%isoilm),8)
-  soil%ssat      = real(ssat(soil%isoilm),8)
-  soil%swilt     = real(swilt(soil%isoilm),8)
-  soil%ibp2      = real(ibp2(soil%isoilm),8)
-  soil%i2bp3     = real(i2bp3(soil%isoilm),8)
-  soil%pwb_min   = (soil%swilt/soil%ssat)**soil%ibp2
-  soil%clay      = real(clay(soil%isoilm),8)
-  soil%sand      = real(sand(soil%isoilm),8)
-  soil%silt      = real(silt(soil%isoilm),8)
-  soil%zeta      = 0._8
-  soil%fsatmax   = 0._8
-  soil%nhorizons = 1
-  soil%ishorizon = 1
-  do k = 1,ms
-    soil%swilt_vec(:,k) = soil%swilt
-    soil%ssat_vec(:,k)  = soil%ssat
-    soil%sfc_vec(:,k)   = soil%sfc
-  end do
-  
-  ! depeciated
-  !bgc%ratecp(:) = real(ratecp(:),8)
-  !bgc%ratecs(:) = real(ratecs(:),8)
+  call cable_soil_parm(soil)
 
   ! store bare soil albedo and define snow free albedo
   call cable_pack(albvisnir(:,1),soil%albsoil(:,1))
@@ -3582,6 +3550,7 @@ else
   allocate( cveg(0) )
   call cable_biophysic_parm(cveg)
   deallocate( cveg )
+  call cable_soil_parm(soil)
   
 end if
   
@@ -3839,6 +3808,145 @@ deallocate( zr, clitt )
 
 return
 end subroutine cable_biophysic_parm
+                   
+subroutine cable_soil_parm(soil)
+
+use cc_mpi     ! CC MPI routines
+use darcdf_m   ! Netcdf data
+use infile     ! Input file routines
+use newmpar_m
+use soilv_m
+
+implicit none
+
+type(soil_parameter_type), intent(inout) :: soil
+integer  numsoil, isoil, k
+integer, dimension(1) :: nstart, ncount
+
+numsoil = -1 ! missing flag
+
+if ( myid==0 .and. lncveg==1 ) then
+  call ccnf_inq_dimlen(ncidveg,'soil',numsoil,failok=.true.)
+end if
+    
+call ccmpi_bcast(numsoil,0,comm_world)
+
+if ( numsoil<1 ) then
+    
+  ! default soil parameter tables
+  if ( myid==0 ) then
+    write(6,*) "Using default CABLE soil parameter tables"
+  end if
+
+  ! redefine rhos
+  rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)
+
+  if ( myid == 0 ) then
+    do isoil = 1,mxst
+      write(6,"('isoil,ssat,sfc,swilt,hsbh ',i2,3f7.3,e11.4)") isoil,ssat(isoil),sfc(isoil),swilt(isoil),hsbh(isoil)
+    end do
+  end if
+
+else
+
+  ! user defined soil parameter tables  
+  if ( myid==0 ) then
+    write(6,*) "Using user defined CABLE soil parameter tables"
+  end if
+  if ( numsoil > mxst ) then
+    write(6,*) "ERROR: Number of soil types larger than maximum, mxst,numsoil:",mxst,numsoil
+    call ccmpi_abort(-1)
+  end if
+
+  silt = 0.
+  clay = 0.
+  sand = 0.
+  swilt = 0.
+  sfc = 0.
+  ssat = 0.
+  bch = 0.
+  hyds = 0.
+  sucs = 0.
+  rhos = 0.
+  css = 0.
+  swilt(0) = 0.
+  sfc(0) = 1.
+  ssat(0) = 2.
+
+  if ( myid==0 ) then
+    nstart(1) = 1
+    ncount(1) = numsoil
+    call ccnf_get_vara(ncidveg,'silt',nstart,ncount,silt)
+    call ccnf_get_vara(ncidveg,'clay',nstart,ncount,clay)
+    call ccnf_get_vara(ncidveg,'sand',nstart,ncount,sand)
+    call ccnf_get_vara(ncidveg,'swilt',nstart,ncount,swilt(1:numsoil))
+    call ccnf_get_vara(ncidveg,'sfc',nstart,ncount,sfc(1:numsoil))
+    call ccnf_get_vara(ncidveg,'ssat',nstart,ncount,ssat(1:numsoil))
+    call ccnf_get_vara(ncidveg,'bch',nstart,ncount,bch)
+    call ccnf_get_vara(ncidveg,'hyds',nstart,ncount,hyds)
+    call ccnf_get_vara(ncidveg,'sucs',nstart,ncount,sucs)
+    call ccnf_get_vara(ncidveg,'rhosoil',nstart,ncount,rhos)
+    call ccnf_get_vara(ncidveg,'css',nstart,ncount,css)
+  end if
+  call ccmpi_bcast(silt,0,comm_world)
+  call ccmpi_bcast(clay,0,comm_world)
+  call ccmpi_bcast(sand,0,comm_world)
+  call ccmpi_bcast(swilt,0,comm_world)
+  call ccmpi_bcast(sfc,0,comm_world)
+  call ccmpi_bcast(ssat,0,comm_world)
+  call ccmpi_bcast(bch,0,comm_world)
+  call ccmpi_bcast(hyds,0,comm_world)
+  call ccmpi_bcast(sucs,0,comm_world)
+  call ccmpi_bcast(rhos,0,comm_world)
+  call ccmpi_bcast(css,0,comm_world)
+  
+  !redo from insoil
+  do isoil = 1,mxst
+    cnsd(isoil)  = sand(isoil)*0.3+clay(isoil)*0.25+silt(isoil)*0.265
+    hsbh(isoil)  = hyds(isoil)*abs(sucs(isoil))*bch(isoil) !difsat*etasat
+    ibp2(isoil)  = nint(bch(isoil))+2
+    i2bp3(isoil) = 2*nint(bch(isoil))+3
+    if ( myid == 0 ) then
+      write(6,"('isoil,ssat,sfc,swilt,hsbh ',i2,3f7.3,e11.4)") isoil,ssat(isoil),sfc(isoil),swilt(isoil),hsbh(isoil)
+    end if
+  end do
+  cnsd(9) = 2.51
+
+end if
+
+! Load CABLE soil data
+soil%bch       = real(bch(soil%isoilm),8)
+soil%css       = real(css(soil%isoilm),8)
+soil%rhosoil   = real(rhos(soil%isoilm),8)
+soil%cnsd      = real(cnsd(soil%isoilm),8)
+soil%hyds      = real(hyds(soil%isoilm),8)
+soil%sucs      = real(sucs(soil%isoilm),8)
+soil%hsbh      = real(hsbh(soil%isoilm),8)
+soil%sfc       = real(sfc(soil%isoilm),8)
+soil%ssat      = real(ssat(soil%isoilm),8)
+soil%swilt     = real(swilt(soil%isoilm),8)
+soil%ibp2      = real(ibp2(soil%isoilm),8)
+soil%i2bp3     = real(i2bp3(soil%isoilm),8)
+soil%pwb_min   = (soil%swilt/soil%ssat)**soil%ibp2
+soil%clay      = real(clay(soil%isoilm),8)
+soil%sand      = real(sand(soil%isoilm),8)
+soil%silt      = real(silt(soil%isoilm),8)
+soil%zeta      = 0._8
+soil%fsatmax   = 0._8
+soil%nhorizons = 1
+soil%ishorizon = 1
+do k = 1,ms
+  soil%swilt_vec(:,k) = soil%swilt
+  soil%ssat_vec(:,k)  = soil%ssat
+  soil%sfc_vec(:,k)   = soil%sfc
+end do
+  
+! depeciated
+!bgc%ratecp(:) = real(ratecp(:),8)
+!bgc%ratecs(:) = real(ratecs(:),8)
+
+return
+end subroutine cable_soil_parm
                    
 ! *************************************************************************************
 ! Load CABLE biome and LAI data
