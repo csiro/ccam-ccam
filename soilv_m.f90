@@ -35,23 +35,23 @@ public zshh, ww
 
 integer, dimension(mxst), save :: i2bp3, ibp2
 real, dimension(mxst), save :: cnsd, hsbh
-real, dimension(0:mxst), parameter :: swilt = (/ 0., .072, .216, .286, .135, .219, .283, .175, .395, .216, .1142, .1547, .2864, &
+real, dimension(0:mxst), save :: swilt = (/ 0., .072, .216, .286, .135, .219, .283, .175, .395, .216, .1142, .1547, .2864, &
                                                 .2498/)
-real, dimension(0:mxst), parameter :: ssat = (/ 2., .398, .479, .482, .443, .426, .482, .420, .451, .479, .435, .451, .482, .476/)
-real, dimension(0:mxst), parameter :: sfc = (/ 1.,  .143, .301, .367, .218, .31 , .37 , .255, .45, .301, .22 , .25 , .367, .294/)
+real, dimension(0:mxst), save :: ssat = (/ 2., .398, .479, .482, .443, .426, .482, .420, .451, .479, .435, .451, .482, .476/)
+real, dimension(0:mxst), save :: sfc = (/ 1.,  .143, .301, .367, .218, .31 , .37 , .255, .45, .301, .22 , .25 , .367, .294/)
 ! bch for gravity term
-real, dimension(mxst), parameter :: bch = (/ 4.2, 7.1, 11.4, 5.15, 10.4, 10.4, 7.12, 5.83, 7.1, 4.9, 5.39, 11.4, 8.52/)    
+real, dimension(mxst), save :: bch = (/ 4.2, 7.1, 11.4, 5.15, 10.4, 10.4, 7.12, 5.83, 7.1, 4.9, 5.39, 11.4, 8.52/)    
 ! heat capacity
-real, dimension(mxst), parameter :: css = (/ 850., 850., 850., 850., 850., 850., 850., 1920., 2100., 850., 850., 850., 850./) 
-real, dimension(mxst), parameter :: hyds = (/ 166.e-6, 4.e-6, 1.e-6, 21.e-6, 2.e-6, 1.e-6, 6.e-6,800.e-6, 1.e-6, 34.e-6, 7.e-6, &
+real, dimension(mxst), save :: css = (/ 850., 850., 850., 850., 850., 850., 850., 1920., 2100., 850., 850., 850., 850./) 
+real, dimension(mxst), save :: hyds = (/ 166.e-6, 4.e-6, 1.e-6, 21.e-6, 2.e-6, 1.e-6, 6.e-6,800.e-6, 1.e-6, 34.e-6, 7.e-6, &
                                               1.3e-6, 2.5e-6/)
 real, dimension(mxst), save :: rhos = (/ 2600., 2600., 2600., 2600., 2600., 2600., 2600., 1300.,  910., 2600., 2600., 2600., &
                                               2600./)     ! soil density
-real, dimension(mxst), parameter :: sucs = (/ -.106, -.591, -.405, -.348, -.153, -.49, -.299,-.356, -.153, -.218, -.478, -.405, &
+real, dimension(mxst), save :: sucs = (/ -.106, -.591, -.405, -.348, -.153, -.49, -.299,-.356, -.153, -.218, -.478, -.405, &
                                               -.63/) ! phisat (m)
-real, dimension(mxst), parameter :: clay = (/ .09, .3, .67, .2, .42, .48, .27, .17, .30, .2, .3, .3, .67/)    ! with mxst=13
-real, dimension(mxst), parameter :: sand = (/ .83, .37, .16, .6, .52, .27, .58, .13, .37, .6, .37, .37, .17/) ! with mxst=13
-real, dimension(mxst), parameter :: silt = (/ .08, .33, .17, .2, .06, .25, .15, .70, .33, .2, .33, .33, .17/) ! with mxst=13
+real, dimension(mxst), save :: clay = (/ .09, .3, .67, .2, .42, .48, .27, .17, .30, .2, .3, .3, .67/)    ! with mxst=13
+real, dimension(mxst), save :: sand = (/ .83, .37, .16, .6, .52, .27, .58, .13, .37, .6, .37, .37, .17/) ! with mxst=13
+real, dimension(mxst), save :: silt = (/ .08, .33, .17, .2, .06, .25, .15, .70, .33, .2, .33, .33, .17/) ! with mxst=13
 real, dimension(44), parameter :: rlaim44 = (/ 4.8, 6.3, 5., 3.75, 2.78, 2.5, 3.9, 2.77, 2.04, 2.6,         & ! 1-10
                                                1.69, 1.9, 1.37, 1.5, 1.21, 1.58, 1.41, 2.3, 1.2, 1.71,      & ! 11-20
                                                1.21, 2.3, 2.3, 1.2, 1.2, 1.87, 1., 3., .01, .01, 1.2,       & ! 21-31

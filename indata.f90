@@ -2751,6 +2751,7 @@ subroutine insoil
       
 use cc_mpi, only : myid ! CC MPI routines
 use newmpar_m           ! Grid parameters
+use parm_m, only : nsib ! Model configuration
 use soilv_m             ! Soil parameters
       
 implicit none
@@ -2762,7 +2763,7 @@ do isoil = 1,mxst
   hsbh(isoil)  = hyds(isoil)*abs(sucs(isoil))*bch(isoil) !difsat*etasat
   ibp2(isoil)  = nint(bch(isoil))+2
   i2bp3(isoil) = 2*nint(bch(isoil))+3
-  if ( myid == 0 ) then
+  if ( myid == 0 .and. .not.(nsib==6 .or. nsib==7 ) ) then
     write(6,"('isoil,ssat,sfc,swilt,hsbh ',i2,3f7.3,e11.4)") isoil,ssat(isoil),sfc(isoil),swilt(isoil),hsbh(isoil)
   end if
 end do
