@@ -3914,36 +3914,38 @@ else
 
 end if
 
-! Load CABLE soil data
-soil%bch       = real(bch(soil%isoilm),8)
-soil%css       = real(css(soil%isoilm),8)
-soil%rhosoil   = real(rhos(soil%isoilm),8)
-soil%cnsd      = real(cnsd(soil%isoilm),8)
-soil%hyds      = real(hyds(soil%isoilm),8)
-soil%sucs      = real(sucs(soil%isoilm),8)
-soil%hsbh      = real(hsbh(soil%isoilm),8)
-soil%sfc       = real(sfc(soil%isoilm),8)
-soil%ssat      = real(ssat(soil%isoilm),8)
-soil%swilt     = real(swilt(soil%isoilm),8)
-soil%ibp2      = real(ibp2(soil%isoilm),8)
-soil%i2bp3     = real(i2bp3(soil%isoilm),8)
-soil%pwb_min   = (soil%swilt/soil%ssat)**soil%ibp2
-soil%clay      = real(clay(soil%isoilm),8)
-soil%sand      = real(sand(soil%isoilm),8)
-soil%silt      = real(silt(soil%isoilm),8)
-soil%zeta      = 0._8
-soil%fsatmax   = 0._8
-soil%nhorizons = 1
-soil%ishorizon = 1
-do k = 1,ms
-  soil%swilt_vec(:,k) = soil%swilt
-  soil%ssat_vec(:,k)  = soil%ssat
-  soil%sfc_vec(:,k)   = soil%sfc
-end do
+if ( mp_global>0 ) then
+  ! Load CABLE soil data
+  soil%bch       = real(bch(soil%isoilm),8)
+  soil%css       = real(css(soil%isoilm),8)
+  soil%rhosoil   = real(rhos(soil%isoilm),8)
+  soil%cnsd      = real(cnsd(soil%isoilm),8)
+  soil%hyds      = real(hyds(soil%isoilm),8)
+  soil%sucs      = real(sucs(soil%isoilm),8)
+  soil%hsbh      = real(hsbh(soil%isoilm),8)
+  soil%sfc       = real(sfc(soil%isoilm),8)
+  soil%ssat      = real(ssat(soil%isoilm),8)
+  soil%swilt     = real(swilt(soil%isoilm),8)
+  soil%ibp2      = real(ibp2(soil%isoilm),8)
+  soil%i2bp3     = real(i2bp3(soil%isoilm),8)
+  soil%pwb_min   = (soil%swilt/soil%ssat)**soil%ibp2
+  soil%clay      = real(clay(soil%isoilm),8)
+  soil%sand      = real(sand(soil%isoilm),8)
+  soil%silt      = real(silt(soil%isoilm),8)
+  soil%zeta      = 0._8
+  soil%fsatmax   = 0._8
+  soil%nhorizons = 1
+  soil%ishorizon = 1
+  do k = 1,ms
+    soil%swilt_vec(:,k) = soil%swilt
+    soil%ssat_vec(:,k)  = soil%ssat
+    soil%sfc_vec(:,k)   = soil%sfc
+  end do
   
-! depeciated
-!bgc%ratecp(:) = real(ratecp(:),8)
-!bgc%ratecs(:) = real(ratecs(:),8)
+  ! depeciated
+  !bgc%ratecp(:) = real(ratecp(:),8)
+  !bgc%ratecs(:) = real(ratecs(:),8)
+end if
 
 return
 end subroutine cable_soil_parm
