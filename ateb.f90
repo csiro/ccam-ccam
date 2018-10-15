@@ -4770,7 +4770,8 @@ do l = 1,ncyits
       end if
 
       ! ---1.2: Calculate air exchange from infiltration and open windows -----
-      call calc_openwindows(d_openwindows,fp,iroomtemp,d_canyontemp,roof,walle,wallw,slab,ufull)
+      !call calc_openwindows(d_openwindows,fp,iroomtemp,d_canyontemp,roof,walle,wallw,slab,ufull)
+      d_openwindows = 0.
       select case(infilmeth)
         case(0) ! constant
           infl_dynamic = fp%infilach
