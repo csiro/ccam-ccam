@@ -27,7 +27,8 @@ private
 public condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
 public conds,condg
 public anthropogenic_flux, urban_tas, urban_ts, urban_wetfac
-public urban_storage_flux
+public urban_storage_flux, urban_elecgas_flux
+public urban_heating_flux, urban_cooling_flux
 public urban_zom, urban_zoh, urban_zoq, urban_emiss
 public morepbl_init, morepbl_end
 
@@ -40,7 +41,8 @@ public buoyproduction, shearproduction, totaltransport
 
 real, dimension(:), allocatable, save :: epot,rnet,epan,tpan
 real, dimension(:), allocatable, save :: anthropogenic_flux, urban_tas, urban_ts, urban_wetfac
-real, dimension(:), allocatable, save :: urban_storage_flux
+real, dimension(:), allocatable, save :: urban_storage_flux, urban_elecgas_flux
+real, dimension(:), allocatable, save :: urban_heating_flux, urban_cooling_flux
 real, dimension(:), allocatable, save :: urban_zom, urban_zoh, urban_zoq, urban_emiss
 real, dimension(:), allocatable, save :: condc, condx, conds, condg, pblh, fg, eg
 
@@ -71,7 +73,8 @@ allocate( condx(ifull), fg(ifull), eg(ifull), epot(ifull) )
 allocate( condc(ifull), rnet(ifull), pblh(ifull), epan(ifull) )
 allocate( tpan(ifull), conds(ifull), condg(ifull) )
 allocate( anthropogenic_flux(ifull), urban_tas(ifull), urban_ts(ifull), urban_wetfac(ifull) )
-allocate( urban_storage_flux(ifull) )
+allocate( urban_storage_flux(ifull), urban_elecgas_flux(ifull) )
+allocate( urban_heating_flux(ifull), urban_cooling_flux(ifull) )
 allocate( urban_zom(ifull), urban_zoh(ifull), urban_zoq(ifull), urban_emiss(ifull) )
 
 fg=0.
@@ -86,6 +89,9 @@ condc=0.
 conds=0.
 condg=0.
 anthropogenic_flux = 0.
+urban_elecgas_flux = 0.
+urban_heating_flux = 0.
+urban_cooling_flux = 0.
 urban_storage_flux = 0.
 urban_tas          = 0.
 urban_ts           = 0.
@@ -126,7 +132,8 @@ implicit none
 deallocate( condx, fg, eg, epot, condc, rnet, pblh, epan, tpan )
 deallocate( conds, condg )
 deallocate( anthropogenic_flux, urban_tas, urban_ts, urban_wetfac )
-deallocate( urban_storage_flux )
+deallocate( urban_storage_flux, urban_elecgas_flux )
+deallocate( urban_heating_flux, urban_cooling_flux )
 deallocate( urban_zom, urban_zoh, urban_zoq, urban_emiss )
 
 #ifdef scm

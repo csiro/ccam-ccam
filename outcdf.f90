@@ -1892,6 +1892,12 @@ if( myid==0 .or. local ) then
     if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
       lname = 'urban anthropogenic flux'
       call attrib(idnc,dimj,jsize,'anth_ave',lname,'W/m2',0.,650.,0,cptype)
+      lname = 'urban electricity & gas flux'
+      call attrib(idnc,dimj,jsize,'anth_elecgas_ave',lname,'W/m2',0.,650.,0,cptype)
+      lname = 'urban heating flux'
+      call attrib(idnc,dimj,jsize,'anth_heat_ave',lname,'W/m2',0.,650.,0,cptype)
+      lname = 'urban cooling flux'
+      call attrib(idnc,dimj,jsize,'anth_cool_ave',lname,'W/m2',0.,650.,0,cptype)      
       lname = 'urban surface temperature'
       call attrib(idnc,dimj,jsize,'urbantas_ave',lname,'K',100.,425.,0,cptype)
       lname = 'maximum urban temperature'
@@ -2898,7 +2904,10 @@ endif
 
 ! URBAN -------------------------------------------------------
 if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
-  call histwrt3(anthropogenic_ave, 'anth_ave',idnc,iarch,local,.true.) 
+  call histwrt3(anthropogenic_ave,'anth_ave',idnc,iarch,local,.true.) 
+  call histwrt3(anth_elecgas_ave,'anth_elecgas_ave',idnc,iarch,local,.true.) 
+  call histwrt3(anth_heating_ave,'anth_heat_ave',idnc,iarch,local,.true.) 
+  call histwrt3(anth_cooling_ave,'anth_cool_ave',idnc,iarch,local,.true.) 
   where ( sigmu>0. )
     aa = tasurban_ave
   elsewhere

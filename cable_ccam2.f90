@@ -143,8 +143,10 @@ integer, save :: soil_struc         = 0          ! 0 default, 1 SLI soil model
 integer, save :: fwsoil_switch      = 0          ! 0 default, 1 non-linear, 2 Lai and Ktaul, 3 Haverd2013
 integer, save :: cable_litter       = 0          ! 0 off, 1 on
 integer, save :: gs_switch          = 0          ! 0 leuning, 1 medlyn
-integer, save :: smrf_switch        = 4          ! 1 CASA-CNP, 2 SOLIN, 3 TRIFFID, 4 Trudinger2016(default), 5 DAMM (Soil Moist Respiration Function)
-integer, save :: strf_switch        = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 4 LT1994(default),        5 DAMM (Soil Temp Respiration Function)
+integer, save :: smrf_switch        = 4          ! 1 CASA-CNP, 2 SOLIN, 3 TRIFFID, 4 Trudinger2016(default),
+                                                 ! 5 DAMM (Soil Moist Respiration Function)
+integer, save :: strf_switch        = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 4 LT1994(default),
+                                                 ! 5 DAMM (Soil Temp Respiration Function)
 ! CABLE biochemical options
 integer, save :: ccycle             = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
 integer, save :: proglai            = -1         ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
@@ -1566,7 +1568,8 @@ type (veg_parameter_type), intent(in) :: veg
 real(kind=8), parameter :: Gaero   = 0.015_8    ! (m s-1) aerodynmaic conductance (for use in PT evap)
 real(kind=8), parameter :: Capp    = 29.09_8    ! isobaric spec heat air    [J/molA/K]
 real(kind=8), parameter :: SBoltz  = 5.67e-8_8  ! Stefan-Boltzmann constant [W/m2/K4]
-real(kind=8), parameter :: moisture_min = 0.15  ! threshold for setting "growing moisture days", as required for drought-deciduous phenology
+real(kind=8), parameter :: moisture_min = 0.15  ! threshold for setting "growing moisture days",
+                                                ! as required for drought-deciduous phenology
 real(kind=8), parameter :: CoeffPT = 1.26_8
 real(kind=8), parameter :: T1 = 0._8
 real(kind=8), parameter :: T2 = -3._8

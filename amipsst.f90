@@ -637,8 +637,8 @@ if ( iernc==0 ) then
     rlat_in    = ahead(7)
     schmidt_in = ahead(8)
   endif  ! (schmidtx<=0..or.schmidtx>1.)  
-  if(il_g/=il_in.or.jl_g/=jl_in.or.abs(rlong0-rlon_in)>1.e-20.or.abs(rlat0-rlat_in)>1.e-20.or. &
-      abs(schmidt-schmidt_in)>1.e-20)then
+  if(il_g/=il_in.or.jl_g/=jl_in.or.abs(rlong0-rlon_in)>1.e-6.or.abs(rlat0-rlat_in)>1.e-6.or. &
+      abs(schmidt-schmidt_in)>0.0002)then
     write(6,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',il_g,il_in,jl_g,jl_in,rlong0,rlon_in
     write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',rlat0,rlat_in,schmidt,schmidt_in
     write(6,*) 'wrong amipsst file'

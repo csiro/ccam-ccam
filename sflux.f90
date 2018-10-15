@@ -1064,6 +1064,7 @@ do tile=1,ntiles
                         v(is:ie,1),vmod(is:ie),wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),                        &
                         anthropogenic_flux(is:ie),urban_ts(is:ie),urban_wetfac(is:ie),urban_zom(is:ie),              &
                         urban_zoh(is:ie),urban_zoq(is:ie),urban_emiss(is:ie),urban_storage_flux(is:ie),              &
+                        urban_elecgas_flux(is:ie),urban_heating_flux(is:ie),urban_cooling_flux(is:ie),               &
                         upack_g(:,tile),ufull_g(tile))
 
 end do
@@ -1078,7 +1079,8 @@ subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,vmag,oldsnowmelt,fp,fp_i
                             conds,condg,condx,eg,fg,land,ps,qg,qsttg,rgsave,rnet,runoff,sgsave,snowmelt,swrsave,  &
                             t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,                                     &
                             anthropogenic_flux,urban_ts,urban_wetfac,urban_zom,urban_zoh,urban_zoq,urban_emiss,   &
-                            urban_storage_flux,upack,ufull)
+                            urban_storage_flux,urban_elecgas_flux,urban_heating_flux,urban_cooling_flux,          &
+                            upack,ufull)
 
 use ateb                           ! Urban
 use cc_mpi                         ! CC MPI routines
@@ -1103,7 +1105,8 @@ real, dimension(imax), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, olds
 real, dimension(imax), intent(in) :: albvis, albnir
 real, dimension(imax), intent(inout) :: anthropogenic_flux, urban_ts, urban_wetfac
 real, dimension(imax), intent(inout) :: urban_zom, urban_zoh, urban_zoq, urban_emiss
-real, dimension(imax), intent(inout) :: urban_storage_flux
+real, dimension(imax), intent(inout) :: urban_storage_flux,urban_elecgas_flux
+real, dimension(imax), intent(inout) :: urban_heating_flux,urban_cooling_flux
 real, dimension(imax), intent(in) :: conds, condg, condx
 real, dimension(imax), intent(in) :: ps, rgsave, sgsave, swrsave, vmod
 real, dimension(imax), intent(inout) :: cdtq, cduv
@@ -1181,8 +1184,11 @@ call atebhydro(newsnowmelt,"snowmelt",0,pd,fp,upack,ufull)                      
 where ( u_sigma>0. )                                                                             ! urban
   snowmelt = oldsnowmelt + newsnowmelt                                                           ! urban
 end where                                                                                        ! urban
-! calculate anthropogenic flux                                                                   ! urban
+! call urban fluxes                                                                              ! urban
 call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,upack,ufull)                          ! urban
+call atebenergy(urban_elecgas_flux,"elecgas",0,fp,pd,upack,ufull)                                ! urban
+call atebenergy(urban_heating_flux,"heating",0,fp,pd,upack,ufull)                                ! urban
+call atebenergy(urban_cooling_flux,"cooling",0,fp,pd,upack,ufull)                                ! urban
 call atebenergy(urban_storage_flux,"storage",0,fp,pd,upack,ufull)                                ! urban
 where ( u_sigma>0. )                                                                             ! urban
   qsttg(1:imax) = qsat(ps(1:imax),tss(1:imax))                                                   ! urban
