@@ -3295,6 +3295,7 @@ if ( fflag == 1  ) then
   end if
 
   if ( myid == 0 ) then
+    write(6,*) "Reading ",trim(fcasapft)
 
     do i=1,3
       read(86,*)
