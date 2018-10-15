@@ -1436,7 +1436,7 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &
     surfile,topofile,vegfile,zofile,surf_00,surf_12,laifile,      &
     albnirfile,urbanfile,bathfile,vegprev,vegnext,vegnext2,       &
-    cnsdir,salfile,oxidantfile,casafile,phenfile,                 &
+    cnsdir,salfile,oxidantfile,casafile,phenfile,casapftfile,     &
     ensembleoutfile,                                              &
     save_aerosols,save_pbl,save_cloud,save_land,save_maxmin,      &
     save_ocean,save_radiation,save_urban,save_carbon,save_river
