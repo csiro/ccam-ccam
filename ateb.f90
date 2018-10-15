@@ -6164,7 +6164,7 @@ xtemp = 0.5*(iroomtemp + mrt) + urbtemp - 273.15
 
 select case(behavmeth)
   case(0)
-    where ( (xtemp>26.) .and. (d_canyontemp<26.) )
+    where ( (xtemp>26.) .and. (d_canyontemp+urbtemp-273.16<26.) )
       d_openwindows=1.0
     elsewhere
       d_openwindows=0.
