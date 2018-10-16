@@ -3337,8 +3337,8 @@ if ( fflag == 1  ) then
     do nv=1,mxvt
       read(86,*,iostat=ierr) nv2, &
                   fracnpptop(nv,leaf),fracnpptop(nv,wood), &
-                  fracnpptop(nv,froot),rmplant(nv,leaf),   &
-                  rmplant(nv,wood),rmplant(nv,froot)
+                  fracnpptop(nv,xroot),rmplant(nv,leaf),   &
+                  rmplant(nv,wood),rmplant(nv,xroot)
       if ( ierr/=0 .or. nv2/=nv ) then
         write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
         write(6,*) "Formatting error in line",3+2*(2+mxvt)+nv,"reading nv2"
@@ -3353,12 +3353,12 @@ if ( fflag == 1  ) then
     read(86,*)
     do nv=1,mxvt
       read(86,*,iostat=ierr) nv3, ratiocnplant(nv,leaf),ratiocnplant(nv,wood),   &
-           ratiocnplant(nv,froot),                                         &
+           ratiocnplant(nv,xroot),                                         &
            ftransnptol(nv,leaf), ftransnptol(nv,wood), &
-           ftransnptol(nv,froot),                                &
+           ftransnptol(nv,xroot),                                &
            fracligninplant(nv,leaf),                             &
            fracligninplant(nv,wood),                             &
-           fracligninplant(nv,froot),                            &
+           fracligninplant(nv,xroot),                            &
            ratiocnsoil(nv,mic),ratiocnsoil(nv,slow),ratiocnsoil(nv,pass),  &
            ratiocnsoilmin(nv,mic),ratiocnsoilmin(nv,slow),ratiocnsoilmin(nv,pass),  &
            ratiocnsoilmax(nv,mic),ratiocnsoilmax(nv,slow),ratiocnsoilmax(nv,pass),  &
@@ -3410,7 +3410,7 @@ if ( fflag == 1  ) then
       read(86,*,iostat=ierr) nv6, &
         rationcplantmin(nv,leaf),rationcplantmax(nv,leaf), &
         rationcplantmin(nv,wood),rationcplantmax(nv,wood), &
-        rationcplantmin(nv,froot),rationcplantmax(nv,froot), &
+        rationcplantmin(nv,xroot),rationcplantmax(nv,xroot), &
         xfnminloss(nv), xfnminleach(nv),xnfixrate(nv)
       if ( ierr/=0 .or. nv6/=nv ) then
         write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
@@ -3445,7 +3445,7 @@ if ( fflag == 1  ) then
            xrationpwoodmin(nv),xrationpwoodmax(nv),              &
            xrationpfrootmin(nv),xrationpfrootmax(nv),            &
            ftranspptol(nv,leaf), ftranspptol(nv,wood), &
-           ftranspptol(nv,froot)
+           ftranspptol(nv,xroot)
       if ( ierr/=0 .or. nv8/=nv ) then
         write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
         write(6,*) "Formatting error in line",3+8*(2+mxvt)+nv,"reading nv8"
