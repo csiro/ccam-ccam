@@ -260,7 +260,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL sc
 ! land, urban and carbon namelist
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
-    gs_switch,cable_climate,smrf_switch,strf_switch               &
+    gs_switch,cable_climate,smrf_switch,strf_switch,              &
     ateb_energytol,ateb_resmeth,ateb_useonewall,ateb_zohmeth,     & ! urban
     ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &
     ateb_conductmeth,ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,   &
@@ -1145,7 +1145,7 @@ else if ( scm_mode=="CCAM" ) then
   call vinterp2m(height_in,height_model,dat_in,datout,nlev,kl)
   qlg(1,1:kl) = max(datout,2.e-7)
   
-  ! ql mixing ratio
+  ! qf mixing ratio
   spos(1:3) = (/ 1, 1, 1 /)
   npos(1:3) = (/ 1, 1, nlev /)
   call ccnf_get_vara(ncid,'qfg',spos(1:3),npos(1:3),dat_in)
@@ -2574,7 +2574,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','W/m2')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    lname = 'shorwave upward radiation at surface'
+    lname = 'shortwave upward radiation at surface'
     call ccnf_def_var(timencid,'qup',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','W/m2')
@@ -2591,6 +2591,21 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
     lname = 'anthropogenic heat flux'
     call ccnf_def_var(timencid,'qf',vtype,1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','W/m2')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = 'building electricity and gas usage flux'
+    call ccnf_def_var(timencid,'qf_bem',vtype,1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','W/m2')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = 'building heating flux'
+    call ccnf_def_var(timencid,'qf_heat',vtype,1,jdim(1:1),idnt)
+    call ccnf_put_att(timencid,idnt,'long_name',lname)
+    call ccnf_put_att(timencid,idnt,'units','W/m2')
+    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    lname = 'building cooling flux'
+    call ccnf_def_var(timencid,'qf_cool',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','W/m2')
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
@@ -2679,28 +2694,28 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m/s')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    lname = '50m temperature'
-    call ccnf_def_var(timencid,'t50m',vtype,1,jdim(1:1),idnt)
+    lname = '40m temperature'
+    call ccnf_def_var(timencid,'t40m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','K')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)    
-    lname = '50m specific humidity'
-    call ccnf_def_var(timencid,'q50m',vtype,1,jdim(1:1),idnt)
+    lname = '40m specific humidity'
+    call ccnf_def_var(timencid,'q40m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','kg/kg')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    lname = 'Relative humidity at 50 metre above the surface'
-    call ccnf_def_var(timencid,'rh50m',vtype,1,jdim(1:1),idnt)
+    lname = 'Relative humidity at 40 metre above the surface'
+    call ccnf_def_var(timencid,'rh40m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','0-100')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    lname = '50m u-component wind'
-    call ccnf_def_var(timencid,'u50m',vtype,1,jdim(1:1),idnt)
+    lname = '40m u-component wind'
+    call ccnf_def_var(timencid,'u40m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m/s')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    lname = '50m v-component wind'
-    call ccnf_def_var(timencid,'v50m',vtype,1,jdim(1:1),idnt)
+    lname = '40m v-component wind'
+    call ccnf_def_var(timencid,'v40m',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m/s')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
@@ -3165,6 +3180,9 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_vara(timencid,'shf',iarch,aa(1))
     call ccnf_put_vara(timencid,'lhf',iarch,aa(1))
     call ccnf_put_vara(timencid,'qf',iarch,aa(1))
+    call ccnf_put_vara(timencid,'qf_bem',iarch,aa(1))
+    call ccnf_put_vara(timencid,'qf_heat',iarch,aa(1))
+    call ccnf_put_vara(timencid,'qf_cool',iarch,aa(1))
     call ccnf_put_vara(timencid,'g',iarch,aa(1))
     ! call ccnf_put_vara(timencid,'evap',iarch,aa(1))
     call ccnf_put_vara(timencid,'ustar',iarch,aa(1))
@@ -3182,11 +3200,11 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_vara(timencid,'rh2m',iarch,aa(1))
     call ccnf_put_vara(timencid,'u10m',iarch,aa(1))
     call ccnf_put_vara(timencid,'v10m',iarch,aa(1))
-    call ccnf_put_vara(timencid,'t50m',iarch,aa(1))
-    call ccnf_put_vara(timencid,'q50m',iarch,aa(1))
-    call ccnf_put_vara(timencid,'rh50m',iarch,aa(1))
-    call ccnf_put_vara(timencid,'u50m',iarch,aa(1))
-    call ccnf_put_vara(timencid,'v50m',iarch,aa(1))
+    call ccnf_put_vara(timencid,'t40m',iarch,aa(1))
+    call ccnf_put_vara(timencid,'q40m',iarch,aa(1))
+    call ccnf_put_vara(timencid,'rh40m',iarch,aa(1))
+    call ccnf_put_vara(timencid,'u40m',iarch,aa(1))
+    call ccnf_put_vara(timencid,'v40m',iarch,aa(1))
     call ccnf_put_vara(timencid,'cc',iarch,aa(1))
 
     call ccnf_put_vara(timencid,'svf',iarch,aa(1))
@@ -3231,6 +3249,9 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_vara(timencid,'shf',iarch,fg(1))
     call ccnf_put_vara(timencid,'lhf',iarch,eg(1))
     call ccnf_put_vara(timencid,'qf',iarch,anthropogenic_flux(1))
+    call ccnf_put_vara(timencid,'qf_bem',iarch,urban_elecgas_flux(1))
+    call ccnf_put_vara(timencid,'qf_heat',iarch,urban_heating_flux(1))
+    call ccnf_put_vara(timencid,'qf_cool',iarch,urban_cooling_flux(1))
     call ccnf_put_vara(timencid,'g',iarch,urban_storage_flux(1))
     !aa(:) = eg(:)*86400./hls ! this assumes sublimation
     ! call ccnf_put_vara(timencid,'evap',iarch,aa(1))
@@ -3262,20 +3283,20 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     aa(1)=v(1,1)*u10(1)/sqrt(u(1,1)**2+v(1,1)**2)
     call ccnf_put_vara(timencid,'v10m',iarch,aa(1))
     tmp=t(1,:)
-    call vout(tmp,aa(1),zf,50.,kl)
-    call ccnf_put_vara(timencid,'t50m',iarch,aa(1))
+    call vout(tmp,aa(1),zf,40.,kl)
+    call ccnf_put_vara(timencid,'t40m',iarch,aa(1))
     tmp=qg(1,:)
-    call vout(tmp,aa(1),zf,50.,kl)
+    call vout(tmp,aa(1),zf,40.,kl)
     aa(1) = aa(1)/(1.+aa(1))
-    call ccnf_put_vara(timencid,'q50m',iarch,aa(1))
-    call vout(rh(:),aa(1),zf,50.,kl)
-    call ccnf_put_vara(timencid,'rh50m',iarch,aa(1))
+    call ccnf_put_vara(timencid,'q40m',iarch,aa(1))
+    call vout(rh(:),aa(1),zf,40.,kl)
+    call ccnf_put_vara(timencid,'rh40m',iarch,aa(1))
     tmp(:)=u(1,:)
-    call vout(tmp,aa(1),zf,50.,kl)
-    call ccnf_put_vara(timencid,'u50m',iarch,aa(1))
+    call vout(tmp,aa(1),zf,40.,kl)
+    call ccnf_put_vara(timencid,'u40m',iarch,aa(1))
     tmp(:)=v(1,:)
-    call vout(tmp,aa(1),zf,50.,kl)
-    call ccnf_put_vara(timencid,'v50m',iarch,aa(1))
+    call vout(tmp,aa(1),zf,40.,kl)
+    call ccnf_put_vara(timencid,'v40m',iarch,aa(1))
     aa(1) = cld_ave(1)
     call ccnf_put_vara(timencid,'cc',iarch,aa(1))
 
@@ -5410,10 +5431,10 @@ integer idlev, idms, idoc
 integer idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer icy, icm, icd, ich, icmi, ics, idv
 integer asize, jsize, osize
-integer csize, c2size, c3size, c4size, c5size, c6size
+integer csize, c2size, c3size, c4size, c5size, c6size, c7size
 integer, dimension(3) :: dimj
 integer, dimension(4) :: dima, dims, dimo
-integer, dimension(4) :: dimc, dimc3, dimc4, dimc5, dimc6
+integer, dimension(4) :: dimc, dimc3, dimc4, dimc5, dimc6, dimc7
 integer, dimension(5) :: dimc2
 real, dimension(:), allocatable, save :: cabledata
 real, dimension(ifull) :: aa
@@ -5475,6 +5496,7 @@ dimc3(1:4) = (/ xdim, ydim, c91pdim, tdim /)
 dimc4(1:4) = (/ xdim, ydim, c31pdim, tdim /)
 dimc5(1:4) = (/ xdim, ydim, c20ydim, tdim /)
 dimc6(1:4) = (/ xdim, ydim, c5ddim, tdim /)
+dimc7(1:4) = (/ xdim, ydim, c5ddim, tdim /)
 
 dimj(1:2)  = dima(1:2)
 dimj(3)    = dima(4)
@@ -5492,6 +5514,8 @@ dimc5(1:4) = dima(1:4)
 dimc5(3)   = c20ydim
 dimc6(1:4) = dima(1:4)
 dimc6(3)   = c5ddim
+dimc7(1:4) = dima(1:4)
+dimc7(3)   = c5ddim
 
 asize = 4
 jsize = 3
@@ -5502,6 +5526,7 @@ c3size = 4
 c4size = 4
 c5size = 4
 c6size = 4
+c7size = 4
 
 call ccnf_def_var(idnc,'longitude','float',2,dima(1:2),ixp)
 call ccnf_put_att(idnc,ixp,'point_spacing','even')
@@ -5805,7 +5830,7 @@ call attrib(idnc,dimj,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,itype)
 if ( nsib==6 .or. nsib==7 ) then
   call savetiledef(idnc,local,dimj,jsize,dimc,csize,dimc2,c2size, &
                    dimc3,c3size,dimc4,c4size,dimc5,c5size,        &
-                   dimc6,c6size)
+                   dimc6,c6size,dimc7,c7size)
 end if
 
 call ccnf_enddef(idnc)
@@ -6169,6 +6194,9 @@ eg_ave(:)            = 0.
 fg_ave(:)            = 0.
 ga_ave(:)            = 0.
 anthropogenic_ave(:) = 0.
+anth_elecgas_ave(:)  = 0.
+anth_heating_ave(:)  = 0.
+anth_cooling_ave(:)  = 0.
 tasurban_ave(:)      = 0.
 tmaxurban(:)         = urban_tas
 tminurban(:)         = urban_tas
@@ -6343,6 +6371,9 @@ eg_ave(1:ifull)            = eg_ave(1:ifull) + eg
 fg_ave(1:ifull)            = fg_ave(1:ifull) + fg
 ga_ave(1:ifull)            = ga_ave(1:ifull) + ga
 anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
+anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull) + urban_elecgas_flux
+anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull) + urban_heating_flux
+anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull) + urban_cooling_flux
 tasurban_ave(1:ifull)      = tasurban_ave(1:ifull) + urban_tas
 tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urban_tas )
 tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
@@ -6400,6 +6431,9 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   fg_ave(1:ifull)            = fg_ave(1:ifull)/min(ntau,nperavg)
   ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg)   
   anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull)/min(ntau,nperavg)
+  anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull)/min(ntau,nperavg)
+  anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull)/min(ntau,nperavg)
+  anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull)/min(ntau,nperavg)  
   tasurban_ave(1:ifull)      = tasurban_ave(1:ifull)/min(ntau,nperavg)
   rnet_ave(1:ifull)          = rnet_ave(1:ifull)/min(ntau,nperavg)
   sunhours(1:ifull)          = sunhours(1:ifull)/min(ntau,nperavg)

@@ -35,6 +35,7 @@ public wb_ave,wbice_ave,tsu_ave,alb_ave,fbeam_ave,psl_ave,convh_ave
 public fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 public cnpp_ave,cnbp_ave
 public anthropogenic_ave, tasurban_ave, tmaxurban, tminurban
+public anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 !public tgg_ave
 public histave_init,histave_end
 
@@ -50,6 +51,7 @@ real, dimension(:), allocatable, save :: tsu_ave,alb_ave,fbeam_ave,psl_ave
 real, dimension(:), allocatable, save :: fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 real, dimension(:), allocatable, save :: cnpp_ave,cnbp_ave
 real, dimension(:), allocatable, save :: anthropogenic_ave, tasurban_ave, tmaxurban, tminurban
+real, dimension(:), allocatable, save :: anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 !real, dimension(:,:), allocatable, save :: tgg_ave
 
 contains
@@ -69,6 +71,7 @@ allocate(u1max(ifull),v1max(ifull),u2max(ifull),v2max(ifull),cape_max(ifull),cap
 allocate(rnet_ave(ifull),mixdep_ave(ifull))
 allocate(wb_ave(ifull,ms),wbice_ave(ifull,ms),tsu_ave(ifull),alb_ave(ifull),fbeam_ave(ifull),psl_ave(ifull),convh_ave(ifull,kl))
 allocate(anthropogenic_ave(ifull), tasurban_ave(ifull), tmaxurban(ifull), tminurban(ifull))
+allocate(anth_elecgas_ave(ifull), anth_heating_ave(ifull), anth_cooling_ave(ifull) )
 !allocate(tgg_ave(ifull,ms))
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
@@ -108,6 +111,9 @@ fbeam_ave(:)   = 0.
 psl_ave(:)     = 0.
 mixdep_ave(:)  = 0.
 anthropogenic_ave(:) = 0.
+anth_elecgas_ave(:)  = 0.
+anth_heating_ave(:)  = 0.
+anth_cooling_ave(:)  = 0.
 tasurban_ave(:)      = 0.
 tmaxurban(:)   = 0.
 tminurban(:)   = 400.
