@@ -48,13 +48,13 @@ implicit none
 !     called for -ve nhor
 !     for +ve nhor see hordifg 
 !     It has -ve nhorps option:
-!        nhorps=0  does only T, qg, TKE, u & v
+!        nhorps=0  does only T, qg, TKE, u & v            horiz diff.
 !        nhorps=-1 does only T, qg & TKE                  horiz diff.
 !        nhorps=-2 does only u &  v                       horiz diff.
 !        nhorps=-3 does only qg                           horiz diff.
 !        nhorps=-4 does only T, qg, cloud, TKE & aerosols horiz diff.
-!        nhorps=-5 does only T
-!        nhorps=-6 does only T & qg
+!        nhorps=-5 does only T                            horiz diff.
+!        nhorps=-6 does only T & qg                       horiz diff.
 !     and u,v have same options as T (e.g.nhor=-157)
 !     this one has got map factors
 !     has jlm nhorx option as last digit of nhor, e.g. -157
@@ -455,8 +455,8 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 )
   work(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
   call bounds(work(:,:,1))
   do k = 1,kl      
-    call unpack_nsew(work(:,k,2),work_n,work_s,work_e,work_w)
-    qg(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,2) +  &
+    call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)
+    qg(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,1) +  &
                     xfact(1:ifull,k)*work_e +           &
                     xfact_iwu(1:ifull,k)*work_w +       &
                     yfact(1:ifull,k)*work_n +           &
