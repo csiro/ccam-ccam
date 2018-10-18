@@ -4780,7 +4780,7 @@ do l = 1,ncyits
         !case(2) ! AccuRate (Chen, 2010)
         !  ! not yet implemented
         case default
-          write(6,*) "ERROR: Unknown option infl_dynamic = ",infl_dynamic
+          write(6,*) "ERROR: Unknown option infilmeth = ",infilmeth
           stop
       end select
 
@@ -6165,7 +6165,7 @@ xtemp = 0.5*(iroomtemp + mrt) + urbtemp - 273.15
 
 select case(behavmeth)
   case(0)
-    where ( (xtemp>26.) .and. (d_canyontemp+urbtemp-273.16<26.) )
+    where ( (xtemp>26.) .and. (d_canyontemp+urbtemp-273.15<26.) )
       d_openwindows=1.0
     elsewhere
       d_openwindows=0.
