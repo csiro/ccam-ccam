@@ -2511,7 +2511,7 @@ end subroutine convertigbp
 
 
 subroutine cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2, &
-                   casapoint,greenup,fall,phendoy1)
+                   casapoint,greenup,fall,phendoy1,fcasapft)
 
 use carbpools_m
 use cc_mpi
@@ -2542,32 +2542,15 @@ integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
 integer(kind=4) mp_POP
 real ivmax
-real, dimension(mxvt,mplant) :: ratiocnplant
-real, dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
 real, dimension(ifull,maxtile), intent(in) :: svs,vlin,vlinprev,vlinnext,vlinnext2
 real, dimension(ifull,5), intent(in) :: casapoint
 real, dimension(ifull,2) :: albsoilsn
-real, dimension(12,msoil) :: rationpsoil
 real, dimension(ifull) :: dummy_pack
-real, dimension(mxvt) :: leafage,woodage,frootage,metage
-real, dimension(mxvt) :: strage,cwdage,micage,slowage,passage
-real, dimension(mxvt) :: xfherbivore,xxkleafcoldmax,xxkleafdrymax
-real, dimension(mxvt) :: xratioNPleafmin,xratioNPleafmax,xratioNPwoodmin,xratioNPwoodmax
-real, dimension(mxvt) :: xratioNPfrootmin,xratioNPfrootmax,xfNminloss,xfNminleach,xnfixrate
-real, dimension(mxvt) :: xnsoilmin,xplab,xpsorb,xpocc
-real, dimension(mxvt) :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
-real, dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
-real, dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
-real, dimension(mxvt) :: xxnpmax,xq10soil,xxkoptlitter,xxkoptsoil,xprodptase
-real, dimension(mxvt) :: xcostnpup,xmaxfinelitter,xmaxcwd,xnintercept,xnslope
-real, dimension(mxvt) :: xla_to_sa,xvcmax_scalar,xdisturbance_interval
-real, dimension(mxvt) :: xDAMM_EnzPool,xDAMM_KMO2,xDAMM_KMcp,xDAMM_Ea,xDAMM_alpha
-real, dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
 real, dimension(ifull) :: albsoil
-real, dimension(12) :: xkmlabp,xpsorbmax,xfPleach
 real, dimension(:), allocatable, save :: dummy_unpack
 logical, dimension(:), allocatable, save :: pmap_temp
 integer :: tile, popcount
+character(len=*), intent(in) :: fcasapft
 
 if ( myid==0 ) write(6,*) "Initialising CABLE"
 
@@ -3049,336 +3032,7 @@ if ( mp_global>0 ) then
       call ccmpi_abort(-1)
     end if
 
-    leafage =(/ 2.0,1.5,1.0,1.0,1.0,0.8,0.8,1.0,     0.8,     0.8,1.0,1.0,1.0,1.0,1.0,1.0,1.0 /)
-    woodage =(/ 70.,60.,80.,40.,40.,1.0,1.0,1.0,     1.0,     1.0,1.0,1.0,1.0,5.0,1.0,1.0,1.0 /)
-    frootage=(/ 18.,10.,10.,10.,5.0,3.0,3.0,3.0,0.884227,0.884227,1.0,1.0,1.0,4.0,1.0,1.0,1.0 /)
-    metage=0.04
-    strage=0.23
-    cwdage=0.824
-    micage=0.137
-    slowage=5.
-    passage=222.22
-    clabileage=0.2
-
-    xfherbivore   =(/ 0.068,0.406,0.068,0.134,0.022,0.109,0.109,0.109,0.140,0.140,0.000,0.000,0.000,0.010,0.000,0.000,0.000 /)
-    xxkleafcoldmax=(/   0.2,  0.1,  0.1,  0.6,   1.,  0.2,  0.2,  0.2,  0.3,  0.3,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1 /)
-    xxkleafdrymax =(/   0.1,  0.1,  0.1,   1.,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1 /)
-    xratioNPleafmin =(/ 10.92308,15.95339,9.254839,12.73848,12.07217,13.51473,   14.05,12.57800,15.12262,10.,13.,10.,10., 16.2336, &
-                        10.,10.,10. /)
-    xratioNPleafmax =(/ 12.07288, 17.6327,10.22903,14.07938,13.34292,14.93733,15.52895,  13.902,16.71447,10.,13.,10.,10., 17.9424, &
-                        10.,10.,10. /)
-    xratioNPwoodmin =(/ 20.30167,15.89425,17.48344,19.08018,22.46035,     15.,     15.,   15.96,   20.52,15.,15.,15.,15., 17.5275, &
-                        15.,15.,15. /)
-    xratioNPwoodmax =(/ 22.43869,17.56733, 19.3238,21.08862, 24.8246,     15.,     15.,   17.64,   20.52,15.,15.,15.,15., 19.3725, &
-                        15.,15.,15. /)
-    xratioNPfrootmin=(/ 20.29341,15.87155,17.39767, 19.0601,22.49363,15.63498,16.08255,14.49241,22.69109,15.,15.,15.,15.,22.13268, &
-                        15.,15.,15. /)
-    xratioNPfrootmax=(/ 22.42955,17.54224,  19.229,21.06643,24.86138,17.28077,17.77545,16.01793,25.07962,15.,15.,15.,15.,24.46244, &
-                        15.,15.,15. /)
-    xfNminloss=0.05
-    xfNminleach=0.05
-    xnfixrate=(/ 0.08,2.6,0.21,1.64,0.37,0.95,0.95,0.95,4.,4.,0.,0.,0.,0.35,0.,0.,0. /)
-    xnsoilmin=1000.
-    
-    ratiocnplant(:,1)=(/  49.8, 23.1, 59.3, 31.4, 37.6, 34.8,  44., 49.2, 21.6, 25., 30., 30., 30., 50., 40., 40., 40. /)
-    ratiocnplant(:,2)=(/ 238.1,134.9,243.8,156.2,142.1, 150., 150.,147.3, 150.,125.,150.,150.,150.,150.,150.,135.,150. /)
-    ratiocnplant(:,3)=(/  73.7, 61.2,  75., 63.2, 67.1, 64.5, 62.7,  69., 60.7, 71., 71., 71., 71., 71., 71., 71., 71. /)
-    ratiocnsoil(:,1)=8.
-    ratiocnsoil(:,2)=(/ 16.1,12.8,24.8, 30.,19.3,13.1,13.1,13.1,13.2,13.2,13.1,13.1,13.1,26.8, 20., 20., 20. /)
-    ratiocnsoil(:,3)=(/ 16.1,12.8,24.8, 30.,19.3,13.1,13.1,13.1,13.2,13.2,13.1,13.1,13.1,26.8, 20., 20., 20. /)
-    ratiocnsoilmin(:,1)=3.
-    ratiocnsoilmin(:,2)=12.
-    ratiocnsoilmin(:,3)=7.
-    ratiocnsoilmax(:,1)=15.
-    ratiocnsoilmax(:,2)=30.
-    ratiocnsoilmax(:,3)=15.
-     
-    ! Initial values for CNP pools over 3*plant, 3*litter and 3*soil (=27 pools in total)
-    cleaf  =(/ 384.6037,    273.,96.59814,150.2638,     88.,137.1714,137.1714,137.1714,    160.,    160.,0.,0.,0.,      0.,0.,0., &
-              0. /)
-    cwood  =(/ 7865.396,  11451.,5683.402,10833.74,    372.,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,      0.,0.,0., &
-              0. /)
-    cfroot =(/     250.,   2586.,    220.,    220.,    140.,    263.,    263.,    263.,    240.,    240.,0.,0.,0.,      0.,0.,0., &
-              0. /)
-    cmet   =(/ 6.577021,44.63457,7.127119,10.97797,3.229374,28.57245,28.57245,28.57245,28.57245,28.57245,0.,0.,0.,1.457746,0.,0., &
-              0. /)
-    cstr   =(/ 209.1728,433.7626,277.7733,312.5492,39.44449,50.91091,50.91091,50.91091,50.91091,50.91091,0.,0.,0.,4.956338,0.,0., &
-              0. /)
-    ccwd   =(/ 606.0255,1150.765,776.7331,888.5864,111.5864,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,28.44085,0.,0., &
-              0. /) 
-    cmic   =(/  528.664,11.37765,597.0785,405.5554,168.0451,425.6431,425.6431,425.6431,512.4247,512.4247,0.,0.,0.,57.77585,0.,0., &
-              0. /)
-    cslow  =(/ 13795.94,311.8092,16121.12,11153.25,4465.478,5694.437,5694.437,5694.437,6855.438,6855.438,0.,0.,0.,1325.052,0.,0., &
-              0. /)
-    cpass  =(/ 4425.396,13201.81,5081.802,5041.192,1386.477, 4179.92, 4179.92, 4179.92,5032.137,5032.137,0.,0.,0.,517.1719,0.,0., &
-              0. /)
-    nleaf  =(/ 7.541249,     9.9,1.609969,3.756594,2.933333,4.572381,4.572381,4.572381,5.333333,5.333333,0.,0.,0.,     0.5,0.,0., &
-              0. /)
-    nwood  =(/ 31.46159,    102.,22.73361,80.24989,2.755555,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,0.125926,0.,0., &
-              0. /)
-    nfroot =(/ 6.097561,     38.,5.365854,5.365854,3.414634,6.414634,6.414634,6.414634,5.853659,5.853659,0.,0.,0.,1.536585,0.,0., &
-              0. /)
-    nmet   =(/ 0.064481, 0.74391,0.059393,0.137225,0.053823,0.476208,0.476208,0.476208,0.476208,0.476208,0.,0.,0.,0.018222,0.,0., &
-              0. /)
-    nstr   =(/ 1.394485,2.891751,1.851822,2.083661,0.262963,0.339406,0.339406,0.339406,0.339406,0.339406,0.,0.,0.,0.033042,0.,0., &
-              0. /)
-    ncwd   =(/ 2.424102,8.524183,3.106932,6.581996,0.826566,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,0.210673,0.,0., &
-              0. /)
-    nmic   =(/  52.8664,1.137765,59.70785,40.55554,16.80451,42.56431,42.56431,42.56431,51.24247,51.24247,0.,0.,0.,5.777585,0.,0., &
-               0. /)
-    nslow  =(/ 919.7293,20.78728,1074.741,743.5501,297.6985,379.6291,379.6291,379.6291,457.0292,457.0292,0.,0.,0.,88.33682,0.,0., &
-               0. /)
-    npass  =(/ 295.0264,880.1209,338.7868,336.0795, 92.4318,278.6613,278.6613,278.6613,335.4758,335.4758,0.,0.,0.,34.47813,0.,0., &
-               0. /)
-    xpleaf =(/ 0.191648,   0.415,0.115988,0.135453,0.022821, 0.15125, 0.15125, 0.15125, 0.15125, 0.15125,0.,0.,0.,   0.007,0.,0., &
-               0. /)
-    xpwood =(/ 0.953979,    5.88, 0.64438,2.424778,      0.,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,      0.,0.,0., &
-               0. /)
-    xpfroot=(/ 0.076659,    1.95,0.080548,0.141097,0.037083, 0.15125, 0.15125, 0.15125, 0.15125, 0.15125,0.,0.,0., 0.00875,0.,0., &
-               0. /)
-    xpmet  =(/ 0.004385,0.029756,0.004751,0.007319,0.002153,0.019048,0.019048,0.019048,0.019048,0.019048,0.,0.,0.,0.000972,0.,0., &
-               0. /)
-    xpstr  =(/ 0.069724,0.144588,0.092591,0.104183,0.013148, 0.01697, 0.01697, 0.01697, 0.01697, 0.01697,0.,0.,0.,0.001652,0.,0., &
-               0. /)
-    xpcwd  =(/ 0.101004,0.191794,0.129456,0.148095,0.018598,      0.,      0.,      0.,      0.,      0.,0.,0.,0.,      0.,0.,0., &
-               0. /)
-    xpmic  =(/ 6.872632, 0.14791,7.762021, 5.27222,2.184586,5.533361,5.533361,5.533361,6.661522,6.661522,0.,0.,0.,0.751086,0.,0., &
-               0. /)
-    xpslow =(/ 119.5648,2.702347,139.7164,96.66152,38.70081,49.35178,49.35178,49.35178, 59.4138, 59.4138,0.,0.,0.,11.48379,0.,0., &
-               0. /)
-    xppass =(/ 38.35343,114.4157,44.04228,43.69033,12.01613,36.22598,36.22598,36.22598,43.61185,43.61185,0.,0.,0.,4.482157,0.,0., &
-               0. /)
-    xplab  =(/   26.737,  19.947,  29.107,  30.509,  23.206,  25.538,  25.538,  25.538,  27.729,  27.729,0.,0.,0.,  21.038,0.,0., &
-                 0.103 /)
-    xpsorb =(/   126.73,  92.263, 134.639, 132.012,  173.47, 186.207, 186.207, 186.207, 155.518, 155.518,0.,0.,0.,  255.79,0.,0., &
-                 1.176 /)
-    xpocc  =(/  138.571, 120.374,  138.22, 148.083, 114.496, 145.163, 145.163, 145.163, 158.884, 158.884,0.,0.,0., 108.897,0.,0., &
-                0.688 /)
- 
-    xkmlabp  =(/ 74.5408, 68.1584,  77.952,64.41918,64.41918,70.5856, 64.5888,54.1692, 9.7704, 28.29,  63.963,  32.402 /)
-    xpsorbmax=(/ 745.408,788.0815,1110.816, 744.847, 744.847,816.146,746.8081,722.256,293.112,311.19,373.1175,615.6381 /)
-    xfPleach =0.0005
-    ratioNPsoil(:,1)=4.
-    ratioNPsoil(:,2)=(/ 5.,5.,5.,15.,5.,5.,5.,5.,7.,7.,7.,7. /)
-    ratioNPsoil(:,3)=(/ 5.,5.,5.,15.,5.,5.,5.,5.,7.,7.,7.,7. /)
-    
-    xxnpmax = (/ 1.510856726, 1.27916225, 1.591076159, 1.186066584, 1.358075681, 1.45621905, &
-                 1.45621905,  1.45621905, 1.210382326, 1.210382326, 1.45621905,  1.365993164, &
-                 1.210382326, 1.,         1.399652677, 1.,          1. /)
-    xq10soil = 1.72
-    xxkoptlitter = 0.4
-    xxkoptsoil = (/ 0.33, 0.6, 0.15, 0.6, 0.16, 0.4, 0.3, 0.2, 0.2, 0.25, 1., 0.65, 0.5, 2., 0.5, 1., 1. /)
-    xprodptase = (/ 0.5, 0.2, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 4., 0.5, 0.5, 0.5, 0.5, 0.5 /)
-    xcostnpup = (/ 40., 25., 40., 40., 40., 40., 40., 40., 40., 40., 40., 40., 40., 40., 40., 40., 40. /)
-    xmaxfinelitter = (/ 1524., 384., 1527., 887., 157., 361., 225., 913., 660., 100., 100., 100., 100., 83., 100., 100., 100. /)
-    xmaxcwd = (/ 1795., 613., 1918., 1164., 107., 420., 228., 573., 811., 100., 100., 100., 100., 23., 100., 100., 100. /)
-    xnintercept = (/ 6.32, 4.19, 6.32, 5.73, 14.71, 6.42, 2., 14.71, 4.71, 14.71, 14.71, 7., 14.71, 14.71, 14.71, 14.71, 14.71 /)
-    xnslope = (/ 18.15, 26.19, 18.15, 29.81, 23.15, 40.96, 8., 23.15, 59.23, 23.15, 23.15, 10., 23.15, 23.15, 23.15, 23.15, &
-                 23.15 /)
-    xla_to_sa = (/ 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., &
-                   5000. /)
-    xvcmax_scalar = (/ 0.92, 1.10, 0.92, 0.92, 1.25, 1.25, 1.25, 1.25, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 /)
-    xdisturbance_interval = (/ 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100., 100.,     &
-                               100. /)
-    xDAMM_EnzPool = (/ 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0 /)
-    xDAMM_KMO2 = (/ 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01 /)
-    xDAMM_KMcp = (/ 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1 /)
-    xDAMM_Ea = (/ 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62. /)
-    xDAMM_alpha = (/ 10.6, 10.4, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6 /)
-    
-    xxkplab = 0.001369863
-    xxkpsorb = (/ 1.8356191E-05, 2.0547975E-05, 1.3698650E-05, 1.4794542E-05, 2.1369894E-05, 2.3835651E-05, 1.9452083E-05, &
-                  2.1095921E-05, 2.7123327E-05, 2.1095921E-05, 2.7123327E-05, 2.1095921E-05 /)
-    xxkpocc = 2.73973E-05
- 
-    casabiome%ivt2     =(/   3,  3,  3,  3,  2,  1,  1,  2,  1,  1,  0,  0,  0,  1,  0,  0,  0 /)
-    casabiome%kroot    =real((/ 5.5,3.9,5.5,3.9,2.0,5.5,5.5,5.5,5.5,5.5,5.5,5.5,5.5,2.0,2.0,5.5,5.5 /),8)
-    casabiome%rootdepth=real((/ 1.5,1.5,1.5,1.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1.5,0.5 /),8)
-    casabiome%kuptake  =real((/ 2.0,1.9,2.0,2.0,1.8,2.0,2.0,2.0,1.6,1.6,1.6,1.8,1.8,1.8,1.8,1.8,1.8 /),8)
-    casabiome%krootlen =real((/ 14.87805,14.38596,14.02597,18.94737,32.30769,84.,84.,84.,120.5,120.5, &
-                           0.,0.,0.,30.76923,0.,0.,0. /),8)
-    casabiome%kminN=2
-    casabiome%kuplabP=0.5_8
-    casabiome%fracnpptoP(:,leaf) =real((/ 0.25,0.20,0.40,0.35,0.35,0.35,0.35,0.50,0.50,0.50,0.50,0.50,0.50,0.25,0.50,0.60,0.50 /),8)
-    casabiome%fracnpptoP(:,wood) =real((/ 0.40,0.35,0.30,0.25,0.25,0.00,0.00,0.10,0.00,0.00,0.00,0.00,0.00,0.25,0.00,0.40,0.00 /),8)
-    casabiome%fracnpptoP(:,xroot)=real((/ 0.35,0.45,0.30,0.40,0.40,0.65,0.65,0.40,0.50,0.50,0.50,0.50,0.50,0.50,0.50,0.00,0.50 /),8)
-    casabiome%rmplant(:,leaf)    =0.1_8
-    casabiome%rmplant(:,wood)    =real((/ 2.0,1.0,1.5,0.8,0.5,0.5,0.4,1.8,2.0,1.0,1.0,1.0,1.0,2.0,1.0,1.0,1.0 /),8)
-    casabiome%rmplant(:,xroot)   =real((/ 10.,2.0,7.5,2.5,4.5,4.5,4.0,15.,25.,10.,10.,10.,10.,10.,10.,10.,10. /),8)
-    casabiome%ftransNPtoL(:,leaf) =0.5_8
-    casabiome%ftransNPtoL(:,wood) =0.95_8
-    casabiome%ftransNPtoL(:,xroot)=0.9_8
-    casabiome%fracligninplant(:,leaf) =real((/ 0.25,0.20,0.20,0.20,0.20,0.10,0.10,0.10,0.10,0.10,0.15,0.15,0.15,0.15,0.15, &
-                                               0.25,0.10 /),8)
-    casabiome%fracligninplant(:,wood) =0.4_8
-    casabiome%fracligninplant(:,xroot)=real((/ 0.25,0.20,0.20,0.20,0.20,0.10,0.10,0.10,0.10,0.10,0.15,0.15,0.15,0.15,0.15,  &
-                                               0.25,0.10 /),8)
-    !casabiome%glaimax=real((/ 7.,7.,7.,7.,3.,3.,3.,3.,6.,6., 5., 5., 5., 1.,6., 1.,0. /),8)
-    casabiome%glaimax=real((/ 10.,10.,10.,10.,10.,3.,3.,3.,6.,6., 5., 5., 5., 1.,6., 1.,0. /),8)
-    casabiome%glaimin=real((/ 1.,1.,.5,.5,.1,.1,.1,.1,.1,.1,.05,.05,.05,.05,0.,.05,0. /),8)
-    phen%TKshed=real((/ 268.,260.,263.15,268.15,277.15,275.15,275.15,275.15,278.15,278.15,277.15,277.15,277.15,277.15,277.15, &
-                   277.15,283.15 /),8)
-    casabiome%xkleafcoldexp=3._8
-    casabiome%xkleafdryexp=3._8
-    casabiome%ratioNCplantmin(:,leaf) =real((/     0.02,    0.04,0.016667,0.028571,   0.025, 0.02631,    0.02,    0.02,    0.04, &
-                                              0.04,0.033333,   0.025,   0.025,0.018182,   0.025,   0.025,   0.025 /),8)
-    casabiome%ratioNCplantmax(:,leaf) =real((/    0.024,   0.048,    0.02,0.034286,    0.03,0.031572,   0.024,   0.024,   0.048, &
-                                             0.048,    0.04,    0.03,    0.03,0.022222,    0.03,    0.03,    0.03 /),8)
-    casabiome%ratioNCplantmin(:,wood) =real((/    0.004,0.006667,   0.004,0.005714,0.006667,0.006667,0.006667,0.006667,   0.008, &
-                                             0.008,0.006667,0.006667,0.006667,0.006667,0.006667,0.007307,0.006667 /),8)
-    casabiome%ratioNCplantmax(:,wood) =real((/   0.0048,   0.008,  0.0048,0.006857,   0.008,   0.008,   0.008,   0.008,  0.0096, &
-                                            0.0096,   0.008,   0.008,   0.008,   0.008,   0.008,0.008889,   0.008 /),8)
-    casabiome%ratioNCplantmin(:,xroot)=real((/ 0.012821,0.014706,0.012821,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085, &
-                                          0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085,0.014085 /),8)
-    casabiome%ratioNCplantmax(:,xroot)=real((/ 0.015385,0.017647,0.015385,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901, &
-                                          0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901,0.016901 /),8)
-    casabiome%ftransPPtoL(:,leaf)=0.5_8
-    casabiome%ftransPPtoL(:,wood)=0.95_8
-    casabiome%ftransPPtoL(:,xroot)=0.9_8
-    
-    casabiome%ratioPcplantmin(:,leaf)  = real(1./(xratioNPleafmax*ratioCNplant(:,leaf)),8)
-    casabiome%ratioPcplantmax(:,leaf)  = real(1./(xratioNPleafmin*ratioCNplant(:,leaf)),8)
-    casabiome%ratioPcplantmin(:,wood)  = real(1./(xratioNPwoodmax*ratioCNplant(:,wood)),8)
-    casabiome%ratioPcplantmax(:,wood)  = real(1./(xratioNPwoodmin*ratioCNplant(:,wood)),8)
-    casabiome%ratioPcplantmin(:,xroot) = real(1./(xratioNPfrootmax*ratioCNplant(:,xroot)),8)
-    casabiome%ratioPcplantmax(:,xroot) = real(1./(xratioNPfrootmin*ratioCNplant(:,xroot)),8)
-    
-    casabiome%ratioNPplantmin(:,leaf)  = xratioNPleafmin
-    casabiome%ratioNPplantmax(:,leaf)  = xratioNPleafmax
-    casabiome%ratioNPplantmin(:,wood)  = xratioNPwoodmin
-    casabiome%ratioNPplantmax(:,wood)  = xratioNPwoodmax
-    casabiome%ratioNPplantmin(:,xroot) = xratioNPfrootmin
-    casabiome%ratioNPplantmax(:,xroot) = xratioNPfrootmax    
-    
-    casabiome%sla                = real(0.025/sqrt(leafage),8) ! see eqn A1 of Arora and Boer, GCB, 2005
-    casabiome%fraclabile(:,leaf) = real(deltcasa*0.6,8)    !1/day
-    casabiome%fraclabile(:,xroot)= real(deltcasa*0.4,8)    !1/day
-    casabiome%fraclabile(:,wood) = 0._8
-    casabiome%plantrate(:,leaf)  = real(deltcasa/(leafage*(1.-xfherbivore)),8)
-    casabiome%plantrate(:,xroot) = real(deltcasa/frootage,8)
-    casabiome%plantrate(:,wood)  = real(deltcasa/woodage,8)
-    casabiome%litterrate(:,metb) = real(deltcasa/metage,8)
-    casabiome%litterrate(:,str)  = real(deltcasa/strage,8)
-    casabiome%litterrate(:,cwd)  = real(deltcasa/cwdage,8)
-    casabiome%soilrate(:,mic)    = real(deltcasa/micage,8)
-    casabiome%soilrate(:,slow)   = real(deltcasa/slowage,8)
-    casabiome%soilrate(:,pass)   = real(deltcasa/passage,8)
-    casabiome%xkleafcoldmax      = real(deltcasa*xxkleafcoldmax,8)
-    casabiome%xkleafdrymax       = real(deltcasa*xxkleafdrymax,8)
-    casabiome%rmplant            = real(casabiome%rmplant*deltcasa,8)
-    casabiome%kclabrate          = real(deltcasa/clabileage,8)
-
-    casabiome%xnpmax(:)          = xxnpmax(:)
-    casabiome%q10soil(:)         = xq10soil(:)
-    casabiome%xkoptlitter(:)     = xxkoptlitter(:)
-    casabiome%xkoptsoil(:)       = xxkoptsoil(:)
-    casabiome%prodptase(:)       = xprodptase(:)/365._8   ! convert from yearly to daily
-    casabiome%costnpup(:)        = xcostnpup(:)
-    casabiome%maxfinelitter(:)   = xmaxfinelitter(:)
-    casabiome%maxcwd(:)          = xmaxcwd(:)
-    casabiome%nintercept(:)      = xnintercept(:)
-    casabiome%nslope(:)          = xnslope(:)    
-
-    casabiome%la_to_sa(:)             = xla_to_sa(:)
-    casabiome%vcmax_scalar(:)         = xvcmax_scalar(:)
-    casabiome%disturbance_interval(:) = xdisturbance_interval(:)
-    casabiome%DAMM_EnzPool(:)         = xDAMM_EnzPool(:)
-    casabiome%DAMM_KMO2(:)            = xDAMM_KMO2(:)
-    casabiome%DAMM_KMcp(:)            = xDAMM_KMcp(:)
-    casabiome%DAMM_Ea(:)              = xDAMM_Ea(:)
-    casabiome%DAMM_alpha(:)           = xDAMM_alpha(:)
-    
-    casabiome%xkplab = xxkplab
-    casabiome%xkpsorb = xxkpsorb
-    casabiome%xkpocc = xxkpocc
-    
-    casamet%iveg2 = casabiome%ivt2(veg%iveg)
-    where (casamet%iveg2==3.or.casamet%iveg2==2)
-      casamet%lnonwood = 0
-      casapool%cplant(:,wood)  = real(cwood(veg%iveg),8) 
-      casapool%clitter(:,cwd)  = real(ccwd(veg%iveg),8)
-      casapool%nplant(:,wood)  = real(nwood(veg%iveg),8) 
-      casapool%nlitter(:,cwd)  = real(ncwd(veg%iveg),8)
-      casapool%pplant(:,wood)  = real(xpwood(veg%iveg),8)
-      casapool%plitter(:,cwd)  = real(xpcwd(veg%iveg),8)
-    elsewhere
-      casamet%lnonwood = 1
-      casapool%cplant(:,wood)  = 0._8
-      casapool%clitter(:,cwd)  = 0._8
-      casapool%nplant(:,wood)  = 0._8
-      casapool%nlitter(:,cwd)  = 0._8
-      casapool%pplant(:,wood)  = 0._8
-      casapool%plitter(:,cwd)  = 0._8    
-    end where
-    if ( cable_pop==1 ) then
-      where (casamet%iveg2==3.or.casamet%iveg2==2)
-        casapool%cplant(:,wood)  = 0.01_8
-        casapool%nplant(:,wood)  = casabiome%ratioNCplantmin(veg%iveg,wood)*casapool%cplant(:,wood)
-        casapool%pplant(:,wood)  = casabiome%ratioPCplantmin(veg%iveg,wood)* casapool%cplant(:,wood)
-      end where
-    end if
-    casapool%cplant(:,leaf)     = real(cleaf(veg%iveg),8)
-    casapool%cplant(:,xroot)    = real(cfroot(veg%iveg),8)
-    casapool%clabile            = 0._8
-    casapool%clitter(:,metb)    = real(cmet(veg%iveg),8)
-    casapool%clitter(:,str)     = real(cstr(veg%iveg),8)
-    casapool%csoil(:,mic)       = real(cmic(veg%iveg),8)
-    casapool%csoil(:,slow)      = real(cslow(veg%iveg),8)
-    casapool%csoil(:,pass)      = real(cpass(veg%iveg),8)
-    if ( ccycle==1 ) then
-      casapool%ratioNCplant     = 1._8/ratioCNplant(veg%iveg,:)  
-    end if
-    casapool%dclabiledt         = 0._8
-    
-    ! initializing glai in case not reading pool file (eg. during spin)
-    casamet%glai = max(casabiome%glaimin(veg%iveg), casabiome%sla(veg%iveg)*casapool%cplant(:,leaf))
-    casaflux%fNminloss   = real(xfNminloss(veg%iveg),8)
-    casaflux%fNminleach  = real(10.*xfNminleach(veg%iveg)*deltcasa,8)
-    casapool%nplant(:,leaf) = real(nleaf(veg%iveg),8)
-    casapool%nplant(:,xroot)= real(nfroot(veg%iveg),8)
-    casapool%nlitter(:,metb)= real(nmet(veg%iveg),8)
-    casapool%nlitter(:,str) = real(cstr(veg%iveg)*ratioNCstrfix,8)
-    casapool%nsoil(:,mic)   = real(nmic(veg%iveg),8)
-    casapool%nsoil(:,slow)  = real(nslow(veg%iveg),8)
-    casapool%nsoil(:,pass)  = real(npass(veg%iveg),8) 
-    casapool%nsoilmin       = real(xnsoilmin(veg%iveg),8) 
-    casapool%pplant(:,leaf) = real(xpleaf(veg%iveg),8)
-    casapool%pplant(:,xroot)= real(xpfroot(veg%iveg),8) 
-    casapool%plitter(:,metb)= real(xpmet(veg%iveg),8)
-    casapool%plitter(:,str) = casapool%nlitter(:,str)/real(ratioNPstrfix,8)
-    casapool%psoil(:,mic)   = real(xpmic(veg%iveg),8)
-    casapool%psoil(:,slow)  = real(xpslow(veg%iveg),8)
-    casapool%psoil(:,pass)  = real(xppass(veg%iveg),8)
-    casapool%psoillab       = real(xplab(veg%iveg),8)
-    casapool%psoilsorb      = real(xpsorb(veg%iveg),8)
-    casapool%psoilocc       = real(xpocc(veg%iveg),8)
-    casaflux%kmlabp         = real(xkmlabp(casamet%isorder),8)
-    casaflux%psorbmax       = real(xpsorbmax(casamet%isorder),8)
-    casaflux%fpleach        = real(xfPleach(casamet%isorder),8)
-    
-    casapool%ratioNCplant   = real(1./ratioCNplant(veg%iveg,:),8)
-    casapool%ratioNPplant   = real(casabiome%ratioNPplantmin(veg%iveg,:),8)
-    casapool%ratioNClitter  = casapool%nlitter/(casapool%clitter+1.0e-10_8)
-    casapool%ratioNPlitter  = casapool%nlitter/(casapool%plitter+1.0e-10_8)
-    casapool%ratioNCsoil    = real(1./ratioCNsoil(veg%iveg,:),8)
-    casapool%ratioNPsoil    = real(ratioNPsoil(casamet%isorder,:),8)
-    casapool%ratioNCsoilmin = real(1./ratioCNsoilmax(veg%iveg,:),8)
-    casapool%ratioNCsoilmax = real(1./ratioCNsoilmin(veg%iveg,:),8)
-    casapool%ratioNCsoilnew = casapool%ratioNCsoilmax
-    
-    casapool%ratioPCplant   = casabiome%ratioPcplantmax(veg%iveg,:)
-    casapool%ratioPClitter  = casapool%plitter/(casapool%clitter(:,:)+1.0e-10_8)
-    casapool%ratioPCsoil    = real(1./(ratioCNsoil(veg%iveg,:)*ratioNPsoil(casamet%isorder,:)),8)
-    
-    if ( ccycle<2 ) then
-      casapool%Nplant         = casapool%Cplant*casapool%ratioNCplant
-      casapool%Nsoil          = casapool%ratioNCsoil*casapool%Csoil
-    end if
-    if ( ccycle<3 ) then
-      casapool%Psoil          = casapool%Nsoil/casapool%ratioNPsoil
-      casapool%psoilsorb      = casaflux%psorbmax*casapool%psoillab &
-                                /(casaflux%kmlabp+casapool%psoillab)
-    end if
+    call casa_readbiome(veg,casabiome,casapool,casaflux,casamet,phen,fcasapft)
     
     do n = 1,mp_global
       ilat = nint((rad%latitude(n)+55.25)*2.) + 1
@@ -3554,6 +3208,9 @@ else
   call cable_biophysic_parm(cveg)
   deallocate( cveg )
   call cable_soil_parm(soil)
+  if ( ccycle>=1 .and. ccycle<=3 ) then
+    call casa_readbiome(veg,casabiome,casapool,casaflux,casamet,phen,fcasapft)
+  end if
   
 end if
   
@@ -3561,6 +3218,897 @@ if (myid==0) write(6,*) "Finished defining CABLE and CASA CNP arrays"
 
 return
 end subroutine cbmparm
+
+subroutine casa_readbiome(veg,casabiome,casapool,casaflux,casamet,phen,fcasapft)
+
+use cc_mpi     ! CC MPI routines
+use newmpar_m
+
+implicit none
+type(veg_parameter_type), intent(in) :: veg
+type(casa_biome),         intent(inout) :: casabiome
+type(casa_pool),          intent(inout) :: casapool
+type(casa_flux),          intent(inout) :: casaflux
+type(casa_met),           intent(inout) :: casamet
+type(phen_variable),      intent(inout) :: phen
+character(len=*), intent(in) :: fcasapft
+
+real(kind=r_2), dimension(mxvt,mplant) :: ratiocnplant
+real(kind=r_2), dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
+real(kind=r_2), dimension(mso,msoil) :: rationpsoil
+
+real(kind=r_2), dimension(mxvt) :: leafage,woodage,frootage,metage
+real(kind=r_2), dimension(mxvt) :: strage,cwdage,micage,slowage,passage,slax
+real(kind=r_2), dimension(mxvt) :: xfherbivore,xxkleafcoldmax,xxkleafdrymax
+real(kind=r_2), dimension(mxvt) :: xratioNPleafmin,xratioNPleafmax,xratioNPwoodmin,xratioNPwoodmax
+real(kind=r_2), dimension(mxvt) :: xratioNPfrootmin,xratioNPfrootmax,xfNminloss,xfNminleach,xnfixrate
+real(kind=r_2), dimension(mxvt) :: xnsoilmin,xplab,xpsorb,xpocc
+real(kind=r_2), dimension(mxvt) :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
+real(kind=r_2), dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
+real(kind=r_2), dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
+real(kind=r_2), dimension(mxvt) :: xxnpmax,xq10soil,xxkoptlitter,xxkoptsoil,xprodptase
+real(kind=r_2), dimension(mxvt) :: xcostnpup,xmaxfinelitter,xmaxcwd,xnintercept,xnslope
+real(kind=r_2), dimension(mxvt) :: xla_to_sa,xvcmax_scalar,xdisturbance_interval
+real(kind=r_2), dimension(mxvt) :: xDAMM_EnzPool,xDAMM_KMO2,xDAMM_KMcp,xDAMM_Ea,xDAMM_alpha
+real(kind=r_2), dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
+
+real(kind=r_2), dimension(mso) :: xkmlabp,xpsorbmax,xfPleach
+
+integer :: i, iso, nv, ierr
+integer :: nv0,nv1,nv2,nv3,nv4,nv5,nv6,nv7,nv8,nv9,nv10,nv11,nv12,nv13
+integer :: fflag=0
+
+integer, dimension(mxvt) :: ivt2
+real(kind=r_2), dimension(mxvt) :: kroot
+real(kind=r_2), dimension(mxvt) :: rootdepth
+real(kind=r_2), dimension(mxvt) :: kuptake
+real(kind=r_2), dimension(mxvt) :: krootlen
+real(kind=r_2), dimension(mxvt) :: kminn
+real(kind=r_2), dimension(mxvt) :: kuplabp
+real(kind=r_2), dimension(mxvt,mplant) :: fracnpptop
+real(kind=r_2), dimension(mxvt,mplant) :: rmplant
+real(kind=r_2), dimension(mxvt,mplant) :: ftransnptol
+real(kind=r_2), dimension(mxvt,mplant) :: fracligninplant
+real(kind=r_2), dimension(mxvt) :: glaimax
+real(kind=r_2), dimension(mxvt) :: glaimin
+real(kind=r_2), dimension(mxvt) :: xkleafcoldexp
+real(kind=r_2), dimension(mxvt) :: xkleafdryexp
+real(kind=r_2), dimension(mxvt,mplant) :: rationcplantmin
+real(kind=r_2), dimension(mxvt,mplant) :: rationcplantmax
+real(kind=r_2), dimension(mxvt,mplant) :: ftranspptol
+real(kind=r_2), dimension(mxvt) :: tkshed
+
+if ( trim(fcasapft) /= '' ) fflag = 1
+call ccmpi_bcast(fflag,0,comm_world)
+
+if ( fflag == 1  ) then
+  if ( myid == 0 ) then
+    write(6,*) "Using user defined CASA PFT parameter tables"
+  end if
+
+  if ( myid == 0 ) then
+    open(86,file=fcasapft,status='old',action='read',iostat=ierr)
+  end if
+  call ccmpi_bcast(ierr,0,comm_world)
+  if ( ierr/=0 ) then
+    if ( myid == 0 ) then
+      write(6,*) "ERROR: Cannot open casapftfile=",trim(fcasapft)
+    end if
+    call ccmpi_abort(-1)
+  end if
+
+  if ( myid == 0 ) then
+    write(6,*) "Reading ",trim(fcasapft)
+
+    do i=1,3
+      read(86,*)
+    enddo
+
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv0,ivt2(nv)
+      if ( ierr/=0 .or. nv0/=nv  ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+0*(2+mxvt)+nv,"reading nv0"
+        if ( nv0/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    read(86,*)
+    read(86,*)
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv1,kroot(nv),rootdepth(nv),      &
+                  kuptake(nv),krootlen(nv),         &
+                  kminn(nv), kuplabp(nv),           &
+                  xfherbivore(nv),leafage(nv),woodage(nv),frootage(nv), &
+                  metage(nv),strage(nv),cwdage(nv),  &
+                  micage(nv),slowage(nv),passage(nv),clabileage(nv),slax(nv)
+      if ( ierr/=0 .or. nv1/=nv ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+1*(2+mxvt)+nv,"reading nv1"
+        if ( nv1/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    read(86,*)
+    read(86,*)
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv2, &
+                  fracnpptop(nv,leaf),fracnpptop(nv,wood), &
+                  fracnpptop(nv,xroot),rmplant(nv,leaf),   &
+                  rmplant(nv,wood),rmplant(nv,xroot)
+      if ( ierr/=0 .or. nv2/=nv ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+2*(2+mxvt)+nv,"reading nv2"
+        if ( nv2/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    read(86,*)
+    read(86,*)
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv3, ratiocnplant(nv,leaf),ratiocnplant(nv,wood),   &
+           ratiocnplant(nv,xroot),                                         &
+           ftransnptol(nv,leaf), ftransnptol(nv,wood), &
+           ftransnptol(nv,xroot),                                &
+           fracligninplant(nv,leaf),                             &
+           fracligninplant(nv,wood),                             &
+           fracligninplant(nv,xroot),                            &
+           ratiocnsoil(nv,mic),ratiocnsoil(nv,slow),ratiocnsoil(nv,pass),  &
+           ratiocnsoilmin(nv,mic),ratiocnsoilmin(nv,slow),ratiocnsoilmin(nv,pass),  &
+           ratiocnsoilmax(nv,mic),ratiocnsoilmax(nv,slow),ratiocnsoilmax(nv,pass),  &
+           glaimax(nv),glaimin(nv)
+      if ( ierr/=0 .or. nv3/=nv ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+3*(2+mxvt)+nv,"reading nv3"
+        if ( nv3/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    read(86,*)
+    read(86,*)
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv4, cleaf(nv),cwood(nv),cfroot(nv),cmet(nv),   &
+                  cstr(nv),ccwd(nv), cmic(nv), cslow(nv),cpass(nv)
+      if ( ierr/=0 .or. nv4/=nv ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+4*(2+mxvt)+nv,"reading nv4"
+        if ( nv4/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    read(86,*)
+    read(86,*)
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv5, &
+           tkshed(nv),xxkleafcoldmax(nv),xkleafcoldexp(nv), &
+           xxkleafdrymax(nv),xkleafdryexp(nv)
+      if ( ierr/=0 .or. nv5/=nv ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+5*(2+mxvt)+nv,"reading nv5"
+        if ( nv5/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    read(86,*)
+    read(86,*)
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv6, &
+        rationcplantmin(nv,leaf),rationcplantmax(nv,leaf), &
+        rationcplantmin(nv,wood),rationcplantmax(nv,wood), &
+        rationcplantmin(nv,xroot),rationcplantmax(nv,xroot), &
+        xfnminloss(nv), xfnminleach(nv),xnfixrate(nv)
+      if ( ierr/=0 .or. nv6/=nv ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+6*(2+mxvt)+nv,"reading nv6"
+        if ( nv6/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    read(86,*)
+    read(86,*)
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv7,nleaf(nv),nwood(nv),nfroot(nv), &
+                  nmet(nv),nstr(nv), ncwd(nv), &
+                  nmic(nv),nslow(nv),npass(nv),xnsoilmin(nv)
+      if ( ierr/=0 .or. nv7/=nv ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+7*(2+mxvt)+nv,"reading nv7"
+        if ( nv7/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    read(86,*)
+    read(86,*)
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv8,xrationpleafmin(nv),xrationpleafmax(nv),    &
+           xrationpwoodmin(nv),xrationpwoodmax(nv),              &
+           xrationpfrootmin(nv),xrationpfrootmax(nv),            &
+           ftranspptol(nv,leaf), ftranspptol(nv,wood), &
+           ftranspptol(nv,xroot)
+      if ( ierr/=0 .or. nv8/=nv ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+8*(2+mxvt)+nv,"reading nv8"
+        if ( nv8/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    read(86,*)
+    read(86,*)
+    do iso=1,mso
+      read(86,*,iostat=ierr) nv9,xkmlabp(iso),xpsorbmax(iso),xfpleach(iso), &
+                  rationpsoil(iso,mic),rationpsoil(iso,slow),rationpsoil(iso,pass), &
+                  xxkplab(iso),xxkpsorb(iso),xxkpocc(iso)
+      if ( ierr/=0 .or. nv9/=iso ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+9*(2+mxvt)+nv,"reading nv9"
+        if ( nv9/=iso ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+    read(86,*)
+    read(86,*)
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv10, &
+           xpleaf(nv),xpwood(nv),xpfroot(nv),xpmet(nv),xpstr(nv),xpcwd(nv), &
+           xpmic(nv),xpslow(nv),xppass(nv),xplab(nv),xpsorb(nv),xpocc(nv)
+      if ( ierr/=0 .or. nv10/=nv ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+10*(2+mxvt)+nv,"reading nv10"
+        if ( nv10/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    read(86,*)
+    read(86,*)
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv11, &
+           xxnpmax(nv),xq10soil(nv),xxkoptlitter(nv),xxkoptsoil(nv),xprodptase(nv), &
+           xcostnpup(nv),xmaxfinelitter(nv),xmaxcwd(nv),xnintercept(nv),xnslope(nv)
+      if ( ierr/=0 .or. nv11/=nv ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+11*(2+mxvt)+nv,"reading nv11"
+        if ( nv11/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    read(86,*)
+    read(86,*)
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv12, &
+           xla_to_sa(nv),xdisturbance_interval(nv),xvcmax_scalar(nv)
+      if ( ierr/=0 .or. nv12/=nv ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+12*(2+mxvt)+nv,"reading nv12"
+        if ( nv12/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    read(86,*)
+    read(86,*)
+    do nv=1,mxvt
+      read(86,*,iostat=ierr) nv13, &
+           xdamm_enzpool(nv), xdamm_kmo2(nv),xdamm_kmcp(nv), xdamm_ea(nv), xdamm_alpha(nv)
+      if ( ierr/=0 .or. nv13/=nv ) then
+        write(6,*) "ERROR: Cannot read casapftfile file ",trim(fcasapft)
+        write(6,*) "Formatting error in line",3+13*(2+mxvt)+nv,"reading nv13"
+        if ( nv13/=nv ) then
+          write(6,*) "pft index is not sequential"
+        end if
+        call ccmpi_abort(-1)
+       end if
+    enddo
+
+    close(86)
+  end if
+
+  call ccmpi_bcast(ivt2,0,comm_world)
+  call ccmpi_bcastr8(kroot,0,comm_world)
+  call ccmpi_bcastr8(rootdepth,0,comm_world)
+  call ccmpi_bcastr8(kuptake,0,comm_world)
+  call ccmpi_bcastr8(krootlen,0,comm_world)
+  call ccmpi_bcastr8(kminn,0,comm_world)
+  call ccmpi_bcastr8(kuplabp,0,comm_world)
+  call ccmpi_bcastr8(xfherbivore,0,comm_world)
+  call ccmpi_bcastr8(leafage,0,comm_world)
+  call ccmpi_bcastr8(woodage,0,comm_world)
+  call ccmpi_bcastr8(frootage,0,comm_world)
+  call ccmpi_bcastr8(metage,0,comm_world)
+  call ccmpi_bcastr8(strage,0,comm_world)
+  call ccmpi_bcastr8(cwdage,0,comm_world)
+  call ccmpi_bcastr8(micage,0,comm_world)
+  call ccmpi_bcastr8(slowage,0,comm_world)
+  call ccmpi_bcastr8(passage,0,comm_world)
+  call ccmpi_bcastr8(clabileage,0,comm_world)
+  call ccmpi_bcastr8(slax,0,comm_world)
+
+  call ccmpi_bcastr8(fracnpptop,0,comm_world)
+  call ccmpi_bcastr8(rmplant,0,comm_world)
+
+  call ccmpi_bcastr8(ratiocnplant,0,comm_world)
+  call ccmpi_bcastr8(ftransnptol,0,comm_world)
+  call ccmpi_bcastr8(fracligninplant,0,comm_world)
+  call ccmpi_bcastr8(ratiocnsoil,0,comm_world)
+  call ccmpi_bcastr8(ratiocnsoilmin,0,comm_world)
+  call ccmpi_bcastr8(ratiocnsoilmax,0,comm_world)
+  call ccmpi_bcastr8(glaimax,0,comm_world)
+  call ccmpi_bcastr8(glaimin,0,comm_world)
+
+  call ccmpi_bcastr8(cleaf,0,comm_world)
+  call ccmpi_bcastr8(cwood,0,comm_world)
+  call ccmpi_bcastr8(cfroot,0,comm_world)
+  call ccmpi_bcastr8(cmet,0,comm_world)
+  call ccmpi_bcastr8(cstr,0,comm_world)
+  call ccmpi_bcastr8(ccwd,0,comm_world)
+  call ccmpi_bcastr8(cmic,0,comm_world)
+  call ccmpi_bcastr8(cslow,0,comm_world)
+  call ccmpi_bcastr8(cpass,0,comm_world)
+
+  call ccmpi_bcastr8(tkshed,0,comm_world)
+  call ccmpi_bcastr8(xxkleafcoldmax,0,comm_world)
+  call ccmpi_bcastr8(xkleafcoldexp,0,comm_world)
+  call ccmpi_bcastr8(xxkleafdrymax,0,comm_world)
+  call ccmpi_bcastr8(xkleafdryexp,0,comm_world)
+
+  call ccmpi_bcastr8(rationcplantmin,0,comm_world)
+  call ccmpi_bcastr8(rationcplantmax,0,comm_world)
+  call ccmpi_bcastr8(xfnminloss,0,comm_world)
+  call ccmpi_bcastr8(xfnminleach,0,comm_world)
+  call ccmpi_bcastr8(xnfixrate,0,comm_world)
+
+  call ccmpi_bcastr8(nleaf,0,comm_world)
+  call ccmpi_bcastr8(nwood,0,comm_world)
+  call ccmpi_bcastr8(nfroot,0,comm_world)
+  call ccmpi_bcastr8(nmet,0,comm_world)
+  call ccmpi_bcastr8(nstr,0,comm_world)
+  call ccmpi_bcastr8(ncwd,0,comm_world)
+  call ccmpi_bcastr8(nmic,0,comm_world)
+  call ccmpi_bcastr8(nslow,0,comm_world)
+  call ccmpi_bcastr8(npass,0,comm_world)
+  call ccmpi_bcastr8(xnsoilmin,0,comm_world)
+
+  call ccmpi_bcastr8(xrationpleafmin,0,comm_world)
+  call ccmpi_bcastr8(xrationpleafmax,0,comm_world)
+  call ccmpi_bcastr8(xrationpwoodmin,0,comm_world)
+  call ccmpi_bcastr8(xrationpwoodmax,0,comm_world)
+  call ccmpi_bcastr8(xrationpfrootmin,0,comm_world)
+  call ccmpi_bcastr8(xrationpfrootmax,0,comm_world)
+  call ccmpi_bcastr8(ftranspptol,0,comm_world)
+
+  call ccmpi_bcastr8(xkmlabp,0,comm_world)
+  call ccmpi_bcastr8(xpsorbmax,0,comm_world)
+  call ccmpi_bcastr8(xfpleach,0,comm_world)
+  call ccmpi_bcastr8(rationpsoil,0,comm_world)
+  call ccmpi_bcastr8(xxkplab,0,comm_world)
+  call ccmpi_bcastr8(xxkpsorb,0,comm_world)
+  call ccmpi_bcastr8(xxkpocc,0,comm_world)
+
+  call ccmpi_bcastr8(xpleaf,0,comm_world)
+  call ccmpi_bcastr8(xpwood,0,comm_world)
+  call ccmpi_bcastr8(xpfroot,0,comm_world)
+  call ccmpi_bcastr8(xpmet,0,comm_world)
+  call ccmpi_bcastr8(xpstr,0,comm_world)
+  call ccmpi_bcastr8(xpcwd,0,comm_world)
+  call ccmpi_bcastr8(xpmic,0,comm_world)
+  call ccmpi_bcastr8(xpslow,0,comm_world)
+  call ccmpi_bcastr8(xppass,0,comm_world)
+  call ccmpi_bcastr8(xplab,0,comm_world)
+  call ccmpi_bcastr8(xpsorb,0,comm_world)
+  call ccmpi_bcastr8(xpocc,0,comm_world)
+
+  call ccmpi_bcastr8(xxnpmax,0,comm_world)
+  call ccmpi_bcastr8(xq10soil,0,comm_world)
+  call ccmpi_bcastr8(xxkoptlitter,0,comm_world)
+  call ccmpi_bcastr8(xxkoptsoil,0,comm_world)
+  call ccmpi_bcastr8(xprodptase,0,comm_world)
+  call ccmpi_bcastr8(xcostnpup,0,comm_world)
+  call ccmpi_bcastr8(xmaxfinelitter,0,comm_world)
+  call ccmpi_bcastr8(xmaxcwd,0,comm_world)
+  call ccmpi_bcastr8(xnintercept,0,comm_world)
+  call ccmpi_bcastr8(xnslope,0,comm_world)
+
+  call ccmpi_bcastr8(xla_to_sa,0,comm_world)
+  call ccmpi_bcastr8(xdisturbance_interval,0,comm_world)
+  call ccmpi_bcastr8(xvcmax_scalar,0,comm_world)
+
+  call ccmpi_bcastr8(xdamm_enzpool,0,comm_world)
+  call ccmpi_bcastr8(xdamm_kmo2,0,comm_world)
+  call ccmpi_bcastr8(xdamm_kmcp,0,comm_world)
+  call ccmpi_bcastr8(xdamm_ea,0,comm_world)
+  call ccmpi_bcastr8(xdamm_alpha,0,comm_world)
+  if ( mp_global>0 ) then
+    casabiome%ivt2 = ivt2
+    casabiome%kroot = kroot
+    casabiome%rootdepth = rootdepth
+    casabiome%kuptake = kuptake
+    casabiome%krootlen = krootlen
+    casabiome%kminn = kminn
+    casabiome%kuplabp = kuplabp
+    casabiome%fracnpptop = fracnpptop
+    casabiome%rmplant = rmplant
+    casabiome%ftransnptol = ftransnptol
+    casabiome%fracligninplant = fracligninplant
+    casabiome%glaimax = glaimax
+    casabiome%glaimin = glaimin
+    phen%tkshed = tkshed
+    casabiome%xkleafcoldexp = xkleafcoldexp
+    casabiome%xkleafdryexp = xkleafdryexp
+    casabiome%rationcplantmin = rationcplantmin
+    casabiome%rationcplantmax = rationcplantmax
+    casabiome%ftranspptol = ftranspptol
+  end if
+else
+  if ( myid == 0 ) then
+    write(6,*) "Using default CASA PFT parameter tables"
+  end if
+  if ( mp_global>0 ) then
+
+    leafage =(/ 2.0_r_2, 1.5_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2, 0.8_r_2, 0.8_r_2, 1.0_r_2,      0.8_r_2,      0.8_r_2, 1.0_r_2, &
+                1.0_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2 /)
+    woodage =(/ 70._r_2, 60._r_2, 80._r_2, 40._r_2, 40._r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2,      1.0_r_2,      1.0_r_2, 1.0_r_2, &
+                1.0_r_2, 1.0_r_2, 5.0_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2 /)
+    frootage=(/ 18._r_2, 10._r_2, 10._r_2, 10._r_2, 5.0_r_2, 3.0_r_2, 3.0_r_2, 3.0_r_2, 0.884227_r_2, 0.884227_r_2, 1.0_r_2, &
+                1.0_r_2, 1.0_r_2, 4.0_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2 /)
+    metage=0.04_r_2
+    strage=0.23_r_2
+    cwdage=0.824_r_2
+    micage=0.137_r_2
+    slowage=5._r_2
+    passage=222.22_r_2
+    clabileage=0.2_r_2
+    slax = (/ 0.007178742_r_2, 0.015319264_r_2, 0.023103346_r_2, 0.026464564_r_2, 0.009919764_r_2, 0.029590494_r_2, &
+              0.022417511_r_2, 0.026704118_r_2, 0.029590494_r_2, 0.022417511_r_2,        0.02_r_2,        0.02_r_2, &
+              0.02_r_2,        0.024470894_r_2,        0.02_r_2,        0.02_r_2,        0.02_r_2 /)
+
+    xfherbivore   =(/ 0.068_r_2, 0.406_r_2, 0.068_r_2, 0.134_r_2, 0.022_r_2, 0.109_r_2, 0.109_r_2, 0.109_r_2, 0.140_r_2, &
+                      0.140_r_2, 0.000_r_2, 0.000_r_2, 0.000_r_2, 0.010_r_2, 0.000_r_2, 0.000_r_2, 0.000_r_2 /)
+    xxkleafcoldmax=(/   0.2_r_2,  0.1_r_2,  0.1_r_2,  0.6_r_2,       1._r_2,  0.2_r_2,    0.2_r_2,   0.2_r_2,   0.3_r_2, &
+                        0.3_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,      0.1_r_2,  0.1_r_2,    0.1_r_2,   0.1_r_2 /)
+    xxkleafdrymax =(/   0.1_r_2,  0.1_r_2,  0.1_r_2,   1._r_2,      0.1_r_2,  0.1_r_2,    0.1_r_2,   0.1_r_2,   0.1_r_2, &
+                        0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,      0.1_r_2,  0.1_r_2,    0.1_r_2,   0.1_r_2 /)
+    xratioNPleafmin =(/ 10.92308_r_2, 15.95339_r_2, 9.254839_r_2, 12.73848_r_2, 12.07217_r_2, 13.51473_r_2,    14.05_r_2, &
+                        12.57800_r_2, 15.12262_r_2,      10._r_2,      13._r_2,      10._r_2,      10._r_2,  16.2336_r_2, &
+                             10._r_2,      10._r_2,      10._r_2 /)
+    xratioNPleafmax =(/ 12.07288_r_2,  17.6327_r_2, 10.22903_r_2, 14.07938_r_2, 13.34292_r_2, 14.93733_r_2, 15.52895_r_2, &
+                          13.902_r_2, 16.71447_r_2,      10._r_2,      13._r_2,      10._r_2,      10._r_2,  17.9424_r_2, &
+                             10._r_2,      10._r_2,      10._r_2 /)
+    xratioNPwoodmin =(/ 20.30167_r_2, 15.89425_r_2, 17.48344_r_2, 19.08018_r_2, 22.46035_r_2,      15._r_2,      15._r_2, &
+                           15.96_r_2,    20.52_r_2,      15._r_2,      15._r_2,      15._r_2,      15._r_2,  17.5275_r_2, &
+                             15._r_2,      15._r_2,      15._r_2 /)
+    xratioNPwoodmax =(/ 22.43869_r_2, 17.56733_r_2,  19.3238_r_2, 21.08862_r_2,  24.8246_r_2,      15._r_2,      15._r_2, &
+                           17.64_r_2,    20.52_r_2,      15._r_2,      15._r_2,      15._r_2,      15._r_2,  19.3725_r_2, &
+                             15._r_2,      15._r_2,      15._r_2 /)
+    xratioNPfrootmin=(/ 20.29341_r_2, 15.87155_r_2, 17.39767_r_2,  19.0601_r_2, 22.49363_r_2, 15.63498_r_2, 16.08255_r_2, &
+                        14.49241_r_2, 22.69109_r_2,      15._r_2,      15._r_2,      15._r_2,      15._r_2, 22.13268_r_2, &
+                             15._r_2,      15._r_2,      15._r_2 /)
+    xratioNPfrootmax=(/ 22.42955_r_2, 17.54224_r_2,   19.229_r_2, 21.06643_r_2, 24.86138_r_2, 17.28077_r_2, 17.77545_r_2, &
+                        16.01793_r_2, 25.07962_r_2,      15._r_2,      15._r_2,      15._r_2,      15._r_2, 24.46244_r_2, &
+                             15._r_2,      15._r_2,      15._r_2 /)
+    xfNminloss=0.05_r_2
+    xfNminleach=0.05_r_2
+    xnfixrate=(/ 0.08_r_2, 2.6_r_2, 0.21_r_2, 1.64_r_2, 0.37_r_2, 0.95_r_2, 0.95_r_2, 0.95_r_2, 4._r_2, 4._r_2, 0._r_2, &
+                   0._r_2,  0._r_2, 0.35_r_2,   0._r_2,   0._r_2,   0._r_2 /)
+    xnsoilmin=1000._r_2
+  
+    ratiocnplant(:,leaf)=(/  49.8_r_2,  23.1_r_2,  59.3_r_2,  31.4_r_2,  37.6_r_2, 34.8_r_2,  44._r_2,  49.2_r_2,  21.6_r_2, &
+                              25._r_2,   30._r_2,   30._r_2,   30._r_2,   50._r_2,  40._r_2,  40._r_2,   40._r_2 /)
+    ratiocnplant(:,wood)=(/ 238.1_r_2, 134.9_r_2, 243.8_r_2, 156.2_r_2, 142.1_r_2, 150._r_2, 150._r_2, 147.3_r_2,  150._r_2, &
+                             125._r_2,  150._r_2,  150._r_2,  150._r_2,  150._r_2, 150._r_2, 135._r_2,  150._r_2 /)
+    ratiocnplant(:,xroot)=(/ 73.7_r_2,  61.2_r_2,   75._r_2,  63.2_r_2,  67.1_r_2, 64.5_r_2, 62.7_r_2,   69._r_2,  60.7_r_2, &
+                              71._r_2,   71._r_2,   71._r_2,   71._r_2,   71._r_2,  71._r_2,  71._r_2,   71._r_2 /)
+    ratiocnsoil(:,mic)=8._r_2
+    ratiocnsoil(:,slow)=(/ 16.1_r_2, 12.8_r_2, 24.8_r_2,  30._r_2, 19.3_r_2, 13.1_r_2, 13.1_r_2, 13.1_r_2, 13.2_r_2, 13.2_r_2, &
+                           13.1_r_2, 13.1_r_2, 13.1_r_2, 26.8_r_2,  20._r_2,  20._r_2,  20._r_2 /)
+    ratiocnsoil(:,pass)=(/ 16.1_r_2, 12.8_r_2, 24.8_r_2,  30._r_2, 19.3_r_2, 13.1_r_2, 13.1_r_2, 13.1_r_2, 13.2_r_2, 13.2_r_2, &
+                           13.1_r_2, 13.1_r_2, 13.1_r_2, 26.8_r_2,  20._r_2,  20._r_2,  20._r_2 /)
+    ratiocnsoilmin(:,mic)=3._r_2
+    ratiocnsoilmin(:,slow)=12._r_2
+    ratiocnsoilmin(:,pass)=7._r_2
+    ratiocnsoilmax(:,mic)=15._r_2
+    ratiocnsoilmax(:,slow)=30._r_2
+    ratiocnsoilmax(:,pass)=15._r_2
+   
+    ! Initial values for CNP pools over 3*plant, 3*litter and 3*soil (=27 pools in total)
+    cleaf  =(/ 384.6037_r_2,     273._r_2, 96.59814_r_2, 150.2638_r_2,      88._r_2, 137.1714_r_2, 137.1714_r_2, 137.1714_r_2, &
+                   160._r_2,     160._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    cwood  =(/ 7865.396_r_2,   11451._r_2, 5683.402_r_2, 10833.74_r_2,     372._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    cfroot =(/     250._r_2,    2586._r_2,     220._r_2,     220._r_2,     140._r_2,     263._r_2,     263._r_2,     263._r_2, &
+                   240._r_2,     240._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    cmet   =(/ 6.577021_r_2, 44.63457_r_2, 7.127119_r_2, 10.97797_r_2, 3.229374_r_2, 28.57245_r_2, 28.57245_r_2, 28.57245_r_2, &
+               28.57245_r_2, 28.57245_r_2,       0._r_2,       0._r_2,       0._r_2, 1.457746_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    cstr   =(/ 209.1728_r_2, 433.7626_r_2, 277.7733_r_2, 312.5492_r_2, 39.44449_r_2, 50.91091_r_2, 50.91091_r_2, 50.91091_r_2, &
+               50.91091_r_2, 50.91091_r_2,       0._r_2,       0._r_2,       0._r_2, 4.956338_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    ccwd   =(/ 606.0255_r_2, 1150.765_r_2, 776.7331_r_2, 888.5864_r_2, 111.5864_r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, 28.44085_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /) 
+    cmic   =(/  528.664_r_2, 11.37765_r_2, 597.0785_r_2, 405.5554_r_2, 168.0451_r_2, 425.6431_r_2, 425.6431_r_2, 425.6431_r_2, &
+               512.4247_r_2, 512.4247_r_2,       0._r_2,       0._r_2,       0._r_2, 57.77585_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    cslow  =(/ 13795.94_r_2, 311.8092_r_2, 16121.12_r_2, 11153.25_r_2, 4465.478_r_2, 5694.437_r_2, 5694.437_r_2, 5694.437_r_2, &
+               6855.438_r_2, 6855.438_r_2,       0._r_2,       0._r_2,       0._r_2, 1325.052_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    cpass  =(/ 4425.396_r_2 ,13201.81_r_2, 5081.802_r_2, 5041.192_r_2, 1386.477_r_2,  4179.92_r_2,  4179.92_r_2,  4179.92_r_2, &
+               5032.137_r_2, 5032.137_r_2,       0._r_2,       0._r_2,       0._r_2, 517.1719_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nleaf  =(/ 7.541249_r_2,      9.9_r_2, 1.609969_r_2, 3.756594_r_2, 2.933333_r_2, 4.572381_r_2, 4.572381_r_2, 4.572381_r_2, &
+               5.333333_r_2, 5.333333_r_2       ,0._r_2,       0._r_2,       0._r_2,      0.5_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nwood  =(/ 31.46159_r_2,    102._r_2,  22.73361_r_2, 80.24989_r_2, 2.755555_r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2,      0._r_2,        0._r_2,       0._r_2,       0._r_2, 0.125926_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nfroot =(/ 6.097561_r_2,      38._r_2, 5.365854_r_2, 5.365854_r_2, 3.414634_r_2, 6.414634_r_2, 6.414634_r_2, 6.414634_r_2, &
+               5.853659_r_2, 5.853659_r_2,       0._r_2,       0._r_2,       0._r_2, 1.536585_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nmet   =(/ 0.064481_r_2,  0.74391_r_2, 0.059393_r_2, 0.137225_r_2, 0.053823_r_2, 0.476208_r_2, 0.476208_r_2, 0.476208_r_2, &
+               0.476208_r_2, 0.476208_r_2,       0._r_2,       0._r_2,       0._r_2, 0.018222_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nstr   =(/ 1.394485_r_2, 2.891751_r_2, 1.851822_r_2, 2.083661_r_2, 0.262963_r_2, 0.339406_r_2, 0.339406_r_2, 0.339406_r_2, &
+               0.339406_r_2, 0.339406_r_2,       0._r_2,       0._r_2,       0._r_2, 0.033042_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    ncwd   =(/ 2.424102_r_2, 8.524183_r_2, 3.106932_r_2, 6.581996_r_2, 0.826566_r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, 0.210673_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nmic   =(/  52.8664_r_2, 1.137765_r_2, 59.70785_r_2, 40.55554_r_2, 16.80451_r_2, 42.56431_r_2, 42.56431_r_2, 42.56431_r_2, &
+               51.24247_r_2, 51.24247_r_2,       0._r_2,       0._r_2,       0._r_2, 5.777585_r_2       ,0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nslow  =(/ 919.7293_r_2, 20.78728_r_2, 1074.741_r_2, 743.5501_r_2, 297.6985_r_2, 379.6291_r_2, 379.6291_r_2, 379.6291_r_2, &
+               457.0292_r_2, 457.0292_r_2,       0._r_2,       0._r_2,       0._r_2, 88.33682_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    npass  =(/ 295.0264_r_2, 880.1209_r_2, 338.7868_r_2, 336.0795_r_2,  92.4318_r_2, 278.6613_r_2, 278.6613_r_2, 278.6613_r_2, &
+               335.4758_r_2, 335.4758_r_2,       0._r_2,       0._r_2,       0._r_2, 34.47813_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpleaf =(/ 0.191648_r_2,   0.415_r_2,  0.115988_r_2, 0.135453_r_2, 0.022821_r_2,  0.15125_r_2,  0.15125_r_2,  0.15125_r_2, &
+                0.15125_r_2, 0.15125_r_2,        0._r_2,       0._r_2,       0._r_2,    0.007_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpwood =(/ 0.953979_r_2,    5.88_r_2, 0.64438_r_2,   2.424778_r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2,      0._r_2,      0._r_2,         0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpfroot=(/ 0.076659_r_2,    1.95_r_2, 0.080548_r_2,  0.141097_r_2, 0.037083_r_2,  0.15125_r_2,  0.15125_r_2,  0.15125_r_2, &
+                0.15125_r_2, 0.15125_r_2,       0._r_2,        0._r_2,       0._r_2,  0.00875_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpmet  =(/ 0.004385_r_2, 0.029756_r_2, 0.004751_r_2, 0.007319_r_2, 0.002153_r_2, 0.019048_r_2, 0.019048_r_2, 0.019048_r_2, &
+               0.019048_r_2, 0.019048_r_2,       0._r_2,       0._r_2,       0._r_2, 0.000972_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpstr  =(/ 0.069724_r_2, 0.144588_r_2, 0.092591_r_2, 0.104183_r_2, 0.013148_r_2,  0.01697_r_2,  0.01697_r_2,  0.01697_r_2, &
+                0.01697_r_2,  0.01697_r_2,       0._r_2,       0._r_2,       0._r_2, 0.001652_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpcwd  =(/ 0.101004_r_2, 0.191794_r_2, 0.129456_r_2, 0.148095_r_2, 0.018598_r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpmic  =(/ 6.872632_r_2 , 0.14791_r_2, 7.762021_r_2,  5.27222_r_2, 2.184586_r_2, 5.533361_r_2, 5.533361_r_2, 5.533361_r_2, &
+               6.661522_r_2, 6.661522_r_2,       0._r_2,       0._r_2,       0._r_2, 0.751086_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpslow =(/ 119.5648_r_2, 2.702347_r_2, 139.7164_r_2, 96.66152_r_2, 38.70081_r_2, 49.35178_r_2, 49.35178_r_2, 49.35178_r_2, &
+                59.4138_r_2,  59.4138_r_2,       0._r_2,       0._r_2,       0._r_2, 11.48379_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xppass =(/ 38.35343_r_2, 114.4157_r_2, 44.04228_r_2, 43.69033_r_2, 12.01613_r_2, 36.22598_r_2, 36.22598_r_2, 36.22598_r_2, &
+               43.61185_r_2, 43.61185_r_2,       0._r_2,       0._r_2,       0._r_2, 4.482157_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xplab  =(/   26.737_r_2,   19.947_r_2,   29.107_r_2,   30.509_r_2,   23.206_r_2,   25.538_r_2,   25.538_r_2,   25.538_r_2, &
+                 27.729_r_2,   27.729_r_2,       0._r_2,       0._r_2,       0._r_2,   21.038_r_2,       0._r_2,       0._r_2, &
+                  0.103_r_2 /)
+    xpsorb =(/   126.73_r_2,   92.263_r_2,  134.639_r_2,  132.012_r_2,   173.47_r_2,  186.207_r_2,  186.207_r_2,  186.207_r_2, &
+                155.518_r_2,  155.518_r_2,       0._r_2,       0._r_2,       0._r_2,   255.79_r_2,       0._r_2,       0._r_2, &
+                  1.176_r_2 /)
+    xpocc  =(/  138.571_r_2,  120.374_r_2,   138.22_r_2,  148.083_r_2,  114.496_r_2,  145.163_r_2,  145.163_r_2,  145.163_r_2, &
+                158.884_r_2,  158.884_r_2,       0._r_2,       0._r_2,       0._r_2,  108.897_r_2,       0._r_2,       0._r_2, &
+                  0.688_r_2 /)
+
+    xkmlabp  =(/ 74.5408_r_2,  68.1584_r_2,   77.952_r_2, 64.41918_r_2, 64.41918_r_2, 70.5856_r_2,  64.5888_r_2, 54.1692_r_2, &
+                  9.7704_r_2,    28.29_r_2,   63.963_r_2,   32.402_r_2 /)
+    xpsorbmax=(/ 745.408_r_2, 788.0815_r_2, 1110.816_r_2,  744.847_r_2,  744.847_r_2, 816.146_r_2, 746.8081_r_2, 722.256_r_2, &
+                 293.112_r_2,   311.19_r_2, 373.1175_r_2, 615.6381_r_2 /)
+    xfPleach =0.0005_r_2
+    ratioNPsoil(:,mic)=4._r_2
+    ratioNPsoil(:,slow)=(/ 5._r_2, 5._r_2, 5._r_2, 15._r_2, 5._r_2, 5._r_2, 5._r_2, 5._r_2, 7._r_2, 7._r_2, 7._r_2, 7._r_2 /)
+    ratioNPsoil(:,pass)=(/ 5._r_2, 5._r_2, 5._r_2, 15._r_2, 5._r_2, 5._r_2, 5._r_2, 5._r_2, 7._r_2, 7._r_2, 7._r_2, 7._r_2 /)
+  
+    xxnpmax = (/ 1.510856726_r_2, 1.27916225_r_2, 1.591076159_r_2, 1.186066584_r_2, 1.358075681_r_2,  1.45621905_r_2, &
+                  1.45621905_r_2, 1.45621905_r_2, 1.210382326_r_2, 1.210382326_r_2,  1.45621905_r_2, 1.365993164_r_2, &
+                 1.210382326_r_2,         1._r_2, 1.399652677_r_2,          1._r_2,          1._r_2 /)
+    xq10soil = 1.72_r_2
+    xxkoptlitter = 0.4_r_2
+    xxkoptsoil = (/ 0.33_r_2, 0.6_r_2, 0.15_r_2, 0.6_r_2, 0.16_r_2, 0.4_r_2, 0.3_r_2, 0.2_r_2, 0.2_r_2, 0.25_r_2,  1._r_2, &
+                    0.65_r_2, 0.5_r_2,   2._r_2, 0.5_r_2,   1._r_2,  1._r_2 /)
+    xprodptase = (/  0.5_r_2, 0.2_r_2,  0.5_r_2, 0.5_r_2,  0.5_r_2, 0.5_r_2, 0.5_r_2, 0.5_r_2, 0.5_r_2,  0.5_r_2, 0.5_r_2, &
+                      4._r_2, 0.5_r_2,  0.5_r_2, 0.5_r_2,  0.5_r_2, 0.5_r_2 /)
+    xcostnpup = (/   40._r_2, 25._r_2,  40._r_2, 40._r_2,  40._r_2, 40._r_2, 40._r_2, 40._r_2, 40._r_2,  40._r_2, 40._r_2, &
+                     40._r_2, 40._r_2,  40._r_2, 40._r_2,  40._r_2, 40._r_2 /)
+    xmaxfinelitter = (/ 1524._r_2, 384._r_2, 1527._r_2, 887._r_2, 157._r_2, 361._r_2, 225._r_2, 913._r_2, 660._r_2, 100._r_2, &
+                         100._r_2, 100._r_2,  100._r_2,  83._r_2, 100._r_2, 100._r_2, 100._r_2 /)
+    xmaxcwd = (/ 1795._r_2, 613._r_2, 1918._r_2, 1164._r_2, 107._r_2, 420._r_2, 228._r_2, 573._r_2, 811._r_2, 100._r_2, &
+                  100._r_2, 100._r_2,  100._r_2,   23._r_2, 100._r_2, 100._r_2, 100._r_2 /)
+    xnintercept = (/ 6.32_r_2, 4.19_r_2,  6.32_r_2,  5.73_r_2, 14.71_r_2,  6.42_r_2,    2._r_2, 14.71_r_2, 4.71_r_2, 14.71_r_2, &
+                    14.71_r_2,   7._r_2, 14.71_r_2, 14.71_r_2, 14.71_r_2, 14.71_r_2, 14.71_r_2 /)
+    xnslope = (/ 18.15_r_2, 26.19_r_2, 18.15_r_2, 29.81_r_2, 23.15_r_2, 40.96_r_2, 8._r_2, 23.15_r_2, 59.23_r_2, 23.15_r_2, &
+                 23.15_r_2,   10._r_2, 23.15_r_2, 23.15_r_2, 23.15_r_2, 23.15_r_2, 23.15_r_2 /)
+    xla_to_sa = (/ 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, &
+                   5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2 /)
+    xvcmax_scalar = (/ 0.92_r_2, 1.10_r_2, 0.92_r_2, 0.92_r_2, 1.25_r_2, 1.25_r_2, 1.25_r_2, 1.25_r_2, 1.0_r_2, 1.0_r_2, &
+                        1.0_r_2,  1.0_r_2,  1.0_r_2,  1.0_r_2,  1.0_r_2,  1.0_r_2,  1.0_r_2 /)
+    xdisturbance_interval = (/ 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, &
+                               100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2 /)
+    xDAMM_EnzPool = (/ 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, &
+                       10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2 /)
+    xDAMM_KMO2 = (/ 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, &
+                    0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2 /)
+    xDAMM_KMcp = (/  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2, &
+                     0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2 /)
+    xDAMM_Ea = (/ 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, &
+                  62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2 /)
+    xDAMM_alpha = (/ 10.6_r_2, 10.4_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, &
+                     10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2 /)
+  
+    xxkplab = 0.001369863_r_2
+    xxkpsorb = (/ 1.8356191E-05_r_2, 2.0547975E-05_r_2, 1.3698650E-05_r_2, 1.4794542E-05_r_2, 2.1369894E-05_r_2, &
+                  2.3835651E-05_r_2, 1.9452083E-05_r_2, 2.1095921E-05_r_2, 2.7123327E-05_r_2, 2.1095921E-05_r_2, &
+                  2.7123327E-05_r_2, 2.1095921E-05_r_2 /)
+    xxkpocc = 2.73973E-05_r_2
+
+    casabiome%ivt2     =(/        3_r_2,        3_r_2,        3_r_2,        3_r_2,        2_r_2,        1_r_2,   1_r_2,   2_r_2, &
+                                  1_r_2,        1_r_2,        0_r_2,        0_r_2,        0_r_2,        1_r_2,   0_r_2,   0_r_2, &
+                                  0_r_2 /)
+    casabiome%kroot    =(/      5.5_r_2,      3.9_r_2,      5.5_r_2,      3.9_r_2,      2.0_r_2,      5.5_r_2, 5.5_r_2, 5.5_r_2, &
+                                5.5_r_2,      5.5_r_2,      5.5_r_2,      5.5_r_2,      5.5_r_2,      2.0_r_2, 2.0_r_2, 5.5_r_2, &
+                                5.5_r_2 /)
+    casabiome%rootdepth=(/      1.5_r_2,      1.5_r_2,      1.5_r_2,      1.5_r_2,      0.5_r_2,      0.5_r_2, 0.5_r_2, 0.5_r_2, &
+                                0.5_r_2,      0.5_r_2,      0.5_r_2,      0.5_r_2,      0.5_r_2,      0.5_r_2, 0.5_r_2, 1.5_r_2, &
+                                0.5_r_2 /)
+    casabiome%kuptake  =(/      2.0_r_2,      1.9_r_2,      2.0_r_2,      2.0_r_2,      1.8_r_2,      2.0_r_2, 2.0_r_2, 2.0_r_2, &
+                                1.6_r_2,      1.6_r_2,      1.6_r_2,      1.8_r_2,      1.8_r_2,      1.8_r_2, 1.8_r_2, 1.8_r_2, &
+                                1.8_r_2 /)
+    casabiome%krootlen =(/ 14.87805_r_2, 14.38596_r_2, 14.02597_r_2, 18.94737_r_2, 32.30769_r_2,      84._r_2, 84._r_2, 84._r_2, &
+                              120.5_r_2,    120.5_r_2,       0._r_2,       0._r_2,       0._r_2, 30.76923_r_2,  0._r_2,  0._r_2, &
+                                 0._r_2 /)
+    casabiome%kminN=2.0_r_2
+    casabiome%kuplabP=0.5_r_2
+    casabiome%fracnpptoP(:,leaf) =(/ 0.25_r_2, 0.20_r_2, 0.40_r_2, 0.35_r_2, 0.35_r_2, 0.35_r_2, 0.35_r_2, 0.50_r_2, 0.50_r_2, &
+                                     0.50_r_2, 0.50_r_2, 0.50_r_2, 0.50_r_2, 0.25_r_2, 0.50_r_2, 0.60_r_2, 0.50_r_2 /)
+    casabiome%fracnpptoP(:,wood) =(/ 0.40_r_2, 0.35_r_2, 0.30_r_2, 0.25_r_2, 0.25_r_2, 0.00_r_2, 0.00_r_2, 0.10_r_2, 0.00_r_2, &
+                                     0.00_r_2, 0.00_r_2, 0.00_r_2, 0.00_r_2, 0.25_r_2, 0.00_r_2, 0.40_r_2, 0.00_r_2 /)
+    casabiome%fracnpptoP(:,xroot)=(/ 0.35_r_2, 0.45_r_2, 0.30_r_2, 0.40_r_2, 0.40_r_2, 0.65_r_2, 0.65_r_2, 0.40_r_2, 0.50_r_2, &
+                                     0.50_r_2, 0.50_r_2, 0.50_r_2, 0.50_r_2, 0.50_r_2, 0.50_r_2, 0.00_r_2, 0.50_r_2 /)
+    casabiome%rmplant(:,leaf)    =0.1_r_2
+    casabiome%rmplant(:,wood)    =(/ 2.0_r_2, 1.0_r_2, 1.5_r_2, 0.8_r_2, 0.5_r_2, 0.5_r_2, 0.4_r_2, 1.8_r_2, 2.0_r_2, 1.0_r_2, &
+                                     1.0_r_2, 1.0_r_2, 1.0_r_2, 2.0_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2 /)
+    casabiome%rmplant(:,xroot)   =(/ 10._r_2, 2.0_r_2, 7.5_r_2, 2.5_r_2, 4.5_r_2, 4.5_r_2, 4.0_r_2, 15._r_2, 25._r_2, 10._r_2, &
+                                     10._r_2, 10._r_2, 10._r_2, 10._r_2, 10._r_2, 10._r_2, 10._r_2 /)
+    casabiome%ftransNPtoL(:,leaf) =0.5_r_2
+    casabiome%ftransNPtoL(:,wood) =0.95_r_2
+    casabiome%ftransNPtoL(:,xroot)=0.9_r_2
+    casabiome%fracligninplant(:,leaf) =(/ 0.25_r_2, 0.20_r_2, 0.20_r_2, 0.20_r_2, 0.20_r_2, 0.10_r_2, 0.10_r_2, 0.10_r_2, &
+                                          0.10_r_2, 0.10_r_2, 0.15_r_2, 0.15_r_2, 0.15_r_2, 0.15_r_2, 0.15_r_2, 0.25_r_2, &
+                                          0.10_r_2 /)
+    casabiome%fracligninplant(:,wood) =0.4_r_2
+    casabiome%fracligninplant(:,xroot)=(/ 0.25_r_2, 0.20_r_2, 0.20_r_2, 0.20_r_2, 0.20_r_2, 0.10_r_2, 0.10_r_2, 0.10_r_2, &
+                                          0.10_r_2, 0.10_r_2, 0.15_r_2, 0.15_r_2, 0.15_r_2, 0.15_r_2, 0.15_r_2, 0.25_r_2, &
+                                          0.10_r_2 /)
+    !casabiome%glaimax=(/ 7._r_2, 7._r_2, 7._r_2, 7._r_2, 3._r_2, 3._r_2, 3._r_2, 3._r_2, 6._r_2, 6._r_2,  5._r_2,  5._r_2, &
+    !                     5._r_2, 1._r_2, 6._r_2, 1._r_2, 0._r_2 /)
+    casabiome%glaimax=(/ 10._r_2, 10._r_2, 10._r_2, 10._r_2, 10._r_2, 3._r_2, 3._r_2, 3._r_2, 6._r_2, 6._r_2,  5._r_2, 5._r_2, &
+                          5._r_2, 1._r_2,  6._r_2,   1._r_2,  0._r_2 /)
+    casabiome%glaimin=(/ 1._r_2,  1._r_2, .5_r_2,  .5_r_2, .1_r_2, .1_r_2, .1_r_2, .1_r_2, .1_r_2, .1_r_2, .05_r_2, .05_r_2, &
+                        .05_r_2, .05_r_2, 0._r_2, .05_r_2, 0._r_2 /)
+    phen%TKshed=(/ 268._r_2,   260._r_2, 263.15_r_2, 268.15_r_2, 277.15_r_2, 275.15_r_2, 275.15_r_2, 275.15_r_2, 278.15_r_2, &
+                 278.15_r_2, 277.15_r_2, 277.15_r_2, 277.15_r_2, 277.15_r_2, 277.15_r_2, 277.15_r_2, 283.15_r_2 /)
+    casabiome%xkleafcoldexp=3._r_2
+    casabiome%xkleafdryexp=3._r_2
+    casabiome%ratioNCplantmin(:,leaf) =(/     0.02_r_2,     0.04_r_2, 0.016667_r_2, 0.028571_r_2,    0.025_r_2,  0.02631_r_2, &
+                                              0.02_r_2,     0.02_r_2,     0.04_r_2,     0.04_r_2, 0.033333_r_2,    0.025_r_2, &
+                                             0.025_r_2, 0.018182_r_2,    0.025_r_2,    0.025_r_2,    0.025_r_2 /)
+    casabiome%ratioNCplantmax(:,leaf) =(/    0.024_r_2,    0.048_r_2,     0.02_r_2, 0.034286_r_2,     0.03_r_2, 0.031572_r_2, &
+                                             0.024_r_2,    0.024_r_2,    0.048_r_2,    0.048_r_2,     0.04_r_2,     0.03_r_2, &
+                                              0.03_r_2, 0.022222_r_2,     0.03_r_2,     0.03_r_2,     0.03_r_2 /)
+    casabiome%ratioNCplantmin(:,wood) =(/    0.004_r_2, 0.006667_r_2,    0.004_r_2, 0.005714_r_2, 0.006667_r_2, 0.006667_r_2, &
+                                          0.006667_r_2, 0.006667_r_2,    0.008_r_2,    0.008_r_2, 0.006667_r_2, 0.006667_r_2, &
+                                          0.006667_r_2, 0.006667_r_2, 0.006667_r_2, 0.007307_r_2, 0.006667_r_2 /)
+    casabiome%ratioNCplantmax(:,wood) =(/   0.0048_r_2,    0.008_r_2,   0.0048_r_2, 0.006857_r_2,    0.008_r_2,    0.008_r_2, &
+                                             0.008_r_2,    0.008_r_2,   0.0096_r_2,   0.0096_r_2,    0.008_r_2,    0.008_r_2, &
+                                             0.008_r_2,    0.008_r_2,    0.008_r_2, 0.008889_r_2,    0.008_r_2 /)
+    casabiome%ratioNCplantmin(:,xroot)=(/ 0.012821_r_2, 0.014706_r_2, 0.012821_r_2, 0.014085_r_2, 0.014085_r_2, 0.014085_r_2, &
+                                          0.014085_r_2, 0.014085_r_2, 0.014085_r_2, 0.014085_r_2, 0.014085_r_2, 0.014085_r_2, &
+                                          0.014085_r_2, 0.014085_r_2, 0.014085_r_2, 0.014085_r_2, 0.014085_r_2 /)
+    casabiome%ratioNCplantmax(:,xroot)=(/ 0.015385_r_2, 0.017647_r_2, 0.015385_r_2, 0.016901_r_2, 0.016901_r_2, 0.016901_r_2, &
+                                          0.016901_r_2, 0.016901_r_2, 0.016901_r_2, 0.016901_r_2, 0.016901_r_2, 0.016901_r_2, &
+                                          0.016901_r_2, 0.016901_r_2, 0.016901_r_2, 0.016901_r_2, 0.016901_r_2 /)
+    casabiome%ftransPPtoL(:,leaf)=0.5_r_2
+    casabiome%ftransPPtoL(:,wood)=0.95_r_2
+    casabiome%ftransPPtoL(:,xroot)=0.9_r_2
+
+  end if
+
+end if
+    
+if ( mp_global>0 ) then
+  casabiome%ratioPcplantmin(:,leaf)  = 1._r_2/(xratioNPleafmax*ratioCNplant(:,leaf))
+  casabiome%ratioPcplantmax(:,leaf)  = 1._r_2/(xratioNPleafmin*ratioCNplant(:,leaf))
+  casabiome%ratioPcplantmin(:,wood)  = 1._r_2/(xratioNPwoodmax*ratioCNplant(:,wood))
+  casabiome%ratioPcplantmax(:,wood)  = 1._r_2/(xratioNPwoodmin*ratioCNplant(:,wood))
+  casabiome%ratioPcplantmin(:,xroot) = 1._r_2/(xratioNPfrootmax*ratioCNplant(:,xroot))
+  casabiome%ratioPcplantmax(:,xroot) = 1._r_2/(xratioNPfrootmin*ratioCNplant(:,xroot))
+
+  casabiome%ratioNPplantmin(:,leaf)  = xratioNPleafmin
+  casabiome%ratioNPplantmax(:,leaf)  = xratioNPleafmax
+  casabiome%ratioNPplantmin(:,wood)  = xratioNPwoodmin
+  casabiome%ratioNPplantmax(:,wood)  = xratioNPwoodmax
+  casabiome%ratioNPplantmin(:,xroot) = xratioNPfrootmin
+  casabiome%ratioNPplantmax(:,xroot) = xratioNPfrootmax    
+
+  casabiome%sla                = slax
+  casabiome%fraclabile(:,leaf) = deltcasa*0.6_r_2    !1/day
+  casabiome%fraclabile(:,xroot)= deltcasa*0.4_r_2    !1/day
+  casabiome%fraclabile(:,wood) = 0._r_2
+  casabiome%plantrate(:,leaf)  = deltcasa/(leafage*(1._r_2-xfherbivore))
+  casabiome%plantrate(:,xroot) = deltcasa/frootage
+  casabiome%plantrate(:,wood)  = deltcasa/woodage
+  casabiome%litterrate(:,metb) = deltcasa/metage
+  casabiome%litterrate(:,str)  = deltcasa/strage
+  casabiome%litterrate(:,cwd)  = deltcasa/cwdage
+  casabiome%soilrate(:,mic)    = deltcasa/micage
+  casabiome%soilrate(:,slow)   = deltcasa/slowage
+  casabiome%soilrate(:,pass)   = deltcasa/passage
+  casabiome%xkleafcoldmax      = deltcasa*xxkleafcoldmax
+  casabiome%xkleafdrymax       = deltcasa*xxkleafdrymax
+  casabiome%rmplant            = casabiome%rmplant*deltcasa
+  casabiome%kclabrate          = deltcasa/clabileage
+
+  casabiome%xnpmax(:)          = xxnpmax(:)
+  casabiome%q10soil(:)         = xq10soil(:)
+  casabiome%xkoptlitter(:)     = xxkoptlitter(:)
+  casabiome%xkoptsoil(:)       = xxkoptsoil(:)
+  casabiome%prodptase(:)       = xprodptase(:)/365._r_2   ! convert from yearly to daily
+  casabiome%costnpup(:)        = xcostnpup(:)
+  casabiome%maxfinelitter(:)   = xmaxfinelitter(:)
+  casabiome%maxcwd(:)          = xmaxcwd(:)
+  casabiome%nintercept(:)      = xnintercept(:)
+  casabiome%nslope(:)          = xnslope(:)    
+
+  casabiome%la_to_sa(:)             = xla_to_sa(:)
+  casabiome%vcmax_scalar(:)         = xvcmax_scalar(:)
+  casabiome%disturbance_interval(:) = xdisturbance_interval(:)
+  casabiome%DAMM_EnzPool(:)         = xDAMM_EnzPool(:)
+  casabiome%DAMM_KMO2(:)            = xDAMM_KMO2(:)
+  casabiome%DAMM_KMcp(:)            = xDAMM_KMcp(:)
+  casabiome%DAMM_Ea(:)              = xDAMM_Ea(:)
+  casabiome%DAMM_alpha(:)           = xDAMM_alpha(:)
+
+  casabiome%xkplab = xxkplab
+  casabiome%xkpsorb = xxkpsorb
+  casabiome%xkpocc = xxkpocc
+
+  casamet%iveg2 = casabiome%ivt2(veg%iveg)
+  where (casamet%iveg2==forest.or.casamet%iveg2==shrub)
+    casamet%lnonwood = 0
+    casapool%cplant(:,wood)  = cwood(veg%iveg) 
+    casapool%clitter(:,cwd)  = ccwd(veg%iveg)
+    casapool%nplant(:,wood)  = nwood(veg%iveg) 
+    casapool%nlitter(:,cwd)  = ncwd(veg%iveg)
+    casapool%pplant(:,wood)  = xpwood(veg%iveg)
+    casapool%plitter(:,cwd)  = xpcwd(veg%iveg)
+  elsewhere
+    casamet%lnonwood = 1
+    casapool%cplant(:,wood)  = 0._r_2
+    casapool%clitter(:,cwd)  = 0._r_2
+    casapool%nplant(:,wood)  = 0._r_2
+    casapool%nlitter(:,cwd)  = 0._r_2
+    casapool%pplant(:,wood)  = 0._r_2
+    casapool%plitter(:,cwd)  = 0._r_2
+  end where
+  if ( cable_pop==1 ) then
+   where (casamet%iveg2==forest.or.casamet%iveg2==shrub)
+      casapool%cplant(:,wood)  = 0.01_r_2
+      casapool%nplant(:,wood)  = casabiome%ratioNCplantmin(veg%iveg,wood)*casapool%cplant(:,wood)
+      casapool%pplant(:,wood)  = casabiome%ratioPCplantmin(veg%iveg,wood)* casapool%cplant(:,wood)
+    end where
+  end if
+  casapool%cplant(:,leaf)     = cleaf(veg%iveg)
+  casapool%cplant(:,xroot)    = cfroot(veg%iveg)
+  casapool%clabile            = 0._r_2
+  casapool%clitter(:,metb)    = cmet(veg%iveg)
+  casapool%clitter(:,str)     = cstr(veg%iveg)
+  casapool%csoil(:,mic)       = cmic(veg%iveg)
+  casapool%csoil(:,slow)      = cslow(veg%iveg)
+  casapool%csoil(:,pass)      = cpass(veg%iveg)
+  if ( ccycle==1 ) then
+    casapool%ratioNCplant     = 1._r_2/ratioCNplant(veg%iveg,:)  
+  end if
+  casapool%dclabiledt         = 0._r_2
+
+  ! initializing glai in case not reading pool file (eg. during spin)
+  casamet%glai = max(casabiome%glaimin(veg%iveg), casabiome%sla(veg%iveg)*casapool%cplant(:,leaf))
+  casaflux%fNminloss   = xfNminloss(veg%iveg)
+  casaflux%fNminleach  = 10._r_2*xfNminleach(veg%iveg)*deltcasa
+  casapool%nplant(:,leaf) = nleaf(veg%iveg)
+  casapool%nplant(:,xroot)= nfroot(veg%iveg)
+  casapool%nlitter(:,metb)= nmet(veg%iveg)
+  casapool%nlitter(:,str) = cstr(veg%iveg)*ratioNCstrfix
+  casapool%nsoil(:,mic)   = nmic(veg%iveg)
+  casapool%nsoil(:,slow)  = nslow(veg%iveg)
+  casapool%nsoil(:,pass)  = npass(veg%iveg) 
+  casapool%nsoilmin       = xnsoilmin(veg%iveg) 
+  casapool%pplant(:,leaf) = xpleaf(veg%iveg)
+  casapool%pplant(:,xroot)= xpfroot(veg%iveg) 
+  casapool%plitter(:,metb)= xpmet(veg%iveg)
+  casapool%plitter(:,str) = casapool%nlitter(:,str)/ratioNPstrfix
+  casapool%psoil(:,mic)   = xpmic(veg%iveg)
+  casapool%psoil(:,slow)  = xpslow(veg%iveg)
+  casapool%psoil(:,pass)  = xppass(veg%iveg)
+  casapool%psoillab       = xplab(veg%iveg)
+  casapool%psoilsorb      = xpsorb(veg%iveg)
+  casapool%psoilocc       = xpocc(veg%iveg)
+  casaflux%kmlabp         = xkmlabp(casamet%isorder)
+  casaflux%psorbmax       = xpsorbmax(casamet%isorder)
+  casaflux%fpleach        = xfPleach(casamet%isorder)/365._r_2
+
+  casapool%ratioNCplant   = 1._r_2/ratioCNplant(veg%iveg,:)
+  casapool%ratioNPplant   = casabiome%ratioNPplantmin(veg%iveg,:)
+  casapool%ratioNClitter  = casapool%nlitter/(casapool%clitter+1.0e-10_r_2)
+  casapool%ratioNPlitter  = casapool%nlitter/(casapool%plitter+1.0e-10_r_2)
+  casapool%ratioNCsoil    = 1._r_2/ratioCNsoil(veg%iveg,:)
+  casapool%ratioNPsoil    = ratioNPsoil(casamet%isorder,:)
+  casapool%ratioNCsoilmin = 1._r_2/ratioCNsoilmax(veg%iveg,:)
+  casapool%ratioNCsoilmax = 1._r_2/ratioCNsoilmin(veg%iveg,:)
+  casapool%ratioNCsoilnew = casapool%ratioNCsoilmax
+
+  casapool%ratioPCplant   = casabiome%ratioPcplantmax(veg%iveg,:)
+  casapool%ratioPClitter  = casapool%plitter/(casapool%clitter(:,:)+1.0e-10_r_2)
+  casapool%ratioPCsoil    = 1._r_2/(ratioCNsoil(veg%iveg,:)*ratioNPsoil(casamet%isorder,:))
+
+  if ( ccycle<2 ) then
+    casapool%Nplant         = casapool%Cplant*casapool%ratioNCplant
+    casapool%Nsoil          = casapool%ratioNCsoil*casapool%Csoil
+  end if
+  if ( ccycle<3 ) then
+    casapool%Psoil          = casapool%Nsoil/casapool%ratioNPsoil
+    casapool%psoilsorb      = casaflux%psorbmax*casapool%psoillab &
+                            /(casaflux%kmlabp+casapool%psoillab)
+  end if
+end if
+
+end subroutine casa_readbiome
 
 subroutine cable_biophysic_parm(cveg)
 

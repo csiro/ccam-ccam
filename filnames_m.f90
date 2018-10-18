@@ -29,7 +29,7 @@ public soilfile, vegfile, restfile, surfile, surf_00, surf_12
 public ifile, ofile, so4tfile, eigenv, radfile, o3file
 public mesonest, laifile, albnirfile, urbanfile, bathfile
 public vegprev, vegnext, vegnext2, cnsdir, salfile, oxidantfile
-public phenfile, casafile
+public phenfile, casafile, casapftfile
 public ensembleoutfile
 
 character(len=1024), save :: albfile = ' '
@@ -64,5 +64,6 @@ character(len=1024), save :: oxidantfile = ' '
 character(len=1024), save :: phenfile = ' '
 character(len=1024), save :: casafile = ' '
 character(len=1024), save :: ensembleoutfile = ' '
+character(len=1024), save :: casapftfile = ' '
 
 end module filnames_m

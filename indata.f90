@@ -726,7 +726,7 @@ call bounds(zs,corner=.true.)
 ! nsib=7 (CABLE land surface scheme with CCAM screen diagnostics)
 if ( nsib==6 .or. nsib==7 ) then
   ! albvisnir at this point holds soil albedo for cable initialisation  
-  call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,casapoint,greenup,fall,phendoy1)
+  call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,casapoint,greenup,fall,phendoy1,casapftfile)
   ! albvisnir at this point holds net albedo
 end if
 
