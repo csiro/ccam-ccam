@@ -1700,9 +1700,9 @@ kc = min(kbotmlo, ktopmlo+wl-1)
 if ( mloalpha==0 ) then
   nudgewgt = 1.
 else if ( nud_period == -1 ) then
-  nudgewgt = (mtimeb-mtimea)/(144.*real(mloalpha))  ! mloalpha=10 implies 24 hours
+  nudgewgt = (mtimeb-mtimea)/(120.*real(mloalpha))  ! mloalpha=12 implies 24 hours
 else
-  nudgewgt = real(nud_period)/(144.*real(mloalpha)) ! mloalpha=10 implies 24 hours
+  nudgewgt = real(nud_period)/(120.*real(mloalpha)) ! mloalpha=12 implies 24 hours
 end if
 
 if ( nud_sfh/=0 ) then

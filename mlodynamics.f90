@@ -5001,12 +5001,6 @@ real, dimension(ifull) :: f_in,f_ine,f_ie,f_is,f_ise,f_ien,f_iw,f_iwn
 
 ! rhobar = int_0^sigma rho dsigma / sigma
 
-! MJT notes - this version fades out extrapolated gradients using ramp_a, etc.
-!
-! Idealy, we want to separate the neta contribution to drhobar/dx so that it
-! can be included in the implicit solution to neta.
-
-
 do ii = 1,wlev
   dd_i(:,ii) = gosig(ii)*dd(:)
   ddux(:,ii) = gosig(ii)*ddu(1:ifull)
@@ -5017,24 +5011,23 @@ call mlospline(dd_i,rhobar,y2_i) ! cubic spline
 do jj = 1,2
   do ii = 1,wlev
     ssi(:,ii,jj)=rhobar(1:ifull,ii,jj)
-    call unpack_ne(rhobar(:,ii,jj),ssn(:,ii,jj),sse(:,ii,jj))
+    call unpack_nsew(rhobar(:,ii,jj),ssn(:,ii,jj),sss(:,ii,jj),sse(:,ii,jj),ssw(:,ii,jj))
     y2i(:,ii,jj)=y2_i(1:ifull,ii,jj)
-    call unpack_ne(y2_i(:,ii,jj),y2n(:,ii,jj),y2e(:,ii,jj))
+    call unpack_nsew(y2_i(:,ii,jj),y2n(:,ii,jj),y2s(:,ii,jj),y2e(:,ii,jj),y2w(:,ii,jj))
   end do
 end do  
 do ii = 1,wlev
   ddi(:,ii)  =dd_i(1:ifull,ii)
-  call unpack_ne(dd_i(:,ii),ddn(:,ii),dde(:,ii))
+  call unpack_nsew(dd_i(:,ii),ddn(:,ii),dds(:,ii),dde(:,ii),ddw(:,ii))
 end do  
+call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
 
 do jj = 1,2
   do ii = 1,wlev
 !$omp simd
     do iq = 1,ifull  
-      sss(iq,ii,jj) =rhobar(is(iq),ii,jj)
       ssne(iq,ii,jj)=rhobar(ine(iq),ii,jj)
       ssse(iq,ii,jj)=rhobar(ise(iq),ii,jj)
-      y2s(iq,ii,jj) =y2_i(is(iq),ii,jj)
       y2ne(iq,ii,jj)=y2_i(ine(iq),ii,jj)
       y2se(iq,ii,jj)=y2_i(ise(iq),ii,jj)
     end do  
@@ -5043,19 +5036,14 @@ end do
 do ii = 1,wlev
 !$omp simd
   do iq = 1,ifull
-    dds(iq,ii)   =dd_i(is(iq),ii)
     ddne(iq,ii)  =dd_i(ine(iq),ii)
     ddse(iq,ii)  =dd_i(ise(iq),ii)
   end do  
 end do  
-
-call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
 !$omp simd
 do iq = 1,ifull
   f_ine(iq)=f(ine(iq))
   f_ise(iq)=f(ise(iq))
-  f_ien(iq)=f(ien(iq))
-  f_iwn(iq)=f(iwn(iq))
 end do  
   
 ! process staggered u locations
@@ -5083,10 +5071,8 @@ do jj = 1,2
   do ii = 1,wlev
 !$omp simd
     do iq = 1,ifull  
-      ssw(iq,ii,jj) =rhobar(iw(iq),ii,jj)
       ssen(iq,ii,jj)=rhobar(ien(iq),ii,jj)
       sswn(iq,ii,jj)=rhobar(iwn(iq),ii,jj)
-      y2w(iq,ii,jj) =y2_i(iw(iq),ii,jj)
       y2en(iq,ii,jj)=y2_i(ien(iq),ii,jj)
       y2wn(iq,ii,jj)=y2_i(iwn(iq),ii,jj)
     end do
@@ -5095,10 +5081,14 @@ end do
 do ii = 1,wlev
 !$omp simd
   do iq = 1,ifull  
-    ddw(iq,ii) =dd_i(iw(iq),ii)
     dden(iq,ii)=dd_i(ien(iq),ii)
     ddwn(iq,ii)=dd_i(iwn(iq),ii)
   end do
+end do
+!$omp simd
+do iq = 1,ifull
+  f_ien(iq)=f(ien(iq))
+  f_iwn(iq)=f(iwn(iq))
 end do  
 
 ! now process staggered v locations
@@ -5445,12 +5435,6 @@ real, dimension(ifull) :: f_in,f_ine,f_ie,f_is,f_ise,f_ien,f_iw,f_iwn
 
 ! rhobar = int_0^sigma rho dsigma / sigma
 
-! MJT notes - this version fades out extrapolated gradients using ramp_a, etc.
-!
-! Idealy, we want to separate the neta contribution to drhobar/dx so that it
-! can be included in the implicit solution to neta.
-
-
 do ii = 1,wlev
   dd_i(:,ii) = gosig(ii)*dd(:)
   ddux(:,ii) = gosig(ii)*ddu(1:ifull)
@@ -5460,19 +5444,19 @@ end do
 do jj = 1,2
   do ii = 1,wlev
     ssi(:,ii,jj)=rhobar(1:ifull,ii,jj)
-    call unpack_ne(rhobar(:,ii,jj),ssn(:,ii,jj),sse(:,ii,jj))
+    call unpack_nsew(rhobar(:,ii,jj),ssn(:,ii,jj),sss(:,ii,jj),sse(:,ii,jj),ssw(:,ii,jj))
   end do
 end do  
 do ii = 1,wlev
   ddi(:,ii)=dd_i(1:ifull,ii)
-  call unpack_ne(dd_i(:,ii),ddn(:,ii),dde(:,ii))
+  call unpack_nsew(dd_i(:,ii),ddn(:,ii),dds(:,ii),dde(:,ii),ddw(:,ii))
 end do  
+call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
 
 do jj = 1,2
   do ii = 1,wlev
 !$omp simd
     do iq = 1,ifull  
-      sss(iq,ii,jj) =rhobar(is(iq),ii,jj)
       ssne(iq,ii,jj)=rhobar(ine(iq),ii,jj)
       ssse(iq,ii,jj)=rhobar(ise(iq),ii,jj)
     end do  
@@ -5481,19 +5465,14 @@ end do
 do ii = 1,wlev
 !$omp simd
   do iq = 1,ifull
-    dds(iq,ii)   =dd_i(is(iq),ii)
     ddne(iq,ii)  =dd_i(ine(iq),ii)
     ddse(iq,ii)  =dd_i(ise(iq),ii)
   end do  
 end do  
-
-call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
 !$omp simd
 do iq = 1,ifull
   f_ine(iq)=f(ine(iq))
   f_ise(iq)=f(ise(iq))
-  f_ien(iq)=f(ien(iq))
-  f_iwn(iq)=f(iwn(iq))
 end do  
   
 ! process staggered u locations
@@ -5521,7 +5500,6 @@ do jj = 1,2
   do ii = 1,wlev
 !$omp simd
     do iq = 1,ifull  
-      ssw(iq,ii,jj) =rhobar(iw(iq),ii,jj)
       ssen(iq,ii,jj)=rhobar(ien(iq),ii,jj)
       sswn(iq,ii,jj)=rhobar(iwn(iq),ii,jj)
     end do
@@ -5530,10 +5508,14 @@ end do
 do ii = 1,wlev
 !$omp simd
   do iq = 1,ifull  
-    ddw(iq,ii) =dd_i(iw(iq),ii)
     dden(iq,ii)=dd_i(ien(iq),ii)
     ddwn(iq,ii)=dd_i(iwn(iq),ii)
   end do
+end do  
+!$omp simd
+do iq = 1,ifull
+  f_ien(iq)=f(ien(iq))
+  f_iwn(iq)=f(iwn(iq))
 end do  
 
 ! now process staggered v locations
