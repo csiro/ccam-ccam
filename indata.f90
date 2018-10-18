@@ -743,7 +743,7 @@ if ( nurban/=0 ) then
   end where
   call atebinit(ifull,sigmu(:),0)
   call atebtype(urbantype,0)  
-  if ( urbanformat>0.99 .and. urbanformat<2.01 ) then
+  if ( urbanformat>0.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
       write(6,*) "Using user defined aTEB urban parameters"  
       nstart(1) = 1
@@ -771,8 +771,8 @@ if ( nurban/=0 ) then
     call atebdeftype(atebparm(1:8,9),urbantype,'roadalpha',0)
     call atebdeftype(atebparm(1:8,10),urbantype,'vegalphac',0)
   end if
-  ! extended ateb format
-  if ( urbanformat>1.99 .and. urbanformat<2.01 ) then
+  ! extended ateb format v2
+  if ( urbanformat>1.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
       nstart(1) = 1
       ncount(1) = 8
@@ -818,6 +818,24 @@ if ( nurban/=0 ) then
       write(vname,'("roadcond",(I1.1))') i  
       call atebdeftype(atebparm(1:8,32+i),urbantype,vname,0) 
     end do
+  end if
+  ! extended ateb format v3
+  if ( urbanformat>2.99 .and. urbanformat<3.01 ) then
+    if ( myid==0 ) then
+      nstart(1) = 1
+      ncount(1) = 8
+      call ccnf_get_vara(ncidveg,'infiltration',nstart,ncount,atebparm(1:8,1))
+      call ccnf_get_vara(ncidveg,'internalgain',nstart,ncount,atebparm(1:8,2))
+      call ccnf_get_vara(ncidveg,'bldtemp',nstart,ncount,atebparm(1:8,3))
+      call ccnf_get_vara(ncidveg,'heatprop',nstart,ncount,atebparm(1:8,4))
+      call ccnf_get_vara(ncidveg,'coolprop',nstart,ncount,atebparm(1:8,5))
+    end if
+    call ccmpi_bcast(atebparm(1:8,1:5),0,comm_world) 
+    call atebdeftype(atebparm(1:8,1),urbantype,'infilach',0)
+    call atebdeftype(atebparm(1:8,2),urbantype,'intgains',0)
+    call atebdeftype(atebparm(1:8,3),urbantype,'bldairtemp',0)
+    call atebdeftype(atebparm(1:8,4),urbantype,'heatprop',0)
+    call atebdeftype(atebparm(1:8,5),urbantype,'coolprop',0)
   end if
 else
   sigmu(:) = 0.

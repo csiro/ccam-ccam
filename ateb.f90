@@ -103,7 +103,7 @@ public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,veg
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
        zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf,        &
        intairtmeth,intmassmeth,statsmeth,behavmeth,cvcoeffmeth,infilmeth,acfactor,     &
-       ac_heatcap,ac_coolcap,ac_heatprop,ac_coolprop,ac_smooth,ac_deltat,ac_copmax
+       ac_heatcap,ac_coolcap,ac_smooth,ac_deltat,ac_copmax
 
 #ifdef CCAM
 public upack_g,ufull_g,nl
@@ -170,7 +170,7 @@ type fparmdata
   real, dimension(:), allocatable :: ctime,vangle,hangle,fbeam,weekdayload
   real, dimension(:), allocatable :: bldairtemp
   real, dimension(:), allocatable :: swilt,sfc,ssat,rfvegdepth
-  real, dimension(:), allocatable :: infilach,ventilach,tempheat,tempcool
+  real, dimension(:), allocatable :: infilach,ventilach,heatprop,coolprop
   real, dimension(:), allocatable :: sigmau
   integer, dimension(:), allocatable :: intmassn
 end type fparmdata
@@ -259,8 +259,6 @@ real, save         :: maxvwatf=0.1         ! Factor multiplied to LAI to predict
 real, save         :: acfactor=5.          ! Air conditioning inefficiency factor
 real, save         :: ac_heatcap=3.        ! Maximum heating/cooling capacity (W m^-3)
 real, save         :: ac_coolcap=3.        ! Maximum heating/cooling capacity (W m^-3)
-real, save         :: ac_heatprop=1.       ! Proportion of heated spaces (W m^-3)
-real, save         :: ac_coolprop=1.       ! Proportion of cooled spaces (W m^-3)
 real, save         :: ac_smooth=0.5        ! Synchronous heating/cooling smoothing parameter
 real, save         :: ac_deltat=1.         ! Comfort range for temperatures (+-K)
 real, save         :: ac_copmax=10.        ! Maximum COP for air-conditioner
@@ -397,7 +395,7 @@ do tile = 1,ntiles
   allocate(f_g(tile)%sigmabld(ufull_g(tile)),f_g(tile)%industryfg(ufull_g(tile)))
   allocate(f_g(tile)%intgains_flr(ufull_g(tile)),f_g(tile)%trafficfg(ufull_g(tile)))
   allocate(f_g(tile)%swilt(ufull_g(tile)),f_g(tile)%sfc(ufull_g(tile)),f_g(tile)%ssat(ufull_g(tile)))
-  allocate(f_g(tile)%tempheat(ufull_g(tile)),f_g(tile)%tempcool(ufull_g(tile)))
+  allocate(f_g(tile)%heatprop(ufull_g(tile)),f_g(tile)%coolprop(ufull_g(tile)))
   allocate(f_g(tile)%intmassn(ufull_g(tile)),f_g(tile)%bldwidth(ufull_g(tile)))
   allocate(f_g(tile)%infilach(ufull_g(tile)),f_g(tile)%ventilach(ufull_g(tile)))
   allocate(f_g(tile)%sigmau(ufull_g(tile)))
@@ -610,7 +608,7 @@ if ( ateb_active ) then
     deallocate(f_g(tile)%ctime,f_g(tile)%hangle,f_g(tile)%fbeam,f_g(tile)%weekdayload)
     deallocate(f_g(tile)%swilt,f_g(tile)%sfc,f_g(tile)%ssat)
     deallocate(f_g(tile)%bldairtemp,f_g(tile)%rfvegdepth)
-    deallocate(f_g(tile)%intmassn,f_g(tile)%infilach,f_g(tile)%ventilach,f_g(tile)%tempheat,f_g(tile)%tempcool)
+    deallocate(f_g(tile)%intmassn,f_g(tile)%infilach,f_g(tile)%ventilach,f_g(tile)%heatprop,f_g(tile)%coolprop)
     deallocate(f_g(tile)%sigmau)
     deallocate(p_g(tile)%lzom,p_g(tile)%lzoh,p_g(tile)%cndzmin,p_g(tile)%cduv,p_g(tile)%cdtq)
     deallocate(p_g(tile)%tscrn,p_g(tile)%qscrn,p_g(tile)%uscrn,p_g(tile)%u10,p_g(tile)%emiss)
@@ -1038,10 +1036,10 @@ real, dimension(maxtype) ::      cssat=(/  0.42,  0.42,  0.42,  0.42,  0.42,  0.
 real, dimension(maxtype) ::  cinfilach=(/  0.50,  0.50,  0.50,  0.50,  0.50,  0.50,  0.50,  0.50 /)
 ! Ventilation air volume changes per hour (m^3 m^-3)
 real, dimension(maxtype) :: cventilach=(/  0.00,  0.00,  0.00,  0.00,  0.00,  0.00,  0.00,  0.00 /)
-! Comfort temperature for heating [k]
-real, dimension(maxtype) ::  ctempheat=(/  288.,  288.,  288.,  288.,  288.,  0.00,  0.00,  0.00 /)
-! Comfort temperature for cooling [k]
-real, dimension(maxtype) ::  ctempcool=(/  296.,  296.,  296.,  296.,  296.,  999.,  999.,  999. /)
+! Fraction of spaces with heating devices
+real, dimension(maxtype) ::  cheatprop=(/  0.5,  0.5,  0.5,  0.5,  1.0,  0.00,  0.00,  0.00 /)
+! Fraction of spaces with cooling devices
+real, dimension(maxtype) ::  ccoolprop=(/  0.5,  0.5,  0.5,  0.5,  1.0,  0.00,  0.00,  0.00 /)
 
 real, dimension(maxtype,nl) :: croofdepth
 real, dimension(maxtype,nl) :: cwalldepth
@@ -1068,14 +1066,13 @@ namelist /atebnml/  resmeth,useonewall,zohmeth,acmeth,intairtmeth,intmassmeth,nr
                     infilmeth 
 namelist /atebsnow/ zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden
 namelist /atebgen/  refheight,zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf, &
-                    acfactor,ac_heatcap,ac_coolcap,ac_heatprop,ac_coolprop,ac_smooth,ac_deltat,        &
-                    ac_copmax
+                    acfactor,ac_heatcap,ac_coolcap,ac_smooth,ac_deltat,ac_copmax
 namelist /atebtile/ czovegc,cvegrlaic,cvegrsminc,czovegr,cvegrlair,cvegrsminr,cswilt,csfc,cssat,       &
                     cvegemissc,cvegemissr,cvegdeptr,cvegalphac,cvegalphar,csigvegc,csigvegr,           &
                     csigmabld,cbldheight,chwratio,cindustryfg,cintgains,ctrafficfg,cbldtemp,           &
                     croofalpha,cwallalpha,croadalpha,croofemiss,cwallemiss,croademiss,croofdepth,      &
                     cwalldepth,croaddepth,croofcp,cwallcp,croadcp,crooflambda,cwalllambda,croadlambda, &
-                    cslabdepth,cslabcp,cslablambda,cinfilach,cventilach,ctempheat,ctempcool
+                    cslabdepth,cslabcp,cslablambda,cinfilach,cventilach,cheatprop,ccoolprop
 
 ! facet array where: rows=maxtypes (landtypes) and columns=nl (material layers)
 nlp=nl/4 ! number of layers in each material segment (over 4 material segments)
@@ -1244,8 +1241,8 @@ fp%ssat=cssat(itmp)
 fp_slab%emiss = cslabemiss(itmp)
 fp%infilach = cinfilach(itmp)
 fp%ventilach = cventilach(itmp)
-fp%tempheat = ctempheat(itmp)
-fp%tempcool = ctempcool(itmp)
+fp%heatprop = cheatprop(itmp)
+fp%coolprop = ccoolprop(itmp)
 do ii=1,nl
   fp_slab%depth(:,ii)=cslabdepth(itmp,ii)
   fp_intm%depth(:,ii)=cslabdepth(itmp,ii)  ! internal mass material same as slab
@@ -1514,7 +1511,33 @@ select case(paramname)
         f_g(tile)%bldairtemp = paramdata(itmp(1:ufull_g(tile))) - urbtemp
         room_g(tile)%nodetemp(:,1) = f_g(tile)%bldairtemp
       end if
-    end do      
+    end do   
+  case('heatprop')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+        if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+          write(6,*) "ERROR: Urban type is out of range"
+          stop 
+        end if
+        f_g(tile)%heatprop = paramdata(itmp(1:ufull_g(tile)))
+      end if
+    end do   
+  case('coolprop')
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax  
+      if ( ufull_g(tile)>0 ) then
+        itmp(1:ufull_g(tile)) = pack(typedata(is:ie),upack_g(:,tile))
+        if ( minval(itmp(1:ufull_g(tile)))<1 .or. maxval(itmp(1:ufull_g(tile)))>maxtype ) then
+          write(6,*) "ERROR: Urban type is out of range"
+          stop 
+        end if
+        f_g(tile)%coolprop = paramdata(itmp(1:ufull_g(tile)))
+      end if
+    end do  
   case default
     found = .false.
     do i = 1,4
@@ -4835,22 +4858,22 @@ do l = 1,ncyits
           ! heating load
           where ( itemp < (fp%bldairtemp - ac_deltat) )
             ac_load = (int_airden*aircp*fp%bldheight/ddt)*(fp%bldairtemp-ac_deltat-itemp)
-            d_ac_heat = min(ac_heatcap*fp%bldheight,ac_load)*ac_heatprop*cyc_proportion
+            d_ac_heat = min(ac_heatcap*fp%bldheight,ac_load)*fp%heatprop*cyc_proportion
           end where
           ! cooling load
           where ( itemp > (fp%bldairtemp + ac_deltat) )
             ac_load = (int_airden*aircp*fp%bldheight/ddt)*(itemp-fp%bldairtemp-ac_deltat)
-            d_ac_cool = min(ac_coolcap*fp%bldheight,ac_load)*ac_coolprop*cyc_proportion
+            d_ac_cool = min(ac_coolcap*fp%bldheight,ac_load)*fp%coolprop*cyc_proportion
           end where
         case(1) ! synchronous heating and cooling, behavioural smoothing
           ! heating load
           xtemp = itemp - (fp%bldairtemp - ac_deltat)
           d_ac_behavprop = (tanh(ac_smooth*xtemp)+1.)/2.               ! Eq 5 from MJT 2007
-          d_ac_heat = ac_heatcap*ac_heatprop*fp%bldheight*(1.-d_ac_behavprop)*cyc_proportion
+          d_ac_heat = ac_heatcap*fp%heatprop*fp%bldheight*(1.-d_ac_behavprop)*cyc_proportion
           ! cooling load
           xtemp = itemp - (fp%bldairtemp + ac_deltat)
           d_ac_behavprop = (tanh(ac_smooth*xtemp)+1.)/2.               ! Eq 5 from MJT 2007
-          d_ac_cool = ac_coolcap*ac_coolprop*fp%bldheight*d_ac_behavprop*cyc_proportion
+          d_ac_cool = ac_coolcap*fp%coolprop*fp%bldheight*d_ac_behavprop*cyc_proportion
         case DEFAULT
           write(6,*) "ERROR: Unknown behavmeth mode ",behavmeth
           stop

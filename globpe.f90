@@ -1277,8 +1277,6 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_infilmeth=>infilmeth           &
     ,ateb_ac_heatcap=>ac_heatcap         &
     ,ateb_ac_coolcap=>ac_coolcap         &
-    ,ateb_ac_heatprop=>ac_heatprop       &
-    ,ateb_ac_coolprop=>ac_coolprop       &
     ,ateb_ac_smooth=>ac_smooth           &
     ,ateb_ac_deltat=>ac_deltat           &
     ,ateb_acfactor=>acfactor             &
@@ -1471,7 +1469,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_maxvwatf,ateb_intairtmeth,ateb_intmassmeth,              &
     ateb_cvcoeffmeth,ateb_statsmeth,ateb_behavmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
-    ateb_ac_heatprop,ateb_ac_coolprop,ateb_ac_smooth,             &
+    ateb_ac_smooth,                                               &
     ateb_ac_deltat,ateb_acfactor,ateb_ac_copmax,                  &
     siburbanfrac
 ! ocean namelist
@@ -2158,7 +2156,7 @@ stabmeth   = dumi(2)
 tkemeth    = dumi(3)
 ngwd       = dumi(4)
 deallocate( dumr, dumi )
-allocate( dumr8(1), dumr(26), dumi(31) )
+allocate( dumr8(1), dumr(24), dumi(31) )
 dumr8 = 0._8
 dumr = 0.
 dumi = 0
@@ -2189,13 +2187,11 @@ if ( myid==0 ) then
   dumr(17) = ateb_maxvwatf
   dumr(18) = ateb_ac_heatcap
   dumr(19) = ateb_ac_coolcap
-  dumr(20) = ateb_ac_heatprop
-  dumr(21) = ateb_ac_coolprop
-  dumr(22) = ateb_ac_smooth
-  dumr(23) = ateb_ac_deltat
-  dumr(24) = ateb_acfactor
-  dumr(25) = ateb_ac_copmax
-  dumr(26) = siburbanfrac
+  dumr(20) = ateb_ac_smooth
+  dumr(21) = ateb_ac_deltat
+  dumr(22) = ateb_acfactor
+  dumr(23) = ateb_ac_copmax
+  dumr(24) = siburbanfrac
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -2251,13 +2247,11 @@ ateb_maxrdsn      = dumr(16)
 ateb_maxvwatf     = dumr(17) 
 ateb_ac_heatcap   = dumr(18)
 ateb_ac_coolcap   = dumr(19)
-ateb_ac_heatprop  = dumr(20)
-ateb_ac_coolprop  = dumr(21)
-ateb_ac_smooth    = dumr(22)
-ateb_ac_deltat    = dumr(23)
-ateb_acfactor     = dumr(24)
-ateb_ac_copmax    = dumr(25)
-siburbanfrac      = dumr(26) 
+ateb_ac_smooth    = dumr(20)
+ateb_ac_deltat    = dumr(21)
+ateb_acfactor     = dumr(22)
+ateb_ac_copmax    = dumr(23)
+siburbanfrac      = dumr(24) 
 proglai           = dumi(1)
 ccycle            = dumi(2)
 soil_struc        = dumi(3)
