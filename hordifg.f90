@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -48,11 +48,13 @@ implicit none
 !     called for -ve nhor
 !     for +ve nhor see hordifg 
 !     It has -ve nhorps option:
-!        nhorps=0  does everything
-!        nhorps=-1 does only T & qg                  horiz diff.
-!        nhorps=-2 does only u &  v                  horiz diff.
-!        nhorps=-3 does only qg                      horiz diff.
-!        nhorps=-4 does only T, qg, cloud & aerosols horiz diff.
+!        nhorps=0  does only T, qg, TKE, u & v
+!        nhorps=-1 does only T, qg & TKE                  horiz diff.
+!        nhorps=-2 does only u &  v                       horiz diff.
+!        nhorps=-3 does only qg                           horiz diff.
+!        nhorps=-4 does only T, qg, cloud, TKE & aerosols horiz diff.
+!        nhorps=-5 does only T
+!        nhorps=-6 does only T & qg
 !     and u,v have same options as T (e.g.nhor=-157)
 !     this one has got map factors
 !     has jlm nhorx option as last digit of nhor, e.g. -157
@@ -430,29 +432,28 @@ if ( diag .and. mydiag ) then
 endif
 #endif
 
-if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
-  ! do t diffusion based on potential temperature ff
-  if ( nhorps/=-3 ) then  ! for nhorps=-3 don't diffuse T or cloud; only qg
-    do k = 1,kl
-      t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
-    end do
-    work(1:ifull,1:kl,1) = t(1:ifull,1:kl)
-    work(1:ifull,1:kl,2) = qg(1:ifull,1:kl)
-    call bounds(work(:,:,1:2))
-    do k = 1,kl
-      call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)  
-      t(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,1) +   &
-                     xfact(1:ifull,k)*work_e +            &
-                     xfact_iwu(1:ifull,k)*work_w +        &
-                     yfact(1:ifull,k)*work_n +            &
-                     yfact_isv(1:ifull,k)*work_s
-      t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k)
-    end do
-  else
-    work(1:ifull,1:kl,2) = qg(1:ifull,1:kl)
-    call bounds(work(:,:,2))
-  end if  ! (nhorps/=-3) ..else..
+! do t diffusion based on potential temperature ff
+! for nhorps=-3 don't diffuse T or cloud; only qg
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then  
+  do k = 1,kl
+    t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
+  end do
+  work(1:ifull,1:kl,1) = t(1:ifull,1:kl)
+  call bounds(work(:,:,1))
+  do k = 1,kl
+    call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)  
+    t(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,1) +   &
+                   xfact(1:ifull,k)*work_e +            &
+                   xfact_iwu(1:ifull,k)*work_w +        &
+                   yfact(1:ifull,k)*work_n +            &
+                   yfact_isv(1:ifull,k)*work_s
+    t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k)
+  end do
+end if  
   
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then  
+  work(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
+  call bounds(work(:,:,1))
   do k = 1,kl      
     call unpack_nsew(work(:,k,2),work_n,work_s,work_e,work_w)
     qg(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,2) +  &
@@ -461,45 +462,45 @@ if ( nhorps/=-2 ) then   ! for nhorps=-2 don't diffuse T, qg or cloud
                     yfact(1:ifull,k)*work_n +           &
                     yfact_isv(1:ifull,k)*work_s
   end do
+end if
   
+if ( nhorps==-4 .and. ldr/=0 ) then  
   ! cloud microphysics
-  if ( ldr/=0 .and. nhorps==-4 ) then
-    work(1:ifull,1:kl,1) = qlg(1:ifull,1:kl)
-    work(1:ifull,1:kl,2) = qfg(1:ifull,1:kl)
-    call bounds(work(:,:,1:2))
+  work(1:ifull,1:kl,1) = qlg(1:ifull,1:kl)
+  work(1:ifull,1:kl,2) = qfg(1:ifull,1:kl)
+  call bounds(work(:,:,1:2))
+  do k = 1,kl
+    call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)  
+    qlg(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,2) +  &
+                    xfact(1:ifull,k)*work_e +            &
+                    xfact_iwu(1:ifull,k)*work_w +        &
+                    yfact(1:ifull,k)*work_n +            &
+                    yfact_isv(1:ifull,k)*work_s
+  end do
+  do k = 1,kl
+    call unpack_nsew(work(:,k,2),work_n,work_s,work_e,work_w)
+    qfg(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,2) + &
+                   xfact(1:ifull,k)*work_e +            &
+                   xfact_iwu(1:ifull,k)*work_w +        &
+                   yfact(1:ifull,k)*work_n +            &
+                   yfact_isv(1:ifull,k)*work_s
+  end do
+  if ( ncloud>=4 ) then
+    work(1:ifull,1:kl,1) = stratcloud(1:ifull,1:kl)  
+    call bounds(work(:,:,1))
     do k = 1,kl
       call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)  
-      qlg(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,2) +  &
-                      xfact(1:ifull,k)*work_e +            &
-                      xfact_iwu(1:ifull,k)*work_w +        &
-                      yfact(1:ifull,k)*work_n +            &
-                      yfact_isv(1:ifull,k)*work_s
+      stratcloud(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,2) + &
+                        xfact(1:ifull,k)*work_e +                &
+                        xfact_iwu(1:ifull,k)*work_w +            &
+                        yfact(1:ifull,k)*work_n +                &
+                        yfact_isv(1:ifull,k)*work_s
     end do
-    do k = 1,kl
-      call unpack_nsew(work(:,k,2),work_n,work_s,work_e,work_w)
-      qfg(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,2) + &
-                     xfact(1:ifull,k)*work_e +            &
-                     xfact_iwu(1:ifull,k)*work_w +        &
-                     yfact(1:ifull,k)*work_n +            &
-                     yfact_isv(1:ifull,k)*work_s
-    end do
-    if ( ncloud>=4 ) then
-      work(1:ifull,1:kl,1) = stratcloud(1:ifull,1:kl)  
-      call bounds(work(:,:,1))
-      do k = 1,kl
-        call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)  
-        stratcloud(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,2) + &
-                          xfact(1:ifull,k)*work_e +                &
-                          xfact_iwu(1:ifull,k)*work_w +            &
-                          yfact(1:ifull,k)*work_n +                &
-                          yfact_isv(1:ifull,k)*work_s
-      end do
-    end if
-  end if       ! (ldr/=0.and.nhorps==-4)
-end if         ! (nhorps/=-2)
+  end if
+end if       ! (ldr/=0.and.nhorps==-4)
 
 ! apply horizontal diffusion to TKE and EPS terms
-if ( nvmix==6 ) then
+if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. nvmix==6 ) then
   work(1:ifull,1:kl,1) = tke(1:ifull,1:kl)
   work(1:ifull,1:kl,2) = eps(1:ifull,1:kl)
   call bounds(work(:,:,1:2))
@@ -521,26 +522,24 @@ if ( nvmix==6 ) then
   end do
 end if   ! (nvmix==6)
 
-if ( nhorps==-4 ) then
-  ! prgnostic aerosols
-  if ( abs(iaero)>=2 ) then
-    do nstart = 1,naero,3
-      nend = min(nstart+2, naero)
-      work(1:ifull,1:kl,1:3) = xtg(1:ifull,1:kl,nstart:nend)
-      call bounds(work(:,:,1:3))
-      do ntr = 1,3
-        do k = 1,kl  
-          call unpack_nsew(work(:,k,ntr),work_n,work_s,work_e,work_w)  
-          xtg(1:ifull,k,nstart+ntr-1) = emi(1:ifull,k)*work(1:ifull,k,ntr) +    &
-                               xfact(1:ifull,k)*work_e +                        &
-                               xfact_iwu(1:ifull,k)*work_w +                    &
-                               yfact(1:ifull,k)*work_n +                        &
-                               yfact_isv(1:ifull,k)*work_s
-        end do
+! prgnostic aerosols
+if ( nhorps==-4 .and. abs(iaero)>=2 ) then
+  do nstart = 1,naero,3
+    nend = min(nstart+2, naero)
+    work(1:ifull,1:kl,1:3) = xtg(1:ifull,1:kl,nstart:nend)
+    call bounds(work(:,:,1:3))
+    do ntr = 1,3
+      do k = 1,kl  
+        call unpack_nsew(work(:,k,ntr),work_n,work_s,work_e,work_w)  
+        xtg(1:ifull,k,nstart+ntr-1) = emi(1:ifull,k)*work(1:ifull,k,ntr) +    &
+                             xfact(1:ifull,k)*work_e +                        &
+                             xfact_iwu(1:ifull,k)*work_w +                    &
+                             yfact(1:ifull,k)*work_n +                        &
+                             yfact_isv(1:ifull,k)*work_s
       end do
     end do
-  end if  ! (abs(iaero)>=2)  
-end if    ! (nhorps==-4)
+  end do
+end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
 return
 end
