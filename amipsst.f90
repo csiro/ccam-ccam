@@ -684,6 +684,9 @@ if ( iernc==0 ) then
   unitstr = ''
   call ccnf_get_att(ncidx,varid,'units',unitstr)
   write(6,*) "Reading SST data from amipsst file"
+  if ( trim(unitstr)=='C' ) then
+    write(6,*) "Converting SSTs from degC to degK"  
+  end if
   npos(1) = il_g
   npos(2) = 6*il_g
   npos(3) = 1    
@@ -696,34 +699,38 @@ if ( iernc==0 ) then
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
     call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
     if ( ierr /= 0 ) of=0.
-    if ( trim(unitstr) == 'C' ) of=of+273.16
     call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
     if ( ierr /= 0 ) sc=1.
-    ssta_g(:,1)=sc*ssta_g(:,1)+of        
+    ssta_g(:,1)=sc*ssta_g(:,1)+of
+    if ( trim(unitstr) == 'C' ) ssta_g(:,1) = ssta_g(:,1) + 273.16
   else
-    ssta_g=0. ! dummy.  Should not be used.
+    ssta_g(:,1)=0. ! dummy.  Should not be used.
   end if
   spos(3) = max( iarchx - 1, 1 )
   if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
        (namip>=21.and.namip<=25) ) then
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,2))
-    ssta_g(:,2)=sc*ssta_g(:,2)+of 
+    ssta_g(:,2)=sc*ssta_g(:,2)+of
+    if ( trim(unitstr) == 'C' ) ssta_g(:,2) = ssta_g(:,2) + 273.16
   else
     ssta_g(:,2)=0. ! dummy.  Should not be used.       
   end if    
   spos(3) = iarchx
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,3))
   ssta_g(:,3)=sc*ssta_g(:,3)+of  
+  if ( trim(unitstr) == 'C' ) ssta_g(:,3) = ssta_g(:,3) + 273.16
   spos(3) = min( iarchx + 1, maxarchi )
   call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,4))
   ssta_g(:,4)=sc*ssta_g(:,4)+of  
+  if ( trim(unitstr) == 'C' ) ssta_g(:,4) = ssta_g(:,4) + 273.16
   spos(3) = min( iarchx + 2, maxarchi )
   if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
     if ( spos(3)<iarchx+2 .and. myid==0 ) then
       write(6,*) "Warning: Using current SSTs for next month(s)"
     end if
     call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,5))
-    ssta_g(:,5)=sc*ssta_g(:,5)+of  
+    ssta_g(:,5)=sc*ssta_g(:,5)+of 
+    if ( trim(unitstr) == 'C' ) ssta_g(:,5) = ssta_g(:,5) + 273.16
   else
     ssta_g(:,5)=0. ! dummy.  Should not be used.       
   end if 

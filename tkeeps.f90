@@ -48,7 +48,7 @@ public tkeinit,tkemix,tkeend,tke,eps,shear
 public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,ent1,entc0,ezmin,dtrc0
 public m0,b1,b2,qcmf,ent_min
 public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
-public tke_umin,tkemeth
+public tke_umin,tkemeth,tkecduv
 #ifdef offline
 public wthl,wqv,wql,wqf
 public mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up
@@ -87,6 +87,7 @@ real, save :: qcmf    = 1.e-4  ! Critical mixing ratio of liquid water before au
 integer, save :: buoymeth = 1        ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
 integer, save :: stabmeth = 0        ! Method for stability calculation (0=B&H, 1=Luhar)
 integer, save :: tkemeth  = 1        ! Method for TKE calculation (0=D&K84, 1=Hurley)
+integer, save :: tkecduv  = 0        ! Calculate drag (0=use zo, 1=use cduv=cd*vmod)
 real, save :: maxdts      = 120.     ! max timestep for split
 real, save :: mintke      = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
 real, save :: mineps      = 1.E-11   ! min value for eps (1.0e-6 in TAPM)
@@ -204,7 +205,7 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,ps,zom,zz,zzh,sig,rhos,      &
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,cduv,ps,zom,zz,zzh,sig,rhos, &
                   ustar_ave,dt,qgmin,mode,diag,cgmap,tke,eps,shear,                       &
 #ifdef scm
                   wthflux,wqvflux,uwflux,vwflux,mfout,buoyproduction,                     &
@@ -230,7 +231,7 @@ real, dimension(imax,kl), intent(in) :: shear
 real, dimension(imax,kl), intent(inout) :: tke
 real, dimension(imax,kl), intent(inout) :: eps
 real, dimension(imax), intent(inout) :: zi
-real, dimension(imax), intent(in) :: fg,eg,ps,zom,rhos,cgmap
+real, dimension(imax), intent(in) :: fg,eg,cduv,ps,zom,rhos,cgmap
 real, dimension(imax), intent(out) :: ustar_ave
 real, dimension(kl), intent(in) :: sig
 real, dimension(imax,kl) :: km,thetav,thetal,qsat
@@ -369,9 +370,11 @@ do kcount = 1,mcount
   wtv0 = wt0 + theta(1:imax,1)*0.61*wq0 ! thetav flux
   
   ! Update momentum flux
-  umag = sqrt(max( uo(1:imax,1)*uo(1:imax,1)+vo(1:imax,1)*vo(1:imax,1), tke_umin**2 ))
-  call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1),imax)
-  ustar = sqrt(cdrag)*umag
+  if ( tkecduv==0 ) then
+    umag = sqrt(max( uo(1:imax,1)*uo(1:imax,1)+vo(1:imax,1)*vo(1:imax,1), tke_umin**2 ))
+    call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1),imax)
+    ustar = sqrt(cdrag)*umag
+  end if  
   
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
@@ -730,7 +733,15 @@ do kcount = 1,mcount
   ! momentum vertical mixing
   aa(:,2:kl)  =qq(:,2:kl)
   cc(:,1:kl-1)=rr(:,1:kl-1)
-  bb(:,1)=1.-cc(:,1)+ddts*rhos*cdrag*umag/(rhoa(:,1)*dz_fl(:,1)) ! implicit
+  select case(tkecduv)
+    case(0)  
+      bb(:,1)=1.-cc(:,1)+ddts*rhos*cdrag*umag/(rhoa(:,1)*dz_fl(:,1)) ! implicit
+    case(1)
+      bb(:,1)=1.-cc(:,1)+ddts*rhos*cduv/(rhoa(:,1)*dz_fl(:,1)) ! implicit  
+    case default
+      write(6,*) "ERROR: Unknown option tkecduv = ",tkecduv
+      stop
+  end select    
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
   bb(:,kl)=1.-aa(:,kl)
   dd(:,1:kl)=uo(1:imax,1:kl)
@@ -740,7 +751,15 @@ do kcount = 1,mcount
   
   
   ! update surface momentum flux
-  ustar = sqrt(cdrag*umag*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))
+  select case(tkecduv)
+    case(0)    
+      ustar = sqrt(cdrag*umag*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))
+    case(1)
+      ustar = sqrt(cduv*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))
+    case default
+      write(6,*) "ERROR: Unknown option tkecduv = ",tkecduv
+      stop
+  end select  
   ustar_ave = ustar_ave + ustar/real(mcount)
 
   ! account for phase transitions

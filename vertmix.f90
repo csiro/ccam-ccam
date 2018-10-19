@@ -387,7 +387,7 @@ rlogh1=log(sigmh(2))
 rlog12=1./(rlogs1-rlogs2)
 tmnht(:,1)=(t(1:imax,2)*rlogs1-t(1:imax,1)*rlogs2+(t(1:imax,1)-t(1:imax,2))*rlogh1)*rlog12
 cnhs_hl(:,1) = (cnhs_fl(1:imax,2)*rlogs1-cnhs_fl(1:imax,1)*rlogs2 +   &
-                (cnhs_fl(1:imax,1)-cnhs_fl(1:imax,2))*rlogh1)*rlog12
+               (cnhs_fl(1:imax,1)-cnhs_fl(1:imax,2))*rlogh1)*rlog12
 ! n.b. an approximate zh (in m) is quite adequate for this routine
 zh(:,1) = t(1:imax,1)*cnhs_fl(:,1)*delh(1)
 do k = 2,kl-1
@@ -542,7 +542,7 @@ if ( nvmix/=6 ) then
     do nt = 1,naero
       rhs(:,:) = xtg(1:imax,:,nt) ! Total grid-box
       call trim(at,ct,rhs)
-      xtg(1:imax,:,nt) = max( rhs(:,:), 0. )
+      xtg(1:imax,:,nt) = rhs(:,:)
     end do
   end if ! (abs(iaero)>=2)
 
@@ -646,14 +646,14 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zo,zg,zh,sig,rhos,    &
                   ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                               &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,                &
                   shearproduction,totaltransport,                                       &
                   imax)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zo,zg,zh,sig,rhos,    &
                   ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                               &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,                &
                   shearproduction,totaltransport,                                       &
@@ -667,7 +667,7 @@ else
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
                   wth_flux,wq_flux)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,         &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zo,zg,zh,sig,rhos,    &
                   ustar,dt,qgmin,0,0,cgmap,tke,eps,shear,                               &
                   wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,                &
                   shearproduction,totaltransport,                                       &
@@ -681,13 +681,13 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,  &
-                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                        &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zo,zg,zh,sig,rhos,  &
+                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                             &
                   imax) 
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,  &
-                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                        &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zo,zg,zh,sig,rhos,  &
+                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                             &
                   imax) 
       rkh = rkm
       do k = 1,kl
@@ -697,8 +697,8 @@ else
       call pbldif(rkm,rkh,rhs,uav,vav,cgmap,                     &
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,ps,zo,zg,zh,sig,rhos,  &
-                  ustar,dt,qgmin,0,0,cgmap,tke,eps,shear,                        &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zo,zg,zh,sig,rhos,  &
+                  ustar,dt,qgmin,0,0,cgmap,tke,eps,shear,                             &
                   imax) 
       rkh = rkm
     case DEFAULT
@@ -748,7 +748,7 @@ else
     do nt = 1,naero
       rhs(:,:) = xtg(1:imax,:,nt) ! Total grid-box
       call trim(at,ct,rhs)
-      xtg(1:imax,:,nt) = rhs(:,:)
+      xtg(1:imax,:,nt) = max(rhs(:,:), 0.)
     end do
   end if ! (abs(iaero)>=2)  
        
