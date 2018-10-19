@@ -370,11 +370,17 @@ do kcount = 1,mcount
   wtv0 = wt0 + theta(1:imax,1)*0.61*wq0 ! thetav flux
   
   ! Update momentum flux
-  if ( tkecduv==0 ) then
-    umag = sqrt(max( uo(1:imax,1)*uo(1:imax,1)+vo(1:imax,1)*vo(1:imax,1), tke_umin**2 ))
-    call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1),imax)
-    ustar = sqrt(cdrag)*umag
-  end if  
+  select case(tkecduv)
+    case(0)  
+      umag = sqrt(max( uo(1:imax,1)**2+vo(1:imax,1)**2, tke_umin**2 ))
+      call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1),imax)
+      ustar = sqrt(cdrag*umag*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))
+    case(1)
+      ustar = sqrt(cduv*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))  
+    case default
+      write(6,*) "ERROR: Unknown option tkecduv = ",tkecduv
+      stop    
+  end select  
   
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density

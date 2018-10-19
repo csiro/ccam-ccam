@@ -194,7 +194,6 @@ do tile = 1,ntiles
   tauy_ocn(is:ie)=0.    ! dummy value
   tauy_ice(is:ie)=0.    ! dummy value
 !     using av_vmod (1. for no time averaging)
-!     sflux called at beginning of time loop, hence savu, savv
   azmin(is:ie) = (bet(1)*t(is:ie,1)+phi_nh(is:ie,1))/grav
   rho(is:ie) = ps(is:ie)/(rdry*tss(is:ie))
   uav(is:ie) = av_vmod*u(is:ie,1) + (1.-av_vmod)*savu(is:ie,1)   
@@ -207,6 +206,8 @@ do tile = 1,ntiles
   zo(is:ie) = 0.        ! dummy value
   zoh(is:ie) = 0.       ! dummy value
   zoq(is:ie) = 0.       ! dummy value
+  cduv(is:ie) = 0.      ! dummy value
+  cdtq(is:ie) = 0.      ! dummy value
   ga(is:ie) = 0.        ! for ocean points in ga_ave diagnostic
   theta(is:ie) = t(is:ie,1)/srcp
   if ( ntsur==7 ) then
@@ -897,6 +898,7 @@ real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh
 real, dimension(imax), intent(in) :: vmag, rho, azmin, uav, vav, ps, sgsave, rgsave, swrsave
 real, dimension(imax), intent(in) :: fbeamvis, fbeamnir, f, condx, conds, condg, vmod, theta
 real, dimension(imax) :: neta, oflow, dumw, dumsg, dumrg, dumx, dums, rid, fhd, fh
+real, dimension(imax) :: umod
 logical, dimension(imax), intent(in) :: wpack, outflowmask, land
 type(waterdata), intent(inout) :: water
 type(dgicedata), intent(inout) :: dgice
@@ -905,6 +907,8 @@ type(dgwaterdata), intent(inout) :: dgwater
 type(icedata), intent(inout) :: ice
 type(depthdata), intent(in) :: depth
 
+umod = 0. ! this is vmod, but accounts for moving surface                                      ! MLO
+                                                                                               ! MLO
 if ( abs(nmlo)==1 ) then                                                                       ! MLO
   ! Single column                                                                              ! MLO
   ! set free surface to zero when water is not conserved                                       ! MLO
@@ -956,13 +960,13 @@ dumrg(:)=-rgsave(:)                                                             
 dumx(:)=condx(:)/dt ! total precip                                                             ! MLO
 dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
 if (abs(nmlo)>=3) then                                                                         ! MLO
-  call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,             & ! MLO
+  call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,        & ! MLO
                azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),               & ! MLO
                ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                 & ! MLO
                depth,dgice,dgscrn,dgwater,ice,water,wfull,wpack,                             & ! MLO
                oldu=oldu1(:),oldv=oldv1(:))                                                    ! MLO
 else                                                                                           ! MLO
-  call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,             & ! MLO
+  call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,        & ! MLO
                azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),               & ! MLO
                ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                 & ! MLO
                depth,dgice,dgscrn,dgwater,ice,water,wfull,wpack)                               ! MLO
@@ -983,13 +987,13 @@ end where                                                                       
 where ( .not.land(1:imax) )                                                                    ! MLO
   snowd=snowd*1000.                                                                            ! MLO
   ga=0.                                                                                        ! MLO
-  ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rho)                                                    ! MLO
   tpan=tss                                                                                     ! MLO
   sno=sno+conds                                                                                ! MLO
   grpl=grpl+condg                                                                              ! MLO
   ! This cduv accounts for a moving surface                                                    ! MLO
-  cduv=sqrt(ustar*ustar*cduv) ! cduv=cd*vmod                                                   ! MLO
-  cdtq=cdtq*vmod                                                                               ! MLO
+  cduv = cduv*umod                                                                             ! MLO
+  cdtq = cdtq*umod                                                                             ! MLO
+  ustar = sqrt(cduv*umod)                                                                      ! MLO
 elsewhere                                                                                      ! MLO
   fg=rho*chnsea*cp*fhd*(tpan-theta)                                                            ! MLO
   ga=sgsave-rgsave-5.67e-8*tpan**4-panfg*fg                                                    ! MLO
@@ -999,7 +1003,6 @@ do iq=1,imax                                                                    
   if (.not.land(iq)) then                                                                      ! MLO
     esatf = establ(tss(iq))                                                                    ! MLO
     qsttg(iq)=.622*esatf/(ps(iq)-esatf)                                                        ! MLO
-    !rhscrn(iq)=100.*min(qgscrn(iq)/qsttg(iq),1.)                                              ! MLO
   end if                                                                                       ! MLO
 end do                                                                                         ! MLO
 

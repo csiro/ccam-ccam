@@ -127,6 +127,7 @@ type dgwaterdata
   real, dimension(:), allocatable :: cd             ! water drag coeff for momentum
   real, dimension(:), allocatable :: cdh            ! water drag coeff for heat
   real, dimension(:), allocatable :: cdq            ! water drag coeff for moisture
+  real, dimension(:), allocatable :: umod           ! relative speed between air and surface
   real, dimension(:), allocatable :: fg             ! water sensible heat flux (W/m2)
   real, dimension(:), allocatable :: eg             ! water latent heat flux (W/m2)
   real, dimension(:), allocatable :: taux           ! wind/water u-component stress (N/m2)
@@ -143,6 +144,7 @@ type dgicedata
   real, dimension(:), allocatable :: cd             ! ice drag coeff for momentum
   real, dimension(:), allocatable :: cdh            ! ice drag coeff for heat
   real, dimension(:), allocatable :: cdq            ! ice drag coeff for moisture
+  real, dimension(:), allocatable :: umod           ! relative speed between air and surface
   real, dimension(:), allocatable :: fg             ! ice sensible heat flux (W/m2)
   real, dimension(:), allocatable :: eg             ! ice latent heat flux (W/m2)
   real, dimension(:), allocatable :: tauxica        ! water/ice u-component stress (N/m2)
@@ -314,12 +316,14 @@ do tile = 1,ntiles
   allocate(dgwater_g(tile)%nirdiralb(wfull_g(tile)),dgwater_g(tile)%nirdifalb(wfull_g(tile)))
   allocate(dgwater_g(tile)%zo(wfull_g(tile)),dgwater_g(tile)%zoh(wfull_g(tile)),dgwater_g(tile)%zoq(wfull_g(tile)))
   allocate(dgwater_g(tile)%cd(wfull_g(tile)),dgwater_g(tile)%cdh(wfull_g(tile)),dgwater_g(tile)%cdq(wfull_g(tile)))
+  allocate(dgwater_g(tile)%umod(wfull_g(tile)))
   allocate(dgwater_g(tile)%fg(wfull_g(tile)),dgwater_g(tile)%eg(wfull_g(tile)))
   allocate(dgwater_g(tile)%mixdepth(wfull_g(tile)),dgwater_g(tile)%bf(wfull_g(tile)))
   allocate(dgwater_g(tile)%taux(wfull_g(tile)),dgwater_g(tile)%tauy(wfull_g(tile)))
   allocate(dgice_g(tile)%visdiralb(wfull_g(tile)),dgice_g(tile)%visdifalb(wfull_g(tile)))
   allocate(dgice_g(tile)%nirdiralb(wfull_g(tile)),dgice_g(tile)%nirdifalb(wfull_g(tile)))
   allocate(dgice_g(tile)%cd(wfull_g(tile)),dgice_g(tile)%cdh(wfull_g(tile)),dgice_g(tile)%cdq(wfull_g(tile)))
+  allocate(dgice_g(tile)%umod(wfull_g(tile)))
   allocate(dgice_g(tile)%fg(wfull_g(tile)),dgice_g(tile)%eg(wfull_g(tile)))
   allocate(dgice_g(tile)%wetfrac(wfull_g(tile)),dgwater_g(tile)%mixind(wfull_g(tile)))
   allocate(dgice_g(tile)%tauxica(wfull_g(tile)),dgice_g(tile)%tauyica(wfull_g(tile)))
@@ -357,6 +361,7 @@ do tile = 1,ntiles
     dgwater_g(tile)%cd=0.
     dgwater_g(tile)%cdh=0.
     dgwater_g(tile)%cdq=0.
+    dgwater_g(tile)%umod=0.
     dgwater_g(tile)%fg=0.
     dgwater_g(tile)%eg=0.
     dgwater_g(tile)%mixind=wlev-1
@@ -369,6 +374,7 @@ do tile = 1,ntiles
     dgice_g(tile)%cd=0.
     dgice_g(tile)%cdh=0.
     dgice_g(tile)%cdq=0.
+    dgice_g(tile)%umod=0.
     dgice_g(tile)%fg=0.
     dgice_g(tile)%eg=0.
     dgice_g(tile)%wetfrac=1.
@@ -381,24 +387,30 @@ do tile = 1,ntiles
     dgscrn_g(tile)%u2=0.
     dgscrn_g(tile)%u10=0.
 
-    ! MLO - 20 level
+    ! MLO - 20 level ( mlosigma=0 )
     !depth = (/   0.5,   3.4,  11.9,  29.7,  60.7, 108.5, 176.9, 269.7, 390.6, 543.3, &
     !           731.6, 959.2,1230.0,1547.5,1915.6,2338.0,2818.5,3360.8,3968.7,4645.8 /)
-    ! MLO - 30 level
+    ! MLO - 30 level ( mlosigma=0 )
     !depth = (/   0.5,   2.1,   5.3,  11.3,  21.1,  36.0,  56.9,  85.0, 121.5, 167.3, &
     !           223.7, 291.7, 372.4, 467.0, 576.5, 702.1, 844.8,1005.8,1186.2,1387.1, &
     !          1609.6,1854.7,2123.7,2417.6,2737.5,3084.6,3456.9,3864.5,4299.6,4766.2 /)
-    ! MLO - 40 level
+    ! MLO - 40 level ( mlosigma=0 )
     !depth = (/   0.5,   1.7,   3.7,   6.8,  11.5,  18.3,  27.7,  40.1,  56.0,  75.9, &
     !           100.2, 129.4, 164.0, 204.3, 251.0, 304.4, 365.1, 433.4, 509.9, 595.0, &
     !           689.2, 793.0, 906.7,1031.0,1166.2,1312.8,1471.3,1642.2,1825.9,2022.8, &
     !          2233.5,2458.4,2698.0,2952.8,3233.1,3509.5,3812.5,4132.4,4469.9,4825.3 /)
-    ! MLO - 50 level
+    ! MLO - 50 level ( mlosigma=0 )
     !depth = (/   0.5,   1.7,   3.1,   5.2,   8.1,  12.1,  17.3,  24.2,  32.8,  43.4, &
     !            56.3,  71.7,  89.9, 111.0, 135.3, 163.1, 194.5, 229.9, 269.5, 313.4, &
     !           362.0, 415.5, 474.1, 538.1, 607.6, 683.0, 764.4, 852.2, 946.5,1047.6, &
     !          1155.7,1271.0,1393.9,1524.5,1663.0,1809.8,1965.0,2128.9,2301.8,2483.8, &
     !          2675.2,2876.2,3087.1,3308.1,3539.5,3781.5,4034.3,4298.2,4573.4,4860.1 /)   
+    ! MLO - 50 level ( mlosigma=1 )
+    !depth = (/   0.5,   3.5,  10.6,  21.7,  36.9,  56.1,  79.3, 106.7, 138.0, 173.4, &
+    !           212.9, 256.3, 303.9, 355.5, 411.1, 470.8, 534.5, 602.3, 674.1, 749.9, &
+    !           829.9, 913.9,1001.9,1093.9,1190.0,1290.2,1394.4,1502.6,1614.9,1731.3, &
+    !          1851.6,1976.1,2104.6,2237.1,2373.7,2514.3,2659.0,2807.7,2960.4,3117.2, &
+    !          3278.1,3443.0,3611.9,3784.9,3962.0,4143.1,4328.2,4517.4,4710.6,4907.9 /) 
     ! Mk3.5 - 31 level
     !depth = (/   5.0,  15.0,  28.2,  42.0,  59.7,  78.5, 102.1, 127.9, 159.5, 194.6, &
     !           237.0, 284.7, 341.7, 406.4, 483.2, 570.9, 674.9, 793.8, 934.1,1095.2, &
@@ -534,14 +546,19 @@ if ( mlo_active ) then
     deallocate(dgwater_g(tile)%visdiralb,dgwater_g(tile)%visdifalb)
     deallocate(dgwater_g(tile)%nirdiralb,dgwater_g(tile)%nirdifalb)
     deallocate(dgwater_g(tile)%zo,dgwater_g(tile)%zoh,dgwater_g(tile)%zoq)
-    deallocate(dgwater_g(tile)%cd,dgwater_g(tile)%cdh,dgwater_g(tile)%fg,dgwater_g(tile)%eg)
-    deallocate(dgwater_g(tile)%cdq,dgice_g(tile)%cdq)
-    deallocate(dgwater_g(tile)%taux,dgwater_g(tile)%tauy,dgice_g(tile)%tauxica,dgice_g(tile)%tauyica)
+    deallocate(dgwater_g(tile)%cd)
+    deallocate(dgwater_g(tile)%cdq)
+    deallocate(dgwater_g(tile)%cdh,dgwater_g(tile)%fg,dgwater_g(tile)%eg)
+    deallocate(dgwater_g(tile)%umod)
+    deallocate(dgwater_g(tile)%taux,dgwater_g(tile)%tauy)
     deallocate(dgice_g(tile)%visdiralb,dgice_g(tile)%visdifalb)
     deallocate(dgice_g(tile)%nirdiralb,dgice_g(tile)%nirdifalb)
     deallocate(dgice_g(tile)%cd)
+    deallocate(dgice_g(tile)%cdq)
     deallocate(dgice_g(tile)%cdh,dgice_g(tile)%fg,dgice_g(tile)%eg)
+    deallocate(dgice_g(tile)%umod)
     deallocate(dgice_g(tile)%wetfrac,dgwater_g(tile)%mixind)
+    deallocate(dgice_g(tile)%tauxica,dgice_g(tile)%tauyica)
     deallocate(dgice_g(tile)%tauxicw,dgice_g(tile)%tauyicw)
     deallocate(dgscrn_g(tile)%temp,dgscrn_g(tile)%u2,dgscrn_g(tile)%qg,dgscrn_g(tile)%u10)
     deallocate(depth_g(tile)%depth,depth_g(tile)%dz,depth_g(tile)%depth_hl,depth_g(tile)%dz_hl)
@@ -1584,8 +1601,8 @@ end subroutine mloexpgamm
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
 
-subroutine mloeval_standard(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
-                   dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,            &
+subroutine mloeval_standard(sst,zo,cd,cds,umod,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
+                   dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,                 &
                    visnirratio,fbvis,fbnir,inflow,diag,calcprog,oldu,oldv)                   
 
 implicit none
@@ -1594,7 +1611,7 @@ integer, intent(in) :: diag
 integer tile, is, ie
 real, intent(in) :: dt
 real, dimension(:), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
-real, dimension(:), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
+real, dimension(:), intent(inout) :: sst,zo,cd,cds,umod,fg,eg,wetfac,fracice,siced,epot,epan,snowd
 real, dimension(:), intent(in), optional :: oldu,oldv
 logical, intent(in) :: calcprog ! flag to update prognostic variables (or just calculate fluxes)
 
@@ -1603,14 +1620,14 @@ if ( present(oldu).and.present(oldv) ) then
     is = (tile-1)*imax + 1
     ie = tile*imax
     if ( wfull_g(tile)>0 ) then
-      call mloeval_thread(sst(is:ie),zo(is:ie),cd(is:ie),cds(is:ie),fg(is:ie),eg(is:ie),    &
-                         wetfac(is:ie),epot(is:ie),epan(is:ie),fracice(is:ie),siced(is:ie), &
-                         snowd(is:ie),dt,zmin(is:ie),zmins(is:ie),sg(is:ie),rg(is:ie),      &
-                         precp(is:ie),precs(is:ie),uatm(is:ie),vatm(is:ie),temp(is:ie),     &
-                         qg(is:ie),ps(is:ie),f(is:ie),visnirratio(is:ie),fbvis(is:ie),      &
-                         fbnir(is:ie),inflow(is:ie),diag,calcprog,                          &
-                         depth_g(tile),dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),        &
-                         ice_g(tile),water_g(tile),wfull_g(tile),wpack_g(:,tile),           &
+      call mloeval_thread(sst(is:ie),zo(is:ie),cd(is:ie),cds(is:ie),umod(is:ie),fg(is:ie),eg(is:ie),    &
+                         wetfac(is:ie),epot(is:ie),epan(is:ie),fracice(is:ie),siced(is:ie),             &
+                         snowd(is:ie),dt,zmin(is:ie),zmins(is:ie),sg(is:ie),rg(is:ie),                  &
+                         precp(is:ie),precs(is:ie),uatm(is:ie),vatm(is:ie),temp(is:ie),                 &
+                         qg(is:ie),ps(is:ie),f(is:ie),visnirratio(is:ie),fbvis(is:ie),                  &
+                         fbnir(is:ie),inflow(is:ie),diag,calcprog,                                      &
+                         depth_g(tile),dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),                    &
+                         ice_g(tile),water_g(tile),wfull_g(tile),wpack_g(:,tile),                       &
                          oldu=oldu(is:ie),oldv=oldv(is:ie)) 
     end if
   end do
@@ -1619,13 +1636,13 @@ else
     is = (tile-1)*imax + 1
     ie = tile*imax
     if ( wfull_g(tile)>0 ) then
-      call mloeval_thread(sst(is:ie),zo(is:ie),cd(is:ie),cds(is:ie),fg(is:ie),eg(is:ie),    &
-                         wetfac(is:ie),epot(is:ie),epan(is:ie),fracice(is:ie),siced(is:ie), &
-                         snowd(is:ie),dt,zmin(is:ie),zmins(is:ie),sg(is:ie),rg(is:ie),      &
-                         precp(is:ie),precs(is:ie),uatm(is:ie),vatm(is:ie),temp(is:ie),     &
-                         qg(is:ie),ps(is:ie),f(is:ie),visnirratio(is:ie),fbvis(is:ie),      &
-                         fbnir(is:ie),inflow(is:ie),diag,calcprog,                          &
-                         depth_g(tile),dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),        &
+      call mloeval_thread(sst(is:ie),zo(is:ie),cd(is:ie),cds(is:ie),umod(is:ie),fg(is:ie),eg(is:ie),    &
+                         wetfac(is:ie),epot(is:ie),epan(is:ie),fracice(is:ie),siced(is:ie),             &
+                         snowd(is:ie),dt,zmin(is:ie),zmins(is:ie),sg(is:ie),rg(is:ie),                  &
+                         precp(is:ie),precs(is:ie),uatm(is:ie),vatm(is:ie),temp(is:ie),                 &
+                         qg(is:ie),ps(is:ie),f(is:ie),visnirratio(is:ie),fbvis(is:ie),                  &
+                         fbnir(is:ie),inflow(is:ie),diag,calcprog,                                      &
+                         depth_g(tile),dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),                    &
                          ice_g(tile),water_g(tile),wfull_g(tile),wpack_g(:,tile))  
     end if
   end do
@@ -1634,10 +1651,10 @@ end if
 return
 end subroutine mloeval_standard
                    
-subroutine mloeval_thread(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
-                   dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,          &
-                   visnirratio,fbvis,fbnir,inflow,diag,calcprog,                    &
-                   depth,dgice,dgscrn,dgwater,ice,water,                            &
+subroutine mloeval_thread(sst,zo,cd,cds,umod,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
+                   dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,               &
+                   visnirratio,fbvis,fbnir,inflow,diag,calcprog,                         &
+                   depth,dgice,dgscrn,dgwater,ice,water,                                 &
                    wfull,wpack,oldu,oldv)                   
 
 implicit none
@@ -1645,7 +1662,7 @@ implicit none
 integer, intent(in) :: wfull, diag
 real, intent(in) :: dt
 real, dimension(imax), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
-real, dimension(imax), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
+real, dimension(imax), intent(inout) :: sst,zo,cd,cds,umod,fg,eg,wetfac,fracice,siced,epot,epan,snowd
 real, dimension(imax), intent(in), optional :: oldu,oldv
 type(dgicedata), intent(inout) :: dgice
 type(dgscrndata), intent(inout) :: dgscrn
@@ -1697,6 +1714,7 @@ workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/zose
 zo     =unpack(dumazmin*exp(-1./sqrt(workc)),wpack,zo)
 cd     =unpack((1.-ice%fracice)*dgwater%cd +ice%fracice*dgice%cd,wpack,cd)
 cds    =unpack((1.-ice%fracice)*dgwater%cdh+ice%fracice*dgice%cdh,wpack,cds)
+umod   =unpack((1.-ice%fracice)*dgwater%umod+ice%fracice*dgice%umod,wpack,umod)
 fg     =unpack((1.-ice%fracice)*dgwater%fg +ice%fracice*dgice%fg,wpack,fg)
 eg     =unpack((1.-ice%fracice)*dgwater%eg +ice%fracice*dgice%eg,wpack,eg)
 wetfac =unpack((1.-ice%fracice)            +ice%fracice*dgice%wetfrac,wpack,wetfac)
@@ -2908,6 +2926,7 @@ end where
 dgwater%cd=af*fm
 dgwater%cdh=aft*fh
 dgwater%cdq=afq*fq
+dgwater%umod=vmagn
 
 ! turn off lake evaporation when minimum depth is reached
 ! fg should be replaced with bare ground value
@@ -4047,6 +4066,7 @@ dgice%wetfrac=max(1.+.008*min(dtsurf-273.16,0.),0.)
 dgice%cd =af*fm
 dgice%cdh=aft*fh
 dgice%cdq=afq*fq
+dgice%umod=vmagn
 dgice%fg=rho*dgice%cdh*cpair*vmagn*(dtsurf-atm_temp/srcp)
 dgice%fg=min(max(dgice%fg,-3000.),3000.)
 dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsat-atm_qg)
