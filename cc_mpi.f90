@@ -8228,7 +8228,9 @@ contains
             lcommout = comm_node
             call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
             node_captianid = lid
+            
          else
+             
             comm_node  = comm_world
             node_nproc = nproc
             node_myid  = myid
@@ -8238,6 +8240,7 @@ contains
             nodecaptian_myid  = myid
          
             node_captianid = myid
+            
          end if
       
          if ( myid==0 .and. (node_myid/=0.or.nodecaptian_myid/=0) ) then
@@ -8342,76 +8345,60 @@ contains
          ! configure procmode
          lastprocmode = node_captianid==nodecaptian_nproc-1  
          if ( procmode == 0 ) then
-            ! Need to bcast some information after ccmpi_reinit
-            procmode_save = node_nproc
+            ! procmode=0 uses existing nodes, even if they have different numbers of processes
+            if ( myid==0 ) then
+               write(6,*) "Configure procformat output with nodes=",nodecaptian_nproc
+            end if
+            ! Intra-procmode communicator 
+            comm_vnode  = comm_node
+            vnode_nproc = node_nproc
+            vnode_myid  = node_myid
+            ! Inter-procmode communicator
+            comm_vleader  = comm_nodecaptian
+            vleader_nproc = nodecaptian_nproc
+            vleader_myid  = nodecaptian_myid
+            ! Communicate procmode id
+            vnode_vleaderid = node_captianid
+            procmode = node_nproc ! can be different on different on different nodes
+         else
+            ! user specified procmode>0 
+            if ( myid==0 ) then
+               write(6,*) "Configure procformat output with procmode=",procmode
+            end if
+            if ( .not.lastprocmode ) then
+               if ( mod(node_nproc, procmode)/=0 ) then
+                  write(6,*) "ERROR: procmode must be a factor of the number of ranks on a node"
+                  write(6,*) "node_nproc,procmode ",node_nproc,procmode
+                  call ccmpi_abort(-1)
+               end if
+            end if
+            ! Intra-procmode communicator
+            lcolour = node_myid/procmode
+            lcomm = comm_node
+            lrank = node_myid
+            call MPI_Comm_Split(lcomm, lcolour, lrank, lcommout, lerr)
+            comm_vnode = lcommout
+            call MPI_Comm_Size(lcommout, lsize, lerr)
+            vnode_nproc = lsize
+            call MPI_Comm_Rank(lcommout, lrank, lerr)
+            vnode_myid = lrank
+            ! Inter-procmode communicator
+            lcolour = vnode_myid
             lcomm = comm_world
-            call MPI_Bcast( procmode_save, 1_4, MPI_INTEGER, 0_4, lcomm, lerr )
-            ! first guess with procmode = node_nproc from myid=0 (stored as procmode_save)
-            procmode = procmode_save
-            ! test if procmode is a factor of node_nproc on all processes
-            ! last node is allowed to have a residual number of processes
-            ! MJT notes - probably faster to gather all node_nprocs on myid=0
-            ! and then test.  In practice, the first guess is usually successful.
-            if ( lastprocmode ) then
-               procerr = 0
-               lcomm = comm_world
-               call MPI_Allreduce( procerr, procerr_g, 1_4, MPI_INTEGER, MPI_MAX, lcomm, lerr )
-               do while ( procerr_g /= 0 )
-                  procmode = procmode - 1
-                  call MPI_Allreduce( procerr, procerr_g, 1_4, MPI_INTEGER, MPI_MAX, lcomm, lerr )
-               end do
-            else
-               procerr = mod(node_nproc, procmode)
-               lcomm = comm_world
-               call MPI_Allreduce( procerr, procerr_g, 1_4, MPI_INTEGER, MPI_MAX, lcomm, lerr )
-               do while ( procerr_g /= 0 )
-                  procmode = procmode - 1
-                  procerr = mod(node_nproc, procmode)
-                  call MPI_Allreduce( procerr, procerr_g, 1_4, MPI_INTEGER, MPI_MAX, lcomm, lerr )
-               end do
-            end if
-         end if
-         !! configure ioreaders
-         !if ( ioreaders<1 ) then
-         !  ioreaders = procmode
-         !end if
-         ! define commuication groups
-         if ( myid==0 ) then
-            write(6,*) "Configure procformat output with procmode=",procmode
-         end if
-         if ( .not.lastprocmode ) then
-            if ( mod(node_nproc, procmode)/=0 ) then
-               write(6,*) "ERROR: procmode must be a factor of the number of ranks on a node"
-               write(6,*) "node_nproc,procmode ",node_nproc,procmode
-               call ccmpi_abort(-1)
-            end if
-         end if
-         ! Intra-procmode communicator
-         lcolour = node_myid/procmode
-         lcomm = comm_node
-         lrank = node_myid
-         call MPI_Comm_Split(lcomm, lcolour, lrank, lcommout, lerr)
-         comm_vnode = lcommout
-         call MPI_Comm_Size(lcommout, lsize, lerr)
-         vnode_nproc = lsize
-         call MPI_Comm_Rank(lcommout, lrank, lerr)
-         vnode_myid = lrank
-         ! Inter-procmode communicator
-         lcolour = vnode_myid
-         lcomm = comm_world
-         lrank = myid
-         call MPI_Comm_Split(lcomm, lcolour, lrank, lcommout, lerr)
-         comm_vleader = lcommout
-         call MPI_Comm_Size(lcommout, lsize, lerr)
-         vleader_nproc = lsize
-         call MPI_Comm_Rank(lcommout, lrank, lerr)
-         vleader_myid = lrank
-         vnode_vleaderid = vleader_myid
-         ! Communicate procmode id
-         lcomm = comm_vnode
-         lrank = vnode_vleaderid
-         call MPI_Bcast( lrank, 1_4, MPI_INTEGER, 0_4, lcomm, lerr )
-         vnode_vleaderid = lrank
+            lrank = myid
+            call MPI_Comm_Split(lcomm, lcolour, lrank, lcommout, lerr)
+            comm_vleader = lcommout
+            call MPI_Comm_Size(lcommout, lsize, lerr)
+            vleader_nproc = lsize
+            call MPI_Comm_Rank(lcommout, lrank, lerr)
+            vleader_myid = lrank
+            vnode_vleaderid = vleader_myid
+            ! Communicate procmode id
+            lcomm = comm_vnode
+            lrank = vnode_vleaderid
+            call MPI_Bcast( lrank, 1_4, MPI_INTEGER, 0_4, lcomm, lerr )
+            vnode_vleaderid = lrank
+         end if    
          !call ccmpi_node_leader ! setup comm_vleader and comm_reordered with myid2
          !call ccmpi_node_ioreaders
       else

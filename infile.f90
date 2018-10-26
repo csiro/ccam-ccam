@@ -2354,13 +2354,13 @@ implicit none
 integer, parameter :: nihead = 54
       
 integer, dimension(0:5) :: duma, dumb
-integer, dimension(12) :: idum
+integer, dimension(11) :: idum
 integer, intent(out) :: ncid, ier
 integer is, ipf, dmode
 integer ipin, ipin_f, ipin_new, nxpr, nypr
-integer ltst, der, myrank
-integer resprocmode
+integer ltst, der, myrank, resprocmode
 integer, dimension(:,:), allocatable, save :: dum_off
+integer, dimension(:,:), allocatable, save :: resprocdata_inv
 integer, dimension(:), allocatable, save :: resprocmap_inv
 integer, dimension(:), allocatable, save :: procfileowner
 integer(kind=4), dimension(1) :: start, ncount
@@ -2383,7 +2383,6 @@ if ( myid==0 ) then
   ptest = .false.         ! Files match current processor (e.g., Restart file), allowing MPI gather/scatter to be avoided
   pfall = .false.         ! Every processor has been assigned at least one file, no need to Bcast metadata data
   resprocformat = .false. ! procformat file format with multiple processes per file
-  resprocmode = 0         ! base number of processes in procformat files
       
   ! attempt to open parallel files
   if ( ier/=nf90_noerr ) then
@@ -2414,7 +2413,7 @@ if ( myid==0 ) then
       select case(fdecomp)
         case('face')
           dmode = 1
-        case('uniform')  ! old uniform
+        case('uniform')  ! old uniform (Depreciated)
           dmode = 2
         case('uniform1') ! new uniform (Dix style)
           dmode = 3
@@ -2475,32 +2474,32 @@ if ( myid==0 ) then
         
     select case(dmode)
       case(0) ! no decomposition
-        pnpan=6
-        pnoff=1
-        pioff=0
-        pjoff=0
-        pipan=pil_g
-        pjpan=pil_g
+        pnpan = 6
+        pnoff = 1
+        pioff = 0
+        pjoff = 0
+        pipan = pil_g
+        pjpan = pil_g
       case(1) ! face decomposition
-        pnpan=max(1,6/fnproc)
-        do ipf=0,fnproc-1
+        pnpan = max(1,6/fnproc)
+        do ipf = 0,fnproc-1
           call face_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:)=duma(:)
-          pjoff(ipf,:)=dumb(:)
+          pioff(ipf,:) = duma(:)
+          pjoff(ipf,:) = dumb(:)
         end do
       case(2) ! old uniform decomposition
-        pnpan=6
-        do ipf=0,fnproc-1
+        pnpan = 6
+        do ipf = 0,fnproc-1
           call uniform_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:)=duma(:)
-          pjoff(ipf,:)=dumb(:)
+          pioff(ipf,:) = duma(:)
+          pjoff(ipf,:) = dumb(:)
         end do
       case(3) ! new uniform decomposition
-        pnpan=6
-        do ipf=0,fnproc-1
+        pnpan = 6
+        do ipf = 0,fnproc-1
           call dix_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:)=duma(:)
-          pjoff(ipf,:)=dumb(:)
+          pioff(ipf,:) = duma(:)
+          pjoff(ipf,:) = dumb(:)
         end do
     end select
 
@@ -2519,9 +2518,9 @@ if ( myid==0 ) then
       end if
     end if
 
-    write(6,*) "Found pil_g,pjl_g,fnproc        ",pil_g,pjl_g,fnproc
-    write(6,*) "Found dmode,ptest               ",dmode,ptest
-    write(6,*) "Found resprocformat,resprocmode ",resprocformat,resprocmode
+    write(6,*) "Found pil_g,pjl_g,fnproc ",pil_g,pjl_g,fnproc
+    write(6,*) "Found dmode,ptest        ",dmode,ptest
+    write(6,*) "Found resprocformat      ",resprocformat
     
   end if
 
@@ -2531,46 +2530,60 @@ if ( myid==0 ) then
   else
     idum(2) = 0
   end if
-  idum(3) = resprocmode
-  idum(4) = pipan
-  idum(5) = pjpan
-  idum(6) = pnpan
+  idum(3) = pipan
+  idum(4) = pjpan
+  idum(5) = pnpan
   if (ptest) then
-    idum(7) = 1
+    idum(6) = 1
   else
-    idum(7) = 0      
+    idum(6) = 0      
   end if
-  idum(8) = ier
-  idum(9) = pka_g
-  idum(10) = pko_g
-  idum(11) = pil_g
-  idum(12) = pjl_g
+  idum(7) = ier
+  idum(8) = pka_g
+  idum(9) = pko_g
+  idum(10) = pil_g
+  idum(11) = pjl_g
   
   if ( resprocformat ) then
-    allocate( resprocmap_inv(0:fnproc-1) )
-    der = nf90_inq_varid(lncid,'gprocessor',lvid)
     start(1) = 1
     ncount(1) = fnproc
-    der = nf90_get_var(lncid,lvid,resprocmap_inv,start,ncount)
+    allocate( resprocdata_inv(0:fnproc-1,2) )
+    der = nf90_inq_varid(lncid,'gprocnode',lvid)  
+    if ( der==nf90_noerr ) then
+      ! procformat v2 format  
+      der = nf90_get_var(lncid,lvid,resprocdata_inv(:,1),start,ncount)
+      der = nf90_inq_varid(lncid,'gprocoffset',lvid)    
+      der = nf90_get_var(lncid,lvid,resprocdata_inv(:,2),start,ncount)
+    else
+      ! procformat v1 format  
+      allocate( resprocmap_inv(0:fnproc-1) )  
+      der = nf90_inq_varid(lncid,'gprocessor',lvid)
+      der = nf90_get_var(lncid,lvid,resprocmap_inv,start,ncount)
+      do ipin = 0,fnproc-1
+        ipin_new = resprocmap_inv(ipin)  
+        resprocdata_inv(ipin,1) = ipin_new/resprocmode   
+        resprocdata_inv(ipin,2) = mod(ipin_new, resprocmode)  
+      end do    
+      deallocate( resprocmap_inv )
+    end if
   end if
   
   write(6,*) "Broadcasting file metadata"
 end if
 
 ! Broadcast file metadata
-call ccmpi_bcast(idum(1:12),0,comm_world)
+call ccmpi_bcast(idum(1:11),0,comm_world)
 fnproc        = idum(1)      ! number of files to be read
 resprocformat = (idum(2)==1) ! test for procformat file format
-resprocmode   = idum(3)      ! base number of 'files' per input in procformat
-pipan         = idum(4)      ! width of panel in each file
-pjpan         = idum(5)      ! length of panel in each file
-pnpan         = idum(6)      ! number of panels in each file
-ptest         = (idum(7)==1) ! test for match between files and processes
-ier           = idum(8)      ! file error flag
-pka_g         = idum(9)      ! number of atmosphere levels
-pko_g         = idum(10)     ! number of ocean levels
-pil_g         = idum(11)     ! global grid size
-pjl_g         = idum(12)     ! global grid size
+pipan         = idum(3)      ! width of panel in each file
+pjpan         = idum(4)      ! length of panel in each file
+pnpan         = idum(5)      ! number of panels in each file
+ptest         = (idum(6)==1) ! test for match between files and processes
+ier           = idum(7)      ! file error flag
+pka_g         = idum(8)      ! number of atmosphere levels
+pko_g         = idum(9)      ! number of ocean levels
+pil_g         = idum(10)     ! global grid size
+pjl_g         = idum(11)     ! global grid size
 
 if ( ier/=nf90_noerr ) return
 
@@ -2596,13 +2609,13 @@ if ( allocated(pncid) ) then
   call ccmpi_abort(-1)
 end if
 if ( mynproc>0 ) then
-  allocate(pncid(0:mynproc-1))
-  allocate(pfown(0:mynproc-1))
+  allocate( pncid(0:mynproc-1) )
+  allocate( pfown(0:mynproc-1) )
   pfown(:) = .false.
 end if
 ! Rank 0 can start with the second file, because the first file has already been opened
 if ( myid==0 ) then 
-  is =1
+  is = 1
   pncid(0) = ncid
 else
   is = 0
@@ -2629,23 +2642,22 @@ call ccmpi_commsplit(comm_ip,comm_world,ltst,myrank)
 if ( mynproc>0 ) then
   if ( resprocformat ) then
 
-    ! procformat  
+    ! procformat ----------------------------------------------------
       
     allocate( pprid(0:mynproc-1) )
       
     ! copy process map
     allocate( procfileowner(0:fnproc-1) )
     procfileowner(:) = -1
-    if ( .not.allocated(resprocmap_inv) ) then
-      allocate(resprocmap_inv(0:fnproc-1))
+    if ( .not.allocated(resprocdata_inv) ) then
+      allocate( resprocdata_inv(0:fnproc-1,2) )
     end if
-    call ccmpi_bcast(resprocmap_inv,0,comm_ip)  
-
+    call ccmpi_bcast(resprocdata_inv,0,comm_ip)
+ 
     ! update required process and load files
     do ipf = 0,mynproc-1
-      ipin = ipf*fnresid + myid                   ! parallel file number
-      ipin_new = resprocmap_inv(ipin)             ! remap files
-      pprid(ipf) = mod(ipin_new, resprocmode) + 1 ! procformat process
+      ipin = ipf*fnresid + myid                ! parallel file number
+      pprid(ipf) = resprocdata_inv(ipin,2) + 1 ! procformat process
     end do
     
     if ( myid==0 ) then
@@ -2655,8 +2667,7 @@ if ( mynproc>0 ) then
     
     do ipf = is,mynproc-1
       ipin = ipf*fnresid + myid               ! parallel file number
-      ipin_new = resprocmap_inv(ipin)         ! remap files
-      ipin_f = ipin_new/resprocmode           ! procformat file
+      ipin_f = resprocdata_inv(ipin,1)        ! procformat file
       if ( procfileowner(ipin_f)==-1 ) then
         procfileowner(ipin_f) = ipf ! which ipf is responsible for opening this file
         pfown(ipf) = .true.         ! which ipf is responsible for closing this file
@@ -2670,12 +2681,12 @@ if ( mynproc>0 ) then
         pncid(ipf) = pncid(procfileowner(ipin_f)) ! file is already open
       end if
     end do
-    deallocate(procfileowner)
-    deallocate(resprocmap_inv)    
+    deallocate( procfileowner )
+    deallocate( resprocdata_inv )    
    
   else
     
-    ! usual parallel file
+    ! original parallel file
     ! loop through files to be opened by this processor
     do ipf = is,mynproc-1
       ipin = ipf*fnresid + myid

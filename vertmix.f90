@@ -120,7 +120,7 @@ implicit none
 
 include 'kuocom.h'                  ! Convection parameters
 
-integer :: is, ie, tile
+integer :: is, ie, tile, k
 real, dimension(imax,kl,naero) :: lxtg
 real, dimension(imax,kl) :: lphi_nh, lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lcfrac, lu, lv
@@ -138,10 +138,10 @@ real, dimension(imax,kl,ntrac) :: ltr
 real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 #endif
 
-!$omp do schedule(static) private(is,ie),                                  &
+!$omp do schedule(static) private(is,ie,k),                                &
 !$omp private(lphi_nh,lt,lqg,lqfg,lqlg),                                   &
 !$omp private(lcfrac,lxtg,lu,lv,lsavu,lsavv,ltke,leps,lshear),             &
-!$omp private(lou,lov,liu,liv,lat,lct),                                                                                          &
+!$omp private(lou,lov,liu,liv,lat,lct),                                    &
 #ifdef scm
 !$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave),      &
 !$omp private(lepssave,lrkmsave,lrkhsave,lbuoyproduction,),                &
@@ -159,10 +159,6 @@ do tile = 1,ntiles
   lqg       = qg(is:ie,:)
   lqfg      = qfg(is:ie,:)
   lqlg      = qlg(is:ie,:)
-  lu        = u(is:ie,:)
-  lv        = v(is:ie,:)
-  lsavu     = savu(is:ie,:)
-  lsavv     = savv(is:ie,:)
   lcfrac    = stratcloud(is:ie,:)
   if ( abs(iaero)>=2 ) then
     lxtg = xtg(is:ie,:,:)
@@ -186,9 +182,9 @@ do tile = 1,ntiles
 #endif
 
   ! Adjustment for moving ocean surface
-  lou = 0.
-  lov = 0.
   if ( nmlo/=0 ) then
+    lou = 0.
+    lov = 0.
     liu = 0.
     liv = 0.
     call mloexport(2,lou,1,0,water_g(tile),wpack_g(:,tile),wfull_g(tile))
@@ -197,13 +193,24 @@ do tile = 1,ntiles
     call mloexpice(liv,10,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
     lou = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
     lov = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
+    do k = 1,kl
+      lu(:,k) = u(is:ie,k) - lou
+      lv(:,k) = v(is:ie,k) - lov
+      lsavu(:,k) = savu(is:ie,k) - lou
+      lsavv(:,k) = savv(is:ie,k) - lov
+    end do  
+  else
+    lu = u(is:ie,:)
+    lv = v(is:ie,:)
+    lsavu = savu(is:ie,:)
+    lsavv = savv(is:ie,:)
   end if
   
   call vertmix_work(lphi_nh,lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),   &
                     ps(is:ie),lqg,lqfg,lqlg,                                                                         &
                     condc(is:ie),lcfrac,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),zo(is:ie),lsavu,lsavv,land(is:ie),        &
                     tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),ltke,leps,lshear,        &
-                    lou,lov,lat,lct                                                                                  &
+                    lat,lct                                                                                          &
 #ifdef scm
                     ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave                &
                     ,lbuoyproduction,lshearproduction,ltotaltransport                                                &
@@ -214,8 +221,6 @@ do tile = 1,ntiles
   qg(is:ie,:)         = lqg
   qfg(is:ie,:)        = lqfg
   qlg(is:ie,:)        = lqlg
-  u(is:ie,:)          = lu
-  v(is:ie,:)          = lv
   stratcloud(is:ie,:) = lcfrac
   if ( abs(iaero)>=2 ) then
     xtg(is:ie,:,:) = lxtg
@@ -227,6 +232,15 @@ do tile = 1,ntiles
   if ( ncloud>=4 ) then
     nettend(is:ie,1:kl) = (nettend(is:ie,1:kl)-lt/dt)
   endif
+  if ( nmlo/=0 ) then
+    do k = 1,kl  
+      u(is:ie,k) = lu(:,k) + lou
+      v(is:ie,k) = lv(:,k) + lov
+    end do  
+  else
+    u(is:ie,:) = lu
+    v(is:ie,:) = lv   
+  end if    
 #ifdef scm
   rkmsave(is:ie,:) = lrkmsave
   rkhsave(is:ie,:) = lrkhsave  
@@ -268,7 +282,7 @@ end subroutine vertmix
 ! Control subroutine for vertical mixing
 subroutine vertmix_work(phi_nh,t,em,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,condc,cfrac,              &
                         xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear,   &
-                        ou,ov,at,ct                                                                        &
+                        at,ct                                                                              &
 #ifdef scm
                         ,wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave           &
                         ,buoyproduction,shearproduction,totaltransport                                     &
@@ -300,7 +314,7 @@ real, dimension(imax,kl), intent(out) :: at, ct
 real, dimension(imax,kl), intent(in) :: phi_nh, savu, savv, shear
 real, dimension(imax), intent(inout) :: pblh, ustar
 real, dimension(imax), intent(in) :: em, tss, eg, fg, convpsav, ps, condc
-real, dimension(imax), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs, ou, ov
+real, dimension(imax), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs
 
 real rong, rlogs1, rlogs2, rlogh1, rlog12
 real delsig, conflux, condrag
@@ -563,15 +577,15 @@ if ( nvmix/=6 ) then
 
   ! first do u
   do k = 1,kl
-    rhs(:,k) = u(1:imax,k) - ou(:)
+    rhs(:,k) = u(1:imax,k)
   end do
   call trim(au,cu,rhs)
   do k = 1,kl
-    u(1:imax,k) = rhs(:,k) + ou(:)
+    u(1:imax,k) = rhs(:,k)
   end do
   
 #ifdef scm
-  uw_flux(:,1) = -cduv(:)*(u(1:imax,1)-ou(:))
+  uw_flux(:,1) = -cduv(:)*u(1:imax,1)
   do k = 1,kl-1
     uw_flux(:,k+1) = rkm(:,k)*(u(1:imax,k+1)-u(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
   end do
@@ -579,15 +593,15 @@ if ( nvmix/=6 ) then
   
   ! now do v; with properly unstaggered au,cu
   do k = 1,kl
-    rhs(:,k) = v(1:imax,k) - ov(:)
+    rhs(:,k) = v(1:imax,k)
   end do
   call trim(au,cu,rhs)    ! note now that au, cu unstaggered globpea
   do k = 1,kl
-    v(1:imax,k) = rhs(:,k) + ov(:)
+    v(1:imax,k) = rhs(:,k)
   end do
 
 #ifdef scm
-  vw_flux(:,1) = -cduv(:)*(v(1:imax,1)-ov(:))
+  vw_flux(:,1) = -cduv(:)*v(1:imax,1)
   do k = 1,kl-1
     vw_flux(:,k+1) = rkm(:,k)*(v(1:imax,k+1)-v(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
   end do
@@ -637,8 +651,6 @@ else
     
   ! transform to ocean reference frame and temp to theta
   do k = 1,kl
-    u(1:imax,k) = u(1:imax,k) - ou
-    v(1:imax,k) = v(1:imax,k) - ov
     rhs(:,k) = t(1:imax,k)*sigkap(k) ! theta
   end do
 
@@ -660,8 +672,8 @@ else
                   imax)
       rkh = rkm
       do k = 1,kl
-        uav(1:imax,k) = av_vmod*u(1:imax,k) + (1.-av_vmod)*(savu(1:imax,k)-ou)
-        vav(1:imax,k) = av_vmod*v(1:imax,k) + (1.-av_vmod)*(savv(1:imax,k)-ov)
+        uav(1:imax,k) = av_vmod*u(1:imax,k) + (1.-av_vmod)*savu(1:imax,k)
+        vav(1:imax,k) = av_vmod*v(1:imax,k) + (1.-av_vmod)*savv(1:imax,k)
       end do
       call pbldif(rkm,rkh,rhs,uav,vav,cgmap,                    &
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
@@ -691,8 +703,8 @@ else
                   imax) 
       rkh = rkm
       do k = 1,kl
-        uav(1:imax,k) = av_vmod*u(1:imax,k) + (1.-av_vmod)*(savu(1:imax,k)-ou)
-        vav(1:imax,k) = av_vmod*v(1:imax,k) + (1.-av_vmod)*(savv(1:imax,k)-ov)
+        uav(1:imax,k) = av_vmod*u(1:imax,k) + (1.-av_vmod)*savu(1:imax,k)
+        vav(1:imax,k) = av_vmod*v(1:imax,k) + (1.-av_vmod)*savv(1:imax,k)
       end do
       call pbldif(rkm,rkh,rhs,uav,vav,cgmap,                     &
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac)
@@ -709,8 +721,6 @@ else
   
   ! transform winds back to Earth reference frame and theta to temp
   do k = 1,kl
-    u(1:imax,k) = u(1:imax,k) + ou
-    v(1:imax,k) = v(1:imax,k) + ov
     t(1:imax,k) = rhs(1:imax,k)/sigkap(k)
   enddo    !  k loop
 

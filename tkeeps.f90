@@ -413,12 +413,17 @@ do kcount = 1,mcount
 
     lmask = wtv0(1:imax)>0. ! unstable
     imax_p = count(lmask)
+    ! unstable boundary layer
     call plumerise(imax_p,lmask,cm12,                            &
                    zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,       &
                    zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,km,  &
                    ustar,wt0,wq0,wtv0,ps,                        &
                    sig,sigkap,tke,eps,imax)
 
+    ! stable boundary layer
+    lmask = .not.lmask ! stable
+    call stablepbl(lmask,zi,zzh,dz_hl,thetav,kmo,imax)
+    
     ! turn off MF term if small grid spacing
     do k = 1,kl
       mflx(:,k) = mflx(:,k)*cgmap(:)
@@ -1069,6 +1074,44 @@ end do
 return
 end subroutine plumerise
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+subroutine stablepbl(lmask,zi,zzh,dz_hl,thetav,kmo,imax)
+
+implicit none
+
+integer, intent(in) :: imax
+integer i, k
+real, dimension(imax), intent(inout) :: zi
+real, dimension(imax,kl-1), intent(in) :: dz_hl
+real, dimension(imax,kl), intent(in) :: zzh, thetav, kmo 
+real, dimension(kl) :: wpv_flux
+real xp
+logical, dimension(imax), intent(in) :: lmask
+
+do i = 1,imax
+  if ( lmask(i) ) then
+    !wpv_flux is calculated at half levels  
+    wpv_flux(1) = -kmo(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1) !+gamt_hl(i,1)
+    do k = 2,kl-1
+      wpv_flux(k) = -kmo(i,k)*(thetav(i,k+1)-thetav(i,k))/dz_hl(i,k) !+gamt_hl(i,k)
+      if ( wpv_flux(k)*wpv_flux(1)<0. ) then ! change in sign
+        xp = (0.05*wpv_flux(1)-wpv_flux(k-1))/(wpv_flux(k)-wpv_flux(k-1))
+        xp = min( max( xp, 0. ), 1. )
+        zi(i) = zzh(i,k-1) + xp*(zzh(i,k)-zzh(i,k-1))
+        exit
+      else if ( abs(wpv_flux(k))<0.05*abs(wpv_flux(1)) ) then
+        xp = (0.05*abs(wpv_flux(1))-abs(wpv_flux(k-1)))/(abs(wpv_flux(k))-abs(wpv_flux(k-1)))
+        xp = min( max( xp, 0. ), 1. )
+        zi(i) = zzh(i,k-1) + xp*(zzh(i,k)-zzh(i,k-1))
+        exit
+      end if    
+    end do    
+  end if
+end do
+
+return
+end subroutine stablepbl
+                     
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tri-diagonal solver (array version)
 

@@ -254,7 +254,7 @@ integer, dimension(5) :: dima, dims, dimo, dimc
 integer, dimension(6) :: dimc2
 integer, dimension(5) :: dimc3, dimc4, dimc5, dimc6, dimc7
 integer, dimension(2) :: dimp
-integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgproc
+integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgpnode, idgpoff
 integer idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim
@@ -294,7 +294,7 @@ else
   idnc = 0
 end if ! ( itype==1) ..else..
 if ( procformat ) then
-  write(cdffile,"(a,'.',i6.6)") trim(cdffile_in), vleader_myid
+  write(cdffile,"(a,'.',i6.6)") trim(cdffile_in), vnode_vleaderid
 elseif ( local ) then
   write(cdffile,"(a,'.',i6.6)") trim(cdffile_in), myid
 else
@@ -453,8 +453,12 @@ if ( myid==0 .or. local ) then
       call ccnf_put_att(idnc,idproc,'long_name','processor number')
       if ( myid==0 ) then
         dimp(1) = gpdim  
-        call ccnf_def_var(idnc,'gprocessor','int',1,dimp(1:1),idgproc)
-        call ccnf_put_att(idnc,idgproc,'long_name','global processor map')
+        !call ccnf_def_var(idnc,'gprocessor','int',1,dimp(1:1),idgproc)
+        !call ccnf_put_att(idnc,idgproc,'long_name','global processor map')
+        call ccnf_def_var(idnc,'gprocnode','int',1,dimp(1:1),idgpnode)
+        call ccnf_put_att(idnc,idgpnode,'long_name','global processor node map')
+        call ccnf_def_var(idnc,'gprocoffset','int',1,dimp(1:1),idgpoff)
+        call ccnf_put_att(idnc,idgpoff,'long_name','global processor offset map')
       end if
       !call ccnf_def_var(idnc,'proc_nodes','int',1,(/pndim/),idpn)
       !call ccnf_put_att(idnc,idproc,'long_name','processors per node')
@@ -908,7 +912,7 @@ endif ! (myid==0.or.local)
       
 ! openhist writes some fields so needs to be called by all processes
 call openhist(iarch,itype,dima,dimo,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,c5ddim,cadim,  &
-              local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgproc,                        &
+              local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgpnode,idgpoff,               &
               idcp,idc2p,idc91p,idc31p,idc20y,idc5d,                                    &
               psl_in,u_in,v_in,t_in,q_in)
 
@@ -940,7 +944,7 @@ end subroutine cdfout
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
 subroutine openhist(iarch,itype,dima,odim,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,c5ddim,cadim,  &
-                    local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgproc,                        &
+                    local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgpnode,idgpoff,               &
                     idcp,idc2p,idc91p,idc31p,idc20y,idc5d,                                    &
                     psl_in,u_in,v_in,t_in,q_in)
 
@@ -1004,13 +1008,13 @@ include 'kuocom.h'                               ! Convection parameters
 include 'version.h'                              ! Model version data
 
 integer, intent(in) :: iarch, itype
-integer, intent(in) :: ixp, iyp, idlev, idms, idoc, idproc, idgproc
+integer, intent(in) :: ixp, iyp, idlev, idms, idoc, idproc, idgpnode, idgpoff
 integer, intent(in) :: cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
 integer, intent(in) :: idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer idum, cptype
-integer asize, osize, jsize, ksize, dproc, d4, gprocrank
+integer asize, osize, jsize, ksize, dproc, d4
 integer csize, c2size, c3size, c4size, c5size, c6size, c7size
 integer, dimension(5), intent(in) :: dima
 integer, dimension(5), intent(in) :: odim
@@ -1024,7 +1028,7 @@ integer, dimension(5) :: dimc5
 integer, dimension(5) :: dimc6
 integer, dimension(5) :: dimc7
 integer, dimension(:), allocatable :: vnode_dat
-integer, dimension(:), allocatable :: procmap
+integer, dimension(:), allocatable :: procnode, procoffset
 real, dimension(:,:), allocatable :: xpnt2
 real, dimension(:,:), allocatable :: ypnt2
 real, dimension(:), allocatable :: xpnt
@@ -1775,59 +1779,59 @@ if( myid==0 .or. local ) then
       if ( nextout>=1 .or. itype==-1 ) then
         if ( ccycle/=0 ) then
           lname = 'Carbon leaf pool'
-          call attrib(idnc,dimj,jsize,'cplant1',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'cplant1',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Nitrogen leaf pool'
-          call attrib(idnc,dimj,jsize,'nplant1',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'nplant1',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Phosphor leaf pool'
-          call attrib(idnc,dimj,jsize,'pplant1',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'pplant1',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Carbon wood pool'
-          call attrib(idnc,dimj,jsize,'cplant2',lname,'gC/m2',0.,65000.,0,cptype)
+          call attrib(idnc,dimj,jsize,'cplant2',lname,'gC/m2',0.,65000.,1,cptype)
           lname = 'Nitrogen wood pool'
-          call attrib(idnc,dimj,jsize,'nplant2',lname,'gC/m2',0.,65000.,0,cptype)
+          call attrib(idnc,dimj,jsize,'nplant2',lname,'gC/m2',0.,65000.,1,cptype)
           lname = 'Phosphor wood pool'
-          call attrib(idnc,dimj,jsize,'pplant2',lname,'gC/m2',0.,65000.,0,cptype)
+          call attrib(idnc,dimj,jsize,'pplant2',lname,'gC/m2',0.,65000.,1,cptype)
           lname = 'Carbon root pool'
-          call attrib(idnc,dimj,jsize,'cplant3',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'cplant3',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Nitrogen root pool'
-          call attrib(idnc,dimj,jsize,'nplant3',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'nplant3',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Phosphor root pool'
-          call attrib(idnc,dimj,jsize,'pplant3',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'pplant3',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Carbon met pool'
-          call attrib(idnc,dimj,jsize,'clitter1',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'clitter1',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Nitrogen met pool'
-          call attrib(idnc,dimj,jsize,'nlitter1',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'nlitter1',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Phosphor met pool'
-          call attrib(idnc,dimj,jsize,'plitter1',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'plitter1',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Carbon str pool'
-          call attrib(idnc,dimj,jsize,'clitter2',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'clitter2',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Nitrogen str pool'
-          call attrib(idnc,dimj,jsize,'nlitter2',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'nlitter2',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Phosphor str pool'
-          call attrib(idnc,dimj,jsize,'plitter2',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'plitter2',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Carbon CWD pool'
-          call attrib(idnc,dimj,jsize,'clitter3',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'clitter3',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Nitrogen CWD pool'
-          call attrib(idnc,dimj,jsize,'nlitter3',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'nlitter3',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Phosphor CWD pool'
-          call attrib(idnc,dimj,jsize,'plitter3',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'plitter3',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Carbon mic pool'
-          call attrib(idnc,dimj,jsize,'csoil1',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'csoil1',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Nitrogen mic pool'
-          call attrib(idnc,dimj,jsize,'nsoil1',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'nsoil1',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Phosphor mic pool'
-          call attrib(idnc,dimj,jsize,'psoil1',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'psoil1',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Carbon slow pool'
-          call attrib(idnc,dimj,jsize,'csoil2',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'csoil2',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Nitrogen slow pool'
-          call attrib(idnc,dimj,jsize,'nsoil2',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'nsoil2',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Phosphor slow pool'
-          call attrib(idnc,dimj,jsize,'psoil2',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'psoil2',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Carbon pass pool'
-          call attrib(idnc,dimj,jsize,'csoil3',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'csoil3',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Nitrogen pass pool'
-          call attrib(idnc,dimj,jsize,'nsoil3',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'nsoil3',lname,'gC/m2',0.,6500.,1,cptype)
           lname = 'Phosphor pass pool'
-          call attrib(idnc,dimj,jsize,'psoil3',lname,'gC/m2',0.,6500.,0,cptype)
+          call attrib(idnc,dimj,jsize,'psoil3',lname,'gC/m2',0.,6500.,1,cptype)
           !lname = 'Prognostic LAI'
           !call attrib(idnc,dimj,jsize,'glai',lname,'none',0.,13.,0,cptype)
           if ( save_carbon ) then
@@ -1864,130 +1868,130 @@ if( myid==0 .or. local ) then
         end if
         if ( cable_climate==1 ) then
           lname = 'Climate ivegt'
-          call attrib(idnc,dimj,jsize,'climate_ivegt',lname,'none',0.,65.,0,cptype)
+          call attrib(idnc,dimj,jsize,'climate_ivegt',lname,'none',0.,65.,1,cptype)
           lname = 'Climate biome'
-          call attrib(idnc,dimj,jsize,'climate_biome',lname,'none',0.,65.,0,cptype)
+          call attrib(idnc,dimj,jsize,'climate_biome',lname,'none',0.,65.,1,cptype)
           lname = 'Climate average minimum annual temperature'
-          call attrib(idnc,dimj,jsize,'climate_min20',lname,'K',-130.,130.,0,cptype)
+          call attrib(idnc,dimj,jsize,'climate_min20',lname,'K',-130.,130.,1,cptype)
           lname = 'Climate average maximum annual temperature'
-          call attrib(idnc,dimj,jsize,'climate_max20',lname,'K',-130.,130.,0,cptype)
+          call attrib(idnc,dimj,jsize,'climate_max20',lname,'K',-130.,130.,1,cptype)
           lname = 'Climate average ratio of precip to PT evap'
-          call attrib(idnc,dimj,jsize,'climate_alpha20',lname,'none',0.,13.,0,cptype)
+          call attrib(idnc,dimj,jsize,'climate_alpha20',lname,'none',0.,13.,1,cptype)
           lname = 'Climate annual growing degree days above -5C'
-          call attrib(idnc,dimj,jsize,'climate_agdd5',lname,'K',0.,13000.,0,cptype)
+          call attrib(idnc,dimj,jsize,'climate_agdd5',lname,'K',0.,13000.,1,cptype)
           lname = 'Climate growing moisture days'
-          call attrib(idnc,dimj,jsize,'climate_gmd',lname,'none',0.,650.,0,cptype)
+          call attrib(idnc,dimj,jsize,'climate_gmd',lname,'none',0.,650.,1,cptype)
           lname = 'Climate average minimum annual moisture'
-          call attrib(idnc,dimj,jsize,'climate_dmoist_min20',lname,'none',0.,13.,0,cptype)
+          call attrib(idnc,dimj,jsize,'climate_dmoist_min20',lname,'none',0.,13.,1,cptype)
           lname = 'Climate average maximum annual moisture'
-          call attrib(idnc,dimj,jsize,'climate_dmoist_max20',lname,'none',0.,13.,0,cptype)
+          call attrib(idnc,dimj,jsize,'climate_dmoist_max20',lname,'none',0.,13.,1,cptype)
         end if
       end if
     end if
 
     ! URBAN -----------------------------------------------------
     if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
-      lname = 'urban anthropogenic flux'
+      lname = 'Urban anthropogenic flux'
       call attrib(idnc,dimj,jsize,'anth_ave',lname,'W/m2',0.,650.,0,cptype)
-      lname = 'urban electricity & gas flux'
+      lname = 'Urban electricity & gas flux'
       call attrib(idnc,dimj,jsize,'anth_elecgas_ave',lname,'W/m2',0.,650.,0,cptype)
-      lname = 'urban heating flux'
+      lname = 'Urban heating flux'
       call attrib(idnc,dimj,jsize,'anth_heat_ave',lname,'W/m2',0.,650.,0,cptype)
-      lname = 'urban cooling flux'
+      lname = 'Urban cooling flux'
       call attrib(idnc,dimj,jsize,'anth_cool_ave',lname,'W/m2',0.,650.,0,cptype)      
-      lname = 'urban surface temperature'
+      lname = 'Urban surface temperature'
       call attrib(idnc,dimj,jsize,'urbantas_ave',lname,'K',100.,425.,0,cptype)
-      lname = 'maximum urban temperature'
-      call attrib(idnc,dimj,jsize,'urbantasmax',lname,'K',100.,425.,0,cptype)
-      lname = 'minimum urban temperature'
-      call attrib(idnc,dimj,jsize,'urbantasmin',lname,'K',100.,425.,0,cptype)
+      lname = 'Maximum urban screen temperature'
+      call attrib(idnc,dimj,jsize,'urbantasmax',lname,'K',100.,425.,1,cptype)
+      lname = 'Minimum urban screen temperature'
+      call attrib(idnc,dimj,jsize,'urbantasmin',lname,'K',100.,425.,1,cptype)
     end if    
     if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
-      lname = 'roof temperature lev 1'
+      lname = 'Roof temperature lev 1'
       call attrib(idnc,dimj,jsize,'rooftgg1',lname,'K',100.,425.,0,cptype)
-      lname = 'roof temperature lev 2'
+      lname = 'Roof temperature lev 2'
       call attrib(idnc,dimj,jsize,'rooftgg2',lname,'K',100.,425.,0,cptype)
-      lname = 'roof temperature lev 3'
+      lname = 'Roof temperature lev 3'
       call attrib(idnc,dimj,jsize,'rooftgg3',lname,'K',100.,425.,0,cptype)
-      lname = 'roof temperature lev 4'
+      lname = 'Roof temperature lev 4'
       call attrib(idnc,dimj,jsize,'rooftgg4',lname,'K',100.,425.,0,cptype)
-      lname = 'roof temperature lev 5'
+      lname = 'Roof temperature lev 5'
       call attrib(idnc,dimj,jsize,'rooftgg5',lname,'K',100.,425.,0,cptype)
-      lname = 'east wall temperature lev 1'
+      lname = 'East wall temperature lev 1'
       call attrib(idnc,dimj,jsize,'waletgg1',lname,'K',100.,425.,0,cptype)
-      lname = 'east wall temperature lev 2'
+      lname = 'East wall temperature lev 2'
       call attrib(idnc,dimj,jsize,'waletgg2',lname,'K',100.,425.,0,cptype)
-      lname = 'east wall temperature lev 3'
+      lname = 'East wall temperature lev 3'
       call attrib(idnc,dimj,jsize,'waletgg3',lname,'K',100.,425.,0,cptype)
-      lname = 'east wall temperature lev 4'
+      lname = 'East wall temperature lev 4'
       call attrib(idnc,dimj,jsize,'waletgg4',lname,'K',100.,425.,0,cptype)
-      lname = 'east wall temperature lev 5'
+      lname = 'East wall temperature lev 5'
       call attrib(idnc,dimj,jsize,'waletgg5',lname,'K',100.,425.,0,cptype)
-      lname = 'west wall temperature lev 1'
+      lname = 'West wall temperature lev 1'
       call attrib(idnc,dimj,jsize,'walwtgg1',lname,'K',100.,425.,0,cptype)
-      lname = 'west wall temperature lev 2'
+      lname = 'West wall temperature lev 2'
       call attrib(idnc,dimj,jsize,'walwtgg2',lname,'K',100.,425.,0,cptype)
-      lname = 'west wall temperature lev 3'
+      lname = 'West wall temperature lev 3'
       call attrib(idnc,dimj,jsize,'walwtgg3',lname,'K',100.,425.,0,cptype)
-      lname = 'west wall temperature lev 4'
+      lname = 'West wall temperature lev 4'
       call attrib(idnc,dimj,jsize,'walwtgg4',lname,'K',100.,425.,0,cptype)
-      lname = 'west wall temperature lev 5'
+      lname = 'West wall temperature lev 5'
       call attrib(idnc,dimj,jsize,'walwtgg5',lname,'K',100.,425.,0,cptype)
-      lname = 'road temperature lev 1'
+      lname = 'Road temperature lev 1'
       call attrib(idnc,dimj,jsize,'roadtgg1',lname,'K',100.,425.,0,cptype)
-      lname = 'road temperature lev 2'
+      lname = 'Road temperature lev 2'
       call attrib(idnc,dimj,jsize,'roadtgg2',lname,'K',100.,425.,0,cptype)
-      lname = 'road temperature lev 3'
+      lname = 'Road temperature lev 3'
       call attrib(idnc,dimj,jsize,'roadtgg3',lname,'K',100.,425.,0,cptype)
-      lname = 'road temperature lev 4'
+      lname = 'Road temperature lev 4'
       call attrib(idnc,dimj,jsize,'roadtgg4',lname,'K',100.,425.,0,cptype)
-      lname = 'road temperature lev 5'
+      lname = 'Road temperature lev 5'
       call attrib(idnc,dimj,jsize,'roadtgg5',lname,'K',100.,425.,0,cptype)
-      lname = 'slab temperature lev 1'
+      lname = 'Slab temperature lev 1'
       call attrib(idnc,dimj,jsize,'slabtgg1',lname,'K',100.,425.,0,cptype)
-      lname = 'slab temperature lev 2'
+      lname = 'Slab temperature lev 2'
       call attrib(idnc,dimj,jsize,'slabtgg2',lname,'K',100.,425.,0,cptype)
-      lname = 'slab temperature lev 3'
+      lname = 'Slab temperature lev 3'
       call attrib(idnc,dimj,jsize,'slabtgg3',lname,'K',100.,425.,0,cptype)
-      lname = 'slab temperature lev 4'
+      lname = 'Slab temperature lev 4'
       call attrib(idnc,dimj,jsize,'slabtgg4',lname,'K',100.,425.,0,cptype)
-      lname = 'slab temperature lev 5'
+      lname = 'Slab temperature lev 5'
       call attrib(idnc,dimj,jsize,'slabtgg5',lname,'K',100.,425.,0,cptype)
-      lname = 'interior mass temperature lev 1'
+      lname = 'Interior mass temperature lev 1'
       call attrib(idnc,dimj,jsize,'intmtgg1',lname,'K',100.,425.,0,cptype)
-      lname = 'interior mass temperature lev 2'
+      lname = 'Interior mass temperature lev 2'
       call attrib(idnc,dimj,jsize,'intmtgg2',lname,'K',100.,425.,0,cptype)
-      lname = 'interior mass temperature lev 3'
+      lname = 'Interior mass temperature lev 3'
       call attrib(idnc,dimj,jsize,'intmtgg3',lname,'K',100.,425.,0,cptype)
-      lname = 'interior mass temperature lev 4'
+      lname = 'Interior mass temperature lev 4'
       call attrib(idnc,dimj,jsize,'intmtgg4',lname,'K',100.,425.,0,cptype)
-      lname = 'interior mass temperature lev 5'
+      lname = 'Interior mass temperature lev 5'
       call attrib(idnc,dimj,jsize,'intmtgg5',lname,'K',100.,425.,0,cptype)
-      lname = 'urban room temperature'
+      lname = 'Urban room temperature'
       call attrib(idnc,dimj,jsize,'roomtgg1',lname,'K',100.,425.,0,cptype)  
-      lname = 'urban canyon soil moisture'
+      lname = 'Urban canyon soil moisture'
       call attrib(idnc,dimj,jsize,'urbnsmc',lname,'m3/m3',0.,1.3,0,cptype)
-      lname = 'urban roof soil moisture'
+      lname = 'Urban roof soil moisture'
       call attrib(idnc,dimj,jsize,'urbnsmr',lname,'m3/m3',0.,1.3,0,cptype)
-      lname = 'urban roof water'
+      lname = 'Urban roof water'
       call attrib(idnc,dimj,jsize,'roofwtr',lname,'mm',0.,1.3,0,cptype)
-      lname = 'urban road water'
+      lname = 'Urban road water'
       call attrib(idnc,dimj,jsize,'roadwtr',lname,'mm',0.,1.3,0,cptype)
-      lname = 'urban canyon leaf water'
+      lname = 'Urban canyon leaf water'
       call attrib(idnc,dimj,jsize,'urbwtrc',lname,'mm',0.,1.3,0,cptype)
-      lname = 'urban roof leaf water'
+      lname = 'Urban roof leaf water'
       call attrib(idnc,dimj,jsize,'urbwtrr',lname,'mm',0.,1.3,0,cptype)
-      lname = 'urban roof snow (liquid water)'
+      lname = 'Urban roof snow (liquid water)'
       call attrib(idnc,dimj,jsize,'roofsnd',lname,'mm',0.,1.3,0,cptype)
-      lname = 'urban road snow (liquid water)'
+      lname = 'Urban road snow (liquid water)'
       call attrib(idnc,dimj,jsize,'roadsnd',lname,'mm',0.,1.3,0,cptype)
-      lname = 'urban roof snow density'
+      lname = 'Urban roof snow density'
       call attrib(idnc,dimj,jsize,'roofden',lname,'kg/m3',0.,650.,0,cptype)
-      lname = 'urban road snow density'
+      lname = 'Urban road snow density'
       call attrib(idnc,dimj,jsize,'roadden',lname,'kg/m3',0.,650.,0,cptype)
-      lname = 'urban roof snow albedo'
+      lname = 'Urban roof snow albedo'
       call attrib(idnc,dimj,jsize,'roofsna',lname,'none',0.,1.3,0,cptype)
-      lname = 'urban road snow albedo'
+      lname = 'Urban road snow albedo'
       call attrib(idnc,dimj,jsize,'roadsna',lname,'none',0.,1.3,0,cptype)
     end if
         
@@ -2273,23 +2277,47 @@ if( myid==0 .or. local ) then
       call ccnf_put_vara(idnc,idoc,1,wlev,gosig)
     end if
     
+    ! procformat
     if ( procformat ) then
-      ! procformat
+      ! store local processor id in output file
       allocate(vnode_dat(vnode_nproc))
       call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
       call ccnf_put_vara(idnc,idproc,(/1/),(/vnode_nproc/),vnode_dat)
       deallocate(vnode_dat)
+      !! store global processor id in output file number 000000
+      !if ( myid==0 ) then
+      !  allocate(procmap(nproc))
+      !else
+      !  allocate(procmap(1)) ! not used
+      !end if
+      !gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
+      !call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
+      !if ( myid==0 ) then
+      !  call ccnf_put_vara(idnc,idgproc,(/1/),(/nproc/),procmap)  
+      !end if
+      !deallocate(procmap)
+      ! store file id for a given processor number in output file number 000000
       if ( myid==0 ) then
-        allocate(procmap(nproc))
+        allocate( procnode(nproc) )
       else
-        allocate(procmap(1)) ! not used
-      end if
-      gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
-      call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
+        allocate( procnode(1) ) ! not used
+      end if  
+      call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
       if ( myid==0 ) then
-        call ccnf_put_vara(idnc,idgproc,(/1/),(/nproc/),procmap)  
+        call ccnf_put_vara(idnc,idgpnode,(/1/),(/nproc/),procnode)  
       end if
-      deallocate(procmap)
+      deallocate(procnode)
+      ! store offset within a file for a given processor number in output file number 000000
+      if ( myid==0 ) then
+        allocate( procoffset(nproc) )
+      else
+        allocate( procoffset(1) ) ! not used
+      end if
+      call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
+      if ( myid==0 ) then
+        call ccnf_put_vara(idnc,idgpoff,(/1/),(/nproc/),procoffset)  
+      end if
+      deallocate(procoffset)
     end if
 
     call ccnf_put_vara(idnc,'ds',1,ds)
@@ -2386,10 +2414,16 @@ elseif ( procformat ) then
     allocate(vnode_dat(vnode_nproc))
     call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
     deallocate(vnode_dat)
-    allocate(procmap(1)) ! not used
-    gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
-    call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
-    deallocate(procmap)
+    !allocate(procmap(1)) ! not used
+    !gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
+    !call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
+    !deallocate(procmap)
+    allocate(procnode(1)) ! not used
+    call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
+    deallocate(procnode)
+    allocate(procoffset(1)) ! not used
+    call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
+    deallocate(procoffset)
   end if
     
 end if ! myid == 0 .or. local ..else..
@@ -3284,7 +3318,7 @@ integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
 integer, dimension(tblock) :: datedat
 integer, dimension(:), allocatable :: vnode_dat
-integer, dimension(:), allocatable :: procmap
+integer, dimension(:), allocatable :: procnode, procoffset
 integer, dimension(5) :: adim
 integer, dimension(4) :: sdim
 integer, dimension(1) :: start,ncount,gpdim
@@ -3292,7 +3326,7 @@ integer, dimension(5) :: outdim
 integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics,ti
 integer i,j,n,fiarch
-integer dproc, d4, asize, ssize, idnp, idgp, gprocrank
+integer dproc, d4, asize, ssize, idnp, idgpn, idgpo
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -3346,7 +3380,7 @@ if ( first ) then
   allocate(freqstore(ifull,tblock,freqvars))
   freqstore(:,:,:) = 0.
   if ( procformat ) then
-    write(ffile,"(a,'.',i6.6)") trim(surfile), vleader_myid
+    write(ffile,"(a,'.',i6.6)") trim(surfile), vnode_vleaderid
   elseif ( local ) then
     write(ffile,"(a,'.',i6.6)") trim(surfile), myid
   else
@@ -3405,7 +3439,9 @@ if ( first ) then
     if ( procformat ) then
       call ccnf_def_var(fncid,'processor','float',1,adim(dproc:dproc),idnp)  
       if ( myid==0 ) then
-        call ccnf_def_var(fncid,'gprocessor','float',1,gpdim(1:1),idgp)     
+        !call ccnf_def_var(fncid,'gprocessor','int',1,gpdim(1:1),idgp)
+        call ccnf_def_var(fncid,'gprocnode','int',1,gpdim(1:1),idgpn)
+        call ccnf_def_var(fncid,'gprocoffset','int',1,gpdim(1:1),idgpo)
       end if
     end if
     call ccnf_def_var(fncid,'time','double',1,adim(d4:d4),idnt)
@@ -3595,21 +3631,45 @@ if ( first ) then
     call ccnf_put_vara(fncid,izp,1,1,zpnt(1:1))
     
     if ( procformat ) then
+      ! store local processor order in output file  
       allocate( vnode_dat(vnode_nproc) )  
       call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
       call ccnf_put_vara(fncid,idnp,(/1/),(/vnode_nproc/),vnode_dat)
       deallocate( vnode_dat )
+      !! store global processor order in output file number 000000
+      !if ( myid==0 ) then
+      !  allocate( procmap(nproc) )
+      !else
+      !  allocate( procmap(1) ) ! not used  
+      !end if
+      !gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
+      !call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
+      !if ( myid==0 ) then
+      !  call ccnf_put_vara(fncid,idgp,(/1/),(/nproc/),procmap)  
+      !end if
+      !deallocate(procmap)
+      ! store file id for a given processor number in output file number 000000
       if ( myid==0 ) then
-        allocate( procmap(nproc) )
+        allocate( procnode(nproc) )
       else
-        allocate( procmap(1) ) ! not used  
-      end if
-      gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
-      call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
+        allocate( procnode(1) ) ! not used
+      end if  
+      call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
       if ( myid==0 ) then
-        call ccnf_put_vara(fncid,idgp,(/1/),(/nproc/),procmap)  
+        call ccnf_put_vara(fncid,idgpn,(/1/),(/nproc/),procnode)  
       end if
-      deallocate(procmap)
+      deallocate(procnode)
+      ! store offset within a file for a given processor number in output file number 000000
+      if ( myid==0 ) then
+        allocate( procoffset(nproc) )
+      else
+        allocate( procoffset(1) ) ! not used
+      end if
+      call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
+      if ( myid==0 ) then
+        call ccnf_put_vara(fncid,idgpo,(/1/),(/nproc/),procoffset)  
+      end if
+      deallocate(procoffset)
     end if
     
   else if ( procformat ) then
@@ -3633,11 +3693,17 @@ if ( first ) then
     allocate( vnode_dat(vnode_nproc) )
     call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
     deallocate( vnode_dat )
-    allocate(procmap(1)) ! not used
-    gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
-    call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
-    deallocate(procmap)
-      
+    !allocate(procmap(1)) ! not used
+    !gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
+    !call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
+    !deallocate(procmap)
+    allocate(procnode(1)) ! not used
+    call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
+    deallocate(procnode)
+    allocate(procoffset(1)) ! not used
+    call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
+    deallocate(procoffset)
+    
   end if ! myid==0 .or. local ..else if ( procformat ) ..
   
   first=.false.
