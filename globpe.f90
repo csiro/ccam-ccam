@@ -189,8 +189,6 @@ if ( myid<nproc ) then
   end do
   n3hr = 1           ! initial value at start of run
   nlx = 0            ! diagnostic level
-  call zero_nperavg  ! reset average period diagnostics
-  call zero_nperday  ! reset daily period diagnostics
 
   
   !--------------------------------------------------------------
@@ -830,6 +828,10 @@ if ( myid<nproc ) then
     ! TIME AVERAGED OUTPUT ---------------------------------------
     ! update diag_averages and daily max and min screen temps 
     ! N.B. runoff is accumulated in sflux
+    if ( ktau==1 ) then
+      call zero_nperavg  ! reset average period diagnostics
+      call zero_nperday  ! reset daily period diagnostics
+    end if    
     call calculate_timeaverage
 
 
