@@ -1574,7 +1574,7 @@ end do
 
 ! Display convergence diagnostics
 if ( myid==0 ) then
-  if ( ktau<6 .or. iters(1)>itr_mg ) then
+  if ( ktau<6 .or. iters(1)>=itr_mg ) then
     do k = 1,kl
       write(6,*) "mg ktau,k,iter ",ktau,k,iters(k),dsolmax_g(k)
     end do
@@ -1893,24 +1893,24 @@ if ( mg_maxlevel_local>0 ) then
     call mgcollect(2,w(:,1:18))
     if ( 2<=mg_maxlevel_local ) then
       ng = mg(2)%ifull
-      rhs(1:ng,2)    = w(1:ng,1)
-      zz(1:ng,2)     = w(1:ng,2)
-      zzn(1:ng,2)    = w(1:ng,3)
-      zzs(1:ng,2)    = w(1:ng,4)
-      zze(1:ng,2)    = w(1:ng,5)
-      zzw(1:ng,2)    = w(1:ng,6)
-      hh(1:ng,2)     = w(1:ng,7)
-      yyz(1:ng,2)    = w(1:ng,8)
-      yyn(1:ng,2)    = w(1:ng,9)
-      yys(1:ng,2)    = w(1:ng,10)
-      yye(1:ng,2)    = w(1:ng,11)
-      yyw(1:ng,2)    = w(1:ng,12)
-      rhsi(1:ng,2)   = w(1:ng,13)
-      zzi(1:ng,2)    = w(1:ng,14)
-      zzin(1:ng,2)   = w(1:ng,15)
-      zzis(1:ng,2)   = w(1:ng,16)
-      zzie(1:ng,2)   = w(1:ng,17)
-      zziw(1:ng,2)   = w(1:ng,18)
+      rhs(1:ng,2)  = w(1:ng,1)
+      zz(1:ng,2)   = w(1:ng,2)
+      zzn(1:ng,2)  = w(1:ng,3)
+      zzs(1:ng,2)  = w(1:ng,4)
+      zze(1:ng,2)  = w(1:ng,5)
+      zzw(1:ng,2)  = w(1:ng,6)
+      hh(1:ng,2)   = w(1:ng,7)
+      yyz(1:ng,2)  = w(1:ng,8)
+      yyn(1:ng,2)  = w(1:ng,9)
+      yys(1:ng,2)  = w(1:ng,10)
+      yye(1:ng,2)  = w(1:ng,11)
+      yyw(1:ng,2)  = w(1:ng,12)
+      rhsi(1:ng,2) = w(1:ng,13)
+      zzi(1:ng,2)  = w(1:ng,14)
+      zzin(1:ng,2) = w(1:ng,15)
+      zzis(1:ng,2) = w(1:ng,16)
+      zzie(1:ng,2) = w(1:ng,17)
+      zziw(1:ng,2) = w(1:ng,18)
     end if  
   end if
     
@@ -2048,45 +2048,45 @@ if ( mg_maxlevel_local>0 ) then
     
     ! merge grids if insufficent points on this processor
     if ( mg(g+1)%merge_len>1 ) then
-      w(1:ng4,1)  =rhs(1:ng4,g+1)
-      w(1:ng4,2)  =zz(1:ng4,g+1)
-      w(1:ng4,3)  =zzn(1:ng4,g+1)
-      w(1:ng4,4)  =zzs(1:ng4,g+1)
-      w(1:ng4,5)  =zze(1:ng4,g+1)
-      w(1:ng4,6)  =zzw(1:ng4,g+1)
-      w(1:ng4,7)  =hh(1:ng4,g+1)
-      w(1:ng4,8)  =yyz(1:ng4,g+1)
-      w(1:ng4,9)  =yyn(1:ng4,g+1)
-      w(1:ng4,10) =yys(1:ng4,g+1)
-      w(1:ng4,11) =yye(1:ng4,g+1)
-      w(1:ng4,12) =yyw(1:ng4,g+1)
-      w(1:ng4,13) =rhsi(1:ng4,g+1)
-      w(1:ng4,14) =zzi(1:ng4,g+1)
-      w(1:ng4,15) =zzin(1:ng4,g+1)
-      w(1:ng4,16) =zzis(1:ng4,g+1)
-      w(1:ng4,17) =zzie(1:ng4,g+1)
-      w(1:ng4,18) =zziw(1:ng4,g+1)
+      w(1:ng4,1)  = rhs(1:ng4,g+1)
+      w(1:ng4,2)  = zz(1:ng4,g+1)
+      w(1:ng4,3)  = zzn(1:ng4,g+1)
+      w(1:ng4,4)  = zzs(1:ng4,g+1)
+      w(1:ng4,5)  = zze(1:ng4,g+1)
+      w(1:ng4,6)  = zzw(1:ng4,g+1)
+      w(1:ng4,7)  = hh(1:ng4,g+1)
+      w(1:ng4,8)  = yyz(1:ng4,g+1)
+      w(1:ng4,9)  = yyn(1:ng4,g+1)
+      w(1:ng4,10) = yys(1:ng4,g+1)
+      w(1:ng4,11) = yye(1:ng4,g+1)
+      w(1:ng4,12) = yyw(1:ng4,g+1)
+      w(1:ng4,13) = rhsi(1:ng4,g+1)
+      w(1:ng4,14) = zzi(1:ng4,g+1)
+      w(1:ng4,15) = zzin(1:ng4,g+1)
+      w(1:ng4,16) = zzis(1:ng4,g+1)
+      w(1:ng4,17) = zzie(1:ng4,g+1)
+      w(1:ng4,18) = zziw(1:ng4,g+1)
       call mgcollect(g+1,w(:,1:18))
       if ( g+1<=mg_maxlevel_local ) then
         ng = mg(g+1)%ifull
-        rhs(1:ng,g+1)    =w(1:ng,1)
-        zz(1:ng,g+1)     =w(1:ng,2)
-        zzn(1:ng,g+1)    =w(1:ng,3)
-        zzs(1:ng,g+1)    =w(1:ng,4)
-        zze(1:ng,g+1)    =w(1:ng,5)
-        zzw(1:ng,g+1)    =w(1:ng,6)
-        hh(1:ng,g+1)     =w(1:ng,7)
-        yyz(1:ng,g+1)    =w(1:ng,8)
-        yyn(1:ng,g+1)    =w(1:ng,9)
-        yys(1:ng,g+1)    =w(1:ng,10)
-        yye(1:ng,g+1)    =w(1:ng,11)
-        yyw(1:ng,g+1)    =w(1:ng,12)
-        rhsi(1:ng,g+1)   =w(1:ng,13)
-        zzi(1:ng,g+1)    =w(1:ng,14)
-        zzin(1:ng,g+1)   =w(1:ng,15)
-        zzis(1:ng,g+1)   =w(1:ng,16)
-        zzie(1:ng,g+1)   =w(1:ng,17)
-        zziw(1:ng,g+1)   =w(1:ng,18)
+        rhs(1:ng,g+1)  = w(1:ng,1)
+        zz(1:ng,g+1)   = w(1:ng,2)
+        zzn(1:ng,g+1)  = w(1:ng,3)
+        zzs(1:ng,g+1)  = w(1:ng,4)
+        zze(1:ng,g+1)  = w(1:ng,5)
+        zzw(1:ng,g+1)  = w(1:ng,6)
+        hh(1:ng,g+1)   = w(1:ng,7)
+        yyz(1:ng,g+1)  = w(1:ng,8)
+        yyn(1:ng,g+1)  = w(1:ng,9)
+        yys(1:ng,g+1)  = w(1:ng,10)
+        yye(1:ng,g+1)  = w(1:ng,11)
+        yyw(1:ng,g+1)  = w(1:ng,12)
+        rhsi(1:ng,g+1) = w(1:ng,13)
+        zzi(1:ng,g+1)  = w(1:ng,14)
+        zzin(1:ng,g+1) = w(1:ng,15)
+        zzis(1:ng,g+1) = w(1:ng,16)
+        zzie(1:ng,g+1) = w(1:ng,17)
+        zziw(1:ng,g+1) = w(1:ng,18)
       end if  
     end if
 
@@ -2234,13 +2234,13 @@ end if
 vduma = 0.
 if ( mg(1)%merge_len>1 ) then
   call mgbcasta(1,ws(:,1:2),nobounds=.true.)
-  ir=mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
-  ic=(mg(1)%merge_pos-1)/mg(1)%merge_row+1      ! index for proc col
-  do n=1,npan
-    do j=1,jpan
-      iq_a=1+(j-1)*ipan+(n-1)*ipan*jpan
-      iq_c=1+(ir-1)*ipan+(j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row+(n-1)*ipan*jpan*mg(1)%merge_len
-      vduma(iq_a:iq_a+ipan-1,1:2)=ws(iq_c:iq_c+ipan-1,1:2)
+  ir = mod(mg(1)%merge_pos-1,mg(1)%merge_row)+1   ! index for proc row
+  ic = (mg(1)%merge_pos-1)/mg(1)%merge_row+1      ! index for proc col
+  do n = 1,npan
+    do j = 1,jpan
+      iq_a = 1 + (j-1)*ipan + (n-1)*ipan*jpan
+      iq_c = 1 + (ir-1)*ipan + (j-1+(ic-1)*jpan)*ipan*mg(1)%merge_row + (n-1)*ipan*jpan*mg(1)%merge_len
+      vduma(iq_a:iq_a+ipan-1,1:2) = ws(iq_c:iq_c+ipan-1,1:2)
     end do
   end do
 else
@@ -2250,11 +2250,11 @@ end if
 
 ! extension
 vduma(1:ifull,1) = max( -10., min( 10., vduma(1:ifull,1) ) )
-neta(1:ifull) = max( neta(1:ifull)+vduma(1:ifull,1), -dd(1:ifull)+minwater )*ee(1:ifull)
-ipice(1:ifull) = max( min( ipice(1:ifull)+vduma(1:ifull,2), ipmax(1:ifull) ), 0. )*ee(1:ifull)
+dumc(1:ifull,1) = max( neta(1:ifull)+vduma(1:ifull,1), -dd(1:ifull)+minwater )*ee(1:ifull)
+dumc(1:ifull,2) = max( min( ipice(1:ifull)+vduma(1:ifull,2), ipmax(1:ifull) ), 0. )*ee(1:ifull)
  
-dumc(1:ifull,1) = neta(1:ifull)
-dumc(1:ifull,2) = ipice(1:ifull)
+neta(1:ifull)  = dumc(1:ifull,1)
+ipice(1:ifull) = dumc(1:ifull,2)
 
 call bounds(dumc(:,1:2))
 
@@ -2278,12 +2278,12 @@ do i = 1,itrend
     iec = ifullcol_border(nc)
   
     ! ocean
-    bu(isc:iec)=yync(isc:iec,nc)*dumc_n(isc:iec,1)+yysc(isc:iec,nc)*dumc_s(isc:iec,1)      &
-               +yyec(isc:iec,nc)*dumc_e(isc:iec,1)+yywc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-               +zzhhc(isc:iec,nc)
-    cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
-               +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-               -rhsc(isc:iec,nc)  
+    bu(isc:iec) = yync(isc:iec,nc)*dumc_n(isc:iec,1)+yysc(isc:iec,nc)*dumc_s(isc:iec,1)      &
+                + yyec(isc:iec,nc)*dumc_e(isc:iec,1)+yywc(isc:iec,nc)*dumc_w(isc:iec,1)      &
+                + zzhhc(isc:iec,nc)
+    cu(isc:iec) = zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
+                + zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
+                -rhsc(isc:iec,nc)  
 !$omp simd
     do iq = isc,iec
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
@@ -2336,16 +2336,17 @@ do i = 1,itrend
   end do
 end do
 
+neta(1:ifull)  = dumc(1:ifull,1)
+ipice(1:ifull) = dumc(1:ifull,2)
+
 call END_LOG(mgsetup_end)
 
 ! Main loop
 do itr = 2,itr_mgice
 
   call START_LOG(mgfine_begin)
-
+  
   do i = 1,itrbgn
-    neta(1:ifull)  = dumc(1:ifull,1)
-    ipice(1:ifull) = dumc(1:ifull,2)  
     do nc = 1,maxcolour
 
       do k = 1,2
@@ -2423,10 +2424,10 @@ do itr = 2,itr_mgice
   
   ! test for convergence
   dsolmax_g = 0.
-  dsolmax_g(1)          = maxval( abs( dumc(1:ifull,1) - neta(1:ifull) ) )
-  dsolmax_g(2)          = maxval( abs( dumc(1:ifull,2) - ipice(1:ifull) ) )
-  neta(1:ifull+iextra)  = dumc(1:ifull+iextra,1)
-  ipice(1:ifull+iextra) = dumc(1:ifull+iextra,2)  
+  dsolmax_g(1)   = maxval( abs( dumc(1:ifull,1) - neta(1:ifull) ) )
+  dsolmax_g(2)   = maxval( abs( dumc(1:ifull,2) - ipice(1:ifull) ) )
+  neta(1:ifull)  = dumc(1:ifull,1)
+  ipice(1:ifull) = dumc(1:ifull,2)  
 
   ! residual - ocean
   call unpack_nsew(dumc(:,1),dumc_n(:,1),dumc_s(:,1),dumc_e(:,1),dumc_w(:,1))
@@ -2872,7 +2873,7 @@ do itr = 2,itr_mgice
                  -rhsc(isc:iec,nc)
 !$omp simd
       do iq = isc,iec
-        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,    &
            -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
       end do
       
@@ -2885,7 +2886,7 @@ do itr = 2,itr_mgice
              -zzecice(iq,nc)*dumc_e(iq,2)              &
              -zzwcice(iq,nc)*dumc_w(iq,2)              &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
-      end do  
+      end do
 
       call bounds_colour_recv(dumc,nc)
     
@@ -2899,8 +2900,8 @@ do itr = 2,itr_mgice
   
 end do
 
-neta(ifull+1:ifull+iextra)  = dumc(ifull+iextra,1)
-ipice(ifull+1:ifull+iextra) = dumc(ifull+iextra,2)
+neta(1:ifull)  = dumc(1:ifull,1)
+ipice(1:ifull) = dumc(1:ifull,2)
 
 totits      = itr
 maxglobseta = dsolmax_g(1)
