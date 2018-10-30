@@ -973,8 +973,8 @@ use infile                                       ! Input file routines
 use latlong_m                                    ! Lat/lon coordinates
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
-use mlo, only : wlev,mlosave,mlodiag, &          ! Ocean physics and prognostic arrays
-                mloexpdep,wrtemp
+use mlo, only : wlev,mlosave,mlodiag,      &     ! Ocean physics and prognostic arrays
+                mloexpdep,mloexport,wrtemp
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use morepbl_m                                    ! Additional boundary layer diagnostics
@@ -1045,6 +1045,7 @@ real, dimension(ifull,kl) :: tmpry
 real, dimension(ifull,kl) :: rhoa
 real, dimension(ifull,wlev) :: oo
 real, dimension(ifull,wlev,4) :: mlodwn
+real, dimension(ifull,3:4) :: ocndwn
 real scale_factor
 character(len=50) expdesc
 character(len=50) lname
@@ -2156,8 +2157,12 @@ if( myid==0 .or. local ) then
         call attrib(idnc,odim,osize,"old2_uo",lname,'m/s',-65.,65.,0,cptype)
         lname = "old2_vo"
         call attrib(idnc,odim,osize,"old2_vo",lname,'m/s',-65.,65.,0,cptype)
-        lname= 'ipice'
+        lname = 'ipice'
         call attrib(idnc,dimj,jsize,'ipice',lname,'Pa',0.,1.E6,0,cptype)
+        lname = 'old1_uobot'
+        call attrib(idnc,dimj,jsize,'old1_uobot',lname,'m/s',-65.,65.,0,cptype)
+        lname = 'old1_vobot'
+        call attrib(idnc,dimj,jsize,'old1_vobot',lname,'m/s',-65.,65.,0,cptype)
       end if
       lname = 'Soil ice lev 1'
       call attrib(idnc,dimj,jsize,'wbice1',lname,'m3/m3',0.,1.,0,cptype)
@@ -2439,6 +2444,9 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   ocnheight(:)    = 0.   ! free surface height
   call mlosave(mlodwn,ocndep,ocnheight,micdwn,0)
   ocnheight(:) = min(max(ocnheight(:), -130.), 130.)
+  ocndwn(:,3:4) = 0. ! oldu, oldv
+  call mloexport(5,ocndwn(:,3),0,0)
+  call mloexport(6,ocndwn(:,4),0,0)
 end if
 
 
@@ -3244,6 +3252,8 @@ if ( itype==-1 ) then
     call histwrt4(oldu2,"old2_uo",idnc,iarch,local,.true.)
     call histwrt4(oldv2,"old2_vo",idnc,iarch,local,.true.)
     call histwrt3(ipice,'ipice',idnc,iarch,local,.true.)
+    call histwrt3(ocndwn(:,3),'old1_uobot',idnc,iarch,local,.true.)
+    call histwrt3(ocndwn(:,4),'old1_vobot',idnc,iarch,local,.true.)
   end if
   call histwrt3(wbice(:,1),'wbice1',idnc,iarch,local,.true.)
   call histwrt3(wbice(:,2),'wbice2',idnc,iarch,local,.true.)

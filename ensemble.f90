@@ -90,7 +90,7 @@ real, dimension(:), allocatable :: psl_pos, psl_neg
 real, dimension(:), allocatable, save :: u_rms, v_rms
 real, dimension(:), allocatable, save :: t_rms
 real, dimension(ifull,3) :: duma
-real, dimension(ifull,2) :: dumd
+real, dimension(ifull,4) :: dumd
 real, dimension(ifull,kl) :: ee
 real, dimension(:,:), allocatable :: u_pos, v_pos, t_pos
 real, dimension(:,:), allocatable :: u_neg, v_neg, t_neg

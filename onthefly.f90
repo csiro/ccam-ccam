@@ -1867,6 +1867,7 @@ if ( nested/=1 .and. nested/=3 ) then
       oldv1(:,:) = 0.
       oldv2(:,:) = 0.
       ipice(:) = 0.
+      ocndwn(:,3:4) = 0.
       if ( lrestart ) then
         if ( mlo2_found ) then
           call histrd4(iarchi,ier,'old1_uo',ik,ok,oldu1,ifull)
@@ -1880,6 +1881,8 @@ if ( nested/=1 .and. nested/=3 ) then
           call histrd4(iarchi,ier,'oldv2',ik,ok,oldv2,ifull)
         end if  
         call histrd3(iarchi,ier,'ipice',ik,ipice,ifull)
+        call histrd3(iarchi,ier,'old1_uobot',ik,ocndwn(:,3),ifull)
+        call histrd3(iarchi,ier,'old1_vobot',ik,ocndwn(:,4),ifull)
       end if
     end if
        
