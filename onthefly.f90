@@ -1342,25 +1342,14 @@ if ( nested/=1 .and. nested/=3 ) then
         end if
         if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
           if ( ok==wlev ) then
-            if ( mlo2_found ) then
-              call ccnf_inq_varid(ncid,'old1_uo',idv,tst)
-              if ( tst ) lrestart = .false.
-              call ccnf_inq_varid(ncid,'old1_vo',idv,tst)
-              if ( tst ) lrestart = .false.
-              call ccnf_inq_varid(ncid,'old2_uo',idv,tst)
-              if ( tst ) lrestart = .false.
-              call ccnf_inq_varid(ncid,'old2_vo',idv,tst)
-              if ( tst ) lrestart = .false.                
-            else    
-              call ccnf_inq_varid(ncid,'oldu101',idv,tst)
-              if ( tst ) lrestart = .false.
-              call ccnf_inq_varid(ncid,'oldv101',idv,tst)
-              if ( tst ) lrestart = .false.
-              call ccnf_inq_varid(ncid,'oldu201',idv,tst)
-              if ( tst ) lrestart = .false.
-              call ccnf_inq_varid(ncid,'oldv201',idv,tst)
-              if ( tst ) lrestart = .false.
-            end if  
+            call ccnf_inq_varid(ncid,'old1_uo',idv,tst)
+            if ( tst ) lrestart = .false.
+            call ccnf_inq_varid(ncid,'old1_vo',idv,tst)
+            if ( tst ) lrestart = .false.
+            call ccnf_inq_varid(ncid,'old2_uo',idv,tst)
+            if ( tst ) lrestart = .false.
+            call ccnf_inq_varid(ncid,'old2_vo',idv,tst)
+            if ( tst ) lrestart = .false.                
             call ccnf_inq_varid(ncid,'ipice',idv,tst)
             if ( tst ) lrestart = .false.
             call ccnf_inq_varid(ncid,'nstagoffmlo',idv,tst)
@@ -1369,6 +1358,16 @@ if ( nested/=1 .and. nested/=3 ) then
             else
               call ccnf_get_vara(ncid,idv,iarchi,ierc(6))
             end if
+          else
+            lrestart = .false.
+          end if
+        end if
+        if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+          if ( ok==wlev ) then
+            call ccnf_inq_varid(ncid,'old1_uobot',idv,tst)
+            if ( tst ) lrestart = .false.
+            call ccnf_inq_varid(ncid,'old1_vobot',idv,tst)
+            if ( tst ) lrestart = .false.
           else
             lrestart = .false.
           end if
@@ -1867,24 +1866,19 @@ if ( nested/=1 .and. nested/=3 ) then
       oldv1(:,:) = 0.
       oldv2(:,:) = 0.
       ipice(:) = 0.
-      ocndwn(:,3:4) = 0.
       if ( lrestart ) then
-        if ( mlo2_found ) then
-          call histrd4(iarchi,ier,'old1_uo',ik,ok,oldu1,ifull)
-          call histrd4(iarchi,ier,'old1_vo',ik,ok,oldv1,ifull)
-          call histrd4(iarchi,ier,'old2_uo',ik,ok,oldu2,ifull)
-          call histrd4(iarchi,ier,'old2_vo',ik,ok,oldv2,ifull)            
-        else    
-          call histrd4(iarchi,ier,'oldu1',ik,ok,oldu1,ifull)
-          call histrd4(iarchi,ier,'oldv1',ik,ok,oldv1,ifull)
-          call histrd4(iarchi,ier,'oldu2',ik,ok,oldu2,ifull)
-          call histrd4(iarchi,ier,'oldv2',ik,ok,oldv2,ifull)
-        end if  
+        call histrd4(iarchi,ier,'old1_uo',ik,ok,oldu1,ifull)
+        call histrd4(iarchi,ier,'old1_vo',ik,ok,oldv1,ifull)
+        call histrd4(iarchi,ier,'old2_uo',ik,ok,oldu2,ifull)
+        call histrd4(iarchi,ier,'old2_vo',ik,ok,oldv2,ifull)            
         call histrd3(iarchi,ier,'ipice',ik,ipice,ifull)
-        call histrd3(iarchi,ier,'old1_uobot',ik,ocndwn(:,3),ifull)
-        call histrd3(iarchi,ier,'old1_vobot',ik,ocndwn(:,4),ifull)
       end if
     end if
+    if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+      ocndwn(:,3:4) = 0.
+      call histrd3(iarchi,ier,'old1_uobot',ik,ocndwn(:,3),ifull)
+      call histrd3(iarchi,ier,'old1_vobot',ik,ocndwn(:,4),ifull)       
+    end if    
        
   end if ! (nested==0)
 

@@ -2159,6 +2159,8 @@ if( myid==0 .or. local ) then
         call attrib(idnc,odim,osize,"old2_vo",lname,'m/s',-65.,65.,0,cptype)
         lname = 'ipice'
         call attrib(idnc,dimj,jsize,'ipice',lname,'Pa',0.,1.E6,0,cptype)
+      end if
+      if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
         lname = 'old1_uobot'
         call attrib(idnc,dimj,jsize,'old1_uobot',lname,'m/s',-65.,65.,0,cptype)
         lname = 'old1_vobot'
@@ -3252,9 +3254,11 @@ if ( itype==-1 ) then
     call histwrt4(oldu2,"old2_uo",idnc,iarch,local,.true.)
     call histwrt4(oldv2,"old2_vo",idnc,iarch,local,.true.)
     call histwrt3(ipice,'ipice',idnc,iarch,local,.true.)
-    call histwrt3(ocndwn(:,3),'old1_uobot',idnc,iarch,local,.true.)
-    call histwrt3(ocndwn(:,4),'old1_vobot',idnc,iarch,local,.true.)
   end if
+  if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+    call histwrt3(ocndwn(:,3),'old1_uobot',idnc,iarch,local,.true.)
+    call histwrt3(ocndwn(:,4),'old1_vobot',idnc,iarch,local,.true.)      
+  end if    
   call histwrt3(wbice(:,1),'wbice1',idnc,iarch,local,.true.)
   call histwrt3(wbice(:,2),'wbice2',idnc,iarch,local,.true.)
   call histwrt3(wbice(:,3),'wbice3',idnc,iarch,local,.true.)
