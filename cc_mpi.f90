@@ -8274,6 +8274,7 @@ contains
       integer :: node_nx, node_ny, node_dx, node_dy
       integer :: oldrank, ty, cy, tx, cx
       integer :: new_nodecaptian_nproc, new_node_nproc
+      integer :: testid, newid
       integer(kind=4) :: ref_nodecaptian_nproc
       integer(kind=4) :: lerr, lid, lcommin, lcommout
       
@@ -8313,15 +8314,21 @@ contains
             write(6,*) "Remapping ranks using node_nx,node_ny ",node_nx,node_ny
             write(6,*) "node_dx,node_dy                       ",node_dx,node_dy
          end if
-         oldrank = myid
-         ty = oldrank/(node_ny*node_dx*node_nx) ! node position in y
-         oldrank = oldrank - ty*node_ny*node_dx*node_nx
-         cy = oldrank/(node_dx*node_nx)         ! y-row position in node
-         oldrank = oldrank - cy*node_dx*node_nx
-         tx = oldrank/node_nx                   ! node position in x
-         oldrank = oldrank - tx*node_nx
-         cx = oldrank                           ! x-column position in node
-         lid = ty*node_dx*node_nx*node_ny + tx*node_nx*node_ny + cy*node_nx + cx
+         do testid = 0,nproc-1
+            oldrank = testid 
+            ty = oldrank/(node_ny*node_dx*node_nx) ! node position in y
+            oldrank = oldrank - ty*node_ny*node_dx*node_nx
+            cy = oldrank/(node_dx*node_nx)         ! y-row position in node
+            oldrank = oldrank - cy*node_dx*node_nx
+            tx = oldrank/node_nx                   ! node position in x
+            oldrank = oldrank - tx*node_nx
+            cx = oldrank                           ! x-column position in node
+            newid = ty*node_dx*node_nx*node_ny + tx*node_nx*node_ny + cy*node_nx + cx
+            if ( newid==myid ) then
+               lid = testid
+               exit
+            end if   
+         end do
          lcommin = comm_world
          call MPI_Comm_Split(lcommin, 0_4, lid, lcommout, lerr) ! redefine comm_world
          call MPI_Comm_rank(lcommout, lid, lerr)                ! find local processor id
