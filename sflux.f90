@@ -959,18 +959,10 @@ dumsg(:)=sgsave(:)/(1.-swrsave*albvis(:)-(1.-swrsave)*albnir(:))                
 dumrg(:)=-rgsave(:)                                                                            ! MLO
 dumx(:)=condx(:)/dt ! total precip                                                             ! MLO
 dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
-if (abs(nmlo)>=3) then                                                                         ! MLO
-  call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,        & ! MLO
-               azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),               & ! MLO
-               ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                 & ! MLO
-               depth,dgice,dgscrn,dgwater,ice,water,wfull,wpack,                             & ! MLO
-               oldu=oldu1(:),oldv=oldv1(:))                                                    ! MLO
-else                                                                                           ! MLO
-  call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,        & ! MLO
-               azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),               & ! MLO
-               ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                 & ! MLO
-               depth,dgice,dgscrn,dgwater,ice,water,wfull,wpack)                               ! MLO
-end if                                                                                         ! MLO
+call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,          & ! MLO
+             azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),                 & ! MLO
+             ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                   & ! MLO
+             depth,dgice,dgscrn,dgwater,ice,water,wfull,wpack)                                 ! MLO
 call mloextra(0,zoh,azmin,0,dgwater,dgice,ice,wpack,wfull)                                     ! MLO
 call mloextra(3,zoq,azmin,0,dgwater,dgice,ice,wpack,wfull)                                     ! MLO
 call mloextra(1,taux,azmin,0,dgwater,dgice,ice,wpack,wfull)                                    ! MLO

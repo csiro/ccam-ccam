@@ -137,7 +137,7 @@ integer, dimension(1) :: nstart, ncount
 real, dimension(ifull) :: zss, aa, zsmask
 real, dimension(ifull) :: rlai, depth
 real, dimension(ifull,5) :: duma
-real, dimension(ifull,4) :: ocndwn
+real, dimension(ifull,6) :: ocndwn
 real, dimension(ifull,wlev,4) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
 real, dimension(ifull,kl,9) :: dumb
@@ -2155,6 +2155,8 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   call mloload(mlodwn,ocndwn(:,2),micdwn,0)
   call mloimport(5,ocndwn(:,3),0,0)
   call mloimport(6,ocndwn(:,4),0,0)
+  call mloimport(7,ocndwn(:,5),0,0)
+  call mloimport(8,ocndwn(:,6),0,0)
   deallocate(micdwn)
   do k = 1,ms
     call mloexport(0,tgg(:,k),k,0)

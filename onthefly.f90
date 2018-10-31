@@ -1364,6 +1364,10 @@ if ( nested/=1 .and. nested/=3 ) then
         end if
         if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
           if ( ok==wlev ) then
+            call ccnf_inq_varid(ncid,'old1_uotop',idv,tst)
+            if ( tst ) lrestart = .false.
+            call ccnf_inq_varid(ncid,'old1_votop',idv,tst)
+            if ( tst ) lrestart = .false.
             call ccnf_inq_varid(ncid,'old1_uobot',idv,tst)
             if ( tst ) lrestart = .false.
             call ccnf_inq_varid(ncid,'old1_vobot',idv,tst)
@@ -1877,9 +1881,11 @@ if ( nested/=1 .and. nested/=3 ) then
     if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
       ocndwn(:,3:4) = 0.
       if ( lrestart ) then
-        call histrd3(iarchi,ier,'old1_uobot',ik,ocndwn(:,3),ifull)
-        call histrd3(iarchi,ier,'old1_vobot',ik,ocndwn(:,4),ifull)       
-      end if	
+        call histrd3(iarchi,ier,'old1_uotop',ik,ocndwn(:,3),ifull)
+        call histrd3(iarchi,ier,'old1_votop',ik,ocndwn(:,4),ifull)
+        call histrd3(iarchi,ier,'old1_uobot',ik,ocndwn(:,5),ifull)
+        call histrd3(iarchi,ier,'old1_vobot',ik,ocndwn(:,6),ifull)
+      end if  
     end if    
        
   end if ! (nested==0)

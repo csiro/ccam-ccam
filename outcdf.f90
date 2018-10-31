@@ -1045,7 +1045,7 @@ real, dimension(ifull,kl) :: tmpry
 real, dimension(ifull,kl) :: rhoa
 real, dimension(ifull,wlev) :: oo
 real, dimension(ifull,wlev,4) :: mlodwn
-real, dimension(ifull,3:4) :: ocndwn
+real, dimension(ifull,3:6) :: ocndwn
 real scale_factor
 character(len=50) expdesc
 character(len=50) lname
@@ -2161,6 +2161,10 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,'ipice',lname,'Pa',0.,1.E6,0,cptype)
       end if
       if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+        lname = 'old1_uotop'
+        call attrib(idnc,dimj,jsize,'old1_uotop',lname,'m/s',-65.,65.,0,cptype)
+        lname = 'old1_votop'
+        call attrib(idnc,dimj,jsize,'old1_votop',lname,'m/s',-65.,65.,0,cptype)
         lname = 'old1_uobot'
         call attrib(idnc,dimj,jsize,'old1_uobot',lname,'m/s',-65.,65.,0,cptype)
         lname = 'old1_vobot'
@@ -2446,9 +2450,12 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   ocnheight(:)    = 0.   ! free surface height
   call mlosave(mlodwn,ocndep,ocnheight,micdwn,0)
   ocnheight(:) = min(max(ocnheight(:), -130.), 130.)
-  ocndwn(:,3:4) = 0. ! oldu, oldv
+  ocndwn(:,3:4) = 0. ! oldutop, oldvtop
+  ocndwn(:,5:6) = 0. ! oldubot, oldvbot
   call mloexport(5,ocndwn(:,3),0,0)
   call mloexport(6,ocndwn(:,4),0,0)
+  call mloexport(7,ocndwn(:,5),0,0)
+  call mloexport(8,ocndwn(:,6),0,0)
 end if
 
 
@@ -3256,8 +3263,10 @@ if ( itype==-1 ) then
     call histwrt3(ipice,'ipice',idnc,iarch,local,.true.)
   end if
   if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
-    call histwrt3(ocndwn(:,3),'old1_uobot',idnc,iarch,local,.true.)
-    call histwrt3(ocndwn(:,4),'old1_vobot',idnc,iarch,local,.true.)      
+    call histwrt3(ocndwn(:,3),'old1_uotop',idnc,iarch,local,.true.)
+    call histwrt3(ocndwn(:,4),'old1_votop',idnc,iarch,local,.true.)      
+    call histwrt3(ocndwn(:,5),'old1_uobot',idnc,iarch,local,.true.)
+    call histwrt3(ocndwn(:,6),'old1_vobot',idnc,iarch,local,.true.)      
   end if    
   call histwrt3(wbice(:,1),'wbice1',idnc,iarch,local,.true.)
   call histwrt3(wbice(:,2),'wbice2',idnc,iarch,local,.true.)
