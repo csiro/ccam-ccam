@@ -1876,8 +1876,10 @@ if ( nested/=1 .and. nested/=3 ) then
     end if
     if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
       ocndwn(:,3:4) = 0.
-      call histrd3(iarchi,ier,'old1_uobot',ik,ocndwn(:,3),ifull)
-      call histrd3(iarchi,ier,'old1_vobot',ik,ocndwn(:,4),ifull)       
+      if ( lrestart ) then
+        call histrd3(iarchi,ier,'old1_uobot',ik,ocndwn(:,3),ifull)
+        call histrd3(iarchi,ier,'old1_vobot',ik,ocndwn(:,4),ifull)       
+      end if	
     end if    
        
   end if ! (nested==0)
