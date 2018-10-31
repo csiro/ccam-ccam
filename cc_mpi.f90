@@ -8272,58 +8272,70 @@ contains
    subroutine ccmpi_remap
    
       integer :: node_nx, node_ny, node_dx, node_dy
-      integer :: oldrank, newid, testid, ty, cy, tx, cx
-      integer :: node_nproc_max, node_nproc_min
+      integer :: oldrank, ty, cy, tx, cx
+      integer :: new_nodecaptian_nproc, new_node_nproc
+      integer :: testid, newid
+      integer(kind=4) :: ref_nodecaptian_nproc
       integer(kind=4) :: lerr, lid, lcommin, lcommout
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_INTEGER8
-#else
-      integer(kind=4), parameter :: ltype = MPI_INTEGER
-#endif  
       
       lcommin = comm_world
-      call MPI_AllReduce(node_nproc, node_nproc_min, 1_4, ltype, MPI_MIN, lcommin, lerr )
-      call MPI_AllReduce(node_nproc, node_nproc_max, 1_4, ltype, MPI_MAX, lcommin, lerr )
-      if ( node_nproc_min == node_nproc_max ) then
-         node_nx = max( int(sqrt(real(node_nproc))), 1 )
-         node_ny = node_nproc/node_nx
+      
+      ! communicate number of nodes to all processes
+      ref_nodecaptian_nproc = nodecaptian_nproc
+      call MPI_Bcast(ref_nodecaptian_nproc, 1_4, MPI_INTEGER, 0_4, lcommin, lerr )
+      
+      node_nx = 0
+      do while ( node_nx == 0 )
+
+         ! increase number of (virtual) nodes to find an even decomposition
+         new_nodecaptian_nproc = ref_nodecaptian_nproc 
+         do while ( mod(nproc, new_nodecaptian_nproc) /= 0 )
+            new_nodecaptian_nproc = new_nodecaptian_nproc + 1
+         end do
+         new_node_nproc = nproc / new_nodecaptian_nproc
+      
+         ! calculate virtual node decomposition
+         node_nx = max( int(sqrt(real(new_node_nproc))), 1 )
+         node_ny = new_node_nproc / node_nx
          node_dx = nxp/node_nx
          node_dy = nyp/node_ny
-         do while ( (node_nx*node_dx/=nxp .or. node_ny*node_dy/=nyp .or. node_nx*node_ny/=node_nproc) .and. node_nx>0 )
+         do while ( (node_nx*node_dx/=nxp.or.node_ny*node_dy/=nyp.or.node_nx*node_ny/=new_node_nproc) .and. node_nx>0 )
             node_nx = node_nx - 1
-            node_ny = node_nproc/max( node_nx, 1 )
+            node_ny = new_node_nproc/max( node_nx, 1 )
             node_dx = nxp/max( node_nx, 1 )
             node_dy = nyp/node_ny
+         end do   
+      
+      end do
+
+      ! remap ranks if a valid decomposition has been found
+      if ( node_nx > 0 ) then
+         if ( myid == 0 ) then
+            write(6,*) "Remapping ranks using node_nx,node_ny ",node_nx,node_ny
+            write(6,*) "node_dx,node_dy                       ",node_dx,node_dy
+         end if
+         do testid = 0,nproc-1
+            oldrank = testid 
+            ty = oldrank/(node_ny*node_dx*node_nx) ! node position in y
+            oldrank = oldrank - ty*node_ny*node_dx*node_nx
+            cy = oldrank/(node_dx*node_nx)         ! y-row position in node
+            oldrank = oldrank - cy*node_dx*node_nx
+            tx = oldrank/node_nx                   ! node position in x
+            oldrank = oldrank - tx*node_nx
+            cx = oldrank                           ! x-column position in node
+            newid = ty*node_dx*node_nx*node_ny + tx*node_nx*node_ny + cy*node_nx + cx
+            if ( newid==myid ) then
+               lid = testid
+               exit
+            end if   
          end do
-         if ( node_nx > 0 ) then
-            if ( myid == 0 ) then
-               write(6,*) "Remapping ranks using node_nx,node_ny ",node_nx,node_ny
-               write(6,*) "node_dx,node_dy                       ",node_dx,node_dy
-            end if
-            lid = myid
-            do testid = 0,nproc-1
-               oldrank = testid
-               ty = oldrank/(node_ny*node_dx*node_nx) ! node position in y
-               oldrank = oldrank - ty*node_ny*node_dx*node_nx
-               cy = oldrank/(node_dx*node_nx)         ! y-row position in node
-               oldrank = oldrank - cy*node_dx*node_nx
-               tx = oldrank/node_nx                   ! node position in x
-               oldrank = oldrank - tx*node_nx
-               cx = oldrank                           ! x-column position in node
-               newid = ty*node_dx*node_nproc + tx*node_nproc + cy*node_nx + cx
-               if ( newid == myid ) then
-                  lid = testid
-                  exit
-               end if
-            end do   
-            lcommin = comm_world
-            call MPI_Comm_Split(lcommin, 0_4, lid, lcommout, lerr) ! redefine comm_world
-            call MPI_Comm_rank(lcommout, lid, lerr)                ! find local processor id
-            comm_world = lcommout
-            myid = lid
-            if ( lcommin/=MPI_COMM_WORLD .and. lcommin/=MPI_COMM_NULL ) then
-               call MPI_Comm_Free(lcommin, lerr) 
-            end if
+         lcommin = comm_world
+         call MPI_Comm_Split(lcommin, 0_4, lid, lcommout, lerr) ! redefine comm_world
+         call MPI_Comm_rank(lcommout, lid, lerr)                ! find local processor id
+         comm_world = lcommout
+         myid = lid
+         if ( lcommin/=MPI_COMM_WORLD .and. lcommin/=MPI_COMM_NULL ) then
+            call MPI_Comm_Free(lcommin, lerr) 
          end if
       end if
    
@@ -8354,7 +8366,7 @@ contains
          if ( procmode == 0 ) then
             ! procmode=0 uses existing nodes, even if they have different numbers of processes
             if ( myid==0 ) then
-               write(6,*) "Configure procformat output for nodes=",nodecaptian_nproc
+               write(6,*) "Configure procformat output with nodes=",nodecaptian_nproc
             end if
             ! Intra-procmode communicator 
             comm_vnode  = comm_node
