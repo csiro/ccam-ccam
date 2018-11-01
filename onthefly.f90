@@ -1879,7 +1879,7 @@ if ( nested/=1 .and. nested/=3 ) then
       end if
     end if
     if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
-      ocndwn(:,3:4) = 0.
+      ocndwn(:,3:6) = 0.
       if ( lrestart ) then
         call histrd3(iarchi,ier,'old1_uotop',ik,ocndwn(:,3),ifull)
         call histrd3(iarchi,ier,'old1_votop',ik,ocndwn(:,4),ifull)
