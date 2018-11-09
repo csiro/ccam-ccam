@@ -121,7 +121,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
     allocate( tb(ifull,kl), ub(ifull,kl), vb(ifull,kl), qb(ifull,kl) )
     allocate( psla(ifull), pslb(ifull), tssa(ifull), tssb(ifull) )
     allocate( sicedepb(ifull), fraciceb(ifull) )
-    allocate( sssa(ifull,wlev,4), sssb(ifull,wlev,4), ocndep(ifull,6) )
+    allocate( sssa(ifull,wlev,4), sssb(ifull,wlev,8), ocndep(ifull,6) )
     allocate( xtghosta(ifull,kl,naero) )
     allocate( xtghostb(ifull,kl,naero) )
 
@@ -377,7 +377,7 @@ if ( mtimer>mtimeb ) then
     allocate( psla(ifull), tssa(ifull) )
     allocate( sicedepb(ifull) )
     allocate( ocndep(ifull,6) )
-    allocate( sssb(ifull,wlev,4) )
+    allocate( sssb(ifull,wlev,8) )
     allocate( sssa(ifull,wlev,4) )
     allocate( xtghostb(ifull,kl,naero) )
     allocate( xtghosta(ifull,kl,naero) )

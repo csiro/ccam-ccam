@@ -138,7 +138,7 @@ real, dimension(ifull) :: zss, aa, zsmask
 real, dimension(ifull) :: rlai, depth
 real, dimension(ifull,5) :: duma
 real, dimension(ifull,6) :: ocndwn
-real, dimension(ifull,wlev,4) :: mlodwn
+real, dimension(ifull,wlev,8) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
 real, dimension(ifull,kl,9) :: dumb
 real, dimension(:,:), allocatable, save :: global2d, local2d

@@ -841,7 +841,7 @@ do tile = 1,ntiles
                       albvisnir(is:ie,1),albvisnir(is:ie,2),                                             &
                       fracice(is:ie),sicedep(is:ie),snowd(is:ie),sno(is:ie),grpl(is:ie),qsttg(is:ie),    &
                       vmod(is:ie),zo(is:ie),wetfac(is:ie),                                               &
-                      zoh(is:ie),zoq(is:ie),theta(is:ie),ga(is:ie))
+                      zoh(is:ie),zoq(is:ie),theta(is:ie),ga(is:ie),turb_g(tile))
 
   if ( nriver/=0 ) then
     watbdy(is:ie) = lwatbdy
@@ -869,7 +869,7 @@ subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,
                           oldu1,oldv1,tpan,epan,rnet,condx,conds,condg,fg,eg,epot,             &
                           tss,cduv,cdtq,watbdy,outflowmask,land,albvis,albnir,                 &
                           fracice,sicedep,snowd,sno,grpl,qsttg,vmod,zo,wetfac,                 &
-                          zoh,zoq,theta,ga)
+                          zoh,zoq,theta,ga,turb)
 use cc_mpi                           ! CC MPI routines
 use cc_omp                           ! CC OpenMP routines
 use const_phys                       ! Physical constants
@@ -878,7 +878,7 @@ use mlo, only : waterdata,icedata, & ! Ocean physics and prognostic arrays
   dgwaterdata,dgicedata,dgscrndata,& 
   depthdata,wrtemp,wlev,mloeval,   &
   mloexport,mloimport,mloextra,    &
-  mloexpice
+  mloexpice,turbdata
 use newmpar_m                        ! Grid parameters
 use parm_m                           ! Model configuration
 use soil_m, only : zmin              ! Soil and surface data
@@ -906,6 +906,7 @@ type(dgscrndata), intent(inout) :: dgscrn
 type(dgwaterdata), intent(inout) :: dgwater
 type(icedata), intent(inout) :: ice
 type(depthdata), intent(in) :: depth
+type(turbdata), intent(inout) :: turb
 
 umod = 0. ! this is vmod, but accounts for moving surface                                      ! MLO
                                                                                                ! MLO
@@ -962,7 +963,7 @@ dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                  
 call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,          & ! MLO
              azmin,azmin,dumsg,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),                 & ! MLO
              ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                   & ! MLO
-             depth,dgice,dgscrn,dgwater,ice,water,wfull,wpack)                                 ! MLO
+             depth,dgice,dgscrn,dgwater,ice,water,wfull,wpack,turb)                            ! MLO
 call mloextra(0,zoh,azmin,0,dgwater,dgice,ice,wpack,wfull)                                     ! MLO
 call mloextra(3,zoq,azmin,0,dgwater,dgice,ice,wpack,wfull)                                     ! MLO
 call mloextra(1,taux,azmin,0,dgwater,dgice,ice,wpack,wfull)                                    ! MLO
