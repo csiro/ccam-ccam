@@ -2536,7 +2536,7 @@ do ipass = 0,2
   
   ! unpack data to sparse arrays
   call START_LOG(nestcalc_begin)
-  do n = 1,ipan
+  do n = 1,jpan
     nn = n + os - 1
     do k = 1,kd
       do jpoff = 0,il_g-1,ipan
