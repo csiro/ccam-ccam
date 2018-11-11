@@ -564,10 +564,11 @@ c       write(24,*)coszro2
           sout(i) = ufsw(i,1)*h1m3   ! solar out top
           sg(i)   = sg(i)*h1m3       ! solar absorbed at the surface
           iq=i+(j-1)*il              ! fixed Mar '05
-          sgdn(i) = sg(i) / ( 1. - swrsave(iq)*albvisnir(iq,1)
+          sgdn(iq) = sg(i) / ( 1. - swrsave(iq)*albvisnir(iq,1)
      &            -(1.-swrsave(iq))*albvisnir(iq,2) )
       end do
-      call spitter(imax,fjd,coszro,sgdn,fbeamvis(istart:iend))
+      call spitter(imax,fjd,coszro,sgdn(istart:iend),
+     &             fbeamvis(istart:iend))
       fbeamnir(istart:iend)=fbeamvis(istart:iend)
       
       if(ntest>0.and.j==jdrad)then
@@ -625,7 +626,7 @@ c             fitting need be done.
               sw_tend_amp(iq,1:kl) = 0.
            else
               sgn_amp(iq)     = sg(i) / (coszro(i)*taudar(i))
-              sgdn_amp(iq)    = sgdn(i) / (coszro(i)*taudar(i))
+              sgdn_amp(iq)    = sgdn(iq) / (coszro(i)*taudar(i))
               sw_tend_amp(iq,1:kl) = sw_tend(iq,1:kl)
      &                        / (coszro(i)*taudar(i))
            end if
@@ -694,13 +695,13 @@ c     cloud amounts for saving
          do i=1,imax
           iq=i+(j-1)*il
           sg(i)   = sgn_amp(iq)*coszro2(i)*taudar2(i)
-          sgdn(i) = sgdn_amp(iq)*coszro2(i)*taudar2(i)
+          sgdn(iq) = sgdn_amp(iq)*coszro2(i)*taudar2(i)
          end do
       else
          do i=1,imax
           iq=i+(j-1)*il
           sg(i) = sgsave(iq)
-          sgdn(i) = sgsave(iq) / ( 1. - swrsave(iq)*albvisnir(iq,1)
+          sgdn(iq) = sgsave(iq) / ( 1. - swrsave(iq)*albvisnir(iq,1)
      &            -(1.-swrsave(iq))*albvisnir(iq,2) )
          end do
       end if  ! (solarfit) .. else ..
@@ -709,8 +710,8 @@ c     cloud amounts for saving
        do i=1,imax
          iq=i+(j-1)*il
          sgn_ave(iq)  = sgn_ave(iq)  + sg(i)
-         sgdn_ave(iq) = sgdn_ave(iq) + sgdn(i)
-         if ( sgdn(i)>120. ) then
+         sgdn_ave(iq) = sgdn_ave(iq) + sgdn(iq)
+         if ( sgdn(iq)>120. ) then
            sunhours(iq)=sunhours(iq)+86400.
          end if
        end do
