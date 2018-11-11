@@ -175,7 +175,7 @@ integer ktop, kbot, mythread
 real, dimension(imax,kl) :: duo3n, rhoa
 real, dimension(imax,kl) :: p2, cd2, dumcf, dumql, dumqf, dumt, dz
 real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
-real, dimension(imax) :: sg, sint, sout, sgdn, rg, rt, rgdn, sgdnvis, sgdnnir
+real, dimension(imax) :: sg, sint, sout, rg, rt, rgdn, sgdnvis, sgdnnir
 real, dimension(imax) :: soutclr, sgclr, rtclr, rgclr
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
 real, dimension(imax) :: dzrho, dumfbeam, tnhs, dumtss
@@ -575,6 +575,7 @@ do iq_tile = 1,ifull,imax
     sgdn       = real(Sw_output(mythread)%dfsw(:,1,kl+1,1))
     sgdnvis    = real(Sw_output(mythread)%dfsw_vis_sfc(:,1,1))
     sgdnnir    = sgdn - sgdnvis
+    ! sg = +Snet = Sdown - Sup
     sg         = sgdn - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
     sgvis      = sgdnvis - real(Sw_output(mythread)%ufsw_vis_sfc(:,1,1))
     !sgvisdir  = Sw_output(mythread)%dfsw_vis_sfc_dir(:,1,1)
@@ -612,7 +613,7 @@ do iq_tile = 1,ifull,imax
     ! longwave output -----------------------------------------------
     rg(1:imax) = real(Lw_output(mythread)%flxnet(:,1,kl+1))          ! longwave at surface
     rt(1:imax) = real(Lw_output(mythread)%flxnet(:,1,1))             ! longwave at top
-    ! rg = -Rnet = stefbo T^4 - Rdown
+    ! rg = -Rnet = Rup - Rdown = stefbo T^4 - Rdown
     rgdn(1:imax) = stefbo*tss(istart:iend)**4 - rg(1:imax)
 
     ! shortwave output ----------------------------------------------
@@ -809,8 +810,7 @@ do iq_tile = 1,ifull,imax
   if ( ktau>0 ) then ! averages not added at time zero
     sgn_ave(istart:iend)  = sgn_ave(istart:iend)  + sg(1:imax)
     sgdn_ave(istart:iend) = sgdn_ave(istart:iend) + sgdn(1:imax)
-    where ( sg(1:imax)/( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
-           -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) )>120.)
+    where ( sgdn(1:imax)>120. )
       sunhours(istart:iend) = sunhours(istart:iend) + 86400.
     end where
   endif  ! (ktau>0)

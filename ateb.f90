@@ -217,10 +217,11 @@ integer, save      :: scrnmeth=1           ! Screen diagnostic method (0=Slab, 1
 integer, save      :: wbrelaxc=0           ! Relax canyon soil moisture for irrigation (0=Off, 1=On)
 integer, save      :: wbrelaxr=0           ! Relax roof soil moisture for irrigation (0=Off, 1=On)
 integer, save      :: lweff=2              ! Modification of LW flux for effective canyon height (0=insulated, 1=coupled, 2=full)
+integer, save      :: lwintmeth=2          ! Interior longwave flux method (0=off, 1=explicit, 2=with forward step facet temps)
 integer, parameter :: nl=4                 ! Number of layers (default 4, must be factors of 4)
 integer, save      :: iqt=314              ! Diagnostic point (in terms of host grid)
 ! sectant solver parameters
-integer, save      :: ncyits=18            ! Number of iterations for balancing canyon sensible and latent heat fluxes (default=6)
+integer, save      :: ncyits=6             ! Number of iterations for balancing canyon sensible and latent heat fluxes (default=6)
 integer, save      :: nfgits=3             ! Number of iterations for balancing veg and snow energy budgets (default=3)
 real, save         :: tol=0.001            ! Sectant method tolerance for sensible heat flux (default=0.001)
 real, save         :: alpha=1.             ! Weighting for determining the rate of convergence when calculating canyon temperatures
@@ -1065,7 +1066,7 @@ type(intldata), intent(inout) :: intl
 
 namelist /atebnml/  resmeth,useonewall,zohmeth,acmeth,intairtmeth,intmassmeth,nrefl,vegmode,soilunder, &
                     conductmeth,cvcoeffmeth,statsmeth,behavmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,iqt,  &
-                    infilmeth 
+                    infilmeth,lwintmeth
 namelist /atebsnow/ zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden
 namelist /atebgen/  refheight,zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf, &
                     acfactor,ac_heatcap,ac_coolcap,ac_smooth,ac_deltat,ac_copmax
@@ -3493,8 +3494,9 @@ real, dimension(ufull) :: ggext_roof,ggext_walle,ggext_wallw,ggext_road,ggext_sl
 real, dimension(ufull) :: ggext_impl,ggint_impl
 real, dimension(ufull) :: d_ac_inside, d_intgains_bld, int_infilflux
 real, dimension(ufull) :: cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translation
-! real, dimension(ufull) :: ggext_intm_temp
 real, dimension(ufull) :: int_infilfg
+real, dimension(ufull,0:nl) :: inodetemp      ! interim tridiagonal solution
+real, dimension(ufull,1:4)  :: iskintemp      ! interim internal skin temperature
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
 type(hydrodata), intent(inout) :: rdhyd, rfhyd
 type(vegdata), intent(inout) :: rfveg
@@ -3693,7 +3695,7 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,         
                  ggext_intm,ggint_intm,cyc_proportion,ddt,                                       &
                  rgint_roof,rgint_walle,rgint_wallw,rgint_slab,                                  &
                  cnveg,fp,fp_intm,fp_road,fp_roof,fp_wall,fp_slab,intm,pd,rdhyd,rfveg,road,      &
-                 intl,roof,room,slab,walle,wallw,ufull,diag)
+                 intl,roof,room,slab,walle,wallw,iskintemp,ufull,diag)
 
 zero_flux = 0.
 
@@ -3711,43 +3713,101 @@ ggext_walle= sg_walle+rg_walle+aircp*a_rho*d_canyontemp*acond_walle*fp%coeffbldh
 ggext_wallw= sg_wallw+rg_wallw+aircp*a_rho*d_canyontemp*acond_wallw*fp%coeffbldheight
 ggext_road = (1.-d_rdsndelta)*(sg_road+rg_road-eg_road                        &
              +aircp*a_rho*d_canyontemp*acond_road) + d_rdsndelta*gardsn
+ggext_slab = 0.
 
-! solve conduction through facets with explicit interior, implicit exterior boundary
+if ( intairtmeth==1 ) then
+
+  select case(lwintmeth)
+    case(0) ! interior longwave off
+      rgint_slab  = 0.
+      rgint_wallw = 0.
+      rgint_roof  = 0.
+      rgint_walle = 0.
+    case(1) ! explicit longwave, no intermediate facet temperature calc (can cause oscillation)
+      iskintemp(:,1) = slab%nodetemp(:,nl)
+      iskintemp(:,2) = wallw%nodetemp(:,nl)
+      iskintemp(:,3) = roof%nodetemp(:,nl)
+      iskintemp(:,4) = walle%nodetemp(:,nl)
+      ! calculate interior lwfluxes using last timestep temps lw (rg) fluxes
+      call internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle,    &
+                       iskintemp,fp,intl,ufull)
+
+    case(2) ! explicit longwave using update skin temperature from intermediate facet temp calc
+      rgint_slab  = 0.
+      rgint_wallw = 0.
+      rgint_roof  = 0.
+      rgint_walle = 0.
+
+      !!!! slab !!!!
+      ggint_impl = 0.  ! explicit boundary condition (use pre-calculated ggint)
+      ggext_impl = 0.  ! zero_flux boundary condition
+      call solvetridiag(ggext_slab,zero_flux,rgint_slab,ggext_impl,ggint_impl,slab%nodetemp,  &
+                        inodetemp,fp_slab%depth,fp_slab%volcp,fp_slab%lambda,ddt,ufull)
+      iskintemp(:,1) = inodetemp(:,nl)
+
+      !!!! wallw !!!!
+      ggint_impl = 0.  ! explicit boundary condition (use pre-calculated ggint)
+      ggext_impl = aircp*a_rho*acond_wallw*fp%coeffbldheight ! implicit, later update fg_wallw with final T
+      call solvetridiag(ggext_wallw,zero_flux,rgint_wallw,ggext_impl,ggint_impl,wallw%nodetemp,  &
+                        inodetemp,fp_wall%depth,fp_wall%volcp,fp_wall%lambda,ddt,ufull)
+      iskintemp(:,2) = inodetemp(:,nl)
+
+      !!!! roof !!!!
+      ggint_impl = 0.  ! explicit boundary condition (use pre-calculated ggint)
+      ggext_impl = (1.-d_rfsndelta)*aircp*a_rho*acond_roof  ! implicit, later update fg_roof with final T
+      call solvetridiag(ggext_roof,zero_flux,rgint_roof,ggext_impl,ggint_impl,roof%nodetemp,  &
+                        inodetemp,fp_roof%depth,fp_roof%volcp,fp_roof%lambda,ddt,ufull)
+      iskintemp(:,3) = inodetemp(:,nl)
+
+      !!!! walle !!!!
+      ggint_impl = 0. ! explicit boundary condition (use pre-calculated ggint)
+      ggext_impl = aircp*a_rho*acond_walle*fp%coeffbldheight ! implicit, later update fg_walle with final T
+      call solvetridiag(ggext_walle,zero_flux,rgint_walle,ggext_impl,ggint_impl,walle%nodetemp,  &
+                        inodetemp,fp_wall%depth,fp_wall%volcp,fp_wall%lambda,ddt,ufull)         
+      iskintemp(:,4) = inodetemp(:,nl)
+
+      ! calculate interior lwfluxes using iskintemp
+      call internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle,    &
+                           iskintemp,fp,intl,ufull)
+  end select
+end if
+
+! solve final conduction through facets with explicit interior, implicit exterior boundary
 ggint_impl = 0.  ! explicit boundary condition
 ggext_impl = (1.-d_rfsndelta)*aircp*a_rho*acond_roof  ! later update fg_roof with final roof skin T
-call solvetridiag(ggext_roof,ggint_roof,rgint_roof,ggext_impl,ggint_impl, &
-                  roof%nodetemp,fp_roof%depth,fp_roof%volcp,fp_roof%lambda,    &
-                  ddt,ufull)
+call solvetridiag(ggext_roof,ggint_roof,rgint_roof,ggext_impl,ggint_impl,roof%nodetemp,     &
+                  inodetemp,fp_roof%depth,fp_roof%volcp,fp_roof%lambda,ddt,ufull)
+roof%nodetemp = inodetemp
 
 ggext_impl = aircp*a_rho*acond_walle*fp%coeffbldheight ! later update fg_walle with final walle skin T
-call solvetridiag(ggext_walle,ggint_walle,rgint_walle,ggext_impl,ggint_impl,  &
-                  walle%nodetemp,fp_wall%depth,fp_wall%volcp,fp_wall%lambda,  &
-                  ddt,ufull)
+call solvetridiag(ggext_walle,ggint_walle,rgint_walle,ggext_impl,ggint_impl,walle%nodetemp,  &
+                  inodetemp,fp_wall%depth,fp_wall%volcp,fp_wall%lambda,ddt,ufull)
+walle%nodetemp = inodetemp   
 
 ggext_impl = aircp*a_rho*acond_wallw*fp%coeffbldheight ! later update fg_wallw with final wallw skin T
-call solvetridiag(ggext_wallw,ggint_wallw,rgint_wallw,ggext_impl,ggint_impl,  &
-                  wallw%nodetemp,fp_wall%depth,fp_wall%volcp,fp_wall%lambda,  &
-                  ddt,ufull)
+call solvetridiag(ggext_wallw,ggint_wallw,rgint_wallw,ggext_impl,ggint_impl,wallw%nodetemp,  &
+                  inodetemp,fp_wall%depth,fp_wall%volcp,fp_wall%lambda,ddt,ufull)
+wallw%nodetemp = inodetemp
 
 ggext_impl = (1.-d_rdsndelta)*aircp*a_rho*acond_road ! later update fg_road with final road skin T
 ggint_road = 0.  ! zero_flux boundary condition
-call solvetridiag(ggext_road,ggint_road,zero_flux,ggext_impl,ggint_impl,     &
-                  road%nodetemp,fp_road%depth,fp_road%volcp,fp_road%lambda,  &
-                  ddt,ufull)
+call solvetridiag(ggext_road,ggint_road,zero_flux,ggext_impl,ggint_impl,road%nodetemp,   &
+                  inodetemp,fp_road%depth,fp_road%volcp,fp_road%lambda,ddt,ufull)
+road%nodetemp = inodetemp
 
 ! calculate internal facet conduction
 if ( intairtmeth==1 ) then
   ggext_slab = 0.  ! zero_flux boundary condition
   ggext_impl = 0.  ! zero_flux boundary condition
-  call solvetridiag(ggext_slab,ggint_slab,rgint_slab,ggext_impl,ggint_impl,    &
-                    slab%nodetemp,fp_slab%depth,fp_slab%volcp,fp_slab%lambda,  &
-                    ddt,ufull)
+  call solvetridiag(ggext_slab,ggint_slab,rgint_slab,ggext_impl,ggint_impl,slab%nodetemp,    &
+                    inodetemp,fp_slab%depth,fp_slab%volcp,fp_slab%lambda,ddt,ufull)
+  slab%nodetemp = inodetemp
 
   if ( intmassmeth/=0 ) then
     ggext_impl = 0.  ! explicit boundary condition
-    call solvetridiag(ggext_intm,ggint_intm,zero_flux,ggext_impl,ggint_impl,    &
-                      intm%nodetemp,fp_intm%depth,fp_intm%volcp,fp_intm%lambda, &
-                      ddt,ufull)
+    call solvetridiag(ggext_intm,ggint_intm,zero_flux,ggext_impl,ggint_impl,intm%nodetemp,    &
+                      inodetemp,fp_intm%depth,fp_intm%volcp,fp_intm%lambda,ddt,ufull)
+    intm%nodetemp = inodetemp
   end if
 end if
 
@@ -3900,7 +3960,7 @@ end subroutine calc_ggint
 ! [         ggA ggB ] [ temp ] = [ ggD ]
 
 subroutine solvetridiag(ggext,ggint,rgint,ggext_impl,ggint_impl,    &
-                        nodetemp,depth,volcp,lambda,ddt,ufull)
+                        nodetemp,inodetemp,depth,volcp,lambda,ddt,ufull)
 
 implicit none
 
@@ -3908,7 +3968,8 @@ integer, intent(in) :: ufull
 real, dimension(ufull),     intent(in)    :: ggext,ggint,rgint  ! surface energy fluxes
 real, dimension(ufull),     intent(in)    :: ggext_impl         ! implicit update for stability
 real, dimension(ufull),     intent(in)    :: ggint_impl         ! implicit update for stability
-real, dimension(ufull,0:nl),intent(inout) :: nodetemp           ! temperature of each node
+real, dimension(ufull,0:nl),intent(in)    :: nodetemp           ! temperature of each node
+real, dimension(ufull,0:nl),intent(out)   :: inodetemp          ! updated temperature solution
 real, dimension(ufull,nl),  intent(in)    :: depth,volcp,lambda ! facet depth, heat capacity, conductivity
 real(kind=8), dimension(ufull,nl)         :: cap,res            ! layer capacitance & resistance
 real(kind=8), dimension(ufull,0:nl)       :: ggA,ggB,ggC,ggD    ! tridiagonal matrices
@@ -3952,10 +4013,10 @@ do k=1,nl
   ggD(:,k) = ggD(:,k)-ggX(:)*ggD(:,k-1)
 end do
 ans = ggD(:,nl)/ggB(:,nl)
-nodetemp(:,nl) = real(ans)
+inodetemp(:,nl) = real(ans)
 do k=nl-1,0,-1
   ans = (ggD(:,k) - ggC(:,k)*ans)/ggB(:,k)
-  nodetemp(:,k) = real(ans)
+  inodetemp(:,k) = real(ans)
 end do
 
 end subroutine solvetridiag
@@ -4097,17 +4158,6 @@ pd%storage_flux = d_roofstor*real(fp%sigmabld,8)*(1._8-real(rfveg%sigma,8))     
                 + d_intmstor*real(fp%sigmabld,8)*real(fp%intmassn,8)                  &
                 + d_roomstor*real(fp%sigmabld,8)
 
-! print *, 'storageflux',pd%storage_flux
-! print *, 'roof  Qs' ,real(d_roofstor,8)*real(fp%sigmabld,8)*(1-real(rfveg%sigma,8))      
-! print *, 'road  Qs' ,real(d_roadstor,8)*(1-real(fp%sigmabld,8))*(1-real(cnveg%sigma,8))  
-! print *, 'walle Qs' ,real(d_wallestor,8)*(1-real(fp%sigmabld,8))*real(fp%hwratio,8)       
-! print *, 'wallw Qs' ,real(d_wallwstor,8)*(1-real(fp%sigmabld,8))*real(fp%hwratio,8)       
-! print *, 'slab  Qs' ,real(d_slabstor,8)*real(fp%sigmabld,8)                              
-! print *, 'intm  Qs' ,real(d_intmstor,8)*real(fp%sigmabld,8)*real(fp%intmassn,8)           
-! print *, 'room  Qs' ,real(d_roomstor,8)*real(fp%sigmabld,8)
-! print *, 'room/slab', (d_roomstor*fp%sigmabld)/(d_slabstor*fp%sigmabld)
-! print *, 'infil', real(int_infilflux,8)*real(fp%sigmabld,8)
-
 ! atmosphere energy flux = (SWdown-SWup) + (LWdown-LWup) - Turbulent + Anthropogenic
 d_atmosflux = (real(a_sg,8)-real(a_sg,8)*real(u_alb,8)) + (real(a_rg,8)-real(sbconst,8)*(real(u_ts,8)+urbtemp)**4) &
             - (real(u_fg,8)+real(u_eg,8)+real(u_melt,8)) + real(pd%bldheat,8) + real(pd%bldcool,8)                 & 
@@ -4117,7 +4167,6 @@ pd%atmoserr = pd%storage_flux - d_atmosflux
 if ( any(abs(pd%atmoserr)>=energytol) ) then
   write(6,*) "aTEB energy not conserved! Atmos. error:", maxval(abs(pd%atmoserr))
 end if
-! print *, '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
 
 return
 end subroutine energyclosure
@@ -4452,7 +4501,7 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,   
                        ggext_intm,ggint_intm,cyc_proportion,ddt,                                       &
                        rgint_roof,rgint_walle,rgint_wallw,rgint_slab,                                  &
                        cnveg,fp,fp_intm,fp_road,fp_roof,fp_wall,fp_slab,intm,pd,rdhyd,rfveg,road,      &
-                       intl,roof,room,slab,walle,wallw,ufull,diag)
+                       intl,roof,room,slab,walle,wallw,iskintemp,ufull,diag)
 implicit none
 
 !START------Initialise variables -------------------------------------------------
@@ -4469,11 +4518,11 @@ implicit none
 !  +-----1.2: Calculate air exchange from infiltration and open windows          |
 !  +-----1.3: Calculate internal air temperature implicitly                      |
 !  +-----1.4: Calculate cooling/heating fluxes (varying air temp)                |
-!  +--+--1.5: Calculate acflux into canyon and update canyon temperature---------+
-!     |       Final loop        
-!     +--1.6  Check if taylor expansion estimate is necessary for stability
-!     +--1.7: Calculate LW fluxes between internal surfaces for solvetridiag
-!     +--1.8: Final update of room air temperature -----------------------END LOOP
+!  +--+         Final loop                                                       |
+!  |  +--1.5: Final iteration re-calculation based on proportional acflux        |
+!  |  +--1.6: Check if taylor expansion estimate is necessary for stability      |
+!  |  +--1.7: Final update of room air temperature                               |
+!  +-----1.8: Calculate acflux into canyon and update canyon temperature --------+
 !---------------------------------------------------------------------------------
 
 integer, intent(in) :: ufull,diag
@@ -4498,6 +4547,7 @@ real, dimension(ufull), intent(out) :: int_infilfg
 real, dimension(ufull), intent(out) :: ggint_roof, ggint_walle, ggint_wallw, ggint_road
 real, dimension(ufull), intent(out) :: ggint_slab, ggext_intm, ggint_intm
 real, dimension(ufull), intent(out) :: rgint_roof,rgint_walle,rgint_wallw,rgint_slab
+real, dimension(ufull,1:4),intent(out) :: iskintemp
 real, dimension(ufull) :: newval,sndepth,snlambda,ldratio,roadqsat,vegqsat,rdsnqsat
 real, dimension(ufull) :: cu,topinvres,dts,dtt,cduv,z_on_l,dumroaddelta,dumvegdelta,res
 real, dimension(ufull) :: effwalle,effwallw,effroad,effrdsn,effvegc
@@ -4795,11 +4845,6 @@ do l = 1,ncyits
         ac_heat_temp = fp%bldairtemp-ac_deltat
         ac_cool_temp = fp%bldairtemp+ac_deltat
 
-        newskintemps(:,1) = slab%nodetemp(:,nl)
-        newskintemps(:,2) = wallw%nodetemp(:,nl)
-        newskintemps(:,3) = roof%nodetemp(:,nl)
-        newskintemps(:,4) = walle%nodetemp(:,nl)
-
       end if
 
       ! ---1.2: Calculate air exchange from infiltration and open windows -----
@@ -4882,7 +4927,7 @@ do l = 1,ncyits
 
       d_ac_inside = d_ac_heat-d_ac_cool
 
-      ! ---1.5: Final iteration re-calculates temps and fluxes based on proportional acflux-
+      ! ---1.5: Final iteration re-calculation based on proportional acflux 
       if ( l==ncyits ) then
 
         ! modulate acfluxes to account for proportional heating/cooling area and time of day
@@ -4890,8 +4935,6 @@ do l = 1,ncyits
         d_ac_cool = d_ac_cool*fp%coolprop*cyc_proportion
 
         d_ac_inside = d_ac_heat-d_ac_cool
-
-        !print *, 'd_ac_inside2',d_ac_inside
 
         iroomtemp = (rm*room%nodetemp(:,1)     & ! room temperature
                    + rf*roof%nodetemp(:,nl)    & ! roof conduction
@@ -4923,18 +4966,20 @@ do l = 1,ncyits
 
         if ( (any(abs(roof%nodetemp(:,nl)-slab%nodetemp(:,nl))>10.)) .or.  & 
              (any(abs(walle%nodetemp(:,nl)-wallw%nodetemp(:,nl))>10.)) ) then
+
+          if ( diag>=1 ) write(6,*) "WARNING: Oscillation detected, using Taylor expansion to stabilise"
           
           call calc_ggint(fp_slab%depth(:,nl),fp_slab%volcp(:,nl),fp_slab%lambda(:,nl),   &
-                          cvcoeff_slab,slab%nodetemp(:,nl),newskintemps(:,1),iroomtemp,   &
+                          cvcoeff_slab,slab%nodetemp(:,nl),iskintemp(:,1),iroomtemp,   &
                           ggint_slab,ddt,ufull)
           call calc_ggint(fp_wall%depth(:,nl),fp_wall%volcp(:,nl),fp_wall%lambda(:,nl),   &
-                          cvcoeff_wallw,wallw%nodetemp(:,nl),newskintemps(:,2),iroomtemp, &
+                          cvcoeff_wallw,wallw%nodetemp(:,nl),iskintemp(:,2),iroomtemp, &
                           ggint_wallw,ddt,ufull)
           call calc_ggint(fp_roof%depth(:,nl),fp_roof%volcp(:,nl),fp_roof%lambda(:,nl),   &
-                          cvcoeff_roof,roof%nodetemp(:,nl),newskintemps(:,3),iroomtemp,   &
+                          cvcoeff_roof,roof%nodetemp(:,nl),iskintemp(:,3),iroomtemp,   &
                           ggint_roof,ddt,ufull)
           call calc_ggint(fp_wall%depth(:,nl),fp_wall%volcp(:,nl),fp_wall%lambda(:,nl),   &
-                          cvcoeff_walle,walle%nodetemp(:,nl),newskintemps(:,4),iroomtemp, &
+                          cvcoeff_walle,walle%nodetemp(:,nl),iskintemp(:,4),iroomtemp, &
                           ggint_walle,ddt,ufull)
 
           if (intmassmeth/=0) then
@@ -4956,19 +5001,14 @@ do l = 1,ncyits
 
         end if
 
-        ! ---1.7: Calculate LW fluxes between internal surfaces for solvetridiag ----------
-            
-        call internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle,    &
-                             newskintemps,fp,intl,ufull)
-
-        ! ---1.8: Final update of room air temperature ----------
+        ! ---1.7: Final update of room air temperature ----------
 
         room%nodetemp(:,1) = iroomtemp
 
       end if
            
 
-      ! ---1.5: Calculate acflux into canyon and update canyon temperature-----
+      ! ---1.8: Calculate acflux into canyon and update canyon temperature-----
 
       where ( d_ac_cool>0. )
         ac_coeff = max(1.+acfactor*(d_canyontemp-iroomtemp)/(iroomtemp+urbtemp), 1.+1./ac_copmax) ! T&H2012 Eq. 10
@@ -5015,12 +5055,6 @@ do l = 1,ncyits
       stop
   end select
 end do
-
-! print *, 'COP: ', 1./(ac_coeff - 1.)
-! print *, 'open window proportion: ', d_openwindows
-! print *, 'diurnal cycle ac proportion: ', cyc_proportion
-! print *, 'comfort temperature ac proportion: ', d_ac_behavprop
-! print *, ' '
 
 ! solve for canyon sensible heat flux
 fg_walle = aircp*a_rho*(walle%nodetemp(:,0)-d_canyontemp)*acond_walle*fp%coeffbldheight ! canyon vegetation blocks turbulent flux

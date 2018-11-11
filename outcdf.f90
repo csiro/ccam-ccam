@@ -3341,6 +3341,7 @@ use parmdyn_m                         ! Dynamics parameters
 use parmgeom_m                        ! Coordinate data
 use parmhdff_m                        ! Horizontal diffusion parameters
 use parmhor_m                         ! Horizontal advection parameters
+use raddiag_m                         ! Radiation diagnostic
 use screen_m                          ! Screen level diagnostics
 use sigs_m                            ! Atmosphere sigma levels
 use tracers_m                         ! Tracer data
@@ -3349,7 +3350,7 @@ implicit none
 
 include 'kuocom.h'                    ! Convection parameters
 
-integer, parameter :: freqvars = 8  ! number of variables to write
+integer, parameter :: freqvars = 9  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
@@ -3610,6 +3611,8 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'grpl',lname,'mm/day',0.,1300.,0,-1) ! -1=long
     lname ='Mean sea level pressure'
     call attrib(fncid,sdim,ssize,'pmsl',lname,'hPa',800.,1200.,0,1)    
+    lname ='Solar downwelling at ground'
+    call attrib(fncid,sdim,ssize,'sgdn_ave',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long 
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -3766,6 +3769,7 @@ freqstore(1:ifull,ti,5) = freqstore(1:ifull,ti,5) + condx*86400./dt
 freqstore(1:ifull,ti,6) = freqstore(1:ifull,ti,6) + conds*86400./dt
 freqstore(1:ifull,ti,7) = freqstore(1:ifull,ti,7) + condg*86400./dt
 freqstore(1:ifull,ti,8) = freqstore(1:ifull,ti,8) + pmsl/100.
+freqstore(1:ifull,ti,9) = freqstore(1:ifull,ti,9) + sgdn
 
 ! write data to file
 if ( mod(ktau,tblock*tbave)==0 ) then
@@ -3797,14 +3801,15 @@ if ( mod(ktau,tblock*tbave)==0 ) then
 
   ! record output
   freqstore(:,:,:) = freqstore(:,:,:)/real(tbave)
-  call freqwrite(fncid,'uas',   fiarch,tblock,local,freqstore(:,:,1))
-  call freqwrite(fncid,'vas',   fiarch,tblock,local,freqstore(:,:,2))
-  call freqwrite(fncid,'tscrn', fiarch,tblock,local,freqstore(:,:,3))
-  call freqwrite(fncid,'rhscrn',fiarch,tblock,local,freqstore(:,:,4))
-  call freqwrite(fncid,'rnd',   fiarch,tblock,local,freqstore(:,:,5))
-  call freqwrite(fncid,'sno',   fiarch,tblock,local,freqstore(:,:,6))
-  call freqwrite(fncid,'grpl',  fiarch,tblock,local,freqstore(:,:,7))
-  call freqwrite(fncid,'pmsl',  fiarch,tblock,local,freqstore(:,:,8))
+  call freqwrite(fncid,'uas',     fiarch,tblock,local,freqstore(:,:,1))
+  call freqwrite(fncid,'vas',     fiarch,tblock,local,freqstore(:,:,2))
+  call freqwrite(fncid,'tscrn',   fiarch,tblock,local,freqstore(:,:,3))
+  call freqwrite(fncid,'rhscrn',  fiarch,tblock,local,freqstore(:,:,4))
+  call freqwrite(fncid,'rnd',     fiarch,tblock,local,freqstore(:,:,5))
+  call freqwrite(fncid,'sno',     fiarch,tblock,local,freqstore(:,:,6))
+  call freqwrite(fncid,'grpl',    fiarch,tblock,local,freqstore(:,:,7))
+  call freqwrite(fncid,'pmsl',    fiarch,tblock,local,freqstore(:,:,8))
+  call freqwrite(fncid,'sgdn_ave',fiarch,tblock,local,freqstore(:,:,9))
   freqstore(:,:,:) = 0.
 
 end if

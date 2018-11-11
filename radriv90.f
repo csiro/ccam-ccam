@@ -97,7 +97,7 @@ c     parameters for the aerosol calculation
 !     Radiation fields (CSIRO GCM names)
       real sg(ixin), sgclr(ixin), sint(ixin), sout(ixin), soutclr(ixin)
       real rg(ixin), rgclr(ixin), rt(ixin), rtclr(ixin)
-      real sgdn(ixin), rgdn(ixin)
+      real rgdn(ixin)
       real, dimension(:,:), allocatable, save :: hlwsav,hswsav
       real, dimension(:,:), allocatable, save :: sw_tend_amp
       real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
@@ -710,8 +710,7 @@ c     cloud amounts for saving
          iq=i+(j-1)*il
          sgn_ave(iq)  = sgn_ave(iq)  + sg(i)
          sgdn_ave(iq) = sgdn_ave(iq) + sgdn(i)
-         if (sg(i)/ ( 1. - swrsave(iq)*albvisnir(iq,1)
-     &            -(1.-swrsave(iq))*albvisnir(iq,2) )>120.) then
+         if ( sgdn(i)>120. ) then
            sunhours(iq)=sunhours(iq)+86400.
          end if
        end do
