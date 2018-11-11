@@ -96,7 +96,7 @@ interface mloeval
 end interface
 
 interface interpolate_hl
-  module procedure interpolate_hl_1, interpolate_hl_2, interpolate_hl_3, interpolate_hl_16
+  module procedure interpolate_hl_1, interpolate_hl_3
 end interface
 
 interface thomas
@@ -2200,8 +2200,6 @@ real, intent(in) :: dt
 
 real(kind=8), dimension(wfull,wlev) :: k    !kinetic energy
 real(kind=8), dimension(wfull,wlev) :: eps  !dissipation rate
-real(kind=8), dimension(wfull,wlev) :: p_k   ! previous kinetic energy
-real(kind=8), dimension(wfull,wlev) :: p_eps ! previous dissipation rate
 real(kind=8), dimension(wfull) :: umag     !water current magnitude at floor
 real(kind=8), dimension(wfull) :: zrough   !surface/floor roughness
 real(kind=8), dimension(wfull,wlev) :: aa  !lower diagnonal
@@ -2284,13 +2282,13 @@ zrough(:) = 0.5*depth%dz(:,wlev)/exp(kappa/sqrt(cdbot))
 eps(:,wlev) = (cu0)**3*k(:,wlev)**1.5/(kappa*(0.5*depth%dz(:,wlev)+zrough(:)))
 eps=max(eps,mineps)
 
-!initial guess
+!limit length scale
 L = cu0**3*k**1.5/eps
 if ( limitL==1 ) then
   minL=cu0**3*mink**1.5/mineps
   do ii=2,wlev-1
     where ( n2(:,ii) > 0 )
-      L(:,ii) = max(min(L(:,ii),0.53*sqrt(2.0*k(:,ii))/n2(:,ii)),minL)
+      L(:,ii) = max(min(L(:,ii),sqrt(0.56*k(:,ii))/n2(:,ii)),minL)
     end where
   end do
 end if
@@ -2352,7 +2350,7 @@ if ( calcinloop==0 ) then
   end if
 end if
 
-!time loop
+!coupling loop
 dtt=dt/nsteps
 do step=1,nsteps
 
@@ -2393,11 +2391,6 @@ if ( calcinloop==1 ) then
   end if
 end if
 
-!save previous values
-p_k = k
-p_eps = eps
-
-#if 1
 !solve k
 !setup diagonals
 do ii=2,wlev-1
@@ -2405,30 +2398,25 @@ do ii=2,wlev-1
   cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1))
   if ( k_mode==0 ) then !explicit eps
     bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii)
-    dd(:,ii) = p_k(:,ii) + dtt*(ps(:,ii) + pb(:,ii) - p_eps(:,ii))
+    dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii) - eps(:,ii))
   else if ( k_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
-    bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*p_eps(:,ii)/p_k(:,ii)
-    dd(:,ii) = p_k(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
+    bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)
+    dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
   else if ( k_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
     where ( ps(:,ii) + pb(:,ii) > 0.0 )
-      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*p_eps(:,ii)/p_k(:,ii)
-      dd(:,ii) = p_k(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
+      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)
+      dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
     elsewhere
-      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt/p_k(:,ii)*(p_eps(:,ii) - pb(:,ii))
-      dd(:,ii) = p_k(:,ii) + dtt*ps(:,ii)
+      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt/k(:,ii)*(eps(:,ii) - pb(:,ii))
+      dd(:,ii) = k(:,ii) + dtt*ps(:,ii)
     end where
   end if 
 end do
-dd(:,2     ) = dd(:,2     ) - aa(:,2     )*p_k(:,1)
-dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*p_k(:,wlev)
+dd(:,2     ) = dd(:,2     ) - aa(:,2     )*k(:,1)
+dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*k(:,wlev)
 
 !solve using thomas algorithm
 call thomas(k(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
-#endif
-
-#if 1
-p_k = k
-#endif
 
 !solve eps
 !setup diagonals
@@ -2437,70 +2425,37 @@ do ii=2,wlev-1
   cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1)*sigmaeps)
   if ( eps_mode==0 ) then !explicit eps
     bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii)
-    dd(:,ii) = p_eps(:,ii) + dtt*p_eps(:,ii)/p_k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) - ce2*p_eps(:,ii))
+    dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) - ce2*eps(:,ii))
   else if ( eps_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
-    bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*ce2*p_eps(:,ii)/p_k(:,ii)
-    dd(:,ii) = p_eps(:,ii) + dtt*p_eps(:,ii)/p_k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
+    bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
+    dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
   else if ( eps_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
     where ( ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) > 0 )
-      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*ce2*p_eps(:,ii)/p_k(:,ii)
-      dd(:,ii) = p_eps(:,ii) + dtt*p_eps(:,ii)/p_k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
+      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
+      dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
     elsewhere
-      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*p_eps(:,ii)/p_k(:,ii)*(ce2 - ce3(:,ii)*pb(:,ii)/p_eps(:,ii))
-      dd(:,ii) = p_eps(:,ii) + dtt*p_eps(:,ii)/p_k(:,ii)*(ce1*ps(:,ii))
+      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce2 - ce3(:,ii)*pb(:,ii)/eps(:,ii))
+      dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii))
     end where
   end if
 end do
-dd(:,2     ) = dd(:,2     ) - aa(:,2     )*p_eps(:,1)
-dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*p_eps(:,wlev)
+dd(:,2     ) = dd(:,2     ) - aa(:,2     )*eps(:,1)
+dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*eps(:,wlev)
 
 !solve using thomas algorithm
 call thomas(eps(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
-
-#if 0
-p_eps = eps
-#endif
-
-#if 0
-!solve k
-!setup diagonals
-do ii=2,wlev-1
-  aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  ))
-  cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1))
-  if ( k_mode==0 ) then
-    bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii)
-    dd(:,ii) = p_k(:,ii) + dtt*(ps(:,ii) + pb(:,ii) - p_eps(:,ii))
-  else if ( k_mode==1 ) then
-    bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*p_eps(:,ii)/p_k(:,ii)
-    dd(:,ii) = p_k(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
-  else if ( k_mode==2 ) then
-    where ( ps(:,ii) + pb(:,ii) > 0.0 )
-      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*p_eps(:,ii)/p_k(:,ii)
-      dd(:,ii) = p_k(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
-    elsewhere
-      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt/p_k(:,ii)*(p_eps(:,ii) - pb(:,ii))
-      dd(:,ii) = p_k(:,ii) + dtt*ps(:,ii)
-    end where
-  end if 
-end do
-dd(:,2     ) = dd(:,2     ) - aa(:,2     )*p_k(:,1)
-dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*p_k(:,wlev)
-
-!solve using thomas algorithm
-call thomas(k(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
-#endif
 
 !limit k & eps
 k = max(k,mink)
 eps = max(eps,mineps)
 
-!new value of km & ks
+!limit length scale
 L = cu0**3*k**1.5/eps
 if ( limitL==1 ) then
   minL=cu0**3*mink**1.5/mineps
   do ii=2,wlev-1
     where ( n2(:,ii) > 0 )
-      L(:,ii) = max(min(L(:,ii),0.53*sqrt(2.0*k(:,ii))/n2(:,ii)),minL)
+      L(:,ii) = max(min(L(:,ii),sqrt(0.56*k(:,ii))/n2(:,ii)),minL)
     end where
   end do
 end if
@@ -2536,20 +2491,6 @@ ks_out = ks_hl
 return
 end subroutine keps
 
-pure subroutine interpolate_hl_16(u,fdepth_hl,u_hl)
-
-implicit none
-
-real(kind=16), dimension(:,:), intent(in) :: u
-real(kind=16), dimension(:,:), intent(in) :: fdepth_hl
-real(kind=16), dimension(:,:), intent(out) :: u_hl
-
-u_hl(:,1) = 0._16
-u_hl(:,2:wlev) = u(:,1:wlev-1) + fdepth_hl(:,2:wlev)*(u(:,2:wlev)-u(:,1:wlev-1))
-
-return
-end subroutine interpolate_hl_16
-
 pure subroutine interpolate_hl_1(u,fdepth_hl,u_hl)
 
 implicit none
@@ -2563,20 +2504,6 @@ u_hl(:,2:wlev) = u(:,1:wlev-1) + fdepth_hl(:,2:wlev)*(u(:,2:wlev)-u(:,1:wlev-1))
 
 return
 end subroutine interpolate_hl_1
-
-pure subroutine interpolate_hl_2(u,fdepth_hl,u_hl)
-
-implicit none
-
-real(kind=8), dimension(:,:), intent(in) :: u
-real(kind=8), dimension(:,:), intent(in) :: fdepth_hl
-real, dimension(:,:), intent(out) :: u_hl
-
-u_hl(:,1) = 0.
-u_hl(:,2:wlev) = u(:,1:wlev-1) + fdepth_hl(:,2:wlev)*(u(:,2:wlev)-u(:,1:wlev-1))
-
-return
-end subroutine interpolate_hl_2
 
 pure subroutine interpolate_hl_3(u,fdepth_hl,u_hl)
 
