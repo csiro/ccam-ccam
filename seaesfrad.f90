@@ -225,8 +225,8 @@ end if
 ! main loop ---------------------------------------------------------
 !$omp do schedule(static) private(istart,iend,mythread,dhr,coszro2,taudar2,coszro,taudar), &
 !$omp private(sigh,duo3n,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,tnhs,rhoa,dz,i,iq,cosz),  &
-!$omp private(delta,k,kr,dzrho,cd2,mx,dumt,p2,ktop,kbot,dumcf),    &
-!$omp private(dumql,dumqf,sgdn,sgdnvis,sgdnnir,sg,sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir), &
+!$omp private(delta,k,kr,dzrho,cd2,mx,dumt,p2,ktop,kbot,dumcf),                            &
+!$omp private(dumql,dumqf,sgdnvis,sgdnnir,sg,sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir),      &
 !$omp private(sgdnnirdif,rg,rt,rgdn,sint,sout,soutclr,sgclr,rtclr,rgclr,dumfbeam)
 do iq_tile = 1,ifull,imax
   istart = iq_tile
@@ -572,11 +572,11 @@ do iq_tile = 1,ifull,imax
 
     
     ! store shortwave and fbeam data --------------------------------
-    sgdn       = real(Sw_output(mythread)%dfsw(:,1,kl+1,1))
-    sgdnvis    = real(Sw_output(mythread)%dfsw_vis_sfc(:,1,1))
-    sgdnnir    = sgdn - sgdnvis
+    sgdn(istart:iend) = real(Sw_output(mythread)%dfsw(:,1,kl+1,1))
+    sgdnvis           = real(Sw_output(mythread)%dfsw_vis_sfc(:,1,1))
+    sgdnnir           = sgdn(istart:iend) - sgdnvis
     ! sg = +Snet = Sdown - Sup
-    sg         = sgdn - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
+    sg         = sgdn(istart:iend) - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
     sgvis      = sgdnvis - real(Sw_output(mythread)%ufsw_vis_sfc(:,1,1))
     !sgvisdir  = Sw_output(mythread)%dfsw_vis_sfc_dir(:,1,1)
     !sgvisdif  = Sw_output(mythread)%dfsw_vis_sfc_dif(:,1,1)-Sw_output(mythread)%ufsw_vis_sfc_dif(:,1,1)
@@ -588,10 +588,10 @@ do iq_tile = 1,ifull,imax
     sgdnvisdif = real(Sw_output(mythread)%dfsw_vis_sfc_dif(:,1,1))
     sgdnnirdir = real(Sw_output(mythread)%dfsw_dir_sfc(:,1,1)) - sgdnvisdir
     sgdnnirdif = real(Sw_output(mythread)%dfsw_dif_sfc(:,1,1)) - sgdnvisdif
-    where ( sgdn<0.001 )
+    where ( sgdn(istart:iend)<0.001 )
       swrsave(istart:iend)  = 0.5
     elsewhere  
-      swrsave(istart:iend)  = sgdnvis/sgdn
+      swrsave(istart:iend)  = sgdnvis/sgdn(istart:iend)
     end where
     where ( sgdnvis<0.001 )
       fbeamvis(istart:iend) = 0.
@@ -619,7 +619,7 @@ do iq_tile = 1,ifull,imax
     ! shortwave output ----------------------------------------------
     sint(1:imax) = real(Sw_output(mythread)%dfsw(:,1,1,1))   ! solar in top
     sout(1:imax) = real(Sw_output(mythread)%ufsw(:,1,1,1))   ! solar out top
-    !sgdn(1:imax) = sg(1:imax) / ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
+    !sgdn(istart:iend) = sg(1:imax) / ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
     !              -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) )
 
     ! Clear sky calculation -----------------------------------------
@@ -753,7 +753,7 @@ do iq_tile = 1,ifull,imax
       sgdn_amp(istart:iend) = 0.
     elsewhere
       sgn_amp(istart:iend)     = sg(1:imax)/(coszro(1:imax)*taudar(1:imax))
-      sgdn_amp(istart:iend)    = sgdn(1:imax)/(coszro(1:imax)*taudar(1:imax))
+      sgdn_amp(istart:iend)    = sgdn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
     end where
     do k = 1,kl
       where ( coszro(1:imax)*taudar(1:imax)<=1.E-5 )
@@ -806,11 +806,11 @@ do iq_tile = 1,ifull,imax
 
   ! Calculate the solar using the saved amplitude.
   sg(1:imax) = sgn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
-  sgdn(1:imax) = sgdn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
+  sgdn(istart:iend) = sgdn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
   if ( ktau>0 ) then ! averages not added at time zero
     sgn_ave(istart:iend)  = sgn_ave(istart:iend)  + sg(1:imax)
-    sgdn_ave(istart:iend) = sgdn_ave(istart:iend) + sgdn(1:imax)
-    where ( sgdn(1:imax)>120. )
+    sgdn_ave(istart:iend) = sgdn_ave(istart:iend) + sgdn(istart:iend)
+    where ( sgdn(istart:iend)>120. )
       sunhours(istart:iend) = sunhours(istart:iend) + 86400.
     end where
   endif  ! (ktau>0)
