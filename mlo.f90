@@ -2231,16 +2231,12 @@ real :: minL
 
 integer :: ii,step
 
-real, parameter :: cdbot = 2.4e-3    !bottom drag coefficient
 real, parameter :: ce1 = 1.44        !eps production coefficient
 real, parameter :: ce2 = 1.92        !eps sink coefficient
 real, parameter :: ce3stable = -0.4  !eps buoyancy coefficient for stable stratification
 real, parameter :: ce3unstable = 1.0 !eps buoyancy coefficient for unstable stratification
 real, parameter :: cu0 = 0.5562     
-real, parameter :: grav = 9.80       !gravitational constant
-real, parameter :: kappa = 0.4       !von Karman constant
 real, parameter :: sigmaeps = 1.08   !eps Schmidt number
-real, parameter :: wrtrho = 1030.0   !reference density
 
 !fraction for interpolation
 fdepth_hl(:,2:wlev) = (depth%depth_hl(:,2:wlev)-depth%depth(:,1:wlev-1))/(depth%depth(:,2:wlev)-depth%depth(:,1:wlev-1))
@@ -2276,10 +2272,10 @@ k(:,wlev) = (sqrt(cdbot)*umag(:)/cu0)**2
 k=max(k,mink)
 
 zrough(:) = dgwater%zo(:)
-eps(:,1   ) = (cu0)**3*k(:,1   )**1.5/(kappa*(0.5*depth%dz(:,1   )+zrough(:)))
+eps(:,1   ) = (cu0)**3*k(:,1   )**1.5/(vkar*(0.5*depth%dz(:,1   )+zrough(:)))
 
-zrough(:) = 0.5*depth%dz(:,wlev)/exp(kappa/sqrt(cdbot))
-eps(:,wlev) = (cu0)**3*k(:,wlev)**1.5/(kappa*(0.5*depth%dz(:,wlev)+zrough(:)))
+zrough(:) = 0.5*depth%dz(:,wlev)/exp(vkar/sqrt(cdbot))
+eps(:,wlev) = (cu0)**3*k(:,wlev)**1.5/(vkar*(0.5*depth%dz(:,wlev)+zrough(:)))
 eps=max(eps,mineps)
 
 !limit length scale
