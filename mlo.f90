@@ -2212,7 +2212,6 @@ real(kind=8), dimension(wfull,wlev) :: ps  !shear production
 real(kind=8), dimension(wfull,wlev) :: pb  !buoyancy production
 real(kind=8), dimension(wfull,wlev) :: shear  !shear
 real(kind=8), dimension(wfull,wlev) :: n2  !Brunt-Vaisala frequency
-real(kind=8), dimension(wfull,wlev) :: ri  !Richardson number
 real(kind=8), dimension(wfull,wlev) :: ce3 !eps Buoyancy coefficient
 real(kind=8), dimension(wfull,wlev) :: L   !Length scale
 real(kind=8), dimension(wfull,wlev) :: cu  !Galperin stability function
