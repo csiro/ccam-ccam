@@ -2010,7 +2010,7 @@ select case(oclosure)
 case(1)
   km = 0.0
   ks = 0.0
-  call keps(km,ks,k,eps,d_nsq,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull) !everything
+  call keps(km,ks,k,eps,d_nsq,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull)
 end select
 
 ! Counter-gradient term for scalars (rhs)
