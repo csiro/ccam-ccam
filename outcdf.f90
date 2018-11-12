@@ -2038,13 +2038,13 @@ if( myid==0 .or. local ) then
       lname = "Ocean vertical velocity (+ve down)"
       call attrib(idnc,odim,osize,"wo",lname,'m/s',-6.5,6.5,0,cptype)
       lname = "Ocean Eddy Viscosity"
-      call attrib(idnc,odim,osize,"kmo",lname,'m2/s',0.,10.,0,-1)
+      call attrib(idnc,odim,osize,"kmo",lname,'m2/s',0.,10.,0,cptype)
       lname = "Ocean Eddy Diffusivity"
-      call attrib(idnc,odim,osize,"kso",lname,'m2/s',0.,10.,0,-1)
+      call attrib(idnc,odim,osize,"kso",lname,'m2/s',0.,10.,0,cptype)
       lname = "Ocean Turbulent Kinetic Energy"
-      call attrib(idnc,odim,osize,"tkeo",lname,'m2/s2',0.,65.,0,-1)
+      call attrib(idnc,odim,osize,"tkeo",lname,'m2/s2',0.,65.,0,cptype)
       lname = "Ocean Eddy dissipation rate"
-      call attrib(idnc,odim,osize,"epso",lname,'m2/s3',0.,6.5,0,-1)
+      call attrib(idnc,odim,osize,"epso",lname,'m2/s3',0.,6.5,0,cptype)
     end if
     
     ! CLOUD MICROPHYSICS --------------------------------------------
