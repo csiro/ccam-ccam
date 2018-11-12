@@ -74,7 +74,7 @@ public turb_g
 public turbdata
 public mink,mineps
 public k_mode,eps_mode,limitL,fixedce3,calcinloop
-public nops,nopb
+public nops,nopb,fixedstabfunc
 #endif
 
 ! parameters
@@ -212,6 +212,7 @@ integer, save :: fixedce3 = 0             !0-dynamic ce3, 1-fixed ce3
 integer, save :: calcinloop = 0           !0-shear & production outside coupling loop, 1-inside
 integer, save :: nops = 0                 !0-calculate shear production, 1-no shear production
 integer, save :: nopb = 0                 !0-calculate buoyancy production, 1-no buoyancy production
+integer, save :: fixedstabfunc = 0        !0-dynamic stability functions, 1-fixed stability functions
 
 ! model parameters
 real, save :: mxd      = 5002.18          ! Max depth (m)
@@ -2257,6 +2258,9 @@ end do
 do ii=2,wlev-1
   n2(:,ii) = -grav/wrtrho*(d_rho_hl(:,ii)-d_rho_hl(:,ii+1))/depth%dz(:,ii)
 end do
+!linear interpolation of end values for stability functions
+n2(:,1)    = n2(:,2)      - depth%dz_hl(:,2   )*(n2(:,3     )-n2(:,2     ))/depth%dz_hl(:,3     )
+n2(:,wlev) = n2(:,wlev-1) + depth%dz_hl(:,wlev)*(n2(:,wlev-1)-n2(:,wlev-2))/depth%dz_hl(:,wlev-1)
 
 !umag at floor
 umag(:) = sqrt(water%u(:,wlev)**2+water%v(:,wlev)**2)
@@ -2289,17 +2293,15 @@ if ( limitL==1 ) then
 end if
 
 !stability functions
-#if 1
-alpha = 0.0
-cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
-cud = 0.6985/(1.0 + 17.34*alpha)
-!cu = 0.283
-!cud = 0.283
-#else
-alpha = L**2*n2/k
-cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
-cud = 0.6985/(1.0 + 17.34*alpha)
-#endif
+if ( fixedstabfunc==1 ) then
+  alpha = 0.0
+  cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
+  cud = 0.6985/(1.0 + 17.34*alpha)
+else
+  alpha = L**2*n2/k
+  cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
+  cud = 0.6985/(1.0 + 17.34*alpha)
+end if
 
 km = cu*sqrt(k)*L
 ks = cud*sqrt(k)*L
@@ -2456,17 +2458,15 @@ if ( limitL==1 ) then
 end if
 
 !stability functions
-#if 1
-alpha = 0.0
-cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
-cud = 0.6985/(1.0 + 17.34*alpha)
-!cu = 0.283
-!cud = 0.283
-#else
-alpha = L**2*n2/k
-cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
-cud = 0.6985/(1.0 + 17.34*alpha)
-#endif
+if ( fixedstabfunc==1 ) then
+  alpha = 0.0
+  cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
+  cud = 0.6985/(1.0 + 17.34*alpha)
+else
+  alpha = L**2*n2/k
+  cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
+  cud = 0.6985/(1.0 + 17.34*alpha)
+end if
 
 km = cu*sqrt(k)*L
 ks = cud*sqrt(k)*L
