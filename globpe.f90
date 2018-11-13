@@ -1319,7 +1319,8 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,otaumode,mlosigma,wlev,oclosure     &
     ,pdl,pdu,nsteps,k_mode,eps_mode      &
     ,limitL,fixedce3,calcinloop,nops     &
-    ,nopb,fixedstabfunc
+    ,nopb,fixedstabfunc,omink => mink    &
+    ,omineps => mineps
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
@@ -1483,7 +1484,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     alphavis_seaice,alphanir_seaice,mlojacobi,mlo_rtest,mlosolve, &
     usepice,mlosigma,                                             &
     pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    &
-    nops,nopb,fixedstabfunc,                                      &
+    nops,nopb,fixedstabfunc,omink,omineps,                        &
     rivermd,basinmd,rivercoeff                                      ! River
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
@@ -2293,7 +2294,7 @@ ateb_statsmeth    = dumi(29)
 ateb_behavmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(13), dumi(21) )
+allocate( dumr(15), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2316,6 +2317,8 @@ if ( myid==0 ) then
   dumr(11) = mlo_rtest
   dumr(12) = pdl
   dumr(13) = pdu
+  dumr(14) = omink
+  dumr(15) = omineps
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2353,6 +2356,8 @@ rivercoeff      = dumr(10)
 mlo_rtest       = dumr(11)
 pdl             = dumr(12)
 pdu             = dumr(13)
+omink           = dumr(14)
+omineps         = dumr(15)
 mlodiff         = dumi(1)
 usetide         = dumi(2) 
 zomode          = dumi(3) 

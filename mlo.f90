@@ -268,8 +268,8 @@ real, parameter :: cms=5.                 ! 7.4 in rams
 real, parameter :: fmroot=0.57735
 real, parameter :: rimax=(1./fmroot-1.)/bprm
 !k-eps parameters
-real, parameter :: mink=1e-8
-real, parameter :: mineps=1e-11
+real, save :: mink=1.e-8
+real, save :: mineps=1.e-11
 
 interface mloimport
   module procedure mloimport_ifull,mloimport_imax
