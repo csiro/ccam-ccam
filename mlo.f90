@@ -2011,7 +2011,7 @@ select case(oclosure)
 case(1)
   km = 0.0
   ks = 0.0
-  call keps(km,ks,k,eps,d_nsq,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull)
+  call keps(km,ks,k,eps,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull)
 end select
 
 ! Counter-gradient term for scalars (rhs)
@@ -2182,7 +2182,7 @@ call mlocheck("MLO-mixing",water_temp=water%temp)
 return
 end subroutine mlocalc
 
-subroutine keps(km_out,ks_out,k_out,eps_out,d_nsq,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull)
+subroutine keps(km_out,ks_out,k_out,eps_out,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull)
 implicit none
 
 integer, intent(in) :: wfull
@@ -2190,7 +2190,6 @@ real, dimension(wfull,wlev), intent(inout) :: km_out
 real, dimension(wfull,wlev), intent(inout) :: ks_out
 real, dimension(wfull,wlev), intent(inout) :: k_out
 real, dimension(wfull,wlev), intent(inout) :: eps_out
-real, dimension(wfull,wlev), intent(in) :: d_nsq
 real, dimension(wfull), intent(in) :: d_ustar
 real, dimension(wfull), intent(in) :: d_zcr
 type(dgwaterdata), intent(in) :: dgwater
