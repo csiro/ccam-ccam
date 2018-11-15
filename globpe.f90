@@ -656,18 +656,10 @@ if ( myid<nproc ) then
         else
           call radrive(il*nrows_rad)  
         end if    ! (nhstest<0)
-        t(1:ifull,1:kl) = t(1:ifull,1:kl) - dt*(sw_tend(1:ifull,1:kl)+lw_tend(1:ifull,1:kl))
 !$omp end single
       case(5)
         ! GFDL SEA-EFS radiation
         call seaesfrad
-!$omp do schedule(static) private(js,je,k)
-        do tile = 1,ntiles
-          js = (tile-1)*imax + 1
-          je = tile*imax
-          t(js:je,1:kl) = t(js:je,1:kl) - dt*(sw_tend(js:je,1:kl)+lw_tend(js:je,1:kl))
-        end do
-!$omp end do nowait
       case DEFAULT
         ! use preset slwa array (use +ve nrad)
 !$omp do schedule(static) private(js,je)
@@ -682,6 +674,7 @@ if ( myid<nproc ) then
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
+      t(js:je,1:kl) = t(js:je,1:kl) - dt*(sw_tend(js:je,1:kl)+lw_tend(js:je,1:kl))
       call nantest("after radiation",js,je)    
     end do
 !$omp end do nowait
@@ -2490,7 +2483,7 @@ if ( myid<nproc ) then
     end if
     write(6,*) 'Using defaults for nversion = ',nversion
 #ifdef usempi3
-    write(6,*) 'Using shared memory with number of nodes = ',nodecaptian_nproc
+    write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
 #endif
     write(6,*) 'Reading namelist from ',trim(nmlfile)
     write(6,*) 'ilx,jlx              ',ilx,jlx
@@ -2540,8 +2533,8 @@ if ( myid<nproc ) then
   dsig4 = max(dsig2+.01, dsig4)  ! convection
 
   ! check nudging settings - adjust mbd scale parameter to satisfy mbd_maxscale and mbd_maxgrid settings
-  if ( ensemble_mode>0 .and. (mbd/=0.or.nbd/=0.or.mbd_mlo/=0.or.nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0) ) then
-    write(6,*) "ERROR: mbd=0, nbd=0, mbd_mlo=0, nud_sst=0, nud_sss=0, nud_ouv and nud_sfg=0 are required for ensemble_mode>0"
+  if ( ensemble_mode>0 .and. (mbd/=0.or.nbd/=0.or.mbd_mlo/=0) ) then
+    write(6,*) "ERROR: mbd=0, nbd=0 and mbd_mlo=0 are required for ensemble_mode>0"
     call ccmpi_abort(-1)
   end if
   if ( mbd/=0 .and. nbd/=0 ) then
@@ -2583,9 +2576,6 @@ if ( myid<nproc ) then
     if ( nudu_hrs==0 ) then
       nudu_hrs = nud_hrs
     end if
-  end if
-  if ( mbd_mlo/=0 .or. nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
-    mbd_mlo = max( nud_sst, nud_sss, nud_ouv, nud_sfh, mbd, mbd_mlo )
   end if
   if ( mbd_mlo<0 ) then
     write(6,*) "ERROR: mbd_mlo<0 is invalid"
@@ -2804,7 +2794,7 @@ if ( myid<nproc ) then
 
 #ifdef usempi3
   ! Allocate xx4, yy4, em_g, x_g, y_g and z_g as shared
-  ! memory within a node.  The node captian is responsible
+  ! memory within a node.  The node captain is responsible
   ! for updating these arrays.
   shsize(1:2) = (/ iquad, iquad /)
   call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
@@ -2849,25 +2839,25 @@ if ( myid<nproc ) then
 #ifdef usempi3
   ! use shared memory for global arrays common to all processes
   call ccmpi_shepoch(xx4_win)
-  if ( node_myid==0 ) call ccmpi_bcastr8(xx4,0,comm_nodecaptian)
+  if ( node_myid==0 ) call ccmpi_bcastr8(xx4,0,comm_nodecaptain)
   call ccmpi_shepoch(xx4_win)
   call ccmpi_shepoch(yy4_win)
-  if ( node_myid==0 ) call ccmpi_bcastr8(yy4,0,comm_nodecaptian)
+  if ( node_myid==0 ) call ccmpi_bcastr8(yy4,0,comm_nodecaptain)
   call ccmpi_shepoch(yy4_win)
   call ccmpi_shepoch(em_g_win)
-  if ( node_myid==0 ) call ccmpi_bcast(em_g,0,comm_nodecaptian)
+  if ( node_myid==0 ) call ccmpi_bcast(em_g,0,comm_nodecaptain)
   call ccmpi_shepoch(em_g_win)
   call ccmpi_shepoch(x_g_win)
-  if ( node_myid==0 ) call ccmpi_bcastr8(x_g,0,comm_nodecaptian)
+  if ( node_myid==0 ) call ccmpi_bcastr8(x_g,0,comm_nodecaptain)
   call ccmpi_shepoch(x_g_win)
   call ccmpi_shepoch(y_g_win)
-  if ( node_myid==0 ) call ccmpi_bcastr8(y_g,0,comm_nodecaptian)
+  if ( node_myid==0 ) call ccmpi_bcastr8(y_g,0,comm_nodecaptain)
   call ccmpi_shepoch(y_g_win)
   call ccmpi_shepoch(z_g_win)
-  if ( node_myid==0 ) call ccmpi_bcastr8(z_g,0,comm_nodecaptian)
+  if ( node_myid==0 ) call ccmpi_bcastr8(z_g,0,comm_nodecaptain)
   call ccmpi_shepoch(z_g_win)
 #else
-  ! MJT notes - make copies of global arrays on all processes
+  ! make copies of global arrays on all processes
   call ccmpi_bcastr8(xx4,0,comm_world)
   call ccmpi_bcastr8(yy4,0,comm_world)
   call ccmpi_bcast(em_g,0,comm_world)
@@ -3404,6 +3394,7 @@ integer, intent(out) :: newnproc, nxp, nyp
 integer nproc_low, nxp_test, nyp_test
 logical, intent(out) :: uniform_test
 
+! try face decompositoin
 uniform_test = .false.
 do nproc_low = nproc,1,-1
   call proctest_face(npanels,il_g,nproc_low,nxp_test,nyp_test)
@@ -3413,10 +3404,13 @@ newnproc = nproc_low
 nxp = nxp_test
 nyp = nyp_test
 
+! try uniform decomposition
 do nproc_low = nproc,1,-1
   call proctest_uniform(npanels,il_g,nproc_low,nxp_test,nyp_test)
   if ( nxp_test>0 ) exit
 end do
+
+! chose decomposition based on the larger number of processes
 if ( nproc_low>newnproc ) then
   uniform_test = .true.
   newnproc = nproc_low
