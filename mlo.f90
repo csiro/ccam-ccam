@@ -1513,7 +1513,7 @@ select case(mode)
     do iqw = 1,wfull
       dpin(1:wlin) = sigin(1:wlin)*deptmp(iqw)  
       if ( wlev==wlin ) then
-        if ( all(abs(depth%depth(iqw,1:wlev)-dpin(1:wlev))<0.0001) ) then
+        if ( all(abs(depth%depth(iqw,1:wlev)-dpin(1:wlev))<0.01) ) then
           newdatb(iqw,1:wlev) = newdata(iqw,1:wlev)
           cycle
         end if

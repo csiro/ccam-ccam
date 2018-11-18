@@ -62,16 +62,16 @@ module cc_mpi
    logical, save, public :: mydiag                                         ! true if diagnostic point id, jd is in my region
    
    integer, save, public :: comm_node, node_myid, node_nproc               ! node communicator
-   integer, save, public :: comm_nodecaptian, nodecaptian_myid, &
-                            nodecaptian_nproc                              ! node captian communicator
-   integer, save, public :: node_captianid                                 ! rank of the node captian in the comm_nodecaptian group
+   integer, save, public :: comm_nodecaptain, nodecaptain_myid, &
+                            nodecaptain_nproc                              ! node captain communicator
+   integer, save, public :: node_captainid                                 ! rank of the node captain in the comm_nodecaptain group
    
    integer, save, public :: comm_proc, comm_rows, comm_cols                ! comm groups for scale-selective filter
    integer, save, public :: hproc, mproc, npta, pprocn, pprocx             ! decomposition parameters for scale-selective filter
 
    integer, save, public :: comm_vnode, vnode_nproc, vnode_myid            ! procformat communicator for node
-   integer, save, public :: comm_vleader, vleader_nproc, vleader_myid      ! procformat communicator for node captian group   
-   integer, save, public :: vnode_vleaderid                                ! rank of the procformat node captian
+   integer, save, public :: comm_vleader, vleader_nproc, vleader_myid      ! procformat communicator for node captain group   
+   integer, save, public :: vnode_vleaderid                                ! rank of the procformat node captain
 
    integer(kind=4), save, private :: nreq, rreq                            ! number of messages requested and to be received
    integer(kind=4), allocatable, dimension(:), save, private :: ireq       ! requested message index
@@ -8219,15 +8219,15 @@ contains
             call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
             call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of nodes that have rank node_myid
             call MPI_Comm_rank(lcommout, lid, lerr)   ! Node id for process rank node_myid
-            comm_nodecaptian  = lcommout
-            nodecaptian_nproc = lproc
-            nodecaptian_myid  = lid
+            comm_nodecaptain  = lcommout
+            nodecaptain_nproc = lproc
+            nodecaptain_myid  = lid
 
             ! Communicate node id 
-            lid = nodecaptian_myid
+            lid = nodecaptain_myid
             lcommout = comm_node
             call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
-            node_captianid = lid
+            node_captainid = lid
             
          else
              
@@ -8235,17 +8235,17 @@ contains
             node_nproc = nproc
             node_myid  = myid
          
-            comm_nodecaptian  = comm_world
-            nodecaptian_nproc = nproc
-            nodecaptian_myid  = myid
+            comm_nodecaptain  = comm_world
+            nodecaptain_nproc = nproc
+            nodecaptain_myid  = myid
          
-            node_captianid = myid
+            node_captainid = myid
             
          end if
       
-         if ( myid==0 .and. (node_myid/=0.or.nodecaptian_myid/=0) ) then
+         if ( myid==0 .and. (node_myid/=0.or.nodecaptain_myid/=0) ) then
             write(6,*) "ERROR: Intra-node communicator failed"
-            write(6,*) "myid, node_myid, nodecaptian_myid ",myid,node_myid,nodecaptian_myid
+            write(6,*) "myid, node_myid, nodecaptain_myid ",myid,node_myid,nodecaptain_myid
             call ccmpi_abort(-1)
          end if
 #else
@@ -8258,11 +8258,11 @@ contains
          node_nproc = 1
          node_myid  = 0
       
-         comm_nodecaptian = comm_world
-         nodecaptian_nproc = nproc
-         nodecaptian_myid = myid
+         comm_nodecaptain = comm_world
+         nodecaptain_nproc = nproc
+         nodecaptain_myid = myid
       
-         node_captianid = myid
+         node_captainid = myid
 #endif
 
       end if
@@ -8273,26 +8273,26 @@ contains
    
       integer :: node_nx, node_ny, node_dx, node_dy
       integer :: oldrank, ty, cy, tx, cx
-      integer :: new_nodecaptian_nproc, new_node_nproc
+      integer :: new_nodecaptain_nproc, new_node_nproc
       integer :: testid, newid
-      integer(kind=4) :: ref_nodecaptian_nproc
+      integer(kind=4) :: ref_nodecaptain_nproc
       integer(kind=4) :: lerr, lid, lcommin, lcommout
       
       lcommin = comm_world
       
       ! communicate number of nodes to all processes
-      ref_nodecaptian_nproc = nodecaptian_nproc
-      call MPI_Bcast(ref_nodecaptian_nproc, 1_4, MPI_INTEGER, 0_4, lcommin, lerr )
+      ref_nodecaptain_nproc = nodecaptain_nproc
+      call MPI_Bcast(ref_nodecaptain_nproc, 1_4, MPI_INTEGER, 0_4, lcommin, lerr )
       
       node_nx = 0
       do while ( node_nx == 0 )
 
          ! increase number of (virtual) nodes to find an even decomposition
-         new_nodecaptian_nproc = ref_nodecaptian_nproc 
-         do while ( mod(nproc, new_nodecaptian_nproc) /= 0 )
-            new_nodecaptian_nproc = new_nodecaptian_nproc + 1
+         new_nodecaptain_nproc = ref_nodecaptain_nproc 
+         do while ( mod(nproc, new_nodecaptain_nproc) /= 0 )
+            new_nodecaptain_nproc = new_nodecaptain_nproc + 1
          end do
-         new_node_nproc = nproc / new_nodecaptian_nproc
+         new_node_nproc = nproc / new_nodecaptain_nproc
       
          ! calculate virtual node decomposition
          node_nx = max( int(sqrt(real(new_node_nproc))), 1 )
@@ -8362,22 +8362,22 @@ contains
 #ifdef usempi3
       if ( procformat ) then
          ! configure procmode
-         lastprocmode = node_captianid==nodecaptian_nproc-1  
+         lastprocmode = node_captainid==nodecaptain_nproc-1  
          if ( procmode == 0 ) then
             ! procmode=0 uses existing nodes, even if they have different numbers of processes
             if ( myid==0 ) then
-               write(6,*) "Configure procformat output with nodes=",nodecaptian_nproc
+               write(6,*) "Configure procformat output with nodes=",nodecaptain_nproc
             end if
             ! Intra-procmode communicator 
             comm_vnode  = comm_node
             vnode_nproc = node_nproc
             vnode_myid  = node_myid
             ! Inter-procmode communicator
-            comm_vleader  = comm_nodecaptian
-            vleader_nproc = nodecaptian_nproc
-            vleader_myid  = nodecaptian_myid
+            comm_vleader  = comm_nodecaptain
+            vleader_nproc = nodecaptain_nproc
+            vleader_myid  = nodecaptain_myid
             ! Communicate procmode id
-            vnode_vleaderid = node_captianid
+            vnode_vleaderid = node_captainid
             procmode = node_nproc ! can be different on different on different nodes
          else
             ! user specified procmode>0 

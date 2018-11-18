@@ -150,10 +150,10 @@ contains
 
 !--------------------------------------------------------------
 ! Interface for reading 2D+time fields
-subroutine histrd3r4(iarchi,ier,name,ik,var,ifull,nogather)
+subroutine histrd3r4(iarchi,ier,name,ik,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reduce, histrd3_begin, histrd3_end, fnresid, &
-                   start_log, end_log, ccmpi_distribute
+                   start_log, end_log, ccmpi_distribute, ccmpi_abort
 use parm_m
 
 implicit none
@@ -162,20 +162,17 @@ integer, intent(in) :: iarchi,ik,ifull
 integer, intent(out) :: ier
 real :: vmax, vmin, vmax_g, vmin_g
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
-logical, intent(in), optional :: nogather
-logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd3_begin)
 
-ngflag = .false.
-if ( present(nogather) ) then
-  ngflag = nogather
-end if
-
-if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
+if ( ifull==6*ik*ik .or. ptest ) then
   ! read local arrays without gather and distribute (e.g., restart file)
-  call hr3p(iarchi,ier,name,.true.,var)
+  if ( resprocformat ) then
+    call hr3p_procformat(iarchi,ier,name,var)
+  else
+    call hr3p_para(iarchi,ier,name,var)
+  end if
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
     vmax = maxval(var)
     vmin = minval(var) 
@@ -188,23 +185,9 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
     write(6,'(" done histrd3 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
 
-else if ( ifull/=6*ik*ik ) then  
-  ! read local arrays with gather and distribute (i.e., change in number of processors) 
-  if ( myid==0 ) then
-    call hr3a(iarchi,ier,name,ik,var,ifull)
-  else
-    call hr3p(iarchi,ier,name,.false.)
-    call ccmpi_distribute(var)
-  end if
-
 else
-  ! read global arrays and gather on myid==0
-  if ( myid==0 ) then
-    call hr3a(iarchi,ier,name,ik,var,ifull)
-  else
-    call hr3p(iarchi,ier,name,.false.)
-  end if
-
+  write(6,*) "ERROR: Incorrect grid size for histrd3"
+  call ccmpi_abort(-1)
 end if
 
 call END_LOG(histrd3_end)
@@ -212,82 +195,7 @@ call END_LOG(histrd3_end)
 return
 end subroutine histrd3r4   
 
-!--------------------------------------------------------------------
-! Gather 2D+time fields on myid==0
-subroutine hr3a(iarchi,ier,name,ik,var,ifull)
-      
-use cc_mpi, only : ccmpi_distribute
-use parm_m
-      
-implicit none
-      
-integer, intent(in) :: iarchi, ik, ifull
-integer, intent(out) :: ier
-integer :: iq
-real, dimension(:), intent(inout) :: var
-real, dimension(:), allocatable :: globvar
-real :: vmax, vmin
-character(len=*), intent(in) :: name
-
-allocate( globvar(6*ik*ik) )
-globvar(:) = 0.
-
-call hr3p(iarchi,ier,name,.false.,globvar)
-
-if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
-  vmax = maxval(globvar)
-  vmin = minval(globvar)
-  iq = id + (jd-1)*ik
-  if ( iq<=size(globvar) ) then
-    write(6,'(" done histrd3 ",a8,i4,i3,3e14.6)') trim(name),ier,iarchi,vmin,vmax,globvar(iq)
-  else
-    write(6,'(" done histrd3 ",a20,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
-  end if
-end if
-
-if ( ifull==6*ik*ik ) then
-  ! read global arrays for myid==0
-  var(1:ifull) = globvar(1:ifull) ! really ifull_g
-else
-  ! read local arrays with gather and distribute (no longer used)
-  call ccmpi_distribute(var,globvar)
-end if
-
-deallocate( globvar )
-
-return
-end subroutine hr3a  
-
-!--------------------------------------------------------------
-! This subroutine reads 2D+time input files
-      
-! when qtest=.true. the input grid decomposition should
-! match the current processor decomposition.  We can then
-! skip the MPI gather and distribute steps.
-subroutine hr3p(iarchi,ier,name,qtest,var)
-
-implicit none
-
-integer, intent(in) :: iarchi
-integer, intent(out) :: ier
-real, dimension(:), intent(inout), optional :: var
-logical, intent(in) :: qtest
-character(len=*), intent(in) :: name
-
-if ( resprocformat .and. present(var) ) then
-  call hr3p_procformat(iarchi,ier,name,qtest,var)
-else if ( resprocformat ) then
-  call hr3p_procformat(iarchi,ier,name,qtest)  
-else if ( present(var) ) then
-  call hr3p_para(iarchi,ier,name,qtest,var)
-else
-  call hr3p_para(iarchi,ier,name,qtest)  
-end if
-
-return
-end subroutine hr3p
-
-subroutine hr3p_procformat(iarchi,ier,name,qtest,var)
+subroutine hr3p_procformat(iarchi,ier,name,var)
 
 use cc_mpi
       
@@ -301,7 +209,6 @@ integer(kind=4) :: idv, ndims
 real, dimension(:), intent(inout), optional :: var
 real, dimension(:), allocatable :: rvar
 real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
@@ -340,20 +247,8 @@ if ( mynproc>0 ) then
       rvar(:) = rvar(:)*real(lsf) + real(laddoff)
     end if ! ier
       
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
-    else
-      ! e.g., mesonest file or nogather=.false.
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan) = rvar(1:pipan*pjpan*pnpan)
-      else if ( myid==0 ) then
-        call host_hr3p(ipf,rvar,var)
-      else
-        call proc_hr3p(rvar)
-      end if
-    end if ! qtest
+    ca = pipan*pjpan*pnpan*ipf
+    var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
 
   end do ! ipf
 
@@ -364,7 +259,7 @@ end if ! mynproc>0
 return
 end subroutine hr3p_procformat
 
-subroutine hr3p_para(iarchi,ier,name,qtest,var)
+subroutine hr3p_para(iarchi,ier,name,var)
       
 use cc_mpi
       
@@ -378,7 +273,6 @@ integer(kind=4) idv, ndims
 real, dimension(:), intent(inout), optional :: var
 real, dimension(:), allocatable :: rvar
 real(kind=4) laddoff, lsf
-logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
@@ -417,20 +311,8 @@ if ( mynproc>0 ) then
       rvar(:)=rvar(:)*real(lsf)+real(laddoff)
     end if ! ier
       
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca)=rvar(:)
-    else
-      ! e.g., mesonest file or nogather=.false.
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan) = rvar(1:pipan*pjpan*pnpan)
-      else if ( myid==0 ) then
-        call host_hr3p(ipf,rvar,var)
-      else
-        call proc_hr3p(rvar)
-      end if
-    end if ! qtest
+    ca = pipan*pjpan*pnpan*ipf
+    var(1+ca:pipan*pjpan*pnpan+ca)=rvar(:)
 
   end do ! ipf
 
@@ -441,55 +323,13 @@ end if   ! mynproc>0
 return
 end subroutine hr3p_para
 
-subroutine host_hr3p(ipf,rvar,var)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ipf
-integer jpf, ip, n, no, ca, cc, j
-real, dimension(:), intent(inout) :: var
-real, dimension(pipan*pjpan*pnpan), intent(in) :: rvar
-real, dimension(pipan*pjpan*pnpan,fnresid) :: gvar 
-
-call ccmpi_gatherx(gvar,rvar,0,comm_ip)
-do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1
-  do n = 0,pnpan-1
-    no = n - pnoff(ip) + 1
-    ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
-    cc = n*pipan*pjpan - pipan
-    do j = 1,pjpan
-      var(1+j*pil_g+ca:pipan+j*pil_g+ca) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,jpf)
-    end do
-  end do
-end do
-
-return
-end subroutine host_hr3p
-
-subroutine proc_hr3p(rvar)
-
-use cc_mpi
-
-implicit none
-
-real, dimension(pipan*pjpan*pnpan), intent(in) :: rvar
-real, dimension(0,0) :: gvar 
-
-call ccmpi_gatherx(gvar,rvar,0,comm_ip)
-
-return
-end subroutine proc_hr3p
-
 #ifndef i8r8
 !--------------------------------------------------------------
 ! Interface for reading 2D+time fields (double precision version)
-subroutine histrd3r8(iarchi,ier,name,ik,var,ifull,nogather)
+subroutine histrd3r8(iarchi,ier,name,ik,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reducer8, histrd3_begin, histrd3_end, fnresid, &
-                   start_log, end_log, ccmpi_distributer8
+                   start_log, end_log, ccmpi_distributer8, ccmpi_abort
 use parm_m
 
 implicit none
@@ -498,20 +338,17 @@ integer, intent(in) :: iarchi,ik,ifull
 integer, intent(out) :: ier
 real(kind=8) :: vmax, vmin, vmax_g, vmin_g
 real(kind=8), dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
-logical, intent(in), optional :: nogather
-logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd3_begin)
 
-ngflag = .false.
-if ( present(nogather) ) then
-  ngflag = nogather
-end if
-
-if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
+if ( ifull==6*ik*ik .or. ptest ) then
   ! read local arrays without gather and distribute (e.g., restart file)
-  call hr3pr8(iarchi,ier,name,.true.,var)
+  if ( resprocformat ) then
+    call hr3p_procformatr8(iarchi,ier,name,var)
+  else
+    call hr3p_parar8(iarchi,ier,name,var)
+  end if
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
     vmax = maxval(var)
     vmin = minval(var) 
@@ -524,23 +361,9 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
     write(6,'(" done histrd3r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
 
-else if ( ifull/=6*ik*ik ) then  
-  ! read local arrays with gather and distribute (i.e., change in number of processors) 
-  if ( myid==0 ) then
-    call hr3ar8(iarchi,ier,name,ik,var,ifull)
-  else
-    call hr3pr8(iarchi,ier,name,.false.)
-    call ccmpi_distributer8(var)
-  end if
-
-else
-  ! read global arrays and gather on myid==0
-  if ( myid==0 ) then
-    call hr3ar8(iarchi,ier,name,ik,var,ifull)
-  else
-    call hr3pr8(iarchi,ier,name,.false.)
-  end if
-
+else  
+  write(6,*) "ERROR: Incorrect grid size for histrd3r8"
+  call ccmpi_abort(-1)
 end if
 
 call END_LOG(histrd3_end)
@@ -548,82 +371,7 @@ call END_LOG(histrd3_end)
 return
 end subroutine histrd3r8   
 
-!--------------------------------------------------------------------
-! Gather 2D+time fields on myid==0
-subroutine hr3ar8(iarchi,ier,name,ik,var,ifull)
-      
-use cc_mpi, only : ccmpi_distributer8
-use parm_m
-      
-implicit none
-      
-integer, intent(in) :: iarchi, ik, ifull
-integer, intent(out) :: ier
-integer :: iq
-character(len=*), intent(in) :: name
-real(kind=8), dimension(:), intent(inout) :: var
-real(kind=8), dimension(:), allocatable :: globvar
-real(kind=8) :: vmax, vmin
-
-allocate( globvar(6*ik*ik) )
-globvar(:) = 0.
-
-call hr3pr8(iarchi,ier,name,.false.,globvar)
-
-if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
-  vmax = maxval(globvar)
-  vmin = minval(globvar)
-  iq = id+(jd-1)*ik
-  if ( iq<=size(globvar) ) then
-    write(6,'(" done histrd3r8 ",a8,i4,i3,3e14.6)') trim(name),ier,iarchi,vmin,vmax,globvar(iq)
-  else
-    write(6,'(" done histrd3r8 ",a18,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
-  end if
-end if
-
-if ( ifull==6*ik*ik ) then
-  ! read global arrays for myid==0
-  var(1:ifull)=globvar(1:ifull) ! really ifull_g
-else
-  ! read local arrays with gather and distribute (i.e., change in number of processors)
-  call ccmpi_distributer8(var,globvar)
-endif
-
-deallocate( globvar )
-
-return
-end subroutine hr3ar8 
-
-!--------------------------------------------------------------
-! This subroutine reads 2D+time input files (double precision version)
-      
-! when qtest=.true. the input grid decomposition should
-! match the current processor decomposition.  We can then
-! skip the MPI gather and distribute steps.
-subroutine hr3pr8(iarchi,ier,name,qtest,var)
-
-implicit none
-
-integer, intent(in) :: iarchi
-integer, intent(out) :: ier
-logical, intent(in) :: qtest
-real(kind=8), dimension(:), intent(inout), optional :: var
-character(len=*), intent(in) :: name
-
-if ( resprocformat .and. present(var) ) then
-  call hr3p_procformatr8(iarchi,ier,name,qtest,var)
-else if ( resprocformat ) then
-  call hr3p_procformatr8(iarchi,ier,name,qtest)  
-else if ( present(var) ) then
-  call hr3p_parar8(iarchi,ier,name,qtest,var)
-else
-  call hr3p_parar8(iarchi,ier,name,qtest)  
-end if
-
-return
-end subroutine hr3pr8
-
-subroutine hr3p_procformatr8(iarchi,ier,name,qtest,var)
+subroutine hr3p_procformatr8(iarchi,ier,name,var)
 
 use cc_mpi
       
@@ -637,7 +385,6 @@ integer(kind=4) :: idv, ndims
 real(kind=8), dimension(:), intent(inout), optional :: var
 real(kind=8), dimension(:), allocatable :: rvar
 real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
@@ -677,20 +424,8 @@ if ( mynproc>0 ) then
       rvar(:) = rvar(:)*real(lsf,8) + real(laddoff,8)
     end if ! ier
       
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
-    else
-      ! e.g., mesonest file or nogather=.false.
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan) = rvar(1:pipan*pjpan*pnpan)
-      else if ( myid==0 ) then
-        call host_hr3pr8(ipf,rvar,var)
-      else
-        call proc_hr3pr8(rvar)
-      end if
-    end if ! qtest
+    ca = pipan*pjpan*pnpan*ipf
+    var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
 
   end do ! ipf
 
@@ -701,7 +436,7 @@ end if ! mynproc>0
 return
 end subroutine hr3p_procformatr8
 
-subroutine hr3p_parar8(iarchi,ier,name,qtest,var)
+subroutine hr3p_parar8(iarchi,ier,name,var)
       
 use cc_mpi
       
@@ -715,7 +450,6 @@ integer(kind=4) :: idv, ndims
 real(kind=8), dimension(:), intent(inout), optional :: var
 real(kind=8), dimension(:), allocatable :: rvar
 real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
@@ -754,20 +488,8 @@ if ( mynproc>0 ) then
       rvar(:)=rvar(:)*real(lsf,8)+real(laddoff,8)
     end if ! ier
       
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca)=rvar(:)
-    else
-      ! e.g., mesonest file or nogather=.false.
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan) = rvar(1:pipan*pjpan*pnpan)
-      else if ( myid==0 ) then
-        call host_hr3pr8(ipf,rvar,var)
-      else
-        call proc_hr3pr8(rvar)
-      end if
-    end if ! qtest
+    ca = pipan*pjpan*pnpan*ipf
+    var(1+ca:pipan*pjpan*pnpan+ca)=rvar(:)
 
   end do ! ipf
 
@@ -777,53 +499,11 @@ end if ! mynproc>0
   
 return
 end subroutine hr3p_parar8
-
-subroutine host_hr3pr8(ipf,rvar,var)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ipf
-integer jpf, ip, n, no, ca, cc, j
-real(kind=8), dimension(:), intent(inout) :: var
-real(kind=8), dimension(pipan*pjpan*pnpan), intent(in) :: rvar
-real(kind=8), dimension(pipan*pjpan*pnpan,fnresid) :: gvar 
-
-call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
-do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1
-  do n = 0,pnpan-1
-    no = n - pnoff(ip) + 1
-    ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
-    cc = n*pipan*pjpan - pipan
-    do j = 1,pjpan
-      var(1+j*pil_g+ca:pipan+j*pil_g+ca) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,jpf)
-    end do
-  end do
-end do
-
-return
-end subroutine host_hr3pr8
-
-subroutine proc_hr3pr8(rvar)
-
-use cc_mpi
-
-implicit none
-
-real(kind=8), dimension(pipan*pjpan*pnpan), intent(in) :: rvar
-real(kind=8), dimension(0,0) :: gvar 
-
-call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
-
-return
-end subroutine proc_hr3pr8
 #endif
 
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields
-subroutine histrd4r4(iarchi,ier,name,ik,kk,var,ifull,nogather)
+subroutine histrd4r4(iarchi,ier,name,ik,kk,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reduce, histrd4_begin, histrd4_end, fnresid, &
                    start_log, end_log, ccmpi_distribute, ccmpi_abort
@@ -835,24 +515,21 @@ integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
 real, dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
 real :: vmax, vmin, vmax_g, vmin_g
-logical, intent(in), optional :: nogather
-logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd4_begin)
 
-ngflag = .false.
-if ( present(nogather) ) then
-  ngflag = nogather
-end if
-
-if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
+if ( ifull==6*ik*ik .or. ptest ) then
   ! read local arrays without gather and distribute
   if ( size(var,2)/=kk ) then
     write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
     call ccmpi_abort(-1)
   end if
-  call hr4p(iarchi,ier,name,kk,.true.,var)
+  if ( resprocformat ) then
+    call hr4p_procformat(iarchi,ier,name,kk,var)
+  else
+    call hr4p_para(iarchi,ier,name,kk,var)
+  end if
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
     vmax = maxval(var)
     vmin = minval(var) 
@@ -865,31 +542,9 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
     write(6,'(" done histrd4 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
 
-else if ( ifull/=6*ik*ik ) then  
-  ! read local arrays with gather and distribute
-  if ( size(var,2)/=kk ) then
-    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
-    call ccmpi_abort(-1)
-  end if
-  if ( myid==0 ) then
-    call hr4sa(iarchi,ier,name,ik,kk,var,ifull)
-  else 
-    call hr4p(iarchi,ier,name,kk,.false.)
-    call ccmpi_distribute(var)
-  end if
-  
-else
-  ! read global arrays and gather on myid==0
-  if ( myid==0 ) then
-    if ( size(var,2)/=kk ) then
-      write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
-      call ccmpi_abort(-1)
-    end if
-    call hr4sa(iarchi,ier,name,ik,kk,var,ifull)
-  else 
-    call hr4p(iarchi,ier,name,kk,.false.)
-  end if
-
+else  
+  write(6,*) "ERROR: Incorrect grid size for histrd4r4"
+  call ccmpi_abort(-1)
 end if
 
 call END_LOG(histrd4_end)
@@ -897,90 +552,7 @@ call END_LOG(histrd4_end)
 return
 end subroutine histrd4r4
 
-!--------------------------------------------------------------------
-! Gather 3D+time fields on myid==0
-
-subroutine hr4sa(iarchi,ier,name,ik,kk,var,ifull)
-      
-use cc_mpi, only : ccmpi_distribute, ccmpi_abort
-use parm_m
-      
-implicit none
-      
-integer, intent(in) :: iarchi, ik, kk, ifull
-integer, intent(out) :: ier
-integer :: iq
-character(len=*), intent(in) :: name
-real, dimension(:,:), intent(inout) :: var
-real, dimension(:,:), allocatable :: globvar
-real :: vmax, vmin
-
-if ( size(var,2)/=kk ) then
-  write(6,*) "ERROR: Incorrect number of vertical levels in hr4sa"
-  call ccmpi_abort(-1)
-end if
-
-allocate( globvar(6*ik*ik,kk) )
-globvar(:,:) = 0.
-
-call hr4p(iarchi,ier,name,kk,.false.,globvar)     
-
-if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
-  vmax = maxval(globvar)
-  vmin = minval(globvar)
-  iq = id+(jd-1)*ik
-  if ( iq>=1 .and. iq<=size(globvar,1) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
-    write(6,'(" done histrd4 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
-  else
-    write(6,'(" done histrd4 ",a18,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
-  end if
-end if
-
-! Have to return correct value of ier on all processes because it's 
-! used for initialisation in calling routine
-if ( ifull==6*ik*ik ) then
-  ! read global arrays for myid==0
-  var(1:ifull,1:kk) = globvar(1:ifull,1:kk)
-else
-  ! read local arrays with gather and distribute (i.e., change in number of processors)
-  call ccmpi_distribute(var,globvar)
-endif
-
-deallocate( globvar )
-
-return
-end subroutine hr4sa      
-
-!--------------------------------------------------------------
-! This subroutine reads 3D+time input files
-
-! when qtest=.true. the input grid decomposition should
-! match the current processor decomposition.  We can then
-! skip the MPI gather and distribute steps.
-subroutine hr4p(iarchi,ier,name,kk,qtest,var)
-
-implicit none
-
-integer, intent(in) :: iarchi, kk
-integer, intent(out) :: ier
-logical, intent(in) :: qtest
-real, dimension(:,:), intent(inout), optional :: var
-character(len=*), intent(in) :: name
-
-if ( resprocformat .and. present(var) ) then
-  call hr4p_procformat(iarchi,ier,name,kk,qtest,var)
-else if ( resprocformat ) then
-  call hr4p_procformat(iarchi,ier,name,kk,qtest)  
-else if ( present(var) ) then
-  call hr4p_para(iarchi,ier,name,kk,qtest,var)
-else
-  call hr4p_para(iarchi,ier,name,kk,qtest)  
-end if
-
-return
-end subroutine hr4p
-
-subroutine hr4p_procformat(iarchi,ier,name,kk,qtest,var)
+subroutine hr4p_procformat(iarchi,ier,name,kk,var)
 
 use cc_mpi
       
@@ -994,7 +566,6 @@ integer(kind=4) :: idv, ndims
 real, dimension(:,:), intent(inout), optional :: var
 real, dimension(:,:), allocatable :: rvar
 real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
 
@@ -1062,20 +633,8 @@ if ( mynproc>0 ) then
       end do
     end if ! ier
 
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
-    else
-      ! e.g., mesonest file
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk) = rvar(1:pipan*pjpan*pnpan,1:kk)
-      else if ( myid==0 ) then
-        call host_hr4p(ipf,rvar,var)
-      else
-        call proc_hr4p(rvar)
-      end if
-    end if ! qtest
+    ca = pipan*pjpan*pnpan*ipf
+    var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
 
   end do ! ipf
   
@@ -1086,7 +645,7 @@ end if ! mynproc>0
 return
 end subroutine hr4p_procformat
 
-subroutine hr4p_para(iarchi,ier,name,kk,qtest,var)
+subroutine hr4p_para(iarchi,ier,name,kk,var)
 
 use cc_mpi
       
@@ -1100,7 +659,6 @@ integer(kind=4) :: idv, ndims
 real, dimension(:,:), intent(inout), optional :: var
 real, dimension(:,:), allocatable :: rvar
 real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
 
@@ -1169,20 +727,8 @@ if ( mynproc>0 ) then
       end do
     end if ! ier
 
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
-    else
-      ! e.g., mesonest file
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk) = rvar(1:pipan*pjpan*pnpan,1:kk)
-      else if ( myid==0 ) then
-        call host_hr4p(ipf,rvar,var)
-      else
-        call proc_hr4p(rvar)
-      end if
-    end if ! qtest
+    ca = pipan*pjpan*pnpan*ipf
+    var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
 
   end do ! ipf
 
@@ -1193,61 +739,10 @@ end if ! mynproc>0
 return
 end subroutine hr4p_para
 
-subroutine host_hr4p(ipf,rvar,var)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ipf
-integer :: jpf, ip, n, no, ca, cc, j, k, kk
-real, dimension(:,:), intent(inout) :: var
-real, dimension(:,:), intent(in) :: rvar
-real, dimension(pipan*pjpan*pnpan,size(rvar,2),fnresid) :: gvar 
-
-kk = size(var,2)
-
-if ( kk/=size(rvar,2) ) then
-  write(6,*) "ERROR: mismatch in number of vertical levels in host_hr4p"
-  call ccmpi_abort(-1)
-end if
-
-call ccmpi_gatherx(gvar,rvar,0,comm_ip)
-do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1   ! local file number
-  do k = 1,kk
-    do n = 0,pnpan-1
-      no = n - pnoff(ip) + 1   ! global panel number of local file
-      ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-      cc = n*pipan*pjpan - pipan
-      do j = 1,pjpan
-        var(1+j*pil_g+ca:pipan+j*pil_g+ca,k) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,jpf)
-      end do
-    end do
-  end do
-end do
-
-return
-end subroutine host_hr4p
-
-subroutine proc_hr4p(rvar)
-
-use cc_mpi
-
-implicit none
-
-real, dimension(:,:), intent(in) :: rvar
-real, dimension(0,0,0) :: gvar 
-
-call ccmpi_gatherx(gvar,rvar,0,comm_ip)
-
-return
-end subroutine proc_hr4p
-
 #ifndef i8r8
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields (double precision version)
-subroutine histrd4r8(iarchi,ier,name,ik,kk,var,ifull,nogather)
+subroutine histrd4r8(iarchi,ier,name,ik,kk,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reducer8, histrd4_begin, histrd4_end, fnresid, &
                    start_log, end_log, ccmpi_distributer8, ccmpi_abort
@@ -1259,24 +754,21 @@ integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
 real(kind=8), dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
 real(kind=8) :: vmax, vmin, vmax_g, vmin_g
-logical, intent(in), optional :: nogather
-logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd4_begin)
 
-ngflag = .false.
-if ( present(nogather) ) then
-  ngflag = nogather
-end if
-
-if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
+if ( ifull==6*ik*ik .or. ptest ) then
   ! read local arrays without gather and distribute
   if ( size(var,2)/=kk ) then
     write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
     call ccmpi_abort(-1)
   end if
-  call hr4pr8(iarchi,ier,name,kk,.true.,var)
+  if ( resprocformat ) then
+    call hr4p_procformatr8(iarchi,ier,name,kk,var)
+  else
+    call hr4p_parar8(iarchi,ier,name,kk,var)
+  end if
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
     vmax = maxval(var)
     vmin = minval(var) 
@@ -1289,31 +781,9 @@ if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
     write(6,'(" done histrd4r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
 
-else if ( ifull/=6*ik*ik ) then  
-  ! read local arrays with gather and distribute
-  if ( size(var,2)/=kk ) then
-    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
-    call ccmpi_abort(-1)
-  end if
-  if ( myid==0 ) then
-    call hr4sar8(iarchi,ier,name,ik,kk,var,ifull)
-  else 
-    call hr4pr8(iarchi,ier,name,kk,.false.)
-    call ccmpi_distributer8(var)
-  end if
-  
-else
-  ! read global arrays and gather on myid==0
-  if ( myid==0 ) then
-    if ( size(var,2)/=kk ) then
-      write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
-      call ccmpi_abort(-1)
-    end if
-    call hr4sar8(iarchi,ier,name,ik,kk,var,ifull)
-  else 
-    call hr4pr8(iarchi,ier,name,kk,.false.)
-  end if
-
+else  
+  write(6,*) "ERROR: Incorrect grid size for histr4r8"
+  call ccmpi_abort(-1)
 end if
 
 call END_LOG(histrd4_end)
@@ -1321,90 +791,7 @@ call END_LOG(histrd4_end)
 return
 end subroutine histrd4r8
 
-!--------------------------------------------------------------------
-! Gather 3D+time fields on myid==0
-
-subroutine hr4sar8(iarchi,ier,name,ik,kk,var,ifull)
-      
-use cc_mpi, only : ccmpi_distributer8, ccmpi_abort
-use parm_m
-      
-implicit none
-      
-integer, intent(in) :: iarchi, ik, kk, ifull
-integer, intent(out) :: ier
-integer :: iq
-character(len=*), intent(in) :: name
-real(kind=8), dimension(:,:), intent(inout) :: var
-real(kind=8), dimension(:,:), allocatable :: globvar
-real(kind=8) :: vmax, vmin
-    
-if ( size(var,2)/=kk ) then
-  write(6,*) "ERROR: Incorrect number of vertical levels in hr4sar8"
-  call ccmpi_abort(-1)
-end if
-
-allocate( globvar(6*ik*ik,kk) )
-globvar(:,:) = 0._8
-
-call hr4pr8(iarchi,ier,name,kk,.false.,globvar)     
-
-if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
-  vmax = maxval(globvar)
-  vmin = minval(globvar)
-  iq = id+(jd-1)*ik
-  if ( iq>=1 .and. iq<=size(globvar,1) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
-    write(6,'(" done histrd4r8 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
-  else
-    write(6,'(" done histrd4r8 ",a16,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
-  end if
-end if
-
-! Have to return correct value of ier on all processes because it's 
-! used for initialisation in calling routine
-if ( ifull==6*ik*ik ) then
-  ! read global arrays for myid==0
-  var(1:ifull,1:kk) = globvar(1:ifull,1:kk)
-else
-  ! read local arrays with gather and distribute (i.e., change in number of processors)
-  call ccmpi_distributer8(var,globvar)
-endif
-
-deallocate( globvar )
-
-return
-end subroutine hr4sar8      
-
-!--------------------------------------------------------------
-! This subroutine reads 3D+time input files (Double precision version)
-
-! when qtest=.true. the input grid decomposition should
-! match the current processor decomposition.  We can then
-! skip the MPI gather and distribute steps.
-subroutine hr4pr8(iarchi,ier,name,kk,qtest,var)
-
-implicit none
-
-integer, intent(in) :: iarchi, kk
-integer, intent(out) :: ier
-logical, intent(in) :: qtest
-real(kind=8), dimension(:,:), intent(inout), optional :: var
-character(len=*), intent(in) :: name
-
-if ( resprocformat .and. present(var) ) then
-  call hr4p_procformatr8(iarchi,ier,name,kk,qtest,var)
-else if ( resprocformat ) then
-  call hr4p_procformatr8(iarchi,ier,name,kk,qtest)  
-else if ( present(var) ) then
-  call hr4p_parar8(iarchi,ier,name,kk,qtest,var)
-else
-  call hr4p_parar8(iarchi,ier,name,kk,qtest)  
-end if
-
-return
-end subroutine hr4pr8
-
-subroutine hr4p_procformatr8(iarchi,ier,name,kk,qtest,var)
+subroutine hr4p_procformatr8(iarchi,ier,name,kk,var)
 
 use cc_mpi
       
@@ -1418,7 +805,6 @@ integer(kind=4) idv, ndims
 real(kind=8), dimension(:,:), intent(inout), optional :: var
 real(kind=8), dimension(:,:), allocatable :: rvar
 real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
 
@@ -1487,20 +873,8 @@ if ( mynproc>0 ) then
       end do
     end if ! ier
 
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
-    else
-      ! e.g., mesonest file
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk) = rvar(1:pipan*pjpan*pnpan,1:kk)
-      else if ( myid==0 ) then
-        call host_hr4pr8(ipf,rvar,var)
-      else
-        call proc_hr4pr8(rvar)
-      end if
-    end if ! qtest
+    ca = pipan*pjpan*pnpan*ipf
+    var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
 
   end do ! ipf
 
@@ -1511,7 +885,7 @@ end if ! mynproc>0
 return
 end subroutine hr4p_procformatr8
 
-subroutine hr4p_parar8(iarchi,ier,name,kk,qtest,var)
+subroutine hr4p_parar8(iarchi,ier,name,kk,var)
 
 use cc_mpi
       
@@ -1525,7 +899,6 @@ integer(kind=4) idv, ndims
 real(kind=8), dimension(:,:), intent(inout), optional :: var
 real(kind=8), dimension(:,:), allocatable :: rvar
 real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
 
@@ -1594,20 +967,8 @@ if ( mynproc>0 ) then
       end do
     end if ! ier
 
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
-    else
-      ! e.g., mesonest file
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk) = rvar(1:pipan*pjpan*pnpan,1:kk)
-      else if ( myid==0 ) then
-        call host_hr4pr8(ipf,rvar,var)
-      else
-        call proc_hr4pr8(rvar)
-      end if
-    end if ! qtest
+    ca = pipan*pjpan*pnpan*ipf
+    var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
 
   end do ! ipf
 
@@ -1617,59 +978,9 @@ end if ! mynproc>0
 
 return
 end subroutine hr4p_parar8
-
-subroutine host_hr4pr8(ipf,rvar,var)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ipf
-integer jpf, ip, n, no, ca, cc, j, k, kk
-real(kind=8), dimension(:,:), intent(inout) :: var
-real(kind=8), dimension(:,:), intent(in) :: rvar
-real(kind=8), dimension(pipan*pjpan*pnpan,size(rvar,2),fnresid) :: gvar 
-
-kk = size(var,2)
-if ( size(rvar,2)/=kk ) then
-  write(6,*) "ERROR: Incorrect number of vertical levels in host_hr4pr8"
-  call ccmpi_abort(-1)
-end if
-
-call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
-do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1   ! local file number
-  do k = 1,kk
-    do n = 0,pnpan-1
-      no = n - pnoff(ip) + 1   ! global panel number of local file
-      ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-      cc = n*pipan*pjpan - pipan
-      do j = 1,pjpan
-        var(1+j*pil_g+ca:pipan+j*pil_g+ca,k) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,jpf)
-      end do
-    end do
-  end do
-end do
-
-return
-end subroutine host_hr4pr8
-
-subroutine proc_hr4pr8(rvar)
-
-use cc_mpi
-
-implicit none
-
-real(kind=8), dimension(:,:), intent(in) :: rvar
-real(kind=8), dimension(0,0,0) :: gvar 
-
-call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
-
-return
-end subroutine proc_hr4pr8
 #endif
 
-subroutine histrd5r4(iarchi,ier,name,ik,kk,ll,var,ifull,nogather)
+subroutine histrd5r4(iarchi,ier,name,ik,kk,ll,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reduce, histrd5_begin, histrd5_end, &
                    start_log, end_log, ccmpi_distribute, ccmpi_abort
@@ -1680,53 +991,28 @@ implicit none
 integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 real, dimension(:,:,:), intent(inout) :: var ! may be dummy argument from myid/=0
-logical, intent(in), optional :: nogather
-logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd5_begin)
 
-ngflag = .false.
-if ( present(nogather) ) then
-  ngflag = nogather
-end if
-
-if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
+if ( ifull==6*ik*ik .or. ptest ) then
   ! read local arrays without gather and distribute
   if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
     write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
     call ccmpi_abort(-1)
   end if
-  call hr5p(iarchi,ier,name,kk,ll,.true.,var)
+  if ( resprocformat ) then
+    call hr5p_procformat(iarchi,ier,name,kk,ll,var)
+  else
+    call hr5p_para(iarchi,ier,name,kk,ll,var)
+  end if
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
     write(6,'(" done histrd5 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
 
-else if ( ifull/=6*ik*ik ) then  
-  ! read local arrays with gather and distribute
-  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
-    write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
-    call ccmpi_abort(-1)
-  end if
-  if ( myid==0 ) then
-    call hr5sa(iarchi,ier,name,ik,kk,ll,var,ifull)
-  else 
-    call hr5p(iarchi,ier,name,kk,ll,.false.)
-    call ccmpi_distribute(var)
-  end if
-  
 else
-  ! read global arrays and gather on myid==0
-  if ( myid==0 ) then
-    if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
-      write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
-      call ccmpi_abort(-1)
-    end if
-    call hr5sa(iarchi,ier,name,ik,kk,ll,var,ifull)
-  else 
-    call hr5p(iarchi,ier,name,kk,ll,.false.)
-  end if
-
+  write(6,*) "ERROR: Incorrect grid size in histrd5r4"
+  call ccmpi_abort(-1)
 end if
 
 call END_LOG(histrd5_end)
@@ -1734,84 +1020,7 @@ call END_LOG(histrd5_end)
 return
 end subroutine histrd5r4
 
-!--------------------------------------------------------------------
-! Gather 3D+time fields on myid==0
-
-subroutine hr5sa(iarchi,ier,name,ik,kk,ll,var,ifull)
-      
-use cc_mpi, only : ccmpi_distribute, ccmpi_abort
-use parm_m
-      
-implicit none
-      
-integer, intent(in) :: iarchi, ik, kk, ll, ifull
-integer, intent(out) :: ier
-character(len=*), intent(in) :: name
-real, dimension(:,:,:), intent(inout) :: var
-real, dimension(:,:,:), allocatable :: globvar
-real :: vmax, vmin
-      
-if ( kk/=size(var,2) .or. ll/=size(var,3) ) then
-  write(6,*) "ERROR: Invalid number of vertical levels in hr5sa"
-  call ccmpi_abort(-1)
-end if
-
-allocate( globvar(6*ik*ik,kk,ll) )
-globvar(:,:,:) = 0.
-
-call hr5p(iarchi,ier,name,kk,ll,.false.,globvar)     
-
-if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
-  vmax = maxval(globvar)
-  vmin = minval(globvar)
-  write(6,'(" done histrd5 ",a18,2i3,i4,i3,2f12.4)') trim(name),kk,ll,ier,iarchi,vmin,vmax
-end if
-
-! Have to return correct value of ier on all processes because it's 
-! used for initialisation in calling routine
-if ( ifull==6*ik*ik ) then
-  ! read global arrays for myid==0
-  var(1:ifull,1:kk,1:ll) = globvar(1:ifull,1:kk,1:ll)
-else
-  ! read local arrays with gather and distribute (i.e., change in number of processors)
-  call ccmpi_distribute(var,globvar)
-endif
-
-deallocate( globvar )
-
-return
-end subroutine hr5sa      
-
-!--------------------------------------------------------------
-! This subroutine reads 3D+time input files
-
-! when qtest=.true. the input grid decomposition should
-! match the current processor decomposition.  We can then
-! skip the MPI gather and distribute steps.
-subroutine hr5p(iarchi,ier,name,kk,ll,qtest,var)
-
-implicit none
-
-integer, intent(in) :: iarchi, kk, ll
-integer, intent(out) :: ier
-logical, intent(in) :: qtest
-real, dimension(:,:,:), intent(inout), optional :: var
-character(len=*), intent(in) :: name
-
-if ( resprocformat .and. present(var) ) then
-  call hr5p_procformat(iarchi,ier,name,kk,ll,qtest,var)
-else if ( resprocformat ) then
-  call hr5p_procformat(iarchi,ier,name,kk,ll,qtest)  
-else if ( present(var) ) then
-  call hr5p_para(iarchi,ier,name,kk,ll,qtest,var)
-else
-  call hr5p_para(iarchi,ier,name,kk,ll,qtest)  
-end if
-
-return
-end subroutine hr5p
-
-subroutine hr5p_procformat(iarchi,ier,name,kk,ll,qtest,var)
+subroutine hr5p_procformat(iarchi,ier,name,kk,ll,var)
 
 use cc_mpi
       
@@ -1825,7 +1034,6 @@ integer(kind=4) :: idv, ndims
 real, dimension(:,:,:), intent(inout), optional :: var
 real, dimension(:,:,:), allocatable :: rvar
 real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
@@ -1855,20 +1063,8 @@ if ( mynproc>0 ) then
     ! unpack data
     rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)
 
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
-    else
-      ! e.g., mesonest file
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk,1:ll) = rvar(1:pipan*pjpan*pnpan,1:kk,1:ll)
-      else if ( myid==0 ) then
-        call host_hr5p(ipf,rvar,var)
-      else
-        call proc_hr5p(rvar)
-      end if
-    end if ! qtest
+    ca = pipan*pjpan*pnpan*ipf
+    var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
 
   end do ! ipf
 
@@ -1879,7 +1075,7 @@ end if ! mynproc>0
 return
 end subroutine hr5p_procformat
 
-subroutine hr5p_para(iarchi,ier,name,kk,ll,qtest,var)
+subroutine hr5p_para(iarchi,ier,name,kk,ll,var)
 
 use cc_mpi
       
@@ -1893,7 +1089,6 @@ integer(kind=4) :: idv, ndims
 real, dimension(:,:,:), intent(inout), optional :: var
 real, dimension(:,:,:), allocatable :: rvar
 real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
@@ -1925,20 +1120,8 @@ if ( mynproc>0 ) then
     ! unpack data
     rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)
 
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
-    else
-      ! e.g., mesonest file
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk,1:ll) = rvar(1:pipan*pjpan*pnpan,1:kk,1:ll)
-      else if ( myid==0 ) then
-        call host_hr5p(ipf,rvar,var)
-      else
-        call proc_hr5p(rvar)
-      end if
-    end if ! qtest
+    ca = pipan*pjpan*pnpan*ipf
+    var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
 
   end do ! ipf
 
@@ -1949,63 +1132,10 @@ end if ! mynproc
 return
 end subroutine hr5p_para
 
-subroutine host_hr5p(ipf,rvar,var)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ipf
-integer jpf, ip, n, no, ca, cc, j, k, l, ll, kk
-real, dimension(:,:,:), intent(inout) :: var
-real, dimension(:,:,:), intent(in) :: rvar
-real, dimension(pipan*pjpan*pnpan,size(var,2),size(var,3),fnresid) :: gvar 
-
-kk = size(var,2)
-ll = size(var,3)
-if ( kk/=size(rvar,2) .or. ll/=size(rvar,3) ) then
-  write(6,*) "ERROR: Mismatch in the number of vertical levels under host_hr5p"
-  call ccmpi_abort(-1)
-end if
-
-call ccmpi_gatherx(gvar,rvar,0,comm_ip)
-do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1   ! local file number
-  do l = 1,ll
-    do k = 1,kk
-      do n = 0,pnpan-1
-        no = n - pnoff(ip) + 1   ! global panel number of local file
-        ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-        cc = n*pipan*pjpan - pipan
-        do j = 1,pjpan
-          var(1+j*pil_g+ca:pipan+j*pil_g+ca,k,l) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,l,jpf)
-        end do
-      end do
-    end do
-  end do
-end do
-
-return
-end subroutine host_hr5p
-
-subroutine proc_hr5p(rvar)
-
-use cc_mpi
-
-implicit none
-
-real, dimension(:,:,:), intent(in) :: rvar
-real, dimension(0,0,0) :: gvar 
-
-call ccmpi_gatherx(gvar,rvar,0,comm_ip)
-
-return
-end subroutine proc_hr5p
-
 #ifndef i8r8
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields (double precision version)
-subroutine histrd5r8(iarchi,ier,name,ik,kk,ll,var,ifull,nogather)
+subroutine histrd5r8(iarchi,ier,name,ik,kk,ll,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reducer8, histrd5_begin, histrd5_end, &
                    start_log, end_log, ccmpi_distributer8, ccmpi_abort
@@ -2016,53 +1146,28 @@ implicit none
 integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 real(kind=8), dimension(:,:,:), intent(inout) :: var ! may be dummy argument from myid/=0
-logical, intent(in), optional :: nogather
-logical :: ngflag
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd5_begin)
 
-ngflag = .false.
-if ( present(nogather) ) then
-  ngflag = nogather
-end if
-
-if ( (ifull/=6*ik*ik.and.ptest) .or. ngflag ) then
+if ( ifull==6*ik*ik .or. ptest ) then
   ! read local arrays without gather and distribute
   if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
     write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
     call ccmpi_abort(-1)
   end if
-  call hr5pr8(iarchi,ier,name,kk,ll,.true.,var)
+  if ( resprocformat ) then
+    call hr5p_procformatr8(iarchi,ier,name,kk,ll,var)
+  else
+    call hr5p_parar8(iarchi,ier,name,kk,ll,var)
+  end if
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
     write(6,'(" done histrd5r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
 
-else if ( ifull/=6*ik*ik ) then  
-  ! read local arrays with gather and distribute
-  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
-    write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
-    call ccmpi_abort(-1)
-  end if
-  if ( myid==0 ) then
-    call hr5sar8(iarchi,ier,name,ik,kk,ll,var,ifull)
-  else 
-    call hr5pr8(iarchi,ier,name,kk,ll,.false.)
-    call ccmpi_distributer8(var)
-  end if
-  
-else
-  ! read global arrays and gather on myid==0
-  if ( myid==0 ) then
-    if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
-      write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
-      call ccmpi_abort(-1)
-    end if
-    call hr5sar8(iarchi,ier,name,ik,kk,ll,var,ifull)
-  else 
-    call hr5pr8(iarchi,ier,name,kk,ll,.false.)
-  end if
-
+else  
+  write(6,*) "ERROR: Incorrect grid size in histrd5r8"
+  call ccmpi_abort(-1)
 end if
 
 call END_LOG(histrd5_end)
@@ -2070,84 +1175,7 @@ call END_LOG(histrd5_end)
 return
 end subroutine histrd5r8
 
-!--------------------------------------------------------------------
-! Gather 3D+time fields on myid==0
-
-subroutine hr5sar8(iarchi,ier,name,ik,kk,ll,var,ifull)
-      
-use cc_mpi, only : ccmpi_distributer8, ccmpi_abort
-use parm_m
-      
-implicit none
-      
-integer, intent(in) :: iarchi, ik, kk, ll, ifull
-integer, intent(out) :: ier
-character(len=*), intent(in) :: name
-real(kind=8), dimension(:,:,:), intent(inout) :: var
-real(kind=8), dimension(:,:,:), allocatable :: globvar
-real(kind=8) :: vmax, vmin
-    
-if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
-  write(6,*) "ERROR: Incorrect number of levels in hr5sar8"
-  call ccmpi_abort(-1)
-end if
-
-allocate( globvar(6*ik*ik,kk,ll) )
-globvar(:,:,:) = 0._8
-
-call hr5pr8(iarchi,ier,name,kk,ll,.false.,globvar)     
-
-if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
-  vmax = maxval(globvar)
-  vmin = minval(globvar)
-  write(6,'(" done histrd5r8 ",a16,2i3,i4,i3,2f12.4)') trim(name),kk,ll,ier,iarchi,vmin,vmax
-end if
-
-! Have to return correct value of ier on all processes because it's 
-! used for initialisation in calling routine
-if ( ifull==6*ik*ik ) then
-  ! read global arrays for myid==0
-  var(1:ifull,1:kk,1:ll) = globvar(1:ifull,1:kk,1:ll)
-else
-  ! read local arrays with gather and distribute (i.e., change in number of processors)
-  call ccmpi_distributer8(var,globvar)
-endif
-
-deallocate( globvar )
-
-return
-end subroutine hr5sar8      
-
-!--------------------------------------------------------------
-! This subroutine reads 3D+time input files (Double precision version)
-
-! when qtest=.true. the input grid decomposition should
-! match the current processor decomposition.  We can then
-! skip the MPI gather and distribute steps.
-subroutine hr5pr8(iarchi,ier,name,kk,ll,qtest,var)
-
-implicit none
-
-integer, intent(in) :: iarchi, kk, ll
-integer, intent(out) :: ier
-logical, intent(in) :: qtest
-real(kind=8), dimension(:,:,:), intent(inout), optional :: var
-character(len=*), intent(in) :: name
-
-if ( resprocformat .and. present(var) ) then
-  call hr5p_procformatr8(iarchi,ier,name,kk,ll,qtest,var)
-else if ( resprocformat ) then
-  call hr5p_procformatr8(iarchi,ier,name,kk,ll,qtest)  
-else if ( present(var) ) then
-  call hr5p_parar8(iarchi,ier,name,kk,ll,qtest,var)
-else
-  call hr5p_parar8(iarchi,ier,name,kk,ll,qtest)  
-end if
-
-return
-end subroutine hr5pr8
-
-subroutine hr5p_procformatr8(iarchi,ier,name,kk,ll,qtest,var)
+subroutine hr5p_procformatr8(iarchi,ier,name,kk,ll,var)
 
 use cc_mpi
       
@@ -2161,7 +1189,6 @@ integer(kind=4) idv, ndims
 real(kind=8), dimension(:,:,:), intent(inout), optional :: var
 real(kind=8), dimension(:,:,:), allocatable :: rvar
 real(kind=4) laddoff, lsf
-logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
@@ -2193,20 +1220,8 @@ if ( mynproc>0 ) then
     ! unpack data
     rvar(:,:,:) = rvar(:,:,:)*real(lsf,8) + real(laddoff,8)
 
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
-    else
-      ! e.g., mesonest file
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk,1:ll) = rvar(1:pipan*pjpan*pnpan,1:kk,1:ll)
-      else if ( myid==0 ) then
-        call host_hr5pr8(ipf,rvar,var)
-      else
-        call proc_hr5pr8(rvar)
-      end if
-    end if ! qtest
+    ca = pipan*pjpan*pnpan*ipf
+    var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
 
   end do ! ipf
 
@@ -2217,7 +1232,7 @@ end if ! mynproc>0
 return
 end subroutine hr5p_procformatr8
 
-subroutine hr5p_parar8(iarchi,ier,name,kk,ll,qtest,var)
+subroutine hr5p_parar8(iarchi,ier,name,kk,ll,var)
 
 use cc_mpi
       
@@ -2231,7 +1246,6 @@ integer(kind=4) :: idv, ndims
 real(kind=8), dimension(:,:,:), intent(inout), optional :: var
 real(kind=8), dimension(:,:,:), allocatable :: rvar
 real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
@@ -2263,20 +1277,8 @@ if ( mynproc>0 ) then
     ! unpack data
     rvar(:,:,:) = rvar(:,:,:)*real(lsf,8) + real(laddoff,8)
 
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
-    else
-      ! e.g., mesonest file
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk,1:ll) = rvar(1:pipan*pjpan*pnpan,1:kk,1:ll)
-      else if ( myid==0 ) then
-        call host_hr5pr8(ipf,rvar,var)
-      else
-        call proc_hr5pr8(rvar)
-      end if
-    end if ! qtest
+    ca = pipan*pjpan*pnpan*ipf
+    var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
 
   end do ! ipf
 
@@ -2286,59 +1288,6 @@ end if ! mynproc>0
 
 return
 end subroutine hr5p_parar8
-
-subroutine host_hr5pr8(ipf,rvar,var)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ipf
-integer jpf, ip, n, no, ca, cc, j, k, l, kk, ll
-real(kind=8), dimension(:,:,:), intent(inout) :: var
-real(kind=8), dimension(:,:,:), intent(in) :: rvar
-real(kind=8), dimension(pipan*pjpan*pnpan,size(rvar,2),size(rvar,3),fnresid) :: gvar 
-
-kk = size(var,2)
-ll = size(var,3)
-if ( kk/=size(rvar,2) .or. ll/=size(rvar,3) ) then
-  write(6,*) "ERROR: Mismatch in the number of vertical levels under host_hr5p"
-  call ccmpi_abort(-1)
-end if
-
-call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
-do jpf = 1,fnresid
-  ip = ipf*fnresid + jpf - 1   ! local file number
-  do l = 1,ll
-    do k = 1,kk
-      do n = 0,pnpan-1
-        no = n - pnoff(ip) + 1   ! global panel number of local file
-        ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
-        cc = n*pipan*pjpan - pipan
-        do j = 1,pjpan
-          var(1+j*pil_g+ca:pipan+j*pil_g+ca,k,l) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,l,jpf)
-        end do
-      end do  
-    end do
-  end do
-end do
-
-return
-end subroutine host_hr5pr8
-
-subroutine proc_hr5pr8(rvar)
-
-use cc_mpi
-
-implicit none
-
-real(kind=8), dimension(:,:,:), intent(in) :: rvar
-real(kind=8), dimension(0,0,0,0) :: gvar 
-
-call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
-
-return
-end subroutine proc_hr5pr8
 #endif
 
 !--------------------------------------------------------------
