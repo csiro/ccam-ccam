@@ -2274,10 +2274,10 @@ k(:,wlev) = (sqrt(cdbot)*umag(:)/cu0)**2
 k=max(k,mink)
 
 zrough(:) = dgwater%zo(:)
-eps(:,1   ) = (cu0)**3*k(:,1   )**1.5/(vkar*(0.5*depth%dz(:,1   )+zrough(:)))
+eps(:,1   ) = (cu0)**3*k(:,1   )**1.5/(vkar*(0.5_8*depth%dz(:,1   )+zrough(:)))
 
-zrough(:) = 0.5*depth%dz(:,wlev)/exp(vkar/sqrt(cdbot))
-eps(:,wlev) = (cu0)**3*k(:,wlev)**1.5/(vkar*(0.5*depth%dz(:,wlev)+zrough(:)))
+zrough(:) = 0.5_8*depth%dz(:,wlev)/exp(vkar/sqrt(cdbot))
+eps(:,wlev) = (cu0)**3*k(:,wlev)**1.5/(vkar*(0.5_8*depth%dz(:,wlev)+zrough(:)))
 eps=max(eps,mineps)
 
 !limit length scale
@@ -2285,21 +2285,21 @@ L = cu0**3*k**1.5/eps
 if ( limitL==1 ) then
   minL=cu0**3*mink**1.5/mineps
   do ii=2,wlev-1
-    where ( n2(:,ii) > 0 )
-      L(:,ii) = max(min(L(:,ii),sqrt(0.56*k(:,ii))/n2(:,ii)),minL)
+    where ( n2(:,ii) > 0._8 )
+      L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),minL)
     end where
   end do
 end if
 
 !stability functions
 if ( fixedstabfunc==1 ) then
-  alpha = 0.0
-  cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
-  cud = 0.6985/(1.0 + 17.34*alpha)
+  alpha = 0.0_8
+  cu = (cu0 + 2.182_8*alpha)/(1.0 + 20.4_8*alpha + 53.12_8*alpha**2)
+  cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
 else
   alpha = L**2*n2/k
-  cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
-  cud = 0.6985/(1.0 + 17.34*alpha)
+  cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
+  cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
 end if
 
 km = cu*sqrt(k)*L
@@ -2393,17 +2393,17 @@ do ii=2,wlev-1
   aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  ))
   cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1))
   if ( k_mode==0 ) then !explicit eps
-    bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii)
+    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii)
     dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii) - eps(:,ii))
   else if ( k_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
-    bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)
+    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)
     dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
   else if ( k_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
-    where ( ps(:,ii) + pb(:,ii) > 0.0 )
-      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)
+    where ( ps(:,ii) + pb(:,ii) > 0.0_8 )
+      bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)
       dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
     elsewhere
-      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt/k(:,ii)*(eps(:,ii) - pb(:,ii))
+      bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt/k(:,ii)*(eps(:,ii) - pb(:,ii))
       dd(:,ii) = k(:,ii) + dtt*ps(:,ii)
     end where
   end if 
@@ -2420,17 +2420,17 @@ do ii=2,wlev-1
   aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  )*sigmaeps)
   cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1)*sigmaeps)
   if ( eps_mode==0 ) then !explicit eps
-    bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii)
+    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii)
     dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) - ce2*eps(:,ii))
   else if ( eps_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
-    bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
+    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
     dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
   else if ( eps_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
-    where ( ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) > 0 )
-      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
+    where ( ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) > 0.0_8 )
+      bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
       dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
     elsewhere
-      bb(:,ii) = 1.0 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce2 - ce3(:,ii)*pb(:,ii)/eps(:,ii))
+      bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce2 - ce3(:,ii)*pb(:,ii)/eps(:,ii))
       dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii))
     end where
   end if
@@ -2450,21 +2450,21 @@ L = cu0**3*k**1.5/eps
 if ( limitL==1 ) then
   minL=cu0**3*mink**1.5/mineps
   do ii=2,wlev-1
-    where ( n2(:,ii) > 0 )
-      L(:,ii) = max(min(L(:,ii),sqrt(0.56*k(:,ii))/n2(:,ii)),minL)
+    where ( n2(:,ii) > 0.0_8 )
+      L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),minL)
     end where
   end do
 end if
 
 !stability functions
 if ( fixedstabfunc==1 ) then
-  alpha = 0.0
-  cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
-  cud = 0.6985/(1.0 + 17.34*alpha)
+  alpha = 0.0_8
+  cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
+  cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
 else
   alpha = L**2*n2/k
-  cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
-  cud = 0.6985/(1.0 + 17.34*alpha)
+  cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
+  cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
 end if
 
 km = cu*sqrt(k)*L
