@@ -9576,28 +9576,42 @@ contains
       nlen = pipan*pjpan*pnpan
       lsize = nlen
       lcomm = comm_world
+      
+      if ( fnproc == 1 ) then
+        
+         ! use Bcast for single input file
+         if ( myid == 0 ) then
+            abuf(1:nlen,1) = sinp(1:nlen)
+         end if
+         call START_LOG(bcast_begin)
+         call MPI_Bcast( abuf(:,1), lsize, ltype, 0_4, lcomm, ierr )  
+         call END_LOG(bcast_end)
+          
+      else    
 
-      !     Set up the buffers to recv
-      nreq = 0
-      do w = 1,ncount
-         ipf = filemap_rmod(w)
-         itag = 50 + ipf
-         nreq  = nreq + 1
-         call MPI_IRecv( abuf(:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
-      end do
+         !     Set up the buffers to recv
+         nreq = 0
+         do w = 1,ncount
+            ipf = filemap_rmod(w)
+            itag = 50 + ipf
+            nreq  = nreq + 1
+            call MPI_IRecv( abuf(:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
+         end do
       
-      !     Set up the buffers to send
-      do w = 1,size(filemap_send)
-         ipf = filemap_smod(w)
-         itag = 50 + ipf
-         cc = nlen*ipf
-         nreq  = nreq + 1
-         call MPI_ISend( sinp(1+cc:nlen+cc), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
-      end do
+         !     Set up the buffers to send
+         do w = 1,size(filemap_send)
+            ipf = filemap_smod(w)
+            itag = 50 + ipf
+            cc = nlen*ipf
+            nreq  = nreq + 1
+            call MPI_ISend( sinp(1+cc:nlen+cc), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
+         end do
       
-      call START_LOG(mpiwaitmapfile_begin) 
-      call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
-      call END_LOG(mpiwaitmapfile_end)
+         call START_LOG(mpiwaitmapfile_begin) 
+         call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwaitmapfile_end)
+         
+      end if   
       
    end subroutine ccmpi_filewinget2
 
@@ -9627,48 +9641,63 @@ contains
       lsize = nlen*kx
       lcomm = comm_world
       
-      do ipf = 0,mynproc-1
-         cc = nlen*ipf 
-         cbuf(1:nlen,1:kx,ipf+1) = sinp(1+cc:nlen+cc,1:kx)
-      end do  
+      if ( fnproc == 1 ) then
       
-      !     Set up the buffers to recv
-      nreq = 0
-      do w = 1,ncount
-         ipf = filemap_rmod(w)
-         itag = 51 + ipf
-         nreq  = nreq + 1
-         i_list(nreq) = w
-         call MPI_IRecv( bbuf(:,:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
-      end do
-      rreq = nreq
+         ! use Bcast for single input file 
+         if ( myid == 0 ) then
+            bbuf(1:nlen,1:kx,1) = sinp(1:nlen,1:kx)    
+         end if   
+         call START_LOG(bcast_begin)
+         call MPI_Bcast( bbuf(:,:,1), lsize, ltype, 0_4, lcomm, ierr )  
+         call END_LOG(bcast_end)
+         abuf(1:nlen,1,1:kx) = bbuf(1:nlen,1:kx,1)  
+         
+      else   
       
-      !     Set up the buffers to send
-      do w = 1,size(filemap_send)
-         ipf = filemap_smod(w)
-         itag = 51 + ipf
-         nreq  = nreq + 1
-         call MPI_ISend( cbuf(:,:,ipf+1), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )  
-      end do
+         do ipf = 0,mynproc-1
+            cc = nlen*ipf 
+            cbuf(1:nlen,1:kx,ipf+1) = sinp(1+cc:nlen+cc,1:kx)
+         end do  
       
-      ! Unpack incomming messages
-      rcount = rreq
-      do while ( rcount > 0 )
-         call START_LOG(mpiwaitmap_begin) 
-         call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaitmap_end)
-         rcount = rcount - ldone
-         do jproc = 1,ldone
-            w = i_list(donelist(jproc))
-            abuf(1:nlen,w,1:kx) = bbuf(1:nlen,1:kx,w)
+         !     Set up the buffers to recv
+         nreq = 0
+         do w = 1,ncount
+            ipf = filemap_rmod(w)
+            itag = 51 + ipf
+            nreq  = nreq + 1
+            i_list(nreq) = w
+            call MPI_IRecv( bbuf(:,:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
          end do
-      end do
+         rreq = nreq
       
-      sreq = nreq - rreq
-      if ( sreq > 0 ) then
-         call START_LOG(mpiwaitmapfile_begin) 
-         call MPI_Waitall( sreq, i_req(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaitmapfile_end)
+         !     Set up the buffers to send
+         do w = 1,size(filemap_send)
+            ipf = filemap_smod(w)
+            itag = 51 + ipf
+            nreq  = nreq + 1
+            call MPI_ISend( cbuf(:,:,ipf+1), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )  
+         end do
+      
+         ! Unpack incomming messages
+         rcount = rreq
+         do while ( rcount > 0 )
+            call START_LOG(mpiwaitmap_begin) 
+            call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+            call END_LOG(mpiwaitmap_end)
+            rcount = rcount - ldone
+            do jproc = 1,ldone
+               w = i_list(donelist(jproc))
+               abuf(1:nlen,w,1:kx) = bbuf(1:nlen,1:kx,w)
+            end do
+         end do
+      
+         sreq = nreq - rreq
+         if ( sreq > 0 ) then
+            call START_LOG(mpiwaitmapfile_begin) 
+            call MPI_Waitall( sreq, i_req(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+            call END_LOG(mpiwaitmapfile_end)
+         end if
+         
       end if   
       
    end subroutine ccmpi_filewinget3
