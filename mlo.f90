@@ -95,7 +95,7 @@ type depthdata
 end type depthdata
 
 type waterdata
-  real, dimension(:,:), allocatable :: temp         ! water layer temperature delta
+  real, dimension(:,:), allocatable :: temp         ! water layer temperature with respect to wrtemp (K)
   real, dimension(:,:), allocatable :: sal          ! water layer salinity (PSU)
   real, dimension(:,:), allocatable :: u            ! water u-current (m/s)
   real, dimension(:,:), allocatable :: v            ! water v-current (m/s)
@@ -1433,11 +1433,11 @@ if ( sigin(1)>sigin(wlin) ) then
 end if
 
 select case(mode)
-  case(0,1)
+  case(0,1) ! interpolate to depth
     do iqw = 1,wfull
       dpin(1:wlin) = sigin(1:wlin)*deptmp(iqw)  
       if ( wlev==wlin ) then
-        if ( all(abs(depth%depth(iqw,1:wlev)-dpin(1:wlev))<0.01) ) then
+        if ( all( abs(depth%depth(iqw,1:wlev)-dpin(1:wlev))<1.e-6 ) ) then
           newdatb(iqw,1:wlev) = newdata(iqw,1:wlev)
           cycle
         end if
@@ -1456,26 +1456,26 @@ select case(mode)
         end if
       end do
     end do
-  case(2,3)
+  case(2,3) ! interpolate to sigma level
     do iqw = 1,wfull
       sig = depth%depth(iqw,:)/max(depth%depth_hl(iqw,wlev),1.e-20)
       if ( wlev==wlin ) then
-        if ( all(abs(sig(1:wlev)-sigin(1:wlev))<0.0001) ) then
+        if ( all( abs(sig(1:wlev)-sigin(1:wlev))<1.e-6 ) ) then
           newdatb(iqw,1:wlev) = newdata(iqw,1:wlev)
           cycle
         end if
       end if
-      do ii=1,wlev
-        if (sig(ii)>=sigin(wlin)) then
-          newdatb(iqw,ii)=newdata(iqw,wlin)
-        else if (sig(ii)<=sigin(1)) then
-          newdatb(iqw,ii)=newdata(iqw,1)
+      do ii = 1,wlev
+        if ( sig(ii)>=sigin(wlin) ) then
+          newdatb(iqw,ii) = newdata(iqw,wlin)
+        else if ( sig(ii)<=sigin(1) ) then
+          newdatb(iqw,ii) = newdata(iqw,1)
         else
-          pos=maxloc(sigin,sigin<sig(ii))
-          pos(1)=max(1,min(wlin-1,pos(1)))
-          x=(sig(ii)-sigin(pos(1)))/max(sigin(pos(1)+1)-sigin(pos(1)),1.e-20)
-          x=max(0.,min(1.,x))
-          newdatb(iqw,ii)=newdata(iqw,pos(1)+1)*x+newdata(iqw,pos(1))*(1.-x)
+          pos = maxloc(sigin,sigin<sig(ii))
+          pos(1) = max(1,min(wlin-1,pos(1)))
+          x = (sig(ii)-sigin(pos(1)))/max(sigin(pos(1)+1)-sigin(pos(1)),1.e-20)
+          x = max(0.,min(1.,x))
+          newdatb(iqw,ii) = newdata(iqw,pos(1)+1)*x+newdata(iqw,pos(1))*(1.-x)
         end if
       end do
     end do
@@ -1484,8 +1484,8 @@ select case(mode)
     stop
 end select
 
-do ii=1,wlev
-  mlodat(:,ii)=unpack(newdatb(:,ii),wpack,mlodat(:,ii))
+do ii = 1,wlev
+  mlodat(:,ii) = unpack(newdatb(:,ii),wpack,mlodat(:,ii))
 end do
 
 return

@@ -9650,6 +9650,7 @@ contains
          call START_LOG(bcast_begin)
          call MPI_Bcast( bbuf(:,:,1), lsize, ltype, 0_4, lcomm, ierr )  
          call END_LOG(bcast_end)
+         abuf(1:nlen,1,1:kx) = bbuf(1:nlen,1:kx,1)  
          
       else   
       
