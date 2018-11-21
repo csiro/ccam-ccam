@@ -1698,16 +1698,10 @@ do n = 1,njumps
     
     ! Set up snow fall speed field
     select case(abs(ldr))
-      case(1)
-        if ( ncloud>=3 ) then
-          where ( cifr(1:imax,k)>1.e-10 )
-            vi2(1:imax) = max( 0.1, 3.29*(max( rhoi(:,k), 0. )/cifr(:,k))**0.16 ) ! from Lin et al 1983   
-          end where
-        else    
-          where ( cifr(1:imax,k)>=1.e-10 )
-            vi2(1:imax) = max( 0.1, 3.23*(max( rhoi(:,k), 0. )/cifr(:,k))**0.17 )  ! Ice fall speed from LDR 1997
-          end where
-        end if 
+      case(1)  
+        where ( cifr(1:imax,k)>=1.e-10 )
+          vi2(1:imax) = max( 0.1, 3.23*(max( rhoi(:,k), 0. )/cifr(:,k))**0.17 )  ! Ice fall speed from LDR 1997
+        end where
       case(2)
         where ( cifr(:,k)>=1.e-10 )
           vi2(:) = 0.9*3.23*(max(rhoi(:,k),0.)/cifr(:,k))**0.17
@@ -1816,9 +1810,9 @@ do n = 1,njumps
     
     ! Calculate rain fall speed (MJT suggestion)
     if ( ncloud>=2 ) then
-      !Fr(:)        = max( fluxrain(:)/tdt/max(crfra(:), 1.e-15), 0. )
-      !vr2          = 11.3*Fr(:)**(1./9.)/sqrt(rhoa(:,k))  !Actual fall speed
-      vr2           = 5./sqrt(rhoa(:,k))                   !Nominal fall speed
+      Fr(:)         = max( fluxrain(:)/tdt/max(crfra(:), 1.e-15), 0. )
+      vr2           = 11.3*Fr(:)**(1./9.)/sqrt(rhoa(:,k))  !Actual fall speed
+      !vr2          = 5./sqrt(rhoa(:,k))                   !Nominal fall speed
       vr2           = max( vr2, 0.01 )
       alph(:)       = tdt*vr2/dz(:,k)
       foutliq(:,k)  = 1. - exp(-alph(:))

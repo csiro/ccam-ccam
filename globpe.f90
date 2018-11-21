@@ -1469,9 +1469,8 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     siburbanfrac
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
-    factchseaice,minwater,mxd,mindep,mlomfix,otaumode,            &
-    alphavis_seaice,alphanir_seaice,mlojacobi,mlo_rtest,mlosolve, &
-    usepice,mlosigma,                                             &
+    factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
+    alphanir_seaice,mlojacobi,mlo_rtest,usepice,mlosigma,         &
     rivermd,basinmd,rivercoeff                                      ! River
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
@@ -2281,7 +2280,7 @@ ateb_statsmeth    = dumi(29)
 ateb_behavmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(11), dumi(11) )
+allocate( dumr(11), dumi(9) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2305,14 +2304,12 @@ if ( myid==0 ) then
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
-  dumi(4)  = mlomfix
-  dumi(5)  = otaumode
-  dumi(6)  = rivermd
-  dumi(7)  = basinmd
-  dumi(8)  = mlojacobi
-  dumi(9)  = mlosolve
-  dumi(10) = usepice
-  dumi(11) = mlosigma
+  dumi(4)  = otaumode
+  dumi(5)  = rivermd
+  dumi(6)  = basinmd
+  dumi(7)  = mlojacobi
+  dumi(8) = usepice
+  dumi(9) = mlosigma
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2330,14 +2327,12 @@ mlo_rtest       = dumr(11)
 mlodiff         = dumi(1)
 usetide         = dumi(2) 
 zomode          = dumi(3) 
-mlomfix         = dumi(4) 
-otaumode        = dumi(5) 
-rivermd         = dumi(6)
-basinmd         = dumi(7)
-mlojacobi       = dumi(8)
-mlosolve        = dumi(9)
-usepice         = dumi(10)
-mlosigma        = dumi(11)
+otaumode        = dumi(4) 
+rivermd         = dumi(5)
+basinmd         = dumi(6)
+mlojacobi       = dumi(7)
+usepice         = dumi(8)
+mlosigma        = dumi(9)
 deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0
@@ -2703,8 +2698,8 @@ if ( myid<nproc ) then
     write(6,'(i5,i4,5f9.2)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
     write(6,*)' mlodiff  zomode zoseaice factchseaice otaumode'
     write(6,'(2i8,f9.6,f13.6,i8)') mlodiff,zomode,zoseaice,factchseaice,otaumode
-    write(6,*)' usetide mlomfix mlojacobi alphavis_seaice alphanir_seaice'
-    write(6,'(3i8,2f8.4)') usetide,mlomfix,mlojacobi,alphavis_seaice,alphanir_seaice
+    write(6,*)' usetide mlojacobi alphavis_seaice alphanir_seaice'
+    write(6,'(2i8,2f8.4)') usetide,mlojacobi,alphavis_seaice,alphanir_seaice
     write(6,*)'River options:'
     write(6,*)' nriver rivermd basinmd rivercoeff'
     write(6,'(3i8,g9.2)') nriver,rivermd,basinmd,rivercoeff
