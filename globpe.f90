@@ -1370,7 +1370,7 @@ integer isoth, nsig, lapsbot
 integer secs_rad, nversion
 integer mstn, io_nest, mbd_min
 integer opt, nopt
-integer npa, npb ! depreciated namelist options
+integer npa, npb, mlomfix ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr
 real, dimension(8) :: temparray
@@ -1471,7 +1471,8 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
     alphanir_seaice,mlojacobi,mlo_rtest,usepice,mlosigma,         &
-    rivermd,basinmd,rivercoeff                                      ! River
+    rivermd,basinmd,rivercoeff,                                   & ! River
+    mlomfix                                                         ! Depreciated
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
 
