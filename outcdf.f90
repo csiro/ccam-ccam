@@ -891,9 +891,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mlo_rtest',mlo_rtest)
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
-    call ccnf_put_attg(idnc,'mlomfix',mlomfix)
     call ccnf_put_attg(idnc,'mlosigma',mlosigma)
-    call ccnf_put_attg(idnc,'mlosolve',mlosolve)
     call ccnf_put_attg(idnc,'mxd',mxd)
     call ccnf_put_attg(idnc,'oclosure',oclosure)
     call ccnf_put_attg(idnc,'ocneps',ocneps)
@@ -2581,7 +2579,7 @@ do k=1,ms
     aa(:) = tgg(:,k)      ! Allows ocean temperatures to use a 290K offset
   end where
   write(vname,'("tgg",I1.1)') k
-  call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  call histwrt3(aa,trim(vname),idnc,iarch,local,.true.)
   where ( tgg(:,k)<100. )
     tgg(:,k) = tgg(:,k) + wrtemp
   end where
@@ -2843,22 +2841,22 @@ if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 .and. save_aerosols ) then
   do k = 1,ndust
     aa = max(duste(:,k)*3.154e10,0.) ! g/m2/yr
     write(vname,'("dust",I1.1,"e_ave")') k
-    call histwrt3(aa,vname,idnc,iarch,local,lave)
+    call histwrt3(aa,trim(vname),idnc,iarch,local,lave)
   end do  
   do k = 1,ndust
     aa=max(dustdd(:,k)*3.154e10,0.) ! g/m2/yr
     write(vname,'("dust",I1.1,"dd_ave")') k
-    call histwrt3(aa,vname,idnc,iarch,local,lave)
+    call histwrt3(aa,trim(vname),idnc,iarch,local,lave)
   end do
   do k = 1,ndust
     aa=max(dustwd(:,k)*3.154e10,0.) ! g/m2/yr
     write(vname,'("dust",I1.1,"wd_ave")') k
-    call histwrt3(aa,vname,idnc,iarch,local,lave)
+    call histwrt3(aa,trim(vname),idnc,iarch,local,lave)
   end do  
   do k = 1,ndust
     aa=max(dust_burden(:,k)*1.e6,0.) ! mg/m2
     write(vname,'("dust",I1.1,"b_ave")') k
-    call histwrt3(aa,vname,idnc,iarch,local,lave)
+    call histwrt3(aa,trim(vname),idnc,iarch,local,lave)
   end do  
   aa=max(bce*3.154e10,0.) ! g/m2/yr
   call histwrt3(aa,'bce_ave',idnc,iarch,local,lave)
@@ -2989,22 +2987,22 @@ if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
   do k = 1,5
     write(vname,'("rooftemp",I1.1)') k
     aa = 999.
-    call atebsaved(aa,vname,0,rawtemp=.true.)
+    call atebsaved(aa,trim(vname),0,rawtemp=.true.)
     where ( aa<100. .and. itype==1 )
       aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
     end where  
     write(vname,'("rooftgg",I1.1)') k
-    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    call histwrt3(aa,trim(vname),idnc,iarch,local,.true.)
   end do  
   do k = 1,5
     write(vname,'("walletemp",I1.1)') k  
     aa = 999.
-    call atebsaved(aa,vname,0,rawtemp=.true.)
+    call atebsaved(aa,trim(vname),0,rawtemp=.true.)
     where ( aa<100. .and. itype==1 )
       aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
     end where  
     write(vname,'("waletgg",I1.1)') k
-    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    call histwrt3(aa,trim(vname),idnc,iarch,local,.true.)
   end do  
   do k = 1,5
     write(vname,'("wallwtemp",I1.1)') k  
@@ -3014,37 +3012,37 @@ if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
       aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
     end where  
     write(vname,'("walwtgg",I1.1)') k
-    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    call histwrt3(aa,trim(vname),idnc,iarch,local,.true.)
   end do  
   do k = 1,5
     write(vname,'("roadtemp",I1.1)') k  
     aa = 999.
-    call atebsaved(aa,vname,0,rawtemp=.true.)
+    call atebsaved(aa,trim(vname),0,rawtemp=.true.)
     where ( aa<100. .and. itype==1 )
       aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
     end where  
     write(vname,'("roadtgg",I1.1)') k
-    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    call histwrt3(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("slabtemp",I1.1)') k  
     aa = 999.
-    call atebsaved(aa,vname,0,rawtemp=.true.)
+    call atebsaved(aa,trim(vname),0,rawtemp=.true.)
     where ( aa<100. .and. itype==1 )
       aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
     end where  
     write(vname,'("slabtgg",I1.1)') k
-    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    call histwrt3(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("intmtemp",I1.1)') k  
     aa = 999.
-    call atebsaved(aa,vname,0,rawtemp=.true.)
+    call atebsaved(aa,trim(vname),0,rawtemp=.true.)
     where ( aa<100. .and. itype==1 )
       aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
     end where  
     write(vname,'("intmtgg",I1.1)') k
-    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    call histwrt3(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   aa = 999.
   call atebsaved(aa,"roomtemp",0)

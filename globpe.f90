@@ -1374,7 +1374,7 @@ integer isoth, nsig, lapsbot
 integer secs_rad, nversion
 integer mstn, io_nest, mbd_min
 integer opt, nopt
-integer npa, npb ! depreciated namelist options
+integer npa, npb, mlomfix ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr
 real, dimension(8) :: temparray
@@ -1473,12 +1473,12 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     siburbanfrac
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
-    factchseaice,minwater,mxd,mindep,mlomfix,otaumode,oclosure,   &
-    alphavis_seaice,alphanir_seaice,mlojacobi,mlo_rtest,mlosolve, &
-    usepice,mlosigma,                                             &
+    factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
+    alphanir_seaice,mlojacobi,mlo_rtest,usepice,mlosigma,         &
     pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    &
-    nops,nopb,fixedstabfunc,omink,omineps,                        &
-    rivermd,basinmd,rivercoeff                                      ! River
+    nops,nopb,fixedstabfunc,omink,omineps,oclosure,               &
+    rivermd,basinmd,rivercoeff,                                   & ! River
+    mlomfix                                                         ! Depreciated
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
 
@@ -2287,7 +2287,7 @@ ateb_statsmeth    = dumi(29)
 ateb_behavmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(15), dumi(21) )
+allocate( dumr(15), dumi(19) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2315,24 +2315,22 @@ if ( myid==0 ) then
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
-  dumi(4)  = mlomfix
-  dumi(5)  = otaumode
-  dumi(6)  = rivermd
-  dumi(7)  = basinmd
-  dumi(8)  = mlojacobi
-  dumi(9)  = mlosolve
-  dumi(10) = usepice
-  dumi(11) = mlosigma
-  dumi(12) = oclosure
-  dumi(13) = nsteps
-  dumi(14) = k_mode
-  dumi(15) = eps_mode
-  dumi(16) = limitL
-  dumi(17) = fixedce3
-  dumi(18) = calcinloop
-  dumi(19) = nops
-  dumi(20) = nopb
-  dumi(21) = fixedstabfunc
+  dumi(4)  = otaumode
+  dumi(5)  = rivermd
+  dumi(6)  = basinmd
+  dumi(7)  = mlojacobi
+  dumi(8) = usepice
+  dumi(9) = mlosigma
+  dumi(10) = oclosure
+  dumi(11) = nsteps
+  dumi(12) = k_mode
+  dumi(13) = eps_mode
+  dumi(14) = limitL
+  dumi(15) = fixedce3
+  dumi(16) = calcinloop
+  dumi(17) = nops
+  dumi(18) = nopb
+  dumi(19) = fixedstabfunc
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2354,24 +2352,22 @@ omineps         = dumr(15)
 mlodiff         = dumi(1)
 usetide         = dumi(2) 
 zomode          = dumi(3) 
-mlomfix         = dumi(4) 
-otaumode        = dumi(5) 
-rivermd         = dumi(6)
-basinmd         = dumi(7)
-mlojacobi       = dumi(8)
-mlosolve        = dumi(9)
-usepice         = dumi(10)
-mlosigma        = dumi(11)
-oclosure        = dumi(12)
-nsteps          = dumi(13)
-k_mode          = dumi(14)
-eps_mode        = dumi(15)
-limitL          = dumi(16)
-fixedce3        = dumi(17)
-calcinloop      = dumi(18)
-nops            = dumi(19)
-nopb            = dumi(20)
-fixedstabfunc   = dumi(21)
+otaumode        = dumi(4) 
+rivermd         = dumi(5)
+basinmd         = dumi(6)
+mlojacobi       = dumi(7)
+usepice         = dumi(8)
+mlosigma        = dumi(9)
+oclosure        = dumi(10)
+nsteps          = dumi(11)
+k_mode          = dumi(12)
+eps_mode        = dumi(13)
+limitL          = dumi(14)
+fixedce3        = dumi(15)
+calcinloop      = dumi(16)
+nops            = dumi(17)
+nopb            = dumi(18)
+fixedstabfunc   = dumi(19)
 if ( oclosure==0 ) then
   nsteps = 1
 end if
@@ -2740,8 +2736,8 @@ if ( myid<nproc ) then
     write(6,'(i5,i4,5f9.2)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
     write(6,*)' mlodiff  zomode zoseaice factchseaice otaumode'
     write(6,'(2i8,f9.6,f13.6,i8)') mlodiff,zomode,zoseaice,factchseaice,otaumode
-    write(6,*)' usetide mlomfix mlojacobi alphavis_seaice alphanir_seaice'
-    write(6,'(3i8,2f8.4)') usetide,mlomfix,mlojacobi,alphavis_seaice,alphanir_seaice
+    write(6,*)' usetide mlojacobi alphavis_seaice alphanir_seaice'
+    write(6,'(2i8,2f8.4)') usetide,mlojacobi,alphavis_seaice,alphanir_seaice
     write(6,*)'River options:'
     write(6,*)' nriver rivermd basinmd rivercoeff'
     write(6,'(3i8,g9.2)') nriver,rivermd,basinmd,rivercoeff
