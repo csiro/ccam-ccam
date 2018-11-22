@@ -202,17 +202,21 @@ integer, parameter :: deprelax  = 0       ! surface height (0=vary, 1=relax, 2=s
 integer, save      :: otaumode  = 0       ! Momentum coupling (0=Explicit, 1=Implicit, 2=Mixed)
 integer, save      :: mlosigma  = 0       ! Sigma levels (0=cubic, 1=quad, 2=gotm, 3=linear)
 integer, save      :: oclosure  = 0       ! 0- kpp, 1- k-eps
-real, save :: pdu = 2.7                   ! Zoom factor near the surface
-real, save :: pdl = 0.0                   ! Zoom factor near the bottom
-integer, save :: nsteps = 1
-integer, save :: k_mode = 2               !0-fully explicit k, 1-implicit k, 2-implicit k & pb
-integer, save :: eps_mode = 2             !0-fully explicit eps, 1-implicit eps, 2-implicit eps & pb
-integer, save :: limitL = 1               !0-no length scale limit, 1-limit length scale
-integer, save :: fixedce3 = 0             !0-dynamic ce3, 1-fixed ce3
-integer, save :: calcinloop = 0           !0-shear & production outside coupling loop, 1-inside
-integer, save :: nops = 0                 !0-calculate shear production, 1-no shear production
-integer, save :: nopb = 0                 !0-calculate buoyancy production, 1-no buoyancy production
-integer, save :: fixedstabfunc = 0        !0-dynamic stability functions, 1-fixed stability functions
+
+!k-eps parameters
+real, save :: pdu = 2.7                   ! Zoom factor near the surface for mlosigma==gotm
+real, save :: pdl = 0.0                   ! Zoom factor near the bottom for mlosigma==gotm
+integer, save :: nsteps = 1               ! Number of sub-steps to couple k-eps equations
+integer, save :: k_mode = 2               ! 0-fully explicit k, 1-implicit k, 2-implicit k & pb
+integer, save :: eps_mode = 2             ! 0-fully explicit eps, 1-implicit eps, 2-implicit eps & pb
+integer, save :: limitL = 1               ! 0-no length scale limit, 1-limit length scale
+integer, save :: fixedce3 = 0             ! 0-dynamic ce3, 1-fixed ce3
+integer, save :: calcinloop = 0           ! 0-shear & production outside coupling loop, 1-inside
+integer, save :: nops = 0                 ! 0-calculate shear production, 1-no shear production
+integer, save :: nopb = 0                 ! 0-calculate buoyancy production, 1-no buoyancy production
+integer, save :: fixedstabfunc = 0        ! 0-dynamic stability functions, 1-fixed stability functions
+real, save :: mink=1.e-8                  ! Minimum k
+real, save :: mineps=1.e-11               ! Minimum eps
 
 ! model parameters
 real, save :: mxd      = 5002.18          ! Max depth (m)
@@ -267,9 +271,6 @@ real, parameter :: chs=2.6                ! 5.3 in rams
 real, parameter :: cms=5.                 ! 7.4 in rams
 real, parameter :: fmroot=0.57735
 real, parameter :: rimax=(1./fmroot-1.)/bprm
-!k-eps parameters
-real, save :: mink=1.e-8
-real, save :: mineps=1.e-11
 
 interface mloimport
   module procedure mloimport_ifull,mloimport_imax
