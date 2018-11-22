@@ -5042,18 +5042,20 @@ contains
             end do   
          end if   
          iqq = iqq + (iend-ibeg+1)*kx
-         ibeg = bnds(lproc)%slenx_bg(lcolour)
-         iend = bnds(lproc)%slenx_fn(lcolour)
-         if ( iend >= ibeg ) then
-            do k = 1,kx 
+         if ( extra ) then
+            ibeg = bnds(lproc)%slenx_bg(lcolour)
+            iend = bnds(lproc)%slenx_fn(lcolour)
+            if ( iend >= ibeg ) then
+               do k = 1,kx 
 !$omp simd
-               do iq = 1,iend-ibeg+1    
-                  bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1))  &
-                      = t(bnds(lproc)%send_list(iq+ibeg-1),k)
-               end do
-            end do   
-         end if   
-         iqq = iqq + (iend-ibeg+1)*kx
+                  do iq = 1,iend-ibeg+1    
+                     bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1))  &
+                         = t(bnds(lproc)%send_list(iq+ibeg-1),k)
+                  end do
+               end do   
+            end if   
+            iqq = iqq + (iend-ibeg+1)*kx
+         end if  
          if ( iqq > 0 ) then
             nreq = nreq + 1
             llen = iqq
@@ -5121,15 +5123,18 @@ contains
                end do
             end do   
             iqq = iqq + (iend-ibeg+1)*kx
-            ibeg = bnds(lproc)%rlenx_bg(lcolour)
-            iend = bnds(lproc)%rlenx_fn(lcolour)
-            do k = 1,kx
+            if ( extra ) then
+               ibeg = bnds(lproc)%rlenx_bg(lcolour)
+               iend = bnds(lproc)%rlenx_fn(lcolour)
+               do k = 1,kx
 !$omp simd
-               do iq = 1,iend-ibeg+1
-                  t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
-                      = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
+                  do iq = 1,iend-ibeg+1
+                     t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
+                         = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
+                  end do
                end do
-            end do  
+               iqq = iqq + (iend-ibeg+1)*kx
+            end if   
          end do
       end do
 
