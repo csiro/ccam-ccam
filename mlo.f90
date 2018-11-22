@@ -1,4 +1,3 @@
-! Conformal Cubic Atmospheric Model
     
 ! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
@@ -100,7 +99,7 @@ interface interpolate_hl
 end interface
 
 interface thomas
-  module procedure thomas8i4o, thomas8i8o, thomas16i16o
+  module procedure thomas8i4o, thomas8i8o
 end interface
 
 type turbdata
@@ -4429,39 +4428,6 @@ end do
 
 return
 end subroutine thomas8i8o
-                     
-pure subroutine thomas16i16o(outo,aai,bbi,cci,ddi)
-
-implicit none
-
-integer ii, nlev
-real(kind=16), dimension(:,:), intent(out) :: outo
-real(kind=16), dimension(:,2:), intent(in) :: aai
-real(kind=16), dimension(:,:), intent(in) :: bbi,ddi
-real(kind=16), dimension(:,:), intent(in) :: cci
-real(kind=16), dimension(size(outo,1),size(outo,2)) :: cc, dd, ans
-real(kind=16), dimension(size(outo,1)) :: n
-
-nlev = size(outo,2)
-cc(:,1) = cci(:,1)/bbi(:,1)
-dd(:,1) = ddi(:,1)/bbi(:,1)
-
-do ii = 2,nlev-1
-  n = bbi(:,ii)-cc(:,ii-1)*aai(:,ii)
-  cc(:,ii) = cci(:,ii)/n
-  dd(:,ii) = (ddi(:,ii)-dd(:,ii-1)*aai(:,ii))/n
-end do
-n = bbi(:,nlev)-cc(:,nlev-1)*aai(:,nlev)
-dd(:,nlev) = (ddi(:,nlev)-dd(:,nlev-1)*aai(:,nlev))/n
-ans(:,nlev) = dd(:,nlev)
-outo(:,nlev) = ans(:,nlev)
-do ii = nlev-1,1,-1
-  ans(:,ii) = dd(:,ii)-cc(:,ii)*ans(:,ii+1)
-  outo(:,ii) = ans(:,ii)
-end do
-
-return
-end subroutine thomas16i16o
                      
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Determine ice fluxes
