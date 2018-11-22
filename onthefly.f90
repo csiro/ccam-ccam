@@ -1663,65 +1663,29 @@ if ( nested/=1 .and. nested/=3 ) then
   ! -----------------------------------------------------------------
   ! Restart fields
   if ( nested==0 ) then
-    ! DPSLDT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! ATMOSPHERE DATA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     dpsldt(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'dpsldt',ik,kk,dpsldt,ifull)
-    end if
-
-    ! ZGNHS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     phi_nh(:,:) = 0.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'zgnhs',ik,kk,phi_nh,ifull)
-    end if
-    
-    ! SDOT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     sdot(:,:) = -999.
-    if ( lrestart ) then
-      sdot(:,1) = 0.
-      call histrd4(iarchi,ier,'sdot',ik,kk,sdot(:,2:kk+1),ifull)
-    end if
-
-    ! PSLX !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     pslx(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'pslx',ik,kk,pslx,ifull)
-    end if
-          
-    ! SAVU !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savu(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'savu',ik,kk,savu,ifull)
-    end if
-          
-    ! SAVV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savv(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'savv',ik,kk,savv,ifull)
-    end if
-
-    ! SAVU1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savu1(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'savu1',ik,kk,savu1,ifull)
-    end if
-          
-    ! SAVV1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savv1(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'savv1',ik,kk,savv1,ifull)
-    end if
-
-    ! SAVU2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savu2(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'savu2',ik,kk,savu2,ifull)
-    end if
-          
-    ! SAVV2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savv2(:,:) = -999.
     if ( lrestart ) then
-      call histrd4(iarchi,ier,'savv2',ik,kk,savv2,ifull)
+      call gethist4('dpsldt',dpsldt)
+      call gethist4('zgnhs',phi_nh)
+      sdot(:,1) = 0.
+      call gethist4('sdot',sdot(:,2:kk+1))
+      call gethist4('pslx',pslx)
+      call gethist4('savu',savu)
+      call gethist4('savv',savv)
+      call gethist4('savu1',savu1)
+      call gethist4('savv1',savv1)
+      call gethist4('savu2',savu2)
+      call gethist4('savv2',savv2)
     end if
 
     ! OCEAN DATA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1732,20 +1696,20 @@ if ( nested/=1 .and. nested/=3 ) then
       oldv2(:,:) = 0.
       ipice(:) = 0.
       if ( lrestart ) then
-        call histrd4(iarchi,ier,'old1_uo',ik,ok,oldu1,ifull)
-        call histrd4(iarchi,ier,'old1_vo',ik,ok,oldv1,ifull)
-        call histrd4(iarchi,ier,'old2_uo',ik,ok,oldu2,ifull)
-        call histrd4(iarchi,ier,'old2_vo',ik,ok,oldv2,ifull)            
-        call histrd3(iarchi,ier,'ipice',ik,ipice,ifull)
+        call gethist4('old1_uo',oldu1)
+        call gethist4('old1_vo',oldv1)
+        call gethist4('old2_uo',oldu2)
+        call gethist4('old2_vo',oldv2)            
+        call gethist1('ipice',ipice)
       end if
     end if
     if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
       ocndwn(:,3:6) = 0.
       if ( lrestart ) then
-        call histrd3(iarchi,ier,'old1_uotop',ik,ocndwn(:,3),ifull)
-        call histrd3(iarchi,ier,'old1_votop',ik,ocndwn(:,4),ifull)
-        call histrd3(iarchi,ier,'old1_uobot',ik,ocndwn(:,5),ifull)
-        call histrd3(iarchi,ier,'old1_vobot',ik,ocndwn(:,6),ifull)
+        call gethist1('old1_uotop',ocndwn(:,3))
+        call gethist1('old1_votop',ocndwn(:,4))
+        call gethist1('old1_uobot',ocndwn(:,5))
+        call gethist1('old1_vobot',ocndwn(:,6))
       end if  
     end if    
        
