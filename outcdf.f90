@@ -2040,26 +2040,24 @@ if( myid==0 .or. local ) then
     if ( ldr/=0 .and. save_cloud ) then
       call attrib(idnc,dima,asize,'qfg','Frozen water','kg/kg',0.,.065,0,cptype)
       call attrib(idnc,dima,asize,'qlg','Liquid water','kg/kg',0.,.065,0,cptype)
-      if ( ncloud>=2 ) then
+      if ( ncloud>=2 .and. itype==-1 ) then
         call attrib(idnc,dima,asize,'qrg','Rain',      'kg/kg',0.,.065,0,cptype)
       end if
-      if ( ncloud>=3 ) then
+      if ( ncloud>=3 .and. itype==-1 ) then
         call attrib(idnc,dima,asize,'qsng','Snow',     'kg/kg',0.,.065,0,cptype)
         call attrib(idnc,dima,asize,'qgrg','Graupel',  'kg/kg',0.,.065,0,cptype)
       end if
       call attrib(idnc,dima,asize,'cfrac','Cloud fraction',    'none',0.,1.,0,cptype)
-      if ( ncloud>=2 ) then
+      if ( ncloud>=2 .and. itype==-1 ) then
         call attrib(idnc,dima,asize,'rfrac','Rain fraction',   'none',0.,1.,0,cptype)
       end if
-      if ( ncloud>=3 ) then
+      if ( ncloud>=3 .and. itype==-1 ) then
         call attrib(idnc,dima,asize,'sfrac','Snow fraction',   'none',0.,1.,0,cptype)
         call attrib(idnc,dima,asize,'gfrac','Graupel fraction','none',0.,1.,0,cptype)
       end if
-      if ( ncloud>=4 ) then
+      if ( ncloud>=4 .and. itype==-1 ) then
         call attrib(idnc,dima,asize,'stratcf','Strat cloud fraction','none',0.,1.,0,cptype)
-        if ( itype==-1 ) then
-          call attrib(idnc,dima,asize,'strat_nt','Strat net temp tendency','K/s',0.,1.,0,cptype)
-        end if
+        call attrib(idnc,dima,asize,'strat_nt','Strat net temp tendency','K/s',0.,1.,0,cptype)
       end if
     end if
         
@@ -2067,7 +2065,7 @@ if( myid==0 .or. local ) then
     if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
       call attrib(idnc,dima,asize,'tke','Turbulent Kinetic Energy','m2/s2',0.,65.,0,cptype)
       call attrib(idnc,dima,asize,'eps','Eddy dissipation rate','m2/s3',0.,6.5,0,cptype)
-      call attrib(idnc,dima,asize,'Km',"Eddy diffusivity","m2/s",0.,650.,0,cptype)
+      !call attrib(idnc,dima,asize,'Km',"Eddy diffusivity","m2/s",0.,650.,0,cptype)
     end if
 
     ! TRACER --------------------------------------------------------
@@ -2115,8 +2113,10 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'dust3_s','Dissolved Dust 2-3 micrometers','kg/kg',0.,6.5E-6,0,cptype)
         call attrib(idnc,dima,asize,'dust4_s','Dissolved Dust 3-6 micrometers','kg/kg',0.,6.5E-6,0,cptype)
       end if
-      call attrib(idnc,dima,asize,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,cptype)
-      call attrib(idnc,dima,asize,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,cptype)
+      if ( itype==-1 ) then
+        call attrib(idnc,dima,asize,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,cptype)
+        call attrib(idnc,dima,asize,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,cptype)
+      end if  
       if ( save_aerosols ) then
         if ( iaero<=-2 ) then 
           call attrib(idnc,dima,asize,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,cptype)
@@ -3135,26 +3135,24 @@ end if
 if ( ldr/=0 .and. save_cloud ) then
   call histwrt(qfg,'qfg',idnc,iarch,local,.true.)
   call histwrt(qlg,'qlg',idnc,iarch,local,.true.)
-  if ( ncloud>=2 ) then
+  if ( ncloud>=2 .and. itype==-1 ) then
     call histwrt(qrg,'qrg',idnc,iarch,local,.true.)
   end if
-  if ( ncloud>=3 ) then
+  if ( ncloud>=3 .and. itype==-1 ) then
     call histwrt(qsng,'qsng',idnc,iarch,local,.true.)
     call histwrt(qgrg,'qgrg',idnc,iarch,local,.true.)
   end if
   call histwrt(cfrac,'cfrac',idnc,iarch,local,.true.)
-  if ( ncloud>=2 ) then
+  if ( ncloud>=2 .and. itype==-1 ) then
     call histwrt(rfrac,'rfrac',idnc,iarch,local,.true.)
   end if
-  if ( ncloud>=3 ) then
+  if ( ncloud>=3 .and. itype==-1 ) then
     call histwrt(sfrac,'sfrac',idnc,iarch,local,.true.)
     call histwrt(gfrac,'gfrac',idnc,iarch,local,.true.)
   end if
-  if ( ncloud>=4 ) then
+  if ( ncloud>=4 .and. itype==-1 ) then
     call histwrt(stratcloud,'stratcf',idnc,iarch,local,.true.)  
-    if ( itype==-1 ) then
-      call histwrt(nettend,'strat_nt',idnc,iarch,local,.true.)
-    end if
+    call histwrt(nettend,'strat_nt',idnc,iarch,local,.true.)
   end if
 endif
       
@@ -3162,10 +3160,10 @@ endif
 if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
   call histwrt(tke,'tke',idnc,iarch,local,.true.)
   call histwrt(eps,'eps',idnc,iarch,local,.true.)
-  do k = 1,kl
-    tmpry(:,k) = cm0*max(tke(1:ifull,k),mintke)**2/max(eps(1:ifull,k),mineps)
-  end do
-  call histwrt(tmpry,"Km",idnc,iarch,local,.true.)
+  !do k = 1,kl
+  !  tmpry(:,k) = cm0*max(tke(1:ifull,k),mintke)**2/max(eps(1:ifull,k),mineps)
+  !end do
+  !call histwrt(tmpry,"Km",idnc,iarch,local,.true.)
 end if
 
 ! TRACERS -----------------------------------------------------
@@ -3223,8 +3221,10 @@ if ( abs(iaero)>=2 ) then
     call histwrt(xtg_solub(:,:,10),'dust3_s',idnc,iarch,local,.true.)
     call histwrt(xtg_solub(:,:,11),'dust4_s',idnc,iarch,local,.true.) 
   end if
-  call histwrt(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
-  call histwrt(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
+  if ( itype==-1 ) then
+    call histwrt(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
+    call histwrt(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
+  end if  
   if ( save_aerosols ) then
     if ( iaero<=-2 ) then
       do k = 1,kl
