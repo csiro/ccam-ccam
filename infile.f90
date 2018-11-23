@@ -2635,7 +2635,7 @@ endif
 if ( local .and. procformat ) then
   call hw4lp(wvar,sname,idnc,iarch)  
 else if ( procformat ) then
-  call ccmpi_gatherx(var_g,var,0,comm_vnode)
+  call ccmpi_gatherx(var_g,wvar,0,comm_vnode)
 else if ( local ) then
   call hw4l(wvar,sname,idnc,iarch)
 else if ( myid==0 ) then
@@ -2675,7 +2675,7 @@ endif
 if ( local .and. procformat ) then
   call hw4lpr8(wvar,sname,idnc,iarch)  
 else if ( procformat ) then
-  call ccmpi_gatherxr8(var_g,var,0,comm_vnode)
+  call ccmpi_gatherxr8(var_g,wvar,0,comm_vnode)
 else if ( local ) then
   call hw4lr8(wvar,sname,idnc,iarch)
 else if ( myid==0 ) then
@@ -3183,7 +3183,7 @@ endif
 if ( local .and. procformat ) then
   call hw5lpr8(wvar,sname,idnc,iarch)  
 else if ( procformat ) then
-  call ccmpi_gatherxr8(var_g,var,0,comm_vnode)
+  call ccmpi_gatherxr8(var_g,wvar,0,comm_vnode)
 else if ( local ) then
   call hw5lr8(wvar,sname,idnc,iarch)
 else if ( myid==0 ) then
