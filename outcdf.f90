@@ -228,7 +228,7 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,minwater,mxd,zomode,zoseaice        &
     ,factchseaice,otaumode               &
     ,alphavis_seaice,alphanir_seaice     &
-    ,mlosigma
+    ,mlosigma,oclosure
 use mlodynamics                            ! Ocean dynamics
 use newmpar_m                              ! Grid parameters
 use ozoneread                              ! Ozone input routines
@@ -893,6 +893,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
     call ccnf_put_attg(idnc,'mlosigma',mlosigma)
     call ccnf_put_attg(idnc,'mxd',mxd)
+    call ccnf_put_attg(idnc,'oclosure',oclosure)
     call ccnf_put_attg(idnc,'ocneps',ocneps)
     call ccnf_put_attg(idnc,'ocnsmag',ocnsmag)
     call ccnf_put_attg(idnc,'otaumode',otaumode)
@@ -1042,7 +1043,7 @@ real, dimension(ifull,10) :: micdwn
 real, dimension(ifull,kl) :: tmpry
 real, dimension(ifull,kl) :: rhoa
 real, dimension(ifull,wlev) :: oo
-real, dimension(ifull,wlev,4) :: mlodwn
+real, dimension(ifull,wlev,8) :: mlodwn
 real, dimension(ifull,3:6) :: ocndwn
 real scale_factor
 character(len=50) expdesc
@@ -2036,6 +2037,14 @@ if( myid==0 .or. local ) then
       call attrib(idnc,odim,osize,"vo",lname,'m/s',-65.,65.,0,cptype)
       lname = "Ocean vertical velocity (+ve down)"
       call attrib(idnc,odim,osize,"wo",lname,'m/s',-6.5,6.5,0,cptype)
+      lname = "Ocean Eddy Viscosity"
+      call attrib(idnc,odim,osize,"kmo",lname,'m2/s',0.,10.,0,cptype)
+      lname = "Ocean Eddy Diffusivity"
+      call attrib(idnc,odim,osize,"kso",lname,'m2/s',0.,10.,0,cptype)
+      lname = "Ocean Turbulent Kinetic Energy"
+      call attrib(idnc,odim,osize,"tkeo",lname,'m2/s2',0.,65.,0,cptype)
+      lname = "Ocean Eddy dissipation rate"
+      call attrib(idnc,odim,osize,"epso",lname,'m2/s3',0.,6.5,0,cptype)
     end if
     
     ! CLOUD MICROPHYSICS --------------------------------------------
@@ -2444,6 +2453,7 @@ end if ! myid == 0 .or. local ..else..
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   mlodwn(:,:,1:2) = 999. ! temp, sal
   mlodwn(:,:,3:4) = 0.   ! u, v
+  mlodwn(:,:,5:8) = 0.   ! km, ks, tke & eps
   micdwn(:,1:7)   = 999. ! tggsn1-4, fracice, siced, snowd
   micdwn(:,8:10)  = 0.   ! sto, uic, vic
   ocndep(:)       = 0.   ! ocean depth
@@ -3134,6 +3144,10 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     call histwrt(mlodwn(:,:,3),"uo",idnc,iarch,local,.true.)
     call histwrt(mlodwn(:,:,4),"vo",idnc,iarch,local,.true.)
     call histwrt(w_ocn,"wo",idnc,iarch,local,.true.)
+    call histwrt(mlodwn(:,:,5),"kmo",idnc,iarch,local,.true.)
+    call histwrt(mlodwn(:,:,6),"kso",idnc,iarch,local,.true.)
+    call histwrt(mlodwn(:,:,7),'tkeo',idnc,iarch,local,.true.)
+    call histwrt(mlodwn(:,:,8),'epso',idnc,iarch,local,.true.)
   end if
 end if
 

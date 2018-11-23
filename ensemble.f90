@@ -97,7 +97,7 @@ real, dimension(:,:), allocatable :: u_neg, v_neg, t_neg
 real, dimension(ifull,ms,3) :: dumg
 real, dimension(ifull,kl,5) :: dumv
 real, dimension(ifull,3,3) :: dums
-real, dimension(ifull,wlev,4) :: dumo
+real, dimension(ifull,wlev,8) :: dumo
 real, dimension(ifull,kl,naero) :: dumr
 real, save :: psl_rms
 

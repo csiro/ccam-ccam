@@ -1,4 +1,3 @@
-! Conformal Cubic Atmospheric Model
     
 ! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
@@ -61,6 +60,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mloimport3d,mloexport3d
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
+public oclosure,pdl,pdu,nsteps
 
 #ifdef CCAM
 public water_g,ice_g,wpack_g,wfull_g
@@ -69,6 +69,11 @@ public dgwater_g,dgice_g,dgscrn_g
 public depth_g
 public waterdata,icedata
 public dgwaterdata,dgicedata,dgscrndata,depthdata
+public turb_g
+public turbdata
+public mink,mineps
+public k_mode,eps_mode,limitL,fixedce3,calcinloop
+public nops,nopb,fixedstabfunc
 #endif
 
 ! parameters
@@ -88,6 +93,21 @@ real, dimension(0:220), save :: table                                  ! for get
 interface mloeval
   module procedure mloeval_standard, mloeval_thread
 end interface
+
+interface interpolate_hl
+  module procedure interpolate_hl_1, interpolate_hl_3
+end interface
+
+interface thomas
+  module procedure thomas8i4o, thomas8i8o
+end interface
+
+type turbdata
+  real, dimension(:,:), allocatable :: km           ! vertical viscosity at half level
+  real, dimension(:,:), allocatable :: ks           ! vertical diffusivity at half level
+  real, dimension(:,:), allocatable :: k            ! turbulent kinnetic energy
+  real, dimension(:,:), allocatable :: eps          ! turbulent dissipation rate
+end type
 
 type depthdata
   real, dimension(:,:), allocatable :: depth, depth_hl                 ! Column depth (m)
@@ -171,6 +191,7 @@ type(dgwaterdata), dimension(:), allocatable, save :: dgwater_g
 type(dgicedata), dimension(:), allocatable, save :: dgice_g
 type(dgscrndata), dimension(:), allocatable, save :: dgscrn_g
 type(depthdata), dimension(:), allocatable, save :: depth_g
+type(turbdata), dimension(:), allocatable, save :: turb_g
   
 ! mode
 integer, parameter :: incradbf  = 1       ! include shortwave in buoyancy forcing
@@ -178,7 +199,24 @@ integer, parameter :: incradgam = 1       ! include shortwave in non-local term
 integer, save      :: zomode    = 2       ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: deprelax  = 0       ! surface height (0=vary, 1=relax, 2=set to zero)
 integer, save      :: otaumode  = 0       ! Momentum coupling (0=Explicit, 1=Implicit, 2=Mixed)
-integer, save      :: mlosigma  = 0       ! Sigma levels (0=cubic, 1=quad)
+integer, save      :: mlosigma  = 0       ! Sigma levels (0=cubic, 1=quad, 2=gotm, 3=linear)
+integer, save      :: oclosure  = 0       ! 0- kpp, 1- k-eps
+
+!k-eps parameters
+real, save :: pdu = 2.7                   ! Zoom factor near the surface for mlosigma==gotm
+real, save :: pdl = 0.0                   ! Zoom factor near the bottom for mlosigma==gotm
+integer, save :: nsteps = 1               ! Number of sub-steps to couple k-eps equations
+integer, save :: k_mode = 2               ! 0-fully explicit k, 1-implicit k, 2-implicit k & pb
+integer, save :: eps_mode = 2             ! 0-fully explicit eps, 1-implicit eps, 2-implicit eps & pb
+integer, save :: limitL = 1               ! 0-no length scale limit, 1-limit length scale
+integer, save :: fixedce3 = 0             ! 0-dynamic ce3, 1-fixed ce3
+integer, save :: calcinloop = 0           ! 0-shear & production outside coupling loop, 1-inside
+integer, save :: nops = 0                 ! 0-calculate shear production, 1-no shear production
+integer, save :: nopb = 0                 ! 0-calculate buoyancy production, 1-no buoyancy production
+integer, save :: fixedstabfunc = 0        ! 0-dynamic stability functions, 1-fixed stability functions
+real, save :: mink=1.e-8                  ! Minimum k
+real, save :: mineps=1.e-11               ! Minimum eps
+
 ! model parameters
 real, save :: mxd      = 5002.18          ! Max depth (m)
 real, save :: mindep   = 1.               ! Thickness of first layer (m)
@@ -300,6 +338,7 @@ allocate( dgwater_g(ntiles) )
 allocate( dgice_g(ntiles) )
 allocate( dgscrn_g(ntiles) )
 allocate( depth_g(ntiles) )
+allocate( turb_g(ntiles) )
 allocate( wfull_g(ntiles) )
 allocate( wpack_g(imax,ntiles) )
 
@@ -338,6 +377,10 @@ do tile = 1,ntiles
   allocate(dgscrn_g(tile)%u10(wfull_g(tile)))
   allocate(depth_g(tile)%depth(wfull_g(tile),wlev),depth_g(tile)%dz(wfull_g(tile),wlev))
   allocate(depth_g(tile)%depth_hl(wfull_g(tile),wlev+1),depth_g(tile)%dz_hl(wfull_g(tile),2:wlev))
+  allocate(turb_g(tile)%km(wfull_g(tile),wlev))
+  allocate(turb_g(tile)%ks(wfull_g(tile),wlev))
+  allocate(turb_g(tile)%k(wfull_g(tile),wlev))
+  allocate(turb_g(tile)%eps(wfull_g(tile),wlev))
 
   if ( wfull_g(tile)>0 ) then
     water_g(tile)%temp=288.-wrtemp    ! K
@@ -446,6 +489,11 @@ do tile = 1,ntiles
     do ii = 2,wlev
       depth_g(tile)%dz_hl(:,ii) = depth_g(tile)%depth(:,ii) - depth_g(tile)%depth(:,ii-1)
     end do
+
+    turb_g(tile)%km=0.
+    turb_g(tile)%ks=0.
+    turb_g(tile)%k=mink
+    turb_g(tile)%eps=mineps
     
   end if  
 
@@ -521,6 +569,18 @@ select case(mlosigma)
       depth_hlout(ii) = al*x*x + bt*x ! ii is for half leel ii-0.5
     end do
 
+  case(2) !gotm dynamic
+    do ii = 1,wlin+1
+      x = real(ii-1)
+      depth_hlout(ii) = dd*(tanh((pdu+pdl)*x/wlin -pdu) + tanh(pdu))/(tanh(pdu)+tanh(pdl))
+    end do
+
+  case(3) !linear
+    do ii = 1,wlin+1
+      x = real(ii-1)
+      depth_hlout(ii) = x*dd/wlin
+    end do
+
   case default
     write(6,*) "ERROR: Unknown option mlosigma=",mlosigma
     stop
@@ -574,6 +634,8 @@ if ( mlo_active ) then
     deallocate(dgice_g(tile)%tauxicw,dgice_g(tile)%tauyicw)
     deallocate(dgscrn_g(tile)%temp,dgscrn_g(tile)%u2,dgscrn_g(tile)%qg,dgscrn_g(tile)%u10)
     deallocate(depth_g(tile)%depth,depth_g(tile)%dz,depth_g(tile)%depth_hl,depth_g(tile)%dz_hl)
+    deallocate(turb_g(tile)%km,turb_g(tile)%ks)
+    deallocate(turb_g(tile)%k,turb_g(tile)%eps)
 
   end do
 
@@ -585,6 +647,7 @@ if ( mlo_active ) then
   deallocate( depth_g )
   deallocate( wfull_g )
   deallocate( wpack_g )
+  deallocate( turb_g )
 
 end if
 
@@ -602,7 +665,7 @@ implicit none
 
 integer, intent(in) :: diag
 integer ii, tile, is, ie
-real, dimension(ifull,wlev,4), intent(in) :: datain
+real, dimension(ifull,wlev,9), intent(in) :: datain
 real, dimension(ifull,10), intent(in) :: icein
 real, dimension(ifull), intent(in) :: shin
 
@@ -633,6 +696,13 @@ do tile = 1,ntiles
     ice_g(tile)%u(:)       =pack(icein(is:ie,9), wpack_g(:,tile))
     ice_g(tile)%v(:)       =pack(icein(is:ie,10),wpack_g(:,tile))
 
+    do ii=1,wlev
+      turb_g(tile)%km(:,ii)  =pack(datain(is:ie,ii,5),wpack_g(:,tile))
+      turb_g(tile)%ks(:,ii)  =pack(datain(is:ie,ii,6),wpack_g(:,tile))
+      turb_g(tile)%k(:,ii)   =pack(datain(is:ie,ii,7),wpack_g(:,tile))
+      turb_g(tile)%eps(:,ii) =pack(datain(is:ie,ii,8),wpack_g(:,tile))
+    end do
+
 #ifdef mlodebug
     call mlocheck("MLO-load",water_temp=water_g(tile)%temp,ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp)
 #endif
@@ -654,7 +724,7 @@ implicit none
 
 integer, intent(in) :: diag
 integer ii, tile, is, ie
-real, dimension(ifull,wlev,4), intent(inout) :: dataout
+real, dimension(ifull,wlev,9), intent(inout) :: dataout
 real, dimension(ifull,10), intent(inout) :: iceout
 real, dimension(ifull), intent(inout) :: depout,shout
 
@@ -690,6 +760,12 @@ do tile = 1,ntiles
     iceout(is:ie,9)   =unpack(ice_g(tile)%u(:),wpack_g(:,tile),iceout(is:ie,9))
     iceout(is:ie,10)  =unpack(ice_g(tile)%v(:),wpack_g(:,tile),iceout(is:ie,10))
     depout(is:ie)     =unpack(depth_g(tile)%depth_hl(:,wlev+1),wpack_g(:,tile),depout(is:ie))
+    do ii=1,wlev
+      dataout(is:ie,ii,5)=unpack(turb_g(tile)%km(:,ii),wpack_g(:,tile),dataout(is:ie,ii,5))
+      dataout(is:ie,ii,6)=unpack(turb_g(tile)%ks(:,ii),wpack_g(:,tile),dataout(is:ie,ii,6))
+      dataout(is:ie,ii,7)=unpack(turb_g(tile)%k(:,ii),wpack_g(:,tile),dataout(is:ie,ii,7))
+      dataout(is:ie,ii,8)=unpack(turb_g(tile)%eps(:,ii),wpack_g(:,tile),dataout(is:ie,ii,8))
+    end do
 
 #ifdef mlodebug
     call mlocheck("MLO-save",water_temp=water_g(tile)%temp,ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp)
@@ -1437,7 +1513,7 @@ select case(mode)
     do iqw = 1,wfull
       dpin(1:wlin) = sigin(1:wlin)*deptmp(iqw)  
       if ( wlev==wlin ) then
-        if ( all( abs(depth%depth(iqw,1:wlev)-dpin(1:wlev))<1.e-6 ) ) then
+        if ( all( abs(depth%depth(iqw,1:wlev)-dpin(1:wlev))/depth%depth(iqw,1:wlev)<1.e-6 ) ) then
           newdatb(iqw,1:wlev) = newdata(iqw,1:wlev)
           cycle
         end if
@@ -1653,7 +1729,7 @@ do tile = 1,ntiles
                        qg(is:ie),ps(is:ie),f(is:ie),visnirratio(is:ie),fbvis(is:ie),                  &
                        fbnir(is:ie),inflow(is:ie),diag,calcprog,                                      &
                        depth_g(tile),dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),                    &
-                       ice_g(tile),water_g(tile),wfull_g(tile),wpack_g(:,tile))  
+                       ice_g(tile),water_g(tile),wfull_g(tile),wpack_g(:,tile),turb_g(tile))
   end if
 end do
 
@@ -1664,7 +1740,7 @@ subroutine mloeval_thread(sst,zo,cd,cds,umod,fg,eg,wetfac,epot,epan,fracice,sice
                    dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,               &
                    visnirratio,fbvis,fbnir,inflow,diag,calcprog,                         &
                    depth,dgice,dgscrn,dgwater,ice,water,                                 &
-                   wfull,wpack)                   
+                   wfull,wpack,turb)                   
 
 implicit none
 
@@ -1683,6 +1759,7 @@ logical, intent(in) :: calcprog ! flag to update prognostic variables (or just c
 real, dimension(wfull) :: atm_sg,atm_rg,atm_rnd,atm_snd,atm_f,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg
 real, dimension(wfull) :: atm_ps,atm_zmin,atm_zmins,atm_inflow
 real, dimension(wfull) :: workb,workc,dumazmin
+type(turbdata), intent(inout) :: turb
 
 if (wfull==0) return
 
@@ -1706,7 +1783,7 @@ atm_snd    =pack(precs,wpack)
 call mloeval_work(dt,atm_zmin,atm_zmins,atm_sg,atm_rg,atm_rnd,atm_snd,atm_u,atm_v,    &
                    atm_temp,atm_qg,atm_ps,atm_f,                                      &
                    atm_vnratio,atm_fbvis,atm_fbnir,atm_inflow,diag,                   &
-                   calcprog,depth,dgice,dgscrn,dgwater,ice,water,wfull)
+                   calcprog,depth,dgice,dgscrn,dgwater,ice,water,turb,wfull)
 
 workb=emisice**0.25*ice%tsurf
 sst    =unpack((1.-ice%fracice)*(water%temp(:,1)+wrtemp)+ice%fracice*workb,wpack,sst)
@@ -1736,7 +1813,7 @@ end subroutine mloeval_thread
 subroutine mloeval_work(dt,atm_zmin,atm_zmins,atm_sg,atm_rg,atm_rnd,atm_snd,atm_u,atm_v,   &
                    atm_temp,atm_qg,atm_ps,atm_f,                                           &
                    atm_vnratio,atm_fbvis,atm_fbnir,atm_inflow,diag,                        &
-                   calcprog,depth,dgice,dgscrn,dgwater,ice,water,wfull)
+                   calcprog,depth,dgice,dgscrn,dgwater,ice,water,turb,wfull)
 
 implicit none
 
@@ -1758,6 +1835,7 @@ real, dimension(wfull) :: d_ndic,d_nsto,d_delstore,d_delinflow,d_imass
 real, dimension(wfull) :: ubot_save, vbot_save, utop_save, vtop_save
 integer, dimension(wfull) :: d_nk
 logical, intent(in) :: calcprog ! flag to update prognostic variables (or just calculate fluxes)
+type(turbdata), intent(inout) :: turb
 
 if (diag>=1) write(6,*) "Evaluate MLO"
 
@@ -1847,7 +1925,7 @@ if ( calcprog ) then
   ! update water
   call mlocalc(dt,atm_f,atm_u,atm_v,atm_ps,d_rho,                                             &
                d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag,    &
-               depth,dgice,dgwater,ice,water,wfull)
+               depth,dgice,dgwater,ice,water,turb%km,turb%ks,turb%k,turb%eps,wfull)
 
 end if
 ! screen diagnostics
@@ -1892,15 +1970,17 @@ end subroutine mloeval_work
 
 subroutine mlocalc(dt,atm_f,atm_u,atm_v,atm_ps,d_rho,                                           &
                    d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_zcr,d_neta,diag,  &
-                   depth,dgice,dgwater,ice,water,wfull)
+                   depth,dgice,dgwater,ice,water,km,ks,k,eps,wfull)
 
 implicit none
 
 integer, intent(in) :: wfull
 integer, intent(in) :: diag
-integer ii, iqw
+integer ii, iqw, i
 real, intent(in) :: dt
-real, dimension(wfull,wlev) :: km, ks, gammas, rhs
+real, dimension(wfull,wlev), intent(inout) :: km, ks
+real, dimension(wfull,wlev), intent(inout) :: k, eps
+real, dimension(wfull,wlev) :: gammas, rhs
 real(kind=8), dimension(wfull,2:wlev) :: aa
 real(kind=8), dimension(wfull,wlev) :: bb, dd
 real(kind=8), dimension(wfull,1:wlev-1) :: cc
@@ -1915,6 +1995,7 @@ type(dgwaterdata), intent(inout) :: dgwater
 type(icedata), intent(in) :: ice
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
+integer :: step
 
 
 if ( diag>=1 ) write(6,*) "Calculate ocean mixing"
@@ -1926,6 +2007,12 @@ call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,atm_f,d_zcr, &
 call getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr, &
              depth,dgwater,water,wfull)
 
+select case(oclosure)
+case(1)
+  km = 0.0
+  ks = 0.0
+  call keps(km,ks,k,eps,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull)
+end select
 
 ! Counter-gradient term for scalars (rhs)
 ! +ve sign for rhs terms since z +ve is down
@@ -2094,6 +2181,337 @@ call mlocheck("MLO-mixing",water_temp=water%temp)
   
 return
 end subroutine mlocalc
+
+subroutine keps(km_out,ks_out,k_out,eps_out,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull)
+implicit none
+
+integer, intent(in) :: wfull
+real, dimension(wfull,wlev), intent(inout) :: km_out
+real, dimension(wfull,wlev), intent(inout) :: ks_out
+real, dimension(wfull,wlev), intent(inout) :: k_out
+real, dimension(wfull,wlev), intent(inout) :: eps_out
+real, dimension(wfull), intent(in) :: d_ustar
+real, dimension(wfull), intent(in) :: d_zcr
+type(dgwaterdata), intent(in) :: dgwater
+type(waterdata), intent(in) :: water
+type(depthdata), intent(in) :: depth
+real, dimension(wfull,wlev), intent(in) :: d_rho
+real, intent(in) :: dt
+
+real(kind=8), dimension(wfull,wlev) :: k    !kinetic energy
+real(kind=8), dimension(wfull,wlev) :: eps  !dissipation rate
+real(kind=8), dimension(wfull) :: umag     !water current magnitude at floor
+real(kind=8), dimension(wfull) :: zrough   !surface/floor roughness
+real(kind=8), dimension(wfull,wlev) :: aa  !lower diagnonal
+real(kind=8), dimension(wfull,wlev) :: bb  !diagnoal
+real(kind=8), dimension(wfull,wlev) :: cc  !upper diagonal
+real(kind=8), dimension(wfull,wlev) :: dd  !right hand side
+real(kind=8), dimension(wfull,wlev) :: km  !km on full level
+real(kind=8), dimension(wfull,wlev) :: ks  !ks on full level
+real(kind=8), dimension(wfull,wlev) :: ps  !shear production
+real(kind=8), dimension(wfull,wlev) :: pb  !buoyancy production
+real(kind=8), dimension(wfull,wlev) :: shear  !shear
+real(kind=8), dimension(wfull,wlev) :: n2  !Brunt-Vaisala frequency
+real(kind=8), dimension(wfull,wlev) :: ce3 !eps Buoyancy coefficient
+real(kind=8), dimension(wfull,wlev) :: L   !Length scale
+real(kind=8), dimension(wfull,wlev) :: cu  !Galperin stability function
+real(kind=8), dimension(wfull,wlev) :: cud !Galperin stability function
+real(kind=8), dimension(wfull,wlev) :: alpha !non-dimensional buoyancy parameter
+
+real(kind=8), dimension(wfull,wlev) :: fdepth_hl !fraction depth
+real(kind=8), dimension(wfull,wlev) :: u_hl      !water%u at half level
+real(kind=8), dimension(wfull,wlev) :: v_hl      !water%v at half level
+real(kind=8), dimension(wfull,wlev) :: d_rho_hl  !d_rho at half level
+real(kind=8), dimension(wfull,wlev) :: km_hl     !km on half level
+real(kind=8), dimension(wfull,wlev) :: ks_hl     !ks on half level
+
+real :: dtt
+real :: minL
+
+integer :: ii,step
+
+real, parameter :: ce1 = 1.44        !eps production coefficient
+real, parameter :: ce2 = 1.92        !eps sink coefficient
+real, parameter :: ce3stable = -0.4  !eps buoyancy coefficient for stable stratification
+real, parameter :: ce3unstable = 1.0 !eps buoyancy coefficient for unstable stratification
+real, parameter :: cu0 = 0.5562     
+real, parameter :: sigmaeps = 1.08   !eps Schmidt number
+
+!fraction for interpolation
+fdepth_hl(:,2:wlev) = (depth%depth_hl(:,2:wlev)-depth%depth(:,1:wlev-1))/(depth%depth(:,2:wlev)-depth%depth(:,1:wlev-1))
+
+!u & v at half levels
+call interpolate_hl(water%u,fdepth_hl,u_hl)
+call interpolate_hl(water%v,fdepth_hl,v_hl)
+
+!d_rho at half levels
+call interpolate_hl(d_rho,fdepth_hl,d_rho_hl)
+
+!shear
+do ii=2,wlev-1
+  shear(:,ii) = ( ((u_hl(:,ii+1)-u_hl(:,ii))/depth%dz(:,ii))**2 + &
+                  ((v_hl(:,ii+1)-v_hl(:,ii))/depth%dz(:,ii))**2 )
+end do
+
+!n2
+do ii=2,wlev-1
+  n2(:,ii) = -grav/wrtrho*(d_rho_hl(:,ii)-d_rho_hl(:,ii+1))/depth%dz(:,ii)
+end do
+!linear interpolation of end values for stability functions
+n2(:,1)    = n2(:,2)      - depth%dz_hl(:,2   )*(n2(:,3     )-n2(:,2     ))/depth%dz_hl(:,3     )
+n2(:,wlev) = n2(:,wlev-1) + depth%dz_hl(:,wlev)*(n2(:,wlev-1)-n2(:,wlev-2))/depth%dz_hl(:,wlev-1)
+
+!umag at floor
+umag(:) = sqrt(water%u(:,wlev)**2+water%v(:,wlev)**2)
+
+!initial conditions
+k = k_out
+eps = eps_out
+
+!boundary conditions
+k(:,1   ) = (d_ustar(:   )/cu0)**2
+k(:,wlev) = (sqrt(cdbot)*umag(:)/cu0)**2
+k=max(k,real(mink,8))
+
+zrough(:) = dgwater%zo(:)
+eps(:,1   ) = (cu0)**3*k(:,1   )**1.5/(vkar*(0.5_8*depth%dz(:,1   )+zrough(:)))
+
+zrough(:) = 0.5_8*depth%dz(:,wlev)/exp(vkar/sqrt(cdbot))
+eps(:,wlev) = (cu0)**3*k(:,wlev)**1.5/(vkar*(0.5_8*depth%dz(:,wlev)+zrough(:)))
+eps=max(eps,real(mineps,8))
+
+!limit length scale
+L = cu0**3*k**1.5/eps
+if ( limitL==1 ) then
+  minL=cu0**3*mink**1.5/mineps
+  do ii=2,wlev-1
+    where ( n2(:,ii) > 0._8 )
+      L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),real(minL,8))
+    end where
+  end do
+end if
+
+!stability functions
+if ( fixedstabfunc==1 ) then
+  alpha = 0.0_8
+  cu = (cu0 + 2.182_8*alpha)/(1.0 + 20.4_8*alpha + 53.12_8*alpha**2)
+  cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
+else
+  alpha = L**2*n2/k
+  cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
+  cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
+end if
+
+km = cu*sqrt(k)*L
+ks = cud*sqrt(k)*L
+
+!km & ks at half levels
+call interpolate_hl(km,fdepth_hl,km_hl)
+call interpolate_hl(ks,fdepth_hl,ks_hl)
+
+if ( calcinloop==0 ) then
+  !shear production
+  if ( nops==0 ) then
+    do ii=2,wlev-1
+      ps(:,ii) = km(:,ii)*shear(:,ii)
+    end do
+  else
+    do ii=2,wlev-1
+      ps(:,ii) = 0.0_8
+    end do
+  end if
+
+  !buoyancy production
+  if ( nopb==0 ) then
+    do ii=2,wlev-1
+      pb(:,ii) = -ks(:,ii)*n2(:,ii)
+    end do
+  else
+    do ii=2,wlev-1
+      pb(:,ii) = 0.0_8
+    end do
+  end if
+
+  !calculate ce3
+  if ( fixedce3==1 ) then
+    ce3 = ce3stable
+  else if ( fixedce3==0 ) then
+    do ii=2,wlev-1
+      where( pb(:,ii) < 0.0_8 )
+        ce3(:,ii) = ce3unstable
+      else where
+        ce3(:,ii) = ce3stable
+      endwhere
+    end do
+  end if
+end if
+
+!coupling loop
+dtt=dt/nsteps
+do step=1,nsteps
+
+if ( calcinloop==1 ) then
+  !shear production
+  if ( nops==0 ) then
+    do ii=2,wlev-1
+      ps(:,ii) = km(:,ii)*shear(:,ii)
+    end do
+  else
+    do ii=2,wlev-1
+      ps(:,ii) = 0.0_8
+    end do
+  end if
+
+  !buoyancy production
+  if ( nopb==0 ) then
+    do ii=2,wlev-1
+      pb(:,ii) = -ks(:,ii)*n2(:,ii)
+    end do
+  else
+    do ii=2,wlev-1
+      pb(:,ii) = 0.0_8
+    end do
+  end if
+
+  !calculate ce3
+  if ( fixedce3==1 ) then
+    ce3 = ce3stable
+  else if ( fixedce3==0 ) then
+    do ii=2,wlev-1
+      where( pb(:,ii) < 0.0_8 )
+        ce3(:,ii) = ce3unstable
+      else where
+        ce3(:,ii) = ce3stable
+      endwhere
+    end do
+  end if
+end if
+
+!solve k
+!setup diagonals
+do ii=2,wlev-1
+  aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  ))
+  cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1))
+  if ( k_mode==0 ) then !explicit eps
+    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii)
+    dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii) - eps(:,ii))
+  else if ( k_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
+    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)
+    dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
+  else if ( k_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
+    where ( ps(:,ii) + pb(:,ii) > 0.0_8 )
+      bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)
+      dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
+    elsewhere
+      bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt/k(:,ii)*(eps(:,ii) - pb(:,ii))
+      dd(:,ii) = k(:,ii) + dtt*ps(:,ii)
+    end where
+  end if 
+end do
+dd(:,2     ) = dd(:,2     ) - aa(:,2     )*k(:,1)
+dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*k(:,wlev)
+
+!solve using thomas algorithm
+call thomas(k(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
+
+!solve eps
+!setup diagonals
+do ii=2,wlev-1
+  aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  )*sigmaeps)
+  cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1)*sigmaeps)
+  if ( eps_mode==0 ) then !explicit eps
+    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii)
+    dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) - ce2*eps(:,ii))
+  else if ( eps_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
+    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
+    dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
+  else if ( eps_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
+    where ( ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) > 0.0_8 )
+      bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
+      dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
+    elsewhere
+      bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce2 - ce3(:,ii)*pb(:,ii)/eps(:,ii))
+      dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii))
+    end where
+  end if
+end do
+dd(:,2     ) = dd(:,2     ) - aa(:,2     )*eps(:,1)
+dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*eps(:,wlev)
+
+!solve using thomas algorithm
+call thomas(eps(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
+
+!limit k & eps
+k = max(k,real(mink,8))
+eps = max(eps,real(mineps,8))
+
+!limit length scale
+L = cu0**3*k**1.5/eps
+if ( limitL==1 ) then
+  minL=cu0**3*mink**1.5/mineps
+  do ii=2,wlev-1
+    where ( n2(:,ii) > 0.0_8 )
+      L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),real(minL,8))
+    end where
+  end do
+end if
+
+!stability functions
+if ( fixedstabfunc==1 ) then
+  alpha = 0.0_8
+  cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
+  cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
+else
+  alpha = L**2*n2/k
+  cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
+  cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
+end if
+
+km = cu*sqrt(k)*L
+ks = cud*sqrt(k)*L
+
+!km & ks at half levels
+call interpolate_hl(km,fdepth_hl,km_hl)
+call interpolate_hl(ks,fdepth_hl,ks_hl)
+
+end do
+
+!update the output variables (internal variables are double precision)
+k_out = k
+eps_out = eps
+km_out = km_hl
+ks_out = ks_hl
+
+return
+end subroutine keps
+
+pure subroutine interpolate_hl_1(u,fdepth_hl,u_hl)
+
+implicit none
+
+real(kind=8), dimension(:,:), intent(in) :: u
+real(kind=8), dimension(:,:), intent(in) :: fdepth_hl
+real(kind=8), dimension(:,:), intent(out) :: u_hl
+
+u_hl(:,1) = 0._8
+u_hl(:,2:wlev) = u(:,1:wlev-1) + fdepth_hl(:,2:wlev)*(u(:,2:wlev)-u(:,1:wlev-1))
+
+return
+end subroutine interpolate_hl_1
+
+pure subroutine interpolate_hl_3(u,fdepth_hl,u_hl)
+
+implicit none
+
+real, dimension(:,:), intent(in) :: u
+real(kind=8), dimension(:,:), intent(in) :: fdepth_hl
+real(kind=8), dimension(:,:), intent(out) :: u_hl
+
+u_hl(:,1) = 0.
+u_hl(:,2:wlev) = u(:,1:wlev-1) + fdepth_hl(:,2:wlev)*(u(:,2:wlev)-u(:,1:wlev-1))
+
+return
+end subroutine interpolate_hl_3
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Solve for stability functions
@@ -3945,7 +4363,7 @@ end subroutine icetemps
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Solves matrix for temperature conduction
                      
-pure subroutine thomas(outo,aai,bbi,cci,ddi)
+pure subroutine thomas8i4o(outo,aai,bbi,cci,ddi)
 
 implicit none
 
@@ -3976,7 +4394,40 @@ do ii = nlev-1,1,-1
 end do
 
 return
-end subroutine thomas
+end subroutine thomas8i4o
+                     
+pure subroutine thomas8i8o(outo,aai,bbi,cci,ddi)
+
+implicit none
+
+integer ii, nlev
+real(kind=8), dimension(:,:), intent(out) :: outo
+real(kind=8), dimension(:,2:), intent(in) :: aai
+real(kind=8), dimension(:,:), intent(in) :: bbi,ddi
+real(kind=8), dimension(:,:), intent(in) :: cci
+real(kind=8), dimension(size(outo,1),size(outo,2)) :: cc, dd, ans
+real(kind=8), dimension(size(outo,1)) :: n
+
+nlev = size(outo,2)
+cc(:,1) = cci(:,1)/bbi(:,1)
+dd(:,1) = ddi(:,1)/bbi(:,1)
+
+do ii = 2,nlev-1
+  n = bbi(:,ii)-cc(:,ii-1)*aai(:,ii)
+  cc(:,ii) = cci(:,ii)/n
+  dd(:,ii) = (ddi(:,ii)-dd(:,ii-1)*aai(:,ii))/n
+end do
+n = bbi(:,nlev)-cc(:,nlev-1)*aai(:,nlev)
+dd(:,nlev) = (ddi(:,nlev)-dd(:,nlev-1)*aai(:,nlev))/n
+ans(:,nlev) = dd(:,nlev)
+outo(:,nlev) = ans(:,nlev)
+do ii = nlev-1,1,-1
+  ans(:,ii) = dd(:,ii)-cc(:,ii)*ans(:,ii+1)
+  outo(:,ii) = ans(:,ii)
+end do
+
+return
+end subroutine thomas8i8o
                      
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Determine ice fluxes

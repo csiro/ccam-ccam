@@ -292,7 +292,7 @@ use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
 use mlo, only : wlev,micdwn,mloregrid,wrtemp, &
-    mloexpdep                                  ! Ocean physics and prognostic arrays
+    mloexpdep,mink,mineps                    ! Ocean physics and prognostic arrays
 use mlodynamics                                ! Ocean dynamics
 use mlodynamicsarrays_m                        ! Ocean dynamics data
 use morepbl_m                                  ! Additional boundary layer diagnostics
@@ -1001,6 +1001,10 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     mlodwn(1:ifull,k,2) = 34.72 ! sal
     mlodwn(1:ifull,k,3) = 0.    ! uoc
     mlodwn(1:ifull,k,4) = 0.    ! voc
+    mlodwn(1:ifull,k,5) = 0.    ! km
+    mlodwn(1:ifull,k,6) = 0.    ! ks
+    mlodwn(1:ifull,k,7) = mink  ! tke
+    mlodwn(1:ifull,k,8) = mineps ! eps
   end do  
   if ( mlo_found ) then
     ! ocean potential temperature
@@ -1586,6 +1590,14 @@ if ( nested/=1 .and. nested/=3 ) then
     deallocate( atebdwn )
   end if
 
+  ! k-eps data
+  if ( nested==0 .and. (abs(nmlo)>=1.and.abs(nmlo)<=9) ) then
+    call fillhist4o('kmo',mlodwn(:,:,5),land_a,fill_land,ocndwn(:,1))  
+    call fillhist4o('kso',mlodwn(:,:,6),land_a,fill_land,ocndwn(:,1))  
+    call fillhist4o('tkeo',mlodwn(:,:,7),land_a,fill_land,ocndwn(:,1))  
+    call fillhist4o('epso',mlodwn(:,:,8),land_a,fill_land,ocndwn(:,1))  
+  end if
+  
   ! -----------------------------------------------------------------
   ! Read cloud fields
   if ( nested==0 .and. ldr/=0 ) then

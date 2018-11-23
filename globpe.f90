@@ -1309,7 +1309,11 @@ use map_m                                  ! Grid map arrays
 use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,factchseaice,minwater,mxd,mindep    &
     ,alphavis_seaice,alphanir_seaice     &
-    ,otaumode,mlosigma,wlev
+    ,otaumode,mlosigma,wlev,oclosure     &
+    ,pdl,pdu,nsteps,k_mode,eps_mode      &
+    ,limitL,fixedce3,calcinloop,nops     &
+    ,nopb,fixedstabfunc,omink => mink    &
+    ,omineps => mineps
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
@@ -1471,6 +1475,8 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
     alphanir_seaice,mlojacobi,mlo_rtest,usepice,mlosigma,         &
+    pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    &
+    nops,nopb,fixedstabfunc,omink,omineps,oclosure,               &
     rivermd,basinmd,rivercoeff,                                   & ! River
     mlomfix                                                         ! Depreciated
 ! tracer namelist
@@ -2281,7 +2287,7 @@ ateb_statsmeth    = dumi(29)
 ateb_behavmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(11), dumi(9) )
+allocate( dumr(15), dumi(19) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2302,6 +2308,10 @@ if ( myid==0 ) then
   dumr(9)  = alphanir_seaice
   dumr(10) = rivercoeff
   dumr(11) = mlo_rtest
+  dumr(12) = pdl
+  dumr(13) = pdu
+  dumr(14) = omink
+  dumr(15) = omineps
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2311,6 +2321,16 @@ if ( myid==0 ) then
   dumi(7)  = mlojacobi
   dumi(8) = usepice
   dumi(9) = mlosigma
+  dumi(10) = oclosure
+  dumi(11) = nsteps
+  dumi(12) = k_mode
+  dumi(13) = eps_mode
+  dumi(14) = limitL
+  dumi(15) = fixedce3
+  dumi(16) = calcinloop
+  dumi(17) = nops
+  dumi(18) = nopb
+  dumi(19) = fixedstabfunc
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2325,6 +2345,10 @@ alphavis_seaice = dumr(8)
 alphanir_seaice = dumr(9)
 rivercoeff      = dumr(10)
 mlo_rtest       = dumr(11)
+pdl             = dumr(12)
+pdu             = dumr(13)
+omink           = dumr(14)
+omineps         = dumr(15)
 mlodiff         = dumi(1)
 usetide         = dumi(2) 
 zomode          = dumi(3) 
@@ -2334,6 +2358,19 @@ basinmd         = dumi(6)
 mlojacobi       = dumi(7)
 usepice         = dumi(8)
 mlosigma        = dumi(9)
+oclosure        = dumi(10)
+nsteps          = dumi(11)
+k_mode          = dumi(12)
+eps_mode        = dumi(13)
+limitL          = dumi(14)
+fixedce3        = dumi(15)
+calcinloop      = dumi(16)
+nops            = dumi(17)
+nopb            = dumi(18)
+fixedstabfunc   = dumi(19)
+if ( oclosure==0 ) then
+  nsteps = 1
+end if
 deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0
