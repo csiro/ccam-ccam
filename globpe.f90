@@ -3539,22 +3539,22 @@ anthropogenic_ave(:) = 0.
 anth_elecgas_ave(:)  = 0.
 anth_heating_ave(:)  = 0.
 anth_cooling_ave(:)  = 0.
-tasurban_ave(:)      = 0.
+!tasurban_ave(:)      = 0.
 tmaxurban(:)         = urban_tas
 tminurban(:)         = urban_tas
 rnet_ave(:)          = 0.
 sunhours(:)          = 0.
 riwp_ave(:)          = 0.
 rlwp_ave(:)          = 0.
-qscrn_ave(:)         = 0.
-tscr_ave(:)          = 0.
+!qscrn_ave(:)         = 0.
+!tscr_ave(:)          = 0.
 wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
-tsu_ave(:)           = 0.
-alb_ave(:)           = 0.
+!tsu_ave(:)           = 0.
+!alb_ave(:)           = 0.
 fbeam_ave(:)         = 0.
-psl_ave(:)           = 0.
-mixdep_ave(:)        = 0.
+!psl_ave(:)           = 0.
+!mixdep_ave(:)        = 0.
 
 ! radiation
 koundiag             = 0
@@ -3717,21 +3717,21 @@ anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
 anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull) + urban_elecgas_flux
 anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull) + urban_heating_flux
 anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull) + urban_cooling_flux
-tasurban_ave(1:ifull)      = tasurban_ave(1:ifull) + urban_tas
+!tasurban_ave(1:ifull)      = tasurban_ave(1:ifull) + urban_tas
 tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urban_tas )
 tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
 rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
-tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
-qscrn_ave(1:ifull)         = qscrn_ave(1:ifull) + qgscrn 
+!tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
+!qscrn_ave(1:ifull)         = qscrn_ave(1:ifull) + qgscrn 
 wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
-tsu_ave(1:ifull)           = tsu_ave(1:ifull) + tss
-call mslp(spare2,psl,zs,t) ! calculate MSLP from psl
-spare2 = spare2/100.       ! convert MSLP to hPa
-psl_ave(1:ifull)           = psl_ave(1:ifull) + spare2(1:ifull)
-spare1(1:ifull)            = 0.
-call mlodiag(spare1,0)     ! obtain ocean mixed level depth
-mixdep_ave(1:ifull)        = mixdep_ave(1:ifull) + spare1(1:ifull)
+!tsu_ave(1:ifull)           = tsu_ave(1:ifull) + tss
+!call mslp(spare2,psl,zs,t) ! calculate MSLP from psl
+!spare2 = spare2/100.       ! convert MSLP to hPa
+!psl_ave(1:ifull)           = psl_ave(1:ifull) + spare2(1:ifull)
+!spare1(1:ifull)            = 0.
+!call mlodiag(spare1,0)     ! obtain ocean mixed level depth
+!mixdep_ave(1:ifull)        = mixdep_ave(1:ifull) + spare1(1:ifull)
 spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
 spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
 do iq = 1,ifull
@@ -3777,20 +3777,20 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull)/min(ntau,nperavg)
   anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull)/min(ntau,nperavg)
   anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull)/min(ntau,nperavg) 
-  tasurban_ave(1:ifull)      = tasurban_ave(1:ifull)/min(ntau,nperavg)
+  !tasurban_ave(1:ifull)      = tasurban_ave(1:ifull)/min(ntau,nperavg)
   rnet_ave(1:ifull)          = rnet_ave(1:ifull)/min(ntau,nperavg)
   sunhours(1:ifull)          = sunhours(1:ifull)/min(ntau,nperavg)
   riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
   rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
-  tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
-  qscrn_ave(1:ifull)         = qscrn_ave(1:ifull)/min(ntau,nperavg)
+  !tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
+  !qscrn_ave(1:ifull)         = qscrn_ave(1:ifull)/min(ntau,nperavg)
   do k = 1,ms
     wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
     wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)
   end do
-  tsu_ave(1:ifull)    = tsu_ave(1:ifull)/min(ntau,nperavg)
-  psl_ave(1:ifull)    = psl_ave(1:ifull)/min(ntau,nperavg)
-  mixdep_ave(1:ifull) = mixdep_ave(1:ifull)/min(ntau,nperavg)
+  !tsu_ave(1:ifull)    = tsu_ave(1:ifull)/min(ntau,nperavg)
+  !psl_ave(1:ifull)    = psl_ave(1:ifull)/min(ntau,nperavg)
+  !mixdep_ave(1:ifull) = mixdep_ave(1:ifull)/min(ntau,nperavg)
   sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
   sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
   sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)
@@ -3806,7 +3806,7 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   cll_ave(1:ifull)    = cll_ave(1:ifull)/max(koundiag,1)
   clm_ave(1:ifull)    = clm_ave(1:ifull)/max(koundiag,1)
   clh_ave(1:ifull)    = clh_ave(1:ifull)/max(koundiag,1)
-  alb_ave(1:ifull)    = alb_ave(1:ifull)/max(koundiag,1)
+  !alb_ave(1:ifull)    = alb_ave(1:ifull)/max(koundiag,1)
   fbeam_ave(1:ifull)  = fbeam_ave(1:ifull)/max(koundiag,1)
   cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
   ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc

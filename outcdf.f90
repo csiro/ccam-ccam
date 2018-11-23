@@ -1322,10 +1322,10 @@ if( myid==0 .or. local ) then
       lname = 'Surface albedo'
       call attrib(idnc,dimj,jsize,'alb',lname,'none',0.,1.,0,cptype)
     end if
-    if ( save_land ) then
-      lname = 'Fraction of canopy that is wet'
-      call attrib(idnc,dimj,jsize,'fwet',lname,'none',0.,1.,0,cptype)
-    end if
+    !if ( save_land ) then
+    !  lname = 'Fraction of canopy that is wet'
+    !  call attrib(idnc,dimj,jsize,'fwet',lname,'none',0.,1.,0,cptype)
+    !end if
 
     lname = 'Snow depth (liquid water)'
     call attrib(idnc,dimj,jsize,'snd',lname,'mm',0.,6500.,0,-1)  ! -1=long
@@ -1344,17 +1344,19 @@ if( myid==0 .or. local ) then
  
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'water surface height'
-      call attrib(idnc,dimj,jsize,'ocheight',lname,'m',-130.,130.,0,cptype)          
-      lname = 'Snow/Sea-ice temperature lev 1'
-      call attrib(idnc,dimj,jsize,'tggsn1',lname,'K',100.,425.,0,cptype)
-      lname = 'Snow/Sea-ice temperature lev 2'
-      call attrib(idnc,dimj,jsize,'tggsn2',lname,'K',100.,425.,0,cptype)
-      lname = 'Snow/Sea-ice temperature lev 3'
-      call attrib(idnc,dimj,jsize,'tggsn3',lname,'K',100.,425.,0,cptype)
-      lname = 'Sea-ice temperature lev 4'
-      call attrib(idnc,dimj,jsize,'tggsn4',lname,'K',100.,425.,0,cptype)
-      lname = 'Sea-ice heat store'
-      call attrib(idnc,dimj,jsize,'sto',lname,'J/m2',0.,1.3e10,0,cptype)
+      call attrib(idnc,dimj,jsize,'ocheight',lname,'m',-130.,130.,0,cptype)  
+      if ( itype==-1 ) then
+        lname = 'Snow/Sea-ice temperature lev 1'
+        call attrib(idnc,dimj,jsize,'tggsn1',lname,'K',100.,425.,0,cptype)
+        lname = 'Snow/Sea-ice temperature lev 2'
+        call attrib(idnc,dimj,jsize,'tggsn2',lname,'K',100.,425.,0,cptype)
+        lname = 'Snow/Sea-ice temperature lev 3'
+        call attrib(idnc,dimj,jsize,'tggsn3',lname,'K',100.,425.,0,cptype)
+        lname = 'Sea-ice temperature lev 4'
+        call attrib(idnc,dimj,jsize,'tggsn4',lname,'K',100.,425.,0,cptype)
+        lname = 'Sea-ice heat store'
+        call attrib(idnc,dimj,jsize,'sto',lname,'J/m2',0.,1.3e10,0,cptype)
+      end if
       lname = 'x-component sea-ice velocity'
       call attrib(idnc,dimj,jsize,'uic',lname,'m/s',-65.,65.,0,cptype)
       lname = 'y-component sea-ice velocity'
@@ -1501,8 +1503,8 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,'v10_21',nnam//'21hr','m/s',-99.,99.,1,cptype)
       endif     ! (nextout>=3)
     end if
-    lname = 'Average screen temperature'
-    call attrib(idnc,dimj,jsize,'tscr_ave',lname,'K',100.,425.,0,cptype)
+    !lname = 'Average screen temperature'
+    !call attrib(idnc,dimj,jsize,'tscr_ave',lname,'K',100.,425.,0,cptype)
     if ( save_cloud .or. itype==-1 ) then
       lname = 'Avg cloud base'
       call attrib(idnc,dimj,jsize,'cbas_ave',lname,'sigma',0.,1.1,0,cptype)
@@ -1574,17 +1576,17 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'snm',lname,'mm/day',0.,1300.,0,-1) ! -1 = long
     end if
     if ( itype/=-1 ) then  
-      if ( save_land .or. save_ocean ) then
-        lname = 'Avg surface temperature'
-        call attrib(idnc,dimj,jsize,'tsu_ave',lname,'K',100.,425.,0,cptype)
-        lname = 'Avg albedo'
-        call attrib(idnc,dimj,jsize,'alb_ave',lname,'none',0.,1.,0,cptype)
-      end if
-      lname = 'Avg mean sea level pressure'
-      call attrib(idnc,dimj,jsize,'pmsl_ave',lname,'hPa',800.,1200.,0,cptype)
+      !if ( save_land .or. save_ocean ) then
+      !  lname = 'Avg surface temperature'
+      !  call attrib(idnc,dimj,jsize,'tsu_ave',lname,'K',100.,425.,0,cptype)
+      !  lname = 'Avg albedo'
+      !  call attrib(idnc,dimj,jsize,'alb_ave',lname,'none',0.,1.,0,cptype)
+      !end if
+      !lname = 'Avg mean sea level pressure'
+      !call attrib(idnc,dimj,jsize,'pmsl_ave',lname,'hPa',800.,1200.,0,cptype)
       if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean ) then
-        lname = 'Avg mixed layer depth'
-        call attrib(idnc,dimj,jsize,'mixd_ave',lname,'m',0.,1300.,0,cptype)
+        lname = 'Mixed layer depth'
+        call attrib(idnc,dimj,jsize,'mixdepth',lname,'m',0.,1300.,0,cptype)
       end if
     end if
     lname = 'Screen temperature'
@@ -1899,7 +1901,7 @@ if( myid==0 .or. local ) then
       lname = 'Urban cooling flux'
       call attrib(idnc,dimj,jsize,'anth_cool_ave',lname,'W/m2',0.,650.,0,cptype)      
       lname = 'Urban surface temperature'
-      call attrib(idnc,dimj,jsize,'urbantas_ave',lname,'K',100.,425.,0,cptype)
+      call attrib(idnc,dimj,jsize,'urbantas',lname,'K',100.,425.,0,cptype)
       lname = 'Maximum urban screen temperature'
       call attrib(idnc,dimj,jsize,'urbantasmax',lname,'K',100.,425.,1,cptype)
       lname = 'Minimum urban screen temperature'
@@ -2537,9 +2539,9 @@ if ( save_land .or. save_ocean ) then
   aa(:) = swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)  
   call histwrt(aa,'alb',idnc,iarch,local,.true.)
 end if
-if ( save_land ) then
-  call histwrt(fwet,'fwet',idnc,iarch,local,lwrite)
-end if
+!if ( save_land ) then
+!  call histwrt(fwet,'fwet',idnc,iarch,local,lwrite)
+!end if
 
 ! MLO ---------------------------------------------------------      
 ! Export ocean data
@@ -2578,11 +2580,13 @@ end do
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   if ( nmlo<0 .or. (nmlo>0.and.itype==-1) ) then
     call histwrt(ocnheight,'ocheight',idnc,iarch,local,.true.)
-    call histwrt(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
-    call histwrt(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
-    call histwrt(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
-    call histwrt(micdwn(:,4),'tggsn4',idnc,iarch,local,.true.)
-    call histwrt(micdwn(:,8),'sto',idnc,iarch,local,.true.)
+    if ( itype==-1 ) then
+      call histwrt(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
+      call histwrt(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
+      call histwrt(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
+      call histwrt(micdwn(:,4),'tggsn4',idnc,iarch,local,.true.)
+      call histwrt(micdwn(:,8),'sto',idnc,iarch,local,.true.)
+    end if  
     call histwrt(micdwn(:,9),'uic',idnc,iarch,local,.true.)
     call histwrt(micdwn(:,10),'vic',idnc,iarch,local,.true.)
   end if
@@ -2698,7 +2702,7 @@ if ( itype/=-1 .and. save_maxmin ) then  ! these not written to restart file
   endif  ! nextout>=3
 end if
 ! only write these once per avg period
-call histwrt(tscr_ave,'tscr_ave',idnc,iarch,local,lave_0)
+!call histwrt(tscr_ave,'tscr_ave',idnc,iarch,local,lave_0)
 if ( save_cloud .or. itype==-1 ) then
   call histwrt(cbas_ave,'cbas_ave',idnc,iarch,local,lave_0)
   call histwrt(ctop_ave,'ctop_ave',idnc,iarch,local,lave_0)
@@ -2743,13 +2747,15 @@ if ( save_land .or. itype==-1 ) then
   call histwrt(aa,'snm',idnc,iarch,local,lwrite)
 end if
 if ( itype/=-1 ) then  ! these not written to restart file  
-  if ( save_land .or. save_ocean ) then
-    call histwrt(tsu_ave,'tsu_ave',idnc,iarch,local,lave)
-    call histwrt(alb_ave,'alb_ave',idnc,iarch,local,lrad)
-  end if
-  call histwrt(psl_ave,'pmsl_ave',idnc,iarch,local,lave)
+  !if ( save_land .or. save_ocean ) then
+  !  call histwrt(tsu_ave,'tsu_ave',idnc,iarch,local,lave)
+  !  call histwrt(alb_ave,'alb_ave',idnc,iarch,local,lrad)
+  !end if
+  !call histwrt(psl_ave,'pmsl_ave',idnc,iarch,local,lave)
   if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean ) then
-    call histwrt(mixdep_ave,'mixd_ave',idnc,iarch,local,lave)
+    aa = 0.  
+    call mlodiag(aa,0)  
+    call histwrt(aa,'mixdepth',idnc,iarch,local,lave)
   end if
 end if
 call histwrt(tscrn,'tscrn',idnc,iarch,local,lwrite_0)
@@ -2955,11 +2961,11 @@ if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
   call histwrt(anth_heating_ave,'anth_heat_ave',idnc,iarch,local,.true.) 
   call histwrt(anth_cooling_ave,'anth_cool_ave',idnc,iarch,local,.true.) 
   where ( sigmu>0. )
-    aa = tasurban_ave
+    aa = urban_tas
   elsewhere
-    aa = tscr_ave
+    aa = tscrn
   end where
-  call histwrt(aa,'urbantas_ave',idnc,iarch,local,lave_0)
+  call histwrt(aa,'urbantas',idnc,iarch,local,lave_0)
   where ( sigmu>0. )
     aa = tmaxurban
   elsewhere
