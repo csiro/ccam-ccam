@@ -835,11 +835,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! true vertical velocity = nw-u*((1-sig)*deta/dx-sig*d(dd)/dx)-v*((1-sig)*deta/dy-sig*d(dd)/dy)-(1-sig)*deta/dt
   call mlostaguv(nu(:,1:wlev),nv(:,1:wlev),eou(:,1:wlev),eov(:,1:wlev))
   ! surface height at staggered coordinate
-  !eou(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_e)*eeu(1:ifull) ! height at staggered coordinate
-  !eov(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_n)*eev(1:ifull) ! height at staggered coordinate
-  call boundsuv(eou(:,1:wlev),eov(:,1:wlev),stag=-9)
-  !oeu(1:ifull+iextra) = eou(1:ifull+iextra,wlev+1)
-  !oev(1:ifull+iextra) = eov(1:ifull+iextra,wlev+1)
+  eou(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_e)*eeu(1:ifull) ! height at staggered coordinate
+  eov(1:ifull,wlev+1) = 0.5*(neta(1:ifull)+neta_n)*eev(1:ifull) ! height at staggered coordinate
+  call boundsuv(eou(:,1:wlev+1),eov(:,1:wlev+1),stag=-9)
+  oeu(1:ifull+iextra) = eou(1:ifull+iextra,wlev+1)
+  oev(1:ifull+iextra) = eov(1:ifull+iextra,wlev+1)
   ! vertically integrate currents
   ccu(:,1) = eou(:,1)*godsig(1)
   ccv(:,1) = eov(:,1)*godsig(1)

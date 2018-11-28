@@ -148,7 +148,7 @@ use cfrac_m                                         ! Cloud fraction
 use const_phys                                      ! Physical constants
 use extraout_m                                      ! Additional diagnostics
 use estab                                           ! Liquid saturation function
-use histave_m, only : alb_ave,fbeam_ave             ! Time average arrays
+use histave_m, only : fbeam_ave                     ! Time average arrays
 use infile                                          ! Input file routines
 use latlong_m                                       ! Lat/lon coordinates
 use mlo, only : mloalb4                             ! Ocean physics and prognostic arrays
@@ -792,8 +792,8 @@ do iq_tile = 1,ifull,imax
       cll_ave(istart:iend)   = cll_ave(istart:iend)  + cloudlo(istart:iend)
       clm_ave(istart:iend)   = clm_ave(istart:iend)  + cloudmi(istart:iend)
       clh_ave(istart:iend)   = clh_ave(istart:iend)  + cloudhi(istart:iend)
-      alb_ave(istart:iend)   = alb_ave(istart:iend)+swrsave(istart:iend)*albvisnir(istart:iend,1) &
-                               + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
+      !alb_ave(istart:iend)   = alb_ave(istart:iend)+swrsave(istart:iend)*albvisnir(istart:iend,1) &
+      !                         + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
       fbeam_ave(istart:iend) = fbeam_ave(istart:iend)+fbeamvis(istart:iend)*swrsave(istart:iend) &
                                + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
     endif   ! (ktau>0)

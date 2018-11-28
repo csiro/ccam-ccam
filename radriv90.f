@@ -44,7 +44,7 @@
       use diag_m
       use estab
       use extraout_m ! sintsave, etc
-      use histave_m, only : alb_ave,fbeam_ave
+      use histave_m, only : fbeam_ave
       use infile
       use kdacom_m, only : kdacom_init
       use kuocomb_m
@@ -681,8 +681,8 @@ c     cloud amounts for saving
          cll_ave(iq)  = cll_ave(iq)  + cloudlo(iq)
          clm_ave(iq)  = clm_ave(iq)  + cloudmi(iq)
          clh_ave(iq)  = clh_ave(iq)  + cloudhi(iq)
-         alb_ave(iq)  = alb_ave(iq)  + swrsave(iq)*albvisnir(iq,1)
-     &                               +(1.-swrsave(iq))*albvisnir(iq,2)
+!         alb_ave(iq)  = alb_ave(iq)  + swrsave(iq)*albvisnir(iq,1)
+!     &                               +(1.-swrsave(iq))*albvisnir(iq,2)
          fbeam_ave(iq)= fbeam_ave(iq)+fbeamvis(iq)*swrsave(iq)
      &                               +fbeamnir(iq)*(1.-swrsave(iq))
         end do

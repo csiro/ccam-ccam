@@ -2271,14 +2271,14 @@ eps = eps_out
 !boundary conditions
 k(:,1   ) = (d_ustar(:   )/cu0)**2
 k(:,wlev) = (sqrt(cdbot)*umag(:)/cu0)**2
-k=max(k,mink)
+k=max(k,real(mink,8))
 
 zrough(:) = dgwater%zo(:)
 eps(:,1   ) = (cu0)**3*k(:,1   )**1.5/(vkar*(0.5_8*depth%dz(:,1   )+zrough(:)))
 
 zrough(:) = 0.5_8*depth%dz(:,wlev)/exp(vkar/sqrt(cdbot))
 eps(:,wlev) = (cu0)**3*k(:,wlev)**1.5/(vkar*(0.5_8*depth%dz(:,wlev)+zrough(:)))
-eps=max(eps,mineps)
+eps=max(eps,real(mineps,8))
 
 !limit length scale
 L = cu0**3*k**1.5/eps
@@ -2286,7 +2286,7 @@ if ( limitL==1 ) then
   minL=cu0**3*mink**1.5/mineps
   do ii=2,wlev-1
     where ( n2(:,ii) > 0._8 )
-      L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),minL)
+      L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),real(minL,8))
     end where
   end do
 end if
@@ -2442,8 +2442,8 @@ dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*eps(:,wlev)
 call thomas(eps(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
 
 !limit k & eps
-k = max(k,mink)
-eps = max(eps,mineps)
+k = max(k,real(mink,8))
+eps = max(eps,real(mineps,8))
 
 !limit length scale
 L = cu0**3*k**1.5/eps
@@ -2451,7 +2451,7 @@ if ( limitL==1 ) then
   minL=cu0**3*mink**1.5/mineps
   do ii=2,wlev-1
     where ( n2(:,ii) > 0.0_8 )
-      L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),minL)
+      L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),real(minL,8))
     end where
   end do
 end if

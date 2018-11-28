@@ -287,7 +287,7 @@ use const_phys                                 ! Physical constants
 use darcdf_m                                   ! Netcdf data
 use extraout_m                                 ! Additional diagnostics      
 use histave_m, only : cbas_ave,ctop_ave,      &     
-    wb_ave,tscr_ave                            ! Time average arrays
+    wb_ave                                     ! Time average arrays
 use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
@@ -335,7 +335,7 @@ integer levk, levkin, ier, igas
 integer i, j, k, mm, iq
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
-integer, dimension(6), save :: iers
+integer, dimension(7), save :: iers
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
 real, dimension(:,:,:), intent(out) :: xtgdwn
@@ -353,13 +353,13 @@ real, dimension(:), allocatable :: fracice_a, sicedep_a
 real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
 real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_a
-real, dimension(kk+ok+6) :: dumr
+real, dimension(kk+ok+7) :: dumr
 character(len=20) vname
 character(len=3) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
-logical u10_found, carbon_found, mlo_found, mlo2_found
+logical u10_found, carbon_found, mlo_found, mlo2_found, mlo3_found
 logical zht_found
 logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
 
@@ -571,6 +571,8 @@ if ( newfile ) then
     if ( tst ) iers(5) = -1
     call ccnf_inq_varid(ncid,'thetao',idv,tst)
     if ( tst ) iers(6) = -1
+    call ccnf_inq_varid(ncid,'tkeo',idv,tst)
+    if ( tst ) iers(7) = -1
     call ccnf_inq_varid(ncid,'tsu',idv,tst)
     if ( tst ) then
       write(6,*) "ERROR: Cannot locate tsu in input file"
@@ -581,16 +583,16 @@ if ( newfile ) then
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk)      = sigin(1:kk)
-    dumr(kk+1:kk+6) = real(iers(1:6))
+    dumr(kk+1:kk+7) = real(iers(1:7))
     if ( ok>0 ) then
-      dumr(kk+7:kk+ok+6) = gosig_in(1:ok)
-      call ccmpi_bcast(dumr(1:kk+ok+6),0,comm_world)
-      gosig_in(1:ok) = dumr(kk+7:kk+ok+6)
+      dumr(kk+8:kk+ok+7) = gosig_in(1:ok)
+      call ccmpi_bcast(dumr(1:kk+ok+7),0,comm_world)
+      gosig_in(1:ok) = dumr(kk+8:kk+ok+7)
     else
-      call ccmpi_bcast(dumr(1:kk+6),0,comm_world)
+      call ccmpi_bcast(dumr(1:kk+7),0,comm_world)
     end if  
     sigin(1:kk) = dumr(1:kk)
-    iers(1:6)   = nint(dumr(kk+1:kk+6))
+    iers(1:7)   = nint(dumr(kk+1:kk+7))
   end if
   
   mixr_found    = iers(1)==0
@@ -599,6 +601,7 @@ if ( newfile ) then
   soilt_found   = iers(4)==0
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
+  mlo3_found    = iers(7)==0
   
   ! determine whether zht needs to be read
   zht_found = nested==0 .or. (nested==1.and.retopo_test/=0) .or.          &
@@ -631,10 +634,10 @@ if ( newfile ) then
   if ( zht_found ) then
     if ( tss_test .and. iop_test ) then
       allocate( zss_a(ifull) )
-      call histrd3(iarchi,ier,'zht',ik,zss_a,ifull)
+      call histrd(iarchi,ier,'zht',ik,zss_a,ifull)
     else     
       allocate( zss_a(fwsize) )
-      call histrd3(iarchi,ier,'zht',ik,zss_a,6*ik*ik)
+      call histrd(iarchi,ier,'zht',ik,zss_a,6*ik*ik)
       if ( fwsize>0 ) then
         nemi = 2  
         land_a = zss_a>0. ! 2nd guess for land-sea mask
@@ -646,7 +649,7 @@ if ( newfile ) then
   if ( soilt_found ) then
     ! read soilt for land-sea mask  
     if ( .not.(tss_test.and.iop_test) ) then
-      call histrd3(iarchi,ier,'soilt',ik,ucc,6*ik*ik)
+      call histrd(iarchi,ier,'soilt',ik,ucc,6*ik*ik)
       if ( fwsize>0 ) then
         nemi = 3
         land_a = nint(ucc)>0 ! 1st guess for land-sea mask
@@ -660,10 +663,10 @@ if ( newfile ) then
   if ( mlo_found ) then
     if ( tss_test .and. iop_test ) then
       allocate( ocndep_a(ifull) )
-      call histrd3(iarchi,ier,'ocndepth',ik,ocndep_a,ifull)
+      call histrd(iarchi,ier,'ocndepth',ik,ocndep_a,ifull)
     else     
       allocate( ocndep_a(fwsize) )
-      call histrd3(iarchi,ier,'ocndepth',ik,ocndep_a,6*ik*ik)
+      call histrd(iarchi,ier,'ocndepth',ik,ocndep_a,6*ik*ik)
       if ( fwsize>0 ) then
         if ( nemi==-1) then  
           nemi = 2  
@@ -693,7 +696,7 @@ if ( newfile ) then
     if ( myid==0 ) then
       write(6,*) "Determine urban mask from rooftgg1"
     end if  
-    call histrd3(iarchi,ier,'rooftgg1',ik,ucc,6*ik*ik)
+    call histrd(iarchi,ier,'rooftgg1',ik,ucc,6*ik*ik)
     if ( fwsize>0 ) then
       nourban_a = ucc>=399.
     end if
@@ -740,11 +743,11 @@ end if
 psl(1:ifull) = 0.
 if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
   if ( iop_test ) then
-    call histrd3(iarchi,ier,'psf',ik,psl,ifull)
+    call histrd(iarchi,ier,'psf',ik,psl,ifull)
   else
     allocate( psl_a(fwsize) )
     psl_a(:) = 0.
-    call histrd3(iarchi,ier,'psf',ik,psl_a,6*ik*ik)
+    call histrd(iarchi,ier,'psf',ik,psl_a,6*ik*ik)
   end if
 endif
 
@@ -752,7 +755,7 @@ endif
 ! Read surface temperature 
 ! read global tss to diagnose sea-ice or land-sea mask
 if ( tss_test .and. iop_test ) then
-  call histrd3(iarchi,ier,'tsu',ik,tss,ifull)
+  call histrd(iarchi,ier,'tsu',ik,tss,ifull)
   tss = abs(tss)
   if ( any( tss<100. .or. tss>400. ) ) then
     write(6,*) "ERROR: Invalid tsu read in onthefly"
@@ -760,7 +763,7 @@ if ( tss_test .and. iop_test ) then
     call ccmpi_abort(-1)
   end if
 else
-  call histrd3(iarchi,ier,'tsu',ik,tss_a,6*ik*ik)
+  call histrd(iarchi,ier,'tsu',ik,tss_a,6*ik*ik)
   tss_a(:) = abs(tss_a(:))
   if ( fwsize>0 ) then
     if ( any( tss_a<100. .or. tss_a>400. ) ) then
@@ -795,8 +798,8 @@ end if
 ! mixed-layer-ocean
 if ( tss_test .and. iop_test ) then
 
-  call histrd3(iarchi,ier,'siced',  ik,sicedep,ifull)
-  call histrd3(iarchi,ier,'fracice',ik,fracice,ifull)
+  call histrd(iarchi,ier,'siced',  ik,sicedep,ifull)
+  call histrd(iarchi,ier,'fracice',ik,fracice,ifull)
   if ( any(fracice(1:ifull)>1.1) ) then
     write(6,*) "ERROR: Invalid fracice in input file"
     write(6,*) "Fracice should be between 0 and 1"
@@ -818,8 +821,8 @@ else
   allocate( fracice_a(fwsize), sicedep_a(fwsize) )  
   allocate( tss_l_a(fwsize), tss_s_a(fwsize) )
     
-  call histrd3(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik)
-  call histrd3(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik)
+  call histrd(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik)
+  call histrd(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik)
         
   ! diagnose sea-ice if required
   if ( fwsize>0 ) then
@@ -1037,14 +1040,6 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
         call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_a,fill_land,ocndwn(:,1))
       end if  
     end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
-
-    ! k-eps data
-    if ( nested==0 ) then
-      call fillhist4o('kmo',mlodwn(:,:,5),land_a,fill_land,ocndwn(:,1))  
-      call fillhist4o('kso',mlodwn(:,:,6),land_a,fill_land,ocndwn(:,1))  
-      call fillhist4o('tkeo',mlodwn(:,:,7),land_a,fill_land,ocndwn(:,1))  
-      call fillhist4o('epso',mlodwn(:,:,8),land_a,fill_land,ocndwn(:,1))  
-    end if
   end if   ! mlo_found
 end if     ! abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3
 
@@ -1346,13 +1341,13 @@ if ( nested/=1 .and. nested/=3 ) then
         if ( k==1 .and. .not.tgg_found(1) ) then
           tgg(1:ifull,k) = tss(1:ifull)
         else
-          call histrd3(iarchi,ier,vname,ik,tgg(:,k),ifull)
+          call histrd(iarchi,ier,vname,ik,tgg(:,k),ifull)
         end if
       else
         if ( k==1 .and. .not.tgg_found(1) ) then
           ucc(1:fwsize) = tss_a(1:fwsize)
         else
-          call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik)
+          call histrd(iarchi,ier,vname,ik,ucc,6*ik*ik)
         end if
         call fill_cc1(ucc,sea_a,fill_sea)
         call doints1(ucc,tgg(:,k))
@@ -1422,12 +1417,12 @@ if ( nested/=1 .and. nested/=3 ) then
         vname = "wfb"
       end if
       if ( iop_test ) then
-        call histrd3(iarchi,ier,vname,ik,wb(:,k),ifull)
+        call histrd(iarchi,ier,vname,ik,wb(:,k),ifull)
         if ( wetfrac_found(k) ) then
           wb(1:ifull,k) = wb(1:ifull,k) + 20. ! flag for fraction of field capacity
         end if
       else
-        call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik)
+        call histrd(iarchi,ier,vname,ik,ucc,6*ik*ik)
         if ( wetfrac_found(k) ) then
           ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
         end if
@@ -1462,7 +1457,7 @@ if ( nested/=1 .and. nested/=3 ) then
   !------------------------------------------------------------------
   ! Average fields
   if ( nested==0 .and. lrestart ) then
-    call gethist1('tscr_ave',tscr_ave)
+    !call gethist1('tscr_ave',tscr_ave)
     call gethist1('cbas_ave',cbas_ave)
     call gethist1('ctop_ave',ctop_ave)
     call gethist1('wb1_ave',wb_ave(:,1))
@@ -1598,6 +1593,17 @@ if ( nested/=1 .and. nested/=3 ) then
     deallocate( atebdwn )
   end if
 
+  ! k-eps data
+  if ( nested==0 .and. (abs(nmlo)>=1.and.abs(nmlo)<=9) ) then
+    mlodwn(:,:,5:8) = 0.
+    if ( mlo3_found ) then
+      call fillhist4o('kmo',mlodwn(:,:,5),land_a,fill_land,ocndwn(:,1))  
+      call fillhist4o('kso',mlodwn(:,:,6),land_a,fill_land,ocndwn(:,1))  
+      call fillhist4o('tkeo',mlodwn(:,:,7),land_a,fill_land,ocndwn(:,1))  
+      call fillhist4o('epso',mlodwn(:,:,8),land_a,fill_land,ocndwn(:,1))
+    end if  
+  end if
+  
   ! -----------------------------------------------------------------
   ! Read cloud fields
   if ( nested==0 .and. ldr/=0 ) then
@@ -1675,65 +1681,29 @@ if ( nested/=1 .and. nested/=3 ) then
   ! -----------------------------------------------------------------
   ! Restart fields
   if ( nested==0 ) then
-    ! DPSLDT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! ATMOSPHERE DATA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     dpsldt(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'dpsldt',ik,kk,dpsldt,ifull)
-    end if
-
-    ! ZGNHS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     phi_nh(:,:) = 0.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'zgnhs',ik,kk,phi_nh,ifull)
-    end if
-    
-    ! SDOT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     sdot(:,:) = -999.
-    if ( lrestart ) then
-      sdot(:,1) = 0.
-      call histrd4(iarchi,ier,'sdot',ik,kk,sdot(:,2:kk+1),ifull)
-    end if
-
-    ! PSLX !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     pslx(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'pslx',ik,kk,pslx,ifull)
-    end if
-          
-    ! SAVU !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savu(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'savu',ik,kk,savu,ifull)
-    end if
-          
-    ! SAVV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savv(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'savv',ik,kk,savv,ifull)
-    end if
-
-    ! SAVU1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savu1(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'savu1',ik,kk,savu1,ifull)
-    end if
-          
-    ! SAVV1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savv1(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'savv1',ik,kk,savv1,ifull)
-    end if
-
-    ! SAVU2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savu2(:,:) = -999.
-    if ( lrestart ) then
-      call histrd4(iarchi,ier,'savu2',ik,kk,savu2,ifull)
-    end if
-          
-    ! SAVV2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     savv2(:,:) = -999.
     if ( lrestart ) then
-      call histrd4(iarchi,ier,'savv2',ik,kk,savv2,ifull)
+      call gethist4('dpsldt',dpsldt)
+      call gethist4('zgnhs',phi_nh)
+      sdot(:,1) = 0.
+      call gethist4('sdot',sdot(:,2:kk+1))
+      call gethist4('pslx',pslx)
+      call gethist4('savu',savu)
+      call gethist4('savv',savv)
+      call gethist4('savu1',savu1)
+      call gethist4('savv1',savv1)
+      call gethist4('savu2',savu2)
+      call gethist4('savv2',savv2)
     end if
 
     ! OCEAN DATA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1744,20 +1714,20 @@ if ( nested/=1 .and. nested/=3 ) then
       oldv2(:,:) = 0.
       ipice(:) = 0.
       if ( lrestart ) then
-        call histrd4(iarchi,ier,'old1_uo',ik,ok,oldu1,ifull)
-        call histrd4(iarchi,ier,'old1_vo',ik,ok,oldv1,ifull)
-        call histrd4(iarchi,ier,'old2_uo',ik,ok,oldu2,ifull)
-        call histrd4(iarchi,ier,'old2_vo',ik,ok,oldv2,ifull)            
-        call histrd3(iarchi,ier,'ipice',ik,ipice,ifull)
+        call gethist4('old1_uo',oldu1)
+        call gethist4('old1_vo',oldv1)
+        call gethist4('old2_uo',oldu2)
+        call gethist4('old2_vo',oldv2)            
+        call gethist1('ipice',ipice)
       end if
     end if
     if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
       ocndwn(:,3:6) = 0.
       if ( lrestart ) then
-        call histrd3(iarchi,ier,'old1_uotop',ik,ocndwn(:,3),ifull)
-        call histrd3(iarchi,ier,'old1_votop',ik,ocndwn(:,4),ifull)
-        call histrd3(iarchi,ier,'old1_uobot',ik,ocndwn(:,5),ifull)
-        call histrd3(iarchi,ier,'old1_vobot',ik,ocndwn(:,6),ifull)
+        call gethist1('old1_uotop',ocndwn(:,3))
+        call gethist1('old1_votop',ocndwn(:,4))
+        call gethist1('old1_uobot',ocndwn(:,5))
+        call gethist1('old1_vobot',ocndwn(:,6))
       end if  
     end if    
        
@@ -2756,10 +2726,10 @@ character(len=*), intent(in) :: vname
       
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd3(iarchi,ier,vname,ik,varout,ifull)
+  call histrd(iarchi,ier,vname,ik,varout,ifull)
 else
   ! for multiple input files
-  call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ik,ucc,6*ik*ik)
   call doints1(ucc, varout)
 end if ! iop_test
 
@@ -2785,10 +2755,10 @@ character(len=*), intent(in) :: vname
       
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd3(iarchi,ier,vname,ik,varout,ifull)
+  call histrd(iarchi,ier,vname,ik,varout,ifull)
 else
   ! for multiple input files
-  call histrd3(iarchi,ier,vname,ik,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ik,ucc,6*ik*ik)
   call fill_cc1(ucc,mask_a,fill_count)
   call doints1(ucc, varout)
 end if ! iop_test
@@ -2815,12 +2785,12 @@ character(len=*), intent(in) :: uname, vname
       
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd3(iarchi,ier,uname,ik,uarout,ifull)
-  call histrd3(iarchi,ier,vname,ik,varout,ifull)
+  call histrd(iarchi,ier,uname,ik,uarout,ifull)
+  call histrd(iarchi,ier,vname,ik,varout,ifull)
 else
   ! for multiple input files
-  call histrd3(iarchi,ier,uname,ik,ucc,6*ik*ik)
-  call histrd3(iarchi,ier,vname,ik,vcc,6*ik*ik)
+  call histrd(iarchi,ier,uname,ik,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ik,vcc,6*ik*ik)
   call interpcurrent1(uarout,varout,ucc,vcc,mask_a,fill_count)
 end if ! iop_test
       
@@ -2851,10 +2821,10 @@ kx = size(varout,2)
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
+  call histrd(iarchi,ier,vname,ik,kx,varout,ifull)
 else
   ! for multiple input files
-  call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ik,kx,ucc,6*ik*ik)
   call doints4(ucc,varout)
 end if ! iop_test
       
@@ -2893,10 +2863,10 @@ end if
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd4(iarchi,ier,vname,ik,kk,u_k,ifull)
+  call histrd(iarchi,ier,vname,ik,kk,u_k,ifull)
 else
   ! for multiple input files
-  call histrd4(iarchi,ier,vname,ik,kk,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ik,kk,ucc,6*ik*ik)
   if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
     if ( levkin<1 .or. levkin>kk ) then
       write(6,*) "ERROR: Invalid choice of levkin in gethist4a - ",trim(vname)
@@ -2952,12 +2922,12 @@ end if
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd4(iarchi,ier,uname,ik,kk,u_k,ifull)
-  call histrd4(iarchi,ier,vname,ik,kk,v_k,ifull)
+  call histrd(iarchi,ier,uname,ik,kk,u_k,ifull)
+  call histrd(iarchi,ier,vname,ik,kk,v_k,ifull)
 else
   ! for multiple input files
-  call histrd4(iarchi,ier,uname,ik,kk,ucc,6*ik*ik)
-  call histrd4(iarchi,ier,vname,ik,kk,vcc,6*ik*ik)
+  call histrd(iarchi,ier,uname,ik,kk,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ik,kk,vcc,6*ik*ik)
   call interpwind4(u_k,v_k,ucc,vcc)
 end if ! iop_test
 
@@ -2994,10 +2964,10 @@ end if
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd4(iarchi,ier,vname,ik,kx,varout,ifull)
+  call histrd(iarchi,ier,vname,ik,kx,varout,ifull)
 else
   ! for multiple input files
-  call histrd4(iarchi,ier,vname,ik,kx,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ik,kx,ucc,6*ik*ik)
   call fill_cc4(ucc,mask_a,fill_count)
   call doints4(ucc, varout)
 end if ! iop_test
@@ -3038,10 +3008,10 @@ end if
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd4(iarchi,ier,vname,ik,ok,u_k,ifull)
+  call histrd(iarchi,ier,vname,ik,ok,u_k,ifull)
 else
   ! for multiple input files
-  call histrd4(iarchi,ier,vname,ik,ok,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ik,ok,ucc,6*ik*ik)
   call fill_cc4(ucc,mask_a,fill_count)
   call doints4(ucc,u_k)
 end if ! iop_test
@@ -3075,12 +3045,12 @@ character(len=*), intent(in) :: uname, vname
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd4(iarchi,ier,uname,ik,ok,u_k,ifull)
-  call histrd4(iarchi,ier,vname,ik,ok,v_k,ifull)
+  call histrd(iarchi,ier,uname,ik,ok,u_k,ifull)
+  call histrd(iarchi,ier,vname,ik,ok,v_k,ifull)
 else
   ! for multiple input files
-  call histrd4(iarchi,ier,uname,ik,ok,ucc,6*ik*ik)
-  call histrd4(iarchi,ier,vname,ik,ok,vcc,6*ik*ik)
+  call histrd(iarchi,ier,uname,ik,ok,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ik,ok,vcc,6*ik*ik)
   call interpcurrent4(u_k,v_k,ucc,vcc,mask_a,fill_count)
 end if ! iop_test
 
