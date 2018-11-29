@@ -292,7 +292,7 @@ use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
 use mlo, only : wlev,micdwn,mloregrid,wrtemp, &
-    mloexpdep,mink,mineps                    ! Ocean physics and prognostic arrays
+    mloexpdep,mink,mineps,oclosure             ! Ocean physics and prognostic arrays
 use mlodynamics                                ! Ocean dynamics
 use mlodynamicsarrays_m                        ! Ocean dynamics data
 use morepbl_m                                  ! Additional boundary layer diagnostics
@@ -335,7 +335,7 @@ integer levk, levkin, ier, igas
 integer i, j, k, mm, iq
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
-integer, dimension(7), save :: iers
+integer, dimension(6), save :: iers
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
 real, dimension(:,:,:), intent(out) :: xtgdwn
@@ -353,13 +353,13 @@ real, dimension(:), allocatable :: fracice_a, sicedep_a
 real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
 real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_a
-real, dimension(kk+ok+7) :: dumr
+real, dimension(kk+ok+6) :: dumr
 character(len=20) vname
 character(len=3) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
-logical u10_found, carbon_found, mlo_found, mlo2_found, mlo3_found
+logical u10_found, carbon_found, mlo_found, mlo2_found
 logical zht_found
 logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
 
@@ -430,6 +430,8 @@ if ( newfile ) then
   fill_land = 0
   fill_sea = 0
   fill_nourban = 0
+  ! reset land-sea mask search
+  nemi = -1
 end if
       
 !--------------------------------------------------------------------
@@ -571,8 +573,6 @@ if ( newfile ) then
     if ( tst ) iers(5) = -1
     call ccnf_inq_varid(ncid,'thetao',idv,tst)
     if ( tst ) iers(6) = -1
-    call ccnf_inq_varid(ncid,'tkeo',idv,tst)
-    if ( tst ) iers(7) = -1
     call ccnf_inq_varid(ncid,'tsu',idv,tst)
     if ( tst ) then
       write(6,*) "ERROR: Cannot locate tsu in input file"
@@ -583,16 +583,16 @@ if ( newfile ) then
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk)      = sigin(1:kk)
-    dumr(kk+1:kk+7) = real(iers(1:7))
+    dumr(kk+1:kk+6) = real(iers(1:6))
     if ( ok>0 ) then
-      dumr(kk+8:kk+ok+7) = gosig_in(1:ok)
-      call ccmpi_bcast(dumr(1:kk+ok+7),0,comm_world)
-      gosig_in(1:ok) = dumr(kk+8:kk+ok+7)
+      dumr(kk+7:kk+ok+6) = gosig_in(1:ok)
+      call ccmpi_bcast(dumr(1:kk+ok+6),0,comm_world)
+      gosig_in(1:ok) = dumr(kk+7:kk+ok+6)
     else
-      call ccmpi_bcast(dumr(1:kk+7),0,comm_world)
+      call ccmpi_bcast(dumr(1:kk+6),0,comm_world)
     end if  
     sigin(1:kk) = dumr(1:kk)
-    iers(1:7)   = nint(dumr(kk+1:kk+7))
+    iers(1:6)   = nint(dumr(kk+1:kk+6))
   end if
   
   mixr_found    = iers(1)==0
@@ -601,7 +601,6 @@ if ( newfile ) then
   soilt_found   = iers(4)==0
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
-  mlo3_found    = iers(7)==0
   
   ! determine whether zht needs to be read
   zht_found = nested==0 .or. (nested==1.and.retopo_test/=0) .or.          &
@@ -1596,11 +1595,13 @@ if ( nested/=1 .and. nested/=3 ) then
   ! k-eps data
   if ( nested==0 .and. (abs(nmlo)>=1.and.abs(nmlo)<=9) ) then
     mlodwn(:,:,5:8) = 0.
-    if ( mlo3_found ) then
+    if ( mlo2_found ) then
       call fillhist4o('kmo',mlodwn(:,:,5),land_a,fill_land,ocndwn(:,1))  
       call fillhist4o('kso',mlodwn(:,:,6),land_a,fill_land,ocndwn(:,1))  
-      call fillhist4o('tkeo',mlodwn(:,:,7),land_a,fill_land,ocndwn(:,1))  
-      call fillhist4o('epso',mlodwn(:,:,8),land_a,fill_land,ocndwn(:,1))
+      if ( oclosure==1 ) then
+        call fillhist4o('tkeo',mlodwn(:,:,7),land_a,fill_land,ocndwn(:,1))  
+        call fillhist4o('epso',mlodwn(:,:,8),land_a,fill_land,ocndwn(:,1))
+      end if  
     end if  
   end if
   

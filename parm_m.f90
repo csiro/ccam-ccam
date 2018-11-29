@@ -45,6 +45,8 @@ public sigramplow, sigramphigh, amxlsq, siburbanfrac
 public diag, localhist, unlimitedhist, synchist, amipo3
 public save_aerosols, save_pbl, save_cloud, save_land, save_maxmin
 public save_ocean, save_radiation, save_urban, save_carbon, save_river
+public diaglevel_aerosols, diaglevel_pbl, diaglevel_cloud, diaglevel_land, diaglevel_maxmin
+public diaglevel_ocean, diaglevel_radiation, diaglevel_urban, diaglevel_carbon, diaglevel_river
 public procmode, procformat, compression
 public nud_period, mins_rad, nalpha, jalbfix, irest, nwrite
 public nstagin, nstaguin
@@ -69,6 +71,8 @@ integer, save :: nud_period=-1, mins_rad=-1, nalpha=1, jalbfix=1, irest=1, nwrit
 integer, save :: nstagin=0, nstaguin=0
 integer, save :: hp_output=0
 integer, save :: ensemble_mode=0, ensemble_period=720
+integer, save :: diaglevel_aerosols=0, diaglevel_pbl=0, diaglevel_cloud=0, diaglevel_land=0, diaglevel_maxmin=0
+integer, save :: diaglevel_ocean=0, diaglevel_radiation=0, diaglevel_urban=0, diaglevel_carbon=0, diaglevel_river=0
 !integer, save :: filemode=0, ioreaders=-1
 real, save :: qgmin=1.e-6
 real, save :: av_vmod=0.7, vmodmin=0.2, snmin=0.11, tss_sh=1., charnock=0.018, chn10=0.00125, zobgin=0.02

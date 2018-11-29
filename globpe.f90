@@ -1436,7 +1436,11 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     cnsdir,salfile,oxidantfile,casafile,phenfile,casapftfile,     &
     ensembleoutfile,                                              &
     save_aerosols,save_pbl,save_cloud,save_land,save_maxmin,      &
-    save_ocean,save_radiation,save_urban,save_carbon,save_river
+    save_ocean,save_radiation,save_urban,save_carbon,save_river,  &
+    diaglevel_aerosols,diaglevel_pbl,diaglevel_cloud,             &
+    diaglevel_land,diaglevel_maxmin,diaglevel_ocean,              &
+    diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
+    diaglevel_river
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,shaltime,        &
@@ -1903,7 +1907,7 @@ aeroindir           = dumi(8)
 o3_vert_interpolate = dumi(9)
 o3_time_interpolate = dumi(10)
 deallocate( dumr, dumi )
-allocate( dumi(10) )
+allocate( dumi(20) )
 dumi = 0
 if ( myid==0 ) then
   read(99, datafile)
@@ -1917,6 +1921,16 @@ if ( myid==0 ) then
   if ( save_urban ) dumi(8)=1
   if ( save_carbon ) dumi(9)=1
   if ( save_river ) dumi(10)=1
+  dumi(11) = diaglevel_aerosols
+  dumi(12) = diaglevel_pbl
+  dumi(13) = diaglevel_cloud
+  dumi(14) = diaglevel_land
+  dumi(15) = diaglevel_maxmin
+  dumi(16) = diaglevel_ocean
+  dumi(17) = diaglevel_radiation
+  dumi(18) = diaglevel_urban
+  dumi(19) = diaglevel_carbon
+  dumi(20) = diaglevel_river
 end if
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(ifile,0,comm_world)
@@ -1961,6 +1975,16 @@ save_radiation = dumi(7)==1
 save_urban     = dumi(8)==1
 save_carbon    = dumi(9)==1
 save_river     = dumi(10)==1
+diaglevel_aerosols  = dumi(11)
+diaglevel_pbl       = dumi(12)
+diaglevel_cloud     = dumi(13)
+diaglevel_land      = dumi(14)
+diaglevel_maxmin    = dumi(15)
+diaglevel_ocean     = dumi(16)
+diaglevel_radiation = dumi(17)
+diaglevel_urban     = dumi(18)
+diaglevel_carbon    = dumi(19)
+diaglevel_river     = dumi(20)
 deallocate( dumi )
 allocate( dumr(33), dumi(21) )
 dumr = 0.

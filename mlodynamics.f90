@@ -71,7 +71,7 @@ real, parameter :: delphi     = 150.      ! horizontal diffusion reduction facto
 real, save      :: ocnsmag    = 1.        ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004), 1. in SHOC)
 real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
 real, parameter :: maxicefrac = 0.999     ! maximum ice fraction
-real, parameter :: tol        = 5.E-4     ! Tolerance for SOR solver (water)
+real, parameter :: tol        = 5.E-3     ! Tolerance for SOR solver (water)
 real, parameter :: itol       = 1.E1      ! Tolerance for SOR solver (ice)
 real, save      :: mlo_rtest  = 0.        ! check bathymetry (0.=off, 0.2=recommended)
 

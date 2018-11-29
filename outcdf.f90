@@ -972,8 +972,9 @@ use infile                                       ! Input file routines
 use latlong_m                                    ! Lat/lon coordinates
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
-use mlo, only : wlev,mlosave,mlodiag,      &     ! Ocean physics and prognostic arrays
-                mloexpdep,mloexport,wrtemp
+use mlo, only : wlev,mlosave,mlodiag,       &    ! Ocean physics and prognostic arrays
+                mloexpdep,mloexport,wrtemp, &
+                oclosure
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use morepbl_m                                    ! Additional boundary layer diagnostics
@@ -1323,10 +1324,10 @@ if( myid==0 .or. local ) then
       lname = 'Surface albedo'
       call attrib(idnc,dimj,jsize,'alb',lname,'none',0.,1.,0,cptype)
     end if
-    !if ( save_land ) then
-    !  lname = 'Fraction of canopy that is wet'
-    !  call attrib(idnc,dimj,jsize,'fwet',lname,'none',0.,1.,0,cptype)
-    !end if
+    if ( save_land .and. diaglevel_land>5 ) then
+      lname = 'Fraction of canopy that is wet'
+      call attrib(idnc,dimj,jsize,'fwet',lname,'none',0.,1.,0,cptype)
+    end if
 
     lname = 'Snow depth (liquid water)'
     call attrib(idnc,dimj,jsize,'snd',lname,'mm',0.,6500.,0,-1)  ! -1=long
@@ -2037,36 +2038,40 @@ if( myid==0 .or. local ) then
       call attrib(idnc,odim,osize,"vo",lname,'m/s',-65.,65.,0,cptype)
       lname = "Ocean vertical velocity (+ve down)"
       call attrib(idnc,odim,osize,"wo",lname,'m/s',-6.5,6.5,0,cptype)
-      lname = "Ocean Eddy Viscosity"
-      call attrib(idnc,odim,osize,"kmo",lname,'m2/s',0.,10.,0,cptype)
-      lname = "Ocean Eddy Diffusivity"
-      call attrib(idnc,odim,osize,"kso",lname,'m2/s',0.,10.,0,cptype)
-      lname = "Ocean Turbulent Kinetic Energy"
-      call attrib(idnc,odim,osize,"tkeo",lname,'m2/s2',0.,65.,0,cptype)
-      lname = "Ocean Eddy dissipation rate"
-      call attrib(idnc,odim,osize,"epso",lname,'m2/s3',0.,6.5,0,cptype)
+      if ( diaglevel_ocean>5 ) then
+        lname = "Ocean Eddy Viscosity"
+        call attrib(idnc,odim,osize,"kmo",lname,'m2/s',0.,10.,0,cptype)
+        lname = "Ocean Eddy Diffusivity"
+        call attrib(idnc,odim,osize,"kso",lname,'m2/s',0.,10.,0,cptype)
+      end if  
+      if ( oclosure==1 ) then
+        lname = "Ocean Turbulent Kinetic Energy"
+        call attrib(idnc,odim,osize,"tkeo",lname,'m2/s2',0.,65.,0,cptype)
+        lname = "Ocean Eddy dissipation rate"
+        call attrib(idnc,odim,osize,"epso",lname,'m2/s3',0.,6.5,0,cptype)
+      end if  
     end if
     
     ! CLOUD MICROPHYSICS --------------------------------------------
     if ( ldr/=0 .and. save_cloud ) then
       call attrib(idnc,dima,asize,'qfg','Frozen water','kg/kg',0.,.065,0,cptype)
       call attrib(idnc,dima,asize,'qlg','Liquid water','kg/kg',0.,.065,0,cptype)
-      if ( ncloud>=2 .and. itype==-1 ) then
+      if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
         call attrib(idnc,dima,asize,'qrg','Rain',      'kg/kg',0.,.065,0,cptype)
       end if
-      if ( ncloud>=3 .and. itype==-1 ) then
+      if ( ncloud>=3 .and. (itype==-1.or.diaglevel_cloud>5) ) then
         call attrib(idnc,dima,asize,'qsng','Snow',     'kg/kg',0.,.065,0,cptype)
         call attrib(idnc,dima,asize,'qgrg','Graupel',  'kg/kg',0.,.065,0,cptype)
       end if
       call attrib(idnc,dima,asize,'cfrac','Cloud fraction',    'none',0.,1.,0,cptype)
-      if ( ncloud>=2 .and. itype==-1 ) then
+      if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
         call attrib(idnc,dima,asize,'rfrac','Rain fraction',   'none',0.,1.,0,cptype)
       end if
-      if ( ncloud>=3 .and. itype==-1 ) then
+      if ( ncloud>=3 .and. (itype==-1.or.diaglevel_cloud>5) ) then
         call attrib(idnc,dima,asize,'sfrac','Snow fraction',   'none',0.,1.,0,cptype)
         call attrib(idnc,dima,asize,'gfrac','Graupel fraction','none',0.,1.,0,cptype)
       end if
-      if ( ncloud>=4 .and. itype==-1 ) then
+      if ( ncloud>=4 .and. (itype==-1.or.diaglevel_cloud>5) ) then
         call attrib(idnc,dima,asize,'stratcf','Strat cloud fraction','none',0.,1.,0,cptype)
         call attrib(idnc,dima,asize,'strat_nt','Strat net temp tendency','K/s',0.,1.,0,cptype)
       end if
@@ -2124,12 +2129,12 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'dust3_s','Dissolved Dust 2-3 micrometers','kg/kg',0.,6.5E-6,0,cptype)
         call attrib(idnc,dima,asize,'dust4_s','Dissolved Dust 3-6 micrometers','kg/kg',0.,6.5E-6,0,cptype)
       end if
-      if ( itype==-1 ) then
+      if ( itype==-1 .or. diaglevel_aerosols>5 ) then
         call attrib(idnc,dima,asize,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,cptype)
         call attrib(idnc,dima,asize,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,cptype)
       end if  
       if ( save_aerosols ) then
-        if ( iaero<=-2 ) then 
+        if ( iaero<=-2 .and. diaglevel_aerosols>5 ) then 
           call attrib(idnc,dima,asize,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,cptype)
         end if
       end if
@@ -2549,9 +2554,9 @@ if ( save_land .or. save_ocean ) then
   aa(:) = swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)  
   call histwrt(aa,'alb',idnc,iarch,local,.true.)
 end if
-!if ( save_land ) then
-!  call histwrt(fwet,'fwet',idnc,iarch,local,lwrite)
-!end if
+if ( save_land .and. diaglevel_land>5 ) then
+  call histwrt(fwet,'fwet',idnc,iarch,local,lwrite)
+end if
 
 ! MLO ---------------------------------------------------------      
 ! Export ocean data
@@ -3144,10 +3149,14 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     call histwrt(mlodwn(:,:,3),"uo",idnc,iarch,local,.true.)
     call histwrt(mlodwn(:,:,4),"vo",idnc,iarch,local,.true.)
     call histwrt(w_ocn,"wo",idnc,iarch,local,.true.)
-    call histwrt(mlodwn(:,:,5),"kmo",idnc,iarch,local,.true.)
-    call histwrt(mlodwn(:,:,6),"kso",idnc,iarch,local,.true.)
-    call histwrt(mlodwn(:,:,7),'tkeo',idnc,iarch,local,.true.)
-    call histwrt(mlodwn(:,:,8),'epso',idnc,iarch,local,.true.)
+    if ( diaglevel_ocean>5 ) then
+      call histwrt(mlodwn(:,:,5),"kmo",idnc,iarch,local,lwrite)
+      call histwrt(mlodwn(:,:,6),"kso",idnc,iarch,local,lwrite)
+    end if  
+    if ( oclosure==1 ) then
+      call histwrt(mlodwn(:,:,7),'tkeo',idnc,iarch,local,.true.)
+      call histwrt(mlodwn(:,:,8),'epso',idnc,iarch,local,.true.)
+    end if  
   end if
 end if
 
@@ -3155,22 +3164,22 @@ end if
 if ( ldr/=0 .and. save_cloud ) then
   call histwrt(qfg,'qfg',idnc,iarch,local,.true.)
   call histwrt(qlg,'qlg',idnc,iarch,local,.true.)
-  if ( ncloud>=2 .and. itype==-1 ) then
+  if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
     call histwrt(qrg,'qrg',idnc,iarch,local,.true.)
   end if
-  if ( ncloud>=3 .and. itype==-1 ) then
+  if ( ncloud>=3 .and. (itype==-1.or.diaglevel_cloud>5) ) then
     call histwrt(qsng,'qsng',idnc,iarch,local,.true.)
     call histwrt(qgrg,'qgrg',idnc,iarch,local,.true.)
   end if
   call histwrt(cfrac,'cfrac',idnc,iarch,local,.true.)
-  if ( ncloud>=2 .and. itype==-1 ) then
+  if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
     call histwrt(rfrac,'rfrac',idnc,iarch,local,.true.)
   end if
-  if ( ncloud>=3 .and. itype==-1 ) then
+  if ( ncloud>=3 .and. (itype==-1.or.diaglevel_cloud>5) ) then
     call histwrt(sfrac,'sfrac',idnc,iarch,local,.true.)
     call histwrt(gfrac,'gfrac',idnc,iarch,local,.true.)
   end if
-  if ( ncloud>=4 .and. itype==-1 ) then
+  if ( ncloud>=4 .and. (itype==-1.or.diaglevel_cloud>5) ) then
     call histwrt(stratcloud,'stratcf',idnc,iarch,local,.true.)  
     call histwrt(nettend,'strat_nt',idnc,iarch,local,.true.)
   end if
@@ -3241,12 +3250,12 @@ if ( abs(iaero)>=2 ) then
     call histwrt(xtg_solub(:,:,10),'dust3_s',idnc,iarch,local,.true.)
     call histwrt(xtg_solub(:,:,11),'dust4_s',idnc,iarch,local,.true.) 
   end if
-  if ( itype==-1 ) then
+  if ( itype==-1 .or. diaglevel_aerosols>5 ) then
     call histwrt(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
     call histwrt(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
   end if  
   if ( save_aerosols ) then
-    if ( iaero<=-2 ) then
+    if ( iaero<=-2 .and. diaglevel_aerosols>5 ) then
       do k = 1,kl
         qtot(:)   = qg(1:ifull,k) + qlg(1:ifull,k) + qfg(1:ifull,k)
         tv(:)     = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))   ! virtual temperature
