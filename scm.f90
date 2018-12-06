@@ -1363,7 +1363,7 @@ if (nsib>=1) then
     greenup  = -50
     fall     = 367
     phendoy1 = 2    
-    call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,casapoint,greenup,fall,phendoy1)
+    call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,casapoint,greenup,fall,phendoy1,casapftfile)
     ! albvisnir at this point holds net albedo
   end if
 end if
@@ -5166,45 +5166,45 @@ call ccnf_open(ifile,ncid)
 allocate( pncid(0:0) )
 pncid(0) = ncid
 
-call histrd3(iarchi,ier,'psf',ik,psl,ifull)
-call histrd3(iarchi,ier,'tsu',ik,tss,ifull)
+call histrd(iarchi,ier,'psf',ik,psl,ifull)
+call histrd(iarchi,ier,'tsu',ik,tss,ifull)
 
-call histrd3(iarchi,ier,'snd',ik,snowd,ifull)
-call histrd3(iarchi,ier,'tgg1',ik,tgg(:,1),ifull)
-call histrd3(iarchi,ier,'tgg2',ik,tgg(:,2),ifull)
-call histrd3(iarchi,ier,'tgg3',ik,tgg(:,3),ifull)
-call histrd3(iarchi,ier,'tgg4',ik,tgg(:,4),ifull)
-call histrd3(iarchi,ier,'tgg5',ik,tgg(:,5),ifull)
-call histrd3(iarchi,ier,'tgg6',ik,tgg(:,6),ifull)
+call histrd(iarchi,ier,'snd',ik,snowd,ifull)
+call histrd(iarchi,ier,'tgg1',ik,tgg(:,1),ifull)
+call histrd(iarchi,ier,'tgg2',ik,tgg(:,2),ifull)
+call histrd(iarchi,ier,'tgg3',ik,tgg(:,3),ifull)
+call histrd(iarchi,ier,'tgg4',ik,tgg(:,4),ifull)
+call histrd(iarchi,ier,'tgg5',ik,tgg(:,5),ifull)
+call histrd(iarchi,ier,'tgg6',ik,tgg(:,6),ifull)
 
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  call histrd3(iarchi,ier,'ocheight',ik,ocndwn,ifull)  
+  call histrd(iarchi,ier,'ocheight',ik,ocndwn,ifull)  
   call mloimport(4,ocndwn,0,0)
-  call histrd3(iarchi,ier,'tggsn1',ik,tggsn(:,1),ifull)
-  call histrd3(iarchi,ier,'tggsn2',ik,tggsn(:,2),ifull)
-  call histrd3(iarchi,ier,'tggsn3',ik,tggsn(:,3),ifull)
-  call histrd3(iarchi,ier,'tggsn4',ik,ocndwn,ifull)
+  call histrd(iarchi,ier,'tggsn1',ik,tggsn(:,1),ifull)
+  call histrd(iarchi,ier,'tggsn2',ik,tggsn(:,2),ifull)
+  call histrd(iarchi,ier,'tggsn3',ik,tggsn(:,3),ifull)
+  call histrd(iarchi,ier,'tggsn4',ik,ocndwn,ifull)
   call mloimpice(tggsn(:,1),1,0)
   call mloimpice(tggsn(:,2),2,0)
   call mloimpice(tggsn(:,3),3,0)
   call mloimpice(ocndwn,4,0)
-  call histrd3(iarchi,ier,'sto',ik,ocndwn,ifull)
+  call histrd(iarchi,ier,'sto',ik,ocndwn,ifull)
   call mloimpice(ocndwn,8,0)
-  call histrd3(iarchi,ier,'uic',ik,ocndwn,ifull)
+  call histrd(iarchi,ier,'uic',ik,ocndwn,ifull)
   call mloimpice(ocndwn,9,0)
-  call histrd3(iarchi,ier,'vic',ik,ocndwn,ifull)
+  call histrd(iarchi,ier,'vic',ik,ocndwn,ifull)
   call mloimpice(ocndwn,10,0)
 end if
 
-call histrd3(iarchi,ier,'wb1',ik,wb(:,1),ifull)
-call histrd3(iarchi,ier,'wb2',ik,wb(:,2),ifull)
-call histrd3(iarchi,ier,'wb3',ik,wb(:,3),ifull)
-call histrd3(iarchi,ier,'wb4',ik,wb(:,4),ifull)
-call histrd3(iarchi,ier,'wb5',ik,wb(:,5),ifull)
-call histrd3(iarchi,ier,'wb6',ik,wb(:,6),ifull)
+call histrd(iarchi,ier,'wb1',ik,wb(:,1),ifull)
+call histrd(iarchi,ier,'wb2',ik,wb(:,2),ifull)
+call histrd(iarchi,ier,'wb3',ik,wb(:,3),ifull)
+call histrd(iarchi,ier,'wb4',ik,wb(:,4),ifull)
+call histrd(iarchi,ier,'wb5',ik,wb(:,5),ifull)
+call histrd(iarchi,ier,'wb6',ik,wb(:,6),ifull)
 
-call histrd3(iarchi,ier,'siced',  ik,sicedep,ifull)
-call histrd3(iarchi,ier,'fracice',ik,fracice,ifull)
+call histrd(iarchi,ier,'siced',  ik,sicedep,ifull)
+call histrd(iarchi,ier,'fracice',ik,fracice,ifull)
 
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   call mloimpice(fracice,5,0)
@@ -5213,154 +5213,154 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   call mloimpice(ocndwn,7,0)
 end if
 
-call histrd3(iarchi,ier,'pblh',ik,pblh,ifull)
+call histrd(iarchi,ier,'pblh',ik,pblh,ifull)
 
 if ( nurban/=0 ) then
   allocate( atebdwn(ifull,1) )  
-  call histrd3(iarchi,ier,'rooftgg1',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'rooftgg1',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'rooftemp1',0)
-  call histrd3(iarchi,ier,'rooftgg2',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'rooftgg2',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'rooftemp2',0)
-  call histrd3(iarchi,ier,'rooftgg3',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'rooftgg3',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'rooftemp3',0)
-  call histrd3(iarchi,ier,'rooftgg4',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'rooftgg4',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'rooftemp4',0)
-  call histrd3(iarchi,ier,'rooftgg5',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'rooftgg5',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'rooftemp5',0)
-  call histrd3(iarchi,ier,'waletgg1',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'waletgg1',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'walletemp1',0)
-  call histrd3(iarchi,ier,'waletgg2',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'waletgg2',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'walletemp2',0)
-  call histrd3(iarchi,ier,'waletgg3',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'waletgg3',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'walletemp3',0)
-  call histrd3(iarchi,ier,'waletgg4',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'waletgg4',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'walletemp4',0)
-  call histrd3(iarchi,ier,'waletgg5',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'waletgg5',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'walletemp5',0)
-  call histrd3(iarchi,ier,'walwtgg1',ik,atebdwn(:,1),ifull)  
+  call histrd(iarchi,ier,'walwtgg1',ik,atebdwn(:,1),ifull)  
   call atebloadd(atebdwn(:,1),'wallwtemp1',0)
-  call histrd3(iarchi,ier,'walwtgg2',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'walwtgg2',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'wallwtemp2',0)
-  call histrd3(iarchi,ier,'walwtgg3',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'walwtgg3',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'wallwtemp3',0)
-  call histrd3(iarchi,ier,'walwtgg4',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'walwtgg4',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'wallwtemp4',0)
-  call histrd3(iarchi,ier,'walwtgg5',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'walwtgg5',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'wallwtemp5',0)
-  call histrd3(iarchi,ier,'roadtgg1',ik,atebdwn(:,1),ifull)  
+  call histrd(iarchi,ier,'roadtgg1',ik,atebdwn(:,1),ifull)  
   call atebloadd(atebdwn(:,1),'roadtemp1',0)
-  call histrd3(iarchi,ier,'roadtgg2',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roadtgg2',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roadtemp2',0)
-  call histrd3(iarchi,ier,'roadtgg3',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roadtgg3',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roadtemp3',0)
-  call histrd3(iarchi,ier,'roadtgg4',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roadtgg4',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roadtemp4',0)
-  call histrd3(iarchi,ier,'roadtgg5',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roadtgg5',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roadtemp5',0)
-  call histrd3(iarchi,ier,'slabtgg1',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'slabtgg1',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'slabtemp1',0)
-  call histrd3(iarchi,ier,'slabtgg2',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'slabtgg2',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'slabtemp2',0)
-  call histrd3(iarchi,ier,'slabtgg3',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'slabtgg3',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'slabtemp3',0)
-  call histrd3(iarchi,ier,'slabtgg4',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'slabtgg4',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'slabtemp4',0)
-  call histrd3(iarchi,ier,'slabtgg5',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'slabtgg5',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'slabtemp5',0)
-  call histrd3(iarchi,ier,'intmtgg1',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'intmtgg1',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'intmtemp1',0)
-  call histrd3(iarchi,ier,'intmtgg2',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'intmtgg2',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'intmtemp2',0)
-  call histrd3(iarchi,ier,'intmtgg3',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'intmtgg3',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'intmtemp3',0)
-  call histrd3(iarchi,ier,'intmtgg4',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'intmtgg4',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'intmtemp4',0)
-  call histrd3(iarchi,ier,'intmtgg5',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'intmtgg5',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'intmtemp5',0)  
-  call histrd3(iarchi,ier,'roomtgg1',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roomtgg1',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roomtemp',0)  
-  call histrd3(iarchi,ier,'urbnsmc',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'urbnsmc',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'canyonsoilmoisture',0)  
-  call histrd3(iarchi,ier,'urbnsmr',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'urbnsmr',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roofsoilmoisture',0)  
-  call histrd3(iarchi,ier,'roofwtr',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roofwtr',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roofsurfacewater',0)  
-  call histrd3(iarchi,ier,'roadwtr',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roadwtr',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roadsurfacewater',0)
-  call histrd3(iarchi,ier,'urbwtrc',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'urbwtrc',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'canyonleafwater',0)  
-  call histrd3(iarchi,ier,'urbwtrr',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'urbwtrr',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roofleafwater',0) 
-  call histrd3(iarchi,ier,'roofsnd',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roofsnd',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roofsnowdepth',0)  
-  call histrd3(iarchi,ier,'roadsnd',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roadsnd',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roadsnowdepth',0) 
-  call histrd3(iarchi,ier,'roofden',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roofden',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roofsnowdensity',0)  
-  call histrd3(iarchi,ier,'roadden',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roadden',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roadsnowdensity',0) 
-  call histrd3(iarchi,ier,'roofsna',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roofsna',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roofsnowalbedo',0)  
-  call histrd3(iarchi,ier,'roadsna',ik,atebdwn(:,1),ifull)
+  call histrd(iarchi,ier,'roadsna',ik,atebdwn(:,1),ifull)
   call atebloadd(atebdwn(:,1),'roadsnowalbedo',0) 
   deallocate( atebdwn )
 end if    
 
-call histrd4(iarchi,ier,'temp',ik,kl,t,ifull)
-call histrd4(iarchi,ier,'u',ik,kl,u,ifull)
-call histrd4(iarchi,ier,'v',ik,kl,v,ifull)
-call histrd4(iarchi,ier,'mixr',ik,kl,qg,ifull)
+call histrd(iarchi,ier,'temp',ik,kl,t,ifull)
+call histrd(iarchi,ier,'u',ik,kl,u,ifull)
+call histrd(iarchi,ier,'v',ik,kl,v,ifull)
+call histrd(iarchi,ier,'mixr',ik,kl,qg,ifull)
 
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  call histrd4(iarchi,ier,'thetao',ik,ol,mlodwn,ifull)
+  call histrd(iarchi,ier,'thetao',ik,ol,mlodwn,ifull)
   call mloimport3d(0,mlodwn,0)
-  call histrd4(iarchi,ier,'so',ik,ol,mlodwn,ifull)
+  call histrd(iarchi,ier,'so',ik,ol,mlodwn,ifull)
   call mloimport3d(1,mlodwn,0)
-  call histrd4(iarchi,ier,'uo',ik,ol,mlodwn,ifull)
+  call histrd(iarchi,ier,'uo',ik,ol,mlodwn,ifull)
   call mloimport3d(2,mlodwn,0)
-  call histrd4(iarchi,ier,'vo',ik,ol,mlodwn,ifull)
+  call histrd(iarchi,ier,'vo',ik,ol,mlodwn,ifull)
   call mloimport3d(3,mlodwn,0)
 end if
 
 if ( ldr/=0 ) then
-  call histrd4(iarchi,ier,'qfg',ik,kl,qfg,ifull)
-  call histrd4(iarchi,ier,'qlg',ik,kl,qlg,ifull)
+  call histrd(iarchi,ier,'qfg',ik,kl,qfg,ifull)
+  call histrd(iarchi,ier,'qlg',ik,kl,qlg,ifull)
   if ( ncloud>=2 ) then
-    call histrd4(iarchi,ier,'qrg',ik,kl,qrg,ifull)
+    call histrd(iarchi,ier,'qrg',ik,kl,qrg,ifull)
   end if
   if ( ncloud>=3 ) then
-    call histrd4(iarchi,ier,'qsng',ik,kl,qsng,ifull)
-    call histrd4(iarchi,ier,'qgrg',ik,kl,qgrg,ifull)
+    call histrd(iarchi,ier,'qsng',ik,kl,qsng,ifull)
+    call histrd(iarchi,ier,'qgrg',ik,kl,qgrg,ifull)
   end if    
-  call histrd4(iarchi,ier,'cfrac',ik,kl,cfrac,ifull)
+  call histrd(iarchi,ier,'cfrac',ik,kl,cfrac,ifull)
   if ( ncloud>=2 ) then
-    call histrd4(iarchi,ier,'rfrac',ik,kl,rfrac,ifull)
+    call histrd(iarchi,ier,'rfrac',ik,kl,rfrac,ifull)
   end if
   if ( ncloud>=3 ) then
-    call histrd4(iarchi,ier,'sfrac',ik,kl,sfrac,ifull)
-    call histrd4(iarchi,ier,'gfrac',ik,kl,gfrac,ifull)
+    call histrd(iarchi,ier,'sfrac',ik,kl,sfrac,ifull)
+    call histrd(iarchi,ier,'gfrac',ik,kl,gfrac,ifull)
   end if    
 end if
 
 if ( nvmix==6 ) then
-  call histrd4(iarchi,ier,'tke',ik,kl,tke,ifull)
-  call histrd4(iarchi,ier,'eps',ik,kl,eps,ifull)
+  call histrd(iarchi,ier,'tke',ik,kl,tke,ifull)
+  call histrd(iarchi,ier,'eps',ik,kl,eps,ifull)
 end if
 
 if ( abs(iaero)>=2 ) then
-  call histrd4(iarchi,ier,'dms',ik,kl,xtg(:,:,1),ifull)  
-  call histrd4(iarchi,ier,'so2',ik,kl,xtg(:,:,2),ifull)
-  call histrd4(iarchi,ier,'so4',ik,kl,xtg(:,:,3),ifull)
-  call histrd4(iarchi,ier,'bco',ik,kl,xtg(:,:,4),ifull)
-  call histrd4(iarchi,ier,'bci',ik,kl,xtg(:,:,5),ifull)
-  call histrd4(iarchi,ier,'oco',ik,kl,xtg(:,:,6),ifull)
-  call histrd4(iarchi,ier,'oci',ik,kl,xtg(:,:,7),ifull)
-  call histrd4(iarchi,ier,'dust1',ik,kl,xtg(:,:,8),ifull)
-  call histrd4(iarchi,ier,'dust2',ik,kl,xtg(:,:,9),ifull)
-  call histrd4(iarchi,ier,'dust3',ik,kl,xtg(:,:,10),ifull)
-  call histrd4(iarchi,ier,'dust4',ik,kl,xtg(:,:,11),ifull)
-  call histrd4(iarchi,ier,'seasalt1',ik,kl,ssn(:,:,1),ifull)
-  call histrd4(iarchi,ier,'seasalt2',ik,kl,ssn(:,:,2),ifull)
+  call histrd(iarchi,ier,'dms',ik,kl,xtg(:,:,1),ifull)  
+  call histrd(iarchi,ier,'so2',ik,kl,xtg(:,:,2),ifull)
+  call histrd(iarchi,ier,'so4',ik,kl,xtg(:,:,3),ifull)
+  call histrd(iarchi,ier,'bco',ik,kl,xtg(:,:,4),ifull)
+  call histrd(iarchi,ier,'bci',ik,kl,xtg(:,:,5),ifull)
+  call histrd(iarchi,ier,'oco',ik,kl,xtg(:,:,6),ifull)
+  call histrd(iarchi,ier,'oci',ik,kl,xtg(:,:,7),ifull)
+  call histrd(iarchi,ier,'dust1',ik,kl,xtg(:,:,8),ifull)
+  call histrd(iarchi,ier,'dust2',ik,kl,xtg(:,:,9),ifull)
+  call histrd(iarchi,ier,'dust3',ik,kl,xtg(:,:,10),ifull)
+  call histrd(iarchi,ier,'dust4',ik,kl,xtg(:,:,11),ifull)
+  call histrd(iarchi,ier,'seasalt1',ik,kl,ssn(:,:,1),ifull)
+  call histrd(iarchi,ier,'seasalt2',ik,kl,ssn(:,:,2),ifull)
   ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
   so4t(:) = 0.
   do k = 1,kl
@@ -5368,27 +5368,27 @@ if ( abs(iaero)>=2 ) then
   end do   
 end if
 
-call histrd3(iarchi,ier,'wbice1',ik,wbice(:,1),ifull)
-call histrd3(iarchi,ier,'wbice2',ik,wbice(:,2),ifull)
-call histrd3(iarchi,ier,'wbice3',ik,wbice(:,3),ifull)
-call histrd3(iarchi,ier,'wbice4',ik,wbice(:,4),ifull)
-call histrd3(iarchi,ier,'wbice5',ik,wbice(:,5),ifull)
-call histrd3(iarchi,ier,'wbice6',ik,wbice(:,6),ifull)
+call histrd(iarchi,ier,'wbice1',ik,wbice(:,1),ifull)
+call histrd(iarchi,ier,'wbice2',ik,wbice(:,2),ifull)
+call histrd(iarchi,ier,'wbice3',ik,wbice(:,3),ifull)
+call histrd(iarchi,ier,'wbice4',ik,wbice(:,4),ifull)
+call histrd(iarchi,ier,'wbice5',ik,wbice(:,5),ifull)
+call histrd(iarchi,ier,'wbice6',ik,wbice(:,6),ifull)
 if ( .not.(abs(nmlo)>=1 .and. abs(nmlo)<=9) ) then
-  call histrd3(iarchi,ier,'tggsn1',ik,tggsn(:,1),ifull)
-  call histrd3(iarchi,ier,'tggsn2',ik,tggsn(:,2),ifull)
-  call histrd3(iarchi,ier,'tggsn3',ik,tggsn(:,3),ifull)
+  call histrd(iarchi,ier,'tggsn1',ik,tggsn(:,1),ifull)
+  call histrd(iarchi,ier,'tggsn2',ik,tggsn(:,2),ifull)
+  call histrd(iarchi,ier,'tggsn3',ik,tggsn(:,3),ifull)
 end if  
-call histrd3(iarchi,ier,'smass1',ik,smass(:,1),ifull)
-call histrd3(iarchi,ier,'smass2',ik,smass(:,2),ifull)
-call histrd3(iarchi,ier,'smass3',ik,smass(:,3),ifull)
-call histrd3(iarchi,ier,'ssdn1',ik,ssdn(:,1),ifull)
-call histrd3(iarchi,ier,'ssdn2',ik,ssdn(:,2),ifull)
-call histrd3(iarchi,ier,'ssdn3',ik,ssdn(:,3),ifull)
-call histrd3(iarchi,ier,'snage',ik,snage,ifull)
-call histrd3(iarchi,ier,'sflag',ik,dum6,ifull)
+call histrd(iarchi,ier,'smass1',ik,smass(:,1),ifull)
+call histrd(iarchi,ier,'smass2',ik,smass(:,2),ifull)
+call histrd(iarchi,ier,'smass3',ik,smass(:,3),ifull)
+call histrd(iarchi,ier,'ssdn1',ik,ssdn(:,1),ifull)
+call histrd(iarchi,ier,'ssdn2',ik,ssdn(:,2),ifull)
+call histrd(iarchi,ier,'ssdn3',ik,ssdn(:,3),ifull)
+call histrd(iarchi,ier,'snage',ik,snage,ifull)
+call histrd(iarchi,ier,'sflag',ik,dum6,ifull)
 isflag = nint(dum6)
-call histrd3(iarchi,ier,'sgsave',ik,sgsave,ifull)
+call histrd(iarchi,ier,'sgsave',ik,sgsave,ifull)
 
 if ( nsib==6 .or. nsib==7 ) then
   call loadtile
@@ -5920,8 +5920,8 @@ end if
 
 call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
 
-call histwrt3(psl,'psf',idnc,iarch,local,.true.)
-call histwrt3(tss,'tsu',idnc,iarch,local,.true.)
+call histwrt(psl,'psf',idnc,iarch,local,.true.)
+call histwrt(tss,'tsu',idnc,iarch,local,.true.)
 
 ! Export ocean data
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
@@ -5942,7 +5942,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   end where
 end if
 
-call histwrt3(snowd,'snd', idnc,iarch,local,.true.)  ! long write
+call histwrt(snowd,'snd', idnc,iarch,local,.true.)  ! long write
 do k=1,ms
   where ( tgg(:,k)<100. .and. itype==1 )
     aa(:) = tgg(:,k) + wrtemp
@@ -5950,34 +5950,34 @@ do k=1,ms
     aa(:) = tgg(:,k)      ! Allows ocean temperatures to use a 290K offset
   end where
   write(vname,'("tgg",I1.1)') k
-  call histwrt3(aa,vname,idnc,iarch,local,.true.)
+  call histwrt(aa,vname,idnc,iarch,local,.true.)
   where ( tgg(:,k)<100. )
     tgg(:,k) = tgg(:,k) + wrtemp
   end where
 end do
 
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  call histwrt3(ocnheight,'ocheight',idnc,iarch,local,.true.)
-  call histwrt3(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
-  call histwrt3(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
-  call histwrt3(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
-  call histwrt3(micdwn(:,4),'tggsn4',idnc,iarch,local,.true.)
-  call histwrt3(micdwn(:,8),'sto',idnc,iarch,local,.true.)
-  call histwrt3(micdwn(:,9),'uic',idnc,iarch,local,.true.)
-  call histwrt3(micdwn(:,10),'vic',idnc,iarch,local,.true.)
+  call histwrt(ocnheight,'ocheight',idnc,iarch,local,.true.)
+  call histwrt(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
+  call histwrt(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
+  call histwrt(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
+  call histwrt(micdwn(:,4),'tggsn4',idnc,iarch,local,.true.)
+  call histwrt(micdwn(:,8),'sto',idnc,iarch,local,.true.)
+  call histwrt(micdwn(:,9),'uic',idnc,iarch,local,.true.)
+  call histwrt(micdwn(:,10),'vic',idnc,iarch,local,.true.)
 end if
 
-call histwrt3(wb(:,1),'wb1',idnc,iarch,local,.true.)
-call histwrt3(wb(:,2),'wb2',idnc,iarch,local,.true.)
-call histwrt3(wb(:,3),'wb3',idnc,iarch,local,.true.)
-call histwrt3(wb(:,4),'wb4',idnc,iarch,local,.true.)
-call histwrt3(wb(:,5),'wb5',idnc,iarch,local,.true.)
-call histwrt3(wb(:,6),'wb6',idnc,iarch,local,.true.)
+call histwrt(wb(:,1),'wb1',idnc,iarch,local,.true.)
+call histwrt(wb(:,2),'wb2',idnc,iarch,local,.true.)
+call histwrt(wb(:,3),'wb3',idnc,iarch,local,.true.)
+call histwrt(wb(:,4),'wb4',idnc,iarch,local,.true.)
+call histwrt(wb(:,5),'wb5',idnc,iarch,local,.true.)
+call histwrt(wb(:,6),'wb6',idnc,iarch,local,.true.)
 
-call histwrt3(sicedep,'siced',idnc,iarch,local,.true.)
-call histwrt3(fracice,'fracice',idnc,iarch,local,.true.)
+call histwrt(sicedep,'siced',idnc,iarch,local,.true.)
+call histwrt(fracice,'fracice',idnc,iarch,local,.true.)
 
-call histwrt3(pblh,'pblh',idnc,iarch,local,.true.)
+call histwrt(pblh,'pblh',idnc,iarch,local,.true.)
 
 if ( nurban/=0 ) then
   do k = 1,5
@@ -5988,7 +5988,7 @@ if ( nurban/=0 ) then
       aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
     end where  
     write(vname,'("rooftgg",I1.1)') k
-    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
   end do  
   do k = 1,5
     write(vname,'("walletemp",I1.1)') k  
@@ -5998,7 +5998,7 @@ if ( nurban/=0 ) then
       aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
     end where  
     write(vname,'("waletgg",I1.1)') k
-    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
   end do  
   do k = 1,5
     write(vname,'("wallwtemp",I1.1)') k  
@@ -6008,7 +6008,7 @@ if ( nurban/=0 ) then
       aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
     end where  
     write(vname,'("walwtgg",I1.1)') k
-    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
   end do  
   do k = 1,5
     write(vname,'("roadtemp",I1.1)') k  
@@ -6018,7 +6018,7 @@ if ( nurban/=0 ) then
       aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
     end where  
     write(vname,'("roadtgg",I1.1)') k
-    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("slabtemp",I1.1)') k  
@@ -6028,7 +6028,7 @@ if ( nurban/=0 ) then
       aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
     end where  
     write(vname,'("slabtgg",I1.1)') k
-    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("intmtemp",I1.1)') k  
@@ -6038,53 +6038,53 @@ if ( nurban/=0 ) then
       aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
     end where  
     write(vname,'("intmtgg",I1.1)') k
-    call histwrt3(aa,vname,idnc,iarch,local,.true.)
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
   end do
   aa = 999.
   call atebsaved(aa,"roomtemp",0)
-  call histwrt3(aa,'roomtgg1', idnc,iarch,local,.true.)
+  call histwrt(aa,'roomtgg1', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"canyonsoilmoisture",0)
-  call histwrt3(aa,'urbnsmc', idnc,iarch,local,.true.)
+  call histwrt(aa,'urbnsmc', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"roofsoilmoisture",0)
-  call histwrt3(aa,'urbnsmr', idnc,iarch,local,.true.)
+  call histwrt(aa,'urbnsmr', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"roofsurfacewater",0)
-  call histwrt3(aa,'roofwtr', idnc,iarch,local,.true.)
+  call histwrt(aa,'roofwtr', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"roadsurfacewater",0)
-  call histwrt3(aa,'roadwtr', idnc,iarch,local,.true.)
+  call histwrt(aa,'roadwtr', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"canyonleafwater",0)
-  call histwrt3(aa,'urbwtrc', idnc,iarch,local,.true.)
+  call histwrt(aa,'urbwtrc', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"roofleafwater",0)
-  call histwrt3(aa,'urbwtrr', idnc,iarch,local,.true.)
+  call histwrt(aa,'urbwtrr', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"roofsnowdepth",0)
-  call histwrt3(aa,'roofsnd', idnc,iarch,local,.true.)
+  call histwrt(aa,'roofsnd', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"roadsnowdepth",0)
-  call histwrt3(aa,'roadsnd', idnc,iarch,local,.true.)
+  call histwrt(aa,'roadsnd', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"roofsnowdensity",0)
-  call histwrt3(aa,'roofden', idnc,iarch,local,.true.)
+  call histwrt(aa,'roofden', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"roadsnowdensity",0)
-  call histwrt3(aa,'roadden', idnc,iarch,local,.true.)
+  call histwrt(aa,'roadden', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"roofsnowalbedo",0)
-  call histwrt3(aa,'roofsna', idnc,iarch,local,.true.)
+  call histwrt(aa,'roofsna', idnc,iarch,local,.true.)
   aa = 999.
   call atebsaved(aa,"roadsnowalbedo",0)
-  call histwrt3(aa,'roadsna', idnc,iarch,local,.true.)
+  call histwrt(aa,'roadsna', idnc,iarch,local,.true.)
 end if
 
-call histwrt4(t,'temp',idnc,iarch,local,.true.)
-call histwrt4(u,'u',idnc,iarch,local,.true.)
-call histwrt4(v,'v',idnc,iarch,local,.true.)
-call histwrt4(qg,'mixr',idnc,iarch,local,.true.)
+call histwrt(t,'temp',idnc,iarch,local,.true.)
+call histwrt(u,'u',idnc,iarch,local,.true.)
+call histwrt(v,'v',idnc,iarch,local,.true.)
+call histwrt(qg,'mixr',idnc,iarch,local,.true.)
 
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   do k = 1,wlev
@@ -6094,74 +6094,74 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
       oo(:,k) = mlodwn(:,k,1)  
     end where
   end do  
-  call histwrt4(oo,"thetao",idnc,iarch,local,.true.)
-  call histwrt4(mlodwn(:,:,2),"so",idnc,iarch,local,.true.)
-  call histwrt4(mlodwn(:,:,3),"uo",idnc,iarch,local,.true.)
-  call histwrt4(mlodwn(:,:,4),"vo",idnc,iarch,local,.true.)
+  call histwrt(oo,"thetao",idnc,iarch,local,.true.)
+  call histwrt(mlodwn(:,:,2),"so",idnc,iarch,local,.true.)
+  call histwrt(mlodwn(:,:,3),"uo",idnc,iarch,local,.true.)
+  call histwrt(mlodwn(:,:,4),"vo",idnc,iarch,local,.true.)
 end if
 
 if ( ldr/=0 ) then
-  call histwrt4(qfg,'qfg',idnc,iarch,local,.true.)
-  call histwrt4(qlg,'qlg',idnc,iarch,local,.true.)
+  call histwrt(qfg,'qfg',idnc,iarch,local,.true.)
+  call histwrt(qlg,'qlg',idnc,iarch,local,.true.)
   if ( ncloud>=2 ) then
-    call histwrt4(qrg,'qrg',idnc,iarch,local,.true.)
+    call histwrt(qrg,'qrg',idnc,iarch,local,.true.)
   end if
   if ( ncloud>=3 ) then
-    call histwrt4(qsng,'qsng',idnc,iarch,local,.true.)
-    call histwrt4(qgrg,'qgrg',idnc,iarch,local,.true.)
+    call histwrt(qsng,'qsng',idnc,iarch,local,.true.)
+    call histwrt(qgrg,'qgrg',idnc,iarch,local,.true.)
   end if
-  call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
+  call histwrt(cfrac,'cfrac',idnc,iarch,local,.true.)
   if ( ncloud>=2 ) then
-    call histwrt4(rfrac,'rfrac',idnc,iarch,local,.true.)
+    call histwrt(rfrac,'rfrac',idnc,iarch,local,.true.)
   end if
   if ( ncloud>=3 ) then
-    call histwrt4(sfrac,'sfrac',idnc,iarch,local,.true.)
-    call histwrt4(gfrac,'gfrac',idnc,iarch,local,.true.)
+    call histwrt(sfrac,'sfrac',idnc,iarch,local,.true.)
+    call histwrt(gfrac,'gfrac',idnc,iarch,local,.true.)
   end if
 end if
 
 if ( nvmix==6 ) then
-  call histwrt4(tke,'tke',idnc,iarch,local,.true.)
-  call histwrt4(eps,'eps',idnc,iarch,local,.true.)
+  call histwrt(tke,'tke',idnc,iarch,local,.true.)
+  call histwrt(eps,'eps',idnc,iarch,local,.true.)
 end if
     
 if ( abs(iaero)>=2 ) then
-  call histwrt4(xtg(:,:,1), 'dms',  idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,2), 'so2',  idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,3), 'so4',  idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,4), 'bco',  idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,5), 'bci',  idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,6), 'oco',  idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,7), 'oci',  idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,8), 'dust1',idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,9), 'dust2',idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,10),'dust3',idnc,iarch,local,.true.)
-  call histwrt4(xtg(:,:,11),'dust4',idnc,iarch,local,.true.)
-  call histwrt4(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
-  call histwrt4(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,1), 'dms',  idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,2), 'so2',  idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,3), 'so4',  idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,4), 'bco',  idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,5), 'bci',  idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,6), 'oco',  idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,7), 'oci',  idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,8), 'dust1',idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,9), 'dust2',idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,10),'dust3',idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,11),'dust4',idnc,iarch,local,.true.)
+  call histwrt(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
+  call histwrt(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
 end if
   
-call histwrt3(wbice(:,1),'wbice1',idnc,iarch,local,.true.)
-call histwrt3(wbice(:,2),'wbice2',idnc,iarch,local,.true.)
-call histwrt3(wbice(:,3),'wbice3',idnc,iarch,local,.true.)
-call histwrt3(wbice(:,4),'wbice4',idnc,iarch,local,.true.)
-call histwrt3(wbice(:,5),'wbice5',idnc,iarch,local,.true.)
-call histwrt3(wbice(:,6),'wbice6',idnc,iarch,local,.true.)
+call histwrt(wbice(:,1),'wbice1',idnc,iarch,local,.true.)
+call histwrt(wbice(:,2),'wbice2',idnc,iarch,local,.true.)
+call histwrt(wbice(:,3),'wbice3',idnc,iarch,local,.true.)
+call histwrt(wbice(:,4),'wbice4',idnc,iarch,local,.true.)
+call histwrt(wbice(:,5),'wbice5',idnc,iarch,local,.true.)
+call histwrt(wbice(:,6),'wbice6',idnc,iarch,local,.true.)
 if ( nmlo==0 ) then ! otherwise already written above
-  call histwrt3(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
-  call histwrt3(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
-  call histwrt3(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
+  call histwrt(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
+  call histwrt(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
+  call histwrt(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
 end if
-call histwrt3(smass(:,1),'smass1',idnc,iarch,local,.true.)
-call histwrt3(smass(:,2),'smass2',idnc,iarch,local,.true.)
-call histwrt3(smass(:,3),'smass3',idnc,iarch,local,.true.)
-call histwrt3(ssdn(:,1), 'ssdn1', idnc,iarch,local,.true.)
-call histwrt3(ssdn(:,2), 'ssdn2', idnc,iarch,local,.true.)
-call histwrt3(ssdn(:,3), 'ssdn3', idnc,iarch,local,.true.)
-call histwrt3(snage,     'snage', idnc,iarch,local,.true.)
+call histwrt(smass(:,1),'smass1',idnc,iarch,local,.true.)
+call histwrt(smass(:,2),'smass2',idnc,iarch,local,.true.)
+call histwrt(smass(:,3),'smass3',idnc,iarch,local,.true.)
+call histwrt(ssdn(:,1), 'ssdn1', idnc,iarch,local,.true.)
+call histwrt(ssdn(:,2), 'ssdn2', idnc,iarch,local,.true.)
+call histwrt(ssdn(:,3), 'ssdn3', idnc,iarch,local,.true.)
+call histwrt(snage,     'snage', idnc,iarch,local,.true.)
 aa(:) = isflag(:)
-call histwrt3(aa,    'sflag', idnc,iarch,local,.true.)
-call histwrt3(sgsave,'sgsave',idnc,iarch,local,.true.)       
+call histwrt(aa,    'sflag', idnc,iarch,local,.true.)
+call histwrt(sgsave,'sgsave',idnc,iarch,local,.true.)       
 
 if ( nsib==6 .or. nsib==7 ) then
   call savetile(idnc,local,iarch)
@@ -6395,7 +6395,7 @@ rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
 !qscrn_ave(1:ifull)         = qscrn_ave(1:ifull) + qgscrn 
 wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
-tsu_ave(1:ifull)           = tsu_ave(1:ifull) + tss
+!tsu_ave(1:ifull)           = tsu_ave(1:ifull) + tss
 !call mslp(spare2,psl,zs,t) ! calculate MSLP from psl
 !spare2 = spare2/100.       ! convert MSLP to hPa
 !psl_ave(1:ifull)           = psl_ave(1:ifull) + spare2(1:ifull)
