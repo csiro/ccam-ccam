@@ -1245,11 +1245,15 @@ do itr = 2,itr_mg
   
   ! update on model grid using colours
   do i = 1,itrbgn
-    iv_old(1:ifull,1:klim) = iv(1:ifull,1:klim)  
+    
+    ! store previous solution to test for convergence  
+    iv_old(1:ifull,1:klim) = iv(1:ifull,1:klim)
+    
     do nc = 1,maxcolour
-      ! MJT notes - We calculate the halo proint of the fine grid first, so that the message can
+      ! MJT notes - We calculate the halo of the fine grid first, so that the message can
       ! be sent while the non-halo points are being updated, thereby overlapping communication
       ! and computation.
+
       ! update boundary grid points and send halo
       isc = 1
       iec = ifull_colour_border(nc)
@@ -1754,19 +1758,13 @@ do i = 1,itrbgn
     ! sea-ice (cavitating fluid)
 !$omp simd
     do iq = isc,iec
-      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
-         ( -zzncice(iq,nc)*dumc_n(iq,2)              &
-           -zzscice(iq,nc)*dumc_s(iq,2)              &
-           -zzecice(iq,nc)*dumc_e(iq,2)              &
-           -zzwcice(iq,nc)*dumc_w(iq,2)              &
-           -zznecice(iq,nc)*dumc_ne(iq,2)            &
-           -zzencice(iq,nc)*dumc_en(iq,2)            &
-           -zznwcice(iq,nc)*dumc_nw(iq,2)            &
-           -zzwncice(iq,nc)*dumc_wn(iq,2)            &
-           -zzsecice(iq,nc)*dumc_se(iq,2)            &
-           -zzescice(iq,nc)*dumc_es(iq,2)            &
-           -zzswcice(iq,nc)*dumc_sw(iq,2)            &
-           -zzwscice(iq,nc)*dumc_ws(iq,2)            &
+      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+         ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+           -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
+           -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
+           -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
+           -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
+           -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
           + rhscice(iq,nc) ) / zzcice(iq,nc) ))
     end do  
 
@@ -1793,19 +1791,13 @@ do i = 1,itrbgn
     ! sea-ice (cavitating fluid)
 !$omp simd
     do iq = isc,iec
-      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
-         ( -zzncice(iq,nc)*dumc_n(iq,2)              &
-           -zzscice(iq,nc)*dumc_s(iq,2)              &
-           -zzecice(iq,nc)*dumc_e(iq,2)              &
-           -zzwcice(iq,nc)*dumc_w(iq,2)              &
-           -zznecice(iq,nc)*dumc_ne(iq,2)            &
-           -zzencice(iq,nc)*dumc_en(iq,2)            &
-           -zznwcice(iq,nc)*dumc_nw(iq,2)            &
-           -zzwncice(iq,nc)*dumc_wn(iq,2)            &
-           -zzsecice(iq,nc)*dumc_se(iq,2)            &
-           -zzescice(iq,nc)*dumc_es(iq,2)            &
-           -zzswcice(iq,nc)*dumc_sw(iq,2)            &
-           -zzwscice(iq,nc)*dumc_ws(iq,2)            &
+      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+         ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+           -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
+           -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
+           -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
+           -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
+           -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
           + rhscice(iq,nc) ) / zzcice(iq,nc) ))
     end do  
 
@@ -2055,12 +2047,12 @@ if ( mg_maxlevel_local>0 ) then
       v_sw(1:ng) = v(mg(g)%isw,1,g)
       v_ws(1:ng) = v(mg(g)%iws,1,g)
       bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
-      cu(1:ng) = zzn(1:ng,g)*v_n(1:ng)+zzs(1:ng,g)*v_s(1:ng)     &
-               + zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng)     &
-               + zzne(1:ng,g)*v_ne(1:ng)+zzen(1:ng,g)*v_en(1:ng) &
-               + zznw(1:ng,g)*v_nw(1:ng)+zzwn(1:ng,g)*v_wn(1:ng) &
-               + zzse(1:ng,g)*v_se(1:ng)+zzes(1:ng,g)*v_es(1:ng) &
-               + zzsw(1:ng,g)*v_sw(1:ng)+zzws(1:ng,g)*v_ws(1:ng) &
+      cu(1:ng) = zzn(1:ng,g)*v_n(1:ng) + zzs(1:ng,g)*v_s(1:ng)     &
+               + zze(1:ng,g)*v_e(1:ng) + zzw(1:ng,g)*v_w(1:ng)     &
+               + zzne(1:ng,g)*v_ne(1:ng) + zzen(1:ng,g)*v_en(1:ng) &
+               + zznw(1:ng,g)*v_nw(1:ng) + zzwn(1:ng,g)*v_wn(1:ng) &
+               + zzse(1:ng,g)*v_se(1:ng) + zzes(1:ng,g)*v_es(1:ng) &
+               + zzsw(1:ng,g)*v_sw(1:ng) + zzws(1:ng,g)*v_ws(1:ng) &
                - rhs(1:ng,g)
       v(1:ng,1,g) = -cu(1:ng)/bu(1:ng)
       
@@ -2333,18 +2325,12 @@ if ( mg_maxlevel_local>0 ) then
         ! ice
 !$omp simd
         do iq = 1,mg_ifull_maxcolour
-          v(col_iq(iq,nc),2,g) = ( - zzincu(iq,nc)*v(col_iqn(iq,nc),2,g)   &
-                                   - zziscu(iq,nc)*v(col_iqs(iq,nc),2,g)   &
-                                   - zziecu(iq,nc)*v(col_iqe(iq,nc),2,g)   &
-                                   - zziwcu(iq,nc)*v(col_iqw(iq,nc),2,g)   &
-                                   - zzinecu(iq,nc)*v(col_iqne(iq,nc),2,g) &
-                                   - zziencu(iq,nc)*v(col_iqen(iq,nc),2,g) &
-                                   - zzinwcu(iq,nc)*v(col_iqnw(iq,nc),2,g) &
-                                   - zziwncu(iq,nc)*v(col_iqwn(iq,nc),2,g) &
-                                   - zzisecu(iq,nc)*v(col_iqse(iq,nc),2,g) &
-                                   - zziescu(iq,nc)*v(col_iqes(iq,nc),2,g) &
-                                   - zziswcu(iq,nc)*v(col_iqsw(iq,nc),2,g) &
-                                   - zziwscu(iq,nc)*v(col_iqws(iq,nc),2,g) &
+          v(col_iq(iq,nc),2,g) = ( - zzincu(iq,nc)*v(col_iqn(iq,nc),2,g) - zziscu(iq,nc)*v(col_iqs(iq,nc),2,g)     &
+                                   - zziecu(iq,nc)*v(col_iqe(iq,nc),2,g) - zziwcu(iq,nc)*v(col_iqw(iq,nc),2,g)     &
+                                   - zzinecu(iq,nc)*v(col_iqne(iq,nc),2,g) - zziencu(iq,nc)*v(col_iqen(iq,nc),2,g) &
+                                   - zzinwcu(iq,nc)*v(col_iqnw(iq,nc),2,g) - zziwncu(iq,nc)*v(col_iqwn(iq,nc),2,g) &
+                                   - zzisecu(iq,nc)*v(col_iqse(iq,nc),2,g) - zziescu(iq,nc)*v(col_iqes(iq,nc),2,g) &
+                                   - zziswcu(iq,nc)*v(col_iqsw(iq,nc),2,g) - zziwscu(iq,nc)*v(col_iqws(iq,nc),2,g) &
                                   + rhsicu(iq,nc) ) / zzicu(iq,nc)
         end do
 
@@ -2512,19 +2498,13 @@ do i = 1,itrend
     ! sea-ice (cavitating fluid)
 !$omp simd
     do iq = isc,iec
-      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
-         ( -zzncice(iq,nc)*dumc_n(iq,2)              &
-           -zzscice(iq,nc)*dumc_s(iq,2)              &
-           -zzecice(iq,nc)*dumc_e(iq,2)              &
-           -zzwcice(iq,nc)*dumc_w(iq,2)              &
-           -zznecice(iq,nc)*dumc_ne(iq,2)            &
-           -zzencice(iq,nc)*dumc_en(iq,2)            &
-           -zznwcice(iq,nc)*dumc_nw(iq,2)            &
-           -zzwncice(iq,nc)*dumc_wn(iq,2)            &
-           -zzsecice(iq,nc)*dumc_se(iq,2)            &
-           -zzescice(iq,nc)*dumc_es(iq,2)            &
-           -zzswcice(iq,nc)*dumc_sw(iq,2)            &
-           -zzwscice(iq,nc)*dumc_ws(iq,2)            &
+      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+         ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+           -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
+           -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
+           -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
+           -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
+           -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
           + rhscice(iq,nc) ) / zzcice(iq,nc) ))
     end do  
 
@@ -2551,19 +2531,13 @@ do i = 1,itrend
     ! sea-ice (cavitating fluid)
 !$omp simd
     do iq = isc,iec
-      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
-         ( -zzncice(iq,nc)*dumc_n(iq,2)              &
-           -zzscice(iq,nc)*dumc_s(iq,2)              &
-           -zzecice(iq,nc)*dumc_e(iq,2)              &
-           -zzwcice(iq,nc)*dumc_w(iq,2)              &
-           -zznecice(iq,nc)*dumc_ne(iq,2)            &
-           -zzencice(iq,nc)*dumc_en(iq,2)            &
-           -zznwcice(iq,nc)*dumc_nw(iq,2)            &
-           -zzwncice(iq,nc)*dumc_wn(iq,2)            &
-           -zzsecice(iq,nc)*dumc_se(iq,2)            &
-           -zzescice(iq,nc)*dumc_es(iq,2)            &
-           -zzswcice(iq,nc)*dumc_sw(iq,2)            &
-           -zzwscice(iq,nc)*dumc_ws(iq,2)            &
+      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+         ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+           -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
+           -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
+           -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
+           -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
+           -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
           + rhscice(iq,nc) ) / zzcice(iq,nc) ))
     end do  
 
@@ -2572,17 +2546,19 @@ do i = 1,itrend
   end do
 end do
 
-neta(1:ifull)  = dumc(1:ifull,1)
-ipice(1:ifull) = dumc(1:ifull,2)
-
 call END_LOG(mgsetup_end)
 
 ! Main loop
 do itr = 2,itr_mgice
-
+   
   call START_LOG(mgfine_begin)
   
   do i = 1,itrbgn
+      
+    ! store previous solution to test for convergence  
+    neta(1:ifull)  = dumc(1:ifull,1)
+    ipice(1:ifull) = dumc(1:ifull,2)
+  
     do nc = 1,maxcolour
 
       do k = 1,2
@@ -2608,14 +2584,14 @@ do itr = 2,itr_mgice
       iec = ifull_colour_border(nc)
   
       ! ocean
-      bu(isc:iec)=zzhhc(isc:iec,nc)
-      cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
-                 +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-                 +zznec(isc:iec,nc)*dumc_ne(isc:iec,1)+zzenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-                 +zznwc(isc:iec,nc)*dumc_nw(isc:iec,1)+zzwnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-                 +zzsec(isc:iec,nc)*dumc_se(isc:iec,1)+zzesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-                 +zzswc(isc:iec,nc)*dumc_sw(isc:iec,1)+zzwsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
-                 -rhsc(isc:iec,nc)   
+      bu(isc:iec) = zzhhc(isc:iec,nc)
+      cu(isc:iec) = zznc(isc:iec,nc)*dumc_n(isc:iec,1) + zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
+                  + zzec(isc:iec,nc)*dumc_e(isc:iec,1) + zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
+                  + zznec(isc:iec,nc)*dumc_ne(isc:iec,1) + zzenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
+                  + zznwc(isc:iec,nc)*dumc_nw(isc:iec,1) + zzwnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
+                  + zzsec(isc:iec,nc)*dumc_se(isc:iec,1) + zzesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
+                  + zzswc(isc:iec,nc)*dumc_sw(isc:iec,1) + zzwsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
+                  - rhsc(isc:iec,nc)   
 !$omp simd
       do iq = isc,iec
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater, -cu(iq)/bu(iq) )
@@ -2624,19 +2600,13 @@ do itr = 2,itr_mgice
       ! ice (cavitating fluid)
 !$omp simd
       do iq = isc,iec
-        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
-           ( -zzncice(iq,nc)*dumc_n(iq,2)              &
-             -zzscice(iq,nc)*dumc_s(iq,2)              &
-             -zzecice(iq,nc)*dumc_e(iq,2)              &
-             -zzwcice(iq,nc)*dumc_w(iq,2)              &
-             -zznecice(iq,nc)*dumc_ne(iq,2)            &
-             -zzencice(iq,nc)*dumc_en(iq,2)            &
-             -zznwcice(iq,nc)*dumc_nw(iq,2)            &
-             -zzwncice(iq,nc)*dumc_wn(iq,2)            &
-             -zzsecice(iq,nc)*dumc_se(iq,2)            &
-             -zzescice(iq,nc)*dumc_es(iq,2)            &
-             -zzswcice(iq,nc)*dumc_sw(iq,2)            &
-             -zzwscice(iq,nc)*dumc_ws(iq,2)            &
+        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+           ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+             -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
+             -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
+             -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
+             -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
+             -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
       end do  
 
@@ -2663,19 +2633,13 @@ do itr = 2,itr_mgice
       ! ice (cavitating fluid)
 !$omp simd
       do iq = isc,iec
-        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
-           ( -zzncice(iq,nc)*dumc_n(iq,2)              &
-             -zzscice(iq,nc)*dumc_s(iq,2)              &
-             -zzecice(iq,nc)*dumc_e(iq,2)              &
-             -zzwcice(iq,nc)*dumc_w(iq,2)              &
-             -zznecice(iq,nc)*dumc_ne(iq,2)            &
-             -zzencice(iq,nc)*dumc_en(iq,2)            &
-             -zznwcice(iq,nc)*dumc_nw(iq,2)            &
-             -zzwncice(iq,nc)*dumc_wn(iq,2)            &
-             -zzsecice(iq,nc)*dumc_se(iq,2)            &
-             -zzescice(iq,nc)*dumc_es(iq,2)            &
-             -zzswcice(iq,nc)*dumc_sw(iq,2)            &
-             -zzwscice(iq,nc)*dumc_ws(iq,2)            &
+        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+           ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+             -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
+             -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
+             -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
+             -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
+             -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
       end do  
       
@@ -2937,18 +2901,12 @@ do itr = 2,itr_mgice
           ! ice
 !$omp simd
           do iq = 1,mg_ifull_maxcolour
-            v(col_iq(iq,nc),2,g) = ( - zzincu(iq,nc)*v(col_iqn(iq,nc),2,g)   &
-                                     - zziscu(iq,nc)*v(col_iqs(iq,nc),2,g)   &
-                                     - zziecu(iq,nc)*v(col_iqe(iq,nc),2,g)   &
-                                     - zziwcu(iq,nc)*v(col_iqw(iq,nc),2,g)   &
-                                     - zzinecu(iq,nc)*v(col_iqne(iq,nc),2,g) &
-                                     - zziencu(iq,nc)*v(col_iqen(iq,nc),2,g) &
-                                     - zzinwcu(iq,nc)*v(col_iqnw(iq,nc),2,g) &
-                                     - zziwncu(iq,nc)*v(col_iqwn(iq,nc),2,g) &
-                                     - zzisecu(iq,nc)*v(col_iqse(iq,nc),2,g) &
-                                     - zziescu(iq,nc)*v(col_iqes(iq,nc),2,g) &
-                                     - zziswcu(iq,nc)*v(col_iqsw(iq,nc),2,g) &
-                                     - zziwscu(iq,nc)*v(col_iqws(iq,nc),2,g) &
+            v(col_iq(iq,nc),2,g) = ( - zzincu(iq,nc)*v(col_iqn(iq,nc),2,g) - zziscu(iq,nc)*v(col_iqs(iq,nc),2,g)     &
+                                     - zziecu(iq,nc)*v(col_iqe(iq,nc),2,g) - zziwcu(iq,nc)*v(col_iqw(iq,nc),2,g)     &
+                                     - zzinecu(iq,nc)*v(col_iqne(iq,nc),2,g) - zziencu(iq,nc)*v(col_iqen(iq,nc),2,g) &
+                                     - zzinwcu(iq,nc)*v(col_iqnw(iq,nc),2,g) - zziwncu(iq,nc)*v(col_iqwn(iq,nc),2,g) &
+                                     - zzisecu(iq,nc)*v(col_iqse(iq,nc),2,g) - zziescu(iq,nc)*v(col_iqes(iq,nc),2,g) &
+                                     - zziswcu(iq,nc)*v(col_iqsw(iq,nc),2,g) - zziwscu(iq,nc)*v(col_iqws(iq,nc),2,g) &
                                     + rhsicu(iq,nc) ) / zzicu(iq,nc)
           end do
           
@@ -3121,19 +3079,13 @@ do itr = 2,itr_mgice
       ! ice (cavitating fluid)
 !$omp simd
       do iq = isc,iec
-        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
-           ( -zzncice(iq,nc)*dumc_n(iq,2)              &
-             -zzscice(iq,nc)*dumc_s(iq,2)              &
-             -zzecice(iq,nc)*dumc_e(iq,2)              &
-             -zzwcice(iq,nc)*dumc_w(iq,2)              &
-             -zznecice(iq,nc)*dumc_ne(iq,2)            &
-             -zzencice(iq,nc)*dumc_en(iq,2)            &
-             -zznwcice(iq,nc)*dumc_nw(iq,2)            &
-             -zzwncice(iq,nc)*dumc_wn(iq,2)            &
-             -zzsecice(iq,nc)*dumc_se(iq,2)            &
-             -zzescice(iq,nc)*dumc_es(iq,2)            &
-             -zzswcice(iq,nc)*dumc_sw(iq,2)            &
-             -zzwscice(iq,nc)*dumc_ws(iq,2)            &
+        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+           ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+             -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
+             -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
+             -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
+             -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
+             -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
       end do  
 
@@ -3160,19 +3112,13 @@ do itr = 2,itr_mgice
       ! ice (cavitating fluid)
 !$omp simd
       do iq = isc,iec
-        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc), &
-           ( -zzncice(iq,nc)*dumc_n(iq,2)              &
-             -zzscice(iq,nc)*dumc_s(iq,2)              &
-             -zzecice(iq,nc)*dumc_e(iq,2)              &
-             -zzwcice(iq,nc)*dumc_w(iq,2)              &
-             -zznecice(iq,nc)*dumc_ne(iq,2)            &
-             -zzencice(iq,nc)*dumc_en(iq,2)            &
-             -zznwcice(iq,nc)*dumc_nw(iq,2)            &
-             -zzwncice(iq,nc)*dumc_wn(iq,2)            &
-             -zzsecice(iq,nc)*dumc_se(iq,2)            &
-             -zzescice(iq,nc)*dumc_es(iq,2)            &
-             -zzswcice(iq,nc)*dumc_sw(iq,2)            &
-             -zzwscice(iq,nc)*dumc_ws(iq,2)            &
+        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+           ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+             -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
+             -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
+             -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
+             -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
+             -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
       end do
 
