@@ -2701,8 +2701,8 @@ if ( myid<nproc ) then
     write(6,'(2i9,f8.2,g9.2)') buoymeth,stabmeth,maxdts,qcmf
     write(6,*)'  mintke   mineps     minl     maxl'
     write(6,'(4g9.2)') mintke,mineps,minl,maxl
-    write(6,*) ' tke_umin tkemeth qcmf ezmin ent_min'
-    write(6,'(f8.2,i5,3f8.2)') tke_umin,tkemeth,qcmf,ezmin,ent_min
+    write(6,*) ' tke_umin tkemeth ezmin ent_min'
+    write(6,'(f8.2,i5,2f8.2)') tke_umin,tkemeth,ezmin,ent_min
     write(6,*) ' tkecduv amxlsq'
     write(6,'(i9,f8.2)') tkecduv,amxlsq
     write(6,*)'  cgmap_offset   cgmap_scale'
@@ -3608,7 +3608,7 @@ sunhours(:)          = 0.
 riwp_ave(:)          = 0.
 rlwp_ave(:)          = 0.
 !qscrn_ave(:)         = 0.
-!tscr_ave(:)          = 0.
+tscr_ave(:)          = 0.
 wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
 !tsu_ave(:)           = 0.
@@ -3782,7 +3782,7 @@ anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull) + urban_cooling_flux
 tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urban_tas )
 tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
 rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
-!tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
+tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
 !qscrn_ave(1:ifull)         = qscrn_ave(1:ifull) + qgscrn 
 wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
@@ -3843,7 +3843,7 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   sunhours(1:ifull)          = sunhours(1:ifull)/min(ntau,nperavg)
   riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
   rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
-  !tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
+  tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
   !qscrn_ave(1:ifull)         = qscrn_ave(1:ifull)/min(ntau,nperavg)
   do k = 1,ms
     wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)

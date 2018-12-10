@@ -26,7 +26,7 @@ implicit none
 private
 public eg_ave,fg_ave,ga_ave,epan_ave,dew_ave
 public cbas_ave,ctop_ave,rndmax
-public tmaxscr,tminscr
+public tmaxscr,tminscr,tscr_ave
 public rhmaxscr,rhminscr
 public riwp_ave,rlwp_ave,u10max,v10max,u10mx
 public u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave
@@ -41,7 +41,7 @@ public histave_init,histave_end
 
 real, dimension(:), allocatable, save :: eg_ave,fg_ave,ga_ave,epan_ave,dew_ave
 real, dimension(:), allocatable, save :: cbas_ave,ctop_ave,rndmax
-real, dimension(:), allocatable, save :: tmaxscr,tminscr
+real, dimension(:), allocatable, save :: tmaxscr,tminscr,tscr_ave
 real, dimension(:), allocatable, save :: rhmaxscr,rhminscr
 real, dimension(:), allocatable, save :: riwp_ave,rlwp_ave,u10max,v10max,u10mx
 real, dimension(:), allocatable, save :: u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave
@@ -64,7 +64,7 @@ integer, intent(in) :: ifull,kl,ms,ccycle
 
 allocate(eg_ave(ifull),fg_ave(ifull),ga_ave(ifull),epan_ave(ifull),dew_ave(ifull))
 allocate(cbas_ave(ifull),ctop_ave(ifull),rndmax(ifull))
-allocate(tmaxscr(ifull),tminscr(ifull))
+allocate(tmaxscr(ifull),tminscr(ifull),tscr_ave(ifull))
 allocate(rhmaxscr(ifull),rhminscr(ifull))
 allocate(riwp_ave(ifull),rlwp_ave(ifull),u10max(ifull),v10max(ifull),u10mx(ifull))
 allocate(u1max(ifull),v1max(ifull),u2max(ifull),v2max(ifull),cape_max(ifull),cape_ave(ifull),epot_ave(ifull))
@@ -78,6 +78,7 @@ allocate(anth_elecgas_ave(ifull), anth_heating_ave(ifull), anth_cooling_ave(iful
 rndmax(:)      = 0.
 tmaxscr(:)     = 0.
 tminscr(:)     = 400.
+tscr_ave(:)    = 0.
 rhmaxscr(:)    = 0.
 rhminscr(:)    = 400.
 u10max(:)      = 0.
@@ -136,7 +137,7 @@ implicit none
 
 deallocate(eg_ave,fg_ave,ga_ave,epan_ave,dew_ave)
 deallocate(cbas_ave,ctop_ave,rndmax)
-deallocate(tmaxscr,tminscr)
+deallocate(tmaxscr,tminscr,tscr_ave)
 deallocate(rhmaxscr,rhminscr)
 deallocate(riwp_ave,rlwp_ave,u10max,v10max,u10mx)
 deallocate(u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave)
