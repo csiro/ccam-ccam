@@ -287,7 +287,7 @@ use const_phys                                 ! Physical constants
 use darcdf_m                                   ! Netcdf data
 use extraout_m                                 ! Additional diagnostics      
 use histave_m, only : cbas_ave,ctop_ave,      &     
-    wb_ave,tscr_ave                            ! Time average arrays
+    wb_ave,tscr_ave,rhscr_ave                  ! Time average arrays
 use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
@@ -1457,6 +1457,7 @@ if ( nested/=1 .and. nested/=3 ) then
   ! Average fields
   if ( nested==0 .and. lrestart ) then
     call gethist1('tscr_ave',tscr_ave)
+    call gethist1('rhscr_ave',rhscr_ave)
     call gethist1('cbas_ave',cbas_ave)
     call gethist1('ctop_ave',ctop_ave)
     call gethist1('wb1_ave',wb_ave(:,1))

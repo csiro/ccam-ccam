@@ -1507,6 +1507,8 @@ if( myid==0 .or. local ) then
     end if
     lname = 'Average screen temperature'
     call attrib(idnc,dimj,jsize,'tscr_ave',lname,'K',100.,425.,0,cptype)
+    lname = 'Average screen relative humidity'
+    call attrib(idnc,dimj,jsize,'rhscr_ave',lname,'%',0.,200.,0,cptype)
     if ( save_cloud .or. itype==-1 ) then
       lname = 'Avg cloud base'
       call attrib(idnc,dimj,jsize,'cbas_ave',lname,'sigma',0.,1.1,0,cptype)
@@ -2718,6 +2720,7 @@ if ( itype/=-1 .and. save_maxmin ) then  ! these not written to restart file
 end if
 ! only write these once per avg period
 call histwrt(tscr_ave,'tscr_ave',idnc,iarch,local,lave_0)
+call histwrt(rhscr_ave,'rhscr_ave',idnc,iarch,local,lave_0)
 if ( save_cloud .or. itype==-1 ) then
   call histwrt(cbas_ave,'cbas_ave',idnc,iarch,local,lave_0)
   call histwrt(ctop_ave,'ctop_ave',idnc,iarch,local,lave_0)

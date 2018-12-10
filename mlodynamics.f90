@@ -1369,12 +1369,13 @@ do mspec_mlo = mspeca_mlo,1,-1
     delpos(1) = 0.
     delneg(1) = 0.
     neta(1:ifull) = max(min(neta(1:ifull), 130.), -130.)
-    odum = (neta(1:ifull)-w_e)*ee(1:ifull)
-    !odum = neta(1:ifull)*ee(1:ifull)
+    !odum = (neta(1:ifull)-w_e)*ee(1:ifull)
+    odum = neta(1:ifull)*ee(1:ifull)
     call ccglobal_posneg(odum,delpos(1),delneg(1))
     alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-30))
     if ( abs(alph_p)>1.e-20 ) then
-      neta(1:ifull) = w_e(1:ifull) + max(0.,odum)*alph_p + min(0.,odum)/alph_p
+      !neta(1:ifull) = w_e(1:ifull) + max(0.,odum)*alph_p + min(0.,odum)/alph_p
+      neta(1:ifull) = max(0.,odum)*alph_p + min(0.,odum)/alph_p
     end if
   end if
 
