@@ -556,7 +556,7 @@ if ( nvmix/=6 ) then
     do nt = 1,naero
       rhs(:,:) = xtg(1:imax,:,nt) ! Total grid-box
       call trim(at,ct,rhs)
-      xtg(1:imax,:,nt) = rhs(:,:)
+      xtg(1:imax,:,nt) = max( rhs(:,:), 0. )
     end do
   end if ! (abs(iaero)>=2)
 
@@ -658,17 +658,17 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zo,zg,zh,sig,rhos,    &
-                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                               &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,                &
-                  shearproduction,totaltransport,                                       &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,    &
+                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                            &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,             &
+                  shearproduction,totaltransport,                                    &
                   imax)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zo,zg,zh,sig,rhos,    &
-                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                               &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,                &
-                  shearproduction,totaltransport,                                       &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,    &
+                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                            &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,             &
+                  shearproduction,totaltransport,                                    &
                   imax)
       rkh = rkm
       do k = 1,kl
@@ -679,10 +679,10 @@ else
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
                   wth_flux,wq_flux)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zo,zg,zh,sig,rhos,    &
-                  ustar,dt,qgmin,0,0,cgmap,tke,eps,shear,                               &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,                &
-                  shearproduction,totaltransport,                                       &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,    &
+                  ustar,dt,qgmin,0,0,cgmap,tke,eps,shear,                            &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,             &
+                  shearproduction,totaltransport,                                    &
                   imax)
       rkh = rkm
     case DEFAULT
@@ -693,13 +693,13 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zo,zg,zh,sig,rhos,  &
-                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                             &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
+                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                          &
                   imax) 
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zo,zg,zh,sig,rhos,  &
-                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                             &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
+                  ustar,dt,qgmin,1,0,cgmap,tke,eps,shear,                          &
                   imax) 
       rkh = rkm
       do k = 1,kl
@@ -709,8 +709,8 @@ else
       call pbldif(rkm,rkh,rhs,uav,vav,cgmap,                     &
                   t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zo,zg,zh,sig,rhos,  &
-                  ustar,dt,qgmin,0,0,cgmap,tke,eps,shear,                             &
+      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
+                  ustar,dt,qgmin,0,0,cgmap,tke,eps,shear,                          &
                   imax) 
       rkh = rkm
     case DEFAULT

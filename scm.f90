@@ -855,6 +855,7 @@ implicit none
 integer, intent(in) :: ivegt_in, isoil_in
 integer iq, i, k, lapsbot
 integer ncid, ncstatus, nlev, slev, tlev
+integer ifrac
 integer, dimension(ifull,5) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
 integer, dimension(3) :: spos, npos
@@ -1653,97 +1654,99 @@ end if
 if (nurban/=0) then
   write(6,*) 'Importing ateb urban data'
   allocate( atebdwn(ifull,5) )
-  atebdwn(:,1)=289.                     ! roof temp 1
-  atebdwn(:,2)=(0.75*289.)+(0.25*293.)  ! roof temp 2
-  atebdwn(:,3)=(0.50*289.)+(0.50*293.)  ! roof temp 3
-  atebdwn(:,4)=(0.25*289.)+(0.75*293.)  ! roof temp 4
-  atebdwn(:,5)=293.                     ! roof temp 5
-  do k = 1,5
-    write(vname,'("rooftemp",I1.1)') k  
-    atebdwn(:,k) = atebdwn(:,k) - urbtemp
-    call atebloadd(atebdwn(:,k),vname,0)
-  end do 
+  do ifrac = 1,nfrac
+    atebdwn(:,1)=289.                     ! roof temp 1
+    atebdwn(:,2)=(0.75*289.)+(0.25*293.)  ! roof temp 2
+    atebdwn(:,3)=(0.50*289.)+(0.50*293.)  ! roof temp 3
+    atebdwn(:,4)=(0.25*289.)+(0.75*293.)  ! roof temp 4
+    atebdwn(:,5)=293.                     ! roof temp 5
+    do k = 1,5
+      write(vname,'("rooftemp",I1.1)') k  
+      atebdwn(:,k) = atebdwn(:,k) - urbtemp
+      call atebloadd(atebdwn(:,k),vname,ifrac,0)
+    end do 
 
-  atebdwn(:,1)=290.5                    ! walleast temp 1
-  atebdwn(:,2)=(0.75*290.5)+(0.25*293.) ! walleast temp 2
-  atebdwn(:,3)=(0.50*290.5)+(0.50*293.) ! walleast temp 3
-  atebdwn(:,4)=(0.25*290.5)+(0.75*293.) ! walleast temp 4
-  atebdwn(:,5)=293.                     ! walleast temp 5
-  do k = 1,5
-    write(vname,'("walletemp",I1.1)') k  
-    atebdwn(:,k) = atebdwn(:,k) - urbtemp
-    call atebloadd(atebdwn(:,k),vname,0)
-  end do
+    atebdwn(:,1)=290.5                    ! walleast temp 1
+    atebdwn(:,2)=(0.75*290.5)+(0.25*293.) ! walleast temp 2
+    atebdwn(:,3)=(0.50*290.5)+(0.50*293.) ! walleast temp 3
+    atebdwn(:,4)=(0.25*290.5)+(0.75*293.) ! walleast temp 4
+    atebdwn(:,5)=293.                     ! walleast temp 5
+    do k = 1,5
+      write(vname,'("walletemp",I1.1)') k  
+      atebdwn(:,k) = atebdwn(:,k) - urbtemp
+      call atebloadd(atebdwn(:,k),vname,ifrac,0)
+    end do
 
-  atebdwn(:,1)=290.5                    ! wallwest temp 1
-  atebdwn(:,2)=(0.75*290.5)+(0.25*293.) ! wallwest temp 2
-  atebdwn(:,3)=(0.50*290.5)+(0.50*293.) ! wallwest temp 3
-  atebdwn(:,4)=(0.25*290.5)+(0.75*293.) ! wallwest temp 4
-  atebdwn(:,5)=293.                     ! wallwest temp 5
-  do k = 1,5
-    write(vname,'("wallwtemp",I1.1)') k  
-    atebdwn(:,k) = atebdwn(:,k) - urbtemp
-    call atebloadd(atebdwn(:,k),vname,0)
-  end do
+    atebdwn(:,1)=290.5                    ! wallwest temp 1
+    atebdwn(:,2)=(0.75*290.5)+(0.25*293.) ! wallwest temp 2
+    atebdwn(:,3)=(0.50*290.5)+(0.50*293.) ! wallwest temp 3
+    atebdwn(:,4)=(0.25*290.5)+(0.75*293.) ! wallwest temp 4
+    atebdwn(:,5)=293.                     ! wallwest temp 5
+    do k = 1,5
+      write(vname,'("wallwtemp",I1.1)') k  
+      atebdwn(:,k) = atebdwn(:,k) - urbtemp
+      call atebloadd(atebdwn(:,k),vname,ifrac,0)
+    end do
 
-  atebdwn(:,1)=289.                      ! road temp 1
-  atebdwn(:,2)=(0.966*289.)+(0.034*287.) ! road temp 2
-  atebdwn(:,3)=(0.833*289.)+(0.167*287.) ! road temp 3
-  atebdwn(:,4)=(0.533*289.)+(0.467*287.) ! road temp 4
-  atebdwn(:,5)=287.                      ! road temp 5
-  do k = 1,5
-    write(vname,'("roadtemp",I1.1)') k  
-    atebdwn(:,k) = atebdwn(:,k) - urbtemp
-    call atebloadd(atebdwn(:,k),vname,0)
-  end do
+    atebdwn(:,1)=289.                      ! road temp 1
+    atebdwn(:,2)=(0.966*289.)+(0.034*287.) ! road temp 2
+    atebdwn(:,3)=(0.833*289.)+(0.167*287.) ! road temp 3
+    atebdwn(:,4)=(0.533*289.)+(0.467*287.) ! road temp 4
+    atebdwn(:,5)=287.                      ! road temp 5
+    do k = 1,5
+      write(vname,'("roadtemp",I1.1)') k  
+      atebdwn(:,k) = atebdwn(:,k) - urbtemp
+      call atebloadd(atebdwn(:,k),vname,ifrac,0)
+    end do
 
-  atebdwn(:,1)=293.          ! slab temp 1 (internal air temp)
-  atebdwn(:,2)=293.          ! slab temp 2 (internal air temp)
-  atebdwn(:,3)=293.          ! slab temp 3 (internal air temp) 
-  atebdwn(:,4)=293.          ! slab temp 4 (internal air temp)
-  atebdwn(:,5)=293.          ! slab temp 5 (internal air temp)
-  do k = 1,5
-    write(vname,'("slabtemp",I1.1)') k  
-    atebdwn(:,k) = atebdwn(:,k) - urbtemp
-    call atebloadd(atebdwn(:,k),vname,0)
-  end do
+    atebdwn(:,1)=293.          ! slab temp 1 (internal air temp)
+    atebdwn(:,2)=293.          ! slab temp 2 (internal air temp)
+    atebdwn(:,3)=293.          ! slab temp 3 (internal air temp) 
+    atebdwn(:,4)=293.          ! slab temp 4 (internal air temp)
+    atebdwn(:,5)=293.          ! slab temp 5 (internal air temp)
+    do k = 1,5
+      write(vname,'("slabtemp",I1.1)') k  
+      atebdwn(:,k) = atebdwn(:,k) - urbtemp
+      call atebloadd(atebdwn(:,k),vname,ifrac,0)
+    end do
 
-  atebdwn(:,1)=293.          ! intm temp 1 (internal air temp)
-  atebdwn(:,2)=293.          ! intm temp 2 (internal air temp)
-  atebdwn(:,3)=293.          ! intm temp 3 (internal air temp)
-  atebdwn(:,4)=293.          ! intm temp 4 (internal air temp)
-  atebdwn(:,5)=293.          ! intm temp 5 (internal air temp)
-  do k = 1,5
-    write(vname,'("intmtemp",I1.1)') k  
-    atebdwn(:,k) = atebdwn(:,k) - urbtemp
-    call atebloadd(atebdwn(:,k),vname,0)
-  end do
-  atebdwn(:,1) = 293.             ! room air temp
-  call atebloadd(atebdwn(:,1),"roomtemp",0)
-  atebdwn(:,1)=0.5*0.26+0.5*0.34  ! Soil water road
-  call atebloadd(atebdwn(:,1),"canyonsoilmoisture",0)
-  atebdwn(:,1)=0.18               ! Green roof water
-  call atebloadd(atebdwn(:,1),"roofsoilmoisture",0)
-  atebdwn(:,1)=0.   ! road water
-  call atebloadd(atebdwn(:,1),"roadsurfacewater",0)
-  atebdwn(:,1)=0.   ! roof water
-  call atebloadd(atebdwn(:,1),"roofsurfacewater",0)
-  atebdwn(:,1)=0.   ! canyon leaf water
-  call atebloadd(atebdwn(:,1),"canyonleafwater",0)
-  atebdwn(:,1)=0.   ! roof leaf water
-  call atebloadd(atebdwn(:,1),"roofleafwater",0)
-  atebdwn(:,1)=0.   ! road snow
-  call atebloadd(atebdwn(:,1),"roadsnowdepth",0)
-  atebdwn(:,1)=0.   ! roof snow
-  call atebloadd(atebdwn(:,1),"roofsnowdepth",0)
-  atebdwn(:,1)=100. ! road snow density
-  call atebloadd(atebdwn(:,1),"roadsnowdensity",0)
-  atebdwn(:,1)=100. ! roof snow density
-  call atebloadd(atebdwn(:,1),"roofsnowdensity",0)
-  atebdwn(:,1)=0.85 ! road snow albedo
-  call atebloadd(atebdwn(:,1),"roadsnowalbedo",0)
-  atebdwn(:,1)=0.85 ! roof snow albedo
-  call atebloadd(atebdwn(:,1),"roofsnowalbedo",0)
+    atebdwn(:,1)=293.          ! intm temp 1 (internal air temp)
+    atebdwn(:,2)=293.          ! intm temp 2 (internal air temp)
+    atebdwn(:,3)=293.          ! intm temp 3 (internal air temp)
+    atebdwn(:,4)=293.          ! intm temp 4 (internal air temp)
+    atebdwn(:,5)=293.          ! intm temp 5 (internal air temp)
+    do k = 1,5
+      write(vname,'("intmtemp",I1.1)') k  
+      atebdwn(:,k) = atebdwn(:,k) - urbtemp
+      call atebloadd(atebdwn(:,k),vname,ifrac,0)
+    end do
+    atebdwn(:,1) = 293.             ! room air temp
+    call atebloadd(atebdwn(:,1),"roomtemp",ifrac,0)
+    atebdwn(:,1)=0.5*0.26+0.5*0.34  ! Soil water road
+    call atebloadd(atebdwn(:,1),"canyonsoilmoisture",ifrac,0)
+    atebdwn(:,1)=0.18               ! Green roof water
+    call atebloadd(atebdwn(:,1),"roofsoilmoisture",ifrac,0)
+    atebdwn(:,1)=0.   ! road water
+    call atebloadd(atebdwn(:,1),"roadsurfacewater",ifrac,0)
+    atebdwn(:,1)=0.   ! roof water
+    call atebloadd(atebdwn(:,1),"roofsurfacewater",ifrac,0)
+    atebdwn(:,1)=0.   ! canyon leaf water
+    call atebloadd(atebdwn(:,1),"canyonleafwater",ifrac,0)
+    atebdwn(:,1)=0.   ! roof leaf water
+    call atebloadd(atebdwn(:,1),"roofleafwater",ifrac,0)
+    atebdwn(:,1)=0.   ! road snow
+    call atebloadd(atebdwn(:,1),"roadsnowdepth",ifrac,0)
+    atebdwn(:,1)=0.   ! roof snow
+    call atebloadd(atebdwn(:,1),"roofsnowdepth",ifrac,0)
+    atebdwn(:,1)=100. ! road snow density
+    call atebloadd(atebdwn(:,1),"roadsnowdensity",ifrac,0)
+    atebdwn(:,1)=100. ! roof snow density
+    call atebloadd(atebdwn(:,1),"roofsnowdensity",ifrac,0)
+    atebdwn(:,1)=0.85 ! road snow albedo
+    call atebloadd(atebdwn(:,1),"roadsnowalbedo",ifrac,0)
+    atebdwn(:,1)=0.85 ! roof snow albedo
+    call atebloadd(atebdwn(:,1),"roofsnowalbedo",ifrac,0)
+  end do  
   deallocate( atebdwn )
 end if
 
@@ -3388,10 +3391,10 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_vara(timencid,'zs',spos(1:2),npos(1:2),uu)
     do k = 1,4
       write(lname,'("roadtemp",(I1.1))') k
-      call atebsaved(uu(1:1,k),lname,0)  
+      call atebavetemp(uu(1:1,k),lname,0)  
     end do
     call ccnf_put_vara(timencid,'ts',spos(1:2),npos(1:2),uu)
-    call atebsaved(uu(1:1,1),"canyonsoilmoisture",0)
+    call atebsaved(uu(1:1,1),"canyonsoilmoisture",1,0)
     do k = 2,4
       uu(1,k) = uu(1,1)
     end do
@@ -5118,7 +5121,7 @@ subroutine loadrestart
 
 use aerosolldr
 use arrays_m
-use ateb, only : atebdwn, urbtemp, atebloadd
+use ateb, only : atebdwn, urbtemp, atebloadd, nfrac
 use cable_ccam
 use cc_mpi
 use cfrac_m
@@ -5142,10 +5145,11 @@ implicit none
 include 'kuocom.h'
 
 integer iarchi, ncid, ik, ier
-integer k
+integer k,ifrac
 real, dimension(ifull,wlev) :: mlodwn
 real, dimension(ifull) :: ocndwn
 real, dimension(ifull) :: dum6
+character(len=10) vname
 
 iarchi = 1
 ik = 1
@@ -5217,92 +5221,83 @@ call histrd(iarchi,ier,'pblh',ik,pblh,ifull)
 
 if ( nurban/=0 ) then
   allocate( atebdwn(ifull,1) )  
-  call histrd(iarchi,ier,'rooftgg1',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'rooftemp1',0)
-  call histrd(iarchi,ier,'rooftgg2',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'rooftemp2',0)
-  call histrd(iarchi,ier,'rooftgg3',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'rooftemp3',0)
-  call histrd(iarchi,ier,'rooftgg4',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'rooftemp4',0)
-  call histrd(iarchi,ier,'rooftgg5',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'rooftemp5',0)
-  call histrd(iarchi,ier,'waletgg1',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'walletemp1',0)
-  call histrd(iarchi,ier,'waletgg2',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'walletemp2',0)
-  call histrd(iarchi,ier,'waletgg3',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'walletemp3',0)
-  call histrd(iarchi,ier,'waletgg4',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'walletemp4',0)
-  call histrd(iarchi,ier,'waletgg5',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'walletemp5',0)
-  call histrd(iarchi,ier,'walwtgg1',ik,atebdwn(:,1),ifull)  
-  call atebloadd(atebdwn(:,1),'wallwtemp1',0)
-  call histrd(iarchi,ier,'walwtgg2',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'wallwtemp2',0)
-  call histrd(iarchi,ier,'walwtgg3',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'wallwtemp3',0)
-  call histrd(iarchi,ier,'walwtgg4',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'wallwtemp4',0)
-  call histrd(iarchi,ier,'walwtgg5',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'wallwtemp5',0)
-  call histrd(iarchi,ier,'roadtgg1',ik,atebdwn(:,1),ifull)  
-  call atebloadd(atebdwn(:,1),'roadtemp1',0)
-  call histrd(iarchi,ier,'roadtgg2',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roadtemp2',0)
-  call histrd(iarchi,ier,'roadtgg3',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roadtemp3',0)
-  call histrd(iarchi,ier,'roadtgg4',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roadtemp4',0)
-  call histrd(iarchi,ier,'roadtgg5',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roadtemp5',0)
-  call histrd(iarchi,ier,'slabtgg1',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'slabtemp1',0)
-  call histrd(iarchi,ier,'slabtgg2',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'slabtemp2',0)
-  call histrd(iarchi,ier,'slabtgg3',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'slabtemp3',0)
-  call histrd(iarchi,ier,'slabtgg4',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'slabtemp4',0)
-  call histrd(iarchi,ier,'slabtgg5',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'slabtemp5',0)
-  call histrd(iarchi,ier,'intmtgg1',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'intmtemp1',0)
-  call histrd(iarchi,ier,'intmtgg2',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'intmtemp2',0)
-  call histrd(iarchi,ier,'intmtgg3',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'intmtemp3',0)
-  call histrd(iarchi,ier,'intmtgg4',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'intmtemp4',0)
-  call histrd(iarchi,ier,'intmtgg5',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'intmtemp5',0)  
-  call histrd(iarchi,ier,'roomtgg1',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roomtemp',0)  
-  call histrd(iarchi,ier,'urbnsmc',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'canyonsoilmoisture',0)  
-  call histrd(iarchi,ier,'urbnsmr',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roofsoilmoisture',0)  
-  call histrd(iarchi,ier,'roofwtr',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roofsurfacewater',0)  
-  call histrd(iarchi,ier,'roadwtr',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roadsurfacewater',0)
-  call histrd(iarchi,ier,'urbwtrc',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'canyonleafwater',0)  
-  call histrd(iarchi,ier,'urbwtrr',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roofleafwater',0) 
-  call histrd(iarchi,ier,'roofsnd',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roofsnowdepth',0)  
-  call histrd(iarchi,ier,'roadsnd',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roadsnowdepth',0) 
-  call histrd(iarchi,ier,'roofden',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roofsnowdensity',0)  
-  call histrd(iarchi,ier,'roadden',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roadsnowdensity',0) 
-  call histrd(iarchi,ier,'roofsna',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roofsnowalbedo',0)  
-  call histrd(iarchi,ier,'roadsna',ik,atebdwn(:,1),ifull)
-  call atebloadd(atebdwn(:,1),'roadsnowalbedo',0) 
+  do ifrac = 1,nfrac
+    do k = 1,5  
+      write(vname,'("t",I1.1,"_rooftgg",I1.1)') ifrac,k  
+      call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+      write(vname,'("rooftemp",I1.1)') k
+      call atebloadd(atebdwn(:,1),vname,ifrac,0)
+    end do  
+    do k = 1,5  
+      write(vname,'("t",I1.1,"_waletgg",I1.1)') ifrac,k  
+      call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+      write(vname,'("waletemp",I1.1)') k
+      call atebloadd(atebdwn(:,1),vname,ifrac,0)
+    end do  
+    do k = 1,5  
+      write(vname,'("t",I1.1,"_walwtgg",I1.1)') ifrac,k  
+      call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+      write(vname,'("walwtemp",I1.1)') k
+      call atebloadd(atebdwn(:,1),vname,ifrac,0)
+    end do  
+    do k = 1,5  
+      write(vname,'("t",I1.1,"_roadtgg",I1.1)') ifrac,k  
+      call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+      write(vname,'("roadtemp",I1.1)') k
+      call atebloadd(atebdwn(:,1),vname,ifrac,0)
+    end do  
+    do k = 1,5  
+      write(vname,'("t",I1.1,"_slabtgg",I1.1)') ifrac,k  
+      call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+      write(vname,'("slabtemp",I1.1)') k
+      call atebloadd(atebdwn(:,1),vname,ifrac,0)
+    end do  
+    do k = 1,5  
+      write(vname,'("t",I1.1,"_intmtgg",I1.1)') ifrac,k  
+      call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+      write(vname,'("intmtemp",I1.1)') k
+      call atebloadd(atebdwn(:,1),vname,ifrac,0)
+    end do  
+    write(vname,'("t",I1.1,"_roomtgg1")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"roomtemp",ifrac,0)
+    write(vname,'("t",I1.1,"_urbnsmc")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"canyonsoilmoisture",ifrac,0)
+    write(vname,'("t",I1.1,"_urbnsmr")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"roofsoilmoisture",ifrac,0)
+    write(vname,'("t",I1.1,"_roofwtr")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"roofsurfacewater",ifrac,0)
+    write(vname,'("t",I1.1,"_roadwtr")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"roadsurfacewater",ifrac,0) 
+    write(vname,'("t",I1.1,"_urbwtrc")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"canyonleafwater",ifrac,0) 
+    write(vname,'("t",I1.1,"_urbwtrr")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"roofleafwater",ifrac,0) 
+    write(vname,'("t",I1.1,"_roofsnd")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"roofsnowdepth",ifrac,0)     
+    write(vname,'("t",I1.1,"_roadsnd")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"roadsnowdepth",ifrac,0)  
+    write(vname,'("t",I1.1,"_roofden")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"roofsnowdensity",ifrac,0)  
+    write(vname,'("t",I1.1,"_roadden")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"roadsnowdensity",ifrac,0)  
+    write(vname,'("t",I1.1,"_roofsna")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"roofsnowalbedo",ifrac,0)  
+    write(vname,'("t",I1.1,"_roadsna")') ifrac  
+    call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
+    call atebloadd(atebdwn(:,1),"roadsnowalbedo",ifrac,0)  
+  end do
   deallocate( atebdwn )
 end if    
 
@@ -5407,7 +5402,7 @@ subroutine saverestart
 use aerointerface
 use aerosolldr
 use arrays_m
-use ateb, only : atebsaved, urbtemp
+use ateb, only : atebsaved, urbtemp, nfrac
 use cable_ccam, only : savetile, savetiledef, &  ! CABLE interface
                        cable_pop,POP_NPATCH,  &
                        POP_NCOHORT,           &
@@ -5445,6 +5440,7 @@ integer idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer icy, icm, icd, ich, icmi, ics, idv
 integer asize, jsize, osize
 integer csize, c2size, c3size, c4size, c5size, c6size, c7size
+integer ifrac
 integer, dimension(3) :: dimj
 integer, dimension(4) :: dima, dims, dimo
 integer, dimension(4) :: dimc, dimc3, dimc4, dimc5, dimc6, dimc7
@@ -5651,92 +5647,77 @@ lname = 'PBL depth'
 call attrib(idnc,dimj,jsize,'pblh',lname,'m',0.,13000.,0,itype)
 
 if ( nurban/=0 ) then
-  lname = 'roof temperature lev 1'
-  call attrib(idnc,dimj,jsize,'rooftgg1',lname,'K',100.,425.,0,itype)
-  lname = 'roof temperature lev 2'
-  call attrib(idnc,dimj,jsize,'rooftgg2',lname,'K',100.,425.,0,itype)
-  lname = 'roof temperature lev 3'
-  call attrib(idnc,dimj,jsize,'rooftgg3',lname,'K',100.,425.,0,itype)
-  lname = 'roof temperature lev 4'
-  call attrib(idnc,dimj,jsize,'rooftgg4',lname,'K',100.,425.,0,itype)
-  lname = 'roof temperature lev 5'
-  call attrib(idnc,dimj,jsize,'rooftgg5',lname,'K',100.,425.,0,itype)
-  lname = 'east wall temperature lev 1'
-  call attrib(idnc,dimj,jsize,'waletgg1',lname,'K',100.,425.,0,itype)
-  lname = 'east wall temperature lev 2'
-  call attrib(idnc,dimj,jsize,'waletgg2',lname,'K',100.,425.,0,itype)
-  lname = 'east wall temperature lev 3'
-  call attrib(idnc,dimj,jsize,'waletgg3',lname,'K',100.,425.,0,itype)
-  lname = 'east wall temperature lev 4'
-  call attrib(idnc,dimj,jsize,'waletgg4',lname,'K',100.,425.,0,itype)
-  lname = 'east wall temperature lev 5'
-  call attrib(idnc,dimj,jsize,'waletgg5',lname,'K',100.,425.,0,itype)
-  lname = 'west wall temperature lev 1'
-  call attrib(idnc,dimj,jsize,'walwtgg1',lname,'K',100.,425.,0,itype)
-  lname = 'west wall temperature lev 2'
-  call attrib(idnc,dimj,jsize,'walwtgg2',lname,'K',100.,425.,0,itype)
-  lname = 'west wall temperature lev 3'
-  call attrib(idnc,dimj,jsize,'walwtgg3',lname,'K',100.,425.,0,itype)
-  lname = 'west wall temperature lev 4'
-  call attrib(idnc,dimj,jsize,'walwtgg4',lname,'K',100.,425.,0,itype)
-  lname = 'west wall temperature lev 5'
-  call attrib(idnc,dimj,jsize,'walwtgg5',lname,'K',100.,425.,0,itype)
-  lname = 'road temperature lev 1'
-  call attrib(idnc,dimj,jsize,'roadtgg1',lname,'K',100.,425.,0,itype)
-  lname = 'road temperature lev 2'
-  call attrib(idnc,dimj,jsize,'roadtgg2',lname,'K',100.,425.,0,itype)
-  lname = 'road temperature lev 3'
-  call attrib(idnc,dimj,jsize,'roadtgg3',lname,'K',100.,425.,0,itype)
-  lname = 'road temperature lev 4'
-  call attrib(idnc,dimj,jsize,'roadtgg4',lname,'K',100.,425.,0,itype)
-  lname = 'road temperature lev 5'
-  call attrib(idnc,dimj,jsize,'roadtgg5',lname,'K',100.,425.,0,itype)
-  lname = 'slab temperature lev 1'
-  call attrib(idnc,dimj,jsize,'slabtgg1',lname,'K',100.,425.,0,itype)
-  lname = 'slab temperature lev 2'
-  call attrib(idnc,dimj,jsize,'slabtgg2',lname,'K',100.,425.,0,itype)
-  lname = 'slab temperature lev 3'
-  call attrib(idnc,dimj,jsize,'slabtgg3',lname,'K',100.,425.,0,itype)
-  lname = 'slab temperature lev 4'
-  call attrib(idnc,dimj,jsize,'slabtgg4',lname,'K',100.,425.,0,itype)
-  lname = 'slab temperature lev 5'
-  call attrib(idnc,dimj,jsize,'slabtgg5',lname,'K',100.,425.,0,itype)
-  lname = 'interior mass temperature lev 1'
-  call attrib(idnc,dimj,jsize,'intmtgg1',lname,'K',100.,425.,0,itype)
-  lname = 'interior mass temperature lev 2'
-  call attrib(idnc,dimj,jsize,'intmtgg2',lname,'K',100.,425.,0,itype)
-  lname = 'interior mass temperature lev 3'
-  call attrib(idnc,dimj,jsize,'intmtgg3',lname,'K',100.,425.,0,itype)
-  lname = 'interior mass temperature lev 4'
-  call attrib(idnc,dimj,jsize,'intmtgg4',lname,'K',100.,425.,0,itype)
-  lname = 'interior mass temperature lev 5'
-  call attrib(idnc,dimj,jsize,'intmtgg5',lname,'K',100.,425.,0,itype)
-  lname = 'urban room temperature'
-  call attrib(idnc,dimj,jsize,'roomtgg1',lname,'K',100.,425.,0,itype)  
-  lname = 'urban canyon soil moisture'
-  call attrib(idnc,dimj,jsize,'urbnsmc',lname,'m3/m3',0.,1.3,0,itype)
-  lname = 'urban roof soil moisture'
-  call attrib(idnc,dimj,jsize,'urbnsmr',lname,'m3/m3',0.,1.3,0,itype)
-  lname = 'urban roof water'
-  call attrib(idnc,dimj,jsize,'roofwtr',lname,'mm',0.,1.3,0,itype)
-  lname = 'urban road water'
-  call attrib(idnc,dimj,jsize,'roadwtr',lname,'mm',0.,1.3,0,itype)
-  lname = 'urban canyon leaf water'
-  call attrib(idnc,dimj,jsize,'urbwtrc',lname,'mm',0.,1.3,0,itype)
-  lname = 'urban roof leaf water'
-  call attrib(idnc,dimj,jsize,'urbwtrr',lname,'mm',0.,1.3,0,itype)
-  lname = 'urban roof snow (liquid water)'
-  call attrib(idnc,dimj,jsize,'roofsnd',lname,'mm',0.,1.3,0,itype)
-  lname = 'urban road snow (liquid water)'
-  call attrib(idnc,dimj,jsize,'roadsnd',lname,'mm',0.,1.3,0,itype)
-  lname = 'urban roof snow density'
-  call attrib(idnc,dimj,jsize,'roofden',lname,'kg/m3',0.,650.,0,itype)
-  lname = 'urban road snow density'
-  call attrib(idnc,dimj,jsize,'roadden',lname,'kg/m3',0.,650.,0,itype)
-  lname = 'urban roof snow albedo'
-  call attrib(idnc,dimj,jsize,'roofsna',lname,'none',0.,1.3,0,itype)
-  lname = 'urban road snow albedo'
-  call attrib(idnc,dimj,jsize,'roadsna',lname,'none',0.,1.3,0,itype)
+  do ifrac = 1,nfrac
+    do k = 1,5  
+      write(lname,'("Roof temperature tile ",I1.1," lev ",I1.1)') ifrac,k
+      write(vname,'("t",I1.1,"_rooftgg",I1.1)') ifrac,k
+      call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,itype)
+    end do  
+    do k = 1,5  
+      write(lname,'("East wall temperature tile ",I1.1," lev ",I1.1)') ifrac,k
+      write(vname,'("t",I1.1,"_waletgg",I1.1)') ifrac,k
+      call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,itype)
+    end do
+    do k = 1,5  
+      write(lname,'("West wall temperature tile ",I1.1," lev ",I1.1)') ifrac,k
+      write(vname,'("t",I1.1,"_walwtgg",I1.1)') ifrac,k
+      call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,itype)
+    end do
+    do k = 1,5  
+      write(lname,'("Road temperature tile ",I1.1," lev ",I1.1)') ifrac,k
+      write(vname,'("t",I1.1,"_roadtgg",I1.1)') ifrac,k
+      call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,itype)
+    end do
+    do k = 1,5  
+      write(lname,'("Slab temperature tile ",I1.1," lev ",I1.1)') ifrac,k
+      write(vname,'("t",I1.1,"_slabtgg",I1.1)') ifrac,k
+      call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,itype)
+    end do
+    do k = 1,5  
+      write(lname,'("Interior mass temperature tile ",I1.1," lev ",I1.1)') ifrac,k
+      write(vname,'("t",I1.1,"_intmtgg",I1.1)') ifrac,k
+      call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,itype)
+    end do
+    write(lname,'("Urban room temperature tile ",I1.1," lev 1")') ifrac
+    write(vname,'("t",I1.1,"_roomtgg1")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,itype)  
+    write(lname,'("Urban canyon soil moisture",I1.1)') ifrac
+    write(vname,'("t",I1.1,"_urbnsmc")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'m3/m3',0.,1.3,0,itype)
+    write(lname,'("Urban roof soil moisture",I1.1)') ifrac
+    write(vname,'("t",I1.1,"_urbnsmr")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'m3/m3',0.,1.3,0,itype)
+    write(lname,'("Urban roof water",I1.1)') ifrac
+    write(vname,'("t",I1.1,"_roofwtr")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,itype)
+    write(lname,'("Urban road water",I1.1)') ifrac
+    write(vname,'("t",I1.1,"_roadwtr")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,itype)
+    write(lname,'("Urban canyon leaf water",I1.1)') ifrac
+    write(vname,'("t",I1.1,"_urbwtrc")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,itype)
+    write(lname,'("Urban roof leaf water",I1.1)') ifrac
+    write(vname,'("t",I1.1,"_urbwtrr")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,itype)
+    write(lname,'("Urban roof snow (liquid water)",I1.1)') ifrac
+    write(vname,'("t",I1.1,"_roofsnd")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,itype)
+    write(lname,'("Urban road snow (liquid water)",I1.1)') ifrac
+    write(vname,'("t",I1.1,"_roadsnd")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,itype)
+    write(lname,'("Urban roof snow density",I1.1)') ifrac
+    write(vname,'("t",I1.1,"_roofden")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'kg/m3',0.,650.,0,itype)
+    write(lname,'("Urban road snow density",I1.1)') ifrac
+    write(vname,'("t",I1.1,"_roadden")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'kg/m3',0.,650.,0,itype)
+    write(lname,'("Urban roof snow albedo",I1.1)') ifrac
+    write(vname,'("t",I1.1,"_roofsna")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'none',0.,1.3,0,itype)
+    write(lname,'("Urban road snow albedo",I1.1)') ifrac
+    write(vname,'("t",I1.1,"_roadsna")') ifrac
+    call attrib(idnc,dimj,jsize,vname,lname,'none',0.,1.3,0,itype)
+  end do  
 end if
 
 ! STANDARD 3D VARIABLES -------------------------------------
@@ -5841,9 +5822,7 @@ lname = 'Solar net at ground (+ve down)'
 call attrib(idnc,dimj,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,itype)
 
 if ( nsib==6 .or. nsib==7 ) then
-  call savetiledef(idnc,local,dimj,jsize,dimc,csize,dimc2,c2size, &
-                   dimc3,c3size,dimc4,c4size,dimc5,c5size,        &
-                   dimc6,c6size,dimc7,c7size)
+  call savetiledef(idnc,local,dimj,jsize,dimc,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7,csize,c2size)
 end if
 
 call ccnf_enddef(idnc)
@@ -5980,105 +5959,120 @@ call histwrt(fracice,'fracice',idnc,iarch,local,.true.)
 call histwrt(pblh,'pblh',idnc,iarch,local,.true.)
 
 if ( nurban/=0 ) then
-  do k = 1,5
-    write(vname,'("rooftemp",I1.1)') k
+  do ifrac = 1,nfrac  
+    do k = 1,5
+      write(vname,'("rooftemp",I1.1)') k
+      aa = 999.
+      call atebsaved(aa,vname,ifrac,0,rawtemp=.true.)
+      where ( aa<100. .and. itype==1 )
+        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+      end where  
+      write(vname,'("t",I1.1,"_rooftgg",I1.1)') ifrac,k
+      call histwrt(aa,vname,idnc,iarch,local,.true.)
+    end do  
+    do k = 1,5
+      write(vname,'("walletemp",I1.1)') k
+      aa = 999.
+      call atebsaved(aa,vname,ifrac,0,rawtemp=.true.)
+      where ( aa<100. .and. itype==1 )
+        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+      end where  
+      write(vname,'("t",I1.1,"_waletgg",I1.1)') ifrac,k
+      call histwrt(aa,vname,idnc,iarch,local,.true.)
+    end do   
+    do k = 1,5
+      write(vname,'("wallwtemp",I1.1)') k
+      aa = 999.
+      call atebsaved(aa,vname,ifrac,0,rawtemp=.true.)
+      where ( aa<100. .and. itype==1 )
+        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+      end where  
+      write(vname,'("t",I1.1,"_walwtgg",I1.1)') ifrac,k
+      call histwrt(aa,vname,idnc,iarch,local,.true.)
+    end do   
+    do k = 1,5
+      write(vname,'("roadtemp",I1.1)') k
+      aa = 999.
+      call atebsaved(aa,vname,ifrac,0,rawtemp=.true.)
+      where ( aa<100. .and. itype==1 )
+        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+      end where  
+      write(vname,'("t",I1.1,"_roadtgg",I1.1)') ifrac,k
+      call histwrt(aa,vname,idnc,iarch,local,.true.)
+    end do  
+    do k = 1,5
+      write(vname,'("slabtemp",I1.1)') k
+      aa = 999.
+      call atebsaved(aa,vname,ifrac,0,rawtemp=.true.)
+      where ( aa<100. .and. itype==1 )
+        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+      end where  
+      write(vname,'("t",I1.1,"_slabtgg",I1.1)') ifrac,k
+      call histwrt(aa,vname,idnc,iarch,local,.true.)
+    end do  
+    do k = 1,5
+      write(vname,'("intmtemp",I1.1)') k
+      aa = 999.
+      call atebsaved(aa,vname,ifrac,0,rawtemp=.true.)
+      where ( aa<100. .and. itype==1 )
+        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+      end where  
+      write(vname,'("t",I1.1,"_intmtgg",I1.1)') ifrac,k
+      call histwrt(aa,vname,idnc,iarch,local,.true.)
+    end do  
     aa = 999.
-    call atebsaved(aa,vname,0,rawtemp=.true.)
-    where ( aa<100. .and. itype==1 )
-      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where  
-    write(vname,'("rooftgg",I1.1)') k
+    call atebsaved(aa,"roomtemp",ifrac,0)
+    write(vname,'("t",I1.1,"_roomtgg1")') ifrac
     call histwrt(aa,vname,idnc,iarch,local,.true.)
-  end do  
-  do k = 1,5
-    write(vname,'("walletemp",I1.1)') k  
     aa = 999.
-    call atebsaved(aa,vname,0,rawtemp=.true.)
-    where ( aa<100. .and. itype==1 )
-      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where  
-    write(vname,'("waletgg",I1.1)') k
+    call atebsaved(aa,"canyonsoilmoisture",ifrac,0)
+    write(vname,'("t",I1.1,"_urbnsmc")') ifrac
     call histwrt(aa,vname,idnc,iarch,local,.true.)
-  end do  
-  do k = 1,5
-    write(vname,'("wallwtemp",I1.1)') k  
     aa = 999.
-    call atebsaved(aa,vname,0,rawtemp=.true.)
-    where ( aa<100. .and. itype==1 )
-      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where  
-    write(vname,'("walwtgg",I1.1)') k
+    call atebsaved(aa,"roofsoilmoisture",ifrac,0)
+    write(vname,'("t",I1.1,"_urbnsmr")') ifrac
     call histwrt(aa,vname,idnc,iarch,local,.true.)
-  end do  
-  do k = 1,5
-    write(vname,'("roadtemp",I1.1)') k  
     aa = 999.
-    call atebsaved(aa,vname,0,rawtemp=.true.)
-    where ( aa<100. .and. itype==1 )
-      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where  
-    write(vname,'("roadtgg",I1.1)') k
+    call atebsaved(aa,"roofsurfacewater",ifrac,0)
+    write(vname,'("t",I1.1,"_roofwtr")') ifrac
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roadsurfacewater",ifrac,0)
+    write(vname,'("t",I1.1,"_roadwtr")') ifrac
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"canyonleafwater",ifrac,0)
+    write(vname,'("t",I1.1,"_urbwtrc")') ifrac
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roofleafwater",ifrac,0)
+    write(vname,'("t",I1.1,"_urbwtrr")') ifrac
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roofsnowdepth",ifrac,0)
+    write(vname,'("t",I1.1,"_roofsnd")') ifrac
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roadsnowdepth",ifrac,0)
+    write(vname,'("t",I1.1,"_roadsnd")') ifrac
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roofsnowdensity",ifrac,0)
+    write(vname,'("t",I1.1,"_roofden")') ifrac
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
+   aa = 999.
+    call atebsaved(aa,"roadsnowdensity",ifrac,0)
+    write(vname,'("t",I1.1,"_roadden")') ifrac
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roofsnowalbedo",ifrac,0)
+    write(vname,'("t",I1.1,"_roofsna")') ifrac
+    call histwrt(aa,vname,idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roadsnowalbedo",ifrac,0)
+    write(vname,'("t",I1.1,"_roadsna")') ifrac
     call histwrt(aa,vname,idnc,iarch,local,.true.)
   end do
-  do k = 1,5
-    write(vname,'("slabtemp",I1.1)') k  
-    aa = 999.
-    call atebsaved(aa,vname,0,rawtemp=.true.)
-    where ( aa<100. .and. itype==1 )
-      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where  
-    write(vname,'("slabtgg",I1.1)') k
-    call histwrt(aa,vname,idnc,iarch,local,.true.)
-  end do
-  do k = 1,5
-    write(vname,'("intmtemp",I1.1)') k  
-    aa = 999.
-    call atebsaved(aa,vname,0,rawtemp=.true.)
-    where ( aa<100. .and. itype==1 )
-      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where  
-    write(vname,'("intmtgg",I1.1)') k
-    call histwrt(aa,vname,idnc,iarch,local,.true.)
-  end do
-  aa = 999.
-  call atebsaved(aa,"roomtemp",0)
-  call histwrt(aa,'roomtgg1', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"canyonsoilmoisture",0)
-  call histwrt(aa,'urbnsmc', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roofsoilmoisture",0)
-  call histwrt(aa,'urbnsmr', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roofsurfacewater",0)
-  call histwrt(aa,'roofwtr', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roadsurfacewater",0)
-  call histwrt(aa,'roadwtr', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"canyonleafwater",0)
-  call histwrt(aa,'urbwtrc', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roofleafwater",0)
-  call histwrt(aa,'urbwtrr', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roofsnowdepth",0)
-  call histwrt(aa,'roofsnd', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roadsnowdepth",0)
-  call histwrt(aa,'roadsnd', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roofsnowdensity",0)
-  call histwrt(aa,'roofden', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roadsnowdensity",0)
-  call histwrt(aa,'roadden', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roofsnowalbedo",0)
-  call histwrt(aa,'roofsna', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roadsnowalbedo",0)
-  call histwrt(aa,'roadsna', idnc,iarch,local,.true.)
 end if
 
 call histwrt(t,'temp',idnc,iarch,local,.true.)

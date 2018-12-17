@@ -1374,7 +1374,7 @@ integer isoth, nsig, lapsbot
 integer secs_rad, nversion
 integer mstn, io_nest, mbd_min
 integer opt, nopt
-integer npa, npb, mlomfix ! depreciated namelist options
+integer npa, npb, mlomfix, tkecduv ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr
 real, dimension(8) :: temparray
@@ -1454,9 +1454,10 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & ! EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
-    stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,tkecduv,         &
+    stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,                 &
     amxlsq,                                                       & ! JH PBL scheme
-    ngwd,helim,fc2,sigbot_gwd,alphaj                                ! GWdrag
+    ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
+    tkecduv                                                         ! depreciated
 ! land, urban and carbon namelist
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
@@ -2103,7 +2104,7 @@ nclddia        = dumi(19)
 nmr            = dumi(20)
 nevapls        = dumi(21)
 deallocate( dumr, dumi )
-allocate( dumr(29), dumi(5) )
+allocate( dumr(29), dumi(4) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2145,7 +2146,6 @@ if ( myid==0 ) then
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
   dumi(4)  = ngwd
-  dumi(5)  = tkecduv
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2181,7 +2181,6 @@ buoymeth   = dumi(1)
 stabmeth   = dumi(2)
 tkemeth    = dumi(3)
 ngwd       = dumi(4)
-tkecduv    = dumi(5)
 deallocate( dumr, dumi )
 allocate( dumr8(1), dumr(24), dumi(31) )
 dumr8 = 0._8
@@ -2703,8 +2702,8 @@ if ( myid<nproc ) then
     write(6,'(4g9.2)') mintke,mineps,minl,maxl
     write(6,*) ' tke_umin tkemeth ezmin ent_min'
     write(6,'(f8.2,i5,2f8.2)') tke_umin,tkemeth,ezmin,ent_min
-    write(6,*) ' tkecduv amxlsq'
-    write(6,'(i9,f8.2)') tkecduv,amxlsq
+    write(6,*) ' amxlsq'
+    write(6,'(f8.2)') amxlsq
     write(6,*)'  cgmap_offset   cgmap_scale'
     write(6,'(2f14.2)') cgmap_offset,cgmap_scale  
     write(6,*)'Gravity wave drag options:'

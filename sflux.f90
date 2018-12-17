@@ -1050,9 +1050,9 @@ do tile=1,ntiles
 
   call sflux_urban_work(azmin(is:ie),uav(is:ie),vav(is:ie),oldrunoff(is:ie),rho(is:ie),vmag(is:ie),                  &
                         oldsnowmelt(is:ie),f_g(tile),                                                                &
-                        f_intm(tile),f_road(tile),f_roof(tile),f_slab(tile),f_wall(tile),intm_g(tile),p_g(tile),     &
-                        rdhyd_g(tile),rfhyd_g(tile),rfveg_g(tile),road_g(tile),roof_g(tile),room_g(tile),            &
-                        slab_g(tile),walle_g(tile),wallw_g(tile),cnveg_g(tile),intl_g(tile),                         &
+                        f_intm(tile),f_road(tile),f_roof(tile),f_slab(tile),f_wall(tile),intm_g(:,tile),p_g(:,tile), &
+                        rdhyd_g(:,tile),rfhyd_g(:,tile),rfveg_g(tile),road_g(:,tile),roof_g(:,tile),room_g(:,tile),  &
+                        slab_g(:,tile),walle_g(:,tile),wallw_g(:,tile),cnveg_g(tile),intl_g(tile),                   &
                         albvisnir(is:ie,1),albvisnir(is:ie,2),luzon,lvmer,cdtq(is:ie),cduv(is:ie),conds(is:ie),      &
                         condg(is:ie),condx(is:ie),eg(is:ie),fg(is:ie),land(is:ie),ps(is:ie),qg(is:ie,1),             &
                         qsttg(is:ie),rgsave(is:ie),rnet(is:ie),runoff(is:ie),sgsave(is:ie),snowmelt(is:ie),          &
@@ -1113,12 +1113,12 @@ real, dimension(imax), intent(inout) :: zo, zoh, zoq
 real, dimension(imax), intent(in) :: qg, t, u, v
 logical, dimension(imax), intent(in) :: land, upack
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
-type(hydrodata), intent(inout) :: rdhyd, rfhyd
+type(hydrodata), dimension(nfrac), intent(inout) :: rdhyd, rfhyd
 type(vegdata), intent(inout) :: rfveg, cnveg
-type(facetdata), intent(inout) :: intm, road, roof, room, slab, walle, wallw
+type(facetdata), dimension(nfrac), intent(inout) :: intm, road, roof, room, slab, walle, wallw
 type(intldata), intent(in) :: intl
 type(fparmdata), intent(in) :: fp
-type(pdiagdata), intent(inout) :: pd
+type(pdiagdata), dimension(nfrac), intent(inout) :: pd
 
 ! set-up radiative fluxes and precipitation                                                      ! urban
 dumsg = sgsave/(1.-swrsave*albvis(:)-(1.-swrsave)*albnir(:))                                     ! urban

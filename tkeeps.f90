@@ -48,7 +48,7 @@ public tkeinit,tkemix,tkeend,tke,eps,shear
 public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,ent1,entc0,ezmin,dtrc0
 public m0,b1,b2,qcmf,ent_min
 public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
-public tke_umin,tkemeth,tkecduv
+public tke_umin,tkemeth
 #ifdef offline
 public wthl,wqv,wql,wqf
 public mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up
@@ -65,35 +65,34 @@ real, dimension(:,:), allocatable, save :: u,v,ents,dtrs
 #endif
 
 ! model ED constants
-real, save :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke (1988) 0.03, Duynkerke (1987) 0.09
-real, save :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke (1988) 0.42, Duynkerke (1987) 0.77
-real, save :: ce1     = 1.46
-real, save :: ce2     = 1.83
-real, save :: ce3     = 0.45   ! Hurley (2007) 0.45, Duynkerke 1987 0.35
-real, save :: cq      = 2.5    ! Adjustment to ED in absence of MF
+real, save :: cm0      = 0.09     ! Hurley (2007) 0.09, Duynkerke (1988) 0.03, Duynkerke (1987) 0.09
+real, save :: ce0      = 0.69     ! Hurley (2007) 0.69, Duynkerke (1988) 0.42, Duynkerke (1987) 0.77
+real, save :: ce1      = 1.46
+real, save :: ce2      = 1.83
+real, save :: ce3      = 0.45     ! Hurley (2007) 0.45, Duynkerke 1987 0.35
+real, save :: cq       = 2.5      ! Adjustment to ED in absence of MF
+real, save :: mintke   = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
+real, save :: mineps   = 1.E-11   ! min value for eps (1.0e-6 in TAPM)
+real, save :: minl     = 1.       ! min value for L   (5. in TAPM)
+real, save :: maxl     = 1000.    ! max value for L   (500. in TAPM)
+real, save :: tke_umin = 0.1      ! minimum wind speed (m/s) for drag calculation
 ! model MF constants
-real, save :: be      = 0.1    ! Surface boundary condition (Hurley (2007) 1., Soares et al (2004) 0.3)
-real, save :: ent0    = 0.25   ! Entrainment constant (Controls height of boundary layer) (Hurley (2007) 0.5)
-real, save :: ent1    = 0.25
-real, save :: ent_min = 0.     ! Minimum entrainment
-real, save :: ezmin   = 100.   ! Limits entrainment at plume top
-real, save :: entc0   = 2.e-3  ! Saturated entrainment constant for mass flux
-real, save :: dtrc0   = 3.e-3  ! Saturated detrainment constant for mass flux
-real, save :: m0      = 0.1    ! Mass flux area constant (Hurley (2007) 0.1)
-real, save :: b1      = 2.     ! Updraft entrainment coeff (Soares et al (2004) 1., Siebesma et al (2003) 2.)
-real, save :: b2      = 1./3.  ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
-real, save :: qcmf    = 1.e-4  ! Critical mixing ratio of liquid water before autoconversion
-! numerical constants
-integer, save :: buoymeth = 1        ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
-integer, save :: stabmeth = 0        ! Method for stability calculation (0=B&H, 1=Luhar)
-integer, save :: tkemeth  = 1        ! Method for TKE calculation (0=D&K84, 1=Hurley)
-integer, save :: tkecduv  = 0        ! Calculate drag (0=use zo, 1=use cduv=cd*vmod)
-real, save :: maxdts      = 120.     ! max timestep for split
-real, save :: mintke      = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
-real, save :: mineps      = 1.E-11   ! min value for eps (1.0e-6 in TAPM)
-real, save :: minl        = 1.       ! min value for L   (5. in TAPM)
-real, save :: maxl        = 1000.    ! max value for L   (500. in TAPM)
-real, save :: tke_umin    = 0.1      ! minimum wind speed (m/s) for drag calculation
+real, save :: be       = 0.1      ! Surface boundary condition (Hurley (2007) 1., Soares et al (2004) 0.3)
+real, save :: ent0     = 0.25     ! Entrainment constant (Controls height of boundary layer) (Hurley (2007) 0.5)
+real, save :: ent1     = 0.25
+real, save :: ent_min  = 0.       ! Minimum entrainment
+real, save :: ezmin    = 100.     ! Limits entrainment at plume top
+real, save :: entc0    = 2.e-3    ! Saturated entrainment constant for mass flux
+real, save :: dtrc0    = 3.e-3    ! Saturated detrainment constant for mass flux
+real, save :: m0       = 0.1      ! Mass flux area constant (Hurley (2007) 0.1)
+real, save :: b1       = 2.       ! Updraft entrainment coeff (Soares et al (2004) 1., Siebesma et al (2003) 2.)
+real, save :: b2       = 1./3.    ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
+real, save :: qcmf     = 1.e-4    ! Critical mixing ratio of liquid water before autoconversion
+! generic constants
+integer, save :: buoymeth = 1     ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
+integer, save :: stabmeth = 0     ! Method for stability calculation (0=B&H, 1=Luhar)
+integer, save :: tkemeth  = 1     ! Method for TKE calculation (0=D&K84, 1=Hurley)
+real, save :: maxdts      = 120.  ! max timestep for split
 
 ! physical constants
 real, parameter :: grav  = 9.80616    ! (m s^-2)
@@ -205,7 +204,7 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,cduv,ps,zom,zz,zzh,sig,rhos, &
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,cduv,ps,zz,zzh,sig,rhos,     &
                   ustar_ave,dt,qgmin,mode,diag,cgmap,tke,eps,shear,                       &
 #ifdef scm
                   wthflux,wqvflux,uwflux,vwflux,mfout,buoyproduction,                     &
@@ -231,7 +230,7 @@ real, dimension(imax,kl), intent(in) :: shear
 real, dimension(imax,kl), intent(inout) :: tke
 real, dimension(imax,kl), intent(inout) :: eps
 real, dimension(imax), intent(inout) :: zi
-real, dimension(imax), intent(in) :: fg,eg,cduv,ps,zom,rhos,cgmap
+real, dimension(imax), intent(in) :: fg,eg,cduv,ps,rhos,cgmap
 real, dimension(imax), intent(out) :: ustar_ave
 real, dimension(kl), intent(in) :: sig
 real, dimension(imax,kl) :: km,thetav,thetal,qsat
@@ -370,17 +369,7 @@ do kcount = 1,mcount
   wtv0 = wt0 + theta(1:imax,1)*0.61*wq0 ! thetav flux
   
   ! Update momentum flux
-  select case(tkecduv)
-    case(0)  
-      umag = sqrt(max( uo(1:imax,1)**2+vo(1:imax,1)**2, tke_umin**2 ))
-      call dyerhicks(cdrag,wtv0,zom,umag,thetav(:,1),zz(:,1),imax)
-      ustar = sqrt(cdrag*umag*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))
-    case(1)
-      ustar = sqrt(cduv*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))  
-    case default
-      write(6,*) "ERROR: Unknown option tkecduv = ",tkecduv
-      stop    
-  end select  
+  ustar = sqrt(cduv*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))  
   
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
@@ -744,15 +733,7 @@ do kcount = 1,mcount
   ! momentum vertical mixing
   aa(:,2:kl)  =qq(:,2:kl)
   cc(:,1:kl-1)=rr(:,1:kl-1)
-  select case(tkecduv)
-    case(0)  
-      bb(:,1)=1.-cc(:,1)+ddts*rhos*cdrag*umag/(rhoa(:,1)*dz_fl(:,1)) ! implicit
-    case(1)
-      bb(:,1)=1.-cc(:,1)+ddts*rhos*cduv/(rhoa(:,1)*dz_fl(:,1)) ! implicit  
-    case default
-      write(6,*) "ERROR: Unknown option tkecduv = ",tkecduv
-      stop
-  end select    
+  bb(:,1)=1.-cc(:,1)+ddts*rhos*cduv/(rhoa(:,1)*dz_fl(:,1)) ! implicit  
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
   bb(:,kl)=1.-aa(:,kl)
   dd(:,1:kl)=uo(1:imax,1:kl)
@@ -762,15 +743,7 @@ do kcount = 1,mcount
   
   
   ! update surface momentum flux
-  select case(tkecduv)
-    case(0)    
-      ustar = sqrt(cdrag*umag*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))
-    case(1)
-      ustar = sqrt(cduv*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))
-    case default
-      write(6,*) "ERROR: Unknown option tkecduv = ",tkecduv
-      stop
-  end select  
+  ustar = sqrt(cduv*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))
   ustar_ave = ustar_ave + ustar/real(mcount)
 
   ! account for phase transitions
@@ -1225,78 +1198,6 @@ end function entfn
 !
 !return
 !end function dtrfn
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate drag coeff
-
-pure subroutine dyerhicks(cd,wtv0,zom,umag,thetav,zmin,imax)
-
-implicit none
-
-integer, intent(in) :: imax
-integer ic
-integer, parameter :: icmax = 10
-real, dimension(imax), intent(in) :: umag,thetav,zom,wtv0,zmin
-real, dimension(imax), intent(out) :: cd
-real, dimension(imax) :: ustar,thetavstar,ilzom
-real, dimension(imax) :: z_on_l,z0_on_l
-real, dimension(imax) :: pm0,pm1,integralm
-real, dimension(imax) :: dumzmin
-
-dumzmin    = max(zmin,zom+0.2)
-ilzom      = log(dumzmin/zom)
-ustar      = vkar*umag/ilzom ! first guess
-
-select case(stabmeth)
-  case(0)
-    do ic = 1,icmax
-      thetavstar = -wtv0/ustar
-      z_on_l   = vkar*dumzmin*grav*thetavstar/(thetav*ustar*ustar)
-      z_on_l   = min(z_on_l,10.)
-      z0_on_l  = z_on_l*zom/dumzmin
-      where ( z_on_l<0. )
-        pm0     = (1.-16.*z0_on_l)**(-0.25)
-        pm1     = (1.-16.*z_on_l )**(-0.25)
-        integralm = ilzom-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
-                   +2.*(atan(1./pm1)-atan(1./pm0))
-      elsewhere
-        !--------------Beljaars and Holtslag (1991) momentum & heat            
-        pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
-        pm1 = -(a_1*z_on_l +b_1*(z_on_l -(c_1/d_1))*exp(-d_1*z_on_l )+b_1*c_1/d_1)
-        integralm = ilzom-(pm1-pm0)
-      end where
-      ustar = vkar*umag/integralm
-    end do
-    
-  case(1)
-    do ic = 1,icmax
-      thetavstar = -wtv0/ustar
-      z_on_l   = vkar*dumzmin*grav*thetavstar/(thetav*ustar*ustar)
-      z_on_l   = min(z_on_l,10.)
-      z0_on_l  = z_on_l*zom/dumzmin
-      where ( z_on_l<0. )
-        pm0     = (1.-16.*z0_on_l)**(-0.25)
-        pm1     = (1.-16.*z_on_l )**(-0.25)
-        integralm = ilzom-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
-                   +2.*(atan(1./pm1)-atan(1./pm0))
-      elsewhere ( z_on_l<=0.4 )
-        !--------------Beljaars and Holtslag (1991) momentum & heat            
-        pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
-        pm1 = -(a_1*z_on_l +b_1*(z_on_l -(c_1/d_1))*exp(-d_1*z_on_l )+b_1*c_1/d_1)
-        integralm = ilzom-(pm1-pm0)
-      elsewhere ! Luhar
-        integralm = aa1*(( z_on_l**bb1)*(1.+ cc1*z_on_l**(1.-bb1)) &
-                        -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1))) 
-      end where
-      ustar = vkar*umag/integralm
-    end do
-    
-end select
-
-cd = (vkar/integralm)**2
-
-return
-end subroutine dyerhicks
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate phi_m for atmospheric stability

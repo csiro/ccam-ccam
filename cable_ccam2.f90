@@ -523,7 +523,7 @@ end if
 ! swdwn is downwelling shortwave (positive) W/m^2
 albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
 albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif
-alb   = swrsave*albvissav + (1.-swrsave)*albnirsav
+alb       = swrsave*albvissav + (1.-swrsave)*albnirsav
 if ( any(alb<1.e-20) ) then
   write(6,*) "ERROR: Invalid albedo in cable_ccam2 ",minval(alb)
   stop
@@ -532,35 +532,35 @@ swdwn = sgsave/(1.-alb)
 do nb = 1,maxnb
   is = tind(nb,1)
   ie = tind(nb,2)
-  met%tk(is:ie)          = real(pack(theta,  tmap(:,nb)), 8)
-  met%ua(is:ie)          = real(pack(vmod,   tmap(:,nb)), 8)
-  met%ca(is:ie)          = real(pack(atmco2, tmap(:,nb))*1.e-6, 8)
-  met%coszen(is:ie)      = real(pack(coszro2,tmap(:,nb)), 8)              ! use instantaneous value
-  met%qv(is:ie)          = real(pack(qg(1:imax),tmap(:,nb)),8 )           ! specific humidity in kg/kg
-  met%pmb(is:ie)         = real(pack(ps(1:imax),  tmap(:,nb))*0.01, 8)    ! pressure in mb at ref height
-  met%precip(is:ie)      = real(pack(condx,  tmap(:,nb)), 8)              ! in mm not mm/sec
-  met%precip_sn(is:ie)   = real(pack(conds+condg,  tmap(:,nb)), 8)        ! in mm not mm/sec
+  met%tk(is:ie)        = real(pack(theta,      tmap(:,nb)), 8)
+  met%ua(is:ie)        = real(pack(vmod,       tmap(:,nb)), 8)
+  met%ca(is:ie)        = real(pack(atmco2,     tmap(:,nb))*1.e-6, 8)
+  met%coszen(is:ie)    = real(pack(coszro2,    tmap(:,nb)), 8)        ! use instantaneous value
+  met%qv(is:ie)        = real(pack(qg(1:imax), tmap(:,nb)),8 )        ! specific humidity in kg/kg
+  met%pmb(is:ie)       = real(pack(ps(1:imax), tmap(:,nb))*0.01, 8)   ! pressure in mb at ref height
+  met%precip(is:ie)    = real(pack(condx,      tmap(:,nb)), 8)        ! in mm not mm/sec
+  met%precip_sn(is:ie) = real(pack(conds+condg,tmap(:,nb)), 8)        ! in mm not mm/sec
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
   ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
-  met%fsd(is:ie,1)       = real(pack(swrsave*swdwn,        tmap(:,nb)), 8)
-  met%fsd(is:ie,2)       = real(pack((1.-swrsave)*swdwn,   tmap(:,nb)), 8)
-  met%fld(is:ie)         = real(pack(-rgsave,              tmap(:,nb)), 8)      ! long wave down (positive) W/m^2
-  rad%fbeam(is:ie,1)     = real(pack(fbeamvis,             tmap(:,nb)), 8)
-  rad%fbeam(is:ie,2)     = real(pack(fbeamnir,             tmap(:,nb)), 8)
-  rough%za_tq(is:ie)     = real(pack(bet(1)*t(1:imax)+phi_nh(:),tmap(:,nb))/grav, 8) ! reference height
-  rough%za_tq(is:ie)     = max( rough%za_tq(is:ie), veg%hc(is:ie)+1. )
+  met%fsd(is:ie,1)     = real(pack(swrsave*swdwn,      tmap(:,nb)), 8)
+  met%fsd(is:ie,2)     = real(pack((1.-swrsave)*swdwn, tmap(:,nb)), 8)
+  met%fld(is:ie)       = real(pack(-rgsave,            tmap(:,nb)), 8)      ! long wave down (positive) W/m^2
+  rad%fbeam(is:ie,1)   = real(pack(fbeamvis,           tmap(:,nb)), 8)
+  rad%fbeam(is:ie,2)   = real(pack(fbeamnir,           tmap(:,nb)), 8)
+  rough%za_tq(is:ie)   = real(pack(bet(1)*t(1:imax)+phi_nh(:),tmap(:,nb))/grav, 8) ! reference height
+  rough%za_tq(is:ie)   = max( rough%za_tq(is:ie), veg%hc(is:ie)+1. )
 end do
-met%doy         = real(fjd, 8)
-met%hod         = (met%doy-int(met%doy))*24._8 + rad%longitude/15._8
-met%hod         = mod(met%hod, 24._8)
-met%tvair       = met%tk
-met%tvrad       = met%tk
-met%qvair       = met%qv
-met%ua          = max(met%ua, c%umin)
-met%coszen      = max(met%coszen, 1.e-8_8) 
-rough%za_uv     = rough%za_tq
-rad%fbeam(:,3)  = 0._8            ! dummy for now
+met%doy        = real(fjd, 8)
+met%hod        = (met%doy-int(met%doy))*24._8 + rad%longitude/15._8
+met%hod        = mod(met%hod, 24._8)
+met%tvair      = met%tk
+met%tvrad      = met%tk
+met%qvair      = met%qv
+met%ua         = max(met%ua, c%umin)
+met%coszen     = max(met%coszen, 1.e-8_8) 
+rough%za_uv    = rough%za_tq
+rad%fbeam(:,3) = 0._8            ! dummy for now
 
 ! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
 call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp,sv,vl1,vl2,vl3,vl4,casamet,veg,imax,tind,tmap,maxnb)
@@ -6412,9 +6412,7 @@ end subroutine fixtile
 
 ! *************************************************************************************
 ! This subroutine saves CABLE tile data
-subroutine savetiledef(idnc,local,jdim,jsize,cdim,csize,c2dim,c2size, &
-                       c3dim,c3size,c4dim,c4size,c5dim,c5size,        &
-                       c6dim,c6size,c7dim,c7size)
+subroutine savetiledef(idnc,local,jdim,jsize,c1dim,c2dim,c3dim,c4dim,c5dim,c6dim,c7dim,c1size,c2size)
 
 use carbpools_m
 use cc_mpi, only : myid
@@ -6423,18 +6421,12 @@ use newmpar_m
   
 implicit none
   
-integer, intent(in) :: idnc, jsize, csize, c2size
-integer, intent(in) :: c3size, c4size, c5size, c6size, c7size
+integer, intent(in) :: idnc, jsize, c1size, c2size
 integer k,n
 integer ll,dd,hh
 integer, dimension(jsize), intent(in) :: jdim  
-integer, dimension(csize), intent(in) :: cdim
+integer, dimension(c1size), intent(in) :: c1dim, c3dim, c4dim, c5dim, c6dim, c7dim
 integer, dimension(c2size), intent(in) :: c2dim
-integer, dimension(c3size), intent(in) :: c3dim
-integer, dimension(c4size), intent(in) :: c4dim
-integer, dimension(c5size), intent(in) :: c5dim
-integer, dimension(c6size), intent(in) :: c6dim
-integer, dimension(c6size), intent(in) :: c7dim
 character(len=80) vname
 character(len=80) lname
 logical, intent(in) :: local
@@ -6766,58 +6758,58 @@ if (myid==0.or.local) then
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate dtemp tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatedtemp")') n
-      call attrib(idnc,c3dim,c3size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c3dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate dmoist tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatedmoist")') n
-      call attrib(idnc,c4dim,c4size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c4dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate mtemp_min_20 tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatemtemp_min_20")') n
-      call attrib(idnc,c5dim,c5size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate mtemp_max_20 tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatemtemp_max_20")') n
-      call attrib(idnc,c5dim,c5size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate alpha_PT_20 tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatealpha_PT_20")') n
-      call attrib(idnc,c5dim,c5size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate dmoist_min_20 tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatedmoist_min_20")') n
-      call attrib(idnc,c5dim,c5size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate dmoist_max_20 tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatedmoist_max_20")') n
-      call attrib(idnc,c5dim,c5size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate APAR_leaf_sun tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climateapar_leaf_sun")') n
-      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate APAR_leaf_shade tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climateapar_leaf_shade")') n
-      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate Dleaf_sun tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatedleaf_sun")') n
-      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate fwsoil tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatefwsoil")') n
-      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate Dleaf_shade tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatedleaf_shade")') n
-      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate Tleaf_sun tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatetleaf_sun")') n
-      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate Tleaf_shade tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatetleaf_shade")') n
-      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate cs_sun tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatecs_sun")') n
-      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate cs_shade tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatecs_shade")') n
-      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate scalex_sun tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatescalex_sun")') n
-      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("climate scalex_shade tile ",I1.1)') n
       write(vname,'("t",I1.1,"_climatescalex_shade")') n
-      call attrib(idnc,c6dim,c6size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
       write(lname,'("veg vcmax_sun tile ",I1.1)') n
       write(vname,'("t",I1.1,"_vegvcmax_sun")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -6908,10 +6900,10 @@ if (myid==0.or.local) then
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_freq_age")') n
       write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
-      call attrib(idnc,c7dim,c7size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c7dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_biomass_age")') n
       write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
-      call attrib(idnc,c7dim,c7size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c7dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       do ll = 1,POP_NLAYER
         write(lname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
         write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
@@ -6959,131 +6951,131 @@ if (myid==0.or.local) then
       end do         
       write(lname,'("t",I1.1,"_pop_grid_patch_id")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_freq")') n
       write(vname,'("t",I1.1,"_pop_grid_freq")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_freq_old")') n
       write(vname,'("t",I1.1,"_pop_grid_freq_old")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_pgap")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_lai")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_lai")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_biomass")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_biomass")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_cpc")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_mortality")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_growth")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_growth")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       write(lname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
       write(vname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
-      call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       do dd = 1,POP_NDISTURB  
         write(lname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
         write(vname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
-        call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do  
       do dd = 1,POP_NDISTURB  
         write(lname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
         write(vname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
-        call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do  
       do dd = 1,POP_NDISTURB  
         write(lname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
         write(vname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
-        call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do dd = 1,POP_NDISTURB  
         write(lname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
         write(vname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
-        call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do dd = 1,POP_NDISTURB  
         write(lname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
         write(vname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
-        call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
         write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
         write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
-        call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
         write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
         write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
-        call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
         write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
         write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
-        call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
         write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
         write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
-        call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
         write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
         write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
-        call attrib(idnc,cdim,csize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
       end do
       do ll = 1,POP_NLAYER  
         write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll

@@ -5085,6 +5085,7 @@ contains
       end if   
       
       kx = size(t, 2)
+      extra = .false.
       if ( present(klim) ) then
          kx = klim
       end if

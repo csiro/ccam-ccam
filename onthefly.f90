@@ -276,7 +276,8 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
       
 use aerosolldr, only : ssn,aeromode,          &
     xtg_solub                                  ! LDR aerosol scheme
-use ateb, only : atebdwn, urbtemp, atebloadd   ! Urban
+use ateb, only : atebdwn, urbtemp, atebloadd, &
+    nfrac                                      ! Urban
 use cable_ccam, only : ccycle                  ! CABLE
 use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
 use carbpools_m                                ! Carbon pools
@@ -332,10 +333,10 @@ real, parameter :: aerosol_tol = 1.e-4         ! tolarance for aerosol data
 integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, retopo_test
 integer levk, levkin, ier, igas
-integer i, j, k, mm, iq
+integer i, j, k, mm, iq, ifrac
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
-integer, dimension(6), save :: iers
+integer, dimension(7), save :: iers
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
 real, dimension(:,:,:), intent(out) :: xtgdwn
@@ -353,14 +354,14 @@ real, dimension(:), allocatable :: fracice_a, sicedep_a
 real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
 real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_a
-real, dimension(kk+ok+6) :: dumr
+real, dimension(kk+ok+7) :: dumr
 character(len=20) vname
 character(len=3) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found
-logical zht_found
+logical zht_found, urban_found
 logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
@@ -560,7 +561,7 @@ if ( newfile ) then
       end if  
     end if
     ! check for missing data
-    iers(1:6) = 0
+    iers(1:7) = 0
     call ccnf_inq_varid(ncid,'mixr',idv,tst)
     if ( tst ) iers(1) = -1
     call ccnf_inq_varid(ncid,'siced',idv,tst)
@@ -573,6 +574,8 @@ if ( newfile ) then
     if ( tst ) iers(5) = -1
     call ccnf_inq_varid(ncid,'thetao',idv,tst)
     if ( tst ) iers(6) = -1
+    call ccnf_inq_varid(ncid,'t1_rooftgg1',idv,tst)
+    if ( tst ) iers(7) = -1
     call ccnf_inq_varid(ncid,'tsu',idv,tst)
     if ( tst ) then
       write(6,*) "ERROR: Cannot locate tsu in input file"
@@ -583,16 +586,16 @@ if ( newfile ) then
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk)      = sigin(1:kk)
-    dumr(kk+1:kk+6) = real(iers(1:6))
+    dumr(kk+1:kk+7) = real(iers(1:7))
     if ( ok>0 ) then
-      dumr(kk+7:kk+ok+6) = gosig_in(1:ok)
-      call ccmpi_bcast(dumr(1:kk+ok+6),0,comm_world)
-      gosig_in(1:ok) = dumr(kk+7:kk+ok+6)
+      dumr(kk+8:kk+ok+7) = gosig_in(1:ok)
+      call ccmpi_bcast(dumr(1:kk+ok+7),0,comm_world)
+      gosig_in(1:ok) = dumr(kk+8:kk+ok+7)
     else
-      call ccmpi_bcast(dumr(1:kk+6),0,comm_world)
+      call ccmpi_bcast(dumr(1:kk+7),0,comm_world)
     end if  
     sigin(1:kk) = dumr(1:kk)
-    iers(1:6)   = nint(dumr(kk+1:kk+6))
+    iers(1:7)   = nint(dumr(kk+1:kk+7))
   end if
   
   mixr_found    = iers(1)==0
@@ -601,6 +604,7 @@ if ( newfile ) then
   soilt_found   = iers(4)==0
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
+  urban_found   = iers(7)==0
   
   ! determine whether zht needs to be read
   zht_found = nested==0 .or. (nested==1.and.retopo_test/=0) .or.          &
@@ -693,9 +697,13 @@ if ( newfile ) then
   ! read urban mask for urban and initial conditions and interpolation
   if ( nurban/=0 .and. nested/=1 .and. nested/=3 .and. .not.iop_test ) then
     if ( myid==0 ) then
-      write(6,*) "Determine urban mask from rooftgg1"
+      write(6,*) "Determine urban mask"
     end if  
-    call histrd(iarchi,ier,'rooftgg1',ik,ucc,6*ik*ik)
+    if ( urban_found ) then
+      call histrd(iarchi,ier,'t1_rooftgg1',ik,ucc,6*ik*ik)  
+    else     
+      call histrd(iarchi,ier,'rooftgg1',ik,ucc,6*ik*ik)
+    end if  
     if ( fwsize>0 ) then
       nourban_a = ucc>=399.
     end if
@@ -712,6 +720,7 @@ else
   soilt_found   = iers(4)==0
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
+  urban_found   = iers(7)==0
   zht_found     = nested==0 .or. (nested==1.and.retopo_test/=0) .or.      &
       nested==3 .or. .not.(soilt_found.or.mlo_found)
   tss_test      = siced_found .and. fracice_found .and. iotest
@@ -1163,11 +1172,7 @@ if ( nested/=1 .and. nested/=3 ) then
   !------------------------------------------------------------------
   ! check soil variables
   if ( myid==0 .or. pfall ) then
-    if ( ccycle==0 ) then
-      !call ccnf_inq_varid(ncid,'cplant1',idv,tst)
-      !if ( tst ) ierc(7)=-1
-      ierc(7) = 0
-    else
+    if ( ccycle/=0 ) then
       call ccnf_inq_varid(ncid,'nplant1',idv,tst)
       if ( .not.tst ) ierc(7) = 1
     end if
@@ -1509,87 +1514,173 @@ if ( nested/=1 .and. nested/=3 ) then
   ! Read urban data
   if ( nurban/=0 ) then
     if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,5))
-    call fillhist4('rooftgg',atebdwn(:,1:5),nourban_a,fill_nourban)
-    do k = 1,5
-      write(vname,'("rooftemp",I1.1)') k
-      where ( atebdwn(:,k)>150. )  
-        atebdwn(:,k) = atebdwn(:,k) - urbtemp
-      end where 
-      call atebloadd(atebdwn(:,k),vname,0)
-    end do  
-    call fillhist4('waletgg',atebdwn(:,1:5),nourban_a,fill_nourban)
-    do k = 1,5
-      write(vname,'("walletemp",I1.1)') k
-      where ( atebdwn(:,k)>150. )  
-        atebdwn(:,k) = atebdwn(:,k) - urbtemp
-      end where 
-      call atebloadd(atebdwn(:,k),vname,0)
-    end do  
-    call fillhist4('walwtgg',atebdwn(:,1:5),nourban_a,fill_nourban)
-    do k = 1,5
-      write(vname,'("wallwtemp",I1.1)') k
-      where ( atebdwn(:,k)>150. )  
-        atebdwn(:,k) = atebdwn(:,k) - urbtemp
-      end where 
-      call atebloadd(atebdwn(:,k),vname,0)
-    end do  
-    call fillhist4('roadtgg',atebdwn(:,1:5),nourban_a,fill_nourban)
-    do k = 1,5
-      write(vname,'("roadtemp",I1.1)') k
-      where ( atebdwn(:,k)>150. )  
-        atebdwn(:,k) = atebdwn(:,k) - urbtemp
-      end where 
-      call atebloadd(atebdwn(:,k),vname,0)
-    end do  
-    call fillhist4('slabtgg',atebdwn(:,1:5),nourban_a,fill_nourban)
-    do k = 1,5
-      write(vname,'("slabtemp",I1.1)') k
-      where ( atebdwn(:,k)>150. )  
-        atebdwn(:,k) = atebdwn(:,k) - urbtemp
-      end where 
-      call atebloadd(atebdwn(:,k),vname,0)
-    end do  
-    call fillhist4('intmtgg',atebdwn(:,1:5),nourban_a,fill_nourban)
-    do k = 1,5
-      write(vname,'("intmtemp",I1.1)') k 
-      where ( atebdwn(:,k)>150. )  
-        atebdwn(:,k) = atebdwn(:,k) - urbtemp
-      end where 
-      call atebloadd(atebdwn(:,k),vname,0)
-    end do  
-    call fillhist1('roomtgg1',atebdwn(:,1),nourban_a,fill_nourban)
-    where ( atebdwn(:,1)>150. )
-      atebdwn(:,1) = atebdwn(:,1) - urbtemp
-    end where
-    call atebloadd(atebdwn(:,1),"roomtemp",0)
-    call fillhist1('urbnsmc',atebdwn(:,1),nourban_a,fill_nourban)
-    call atebloadd(atebdwn(:,1),"canyonsoilmoisture",0)
-    call fillhist1('urbnsmr',atebdwn(:,1),nourban_a,fill_nourban)
-    call atebloadd(atebdwn(:,1),"roofsoilmoisture",0)
-    call fillhist1('roofwtr',atebdwn(:,1),nourban_a,fill_nourban)
-    call atebloadd(atebdwn(:,1),"roofsurfacewater",0)
-    call fillhist1('roadwtr',atebdwn(:,1),nourban_a,fill_nourban)
-    call atebloadd(atebdwn(:,1),"roadsurfacewater",0)
-    call fillhist1('urbwtrc',atebdwn(:,1),nourban_a,fill_nourban)
-    call atebloadd(atebdwn(:,1),"canyonleafwater",0)
-    call fillhist1('urbwtrr',atebdwn(:,1),nourban_a,fill_nourban)
-    call atebloadd(atebdwn(:,1),"roofleafwater",0)
-    call fillhist1('roofsnd',atebdwn(:,1),nourban_a,fill_nourban)
-    call atebloadd(atebdwn(:,1),"roofsnowdepth",0)
-    call fillhist1('roadsnd',atebdwn(:,1),nourban_a,fill_nourban)
-    call atebloadd(atebdwn(:,1),"roadsnowdepth",0)
-    call fillhist1('roofden',atebdwn(:,1),nourban_a,fill_nourban)
-    if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
-    call atebloadd(atebdwn(:,1),"roofsnowdensity",0)
-    call fillhist1('roadden',atebdwn(:,1),nourban_a,fill_nourban)
-    if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
-    call atebloadd(atebdwn(:,1),"roadsnowdensity",0)
-    call fillhist1('roofsna',atebdwn(:,1),nourban_a,fill_nourban)
-    if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
-    call atebloadd(atebdwn(:,1),"roofsnowalbedo",0)
-    call fillhist1('roadsna',atebdwn(:,1),nourban_a,fill_nourban)
-    if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
-    call atebloadd(atebdwn(:,1),"roadsnowalbedo",0)
+    if ( urban_found ) then
+      ! restart  
+      do ifrac = 1,nfrac
+        write(vname,'("t",I1.1,"_rooftgg")') ifrac    
+        call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
+        do k = 1,5
+          write(vname,'("rooftemp",I1.1)') k
+          where ( atebdwn(:,k)>150. )  
+            atebdwn(:,k) = atebdwn(:,k) - urbtemp
+          end where 
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do
+        write(vname,'("t",I1.1,"_waletgg")') ifrac
+        call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
+        do k = 1,5
+          write(vname,'("walletemp",I1.1)') k
+          where ( atebdwn(:,k)>150. )  
+            atebdwn(:,k) = atebdwn(:,k) - urbtemp
+          end where 
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+        write(vname,'("t",I1.1,"_walwtgg")') ifrac
+        call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
+        do k = 1,5
+          write(vname,'("wallwtemp",I1.1)') k
+          where ( atebdwn(:,k)>150. )  
+            atebdwn(:,k) = atebdwn(:,k) - urbtemp
+          end where 
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do
+        write(vname,'("t",I1.1,"_roadtgg")') ifrac
+        call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
+        do k = 1,5
+          write(vname,'("roadtemp",I1.1)') k
+          where ( atebdwn(:,k)>150. )  
+            atebdwn(:,k) = atebdwn(:,k) - urbtemp
+          end where 
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do
+        write(vname,'("t",I1.1,"_slabtgg")') ifrac
+        call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
+        do k = 1,5
+          write(vname,'("slabtemp",I1.1)') k
+          where ( atebdwn(:,k)>150. )  
+            atebdwn(:,k) = atebdwn(:,k) - urbtemp
+          end where 
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do
+        write(vname,'("t",I1.1,"_intmtgg")') ifrac
+        call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
+        do k = 1,5
+          write(vname,'("intmtemp",I1.1)') k 
+          where ( atebdwn(:,k)>150. )  
+            atebdwn(:,k) = atebdwn(:,k) - urbtemp
+          end where 
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+        write(vname,'("t",I1.1,"_roomtgg1")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>150. )
+          atebdwn(:,1) = atebdwn(:,1) - urbtemp
+        end where
+        call atebloadd(atebdwn(:,1),"roomtemp",ifrac,0)
+        write(vname,'("t",I1.1,"_urbnsmc")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        call atebloadd(atebdwn(:,1),"canyonsoilmoisture",ifrac,0)
+        write(vname,'("t",I1.1,"_urbnsmr")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        call atebloadd(atebdwn(:,1),"roofsoilmoisture",ifrac,0)
+        write(vname,'("t",I1.1,"_roofwtr")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        call atebloadd(atebdwn(:,1),"roofsurfacewater",ifrac,0)
+        write(vname,'("t",I1.1,"_roadwtr")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        call atebloadd(atebdwn(:,1),"roadsurfacewater",ifrac,0)
+        write(vname,'("t",I1.1,"_urbwtrc")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        call atebloadd(atebdwn(:,1),"canyonleafwater",ifrac,0)
+        write(vname,'("t",I1.1,"_urbwtrr")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        call atebloadd(atebdwn(:,1),"roofleafwater",ifrac,0)
+        write(vname,'("t",I1.1,"_roofsnd")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        call atebloadd(atebdwn(:,1),"roofsnowdepth",ifrac,0)
+        write(vname,'("t",I1.1,"_roadsnd")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        call atebloadd(atebdwn(:,1),"roadsnowdepth",ifrac,0)
+        write(vname,'("t",I1.1,"_roofden")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
+        call atebloadd(atebdwn(:,1),"roofsnowdensity",ifrac,0)
+        write(vname,'("t",I1.1,"_roadden")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
+        call atebloadd(atebdwn(:,1),"roadsnowdensity",ifrac,0)
+        write(vname,'("t",I1.1,"_roofsna")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
+        call atebloadd(atebdwn(:,1),"roofsnowalbedo",ifrac,0)
+        write(vname,'("t",I1.1,"_roadsna")') ifrac
+        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
+        call atebloadd(atebdwn(:,1),"roadsnowalbedo",ifrac,0)
+      end do
+    else
+      ! nested  
+      call fillhist4("rooftgg",atebdwn(:,1:5),nourban_a,fill_nourban)
+      do k = 1,5
+        write(vname,'("rooftemp",I1.1)') k
+        where ( atebdwn(:,k)>150. )  
+          atebdwn(:,k) = atebdwn(:,k) - urbtemp
+        end where
+        do ifrac = 1,nfrac
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+      end do
+      call fillhist4("waletgg",atebdwn(:,1:5),nourban_a,fill_nourban)
+      do k = 1,5
+        write(vname,'("walletemp",I1.1)') k
+        where ( atebdwn(:,k)>150. )  
+          atebdwn(:,k) = atebdwn(:,k) - urbtemp
+        end where
+        do ifrac = 1,nfrac
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+      end do
+      call fillhist4("walwtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
+      do k = 1,5
+        write(vname,'("wallwtemp",I1.1)') k
+        where ( atebdwn(:,k)>150. )  
+          atebdwn(:,k) = atebdwn(:,k) - urbtemp
+        end where
+        do ifrac = 1,nfrac
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+      end do
+      call fillhist4("roadtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
+      do k = 1,5
+        write(vname,'("roadtemp",I1.1)') k
+        where ( atebdwn(:,k)>150. )  
+          atebdwn(:,k) = atebdwn(:,k) - urbtemp
+        end where
+        do ifrac = 1,nfrac
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+      end do
+      call fillhist4("slabtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
+      do k = 1,5
+        write(vname,'("slabtemp",I1.1)') k
+        where ( atebdwn(:,k)>150. )  
+          atebdwn(:,k) = atebdwn(:,k) - urbtemp
+        end where
+        do ifrac = 1,nfrac
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+      end do
+      call fillhist4("intmtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
+      do k = 1,5
+        write(vname,'("intmtemp",I1.1)') k
+        where ( atebdwn(:,k)>150. )  
+          atebdwn(:,k) = atebdwn(:,k) - urbtemp
+        end where
+        do ifrac = 1,nfrac
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+      end do
+    end if    
     deallocate( atebdwn )
   end if
 
@@ -1597,8 +1688,8 @@ if ( nested/=1 .and. nested/=3 ) then
   if ( nested==0 .and. (abs(nmlo)>=1.and.abs(nmlo)<=9) ) then
     mlodwn(:,:,5:8) = 0.
     if ( mlo2_found ) then
-      call fillhist4o('kmo',mlodwn(:,:,5),land_a,fill_land,ocndwn(:,1))  
-      call fillhist4o('kso',mlodwn(:,:,6),land_a,fill_land,ocndwn(:,1))  
+      !call fillhist4o('kmo',mlodwn(:,:,5),land_a,fill_land,ocndwn(:,1))  
+      !call fillhist4o('kso',mlodwn(:,:,6),land_a,fill_land,ocndwn(:,1))  
       if ( oclosure==1 ) then
         call fillhist4o('tkeo',mlodwn(:,:,7),land_a,fill_land,ocndwn(:,1))  
         call fillhist4o('epso',mlodwn(:,:,8),land_a,fill_land,ocndwn(:,1))

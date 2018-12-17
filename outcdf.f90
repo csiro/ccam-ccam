@@ -45,15 +45,9 @@ contains
 
 subroutine outfile(iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
       
-use arrays_m       ! Atmosphere dyamics prognostic arrays
 use cc_mpi         ! CC MPI routines
 use dates_m        ! Date data
-use filnames_m     ! Filenames
-use newmpar_m      ! Grid parameters
 use parm_m         ! Model configuration
-use pbl_m          ! Boundary layer arrays
-use soilsnow_m     ! Soil, snow and surface data
-use tracers_m      ! Tracer data
       
 implicit none
 
@@ -61,8 +55,6 @@ integer, intent(in) :: iout
 real, dimension(:), intent(in) :: psl_in
 real, dimension(:,:), intent(in) :: u_in, v_in, t_in, q_in
 character(len=*), intent(in) :: cdffile_in
-character(len=1024) :: surfout
-character(len=20) :: qgout
 
 call START_LOG(outfile_begin)
       
@@ -73,49 +65,7 @@ end if
 
 ! Older text file for soil
 if ( nrungcm==-2 .or. nrungcm==-3 .or. nrungcm==-5 ) then
-  if ( ktau==nwrite/2 .or. ktau==nwrite ) then
-!        usually after first 24 hours, save soil variables for next run
-    if ( ktau==nwrite ) then  ! 24 hour write
-      if ( ktime==1200 ) then
-        surfout=surf_12   ! 'current.1200'
-        qgout='qg_12'
-      else
-        surfout=surf_00   ! 'current.0000'
-        qgout='qg_00'
-      endif
-    else                  ! 12 hour write
-      if(ktime==1200)then
-        surfout=surf_00   ! 'current.0000'
-        qgout='qg_00'
-      else
-        surfout=surf_12   ! 'current.1200'
-        qgout='qg_12'
-      end if
-    end if                ! (ktau.eq.nwrite)
-    if ( myid==0 ) then
-      write(6,*) "writing current soil & snow variables to ",surfout
-      open(unit=77,file=surfout,form='formatted',status='unknown')
-      write (77,*) kdate,ktime,' ktau = ',ktau
-    end if
-    call writeglobvar(77, wb, fmt='(14f6.3)')
-    call writeglobvar(77, tgg, fmt='(12f7.2)')
-    call writeglobvar(77, tss, fmt='(12f7.2)')
-    call writeglobvar(77, snowd, fmt='(12f7.1)')
-    call writeglobvar(77, sicedep, fmt='(12f7.1)')
-    if ( myid==0 ) then
-      close(77)
-    end if
-    if ( nrungcm==-2 .or. nrungcm==-5 ) then
-      if ( myid==0 ) then
-        write(6,*) "writing special qgout file: ",qgout
-        open(unit=77,file=qgout,form='unformatted',status='unknown')
-      end if
-      call writeglobvar(77, qg)
-      if ( myid==0 ) then
-        close(77)
-      end if
-    endif  ! (nrungcm.eq.-2.or.nrungcm.eq.-5)
-  endif    ! (ktau.eq.nwrite/2.or.ktau.eq.nwrite)
+  call soiltextfile  
 endif      ! (nrungcm.eq.-2.or.nrungcm.eq.-3.or.nrungcm.eq.-5)
 
 !---------------------------------------------------------------------------
@@ -210,7 +160,8 @@ use ateb, only :                         & ! Urban
     ,ateb_ac_smooth=>ac_smooth           &
     ,ateb_ac_deltat=>ac_deltat           &
     ,ateb_acfactor=>acfactor             &
-    ,ateb_ac_copmax=>ac_copmax
+    ,ateb_ac_copmax=>ac_copmax           &
+    ,ateb_nl=>nl
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
     ,fwsoil_switch                       &
@@ -250,14 +201,15 @@ integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
 integer, dimension(nihead) :: nahead
 integer, intent(in) :: itype
-integer, dimension(5) :: dima, dims, dimo, dimc
+integer, dimension(5) :: dima, dims, dimo
 integer, dimension(6) :: dimc2
-integer, dimension(5) :: dimc3, dimc4, dimc5, dimc6, dimc7
-integer, dimension(2) :: dimp
+integer, dimension(5) :: dimc1, dimc3, dimc4, dimc5, dimc6, dimc7
+integer, dimension(2) :: dimpx, dimpy
+integer, dimension(1) :: dimpg
 integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgpnode, idgpoff
 integer idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer tlen
-integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim
+integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim, ubdim
 integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
 integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3
@@ -282,17 +234,18 @@ character(len=33) grdtim
 
 local = localhist .and. ((procformat.and.vnode_myid==0).or.(.not.procformat))
 
-! Determine file names depending on output
 ! File setup follows
 if ( itype==1 ) then  
   ! itype=1 outfile
   iarch = iarch_hist + 1
-  idnc = idnc_hist
+  idnc  = idnc_hist
 else
   ! itype=-1 restfile/ensemble
   iarch = 1  
-  idnc = 0
+  idnc  = 0
 end if ! ( itype==1) ..else..
+
+! Determine file names depending on output
 if ( procformat ) then
   write(cdffile,"(a,'.',i6.6)") trim(cdffile_in), vnode_vleaderid
 elseif ( local ) then
@@ -301,14 +254,24 @@ else
   cdffile = cdffile_in
 end if
 
-! Open new file
 if ( myid==0 .or. local ) then  
-  if( iarch==1 )then
+  if ( iarch==1 ) then
+
+    ! Open new file  
     if ( myid==0 ) write(6,'(" nccre of itype,cdffile=",i5," ",a80)') itype,cdffile
     call ccnf_create(cdffile,idnc)
     ! Turn off the data filling
     call ccnf_nofill(idnc)
-    ! Create dimensions, lon, runtopo.shlat
+    
+    ! Create standard dimensions
+    xdim = 0
+    ydim = 0
+    zdim = 0
+    msdim = 0
+    ocdim = 0
+    ubdim = 0
+    pdim = 0
+    gpdim = 0
     if( local ) then
       call ccnf_def_dim(idnc,'longitude',il,xdim)
       call ccnf_def_dim(idnc,'latitude',jl,ydim)
@@ -320,20 +283,12 @@ if ( myid==0 .or. local ) then
     call ccnf_def_dim(idnc,'zsoil',ms,msdim)
     if ( abs(nmlo)>0. .and. abs(nmlo)<=9 ) then
       call ccnf_def_dim(idnc,'olev',ol,ocdim)
-    else
-      ocdim = 0
-    end if
+    end if 
     if ( procformat ) then ! procformat=.true. ensures localhist=.true.
        call ccnf_def_dim(idnc,'processor',vnode_nproc,pdim)   
        if ( myid==0 ) then
          call ccnf_def_dim(idnc,'gprocessor',nproc,gpdim)
-       else
-          gpdim=0
        end if
-       !call ccnf_def_dim(idnc,'proc_nodes',1,pndim)   
-    else
-      pdim = 0
-      gpdim = 0
     end if
     if ( unlimitedhist ) then
       call ccnf_def_dimu(idnc,'time',tdim)
@@ -348,15 +303,13 @@ if ( myid==0 .or. local ) then
       call ccnf_def_dim(idnc,'time',tlen,tdim)
     end if
     if ( myid==0 ) then
-      if ( procformat ) then
-        write(6,*) "xdim,ydim,zdim,pdim,tdim"
-        write(6,*)  xdim,ydim,zdim,pdim,tdim
-      else
-        write(6,*) "xdim,ydim,zdim,tdim"
-        write(6,*)  xdim,ydim,zdim,tdim
-      end if
+      write(6,*) "xdim,ydim,zdim,pdim,tdim"
+      write(6,*)  xdim,ydim,zdim,pdim,tdim
+      write(6,*) "msdim,ocdim,ubdim"
+      write(6,*)  msdim,ocdim,ubdim
     end if
 
+    ! Create additional dimensions for CABLE
     cpdim = 0
     c2pdim = 0
     c91pdim = 0
@@ -378,6 +331,7 @@ if ( myid==0 .or. local ) then
       end if
     end if  
     
+    ! set-up multi-dimensional arrays
     if ( procformat ) then
       ! atmosphere dimensions
       dima = (/ xdim, ydim, zdim, pdim, tdim /)
@@ -385,8 +339,12 @@ if ( myid==0 .or. local ) then
       dims = (/ xdim, ydim, msdim, pdim, tdim /)
       ! ocean dimensions
       dimo = (/ xdim, ydim, ocdim, pdim, tdim /)
+      ! procformat dimensions
+      dimpx = (/ xdim, pdim /)
+      dimpy = (/ ydim, pdim /)
+      dimpg = (/ gpdim /)
       ! cable dimensions
-      dimc = (/ xdim, ydim, cpdim, pdim, tdim /)
+      dimc1 = (/ xdim, ydim, cpdim, pdim, tdim /)
       dimc2 = (/ xdim, ydim, cpdim, c2pdim, pdim, tdim /)
       dimc3 = (/ xdim, ydim, c91pdim, pdim, tdim /)
       dimc4 = (/ xdim, ydim, c31pdim, pdim, tdim /)
@@ -400,8 +358,12 @@ if ( myid==0 .or. local ) then
       dims = (/ xdim, ydim, msdim, tdim, 0 /)
       ! ocean dimensions
       dimo = (/ xdim, ydim, ocdim, tdim, 0 /)
+      ! procformat dimensions
+      dimpx = (/ xdim, 0 /)
+      dimpy = (/ ydim, 0 /)
+      dimpg = (/ 0 /)
       ! cable dimensions
-      dimc = (/ xdim, ydim, cpdim, tdim, 0 /)
+      dimc1 = (/ xdim, ydim, cpdim, tdim, 0 /)
       dimc2 = (/ xdim, ydim, cpdim, c2pdim, tdim, 0 /)
       dimc3 = (/ xdim, ydim, c91pdim, tdim, 0 /)
       dimc4 = (/ xdim, ydim, c31pdim, tdim, 0 /)
@@ -412,18 +374,16 @@ if ( myid==0 .or. local ) then
 
     ! Define coords.
     if ( procformat ) then
-      dimp(1:2) = (/ dima(1), dima(4) /)
-      call ccnf_def_var(idnc,'longitude','float',2,dimp(1:2),ixp)
+      call ccnf_def_var(idnc,'longitude','float',2,dimpx(1:2),ixp)
     else
-      call ccnf_def_var(idnc,'longitude','float',1,dima(1:1),ixp)
+      call ccnf_def_var(idnc,'longitude','float',1,dimpx(1:1),ixp)
     end if
     call ccnf_put_att(idnc,ixp,'point_spacing','even')
     call ccnf_put_att(idnc,ixp,'units','degrees_east')
     if ( procformat ) then
-      dimp(1:2) = (/ dima(2), dima(4) /)
-      call ccnf_def_var(idnc,'latitude','float',2,dimp(1:2),iyp)
+      call ccnf_def_var(idnc,'latitude','float',2,dimpy(1:2),iyp)
     else
-      call ccnf_def_var(idnc,'latitude','float',1,dima(2:2),iyp)
+      call ccnf_def_var(idnc,'latitude','float',1,dimpy(1:1),iyp)
     end if
     call ccnf_put_att(idnc,iyp,'point_spacing','even')
     call ccnf_put_att(idnc,iyp,'units','degrees_north')
@@ -446,22 +406,17 @@ if ( myid==0 .or. local ) then
       call ccnf_put_att(idnc,idoc,'point_spacing','uneven')
       call ccnf_put_att(idnc,idoc,'units','sigma_level')
       if ( myid==0 ) write(6,*) 'idoc=',idoc
-    end if
+    end if  
     
     if ( procformat ) then
       call ccnf_def_var(idnc,'processor','int',1,dima(4:4),idproc)
       call ccnf_put_att(idnc,idproc,'long_name','processor number')
       if ( myid==0 ) then
-        dimp(1) = gpdim  
-        !call ccnf_def_var(idnc,'gprocessor','int',1,dimp(1:1),idgproc)
-        !call ccnf_put_att(idnc,idgproc,'long_name','global processor map')
-        call ccnf_def_var(idnc,'gprocnode','int',1,dimp(1:1),idgpnode)
+        call ccnf_def_var(idnc,'gprocnode','int',1,dimpg(1:1),idgpnode)
         call ccnf_put_att(idnc,idgpnode,'long_name','global processor node map')
-        call ccnf_def_var(idnc,'gprocoffset','int',1,dimp(1:1),idgpoff)
+        call ccnf_def_var(idnc,'gprocoffset','int',1,dimpg(1:1),idgpoff)
         call ccnf_put_att(idnc,idgpoff,'long_name','global processor offset map')
       end if
-      !call ccnf_def_var(idnc,'proc_nodes','int',1,(/pndim/),idpn)
-      !call ccnf_put_att(idnc,idproc,'long_name','processors per node')
     end if
 
     if ( procformat ) then
@@ -478,7 +433,7 @@ if ( myid==0 .or. local ) then
     
     if ( itype==-1 ) then
       if ( cable_pop==1 ) then
-        call ccnf_def_var(idnc,'cable_patch','float',1,dimc(3:3),idcp)  
+        call ccnf_def_var(idnc,'cable_patch','float',1,dimc1(3:3),idcp)  
         call ccnf_def_var(idnc,'cable_cohort','float',1,dimc2(4:4),idc2p)  
         if ( myid==0 ) write(6,*) 'idcp,idc2p=',idcp,idc2p
       end if
@@ -498,15 +453,12 @@ if ( myid==0 .or. local ) then
     ich = ktime/100
     icmi = (ktime-ich*100)
     ics = 0
-    !write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
-    !call ccnf_put_att(idnc,idnt,'time_origin',timorg)
     write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
     call ccnf_put_att(idnc,idnt,'units',grdtim)
     if ( leap==0 ) then
       call ccnf_put_att(idnc,idnt,'calendar','noleap')
     end if
     if ( myid==0 ) then
-      !write(6,*) 'timorg=',timorg
       write(6,*) 'grdtim=',grdtim
     end if
 
@@ -821,7 +773,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'sigbot_gwd',sigbot_gwd)    
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
     call ccnf_put_attg(idnc,'tke_umin',tke_umin)
-    call ccnf_put_attg(idnc,'tkecduv',tkecduv)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
 
     ! land, urban and carbon
@@ -908,13 +859,16 @@ if ( myid==0 .or. local ) then
     if ( myid==0 ) write(6,'(" outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile
   endif ! ( iarch=1 ) ..else..
 endif ! (myid==0.or.local)
-      
+
+
 ! openhist writes some fields so needs to be called by all processes
-call openhist(iarch,itype,dima,dimo,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,c5ddim,cadim,  &
-              local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgpnode,idgpoff,               &
-              idcp,idc2p,idc91p,idc31p,idc20y,idc5d,                                    &
+call openhist(iarch,itype,dima,dimo,dimc1,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7, &
+              local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgpnode,idgpoff,      &
+              idcp,idc2p,idc91p,idc31p,idc20y,idc5d,                           &
               psl_in,u_in,v_in,t_in,q_in)
 
+
+! close netcdf file if required
 if ( myid==0 .or. local ) then
   if ( ktau==ntau .or. itype==-1 ) then
     if ( myid==0 ) then
@@ -924,14 +878,12 @@ if ( myid==0 .or. local ) then
         write(6,*) "closing netCDF restart idnc=",idnc
       end if  
     end if
-    !if ( procformat ) then
-    !  call init_iobuffer(idnc,itype)
-    !end if
     call ccnf_close(idnc)
   endif
 endif    ! (myid==0.or.local)
 
-! save history data for next call
+
+! save history data for next call to cdfout
 if ( itype==1 ) then
     iarch_hist = iarch 
     idnc_hist = idnc
@@ -942,15 +894,16 @@ end subroutine cdfout
       
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
-subroutine openhist(iarch,itype,dima,odim,cpdim,c2pdim,c91pdim,c31pdim,c20ydim,c5ddim,cadim,  &
-                    local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgpnode,idgpoff,               &
-                    idcp,idc2p,idc91p,idc31p,idc20y,idc5d,                                    &
+subroutine openhist(iarch,itype,dima,dimo,dimc1,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7, &
+                    local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgpnode,idgpoff,      &
+                    idcp,idc2p,idc91p,idc31p,idc20y,idc5d,                           &
                     psl_in,u_in,v_in,t_in,q_in)
 
 use aerointerface                                ! Aerosol interface
 use aerosolldr                                   ! LDR prognostic aerosols
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
-use ateb, only : atebsaved, urbtemp              ! Urban
+use ateb, only : atebsaved, atebavetemp,      &
+                 urbtemp, nfrac                  ! Urban
 use cable_ccam, only : savetile, savetiledef, &  ! CABLE interface
                        cable_pop,POP_NPATCH,  &
                        POP_NCOHORT,           &
@@ -1009,24 +962,17 @@ include 'version.h'                              ! Model version data
 
 integer, intent(in) :: iarch, itype
 integer, intent(in) :: ixp, iyp, idlev, idms, idoc, idproc, idgpnode, idgpoff
-integer, intent(in) :: cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
 integer, intent(in) :: idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer idum, cptype
-integer asize, osize, jsize, ksize, dproc, d4
-integer csize, c2size, c3size, c4size, c5size, c6size, c7size
-integer, dimension(5), intent(in) :: dima
-integer, dimension(5), intent(in) :: odim
+integer asize, osize, jsize, ksize, dproc, d4, c1size, c2size
+integer ifrac
+integer, dimension(5), intent(in) :: dima, dimo
+integer, dimension(6), intent(in) :: dimc2
+integer, dimension(5), intent(in) :: dimc1, dimc3, dimc4, dimc5, dimc6, dimc7
 integer, dimension(4) :: dimj
 integer, dimension(3) :: dimk
-integer, dimension(5) :: dimc
-integer, dimension(6) :: dimc2
-integer, dimension(5) :: dimc3
-integer, dimension(5) :: dimc4
-integer, dimension(5) :: dimc5
-integer, dimension(5) :: dimc6
-integer, dimension(5) :: dimc7
 integer, dimension(:), allocatable :: vnode_dat
 integer, dimension(:), allocatable :: procnode, procoffset
 real, dimension(:,:), allocatable :: xpnt2
@@ -1081,79 +1027,31 @@ if ( hp_output==1 ) then
 end if
 
 ! dima is for 4-D atm (3 dimensions+time)
-! odim is for 4-D ocn (3 dimensions+time)
+! dimo is for 4-D ocn (3 dimensions+time)
 ! dimj is for 3-D (2 dimensions+time)
 ! dimk is for 2-D (2 dimension without time)
-! dimc is for cable POP npatch (3 dimensions+time)
+! dimc1-7 is for cable POP npatch (3 dimensions+time)
 if ( procformat ) then
   dimj(1:2) = dima(1:2)
   dimj(3:4) = dima(4:5)
   dimk(1:2) = dima(1:2)
   dimk(3)   = dima(4)
-  dimc(1:5) = dima(1:5)
-  dimc(3)   = cpdim
-  dimc2(1:2) = dima(1:2)
-  dimc2(3)   = cpdim
-  dimc2(4)   = c2pdim
-  dimc2(5:6) = dima(4:5)
-  dimc3(1:5) = dima(1:5)
-  dimc3(3)   = c91pdim
-  dimc4(1:5) = dima(1:5)
-  dimc4(3)   = c31pdim
-  dimc5(1:5) = dima(1:5)
-  dimc5(3)   = c20ydim
-  dimc6(1:5) = dima(1:5)
-  dimc6(3)   = c5ddim
-  dimc7(1:5) = dima(1:5)
-  dimc7(3)   = cadim
   dproc = 4
   d4 = 5
-  asize = 5
-  osize = 5
-  jsize = 4
-  ksize = 3
-  csize = 5
-  c2size = 6
-  c3size = 5
-  c4size = 5
-  c5size = 5
-  c6size = 5
-  c7size = 5
-  !call init_iobuffer(idnc,itype)
 else
   dimj(1:2) = dima(1:2)
   dimj(3)   = dima(4)
   dimk(1:2) = dima(1:2)
-  dimc(1:4) = dima(1:4)
-  dimc(3)   = cpdim
-  dimc2(1:2) = dima(1:2)
-  dimc2(3)   = cpdim
-  dimc2(4)   = c2pdim
-  dimc2(5)   = dima(4)
-  dimc3(1:4) = dima(1:4)
-  dimc3(3)   = c91pdim
-  dimc4(1:4) = dima(1:4)
-  dimc4(3)   = c31pdim
-  dimc5(1:4) = dima(1:4)
-  dimc5(3)   = c20ydim
-  dimc6(1:4) = dima(1:4)
-  dimc6(3)   = c5ddim
-  dimc7(1:4) = dima(1:4)
-  dimc7(3)   = cadim
-  dproc = -1 ! ?
+  dproc = -1
   d4 = 4
-  asize = 4
-  osize = 4
-  jsize = 3
-  ksize = 2
-  csize = 4
-  c2size = 5
-  c3size = 4
-  c4size = 4
-  c5size = 4
-  c6size = 4
-  c7size = 4
 end if
+asize  = d4
+osize  = d4
+jsize  = d4 - 1
+ksize  = d4 - 2
+c1size = d4
+c2size = d4 + 1
+
 
 if( myid==0 .or. local ) then
 
@@ -1175,11 +1073,10 @@ if( myid==0 .or. local ) then
 !   Model version
     call ccnf_put_attg(idnc,'version',version)
 
+!   Grid decomposition
     if ( local ) then
-      !call ccnf_put_attg(idnc,'processor_num',myid)
       call ccnf_put_attg(idnc,'nproc',nproc)
       if ( procformat ) then
-        !call ccnf_put_attg(idnc,'nnodes',vleader_nproc)
         call ccnf_put_attg(idnc,'procmode',vnode_nproc)
       end if
       if ( uniform_decomp ) then
@@ -1189,7 +1086,7 @@ if( myid==0 .or. local ) then
       end if
     endif           
 
-!       Sigma levels
+!   Sigma levels
     if ( myid==0 ) then
       write(6,*) 'sig=',sig
     end if
@@ -1358,11 +1255,11 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,'tggsn4',lname,'K',100.,425.,0,cptype)
         lname = 'Sea-ice heat store'
         call attrib(idnc,dimj,jsize,'sto',lname,'J/m2',0.,1.3e10,0,cptype)
+        lname = 'x-component sea-ice velocity'
+        call attrib(idnc,dimj,jsize,'uic',lname,'m/s',-65.,65.,0,cptype)
+        lname = 'y-component sea-ice velocity'
+        call attrib(idnc,dimj,jsize,'vic',lname,'m/s',-65.,65.,0,cptype)
       end if
-      lname = 'x-component sea-ice velocity'
-      call attrib(idnc,dimj,jsize,'uic',lname,'m/s',-65.,65.,0,cptype)
-      lname = 'y-component sea-ice velocity'
-      call attrib(idnc,dimj,jsize,'vic',lname,'m/s',-65.,65.,0,cptype)
     end if
     
     if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
@@ -1400,7 +1297,7 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'wetfrac6',lname,'none',-6.5,6.5,0,cptype)
     end if
      
-    ! PH - Add wetfac to output for mbase=-19 option
+    ! Add wetfac to output for mbase=-19 option
     if ( save_land ) then
       lname = 'Surface wetness fraction'
       call attrib(idnc,dimj,jsize,'wetfac',lname,'none',-6.5,6.5,0,cptype)
@@ -1580,14 +1477,6 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'snm',lname,'mm/day',0.,1300.,0,-1) ! -1 = long
     end if
     if ( itype/=-1 ) then  
-      !if ( save_land .or. save_ocean ) then
-      !  lname = 'Avg surface temperature'
-      !  call attrib(idnc,dimj,jsize,'tsu_ave',lname,'K',100.,425.,0,cptype)
-      !  lname = 'Avg albedo'
-      !  call attrib(idnc,dimj,jsize,'alb_ave',lname,'none',0.,1.,0,cptype)
-      !end if
-      !lname = 'Avg mean sea level pressure'
-      !call attrib(idnc,dimj,jsize,'pmsl_ave',lname,'hPa',800.,1200.,0,cptype)
       if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean ) then
         lname = 'Mixed layer depth'
         call attrib(idnc,dimj,jsize,'mixdepth',lname,'m',0.,1300.,0,cptype)
@@ -1677,46 +1566,18 @@ if( myid==0 .or. local ) then
     if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 .and. save_aerosols ) then
       lname = 'Total column small dust optical depth VIS'
       call attrib(idnc,dimj,jsize,'sdust_vis',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column small dust optical depth NIR'
-      !call attrib(idnc,dimj,jsize,'sdust_nir',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column small dust optical depth LW'
-      !call attrib(idnc,dimj,jsize,'sdust_lw',lname,'none',0.,13.,0,cptype)
       lname = 'Total column large dust optical depth VIS'
       call attrib(idnc,dimj,jsize,'ldust_vis',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column large dust optical depth NIR'
-      !call attrib(idnc,dimj,jsize,'ldust_nir',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column large dust optical depth LW'
-      !call attrib(idnc,dimj,jsize,'ldust_lw',lname,'none',0.,13.,0,cptype)
       lname = 'Total column sulfate optical depth VIS'
       call attrib(idnc,dimj,jsize,'so4_vis',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column sulfate optical depth NIR'
-      !call attrib(idnc,dimj,jsize,'so4_nir',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column surfate optical depth LW'
-      !call attrib(idnc,dimj,jsize,'so4_lw',lname,'none',0.,13.,0,cptype)
       lname = 'Total column aerosol optical depth VIS'
       call attrib(idnc,dimj,jsize,'aero_vis',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column aerosol optical depth NIR'
-      !call attrib(idnc,dimj,jsize,'aero_nir',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column aerosol optical depth LW'
-      !call attrib(idnc,dimj,jsize,'aero_lw',lname,'none',0.,13.,0,cptype)
       lname = 'Total column BC optical depth VIS'
       call attrib(idnc,dimj,jsize,'bc_vis',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column BC optical depth NIR'
-      !call attrib(idnc,dimj,jsize,'bc_nir',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column BC optical depth LW'
-      !call attrib(idnc,dimj,jsize,'bc_lw',lname,'none',0.,13.,0,cptype)
       lname = 'Total column OC optical depth VIS'
       call attrib(idnc,dimj,jsize,'oc_vis',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column OC optical depth NIR'
-      !call attrib(idnc,dimj,jsize,'oc_nir',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column OC optical depth LW'
-      !call attrib(idnc,dimj,jsize,'oc_lw',lname,'none',0.,13.,0,cptype)      
       lname = 'Total column seasalt optical depth VIS'
       call attrib(idnc,dimj,jsize,'ssalt_vis',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column seasalt optical depth NIR'
-      !call attrib(idnc,dimj,jsize,'ssalt_nir',lname,'none',0.,13.,0,cptype)
-      !lname = 'Total column seasalt optical depth LW'
-      !call attrib(idnc,dimj,jsize,'ssalt_lw',lname,'none',0.,13.,0,cptype)
       do k = 1,ndust
         write(lname,'("Dust emissions bin ",I1.1)') k
         write(vname,'("dust",I1.1,"e_ave")') k
@@ -1911,93 +1772,110 @@ if( myid==0 .or. local ) then
       lname = 'Minimum urban screen temperature'
       call attrib(idnc,dimj,jsize,'urbantasmin',lname,'K',100.,425.,1,cptype)
     end if    
-    if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
-      lname = 'Roof temperature lev 1'
-      call attrib(idnc,dimj,jsize,'rooftgg1',lname,'K',100.,425.,0,cptype)
-      lname = 'Roof temperature lev 2'
-      call attrib(idnc,dimj,jsize,'rooftgg2',lname,'K',100.,425.,0,cptype)
-      lname = 'Roof temperature lev 3'
-      call attrib(idnc,dimj,jsize,'rooftgg3',lname,'K',100.,425.,0,cptype)
-      lname = 'Roof temperature lev 4'
-      call attrib(idnc,dimj,jsize,'rooftgg4',lname,'K',100.,425.,0,cptype)
-      lname = 'Roof temperature lev 5'
-      call attrib(idnc,dimj,jsize,'rooftgg5',lname,'K',100.,425.,0,cptype)
-      lname = 'East wall temperature lev 1'
-      call attrib(idnc,dimj,jsize,'waletgg1',lname,'K',100.,425.,0,cptype)
-      lname = 'East wall temperature lev 2'
-      call attrib(idnc,dimj,jsize,'waletgg2',lname,'K',100.,425.,0,cptype)
-      lname = 'East wall temperature lev 3'
-      call attrib(idnc,dimj,jsize,'waletgg3',lname,'K',100.,425.,0,cptype)
-      lname = 'East wall temperature lev 4'
-      call attrib(idnc,dimj,jsize,'waletgg4',lname,'K',100.,425.,0,cptype)
-      lname = 'East wall temperature lev 5'
-      call attrib(idnc,dimj,jsize,'waletgg5',lname,'K',100.,425.,0,cptype)
-      lname = 'West wall temperature lev 1'
-      call attrib(idnc,dimj,jsize,'walwtgg1',lname,'K',100.,425.,0,cptype)
-      lname = 'West wall temperature lev 2'
-      call attrib(idnc,dimj,jsize,'walwtgg2',lname,'K',100.,425.,0,cptype)
-      lname = 'West wall temperature lev 3'
-      call attrib(idnc,dimj,jsize,'walwtgg3',lname,'K',100.,425.,0,cptype)
-      lname = 'West wall temperature lev 4'
-      call attrib(idnc,dimj,jsize,'walwtgg4',lname,'K',100.,425.,0,cptype)
-      lname = 'West wall temperature lev 5'
-      call attrib(idnc,dimj,jsize,'walwtgg5',lname,'K',100.,425.,0,cptype)
-      lname = 'Road temperature lev 1'
-      call attrib(idnc,dimj,jsize,'roadtgg1',lname,'K',100.,425.,0,cptype)
-      lname = 'Road temperature lev 2'
-      call attrib(idnc,dimj,jsize,'roadtgg2',lname,'K',100.,425.,0,cptype)
-      lname = 'Road temperature lev 3'
-      call attrib(idnc,dimj,jsize,'roadtgg3',lname,'K',100.,425.,0,cptype)
-      lname = 'Road temperature lev 4'
-      call attrib(idnc,dimj,jsize,'roadtgg4',lname,'K',100.,425.,0,cptype)
-      lname = 'Road temperature lev 5'
-      call attrib(idnc,dimj,jsize,'roadtgg5',lname,'K',100.,425.,0,cptype)
-      lname = 'Slab temperature lev 1'
-      call attrib(idnc,dimj,jsize,'slabtgg1',lname,'K',100.,425.,0,cptype)
-      lname = 'Slab temperature lev 2'
-      call attrib(idnc,dimj,jsize,'slabtgg2',lname,'K',100.,425.,0,cptype)
-      lname = 'Slab temperature lev 3'
-      call attrib(idnc,dimj,jsize,'slabtgg3',lname,'K',100.,425.,0,cptype)
-      lname = 'Slab temperature lev 4'
-      call attrib(idnc,dimj,jsize,'slabtgg4',lname,'K',100.,425.,0,cptype)
-      lname = 'Slab temperature lev 5'
-      call attrib(idnc,dimj,jsize,'slabtgg5',lname,'K',100.,425.,0,cptype)
-      lname = 'Interior mass temperature lev 1'
-      call attrib(idnc,dimj,jsize,'intmtgg1',lname,'K',100.,425.,0,cptype)
-      lname = 'Interior mass temperature lev 2'
-      call attrib(idnc,dimj,jsize,'intmtgg2',lname,'K',100.,425.,0,cptype)
-      lname = 'Interior mass temperature lev 3'
-      call attrib(idnc,dimj,jsize,'intmtgg3',lname,'K',100.,425.,0,cptype)
-      lname = 'Interior mass temperature lev 4'
-      call attrib(idnc,dimj,jsize,'intmtgg4',lname,'K',100.,425.,0,cptype)
-      lname = 'Interior mass temperature lev 5'
-      call attrib(idnc,dimj,jsize,'intmtgg5',lname,'K',100.,425.,0,cptype)
-      lname = 'Urban room temperature'
-      call attrib(idnc,dimj,jsize,'roomtgg1',lname,'K',100.,425.,0,cptype)  
-      lname = 'Urban canyon soil moisture'
-      call attrib(idnc,dimj,jsize,'urbnsmc',lname,'m3/m3',0.,1.3,0,cptype)
-      lname = 'Urban roof soil moisture'
-      call attrib(idnc,dimj,jsize,'urbnsmr',lname,'m3/m3',0.,1.3,0,cptype)
-      lname = 'Urban roof water'
-      call attrib(idnc,dimj,jsize,'roofwtr',lname,'mm',0.,1.3,0,cptype)
-      lname = 'Urban road water'
-      call attrib(idnc,dimj,jsize,'roadwtr',lname,'mm',0.,1.3,0,cptype)
-      lname = 'Urban canyon leaf water'
-      call attrib(idnc,dimj,jsize,'urbwtrc',lname,'mm',0.,1.3,0,cptype)
-      lname = 'Urban roof leaf water'
-      call attrib(idnc,dimj,jsize,'urbwtrr',lname,'mm',0.,1.3,0,cptype)
-      lname = 'Urban roof snow (liquid water)'
-      call attrib(idnc,dimj,jsize,'roofsnd',lname,'mm',0.,1.3,0,cptype)
-      lname = 'Urban road snow (liquid water)'
-      call attrib(idnc,dimj,jsize,'roadsnd',lname,'mm',0.,1.3,0,cptype)
-      lname = 'Urban roof snow density'
-      call attrib(idnc,dimj,jsize,'roofden',lname,'kg/m3',0.,650.,0,cptype)
-      lname = 'Urban road snow density'
-      call attrib(idnc,dimj,jsize,'roadden',lname,'kg/m3',0.,650.,0,cptype)
-      lname = 'Urban roof snow albedo'
-      call attrib(idnc,dimj,jsize,'roofsna',lname,'none',0.,1.3,0,cptype)
-      lname = 'Urban road snow albedo'
-      call attrib(idnc,dimj,jsize,'roadsna',lname,'none',0.,1.3,0,cptype)
+    if ( nurban<0 .and. save_urban .and. itype/=-1 ) then
+      do k = 1,5  
+        write(lname,'("Roof temperature lev ",I1.1)') k
+        write(vname,'("rooftgg",I1.1)') k
+        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+      end do  
+      do k = 1,5  
+        write(lname,'("East wall temperature lev ",I1.1)') k
+        write(vname,'("waletgg",I1.1)') k
+        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+      end do 
+      do k = 1,5  
+        write(lname,'("West wall temperature lev ",I1.1)') k
+        write(vname,'("walwtgg",I1.1)') k
+        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+      end do 
+      do k = 1,5  
+        write(lname,'("Road temperature lev ",I1.1)') k
+        write(vname,'("roadtgg",I1.1)') k
+        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+      end do 
+      do k = 1,5  
+        write(lname,'("Slab temperature lev ",I1.1)') k
+        write(vname,'("slabtgg",I1.1)') k
+        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+      end do 
+      do k = 1,5  
+        write(lname,'("Interior mass temperature lev ",I1.1)') k
+        write(vname,'("intmtgg",I1.1)') k
+        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+      end do 
+    end if    
+    if ( nurban/=0 .and. itype==-1 ) then
+      do ifrac = 1,nfrac
+        do k = 1,5  
+          write(lname,'("Roof temperature tile ",I1.1," lev ",I1.1)') ifrac,k
+          write(vname,'("t",I1.1,"_rooftgg",I1.1)') ifrac,k
+          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+        end do
+        do k = 1,5
+          write(lname,'("East wall temperature tile ",I1.1," lev ",I1.1)') ifrac,k
+          write(vname,'("t",I1.1,"_waletgg",I1.1)') ifrac,k
+          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+        end do  
+        do k = 1,5
+          write(lname,'("West wall temperature tile ",I1.1," lev ",I1.1)') ifrac,k
+          write(vname,'("t",I1.1,"_walwtgg",I1.1)') ifrac,k
+          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+        end do 
+        do k = 1,5
+          write(lname,'("Road temperature tile ",I1.1," lev ",I1.1)') ifrac,k
+          write(vname,'("t",I1.1,"_roadtgg",I1.1)') ifrac,k
+          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+        end do 
+        do k = 1,5
+          write(lname,'("Slab temperature tile ",I1.1," lev ",I1.1)') ifrac,k
+          write(vname,'("t",I1.1,"_slabtgg",I1.1)') ifrac,k
+          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+        end do 
+        do k = 1,5
+          write(lname,'("Interior mass temperature tile ",I1.1," lev ",I1.1)') ifrac,k
+          write(vname,'("t",I1.1,"_intmtgg",I1.1)') ifrac,k
+          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+        end do 
+        write(lname,'("Urban room temperature tile ",I1.1," lev 1")') ifrac
+        write(vname,'("t",I1.1,"_roomtgg1")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)  
+        write(lname,'("Urban canyon soil moisture",I1.1)') ifrac
+        write(vname,'("t",I1.1,"_urbnsmc")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'m3/m3',0.,1.3,0,cptype)
+        write(lname,'("Urban roof soil moisture",I1.1)') ifrac
+        write(vname,'("t",I1.1,"_urbnsmr")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'m3/m3',0.,1.3,0,cptype)
+        write(lname,'("Urban roof water",I1.1)') ifrac
+        write(vname,'("t",I1.1,"_roofwtr")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,cptype)
+        write(lname,'("Urban road water",I1.1)') ifrac
+        write(vname,'("t",I1.1,"_roadwtr")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,cptype)
+        write(lname,'("Urban canyon leaf water",I1.1)') ifrac
+        write(vname,'("t",I1.1,"_urbwtrc")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,cptype)
+        write(lname,'("Urban roof leaf water",I1.1)') ifrac
+        write(vname,'("t",I1.1,"_urbwtrr")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,cptype)
+        write(lname,'("Urban roof snow (liquid water)",I1.1)') ifrac
+        write(vname,'("t",I1.1,"_roofsnd")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,cptype)
+        write(lname,'("Urban road snow (liquid water)",I1.1)') ifrac
+        write(vname,'("t",I1.1,"_roadsnd")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,cptype)
+        write(lname,'("Urban roof snow density",I1.1)') ifrac
+        write(vname,'("t",I1.1,"_roofden")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'kg/m3',0.,650.,0,cptype)
+        write(lname,'("Urban road snow density",I1.1)') ifrac
+        write(vname,'("t",I1.1,"_roadden")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'kg/m3',0.,650.,0,cptype)
+        write(lname,'("Urban roof snow albedo",I1.1)') ifrac
+        write(vname,'("t",I1.1,"_roofsna")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'none',0.,1.3,0,cptype)
+        write(lname,'("Urban road snow albedo",I1.1)') ifrac
+        write(vname,'("t",I1.1,"_roadsna")') ifrac
+        call attrib(idnc,dimj,jsize,vname,lname,'none',0.,1.3,0,cptype)
+      end do  
     end if
         
     ! STANDARD 3D VARIABLES -------------------------------------
@@ -2031,26 +1909,26 @@ if( myid==0 .or. local ) then
 
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = "Ocean temperature"
-      call attrib(idnc,odim,osize,"thetao",lname,'K',100.,425.,0,cptype)
+      call attrib(idnc,dimo,osize,"thetao",lname,'K',100.,425.,0,cptype)
       lname = "Ocean salinity"
-      call attrib(idnc,odim,osize,"so",lname,'PSU',0.,130.,0,cptype)
+      call attrib(idnc,dimo,osize,"so",lname,'PSU',0.,130.,0,cptype)
       lname = "x-component current"
-      call attrib(idnc,odim,osize,"uo",lname,'m/s',-65.,65.,0,cptype)
+      call attrib(idnc,dimo,osize,"uo",lname,'m/s',-65.,65.,0,cptype)
       lname = "y-component current"
-      call attrib(idnc,odim,osize,"vo",lname,'m/s',-65.,65.,0,cptype)
+      call attrib(idnc,dimo,osize,"vo",lname,'m/s',-65.,65.,0,cptype)
       lname = "Ocean vertical velocity (+ve down)"
-      call attrib(idnc,odim,osize,"wo",lname,'m/s',-6.5,6.5,0,cptype)
+      call attrib(idnc,dimo,osize,"wo",lname,'m/s',-6.5,6.5,0,cptype)
       if ( diaglevel_ocean>5 ) then
         lname = "Ocean Eddy Viscosity"
-        call attrib(idnc,odim,osize,"kmo",lname,'m2/s',0.,10.,0,cptype)
+        call attrib(idnc,dimo,osize,"kmo",lname,'m2/s',0.,10.,0,cptype)
         lname = "Ocean Eddy Diffusivity"
-        call attrib(idnc,odim,osize,"kso",lname,'m2/s',0.,10.,0,cptype)
+        call attrib(idnc,dimo,osize,"kso",lname,'m2/s',0.,10.,0,cptype)
       end if  
       if ( oclosure==1 ) then
         lname = "Ocean Turbulent Kinetic Energy"
-        call attrib(idnc,odim,osize,"tkeo",lname,'m2/s2',0.,65.,0,cptype)
+        call attrib(idnc,dimo,osize,"tkeo",lname,'m2/s2',0.,65.,0,cptype)
         lname = "Ocean Eddy dissipation rate"
-        call attrib(idnc,odim,osize,"epso",lname,'m2/s3',0.,6.5,0,cptype)
+        call attrib(idnc,dimo,osize,"epso",lname,'m2/s3',0.,6.5,0,cptype)
       end if  
     end if
     
@@ -2083,7 +1961,6 @@ if( myid==0 .or. local ) then
     if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
       call attrib(idnc,dima,asize,'tke','Turbulent Kinetic Energy','m2/s2',0.,65.,0,cptype)
       call attrib(idnc,dima,asize,'eps','Eddy dissipation rate','m2/s3',0.,6.5,0,cptype)
-      !call attrib(idnc,dima,asize,'Km',"Eddy diffusivity","m2/s",0.,650.,0,cptype)
     end if
 
     ! TRACER --------------------------------------------------------
@@ -2131,10 +2008,8 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'dust3_s','Dissolved Dust 2-3 micrometers','kg/kg',0.,6.5E-6,0,cptype)
         call attrib(idnc,dima,asize,'dust4_s','Dissolved Dust 3-6 micrometers','kg/kg',0.,6.5E-6,0,cptype)
       end if
-      if ( itype==-1 .or. diaglevel_aerosols>5 ) then
-        call attrib(idnc,dima,asize,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,cptype)
-        call attrib(idnc,dima,asize,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,cptype)
-      end if  
+      call attrib(idnc,dima,asize,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,cptype)
+      call attrib(idnc,dima,asize,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,cptype)
       if ( save_aerosols ) then
         if ( iaero<=-2 .and. diaglevel_aerosols>5 ) then 
           call attrib(idnc,dima,asize,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,cptype)
@@ -2166,13 +2041,13 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dima,asize,'savv2',lname,'m/s',-1.E2,1.E2,0,cptype)
       if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
         lname = "old1_uo"
-        call attrib(idnc,odim,osize,"old1_uo",lname,'m/s',-65.,65.,0,cptype)
+        call attrib(idnc,dimo,osize,"old1_uo",lname,'m/s',-65.,65.,0,cptype)
         lname = "old1_vo"
-        call attrib(idnc,odim,osize,"old1_vo",lname,'m/s',-65.,65.,0,cptype)
+        call attrib(idnc,dimo,osize,"old1_vo",lname,'m/s',-65.,65.,0,cptype)
         lname = "old2_uo"
-        call attrib(idnc,odim,osize,"old2_uo",lname,'m/s',-65.,65.,0,cptype)
+        call attrib(idnc,dimo,osize,"old2_uo",lname,'m/s',-65.,65.,0,cptype)
         lname = "old2_vo"
-        call attrib(idnc,odim,osize,"old2_vo",lname,'m/s',-65.,65.,0,cptype)
+        call attrib(idnc,dimo,osize,"old2_vo",lname,'m/s',-65.,65.,0,cptype)
         lname = 'ipice'
         call attrib(idnc,dimj,jsize,'ipice',lname,'Pa',0.,1.E6,0,cptype)
       end if
@@ -2226,9 +2101,7 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,cptype)
       
       if ( nsib==6 .or. nsib==7 ) then
-        call savetiledef(idnc,local,dimj,jsize,dimc,csize,dimc2,c2size, &
-                         dimc3,c3size,dimc4,c4size,dimc5,c5size,              &
-                         dimc6,c6size,dimc7,c7size)
+        call savetiledef(idnc,local,dimj,jsize,dimc1,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7,c1size,c2size)
       end if
       
     endif  ! (itype==-1)
@@ -2603,9 +2476,9 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
       call histwrt(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
       call histwrt(micdwn(:,4),'tggsn4',idnc,iarch,local,.true.)
       call histwrt(micdwn(:,8),'sto',idnc,iarch,local,.true.)
+      call histwrt(micdwn(:,9),'uic',idnc,iarch,local,.true.)
+      call histwrt(micdwn(:,10),'vic',idnc,iarch,local,.true.)
     end if  
-    call histwrt(micdwn(:,9),'uic',idnc,iarch,local,.true.)
-    call histwrt(micdwn(:,10),'vic',idnc,iarch,local,.true.)
   end if
 end if
 
@@ -2832,26 +2705,12 @@ call histwrt(pblh,'pblh',idnc,iarch,local,.true.)
 ! AEROSOL OPTICAL DEPTH ---------------------------------------
 if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 .and. save_aerosols ) then
   call histwrt(opticaldepth(:,1,1),'sdust_vis',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,1,2),'sdust_nir',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,1,3),'sdust_lw',idnc,iarch,local,lwrite)
   call histwrt(opticaldepth(:,2,1),'ldust_vis',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,2,2),'ldust_nir',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,2,3),'ldust_lw',idnc,iarch,local,lwrite)
   call histwrt(opticaldepth(:,3,1),'so4_vis',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,3,2),'so4_nir',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,3,3),'so4_lw',idnc,iarch,local,lwrite)
   call histwrt(opticaldepth(:,4,1),'aero_vis',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,4,2),'aero_nir',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,4,3),'aero_lw',idnc,iarch,local,lwrite)
   call histwrt(opticaldepth(:,5,1),'bc_vis',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,5,2),'bc_nir',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,5,3),'bc_lw',idnc,iarch,local,lwrite)
   call histwrt(opticaldepth(:,6,1),'oc_vis',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,6,2),'oc_nir',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,6,3),'oc_lw',idnc,iarch,local,lwrite)
   call histwrt(opticaldepth(:,7,1),'ssalt_vis',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,7,2),'ssalt_nir',idnc,iarch,local,lwrite)
-  !call histwrt(opticaldepth(:,7,3),'ssalt_lw',idnc,iarch,local,lwrite)
   do k = 1,ndust
     aa = max(duste(:,k)*3.154e10,0.) ! g/m2/yr
     write(vname,'("dust",I1.1,"e_ave")') k
@@ -2996,107 +2855,160 @@ if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
     aa = tminscr
   end where
   call histwrt(aa,'urbantasmin',idnc,iarch,local,lday)
-end if    
-if ( (nurban<=-1.and.save_urban) .or. (nurban>=1.and.itype==-1) ) then
+end if
+if ( nurban<0 .and. save_urban .and. itype/=-1 ) then
   do k = 1,5
-    write(vname,'("rooftemp",I1.1)') k
-    aa = 999.
-    call atebsaved(aa,trim(vname),0,rawtemp=.true.)
-    where ( aa<100. .and. itype==1 )
-      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where  
-    write(vname,'("rooftgg",I1.1)') k
+    write(vname,'("rooftemp",I1.1)') k  
+    call atebavetemp(aa,vname,0)  
+    write(vname,'("rooftgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do  
   do k = 1,5
     write(vname,'("walletemp",I1.1)') k  
-    aa = 999.
-    call atebsaved(aa,trim(vname),0,rawtemp=.true.)
-    where ( aa<100. .and. itype==1 )
-      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where  
-    write(vname,'("waletgg",I1.1)') k
+    call atebavetemp(aa,vname,0)  
+    write(vname,'("waletgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
-  end do  
+  end do
   do k = 1,5
     write(vname,'("wallwtemp",I1.1)') k  
-    aa = 999.
-    call atebsaved(aa,vname,0,rawtemp=.true.)
-    where ( aa<100. .and. itype==1 )
-      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where  
-    write(vname,'("walwtgg",I1.1)') k
+    call atebavetemp(aa,vname,0)  
+    write(vname,'("walwtgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
-  end do  
+  end do
   do k = 1,5
     write(vname,'("roadtemp",I1.1)') k  
-    aa = 999.
-    call atebsaved(aa,trim(vname),0,rawtemp=.true.)
-    where ( aa<100. .and. itype==1 )
-      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where  
-    write(vname,'("roadtgg",I1.1)') k
+    call atebavetemp(aa,vname,0)  
+    write(vname,'("roadtgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("slabtemp",I1.1)') k  
-    aa = 999.
-    call atebsaved(aa,trim(vname),0,rawtemp=.true.)
-    where ( aa<100. .and. itype==1 )
-      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where  
-    write(vname,'("slabtgg",I1.1)') k
+    call atebavetemp(aa,vname,0)  
+    write(vname,'("slabtgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("intmtemp",I1.1)') k  
-    aa = 999.
-    call atebsaved(aa,trim(vname),0,rawtemp=.true.)
-    where ( aa<100. .and. itype==1 )
-      aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-    end where  
-    write(vname,'("intmtgg",I1.1)') k
+    call atebavetemp(aa,vname,0)  
+    write(vname,'("intmtgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do
-  aa = 999.
-  call atebsaved(aa,"roomtemp",0)
-  call histwrt(aa,'roomtgg1', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"canyonsoilmoisture",0)
-  call histwrt(aa,'urbnsmc', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roofsoilmoisture",0)
-  call histwrt(aa,'urbnsmr', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roofsurfacewater",0)
-  call histwrt(aa,'roofwtr', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roadsurfacewater",0)
-  call histwrt(aa,'roadwtr', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"canyonleafwater",0)
-  call histwrt(aa,'urbwtrc', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roofleafwater",0)
-  call histwrt(aa,'urbwtrr', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roofsnowdepth",0)
-  call histwrt(aa,'roofsnd', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roadsnowdepth",0)
-  call histwrt(aa,'roadsnd', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roofsnowdensity",0)
-  call histwrt(aa,'roofden', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roadsnowdensity",0)
-  call histwrt(aa,'roadden', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roofsnowalbedo",0)
-  call histwrt(aa,'roofsna', idnc,iarch,local,.true.)
-  aa = 999.
-  call atebsaved(aa,"roadsnowalbedo",0)
-  call histwrt(aa,'roadsna', idnc,iarch,local,.true.)
+end if    
+if ( nurban/=0 .and. itype==-1 ) then
+  do ifrac = 1,nfrac  
+    do k = 1,5
+      write(vname,'("rooftemp",I1.1)') k
+      aa = 999.
+      call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
+      where ( aa<100. .and. itype==1 )
+        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+      end where  
+      write(vname,'("t",I1.1,"_rooftgg",I1.1)') ifrac,k
+      call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
+    end do  
+    do k = 1,5
+      write(vname,'("walletemp",I1.1)') k  
+      aa = 999.
+      call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
+      where ( aa<100. .and. itype==1 )
+        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+      end where  
+      write(vname,'("t",I1.1,"_waletgg",I1.1)') ifrac,k
+      call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
+    end do  
+    do k = 1,5
+      write(vname,'("wallwtemp",I1.1)') k  
+      aa = 999.
+      call atebsaved(aa,vname,ifrac,0,rawtemp=.true.)
+      where ( aa<100. .and. itype==1 )
+        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+      end where  
+      write(vname,'("t",I1.1,"_walwtgg",I1.1)') ifrac,k
+      call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
+    end do  
+    do k = 1,5
+      write(vname,'("roadtemp",I1.1)') k  
+      aa = 999.
+      call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
+      where ( aa<100. .and. itype==1 )
+        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+      end where  
+      write(vname,'("t",I1.1,"_roadtgg",I1.1)') ifrac,k
+      call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
+    end do
+    do k = 1,5
+      write(vname,'("slabtemp",I1.1)') k  
+      aa = 999.
+      call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
+      where ( aa<100. .and. itype==1 )
+        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+      end where  
+      write(vname,'("t",I1.1,"_slabtgg",I1.1)') ifrac,k
+      call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
+    end do
+    do k = 1,5
+      write(vname,'("intmtemp",I1.1)') k  
+      aa = 999.
+      call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
+      where ( aa<100. .and. itype==1 )
+        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
+      end where  
+      write(vname,'("t",I1.1,"_intmtgg",I1.1)') ifrac,k
+      call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
+    end do
+    aa = 999.
+    call atebsaved(aa,"roomtemp",ifrac,0)
+    write(vname,'("t",I1.1,"_roomtgg1")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"canyonsoilmoisture",ifrac,0)
+    write(vname,'("t",I1.1,"_urbnsmc")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roofsoilmoisture",ifrac,0)
+    write(vname,'("t",I1.1,"_urbnsmr")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roofsurfacewater",ifrac,0)
+    write(vname,'("t",I1.1,"_roofwtr")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roadsurfacewater",ifrac,0)
+    write(vname,'("t",I1.1,"_roadwtr")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"canyonleafwater",ifrac,0)
+    write(vname,'("t",I1.1,"_urbwtrc")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roofleafwater",ifrac,0)
+    write(vname,'("t",I1.1,"_urbwtrr")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roofsnowdepth",ifrac,0)
+    write(vname,'("t",I1.1,"_roofsnd")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roadsnowdepth",ifrac,0)
+    write(vname,'("t",I1.1,"_roadsnd")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roofsnowdensity",ifrac,0)
+    write(vname,'("t",I1.1,"_roofden")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roadsnowdensity",ifrac,0)
+    write(vname,'("t",I1.1,"_roadden")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roofsnowalbedo",ifrac,0)
+    write(vname,'("t",I1.1,"_roofsna")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    aa = 999.
+    call atebsaved(aa,"roadsnowalbedo",ifrac,0)
+    write(vname,'("t",I1.1,"_roadsna")') ifrac
+    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+  end do  
 end if
 
 ! **************************************************************
@@ -3253,10 +3165,8 @@ if ( abs(iaero)>=2 ) then
     call histwrt(xtg_solub(:,:,10),'dust3_s',idnc,iarch,local,.true.)
     call histwrt(xtg_solub(:,:,11),'dust4_s',idnc,iarch,local,.true.) 
   end if
-  if ( itype==-1 .or. diaglevel_aerosols>5 ) then
-    call histwrt(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
-    call histwrt(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
-  end if  
+  call histwrt(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
+  call histwrt(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
   if ( save_aerosols ) then
     if ( iaero<=-2 .and. diaglevel_aerosols>5 ) then
       do k = 1,kl
@@ -3889,5 +3799,67 @@ end if
       
 return
 end subroutine mslp
+
+subroutine soiltextfile
+
+use arrays_m       ! Atmosphere dyamics prognostic arrays
+use cc_mpi         ! CC MPI routines
+use dates_m        ! Date data
+use filnames_m     ! Filenames
+use parm_m         ! Model configuration
+use pbl_m          ! Boundary layer arrays
+use soilsnow_m     ! Soil, snow and surface data
+
+implicit none
+
+character(len=1024) :: surfout
+character(len=20) :: qgout
+
+if ( ktau==nwrite/2 .or. ktau==nwrite ) then
+!        usually after first 24 hours, save soil variables for next run
+  if ( ktau==nwrite ) then  ! 24 hour write
+    if ( ktime==1200 ) then
+      surfout=surf_12   ! 'current.1200'
+      qgout='qg_12'
+    else
+      surfout=surf_00   ! 'current.0000'
+      qgout='qg_00'
+    endif
+  else                  ! 12 hour write
+    if(ktime==1200)then
+      surfout=surf_00   ! 'current.0000'
+      qgout='qg_00'
+    else
+      surfout=surf_12   ! 'current.1200'
+      qgout='qg_12'
+    end if
+  end if                ! (ktau.eq.nwrite)
+  if ( myid==0 ) then
+    write(6,*) "writing current soil & snow variables to ",surfout
+    open(unit=77,file=surfout,form='formatted',status='unknown')
+    write (77,*) kdate,ktime,' ktau = ',ktau
+  end if
+  call writeglobvar(77, wb, fmt='(14f6.3)')
+  call writeglobvar(77, tgg, fmt='(12f7.2)')
+  call writeglobvar(77, tss, fmt='(12f7.2)')
+  call writeglobvar(77, snowd, fmt='(12f7.1)')
+  call writeglobvar(77, sicedep, fmt='(12f7.1)')
+  if ( myid==0 ) then
+    close(77)
+  end if
+  if ( nrungcm==-2 .or. nrungcm==-5 ) then
+    if ( myid==0 ) then
+      write(6,*) "writing special qgout file: ",qgout
+      open(unit=77,file=qgout,form='unformatted',status='unknown')
+    end if
+    call writeglobvar(77, qg)
+    if ( myid==0 ) then
+      close(77)
+    end if
+  endif  ! (nrungcm.eq.-2.or.nrungcm.eq.-5)
+endif    ! (ktau.eq.nwrite/2.or.ktau.eq.nwrite)
+
+return
+end subroutine soiltextfile
 
 end module outcdf
