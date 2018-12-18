@@ -4885,13 +4885,17 @@ if ( mp_global>0 ) then
     do k = 1,ms
       ssnow%S(:,k) = ssnow%wb(:,k)/soil%ssat
     end do
-    !where ( ssnow%snowd>0. )
-    !  ssnow%nsnow = 1
-    !elsewhere
-    !  ssnow%nsnow = 0
-    !end where
-    ssnow%nsnow = 0
-    ssnow%snowd = 0.
+    where ( ssnow%snowd>0. )
+      ssnow%nsnow = 1
+      ssnow%sdepth(:,1) = ssnow%snowd
+      ssnow%smass(:,1) = ssnow%snowd*ssnow%ssdn(:,1)
+    elsewhere
+      ssnow%nsnow = 0
+      ssnow%sdepth(:,1) = 0._8
+      ssnow%smass(:,1) = 0._8
+    end where
+    !ssnow%nsnow = 0
+    !ssnow%snowd = 0._8
   
   end if  
     
@@ -5204,24 +5208,7 @@ else
       end do  
     end if
   end if
-  if ( ccycle==0 ) then
-    !do n = 1,maxtile
-    !  write(vname,'("t",I1.1,"_cplant")') n
-    !  call histrd(iarchi-1,ierr,vname,il_g,ncp,datncp(:,1:ncp),ifull)
-    !  if ( n<=maxnb ) then
-    !    do k = 1,ncp
-    !      call cable_pack(datncp(:,k),bgc%cplant(:,k),n)
-    !    end do
-    !  end if
-    !  write(vname,'("t",I1.1,"_csoil")') n
-    !  call histrd(iarchi-1,ierr,vname,il_g,ncs,datncs(:,1:ncs),ifull)
-    !  if ( n<=maxnb ) then
-    !    do k = 1,ncs
-    !      call cable_pack(datncs(:,k),bgc%csoil(:,k),n)
-    !    end do
-    !  end if
-    !end do  
-  else
+  if ( ccycle/=0 ) then
     if ( ierr_casa/=0 ) then
       if ( myid==0 ) write(6,*) "Use gridbox averaged data to initialise CASA-CNP"
       call defaulttile_casa

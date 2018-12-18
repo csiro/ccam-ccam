@@ -1268,7 +1268,7 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_intmassmeth=>intmassmeth       &
     ,ateb_cvcoeffmeth=>cvcoeffmeth       &
     ,ateb_statsmeth=>statsmeth           &
-    ,ateb_behavmeth=>behavmeth           &
+    ,ateb_lwintmeth=>lwintmeth           &
     ,ateb_infilmeth=>infilmeth           &
     ,ateb_ac_heatcap=>ac_heatcap         &
     ,ateb_ac_coolcap=>ac_coolcap         &
@@ -1471,7 +1471,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
     ateb_maxrfwater,ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,    &
     ateb_maxvwatf,ateb_intairtmeth,ateb_intmassmeth,              &
-    ateb_cvcoeffmeth,ateb_statsmeth,ateb_behavmeth,               &
+    ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
     ateb_ac_smooth,                                               &
     ateb_ac_deltat,ateb_acfactor,ateb_ac_copmax,                  &
@@ -2247,7 +2247,7 @@ if ( myid==0 ) then
   dumi(27) = ateb_intmassmeth
   dumi(28) = ateb_cvcoeffmeth
   dumi(29) = ateb_statsmeth
-  dumi(30) = ateb_behavmeth
+  dumi(30) = ateb_lwintmeth
   dumi(31) = ateb_infilmeth
 end if
 call ccmpi_bcastr8(dumr8,0,comm_world)
@@ -2307,7 +2307,7 @@ ateb_intairtmeth  = dumi(26)
 ateb_intmassmeth  = dumi(27) 
 ateb_cvcoeffmeth  = dumi(28) 
 ateb_statsmeth    = dumi(29) 
-ateb_behavmeth    = dumi(30) 
+ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
 allocate( dumr(15), dumi(19) )

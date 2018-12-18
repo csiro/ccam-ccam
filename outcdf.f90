@@ -153,7 +153,7 @@ use ateb, only :                         & ! Urban
     ,ateb_intmassmeth=>intmassmeth       &
     ,ateb_cvcoeffmeth=>cvcoeffmeth       &
     ,ateb_statsmeth=>statsmeth           &
-    ,ateb_behavmeth=>behavmeth           &
+    ,ateb_lwintmeth=>lwintmeth           &
     ,ateb_infilmeth=>infilmeth           &
     ,ateb_ac_heatcap=>ac_heatcap         &
     ,ateb_ac_coolcap=>ac_coolcap         &
@@ -783,7 +783,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_ac_smooth',ateb_ac_smooth)
     call ccnf_put_attg(idnc,'ateb_acfactor',ateb_acfactor)
     call ccnf_put_attg(idnc,'ateb_alpha',ateb_alpha)
-    call ccnf_put_attg(idnc,'ateb_behavmeth',ateb_behavmeth)   
+    call ccnf_put_attg(idnc,'ateb_lwintmeth',ateb_lwintmeth)   
     call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)
     call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)
     call ccnf_put_attg(idnc,'ateb_cvcoeffmeth',ateb_cvcoeffmeth)
