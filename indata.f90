@@ -1701,9 +1701,6 @@ end if
 !--------------------------------------------------------------
 ! SET-UP AMIP SSTs (namip)
 if ( namip/=0 ) then
-  if ( myid==0 ) then
-    write(6,*) 'Calling amipsst at beginning of run'
-  end if
   call amipsst
 endif   ! namip/=0
 

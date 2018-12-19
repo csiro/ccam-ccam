@@ -942,16 +942,7 @@ if ( myid<nproc ) then
     ! AMIP SSTs --------------------------------------------------
     if ( namip/=0 ) then
       call START_LOG(amipsst_begin)
-      if ( nmlo==0 ) then
-        ! call once per day for prescribed SSTs  
-        if ( mod(ktau,nperday)==0 ) then
-          if ( myid==0 ) write(6,*) "amipsst called at end of day for ktau,mtimer,namip ",ktau,mtimer,namip  
-          call amipsst
-        end if
-      else
-        ! call every time-step for nudging prognostic SSTs
-        call amipsst
-      end if
+      call amipsst
       call END_LOG(amipsst_end)
     end if
 

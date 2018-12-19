@@ -72,8 +72,6 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_infilmeth=>infilmeth           &
     ,ateb_ac_heatcap=>ac_heatcap         &
     ,ateb_ac_coolcap=>ac_coolcap         &
-    ! ,ateb_ac_heatprop=>ac_heatprop       &
-    ! ,ateb_ac_coolprop=>ac_coolprop       &
     ,ateb_ac_smooth=>ac_smooth           &
     ,ateb_ac_deltat=>ac_deltat           &
     ,ateb_acfactor=>acfactor             &
@@ -167,7 +165,6 @@ real ateb_industryfg, ateb_trafficfg, ateb_vegalphac
 real ateb_wallalpha, ateb_roadalpha, ateb_roofalpha
 real ateb_wallemiss, ateb_roademiss, ateb_roofemiss
 real ateb_infilach,  ateb_intgains, ateb_bldairtemp
-real ateb_heatprop, ateb_coolprop
 real ateb_zovegc
 real ps_adj
 real, dimension(4) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
@@ -206,7 +203,7 @@ namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     ateb_road_thick,ateb_road_cp,ateb_road_cond,                  &
     ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                  &
     ateb_infilach,ateb_intgains,ateb_bldairtemp,                  &
-    ateb_heatprop,ateb_coolprop,ateb_zovegc
+    ateb_zovegc
 ! main namelist
 namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,             &
@@ -338,8 +335,6 @@ ateb_slab_cp = -999.
 ateb_slab_cond = -999.
 ateb_infilach = -999.
 ateb_intgains = -999.
-ateb_heatprop = -999.
-ateb_coolprop = -999.
 ateb_bldairtemp = -999.
 ateb_zovegc = -999.
 ateb_energytol = 0.005_8
@@ -476,7 +471,7 @@ call initialscm(scm_mode,metforcing,lsmforcing,press_in(1:kl),press_surf,z_in,iv
                 ateb_road_thick,ateb_road_cp,ateb_road_cond,                            &
                 ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                            &
                 ateb_infilach,ateb_intgains,ateb_bldairtemp,                            &
-                ateb_heatprop,ateb_coolprop,ateb_zovegc)
+                ateb_zovegc)
 
 allocate( t_save(ifull,kl), qg_save(ifull,kl), u_save(ifull,kl), v_save(ifull,kl) )
 allocate( psl_save(ifull) )
@@ -816,7 +811,7 @@ subroutine initialscm(scm_mode,metforcing,lsmforcing,press_in,press_surf,z_in,iv
                       ateb_road_thick,ateb_road_cp,ateb_road_cond,                      &
                       ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                      &
                       ateb_infilach,ateb_intgains,ateb_bldairtemp,                      &
-                      ateb_heatprop,ateb_coolprop,ateb_zovegc)
+                      ateb_zovegc)
 
 use aerointerface                          ! Aerosol interface
 use aerosolldr                             ! LDR prognostic aerosols
@@ -879,7 +874,6 @@ real, intent(in) :: ateb_industryfg, ateb_trafficfg, ateb_vegalphac
 real, intent(in) :: ateb_roofalpha, ateb_wallalpha, ateb_roadalpha
 real, intent(in) :: ateb_roofemiss, ateb_wallemiss, ateb_roademiss
 real, intent(in) :: ateb_infilach,  ateb_intgains, ateb_bldairtemp
-real, intent(in) :: ateb_heatprop, ateb_coolprop
 real, intent(in) :: ateb_zovegc
 real, dimension(4), intent(in) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4), intent(in) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
@@ -999,9 +993,9 @@ dpsldt(:,:) = 0.
 zs(:) = grav*z_in
 he(:) = 0.
 
-! LOAD INITIAL CONDITIONS
+! LOAD INITIAL CONDITIONS - Part 1
 if ( ifile/=" " .and. ifile/="" ) then
-  call loadrestart
+  ! do nothing until later
 else if ( scm_mode=="sublime" ) then
     
   write(6,*) "Loading MET initial conditions"
@@ -1300,31 +1294,6 @@ else
   stop
 end if
 
-! UPDATE GRAVITY WAVE DRAG DATA (lgwd)
-write(6,*) "Initialise gravity wave drag"
-gwdfac = 0.01*lgwd       ! most runs used .02 up to fri  10-10-1997
-hefact = 0.1*abs(ngwd)   ! hal used hefact=1. (equiv to ngwd=10)
-write(6,*)'hefact,helim,gwdfac: ',hefact,helim,gwdfac
-helo(:) = 0.
-if ( lgwd>0 ) then
-  do iq=1,ifull
-    if(land(iq))then
-      if(he(iq)==0.)write(6,*)'zero he over land for iq = ',iq
-      aa(iq)=min(gwdfac*max(he(iq),.01),.8*zmin)   ! already in meters
-      ! replace he by square of corresponding af value
-      helo(iq)=( .4/log(zmin/aa(iq)) )**2
-    endif
-  enddo   ! iq loop
-end if ! lgwd>0
-if ( ngwd/=0 ) then
-!****    limit launching height : Palmer et al use limit on variance of
-!****    (400 m)**2. we use launching height = std dev. we limit
-!****    launching height to  2*400=800 m. this may be a bit severe.
-!****    according to Palmer this prevents 2-grid noise at steep edge of
-!****    himalayas etc.
-  he(1:ifull) = min(hefact*he(1:ifull),helim)
-endif     ! (ngwd/=0)
-
 !--------------------------------------------------------------
 ! READ SURFACE DATA (nsib and nspecial)
 ! nsib=3 (original land surface scheme with original 1deg+Dean's datasets)
@@ -1376,7 +1345,6 @@ if ( nsib==6 .or. nsib==7 ) then
   write(6,*) 'Importing CABLE data'
   call defaulttile
 end if
-
 
 !-----------------------------------------------------------------
 ! INITIALISE URBAN SCHEME (nurban)
@@ -1446,14 +1414,6 @@ if (nurban/=0) then
   if ( ateb_infilach>-900. ) then
     atebparm(1:8) = ateb_infilach
     call atebdeftype(atebparm(1:8),urbantype,'infilach',0)
-  end if
-  if ( ateb_heatprop>-900. ) then
-    atebparm(1:8) = ateb_heatprop
-    call atebdeftype(atebparm(1:8),urbantype,'heatprop',0)
-  end if
-  if ( ateb_coolprop>-900. ) then
-    atebparm(1:8) = ateb_coolprop
-    call atebdeftype(atebparm(1:8),urbantype,'coolprop',0)
   end if
   if ( ateb_intgains>-900. ) then
     atebparm(1:8) = ateb_intgains
@@ -1586,7 +1546,6 @@ select case(abs(iaero))
 !    call load_aerosolldr(so4tfile,oxidantfile,kdate)
 end select
 
-
 !-----------------------------------------------------------------
 ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
@@ -1647,7 +1606,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   do k = 1,3
     call mloexpice(tggsn(:,k),k,0)
   end do 
-end if
+end if  
 
 !-----------------------------------------------------------------
 ! UPDATE URBAN DATA (nurban)
@@ -1750,11 +1709,42 @@ if (nurban/=0) then
   deallocate( atebdwn )
 end if
 
-
 if ( abs(iaero)>=2 ) then
    write(6,*) "Aerosol initial conditions"
    xtg(:,:,:) = 0.
 end if
+  
+
+! LOAD INITIAL CONDITIONS - Part 2
+if ( ifile/=" " .and. ifile/="" ) then
+  call loadrestart
+end if
+
+! UPDATE GRAVITY WAVE DRAG DATA (lgwd)
+write(6,*) "Initialise gravity wave drag"
+gwdfac = 0.01*lgwd       ! most runs used .02 up to fri  10-10-1997
+hefact = 0.1*abs(ngwd)   ! hal used hefact=1. (equiv to ngwd=10)
+write(6,*)'hefact,helim,gwdfac: ',hefact,helim,gwdfac
+helo(:) = 0.
+if ( lgwd>0 ) then
+  do iq=1,ifull
+    if(land(iq))then
+      if(he(iq)==0.)write(6,*)'zero he over land for iq = ',iq
+      aa(iq)=min(gwdfac*max(he(iq),.01),.8*zmin)   ! already in meters
+      ! replace he by square of corresponding af value
+      helo(iq)=( .4/log(zmin/aa(iq)) )**2
+    endif
+  enddo   ! iq loop
+end if ! lgwd>0
+if ( ngwd/=0 ) then
+!****    limit launching height : Palmer et al use limit on variance of
+!****    (400 m)**2. we use launching height = std dev. we limit
+!****    launching height to  2*400=800 m. this may be a bit severe.
+!****    according to Palmer this prevents 2-grid noise at steep edge of
+!****    himalayas etc.
+  he(1:ifull) = min(hefact*he(1:ifull),helim)
+endif     ! (ngwd/=0)
+
     
 write(6,*) "Finised initialisation"
 
@@ -5149,7 +5139,7 @@ integer k,ifrac
 real, dimension(ifull,wlev) :: mlodwn
 real, dimension(ifull) :: ocndwn
 real, dimension(ifull) :: dum6
-character(len=10) vname
+character(len=20) vname
 
 iarchi = 1
 ik = 1
@@ -5231,13 +5221,13 @@ if ( nurban/=0 ) then
     do k = 1,5  
       write(vname,'("t",I1.1,"_waletgg",I1.1)') ifrac,k  
       call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
-      write(vname,'("waletemp",I1.1)') k
+      write(vname,'("walletemp",I1.1)') k
       call atebloadd(atebdwn(:,1),vname,ifrac,0)
     end do  
     do k = 1,5  
       write(vname,'("t",I1.1,"_walwtgg",I1.1)') ifrac,k  
       call histrd(iarchi,ier,vname,ik,atebdwn(:,1),ifull)
-      write(vname,'("walwtemp",I1.1)') k
+      write(vname,'("wallwtemp",I1.1)') k
       call atebloadd(atebdwn(:,1),vname,ifrac,0)
     end do  
     do k = 1,5  

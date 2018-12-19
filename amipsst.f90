@@ -77,17 +77,23 @@ integer, save :: iyr, imo, iday
 integer, parameter :: curr_month = 3 ! centre of 5-points
 integer, parameter :: mlotime = 6 ! scale-select period in hours
 
-! Do not call AMIPSST if namip=0
-if ( namip==0 ) return
-
-! allocate for 5-point stencil, just-in-case.
 if ( .not.allocated(ssta) ) then
+  if ( myid==0 ) then
+    write(6,*) 'Calling amipsst at beginning of run'
+  end if
   allocate( ssta(ifull,5) )
   allocate( aice(ifull,5) )
   allocate( asal(ifull,5) )
   ssta(:,:) = 300.
   aice(:,:) = 0.
   asal(:,:) = 0.
+else if ( mod(ktau,nperday)==0 ) then
+  if ( myid==0 ) then
+    write(6,*) "amipsst called at end of day for ktau,mtimer,namip ",ktau,mtimer,namip
+  end if  
+else
+  ! call once per day for prescribed SSTs  
+  if ( nmlo==0 ) return
 end if
 
 idjd_g = id + (jd-1)*il_g
