@@ -193,11 +193,13 @@ contains
        if(gumax(1,1)>=1000.)then   ! for radon
         gout(:) = gumax(1,:)
         write(6,961) ktau,char,gout
-961     format(i7,1x,a2,'max ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
+!961     format(i7,1x,a2,'max ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
+961     format(i7,a3,'max ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
         write(6,977) ktau,ijumax
         gout(:) = gumin(1,:)
         write(6,962) ktau,char,gout
-962     format(i7,1x,a2,'min ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
+!962     format(i7,1x,a2,'min ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
+962     format(i7,a3,'min ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
         write(6,977) ktau,ijumin
        elseif(kup<=10)then  ! format for tggsn
         write(6,971) ktau,char,(gumax(1,k),k=1,kup)
@@ -209,12 +211,13 @@ contains
         if ( kup>10 ) then
         write(6,971) ktau,char,gout(1:10),char,gout(11:kup)
         end if
-!!!971  format(i7,1x,a2,'max ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
-971     format(i7,1x,a2,'max ',10f7.2/(a10,'maX ',10f7.2)/(14x,10f7.2))
+!971     format(i7,1x,a2,'max ',10f7.2/(a10,'maX ',10f7.2)/(14x,10f7.2))
+971     format(i7,a3,'max ',10f7.2/(a10,'maX ',10f7.2)/(14x,10f7.2))
         write(6,977) ktau,ijumax
         gout(:) = gumin(1,:)
         write(6,972) ktau,char,gout
-972     format(i7,1x,a2,'min ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
+!972     format(i7,1x,a2,'min ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
+972     format(i7,a3,'min ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
         write(6,977) ktau,ijumin
 977     format(i7,'  posij',10(i3,i4)/(14x,10(i3,i4))/(14x,10(i3,i4)))
        else  ! for qg & sd
@@ -222,11 +225,13 @@ contains
         gout(1:kup) = gumax(1,1:10)
         write(6,981) ktau,char,gout(1:10),char,gout(11:kup)
         end if
-981     format(i7,1x,a2,'max ',10f7.3/(a10,'maX ',10f7.3)/(14x,10f7.3))
+!981     format(i7,1x,a2,'max ',10f7.3/(a10,'maX ',10f7.3)/(14x,10f7.3))
+981     format(i7,a3,'max ',10f7.3/(a10,'maX ',10f7.3)/(14x,10f7.3))        
         write(6,977) ktau,ijumax
         gout(:) = gumin(1,:)
         write(6,982) ktau,char,gout
-982     format(i7,1x,a2,'min ',10f7.3/(14x,10f7.3)/(14x,10f7.3))
+!982     format(i7,1x,a2,'min ',10f7.3/(14x,10f7.3)/(14x,10f7.3))
+982     format(i7,a3,'min ',10f7.3/(14x,10f7.3)/(14x,10f7.3))        
         write(6,977) ktau,ijumin
        endif
       endif ! myid == 0

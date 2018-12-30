@@ -63,7 +63,8 @@ integer, parameter :: itnmax    = 6       ! number of interations for reversible
 integer, parameter :: nxtrrho   = 1       ! Estimate rho at t+1 (0=off, 1=on)
 integer, save      :: usepice   = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
 integer, save      :: mlodiff   = 0       ! diffusion (0=all, 1=scalars only)
-integer, save      :: mlojacobi = 1       ! density gradient method (0=off, 1=non-local spline, 2=non-local linear, 3=Song)
+integer, save      :: mlojacobi = 1       ! density gradient method (0=off, 1=non-local spline, 2=non-local linear, 3=Song,
+                                          !   4=spline-zero, 5=linear-zero)
 real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
 real, parameter :: rhoic      = 900.      ! density ice  (kg m^-3)
 real, parameter :: grav       = 9.80616   ! gravitational constant (m s^-2)
@@ -120,7 +121,7 @@ eeu(1:ifull) = ee(1:ifull)*ee(ie)
 eev(1:ifull) = ee(1:ifull)*ee(in)
 call boundsuv(eeu,eev,nrows=2)
 
-wtr = abs(ee-1.)<0.
+wtr = abs(ee-1.)<1.e-20
 
 ! The following is for the in-line MLO model ------------------------
 
@@ -154,6 +155,7 @@ where ( abs(eev(1:ifull))<1.e-20 )
 end where
 call boundsuv(ddu,ddv,nrows=2)
 
+
 ! allocate memory for mlo dynamics arrays
 call mlodynamicsarrays_init(ifull,iextra,wlev)
 
@@ -168,13 +170,14 @@ if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
   where (wtr(is).and.wtr(ies).and.wtr(ie).and.wtr(1:ifull))
     stwgt(1:ifull,2)=1.
   end where
-  where (wtr(in).and.wtr(ine).and.wtr(ie).and.wtr(1:ifull))
+  where (wtr(ie).and.wtr(ine).and.wtr(in).and.wtr(1:ifull))
     stwgt(1:ifull,3)=1.
   end where
   where (wtr(iw).and.wtr(inw).and.wtr(in).and.wtr(1:ifull))
     stwgt(1:ifull,4)=1.
   end where
-  call boundsuv(stwgt(:,1:2),stwgt(:,3:4))
+  call boundsuv(stwgt(:,1),stwgt(:,4))
+  call boundsuv(stwgt(:,2),stwgt(:,3))
   
 end if ! abs(nmlo)>=3.and.abs(nmlo)<=9
 
@@ -512,7 +515,6 @@ real, dimension(ifull) :: sdiv
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: eou,eov
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,dzdum_rho
-real, dimension(ifull+iextra,wlev) :: dalpha,dbeta
 real, dimension(ifull+iextra,wlev) :: ccu,ccv
 real, dimension(ifull+iextra,9) :: dumc,dumd
 real, dimension(ifull+iextra,4) :: nit
@@ -759,30 +761,17 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! (Assume free surface correction is small so that changes in the compression 
   ! effect due to neta can be neglected.  Consequently, the neta dependence is 
   ! separable in the iterative loop)
-  call bounds(nt,corner=.true.)
-  call bounds(ns,corner=.true.)
-  ! rho is the pertubation from wrtrho, which we assume is much smaller than wrtrho
-  call mloexpdensity(ccu,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.) ! rho=ccu (not used)
+  if ( mlojacobi==6 ) then
+    call bounds(nt,nrows=2)
+    call bounds(ns,nrows=2)
+  else    
+    call bounds(nt,corner=.true.)
+    call bounds(ns,corner=.true.)
+  end if  
 
   ! Calculate normalised density gradients
   ! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
-  call tsjacobi(nt,ns,dalpha,dbeta,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
-  drhobardxu(:,1) = drhobardxu(:,1)*godsig(1)
-  drhobardxv(:,1) = drhobardxv(:,1)*godsig(1)
-  drhobardyu(:,1) = drhobardyu(:,1)*godsig(1)
-  drhobardyv(:,1) = drhobardyv(:,1)*godsig(1)
-  do ii = 2,wlev
-    drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsig(ii)
-    drhobardxv(:,ii) = drhobardxv(:,ii-1) + drhobardxv(:,ii)*godsig(ii)
-    drhobardyu(:,ii) = drhobardyu(:,ii-1) + drhobardyu(:,ii)*godsig(ii)
-    drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsig(ii)
-  end do
-  do ii = 1,wlev
-    drhobardxu(:,ii) = drhobardxu(:,ii)/gosigh(ii)
-    drhobardxv(:,ii) = drhobardxv(:,ii)/gosigh(ii)
-    drhobardyu(:,ii) = drhobardyu(:,ii)/gosigh(ii)
-    drhobardyv(:,ii) = drhobardyv(:,ii)/gosigh(ii)
-  end do
+  call tsjacobi(nt,ns,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
   call END_LOG(watereos_end)
 
@@ -1023,29 +1012,15 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
   if ( nxtrrho==1 ) then
-    call bounds(nt,corner=.true.)
-    call bounds(ns,corner=.true.)
-    ! rho is the pertubation from wrtrho
-    call mloexpdensity(ccu,dalpha,dbeta,nt,ns,dzdum_rho,pice,0,rawrho=.true.) ! rho=ccu
-
+    if ( mlojacobi==6 ) then
+      call bounds(nt,nrows=2)
+      call bounds(ns,nrows=2)
+    else    
+      call bounds(nt,corner=.true.)
+      call bounds(ns,corner=.true.)
+    end if  
     ! update normalised density gradients
-    call tsjacobi(nt,ns,dalpha,dbeta,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
-    drhobardxu(:,1) = drhobardxu(:,1)*godsig(1)
-    drhobardxv(:,1) = drhobardxv(:,1)*godsig(1)
-    drhobardyu(:,1) = drhobardyu(:,1)*godsig(1)
-    drhobardyv(:,1) = drhobardyv(:,1)*godsig(1)
-    do ii = 2,wlev
-      drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsig(ii)
-      drhobardxv(:,ii) = drhobardxv(:,ii-1) + drhobardxv(:,ii)*godsig(ii)
-      drhobardyu(:,ii) = drhobardyu(:,ii-1) + drhobardyu(:,ii)*godsig(ii)
-      drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsig(ii)
-    end do
-    do ii = 1,wlev
-      drhobardxu(:,ii) = drhobardxu(:,ii)/gosigh(ii)
-      drhobardxv(:,ii) = drhobardxv(:,ii)/gosigh(ii)
-      drhobardyu(:,ii) = drhobardyu(:,ii)/gosigh(ii)
-      drhobardyv(:,ii) = drhobardyv(:,ii)/gosigh(ii)
-    end do
+    call tsjacobi(nt,ns,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
   end if
 
   call END_LOG(watereos_end)
@@ -3151,14 +3126,14 @@ if (.not.allocated(wtul)) then
   allocate(stur(ifull),stvr(ifull))
   
   ! assign land arrays
-  eutest=eeu(1:ifull)>0.5
-  evtest=eev(1:ifull)>0.5
-  euetest=eutest      .and.eeu(ieu)>0.5
-  euwtest=eeu(iwu)>0.5.and.eutest
-  evntest=evtest      .and.eev(inv)>0.5
-  evstest=eev(isv)>0.5.and.evtest
-  euewtest=euetest.and.euwtest
-  evnstest=evntest.and.evstest
+  eutest = ee(1:ifull)*ee(ie)>0.5
+  evtest = ee(1:ifull)*ee(in)>0.5
+  euetest = eutest     .and. ee(ie)*ee(iee)>0.5
+  euwtest = ee(iw)*ee(1:ifull)>0.5 .and. eutest
+  evntest = evtest     .and. ee(in)*ee(inn)>0.5
+  evstest = ee(is)*ee(1:ifull)>0.5 .and. evtest
+  euewtest = euetest .and. euwtest
+  evnstest = evntest .and. evstest
 
   ! assign weights (left)
 
@@ -3676,21 +3651,21 @@ if (.not.allocated(wtul)) then
   allocate(stur(ifull),stvr(ifull))
 
   ! assign land arrays
-  eetest=ee(1:ifull)*ee(ie)>0.5
-  ewtest=ee(iw)*ee(1:ifull)>0.5
-  entest=ee(1:ifull)*ee(in)>0.5
-  estest=ee(is)*ee(1:ifull)>0.5
+  eetest = ee(1:ifull)*ee(ie)>0.5
+  ewtest = ee(iw)*ee(1:ifull)>0.5
+  entest = ee(1:ifull)*ee(in)>0.5
+  estest = ee(is)*ee(1:ifull)>0.5
 
-  eutest=eeu(iwu)>0.5
-  evtest=eev(isv)>0.5
-  euetest=eutest.and.eeu(1:ifull)>0.5
-  evntest=evtest.and.eev(1:ifull)>0.5
-  euwtest=eutest.and.eeu(iwwu)>0.5
-  evstest=evtest.and.eev(issv)>0.5
-  euewtest=euetest.and.euwtest
-  evnstest=evntest.and.evstest
-  eeetest=eetest.and.ee(iee)>0.5
-  enntest=entest.and.ee(inn)>0.5
+  eutest = ee(iw)*ee(1:ifull)>0.5
+  evtest = ee(is)*ee(1:ifull)>0.5
+  euetest = eutest .and. ee(1:ifull)*ee(ie)>0.5
+  evntest = evtest .and. ee(1:ifull)*ee(in)>0.5
+  euwtest = eutest .and. ee(iww)*ee(iw)>0.5
+  evstest = evtest .and. ee(iss)*ee(is)>0.5
+  euewtest = euetest .and. euwtest
+  evnstest = evntest .and. evstest
+  eeetest = eetest .and. ee(iee)>0.5
+  enntest = entest .and. ee(inn)>0.5
 
   ! assign weights (left)
 
@@ -3897,12 +3872,12 @@ if (.not.allocated(wtul)) then
   wtvl(1:ifull,0)=1.
 
   ! assign land arrays
-  eutest=eeu(1:ifull)>0.5
-  evtest=eev(1:ifull)>0.5
-  euetest=eutest.and.eeu(ieu)>0.5
-  evntest=evtest.and.eev(inv)>0.5
-  euwtest=eutest.and.eeu(iwu)>0.5
-  evstest=evtest.and.eev(isv)>0.5
+  eutest=ee(1:ifull)*ee(ie)>0.5
+  evtest=ee(1:ifull)*ee(in)>0.5
+  euetest=eutest.and.ee(ie)*ee(iee)>0.5
+  evntest=evtest.and.ee(in)*ee(inn)>0.5
+  euwtest=eutest.and.ee(iw)*ee(1:ifull)>0.5
+  evstest=evtest.and.ee(is)*ee(1:ifull)>0.5
   euewtest=euetest.and.euwtest
   evnstest=evntest.and.evstest
   ewwtest=ewtest.and.ee(iww)>0.5
@@ -4412,30 +4387,31 @@ end subroutine mlotvd
 ! Use potential temperature and salinity Jacobians to calculate
 ! density Jacobian
 
-subroutine tsjacobi(nti,nsi,alphabar,betabar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+subroutine tsjacobi(nti,nsi,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
 use map_m, only : f, emu, emv
-use mlo, only : wlev,wrtemp
+use mlo, only : wlev, wrtemp, mloexpdensity
 use newmpar_m
 use parm_m, only : ds
 
 implicit none
 
 integer ii, jj
-real, dimension(ifull+iextra,wlev), intent(in) :: nti, nsi, alphabar, betabar
+real, dimension(ifull+iextra,wlev), intent(in) :: nti, nsi, dzdum_rho
 real, dimension(ifull,wlev), intent(out) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
+real, dimension(ifull+iextra), intent(in) :: pice
+real, dimension(ifull,wlev) :: rhou, rhov, rhobaru, rhobarv
 real, dimension(ifull+iextra,wlev,2) :: na
+real, dimension(ifull+iextra,wlev) :: alphabar, betabar, lrho
 real, dimension(ifull) :: absu, bbsu, absv, bbsv
 real, dimension(ifull) :: alphabar_n, alphabar_e, betabar_n, betabar_e
-real, dimension(ifull) :: m, a, b, c
-real, dimension(ifull) :: y_u, y_nu, y_eu, y_su, y_neu, y_seu
-real, dimension(ifull) :: y_v, y_nv, y_ev, y_wv, y_env, y_wnv
 real, dimension(ifull,wlev,2) :: dnadxu, dnadxv, dnadyu, dnadyv
-real, dimension(2) :: na_max, na_min
-real, dimension(ifull) :: dd_in
-real, dimension(ifull,-1:1) :: na3
-real, dimension(ifull,0:1) :: na2
+real, dimension(ifull) :: ddddxu, ddddxv, ddddyu, ddddyv
+real, dimension(ifull) :: dd_i, ddux, ddvy, ddn, dds, dde, ddw, ddne, ddnw, dden, ddes
+
+
+call mloexpdensity(lrho,alphabar,betabar,nti,nsi,dzdum_rho,pice,0,rawrho=.true.) ! rho=ccu (not used)
 
 select case( mlojacobi )
   case(0) ! off
@@ -4446,13 +4422,13 @@ select case( mlojacobi )
       drhobardyv(1:ifull,ii) = 0.
     end do
 
-  case(1,2,3) 
+  case(1,2,3,4,5) 
     na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
     na(:,:,2) = min(max(0.,  nsi),50. )-34.72
     select case( mlojacobi )
-      case(1) ! non-local - spline  
+      case(1,4) ! non-local - spline  
         call seekdelta(na,dnadxu,dnadyu,dnadxv,dnadyv)
-      case(2) ! non-local - linear
+      case(2,5) ! non-local - linear
         call seekdelta_l(na,dnadxu,dnadyu,dnadxv,dnadyv)
       case(3) ! local - Song 1998
         call seekdelta_song(na,dnadxu,dnadyu,dnadxv,dnadyv)
@@ -4474,20 +4450,114 @@ select case( mlojacobi )
       drhobardyu(1:ifull,ii) = -absu*dnadyu(1:ifull,ii,1) + bbsu*dnadyu(1:ifull,ii,2)
       drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
     end do
+
+    ! integrate density gradient  
+    drhobardxu(:,1) = drhobardxu(:,1)*godsig(1)
+    drhobardxv(:,1) = drhobardxv(:,1)*godsig(1)
+    drhobardyu(:,1) = drhobardyu(:,1)*godsig(1)
+    drhobardyv(:,1) = drhobardyv(:,1)*godsig(1)
+    do ii = 2,wlev
+      drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsig(ii)
+      drhobardxv(:,ii) = drhobardxv(:,ii-1) + drhobardxv(:,ii)*godsig(ii)
+      drhobardyu(:,ii) = drhobardyu(:,ii-1) + drhobardyu(:,ii)*godsig(ii)
+      drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsig(ii)
+    end do
+    do ii = 1,wlev
+      drhobardxu(:,ii) = drhobardxu(:,ii)/gosigh(ii)
+      drhobardxv(:,ii) = drhobardxv(:,ii)/gosigh(ii)
+      drhobardyu(:,ii) = drhobardyu(:,ii)/gosigh(ii)
+      drhobardyv(:,ii) = drhobardyv(:,ii)/gosigh(ii)
+    end do
+
+    select case(mlojacobi)
+      case(4,5)
+        dd_i = gosig(wlev)*dd(1:ifull)
+        call unpack_nsew(dd_i,ddn,dds,dde,ddw)
+        dden = gosig(wlev)*dd(ien)
+        ddes = gosig(wlev)*dd(ies)
+        ddne = gosig(wlev)*dd(ine)
+        ddnw = gosig(wlev)*dd(inw)
+        do ii = 1,wlev
+          ddux = gosig(ii)*ddu(1:ifull)
+          where ( ddux>dd_i .or. ddux>dde )
+            drhobardxu(:,ii) = 0.
+          end where  
+          where ( ddux>ddn .or. ddux>dds .or. ddux>dden .or. ddux>ddes )
+            drhobardxv(:,ii) = 0.
+          end where  
+          ddvy = gosig(ii)*ddv(1:ifull)
+          where ( ddvy>dd_i .or. ddvy>ddn )
+            drhobardyv(:,ii) = 0.
+          end where  
+          where ( ddvy>dde .or. ddvy>ddw .or. ddvy>ddne .or. ddvy>ddnw )
+            drhobardyu(:,ii) = 0.
+          end where  
+        end do
+    end select
+      
+  case(6)  ! 4th order mccalpin  
+    na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
+    na(:,:,2) = min(max(0.,  nsi),50. )-34.72
+    call seekdelta_mccalpin(na,dnadxu,dnadyu,dnadxv,dnadyv,ddddxu,ddddyu,ddddxv,ddddyv)
+    do ii = 1,wlev
+      call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
+      call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
+      absu = 0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull)
+      bbsu = 0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull)
+      absv = 0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull)
+      bbsv = 0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull)
+      ! This relationship neglects compression effects due to neta from the EOS.
+      drhobardxu(1:ifull,ii) = -absu*dnadxu(1:ifull,ii,1) + bbsu*dnadxu(1:ifull,ii,2)
+      drhobardxv(1:ifull,ii) = -absv*dnadxv(1:ifull,ii,1) + bbsv*dnadxv(1:ifull,ii,2)
+      drhobardyu(1:ifull,ii) = -absu*dnadyu(1:ifull,ii,1) + bbsu*dnadyu(1:ifull,ii,2)
+      drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
+      rhou(:,ii) = 0.5*(lrho(1:ifull,ii)+lrho(ie,ii)) 
+      rhov(:,ii) = 0.5*(lrho(1:ifull,ii)+lrho(in,ii))      
+    end do
+
+    ! integrate density gradient  
+    rhobaru(:,1) = rhou(:,1)*godsig(1)
+    rhobarv(:,1) = rhov(:,1)*godsig(1)
+    drhobardxu(:,1) = drhobardxu(:,1)*godsig(1)*dd(1:ifull)
+    drhobardxv(:,1) = drhobardxv(:,1)*godsig(1)*dd(1:ifull)
+    drhobardyu(:,1) = drhobardyu(:,1)*godsig(1)*dd(1:ifull)
+    drhobardyv(:,1) = drhobardyv(:,1)*godsig(1)*dd(1:ifull)
+    do ii = 2,wlev
+      rhobaru(:,ii) = rhobaru(:,ii-1) + rhou(:,ii)*godsig(ii)
+      rhobarv(:,ii) = rhobarv(:,ii-1) + rhov(:,ii)*godsig(ii)
+      drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsig(ii)
+      drhobardxv(:,ii) = drhobardxv(:,ii-1) + drhobardxv(:,ii)*godsig(ii)
+      drhobardyu(:,ii) = drhobardyu(:,ii-1) + drhobardyu(:,ii)*godsig(ii)
+      drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsig(ii)
+    end do
+    do ii = 1,wlev
+      rhobaru(:,ii) = rhobaru(:,ii)/gosigh(ii)
+      rhobarv(:,ii) = rhobarv(:,ii)/gosigh(ii)
+      drhobardxu(:,ii) = drhobardxu(:,ii)/gosigh(ii)
+      drhobardxv(:,ii) = drhobardxv(:,ii)/gosigh(ii)
+      drhobardyu(:,ii) = drhobardyu(:,ii)/gosigh(ii)
+      drhobardyv(:,ii) = drhobardyv(:,ii)/gosigh(ii)
+    end do
+    do ii = 1,wlev
+      drhobardxu(:,ii) = drhobardxu(:,ii) + (rhobaru(:,ii)-rhou(:,ii))*ddddxu/ddu(1:ifull)
+      drhobardxv(:,ii) = drhobardxv(:,ii) + (rhobarv(:,ii)-rhov(:,ii))*ddddxv/ddv(1:ifull)
+      drhobardyu(:,ii) = drhobardyu(:,ii) + (rhobaru(:,ii)-rhou(:,ii))*ddddyu/ddu(1:ifull)
+      drhobardyv(:,ii) = drhobardyv(:,ii) + (rhobarv(:,ii)-rhov(:,ii))*ddddyv/ddv(1:ifull)
+    end do  
     
   case default
     write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
     stop
 
 end select
-    
+
 return
 end subroutine tsjacobi
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate gradients using an interpolation method - spline
 
-subroutine seekdelta(rhobar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+subroutine seekdelta(rho,drhodxu,drhodyu,drhodxv,drhodyv)
 
 use indices_m
 use map_m
@@ -4506,8 +4576,8 @@ real, dimension(ifull,wlev,2) :: ri,re,rw,rn,rs,ren,res,rne,rnw
 real, dimension(ifull,wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,sses,ssne,ssnw
 real, dimension(ifull,wlev,2) :: y2i,y2e,y2w,y2n,y2s,y2en,y2es,y2ne,y2nw
 real, dimension(ifull+iextra,wlev,2) :: y2_i
-real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
-real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull+iextra,wlev,2), intent (in) :: rho
+real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
 
 ! Here we calculate the slow contribution of the pressure gradient
 
@@ -4527,12 +4597,12 @@ do ii = 1,wlev
   ddux(:,ii) = gosig(ii)*ddu(1:ifull)
   ddvy(:,ii) = gosig(ii)*ddv(1:ifull)
 end do
-call mlospline(dd_i,rhobar,y2_i) ! cubic spline
+call mlospline(dd_i,rho,y2_i) ! cubic spline
 
 do jj = 1,2
   do ii = 1,wlev
-    ssi(:,ii,jj)=rhobar(1:ifull,ii,jj)
-    call unpack_ne(rhobar(:,ii,jj),ssn(:,ii,jj),sse(:,ii,jj))
+    ssi(:,ii,jj)=rho(1:ifull,ii,jj)
+    call unpack_ne(rho(:,ii,jj),ssn(:,ii,jj),sse(:,ii,jj))
     y2i(:,ii,jj)=y2_i(1:ifull,ii,jj)
     call unpack_ne(y2_i(:,ii,jj),y2n(:,ii,jj),y2e(:,ii,jj))
   end do
@@ -4546,9 +4616,9 @@ do jj = 1,2
   do ii = 1,wlev
 !$omp simd
     do iq = 1,ifull  
-      sss(iq,ii,jj) =rhobar(is(iq),ii,jj)
-      ssen(iq,ii,jj)=rhobar(ien(iq),ii,jj)
-      sses(iq,ii,jj)=rhobar(ies(iq),ii,jj)
+      sss(iq,ii,jj) =rho(is(iq),ii,jj)
+      ssen(iq,ii,jj)=rho(ien(iq),ii,jj)
+      sses(iq,ii,jj)=rho(ies(iq),ii,jj)
       y2s(iq,ii,jj) =y2_i(is(iq),ii,jj)
       y2en(iq,ii,jj)=y2_i(ien(iq),ii,jj)
       y2es(iq,ii,jj)=y2_i(ies(iq),ii,jj)
@@ -4565,26 +4635,26 @@ do ii = 1,wlev
 end do  
   
 ! process staggered u locations
-ramp_a(:,:)=1.
+ramp_a(:,:) = 1.
 call seekval(ri,ssi,ddi,ddux,y2i,ramp_a)
 call seekval(re,sse,dde,ddux,y2e,ramp_a)
-do jj=1,2
-  do ii=1,wlev
-    drhobardxu(:,ii,jj)=ramp_a(:,ii)*(re(:,ii,jj)-ri(:,ii,jj))*eeu(1:ifull)*emu(1:ifull)/ds
+do jj = 1,2
+  do ii = 1,wlev
+    drhodxu(:,ii,jj) = ramp_a(:,ii)*(re(:,ii,jj)-ri(:,ii,jj))*eeu(1:ifull)*emu(1:ifull)/ds
   end do
 end do
-ramp_c(:,:)=1.
-ramp_e(:,:)=1.
+ramp_c(:,:) = 1.
+ramp_e(:,:) = 1.
 call seekval(rn, ssn, ddn, ddux,y2n, ramp_c)
 call seekval(ren,ssen,dden,ddux,y2en,ramp_c)
 call seekval(rs, sss, dds, ddux,y2s, ramp_e)
 call seekval(res,sses,ddes,ddux,y2es,ramp_e)
-do jj=1,2
-  do ii=1,wlev
-    drhobardyu(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,1)*(rn(:,ii,jj)+ren(:,ii,jj)      &
-                                                         -ri(:,ii,jj)-re(:,ii,jj))*emu(1:ifull)/ds)     &
-                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,2)*(ri(:,ii,jj)+re(:,ii,jj)       &
-                                                         -rs(:,ii,jj)-res(:,ii,jj))*emu(1:ifull)/ds)
+do jj = 1,2
+  do ii = 1,wlev
+    drhodyu(:,ii,jj) = ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,1)*(rn(:,ii,jj)+ren(:,ii,jj)   &
+                                                        -ri(:,ii,jj)-re(:,ii,jj))*emu(1:ifull)/ds)  &
+                     + ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,2)*(ri(:,ii,jj)+re(:,ii,jj)    &
+                                                        -rs(:,ii,jj)-res(:,ii,jj))*emu(1:ifull)/ds)
   end do
 end do
 
@@ -4592,9 +4662,9 @@ do jj = 1,2
   do ii = 1,wlev
 !$omp simd
     do iq = 1,ifull  
-      ssw(iq,ii,jj) =rhobar(iw(iq),ii,jj)
-      ssne(iq,ii,jj)=rhobar(ine(iq),ii,jj)
-      ssnw(iq,ii,jj)=rhobar(inw(iq),ii,jj)
+      ssw(iq,ii,jj) =rho(iw(iq),ii,jj)
+      ssne(iq,ii,jj)=rho(ine(iq),ii,jj)
+      ssnw(iq,ii,jj)=rho(inw(iq),ii,jj)
       y2w(iq,ii,jj) =y2_i(iw(iq),ii,jj)
       y2ne(iq,ii,jj)=y2_i(ine(iq),ii,jj)
       y2nw(iq,ii,jj)=y2_i(inw(iq),ii,jj)
@@ -4611,26 +4681,26 @@ do ii = 1,wlev
 end do  
 
 ! now process staggered v locations
-ramp_a(:,:)=1.
+ramp_a(:,:) = 1.
 call seekval(ri,ssi,ddi,ddvy,y2i,ramp_a)
 call seekval(rn,ssn,ddn,ddvy,y2n,ramp_a)
-do jj=1,2
-  do ii=1,wlev
-    drhobardyv(:,ii,jj)=ramp_a(:,ii)*(rn(:,ii,jj)-ri(:,ii,jj))*eev(1:ifull)*emv(1:ifull)/ds
+do jj = 1,2
+  do ii =1,wlev
+    drhodyv(:,ii,jj) = ramp_a(:,ii)*(rn(:,ii,jj)-ri(:,ii,jj))*eev(1:ifull)*emv(1:ifull)/ds
   end do
 end do
-ramp_c(:,:)=1.
-ramp_e(:,:)=1.
+ramp_c(:,:) = 1.
+ramp_e(:,:) = 1.
 call seekval(re, sse, dde, ddvy,y2e, ramp_c)
 call seekval(rne,ssne,ddne,ddvy,y2ne,ramp_c)
 call seekval(rw, ssw, ddw, ddvy,y2w, ramp_e)
 call seekval(rnw,ssnw,ddnw,ddvy,y2nw,ramp_e)
-do jj=1,2
-  do ii=1,wlev
-    drhobardxv(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,3)*(re(:,ii,jj)+rne(:,ii,jj)      &
-                                                         -ri(:,ii,jj)-rn(:,ii,jj))*emv(1:ifull)/ds)     &
-                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,4)*(ri(:,ii,jj)+rn(:,ii,jj)       &
-                                                         -rw(:,ii,jj)-rnw(:,ii,jj))*emv(1:ifull)/ds)
+do jj = 1,2
+  do ii = 1,wlev
+    drhodxv(:,ii,jj) = ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,3)*(re(:,ii,jj)+rne(:,ii,jj)   &
+                                                        -ri(:,ii,jj)-rn(:,ii,jj))*emv(1:ifull)/ds)  &
+                     + ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,4)*(ri(:,ii,jj)+rn(:,ii,jj)    &
+                                                        -rw(:,ii,jj)-rnw(:,ii,jj))*emv(1:ifull)/ds)
   end do
 end do
 
@@ -4757,7 +4827,7 @@ end subroutine mlospline
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate gradients using an interpolation method - linear
 
-subroutine seekdelta_l(rhobar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+subroutine seekdelta_l(rho,drhodxu,drhodyu,drhodxv,drhodyv)
 
 use indices_m
 use map_m
@@ -4774,8 +4844,8 @@ real, dimension(ifull,wlev) :: ramp_a,ramp_c,ramp_e
 real, dimension(ifull+iextra,wlev) :: dd_i
 real, dimension(ifull,wlev,2) :: ri,re,rw,rn,rs,ren,res,rne,rnw
 real, dimension(ifull,wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,sses,ssne,ssnw
-real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
-real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull+iextra,wlev,2), intent (in) :: rho
+real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
 
 ! Here we calculate the slow contribution of the pressure gradient
 
@@ -4798,8 +4868,8 @@ end do
 
 do jj = 1,2
   do ii = 1,wlev
-    ssi(:,ii,jj)=rhobar(1:ifull,ii,jj)
-    call unpack_ne(rhobar(:,ii,jj),ssn(:,ii,jj),sse(:,ii,jj))
+    ssi(:,ii,jj)=rho(1:ifull,ii,jj)
+    call unpack_ne(rho(:,ii,jj),ssn(:,ii,jj),sse(:,ii,jj))
   end do
 end do  
 do ii = 1,wlev
@@ -4811,9 +4881,9 @@ do jj = 1,2
   do ii = 1,wlev
 !$omp simd
     do iq = 1,ifull  
-      sss(iq,ii,jj) =rhobar(is(iq),ii,jj)
-      ssen(iq,ii,jj)=rhobar(ien(iq),ii,jj)
-      sses(iq,ii,jj)=rhobar(ies(iq),ii,jj)
+      sss(iq,ii,jj) =rho(is(iq),ii,jj)
+      ssen(iq,ii,jj)=rho(ien(iq),ii,jj)
+      sses(iq,ii,jj)=rho(ies(iq),ii,jj)
     end do  
   end do
 end do  
@@ -4827,26 +4897,26 @@ do ii = 1,wlev
 end do  
 
 ! process staggered u locations
-ramp_a(:,:)=1.
+ramp_a(:,:) = 1.
 call seekval_l(ri,ssi,ddi,ddux,ramp_a)
 call seekval_l(re,sse,dde,ddux,ramp_a)
-do jj=1,2
-  do ii=1,wlev
-    drhobardxu(:,ii,jj)=ramp_a(:,ii)*(re(:,ii,jj)-ri(:,ii,jj))*eeu(1:ifull)*emu(1:ifull)/ds
+do jj = 1,2
+  do ii = 1,wlev
+    drhodxu(:,ii,jj) = ramp_a(:,ii)*(re(:,ii,jj)-ri(:,ii,jj))*eeu(1:ifull)*emu(1:ifull)/ds
   end do
 end do
-ramp_c(:,:)=1.
-ramp_e(:,:)=1.
+ramp_c(:,:) = 1.
+ramp_e(:,:) = 1.
 call seekval_l(rn, ssn, ddn, ddux,ramp_c)
 call seekval_l(ren,ssen,dden,ddux,ramp_c)
 call seekval_l(rs, sss, dds, ddux,ramp_e)
 call seekval_l(res,sses,ddes,ddux,ramp_e)
-do jj=1,2
-  do ii=1,wlev
-    drhobardyu(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,1)*(rn(:,ii,jj)+ren(:,ii,jj)      &
-                                                         -ri(:,ii,jj)-re(:,ii,jj))*emu(1:ifull)/ds)     &
-                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,2)*(ri(:,ii,jj)+re(:,ii,jj)       &
-                                                         -rs(:,ii,jj)-res(:,ii,jj))*emu(1:ifull)/ds)
+do jj = 1,2
+  do ii = 1,wlev
+    drhodyu(:,ii,jj) = ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,1)*(rn(:,ii,jj)+ren(:,ii,jj)      &
+                                                        -ri(:,ii,jj)-re(:,ii,jj))*emu(1:ifull)/ds)     &
+                     + ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,2)*(ri(:,ii,jj)+re(:,ii,jj)       &
+                                                        -rs(:,ii,jj)-res(:,ii,jj))*emu(1:ifull)/ds)
   end do
 end do
 
@@ -4854,9 +4924,9 @@ do jj = 1,2
   do ii = 1,wlev
 !$omp simd
     do iq = 1,ifull  
-      ssw(iq,ii,jj) =rhobar(iw(iq),ii,jj)
-      ssne(iq,ii,jj)=rhobar(ine(iq),ii,jj)
-      ssnw(iq,ii,jj)=rhobar(inw(iq),ii,jj)
+      ssw(iq,ii,jj) =rho(iw(iq),ii,jj)
+      ssne(iq,ii,jj)=rho(ine(iq),ii,jj)
+      ssnw(iq,ii,jj)=rho(inw(iq),ii,jj)
     end do
   end do
 end do 
@@ -4870,26 +4940,26 @@ do ii = 1,wlev
 end do  
 
 ! now process staggered v locations
-ramp_a(:,:)=1.
+ramp_a(:,:) = 1.
 call seekval_l(ri,ssi,ddi,ddvy,ramp_a)
 call seekval_l(rn,ssn,ddn,ddvy,ramp_a)
-do jj=1,2
-  do ii=1,wlev
-    drhobardyv(:,ii,jj)=ramp_a(:,ii)*(rn(:,ii,jj)-ri(:,ii,jj))*eev(1:ifull)*emv(1:ifull)/ds
+do jj = 1,2
+  do ii = 1,wlev
+    drhodyv(:,ii,jj)=ramp_a(:,ii)*(rn(:,ii,jj)-ri(:,ii,jj))*eev(1:ifull)*emv(1:ifull)/ds
   end do
 end do
-ramp_c(:,:)=1.
-ramp_e(:,:)=1.
+ramp_c(:,:) = 1.
+ramp_e(:,:) = 1.
 call seekval_l(re, sse, dde, ddvy,ramp_c)
 call seekval_l(rne,ssne,ddne,ddvy,ramp_c)
 call seekval_l(rw, ssw, ddw, ddvy,ramp_e)
 call seekval_l(rnw,ssnw,ddnw,ddvy,ramp_e)
-do jj=1,2
-  do ii=1,wlev
-    drhobardxv(:,ii,jj)=ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,3)*(re(:,ii,jj)+rne(:,ii,jj)      &
-                                                         -ri(:,ii,jj)-rn(:,ii,jj))*emv(1:ifull)/ds)     &
-                       +ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,4)*(ri(:,ii,jj)+rn(:,ii,jj)       &
-                                                         -rw(:,ii,jj)-rnw(:,ii,jj))*emv(1:ifull)/ds)
+do jj = 1,2
+  do ii = 1,wlev
+    drhodxv(:,ii,jj) = ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,3)*(re(:,ii,jj)+rne(:,ii,jj)      &
+                                                        -ri(:,ii,jj)-rn(:,ii,jj))*emv(1:ifull)/ds)     &
+                     + ramp_a(:,ii)*ramp_e(:,ii)*(0.25*stwgt(1:ifull,4)*(ri(:,ii,jj)+rn(:,ii,jj)       &
+                                                        -rw(:,ii,jj)-rnw(:,ii,jj))*emv(1:ifull)/ds)
   end do
 end do
 
@@ -4964,9 +5034,9 @@ return
 end subroutine seekval_l
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate gradients using an interpolation method - Song
+! Calculate gradients using an interpolation method - Song 1994
 
-subroutine seekdelta_song(rhobar,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+subroutine seekdelta_song(rho,drhodxu,drhodyu,drhodxv,drhodyv)
 
 use indices_m
 use map_m
@@ -4982,8 +5052,8 @@ real, dimension(ifull+iextra,wlev) :: dd_i
 real, dimension(ifull,wlev) :: ddi,dde,ddw,ddn,dds,dden,ddes,ddne,ddnw
 real, dimension(ifull,wlev) :: ssi,sse,ssw,ssn,sss,ssen,sses,ssne,ssnw
 real, dimension(ifull,2) :: tti,tte,ttw,ttn,tts,tten,ttes,ttne,ttnw
-real, dimension(ifull+iextra,wlev,2), intent (in) :: rhobar
-real, dimension(ifull,wlev,2), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull+iextra,wlev,2), intent (in) :: rho
+real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
 
 ! Here we calculate the slow contribution of the pressure gradient
 
@@ -5007,14 +5077,14 @@ end do
 
 do jj = 1,2
   do ii = 1,wlev
-    ssi(:,ii) = rhobar(1:ifull,ii,jj)
-    call unpack_nsew(rhobar(:,ii,jj),ssn(:,ii),sss(:,ii),sse(:,ii),ssw(:,ii))
+    ssi(:,ii) = rho(1:ifull,ii,jj)
+    call unpack_nsew(rho(:,ii,jj),ssn(:,ii),sss(:,ii),sse(:,ii),ssw(:,ii))
 !$omp simd
     do iq = 1,ifull
-      ssen(iq,ii) = rhobar(ien(iq),ii,jj)
-      sses(iq,ii) = rhobar(ies(iq),ii,jj)
-      ssne(iq,ii) = rhobar(ine(iq),ii,jj)
-      ssnw(iq,ii) = rhobar(inw(iq),ii,jj)
+      ssen(iq,ii) = rho(ien(iq),ii,jj)
+      sses(iq,ii) = rho(ies(iq),ii,jj)
+      ssne(iq,ii) = rho(ine(iq),ii,jj)
+      ssnw(iq,ii) = rho(inw(iq),ii,jj)
     end do  
   end do
   
@@ -5023,8 +5093,8 @@ do jj = 1,2
     iip1 = min(ii + 1,wlev)
     iim1 = max(ii - 1,1)
     
-    drhobardxu(:,ii,jj)=ddsong(sse(:,iip1),sse(:,iim1),ssi(:,iip1),ssi(:,iim1), &
-                               dde(:,iip1),dde(:,iim1),ddi(:,iip1),ddi(:,iim1)) &
+    drhodxu(:,ii,jj)=ddsong(sse(:,iip1),sse(:,iim1),ssi(:,iip1),ssi(:,iim1), &
+                            dde(:,iip1),dde(:,iim1),ddi(:,iip1),ddi(:,iim1)) &
                         *eeu(1:ifull)*emu(1:ifull)/ds
 
     do kk = 1,2
@@ -5036,20 +5106,20 @@ do jj = 1,2
       tts(:,kk) = sss(:,kkpm)
       ttes(:,kk) = sses(:,kkpm)
     end do  
-    drhobardyu(:,ii,jj)=0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds                          &
-                        *(ddsong(ttn(:,2),ttn(:,1),tti(:,2),tti(:,1),                  &
-                                 ddn(:,iip1),ddn(:,iim1),ddi(:,iip1),ddi(:,iim1))      &
-                         +ddsong(tten(:,2),tten(:,1),tte(:,2),tte(:,1),                &
-                                 dden(:,iip1),dden(:,iim1),dde(:,iip1),dde(:,iim1)))   &
-                       +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds                          &
-                        *(ddsong(tti(:,2),tti(:,1),tts(:,2),tts(:,1),                  &
-                                 ddi(:,iip1),ddi(:,iim1),dds(:,iip1),dds(:,iim1))      &
-                         +ddsong(tte(:,2),tte(:,1),ttes(:,2),ttes(:,1),                &
-                                 dde(:,iip1),dde(:,iim1),ddes(:,iip1),ddes(:,iim1)))
+    drhodyu(:,ii,jj)=0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds                          &
+                     *(ddsong(ttn(:,2),ttn(:,1),tti(:,2),tti(:,1),                  &
+                              ddn(:,iip1),ddn(:,iim1),ddi(:,iip1),ddi(:,iim1))      &
+                      +ddsong(tten(:,2),tten(:,1),tte(:,2),tte(:,1),                &
+                              dden(:,iip1),dden(:,iim1),dde(:,iip1),dde(:,iim1)))   &
+                    +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds                          &
+                     *(ddsong(tti(:,2),tti(:,1),tts(:,2),tts(:,1),                  &
+                              ddi(:,iip1),ddi(:,iim1),dds(:,iip1),dds(:,iim1))      &
+                      +ddsong(tte(:,2),tte(:,1),ttes(:,2),ttes(:,1),                &
+                              dde(:,iip1),dde(:,iim1),ddes(:,iip1),ddes(:,iim1)))
 
   ! now process staggered v locations
-    drhobardyv(:,ii,jj)=ddsong(ssn(:,iip1),ssn(:,iim1),ssi(:,iip1),ssi(:,iim1), &
-                               ddn(:,iip1),ddn(:,iim1),ddi(:,iip1),ddi(:,iim1)) &
+    drhodyv(:,ii,jj)=ddsong(ssn(:,iip1),ssn(:,iim1),ssi(:,iip1),ssi(:,iim1), &
+                            ddn(:,iip1),ddn(:,iim1),ddi(:,iip1),ddi(:,iim1)) &
                         *eev(1:ifull)*emv(1:ifull)/ds
     do kk = 1,2  
       kkpm = min( max( ii-3+2*kk, 1 ), wlev )  
@@ -5060,16 +5130,16 @@ do jj = 1,2
       ttw(:,kk) = ssw(:,kkpm)
       ttnw(:,kk) = ssnw(:,kkpm)
     end do  
-    drhobardxv(:,ii,jj)=0.25*stwgt(1:ifull,3)*emv(1:ifull)/ds                            &
-                        *(ddsong(tte(:,2),tte(:,1),tti(:,2),tti(:,1),                    &
-                                 dde(:,iip1),dde(:,iim1),ddi(:,iip1),ddi(:,iim1))        &
-                         +ddsong(ttne(:,2),ttne(:,1),ttn(:,2),ttn(:,1),                  &
-                                 ddne(:,iip1),ddne(:,iim1),ddn(:,iip1),ddn(:,iim1)))     &
-                       +0.25*stwgt(1:ifull,4)*emv(1:ifull)/ds                            &
-                        *(ddsong(tti(:,2),tti(:,1),ttw(:,2),ttw(:,1),                    &
-                                 ddi(:,iip1),ddi(:,iim1),ddw(:,iip1),ddw(:,iim1))        &
-                         +ddsong(ttn(:,2),ttn(:,1),ttnw(:,2),ttnw(:,1),                  &
-                                 ddn(:,iip1),ddn(:,iim1),ddnw(:,iip1),ddnw(:,iim1)))       
+    drhodxv(:,ii,jj)=0.25*stwgt(1:ifull,3)*emv(1:ifull)/ds                            &
+                     *(ddsong(tte(:,2),tte(:,1),tti(:,2),tti(:,1),                    &
+                              dde(:,iip1),dde(:,iim1),ddi(:,iip1),ddi(:,iim1))        &
+                      +ddsong(ttne(:,2),ttne(:,1),ttn(:,2),ttn(:,1),                  &
+                              ddne(:,iip1),ddne(:,iim1),ddn(:,iip1),ddn(:,iim1)))     &
+                    +0.25*stwgt(1:ifull,4)*emv(1:ifull)/ds                            &
+                     *(ddsong(tti(:,2),tti(:,1),ttw(:,2),ttw(:,1),                    &
+                              ddi(:,iip1),ddi(:,iim1),ddw(:,iip1),ddw(:,iim1))        &
+                      +ddsong(ttn(:,2),ttn(:,1),ttnw(:,2),ttnw(:,1),                  &
+                              ddn(:,iip1),ddn(:,iim1),ddnw(:,iip1),ddnw(:,iim1)))       
   end do
 
 end do
@@ -5093,6 +5163,175 @@ end where
 
 return
 end function ddsong
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate gradients using a 4th order scheme - McCalpin 1997
+
+subroutine seekdelta_mccalpin(rho,drhodxu,drhodyu,drhodxv,drhodyv,ddddxu,ddddyu,ddddxv,ddddyv)
+
+use cc_mpi
+use indices_m
+use map_m
+use mlo, only : wlev
+use newmpar_m
+use parm_m
+
+implicit none
+
+integer ii, jj, iq
+real, dimension(ifull) :: ddi,dde,ddw,ddn,dds,dden,ddes,ddne,ddnw
+real, dimension(ifull) :: ddnn, ddee, ddww, ddss
+real, dimension(ifull) :: ssi,sse,ssw,ssn,sss,ssen,sses,ssne,ssnw
+real, dimension(ifull) :: ssss, ssww, ssee, ssnn
+real, dimension(ifull+iextra,wlev,2), intent (in) :: rho
+real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
+real, dimension(ifull), intent(out) :: ddddxu, ddddyu, ddddxv, ddddyv
+logical, dimension(ifull) :: lsm_e, lsm_n, lsm_s, lsm_w
+
+! Here we calculate the slow contribution of the pressure gradient
+
+! dP/dx = g rhobar dneta/dx + g sigma D drhobar/dx + g sigma neta drhobar/dx
+!                   (fast)               (slow)          (mixed - neglected?)
+
+! rhobar = int_0^sigma rho dsigma / sigma
+
+ddi = dd(1:ifull)
+call unpack_nsew(dd,ddn,dds,dde,ddw)
+!$omp simd
+do iq = 1,ifull
+  ddnn(iq) = dd(inn(iq))
+  ddss(iq) = dd(iss(iq))
+  ddee(iq) = dd(iee(iq))
+  ddww(iq) = dd(iww(iq))
+  dden(iq) = dd(ien(iq))
+  ddes(iq) = dd(ies(iq))
+  ddne(iq) = dd(ine(iq))
+  ddnw(iq) = dd(inw(iq))
+end do
+
+lsm_e = ee(iee)>0.5 .and. ee(ie)>0.5 .and. ee(1:ifull)>0.5 .and. ee(iw)>0.5
+lsm_n = ee(inn)>0.5 .and. ee(in)>0.5 .and. ee(1:ifull)>0.5 .and. ee(is)>0.5
+lsm_w = ee(ie)>0.5 .and. ee(1:ifull)>0.5 .and. ee(iw)>0.5 .and. ee(iww)>0.5
+lsm_s = ee(in)>0.5 .and. ee(1:ifull)>0.5 .and. ee(is)>0.5 .and. ee(iss)>0.5
+
+where ( lsm_e )
+  ddddxu = (-(1./24.)*ddee+(27./24.)*dde-(27./24.)*ddi+(1./24.)*ddw)*eeu(1:ifull)*emu(1:ifull)/ds
+elsewhere
+  ddddxu = (dde-ddi)*eeu(1:ifull)*emu(1:ifull)/ds  
+end where
+where ( lsm_n )
+  ddddxv = 0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds*(-(1./24.)*ddnn+(27./24.)*ddn  &
+                                                  -(27./24.)*ddi+(1./24.)*dds)  &
+          +0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds*(dden-dde)
+elsewhere
+  ddddxv = 0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds*(ddn-ddi+dden-dde)  
+end where
+where ( lsm_s )
+  ddddxv = ddddxv                                                               &  
+          +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds*(-(1./24.)*ddn+(27./24.)*ddi   &
+                                                  -(27./24.)*dds+(1./24.)*ddss) &
+          +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds*(dde-ddes)  
+elsewhere    
+  ddddxv = ddddxv                                                   &
+          +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds*(ddi-dds+dde-ddes)
+end where
+where( lsm_e )
+  ddddyu = 0.25*stwgt(1:ifull,3)*emu(1:ifull)/ds*(-(1./24.)*ddee+(27./24.)*dde  &
+                                                  -(27./24.)*ddi+(1./24.)*ddw)  &
+          +0.25*stwgt(1:ifull,3)*emu(1:ifull)/ds*(ddne-ddn)
+elsewhere
+  ddddyu = 0.25*stwgt(1:ifull,3)*emv(1:ifull)/ds*(dde-ddi+ddne-ddn)  
+end where
+where ( lsm_w )
+  ddddyu = ddddyu                                                               &  
+          +0.25*stwgt(1:ifull,4)*emu(1:ifull)/ds*(-(1./24.)*dde+(27./24.)*ddi   &
+                                                  -(27./24.)*ddw+(1./24.)*ddww) &
+          +0.25*stwgt(1:ifull,4)*emu(1:ifull)/ds*(ddn-ddnw)  
+elsewhere
+  ddddyu = ddddyu                                                   & 
+          +0.25*stwgt(1:ifull,4)*emv(1:ifull)/ds*(ddi-ddw+ddn-ddnw)
+end where  
+where ( lsm_n )
+  ddddyv = (-(1./24.)*ddnn+(27./24.)*ddn-(27./24.)*ddi+(1./24.)*dds)*eev(1:ifull)*emv(1:ifull)/ds
+elsewhere
+  ddddyv = (ddn-ddi)*eev(1:ifull)*emv(1:ifull)/ds  
+end where
+
+do jj = 1,2
+  do ii = 1,wlev
+    ssi(:) = rho(1:ifull,ii,jj)
+    call unpack_nsew(rho(:,ii,jj),ssn(:),sss(:),sse(:),ssw(:))
+!$omp simd
+    do iq = 1,ifull
+      ssnn(iq) = rho(inn(iq),ii,jj)
+      ssss(iq) = rho(iss(iq),ii,jj)
+      ssee(iq) = rho(iee(iq),ii,jj)
+      ssww(iq) = rho(iww(iq),ii,jj)
+      
+      ssen(iq) = rho(ien(iq),ii,jj)
+      sses(iq) = rho(ies(iq),ii,jj)
+      ssne(iq) = rho(ine(iq),ii,jj)
+      ssnw(iq) = rho(inw(iq),ii,jj)
+    end do  
+
+    ! process staggered u locations 
+    where ( lsm_e )
+      drhodxu(:,ii,jj)=(-(1./24.)*ssee(:)+(27./24.)*sse(:)-(27./24.)*ssi(:)+(1./24.)*ssw(:)) &
+                       *eeu(1:ifull)*emu(1:ifull)/ds ! 4th order
+    elsewhere
+      drhodxu(:,ii,jj)=(sse(:)-ssi(:))*eeu(1:ifull)*emu(1:ifull)/ds ! 2nd order  
+    end where    
+    
+    where ( lsm_n )
+      drhodyu(:,ii,jj)=0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds*(-(1./24.)*ssnn(:)+(27./24.)*ssn(:)  &
+                                                              -(27./24.)*ssi(:)+(1./24.)*sss(:))  &
+                      +0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds*(ssen(:)-sse(:)) ! 4th order
+    elsewhere
+      drhodyu(:,ii,jj)=0.25*stwgt(1:ifull,1)*emu(1:ifull)/ds*(ssn(:)-ssi(:)+ssen(:)-sse(:)) ! 2nd order
+    end where
+    where ( lsm_s )
+      drhodyu(:,ii,jj)=drhodyu(:,ii,jj)                                                           &
+                      +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds*(-(1./24.)*ssn(:)+(27./24.)*ssi(:)   &
+                                                              -(27./24.)*sss(:)+(1./24.)*ssss(:)) &
+                      +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds*(sse(:)-sses(:)) ! 4th order
+    elsewhere  
+      drhodyu(:,ii,jj)=drhodyu(:,ii,jj)                                                     &
+                      +0.25*stwgt(1:ifull,2)*emu(1:ifull)/ds*(ssi(:)-sss(:)+sse(:)-sses(:)) ! 2nd order
+    end where  
+
+    ! now process staggered v locations
+    where ( lsm_n )
+      drhodyv(:,ii,jj)=(-(1./24.)*ssnn(:)+(27./24.)*ssn(:)-(27./24.)*ssi(:)+(1./24.)*sss(:)) &
+                       *eev(1:ifull)*emv(1:ifull)/ds ! 4th order
+    elsewhere
+      drhodyv(:,ii,jj)=(ssn(:)-ssi(:))*eev(1:ifull)*emv(1:ifull)/ds ! 2nd order  
+    end where    
+  
+    where ( lsm_e )
+      drhodxv(:,ii,jj)=0.25*stwgt(1:ifull,3)*emu(1:ifull)/ds*(-(1./24.)*ssee(:)+(27./24.)*sse(:)  &
+                                                              -(27./24.)*ssi(:)+(1./24.)*ssw(:))  &
+                      +0.25*stwgt(1:ifull,3)*emv(1:ifull)/ds*(ssne(:)-ssn(:)) ! 4th order
+    elsewhere    
+      drhodxv(:,ii,jj)=0.25*stwgt(1:ifull,3)*emv(1:ifull)/ds*(sse(:)-ssi(:)+ssne(:)-ssn(:)) ! 2nd order
+    end where
+    where ( lsm_w )
+      drhodxv(:,ii,jj)=drhodxv(:,ii,jj)                                                           &
+                      +0.25*stwgt(1:ifull,4)*emu(1:ifull)/ds*(-(1./24.)*sse(:)+(27./24.)*ssi(:)   &
+                                                              -(27./24.)*ssw(:)+(1./24.)*ssww(:)) &
+                      +0.25*stwgt(1:ifull,4)*emv(1:ifull)/ds*(ssn(:)-ssnw(:)) ! 4th order
+    elsewhere    
+      drhodxv(:,ii,jj)=drhodxv(:,ii,jj)                                                     &
+                      +0.25*stwgt(1:ifull,4)*emv(1:ifull)/ds*(ssi(:)-ssw(:)+ssn(:)-ssnw(:)) ! 2nd order
+    end where
+
+    
+  end do
+
+end do
+
+return
+end subroutine seekdelta_mccalpin
+
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate tidal potential
@@ -5333,8 +5572,8 @@ call mgsor_init
 
 ! ocean
 
-call unpack_svwu(stwgt(:,1),stwgt(:,3),stwgt3_isv,stwgt1_iwu)
-call unpack_svwu(stwgt(:,2),stwgt(:,4),stwgt4_isv,stwgt2_iwu)
+call unpack_svwu(stwgt(:,1),stwgt(:,4),stwgt4_isv,stwgt1_iwu)
+call unpack_svwu(stwgt(:,2),stwgt(:,3),stwgt3_isv,stwgt2_iwu)
 call unpack_svwu(ddu,ddv,dd_isv,dd_iwu)
 call unpack_nsew(dd,dd_n,dd_s,dd_e,dd_w)
 call unpack_svwu(emu,emv,em_isv,em_iwu)
@@ -5369,30 +5608,30 @@ svs = 0.5*ss_isv*dd_isv/ds
 ! zz*(d2neta/dx2+d2neta/dy2) + zz*d2neta/dxdy + hh*neta = rhs
 
 zzn(:,1) = (1.+ocneps)*0.5*dt*qvn*em(1:ifull)**2/ds                                           &
-          +(1.+ocneps)*0.5*dt*(stwgt(1:ifull,1)*sue+stwgt1_iwu*suw                            &
-                              -stwgt(1:ifull,3)*svn-stwgt(1:ifull,4)*svn)*em(1:ifull)**2/ds
+          +(1.+ocneps)*0.5*dt*(stwgt(1:ifull,1)*sue-stwgt1_iwu*suw                            &
+                              -stwgt(1:ifull,3)*svn+stwgt(1:ifull,4)*svn)*em(1:ifull)**2/ds
 zzs(:,1) = (1.+ocneps)*0.5*dt*qvs*em(1:ifull)**2/ds                                           &
-          +(1.+ocneps)*0.5*dt*(stwgt(1:ifull,2)*sue+stwgt2_iwu*suw                            &
-                              -stwgt3_isv*svs-stwgt4_isv*svs)*em(1:ifull)**2/ds
+          +(1.+ocneps)*0.5*dt*(-stwgt(1:ifull,2)*sue+stwgt2_iwu*suw                            &
+                              +stwgt3_isv*svs-stwgt4_isv*svs)*em(1:ifull)**2/ds
 zze(:,1) = (1.+ocneps)*0.5*dt*que*em(1:ifull)**2/ds                                           &
-          +(1.+ocneps)*0.5*dt*(-stwgt(1:ifull,1)*sue-stwgt(1:ifull,2)*sue                     &
-                               +stwgt(1:ifull,3)*svn+stwgt3_isv*svs)*em(1:ifull)**2/ds
+          +(1.+ocneps)*0.5*dt*(-stwgt(1:ifull,1)*sue+stwgt(1:ifull,2)*sue                     &
+                               +stwgt(1:ifull,3)*svn-stwgt3_isv*svs)*em(1:ifull)**2/ds
 zzw(:,1) = (1.+ocneps)*0.5*dt*quw*em(1:ifull)**2/ds                                           &
-          +(1.+ocneps)*0.5*dt*(-stwgt1_iwu*suw-stwgt2_iwu*suw                                 &
-                               +stwgt(1:ifull,4)*svn+stwgt4_isv*svs)*em(1:ifull)**2/ds
+          +(1.+ocneps)*0.5*dt*(stwgt1_iwu*suw-stwgt2_iwu*suw                                  &
+                              -stwgt(1:ifull,4)*svn+stwgt4_isv*svs)*em(1:ifull)**2/ds
 zzne(:,1)= (1.+ocneps)*0.5*dt*(stwgt(1:ifull,3)*svn)*em(1:ifull)**2/ds
 zzen(:,1)= (1.+ocneps)*0.5*dt*(stwgt(1:ifull,1)*sue)*em(1:ifull)**2/ds
-zzse(:,1)= (1.+ocneps)*0.5*dt*(stwgt3_isv*svs)*em(1:ifull)**2/ds 
-zzes(:,1)= (1.+ocneps)*0.5*dt*(stwgt(1:ifull,2)*sue)*em(1:ifull)**2/ds
+zzse(:,1)= (1.+ocneps)*0.5*dt*(-stwgt3_isv*svs)*em(1:ifull)**2/ds 
+zzes(:,1)= (1.+ocneps)*0.5*dt*(-stwgt(1:ifull,2)*sue)*em(1:ifull)**2/ds
 zzsw(:,1)= (1.+ocneps)*0.5*dt*(stwgt4_isv*svs)*em(1:ifull)**2/ds
 zzws(:,1)= (1.+ocneps)*0.5*dt*(stwgt2_iwu*suw)*em(1:ifull)**2/ds
-zznw(:,1)= (1.+ocneps)*0.5*dt*(stwgt(1:ifull,4)*svn)*em(1:ifull)**2/ds
-zzwn(:,1)= (1.+ocneps)*0.5*dt*(stwgt1_iwu*suw)*em(1:ifull)**2/ds
+zznw(:,1)= (1.+ocneps)*0.5*dt*(-stwgt(1:ifull,4)*svn)*em(1:ifull)**2/ds
+zzwn(:,1)= (1.+ocneps)*0.5*dt*(-stwgt1_iwu*suw)*em(1:ifull)**2/ds
 zz(:,1)  = (1.+ocneps)*0.5*dt*(-qvn-qvs-que-quw)*em(1:ifull)**2/ds                            &
-          +(1.+ocneps)*0.5*dt*(-stwgt(1:ifull,1)*sue-stwgt(1:ifull,2)*sue                     &
-                               -stwgt1_iwu*suw-stwgt2_iwu*suw                                 &
-                               -stwgt(1:ifull,3)*svn-stwgt(1:ifull,4)*svn                     &
-                               -stwgt3_isv*svs-stwgt4_isv*svs)*em(1:ifull)**2/ds
+          +(1.+ocneps)*0.5*dt*(-stwgt(1:ifull,1)*sue+stwgt(1:ifull,2)*sue                     &
+                               +stwgt1_iwu*suw-stwgt2_iwu*suw                                 &
+                               -stwgt(1:ifull,3)*svn+stwgt(1:ifull,4)*svn                     &
+                               +stwgt3_isv*svs-stwgt4_isv*svs)*em(1:ifull)**2/ds
 
 hh(:) = 1.
 
@@ -5407,24 +5646,24 @@ call unpack_svwu(icu,icv,ic_isv,ic_iwu)
 call unpack_svwu(niu,niv,ni_isv,ni_iwu)
 
 zzn(:,2) = -ibv(1:ifull)/ds                                                                        &
-           +(-stwgt(1:ifull,1)*icu-stwgt1_iwu*ic_iwu+stwgt(1:ifull,3)*icv+stwgt(1:ifull,4)*icv)/ds
+           +(-stwgt(1:ifull,1)*icu+stwgt1_iwu*ic_iwu+stwgt(1:ifull,3)*icv-stwgt(1:ifull,4)*icv)/ds
 zzs(:,2) = -ib_isv/ds                                                                              &
-           +(-stwgt(1:ifull,2)*icu-stwgt2_iwu*ic_iwu+stwgt3_isv*ic_isv+stwgt4_isv*ic_isv)/ds
+           +(stwgt(1:ifull,2)*icu-stwgt2_iwu*ic_iwu-stwgt3_isv*ic_isv+stwgt4_isv*ic_isv)/ds
 zze(:,2) = -ibu(1:ifull)/ds                                                                        &
-           +(stwgt(1:ifull,1)*icu+stwgt(1:ifull,2)*icu-stwgt(1:ifull,3)*icv-stwgt3_isv*ic_isv)/ds
+           +(stwgt(1:ifull,1)*icu-stwgt(1:ifull,2)*icu-stwgt(1:ifull,3)*icv+stwgt3_isv*ic_isv)/ds
 zzw(:,2) = -ib_iwu/ds                                                                              &
-           +(stwgt1_iwu*ic_iwu+stwgt2_iwu*ic_iwu-stwgt(1:ifull,4)*icv-stwgt4_isv*ic_isv)/ds
+           +(-stwgt1_iwu*ic_iwu+stwgt2_iwu*ic_iwu+stwgt(1:ifull,4)*icv-stwgt4_isv*ic_isv)/ds
 zzne(:,2)= (-stwgt(1:ifull,3)*icv)/ds
 zzen(:,2)= (-stwgt(1:ifull,1)*icu)/ds
-zzse(:,2)= (-stwgt3_isv*ic_isv)/ds 
-zzes(:,2)= (-stwgt(1:ifull,2)*icu)/ds
+zzse(:,2)= (stwgt3_isv*ic_isv)/ds 
+zzes(:,2)= (stwgt(1:ifull,2)*icu)/ds
 zzsw(:,2)= (-stwgt4_isv*ic_isv)/ds
 zzws(:,2)= (-stwgt2_iwu*ic_iwu)/ds
-zznw(:,2)= (-stwgt(1:ifull,4)*icv)/ds
-zzwn(:,2)= (-stwgt1_iwu*ic_iwu)/ds
+zznw(:,2)= (stwgt(1:ifull,4)*icv)/ds
+zzwn(:,2)= (stwgt1_iwu*ic_iwu)/ds
 zz(:,2)  = (ibu(1:ifull)+ib_iwu+ibv(1:ifull)+ib_isv)/ds                                             &
-          +(stwgt(1:ifull,1)*icu+stwgt(1:ifull,2)*icu+stwgt1_iwu*ic_iwu+stwgt2_iwu*ic_iwu           &
-           +stwgt(1:ifull,3)*icv+stwgt(1:ifull,4)*icv+stwgt3_isv*ic_isv+stwgt4_isv*ic_isv)/ds
+          +(stwgt(1:ifull,1)*icu-stwgt(1:ifull,2)*icu-stwgt1_iwu*ic_iwu+stwgt2_iwu*ic_iwu           &
+           +stwgt(1:ifull,3)*icv-stwgt(1:ifull,4)*icv-stwgt3_isv*ic_isv+stwgt4_isv*ic_isv)/ds
 
 rhs(:,2) = min(niu(1:ifull)/emu(1:ifull)-ni_iwu/em_iwu+niv(1:ifull)/emv(1:ifull)-ni_isv/em_isv,0.)
 

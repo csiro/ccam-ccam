@@ -165,6 +165,7 @@ real ateb_industryfg, ateb_trafficfg, ateb_vegalphac
 real ateb_wallalpha, ateb_roadalpha, ateb_roofalpha
 real ateb_wallemiss, ateb_roademiss, ateb_roofemiss
 real ateb_infilach,  ateb_intgains, ateb_bldairtemp
+real ateb_heatprop, ateb_coolprop
 real ateb_zovegc
 real ps_adj
 real, dimension(4) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
@@ -203,7 +204,7 @@ namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     ateb_road_thick,ateb_road_cp,ateb_road_cond,                  &
     ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                  &
     ateb_infilach,ateb_intgains,ateb_bldairtemp,                  &
-    ateb_zovegc
+    ateb_heatprop,ateb_coolprop,ateb_zovegc
 ! main namelist
 namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,             &
@@ -335,6 +336,8 @@ ateb_slab_cp = -999.
 ateb_slab_cond = -999.
 ateb_infilach = -999.
 ateb_intgains = -999.
+ateb_heatprop = -999.
+ateb_coolprop = -999.
 ateb_bldairtemp = -999.
 ateb_zovegc = -999.
 ateb_energytol = 0.005_8
@@ -471,7 +474,7 @@ call initialscm(scm_mode,metforcing,lsmforcing,press_in(1:kl),press_surf,z_in,iv
                 ateb_road_thick,ateb_road_cp,ateb_road_cond,                            &
                 ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                            &
                 ateb_infilach,ateb_intgains,ateb_bldairtemp,                            &
-                ateb_zovegc)
+                ateb_heatprop,ateb_coolprop,ateb_zovegc)
 
 allocate( t_save(ifull,kl), qg_save(ifull,kl), u_save(ifull,kl), v_save(ifull,kl) )
 allocate( psl_save(ifull) )
@@ -811,7 +814,7 @@ subroutine initialscm(scm_mode,metforcing,lsmforcing,press_in,press_surf,z_in,iv
                       ateb_road_thick,ateb_road_cp,ateb_road_cond,                      &
                       ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                      &
                       ateb_infilach,ateb_intgains,ateb_bldairtemp,                      &
-                      ateb_zovegc)
+                      ateb_heatprop,ateb_coolprop,ateb_zovegc)
 
 use aerointerface                          ! Aerosol interface
 use aerosolldr                             ! LDR prognostic aerosols
@@ -874,6 +877,7 @@ real, intent(in) :: ateb_industryfg, ateb_trafficfg, ateb_vegalphac
 real, intent(in) :: ateb_roofalpha, ateb_wallalpha, ateb_roadalpha
 real, intent(in) :: ateb_roofemiss, ateb_wallemiss, ateb_roademiss
 real, intent(in) :: ateb_infilach,  ateb_intgains, ateb_bldairtemp
+real, intent(in) :: ateb_heatprop, ateb_coolprop
 real, intent(in) :: ateb_zovegc
 real, dimension(4), intent(in) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4), intent(in) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
@@ -1414,6 +1418,14 @@ if (nurban/=0) then
   if ( ateb_infilach>-900. ) then
     atebparm(1:8) = ateb_infilach
     call atebdeftype(atebparm(1:8),urbantype,'infilach',0)
+  end if
+  if ( ateb_heatprop>-900. ) then
+    atebparm(1:8) = ateb_heatprop
+    call atebdeftype(atebparm(1:8),urbantype,'heatprop',0)
+  end if
+  if ( ateb_coolprop>-900. ) then
+    atebparm(1:8) = ateb_coolprop
+    call atebdeftype(atebparm(1:8),urbantype,'coolprop',0)
   end if
   if ( ateb_intgains>-900. ) then
     atebparm(1:8) = ateb_intgains

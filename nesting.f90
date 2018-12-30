@@ -2966,42 +2966,28 @@ implicit none
 
 integer, intent(in) :: ilen
 real, dimension(:,:), intent(in) :: at
-real, dimension(size(at,2),ilen) :: at_t
+real, dimension(size(at,2)+1,ilen) :: at_t
 real, dimension(:), intent(in) :: ra
 real, dimension(:), intent(in) :: asum
 real, dimension(:), intent(out) :: out_sum
-real, dimension(size(at,2)+1) :: e, t1, t2, array
+real, dimension(size(at,2)+1) :: e, t1, t2
 complex, dimension(size(at,2)+1) :: local_sum
 integer :: i, kx, kn
 
 kn = size(at,2)
 kx = kn + 1
 
-!if ( size(at,1)<ilen ) then
-!  write(6,*) "ERROR: at is too small in drpdr_fast"
-!  stop
-!end if
-
-!if ( size(ra)<ilen ) then
-!  write(6,*) "ERROR: ra is too small in drpdr_fast"
-!  stop
-!end if
-
-!if ( size(out_sum)<kx ) then
-!  write(6,*) "ERROR: out_sum is too small in drpdr_fast"
-!  stop
-!end if
-
 local_sum(1:kx) = (0.,0.)
 
-at_t(1:kn,1:ilen) = transpose( at(1:ilen,1:kn) )
+do i = 1,kn
+  at_t(i,1:ilen) = ra(1:ilen)*at(1:ilen,i)
+end do
+at_t(kx,1:ilen) = ra(1:ilen)*asum(1:ilen)
 
 do i = 1,ilen
-  array(1:kn) = ra(i)*at_t(1:kn,i)
-  array(kx)   = ra(i)*asum(i)
-  t1(1:kx) = array(1:kx) + real(local_sum(1:kx))
-  e(1:kx)  = t1(1:kx) - array(1:kx)
-  t2(1:kx) = ((real(local_sum(1:kx)) - e(1:kx)) + (array(1:kx) - (t1(1:kx) - e(1:kx)))) + aimag(local_sum(1:kx))
+  t1(1:kx) = at_t(1:kx,i) + real(local_sum(1:kx))
+  e(1:kx)  = t1(1:kx) - at_t(1:kx,i)
+  t2(1:kx) = ((real(local_sum(1:kx)) - e(1:kx)) + (at_t(1:kx,i) - (t1(1:kx) - e(1:kx)))) + aimag(local_sum(1:kx))
   local_sum(1:kx) = cmplx( t1(1:kx) + t2(1:kx), t2(1:kx) - ((t1(1:kx) + t2(1:kx)) - t1(1:kx)) )
 end do  
 
