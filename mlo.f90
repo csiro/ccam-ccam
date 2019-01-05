@@ -3637,7 +3637,7 @@ integer, intent(in) :: diag
 integer iqw, ii, maxlevel
 real aa, bb, dsf, deldz, delt
 real, dimension(wfull,wlev) :: sdic
-real, dimension(wfull) :: newdic, newicesal, newtn, cdic
+real, dimension(wfull) :: newdic, newicesal, cdic
 real, dimension(wfull), intent(inout) :: d_timelt, d_zcr
 type(icedata), intent(inout) :: ice
 type(waterdata), intent(inout) :: water
@@ -3692,9 +3692,9 @@ do ii=1,maxlevel
   sdic(:,ii)=max(min(sdic(:,ii),newdic-cdic),0.)
   cdic=cdic+sdic(:,ii)  
   where ( lnewice .and. depth%dz(:,ii)>1.e-4 )
-    newtn=(1.-ice%fracice)*qice*sdic(:,ii)/(cp0*rhowt*depth%dz(:,ii)*d_zcr)
-    water%temp(:,ii)=water%temp(:,ii)+newtn
-    water%sal(:,ii) = water%sal(:,ii)*(1.+(1.-ice%fracice)*sdic(:,ii)*rhoic/(rhowt*depth%dz(:,ii)*d_zcr))
+    water%temp(:,ii)=water%temp(:,ii)+(1.-ice%fracice)*qice*sdic(:,ii)/(cp0*rhowt*depth%dz(:,ii)*d_zcr)
+    water%sal(:,ii) =water%sal(:,ii)+water%sal(:,ii)*(1.-ice%fracice)*sdic(:,ii)*rhoic &
+                      /(rhowt*depth%dz(:,ii)*d_zcr)
   end where
 end do
 
@@ -3729,11 +3729,11 @@ do iqw=1,wfull
     ! update average temperature and salinity
     delt=ice%fracice(iqw)*ice%thick(iqw)*qice
     delt=delt+ice%fracice(iqw)*ice%snowd(iqw)*qsnow
-    delt=delt+ice%fracice(iqw)*ice%store(iqw)
-    delt=delt+ice%fracice(iqw)*gammi*(ice%tsurf(iqw)-newicetemp) ! change from when ice formed
-    !delt=delt+ice%fracice(iqw)*cps*ice%snowd(iqw)*(ice%temp(iqw,0)-newicetemp)
-    !delt=delt+ice%fracice(iqw)*cpi*ice%thick(iqw)*0.5*(ice%temp(iqw,1)-newicetemp)
-    !delt=delt+ice%fracice(iqw)*cpi*ice%thick(iqw)*0.5*(ice%temp(iqw,2)-newicetemp)
+    delt=delt-ice%fracice(iqw)*ice%store(iqw)
+    delt=delt-ice%fracice(iqw)*gammi*(ice%tsurf(iqw)-newicetemp) ! change from when ice formed
+    !delt=delt-ice%fracice(iqw)*cps*ice%snowd(iqw)*(ice%temp(iqw,0)-newicetemp)
+    !delt=delt-ice%fracice(iqw)*cpi*ice%thick(iqw)*0.5*(ice%temp(iqw,1)-newicetemp)
+    !delt=delt-ice%fracice(iqw)*cpi*ice%thick(iqw)*0.5*(ice%temp(iqw,2)-newicetemp)
     
     ! adjust temperature and salinity in water column
     dsf = 0.
@@ -3741,8 +3741,12 @@ do iqw=1,wfull
       aa = depth%dz(iqw,ii)*d_zcr(iqw)
       bb = max(minsfc-dsf,0.)
       deldz = min(aa,bb)
-      water%temp(iqw,ii) = water%temp(iqw,ii) + delt*deldz/(cp0*rhowt*minsfc)
-      water%sal(iqw,ii) = water%sal(iqw,ii)*(1.-ice%fracice(iqw)*newdic(iqw)*deldz/minsfc*rhoic/(rhowt*aa))
+      sdic(iqw,ii) = newdic(iqw)*deldz/minsfc
+      if ( depth%dz(iqw,ii)>1.e-4 ) then
+        water%temp(iqw,ii)=water%temp(iqw,ii)-delt*(deldz/minsfc)/(cp0*rhowt*depth%dz(iqw,ii)*d_zcr(iqw))
+        water%sal(iqw,ii) =water%sal(iqw,ii)/(1.+(1.-ice%fracice(iqw))*sdic(iqw,ii)*rhoic &
+                            /(rhowt*depth%dz(iqw,ii)*d_zcr(iqw)))
+      end if  
       dsf = dsf + deldz
       if ( bb<=0. ) exit
     end do
