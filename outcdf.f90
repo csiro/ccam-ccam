@@ -404,7 +404,14 @@ if ( myid==0 .or. local ) then
     if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
       call ccnf_def_var(idnc,'olev','float',1,dimo(3:3),idoc)
       call ccnf_put_att(idnc,idoc,'point_spacing','uneven')
-      call ccnf_put_att(idnc,idoc,'units','sigma_level')
+      if ( mlosigma>=0 .and. mlosigma<4 ) then
+        call ccnf_put_att(idnc,idoc,'units','sigma_level')
+      else if ( mlosigma>3 .and. mlosigma<6 ) then
+        call ccnf_put_att(idnc,idoc,'units','depth')  
+      else
+        write(6,*) "ERROR: Unknown option mlosigma ",mlosigma
+        call ccmpi_abort(-1)
+      end if    
       if ( myid==0 ) write(6,*) 'idoc=',idoc
     end if  
     
@@ -927,7 +934,7 @@ use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
 use mlo, only : wlev,mlosave,mlodiag,       &    ! Ocean physics and prognostic arrays
                 mloexpdep,mloexport,wrtemp, &
-                oclosure
+                oclosure,mlovlevels
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use morepbl_m                                    ! Additional boundary layer diagnostics
@@ -986,6 +993,7 @@ real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep, ocnheight
 real, dimension(ifull) :: qtot, tv
 real, dimension(ms) :: zsoil
+real, dimension(wlev) :: zocean
 real, dimension(ifull,10) :: micdwn
 real, dimension(ifull,kl) :: tmpry
 real, dimension(ifull,kl) :: rhoa
@@ -2174,7 +2182,8 @@ if( myid==0 .or. local ) then
     call ccnf_put_vara(idnc,idms,1,ms,zsoil)
         
     if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
-      call ccnf_put_vara(idnc,idoc,1,wlev,gosig)
+      call mlovlevels(zocean)  ! can be sigma or z*, depending on mlosigma
+      call ccnf_put_vara(idnc,idoc,1,wlev,zocean)
     end if
     
     ! procformat

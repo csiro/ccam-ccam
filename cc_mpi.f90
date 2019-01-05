@@ -165,6 +165,7 @@ module cc_mpi
    end interface
    interface ccglobal_posneg
       module procedure ccglobal_posneg2, ccglobal_posneg3, ccglobal_posneg4
+      module procedure ccglobal_posneg3o, ccglobal_posneg4o
    end interface
    interface readglobvar
       module procedure readglobvar2, readglobvar3, readglobvar2i
@@ -2667,6 +2668,41 @@ contains
       delneg = real(global_sum(2))
 
    end subroutine ccglobal_posneg3
+   
+   subroutine ccglobal_posneg3o(array, delpos, delneg, dsig)
+      ! Calculate global sums of positive and negative values of array
+      use sumdd_m
+      use xyzinfo_m
+      real, intent(in), dimension(:,:) :: array
+      real, intent(in), dimension(:,:) :: dsig
+      real, intent(out) :: delpos, delneg
+      integer :: k, kx
+      integer(kind=4) :: ierr, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
+#else
+      integer(kind=4), parameter :: ltype = MPI_COMPLEX
+#endif   
+      complex, dimension(2) :: local_sum, global_sum
+      real, dimension(ifull) :: tmparr
+       
+      kx = size(array,2)   
+      local_sum(1:2) = cmplx(0., 0.)
+      do k = 1,kx
+         tmparr(1:ifull) = max(0., -dsig(1:ifull,k)*array(1:ifull,k)*wts(1:ifull))
+         call drpdr_local(tmparr, local_sum(1))
+         tmparr(1:ifull) = min(0., -dsig(1:ifull,k)*array(1:ifull,k)*wts(1:ifull))
+         call drpdr_local(tmparr, local_sum(2))
+      end do ! k loop
+      global_sum(1:2) = cmplx(0., 0.)
+      lcomm = comm_world
+      call START_LOG(allreducepn_begin)
+      call MPI_Allreduce( local_sum, global_sum, 2_4, ltype, MPI_SUMDR, lcomm, ierr )
+      call END_LOG(allreducepn_end)
+      delpos = real(global_sum(1))
+      delneg = real(global_sum(2))
+
+   end subroutine ccglobal_posneg3o
 
    subroutine ccglobal_posneg4 (array, delpos, delneg, dsig)
       ! Calculate global sums of positive and negative values of array
@@ -2706,6 +2742,45 @@ contains
       delneg(1:ntr) = real(global_sum(ntr+1:2*ntr))
 
    end subroutine ccglobal_posneg4
+   
+   subroutine ccglobal_posneg4o(array, delpos, delneg, dsig)
+      ! Calculate global sums of positive and negative values of array
+      use sumdd_m
+      use xyzinfo_m
+      real, intent(in), dimension(:,:,:) :: array
+      real, intent(in), dimension(:,:) :: dsig
+      real, intent(out), dimension(:) :: delpos, delneg
+      integer :: i, k, kx, ntr
+      integer(kind=4) :: ierr, mnum, lcomm
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
+#else
+      integer(kind=4), parameter :: ltype = MPI_COMPLEX
+#endif   
+      complex, dimension(2*size(array,3)) :: local_sum, global_sum
+      real, dimension(ifull) :: tmparr
+
+      kx  = size(array,2)
+      ntr = size(array,3)
+      local_sum(1:2*ntr) = cmplx(0.,0.)
+      do i = 1,ntr
+         do k=1,kx
+            tmparr(1:ifull) = max(0.,-dsig(1:ifull,k)*array(1:ifull,k,i)*wts(1:ifull))
+            call drpdr_local(tmparr, local_sum(i))
+            tmparr(1:ifull) = min(0.,-dsig(1:ifull,k)*array(1:ifull,k,i)*wts(1:ifull))
+            call drpdr_local(tmparr, local_sum(i+ntr))
+         end do ! k loop
+      end do
+      mnum = 2*ntr
+      global_sum(1:2*ntr) = cmplx(0.,0.)
+      lcomm = comm_world
+      call START_LOG(allreducepn_begin)
+      call MPI_Allreduce( local_sum, global_sum, mnum, ltype, MPI_SUMDR, lcomm, ierr )
+      call END_LOG(allreducepn_end)
+      delpos(1:ntr) = real(global_sum(1:ntr))
+      delneg(1:ntr) = real(global_sum(ntr+1:2*ntr))
+
+   end subroutine ccglobal_posneg4o
    
    subroutine bounds_setup(dt)
 

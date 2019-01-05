@@ -1689,8 +1689,10 @@ real, dimension(ifull,wlev,2), intent(in) :: suvb
 real, dimension(ifull,1) :: diffh_l
 real, dimension(ifull,kblock) :: diff_l,diffs_l
 real, dimension(ifull,kblock) :: diffu_l,diffv_l
+real, dimension(ifull) :: dz
 real, dimension(ifull) :: old
 logical lblock
+logical, dimension(ifull,wlev) :: wtr
 real nudgewgt
  
 ka = 0
@@ -1705,10 +1707,20 @@ else
   nudgewgt = real(nud_period)/(120.*real(mloalpha)) ! mloalpha=12 implies 24 hours
 end if
 
+wtr(:,:) = .false.
+do k = 1,wlev
+  dz(:) = 0.  
+  call mloexpdep(1,dz(:),k,0)
+  where ( dz(:)>1.e-4 )
+    wtr(:,k) = .true.  
+  end where  
+end do
+
+
 if ( nud_sfh/=0 ) then
   old = sfh
   call mloexport(4,old,0,0)
-  where ( .not.land )
+  where ( wtr(:,1) )
     diffh_l(:,1) = sfh - old
   elsewhere
     diffh_l(:,1) = 0.
@@ -1731,7 +1743,7 @@ do kbb = ktopmlo,kc,kblock
       kb = k - kln + 1
       old = sstb(:,k)
       call mloexport(0,old,k,0)
-      where ( .not.land )
+      where ( wtr(:,k) )
         diff_l(:,kb) = sstb(:,k) - old
       elsewhere
         diff_l(:,kb) = 0.
@@ -1744,7 +1756,7 @@ do kbb = ktopmlo,kc,kblock
       kb = k - kln + 1
       old = sssb(:,k)
       call mloexport(1,old,k,0)
-      where ( .not.land )
+      where ( wtr(:,k) )
         diffs_l(:,kb) = sssb(:,k) - old
       elsewhere
         diffs_l(:,kb) = 0.
@@ -1757,14 +1769,14 @@ do kbb = ktopmlo,kc,kblock
       kb = k - kln + 1
       old = suvb(:,k,1)
       call mloexport(2,old,k,0)
-      where ( .not.land )
+      where ( wtr(:,k) )
         diffu_l(:,kb) = suvb(:,k,1) - old
       elsewhere
         diffu_l(:,kb) = 0.
       end where
       old = suvb(:,k,2)
       call mloexport(3,old,k,0)
-      where ( .not.land )
+      where ( wtr(:,k) )
         diffv_l(:,kb) = suvb(:,k,2) - old
       elsewhere
         diffv_l(:,kb) = 0.

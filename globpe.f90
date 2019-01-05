@@ -1304,7 +1304,7 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,pdl,pdu,nsteps,k_mode,eps_mode      &
     ,limitL,fixedce3,calcinloop,nops     &
     ,nopb,fixedstabfunc,omink => mink    &
-    ,omineps => mineps
+    ,omineps => mineps,mlovlevels
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
@@ -1367,11 +1367,12 @@ integer mstn, io_nest, mbd_min
 integer opt, nopt
 integer npa, npb, mlomfix, tkecduv ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
-real, dimension(:), allocatable, save :: dumr
+real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
 real targetlev, dsx, pwatr_l, pwatr
 real(kind=8), dimension(:), allocatable, save :: dumr8
+logical lmlosigma
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) optarg
 character(len=60) comm, comment
@@ -2569,8 +2570,8 @@ if ( myid<nproc ) then
     nrows_rad = nrows_rad - 1
   end do
   if ( myid==0 ) then
-    write(6,*) "il_g,jl_g,il,jl   ",il_g,jl_g,il,jl
-    write(6,*) "nxp,nyp,nrows_rad ",nxp,nyp,nrows_rad
+    write(6,*) "il_g,jl_g,il,jl ",il_g,jl_g,il,jl
+    write(6,*) "nxp,nyp         ",nxp,nyp
   end if
 
   ! some default values for unspecified parameters
@@ -2720,7 +2721,7 @@ if ( myid<nproc ) then
     write(6,'(i5,2i7,f10.2)') nrad,mins_rad,iaero,dt
     write(6,*)'Radiation options B:'
     write(6,*)' nmr bpyear sw_diff_streams sw_resolution'
-    write(6,'(i4,f9.2,i4,a5,i4)') nmr,bpyear,sw_diff_streams,sw_resolution
+    write(6,'(i4,f9.2,i4," ",a5,i4)') nmr,bpyear,sw_diff_streams,sw_resolution
     write(6,*)'Radiation options C:'
     write(6,*)' liqradmethod iceradmethod carbonradmethod'
     write(6,'(3i4)') liqradmethod,iceradmethod,carbonradmethod
@@ -3062,13 +3063,19 @@ if ( myid<nproc ) then
 
   ! fix ocean nuding levels
   if ( nmlo/=0 ) then
+    allocate( gosig_in(ol) )
+    call mlovlevels(gosig_in)
+    lmlosigma = any(gosig_in>1.)
     if ( kbotmlo<0 )  then
-      targetlev = real(-kbotmlo)/1000.
+      targetlev = real(-kbotmlo)/1000.  
+      if ( .not.lmlosigma ) then  
+        targetlev = targetlev*mxd
+      end if    
       do k = ol,1,-1
-        if ( gosig(k)<=targetlev ) then
+        if ( gosig_in(k)<=targetlev ) then
           kbotmlo = k
           if ( myid==0 ) then
-            write(6,*) "kbotmlo adjusted to ",kbotmlo,"for sig ",gosig(kbotmlo)
+            write(6,*) "kbotmlo adjusted to ",kbotmlo,"for sig ",gosig_in(kbotmlo)
           end if
           exit
         end if
@@ -3080,11 +3087,14 @@ if ( myid<nproc ) then
     end if
     if ( ktopmlo<0 ) then
       targetlev = real(-ktopmlo)/1000.
+      if ( .not.lmlosigma ) then  
+        targetlev = targetlev*mxd
+      end if  
       do k = 1,ol
-        if ( gosig(k)>=targetlev ) then
+        if ( gosig_in(k)>=targetlev ) then
           ktopmlo = k
           if ( myid==0 ) then
-            write(6,*) "ktopmlo adjusted to ",ktopmlo,"for sig ",gosig(ktopmlo)
+            write(6,*) "ktopmlo adjusted to ",ktopmlo,"for sig ",gosig_in(ktopmlo)
           end if
           exit
         end if
@@ -3099,6 +3109,7 @@ if ( myid<nproc ) then
       write(6,*) "kbotmlo,ktopmlo ",kbotmlo,ktopmlo
       call ccmpi_abort(-1)
     end if
+    deallocate(gosig_in)
   end if  
 
   ! identify reference level ntbar for temperature

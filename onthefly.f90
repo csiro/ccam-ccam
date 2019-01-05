@@ -43,6 +43,7 @@ integer, save :: ik, jk, kk, ok, nsibx                        ! input grid size
 integer fwsize                                                ! size of temporary arrays
 integer, save :: nemi = -1                                    ! land-sea mask method (3=soilt, 2=zht, 1=ocndepth, -1=fail)
 integer, save :: fill_land = 0                                ! number of iterations required for land fill
+integer, save :: fill_floor = 0                               ! number of iterations required for floor fill (3d ocean)
 integer, save :: fill_sea = 0                                 ! number of iterations required for ocean fill
 integer, save :: fill_nourban = 0                             ! number of iterations required for urban fill
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
@@ -57,6 +58,10 @@ real, dimension(:), allocatable, save :: sigin                ! input vertical c
 real, dimension(:), allocatable, save :: gosig_in             ! input ocean levels
 real, dimension(:,:,:,:), allocatable, save :: sx             ! working array for interpolation
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
+
+interface fill_cc4
+  module procedure fill_cc4_3d, fill_cc4_1
+end interface
 
 contains
 
@@ -336,7 +341,7 @@ integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
-integer, dimension(7), save :: iers
+integer, dimension(8), save :: iers
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
 real, dimension(:,:,:), intent(out) :: xtgdwn
@@ -354,15 +359,16 @@ real, dimension(:), allocatable :: fracice_a, sicedep_a
 real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
 real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_a
-real, dimension(kk+ok+7) :: dumr
+real, dimension(kk+ok+8) :: dumr
 character(len=20) vname
 character(len=3) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
-logical u10_found, carbon_found, mlo_found, mlo2_found
+logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
 logical zht_found, urban_found
 logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
+logical, dimension(:,:), allocatable, save :: land_3d
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
@@ -419,17 +425,19 @@ if ( .not.allocated(nface4) ) then
 end if
 if ( newfile ) then
   if ( allocated(sigin) ) then
-    deallocate( sigin, gosig_in, land_a, sea_a, nourban_a )
+    deallocate( sigin, gosig_in, land_a, land_3d, sea_a, nourban_a )
   end if
-  allocate( sigin(kk), gosig_in(ok), land_a(fwsize), sea_a(fwsize), nourban_a(fwsize) )
+  allocate( sigin(kk), gosig_in(ok), land_a(fwsize), land_3d(fwsize,ok), sea_a(fwsize), nourban_a(fwsize) )
   sigin     = 1.
-  if ( ok>0 ) gosig_in = 1.
+  gosig_in  = 1.
   land_a    = .false.
+  land_3d   = .false.
   sea_a     = .true.
   nourban_a = .false.
   ! reset fill counters
-  fill_land = 0
-  fill_sea = 0
+  fill_land    = 0
+  fill_floor   = 0
+  fill_sea     = 0
   fill_nourban = 0
   ! reset land-sea mask search
   nemi = -1
@@ -545,6 +553,7 @@ if ( newfile ) then
     if ( ok>0 ) then
       call ccnf_inq_varid(ncid,'olev',idv,tst)
       if ( tst ) then
+        ! default for old code without olev  
         mxd_o = 5000.
         x_o = real(wlev)
         al_o = mxd_o*(x_o/mxd_o-1.)/(x_o-x_o*x_o*x_o)         ! sigma levels
@@ -557,6 +566,7 @@ if ( newfile ) then
           gosig_in(k) = 0.5*(depth_hl_xo+depth_hl_yo)
         end do
       else
+        ! usual  
         call ccnf_get_vara(ncid,idv,1,ok,gosig_in)
       end if  
     end if
@@ -576,6 +586,8 @@ if ( newfile ) then
     if ( tst ) iers(6) = -1
     call ccnf_inq_varid(ncid,'t1_rooftgg1',idv,tst)
     if ( tst ) iers(7) = -1
+    call ccnf_inq_varid(ncid,'uic',idv,tst)
+    if ( tst ) iers(8) = -1
     call ccnf_inq_varid(ncid,'tsu',idv,tst)
     if ( tst ) then
       write(6,*) "ERROR: Cannot locate tsu in input file"
@@ -586,16 +598,12 @@ if ( newfile ) then
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk)      = sigin(1:kk)
-    dumr(kk+1:kk+7) = real(iers(1:7))
-    if ( ok>0 ) then
-      dumr(kk+8:kk+ok+7) = gosig_in(1:ok)
-      call ccmpi_bcast(dumr(1:kk+ok+7),0,comm_world)
-      gosig_in(1:ok) = dumr(kk+8:kk+ok+7)
-    else
-      call ccmpi_bcast(dumr(1:kk+7),0,comm_world)
-    end if  
+    dumr(kk+1:kk+8) = real(iers(1:8))
+    if ( ok>0 ) dumr(kk+9:kk+ok+8) = gosig_in(1:ok)
+    call ccmpi_bcast(dumr(1:kk+ok+8),0,comm_world)
     sigin(1:kk) = dumr(1:kk)
-    iers(1:7)   = nint(dumr(kk+1:kk+7))
+    iers(1:8)   = nint(dumr(kk+1:kk+8))
+    if ( ok>0 ) gosig_in(1:ok) = dumr(kk+9:kk+ok+8)
   end if
   
   mixr_found    = iers(1)==0
@@ -605,6 +613,7 @@ if ( newfile ) then
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
   urban_found   = iers(7)==0
+  mloice_found  = iers(8)==0
   
   ! determine whether zht needs to be read
   zht_found = nested==0 .or. (nested==1.and.retopo_test/=0) .or.          &
@@ -671,7 +680,7 @@ if ( newfile ) then
       allocate( ocndep_a(fwsize) )
       call histrd(iarchi,ier,'ocndepth',ik,ocndep_a,6*ik*ik)
       if ( fwsize>0 ) then
-        if ( nemi==-1) then  
+        if ( nemi==-1 ) then  
           nemi = 2  
           land_a = ocndep_a<0.1 ! 3rd guess for land-sea mask
         end if  
@@ -679,8 +688,28 @@ if ( newfile ) then
     end if  
   end if
   
-  sea_a = .not.land_a
-
+  ! set-up land_3d mask for z* ocean
+  ! and set-up sea_a array
+  if ( fwsize>0 ) then
+    if ( mlo_found ) then
+      if ( any(gosig_in>1.) ) then
+        ! found z* ocean levels  
+        land_3d = .false.  
+        do k = 1,ok
+          where ( land_a .or. gosig_in(k)>=ocndep_a ) 
+            land_3d(:,k) = .true.
+          end where  
+        end do
+      else
+        ! found sigma ocean levels  
+        do k = 1,ok
+          land_3d(:,k) = land_a 
+        end do
+      endif
+    end if  
+    sea_a = .not.land_a
+  end if  
+  
   ! check that land-sea mask is definied
   if ( fwsize>0 .and. .not.(tss_test.and.iop_test) ) then
     if ( nemi==-1 ) then
@@ -721,6 +750,7 @@ else
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
   urban_found   = iers(7)==0
+  mloice_found  = iers(8)==0
   zht_found     = nested==0 .or. (nested==1.and.retopo_test/=0) .or.      &
       nested==3 .or. .not.(soilt_found.or.mlo_found)
   tss_test      = siced_found .and. fracice_found .and. iotest
@@ -878,20 +908,22 @@ else
     ucc6(:,1) = tss_s_a
     ucc6(:,2) = sicedep_a
     ucc6(:,3) = fracice_a
-    call fill_cc4(ucc6(:,1:3),land_a,fill_land)
+    if ( mlo_found ) then
+      ucc6(:,4) = ocndep_a
+      call fill_cc4(ucc6(:,1:4),land_a,fill_land)
+      ocndep_a = ucc6(:,4)
+    else    
+      call fill_cc4(ucc6(:,1:3),land_a,fill_land)
+    end if  
     tss_s_a   = ucc6(:,1)
     sicedep_a = ucc6(:,2)
     fracice_a = ucc6(:,3)
   end if ! fwsize>0
 
   if ( fwsize>0 ) then
-     ucc6(:,1:2) = 0.
-     if ( zht_found ) then
-      ucc6(:,1) = zss_a
-    end if
-    if ( mlo_found ) then
-      ucc6(:,2) = ocndep_a
-    end if  
+    ucc6(:,1:2) = 0.
+    if ( zht_found ) ucc6(:,1) = zss_a
+    if ( mlo_found ) ucc6(:,2) = ocndep_a
     ucc6(:,3) = tss_l_a
     ucc6(:,4) = tss_s_a
     ucc6(:,5) = sicedep_a
@@ -899,9 +931,7 @@ else
   end if          
   call doints4(ucc6(:,1:6),udum6(:,1:6))
   zss      = udum6(:,1)
-  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
-    ocndwn(1:ifull,1) = udum6(1:ifull,2)
-  end if  
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) ocndwn(1:ifull,1) = udum6(1:ifull,2)
   tss_l    = udum6(:,3)
   tss_s    = udum6(:,4)
   sicedep  = udum6(:,5)
@@ -1023,9 +1053,9 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     ! as no fractional land or sea cover is allowed in CCAM
     if ( (nested/=1.or.nud_sst/=0) .and. ok>0 ) then
       if ( mlo2_found ) then
-        call fillhist4o('thetao',mlodwn(:,:,1),land_a,fill_land,ocndwn(:,1))  
+        call fillhist4o('thetao',mlodwn(:,:,1),land_3d,fill_floor,ocndwn(:,1))
       else
-        call fillhist4o('tgg',mlodwn(:,:,1),land_a,fill_land,ocndwn(:,1))
+        call fillhist4o('tgg',mlodwn(:,:,1),land_3d,fill_floor,ocndwn(:,1))
       end if  
       where ( mlodwn(1:ifull,1:wlev,1)>100. )
         mlodwn(1:ifull,1:wlev,1) = mlodwn(1:ifull,1:wlev,1) - wrtemp ! remove temperature offset for precision
@@ -1034,18 +1064,18 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     ! ocean salinity
     if ( (nested/=1.or.nud_sss/=0) .and. ok>0 ) then
       if ( mlo2_found ) then
-        call fillhist4o('so',mlodwn(:,:,2),land_a,fill_land,ocndwn(:,1))  
+        call fillhist4o('so',mlodwn(:,:,2),land_3d,fill_floor,ocndwn(:,1))  
       else    
-        call fillhist4o('sal',mlodwn(:,:,2),land_a,fill_land,ocndwn(:,1))
+        call fillhist4o('sal',mlodwn(:,:,2),land_3d,fill_floor,ocndwn(:,1))
       end if  
       mlodwn(1:ifull,1:wlev,2) = max( mlodwn(1:ifull,1:wlev,2), 0. )
     end if ! (nestesd/=1.or.nud_sss/=0) ..else..
     ! ocean currents
     if ( (nested/=1.or.nud_ouv/=0) .and. ok>0 ) then
       if ( mlo2_found ) then
-        call fillhistuv4o('uo','vo',mlodwn(:,:,3),mlodwn(:,:,4),land_a,fill_land,ocndwn(:,1))  
+        call fillhistuv4o('uo','vo',mlodwn(:,:,3),mlodwn(:,:,4),land_3d,fill_floor,ocndwn(:,1))  
       else    
-        call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_a,fill_land,ocndwn(:,1))
+        call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_3d,fill_floor,ocndwn(:,1))
       end if  
     end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
   end if   ! mlo_found
@@ -1386,7 +1416,7 @@ if ( nested/=1 .and. nested/=3 ) then
     micdwn(1:ifull,8) = 0.  ! sto
     micdwn(1:ifull,9) = 0.  ! uic
     micdwn(1:ifull,10) = 0. ! vic
-    if ( mlo_found ) then
+    if ( mloice_found ) then
       call fillhist4('tggsn',micdwn(:,1:4),land_a,fill_land)
       call fillhist1('sto',micdwn(:,8),land_a,fill_land)
       call fillhistuv1o('uic','vic',micdwn(:,9),micdwn(:,10),land_a,fill_land)
@@ -1688,11 +1718,9 @@ if ( nested/=1 .and. nested/=3 ) then
   if ( nested==0 .and. (abs(nmlo)>=1.and.abs(nmlo)<=9) ) then
     mlodwn(:,:,5:8) = 0.
     if ( mlo2_found ) then
-      !call fillhist4o('kmo',mlodwn(:,:,5),land_a,fill_land,ocndwn(:,1))  
-      !call fillhist4o('kso',mlodwn(:,:,6),land_a,fill_land,ocndwn(:,1))  
       if ( oclosure==1 ) then
-        call fillhist4o('tkeo',mlodwn(:,:,7),land_a,fill_land,ocndwn(:,1))  
-        call fillhist4o('epso',mlodwn(:,:,8),land_a,fill_land,ocndwn(:,1))
+        call fillhist4o('tkeo',mlodwn(:,:,7),land_3d,fill_floor,ocndwn(:,1))  
+        call fillhist4o('epso',mlodwn(:,:,8),land_3d,fill_floor,ocndwn(:,1))
       end if  
     end if  
   end if
@@ -2292,7 +2320,7 @@ call END_LOG(otf_fill_end)
 return
 end subroutine fill_cc1
 
-subroutine fill_cc4(a_io,land_a,fill_count)
+subroutine fill_cc4_3d(a_io,land_3d,fill_count)
       
 ! routine fills in interior of an array which has undefined points
 ! this version is distributed over processes with input files
@@ -2302,15 +2330,16 @@ use infile          ! Input file routines
 
 implicit none
 
+real, dimension(:,:), intent(inout) :: a_io
 integer, intent(inout) :: fill_count
 integer nrem, j, n, k, kx
-integer ncount, cc, ipf, local_count
+integer cc, ipf, local_count
 integer, dimension(pipan) :: ccount
+integer, dimension(size(a_io,2)) :: ncount
 real, parameter :: value=999.       ! missing value flag
-real, dimension(:,:), intent(inout) :: a_io
 real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc,size(a_io,2)) :: c_io
 real, dimension(pipan) :: csum
-logical, dimension(fwsize), intent(in) :: land_a
+logical, dimension(:,:), intent(in) :: land_3d
 logical, dimension(pipan) :: maska
 
 ! only perform fill on processors reading input files
@@ -2321,7 +2350,7 @@ call START_LOG(otf_fill_begin)
 kx = size(a_io,2)
 
 do k = 1,kx
-  where ( land_a(1:fwsize) )
+  where ( land_3d(1:fwsize,k) )
     a_io(1:fwsize,k) = value
   end where
 end do
@@ -2332,11 +2361,11 @@ c_io = value
 
 do while ( nrem>0 )
   c_io(1:pipan,1:pjpan,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pipan, pjpan, pnpan, mynproc, kx /) )
-  ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
   call ccmpi_filebounds_send(c_io,comm_ip)
+  ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
-  if ( ncount>0 ) then
-    do k = 1,kx
+  do k = 1,kx
+    if ( ncount(k)>0 ) then
       do ipf = 1,mynproc
         do n = 1,pnpan
           do j = 2,pjpan-1
@@ -2366,12 +2395,12 @@ do while ( nrem>0 )
           end do
         end do
       end do
-    end do
-  end if
+    end if
+  end do
   call ccmpi_filebounds_recv(c_io,comm_ip)
   ! update halo
-  if ( ncount>0 ) then
-    do k = 1,kx
+  do k = 1,kx
+    if ( ncount(k)>0 ) then  
       do ipf = 1,mynproc
         do n = 1,pnpan
           cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
@@ -2447,15 +2476,15 @@ do while ( nrem>0 )
           end where
         end do
       end do
-    end do
-    ncount = count( abs(a_io(1:fwsize,kx)-value)<1.E-6 )
-  end if
+      ncount(k) = count( abs(a_io(1:fwsize,k)-value)<1.E-6 )
+    end if
+  end do
   ! test for convergence
   local_count = local_count + 1
   if ( local_count==fill_count ) then
     nrem = 0  
   else if ( local_count>fill_count ) then
-    call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
+    call ccmpi_allreduce(ncount(kx),nrem,'sum',comm_ip)
     if ( nrem==6*ik*ik ) then
       if ( myid==0 ) then
         write(6,*) "Cannot perform fill as all points are trivial"    
@@ -2471,7 +2500,25 @@ fill_count = local_count
 call END_LOG(otf_fill_end)
 
 return
-end subroutine fill_cc4
+end subroutine fill_cc4_3d
+
+subroutine fill_cc4_1(a_io,land_a,fill_count)
+
+implicit none
+
+integer, intent(inout) :: fill_count
+integer k
+real, dimension(:,:), intent(inout) :: a_io
+logical, dimension(:), intent(in) :: land_a
+logical, dimension(size(a_io,1),size(a_io,2)) :: land_3d
+
+do k = 1,size(a_io,2)
+  land_3d(:,k) = land_a
+end do
+call fill_cc4_3d(a_io,land_3d,fill_count)
+
+return
+end subroutine fill_cc4_1
 
 ! *****************************************************************************
 ! OROGRAPHIC ADJUSTMENT ROUTINES
@@ -2734,7 +2781,7 @@ end if
 return
 end subroutine interpcurrent1
 
-subroutine interpcurrent4(uct,vct,ucc,vcc,mask_a,fill_count)
+subroutine interpcurrent4(uct,vct,ucc,vcc,mask_3d,fill_count)
       
 use cc_mpi           ! CC MPI routines
 use newmpar_m        ! Grid parameters
@@ -2749,10 +2796,8 @@ real, dimension(fwsize,ok) :: wcc
 real, dimension(ifull,ok), intent(out) :: uct, vct
 real, dimension(ifull,ok) :: wct
 real, dimension(fwsize) :: uc, vc, wc
-real, dimension(fwsize,ok*3) :: uvwcc
 real, dimension(ifull) :: newu, newv, neww
-real, dimension(ifull,ok*3) :: newuvw 
-logical, dimension(fwsize), intent(in) :: mask_a
+logical, dimension(fwsize,ok), intent(in) :: mask_3d
 
 if ( iotest ) then
     
@@ -2774,16 +2819,14 @@ else
     end do  ! k loop  
     ! interpolate all required arrays to new C-C positions
     ! do not need to do map factors and Coriolis on target grid
-    uvwcc(:,1:ok)        = ucc
-    uvwcc(:,ok+1:2*ok)   = vcc
-    uvwcc(:,2*ok+1:3*ok) = wcc
-    call fill_cc4(uvwcc, mask_a, fill_count)
+    call fill_cc4(ucc, mask_3d, fill_count)
+    call fill_cc4(vcc, mask_3d, fill_count)
+    call fill_cc4(wcc, mask_3d, fill_count)
   end if
-  call doints4(uvwcc, newuvw)
+  call doints4(ucc, uct)
+  call doints4(vcc, vct)
+  call doints4(wcc, wct)
   
-  uct(1:ifull,1:ok) = newuvw(1:ifull,1:ok)
-  vct(1:ifull,1:ok) = newuvw(1:ifull,ok+1:2*ok)
-  wct(1:ifull,1:ok) = newuvw(1:ifull,2*ok+1:3*ok)
   do k = 1,ok
     ! now convert to "target" Cartesian components (transpose used)  
     newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
@@ -3069,7 +3112,7 @@ return
 end subroutine fillhist4
 
 ! This version reads, fills and interpolates a 3D field for the ocean
-subroutine fillhist4o(vname,varout,mask_a,fill_count,bath)
+subroutine fillhist4o(vname,varout,mask_3d,fill_count,bath)
    
 use cc_mpi             ! CC MPI routines
 use darcdf_m           ! Netcdf data
@@ -3085,7 +3128,7 @@ real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,ok) :: ucc
 real, dimension(ifull,ok) :: u_k
 real, dimension(ifull), intent(in) :: bath
-logical, dimension(fwsize), intent(in) :: mask_a
+logical, dimension(fwsize,ok), intent(in) :: mask_3d
 character(len=*), intent(in) :: vname
 
 if ( size(varout,1)<ifull ) then
@@ -3105,12 +3148,13 @@ if ( iop_test ) then
 else
   ! for multiple input files
   call histrd(iarchi,ier,vname,ik,ok,ucc,6*ik*ik)
-  call fill_cc4(ucc,mask_a,fill_count)
+  call fill_cc4(ucc,mask_3d,fill_count)
   call doints4(ucc,u_k)
 end if ! iop_test
 
 ! vertical interpolation
-varout=0.
+!varout=0.
+varout(:,:)=0.5*(minval(u_k)+maxval(u_k)) ! easier for debuging
 call mloregrid(ok,gosig_in,bath,u_k,varout,0) ! should use mode 3 or 4?
 
 return
@@ -3133,7 +3177,7 @@ real, dimension(:,:), intent(out) :: uarout, varout
 real, dimension(fwsize,ok) :: ucc, vcc
 real, dimension(ifull,ok) :: u_k, v_k
 real, dimension(ifull), intent(in) :: bath
-logical, dimension(fwsize), intent(in) :: mask_a
+logical, dimension(fwsize,ok), intent(in) :: mask_a
 character(len=*), intent(in) :: uname, vname
 
 if ( iop_test ) then

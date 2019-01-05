@@ -57,7 +57,7 @@ implicit none
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
-       mloimport3d,mloexport3d
+       mloimport3d,mloexport3d,mlovlevels
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,nsteps
@@ -203,19 +203,19 @@ integer, save      :: mlosigma  = 0       ! Sigma levels (0=cubic, 1=quad, 2=got
 integer, save      :: oclosure  = 0       ! 0- kpp, 1- k-eps
 
 !k-eps parameters
-real, save :: pdu = 2.7                   ! Zoom factor near the surface for mlosigma==gotm
-real, save :: pdl = 0.0                   ! Zoom factor near the bottom for mlosigma==gotm
-integer, save :: nsteps = 1               ! Number of sub-steps to couple k-eps equations
-integer, save :: k_mode = 2               ! 0-fully explicit k, 1-implicit k, 2-implicit k & pb
-integer, save :: eps_mode = 2             ! 0-fully explicit eps, 1-implicit eps, 2-implicit eps & pb
-integer, save :: limitL = 1               ! 0-no length scale limit, 1-limit length scale
-integer, save :: fixedce3 = 0             ! 0-dynamic ce3, 1-fixed ce3
-integer, save :: calcinloop = 0           ! 0-shear & production outside coupling loop, 1-inside
-integer, save :: nops = 0                 ! 0-calculate shear production, 1-no shear production
-integer, save :: nopb = 0                 ! 0-calculate buoyancy production, 1-no buoyancy production
+integer, save :: nsteps        = 1        ! Number of sub-steps to couple k-eps equations
+integer, save :: k_mode        = 2        ! 0-fully explicit k, 1-implicit k, 2-implicit k & pb
+integer, save :: eps_mode      = 2        ! 0-fully explicit eps, 1-implicit eps, 2-implicit eps & pb
+integer, save :: limitL        = 1        ! 0-no length scale limit, 1-limit length scale
+integer, save :: fixedce3      = 0        ! 0-dynamic ce3, 1-fixed ce3
+integer, save :: calcinloop    = 0        ! 0-shear & production outside coupling loop, 1-inside
+integer, save :: nops          = 0        ! 0-calculate shear production, 1-no shear production
+integer, save :: nopb          = 0        ! 0-calculate buoyancy production, 1-no buoyancy production
 integer, save :: fixedstabfunc = 0        ! 0-dynamic stability functions, 1-fixed stability functions
-real, save :: mink=1.e-8                  ! Minimum k
-real, save :: mineps=1.e-11               ! Minimum eps
+real, save :: pdu    = 2.7                ! Zoom factor near the surface for mlosigma==gotm
+real, save :: pdl    = 0.0                ! Zoom factor near the bottom for mlosigma==gotm
+real, save :: mink   = 1.e-8              ! Minimum k
+real, save :: mineps = 1.e-11             ! Minimum eps
 
 ! model parameters
 real, save :: mxd      = 5002.18          ! Max depth (m)
@@ -231,39 +231,39 @@ real, parameter :: fluxwgt = 0.7          ! Time filter for flux calculations
 real, parameter :: wrtemp  = 290.         ! Water reference temperature (K)
 real, parameter :: wrtrho  = 1030.        ! Water reference density (kg m^-3)
 ! physical parameters
-real, parameter :: vkar=0.4               ! von Karman constant
-real, parameter :: lv=2.501e6             ! Latent heat of vaporisation (J kg^-1)
-real, parameter :: lf=3.337e5             ! Latent heat of fusion (J kg^-1)
-real, parameter :: ls=lv+lf               ! Latent heat of sublimation (J kg^-1)
-real, parameter :: grav=9.80              ! graviational constant (m s^-2)
-real, parameter :: sbconst=5.67e-8        ! Stefan-Boltzmann constant
-real, parameter :: cdbot=2.4e-3           ! bottom drag coefficent
-real, parameter :: cpair=1004.64          ! Specific heat of dry air at const P
-real, parameter :: rdry=287.04            ! Specific gas const for dry air
-real, parameter :: rvap=461.5             ! Gas constant for water vapor
+real, parameter :: vkar    = 0.4          ! von Karman constant
+real, parameter :: lv      = 2.501e6      ! Latent heat of vaporisation (J kg^-1)
+real, parameter :: lf      = 3.337e5      ! Latent heat of fusion (J kg^-1)
+real, parameter :: ls      = lv + lf      ! Latent heat of sublimation (J kg^-1)
+real, parameter :: grav    = 9.8          ! graviational constant (m s^-2)
+real, parameter :: sbconst = 5.67e-8      ! Stefan-Boltzmann constant
+real, parameter :: cdbot   = 2.4e-3       ! bottom drag coefficent
+real, parameter :: cpair   = 1004.64      ! Specific heat of dry air at const P
+real, parameter :: rdry    = 287.04       ! Specific gas const for dry air
+real, parameter :: rvap    = 461.5        ! Gas constant for water vapor
 ! water parameters
-real, parameter :: cp0=3990.              ! heat capacity of mixed layer (J kg^-1 K^-1)
-real, parameter :: rhowt=1025.            ! reference water density (Boussinesq fluid) (kg/m3)
-real, parameter :: salwt=34.72            ! reference water salinity (PSU)
+real, parameter :: cp0   = 3990.          ! heat capacity of mixed layer (J kg^-1 K^-1)
+real, parameter :: rhowt = 1025.          ! reference water density (Boussinesq fluid) (kg/m3)
+real, parameter :: salwt = 34.72          ! reference water salinity (PSU)
 ! ice parameters
-real, save      :: alphavis_seaice=0.85   ! Visible seaice albedo
-real, save      :: alphanir_seaice=0.45   ! Near-IR seaice albedo
-real, save      :: zoseaice=0.0005        ! roughnes length for sea-ice (m)
-real, save      :: factchseaice=1.        ! =sqrt(zo/zoh) for sea-ice
-real, parameter :: himin=0.1              ! minimum ice thickness for multiple layers (m)
-real, parameter :: icemin=0.01            ! minimum ice thickness (m)
-real, parameter :: icemax=6.              ! maximum ice thickness (m)
-real, parameter :: rhoic=900.             ! ice density (kg/m3)
-real, parameter :: rhosn=330.             ! snow density (kg/m3)
-real, parameter :: qice=lf*rhoic          ! latent heat of fusion for ice (J m^-3)
-real, parameter :: qsnow=lf*rhosn         ! latent heat of fusion for snow (J m^-3)
-real, parameter :: cpi=1.8837e6           ! specific heat ice  (J/m**3/K)
-real, parameter :: cps=6.9069e5           ! specific heat snow (J/m**3/K)
-real, parameter :: condice=2.03439        ! conductivity ice
-real, parameter :: condsnw=0.30976        ! conductivity snow
-real, parameter :: gammi=0.5*cpi*himin    ! specific heat*depth (for ice/snow) (J m^-2 K^-1)
-real, parameter :: emisice=1.             ! emissivity of ice (0.95?)
-real, parameter :: maxicesal=4.           ! Maximum salinity for sea-ice (PSU)
+real, save      :: alphavis_seaice = 0.85 ! Visible seaice albedo
+real, save      :: alphanir_seaice = 0.45 ! Near-IR seaice albedo
+real, save      :: zoseaice     = 0.0005  ! roughnes length for sea-ice (m)
+real, save      :: factchseaice = 1.      ! =sqrt(zo/zoh) for sea-ice
+real, parameter :: himin        = 0.1     ! minimum ice thickness for multiple layers (m)
+real, parameter :: icemin       = 0.01    ! minimum ice thickness (m)
+real, parameter :: icemax       = 6.      ! maximum ice thickness (m)
+real, parameter :: rhoic        = 900.    ! ice density (kg/m3)
+real, parameter :: rhosn        = 330.    ! snow density (kg/m3)
+real, parameter :: qice    = lf*rhoic     ! latent heat of fusion for ice (J m^-3)
+real, parameter :: qsnow   = lf*rhosn     ! latent heat of fusion for snow (J m^-3)
+real, parameter :: cpi     = 1.8837e6     ! specific heat ice  (J/m**3/K)
+real, parameter :: cps     = 6.9069e5     ! specific heat snow (J/m**3/K)
+real, parameter :: condice = 2.03439      ! conductivity ice
+real, parameter :: condsnw = 0.30976      ! conductivity snow
+real, parameter :: gammi = 0.5*cpi*himin  ! specific heat*depth (for ice/snow) (J m^-2 K^-1)
+real, parameter :: emisice   = 1.         ! emissivity of ice (0.95?)
+real, parameter :: maxicesal = 4.         ! Maximum salinity for sea-ice (PSU)
 ! stability function parameters
 real, parameter :: bprm=5.                ! 4.7 in rams
 real, parameter :: chs=2.6                ! 5.3 in rams
@@ -554,19 +554,19 @@ dd = min( mxd, max( mindep, depin ) )
 x = real(wlin)
 select case(mlosigma)
   case(0) ! cubic
-    al = dd*(mindep*x/mxd-1.)/(x-x*x*x)     ! sigma levels
-    bt = dd*(mindep*x*x*x/mxd-1.)/(x*x*x-x) ! sigma levels 
+    al = dd*(mindep*x/mxd-1.)/(x-x*x*x) ! sigma levels
+    bt = dd*(mindep*x*x*x/mxd-1.)/(x*x*x-x) 
     do ii = 1,wlin+1
       x = real(ii-1)
       depth_hlout(ii) = al*x*x*x + bt*x ! ii is for half level ii-0.5
     end do
     
   case(1) ! quadratic
-    al = dd*(1.-mindep*x/mxd)/(x*x-x)
+    al = dd*(1.-mindep*x/mxd)/(x*x-x)   ! sigma levels 
     bt = dd*(1.-mindep*x*x/mxd)/(x-x*x)
     do ii = 1,wlin+1
       x = real(ii-1)
-      depth_hlout(ii) = al*x*x + bt*x ! ii is for half leel ii-0.5
+      depth_hlout(ii) = al*x*x + bt*x   ! ii is for half leel ii-0.5
     end do
 
   case(2) !gotm dynamic
@@ -580,7 +580,23 @@ select case(mlosigma)
       x = real(ii-1)
       depth_hlout(ii) = x*dd/wlin
     end do
-
+    
+  case(4) ! Adcroft and Campin 2003 - cubic
+    al = (mindep*x-mxd)/(x-x*x*x)     ! z* levels
+    bt = (mindep*x*x*x-mxd)/(x*x*x-x)  
+    do ii = 1,wlin+1
+      x = real(ii-1)
+      depth_hlout(ii) = al*x*x*x + bt*x ! ii is for half level ii-0.5
+    end do
+    
+  case(5) ! Adcroft and Campin 2003 - quadratic  
+    al = (mxd-mindep*x)/(x*x-x)      ! z* levels
+    bt = (mxd-mindep*x*x)/(x-x*x)
+    do ii = 1,wlin+1
+      x = real(ii-1)
+      depth_hlout(ii) = al*x*x + bt*x ! ii is for half leel ii-0.5
+    end do
+    
   case default
     write(6,*) "ERROR: Unknown option mlosigma=",mlosigma
     stop
@@ -590,9 +606,36 @@ end select
 do ii = 1,wlin
   depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
 end do
+do ii = 1,wlin
+  depth_hlout(ii+1) = min( depth_hlout(ii+1), dd )
+  if ( depthout(ii)>dd ) then
+    depth_hlout(ii) = depth_hlout(ii+1)
+    depthout(ii) = dd
+  end if
+end do
 
 return
 end subroutine vgrid
+
+subroutine mlovlevels(ans)
+
+implicit none
+
+real, dimension(wlev), intent(out) :: ans
+real, dimension(wlev+1) :: ans_hl
+
+select case(mlosigma)
+  case(0,1,2,3)
+    call vgrid(wlev,1000.,ans,ans_hl)
+    ans = ans/1000.
+  case(4,5)
+    call vgrid(wlev,mxd,ans,ans_hl)
+  case default
+    write(6,*) "ERROR: Unknown option in mlovlevels for mlosigma ",mlosigma
+    stop
+end select
+  
+end subroutine mlovlevels  
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Deallocate MLO arrays
@@ -1476,42 +1519,55 @@ end do
 return
 end subroutine mloregrid
 
-subroutine mloregrid_work(wlin,sigin,depin,mloin,mlodat,mode, &
+subroutine mloregrid_work(wlin,sig_tmp,depin,mloin,mlodat,mode, &
                           depth,wpack,wfull)
 
 implicit none
 
 integer, intent(in) :: wlin,mode,wfull
 integer iqw,ii,pos(1)
-real, dimension(wlin), intent(in) :: sigin
+real, dimension(wlin), intent(in) :: sig_tmp
 real, dimension(imax), intent(in) :: depin
 real, dimension(imax,wlin), intent(in) :: mloin
 real, dimension(imax,wlev), intent(inout) :: mlodat
 real, dimension(wfull,wlin) :: newdata
 real, dimension(wfull,wlev) :: newdatb
 real, dimension(wfull) :: deptmp
-real, dimension(wlin) :: dpin
+real, dimension(wlin) :: dpin, sigin_tmp
 real, dimension(wlev) :: sig
+real, dimension(wfull,wlin) :: sigin
 real x
 logical, dimension(wfull), intent(in) :: wpack
 type(depthdata), intent(in) :: depth
 
 if ( wfull==0 ) return
 
+if ( sig_tmp(1)>sig_tmp(wlin) ) then
+  write(6,*) "ERROR: Input sigma levels for MLO are in reverse order"
+  stop
+end if
+
 deptmp = pack(depin,wpack)
 do ii = 1,wlin
   newdata(:,ii) = pack(mloin(:,ii),wpack)
 end do
 
-if ( sigin(1)>sigin(wlin) ) then
-  write(6,*) "ERROR: Input sigma levels for MLO are in reverse order"
-  stop
+if ( any(sig_tmp>1.) ) then
+  ! found z* levels
+  do ii = 1,wlin
+    sigin(:,ii) = sig_tmp(ii)/max(deptmp(:),1.e-8)
+  end do  
+else
+  ! found sigma levels  
+  do ii = 1,wlin
+    sigin(:,ii) = sig_tmp(ii)
+  end do
 end if
 
 select case(mode)
   case(0,1) ! interpolate to depth
     do iqw = 1,wfull
-      dpin(1:wlin) = sigin(1:wlin)*deptmp(iqw)  
+      dpin(1:wlin) = sigin(iqw,1:wlin)*deptmp(iqw)  
       if ( wlev==wlin ) then
         if ( all( abs(depth%depth(iqw,1:wlev)-dpin(1:wlev))/depth%depth(iqw,1:wlev)<1.e-6 ) ) then
           newdatb(iqw,1:wlev) = newdata(iqw,1:wlev)
@@ -1536,20 +1592,21 @@ select case(mode)
     do iqw = 1,wfull
       sig = depth%depth(iqw,:)/max(depth%depth_hl(iqw,wlev),1.e-20)
       if ( wlev==wlin ) then
-        if ( all( abs(sig(1:wlev)-sigin(1:wlev))<1.e-6 ) ) then
+        if ( all( abs(sig(1:wlev)-sigin(iqw,1:wlev))<1.e-6 ) ) then
           newdatb(iqw,1:wlev) = newdata(iqw,1:wlev)
           cycle
         end if
       end if
       do ii = 1,wlev
-        if ( sig(ii)>=sigin(wlin) ) then
+        if ( sig(ii)>=sigin(iqw,wlin) ) then
           newdatb(iqw,ii) = newdata(iqw,wlin)
-        else if ( sig(ii)<=sigin(1) ) then
+        else if ( sig(ii)<=sigin(iqw,1) ) then
           newdatb(iqw,ii) = newdata(iqw,1)
         else
-          pos = maxloc(sigin,sigin<sig(ii))
+          sigin_tmp = sigin(iqw,:)  
+          pos = maxloc(sigin_tmp,sigin_tmp<sig(ii))
           pos(1) = max(1,min(wlin-1,pos(1)))
-          x = (sig(ii)-sigin(pos(1)))/max(sigin(pos(1)+1)-sigin(pos(1)),1.e-20)
+          x = (sig(ii)-sigin(iqw,pos(1)))/max(sigin(iqw,pos(1)+1)-sigin(iqw,pos(1)),1.e-20)
           x = max(0.,min(1.,x))
           newdatb(iqw,ii) = newdata(iqw,pos(1)+1)*x+newdata(iqw,pos(1))*(1.-x)
         end if
@@ -1977,6 +2034,7 @@ implicit none
 integer, intent(in) :: wfull
 integer, intent(in) :: diag
 integer ii, iqw, i
+integer :: step
 real, intent(in) :: dt
 real, dimension(wfull,wlev), intent(inout) :: km, ks
 real, dimension(wfull,wlev), intent(inout) :: k, eps
@@ -1990,12 +2048,13 @@ real, dimension(wfull) :: vmagn, rho, atu, atv, uoave, voave
 real, dimension(wfull), intent(in) :: atm_f
 real, dimension(wfull), intent(in) :: atm_u, atm_v, atm_ps
 real, dimension(wfull), intent(inout) :: d_b0, d_ustar, d_wu0, d_wv0, d_wt0, d_ws0, d_zcr, d_neta
+logical, dimension(wfull) :: lbottom
 type(dgicedata), intent(in) :: dgice
 type(dgwaterdata), intent(inout) :: dgwater
 type(icedata), intent(in) :: ice
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
-integer :: step
+
 
 
 if ( diag>=1 ) write(6,*) "Calculate ocean mixing"
@@ -2014,24 +2073,43 @@ case(1)
   call keps(km,ks,k,eps,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull)
 end select
 
+rhs = 0.
+aa = 0._8
+bb = 1._8
+cc = 0._8
+
 ! Counter-gradient term for scalars (rhs)
 ! +ve sign for rhs terms since z +ve is down
-rhs(:,1) = ks(:,2)*gammas(:,2)/(depth%dz(:,1)*d_zcr)
+where ( depth%dz(:,1)>1.e-4 )
+  rhs(:,1) = ks(:,2)*gammas(:,2)/(depth%dz(:,1)*d_zcr)
+end where  
 do ii = 2,wlev-1
-  rhs(:,ii) = (ks(:,ii+1)*gammas(:,ii+1)-ks(:,ii)*gammas(:,ii))/(depth%dz(:,ii)*d_zcr)
+  where ( depth%dz(:,ii)>1.e-4 )  
+    rhs(:,ii) = (ks(:,ii+1)*gammas(:,ii+1)-ks(:,ii)*gammas(:,ii))/(depth%dz(:,ii)*d_zcr)
+  end where  
 end do
-rhs(:,wlev) = -ks(:,wlev)*gammas(:,wlev)/(depth%dz(:,wlev)*d_zcr)
+where ( depth%dz(:,wlev)>1.e-4 )
+  rhs(:,wlev) = -ks(:,wlev)*gammas(:,wlev)/(depth%dz(:,wlev)*d_zcr)
+end where
 
 
 ! Diffusion term for scalars (aa,bb,cc)
-cc(:,1) = -dt*ks(:,2)/(depth%dz_hl(:,2)*depth%dz(:,1)*d_zcr*d_zcr)
+where ( depth%dz_hl(:,2)*depth%dz(:,1)>1.e-4 )
+  cc(:,1) = -dt*ks(:,2)/(depth%dz_hl(:,2)*depth%dz(:,1)*d_zcr*d_zcr)
+end where  
 bb(:,1) = 1._8 - cc(:,1)
 do ii = 2,wlev-1
-  aa(:,ii) = -dt*ks(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr*d_zcr)
-  cc(:,ii) = -dt*ks(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr*d_zcr)
+  where ( depth%dz_hl(:,ii)*depth%dz(:,ii)>1.e-4 )  
+    aa(:,ii) = -dt*ks(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr*d_zcr)
+  end where
+  where ( depth%dz_hl(:,ii+1)*depth%dz(:,ii)>1.e-4 )
+    cc(:,ii) = -dt*ks(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr*d_zcr)
+  end where  
   bb(:,ii) = 1._8 - aa(:,ii) - cc(:,ii)
 end do
-aa(:,wlev) = -dt*ks(:,wlev)/(depth%dz_hl(:,wlev)*depth%dz(:,wlev)*d_zcr*d_zcr)
+where ( depth%dz_hl(:,wlev)*depth%dz(:,wlev)>1.e-4 )
+  aa(:,wlev) = -dt*ks(:,wlev)/(depth%dz_hl(:,wlev)*depth%dz(:,wlev)*d_zcr*d_zcr)
+end where  
 bb(:,wlev) = 1._8 - aa(:,wlev)
 
 
@@ -2045,9 +2123,14 @@ else
   dumt0=d_wt0
 end if
 do ii=1,wlev
-  dd(:,ii)=water%temp(:,ii)+dt*rhs(:,ii)*dumt0-dt*d_rad(:,ii)/(depth%dz(:,ii)*d_zcr)
+  dd(:,ii)=water%temp(:,ii)+dt*rhs(:,ii)*dumt0
+  where ( depth%dz(:,ii)>1.e-4 )
+    dd(:,ii)=dd(:,ii)-dt*d_rad(:,ii)/(depth%dz(:,ii)*d_zcr)
+  end where  
 end do
-dd(:,1)=dd(:,1)-dt*d_wt0/(depth%dz(:,1)*d_zcr)
+where ( depth%dz(:,1)>1.e-4 )
+  dd(:,1)=dd(:,1)-dt*d_wt0/(depth%dz(:,1)*d_zcr)
+end where  
 call thomas(water%temp,aa,bb,cc,dd)
 
 
@@ -2055,58 +2138,84 @@ call thomas(water%temp,aa,bb,cc,dd)
 do ii=1,wlev
   dd(:,ii)=water%sal(:,ii)+dt*rhs(:,ii)*d_ws0
 end do
-dd(:,1)=dd(:,1)-dt*d_ws0/(depth%dz(:,1)*d_zcr)
+where ( depth%dz(:,1)>1.e-4 )
+  dd(:,1)=dd(:,1)-dt*d_ws0/(depth%dz(:,1)*d_zcr)
+end where
 call thomas(water%sal,aa,bb,cc,dd)
 water%sal=max(0.,water%sal)
 
 
 ! Diffusion term for momentum (aa,bb,cc)
-cc(:,1) = -dt*km(:,2)/(depth%dz_hl(:,2)*depth%dz(:,1)*d_zcr*d_zcr)
+where ( depth%dz_hl(:,2)*depth%dz(:,1)>1.e-4 )
+  cc(:,1) = -dt*km(:,2)/(depth%dz_hl(:,2)*depth%dz(:,1)*d_zcr*d_zcr)
+end where
 select case( otaumode )
   case(1)
     atu = atm_u - fluxwgt*water%u(:,1) - (1.-fluxwgt)*water%utop             ! implicit
     atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*water%vtop             ! implicit
     vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                                 ! implicit
     rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))                     ! implicit
-    bb(:,1) = 1._8 - cc(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn &
+    bb(:,1) = 1._8 - cc(:,1)
+    where ( depth%dz(:,1)>1.e-4 )
+      bb(:,1) = bb(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn &
                                            /(rhowt*depth%dz(:,1)*d_zcr)      ! implicit  
+    end where  
   case(2)
     atu = atm_u - fluxwgt*water%u(:,1) - (1.-fluxwgt)*water%utop             ! mixed
     atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*water%vtop             ! mixed
     vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                                 ! mixed
     rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))                     ! mixed
-    bb(:,1) = 1._8 - cc(:,1) + 0.5*dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn &
+    bb(:,1) = 1._8 - cc(:,1)
+    where ( depth%dz(:,1)>1.e-4 )
+      bb(:,1) = bb(:,1) + 0.5*dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn &
                                                /(rhowt*depth%dz(:,1)*d_zcr)  ! mixed
+    end where  
   case default
     bb(:,1) = 1._8 - cc(:,1)                                                 ! explicit  
 end select
 do ii = 2,wlev-1
-  aa(:,ii) = -dt*km(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr*d_zcr)
-  cc(:,ii) = -dt*km(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr*d_zcr)
+  where ( depth%dz_hl(:,ii)*depth%dz(:,ii)>1.e-4 )  
+    aa(:,ii) = -dt*km(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr*d_zcr)
+  end where
+  where ( depth%dz_hl(:,ii+1)*depth%dz(:,ii)>1.e-4 )
+    cc(:,ii) = -dt*km(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr*d_zcr)
+  end where  
   bb(:,ii) = 1._8 - aa(:,ii) - cc(:,ii)
 end do
-aa(:,wlev) = -dt*km(:,wlev)/(depth%dz_hl(:,wlev)*depth%dz(:,wlev)*d_zcr*d_zcr)
+where ( depth%dz_hl(:,wlev)*depth%dz(:,wlev)>1.e-4 )
+  aa(:,wlev) = -dt*km(:,wlev)/(depth%dz_hl(:,wlev)*depth%dz(:,wlev)*d_zcr*d_zcr)
+end where
 bb(:,wlev) = 1._8 - aa(:,wlev)
 uoave = fluxwgt*water%u(:,wlev) + (1.-fluxwgt)*water%ubot
 voave = fluxwgt*water%v(:,wlev) + (1.-fluxwgt)*water%vbot
 umag = sqrt(uoave*uoave+voave*voave)
 ! bottom drag
-where ( depth%depth_hl(:,wlev+1)<mxd )
-  bb(:,wlev) = bb(:,wlev) + dt*cdbot*umag/(depth%dz(:,wlev)*d_zcr)
-end where
+do ii = 1,wlev
+  lbottom = depth%depth_hl(:,ii+1)>=depth%depth_hl(:,wlev+1) .and. depth%depth_hl(:,wlev+1)<mxd .and. depth%dz(:,wlev)>1.e-4  
+  where ( lbottom )
+    bb(:,ii) = bb(:,ii) + dt*cdbot*umag/(depth%dz(:,ii)*d_zcr)
+  end where
+end do
 
 
 ! U diffusion term
+dd(:,1)=water%u(:,1)
 select case( otaumode )
   case(1)
-    dd(:,1)=water%u(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
+    where ( depth%dz(:,1)>1.e-4 )
+      dd(:,1)=dd(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
                       +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
+    end where  
   case(2)
-    dd(:,1)=water%u(:,1)+0.5*dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u  &
+    where( depth%dz(:,1)>1.e-4 )
+      dd(:,1)=dd(:,1)+0.5*dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u     &
                       +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr) & ! mixed
                       -0.5*dt*d_wu0/(depth%dz(:,1)*d_zcr)
+    end where  
   case default
-    dd(:,1) = water%u(:,1) - dt*d_wu0/(depth%dz(:,1)*d_zcr)                     ! explicit
+    where ( depth%dz(:,1)>1.e-4 )
+      dd(:,1) = dd(:,1) - dt*d_wu0/(depth%dz(:,1)*d_zcr)                        ! explicit
+    end where  
 end select
 do ii = 2,wlev
   dd(:,ii) = water%u(:,ii)
@@ -2120,19 +2229,26 @@ select case( otaumode )
     d_wu0=-0.5*((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))    &
           +ice%fracice*dgice%tauxicw)/rhowt                                   & ! mixed
           +0.5*d_wu0
-end select
+  end select
 
 ! V diffusion term
+dd(:,1)=water%v(:,1)
 select case( otaumode )
   case(1)
-    dd(:,1)=water%v(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v      &
-                      +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
+    where ( depth%dz(:,1)>1.e-4 )
+      dd(:,1)=dd(:,1)+dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v         &
+                        +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr) ! implicit
+    end where  
   case(2)
-    dd(:,1)=water%v(:,1)+0.5*dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v  &
+    where ( depth%dz(:,1)>1.e-4 )  
+      dd(:,1)=dd(:,1)+0.5*dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v     &
                       +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr) & ! mixed
                       -0.5*dt*d_wv0/(depth%dz(:,1)*d_zcr)
+    end where  
   case default
-    dd(:,1) = water%v(:,1) - dt*d_wv0/(depth%dz(:,1)*d_zcr)                     ! explicit
+    where ( depth%dz(:,1)>1.e-4 ) 
+      dd(:,1) = dd(:,1) - dt*d_wv0/(depth%dz(:,1)*d_zcr)                        ! explicit
+    end where  
 end select
 do ii = 2,wlev
   dd(:,ii) = water%v(:,ii)
@@ -2225,6 +2341,8 @@ real(kind=8), dimension(wfull,wlev) :: d_rho_hl  !d_rho at half level
 real(kind=8), dimension(wfull,wlev) :: km_hl     !km on half level
 real(kind=8), dimension(wfull,wlev) :: ks_hl     !ks on half level
 
+logical, dimension(wfull) :: lbottom
+
 real :: dtt
 real :: minL
 
@@ -2238,7 +2356,7 @@ real, parameter :: cu0 = 0.5562
 real, parameter :: sigmaeps = 1.08   !eps Schmidt number
 
 !fraction for interpolation
-fdepth_hl(:,2:wlev) = (depth%depth_hl(:,2:wlev)-depth%depth(:,1:wlev-1))/(depth%depth(:,2:wlev)-depth%depth(:,1:wlev-1))
+fdepth_hl(:,2:wlev) = (depth%depth_hl(:,2:wlev)-depth%depth(:,1:wlev-1))/max(depth%depth(:,2:wlev)-depth%depth(:,1:wlev-1),1.e-8)
 
 !u & v at half levels
 call interpolate_hl(water%u,fdepth_hl,u_hl)
@@ -2248,18 +2366,31 @@ call interpolate_hl(water%v,fdepth_hl,v_hl)
 call interpolate_hl(d_rho,fdepth_hl,d_rho_hl)
 
 !shear
+shear = 0.
 do ii=2,wlev-1
-  shear(:,ii) = ( ((u_hl(:,ii+1)-u_hl(:,ii))/depth%dz(:,ii))**2 + &
-                  ((v_hl(:,ii+1)-v_hl(:,ii))/depth%dz(:,ii))**2 )
+  where ( depth%dz(:,ii)>1.e-4 )  
+    shear(:,ii) = ( ((u_hl(:,ii+1)-u_hl(:,ii))/depth%dz(:,ii))**2 + &
+                    ((v_hl(:,ii+1)-v_hl(:,ii))/depth%dz(:,ii))**2 )
+  end where  
 end do
 
 !n2
+n2 = 0.
 do ii=2,wlev-1
-  n2(:,ii) = -grav/wrtrho*(d_rho_hl(:,ii)-d_rho_hl(:,ii+1))/depth%dz(:,ii)
+  where ( depth%dz(:,ii)>1.e-4 )
+    n2(:,ii) = -grav/wrtrho*(d_rho_hl(:,ii)-d_rho_hl(:,ii+1))/depth%dz(:,ii)
+  end where  
 end do
 !linear interpolation of end values for stability functions
-n2(:,1)    = n2(:,2)      - depth%dz_hl(:,2   )*(n2(:,3     )-n2(:,2     ))/depth%dz_hl(:,3     )
-n2(:,wlev) = n2(:,wlev-1) + depth%dz_hl(:,wlev)*(n2(:,wlev-1)-n2(:,wlev-2))/depth%dz_hl(:,wlev-1)
+where ( depth%dz_hl(:,3)>1.e-4 )
+  n2(:,1)    = n2(:,2)      - depth%dz_hl(:,2   )*(n2(:,3     )-n2(:,2     ))/depth%dz_hl(:,3     )
+end where
+do ii = 1,wlev
+  lbottom = depth%depth_hl(:,ii+1)>=depth%depth_hl(:,wlev+1) .and. depth%depth_hl(:,wlev+1)<mxd .and. depth%dz(:,wlev)>1.e-4  
+  where ( lbottom )
+    n2(:,ii) = n2(:,ii-1) + depth%dz_hl(:,ii)*(n2(:,ii-1)-n2(:,ii-2))/depth%dz_hl(:,ii-1)
+  end where  
+end do
 
 !umag at floor
 umag(:) = sqrt(water%u(:,wlev)**2+water%v(:,wlev)**2)
@@ -2273,18 +2404,27 @@ k(:,1   ) = (d_ustar(:   )/cu0)**2
 k(:,wlev) = (sqrt(cdbot)*umag(:)/cu0)**2
 k=max(k,real(mink,8))
 
+eps = 0.
+
 zrough(:) = dgwater%zo(:)
-eps(:,1   ) = (cu0)**3*k(:,1   )**1.5/(vkar*(0.5_8*depth%dz(:,1   )+zrough(:)))
+where ( depth%dz(:,1   )>1.e-4 )
+  eps(:,1   ) = (cu0)**3*k(:,1   )**1.5/(vkar*(0.5_8*depth%dz(:,1   )+zrough(:)))
+end where
 
 zrough(:) = 0.5_8*depth%dz(:,wlev)/exp(vkar/sqrt(cdbot))
-eps(:,wlev) = (cu0)**3*k(:,wlev)**1.5/(vkar*(0.5_8*depth%dz(:,wlev)+zrough(:)))
+do ii = 1,wlev
+  lbottom = depth%depth_hl(:,ii+1)>=depth%depth_hl(:,wlev+1) .and. depth%depth_hl(:,wlev+1)<mxd .and. depth%dz(:,wlev)>1.e-4
+  where ( lbottom )
+    eps(:,ii) = (cu0)**3*k(:,ii)**1.5/(vkar*(0.5_8*depth%dz(:,ii)+zrough(:)))
+  end where
+end do  
 eps=max(eps,real(mineps,8))
 
 !limit length scale
 L = cu0**3*k**1.5/eps
 if ( limitL==1 ) then
   minL=cu0**3*mink**1.5/mineps
-  do ii=2,wlev-1
+  do ii=2,wlev-1  
     where ( n2(:,ii) > 0._8 )
       L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),real(minL,8))
     end where
@@ -2389,9 +2529,17 @@ end if
 
 !solve k
 !setup diagonals
+aa = 0._8
+bb = 1._8
+cc = 0._8
+dd = 0._8
 do ii=2,wlev-1
-  aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  ))
-  cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1))
+  where ( depth%dz(:,ii)*depth%dz_hl(:,ii  )>1.e-4 )  
+    aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  ))
+  end where
+  where ( depth%dz(:,ii)*depth%dz_hl(:,ii+1)>1.e-4 )
+    cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1))
+  end where  
   if ( k_mode==0 ) then !explicit eps
     bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii)
     dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii) - eps(:,ii))
@@ -2417,8 +2565,12 @@ call thomas(k(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wl
 !solve eps
 !setup diagonals
 do ii=2,wlev-1
-  aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  )*sigmaeps)
-  cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1)*sigmaeps)
+  where ( depth%dz(:,ii)*depth%dz_hl(:,ii  )>1.e-4 )  
+    aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  )*sigmaeps)
+  end where
+  where ( depth%dz(:,ii)*depth%dz_hl(:,ii+1)>1.e-4 )
+    cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1)*sigmaeps)
+  end where  
   if ( eps_mode==0 ) then !explicit eps
     bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii)
     dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) - ce2*eps(:,ii))
@@ -2584,6 +2736,8 @@ nus(:,1)=nus(:,2)
 
 ! calculate G profile -----------------------------------------------
 ! -ve as z is down
+dnumhdz = 0.
+dnushdz = 0.
 do iqw=1,wfull
   mixind_hl(iqw)=dgwater%mixind(iqw)
   jj=min(mixind_hl(iqw)+1,wlev-1)
@@ -2591,16 +2745,18 @@ do iqw=1,wfull
   if (dgwater%mixdepth(iqw)>d_depth_hl(iqw)) mixind_hl(iqw)=jj
   d_depth_hl(iqw)=depth%depth_hl(iqw,mixind_hl(iqw))*d_zcr(iqw)
   d_depth_hlp1(iqw)=depth%depth_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw)
-  xp=(dgwater%mixdepth(iqw)-d_depth_hl(iqw))/(d_depth_hlp1(iqw)-d_depth_hl(iqw))
+  xp=(dgwater%mixdepth(iqw)-d_depth_hl(iqw))/max(d_depth_hlp1(iqw)-d_depth_hl(iqw),1.e-8)
   xp=max(0.,min(1.,xp))
   numh(iqw)=(1.-xp)*num(iqw,mixind_hl(iqw))+xp*num(iqw,mixind_hl(iqw)+1)
   nush(iqw)=(1.-xp)*nus(iqw,mixind_hl(iqw))+xp*nus(iqw,mixind_hl(iqw)+1)
   wm1(iqw)=(1.-xp)*wm(iqw,mixind_hl(iqw))+xp*wm(iqw,mixind_hl(iqw)+1)
   ws1(iqw)=(1.-xp)*ws(iqw,mixind_hl(iqw))+xp*ws(iqw,mixind_hl(iqw)+1)
-  dnumhdz(iqw)=min(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)),0.) &
+  if ( depth%dz_hl(iqw,mixind_hl(iqw)+1)>1.e-4 ) then
+    dnumhdz(iqw)=min(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)),0.) &
+        /(depth%dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
+    dnushdz(iqw)=min(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)),0.) &
       /(depth%dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
-  dnushdz(iqw)=min(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)),0.) &
-      /(depth%dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
+  end if  
   !dwm1ds and dws1ds are now multipled by 1/(mixdepth*wx1*wx1)
   dwm1ds(iqw)=-5.*max(dgwater%bf(iqw),0.)/d_ustar(iqw)**4
   dws1ds(iqw)=dwm1ds(iqw)
@@ -2936,8 +3092,11 @@ type(waterdata), intent(in) :: water
 type(depthdata), intent(in) :: depth
 
 ! buoyancy frequency (calculated at half levels)
+d_nsq = 0.
 do ii=2,wlev
-  d_nsq(:,ii)=-grav/wrtrho*(d_rho(:,ii-1)-d_rho(:,ii))/(depth%dz_hl(:,ii)*d_zcr)
+  where ( depth%dz_hl(:,ii)>1.e-4 )  
+    d_nsq(:,ii)=-grav/wrtrho*(d_rho(:,ii-1)-d_rho(:,ii))/(depth%dz_hl(:,ii)*d_zcr)
+  end where  
 end do
 d_nsq(:,1)=2.*d_nsq(:,2)-d_nsq(:,3) ! not used
 
@@ -3109,10 +3268,10 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:)                   &
                 +p2(:)*(-2.040237e-6                                    &
                 + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
        
-    d_rho(:,ii)=(rho0+wrtrho)/(1.-p1/sk)
+    d_rho(:,ii)=(rho0+wrtrho)*sk/max(sk-p1,1.)
   
-    drhodt=drho0dt/(1.-p1/sk)-(rho0+wrtrho)*p1*dskdt/((sk-p1)**2)
-    drhods=drho0ds/(1.-p1/sk)-(rho0+wrtrho)*p1*dskds/((sk-p1)**2)
+    drhodt=drho0dt*sk/max(sk-p1,1.)-(rho0+wrtrho)*p1*dskdt/(max(sk-p1,1.)**2)
+    drhods=drho0ds*sk/max(sk-p1,1.)-(rho0+wrtrho)*p1*dskds/(max(sk-p1,1.)**2)
     
     d_alpha(:,ii)=-drhodt              ! Large et al (1993) convention
     d_beta(:,ii)=drhods                ! Large et al (1993) convention
@@ -3532,7 +3691,7 @@ cdic=0.
 do ii=1,maxlevel
   sdic(:,ii)=max(min(sdic(:,ii),newdic-cdic),0.)
   cdic=cdic+sdic(:,ii)  
-  where ( lnewice )
+  where ( lnewice .and. depth%dz(:,ii)>1.e-4 )
     newtn=(1.-ice%fracice)*qice*sdic(:,ii)/(cp0*rhowt*depth%dz(:,ii)*d_zcr)
     water%temp(:,ii)=water%temp(:,ii)+newtn
     water%sal(:,ii) = water%sal(:,ii)*(1.+(1.-ice%fracice)*sdic(:,ii)*rhoic/(rhowt*depth%dz(:,ii)*d_zcr))
