@@ -214,9 +214,9 @@ if ( mlosigma>=0 .and. mlosigma<4 ) then
   end do
   call ccmpi_allreduce(dumz(1:3*wlev),gdumz(1:3*wlev),"max",comm_world)
   do ii = 1,wlev
-    gosig(:,ii) = dumz(ii)
-    gosigh(:,ii) = dumz(ii+wlev)
-    godsig(:,ii) = dumz(ii+2*wlev)
+    gosig(:,ii) = gdumz(ii)
+    gosigh(:,ii) = gdumz(ii+wlev)
+    godsig(:,ii) = gdumz(ii+2*wlev)
   end do    
 else if ( mlosigma>3 .and. mlosigma<6 ) then 
   dum = 0.  
@@ -1194,7 +1194,19 @@ do mspec_mlo = mspeca_mlo,1,-1
       nnv(:,ii) = nnv(:,ii) - grav*(rhov(:,ii)-rhobarv(:,ii))/wrtrho*gosigv*cv
       oov(:,ii) = oov(:,ii) + grav*(rhou(:,ii)-rhobaru(:,ii))/wrtrho*gosigv*(bv*ddddyv+cu*ddddxv)/ddv(1:ifull)
     end if
+    
+    kku(:,ii) = kku(:,ii)*eeu(1:ifull,ii)
+    llu(:,ii) = llu(:,ii)*eeu(1:ifull,ii)
+    mmu(:,ii) = mmu(:,ii)*eeu(1:ifull,ii)
+    nnu(:,ii) = nnu(:,ii)*eeu(1:ifull,ii)
+    oou(:,ii) = oou(:,ii)*eeu(1:ifull,ii)
 
+    kkv(:,ii) = kkv(:,ii)*eev(1:ifull,ii)
+    llv(:,ii) = llv(:,ii)*eev(1:ifull,ii)
+    mmv(:,ii) = mmv(:,ii)*eev(1:ifull,ii)
+    nnv(:,ii) = nnv(:,ii)*eev(1:ifull,ii)
+    oov(:,ii) = oov(:,ii)*eev(1:ifull,ii)
+    
     ! Pre-integrate arrays for u and v at t+1 (i.e., for calculating net divergence at t+1)
     ! We can neglect ppu, qqu, nnu, ppv, qqv and nnv terms as they cancel when calculating
     ! the divergence.
@@ -6025,7 +6037,8 @@ zz(:,1)  = (1.+ocneps)*0.5*dt*(-qvn-qvs-que-quw)*em(1:ifull)**2/ds              
           +(1.+ocneps)*0.5*dt*(-stwgt(1:ifull,1,1)*sue+stwgt(1:ifull,1,2)*sue                   &
                                +stwgt1_iwu*suw-stwgt2_iwu*suw                                   &
                                -stwgt(1:ifull,1,3)*svn+stwgt(1:ifull,1,4)*svn                   &
-                               +stwgt3_isv*svs-stwgt4_isv*svs)*em(1:ifull)**2/ds
+                               +stwgt3_isv*svs-stwgt4_isv*svs)*em(1:ifull)**2/ds                &
+          +(1.+ocneps)*0.5*dt*(zvn+zvs+zue+zuw)*em(1:ifull)
 
 hh(:) = 1.
 
