@@ -1439,7 +1439,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     !odum = (neta(1:ifull)-w_e)*ee(1:ifull)
     odum = neta(1:ifull)*ee(1:ifull,1)
     call ccglobal_posneg(odum,delpos(1),delneg(1))
-    alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-30))
+    alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
     if ( abs(alph_p)>1.e-20 ) then
       !neta(1:ifull) = w_e(1:ifull) + max(0.,odum)*alph_p + min(0.,odum)/alph_p
       neta(1:ifull) = max(0.,odum)*alph_p + min(0.,odum)/alph_p
@@ -1458,8 +1458,7 @@ do mspec_mlo = mspeca_mlo,1,-1
         mfixdum(:,ii)=0.
       end where
     end do
-    ! flip delpos and delneg arguments because godsig is positive
-    call ccglobal_posneg(mfixdum,delneg(1),delpos(1),godsig)
+    call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
     alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
     do ii = 1,wlev
       where(wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20)
@@ -1498,9 +1497,8 @@ do mspec_mlo = mspeca_mlo,1,-1
         mfixdum(:,ii) = 0.
       end where
     end do
-    ! flip delpos and delneg arguments because godsig is positive
-    call ccglobal_posneg(mfixdum,delneg(1),delpos(1),godsig)
-    alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-30))
+    call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
+    alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
     do ii = 1,wlev
       where( wtr(1:ifull,ii) .and. ndum>0. .and. abs(alph_p)>1.e-20 )
         ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &

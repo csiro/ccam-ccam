@@ -2654,9 +2654,9 @@ contains
       kx = size(array,2)   
       local_sum(1:2) = cmplx(0., 0.)
       do k = 1,kx
-         tmparr(1:ifull) = max(0., -dsig(k)*array(1:ifull,k)*wts(1:ifull))
+         tmparr(1:ifull) = max(0., abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
          call drpdr_local(tmparr, local_sum(1))
-         tmparr(1:ifull) = min(0., -dsig(k)*array(1:ifull,k)*wts(1:ifull))
+         tmparr(1:ifull) = min(0., abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
          call drpdr_local(tmparr, local_sum(2))
       end do ! k loop
       global_sum(1:2) = cmplx(0., 0.)
@@ -2689,9 +2689,9 @@ contains
       kx = size(array,2)   
       local_sum(1:2) = cmplx(0., 0.)
       do k = 1,kx
-         tmparr(1:ifull) = max(0., -dsig(1:ifull,k)*array(1:ifull,k)*wts(1:ifull))
+         tmparr(1:ifull) = max(0., abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
          call drpdr_local(tmparr, local_sum(1))
-         tmparr(1:ifull) = min(0., -dsig(1:ifull,k)*array(1:ifull,k)*wts(1:ifull))
+         tmparr(1:ifull) = min(0., abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
          call drpdr_local(tmparr, local_sum(2))
       end do ! k loop
       global_sum(1:2) = cmplx(0., 0.)
@@ -2726,9 +2726,9 @@ contains
       local_sum(1:2*ntr) = cmplx(0.,0.)
       do i = 1,ntr
          do k=1,kx
-            tmparr(1:ifull) = max(0.,-dsig(k)*array(1:ifull,k,i)*wts(1:ifull))
+            tmparr(1:ifull) = max(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
             call drpdr_local(tmparr, local_sum(i))
-            tmparr(1:ifull) = min(0.,-dsig(k)*array(1:ifull,k,i)*wts(1:ifull))
+            tmparr(1:ifull) = min(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
             call drpdr_local(tmparr, local_sum(i+ntr))
          end do ! k loop
       end do
@@ -2765,9 +2765,9 @@ contains
       local_sum(1:2*ntr) = cmplx(0.,0.)
       do i = 1,ntr
          do k=1,kx
-            tmparr(1:ifull) = max(0.,-dsig(1:ifull,k)*array(1:ifull,k,i)*wts(1:ifull))
+            tmparr(1:ifull) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
             call drpdr_local(tmparr, local_sum(i))
-            tmparr(1:ifull) = min(0.,-dsig(1:ifull,k)*array(1:ifull,k,i)*wts(1:ifull))
+            tmparr(1:ifull) = min(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
             call drpdr_local(tmparr, local_sum(i+ntr))
          end do ! k loop
       end do
