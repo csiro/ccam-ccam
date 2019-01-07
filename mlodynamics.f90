@@ -1182,7 +1182,7 @@ do mspec_mlo = mspeca_mlo,1,-1
       oou(:,ii) = oou(:,ii) + grav*rhou(:,ii)/wrtrho*gosigu*(bu*ddddxu+cu*ddddyu)/ddu(1:ifull)
       mmv(:,ii) = mmv(:,ii) + grav*rhov(:,ii)/wrtrho*(1.-gosigv)*bv
       nnv(:,ii) = nnv(:,ii) + grav*rhov(:,ii)/wrtrho*(1.-gosigv)*cv
-      oov(:,ii) = oov(:,ii) + grav*rhou(:,ii)/wrtrho*gosigv*(bv*ddddyv+cu*ddddxv)/ddv(1:ifull)
+      oov(:,ii) = oov(:,ii) + grav*rhov(:,ii)/wrtrho*gosigv*(bv*ddddyv+cu*ddddxv)/ddv(1:ifull)
     end if
     
     kku(:,ii) = kku(:,ii)*eeu(1:ifull,ii)
