@@ -550,6 +550,7 @@ real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav
 real, dimension(ifull,wlev) :: kku,llu,mmu,nnu,oou
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv,oov
 real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull,wlev) :: rhou, rhobaru, rhov, rhobarv
 real, dimension(ifull,wlev) :: depdum,dzdum
 real, dimension(ifull,wlev) :: dd_adv,mps
 real, dimension(ifull,0:wlev) :: nw
@@ -798,7 +799,7 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Calculate normalised density gradients
   ! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
-  call tsjacobi(nt,ns,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+  call tsjacobi(nt,ns,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhou,rhov,rhobaru,rhobarv)
 
   call END_LOG(watereos_end)
 
@@ -944,8 +945,10 @@ do mspec_mlo = mspeca_mlo,1,-1
     do ii = 1,wlev
       gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
       gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
-      tau(:,ii) = tau(:,ii) - grav*gosigu*(detadxu-oeu(1:ifull)/ddu(1:ifull)*ddddxu)
-      tav(:,ii) = tav(:,ii) - grav*gosigv*(detadyv-oev(1:ifull)/ddv(1:ifull)*ddddyv)
+      tau(:,ii) = tau(:,ii) + grav*rhou(1:ifull,ii)/wrtrho &
+                                *((1.-gosigu)*detadxu+gosigu*oeu(1:ifull)/ddu(1:ifull)*ddddxu)
+      tav(:,ii) = tav(:,ii) + grav*rhov(1:ifull,ii)/wrtrho &
+                                *((1.-gosigv)*detadyv+gosigv*oev(1:ifull)/ddv(1:ifull)*ddddyv)
     end do
   end if
   ! ice
@@ -1072,7 +1075,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     call bounds(nt,corner=.true.)
     call bounds(ns,corner=.true.)
     ! update normalised density gradients
-    call tsjacobi(nt,ns,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+    call tsjacobi(nt,ns,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhou,rhov,rhobaru,rhobarv)
   end if
 
   call END_LOG(watereos_end)
@@ -1174,12 +1177,12 @@ do mspec_mlo = mspeca_mlo,1,-1
     oov(:,ii) = 0.
 
     if ( mlojacobi==7 ) then
-      mmu(:,ii) = mmu(:,ii) - grav*gosigu*bu
-      nnu(:,ii) = nnu(:,ii) - grav*gosigu*cu
-      oou(:,ii) = oou(:,ii) + grav*gosigu*(bu*ddddxu+cu*ddddyu)/ddu(1:ifull)
-      mmv(:,ii) = mmv(:,ii) - grav*gosigv*bv
-      nnv(:,ii) = nnv(:,ii) - grav*gosigv*cv
-      oov(:,ii) = oov(:,ii) + grav*gosigv*(bv*ddddyv+cu*ddddxv)/ddv(1:ifull)
+      mmu(:,ii) = mmu(:,ii) + grav*rhou(:,ii)/wrtrho*(1.-gosigu)*bu
+      nnu(:,ii) = nnu(:,ii) + grav*rhou(:,ii)/wrtrho*(1.-gosigu)*cu
+      oou(:,ii) = oou(:,ii) + grav*rhou(:,ii)/wrtrho*gosigu*(bu*ddddxu+cu*ddddyu)/ddu(1:ifull)
+      mmv(:,ii) = mmv(:,ii) + grav*rhov(:,ii)/wrtrho*(1.-gosigv)*bv
+      nnv(:,ii) = nnv(:,ii) + grav*rhov(:,ii)/wrtrho*(1.-gosigv)*cv
+      oov(:,ii) = oov(:,ii) + grav*rhou(:,ii)/wrtrho*gosigv*(bv*ddddyv+cu*ddddxv)/ddv(1:ifull)
     end if
     
     kku(:,ii) = kku(:,ii)*eeu(1:ifull,ii)
@@ -4688,7 +4691,8 @@ end subroutine mlotvd
 ! Use potential temperature and salinity Jacobians to calculate
 ! density Jacobian
 
-subroutine tsjacobi(nti,nsi,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+subroutine tsjacobi(nti,nsi,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
+                    rhou,rhov,rhobaru,rhobarv)
 
 use indices_m
 use map_m, only : f, emu, emv
@@ -4701,6 +4705,7 @@ implicit none
 integer ii, jj
 real, dimension(ifull+iextra,wlev), intent(in) :: nti, nsi, dzdum_rho
 real, dimension(ifull,wlev), intent(out) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
+real, dimension(ifull,wlev), intent(out) :: rhou, rhov, rhobaru, rhobarv
 real, dimension(ifull+iextra), intent(in) :: pice
 real, dimension(ifull+iextra,wlev,2) :: na
 real, dimension(ifull+iextra,wlev) :: alphabar, betabar, lrho
@@ -4723,6 +4728,10 @@ select case( mlojacobi )
       drhobardxv(1:ifull,ii) = 0.
       drhobardyu(1:ifull,ii) = 0.
       drhobardyv(1:ifull,ii) = 0.
+      rhou(:,ii) = 0.
+      rhov(:,ii) = 0.
+      rhobaru(:,ii) = 0.
+      rhobarv(:,ii) = 0.
     end do
 
   case(1,2,3,7) 
@@ -4752,6 +4761,8 @@ select case( mlojacobi )
       drhobardxv(1:ifull,ii) = -absv*dnadxv(1:ifull,ii,1) + bbsv*dnadxv(1:ifull,ii,2)
       drhobardyu(1:ifull,ii) = -absu*dnadyu(1:ifull,ii,1) + bbsu*dnadyu(1:ifull,ii,2)
       drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
+      rhou(:,ii) = 0.5*(lrho(1:ifull,ii)+lrho(ie,ii)) 
+      rhov(:,ii) = 0.5*(lrho(1:ifull,ii)+lrho(in,ii))    
     end do
 
     ! integrate density gradient  
@@ -4759,17 +4770,23 @@ select case( mlojacobi )
     drhobardxv(:,1) = drhobardxv(:,1)*godsig(1:ifull,1)
     drhobardyu(:,1) = drhobardyu(:,1)*godsig(1:ifull,1)
     drhobardyv(:,1) = drhobardyv(:,1)*godsig(1:ifull,1)
+    rhobaru(:,1) = rhou(:,1)*godsig(1:ifull,1)
+    rhobarv(:,1) = rhov(:,1)*godsig(1:ifull,1)
     do ii = 2,wlev
       drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsig(1:ifull,ii)
       drhobardxv(:,ii) = drhobardxv(:,ii-1) + drhobardxv(:,ii)*godsig(1:ifull,ii)
       drhobardyu(:,ii) = drhobardyu(:,ii-1) + drhobardyu(:,ii)*godsig(1:ifull,ii)
       drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsig(1:ifull,ii)
+      rhobaru(:,ii) = rhobaru(:,ii-1) + rhou(:,ii)*godsig(1:ifull,ii)
+      rhobarv(:,ii) = rhobarv(:,ii-1) + rhov(:,ii)*godsig(1:ifull,ii)
     end do
     do ii = 1,wlev
       drhobardxu(:,ii) = drhobardxu(:,ii)/gosigh(:,ii)
       drhobardxv(:,ii) = drhobardxv(:,ii)/gosigh(:,ii)
       drhobardyu(:,ii) = drhobardyu(:,ii)/gosigh(:,ii)
       drhobardyv(:,ii) = drhobardyv(:,ii)/gosigh(:,ii)
+      rhobaru(:,ii) = rhobaru(:,ii)/gosigh(:,ii)
+      rhobarv(:,ii) = rhobarv(:,ii)/gosigh(:,ii)
     end do
     
   case default
