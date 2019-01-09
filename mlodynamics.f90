@@ -790,11 +790,9 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Calculate adjusted depths and thicknesses
   do ii = 1,wlev
-    !depdum(1:ifull,ii)          = gosig(1:ifull,ii)*max( dd(1:ifull)+neta(1:ifull), minwater )
-    !dzdum(1:ifull,ii)           = godsig(1:ifull,ii)*max( dd(1:ifull)+neta(1:ifull), minwater )
-    depdum(1:ifull,ii)           = gosig(1:ifull,ii)*dd(1:ifull)
-    dzdum(1:ifull,ii)            = godsig(1:ifull,ii)*dd(1:ifull)
-    dzdum_rho(1:ifull+iextra,ii) = godsig(1:ifull+iextra,ii)*dd(1:ifull+iextra)
+    depdum(1:ifull,ii)           = gosig(1:ifull,ii)*max( dd(1:ifull)+neta(1:ifull), minwater )
+    dzdum(1:ifull,ii)            = godsig(1:ifull,ii)*max( dd(1:ifull)+neta(1:ifull), minwater )
+    dzdum_rho(1:ifull+iextra,ii) = godsig(1:ifull+iextra,ii)*max( dd(1:ifull)+neta(1:ifull), minwater )
   end do
   
 
@@ -934,9 +932,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   detadxu = (neta_e-neta(1:ifull))*emu(1:ifull)/ds
   detadyv = (neta_n-neta(1:ifull))*emv(1:ifull)/ds
   do ii = 1,wlev
-    tau(:,ii) = grav*gosig(1:ifull,ii)*ddu(1:ifull)*drhobardxu(:,ii)/wrtrho  &
+    gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
+    gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
+    tau(:,ii) = grav*gosigu*ddu(1:ifull)*drhobardxu(:,ii)/wrtrho  &
                + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu ! staggered
-    tav(:,ii) = grav*gosig(1:ifull,ii)*ddv(1:ifull)*drhobardyv(:,ii)/wrtrho  &
+    tav(:,ii) = grav*gosigv*ddv(1:ifull)*drhobardyv(:,ii)/wrtrho  &
                + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv  
   end do
   if ( mlojacobi==7 ) then
@@ -1179,13 +1179,13 @@ do mspec_mlo = mspeca_mlo,1,-1
     llu(:,ii) = grav*gosigu*(bu*drhobardxu(:,ii) + cu*drhobardyu(:,ii))/wrtrho
     mmu(:,ii) = bu*grav
     nnu(:,ii) = cu*grav
-    oou(:,ii) = 0.
+    oou(:,ii) = grav*gosigu*(bu*drhobardxu(:,ii) + cu*drhobardyu(:,ii))/wrtrho
 
     kkv(:,ii) = av + bv*(dpsdyv/wrtrho+grav*dttdyv) + cv*(dpsdxv/wrtrho+grav*dttdxv)
     llv(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii) + cv*drhobardxv(:,ii))/wrtrho
     mmv(:,ii) = bv*grav 
     nnv(:,ii) = cv*grav
-    oov(:,ii) = 0.
+    oov(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii) + cv*drhobardxv(:,ii))/wrtrho
 
     if ( mlojacobi==7 ) then
       mmu(:,ii) = mmu(:,ii) + grav*rhou(:,ii)/wrtrho*(1.-gosigu)*bu
@@ -1308,11 +1308,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   detadyv=(neta_n-neta(1:ifull))*emv(1:ifull)/ds
   oeu(1:ifull) = 0.5*(neta_e+neta(1:ifull))*eeu(1:ifull,1)
   oev(1:ifull) = 0.5*(neta_n+neta(1:ifull))*eev(1:ifull,1)
+  oeu_iwu = 0.5*(neta_w+neta(1:ifull))*ee_iwu
+  oev_isv = 0.5*(neta_s+neta(1:ifull))*ee_isv
   ccu(:,wlev) = sou(:) + spu(:)*ddu(1:ifull) + squ(:)*detadxu + ssu(:)*detadyu + szu(:)*oeu(1:ifull)
   ccv(:,wlev) = sov(:) + spv(:)*ddv(1:ifull) + sqv(:)*detadyv + ssv(:)*detadxv + szv(:)*oev(1:ifull)
   call boundsuv(ccu(:,wlev),ccv(:,wlev),stag=-9)
-  oeu_iwu = 0.5*(neta_w+neta(1:ifull))*ee_iwu
-  oev_isv = 0.5*(neta_s+neta(1:ifull))*ee_isv
   call unpack_svwu(ccu(:,wlev),ccv(:,wlev),cc_isv,cc_iwu)
   sdiv(:) = (ccu(1:ifull,wlev)*oeu(1:ifull)/emu(1:ifull) &
             -cc_iwu*oeu_iwu/em_iwu                       &
@@ -5772,29 +5772,29 @@ svn = 0.5*ssv(1:ifull)*ddv(1:ifull)/ds
 svs = 0.5*ss_isv*dd_isv/ds
 
 ! prep ocean gradient terms - netau and netav
-zue = 0.5*szu(1:ifull)*ddu(1:ifull)/ds
-zuw = -0.5*sz_iwu*dd_iwu/ds
-zvn = 0.5*szv(1:ifull)*ddv(1:ifull)/ds
-zvs = -0.5*sz_isv*dd_isv/ds
+zue = 0.5*szu(1:ifull)*ddu(1:ifull)/emu(1:ifull)/ds
+zuw = -0.5*sz_iwu*dd_iwu/em_iwu/ds
+zvn = 0.5*szv(1:ifull)*ddv(1:ifull)/emv(1:ifull)/ds
+zvs = -0.5*sz_isv*dd_isv/em_isv/ds
 
 ! zz*(d2neta/dx2+d2neta/dy2) + zz*d2neta/dxdy + hh*neta = rhs
 
 zzn(:,1) = (1.+ocneps)*0.5*dt*qvn*em(1:ifull)**2/ds                                             &
           +(1.+ocneps)*0.5*dt*(stwgt(1:ifull,1,1)*sue-stwgt1_iwu*suw                            &
                               -stwgt(1:ifull,1,3)*svn+stwgt(1:ifull,1,4)*svn)*em(1:ifull)**2/ds &
-          +(1.+ocneps)*0.5*dt*zvn*em(1:ifull)
+          +(1.+ocneps)*0.5*dt*zvn*em(1:ifull)**2
 zzs(:,1) = (1.+ocneps)*0.5*dt*qvs*em(1:ifull)**2/ds                                             &
           +(1.+ocneps)*0.5*dt*(-stwgt(1:ifull,1,2)*sue+stwgt2_iwu*suw                           &
                               +stwgt3_isv*svs-stwgt4_isv*svs)*em(1:ifull)**2/ds                 &
-          +(1.+ocneps)*0.5*dt*zvs*em(1:ifull)
+          +(1.+ocneps)*0.5*dt*zvs*em(1:ifull)**2
 zze(:,1) = (1.+ocneps)*0.5*dt*que*em(1:ifull)**2/ds                                             &
           +(1.+ocneps)*0.5*dt*(-stwgt(1:ifull,1,1)*sue+stwgt(1:ifull,1,2)*sue                   &
                                +stwgt(1:ifull,1,3)*svn-stwgt3_isv*svs)*em(1:ifull)**2/ds        &
-          +(1.+ocneps)*0.5*dt*zue*em(1:ifull)
+          +(1.+ocneps)*0.5*dt*zue*em(1:ifull)**2
 zzw(:,1) = (1.+ocneps)*0.5*dt*quw*em(1:ifull)**2/ds                                             &
           +(1.+ocneps)*0.5*dt*(stwgt1_iwu*suw-stwgt2_iwu*suw                                    &
                               -stwgt(1:ifull,1,4)*svn+stwgt4_isv*svs)*em(1:ifull)**2/ds         &
-          +(1.+ocneps)*0.5*dt*zuw*em(1:ifull)
+          +(1.+ocneps)*0.5*dt*zuw*em(1:ifull)**2
 zzne(:,1)= (1.+ocneps)*0.5*dt*(stwgt(1:ifull,1,3)*svn)*em(1:ifull)**2/ds
 zzen(:,1)= (1.+ocneps)*0.5*dt*(stwgt(1:ifull,1,1)*sue)*em(1:ifull)**2/ds
 zzse(:,1)= (1.+ocneps)*0.5*dt*(-stwgt3_isv*svs)*em(1:ifull)**2/ds 
@@ -5808,7 +5808,7 @@ zz(:,1)  = (1.+ocneps)*0.5*dt*(-qvn-qvs-que-quw)*em(1:ifull)**2/ds              
                                +stwgt1_iwu*suw-stwgt2_iwu*suw                                   &
                                -stwgt(1:ifull,1,3)*svn+stwgt(1:ifull,1,4)*svn                   &
                                +stwgt3_isv*svs-stwgt4_isv*svs)*em(1:ifull)**2/ds                &
-          +(1.+ocneps)*0.5*dt*(zvn+zvs+zue+zuw)*em(1:ifull)
+          +(1.+ocneps)*0.5*dt*(zvn+zvs+zue+zuw)*em(1:ifull)**2
 
 hh(:) = 1.
 
