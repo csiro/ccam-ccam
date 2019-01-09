@@ -66,7 +66,7 @@ integer, parameter :: nxtrrho   = 1       ! Estimate rho at t+1 (0=off, 1=on)
 integer, save      :: usepice   = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
 integer, save      :: mlodiff   = 0       ! diffusion (0=all, 1=scalars only)
 integer, save      :: mlojacobi = 1       ! density gradient method (0=off, 1=non-local spline, 2=non-local linear, 3=Song,
-                                          !   7=zstar)
+                                          !   7=AC2003)
 real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
 real, parameter :: rhoic      = 900.      ! density ice  (kg m^-3)
 real, parameter :: grav       = 9.80616   ! gravitational constant (m s^-2)
@@ -359,20 +359,28 @@ call bounds(t_kh(:,1:wlev),nehalf=.true.)
 !eta(:) = t_kh(:,wlev+1)
 
 ! reduce diffusion errors where bathymetry gradients are strong
-do k = 1,wlev
-  dep(1:ifull,k) = gosig(1:ifull,k)*dd(1:ifull)
-end do  
-call bounds(dep,nehalf=.true.)
-do k = 1,wlev
-  call unpack_ne(dep(:,k),dep_n,dep_e)  
-  !depadj = gosig(k)*max(dd+eta,minwater) ! neglect eta
-  tx_fact = 1./(1.+(abs(dep_e-dep(1:ifull,k))/delphi)**nf)
-  ty_fact = 1./(1.+(abs(dep_n-dep(1:ifull,k))/delphi)**nf)
-
-  call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
-  xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*tx_fact*eeu(1:ifull,k) ! reduction factor
-  yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*ty_fact*eev(1:ifull,k) ! reduction factor
-end do
+if ( mlosigma>=0 .and. mlosigma<4 ) then
+  ! sigma levels  
+  do k = 1,wlev
+    dep(1:ifull,k) = gosig(1:ifull,k)*dd(1:ifull) !+ gosig(1:ifull,k)*eta(1:ifull)
+  end do  
+  call bounds(dep,nehalf=.true.)
+  do k = 1,wlev
+    call unpack_ne(dep(:,k),dep_n,dep_e)  
+    tx_fact = 1./(1.+(abs(dep_e-dep(1:ifull,k))/delphi)**nf)
+    ty_fact = 1./(1.+(abs(dep_n-dep(1:ifull,k))/delphi)**nf)
+    call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
+    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*tx_fact*eeu(1:ifull,k) ! reduction factor
+    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*ty_fact*eev(1:ifull,k) ! reduction factor
+  end do
+else
+  ! z-star levels
+  do k = 1,wlev
+    call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
+    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*eeu(1:ifull,k)
+    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*eev(1:ifull,k)
+  end do
+end if    
 call boundsuv(xfact,yfact,stag=-9)
 
 do k = 1,wlev
@@ -550,7 +558,7 @@ real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav
 real, dimension(ifull,wlev) :: kku,llu,mmu,nnu,oou
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv,oov
 real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
-real, dimension(ifull,wlev) :: rhou, rhobaru, rhov, rhobarv
+real, dimension(ifull,wlev) :: rhou, rhov
 real, dimension(ifull,wlev) :: depdum,dzdum
 real, dimension(ifull,wlev) :: dd_adv,mps
 real, dimension(ifull,0:wlev) :: nw
@@ -629,21 +637,21 @@ end where
 ! estimate tidal forcing (assumes leap days)
 if ( usetide==1 ) then
   call getzinp(jyear,jmonth,jday,jhour,jmin,mins,allleap=.true.)
-  jstart=0
+  jstart = 0
   if ( jyear>1900 ) then
-    do tyear=1900,jyear-1
+    do tyear = 1900,jyear-1
       call mloleap(tyear,lleap)
-      if ( lleap ) jstart=jstart+1
-      jstart=jstart+365
+      if ( lleap ) jstart = jstart + 1
+      jstart=  jstart + 365
     end do
   else if ( jyear<1900 ) then
-    do tyear=1899,jyear,-1
+    do tyear = 1899,jyear,-1
       call mloleap(tyear,lleap)
-      if ( lleap ) jstart=jstart-1
-      jstart=jstart-365
+      if ( lleap ) jstart = jstart - 1
+      jstart = jstart - 365
     end do
   end if
-  mins=mins+720 ! base time is 12Z 31 Dec 1899
+  mins = mins + 720 ! base time is 12Z 31 Dec 1899
   call mlotide(tide,rlongg,rlatt,mins,jstart)
 end if
 
@@ -799,7 +807,7 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Calculate normalised density gradients
   ! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
-  call tsjacobi(nt,ns,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhou,rhov,rhobaru,rhobarv)
+  call tsjacobi(nt,ns,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhou,rhov)
 
   call END_LOG(watereos_end)
 
@@ -831,10 +839,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! 1/(neta+D) dH(neta+D)/dt + du/dx + dv/dy + dw/dz = 0
   ! dH(neta+D)/dt + (neta+D)*(du/dx+dv/dy) + (neta+D)*dw/dz = 0
   ! dH(neta)/dt + neta*(du/dx+dv/dy) + d(D*u)/dx + d(D*v)/dy + dw/dsig = 0  ! where D is now included in flux form
-  ! dH(neta)/dt + d(D*u)/dx + d(D*v)/dy + dw/dsig = 0 (approximate)
+  ! dH(neta)/dt + d(D*u)/dx + d(D*v)/dy + dw/dsig = 0 (split)
+  ! d(neta)/dt + (d(neta*u)/dx+d(neta*v)/dy) = 0      (split)
   
   ! Lagrangian version of the contunity equation with D included in flux form
-  !   [neta + (1+eps)*0.5*dt*(d(D*u)/dx+d(D*v)/dy+dw/dsig)]^(t+1)
+  !   [neta + (1+eps)*0.5*dt*(d(D*u)/dx+d(D*v)/dy+dw/dsig)]^(t+1)  (split)
   ! = [neta - (1-eps)*0.5*dt*(d(D*u)/dx+d(D*v)/dy+dw/dsig)]^(t*)
   
   ! Vertical velocity is then (sum_0_sig is the integral from 0 to sig)
@@ -842,10 +851,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! w = -(neta+D)*sum_0_sig(du/dx+dv/dy,dsig) + (neta+D)*sig*sum_0_1(du/dx+dv/dy,dsig)
   !     -sum_0_sig(u*d(neta+D)/dx+v*d(neta+D)/dy),dsig) + sum_0_1(u*d(neta+D)/dx+v*d(neta+D)/dy,dsig)
   !   = -sum_0_sig(d(u*(neta+D))/dx+d(v*(neta+D))/dy,dsig) + sig*sum_0_1(d(u*(neta+D))/dx+d(v*(neta+D))/dy,dsig)
-  !   = -sum_0_sig(d(u*D)/dx+d(v*D)/dy,dsig) + sig*sum_0_1(d(u*D)/dx+d(v*D)/dy,dsig)  (approximate)
-  
-  ! w = -(1/D)*sum_0_z*(d(u*D)/dx+d(v*D)/dy,dz*) + (z*/D^2)*sum_0_D(d(u*D)/dx+d(v*d)/dy,dz*)
-  !   = -sum_0_sig(d(u*D)/dx+d(v*D)/dy,dsig) + sig*sum_0_1(d(u*D)/dx+d(v*D)/dy,dsig)
 
   ! Advect continuity equation to tstar
   ! Calculate velocity on C-grid for consistancy with iterative free surface calculation
@@ -863,23 +868,33 @@ do mspec_mlo = mspeca_mlo,1,-1
     ccu(:,ii) = ccu(:,ii-1) + eou(:,ii)*godsigu(:,ii)
     ccv(:,ii) = ccv(:,ii-1) + eov(:,ii)*godsigv(:,ii)
   end do
+  oeu(1:ifull) = 0.5*(neta_e+neta(1:ifull))*eeu(1:ifull,1)
+  oev(1:ifull) = 0.5*(neta_n+neta(1:ifull))*eev(1:ifull,1)
+  oeu_iwu = 0.5*(neta_w+neta(1:ifull))*ee_iwu
+  oev_isv = 0.5*(neta_s+neta(1:ifull))*ee_isv
   ! calculate vertical velocity (use flux form)
   call unpack_svwu(ccu(:,wlev),ccv(:,wlev),cc_isv,cc_iwu)
-  sdiv(:) = (ccu(1:ifull,wlev)*ddu(1:ifull)/emu(1:ifull)    &
-            -cc_iwu*dd_iwu/em_iwu                           &
-            +ccv(1:ifull,wlev)*ddv(1:ifull)/emv(1:ifull)    &
-            -cc_isv*dd_isv/em_isv)                          &
-            *em(1:ifull)**2/ds
+  sdiv(:) = (ccu(1:ifull,wlev)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull)    &
+            -cc_iwu*(dd_iwu+oeu_iwu)/em_iwu                                &
+            +ccv(1:ifull,wlev)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull)    &
+            -cc_isv*(dd_isv+oev_isv)/em_isv)*em(1:ifull)**2/ds
   do ii = 1,wlev-1
     call unpack_svwu(ccu(:,ii),ccv(:,ii),cc_isv,cc_iwu)  
     nw(:,ii) = ee(1:ifull,ii)*(sdiv(:)*gosigh(1:ifull,ii)   &
-               - (ccu(1:ifull,ii)*ddu(1:ifull)/emu(1:ifull) &
-                 -cc_iwu*dd_iwu/em_iwu                      &
-                 +ccv(1:ifull,ii)*ddv(1:ifull)/emv(1:ifull) &
-                 -cc_isv*dd_isv/em_isv)                     &
-                 *em(1:ifull)**2/ds)
+               - (ccu(1:ifull,ii)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull) &
+                 -cc_iwu*(dd_iwu+oeu_iwu)/em_iwu                           &
+                 +ccv(1:ifull,ii)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull) &
+                 -cc_isv*(dd_isv+oev_isv)/em_isv)*em(1:ifull)**2/ds)
   end do
 
+  ! Update split part of neta (first half time-step)
+  call unpack_svwu(ccu(:,wlev),ccv(:,wlev),cc_isv,cc_iwu)
+  sdiv(:) = (ccu(1:ifull,wlev)*oeu(1:ifull)/emu(1:ifull) &
+            -cc_iwu*oeu_iwu/em_iwu                       &
+            +ccv(1:ifull,wlev)*oev(1:ifull)/emv(1:ifull) &
+            -cc_isv*oev_isv/em_isv)*em(1:ifull)**2/ds
+  neta(1:ifull) = neta(1:ifull) - 0.5*dt*sdiv(:)      
+  
   ! compute contunity equation horizontal transport terms
   mps = 0.
   do ii = 1,wlev
@@ -896,10 +911,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
       
   ! update vertical velocity at full levels
-  oeu(1:ifull) = 0.5*(neta_e+neta(1:ifull))*eeu(1:ifull,1)
-  oev(1:ifull) = 0.5*(neta_n+neta(1:ifull))*eev(1:ifull,1)
-  oeu_iwu = 0.5*(neta_w+neta(1:ifull))*ee_iwu
-  oev_isv = 0.5*(neta_s+neta(1:ifull))*ee_isv
   dnetadx = (oeu(1:ifull)/emu(1:ifull)-oeu_iwu/em_iwu)*em(1:ifull)**2/ds
   dnetady = (oev(1:ifull)/emv(1:ifull)-oev_isv/em_isv)*em(1:ifull)**2/ds
   ddddx = (ddu(1:ifull)/emu(1:ifull)-dd_iwu/em_iwu)*em(1:ifull)**2/ds
@@ -1075,7 +1086,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     call bounds(nt,corner=.true.)
     call bounds(ns,corner=.true.)
     ! update normalised density gradients
-    call tsjacobi(nt,ns,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhou,rhov,rhobaru,rhobarv)
+    call tsjacobi(nt,ns,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhou,rhov)
   end if
 
   call END_LOG(watereos_end)
@@ -1182,7 +1193,7 @@ do mspec_mlo = mspeca_mlo,1,-1
       oou(:,ii) = oou(:,ii) + grav*rhou(:,ii)/wrtrho*gosigu*(bu*ddddxu+cu*ddddyu)/ddu(1:ifull)
       mmv(:,ii) = mmv(:,ii) + grav*rhov(:,ii)/wrtrho*(1.-gosigv)*bv
       nnv(:,ii) = nnv(:,ii) + grav*rhov(:,ii)/wrtrho*(1.-gosigv)*cv
-      oov(:,ii) = oov(:,ii) + grav*rhov(:,ii)/wrtrho*gosigv*(bv*ddddyv+cu*ddddxv)/ddv(1:ifull)
+      oov(:,ii) = oov(:,ii) + grav*rhov(:,ii)/wrtrho*gosigv*(bv*ddddyv+cv*ddddxv)/ddv(1:ifull)
     end if
     
     kku(:,ii) = kku(:,ii)*eeu(1:ifull,ii)
@@ -1280,15 +1291,46 @@ do mspec_mlo = mspeca_mlo,1,-1
     call ccmpi_abort(-1)
   end if
 
+  
+  ! Update split part of neta (second half time-step)
+  call bounds(neta,corner=.true.)
+  call unpack_nsew(neta,neta_n,neta_s,neta_e,neta_w)
+!$omp simd
+  do iq = 1,ifull
+    tnu(iq)=0.5*(neta_n(iq)+neta(ien(iq)))
+    tee(iq)=0.5*(neta(iq)+neta_e(iq))
+    tsu(iq)=0.5*(neta_s(iq)+neta(ies(iq)))
+    tev(iq)=0.5*(neta_e(iq)+neta(ine(iq)))
+    tnn(iq)=0.5*(neta(iq)+neta_n(iq))
+    twv(iq)=0.5*(neta_w(iq)+neta(inw(iq)))
+  end do  
+  detadxu=(neta_e-neta(1:ifull))*emu(1:ifull)/ds
+  detadyu=0.5*(stwgt(1:ifull,1,1)*(tnu-tee)+stwgt(1:ifull,1,2)*(tee-tsu))*emu(1:ifull)/ds
+  detadxv=0.5*(stwgt(1:ifull,1,3)*(tev-tnn)+stwgt(1:ifull,1,4)*(tnn-twv))*emv(1:ifull)/ds
+  detadyv=(neta_n-neta(1:ifull))*emv(1:ifull)/ds
+  oeu(1:ifull) = 0.5*(neta_e+neta(1:ifull))*eeu(1:ifull,1)
+  oev(1:ifull) = 0.5*(neta_n+neta(1:ifull))*eev(1:ifull,1)
+  ccu(:,wlev) = sou(:) + spu(:)*ddu(1:ifull) + squ(:)*detadxu + ssu(:)*detadyu + szu(:)*oeu(1:ifull)
+  ccv(:,wlev) = sov(:) + spv(:)*ddv(1:ifull) + sqv(:)*detadyv + ssv(:)*detadxv + szv(:)*oev(1:ifull)
+  call boundsuv(ccu(:,wlev),ccv(:,wlev),stag=-9)
+  oeu_iwu = 0.5*(neta_w+neta(1:ifull))*ee_iwu
+  oev_isv = 0.5*(neta_s+neta(1:ifull))*ee_isv
+  call unpack_svwu(ccu(:,wlev),ccv(:,wlev),cc_isv,cc_iwu)
+  sdiv(:) = (ccu(1:ifull,wlev)*oeu(1:ifull)/emu(1:ifull) &
+            -cc_iwu*oeu_iwu/em_iwu                       &
+            +ccv(1:ifull,wlev)*oev(1:ifull)/emv(1:ifull) &
+            -cc_isv*oev_isv/em_isv)*em(1:ifull)**2/ds
+  neta(1:ifull) = neta(1:ifull) - 0.5*dt*sdiv(:)
+  
+
   dumc(1:ifull,1)=neta(1:ifull)
   dumc(1:ifull,2)=ipice(1:ifull)
   call bounds(dumc(:,1:2),corner=.true.)
   neta(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,1)
   ipice(ifull+1:ifull+iextra)=dumc(ifull+1:ifull+iextra,2)
-
   call unpack_nsew(neta,neta_n,neta_s,neta_e,neta_w)
   call unpack_nsew(ipice,ipice_n,ipice_s,ipice_e,ipice_w)
-
+  
 !$omp simd
   do iq = 1,ifull
     tnu(iq)=0.5*(neta_n(iq)+neta(ien(iq)))
@@ -1310,8 +1352,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! update currents (staggered)
     nu(1:ifull,ii) = kku(:,ii) + llu(:,ii)*ddu(1:ifull) + mmu(:,ii)*detadxu + nnu(:,ii)*detadyu + oou(:,ii)*oeu(1:ifull)
     nv(1:ifull,ii) = kkv(:,ii) + llv(:,ii)*ddv(1:ifull) + mmv(:,ii)*detadyv + nnv(:,ii)*detadxv + oov(:,ii)*oev(1:ifull)
-  end do
-
+  end do 
   
 #ifdef mlodebug
   if ( any(abs(nu(1:ifull,:))>20.) .or. any(abs(nv(1:ifull,:))>20.) ) then
@@ -4692,7 +4733,7 @@ end subroutine mlotvd
 ! density Jacobian
 
 subroutine tsjacobi(nti,nsi,dzdum_rho,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
-                    rhou,rhov,rhobaru,rhobarv)
+                    rhou,rhov)
 
 use indices_m
 use map_m, only : f, emu, emv
@@ -4705,7 +4746,7 @@ implicit none
 integer ii, jj
 real, dimension(ifull+iextra,wlev), intent(in) :: nti, nsi, dzdum_rho
 real, dimension(ifull,wlev), intent(out) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
-real, dimension(ifull,wlev), intent(out) :: rhou, rhov, rhobaru, rhobarv
+real, dimension(ifull,wlev), intent(out) :: rhou, rhov
 real, dimension(ifull+iextra), intent(in) :: pice
 real, dimension(ifull+iextra,wlev,2) :: na
 real, dimension(ifull+iextra,wlev) :: alphabar, betabar, lrho
@@ -4730,8 +4771,6 @@ select case( mlojacobi )
       drhobardyv(1:ifull,ii) = 0.
       rhou(:,ii) = 0.
       rhov(:,ii) = 0.
-      rhobaru(:,ii) = 0.
-      rhobarv(:,ii) = 0.
     end do
 
   case(1,2,3,7) 
@@ -4770,23 +4809,17 @@ select case( mlojacobi )
     drhobardxv(:,1) = drhobardxv(:,1)*godsig(1:ifull,1)
     drhobardyu(:,1) = drhobardyu(:,1)*godsig(1:ifull,1)
     drhobardyv(:,1) = drhobardyv(:,1)*godsig(1:ifull,1)
-    rhobaru(:,1) = rhou(:,1)*godsig(1:ifull,1)
-    rhobarv(:,1) = rhov(:,1)*godsig(1:ifull,1)
     do ii = 2,wlev
       drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsig(1:ifull,ii)
       drhobardxv(:,ii) = drhobardxv(:,ii-1) + drhobardxv(:,ii)*godsig(1:ifull,ii)
       drhobardyu(:,ii) = drhobardyu(:,ii-1) + drhobardyu(:,ii)*godsig(1:ifull,ii)
       drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsig(1:ifull,ii)
-      rhobaru(:,ii) = rhobaru(:,ii-1) + rhou(:,ii)*godsig(1:ifull,ii)
-      rhobarv(:,ii) = rhobarv(:,ii-1) + rhov(:,ii)*godsig(1:ifull,ii)
     end do
     do ii = 1,wlev
       drhobardxu(:,ii) = drhobardxu(:,ii)/gosigh(:,ii)
       drhobardxv(:,ii) = drhobardxv(:,ii)/gosigh(:,ii)
       drhobardyu(:,ii) = drhobardyu(:,ii)/gosigh(:,ii)
       drhobardyv(:,ii) = drhobardyv(:,ii)/gosigh(:,ii)
-      rhobaru(:,ii) = rhobaru(:,ii)/gosigh(:,ii)
-      rhobarv(:,ii) = rhobarv(:,ii)/gosigh(:,ii)
     end do
     
   case default
