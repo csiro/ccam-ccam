@@ -1181,7 +1181,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     nnu(:,ii) = cu*grav
     oou(:,ii) = 0.
 
-    kkv(:,ii) = av + bv*(dpsdyv/wrtrho+grav*dttdyv) + cu*(dpsdxv/wrtrho+grav*dttdxv)
+    kkv(:,ii) = av + bv*(dpsdyv/wrtrho+grav*dttdyv) + cv*(dpsdxv/wrtrho+grav*dttdxv)
     llv(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii) + cv*drhobardxv(:,ii))/wrtrho
     mmv(:,ii) = bv*grav 
     nnv(:,ii) = cv*grav
@@ -1209,8 +1209,6 @@ do mspec_mlo = mspeca_mlo,1,-1
     oov(:,ii) = oov(:,ii)*eev(1:ifull,ii)
     
     ! Pre-integrate arrays for u and v at t+1 (i.e., for calculating net divergence at t+1)
-    ! We can neglect ppu, qqu, nnu, ppv, qqv and nnv terms as they cancel when calculating
-    ! the divergence.
   
     !sum nu dz = sou+spu*ddu+squ*detadxu+ssu*detadyu+szu*etau
     !sum nv dz = sov+spv*ddv+sqv*detadyv+ssv*detadxv+szv*etav
