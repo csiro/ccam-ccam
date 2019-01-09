@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -24,11 +24,11 @@ module trvmix
 private
 public tracervmix
 
-    contains
+contains
     
 ! ***************************************************************************
 ! Tracer emission, deposition, settling and turbulent mixing routines
-subroutine tracervmix(at,ct,phi_nh,t,ps,cdtq,tr,fnee,fpn,frp,frs,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
+subroutine tracervmix(at,ct,t,ps,cdtq,tr,fnee,fpn,frp,frs,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
 
 use const_phys
 use diag_m
@@ -44,8 +44,6 @@ integer, intent(in) :: tile,imax
 integer igas, k
 real, dimension(imax,kl) :: updtr
 real, intent(in), dimension(imax,kl) :: at, ct
-!global
-real, dimension(imax,kl), intent(in) :: phi_nh
 real, dimension(imax,kl), intent(in) :: t
 real, dimension(imax), intent(in) :: ps
 real, dimension(imax), intent(in) :: cdtq
@@ -59,8 +57,7 @@ real, dimension(imax,kl), intent(in) :: oh
 real, dimension(imax,kl), intent(in) :: strloss
 real, dimension(imax,kl), intent(in) :: jmcf
 real, dimension(imax), intent(in) :: mcfdep
-!
-real, dimension(imax,kl) :: prf, dz, rhoa, tnhs
+real, dimension(imax,kl) :: prf, dz, rhoa
 real, dimension(imax,kl) :: trsrc
 real molfact, radfact, co2fact, gasfact
 logical decay, methloss, mcfloss
@@ -71,13 +68,8 @@ molfact = 1000.*fair_molm          ! factor for units in mol/m2/s
 co2fact = 1000.*fair_molm/fc_molm
 radfact = 1.293                    ! test factor for radon units in Bq/m2/s, conc in Bq/m3
 
-tnhs(:,1)=phi_nh(:,1)/bet(1)
-do k=2,kl
-  ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
-end do
 do k=1,kl
-  dz(:,k) = -rdry*dsig(k)*(t(1:imax,k)+tnhs(:,k))/(grav*sig(k))
+  dz(:,k) = -rdry*dsig(k)*t(1:imax,k)/(grav*sig(k))
   rhoa(:,k) = ps(1:imax)*sig(k)/(rdry*t(1:imax,k)) ! density of air (kg/m**3)
   prf(:,k) = ps(1:imax)*sig(k)
 end do

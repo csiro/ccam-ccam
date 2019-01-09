@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -337,7 +337,7 @@ real, parameter    ::  d_1    = 0.35
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
-scrp             = (sig)**(rdry/cp)
+scrp            = (sig)**(rdry/cp)
 thetav(1:imax)  = temp(1:imax)*(1.+0.61*mixr(1:imax))/scrp
 sthetav(1:imax) = stemp(1:imax)*(1.+0.61*smixr(1:imax))
 umagn(1:imax)   = max(umag(1:imax),vmodmin)
@@ -484,7 +484,7 @@ real, dimension(is:ie) :: u_zo, u_zoh, u_zoq, u_tss, u_smixr
     
 tile = ie/imax
 
-zminx(is:ie) = (bet(1)*t(is:ie,1)+phi_nh(is:ie,1))/grav
+zminx(is:ie) = bet(1)*t(is:ie,1)/grav
 zminx(is:ie) = max( zminx(is:ie), 5. )
 if ( nmlo/=0 ) then
   iu(is:ie) = 0.

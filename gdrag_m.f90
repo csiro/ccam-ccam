@@ -87,35 +87,26 @@ use pbl_m
 
 implicit none
 
-#ifdef _OPENMP
-
 integer :: tile, is, ie
-real, dimension(imax,kl) :: lphi_nh, lt, lu, lv
+real, dimension(imax,kl) :: lt, lu, lv
 
 !$omp do schedule(static) private(is,ie),        &
-!$omp private(lphi_nh,lt,lu,lv)
+!$omp private(lt,lu,lv)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   
-  lphi_nh = phi_nh(is:ie,:)
   lt      = t(is:ie,:)
   lu      = u(is:ie,:)
   lv      = v(is:ie,:)
   
-  call gwdrag_work(lphi_nh,lt,lu,lv,tss(is:ie),he(is:ie),imax,ntiles)
+  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),imax,ntiles)
 
   u(is:ie,:) = lu
   v(is:ie,:) = lv
  
 end do
 !$omp end do nowait
-
-#else
-
-call gwdrag_work(phi_nh,t,u,v,tss,he,ifull,1)
-
-#endif
 
 return
 end subroutine gwdrag
@@ -128,7 +119,7 @@ end subroutine gwdrag
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
-subroutine gwdrag_work(phi_nh,t,u,v,tss,he,imax,ntiles)   ! globpea/darlam (but not staggered)
+subroutine gwdrag_work(t,u,v,tss,he,imax,ntiles)   ! globpea/darlam (but not staggered)
 
 use cc_mpi, only : mydiag
 use const_phys
@@ -142,11 +133,10 @@ integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
 integer, intent(in) :: imax, ntiles
 integer iq, k
 real dzx
-real, dimension(:,:), intent(in)    :: phi_nh, t
+real, dimension(:,:), intent(in)    :: t
 real, dimension(:,:), intent(inout) :: u, v
 real, dimension(imax,kl) :: uu,fni,bvnf
 real, dimension(imax,kl) :: theta_full
-real, dimension(imax,kl) :: tnhs
 real, dimension(imax,kl) :: dtheta_dz_kmh
 real, dimension(:), intent(in) :: tss, he
 real, dimension(imax) :: dzi, uux, xxx, froude2_inv
@@ -161,13 +151,6 @@ real, dimension(kl) :: dsk,sigk
 !   ngwd=-20 helim=1600. fc2=-.5 sigbot_gw=1. alphaj=0.05
 ! If desire to tune, only need to vary alphaj (increase for stronger GWD)
 
-! Non-hydrostatic terms
-tnhs(:,1) = phi_nh(:,1)/bet(1)
-do k = 2,kl
-  ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(:,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
-end do      
-
 do k = 1,kl
   dsk(k) = -dsig(k)
   sigk(k) = sig(k)**(rdry/cp)
@@ -177,11 +160,11 @@ end do
 
 !  calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
 dzx = .5*grav*(1.+sig(1))/((1.-sig(1))*rdry)    
-dzi(:) = dzx/(t(1:imax,1)+tnhs(:,1))
+dzi(:) = dzx/t(1:imax,1)
 dtheta_dz_kmh(:,1) = (theta_full(:,1)-tss(:))*dzi(:)    
 do k = 2,kl
  dzx = grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)  
- dzi(:) = dzx/(t(1:imax,k-1)+t(1:imax,k)+tnhs(:,k-1)+tnhs(:,k)) 
+ dzi(:) = dzx/(t(1:imax,k-1)+t(1:imax,k)) 
  dtheta_dz_kmh(:,k) = (theta_full(:,k)-theta_full(:,k-1))*dzi(:)
 end do    ! k loop          
 

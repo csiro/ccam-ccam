@@ -659,7 +659,7 @@ do spinup = spinup_start,1,-1
     !if ( gablsflux>0 ) then
     !  ppa(:) = sig(1)*ps(:) 
     !  prhoa(:) = ppa(:)/(rdry*t(1:ifull,1))
-    !  zref(:) = (bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav
+    !  zref(:) = bet(1)*t(1:ifull,1)/grav
     !  call gabls_flux(tss,ps,t(1:ifull,1),ppa,u(1:ifull,1),v(1:ifull,1),prhoa,zref,zolnd, &
     !                    psfth,ustar,vmod)
     !  rhos(:) = ps(1:ifull)/(rdry*tss(1:ifull))
@@ -751,18 +751,15 @@ implicit none
 integer k
 real, dimension(ifull,kl) :: uav, vav
 real, dimension(ifull,kl) :: dudz, dvdz
-real, dimension(ifull,kl) :: zg, tnhs
+real, dimension(ifull,kl) :: zg
 real, dimension(ifull,2) :: zgh
 real, dimension(ifull) :: r1, r2
 
-! calculate height on full levels and non-hydrostatic temp correction
-tnhs(:,1)=phi_nh(:,1)/bet(1)
+! calculate height on full levels
 zg(:,1) = (zs(1:ifull)+bet(1)*t(1:ifull,1))/grav
 do k=2,kl
-  tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
   zg(:,k) = zg(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
 end do ! k  loop
-zg(:,:) = zg(:,:) + phi_nh(:,:)/grav
 
 do k=1,kl        
   ! weighted horizontal velocities

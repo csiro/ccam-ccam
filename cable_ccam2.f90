@@ -348,7 +348,7 @@ do tile=1,ntiles
                    lcnpp,condg(is:ie),conds(is:ie),condx(is:ie),lcplant,lcsoil,eg(is:ie),epot(is:ie),fbeamnir(is:ie),    &
                    fbeamvis(is:ie),fg(is:ie),lfnee,lfpn,lfrd,lfrp,                                                       &
                    lfrpr,lfrpw,lfrs,fwet(is:ie),ga(is:ie),isflag(is:ie),land(is:ie),lmaxnb,mp,lnilitter,lniplant,        &
-                   lnisoil,phi_nh(is:ie,1),lplitter,lpplant,ps(is:ie),lpsoil,qg(is:ie,1),qsttg(is:ie),rgsave(is:ie),     &
+                   lnisoil,lplitter,lpplant,ps(is:ie),lpsoil,qg(is:ie,1),qsttg(is:ie),rgsave(is:ie),                     &
                    rlatt(is:ie),rlongg(is:ie),rnet(is:ie),rsmin(is:ie),runoff(is:ie),runoff_surface(is:ie),              &
                    sgsave(is:ie),sigmf(is:ie),lsmass,snage(is:ie),snowd(is:ie),snowmelt(is:ie),lssdn,ssdnn(is:ie),       &
                    sv(js:je),swrsave(is:ie),t(is:ie,1),ltgg,ltggsn,theta(is:ie),ltind,ltmap,                             &
@@ -406,7 +406,7 @@ end subroutine sib4
 ! CABLE-CCAM interface
 subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav,cansto,cdtq,cduv,clitter,cnbp, &
                      cnpp,condg,conds,condx,cplant,csoil,eg,epot,fbeamnir,fbeamvis,fg,fnee,fpn,frd,frp,frpr,    &
-                     frpw,frs,fwet,ga,isflag,land,maxnb,mp,nilitter,niplant,nisoil,phi_nh,plitter,pplant,ps,    &
+                     frpw,frs,fwet,ga,isflag,land,maxnb,mp,nilitter,niplant,nisoil,plitter,pplant,ps,           &
                      psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sgsave,sigmf,smass,    &
                      snage,snowd,snowmelt,ssdn,ssdnn,sv,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,ustar,   &
                      vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,air,bal,c,canopy,casabal,casabiome,   &
@@ -439,7 +439,7 @@ integer, dimension(imax), intent(inout) :: isflag
 integer, dimension(13), parameter :: ndoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 0 /) 
 real fjd, r1, dlt, slag, dhr, alp
 real, dimension(imax), intent(in) :: atmco2
-real, dimension(imax), intent(in) :: phi_nh, qg, t
+real, dimension(imax), intent(in) :: qg, t
 real, dimension(imax,mlitter), intent(inout) :: clitter, nilitter, plitter
 real, dimension(imax,mplant), intent(inout) :: cplant, niplant, pplant
 real, dimension(imax,msoil), intent(inout) :: csoil, nisoil, psoil
@@ -548,7 +548,7 @@ do nb = 1,maxnb
   met%fld(is:ie)       = real(pack(-rgsave,            tmap(:,nb)), 8)      ! long wave down (positive) W/m^2
   rad%fbeam(is:ie,1)   = real(pack(fbeamvis,           tmap(:,nb)), 8)
   rad%fbeam(is:ie,2)   = real(pack(fbeamnir,           tmap(:,nb)), 8)
-  rough%za_tq(is:ie)   = real(pack(bet(1)*t(1:imax)+phi_nh(:),tmap(:,nb))/grav, 8) ! reference height
+  rough%za_tq(is:ie)   = real(pack(bet(1)*t(1:imax),tmap(:,nb))/grav, 8) ! reference height
   rough%za_tq(is:ie)   = max( rough%za_tq(is:ie), veg%hc(is:ie)+1. )
 end do
 met%doy        = real(fjd, 8)

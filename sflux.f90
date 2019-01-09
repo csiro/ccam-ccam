@@ -194,7 +194,7 @@ do tile = 1,ntiles
   tauy_ocn(is:ie)=0.    ! dummy value
   tauy_ice(is:ie)=0.    ! dummy value
 !     using av_vmod (1. for no time averaging)
-  azmin(is:ie) = (bet(1)*t(is:ie,1)+phi_nh(is:ie,1))/grav
+  azmin(is:ie) = bet(1)*t(is:ie,1)/grav
   rho(is:ie) = ps(is:ie)/(rdry*tss(is:ie))
   uav(is:ie) = av_vmod*u(is:ie,1) + (1.-av_vmod)*savu(is:ie,1)   
   vav(is:ie) = av_vmod*v(is:ie,1) + (1.-av_vmod)*savv(is:ie,1)  

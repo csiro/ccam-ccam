@@ -123,14 +123,14 @@ implicit none
 include 'kuocom.h'                ! Convection parameters
 
 integer tile, is, ie
-real, dimension(imax,kl) :: lcfrac, lgfrac, lphi_nh, lppfevap, lppfmelt, lppfprec, lppfsnow
+real, dimension(imax,kl) :: lcfrac, lgfrac, lppfevap, lppfmelt, lppfprec, lppfsnow
 real, dimension(imax,kl) :: lppfstayice, lppfstayliq, lppfsubl, lpplambs, lppmaccr, lppmrate
 real, dimension(imax,kl) :: lppqfsedice, lpprfreeze, lpprscav, lqccon, lqfg, lqfrad
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfrac, lt
 real, dimension(imax,kl) :: ldpsldt, lfluxtot, lnettend, lstratcloud
 
 !$omp do schedule(static) private(is,ie),                                             &
-!$omp private(lcfrac,lgfrac,lphi_nh),                                                 &
+!$omp private(lcfrac,lgfrac),                                                         &
 !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl),  &
 !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt),  &
@@ -143,7 +143,6 @@ do tile = 1,ntiles
   lgfrac   = gfrac(is:ie,:)
   lrfrac   = rfrac(is:ie,:)
   lsfrac   = sfrac(is:ie,:)
-  lphi_nh  = phi_nh(is:ie,:)
   lqg      = qg(is:ie,:)
   lqgrg    = qgrg(is:ie,:)
   lqlg     = qlg(is:ie,:)
@@ -161,7 +160,7 @@ do tile = 1,ntiles
   end if
 
   call leoncld_work(lcfrac,condc(is:ie),condg(is:ie),conds(is:ie),condx(is:ie),lgfrac,              &
-                    kbsav(is:ie),ktsav(is:ie),land(is:ie),lphi_nh,                                  &
+                    kbsav(is:ie),ktsav(is:ie),land(is:ie),                                          &
                     lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl,           &
                     lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
                     ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
@@ -208,7 +207,7 @@ return
 end subroutine leoncld
 
 ! This subroutine is the interface for the LDR cloud microphysics
-subroutine leoncld_work(cfrac,condc,condg,conds,condx,gfrac,kbsav,ktsav,land,phi_nh,   &
+subroutine leoncld_work(cfrac,condc,condg,conds,condx,gfrac,kbsav,ktsav,land,          &
                         ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,ppfstayliq,ppfsubl, &
                         pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,precip,   &
                         ps,qccon,qfg,qfrad,qg,qgrg,qlg,qlrad,qrg,qsng,rfrac,sfrac,t,   &
@@ -251,7 +250,6 @@ real, dimension(imax,kl), intent(out) :: ppmrate
 real, dimension(imax,kl), intent(out) :: ppqfsedice
 real, dimension(imax,kl), intent(out) :: pprfreeze
 real, dimension(imax,kl), intent(out) :: pprscav
-real, dimension(imax,kl), intent(in) :: phi_nh
 real, dimension(imax,kl), intent(in) :: dpsldt
 real, dimension(imax,kl), intent(in) :: fluxtot
 real, dimension(imax), intent(inout) :: condg
@@ -268,7 +266,7 @@ real, dimension(imax,kl) :: prf                          !Pressure on full level
 real, dimension(imax,kl) :: dprf                         !Pressure thickness (hPa)
 real, dimension(imax,kl) :: rhoa                         !Air density (kg/m3)
 real, dimension(imax,kl) :: dz                           !Layer thickness (m)
-real, dimension(imax,kl) :: cdso4                        !Cloud droplet conc (#/m3)
+real, dimension(imax,kl) :: cdrop                        !Cloud droplet conc (#/m3)
 real, dimension(imax,kl) :: ccov                         !Cloud cover (may differ from cloud frac if vertically subgrid)
 real, dimension(imax,kl) :: cfa                          !Cloud fraction in which autoconv occurs (option in newrain.f)
 real, dimension(imax,kl) :: qca                          !Cloud water mixing ratio in cfa(:,:)    (  "    "     "     )
@@ -277,7 +275,6 @@ real, dimension(imax,kl) :: qsatg                        !Saturation mixing rati
 real, dimension(imax,kl) :: qcl                          !Vapour mixing ratio inside convective cloud
 real, dimension(imax,kl) :: qenv                         !Vapour mixing ratio outside convective cloud
 real, dimension(imax,kl) :: tenv                         !Temperature outside convective cloud
-real, dimension(imax,kl) :: tnhs                         !Non-hydrostatic temperature adjusement
 real, dimension(imax) :: precs                           !Amount of stratiform precipitation in timestep (mm)
 real, dimension(imax) :: preci                           !Amount of stratiform snowfall in timestep (mm)
 real, dimension(imax) :: precg                           !Amount of stratiform graupel in timestep (mm)
@@ -294,27 +291,20 @@ real, dimension(kl) :: diag_temp
 real invdt
 
 
-! Non-hydrostatic terms
-tnhs(1:imax,1) = phi_nh(:,1)/bet(1)
-do k = 2,kl
-  ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(1:imax,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
-end do
-
 ! meterological fields
 do k = 1,kl
   t1(1:imax)       = t(1:imax,k)  
   prf_temp(1:imax) = ps(1:imax)*sig(k)
   prf(1:imax,k)    = 0.01*prf_temp(1:imax)    !ps is SI units
   dprf(1:imax,k)   = -0.01*ps(1:imax)*dsig(k)  !dsig is -ve
-  rhoa(1:imax,k)   = prf_temp(:)/(rdry*t1)                                                ! air density
-  qsatg(1:imax,k)  = qsat(prf_temp(:),t1)                                                 ! saturated mixing ratio
-  dz(1:imax,k)     = -rdry*dsig(k)*(t1+tnhs(:,k))/(grav*sig(k))                           ! level thickness in metres 
+  rhoa(1:imax,k)   = prf_temp(:)/(rdry*t1)                                    ! air density
+  qsatg(1:imax,k)  = qsat(prf_temp(:),t1)                                     ! saturated mixing ratio
+  dz(1:imax,k)     = -rdry*dsig(k)*t1/(grav*sig(k))                           ! level thickness in metres 
   dz(1:imax,k)     = min( max(dz(:,k), 1.), 2.e4 )
 end do
  
 ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
-call aerodrop(is,imax,cdso4,rhoa,outconv=.true.)
+call aerodrop(is,imax,cdrop,rhoa,outconv=.true.)
 
 ! default values
 kbase(1:imax) = 0  ! default
@@ -416,7 +406,7 @@ endif
 
 
 !     Calculate cloud fraction and cloud water mixing ratios
-call newcloud(dt,land,prf,rhoa,cdso4,tenv,qenv,qlg,qfg,cfrac,cfa,qca, &
+call newcloud(dt,land,prf,rhoa,cdrop,tenv,qenv,qlg,qfg,cfrac,cfa,qca, &
               dpsldt,fluxtot,nettend,stratcloud,em)
 
 
@@ -499,7 +489,7 @@ end do
 
 
 !     Calculate precipitation and related processes
-call newsnowrain(dt,rhoa,dz,prf,cdso4,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,       &
+call newsnowrain(dt,rhoa,dz,prf,cdrop,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,       &
                  precs,qg,cfrac,rfrac,sfrac,gfrac,preci,precg,qevap,qsubl,   &
                  qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,      &
                  fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,         &
@@ -612,7 +602,7 @@ cfrac(:,1:kl) = min( 1., ccov(:,1:kl)+clcon(:,1:kl) ) ! original
 !! Reffl is the effective radius at the top of the cloud (calculated following
 !! Martin etal 1994, JAS 51, 1823-1842) due to the extra factor of 2 in the
 !! formula for reffl. Use mid cloud value of Reff for emissivity.
-!          Reffl = (3*2*Wliq/(4*rhow*pi*rk*cdso4(iq,k)))**(1./3)
+!          Reffl = (3*2*Wliq/(4*rhow*pi*rk*cdrop(iq,k)))**(1./3)
 !          qlpath = Wliq*dz(iq,k)
 !          taul(iq,k) = tau_sfac*1.5*qlpath/(rhow*Reffl)
 !        endif ! qlg
@@ -869,9 +859,9 @@ else if ( nclddia>7 ) then  ! e.g. 12    JLM
     fl(1:imax) = (1.+real(nclddia))*tk(1:imax)/(1.+real(nclddia)*tk(1:imax))
     ! for rcit_l=.75 & nclddia=12 get rcrit=(0.751, 0.769, .799, .901, .940, .972, .985) for (200, 100, 50, 10, 5, 2, 1) km
     where ( land(1:imax) )
-      rcrit(1:imax,k) = max( 1.-fl(1:imax)*(1.-rcrit_l), sig(k)**3 )        
+      rcrit(1:imax,k) = max( 1.-fl(1:imax)*(1.-rcrit_l), sig(k)**3 )
     elsewhere
-      rcrit(1:imax,k) = max( 1.-fl(1:imax)*(1.-rcrit_s), sig(k)**3 )         
+      rcrit(1:imax,k) = max( 1.-fl(1:imax)*(1.-rcrit_s), sig(k)**3 )
     end where
   end do
 end if  ! (nclddia<0)  .. else ..
@@ -1490,7 +1480,7 @@ do n = 1,njumps
       !end where
       rg(1:imax) = max( fluxgraupel(:)/dz(:,k), 0. )
       where ( cgfra(1:imax)>=1.e-10 )
-        vg2(1:imax) = max( 0.1, 5.34623815*(max(rg,0.)/cgfra)**0.125 )
+        vg2(1:imax) = max( 0.1, 5.34623815*(rg/cgfra)**0.125 )
       end where
     
       ! Set up the parameters for the flux-divergence calculation

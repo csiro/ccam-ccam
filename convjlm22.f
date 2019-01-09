@@ -240,7 +240,6 @@
       use map_m
       use morepbl_m
       use newmpar_m
-      use nharrs_m, only : phi_nh
       use parm_m
       use prec_m
       use sigs_m
@@ -255,7 +254,7 @@
       real, dimension(imax,kl,naero)    :: lxtg
       real, dimension(imax,kl,ntrac)    :: ltr
       real, dimension(imax,kl)          :: ldpsldt, lt, lqg
-      real, dimension(imax,kl)          :: lphi_nh, lfluxtot
+      real, dimension(imax,kl)          :: lfluxtot
       real, dimension(imax,kl)          :: lqlg, lqfg, lcfrac
       real, dimension(imax,kl)          :: lu, lv
       real, dimension(imax,ndust)       :: ldustwd
@@ -263,7 +262,7 @@
       real, dimension(imax)             :: locwd
 
 !$omp  do schedule(static) private(is,ie),
-!$omp& private(ldpsldt,lt,lqg,lqlg,lqfg,lphi_nh,lfluxtot,lcfrac),
+!$omp& private(ldpsldt,lt,lqg,lqlg,lqfg,lfluxtot,lcfrac),
 !$omp& private(lu,lv),
 !$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd),
 !$omp& private(ltr)
@@ -276,7 +275,6 @@
         lqg       = qg(is:ie,:)
         lqlg      = qlg(is:ie,:)
         lqfg      = qfg(is:ie,:)
-        lphi_nh   = phi_nh(is:ie,:)
         lcfrac    = cfrac(is:ie,:)
         lu        = u(is:ie,:)
         lv        = v(is:ie,:)
@@ -293,7 +291,7 @@
         end if
 
         ! jlm convective scheme
-        call convjlm22_work(alfin(is:ie),ldpsldt,lt,lqg,lphi_nh,
+        call convjlm22_work(alfin(is:ie),ldpsldt,lt,lqg,
      &       ps(is:ie),lfluxtot,convpsav(is:ie),cape(is:ie),
      &       lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,
      &       lqlg,condc(is:ie),precc(is:ie),condx(is:ie),conds(is:ie),
@@ -329,7 +327,7 @@
       end subroutine convjlm22     ! jlm convective scheme
        
       
-      subroutine convjlm22_work(alfin,dpsldt,t,qg,phi_nh,ps,
+      subroutine convjlm22_work(alfin,dpsldt,t,qg,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,u,v,timeconv,em,
@@ -378,9 +376,8 @@
 
       real, dimension(:,:,:), intent(inout)    :: xtg
       real, dimension(:,:,:), intent(inout)    :: tr
-      real, dimension(imax,kl), intent(in)             :: dpsldt
-      real, dimension(imax,kl), intent(in)             :: phi_nh
-      real, dimension(imax,kl), intent(in)             :: cfrac
+      real, dimension(imax,kl), intent(in)         :: dpsldt
+      real, dimension(imax,kl), intent(in)         :: cfrac
       real, dimension(:,:), intent(inout)          :: t
       real, dimension(:,:), intent(inout)          :: qg
       real, dimension(:,:), intent(inout)          :: qlg
@@ -454,7 +451,6 @@
         phi(iq,k)=phi(iq,k-1)+bet(k)*tt(iq,k)+betm(k)*tt(iq,k-1)
        enddo     ! iq loop
       enddo      ! k  loop
-      if(nh/=0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component - MJT
        s(1:imax,1)=cp*tt(1:imax,1)+phi(1:imax,1)  ! dry static energy; only level 1 needed here for kkbb calc
           
       if(nproc==1.and.ntiles==1)
@@ -666,8 +662,6 @@
         write (6,"('hplume',12f7.2/(5x,12f7.2))")
      &            (splume(iq,:)+hl*qplume(iq,:))/cp 
         write (6,"('tt    ',12f7.2/(5x,12f7.2))") tt(iq,:)
-        write (6,"('s_nh/cp',12f7.2/(5x,12f7.2))") 
-     &            (s(iq,:)-phi_nh(iq,:))/cp
         write (6,"('s/cp  ',12f7.2/(5x,12f7.2))") s(iq,:)/cp
         write (6,"('h/cp  ',12f7.2/(5x,12f7.2))") 
      .             s(iq,:)/cp+hlcp*qq(iq,:)

@@ -472,7 +472,7 @@ real, dimension(imax,ilev,4) :: loxidantprev, loxidantnow, loxidantnext
 real, dimension(imax,kl,naero) :: lxtg, lxtosav, lxtg_solub
 real, dimension(imax,kl,4) :: lzoxidant
 real, dimension(imax,kl,2) :: lssn
-real, dimension(imax,kl) :: lphi_nh, lt, lqg, lqlg, lqfg, lcfrac
+real, dimension(imax,kl) :: lt, lqg, lqlg, lqfg, lcfrac
 real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfevap, lppfsubl, lpplambs
 real, dimension(imax,kl) :: lppmrate, lppmaccr, lppfstayice, lppfstayliq, lppqfsedice
 real, dimension(imax,kl) :: lpprscav, lpprfreeze
@@ -482,7 +482,7 @@ real, dimension(imax,15) :: lemissfield
 logical, intent(in) :: oxidant_update
 
 !$omp do schedule(static) private(is,ie),                                                              &
-!$omp private(loxidantprev,loxidantnow,loxidantnext,lphi_nh,lt,lqg,lqlg,lqfg),                         &
+!$omp private(loxidantprev,loxidantnow,loxidantnext,lt,lqg,lqlg,lqfg),                                 &
 !$omp private(lcfrac,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr),         &
 !$omp private(lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),  &
 !$omp private(lxtosav,lxtg_solub,ldust_burden,lerod,lssn,ldustwd,lemissfield)
@@ -503,7 +503,6 @@ do tile = 1,ntiles
   ldust_burden                    = dust_burden(is:ie,:)
   lemissfield                     = emissfield(is:ie,:)
   lerod                           = erod(is:ie,:)
-  lphi_nh                         = phi_nh(is:ie,:)
   lt                              = t(is:ie,:)
   lqg                             = qg(is:ie,:)
   lqlg                            = qlg(is:ie,:)
@@ -527,7 +526,7 @@ do tile = 1,ntiles
   end if
 
   call aerocalc_work(loxidantprev,loxidantnow,loxidantnext,ps(is:ie),zdayfac(is:ie),rlatt(is:ie),rlongg(is:ie),    &
-                     lphi_nh,lt,kbsav(is:ie),ktsav(is:ie),                                                         &
+                     lt,kbsav(is:ie),ktsav(is:ie),                                                                 &
                      wetfac(is:ie),pblh(is:ie),tss(is:ie),condc(is:ie),snowd(is:ie),fg(is:ie),eg(is:ie),           &
                      u10(is:ie),ustar(is:ie),zo(is:ie),land(is:ie),fracice(is:ie),sigmf(is:ie),lqg,lqlg,lqfg,      &
                      lcfrac,cdtq(is:ie),lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr,   &
@@ -559,7 +558,7 @@ end subroutine aerocalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update prognostic aerosols
-subroutine aerocalc_work(oxidantprev,oxidantnow,oxidantnext,ps,zdayfac,rlatt,rlongg,phi_nh,t,kbsav,ktsav,   &
+subroutine aerocalc_work(oxidantprev,oxidantnow,oxidantnext,ps,zdayfac,rlatt,rlongg,t,kbsav,ktsav,          &
                          wetfac,pblh,tss,condc,snowd,fg,eg,u10,ustar,zo,land,fracice,sigmf,qg,qlg,qfg,      &
                          cfrac,cdtq,ppfprec,ppfmelt,ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,        &
                          ppfstayice,ppfstayliq,ppqfsedice,pprscav,pprfreeze,so4t,xtg,zoxidant,duste,dustdd, &
@@ -592,7 +591,7 @@ real, dimension(imax,kl,naero), intent(inout) :: xtg, xtg_solub
 real, dimension(imax,kl,naero), intent(in) :: xtosav
 real, dimension(imax,kl,4), intent(inout) :: zoxidant
 real, dimension(imax,kl,2), intent(inout) :: ssn
-real, dimension(imax,kl), intent(in) :: phi_nh, t, qg, qlg, qfg, cfrac
+real, dimension(imax,kl), intent(in) :: t, qg, qlg, qfg, cfrac
 real, dimension(imax,kl), intent(in) :: ppfprec
 real, dimension(imax,kl), intent(in) :: ppfmelt
 real, dimension(imax,kl), intent(in) :: ppfsnow
@@ -618,7 +617,7 @@ real, dimension(imax), intent(inout) :: so2_burden, so4_burden, so2wd, so4wd, bc
 real, dimension(imax), intent(inout) :: dmse, so2e, so4e, bce, oce, so2dd, so4dd, bcdd, ocdd
 real, dimension(imax), intent(out) :: so4t
 real, dimension(imax,kl) :: zg,clcon,pccw,rhoa
-real, dimension(imax,kl) :: tnhs,dz
+real, dimension(imax,kl) :: dz
 real, dimension(imax) :: coszro,taudar
 real, dimension(imax) :: cldcon,wg
 logical, dimension(imax), intent(in) :: land
@@ -656,17 +655,12 @@ end if
 
 ! set-up input data fields ------------------------------------------------
 
-! Non-hydrostatic terms
-tnhs(:,1) = phi_nh(:,1)/bet(1)
 zg(:,1) = bet(1)*t(1:imax,1)/grav
 do k = 2,kl
-  ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(:,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
   zg(:,k) = zg(:,k-1) + (bet(k)*t(1:imax,k)+betm(k)*t(1:imax,k-1))/grav ! height above surface in meters
 end do
 do k = 1,kl
-  zg(:,k) = zg(:,k) + phi_nh(:,k)/grav
-  dz(:,k) = -rdry*dsig(k)*(t(1:imax,k)+tnhs(:,k))/(grav*sig(k))
+  dz(:,k) = -rdry*dsig(k)*t(1:imax,k)/(grav*sig(k))
   rhoa(:,k) = ps(1:imax)*sig(k)/(rdry*t(1:imax,k)) ! density of air (kg/m**3)
 end do
 
@@ -761,7 +755,6 @@ real, dimension(imax,kl), intent(in) :: rhoa
 real, parameter :: cdrops_nh=1.e8, cdropl_nh=3.e8 !Cloud droplet conc sea/land nh
 !real, parameter :: cdrops_sh=1.e8, cdropl_sh=3.e8 !Cloud droplet conc sea/land sh
 real, parameter :: cdrops_sh=.5e8, cdropl_sh=1.e8 !Cloud droplet conc sea/land sh
-
 logical, intent(in), optional :: outconv
 logical convmode
 
@@ -775,24 +768,24 @@ if ( aeroindir==2 ) then
   indirmode = 0 ! option for no indirect effects
 end if
 
-select case(indirmode)
-  case(2,3)
+select case( indirmode )
+  case( 2, 3 )
     ! prognostic aerosols for indirect effects
     call cldrop(istart,imax,cdn,rhoa,convmode)
   case default
     ! diagnosed for prescribed aerosol indirect effects
     iend = istart + imax - 1
-    where (land(istart:iend).and.rlatt(istart:iend)>0.)
-      cdn(:,1)=cdropl_nh
-    elsewhere (land(istart:iend))
-      cdn(:,1)=cdropl_sh
-    elsewhere (rlatt(istart:iend)>0.)
-      cdn(:,1)=cdrops_nh
+    where ( land(istart:iend).and.rlatt(istart:iend)>0. )
+      cdn(:,1) = cdropl_nh
+    elsewhere ( land(istart:iend) )
+      cdn(:,1) = cdropl_sh
+    elsewhere ( rlatt(istart:iend)>0. )
+      cdn(:,1) = cdrops_nh
     elsewhere
-      cdn(:,1)=cdrops_sh
+      cdn(:,1) = cdrops_sh
     end where
     do k = 2,kl
-      cdn(:,k)=cdn(:,1)
+      cdn(:,k) = cdn(:,1)
     end do
 end select
 

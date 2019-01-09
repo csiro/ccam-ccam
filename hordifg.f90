@@ -20,7 +20,32 @@
 !------------------------------------------------------------------------------
     
 ! This subroutine calculates horizontal diffusion for atmospheric fields
-      
+
+!     this horizontal diffusion routine allows compensation for
+!     being on sigma surfaces through reductions of kh over orography
+!     this is called for -nhor.ge.50; the value of nhor (in metres) gives the
+!     scaling value for deltaz
+!     in namelist khdif is fujio's a**2, e.g. 4.
+    
+!     nhorx used in hordif  ! previous code effectively has nhorx=0
+!           = 1 u, v, T, qg  diffusion reduced near mountains
+!           = 4              diffusion not reduced near mountains    
+!           = 7 u, v, T, qg  diffusion reduced near mountains (bottom 2/3 only)
+
+!     khor: if non-zero increases the diffusion in the
+!     upper model levels   (never used these days)
+!         khor > 0 progessively doubles for khor upper levels
+!         khor < 0 linearly increases above sig = 0.2 (up to factor of 1-khor)
+    
+!     It has -ve nhorps option:
+!        nhorps=0  does only T, qg, TKE, u & v            horiz diff.
+!        nhorps=-1 does only T, qg & TKE                  horiz diff.
+!        nhorps=-2 does only u &  v                       horiz diff.
+!        nhorps=-3 does only qg                           horiz diff.
+!        nhorps=-4 does only T, qg, cloud, TKE & aerosols horiz diff.
+!        nhorps=-5 does only T                            horiz diff.
+!        nhorps=-6 does only T & qg                       horiz diff.
+    
 subroutine hordifgt
 
 use aerosolldr
@@ -43,21 +68,9 @@ use sigs_m
 use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl
 use vecsuv_m
 use vvel_m
+
 implicit none
-!     called from globpe (now not tendencies),
-!     called for -ve nhor
-!     for +ve nhor see hordifg 
-!     It has -ve nhorps option:
-!        nhorps=0  does only T, qg, TKE, u & v            horiz diff.
-!        nhorps=-1 does only T, qg & TKE                  horiz diff.
-!        nhorps=-2 does only u &  v                       horiz diff.
-!        nhorps=-3 does only qg                           horiz diff.
-!        nhorps=-4 does only T, qg, cloud, TKE & aerosols horiz diff.
-!        nhorps=-5 does only T                            horiz diff.
-!        nhorps=-6 does only T & qg                       horiz diff.
-!     and u,v have same options as T (e.g.nhor=-157)
-!     this one has got map factors
-!     has jlm nhorx option as last digit of nhor, e.g. -157
+
 include 'kuocom.h'
 
 real, dimension(ifull+iextra,kl,3) :: work
@@ -69,7 +82,7 @@ real, dimension(ifull,kl) :: dudx, dudy, dudz
 real, dimension(ifull,kl) :: dvdx, dvdy, dvdz
 real, dimension(ifull,kl) :: dwdx, dwdy, dwdz
 real, dimension(ifull,kl) :: emi
-real, dimension(ifull,kl) :: zg, tnhs
+real, dimension(ifull,kl) :: zg
 real, dimension(ifull) :: zgh_a, zgh_b
 real, dimension(ifull) :: ptemp, tx_fact, ty_fact
 real, dimension(ifull) :: sx_fact, sy_fact
@@ -87,24 +100,6 @@ integer k, nhora, nhorx, ntr
 integer nstart, nend
 integer, save :: kmax=-1
 integer, parameter :: nf=2
-
-
-!     nhorx used in hordif  ! previous code effectively has nhorx=0
-!           = 1 u, v, T, qg  diffusion reduced near mountains
-!           = 4              diffusion not reduced near mountains    
-!           = 7 u, v, T, qg  diffusion reduced near mountains (bottom 2/3 only)
-
-!     khor (set up in darlam.f): if non-zero increases the diffusion in the
-!     upper model levels   (never used these days)
-!         khor > 0 progessively doubles for khor upper levels
-!         khor < 0 linearly increases above sig = 0.2 (up to factor of 1-khor)
-
-!     this horizontal diffusion routine allows compensation for
-!     being on sigma surfaces through reductions of kh over orography
-!     this is called for -nhor.ge.50; the value of nhor (in metres) gives the
-!     scaling value for deltaz
-!     in namelist khdif is fujio's a**2, e.g. 4.
-!     if(nhorps.gt.1)stop 'nhorps > 1 not permitted in hordifgt'
 
 nhorx = 0
 
@@ -160,14 +155,11 @@ endif
 if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
   ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
 
-  ! calculate height on full levels and non-hydrostatic temp correction
-  tnhs(:,1) = phi_nh(:,1)/bet(1)
+  ! calculate height on full levels
   zg(:,1) = (zs(1:ifull)+bet(1)*t(1:ifull,1))/grav
   do k = 2,kl
-    tnhs(:,k) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
     zg(:,k) = zg(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
   end do ! k  loop
-  zg(:,:) = zg(:,:) + phi_nh(:,:)/grav
 
   do k = 1,kl        
     ! weighted horizontal velocities
@@ -176,8 +168,8 @@ if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
         
     ! calculate vertical velocity in m/s
     ! omega=ps*dpsldt
-    ! ww = -R/g * (T+Tnhs) / (ps*sig) * ( omega - sig*dpsdt )
-    ww(1:ifull,k) = (-rdry/grav)*(t(1:ifull,k)+tnhs(:,k))/(ps(1:ifull)*sig(k))* &
+    ! ww = -R/g * T / (ps*sig) * ( omega - sig*dpsdt )
+    ww(1:ifull,k) = (-rdry/grav)*t(1:ifull,k)/(ps(1:ifull)*sig(k))* &
                     ( ps(:ifull)*dpsldt(:,k) - sig(k)*dpsdt(:)/864. ) ! dpsdt is in hPa/day and need Pa/s
   end do
   call boundsuv(uav,vav,allvec=.true.)

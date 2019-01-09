@@ -19,10 +19,10 @@
 
 !------------------------------------------------------------------------------
     
-subroutine pbldif(rkm,rkh,theta,uav,vav,cgmap, &
-                  t,phi_nh,pblh,ustar,f,ps,fg,eg,qg,land,cfrac &
+subroutine pbldif(rkm,rkh,theta,uav,vav,dx,             &
+                  t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac &
 #ifdef scm
-                  ,wth_flux,wq_flux &
+                  ,wth_flux,wq_flux                     &
 #endif
                   )
 ! vectorized version      
@@ -94,9 +94,7 @@ real, dimension(imax,kl) :: cgq            ! counter-gradient term for constitue
 real, dimension(imax,kl) :: zg
 real ztodtgor,delsig,tmp1,sigotbk,sigotbkm1
 real cgs                     ! counter-gradient star (cg/flux)
-!global
 real, dimension(imax,kl), intent(in) :: t
-real, dimension(imax,kl), intent(in) :: phi_nh
 real, dimension(imax), intent(inout) :: pblh
 real, dimension(imax), intent(inout) :: ustar
 real, dimension(imax), intent(in) :: f
@@ -129,8 +127,6 @@ real, dimension(imax,kl) :: rino        ! bulk Richardson no. from level to ref 
 real, dimension(imax) :: tlv            ! ref. level pot tmp + tmp excess
 real, dimension(imax) :: wstr           ! w*, convective velocity scale
 real, dimension(imax) :: obklen         ! Obukhov length
-real, dimension(imax) :: tnhs           ! Non-hydrostatic term represented as temperature adjustment
-real, dimension(imax,kl) :: cnhs        ! Non-hydrostatic correction = (1 + Tnhs/T)
 real tkv                                ! model level potential temperature
 real therm                              ! thermal virtual temperature excess
 real pmid                               ! midpoint pressures
@@ -152,7 +148,8 @@ real fac                                ! interpolation factor
 
 !------------------------------Commons----------------------------------
 real, dimension(imax,kl) :: uav,vav
-real, dimension(imax) :: cgmap
+real, dimension(imax) :: dx
+real, dimension(imax) :: cgmap, zturb, pblh_save
 
 real, parameter :: betam  = 15.0  ! Constant in wind gradient expression
 real, parameter :: betas  = 5.0   ! Constant in surface layer gradient expression
@@ -162,6 +159,7 @@ real, parameter :: fakn   = 7.2   ! Constant in turbulent prandtl number
 real, parameter :: ricr   = 0.25  ! Critical richardson number
 real, parameter :: sffrac = 0.1   ! Surface layer fraction of boundary layer
 real, parameter :: vk     = 0.4   ! Von Karman's constant
+real, parameter :: mfbeta = 0.    ! Horizontal scale constant (usual is 0.15)
 real ccon    ! fak * sffrac * vk
 real binm    ! betam * sffrac
 real binh    ! betah * sffrac
@@ -181,15 +179,7 @@ zg(1:imax,1) = bet(1)*t(1:imax,1)/grav
 do k = 2,kl
   zg(1:imax,k) = zg(1:imax,k-1)+(bet(k)*t(1:imax,k)+betm(k)*t(1:imax,k-1))/grav
 enddo         ! k  loop
-! Non-hydrostatic terms
-zg(:,:) = zg(:,:)+phi_nh(:,:)/grav
-tnhs(:) = phi_nh(:,1)/bet(1)
-cnhs(:,1) = 1. + tnhs(:)/t(1:imax,1)
-do k = 2,kl
-  ! representing non-hydrostatic term as a correction to air temperature
-  tnhs(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:))/bet(k)
-  cnhs(:,k) = 1. + tnhs(:)/t(1:imax,k)
-end do
+pblh_save = pblh
 cgh(:,:) = 0.   ! 3D
 cgq(:,:) = 0.   ! 3D
 if ( ktau==1 .and. myid==0 .and. ntiles==1 ) then
@@ -430,7 +420,10 @@ if(diag.and.mydiag.and.ntiles==1)then
 endif
 
 
-! turn off CG term for small grid spacing
+! turn off CG term for small grid spacing (mfbeta=0. is always on)
+! Based on Boutle et al 2014
+zturb = 0.5*(pblh_save + pblh)
+cgmap(:) = 1. - tanh(mfbeta*zturb/dx)*max(0.,1.-0.25*dx/zturb)
 do k=1,kl
   cgh(:,k)=cgh(:,k)*cgmap(:)
   cgq(:,k)=cgq(:,k)*cgmap(:)
@@ -445,8 +438,8 @@ do k=2,kmax-1
     tmp1 = ztodtgor/delsig
     sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
     sigotbkm1=sigmh(k)/(0.5*(t(iq,k-1) + t(iq,k)))
-    theta(iq,k) = theta(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgh(iq,k) - sigotbkm1*rkh(iq,k-1)*cgh(iq,k-1))/cnhs(iq,k)
-    qg(iq,k) = qg(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgq(iq,k) - sigotbkm1*rkh(iq,k-1)*cgq(iq,k-1))/cnhs(iq,k)
+    theta(iq,k) = theta(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgh(iq,k) - sigotbkm1*rkh(iq,k-1)*cgh(iq,k-1))
+    qg(iq,k) = qg(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgq(iq,k) - sigotbkm1*rkh(iq,k-1)*cgq(iq,k-1))
 #ifdef scm
     wth_flux(iq,k+1) = wth_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
     wq_flux(iq,k+1) = wq_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
@@ -458,8 +451,8 @@ do iq=1,imax
   delsig = sigmh(k+1)-sigmh(k)
   tmp1 = ztodtgor/delsig
   sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
-  theta(iq,k) = theta(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/cnhs(iq,k)
-  qg(iq,k) = qg(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/cnhs(iq,k)
+  theta(iq,k) = theta(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)
+  qg(iq,k) = qg(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)
 #ifdef scm
   wth_flux(iq,k+1) = wth_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
   wq_flux(iq,k+1) = wq_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin

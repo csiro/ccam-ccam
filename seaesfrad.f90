@@ -178,7 +178,7 @@ real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
 real, dimension(imax) :: sg, sint, sout, rg, rt, rgdn, sgdnvis, sgdnnir
 real, dimension(imax) :: soutclr, sgclr, rtclr, rgclr
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
-real, dimension(imax) :: dzrho, dumfbeam, tnhs, dumtss
+real, dimension(imax) :: dzrho, dumfbeam, dumtss
 real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
@@ -224,7 +224,7 @@ end if
 
 ! main loop ---------------------------------------------------------
 !$omp do schedule(static) private(istart,iend,mythread,dhr,coszro2,taudar2,coszro,taudar), &
-!$omp private(sigh,duo3n,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,tnhs,rhoa,dz,i,iq,cosz),  &
+!$omp private(sigh,duo3n,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,rhoa,dz,i,iq,cosz),  &
 !$omp private(delta,k,kr,dzrho,cd2,mx,dumt,p2,ktop,kbot,dumcf),                            &
 !$omp private(dumql,dumqf,sgdnvis,sgdnnir,sg,sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir),      &
 !$omp private(sgdnnirdif,rg,rt,rgdn,sint,sout,soutclr,sgclr,rtclr,rgclr,dumfbeam)
@@ -310,14 +310,11 @@ do iq_tile = 1,ifull,imax
     call atebalb1(istart,imax,cirrf_dif(1:imax),0,split=2) ! diffuse
 
     ! Aerosols -------------------------------------------------------
-    tnhs = phi_nh(istart:iend,1)/bet(1)
     rhoa(:,1) = ps(istart:iend)*sig(1)/(rdry*t(istart:iend,1)) !density of air
-    dz(:,1) = -rdry*dsig(1)*(t(istart:iend,1)+tnhs)/(grav*sig(1))
+    dz(:,1) = -rdry*dsig(1)*t(istart:iend,1)/(grav*sig(1))
     do k = 2,kl
-      ! representing non-hydrostatic term as a correction to air temperature
-      tnhs = (phi_nh(istart:iend,k)-phi_nh(istart:iend,k-1)-betm(k)*tnhs)/bet(k)
       rhoa(:,k) = ps(istart:iend)*sig(k)/(rdry*t(istart:iend,k)) !density of air
-      dz(:,k) = -rdry*dsig(k)*(t(istart:iend,k)+tnhs)/(grav*sig(k))
+      dz(:,k) = -rdry*dsig(k)*t(istart:iend,k)/(grav*sig(k))
     end do
     select case (abs(iaero))
       case(0)

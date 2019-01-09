@@ -568,8 +568,6 @@ if ( myid==0 .or. local ) then
     end if
     call ccnf_put_attg(idnc,'amipo3',namipo3)
     call ccnf_put_attg(idnc,'av_vmod',av_vmod)
-    call ccnf_put_attg(idnc,'cgmap_offset',cgmap_offset)
-    call ccnf_put_attg(idnc,'cgmap_scale',cgmap_scale)
     call ccnf_put_attg(idnc,'ch_dust',ch_dust)
     call ccnf_put_attg(idnc,'charnock',charnock)
     call ccnf_put_attg(idnc,'chn10',chn10)
@@ -772,6 +770,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'m0',m0)
     call ccnf_put_attg(idnc,'maxdts',maxdts)
     call ccnf_put_attg(idnc,'maxl',maxl)
+    call ccnf_put_attg(idnc,'mfbeta',mfbeta)
     call ccnf_put_attg(idnc,'mineps',mineps)
     call ccnf_put_attg(idnc,'minl',minl)
     call ccnf_put_attg(idnc,'mintke',mintke)

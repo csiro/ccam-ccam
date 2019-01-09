@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -398,7 +398,6 @@ if (mod(ktau,ntsfreq).eq.0) then
       do k=2,kl                                                   
         temparr2(:,k) = temparr2(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav               
       enddo                                                       
-      temparr2(:,:) = temparr2(:,:) + phi_nh(:,:)/grav ! Non-hydrostatic
     case ('qg') ; temparr2=qg(1:ifull,:)
     case ('sdotm') ; temparr2=sdot(:,1:kl)
     case ('sdotp') ; temparr2=sdot(:,2:kl+1)

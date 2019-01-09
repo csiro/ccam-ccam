@@ -46,7 +46,7 @@ implicit none
 private
 public tkeinit,tkemix,tkeend,tke,eps,shear
 public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,ent1,entc0,ezmin,dtrc0
-public m0,b1,b2,qcmf,ent_min
+public m0,b1,b2,qcmf,ent_min,mfbeta
 public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
 public tke_umin,tkemeth
 #ifdef offline
@@ -88,6 +88,7 @@ real, save :: m0       = 0.1      ! Mass flux area constant (Hurley (2007) 0.1)
 real, save :: b1       = 2.       ! Updraft entrainment coeff (Soares et al (2004) 1., Siebesma et al (2003) 2.)
 real, save :: b2       = 1./3.    ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
 real, save :: qcmf     = 1.e-4    ! Critical mixing ratio of liquid water before autoconversion
+real, save :: mfbeta   = 0.15     ! Horizontal scale factor
 ! generic constants
 integer, save :: buoymeth = 1     ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
 integer, save :: stabmeth = 0     ! Method for stability calculation (0=B&H, 1=Luhar)
@@ -205,7 +206,7 @@ end subroutine tkeinit
 ! mode=1 no mass flux
 
 subroutine tkemix(kmo,theta,qvg,qlg,qfg,cfrac,uo,vo,zi,fg,eg,cduv,ps,zz,zzh,sig,rhos,     &
-                  ustar_ave,dt,qgmin,mode,diag,cgmap,tke,eps,shear,                       &
+                  ustar_ave,dt,qgmin,mode,diag,tke,eps,shear,dx,                          &
 #ifdef scm
                   wthflux,wqvflux,uwflux,vwflux,mfout,buoyproduction,                     &
                   shearproduction,totaltransport,                                         &
@@ -230,7 +231,7 @@ real, dimension(imax,kl), intent(in) :: shear
 real, dimension(imax,kl), intent(inout) :: tke
 real, dimension(imax,kl), intent(inout) :: eps
 real, dimension(imax), intent(inout) :: zi
-real, dimension(imax), intent(in) :: fg,eg,cduv,ps,rhos,cgmap
+real, dimension(imax), intent(in) :: fg,eg,cduv,ps,rhos,dx
 real, dimension(imax), intent(out) :: ustar_ave
 real, dimension(kl), intent(in) :: sig
 real, dimension(imax,kl) :: km,thetav,thetal,qsat
@@ -255,7 +256,7 @@ real, dimension(imax) :: tff,tgg,tempc,thetac,pres,temp
 real, dimension(imax) :: cdrag,umag,ustar
 real, dimension(imax) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(imax) :: tbb,tcc,tqq
-real, dimension(imax) :: avearray
+real, dimension(imax) :: zi_save, zturb, cgmap
 real, dimension(kl) :: sigkap
 real cm12, cm34
 real ddts
@@ -399,6 +400,8 @@ do kcount = 1,mcount
   wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)   
 
   if ( mode/=1 ) then ! mass flux
+      
+    zi_save = zi  
 
     lmask = wtv0(1:imax)>0. ! unstable
     imax_p = count(lmask)
@@ -413,7 +416,10 @@ do kcount = 1,mcount
     lmask = .not.lmask ! stable
     call stablepbl(lmask,zi,zzh,dz_hl,thetav,kmo,imax)
     
-    ! turn off MF term if small grid spacing
+    ! Turn off MF term if small grid spacing (beta=0. implies MF is always non-zero)
+    ! Based on Boutle et al 2014
+    zturb = 0.5*(zi_save + zi)
+    cgmap(:) = 1. - tanh(mfbeta*zturb/dx)*max(0.,1.-0.25*dx/zturb)
     do k = 1,kl
       mflx(:,k) = mflx(:,k)*cgmap(:)
     end do
@@ -606,11 +612,6 @@ do kcount = 1,mcount
 
 
   ! theta vertical mixing
-  avearray=0.5*(maxval(thetal(1:imax,:),dim=2)+minval(thetal(1:imax,:),dim=2))
-  do k=1,kl
-    thetal(1:imax,k)=thetal(1:imax,k)-avearray
-    tlup(:,k)=tlup(:,k)-avearray
-  end do
   dd(:,1)=thetal(1:imax,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                    &
                                  +mflx(:,2)*tlup(:,2)*fzzh(:,1)*idzp(:,1))                                       &
                            +ddts*rhos*wt0/(rhoa(:,1)*dz_fl(:,1))
@@ -621,10 +622,6 @@ do kcount = 1,mcount
   dd(:,kl)=thetal(1:imax,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                        &
                                    +mflx(:,kl)*tlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(thetal,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
-  do k=1,kl
-    thetal(1:imax,k)=thetal(1:imax,k)+avearray
-    tlup(:,k)=tlup(:,k)+avearray
-  end do
 #ifdef scm  
   wthlflux(:,1)=wt0(:)
   wthlflux(:,2:kl)=-kmo(:,1:kl-1)*(thetal(1:imax,2:kl)-thetal(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                &
@@ -639,11 +636,6 @@ do kcount = 1,mcount
 
 
   ! qv (part of qtot) vertical mixing
-  avearray=0.5*(maxval(qvg(1:imax,:),dim=2)+minval(qvg(1:imax,:),dim=2))
-  do k=1,kl
-    qvg(1:imax,k)=qvg(1:imax,k)-avearray
-    qvup(:,k)=qvup(:,k)-avearray
-  end do
   dd(:,1)=qvg(1:imax,1)-ddts*(mflx(:,1)*qvup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                       &
                               +mflx(:,2)*qvup(:,2)*fzzh(:,1)*idzp(:,1))                                          &
                            +ddts*rhos*wq0/(rhoa(:,1)*dz_fl(:,1))
@@ -654,10 +646,6 @@ do kcount = 1,mcount
   dd(:,kl)=qvg(1:imax,kl)+ddts*(mflx(:,kl-1)*qvup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                           &
                                 +mflx(:,kl)*qvup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(qvg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
-  do k=1,kl
-    qvg(1:imax,k)=qvg(1:imax,k)+avearray
-    qvup(:,k)=qvup(:,k)+avearray
-  end do  
 #ifdef scm
   wqvflux(:,1)=wq0(:)
   wqvflux(:,2:kl)=-kmo(:,1:kl-1)*(qvg(1:imax,2:kl)-qvg(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                          &

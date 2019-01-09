@@ -318,7 +318,6 @@
       use map_m
       use morepbl_m
       use newmpar_m
-      use nharrs_m, only : phi_nh
       use parm_m
       use prec_m
       use sigs_m
@@ -334,7 +333,7 @@
       real, dimension(imax,kl,naero)    :: lxtg
       real, dimension(imax,kl,ntrac)    :: ltr
       real, dimension(imax,kl)          :: ldpsldt, lt, lqg
-      real, dimension(imax,kl)          :: lphi_nh, lfluxtot
+      real, dimension(imax,kl)          :: lfluxtot
       real, dimension(imax,kl)          :: lqlg, lu, lv, lqfg
       real, dimension(imax,kl)          :: lcfrac
       real, dimension(imax,ndust)       :: ldustwd
@@ -342,7 +341,7 @@
       real, dimension(imax)             :: lbcwd, locwd
 
 !$omp  do schedule(static) private(is,ie),
-!$omp& private(ldpsldt,lt,lqg,lphi_nh,lfluxtot),
+!$omp& private(ldpsldt,lt,lqg,lfluxtot),
 !$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd),
 !$omp& private(lqlg,lqfg,lcfrac,lu,lv,ltr)
       do tile=1,ntiles
@@ -351,7 +350,6 @@
 
         ldpsldt   = dpsldt(is:ie,:)
         lt        = t(is:ie,:)
-        lphi_nh   = phi_nh(is:ie,:)
         lqg       = qg(is:ie,:)
         lqlg      = qlg(is:ie,:)
         lqfg      = qfg(is:ie,:)
@@ -370,7 +368,7 @@
           ltr = tr(is:ie,:,:)
         end if
 
-        call convjlm_work(alfin(is:ie),ldpsldt,lt,lqg,lphi_nh,
+        call convjlm_work(alfin(is:ie),ldpsldt,lt,lqg,
      &       ps(is:ie),lfluxtot,convpsav(is:ie),cape(is:ie),
      &       lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,
      &       lqlg,condc(is:ie),precc(is:ie),condx(is:ie),
@@ -389,10 +387,10 @@
         if ( abs(iaero)>=2 ) then
           xtg(is:ie,:,:)  = lxtg
           dustwd(is:ie,:) = ldustwd
-          so2wd(is:ie)=lso2wd
-          so4wd(is:ie)=lso4wd
-          bcwd(is:ie)=lbcwd
-          ocwd(is:ie)=locwd
+          so2wd(is:ie) = lso2wd
+          so4wd(is:ie) = lso4wd
+          bcwd(is:ie) = lbcwd
+          ocwd(is:ie) = locwd
         end if
         if ( ngas>0 ) then
           tr(is:ie,:,:) = ltr
@@ -404,7 +402,7 @@
       return
       end subroutine convjlm     ! jlm convective scheme
 
-      subroutine convjlm_work(alfin,dpsldt,t,qg,phi_nh,ps,
+      subroutine convjlm_work(alfin,dpsldt,t,qg,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,entrainn,u,v,timeconv,em,
@@ -468,9 +466,8 @@
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
       real, dimension(:,:,:), intent(inout)    :: xtg
       real, dimension(:,:,:), intent(inout)    :: tr
-      real, dimension(imax,kl), intent(in)             :: dpsldt
-      real, dimension(imax,kl), intent(in)             :: phi_nh
-      real, dimension(imax,kl), intent(in)             :: cfrac
+      real, dimension(imax,kl), intent(in)         :: dpsldt
+      real, dimension(imax,kl), intent(in)         :: cfrac
       real, dimension(:,:), intent(inout)          :: t
       real, dimension(:,:), intent(inout)          :: qg
       real, dimension(:,:), intent(inout)          :: qlg
@@ -549,7 +546,6 @@
         phi(iq,k)=phi(iq,k-1)+bet(k)*tt(iq,k)+betm(k)*tt(iq,k-1)
        enddo     ! iq loop
       enddo      ! k  loop
-      if(nh/=0)phi(:,:)=phi(:,:)+phi_nh(:,:)  ! add non-hydrostatic component - MJT
 
 !      following defines kb_sav (as kkbb), method chosen by nbase
        kkbb(:)=1   ! kkbb is defined as top level within PBL 
@@ -703,7 +699,7 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
        do iq=1,imax
         pk=ps(iq)*sig(k)
 !       qs(iq,k)=max(.622*es(iq,k)/(pk-es(iq,k)),1.5e-6)  
-        qs(iq,k)=.622*es(iq,k)/m ax(pk-es(iq,k),0.1)  
+        qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),0.1)  
         dqsdt(iq,k)=qs(iq,k)*pk*hlars/(tt(iq,k)**2*max(pk-es(iq,k),1.))
         s(iq,k)=cp*tt(iq,k)+phi(iq,k)  ! dry static energy
 !       calculate hs
@@ -781,8 +777,6 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
         write (6,"('hplume',12f7.2/(5x,12f7.2))")
      &            (splume(iq,:)+hl*qplume(iq,:))/cp 
         write (6,"('tt    ',12f7.2/(5x,12f7.2))") tt(iq,:)
-        write (6,"('s_nh/cp',12f7.2/(5x,12f7.2))") 
-     &            (s(iq,:)-phi_nh(iq,:))/cp
         write (6,"('s/cp  ',12f7.2/(5x,12f7.2))") s(iq,:)/cp
         write (6,"('h/cp  ',12f7.2/(5x,12f7.2))") 
      .             s(iq,:)/cp+hlcp*qq(iq,:)

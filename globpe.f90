@@ -1371,6 +1371,7 @@ real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
 real targetlev, dsx, pwatr_l, pwatr
+real cgmap_offset, cgmap_scale ! depreciated namelist options
 real(kind=8), dimension(:), allocatable, save :: dumr8
 logical lmlosigma
 character(len=1024) nmlfile
@@ -1406,13 +1407,13 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     tblock,tbave,localhist,unlimitedhist,synchist,m_fly,          &
     nurban,ktopdav,mbd_mlo,mbd_maxscale_mlo,nud_sst,nud_sss,      &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
-    rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,cgmap_offset,     &
-    cgmap_scale,nriver,atebnmlfile,nud_period,mfix_t,             &
+    rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,nriver,           &
+    atebnmlfile,nud_period,mfix_t,                                &
     procformat,procmode,compression,hp_output,                    & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
-    npa,npb                                                         ! depreciated
+    npa,npb,cgmap_offset,cgmap_scale                                ! depreciated
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
@@ -1446,7 +1447,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & ! EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
-    stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,                 &
+    stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,mfbeta,          &
     amxlsq,                                                       & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
     tkecduv                                                         ! depreciated
@@ -1533,7 +1534,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(34), dumi(116) ) 
+allocate( dumr(32), dumi(116) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1562,16 +1563,14 @@ if ( myid==0 ) then
   dumr(22)  = schmidt
   dumr(23)  = sigramplow
   dumr(24)  = sigramphigh
-  dumr(25)  = cgmap_offset
-  dumr(26)  = cgmap_scale
-  dumr(27)  = ch_dust
-  dumr(28)  = helim
-  dumr(29)  = fc2
-  dumr(30)  = sigbot_gwd
-  dumr(31)  = alphaj
-  dumr(32)  = qgmin
-  dumr(33)  = rhsat
-  dumr(34)  = ensemble_rsfactor
+  dumr(25)  = ch_dust
+  dumr(26)  = helim
+  dumr(27)  = fc2
+  dumr(28)  = sigbot_gwd
+  dumr(29)  = alphaj
+  dumr(30)  = qgmin
+  dumr(31)  = rhsat
+  dumr(32)  = ensemble_rsfactor
   dumi(1)   = ntau
   dumi(2)   = nwt
   dumi(3)   = nhorps
@@ -1715,16 +1714,14 @@ rlat0             = dumr(21)
 schmidt           = dumr(22)
 sigramplow        = dumr(23)
 sigramphigh       = dumr(24)
-cgmap_offset      = dumr(25)
-cgmap_scale       = dumr(26)
-ch_dust           = dumr(27)
-helim             = dumr(28)
-fc2               = dumr(29)
-sigbot_gwd        = dumr(30)
-alphaj            = dumr(31)
-qgmin             = dumr(32)
-rhsat             = dumr(33)
-ensemble_rsfactor = dumr(34)
+ch_dust           = dumr(25)
+helim             = dumr(26)
+fc2               = dumr(27)
+sigbot_gwd        = dumr(28)
+alphaj            = dumr(29)
+qgmin             = dumr(30)
+rhsat             = dumr(31)
+ensemble_rsfactor = dumr(32)
 ntau              = dumi(1)
 nwt               = dumi(2)
 nhorps            = dumi(3)
@@ -2096,7 +2093,7 @@ nclddia        = dumi(19)
 nmr            = dumi(20)
 nevapls        = dumi(21)
 deallocate( dumr, dumi )
-allocate( dumr(29), dumi(4) )
+allocate( dumr(30), dumi(4) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2134,6 +2131,7 @@ if ( myid==0 ) then
   dumr(27) = sigbot_gwd
   dumr(28) = alphaj
   dumr(29) = ent_min
+  dumr(30) = mfbeta
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
@@ -2169,6 +2167,7 @@ fc2        = dumr(26)
 sigbot_gwd = dumr(27)
 alphaj     = dumr(28)
 ent_min    = dumr(29)
+mfbeta     = dumr(30)
 buoymeth   = dumi(1)
 stabmeth   = dumi(2)
 tkemeth    = dumi(3)
@@ -2696,8 +2695,6 @@ if ( myid<nproc ) then
     write(6,'(f8.2,i5,2f8.2)') tke_umin,tkemeth,ezmin,ent_min
     write(6,*) ' amxlsq'
     write(6,'(f8.2)') amxlsq
-    write(6,*)'  cgmap_offset   cgmap_scale'
-    write(6,'(2f14.2)') cgmap_offset,cgmap_scale  
     write(6,*)'Gravity wave drag options:'
     write(6,*)' ngwd   helim     fc2  sigbot_gwd  alphaj'
     write(6,'(i5,2x,3f8.2,f12.6)') ngwd,helim,fc2,sigbot_gwd,alphaj
@@ -4318,7 +4315,7 @@ if ( any(psl(js:je)/=psl(js:je)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(psl(js:je)<-1.4) .or. any(psl(js:je)>0.3) ) then
+if ( any(psl(js:je)<-1.5) .or. any(psl(js:je)>0.3) ) then
   write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(psl(js:je)),maxval(psl(js:je))
   write(6,*) "minloc,maxloc ",minloc(psl(js:je)),maxloc(psl(js:je))
