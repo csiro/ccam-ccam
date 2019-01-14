@@ -58,11 +58,6 @@ character(len=*), intent(in) :: cdffile_in
 
 call START_LOG(outfile_begin)
       
-if ( myid==0 ) then
-  write(6,*) "ofile written for iout: ",iout
-  write(6,*) "kdate,ktime,mtimer:     ",kdate,ktime,mtimer
-end if
-
 ! Older text file for soil
 if ( nrungcm==-2 .or. nrungcm==-3 .or. nrungcm==-5 ) then
   call soiltextfile  
@@ -302,12 +297,6 @@ if ( myid==0 .or. local ) then
       end if
       call ccnf_def_dim(idnc,'time',tlen,tdim)
     end if
-    if ( myid==0 ) then
-      write(6,*) "xdim,ydim,zdim,pdim,tdim"
-      write(6,*)  xdim,ydim,zdim,pdim,tdim
-      write(6,*) "msdim,ocdim,ubdim"
-      write(6,*)  msdim,ocdim,ubdim
-    end if
 
     ! Create additional dimensions for CABLE
     cpdim = 0
@@ -387,19 +376,16 @@ if ( myid==0 .or. local ) then
     end if
     call ccnf_put_att(idnc,iyp,'point_spacing','even')
     call ccnf_put_att(idnc,iyp,'units','degrees_north')
-    if ( myid==0 ) write(6,*) 'ixp,iyp=',ixp,iyp
 
     call ccnf_def_var(idnc,'lev','float',1,dima(3:3),idlev)
     call ccnf_put_att(idnc,idlev,'positive','down')
     call ccnf_put_att(idnc,idlev,'point_spacing','uneven')
     call ccnf_put_att(idnc,idlev,'units','sigma_level')
     call ccnf_put_att(idnc,idlev,'long_name','sigma_level')
-    if ( myid==0 ) write(6,*) 'idlev=',idlev
 
     call ccnf_def_var(idnc,'zsoil','float',1,dims(3:3),idms)
     call ccnf_put_att(idnc,idms,'point_spacing','uneven')
     call ccnf_put_att(idnc,idms,'units','m')
-    if ( myid==0 ) write(6,*) 'idms=',idms
         
     if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
       call ccnf_def_var(idnc,'olev','float',1,dimo(3:3),idoc)
@@ -412,7 +398,6 @@ if ( myid==0 .or. local ) then
         write(6,*) "ERROR: Unknown option mlosigma ",mlosigma
         call ccmpi_abort(-1)
       end if    
-      if ( myid==0 ) write(6,*) 'idoc=',idoc
     end if  
     
     if ( procformat ) then
@@ -433,8 +418,6 @@ if ( myid==0 .or. local ) then
     end if
     call ccnf_put_att(idnc,idnt,'point_spacing','even')
     if ( myid==0 ) then
-      write(6,*) 'tdim,idnc=',tdim,idnc
-      write(6,*) 'idnt=',idnt
       write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
     end if
     
@@ -442,14 +425,12 @@ if ( myid==0 .or. local ) then
       if ( cable_pop==1 ) then
         call ccnf_def_var(idnc,'cable_patch','float',1,dimc1(3:3),idcp)  
         call ccnf_def_var(idnc,'cable_cohort','float',1,dimc2(4:4),idc2p)  
-        if ( myid==0 ) write(6,*) 'idcp,idc2p=',idcp,idc2p
       end if
       if ( cable_climate==1 ) then
         call ccnf_def_var(idnc,'cable_91days','float',1,dimc3(3:3),idc91p)
         call ccnf_def_var(idnc,'cable_31days','float',1,dimc4(3:3),idc31p)
         call ccnf_def_var(idnc,'cable_20years','float',1,dimc5(3:3),idc20y)
         call ccnf_def_var(idnc,'cable_5days','float',1,dimc6(3:3),idc5d)
-        if ( myid==0 ) write(6,*) 'idc91p,idc31p,idc20y,idc5d=',idc91p,idc31p,idc20y,idc5d
       end if
     end if    
 
@@ -464,9 +445,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_att(idnc,idnt,'units',grdtim)
     if ( leap==0 ) then
       call ccnf_put_att(idnc,idnt,'calendar','noleap')
-    end if
-    if ( myid==0 ) then
-      write(6,*) 'grdtim=',grdtim
     end if
 
     ! create the attributes of the header record of the file
@@ -571,6 +549,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ch_dust',ch_dust)
     call ccnf_put_attg(idnc,'charnock',charnock)
     call ccnf_put_attg(idnc,'chn10',chn10)
+    call ccnf_put_attg(idnc,'divdamp',divdamp)
     call ccnf_put_attg(idnc,'ensemble_mode',ensemble_mode)
     call ccnf_put_attg(idnc,'ensemble_period',ensemble_period)
     call ccnf_put_attg(idnc,'ensemble_rsfactor',ensemble_rsfactor)
@@ -845,7 +824,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'factchseaice',factchseaice)
     call ccnf_put_attg(idnc,'mindep',mindep)
     call ccnf_put_attg(idnc,'minwater',minwater)
-    call ccnf_put_attg(idnc,'mlo_rtest',mlo_rtest)
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
     call ccnf_put_attg(idnc,'mlosigma',mlosigma)
@@ -1068,7 +1046,6 @@ if( myid==0 .or. local ) then
 !   Create global attributes
 !   Model run number
     if ( myid==0 ) then
-      write(6,*) 'dima=',dima(1:asize)
       write(6,*) 'nrun=',nrun
     end if
     call ccnf_put_attg(idnc,'nrun',nrun)
@@ -1146,7 +1123,7 @@ if( myid==0 .or. local ) then
     end if
 
     if ( myid==0 ) then
-      write(6,*) 'define attributes of variables'
+      write(6,*) 'define attributes of variables with ',nextout
     end if
 
     ! For time invariant surface fields
@@ -1519,7 +1496,6 @@ if( myid==0 .or. local ) then
     end if
     if ( itype/=-1 ) then
       if ( nextout>=1 ) then
-        if ( myid==0 ) write(6,*) 'nextout=',nextout
         if ( save_radiation ) then
           lname = 'LW at TOA'
           call attrib(idnc,dimj,jsize,'rtu_ave',lname,'W/m2',0.,800.,0,-1) ! -1 = long
@@ -1886,9 +1862,6 @@ if( myid==0 .or. local ) then
     end if
         
     ! STANDARD 3D VARIABLES -------------------------------------
-    if ( myid==0 ) then
-      write(6,*) '3d variables'
-    end if
     if ( itype/=-1 ) then
       if ( nextout>=4 .and. nllp==3 ) then   ! N.B. use nscrn=1 for hourly output
         lname = 'Delta latitude'
@@ -2116,7 +2089,6 @@ if( myid==0 .or. local ) then
     if ( myid==0 ) write(6,*) 'finished defining attributes'
 !   Leave define mode
     call ccnf_enddef(idnc)
-    if ( myid==0 ) write(6,*) 'leave define mode'
 
     if ( procformat ) then
       ! procformat

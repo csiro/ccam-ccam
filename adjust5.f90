@@ -70,7 +70,8 @@ real, dimension(ifull+iextra,kl,3) :: dums
 real, dimension(ifull,kl,3) :: dumssav
 real, dimension(ifull+iextra,kl) :: p, cc, dd, pe
 real, dimension(ifull,kl) :: omgfnl, wrk1, wrk2, wrk3, wrk4
-real, dimension(ifull,kl) :: helm, rhsl, omgf, d, e
+real, dimension(ifull,kl) :: helm, rhsl, omgf, e
+real, dimension(ifull+iextra,kl) :: d
 real, dimension(ifull) :: ps_sav, pslxint, pslsav
 real, dimension(ifull) :: delps, bb
 real, dimension(ifull) :: dd_isv, cc_iwu, em_isv, em_iwu
@@ -78,6 +79,7 @@ real, dimension(ifull) :: p_n, p_s, p_e, p_w
 real, dimension(ifull) :: alf_n, alf_e
 real, dimension(ifull) :: alff_n, alff_s, alff_e, alff_w
 real, dimension(ifull) :: ptemp, ptempsav
+real, dimension(ifull) :: d_e, d_n
 real hdt, hdtds
 real alph_p, alph_pm, delneg, delpos
 real const_nh
@@ -177,9 +179,13 @@ do k = 2,kl
   p(1:ifull,k) = p(1:ifull,k-1) + bet(k)*(tx(1:ifull,k)-280.) + betm(k)*(tx(1:ifull,k-1)-280.)
 end do ! k loop
 
-if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
+if ( nh/=0 .and. (ktau>=knh.or.lrestart) ) then
   ! add in departure values of p-related nh terms  & omgfnl terms    
-  const_nh = 2.*rdry/(dt*grav*grav*(1.+epsh))
+  if ( abs(epsp)<=1. ) then
+    const_nh = 2.*rdry/(dt*grav*grav*(1.+epsh))
+  else
+    const_nh=2.*rdry/(dt*grav*grav)
+  end if  
   ! note that linear part of omega/ps for tau+1 is included in eig.f90
   ! wrk2 contains the tstar and non-linear part of omega/ps at tau+1
   if ( abs(epsp)<=1. ) then
@@ -327,6 +333,37 @@ if ( nmaxpr==1 ) then
                                               dd(idjd,nlv)/emv(idjd),dd(isv(idjd),nlv)/emv(isv(idjd))      
 end if   ! (nmaxpr==1)
 #endif
+
+
+! following is JLM sliding divergence damping (N.B. d dimensions with iextra)
+if ( nh/=0 .and. ktau<=-knh ) then  ! e.g. knh=-10, divdamp=450.
+  if ( nmaxpr==1 .and. mydiag ) then
+    write(6,*) 'div damping'
+    write(6,*) 'cc,cc-,dd,dd-', cc(idjd,nlv)/emu(idjd),cc(iwu(idjd),nlv)/emu(iwu(idjd)), &
+                                            dd(idjd,nlv)/emv(idjd),dd(isv(idjd),nlv)/emv(isv(idjd))      
+    write(6,*) 'd',d(idjd,:)
+  end if
+  call bounds(d)
+  do k=1,kl
+    call unpack_ne(d(:,k),d_n,d_e)
+    cc(1:ifull,k)=cc(1:ifull,k)+(d_e-d(1:ifull,k))*divdamp*real(1-knh-ktau)*emu(1:ifull)*dt/(ds*real(abs(knh))) 
+    dd(1:ifull,k)=dd(1:ifull,k)+(d_n-d(1:ifull,k))*divdamp*real(1-knh-ktau)*emv(1:ifull)*dt/(ds*real(abs(knh)))
+  end do
+  call boundsuv(cc,dd,stag=-9) ! only update isv and iwu
+  do k=1,kl
+    call unpack_svwu(cc(:,k),dd(:,k),dd_isv,cc_iwu)  
+    d(1:ifull,k)=(cc(1:ifull,k)/emu(1:ifull)-cc_iwu/em_iwu   &
+                 +dd(1:ifull,k)/emv(1:ifull)-dd_isv/em_isv)  &
+                 *em(1:ifull)**2/ds ! Eq. 101
+  end do     ! k  loop
+  if ( nmaxpr==1 .and. mydiag ) then
+    write(6,*) 'after div damping'
+    write(6,*) 'cc,cc-,dd,dd-', cc(idjd,nlv)/emu(idjd),cc(iwu(idjd),nlv)/emu(iwu(idjd)), &
+                                            dd(idjd,nlv)/emv(idjd),dd(isv(idjd),nlv)/emv(isv(idjd))      
+    write(6,*) 'd',d(idjd,:)
+  end if
+end if  ! (nh/=0.and.ktau<=-knh)
+
 
 
 ! straightforward rev. cubic interp of u and v (i.e. nuv=10)

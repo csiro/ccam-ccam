@@ -171,7 +171,7 @@ if ( myid<nproc ) then
   ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
   if ( nwt>0 ) then
     ! write out the first ofile data set
-    if ( myid==0 ) write(6,*) "calling outfile"
+    if ( myid==0 ) write(6,*) "Calling outfile"
     call outfile(20,ofile,psl,u,v,t,qg)
   end if    ! (nwt>0)
   if ( newtop<0 ) then
@@ -1472,8 +1472,8 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
-    alphanir_seaice,mlojacobi,mlo_rtest,usepice,mlosigma,         &
-    pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    &
+    alphanir_seaice,mlojacobi,usepice,mlosigma,                   &
+    pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    & ! k-e
     nops,nopb,fixedstabfunc,omink,omineps,oclosure,               &
     rivermd,basinmd,rivercoeff,                                   & ! River
     mlomfix                                                         ! Depreciated
@@ -1520,6 +1520,11 @@ ateb_intairtmeth = 0
 ateb_intmassmeth = 0
 lapsbot          = 0
 io_nest          = 1
+npa              = 0  ! depreciated
+npb              = 0  ! depreciated
+cgmap_offset     = 0. ! depreciated
+cgmap_scale      = 0. ! depreciated
+
 
 ! All processors read the namelist, so no MPI comms are needed
 if ( myid==0 ) then
@@ -2301,7 +2306,7 @@ ateb_statsmeth    = dumi(29)
 ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(15), dumi(19) )
+allocate( dumr(14), dumi(19) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2321,11 +2326,10 @@ if ( myid==0 ) then
   dumr(8)  = alphavis_seaice
   dumr(9)  = alphanir_seaice
   dumr(10) = rivercoeff
-  dumr(11) = mlo_rtest
-  dumr(12) = pdl
-  dumr(13) = pdu
-  dumr(14) = omink
-  dumr(15) = omineps
+  dumr(11) = pdl
+  dumr(12) = pdu
+  dumr(13) = omink
+  dumr(14) = omineps
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2358,11 +2362,10 @@ mindep          = dumr(7)
 alphavis_seaice = dumr(8)
 alphanir_seaice = dumr(9)
 rivercoeff      = dumr(10)
-mlo_rtest       = dumr(11)
-pdl             = dumr(12)
-pdu             = dumr(13)
-omink           = dumr(14)
-omineps         = dumr(15)
+pdl             = dumr(11)
+pdu             = dumr(12)
+omink           = dumr(13)
+omineps         = dumr(14)
 mlodiff         = dumi(1)
 usetide         = dumi(2) 
 zomode          = dumi(3) 
@@ -2644,10 +2647,8 @@ if ( myid<nproc ) then
   end if
   if ( kblock<0 ) then
     kblock = max(kl, ol) ! must occur before indata
-    if ( myid==0 ) then
-      write(6,*) "Adjusting kblock to ",kblock
-    end if
   end if
+  if ( myid==0 ) write(6,*) "kblock ",kblock
 
   ! **** do namelist fixes above this line ***
 
@@ -3014,6 +3015,9 @@ if ( myid<nproc ) then
 
   !--------------------------------------------------------------
   ! SETUP REMAINING PARAMETERS
+  if ( myid==0 ) then
+    write(6,*) "Setup remaining parameters"
+  end if
   
   ! fix nudging levels from pressure to level index
   ! this is done after indata has loaded sig
@@ -3023,7 +3027,7 @@ if ( myid<nproc ) then
       if ( sig(k)<=targetlev ) then
         kbotdav = k
         if ( myid==0 ) then
-          write(6,*) "kbotdav adjusted to ",kbotdav,"for sig ",sig(kbotdav)
+          write(6,*) "Nesting kbotdav adjusted to ",kbotdav,"for sig ",sig(kbotdav)
         end if
         exit
       end if
@@ -3041,7 +3045,7 @@ if ( myid<nproc ) then
       if ( sig(k)>=targetlev ) then
         ktopdav = k
         if ( myid == 0 ) then
-          write(6,*) "ktopdav adjusted to ",ktopdav,"for sig ",sig(ktopdav)
+          write(6,*) "Nesting ktopdav adjusted to ",ktopdav,"for sig ",sig(ktopdav)
         end if
         exit
       end if
@@ -3059,20 +3063,20 @@ if ( myid<nproc ) then
   if ( kbotu==0 ) kbotu = kbotdav
 
   ! fix ocean nuding levels
-  if ( nmlo/=0 ) then
+  if ( nmlo/=0 .and. abs(nmlo)<9 ) then
     allocate( gosig_in(ol) )
     call mlovlevels(gosig_in)
-    lmlosigma = any(gosig_in>1.)
+    lmlosigma = all(gosig_in<=1.)
+    if ( .not.lmlosigma ) then  
+      gosig_in = gosig_in/mxd
+    end if 
     if ( kbotmlo<0 )  then
-      targetlev = real(-kbotmlo)/1000.  
-      if ( .not.lmlosigma ) then  
-        targetlev = targetlev*mxd
-      end if    
+      targetlev = real(-kbotmlo)/1000.   
       do k = ol,1,-1
         if ( gosig_in(k)<=targetlev ) then
           kbotmlo = k
           if ( myid==0 ) then
-            write(6,*) "kbotmlo adjusted to ",kbotmlo,"for sig ",gosig_in(kbotmlo)
+            write(6,*) "Nesting kbotmlo adjusted to ",kbotmlo,"for sig ",gosig_in(kbotmlo)
           end if
           exit
         end if
@@ -3084,14 +3088,11 @@ if ( myid<nproc ) then
     end if
     if ( ktopmlo<0 ) then
       targetlev = real(-ktopmlo)/1000.
-      if ( .not.lmlosigma ) then  
-        targetlev = targetlev*mxd
-      end if  
       do k = 1,ol
         if ( gosig_in(k)>=targetlev ) then
           ktopmlo = k
           if ( myid==0 ) then
-            write(6,*) "ktopmlo adjusted to ",ktopmlo,"for sig ",gosig_in(ktopmlo)
+            write(6,*) "Nesting ktopmlo adjusted to ",ktopmlo,"for sig ",gosig_in(ktopmlo)
           end if
           exit
         end if

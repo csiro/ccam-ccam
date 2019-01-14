@@ -19,7 +19,7 @@
 
 !------------------------------------------------------------------------------
     
-subroutine depts1(x3d,y3d,z3d)  ! input ubar,vbar are unstaggered vels for level k
+subroutine depts1(x3d,y3d,z3d,intsch)  ! input ubar,vbar are unstaggered vels for level k
 
 use cc_mpi
 use const_phys
@@ -35,7 +35,8 @@ use xyzinfo_m
 
 implicit none
 
-integer iq, k, intsch, idel, jdel, nn
+integer, intent(in) :: intsch
+integer iq, k, idel, jdel, nn
 integer i, j, n, ii
 real xxg, yyg
 real, dimension(ifull,kl) :: uc, vc, wc
@@ -73,7 +74,6 @@ if ( diag .and. mydiag ) then
   write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
 endif
 
-intsch = mod(ktau, 2)
 s(1:ifull,:,1) = uc(1:ifull,:)
 s(1:ifull,:,2) = vc(1:ifull,:)
 s(1:ifull,:,3) = wc(1:ifull,:)

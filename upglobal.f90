@@ -24,6 +24,7 @@ subroutine upglobal
 use aerosolldr             ! LDR prognostic aerosols
 use arrays_m               ! Atmosphere dyamics prognostic arrays
 use cc_mpi                 ! CC MPI routines
+use cc_omp                 ! CC OpenMP routines
 use cfrac_m                ! Cloud fraction
 use cloudmod               ! Prognostic cloud fraction
 use const_phys             ! Physical constants
@@ -57,7 +58,7 @@ include 'kuocom.h'         ! Convection parameters
 
 integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
 integer ii, intsch, iq, jj, k, kk
-integer idjdd, nstart, nend, ntot
+integer idjdd, nstart, nend, ntot, tile
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits, nvadh_pass
 #ifdef debug
@@ -77,7 +78,7 @@ real(kind=8), dimension(ifull,kl) :: x3d, y3d, z3d
 
 call START_LOG(upglobal_begin)
 
-intsch = mod(ktau,2)
+intsch = mod(ktau, 2)
 
 do k = 1,kl
   ! finish off RHS terms; this coriolis term was once in nonlin
@@ -85,7 +86,7 @@ do k = 1,kl
   vx(1:ifull,k) = vx(1:ifull,k) - 0.5*dt*(1.-epsf)*f(1:ifull)*u(1:ifull,k) ! end of Eq. 130
 end do      ! k loop
 
-call depts1(x3d,y3d,z3d)
+call depts1(x3d,y3d,z3d,intsch)
       
 !     calculate factr for choice of nt_adv, as usually used
 select case(nt_adv)
@@ -154,7 +155,13 @@ end do     ! k loop
 sdmx(:) = maxval(abs(sdot), 2)
 nits(:) = int(1.+sdmx(:)/2.)
 nvadh_pass(:) = 2*nits(:) ! use - for nvadu
-call vadvtvd(tx,ux,vx,nvadh_pass,nits)
+!$omp parallel private(tile)
+!$omp do
+do tile = 1,ntiles
+  call vadvtvd(tx,ux,vx,nvadh_pass,nits,tile)
+end do  
+!$omp end do
+!$omp end parallel
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv1'
   write (6,"('tx_a',9f8.2)")   tx(idjd,:)
@@ -401,7 +408,13 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('qg_b',9f8.3)")   qg(idjd,:)
 endif
 
-call vadvtvd(tx,ux,vx,nvadh_pass,nits)
+!$omp parallel private(tile)
+!$omp do
+do tile = 1,ntiles
+  call vadvtvd(tx,ux,vx,nvadh_pass,nits,tile)
+end do  
+!$omp end do
+!$omp end parallel
 
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv2'
@@ -424,7 +437,6 @@ do k = 1,kl
   
   tx(1:ifull,k) = tx(1:ifull,k) + .5*dt*tn(1:ifull,k) 
 end do
-
 
 !     now interpolate ux,vx to the staggered grid
 call staguv(ux,vx,ux,vx)
