@@ -617,12 +617,19 @@ end do
 return
 end subroutine vgrid
 
-subroutine mlovlevels(ans)
+subroutine mlovlevels(ans,sigma)
 
 implicit none
 
 real, dimension(wlev), intent(out) :: ans
 real, dimension(wlev+1) :: ans_hl
+logical, intent(in), optional :: sigma
+logical usesigma
+
+usesigma = .false.
+if ( present(sigma) ) then
+  usesigma = sigma
+end if
 
 select case(mlosigma)
   case(0,1,2,3)
@@ -630,6 +637,9 @@ select case(mlosigma)
     ans = ans/1000.
   case(4,5)
     call vgrid(wlev,mxd,ans,ans_hl)
+    if ( usesigma ) then
+      ans = ans/mxd  
+    end if    
   case default
     write(6,*) "ERROR: Unknown option in mlovlevels for mlosigma ",mlosigma
     stop
@@ -1691,7 +1701,6 @@ call calcdensity(odensity,alpha,beta,rho0,tt,ss,ddz,pxtr)
 
 if ( .not.rawmode ) then
   odensity = odensity + wrtrho
-  rho0     = rho0     + wrtrho
 end if
 
 return
@@ -3693,8 +3702,8 @@ do ii=1,maxlevel
   cdic=cdic+sdic(:,ii)  
   where ( lnewice .and. depth%dz(:,ii)>1.e-4 )
     water%temp(:,ii)=water%temp(:,ii)+(1.-ice%fracice)*qice*sdic(:,ii)/(cp0*rhowt*depth%dz(:,ii)*d_zcr)
-    water%sal(:,ii) =water%sal(:,ii)+water%sal(:,ii)*(1.-ice%fracice)*sdic(:,ii)*rhoic &
-                      /(rhowt*depth%dz(:,ii)*d_zcr)
+    water%sal(:,ii) =water%sal(:,ii)*(1.+(1.-ice%fracice)*sdic(:,ii)*rhoic &
+                      /(rhowt*depth%dz(:,ii)*d_zcr))
   end where
 end do
 
@@ -3731,9 +3740,6 @@ do iqw=1,wfull
     delt=delt+ice%fracice(iqw)*ice%snowd(iqw)*qsnow
     delt=delt-ice%fracice(iqw)*ice%store(iqw)
     delt=delt-ice%fracice(iqw)*gammi*(ice%tsurf(iqw)-newicetemp) ! change from when ice formed
-    !delt=delt-ice%fracice(iqw)*cps*ice%snowd(iqw)*(ice%temp(iqw,0)-newicetemp)
-    !delt=delt-ice%fracice(iqw)*cpi*ice%thick(iqw)*0.5*(ice%temp(iqw,1)-newicetemp)
-    !delt=delt-ice%fracice(iqw)*cpi*ice%thick(iqw)*0.5*(ice%temp(iqw,2)-newicetemp)
     
     ! adjust temperature and salinity in water column
     dsf = 0.

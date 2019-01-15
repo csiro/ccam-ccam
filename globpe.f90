@@ -3065,11 +3065,7 @@ if ( myid<nproc ) then
   ! fix ocean nuding levels
   if ( nmlo/=0 .and. abs(nmlo)<9 ) then
     allocate( gosig_in(ol) )
-    call mlovlevels(gosig_in)
-    lmlosigma = all(gosig_in<=1.)
-    if ( .not.lmlosigma ) then  
-      gosig_in = gosig_in/mxd
-    end if 
+    call mlovlevels(gosig_in,sigma=.true.)
     if ( kbotmlo<0 )  then
       targetlev = real(-kbotmlo)/1000.   
       do k = ol,1,-1
