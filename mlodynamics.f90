@@ -868,56 +868,50 @@ do mspec_mlo = mspeca_mlo,1,-1
             -cc_isv*(dd_isv+oev_isv)/em_isv)*em(1:ifull)**2/ds
   do ii = 1,wlev-1
     call unpack_svwu(ccu(:,ii),ccv(:,ii),cc_isv,cc_iwu)  
-    nw(:,ii) = ee(1:ifull,ii)*(sdiv(:)*gosigh(1:ifull,ii)   &
+    nw(:,ii) = ee(1:ifull,ii)*ee(1:ifull,ii+1)*(sdiv(:)*gosigh(1:ifull,ii) &
                - (ccu(1:ifull,ii)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull) &
                  -cc_iwu*(dd_iwu+oeu_iwu)/em_iwu                           &
                  +ccv(1:ifull,ii)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull) &
                  -cc_isv*(dd_isv+oev_isv)/em_isv)*em(1:ifull)**2/ds)
   end do
 
-  
-  ! Update split part of neta (first half time-step)
-  call unpack_svwu(ccu(:,wlev),ccv(:,wlev),cc_isv,cc_iwu)
-  sdiv(:) = (ccu(1:ifull,wlev)*oeu(1:ifull)/emu(1:ifull) &
-            -cc_iwu*oeu_iwu/em_iwu                       &
-            +ccv(1:ifull,wlev)*oev(1:ifull)/emv(1:ifull) &
-            -cc_isv*oev_isv/em_isv)*em(1:ifull)**2/ds
-  neta(1:ifull) = neta(1:ifull) - (1.-ocneps)*0.5*dt*sdiv(:)
-  
 
   ! compute contunity equation horizontal transport terms
   mps = 0.
   do ii = 1,wlev
     call unpack_svwu(eou(:,ii),eov(:,ii),eo_isv,eo_iwu)  
     where ( wtr(1:ifull,ii) )
-      mps(1:ifull,ii) = neta(1:ifull) - (1.-ocneps)*0.5*dt                &
-                       *((eou(1:ifull,ii)*ddu(1:ifull)/emu(1:ifull)       &
-                         -eo_iwu*dd_iwu/em_iwu                            &
-                         +eov(1:ifull,ii)*ddv(1:ifull)/emv(1:ifull)       &
-                         -eo_isv*dd_isv/em_isv)                           &
-                         *em(1:ifull)**2/ds                               &
+      mps(1:ifull,ii) = neta(1:ifull) - (1.-ocneps)*0.5*dt                          &
+                       *((eou(1:ifull,ii)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull)  &
+                         -eo_iwu*(dd_iwu+oeu_iwu)/em_iwu                            &
+                         +eov(1:ifull,ii)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull)  &
+                         -eo_isv*(dd_isv+oev_isv)/em_isv)                           &
+                         *em(1:ifull)**2/ds                                         &
                         +(nw(:,ii)-nw(:,ii-1))/godsig(1:ifull,ii))
     end where  
   end do
       
   
-  ! update vertical velocity at full levels
+  ! calculate vertical velocity at full levels for diagnostic output
   dnetadx = (oeu(1:ifull)/emu(1:ifull)-oeu_iwu/em_iwu)*em(1:ifull)**2/ds
   dnetady = (oev(1:ifull)/emv(1:ifull)-oev_isv/em_isv)*em(1:ifull)**2/ds
   ddddx = (ddu(1:ifull)/emu(1:ifull)-dd_iwu/em_iwu)*em(1:ifull)**2/ds
   ddddy = (ddv(1:ifull)/emv(1:ifull)-dd_isv/em_isv)*em(1:ifull)**2/ds
-  do ii = 1,wlev
-    !w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))*(dd(1:ifull)+neta(1:ifull))/dd(1:ifull)                      &
-    !               - nu(1:ifull,ii)*(dd(1:ifull)*(1.-gosig(1:ifull,ii))*dnetadx + neta(1:ifull)*gosig(1:ifull,ii)*ddddx) &
-    !                 /dd(1:ifull)                                                                                        &
-    !               - nv(1:ifull,ii)*(dd(1:ifull)*(1.-gosig(1:ifull,ii))*dnetady + neta(1:ifull)*gosig(1:ifull,ii)*ddddy) &
-    !                 /dd(1:ifull))
-    !               - (1.-gosig(1:ifull,ii))*dnetadt 
-    w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))           &
-                   - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx)  &
-                   - nv(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetady))
-                  !- (1.-gosig(1:ifull,ii))*dnetadt ! neglect for now 
-  end do  
+  if ( mlosigma==7 ) then
+    do ii = 1,wlev
+      w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))*(dd(1:ifull)+neta(1:ifull))/dd(1:ifull)                      &
+                     - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx + neta(1:ifull)/dd(1:ifull)*gosig(1:ifull,ii)*ddddx) &
+                     - nv(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetady + neta(1:ifull)/dd(1:ifull)*gosig(1:ifull,ii)*ddddy))
+                     !- (1.-gosig(1:ifull,ii))*dnetadt ! neglect for now
+    end do
+  else
+    do ii = 1,wlev  
+      w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))           &
+                     - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx)  &
+                     - nv(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetady))
+                    !- (1.-gosig(1:ifull,ii))*dnetadt ! neglect for now 
+    end do
+  end if  
 
   
   ! ocean
@@ -1003,8 +997,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     cou(1:ifull,ii,3) = az(1:ifull)*uau(:,ii) + bz(1:ifull)*uav(:,ii)
   end do
   ! Horizontal advection for U, V, W
-  call mlob2ints_uv(cou(:,:,1:3),nface,xg,yg,wtr)
-  !call mlob2ints(cou(:,:,1:3),nface,xg,yg,wtr)
+  !call mlob2ints_uv(cou(:,:,1:3),nface,xg,yg,wtr)
+  call mlob2ints(cou(:,:,1:3),nface,xg,yg,wtr)
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
   ! Convert (U,V,W) back to conformal cubic coordinates
@@ -1017,8 +1011,8 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Horizontal advection for continuity
   cou(1:ifull,1:wlev,1) = mps(1:ifull,1:wlev)
-  call mlob2ints_uv(cou(:,:,1:1),nface,xg,yg,wtr)
-  !call mlob2ints(cou(:,:,1:1),nface,xg,yg,wtr)
+  !call mlob2ints_uv(cou(:,:,1:1),nface,xg,yg,wtr)
+  call mlob2ints(cou(:,:,1:1),nface,xg,yg,wtr)
   mps(1:ifull,1:wlev) = cou(1:ifull,1:wlev,1)
 
   ! Horizontal advection for T and S
