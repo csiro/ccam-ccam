@@ -168,6 +168,7 @@ real ateb_infilach,  ateb_intgains, ateb_bldairtemp
 real ateb_heatprop, ateb_coolprop
 real ateb_zovegc
 real ps_adj
+real cgmap_offset, cgmap_scale
 real, dimension(4) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
 real, dimension(4) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
@@ -542,6 +543,10 @@ do spinup = spinup_start,1,-1
   u = u_save
   v = v_save
   psl = psl_save
+  
+  if ( scm_mode=="sublime" ) then
+    call initialurban
+  end if  
 
   ! main simulation
   do ktau = 1,ntau_end
@@ -1619,6 +1624,63 @@ end if
 
 !-----------------------------------------------------------------
 ! UPDATE URBAN DATA (nurban)
+call initialurban
+
+if ( abs(iaero)>=2 ) then
+   write(6,*) "Aerosol initial conditions"
+   xtg(:,:,:) = 0.
+end if
+  
+
+! LOAD INITIAL CONDITIONS - Part 2
+if ( ifile/=" " .and. ifile/="" ) then
+  call loadrestart
+end if
+
+! UPDATE GRAVITY WAVE DRAG DATA (lgwd)
+write(6,*) "Initialise gravity wave drag"
+gwdfac = 0.01*lgwd       ! most runs used .02 up to fri  10-10-1997
+hefact = 0.1*abs(ngwd)   ! hal used hefact=1. (equiv to ngwd=10)
+write(6,*)'hefact,helim,gwdfac: ',hefact,helim,gwdfac
+helo(:) = 0.
+if ( lgwd>0 ) then
+  do iq=1,ifull
+    if(land(iq))then
+      if(he(iq)==0.)write(6,*)'zero he over land for iq = ',iq
+      aa(iq)=min(gwdfac*max(he(iq),.01),.8*zmin)   ! already in meters
+      ! replace he by square of corresponding af value
+      helo(iq)=( .4/log(zmin/aa(iq)) )**2
+    endif
+  enddo   ! iq loop
+end if ! lgwd>0
+if ( ngwd/=0 ) then
+!****    limit launching height : Palmer et al use limit on variance of
+!****    (400 m)**2. we use launching height = std dev. we limit
+!****    launching height to  2*400=800 m. this may be a bit severe.
+!****    according to Palmer this prevents 2-grid noise at steep edge of
+!****    himalayas etc.
+  he(1:ifull) = min(hefact*he(1:ifull),helim)
+endif     ! (ngwd/=0)
+
+    
+write(6,*) "Finised initialisation"
+
+return
+end subroutine initialscm
+    
+subroutine initialurban
+
+use ateb                                   ! Urban
+use newmpar_m                              ! Grid parameters
+use parm_m                                 ! Model configuration
+
+implicit none
+
+integer ifrac, k
+character(len=20) vname
+
+!-----------------------------------------------------------------
+! UPDATE URBAN DATA (nurban)
 if (nurban/=0) then
   write(6,*) 'Importing ateb urban data'
   allocate( atebdwn(ifull,5) )
@@ -1718,47 +1780,7 @@ if (nurban/=0) then
   deallocate( atebdwn )
 end if
 
-if ( abs(iaero)>=2 ) then
-   write(6,*) "Aerosol initial conditions"
-   xtg(:,:,:) = 0.
-end if
-  
-
-! LOAD INITIAL CONDITIONS - Part 2
-if ( ifile/=" " .and. ifile/="" ) then
-  call loadrestart
-end if
-
-! UPDATE GRAVITY WAVE DRAG DATA (lgwd)
-write(6,*) "Initialise gravity wave drag"
-gwdfac = 0.01*lgwd       ! most runs used .02 up to fri  10-10-1997
-hefact = 0.1*abs(ngwd)   ! hal used hefact=1. (equiv to ngwd=10)
-write(6,*)'hefact,helim,gwdfac: ',hefact,helim,gwdfac
-helo(:) = 0.
-if ( lgwd>0 ) then
-  do iq=1,ifull
-    if(land(iq))then
-      if(he(iq)==0.)write(6,*)'zero he over land for iq = ',iq
-      aa(iq)=min(gwdfac*max(he(iq),.01),.8*zmin)   ! already in meters
-      ! replace he by square of corresponding af value
-      helo(iq)=( .4/log(zmin/aa(iq)) )**2
-    endif
-  enddo   ! iq loop
-end if ! lgwd>0
-if ( ngwd/=0 ) then
-!****    limit launching height : Palmer et al use limit on variance of
-!****    (400 m)**2. we use launching height = std dev. we limit
-!****    launching height to  2*400=800 m. this may be a bit severe.
-!****    according to Palmer this prevents 2-grid noise at steep edge of
-!****    himalayas etc.
-  he(1:ifull) = min(hefact*he(1:ifull),helim)
-endif     ! (ngwd/=0)
-
-    
-write(6,*) "Finised initialisation"
-
-return
-end subroutine initialscm
+end subroutine initialurban
     
 subroutine nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv,  &
                     use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf, &

@@ -2875,7 +2875,7 @@ do ii = 0,nl
     do ifrac = 1,nfrac
       ctmp = ctmp + roof(ifrac)%nodetemp(:,ii)*pd(ifrac)%frac_sigma
     end do
-    tempout = unpack( ctmp, upack, tempout )
+    tempout = unpack( ctmp+urbtemp, upack, tempout )
     return
   end if  
   write(teststr,'("walletemp",I1.1)') ii+1
@@ -2884,7 +2884,7 @@ do ii = 0,nl
     do ifrac = 1,nfrac
       ctmp = ctmp + walle(ifrac)%nodetemp(:,ii)*pd(ifrac)%frac_sigma
     end do
-    tempout = unpack( ctmp, upack, tempout )
+    tempout = unpack( ctmp+urbtemp, upack, tempout )
     return
   end if 
   write(teststr,'("wallwtemp",I1.1)') ii+1
@@ -2893,7 +2893,7 @@ do ii = 0,nl
     do ifrac = 1,nfrac
       ctmp = ctmp + wallw(ifrac)%nodetemp(:,ii)*pd(ifrac)%frac_sigma
     end do
-    tempout = unpack( ctmp, upack, tempout )
+    tempout = unpack( ctmp+urbtemp, upack, tempout )
     return
   end if
   write(teststr,'("roadtemp",I1.1)') ii+1
@@ -2902,7 +2902,7 @@ do ii = 0,nl
     do ifrac = 1,nfrac
       ctmp = ctmp + road(ifrac)%nodetemp(:,ii)*pd(ifrac)%frac_sigma
     end do
-    tempout = unpack( ctmp, upack, tempout )
+    tempout = unpack( ctmp+urbtemp, upack, tempout )
     return
   end if
   write(teststr,'("slabtemp",I1.1)') ii+1
@@ -2911,7 +2911,7 @@ do ii = 0,nl
     do ifrac = 1,nfrac
       ctmp = ctmp + slab(ifrac)%nodetemp(:,ii)*pd(ifrac)%frac_sigma
     end do
-    tempout = unpack( ctmp, upack, tempout )
+    tempout = unpack( ctmp+urbtemp, upack, tempout )
     return
   end if
   write(teststr,'("intmtemp",I1.1)') ii+1
@@ -2920,7 +2920,7 @@ do ii = 0,nl
     do ifrac = 1,nfrac
       ctmp = ctmp + intm(ifrac)%nodetemp(:,ii)*pd(ifrac)%frac_sigma
     end do
-    tempout = unpack( ctmp, upack, tempout )
+    tempout = unpack( ctmp+urbtemp, upack, tempout )
     return
   end if
 end do
@@ -5077,9 +5077,13 @@ d_ac_inside = -(1.-rfveg%sigma)*ggint_roof - ggint_slab                         
 ! ---0.4: Calculate acflux into canyon -----------------------------------
 ! update heat pumped into canyon
 where ( d_ac_inside<0. )
-  ac_coeff = max(1.+acfactor*(d_canyontemp-iroomtemp)/(iroomtemp+urbtemp), 1.+1./ac_copmax) ! T&H2012 Eq. 10
+  ! original UCLEM COP calculation (Lipson et al., 2018)
+  ! ac_coeff = max(acfactor*(d_canyontemp-iroomtemp)/(iroomtemp+urbtemp), 1./ac_copmax) ! T&H2012 Eq. 10
+  
+  ! modified UCLEM COP calculation (based on "Coefficient of performance for finite speed heat pump" - Blanchard 1980)
+  ac_coeff = max( acfactor*(d_canyontemp+30.-iroomtemp)/(iroomtemp+30.+urbtemp), 0. )
 elsewhere 
-  ac_coeff = 1.
+  ac_coeff = 0.
 end where
 select case(acmeth) ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible, COP of 1.0)
   case(0) ! unrealistic cooling (buildings act as heat sink)
@@ -5087,10 +5091,10 @@ select case(acmeth) ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible, COP o
     pd%bldheat = max(0.,d_ac_inside*fp%sigmabld)
     pd%bldcool = max(0.,d_ac_inside*fp%sigmabld)
   case(1) ! d_ac_canyon pumps conducted heat + ac waste heat back into canyon
-    d_ac_canyon = max(0.,-d_ac_inside*ac_coeff*fp%sigmabld/(1.-fp%sigmabld))      ! canyon domain W/m/m
+    d_ac_canyon = max(0.,-d_ac_inside*(1.+ac_coeff)*fp%sigmabld/(1.-fp%sigmabld))  ! canyon domain W/m/m
     if (l==ncyits) then
-      pd%bldheat = max(0.,d_ac_inside*fp%sigmabld)                                   ! entire domain W/m/m
-      pd%bldcool = max(0.,-d_ac_inside*(ac_coeff-1.)*fp%sigmabld)                    ! entire domain W/m/m
+      pd%bldheat = max(0.,d_ac_inside*fp%sigmabld)            ! entire domain W/m/m
+      pd%bldcool = max(0.,-d_ac_inside*ac_coeff*fp%sigmabld)  ! entire domain W/m/m
     end if 
   case(2) ! reversible heating and cooling (for testing energy conservation)
     d_ac_canyon  = -d_ac_inside*fp%sigmabld/(1.-fp%sigmabld)
@@ -5202,8 +5206,8 @@ ac_cool_temp = fp%bldairtemp+ac_deltat
 
 
 ! ---1.2: Calculate air exchange from infiltration and open windows -----
-!call calc_openwindows(d_openwindows,fp,iroomtemp,d_canyontemp,roof,walle,wallw,slab,ufull)
-d_openwindows = 0.
+call calc_openwindows(d_openwindows,fp,iroomtemp,d_canyontemp,roof,walle,wallw,slab,ufull)
+! d_openwindows = 0.
 select case(infilmeth)
   case(0) ! constant
     infl_dynamic = fp%infilach
@@ -5276,6 +5280,19 @@ if ( l==ncyits ) then
     d_ac_cool = d_ac_cool*fp%coolprop*cyc_proportion
 
     d_ac_inside = d_ac_heat-d_ac_cool
+    
+    ! recalculate final implicit iteration for intairtmeth==1
+    iroomtemp = (rm*room%nodetemp(:,1)     & ! room temperature
+               + rf*roof%nodetemp(:,nl)    & ! roof conduction
+               + we*walle%nodetemp(:,nl)   & ! wall conduction east
+               + ww*wallw%nodetemp(:,nl)   & ! wall conduction west
+               + sl*slab%nodetemp(:,nl)    & ! slab conduction
+               + im1*intm%nodetemp(:,0)    & ! mass conduction side 1
+               + im2*intm%nodetemp(:,nl)   & ! mass conduction side 2
+               + infl*d_canyontemp         & ! infiltration
+               + d_ac_inside               & ! ac flux (iterative)
+               + d_intgains_bld            & ! internal gains (explicit)
+               )/(rm+rf+we+ww+sl+im1+im2+infl)
   end if
 
   !! diagnose fluxes from implicit results
@@ -5338,23 +5355,27 @@ end if
 ! ---1.6: Calculate acflux into canyon and update canyon temperature-----
 
 where ( d_ac_cool>0. )
-  ac_coeff = max(1.+acfactor*(d_canyontemp-iroomtemp)/(iroomtemp+urbtemp), 1.+1./ac_copmax) ! T&H2012 Eq. 10
+  ! original UCLEM COP calculation (Lipson et al., 2018)
+  ! ac_coeff = max(acfactor*(d_canyontemp-iroomtemp)/(iroomtemp+urbtemp), 1./ac_copmax) ! T&H2012 Eq. 10
+  
+  ! modified UCLEM COP calculation (based on "Coefficient of performance for finite speed heat pump" - Blanchard 1980)
+  ac_coeff = max( acfactor*(d_canyontemp+30.-iroomtemp)/(iroomtemp+30.+urbtemp), 0. )
 elsewhere 
-  ac_coeff = 1.
+  ac_coeff = 0.
 end where
 select case(acmeth) ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible)
   case(0) ! unrealistic cooling (buildings act as heat sink)
-    d_ac_canyon  = 0.
+    d_ac_canyon = 0.
     pd%bldheat = max(0.,d_ac_inside*fp%sigmabld)
     pd%bldcool = max(0.,-d_ac_inside*fp%sigmabld)
   case(1) ! d_ac_canyon pumps conducted heat + ac waste heat back into canyon
-    d_ac_canyon = max(0.,d_ac_cool*ac_coeff*fp%sigmabld/(1.-fp%sigmabld))        ! canyon domain W/m/m
+    d_ac_canyon = max(0.,d_ac_cool*(1. + ac_coeff)*fp%sigmabld/(1.-fp%sigmabld))  ! canyon domain W/m2
     if (l==ncyits) then
-      pd%bldheat = max(0.,d_ac_heat*fp%sigmabld)                                   ! entire domain W/m/m
-      pd%bldcool = max(0.,d_ac_cool*(ac_coeff-1.)*fp%sigmabld)                     ! entire domain W/m/m
+      pd%bldheat = max(0.,d_ac_heat*fp%sigmabld)           ! entire domain W/m2
+      pd%bldcool = max(0.,d_ac_cool*ac_coeff*fp%sigmabld)  ! entire domain W/m2
     end if
   case(2) ! reversible heating and cooling (for testing energy conservation)
-    d_ac_canyon  = -d_ac_inside*fp%sigmabld/(1.-fp%sigmabld)
+    d_ac_canyon = -d_ac_inside*fp%sigmabld/(1.-fp%sigmabld)
     pd%bldheat = 0.
     pd%bldcool = 0.
   case DEFAULT
@@ -5718,11 +5739,11 @@ real, dimension(25), parameter :: basecycle = (/ 0.92, 0.86, 0.81, 0.78, 0.8 , 0
                                                  1.08, 1.08, 1.06, 1.06, 1.08, 1.11, &
                                                  1.08, 1.06, 1.03, 1.00, 0.98, 0.95, 0.92 /)
 
-! normalised proportion of heating/cooling appliances in use  approximated from Thatcher (2007)
-real, dimension(25), parameter :: propcycle = (/ 0.43, 0.40, 0.36, 0.33, 0.31, 0.36, &
-                                                 0.53, 0.66, 0.70, 0.64, 0.60, 0.60, &
-                                                 0.64, 0.69 ,0.75, 0.81, 0.88, 1.00, &
-                                                 0.99, 0.91, 0.81, 0.69, 0.57, 0.43, 0.43 /)
+! ! normalised proportion of heating/cooling appliances in use  approximated from Thatcher (2007)
+! real, dimension(25), parameter :: propcycle = (/ 0.43, 0.40, 0.36, 0.33, 0.31, 0.36, &
+!                                                  0.53, 0.66, 0.70, 0.64, 0.60, 0.60, &
+!                                                  0.64, 0.69 ,0.75, 0.81, 0.88, 1.00, &
+!                                                  0.99, 0.91, 0.81, 0.69, 0.57, 0.43, 0.43 /)
 
 ! ! normalised proportion of heating/cooling appliances in use optimised for Melbourne
 ! real, dimension(25), parameter :: propcycle = (/ 0.34, 0.30, 0.27, 0.25, 0.36, 0.43, &
@@ -5730,8 +5751,13 @@ real, dimension(25), parameter :: propcycle = (/ 0.43, 0.40, 0.36, 0.33, 0.31, 0
 !                                                  0.51, 0.54 ,0.57, 0.66, 0.85, 0.93, &
 !                                                  1.00, 0.96, 0.93, 0.80, 0.59, 0.41, 0.34 /)
 
+! normalised proportion of heating/cooling appliances in use optimised for Melbourne_new
+real, dimension(25), parameter :: propcycle = (/ 0.20, 0.15, 0.15, 0.15, 0.15, 0.35, &
+                                                 0.55, 0.67, 0.60, 0.55, 0.50, 0.45, &
+                                                 0.45, 0.45 ,0.52, 0.60, 0.90, 0.98, &
+                                                 0.99, 0.93, 0.80, 0.52, 0.37, 0.25, 0.20 /)
 
-! base temperature translation cycle approximated from Thatcher (2007)
+! base temperature translation cycle optimised for Melbourne (used for simple internal physics)
 real, dimension(25), parameter :: trancycle =(/ -1.2, -1.7, -2.4, -2.9, -3.0, -2.1,  &
                                                 -1.1, -0.6, -0.7, -0.8, -1.2, -1.4,  &
                                                 -1.6, -1.8, -1.6, -1.0, -0.2,  1.1,  &
@@ -6471,39 +6497,29 @@ end select
 
 end subroutine calc_convcoeff
 
-! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! ! This subroutine calculates the proportion of open windows for ventilation
-! subroutine calc_openwindows(d_openwindows,fp,iroomtemp,d_canyontemp, &
-!                             roof,walle,wallw,slab,ufull)
-! implicit none
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine calculates the proportion of open windows for ventilation
+subroutine calc_openwindows(d_openwindows,fp,iroomtemp,d_canyontemp, &
+                            roof,walle,wallw,slab,ufull)
+implicit none
 
-! integer, intent(in)                 :: ufull
-! real, dimension(ufull), intent(in)  :: d_canyontemp,iroomtemp
-! real, dimension(ufull), intent(out) :: d_openwindows
-! real, dimension(ufull)              :: xtemp, mrt
-! type(facetdata), intent(in) :: roof, walle, wallw, slab
-! type(fparmdata), intent(in) :: fp
+integer, intent(in)                 :: ufull
+real, dimension(ufull), intent(in)  :: d_canyontemp,iroomtemp
+real, dimension(ufull), intent(out) :: d_openwindows
+real, dimension(ufull)              :: xtemp, mrt
+type(facetdata), intent(in) :: roof, walle, wallw, slab
+type(fparmdata), intent(in) :: fp
 
-! ! mean radiant temperature estimation
-! mrt = 0.5*(fp%bldheight/(fp%bldwidth+fp%bldheight)*(walle%nodetemp(:,nl) + wallw%nodetemp(:,nl))) & 
-!     + 0.5*(fp%bldwidth/ (fp%bldwidth+fp%bldheight)*(roof%nodetemp(:,nl) + slab%nodetemp(:,nl)))
-! ! globe temperature approximation (average of mrt and air temperature) [Celsius]
-! xtemp = 0.5*(iroomtemp + mrt) + urbtemp - 273.15
+! mean radiant temperature estimation
+mrt = 0.5*(fp%bldheight/(fp%bldwidth+fp%bldheight)*(walle%nodetemp(:,nl) + wallw%nodetemp(:,nl))) & 
+    + 0.5*(fp%bldwidth/ (fp%bldwidth+fp%bldheight)*(roof%nodetemp(:,nl) + slab%nodetemp(:,nl)))
+! globe temperature approximation (average of mrt and air temperature) [Celsius]
+xtemp = 0.5*(iroomtemp + mrt)
 
-! select case(behavmeth)
-!   case(0)
-!     where ( (xtemp>26.) .and. (d_canyontemp+urbtemp-273.15<26.) )
-!       d_openwindows=1.0
-!     elsewhere
-!       d_openwindows=0.
-!     end where
-!   case(1)
-!     ! smooth function based on Rijal et al., 2007
-!     d_openwindows = 1./(1. + exp( 0.5*(23.-xtemp) ))*1./(1. + exp( (d_canyontemp-iroomtemp) ))
-! end select
+d_openwindows = 1./(1. + exp( 0.5*(fp%bldairtemp+ac_deltat+5.-xtemp) ))*1./(1. + exp( (d_canyontemp-iroomtemp) ))
 
-! return
-! end subroutine calc_openwindows
+return
+end subroutine calc_openwindows
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine calculates the inverse of a NxN matrix
