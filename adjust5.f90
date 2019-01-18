@@ -188,17 +188,32 @@ if ( nh/=0 .and. (ktau>=knh.or.lrestart) ) then
   end if  
   ! note that linear part of omega/ps for tau+1 is included in eig.f90
   ! wrk2 contains the tstar and non-linear part of omega/ps at tau+1
-  if ( abs(epsp)<=1. ) then
-    do k = 1,kl
-      ! omgfnl already includes (1+epsp)
-      wrk2(1:ifull,k) = const_nh*tbar2d(1:ifull)*(tbar(1)*omgfnl(1:ifull,k)/(1.-epsp)/sig(k)-h_nh(1:ifull,k))
-    end do
-  else
-    do k = 1,kl
-      ! omgfnl already includes (1+epsp)
-      wrk2(1:ifull,k) = const_nh*tbar2d(1:ifull)*(tbar(1)*omgfnl(1:ifull,k)/sig(k)-h_nh(1:ifull,k))
-    end do
-  end if
+  select case(nh)
+    case (8)
+      if ( abs(epsp)<=1. ) then
+        do k = 1,kl
+          ! omgfnl already includes (1+epsp)  
+          wrk2(:,k) = const_nh*(tbar(1)*omgfnl(:,k)/((1.-epsp)*sig(k))-h_nh(1:ifull,k))*t(1:ifull,k)**2/tbar(1)
+        end do    
+      else
+        do k = 1,kl
+          ! omgfnl already includes (1+epsp)  
+          wrk2(:,k) = const_nh*(tbar(1)*omgfnl(:,k)/sig(k)-h_nh(1:ifull,k))*t(1:ifull,k)**2/tbar(1)
+        end do          
+      end if
+    case default
+      if ( abs(epsp)<=1. ) then
+        do k = 1,kl
+          ! omgfnl already includes (1+epsp)
+          wrk2(1:ifull,k) = const_nh*(tbar(1)*omgfnl(1:ifull,k)/((1.-epsp)*sig(k))-h_nh(1:ifull,k))*tbar2d(1:ifull)
+        end do
+      else
+        do k = 1,kl
+          ! omgfnl already includes (1+epsp)
+          wrk2(1:ifull,k) = const_nh*(tbar(1)*omgfnl(1:ifull,k)/sig(k)-h_nh(1:ifull,k))*tbar2d(1:ifull)
+        end do
+      end if
+  end select    
   wrk1(:,1) = bet(1)*wrk2(:,1)
   do k = 2,kl
     wrk1(1:ifull,k) = wrk1(1:ifull,k-1) + bet(k)*wrk2(1:ifull,k) + betm(k)*wrk2(1:ifull,k-1)
@@ -467,26 +482,26 @@ end if
 
 if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
    
-  !! old method for estimating phi_nh
-  !do k = 1,kl
-  !  phi(:,k) = p(1:ifull,k) - rdry*tbar2d(:)*psl(1:ifull)
-  !end do
-  !! extract NHS component
-  !bb(:) = zs(1:ifull) + bet(1)*(t(1:ifull,1)-280.)
-  !phi_nh(:,1) = phi(:,1) - bb(:)
-  !do k = 2,kl
-  !  bb(:) = bb(:) + bet(k)*(t(1:ifull,k)-280.) + betm(k)*(t(1:ifull,k-1)-280.)
-  !  phi_nh(:,k) = phi(:,k) - bb(:)
-  !end do
-    
-  ! new method for estimating phi_nh - MJT suggestion
+  ! original method for estimating phi_nh
   do k = 1,kl
-    wrk2(1:ifull,k) = const_nh*tbar2d(1:ifull)*(tbar(1)*dpsldt(1:ifull,k)/sig(k)-h_nh(1:ifull,k))
+    phi(:,k) = p(1:ifull,k) - rdry*tbar2d(:)*psl(1:ifull)
   end do
-  phi_nh(1:ifull,1) = bet(1)*wrk2(1:ifull,1)
+  ! extract NHS component
+  bb(:) = zs(1:ifull) + bet(1)*(t(1:ifull,1)-280.)
+  phi_nh(:,1) = phi(:,1) - bb(:)
   do k = 2,kl
-    phi_nh(1:ifull,k) = phi_nh(1:ifull,k-1) + bet(k)*wrk2(1:ifull,k) + betm(k)*wrk2(1:ifull,k-1)
-  end do   ! k loop 
+    bb(:) = bb(:) + bet(k)*(t(1:ifull,k)-280.) + betm(k)*(t(1:ifull,k-1)-280.)
+    phi_nh(:,k) = phi(:,k) - bb(:)
+  end do
+    
+  !! alternative method for estimating phi_nh
+  !do k = 1,kl
+  !  wrk2(1:ifull,k) = const_nh*tbar2d(1:ifull)*(tbar(1)*dpsldt(1:ifull,k)/sig(k)-h_nh(1:ifull,k))
+  !end do
+  !phi_nh(1:ifull,1) = bet(1)*wrk2(1:ifull,1)
+  !do k = 2,kl
+  !  phi_nh(1:ifull,k) = phi_nh(1:ifull,k-1) + bet(k)*wrk2(1:ifull,k) + betm(k)*wrk2(1:ifull,k-1)
+  !end do   ! k loop 
   
   ! update phi for use in next time step
   phi(1:ifull,1) = zs(1:ifull) + bet(1)*t(1:ifull,1)

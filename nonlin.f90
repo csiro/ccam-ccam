@@ -243,6 +243,15 @@ if ( nh/=0 ) then
         t_nh(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*t_nh(:))/bet(k)
         h_nh(1:ifull,k) = h_nh(1:ifull,k) + t_nh(:)*invconst_nh/tbar2d(:)
       end do
+      
+    case(8)
+      t_nh(:) = phi_nh(:,1)/bet(1)
+      h_nh(1:ifull,1) = h_nh(1:ifull,1) + t_nh(:)*invconst_nh*tbar(1)/t(1:ifull,1)**2
+      do k = 2,kl
+        t_nh(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*t_nh(:))/bet(k)
+        h_nh(1:ifull,k) = h_nh(1:ifull,k) + t_nh(:)*invconst_nh*tbar(1)/t(1:ifull,k)**2
+      end do
+      
   end select
   if ( nmaxpr==1 ) then
     if ( mydiag ) then

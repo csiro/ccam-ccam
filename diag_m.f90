@@ -87,8 +87,7 @@ contains
             end if
          end if
          write(6,9) name,ktau,level,bias,fact
- 9       format(/1x,a4,' ktau =',i7,'  level =',i3,'  addon =',g8.2,   &      
-     & '  has been mult by',1pe8.1)
+ 9       format(/1x,a4,' ktau =',i7,'  level =',i3,'  addon =',g8.2,'  has been mult by',1pe8.1)
          write(6,91) (j,j=j1,j2)
 91       format(4x,25i11)
          do i=i1,i2
@@ -98,8 +97,7 @@ contains
                nlocal = n + noff
                ilocal = i - ioff
                jlocal = j - n*il_g - joff
-               write(unit=*,fmt="(f11.6)", advance="no")                &
-     &              (a(indp(ilocal,jlocal,nlocal))-bias)*fact
+               write(unit=*,fmt="(f11.6)", advance="no") (a(indp(ilocal,jlocal,nlocal))-bias)*fact
             end do
             write(*,*)
          end do
@@ -171,7 +169,7 @@ contains
           if(abs(gmin)<1.e-20)gmin=1. ! gmin==0.
           if ( kup>10 ) then
           write(6,981) ktau,char,gumax(1,1:10)/abs(gmax),     &
-     &                    char,gumax(1,11:kup)/abs(gmax)
+                          char,gumax(1,11:kup)/abs(gmax)
           end if
           write(6,977) ktau,ijumax
           write(6,982) ktau,char,gumin(1,:)/abs(gmin)
@@ -208,9 +206,7 @@ contains
         write(6,977) ktau,ijumin
        elseif(gumax(1,kup)>30.)then  ! format for T, & usually u,v
         gout(1:kup) = gumax(1,1:kup)
-        if ( kup>10 ) then
         write(6,971) ktau,char,gout(1:10),char,gout(11:kup)
-        end if
 !971     format(i7,1x,a2,'max ',10f7.2/(a10,'maX ',10f7.2)/(14x,10f7.2))
 971     format(i7,a3,'max ',10f7.2/(a10,'maX ',10f7.2)/(14x,10f7.2))
         write(6,977) ktau,ijumax
@@ -221,14 +217,12 @@ contains
         write(6,977) ktau,ijumin
 977     format(i7,'  posij',10(i3,i4)/(14x,10(i3,i4))/(14x,10(i3,i4)))
        else  ! for qg & sd
-        if ( kup>10 ) then   
-        gout(1:kup) = gumax(1,1:10)
+        gout(1:kup) = gumax(1,1:kup)
         write(6,981) ktau,char,gout(1:10),char,gout(11:kup)
-        end if
 !981     format(i7,1x,a2,'max ',10f7.3/(a10,'maX ',10f7.3)/(14x,10f7.3))
 981     format(i7,a3,'max ',10f7.3/(a10,'maX ',10f7.3)/(14x,10f7.3))        
         write(6,977) ktau,ijumax
-        gout(:) = gumin(1,:)
+        gout(1:kup) = gumin(1,1:kup)
         write(6,982) ktau,char,gout
 !982     format(i7,1x,a2,'min ',10f7.3/(14x,10f7.3)/(14x,10f7.3))
 982     format(i7,a3,'min ',10f7.3/(14x,10f7.3)/(14x,10f7.3))        
@@ -277,9 +271,9 @@ contains
         ijumin(:) = (/ i, j /)
 
         write(6,970) ktau,char,gumax(1),char,gumin(1)
-970     format(i7,1x,a2,'max ',f8.3,3x,a2,'min ',f8.3)
+970     format(i7,1x,a2,'max ',f10.3,3x,a2,'min ',f10.3)
         write(6,9705) ktau,ijumax,ijumin
-9705    format(i7,'  posij',i4,i4,10x,i3,i4)
+9705    format(i7,'  posij',i5,i5,10x,i4,i4)
       end if ! myid == 0
       return
    end subroutine maxmin1
