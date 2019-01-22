@@ -23,6 +23,7 @@ module carbpools_m
 
 use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
 use cable_def_types_mod, only : ncs,ncp        ! CABLE dimensions
+use parm_m, only : diaglevel_carbon
 
 implicit none
 
@@ -33,6 +34,7 @@ public cnpp, cnbp
 public cplant,clitter,csoil,niplant,nisoil,nilitter
 public pplant,plitter,psoil
 public carbpools_init,carbpools_end
+public fevc
 
 integer, save :: inyear_carb
 real, dimension(:), allocatable, save :: frd,frpw,frpr
@@ -40,6 +42,7 @@ real, dimension(:), allocatable, save :: cnpp, cnbp
 real, dimension(:), allocatable, save :: fnee, fpn, frp, frs
 real, dimension(:,:), allocatable, save :: cplant,clitter,csoil,niplant,nilitter,nisoil
 real, dimension(:,:), allocatable, save :: pplant,plitter,psoil
+real, dimension(:), allocatable, save :: fevc
 
 contains
 
@@ -70,6 +73,9 @@ if (nsib==4.or.nsib>=6) then
     allocate(cplant(ifull,mplant),clitter(ifull,mlitter),csoil(ifull,msoil))
     allocate(niplant(ifull,mplant),nilitter(ifull,mlitter),nisoil(ifull,msoil))
     allocate(pplant(ifull,mplant),plitter(ifull,mlitter),psoil(ifull,msoil))
+    if ( diaglevel_carbon > 0 ) then
+      allocate(fevc(ifull))
+    end if
 !    allocate(glai(ifull))
     fnee=0.
     fpn=0.
@@ -89,6 +95,9 @@ if (nsib==4.or.nsib>=6) then
     pplant=0.
     plitter=0.
     psoil=0.
+    if ( diaglevel_carbon > 0 ) then
+      fevc=0.
+    end if
 !    glai=0.
   end if
 end if
@@ -106,6 +115,9 @@ if (allocated(cplant)) then
   deallocate(cplant,csoil)
   deallocate(clitter,niplant,nilitter,nisoil)
   deallocate(pplant,plitter,psoil)
+  if ( diaglevel_carbon > 0 ) then
+    deallocate(fevc)
+  end if
   !deallocate(glai)
 end if
 

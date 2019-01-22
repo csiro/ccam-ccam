@@ -222,6 +222,7 @@ real, dimension(imax) :: latmco2
 real, dimension(imax) :: lclimate_min20, lclimate_max20, lclimate_alpha20
 real, dimension(imax) :: lclimate_agdd5
 real, dimension(imax) :: lclimate_dmoist_min20, lclimate_dmoist_max20
+real, dimension(imax) :: lfevc
 logical, dimension(imax,maxtile) :: ltmap
 type(air_type) :: lair
 type(balances_type) :: lbal
@@ -249,7 +250,7 @@ type(bgc_pool_type) :: lbgc
 !$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,lcasabiome,latmco2),              &
 !$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg),  &
 !$omp private(lclimate_biome,lclimate_iveg,lclimate_min20,lclimate_max20,lclimate_alpha20,lclimate_agdd5),     &
-!$omp private(lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20)
+!$omp private(lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -289,6 +290,9 @@ do tile=1,ntiles
       lplitter = plitter(is:ie,:)
       lpplant = pplant(is:ie,:)
       lpsoil = psoil(is:ie,:)
+      if ( diaglevel_carbon > 0 ) then
+        lfevc = fevc(is:ie)
+      end if
     end if 
     if ( cable_climate==1 ) then
       lclimate_biome = 999
@@ -356,7 +360,7 @@ do tile=1,ntiles
                    lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),lair,lbal,c,lcanopy,                         &
                    lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,    &
                    lsum_flux,lveg,lclimate_iveg,lclimate_biome,lclimate_min20,lclimate_max20,lclimate_alpha20,           &
-                   lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,imax)
+                   lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,imax)
 
     smass(is:ie,:) = lsmass
     ssdn(is:ie,:) = lssdn
@@ -383,6 +387,9 @@ do tile=1,ntiles
       plitter(is:ie,:) = lplitter
       pplant(is:ie,:) = lpplant
       psoil(is:ie,:) = lpsoil
+      if ( diaglevel_carbon > 0 ) then
+        fevc(is:ie) = lfevc
+      end if
     end if  
     if ( cable_climate==1 ) then
       climate_biome(is:ie) = lclimate_biome
@@ -412,7 +419,7 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,air,bal,c,canopy,casabal,casabiome,   &
                      casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,veg,          &
                      climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,climate_agdd5,     &
-                     climate_gmd,climate_dmoist_min20,climate_dmoist_max20,imax)
+                     climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,imax)
 
 use const_phys
 use dates_m
@@ -453,6 +460,7 @@ real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
 real, dimension(imax), intent(inout) :: climate_min20, climate_max20, climate_alpha20
 real, dimension(imax), intent(inout) :: climate_agdd5
 real, dimension(imax), intent(inout) :: climate_dmoist_min20, climate_dmoist_max20
+real, dimension(imax), intent(inout) :: fevc
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
 real, dimension(imax), intent(in) :: sgsave, swrsave, theta, vmod
 real, dimension(imax) :: coszro2, taudar2, tmps, swdwn, alb, qsttg_land
@@ -947,6 +955,9 @@ if ( ccycle/=0 ) then
   frs = 0.
   cnpp = 0.
   cnbp = 0.
+  if ( diaglevel_carbon > 0 ) then
+    fevc = 0.
+  end if
   do nb = 1,maxnb
     is = tind(nb,1)
     ie = tind(nb,2)
@@ -976,6 +987,9 @@ if ( ccycle/=0 ) then
     frs  = frs  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),   tmap(:,nb),0.)
     cnpp = cnpp + unpack(sv(is:ie)*real(casaflux%cnpp(is:ie))/real(casaperiod),tmap(:,nb),0.)
     cnbp = cnbp + unpack(sv(is:ie)*real(casaflux%Crsoil-casaflux%cnpp-casapool%dClabiledt)/real(casaperiod),tmap(:,nb),0.)
+    if ( diaglevel_carbon > 0 ) then
+      fevc = fevc + unpack(sv(is:ie)*real(canopy%fevc(is:ie)),  tmap(:,nb),0.)
+    end if
   end do
 end if
 

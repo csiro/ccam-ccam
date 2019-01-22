@@ -1703,6 +1703,10 @@ if( myid==0 .or. local ) then
             call attrib(idnc,dimj,jsize,'cnpp_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,cptype)
             lname = 'Avg Net Biosphere Production'
             call attrib(idnc,dimj,jsize,'cnbp_ave',lname,'gC/m2/s',-3.25E-3,3.25E-3,0,cptype)
+            if ( diaglevel_carbon > 0 ) then
+              lname = 'Avg Dry Canopy Transpiration'
+              call attrib(idnc,dimj,jsize,'fevc_ave',lname,'W/m2',0.,1000.,0,cptype)
+            end if
             ! GPP - Gross Primary Production C by veg (=-fpn+frday)
             ! AutoResp - Autotrophic Respiration (=frp+frday)
             ! LeafResp - Leaf Respiration (=frday)
@@ -2793,6 +2797,9 @@ if ( nsib==6 .or. nsib==7 ) then
         call histwrt(frs_ave,'frs_ave',idnc,iarch,local,lave)
         call histwrt(cnpp_ave,'cnpp_ave',idnc,iarch,local,lave)
         call histwrt(cnpp_ave,'cnbp_ave',idnc,iarch,local,lave)
+        if ( diaglevel_carbon > 0 ) then
+          call histwrt(fevc_ave,'fevc_ave',idnc,iarch,local,lave)
+        end if
       end if
     end if
     if ( cable_climate==1 ) then

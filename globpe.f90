@@ -3659,6 +3659,9 @@ if ( ccycle/=0 ) then
   frs_ave  = 0.
   cnpp_ave = 0.
   cnbp_ave = 0.
+  if ( diaglevel_carbon > 0 ) then
+    fevc_ave = 0.
+  end if
 end if
 
 if ( abs(iaero)>=2 ) then
@@ -3737,7 +3740,7 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use cable_ccam, only : ccycle              ! CABLE
 use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
-    ,frpw,frpr,frs,cnpp,cnbp
+    ,frpw,frpr,frs,cnpp,cnbp,fevc
 use histave_m                              ! Time average arrays
 use mlo, only : mlodiag                    ! Ocean physics and prognostic arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -3821,6 +3824,9 @@ if ( ccycle/=0 ) then
   frs_ave(1:ifull)  = frs_ave(1:ifull) + frs
   cnpp_ave(1:ifull) = cnpp_ave(1:ifull) + cnpp
   cnbp_ave(1:ifull) = cnbp_ave(1:ifull) + cnbp
+  if ( diaglevel_carbon > 0 ) then
+    fevc_ave(1:ifull) = fevc_ave(1:ifull) + fevc
+  end if
 end if
 
 if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
@@ -3883,6 +3889,9 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
     cnpp_ave(1:ifull)   = cnpp_ave(1:ifull)/min(ntau,nperavg)
     cnbp_ave(1:ifull)   = cnbp_ave(1:ifull)/min(ntau,nperavg)
+    if ( diaglevel_carbon > 0 ) then
+      fevc_ave(1:ifull)   = fevc_ave(1:ifull)/min(ntau,nperavg)
+    end if
   end if
    
   if ( abs(iaero)>=2 ) then
