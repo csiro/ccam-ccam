@@ -197,26 +197,24 @@ if ( nh/=0 .and. (ktau>=knh.or.lrestart) ) then
         end do    
       else
         do k = 1,kl
-          ! omgfnl already includes (1+epsp)  
           wrk2(:,k) = const_nh*(tbar(1)*omgfnl(:,k)/sig(k)-h_nh(1:ifull,k))*t(1:ifull,k)**2/tbar(1)
         end do          
       end if
-    case default
+    case default ! usually nh=5 or 6
       if ( abs(epsp)<=1. ) then
         do k = 1,kl
           ! omgfnl already includes (1+epsp)
-          wrk2(1:ifull,k) = const_nh*(tbar(1)*omgfnl(1:ifull,k)/((1.-epsp)*sig(k))-h_nh(1:ifull,k))*tbar2d(1:ifull)
+          wrk2(:,k) = const_nh*(tbar(1)*omgfnl(1:ifull,k)/((1.-epsp)*sig(k))-h_nh(1:ifull,k))*tbar2d(1:ifull)
         end do
       else
         do k = 1,kl
-          ! omgfnl already includes (1+epsp)
-          wrk2(1:ifull,k) = const_nh*(tbar(1)*omgfnl(1:ifull,k)/sig(k)-h_nh(1:ifull,k))*tbar2d(1:ifull)
+          wrk2(:,k) = const_nh*(tbar(1)*omgfnl(1:ifull,k)/sig(k)-h_nh(1:ifull,k))*tbar2d(1:ifull)
         end do
       end if
   end select    
   wrk1(:,1) = bet(1)*wrk2(:,1)
   do k = 2,kl
-    wrk1(1:ifull,k) = wrk1(1:ifull,k-1) + bet(k)*wrk2(1:ifull,k) + betm(k)*wrk2(1:ifull,k-1)
+    wrk1(:,k) = wrk1(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
   end do   ! k loop
 #ifdef debug
   if ( (diag.or.nmaxpr==1) .and. mydiag )then

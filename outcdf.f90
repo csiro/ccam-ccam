@@ -759,6 +759,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
     call ccnf_put_attg(idnc,'tke_umin',tke_umin)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
+    call ccnf_put_attg(idnc,'zimax',zimax)
 
     ! land, urban and carbon
     call ccnf_put_attg(idnc,'ateb_ac_coolcap',ateb_ac_coolcap)

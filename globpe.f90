@@ -1447,7 +1447,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & ! EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
-    stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,mfbeta,          &
+    stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,mfbeta,zimax,    &
     amxlsq,                                                       & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
     tkecduv                                                         ! depreciated
@@ -2098,7 +2098,7 @@ nclddia        = dumi(19)
 nmr            = dumi(20)
 nevapls        = dumi(21)
 deallocate( dumr, dumi )
-allocate( dumr(30), dumi(4) )
+allocate( dumr(31), dumi(4) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2137,6 +2137,7 @@ if ( myid==0 ) then
   dumr(28) = alphaj
   dumr(29) = ent_min
   dumr(30) = mfbeta
+  dumr(31) = zimax
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
@@ -2173,6 +2174,7 @@ sigbot_gwd = dumr(27)
 alphaj     = dumr(28)
 ent_min    = dumr(29)
 mfbeta     = dumr(30)
+zimax      = dumr(31)
 buoymeth   = dumi(1)
 stabmeth   = dumi(2)
 tkemeth    = dumi(3)

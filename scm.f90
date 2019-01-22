@@ -2103,7 +2103,7 @@ elseif ( scm_mode=="CCAM" ) then
   psl(:) = log(psurf_in/1.e5)
   ps(:) = 1.e5*exp(psl)
   if ( use_file_for_rain ) then
-    condx = rnd_in*dt/(time_b-time_a)
+    condx = rnd_in*dt/86400.
     conds = 0.
     condg = 0.
     precip = precip + condx
@@ -2452,12 +2452,12 @@ call ccnf_get_vara(ncid,'PSFC',iarch,ps_lsm_b)
 wgt = (real(iarch-1)*1800. - real(ktau)*dt)/1800. 
 
 if ( noradiation ) then
-  sgdn_ave(1) = wgt*sgdwn_lsm_a + (1.-wgt)*sgdwn_lsm_b
+  sgdn_ave(1) = sgdn_ave(1) + wgt*sgdwn_lsm_a + (1.-wgt)*sgdwn_lsm_b
   sgsave(1) = (wgt*sgdwn_lsm_a+(1.-wgt)*sgdwn_lsm_b)*(1.-swrsave(1)*albvisnir(1,1)-swrsave(1)*albvisnir(1,2))
-  sgn_ave(1) = sgsave(1)
-  rgdn_ave(1) = wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b
+  sgn_ave(1) = sgn_ave(1) + sgsave(1)
+  rgdn_ave(1) = rgdn_ave(1) + wgt*rgdwn_lsm_a + (1.-wgt)*rgdwn_lsm_b
   rgsave(1) = -(wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b)
-  rgn_ave(1) = stefbo*tss(1)**4 - (wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b)
+  rgn_ave(1) = rgn_ave(1) + stefbo*tss(1)**4 - (wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b)
 end if
 if ( nocloud.and.noconvection ) then
   condx(1) = wgt*pr_lsm_a+(1.-wgt)*pr_lsm_b 
@@ -6483,8 +6483,13 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   soc_ave(1:ifull)    = soc_ave(1:ifull)/max(koundiag,1)
   rtu_ave(1:ifull)    = rtu_ave(1:ifull)/max(koundiag,1)
   rtc_ave(1:ifull)    = rtc_ave(1:ifull)/max(koundiag,1)
-  rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
-  rgn_ave(1:ifull)    = rgn_ave(1:ifull)/max(koundiag,1)
+  if ( noradiation ) then
+    rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/min(ntau,nperavg)
+    rgn_ave(1:ifull)    = rgn_ave(1:ifull)/min(ntau,nperavg)    
+  else    
+    rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
+    rgn_ave(1:ifull)    = rgn_ave(1:ifull)/max(koundiag,1)
+  end if  
   rgc_ave(1:ifull)    = rgc_ave(1:ifull)/max(koundiag,1)
   sgc_ave(1:ifull)    = sgc_ave(1:ifull)/max(koundiag,1)
   cld_ave(1:ifull)    = cld_ave(1:ifull)/max(koundiag,1)

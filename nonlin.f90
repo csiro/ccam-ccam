@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -230,7 +230,7 @@ if ( nh/=0 ) then
       h_nh(1:ifull,k) = h_nh(1:ifull,k) - (((sig(k)-1.)*(phi(:,k+1)-phi(:,k))/(sig(k+1)-sig(k))+               &
                           ((sig(k+1)-sig(k))*(phi(:,k)-zs(1:ifull))/(sig(k)-1.)))*sig(k)/(rdry*(sig(k+1)-1.))  &
                       + t(1:ifull,k))*invconst_nh/tbar2d(:)
-    case(5)
+    case(5,6)
       ! MJT - This method is compatible with bet(k) and betm(k)
       ! This is the similar to nh==2, but works for all lapsbot
       ! and only involves phi_nh as the hydrostatic component
@@ -243,7 +243,6 @@ if ( nh/=0 ) then
         t_nh(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*t_nh(:))/bet(k)
         h_nh(1:ifull,k) = h_nh(1:ifull,k) + t_nh(:)*invconst_nh/tbar2d(:)
       end do
-      
     case(8)
       t_nh(:) = phi_nh(:,1)/bet(1)
       h_nh(1:ifull,1) = h_nh(1:ifull,1) + t_nh(:)*invconst_nh*tbar(1)/t(1:ifull,1)**2
@@ -251,7 +250,6 @@ if ( nh/=0 ) then
         t_nh(:) = (phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*t_nh(:))/bet(k)
         h_nh(1:ifull,k) = h_nh(1:ifull,k) + t_nh(:)*invconst_nh*tbar(1)/t(1:ifull,k)**2
       end do
-      
   end select
   if ( nmaxpr==1 ) then
     if ( mydiag ) then

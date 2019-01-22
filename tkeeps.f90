@@ -48,7 +48,7 @@ public tkeinit,tkemix,tkeend,tke,eps,shear
 public cm0,ce0,ce1,ce2,ce3,cq,be,ent0,ent1,entc0,ezmin,dtrc0
 public m0,b1,b2,qcmf,ent_min,mfbeta
 public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
-public tke_umin,tkemeth
+public tke_umin,tkemeth,zimax
 #ifdef offline
 public wthl,wqv,wql,wqf
 public mf,w_up,tl_up,qv_up,ql_up,qf_up,cf_up
@@ -76,6 +76,7 @@ real, save :: mineps   = 1.E-11   ! min value for eps (1.0e-6 in TAPM)
 real, save :: minl     = 1.       ! min value for L   (5. in TAPM)
 real, save :: maxl     = 1000.    ! max value for L   (500. in TAPM)
 real, save :: tke_umin = 0.1      ! minimum wind speed (m/s) for drag calculation
+real, save :: zimax    = 10000.   ! maximum PBL height feeding back into model calculations
 ! model MF constants
 real, save :: be       = 0.1      ! Surface boundary condition (Hurley (2007) 1., Soares et al (2004) 0.3)
 real, save :: ent0     = 0.25     ! Entrainment constant (Controls height of boundary layer) (Hurley (2007) 0.5)
@@ -397,7 +398,7 @@ do kcount = 1,mcount
   dtrs=0.
 #endif
 
-  wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)   
+  wstar = (grav*min(zi,zimax)*max(wtv0,0.)/thetav(:,1))**(1./3.)   
 
   if ( mode/=1 ) then ! mass flux
       
@@ -418,7 +419,7 @@ do kcount = 1,mcount
     
     ! Turn off MF term if small grid spacing (beta=0. implies MF is always non-zero)
     ! Based on Boutle et al 2014
-    zturb = 0.5*(zi_save + zi)
+    zturb = min(0.5*(zi_save + zi),zimax)
     cgmap(:) = 1. - tanh(mfbeta*zturb/dx)*max(0.,1.-0.25*dx/zturb)
     do k = 1,kl
       mflx(:,k) = mflx(:,k)*cgmap(:)
@@ -573,7 +574,7 @@ do kcount = 1,mcount
   if ( tkemeth==1 ) then
     do k = 2,kl-1
       tbb(:) = max(1.-0.05*dz_hl(:,k-1)/250.,0.)
-      where ( wstar(:)>0.5 .and. zz(:,k)>0.5*zi(:) .and. zz(:,k)<0.95*zi(:)   )
+      where ( wstar(:)>0.5 .and. zz(:,k)>0.5*min(zi,zimax) .and. zz(:,k)<0.95*min(zi,zimax) )
         tke(1:imax,k) = max( tke(1:imax,k), tbb(:)*tke(1:imax,k-1) )
         eps(1:imax,k) = max( eps(1:imax,k), tbb(:)*eps(1:imax,k-1) )
       end where
@@ -969,7 +970,7 @@ do k = 2,kl
 end do
           
 thetav_p = pack( thetav(:,1), lmask )
-wstar_p = (grav*zi_p*max(wtv0_p,0.)/thetav_p)**(1./3.)
+wstar_p = (grav*min(zi_p,zimax)*max(wtv0_p,0.)/thetav_p)**(1./3.)
           
 ! update mass flux
 mflx_p(:,1) = m0*sqrt(max(w2up(:,1), 0.))
@@ -1163,7 +1164,7 @@ real, dimension(size(zht)) :: ans
 !ans=2./max(100.,zi)                                  ! Angevine et al (2010)
 !ans=1./zht                                           ! Siebesma et al (2003)
 !ans=0.5*(1./min(zht,zi-zmin)+1./max(zi-zht,zmin))    ! Soares et al (2004)
-ans = max( ent0/max( zht, 1. ) + ent1/max( zi-zht, ezmin ), ent_min )
+ans = max( ent0/max( zht, 1. ) + ent1/max( min(zi,zimax)-zht, ezmin ), ent_min )
 
 return
 end function entfn

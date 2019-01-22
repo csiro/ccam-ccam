@@ -7,7 +7,11 @@ NCFLAG = -I $(NETCDF_ROOT)/include
 ifeq ($(NCCLIB),yes)
 NCFLAG += -Dncclib
 endif
+ifeq ($(NOMPI3),yes)
+MPIFLAG =
+else
 MPIFLAG = -Dusempi3
+endif
 FHOST = -O3 -xHost
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
