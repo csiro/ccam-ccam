@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1433,7 +1433,7 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_aerosols,diaglevel_pbl,diaglevel_cloud,             &
     diaglevel_land,diaglevel_maxmin,diaglevel_ocean,              &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
-    diaglevel_river
+    diaglevel_river,diaglevel_pop
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,shaltime,        &
@@ -1902,7 +1902,7 @@ aeroindir           = dumi(8)
 o3_vert_interpolate = dumi(9)
 o3_time_interpolate = dumi(10)
 deallocate( dumr, dumi )
-allocate( dumi(20) )
+allocate( dumi(21) )
 dumi = 0
 if ( myid==0 ) then
   read(99, datafile)
@@ -1926,6 +1926,7 @@ if ( myid==0 ) then
   dumi(18) = diaglevel_urban
   dumi(19) = diaglevel_carbon
   dumi(20) = diaglevel_river
+  dumi(21) = diaglevel_pop
 end if
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(ifile,0,comm_world)
@@ -1980,6 +1981,7 @@ diaglevel_radiation = dumi(17)
 diaglevel_urban     = dumi(18)
 diaglevel_carbon    = dumi(19)
 diaglevel_river     = dumi(20)
+diaglevel_pop       = dumi(21)
 deallocate( dumi )
 allocate( dumr(33), dumi(21) )
 dumr = 0.
@@ -3659,6 +3661,9 @@ if ( ccycle/=0 ) then
   frs_ave  = 0.
   cnpp_ave = 0.
   cnbp_ave = 0.
+  if ( diaglevel_carbon > 0 ) then
+    fevc_ave = 0.
+  end if
 end if
 
 if ( abs(iaero)>=2 ) then
@@ -3737,7 +3742,7 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use cable_ccam, only : ccycle              ! CABLE
 use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
-    ,frpw,frpr,frs,cnpp,cnbp
+    ,frpw,frpr,frs,cnpp,cnbp,fevc
 use histave_m                              ! Time average arrays
 use mlo, only : mlodiag                    ! Ocean physics and prognostic arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -3821,6 +3826,9 @@ if ( ccycle/=0 ) then
   frs_ave(1:ifull)  = frs_ave(1:ifull) + frs
   cnpp_ave(1:ifull) = cnpp_ave(1:ifull) + cnpp
   cnbp_ave(1:ifull) = cnbp_ave(1:ifull) + cnbp
+  if ( diaglevel_carbon > 0 ) then
+    fevc_ave(1:ifull) = fevc_ave(1:ifull) + fevc
+  end if
 end if
 
 if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
@@ -3883,6 +3891,9 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
     cnpp_ave(1:ifull)   = cnpp_ave(1:ifull)/min(ntau,nperavg)
     cnbp_ave(1:ifull)   = cnbp_ave(1:ifull)/min(ntau,nperavg)
+    if ( diaglevel_carbon > 0 ) then
+      fevc_ave(1:ifull)   = fevc_ave(1:ifull)/min(ntau,nperavg)
+    end if
   end if
    
   if ( abs(iaero)>=2 ) then
