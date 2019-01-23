@@ -1433,7 +1433,7 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_aerosols,diaglevel_pbl,diaglevel_cloud,             &
     diaglevel_land,diaglevel_maxmin,diaglevel_ocean,              &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
-    diaglevel_river
+    diaglevel_river,diaglevel_pop
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,shaltime,        &
@@ -1902,7 +1902,7 @@ aeroindir           = dumi(8)
 o3_vert_interpolate = dumi(9)
 o3_time_interpolate = dumi(10)
 deallocate( dumr, dumi )
-allocate( dumi(20) )
+allocate( dumi(21) )
 dumi = 0
 if ( myid==0 ) then
   read(99, datafile)
@@ -1926,6 +1926,7 @@ if ( myid==0 ) then
   dumi(18) = diaglevel_urban
   dumi(19) = diaglevel_carbon
   dumi(20) = diaglevel_river
+  dumi(21) = diaglevel_pop
 end if
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(ifile,0,comm_world)
@@ -1980,6 +1981,7 @@ diaglevel_radiation = dumi(17)
 diaglevel_urban     = dumi(18)
 diaglevel_carbon    = dumi(19)
 diaglevel_river     = dumi(20)
+diaglevel_pop       = dumi(21)
 deallocate( dumi )
 allocate( dumr(33), dumi(21) )
 dumr = 0.

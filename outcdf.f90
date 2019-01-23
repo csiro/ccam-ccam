@@ -2085,12 +2085,12 @@ if( myid==0 .or. local ) then
       lname = 'Solar net at ground (+ve down)'
       call attrib(idnc,dimj,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,cptype)
       
-      if ( nsib==6 .or. nsib==7 ) then
-        call savetiledef(idnc,local,dimj,jsize,dimc1,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7,c1size,c2size)
-      end if
-      
     endif  ! (itype==-1)
         
+    if ( nsib==6 .or. nsib==7 ) then
+      call savetiledef(idnc,local,dimj,jsize,dimc1,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7,c1size,c2size,itype)
+    end if
+      
     if ( myid==0 ) write(6,*) 'finished defining attributes'
 !   Leave define mode
     call ccnf_enddef(idnc)
@@ -3218,12 +3218,12 @@ if ( itype==-1 ) then
   call histwrt(aa,    'sflag', idnc,iarch,local,.true.)
   call histwrt(sgsave,'sgsave',idnc,iarch,local,.true.)       
   
-  if ( nsib==6 .or. nsib==7 ) then
-    call savetile(idnc,local,iarch)
-  end if
-  
 endif  ! (itype==-1)
 
+if ( nsib==6 .or. nsib==7 ) then
+  call savetile(idnc,local,iarch,itype)
+end if
+  
 ! flush output buffers
 if ( synchist ) then
   if ( myid==0 .or. local ) then

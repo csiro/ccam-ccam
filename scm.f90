@@ -5843,7 +5843,7 @@ lname = 'Solar net at ground (+ve down)'
 call attrib(idnc,dimj,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,itype)
 
 if ( nsib==6 .or. nsib==7 ) then
-  call savetiledef(idnc,local,dimj,jsize,dimc,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7,csize,c2size)
+  call savetiledef(idnc,local,dimj,jsize,dimc,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7,csize,c2size,itype)
 end if
 
 call ccnf_enddef(idnc)
@@ -6179,7 +6179,7 @@ call histwrt(aa,    'sflag', idnc,iarch,local,.true.)
 call histwrt(sgsave,'sgsave',idnc,iarch,local,.true.)       
 
 if ( nsib==6 .or. nsib==7 ) then
-  call savetile(idnc,local,iarch)
+  call savetile(idnc,local,iarch,itype)
 end if
   
 call ccnf_close(idnc)
