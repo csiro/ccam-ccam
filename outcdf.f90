@@ -1712,9 +1712,17 @@ if( myid==0 .or. local ) then
             ! LeafResp - Leaf Respiration (=frday)
             ! HeteroResp - Heterotrophic Respiration (=frs)
             ! Plant Turnover
+            if ( diaglevel_carbon > 0 ) then
+              lname = 'Total Biomass Turnover'
+              call attrib(idnc,dimj,jsize,'cplant_turnover',lname,'gC/m2/s',0.,1.E-3,0,cptype)
+            end if
             ! Plant Turnover Leaf
             ! Plant Turnover Fine Root
             ! Plant Turnover Wood
+            if ( diaglevel_carbon > 0 ) then
+              lname = 'Woody Biomass Turnover'
+              call attrib(idnc,dimj,jsize,'cplant2_turnover',lname,'gC/m2/s',0.,1.E-3,0,cptype)
+            end if
             ! Plant Turnover Wood Dist
             ! Plant Turnover Wood Crowding
             ! Plant Turnover Wood Resource Lim
@@ -2799,6 +2807,8 @@ if ( nsib==6 .or. nsib==7 ) then
         call histwrt(cnpp_ave,'cnbp_ave',idnc,iarch,local,lave)
         if ( diaglevel_carbon > 0 ) then
           call histwrt(fevc_ave,'fevc_ave',idnc,iarch,local,lave)
+          call histwrt(plant_turnover_ave,'cplant_turnover',idnc,iarch,local,lave)
+          call histwrt(plant_turnover_wood_ave,'cplant2_turnover',idnc,iarch,local,lave)
         end if
       end if
     end if
