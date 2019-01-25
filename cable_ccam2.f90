@@ -222,7 +222,7 @@ real, dimension(imax) :: latmco2
 real, dimension(imax) :: lclimate_min20, lclimate_max20, lclimate_alpha20
 real, dimension(imax) :: lclimate_agdd5
 real, dimension(imax) :: lclimate_dmoist_min20, lclimate_dmoist_max20
-real, dimension(imax) :: lfevc
+real, dimension(imax) :: lfevc,lplant_turnover,lplant_turnover_wood
 logical, dimension(imax,maxtile) :: ltmap
 type(air_type) :: lair
 type(balances_type) :: lbal
@@ -250,7 +250,8 @@ type(bgc_pool_type) :: lbgc
 !$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,lcasabiome,latmco2),              &
 !$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg),  &
 !$omp private(lclimate_biome,lclimate_iveg,lclimate_min20,lclimate_max20,lclimate_alpha20,lclimate_agdd5),     &
-!$omp private(lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc)
+!$omp private(lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover),                 &
+!$omp private(lplant_turnover_wood)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -292,6 +293,8 @@ do tile=1,ntiles
       lpsoil = psoil(is:ie,:)
       if ( diaglevel_carbon > 0 ) then
         lfevc = fevc(is:ie)
+        lplant_turnover = plant_turnover(is:ie)
+        lplant_turnover_wood = plant_turnover_wood(is:ie)
       end if
     end if 
     if ( cable_climate==1 ) then
@@ -360,7 +363,8 @@ do tile=1,ntiles
                    lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),lair,lbal,c,lcanopy,                         &
                    lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,    &
                    lsum_flux,lveg,lclimate_iveg,lclimate_biome,lclimate_min20,lclimate_max20,lclimate_alpha20,           &
-                   lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,imax)
+                   lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover,        &
+                   lplant_turnover_wood,imax)
 
     smass(is:ie,:) = lsmass
     ssdn(is:ie,:) = lssdn
@@ -389,6 +393,8 @@ do tile=1,ntiles
       psoil(is:ie,:) = lpsoil
       if ( diaglevel_carbon > 0 ) then
         fevc(is:ie) = lfevc
+        plant_turnover(is:ie) = lplant_turnover
+        plant_turnover_wood(is:ie) = lplant_turnover_wood
       end if
     end if  
     if ( cable_climate==1 ) then
@@ -419,7 +425,8 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,air,bal,c,canopy,casabal,casabiome,   &
                      casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,veg,          &
                      climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,climate_agdd5,     &
-                     climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,imax)
+                     climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,plant_turnover,                 &
+                     plant_turnover_wood,imax)
 
 use const_phys
 use dates_m
@@ -460,7 +467,7 @@ real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
 real, dimension(imax), intent(inout) :: climate_min20, climate_max20, climate_alpha20
 real, dimension(imax), intent(inout) :: climate_agdd5
 real, dimension(imax), intent(inout) :: climate_dmoist_min20, climate_dmoist_max20
-real, dimension(imax), intent(inout) :: fevc
+real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
 real, dimension(imax), intent(in) :: sgsave, swrsave, theta, vmod
 real, dimension(imax) :: coszro2, taudar2, tmps, swdwn, alb, qsttg_land
@@ -957,6 +964,8 @@ if ( ccycle/=0 ) then
   cnbp = 0.
   if ( diaglevel_carbon > 0 ) then
     fevc = 0.
+    plant_turnover = 0.
+    plant_turnover_wood = 0.
   end if
   do nb = 1,maxnb
     is = tind(nb,1)
@@ -986,9 +995,14 @@ if ( ccycle/=0 ) then
     frpr = frpr + unpack(sv(is:ie)*real(canopy%frpr(is:ie)),  tmap(:,nb),0.)
     frs  = frs  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),   tmap(:,nb),0.)
     cnpp = cnpp + unpack(sv(is:ie)*real(casaflux%cnpp(is:ie))/real(casaperiod),tmap(:,nb),0.)
-    cnbp = cnbp + unpack(sv(is:ie)*real(casaflux%Crsoil-casaflux%cnpp-casapool%dClabiledt)/real(casaperiod),tmap(:,nb),0.)
+    cnbp = cnbp + unpack(sv(is:ie)*real(casaflux%Crsoil(is:ie)-casaflux%cnpp(is:ie)-casapool%dClabiledt(is:ie)) &
+        /real(casaperiod),tmap(:,nb),0.)
     if ( diaglevel_carbon > 0 ) then
       fevc = fevc + unpack(sv(is:ie)*real(canopy%fevc(is:ie)),  tmap(:,nb),0.)
+      plant_turnover      = plant_turnover      + unpack(sv(is:ie)* &
+                            real(sum(casaflux%Cplant_turnover(is:ie,:),2))/real(casaperiod),  tmap(:,nb),0.)
+      plant_turnover_wood = plant_turnover_wood + unpack(sv(is:ie)* &
+                            real(casaflux%Cplant_turnover(is:ie,2))/real(casaperiod),         tmap(:,nb),0.)
     end if
   end do
 end if
