@@ -1,6 +1,6 @@
 ! aTEB urban canopy model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the UCLEM urban canopy model
 !
@@ -2655,6 +2655,7 @@ do ifrac = 1,nfrac
 end do
 
 if (mode) then
+  sumlzom = sqrt(sumlzom)
   sumlzoh = sumlzoh/sumlzom
   sumlzoq = sumlzoq/sumlzom
   zom=unpack(sumcndzmin*exp(-1./sumlzom),upack,zom)
