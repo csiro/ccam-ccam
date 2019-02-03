@@ -50,6 +50,7 @@ module cc_mpi
    private
 
    integer, save, public :: comm_world                                     ! global communication group
+   integer, save, public :: group_world                                    ! global group
    integer, save, public :: myid                                           ! processor rank for comm_world
    integer, save, public :: ipan, jpan                                     ! grid size on processor
    integer, save, public :: ioff, joff, noff                               ! offset of processor grid relative to global grid
@@ -73,13 +74,18 @@ module cc_mpi
    integer, save, public :: comm_vleader, vleader_nproc, vleader_myid      ! procformat communicator for node captain group   
    integer, save, public :: vnode_vleaderid                                ! rank of the procformat node captain
 
+   integer, save, public :: comm_ocean                                     ! ocean communication group
+   integer, save, public :: group_ocean                                    ! ocean group
+
    integer(kind=4), save, private :: nreq, rreq                            ! number of messages requested and to be received
    integer(kind=4), allocatable, dimension(:), save, private :: ireq       ! requested message index
    integer, allocatable, dimension(:), save, private :: rlist              ! map of processor index from requested message index
    
    integer, allocatable, dimension(:), save, public :: neighlist           ! list of neighbour processors
+   integer, allocatable, dimension(:), save, public :: neighlisto          ! list of neighbour processors for ocean
    integer, allocatable, dimension(:), save, private :: neighmap           ! map of processor to neighbour index
    integer, save, public :: neighnum                                       ! number of neighbours
+   integer, save, public :: neighnumo                                      ! number of ocean neighbours
    
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       specmap_recv                                                         ! gather map recived for spectral filter
@@ -116,7 +122,8 @@ module cc_mpi
              ccmpi_scatterx, ccmpi_allgatherx, ccmpi_init, ccmpi_remap,     &
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
              bounds_colour_send, bounds_colour_recv, boundsr8,              &
-             ccmpi_reinit, ccmpi_alltoall, ccmpi_procformat_init
+             ccmpi_reinit, ccmpi_alltoall, ccmpi_procformat_init,           &
+             ccmpi_oceancomm
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -155,10 +162,10 @@ module cc_mpi
       module procedure ccmpi_gatherall2, ccmpi_gatherall3
    end interface
    interface bounds
-      module procedure bounds2, bounds3, bounds4
+      module procedure bounds2_wrap, bounds3_wrap, bounds4_wrap
    end interface
    interface boundsuv
-      module procedure boundsuv2, boundsuv3
+      module procedure boundsuv2_wrap, boundsuv3_wrap
    end interface
    interface boundsr8
       module procedure bounds3r8
@@ -4559,9 +4566,38 @@ contains
       end if
    end subroutine check_set
 
-   subroutine bounds2(t, nrows, corner, nehalf)
+   subroutine bounds2_wrap(t, nrows, corner, nehalf, mask)
+      implicit none
       ! Copy the boundary regions
       real, dimension(ifull+iextra), intent(inout) :: t
+      integer, intent(in), optional :: nrows
+      logical, intent(in), optional :: corner
+      logical, intent(in), optional :: nehalf
+      integer, intent(in), optional :: mask
+      integer :: lmask
+
+      if ( present(mask) ) then
+         !write(100+myid,*)"in bounds2:",mask
+         lmask = mask
+      else
+         lmask = 0
+      end if
+
+      select case(lmask)
+         case(0)
+            call bounds2(t, neighnum, neighlist, nrows, corner, nehalf)
+         case(1)
+            call bounds2(t, neighnumo, neighlisto, nrows, corner, nehalf)
+      end select
+
+   end subroutine bounds2_wrap
+
+   subroutine bounds2(t, neighnum, neighlist, nrows, corner, nehalf)
+      implicit none
+      ! Copy the boundary regions
+      real, dimension(ifull+iextra), intent(inout) :: t
+      integer, intent(in) :: neighnum
+      integer, dimension(:), intent(in) :: neighlist
       integer, intent(in), optional :: nrows
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
@@ -4673,10 +4709,38 @@ contains
 
    end subroutine bounds2
 
-   subroutine bounds3(t, nrows, klim, corner, nehalf)
+   subroutine bounds3_wrap(t, nrows, klim, corner, nehalf, mask)
+      implicit none
+      real, dimension(:,:), intent(inout) :: t
+      integer, intent(in), optional :: nrows, klim
+      logical, intent(in), optional :: corner
+      logical, intent(in), optional :: nehalf
+      integer, intent(in), optional :: mask
+      integer :: lmask
+
+      if ( present(mask) ) then
+         !write(100+myid,*)"in bounds3:",mask
+         lmask = mask
+      else
+         lmask = 0
+      end if
+
+      select case(lmask)
+         case(0)
+            call bounds3(t, neighnum, neighlist, nrows, klim, corner, nehalf)
+         case(1)
+            call bounds3(t, neighnumo, neighlisto, nrows, klim, corner, nehalf)
+      end select
+
+   end subroutine bounds3_wrap
+
+   subroutine bounds3(t, neighnum, neighlist, nrows, klim, corner, nehalf)
+      implicit none
       ! Copy the boundary regions. Only this routine requires the extra klim
       ! argument (for helmsol).
       real, dimension(:,:), intent(inout) :: t
+      integer, intent(in) :: neighnum
+      integer, dimension(:), intent(in) :: neighlist
       integer, intent(in), optional :: nrows, klim
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
@@ -4911,9 +4975,38 @@ contains
 
    end subroutine bounds3r8
    
-   subroutine bounds4(t, nrows, corner, nehalf)
+   subroutine bounds4_wrap(t, nrows, corner, nehalf, mask)
+      implicit none
       ! Copy the boundary regions.
       real, dimension(:,:,:), intent(inout) :: t
+      integer, intent(in), optional :: nrows
+      logical, intent(in), optional :: corner
+      logical, intent(in), optional :: nehalf
+      integer, intent(in), optional :: mask
+      integer :: lmask
+
+      if ( present(mask) ) then
+         !write(100+myid,*)"in bounds4:",mask
+         lmask = mask
+      else
+         lmask = 0
+      end if
+
+      select case(lmask)
+         case(0)
+            call bounds4(t, neighnum, neighlist, nrows, corner, nehalf)
+         case(1)
+            call bounds4(t, neighnumo, neighlisto, nrows, corner, nehalf)
+      end select
+
+   end subroutine bounds4_wrap
+
+   subroutine bounds4(t, neighnum, neighlist, nrows, corner, nehalf)
+      implicit none
+      ! Copy the boundary regions.
+      real, dimension(:,:,:), intent(inout) :: t
+      integer, intent(in) :: neighnum
+      integer, dimension(:), intent(in) :: neighlist
       integer, intent(in), optional :: nrows
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
@@ -5224,11 +5317,37 @@ contains
 
    end subroutine bounds_colour_recv
    
-   subroutine boundsuv2(u, v, nrows, stag, allvec)
+   subroutine boundsuv2_wrap(u, v, nrows, stag, allvec, mask)
+      real, dimension(ifull+iextra), intent(inout) :: u, v
+      integer, intent(in), optional :: nrows, stag
+      logical, intent(in), optional :: allvec
+      integer, intent(in), optional :: mask
+      integer :: lmask
+
+      if ( present(mask) ) then
+         !write(100+myid,*)"in boundsuv2:",mask
+         lmask = mask
+      else
+         lmask = 0
+      end if
+
+      select case(lmask)
+         case(0)
+            call boundsuv2(u, v, neighnum, neighlist, nrows, stag, allvec)
+         case(1)
+            call boundsuv2(u, v, neighnumo, neighlisto, nrows, stag, allvec)
+      end select
+
+
+   end subroutine boundsuv2_wrap
+
+   subroutine boundsuv2(u, v, neighnum, neighlist, nrows, stag, allvec)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       real, dimension(ifull+iextra), intent(inout) :: u, v
+      integer, intent(in) :: neighnum
+      integer, dimension(:), intent(in) :: neighlist
       integer, intent(in), optional :: nrows, stag
       logical, intent(in), optional :: allvec
       logical :: double, extra
@@ -5576,11 +5695,37 @@ contains
 
    end subroutine boundsuv2
 
-   subroutine boundsuv3(u, v, nrows, stag, allvec)
+   subroutine boundsuv3_wrap(u, v, nrows, stag, allvec, mask)
+      real, dimension(:,:), intent(inout) :: u, v
+      integer, intent(in), optional :: nrows
+      integer, intent(in), optional :: stag
+      logical, intent(in), optional :: allvec
+      integer, intent(in), optional :: mask
+      integer :: lmask
+
+      if ( present(mask) ) then
+         !write(100+myid,*)"in boundsuv3:",mask
+         lmask = mask
+      else
+         lmask = 0
+      end if
+
+      select case(lmask)
+         case(0)
+            call boundsuv3(u, v, neighnum, neighlist, nrows, stag, allvec)
+         case(1)
+            call boundsuv3(u, v, neighnumo, neighlisto, nrows, stag, allvec)
+      end select
+
+   end subroutine boundsuv3_wrap
+
+   subroutine boundsuv3(u, v, neighnum, neighlist, nrows, stag, allvec)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       real, dimension(:,:), intent(inout) :: u, v
+      integer, intent(in) :: neighnum
+      integer, dimension(:), intent(in) :: neighlist
       integer, intent(in), optional :: nrows
       integer, intent(in), optional :: stag
       logical, intent(in), optional :: allvec
@@ -8321,6 +8466,39 @@ contains
    
    end subroutine ccmpi_commsplit
    
+   subroutine ccmpi_oceancomm(colour)
+   
+      integer, intent(in) :: colour
+      integer(kind=4) :: lcomm, lcommout, lerr, lrank, lcolour, lgroup
+      integer :: i
+      integer, allocatable, dimension(:) :: list
+   
+      lcomm = comm_world
+      lrank = myid
+      if ( colour>=0 ) then
+        lcolour = colour
+      else
+        lcolour = MPI_UNDEFINED
+      end if
+      call MPI_Comm_Split(lcomm, lcolour, lrank, lcommout, lerr)
+      call MPI_Comm_group(lcommout, lgroup, lerr)
+      comm_ocean = lcommout
+      group_ocean = lgroup
+
+      if ( comm_ocean /= MPI_COMM_NULL) then
+        allocate(list(neighnum))
+        call MPI_Group_translate_ranks(group_world,neighnum,neighlist,group_ocean,list,lerr)
+        neighnumo = count(list/=MPI_UNDEFINED)
+
+        allocate(neighlisto(neighnumo))
+        neighlisto = pack(neighlist,list/=MPI_UNDEFINED)
+      else
+        neighnumo = 0
+        allocate(neighlisto(neighnumo))
+      end if
+   
+   end subroutine ccmpi_oceancomm
+   
    subroutine ccmpi_commfree(comm)
    
       integer, intent(in) :: comm
@@ -8335,7 +8513,7 @@ contains
    
    subroutine ccmpi_init
 
-      integer(kind=4) :: lerr, lproc, lid
+      integer(kind=4) :: lerr, lproc, lid, lgroup
       integer, dimension(8) :: times_a, times_b
 #ifdef _OPENMP
       integer(kind=4) :: lprovided
@@ -8355,9 +8533,11 @@ contains
 #endif
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
       call MPI_Comm_rank(MPI_COMM_WORLD, lid, lerr)   ! Find local processor id
+      call MPI_Comm_group(MPI_COMM_WORLD, lgroup, lerr) ! Find communicator group
       nproc      = lproc
       myid       = lid
       comm_world = MPI_COMM_WORLD
+      group_world = lgroup
       
       call date_and_time(values=times_b)
       mpiinit_time = sum( real(times_b(5:8) - times_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
@@ -8374,6 +8554,7 @@ contains
 #ifdef usempi3
       integer(kind=4) :: lproc
 #endif
+      integer(kind=4) :: lgroup
       
       if ( newnproc < nproc ) then
          if ( myid == 0 ) then
@@ -8387,7 +8568,9 @@ contains
          lcommin = comm_world
          lid = myid
          call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr) ! redefine comm_world
+         call MPI_Comm_group(lcommin, lgroup, lerr)                 ! Find communicator group
          comm_world = lcommout
+         group_world = lgroup
          nproc = newnproc
       end if
       
@@ -8470,7 +8653,7 @@ contains
       integer :: new_nodecaptain_nproc, new_node_nproc
       integer :: testid, newid
       integer(kind=4) :: ref_nodecaptain_nproc
-      integer(kind=4) :: lerr, lid, lcommin, lcommout
+      integer(kind=4) :: lerr, lid, lcommin, lcommout, lgroup
       
       lcommin = comm_world
       
@@ -8526,7 +8709,9 @@ contains
          lcommin = comm_world
          call MPI_Comm_Split(lcommin, 0_4, lid, lcommout, lerr) ! redefine comm_world
          call MPI_Comm_rank(lcommout, lid, lerr)                ! find local processor id
+         call MPI_Comm_group(lcommin, lgroup, lerr)             ! Find communicator group
          comm_world = lcommout
+         group_world = lgroup
          myid = lid
          if ( lcommin/=MPI_COMM_WORLD .and. lcommin/=MPI_COMM_NULL ) then
             call MPI_Comm_Free(lcommin, lerr) 
