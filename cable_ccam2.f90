@@ -2614,6 +2614,7 @@ mstype = mxst
 allocate( tdata(ntiles) )
 do tile=1,ntiles
   tdata(tile)%mp = 0
+  tdata(tile)%np = 0
   is = 1 + (tile-1)*imax
   ie = tile*imax
   do iq = is,ie
@@ -2629,9 +2630,11 @@ do tile=1,ntiles
 end do
 mp_global = tdata(1)%mp
 tdata(1)%toffset = 0
+tdata(1)%poffset = 0
 do tile=2,ntiles
   mp_global = mp_global + tdata(tile)%mp
   tdata(tile)%toffset=tdata(tile-1)%toffset+tdata(tile-1)%mp
+  tdata(tile)%poffset=0 ! disable for now
 end do
 mp = 0 ! defined when CABLE model is integrated
 
