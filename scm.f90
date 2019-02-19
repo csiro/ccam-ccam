@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -187,6 +187,7 @@ logical nogwdrag, noconvection, nocloud, noaerosol, novertmix
 logical lsm_only, vert_adv, urbanscrn
 logical use_file_for_rain, use_file_for_cloud
 
+real, dimension(1) :: sgdn_ave_before,sgn_ave_before,rgdn_ave_before,rgn_ave_before
 
 namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     z_in,ivegt_in,isoil_in,metforcing,lsmforcing,lsmoutput,       &
@@ -627,7 +628,12 @@ do spinup = spinup_start,1,-1
       ! avoid multiple counting of rainfall, since it will be replaced in nudging  
       precip = precip - condx 
     end if
-    
+
+    sgdn_ave_before = sgdn_ave
+    sgn_ave_before = sgn_ave
+    rgdn_ave_before = rgdn_ave
+    rgn_ave_before = rgn_ave
+
     ! RADIATON
     if ( ncloud>=4 ) then
       nettend(1:ifull,1:kl) = nettend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
@@ -642,7 +648,15 @@ do spinup = spinup_start,1,-1
           end do            
         end if    
     end select
-    call nantest("after radiation",1,ifull)   
+    call nantest("after radiation",1,ifull)
+
+    ! with forced radiation, remove additions from seaesfrad call
+    if ( noradiation ) then
+      sgdn_ave = sgdn_ave_before
+      sgn_ave  = sgn_ave_before
+      rgdn_ave = rgdn_ave_before
+      rgn_ave  = rgn_ave_before
+    end if
 
     call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv,  &
                   use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf, &
@@ -714,7 +728,7 @@ do spinup = spinup_start,1,-1
       oxidant_timer = mins
     end if
   
-    call calculate_timeaverage
+    call calculate_timeaverage(noradiation)
     
     ! OUTPUT
     if ( spinup==1 .and. mod(ktau,nwt)==0 ) then
@@ -2455,7 +2469,7 @@ if ( noradiation ) then
   sgdn_ave(1) = sgdn_ave(1) + wgt*sgdwn_lsm_a + (1.-wgt)*sgdwn_lsm_b
   sgsave(1) = (wgt*sgdwn_lsm_a+(1.-wgt)*sgdwn_lsm_b)*(1.-swrsave(1)*albvisnir(1,1)-swrsave(1)*albvisnir(1,2))
   sgn_ave(1) = sgn_ave(1) + sgsave(1)
-  rgdn_ave(1) = rgdn_ave(1) + wgt*rgdwn_lsm_a + (1.-wgt)*rgdwn_lsm_b
+  rgdn_ave(1) = rgdn_ave(1) + wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b
   rgsave(1) = -(wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b)
   rgn_ave(1) = rgn_ave(1) + stefbo*tss(1)**4 - (wgt*rgdwn_lsm_a+(1.-wgt)*rgdwn_lsm_b)
 end if
@@ -2731,31 +2745,59 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_att(timencid,idnt,'long_name',lname)
     call ccnf_put_att(timencid,idnt,'units','m/s')  
     call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    lname = '40m temperature'
-    call ccnf_def_var(timencid,'t40m',vtype,1,jdim(1:1),idnt)
-    call ccnf_put_att(timencid,idnt,'long_name',lname)
-    call ccnf_put_att(timencid,idnt,'units','K')  
-    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)    
-    lname = '40m specific humidity'
-    call ccnf_def_var(timencid,'q40m',vtype,1,jdim(1:1),idnt)
-    call ccnf_put_att(timencid,idnt,'long_name',lname)
-    call ccnf_put_att(timencid,idnt,'units','kg/kg')  
-    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    lname = 'Relative humidity at 40 metre above the surface'
-    call ccnf_def_var(timencid,'rh40m',vtype,1,jdim(1:1),idnt)
-    call ccnf_put_att(timencid,idnt,'long_name',lname)
-    call ccnf_put_att(timencid,idnt,'units','0-100')  
-    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    lname = '40m u-component wind'
-    call ccnf_def_var(timencid,'u40m',vtype,1,jdim(1:1),idnt)
-    call ccnf_put_att(timencid,idnt,'long_name',lname)
-    call ccnf_put_att(timencid,idnt,'units','m/s')  
-    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
-    lname = '40m v-component wind'
-    call ccnf_def_var(timencid,'v40m',vtype,1,jdim(1:1),idnt)
-    call ccnf_put_att(timencid,idnt,'long_name',lname)
-    call ccnf_put_att(timencid,idnt,'units','m/s')  
-    call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    if (scm_mode=="sublime") then
+      lname = '50m temperature'
+      call ccnf_def_var(timencid,'t50m',vtype,1,jdim(1:1),idnt)
+      call ccnf_put_att(timencid,idnt,'long_name',lname)
+      call ccnf_put_att(timencid,idnt,'units','K')  
+      call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)    
+      lname = '50m specific humidity'
+      call ccnf_def_var(timencid,'q50m',vtype,1,jdim(1:1),idnt)
+      call ccnf_put_att(timencid,idnt,'long_name',lname)
+      call ccnf_put_att(timencid,idnt,'units','kg/kg')  
+      call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+      lname = 'Relative humidity at 50 metre above the surface'
+      call ccnf_def_var(timencid,'rh50m',vtype,1,jdim(1:1),idnt)
+      call ccnf_put_att(timencid,idnt,'long_name',lname)
+      call ccnf_put_att(timencid,idnt,'units','0-100')  
+      call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+      lname = '50m u-component wind'
+      call ccnf_def_var(timencid,'u50m',vtype,1,jdim(1:1),idnt)
+      call ccnf_put_att(timencid,idnt,'long_name',lname)
+      call ccnf_put_att(timencid,idnt,'units','m/s')  
+      call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+      lname = '50m v-component wind'
+      call ccnf_def_var(timencid,'v50m',vtype,1,jdim(1:1),idnt)
+      call ccnf_put_att(timencid,idnt,'long_name',lname)
+      call ccnf_put_att(timencid,idnt,'units','m/s')  
+      call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    else 
+      lname = '40m temperature'
+      call ccnf_def_var(timencid,'t40m',vtype,1,jdim(1:1),idnt)
+      call ccnf_put_att(timencid,idnt,'long_name',lname)
+      call ccnf_put_att(timencid,idnt,'units','K')  
+      call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)    
+      lname = '40m specific humidity'
+      call ccnf_def_var(timencid,'q40m',vtype,1,jdim(1:1),idnt)
+      call ccnf_put_att(timencid,idnt,'long_name',lname)
+      call ccnf_put_att(timencid,idnt,'units','kg/kg')  
+      call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+      lname = 'Relative humidity at 40 metre above the surface'
+      call ccnf_def_var(timencid,'rh40m',vtype,1,jdim(1:1),idnt)
+      call ccnf_put_att(timencid,idnt,'long_name',lname)
+      call ccnf_put_att(timencid,idnt,'units','0-100')  
+      call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+      lname = '40m u-component wind'
+      call ccnf_def_var(timencid,'u40m',vtype,1,jdim(1:1),idnt)
+      call ccnf_put_att(timencid,idnt,'long_name',lname)
+      call ccnf_put_att(timencid,idnt,'units','m/s')  
+      call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+      lname = '40m v-component wind'
+      call ccnf_def_var(timencid,'v40m',vtype,1,jdim(1:1),idnt)
+      call ccnf_put_att(timencid,idnt,'long_name',lname)
+      call ccnf_put_att(timencid,idnt,'units','m/s')  
+      call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+    end if
     lname = 'cloud cover fraction'
     call ccnf_def_var(timencid,'cc',vtype,1,jdim(1:1),idnt)
     call ccnf_put_att(timencid,idnt,'long_name',lname)
@@ -3237,11 +3279,19 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_vara(timencid,'rh2m',iarch,aa(1))
     call ccnf_put_vara(timencid,'u10m',iarch,aa(1))
     call ccnf_put_vara(timencid,'v10m',iarch,aa(1))
-    call ccnf_put_vara(timencid,'t40m',iarch,aa(1))
-    call ccnf_put_vara(timencid,'q40m',iarch,aa(1))
-    call ccnf_put_vara(timencid,'rh40m',iarch,aa(1))
-    call ccnf_put_vara(timencid,'u40m',iarch,aa(1))
-    call ccnf_put_vara(timencid,'v40m',iarch,aa(1))
+    if (scm_mode=="sublime") then
+      call ccnf_put_vara(timencid,'t50m',iarch,aa(1))
+      call ccnf_put_vara(timencid,'q50m',iarch,aa(1))
+      call ccnf_put_vara(timencid,'rh50m',iarch,aa(1))
+      call ccnf_put_vara(timencid,'u50m',iarch,aa(1))
+      call ccnf_put_vara(timencid,'v50m',iarch,aa(1))
+    else 
+      call ccnf_put_vara(timencid,'t40m',iarch,aa(1))
+      call ccnf_put_vara(timencid,'q40m',iarch,aa(1))
+      call ccnf_put_vara(timencid,'rh40m',iarch,aa(1))
+      call ccnf_put_vara(timencid,'u40m',iarch,aa(1))
+      call ccnf_put_vara(timencid,'v40m',iarch,aa(1))
+    end if
     call ccnf_put_vara(timencid,'cc',iarch,aa(1))
 
     call ccnf_put_vara(timencid,'svf',iarch,aa(1))
@@ -3320,20 +3370,37 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     aa(1)=v(1,1)*u10(1)/sqrt(u(1,1)**2+v(1,1)**2)
     call ccnf_put_vara(timencid,'v10m',iarch,aa(1))
     tmp=t(1,:)
-    call vout(tmp,aa(1),zf,40.,kl)
-    call ccnf_put_vara(timencid,'t40m',iarch,aa(1))
-    tmp=qg(1,:)
-    call vout(tmp,aa(1),zf,40.,kl)
-    aa(1) = aa(1)/(1.+aa(1))
-    call ccnf_put_vara(timencid,'q40m',iarch,aa(1))
-    call vout(rh(:),aa(1),zf,40.,kl)
-    call ccnf_put_vara(timencid,'rh40m',iarch,aa(1))
-    tmp(:)=u(1,:)
-    call vout(tmp,aa(1),zf,40.,kl)
-    call ccnf_put_vara(timencid,'u40m',iarch,aa(1))
-    tmp(:)=v(1,:)
-    call vout(tmp,aa(1),zf,40.,kl)
-    call ccnf_put_vara(timencid,'v40m',iarch,aa(1))
+    if (scm_mode=="sublime") then
+      call vout(tmp,aa(1),zf,50.,kl)
+      call ccnf_put_vara(timencid,'t50m',iarch,aa(1))
+      tmp=qg(1,:)
+      call vout(tmp,aa(1),zf,50.,kl)
+      aa(1) = aa(1)/(1.+aa(1))
+      call ccnf_put_vara(timencid,'q50m',iarch,aa(1))
+      call vout(rh(:),aa(1),zf,50.,kl)
+      call ccnf_put_vara(timencid,'rh50m',iarch,aa(1))
+      tmp(:)=u(1,:)
+      call vout(tmp,aa(1),zf,50.,kl)
+      call ccnf_put_vara(timencid,'u50m',iarch,aa(1))
+      tmp(:)=v(1,:)
+      call vout(tmp,aa(1),zf,50.,kl)
+      call ccnf_put_vara(timencid,'v50m',iarch,aa(1))
+    else
+      call vout(tmp,aa(1),zf,40.,kl)
+      call ccnf_put_vara(timencid,'t40m',iarch,aa(1))
+      tmp=qg(1,:)
+      call vout(tmp,aa(1),zf,40.,kl)
+      aa(1) = aa(1)/(1.+aa(1))
+      call ccnf_put_vara(timencid,'q40m',iarch,aa(1))
+      call vout(rh(:),aa(1),zf,40.,kl)
+      call ccnf_put_vara(timencid,'rh40m',iarch,aa(1))
+      tmp(:)=u(1,:)
+      call vout(tmp,aa(1),zf,40.,kl)
+      call ccnf_put_vara(timencid,'u40m',iarch,aa(1))
+      tmp(:)=v(1,:)
+      call vout(tmp,aa(1),zf,40.,kl)
+      call ccnf_put_vara(timencid,'v40m',iarch,aa(1))
+    end if
     aa(1) = cld_ave(1)
     call ccnf_put_vara(timencid,'cc',iarch,aa(1))
 
@@ -5843,7 +5910,7 @@ lname = 'Solar net at ground (+ve down)'
 call attrib(idnc,dimj,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,itype)
 
 if ( nsib==6 .or. nsib==7 ) then
-  call savetiledef(idnc,local,dimj,jsize,dimc,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7,csize,c2size)
+  call savetiledef(idnc,local,dimj,jsize,dimc,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7,csize,c2size,itype)
 end if
 
 call ccnf_enddef(idnc)
@@ -6179,7 +6246,7 @@ call histwrt(aa,    'sflag', idnc,iarch,local,.true.)
 call histwrt(sgsave,'sgsave',idnc,iarch,local,.true.)       
 
 if ( nsib==6 .or. nsib==7 ) then
-  call savetile(idnc,local,iarch)
+  call savetile(idnc,local,iarch,itype)
 end if
   
 call ccnf_close(idnc)
@@ -6287,6 +6354,11 @@ if ( ccycle/=0 ) then
   frs_ave  = 0.
   cnpp_ave = 0.
   cnbp_ave = 0.
+  if ( diaglevel_carbon > 0 ) then
+    fevc_ave = 0.
+    plant_turnover_ave = 0.
+    plant_turnover_wood_ave = 0.
+  end if
 end if
 
 if ( abs(iaero)>=2 ) then
@@ -6352,7 +6424,7 @@ end subroutine zero_nperday
     
 !--------------------------------------------------------------
 ! Update diagnostics for averaging period    
-subroutine calculate_timeaverage
+subroutine calculate_timeaverage(noradiation)
 
 use aerosolldr, only :                   & ! LDR prognostic aerosols
      duste,dustwd,dustdd,dust_burden     &
@@ -6365,7 +6437,8 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use cable_ccam, only : ccycle              ! CABLE
 use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
-    ,frpw,frpr,frs,cnpp,cnbp
+    ,frpw,frpr,frs,cnpp,cnbp,fevc        &
+    ,plant_turnover,plant_turnover_wood
 use histave_m                              ! Time average arrays
 use mlo, only : mlodiag                    ! Ocean physics and prognostic arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -6383,6 +6456,7 @@ implicit none
 
 integer iq, k
 real, dimension(ifull) :: spare1, spare2
+logical, intent(in) :: noradiation
 
 tmaxscr(1:ifull)           = max( tmaxscr(1:ifull), tscrn )
 tminscr(1:ifull)           = min( tminscr(1:ifull), tscrn )
@@ -6448,6 +6522,11 @@ if ( ccycle/=0 ) then
   frs_ave(1:ifull)  = frs_ave(1:ifull) + frs
   cnpp_ave(1:ifull) = cnpp_ave(1:ifull) + cnpp
   cnbp_ave(1:ifull) = cnbp_ave(1:ifull) + cnbp
+  if ( diaglevel_carbon > 0 ) then
+    fevc_ave(1:ifull) = fevc_ave(1:ifull) + fevc
+    plant_turnover_ave(1:ifull)      = plant_turnover_ave(1:ifull) + plant_turnover
+    plant_turnover_wood_ave(1:ifull) = plant_turnover_wood_ave(1:ifull) + plant_turnover_wood
+  end if
 end if
 
 if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
@@ -6485,11 +6564,11 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   rtc_ave(1:ifull)    = rtc_ave(1:ifull)/max(koundiag,1)
   if ( noradiation ) then
     rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/min(ntau,nperavg)
-    rgn_ave(1:ifull)    = rgn_ave(1:ifull)/min(ntau,nperavg)    
-  else    
+    rgn_ave(1:ifull)    = rgn_ave(1:ifull)/min(ntau,nperavg)   
+  else   
     rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
     rgn_ave(1:ifull)    = rgn_ave(1:ifull)/max(koundiag,1)
-  end if  
+  end if
   rgc_ave(1:ifull)    = rgc_ave(1:ifull)/max(koundiag,1)
   sgc_ave(1:ifull)    = sgc_ave(1:ifull)/max(koundiag,1)
   cld_ave(1:ifull)    = cld_ave(1:ifull)/max(koundiag,1)
@@ -6515,6 +6594,11 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     frs_ave(1:ifull)    = frs_ave(1:ifull)/min(ntau,nperavg)
     cnpp_ave(1:ifull)   = cnpp_ave(1:ifull)/min(ntau,nperavg)
     cnbp_ave(1:ifull)   = cnbp_ave(1:ifull)/min(ntau,nperavg)
+    if ( diaglevel_carbon > 0 ) then
+      fevc_ave(1:ifull)   = fevc_ave(1:ifull)/min(ntau,nperavg)
+      plant_turnover_ave(1:ifull)      = plant_turnover_ave(1:ifull)/min(ntau,nperavg)
+      plant_turnover_wood_ave(1:ifull) = plant_turnover_wood_ave(1:ifull)/min(ntau,nperavg)
+    end if
   end if
    
   if ( abs(iaero)>=2 ) then

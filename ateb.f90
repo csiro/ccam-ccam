@@ -1,6 +1,6 @@
 ! aTEB urban canopy model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the UCLEM urban canopy model
 !
@@ -2655,6 +2655,7 @@ do ifrac = 1,nfrac
 end do
 
 if (mode) then
+  sumlzom = sqrt(sumlzom)
   sumlzoh = sumlzoh/sumlzom
   sumlzoq = sumlzoq/sumlzom
   zom=unpack(sumcndzmin*exp(-1./sumlzom),upack,zom)
@@ -4034,7 +4035,8 @@ u_melt = lf*(fp%sigmabld*d_rfsndelta*rfsnmelt + (1.-fp%sigmabld)*d_rdsndelta*rds
 
 ! (re)calculate heat roughness length for MOST (diagnostic only)
 call getqsat(a,u_ts,d_sigd)
-dts = u_ts + (u_ts+urbtemp)*0.61*a*u_wf
+a = a*u_wf + min(a_mixr,a)*(1.-u_wf)
+dts = u_ts + (u_ts+urbtemp)*0.61*a
 dtt = d_tempc + (d_tempc+urbtemp)*0.61*d_mixrc
 select case(zohmeth)
   case(0) ! Use veg formulation

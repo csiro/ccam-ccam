@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -415,12 +415,22 @@ do kcount = 1,mcount
 
     ! stable boundary layer
     lmask = .not.lmask ! stable
+#ifdef scm
+    where ( lmask )
+      zi = zz(:,1)
+    end where  
+#else
     call stablepbl(lmask,zi,zzh,dz_hl,thetav,kmo,imax)
+#endif
     
     ! Turn off MF term if small grid spacing (beta=0. implies MF is always non-zero)
     ! Based on Boutle et al 2014
     zturb = min(0.5*(zi_save + zi),zimax)
+#ifdef scm
+    cgmap(:) = 1.
+#else
     cgmap(:) = 1. - tanh(mfbeta*zturb/dx)*max(0.,1.-0.25*dx/zturb)
+#endif
     do k = 1,kl
       mflx(:,k) = mflx(:,k)*cgmap(:)
     end do

@@ -5147,7 +5147,7 @@ real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
 
 
 do ii = 1,wlev
-  dd_i(:,ii) = gosig(1:ifull,ii)*dd(:)
+  dd_i(:,ii) = gosig(:,ii)*dd(:)
   ddux(:,ii) = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))*ddu(1:ifull)
   ddvy(:,ii) = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))*ddv(1:ifull)
 end do

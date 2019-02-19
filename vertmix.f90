@@ -350,7 +350,7 @@ tkesave(:,:) = -1. ! missing value
 #endif
 
 ! estimate grid spacing for scale aware MF
-dx = em(1:imax)/ds
+dx = ds/em(1:imax)
 
 ! Set-up potential temperature transforms
 rong = rdry/grav

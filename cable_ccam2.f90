@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -222,6 +222,7 @@ real, dimension(imax) :: latmco2
 real, dimension(imax) :: lclimate_min20, lclimate_max20, lclimate_alpha20
 real, dimension(imax) :: lclimate_agdd5
 real, dimension(imax) :: lclimate_dmoist_min20, lclimate_dmoist_max20
+real, dimension(imax) :: lfevc,lplant_turnover,lplant_turnover_wood
 logical, dimension(imax,maxtile) :: ltmap
 type(air_type) :: lair
 type(balances_type) :: lbal
@@ -249,7 +250,8 @@ type(bgc_pool_type) :: lbgc
 !$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,lcasabiome,latmco2),              &
 !$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg),  &
 !$omp private(lclimate_biome,lclimate_iveg,lclimate_min20,lclimate_max20,lclimate_alpha20,lclimate_agdd5),     &
-!$omp private(lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20)
+!$omp private(lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover),                 &
+!$omp private(lplant_turnover_wood)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -289,6 +291,11 @@ do tile=1,ntiles
       lplitter = plitter(is:ie,:)
       lpplant = pplant(is:ie,:)
       lpsoil = psoil(is:ie,:)
+      if ( diaglevel_carbon > 0 ) then
+        lfevc = fevc(is:ie)
+        lplant_turnover = plant_turnover(is:ie)
+        lplant_turnover_wood = plant_turnover_wood(is:ie)
+      end if
     end if 
     if ( cable_climate==1 ) then
       lclimate_biome = 999
@@ -356,7 +363,8 @@ do tile=1,ntiles
                    lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),lair,lbal,c,lcanopy,                         &
                    lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,    &
                    lsum_flux,lveg,lclimate_iveg,lclimate_biome,lclimate_min20,lclimate_max20,lclimate_alpha20,           &
-                   lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,imax)
+                   lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover,        &
+                   lplant_turnover_wood,imax)
 
     smass(is:ie,:) = lsmass
     ssdn(is:ie,:) = lssdn
@@ -383,6 +391,11 @@ do tile=1,ntiles
       plitter(is:ie,:) = lplitter
       pplant(is:ie,:) = lpplant
       psoil(is:ie,:) = lpsoil
+      if ( diaglevel_carbon > 0 ) then
+        fevc(is:ie) = lfevc
+        plant_turnover(is:ie) = lplant_turnover
+        plant_turnover_wood(is:ie) = lplant_turnover_wood
+      end if
     end if  
     if ( cable_climate==1 ) then
       climate_biome(is:ie) = lclimate_biome
@@ -412,7 +425,8 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,air,bal,c,canopy,casabal,casabiome,   &
                      casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,veg,          &
                      climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,climate_agdd5,     &
-                     climate_gmd,climate_dmoist_min20,climate_dmoist_max20,imax)
+                     climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,plant_turnover,                 &
+                     plant_turnover_wood,imax)
 
 use const_phys
 use dates_m
@@ -453,6 +467,7 @@ real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
 real, dimension(imax), intent(inout) :: climate_min20, climate_max20, climate_alpha20
 real, dimension(imax), intent(inout) :: climate_agdd5
 real, dimension(imax), intent(inout) :: climate_dmoist_min20, climate_dmoist_max20
+real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
 real, dimension(imax), intent(in) :: sgsave, swrsave, theta, vmod
 real, dimension(imax) :: coszro2, taudar2, tmps, swdwn, alb, qsttg_land
@@ -947,6 +962,11 @@ if ( ccycle/=0 ) then
   frs = 0.
   cnpp = 0.
   cnbp = 0.
+  if ( diaglevel_carbon > 0 ) then
+    fevc = 0.
+    plant_turnover = 0.
+    plant_turnover_wood = 0.
+  end if
   do nb = 1,maxnb
     is = tind(nb,1)
     ie = tind(nb,2)
@@ -975,7 +995,15 @@ if ( ccycle/=0 ) then
     frpr = frpr + unpack(sv(is:ie)*real(canopy%frpr(is:ie)),  tmap(:,nb),0.)
     frs  = frs  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),   tmap(:,nb),0.)
     cnpp = cnpp + unpack(sv(is:ie)*real(casaflux%cnpp(is:ie))/real(casaperiod),tmap(:,nb),0.)
-    cnbp = cnbp + unpack(sv(is:ie)*real(casaflux%Crsoil-casaflux%cnpp-casapool%dClabiledt)/real(casaperiod),tmap(:,nb),0.)
+    cnbp = cnbp + unpack(sv(is:ie)*real(casaflux%Crsoil(is:ie)-casaflux%cnpp(is:ie)-casapool%dClabiledt(is:ie)) &
+        /real(casaperiod),tmap(:,nb),0.)
+    if ( diaglevel_carbon > 0 ) then
+      fevc = fevc + unpack(sv(is:ie)*real(canopy%fevc(is:ie)),  tmap(:,nb),0.)
+      plant_turnover      = plant_turnover      + unpack(sv(is:ie)* &
+                            real(sum(casaflux%Cplant_turnover(is:ie,:),2))/real(casaperiod),  tmap(:,nb),0.)
+      plant_turnover_wood = plant_turnover_wood + unpack(sv(is:ie)* &
+                            real(casaflux%Cplant_turnover(is:ie,2))/real(casaperiod),         tmap(:,nb),0.)
+    end if
   end do
 end if
 
@@ -2586,6 +2614,7 @@ mstype = mxst
 allocate( tdata(ntiles) )
 do tile=1,ntiles
   tdata(tile)%mp = 0
+  tdata(tile)%np = 0
   is = 1 + (tile-1)*imax
   ie = tile*imax
   do iq = is,ie
@@ -2601,9 +2630,11 @@ do tile=1,ntiles
 end do
 mp_global = tdata(1)%mp
 tdata(1)%toffset = 0
+tdata(1)%poffset = 0
 do tile=2,ntiles
   mp_global = mp_global + tdata(tile)%mp
   tdata(tile)%toffset=tdata(tile-1)%toffset+tdata(tile-1)%mp
+  tdata(tile)%poffset=0 ! disable for now
 end do
 mp = 0 ! defined when CABLE model is integrated
 
@@ -6399,12 +6430,13 @@ end subroutine fixtile
 
 ! *************************************************************************************
 ! This subroutine saves CABLE tile data
-subroutine savetiledef(idnc,local,jdim,jsize,c1dim,c2dim,c3dim,c4dim,c5dim,c6dim,c7dim,c1size,c2size)
+subroutine savetiledef(idnc,local,jdim,jsize,c1dim,c2dim,c3dim,c4dim,c5dim,c6dim,c7dim,c1size,c2size,itype)
 
 use carbpools_m
 use cc_mpi, only : myid
 use infile
 use newmpar_m
+use parm_m, only : diaglevel_pop
   
 implicit none
   
@@ -6417,786 +6449,795 @@ integer, dimension(c2size), intent(in) :: c2dim
 character(len=80) vname
 character(len=80) lname
 logical, intent(in) :: local
+integer, intent(in) :: itype
   
 if (myid==0.or.local) then
   if (myid==0) then
     write(6,*) "Defining CABLE tile data"
   end if
-  do n=1,maxtile
-    do k=1,ms
-      write(lname,'("Soil temperature tile ",I1.1," lev ",I1.1)') n,k
-      write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
-      call attrib(idnc,jdim,jsize,vname,lname,'K',100.,400.,0,2) ! kind=8
-    end do
-    do k=1,ms
-      write(lname,'("Soil moisture tile ",I1.1," lev ",I1.1)') n,k
-      write(vname,'("t",I1.1,"_wb",I1.1)') n,k 
-      call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,2.6,0,2) ! kind=8
-    end do
-    do k=1,ms
-      write(lname,'("Soil ice tile ",I1.1," lev ",I1.1)') n,k
-      write(vname,'("t",I1.1,"_wbice",I1.1)') n,k 
-      call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,2.6,0,2) ! kind=8
-    end do
-    do k=1,3
-      write(lname,'("Snow temperature tile ",I1.1," lev ",I1.1)') n,k
-      write(vname,'("t",I1.1,"_tggsn",I1.1)') n,k
-      call attrib(idnc,jdim,jsize,vname,lname,'K',100.,400.,0,2) ! kind=8
-    end do
-    do k=1,3
-      write(lname,'("Snow mass tile ",I1.1," lev ",I1.1)') n,k
-      write(vname,'("t",I1.1,"_smass",I1.1)') n,k 
-      call attrib(idnc,jdim,jsize,vname,lname,'K',0.,650.,0,2) ! kind=8
-    end do
-    do k=1,3
-      write(lname,'("Snow density tile ",I1.1," lev ",I1.1)') n,k
-      write(vname,'("t",I1.1,"_ssdn",I1.1)') n,k 
+  if ( itype==-1 ) then !just for restart file
+    do n=1,maxtile
+      do k=1,ms
+        write(lname,'("Soil temperature tile ",I1.1," lev ",I1.1)') n,k
+        write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
+        call attrib(idnc,jdim,jsize,vname,lname,'K',100.,400.,0,2) ! kind=8
+      end do
+      do k=1,ms
+        write(lname,'("Soil moisture tile ",I1.1," lev ",I1.1)') n,k
+        write(vname,'("t",I1.1,"_wb",I1.1)') n,k 
+        call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,2.6,0,2) ! kind=8
+      end do
+      do k=1,ms
+        write(lname,'("Soil ice tile ",I1.1," lev ",I1.1)') n,k
+        write(vname,'("t",I1.1,"_wbice",I1.1)') n,k 
+        call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,2.6,0,2) ! kind=8
+      end do
+      do k=1,3
+        write(lname,'("Snow temperature tile ",I1.1," lev ",I1.1)') n,k
+        write(vname,'("t",I1.1,"_tggsn",I1.1)') n,k
+        call attrib(idnc,jdim,jsize,vname,lname,'K',100.,400.,0,2) ! kind=8
+      end do
+      do k=1,3
+        write(lname,'("Snow mass tile ",I1.1," lev ",I1.1)') n,k
+        write(vname,'("t",I1.1,"_smass",I1.1)') n,k 
+        call attrib(idnc,jdim,jsize,vname,lname,'K',0.,650.,0,2) ! kind=8
+      end do
+      do k=1,3
+        write(lname,'("Snow density tile ",I1.1," lev ",I1.1)') n,k
+        write(vname,'("t",I1.1,"_ssdn",I1.1)') n,k 
+        call attrib(idnc,jdim,jsize,vname,lname,'kg/m3',0.,650.,0,2) ! kind=8
+      end do
+      do k=1,3
+        write(lname,'("Snow depth tile ",I1.1," lev ",I1.1)') n,k
+        write(vname,'("t",I1.1,"_sdepth",I1.1)') n,k 
+        call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6500.,0,2) ! kind=8
+      end do
+      do k=1,3
+        write(lname,'("Snow sconds tile ",I1.1," lev ",I1.1)') n,k
+        write(vname,'("t",I1.1,"_sconds",I1.1)') n,k 
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6.5,0,2) ! kind=8
+      end do
+      write(lname,'("Snow ssdnn tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_ssdnn")') n
       call attrib(idnc,jdim,jsize,vname,lname,'kg/m3',0.,650.,0,2) ! kind=8
-    end do
-    do k=1,3
-      write(lname,'("Snow depth tile ",I1.1," lev ",I1.1)') n,k
-      write(vname,'("t",I1.1,"_sdepth",I1.1)') n,k 
+      write(lname,'("Snow flag tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_sflag")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6.5,0,2) ! kind=8
+      write(lname,'("Snow depth tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_snd")') n
       call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6500.,0,2) ! kind=8
-    end do
-    do k=1,3
-      write(lname,'("Snow sconds tile ",I1.1," lev ",I1.1)') n,k
-      write(vname,'("t",I1.1,"_sconds",I1.1)') n,k 
+      write(lname,'("Old snow depth tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_osnd")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6500.,0,2) ! kind=8
+      write(lname,'("Snow age tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_snage")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,26.,0,2) ! kind=8
+      write(lname,'("Soil turbulent resistance tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_rtsoil")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3e5,0,2) ! kind=8
+      write(lname,'("cansto tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_cansto")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,13.,0,2) ! kind=8
+      write(lname,'("us tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_us")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'m/s',0.,13.,0,2) ! kind=8   
+      write(lname,'("pudsto tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_pudsto")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,13.,0,2) ! kind=8
+      write(lname,'("wetfac tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_wetfac")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6.5,0,2) ! kind=8
+      write(lname,'("ga tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_ga")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',-6500.,6500.,0,2) ! kind=8
     end do
-    write(lname,'("Snow ssdnn tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_ssdnn")') n
-    call attrib(idnc,jdim,jsize,vname,lname,'kg/m3',0.,650.,0,2) ! kind=8
-    write(lname,'("Snow flag tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_sflag")') n
-    call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6.5,0,2) ! kind=8
-    write(lname,'("Snow depth tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_snd")') n
-    call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6500.,0,2) ! kind=8
-    write(lname,'("Old snow depth tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_osnd")') n
-    call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6500.,0,2) ! kind=8
-    write(lname,'("Snow age tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_snage")') n
-    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,26.,0,2) ! kind=8
-    write(lname,'("Soil turbulent resistance tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_rtsoil")') n
-    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3e5,0,2) ! kind=8
-    write(lname,'("cansto tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_cansto")') n
-    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,13.,0,2) ! kind=8
-    write(lname,'("us tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_us")') n
-    call attrib(idnc,jdim,jsize,vname,lname,'m/s',0.,13.,0,2) ! kind=8   
-    write(lname,'("pudsto tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_pudsto")') n
-    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,13.,0,2) ! kind=8
-    write(lname,'("wetfac tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_wetfac")') n
-    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6.5,0,2) ! kind=8
-    write(lname,'("ga tile ",I1.1)') n
-    write(vname,'("t",I1.1,"_ga")') n
-    call attrib(idnc,jdim,jsize,vname,lname,'none',-6500.,6500.,0,2) ! kind=8
-  end do
-  if ( soil_struc==1 ) then
-    do n=1,maxtile  
-      write(lname,'("hzero tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_hzero")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      do k=1,ms
-        write(lname,'("S tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_s",I1.1)') n,k
+    if ( soil_struc==1 ) then
+      do n=1,maxtile  
+        write(lname,'("hzero tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_hzero")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        do k=1,ms
+          write(lname,'("S tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_s",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        do k=1,ms
+          write(lname,'("tsoil tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        do k=1,ms
+          write(lname,'("thetai tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        write(lname,'("snowliq tile ",I1.1," lev ",I1.1)') n,1
+        write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("tsurface tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_tsurface")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("nsnow tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_nsnow")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("fwsoil tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_fwsoil")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       end do
-      do k=1,ms
-        write(lname,'("tsoil tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
+    end if
+    if ( ccycle==0 ) then
+      !do n=1,maxtile  
+        !write(lname,'("Carbon leaf pool tile ",I1.1)') n
+        !write(vname,'("t",I1.1,"_cplant1")') n    
+        !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        !write(lname,'("Carbon wood pool tile ",I1.1)') n
+        !write(vname,'("t",I1.1,"_cplant2")') n
+        !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        !write(lname,'("Carbon root pool tile ",I1.1)') n
+        !write(vname,'("t",I1.1,"_cplant3")') n
+        !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        !write(lname,'("Carbon soil fast pool tile ",I1.1)') n
+        !write(vname,'("t",I1.1,"_csoil1")') n
+        !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        !write(lname,'("Carbon soil slow pool tile ",I1.1)') n
+        !write(vname,'("t",I1.1,"_csoil2")') n
+        !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      !end do  
+    else
+      do n=1,maxtile  
+        do k = 1,mplant
+          write(lname,'("C leaf pool tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        do k = 1,mplant
+          write(lname,'("N leaf pool tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        do k = 1,mplant
+          write(lname,'("P leaf pool tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        do k = 1,mlitter
+          write(lname,'("C litter pool tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        do k = 1,mlitter
+          write(lname,'("N litter pool tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        do k = 1,mlitter
+          write(lname,'("P litter pool tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        do k = 1,msoil
+          write(lname,'("C soil pool tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        do k = 1,msoil
+          write(lname,'("N soil pool tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        do k = 1,msoil
+          write(lname,'("P soil pool tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        write(lname,'("Prognostic LAI tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_glai")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("Leaf phenology phen tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_phen")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("Leaf phenology rainfall ",I1.1)') n
+        write(vname,'("t",I1.1,"_aphen")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("Leaf phenology phase tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_phenphase")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("Leaf phenology doyphase3 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_doyphase3")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("C labile tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_clabile")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("N soilmin tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_nsoilmin")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("P soillab tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_psoillab")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("P soilsorb tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_psoilsorb")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("P soilocc tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_psoilocc")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        do k = 1,mplant
+          write(lname,'("crmplant tile ",I1.1," lev ",I1.1)') n,k
+          write(vname,'("t",I1.1,"_crmplant",I1.1)') n,k
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        end do
+        write(lname,'("frac_sapwood tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_fracsapwood")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("sapwoodarea tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_sapwoodarea")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("crsoil tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_crsoil")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("cnpp tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_cnpp")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("clabloss tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_clabloss")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("crgplant tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_crgplant")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("stemnpp tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_stemnpp")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("LAImax tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_LAImax")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("Cleafmean tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_Cleafmean")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("Crootmean tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_Crootmean")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("fpn ",I1.1)') n
+        write(vname,'("t",I1.1,"_fpn")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("frday ",I1.1)') n
+        write(vname,'("t",I1.1,"_frday")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       end do
-      do k=1,ms
-        write(lname,'("thetai tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
+    end if
+    if ( cable_climate==1 ) then
+      do n=1,maxtile  
+        write(lname,'("climate iveg tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climateiveg")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end do
-      write(lname,'("snowliq tile ",I1.1," lev ",I1.1)') n,1
-      write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("tsurface tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_tsurface")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("nsnow tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_nsnow")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("fwsoil tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_fwsoil")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-    end do
-  end if
-  if ( ccycle==0 ) then
-    !do n=1,maxtile  
-      !write(lname,'("Carbon leaf pool tile ",I1.1)') n
-      !write(vname,'("t",I1.1,"_cplant1")') n    
-      !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      !write(lname,'("Carbon wood pool tile ",I1.1)') n
-      !write(vname,'("t",I1.1,"_cplant2")') n
-      !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      !write(lname,'("Carbon root pool tile ",I1.1)') n
-      !write(vname,'("t",I1.1,"_cplant3")') n
-      !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      !write(lname,'("Carbon soil fast pool tile ",I1.1)') n
-      !write(vname,'("t",I1.1,"_csoil1")') n
-      !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      !write(lname,'("Carbon soil slow pool tile ",I1.1)') n
-      !write(vname,'("t",I1.1,"_csoil2")') n
-      !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-    !end do  
-  else
-    do n=1,maxtile  
-      do k = 1,mplant
-        write(lname,'("C leaf pool tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
+        write(lname,'("climate biome tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatebiome")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end do
-      do k = 1,mplant
-        write(lname,'("N leaf pool tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
+        write(lname,'("climate evapPT tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climateevapPT")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end do
-      do k = 1,mplant
-        write(lname,'("P leaf pool tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
+        write(lname,'("climate aevap tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climateaevap")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end do
-      do k = 1,mlitter
-        write(lname,'("C litter pool tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
+        write(lname,'("climate mtempmax tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatemtempmax")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end do
-      do k = 1,mlitter
-        write(lname,'("N litter pool tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
+        write(lname,'("climate mtempmin tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatemtempmin")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end do
-      do k = 1,mlitter
-        write(lname,'("P litter pool tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
+        write(lname,'("climate dmoistmax tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatedmoistmax")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end do
-      do k = 1,msoil
-        write(lname,'("C soil pool tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
+        write(lname,'("climate dmoistmin tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatedmoistmin")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end do
-      do k = 1,msoil
-        write(lname,'("N soil pool tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
+        write(lname,'("climate qtempmax tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climateqtempmax")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end do
-      do k = 1,msoil
-        write(lname,'("P soil pool tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
+        write(lname,'("climate qtempmaxlastyear tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end do
-      write(lname,'("Prognostic LAI tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_glai")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("Leaf phenology phen tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_phen")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("Leaf phenology rainfall ",I1.1)') n
-      write(vname,'("t",I1.1,"_aphen")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("Leaf phenology phase tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_phenphase")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("Leaf phenology doyphase3 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_doyphase3")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("C labile tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_clabile")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("N soilmin tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_nsoilmin")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("P soillab tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_psoillab")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("P soilsorb tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_psoilsorb")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("P soilocc tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_psoilocc")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      do k = 1,mplant
-        write(lname,'("crmplant tile ",I1.1," lev ",I1.1)') n,k
-        write(vname,'("t",I1.1,"_crmplant",I1.1)') n,k
+        write(lname,'("climate gdd0 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climategdd0")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end do
-      write(lname,'("frac_sapwood tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_fracsapwood")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("sapwoodarea tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_sapwoodarea")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("crsoil tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_crsoil")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("cnpp tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_cnpp")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("clabloss tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_clabloss")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("crgplant tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_crgplant")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("stemnpp tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_stemnpp")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("LAImax tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_LAImax")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("Cleafmean tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_Cleafmean")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("Crootmean tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_Crootmean")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("fpn ",I1.1)') n
-      write(vname,'("t",I1.1,"_fpn")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("frday ",I1.1)') n
-      write(vname,'("t",I1.1,"_frday")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-    end do
-  end if
-  if ( cable_climate==1 ) then
-    do n=1,maxtile  
-      write(lname,'("climate iveg tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climateiveg")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate biome tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatebiome")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate evapPT tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climateevapPT")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate aevap tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climateaevap")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate mtempmax tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatemtempmax")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate mtempmin tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatemtempmin")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate dmoistmax tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatedmoistmax")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate dmoistmin tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatedmoistmin")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate qtempmax tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climateqtempmax")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate qtempmaxlastyear tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate gdd0 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climategdd0")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate gdd5 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climategdd5")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate agdd0 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climateagdd0")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate agdd5 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climateagdd5")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate chilldays tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatechilldays")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate gdd0_rec tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climategdd0_rec")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate mtemp_min20 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatemtempmin20")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate mtemp_max20 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatemtempmax20")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate alpha_PT20 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatealphaPT20")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate dmoist_min20 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatedmoistmin20")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate dmoist_max20 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatedmoistmax20")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate frec tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatefrec")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate fdorm tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatefdorm")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate gmd tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climategmd")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate dtemp tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatedtemp")') n
-      call attrib(idnc,c3dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate dmoist tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatedmoist")') n
-      call attrib(idnc,c4dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate mtemp_min_20 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatemtemp_min_20")') n
-      call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate mtemp_max_20 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatemtemp_max_20")') n
-      call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate alpha_PT_20 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatealpha_PT_20")') n
-      call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate dmoist_min_20 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatedmoist_min_20")') n
-      call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate dmoist_max_20 tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatedmoist_max_20")') n
-      call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate APAR_leaf_sun tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climateapar_leaf_sun")') n
-      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate APAR_leaf_shade tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climateapar_leaf_shade")') n
-      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate Dleaf_sun tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatedleaf_sun")') n
-      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate fwsoil tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatefwsoil")') n
-      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate Dleaf_shade tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatedleaf_shade")') n
-      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate Tleaf_sun tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatetleaf_sun")') n
-      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate Tleaf_shade tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatetleaf_shade")') n
-      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate cs_sun tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatecs_sun")') n
-      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate cs_shade tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatecs_shade")') n
-      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate scalex_sun tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatescalex_sun")') n
-      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("climate scalex_shade tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_climatescalex_shade")') n
-      call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("veg vcmax_sun tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_vegvcmax_sun")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("veg vcmax_shade tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_vegvcmax_shade")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("veg ejmax_sun tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_vegejmax_sun")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      write(lname,'("veg ejmax_shade tile ",I1.1)') n
-      write(vname,'("t",I1.1,"_vegejmax_shade")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-    end do  
+        write(lname,'("climate gdd5 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climategdd5")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate agdd0 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climateagdd0")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate agdd5 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climateagdd5")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate chilldays tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatechilldays")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate gdd0_rec tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climategdd0_rec")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate mtemp_min20 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatemtempmin20")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate mtemp_max20 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatemtempmax20")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate alpha_PT20 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatealphaPT20")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate dmoist_min20 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatedmoistmin20")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate dmoist_max20 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatedmoistmax20")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate frec tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatefrec")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate fdorm tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatefdorm")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate gmd tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climategmd")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate dtemp tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatedtemp")') n
+        call attrib(idnc,c3dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate dmoist tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatedmoist")') n
+        call attrib(idnc,c4dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate mtemp_min_20 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatemtemp_min_20")') n
+        call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate mtemp_max_20 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatemtemp_max_20")') n
+        call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate alpha_PT_20 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatealpha_PT_20")') n
+        call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate dmoist_min_20 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatedmoist_min_20")') n
+        call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate dmoist_max_20 tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatedmoist_max_20")') n
+        call attrib(idnc,c5dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate APAR_leaf_sun tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climateapar_leaf_sun")') n
+        call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate APAR_leaf_shade tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climateapar_leaf_shade")') n
+        call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate Dleaf_sun tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatedleaf_sun")') n
+        call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate fwsoil tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatefwsoil")') n
+        call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate Dleaf_shade tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatedleaf_shade")') n
+        call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate Tleaf_sun tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatetleaf_sun")') n
+        call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate Tleaf_shade tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatetleaf_shade")') n
+        call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate cs_sun tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatecs_sun")') n
+        call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate cs_shade tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatecs_shade")') n
+        call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate scalex_sun tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatescalex_sun")') n
+        call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("climate scalex_shade tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_climatescalex_shade")') n
+        call attrib(idnc,c6dim,c1size,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("veg vcmax_sun tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_vegvcmax_sun")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("veg vcmax_shade tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_vegvcmax_shade")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("veg ejmax_sun tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_vegejmax_sun")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+        write(lname,'("veg ejmax_shade tile ",I1.1)') n
+        write(vname,'("t",I1.1,"_vegejmax_shade")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
+      end do  
+    end if
   end if
   if ( cable_pop==1 ) then
     do n = 1,maxtile  
-      write(lname,'("t",I1.1,"_pop_grid_cmass_sum")') n
-      write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n
-      write(vname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n
-      write(vname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_csapwood_sum")') n
-      write(vname,'("t",I1.1,"_pop_grid_csapwood_sum")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n
-      write(vname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_densindiv")') n
-      write(vname,'("t",I1.1,"_pop_grid_densindiv")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_height_mean")') n
-      write(vname,'("t",I1.1,"_pop_grid_height_mean")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_height_max")') n
-      write(vname,'("t",I1.1,"_pop_grid_height_max")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_basal_area")') n
-      write(vname,'("t",I1.1,"_pop_grid_basal_area")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_sapwood_loss")') n
-      write(vname,'("t",I1.1,"_pop_grid_sapwood_loss")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n
-      write(vname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_stress_mortality")') n
-      write(vname,'("t",I1.1,"_pop_grid_stress_mortality")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_crowding_mortality")') n
-      write(vname,'("t",I1.1,"_pop_grid_crowding_mortality")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_fire_mortality")') n
-      write(vname,'("t",I1.1,"_pop_grid_fire_mortality")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_cat_mortality")') n
-      write(vname,'("t",I1.1,"_pop_grid_cat_mortality")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_res_mortality")') n
-      write(vname,'("t",I1.1,"_pop_grid_res_mortality")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_growth")') n
-      write(vname,'("t",I1.1,"_pop_grid_growth")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_area_growth")') n
-      write(vname,'("t",I1.1,"_pop_grid_area_growth")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_crown_cover")') n
-      write(vname,'("t",I1.1,"_pop_grid_crown_cover")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_crown_area")') n
-      write(vname,'("t",I1.1,"_pop_grid_crown_area")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_crown_volume")') n
-      write(vname,'("t",I1.1,"_pop_grid_crown_volume")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_sapwood_area")') n
-      write(vname,'("t",I1.1,"_pop_grid_sapwood_area")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n
-      write(vname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_KClump")') n
-      write(vname,'("t",I1.1,"_pop_grid_KClump")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_freq_age")') n
-      write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
-      call attrib(idnc,c7dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_biomass_age")') n
-      write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
-      call attrib(idnc,c7dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      do ll = 1,POP_NLAYER
-        write(lname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
+      if ( diaglevel_pop > 0 ) then
+        write(lname,'("t",I1.1,"_pop_grid_cmass_sum")') n
+        write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do      
-      do ll = 1,POP_NLAYER
-        write(lname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll
+      end if
+      if ( itype==-1 ) then !just for restart file
+        write(lname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n
+        write(vname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER
-        write(lname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll
+        write(lname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n
+        write(vname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do         
-      do ll = 1,POP_NLAYER
-        write(lname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll
+        write(lname,'("t",I1.1,"_pop_grid_csapwood_sum")') n
+        write(vname,'("t",I1.1,"_pop_grid_csapwood_sum")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do   
-      do hh = 1,POP_HEIGHT_BINS
-        write(lname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh
-        write(vname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh
+        write(lname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n
+        write(vname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do   
-      do hh = 1,POP_HEIGHT_BINS
-        write(lname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh
-        write(vname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh
+        write(lname,'("t",I1.1,"_pop_grid_densindiv")') n
+        write(vname,'("t",I1.1,"_pop_grid_densindiv")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do         
-      do hh = 1,POP_HEIGHT_BINS
-        write(lname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh
-        write(vname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh
+        write(lname,'("t",I1.1,"_pop_grid_height_mean")') n
+        write(vname,'("t",I1.1,"_pop_grid_height_mean")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do         
-      do hh = 1,POP_HEIGHT_BINS
-        write(lname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh
-        write(vname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh
+        write(lname,'("t",I1.1,"_pop_grid_height_max")') n
+        write(vname,'("t",I1.1,"_pop_grid_height_max")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do         
-      do dd = 1,POP_NDISTURB
-        write(lname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd
-        write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd
+        write(lname,'("t",I1.1,"_pop_grid_basal_area")') n
+        write(vname,'("t",I1.1,"_pop_grid_basal_area")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do         
-      write(lname,'("t",I1.1,"_pop_grid_patch_id")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_freq")') n
-      write(vname,'("t",I1.1,"_pop_grid_freq")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_freq_old")') n
-      write(vname,'("t",I1.1,"_pop_grid_freq_old")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_pgap")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_lai")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_lai")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_biomass")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_biomass")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_cpc")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_mortality")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_growth")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_growth")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      write(lname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
-      write(vname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
-      call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      do dd = 1,POP_NDISTURB  
-        write(lname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
-        write(vname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
+        write(lname,'("t",I1.1,"_pop_grid_sapwood_loss")') n
+        write(vname,'("t",I1.1,"_pop_grid_sapwood_loss")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n
+        write(vname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_stress_mortality")') n
+        write(vname,'("t",I1.1,"_pop_grid_stress_mortality")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_crowding_mortality")') n
+        write(vname,'("t",I1.1,"_pop_grid_crowding_mortality")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_fire_mortality")') n
+        write(vname,'("t",I1.1,"_pop_grid_fire_mortality")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_cat_mortality")') n
+        write(vname,'("t",I1.1,"_pop_grid_cat_mortality")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_res_mortality")') n
+        write(vname,'("t",I1.1,"_pop_grid_res_mortality")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_growth")') n
+        write(vname,'("t",I1.1,"_pop_grid_growth")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_area_growth")') n
+        write(vname,'("t",I1.1,"_pop_grid_area_growth")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_crown_cover")') n
+        write(vname,'("t",I1.1,"_pop_grid_crown_cover")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_crown_area")') n
+        write(vname,'("t",I1.1,"_pop_grid_crown_area")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_crown_volume")') n
+        write(vname,'("t",I1.1,"_pop_grid_crown_volume")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_sapwood_area")') n
+        write(vname,'("t",I1.1,"_pop_grid_sapwood_area")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n
+        write(vname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_KClump")') n
+        write(vname,'("t",I1.1,"_pop_grid_KClump")') n
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_freq_age")') n
+        write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
+        call attrib(idnc,c7dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_biomass_age")') n
+        write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
+        call attrib(idnc,c7dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        do ll = 1,POP_NLAYER
+          write(lname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do      
+        do ll = 1,POP_NLAYER
+          write(lname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER
+          write(lname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do         
+        do ll = 1,POP_NLAYER
+          write(lname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do   
+        do hh = 1,POP_HEIGHT_BINS
+          write(lname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh
+          write(vname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do   
+        do hh = 1,POP_HEIGHT_BINS
+          write(lname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh
+          write(vname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do         
+        do hh = 1,POP_HEIGHT_BINS
+          write(lname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh
+          write(vname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do         
+        do hh = 1,POP_HEIGHT_BINS
+          write(lname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh
+          write(vname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do         
+        do dd = 1,POP_NDISTURB
+          write(lname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd
+          write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do         
+        write(lname,'("t",I1.1,"_pop_grid_patch_id")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
         call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do  
-      do dd = 1,POP_NDISTURB  
-        write(lname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
-        write(vname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
+        write(lname,'("t",I1.1,"_pop_grid_freq")') n
+        write(vname,'("t",I1.1,"_pop_grid_freq")') n
         call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do  
-      do dd = 1,POP_NDISTURB  
-        write(lname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
-        write(vname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
+        write(lname,'("t",I1.1,"_pop_grid_freq_old")') n
+        write(vname,'("t",I1.1,"_pop_grid_freq_old")') n
         call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do dd = 1,POP_NDISTURB  
-        write(lname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
-        write(vname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
+        write(lname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
         call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do dd = 1,POP_NDISTURB  
-        write(lname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
-        write(vname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
+        write(lname,'("t",I1.1,"_pop_grid_patch_pgap")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
         call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
+        write(lname,'("t",I1.1,"_pop_grid_patch_lai")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_lai")') n
         call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
+        write(lname,'("t",I1.1,"_pop_grid_patch_biomass")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_biomass")') n
         call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
+        write(lname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
         call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
+        write(lname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
         call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
+        write(lname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
         call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
-      do ll = 1,POP_NLAYER  
-        write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
-        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
-        call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
-      end do
+        write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_cpc")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_mortality")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_growth")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_growth")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        write(lname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
+        write(vname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
+        call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        do dd = 1,POP_NDISTURB  
+          write(lname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
+          write(vname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
+          call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do  
+        do dd = 1,POP_NDISTURB  
+          write(lname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
+          write(vname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
+          call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do  
+        do dd = 1,POP_NDISTURB  
+          write(lname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
+          write(vname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
+          call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do dd = 1,POP_NDISTURB  
+          write(lname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
+          write(vname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
+          call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do dd = 1,POP_NDISTURB  
+          write(lname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
+          write(vname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
+          call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
+          call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
+          call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
+          call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
+          call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
+          call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+        do ll = 1,POP_NLAYER  
+          write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
+          write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
+          call attrib(idnc,c2dim,c2size,vname,lname,'none',0.,6500.,0,2) ! kind=8
+        end do
+      end if
     end do  
   end if   
-  !do n=1,maxtile
-    !write(lname,'("Sensible correction term ",I1.1)') n
-    !write(vname,'("t",I1.1,"_fhscor")') n
-    !call attrib(idnc,jdim,jsize,vname,lname,'W/m2',-3000.,3000.,0,2) ! kind=8
-    !write(lname,'("Latent correction term ",I1.1)') n
-    !write(vname,'("t",I1.1,"_fescor")') n
-    !call attrib(idnc,jdim,jsize,vname,lname,'W/m2',-3000.,3000.,0,2) ! kind=8
-  !end do
-  lname='DIR VIS albedo'
-  vname='albvisdir'
-  call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,0,2) ! kind=8
-  lname='DIF VIS albedo'
-  vname='albvisdif'
-  call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,0,2) ! kind=8
-  lname='DIR NIR albedo'
-  vname='albnirdir'
-  call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,0,2) ! kind=8
-  lname='DIF NIR albedo'
-  vname='albnirdif'
-  call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,0,2) ! kind=8
-  lname='VIS albedo'
-  vname='albvis'
-  call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,0,2) ! kind=8
-  lname='NIR albedo'
-  vname='albnir'
-  call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,0,2) ! kind=8
+  if ( itype==-1 ) then !just for restart file
+    !do n=1,maxtile
+      !write(lname,'("Sensible correction term ",I1.1)') n
+      !write(vname,'("t",I1.1,"_fhscor")') n
+      !call attrib(idnc,jdim,jsize,vname,lname,'W/m2',-3000.,3000.,0,2) ! kind=8
+      !write(lname,'("Latent correction term ",I1.1)') n
+      !write(vname,'("t",I1.1,"_fescor")') n
+      !call attrib(idnc,jdim,jsize,vname,lname,'W/m2',-3000.,3000.,0,2) ! kind=8
+    !end do
+    lname='DIR VIS albedo'
+    vname='albvisdir'
+    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,0,2) ! kind=8
+    lname='DIF VIS albedo'
+    vname='albvisdif'
+    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,0,2) ! kind=8
+    lname='DIR NIR albedo'
+    vname='albnirdir'
+    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,0,2) ! kind=8
+    lname='DIF NIR albedo'
+    vname='albnirdif'
+    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,0,2) ! kind=8
+    lname='VIS albedo'
+    vname='albvis'
+    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,0,2) ! kind=8
+    lname='NIR albedo'
+    vname='albnir'
+    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,0,2) ! kind=8
+  end if
 end if
   
 return
@@ -7204,11 +7245,12 @@ end subroutine savetiledef
 
 ! *************************************************************************************
 ! This subroutine saves CABLE tile data
-subroutine savetile(idnc,local,iarch)
+subroutine savetile(idnc,local,iarch,itype)
 
 use carbpools_m
 use infile
 use newmpar_m
+use parm_m, only : diaglevel_pop
 use soil_m
 use soilsnow_m
 use vegpar_m
@@ -7229,604 +7271,607 @@ real(kind=8), dimension(:,:), allocatable, save :: dat20years
 real(kind=8), dimension(:,:), allocatable, save :: dat5days
 character(len=80) vname
 logical, intent(in) :: local
+integer, intent(in) :: itype
   
-do n = 1,maxtile  ! tile
-  do k = 1,ms     ! soil layer
-    dat=real(tgg(:,k),8)
-    if (n<=maxnb) then
-      call cable_unpack(ssnow%tgg(:,k),dat,n)
-    end if  
-    write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-  end do
-  do k = 1,ms
-    dat=real(wb(:,k),8)
-    if (n<=maxnb) call cable_unpack(ssnow%wb(:,k),dat,n)
-    write(vname,'("t",I1.1,"_wb",I1.1)') n,k
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-  end do
-  do k = 1,ms
-    dat=real(wbice(:,k),8)
-    if (n<=maxnb) call cable_unpack(ssnow%wbice(:,k),dat,n)
-    write(vname,'("t",I1.1,"_wbice",I1.1)') n,k
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-  end do
-  do k = 1,3 ! snow layer
-    dat=real(tggsn(:,k),8)
-    if (n<=maxnb) call cable_unpack(ssnow%tggsn(:,k),dat,n)
-    write(vname,'("t",I1.1,"_tggsn",I1.1)') n,k
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-  end do
-  do k = 1,3
-    dat=real(smass(:,k),8)
-    if (n<=maxnb) call cable_unpack(ssnow%smass(:,k),dat,n)
-    write(vname,'("t",I1.1,"_smass",I1.1)') n,k
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-  end do
-  do k = 1,3
-    dat=real(ssdn(:,k),8)
-    if (n<=maxnb) call cable_unpack(ssnow%ssdn(:,k),dat,n)
-    write(vname,'("t",I1.1,"_ssdn",I1.1)') n,k
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-  end do  
-  do k = 1,3
-    dat=real(snowd/3.,8)
-    if (n<=maxnb) call cable_unpack(ssnow%sdepth(:,k),dat,n)
-    write(vname,'("t",I1.1,"_sdepth",I1.1)') n,k
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-  end do
-  do k = 1,3
-    dat=0.2_8
-    if (n<=maxnb) call cable_unpack(ssnow%sconds(:,k),dat,n)
-    write(vname,'("t",I1.1,"_sconds",I1.1)') n,k
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-  end do
-  dat=real(ssdnn,8)
-  if (n<=maxnb) call cable_unpack(ssnow%ssdnn,dat,n)
-  write(vname,'("t",I1.1,"_ssdnn")') n
-  call histwrt(dat,vname,idnc,iarch,local,.true.)
-  dat=real(isflag,8)
-  if (n<=maxnb) then
-    dummy_unpack = real(ssnow%isflag,8)    
-    call cable_unpack(dummy_unpack,dat,n)
-  end if    
-  write(vname,'("t",I1.1,"_sflag")') n
-  call histwrt(dat,vname,idnc,iarch,local,.true.)
-  dat=real(snowd,8)
-  if (n<=maxnb) call cable_unpack(ssnow%snowd,dat,n)
-  write(vname,'("t",I1.1,"_snd")') n
-  call histwrt(dat,vname,idnc,iarch,local,.true.)
-  dat=real(snowd,8)
-  if (n<=maxnb) call cable_unpack(ssnow%osnowd,dat,n)
-  write(vname,'("t",I1.1,"_osnd")') n
-  call histwrt(dat,vname,idnc,iarch,local,.true.)
-  dat=real(snage,8)
-  if (n<=maxnb) call cable_unpack(ssnow%snage,dat,n)
-  write(vname,'("t",I1.1,"_snage")') n
-  call histwrt(dat,vname,idnc,iarch,local,.true.)
-  dat=100._8
-  if (n<=maxnb) call cable_unpack(ssnow%rtsoil,dat,n)
-  write(vname,'("t",I1.1,"_rtsoil")') n
-  call histwrt(dat,vname,idnc,iarch,local,.true.)   
-  dat=0._8
-  if (n<=maxnb) call cable_unpack(canopy%cansto,dat,n)
-  write(vname,'("t",I1.1,"_cansto")') n
-  call histwrt(dat,vname,idnc,iarch,local,.true.)
-  dat=0.01_8 ! ustar
-  if (n<=maxnb) call cable_unpack(canopy%us,dat,n)
-  write(vname,'("t",I1.1,"_us")') n
-  call histwrt(dat,vname,idnc,iarch,local,.true.)  
-  dat=0._8
-  if (n<=maxnb) call cable_unpack(ssnow%pudsto,dat,n)
-  write(vname,'("t",I1.1,"_pudsto")') n
-  call histwrt(dat,vname,idnc,iarch,local,.true.)
-  dat=0._8
-  if (n<=maxnb) call cable_unpack(ssnow%wetfac,dat,n)
-  write(vname,'("t",I1.1,"_wetfac")') n
-  call histwrt(dat,vname,idnc,iarch,local,.true.)
-  dat=0._8
-  if (n<=maxnb) call cable_unpack(canopy%ga,dat,n)
-  write(vname,'("t",I1.1,"_ga")') n
-  call histwrt(dat,vname,idnc,iarch,local,.true.)
-end do
-if ( soil_struc==1 ) then
+if ( itype==-1 ) then !just for restart file
   do n = 1,maxtile  ! tile
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(ssnow%h0,dat,n)
-    write(vname,'("t",I1.1,"_hzero")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)   
     do k = 1,ms     ! soil layer
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(ssnow%S(:,k),dat,n)
-      write(vname,'("t",I1.1,"_s",I1.1)') n,k
+      dat=real(tgg(:,k),8)
+      if (n<=maxnb) then
+        call cable_unpack(ssnow%tgg(:,k),dat,n)
+      end if  
+      write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,ms
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(ssnow%tsoil(:,k),dat,n)
-      write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
+      dat=real(wb(:,k),8)
+      if (n<=maxnb) call cable_unpack(ssnow%wb(:,k),dat,n)
+      write(vname,'("t",I1.1,"_wb",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,ms
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(ssnow%thetai(:,k),dat,n)
-      write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
+      dat=real(wbice(:,k),8)
+      if (n<=maxnb) call cable_unpack(ssnow%wbice(:,k),dat,n)
+      write(vname,'("t",I1.1,"_wbice",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(ssnow%snowliq(:,1),dat,n)
-    write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(ssnow%tsurface,dat,n)
-    write(vname,'("t",I1.1,"_tsurface")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) then
-      dummy_unpack = real(ssnow%nsnow,8)  
-      call cable_unpack(dummy_unpack,dat,n)
-    end if  
-    write(vname,'("t",I1.1,"_nsnow")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)   
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(canopy%fwsoil,dat,n)
-    write(vname,'("t",I1.1,"_fwsoil")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.) 
-  end do
-end if
-if ( ccycle==0 ) then
-  !do n = 1,maxtile  ! tile
-    !do k = 1,ncp
-    !  dat=real(cplant(:,k),8)
-    !  if (n<=maxnb) call cable_unpack(bgc%cplant(:,k),dat,n)
-    !  write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
-    !  call histwrt(dat,vname,idnc,iarch,local,.true.)    
-    !end do
-    !do k = 1,ncs
-    !  dat=real(csoil(:,k),8)
-    !  if (n<=maxnb) call cable_unpack(bgc%csoil(:,k),dat,n)
-    !  write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
-    !  call histwrt(dat,vname,idnc,iarch,local,.true.)
-    !end do
-  !end do  
-else
-  ! MJT notes - possible rounding error when using CASA CNP  
-  do n = 1,maxtile  ! tile
-    do k = 1,mplant     
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%cplant(:,k),dat,n)
-      write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
+    do k = 1,3 ! snow layer
+      dat=real(tggsn(:,k),8)
+      if (n<=maxnb) call cable_unpack(ssnow%tggsn(:,k),dat,n)
+      write(vname,'("t",I1.1,"_tggsn",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
-    do k = 1,mplant
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%nplant(:,k),dat,n)
-      write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
+    do k = 1,3
+      dat=real(smass(:,k),8)
+      if (n<=maxnb) call cable_unpack(ssnow%smass(:,k),dat,n)
+      write(vname,'("t",I1.1,"_smass",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
-    do k = 1,mplant
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%pplant(:,k),dat,n)
-      write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    do k = 1,mlitter
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%clitter(:,k),dat,n)
-      write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    do k = 1,mlitter
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%nlitter(:,k),dat,n)
-      write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
+    do k = 1,3
+      dat=real(ssdn(:,k),8)
+      if (n<=maxnb) call cable_unpack(ssnow%ssdn(:,k),dat,n)
+      write(vname,'("t",I1.1,"_ssdn",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do  
-    do k = 1,mlitter
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%plitter(:,k),dat,n)
-      write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
+    do k = 1,3
+      dat=real(snowd/3.,8)
+      if (n<=maxnb) call cable_unpack(ssnow%sdepth(:,k),dat,n)
+      write(vname,'("t",I1.1,"_sdepth",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
-    do k = 1,msoil
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%csoil(:,k),dat,n)
-      write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
+    do k = 1,3
+      dat=0.2_8
+      if (n<=maxnb) call cable_unpack(ssnow%sconds(:,k),dat,n)
+      write(vname,'("t",I1.1,"_sconds",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
-    do k = 1,msoil
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%nsoil(:,k),dat,n)
-      write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    do k = 1,msoil
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%psoil(:,k),dat,n)
-      write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casamet%glai(:),dat,n)
-    write(vname,'("t",I1.1,"_glai")') n
+    dat=real(ssdnn,8)
+    if (n<=maxnb) call cable_unpack(ssnow%ssdnn,dat,n)
+    write(vname,'("t",I1.1,"_ssdnn")') n
     call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(phen%phen(:),dat,n)
-    write(vname,'("t",I1.1,"_phen")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(phen%aphen(:),dat,n)
-    write(vname,'("t",I1.1,"_aphen")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
+    dat=real(isflag,8)
     if (n<=maxnb) then
-      dummy_unpack = real(phen%phase(:),8)   
+      dummy_unpack = real(ssnow%isflag,8)    
       call cable_unpack(dummy_unpack,dat,n)
-    end if  
-    write(vname,'("t",I1.1,"_phenphase")') n
+    end if    
+    write(vname,'("t",I1.1,"_sflag")') n
+    call histwrt(dat,vname,idnc,iarch,local,.true.)
+    dat=real(snowd,8)
+    if (n<=maxnb) call cable_unpack(ssnow%snowd,dat,n)
+    write(vname,'("t",I1.1,"_snd")') n
+    call histwrt(dat,vname,idnc,iarch,local,.true.)
+    dat=real(snowd,8)
+    if (n<=maxnb) call cable_unpack(ssnow%osnowd,dat,n)
+    write(vname,'("t",I1.1,"_osnd")') n
+    call histwrt(dat,vname,idnc,iarch,local,.true.)
+    dat=real(snage,8)
+    if (n<=maxnb) call cable_unpack(ssnow%snage,dat,n)
+    write(vname,'("t",I1.1,"_snage")') n
+    call histwrt(dat,vname,idnc,iarch,local,.true.)
+    dat=100._8
+    if (n<=maxnb) call cable_unpack(ssnow%rtsoil,dat,n)
+    write(vname,'("t",I1.1,"_rtsoil")') n
+    call histwrt(dat,vname,idnc,iarch,local,.true.)   
+    dat=0._8
+    if (n<=maxnb) call cable_unpack(canopy%cansto,dat,n)
+    write(vname,'("t",I1.1,"_cansto")') n
+    call histwrt(dat,vname,idnc,iarch,local,.true.)
+    dat=0.01_8 ! ustar
+    if (n<=maxnb) call cable_unpack(canopy%us,dat,n)
+    write(vname,'("t",I1.1,"_us")') n
+    call histwrt(dat,vname,idnc,iarch,local,.true.)  
+    dat=0._8
+    if (n<=maxnb) call cable_unpack(ssnow%pudsto,dat,n)
+    write(vname,'("t",I1.1,"_pudsto")') n
     call histwrt(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) then
-      dummy_unpack = real(phen%doyphase(:,3),8)    
-      call cable_unpack(dummy_unpack,dat,n)
-    end if  
-    write(vname,'("t",I1.1,"_doyphase3")') n
+    if (n<=maxnb) call cable_unpack(ssnow%wetfac,dat,n)
+    write(vname,'("t",I1.1,"_wetfac")') n
     call histwrt(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
-    if (n<=maxnb) call cable_unpack(casapool%clabile(:),dat,n)
-    write(vname,'("t",I1.1,"_clabile")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casapool%nsoilmin(:),dat,n)
-    write(vname,'("t",I1.1,"_nsoilmin")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casapool%psoillab(:),dat,n)
-    write(vname,'("t",I1.1,"_psoillab")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casapool%psoilsorb(:),dat,n)
-    write(vname,'("t",I1.1,"_psoilsorb")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casapool%psoilocc(:),dat,n)
-    write(vname,'("t",I1.1,"_psoilocc")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    do k = 1,mplant     
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(casaflux%crmplant(:,k),dat,n)
-      write(vname,'("t",I1.1,"_crmplant",I1.1)') n,k
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casaflux%frac_sapwood(:),dat,n)
-    write(vname,'("t",I1.1,"_fracsapwood")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casaflux%sapwood_area(:),dat,n)
-    write(vname,'("t",I1.1,"_sapwoodarea")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casaflux%Crsoil(:),dat,n)
-    write(vname,'("t",I1.1,"_crsoil")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casaflux%cnpp(:),dat,n)
-    write(vname,'("t",I1.1,"_cnpp")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casaflux%clabloss(:),dat,n)
-    write(vname,'("t",I1.1,"_clabloss")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casaflux%crgplant(:),dat,n)
-    write(vname,'("t",I1.1,"_crgplant")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casaflux%stemnpp(:),dat,n)
-    write(vname,'("t",I1.1,"_stemnpp")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casabal%laimax(:),dat,n)
-    write(vname,'("t",I1.1,"_LAImax")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casabal%cleafmean(:),dat,n)
-    write(vname,'("t",I1.1,"_Cleafmean")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(casabal%crootmean(:),dat,n)
-    write(vname,'("t",I1.1,"_Crootmean")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(canopy%fpn(:),dat,n)
-    write(vname,'("t",I1.1,"_fpn")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(canopy%frday(:),dat,n)
-    write(vname,'("t",I1.1,"_frday")') n
+    if (n<=maxnb) call cable_unpack(canopy%ga,dat,n)
+    write(vname,'("t",I1.1,"_ga")') n
     call histwrt(dat,vname,idnc,iarch,local,.true.)
   end do
-end if
-if ( cable_climate==1 ) then
-  allocate( dat91days(ifull,91) )
-  allocate( dat31days(ifull,31) )
-  allocate( dat20years(ifull,20) )
-  allocate( dat5days(ifull,120) )
-  dat91days = 0._8
-  dat31days = 0._8
-  dat20years = 0._8
-  dat5days = 0._8
-  do n = 1,maxtile  ! tile
-    dat=0._8
-    if (n<=maxnb) dummy_unpack = real(climate%iveg,8)
-    if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
-    write(vname,'("t",I1.1,"_climateiveg")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) dummy_unpack = real(climate%biome,8)
-    if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
-    write(vname,'("t",I1.1,"_climatebiome")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%evap_PT,dat,n)
-    write(vname,'("t",I1.1,"_climateevapPT")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%aevap,dat,n)
-    write(vname,'("t",I1.1,"_climateaevap")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%mtemp_max,dat,n)
-    write(vname,'("t",I1.1,"_climatemtempmax")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%mtemp_min,dat,n)
-    write(vname,'("t",I1.1,"_climatemtempmin")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%dmoist_max,dat,n)
-    write(vname,'("t",I1.1,"_climatedmoistmax")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%dmoist_min,dat,n)
-    write(vname,'("t",I1.1,"_climatedmoistmin")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%qtemp_max,dat,n)
-    write(vname,'("t",I1.1,"_climateqtempmax")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%qtemp_max_last_year,dat,n)
-    write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%gdd0,dat,n)
-    write(vname,'("t",I1.1,"_climategdd0")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%gdd5,dat,n)
-    write(vname,'("t",I1.1,"_climategdd5")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%agdd0,dat,n)
-    write(vname,'("t",I1.1,"_climateagdd0")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%agdd5,dat,n)
-    write(vname,'("t",I1.1,"_climateagdd5")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) then
-      dummy_unpack = real(climate%chilldays,8)  
-      call cable_unpack(dummy_unpack,dat,n)
-    end if  
-    write(vname,'("t",I1.1,"_climatechilldays")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%gdd0_rec,dat,n)
-    write(vname,'("t",I1.1,"_climategdd0_rec")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%mtemp_min20,dat,n)
-    write(vname,'("t",I1.1,"_climatemtempmin20")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%mtemp_max20,dat,n)
-    write(vname,'("t",I1.1,"_climatemtempmax20")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%alpha_PT20,dat,n)
-    write(vname,'("t",I1.1,"_climatealphaPT20")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%dmoist_min20,dat,n)
-    write(vname,'("t",I1.1,"_climatedmoistmin20")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%dmoist_max20,dat,n)
-    write(vname,'("t",I1.1,"_climatedmoistmax20")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%frec,dat,n)
-    write(vname,'("t",I1.1,"_climatefrec")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(climate%fdorm,dat,n)
-    write(vname,'("t",I1.1,"_climatefdorm")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) then
-      dummy_unpack = real(climate%gmd,8)  
-      call cable_unpack(dummy_unpack,dat,n)
-    end if  
-    write(vname,'("t",I1.1,"_climategmd")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
+  if ( soil_struc==1 ) then
+    do n = 1,maxtile  ! tile
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(ssnow%h0,dat,n)
+      write(vname,'("t",I1.1,"_hzero")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)   
+      do k = 1,ms     ! soil layer
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(ssnow%S(:,k),dat,n)
+        write(vname,'("t",I1.1,"_s",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do k = 1,ms
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(ssnow%tsoil(:,k),dat,n)
+        write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do k = 1,ms
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(ssnow%thetai(:,k),dat,n)
+        write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(ssnow%snowliq(:,1),dat,n)
+      write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(ssnow%tsurface,dat,n)
+      write(vname,'("t",I1.1,"_tsurface")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) then
+        dummy_unpack = real(ssnow%nsnow,8)  
+        call cable_unpack(dummy_unpack,dat,n)
+      end if  
+      write(vname,'("t",I1.1,"_nsnow")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)   
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(canopy%fwsoil,dat,n)
+      write(vname,'("t",I1.1,"_fwsoil")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.) 
+    end do
+  end if
+  if ( ccycle==0 ) then
+    !do n = 1,maxtile  ! tile
+      !do k = 1,ncp
+      !  dat=real(cplant(:,k),8)
+      !  if (n<=maxnb) call cable_unpack(bgc%cplant(:,k),dat,n)
+      !  write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
+      !  call histwrt(dat,vname,idnc,iarch,local,.true.)    
+      !end do
+      !do k = 1,ncs
+      !  dat=real(csoil(:,k),8)
+      !  if (n<=maxnb) call cable_unpack(bgc%csoil(:,k),dat,n)
+      !  write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
+      !  call histwrt(dat,vname,idnc,iarch,local,.true.)
+      !end do
+    !end do  
+  else
+    ! MJT notes - possible rounding error when using CASA CNP  
+    do n = 1,maxtile  ! tile
+      do k = 1,mplant     
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(casapool%cplant(:,k),dat,n)
+        write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do k = 1,mplant
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(casapool%nplant(:,k),dat,n)
+        write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do k = 1,mplant
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(casapool%pplant(:,k),dat,n)
+        write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do k = 1,mlitter
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(casapool%clitter(:,k),dat,n)
+        write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do k = 1,mlitter
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(casapool%nlitter(:,k),dat,n)
+        write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do  
+      do k = 1,mlitter
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(casapool%plitter(:,k),dat,n)
+        write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do k = 1,msoil
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(casapool%csoil(:,k),dat,n)
+        write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do k = 1,msoil
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(casapool%nsoil(:,k),dat,n)
+        write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do k = 1,msoil
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(casapool%psoil(:,k),dat,n)
+        write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casamet%glai(:),dat,n)
+      write(vname,'("t",I1.1,"_glai")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(phen%phen(:),dat,n)
+      write(vname,'("t",I1.1,"_phen")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(phen%aphen(:),dat,n)
+      write(vname,'("t",I1.1,"_aphen")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) then
+        dummy_unpack = real(phen%phase(:),8)   
+        call cable_unpack(dummy_unpack,dat,n)
+      end if  
+      write(vname,'("t",I1.1,"_phenphase")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) then
+        dummy_unpack = real(phen%doyphase(:,3),8)    
+        call cable_unpack(dummy_unpack,dat,n)
+      end if  
+      write(vname,'("t",I1.1,"_doyphase3")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casapool%clabile(:),dat,n)
+      write(vname,'("t",I1.1,"_clabile")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casapool%nsoilmin(:),dat,n)
+      write(vname,'("t",I1.1,"_nsoilmin")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casapool%psoillab(:),dat,n)
+      write(vname,'("t",I1.1,"_psoillab")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casapool%psoilsorb(:),dat,n)
+      write(vname,'("t",I1.1,"_psoilsorb")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casapool%psoilocc(:),dat,n)
+      write(vname,'("t",I1.1,"_psoilocc")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      do k = 1,mplant     
+        dat=0._8
+        if (n<=maxnb) call cable_unpack(casaflux%crmplant(:,k),dat,n)
+        write(vname,'("t",I1.1,"_crmplant",I1.1)') n,k
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casaflux%frac_sapwood(:),dat,n)
+      write(vname,'("t",I1.1,"_fracsapwood")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casaflux%sapwood_area(:),dat,n)
+      write(vname,'("t",I1.1,"_sapwoodarea")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casaflux%Crsoil(:),dat,n)
+      write(vname,'("t",I1.1,"_crsoil")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casaflux%cnpp(:),dat,n)
+      write(vname,'("t",I1.1,"_cnpp")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casaflux%clabloss(:),dat,n)
+      write(vname,'("t",I1.1,"_clabloss")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casaflux%crgplant(:),dat,n)
+      write(vname,'("t",I1.1,"_crgplant")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casaflux%stemnpp(:),dat,n)
+      write(vname,'("t",I1.1,"_stemnpp")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casabal%laimax(:),dat,n)
+      write(vname,'("t",I1.1,"_LAImax")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casabal%cleafmean(:),dat,n)
+      write(vname,'("t",I1.1,"_Cleafmean")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(casabal%crootmean(:),dat,n)
+      write(vname,'("t",I1.1,"_Crootmean")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(canopy%fpn(:),dat,n)
+      write(vname,'("t",I1.1,"_fpn")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(canopy%frday(:),dat,n)
+      write(vname,'("t",I1.1,"_frday")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+    end do
+  end if
+  if ( cable_climate==1 ) then
+    allocate( dat91days(ifull,91) )
+    allocate( dat31days(ifull,31) )
+    allocate( dat20years(ifull,20) )
+    allocate( dat5days(ifull,120) )
     dat91days = 0._8
-    if ( n<=maxnb ) then
-      do k = 1,91  
-        call cable_unpack(climate%dtemp_91(:,k),dat91days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatedtemp")') n
-    call histwrt(dat91days,vname,idnc,iarch,local,.true.)
-    dat31days = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,31  
-        call cable_unpack(climate%dmoist_31(:,k),dat31days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatedmoist")') n
-    call histwrt(dat31days,vname,idnc,iarch,local,.true.)
-    dat20years = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,20  
-        call cable_unpack(climate%mtemp_min_20(:,k),dat20years(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatemtemp_min_20")') n
-    call histwrt(dat20years,vname,idnc,iarch,local,.true.)
-    dat20years = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,20  
-        call cable_unpack(climate%mtemp_max_20(:,k),dat20years(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatemtemp_max_20")') n
-    call histwrt(dat20years,vname,idnc,iarch,local,.true.)
-    dat20years = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,20  
-        call cable_unpack(climate%alpha_PT_20(:,k),dat20years(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatealpha_PT_20")') n
-    call histwrt(dat20years,vname,idnc,iarch,local,.true.)
-    dat20years = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,20  
-        call cable_unpack(climate%dmoist_min_20(:,k),dat20years(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatedmoist_min_20")') n
-    call histwrt(dat20years,vname,idnc,iarch,local,.true.)
-    dat20years = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,20  
-        call cable_unpack(climate%dmoist_max_20(:,k),dat20years(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatedmoist_max_20")') n
-    call histwrt(dat20years,vname,idnc,iarch,local,.true.)
-    dat5days = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,120  
-        call cable_unpack(climate%APAR_leaf_sun(:,k),dat5days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climateapar_leaf_sun")') n
-    call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-    dat5days = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,120  
-        call cable_unpack(climate%APAR_leaf_shade(:,k),dat5days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climateapar_leaf_shade")') n
-    call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-    dat5days = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,120  
-        call cable_unpack(climate%Dleaf_sun(:,k),dat5days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatedleaf_sun")') n
-    call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-    dat5days = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,120  
-        call cable_unpack(climate%fwsoil(:,k),dat5days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatefwsoil")') n
-    call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-    dat5days = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,120  
-        call cable_unpack(climate%Dleaf_shade(:,k),dat5days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatedleaf_shade")') n
-    call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-    dat5days = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,120  
-        call cable_unpack(climate%Tleaf_sun(:,k),dat5days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatetleaf_sun")') n
-    call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-    dat5days = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,120  
-        call cable_unpack(climate%Tleaf_shade(:,k),dat5days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatetleaf_shade")') n
-    call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-    dat5days = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,120  
-        call cable_unpack(climate%cs_sun(:,k),dat5days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatecs_sun")') n
-    call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-    dat5days = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,120  
-        call cable_unpack(climate%cs_shade(:,k),dat5days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatecs_shade")') n
-    call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-    dat5days = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,120  
-        call cable_unpack(climate%scalex_sun(:,k),dat5days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatescalex_sun")') n
-    call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-    dat5days = 0._8  
-    if ( n<=maxnb ) then
-      do k = 1,120  
-        call cable_unpack(climate%scalex_shade(:,k),dat5days(:,k),n)
-      end do  
-    end if  
-    write(vname,'("t",I1.1,"_climatescalex_shade")') n
-    call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(veg%vcmax_sun,dat,n)
-    write(vname,'("t",I1.1,"_vegvcmax_sun")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(veg%vcmax_shade,dat,n)
-    write(vname,'("t",I1.1,"_vegvcmax_shade")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(veg%ejmax_sun,dat,n)
-    write(vname,'("t",I1.1,"_vegejmax_sun")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    dat=0._8
-    if (n<=maxnb) call cable_unpack(veg%ejmax_shade,dat,n)
-    write(vname,'("t",I1.1,"_vegejmax_shade")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-  end do  
-  deallocate( dat91days )
-  deallocate( dat31days )
-  deallocate( dat20years )
-  deallocate( dat5days )
+    dat31days = 0._8
+    dat20years = 0._8
+    dat5days = 0._8
+    do n = 1,maxtile  ! tile
+      dat=0._8
+      if (n<=maxnb) dummy_unpack = real(climate%iveg,8)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      write(vname,'("t",I1.1,"_climateiveg")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) dummy_unpack = real(climate%biome,8)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      write(vname,'("t",I1.1,"_climatebiome")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%evap_PT,dat,n)
+      write(vname,'("t",I1.1,"_climateevapPT")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%aevap,dat,n)
+      write(vname,'("t",I1.1,"_climateaevap")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%mtemp_max,dat,n)
+      write(vname,'("t",I1.1,"_climatemtempmax")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%mtemp_min,dat,n)
+      write(vname,'("t",I1.1,"_climatemtempmin")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%dmoist_max,dat,n)
+      write(vname,'("t",I1.1,"_climatedmoistmax")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%dmoist_min,dat,n)
+      write(vname,'("t",I1.1,"_climatedmoistmin")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%qtemp_max,dat,n)
+      write(vname,'("t",I1.1,"_climateqtempmax")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%qtemp_max_last_year,dat,n)
+      write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%gdd0,dat,n)
+      write(vname,'("t",I1.1,"_climategdd0")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%gdd5,dat,n)
+      write(vname,'("t",I1.1,"_climategdd5")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%agdd0,dat,n)
+      write(vname,'("t",I1.1,"_climateagdd0")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%agdd5,dat,n)
+      write(vname,'("t",I1.1,"_climateagdd5")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) then
+        dummy_unpack = real(climate%chilldays,8)  
+        call cable_unpack(dummy_unpack,dat,n)
+      end if  
+      write(vname,'("t",I1.1,"_climatechilldays")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%gdd0_rec,dat,n)
+      write(vname,'("t",I1.1,"_climategdd0_rec")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%mtemp_min20,dat,n)
+      write(vname,'("t",I1.1,"_climatemtempmin20")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%mtemp_max20,dat,n)
+      write(vname,'("t",I1.1,"_climatemtempmax20")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%alpha_PT20,dat,n)
+      write(vname,'("t",I1.1,"_climatealphaPT20")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%dmoist_min20,dat,n)
+      write(vname,'("t",I1.1,"_climatedmoistmin20")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%dmoist_max20,dat,n)
+      write(vname,'("t",I1.1,"_climatedmoistmax20")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%frec,dat,n)
+      write(vname,'("t",I1.1,"_climatefrec")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(climate%fdorm,dat,n)
+      write(vname,'("t",I1.1,"_climatefdorm")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) then
+        dummy_unpack = real(climate%gmd,8)  
+        call cable_unpack(dummy_unpack,dat,n)
+      end if  
+      write(vname,'("t",I1.1,"_climategmd")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat91days = 0._8
+      if ( n<=maxnb ) then
+        do k = 1,91  
+          call cable_unpack(climate%dtemp_91(:,k),dat91days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatedtemp")') n
+      call histwrt(dat91days,vname,idnc,iarch,local,.true.)
+      dat31days = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,31  
+          call cable_unpack(climate%dmoist_31(:,k),dat31days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatedmoist")') n
+      call histwrt(dat31days,vname,idnc,iarch,local,.true.)
+      dat20years = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,20  
+          call cable_unpack(climate%mtemp_min_20(:,k),dat20years(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatemtemp_min_20")') n
+      call histwrt(dat20years,vname,idnc,iarch,local,.true.)
+      dat20years = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,20  
+          call cable_unpack(climate%mtemp_max_20(:,k),dat20years(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatemtemp_max_20")') n
+      call histwrt(dat20years,vname,idnc,iarch,local,.true.)
+      dat20years = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,20  
+          call cable_unpack(climate%alpha_PT_20(:,k),dat20years(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatealpha_PT_20")') n
+      call histwrt(dat20years,vname,idnc,iarch,local,.true.)
+      dat20years = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,20  
+          call cable_unpack(climate%dmoist_min_20(:,k),dat20years(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatedmoist_min_20")') n
+      call histwrt(dat20years,vname,idnc,iarch,local,.true.)
+      dat20years = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,20  
+          call cable_unpack(climate%dmoist_max_20(:,k),dat20years(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatedmoist_max_20")') n
+      call histwrt(dat20years,vname,idnc,iarch,local,.true.)
+      dat5days = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,120  
+          call cable_unpack(climate%APAR_leaf_sun(:,k),dat5days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climateapar_leaf_sun")') n
+      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
+      dat5days = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,120  
+          call cable_unpack(climate%APAR_leaf_shade(:,k),dat5days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climateapar_leaf_shade")') n
+      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
+      dat5days = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,120  
+          call cable_unpack(climate%Dleaf_sun(:,k),dat5days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatedleaf_sun")') n
+      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
+      dat5days = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,120  
+          call cable_unpack(climate%fwsoil(:,k),dat5days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatefwsoil")') n
+      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
+      dat5days = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,120  
+          call cable_unpack(climate%Dleaf_shade(:,k),dat5days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatedleaf_shade")') n
+      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
+      dat5days = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,120  
+          call cable_unpack(climate%Tleaf_sun(:,k),dat5days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatetleaf_sun")') n
+      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
+      dat5days = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,120  
+          call cable_unpack(climate%Tleaf_shade(:,k),dat5days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatetleaf_shade")') n
+      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
+      dat5days = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,120  
+          call cable_unpack(climate%cs_sun(:,k),dat5days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatecs_sun")') n
+      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
+      dat5days = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,120  
+          call cable_unpack(climate%cs_shade(:,k),dat5days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatecs_shade")') n
+      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
+      dat5days = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,120  
+          call cable_unpack(climate%scalex_sun(:,k),dat5days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatescalex_sun")') n
+      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
+      dat5days = 0._8  
+      if ( n<=maxnb ) then
+        do k = 1,120  
+          call cable_unpack(climate%scalex_shade(:,k),dat5days(:,k),n)
+        end do  
+      end if  
+      write(vname,'("t",I1.1,"_climatescalex_shade")') n
+      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(veg%vcmax_sun,dat,n)
+      write(vname,'("t",I1.1,"_vegvcmax_sun")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(veg%vcmax_shade,dat,n)
+      write(vname,'("t",I1.1,"_vegvcmax_shade")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(veg%ejmax_sun,dat,n)
+      write(vname,'("t",I1.1,"_vegejmax_sun")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      dat=0._8
+      if (n<=maxnb) call cable_unpack(veg%ejmax_shade,dat,n)
+      write(vname,'("t",I1.1,"_vegejmax_shade")') n
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+    end do  
+    deallocate( dat91days )
+    deallocate( dat31days )
+    deallocate( dat20years )
+    deallocate( dat5days )
+  end if
 end if
 if ( cable_pop==1 ) then
   allocate( datpatch(ifull,POP_NPATCH) )  
@@ -7837,549 +7882,555 @@ if ( cable_pop==1 ) then
     datage = 0._8
     datpc = 0._8
     dat = 0._8
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_sum,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_sum_old,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cheartwood_sum,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%csapwood_sum,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_csapwood_sum")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%csapwood_sum_old,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%densindiv,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_densindiv")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%height_mean,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_height_mean")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%height_max,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_height_max")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%basal_area,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_basal_area")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_loss,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_sapwood_loss")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_area_loss,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%stress_mortality,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_stress_mortality")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crowding_mortality,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_crowding_mortality")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%fire_mortality,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_fire_mortality")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cat_mortality,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_cat_mortality")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%res_mortality,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_res_mortality")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%growth,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_growth")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%area_growth,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_area_growth")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crown_cover,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_crown_cover")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crown_area,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_crown_area")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crown_volume,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_crown_volume")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_area,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_sapwood_area")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_area_old,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%KClump,dat,n)
-    write(vname,'("t",I1.1,"_pop_grid_KClump")') n  
-    call histwrt(dat,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_AGEMAX
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq_age(k),datage(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
-    call histwrt(datage,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_AGEMAX
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%biomass_age(k),datage(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
-    call histwrt(datage,vname,idnc,iarch,local,.true.)
-    do ll = 1,POP_NLAYER
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%biomass(ll),dat,n)
-      write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll  
+    if ( diaglevel_pop > 0 ) then
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_sum,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n  
       call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%density(ll),dat,n)
-      write(vname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll  
+    end if
+    if ( itype==-1 ) then !just for restart file
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_sum_old,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n  
       call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%hmean(ll),dat,n)
-      write(vname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll  
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cheartwood_sum,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n  
       call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%hmax(ll),dat,n)
-      write(vname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll  
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%csapwood_sum,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_csapwood_sum")') n  
       call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    do hh = 1,POP_HEIGHT_BINS
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_stem_bin(hh),dat,n)
-      write(vname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh  
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%csapwood_sum_old,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n  
       call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    do hh = 1,POP_HEIGHT_BINS
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%densindiv_bin(hh),dat,n)
-      write(vname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh  
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%densindiv,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_densindiv")') n  
       call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    do hh = 1,POP_HEIGHT_BINS
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%height_bin(hh),dat,n)
-      write(vname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%height_mean,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_height_mean")') n  
       call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    do hh = 1,POP_HEIGHT_BINS
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%diameter_bin(hh),dat,n)
-      write(vname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh 
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%height_max,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_height_max")') n  
       call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    do dd = 1,POP_NDISTURB
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%n_age(dd),dat,n)
-      write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd 
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%basal_area,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_basal_area")') n  
       call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%id,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq(k),datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_freq")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq_old(k),datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_freq_old")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%factor_recruit,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%pgap,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%lai,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_lai")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%biomass,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_biomass")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%biomass_old,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)    
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%heartwood,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_old,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_old,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%stress_mortality,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%fire_mortality,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%cat_mortality,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%crowding_mortality,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%cpc,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%mortality,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_loss,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_loss,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%growth,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_growth")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%area_growth,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%frac_NPP,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%frac_respiration,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do k = 1,POP_NPATCH
-      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%frac_light_uptake,datpatch(:,k),n)
-    end do
-    write(vname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
-    call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    do dd = 1,POP_NDISTURB  
-      do k = 1,POP_NPATCH  
-        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%disturbance_interval(dd),datpatch(:,k),n)
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
-      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    end do
-    do dd = 1,POP_NDISTURB  
-      do k = 1,POP_NPATCH  
-        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%first_disturbance_year(dd),datpatch(:,k),n)
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
-      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    end do
-    do dd = 1,POP_NDISTURB  
-      do k = 1,POP_NPATCH  
-        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%age(dd),datpatch(:,k),n)
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
-      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    end do
-    do dd = 1,POP_NDISTURB  
-      do k = 1,POP_NPATCH  
-        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%ranked_age_unique(k,dd),datpatch(:,k),n)
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
-      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    end do
-    do dd = 1,POP_NDISTURB  
-      do k = 1,POP_NPATCH  
-        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq_ranked_age_unique(k,dd),datpatch(:,k),n)
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
-      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do k = 1,POP_NPATCH  
-        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%ncohort,datpatch(:,k),n)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_loss,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_sapwood_loss")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_area_loss,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%stress_mortality,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_stress_mortality")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crowding_mortality,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_crowding_mortality")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%fire_mortality,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_fire_mortality")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cat_mortality,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_cat_mortality")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%res_mortality,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_res_mortality")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%growth,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_growth")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%area_growth,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_area_growth")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crown_cover,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_crown_cover")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crown_area,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_crown_area")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%crown_volume,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_crown_volume")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_area,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_sapwood_area")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%sapwood_area_old,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%KClump,dat,n)
+      write(vname,'("t",I1.1,"_pop_grid_KClump")') n  
+      call histwrt(dat,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_AGEMAX
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq_age(k),datage(:,k),n)
       end do
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
-      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do k = 1,POP_NPATCH  
-        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%biomass,datpatch(:,k),n)
+      write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
+      call histwrt(datage,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_AGEMAX
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%biomass_age(k),datage(:,k),n)
       end do
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
-      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do k = 1,POP_NPATCH  
-        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%density,datpatch(:,k),n)
+      write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
+      call histwrt(datage,vname,idnc,iarch,local,.true.)
+      do ll = 1,POP_NLAYER
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%biomass(ll),dat,n)
+        write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll  
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
-      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do k = 1,POP_NPATCH  
-        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmean,datpatch(:,k),n)
+      do ll = 1,POP_NLAYER
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%density(ll),dat,n)
+        write(vname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll  
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
-      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do k = 1,POP_NPATCH  
-        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmax,datpatch(:,k),n)
+      do ll = 1,POP_NLAYER
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%hmean(ll),dat,n)
+        write(vname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll  
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
+      do ll = 1,POP_NLAYER
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%hmax(ll),dat,n)
+        write(vname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll  
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do hh = 1,POP_HEIGHT_BINS
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%cmass_stem_bin(hh),dat,n)
+        write(vname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh  
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do hh = 1,POP_HEIGHT_BINS
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%densindiv_bin(hh),dat,n)
+        write(vname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh  
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do hh = 1,POP_HEIGHT_BINS
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%height_bin(hh),dat,n)
+        write(vname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do hh = 1,POP_HEIGHT_BINS
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%diameter_bin(hh),dat,n)
+        write(vname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh 
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do dd = 1,POP_NDISTURB
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%n_age(dd),dat,n)
+        write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd 
+        call histwrt(dat,vname,idnc,iarch,local,.true.)
+      end do
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%id,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
       call histwrt(datpatch,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT            
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq(k),datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_freq")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq_old(k),datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_freq_old")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%factor_recruit,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%pgap,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%lai,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_lai")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%biomass,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_biomass")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%biomass_old,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)    
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%heartwood,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_old,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_old,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%stress_mortality,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%fire_mortality,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%cat_mortality,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%crowding_mortality,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%cpc,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%mortality,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_loss,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%sapwood_area_loss,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%growth,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_growth")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%area_growth,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%frac_NPP,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%frac_respiration,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do k = 1,POP_NPATCH
+        if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%frac_light_uptake,datpatch(:,k),n)
+      end do
+      write(vname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
+      call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      do dd = 1,POP_NDISTURB  
         do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%age,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%disturbance_interval(dd),datpatch(:,k),n)
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
+        write(vname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
+        call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      end do
+      do dd = 1,POP_NDISTURB  
         do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%id,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%first_disturbance_year(dd),datpatch(:,k),n)
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT            
+        write(vname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
+        call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      end do
+      do dd = 1,POP_NDISTURB  
         do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%biomass,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%age(dd),datpatch(:,k),n)
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
+        write(vname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
+        call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      end do
+      do dd = 1,POP_NDISTURB  
         do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%density,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%ranked_age_unique(k,dd),datpatch(:,k),n)
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
+        write(vname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
+        call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      end do
+      do dd = 1,POP_NDISTURB  
         do k = 1,POP_NPATCH  
-         if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%freq_ranked_age_unique(k,dd),datpatch(:,k),n)
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
+        write(vname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
+        call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
         do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake,datpc(:,k,cc),n)
-        end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT            
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_interception,datpc(:,k,cc),n)
-        end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_respiration,datpc(:,k,cc),n)
-        end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_NPP,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%ncohort,datpatch(:,k),n)
         end do
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
+        call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
         do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar,datpc(:,k,cc),n)
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%biomass,datpatch(:,k),n)
+        end do
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
+        call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do k = 1,POP_NPATCH  
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%density,datpatch(:,k),n)
+        end do
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
+        call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do k = 1,POP_NPATCH  
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmean,datpatch(:,k),n)
+        end do
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
+        call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do k = 1,POP_NPATCH  
+          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%hmax,datpatch(:,k),n)
+        end do
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
+        call histwrt(datpatch,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT            
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%age,datpc(:,k,cc),n)
+          end do  
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT            
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%crown_area,datpc(:,k,cc),n)
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT  
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%id,datpc(:,k,cc),n)
+          end do  
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Pgap,datpc(:,k,cc),n)
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT            
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%biomass,datpc(:,k,cc),n)
+          end do  
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT  
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%height,datpc(:,k,cc),n)
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%density,datpc(:,k,cc),n)
+          end do  
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%diameter,datpc(:,k,cc),n)
-        end do 
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood,datpc(:,k,cc),n)
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT  
+          do k = 1,POP_NPATCH  
+           if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake,datpc(:,k,cc),n)
+          end do  
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%heartwood,datpc(:,k,cc),n)
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake,datpc(:,k,cc),n)
+          end do  
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT            
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood_area,datpc(:,k,cc),n)
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT            
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_interception,datpc(:,k,cc),n)
+          end do  
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%basal_area,datpc(:,k,cc),n)
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_respiration,datpc(:,k,cc),n)
+          end do  
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%LAI,datpc(:,k,cc),n)
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_NPP,datpc(:,k,cc),n)
+          end do
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Cleaf,datpc(:,k,cc),n)
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar,datpc(:,k,cc),n)
+          end do  
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
-    do ll = 1,POP_NLAYER
-      do cc = 1,POP_NCOHORT    
-        do k = 1,POP_NPATCH  
-          if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Croot,datpc(:,k,cc),n)
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT            
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%crown_area,datpc(:,k,cc),n)
+          end do  
         end do  
-      end do  
-      write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
-      call histwrt(datpc,vname,idnc,iarch,local,.true.)
-    end do
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Pgap,datpc(:,k,cc),n)
+          end do  
+        end do  
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT  
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%height,datpc(:,k,cc),n)
+          end do  
+        end do  
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%diameter,datpc(:,k,cc),n)
+          end do 
+        end do  
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood,datpc(:,k,cc),n)
+          end do  
+        end do  
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%heartwood,datpc(:,k,cc),n)
+          end do  
+        end do  
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT            
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood_area,datpc(:,k,cc),n)
+          end do  
+        end do  
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%basal_area,datpc(:,k,cc),n)
+          end do  
+        end do  
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%LAI,datpc(:,k,cc),n)
+          end do  
+        end do  
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Cleaf,datpc(:,k,cc),n)
+          end do  
+        end do  
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+      do ll = 1,POP_NLAYER
+        do cc = 1,POP_NCOHORT    
+          do k = 1,POP_NPATCH  
+            if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Croot,datpc(:,k,cc),n)
+          end do  
+        end do  
+        write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
+        call histwrt(datpc,vname,idnc,iarch,local,.true.)
+      end do
+    end if
   end do
   deallocate( datpatch )
   deallocate( datage )
   deallocate( datpc )
 end if    
-!do n = 1,maxtile  ! tile
-  !dat=0._8
-  !if (n<=maxnb) call cable_unpack(canopy%fhs_cor(:),dat,n)
-  !write(vname,'("t",I1.1,"_fhscor")') n
-  !call histwrt(dat,vname,idnc,iarch,local,.true.)
-  !dat=0._8
-  !if (n<=maxnb) call cable_unpack(canopy%fes_cor(:),dat,n)
-  !write(vname,'("t",I1.1,"_fescor")') n
-  !call histwrt(dat,vname,idnc,iarch,local,.true.)
-!end do
-vname='albvisdir'
-call histwrt(albvisdir,vname,idnc,iarch,local,.true.)
-vname='albvisdif'
-call histwrt(albvisdif,vname,idnc,iarch,local,.true.)
-vname='albnirdir'
-call histwrt(albnirdir,vname,idnc,iarch,local,.true.)
-vname='albnirdif'
-call histwrt(albnirdif,vname,idnc,iarch,local,.true.)
-vname='albvis'
-call histwrt(albvisnir(:,1),vname,idnc,iarch,local,.true.)
-vname='albnir'
-call histwrt(albvisnir(:,2),vname,idnc,iarch,local,.true.)
+if ( itype==-1 ) then !just for restart file
+  !do n = 1,maxtile  ! tile
+    !dat=0._8
+    !if (n<=maxnb) call cable_unpack(canopy%fhs_cor(:),dat,n)
+    !write(vname,'("t",I1.1,"_fhscor")') n
+    !call histwrt(dat,vname,idnc,iarch,local,.true.)
+    !dat=0._8
+    !if (n<=maxnb) call cable_unpack(canopy%fes_cor(:),dat,n)
+    !write(vname,'("t",I1.1,"_fescor")') n
+    !call histwrt(dat,vname,idnc,iarch,local,.true.)
+  !end do
+  vname='albvisdir'
+  call histwrt(albvisdir,vname,idnc,iarch,local,.true.)
+  vname='albvisdif'
+  call histwrt(albvisdif,vname,idnc,iarch,local,.true.)
+  vname='albnirdir'
+  call histwrt(albnirdir,vname,idnc,iarch,local,.true.)
+  vname='albnirdif'
+  call histwrt(albnirdif,vname,idnc,iarch,local,.true.)
+  vname='albvis'
+  call histwrt(albvisnir(:,1),vname,idnc,iarch,local,.true.)
+  vname='albnir'
+  call histwrt(albvisnir(:,2),vname,idnc,iarch,local,.true.)
+end if
   
 return
 end subroutine savetile 

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -20,6 +20,7 @@
 !------------------------------------------------------------------------------
     
 module histave_m
+use parm_m, only : diaglevel_carbon
 
 implicit none
 
@@ -38,6 +39,7 @@ public anthropogenic_ave, tmaxurban, tminurban
 public anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 !public tgg_ave
 public histave_init,histave_end
+public fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
 
 real, dimension(:), allocatable, save :: eg_ave,fg_ave,ga_ave,epan_ave,dew_ave
 real, dimension(:), allocatable, save :: cbas_ave,ctop_ave,rndmax
@@ -52,6 +54,7 @@ real, dimension(:), allocatable, save :: fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_a
 real, dimension(:), allocatable, save :: cnpp_ave,cnbp_ave
 real, dimension(:), allocatable, save :: anthropogenic_ave, tmaxurban, tminurban
 real, dimension(:), allocatable, save :: anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
+real, dimension(:), allocatable, save :: fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
 !real, dimension(:,:), allocatable, save :: tgg_ave
 
 contains
@@ -118,6 +121,11 @@ if ( ccycle/=0 ) then
   allocate(fpn_ave(ifull),frd_ave(ifull))
   allocate(frp_ave(ifull),frpw_ave(ifull),frpr_ave(ifull),frs_ave(ifull))
   allocate(cnpp_ave(ifull),cnbp_ave(ifull))
+  if ( diaglevel_carbon > 0 ) then
+    allocate(fevc_ave(ifull))
+    allocate(plant_turnover_ave(ifull))
+    allocate(plant_turnover_wood_ave(ifull))
+  end if
   fnee_ave(:)    = 0.
   fpn_ave(:)     = 0.
   frd_ave(:)     = 0.
@@ -127,6 +135,11 @@ if ( ccycle/=0 ) then
   frs_ave(:)     = 0.
   cnpp_ave(:)    = 0.
   cnbp_ave(:)    = 0.
+  if ( diaglevel_carbon > 0 ) then
+    fevc_ave(:)    = 0.
+    plant_turnover_ave = 0.
+    plant_turnover_wood_ave = 0.
+  end if
 end if
 
 return
@@ -152,6 +165,9 @@ if ( allocated(fpn_ave) ) then
   deallocate(fpn_ave,frd_ave)
   deallocate(frp_ave,frpw_ave,frpr_ave,frs_ave)
   deallocate(cnpp_ave,cnbp_ave)
+  if ( diaglevel_carbon > 0 ) then
+    deallocate(fevc_ave)
+  end if
 end if
 
 return
