@@ -47,7 +47,7 @@ public mlodiffusion,mlohadv,mlodyninit
 public gosig,gosigh,godsig,ocnsmag,ocneps
 public mlodiff,usetide,mlojacobi
 public usepice
-public dd,ee
+public dd
 public nstagoffmlo,mstagf,koff
 
 real, dimension(:,:), allocatable, save :: ee,eeu,eev
@@ -77,7 +77,7 @@ real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
 real, parameter :: maxicefrac = 0.999     ! maximum ice fraction
 real, parameter :: tol        = 5.E-4     ! Tolerance for SOR solver (water)
 real, parameter :: itol       = 1.E1      ! Tolerance for SOR solver (ice)
-integer, parameter :: om = 1              ! Mask (0=default, 1=ocean)
+integer, parameter :: om = 2              ! Ocean mask
 
 contains
 
@@ -135,9 +135,11 @@ do ii = 1,wlev
     ee(1:ifull,ii) = 1.
   end where
 end do  
-if ( any(ee(1:ifull,1)>0.5) ) has_ocean = 1
-call ccmpi_oceancomm(has_ocean)
-call bounds(ee,nrows=2,mask=om)
+call bounds(ee,nrows=2)
+
+if ( any(ee(:,1)>0.5) ) has_ocean = 1
+call ccmpi_boundsmask(2,has_ocean)
+
 do ii = 1,wlev
   where ( ee(:,ii)>1.5 .or. ee(:,ii)<=0.5 )
     ee(:,ii) = 0.
@@ -145,7 +147,7 @@ do ii = 1,wlev
   eeu(1:ifull,ii) = ee(1:ifull,ii)*ee(ie,ii)
   eev(1:ifull,ii) = ee(1:ifull,ii)*ee(in,ii)
 end do  
-call boundsuv(eeu,eev,nrows=2,mask=om)
+call boundsuv(eeu,eev,nrows=2)
 
 wtr = abs(ee-1.)<1.e-20
 
@@ -161,7 +163,7 @@ end where
 where ( abs(eev(1:ifull,1))<1.e-20 )
   ddv(1:ifull) = 1.E-8
 end where
-call boundsuv(ddu,ddv,mask=om)
+call boundsuv(ddu,ddv)
 
 
 ! allocate memory for mlo dynamics arrays
@@ -182,7 +184,7 @@ if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
       stwgt(1:ifull,ii,2) = 1.
     end where
   end do  
-  call boundsuv(stwgt(:,:,1),stwgt(:,:,2),mask=om)
+  call boundsuv(stwgt(:,:,1),stwgt(:,:,2))
   
 end if ! abs(nmlo)>=3.and.abs(nmlo)<=9
 
@@ -222,7 +224,7 @@ else if ( mlosigma>3 .and. mlosigma<6 ) then
     dum(1:ifull,ii,1) = gosig(1:ifull,ii)
     dum(1:ifull,ii,2) = godsig(1:ifull,ii)
   end do
-  call bounds(dum,mask=om)
+  call bounds(dum)
   do ii = 1,wlev
     gosig(1:ifull+iextra,ii)  = dum(1:ifull+iextra,ii,1)  
     godsig(1:ifull+iextra,ii) = dum(1:ifull+iextra,ii,2)
@@ -235,7 +237,7 @@ do ii = 1,wlev
   godsigu(1:ifull,ii) = 0.5*(godsig(1:ifull,ii)+godsig(ie,ii))*eeu(1:ifull,ii)
   godsigv(1:ifull,ii) = 0.5*(godsig(1:ifull,ii)+godsig(in,ii))*eev(1:ifull,ii)
 end do  
-call boundsuv(godsigu,godsigv,mask=om)
+call boundsuv(godsigu,godsigv)
 
 !! r-test
 !rmax_l = 0.
@@ -328,7 +330,7 @@ else
     uav(1:ifull,k) = v(1:ifull,k)*ee(1:ifull,k)
   end do
 end if
-call boundsuv(uau,uav,allvec=.true.,mask=om)
+call boundsuv(uau,uav,allvec=.true.,mask=om,fill=0.)
 
 ! Define diffusion scale and grid spacing
 hdif = dt*(ocnsmag/pi)**2
@@ -580,12 +582,7 @@ dtin_mlo = dt
 mspeca_mlo = 1
 
 ! Define land/sea mask
-!wtr(:,:) = ee(:,:)>0.5
-where (  ee(:,:)>0.5 )
-  wtr = .true.
-elsewhere
-  wtr = .false.
-end where
+wtr(:,:) = ee(:,:)>0.5
 
 ! Default values
 w_t   = 293.16-wrtemp ! potential water temperature delta at tau=t
@@ -1258,7 +1255,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   dumd(1:ifull,7) = icv(1:ifull)
   dumc(1:ifull,8) = niu(1:ifull)
   dumd(1:ifull,8) = niv(1:ifull)
-  call boundsuv(dumc(:,1:8),dumd(:,1:8),stag=-9,mask=om) ! stag=-9 updates iwu and isv
+  call boundsuv(dumc(:,1:8),dumd(:,1:8),stag=-9,mask=om,fill=0.) ! stag=-9 updates iwu and isv
   sou(ifull+1:ifull+iextra) = dumc(ifull+1:ifull+iextra,1)
   sov(ifull+1:ifull+iextra) = dumd(ifull+1:ifull+iextra,1)
   spu(ifull+1:ifull+iextra) = dumc(ifull+1:ifull+iextra,2)
@@ -1308,8 +1305,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   oev(1:ifull) = 0.5*(neta_n+neta(1:ifull))*eev(1:ifull,1)
   oeu_iwu = 0.5*(neta_w+neta(1:ifull))*ee_iwu
   oev_isv = 0.5*(neta_s+neta(1:ifull))*ee_isv
-  ccu(:,wlev) = sou(:) + spu(:)*ddu(1:ifull) + squ(:)*detadxu + ssu(:)*detadyu + szu(:)*oeu(1:ifull)
-  ccv(:,wlev) = sov(:) + spv(:)*ddv(1:ifull) + sqv(:)*detadyv + ssv(:)*detadxv + szv(:)*oev(1:ifull)
+  ccu(1:ifull,wlev) = sou(1:ifull) + spu(1:ifull)*ddu(1:ifull) + squ(1:ifull)*detadxu + ssu(1:ifull)*detadyu + &
+                      szu(1:ifull)*oeu(1:ifull)
+  ccv(1:ifull,wlev) = sov(1:ifull) + spv(1:ifull)*ddv(1:ifull) + sqv(1:ifull)*detadyv + ssv(1:ifull)*detadxv + &
+                      szv(1:ifull)*oev(1:ifull)
   call boundsuv(ccu(:,wlev),ccv(:,wlev),stag=-9,mask=om)
   call unpack_svwu(ccu(:,wlev),ccv(:,wlev),cc_isv,cc_iwu)
   sdiv(:) = (ccu(1:ifull,wlev)*oeu(1:ifull)/emu(1:ifull)  &
@@ -2544,11 +2543,10 @@ do nn=1,ntr
   end do
 end do
 
-
 ! fill
 do ii = 1,3 ! 3 iterations of fill should be enough
   s_old(1:ifull,:,:) = s(1:ifull,:,:)
-  call bounds(s_old,mask=0)
+  call bounds(s_old,mask=om,fill=cxx-1.)
   do nn = 1,ntr
     do k = 1,wlev
       s_tot(:) = 0.
@@ -2577,7 +2575,7 @@ do ii = 1,3 ! 3 iterations of fill should be enough
   end do
 end do
 
-call bounds(s,nrows=2,mask=0)
+call bounds(s,nrows=2,mask=om,fill=cxx-1.)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -2877,7 +2875,7 @@ end do
 ! fill
 do ii = 1,3 ! 3 iterations of fill should be enough
   s_old(1:ifull,:,:) = s(1:ifull,:,:)
-  call bounds(s_old,mask=0)
+  call bounds(s_old,mask=om,fill=cxx-1.)
   do nn = 1,ntr
     do k = 1,wlev
       s_tot(:) = 0.
@@ -2909,7 +2907,7 @@ do ii = 1,3 ! 3 iterations of fill should be enough
   end do
 end do
 
-call bounds(s,nrows=2,mask=0)
+call bounds(s,nrows=2,mask=om,fill=cxx-1.)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -3393,7 +3391,7 @@ if (.not.allocated(wtul)) then
     
   ! Apply JLM's preconditioner
   do i = 0,3
-    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-10,mask=0)
+    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-10,mask=om)
   end do  
   do k = 1,wlev
     where (abs(wtul(ieu,k,0))>1.E-4.and.abs(wtul(1:ifull,k,1))>1.E-4)
@@ -3448,7 +3446,7 @@ if (.not.allocated(wtul)) then
     
   ! normalise
   do i = 0,3
-    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-10,mask=0)
+    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-10,mask=om)
   end do  
   do k = 1,wlev
     do i=1,3
@@ -3572,7 +3570,7 @@ if (.not.allocated(wtul)) then
 
   ! Apply JLM's preconditioner
   do i = 0,3
-    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-9,mask=0)
+    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-9,mask=om)
   end do  
   do k = 1,wlev
     where (abs(wtur(iwu,k,0))>1.E-4.and.abs(wtur(1:ifull,k,2))>1.E-4)
@@ -3627,7 +3625,7 @@ if (.not.allocated(wtul)) then
 
   ! normalise
   do i = 0,3
-     call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-9,mask=0)
+     call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-9,mask=om)
   end do  
   do k = 1,wlev
     do i=1,3
@@ -3667,7 +3665,7 @@ end if
 
 if ( ltest ) then
 
-  call boundsuv(uin,vin,stag=1,mask=0)
+  call boundsuv(uin,vin,stag=1,mask=om)
   do k=1,kn
 !$omp simd
     do iq = 1,ifull  
@@ -3683,7 +3681,7 @@ if ( ltest ) then
     end do  
   end do
   
-  call boundsuv(ud,vd,stag=-10,mask=0)
+  call boundsuv(ud,vd,stag=-10,mask=om)
   do k = 1,kn
     call unpack_nveu(ud(:,k),vd(:,k),v_n,u_e)  
     ! Apply JLM's preconditioner
@@ -3712,7 +3710,7 @@ if ( ltest ) then
   ! - The wave amplitude should be preserved
 
   do itn=1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=2,mask=0)
+    call boundsuv(ua,va,stag=2,mask=om)
     do k=1,kn
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
@@ -3731,7 +3729,7 @@ if ( ltest ) then
         vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*v_n(iq)+wtvl(iq,1,2)*v_s(iq)+wtvl(iq,1,3)*va(innv(iq),k)
       end do  
     end do
-    call boundsuv(uin,vin,stag=2,mask=0)
+    call boundsuv(uin,vin,stag=2,mask=om)
     do k=1,kn
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
@@ -3754,7 +3752,7 @@ if ( ltest ) then
 
 else
 
-  call boundsuv(uin,vin,mask=0)
+  call boundsuv(uin,vin,mask=om)
   do k=1,kn
     call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
@@ -3774,7 +3772,7 @@ else
     end do  
   end do
 
-  call boundsuv(ud,vd,stag=-9,mask=0)
+  call boundsuv(ud,vd,stag=-9,mask=om)
   do k=1,kn
     call unpack_svwu(ud(:,k),vd(:,k),v_s,u_w)  
     ! Apply JLM's preconditioner
@@ -3797,7 +3795,7 @@ else
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=3,mask=0)
+    call boundsuv(ua,va,stag=3,mask=om)
     do k=1,kn
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
@@ -3816,7 +3814,7 @@ else
         vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*v_n(iq)+wtvr(iq,1,2)*v_s(iq)+wtvr(iq,1,3)*va(issv(iq),k)
       end do  
     end do
-    call boundsuv(uin,vin,stag=3,mask=0)
+    call boundsuv(uin,vin,stag=3,mask=om)
     do k=1,kn
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
@@ -4070,7 +4068,7 @@ if (.not.allocated(wtul)) then
     
   ! Apply JLM's preconditioner
   do i = 0,3
-     call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-9,mask=0)
+     call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-9,mask=om)
   end do   
   do k = 1,wlev
     where (abs(wtul(iwu,k,0))>1.E-4.and.abs(wtul(1:ifull,k,2))>1.E-4)
@@ -4125,7 +4123,7 @@ if (.not.allocated(wtul)) then
 
   ! normalise
   do i = 0,3
-     call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-9,mask=0)
+     call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-9,mask=om)
   end do   
   do k = 1,wlev
     do i = 1,3
@@ -4297,7 +4295,7 @@ if (.not.allocated(wtul)) then
 
   ! Apply JLM's preconditioner
   do i = 0,3
-     call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-10,mask=0)
+     call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-10,mask=om)
   end do   
   do k = 1,wlev
     where (abs(wtur(ieu,k,0))>1.E-4.and.abs(wtur(1:ifull,k,1))>1.E-4)
@@ -4352,7 +4350,7 @@ if (.not.allocated(wtul)) then
 
   ! normalise
   do i = 0,3
-    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-10,mask=0)
+    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-10,mask=om)
   end do  
   do k = 1,wlev
     do i = 1,3
@@ -4396,7 +4394,7 @@ end if
 
 if (ltest) then
   
-  call boundsuv(uin,vin,stag=5,mask=0)
+  call boundsuv(uin,vin,stag=5,mask=om,fill=0.)
   do k=1,kn
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
 !$omp simd
@@ -4414,7 +4412,7 @@ if (ltest) then
     end do  
   end do
   
-  call boundsuv(ud,vd,stag=-9,mask=0)
+  call boundsuv(ud,vd,stag=-9,mask=om,fill=0.)
   do k=1,kn
     call unpack_svwu(ud(:,k),vd(:,k),v_s,u_w)  
     ! Apply JLM's preconditioner
@@ -4437,7 +4435,7 @@ if (ltest) then
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=3,mask=0)
+    call boundsuv(ua,va,stag=3,mask=om,fill=0.)
     do k=1,kn
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
@@ -4456,7 +4454,7 @@ if (ltest) then
         vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*v_n(iq)+wtvl(iq,1,2)*v_s(iq)+wtvl(iq,1,3)*va(issv(iq),k)
       end do  
     end do
-    call boundsuv(uin,vin,stag=3,mask=0)
+    call boundsuv(uin,vin,stag=3,mask=om,fill=0.)
     do k=1,kn
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
@@ -4480,7 +4478,7 @@ if (ltest) then
   
 else
 
-  call boundsuv(uin,vin,mask=0)
+  call boundsuv(uin,vin,mask=om,fill=0.)
   do k=1,kn
     call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
@@ -4500,7 +4498,7 @@ else
     end do  
   end do
 
-  call boundsuv(ud,vd,stag=-10,mask=0)
+  call boundsuv(ud,vd,stag=-10,mask=om,fill=0.)
   do k=1,kn
     call unpack_nveu(ud(:,k),vd(:,k),v_n,u_e)  
     ! Apply JLM's preconditioner
@@ -4523,7 +4521,7 @@ else
   end do
 
   do itn=1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=2,mask=0)
+    call boundsuv(ua,va,stag=2,mask=om,fill=0.)
     do k=1,kn
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
@@ -4542,7 +4540,7 @@ else
         vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*v_n(iq)+wtvr(iq,1,2)*v_s(iq)+wtvr(iq,1,3)*va(innv(iq),k)
       end do  
     end do
-    call boundsuv(uin,vin,stag=2,mask=0)
+    call boundsuv(uin,vin,stag=2,mask=om,fill=0.)
     do k=1,kn
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  

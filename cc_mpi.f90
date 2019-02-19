@@ -74,18 +74,17 @@ module cc_mpi
    integer, save, public :: comm_vleader, vleader_nproc, vleader_myid      ! procformat communicator for node captain group   
    integer, save, public :: vnode_vleaderid                                ! rank of the procformat node captain
 
-   integer, save, public :: comm_ocean                                     ! ocean communication group
-   integer, save, public :: group_ocean                                    ! ocean group
-
    integer(kind=4), save, private :: nreq, rreq                            ! number of messages requested and to be received
    integer(kind=4), allocatable, dimension(:), save, private :: ireq       ! requested message index
    integer, allocatable, dimension(:), save, private :: rlist              ! map of processor index from requested message index
    
    integer, allocatable, dimension(:), save, public :: neighlist           ! list of neighbour processors
-   integer, allocatable, dimension(:), save, public :: neighlisto          ! list of neighbour processors for ocean
    integer, allocatable, dimension(:), save, private :: neighmap           ! map of processor to neighbour index
    integer, save, public :: neighnum                                       ! number of neighbours
-   integer, save, public :: neighnumo                                      ! number of ocean neighbours
+   integer, allocatable, dimension(:), save, public :: excneighlist        ! exclude list of neighbour processors
+   integer, allocatable, dimension(:), save, public :: excneighlisto       ! exclude list of neighbour processors for ocean
+   integer, parameter :: max_mask=2                                        ! maximum number of bounds masks (1 minimum)
+   logical, dimension(max_mask) :: mask_set=.false.                        ! track if mask is set 
    
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       specmap_recv                                                         ! gather map recived for spectral filter
@@ -123,7 +122,7 @@ module cc_mpi
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
              bounds_colour_send, bounds_colour_recv, boundsr8,              &
              ccmpi_reinit, ccmpi_alltoall, ccmpi_procformat_init,           &
-             ccmpi_oceancomm
+             ccmpi_boundsmask
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -3640,6 +3639,7 @@ contains
          write(6,*) "neighnum, ncount ",neighnum, ncount
          call ccmpi_abort(-1)
       end if
+      call ccmpi_boundsmask(1,0)
 
       
       ! allocate arrays that depend on neighnum
@@ -4566,7 +4566,7 @@ contains
       end if
    end subroutine check_set
 
-   subroutine bounds2_wrap(t, nrows, corner, nehalf, mask)
+   subroutine bounds2_wrap(t, nrows, corner, nehalf, mask, fill)
       implicit none
       ! Copy the boundary regions
       real, dimension(ifull+iextra), intent(inout) :: t
@@ -4574,33 +4574,36 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       integer, intent(in), optional :: mask
+      real, intent(in), optional :: fill
       integer :: lmask
 
       if ( present(mask) ) then
-         !write(100+myid,*)"in bounds2:",mask
          lmask = mask
       else
-         lmask = 0
+         lmask = 1
       end if
 
       select case(lmask)
-         case(0)
-            call bounds2(t, neighnum, neighlist, nrows, corner, nehalf)
          case(1)
-            call bounds2(t, neighnumo, neighlisto, nrows, corner, nehalf)
+            call bounds2(t, excneighlist, nrows, corner, nehalf, fill)
+         case(2)
+            call bounds2(t, excneighlisto, nrows, corner, nehalf, fill)
+         case default
+            write(6,*) "ERROR: unknown bounds2 mask"
+            call ccmpi_abort(-1)
       end select
 
    end subroutine bounds2_wrap
 
-   subroutine bounds2(t, neighnum, neighlist, nrows, corner, nehalf)
+   subroutine bounds2(t, excneighlist, nrows, corner, nehalf, fill)
       implicit none
       ! Copy the boundary regions
       real, dimension(ifull+iextra), intent(inout) :: t
-      integer, intent(in) :: neighnum
-      integer, dimension(:), intent(in) :: neighlist
+      integer, dimension(:), intent(in) :: excneighlist
       integer, intent(in), optional :: nrows
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
+      real, intent(in), optional :: fill
       logical :: extra, single, double
       integer :: iproc, send_len, recv_len
       integer :: rcount, jproc, mproc, iq
@@ -4652,31 +4655,35 @@ contains
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
-         recv_len = rslen(iproc)
-         if ( recv_len > 0 ) then
-            lproc = neighlist(iproc)  ! Recv from
-            nreq  = nreq + 1
-            rlist(nreq) = iproc
-            llen  = recv_len
-            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
-                   itag, lcomm, ireq(nreq), ierr )
+         if ( excneighlist(iproc) /= MPI_UNDEFINED ) then
+            recv_len = rslen(iproc)
+            if ( recv_len > 0 ) then
+               lproc = neighlist(iproc)  ! Recv from
+               nreq  = nreq + 1
+               rlist(nreq) = iproc
+               llen  = recv_len
+               call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
+                      itag, lcomm, ireq(nreq), ierr )
+            end if
          end if
       end do
       rreq = nreq
       !     Set up the buffers to send
       do iproc = neighnum,1,-1
-         ! Build up list of points
-         send_len = sslen(iproc)
-         if ( send_len > 0 ) then
-            lproc = neighlist(iproc)  ! Send to
+         if ( excneighlist(iproc) /= MPI_UNDEFINED ) then
+            ! Build up list of points
+            send_len = sslen(iproc)
+            if ( send_len > 0 ) then
+               lproc = neighlist(iproc)  ! Send to
 !$omp simd
-            do iq = 1,send_len
-               bnds(lproc)%sbuf(iq) = t(bnds(lproc)%send_list(iq))
-            end do   
-            nreq  = nreq + 1
-            llen  = send_len
-            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
+               do iq = 1,send_len
+                  bnds(lproc)%sbuf(iq) = t(bnds(lproc)%send_list(iq))
+               end do   
+               nreq  = nreq + 1
+               llen  = send_len
+               call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
+                    itag, lcomm, ireq(nreq), ierr )
+            end if
          end if
       end do
       
@@ -4699,6 +4706,21 @@ contains
          end do
       end do
 
+      !fill halo region with a default value
+      if ( present(fill) ) then
+         do iproc = 1,neighnum
+            if ( excneighlist(iproc) == MPI_UNDEFINED ) then
+               recv_len = rslen(iproc)
+               if ( recv_len > 0 ) then
+                  lproc = neighlist(iproc)  ! Recv from
+                  do iq = 1,rslen(iproc)
+                     t(ifull+bnds(lproc)%unpack_list(iq)) = fill
+                  end do   
+               end if
+            end if
+         end do
+      end if
+
       ! Clear any remaining messages
       sreq = nreq - rreq
       if ( sreq > 0 ) then
@@ -4709,41 +4731,44 @@ contains
 
    end subroutine bounds2
 
-   subroutine bounds3_wrap(t, nrows, klim, corner, nehalf, mask)
+   subroutine bounds3_wrap(t, nrows, klim, corner, nehalf, mask, fill)
       implicit none
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in), optional :: nrows, klim
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       integer, intent(in), optional :: mask
+      real, intent(in), optional :: fill
       integer :: lmask
 
       if ( present(mask) ) then
-         !write(100+myid,*)"in bounds3:",mask
          lmask = mask
       else
-         lmask = 0
+         lmask = 1
       end if
 
       select case(lmask)
-         case(0)
-            call bounds3(t, neighnum, neighlist, nrows, klim, corner, nehalf)
          case(1)
-            call bounds3(t, neighnumo, neighlisto, nrows, klim, corner, nehalf)
+            call bounds3(t, excneighlist, nrows, klim, corner, nehalf, fill)
+         case(2)
+            call bounds3(t, excneighlisto, nrows, klim, corner, nehalf, fill)
+         case default
+            write(6,*) "ERROR: unknown bounds3 mask"
+            call ccmpi_abort(-1)
       end select
 
    end subroutine bounds3_wrap
 
-   subroutine bounds3(t, neighnum, neighlist, nrows, klim, corner, nehalf)
+   subroutine bounds3(t, excneighlist, nrows, klim, corner, nehalf, fill)
       implicit none
       ! Copy the boundary regions. Only this routine requires the extra klim
       ! argument (for helmsol).
       real, dimension(:,:), intent(inout) :: t
-      integer, intent(in) :: neighnum
-      integer, dimension(:), intent(in) :: neighlist
+      integer, dimension(:), intent(in) :: excneighlist
       integer, intent(in), optional :: nrows, klim
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
+      real, intent(in), optional :: fill
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
       integer :: rcount, jproc, mproc, iq, k
@@ -4799,31 +4824,35 @@ contains
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
-         recv_len = rslen(iproc)
-         if ( recv_len > 0 ) then
-            lproc = neighlist(iproc)  ! Recv from
-            nreq = nreq + 1
-            rlist(nreq) = iproc
-            llen = recv_len*kx
-            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
+         if ( excneighlist(iproc) /= MPI_UNDEFINED ) then
+            recv_len = rslen(iproc)
+            if ( recv_len > 0 ) then
+               lproc = neighlist(iproc)  ! Recv from
+               nreq = nreq + 1
+               rlist(nreq) = iproc
+               llen = recv_len*kx
+               call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
+                    itag, lcomm, ireq(nreq), ierr )
+            end if
          end if
       end do
       rreq = nreq
       do iproc = neighnum,1,-1
-         send_len = sslen(iproc)
-         if ( send_len > 0 ) then
-            lproc = neighlist(iproc)  ! Send to
-            do k = 1, kx
+         if ( excneighlist(iproc) /= MPI_UNDEFINED ) then
+            send_len = sslen(iproc)
+            if ( send_len > 0 ) then
+               lproc = neighlist(iproc)  ! Send to
+               do k = 1, kx
 !$omp simd
-               do iq = 1,send_len 
-                  bnds(lproc)%sbuf(iq+(k-1)*send_len) = t(bnds(lproc)%send_list(iq),k)
-               end do
-            end do   
-            nreq = nreq + 1
-            llen = send_len*kx
-            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
+                  do iq = 1,send_len 
+                     bnds(lproc)%sbuf(iq+(k-1)*send_len) = t(bnds(lproc)%send_list(iq),k)
+                  end do
+               end do   
+               nreq = nreq + 1
+               llen = send_len*kx
+               call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
+                    itag, lcomm, ireq(nreq), ierr )
+            end if
          end if
       end do
 
@@ -4847,6 +4876,25 @@ contains
             end do   
          end do
       end do
+
+      !fill halo region with a default value
+      if ( present(fill) ) then
+         do iproc = 1,neighnum
+            if ( excneighlist(iproc) == MPI_UNDEFINED ) then
+               recv_len = rslen(iproc)
+               if ( recv_len > 0 ) then
+                  lproc = neighlist(iproc)  ! Recv from
+                  do k = 1,kx
+!$omp simd
+                     do iq = 1,rslen(iproc)
+                        t(ifull+bnds(lproc)%unpack_list(iq),k) = fill
+                     end do
+                  end do   
+               end if
+            end if
+         end do
+      end if
+
 
       ! Clear any remaining messages
       sreq = nreq - rreq
@@ -4975,7 +5023,7 @@ contains
 
    end subroutine bounds3r8
    
-   subroutine bounds4_wrap(t, nrows, corner, nehalf, mask)
+   subroutine bounds4_wrap(t, nrows, corner, nehalf, mask, fill)
       implicit none
       ! Copy the boundary regions.
       real, dimension(:,:,:), intent(inout) :: t
@@ -4983,33 +5031,36 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       integer, intent(in), optional :: mask
+      real, intent(in), optional :: fill
       integer :: lmask
 
       if ( present(mask) ) then
-         !write(100+myid,*)"in bounds4:",mask
          lmask = mask
       else
-         lmask = 0
+         lmask = 1
       end if
 
       select case(lmask)
-         case(0)
-            call bounds4(t, neighnum, neighlist, nrows, corner, nehalf)
          case(1)
-            call bounds4(t, neighnumo, neighlisto, nrows, corner, nehalf)
+            call bounds4(t, excneighlist, nrows, corner, nehalf, fill)
+         case(2)
+            call bounds4(t, excneighlisto, nrows, corner, nehalf, fill)
+         case default
+            write(6,*) "ERROR: unknown bounds4 mask"
+            call ccmpi_abort(-1)
       end select
 
    end subroutine bounds4_wrap
 
-   subroutine bounds4(t, neighnum, neighlist, nrows, corner, nehalf)
+   subroutine bounds4(t, excneighlist, nrows, corner, nehalf, fill)
       implicit none
       ! Copy the boundary regions.
       real, dimension(:,:,:), intent(inout) :: t
-      integer, intent(in) :: neighnum
-      integer, dimension(:), intent(in) :: neighlist
+      integer, dimension(:), intent(in) :: excneighlist
       integer, intent(in), optional :: nrows
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
+      real, intent(in), optional :: fill
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
       integer :: rcount, jproc, mproc, ntr, iq, k, l
@@ -5069,33 +5120,37 @@ contains
          ! Set up the buffers to send
          nreq = 0
          do iproc = 1,neighnum
-            recv_len = rslen(iproc)
-            if ( recv_len > 0 ) then
-               lproc = neighlist(iproc)  ! Recv from
-               nreq = nreq + 1
-               rlist(nreq) = iproc
-               llen = recv_len*kx*ntot
-               call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
-                    itag, lcomm, ireq(nreq), ierr )
+            if ( excneighlist(iproc) /= MPI_UNDEFINED ) then
+               recv_len = rslen(iproc)
+               if ( recv_len > 0 ) then
+                  lproc = neighlist(iproc)  ! Recv from
+                  nreq = nreq + 1
+                  rlist(nreq) = iproc
+                  llen = recv_len*kx*ntot
+                  call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
+                       itag, lcomm, ireq(nreq), ierr )
+               end if
             end if
          end do
          rreq = nreq
          do iproc = neighnum,1,-1
-            send_len = sslen(iproc)
-            if ( send_len > 0 ) then
-               lproc = neighlist(iproc)  ! Send to
-               do l = 1,ntot
-                  do k = 1,kx 
+            if ( excneighlist(iproc) /= MPI_UNDEFINED ) then
+               send_len = sslen(iproc)
+               if ( send_len > 0 ) then
+                  lproc = neighlist(iproc)  ! Send to
+                  do l = 1,ntot
+                     do k = 1,kx 
 !$omp simd
-                     do iq = 1,send_len
-                        bnds(lproc)%sbuf(iq+(k-1)*send_len+(l-1)*send_len*kx) = t(bnds(lproc)%send_list(iq),k,l+nstart-1)
+                        do iq = 1,send_len
+                           bnds(lproc)%sbuf(iq+(k-1)*send_len+(l-1)*send_len*kx) = t(bnds(lproc)%send_list(iq),k,l+nstart-1)
+                        end do
                      end do
-                  end do
-               end do   
-               nreq = nreq + 1
-               llen = send_len*kx*ntot
-               call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
-                    itag, lcomm, ireq(nreq), ierr )
+                  end do   
+                  nreq = nreq + 1
+                  llen = send_len*kx*ntot
+                  call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
+                       itag, lcomm, ireq(nreq), ierr )
+               end if
             end if
          end do
 
@@ -5121,6 +5176,26 @@ contains
                end do   
             end do
          end do
+
+         !fill halo region with a default value
+         if ( present(fill) ) then
+            do iproc = 1,neighnum
+               if ( excneighlist(iproc) == MPI_UNDEFINED ) then
+                  recv_len = rslen(iproc)
+                  if ( recv_len > 0 ) then
+                     lproc = neighlist(iproc)  ! Recv from
+                     do l = 1,ntot
+                        do k = 1,kx 
+!$omp simd
+                           do iq = 1,rslen(iproc)  
+                              t(ifull+bnds(lproc)%unpack_list(iq),k,l+nstart-1) = fill
+                           end do
+                        end do
+                     end do   
+                  end if
+               end if
+            end do
+         end if
 
          ! Clear any remaining messages
          sreq = nreq - rreq
@@ -5317,39 +5392,42 @@ contains
 
    end subroutine bounds_colour_recv
    
-   subroutine boundsuv2_wrap(u, v, nrows, stag, allvec, mask)
+   subroutine boundsuv2_wrap(u, v, nrows, stag, allvec, mask, fill)
       real, dimension(ifull+iextra), intent(inout) :: u, v
       integer, intent(in), optional :: nrows, stag
       logical, intent(in), optional :: allvec
       integer, intent(in), optional :: mask
+      real, intent(in), optional :: fill
       integer :: lmask
 
       if ( present(mask) ) then
-         !write(100+myid,*)"in boundsuv2:",mask
          lmask = mask
       else
-         lmask = 0
+         lmask = 1
       end if
 
       select case(lmask)
-         case(0)
-            call boundsuv2(u, v, neighnum, neighlist, nrows, stag, allvec)
          case(1)
-            call boundsuv2(u, v, neighnumo, neighlisto, nrows, stag, allvec)
+            call boundsuv2(u, v, excneighlist, nrows, stag, allvec, fill)
+         case(2)
+            call boundsuv2(u, v, excneighlisto, nrows, stag, allvec, fill)
+         case default
+            write(6,*) "ERROR: unknown boundsuv2 mask"
+            call ccmpi_abort(-1)
       end select
 
 
    end subroutine boundsuv2_wrap
 
-   subroutine boundsuv2(u, v, neighnum, neighlist, nrows, stag, allvec)
+   subroutine boundsuv2(u, v, excneighlist, nrows, stag, allvec, fill)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       real, dimension(ifull+iextra), intent(inout) :: u, v
-      integer, intent(in) :: neighnum
-      integer, dimension(:), intent(in) :: neighlist
+      integer, dimension(:), intent(in) :: excneighlist
       integer, intent(in), optional :: nrows, stag
       logical, intent(in), optional :: allvec
+      real, intent(in), optional :: fill
       logical :: double, extra
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       logical :: fsuev, fnnueev
@@ -5363,6 +5441,7 @@ contains
       integer(kind=4) :: ierr, itag=5, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
+      integer(kind=4), dimension(neighnum) :: recv_len_a
 
       double = .false.
       extra = .false.
@@ -5456,6 +5535,7 @@ contains
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
+         recv_len_a(iproc) = 0
          lproc = neighlist(iproc)  ! Recv from
          recv_len = 0
          if ( fsvwu ) then
@@ -5477,101 +5557,106 @@ contains
             recv_len = recv_len + bnds(lproc)%rlen_eev_fn - bnds(lproc)%rlen_nnu_bg + 1 
          end if
          if ( recv_len > 0 ) then 
-            nreq = nreq + 1
-            rlist(nreq) = iproc
-            llen = recv_len
-            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
+            recv_len_a(iproc) = recv_len
+            if ( excneighlist(iproc) /= MPI_UNDEFINED ) then
+               nreq = nreq + 1
+               rlist(nreq) = iproc
+               llen = recv_len
+               call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
+                    itag, lcomm, ireq(nreq), ierr )
+            end if
          end if
       end do
       rreq = nreq
       do iproc = neighnum,1,-1
-         lproc = neighlist(iproc)  ! Send to
-         ! Build up list of points
-         iqq = 0
-         if ( fsvwu ) then
-            iqz = iqq - bnds(lproc)%slen_sv_bg + 1 
+         if ( excneighlist(iproc) /= MPI_UNDEFINED ) then
+            lproc = neighlist(iproc)  ! Send to
+            ! Build up list of points
+            iqq = 0
+            if ( fsvwu ) then
+               iqz = iqq - bnds(lproc)%slen_sv_bg + 1 
 !$omp simd
-            do iq = bnds(lproc)%slen_sv_bg,bnds(lproc)%slen_wu_fn
-               ! Use abs because sign is used as u/v flag
-               if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
-                  bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
-               else
-                  bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*v(abs(bnds(lproc)%send_list_uv(iq)))
-               end if 
-            end do
-            iqq = iqq + bnds(lproc)%slen_wu_fn - bnds(lproc)%slen_sv_bg + 1
-         end if
-         if ( fnveu ) then
-            iqz = iqq - bnds(lproc)%slen_nv_bg + 1 
+               do iq = bnds(lproc)%slen_sv_bg,bnds(lproc)%slen_wu_fn
+                  ! Use abs because sign is used as u/v flag
+                  if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
+                     bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
+                  else
+                     bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*v(abs(bnds(lproc)%send_list_uv(iq)))
+                  end if 
+               end do
+               iqq = iqq + bnds(lproc)%slen_wu_fn - bnds(lproc)%slen_sv_bg + 1
+            end if
+            if ( fnveu ) then
+               iqz = iqq - bnds(lproc)%slen_nv_bg + 1 
 !$omp simd
-            do iq = bnds(lproc)%slen_nv_bg,bnds(lproc)%slen_eu_fn
-               ! Use abs because sign is used as u/v flag
-               if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
-                  bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
-               else
-                  bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*v(abs(bnds(lproc)%send_list_uv(iq)))
-               end if 
-            end do
-            iqq = iqq + bnds(lproc)%slen_eu_fn - bnds(lproc)%slen_nv_bg + 1
-         end if
-         if ( fssvwwu ) then
-            iqz = iqq - bnds(lproc)%slen_ssv_bg + 1 
+               do iq = bnds(lproc)%slen_nv_bg,bnds(lproc)%slen_eu_fn
+                  ! Use abs because sign is used as u/v flag
+                  if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
+                     bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
+                  else
+                     bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*v(abs(bnds(lproc)%send_list_uv(iq)))
+                  end if 
+               end do
+               iqq = iqq + bnds(lproc)%slen_eu_fn - bnds(lproc)%slen_nv_bg + 1
+            end if
+            if ( fssvwwu ) then
+               iqz = iqq - bnds(lproc)%slen_ssv_bg + 1 
 !$omp simd
-            do iq = bnds(lproc)%slen_ssv_bg,bnds(lproc)%slen_wwu_fn
-               ! Use abs because sign is used as u/v flag
-               if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
-                  bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
-               else
-                  bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*v(abs(bnds(lproc)%send_list_uv(iq)))
-               end if 
-            end do
-            iqq = iqq + bnds(lproc)%slen_wwu_fn - bnds(lproc)%slen_ssv_bg + 1
-         end if
-         if ( fnnveeu ) then
-            iqz = iqq - bnds(lproc)%slen_nnv_bg + 1 
+               do iq = bnds(lproc)%slen_ssv_bg,bnds(lproc)%slen_wwu_fn
+                  ! Use abs because sign is used as u/v flag
+                  if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
+                     bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
+                  else
+                     bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*v(abs(bnds(lproc)%send_list_uv(iq)))
+                  end if 
+               end do
+               iqq = iqq + bnds(lproc)%slen_wwu_fn - bnds(lproc)%slen_ssv_bg + 1
+            end if
+            if ( fnnveeu ) then
+               iqz = iqq - bnds(lproc)%slen_nnv_bg + 1 
 !$omp simd
-            do iq = bnds(lproc)%slen_nnv_bg,bnds(lproc)%slen_eeu_fn
-               ! Use abs because sign is used as u/v flag
-               if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
-                  bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
-               else
-                  bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*v(abs(bnds(lproc)%send_list_uv(iq)))
-               end if 
-            end do
-            iqq = iqq + bnds(lproc)%slen_eeu_fn - bnds(lproc)%slen_nnv_bg + 1
-         end if
-         if ( fsuev ) then
-            iqz = iqq - bnds(lproc)%slen_su_bg + 1 
+               do iq = bnds(lproc)%slen_nnv_bg,bnds(lproc)%slen_eeu_fn
+                  ! Use abs because sign is used as u/v flag
+                  if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
+                     bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
+                  else
+                     bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*v(abs(bnds(lproc)%send_list_uv(iq)))
+                  end if 
+               end do
+               iqq = iqq + bnds(lproc)%slen_eeu_fn - bnds(lproc)%slen_nnv_bg + 1
+            end if
+            if ( fsuev ) then
+               iqz = iqq - bnds(lproc)%slen_su_bg + 1 
 !$omp simd
-            do iq = bnds(lproc)%slen_su_bg,bnds(lproc)%slen_ev_fn
-               ! Use abs because sign is used as u/v flag
-               if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
-                  bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
-               else
-                  bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*v(abs(bnds(lproc)%send_list_uv(iq)))
-               end if 
-            end do
-            iqq = iqq + bnds(lproc)%slen_ev_fn - bnds(lproc)%slen_su_bg + 1             
-         end if
-         if ( fnnueev ) then
-            iqz = iqq - bnds(lproc)%slen_nnu_bg + 1 
+               do iq = bnds(lproc)%slen_su_bg,bnds(lproc)%slen_ev_fn
+                  ! Use abs because sign is used as u/v flag
+                  if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
+                     bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
+                  else
+                     bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*v(abs(bnds(lproc)%send_list_uv(iq)))
+                  end if 
+               end do
+               iqq = iqq + bnds(lproc)%slen_ev_fn - bnds(lproc)%slen_su_bg + 1             
+            end if
+            if ( fnnueev ) then
+               iqz = iqq - bnds(lproc)%slen_nnu_bg + 1 
 !$omp simd
-            do iq = bnds(lproc)%slen_nnu_bg,bnds(lproc)%slen_eev_fn
-               ! Use abs because sign is used as u/v flag
-               if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
-                  bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
-               else
-                  bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*v(abs(bnds(lproc)%send_list_uv(iq)))
-               end if 
-            end do
-            iqq = iqq + bnds(lproc)%slen_eev_fn - bnds(lproc)%slen_nnu_bg + 1
-         end if
-         if ( iqq > 0 ) then
-            nreq = nreq + 1
-            llen = iqq
-            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
+               do iq = bnds(lproc)%slen_nnu_bg,bnds(lproc)%slen_eev_fn
+                  ! Use abs because sign is used as u/v flag
+                  if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
+                     bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
+                  else
+                     bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*v(abs(bnds(lproc)%send_list_uv(iq)))
+                  end if 
+               end do
+               iqq = iqq + bnds(lproc)%slen_eev_fn - bnds(lproc)%slen_nnu_bg + 1
+            end if
+            if ( iqq > 0 ) then
+               nreq = nreq + 1
+               llen = iqq
+               call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
+                    itag, lcomm, ireq(nreq), ierr )
+            end if
          end if
       end do
 
@@ -5685,6 +5770,84 @@ contains
          end do
       end do
 
+      !fill halo region with a default value
+      if ( present(fill) ) then
+         do iproc = 1,neighnum
+            if ( excneighlist(iproc) == MPI_UNDEFINED ) then
+               recv_len = recv_len_a(iproc)
+               if ( recv_len > 0 ) then
+                  lproc = neighlist(iproc)  ! Recv from
+                  if ( fsvwu ) then
+!$omp simd
+                     do iq = bnds(lproc)%rlen_sv_bg,bnds(lproc)%rlen_wu_fn
+                        ! unpack_list(iq) is index into extended region
+                        if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
+                           u(ifull+bnds(lproc)%unpack_list_uv(iq)) = fill
+                        else
+                           v(ifull-bnds(lproc)%unpack_list_uv(iq)) = fill
+                        end if
+                     end do
+                  end if
+                  if ( fnveu ) then
+!$omp simd
+                     do iq = bnds(lproc)%rlen_nv_bg,bnds(lproc)%rlen_eu_fn
+                        ! unpack_list(iq) is index into extended region
+                        if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
+                           u(ifull+bnds(lproc)%unpack_list_uv(iq)) = fill
+                        else
+                           v(ifull-bnds(lproc)%unpack_list_uv(iq)) = fill
+                        end if
+                     end do
+                  end if
+                  if ( fssvwwu ) then
+!$omp simd
+                     do iq = bnds(lproc)%rlen_ssv_bg,bnds(lproc)%rlen_wwu_fn
+                        ! unpack_list(iq) is index into extended region
+                        if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
+                           u(ifull+bnds(lproc)%unpack_list_uv(iq)) = fill
+                        else
+                           v(ifull-bnds(lproc)%unpack_list_uv(iq)) = fill
+                        end if
+                     end do
+                  end if
+                  if ( fnnveeu ) then
+!$omp simd
+                     do iq = bnds(lproc)%rlen_nnv_bg,bnds(lproc)%rlen_eeu_fn
+                        ! unpack_list(iq) is index into extended region
+                        if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
+                           u(ifull+bnds(lproc)%unpack_list_uv(iq)) = fill
+                        else
+                           v(ifull-bnds(lproc)%unpack_list_uv(iq)) = fill
+                        end if
+                     end do
+                  end if
+                  if ( fsuev ) then
+!$omp simd
+                     do iq = bnds(lproc)%rlen_su_bg,bnds(lproc)%rlen_ev_fn
+                        ! unpack_list(iq) is index into extended region
+                        if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
+                           u(ifull+bnds(lproc)%unpack_list_uv(iq)) = fill
+                        else
+                           v(ifull-bnds(lproc)%unpack_list_uv(iq)) = fill
+                        end if
+                     end do
+                  end if
+                  if ( fnnueev ) then
+!$omp simd
+                     do iq = bnds(lproc)%rlen_nnu_bg,bnds(lproc)%rlen_eev_fn
+                        ! unpack_list(iq) is index into extended region
+                        if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
+                           u(ifull+bnds(lproc)%unpack_list_uv(iq)) = fill
+                        else
+                           v(ifull-bnds(lproc)%unpack_list_uv(iq)) = fill
+                        end if
+                     end do
+                  end if
+               end if
+            end if
+         end do
+      end if
+
       ! Clear any remaining messages
       sreq = nreq - rreq
       if ( sreq > 0 ) then
@@ -5695,40 +5858,43 @@ contains
 
    end subroutine boundsuv2
 
-   subroutine boundsuv3_wrap(u, v, nrows, stag, allvec, mask)
+   subroutine boundsuv3_wrap(u, v, nrows, stag, allvec, mask, fill)
       real, dimension(:,:), intent(inout) :: u, v
       integer, intent(in), optional :: nrows
       integer, intent(in), optional :: stag
       logical, intent(in), optional :: allvec
       integer, intent(in), optional :: mask
+      real, intent(in), optional :: fill
       integer :: lmask
 
       if ( present(mask) ) then
-         !write(100+myid,*)"in boundsuv3:",mask
          lmask = mask
       else
-         lmask = 0
+         lmask = 1
       end if
 
       select case(lmask)
-         case(0)
-            call boundsuv3(u, v, neighnum, neighlist, nrows, stag, allvec)
          case(1)
-            call boundsuv3(u, v, neighnumo, neighlisto, nrows, stag, allvec)
+            call boundsuv3(u, v, excneighlist, nrows, stag, allvec, fill)
+         case(2)
+            call boundsuv3(u, v, excneighlisto, nrows, stag, allvec, fill)
+         case default
+            write(6,*) "ERROR: unknown boundsuv3 mask"
+            call ccmpi_abort(-1)
       end select
 
    end subroutine boundsuv3_wrap
 
-   subroutine boundsuv3(u, v, neighnum, neighlist, nrows, stag, allvec)
+   subroutine boundsuv3(u, v, excneighlist, nrows, stag, allvec, fill)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       real, dimension(:,:), intent(inout) :: u, v
-      integer, intent(in) :: neighnum
-      integer, dimension(:), intent(in) :: neighlist
+      integer, dimension(:), intent(in) :: excneighlist
       integer, intent(in), optional :: nrows
       integer, intent(in), optional :: stag
       logical, intent(in), optional :: allvec
+      real, intent(in), optional :: fill
       logical :: double, extra
       logical :: fsvwu, fnveu, fssvwwu, fnnveeu
       logical :: fsuev, fnnueev
@@ -5737,6 +5903,7 @@ contains
       integer(kind=4) :: ierr, itag=6, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
+      integer(kind=4), dimension(neighnum) :: recv_len_a
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -5837,6 +6004,7 @@ contains
       lcomm = comm_world
       nreq = 0
       do iproc = 1,neighnum
+         recv_len_a(iproc) = 0
          rproc = neighlist(iproc)  ! Recv from
          recv_len = 0
          if ( fsvwu ) then
@@ -5858,121 +6026,126 @@ contains
             recv_len = recv_len + (bnds(rproc)%rlen_eev_fn - bnds(rproc)%rlen_nnu_bg + 1)*kx
          end if
          if ( recv_len > 0 ) then 
-            nreq = nreq + 1
-            rlist(nreq) = iproc
-            llen = recv_len
-            lproc = rproc
-            call MPI_IRecv( rbuf(:,iproc), llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
+            recv_len_a(iproc) = recv_len
+            if ( excneighlist(iproc) /= MPI_UNDEFINED ) then
+               nreq = nreq + 1
+               rlist(nreq) = iproc
+               llen = recv_len
+               lproc = rproc
+               call MPI_IRecv( rbuf(:,iproc), llen, ltype, lproc, &
+                    itag, lcomm, ireq(nreq), ierr )
+            end if
          end if
       end do
       rreq = nreq
       do iproc = neighnum,1,-1
-         sproc = neighlist(iproc)  ! Send to
-         ! Build up list of points
-         iqq = 0
-         if ( fsvwu ) then
-            do k = 1,kx
-               iqz = iqq - bnds(sproc)%slen_sv_bg + 1 
+         if ( excneighlist(iproc) /= MPI_UNDEFINED ) then
+            sproc = neighlist(iproc)  ! Send to
+            ! Build up list of points
+            iqq = 0
+            if ( fsvwu ) then
+               do k = 1,kx
+                  iqz = iqq - bnds(sproc)%slen_sv_bg + 1 
 !$omp simd
-               do iq = bnds(sproc)%slen_sv_bg,bnds(sproc)%slen_wu_fn
-                  ! send_list_uv(iq) is point index.
-                  ! Use abs because sign is used as u/v flag
-                  if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
-                  else
-                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
-                 end if
-               end do
-               iqq = iqq + bnds(sproc)%slen_wu_fn - bnds(sproc)%slen_sv_bg + 1
-            end do   
-         end if
-         if ( fnveu ) then
-            do k = 1,kx 
-               iqz = iqq - bnds(sproc)%slen_nv_bg + 1 
+                  do iq = bnds(sproc)%slen_sv_bg,bnds(sproc)%slen_wu_fn
+                     ! send_list_uv(iq) is point index.
+                     ! Use abs because sign is used as u/v flag
+                     if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                        sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     else
+                        sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
+                    end if
+                  end do
+                  iqq = iqq + bnds(sproc)%slen_wu_fn - bnds(sproc)%slen_sv_bg + 1
+               end do   
+            end if
+            if ( fnveu ) then
+               do k = 1,kx 
+                  iqz = iqq - bnds(sproc)%slen_nv_bg + 1 
 !$omp simd
-               do iq = bnds(sproc)%slen_nv_bg,bnds(sproc)%slen_eu_fn
-                  ! send_list_uv(iq) is point index.
-                  ! Use abs because sign is used as u/v flag
-                  if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
-                  else
-                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
-                  end if 
-               end do
-               iqq = iqq + bnds(sproc)%slen_eu_fn - bnds(sproc)%slen_nv_bg + 1
-            end do   
-         end if
-         if ( fssvwwu ) then
-            do k = 1,kx 
-               iqz = iqq - bnds(sproc)%slen_ssv_bg + 1 
+                  do iq = bnds(sproc)%slen_nv_bg,bnds(sproc)%slen_eu_fn
+                     ! send_list_uv(iq) is point index.
+                     ! Use abs because sign is used as u/v flag
+                     if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                        sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     else
+                        sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     end if 
+                  end do
+                  iqq = iqq + bnds(sproc)%slen_eu_fn - bnds(sproc)%slen_nv_bg + 1
+               end do   
+            end if
+            if ( fssvwwu ) then
+               do k = 1,kx 
+                  iqz = iqq - bnds(sproc)%slen_ssv_bg + 1 
 !$omp simd
-               do iq = bnds(sproc)%slen_ssv_bg,bnds(sproc)%slen_wwu_fn
-                  ! send_list_uv(iq) is point index.
-                  ! Use abs because sign is used as u/v flag
-                  if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
-                  else
-                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
-                  end if 
-               end do
-               iqq = iqq + bnds(sproc)%slen_wwu_fn - bnds(sproc)%slen_ssv_bg + 1
-            end do   
-         end if
-         if ( fnnveeu ) then
-            do k = 1,kx
-               iqz = iqq - bnds(sproc)%slen_nnv_bg + 1 
+                  do iq = bnds(sproc)%slen_ssv_bg,bnds(sproc)%slen_wwu_fn
+                     ! send_list_uv(iq) is point index.
+                     ! Use abs because sign is used as u/v flag
+                     if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                        sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     else
+                        sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     end if 
+                  end do
+                  iqq = iqq + bnds(sproc)%slen_wwu_fn - bnds(sproc)%slen_ssv_bg + 1
+               end do   
+            end if
+            if ( fnnveeu ) then
+               do k = 1,kx
+                  iqz = iqq - bnds(sproc)%slen_nnv_bg + 1 
 !$omp simd
-               do iq = bnds(sproc)%slen_nnv_bg,bnds(sproc)%slen_eeu_fn
-                  ! send_list_uv(iq) is point index.
-                  ! Use abs because sign is used as u/v flag
-                  if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
-                  else
-                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
-                  end if
-               end do
-               iqq = iqq + bnds(sproc)%slen_eeu_fn - bnds(sproc)%slen_nnv_bg + 1
-            end do   
-         end if
-         if ( fsuev ) then
-            do k = 1,kx 
-               iqz = iqq - bnds(sproc)%slen_su_bg + 1 
+                  do iq = bnds(sproc)%slen_nnv_bg,bnds(sproc)%slen_eeu_fn
+                     ! send_list_uv(iq) is point index.
+                     ! Use abs because sign is used as u/v flag
+                     if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                        sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     else
+                        sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     end if
+                  end do
+                  iqq = iqq + bnds(sproc)%slen_eeu_fn - bnds(sproc)%slen_nnv_bg + 1
+               end do   
+            end if
+            if ( fsuev ) then
+               do k = 1,kx 
+                  iqz = iqq - bnds(sproc)%slen_su_bg + 1 
 !$omp simd
-               do iq = bnds(sproc)%slen_su_bg,bnds(sproc)%slen_ev_fn
-                  ! send_list_uv(iq) is point index.
-                  ! Use abs because sign is used as u/v flag
-                  if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
-                  else
-                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
-                 end if
-              end do
-              iqq = iqq + bnds(sproc)%slen_ev_fn - bnds(sproc)%slen_su_bg + 1
-            end do  
-         end if
-         if ( fnnueev ) then
-            do k = 1,kx 
-               iqz = iqq - bnds(sproc)%slen_nnu_bg + 1 
+                  do iq = bnds(sproc)%slen_su_bg,bnds(sproc)%slen_ev_fn
+                     ! send_list_uv(iq) is point index.
+                     ! Use abs because sign is used as u/v flag
+                     if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                        sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     else
+                        sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
+                    end if
+                 end do
+                 iqq = iqq + bnds(sproc)%slen_ev_fn - bnds(sproc)%slen_su_bg + 1
+               end do  
+            end if
+            if ( fnnueev ) then
+               do k = 1,kx 
+                  iqz = iqq - bnds(sproc)%slen_nnu_bg + 1 
 !$omp simd
-               do iq = bnds(sproc)%slen_nnu_bg,bnds(sproc)%slen_eev_fn
-                  ! send_list_uv(iq) is point index.
-                  ! Use abs because sign is used as u/v flag
-                  if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
-                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
-                  else
-                     sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
-                  end if
-               end do
-               iqq = iqq + bnds(sproc)%slen_eev_fn - bnds(sproc)%slen_nnu_bg + 1
-            end do   
-         end if
-         if ( iqq > 0 ) then
-            nreq = nreq + 1
-            llen = iqq
-            lproc = sproc
-            call MPI_ISend( sbuf(:,iproc), llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
+                  do iq = bnds(sproc)%slen_nnu_bg,bnds(sproc)%slen_eev_fn
+                     ! send_list_uv(iq) is point index.
+                     ! Use abs because sign is used as u/v flag
+                     if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
+                        sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*u(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     else
+                        sbuf(iqz+iq,iproc) = bnds(sproc)%send_neg(iq)*v(abs(bnds(sproc)%send_list_uv(iq)),k)
+                     end if
+                  end do
+                  iqq = iqq + bnds(sproc)%slen_eev_fn - bnds(sproc)%slen_nnu_bg + 1
+               end do   
+            end if
+            if ( iqq > 0 ) then
+               nreq = nreq + 1
+               llen = iqq
+               lproc = sproc
+               call MPI_ISend( sbuf(:,iproc), llen, ltype, lproc, &
+                    itag, lcomm, ireq(nreq), ierr )
+            end if
          end if
       end do
 
@@ -6099,6 +6272,97 @@ contains
             end if
          end do
       end do
+
+      !fill halo region with a default value
+      if ( present(fill) ) then
+         do iproc = 1,neighnum
+            if ( excneighlist(iproc) == MPI_UNDEFINED ) then
+               recv_len = recv_len_a(iproc)
+               if ( recv_len > 0 ) then
+                  rproc = neighlist(iproc)  ! Recv from
+
+                  if ( fsvwu ) then
+                     do k = 1,kx  
+!$omp simd
+                        do iq = bnds(rproc)%rlen_sv_bg,bnds(rproc)%rlen_wu_fn
+                           ! unpack_list(iq) is index into extended region
+                           if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                              u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = fill
+                           else
+                              v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = fill
+                           end if
+                        end do
+                     end do   
+                  end if
+                  if ( fnveu ) then
+                     do k = 1,kx 
+!$omp simd
+                        do iq = bnds(rproc)%rlen_nv_bg,bnds(rproc)%rlen_eu_fn
+                           ! unpack_list(iq) is index into extended region
+                           if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                              u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = fill
+                           else
+                              v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = fill
+                           end if
+                        end do
+                     end do   
+                  end if         
+                  if ( fssvwwu ) then
+                     do k = 1,kx 
+!$omp simd
+                        do iq = bnds(rproc)%rlen_ssv_bg,bnds(rproc)%rlen_wwu_fn
+                           ! unpack_list(iq) is index into extended region
+                           if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                              u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = fill
+                           else
+                              v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = fill
+                           end if
+                        end do
+                     end do  
+                  end if         
+                  if ( fnnveeu ) then
+                     do k = 1,kx 
+!$omp simd
+                        do iq = bnds(rproc)%rlen_nnv_bg,bnds(rproc)%rlen_eeu_fn
+                           ! unpack_list(iq) is index into extended region
+                           if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                              u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = fill
+                           else
+                              v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = fill
+                           end if
+                        end do
+                     end do   
+                  end if     
+                  if ( fsuev ) then
+                     do k = 1,kx 
+!$omp simd
+                        do iq = bnds(rproc)%rlen_su_bg,bnds(rproc)%rlen_ev_fn
+                           ! unpack_list(iq) is index into extended region
+                           if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                              u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = fill
+                           else
+                              v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = fill
+                           end if
+                        end do
+                     end do
+                  end if
+                  if ( fnnueev ) then
+                     do k = 1,kx 
+!$omp simd
+                        do iq = bnds(rproc)%rlen_nnu_bg,bnds(rproc)%rlen_eev_fn
+                           ! unpack_list(iq) is index into extended region
+                           if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                              u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = fill
+                           else
+                              v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = fill
+                           end if
+                        end do
+                     end do   
+                  end if
+               end if
+            end if
+         end do
+      end if
 
       ! Clear any remaining messages
       sreq = nreq - rreq
@@ -8466,13 +8730,22 @@ contains
    
    end subroutine ccmpi_commsplit
    
-   subroutine ccmpi_oceancomm(colour)
+   subroutine ccmpi_boundsmask(mask,colour)
    
+      integer, intent(in) :: mask
       integer, intent(in) :: colour
       integer(kind=4) :: lcomm, lcommout, lerr, lrank, lcolour, lgroup
-      integer :: i
-      integer, allocatable, dimension(:) :: list
-   
+
+      if ( mask > 0 .and. mask <= max_mask ) then
+         if ( mask_set(mask) ) then
+            write(6,*) "ERROR: mask already set ",mask
+            call ccmpi_abort(-1)
+         end if
+      else
+         write(6,*) "ERROR: mask is out of range, max_mask, mask ",max_mask, mask
+         call ccmpi_abort(-1)
+      end if
+
       lcomm = comm_world
       lrank = myid
       if ( colour>=0 ) then
@@ -8482,23 +8755,40 @@ contains
       end if
       call MPI_Comm_Split(lcomm, lcolour, lrank, lcommout, lerr)
       call MPI_Comm_group(lcommout, lgroup, lerr)
-      comm_ocean = lcommout
-      group_ocean = lgroup
 
-      if ( comm_ocean /= MPI_COMM_NULL) then
-        allocate(list(neighnum))
-        call MPI_Group_translate_ranks(group_world,neighnum,neighlist,group_ocean,list,lerr)
-        neighnumo = count(list/=MPI_UNDEFINED)
+      select case(mask)
+         case(1)
+            call ccmpi_excneighlist(lcommout,lgroup,neighnum,neighlist,excneighlist)
+         case(2)
+            call ccmpi_excneighlist(lcommout,lgroup,neighnum,neighlist,excneighlisto)
+         case default
+            write(6,*) "ERROR: unknown bounds mask"
+            call ccmpi_abort(-1)
+      end select
 
-        allocate(neighlisto(neighnumo))
-        neighlisto = pack(neighlist,list/=MPI_UNDEFINED)
+      mask_set(mask)=.true.
+         
+   end subroutine ccmpi_boundsmask
+   
+   subroutine ccmpi_excneighlist(comm,group,neighnum,neighlist,excneighlist)
+   
+      integer(kind=4), intent(in) :: comm
+      integer(kind=4), intent(in) :: group
+      integer, intent(in) :: neighnum
+      integer, dimension(:), intent(in) :: neighlist
+      integer, dimension(:), allocatable, intent(inout) :: excneighlist
+      integer(kind=4) :: lerr
+   
+      if ( comm /= MPI_COMM_NULL) then
+        allocate(excneighlist(neighnum))
+        call MPI_Group_translate_ranks(group_world,neighnum,neighlist,group,excneighlist,lerr)
       else
-        neighnumo = 0
-        allocate(neighlisto(neighnumo))
+        allocate(excneighlisto(neighnum))
+        excneighlisto = MPI_UNDEFINED
       end if
-   
-   end subroutine ccmpi_oceancomm
-   
+
+   end subroutine ccmpi_excneighlist
+
    subroutine ccmpi_commfree(comm)
    
       integer, intent(in) :: comm
