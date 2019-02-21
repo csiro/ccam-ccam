@@ -137,7 +137,64 @@ do ii = 1,wlev
 end do  
 call bounds(ee,nrows=2)
 
+#if 0
 if ( any(ee(:,1)>0.5) ) has_ocean = 1
+#else
+if ( any(ee(1:ifull,1)>0.5) ) has_ocean = 1
+
+if ( any(ee(in,1)>0.5) ) has_ocean = 1
+if ( any(ee(is,1)>0.5) ) has_ocean = 1
+if ( any(ee(ie,1)>0.5) ) has_ocean = 1
+if ( any(ee(iw,1)>0.5) ) has_ocean = 1
+
+if ( any(ee(ine,1)>0.5) ) has_ocean = 1
+if ( any(ee(ien,1)>0.5) ) has_ocean = 1
+if ( any(ee(ise,1)>0.5) ) has_ocean = 1
+if ( any(ee(ies,1)>0.5) ) has_ocean = 1
+if ( any(ee(isw,1)>0.5) ) has_ocean = 1
+if ( any(ee(iws,1)>0.5) ) has_ocean = 1
+if ( any(ee(inw,1)>0.5) ) has_ocean = 1
+if ( any(ee(iwn,1)>0.5) ) has_ocean = 1
+
+if ( any(ee(inn,1)>0.5) ) has_ocean = 1
+if ( any(ee(iss,1)>0.5) ) has_ocean = 1
+if ( any(ee(iee,1)>0.5) ) has_ocean = 1
+if ( any(ee(iww,1)>0.5) ) has_ocean = 1
+
+if ( any(ee(inu,1)>0.5) ) has_ocean = 1
+if ( any(ee(isu,1)>0.5) ) has_ocean = 1
+if ( any(ee(ieu,1)>0.5) ) has_ocean = 1
+if ( any(ee(iwu,1)>0.5) ) has_ocean = 1
+if ( any(ee(inv,1)>0.5) ) has_ocean = 1
+if ( any(ee(isv,1)>0.5) ) has_ocean = 1
+if ( any(ee(iev,1)>0.5) ) has_ocean = 1
+if ( any(ee(iwv,1)>0.5) ) has_ocean = 1
+
+if ( any(ee(innv,1)>0.5) ) has_ocean = 1
+if ( any(ee(issv,1)>0.5) ) has_ocean = 1
+!if ( any(ee(ieev,1)>0.5) ) has_ocean = 1
+!if ( any(ee(innu,1)>0.5) ) has_ocean = 1
+if ( any(ee(ieeu,1)>0.5) ) has_ocean = 1
+if ( any(ee(iwwu,1)>0.5) ) has_ocean = 1
+
+if ( any(ee(lwws,1)>0.5) ) has_ocean = 1
+if ( any(ee(lwss,1)>0.5) ) has_ocean = 1
+if ( any(ee(lees,1)>0.5) ) has_ocean = 1
+if ( any(ee(less,1)>0.5) ) has_ocean = 1
+if ( any(ee(lwwn,1)>0.5) ) has_ocean = 1
+if ( any(ee(lwnn,1)>0.5) ) has_ocean = 1
+if ( any(ee(leen,1)>0.5) ) has_ocean = 1
+if ( any(ee(lenn,1)>0.5) ) has_ocean = 1
+if ( any(ee(lsww,1)>0.5) ) has_ocean = 1
+if ( any(ee(lssw,1)>0.5) ) has_ocean = 1
+if ( any(ee(lsee,1)>0.5) ) has_ocean = 1
+if ( any(ee(lsse,1)>0.5) ) has_ocean = 1
+if ( any(ee(lnww,1)>0.5) ) has_ocean = 1
+if ( any(ee(lnnw,1)>0.5) ) has_ocean = 1
+if ( any(ee(lnee,1)>0.5) ) has_ocean = 1
+if ( any(ee(lnne,1)>0.5) ) has_ocean = 1
+#endif
+
 call ccmpi_boundsmask(2,has_ocean)
 
 do ii = 1,wlev

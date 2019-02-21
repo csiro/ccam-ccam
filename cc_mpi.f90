@@ -8783,8 +8783,8 @@ contains
         allocate(excneighlist(neighnum))
         call MPI_Group_translate_ranks(group_world,neighnum,neighlist,group,excneighlist,lerr)
       else
-        allocate(excneighlisto(neighnum))
-        excneighlisto = MPI_UNDEFINED
+        allocate(excneighlist(neighnum))
+        excneighlist = MPI_UNDEFINED
       end if
 
    end subroutine ccmpi_excneighlist
