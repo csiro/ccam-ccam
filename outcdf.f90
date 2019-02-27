@@ -306,10 +306,14 @@ if ( myid==0 .or. local ) then
     c20ydim = 0
     c5ddim = 0
     cadim = 0
-    if ( itype==-1 ) then
+    if ( itype==-1 .or. diaglevel_pop>= 9 ) then
       if ( cable_pop==1 ) then
         call ccnf_def_dim(idnc,'cable_patch',POP_NPATCH,cpdim)  
         call ccnf_def_dim(idnc,'cable_cohort',POP_NCOHORT,c2pdim)  
+      end if
+    end if
+    if ( itype==-1 ) then
+      if ( cable_pop==1 ) then
         call ccnf_def_dim(idnc,'cable_agemax',POP_AGEMAX,cadim)  
       end if
       if ( cable_climate==1 ) then
@@ -421,11 +425,13 @@ if ( myid==0 .or. local ) then
       write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
     end if
     
-    if ( itype==-1 ) then
+    if ( itype==-1 .or. diaglevel_pop>=9 ) then
       if ( cable_pop==1 ) then
         call ccnf_def_var(idnc,'cable_patch','float',1,dimc1(3:3),idcp)  
         call ccnf_def_var(idnc,'cable_cohort','float',1,dimc2(4:4),idc2p)  
       end if
+    end if
+    if ( itype==-1 ) then
       if ( cable_climate==1 ) then
         call ccnf_def_var(idnc,'cable_91days','float',1,dimc3(3:3),idc91p)
         call ccnf_def_var(idnc,'cable_31days','float',1,dimc4(3:3),idc31p)
@@ -2216,7 +2222,7 @@ if( myid==0 .or. local ) then
     call ccnf_put_vara(idnc,'ds',1,ds)
     call ccnf_put_vara(idnc,'dt',1,dt)
     
-    if ( itype==-1 ) then
+    if ( itype==-1 .or. diaglevel_pop>=9 ) then
       if ( cable_pop==1 ) then
         allocate( cabledata(POP_NPATCH) )
         do i = 1,POP_NPATCH
@@ -2231,6 +2237,8 @@ if( myid==0 .or. local ) then
         call ccnf_put_vara(idnc,idc2p,1,POP_NCOHORT,cabledata)
         deallocate( cabledata )
       end if
+    end if
+    if ( itype==-1 ) then
       if ( cable_climate==1 ) then
         allocate( cabledata(91) )
         do i = 1,91
