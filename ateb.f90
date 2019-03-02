@@ -5250,7 +5250,7 @@ iroomtemp = (rm*room%nodetemp(:,1)         & ! room temperature
            + im1*intm%nodetemp(:,0)        & ! mass conduction side 1
            + im2*intm%nodetemp(:,nl)       & ! mass conduction side 2
            + infl*d_canyontemp_prev*0.5    & ! infiltration old
-           + infl*d_canyontemp             & ! infiltration
+           + infl*d_canyontemp*0.5         & ! infiltration new
            + d_ac_inside                   & ! ac flux (iterative)
            + d_intgains_bld                & ! internal gains (explicit)
            )/(rm+rf+we+ww+sl+im1+im2+infl)
