@@ -685,6 +685,7 @@ if ( iernc==0 ) then
   if ( interpolate ) then
     write(6,*) "Interpolation is required for AMIPSST"
     
+    allocate( nface4(ifull,4), xg4(ifull,4), yg4(ifull,4) )
     allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
     xx4 => xx4_dummy
     yy4 => yy4_dummy
