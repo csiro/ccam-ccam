@@ -33,6 +33,7 @@ program globpe
 
 use aerointerface                          ! Aerosol interface
 use aerosolldr, only : naero,xtosav,xtg    ! LDR prognostic aerosols
+use amipsst_m                              ! AMIP SSTs
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
 use cc_mpi                                 ! CC MPI routines
