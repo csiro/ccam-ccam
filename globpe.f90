@@ -2933,7 +2933,7 @@ if ( myid<nproc ) then
     deallocate( f_g, fu_g, fv_g )
     deallocate( dmdx_g, dmdy_g )
     deallocate( rlatt_g, rlongg_g )
-    deallocate( rlong4, rlat4 )
+    !deallocate( rlong4, rlat4 )
   end if
 
 
