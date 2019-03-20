@@ -685,14 +685,14 @@ if ( iernc==0 ) then
   if ( interpolate ) then
     write(6,*) "Interpolation is required for AMIPSST"
     
-    allocate( nface4(ifull,4), xg4(ifull,4), yg4(ifull,4) )
+    allocate( nface4(ifull_g,4), xg4(ifull_g,4), yg4(ifull_g,4) )
     allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
     xx4 => xx4_dummy
     yy4 => yy4_dummy
-    if ( m_fly==1 ) then
-      rlong4_l(:,1) = rlongg(:)*180./pi
-      rlat4_l(:,1)  = rlatt(:)*180./pi
-    end if
+    !if ( m_fly==1 ) then
+    !  rlong4_l(:,1) = rlongg(:)*180./pi
+    !  rlat4_l(:,1)  = rlatt(:)*180./pi
+    !end if
     write(6,*) "Defining input file grid"
     allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
     allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
@@ -715,8 +715,8 @@ if ( iernc==0 ) then
     deallocate( wts_a ) 
     ! setup interpolation arrays
     do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
-      do iq = 1,ifull
-        call latltoij(rlong4_l(iq,mm),rlat4_l(iq,mm),       & !input
+      do iq = 1,ifull_g
+        call latltoij(rlong4(iq,mm),rlat4(iq,mm),           & !input
                       rlon_in,rlat_in,schmidt_in,           & !input
                       xg4(iq,mm),yg4(iq,mm),nface4(iq,mm),  & !output (source)
                       xx4,yy4,ik)
@@ -898,9 +898,9 @@ if ( iernc==0 ) then
     if ( interpolate ) then
       call fill_cc4(ssta_g(:,1:5),lsma_g)
       call doints4(ssta_g(:,1:5),ssta_l(:,1:5))
-      call ccmpi_distribute(ssta(:,1:5), ssta_l(:,1:5))
+      call ccmpi_distribute(aice(:,1:5), ssta_l(:,1:5))
     else
-      call ccmpi_distribute(ssta(:,1:5), ssta_g(:,1:5))
+      call ccmpi_distribute(aice(:,1:5), ssta_g(:,1:5))
     end if  
     
   end if  
@@ -956,9 +956,9 @@ if ( iernc==0 ) then
     if ( interpolate ) then
       call fill_cc4(ssta_g(:,1:5),lsma_g)
       call doints4(ssta_g(:,1:5),ssta_l(:,1:5))
-      call ccmpi_distribute(ssta(:,1:5), ssta_l(:,1:5))
+      call ccmpi_distribute(asal(:,1:5), ssta_l(:,1:5))
     else
-      call ccmpi_distribute(ssta(:,1:5), ssta_g(:,1:5))
+      call ccmpi_distribute(asal(:,1:5), ssta_g(:,1:5))
     end if  
 
   end if
@@ -1189,19 +1189,19 @@ implicit none
 integer mm, k, kx
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
-real, dimension(ifull) :: wrk
+real, dimension(ifull_g) :: wrk
 real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
 
 kx = size(sout,2)
 sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
 
 do k = 1,kx
-  sout(1:ifull,k) = 0.
+  sout(1:ifull_g,k) = 0.
   sx(1:ik,1:ik,0:npanels) = reshape( s(1:6*ik*ik,k), (/ ik, ik, npanels+1 /) )
   call sxpanelbounds(sx)
   do mm = 1,m_fly
     call intsb(sx,wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
-    sout(1:ifull,k) = sout(1:ifull,k) + wrk/real(m_fly)
+    sout(1:ifull_g,k) = sout(1:ifull_g,k) + wrk/real(m_fly)
   end do
 end do
 
@@ -1292,17 +1292,17 @@ use parm_m                 ! Model configuration
 
 implicit none
 
-integer, dimension(ifull), intent(in) :: nface_l
+integer, dimension(ifull_g), intent(in) :: nface_l
 integer :: idel, jdel, n, iq
-real, dimension(ifull), intent(inout) :: sout
-real, intent(in), dimension(ifull) :: xg_l, yg_l
+real, dimension(ifull_g), intent(inout) :: sout
+real, intent(in), dimension(ifull_g) :: xg_l, yg_l
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
 
-do iq = 1,ifull   ! runs through list of target points
+do iq = 1,ifull_g   ! runs through list of target points
   n = nface_l(iq)
   idel = int(xg_l(iq))
   xxg = xg_l(iq) - real(idel)
