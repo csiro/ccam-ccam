@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -43,6 +43,19 @@
 !     start of a month, is updated to 2 at end of first day etc.)
 !     imo is the number of the month we are in (1<=imo<=12)
 
+module amipsst_m
+
+implicit none
+
+private
+public amipsst
+
+integer, save :: ik
+integer, dimension(:,:), allocatable :: nface4
+real, dimension(:,:), allocatable :: xg4, yg4
+
+contains
+    
 subroutine amipsst
 
 use arrays_m                                      ! Atmosphere dyamics prognostic arrays
@@ -131,7 +144,7 @@ fraciceb = 0.
 if ( ktau==0 ) then
     
   if ( myid==0 ) then 
-    call amiprd(ssta,aice,asal,namip,iyr,imo,idjd_g)
+    call amiprd(ssta,aice,asal,iyr,imo,idjd_g)
   else
     call ccmpi_distribute(ssta(:,1:5))
     if ( namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=13.and.namip<=15) .or. &
@@ -578,25 +591,32 @@ return
 end subroutine amipsst
       
     
-subroutine amiprd(ssta,aice,asal,namip,iyr,imo,idjd_g)
+subroutine amiprd(ssta,aice,asal,iyr,imo,idjd_g)
       
 use cc_mpi                ! CC MPI routines
+use const_phys            ! Physical constants
 use filnames_m            ! Filenames
 use infile                ! Input file routines
+use latlong_m             ! Lat/lon coordinates
+use latltoij_m            ! Lat/Lon to cubic ij conversion
 use newmpar_m             ! Grid parameters
+use parm_m                ! Model configuration
 use parmgeom_m            ! Coordinate data
-      
+use setxyz_m              ! Define CCAM grid
+use workglob_m            ! Additional grid interpolation
+
 implicit none
       
 integer, parameter :: nihead = 54
 integer, parameter :: nrhead = 14
       
-integer, intent(in) :: namip, iyr, imo, idjd_g
+integer, intent(in) :: iyr, imo, idjd_g
 integer imonth, iyear, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
-integer varid, ncidx, iarchx, maxarchi, iernc
+integer varid, ncidx, iarchx, maxarchi, iernc, lsmid
 integer varid_date, varid_time, varid_timer
 integer mtimer_r, kdate_r, ktime_r
 integer kdate_rsav, ktime_rsav
+integer iq, mm
 integer, dimension(3) :: spos, npos
 #ifdef i8r8
 integer, dimension(nihead) :: nahead
@@ -606,17 +626,28 @@ integer(kind=4), dimension(nihead) :: nahead
 real, dimension(ifull,5), intent(out) :: ssta
 real, dimension(ifull,5), intent(out) :: aice
 real, dimension(ifull,5), intent(out) :: asal
-real, dimension(ifull_g,5) :: ssta_g
+real, dimension(:,:), allocatable :: ssta_g, ssta_l
+real, dimension(:), allocatable :: lsmr_g
 real, dimension(nrhead) :: ahead
 real rlon_in, rlat_in, schmidt_in
 real of, sc
 real timer_r
-logical ltest, tst
+real, dimension(:), allocatable :: axs_a, ays_a, azs_a
+real, dimension(:), allocatable :: bxs_a, bys_a, bzs_a
+real, dimension(:), allocatable :: axs_w, ays_w, azs_w
+real, dimension(:), allocatable :: bxs_w, bys_w, bzs_w 
+real, dimension(:), allocatable :: wts_a
+real, dimension(:), allocatable :: lsm_a
+real(kind=8), dimension(:,:), pointer :: xx4, yy4
+real(kind=8), dimension(:,:), allocatable, target :: xx4_dummy, yy4_dummy
+real(kind=8), dimension(:), pointer :: z_a, x_a, y_a
+real(kind=8), dimension(:), allocatable, target :: z_a_dummy, x_a_dummy, y_a_dummy
+logical ltest, tst, interpolate
+logical, dimension(:), allocatable :: lsma_g
 character(len=22) header
 character(len=10) unitstr
 character(len=80) datestring
 
-ssta_g = 0.
 ssta = 300.
 aice = 0.
 asal = 0.
@@ -643,20 +674,70 @@ if ( iernc==0 ) then
     rlat_in    = ahead(7)
     schmidt_in = ahead(8)
   endif  ! (schmidtx<=0..or.schmidtx>1.)  
-  if(il_g/=il_in.or.jl_g/=jl_in.or.abs(rlong0-rlon_in)>1.e-6.or.abs(rlat0-rlat_in)>1.e-6.or. &
-      abs(schmidt-schmidt_in)>0.0002)then
-    write(6,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',il_g,il_in,jl_g,jl_in,rlong0,rlon_in
-    write(6,*) 'rlat0,rlat_in,schmidt,schmidt_in',rlat0,rlat_in,schmidt,schmidt_in
-    write(6,*) 'wrong amipsst file'
-    write(6,*) "NOTE: amipsst usually requires a uniform grid that matches the input amimsst file"
-    write(6,*) "Please check your grid configuration"
-    call ccmpi_abort(-1)
-  endif
   call ccnf_get_attg(ncidx,'leap',leap_in,tst)
-  if ( tst ) then
-    leap_in = 0
-  end if
+  if ( tst ) leap_in = 0
   call ccnf_inq_dimlen(ncidx,'time',maxarchi)
+         
+  interpolate = ( il_g/=il_in .or. jl_g/=jl_in .or. abs(rlong0-rlon_in)>1.e-6 .or. abs(rlat0-rlat_in)>1.e-6 .or. &
+       abs(schmidt-schmidt_in)>0.0002 )
+  ik = il_in
+  
+  if ( interpolate ) then
+    write(6,*) "Interpolation is required for AMIPSST"
+    
+    allocate( nface4(ifull_g,4), xg4(ifull_g,4), yg4(ifull_g,4) )
+    allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
+    xx4 => xx4_dummy
+    yy4 => yy4_dummy
+    !if ( m_fly==1 ) then
+    !  rlong4_l(:,1) = rlongg(:)*180./pi
+    !  rlat4_l(:,1)  = rlatt(:)*180./pi
+    !end if
+    write(6,*) "Defining input file grid"
+    allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
+    allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
+    allocate( x_a_dummy(ik*ik*6), y_a_dummy(ik*ik*6), z_a_dummy(ik*ik*6) )
+    allocate( wts_a(ik*ik*6) )
+    x_a => x_a_dummy
+    y_a => y_a_dummy
+    z_a => z_a_dummy
+    !   following setxyz call is for source data geom    ****   
+    do iq = 1,ik*ik*6
+      axs_a(iq) = real(iq)
+      ays_a(iq) = real(iq)
+      azs_a(iq) = real(iq)
+    end do 
+    call setxyz(ik,rlon_in,rlat_in,-schmidt_in,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4, &
+                id,jd,ktau,ds)
+    nullify( x_a, y_a, z_a )
+    deallocate( x_a_dummy, y_a_dummy, z_a_dummy ) 
+    deallocate( axs_a, ays_a, azs_a, bxs_a, bys_a, bzs_a )
+    deallocate( wts_a ) 
+    ! setup interpolation arrays
+    do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
+      do iq = 1,ifull_g
+        call latltoij(rlong4(iq,mm),rlat4(iq,mm),           & !input
+                      rlon_in,rlat_in,schmidt_in,           & !input
+                      xg4(iq,mm),yg4(iq,mm),nface4(iq,mm),  & !output (source)
+                      xx4,yy4,ik)
+      end do
+    end do
+    nullify( xx4, yy4 )
+    deallocate( xx4_dummy, yy4_dummy )    
+  else
+    write(6,*) "No interpolation is required for AMIPSST"
+  end if
+
+  if ( interpolate ) then
+    allocate( ssta_g(ik*ik*6,5), ssta_l(ifull_g,5), lsma_g(ik*ik*6) )
+    lsma_g = .false.
+    ssta_g = 0.
+    ssta_l = 0.
+  else
+    allocate( ssta_g(ifull_g,5) )
+    ssta_g = 0.
+  end if    
+  
   ! search for required month
   iarchx = 0
   iyear  = -999
@@ -693,11 +774,22 @@ if ( iernc==0 ) then
   if ( trim(unitstr)=='C' ) then
     write(6,*) "Converting SSTs from degC to degK"  
   end if
-  npos(1) = il_g
-  npos(2) = 6*il_g
+  npos(1) = ik
+  npos(2) = 6*ik
   npos(3) = 1    
   spos(1:2) = 1
   spos(3) = max( iarchx - 2, 1 )
+  if ( interpolate ) then
+    call ccnf_inq_varid(ncidx,'lsm',lsmid,tst)
+    if ( tst ) then
+      write(6,*) "ERROR: Cannot locate lsm"
+      call ccmpi_abort(-1)
+    end if
+    allocate( lsmr_g(ik*ik*6) )  
+    call ccnf_get_vara(ncidx,lsmid,spos(1:2),npos(1:2),lsmr_g(:))
+    lsma_g = lsmr_g >= 0.5
+    deallocate( lsmr_g )
+  end if    
   if ( namip>=11 .or. namip<=15 ) then
     if ( spos(3)>iarchx-2 .and. myid==0 ) then
       write(6,*) "Warning: Using current SSTs for previous month(s)"
@@ -740,8 +832,144 @@ if ( iernc==0 ) then
   else
     ssta_g(:,5)=0. ! dummy.  Should not be used.       
   end if 
-  call ccmpi_distribute(ssta(:,1:5), ssta_g(:,1:5))
-          
+  
+  if ( interpolate ) then
+    call fill_cc4(ssta_g(:,1:5),lsma_g)
+    call doints4(ssta_g(:,1:5),ssta_l(:,1:5))
+    call ccmpi_distribute(ssta(:,1:5), ssta_l(:,1:5))
+  else
+    call ccmpi_distribute(ssta(:,1:5), ssta_g(:,1:5))
+  end if  
+
+  if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
+       namip==14 .or. namip==15 .or. namip==24 .or. namip==25 ) then   ! sice also read at middle of month
+
+    ! NETCDF
+    call ccnf_inq_varid(ncidx,'sic',varid,tst)
+    if (tst) then
+      write(6,*) "ERROR: Cannot locate sic"
+      call ccmpi_abort(-1)
+    end if
+    write(6,*) "Reading Sea Ice data from amipsst file"
+    spos(3)=max( iarchx - 2, 1 )
+    if ( namip>=11 .or. namip<=15 ) then
+      if ( spos(3)>iarchx-2 .and. myid==0 ) then
+        write(6,*) "Warning: Using current sea-ice for previous month(s)" 
+      end if
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
+      call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
+      if (ierr/=0) of=0.
+      call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
+      if (ierr/=0) sc=1.
+      ssta_g(:,1)=sc*ssta_g(:,1)+of
+      ssta_g(:,1)=100.*ssta_g(:,1)  
+    else
+      ssta_g(:,1)=0. ! dummy.  Should not be used.
+    end if
+    spos(3)=max( iarchx - 1, 1 )
+    if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
+       (namip>=21.and.namip<=25) ) then
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,2))
+      ssta_g(:,2)=sc*ssta_g(:,2)+of
+      ssta_g(:,2)=100.*ssta_g(:,2)       
+    else
+      ssta_g(:,2)=0. ! dummy.  Should not be used.      
+    end if
+    spos(3)=iarchx
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,3))
+    ssta_g(:,3)=sc*ssta_g(:,3)+of
+    ssta_g(:,3)=100.*ssta_g(:,3)       
+    spos(3)=min( iarchx + 1, maxarchi )
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,4))
+    ssta_g(:,4)=sc*ssta_g(:,4)+of
+    ssta_g(:,4)=100.*ssta_g(:,4)       
+    spos(3)=min( iarchx + 2, maxarchi )
+    if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
+      if ( spos(3)<iarchx+2 .and. myid==0 ) then
+        write(6,*) "Warning: Using current sea-ice for next month(s)"
+      end if
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,5))
+      ssta_g(:,5)=sc*ssta_g(:,5)+of
+      ssta_g(:,5)=100.*ssta_g(:,5)       
+    else
+      ssta_g(:,5)=0. ! dummy.  Should not be used.    
+    end if
+
+    if ( interpolate ) then
+      call fill_cc4(ssta_g(:,1:5),lsma_g)
+      call doints4(ssta_g(:,1:5),ssta_l(:,1:5))
+      call ccmpi_distribute(aice(:,1:5), ssta_l(:,1:5))
+    else
+      call ccmpi_distribute(aice(:,1:5), ssta_g(:,1:5))
+    end if  
+    
+  end if  
+
+  if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
+      
+    ! NETCDF
+    call ccnf_inq_varid(ncidx,'sss',varid,tst)
+    if (tst) then
+      write(6,*) "ERROR: Cannot locate sss"
+      call ccmpi_abort(-1)
+    end if
+    write(6,*) "Reading Salinity data from amipsst file"
+    spos(3)=max( iarchx - 2, 1 )
+    if ( namip>=11 .or. namip<=15 ) then
+      if ( spos(3)>iarchx-2 .and. myid==0 ) then
+        write(6,*) "Warning: Using current salinity for previous month(s)"
+      end if
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
+      call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
+      if (ierr/=0) of=0.
+      call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
+      if (ierr/=0) sc=1.  
+      ssta_g(:,1)=sc*ssta_g(:,1)+of
+    else
+      ssta_g(:,1)=0. ! dummy.  Should not be used.
+    end if
+    spos(3)=max( iarchx - 1, 1 )
+    if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
+       (namip>=21.and.namip<=25) ) then
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,2))
+      ssta_g(:,2)=sc*ssta_g(:,2)+of
+    else
+      ssta_g(:,2)=0. ! dummy.  Should not be used.      
+    end if
+    spos(3)=iarchx
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,3))
+    ssta_g(:,3)=sc*ssta_g(:,3)+of
+    spos(3)=min( iarchx + 1, maxarchi )
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,4))
+    ssta_g(:,4)=sc*ssta_g(:,4)+of
+    spos(3)=min( iarchx + 2, maxarchi )
+    if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
+      if ( spos(3)<iarchx+2 .and. myid==0 ) then
+        write(6,*) "Warning: Using current salinity for next month"
+      end if
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,5))
+      ssta_g(:,5)=sc*ssta_g(:,5)+of
+    else
+      ssta_g(:,5)=0. ! dummy.  Should not be used.    
+    end if
+    
+    if ( interpolate ) then
+      call fill_cc4(ssta_g(:,1:5),lsma_g)
+      call doints4(ssta_g(:,1:5),ssta_l(:,1:5))
+      call ccmpi_distribute(asal(:,1:5), ssta_l(:,1:5))
+    else
+      call ccmpi_distribute(asal(:,1:5), ssta_g(:,1:5))
+    end if  
+
+  end if
+
+  call ccnf_close(ncidx)
+  deallocate( ssta_g )
+  if ( interpolate ) then
+    deallocate( ssta_l, lsma_g )
+    deallocate( nface4, xg4, yg4 )
+  end if  
+  
 else
     
   ! ASCII  
@@ -826,67 +1054,10 @@ else
   write(6,*) 'sste(idjd) ',ssta_g(idjd_g,5)
   close(75)
   call ccmpi_distribute(ssta(:,1:5), ssta_g(:,1:5))
-  
-end if ! (iernc==0) .. else ..
-  
-if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
-     namip==14 .or. namip==15 .or. namip==24 .or. namip==25 ) then   ! sice also read at middle of month
-  if ( iernc == 0 ) then
-      
-    ! NETCDF
-    call ccnf_inq_varid(ncidx,'sic',varid,tst)
-    if (tst) then
-      write(6,*) "ERROR: Cannot locate sic"
-      call ccmpi_abort(-1)
-    end if
-    write(6,*) "Reading Sea Ice data from amipsst file"
-    spos(3)=max( iarchx - 2, 1 )
-    if ( namip>=11 .or. namip<=15 ) then
-      if ( spos(3)>iarchx-2 .and. myid==0 ) then
-        write(6,*) "Warning: Using current sea-ice for previous month(s)" 
-      end if
-      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
-      call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
-      if (ierr/=0) of=0.
-      call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
-      if (ierr/=0) sc=1.
-      ssta_g(:,1)=sc*ssta_g(:,1)+of
-      ssta_g(:,1)=100.*ssta_g(:,1)  
-    else
-      ssta_g(:,1)=0. ! dummy.  Should not be used.
-    end if
-    spos(3)=max( iarchx - 1, 1 )
-    if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
-       (namip>=21.and.namip<=25) ) then
-      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,2))
-      ssta_g(:,2)=sc*ssta_g(:,2)+of
-      ssta_g(:,2)=100.*ssta_g(:,2)       
-    else
-      ssta_g(:,2)=0. ! dummy.  Should not be used.      
-    end if
-    spos(3)=iarchx
-    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,3))
-    ssta_g(:,3)=sc*ssta_g(:,3)+of
-    ssta_g(:,3)=100.*ssta_g(:,3)       
-    spos(3)=min( iarchx + 1, maxarchi )
-    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,4))
-    ssta_g(:,4)=sc*ssta_g(:,4)+of
-    ssta_g(:,4)=100.*ssta_g(:,4)       
-    spos(3)=min( iarchx + 2, maxarchi )
-    if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
-      if ( spos(3)<iarchx+2 .and. myid==0 ) then
-        write(6,*) "Warning: Using current sea-ice for next month(s)"
-      end if
-      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,5))
-      ssta_g(:,5)=sc*ssta_g(:,5)+of
-      ssta_g(:,5)=100.*ssta_g(:,5)       
-    else
-      ssta_g(:,5)=0. ! dummy.  Should not be used.    
-    end if
-    call ccmpi_distribute(aice(:,1:5), ssta_g(:,1:5))
-          
-  else
-      
+
+  if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
+       namip==14 .or. namip==15 .or. namip==24 .or. namip==25 ) then   ! sice also read at middle of month
+
     ! ASCII
     open(unit=76,file=icefile,status='old',form='formatted',iostat=ierr)
     if (ierr/=0) then
@@ -941,62 +1112,11 @@ if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
     write(6,*) 'eice(idjd) ',ssta_g(idjd_g,5)    
     close(76)
     call ccmpi_distribute(aice(:,1:5), ssta_g(:,1:5))
-  end if ! (iernc==0) ..else..    	    
-  
-endif   ! (namip>=2) 
-      
-if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
-  if (iernc==0) then
-      
-    ! NETCDF
-    call ccnf_inq_varid(ncidx,'sss',varid,tst)
-    if (tst) then
-      write(6,*) "ERROR: Cannot locate sss"
-      call ccmpi_abort(-1)
-    end if
-    write(6,*) "Reading Salinity data from amipsst file"
-    spos(3)=max( iarchx - 2, 1 )
-    if ( namip>=11 .or. namip<=15 ) then
-      if ( spos(3)>iarchx-2 .and. myid==0 ) then
-        write(6,*) "Warning: Using current salinity for previous month(s)"
-      end if
-      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
-      call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
-      if (ierr/=0) of=0.
-      call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
-      if (ierr/=0) sc=1.  
-      ssta_g(:,1)=sc*ssta_g(:,1)+of
-    else
-      ssta_g(:,1)=0. ! dummy.  Should not be used.
-    end if
-    spos(3)=max( iarchx - 1, 1 )
-    if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
-       (namip>=21.and.namip<=25) ) then
-      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,2))
-      ssta_g(:,2)=sc*ssta_g(:,2)+of
-    else
-      ssta_g(:,2)=0. ! dummy.  Should not be used.      
-    end if
-    spos(3)=iarchx
-    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,3))
-    ssta_g(:,3)=sc*ssta_g(:,3)+of
-    spos(3)=min( iarchx + 1, maxarchi )
-    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,4))
-    ssta_g(:,4)=sc*ssta_g(:,4)+of
-    spos(3)=min( iarchx + 2, maxarchi )
-    if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
-      if ( spos(3)<iarchx+2 .and. myid==0 ) then
-        write(6,*) "Warning: Using current salinity for next month"
-      end if
-      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,5))
-      ssta_g(:,5)=sc*ssta_g(:,5)+of
-    else
-      ssta_g(:,5)=0. ! dummy.  Should not be used.    
-    end if
-    call ccmpi_distribute(asal(:,1:5), ssta_g(:,1:5))
+ 
+  end if
 
-  else
-      
+  if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
+     
     ! ASCII
     open(unit=77,file=salfile,status='old',form='formatted',iostat=ierr)
     if (ierr/=0) then
@@ -1051,13 +1171,247 @@ if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
     write(6,*) 'esal(idjd) ',ssta_g(idjd_g,5)    
     close(77)
     call ccmpi_distribute(asal(:,1:5), ssta_g(:,1:5))
-
-  end if ! (iernc==0) ..else..
-endif
-
-if ( iernc==0 ) then
-  call ccnf_close(ncidx)
-end if
+      
+  end if
+      
+end if ! (iernc==0) .. else ..
 
 return
 end subroutine amiprd
+
+subroutine doints4(s,sout)
+      
+use newmpar_m              ! Grid parameters
+use parm_m                 ! Model configuration
+
+implicit none
+      
+integer mm, k, kx
+real, dimension(:,:), intent(in) :: s
+real, dimension(:,:), intent(inout) :: sout
+real, dimension(ifull_g) :: wrk
+real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
+
+kx = size(sout,2)
+sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
+
+do k = 1,kx
+  sout(1:ifull_g,k) = 0.
+  sx(1:ik,1:ik,0:npanels) = reshape( s(1:6*ik*ik,k), (/ ik, ik, npanels+1 /) )
+  call sxpanelbounds(sx)
+  do mm = 1,m_fly
+    call intsb(sx,wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    sout(1:ifull_g,k) = sout(1:ifull_g,k) + wrk/real(m_fly)
+  end do
+end do
+
+return
+end subroutine doints4
+
+subroutine sxpanelbounds(sx_l)
+
+use newmpar_m
+
+implicit none
+
+integer i, n, n_w, n_e, n_n, n_s
+real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(inout) :: sx_l
+
+do n = 0,npanels
+  if ( mod(n,2)==0 ) then
+    n_w = mod(n+5, 6)
+    n_e = mod(n+2, 6)
+    n_n = mod(n+1, 6)
+    n_s = mod(n+4, 6)
+    do i = 1,ik
+      sx_l(-1,i,n)   = sx_l(ik-1,i,n_w)
+      sx_l(0,i,n)    = sx_l(ik,i,n_w)
+      sx_l(ik+1,i,n) = sx_l(ik+1-i,1,n_e)
+      sx_l(ik+2,i,n) = sx_l(ik+1-i,2,n_e)
+      sx_l(i,-1,n)   = sx_l(ik-1,ik+1-i,n_s)
+      sx_l(i,0,n)    = sx_l(ik,ik+1-i,n_s)
+      sx_l(i,ik+1,n) = sx_l(i,1,n_n)
+      sx_l(i,ik+2,n) = sx_l(i,2,n_n)
+    end do ! i
+    sx_l(0,0,n)       = sx_l(ik,1,n_w)        ! ws
+    sx_l(-1,0,n)      = sx_l(ik,2,n_w)        ! wws
+    sx_l(0,-1,n)      = sx_l(ik,ik-1,n_s)     ! wss
+    sx_l(ik+1,0,n)    = sx_l(ik,1,n_e)        ! es  
+    sx_l(ik+2,0,n)    = sx_l(ik-1,1,n_e)      ! ees 
+    sx_l(ik+1,-1,n)   = sx_l(ik,2,n_e)        ! ess        
+    sx_l(0,ik+1,n)    = sx_l(ik,ik,n_w)       ! wn  
+    sx_l(-1,ik+1,n)   = sx_l(ik,ik-1,n_w)     ! wwn
+    sx_l(0,ik+2,n)    = sx_l(ik-1,ik,n_w)     ! wnn
+    sx_l(ik+1,ik+1,n) = sx_l(1,1,n_e)         ! en  
+    sx_l(ik+2,ik+1,n) = sx_l(2,1,n_e)         ! een  
+    sx_l(ik+1,ik+2,n) = sx_l(1,2,n_e)         ! enn  
+  else
+    n_w = mod(n+4, 6)
+    n_e = mod(n+1, 6)
+    n_n = mod(n+2, 6)
+    n_s = mod(n+5, 6)
+    do i = 1,ik
+      sx_l(-1,i,n)   = sx_l(ik+1-i,ik-1,n_w)  
+      sx_l(0,i,n)    = sx_l(ik+1-i,ik,n_w)
+      sx_l(ik+1,i,n) = sx_l(1,i,n_e)
+      sx_l(ik+2,i,n) = sx_l(2,i,n_e)
+      sx_l(i,-1,n)   = sx_l(i,ik-1,n_s)
+      sx_l(i,0,n)    = sx_l(i,ik,n_s)
+      sx_l(i,ik+1,n) = sx_l(1,ik+1-i,n_n)
+      sx_l(i,ik+2,n) = sx_l(2,ik+1-i,n_n)
+    end do ! i
+    sx_l(0,0,n)       = sx_l(ik,ik,n_w)      ! ws
+    sx_l(-1,0,n)      = sx_l(ik-1,ik,n_w)    ! wws
+    sx_l(0,-1,n)      = sx_l(2,ik,n_s)       ! wss
+    sx_l(ik+1,0,n)    = sx_l(1,1,n_e)        ! es
+    sx_l(ik+2,0,n)    = sx_l(1,2,n_e)        ! ees
+    sx_l(ik+1,-1,n)   = sx_l(2,1,n_e)        ! ess
+    sx_l(0,ik+1,n)    = sx_l(1,ik,n_w)       ! wn       
+    sx_l(-1,ik+1,n)   = sx_l(2,ik,n_w)       ! wwn   
+    sx_l(0,ik+2,n)    = sx_l(1,ik-1,n_w)     ! wnn
+    sx_l(ik+1,ik+1,n) = sx_l(1,ik,n_e)       ! en  
+    sx_l(ik+2,ik+1,n) = sx_l(1,ik-1,n_e)     ! een  
+    sx_l(ik+1,ik+2,n) = sx_l(2,ik,n_e)       ! enn  
+  end if   ! mod(n,2)==0 ..else..
+end do       ! n loop
+
+return
+end subroutine sxpanelbounds
+
+subroutine intsb(sx_l,sout,nface_l,xg_l,yg_l)
+      
+!     same as subr ints, but with sout passed back and no B-S      
+!     s is input; sout is output array
+!     later may wish to save idel etc between array calls
+!     this one does linear interp in x on outer y sides
+!     doing x-interpolation before y-interpolation
+!     This is a global routine 
+
+use newmpar_m              ! Grid parameters
+use parm_m                 ! Model configuration
+
+implicit none
+
+integer, dimension(ifull_g), intent(in) :: nface_l
+integer :: idel, jdel, n, iq
+real, dimension(ifull_g), intent(inout) :: sout
+real, intent(in), dimension(ifull_g) :: xg_l, yg_l
+real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
+real xxg, yyg, cmin, cmax
+real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
+real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
+
+
+do iq = 1,ifull_g   ! runs through list of target points
+  n = nface_l(iq)
+  idel = int(xg_l(iq))
+  xxg = xg_l(iq) - real(idel)
+  jdel = int(yg_l(iq))
+  yyg = yg_l(iq) - real(jdel)
+  ! bi-cubic
+  cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+  cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+  cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+  cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+  dmul_2 = (1.-xxg)
+  dmul_3 = xxg
+  emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+  emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+  emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+  emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+  cmin = min(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
+             sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
+  cmax = max(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
+             sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
+  rmul_1 = sx_l(idel,  jdel-1,n)*dmul_2 + sx_l(idel+1,jdel-1,n)*dmul_3
+  rmul_2 = sx_l(idel-1,jdel,  n)*cmul_1 + sx_l(idel,  jdel,  n)*cmul_2 + &
+           sx_l(idel+1,jdel,  n)*cmul_3 + sx_l(idel+2,jdel,  n)*cmul_4
+  rmul_3 = sx_l(idel-1,jdel+1,n)*cmul_1 + sx_l(idel,  jdel+1,n)*cmul_2 + &
+           sx_l(idel+1,jdel+1,n)*cmul_3 + sx_l(idel+2,jdel+1,n)*cmul_4
+  rmul_4 = sx_l(idel,  jdel+2,n)*dmul_2 + sx_l(idel+1,jdel+2,n)*dmul_3
+  sout(iq) = min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
+end do    ! iq loop
+
+return
+end subroutine intsb
+
+! *****************************************************************************
+! FILL ROUTINES
+
+subroutine fill_cc4(a_io,land)
+      
+! routine fills in interior of an array which has undefined points
+! this version is distributed over processes with input files
+
+implicit none
+
+real, dimension(:,:), intent(inout) :: a_io
+integer nrem, j, n, k, kx, cc
+integer, dimension(ik) :: ccount
+integer, dimension(size(a_io,2)) :: ncount
+real, parameter :: value=999.  ! missing value flag
+real, dimension(-1:ik+2,-1:ik+2,6) :: c_io
+real, dimension(ik) :: csum
+logical, dimension(:), intent(in) :: land
+logical, dimension(ik) :: maska
+
+kx = size(a_io,2)
+
+do k = 1,kx
+  where ( land(1:6*ik*ik) )
+    a_io(1:6*ik*ik,k) = value
+  end where
+end do
+
+nrem = 1
+c_io = value
+
+do while ( nrem>0 )
+  do k = 1,kx
+    c_io(1:ik,1:ik,1:6) = reshape( a_io(1:6*ik*ik,k), (/ ik, ik, 6 /) )  
+    call sxpanelbounds(c_io(:,:,:))
+    ncount(k) = count( abs(a_io(1:6*ik*ik,k)-value)<1.e-6 )
+    if ( ncount(k)>0 ) then
+      do n = 1,6
+        do j = 1,ik
+          cc = (j-1)*ik + (n-1)*ik*ik
+          maska(1:ik) = abs(a_io(1+cc:ik+cc,k)-value)<1.e-20
+          csum(1:ik) = 0.
+          ccount(1:ik) = 0
+          where ( abs(c_io(1:ik,j+1,n)-value)>=1.e-20 )
+            csum(1:ik) = csum(1:ik) + c_io(1:ik,j+1,n)
+            ccount(1:ik) = ccount(1:ik) + 1
+          end where
+          where ( abs(c_io(1:ik,j-1,n)-value)>=1.e-20 )
+            csum(1:ik) = csum(1:ik) + c_io(1:ik,j-1,n)
+            ccount(1:ik) = ccount(1:ik) + 1
+          end where
+          where ( abs(c_io(2:ik+1,j,n)-value)>=1.e-20 )
+            csum(1:ik) = csum(1:ik) + c_io(2:ik+1,j,n)
+            ccount(1:ik) = ccount(1:ik) + 1
+          end where
+          where ( abs(c_io(0:ik-1,j,n)-value)>=1.e-20 )
+            csum(1:ik) = csum(1:ik) + c_io(0:ik-1,j,n)
+            ccount(1:ik) = ccount(1:ik) + 1
+          end where
+          where ( maska(1:ik) .and. ccount(1:ik)>0 )
+            a_io(1+cc:ik+cc,k) = csum(1:ik)/real(ccount(1:ik))
+          end where
+        end do
+      end do
+      ncount(k) = count( abs(a_io(1:6*ik*ik,k)-value)<1.E-6 )
+    end if
+  end do
+  ! test for convergence
+  nrem = ncount(kx)  
+  if ( nrem==6*ik*ik ) then
+    write(6,*) "Cannot perform fill as all points are trivial"    
+    a_io = 0.
+    nrem = 0
+  end if
+end do
+
+return
+end subroutine fill_cc4
+
+end module amipsst_m

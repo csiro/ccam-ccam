@@ -1733,10 +1733,10 @@ if (nurban/=0) then
     end do
 
     atebdwn(:,1)=289.                      ! road temp 1
-    atebdwn(:,2)=(0.966*289.)+(0.034*287.) ! road temp 2
-    atebdwn(:,3)=(0.833*289.)+(0.167*287.) ! road temp 3
-    atebdwn(:,4)=(0.533*289.)+(0.467*287.) ! road temp 4
-    atebdwn(:,5)=287.                      ! road temp 5
+    atebdwn(:,2)=291.                      ! road temp 2
+    atebdwn(:,3)=288.                      ! road temp 3
+    atebdwn(:,4)=285.                      ! road temp 4
+    atebdwn(:,5)=285.                      ! road temp 5
     do k = 1,5
       write(vname,'("roadtemp",I1.1)') k  
       atebdwn(:,k) = atebdwn(:,k) - urbtemp
@@ -2563,7 +2563,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     ! attributes
     call ccnf_put_attg(timencid,'model','CCAM+UCLEM')
     call ccnf_put_attg(timencid,'contact','Mathew Lipson <m.lipson@unsw.edu.au>')
-    call ccnf_put_attg(timencid,'scmtype','Stretched grid climate model')
+    call ccnf_put_attg(timencid,'scmtype','Variable-grid climate model')
     call ccnf_put_attg(timencid,'ucmcomplexity','complex')
     call ccnf_put_attg(timencid,'ucmtiled','no')
     call ccnf_put_attg(timencid,'timestep',dt)
@@ -3369,8 +3369,8 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
     call ccnf_put_vara(timencid,'u10m',iarch,aa(1))
     aa(1)=v(1,1)*u10(1)/sqrt(u(1,1)**2+v(1,1)**2)
     call ccnf_put_vara(timencid,'v10m',iarch,aa(1))
-    tmp=t(1,:)
     if (scm_mode=="sublime") then
+      tmp=t(1,:)  
       call vout(tmp,aa(1),zf,50.,kl)
       call ccnf_put_vara(timencid,'t50m',iarch,aa(1))
       tmp=qg(1,:)
@@ -3386,6 +3386,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" ) then
       call vout(tmp,aa(1),zf,50.,kl)
       call ccnf_put_vara(timencid,'v50m',iarch,aa(1))
     else
+      tmp=t(1,:)  
       call vout(tmp,aa(1),zf,40.,kl)
       call ccnf_put_vara(timencid,'t40m',iarch,aa(1))
       tmp=qg(1,:)

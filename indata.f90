@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -51,6 +51,7 @@ subroutine indataf(lapsbot,isoth,nsig,io_nest)
 use aerointerface                                ! Aerosol interface
 use aerosolldr, only : xtg,naero,aeromode, &
                        itracdu                   ! LDR prognostic aerosols
+use amipsst_m                                    ! AMIP SSTs
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use ateb, ateb_energytol => energytol            ! Urban
 use bigxy4_m                                     ! Grid interpolation
@@ -737,7 +738,7 @@ end if
 ! nurban=1  urban (save in restart file)
 ! nurban=-1 urban (save in history and restart files)
 if ( nurban/=0 ) then
-  if ( myid==0 ) write(6,*) 'Initialising aTEB urban scheme'
+  if ( myid==0 ) write(6,*) 'Initialise UCLEM urban scheme'
   where ( .not.land(1:ifull) .or. sigmu<0.01 )
     sigmu(:) = 0.
   end where
@@ -745,7 +746,7 @@ if ( nurban/=0 ) then
   call atebtype(urbantype,0)  
   if ( urbanformat>0.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
-      write(6,*) "Using user defined aTEB urban parameters: ",urbanformat  
+      write(6,*) "Using user defined UCLEM urban parameter tables"  
       nstart(1) = 1
       ncount(1) = 8
       call ccnf_get_vara(ncidveg,'bldheight',nstart,ncount,atebparm(1:8,1))
@@ -851,7 +852,7 @@ end if
 ! nmlo=2 same as 1, but with Smag horz diffusion and river routing
 ! nmlo=3 same as 2, but with horizontal and vertical advection
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
-  if ( myid==0 ) write(6,*) 'Initialising MLO'
+  if ( myid==0 ) write(6,*) 'Initialise MLO ocean model'
   where ( .not.land )
     depth = max(depth,2.*minwater)
   elsewhere
@@ -868,7 +869,7 @@ end if   ! if nmlo/=0 .and. abd(nmlo)<=9
 ! nriver=1 river routing
 ! nmlo=2 or nmlo=3 implies nriver=1
 if ( abs(nriver)==1 ) then
-  if ( myid==0 ) write(6,*) 'Initialising river routing'
+  if ( myid==0 ) write(6,*) 'Initialise river routing'
   call rvrinit(river_acc)
 end if
 
@@ -899,15 +900,14 @@ end select
   
 !--------------------------------------------------------------
 ! INITIALISE TRACERS (ngas)
-if ( myid==0 ) then
-  write(6,*)'nllp,ngas,ntrac,il,jl,kl ',nllp,ngas,ntrac,il,jl,kl
-end if
 if ( ngas>0 ) then
-  if ( myid==0 ) write(6,*)'Initialising tracers'
+  if ( myid==0 ) then
+    write(6,*)'Initialise tracers'
+    write(6,*)'nllp,ngas,ntrac,il,jl,kl ',nllp,ngas,ntrac,il,jl,kl
+  end if  
   ! tracer initialisation (if start of run)
   call init_ts(ngas,dt)
   call readtracerflux
-  if ( myid==0 ) write(6,*)'Finished initialising tracers'
 endif   
   
 
@@ -941,7 +941,7 @@ ipsice = indexs - 1
 ncid = -1  ! initialise nc handle with no files open
 if ( io_in<4 ) then
   if ( myid==0 ) then
-    write(6,*) '========================================'
+    write(6,*) '============================================================================'
     write(6,*) 'Read initial conditions from ifile'
   end if
   call histopen(ncid,ifile,ier) ! open parallel initial condition files (onthefly will close ncid)
@@ -954,7 +954,7 @@ if ( io_in<4 ) then
                   ocndwn,xtgdwn)
     ! UPDATE BIOSPHERE DATA (nsib)
     if ( nsib==6 .or. nsib==7 ) then
-      if ( myid==0 ) write(6,*) 'Importing CABLE data'
+      if ( myid==0 ) write(6,*) 'Read CABLE and CASA initial conditions'
       call loadtile
     end if
   end if   ! (abs(io_in)==1)
@@ -1030,7 +1030,11 @@ if ( io_in<4 ) then
 
   qg(1:ifull,:) = max(qg(1:ifull,:), 0.)
   ps(1:ifull) = 1.e5*exp(psl(1:ifull))
-        
+
+  if ( myid==0 ) then
+    write(6,*) '============================================================================'
+  end if
+  
 else
 
   ! read in namelist for uin,vin,tbarr etc. for special runs
@@ -1447,6 +1451,7 @@ if ( .not.lrestart ) then
   ! Soil recycling input
   if( nrungcm>=-5 .and. nrungcm<=-3 ) then
     if ( myid==0 ) then
+      write(6,*) '============================================================================'  
       write(6,*) 'Opening surface data input from ',trim(surf_00)
     end if
     call histopen(ncid,surf_00,ier)
@@ -1465,10 +1470,13 @@ if ( .not.lrestart ) then
                     ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
       ! UPDATE BIOSPHERE DATA (nsib)
       if ( nsib==6 .or. nsib==7 ) then
-        if ( myid==0 ) write(6,*) 'Importing CABLE data'
+        if ( myid==0 ) write(6,*) 'Replacing CABLE and CASA data'
         call loadtile(usedefault=.true.)
       end if
       call histclose
+      if ( myid==0 ) then
+        write(6,*) '============================================================================'
+      end if  
       if ( kdate/=kdate_sav .or. ktime/=ktime_sav ) then
         if ( myid==0 ) then
           write(6,*) 'WARN: Could not locate correct date/time'
@@ -2312,7 +2320,7 @@ end if
 ! OPEN MESONEST FILE
 if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) then
   if ( myid==0 ) then
-    write(6,*) "========================================"  
+    write(6,*) "============================================================================"  
     write(6,*) "Opening mesonest file"
   end if
   kdate_s = kdate_sav
@@ -2321,7 +2329,7 @@ if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) th
   call histopen(ncid,mesonest,ier) ! open parallel mesonest files
   call ncmsg("mesonest",ier)       ! report error messages
   if ( myid==0 ) then
-    write(6,*) "ncid,mesonest ",ncid,trim(mesonest)
+    write(6,*) '============================================================================'
   end if
 end if    ! (mbd/=0.or.nbd/=0)       
 

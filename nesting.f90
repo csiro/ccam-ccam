@@ -158,7 +158,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
   ua(1:ifull,:) = ub(1:ifull,:)
   va(1:ifull,:) = vb(1:ifull,:)
   if ( nmlo/=0 ) then
-    sssa(:,:,:) = sssb(:,:,:)
+    sssa(:,:,1:4) = sssb(:,:,1:4)
   end if
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
     xtghosta(:,:,:) = xtghostb(:,:,:)
@@ -290,7 +290,7 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
   else
     if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
       ! nudge mlo
-      dumaa = cona*sssa + conb*sssb
+      dumaa = cona*sssa(:,:,1:4) + conb*sssb(:,:,1:4)
       if ( wl<1 ) then
         ! determine if multiple levels of ocean data exist in host
         depthcheck(1) = maxval(ocndep(:,1)) ! check if 3D data exists
@@ -413,7 +413,7 @@ if ( mtimer>mtimeb ) then
   ua(1:ifull,:) = ub(1:ifull,:)
   va(1:ifull,:) = vb(1:ifull,:)
   if ( nmlo/=0 ) then
-    sssa(:,:,:) = sssb(:,:,:)
+    sssa(:,:,1:4) = sssb(:,:,1:4)
   end if
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
     xtghosta(:,:,:) = xtghostb(:,:,:)
@@ -512,7 +512,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
       ! nudge Mixed-Layer-Ocean
       if ( mbd_mlo/=0 ) then  
         if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
-          sssc(:,:,:) = cona*sssa(:,:,:) + (1.-cona)*sssb(:,:,:)  
+          sssc(:,:,1:4) = cona*sssa(:,:,1:4) + (1.-cona)*sssb(:,:,1:4)  
           ! check host for 2D or 3D data
           if ( wl<1 ) then
             depthcheck(1) = maxval(ocndep(:,1)) ! check for 3D ocean data in host model
