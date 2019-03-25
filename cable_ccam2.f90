@@ -6848,6 +6848,8 @@ if (myid==0.or.local) then
   end if
   if ( cable_pop==1 ) then
     do n = 1,maxtile  
+      ! Convention for POP variables are of the form t<n>_pop_grid_<......>
+      ! so that ppc2hist can interpolate them
       if ( diaglevel_pop > 0 ) then
         write(lname,'("t",I1.1,"_pop_grid_cmass_sum")') n
         write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n
@@ -6974,6 +6976,10 @@ if (myid==0.or.local) then
           write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd
           call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,0,2) ! kind=8
         end do         
+      end if
+      ! Convention for POP variables are of the form t<n>_pop_grid_<......>
+      ! so that ppc2hist can interpolate them
+      if ( itype==-1 .or. diaglevel_pop>=9 ) then !just for restart file
         write(lname,'("t",I1.1,"_pop_grid_patch_id")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
         call attrib(idnc,c1dim,c1size,vname,lname,'none',0.,6500.,0,2) ! kind=8
@@ -8012,6 +8018,8 @@ if ( cable_pop==1 ) then
         write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd 
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
+    end if
+    if ( itype==-1 .or. diaglevel_pop>=9 ) then !just for restart file
       do k = 1,POP_NPATCH
         if ( n<=maxnb ) call pop_unpack(pop%pop_grid(:)%patch(k)%id,datpatch(:,k),n)
       end do
