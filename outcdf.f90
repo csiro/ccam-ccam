@@ -555,6 +555,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ch_dust',ch_dust)
     call ccnf_put_attg(idnc,'charnock',charnock)
     call ccnf_put_attg(idnc,'chn10',chn10)
+    call ccnf_put_attg(idnc,'cirrus_decay',cirrus_decay)
     call ccnf_put_attg(idnc,'divdamp',divdamp)
     call ccnf_put_attg(idnc,'ensemble_mode',ensemble_mode)
     call ccnf_put_attg(idnc,'ensemble_period',ensemble_period)

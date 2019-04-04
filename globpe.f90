@@ -166,8 +166,8 @@ call globpe_init
 !****************************************************************
 ! only perform calculation on processes that are still active
 if ( myid<nproc ) then
-    
-    
+
+
   !--------------------------------------------------------------
   ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
   if ( nwt>0 ) then
@@ -181,7 +181,7 @@ if ( myid<nproc ) then
     call ccmpi_abort(-1)
   end if
 
-  
+
   !-------------------------------------------------------------
   ! SETUP DIAGNOSTIC ARRAYS
   allocate( spare1(ifull) )
@@ -191,7 +191,7 @@ if ( myid<nproc ) then
   n3hr = 1           ! initial value at start of run
   nlx = 0            ! diagnostic level
 
-  
+
   !--------------------------------------------------------------
   ! INITIALISE DYNAMICS
   dtin = dt
@@ -206,8 +206,8 @@ if ( myid<nproc ) then
     dt     = 0.5*dtin
   endif
   call gettin(0) ! preserve initial mass & T fields
-  
-  
+
+
   !--------------------------------------------------------------
   ! SET-UP TIMERS
   mtimer_sav = 0      ! saved value for minute timer
@@ -216,7 +216,7 @@ if ( myid<nproc ) then
   hourst     = real(nint(0.01*real(ktime))) + real(mod(ktime,100))/60. ! for tracers
   mtimer_in  = mtimer
 
- 
+
   !--------------------------------------------------------------
   ! BEGIN MAIN TIME LOOP
   if ( myid==0 ) then
@@ -244,8 +244,8 @@ if ( myid<nproc ) then
     if ( ngas>0 ) then
       call interp_tracerflux
     end if
-    
-    
+
+
     ! ***********************************************************************
     ! START ATMOSPHERE DYNAMICS
     ! ***********************************************************************
@@ -260,10 +260,10 @@ if ( myid<nproc ) then
       call END_LOG(nestin_end)
       call nantest("after nesting",1,ifull)
     else
-      call nantest("before atmosphere dynamics",1,ifull)   
+      call nantest("before atmosphere dynamics",1,ifull)
     end if
-    
-    
+
+
     ! DYNAMICS --------------------------------------------------------------
     if ( nstaguin>0 .and. ktau>=1 ) then   ! swapping here for nstaguin>0
       if ( nstagin<0 .and. mod(ktau-nstagoff,abs(nstagin))==0 ) then
@@ -273,7 +273,7 @@ if ( myid<nproc ) then
     end if
 
     do mspec = mspeca,1,-1    ! start of introductory time loop
-   
+
       un(1:ifull,:) = 0. 
       vn(1:ifull,:) = 0.
       tn(1:ifull,:) = 0.
@@ -1444,7 +1444,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,                                                          &
-    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
+    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cirrus_decay         ! cloud
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & ! EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
@@ -1984,7 +1984,7 @@ diaglevel_carbon    = dumi(19)
 diaglevel_river     = dumi(20)
 diaglevel_pop       = dumi(21)
 deallocate( dumi )
-allocate( dumr(33), dumi(21) )
+allocate( dumr(34), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2022,6 +2022,7 @@ if ( myid==0 ) then
   dumr(31) = rcm
   dumr(32) = rcrit_l
   dumr(33) = rcrit_s
+  dumr(34) = cirrus_decay
   dumi(1)  = iterconv
   dumi(2)  = ksc
   dumi(3)  = kscmom
@@ -2079,6 +2080,7 @@ bcon           = dumr(30)
 rcm            = dumr(31)
 rcrit_l        = dumr(32)
 rcrit_s        = dumr(33)
+cirrus_decay   = dumr(34)
 iterconv       = dumi(1) 
 ksc            = dumi(2)
 kscmom         = dumi(3)
