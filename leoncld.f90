@@ -966,8 +966,8 @@ if ( ncloud<=3 ) then
   ! Introduce a time-decay factor for cirrus (as suggested by results of Khvorostyanov & Sassen,
   ! JAS, 55, 1822-1845, 1998). Their suggested range for the time constant is 0.5 to 2 hours.
   ! The grid-box-mean values of qtg and ttg are adjusted later on (below).
-  decayfac = exp ( -tdt/cirrus_decay )      ! Try 2 hrs
-  !decayfac = 0.                            ! Instant adjustment (old scheme)
+  decayfac = exp ( -tdt/max(cirrus_decay,1.e-20) )      ! Try 2 hrs
+  !decayfac = 0.                                        ! Instant adjustment (old scheme)
   where( ttg(1:imax,:)>=Tice )
     qfg(1:imax,:) = fice*qcg(:,:)
     qlg(1:imax,:) = qcg(:,:) - qfg(1:imax,:)
@@ -995,8 +995,8 @@ else
   cfa(:,:) = 0.
   qca(:,:) = 0.
 
-  decayfac = exp ( -tdt/cirrus_decay )      ! Try 2 hrs
-  !decayfac = 0.                            ! Instant adjustment (old scheme)
+  decayfac = exp ( -tdt/max(cirrus_decay,1.e-20) )      ! Try 2 hrs
+  !decayfac = 0.                                        ! Instant adjustment (old scheme)
   where( ttg(1:imax,:)>=Tice )
     qfg(1:imax,:) = fice*qcg(:,:)
     qlg(1:imax,:) = qcg(:,:) - qfg(1:imax,:)
