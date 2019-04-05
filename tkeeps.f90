@@ -106,6 +106,7 @@ real, parameter :: rv    = 461.5
 real, parameter :: cp    = 1004.64    ! (J kg^-1 K^-1)
 real, parameter :: vkar  = 0.4
 real, parameter :: pi    = 3.14159265
+real, parameter :: tice  = 233.1      ! (K)
 
 ! MOST constants
 real, parameter :: a_1   = 1.
@@ -425,7 +426,7 @@ do kcount = 1,mcount
     
     ! Turn off MF term if small grid spacing (beta=0. implies MF is always non-zero)
     ! Based on Boutle et al 2014
-    zturb = min(0.5*(zi_save + zi),zimax)
+    zturb = min( 0.5*(zi_save + zi), zimax )
 #ifdef scm
     cgmap(:) = 1.
 #else
@@ -635,12 +636,12 @@ do kcount = 1,mcount
   call thomas(thetal,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
 #ifdef scm  
   wthlflux(:,1)=wt0(:)
-  wthlflux(:,2:kl)=-kmo(:,1:kl-1)*(thetal(1:imax,2:kl)-thetal(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                &
-                   +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                     &
+  wthlflux(:,2:kl)=-kmo(:,1:kl-1)*(thetal(1:imax,2:kl)-thetal(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                    &
+                   +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                         &
                    +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 #ifdef offline
-  wthl(:,1:kl-1)=-kmo(:,1:kl-1)*(thetal(1:imax,2:kl)-thetal(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                  &
+  wthl(:,1:kl-1)=-kmo(:,1:kl-1)*(thetal(1:imax,2:kl)-thetal(1:imax,1:kl-1))/dz_hl(:,1:kl-1)                      &
                  +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                           &
                  +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #endif
@@ -745,23 +746,21 @@ do kcount = 1,mcount
   ustar = sqrt(cduv*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))
   ustar_ave = ustar_ave + ustar/real(mcount)
 
-  ! account for phase transitions
-  do k=1,kl
-    tgg=max(qvg(1:imax,k)+qlg(1:imax,k)+qfg(1:imax,k),qgmin) ! qtot before phase transition
-    qvg(1:imax,k)=max(qvg(1:imax,k),0.)    
-    qlg(1:imax,k)=max(qlg(1:imax,k),0.)
-    qfg(1:imax,k)=max(qfg(1:imax,k),0.)
-    tff=max(qvg(1:imax,k)+qlg(1:imax,k)+qfg(1:imax,k),qgmin)
-    tgg=tgg/tff ! scale factor for conservation
-    qvg(1:imax,k)=qvg(1:imax,k)*tgg
-    qlg(1:imax,k)=qlg(1:imax,k)*tgg
-    qfg(1:imax,k)=qfg(1:imax,k)*tgg
-    ! update theta for output or next time step
-    theta(1:imax,k)=thetal(:,k)+sigkap(k)*(lv*qlg(1:imax,k)+ls*qfg(1:imax,k))/cp
-    where (qlg(1:imax,k)+qfg(1:imax,k)>1.E-12)
-      cfrac(1:imax,k)=max(cfrac(1:imax,k),1.E-8)
+  ! account for saturation
+  do k = 1,kl
+    temp(:) = theta(:,k)/sigkap(k)
+    pres(:) = ps(:)*sig(k)
+    call getqsat(qsat(:,k),temp(:),pres(:))
+    where ( temp(:)>=tice )
+      tff(:) = min( qvg(:,k), qsat(:,k) )
+      qlg(:,k) = qvg(:,k) + qlg(:,k) - tff(:)
+      qvg(:,k) = tff(:)
+    end where  
+    theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
+    where ( qlg(:,k)+qfg(:,k)>1.E-12 )
+      cfrac(:,k) = max( cfrac(:,k), 1.E-8 )
     end where
-  end do
+  end do  
   
 #ifdef scm
   uwflux(:,1)=0.
