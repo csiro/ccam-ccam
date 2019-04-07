@@ -753,7 +753,7 @@ do kcount = 1,mcount
     call getqsat(qsat(:,k),temp(:),pres(:))
     where ( temp(:)>=tice )
       tff(:) = min( qvg(:,k), qsat(:,k) )
-      qlg(:,k) = qvg(:,k) + qlg(:,k) - tff(:)
+      qlg(:,k) = qlg(:,k) + qvg(:,k) - tff(:)
       qvg(:,k) = tff(:)
     end where  
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
@@ -928,19 +928,27 @@ do k = 2,kl
   templ(:) = tlup_p(:,k)/sigkap(k)                     ! templ,up
   pres(:) = ps_p(:)*sig(k)
   call getqsat(qupsat,templ(:),pres(:))
-  ! estimate variance of qtup in updraft (following Hurley and TAPM)
-  sigqtup = sqrt(max(1.E-10, 1.6*tke_p/eps_p*cq*km_p*((qtup(:,k)-qtup(:,k-1))/dzht)**2))
-  ! Smith 1990 condensation scheme -  assume
-  ! triangle distribution for qtup.  The average qvup is qxup
-  ! after accounting for saturation
-  call calc_smithcloud(cfup_p(:,k),qxup,sigqtup,qtup(:,k),qupsat)
+  where ( qtup(:,k) > qupsat )
+    qxup = qupsat
+    cfup_p(:,k) = 1.
+  elsewhere
+    qxup = qtup(:,k)
+    cfup_p(:,k) = 0.
+  end where
+  !! estimate variance of qtup in updraft (following Hurley and TAPM)
+  !sigqtup = sqrt(max(1.E-10, 1.6*tke_p/eps_p*cq*km_p*((qtup(:,k)-qtup(:,k-1))/dzht)**2))
+  !! Smith 1990 condensation scheme -  assume
+  !! triangle distribution for qtup.  The average qvup is qxup
+  !! after accounting for saturation
+  !call calc_smithcloud(cfup_p(:,k),qxup,sigqtup,qtup(:,k),qupsat)
   where ( w2up(:,k-1)<=0. )
     qxup = qtup(:,k)
     cfup_p(:,k) = 0.
   end where
-  thup(:,k) = tlup_p(:,k) + sigkap(k)*(lv*qlup_p(:,k)+ls*qfup_p(:,k))/cp ! theta,up before redistribution
-  tempd = thup(:,k)/sigkap(k)                                            ! temp,up before redistribution
-  fice = min(max((273.16-tempd)/40.,0.),1.) ! approximate ice fraction based on temperature (not templ)
+  !thup(:,k) = tlup_p(:,k) + sigkap(k)*(lv*qlup_p(:,k)+ls*qfup_p(:,k))/cp ! theta,up before redistribution
+  !tempd = thup(:,k)/sigkap(k)                                            ! temp,up before redistribution
+  !fice = min(max((273.16-tempd)/40.,0.),1.) ! approximate ice fraction based on temperature (not templ)
+  fice = qfup_p(:,k)/max(qfup_p(:,k)+qlup_p(:,k),1.e-20)
   lx = lv + lf*fice
   dqsdt = qupsat*lx/(rv*templ*templ)
   al = cp/(cp+lx*dqsdt)
@@ -1230,39 +1238,39 @@ end select
 return
 end subroutine calc_phi
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Diagnose cloud fraction
-
-subroutine calc_smithcloud(cfup,qxup,sigqtup,qtup,qupsat)
-
-implicit none
-
-real, dimension(:), intent(in) :: sigqtup,qtup,qupsat
-real, dimension(:), intent(out) :: cfup, qxup
-real, dimension(size(cfup)) :: rng, dqdash
-
-rng = sqrt(6.)*sigqtup           ! variance of triangle distribution
-dqdash = (qtup-qupsat)/rng  ! scaled variance
-where ( dqdash<-1. )
-  ! gridbox all unsaturated
-  qxup = qtup
-  cfup = 0.
-elsewhere ( dqdash<0. )
-  ! gridbox minority saturated
-  qxup = qtup + 0.5*rng*(-1./3.-dqdash-dqdash**2-1./3.*dqdash**3)
-  cfup = 0.5*(dqdash+1.)**2
-elsewhere ( dqdash<1. )
-  ! gridbox majority saturated
-  qxup = qtup + 0.5*rng*(-1./3.-dqdash-dqdash**2+1./3.*dqdash**3)
-  cfup = 1. - 0.5*(dqdash-1.)**2
-elsewhere
-  ! gridbox all saturated
-  qxup = qupsat
-  cfup = 1.
-end where
-
-return
-end subroutine calc_smithcloud
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! Diagnose cloud fraction
+!
+!subroutine calc_smithcloud(cfup,qxup,sigqtup,qtup,qupsat)
+!
+!implicit none
+!
+!real, dimension(:), intent(in) :: sigqtup,qtup,qupsat
+!real, dimension(:), intent(out) :: cfup, qxup
+!real, dimension(size(cfup)) :: rng, dqdash
+!
+!rng = sqrt(6.)*sigqtup           ! variance of triangle distribution
+!dqdash = (qtup-qupsat)/rng  ! scaled variance
+!where ( dqdash<-1. )
+!  ! gridbox all unsaturated
+!  qxup = qtup
+!  cfup = 0.
+!elsewhere ( dqdash<0. )
+!  ! gridbox minority saturated
+!  qxup = qtup + 0.5*rng*(-1./3.-dqdash-dqdash**2-1./3.*dqdash**3)
+!  cfup = 0.5*(dqdash+1.)**2
+!elsewhere ( dqdash<1. )
+!  ! gridbox majority saturated
+!  qxup = qtup + 0.5*rng*(-1./3.-dqdash-dqdash**2+1./3.*dqdash**3)
+!  cfup = 1. - 0.5*(dqdash-1.)**2
+!elsewhere
+!  ! gridbox all saturated
+!  qxup = qupsat
+!  cfup = 1.
+!end where
+!
+!return
+!end subroutine calc_smithcloud
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! End TKE-eps
