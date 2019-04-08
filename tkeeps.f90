@@ -748,6 +748,7 @@ do kcount = 1,mcount
 
   ! account for saturation
   do k = 1,kl
+    theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
     temp(:) = theta(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
     call getqsat(qsat(:,k),temp(:),pres(:))
