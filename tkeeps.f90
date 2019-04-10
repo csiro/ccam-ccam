@@ -259,6 +259,7 @@ real, dimension(imax) :: cdrag,umag,ustar
 real, dimension(imax) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(imax) :: tbb,tcc,tqq
 real, dimension(imax) :: zi_save, zturb, cgmap
+real, dimension(imax) :: templ, dqsdt, al
 real, dimension(kl) :: sigkap
 real cm12, cm34
 real ddts
@@ -750,12 +751,15 @@ do kcount = 1,mcount
   do k = 1,kl
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
     temp(:) = theta(:,k)/sigkap(k)
+    templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
     call getqsat(qsat(:,k),temp(:),pres(:))
+    dqsdt = qsat(:,k)*lv/(rv*templ**2)
+    al = cp/(cp+lv*dqsdt)
     where ( temp(:)>=tice )
-      tff(:) = min( qvg(:,k), qsat(:,k) )
-      qlg(:,k) = qlg(:,k) + qvg(:,k) - tff(:)
-      qvg(:,k) = tff(:)
+      tff(:) = qlg(:,k) + qvg(:,k)
+      qlg(:,k) = al*(qlg(:,k) + qvg(:,k) - min(qvg(:,k),qsat(:,k)))
+      qvg(:,k) = tff(:) - qlg(:,k)
     end where  
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
     where ( qlg(:,k)+qfg(:,k)>1.E-12 )
@@ -960,17 +964,17 @@ do k = 2,kl
   tvup(:,k) = thup(:,k) + theta_p*(1.61*qxup-qtup(:,k))      ! thetav,up after redistribution
   where ( w2up(:,k-1)>0. )
     ! state of plume after redistribution
-    qvup_p(:,k) = qxup                                       ! qv,up after redistribution
-    qlup_p(:,k) = qcup*(1.-fice)                             ! ql,up after redistribution
-    qfup_p(:,k) = qcup*fice                                  ! qf,up after redistribution
+    !qvup_p(:,k) = qxup                                       ! qv,up after redistribution
+    !qlup_p(:,k) = qcup*(1.-fice)                             ! ql,up after redistribution
+    !qfup_p(:,k) = qcup*fice                                  ! qf,up after redistribution
     ! calculate buoyancy
     nn(:,k) = grav*(tvup(:,k)-thetav_p)/thetav_p
     ! update updraft velocity
     w2up(:,k) = (w2up(:,k-1)+2.*dzht*b2*nn(:,k))/(1.+2.*dzht*b1*ent)
   elsewhere
-    qvup_p(:,k) = qvg_p
-    qlup_p(:,k) = qlg_p
-    qfup_p(:,k) = qfg_p
+    !qvup_p(:,k) = qvg_p
+    !qlup_p(:,k) = qlg_p
+    !qfup_p(:,k) = qfg_p
     nn(:,k) = 0.  
     w2up(:,k) = 0.
   end where
