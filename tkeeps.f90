@@ -411,8 +411,8 @@ do kcount = 1,mcount
     ! unstable boundary layer
     call plumerise(imax_p,lmask,cm12,                            &
                    zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,       &
-                   zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,km,  &
-                   ustar,wt0,wq0,wtv0,ps,                        &
+                   zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,     &
+                   cfrac,km,ustar,wt0,wq0,wtv0,ps,               &
                    sig,sigkap,tke,eps,imax)
 
     ! stable boundary layer
@@ -794,8 +794,8 @@ end subroutine tkemix
     
 subroutine plumerise(imax_p,lmask,cm12,                                &
                      zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,           &
-                     zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,km,      &
-                     ustar,wt0,wq0,wtv0,ps,                            &
+                     zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,         &
+                     cfrac,km,ustar,wt0,wq0,wtv0,ps,                   &
                      sig,sigkap,tke,eps,imax)
 
 integer, intent(in) :: imax
@@ -803,7 +803,7 @@ integer, intent(in) :: imax_p
 integer k, ktopmax
 real, dimension(imax,kl), intent(inout) :: mflx, tlup, qvup, qlup, qfup, cfup
 real, dimension(imax), intent(inout) :: zi, wstar
-real, dimension(:,:), intent(in) :: theta, qvg, qlg, qfg
+real, dimension(:,:), intent(in) :: theta, qvg, qlg, qfg, cfrac
 real, dimension(imax,kl), intent(in) :: zz, thetal, thetav, km 
 real, dimension(imax,kl-1), intent(in) :: dz_hl
 real, dimension(imax), intent(in) :: ustar, wt0, wq0, wtv0, ps
@@ -814,12 +814,13 @@ real, dimension(imax,kl), intent(in) :: eps
 real, dimension(imax_p,kl) :: mflx_p, tlup_p, qvup_p, qlup_p, qfup_p, cfup_p
 real, dimension(imax_p,kl) :: zz_p
 real, dimension(imax_p,kl-1) :: dz_hl_p
-real, dimension(imax_p,kl) ::  qtup, thup, tvup, w2up, nn
+real, dimension(imax_p,kl) ::  w2up, nn, cxup
 real, dimension(imax_p) :: zi_p, tke_p, eps_p, km_p, thetal_p, theta_p, thetav_p
-real, dimension(imax_p) :: qvg_p, qlg_p, qfg_p
+real, dimension(imax_p) :: qvg_p, qlg_p, qfg_p, cfrac_p 
 real, dimension(imax_p) :: ustar_p, wstar_p, wt0_p, wq0_p, wtv0_p, ps_p
-real, dimension(imax_p) :: tke1, dzht, ent, templ, pres, sigqtup, upf, qxup, qupsat
+real, dimension(imax_p) :: tke1, dzht, ent, templ, pres, upf, qxup, qupsat
 real, dimension(imax_p) :: tempd, fice, lx, qcup, dqsdt, al, xp, as, bs, cs
+real, dimension(imax_p) :: thup, tvup, qtup
 logical, dimension(imax), intent(in) :: lmask
 #ifdef offline
 real, dimension(imax_p) :: dtr
@@ -832,7 +833,7 @@ if ( imax_p==0 ) then
   qvup(:,:) = qvg(1:imax,:)
   qlup(:,:) = qlg(1:imax,:)
   qfup(:,:) = qfg(1:imax,:)
-  cfup(:,:) = 0.
+  cfup(:,:) = cfrac(1:imax,:)
   return
 end if
 
@@ -850,7 +851,7 @@ do k = 1,kl
   qvup_p(:,k) = pack( qvg(1:imax,k), lmask )
   qlup_p(:,k) = pack( qlg(1:imax,k), lmask )
   qfup_p(:,k) = pack( qfg(1:imax,k), lmask )
-  cfup_p(:,k) = 0.
+  cfup_p(:,k) = pack( cfrac(1:imax,k), lmask )
   zz_p(:,k) = pack( zz(:,k), lmask )
 end do
 do k = 1,kl-1
@@ -874,6 +875,7 @@ thetav_p = pack( thetav(1:imax,1), lmask )
 qvg_p = pack( qvg(1:imax,1), lmask )
 qlg_p = pack( qlg(1:imax,1), lmask )
 qfg_p = pack( qfg(1:imax,1), lmask )
+cfrac_p = pack ( cfrac(1:imax,1), lmask )
 
 ! first level -----------------
 ! initial thermodynamic state
@@ -882,23 +884,19 @@ tlup_p(:,1) = thetal_p + be*wt0_p/sqrt(tke1)       ! Hurley 2007
 qvup_p(:,1) = qvg_p    + be*wq0_p/sqrt(tke1)       ! Hurley 2007
 qlup_p(:,1) = qlg_p
 qfup_p(:,1) = qfg_p
+cfup_p(:,1) = cfrac_p
 ! calculate thermodynamic variables assuming no condensation
-qtup(:,1) = qvup_p(:,1) + qlup_p(:,1) + qfup_p(:,1)     ! qtot,up
-! state of plume after evaporation
-qvup_p(:,1) = qtup(:,1)
-qlup_p(:,1) = 0.
-qfup_p(:,1) = 0.
-thup(:,1) = tlup_p(:,1) !+sigkap(1)*(lv*qlup_p(:,1)+ls*qfup_p(:,1))/cp ! theta,up
-tvup(:,1) = thup(:,1) + theta_p*0.61*qtup(:,1)          ! thetav,up
-templ(:) = tlup_p(:,1)/sigkap(1)                        ! templ,up
+qtup = qvup_p(:,1) + qlup_p(:,1) + qfup_p(:,1)          ! qtot,up
+thup = tlup_p(:,1) + sigkap(1)*(lv*qlup_p(:,1)+ls*qfup_p(:,1))/cp ! theta,up
+tvup = thup + theta_p*0.61*qtup                         ! thetav,up
+templ = tlup_p(:,1)/sigkap(1)                           ! templ,up
 ! update updraft velocity and mass flux
 nn(:,1) = grav*be*wtv0_p/(thetav_p*sqrt(tke1))          ! Hurley 2007
 w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent)      ! Hurley 2007
 ! estimate variance of qtup in updraft
 pres(:) = ps_p(:)*sig(1)
 call getqsat(qupsat,templ(:),pres(:))
-sigqtup = 1.E-5
-cfup_p(:,1) = 0.
+cxup(:,1) = 0.
 
 ! updraft with condensation
 do k = 2,kl
@@ -911,6 +909,7 @@ do k = 2,kl
   qvg_p = pack( qvg(1:imax,k), lmask )
   qlg_p = pack( qlg(1:imax,k), lmask )
   qfg_p = pack( qfg(1:imax,k), lmask )
+  cfrac_p = pack( cfrac(1:imax,k), lmask )
   tke_p = pack( tke(1:imax,k), lmask )
   eps_p = pack( eps(1:imax,k), lmask )
   km_p  = pack( km(:,k), lmask )
@@ -921,60 +920,44 @@ do k = 2,kl
     qvup_p(:,k) = (qvup_p(:,k-1)+dzht*ent*qvg_p   )/(1.+dzht*ent)
     qlup_p(:,k) = (qlup_p(:,k-1)+dzht*ent*qlg_p   )/(1.+dzht*ent)
     qfup_p(:,k) = (qfup_p(:,k-1)+dzht*ent*qfg_p   )/(1.+dzht*ent)
+    cfup_p(:,k) = (cfup_p(:,k-1)+dzht*ent*cfrac_p )/(1.+dzht*ent)
   elsewhere
     tlup_p(:,k) = thetal_p
     qvup_p(:,k) = qvg_p
     qlup_p(:,k) = qlg_p
     qfup_p(:,k) = qfg_p
+    cfup_p(:,k) = cfrac_p
   end where
   ! calculate conserved variables
-  qtup(:,k) = qvup_p(:,k) + qlup_p(:,k) + qfup_p(:,k)  ! qtot,up
-  ! estimate air temperature
-  templ(:) = tlup_p(:,k)/sigkap(k)                     ! templ,up
-  pres(:) = ps_p(:)*sig(k)
+  qtup = qvup_p(:,k) + qlup_p(:,k) + qfup_p(:,k)    ! qtot,up
+  templ = tlup_p(:,k)/sigkap(k)                     ! templ,up
+  pres = ps_p(:)*sig(k)
   call getqsat(qupsat,templ(:),pres(:))
-  where ( qtup(:,k) > qupsat )
+  qxup = min( qtup, qupsat )
+  where ( qtup > qupsat )
     qxup = qupsat
-    cfup_p(:,k) = 1.
+    cxup(:,k) = 1.
   elsewhere
-    qxup = qtup(:,k)
-    cfup_p(:,k) = 0.
+    qxup = qtup
+    cxup(:,k) = 0.
   end where
-  !! estimate variance of qtup in updraft (following Hurley and TAPM)
-  !sigqtup = sqrt(max(1.E-10, 1.6*tke_p/eps_p*cq*km_p*((qtup(:,k)-qtup(:,k-1))/dzht)**2))
-  !! Smith 1990 condensation scheme -  assume
-  !! triangle distribution for qtup.  The average qvup is qxup
-  !! after accounting for saturation
-  !call calc_smithcloud(cfup_p(:,k),qxup,sigqtup,qtup(:,k),qupsat)
   where ( w2up(:,k-1)<=0. )
-    qxup = qtup(:,k)
-    cfup_p(:,k) = 0.
+    qxup = qtup
+    cxup(:,k) = 0.
   end where
-  !thup(:,k) = tlup_p(:,k) + sigkap(k)*(lv*qlup_p(:,k)+ls*qfup_p(:,k))/cp ! theta,up before redistribution
-  !tempd = thup(:,k)/sigkap(k)                                            ! temp,up before redistribution
-  !fice = min(max((273.16-tempd)/40.,0.),1.) ! approximate ice fraction based on temperature (not templ)
   fice = qfup_p(:,k)/max(qfup_p(:,k)+qlup_p(:,k),1.e-20)
   lx = lv + lf*fice
-  dqsdt = qupsat*lx/(rv*templ*templ)
+  dqsdt = qupsat*lx/(rv*templ**2)
   al = cp/(cp+lx*dqsdt)
-  qcup = max(al*(qtup(:,k)-qxup), 0.)                        ! qcondensate,up after redistribution
+  qcup = max(al*(qtup-qxup), 0.)                             ! qcondensate,up after redistribution
   qcup = min(qcup, qcmf)                                     ! limit condensation with simple autoconversion
-  qxup = qtup(:,k) - qcup                                    ! qv,up after redistribution
-  thup(:,k) = tlup_p(:,k) + sigkap(k)*qcup*lx/cp             ! theta,up after redistribution
-  tvup(:,k) = thup(:,k) + theta_p*(1.61*qxup-qtup(:,k))      ! thetav,up after redistribution
+  qxup = qtup - qcup                                         ! qv,up after redistribution
+  thup = tlup_p(:,k) + sigkap(k)*qcup*lx/cp                  ! theta,up after redistribution
+  tvup = thup + theta_p*(1.61*qxup-qtup)                     ! thetav,up after redistribution
   where ( w2up(:,k-1)>0. )
-    ! state of plume after redistribution
-    !qvup_p(:,k) = qxup                                       ! qv,up after redistribution
-    !qlup_p(:,k) = qcup*(1.-fice)                             ! ql,up after redistribution
-    !qfup_p(:,k) = qcup*fice                                  ! qf,up after redistribution
-    ! calculate buoyancy
-    nn(:,k) = grav*(tvup(:,k)-thetav_p)/thetav_p
-    ! update updraft velocity
-    w2up(:,k) = (w2up(:,k-1)+2.*dzht*b2*nn(:,k))/(1.+2.*dzht*b1*ent)
+    nn(:,k) = grav*(tvup-thetav_p)/thetav_p                          ! calculate buoyancy
+    w2up(:,k) = (w2up(:,k-1)+2.*dzht*b2*nn(:,k))/(1.+2.*dzht*b1*ent) ! update updraft velocity
   elsewhere
-    !qvup_p(:,k) = qvg_p
-    !qlup_p(:,k) = qlg_p
-    !qfup_p(:,k) = qfg_p
     nn(:,k) = 0.  
     w2up(:,k) = 0.
   end where
@@ -1000,8 +983,8 @@ do k = 2,ktopmax
   dzht = dz_hl_p(:,k-1)
   upf = mflx_p(:,k-1)/sqrt(max(w2up(:,k-1), 1.e-8))
   where ( w2up(:,k)>0. )
-    mflx_p(:,k) = (1.-cfup_p(:,k))*m0*sqrt(max(w2up(:,k), 0.))         &
-                + cfup_p(:,k)*mflx_p(:,k-1)/(1.+dzht*(dtrc0-entc0))
+    mflx_p(:,k) = (1.-cxup(:,k))*m0*sqrt(max(w2up(:,k), 0.))         &
+                + cxup(:,k)*mflx_p(:,k-1)/(1.+dzht*(dtrc0-entc0))
     mflx_p(:,k) = min( mflx_p(:,k), upf*sqrt(max(w2up(:,k), 0.)) )
   elsewhere
     mflx_p(:,k) = 0.
@@ -1018,7 +1001,7 @@ do k = 1,ktopmax
   qvup(:,k) = unpack( qvup_p(:,k), lmask, qvg(1:imax,k) )
   qlup(:,k) = unpack( qlup_p(:,k), lmask, qlg(1:imax,k) )
   qfup(:,k) = unpack( qfup_p(:,k), lmask, qfg(1:imax,k) )
-  cfup(:,k) = unpack( cfup_p(:,k), lmask, 0. )
+  cfup(:,k) = unpack( cfup_p(:,k), lmask, cfrac(1:imax,k) )
 end do
 
 #ifdef offline
@@ -1029,7 +1012,7 @@ do k = 1,ktopmax
   qv_up(:,k) = unpack( qvup_p(:,k), lmask, qvg(1:imax,k) )
   ql_up(:,k) = unpack( qlup_p(:,k), lmask, qlg(1:imax,k) )
   qf_up(:,k) = unpack( qfup_p(:,k), lmask, qfg(1:imax,k) )
-  cf_up(:,k) = unpack( cfup_p(:,k)*min(mflx_p(:,k)/sqrt(max(w2up(:,k),1.e-8)),1.), lmask, 0. )
+  cf_up(:,k) = unpack( cxup(:,k)*min(mflx_p(:,k)/sqrt(max(w2up(:,k),1.e-8)),1.), lmask, 0. )
 end do
 
 ! Entrainment and detrainment rates
