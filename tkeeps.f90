@@ -117,7 +117,8 @@ real, parameter :: aa1 = 3.8
 real, parameter :: bb1 = 0.5
 real, parameter :: cc1 = 0.3
 
-real, dimension(0:220), save :: table
+real, dimension(0:220), save :: tablei
+real, dimension(-40:2), save :: esdiff
 
 contains
 
@@ -165,38 +166,44 @@ ents=0.
 dtrs=0.
 #endif
 
-table(0:4)=    (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9 /)                                !-146C
-table(5:9)=    (/ 6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9 /)                             !-141C
-table(10:14)=  (/ 36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9 /)                          !-136C
-table(15:19)=  (/ 0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648 /)  !-131C
-table(20:24)=  (/ 0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774 /)  !-126C
-table(25:29)=  (/ 0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081 /)   !-121C
-table(30:34)=  (/ 0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866 /)       !-116C
-table(35:39)=  (/ 0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280 /)         !-111C
-table(40:44)=  (/ 0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951 /)            !-106C
-table(45:49)=  (/ 0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143 /)             !-101C
-table(50:55)=  (/ .001403, .001719, .002101, .002561, .003117, .003784 /)             !-95C
-table(56:63)=  (/ .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658 /) !-87C
-table(64:72)=  (/ .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577 /) !-78C
-table(73:81)=  (/ .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032 /)   !-69C
-table(82:90)=  (/ .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080 /)    !-60C
-table(91:99)=  (/ 1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476 /)    !-51C
-table(100:107)=(/ 3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098 /)            !-43C
-table(108:116)=(/ 10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88 /)    !-34C
-table(117:126)=(/ 27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85 /) !-24C 
-table(127:134)=(/ 77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67 /)      !-16C
-table(135:142)=(/ 171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78 /)  !-8C
-table(143:150)=(/ 353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78 /)   !0C
-table(151:158)=(/ 656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2 /)   !8C
-table(159:166)=(/ 1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3 /)   !16C
-table(167:174)=(/ 1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1 /)   !24C
-table(175:182)=(/ 3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1 /)   !32C
-table(183:190)=(/ 5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7 /)   !40C
-table(191:197)=(/ 7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0 /)         !47C
-table(198:204)=(/ 11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0 /)    !54C
-table(205:211)=(/ 15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0 /)    !61C
-table(212:218)=(/ 21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0 /)    !68C
-table(219:220)=(/ 29845.0, 31169.0 /)                                                 !70C
+tablei(0:4)=    (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9 /)                               !-146C
+tablei(5:9)=    (/ 6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9 /)                            !-141C
+tablei(10:14)=  (/ 36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9 /)                         !-136C
+tablei(15:19)=  (/ 0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648 /) !-131C
+tablei(20:24)=  (/ 0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774 /) !-126C
+tablei(25:29)=  (/ 0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081 /)  !-121C
+tablei(30:34)=  (/ 0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866 /)      !-116C
+tablei(35:39)=  (/ 0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280 /)        !-111C
+tablei(40:44)=  (/ 0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951 /)           !-106C
+tablei(45:49)=  (/ 0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143 /)            !-101C
+tablei(50:55)=  (/ .001403, .001719, .002101, .002561, .003117, .003784 /)            !-95C
+tablei(56:63)=  (/ .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658 /)!-87C
+tablei(64:72)=  (/ .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577 /)!-78C
+tablei(73:81)=  (/ .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032 /)  !-69C
+tablei(82:90)=  (/ .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080 /)   !-60C
+tablei(91:99)=  (/ 1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476 /)   !-51C
+tablei(100:107)=(/ 3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098 /)           !-43C
+tablei(108:116)=(/ 10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88 /)   !-34C
+tablei(117:126)=(/ 27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85 /)!-24C 
+tablei(127:134)=(/ 77.09, 85.02, 93.70, 103.06, 113.40, 124.68, 136.98, 150.39 /)     !-16C
+tablei(135:142)=(/ 164.99, 180.88, 198.16, 216.94, 237.34, 259.47, 283.49, 309.51 /)  !-8C
+tablei(143:150)=(/ 337.71, 368.23, 401.25, 436.96, 475.54, 517.21, 562.19, 610.70 /)  !0C
+tablei(151:158)=(/ 656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2 /)  !8C
+tablei(159:166)=(/ 1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3 /)  !16C
+tablei(167:174)=(/ 1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1 /)  !24C
+tablei(175:182)=(/ 3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1 /)  !32C
+tablei(183:190)=(/ 5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7 /)  !40C
+tablei(191:197)=(/ 7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0 /)        !47C
+tablei(198:204)=(/ 11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0 /)   !54C
+tablei(205:211)=(/ 15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0 /)   !61C
+tablei(212:218)=(/ 21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0 /)   !68C
+tablei(219:220)=(/ 29845.0, 31169.0 /)                                                !70C 
+
+esdiff(-40:-31)=(/ 6.22, 6.76, 7.32, 7.92, 8.56, 9.23, 9.94,10.68,11.46,12.27 /)
+esdiff(-30:-21)=(/ 13.11,13.99,14.89,15.82,16.76,17.73,18.70,19.68,20.65,21.61 /)
+esdiff(-20:-11)=(/ 22.55,23.45,24.30,25.08,25.78,26.38,26.86,27.18,27.33,27.27 /)
+esdiff(-10:-1)= (/ 26.96,26.38,25.47,24.20,22.51,20.34,17.64,14.34,10.37, 5.65 /)
+esdiff(0:2)=    (/ 0.08, 0., 0. /)
 
 return
 end subroutine tkeinit
@@ -259,7 +266,7 @@ real, dimension(imax) :: cdrag,umag,ustar
 real, dimension(imax) :: tempv,rvar,bvf,dc,mc,fc
 real, dimension(imax) :: tbb,tcc,tqq
 real, dimension(imax) :: zi_save, zturb, cgmap
-real, dimension(imax) :: templ, dqsdt, al
+real, dimension(imax) :: templ, dqsdt, al, fice, qc, qt, lx
 real, dimension(kl) :: sigkap
 real cm12, cm34
 real ddts
@@ -361,10 +368,11 @@ do kcount = 1,mcount
 
   ! Set-up thermodynamic variables temp, theta_v, qtot and saturated mixing ratio
   do k = 1,kl
-    temp(:) = theta(1:imax,k)/sigkap(k)
-    ! calculate saturated air mixing ratio
+    templ(:) = thetal(1:imax,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
-    call getqsat(qsat(:,k),temp(:),pres(:))
+    fice(:) = max(min(qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-12),1.),0.)
+    ! calculate saturated air mixing ratio
+    call getqsat(qsat(:,k),templ(:),pres(:),fice(:))
   end do
   thetav = theta*(1.+0.61*qvg-qlg-qfg)
   qtot = qvg + qlg + qfg
@@ -749,19 +757,29 @@ do kcount = 1,mcount
 
   ! account for saturation
   do k = 1,kl
+    qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
+    qfg(:,k) = max( qfg(:,k), 0. )
+    qlg(:,k) = max( qlg(:,k), 0. )
+    qvg(:,k) = qt(:) - qfg(:,k) - qlg(:,k)  
+    
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
     temp(:) = theta(:,k)/sigkap(k)
     templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
-    call getqsat(qsat(:,k),temp(:),pres(:))
-    dqsdt = qsat(:,k)*lv/(rv*templ**2)
-    al = cp/(cp+lv*dqsdt)
+    fice(:) = max(min(qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-12),1.),0.)
+    call getqsat(qsat(:,k),templ(:),pres(:),fice(:))
+    lx(:) = lv + lf*fice(:)
+    dqsdt(:) = qsat(:,k)*lx(:)/(rv*templ(:)**2)
+    al(:) = cp/(cp+lx(:)*dqsdt(:))
+    qt(:) = qfg(:,k) + qlg(:,k) + qvg(:,k)
+    qc(:) = al(:)*(qt(:) - min(qvg(:,k),qsat(:,k)))
     where ( temp(:)>=tice )
-      tff(:) = qlg(:,k) + qvg(:,k)
-      qlg(:,k) = al*(qlg(:,k) + qvg(:,k) - min(qvg(:,k),qsat(:,k)))
-      qvg(:,k) = tff(:) - qlg(:,k)
+      qlg(:,k) = (1.-fice(:))*qc(:)
+      qfg(:,k) = fice(:)*qc(:)
+      qvg(:,k) = qt(:) - qlg(:,k) - qfg(:,k)
     end where  
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
+    temp(:) = theta(:,k)/sigkap(k)
     where ( qlg(:,k)+qfg(:,k)>1.E-12 )
       cfrac(:,k) = max( cfrac(:,k), 1.E-8 )
     end where
@@ -895,7 +913,8 @@ nn(:,1) = grav*be*wtv0_p/(thetav_p*sqrt(tke1))          ! Hurley 2007
 w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent)      ! Hurley 2007
 ! estimate variance of qtup in updraft
 pres(:) = ps_p(:)*sig(1)
-call getqsat(qupsat,templ(:),pres(:))
+fice = max(min(qfup_p(:,k)/max(qfup_p(:,k)+qlup_p(:,k),1.e-12),1.),0.)
+call getqsat(qupsat,templ(:),pres(:),fice(:))
 cxup(:,1) = 0.
 
 ! updraft with condensation
@@ -932,7 +951,8 @@ do k = 2,kl
   qtup = qvup_p(:,k) + qlup_p(:,k) + qfup_p(:,k)    ! qtot,up
   templ = tlup_p(:,k)/sigkap(k)                     ! templ,up
   pres = ps_p(:)*sig(k)
-  call getqsat(qupsat,templ(:),pres(:))
+  fice = max(min(qfup_p(:,k)/max(qfup_p(:,k)+qlup_p(:,k),1.e-12),1.),0.)
+  call getqsat(qupsat,templ(:),pres(:),fice(:))
   qxup = min( qtup, qupsat )
   where ( qtup > qupsat )
     qxup = qupsat
@@ -945,7 +965,6 @@ do k = 2,kl
     qxup = qtup
     cxup(:,k) = 0.
   end where
-  fice = qfup_p(:,k)/max(qfup_p(:,k)+qlup_p(:,k),1.e-20)
   lx = lv + lf*fice
   dqsdt = qupsat*lx/(rv*templ**2)
   al = cp/(cp+lx*dqsdt)
@@ -1117,21 +1136,30 @@ end subroutine thomas
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio
 
-pure subroutine getqsat(qsat,temp,ps)
+subroutine getqsat(qsat,templ,ps,fice)
 
 implicit none
 
-real, dimension(:), intent(in) :: temp
-real, dimension(size(temp)), intent(in) :: ps
-real, dimension(size(temp)), intent(out) :: qsat
-real, dimension(size(temp)) :: esatf,tdiff,rx
-integer, dimension(size(temp)) :: ix
+real, dimension(:), intent(in) :: templ
+real, dimension(size(templ)), intent(in) :: ps, fice
+real, dimension(size(templ)), intent(out) :: qsat
+real, dimension(size(templ)) :: estafi, tdiff, tdiffx, rx, rxx
+real, dimension(size(templ)) :: qsatl, qsati, deles
+integer, dimension(size(templ)) :: ix, ixx
 
-tdiff=min(max( temp(:)-123.16, 0.), 219.)
-rx=tdiff-aint(tdiff)
-ix=int(tdiff)
-esatf=(1.-rx)*table(ix)+ rx*table(ix+1)
-qsat(:)=0.622*esatf/max(ps(:)-esatf,0.1)
+tdiff = min(max( templ(:)-123.16, 0.), 219.)
+rx = tdiff - aint(tdiff)
+ix = int(tdiff)
+estafi = (1.-rx)*tablei(ix) + rx*tablei(ix+1)
+qsati = 0.622*estafi/max(ps(:)-estafi,0.1)
+
+tdiffx = min(max( templ(:)-273.1, -40.), 1.)
+rxx = tdiffx - aint(tdiffx)
+ixx = int(tdiffx)
+deles = (1.-rxx)*esdiff(ixx) + rxx*esdiff(ixx+1)
+qsatl = qsati + 0.622*deles/ps
+
+qsat = fice*qsati + (1.-fice)*qsatl
 
 return
 end subroutine getqsat
