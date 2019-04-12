@@ -652,6 +652,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'tss_sh',tss_sh)
     call ccnf_put_attg(idnc,'vmodmin',vmodmin)
     call ccnf_put_attg(idnc,'zobgin',zobgin)
+    call ccnf_put_attg(idnc,'zo_clearing',zo_clearing)
 
     ! radiation and aerosol
     call ccnf_put_attg(idnc,'aeroindir',aeroindir)

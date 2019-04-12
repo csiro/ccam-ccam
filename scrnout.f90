@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -364,7 +364,7 @@ do ic = 1,nc
     ph1(1:imax) = (1.-16.*z_on_l(1:imax))**(-0.5)
     pq1(1:imax) = ph1(1:imax)
     integralm(1:imax) = lzom(1:imax)-2.*log((1.+1./pm1(1:imax))/(1.+1./pm0(1:imax))) &
-                      -log((1.+1./pm1(1:imax)**2)/(1.+1./pm0(1:imax)**2))              &
+                      -log((1.+1./pm1(1:imax)**2)/(1.+1./pm0(1:imax)**2))            &
                       +2.*(atan(1./pm1(1:imax))-atan(1./pm0(1:imax)))
     integralh(1:imax) = lzoh(1:imax)-2.*log((1.+1./ph1(1:imax))/(1.+1./ph0(1:imax)))
     integralq(1:imax) = lzoq(1:imax)-2.*log((1.+1./pq1(1:imax))/(1.+1./pq0(1:imax)))
@@ -372,7 +372,7 @@ do ic = 1,nc
     !--------------Beljaars and Holtslag (1991) momentum & heat            
     pm0(1:imax) = -(a_1*z0_on_l(1:imax)+b_1*(z0_on_l(1:imax)-(c_1/d_1))*exp(-d_1*z0_on_l(1:imax)) &
                    +b_1*c_1/d_1)
-    pm1(1:imax) = -(a_1*z_on_l(1:imax)+b_1*(z_on_l(1:imax)-(c_1/d_1))*exp(-d_1*z_on_l(1:imax)) &
+    pm1(1:imax) = -(a_1*z_on_l(1:imax)+b_1*(z_on_l(1:imax)-(c_1/d_1))*exp(-d_1*z_on_l(1:imax))    &
                    +b_1*c_1/d_1)
     ph0(1:imax) = -((1.+(2./3.)*a_1*zt_on_l(1:imax))**1.5+b_1*(zt_on_l(1:imax)-(c_1/d_1))*exp(-d_1*zt_on_l(1:imax)) &
                +b_1*c_1/d_1-1.)
@@ -431,10 +431,10 @@ elsewhere
   integralm(1:imax)   = neutral(1:imax)-(pm1(1:imax)-pm0(1:imax))
   integralm10(1:imax) = neutral10(1:imax)-(pm1(1:imax)-pm10(1:imax))
 endwhere
-integralh(1:imax)  = max(integralh(1:imax), 1.e-10)
-integralq(1:imax)  = max(integralq(1:imax), 1.e-10)
-integralm(1:imax)  = max(integralm(1:imax), 1.e-10)
-integralm10(1:imax)  = max(integralm10(1:imax), 1.e-10)
+integralh(1:imax)   = max(integralh(1:imax), 1.e-10)
+integralq(1:imax)   = max(integralq(1:imax), 1.e-10)
+integralm(1:imax)   = max(integralm(1:imax), 1.e-10)
+integralm10(1:imax) = max(integralm10(1:imax), 1.e-10)
 
 tscrn(1:imax)  = temp(1:imax) - tstar(1:imax)*integralh(1:imax)/vkar
 esatb(1:imax)  = establ(tscrn(1:imax))
@@ -480,7 +480,7 @@ real, dimension(is:ie) :: ou, ov, atu, atv, iu, iv
 real, dimension(is:ie) :: au, av, es, rho
 real, dimension(is:ie) :: u_qgscrn, u_rhscrn, u_tscrn, u_uscrn, u_u10
 real, dimension(is:ie) :: u_ustar, u_tstar, u_qstar, u_thetavstar
-real, dimension(is:ie) :: u_zo, u_zoh, u_zoq, u_tss, u_smixr
+real, dimension(imax) :: new_zo, new_zoh, new_zoq, new_tss, new_smixr
     
 tile = ie/imax
 
@@ -507,10 +507,23 @@ umag(is:ie) = max( sqrt(au(is:ie)*au(is:ie)+av(is:ie)*av(is:ie)), vmodmin )
 es(is:ie) = establ(tss(is:ie))
 qsttg(is:ie) = 0.622*es(is:ie)/(ps(is:ie)-es(is:ie))
 smixr(is:ie) = wetfac(is:ie)*qsttg(is:ie) + (1.-wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
-      
+
+new_zo = zo(is:ie)
+new_zoh = zoh(is:ie)
+new_zoq = zoq(is:ie)
+new_tss = tss(is:ie)
+new_smixr = smixr(is:ie)
+if ( zo_clearing>0. ) then
+  where ( land(is:ie) )  
+    new_zo  = zo_clearing
+    new_zoh = 0.1*zo_clearing
+    new_zoq = 0.1*zo_clearing
+  end where  
+end if
+  
 call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie), &
-                ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),zo(is:ie),       &
-                zoh(is:ie),zoq(is:ie),tss(is:ie),t(is:ie,1),smixr(is:ie),qg(is:ie,1),     &
+                ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),new_zo,          &
+                new_zoh,new_zoq,new_tss,t(is:ie,1),new_smixr,qg(is:ie,1),                 &
                 umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
 
 rho(is:ie) = ps(is:ie)/(rdry*tss(is:ie))
@@ -528,23 +541,20 @@ u10(is:ie)   = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
 
 ! urban tile
 where ( sigmu(is:ie)>0. )
-  u_zo(is:ie)    = urban_zom(is:ie)
-  u_zoh(is:ie)   = urban_zoh(is:ie)
-  u_zoq(is:ie)   = urban_zoq(is:ie)
-  u_tss(is:ie)   = urban_ts(is:ie)
-  u_smixr(is:ie) = urban_wetfac(is:ie)*qsttg(is:ie) + (1.-urban_wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
-elsewhere
-  u_zo(is:ie)    = zo(is:ie)
-  u_zoh(is:ie)   = zoh(is:ie)
-  u_zoq(is:ie)   = zoq(is:ie)
-  u_tss(is:ie)   = tss(is:ie)
-  u_smixr(is:ie) = smixr(is:ie)
+  new_tss   = urban_ts(is:ie)
+  new_smixr = urban_wetfac(is:ie)*qsttg(is:ie) + (1.-urban_wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
 end where
-call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),u_tscrn(is:ie),u_uscrn(is:ie),u_u10(is:ie), &
-                u_ustar(is:ie),u_tstar(is:ie),u_qstar(is:ie),u_thetavstar(is:ie),u_zo(is:ie),       &
-                u_zoh(is:ie),u_zoq(is:ie),u_tss(is:ie),t(is:ie,1),u_smixr(is:ie),qg(is:ie,1),       &
+if ( zo_clearing<=0. ) then
+  where ( sigmu(is:ie)>0. )
+    new_zo  = urban_zom(is:ie)
+    new_zoh = urban_zoh(is:ie)
+    new_zoq = urban_zoq(is:ie)
+  end where
+end if
+call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn(is:ie),u_u10(is:ie), &
+                u_ustar(is:ie),u_tstar(is:ie),u_qstar(is:ie),u_thetavstar(is:ie),new_zo,              &
+                new_zoh,new_zoq,new_tss,t(is:ie,1),new_smixr,qg(is:ie,1),                             &
                 umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
-urban_tas(is:ie) = u_tscrn(is:ie)
 
 return
 end subroutine autoscrn

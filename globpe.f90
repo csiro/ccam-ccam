@@ -1409,7 +1409,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     nurban,ktopdav,mbd_mlo,mbd_maxscale_mlo,nud_sst,nud_sss,      &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,nriver,           &
-    atebnmlfile,nud_period,mfix_t,                                &
+    atebnmlfile,nud_period,mfix_t,zo_clearing,                    &
     procformat,procmode,compression,hp_output,                    & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
@@ -1540,7 +1540,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(32), dumi(116) ) 
+allocate( dumr(33), dumi(116) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1577,6 +1577,7 @@ if ( myid==0 ) then
   dumr(30)  = qgmin
   dumr(31)  = rhsat
   dumr(32)  = ensemble_rsfactor
+  dumr(33)  = zo_clearing
   dumi(1)   = ntau
   dumi(2)   = nwt
   dumi(3)   = nhorps
@@ -1728,6 +1729,7 @@ alphaj            = dumr(29)
 qgmin             = dumr(30)
 rhsat             = dumr(31)
 ensemble_rsfactor = dumr(32)
+zo_clearing       = dumr(33)
 ntau              = dumi(1)
 nwt               = dumi(2)
 nhorps            = dumi(3)
@@ -4203,7 +4205,7 @@ if ( any(qlg(js:je,1:kl)/=qlg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>7.e-2) ) then
+if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>8.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qlg(js:je,1:kl)),maxval(qlg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qlg(js:je,1:kl)),maxloc(qlg(js:je,1:kl))
@@ -4215,7 +4217,7 @@ if ( any(qfg(js:je,1:kl)/=qfg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>7.e-2) ) then
+if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>8.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qfg(js:je,1:kl)),maxval(qfg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qfg(js:je,1:kl)),maxloc(qfg(js:je,1:kl))
@@ -4227,7 +4229,7 @@ if ( any(qrg(js:je,1:kl)/=qrg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qrg(js:je,1:kl)<-1.e-8) .or. any(qrg(js:je,1:kl)>7.e-2) ) then
+if ( any(qrg(js:je,1:kl)<-1.e-8) .or. any(qrg(js:je,1:kl)>8.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qrg(js:je,1:kl)),maxval(qrg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qrg(js:je,1:kl)),maxloc(qrg(js:je,1:kl))
@@ -4239,7 +4241,7 @@ if ( any(qsng(js:je,1:kl)/=qsng(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qsng(js:je,1:kl)<-1.e-8) .or. any(qsng(js:je,1:kl)>7.e-2) ) then
+if ( any(qsng(js:je,1:kl)<-1.e-8) .or. any(qsng(js:je,1:kl)>8.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qsng(js:je,1:kl)),maxval(qsng(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qsng(js:je,1:kl)),maxloc(qsng(js:je,1:kl))
@@ -4251,7 +4253,7 @@ if ( any(qgrg(js:je,1:kl)/=qgrg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qgrg(js:je,1:kl)<-1.e-8) .or. any(qgrg(js:je,1:kl)>7.e-2) ) then
+if ( any(qgrg(js:je,1:kl)<-1.e-8) .or. any(qgrg(js:je,1:kl)>8.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qgrg(js:je,1:kl)),maxval(qgrg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qgrg(js:je,1:kl)),maxloc(qgrg(js:je,1:kl))
@@ -4263,7 +4265,7 @@ if ( any(qlrad(js:je,1:kl)/=qlrad(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>7.e-2) ) then
+if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>8.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qlrad on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qlrad(js:je,1:kl)),maxval(qlrad(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qlrad(js:je,1:kl)),maxloc(qlrad(js:je,1:kl))
@@ -4275,7 +4277,7 @@ if ( any(qfrad(js:je,1:kl)/=qfrad(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>7.e-2) ) then
+if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>8.e-2) ) then
   write(6,*) "ERROR: Out-of-range detected in qfrad on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qfrad(js:je,1:kl)),maxval(qfrad(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qfrad(js:je,1:kl)),maxloc(qfrad(js:je,1:kl))
