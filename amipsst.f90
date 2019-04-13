@@ -971,7 +971,10 @@ if ( iernc==0 ) then
   end if  
   
 else
-    
+   
+  allocate( ssta_g(ifull_g,5) )
+  ssta_g = 0.
+ 
   ! ASCII  
   if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then  
     iyr_m = iyr
@@ -1173,6 +1176,8 @@ else
     call ccmpi_distribute(asal(:,1:5), ssta_g(:,1:5))
       
   end if
+
+  deallocate( ssta_g )
       
 end if ! (iernc==0) .. else ..
 
