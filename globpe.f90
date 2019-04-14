@@ -259,8 +259,20 @@ if ( myid<nproc ) then
       call nestin
       call END_LOG(nestin_end)
       call nantest("after nesting",1,ifull)
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after nesting"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
     else
       call nantest("before atmosphere dynamics",1,ifull)
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting before atmosphere dynamics"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
     end if
 
 
@@ -370,6 +382,13 @@ if ( myid<nproc ) then
 
       ! update non-linear dynamic terms
       call nonlin
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after nonlin"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
+
       
       if ( diag ) then
         if ( mydiag ) write(6,*) 'before hadv'
@@ -388,6 +407,13 @@ if ( myid<nproc ) then
 
       ! evaluate horizontal advection for combined quantities
       call upglobal
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after upglobal"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
+
       
       if ( diag ) then
         if ( mydiag ) then
@@ -409,12 +435,25 @@ if ( myid<nproc ) then
       
       ! Update the semi-implicit solution to the augumented geopotential
       call adjust5
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after adjust5"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
+
 
       ! check for rounding errors
       call fixqg(1,ifull)
   
       call nantest("after atmosphere dynamics",1,ifull)
-
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after atmosphere dynamics"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
+      
       
       ! NESTING ---------------------------------------------------------------
       ! nesting now after mass fixers
@@ -432,6 +471,12 @@ if ( myid<nproc ) then
           call nantest("after nesting",1,ifull)      
           call END_LOG(nestin_end)
         end if
+#ifdef globpedebug
+        if ( myid==0 ) then
+          write(6,*) "Waiting after nesting"
+        end if
+        call ccmpi_barrier(comm_world)
+#endif
       end if
     
       
@@ -456,6 +501,12 @@ if ( myid<nproc ) then
       call nantest("after atm horizontal diffusion",1,ifull)    
       call END_LOG(hordifg_end)
     end if  
+#ifdef globpedebug
+    if ( myid==0 ) then
+      write(6,*) "Waiting after horizontal diffusion"
+    end if
+    call ccmpi_barrier(comm_world)
+#endif
 
     
     ! ***********************************************************************
@@ -469,6 +520,12 @@ if ( myid<nproc ) then
       call START_LOG(river_begin)
       call rvrrouter
       call END_LOG(river_end)
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after river routing"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
     end if
 
     
@@ -487,12 +544,24 @@ if ( myid<nproc ) then
       call START_LOG(waterdynamics_begin)
       call mlohadv
       call END_LOG(waterdynamics_end)
+#ifdef globpedebug
+    if ( myid==0 ) then
+      write(6,*) "Waiting after water dynamics"
+    end if
+    call ccmpi_barrier(comm_world)
+#endif
     end if
     if ( abs(nmlo)>=2 .and. abs(nmlo)<=9 ) then
       ! DIFFUSION -----------------------------------------------------------
       call START_LOG(waterdynamics_begin)
       call mlodiffusion
       call END_LOG(waterdynamics_end)
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after mlodiffusion"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
     end if
       
       
@@ -805,7 +874,14 @@ if ( myid<nproc ) then
     end if
 
     call END_LOG(phys_end)
+#ifdef globpedebug
+    if ( myid==0 ) then
+      write(6,*) "Waiting after physics"
+    end if
+    call ccmpi_barrier(comm_world)
+#endif
 
+    
     
 #ifdef csircoupled
     ! ***********************************************************************
@@ -833,17 +909,36 @@ if ( myid<nproc ) then
     if ( ngas>0 ) then
       call tracer_mass !also updates average tracer array
       call write_ts(ktau,ntau,dt)
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after write_ts"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
     endif
 
     
     ! STATION OUTPUT ---------------------------------------------
     if ( nstn>0 ) then
       call stationa ! write every time step
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after stationa"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
     end if
     
     
     ! DIAGNOSTICS ------------------------------------------------
     call write_diagnostics(mins_gmt,nmaxprsav)
+#ifdef globpedebug
+    if ( myid==0 ) then
+      write(6,*) "Waiting after write diagnostics"
+    end if
+    call ccmpi_barrier(comm_world)
+#endif
+
     
     if ( myid==0 ) then
       write(6,*) 'ktau,mod,nper3hr ',ktau,mod(ktau-1,nperday)+1,nper3hr(n3hr)
@@ -877,24 +972,41 @@ if ( myid<nproc ) then
         if ( myid==0 ) write(6,*) 'finished writing restart file in outfile'
         call START_LOG(maincalc_begin)
       endif  ! (ktau==ntau.and.irest==1)
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after outfile"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
     endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
     ! write high temporal frequency fields
     if ( surfile /= ' ' ) then
       call freqfile
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after freqfile"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
     end if
 
     
     ! ENSEMBLE --------------------------------------------------
     if ( ensemble_mode>0 ) then
-      call update_ensemble  
+      call update_ensemble
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after update_ensemble"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
       call fixqg(1,ifull)
     end if
     call log_on
  
     
     ! TIME AVERAGED DIAGNOSTICS ---------------------------------
-    if ( mod(ktau,nperavg)==0 ) then  
-        
+    if ( mod(ktau,nperavg)==0 ) then    
       ! produce some diags & reset most averages once every nperavg
       if ( nmaxpr==1 ) then
         precavge = sum(precip(1:ifull)*wts(1:ifull))
@@ -915,12 +1027,16 @@ if ( myid<nproc ) then
       end if
       ! also zero most averaged fields every nperavg
       call zero_nperavg
-      
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after time averaged diagnostics"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
     endif  ! (mod(ktau,nperavg)==0)
 
     ! DAILY DIAGNOSTICS ----------------------------------------
     if ( mod(ktau,nperday)==0 ) then   ! re-set at the end of each 24 hours
-        
       if ( ntau<10*nperday .and. nstn>0 ) then     ! print stn info
         do nn = 1,nstn
           if ( mystn(nn) ) then
@@ -936,7 +1052,12 @@ if ( myid<nproc ) then
         end do
       end if  ! (ntau<10*nperday)
       call zero_nperday
-      
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after daily diagnostics"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
     endif   ! (mod(ktau,nperday)==0)
   
     
@@ -945,6 +1066,13 @@ if ( myid<nproc ) then
       call START_LOG(amipsst_begin)
       call amipsst
       call END_LOG(amipsst_end)
+#ifdef globpedebug
+      if ( myid==0 ) then
+        write(6,*) "Waiting after amipsst"
+      end if
+      call ccmpi_barrier(comm_world)
+#endif
+
     end if
 
     
