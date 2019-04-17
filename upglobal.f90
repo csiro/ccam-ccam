@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -78,7 +78,14 @@ real(kind=8), dimension(ifull,kl) :: x3d, y3d, z3d
 
 call START_LOG(upglobal_begin)
 
-intsch = mod(ktau, 2)
+select case( intsch_mode )
+  case(1)
+    intsch = 1
+  case(0)
+    intsch = 0
+  case default
+    intsch = mod(ktau, 2)
+end select    
 
 do k = 1,kl
   ! finish off RHS terms; this coriolis term was once in nonlin

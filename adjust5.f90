@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -184,7 +184,7 @@ if ( nh/=0 .and. (ktau>=knh.or.lrestart) ) then
   if ( abs(epsp)<=1. ) then
     const_nh = 2.*rdry/(dt*grav*grav*(1.+epsh))
   else
-    const_nh=2.*rdry/(dt*grav*grav)
+    const_nh = 2.*rdry/(dt*grav*grav)
   end if  
   ! note that linear part of omega/ps for tau+1 is included in eig.f90
   ! wrk2 contains the tstar and non-linear part of omega/ps at tau+1

@@ -481,6 +481,8 @@ real, dimension(is:ie) :: au, av, es, rho
 real, dimension(is:ie) :: u_qgscrn, u_rhscrn, u_tscrn, u_uscrn, u_u10
 real, dimension(is:ie) :: u_ustar, u_tstar, u_qstar, u_thetavstar
 real, dimension(imax) :: new_zo, new_zoh, new_zoq, new_tss, new_smixr
+real, dimension(imax) :: ustar_clearing, tstar_clearing
+real, dimension(imax) :: qstar_clearing, thetavstar_clearing
     
 tile = ie/imax
 
@@ -513,14 +515,7 @@ new_zoh = zoh(is:ie)
 new_zoq = zoq(is:ie)
 new_tss = tss(is:ie)
 new_smixr = smixr(is:ie)
-if ( zo_clearing>0. ) then
-  where ( land(is:ie) )  
-    new_zo  = zo_clearing
-    new_zoh = 0.1*zo_clearing
-    new_zoq = 0.1*zo_clearing
-  end where  
-end if
-  
+
 call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie), &
                 ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),new_zo,          &
                 new_zoh,new_zoq,new_tss,t(is:ie,1),new_smixr,qg(is:ie,1),                 &
@@ -555,6 +550,24 @@ call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn
                 u_ustar(is:ie),u_tstar(is:ie),u_qstar(is:ie),u_thetavstar(is:ie),new_zo,              &
                 new_zoh,new_zoq,new_tss,t(is:ie,1),new_smixr,qg(is:ie,1),                             &
                 umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
+
+! clearing
+new_zo = zo(is:ie)
+new_zoh = zoh(is:ie)
+new_zoq = zoq(is:ie)
+new_tss = tss(is:ie)
+new_smixr = smixr(is:ie)
+if ( zo_clearing>0. ) then
+  where ( land(is:ie) )  
+    new_zo  = zo_clearing
+    new_zoh = 0.1*zo_clearing
+    new_zoq = 0.1*zo_clearing
+  end where  
+end if
+call screencalc(ie-is+1,qgscrn_clearing(is:ie),rhscrn_clearing(is:ie),tscrn_clearing(is:ie), &
+                uscrn_clearing(is:ie),u10_clearing(is:ie),ustar_clearing,tstar_clearing,     &
+                qstar_clearing,thetavstar_clearing,new_zo,new_zoh,new_zoq,new_tss,           &
+                t(is:ie,1),new_smixr,qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
 
 return
 end subroutine autoscrn

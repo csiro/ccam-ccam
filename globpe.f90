@@ -1537,7 +1537,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     nurban,ktopdav,mbd_mlo,mbd_maxscale_mlo,nud_sst,nud_sss,      &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,nriver,           &
-    atebnmlfile,nud_period,mfix_t,zo_clearing,                    &
+    atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,        &
     procformat,procmode,compression,hp_output,                    & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
@@ -1668,7 +1668,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(116) ) 
+allocate( dumr(33), dumi(117) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1822,6 +1822,7 @@ if ( myid==0 ) then
   dumi(114) = ensemble_mode
   dumi(115) = ensemble_period
   dumi(116) = hp_output
+  dumi(117) = intsch_mode
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1974,6 +1975,7 @@ mfix_t            = dumi(113)
 ensemble_mode     = dumi(114)
 ensemble_period   = dumi(115)
 hp_output         = dumi(116)
+intsch_mode       = dumi(117)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -3741,6 +3743,8 @@ riwp_ave(:)          = 0.
 rlwp_ave(:)          = 0.
 rhscr_ave(:)         = 0.
 tscr_ave(:)          = 0.
+rhscr_ave_clearing(:) = 0.
+tscr_ave_clearing(:)  = 0.
 wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
 !tsu_ave(:)           = 0.
@@ -3777,6 +3781,7 @@ runoff(:)            = 0.  ! converted to mm/day in outcdf
 runoff_surface(:)    = 0.  ! converted to mm/day in outcdf
 snowmelt(:)          = 0.  ! converted to mm/day in outcdf
 u10mx(:)             = 0.
+u10mx_clearing(:)    = 0.
 cape_max(:)          = 0.
 cape_ave(:)          = 0.
 
@@ -3847,6 +3852,10 @@ tmaxscr(:)  = tscrn(:)
 tminscr(:)  = tscrn(:) 
 rhmaxscr(:) = rhscrn(:) 
 rhminscr(:) = rhscrn(:) 
+tmaxscr_clearing(:)  = tscrn_clearing(:) 
+tminscr_clearing(:)  = tscrn_clearing(:) 
+rhmaxscr_clearing(:) = rhscrn_clearing(:) 
+rhminscr_clearing(:) = rhscrn_clearing(:)
 u10max(:)   = 0.
 v10max(:)   = 0.
 u1max(:)    = 0.
@@ -3902,10 +3911,15 @@ tmaxscr(1:ifull)           = max( tmaxscr(1:ifull), tscrn )
 tminscr(1:ifull)           = min( tminscr(1:ifull), tscrn )
 rhmaxscr(1:ifull)          = max( rhmaxscr(1:ifull), rhscrn )
 rhminscr(1:ifull)          = min( rhminscr(1:ifull), rhscrn )
+tmaxscr_clearing(1:ifull)  = max( tmaxscr_clearing(1:ifull), tscrn_clearing )
+tminscr_clearing(1:ifull)  = min( tminscr_clearing(1:ifull), tscrn_clearing )
+rhmaxscr_clearing(1:ifull) = max( rhmaxscr_clearing(1:ifull), rhscrn_clearing )
+rhminscr_clearing(1:ifull) = min( rhminscr_clearing(1:ifull), rhscrn_clearing )
 rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
 cape_max(1:ifull)          = max( cape_max(1:ifull), cape )
 cape_ave(1:ifull)          = cape_ave(1:ifull) + cape
 u10mx(1:ifull)             = max( u10mx(1:ifull), u10 )  ! for hourly scrnfile
+u10mx_clearing(1:ifull)    = max( u10mx_clearing(1:ifull), u10_clearing )  ! for hourly scrnfile
 dew_ave(1:ifull)           = dew_ave(1:ifull) - min( 0., eg )    
 epan_ave(1:ifull)          = epan_ave(1:ifull) + epan
 epot_ave(1:ifull)          = epot_ave(1:ifull) + epot 
@@ -3922,6 +3936,8 @@ tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
 rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
 tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
 rhscr_ave(1:ifull)         = rhscr_ave(1:ifull) + rhscrn 
+tscr_ave_clearing(1:ifull)  = tscr_ave_clearing(1:ifull) + tscrn_clearing 
+rhscr_ave_clearing(1:ifull) = rhscr_ave_clearing(1:ifull) + rhscrn_clearing 
 wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
 !tsu_ave(1:ifull)           = tsu_ave(1:ifull) + tss
@@ -3988,6 +4004,8 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
   tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
   rhscr_ave(1:ifull)         = rhscr_ave(1:ifull)/min(ntau,nperavg)
+  tscr_ave_clearing(1:ifull)  = tscr_ave_clearing(1:ifull)/min(ntau,nperavg)
+  rhscr_ave_clearing(1:ifull) = rhscr_ave_clearing(1:ifull)/min(ntau,nperavg)
   do k = 1,ms
     wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
     wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)

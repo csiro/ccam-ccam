@@ -567,7 +567,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'helmmeth',helmmeth)
     call ccnf_put_attg(idnc,'hp_output',hp_output)
     call ccnf_put_attg(idnc,'iaero',iaero)   
-    call ccnf_put_attg(idnc,'iceradmethod',iceradmethod)   
+    call ccnf_put_attg(idnc,'iceradmethod',iceradmethod)
+    call ccnf_put_attg(idnc,'intsch_mode',intsch_mode)
     call ccnf_put_attg(idnc,'jalbfix',jalbfix)
     call ccnf_put_attg(idnc,'kblock',kblock)
     call ccnf_put_attg(idnc,'kbotdav',kbotdav)
@@ -1302,6 +1303,8 @@ if( myid==0 .or. local ) then
     call attrib(idnc,dimj,jsize,'fracice',lname,'none',0.,6.5,0,cptype)
     lname = '10m wind speed'
     call attrib(idnc,dimj,jsize,'u10',lname,'m/s',0.,130.,0,cptype)
+    lname = '10m wind speed (clearing)'
+    call attrib(idnc,dimj,jsize,'u10_clearing',lname,'m/s',0.,130.,0,cptype)
     if ( save_cloud ) then
       lname = 'Maximum CAPE'
       call attrib(idnc,dimj,jsize,'cape_max',lname,'J/kg',0.,20000.,0,cptype)
@@ -1320,12 +1323,22 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'rhmaxscr',lname,'%',0.,200.,1,cptype)
       lname = 'Minimum screen relative humidity'
       call attrib(idnc,dimj,jsize,'rhminscr',lname,'%',0.,200.,1,cptype)
+      lname = 'Maximum screen temperature (clearing)'
+      call attrib(idnc,dimj,jsize,'tmaxscr_clearing',lname,'K',100.,425.,1,cptype)
+      lname = 'Minimum screen temperature (clearing)'
+      call attrib(idnc,dimj,jsize,'tminscr_clearing',lname,'K',100.,425.,1,cptype)
+      lname = 'Maximum screen relative humidity (clearing)'
+      call attrib(idnc,dimj,jsize,'rhmaxscr_clearing',lname,'%',0.,200.,1,cptype)
+      lname = 'Minimum screen relative humidity (clearing)'
+      call attrib(idnc,dimj,jsize,'rhminscr_clearing',lname,'%',0.,200.,1,cptype)
       lname = 'x-component max 10m wind'
       call attrib(idnc,dimj,jsize,'u10max',lname,'m/s',-99.,99.,1,cptype)
       lname = 'y-component max 10m wind'
       call attrib(idnc,dimj,jsize,'v10max',lname,'m/s',-99.,99.,1,cptype)
       lname = 'Maximum 10m wind speed'
       call attrib(idnc,dimj,jsize,'sfcWindmax',lname,'m/s',0.,199.,1,cptype)
+      lname = 'Maximum 10m wind speed (clearing)'
+      call attrib(idnc,dimj,jsize,'sfcWindmax_clearing',lname,'m/s',0.,199.,1,cptype)
       lname = 'x-component max level_1 wind'
       call attrib(idnc,dimj,jsize,'u1max',lname,'m/s',-99.,99.,1,cptype)
       lname = 'y-component max level_1 wind'
@@ -1399,6 +1412,10 @@ if( myid==0 .or. local ) then
     call attrib(idnc,dimj,jsize,'tscr_ave',lname,'K',100.,425.,0,cptype)
     lname = 'Average screen relative humidity'
     call attrib(idnc,dimj,jsize,'rhscr_ave',lname,'%',0.,200.,0,cptype)
+    lname = 'Average screen temperature (clearing)'
+    call attrib(idnc,dimj,jsize,'tscr_ave_clearing',lname,'K',100.,425.,0,cptype)
+    lname = 'Average screen relative humidity (clearing)'
+    call attrib(idnc,dimj,jsize,'rhscr_ave_clearing',lname,'%',0.,200.,0,cptype)
     if ( save_cloud .or. itype==-1 ) then
       lname = 'Avg cloud base'
       call attrib(idnc,dimj,jsize,'cbas_ave',lname,'sigma',0.,1.1,0,cptype)
@@ -1479,11 +1496,19 @@ if( myid==0 .or. local ) then
     call attrib(idnc,dimj,jsize,'tscrn',lname,'K',100.,425.,0,cptype)
     lname = 'Screen mixing ratio'
     call attrib(idnc,dimj,jsize,'qgscrn',lname,'kg/kg',0.,.06,0,cptype)
+    lname = 'Screen temperature (clearing)'
+    call attrib(idnc,dimj,jsize,'tscrn_clearing',lname,'K',100.,425.,0,cptype)
+    lname = 'Screen mixing ratio (clearing)'
+    call attrib(idnc,dimj,jsize,'qgscrn_clearing',lname,'kg/kg',0.,.06,0,cptype)
     if ( itype/=-1 ) then
       lname = 'Screen relative humidity'
       call attrib(idnc,dimj,jsize,'rhscrn',lname,'%',0.,200.,0,cptype)
       lname = 'Screen level wind speed'
       call attrib(idnc,dimj,jsize,'uscrn',lname,'m/s',0.,65.,0,cptype)
+      lname = 'Screen relative humidity (clearing)'
+      call attrib(idnc,dimj,jsize,'rhscrn_clearing',lname,'%',0.,200.,0,cptype)
+      lname = 'Screen level wind speed (clearing)'
+      call attrib(idnc,dimj,jsize,'uscrn_clearing',lname,'m/s',0.,65.,0,cptype)
       if ( save_radiation ) then
         lname = 'Net radiation'
         call attrib(idnc,dimj,jsize,'rnet',lname,'W/m2',-3000.,3000.,0,cptype)
@@ -2524,21 +2549,27 @@ call histwrt(fracice,'fracice',idnc,iarch,local,.true.)
      
 ! DIAGNOSTICS -------------------------------------------------
 call histwrt(u10,'u10',idnc,iarch,local,.true.)
+call histwrt(u10_clearing,'u10_clearing',idnc,iarch,local,.true.)
 if ( save_cloud ) then
   call histwrt(cape_max,'cape_max',idnc,iarch,local,lwrite)
   call histwrt(cape_ave,'cape_ave',idnc,iarch,local,lwrite)
 end if
       
 if ( itype/=-1 .and. save_maxmin ) then  ! these not written to restart file
-  aa=rndmax(:)*86400./dt ! scale up to mm/day
+  aa = rndmax(:)*86400./dt ! scale up to mm/day
   call histwrt(aa,'maxrnd',idnc,iarch,local,lday)
   call histwrt(tmaxscr,'tmaxscr',idnc,iarch,local,lday)
   call histwrt(tminscr,'tminscr',idnc,iarch,local,lday)
   call histwrt(rhmaxscr,'rhmaxscr',idnc,iarch,local,lday)
   call histwrt(rhminscr,'rhminscr',idnc,iarch,local,lday)
+  call histwrt(tmaxscr_clearing,'tmaxscr_clearing',idnc,iarch,local,lday)
+  call histwrt(tminscr_clearing,'tminscr_clearing',idnc,iarch,local,lday)
+  call histwrt(rhmaxscr_clearing,'rhmaxscr_clearing',idnc,iarch,local,lday)
+  call histwrt(rhminscr_clearing,'rhminscr_clearing',idnc,iarch,local,lday)
   call histwrt(u10max,'u10max',idnc,iarch,local,lday)
   call histwrt(v10max,'v10max',idnc,iarch,local,lday)
   call histwrt(u10mx,'sfcWindmax',idnc,iarch,local,lave)
+  call histwrt(u10mx_clearing,'sfcWindmax_clearing',idnc,iarch,local,lave)
   call histwrt(u1max,'u1max',idnc,iarch,local,lday)
   call histwrt(v1max,'v1max',idnc,iarch,local,lday)
   call histwrt(u2max,'u2max',idnc,iarch,local,lday)
@@ -2597,6 +2628,8 @@ end if
 ! only write these once per avg period
 call histwrt(tscr_ave,'tscr_ave',idnc,iarch,local,lave_0)
 call histwrt(rhscr_ave,'rhscr_ave',idnc,iarch,local,lave_0)
+call histwrt(tscr_ave_clearing,'tscr_ave_clearing',idnc,iarch,local,lave_0)
+call histwrt(rhscr_ave_clearing,'rhscr_ave_clearing',idnc,iarch,local,lave_0)
 if ( save_cloud .or. itype==-1 ) then
   call histwrt(cbas_ave,'cbas_ave',idnc,iarch,local,lave_0)
   call histwrt(ctop_ave,'ctop_ave',idnc,iarch,local,lave_0)

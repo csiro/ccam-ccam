@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -25,10 +25,13 @@ implicit none
 
 private
 public tscrn,qgscrn,uscrn,rhscrn,u10
+public tscrn_clearing,qgscrn_clearing,uscrn_clearing,rhscrn_clearing,u10_clearing
 public screen_init,screen_end
 
-real, dimension(:), allocatable, save :: uscrn,rhscrn
+real, dimension(:), allocatable, save :: uscrn, rhscrn
 real, dimension(:), allocatable, save :: tscrn, qgscrn, u10
+real, dimension(:), allocatable, save :: uscrn_clearing, rhscrn_clearing
+real, dimension(:), allocatable, save :: tscrn_clearing, qgscrn_clearing, u10_clearing
 
 contains
 
@@ -39,12 +42,18 @@ implicit none
 integer, intent(in) :: ifull
 
 allocate(tscrn(ifull),qgscrn(ifull),uscrn(ifull),rhscrn(ifull),u10(ifull))
+allocate(tscrn_clearing(ifull),qgscrn_clearing(ifull),uscrn_clearing(ifull),rhscrn_clearing(ifull),u10_clearing(ifull))
 
 tscrn = 0.
 qgscrn = 0.
 uscrn = 0.
 rhscrn = 0.
 u10 = 0.
+tscrn_clearing = 0.
+qgscrn_clearing = 0.
+uscrn_clearing = 0.
+rhscrn_clearing = 0.
+u10_clearing = 0.
 
 return
 end subroutine screen_init
@@ -54,6 +63,7 @@ subroutine screen_end
 implicit none
 
 deallocate(tscrn,qgscrn,uscrn,rhscrn,u10)
+deallocate(tscrn_clearing,qgscrn_clearing,uscrn_clearing,rhscrn_clearing,u10_clearing)
 
 return
 end subroutine screen_end

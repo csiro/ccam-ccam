@@ -42,6 +42,7 @@ public av_vmod, vmodmin, snmin, tss_sh, charnock, chn10, zobgin
 public rlongdn, rlongdx, rlatdn, rlatdx, ds, dt, dtin, panfg, panzo
 public bpyear, helim, fc2, sigbot_gwd, alphaj, divdamp
 public sigramplow, sigramphigh, amxlsq, siburbanfrac
+public intsch_mode
 public diag, localhist, unlimitedhist, synchist, amipo3
 public save_aerosols, save_pbl, save_cloud, save_land, save_maxmin
 public save_ocean, save_radiation, save_urban, save_carbon, save_river
@@ -69,14 +70,14 @@ integer, save :: nud_aero=0, mbd_maxscale=3000, mbd_maxgrid=999999, mbd_maxscale
 integer, save :: leap=0, nbarewet=0, nsigmf=1
 integer, save :: procmode=0, compression=1
 integer, save :: nud_period=-1, mins_rad=-1, nalpha=1, jalbfix=1, irest=1, nwrite=0
-integer, save :: nstagin=0, nstaguin=0
+integer, save :: nstagin=0, nstaguin=0, intsch_mode=-1
 integer, save :: hp_output=0
 integer, save :: ensemble_mode=0, ensemble_period=720
 integer, save :: diaglevel_aerosols=0, diaglevel_pbl=0, diaglevel_cloud=0, diaglevel_land=0, diaglevel_maxmin=0
 integer, save :: diaglevel_ocean=0, diaglevel_radiation=0, diaglevel_urban=0, diaglevel_carbon=0, diaglevel_river=0
 integer, save :: diaglevel_pop=0
 !integer, save :: filemode=0, ioreaders=-1
-real, save :: qgmin=1.e-6, cirrus_decay=7200., zo_clearing=-1.
+real, save :: qgmin=1.e-6, cirrus_decay=7200., zo_clearing=0.05
 real, save :: av_vmod=0.7, vmodmin=0.2, snmin=0.11, tss_sh=1., charnock=0.018, chn10=0.00125, zobgin=0.02
 real, save :: rlongdn=0., rlongdx=0., rlatdn=0., rlatdx=0., ds=0., dt=0., dtin=0., panfg=4., panzo=0.001
 real, save :: bpyear=0., helim=800., fc2=1., sigbot_gwd=0., alphaj=1.e-6, divdamp=450.
