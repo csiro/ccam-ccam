@@ -755,13 +755,15 @@ do kcount = 1,mcount
   ustar = sqrt(cduv*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))
   ustar_ave = ustar_ave + ustar/real(mcount)
 
-  ! account for saturation
+  ! Account for phase transistions
   do k = 1,kl
+    ! Check for -ve values  
     qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
     qfg(:,k) = max( qfg(:,k), 0. )
     qlg(:,k) = max( qlg(:,k), 0. )
     qvg(:,k) = qt(:) - qfg(:,k) - qlg(:,k)  
     
+    ! account for saturation
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
     temp(:) = theta(:,k)/sigkap(k)
     templ(:) = thetal(:,k)/sigkap(k)
@@ -772,14 +774,13 @@ do kcount = 1,mcount
     dqsdt(:) = qsat(:,k)*lx(:)/(rv*templ(:)**2)
     al(:) = cp/(cp+lx(:)*dqsdt(:))
     qt(:) = qfg(:,k) + qlg(:,k) + qvg(:,k)
-    qc(:) = al(:)*(qt(:) - min(qvg(:,k),qsat(:,k)))
+    qc(:) = max(al(:)*(qt(:) - qsat(:,k)),0.)
     where ( temp(:)>=tice )
       qlg(:,k) = (1.-fice(:))*qc(:)
       qfg(:,k) = fice(:)*qc(:)
       qvg(:,k) = qt(:) - qlg(:,k) - qfg(:,k)
     end where  
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
-    temp(:) = theta(:,k)/sigkap(k)
     where ( qlg(:,k)+qfg(:,k)>1.E-12 )
       cfrac(:,k) = max( cfrac(:,k), 1.E-8 )
     end where

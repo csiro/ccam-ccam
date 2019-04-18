@@ -535,17 +535,18 @@ u10(is:ie)   = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
 
 
 ! urban tile
+new_zo = zo(is:ie)
+new_zoh = zoh(is:ie)
+new_zoq = zoq(is:ie)
+new_tss = tss(is:ie)
+new_smixr = smixr(is:ie)
 where ( sigmu(is:ie)>0. )
   new_tss   = urban_ts(is:ie)
   new_smixr = urban_wetfac(is:ie)*qsttg(is:ie) + (1.-urban_wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
+  new_zo  = urban_zom(is:ie)
+  new_zoh = urban_zoh(is:ie)
+  new_zoq = urban_zoq(is:ie)
 end where
-if ( zo_clearing<=0. ) then
-  where ( sigmu(is:ie)>0. )
-    new_zo  = urban_zom(is:ie)
-    new_zoh = urban_zoh(is:ie)
-    new_zoq = urban_zoq(is:ie)
-  end where
-end if
 call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn(is:ie),u_u10(is:ie), &
                 u_ustar(is:ie),u_tstar(is:ie),u_qstar(is:ie),u_thetavstar(is:ie),new_zo,              &
                 new_zoh,new_zoq,new_tss,t(is:ie,1),new_smixr,qg(is:ie,1),                             &
@@ -568,6 +569,13 @@ call screencalc(ie-is+1,qgscrn_clearing(is:ie),rhscrn_clearing(is:ie),tscrn_clea
                 uscrn_clearing(is:ie),u10_clearing(is:ie),ustar_clearing,tstar_clearing,     &
                 qstar_clearing,thetavstar_clearing,new_zo,new_zoh,new_zoq,new_tss,           &
                 t(is:ie,1),new_smixr,qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
+
+atu(is:ie)            = au(is:ie)*uscrn_clearing(is:ie)/umag(is:ie) + ou(is:ie)
+atv(is:ie)            = av(is:ie)*uscrn_clearing(is:ie)/umag(is:ie) + ov(is:ie)
+uscrn_clearing(is:ie) = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
+atu(is:ie)            = au(is:ie)*u10_clearing(is:ie)/umag(is:ie) + ou(is:ie)
+atv(is:ie)            = av(is:ie)*u10_clearing(is:ie)/umag(is:ie) + ov(is:ie)      
+u10_clearing(is:ie)   = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
 
 return
 end subroutine autoscrn

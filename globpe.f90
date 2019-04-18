@@ -3665,34 +3665,57 @@ end subroutine proctest_uniform
 subroutine fixqg(js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use cfrac_m                           ! Cloud fraction
 use const_phys                        ! Physical constants
+use estab                             ! Liquid saturation function
 use liqwpar_m                         ! Cloud water mixing ratios
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
+use sigs_m                            ! Atmosphere sigma levels
 
 implicit none
 
 integer, intent(in) :: js, je
 integer k
-real, dimension(js:je) :: dumqtot, dumliq
-
-if ( js<1 .or. je>ifull ) then
-  write(6,*) "ERROR: Invalid index for fixqg"
-  stop
-end if
+real, dimension(js:je) :: qtot, tliq
+real, dimension(js:je) :: pk, qsi, deles, qsl, qsw, fice
+real, dimension(js:je) :: dqsdt, hlrvap, al, qc
+real, parameter :: tice = 233.16
 
 do k = 1,kl
-  dumqtot(js:je) = qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k) ! qtot
-  dumqtot(js:je) = max( dumqtot(js:je), qgmin )
-  dumliq(js:je)  = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
+  qtot(:) = qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k) ! qtot
+  qtot(:) = max( qtot(:), qgmin )
+  tliq(:)  = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
+  
   qfg(js:je,k)   = max( qfg(js:je,k), 0. ) 
   qlg(js:je,k)   = max( qlg(js:je,k), 0. )
   qrg(js:je,k)   = max( qrg(js:je,k), 0. )
   qsng(js:je,k)  = max( qsng(js:je,k), 0. )
   qgrg(js:je,k)  = max( qgrg(js:je,k), 0. )
-  qg(js:je,k)    = dumqtot(js:je) - qlg(js:je,k) - qfg(js:je,k)
+  
+  fice(:) = max(min(qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-12),1.),0.)
+  pk(:) = ps(js:je)*sig(k)
+  qsi(:) = qsati(pk,tliq)
+  deles(:) = esdiffx(tliq)
+  qsl(:) = qsi(:) + epsil*deles(:)/pk(:)
+  qsw(:) = fice(:)*qsi(:) + (1.-fice(:))*qsl(:)
+  hlrvap(:) = (hl+fice(:)*hlf)/rvap
+  dqsdt(:) = qsw(:)*hlrvap(:)/tliq(:)**2
+  al(:) = 1./(1.+(hlcp+fice(:)*hlfcp)*dqsdt(:))
+  qc(:) = max(al(:)*(qtot(:) - qsw(:)), 0.)
+  where ( t(js:je,k)>=tice )
+    qlg(js:je,k) = (1.-fice(:))*qc(:)
+    qfg(js:je,k) = fice(:)*qc(:)
+  end where
+
+  qg(js:je,k)    = qtot(:) - qlg(js:je,k) - qfg(js:je,k)
   qg(js:je,k)    = max( qg(js:je,k), 0. )
-  t(js:je,k)     = dumliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
+  t(js:je,k)     = tliq(:) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
+  where ( qlg(js:je,k)+qfg(js:je,k)>1.E-12 )
+    cfrac(js:je,k) = max( cfrac(js:je,k), 1.E-8 )
+  elsewhere
+    cfrac(js:je,k) = 0.  
+  end where
 end do
 
 return
