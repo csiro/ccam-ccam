@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -42,9 +42,11 @@ integer, intent(in) :: ifull
 allocate(evap(ifull),precip(ifull),precc(ifull),rnd_3hr(ifull,8),cape(ifull))
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
+evap(:)      = 0.
 precip(:)    = 0.
 precc(:)     = 0.
 rnd_3hr(:,:) = 0.
+cape(:)      = 0.
 
 return
 end subroutine prec_init

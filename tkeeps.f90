@@ -759,12 +759,13 @@ do kcount = 1,mcount
   do k = 1,kl
     ! Check for -ve values  
     qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
+    theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
+    
     qfg(:,k) = max( qfg(:,k), 0. )
     qlg(:,k) = max( qlg(:,k), 0. )
-    qvg(:,k) = qt(:) - qfg(:,k) - qlg(:,k)  
+    qvg(:,k) = max( qt(:) - qfg(:,k) - qlg(:,k), 0. )  
     
     ! account for saturation
-    theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
     temp(:) = theta(:,k)/sigkap(k)
     templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
@@ -776,10 +777,11 @@ do kcount = 1,mcount
     qt(:) = qfg(:,k) + qlg(:,k) + qvg(:,k)
     qc(:) = max(al(:)*(qt(:) - qsat(:,k)),0.)
     where ( temp(:)>=tice )
-      qlg(:,k) = (1.-fice(:))*qc(:)
-      qfg(:,k) = fice(:)*qc(:)
-      qvg(:,k) = qt(:) - qlg(:,k) - qfg(:,k)
-    end where  
+      qfg(:,k) = max( fice(:)*qc(:), 0. )  
+      qlg(:,k) = max( qc(:) - qfg(:,k), 0. )
+    end where
+    
+    qvg(:,k) = max( qt(:) - qfg(:,k) - qlg(:,k), 0. )
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
     where ( qlg(:,k)+qfg(:,k)>1.E-12 )
       cfrac(:,k) = max( cfrac(:,k), 1.E-8 )
@@ -932,7 +934,7 @@ do k = 2,kl
   cfrac_p = pack( cfrac(1:imax,k), lmask )
   tke_p = pack( tke(1:imax,k), lmask )
   eps_p = pack( eps(1:imax,k), lmask )
-  km_p  = pack( km(:,k), lmask )
+  km_p  = pack( km(1:imax,k), lmask )
   where ( w2up(:,k-1)>0. )
     ! entrain air into plume
     ! split qtot into components (conservation of qtot is maintained)

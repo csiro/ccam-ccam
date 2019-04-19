@@ -190,6 +190,8 @@ if ( myid<nproc ) then
   end do
   n3hr = 1           ! initial value at start of run
   nlx = 0            ! diagnostic level
+  call zero_nperavg  ! reset average period diagnostics
+  call zero_nperday  ! reset daily period diagnostics
 
 
   !--------------------------------------------------------------
@@ -215,7 +217,7 @@ if ( myid<nproc ) then
   nwtsav     = nwt
   hourst     = real(nint(0.01*real(ktime))) + real(mod(ktime,100))/60. ! for tracers
   mtimer_in  = mtimer
-
+ 
 
   !--------------------------------------------------------------
   ! BEGIN MAIN TIME LOOP
@@ -899,8 +901,14 @@ if ( myid<nproc ) then
     ! update diag_averages and daily max and min screen temps 
     ! N.B. runoff is accumulated in sflux
     if ( ktau==1 ) then
-      call zero_nperavg  ! reset average period diagnostics
-      call zero_nperday  ! reset daily period diagnostics
+      tmaxscr(:)  = tscrn(:) 
+      tminscr(:)  = tscrn(:) 
+      rhmaxscr(:) = rhscrn(:) 
+      rhminscr(:) = rhscrn(:) 
+      tmaxscr_clearing(:)  = tscrn_clearing(:) 
+      tminscr_clearing(:)  = tscrn_clearing(:) 
+      rhmaxscr_clearing(:) = rhscrn_clearing(:) 
+      rhminscr_clearing(:) = rhscrn_clearing(:)
     end if    
     call calculate_timeaverage
 
@@ -3683,9 +3691,8 @@ real, dimension(js:je) :: dqsdt, hlrvap, al, qc
 real, parameter :: tice = 233.16
 
 do k = 1,kl
-  qtot(:) = qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k) ! qtot
-  qtot(:) = max( qtot(:), qgmin )
-  tliq(:)  = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
+  qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), 0. ) ! qtot
+  tliq(js:je)  = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
   
   qfg(js:je,k)   = max( qfg(js:je,k), 0. ) 
   qlg(js:je,k)   = max( qlg(js:je,k), 0. )
@@ -3693,24 +3700,23 @@ do k = 1,kl
   qsng(js:je,k)  = max( qsng(js:je,k), 0. )
   qgrg(js:je,k)  = max( qgrg(js:je,k), 0. )
   
-  fice(:) = max(min(qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-12),1.),0.)
-  pk(:) = ps(js:je)*sig(k)
-  qsi(:) = qsati(pk,tliq)
-  deles(:) = esdiffx(tliq)
-  qsl(:) = qsi(:) + epsil*deles(:)/pk(:)
-  qsw(:) = fice(:)*qsi(:) + (1.-fice(:))*qsl(:)
-  hlrvap(:) = (hl+fice(:)*hlf)/rvap
-  dqsdt(:) = qsw(:)*hlrvap(:)/tliq(:)**2
-  al(:) = 1./(1.+(hlcp+fice(:)*hlfcp)*dqsdt(:))
-  qc(:) = max(al(:)*(qtot(:) - qsw(:)), 0.)
+  fice(js:je) = max(min(qfg(js:je,k)/max(qfg(js:je,k)+qlg(js:je,k),1.e-12),1.),0.)
+  pk(js:je) = ps(js:je)*sig(k)
+  qsi(js:je) = qsati(pk(js:je),tliq(js:je))
+  deles(js:je) = esdiffx(tliq(js:je))
+  qsl(js:je) = qsi(js:je) + epsil*deles(js:je)/pk(js:je)
+  qsw(js:je) = fice(js:je)*qsi(js:je) + (1.-fice(js:je))*qsl(js:je)
+  hlrvap(js:je) = (hl+fice(js:je)*hlf)/rvap
+  dqsdt(js:je) = qsw(js:je)*hlrvap(js:je)/tliq(js:je)**2
+  al(js:je) = 1./(1.+(hlcp+fice(js:je)*hlfcp)*dqsdt(js:je))
+  qc(js:je) = max(al(js:je)*(qtot(js:je) - qsw(js:je)), 0.)
   where ( t(js:je,k)>=tice )
-    qlg(js:je,k) = (1.-fice(:))*qc(:)
-    qfg(js:je,k) = fice(:)*qc(:)
+    qfg(js:je,k) = max( fice(js:je)*qc(js:je), 0. )  
+    qlg(js:je,k) = max( qc(js:je)-qfg(js:je,k), 0. )
   end where
 
-  qg(js:je,k)    = qtot(:) - qlg(js:je,k) - qfg(js:je,k)
-  qg(js:je,k)    = max( qg(js:je,k), 0. )
-  t(js:je,k)     = tliq(:) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
+  qg(js:je,k)    = max( qtot(js:je) - qlg(js:je,k) - qfg(js:je,k), 0. )
+  t(js:je,k)     = tliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
   where ( qlg(js:je,k)+qfg(js:je,k)>1.E-12 )
     cfrac(js:je,k) = max( cfrac(js:je,k), 1.E-8 )
   elsewhere

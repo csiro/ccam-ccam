@@ -13,11 +13,16 @@ else
 MPIFLAG = -Dusempi3
 endif
 FHOST = -O3 -xHost
+FOVERRIDE =
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
 endif
 ifeq ($(BROADWELL),yes)
 FHOST = -O3 -xCORE-AVX2
+endif
+ifeq ($(SKYLAKE),yes)
+FHOST = -O3 -xSKYLAKE-AVX512
+FOVERRIDE = -qoverride-limits
 endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
@@ -256,6 +261,10 @@ casa_variable.o: casa_variable.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 POP.o: POP.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+helmsolve.o: helmsolve.f90
+	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
+mlodynamics.o: mlodynamics.f90
+	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 version.h: FORCE
