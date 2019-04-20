@@ -106,6 +106,7 @@ real, parameter :: rv    = 461.5
 real, parameter :: cp    = 1004.64    ! (J kg^-1 K^-1)
 real, parameter :: vkar  = 0.4
 real, parameter :: pi    = 3.14159265
+real, parameter :: tfrz  = 273.16     ! (K)
 real, parameter :: tice  = 233.1      ! (K)
 
 ! MOST constants
@@ -368,30 +369,34 @@ do kcount = 1,mcount
 
   ! Set-up thermodynamic variables temp, theta_v, qtot and saturated mixing ratio
   do k = 1,kl
-    templ(:) = thetal(1:imax,k)/sigkap(k)
+    templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
-    fice(:) = max(min(qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-12),1.),0.)
     ! calculate saturated air mixing ratio
-    call getqsat(qsat(:,k),templ(:),pres(:),fice(:))
+    where ( qfg(:,k)>1.e-12 )
+      fice = min( qfg(:,k)/(qfg(:,k)+qlg(:,k)), 1. )
+    elsewhere
+      fice = 0.
+    end where
+    call getqsat(qsat(:,k),templ(:),pres(:),fice)
+    thetav(:,k) = theta(:,k)*(1.+0.61*qvg(:,k)-qlg(:,k)-qfg(:,k))
+    qtot(:,k) = qvg(:,k) + qlg(:,k) + qfg(:,k)
   end do
-  thetav = theta*(1.+0.61*qvg-qlg-qfg)
-  qtot = qvg + qlg + qfg
   
   ! Update thetav flux
-  wtv0 = wt0 + theta(1:imax,1)*0.61*wq0 ! thetav flux
+  wtv0 = wt0 + theta(:,1)*0.61*wq0 ! thetav flux
   
   ! Update momentum flux
-  ustar = sqrt(cduv*sqrt(uo(1:imax,1)**2+vo(1:imax,1)**2))  
+  ustar = sqrt(cduv*sqrt(uo(:,1)**2+vo(:,1)**2))  
   
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
   ! is constant in the plume (i.e., volume conserving)
   mflx(:,:) = 0.
-  tlup(:,:) = thetal(1:imax,:)
-  qvup(:,:) = qvg(1:imax,:)
-  qlup(:,:) = qlg(1:imax,:)
-  qfup(:,:) = qfg(1:imax,:)
-  cfup(:,:) = cfrac(1:imax,:)
+  tlup(:,:) = thetal(:,:)
+  qvup(:,:) = qvg(:,:)
+  qlup(:,:) = qlg(:,:)
+  qfup(:,:) = qfg(:,:)
+  cfup(:,:) = cfrac(:,:)
 
 #ifdef scm
   mfout(:,:)=0.
@@ -759,23 +764,26 @@ do kcount = 1,mcount
   do k = 1,kl
     ! Check for -ve values  
     qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
-    theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
+    qc(:) = max( qfg(:,k) + qlg(:,k), 0. )
     
     qfg(:,k) = max( qfg(:,k), 0. )
     qlg(:,k) = max( qlg(:,k), 0. )
-    qvg(:,k) = max( qt(:) - qfg(:,k) - qlg(:,k), 0. )  
     
     ! account for saturation
+    theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
     temp(:) = theta(:,k)/sigkap(k)
     templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
-    fice(:) = max(min(qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-12),1.),0.)
-    call getqsat(qsat(:,k),templ(:),pres(:),fice(:))
+    where ( qfg(:,k)>1.e-12 )
+      fice = min( qfg(:,k)/(qfg(:,k)+qlg(:,k)), 1. )
+    elsewhere
+      fice = 0.
+    end where
+    call getqsat(qsat(:,k),templ(:),pres(:),fice)
     lx(:) = lv + lf*fice(:)
     dqsdt(:) = qsat(:,k)*lx(:)/(rv*templ(:)**2)
     al(:) = cp/(cp+lx(:)*dqsdt(:))
-    qt(:) = qfg(:,k) + qlg(:,k) + qvg(:,k)
-    qc(:) = max(al(:)*(qt(:) - qsat(:,k)),0.)
+    qc(:) = max( al(:)*(qt(:) - qsat(:,k)), qc(:) )
     where ( temp(:)>=tice )
       qfg(:,k) = max( fice(:)*qc(:), 0. )  
       qlg(:,k) = max( qc(:) - qfg(:,k), 0. )
@@ -916,9 +924,13 @@ nn(:,1) = grav*be*wtv0_p/(thetav_p*sqrt(tke1))          ! Hurley 2007
 w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent)      ! Hurley 2007
 ! estimate variance of qtup in updraft
 pres(:) = ps_p(:)*sig(1)
-fice = max(min(qfup_p(:,k)/max(qfup_p(:,k)+qlup_p(:,k),1.e-12),1.),0.)
-call getqsat(qupsat,templ(:),pres(:),fice(:))
-cxup(:,1) = 0.
+call getfice(fice,templ,qlup_p(:,1),qfup_p(:,1))
+call getqsat(qupsat,templ(:),pres(:),fice)
+where ( qtup>=qupsat )
+  cxup(:,1) = 1.
+elsewhere
+  cxup(:,1) = 0.
+end where
 
 ! updraft with condensation
 do k = 2,kl
@@ -954,9 +966,8 @@ do k = 2,kl
   qtup = qvup_p(:,k) + qlup_p(:,k) + qfup_p(:,k)    ! qtot,up
   templ = tlup_p(:,k)/sigkap(k)                     ! templ,up
   pres = ps_p(:)*sig(k)
-  fice = max(min(qfup_p(:,k)/max(qfup_p(:,k)+qlup_p(:,k),1.e-12),1.),0.)
-  call getqsat(qupsat,templ(:),pres(:),fice(:))
-  qxup = min( qtup, qupsat )
+  call getfice(fice,templ,qlup_p(:,k),qfup_p(:,k))
+  call getqsat(qupsat,templ(:),pres(:),fice)
   where ( qtup > qupsat )
     qxup = qupsat
     cxup(:,k) = 1.
@@ -1166,6 +1177,33 @@ qsat = fice*qsati + (1.-fice)*qsatl
 
 return
 end subroutine getqsat
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Estimate ice fraction
+
+subroutine getfice(fice,templ,qlg,qfg)
+
+implicit none
+
+real, dimension(:), intent(in) :: templ
+real, dimension(size(templ)), intent(in) :: qlg, qfg
+real, dimension(size(templ)), intent(out) :: fice
+real, dimension(size(templ)) :: temp
+
+temp = templ + (lv*qlg+ls*qfg)/cp
+
+where ( temp>=tfrz )
+  fice = 0.
+elsewhere ( temp>=tice .and. qfg>1.e-12 )
+  fice = min( qfg/(qfg+qlg), 1. )
+elsewhere ( temp>=tice )
+  fice = 0.
+elsewhere
+  fice = 1.
+end where
+
+return
+end subroutine getfice
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update diffusion coeffs at half levels

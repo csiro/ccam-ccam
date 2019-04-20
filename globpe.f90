@@ -3692,7 +3692,8 @@ real, parameter :: tice = 233.16
 
 do k = 1,kl
   qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), 0. ) ! qtot
-  tliq(js:je)  = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
+  qc(js:je)   = max( qlg(js:je,k) + qfg(js:je,k), 0. )
+  tliq(js:je) = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
   
   qfg(js:je,k)   = max( qfg(js:je,k), 0. ) 
   qlg(js:je,k)   = max( qlg(js:je,k), 0. )
@@ -3700,7 +3701,11 @@ do k = 1,kl
   qsng(js:je,k)  = max( qsng(js:je,k), 0. )
   qgrg(js:je,k)  = max( qgrg(js:je,k), 0. )
   
-  fice(js:je) = max(min(qfg(js:je,k)/max(qfg(js:je,k)+qlg(js:je,k),1.e-12),1.),0.)
+  where ( qfg(js:je,k)>1.e-12 )
+    fice(js:je) = min( qfg(js:je,k)/(qfg(js:je,k)+qlg(js:je,k)), 1. )
+  elsewhere
+    fice(js:je) = 0.
+  end where
   pk(js:je) = ps(js:je)*sig(k)
   qsi(js:je) = qsati(pk(js:je),tliq(js:je))
   deles(js:je) = esdiffx(tliq(js:je))
@@ -3709,14 +3714,14 @@ do k = 1,kl
   hlrvap(js:je) = (hl+fice(js:je)*hlf)/rvap
   dqsdt(js:je) = qsw(js:je)*hlrvap(js:je)/tliq(js:je)**2
   al(js:je) = 1./(1.+(hlcp+fice(js:je)*hlfcp)*dqsdt(js:je))
-  qc(js:je) = max(al(js:je)*(qtot(js:je) - qsw(js:je)), 0.)
+  qc(js:je) = max( al(js:je)*(qtot(js:je) - qsw(js:je)), qc(js:je) )
   where ( t(js:je,k)>=tice )
     qfg(js:je,k) = max( fice(js:je)*qc(js:je), 0. )  
     qlg(js:je,k) = max( qc(js:je)-qfg(js:je,k), 0. )
   end where
 
-  qg(js:je,k)    = max( qtot(js:je) - qlg(js:je,k) - qfg(js:je,k), 0. )
-  t(js:je,k)     = tliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
+  qg(js:je,k) = max( qtot(js:je) - qlg(js:je,k) - qfg(js:je,k), 0. )
+  t(js:je,k)  = tliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
   where ( qlg(js:je,k)+qfg(js:je,k)>1.E-12 )
     cfrac(js:je,k) = max( cfrac(js:je,k), 1.E-8 )
   elsewhere
