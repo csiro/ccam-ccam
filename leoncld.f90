@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -886,7 +886,7 @@ if ( ncloud<=3 ) then
     dqsdt(1:imax) = qs(1:imax)*hlrvap(1:imax)/tliq(1:imax,k)**2
     al(1:imax) = 1./(1.+(hlcp+fice(1:imax,k)*hlfcp)*dqsdt(1:imax))  !Smith's notation
     qc(1:imax) = qtot(1:imax,k) - qs(1:imax)
-    delq(1:imax) = (1.-rcrit(1:imax,k))*qs(1:imax)      !UKMO style (equivalent to above)
+    delq(1:imax) = (1.-rcrit(1:imax,k))*qs(1:imax)     !UKMO style (equivalent to above)
     where ( qc(1:imax)<=-delq(1:imax) )
       cfrac(1:imax,k) = 0.
       qcg(1:imax,k) = 0.
@@ -1170,8 +1170,8 @@ real, dimension(imax,kl) :: fluxautorain, fluxautosnow, fluxautograupel
 real, dimension(imax,kl) :: cfautorain, cfautosnow, cfautograupel
 real, dimension(imax,kl) :: rhov, rhol, rhoi, rhos, rhog, rhor
 real, dimension(imax,kl) :: clfr,cifr,qsatg
-real, dimension(imax,kl-1) :: fthruliq,foutliq,fthruice,foutice
-real, dimension(imax,kl-1) :: fthrusnow,foutsnow,fthrugraupel,foutgraupel
+real, dimension(imax) :: fthruliq,foutliq,fthruice,foutice
+real, dimension(imax) :: fthrusnow,foutsnow,fthrugraupel,foutgraupel
 real, dimension(imax) :: vi2, vr2, vs2, vg2
 real, dimension(imax) :: fluxice,fluxsnow,fluxgraupel,fluxrain
 real, dimension(imax) :: rhoiin,rhoiout,rhorin,rhorout
@@ -1479,14 +1479,15 @@ do n = 1,njumps
       !  vg2(1:imax) = max( 0.1, 5.34623815*(max( rhog(:,k), 0. )/cfgraupel(:,k))**0.125 )
       !end where
       rg(1:imax) = max( fluxgraupel(:)/dz(:,k), 0. )
+      rg(1:imax) = max( rg(:), rhog(:,k) )
       where ( cgfra(1:imax)>=1.e-10 )
         vg2(1:imax) = max( 0.1, 5.34623815*(rg/cgfra)**0.125 )
       end where
     
       ! Set up the parameters for the flux-divergence calculation
-      alph(:)           = tdt*vg2(:)/dz(:,k)
-      foutgraupel(:,k)  = 1. - exp(-alph(:))             !analytical
-      fthrugraupel(:,k) = 1. - foutgraupel(:,k)/alph(:)  !analytical
+      alph(:)         = tdt*vg2(:)/dz(:,k)
+      foutgraupel(:)  = 1. - exp(-alph(:))             !analytical
+      fthrugraupel(:) = 1. - foutgraupel(:)/alph(:)  !analytical
 
       if ( any( fluxgraupel>0. ) ) then
 
@@ -1642,14 +1643,15 @@ do n = 1,njumps
       !  vs2(1:imax) = max( 0.1, 1.82*(max(rhos(:,k),0.)/cfsnow(:,k))**0.0625 )
       !end where
       rs(1:imax) = max( fluxsnow(:)/dz(:,k), 0. )
+      rs(1:imax) = max( rs(1:imax), rhos(:,k) )
       where ( csfra(1:imax)>=1.e-10 )
         vs2(1:imax) = max( 0.1, 1.82*(rs/csfra)**0.0625 )
       end where
 
       ! Set up the parameters for the flux-divergence calculation
-      alph(:)        = tdt*vs2/dz(:,k)
-      foutsnow(:,k)  = 1. - exp(-alph(:))          !analytical
-      fthrusnow(:,k) = 1. - foutsnow(:,k)/alph(:)  !analytical
+      alph(:)      = tdt*vs2/dz(:,k)
+      foutsnow(:)  = 1. - exp(-alph(:))          !analytical
+      fthrusnow(:) = 1. - foutsnow(:)/alph(:)  !analytical
 
       if ( any( fluxsnow>0. ) ) then
 
@@ -1838,9 +1840,9 @@ do n = 1,njumps
     end select
 
     ! Set up the parameters for the flux-divergence calculation
-    alph(:)       = tdt*vi2(:)/dz(:,k)
-    foutice(:,k)  = 1. - exp(-alph(:))         !analytical
-    fthruice(:,k) = 1. - foutice(:,k)/alph(:)  !analytical
+    alph(:)     = tdt*vi2(:)/dz(:,k)
+    foutice(:)  = 1. - exp(-alph(:))         !analytical
+    fthruice(:) = 1. - foutice(:)/alph(:)  !analytical
 
     if ( any( fluxice>0. ) ) then
 
@@ -1950,15 +1952,16 @@ do n = 1,njumps
     
     ! Calculate rain fall speed (MJT suggestion)
     if ( ncloud>=2 ) then
-      Fr(:)         = max( fluxrain(:)/tdt/max(crfra(:),1.e-15),0.)
-      vr2           = max( 0.1, 11.3*Fr(:)**(1./9.)/sqrt(rhoa(:,k)) )  !Actual fall speed
-      !vr2          = max( 0.1, 5./sqrt(rhoa(:,k)) )                   !Nominal fall speed
-      alph(:)       = tdt*vr2/dz(:,k)
-      foutliq(:,k)  = 1. - exp(-alph(:))
-      fthruliq(:,k) = 1. - foutliq(:,k)/alph(:)
+      Fr(:)       = max( fluxrain(:), rhor(:,k)*dz(:,k) )
+      Fr(:)       = max( Fr(:)/tdt/max(crfra(:),1.e-15),0.)
+      vr2         = max( 0.1, 11.3*Fr(:)**(1./9.)/sqrt(rhoa(:,k)) )  !Actual fall speed
+      !vr2        = max( 0.1, 5./sqrt(rhoa(:,k)) )                   !Nominal fall speed
+      alph(:)     = tdt*vr2/dz(:,k)
+      foutliq(:)  = 1. - exp(-alph(:))
+      fthruliq(:) = 1. - foutliq(:)/alph(:)
     else
-      foutliq(:,k)  = 1.
-      fthruliq(:,k) = 1.
+      foutliq(:)  = 1.
+      fthruliq(:) = 1.
     end if
     
     if ( any( fluxrain>0. ) ) then
@@ -2143,8 +2146,8 @@ do n = 1,njumps
         
       ! Grauple
       ! calculate maximum and random overlap for falling graupel
-      pfstayice(:,k) = pfstayice(:,k) + fluxgraupel(:)*(1.-fthrugraupel(:,k))/tdt_in ! Save flux for the wet deposition scheme.  
-      pqfsedice(:,k) = pqfsedice(:,k) + xfrac_graupel(:)*foutgraupel(:,k)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
+      pfstayice(:,k) = pfstayice(:,k) + fluxgraupel(:)*(1.-fthrugraupel(:))/tdt_in ! Save flux for the wet deposition scheme.  
+      pqfsedice(:,k) = pqfsedice(:,k) + xfrac_graupel(:)*foutgraupel(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
       rdclfrgraupel(1:imax) = min(1., rdclfrgraupel(:)+caccl_g(:)-rdclfrgraupel(:)*caccl_g(:))   ! rnd overlap
       mxclfrgraupel(1:imax) = max( mxclfrgraupel(:), caccf_g(:) )                                ! max overlap
       rdclfrgraupel(1:imax) = min(1., rdclfrgraupel(:)+cffreeze(:)-rdclfrgraupel(:)*cffreeze(:)) ! rnd overlap
@@ -2159,12 +2162,12 @@ do n = 1,njumps
       cffluxin(:) = cgfra(:) - cfgraupel(:,k)
       rhogin(:)   = fluxgraupel(:)/dz(:,k)
       ! Compute the fluxes of snow leaving the box
-      cffluxout(:) = cfgraupel(:,k)*foutgraupel(:,k)
-      rhogout(:)   = rhog(:,k)*foutgraupel(:,k)
+      cffluxout(:) = cfgraupel(:,k)*foutgraupel(:)
+      rhogout(:)   = rhog(:,k)*foutgraupel(:)
       ! Update the rhos and cfsnow fields
-      cfgraupel(1:imax,k) = cfgraupel(1:imax,k) - cffluxout(:) + cffluxin(:)*(1.-fthrugraupel(:,k))
-      rhog(1:imax,k)      = rhog(:,k) - rhogout(:) + rhogin(:)*(1.-fthrugraupel(:,k))
-      fluxgraupel(1:imax) = max( rhogout(:)*dz(:,k) + fluxgraupel(:)*fthrugraupel(:,k), 0. )
+      cfgraupel(1:imax,k) = cfgraupel(1:imax,k) - cffluxout(:) + cffluxin(:)*(1.-fthrugraupel(:))
+      rhog(1:imax,k)      = rhog(:,k) - rhogout(:) + rhogin(:)*(1.-fthrugraupel(:))
+      fluxgraupel(1:imax) = max( rhogout(:)*dz(:,k) + fluxgraupel(:)*fthrugraupel(:), 0. )
       where ( fluxgraupel<1.e-20 )
         rhog(:,k) = rhog(:,k) + fluxgraupel/dz(:,k)
         fluxgraupel = 0.
@@ -2175,8 +2178,8 @@ do n = 1,njumps
       
       ! Snow
       ! calculate maximum and random overlap for falling snow
-      pfstayice(:,k) = pfstayice(:,k) + fluxsnow(:)*(1.-fthrusnow(:,k))/tdt_in ! Save flux for the wet deposition scheme.
-      pqfsedice(:,k) = pqfsedice(:,k) + xfrac_snow(:)*foutsnow(:,k)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
+      pfstayice(:,k) = pfstayice(:,k) + fluxsnow(:)*(1.-fthrusnow(:))/tdt_in ! Save flux for the wet deposition scheme.
+      pqfsedice(:,k) = pqfsedice(:,k) + xfrac_snow(:)*foutsnow(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
       rdclfrsnow(1:imax) = min(1., rdclfrsnow(:)+caccl_s(:)-rdclfrsnow(:)*caccl_s(1:imax)) ! rnd overlap
       mxclfrsnow(1:imax) = max( mxclfrsnow(:), caccf_s(1:imax) )                           ! max overlap
       mxclfrsnow(1:imax) = max( mxclfrsnow(:), cfautosnow(:,k) )                           ! max overlap
@@ -2190,12 +2193,12 @@ do n = 1,njumps
       cffluxin(:) = csfra(:) - cfsnow(:,k)
       rhosin(:)   = fluxsnow(:)/dz(:,k)
       ! Compute the fluxes of snow leaving the box
-      cffluxout(:) = cfsnow(:,k)*foutsnow(:,k)
-      rhosout(:)   = rhos(:,k)*foutsnow(:,k)
+      cffluxout(:) = cfsnow(:,k)*foutsnow(:)
+      rhosout(:)   = rhos(:,k)*foutsnow(:)
       ! Update the rhos and cfsnow fields
-      cfsnow(1:imax,k) = cfsnow(1:imax,k) - cffluxout(:) + cffluxin(:)*(1.-fthrusnow(:,k))
-      rhos(1:imax,k)   = rhos(:,k) - rhosout(:) + rhosin(:)*(1.-fthrusnow(:,k))
-      fluxsnow(1:imax) = max( rhosout(:)*dz(:,k) + fluxsnow(:)*fthrusnow(:,k), 0. )
+      cfsnow(1:imax,k) = cfsnow(1:imax,k) - cffluxout(:) + cffluxin(:)*(1.-fthrusnow(:))
+      rhos(1:imax,k)   = rhos(:,k) - rhosout(:) + rhosin(:)*(1.-fthrusnow(:))
+      fluxsnow(1:imax) = max( rhosout(:)*dz(:,k) + fluxsnow(:)*fthrusnow(:), 0. )
       where ( fluxsnow<1.e-20 )
         rhos(:,k) = rhos(:,k) + fluxsnow/dz(:,k)
         fluxsnow = 0.
@@ -2208,8 +2211,8 @@ do n = 1,njumps
     
     ! Ice
     ! calculate maximum and random overlap for falling ice
-    pfstayice(:,k) = pfstayice(:,k) + fluxice(:)*(1.-fthruice(:,k))/tdt_in ! Save flux for the wet deposition scheme.
-    pqfsedice(:,k) = pqfsedice(:,k) + xfrac_ice(:)*foutice(:,k)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
+    pfstayice(:,k) = pfstayice(:,k) + fluxice(:)*(1.-fthruice(:))/tdt_in ! Save flux for the wet deposition scheme.
+    pqfsedice(:,k) = pqfsedice(:,k) + xfrac_ice(:)*foutice(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
     rdclfrice(1:imax) = min( 1., rdclfrice(:)+caccl_i(:)-rdclfrice(:)*caccl_i(:) )  ! rnd overlap
     mxclfrice(1:imax) = max( mxclfrice(:), caccf_i(:) )                             ! max overlap
     where ( fluxice(:)<=0. )
@@ -2222,12 +2225,12 @@ do n = 1,njumps
     cffluxin(:) = cifra(:) - cifr(:,k)
     rhoiin(:)   = fluxice(:)/dz(:,k)
     ! Compute the fluxes of ice leaving the box
-    cffluxout(:) = cifr(:,k)*foutice(:,k)
-    rhoiout(:)   = rhoi(:,k)*foutice(:,k)
+    cffluxout(:) = cifr(:,k)*foutice(:)
+    rhoiout(:)   = rhoi(:,k)*foutice(:)
     ! Update the rhoi and cifr fields
-    cifr(1:imax,k)  = min( 1.-clfr(1:imax,k), cifr(1:imax,k)-cffluxout(:)+cffluxin(:)*(1.-fthruice(:,k)) )
-    rhoi(1:imax,k)  = rhoi(:,k) - rhoiout(:) + rhoiin(:)*(1.-fthruice(:,k))
-    fluxice(1:imax) = max( rhoiout(:)*dz(:,k) + fluxice(:)*fthruice(:,k), 0. )
+    cifr(1:imax,k)  = min( 1.-clfr(1:imax,k), cifr(1:imax,k)-cffluxout(:)+cffluxin(:)*(1.-fthruice(:)) )
+    rhoi(1:imax,k)  = rhoi(:,k) - rhoiout(:) + rhoiin(:)*(1.-fthruice(:))
+    fluxice(1:imax) = max( rhoiout(:)*dz(:,k) + fluxice(:)*fthruice(:), 0. )
     where ( fluxice<1.e-20 )
       rhoi(:,k) = rhoi(:,k) + fluxice/dz(:,k)
       fluxice = 0.
@@ -2238,7 +2241,7 @@ do n = 1,njumps
   
     ! Rain
     ! Calculate the raining cloud cover down to this level, for stratiform (crfra).
-    pfstayliq(:,k) = pfstayliq(:,k) + fluxrain(:)*(1.-fthruliq(:,k))/tdt_in ! store liquid flux for aerosols
+    pfstayliq(:,k) = pfstayliq(:,k) + fluxrain(:)*(1.-fthruliq(:))/tdt_in ! store liquid flux for aerosols
     rdclfrrain(1:imax) = min(1., rdclfrrain(:)+caccf_r(:)-rdclfrrain(:)*caccf_r(:))  ! rnd overlap
     mxclfrrain(1:imax) = max( mxclfrrain(:), caccl_r(:) )                            ! max overlap
     rdclfrrain(1:imax) = min(1., rdclfrrain(:)+cfmelt(:)-rdclfrrain(:)*cfmelt(:))    ! rnd overlap
@@ -2254,12 +2257,12 @@ do n = 1,njumps
     rhorin(:)   = fluxrain(:)/dz(:,k)
     ! Compute the fluxes of rain leaving the box
     ! Use the flux-divergent form as in Rotstayn (QJRMS, 1997)
-    cffluxout(:) = cfrain(:,k)*foutliq(:,k)
-    rhorout(:)   = rhor(:,k)*foutliq(:,k)
+    cffluxout(:) = cfrain(:,k)*foutliq(:)
+    rhorout(:)   = rhor(:,k)*foutliq(:)
     ! Update the rhor and cfrain fields
-    cfrain(1:imax,k) = cfrain(1:imax,k) - cffluxout(:) + cffluxin(:)*(1.-fthruliq(:,k))
-    rhor(1:imax,k)   = rhor(:,k) - rhorout(:) + rhorin(:)*(1.-fthruliq(:,k))
-    fluxrain(1:imax) = max( rhorout(:)*dz(:,k) + fluxrain(:)*fthruliq(:,k), 0. )
+    cfrain(1:imax,k) = cfrain(1:imax,k) - cffluxout(:) + cffluxin(:)*(1.-fthruliq(:))
+    rhor(1:imax,k)   = rhor(:,k) - rhorout(:) + rhorin(:)*(1.-fthruliq(:))
+    fluxrain(1:imax) = max( rhorout(:)*dz(:,k) + fluxrain(:)*fthruliq(:), 0. )
     where ( fluxrain<1.e-20 )
       rhor(:,k) = rhor(:,k) + fluxrain/dz(:,k)
       fluxrain = 0.
@@ -2363,10 +2366,10 @@ if ( diag .and. mydiag .and. ntiles==1 ) then  ! JLM
   write(6,*) 'rhos',diag_temp
   diag_temp(1:kl) = fluxs(idjd,1:kl)
   write(6,*) 'fluxs ',diag_temp
-  diag_temp(1:kl-1) = foutice(idjd,1:kl-1)
-  write(6,*) 'foutice',diag_temp(1:kl-1)
-  diag_temp(1:kl-1) = fthruice(idjd,1:kl-1)
-  write(6,*) 'fthruice',diag_temp(1:kl-1)
+  !diag_temp(1:kl-1) = foutice(idjd,1:kl-1)
+  !write(6,*) 'foutice',diag_temp(1:kl-1)
+  !diag_temp(1:kl-1) = fthruice(idjd,1:kl-1)
+  !write(6,*) 'fthruice',diag_temp(1:kl-1)
   diag_temp(1:kl) = pqfsedice(idjd,1:kl)
   write(6,*) 'pqfsedice',diag_temp
   diag_temp(1:kl) = fluxm(idjd,1:kl)
