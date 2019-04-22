@@ -13,7 +13,7 @@ else
 MPIFLAG = -Dusempi3
 endif
 FHOST = -O3 -xHost
-FOVERRIDE =
+FOVERRIDE = -qoverride-limits
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
 endif
@@ -22,7 +22,6 @@ FHOST = -O3 -xCORE-AVX2
 endif
 ifeq ($(SKYLAKE),yes)
 FHOST = -O3 -xSKYLAKE-AVX512
-FOVERRIDE = -qoverride-limits
 endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
@@ -55,6 +54,7 @@ ifeq ($(BROADWELL),yes)
 FHOST = -march=broadwell
 endif
 FFLAGS = -O2 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FOVERRIDE =
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
@@ -68,6 +68,7 @@ ifeq ($(CRAY),yes)
 FC = ftn
 FCSCM = ftn
 FFLAGS = -h noomp -Dusenc_mod
+FOVERRIDE =
 PPFLAG90 = -eZ
 PPFLAG77 = -eZ
 PPFLAG90F = -eZ

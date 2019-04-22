@@ -572,6 +572,7 @@ do kcount = 1,mcount
                -kmo(:,1:kl-2)*idzm(:,2:kl-1)*(tke(1:imax,2:kl-1)-tke(1:imax,1:kl-2))/dz_hl(:,1:kl-2)
   
   ! Pre-calculate eddy diffusivity mixing terms
+  ! -ve because gradient is calculated at t+1
   qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
   rr(:,2:kl-1)=-ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
   
@@ -607,20 +608,21 @@ do kcount = 1,mcount
   end if
   
   ! apply limits and corrections to tke and eps terms
-  do k=2,kl-1
-    tke(1:imax,k)=max(tke(1:imax,k),mintke)
-    tff=cm34*tke(1:imax,k)*sqrt(tke(1:imax,k))
-    eps(1:imax,k)=min(eps(1:imax,k),tff/minl)
-    eps(1:imax,k)=max(eps(1:imax,k),tff/maxl,mineps)
+  do k = 2,kl-1
+    tke(1:imax,k) = max(tke(1:imax,k),mintke)
+    tff = cm34*tke(1:imax,k)*sqrt(tke(1:imax,k))
+    eps(1:imax,k) = min(eps(1:imax,k),tff/minl)
+    eps(1:imax,k) = max(eps(1:imax,k),tff/maxl,mineps)
   end do
     
   ! estimate eddy diffusivity mixing coeff
-  km=cm0*tke(1:imax,:)*tke(1:imax,:)/eps(1:imax,:)
+  km = cm0*tke(1:imax,:)*tke(1:imax,:)/eps(1:imax,:)
   call updatekmo(kmo,km,fzzh,imax) ! interpolate diffusion coeffs to half levels
   
   ! update scalars
   
   ! Pre-calculate eddy diffiusivity mixing terms using updated kmo values
+  ! -ve because gradient is calculated at t+1
   qq(:,2:kl)  =-ddts*kmo(:,1:kl-1)*idzm(:,2:kl)/dz_hl(:,1:kl-1)
   rr(:,1:kl-1)=-ddts*kmo(:,1:kl-1)*idzp(:,1:kl-1)/dz_hl(:,1:kl-1)
 
@@ -732,27 +734,27 @@ do kcount = 1,mcount
 
 
   ! cloud fraction vertical mixing
-  dd(:,1)=cfrac(1:imax,1)-ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                     &
-                                +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
-  dd(:,2:kl-1)=cfrac(1:imax,2:kl-1)+ddts*(mflx(:,1:kl-2)*cfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)       &
-                                          +mflx(:,2:kl-1)*cfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)           &
-                                          -mflx(:,2:kl-1)*cfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)      &
-                                          -mflx(:,3:kl)*cfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-  dd(:,kl)=cfrac(1:imax,kl)+ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                         &
-                                  +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+  dd(:,1) = cfrac(1:imax,1) - ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                 &
+                                   +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
+  dd(:,2:kl-1) = cfrac(1:imax,2:kl-1) + ddts*(mflx(:,1:kl-2)*cfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)   &
+                                             +mflx(:,2:kl-1)*cfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
+                                             -mflx(:,2:kl-1)*cfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
+                                             -mflx(:,3:kl)*cfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+  dd(:,kl) = cfrac(1:imax,kl) + ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                     &
+                                     +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
   call thomas(cfrac,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
-  cfrac(1:imax,:)=min(max(cfrac(1:imax,:),0.),1.)
+  cfrac(1:imax,:) = min( max( cfrac(1:imax,:), 0. ), 1. )
 
   
   ! momentum vertical mixing
-  aa(:,2:kl)  =qq(:,2:kl)
-  cc(:,1:kl-1)=rr(:,1:kl-1)
-  bb(:,1)=1.-cc(:,1)+ddts*rhos*cduv/(rhoa(:,1)*dz_fl(:,1)) ! implicit  
-  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
-  bb(:,kl)=1.-aa(:,kl)
-  dd(:,1:kl)=uo(1:imax,1:kl)
+  aa(:,2:kl)   = qq(:,2:kl)
+  cc(:,1:kl-1) = rr(:,1:kl-1)
+  bb(:,1) = 1. - cc(:,1) + ddts*rhos*cduv/(rhoa(:,1)*dz_fl(:,1)) ! implicit  
+  bb(:,2:kl-1) = 1. - aa(:,2:kl-1) - cc(:,2:kl-1)
+  bb(:,kl) = 1. - aa(:,kl)
+  dd(:,1:kl) = uo(1:imax,1:kl)
   call thomas(uo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
-  dd(:,1:kl)=vo(1:imax,1:kl)
+  dd(:,1:kl) = vo(1:imax,1:kl)
   call thomas(vo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax)
   
   
@@ -797,11 +799,11 @@ do kcount = 1,mcount
   end do  
   
 #ifdef scm
-  uwflux(:,1)=0.
-  uwflux(:,2:kl)=-kmo(:,1:kl-1)*(uo(1:imax,2:kl)-uo(1:imax,1:kl-1))/dz_hl(:,1:kl-1)
-  vwflux(:,1)=0.
-  vwflux(:,2:kl)=-kmo(:,1:kl-1)*(vo(1:imax,2:kl)-vo(1:imax,1:kl-1))/dz_hl(:,1:kl-1)
-  do k=1,kl
+  uwflux(:,1) = 0.
+  uwflux(:,2:kl) = -kmo(:,1:kl-1)*(uo(1:imax,2:kl)-uo(1:imax,1:kl-1))/dz_hl(:,1:kl-1)
+  vwflux(:,1) = 0.
+  vwflux(:,2:kl) = -kmo(:,1:kl-1)*(vo(1:imax,2:kl)-vo(1:imax,1:kl-1))/dz_hl(:,1:kl-1)
+  do k = 1,kl
     wthflux(:,k) = wthlflux(:,k) - (sigkap(k-1)*(1.-fzzh(:,k)+sigkap(k)*fzzh(:,k)) &
                                  *(lv*wqlflux(:,k)+ls*wqfflux(:,k)))
   end do
@@ -924,8 +926,12 @@ nn(:,1) = grav*be*wtv0_p/(thetav_p*sqrt(tke1))          ! Hurley 2007
 w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent)      ! Hurley 2007
 ! estimate variance of qtup in updraft
 pres(:) = ps_p(:)*sig(1)
-call getfice(fice,templ,qlup_p(:,1),qfup_p(:,1))
-call getqsat(qupsat,templ(:),pres(:),fice)
+where ( qfup_p(:,1)>1.e-12 )
+  fice = min( qfup_p(:,1)/(qfup_p(:,1)+qlup_p(:,1)), 1. )
+elsewhere
+  fice = 0.
+end where
+call getqsat(qupsat,templ,pres,fice)
 where ( qtup>=qupsat )
   cxup(:,1) = 1.
 elsewhere
@@ -966,8 +972,12 @@ do k = 2,kl
   qtup = qvup_p(:,k) + qlup_p(:,k) + qfup_p(:,k)    ! qtot,up
   templ = tlup_p(:,k)/sigkap(k)                     ! templ,up
   pres = ps_p(:)*sig(k)
-  call getfice(fice,templ,qlup_p(:,k),qfup_p(:,k))
-  call getqsat(qupsat,templ(:),pres(:),fice)
+  where ( qfup_p(:,k)>1.e-12 )
+    fice = min( qfup_p(:,k)/(qfup_p(:,k)+qlup_p(:,k)), 1. )
+  elsewhere
+    fice = 0.
+  end where
+  call getqsat(qupsat,templ,pres,fice)
   where ( qtup > qupsat )
     qxup = qupsat
     cxup(:,k) = 1.
@@ -1178,32 +1188,32 @@ qsat = fice*qsati + (1.-fice)*qsatl
 return
 end subroutine getqsat
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Estimate ice fraction
-
-subroutine getfice(fice,templ,qlg,qfg)
-
-implicit none
-
-real, dimension(:), intent(in) :: templ
-real, dimension(size(templ)), intent(in) :: qlg, qfg
-real, dimension(size(templ)), intent(out) :: fice
-real, dimension(size(templ)) :: temp
-
-temp = templ + (lv*qlg+ls*qfg)/cp
-
-where ( temp>=tfrz )
-  fice = 0.
-elsewhere ( temp>=tice .and. qfg>1.e-12 )
-  fice = min( qfg/(qfg+qlg), 1. )
-elsewhere ( temp>=tice )
-  fice = 0.
-elsewhere
-  fice = 1.
-end where
-
-return
-end subroutine getfice
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! Estimate ice fraction
+!
+!subroutine getfice(fice,templ,qlg,qfg)
+!
+!implicit none
+!
+!real, dimension(:), intent(in) :: templ
+!real, dimension(size(templ)), intent(in) :: qlg, qfg
+!real, dimension(size(templ)), intent(out) :: fice
+!real, dimension(size(templ)) :: temp
+!
+!temp = templ + (lv*qlg+ls*qfg)/cp
+!
+!where ( temp>=tfrz )
+!  fice = 0.
+!elsewhere ( temp>=tice .and. qfg>1.e-12 )
+!  fice = min( qfg/(qfg+qlg), 1. )
+!elsewhere ( temp>=tice )
+!  fice = 0.
+!elsewhere
+!  fice = 1.
+!end where
+!
+!return
+!end subroutine getfice
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update diffusion coeffs at half levels
