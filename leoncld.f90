@@ -1426,7 +1426,7 @@ do n = 1,njumps
   mxclfrgraupel(1:imax) = 0. ! max overlap graupel fraction
   rdclfrgraupel(1:imax) = 0. ! rnd overlap graupel fraction
   cgfra(1:imax)         = 0. ! total graupel fraction = mx+rd-mx*rd
-  vg2(1:imax)           = 0.1
+  vg2(1:imax)           = 0.2
 
   fluxsnow(1:imax)   = 0.
   mxclfrsnow(1:imax) = 0. ! max overlap snow fraction

@@ -924,19 +924,7 @@ templ = tlup_p(:,1)/sigkap(1)                           ! templ,up
 ! update updraft velocity and mass flux
 nn(:,1) = grav*be*wtv0_p/(thetav_p*sqrt(tke1))          ! Hurley 2007
 w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent)      ! Hurley 2007
-! estimate variance of qtup in updraft
-pres(:) = ps_p(:)*sig(1)
-where ( qfup_p(:,1)>1.e-12 )
-  fice = min( qfup_p(:,1)/(qfup_p(:,1)+qlup_p(:,1)), 1. )
-elsewhere
-  fice = 0.
-end where
-call getqsat(qupsat,templ,pres,fice)
-where ( qtup>=qupsat )
-  cxup(:,1) = 1.
-elsewhere
-  cxup(:,1) = 0.
-end where
+cxup(:,1) = 0.
 
 ! updraft with condensation
 do k = 2,kl
@@ -994,7 +982,7 @@ do k = 2,kl
   al = cp/(cp+lx*dqsdt)
   qcup = max(al*(qtup-qxup), 0.)                             ! qcondensate,up after redistribution
   qcup = min(qcup, qcmf)                                     ! limit condensation with simple autoconversion
-  qxup = qtup - qcup                                         ! qv,up after redistribution
+  !qxup = qtup - qcup                                         ! qv,up after redistribution
   thup = tlup_p(:,k) + sigkap(k)*qcup*lx/cp                  ! theta,up after redistribution
   tvup = thup + theta_p*(1.61*qxup-qtup)                     ! thetav,up after redistribution
   where ( w2up(:,k-1)>0. )
