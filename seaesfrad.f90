@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -175,7 +175,7 @@ integer ktop, kbot, mythread
 real, dimension(imax,kl) :: duo3n, rhoa
 real, dimension(imax,kl) :: p2, cd2, dumcf, dumql, dumqf, dumt, dz
 real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
-real, dimension(imax) :: sg, sint, sout, rg, rt, rgdn, sgdnvis, sgdnnir
+real, dimension(imax) :: sint, sout, rt, sgdnvis, sgdnnir
 real, dimension(imax) :: soutclr, sgclr, rtclr, rgclr
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
 real, dimension(imax) :: dzrho, dumfbeam, dumtss
@@ -184,7 +184,7 @@ real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
 real dhr, cosz, delta
 
-real(kind=8), dimension(:,:,:,:), allocatable, save :: r
+real(kind=8), dimension(1,1,1,1) :: r
 
 if ( diag .and. mydiag .and. ntiles==1 ) then
   diag_temp(:) = t(idjd,:)
@@ -224,10 +224,10 @@ end if
 
 ! main loop ---------------------------------------------------------
 !$omp do schedule(static) private(istart,iend,mythread,dhr,coszro2,taudar2,coszro,taudar), &
-!$omp private(sigh,duo3n,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,rhoa,dz,i,iq,cosz),  &
+!$omp private(sigh,duo3n,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,rhoa,dz,i,iq,cosz),       &
 !$omp private(delta,k,kr,dzrho,cd2,mx,dumt,p2,ktop,kbot,dumcf),                            &
-!$omp private(dumql,dumqf,sgdnvis,sgdnnir,sg,sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir),      &
-!$omp private(sgdnnirdif,rg,rt,rgdn,sint,sout,soutclr,sgclr,rtclr,rgclr,dumfbeam)
+!$omp private(dumql,dumqf,sgdnvis,sgdnnir,sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir),         &
+!$omp private(sgdnnirdif,rt,sint,sout,soutclr,sgclr,rtclr,rgclr,dumfbeam)
 do iq_tile = 1,ifull,imax
   istart = iq_tile
   iend   = istart + imax - 1
@@ -573,7 +573,7 @@ do iq_tile = 1,ifull,imax
     sgdnvis           = real(Sw_output(mythread)%dfsw_vis_sfc(:,1,1))
     sgdnnir           = sgdn(istart:iend) - sgdnvis
     ! sg = +Snet = Sdown - Sup
-    sg         = sgdn(istart:iend) - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
+    sgn(istart:iend)  = sgdn(istart:iend) - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
     sgvis      = sgdnvis - real(Sw_output(mythread)%ufsw_vis_sfc(:,1,1))
     !sgvisdir  = Sw_output(mythread)%dfsw_vis_sfc_dir(:,1,1)
     !sgvisdif  = Sw_output(mythread)%dfsw_vis_sfc_dif(:,1,1)-Sw_output(mythread)%ufsw_vis_sfc_dif(:,1,1)
@@ -608,15 +608,15 @@ do iq_tile = 1,ifull,imax
                              + real(Surface(mythread)%asfc_nir_dif(:,1))*(1.-fbeamnir(istart:iend))
     
     ! longwave output -----------------------------------------------
-    rg(1:imax) = real(Lw_output(mythread)%flxnet(:,1,kl+1))          ! longwave at surface
-    rt(1:imax) = real(Lw_output(mythread)%flxnet(:,1,1))             ! longwave at top
+    rgn(istart:iend) = real(Lw_output(mythread)%flxnet(:,1,kl+1))          ! longwave at surface
+    rt(1:imax) = real(Lw_output(mythread)%flxnet(:,1,1))                   ! longwave at top
     ! rg = -Rnet = Rup - Rdown = stefbo T^4 - Rdown
-    rgdn(1:imax) = stefbo*tss(istart:iend)**4 - rg(1:imax)
+    rgdn(istart:iend) = stefbo*tss(istart:iend)**4 - rgn(istart:iend)
 
     ! shortwave output ----------------------------------------------
     sint(1:imax) = real(Sw_output(mythread)%dfsw(:,1,1,1))   ! solar in top
     sout(1:imax) = real(Sw_output(mythread)%ufsw(:,1,1,1))   ! solar out top
-    !sgdn(istart:iend) = sg(1:imax) / ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
+    !sgdn(istart:iend) = sgn(istart:iend) / ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
     !              -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) )
 
     ! Clear sky calculation -----------------------------------------
@@ -749,7 +749,7 @@ do iq_tile = 1,ifull,imax
       sgn_amp(istart:iend)  = 0.
       sgdn_amp(istart:iend) = 0.
     elsewhere
-      sgn_amp(istart:iend)     = sg(1:imax)/(coszro(1:imax)*taudar(1:imax))
+      sgn_amp(istart:iend)     = sgn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
       sgdn_amp(istart:iend)    = sgdn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
     end where
     do k = 1,kl
@@ -761,9 +761,9 @@ do iq_tile = 1,ifull,imax
     end do
 
     ! Save things for non-radiation time steps ----------------------
-    sgsave(istart:iend)   = sg(1:imax)   ! repeated after solarfit
+    sgsave(istart:iend)   = sgn(istart:iend)   ! repeated after solarfit
     ! Save the value excluding Ts^4 part.  This is allowed to change.
-    rgsave(istart:iend)   = rg(1:imax) - stefbo*tss(istart:iend)**4
+    rgsave(istart:iend)   = rgn(istart:iend) - stefbo*tss(istart:iend)**4
     sintsave(istart:iend) = sint(1:imax) 
     rtsave(istart:iend)   = rt(1:imax) 
     rtclsave(istart:iend) = rtclr(1:imax)  
@@ -781,9 +781,9 @@ do iq_tile = 1,ifull,imax
       soc_ave(istart:iend)   = soc_ave(istart:iend)  + soutclr(1:imax)
       rtu_ave(istart:iend)   = rtu_ave(istart:iend)  + rt(1:imax)
       rtc_ave(istart:iend)   = rtc_ave(istart:iend)  + rtclr(1:imax)
-      rgn_ave(istart:iend)   = rgn_ave(istart:iend)  + rg(1:imax)
+      rgn_ave(istart:iend)   = rgn_ave(istart:iend)  + rgn(istart:iend)
       rgc_ave(istart:iend)   = rgc_ave(istart:iend)  + rgclr(1:imax)
-      rgdn_ave(istart:iend)  = rgdn_ave(istart:iend) + rgdn(1:imax)
+      rgdn_ave(istart:iend)  = rgdn_ave(istart:iend) + rgdn(istart:iend)
       sgc_ave(istart:iend)   = sgc_ave(istart:iend)  + sgclr(1:imax)
       cld_ave(istart:iend)   = cld_ave(istart:iend)  + cloudtot(istart:iend)
       cll_ave(istart:iend)   = cll_ave(istart:iend)  + cloudlo(istart:iend)
@@ -802,10 +802,10 @@ do iq_tile = 1,ifull,imax
   end if  ! odcalc
 
   ! Calculate the solar using the saved amplitude.
-  sg(1:imax) = sgn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
+  sgn(istart:iend)  = sgn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
   sgdn(istart:iend) = sgdn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
   if ( ktau>0 ) then ! averages not added at time zero
-    sgn_ave(istart:iend)  = sgn_ave(istart:iend)  + sg(1:imax)
+    sgn_ave(istart:iend)  = sgn_ave(istart:iend)  + sgn(istart:iend)
     sgdn_ave(istart:iend) = sgdn_ave(istart:iend) + sgdn(istart:iend)
     where ( sgdn(istart:iend)>120. )
       sunhours(istart:iend) = sunhours(istart:iend) + 86400.
@@ -816,7 +816,7 @@ do iq_tile = 1,ifull,imax
   ! slwa is negative net radiational htg at ground
   ! Note that this does not include the upward LW radiation from the surface.
   ! That is included in sflux.f90
-  sgsave(istart:iend) = sg(1:imax)   ! Net solar radiation (after solar fit)
+  sgsave(istart:iend) = sgn(istart:iend)   ! Net solar radiation (after solar fit)
   slwa(istart:iend) = -sgsave(istart:iend) + rgsave(istart:iend)
 
   ! Update tendencies
@@ -1320,7 +1320,7 @@ real f1, f2, r1, fjd, dlt, alp, slag
 
 call START_LOG(radinit_begin)
 
-if ( myid==0 ) write(6,*) "Initalising SEA-ESF radiation"
+if ( myid==0 ) write(6,*) "Initalise SEA-ESF radiation"
 
 ! Aerosol flag
 do_aerosol_forcing = abs(iaero)>=2
@@ -1391,6 +1391,7 @@ Rad_control%nzens_iz                    = .true.
 Rad_control%using_im_bcsul              = .false.
 Rad_control%using_im_bcsul_iz           = .true.
 
+if ( myid==0 ) write(6,*) "Reading SEA-ESF model datasets" 
 call sealw99_init(pref,Lw_tables)
 call esfsw_parameters_init
 call esfsw_driver_init

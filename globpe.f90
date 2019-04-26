@@ -3886,12 +3886,14 @@ tmaxscr(:)  = tscrn(:)
 tminscr(:)  = tscrn(:) 
 rhmaxscr(:) = rhscrn(:) 
 rhminscr(:) = rhscrn(:) 
+u10max(:)   = 0.
+v10max(:)   = 0.
 tmaxscr_clearing(:)  = tscrn_clearing(:) 
 tminscr_clearing(:)  = tscrn_clearing(:) 
 rhmaxscr_clearing(:) = rhscrn_clearing(:) 
 rhminscr_clearing(:) = rhscrn_clearing(:)
-u10max(:)   = 0.
-v10max(:)   = 0.
+u10max_clearing(:)   = 0.
+v10max_clearing(:)   = 0.
 u1max(:)    = 0.
 v1max(:)    = 0.
 u2max(:)    = 0.
@@ -3987,6 +3989,10 @@ do iq = 1,ifull
   if ( u10(iq)**2 > u10max(iq)**2 +v10max(iq)**2 ) then
     u10max(iq) = u10(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
     v10max(iq) = u10(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
+  end if
+  if ( u10_clearing(iq)**2 > u10max_clearing(iq)**2 +v10max_clearing(iq)**2 ) then
+    u10max_clearing(iq) = u10_clearing(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
+    v10max_clearing(iq) = u10_clearing(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
   end if
   if ( spare1(iq) > u1max(iq)**2+v1max(iq)**2 ) then
     u1max(iq) = u(iq,1)

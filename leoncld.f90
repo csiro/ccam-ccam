@@ -1426,7 +1426,7 @@ do n = 1,njumps
   mxclfrgraupel(1:imax) = 0. ! max overlap graupel fraction
   rdclfrgraupel(1:imax) = 0. ! rnd overlap graupel fraction
   cgfra(1:imax)         = 0. ! total graupel fraction = mx+rd-mx*rd
-  vg2(1:imax)           = 0.2
+  vg2(1:imax)           = 0.5
 
   fluxsnow(1:imax)   = 0.
   mxclfrsnow(1:imax) = 0. ! max overlap snow fraction
@@ -1475,18 +1475,14 @@ do n = 1,njumps
       end where
  
       ! graupel fall speed (from Lin et al 1983 - see GFDL AM3)
-      !where ( cfgraupel(1:imax,k)>=1.e-10 )
-      !  vg2(1:imax) = max( 0.1, 5.34623815*(max( rhog(:,k), 0. )/cfgraupel(:,k))**0.125 )
-      !end where
-      rg(1:imax) = max( fluxgraupel(:)/dz(:,k), 0. )
-      rg(1:imax) = max( rg(:), rhog(:,k) )
+      rg(1:imax) = max( fluxgraupel(:)/dz(:,k) + rhog(:,k), 0. )
       where ( cgfra(1:imax)>=1.e-10 )
-        vg2(1:imax) = max( 0.1, 5.34623815*(rg/cgfra)**0.125 )
+        vg2(1:imax) = max( 0.5, 5.34623815*(rg/cgfra)**0.125 )
       end where
     
       ! Set up the parameters for the flux-divergence calculation
       alph(:)         = tdt*vg2(:)/dz(:,k)
-      foutgraupel(:)  = 1. - exp(-alph(:))             !analytical
+      foutgraupel(:)  = 1. - exp(-alph(:))           !analytical
       fthrugraupel(:) = 1. - foutgraupel(:)/alph(:)  !analytical
 
       if ( any( fluxgraupel>0. ) ) then
@@ -1639,10 +1635,7 @@ do n = 1,njumps
       end where
   
       ! Snow fall speed (from Lin et al 1983 - see GFDL AM3)
-      !where ( cfsnow(1:imax,k)>=1.e-10 )
-      !  vs2(1:imax) = max( 0.1, 1.82*(max(rhos(:,k),0.)/cfsnow(:,k))**0.0625 )
-      !end where
-      rs(1:imax) = max( fluxsnow(:)/dz(:,k), 0. )
+      rs(1:imax) = max( fluxsnow(:)/dz(:,k) + rhos(:,k), 0. )
       rs(1:imax) = max( rs(1:imax), rhos(:,k) )
       where ( csfra(1:imax)>=1.e-10 )
         vs2(1:imax) = max( 0.1, 1.82*(rs/csfra)**0.0625 )
@@ -1650,7 +1643,7 @@ do n = 1,njumps
 
       ! Set up the parameters for the flux-divergence calculation
       alph(:)      = tdt*vs2/dz(:,k)
-      foutsnow(:)  = 1. - exp(-alph(:))          !analytical
+      foutsnow(:)  = 1. - exp(-alph(:))        !analytical
       fthrusnow(:) = 1. - foutsnow(:)/alph(:)  !analytical
 
       if ( any( fluxsnow>0. ) ) then
@@ -1841,7 +1834,7 @@ do n = 1,njumps
 
     ! Set up the parameters for the flux-divergence calculation
     alph(:)     = tdt*vi2(:)/dz(:,k)
-    foutice(:)  = 1. - exp(-alph(:))         !analytical
+    foutice(:)  = 1. - exp(-alph(:))       !analytical
     fthruice(:) = 1. - foutice(:)/alph(:)  !analytical
 
     if ( any( fluxice>0. ) ) then
@@ -1952,7 +1945,7 @@ do n = 1,njumps
     
     ! Calculate rain fall speed (MJT suggestion)
     if ( ncloud>=2 ) then
-      Fr(:)       = max( fluxrain(:), rhor(:,k)*dz(:,k) )
+      Fr(:)       = fluxrain(:) + rhor(:,k)*dz(:,k)
       Fr(:)       = max( Fr(:)/tdt/max(crfra(:),1.e-15),0.)
       vr2         = max( 0.1, 11.3*Fr(:)**(1./9.)/sqrt(rhoa(:,k)) )  !Actual fall speed
       !vr2        = max( 0.1, 5./sqrt(rhoa(:,k)) )                   !Nominal fall speed

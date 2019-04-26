@@ -1303,8 +1303,8 @@ if( myid==0 .or. local ) then
     call attrib(idnc,dimj,jsize,'fracice',lname,'none',0.,6.5,0,cptype)
     lname = '10m wind speed'
     call attrib(idnc,dimj,jsize,'u10',lname,'m/s',0.,130.,0,cptype)
-    lname = '10m wind speed (clearing)'
-    call attrib(idnc,dimj,jsize,'u10_clearing',lname,'m/s',0.,130.,0,cptype)
+    lname = '10m wind speed (station)'
+    call attrib(idnc,dimj,jsize,'u10_stn',lname,'m/s',0.,130.,0,cptype)
     if ( save_cloud ) then
       lname = 'Maximum CAPE'
       call attrib(idnc,dimj,jsize,'cape_max',lname,'J/kg',0.,20000.,0,cptype)
@@ -1323,22 +1323,26 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'rhmaxscr',lname,'%',0.,200.,1,cptype)
       lname = 'Minimum screen relative humidity'
       call attrib(idnc,dimj,jsize,'rhminscr',lname,'%',0.,200.,1,cptype)
-      lname = 'Maximum screen temperature (clearing)'
-      call attrib(idnc,dimj,jsize,'tmaxscr_clearing',lname,'K',100.,425.,1,cptype)
-      lname = 'Minimum screen temperature (clearing)'
-      call attrib(idnc,dimj,jsize,'tminscr_clearing',lname,'K',100.,425.,1,cptype)
-      lname = 'Maximum screen relative humidity (clearing)'
-      call attrib(idnc,dimj,jsize,'rhmaxscr_clearing',lname,'%',0.,200.,1,cptype)
-      lname = 'Minimum screen relative humidity (clearing)'
-      call attrib(idnc,dimj,jsize,'rhminscr_clearing',lname,'%',0.,200.,1,cptype)
       lname = 'x-component max 10m wind'
       call attrib(idnc,dimj,jsize,'u10max',lname,'m/s',-99.,99.,1,cptype)
       lname = 'y-component max 10m wind'
       call attrib(idnc,dimj,jsize,'v10max',lname,'m/s',-99.,99.,1,cptype)
       lname = 'Maximum 10m wind speed'
       call attrib(idnc,dimj,jsize,'sfcWindmax',lname,'m/s',0.,199.,1,cptype)
-      lname = 'Maximum 10m wind speed (clearing)'
-      call attrib(idnc,dimj,jsize,'sfcWindmax_clearing',lname,'m/s',0.,199.,1,cptype)
+      lname = 'Maximum screen temperature (station)'
+      call attrib(idnc,dimj,jsize,'tmaxscr_stn',lname,'K',100.,425.,1,cptype)
+      lname = 'Minimum screen temperature (station)'
+      call attrib(idnc,dimj,jsize,'tminscr_stn',lname,'K',100.,425.,1,cptype)
+      lname = 'Maximum screen relative humidity (station)'
+      call attrib(idnc,dimj,jsize,'rhmaxscr_stn',lname,'%',0.,200.,1,cptype)
+      lname = 'Minimum screen relative humidity (station)'
+      call attrib(idnc,dimj,jsize,'rhminscr_stn',lname,'%',0.,200.,1,cptype)
+      lname = 'x-component max 10m wind (station)'
+      call attrib(idnc,dimj,jsize,'u10max_stn',lname,'m/s',-99.,99.,1,cptype)
+      lname = 'y-component max 10m wind (station)'
+      call attrib(idnc,dimj,jsize,'v10max_stn',lname,'m/s',-99.,99.,1,cptype)
+      lname = 'Maximum 10m wind speed (station)'
+      call attrib(idnc,dimj,jsize,'sfcWindmax_stn',lname,'m/s',0.,199.,1,cptype)
       lname = 'x-component max level_1 wind'
       call attrib(idnc,dimj,jsize,'u1max',lname,'m/s',-99.,99.,1,cptype)
       lname = 'y-component max level_1 wind'
@@ -1412,10 +1416,10 @@ if( myid==0 .or. local ) then
     call attrib(idnc,dimj,jsize,'tscr_ave',lname,'K',100.,425.,0,cptype)
     lname = 'Average screen relative humidity'
     call attrib(idnc,dimj,jsize,'rhscr_ave',lname,'%',0.,200.,0,cptype)
-    lname = 'Average screen temperature (clearing)'
-    call attrib(idnc,dimj,jsize,'tscr_ave_clearing',lname,'K',100.,425.,0,cptype)
-    lname = 'Average screen relative humidity (clearing)'
-    call attrib(idnc,dimj,jsize,'rhscr_ave_clearing',lname,'%',0.,200.,0,cptype)
+    lname = 'Average screen temperature (station)'
+    call attrib(idnc,dimj,jsize,'tscr_ave_stn',lname,'K',100.,425.,0,cptype)
+    lname = 'Average screen relative humidity (station)'
+    call attrib(idnc,dimj,jsize,'rhscr_ave_stn',lname,'%',0.,200.,0,cptype)
     if ( save_cloud .or. itype==-1 ) then
       lname = 'Avg cloud base'
       call attrib(idnc,dimj,jsize,'cbas_ave',lname,'sigma',0.,1.1,0,cptype)
@@ -1496,19 +1500,21 @@ if( myid==0 .or. local ) then
     call attrib(idnc,dimj,jsize,'tscrn',lname,'K',100.,425.,0,cptype)
     lname = 'Screen mixing ratio'
     call attrib(idnc,dimj,jsize,'qgscrn',lname,'kg/kg',0.,.06,0,cptype)
-    lname = 'Screen temperature (clearing)'
-    call attrib(idnc,dimj,jsize,'tscrn_clearing',lname,'K',100.,425.,0,cptype)
-    lname = 'Screen mixing ratio (clearing)'
-    call attrib(idnc,dimj,jsize,'qgscrn_clearing',lname,'kg/kg',0.,.06,0,cptype)
     if ( itype/=-1 ) then
       lname = 'Screen relative humidity'
       call attrib(idnc,dimj,jsize,'rhscrn',lname,'%',0.,200.,0,cptype)
       lname = 'Screen level wind speed'
       call attrib(idnc,dimj,jsize,'uscrn',lname,'m/s',0.,65.,0,cptype)
-      lname = 'Screen relative humidity (clearing)'
-      call attrib(idnc,dimj,jsize,'rhscrn_clearing',lname,'%',0.,200.,0,cptype)
-      lname = 'Screen level wind speed (clearing)'
-      call attrib(idnc,dimj,jsize,'uscrn_clearing',lname,'m/s',0.,65.,0,cptype)
+    end if  
+    lname = 'Screen temperature (station)'
+    call attrib(idnc,dimj,jsize,'tscrn_stn',lname,'K',100.,425.,0,cptype)
+    lname = 'Screen mixing ratio (station)'
+    call attrib(idnc,dimj,jsize,'qgscrn_stn',lname,'kg/kg',0.,.06,0,cptype)
+    if ( itype/=-1 ) then
+      lname = 'Screen relative humidity (station)'
+      call attrib(idnc,dimj,jsize,'rhscrn_stn',lname,'%',0.,200.,0,cptype)
+      lname = 'Screen level wind speed (station)'
+      call attrib(idnc,dimj,jsize,'uscrn_stn',lname,'m/s',0.,65.,0,cptype)
       if ( save_radiation ) then
         lname = 'Net radiation'
         call attrib(idnc,dimj,jsize,'rnet',lname,'W/m2',-3000.,3000.,0,cptype)
@@ -2549,7 +2555,7 @@ call histwrt(fracice,'fracice',idnc,iarch,local,.true.)
      
 ! DIAGNOSTICS -------------------------------------------------
 call histwrt(u10,'u10',idnc,iarch,local,.true.)
-call histwrt(u10_clearing,'u10_clearing',idnc,iarch,local,.true.)
+call histwrt(u10_clearing,'u10_stn',idnc,iarch,local,.true.)
 if ( save_cloud ) then
   call histwrt(cape_max,'cape_max',idnc,iarch,local,lwrite)
   call histwrt(cape_ave,'cape_ave',idnc,iarch,local,lwrite)
@@ -2562,14 +2568,16 @@ if ( itype/=-1 .and. save_maxmin ) then  ! these not written to restart file
   call histwrt(tminscr,'tminscr',idnc,iarch,local,lday)
   call histwrt(rhmaxscr,'rhmaxscr',idnc,iarch,local,lday)
   call histwrt(rhminscr,'rhminscr',idnc,iarch,local,lday)
-  call histwrt(tmaxscr_clearing,'tmaxscr_clearing',idnc,iarch,local,lday)
-  call histwrt(tminscr_clearing,'tminscr_clearing',idnc,iarch,local,lday)
-  call histwrt(rhmaxscr_clearing,'rhmaxscr_clearing',idnc,iarch,local,lday)
-  call histwrt(rhminscr_clearing,'rhminscr_clearing',idnc,iarch,local,lday)
   call histwrt(u10max,'u10max',idnc,iarch,local,lday)
   call histwrt(v10max,'v10max',idnc,iarch,local,lday)
   call histwrt(u10mx,'sfcWindmax',idnc,iarch,local,lave)
-  call histwrt(u10mx_clearing,'sfcWindmax_clearing',idnc,iarch,local,lave)
+  call histwrt(tmaxscr_clearing,'tmaxscr_stn',idnc,iarch,local,lday)
+  call histwrt(tminscr_clearing,'tminscr_stn',idnc,iarch,local,lday)
+  call histwrt(rhmaxscr_clearing,'rhmaxscr_stn',idnc,iarch,local,lday)
+  call histwrt(rhminscr_clearing,'rhminscr_stn',idnc,iarch,local,lday)
+  call histwrt(u10max_clearing,'u10max_stn',idnc,iarch,local,lday)
+  call histwrt(v10max_clearing,'v10max_stn',idnc,iarch,local,lday)
+  call histwrt(u10mx_clearing,'sfcWindmax_stn',idnc,iarch,local,lave)
   call histwrt(u1max,'u1max',idnc,iarch,local,lday)
   call histwrt(v1max,'v1max',idnc,iarch,local,lday)
   call histwrt(u2max,'u2max',idnc,iarch,local,lday)
@@ -2628,8 +2636,8 @@ end if
 ! only write these once per avg period
 call histwrt(tscr_ave,'tscr_ave',idnc,iarch,local,lave_0)
 call histwrt(rhscr_ave,'rhscr_ave',idnc,iarch,local,lave_0)
-call histwrt(tscr_ave_clearing,'tscr_ave_clearing',idnc,iarch,local,lave_0)
-call histwrt(rhscr_ave_clearing,'rhscr_ave_clearing',idnc,iarch,local,lave_0)
+call histwrt(tscr_ave_clearing,'tscr_ave_stn',idnc,iarch,local,lave_0)
+call histwrt(rhscr_ave_clearing,'rhscr_ave_stn',idnc,iarch,local,lave_0)
 if ( save_cloud .or. itype==-1 ) then
   call histwrt(cbas_ave,'cbas_ave',idnc,iarch,local,lave_0)
   call histwrt(ctop_ave,'ctop_ave',idnc,iarch,local,lave_0)
@@ -2690,6 +2698,12 @@ call histwrt(qgscrn,'qgscrn',idnc,iarch,local,lwrite_0)
 if ( itype/=-1 ) then  ! these not written to restart file
   call histwrt(rhscrn,'rhscrn',idnc,iarch,local,lwrite)
   call histwrt(uscrn,'uscrn',idnc,iarch,local,lwrite)
+end if  
+call histwrt(tscrn_clearing,'tscrn_stn',idnc,iarch,local,lwrite_0)
+call histwrt(qgscrn_clearing,'qgscrn_stn',idnc,iarch,local,lwrite_0)
+if ( itype/=-1 ) then  ! these not written to restart file
+  call histwrt(rhscrn_clearing,'rhscrn_stn',idnc,iarch,local,lwrite)
+  call histwrt(uscrn_clearing,'uscrn_stn',idnc,iarch,local,lwrite)
   if ( save_radiation ) then
     call histwrt(rnet,'rnet',idnc,iarch,local,lwrite)
   end if
@@ -3317,7 +3331,7 @@ implicit none
 
 include 'kuocom.h'                    ! Convection parameters
 
-integer, parameter :: freqvars = 9  ! number of variables to write
+integer, parameter :: freqvars = 16  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
@@ -3580,6 +3594,20 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'pmsl',lname,'hPa',800.,1200.,0,1)    
     lname ='Solar downwelling at ground'
     call attrib(fncid,sdim,ssize,'sgdn_ave',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long 
+    lname = 'Solar net at ground (+ve down)'
+    call attrib(fncid,sdim,ssize,'sgn_ave',lname,'W/m2',-500.,2000.,0,-1) ! -1 = long
+    lname = 'LW downwelling at ground'
+    call attrib(fncid,sdim,ssize,'rgdn_ave',lname,'W/m2',-500.,1.e3,0,-1) ! -1 = long
+    lname = 'LW net at ground (+ve up)'
+    call attrib(fncid,sdim,ssize,'rgn_ave',lname,'W/m2',-500.,1000.,0,-1) ! -1 = long
+    lname='x-component 10m wind (station)'
+    call attrib(fncid,sdim,ssize,'uas_stn',lname,'m/s',-130.,130.,0,1)
+    lname='y-component 10m wind (station)'     
+    call attrib(fncid,sdim,ssize,'vas_stn',lname,'m/s',-130.,130.,0,1)
+    lname='Screen temperature (station)'     
+    call attrib(fncid,sdim,ssize,'tscrn_stn',lname,'K',100.,425.,0,1)
+    lname='Screen relative humidity (station)'     
+    call attrib(fncid,sdim,ssize,'rhscrn_stn',lname,'%',0.,200.,0,1)
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -3728,15 +3756,22 @@ if ( ti==0 ) ti = tblock*tbave
 ti = (ti-1)/tbave + 1
 umag = sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
 call mslp(pmsl,psl,zs,t)
-freqstore(1:ifull,ti,1) = freqstore(1:ifull,ti,1) + u10*u(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,2) = freqstore(1:ifull,ti,2) + u10*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,3) = freqstore(1:ifull,ti,3) + tscrn
-freqstore(1:ifull,ti,4) = freqstore(1:ifull,ti,4) + rhscrn
-freqstore(1:ifull,ti,5) = freqstore(1:ifull,ti,5) + condx*86400./dt
-freqstore(1:ifull,ti,6) = freqstore(1:ifull,ti,6) + conds*86400./dt
-freqstore(1:ifull,ti,7) = freqstore(1:ifull,ti,7) + condg*86400./dt
-freqstore(1:ifull,ti,8) = freqstore(1:ifull,ti,8) + pmsl/100.
-freqstore(1:ifull,ti,9) = freqstore(1:ifull,ti,9) + sgdn
+freqstore(1:ifull,ti,1)  = freqstore(1:ifull,ti,1)  + u10*u(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,ti,2)  = freqstore(1:ifull,ti,2)  + u10*v(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,ti,3)  = freqstore(1:ifull,ti,3)  + tscrn
+freqstore(1:ifull,ti,4)  = freqstore(1:ifull,ti,4)  + rhscrn
+freqstore(1:ifull,ti,5)  = freqstore(1:ifull,ti,5)  + condx*86400./dt
+freqstore(1:ifull,ti,6)  = freqstore(1:ifull,ti,6)  + conds*86400./dt
+freqstore(1:ifull,ti,7)  = freqstore(1:ifull,ti,7)  + condg*86400./dt
+freqstore(1:ifull,ti,8)  = freqstore(1:ifull,ti,8)  + pmsl/100.
+freqstore(1:ifull,ti,9)  = freqstore(1:ifull,ti,9)  + sgdn
+freqstore(1:ifull,ti,10) = freqstore(1:ifull,ti,10) + sgn
+freqstore(1:ifull,ti,11) = freqstore(1:ifull,ti,11) + rgdn
+freqstore(1:ifull,ti,12) = freqstore(1:ifull,ti,12) + rgn
+freqstore(1:ifull,ti,13) = freqstore(1:ifull,ti,13) + u10_clearing*u(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,ti,14) = freqstore(1:ifull,ti,14) + u10_clearing*v(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,ti,15) = freqstore(1:ifull,ti,15) + tscrn_clearing
+freqstore(1:ifull,ti,16) = freqstore(1:ifull,ti,16) + rhscrn_clearing
 
 ! write data to file
 if ( mod(ktau,tblock*tbave)==0 ) then
@@ -3768,15 +3803,22 @@ if ( mod(ktau,tblock*tbave)==0 ) then
 
   ! record output
   freqstore(:,:,:) = freqstore(:,:,:)/real(tbave)
-  call freqwrite(fncid,'uas',     fiarch,tblock,local,freqstore(:,:,1))
-  call freqwrite(fncid,'vas',     fiarch,tblock,local,freqstore(:,:,2))
-  call freqwrite(fncid,'tscrn',   fiarch,tblock,local,freqstore(:,:,3))
-  call freqwrite(fncid,'rhscrn',  fiarch,tblock,local,freqstore(:,:,4))
-  call freqwrite(fncid,'rnd',     fiarch,tblock,local,freqstore(:,:,5))
-  call freqwrite(fncid,'sno',     fiarch,tblock,local,freqstore(:,:,6))
-  call freqwrite(fncid,'grpl',    fiarch,tblock,local,freqstore(:,:,7))
-  call freqwrite(fncid,'pmsl',    fiarch,tblock,local,freqstore(:,:,8))
-  call freqwrite(fncid,'sgdn_ave',fiarch,tblock,local,freqstore(:,:,9))
+  call freqwrite(fncid,'uas',       fiarch,tblock,local,freqstore(:,:,1))
+  call freqwrite(fncid,'vas',       fiarch,tblock,local,freqstore(:,:,2))
+  call freqwrite(fncid,'tscrn',     fiarch,tblock,local,freqstore(:,:,3))
+  call freqwrite(fncid,'rhscrn',    fiarch,tblock,local,freqstore(:,:,4))
+  call freqwrite(fncid,'rnd',       fiarch,tblock,local,freqstore(:,:,5))
+  call freqwrite(fncid,'sno',       fiarch,tblock,local,freqstore(:,:,6))
+  call freqwrite(fncid,'grpl',      fiarch,tblock,local,freqstore(:,:,7))
+  call freqwrite(fncid,'pmsl',      fiarch,tblock,local,freqstore(:,:,8))
+  call freqwrite(fncid,'sgdn_ave',  fiarch,tblock,local,freqstore(:,:,9))
+  call freqwrite(fncid,'sgd_ave',   fiarch,tblock,local,freqstore(:,:,10))
+  call freqwrite(fncid,'rgdn_ave',  fiarch,tblock,local,freqstore(:,:,11))
+  call freqwrite(fncid,'rgd_ave',   fiarch,tblock,local,freqstore(:,:,12))
+  call freqwrite(fncid,'uas_stn',   fiarch,tblock,local,freqstore(:,:,13))
+  call freqwrite(fncid,'vas_stn',   fiarch,tblock,local,freqstore(:,:,14))
+  call freqwrite(fncid,'tscrn_stn', fiarch,tblock,local,freqstore(:,:,15))
+  call freqwrite(fncid,'rhscrn_stn',fiarch,tblock,local,freqstore(:,:,16))
   freqstore(:,:,:) = 0.
 
 end if
