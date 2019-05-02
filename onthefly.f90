@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -3213,9 +3213,9 @@ use parm_m             ! Model configuration
 
 implicit none
 
-integer i, n, ipf
+integer i, j, n, ipf
 integer mm, iq, idel, jdel
-integer ncount, w
+integer ncount, w, colour
 logical, dimension(0:fnproc-1) :: lfile
 integer, dimension(:), allocatable :: tempmap_send, tempmap_smod
 logical, dimension(0:nproc-1) :: lproc
@@ -3223,6 +3223,7 @@ logical, dimension(0:nproc-1) :: lproc
 if ( allocated(filemap_recv) ) then
   deallocate( filemap_recv, filemap_rmod )
   deallocate( filemap_send, filemap_smod )
+  deallocate( filemap_facetest, filemap_facecomm )
 end if
 if ( allocated(axs_w) ) then
   deallocate( axs_w, ays_w, azs_w )
@@ -3234,7 +3235,9 @@ if ( myid==0 ) then
 end if
 
 ! calculate which grid points and input files are needed by this processor
+allocate( filemap_facetest(0:npanels), filemap_facecomm(0:npanels) )
 lfile(:) = .false.
+filemap_facetest(:) = .false.
 do mm = 1,m_fly
   do iq = 1,ifull
     idel = int(xg4(iq,mm))
@@ -3252,8 +3255,33 @@ do mm = 1,m_fly
     lfile(procarray(idel+1,jdel,  n)) = .true.
     lfile(procarray(idel+2,jdel,  n)) = .true.
     lfile(procarray(idel,  jdel-1,n)) = .true.
-    lfile(procarray(idel+1,jdel-1,n)) = .true.
+    lfile(procarray(idel+1,jdel-1,n)) = .true.   
+    filemap_facetest(procarray_face(idel,  jdel+2,n)) = .true.
+    filemap_facetest(procarray_face(idel+1,jdel+2,n)) = .true.
+    filemap_facetest(procarray_face(idel-1,jdel+1,n)) = .true.
+    filemap_facetest(procarray_face(idel  ,jdel+1,n)) = .true.
+    filemap_facetest(procarray_face(idel+1,jdel+1,n)) = .true.
+    filemap_facetest(procarray_face(idel+2,jdel+1,n)) = .true.
+    filemap_facetest(procarray_face(idel-1,jdel,  n)) = .true.
+    filemap_facetest(procarray_face(idel  ,jdel,  n)) = .true.
+    filemap_facetest(procarray_face(idel+1,jdel,  n)) = .true.
+    filemap_facetest(procarray_face(idel+2,jdel,  n)) = .true.
+    filemap_facetest(procarray_face(idel,  jdel-1,n)) = .true.
+    filemap_facetest(procarray_face(idel+1,jdel-1,n)) = .true.
   end do
+end do
+
+! Construct bcast comms for single file case
+if ( myid==0 ) then
+  filemap_facetest(:) = .true.
+end if
+do n = 0, npanels
+  if ( filemap_facetest(n) ) then
+    colour = 1
+  else
+    colour = -1
+  end if    
+  call ccmpi_commsplit(filemap_facecomm(n),comm_world,colour,myid)
 end do
 
 ! Construct a map of files to be accessed by this process

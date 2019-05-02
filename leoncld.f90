@@ -1426,7 +1426,7 @@ do n = 1,njumps
   mxclfrgraupel(1:imax) = 0. ! max overlap graupel fraction
   rdclfrgraupel(1:imax) = 0. ! rnd overlap graupel fraction
   cgfra(1:imax)         = 0. ! total graupel fraction = mx+rd-mx*rd
-  vg2(1:imax)           = 0.5
+  vg2(1:imax)           = 0.2
 
   fluxsnow(1:imax)   = 0.
   mxclfrsnow(1:imax) = 0. ! max overlap snow fraction
@@ -1473,17 +1473,8 @@ do n = 1,njumps
         rdclfrgraupel(1:imax) = rdclfrgraupel(:) + mxclfrgraupel(:) - rdclfrgraupel(:)*mxclfrgraupel(:)
         mxclfrgraupel(1:imax) = 0.
       end where
- 
-      ! graupel fall speed (from Lin et al 1983 - see GFDL AM3)
-      rg(1:imax) = max( fluxgraupel(:)/dz(:,k) + rhog(:,k), 0. )
-      where ( cgfra(1:imax)>=1.e-10 )
-        vg2(1:imax) = max( 0.5, 5.34623815*(rg/cgfra)**0.125 )
-      end where
-    
-      ! Set up the parameters for the flux-divergence calculation
-      alph(:)         = tdt*vg2(:)/dz(:,k)
-      foutgraupel(:)  = 1. - exp(-alph(:))           !analytical
-      fthrugraupel(:) = 1. - foutgraupel(:)/alph(:)  !analytical
+       
+      call graupel_velocity(vg2,fluxgraupel,rhog(:,k),dz(:,k),cgfra)
 
       if ( any( fluxgraupel>0. ) ) then
 
@@ -1634,17 +1625,7 @@ do n = 1,njumps
         mxclfrsnow(1:imax) = 0.
       end where
   
-      ! Snow fall speed (from Lin et al 1983 - see GFDL AM3)
-      rs(1:imax) = max( fluxsnow(:)/dz(:,k) + rhos(:,k), 0. )
-      rs(1:imax) = max( rs(1:imax), rhos(:,k) )
-      where ( csfra(1:imax)>=1.e-10 )
-        vs2(1:imax) = max( 0.1, 1.82*(rs/csfra)**0.0625 )
-      end where
-
-      ! Set up the parameters for the flux-divergence calculation
-      alph(:)      = tdt*vs2/dz(:,k)
-      foutsnow(:)  = 1. - exp(-alph(:))        !analytical
-      fthrusnow(:) = 1. - foutsnow(:)/alph(:)  !analytical
+      call snow_velocity(vs2,fluxsnow,rhos(:,k),dz(:,k),csfra)
 
       if ( any( fluxsnow>0. ) ) then
 
@@ -1793,49 +1774,7 @@ do n = 1,njumps
       mxclfrice(1:imax) = 0.
     end where
   
-    ! Set up snow fall speed field
-    select case(abs(ldr))
-      case(1)
-        where ( cifr(1:imax,k)>=1.e-10 )
-          vi2(1:imax) = max( 0.1, 3.23*(max(rhoi(:,k),0.)/cifr(:,k))**0.17 )  ! Ice fall speed from LDR 1997
-        end where
-      case(2)
-        where ( cifr(:,k)>=1.e-10 )
-          vi2(:) = 0.9*3.23*(rhoi(:,k)/cifr(:,k))**0.17
-        end where
-      case(3)
-        where ( cifr(1:imax,k)>=1.e-10 )
-          vi2(1:imax) = max( 0.1, 2.05+0.35*log10(rhoi(:,k)/rhoa(:,k)/cifr(1:imax,k)) )
-        end where
-      case(4)
-        where ( cifr(1:imax,k)>=1.e-10 )
-          vi2(1:imax) = 1.4*3.23*(rhoi(:,k)/cifr(1:imax,k))**0.17
-        end where
-      case(5)
-        where ( cifr(1:imax,k)>=1.e-10 )  
-          vi2(1:imax) = max( 0.1, 3.29*(max( rhoi(:,k), 0. )/cifr(:,k))**0.16 ) ! from Lin et al 1983 
-        end where  
-      case(11)
-        ! following are alternative slightly-different versions of above
-        ! used for I runs from 29/4/05 till 30/8/05
-        ! for given qfg, large cifr implies small ice crystals, 
-        ! with a small fall speed. 
-        ! Note that for very small qfg, cifr is small.
-        ! But rhoi is like qfg, so ratio should also be small and OK.
-        vi2(1:imax) = max( vi2(1:imax), 3.23*(rhoi(:,k)/max(cifr(1:imax,k),1.e-30))**0.17 )
-      case(22)
-        vi2(1:imax) = max( vi2(1:imax), 0.9*3.23*(rhoi(:,k)/max(cifr(1:imax,k),1.e-30))**0.17 )
-      case(33)
-        ! following max gives vi2=.1 for qfg=cifr=0
-        vi2(1:imax) = max( vi2(1:imax), 2.05+0.35*log10(max(rhoi(:,k)/rhoa(:,k),2.68e-36)/max(cifr(1:imax,k),1.e-30)) )
-      case(55)
-        vi2(1:imax) = max( vi2(1:imax), 3.29*(max(rhoi(:,k),0.)/cifr(:,k))**0.16 ) ! from Lin et al 1983   
-    end select
-
-    ! Set up the parameters for the flux-divergence calculation
-    alph(:)     = tdt*vi2(:)/dz(:,k)
-    foutice(:)  = 1. - exp(-alph(:))       !analytical
-    fthruice(:) = 1. - foutice(:)/alph(:)  !analytical
+    call ice_velocity(vi2,rhoi(:,k),rhoa(:,k),cifr(:,k))
 
     if ( any( fluxice>0. ) ) then
 
@@ -1943,19 +1882,7 @@ do n = 1,njumps
       mxclfrrain(:) = 0.
     end where
     
-    ! Calculate rain fall speed (MJT suggestion)
-    if ( ncloud>=2 ) then
-      Fr(:)       = fluxrain(:) + rhor(:,k)*dz(:,k)
-      Fr(:)       = max( Fr(:)/tdt/max(crfra(:),1.e-15),0.)
-      vr2         = max( 0.1, 11.3*Fr(:)**(1./9.)/sqrt(rhoa(:,k)) )  !Actual fall speed
-      !vr2        = max( 0.1, 5./sqrt(rhoa(:,k)) )                   !Nominal fall speed
-      alph(:)     = tdt*vr2/dz(:,k)
-      foutliq(:)  = 1. - exp(-alph(:))
-      fthruliq(:) = 1. - foutliq(:)/alph(:)
-    else
-      foutliq(:)  = 1.
-      fthruliq(:) = 1.
-    end if
+    call rain_velocity(vr2,fluxrain,rhor(:,k),rhoa(:,k),dz(:,k),crfra,tdt)
     
     if ( any( fluxrain>0. ) ) then
 
@@ -2151,6 +2078,11 @@ do n = 1,njumps
       end where
       mxclfrgraupel(1:imax) = max( mxclfrgraupel(:), cfgraupel(:,k) ) ! for rhogout
       cgfra(1:imax) = max( 1.e-15, mxclfrgraupel(:)+rdclfrgraupel(:)-mxclfrgraupel(:)*rdclfrgraupel(:) ) ! rnd overlap
+      call graupel_velocity(vg2,fluxgraupel,rhog(:,k),dz(:,k),cgfra)  
+      ! Set up the parameters for the flux-divergence calculation
+      alph(:)         = tdt*vg2(:)/dz(:,k)
+      foutgraupel(:)  = 1. - exp(-alph(:))           !analytical
+      fthrugraupel(:) = 1. - foutgraupel(:)/alph(:)  !analytical
       ! Compute fluxes into the box
       cffluxin(:) = cgfra(:) - cfgraupel(:,k)
       rhogin(:)   = fluxgraupel(:)/dz(:,k)
@@ -2182,6 +2114,11 @@ do n = 1,njumps
       end where
       mxclfrsnow(1:imax) = max( mxclfrsnow(:), cfsnow(:,k) ) ! for rhosout
       csfra(1:imax) = max( 1.e-15, mxclfrsnow(:)+rdclfrsnow(:)-mxclfrsnow(:)*rdclfrsnow(:) ) ! rnd overlap 
+      call snow_velocity(vs2,fluxsnow,rhos(:,k),dz(:,k),csfra)
+      ! Set up the parameters for the flux-divergence calculation
+      alph(:)      = tdt*vs2/dz(:,k)
+      foutsnow(:)  = 1. - exp(-alph(:))        !analytical
+      fthrusnow(:) = 1. - foutsnow(:)/alph(:)  !analytical
       ! Compute fluxes into the box
       cffluxin(:) = csfra(:) - cfsnow(:,k)
       rhosin(:)   = fluxsnow(:)/dz(:,k)
@@ -2214,6 +2151,11 @@ do n = 1,njumps
     end where
     mxclfrice(1:imax) = max( mxclfrice(:), cifr(:,k) ) ! for rhoiout
     cifra(1:imax) = max( 1.e-15, mxclfrice(:)+rdclfrice(:)-mxclfrice(:)*rdclfrice(:) ) !rnd overlap the mx and rd ice fractions
+    call ice_velocity(vi2,rhoi(:,k),rhoa(:,k),cifr(:,k))
+    ! Set up the parameters for the flux-divergence calculation
+    alph(:)     = tdt*vi2(:)/dz(:,k)
+    foutice(:)  = 1. - exp(-alph(:))       !analytical
+    fthruice(:) = 1. - foutice(:)/alph(:)  !analytical
     ! Compute fluxes into the box
     cffluxin(:) = cifra(:) - cifr(:,k)
     rhoiin(:)   = fluxice(:)/dz(:,k)
@@ -2245,6 +2187,16 @@ do n = 1,njumps
     end where
     mxclfrrain(1:imax) = max( mxclfrrain(:), cfrain(:,k) ) ! for rhorout    
     crfra(:) = max( 1.e-15, rdclfrrain(:)+mxclfrrain(:)-rdclfrrain(:)*mxclfrrain(:) ) !rnd overlap the mx and rd rain fractions
+    call rain_velocity(vr2,fluxrain,rhor(:,k),rhoa(:,k),dz(:,k),crfra,tdt)
+    ! Set up the parameters for the flux-divergence calculation
+    if ( ncloud>=2 ) then
+      alph(:)     = tdt*vr2/dz(:,k)
+      foutliq(:)  = 1. - exp(-alph(:))
+      fthruliq(:) = 1. - foutliq(:)/alph(:)
+    else
+      foutliq(:)  = 1.
+      fthruliq(:) = 1.
+    end if
     ! Compute fluxes into the box
     cffluxin(:) = crfra(:) - cfrain(:,k)
     rhorin(:)   = fluxrain(:)/dz(:,k)
@@ -2373,4 +2325,97 @@ end if  ! (diag.and.mydiag)
 return
 end subroutine newsnowrain
 
+subroutine graupel_velocity(vg2,fluxgraupel,rhog,dz,cgfra)
+
+implicit none
+
+real, dimension(:), intent(inout) :: vg2
+real, dimension(size(vg2)), intent(in) :: fluxgraupel, rhog, dz, cgfra
+real, dimension(size(vg2)) :: rg
+
+! graupel fall speed (from Lin et al 1983 - see GFDL AM3)
+rg = max( fluxgraupel/dz + rhog, 0. )
+vg2 = max( 0.2, 5.34623815*(rg/max(cgfra,1.e-10))**0.125 )
+
+return
+end subroutine graupel_velocity
+
+subroutine snow_velocity(vs2,fluxsnow,rhos,dz,csfra)
+
+implicit none
+
+real, dimension(:), intent(inout) :: vs2
+real, dimension(size(vs2)), intent(in) :: fluxsnow, rhos, dz, csfra
+real, dimension(size(vs2)) :: rs
+
+! Snow fall speed (from Lin et al 1983 - see GFDL AM3)
+rs = max( fluxsnow/dz + rhos, 0. )
+vs2 = max( 0.1, 1.82*(rs/max(csfra,1.e-10))**0.0625 )
+
+return
+end subroutine snow_velocity
+    
+subroutine ice_velocity(vi2,rhoi,rhoa,cifr)
+
+implicit none
+
+include 'kuocom.h'                ! Convection parameters
+
+real, dimension(:), intent(inout) :: vi2
+real, dimension(size(vi2)), intent(in) :: rhoi,rhoa,cifr
+
+! Set up snow fall speed field
+select case(abs(ldr))
+  case(1)
+    vi2 = max( 0.1, 3.23*(max(rhoi,0.)/max(cifr,1.e-10))**0.17 )  ! Ice fall speed from LDR 1997
+  case(2)
+    vi2 = 0.9*3.23*(rhoi/max(cifr,1.e-10))**0.17
+  case(3)
+    vi2 = max( 0.1, 2.05+0.35*log10(rhoi/rhoa/max(cifr,1.e-10)) )
+  case(4)
+    vi2 = 1.4*3.23*(rhoi/max(cifr,1.e-10))**0.17
+  case(5)
+    vi2 = max( 0.1, 3.29*(max( rhoi, 0. )/max(cifr,1.e-10))**0.16 ) ! from Lin et al 1983 
+  case(11)
+    ! following are alternative slightly-different versions of above
+    ! used for I runs from 29/4/05 till 30/8/05
+    ! for given qfg, large cifr implies small ice crystals, 
+    ! with a small fall speed. 
+    ! Note that for very small qfg, cifr is small.
+    ! But rhoi is like qfg, so ratio should also be small and OK.
+    vi2 = max( vi2, 3.23*(rhoi/max(cifr,1.e-10))**0.17 )
+  case(22)
+    vi2 = max( vi2, 0.9*3.23*(rhoi/max(cifr,1.e-10))**0.17 )
+  case(33)
+    ! following max gives vi2=.1 for qfg=cifr=0
+    vi2 = max( vi2, 2.05+0.35*log10(max(rhoi/rhoa,2.68e-36)/max(cifr,1.e-10)) )
+  case(55)
+    vi2 = max( vi2, 3.29*(max(rhoi,0.)/max(cifr,1.e-10))**0.16 ) ! from Lin et al 1983   
+end select
+
+return
+end subroutine ice_velocity
+
+subroutine rain_velocity(vr2,fluxrain,rhor,rhoa,dz,crfra,tdt)
+
+implicit none
+
+include 'kuocom.h'                ! Convection parameters
+
+real, intent(in) :: tdt
+real, dimension(:), intent(inout) :: vr2
+real, dimension(size(vr2)), intent(in) :: fluxrain, rhor, rhoa, dz, crfra
+real, dimension(size(vr2)) :: Fr
+
+! Calculate rain fall speed (MJT suggestion)
+if ( ncloud>=2 ) then
+  Fr(:)       = fluxrain(:) + rhor*dz
+  Fr(:)       = max( Fr(:)/tdt/max(crfra,1.e-10),0.)
+  vr2         = max( 0.1, 11.3*Fr(:)**(1./9.)/sqrt(rhoa) )  !Actual fall speed
+  !vr2        = max( 0.1, 5./sqrt(rhoa) )                   !Nominal fall speed
+end if
+
+return
+end subroutine rain_velocity
+    
 end module leoncld_mod

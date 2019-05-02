@@ -135,15 +135,15 @@ integer iq, k
 real dzx
 real, dimension(:,:), intent(in)    :: t
 real, dimension(:,:), intent(inout) :: u, v
-real, dimension(imax,kl) :: uu,fni,bvnf
+real, dimension(imax,kl) :: uu, fni, bvnf
 real, dimension(imax,kl) :: theta_full
 real, dimension(imax,kl) :: dtheta_dz_kmh
-real, dimension(:), intent(in) :: tss, he
+real, dimension(imax), intent(in) :: tss, he
 real, dimension(imax) :: dzi, uux, xxx, froude2_inv
-real, dimension(imax) :: temp,fnii
+real, dimension(imax) :: temp, fnii
 real, dimension(imax) :: bvng ! to be depreciated
-real, dimension(imax) :: apuw,apvw,alambda,wmag
-real, dimension(kl) :: dsk,sigk
+real, dimension(imax) :: apuw, apvw, alambda, wmag
+real, dimension(kl) :: sigk
 
 ! older values:  
 !   ngwd=-5  helim=800.  fc2=1.  sigbot_gw=0. alphaj=1.E-6 (almost equiv to 0.0075)
@@ -151,11 +151,10 @@ real, dimension(kl) :: dsk,sigk
 !   ngwd=-20 helim=1600. fc2=-.5 sigbot_gw=1. alphaj=0.05
 ! If desire to tune, only need to vary alphaj (increase for stronger GWD)
 
+sigk(:) = sig(:)**(rdry/cp)
+! put theta in theta_full()
 do k = 1,kl
-  dsk(k) = -dsig(k)
-  sigk(k) = sig(k)**(rdry/cp)
-  ! put theta in theta_full()
-  theta_full(:,k) = t(1:imax,k)/sigk(k)                ! gwdrag
+  theta_full(:,k) = t(1:imax,k)/sigk(k)
 end do
 
 !  calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
@@ -169,7 +168,7 @@ do k = 2,kl
 end do    ! k loop          
 
 !     form wmag at surface
-wmag(1:imax) = sqrt(max(u(1:imax,1)**2+v(1:imax,1)**2, vmodmin**2)) ! MJT suggestion
+wmag(:) = sqrt(max(u(1:imax,1)**2+v(1:imax,1)**2, vmodmin**2))
 
 
 !**** calculate Brunt-Vaisala frequency at full levels (bvnf)
@@ -182,23 +181,23 @@ bvnf(:,kl) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(:,kl)/theta_full(:,kl)))    ! j
 
 !**    calc (t*/n*/wmag)/he**2
 if ( sigbot_gwd<.5 ) then !  to be depreciated
-  bvng(1:imax) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(1:imax,1)/tss(1:imax))) ! tries to use a sfce value rather than level 1 
-  temp(1:imax) = tss(1:imax)/max(bvng(1:imax)*wmag(1:imax)*he(1:imax)**2, 1.e-10) 
+  bvng(:) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(:,1)/tss(:))) ! tries to use a sfce value rather than level 1 
+  temp(:) = tss(:)/max(bvng(:)*wmag(:)*he(:)**2, 1.e-10) 
 else
-  temp(1:imax) = theta_full(1:imax,1)/max(bvnf(1:imax,1)*wmag(1:imax)*he(1:imax)**2, 1.e-10)      
+  temp(:) = theta_full(:,1)/max(bvnf(:,1)*wmag(:)*he(:)**2, 1.e-10)      
 end if
 
 do k = 1,2 ! uu is +ve wind compt in dirn of (u_1,v_1)
-  uu(1:imax,k) = max(0., u(1:imax,k)*u(1:imax,1)+v(1:imax,k)*v(1:imax,1))/wmag(1:imax)
+  uu(:,k) = max(0., u(1:imax,k)*u(1:imax,1)+v(1:imax,k)*v(1:imax,1))/wmag(:)
 end do    ! k loop
 
 !**** set uu() to zero above if uu() zero below
 !**** uu>0 at k=1, uu>=0 at k=1+1 - only set for k=1+2 to kl  
 do k = 3,kl
-  where ( uu(1:imax,k-1)<1.e-20 )
-    uu(1:imax,k) = 0.
+  where ( uu(:,k-1)<1.e-20 )
+    uu(:,k) = 0.
   elsewhere
-    uu(1:imax,k) = max(0., u(1:imax,k)*u(1:imax,1)+v(1:imax,k)*v(1:imax,1))/wmag(1:imax)
+    uu(:,k) = max(0., u(1:imax,k)*u(1:imax,1)+v(1:imax,k)*v(1:imax,1))/wmag(:)
   end where
 end do    ! k loop
 
@@ -214,7 +213,7 @@ end if
 ! form integral of above*uu**2 from sig=sigbot_gwd to sig=0
 fnii(:) = -fni(:,kbot)*dsig(kbot)*uu(:,kbot)*uu(:,kbot)
 do k = kbot+1,kl
-  fnii(:) = fnii(:)-fni(:,k)*dsig(k)*uu(:,k)*uu(:,k)
+  fnii(:) = fnii(:) - fni(:,k)*dsig(k)*uu(:,k)*uu(:,k)
 end do    ! k loop
 
 !     Chouinard et al. use alpha=.01
@@ -222,13 +221,13 @@ end do    ! k loop
 !      if integral=0., reset to some +ve value
 !      form alambda=(g/p*).alpha.rhos.he.N*.wmag/integral(above)
 if ( alphaj<1.e-5 ) then  ! for backward compatibility - will depreciate
-  alambda(1:imax) = alphaj*he(1:imax)*bvnf(1:imax,kbot)*wmag(1:imax)/max(fnii(1:imax), 1.e-9)
+  alambda(:) = alphaj*he(:)*bvnf(:,kbot)*wmag(:)/max(fnii(:), 1.e-9)
 else  ! newer usage with alphaj around 0.0075 (similar to resemble Hal's value)
-  alambda(1:imax) = alphaj*he(1:imax)*bvnf(1:imax,kbot)*wmag(1:imax)*grav/(rdry*tss(1:imax)*max(fnii(1:imax), 1.e-9))
+  alambda(:) = alphaj*he(:)*bvnf(:,kbot)*wmag(:)*grav/(rdry*tss(:)*max(fnii(:), 1.e-9))
 end if  
 !      define apuw=alambda.u1/wmag , apvw=alambda.v1/wmag
-apuw(1:imax) = alambda(1:imax)*u(1:imax,1)/wmag(1:imax)
-apvw(1:imax) = alambda(1:imax)*v(1:imax,1)/wmag(1:imax)
+apuw(:) = alambda(:)*u(1:imax,1)/wmag(:)
+apvw(:) = alambda(:)*v(1:imax,1)/wmag(:)
 
 do k = kbot,kl
   !**** form fni=alambda*max(--,0) and

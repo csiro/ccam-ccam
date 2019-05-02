@@ -13,15 +13,18 @@ else
 MPIFLAG = -Dusempi3
 endif
 FHOST = -O3 -xHost
-FOVERRIDE = -qoverride-limits
+FOVERRIDE =
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
+FOVERRIDE =
 endif
 ifeq ($(BROADWELL),yes)
 FHOST = -O3 -xCORE-AVX2
+FOVERRIDE =
 endif
 ifeq ($(SKYLAKE),yes)
 FHOST = -O3 -xSKYLAKE-AVX512
+FOVERRIDE = -qoverride-limits
 endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
