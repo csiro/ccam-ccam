@@ -496,7 +496,7 @@ contains
          call proc_setup(id,jd,idjd)
          if ( nproc < npanels+1 ) then
             ! possible to have two boundaries from the same process 
-            maxbuflen = (il_g+4)*2*2*2*npan
+            maxbuflen = (il_g+4)*2*2*2*npan+4
          else
             ! only one boundary can be sent from a process 
             maxbuflen = (max(ipan,jpan)+4)*2*2 

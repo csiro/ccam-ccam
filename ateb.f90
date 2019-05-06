@@ -1138,6 +1138,9 @@ cslablambda=reshape((/ ((0.9338, ii=1,maxtype),j=1,nlp),    & ! concrete (Mills 
                        (/maxtype,nl/))
 
 itmp=pack(itype,upack)
+where ( itmp>maxtype ) ! set default to new urban types as generic
+  itmp = 1
+end where
 if ((minval(itmp)<1).or.(maxval(itmp)>maxtype)) then
   write(6,*) "ERROR: Urban type is out of range"
   stop

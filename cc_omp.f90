@@ -34,7 +34,7 @@ module cc_omp
    logical, parameter, public :: using_omp = .false.
 #endif
    integer, save, public :: maxthreads, ntiles, imax
-   integer, save, public :: maxtilesize = 192 ! suggested value
+   integer, save, public :: maxtilesize = 96 ! suggested value
 
    public ::  ccomp_init
    public ::  ccomp_ntiles
@@ -87,7 +87,8 @@ module cc_omp
       !find the next biggest maxtilesize if maxtilesize isn't already a factor of ifull
       maxtilesize = min( max( maxtilesize, 1 ), ifull )
       tmp = maxtilesize
-      do i = tmp,ifull
+      !do i = tmp,ifull
+      do i = tmp,1,-1
          if ( mod(ifull,i) == 0 ) then
             maxtilesize = i
             exit
