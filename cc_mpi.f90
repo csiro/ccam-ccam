@@ -490,16 +490,13 @@ contains
       ! Decompose grid over processes
       if ( uniform_decomp ) then
          call proc_setup_uniform(id,jd,idjd)
-         ! may require two boundries from the same process
-         maxbuflen = (max(ipan,jpan)+4)*2*2*2*npan
+         maxbuflen = (max(ipan,jpan)+4)*2*2*2*npan + 4
       else
          call proc_setup(id,jd,idjd)
          if ( nproc < npanels+1 ) then
-            ! possible to have two boundaries from the same process 
-            maxbuflen = (il_g+4)*2*2*2*npan+4
+            maxbuflen = (il_g+4)*2*2*2*npan + 4
          else
-            ! only one boundary can be sent from a process 
-            maxbuflen = (max(ipan,jpan)+4)*2*2 
+            maxbuflen = (max(ipan,jpan)+4)*2*2 + 4
          end if    
       end if
       maxvertlen = max( kl, ol, 15 )

@@ -129,8 +129,7 @@ integer iveg, iyr, jj, k, kdate_sav, ktime_sav, l
 integer nface, nn, nsig, i, j, n
 integer ierr, ic, jc, iqg, ig, jg, jdf, nd
 integer isav, jsav, ier, lapsbot, idv
-integer lncriver
-integer iernc
+integer lncriver, iernc, ateb_len
 integer, dimension(ifull) :: urbantype, river_acc
 integer, dimension(ifull,maxtile) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
@@ -149,7 +148,7 @@ real, dimension(9) :: swilt_diag, sfc_diag
 real, dimension(ms) :: wb_tmpry
 real, dimension(ifull,maxtile) :: svs,vlin,vlinprev,vlinnext,vlinnext2
 real, dimension(ifull,maxtile) :: casapoint
-real, dimension(8,36) :: atebparm
+real, dimension(:,:), allocatable :: atebparm
 real rlonx, rlatx, alf
 real c, cent
 real coslat, coslong, costh, den, diffb, diffg, dist
@@ -744,100 +743,106 @@ if ( nurban/=0 ) then
   end where
   call atebinit(ifull,sigmu(:),0)
   call atebtype(urbantype,0)  
+  if ( myid==0 ) then
+    call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len)
+  end if  
+  call ccmpi_bcast(ateb_len,0,comm_world)  
+  allocate( atebparm(ateb_len,36) )
   if ( urbanformat>0.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
-      write(6,*) "Using user defined UCLEM urban parameter tables"  
+      write(6,*) "Using user defined UCLEM urban parameter tables with ateb_len=",ateb_len
       nstart(1) = 1
-      ncount(1) = 8
-      call ccnf_get_vara(ncidveg,'bldheight',nstart,ncount,atebparm(1:8,1))
-      call ccnf_get_vara(ncidveg,'hwratio',nstart,ncount,atebparm(1:8,2))
-      call ccnf_get_vara(ncidveg,'sigvegc',nstart,ncount,atebparm(1:8,3))
-      call ccnf_get_vara(ncidveg,'sigmabld',nstart,ncount,atebparm(1:8,4))
-      call ccnf_get_vara(ncidveg,'industryfg',nstart,ncount,atebparm(1:8,5))
-      call ccnf_get_vara(ncidveg,'trafficfg',nstart,ncount,atebparm(1:8,6))
-      call ccnf_get_vara(ncidveg,'roofalpha',nstart,ncount,atebparm(1:8,7))
-      call ccnf_get_vara(ncidveg,'wallalpha',nstart,ncount,atebparm(1:8,8))
-      call ccnf_get_vara(ncidveg,'roadalpha',nstart,ncount,atebparm(1:8,9))
-      call ccnf_get_vara(ncidveg,'vegalphac',nstart,ncount,atebparm(1:8,10))
+      ncount(1) = ateb_len
+      call ccnf_get_vara(ncidveg,'bldheight',nstart,ncount,atebparm(:,1))
+      call ccnf_get_vara(ncidveg,'hwratio',nstart,ncount,atebparm(:,2))
+      call ccnf_get_vara(ncidveg,'sigvegc',nstart,ncount,atebparm(:,3))
+      call ccnf_get_vara(ncidveg,'sigmabld',nstart,ncount,atebparm(:,4))
+      call ccnf_get_vara(ncidveg,'industryfg',nstart,ncount,atebparm(:,5))
+      call ccnf_get_vara(ncidveg,'trafficfg',nstart,ncount,atebparm(:,6))
+      call ccnf_get_vara(ncidveg,'roofalpha',nstart,ncount,atebparm(:,7))
+      call ccnf_get_vara(ncidveg,'wallalpha',nstart,ncount,atebparm(:,8))
+      call ccnf_get_vara(ncidveg,'roadalpha',nstart,ncount,atebparm(:,9))
+      call ccnf_get_vara(ncidveg,'vegalphac',nstart,ncount,atebparm(:,10))
     end if
-    call ccmpi_bcast(atebparm(1:8,1:10),0,comm_world) 
-    call atebdeftype(atebparm(1:8,1),urbantype,'bldheight',0)
-    call atebdeftype(atebparm(1:8,2),urbantype,'hwratio',0)
-    call atebdeftype(atebparm(1:8,3),urbantype,'sigvegc',0)
-    call atebdeftype(atebparm(1:8,4),urbantype,'sigmabld',0)
-    call atebdeftype(atebparm(1:8,5),urbantype,'industryfg',0)
-    call atebdeftype(atebparm(1:8,6),urbantype,'trafficfg',0)
-    call atebdeftype(atebparm(1:8,7),urbantype,'roofalpha',0)
-    call atebdeftype(atebparm(1:8,8),urbantype,'wallalpha',0)
-    call atebdeftype(atebparm(1:8,9),urbantype,'roadalpha',0)
-    call atebdeftype(atebparm(1:8,10),urbantype,'vegalphac',0)
+    call ccmpi_bcast(atebparm(:,1:10),0,comm_world) 
+    call atebdeftype(atebparm(:,1),urbantype,'bldheight',0)
+    call atebdeftype(atebparm(:,2),urbantype,'hwratio',0)
+    call atebdeftype(atebparm(:,3),urbantype,'sigvegc',0)
+    call atebdeftype(atebparm(:,4),urbantype,'sigmabld',0)
+    call atebdeftype(atebparm(:,5),urbantype,'industryfg',0)
+    call atebdeftype(atebparm(:,6),urbantype,'trafficfg',0)
+    call atebdeftype(atebparm(:,7),urbantype,'roofalpha',0)
+    call atebdeftype(atebparm(:,8),urbantype,'wallalpha',0)
+    call atebdeftype(atebparm(:,9),urbantype,'roadalpha',0)
+    call atebdeftype(atebparm(:,10),urbantype,'vegalphac',0)
   end if
   ! extended ateb format v2
   if ( urbanformat>1.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
       nstart(1) = 1
-      ncount(1) = 8
+      ncount(1) = ateb_len
       do i = 1,4
         write(vname,'("roof_thick_l",(I1.1))') i
-        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,i))
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(:,i))
         write(vname,'("roof_cp_l",(I1.1))') i
-        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,4+i))
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(:,4+i))
         write(vname,'("roof_cond_l",(I1.1))') i
-        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,8+i))
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(:,8+i))
         write(vname,'("wall_thick_l",(I1.1))') i
-        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,12+i))
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(:,12+i))
         write(vname,'("wall_cp_l",(I1.1))') i
-        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,16+i))
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(:,16+i))
         write(vname,'("wall_cond_l",(I1.1))') i
-        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,20+i))  
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(:,20+i))  
         write(vname,'("road_thick_l",(I1.1))') i
-        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,24+i))
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(:,24+i))
         write(vname,'("road_cp_l",(I1.1))') i
-        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,28+i))
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(:,28+i))
         write(vname,'("road_cond_l",(I1.1))') i
-        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(1:8,32+i))
+        call ccnf_get_vara(ncidveg,vname,nstart,ncount,atebparm(:,32+i))
       end do
     end if
-    call ccmpi_bcast(atebparm(1:8,1:36),0,comm_world)
+    call ccmpi_bcast(atebparm(:,1:36),0,comm_world)
     do i = 1,4
       write(vname,'("roofthick",(I1.1))') i  
-      call atebdeftype(atebparm(1:8,i),urbantype,vname,0)  
+      call atebdeftype(atebparm(:,i),urbantype,vname,0)  
       write(vname,'("roofcp",(I1.1))') i  
-      call atebdeftype(atebparm(1:8,4+i),urbantype,vname,0) 
+      call atebdeftype(atebparm(:,4+i),urbantype,vname,0) 
       write(vname,'("roofcond",(I1.1))') i  
-      call atebdeftype(atebparm(1:8,8+i),urbantype,vname,0) 
+      call atebdeftype(atebparm(:,8+i),urbantype,vname,0) 
       write(vname,'("wallthick",(I1.1))') i  
-      call atebdeftype(atebparm(1:8,12+i),urbantype,vname,0)  
+      call atebdeftype(atebparm(:,12+i),urbantype,vname,0)  
       write(vname,'("wallcp",(I1.1))') i  
-      call atebdeftype(atebparm(1:8,16+i),urbantype,vname,0) 
+      call atebdeftype(atebparm(:,16+i),urbantype,vname,0) 
       write(vname,'("wallcond",(I1.1))') i  
-      call atebdeftype(atebparm(1:8,20+i),urbantype,vname,0)
+      call atebdeftype(atebparm(:,20+i),urbantype,vname,0)
       write(vname,'("roadthick",(I1.1))') i  
-      call atebdeftype(atebparm(1:8,24+i),urbantype,vname,0)  
+      call atebdeftype(atebparm(:,24+i),urbantype,vname,0)  
       write(vname,'("roadcp",(I1.1))') i  
-      call atebdeftype(atebparm(1:8,28+i),urbantype,vname,0) 
+      call atebdeftype(atebparm(:,28+i),urbantype,vname,0) 
       write(vname,'("roadcond",(I1.1))') i  
-      call atebdeftype(atebparm(1:8,32+i),urbantype,vname,0) 
+      call atebdeftype(atebparm(:,32+i),urbantype,vname,0) 
     end do
   end if
   ! extended ateb format v3
   if ( urbanformat>2.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
       nstart(1) = 1
-      ncount(1) = 8
-      call ccnf_get_vara(ncidveg,'infiltration',nstart,ncount,atebparm(1:8,1))
-      call ccnf_get_vara(ncidveg,'internalgain',nstart,ncount,atebparm(1:8,2))
-      call ccnf_get_vara(ncidveg,'bldtemp',nstart,ncount,atebparm(1:8,3))
-      call ccnf_get_vara(ncidveg,'heatprop',nstart,ncount,atebparm(1:8,4))
-      call ccnf_get_vara(ncidveg,'coolprop',nstart,ncount,atebparm(1:8,5))
+      ncount(1) = ateb_len
+      call ccnf_get_vara(ncidveg,'infiltration',nstart,ncount,atebparm(:,1))
+      call ccnf_get_vara(ncidveg,'internalgain',nstart,ncount,atebparm(:,2))
+      call ccnf_get_vara(ncidveg,'bldtemp',nstart,ncount,atebparm(:,3))
+      call ccnf_get_vara(ncidveg,'heatprop',nstart,ncount,atebparm(:,4))
+      call ccnf_get_vara(ncidveg,'coolprop',nstart,ncount,atebparm(:,5))
     end if
-    call ccmpi_bcast(atebparm(1:8,1:5),0,comm_world) 
-    call atebdeftype(atebparm(1:8,1),urbantype,'infilach',0)
-    call atebdeftype(atebparm(1:8,2),urbantype,'intgains',0)
-    call atebdeftype(atebparm(1:8,3),urbantype,'bldairtemp',0)
-    call atebdeftype(atebparm(1:8,4),urbantype,'heatprop',0)
-    call atebdeftype(atebparm(1:8,5),urbantype,'coolprop',0)
+    call ccmpi_bcast(atebparm(:,1:5),0,comm_world) 
+    call atebdeftype(atebparm(:,1),urbantype,'infilach',0)
+    call atebdeftype(atebparm(:,2),urbantype,'intgains',0)
+    call atebdeftype(atebparm(:,3),urbantype,'bldairtemp',0)
+    call atebdeftype(atebparm(:,4),urbantype,'heatprop',0)
+    call atebdeftype(atebparm(:,5),urbantype,'coolprop',0)
   end if
+  deallocate( atebparm )
 else
   sigmu(:) = 0.
   call atebdisable(0) ! disable urban

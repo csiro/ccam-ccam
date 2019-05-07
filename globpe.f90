@@ -2708,7 +2708,7 @@ if ( myid<nproc ) then
   else
     npan = max(1, (npanels+1)/nproc) ! number of panels on this process
   end if
-  iextra = (4*(il+jl)+24)*npan       ! size of halo for MPI message passing
+  iextra = (4*(il+jl)+24)*npan + 4   ! size of halo for MPI message passing
   call ccomp_ntiles
   if ( myid==0 ) then
     write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
