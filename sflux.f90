@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1181,6 +1181,11 @@ where ( u_sigma>0. )                                                            
   snowmelt = oldsnowmelt + newsnowmelt                                                           ! urban
 end where                                                                                        ! urban
 ! call urban fluxes                                                                              ! urban
+anthropogenic_flux = 0.                                                                          ! urban
+urban_elecgas_flux = 0.                                                                          ! urban
+urban_heating_flux = 0.                                                                          ! urban
+urban_cooling_flux = 0.                                                                          ! urban
+urban_storage_flux = 0.                                                                          ! urban
 call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,upack,ufull)                          ! urban
 call atebenergy(urban_elecgas_flux,"elecgas",0,fp,pd,upack,ufull)                                ! urban
 call atebenergy(urban_heating_flux,"heating",0,fp,pd,upack,ufull)                                ! urban

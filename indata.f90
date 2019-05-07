@@ -143,7 +143,7 @@ real, dimension(ifull,kl,naero) :: xtgdwn
 real, dimension(ifull,kl,9) :: dumb
 real, dimension(:,:), allocatable, save :: global2d, local2d
 real, dimension(:), allocatable, save :: davt_g
-real, dimension(3*kl+4) :: dumc
+real, dimension(3*kl+5) :: dumc
 real, dimension(9) :: swilt_diag, sfc_diag
 real, dimension(ms) :: wb_tmpry
 real, dimension(ifull,maxtile) :: svs,vlin,vlinprev,vlinnext,vlinnext2
@@ -260,6 +260,7 @@ if ( myid==0 ) then
   ! test netcdf for CABLE input
   dumc(3*kl+1)=0.     ! lncveg 
   dumc(3*kl+4)=0.     ! urbanformat
+  dumc(3*kl+5)=0.     ! urbantypes
   if ( nsib>=6 ) then
     call ccnf_open(vegfile,ncidveg,ierr)
     if (ierr==0) then
@@ -268,7 +269,10 @@ if ( myid==0 ) then
       if ( iernc/=0 ) then
         urbanformat = 0.  
       end if
-      dumc(3*kl+4) = urbanformat    
+      dumc(3*kl+4) = urbanformat  
+      ateb_len=0
+      call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len)
+      dumc(3*kl+5)=real(ateb_len)
     end if
   else if ( nsib==5 ) then
     call ccnf_open(vegfile,ncidveg,ierr)
@@ -278,7 +282,10 @@ if ( myid==0 ) then
       if ( iernc/=0 ) then
         urbanformat = 0.  
       end if
-      dumc(3*kl+4) = urbanformat    
+      dumc(3*kl+4) = urbanformat   
+      ateb_len=0
+      call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len)
+      dumc(3*kl+5)=real(ateb_len)
     end if
   end if
   
@@ -307,7 +314,7 @@ end if ! (myid==0)
 ! dumc(1:kl)   = sig,        dumc(kl+1:2*kl) = sigmh,    dumc(2*kl+1:3*kl) = tbar
 ! dumc(3*kl+1) = lncveg,     dumc(3*kl+2)    = lncbath,  dumc(3*kl+3)      = lncriver
 ! dumc(3*kl+4) = urbanformat
-call ccmpi_bcast(dumc(1:3*kl+4),0,comm_world)
+call ccmpi_bcast(dumc(1:3*kl+5),0,comm_world)
 sig      = dumc(1:kl)
 sigmh    = dumc(kl+1:2*kl)
 tbar     = dumc(2*kl+1:3*kl)
@@ -315,6 +322,7 @@ lncveg   = nint(dumc(3*kl+1))
 lncbath  = nint(dumc(3*kl+2))
 lncriver = nint(dumc(3*kl+3))
 urbanformat = dumc(3*kl+4)
+ateb_len    = nint(dumc(3*kl+5))
 if ( myid==0 ) then
   write(6,*) "Testing for NetCDF surface files"
   write(6,*) "lncveg,lncbath,lncriver=",lncveg,lncbath,lncriver
@@ -743,10 +751,6 @@ if ( nurban/=0 ) then
   end where
   call atebinit(ifull,sigmu(:),0)
   call atebtype(urbantype,0)  
-  if ( myid==0 ) then
-    call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len)
-  end if  
-  call ccmpi_bcast(ateb_len,0,comm_world)  
   allocate( atebparm(ateb_len,36) )
   if ( urbanformat>0.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
