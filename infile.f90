@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -87,6 +87,7 @@ end interface ccnf_get_att
 interface ccnf_get_attg
   module procedure ccnf_get_att_intg1i, ccnf_get_att_intg2i
   module procedure ccnf_get_att_realg1r, ccnf_get_att_realg2r
+  module procedure ccnf_get_att_textg
 end interface ccnf_get_attg
 
 interface ccnf_get_vara
@@ -1353,9 +1354,7 @@ if ( myid==0 ) then
       end if
     end if
 
-    write(6,*) "Found pil_g,pjl_g,fnproc ",pil_g,pjl_g,fnproc
-    write(6,*) "Found dmode,ptest        ",dmode,ptest
-    write(6,*) "Found resprocformat      ",resprocformat
+    write(6,*) "dmode,ptest,resprocformat ",dmode,ptest,resprocformat
     
   end if
 
@@ -4554,6 +4553,31 @@ call ncmsg("get_attg",ncstatus)
 
 return
 end subroutine ccnf_get_att_intg2i
+
+subroutine ccnf_get_att_textg(ncid,aname,atext,ierr)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid
+integer, intent(out), optional :: ierr
+integer ncstatus
+integer(kind=4) lncid
+character(len=*), intent(in) :: aname
+character(len=*), intent(out) :: atext
+
+atext=''
+lncid=ncid
+ncstatus = nf90_get_att(lncid,nf90_global,aname,atext)
+if (present(ierr)) then
+  ierr=ncstatus
+else
+  call ncmsg(aname,ncstatus)
+end if
+
+return
+end subroutine ccnf_get_att_textg
 
 subroutine ccnf_read(fname,vname,vdat)
 

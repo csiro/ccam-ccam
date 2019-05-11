@@ -46,6 +46,7 @@ integer, save :: fill_land = 0                                ! number of iterat
 integer, save :: fill_floor = 0                               ! number of iterations required for floor fill (3d ocean)
 integer, save :: fill_sea = 0                                 ! number of iterations required for ocean fill
 integer, save :: fill_nourban = 0                             ! number of iterations required for urban fill
+integer, save :: native_ccam = 0                              ! is host CCAM (native_ccam=1) or cdfivdar (native_ccam=0)
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
 real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
@@ -103,9 +104,10 @@ real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
 real, dimension(:), intent(out) :: psl, zss, tss, fracice, snowd
 real, dimension(:), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
-real, dimension(10) :: rdum
+real, dimension(11) :: rdum
 logical ltest
 character(len=80) datestring
+character(len=80) versionstring
 
 call START_LOG(onthefly_begin)
 
@@ -151,11 +153,18 @@ if ( myid==0 .or. pfall ) then
         schmidtx = ahead(8)
       endif  ! (schmidtx<=0..or.schmidtx>1.)
     end if   ! ierx==0 ..else..
+    call ccnf_get_attg(ncid,'version',versionstring,ierr=ierx)
+    if ( ierx==0 ) then
+      native_ccam = 1 ! found CCAM host data
+    else
+      native_ccam = 0 ! non-native CCAM (possibly cdfvidar)
+    end if
     call ccnf_inq_dimlen(ncid,'time',maxarchi)
     if ( myid==0 ) then
       write(6,*) "Found ik,jk,kk,ok ",ik,jk,kk,ok
       write(6,*) "      maxarchi ",maxarchi
       write(6,*) "      rlong0x,rlat0x,schmidtx ",rlong0x,rlat0x,schmidtx
+      write(6,*) "      native_ccam ",native_ccam
     end if
   end if
   
@@ -219,15 +228,17 @@ if ( .not.pfall ) then
   end if
   rdum(9)  = real(iarchi)
   rdum(10) = real(nsibx)
-  call ccmpi_bcast(rdum(1:10),0,comm_world)
-  rlong0x  = rdum(1)
-  rlat0x   = rdum(2)
-  schmidtx = rdum(3)
-  kdate_r  = nint(rdum(4))*10000+nint(rdum(5))*100+nint(rdum(6))
-  ktime_r  = nint(rdum(7))
-  newfile  = (nint(rdum(8))==1)
-  iarchi   = nint(rdum(9))
-  nsibx    = nint(rdum(10))
+  rdum(11) = real(native_ccam)
+  call ccmpi_bcast(rdum(1:11),0,comm_world)
+  rlong0x     = rdum(1)
+  rlat0x      = rdum(2)
+  schmidtx    = rdum(3)
+  kdate_r     = nint(rdum(4))*10000+nint(rdum(5))*100+nint(rdum(6))
+  ktime_r     = nint(rdum(7))
+  newfile     = (nint(rdum(8))==1)
+  iarchi      = nint(rdum(9))
+  nsibx       = nint(rdum(10))
+  native_ccam = nint(rdum(11))
   ik       = pil_g      ! grid size
   jk       = pjl_g      ! grid size
   kk       = pka_g      ! atmosphere vertical levels
@@ -400,7 +411,8 @@ end if
       
 ! Determine if interpolation is required
 iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
-         abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3)
+         abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3) .and. &
+         native_ccam==1
 iop_test = iotest .and. ptest
 
 if ( iotest ) then
