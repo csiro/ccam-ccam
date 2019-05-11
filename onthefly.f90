@@ -1060,6 +1060,12 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
       where ( mlodwn(1:ifull,1:wlev,1)>100. )
         mlodwn(1:ifull,1:wlev,1) = mlodwn(1:ifull,1:wlev,1) - wrtemp ! remove temperature offset for precision
       end where
+      if ( any((mlodwn(1:ifull,1:wlev,1)+wrtemp)<100.) .or. any((mlodwn(1:ifull,1:wlev,1)+wrtemp)>400.) ) then
+        write(6,*) "ERROR: ocean potental temperature is out-of-range in onthefly"
+        write(6,*) "minval,maxval ",minval(mlodwn(1:ifull,1:wlev,1)+wrtemp),maxval(mlodwn(1:ifull,1:wlev,1)+wrtemp)
+        write(6,*) "minloc,maxloc ",minloc(mlodwn(1:ifull,1:wlev,1)+wrtemp),maxloc(mlodwn(1:ifull,1:wlev,1)+wrtemp)
+        call ccmpi_abort(-1)
+      end if
     end if ! (nestesd/=1.or.nud_sst/=0) ..else..
     ! ocean salinity
     if ( (nested/=1.or.nud_sss/=0) .and. ok>0 ) then
@@ -3130,17 +3136,6 @@ real, dimension(ifull,ok) :: u_k
 real, dimension(ifull), intent(in) :: bath
 logical, dimension(fwsize,ok), intent(in) :: mask_3d
 character(len=*), intent(in) :: vname
-
-if ( size(varout,1)<ifull ) then
-  write(6,*) "ERROR: varout is too small in fillhist4o"
-  call ccmpi_abort(-1)
-end if
-
-if ( wlev/=size(varout,2) ) then
-  write(6,*) "ERROR: Invalid number of vertical levels for varout in fillhist4o"
-  write(6,*) "wlev,varout ",wlev,size(varout,2)
-  call ccmpi_abort(-1)
-end if
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
