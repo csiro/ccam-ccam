@@ -4415,7 +4415,7 @@ if ( any(qrg(js:je,1:kl)/=qrg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qrg(js:je,1:kl)<-1.e-8) .or. any(qrg(js:je,1:kl)>8.e-2) ) then
+if ( any(qrg(js:je,1:kl)<-1.e-8) .or. any(qrg(js:je,1:kl)>8.e-1) ) then
   write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qrg(js:je,1:kl)),maxval(qrg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qrg(js:je,1:kl)),maxloc(qrg(js:je,1:kl))
@@ -4427,7 +4427,7 @@ if ( any(qsng(js:je,1:kl)/=qsng(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qsng(js:je,1:kl)<-1.e-8) .or. any(qsng(js:je,1:kl)>8.e-2) ) then
+if ( any(qsng(js:je,1:kl)<-1.e-8) .or. any(qsng(js:je,1:kl)>8.e-1) ) then
   write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qsng(js:je,1:kl)),maxval(qsng(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qsng(js:je,1:kl)),maxloc(qsng(js:je,1:kl))
@@ -4439,7 +4439,7 @@ if ( any(qgrg(js:je,1:kl)/=qgrg(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(qgrg(js:je,1:kl)<-1.e-8) .or. any(qgrg(js:je,1:kl)>8.e-2) ) then
+if ( any(qgrg(js:je,1:kl)<-1.e-8) .or. any(qgrg(js:je,1:kl)>8.e-1) ) then
   write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qgrg(js:je,1:kl)),maxval(qgrg(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(qgrg(js:je,1:kl)),maxloc(qgrg(js:je,1:kl))
