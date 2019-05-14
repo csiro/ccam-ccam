@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -25,7 +25,7 @@ implicit none
 
 private
 public rsmin,sigmf,tgf,sigmu
-public ivegt,isoilm,isoilm_in
+public ivegt,isoilm,isoilm_in,iurbant
 public climate_ivegt,climate_biome
 public climate_min20,climate_max20,climate_alpha20,climate_agdd5
 public climate_gmd,climate_dmoist_min20,climate_dmoist_max20
@@ -36,7 +36,7 @@ real, dimension(:), allocatable, save :: sigmf
 real, dimension(:), allocatable, save :: climate_min20, climate_max20, climate_alpha20
 real, dimension(:), allocatable, save :: climate_agdd5
 real, dimension(:), allocatable, save :: climate_dmoist_min20, climate_dmoist_max20
-integer, dimension(:), allocatable, save :: ivegt,isoilm,isoilm_in
+integer, dimension(:), allocatable, save :: ivegt,isoilm,isoilm_in,iurbant
 integer, dimension(:), allocatable, save :: climate_ivegt,climate_biome
 integer, dimension(:), allocatable, save :: climate_gmd
 
@@ -49,8 +49,13 @@ implicit none
 integer, intent(in) :: ifull,nsib,cable_climate
 
 allocate(ivegt(ifull),isoilm(ifull))
+allocate(iurbant(ifull))
 allocate(sigmf(ifull),sigmu(ifull))
 allocate(rsmin(ifull),isoilm_in(ifull))
+ivegt=0
+isoilm=0
+iurbant=0
+isoilm_in=0
 sigmf=0.
 sigmu=0.
 rsmin=995.
@@ -82,6 +87,7 @@ subroutine nsibd_end
 implicit none
 
 deallocate(ivegt,isoilm)
+deallocate(iurbant)
 deallocate(sigmf,sigmu)
 deallocate(rsmin,isoilm_in)
 if (allocated(tgf)) then

@@ -1148,12 +1148,14 @@ if( myid==0 .or. local ) then
     if ( save_urban ) then
       lname = 'Urban fraction'
       call attrib(idnc,dimk,ksize,'sigmu',lname,'none',0.,3.25,0,cptype)
+      lname = 'Urban type'
+      call attrib(idnc,dimk,ksize,'urbant',lname,'none',0.,650.,0,cptype)
     end if
     lname = 'Soil type'
-    call attrib(idnc,dimk,ksize,'soilt',lname,'none',-65.,65.,0,cptype)
+    call attrib(idnc,dimk,ksize,'soilt',lname,'none',-650.,650.,0,cptype)
     if ( save_land ) then
       lname = 'Vegetation type'
-      call attrib(idnc,dimk,ksize,'vegt',lname,'none',0.,65.,0,cptype)
+      call attrib(idnc,dimk,ksize,'vegt',lname,'none',0.,650.,0,cptype)
     end if
 
     if ( (nmlo<0.and.nmlo>=-9.and.save_ocean) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
@@ -2394,6 +2396,8 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   call histwrt(f,'cor',idnc,iarch,local,.true.)
   if ( save_urban ) then
     call histwrt(sigmu,'sigmu',idnc,iarch,local,.true.)
+    aa(:) = real(iurbant(:))
+    call histwrt(aa,'urbant',idnc,iarch,local,.true.)
   end if
   aa(:) = real(isoilm_in(:))  ! use the raw soil data here to classify inland water bodies
   call histwrt(aa,'soilt',idnc,iarch,local,.true.) ! also defines land-sea mask
@@ -2471,6 +2475,7 @@ end if
 ! Export ocean data
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   do k = 1,ms
+    ! to be depeciated and instead use missing value  
     where (.not.land(1:ifull))
       tgg(:,k) = mlodwn(:,k,1)
     end where

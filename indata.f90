@@ -130,7 +130,7 @@ integer nface, nn, nsig, i, j, n
 integer ierr, ic, jc, iqg, ig, jg, jdf, nd
 integer isav, jsav, ier, lapsbot, idv
 integer lncriver, iernc, ateb_len
-integer, dimension(ifull) :: urbantype, river_acc
+integer, dimension(ifull) :: river_acc
 integer, dimension(ifull,maxtile) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
 integer, dimension(1) :: nstart, ncount
@@ -630,15 +630,15 @@ if ( nurban/=0 ) then
       call ccmpi_distribute(local2d(:,1:2))  
     end if
     sigmu(1:ifull) = local2d(1:ifull,1)
-    urbantype(1:ifull) = max( nint(local2d(1:ifull,2)), 1 )
+    iurbant(1:ifull) = max( nint(local2d(1:ifull,2)), 1 )
     deallocate( local2d )
   else if ( urbanfile/=' ' ) then
     call surfread(sigmu,'urban',filename=urbanfile)
     sigmu(:) = 0.01*sigmu(:)
-    urbantype(:) = 1
+    iurbant(:) = 1
   else if ( nsib==3 ) then
     if ( myid==0 ) write(6,*) "Using iveg=31 for urban"
-    urbantype(:) = 1
+    iurbant(:) = 1
     where ( ivegt==31 )
       sigmu(:) = siburbanfrac
     elsewhere
@@ -750,7 +750,7 @@ if ( nurban/=0 ) then
     sigmu(:) = 0.
   end where
   call atebinit(ifull,sigmu(:),0)
-  call atebtype(urbantype,0)  
+  call atebtype(iurbant,0)  
   allocate( atebparm(ateb_len,36) )
   if ( urbanformat>0.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
@@ -769,16 +769,16 @@ if ( nurban/=0 ) then
       call ccnf_get_vara(ncidveg,'vegalphac',nstart,ncount,atebparm(:,10))
     end if
     call ccmpi_bcast(atebparm(:,1:10),0,comm_world) 
-    call atebdeftype(atebparm(:,1),urbantype,'bldheight',0)
-    call atebdeftype(atebparm(:,2),urbantype,'hwratio',0)
-    call atebdeftype(atebparm(:,3),urbantype,'sigvegc',0)
-    call atebdeftype(atebparm(:,4),urbantype,'sigmabld',0)
-    call atebdeftype(atebparm(:,5),urbantype,'industryfg',0)
-    call atebdeftype(atebparm(:,6),urbantype,'trafficfg',0)
-    call atebdeftype(atebparm(:,7),urbantype,'roofalpha',0)
-    call atebdeftype(atebparm(:,8),urbantype,'wallalpha',0)
-    call atebdeftype(atebparm(:,9),urbantype,'roadalpha',0)
-    call atebdeftype(atebparm(:,10),urbantype,'vegalphac',0)
+    call atebdeftype(atebparm(:,1),iurbant,'bldheight',0)
+    call atebdeftype(atebparm(:,2),iurbant,'hwratio',0)
+    call atebdeftype(atebparm(:,3),iurbant,'sigvegc',0)
+    call atebdeftype(atebparm(:,4),iurbant,'sigmabld',0)
+    call atebdeftype(atebparm(:,5),iurbant,'industryfg',0)
+    call atebdeftype(atebparm(:,6),iurbant,'trafficfg',0)
+    call atebdeftype(atebparm(:,7),iurbant,'roofalpha',0)
+    call atebdeftype(atebparm(:,8),iurbant,'wallalpha',0)
+    call atebdeftype(atebparm(:,9),iurbant,'roadalpha',0)
+    call atebdeftype(atebparm(:,10),iurbant,'vegalphac',0)
   end if
   ! extended ateb format v2
   if ( urbanformat>1.99 .and. urbanformat<3.01 ) then
@@ -809,23 +809,23 @@ if ( nurban/=0 ) then
     call ccmpi_bcast(atebparm(:,1:36),0,comm_world)
     do i = 1,4
       write(vname,'("roofthick",(I1.1))') i  
-      call atebdeftype(atebparm(:,i),urbantype,vname,0)  
+      call atebdeftype(atebparm(:,i),iurbant,vname,0)  
       write(vname,'("roofcp",(I1.1))') i  
-      call atebdeftype(atebparm(:,4+i),urbantype,vname,0) 
+      call atebdeftype(atebparm(:,4+i),iurbant,vname,0) 
       write(vname,'("roofcond",(I1.1))') i  
-      call atebdeftype(atebparm(:,8+i),urbantype,vname,0) 
+      call atebdeftype(atebparm(:,8+i),iurbant,vname,0) 
       write(vname,'("wallthick",(I1.1))') i  
-      call atebdeftype(atebparm(:,12+i),urbantype,vname,0)  
+      call atebdeftype(atebparm(:,12+i),iurbant,vname,0)  
       write(vname,'("wallcp",(I1.1))') i  
-      call atebdeftype(atebparm(:,16+i),urbantype,vname,0) 
+      call atebdeftype(atebparm(:,16+i),iurbant,vname,0) 
       write(vname,'("wallcond",(I1.1))') i  
-      call atebdeftype(atebparm(:,20+i),urbantype,vname,0)
+      call atebdeftype(atebparm(:,20+i),iurbant,vname,0)
       write(vname,'("roadthick",(I1.1))') i  
-      call atebdeftype(atebparm(:,24+i),urbantype,vname,0)  
+      call atebdeftype(atebparm(:,24+i),iurbant,vname,0)  
       write(vname,'("roadcp",(I1.1))') i  
-      call atebdeftype(atebparm(:,28+i),urbantype,vname,0) 
+      call atebdeftype(atebparm(:,28+i),iurbant,vname,0) 
       write(vname,'("roadcond",(I1.1))') i  
-      call atebdeftype(atebparm(:,32+i),urbantype,vname,0) 
+      call atebdeftype(atebparm(:,32+i),iurbant,vname,0) 
     end do
   end if
   ! extended ateb format v3
@@ -840,17 +840,20 @@ if ( nurban/=0 ) then
       call ccnf_get_vara(ncidveg,'coolprop',nstart,ncount,atebparm(:,5))
     end if
     call ccmpi_bcast(atebparm(:,1:5),0,comm_world) 
-    call atebdeftype(atebparm(:,1),urbantype,'infilach',0)
-    call atebdeftype(atebparm(:,2),urbantype,'intgains',0)
-    call atebdeftype(atebparm(:,3),urbantype,'bldairtemp',0)
-    call atebdeftype(atebparm(:,4),urbantype,'heatprop',0)
-    call atebdeftype(atebparm(:,5),urbantype,'coolprop',0)
+    call atebdeftype(atebparm(:,1),iurbant,'infilach',0)
+    call atebdeftype(atebparm(:,2),iurbant,'intgains',0)
+    call atebdeftype(atebparm(:,3),iurbant,'bldairtemp',0)
+    call atebdeftype(atebparm(:,4),iurbant,'heatprop',0)
+    call atebdeftype(atebparm(:,5),iurbant,'coolprop',0)
   end if
   deallocate( atebparm )
 else
   sigmu(:) = 0.
   call atebdisable(0) ! disable urban
 end if
+where ( sigmu<0.01 )
+  iurbant = 0
+end where
 
 
 !-----------------------------------------------------------------

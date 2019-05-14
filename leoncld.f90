@@ -201,16 +201,6 @@ do tile = 1,ntiles
   end if
 
 #ifdef leonclddebug
-  if ( maxval(qgrg(is:ie,:))>8.e-1 ) then
-    write(6,*) "ERROR: Graupel out-of-range after tile unpacking in leoncld"
-    write(6,*) "qgrg,loc ",maxval(qgrg(is:ie,:)),maxloc(qgrg(is:ie,:))
-    stop
-  end if
-  if ( maxval(qsng(is:ie,:))>8.e-1 ) then
-    write(6,*) "ERROR: Snow out-of-range after tile unpacking in leoncld"
-    write(6,*) "qsng,loc ",maxval(qsng(is:ie,:)),maxloc(qsng(is:ie,:))
-    stop
-  end if
   if ( maxval(qfg(is:ie,:))>8.e-2 ) then
     write(6,*) "ERROR: Ice out-of-range after tile unpacking in leoncld"
     write(6,*) "qfg,loc ",maxval(qfg(is:ie,:)),maxloc(qfg(is:ie,:))
@@ -219,11 +209,6 @@ do tile = 1,ntiles
   if ( maxval(qlg(is:ie,:))>8.e-2 ) then
     write(6,*) "ERROR: Liquid out-of-range after tile unpacking in leoncld"
     write(6,*) "qlg,loc ",maxval(qlg(is:ie,:)),maxloc(qlg(is:ie,:))
-    stop
-  end if
-  if ( maxval(qrg(is:ie,:))>8.e-1 ) then
-    write(6,*) "ERROR: Rain out-of-range after tile unpacking in leoncld"
-    write(6,*) "qrg,loc ",maxval(qrg(is:ie,:)),maxloc(qrg(is:ie,:))
     stop
   end if
 #endif
@@ -1593,27 +1578,6 @@ do n = 1,njumps
       caccf_g(1:imax)  = 0.
     
       fluxgraupel(:) = fluxgraupel(:) + fluxautograupel(:,k)*tdt/tdt_in
-
-      ! dump excessive graupel to surface to avoid crash
-      !rg(1:imax)          = max(fluxgraupel(:), 0.)/(rhoa(:,k)*dz(:,k))
-      !drf(1:imax)         = max( rg(1:imax)-7.e-1, 0. )
-      !iflux(1:imax)       = drf(1:imax)*rhoa(:,k)*dz(:,k)
-      !fluxgraupel(1:imax) = fluxgraupel(:) - iflux
-      !precs(1:imax)       = precs(:) + iflux
-      !preci(1:imax)       = preci(:) + iflux
-      !precg(1:imax)       = precg(:) + iflux
-      !if ( maxval(iflux)>0. ) then
-      !  write(6,*) "WARN: Excessive graupel at level ",k," with rg ",maxval(rg)
-      !end if
-      
-#ifdef leonclddebug
-      rg(1:imax) = max(fluxgraupel(:), 0.)/(rhoa(:,k)*dz(:,k))
-      if ( maxval(rg(1:imax))>8.e-1 ) then
-        write(6,*) "ERROR: Graupel out-of-range after including autograupel in leoncld"
-        write(6,*) "rg,k ",maxval(rg(1:imax)),k
-        stop
-      end if
-#endif
       
       ! Detect max/random overlap clouds that are separated by a clear layer
       where ( (cfrac(1:imax,k)>=1.e-8.and.cfrac(1:imax,k+1)<1.e-8) .or. nmr==0 )
@@ -1650,15 +1614,6 @@ do n = 1,njumps
           cfmelt(1:imax)        = max( cfmelt(:), max(cgfra(:)-cftmp(:),0.) )
           cgfra(1:imax)         = cftmp(:)
         end where
-
-#ifdef leonclddebug
-        rg(1:imax) = max(fluxgraupel(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rg(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Graupel out-of-range after melting in leoncld"
-          write(6,*) "rg,k ",maxval(rg(1:imax)),k
-          stop
-        end if
-#endif
         
         ! Sublimation of graupel is neglected in the UM and ACCESS 1.3.
         ! (Currently treated the same as LDR97 ice sublimation)
@@ -1682,15 +1637,6 @@ do n = 1,njumps
           ttg(1:imax,k)       = ttg(:,k) + dttg(:)
           qsatg(1:imax,k)     = qsatg(:,k) + gam1*dttg(:)/hlscp
         end where
-
-#ifdef leonclddebug
-        rg(1:imax) = max(fluxgraupel(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rg(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Graupel out-of-range after sublimaation in leoncld"
-          write(6,*) "rg,k ",maxval(rg(1:imax)),k
-          stop
-        end if
-#endif
         
         ! Accretion of cloud liquid by falling graupel (from Lin et al 1983 - pgacw)
         ! This calculation uses the incoming fluxgraupel without subtracting sublimation
@@ -1712,15 +1658,6 @@ do n = 1,njumps
           clfr(1:imax,k)      = clfr(:,k) - cltmp(:)
           caccl_g(1:imax)     = max( caccl_g(:), cltmp(:) )
         end where
-    
-#ifdef leonclddebug
-        rg(1:imax) = max(fluxgraupel(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rg(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Graupel out-of-range after accretion of liquid in leoncld"
-          write(6,*) "rg,k ",maxval(rg(1:imax)),k
-          stop
-        end if
-#endif
         
         ! Accretion of rain by falling graupel (from Lin et al 1983 - pgacr)
         ! (Neglected in UM and ACCESS 1.3)
@@ -1744,15 +1681,6 @@ do n = 1,njumps
           cfrain(1:imax,k)    = cfrain(:,k) - cltmp(:)
           caccl_g(1:imax)     = max( caccl_g(:), cltmp(:) )        
         end where     
-    
-#ifdef leonclddebug
-        rg(1:imax) = max(fluxgraupel(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rg(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Graupel out-of-range after accretion of rain in leoncld"
-          write(6,*) "rg,k ",maxval(rg(1:imax)),k
-          stop
-        end if
-#endif
         
         ! Accretion of cloud ice by falling graupel (from Lin et al 1983 - pgaci)
         ! (Neglected in UM and ACCESS 1.3)
@@ -1770,15 +1698,6 @@ do n = 1,njumps
           cifr(1:imax,k)      = cifr(:,k) - cftmp(:)
           caccf_g(1:imax)     = max( caccf_g(:), cftmp(:) )
         end where
-
-#ifdef leonclddebug
-        rg(1:imax) = max(fluxgraupel(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rg(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Graupel out-of-range after accretion of ice in leoncld"
-          write(6,*) "rg,k ",maxval(rg(1:imax)),k
-          stop
-        end if
-#endif
         
         ! Accretion of snow by falling graupel (from Lin et al 1983 - pgacs )
         slopes_g(1:imax) = ( max(fluxgraupel(:)+sublflux(:),0.)/dz(:,k)/(pi*n0g*rho_g))**0.25
@@ -1800,15 +1719,6 @@ do n = 1,njumps
           cfsnow(1:imax,k)    = cfsnow(:,k) - cftmp(:)
           caccf_g(1:imax)     = max( caccf_g(:), cftmp(:) )
         end where
-
-#ifdef leonclddebug
-        rg(1:imax) = max(fluxgraupel(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rg(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Graupel out-of-range after accretionn of snow in leoncld"
-          write(6,*) "rg,k ",maxval(rg(1:imax)),k
-          stop
-        end if
-#endif
         
       end if  
 
@@ -1819,26 +1729,6 @@ do n = 1,njumps
       caccf_s(1:imax)  = 0.
       
       fluxsnow(:) = fluxsnow(:) + fluxautosnow(:,k)*tdt/tdt_in
-
-      ! dump excessive snow to surface to avoid crash
-      !rs(1:imax)       = max(fluxsnow(:), 0.)/(rhoa(:,k)*dz(:,k))
-      !drf(1:imax)      = max( rs(1:imax)-7.e-1, 0. )
-      !iflux(1:imax)    = drf(1:imax)*rhoa(:,k)*dz(:,k)
-      !fluxsnow(1:imax) = fluxsnow(:) - iflux
-      !precs(1:imax)    = precs(:) + iflux
-      !preci(1:imax)    = preci(:) + iflux
-      !if ( maxval(iflux)>0. ) then
-      !  write(6,*) "WARN: Excessive snow at level ",k," with rs ",maxval(rs)
-      !end if
-      
-#ifdef leonclddebug
-      rs(1:imax) = max(fluxsnow(:), 0.)/(rhoa(:,k)*dz(:,k))
-      if ( maxval(rs(1:imax))>8.e-1 ) then
-        write(6,*) "ERROR: Snow out-of-range after autosnow in leoncld"
-        write(6,*) "rs,k ",maxval(rs(1:imax)),k
-        stop
-      end if
-#endif
       
       ! Detect max/random overlap clouds that are separated by a clear layer
       where ( (cfrac(1:imax,k)>=1.e-8.and.cfrac(1:imax,k+1)<1.e-8) .or. nmr==0 )
@@ -1877,15 +1767,6 @@ do n = 1,njumps
           cfmelt(1:imax)     = max( cfmelt(:), max( csfra(:)-cftmp(:), 0. ) )
           csfra(1:imax)      = cftmp(:)      
         end where
-
-#ifdef leonclddebug
-        rs(1:imax) = max(fluxsnow(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rs(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Snow out-of-range after melt in leoncld"
-          write(6,*) "rs,k ",maxval(rs(1:imax)),k
-          stop
-        end if
-#endif
         
         ! Compute the sublimation of snow falling from level k+1 into level k
         ! (Currently treated the same as LDR97 ice sublimation - see UM and ACCESS 1.3)
@@ -1910,15 +1791,6 @@ do n = 1,njumps
           ttg(1:imax,k)    = ttg(:,k) + dttg(:)
           qsatg(1:imax,k)  = qsatg(:,k) + gam1*dttg(:)/hlscp
         end where
-
-#ifdef leonclddebug
-        rs(1:imax) = max(fluxsnow(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rs(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Snow out-of-range after sublimation in leoncld"
-          write(6,*) "rs,k ",maxval(rs(1:imax)),k
-          stop
-        end if
-#endif
         
         ! Accretion of cloud liquid by falling snow (from Lin et al 1983 - psacw)
         n0s(1:imax) = 2.e6*exp(-0.12*max(ttg(:,k)-tfrz,-200.))        
@@ -1939,15 +1811,6 @@ do n = 1,njumps
           clfr(1:imax,k)   = clfr(:,k) - cftmp(:)
           caccl_s(1:imax)  = max( caccl_s(:), cftmp(:) )
         end where
-
-#ifdef leonclddebug
-        rs(1:imax) = max(fluxsnow(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rs(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Snow out-of-range after accretion of liquid in leoncld"
-          write(6,*) "rs,k ",maxval(rs(1:imax)),k
-          stop
-        end if
-#endif
         
         ! Accretion of rain by falling snow to form snow (from Lin et al 1983 - psacr)
         n0s(1:imax) = 2.e6*exp(-0.12*max(ttg(:,k)-tfrz,-200.))        
@@ -1971,15 +1834,6 @@ do n = 1,njumps
           cfrain(1:imax,k) = cfrain(:,k) - cftmp(:)
           caccl_s(1:imax)  = max( caccl_s(:), cftmp(:) )
         end where
-
-#ifdef leonclddebug
-        rs(1:imax) = max(fluxsnow(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rs(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Snow out-of-range after rain in leoncld"
-          write(6,*) "rs,k ",maxval(rs(1:imax)),k
-          stop
-        end if
-#endif
         
         ! Accretion of rain by falling snow to form graupel (neglected in Lin83 but included in UM)   
     
@@ -2001,15 +1855,6 @@ do n = 1,njumps
           caccf_s(1:imax)  = max( caccf_s(:), cftmp(:) )
         end where
         
-#ifdef leonclddebug
-        rs(1:imax) = max(fluxsnow(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rs(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Snow out-of-range after accretion of ice in leoncld"
-          write(6,*) "rs,k ",maxval(rs(1:imax)),k
-          stop
-        end if
-#endif
-        
       end if  
       
     end if
@@ -2019,18 +1864,7 @@ do n = 1,njumps
     sublflux(1:imax) = 0.
     caccl_i(1:imax)  = 0.
     caccf_i(1:imax)  = 0.
-
-    ! dump excessive ice to surface to avoid crash
-    !rf(1:imax)       = max(fluxice(:), 0.)/(rhoa(:,k)*dz(:,k))
-    !drf(1:imax)      = max( rf(1:imax)-7.e-2, 0. )
-    !iflux(1:imax)    = drf(1:imax)*rhoa(:,k)*dz(:,k)
-    !fluxice(1:imax)  = fluxice(:) - iflux
-    !precs(1:imax)    = precs(:) + iflux
-    !preci(1:imax)    = preci(:) + iflux
-    !if ( maxval(iflux)>0. ) then
-    !  write(6,*) "WARN: Excessive ice at level ",k," with rf ",maxval(rf)
-    !end if
-    
+   
     ! Set up the rate constant for ice sublimation
     ! MJT notes - curly and Csbsav depend on vi2(:,k+1), so vi2(:,k) can be updated below
     slopes_i(1:imax) = 1.6e3*10**(-0.023*(ttg(:,k)-tfrz))
@@ -2188,27 +2022,6 @@ do n = 1,njumps
 
     ! Add flux of melted snow to fluxrain
     fluxrain(:) = fluxrain(:) + fluxmelt(:) + fluxautorain(:,k)*tdt/tdt_in
-
-    ! dump excessive rain to surface to avoid crash
-    !rn(1:imax)       = max(fluxrain(:), 0.)/(rhoa(:,k)*dz(:,k))
-    !drl(1:imax)      = max( rn(1:imax)-7.e-1, 0. )
-    !lflux(1:imax)    = drl(1:imax)*rhoa(:,k)*dz(:,k)
-    !fluxrain(1:imax) = fluxrain(:) - lflux
-    !precs(1:imax)    = precs(:) + lflux
-    !if ( maxval(lflux)>0. ) then
-    !  write(6,*) "WARN: Excessive rain at level ",k," with rn ",maxval(rn)
-    !end if
-    
-#ifdef leonclddebug
-    rn(1:imax) = max(fluxrain(:), 0.)/(rhoa(:,k)*dz(:,k))
-    if ( maxval(rn(1:imax))>8.e-1 ) then
-      write(6,*) "ERROR: Rain out-of-range after autorain in leoncld"
-      write(6,*) "rn,k ",maxval(rn(1:imax)),k
-      pos=maxloc(rn(1:imax))
-      write(6,*) "fluxmelt,fluxautorain ",fluxmelt(pos(1)),fluxautorain(pos(1),k)*tdt/tdt_in
-      stop
-    end if
-#endif
     
     ! Detect maximum/random overlap clouds that are separated by a clear layer
     where ( (cfrac(1:imax,k)>=1.e-8.and.cfrac(1:imax,k+1)<1.e-8) .or. nmr==0 )
@@ -2248,21 +2061,6 @@ do n = 1,njumps
           cffreeze(1:imax)    = max( cffreeze(:), max(crfra(:)-cltmp(:),0.) )
           crfra(1:imax)       = cltmp(:)
         end where
-
-#ifdef leonclddebug
-        rg(1:imax) = max(fluxgraupel(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rg(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Graupel out-of-range after freezing of rain in leoncld"
-          write(6,*) "rg,k ",maxval(rg(1:imax)),k
-          stop
-        end if
-        rn(1:imax) = max(fluxrain(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rn(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Rain out-of-range after freezing of rain in leoncld"
-          write(6,*) "rn,k ",maxval(rn(1:imax)),k
-          stop
-        end if
-#endif
 
       end if     
       
@@ -2326,28 +2124,10 @@ do n = 1,njumps
         clfr(1:imax,k)   = clfr(:,k) - cltmp(:)
         caccl_r(1:imax)  = max( caccl_r(:), cltmp(:) )
       end where  
-
-#ifdef leonclddebug
-      rn(1:imax) = max(fluxrain(:), 0.)/(rhoa(:,k)*dz(:,k))
-      if ( maxval(rn(1:imax))>8.e-1 ) then
-        write(6,*) "ERROR: Rain out-of-range after collection of liquid in leoncld"
-        write(6,*) "rn,k ",maxval(rn(1:imax)),k
-        stop
-      end if
-#endif
       
       ! subtract evaporated rain
       lflux(:)    = evap(:)*rhodz(:)
       fluxrain(:) = max( fluxrain(:) - lflux(:), 0. ) !To avoid roundoff -ve's
-    
-#ifdef leonclddebug
-      rn(1:imax) = max(fluxrain(:), 0.)/(rhoa(:,k)*dz(:,k))
-      if ( maxval(rn(1:imax))>8.e-1 ) then
-        write(6,*) "ERROR: Rain out-of-range after evaporation in leoncld"
-        write(6,*) "rn,k ",maxval(rn(1:imax)),k
-        stop
-      end if
-#endif
       
       if ( ncloud>=3 ) then
         ! Accretion of cloud snow by rain (from Lin et al 1983 - pracs)
@@ -2372,15 +2152,6 @@ do n = 1,njumps
           cfsnow(1:imax,k) = cfsnow(:,k) - cftmp(:)
           caccf_r(1:imax)  = max( caccf_r(1:imax), cftmp(:) )
         end where
-        
-#ifdef leonclddebug
-        rn(1:imax) = max(fluxrain(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rn(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Rain out-of-range after accreation of snow in leoncld"
-          write(6,*) "rn,k ",maxval(rn(1:imax)),k
-          stop
-        end if
-#endif
 
       end if  
 
@@ -2423,21 +2194,6 @@ do n = 1,njumps
           caccf_g(1:imax)     = max( caccf_g(1:imax), cftmp(:)*xwgt(:) )
           caccf_s(1:imax)     = max( caccf_s(1:imax), cftmp(:)*(1.-xwgt(:)) )
         end where 
-        
-#ifdef leonclddebug
-        rg(1:imax) = max(fluxgraupel(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rg(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Graupel out-of-range after accretion of ice by rain in leoncld"
-          write(6,*) "rg,k ",maxval(rg(1:imax)),k
-          stop
-        end if
-        rs(1:imax) = max(fluxsnow(:), 0.)/(rhoa(:,k)*dz(:,k))
-        if ( maxval(rs(1:imax))>8.e-1 ) then
-          write(6,*) "ERROR: Snow out-of-range after accretion of ice by rain in leoncld"
-          write(6,*) "rs,k ",maxval(rs(1:imax)),k
-          stop
-        end if
-#endif
         
       end if  
       
@@ -2491,33 +2247,8 @@ do n = 1,njumps
         rhog(:,k) = rhog(:,k) + fluxgraupel/dz(:,k)
         fluxgraupel = 0.
       end where  
-      ! dump rhog to surface to prevent crash
-      !rg(1:imax)     = rhog(:,k)/rhoa(:,k)
-      !drf(1:imax)    = max( rg(:)-7.e-1, 0. )
-      !iflux(1:imax)  = drf(1:imax)*rhoa(:,k)*dz(:,k)
-      !rhog(1:imax,k) = rhog(:,k) - drf(:)*rhoa(:,k)
-      !precs(1:imax)  = precs(:) + iflux
-      !preci(1:imax)  = preci(:) + iflux
-      !precg(1:imax)  = precg(:) + iflux
-      !if ( maxval(iflux)>0. ) then
-      !  write(6,*) "WARN: Excessive graupel at level ",k," with rg ",maxval(rg)
-      !end if
       ! Now fluxgraupel is flux leaving layer k
       fluxg(1:imax,k) = fluxg(:,k) + fluxgraupel(:)      
-
-#ifdef leonclddebug
-      rg(1:imax) = max(fluxgraupel(:), 0.)/(rhoa(:,k)*dz(:,k))
-      if ( maxval(rg(1:imax))>8.e-1 ) then
-        write(6,*) "ERROR: Graupel out-of-range after updating fluxes in leoncld"
-        write(6,*) "rg,k ",maxval(rg(1:imax)),k
-        stop
-      end if
-      if ( maxval(rhog(1:imax,k)/rhoa(:,k))>8.e-1 ) then
-        write(6,*) "ERROR: Graupel out-of-range after updating fluxes in leoncld"
-        write(6,*) "rhog,k ",maxval(rhog(1:imax,k)/rhoa(1:imax,k)),k
-        stop
-      end if
-#endif      
       
       ! Snow
       ! calculate maximum and random overlap for falling snow
@@ -2551,32 +2282,8 @@ do n = 1,njumps
         rhos(:,k) = rhos(:,k) + fluxsnow/dz(:,k)
         fluxsnow = 0.
       end where  
-      ! dump rhos to surface to prevent crash
-      !rs(1:imax)     = rhos(:,k)/rhoa(:,k)
-      !drf(1:imax)    = max( rs(:)-7.e-1, 0. )
-      !iflux(1:imax)  = drf(1:imax)*rhoa(:,k)*dz(:,k)
-      !rhos(1:imax,k) = rhos(:,k) - drf(:)*rhoa(:,k)
-      !precs(1:imax)  = precs(:) + iflux
-      !preci(1:imax)  = preci(:) + iflux
-      !if ( maxval(iflux)>0. ) then
-      !  write(6,*) "WARN: Excessive snow at level ",k," with rs ",maxval(rs)
-      !end if
       ! Now fluxsnow is flux leaving layer k
       fluxs(1:imax,k) = fluxs(:,k) + fluxsnow(:)
-
-#ifdef leonclddebug
-      rs(1:imax) = max(fluxsnow(:), 0.)/(rhoa(:,k)*dz(:,k))
-      if ( maxval(rs(1:imax))>8.e-1 ) then
-        write(6,*) "ERROR: Snow out-of-range after updating fluxes in leoncld"
-        write(6,*) "rs,k ",maxval(rs(1:imax)),k
-        stop
-      end if
-      if ( maxval(rhos(1:imax,k)/rhoa(1:imax,k))>8.e-1 ) then
-        write(6,*) "ERROR: Snow out-of-range after updating fluxes in leoncld"
-        write(6,*) "rhos,k ",maxval(rhos(1:imax,k)/rhoa(1:imax,k)),k
-        stop
-      end if
-#endif      
       
     end if ! ncloud>=3
 
@@ -2612,16 +2319,6 @@ do n = 1,njumps
       rhoi(:,k) = rhoi(:,k) + fluxice/dz(:,k)
       fluxice = 0.
     end where  
-    ! dump rhoi to surface to prevent crash
-    !rf(1:imax)     = rhoi(:,k)/rhoa(:,k)
-    !drf(1:imax)    = max( rf(:)-7.e-2, 0. )
-    !iflux(1:imax)  = drf(1:imax)*rhoa(:,k)*dz(:,k)
-    !rhoi(1:imax,k) = rhoi(:,k) - drf(:)*rhoa(:,k)
-    !precs(1:imax)  = precs(:) + iflux
-    !preci(1:imax)  = preci(:) + iflux
-    !if ( maxval(iflux)>0. ) then
-    !  write(6,*) "WARN: Excessive ice at level ",k," with rf ",maxval(rf)
-    !end if
     ! Now fluxice is flux leaving layer k
     fluxi(1:imax,k) = fluxi(:,k) + fluxice(:)
 
@@ -2678,33 +2375,8 @@ do n = 1,njumps
       rhor(:,k) = rhor(:,k) + fluxrain/dz(:,k)
       fluxrain = 0.
     end where
-    ! dump rhor to surface to prevent crash
-    !rn(1:imax)     = rhor(:,k)/rhoa(:,k)
-    !drl(1:imax)    = max( rn(:)-7.e-1, 0. )
-    !lflux(1:imax)  = drl(1:imax)*rhoa(:,k)*dz(:,k)
-    !rhor(1:imax,k) = rhor(:,k) - drl(:)*rhoa(:,k)
-    !precs(1:imax)  = precs(:) + lflux
-    !if ( maxval(lflux)>0. ) then
-    !  write(6,*) "WARN: Excessive rain at level ",k," with rn ",maxval(rn)
-    !end if
     ! Now fluxrain is flux leaving layer k
     fluxr(1:imax,k) = fluxr(:,k) + fluxrain(:)
-
-#ifdef leonclddebug
-    rn(1:imax) = max(fluxrain(:), 0.)/(rhoa(:,k)*dz(:,k))
-    if ( maxval(rn(1:imax))>8.e-1 ) then
-      write(6,*) "ERROR: Rain out-of-range after updating fluxes in leoncld"
-      write(6,*) "rn,k ",maxval(rg(1:imax)),k
-      stop
-    end if
-    if ( maxval(rhor(1:imax,k)/rhoa(1:imax,k))>8.e-1 ) then
-      write(6,*) "ERROR: Rain out-of-range after updating fluxes in leoncld"
-      write(6,*) "rhor,k ",maxval(rhor(1:imax,k)/rhoa(1:imax,k)),k
-      pos=maxloc(rhor(:,k)/rhoa(:,k))
-      write(6,*) "vr2,foutliq,fthruliq ",vr2(pos(1)),foutliq(pos(1)),fthruliq(pos(1))
-      stop
-    end if
-#endif      
     
   end do ! k
   
@@ -2720,16 +2392,6 @@ qsng(1:imax,1:kl) = rhos(1:imax,1:kl)/rhoa(1:imax,1:kl)
 qgrg(1:imax,1:kl) = rhog(1:imax,1:kl)/rhoa(1:imax,1:kl)
 
 #ifdef leonclddebug
-  if ( maxval(qgrg(1:imax,:))>8.e-1 ) then
-    write(6,*) "ERROR: Graupel out-of-range after calculating mixing ratio in leoncld"
-    write(6,*) "qgrg,loc ",maxval(qgrg(1:imax,:)),maxloc(qgrg(1:imax,:))
-    stop
-  end if
-  if ( maxval(qsng(1:imax,:))>8.e-1 ) then
-    write(6,*) "ERROR: Snow out-of-range after calculating mixing ratio in leoncld"
-    write(6,*) "qsng,loc ",maxval(qsng(1:imax,:)),maxloc(qsng(1:imax,:))
-    stop
-  end if
   if ( maxval(qfg(1:imax,:))>8.e-2 ) then
     write(6,*) "ERROR: Ice out-of-range after calculating mixing ratio in leoncld"
     write(6,*) "qfg,loc ",maxval(qfg(1:imax,:)),maxloc(qfg(1:imax,:))
@@ -2738,11 +2400,6 @@ qgrg(1:imax,1:kl) = rhog(1:imax,1:kl)/rhoa(1:imax,1:kl)
   if ( maxval(qlg(1:imax,:))>8.e-2 ) then
     write(6,*) "ERROR: Liquid out-of-range after calculating mixing ratio in leoncld"
     write(6,*) "qlg,loc ",maxval(qlg(1:imax,:)),maxloc(qlg(1:imax,:))
-    stop
-  end if
-  if ( maxval(qrg(1:imax,:))>8.e-1 ) then
-    write(6,*) "ERROR: Rain out-of-range after calculating mixing ratio in leoncld"
-    write(6,*) "qrg,loc ",maxval(qrg(1:imax,:)),maxloc(qrg(1:imax,:))
     stop
   end if
 #endif
