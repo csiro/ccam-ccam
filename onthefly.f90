@@ -352,7 +352,7 @@ integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
-integer, dimension(8), save :: iers
+integer, dimension(9), save :: iers
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
 real, dimension(:,:,:), intent(out) :: xtgdwn
@@ -370,14 +370,14 @@ real, dimension(:), allocatable :: fracice_a, sicedep_a
 real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
 real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_a
-real, dimension(kk+ok+8) :: dumr
+real, dimension(kk+ok+9) :: dumr
 character(len=20) vname
 character(len=3) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
-logical zht_found, urban_found
+logical zht_needed, zht_found, urban_found
 logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
 
@@ -583,7 +583,7 @@ if ( newfile ) then
       end if  
     end if
     ! check for missing data
-    iers(1:7) = 0
+    iers(1:9) = 0
     call ccnf_inq_varid(ncid,'mixr',idv,tst)
     if ( tst ) iers(1) = -1
     call ccnf_inq_varid(ncid,'siced',idv,tst)
@@ -600,6 +600,8 @@ if ( newfile ) then
     if ( tst ) iers(7) = -1
     call ccnf_inq_varid(ncid,'uic',idv,tst)
     if ( tst ) iers(8) = -1
+    call ccnf_inq_varid(ncid,'zht',idv,tst)
+    if ( tst ) iers(9) = -1
     call ccnf_inq_varid(ncid,'tsu',idv,tst)
     if ( tst ) then
       write(6,*) "ERROR: Cannot locate tsu in input file"
@@ -610,12 +612,12 @@ if ( newfile ) then
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk)      = sigin(1:kk)
-    dumr(kk+1:kk+8) = real(iers(1:8))
-    if ( ok>0 ) dumr(kk+9:kk+ok+8) = gosig_in(1:ok)
-    call ccmpi_bcast(dumr(1:kk+ok+8),0,comm_world)
+    dumr(kk+1:kk+9) = real(iers(1:9))
+    if ( ok>0 ) dumr(kk+10:kk+ok+9) = gosig_in(1:ok)
+    call ccmpi_bcast(dumr(1:kk+ok+9),0,comm_world)
     sigin(1:kk) = dumr(1:kk)
-    iers(1:8)   = nint(dumr(kk+1:kk+8))
-    if ( ok>0 ) gosig_in(1:ok) = dumr(kk+9:kk+ok+8)
+    iers(1:9)   = nint(dumr(kk+1:kk+9))
+    if ( ok>0 ) gosig_in(1:ok) = dumr(kk+10:kk+ok+9)
   end if
   
   mixr_found    = iers(1)==0
@@ -626,16 +628,26 @@ if ( newfile ) then
   mlo2_found    = iers(6)==0
   urban_found   = iers(7)==0
   mloice_found  = iers(8)==0
+  zht_found     = iers(9)==0
   
   ! determine whether zht needs to be read
-  zht_found = nested==0 .or. (nested==1.and.retopo_test/=0) .or.          &
+  zht_needed = nested==0 .or. (nested==1.and.retopo_test/=0) .or.          &
       nested==3 .or. .not.(soilt_found.or.mlo_found)
   if ( myid==0 ) then
-    if ( zht_found ) then
-      write(6,*) "Surface height is required with zht_found =",zht_found
+    if ( zht_needed ) then
+      write(6,*) "Surface height is required with zht_needed =",zht_needed
       write(6,*) "nested,retopo_test,soilt_found,mlo_found =",nested,retopo_test,soilt_found,mlo_found
+      if ( .not.zht_found ) then
+        if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
+          write(6,*) "ERROR: Surface height is required but not found in input file"
+          call ccmpi_abort(-1)
+        else
+          write(6,*) "WARN: Surface height was needed for land-sea mask but was not found in input file"
+          write(6,*) "WARN: Using a trivial land-sea mask"
+        end if
+      end if     
     else  
-      write(6,*) "Surface height is not required with zht_found =",zht_found
+      write(6,*) "Surface height is not required with zht_needed =",zht_needed
       write(6,*) "nested,retopo_test,soilt_found,mlo_found =",nested,retopo_test,soilt_found,mlo_found
     end if
   end if  
@@ -655,18 +667,32 @@ if ( newfile ) then
   ! read zht
   if ( allocated(zss_a) ) deallocate(zss_a)
   ! read zht for initial conditions or nudging or land-sea mask
-  if ( zht_found ) then
-    if ( tss_test .and. iop_test ) then
-      allocate( zss_a(ifull) )
-      call histrd(iarchi,ier,'zht',ik,zss_a,ifull)
-    else     
-      allocate( zss_a(fwsize) )
-      call histrd(iarchi,ier,'zht',ik,zss_a,6*ik*ik)
-      if ( fwsize>0 ) then
-        nemi = 2  
-        land_a = zss_a>0. ! 2nd guess for land-sea mask
+  if ( zht_needed ) then
+    if ( zht_found ) then  
+      if ( tss_test .and. iop_test ) then
+        allocate( zss_a(ifull) )
+        call histrd(iarchi,ier,'zht',ik,zss_a,ifull)
+      else     
+        allocate( zss_a(fwsize) )
+        call histrd(iarchi,ier,'zht',ik,zss_a,6*ik*ik)
+        if ( fwsize>0 ) then
+          nemi = 2  
+          land_a = zss_a>0. ! 2nd guess for land-sea mask
+        end if
       end if
-    end if
+    else
+      if ( tss_test .and. iop_test ) then
+        allocate( zss_a(ifull) )
+        zss_a = 0. ! ocean everywhere
+      else     
+        allocate( zss_a(fwsize) )
+        if ( fwsize>0 ) then
+          zss_a = 0.  ! ocean everywhere
+          nemi = 2  
+          land_a = zss_a>0. ! 2nd guess for land-sea mask
+        end if
+      end if
+    end if    
   end if
   
   ! read soilt
@@ -763,7 +789,8 @@ else
   mlo2_found    = iers(6)==0
   urban_found   = iers(7)==0
   mloice_found  = iers(8)==0
-  zht_found     = nested==0 .or. (nested==1.and.retopo_test/=0) .or.      &
+  zht_found     = iers(9)==0
+  zht_needed    = nested==0 .or. (nested==1.and.retopo_test/=0) .or.      &
       nested==3 .or. .not.(soilt_found.or.mlo_found)
   tss_test      = siced_found .and. fracice_found .and. iotest
   
@@ -859,7 +886,7 @@ if ( tss_test .and. iop_test ) then
   ! fix rounding errors
   fracice(1:ifull) = min( fracice(1:ifull), 1. )
   ! update surface height and ocean depth if required
-  if ( zht_found ) then
+  if ( zht_needed ) then
     zss(1:ifull) = zss_a(1:ifull) ! use saved zss arrays
   end if  
   if ( mlo_found .and. abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
@@ -934,7 +961,7 @@ else
 
   if ( fwsize>0 ) then
     ucc6(:,1:2) = 0.
-    if ( zht_found ) ucc6(:,1) = zss_a
+    if ( zht_needed ) ucc6(:,1) = zss_a
     if ( mlo_found ) ucc6(:,2) = ocndep_a
     ucc6(:,3) = tss_l_a
     ucc6(:,4) = tss_s_a
