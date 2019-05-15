@@ -962,7 +962,7 @@ else
   if ( fwsize>0 ) then
     ucc6(:,1:2) = 0.
     if ( zht_needed ) ucc6(:,1) = zss_a
-    if ( mlo_found ) ucc6(:,2) = ocndep_a
+    if ( mlo_found )  ucc6(:,2) = ocndep_a
     ucc6(:,3) = tss_l_a
     ucc6(:,4) = tss_s_a
     ucc6(:,5) = sicedep_a
@@ -2349,7 +2349,6 @@ do while ( nrem>0 )
       if ( myid==0 ) then
         write(6,*) "Cannot perform fill as all points are trivial"    
       end if
-      a_io = value
       nrem = 0
     end if
   end if  
@@ -2386,6 +2385,9 @@ logical, dimension(pipan) :: maska
 
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
+
+! ignore if land_a is trivial
+if ( all(land_3d(1:fwsize,:)) .or. all(.not.land_3d(1:fwsize,:)) ) return
 
 call START_LOG(otf_fill_begin)
 
@@ -2531,7 +2533,6 @@ do while ( nrem>0 )
       if ( myid==0 ) then
         write(6,*) "Cannot perform fill as all points are trivial"    
       end if
-      a_io = 0.
       nrem = 0
     end if
   end if  
