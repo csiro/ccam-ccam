@@ -642,7 +642,7 @@ if ( newfile ) then
           write(6,*) "ERROR: Surface height is required but not found in input file"
           call ccmpi_abort(-1)
         else
-          write(6,*) "WARN: Surface height was needed for land-sea mask but was not found in input file"
+          write(6,*) "WARN: Surface height was needed for land-sea mask but not found in input file"
           write(6,*) "WARN: Using a trivial land-sea mask"
         end if
       end if     
@@ -2210,6 +2210,9 @@ logical, dimension(pipan) :: maska
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
 
+! ignore if land_a is trivial
+if ( all(land_a(1:fwsize)) .or. all(.not.land_a(1:fwsize)) ) return
+
 call START_LOG(otf_fill_begin)
 
 where ( land_a(1:fwsize) )
@@ -2346,7 +2349,7 @@ do while ( nrem>0 )
       if ( myid==0 ) then
         write(6,*) "Cannot perform fill as all points are trivial"    
       end if
-      a_io = 0.
+      a_io = value
       nrem = 0
     end if
   end if  
