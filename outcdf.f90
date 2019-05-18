@@ -2918,37 +2918,43 @@ if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
 end if
 if ( nurban<0 .and. save_urban .and. itype/=-1 ) then
   do k = 1,5
-    write(vname,'("rooftemp",I1.1)') k  
+    write(vname,'("rooftemp",I1.1)') k 
+    aa = 999.
     call atebavetemp(aa,vname,0)  
     write(vname,'("rooftgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do  
   do k = 1,5
     write(vname,'("walletemp",I1.1)') k  
+    aa = 999.
     call atebavetemp(aa,vname,0)  
     write(vname,'("waletgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("wallwtemp",I1.1)') k  
+    aa = 999.
     call atebavetemp(aa,vname,0)  
     write(vname,'("walwtgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("roadtemp",I1.1)') k  
+    aa = 999.
     call atebavetemp(aa,vname,0)  
     write(vname,'("roadtgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("slabtemp",I1.1)') k  
+    aa = 999.
     call atebavetemp(aa,vname,0)  
     write(vname,'("slabtgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("intmtemp",I1.1)') k  
+    aa = 999.
     call atebavetemp(aa,vname,0)  
     write(vname,'("intmtgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
