@@ -59,6 +59,7 @@ real, dimension(:), allocatable, save :: sigin                ! input vertical c
 real, dimension(:), allocatable, save :: gosig_in             ! input ocean levels
 real, dimension(:,:,:,:), allocatable, save :: sx             ! working array for interpolation
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
+logical allowtrivialfill                                      ! special case where trivial data is allowed
 
 interface fill_cc4
   module procedure fill_cc4_3d, fill_cc4_1
@@ -352,7 +353,7 @@ integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(7+3*ms) :: ierc
-integer, dimension(9), save :: iers
+integer, dimension(10), save :: iers
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
 real, dimension(:,:,:), intent(out) :: xtgdwn
@@ -370,14 +371,14 @@ real, dimension(:), allocatable :: fracice_a, sicedep_a
 real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
 real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_a
-real, dimension(kk+ok+9) :: dumr
+real, dimension(kk+ok+10) :: dumr
 character(len=20) vname
 character(len=3) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
-logical zht_needed, zht_found, urban_found
+logical zht_needed, zht_found, urban_found, urban2_found
 logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
 
@@ -396,11 +397,16 @@ real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y
 ! fncount     is the number of files read on a process.
 ! fnproc      is fnresid*fncount or the total number of input files to be read.  fnproc=1 indicates a single input file
 ! fwsize      is the size of the array for reading input data.  fwsize>0 implies this process id is reading data
+! allowtrivialfill is for when the input file has no land-sea mask (e.g., output from one.f)
 
+! default surface height
 zss = 0.
 
 ! memory needed to read input files
 fwsize = pipan*pjpan*pnpan*mynproc 
+
+! default trivial fill is off
+allowtrivialfill = .false.
       
 ! test if retopo fields are required
 if ( nud_p==0 .and. nud_t==0 .and. nud_q==0 ) then
@@ -583,7 +589,7 @@ if ( newfile ) then
       end if  
     end if
     ! check for missing data
-    iers(1:9) = 0
+    iers(1:10) = 0
     call ccnf_inq_varid(ncid,'mixr',idv,tst)
     if ( tst ) iers(1) = -1
     call ccnf_inq_varid(ncid,'siced',idv,tst)
@@ -596,12 +602,14 @@ if ( newfile ) then
     if ( tst ) iers(5) = -1
     call ccnf_inq_varid(ncid,'thetao',idv,tst)
     if ( tst ) iers(6) = -1
-    call ccnf_inq_varid(ncid,'t1_rooftgg1',idv,tst)
+    call ccnf_inq_varid(ncid,'t1_intmtgg1',idv,tst)
     if ( tst ) iers(7) = -1
-    call ccnf_inq_varid(ncid,'uic',idv,tst)
+    call ccnf_inq_varid(ncid,'intmtgg1',idv,tst)
     if ( tst ) iers(8) = -1
-    call ccnf_inq_varid(ncid,'zht',idv,tst)
+    call ccnf_inq_varid(ncid,'uic',idv,tst)
     if ( tst ) iers(9) = -1
+    call ccnf_inq_varid(ncid,'zht',idv,tst)
+    if ( tst ) iers(10) = -1
     call ccnf_inq_varid(ncid,'tsu',idv,tst)
     if ( tst ) then
       write(6,*) "ERROR: Cannot locate tsu in input file"
@@ -612,12 +620,12 @@ if ( newfile ) then
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk)      = sigin(1:kk)
-    dumr(kk+1:kk+9) = real(iers(1:9))
-    if ( ok>0 ) dumr(kk+10:kk+ok+9) = gosig_in(1:ok)
-    call ccmpi_bcast(dumr(1:kk+ok+9),0,comm_world)
+    dumr(kk+1:kk+10) = real(iers(1:10))
+    if ( ok>0 ) dumr(kk+11:kk+ok+10) = gosig_in(1:ok)
+    call ccmpi_bcast(dumr(1:kk+ok+10),0,comm_world)
     sigin(1:kk) = dumr(1:kk)
-    iers(1:9)   = nint(dumr(kk+1:kk+9))
-    if ( ok>0 ) gosig_in(1:ok) = dumr(kk+10:kk+ok+9)
+    iers(1:10)  = nint(dumr(kk+1:kk+10))
+    if ( ok>0 ) gosig_in(1:ok) = dumr(kk+11:kk+ok+10)
   end if
   
   mixr_found    = iers(1)==0
@@ -627,28 +635,30 @@ if ( newfile ) then
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
   urban_found   = iers(7)==0
-  mloice_found  = iers(8)==0
-  zht_found     = iers(9)==0
+  urban2_found  = iers(8)==0
+  mloice_found  = iers(9)==0
+  zht_found     = iers(10)==0
   
   ! determine whether zht needs to be read
   zht_needed = nested==0 .or. (nested==1.and.retopo_test/=0) .or.          &
       nested==3 .or. .not.(soilt_found.or.mlo_found)
+  allowtrivialfill = zht_needed .and. .not.zht_found .and.                 &
+      .not.(nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3)
   if ( myid==0 ) then
     if ( zht_needed ) then
       write(6,*) "Surface height is required with zht_needed =",zht_needed
-      write(6,*) "nested,retopo_test,soilt_found,mlo_found =",nested,retopo_test,soilt_found,mlo_found
-      if ( .not.zht_found ) then
-        if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
-          write(6,*) "ERROR: Surface height is required but not found in input file"
-          call ccmpi_abort(-1)
-        else
-          write(6,*) "WARN: Surface height was needed for land-sea mask but not found in input file"
-          write(6,*) "WARN: Using a trivial land-sea mask"
-        end if
+      write(6,*) "nested,retopo_test              =",nested,retopo_test
+      write(6,*) "soilt_found,mlo_found,zht_found =",soilt_found,mlo_found,zht_found
+      write(6,*) "allowtrivialfill                =",allowtrivialfill
+      if ( .not.zht_found .and. .not.allowtrivialfill ) then
+        write(6,*) "ERROR: Surface height is required but not found in input file"
+        call ccmpi_abort(-1)
       end if     
     else  
       write(6,*) "Surface height is not required with zht_needed =",zht_needed
-      write(6,*) "nested,retopo_test,soilt_found,mlo_found =",nested,retopo_test,soilt_found,mlo_found
+      write(6,*) "nested,retopo_test              =",nested,retopo_test
+      write(6,*) "soilt_found,mlo_found,zht_found =",soilt_found,mlo_found,zht_found
+      write(6,*) "allowtrivialfill                =",allowtrivialfill
     end if
   end if  
       
@@ -718,7 +728,7 @@ if ( newfile ) then
       allocate( ocndep_a(fwsize) )
       call histrd(iarchi,ier,'ocndepth',ik,ocndep_a,6*ik*ik)
       if ( fwsize>0 ) then
-        if ( nemi==-1 ) then  
+        if ( nemi==-1 ) then
           nemi = 2  
           land_a = ocndep_a<0.1 ! 3rd guess for land-sea mask
         end if  
@@ -767,9 +777,13 @@ if ( newfile ) then
       write(6,*) "Determine urban mask"
     end if  
     if ( urban_found ) then
-      call histrd(iarchi,ier,'t1_rooftgg1',ik,ucc,6*ik*ik)  
-    else     
-      call histrd(iarchi,ier,'rooftgg1',ik,ucc,6*ik*ik)
+      call histrd(iarchi,ier,'t1_intmtgg1',ik,ucc,6*ik*ik)  
+    else if ( urban2_found ) then
+      call histrd(iarchi,ier,'intmtgg1',ik,ucc,6*ik*ik)
+    else
+      if ( fwsize>0 ) then
+        ucc = 0. ! will use tsu so all points are valid
+      end if
     end if  
     if ( fwsize>0 ) then
       nourban_a = ucc>=399.
@@ -788,10 +802,13 @@ else
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
   urban_found   = iers(7)==0
-  mloice_found  = iers(8)==0
-  zht_found     = iers(9)==0
+  urban2_found  = iers(8)==0
+  mloice_found  = iers(9)==0
+  zht_found     = iers(10)==0
   zht_needed    = nested==0 .or. (nested==1.and.retopo_test/=0) .or.      &
       nested==3 .or. .not.(soilt_found.or.mlo_found)
+  allowtrivialfill = zht_needed .and. .not.zht_found .and.                &
+      .not.(nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3)
   tss_test      = siced_found .and. fracice_found .and. iotest
   
 end if ! newfile ..else..
@@ -1687,8 +1704,8 @@ if ( nested/=1 .and. nested/=3 ) then
         if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
         call atebloadd(atebdwn(:,1),"roadsnowalbedo",ifrac,0)
       end do
-    else
-      ! nested  
+    else if ( urban2_found ) then
+      ! nested with urban data  
       call fillhist4("rooftgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("rooftemp",I1.1)') k
@@ -1749,6 +1766,44 @@ if ( nested/=1 .and. nested/=3 ) then
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
       end do
+    else
+      ! nested without urban data
+      call gethist1("tsu",atebdwn(:,1))
+      atebdwn(:,1) = abs(atebdwn(:,1))
+      do k = 2,5
+        atebdwn(:,k) = atebdwn(:,k)
+      end do
+      do k = 1,5
+        where ( atebdwn(:,k)>150. )  
+          atebdwn(:,k) = atebdwn(:,k) - urbtemp
+        end where
+      end do
+      do k = 1,5
+        write(vname,'("rooftemp",I1.1)') k
+        do ifrac = 1,nfrac
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+        write(vname,'("walletemp",I1.1)') k
+        do ifrac = 1,nfrac
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+        write(vname,'("wallwtemp",I1.1)') k
+        do ifrac = 1,nfrac
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+        write(vname,'("roadtemp",I1.1)') k
+        do ifrac = 1,nfrac
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+        write(vname,'("slabtemp",I1.1)') k
+        do ifrac = 1,nfrac
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+        write(vname,'("intmtemp",I1.1)') k
+        do ifrac = 1,nfrac
+          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+        end do  
+      end do        
     end if    
     deallocate( atebdwn )
   end if
@@ -2210,8 +2265,12 @@ logical, dimension(pipan) :: maska
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
 
-! ignore if land_a is trivial
-if ( all(land_a(1:fwsize)) .or. all(.not.land_a(1:fwsize)) ) return
+! ignore fill if land_a is trivial
+if ( allowtrivialfill ) then
+  ncount = count( .not.land_a(1:fwsize) )
+  call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
+  if ( nrem==0 .or. nrem==6*ik*ik ) return
+end if
 
 call START_LOG(otf_fill_begin)
 
@@ -2260,7 +2319,7 @@ do while ( nrem>0 )
     end do
   end if 
   call ccmpi_filebounds_recv(c_io,comm_ip)
-  ! update halo
+  ! update perimeter
   if ( ncount>0 ) then
     do ipf = 1,mynproc
       do n = 1,pnpan
@@ -2346,9 +2405,7 @@ do while ( nrem>0 )
   else if ( local_count>fill_count ) then
     call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
     if ( nrem==6*ik*ik ) then
-      if ( myid==0 ) then
-        write(6,*) "Cannot perform fill as all points are trivial"    
-      end if
+      ! Cannot perform fill as all points are trivial    
       nrem = 0
     end if
   end if  
@@ -2373,25 +2430,32 @@ implicit none
 
 real, dimension(:,:), intent(inout) :: a_io
 integer, intent(inout) :: fill_count
-integer nrem, j, n, k, kx
+integer j, n, k, kx
 integer cc, ipf, local_count
 integer, dimension(pipan) :: ccount
-integer, dimension(size(a_io,2)) :: ncount
+integer, dimension(size(a_io,2)) :: ncount, nrem
 real, parameter :: value=999.       ! missing value flag
 real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc,size(a_io,2)) :: c_io
 real, dimension(pipan) :: csum
 logical, dimension(:,:), intent(in) :: land_3d
 logical, dimension(pipan) :: maska
 
+kx = size(a_io,2)
+
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
 
-! ignore if land_a is trivial
-if ( all(land_3d(1:fwsize,:)) .or. all(.not.land_3d(1:fwsize,:)) ) return
+! ignore fill if land_a is trivial
+if ( allowtrivialfill ) then
+  do k = 1,kx  
+    ncount(k) = count( .not.land_3d(1:fwsize,k) )
+  end do  
+  call ccmpi_allreduce(ncount(1:kx),nrem(1:kx),'sum',comm_ip)
+  if ( all(nrem(:)==0) .or. all(nrem(:)==6*ik*ik) ) return
+end if
 
 call START_LOG(otf_fill_begin)
 
-kx = size(a_io,2)
 
 do k = 1,kx
   where ( land_3d(1:fwsize,k) )
@@ -2399,11 +2463,11 @@ do k = 1,kx
   end where
 end do
 
-nrem = 1
+nrem(:) = 1
 local_count = 0
 c_io = value
 
-do while ( nrem>0 )
+do while ( any(nrem(:)>0) )
   c_io(1:pipan,1:pjpan,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pipan, pjpan, pnpan, mynproc, kx /) )
   call ccmpi_filebounds_send(c_io,comm_ip)
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
@@ -2526,15 +2590,15 @@ do while ( nrem>0 )
   ! test for convergence
   local_count = local_count + 1
   if ( local_count==fill_count ) then
-    nrem = 0  
+    nrem(:) = 0  
   else if ( local_count>fill_count ) then
-    call ccmpi_allreduce(ncount(kx),nrem,'sum',comm_ip)
-    if ( nrem==6*ik*ik ) then
-      if ( myid==0 ) then
-        write(6,*) "Cannot perform fill as all points are trivial"    
+    call ccmpi_allreduce(ncount(1:kx),nrem(1:kx),'sum',comm_ip)
+    do k = 1,kx
+      if ( nrem(k)==6*ik*ik ) then
+        ! Cannot perform fill as all points are trivial  
+        nrem(k) = 0
       end if
-      nrem = 0
-    end if
+    end do
   end if  
 end do
 
