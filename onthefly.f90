@@ -1771,7 +1771,7 @@ if ( nested/=1 .and. nested/=3 ) then
       call gethist1("tsu",atebdwn(:,1))
       atebdwn(:,1) = abs(atebdwn(:,1))
       do k = 2,5
-        atebdwn(:,k) = atebdwn(:,k)
+        atebdwn(:,k) = atebdwn(:,1)
       end do
       do k = 1,5
         where ( atebdwn(:,k)>150. )  
