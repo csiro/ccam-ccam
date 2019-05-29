@@ -55,28 +55,28 @@ real, dimension(:), allocatable, save :: dd,ddu,ddv
 real, dimension(:,:), allocatable, save :: gosig,gosigh,godsig
 real, dimension(:,:), allocatable, save :: godsigu, godsigv
 real, dimension(:,:,:), allocatable, save :: stwgt
-integer, save :: nstagoffmlo    = 0       ! staggering offset
-integer, save :: usetide        = 1       ! tidal forcing (0=off, 1=on)
-integer, parameter :: icemode   = 2       ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, parameter :: mstagf    = 30      ! alternating staggering (0=off left, -1=off right, >0 alternating)
-integer, parameter :: koff      = 1       ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
-integer, parameter :: nf        = 2       ! power for horizontal diffusion reduction factor
-integer, parameter :: itnmax    = 6       ! number of interations for reversible staggering
-integer, parameter :: nxtrrho   = 1       ! Estimate rho at t+1 (0=off, 1=on)
-integer, save      :: usepice   = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
-integer, save      :: mlodiff   = 0       ! diffusion (0=all, 1=scalars only)
-integer, save      :: mlojacobi = 1       ! density gradient method (0=off, 1=non-local spline, 2=non-local linear, 3=Song,
-                                          !   7=AC2003)
-integer, parameter :: nodrift   = 1       ! Remove drift from eta (0=off, 1=on)
-real, parameter :: rhosn      = 330.      ! density snow (kg m^-3)
-real, parameter :: rhoic      = 900.      ! density ice  (kg m^-3)
-real, parameter :: grav       = 9.80616   ! gravitational constant (m s^-2)
-real, parameter :: delphi     = 150.      ! horizontal diffusion reduction factor gradient
-real, save      :: ocnsmag    = 1.        ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004), 1. in SHOC)
-real, save      :: ocneps     = 0.1       ! semi-implicit off-centring term
-real, parameter :: maxicefrac = 0.999     ! maximum ice fraction
-real, parameter :: tol        = 5.E-4     ! Tolerance for SOR solver (water)
-real, parameter :: itol       = 1.E1      ! Tolerance for SOR solver (ice)
+integer, save      :: nstagoffmlo = 0       ! staggering offset
+integer, save      :: usetide     = 1       ! tidal forcing (0=off, 1=on)
+integer, parameter :: icemode     = 2       ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
+integer, parameter :: mstagf      = 30      ! alternating staggering (0=off left, -1=off right, >0 alternating)
+integer, parameter :: koff        = 1       ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
+integer, parameter :: nf          = 2       ! power for horizontal diffusion reduction factor
+integer, parameter :: itnmax      = 6       ! number of interations for reversible staggering
+integer, parameter :: nxtrrho     = 1       ! Estimate rho at t+1 (0=off, 1=on)
+integer, save      :: usepice     = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
+integer, save      :: mlodiff     = 0       ! diffusion (0=all, 1=scalars only)
+integer, save      :: mlojacobi   = 1       ! density gradient method (0=off, 1=non-local spline, 2=non-local linear, 3=Song,
+                                            !   7=AC2003)
+integer, parameter :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on)
+real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
+real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)
+real, parameter :: grav           = 9.80616 ! gravitational constant (m s^-2)
+real, parameter :: delphi         = 1.e6    ! horizontal diffusion reduction factor gradient (1.e6 = disabled)
+real, save      :: ocnsmag        = 1.      ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004), 1. in SHOC)
+real, save      :: ocneps         = 0.1     ! semi-implicit off-centring term
+real, parameter :: maxicefrac     = 0.999   ! maximum ice fraction
+real, parameter :: tol            = 5.E-4   ! Tolerance for SOR solver (water)
+real, parameter :: itol           = 1.E1    ! Tolerance for SOR solver (ice)
 
 contains
 
@@ -100,7 +100,6 @@ implicit none
 integer ii, iq
 real, dimension(ifull,0:wlev) :: dephl
 real, dimension(ifull,wlev) :: dep,dz
-real, dimension(ifull+iextra,wlev,1:2) :: dum
 real, dimension(3*wlev) :: dumz,gdumz
 logical, dimension(ifull+iextra,wlev) :: wtr
 
@@ -213,16 +212,8 @@ if ( mlosigma>=0 .and. mlosigma<=3 ) then
     godsig(:,ii) = gdumz(ii+2*wlev)
   end do    
 else if ( mlosigma>=4 .and. mlosigma<=5 ) then 
-  dum = 0.  
-  do ii = 1,wlev
-    dum(1:ifull,ii,1) = gosig(1:ifull,ii)
-    dum(1:ifull,ii,2) = godsig(1:ifull,ii)
-  end do
-  call bounds(dum)
-  do ii = 1,wlev
-    gosig(1:ifull+iextra,ii)  = dum(1:ifull+iextra,ii,1)  
-    godsig(1:ifull+iextra,ii) = dum(1:ifull+iextra,ii,2)
-  end do
+  call bounds(gosig)
+  call bounds(godsig)
 else
   write(6,*) "ERROR: Unknown option in mlodyninit for mlosigma ",mlosigma
   call ccmpi_abort(-1)
@@ -890,19 +881,24 @@ do mspec_mlo = mspeca_mlo,1,-1
                  -cc_isv*dd_isv/em_isv)*em(1:ifull)**2/ds)
   end do
 
+  ! Update split part of neta (first half time-step)
+  !do ii = 1,wlev
+  !  call unpack_svwu(eou(:,ii),eov(:,ii),eo_isv,eo_iwu)
+  !  where ( wtr(1:ifull,ii) )
+  !    neta(1:ifull) = neta(1:ifull) - (1.-ocneps)*0.5*dt            &
+  !                   *(eou(1:ifull,ii)*w_e(1:ifull)/emu(1:ifull)    &
+  !                    -eo_iwu*w_e(1:ifull)/em_iwu                   &
+  !                    +eov(1:ifull,ii)*w_e(1:ifull)/emv(1:ifull)    &
+  !                    -eo_isv*w_e(1:ifull)/em_isv)                  &
+  !                    *em(1:ifull)**2/ds
+  !  end where  
+  !end do  
 
   ! compute contunity equation horizontal transport terms
   mps = 0.
   do ii = 1,wlev
     call unpack_svwu(eou(:,ii),eov(:,ii),eo_isv,eo_iwu)  
     where ( wtr(1:ifull,ii) )
-      !mps(1:ifull,ii) = neta(1:ifull) - (1.-ocneps)*0.5*dt                          &
-      !                 *((eou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull) &
-      !                   -eo_iwu*(dd_iwu+neta(1:ifull))/em_iwu                      &
-      !                   +eov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull) &
-      !                   -eo_isv*(dd_isv+neta(1:ifull))/em_isv)                     &
-      !                   *em(1:ifull)**2/ds                                         &
-      !                  +(nw(:,ii)-nw(:,ii-1))/godsig(1:ifull,ii))
       mps(1:ifull,ii) = neta(1:ifull) - (1.-ocneps)*0.5*dt          &
                        *((eou(1:ifull,ii)*ddu(1:ifull)/emu(1:ifull) &
                          -eo_iwu*dd_iwu/em_iwu                      &
@@ -964,14 +960,14 @@ do mspec_mlo = mspeca_mlo,1,-1
       gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
       gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
       tau(:,ii) = tau(:,ii) + grav*rhou(1:ifull,ii)/wrtrho &
-                 *((1.-gosigu)*detadxu+gosigu*oeu(1:ifull)/ddu(1:ifull)*ddddxu)
+                 *((1.-gosigu)*detadxu+gosigu*oeu(1:ifull)/ddu(1:ifull)*ddddxu) ! staggered
       tav(:,ii) = tav(:,ii) + grav*rhov(1:ifull,ii)/wrtrho &
                  *((1.-gosigv)*detadyv+gosigv*oev(1:ifull)/ddv(1:ifull)*ddddyv)
     end do
   end if
   ! ice
-  !tau(:,wlev+1)=grav*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
-  !tav(:,wlev+1)=grav*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
+  !tau(:,wlev+1)=grav*(neta_e-neta(1:ifull))*emu(1:ifull)/ds ! staggered
+  !tav(:,wlev+1)=grav*(neta_n-neta(1:ifull))*emv(1:ifull)/ds
   call mlounstaguv(tau(:,1:wlev),tav(:,1:wlev),ttau(:,1:wlev),ttav(:,1:wlev),toff=1)
   ! ocean
   do ii = 1,wlev
@@ -1028,8 +1024,7 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Horizontal advection for continuity
   cou(1:ifull,1:wlev,1) = mps(1:ifull,1:wlev)
-  !call mlob2ints_uv(cou(:,:,1:1),nface,xg,yg,wtr)
-  call mlob2ints(cou(:,:,1:1),nface,xg,yg,wtr)
+  call mlob2ints_bs(cou(:,:,1:1),nface,xg,yg,wtr)
   mps(1:ifull,1:wlev) = cou(1:ifull,1:wlev,1)
 
   ! Horizontal advection for T and S
@@ -1147,18 +1142,23 @@ do mspec_mlo = mspeca_mlo,1,-1
 
     ! u^(t+1) = nu = au^(t*) + bu*dpdxu^(t+1)/wrtrho + cu*dpdyu^(t+1)/wrtrho (staggered)
     ! v^(t+1) = nv = av^(t*) + bv*dpdyv^(t+1)/wrtrho + cv*dpdxv^(t+1)/wrtrho (staggered)
+      
+    ! u^(t+1) = u^(t*) + dt*f*v^(t+1) = u^(t*) + dt*f*v^(t*) - (dt*f)^2*u^(t+1)  
+    ! v^(t+1) = v^(t*) - dt*f*u^(t+1)
+      
+    ! u^(t+1)*(1+(dt*f)^2) = u^(t*) + dt*f*v^(t*)  
 
-    ! u^(t+1)*(1+(0.5*dt*f)^2) = [u + 0.5*dt*f*v - 0.5*dt/wrtrho*dpdx]^(t*) + 0.5*dt*[v - 0.5*dt*f*u - 0.5*dt/wrtrho*dpdy]^(t*)
+    ! u^(t+1)*(1+(0.5*dt*f)^2) = [u + 0.5*dt*f*v - 0.5*dt/wrtrho*dpdx]^(t*) + 0.5*dt*f*[v - 0.5*dt*f*u - 0.5*dt/wrtrho*dpdy]^(t*)
     !                            - 0.5*dt/wrtrho*[dpdx + 0.5*dt*f*dpdy]^(t+1)     
-    ! v^(t+1)*(1+(0.5*dt*f)^2) = [v - 0.5*dt*f*u - 0.5*dt/wrtrho*dpdy]^(t*) - 0.5*dt*[u + 0.5*dt*f*v - 0.5*dt/wrtrho*dpdx]^(t*)
+    ! v^(t+1)*(1+(0.5*dt*f)^2) = [v - 0.5*dt*f*u - 0.5*dt/wrtrho*dpdy]^(t*) - 0.5*dt*f*[u + 0.5*dt*f*v - 0.5*dt/wrtrho*dpdx]^(t*)
     !                            - 0.5*dt/wrtrho*[dpdy - 0.5*dt*f*dpdx]^(t+1)
             
-    au(:) = ccu(1:ifull,ii)*eeu(1:ifull,ii)
-    bu(:) = dumf(:)*eeu(1:ifull,ii)
+    au(:) = ccu(1:ifull,ii)
+    bu(:) = dumf(:)
     cu(:) =  (1.+ocneps)*0.5*dt*fu(1:ifull)*bu(:)*stwgt(1:ifull,ii,1)
   
-    av(:) = ccv(1:ifull,ii)*eev(1:ifull,ii)
-    bv(:) = dumg(:)*eev(1:ifull,ii)
+    av(:) = ccv(1:ifull,ii)
+    bv(:) = dumg(:)
     cv(:) = -(1.+ocneps)*0.5*dt*fv(1:ifull)*bv(:)*stwgt(1:ifull,ii,2)
 
     ! P = grav*rhobar*(z*)
@@ -1324,17 +1324,17 @@ do mspec_mlo = mspeca_mlo,1,-1
 !  ccv(:,wlev) = sov(:) + spv(:)*ddv(1:ifull) + sqv(:)*detadyv + ssv(:)*detadxv + szv(:)*oev(1:ifull)
 !  call boundsuv(ccu(:,wlev),ccv(:,wlev),stag=-9)
 !  call unpack_svwu(ccu(:,wlev),ccv(:,wlev),cc_isv,cc_iwu)
-!  sdiv(:) = (ccu(1:ifull,wlev)*neta(1:ifull)/emu(1:ifull)  &
+!  neta(1:ifull) = neta(1:ifull) - (1.+ocneps)*0.5*dt       &
+!           *(ccu(1:ifull,wlev)*neta(1:ifull)/emu(1:ifull)  &
 !            -cc_iwu*neta(1:ifull)/em_iwu                   &
-!             +ccv(1:ifull,wlev)*neta(1:ifull)/emv(1:ifull) &
+!            +ccv(1:ifull,wlev)*neta(1:ifull)/emv(1:ifull)  &
 !            -cc_isv*neta(1:ifull)/em_isv)*em(1:ifull)**2/ds
-!  neta(1:ifull) = neta(1:ifull) - (1.+ocneps)*0.5*dt*sdiv(:)
   
 
   data_c(1:ifull,1) = neta(1:ifull)
   data_c(1:ifull,2) = ipice(1:ifull)
   call bounds(data_c(:,1:2),corner=.true.)
-  neta(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,1)
+  neta(ifull+1:ifull+iextra)  = data_c(ifull+1:ifull+iextra,1)
   ipice(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,2)
   call unpack_nsew(neta,neta_n,neta_s,neta_e,neta_w)
   call unpack_nsew(ipice,ipice_n,ipice_s,ipice_e,ipice_w)
@@ -1478,19 +1478,19 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   ! ocean
   ! use nu and nv for unstagged currents
-  tau(:,1:wlev)=nu(1:ifull,:)
-  tav(:,1:wlev)=nv(1:ifull,:)
+  ttau(:,1:wlev)=nu(1:ifull,:)
+  ttav(:,1:wlev)=nv(1:ifull,:)
   ! ice
   ! unstagger ice velocities
-  tau(:,wlev+1)=niu(1:ifull)
-  tav(:,wlev+1)=niv(1:ifull)
-  call mlounstaguv(tau(:,1:wlev+1),tav(:,1:wlev+1),ttau(:,1:wlev+1),ttav(:,1:wlev+1))
+  ttau(:,wlev+1)=niu(1:ifull)
+  ttav(:,wlev+1)=niv(1:ifull)
+  call mlounstaguv(ttau(:,1:wlev+1),ttav(:,1:wlev+1),tau(:,1:wlev+1),tav(:,1:wlev+1))
   ! ocean
-  nu(1:ifull,:)=ttau(:,1:wlev)
-  nv(1:ifull,:)=ttav(:,1:wlev)
+  nu(1:ifull,:)=tau(:,1:wlev)
+  nv(1:ifull,:)=tav(:,1:wlev)
   ! ice
-  niu(1:ifull)=ttau(:,wlev+1)
-  niv(1:ifull)=ttav(:,wlev+1)
+  niu(1:ifull)=tau(:,wlev+1)
+  niv(1:ifull)=tav(:,wlev+1)
   
   call END_LOG(wateriadv_end)
 

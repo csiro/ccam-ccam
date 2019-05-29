@@ -917,14 +917,15 @@ qlup_p(:,1) = qlg_p
 qfup_p(:,1) = qfg_p
 cfup_p(:,1) = cfrac_p
 ! calculate thermodynamic variables assuming no condensation
-qtup = qvup_p(:,1) + qlup_p(:,1) + qfup_p(:,1)          ! qtot,up
+qtup = qvup_p(:,1) + qlup_p(:,1) + qfup_p(:,1)                    ! qtot,up
 thup = tlup_p(:,1) + sigkap(1)*(lv*qlup_p(:,1)+ls*qfup_p(:,1))/cp ! theta,up
-tvup = thup + theta_p*0.61*qtup                         ! thetav,up
-templ = tlup_p(:,1)/sigkap(1)                           ! templ,up
+tvup = thup + theta_p*0.61*qtup                                   ! thetav,up
+templ = tlup_p(:,1)/sigkap(1)                                     ! templ,up
 ! update updraft velocity and mass flux
 nn(:,1) = grav*be*wtv0_p/(thetav_p*sqrt(tke1))          ! Hurley 2007
 w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent)      ! Hurley 2007
 cxup(:,1) = 0.
+
 
 ! updraft with condensation
 do k = 2,kl
@@ -982,9 +983,9 @@ do k = 2,kl
   al = cp/(cp+lx*dqsdt)
   qcup = max(al*(qtup-qxup), 0.)                             ! qcondensate,up after redistribution
   qcup = min(qcup, qcmf)                                     ! limit condensation with simple autoconversion
-  !qxup = qtup - qcup                                         ! qv,up after redistribution
+  qxup = qtup - qcup                                         ! qv,up after redistribution
   thup = tlup_p(:,k) + sigkap(k)*qcup*lx/cp                  ! theta,up after redistribution
-  tvup = thup + theta_p*(1.61*qxup-qtup)                     ! thetav,up after redistribution
+  tvup = thup + theta_p*(0.61*qxup-qcup)                     ! thetav,up after redistribution
   where ( w2up(:,k-1)>0. )
     nn(:,k) = grav*(tvup-thetav_p)/thetav_p                          ! calculate buoyancy
     w2up(:,k) = (w2up(:,k-1)+2.*dzht*b2*nn(:,k))/(1.+2.*dzht*b1*ent) ! update updraft velocity
