@@ -71,7 +71,7 @@ integer, parameter :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
 real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)
 real, parameter :: grav           = 9.80616 ! gravitational constant (m s^-2)
-real, parameter :: delphi         = 1.e6    ! horizontal diffusion reduction factor gradient (1.e6 = disabled)
+real, parameter :: delphi         = 150.    ! horizontal diffusion reduction factor gradient (1.e6 = disabled)
 real, save      :: ocnsmag        = 1.      ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004), 1. in SHOC)
 real, save      :: ocneps         = 0.1     ! semi-implicit off-centring term
 real, parameter :: maxicefrac     = 0.999   ! maximum ice fraction
