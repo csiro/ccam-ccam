@@ -774,10 +774,10 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Calculate adjusted depths and thicknesses
   do ii = 1,wlev
-    !depdum(1:ifull,ii) = gosig(1:ifull,ii)*max( dd(1:ifull)+neta(1:ifull), minwater )
-    !dzdum(1:ifull,ii)  = godsig(1:ifull,ii)*max( dd(1:ifull)+neta(1:ifull), minwater )
-    depdum(1:ifull,ii) = gosig(1:ifull,ii)*dd(1:ifull)
-    dzdum(1:ifull,ii)  = godsig(1:ifull,ii)*dd(1:ifull)
+    depdum(1:ifull,ii) = gosig(1:ifull,ii)*max( dd(1:ifull)+neta(1:ifull), minwater )
+    dzdum(1:ifull,ii)  = godsig(1:ifull,ii)*max( dd(1:ifull)+neta(1:ifull), minwater )
+    !depdum(1:ifull,ii) = gosig(1:ifull,ii)*dd(1:ifull)
+    !dzdum(1:ifull,ii)  = godsig(1:ifull,ii)*dd(1:ifull)
     ! neglect surface height when calculating density gradient
     dzdum_rho(1:ifull+iextra,ii) = godsig(1:ifull+iextra,ii)*dd(1:ifull+iextra)
   end do  
@@ -859,53 +859,48 @@ do mspec_mlo = mspeca_mlo,1,-1
   oev_isv = 0.5*(neta_s+neta(1:ifull))*ee_isv
   ! calculate vertical velocity (use flux form)
   call unpack_svwu(ccu(:,wlev),ccv(:,wlev),cc_isv,cc_iwu)
-  !sdiv(:) = (ccu(1:ifull,wlev)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull)    &
-  !          -cc_iwu*(dd_iwu+oeu_iwu)/em_iwu                                &
-  !          +ccv(1:ifull,wlev)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull)    &
-  !          -cc_isv*(dd_isv+oev_isv)/em_isv)*em(1:ifull)**2/ds
-  sdiv(:) = (ccu(1:ifull,wlev)*ddu(1:ifull)/emu(1:ifull)    &
-            -cc_iwu*dd_iwu/em_iwu                           &
-            +ccv(1:ifull,wlev)*ddv(1:ifull)/emv(1:ifull)    &
-            -cc_isv*dd_isv/em_isv)*em(1:ifull)**2/ds
+  sdiv(:) = (ccu(1:ifull,wlev)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull)    &
+            -cc_iwu*(dd_iwu+oeu_iwu)/em_iwu                                &
+            +ccv(1:ifull,wlev)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull)    &
+            -cc_isv*(dd_isv+oev_isv)/em_isv)*em(1:ifull)**2/ds
+  !sdiv(:) = (ccu(1:ifull,wlev)*ddu(1:ifull)/emu(1:ifull)    &
+  !          -cc_iwu*dd_iwu/em_iwu                           &
+  !          +ccv(1:ifull,wlev)*ddv(1:ifull)/emv(1:ifull)    &
+  !          -cc_isv*dd_isv/em_isv)*em(1:ifull)**2/ds
   do ii = 1,wlev-1
     call unpack_svwu(ccu(:,ii),ccv(:,ii),cc_isv,cc_iwu)  
-    !nw(:,ii) = ee(1:ifull,ii)*ee(1:ifull,ii+1)*(sdiv(:)*gosigh(1:ifull,ii) &
-    !           - (ccu(1:ifull,ii)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull) &
-    !             -cc_iwu*(dd_iwu+oeu_iwu)/em_iwu                           &
-    !             +ccv(1:ifull,ii)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull) &
-    !             -cc_isv*(dd_isv+oev_isv)/em_isv)*em(1:ifull)**2/ds)
     nw(:,ii) = ee(1:ifull,ii)*ee(1:ifull,ii+1)*(sdiv(:)*gosigh(1:ifull,ii) &
-               - (ccu(1:ifull,ii)*ddu(1:ifull)/emu(1:ifull)                &
-                 -cc_iwu*dd_iwu/em_iwu                                     &
-                 +ccv(1:ifull,ii)*ddv(1:ifull)/emv(1:ifull)                &
-                 -cc_isv*dd_isv/em_isv)*em(1:ifull)**2/ds)
+               - (ccu(1:ifull,ii)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull) &
+                 -cc_iwu*(dd_iwu+oeu_iwu)/em_iwu                           &
+                 +ccv(1:ifull,ii)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull) &
+                 -cc_isv*(dd_isv+oev_isv)/em_isv)*em(1:ifull)**2/ds)
+    !nw(:,ii) = ee(1:ifull,ii)*ee(1:ifull,ii+1)*(sdiv(:)*gosigh(1:ifull,ii) &
+    !           - (ccu(1:ifull,ii)*ddu(1:ifull)/emu(1:ifull)                &
+    !             -cc_iwu*dd_iwu/em_iwu                                     &
+    !             +ccv(1:ifull,ii)*ddv(1:ifull)/emv(1:ifull)                &
+    !             -cc_isv*dd_isv/em_isv)*em(1:ifull)**2/ds)
   end do
-
-  ! Update split part of neta (first half time-step)
-  !do ii = 1,wlev
-  !  call unpack_svwu(eou(:,ii),eov(:,ii),eo_isv,eo_iwu)
-  !  where ( wtr(1:ifull,ii) )
-  !    neta(1:ifull) = neta(1:ifull) - (1.-ocneps)*0.5*dt            &
-  !                   *(eou(1:ifull,ii)*w_e(1:ifull)/emu(1:ifull)    &
-  !                    -eo_iwu*w_e(1:ifull)/em_iwu                   &
-  !                    +eov(1:ifull,ii)*w_e(1:ifull)/emv(1:ifull)    &
-  !                    -eo_isv*w_e(1:ifull)/em_isv)                  &
-  !                    *em(1:ifull)**2/ds
-  !  end where  
-  !end do  
 
   ! compute contunity equation horizontal transport terms
   mps = 0.
   do ii = 1,wlev
     call unpack_svwu(eou(:,ii),eov(:,ii),eo_isv,eo_iwu)  
     where ( wtr(1:ifull,ii) )
+      !mps(1:ifull,ii) = neta(1:ifull) - (1.-ocneps)*0.5*dt          &
+      !                 *((eou(1:ifull,ii)*ddu(1:ifull)/emu(1:ifull) &
+      !                   -eo_iwu*dd_iwu/em_iwu                      &
+      !                   +eov(1:ifull,ii)*ddv(1:ifull)/emv(1:ifull) &
+      !                   -eo_isv*dd_isv/em_isv)                     &
+      !                   *em(1:ifull)**2/ds                         &
+      !                  +(nw(:,ii)-nw(:,ii-1))/godsig(1:ifull,ii))
       mps(1:ifull,ii) = neta(1:ifull) - (1.-ocneps)*0.5*dt          &
-                       *((eou(1:ifull,ii)*ddu(1:ifull)/emu(1:ifull) &
-                         -eo_iwu*dd_iwu/em_iwu                      &
-                         +eov(1:ifull,ii)*ddv(1:ifull)/emv(1:ifull) &
-                         -eo_isv*dd_isv/em_isv)                     &
+                       *((eou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull) &
+                         -eo_iwu*(dd_iwu+neta(1:ifull))/em_iwu                      &
+                         +eov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull) &
+                         -eo_isv*(dd_isv+neta(1:ifull))/em_isv)                     &
                          *em(1:ifull)**2/ds                         &
                         +(nw(:,ii)-nw(:,ii-1))/godsig(1:ifull,ii))
+
     end where  
   end do
       
@@ -1300,37 +1295,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     write(6,*) "ERROR: MLO dynamics requires precon=-10000"
     call ccmpi_abort(-1)
   end if
-
   
-  ! Update split part of neta (second half time-step)
-!  call bounds(neta,corner=.true.)
-!  call unpack_nsew(neta,neta_n,neta_s,neta_e,neta_w)
-!!$omp simd
-!  do iq = 1,ifull
-!    tnu(iq) = 0.5*(neta_n(iq)+neta(ien(iq)))
-!    tsu(iq) = 0.5*(neta_s(iq)+neta(ies(iq)))
-!    tev(iq) = 0.5*(neta_e(iq)+neta(ine(iq)))
-!    twv(iq) = 0.5*(neta_w(iq)+neta(inw(iq)))
-!  end do  
-!  detadxu = (neta_e-neta(1:ifull))*emu(1:ifull)/ds
-!  detadyu = (stwgt(1:ifull,1,1)*(tnu-tsu))*emu(1:ifull)/ds
-!  detadxv = (stwgt(1:ifull,1,2)*(tev-twv))*emv(1:ifull)/ds
-!  detadyv = (neta_n-neta(1:ifull))*emv(1:ifull)/ds
-!  oeu(1:ifull) = 0.5*(neta_e+neta(1:ifull))*eeu(1:ifull,1)
-!  oev(1:ifull) = 0.5*(neta_n+neta(1:ifull))*eev(1:ifull,1)
-!  oeu_iwu = 0.5*(neta_w+neta(1:ifull))*ee_iwu
-!  oev_isv = 0.5*(neta_s+neta(1:ifull))*ee_isv
-!  ccu(:,wlev) = sou(:) + spu(:)*ddu(1:ifull) + squ(:)*detadxu + ssu(:)*detadyu + szu(:)*oeu(1:ifull)
-!  ccv(:,wlev) = sov(:) + spv(:)*ddv(1:ifull) + sqv(:)*detadyv + ssv(:)*detadxv + szv(:)*oev(1:ifull)
-!  call boundsuv(ccu(:,wlev),ccv(:,wlev),stag=-9)
-!  call unpack_svwu(ccu(:,wlev),ccv(:,wlev),cc_isv,cc_iwu)
-!  neta(1:ifull) = neta(1:ifull) - (1.+ocneps)*0.5*dt       &
-!           *(ccu(1:ifull,wlev)*neta(1:ifull)/emu(1:ifull)  &
-!            -cc_iwu*neta(1:ifull)/em_iwu                   &
-!            +ccv(1:ifull,wlev)*neta(1:ifull)/emv(1:ifull)  &
-!            -cc_isv*neta(1:ifull)/em_isv)*em(1:ifull)**2/ds
   
-
   data_c(1:ifull,1) = neta(1:ifull)
   data_c(1:ifull,2) = ipice(1:ifull)
   call bounds(data_c(:,1:2),corner=.true.)
@@ -5699,8 +5665,10 @@ real, dimension(ifull,2) :: rhs
 real, dimension(ifull) :: sue, svn, suw, svs
 real, dimension(ifull) :: que, qvn, quw, qvs
 real, dimension(ifull) :: zue, zvn, zuw, zvs
-real, dimension(ifull) :: pdiv_d, odiv_d
+real, dimension(ifull) :: pdiv_d, pdiv_n, odiv_d, odiv_n
 real, dimension(ifull) :: hh
+real, dimension(ifull) :: yy, yyn, yys, yye, yyw
+real, dimension(ifull) :: yyne, yyen, yynw, yywn, yyse, yyes, yysw, yyws
 real, dimension(ifull) :: so_isv, so_iwu
 real, dimension(ifull) :: sp_isv, sp_iwu
 real, dimension(ifull) :: sq_isv, sq_iwu
@@ -5731,9 +5699,17 @@ odiv_d = (sou(1:ifull)*ddu(1:ifull)/emu(1:ifull)-so_iwu*dd_iwu/em_iwu  &
          +sov(1:ifull)*ddv(1:ifull)/emv(1:ifull)-so_isv*dd_isv/em_isv) &
          *em(1:ifull)**2/ds
 
+odiv_n = (sou(1:ifull)/emu(1:ifull)-so_iwu/em_iwu  &
+         +sov(1:ifull)/emv(1:ifull)-so_isv/em_isv) &
+         *em(1:ifull)**2/ds
+
 ! prep ocean gradient terms - ddu and ddv
 pdiv_d = (spu(1:ifull)*ddu(1:ifull)**2/emu(1:ifull)-sp_iwu*dd_iwu**2/em_iwu  &
          +spv(1:ifull)*ddv(1:ifull)**2/emv(1:ifull)-sp_isv*dd_isv**2/em_isv) &
+         *em(1:ifull)**2/ds
+
+pdiv_n = (spu(1:ifull)*ddu(1:ifull)/emu(1:ifull)-sp_iwu*dd_iwu/em_iwu  &
+         +spv(1:ifull)*ddv(1:ifull)/emv(1:ifull)-sp_isv*dd_isv/em_isv) &
          *em(1:ifull)**2/ds
 
 ! prep ocean gradient terms - detadxu and detadyv
@@ -5754,7 +5730,32 @@ zuw = -0.5*sz_iwu*dd_iwu/em_iwu/ds
 zvn = 0.5*szv(1:ifull)*ddv(1:ifull)/emv(1:ifull)/ds
 zvs = -0.5*sz_isv*dd_isv/em_isv/ds
 
-! zz*(d2neta/dx2+d2neta/dy2) + zz*(dneta/dx+dneta/dy) + hh*neta = rhs
+! yy*neta*(d2neta/dx2+d2neta/dy2) + zz*(d2neta/dx2+d2neta/dy2) + zz*(dneta/dx+dneta/dy) + hh*neta = rhs
+
+yyn(:) = (1.+ocneps)*0.5*dt*sqv(1:ifull)/ds*em(1:ifull)**2/ds                                                   &
+        +(1.+ocneps)*0.5*dt*(stwgt(1:ifull,1,1)*0.5*ssu(1:ifull)/ds-stwgt1_iwu*0.5*ss_iwu/ds)*em(1:ifull)**2/ds &
+        +(1.+ocneps)*0.5*dt*0.5*szv(1:ifull)/emv(1:ifull)/ds*em(1:ifull)**2
+yys(:) = (1.+ocneps)*0.5*dt*sq_isv/ds*em(1:ifull)**2/ds                                                          &
+        +(1.+ocneps)*0.5*dt*(-stwgt(1:ifull,1,1)*0.5*ssu(1:ifull)/ds+stwgt1_iwu*0.5*ss_iwu/ds)*em(1:ifull)**2/ds &
+        +(1.+ocneps)*0.5*dt*(-0.5*sz_isv/em_isv/ds)*em(1:ifull)**2
+yye(:) =(1.+ocneps)*0.5*dt*squ(1:ifull)/ds*em(1:ifull)**2/ds                                                   &
+        +(1.+ocneps)*0.5*dt*(stwgt(1:ifull,1,2)*0.5*ssv(1:ifull)/ds-stwgt2_isv*0.5*ss_isv/ds)*em(1:ifull)**2/ds &
+        +(1.+ocneps)*0.5*dt*0.5*szu(1:ifull)/emu(1:ifull)/ds*em(1:ifull)**2
+yyw(:) = (1.+ocneps)*0.5*dt*sq_iwu/ds*em(1:ifull)**2/ds                                                          &
+        +(1.+ocneps)*0.5*dt*(-stwgt(1:ifull,1,2)*0.5*ssv(1:ifull)/ds+stwgt2_isv*0.5*ss_isv/ds)*em(1:ifull)**2/ds &
+        +(1.+ocneps)*0.5*dt*(-0.5*sz_iwu/em_iwu/ds)*em(1:ifull)**2
+yyne(:) = (1.+ocneps)*0.5*dt*(stwgt(1:ifull,1,2)*0.5*ssv(1:ifull)/ds)*em(1:ifull)**2/ds
+yyen(:) = (1.+ocneps)*0.5*dt*(stwgt(1:ifull,1,1)*0.5*ssu(1:ifull)/ds)*em(1:ifull)**2/ds
+yyse(:) = (1.+ocneps)*0.5*dt*(-stwgt2_isv*0.5*ss_isv/ds)*em(1:ifull)**2/ds 
+yyes(:) = (1.+ocneps)*0.5*dt*(-stwgt(1:ifull,1,1)*0.5*ssu(1:ifull)/ds)*em(1:ifull)**2/ds
+yysw(:) = (1.+ocneps)*0.5*dt*(stwgt2_isv*0.5*ss_isv/ds)*em(1:ifull)**2/ds
+yyws(:) = (1.+ocneps)*0.5*dt*(stwgt1_iwu*0.5*ss_iwu/ds)*em(1:ifull)**2/ds
+yynw(:) = (1.+ocneps)*0.5*dt*(-stwgt(1:ifull,1,2)*0.5*ssv(1:ifull)/ds)*em(1:ifull)**2/ds
+yywn(:) = (1.+ocneps)*0.5*dt*(-stwgt1_iwu*0.5*ss_iwu/ds)*em(1:ifull)**2/ds
+yy(:) = (1.+ocneps)*0.5*dt*(-sqv(1:ifull)/ds-sq_isv/ds-squ(1:ifull)/ds-sq_iwu/ds) &
+                          *em(1:ifull)**2/ds                                      &
+       +(1.+ocneps)*0.5*dt*(0.5*szv(1:ifull)/emv(1:ifull)/ds-0.5*sz_isv/em_isv/ds &
+                           +0.5*szu(1:ifull)/emu(1:ifull)/ds-0.5*sz_iwu/em_iwu/ds)*em(1:ifull)**2
 
 zzn(:,1)  = (1.+ocneps)*0.5*dt*qvn*em(1:ifull)**2/ds                                      &
            +(1.+ocneps)*0.5*dt*(stwgt(1:ifull,1,1)*sue-stwgt1_iwu*suw)*em(1:ifull)**2/ds  &
@@ -5779,7 +5780,7 @@ zzwn(:,1) = (1.+ocneps)*0.5*dt*(-stwgt1_iwu*suw)*em(1:ifull)**2/ds
 zz(:,1)   = (1.+ocneps)*0.5*dt*(-qvn-qvs-que-quw)*em(1:ifull)**2/ds                       &
            +(1.+ocneps)*0.5*dt*(zvn+zvs+zue+zuw)*em(1:ifull)**2
 
-hh(:) = 1.
+hh(:) = 1. + (1.+ocneps)*0.5*dt*(odiv_n+pdiv_n)
 
 rhs(:,1) = xps(1:ifull) - (1.+ocneps)*0.5*dt*(odiv_d+pdiv_d)
 
@@ -5829,10 +5830,12 @@ where ( zz(:,2)>=0. )
   rhs(:,2) = 0.
 end where
 
-call mgmlo(neta,ipice,zz,zzn,zzs,zze,zzw,                      &
+call mgmlo(neta,ipice,yy,yyn,yys,yye,yyw,                      &
+           yyne,yyen,yyse,yyes,yynw,yywn,yysw,yyws,            &
+           zz,zzn,zzs,zze,zzw,                                 &
            zzne,zzen,zzse,zzes,zznw,zzwn,zzsw,zzws,            &
            hh,rhs,tol,itol,totits,maxglobseta,maxglobip,ipmax, &
-           ee,dd,minwater)
+           ee(:,1),dd,minwater)
 
 return
 end subroutine mlomg
