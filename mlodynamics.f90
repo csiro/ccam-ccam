@@ -198,7 +198,7 @@ if ( mlosigma>=0 .and. mlosigma<=3 ) then
   dumz = 0.
   do iq = 1,ifull
     if (.not.land(iq)) then
-      do ii=1,wlev
+      do ii = 1,wlev
         dumz(ii)       =max(dumz(ii),gosig(iq,ii))
         dumz(ii+wlev)  =max(dumz(ii+wlev),gosigh(iq,ii))
         dumz(ii+2*wlev)=max(dumz(ii+2*wlev),godsig(iq,ii))
@@ -776,8 +776,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   do ii = 1,wlev
     depdum(1:ifull,ii) = gosig(1:ifull,ii)*max( dd(1:ifull)+neta(1:ifull), minwater )
     dzdum(1:ifull,ii)  = godsig(1:ifull,ii)*max( dd(1:ifull)+neta(1:ifull), minwater )
-    !depdum(1:ifull,ii) = gosig(1:ifull,ii)*dd(1:ifull)
-    !dzdum(1:ifull,ii)  = godsig(1:ifull,ii)*dd(1:ifull)
     ! neglect surface height when calculating density gradient
     dzdum_rho(1:ifull+iextra,ii) = godsig(1:ifull+iextra,ii)*dd(1:ifull+iextra)
   end do  
@@ -863,10 +861,6 @@ do mspec_mlo = mspeca_mlo,1,-1
             -cc_iwu*(dd_iwu+oeu_iwu)/em_iwu                                &
             +ccv(1:ifull,wlev)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull)    &
             -cc_isv*(dd_isv+oev_isv)/em_isv)*em(1:ifull)**2/ds
-  !sdiv(:) = (ccu(1:ifull,wlev)*ddu(1:ifull)/emu(1:ifull)    &
-  !          -cc_iwu*dd_iwu/em_iwu                           &
-  !          +ccv(1:ifull,wlev)*ddv(1:ifull)/emv(1:ifull)    &
-  !          -cc_isv*dd_isv/em_isv)*em(1:ifull)**2/ds
   do ii = 1,wlev-1
     call unpack_svwu(ccu(:,ii),ccv(:,ii),cc_isv,cc_iwu)  
     nw(:,ii) = ee(1:ifull,ii)*ee(1:ifull,ii+1)*(sdiv(:)*gosigh(1:ifull,ii) &
@@ -874,11 +868,6 @@ do mspec_mlo = mspeca_mlo,1,-1
                  -cc_iwu*(dd_iwu+oeu_iwu)/em_iwu                           &
                  +ccv(1:ifull,ii)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull) &
                  -cc_isv*(dd_isv+oev_isv)/em_isv)*em(1:ifull)**2/ds)
-    !nw(:,ii) = ee(1:ifull,ii)*ee(1:ifull,ii+1)*(sdiv(:)*gosigh(1:ifull,ii) &
-    !           - (ccu(1:ifull,ii)*ddu(1:ifull)/emu(1:ifull)                &
-    !             -cc_iwu*dd_iwu/em_iwu                                     &
-    !             +ccv(1:ifull,ii)*ddv(1:ifull)/emv(1:ifull)                &
-    !             -cc_isv*dd_isv/em_isv)*em(1:ifull)**2/ds)
   end do
 
   ! compute contunity equation horizontal transport terms
@@ -886,19 +875,12 @@ do mspec_mlo = mspeca_mlo,1,-1
   do ii = 1,wlev
     call unpack_svwu(eou(:,ii),eov(:,ii),eo_isv,eo_iwu)  
     where ( wtr(1:ifull,ii) )
-      !mps(1:ifull,ii) = neta(1:ifull) - (1.-ocneps)*0.5*dt          &
-      !                 *((eou(1:ifull,ii)*ddu(1:ifull)/emu(1:ifull) &
-      !                   -eo_iwu*dd_iwu/em_iwu                      &
-      !                   +eov(1:ifull,ii)*ddv(1:ifull)/emv(1:ifull) &
-      !                   -eo_isv*dd_isv/em_isv)                     &
-      !                   *em(1:ifull)**2/ds                         &
-      !                  +(nw(:,ii)-nw(:,ii-1))/godsig(1:ifull,ii))
-      mps(1:ifull,ii) = neta(1:ifull) - (1.-ocneps)*0.5*dt          &
+      mps(1:ifull,ii) = neta(1:ifull) - (1.-ocneps)*0.5*dt                          &
                        *((eou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull) &
                          -eo_iwu*(dd_iwu+neta(1:ifull))/em_iwu                      &
                          +eov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull) &
                          -eo_isv*(dd_isv+neta(1:ifull))/em_isv)                     &
-                         *em(1:ifull)**2/ds                         &
+                         *em(1:ifull)**2/ds                                         &
                         +(nw(:,ii)-nw(:,ii-1))/godsig(1:ifull,ii))
 
     end where  
@@ -934,9 +916,9 @@ do mspec_mlo = mspeca_mlo,1,-1
   do ii = 1,wlev
     gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
     gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
-    tau(:,ii) = grav*gosigu*ddu(1:ifull)*drhobardxu(:,ii)/wrtrho  &
+    tau(:,ii) = grav*gosigu*max(ddu(1:ifull)+oeu(1:ifull),minwater)*drhobardxu(:,ii)/wrtrho  &
                + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu ! staggered
-    tav(:,ii) = grav*gosigv*ddv(1:ifull)*drhobardyv(:,ii)/wrtrho  &
+    tav(:,ii) = grav*gosigv*max(ddv(1:ifull)+oev(1:ifull),minwater)*drhobardyv(:,ii)/wrtrho  &
                + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv  
   end do
   if ( mlojacobi==7 ) then
@@ -1019,7 +1001,7 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Horizontal advection for continuity
   cou(1:ifull,1:wlev,1) = mps(1:ifull,1:wlev)
-  call mlob2ints_bs(cou(:,:,1:1),nface,xg,yg,wtr)
+  call mlob2ints(cou(:,:,1:1),nface,xg,yg,wtr)
   mps(1:ifull,1:wlev) = cou(1:ifull,1:wlev,1)
 
   ! Horizontal advection for T and S
@@ -1075,6 +1057,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   do ii = 2,wlev
     xps(:) = xps(:) + mps(1:ifull,ii)*godsig(1:ifull,ii)
   end do
+  xps(:) = xps(:)*ee(1:ifull,1)
   
 
   call START_LOG(watereos_begin)
@@ -1184,15 +1167,13 @@ do mspec_mlo = mspeca_mlo,1,-1
     llu(:,ii) = grav*gosigu*(bu*drhobardxu(:,ii) + cu*drhobardyu(:,ii))/wrtrho
     mmu(:,ii) = bu*grav
     nnu(:,ii) = cu*grav
-    !oou(:,ii) = grav*gosigu*(bu*drhobardxu(:,ii) + cu*drhobardyu(:,ii))/wrtrho
-    oou(:,ii) = 0.
+    oou(:,ii) = grav*gosigu*(bu*drhobardxu(:,ii) + cu*drhobardyu(:,ii))/wrtrho
 
     kkv(:,ii) = av + bv*(dpsdyv/wrtrho+grav*dttdyv) + cv*(dpsdxv/wrtrho+grav*dttdxv)
     llv(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii) + cv*drhobardxv(:,ii))/wrtrho
     mmv(:,ii) = bv*grav 
     nnv(:,ii) = cv*grav
-    !oov(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii) + cv*drhobardxv(:,ii))/wrtrho
-    oov(:,ii) = 0.
+    oov(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii) + cv*drhobardxv(:,ii))/wrtrho
 
     if ( mlojacobi==7 ) then
       mmu(:,ii) = mmu(:,ii) + grav*rhou(:,ii)/wrtrho*(1.-gosigu)*bu
@@ -1316,8 +1297,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   detadyu = (stwgt(1:ifull,1,1)*(tnu-tsu))*emu(1:ifull)/ds
   detadxv = (stwgt(1:ifull,1,2)*(tev-twv))*emv(1:ifull)/ds
   detadyv = (neta_n-neta(1:ifull))*emv(1:ifull)/ds
-  oeu(1:ifull) = 0.5*(neta_e+neta(1:ifull))*eeu(1:ifull,1)
-  oev(1:ifull) = 0.5*(neta_n+neta(1:ifull))*eev(1:ifull,1)
+  oeu(1:ifull) = 0.5*(neta_e+neta(1:ifull))
+  oev(1:ifull) = 0.5*(neta_n+neta(1:ifull))
 
   ! Update currents once neta is calculated
   do ii = 1,wlev
