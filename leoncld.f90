@@ -2216,8 +2216,6 @@ do n = 1,njumps
         
       ! Grauple
       ! calculate maximum and random overlap for falling graupel
-      pfstayice(:,k) = pfstayice(:,k) + fluxgraupel(:)*(1.-fthrugraupel(:))/tdt_in ! Save flux for the wet deposition scheme.  
-      pqfsedice(:,k) = pqfsedice(:,k) + xfrac_graupel(:)*foutgraupel(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
       rdclfrgraupel(1:imax) = min(1., rdclfrgraupel(:)+caccl_g(:)-rdclfrgraupel(:)*caccl_g(:))   ! rnd overlap
       mxclfrgraupel(1:imax) = max( mxclfrgraupel(:), caccf_g(:) )                                ! max overlap
       rdclfrgraupel(1:imax) = min(1., rdclfrgraupel(:)+cffreeze(:)-rdclfrgraupel(:)*cffreeze(:)) ! rnd overlap
@@ -2233,6 +2231,8 @@ do n = 1,njumps
       alph(:)         = tdt*vg2(:)/dz(:,k)
       foutgraupel(:)  = 1. - exp(-alph(:))           !analytical
       fthrugraupel(:) = 1. - foutgraupel(:)/alph(:)  !analytical
+      pfstayice(:,k) = pfstayice(:,k) + fluxgraupel(:)*(1.-fthrugraupel(:))/tdt_in ! Save flux for the wet deposition scheme.  
+      pqfsedice(:,k) = pqfsedice(:,k) + xfrac_graupel(:)*foutgraupel(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
       ! Compute fluxes into the box
       cffluxin(:) = cgfra(:) - cfgraupel(:,k)
       rhogin(:)   = fluxgraupel(:)/dz(:,k)
@@ -2252,8 +2252,6 @@ do n = 1,njumps
       
       ! Snow
       ! calculate maximum and random overlap for falling snow
-      pfstayice(:,k) = pfstayice(:,k) + fluxsnow(:)*(1.-fthrusnow(:))/tdt_in ! Save flux for the wet deposition scheme.
-      pqfsedice(:,k) = pqfsedice(:,k) + xfrac_snow(:)*foutsnow(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
       rdclfrsnow(1:imax) = min(1., rdclfrsnow(:)+caccl_s(:)-rdclfrsnow(:)*caccl_s(1:imax)) ! rnd overlap
       mxclfrsnow(1:imax) = max( mxclfrsnow(:), caccf_s(1:imax) )                           ! max overlap
       mxclfrsnow(1:imax) = max( mxclfrsnow(:), cfautosnow(:,k) )                           ! max overlap
@@ -2268,6 +2266,8 @@ do n = 1,njumps
       alph(:)      = tdt*vs2/dz(:,k)
       foutsnow(:)  = 1. - exp(-alph(:))        !analytical
       fthrusnow(:) = 1. - foutsnow(:)/alph(:)  !analytical
+      pfstayice(:,k) = pfstayice(:,k) + fluxsnow(:)*(1.-fthrusnow(:))/tdt_in ! Save flux for the wet deposition scheme.
+      pqfsedice(:,k) = pqfsedice(:,k) + xfrac_snow(:)*foutsnow(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
       ! Compute fluxes into the box
       cffluxin(:) = csfra(:) - cfsnow(:,k)
       rhosin(:)   = fluxsnow(:)/dz(:,k)
@@ -2290,8 +2290,6 @@ do n = 1,njumps
     
     ! Ice
     ! calculate maximum and random overlap for falling ice
-    pfstayice(:,k) = pfstayice(:,k) + fluxice(:)*(1.-fthruice(:))/tdt_in ! Save flux for the wet deposition scheme.
-    pqfsedice(:,k) = pqfsedice(:,k) + xfrac_ice(:)*foutice(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
     rdclfrice(1:imax) = min( 1., rdclfrice(:)+caccl_i(:)-rdclfrice(:)*caccl_i(:) )  ! rnd overlap
     mxclfrice(1:imax) = max( mxclfrice(:), caccf_i(:) )                             ! max overlap
     where ( fluxice(:)<=0. )
@@ -2305,6 +2303,8 @@ do n = 1,njumps
     alph(:)     = tdt*vi2(:)/dz(:,k)
     foutice(:)  = 1. - exp(-alph(:))       !analytical
     fthruice(:) = 1. - foutice(:)/alph(:)  !analytical
+    pfstayice(:,k) = pfstayice(:,k) + fluxice(:)*(1.-fthruice(:))/tdt_in ! Save flux for the wet deposition scheme.
+    pqfsedice(:,k) = pqfsedice(:,k) + xfrac_ice(:)*foutice(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
     ! Compute fluxes into the box
     cffluxin(:) = cifra(:) - cifr(:,k)
     rhoiin(:)   = fluxice(:)/dz(:,k)
@@ -2338,7 +2338,6 @@ do n = 1,njumps
   
     ! Rain
     ! Calculate the raining cloud cover down to this level, for stratiform (crfra).
-    pfstayliq(:,k) = pfstayliq(:,k) + fluxrain(:)*(1.-fthruliq(:))/tdt_in ! store liquid flux for aerosols
     rdclfrrain(1:imax) = min(1., rdclfrrain(:)+caccf_r(:)-rdclfrrain(:)*caccf_r(:))  ! rnd overlap
     mxclfrrain(1:imax) = max( mxclfrrain(:), caccl_r(:) )                            ! max overlap
     rdclfrrain(1:imax) = min(1., rdclfrrain(:)+cfmelt(:)-rdclfrrain(:)*cfmelt(:))    ! rnd overlap
@@ -2359,6 +2358,7 @@ do n = 1,njumps
       foutliq(:)  = 1.
       fthruliq(:) = 1.
     end if
+    pfstayliq(:,k) = pfstayliq(:,k) + fluxrain(:)*(1.-fthruliq(:))/tdt_in ! store liquid flux for aerosols
     ! Compute fluxes into the box
     cffluxin(:) = crfra(:) - cfrain(:,k)
     rhorin(:)   = fluxrain(:)/dz(:,k)
@@ -2542,15 +2542,15 @@ real, dimension(size(vi2)), intent(in) :: rhoi,rhoa,cifr
 ! Set up snow fall speed field
 select case(abs(ldr))
   case(1)
-    vi2 = max( 0.1, 3.23*(max(rhoi,0.)/max(cifr,1.e-8))**0.17 )  ! Ice fall speed from LDR 1997
+    vi2 = 3.23*(max(rhoi,0.)/max(cifr,1.e-8))**0.17  ! Ice fall speed from LDR 1997
   case(2)
     vi2 = 0.9*3.23*(rhoi/max(cifr,1.e-8))**0.17
   case(3)
-    vi2 = max( 0.1, 2.05+0.35*log10(rhoi/rhoa/max(cifr,1.e-8)) )
+    vi2 = 2.05+0.35*log10(rhoi/rhoa/max(cifr,1.e-8))
   case(4)
     vi2 = 1.4*3.23*(rhoi/max(cifr,1.e-8))**0.17
   case(5)
-    vi2 = max( 0.1, 3.29*(max( rhoi, 0. )/max(cifr,1.e-8))**0.16 ) ! from Lin et al 1983 
+    vi2 = 3.29*(max( rhoi, 0. )/max(cifr,1.e-8))**0.16 ! from Lin et al 1983 
   case(11)
     ! following are alternative slightly-different versions of above
     ! used for I runs from 29/4/05 till 30/8/05
@@ -2568,6 +2568,8 @@ select case(abs(ldr))
     vi2 = max( vi2, 3.29*(max(rhoi,0.)/max(cifr,1.e-8))**0.16 ) ! from Lin et al 1983   
 end select
 
+vi2 = max( 0.1, vi2 )  
+  
 return
 end subroutine ice_velocity
 
