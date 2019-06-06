@@ -218,21 +218,22 @@ do tile = 1,ntiles
 end do
 !$omp end do nowait
 
-if ( ntiles==1 ) then
-  if (diag.or.ntest==1) then
-    if (mydiag) then
-      if (land(idjd)) then
-        write(6,*) 'entering sflux ktau,nsib,ivegt,isoilm,land ',ktau,nsib,ivegt(idjd),isoilm(idjd),land(idjd)
-        write(6,*) 'idjd,id,jd,slwa,sgsave ',idjd,id,jd,slwa(idjd),sgsave(idjd)
-        write(6,*) 'snowd,sicedep,condx ',snowd(idjd),sicedep(idjd),condx(idjd)
-        write(6,*) 't1,tss ',t(idjd,1),tss(idjd)
-        write(6,*) 'wb ',(wb(idjd,k),k=1,ms)
-        write(6,*) 'tgg ',(tgg(idjd,k),k=1,ms)
-      endif
-    end if
-    call maxmin(t,' t',ktau,1.,kl)
-  endif
-end if
+if (diag.or.ntest==1) then
+!$omp barrier
+!$omp single    
+  if (mydiag) then
+    if (land(idjd)) then
+      write(6,*) 'entering sflux ktau,nsib,ivegt,isoilm,land ',ktau,nsib,ivegt(idjd),isoilm(idjd),land(idjd)
+      write(6,*) 'idjd,id,jd,slwa,sgsave ',idjd,id,jd,slwa(idjd),sgsave(idjd)
+      write(6,*) 'snowd,sicedep,condx ',snowd(idjd),sicedep(idjd),condx(idjd)
+      write(6,*) 't1,tss ',t(idjd,1),tss(idjd)
+      write(6,*) 'wb ',(wb(idjd,k),k=1,ms)
+      write(6,*) 'tgg ',(tgg(idjd,k),k=1,ms)
+    endif
+  end if
+  call maxmin(t,' t',ktau,1.,kl)
+!$omp end single
+endif
 
 !--------------------------------------------------------------
 !$omp master
@@ -396,29 +397,33 @@ do tile = 1,ntiles
 end do
 !$omp end do nowait
   
-if ( ntiles==1 ) then
-  if(diag.or.ntest==1)then
-    if ( mydiag ) then
-      write(6,*) 'at end of sflux'
-      write(6,*) 'eg,fg ',eg(idjd),fg(idjd)
-      write(6,*) 'tscrn,cduv,zolnd ',tscrn(idjd),cduv(idjd),zolnd(idjd)
-      write(6,*) 'snowd,sicedep ',snowd(idjd),sicedep(idjd)
-      write(6,*) 'u1,v1,qg1 ',u(idjd,1),v(idjd,1),qg(idjd,1)
-      write(6,*) 'w,w2,condx ',wb(idjd,1),wb(idjd,ms),condx(idjd)
-      write(6,*) 't1,tss,tgg_2,tgg_ms ',t(idjd,1),tss(idjd),tgg(idjd,2),tgg(idjd,ms)
-    end if
-    call maxmin(tscrn,'tc',ktau,1.,1)
-  endif
-  if(ntest==4.and.ktau==10)then
-    do iq=1,ifull
-      if(.not.land(iq))then
-        write(45,'(2g13.4)') sqrt(u(iq,1)**2+v(iq,1)**2),fg(iq)
-        write(46,'(2g13.4)') sqrt(u(iq,1)**2+v(iq,1)**2),eg(iq)
-      endif
-      write(47,'(2g13.4)') sqrt(u(iq,1)**2+v(iq,1)**2),eg(iq)
-    enddo
-  endif
-end if  
+if(diag.or.ntest==1)then
+!$omp barrier
+!$omp single
+  if ( mydiag ) then
+    write(6,*) 'at end of sflux'
+    write(6,*) 'eg,fg ',eg(idjd),fg(idjd)
+    write(6,*) 'tscrn,cduv,zolnd ',tscrn(idjd),cduv(idjd),zolnd(idjd)
+    write(6,*) 'snowd,sicedep ',snowd(idjd),sicedep(idjd)
+    write(6,*) 'u1,v1,qg1 ',u(idjd,1),v(idjd,1),qg(idjd,1)
+    write(6,*) 'w,w2,condx ',wb(idjd,1),wb(idjd,ms),condx(idjd)
+    write(6,*) 't1,tss,tgg_2,tgg_ms ',t(idjd,1),tss(idjd),tgg(idjd,2),tgg(idjd,ms)
+  end if
+  call maxmin(tscrn,'tc',ktau,1.,1)
+!$omp end single
+endif
+if(ntest==4.and.ktau==10)then
+!$omp barrier
+!$omp single
+  do iq=1,ifull
+    if(.not.land(iq))then
+      write(45,'(2g13.4)') sqrt(u(iq,1)**2+v(iq,1)**2),fg(iq)
+      write(46,'(2g13.4)') sqrt(u(iq,1)**2+v(iq,1)**2),eg(iq)
+    endif
+    write(47,'(2g13.4)') sqrt(u(iq,1)**2+v(iq,1)**2),eg(iq)
+  enddo
+!$omp end single
+endif
 
 return
 end subroutine sflux

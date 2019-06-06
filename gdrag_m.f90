@@ -83,24 +83,31 @@ use cc_omp
 use arrays_m
 use newmpar_m
 use nharrs_m
+use parm_m, only : idjd
 use pbl_m
 
 implicit none
 
 integer :: tile, is, ie
+integer :: idjd_t
 real, dimension(imax,kl) :: lt, lu, lv
+logical :: mydiag_t
 
 !$omp do schedule(static) private(is,ie),        &
-!$omp private(lt,lu,lv)
+!$omp private(lt,lu,lv,idjd_t,mydiag_t)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
+  
+  idjd_t = mod(idjd,imax)
+  mydiag_t = (idjd-1)/imax==tile
   
   lt      = t(is:ie,:)
   lu      = u(is:ie,:)
   lv      = v(is:ie,:)
   
-  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),imax,ntiles)
+  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie), &
+                   idjd_t,mydiag_t)
 
   u(is:ie,:) = lu
   v(is:ie,:) = lv
@@ -119,18 +126,19 @@ end subroutine gwdrag
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
-subroutine gwdrag_work(t,u,v,tss,he,imax,ntiles)   ! globpea/darlam (but not staggered)
+subroutine gwdrag_work(t,u,v,tss,he,                 &
+                       idjd,mydiag)   ! globpea/darlam (but not staggered)
 
-use cc_mpi, only : mydiag
+use cc_omp, only : imax
 use const_phys
 use newmpar_m
-use parm_m
+use parm_m, only : vmodmin,sigbot_gwd,fc2,alphaj,ngwd,dt
 use sigs_m
 
 implicit none
 
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
-integer, intent(in) :: imax, ntiles
+integer, intent(in) :: idjd
 integer iq, k
 real dzx
 real, dimension(:,:), intent(in)    :: t
@@ -144,6 +152,7 @@ real, dimension(imax) :: temp, fnii
 real, dimension(imax) :: bvng ! to be depreciated
 real, dimension(imax) :: apuw, apvw, alambda, wmag
 real, dimension(kl) :: sigk
+logical, intent(in) :: mydiag
 
 ! older values:  
 !   ngwd=-5  helim=800.  fc2=1.  sigbot_gw=0. alphaj=1.E-6 (almost equiv to 0.0075)
@@ -242,7 +251,7 @@ do k = kbot,kl
 end do     ! k loop
 
 
-if ( ntest==1 .and. mydiag .and. ntiles==1 ) then ! JLM
+if ( ntest==1 .and. mydiag ) then ! JLM
   do iq = idjd-1,idjd+1
     write(6,*) 'from gwdrag, iq,ngwd,alambda,fnii,apuw,apvw,wmag',  &
     iq,ngwd,alambda(iq),fnii(iq),apuw(iq),apvw(iq),wmag(iq)

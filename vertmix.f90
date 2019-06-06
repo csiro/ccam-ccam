@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -121,12 +121,14 @@ implicit none
 include 'kuocom.h'                  ! Convection parameters
 
 integer :: is, ie, tile, k
+integer :: idjd_t
 real, dimension(imax,kl,naero) :: lxtg
 real, dimension(imax,kl) :: lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lcfrac, lu, lv
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
 real, dimension(imax,kl) :: lat, lct
 real, dimension(imax) :: lou, lov, liu, liv
+logical :: mydiag_t
 #ifdef scm
 real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
 real, dimension(imax,kl) :: ltkesave, lepssave, lrkmsave, lrkhsave
@@ -141,7 +143,7 @@ real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 !$omp do schedule(static) private(is,ie,k),                                &
 !$omp private(lt,lqg,lqfg,lqlg),                                           &
 !$omp private(lcfrac,lxtg,lu,lv,lsavu,lsavv,ltke,leps,lshear),             &
-!$omp private(lou,lov,liu,liv,lat,lct),                                    &
+!$omp private(lou,lov,liu,liv,lat,lct,idjd_t,mydiag_t),                    &
 #ifdef scm
 !$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave),      &
 !$omp private(lepssave,lrkmsave,lrkhsave,lbuoyproduction,),                &
@@ -154,6 +156,9 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
 
+  idjd_t = mod(idjd,imax)
+  mydiag_t = (idjd-1)/imax==tile
+  
   lt        = t(is:ie,:)
   lqg       = qg(is:ie,:)
   lqfg      = qfg(is:ie,:)
@@ -214,7 +219,7 @@ do tile = 1,ntiles
                     ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave                &
                     ,lbuoyproduction,lshearproduction,ltotaltransport                                                &
 #endif
-                    )
+                    ,idjd_t,mydiag_t)
                     
   t(is:ie,:)          = lt
   qg(is:ie,:)         = lqg
@@ -286,15 +291,18 @@ subroutine vertmix_work(t,em,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,condc,
                         ,wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave           &
                         ,buoyproduction,shearproduction,totaltransport                                     &
 #endif
-                        )
+                        ,idjd,mydiag)
 
 use aerosolldr, only : naero        ! LDR prognostic aerosols
-use cc_mpi                          ! CC MPI routines
+use cc_mpi, only : comm_world,       &
+    ccmpi_barrier,ccmpi_abort       ! CC MPI routines
 use cc_omp                          ! CC OpenMP routines
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use newmpar_m                       ! Grid parameters
-use parm_m                          ! Model configuration
+use parm_m, only : diag,ds,ktau,     &
+    nvmix,dt,nlv,ia,ib,ja,jb,nmaxpr, &
+    iaero,nlocal,qgmin,av_vmod      ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
 use tkeeps, only : cq,tkemix        ! TKE-EPS boundary layer
 
@@ -302,6 +310,7 @@ implicit none
       
 include 'kuocom.h'                  ! Convection parameters
 
+integer, intent(in) :: idjd
 integer, dimension(imax), intent(in) :: kbsav, ktsav
 integer, parameter :: ntest = 0
 integer k, nt
@@ -326,6 +335,7 @@ real, dimension(imax,kl-1) :: tmnht
 real, dimension(imax) :: dz, dzr
 real, dimension(imax) :: rhos, dx
 real, dimension(kl) :: sighkap,sigkap,delons,delh
+logical, intent(in) :: mydiag
 logical, dimension(imax), intent(in) :: land
 
 #ifdef scm
@@ -409,7 +419,7 @@ if ( nvmix/=6 ) then
 #ifdef scm
                ,wth_flux,wq_flux                                                             &
 #endif
-               )
+               ,idjd,mydiag)
 
   do k = 1,kl-1
     delsig   = sig(k+1) - sig(k)
@@ -442,7 +452,7 @@ if ( nvmix/=6 ) then
         guv(:,k) = guv(:,k) - convpsav(:)*.5 ! with factor of .5
       end where
     enddo    ! k loop
-    if ( diag .and. mydiag .and. ntiles==1 ) then
+    if ( diag .and. mydiag ) then
       write(6,*)'vertmix after conv; kb,kt,convp',kbsav(idjd),ktsav(idjd),convpsav(idjd)
       write(6,*)'new guv',(guv(idjd,k),k=1,kl)
     end if
@@ -460,7 +470,7 @@ if ( nvmix/=6 ) then
   do k = 1,kl-1
     ct(:,k) = -gt(:,k)/dsig(k)
   enddo    !  k loop
-  if ( ( diag .or. ntest==2 ) .and. mydiag .and. ntiles==1 ) then
+  if ( ( diag .or. ntest==2 ) .and. mydiag ) then
     write(6,*)'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)
     write(6,*)'at ',(at(idjd,k),k=1,kl)
     write(6,*)'ct ',(ct(idjd,k),k=1,kl)
@@ -469,18 +479,20 @@ if ( nvmix/=6 ) then
 
   !--------------------------------------------------------------
   ! Temperature
-  if ( nmaxpr==1 .and. mydiag .and. ntiles==1  ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
+  if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
   rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/ps(1:imax)
   call trim(at,ct,rhs)   ! for t
-  if ( nmaxpr==1 .and. mydiag .and. ntiles==1  ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
+  if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
   do k = 1,kl
     t(1:imax,k) = rhs(:,k)/sigkap(k)
   enddo    !  k loop
-  if ( diag .and. ntiles==1  ) then
+  if ( diag ) then
     if ( mydiag ) then
       write(6,*)'vertmix eg,fg ',eg(idjd),fg(idjd)
     end if
-    call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
+    if ( ntiles==1 ) then
+      call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
+    end if  
   end if
  
 #ifdef scm
@@ -501,7 +513,7 @@ if ( nvmix/=6 ) then
   ! could add extra sfce moisture flux term for crank-nicholson
   call trim(at,ct,rhs)    ! for qg
   qg(1:imax,:) = rhs
-  if ( diag .and. mydiag .and. ntiles==1  ) then
+  if ( diag .and. mydiag ) then
     write(6,*)'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
     write (6,"('qg ',9f7.3/(8x,9f7.3))") (1000.*qg(idjd,k),k=1,kl)
   end if
@@ -551,7 +563,7 @@ if ( nvmix/=6 ) then
     cu(:,k) = -guv(:,k)/dsig(k)
   enddo    !  k loop
   cu(:,kl) = 0.
-  if ( ( diag .or. ntest==2 ) .and. mydiag .and. ntiles==1  ) then
+  if ( ( diag .or. ntest==2 ) .and. mydiag ) then
     write(6,*)'au ',(au(idjd,k),k=1,kl)
     write(6,*)'cu ',(cu(idjd,k),k=1,kl)
   end if      ! (ntest==2)
@@ -588,7 +600,7 @@ if ( nvmix/=6 ) then
   end do
 #endif
   
-  if ( ( diag .or. ntest>=1 ) .and. mydiag .and. ntiles==1  ) then
+  if ( ( diag .or. ntest>=1 ) .and. mydiag ) then
     write(6,*)'after trim in vertmix '
     write (6,"('thet',9f7.2/(8x,9f7.2))") (sigkap(k)*t(idjd,k),k=1,kl) 
     write (6,"('t   ',9f7.2/(8x,9f7.2))") (t(idjd,k),k=1,kl) 
@@ -754,15 +766,17 @@ subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,ntest,dx,         
 #ifdef scm
                    ,wth_flux,wq_flux                                                             &
 #endif
-                   )
+                   ,idjd,mydiag)
 
-use cc_mpi                          ! CC MPI routines
+!use cc_mpi                          ! CC MPI routines
 use cc_omp                          ! CC OpenMP routines
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use estab, only : establ            ! Liquid saturation function
 use newmpar_m                       ! Grid parameters
-use parm_m                          ! Model configuration
+use parm_m, only : diag,nmaxpr,     &
+    nvmix,av_vmod,amxlsq,dt,nlocal, &
+    ktau,nlv,ia,ib,ja,jb            ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : zmin             ! Soil and surface data
 
@@ -771,7 +785,8 @@ implicit none
 include 'kuocom.h'                  ! Convection parameters
 
 integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
-integer, intent(in) :: ntest
+integer, intent(in) :: idjd, ntest
+logical, intent(in) :: mydiag
 integer iq,k
 integer, dimension(imax) :: kbase,ktop
 real, parameter :: lambda=0.45               ! coefficients for Louis scheme
@@ -828,7 +843,7 @@ prcpv(1:kl) = sig(1:kl)**(-roncp)
 rkm = 0.
 rkh = 0.
 
-if ( nmaxpr==1 .and. mydiag .and. ntiles==1  ) then
+if ( nmaxpr==1 .and. mydiag ) then
   write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
 end if
   
@@ -868,7 +883,7 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
         betaqt(iq,k)=betaq              !Beta_q_tilde
       enddo   ! iq loop
     endif  ! (sig(k)>.8)
-    if(diag.and.mydiag.and.ntiles==1)then
+    if(diag.and.mydiag)then
       iq=idjd
       dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(pk-es,1.))
       betat=1./t(iq,k)
@@ -1106,7 +1121,7 @@ do k = 1,kl-1
     rkh(:,:)=0.
   endif     ! (nvmix/=0)
 
-  if((diag.or.ntest>=1).and.mydiag.and.ntiles==1)then
+  if((diag.or.ntest>=1).and.mydiag)then
     iq=idjd
     write(6,*)'k,dt,sqmxl,dzr ',k,dt,sqmxl(idjd),dzr(idjd)
     write(6,*)'k,t,t+,ps ',k,t(idjd,k),t(idjd,k+1),ps(idjd)
@@ -1125,7 +1140,7 @@ do k = 1,kl-1
   endif     ! (diag.or.ntest>=1)
 enddo      ! end of k loop
 
-if( (diag.or.ntest>=1) .and. mydiag .and. ntiles==1 )then
+if( (diag.or.ntest>=1) .and. mydiag )then
   write(6,*)'before possible call to pbldif in vertmix'
   write (6,"('uav ',9f8.3/4x,9f8.3)") uav(idjd,:) 
   write (6,"('vav ',9f8.3/4x,9f8.3)") vav(idjd,:)
@@ -1135,7 +1150,7 @@ if( (diag.or.ntest>=1) .and. mydiag .and. ntiles==1 )then
   write (6,"('thee',9f8.3/4x,9f8.3)") (prcpv(k)*t(idjd,k)*(t(idjd,k) + .5*hlcp*qs(idjd,k)) &
                                       /(t(idjd,k) - .5*hlcp*qs(idjd,k)),k=1,kl)
 endif
-if(nmaxpr==1.and.mydiag.and.ntiles==1)then
+if(nmaxpr==1.and.mydiag)then
   write (6,"('rino_v',9f9.3/6x,9f9.3)") ri(idjd,1:kl-1)
   write (6,"('rkh0 ',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
   write (6,"('rkm0 ',9f9.3/5x,9f9.3)") rkm(idjd,1:kl-2)
@@ -1150,13 +1165,13 @@ if (nlocal/=0) then
               )  ! rhs is theta or thetal
   ! n.b. *** pbldif partially updates qg and theta (t done during trim)	 
   ! and updates rkh and rkm arrays
-  if(nmaxpr==1.and.mydiag.and.ntiles==1)then
+  if(nmaxpr==1.and.mydiag)then
     write (6,"('pblh ',f8.2)") pblh(idjd)
     write (6,"('rkh1 ',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
     write (6,"('rkm1 ',9f9.3/5x,9f9.3)") rkm(idjd,1:kl-2)
   endif
-  if(nmaxpr==1.and.mydiag.and.ntiles==1) write (6,"('thet_pbl',9f8.3/8x,9f8.3)") rhs(idjd,:)
-  if( (diag.or.ntest>=1) .and. mydiag .and. ntiles==1 ) write (6,"('qg ',9f8.3/4x,9f8.3)") qg(idjd,:)
+  if(nmaxpr==1.and.mydiag) write (6,"('thet_pbl',9f8.3/8x,9f8.3)") rhs(idjd,:)
+  if( (diag.or.ntest>=1) .and. mydiag ) write (6,"('qg ',9f8.3/4x,9f8.3)") qg(idjd,:)
   if(diag.and.ntiles==1)then
     call printa('rkh ',rkh,ktau,nlv,ia,ib,ja,jb,0.,1.)
     call printa('cond',condx,ktau,1,ia,ib,ja,jb,0.,1.)
@@ -1388,7 +1403,7 @@ if(kscmom==1)then
   enddo   !  k loop
 endif     ! (kscmom==1)
       
-if(ksc/=0.and.(ntest/=0.or.diag).and.nproc==1.and.ntiles==1)then
+if(ksc/=0.and.(ntest/=0.or.diag).and.nproc==1)then
   do iq=1,imax
     if(rk_shal(iq,1)>rk_shal(iq,2))then
       write(6,*) 'iq,rk_shal1,rk_shal2',iq,rk_shal(iq,1),rk_shal(iq,2)

@@ -123,21 +123,26 @@ implicit none
 include 'kuocom.h'                ! Convection parameters
 
 integer tile, is, ie
+integer idjd_t
 real, dimension(imax,kl) :: lcfrac, lgfrac, lppfevap, lppfmelt, lppfprec, lppfsnow
 real, dimension(imax,kl) :: lppfstayice, lppfstayliq, lppfsubl, lpplambs, lppmaccr, lppmrate
 real, dimension(imax,kl) :: lppqfsedice, lpprfreeze, lpprscav, lqccon, lqfg, lqfrad
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfrac, lt
 real, dimension(imax,kl) :: ldpsldt, lfluxtot, lnettend, lstratcloud
+logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),                                             &
 !$omp private(lcfrac,lgfrac),                                                         &
 !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl),  &
 !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt),  &
-!$omp private(ldpsldt,lfluxtot,lnettend,lstratcloud)
+!$omp private(ldpsldt,lfluxtot,lnettend,lstratcloud,idjd_t,mydiag_t)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
+  
+  idjd_t = mod(idjd,imax)
+  mydiag_t = (idjd-1)/imax==tile
   
   lcfrac   = cfrac(is:ie,:)
   lgfrac   = gfrac(is:ie,:)
@@ -164,7 +169,7 @@ do tile = 1,ntiles
                     lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl,           &
                     lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
                     ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-                    ldpsldt,lfluxtot,lnettend,lstratcloud,em(is:ie),is)
+                    ldpsldt,lfluxtot,lnettend,lstratcloud,em(is:ie),idjd_t,mydiag_t,is)
 
   cfrac(is:ie,:) = lcfrac
   gfrac(is:ie,:) = lgfrac
@@ -225,23 +230,22 @@ subroutine leoncld_work(cfrac,condc,condg,conds,condx,gfrac,kbsav,ktsav,land,   
                         ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,ppfstayliq,ppfsubl, &
                         pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,precip,   &
                         ps,qccon,qfg,qfrad,qg,qgrg,qlg,qlrad,qrg,qsng,rfrac,sfrac,t,   &
-                        dpsldt,fluxtot,nettend,stratcloud,em,is)
+                        dpsldt,fluxtot,nettend,stratcloud,em,idjd,mydiag,is)
       
 use aerointerface, only : aerodrop       ! Aerosol interface
-use cc_mpi                               ! CC MPI routines
-use cc_omp, only : imax, ntiles          ! CC OpenMP routines
+use cc_omp, only : imax                  ! CC OpenMP routines
 use cloudmod, only : convectivecloudfrac ! Prognostic cloud fraction
 use diag_m                               ! Diagnostic routines
 use estab                                ! Liquid saturation function
 use newmpar_m                            ! Grid parameters
-use parm_m                               ! Model configuration
+use parm_m, only : nmaxpr,ktau,dt,iaero  ! Model configuration
 use sigs_m                               ! Atmosphere sigma levels
       
 implicit none
       
 include 'kuocom.h'                ! Convection parameters
       
-integer, intent(in) :: is
+integer, intent(in) :: idjd, is
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
 real, dimension(imax,kl), intent(inout) :: cfrac, gfrac, rfrac, sfrac
@@ -273,6 +277,7 @@ real, dimension(imax), intent(inout) :: precip
 real, dimension(imax), intent(in) :: condc
 real, dimension(imax), intent(in) :: ps
 real, dimension(imax), intent(in) :: em
+logical, intent(in) :: mydiag
 logical, dimension(imax), intent(in) :: land
 
 integer, dimension(imax) :: kbase,ktop                   !Bottom and top of convective cloud 
@@ -338,7 +343,7 @@ elsewhere
 end where
 
 
-if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
+if ( nmaxpr==1 .and. mydiag ) then
   if ( ktau==1 ) then
     write(6,*)'in leoncloud acon,bcon,Rcm ',acon,bcon,Rcm
   end if
@@ -404,7 +409,7 @@ end if
 tenv(1:imax,:) = t(1:imax,:) ! Assume T is the same in and out of convective cloud
 
 
-if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
+if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newcloud',ktau
   diag_temp(:) = t(idjd,:)
   write(6,"('t   ',9f8.2/4x,9f8.2)") diag_temp
@@ -434,7 +439,7 @@ endif
 
 !     Calculate cloud fraction and cloud water mixing ratios
 call newcloud(dt,land,prf,rhoa,cdrop,tenv,qenv,qlg,qfg,cfrac,cfa,qca, &
-              dpsldt,fluxtot,nettend,stratcloud,em)
+              dpsldt,fluxtot,nettend,stratcloud,em,idjd,mydiag)
 
 
 ! Vertically sub-grid cloud
@@ -446,7 +451,7 @@ do k = 2,kl-1
 end do
      
 
-if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
+if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newcloud',ktau
   diag_temp(:) = tenv(idjd,:)
   write (6,"('tnv ',9f8.2/4x,9f8.2)") diag_temp
@@ -493,7 +498,7 @@ end if
 #endif
 
 
-if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
+if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newsnowrain',ktau
   diag_temp(:) = t(idjd,:)
   write (6,"('t   ',9f8.2/4x,9f8.2)") diag_temp
@@ -504,15 +509,15 @@ if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
   diag_temp(:) = qlg(idjd,:)
   write (6,"('ql  ',9f8.3/4x,9f8.3)") diag_temp
 endif
-if ( diag .and. ntiles==1 ) then
-  call maxmin(t,' t',ktau,1.,kl)
-  call maxmin(qg,'qv',ktau,1.e3,kl)
-  call maxmin(qfg,'qf',ktau,1.e3,kl)
-  call maxmin(qlg,'ql',ktau,1.e3,kl)
-  call maxmin(qrg,'qr',ktau,1.e3,kl)
-  call maxmin(qsng,'qs',ktau,1.e3,kl)
-  call maxmin(qgrg,'qg',ktau,1.e3,kl)
-endif
+!if ( diag .and. ntiles==1 ) then
+!  call maxmin(t,' t',ktau,1.,kl)
+!  call maxmin(qg,'qv',ktau,1.e3,kl)
+!  call maxmin(qfg,'qf',ktau,1.e3,kl)
+!  call maxmin(qlg,'ql',ktau,1.e3,kl)
+!  call maxmin(qrg,'qr',ktau,1.e3,kl)
+!  call maxmin(qsng,'qs',ktau,1.e3,kl)
+!  call maxmin(qgrg,'qg',ktau,1.e3,kl)
+!endif
 
 
 ! Add convective cloud water into fields for radiation
@@ -533,7 +538,7 @@ call newsnowrain(dt,rhoa,dz,prf,cdrop,cfa,qca,t,qlg,qfg,qrg,qsng,qgrg,       &
                  precs,qg,cfrac,rfrac,sfrac,gfrac,preci,precg,qevap,qsubl,   &
                  qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,      &
                  fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,         &
-                 condx,ktsav)
+                 condx,ktsav,idjd,mydiag)
 
 
 ! save cloud fraction in stratcloud after cloud microphysics
@@ -541,7 +546,7 @@ stratcloud(1:imax,1:kl) = cfrac(1:imax,1:kl)/(1.-clcon(1:imax,1:kl))
 ! cfrac is replaced below to correspond with qlrad and qfrad
 
 
-if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
+if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newsnowrain',ktau
   diag_temp(:) = t(idjd,:)
   write (6,"('t   ',9f8.2/4x,9f8.2)") diag_temp
@@ -558,15 +563,15 @@ if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
   diag_temp(:) = qgrg(idjd,:)
   write (6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp
 end if
-if ( diag .and. ntiles==1 ) then
-  call maxmin(t,' t',ktau,1.,kl)
-  call maxmin(qg,'qv',ktau,1.e3,kl)
-  call maxmin(qfg,'qf',ktau,1.e3,kl)
-  call maxmin(qlg,'ql',ktau,1.e3,kl)
-  call maxmin(qrg,'qr',ktau,1.e3,kl)
-  call maxmin(qsng,'qs',ktau,1.e3,kl)
-  call maxmin(qgrg,'qg',ktau,1.e3,kl)
-endif
+!if ( diag .and. ntiles==1 ) then
+!  call maxmin(t,' t',ktau,1.,kl)
+!  call maxmin(qg,'qv',ktau,1.e3,kl)
+!  call maxmin(qfg,'qf',ktau,1.e3,kl)
+!  call maxmin(qlg,'ql',ktau,1.e3,kl)
+!  call maxmin(qrg,'qr',ktau,1.e3,kl)
+!  call maxmin(qsng,'qs',ktau,1.e3,kl)
+!  call maxmin(qgrg,'qg',ktau,1.e3,kl)
+!endif
 
 
 !--------------------------------------------------------------
@@ -706,16 +711,15 @@ end subroutine leoncld_work
 !******************************************************************************
 
  subroutine newcloud(tdt,land,prf,rhoa,cdrop,ttg,qtg,qlg,qfg,cfrac,cfa,qca, &
-                     dpsldt,fluxtot,nettend,stratcloud,em)
+                     dpsldt,fluxtot,nettend,stratcloud,em,idjd,mydiag)
 
 ! This routine is part of the prognostic cloud water scheme
 
-use cc_mpi, only : mydiag
 use cc_omp
 use cloudmod, only : progcloud
 use estab, only : esdiffx, qsati
 use newmpar_m
-use parm_m
+use parm_m, only : diag,nmaxpr,ds,cirrus_decay
 use sigs_m
 
 implicit none
@@ -724,6 +728,7 @@ implicit none
 include 'kuocom.h'     ! Input cloud scheme parameters rcrit_l & rcrit_s
 
 ! Argument list
+integer, intent(in) :: idjd
 real, intent(in) :: tdt
 real, dimension(imax,kl), intent(in) :: prf
 real, dimension(imax,kl), intent(in) :: rhoa
@@ -735,12 +740,13 @@ real, dimension(imax,kl), intent(inout) :: qfg
 real, dimension(imax,kl), intent(inout) :: cfrac
 real, dimension(imax,kl), intent(inout) :: cfa
 real, dimension(imax,kl), intent(inout) :: qca
-logical, dimension(imax), intent(in) :: land
 real, dimension(imax,kl), intent(in) :: dpsldt
 real, dimension(imax,kl), intent(in) :: fluxtot
 real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
 real, dimension(imax), intent(in) :: em
+logical, intent(in) :: mydiag
+logical, dimension(imax), intent(in) :: land
 
 ! Local work arrays and variables
 real, dimension(imax,kl) :: qsl, qsw
@@ -764,7 +770,7 @@ real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 
 ! Start code : ----------------------------------------------------------
 
-if ( diag.and.mydiag.and.ntiles==1 ) then
+if ( diag.and.mydiag ) then
   write(6,*) 'entering newcloud'
   diag_temp(:) = prf(idjd,:)
   write(6,'(a,30f10.3)') 'prf ',diag_temp
@@ -814,7 +820,7 @@ if ( maxval(qlg(1:imax,:))>8.e-2 ) then
 end if
 #endif
 
-if ( diag .and. mydiag .and. ntiles==1 ) then
+if ( diag .and. mydiag ) then
   write(6,*) 'within newcloud'
   diag_temp = ttg(idjd,:)
   write(6,*) 'ttg ',diag_temp
@@ -992,7 +998,7 @@ if ( ncloud<=3 ) then
     
   end do
 
-  if ( diag .and. mydiag .and. ntiles==1 ) then
+  if ( diag .and. mydiag ) then
     diag_temp(:) = rcrit(idjd,:)
     write(6,*) 'rcrit ',diag_temp
     diag_temp(:) = qtot(idjd,:)
@@ -1126,7 +1132,7 @@ end if
 qtg(1:imax,:) = qtot(1:imax,:) - qcg(1:imax,:)
 ttg(1:imax,:) = tliq(1:imax,:) + hlcp*qcg(1:imax,:) + hlfcp*qfg(1:imax,:)
 
-if ( diag .and. mydiag .and. ntiles==1 ) then
+if ( diag .and. mydiag ) then
    write(6,*) 'at end of newcloud'
    diag_temp(:) = ttg(idjd,:)
    write(6,*) 'ttg ',diag_temp
@@ -1190,18 +1196,18 @@ end subroutine newcloud
 subroutine newsnowrain(tdt_in,rhoa,dz,prf,cdrop,cfa,qca,ttg,qlg,qfg,qrg,qsng,qgrg,precs,qtg,cfrac,cfrain,    &
                        cfsnow,cfgraupel,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,           &
                        fluxi,fluxs,fluxg,fluxm,fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,           &
-                       condx,ktsav)
+                       condx,ktsav,idjd,mydiag)
 
-use cc_mpi
 use cc_omp
 use estab, only : esdiffx, qsati, pow75
 use newmpar_m
-use parm_m
+use parm_m, only : diag, nmaxpr, nmr
 
 implicit none
 
 include 'kuocom.h'     !acon,bcon,Rcm,ktsav,nevapls
 
+integer, intent(in) :: idjd
 real, intent(in) :: tdt_in
 real, dimension(imax,kl), intent(in) :: rhoa
 real, dimension(imax,kl), intent(in) :: dz
@@ -1242,6 +1248,7 @@ real, dimension(imax), intent(inout) :: precs
 real, dimension(imax), intent(inout) :: preci
 real, dimension(imax), intent(inout) :: precg
 integer, dimension(imax), intent(in) :: ktsav
+logical, intent(in) :: mydiag
 
 real, dimension(imax,kl) :: fluxautorain, fluxautosnow, fluxautograupel
 real, dimension(imax,kl) :: cfautorain, cfautosnow, cfautograupel
@@ -1496,7 +1503,7 @@ rhos(1:imax,1:kl) = qsng(1:imax,1:kl)*rhoa(1:imax,1:kl)
 rhog(1:imax,1:kl) = qgrg(1:imax,1:kl)*rhoa(1:imax,1:kl)
 
 
-if ( diag .and. mydiag .and. ntiles==1 ) then
+if ( diag .and. mydiag ) then
   diag_temp(1:kl) = cfrac(idjd,1:kl)
   write(6,*) 'cfrac     ',diag_temp
   diag_temp(1:kl) = cifr(idjd,1:kl)
@@ -2444,7 +2451,7 @@ end where
 cfrac(1:imax,1:kl) = clfr(1:imax,1:kl) + cifr(1:imax,1:kl)
 
 !      Adjust cloud fraction (and cloud cover) after precipitation
-if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
+if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'diags from newrain for idjd ',idjd
   diag_temp(1:kl) = cfrac(idjd,1:kl)
   write (6,"('cfrac     ',9f8.3/6x,9f8.3)") diag_temp
@@ -2457,7 +2464,7 @@ if ( nmaxpr==1 .and. mydiag .and. ntiles==1 ) then
 end if
 
 ! Diagnostics for debugging
-if ( diag .and. mydiag .and. ntiles==1 ) then  ! JLM
+if ( diag .and. mydiag ) then  ! JLM
   diag_temp(1:kl) = cfrac(idjd,1:kl)
   write(6,*) 'cfraci ',diag_temp
   diag_temp(1:kl) = cifr(idjd,1:kl)
