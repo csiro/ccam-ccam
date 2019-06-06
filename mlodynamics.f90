@@ -901,9 +901,11 @@ do mspec_mlo = mspeca_mlo,1,-1
     end do
   else
     do ii = 1,wlev  
-      w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))           &
-                     - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx)  &
-                     - nv(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetady))
+      w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))          &
+                     - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx  &
+                                      + gosig(1:ifull,ii)*ddddx)       &
+                     - nv(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetady  &
+                                      + gosig(1:ifull,ii)*ddddy))
                     !- (1.-gosig(1:ifull,ii))*dnetadt ! neglect for now 
     end do
   end if  
@@ -1472,7 +1474,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     do ii = 1,wlev
       nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
       where( wtr(1:ifull,ii) )
-        mfixdum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull) 
+        mfixdum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
       elsewhere
         mfixdum(:,ii)=0.
       end where
@@ -1483,7 +1485,7 @@ do mspec_mlo = mspeca_mlo,1,-1
       where(wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20)
         nt(1:ifull,ii)=w_t(1:ifull,ii)                                              &
                        +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
-                       /dd(1:ifull)
+                       /max(dd(1:ifull)+w_e(1:ifull),minwater)
       elsewhere
         nt(1:ifull,ii) = w_t(:,ii)              
       end where
@@ -1511,7 +1513,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     do ii = 1,wlev
       ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
       where( wtr(1:ifull,ii) .and. ndum>0. )
-        mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)
+        mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
       elsewhere
         mfixdum(:,ii) = 0.
       end where
@@ -1522,7 +1524,7 @@ do mspec_mlo = mspeca_mlo,1,-1
       where( wtr(1:ifull,ii) .and. ndum>0. .and. abs(alph_p)>1.e-20 )
         ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
                        +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
-                       /dd(1:ifull)
+                       /max(dd(1:ifull)+w_e(1:ifull),minwater)
       elsewhere
         ns(1:ifull,ii) = w_s(:,ii)              
       end where
