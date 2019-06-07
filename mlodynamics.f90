@@ -44,7 +44,7 @@ implicit none
 
 private
 public mlodiffusion,mlohadv,mlodyninit
-public gosig,gosigh,godsig,ocnsmag,ocneps
+public gosig,gosigh,godsig,ocnsmag,ocneps,ocndelphi
 public mlodiff,usetide,mlojacobi
 public usepice
 public dd
@@ -71,7 +71,7 @@ integer, parameter :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
 real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)
 real, parameter :: grav           = 9.80616 ! gravitational constant (m s^-2)
-real, parameter :: delphi         = 150.    ! horizontal diffusion reduction factor gradient (1.e6 = disabled)
+real, save      :: ocndelphi      = 150.    ! horizontal diffusion reduction factor gradient (1.e6 = disabled)
 real, save      :: ocnsmag        = 1.      ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004), 1. in SHOC)
 real, save      :: ocneps         = 0.1     ! semi-implicit off-centring term
 real, parameter :: maxicefrac     = 0.999   ! maximum ice fraction
@@ -352,8 +352,8 @@ if ( mlosigma>=0 .and. mlosigma<4 ) then
   call bounds(dep,nehalf=.true.)
   do k = 1,wlev
     call unpack_ne(dep(:,k),dep_n,dep_e)  
-    tx_fact = 1./(1.+(abs(dep_e-dep(1:ifull,k))/delphi)**nf)
-    ty_fact = 1./(1.+(abs(dep_n-dep(1:ifull,k))/delphi)**nf)
+    tx_fact = 1./(1.+(abs(dep_e-dep(1:ifull,k))/ocndelphi)**nf)
+    ty_fact = 1./(1.+(abs(dep_n-dep(1:ifull,k))/ocndelphi)**nf)
     call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
     xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*tx_fact*eeu(1:ifull,k) ! reduction factor
     yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*ty_fact*eev(1:ifull,k) ! reduction factor
@@ -4737,7 +4737,7 @@ real, dimension(ifull) :: dd_i, ddux, ddvy, ddn, dds, dde, ddw, ddne, ddnw, dden
 call mloexpdensity(lrho,alphabar,betabar,nti,nsi,dzdum_rho,pice,0,rawrho=.true.)
 
 na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
-na(:,:,2) = min(max(0.,  nsi),50. )
+na(:,:,2) = min(max(0.,  nsi),50. )-34.72
 
 select case( mlojacobi )
   case(0) ! off

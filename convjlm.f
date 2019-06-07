@@ -310,6 +310,7 @@
       
       use arrays_m   
       use aerosolldr
+      use cc_mpi, only : mydiag
       use cc_omp
       use cfrac_m
       use extraout_m
@@ -350,8 +351,8 @@
         is=(tile-1)*imax+1
         ie=tile*imax
         
-        idjd_t = mod(idjd,imax)
-        mydiag_t = (idjd-1)/imax==tile
+        idjd_t = mod(idjd-1,imax)+1
+        mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
         ldpsldt   = dpsldt(is:ie,:)
         lt        = t(is:ie,:)

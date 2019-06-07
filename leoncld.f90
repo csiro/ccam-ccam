@@ -102,6 +102,7 @@ subroutine leoncld
 
 use aerointerface                 ! Aerosol interface
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
+use cc_mpi, only : mydiag         ! CC MPI routines
 use cc_omp                        ! CC OpenMP routines
 use cfrac_m                       ! Cloud fraction
 use cloudmod                      ! Prognostic cloud fraction
@@ -141,8 +142,8 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   
-  idjd_t = mod(idjd,imax)
-  mydiag_t = (idjd-1)/imax==tile
+  idjd_t = mod(idjd-1,imax)+1
+  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
   
   lcfrac   = cfrac(is:ie,:)
   lgfrac   = gfrac(is:ie,:)

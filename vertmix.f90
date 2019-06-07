@@ -156,8 +156,8 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
 
-  idjd_t = mod(idjd,imax)
-  mydiag_t = (idjd-1)/imax==tile
+  idjd_t = mod(idjd-1,imax)+1
+  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
   
   lt        = t(is:ie,:)
   lqg       = qg(is:ie,:)

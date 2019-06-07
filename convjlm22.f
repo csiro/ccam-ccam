@@ -232,6 +232,7 @@
       
       use arrays_m   
       use aerosolldr
+      use cc_mpi, only : mydiag
       use cc_omp
       use cfrac_m
       use extraout_m
@@ -252,15 +253,15 @@
 
       integer :: tile, is, ie
       integer :: idjd_t
-      real, dimension(imax,kl,naero)    :: lxtg
-      real, dimension(imax,kl,ntrac)    :: ltr
-      real, dimension(imax,kl)          :: ldpsldt, lt, lqg
-      real, dimension(imax,kl)          :: lfluxtot
-      real, dimension(imax,kl)          :: lqlg, lqfg, lcfrac
-      real, dimension(imax,kl)          :: lu, lv
-      real, dimension(imax,ndust)       :: ldustwd
-      real, dimension(imax)             :: lso2wd, lso4wd, lbcwd
-      real, dimension(imax)             :: locwd
+      real, dimension(imax,kl,naero) :: lxtg
+      real, dimension(imax,kl,ntrac) :: ltr
+      real, dimension(imax,kl)       :: ldpsldt, lt, lqg
+      real, dimension(imax,kl)       :: lfluxtot
+      real, dimension(imax,kl)       :: lqlg, lqfg, lcfrac
+      real, dimension(imax,kl)       :: lu, lv
+      real, dimension(imax,ndust)    :: ldustwd
+      real, dimension(imax)          :: lso2wd, lso4wd, lbcwd
+      real, dimension(imax)          :: locwd
       logical :: mydiag_t
 
 !$omp  do schedule(static) private(is,ie),
@@ -272,8 +273,8 @@
         is = (tile-1)*imax + 1
         ie = tile*imax
         
-        idjd_t = mod(idjd,imax)
-        mydiag_t = (idjd-1)/imax==tile
+        idjd_t = mod(idjd-1,imax)+1
+        mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
         
         ldpsldt   = dpsldt(is:ie,:)
         lt        = t(is:ie,:)

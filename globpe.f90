@@ -1545,7 +1545,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     nurban,ktopdav,mbd_mlo,mbd_maxscale_mlo,nud_sst,nud_sss,      &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,nriver,           &
-    atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,        &
+    atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
     procformat,procmode,compression,hp_output,                    & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
@@ -1609,7 +1609,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
-    alphanir_seaice,mlojacobi,usepice,mlosigma,                   &
+    alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,         &
     pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    & ! k-e
     nops,nopb,fixedstabfunc,omink,omineps,oclosure,               &
     rivermd,basinmd,rivercoeff,                                   & ! River
@@ -1676,7 +1676,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(117) ) 
+allocate( dumr(33), dumi(118) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1831,6 +1831,7 @@ if ( myid==0 ) then
   dumi(115) = ensemble_period
   dumi(116) = hp_output
   dumi(117) = intsch_mode
+  dumi(118) = qg_fix
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1984,6 +1985,7 @@ ensemble_mode     = dumi(114)
 ensemble_period   = dumi(115)
 hp_output         = dumi(116)
 intsch_mode       = dumi(117)
+qg_fix            = dumi(118)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -2453,7 +2455,7 @@ ateb_statsmeth    = dumi(29)
 ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(14), dumi(19) )
+allocate( dumr(15), dumi(19) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2477,6 +2479,7 @@ if ( myid==0 ) then
   dumr(12) = pdu
   dumr(13) = omink
   dumr(14) = omineps
+  dumr(15) = ocndelphi
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2513,6 +2516,7 @@ pdl             = dumr(11)
 pdu             = dumr(12)
 omink           = dumr(13)
 omineps         = dumr(14)
+ocndelphi       = dumr(15)
 mlodiff         = dumi(1)
 usetide         = dumi(2) 
 zomode          = dumi(3) 
@@ -3689,6 +3693,8 @@ real, dimension(js:je) :: qtot, tliq
 real, dimension(js:je) :: pk, qsi, deles, qsl, qsw, fice
 real, dimension(js:je) :: dqsdt, hlrvap, al, qc
 real, parameter :: tice = 233.16
+
+if ( qg_fix==0 ) return
 
 do k = 1,kl
   qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), 0. ) ! qtot
