@@ -226,6 +226,7 @@ integer, save      :: ncyits=6             ! Number of iterations for balancing 
 integer, save      :: nfgits=3             ! Number of iterations for balancing veg and snow energy budgets (default=3)
 real, save         :: tol=0.001            ! Sectant method tolerance for sensible heat flux (default=0.001)
 real, save         :: alpha=1.             ! Weighting for determining the rate of convergence when calculating canyon temperatures
+real, save         :: infilalpha=0.5       ! Weighting for dampening factor when calculating internal infiltration
 real(kind=8), save :: energytol=0.005_8    ! Tolerance for acceptable energy closure in each timestep
 real, save         :: urbtemp=290.         ! reference temperature to improve precision
 ! physical parameters
@@ -986,7 +987,7 @@ real, dimension(maxtype) ::   cintgains=(/   5.,   5.,   5.,   5.,   5.,   5.,  
 ! Daily averaged traffic sensible heat flux (W m^-2)
 real, dimension(maxtype) ::  ctrafficfg=(/  1.5,  1.5,  1.5,  1.5,  1.5,  1.5,  1.5,  1.5 /)
 ! Comfort temperature (K)
-real, dimension(maxtype) :: cbldtemp=(/ 291.16, 291.16, 291.16, 291.16, 291.16, 291.16, 291.16, 291.16 /)
+real, dimension(maxtype) :: cbldtemp=(/ 295.16, 295.16, 295.16, 295.16, 295.16, 295.16, 295.16, 295.16 /)
 ! Roof albedo
 real, dimension(maxtype) ::  croofalpha=(/ 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20 /)    ! (Fortuniak 08) Masson = 0.15
 ! Wall albedo
@@ -1060,7 +1061,7 @@ type(intldata), intent(inout) :: intl
 
 namelist /atebnml/  resmeth,useonewall,zohmeth,acmeth,intairtmeth,intmassmeth,nrefl,vegmode,soilunder, &
                     conductmeth,cvcoeffmeth,statsmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,iqt,            &
-                    infilmeth,lwintmeth
+                    infilmeth,lwintmeth,infilalpha
 namelist /atebsnow/ zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden
 namelist /atebgen/  refheight,zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf, &
                     acfactor,ac_heatcap,ac_coolcap,ac_smooth,ac_deltat,ac_copmax
@@ -3843,7 +3844,7 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,         
                  sg_wallw,rg_wallw,fg_wallw,acond_wallw,abase_wallw,                             & 
                  sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,abase_vegc,                          &
                  sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,abase_rdsn,rdsntemp,rdsnmelt,gardsn, &
-                 a_umag,a_rho,a_rg,a_rnd,a_snd,                                                  &
+                 a_umag,a_rho,a_rg,a_rnd,a_snd,we,ww,                                            &
                  d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad,                &
                  d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_canyon,d_traf,d_ac_inside,             &
                  d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
@@ -4648,7 +4649,7 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,   
                        sg_wallw,rg_wallw,fg_wallw,acond_wallw,abase_wallw,                             &
                        sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,abase_vegc,                          &
                        sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,abase_rdsn,rdsntemp,rdsnmelt,gardsn, &
-                       a_umag,a_rho,a_rg,a_rnd,a_snd,                                                  &
+                       a_umag,a_rho,a_rg,a_rnd,a_snd,we,ww,                                            &
                        d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad,                &
                        d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_canyon,d_traf,d_ac_inside,             &
                        d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
@@ -4669,7 +4670,7 @@ real, dimension(ufull), intent(inout) :: rg_wallw,fg_wallw,abase_wallw
 real, dimension(ufull), intent(inout) :: rg_vegc,fg_vegc,eg_vegc,abase_vegc
 real, dimension(ufull), intent(inout) :: rg_rdsn,fg_rdsn,eg_rdsn,abase_rdsn,rdsntemp,rdsnmelt,gardsn
 real, dimension(ufull), intent(in) :: sg_road,sg_walle,sg_wallw,sg_vegc,sg_rdsn
-real, dimension(ufull), intent(in) :: a_umag,a_rho,a_rg,a_rnd,a_snd,d_sigd
+real, dimension(ufull), intent(in) :: a_umag,a_rho,a_rg,a_rnd,a_snd,d_sigd,we,ww
 real, dimension(ufull), intent(out) :: d_canyontemp,d_canyonmix,d_topu,d_netrad
 real, dimension(ufull), intent(out) :: d_ac_inside
 real, dimension(ufull), intent(inout) :: d_tempc,d_mixrc
@@ -4908,7 +4909,7 @@ do l = 1,ncyits
                                roof,walle,wallw,slab,intm,pd)
 
     case(1,2) ! complex internal physics (per Lipson et al., 2018) or with interior frac      
-      call interiorflux_complex(ifrac,ufull,diag,l,ddt,a_rho,d_topu,             &
+      call interiorflux_complex(ifrac,ufull,diag,l,ddt,a_rho,we,ww,              &
                                 d_intgains_bld,cyc_proportion,d_canyontemp_prev, &
                                 d_canyontemp,d_ac_canyon,d_ac_inside,            &
                                 iroomtemp,int_infilflux,int_infilfg,             &
@@ -5125,7 +5126,7 @@ end subroutine interiorflux_simple
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! solve for canyon/ internal heat fluxes and air temperatures
 
-subroutine interiorflux_complex(ifrac,ufull,diag,l,ddt,a_rho,d_topu,                   &
+subroutine interiorflux_complex(ifrac,ufull,diag,l,ddt,a_rho,d_weu,d_wwu,              &
                                 d_intgains_bld,cyc_proportion,d_canyontemp_prev,       &
                                 d_canyontemp,d_ac_canyon,d_ac_inside,                  &
                                 iroomtemp,int_infilflux,int_infilfg,                   &
@@ -5155,7 +5156,7 @@ integer,                    intent(in) :: ufull                   ! tile vector 
 integer,                    intent(in) :: l                       ! ncyits loop integer
 real,                       intent(in) :: ddt                     ! timestep
 real, dimension(ufull),     intent(in) :: a_rho                   ! atmospheric air density
-real, dimension(ufull),     intent(in) :: d_topu                  ! wind speed top of canyon
+real, dimension(ufull),     intent(in) :: d_weu,d_wwu             ! wind speed wall east and west
 real, dimension(ufull),     intent(in) :: d_intgains_bld          ! internal gain flux for building
 real, dimension(ufull),     intent(in) :: cyc_proportion          ! cyclic proportion of conditioning units
 real, dimension(ufull),     intent(in) :: d_canyontemp            ! canyon air temperature (diagnostic)
@@ -5215,7 +5216,6 @@ call calc_convcoeff(cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,      
 ac_heat_temp = fp%bldairtemp-ac_deltat
 ac_cool_temp = fp%bldairtemp+ac_deltat
 
-
 ! ---1.2: Calculate air exchange from infiltration and open windows -----
 call calc_openwindows(d_openwindows,fp,iroomtemp,d_canyontemp,roof,walle,wallw,slab,ufull)
 ! d_openwindows = 0.
@@ -5223,7 +5223,7 @@ select case(infilmeth)
   case(0) ! constant
     infl_dynamic = fp%infilach
   case(1) ! EnergyPlus with BLAST coefficients (Coblenz and Achenbach, 1963)
-    infl_dynamic = fp%infilach*(0.606 + 0.03636*abs(iroomtemp-d_canyontemp) + 0.1177*d_topu + 0.)
+    infl_dynamic = fp%infilach*(0.606 + 0.03636*abs(iroomtemp-d_canyontemp) + 0.1177*0.5*(d_wwu+d_weu) + 0.)
   !case(2) ! AccuRate (Chen, 2010)
   !  ! not yet implemented
   case default
@@ -5246,20 +5246,21 @@ im2 = cvcoeff_intm2*real(fp%intmassn)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! fully implicit - old temps with acflux included
 
-iroomtemp = (rm*room%nodetemp(:,1)         & ! room temperature
-           + rf*roof%nodetemp(:,nl)        & ! roof conduction
-           + we*walle%nodetemp(:,nl)       & ! wall conduction east
-           + ww*wallw%nodetemp(:,nl)       & ! wall conduction west
-           + sl*slab%nodetemp(:,nl)        & ! slab conduction
-           + im1*intm%nodetemp(:,0)        & ! mass conduction side 1
-           + im2*intm%nodetemp(:,nl)       & ! mass conduction side 2
-           + infl*d_canyontemp_prev*0.5    & ! infiltration old
-           + infl*d_canyontemp*0.5         & ! infiltration old
-           + d_ac_inside                   & ! ac flux (iterative)
-           + d_intgains_bld                & ! internal gains (explicit)
+iroomtemp = (rm*room%nodetemp(:,1)                    & ! room temperature
+           + rf*roof%nodetemp(:,nl)                   & ! roof conduction
+           + we*walle%nodetemp(:,nl)                  & ! wall conduction east
+           + ww*wallw%nodetemp(:,nl)                  & ! wall conduction west
+           + sl*slab%nodetemp(:,nl)                   & ! slab conduction
+           + im1*intm%nodetemp(:,0)                   & ! mass conduction side 1
+           + im2*intm%nodetemp(:,nl)                  & ! mass conduction side 2
+           + infl*d_canyontemp_prev*(1.-infilalpha)   & ! weighted infiltration prev
+           + infl*d_canyontemp*infilalpha             & ! weighted infiltration new
+           + d_ac_inside                              & ! ac flux (iterative)
+           + d_intgains_bld                           & ! internal gains (explicit)
            )/(rm+rf+we+ww+sl+im1+im2+infl)
 
-int_infilflux = infl*((0.5*d_canyontemp + 0.5*d_canyontemp_prev)-iroomtemp)
+! calculate infiltration flux with dampening factor from previous timestep (reduce oscillation)
+int_infilflux = infl*((infilalpha*d_canyontemp + (1.-infilalpha)*d_canyontemp_prev) - iroomtemp)
 int_infilfg = (fp%sigmabld/(1.-fp%sigmabld))*int_infilflux
 
 ! ---1.4: Calculate cooling/heating fluxes (varying air temp)------------
@@ -5740,18 +5741,11 @@ real, dimension(:), intent(out) :: icyc_traffic,icyc_basedemand,icyc_proportion,
 real, dimension(size(fp_ctime)) :: real_p
 integer, dimension(size(fp_ctime)) :: int_p
 
-#ifdef sublime
-! traffic diurnal cycle weights presecribed by SUBLIME
-real, dimension(25), parameter :: trafcycle = (/ 0.16,0.13,0.08,0.07,0.08,0.26,0.67,0.99, &
-                                                 0.89,0.79,0.74,0.73,0.75,0.76,0.82,0.90, &
-                                                 1.00,0.95,0.68,0.61,0.53,0.35,0.21,0.18,0.16 /)
-#else
 ! traffic diurnal cycle weights approximated from Chapman et al., 2016
 real, dimension(25), parameter :: trafcycle = (/ 0.17, 0.12, 0.12, 0.17, 0.37, 0.88, & 
                                                  1.29, 1.48, 1.37, 1.42, 1.5 , 1.52, &
                                                  1.50, 1.57, 1.73, 1.84, 1.84, 1.45, &
                                                  1.01, 0.77, 0.65, 0.53, 0.41, 0.27, 0.17 /)
-#endif
 
 ! base electricity demand cycle weights approximated from Thatcher (2007), mean for NSW, VIC, QLD, SA
 real, dimension(25), parameter :: basecycle = (/ 0.92, 0.86, 0.81, 0.78, 0.8 , 0.87, & 

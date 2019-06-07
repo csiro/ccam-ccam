@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -57,11 +57,9 @@ implicit none
 
 include 'kuocom.h'         ! Convection parameters
 
-#ifdef debug
 integer, parameter :: ntest = 0
-#endif
-
 integer k, l, nstart, nend, ntot, iq
+integer its
 integer, save :: precon_in = -99999
 real, dimension(:), allocatable, save :: zz, zzn, zze, zzw, zzs
 real, dimension(:), allocatable, save :: pfact, alff, alf, alfe
@@ -83,6 +81,7 @@ real, dimension(ifull) :: d_e, d_n
 real hdt, hdtds
 real alph_p, alph_pm, delneg, delpos
 real const_nh
+real sumx
 real, save :: dtsave = 0.
 logical, dimension(3) :: llim
 
@@ -120,7 +119,6 @@ if ( abs(dt-dtsave)>=1.e-20 ) then ! dt/=dtsave
   end if
 end if
 
-#ifdef debug
 if ( diag .or. nmaxpr==1 ) then
   if ( mydiag ) then
     write(6,*) 'entering adjust5'
@@ -136,7 +134,6 @@ if ( diag .or. nmaxpr==1 ) then
   call maxmin(alfe,'ae',ktau,1.,1)
   call maxmin(alfn,'an',ktau,1.,1)
 end if
-#endif
 
 ! recompute nonlinear sigma-dot contribution for updating tn, tx
 ! e contains intgrl{-pslx x dsigma} from 0 to sigma (dsig is -ve)
@@ -184,7 +181,7 @@ if ( nh/=0 .and. (ktau>=knh.or.lrestart) ) then
   if ( abs(epsp)<=1. ) then
     const_nh = 2.*rdry/(dt*grav*grav*(1.+epsh))
   else
-    const_nh = 2.*rdry/(dt*grav*grav)
+    const_nh=2.*rdry/(dt*grav*grav)
   end if  
   ! note that linear part of omega/ps for tau+1 is included in eig.f90
   ! wrk2 contains the tstar and non-linear part of omega/ps at tau+1
@@ -216,14 +213,12 @@ if ( nh/=0 .and. (ktau>=knh.or.lrestart) ) then
   do k = 2,kl
     wrk1(:,k) = wrk1(:,k-1) + bet(k)*wrk2(:,k) + betm(k)*wrk2(:,k-1)
   end do   ! k loop
-#ifdef debug
   if ( (diag.or.nmaxpr==1) .and. mydiag )then
     write(6,*) 'adjust5 omgfnl ',(omgfnl(idjd,k),k=1,kl)
     write(6,*) 'adjust5 h_nh ',(h_nh(idjd,k),k=1,kl)
     write(6,*) 'adjust5 pa ',(p(idjd,k),k=1,kl)
     write(6,*) 'adjust5 wrk1 ',(wrk1(idjd,k),k=1,kl)
   end if
-#endif
   do k = 1,kl
     p(1:ifull,k) = p(1:ifull,k) + wrk1(1:ifull,k)  ! nh
   end do
@@ -264,7 +259,6 @@ else
 end if ! (precon<-9999) .. else ..
 
 
-#ifdef debug
 if ( diag .or. nmaxpr==1 ) then   !  only for last k of loop (i.e. 1)
   ! Some diagnostics requiring extra bounds calls have been removed
   if ( mydiag ) then
@@ -285,7 +279,6 @@ if ( diag .or. nmaxpr==1 ) then   !  only for last k of loop (i.e. 1)
   call printa('rhsl',rhsl,ktau,1,ia,ib,ja,jb,0.,0.)
   call printa('pe  ',pe,ktau,1,ia,ib,ja,jb,0.,0.)
 end if
-#endif
 
 do k = 1,kl
   ! first p from pe
@@ -298,7 +291,6 @@ end do
 call bounds(p,corner=.true.)
 
 !      now u & v
-#ifdef debug
 if ((diag.or.nmaxpr==1).and.mydiag) then
   write(6,*) 'iq,k,fu,alfu,alfu*ux(iq,k) ',idjd,nlv,fu(idjd),alfu(idjd),alfu(idjd)*ux(idjd,nlv)
   write(6,*) 'alff & n e w s (in(iq)),alff(ine(iq)),alff(is(iq)),alff(ise(iq)),alfe(iq) ', &
@@ -309,7 +301,6 @@ if ((diag.or.nmaxpr==1).and.mydiag) then
                                   p(ine(idjd),nlv),p(ise(idjd),nlv)
   write(6,*) 'p & direct n s ',p(idjd,nlv),p(idjd+il,nlv),p(idjd-il,nlv)
 end if
-#endif
 
 call unpack_ne(alf,alf_n,alf_e)
 call unpack_nsew(alff,alff_n,alff_s,alff_e,alff_w)
@@ -339,13 +330,11 @@ do k = 1,kl
                  +dd(1:ifull,k)/emv(1:ifull)-dd_isv/em_isv)  &
                  *em(1:ifull)**2/ds ! Eq. 101
 end do     ! k  loop
-#ifdef debug
 if ( nmaxpr==1 ) then
   call maxmin(d,'dv',ktau,0.,kl)
   if ( nproc==1 ) write(6,*) 'cc,cc-,dd,dd-', cc(idjd,nlv)/emu(idjd),cc(iwu(idjd),nlv)/emu(iwu(idjd)), &
                                               dd(idjd,nlv)/emv(idjd),dd(isv(idjd),nlv)/emv(isv(idjd))      
 end if   ! (nmaxpr==1)
-#endif
 
 
 ! following is JLM sliding divergence damping (N.B. d dimensions with iextra)
@@ -382,7 +371,6 @@ end if  ! (nh/=0.and.ktau<=-knh)
 ! straightforward rev. cubic interp of u and v (i.e. nuv=10)
 if ( nstag==0 ) then
   call staguv(u,v,wrk1,wrk2)
-#ifdef debug
   if ( nmaxpr==1 .and. nproc==1 ) then
     its = ifull + iextra
     write(6,"('u_u0 ',10f8.2)") (u(iq,nlv),iq=idjd-3,idjd+3)
@@ -392,18 +380,15 @@ if ( nstag==0 ) then
     write(6,"('u_s1 ',10f8.2)") (cc(iq,nlv),iq=idjd-3,idjd+3)
     write(6,"('v_s1 ',10f8.2)") (dd(iq,nlv),iq=idjd-3*its,idjd+3*its,its)       
   endif
-#endif
   wrk1(:,:) = cc(1:ifull,:) - wrk1(:,:) ! staggered increment
   wrk2(:,:) = dd(1:ifull,:) - wrk2(:,:) ! staggered increment
   call unstaguv(wrk1,wrk2,wrk3,wrk4) 
   u(1:ifull,:) = u(1:ifull,:) + wrk3(:,:)
   v(1:ifull,:) = v(1:ifull,:) + wrk4(:,:)
-#ifdef debug
   if ( nmaxpr==1 .and. nproc==1 ) then
     write(6,"('u_u1 ',10f8.2)") (u(iq,nlv),iq=idjd-3,idjd+3)
     write(6,"('v_u1 ',10f8.2)") (v(iq,nlv),iq=idjd-3*its,idjd+3*its,its)
  endif
-#endif
 else
   call unstaguv(cc,dd,u,v) ! usual
 endif
@@ -424,9 +409,7 @@ pslsav(1:ifull) = psl(1:ifull) ! saved for gas fixers below, and diags
 ps_sav(1:ifull) = ps(1:ifull)  ! saved for gas fixers below, and diags
 psl(1:ifull)    = pslxint(1:ifull) - hdt*wrk2(1:ifull,1)*(1.+epst(1:ifull))  ! Eq. 116
 
-#ifdef debug
 if ( mod(ktau, nmaxpr)==0 ) vx(1:ifull,:) = sdot(1:ifull,1:kl) ! for accln
-#endif
 
 do k = 1,kl
   ! save [D + dsigdot/dsig] in pslx for next use in nonlin
@@ -443,7 +426,6 @@ do k = 2,kl
   sdot(1:ifull,k) = sdot(1:ifull,k)*dtin/(sig(k)-sig(k-1))
 end do    ! k  loop
 
-#ifdef debug
 if ( mod(ktau,nmaxpr)==0 ) then
   vx(1:ifull,:) = sdot(1:ifull,1:kl) - vx(1:ifull,:)
   ! convert to approx m/s/s
@@ -453,7 +435,6 @@ if ( mod(ktau,nmaxpr)==0 ) then
   call maxmin(vx,'ac',ktau,100.,kl)  ! max min of accln * 100
 end if
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
-  write(6,*) 'm ',m
   write(6,"('diva5p ',5p10f8.2)") d(idjd,:)
   write(6,"('omgf_l*dt',10f8.4)") omgf(idjd,:)*dt
   write(6,"('omgfnl*dt',10f8.4)") omgfnl(idjd,:)*dt
@@ -463,7 +444,6 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,"('pslx_3p',3p9f8.4)") pslx(idjd,:)
   write(6,"('sdot_a2',10f8.3)") sdot(idjd,1:kl)
 end if
-#endif
 
 do k = 1,kl
   ! save full omega/ps in dpsldt for use in nonlin next time step (& outfile)
@@ -472,11 +452,9 @@ do k = 1,kl
   t(1:ifull,k) = tx(1:ifull,k) + hdt*(1.+epst(1:ifull))*tbar2d(1:ifull)*omgf(1:ifull,k)*roncp/sig(k) ! Eq 121 F26
 end do     ! k  loop
 
-#ifdef debug
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,"('omgf_a2',10f8.3)") ps(idjd)*dpsldt(idjd,1:kl)
 end if
-#endif
 
 if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
    
@@ -508,11 +486,9 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   end do
   phi(1:ifull,1:kl) = phi(1:ifull,1:kl) + phi_nh(1:ifull,1:kl)
 
-#ifdef debug        
   if ( nmaxpr==1 .and. mydiag ) then
     write(6,*) 'phi_nh ',(phi_nh(idjd,k),k=1,kl)
   end if
-#endif
 
 end if  ! (nh/=0.and.(ktau>knh.or.lrestart))
 
@@ -660,7 +636,6 @@ end if ! (mfix_aero/=0.and.mspec==1.and.abs(iaero)>=2)
 call END_LOG(mfix_end)
 
 
-#ifdef debug
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'at end of adjust5 for ktau= ',ktau
   write(6,*) 'ps_sav,ps ',ps_sav(idjd),ps(idjd)
@@ -695,7 +670,6 @@ if ( diag ) then
     call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e3)
   end if
 end if
-#endif
 
 dtsave = dt
       
