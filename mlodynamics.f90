@@ -1506,13 +1506,14 @@ do mspec_mlo = mspeca_mlo,1,-1
   if ( nud_sss==0 ) then
     delpos(1) = 0.
     delneg(1) = 0.
-    ndum(:) = 0.
-    do ii = 1,wlev
-      ndum(:) = ndum(:) + w_s(1:ifull,ii)*godsig(1:ifull,ii)
-    end do
+    !ndum(:) = 0.
+    !do ii = 1,wlev
+    !  ndum(:) = ndum(:) + w_s(1:ifull,ii)*godsig(1:ifull,ii)
+    !end do
     do ii = 1,wlev
       ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
-      where( wtr(1:ifull,ii) .and. ndum>0. )
+      !where( wtr(1:ifull,ii) .and. ndum>0. )
+      where( wtr(1:ifull,ii) )    
         mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
       elsewhere
         mfixdum(:,ii) = 0.
@@ -1521,7 +1522,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
     alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
     do ii = 1,wlev
-      where( wtr(1:ifull,ii) .and. ndum>0. .and. abs(alph_p)>1.e-20 )
+      !where( wtr(1:ifull,ii) .and. ndum>0. .and. abs(alph_p)>1.e-20 )
+      where( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )    
         ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
                        +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
                        /max(dd(1:ifull)+w_e(1:ifull),minwater)
