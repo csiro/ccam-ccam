@@ -1593,9 +1593,7 @@ end subroutine mghelm
 
 ! This version of the geometric multigrid solver is for the ocean and ice
 subroutine mgmlo(neta,ipice,iyy,iyyn,iyys,iyye,iyyw,                   &
-                 iyyne,iyyen,iyyse,iyyes,iyynw,iyywn,iyysw,iyyws,      &   
                  izz,izzn,izzs,izze,izzw,                              &
-                 izzne,izzen,izzse,izzes,izznw,izzwn,izzsw,izzws,      &
                  ihh,irhs,tol,itol,totits,maxglobseta,maxglobip,ipmax, &
                  ee,dd,minwater)
 
@@ -1615,45 +1613,31 @@ real, dimension(ifull+iextra), intent(inout) :: neta, ipice
 real, dimension(ifull+iextra), intent(in) :: ee, dd
 real, dimension(ifull+iextra), intent(in) :: ipmax
 real, dimension(ifull,2), intent(in) :: izz, izzn, izzs, izze, izzw
-real, dimension(ifull,2), intent(in) :: izzne, izzen, izzse, izzes, izznw, izzwn, izzsw, izzws
 real, dimension(ifull,2), intent(in) :: irhs
 real, dimension(ifull), intent(in) :: ihh
 real, dimension(ifull), intent(in) :: iyy, iyyn, iyys, iyye, iyyw
-real, dimension(ifull), intent(in) :: iyyne, iyyen, iyyse, iyyes, iyynw, iyywn, iyysw, iyyws
 real, dimension(ifull+iextra,2) :: dumc
 real, dimension(ifull+iextra,2) :: vduma
 real, dimension(ifull,2) :: dumc_n, dumc_s, dumc_e, dumc_w
-real, dimension(ifull,2) :: dumc_ne, dumc_en, dumc_nw, dumc_wn, dumc_se, dumc_es, dumc_sw, dumc_ws
 real, dimension(ifull_maxcolour,maxcolour) :: rhsc, rhscice, ddc, eec, ipmaxc
 real, dimension(ifull_maxcolour,maxcolour) :: zzhhc, zznc, zzsc, zzec, zzwc
-real, dimension(ifull_maxcolour,maxcolour) :: zznec, zzenc, zzsec, zzesc, zznwc, zzwnc, zzswc, zzwsc
 real, dimension(ifull_maxcolour,maxcolour) :: zzcice, zzncice, zzscice, zzecice, zzwcice
-real, dimension(ifull_maxcolour,maxcolour) :: zznecice, zzencice, zznwcice, zzwncice
-real, dimension(ifull_maxcolour,maxcolour) :: zzsecice, zzescice, zzswcice, zzwscice
 real, dimension(ifull_maxcolour,maxcolour) :: yyc, yync, yysc, yyec, yywc
-real, dimension(ifull_maxcolour,maxcolour) :: yynec, yyenc, yysec, yyesc, yynwc, yywnc, yyswc, yywsc
 real, dimension(mg_maxsize,2,gmax+1) :: v
 real, dimension(mg_maxsize,2:gmax+1) :: zz, zzn, zzs, zze, zzw
-real, dimension(mg_maxsize,2:gmax+1) :: zzne, zzen, zzse, zzes, zznw, zzwn, zzsw, zzws
 real, dimension(mg_maxsize,2:gmax+1) :: yyn, yys, yye, yyw, yyz
-real, dimension(mg_maxsize,2:gmax+1) :: yyne, yyen, yyse, yyes, yynw, yywn, yysw, yyws
 real, dimension(mg_maxsize,2:gmax+1) :: hh
 real, dimension(mg_maxsize,2:gmax+1) :: zzi, zzin, zzis, zzie, zziw
-real, dimension(mg_maxsize,2:gmax+1) :: zzine, zzien, zzise, zzies, zzinw, zziwn, zzisw, zziws
 real, dimension(mg_maxsize,2:gmax+1) :: rhs, rhsi
-real, dimension(mg_maxsize,42) :: w
+real, dimension(mg_maxsize,18) :: w
 real, dimension(mg_maxsize) :: bu, cu
 real, dimension(mg_maxsize,2) :: ws
 real, dimension(mg_maxsize) :: v_n, v_s, v_e, v_w
-real, dimension(mg_maxsize) :: v_ne, v_en, v_nw, v_wn, v_se, v_es, v_sw, v_ws
 real, dimension(mg_ifull_maxcolour,3) :: zzhhcu, zzncu, zzscu, zzecu, zzwcu, rhscu
-real, dimension(mg_ifull_maxcolour,3) :: zznecu, zzencu, zzsecu, zzescu, zznwcu, zzwncu, zzswcu, zzwscu
 real, dimension(mg_ifull_maxcolour,3) :: zzicu, zzincu, zziscu, zziecu, zziwcu, rhsicu
-real, dimension(mg_ifull_maxcolour,3) :: zzinecu, zziencu, zzisecu, zziescu, zzinwcu, zziwncu, zziswcu, zziwscu
 real, dimension(mg_ifull_maxcolour,3) :: yyzcu, yyncu, yyscu, yyecu, yywcu
-real, dimension(mg_ifull_maxcolour,3) :: yynecu, yyencu, yysecu, yyescu, yynwcu, yywncu, yyswcu, yywscu
 real, dimension(2) :: dsolmax
-real, dimension(16) :: dsolmax_g
+real, dimension(8) :: dsolmax_g
 
 if ( sorfirst ) then
   write(6,*) "ERROR: mgsormlo requires mgsor_init to be called first"
@@ -1696,41 +1680,17 @@ do nc = 1,maxcolour
     yysc(iq,nc)     = iyys(iqx(iq,nc))
     yyec(iq,nc)     = iyye(iqx(iq,nc))
     yywc(iq,nc)     = iyyw(iqx(iq,nc))
-    yynec(iq,nc)    = iyyne(iqx(iq,nc))
-    yyenc(iq,nc)    = iyyen(iqx(iq,nc))
-    yysec(iq,nc)    = iyyse(iqx(iq,nc))
-    yyesc(iq,nc)    = iyyes(iqx(iq,nc))
-    yynwc(iq,nc)    = iyynw(iqx(iq,nc))
-    yywnc(iq,nc)    = iyywn(iqx(iq,nc))
-    yyswc(iq,nc)    = iyysw(iqx(iq,nc))
-    yywsc(iq,nc)    = iyyws(iqx(iq,nc))
     zzhhc(iq,nc)    = izz(iqx(iq,nc),1) + ihh(iqx(iq,nc))
     zznc(iq,nc)     = izzn(iqx(iq,nc),1)
     zzsc(iq,nc)     = izzs(iqx(iq,nc),1)
     zzec(iq,nc)     = izze(iqx(iq,nc),1)
     zzwc(iq,nc)     = izzw(iqx(iq,nc),1)
-    zznec(iq,nc)    = izzne(iqx(iq,nc),1)
-    zzenc(iq,nc)    = izzen(iqx(iq,nc),1)
-    zzsec(iq,nc)    = izzse(iqx(iq,nc),1)
-    zzesc(iq,nc)    = izzes(iqx(iq,nc),1)
-    zznwc(iq,nc)    = izznw(iqx(iq,nc),1)
-    zzwnc(iq,nc)    = izzwn(iqx(iq,nc),1)
-    zzswc(iq,nc)    = izzsw(iqx(iq,nc),1)
-    zzwsc(iq,nc)    = izzws(iqx(iq,nc),1)
     rhsc(iq,nc)     = irhs(iqx(iq,nc),1)
     zzcice(iq,nc)   = izz(iqx(iq,nc),2)
     zzncice(iq,nc)  = izzn(iqx(iq,nc),2)
     zzscice(iq,nc)  = izzs(iqx(iq,nc),2)
     zzecice(iq,nc)  = izze(iqx(iq,nc),2)
     zzwcice(iq,nc)  = izzw(iqx(iq,nc),2)
-    zznecice(iq,nc) = izzne(iqx(iq,nc),2)
-    zzencice(iq,nc) = izzen(iqx(iq,nc),2)
-    zzsecice(iq,nc) = izzse(iqx(iq,nc),2)
-    zzescice(iq,nc) = izzes(iqx(iq,nc),2)
-    zznwcice(iq,nc) = izznw(iqx(iq,nc),2)
-    zzwncice(iq,nc) = izzwn(iqx(iq,nc),2)
-    zzswcice(iq,nc) = izzsw(iqx(iq,nc),2)
-    zzwscice(iq,nc) = izzws(iqx(iq,nc),2)
     rhscice(iq,nc)  = irhs(iqx(iq,nc),2)
     ddc(iq,nc)      = dd(iqx(iq,nc))
     eec(iq,nc)      = ee(iqx(iq,nc))
@@ -1741,7 +1701,7 @@ end do
 ! solver requires bounds to be updated
 dumc(1:ifull,1) = neta(1:ifull)
 dumc(1:ifull,2) = ipice(1:ifull)
-call bounds(dumc(:,1:2),corner=.true.)
+call bounds(dumc(:,1:2))
 
 do i = 1,itrbgn
   do nc = 1,maxcolour
@@ -1753,14 +1713,6 @@ do i = 1,itrbgn
         dumc_s(iq,k) = dumc(iqs(iq,nc),k)
         dumc_e(iq,k) = dumc(iqe(iq,nc),k)
         dumc_w(iq,k) = dumc(iqw(iq,nc),k)
-        dumc_ne(iq,k) = dumc(iqne(iq,nc),k)
-        dumc_en(iq,k) = dumc(iqen(iq,nc),k)
-        dumc_nw(iq,k) = dumc(iqnw(iq,nc),k)
-        dumc_wn(iq,k) = dumc(iqwn(iq,nc),k)
-        dumc_se(iq,k) = dumc(iqse(iq,nc),k)
-        dumc_es(iq,k) = dumc(iqes(iq,nc),k)
-        dumc_sw(iq,k) = dumc(iqsw(iq,nc),k)
-        dumc_ws(iq,k) = dumc(iqws(iq,nc),k)
       end do  
     end do  
       
@@ -1771,17 +1723,9 @@ do i = 1,itrbgn
     ! ocean
     bu(isc:iec)=yync(isc:iec,nc)*dumc_n(isc:iec,1)+yysc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +yyec(isc:iec,nc)*dumc_e(isc:iec,1)+yywc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-               +yynec(isc:iec,nc)*dumc_ne(isc:iec,1)+yyenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-               +yynwc(isc:iec,nc)*dumc_nw(isc:iec,1)+yywnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-               +yysec(isc:iec,nc)*dumc_se(isc:iec,1)+yyesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-               +yyswc(isc:iec,nc)*dumc_sw(isc:iec,1)+yywsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                +zzhhc(isc:iec,nc)
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-               +zznec(isc:iec,nc)*dumc_ne(isc:iec,1)+zzenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-               +zznwc(isc:iec,nc)*dumc_nw(isc:iec,1)+zzwnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-               +zzsec(isc:iec,nc)*dumc_se(isc:iec,1)+zzesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-               +zzswc(isc:iec,nc)*dumc_sw(isc:iec,1)+zzwsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                -rhsc(isc:iec,nc)        
 !$omp simd
     do iq = isc,iec
@@ -1795,14 +1739,10 @@ do i = 1,itrbgn
       dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
          ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
            -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
-           -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
-           -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
-           -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
-           -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
           + rhscice(iq,nc) ) / zzcice(iq,nc) ))
     end do  
 
-    call bounds_colour_send(dumc(:,1:2),nc,corner=.true.)
+    call bounds_colour_send(dumc(:,1:2),nc)
     
     ! update interior
     isc = ifull_colour_border(nc) + 1
@@ -1811,17 +1751,9 @@ do i = 1,itrbgn
     ! ocean
     bu(isc:iec)=yync(isc:iec,nc)*dumc_n(isc:iec,1)+yysc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +yyec(isc:iec,nc)*dumc_e(isc:iec,1)+yywc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-               +yynec(isc:iec,nc)*dumc_ne(isc:iec,1)+yyenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-               +yynwc(isc:iec,nc)*dumc_nw(isc:iec,1)+yywnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-               +yysec(isc:iec,nc)*dumc_se(isc:iec,1)+yyesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-               +yyswc(isc:iec,nc)*dumc_sw(isc:iec,1)+yywsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                +zzhhc(isc:iec,nc)
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-               +zznec(isc:iec,nc)*dumc_ne(isc:iec,1)+zzenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-               +zznwc(isc:iec,nc)*dumc_nw(isc:iec,1)+zzwnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-               +zzsec(isc:iec,nc)*dumc_se(isc:iec,1)+zzesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-               +zzswc(isc:iec,nc)*dumc_sw(isc:iec,1)+zzwsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                -rhsc(isc:iec,nc)   
 !$omp simd
     do iq = isc,iec
@@ -1835,14 +1767,10 @@ do i = 1,itrbgn
       dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
          ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
            -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
-           -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
-           -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
-           -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
-           -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
           + rhscice(iq,nc) ) / zzcice(iq,nc) ))
     end do  
 
-    call bounds_colour_recv(dumc(:,1:2),nc,corner=.true.)
+    call bounds_colour_recv(dumc(:,1:2),nc)
     
   end do
 end do
@@ -1853,28 +1781,12 @@ ipice(1:ifull+iextra) = dumc(1:ifull+iextra,2)
 
 ! residual - ocean
 call unpack_nsew(dumc(:,1),dumc_n(:,1),dumc_s(:,1),dumc_e(:,1),dumc_w(:,1))
-dumc_ne(:,1) = dumc(ine,1)
-dumc_en(:,1) = dumc(ien,1)
-dumc_nw(:,1) = dumc(inw,1)
-dumc_wn(:,1) = dumc(iwn,1)
-dumc_se(:,1) = dumc(ise,1)
-dumc_es(:,1) = dumc(ies,1)
-dumc_sw(:,1) = dumc(isw,1)
-dumc_ws(:,1) = dumc(iws,1)
 w(1:ifull,1)=(-neta(1:ifull)*(iyy(1:ifull)*neta(1:ifull)                             &
               +iyyn(1:ifull)*dumc_n(1:ifull,1)+iyys(1:ifull)*dumc_s(1:ifull,1)       &
-              +iyye(1:ifull)*dumc_e(1:ifull,1)+iyyw(1:ifull)*dumc_w(1:ifull,1)       &
-              +iyyne(1:ifull)*dumc_ne(1:ifull,1)+iyyen(1:ifull)*dumc_en(1:ifull,1)   &
-              +iyynw(1:ifull)*dumc_nw(1:ifull,1)+iyywn(1:ifull)*dumc_wn(1:ifull,1)   &
-              +iyyse(1:ifull)*dumc_se(1:ifull,1)+iyyes(1:ifull)*dumc_es(1:ifull,1)   &
-              +iyysw(1:ifull)*dumc_sw(1:ifull,1)+iyyws(1:ifull)*dumc_ws(1:ifull,1))  &
+              +iyye(1:ifull)*dumc_e(1:ifull,1)+iyyw(1:ifull)*dumc_w(1:ifull,1))      &
              -(izz(1:ifull,1)*neta(1:ifull)                                              &
               +izzn(1:ifull,1)*dumc_n(1:ifull,1)+izzs(1:ifull,1)*dumc_s(1:ifull,1)       &
-              +izze(1:ifull,1)*dumc_e(1:ifull,1)+izzw(1:ifull,1)*dumc_w(1:ifull,1)       &
-              +izzne(1:ifull,1)*dumc_ne(1:ifull,1)+izzen(1:ifull,1)*dumc_en(1:ifull,1)   &
-              +izznw(1:ifull,1)*dumc_nw(1:ifull,1)+izzwn(1:ifull,1)*dumc_wn(1:ifull,1)   &
-              +izzse(1:ifull,1)*dumc_se(1:ifull,1)+izzes(1:ifull,1)*dumc_es(1:ifull,1)   &
-              +izzsw(1:ifull,1)*dumc_sw(1:ifull,1)+izzws(1:ifull,1)*dumc_ws(1:ifull,1))  &
+              +izze(1:ifull,1)*dumc_e(1:ifull,1)+izzw(1:ifull,1)*dumc_w(1:ifull,1))      &
              -ihh(1:ifull)*neta(1:ifull)+irhs(1:ifull,1))*ee(1:ifull)
 
 ! upscale ocean fields
@@ -1883,72 +1795,32 @@ w(1:ifull,3)  = iyyn(1:ifull)
 w(1:ifull,4)  = iyys(1:ifull)
 w(1:ifull,5)  = iyye(1:ifull)
 w(1:ifull,6)  = iyyw(1:ifull)
-w(1:ifull,7)  = iyyne(1:ifull)
-w(1:ifull,8)  = iyyen(1:ifull)
-w(1:ifull,9)  = iyynw(1:ifull)
-w(1:ifull,10) = iyywn(1:ifull)
-w(1:ifull,11) = iyyse(1:ifull)
-w(1:ifull,12) = iyyes(1:ifull)
-w(1:ifull,13) = iyysw(1:ifull)
-w(1:ifull,14) = iyyws(1:ifull)
-w(1:ifull,15) = izz(:,1) +  iyy*neta(1:ifull)
-w(1:ifull,16) = izzn(:,1) + iyyn*neta(1:ifull)
-w(1:ifull,17) = izzs(:,1) + iyys*neta(1:ifull)
-w(1:ifull,18) = izze(:,1) + iyye*neta(1:ifull)
-w(1:ifull,19) = izzw(:,1) + iyyw*neta(1:ifull)
-w(1:ifull,20) = izzne(:,1) + iyyne*neta(1:ifull)
-w(1:ifull,21) = izzen(:,1) + iyyen*neta(1:ifull)
-w(1:ifull,22) = izznw(:,1) + iyynw*neta(1:ifull)
-w(1:ifull,23) = izzwn(:,1) + iyywn*neta(1:ifull)
-w(1:ifull,24) = izzse(:,1) + iyyse*neta(1:ifull)
-w(1:ifull,25) = izzes(:,1) + iyyes*neta(1:ifull)
-w(1:ifull,26) = izzsw(:,1) + iyysw*neta(1:ifull)
-w(1:ifull,27) = izzws(:,1) + iyyws*neta(1:ifull)
-w(1:ifull,28) = iyyn*dumc_n(1:ifull,1) + iyys*dumc_s(1:ifull,1)                         &
+w(1:ifull,7)  = izz(:,1) +  iyy*neta(1:ifull)
+w(1:ifull,8)  = izzn(:,1) + iyyn*neta(1:ifull)
+w(1:ifull,9)  = izzs(:,1) + iyys*neta(1:ifull)
+w(1:ifull,10) = izze(:,1) + iyye*neta(1:ifull)
+w(1:ifull,11) = izzw(:,1) + iyyw*neta(1:ifull)
+w(1:ifull,12) = iyyn*dumc_n(1:ifull,1) + iyys*dumc_s(1:ifull,1)                         &
               + iyye*dumc_e(1:ifull,1) + iyyw*dumc_w(1:ifull,1)                         &
-              + iyyne(1:ifull)*dumc_ne(1:ifull,1) + iyyen(1:ifull)*dumc_en(1:ifull,1)   &
-              + iyynw(1:ifull)*dumc_nw(1:ifull,1) + iyywn(1:ifull)*dumc_wn(1:ifull,1)   &
-              + iyyse(1:ifull)*dumc_se(1:ifull,1) + iyyes(1:ifull)*dumc_es(1:ifull,1)   &
-              + iyysw(1:ifull)*dumc_sw(1:ifull,1) + iyyws(1:ifull)*dumc_ws(1:ifull,1)   &
               + iyy*neta(1:ifull) + ihh(:)
 
 ! residual - ice
 call unpack_nsew(dumc(:,2),dumc_n(:,2),dumc_s(:,2),dumc_e(:,2),dumc_w(:,2))
-dumc_ne(:,2) = dumc(ine,2)
-dumc_en(:,2) = dumc(ien,2)
-dumc_nw(:,2) = dumc(inw,2)
-dumc_wn(:,2) = dumc(iwn,2)
-dumc_se(:,2) = dumc(ise,2)
-dumc_es(:,2) = dumc(ies,2)
-dumc_sw(:,2) = dumc(isw,2)
-dumc_ws(:,2) = dumc(iws,2)
-w(1:ifull,29) =(- izzn(1:ifull,2)*dumc_n(1:ifull,2) - izzs(1:ifull,2)*dumc_s(1:ifull,2)     &
+w(1:ifull,13) =(- izzn(1:ifull,2)*dumc_n(1:ifull,2) - izzs(1:ifull,2)*dumc_s(1:ifull,2)     &
                 - izze(1:ifull,2)*dumc_e(1:ifull,2) - izzw(1:ifull,2)*dumc_w(1:ifull,2)     &
-                - izzne(1:ifull,2)*dumc_ne(1:ifull,2) - izzen(1:ifull,2)*dumc_en(1:ifull,2) &
-                - izznw(1:ifull,2)*dumc_nw(1:ifull,2) - izzwn(1:ifull,2)*dumc_wn(1:ifull,2) &
-                - izzse(1:ifull,2)*dumc_se(1:ifull,2) - izzes(1:ifull,2)*dumc_es(1:ifull,2) &
-                - izzsw(1:ifull,2)*dumc_sw(1:ifull,2) - izzws(1:ifull,2)*dumc_ws(1:ifull,2) &
                 - izz(1:ifull,2)*ipice(1:ifull) + irhs(1:ifull,2))*ee(1:ifull)
 where ( ipice(1:ifull)>=ipmax(1:ifull) )
-  w(1:ifull,29) = 0. ! improves convergence
+  w(1:ifull,13) = 0. ! improves convergence
 end where
 
 ! update ice fields
-w(1:ifull,30) = izz(1:ifull,2)
-w(1:ifull,31) = izzn(1:ifull,2)
-w(1:ifull,32) = izzs(1:ifull,2)
-w(1:ifull,33) = izze(1:ifull,2)
-w(1:ifull,34) = izzw(1:ifull,2)
-w(1:ifull,35) = izzne(1:ifull,2)
-w(1:ifull,36) = izzen(1:ifull,2)
-w(1:ifull,37) = izznw(1:ifull,2)
-w(1:ifull,38) = izzwn(1:ifull,2)
-w(1:ifull,39) = izzse(1:ifull,2)
-w(1:ifull,40) = izzes(1:ifull,2)
-w(1:ifull,41) = izzsw(1:ifull,2)
-w(1:ifull,42) = izzws(1:ifull,2)
+w(1:ifull,14) = izz(1:ifull,2)
+w(1:ifull,15) = izzn(1:ifull,2)
+w(1:ifull,16) = izzs(1:ifull,2)
+w(1:ifull,17) = izze(1:ifull,2)
+w(1:ifull,18) = izzw(1:ifull,2)
 
-call mgcollect(1,w(:,1:42))
+call mgcollect(1,w(:,1:18))
   
 if ( mg_maxlevel_local>0 ) then
   
@@ -1969,80 +1841,32 @@ if ( mg_maxlevel_local>0 ) then
                          +w(mg(1)%fine_e(iq),5)+w(mg(1)%fine_ne(iq),5))
     yyw(iq,2) =0.25*dfac*(w(mg(1)%fine(iq)  ,6)+w(mg(1)%fine_n(iq) ,6)     &
                          +w(mg(1)%fine_e(iq),6)+w(mg(1)%fine_ne(iq),6))
-    yyne(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,7)+w(mg(1)%fine_n(iq) ,7)     &
-                         +w(mg(1)%fine_e(iq),7)+w(mg(1)%fine_ne(iq),7))
-    yyen(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,8)+w(mg(1)%fine_n(iq) ,8)     &
-                         +w(mg(1)%fine_e(iq),8)+w(mg(1)%fine_ne(iq),8))
-    yynw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,9)+w(mg(1)%fine_n(iq) ,9)     &
-                         +w(mg(1)%fine_e(iq),9)+w(mg(1)%fine_ne(iq),9))
-    yywn(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,10)+w(mg(1)%fine_n(iq) ,10)   &
-                         +w(mg(1)%fine_e(iq),10)+w(mg(1)%fine_ne(iq),10))
-    yyse(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,11)+w(mg(1)%fine_n(iq) ,11)   &
-                         +w(mg(1)%fine_e(iq),11)+w(mg(1)%fine_ne(iq),11))
-    yyes(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,12)+w(mg(1)%fine_n(iq) ,12)   &
-                         +w(mg(1)%fine_e(iq),12)+w(mg(1)%fine_ne(iq),12))
-    yysw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,13)+w(mg(1)%fine_n(iq) ,13)   &
-                         +w(mg(1)%fine_e(iq),13)+w(mg(1)%fine_ne(iq),13))
-    yyws(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,14)+w(mg(1)%fine_n(iq) ,14)   &
-                         +w(mg(1)%fine_e(iq),14)+w(mg(1)%fine_ne(iq),14))
-    zz(iq,2) =0.25*dfac*(w(mg(1)%fine(iq)  ,15)+w(mg(1)%fine_n(iq) ,15)    &
-                        +w(mg(1)%fine_e(iq),15)+w(mg(1)%fine_ne(iq),15))
-    zzn(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,16)+w(mg(1)%fine_n(iq) ,16)    &
-                        +w(mg(1)%fine_e(iq),16)+w(mg(1)%fine_ne(iq),16))
-    zzs(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,17)+w(mg(1)%fine_n(iq) ,17)    &
-                        +w(mg(1)%fine_e(iq),17)+w(mg(1)%fine_ne(iq),17))
-    zze(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,18)+w(mg(1)%fine_n(iq) ,18)    &
-                        +w(mg(1)%fine_e(iq),18)+w(mg(1)%fine_ne(iq),18))
-    zzw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,19)+w(mg(1)%fine_n(iq) ,19)    &
-                        +w(mg(1)%fine_e(iq),19)+w(mg(1)%fine_ne(iq),19))
-    zzne(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,20)+w(mg(1)%fine_n(iq) ,20)   &
-                         +w(mg(1)%fine_e(iq),20)+w(mg(1)%fine_ne(iq),20))
-    zzen(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,21)+w(mg(1)%fine_n(iq) ,21)   &
-                         +w(mg(1)%fine_e(iq),21)+w(mg(1)%fine_ne(iq),21))
-    zznw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,22)+w(mg(1)%fine_n(iq) ,22)   &
-                         +w(mg(1)%fine_e(iq),22)+w(mg(1)%fine_ne(iq),22))
-    zzwn(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,23)+w(mg(1)%fine_n(iq) ,23)   &
-                         +w(mg(1)%fine_e(iq),23)+w(mg(1)%fine_ne(iq),23))
-    zzse(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,24)+w(mg(1)%fine_n(iq) ,24)   &
-                         +w(mg(1)%fine_e(iq),24)+w(mg(1)%fine_ne(iq),24))
-    zzes(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,25)+w(mg(1)%fine_n(iq) ,25)   &
-                         +w(mg(1)%fine_e(iq),25)+w(mg(1)%fine_ne(iq),25))
-    zzsw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,26)+w(mg(1)%fine_n(iq) ,26)   &
-                         +w(mg(1)%fine_e(iq),26)+w(mg(1)%fine_ne(iq),26))
-    zzws(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,27)+w(mg(1)%fine_n(iq) ,27)   &
-                         +w(mg(1)%fine_e(iq),27)+w(mg(1)%fine_ne(iq),27))
-    hh(iq,2)    =0.25*(w(mg(1)%fine(iq)  ,28)+w(mg(1)%fine_n(iq) ,28)      &
-                      +w(mg(1)%fine_e(iq),28)+w(mg(1)%fine_ne(iq),28))
+    zz(iq,2) =0.25*dfac*(w(mg(1)%fine(iq)  ,7)+w(mg(1)%fine_n(iq) ,7)    &
+                        +w(mg(1)%fine_e(iq),7)+w(mg(1)%fine_ne(iq),7))
+    zzn(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,8)+w(mg(1)%fine_n(iq) ,8)    &
+                        +w(mg(1)%fine_e(iq),8)+w(mg(1)%fine_ne(iq),8))
+    zzs(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,9)+w(mg(1)%fine_n(iq) ,9)    &
+                        +w(mg(1)%fine_e(iq),9)+w(mg(1)%fine_ne(iq),9))
+    zze(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,10)+w(mg(1)%fine_n(iq) ,10)    &
+                        +w(mg(1)%fine_e(iq),10)+w(mg(1)%fine_ne(iq),10))
+    zzw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,11)+w(mg(1)%fine_n(iq) ,11)    &
+                        +w(mg(1)%fine_e(iq),11)+w(mg(1)%fine_ne(iq),11))
+    hh(iq,2)    =0.25*(w(mg(1)%fine(iq)  ,12)+w(mg(1)%fine_n(iq) ,12)      &
+                      +w(mg(1)%fine_e(iq),12)+w(mg(1)%fine_ne(iq),12))
     
-    rhsi(iq,2)=0.25*(w(mg(1)%fine(iq)  ,29)+w(mg(1)%fine_n(iq) ,29)        &
-                    +w(mg(1)%fine_e(iq),29)+w(mg(1)%fine_ne(iq),29))
+    rhsi(iq,2)=0.25*(w(mg(1)%fine(iq)  ,13)+w(mg(1)%fine_n(iq) ,13)        &
+                    +w(mg(1)%fine_e(iq),13)+w(mg(1)%fine_ne(iq),13))
     ! special treatment of ice
-    zzi(iq,2) =0.25*dfaci*(w(mg(1)%fine(iq)  ,30)+w(mg(1)%fine_n(iq) ,30)  &
-                          +w(mg(1)%fine_e(iq),30)+w(mg(1)%fine_ne(iq),30))
-    zzin(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,31)+w(mg(1)%fine_n(iq) ,31)  &
-                          +w(mg(1)%fine_e(iq),31)+w(mg(1)%fine_ne(iq),31))
-    zzis(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,32)+w(mg(1)%fine_n(iq) ,32)  &
-                          +w(mg(1)%fine_e(iq),32)+w(mg(1)%fine_ne(iq),32))
-    zzie(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,33)+w(mg(1)%fine_n(iq) ,33)  &
-                          +w(mg(1)%fine_e(iq),33)+w(mg(1)%fine_ne(iq),33))
-    zziw(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,34)+w(mg(1)%fine_n(iq) ,34)  &
-                          +w(mg(1)%fine_e(iq),34)+w(mg(1)%fine_ne(iq),34))
-    zzine(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,35)+w(mg(1)%fine_n(iq) ,35) &
-                           +w(mg(1)%fine_e(iq),35)+w(mg(1)%fine_ne(iq),35))
-    zzien(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,36)+w(mg(1)%fine_n(iq) ,36) &
-                           +w(mg(1)%fine_e(iq),36)+w(mg(1)%fine_ne(iq),36))
-    zzinw(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,37)+w(mg(1)%fine_n(iq) ,37) &
-                           +w(mg(1)%fine_e(iq),37)+w(mg(1)%fine_ne(iq),37))
-    zziwn(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,38)+w(mg(1)%fine_n(iq) ,38) &
-                           +w(mg(1)%fine_e(iq),38)+w(mg(1)%fine_ne(iq),38))
-    zzise(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,39)+w(mg(1)%fine_n(iq) ,39) &
-                           +w(mg(1)%fine_e(iq),39)+w(mg(1)%fine_ne(iq),39))
-    zzies(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,40)+w(mg(1)%fine_n(iq) ,40) &
-                           +w(mg(1)%fine_e(iq),40)+w(mg(1)%fine_ne(iq),40))
-    zzisw(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,41)+w(mg(1)%fine_n(iq) ,41) &
-                           +w(mg(1)%fine_e(iq),41)+w(mg(1)%fine_ne(iq),41))
-    zziws(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,42)+w(mg(1)%fine_n(iq) ,42) &
-                           +w(mg(1)%fine_e(iq),42)+w(mg(1)%fine_ne(iq),42))
+    zzi(iq,2) =0.25*dfaci*(w(mg(1)%fine(iq)  ,14)+w(mg(1)%fine_n(iq) ,14)  &
+                          +w(mg(1)%fine_e(iq),14)+w(mg(1)%fine_ne(iq),14))
+    zzin(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,15)+w(mg(1)%fine_n(iq) ,15)  &
+                          +w(mg(1)%fine_e(iq),15)+w(mg(1)%fine_ne(iq),15))
+    zzis(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,16)+w(mg(1)%fine_n(iq) ,16)  &
+                          +w(mg(1)%fine_e(iq),16)+w(mg(1)%fine_ne(iq),16))
+    zzie(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,17)+w(mg(1)%fine_n(iq) ,17)  &
+                          +w(mg(1)%fine_e(iq),17)+w(mg(1)%fine_ne(iq),17))
+    zziw(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,18)+w(mg(1)%fine_n(iq) ,18)  &
+                          +w(mg(1)%fine_e(iq),18)+w(mg(1)%fine_ne(iq),18))
   end do  
 
   ! merge grids if insufficent points on this processor
@@ -2053,43 +1877,19 @@ if ( mg_maxlevel_local>0 ) then
     w(1:ng4,4)  = yys(1:ng4,2)
     w(1:ng4,5)  = yye(1:ng4,2)
     w(1:ng4,6)  = yyw(1:ng4,2)
-    w(1:ng4,7)  = yyne(1:ng4,2)
-    w(1:ng4,8)  = yyen(1:ng4,2)
-    w(1:ng4,9)  = yynw(1:ng4,2)
-    w(1:ng4,10) = yywn(1:ng4,2)
-    w(1:ng4,11) = yyse(1:ng4,2)
-    w(1:ng4,12) = yyes(1:ng4,2)
-    w(1:ng4,13) = yysw(1:ng4,2)
-    w(1:ng4,14) = yyws(1:ng4,2)
-    w(1:ng4,15) = zz(1:ng4,2)
-    w(1:ng4,16) = zzn(1:ng4,2)
-    w(1:ng4,17) = zzs(1:ng4,2)
-    w(1:ng4,18) = zze(1:ng4,2)
-    w(1:ng4,19) = zzw(1:ng4,2)
-    w(1:ng4,20) = zzne(1:ng4,2)
-    w(1:ng4,21) = zzen(1:ng4,2)
-    w(1:ng4,22) = zznw(1:ng4,2)
-    w(1:ng4,23) = zzwn(1:ng4,2)
-    w(1:ng4,24) = zzse(1:ng4,2)
-    w(1:ng4,25) = zzes(1:ng4,2)
-    w(1:ng4,26) = zzsw(1:ng4,2)
-    w(1:ng4,27) = zzws(1:ng4,2)
-    w(1:ng4,28) = hh(1:ng4,2)
-    w(1:ng4,29) = rhsi(1:ng4,2)
-    w(1:ng4,30) = zzi(1:ng4,2)
-    w(1:ng4,31) = zzin(1:ng4,2)
-    w(1:ng4,32) = zzis(1:ng4,2)
-    w(1:ng4,33) = zzie(1:ng4,2)
-    w(1:ng4,34) = zziw(1:ng4,2)
-    w(1:ng4,35) = zzine(1:ng4,2)
-    w(1:ng4,36) = zzien(1:ng4,2)
-    w(1:ng4,37) = zzinw(1:ng4,2)
-    w(1:ng4,38) = zziwn(1:ng4,2)
-    w(1:ng4,39) = zzise(1:ng4,2)
-    w(1:ng4,40) = zzies(1:ng4,2)
-    w(1:ng4,41) = zzisw(1:ng4,2)
-    w(1:ng4,42) = zziws(1:ng4,2)
-    call mgcollect(2,w(:,1:42))
+    w(1:ng4,7)  = zz(1:ng4,2)
+    w(1:ng4,8)  = zzn(1:ng4,2)
+    w(1:ng4,9)  = zzs(1:ng4,2)
+    w(1:ng4,10) = zze(1:ng4,2)
+    w(1:ng4,11) = zzw(1:ng4,2)
+    w(1:ng4,12) = hh(1:ng4,2)
+    w(1:ng4,13) = rhsi(1:ng4,2)
+    w(1:ng4,14) = zzi(1:ng4,2)
+    w(1:ng4,15) = zzin(1:ng4,2)
+    w(1:ng4,16) = zzis(1:ng4,2)
+    w(1:ng4,17) = zzie(1:ng4,2)
+    w(1:ng4,18) = zziw(1:ng4,2)
+    call mgcollect(2,w(:,1:18))
     if ( 2<=mg_maxlevel_local ) then
       ng = mg(2)%ifull
       rhs(1:ng,2)   = w(1:ng,1)
@@ -2098,42 +1898,18 @@ if ( mg_maxlevel_local>0 ) then
       yys(1:ng,2)   = w(1:ng,4)
       yye(1:ng,2)   = w(1:ng,5)
       yyw(1:ng,2)   = w(1:ng,6)
-      yyne(1:ng,2)  = w(1:ng,7)
-      yyen(1:ng,2)  = w(1:ng,8)
-      yynw(1:ng,2)  = w(1:ng,9)
-      yywn(1:ng,2)  = w(1:ng,10)
-      yyse(1:ng,2)  = w(1:ng,11)
-      yyes(1:ng,2)  = w(1:ng,12)
-      yysw(1:ng,2)  = w(1:ng,13)
-      yyws(1:ng,2)  = w(1:ng,14)
-      zz(1:ng,2)    = w(1:ng,15)
-      zzn(1:ng,2)   = w(1:ng,16)
-      zzs(1:ng,2)   = w(1:ng,17)
-      zze(1:ng,2)   = w(1:ng,18)
-      zzw(1:ng,2)   = w(1:ng,19)
-      zzne(1:ng,2)  = w(1:ng,20)
-      zzen(1:ng,2)  = w(1:ng,21)
-      zznw(1:ng,2)  = w(1:ng,22)
-      zzwn(1:ng,2)  = w(1:ng,23)
-      zzse(1:ng,2)  = w(1:ng,24)
-      zzes(1:ng,2)  = w(1:ng,25)
-      zzsw(1:ng,2)  = w(1:ng,26)
-      zzws(1:ng,2)  = w(1:ng,27)
-      hh(1:ng,2)    = w(1:ng,28)
-      rhsi(1:ng,2)  = w(1:ng,29)
-      zzi(1:ng,2)   = w(1:ng,30)
-      zzin(1:ng,2)  = w(1:ng,31)
-      zzis(1:ng,2)  = w(1:ng,32)
-      zzie(1:ng,2)  = w(1:ng,33)
-      zziw(1:ng,2)  = w(1:ng,34)
-      zzine(1:ng,2) = w(1:ng,35)
-      zzien(1:ng,2) = w(1:ng,36)
-      zzinw(1:ng,2) = w(1:ng,37)
-      zziwn(1:ng,2) = w(1:ng,38)
-      zzise(1:ng,2) = w(1:ng,39)
-      zzies(1:ng,2) = w(1:ng,40)
-      zzisw(1:ng,2) = w(1:ng,41)
-      zziws(1:ng,2) = w(1:ng,42)
+      zz(1:ng,2)    = w(1:ng,7)
+      zzn(1:ng,2)   = w(1:ng,8)
+      zzs(1:ng,2)   = w(1:ng,9)
+      zze(1:ng,2)   = w(1:ng,10)
+      zzw(1:ng,2)   = w(1:ng,11)
+      hh(1:ng,2)    = w(1:ng,12)
+      rhsi(1:ng,2)  = w(1:ng,13)
+      zzi(1:ng,2)   = w(1:ng,14)
+      zzin(1:ng,2)  = w(1:ng,15)
+      zzis(1:ng,2)  = w(1:ng,16)
+      zzie(1:ng,2)  = w(1:ng,17)
+      zziw(1:ng,2)  = w(1:ng,18)
     end if  
   end if
     
@@ -2151,55 +1927,27 @@ if ( mg_maxlevel_local>0 ) then
     v(:,1:2,g) = 0.
     v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng)))
     v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)
-    call mgbounds(g,v(:,1:2,g),corner=.true.)
+    call mgbounds(g,v(:,1:2,g))
     
     do i = 2,itrbgn
 
       ! ocean - post smoothing
       call mgunpack_nsew(g,v(:,1,g),v_n,v_s,v_e,v_w)
-      v_ne(1:ng) = v(mg(g)%ine,1,g)
-      v_en(1:ng) = v(mg(g)%ien,1,g)
-      v_nw(1:ng) = v(mg(g)%inw,1,g)
-      v_wn(1:ng) = v(mg(g)%iwn,1,g)
-      v_se(1:ng) = v(mg(g)%ise,1,g)
-      v_es(1:ng) = v(mg(g)%ies,1,g)
-      v_sw(1:ng) = v(mg(g)%isw,1,g)
-      v_ws(1:ng) = v(mg(g)%iws,1,g)
       bu(1:ng) = yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng)       &
                + yye(1:ng,g)*v_e(1:ng)+yyw(1:ng,g)*v_w(1:ng)       &
-               + yyne(1:ng,g)*v_ne(1:ng) + yyen(1:ng,g)*v_en(1:ng) &
-               + yynw(1:ng,g)*v_nw(1:ng) + yywn(1:ng,g)*v_wn(1:ng) &
-               + yyse(1:ng,g)*v_se(1:ng) + yyes(1:ng,g)*v_es(1:ng) &
-               + yysw(1:ng,g)*v_sw(1:ng) + yyws(1:ng,g)*v_ws(1:ng) &
                + zz(1:ng,g) + hh(1:ng,g)
       cu(1:ng) = zzn(1:ng,g)*v_n(1:ng) + zzs(1:ng,g)*v_s(1:ng)     &
                + zze(1:ng,g)*v_e(1:ng) + zzw(1:ng,g)*v_w(1:ng)     &
-               + zzne(1:ng,g)*v_ne(1:ng) + zzen(1:ng,g)*v_en(1:ng) &
-               + zznw(1:ng,g)*v_nw(1:ng) + zzwn(1:ng,g)*v_wn(1:ng) &
-               + zzse(1:ng,g)*v_se(1:ng) + zzes(1:ng,g)*v_es(1:ng) &
-               + zzsw(1:ng,g)*v_sw(1:ng) + zzws(1:ng,g)*v_ws(1:ng) &
                - rhs(1:ng,g)
       v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng)))
       
       ! ice - post smoothing
       call mgunpack_nsew(g,v(:,2,g),v_n,v_s,v_e,v_w)
-      v_ne(1:ng) = v(mg(g)%ine,2,g)
-      v_en(1:ng) = v(mg(g)%ien,2,g)
-      v_nw(1:ng) = v(mg(g)%inw,2,g)
-      v_wn(1:ng) = v(mg(g)%iwn,2,g)
-      v_se(1:ng) = v(mg(g)%ise,2,g)
-      v_es(1:ng) = v(mg(g)%ies,2,g)
-      v_sw(1:ng) = v(mg(g)%isw,2,g)
-      v_ws(1:ng) = v(mg(g)%iws,2,g)
       v(1:ng,2,g) = ( - zzin(1:ng,g)*v_n(1:ng) - zzis(1:ng,g)*v_s(1:ng)     &
                       - zzie(1:ng,g)*v_e(1:ng) - zziw(1:ng,g)*v_w(1:ng)     &
-                      - zzine(1:ng,g)*v_ne(1:ng) - zzien(1:ng,g)*v_en(1:ng) &
-                      - zzinw(1:ng,g)*v_nw(1:ng) - zziwn(1:ng,g)*v_wn(1:ng) &
-                      - zzise(1:ng,g)*v_se(1:ng) - zzies(1:ng,g)*v_es(1:ng) &
-                      - zzisw(1:ng,g)*v_sw(1:ng) - zziws(1:ng,g)*v_ws(1:ng) &
                       + rhsi(1:ng,g) ) / zzi(1:ng,g)
       
-      call mgbounds(g,v(:,1:2,g),corner=.true.)
+      call mgbounds(g,v(:,1:2,g))
     end do
   
     ! restriction
@@ -2209,26 +1957,10 @@ if ( mg_maxlevel_local>0 ) then
 
     ! ocean residual
     call mgunpack_nsew(g,v(:,1,g),v_n,v_s,v_e,v_w)
-    v_ne(1:ng) = v(mg(g)%ine,1,g)
-    v_en(1:ng) = v(mg(g)%ien,1,g)
-    v_nw(1:ng) = v(mg(g)%inw,1,g)
-    v_wn(1:ng) = v(mg(g)%iwn,1,g)
-    v_se(1:ng) = v(mg(g)%ise,1,g)
-    v_es(1:ng) = v(mg(g)%ies,1,g)
-    v_sw(1:ng) = v(mg(g)%isw,1,g)
-    v_ws(1:ng) = v(mg(g)%iws,1,g)
     ws(1:ng,1)=-v(1:ng,1,g)*(yyz(1:ng,g)*v(1:ng,1,g)+yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng)      &
-                                                    +yye(1:ng,g)*v_e(1:ng)+yyw(1:ng,g)*v_w(1:ng)      &
-                                                    +yyne(1:ng,g)*v_ne(1:ng)+yyen(1:ng,g)*v_en(1:ng)  &
-                                                    +yynw(1:ng,g)*v_nw(1:ng)+yywn(1:ng,g)*v_wn(1:ng)  &
-                                                    +yyse(1:ng,g)*v_se(1:ng)+yyes(1:ng,g)*v_es(1:ng)  &
-                                                    +yysw(1:ng,g)*v_sw(1:ng)+yyws(1:ng,g)*v_ws(1:ng)) &
+                                                    +yye(1:ng,g)*v_e(1:ng)+yyw(1:ng,g)*v_w(1:ng))     &
                -(zz(1:ng,g)*v(1:ng,1,g)+zzn(1:ng,g)*v_n(1:ng)+zzs(1:ng,g)*v_s(1:ng)                   &
-                                       +zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng)                   &
-                                       +zzne(1:ng,g)*v_ne(1:ng)+zzen(1:ng,g)*v_en(1:ng)               &
-                                       +zznw(1:ng,g)*v_nw(1:ng)+zzwn(1:ng,g)*v_wn(1:ng)               &
-                                       +zzse(1:ng,g)*v_se(1:ng)+zzes(1:ng,g)*v_es(1:ng)               &
-                                       +zzsw(1:ng,g)*v_sw(1:ng)+zzws(1:ng,g)*v_ws(1:ng))              &
+                                       +zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng))                  &
                 -hh(1:ng,g)*v(1:ng,1,g)+rhs(1:ng,g)
 !$omp simd
     do iq = 1,ng4
@@ -2244,181 +1976,77 @@ if ( mg_maxlevel_local>0 ) then
                               +yye(mg(g)%fine_e(iq),g)+yye(mg(g)%fine_ne(iq),g))
       w(iq,6) = 0.25*dfac*(yyw(mg(g)%fine(iq)  ,g)+yyw(mg(g)%fine_n(iq) ,g) &
                               +yyw(mg(g)%fine_e(iq),g)+yyw(mg(g)%fine_ne(iq),g))
-      w(iq,7) = 0.25*dfac*(yyne(mg(g)%fine(iq)  ,g)+yyne(mg(g)%fine_n(iq) ,g) &
-                               +yyne(mg(g)%fine_e(iq),g)+yyne(mg(g)%fine_ne(iq),g))
-      w(iq,8) = 0.25*dfac*(yyen(mg(g)%fine(iq)  ,g)+yyen(mg(g)%fine_n(iq) ,g) &
-                               +yyen(mg(g)%fine_e(iq),g)+yyen(mg(g)%fine_ne(iq),g))
-      w(iq,9) = 0.25*dfac*(yynw(mg(g)%fine(iq)  ,g)+yynw(mg(g)%fine_n(iq) ,g) &
-                               +yynw(mg(g)%fine_e(iq),g)+yynw(mg(g)%fine_ne(iq),g))
-      w(iq,10) = 0.25*dfac*(yywn(mg(g)%fine(iq)  ,g)+yywn(mg(g)%fine_n(iq) ,g) &
-                               +yywn(mg(g)%fine_e(iq),g)+yywn(mg(g)%fine_ne(iq),g))
-      w(iq,11) = 0.25*dfac*(yyse(mg(g)%fine(iq)  ,g)+yyse(mg(g)%fine_n(iq) ,g) &
-                               +yyse(mg(g)%fine_e(iq),g)+yyse(mg(g)%fine_ne(iq),g))
-      w(iq,12) = 0.25*dfac*(yyes(mg(g)%fine(iq)  ,g)+yyes(mg(g)%fine_n(iq) ,g) &
-                               +yyes(mg(g)%fine_e(iq),g)+yyes(mg(g)%fine_ne(iq),g))
-      w(iq,13) = 0.25*dfac*(yysw(mg(g)%fine(iq)  ,g)+yysw(mg(g)%fine_n(iq) ,g) &
-                               +yysw(mg(g)%fine_e(iq),g)+yysw(mg(g)%fine_ne(iq),g))
-      w(iq,14) = 0.25*dfac*(yyws(mg(g)%fine(iq)  ,g)+yyws(mg(g)%fine_n(iq) ,g) &
-                               +yyws(mg(g)%fine_e(iq),g)+yyws(mg(g)%fine_ne(iq),g))
     end do
     
     ws(1:ng,1) = zz(1:ng,g) + yyz(1:ng,g)*v(1:ng,1,g)
 !$omp simd
     do iq = 1,ng4
-      w(iq,15) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                           +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
+      w(iq,7) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
+                          +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
     end do
     
     ws(1:ng,1) = zzn(1:ng,g) + yyn(1:ng,g)*v(1:ng,1,g)
 !$omp simd
     do iq = 1,ng4
-      w(iq,16) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                              +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
+      w(iq,8) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
+                          +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
     end do  
     
     ws(1:ng,1) = zzs(1:ng,g) + yys(1:ng,g)*v(1:ng,1,g)
 !$omp simd
     do iq = 1,ng4
-      w(iq,17) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                              +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
+      w(iq,9) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
+                          +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
     end do
     
     ws(1:ng,1) = zze(1:ng,g) + yye(1:ng,g)*v(1:ng,1,g)
 !$omp simd
     do iq = 1,ng4
-      w(iq,18) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                              +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
+      w(iq,10) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
+                           +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
     end do  
     
     ws(1:ng,1) = zzw(1:ng,g) + yyw(1:ng,g)*v(1:ng,1,g)
 !$omp simd
     do iq = 1,ng4
-      w(iq,19) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                              +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-    end do 
-      
-    ws(1:ng,1) = zzne(1:ng,g) + yyne(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-    do iq = 1,ng4
-      w(iq,20) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                              +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-    end do  
-    
-    ws(1:ng,1) = zzen(1:ng,g) + yyen(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-    do iq = 1,ng4
-      w(iq,21) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                              +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-    end do
-    
-    ws(1:ng,1) = zznw(1:ng,g) + yynw(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-    do iq = 1,ng4
-      w(iq,22) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                              +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-    end do  
-    
-    ws(1:ng,1) = zzwn(1:ng,g) + yywn(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-    do iq = 1,ng4
-      w(iq,23) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                              +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-    end do     
-    
-    ws(1:ng,1) = zzse(1:ng,g) + yyse(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-    do iq = 1,ng4
-      w(iq,24) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                              +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-    end do  
-    
-    ws(1:ng,1) = zzes(1:ng,g) + yyes(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-    do iq = 1,ng4
-      w(iq,25) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                              +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-    end do
-    
-    ws(1:ng,1) = zzsw(1:ng,g) + yysw(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-    do iq = 1,ng4
-      w(iq,26) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                              +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-    end do  
-    
-    ws(1:ng,1) = zzws(1:ng,g) + yyws(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-    do iq = 1,ng4
-      w(iq,27) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                              +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
+      w(iq,11) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
+                           +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
     end do 
     
     ws(1:ng,1) = yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng)     &
                 +yye(1:ng,g)*v_e(1:ng)+yyw(1:ng,g)*v_w(1:ng)     &
-                +yyne(1:ng,g)*v_ne(1:ng)+yyen(1:ng,g)*v_en(1:ng) &
-                +yynw(1:ng,g)*v_nw(1:ng)+yywn(1:ng,g)*v_wn(1:ng) &
-                +yyse(1:ng,g)*v_se(1:ng)+yyes(1:ng,g)*v_es(1:ng) &
-                +yysw(1:ng,g)*v_sw(1:ng)+yyws(1:ng,g)*v_ws(1:ng) &
                 +yyz(1:ng,g)*v(1:ng,1,g) + hh(1:ng,g)
 !$omp simd
     do iq = 1,ng4
-      w(iq,28) = 0.25*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1)           &
+      w(iq,12) = 0.25*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1)           &
                       +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
     end do
 
     ! ice residual
     call mgunpack_nsew(g,v(:,2,g),v_n,v_s,v_e,v_w)
-    v_ne(1:ng) = v(mg(g)%ine,2,g)
-    v_en(1:ng) = v(mg(g)%ien,2,g)
-    v_nw(1:ng) = v(mg(g)%inw,2,g)
-    v_wn(1:ng) = v(mg(g)%iwn,2,g)
-    v_se(1:ng) = v(mg(g)%ise,2,g)
-    v_es(1:ng) = v(mg(g)%ies,2,g)
-    v_sw(1:ng) = v(mg(g)%isw,2,g)
-    v_ws(1:ng) = v(mg(g)%iws,2,g)
     ws(1:ng,2) = -zzin(1:ng,g)*v_n(1:ng)-zzis(1:ng,g)*v_s(1:ng)     &
                  -zzie(1:ng,g)*v_e(1:ng)-zziw(1:ng,g)*v_w(1:ng)     &
-                 -zzine(1:ng,g)*v_ne(1:ng)-zzien(1:ng,g)*v_en(1:ng) &
-                 -zzinw(1:ng,g)*v_nw(1:ng)-zziwn(1:ng,g)*v_wn(1:ng) &
-                 -zzise(1:ng,g)*v_se(1:ng)-zzies(1:ng,g)*v_es(1:ng) &
-                 -zzisw(1:ng,g)*v_sw(1:ng)-zziws(1:ng,g)*v_ws(1:ng) &
                  -zzi(1:ng,g)*v(1:ng,2,g)+rhsi(1:ng,g)
 !$omp simd
     do iq = 1,ng4
-      w(iq,29)=0.25*(ws(mg(g)%fine(iq)  ,2)+ws(mg(g)%fine_n(iq) ,2)  &
+      w(iq,13)=0.25*(ws(mg(g)%fine(iq)  ,2)+ws(mg(g)%fine_n(iq) ,2)  &
                         +ws(mg(g)%fine_e(iq),2)+ws(mg(g)%fine_ne(iq),2))
       ! special treatment of ice (neglect dfac)
-      w(iq,30) = 0.25*dfaci*(zzi(mg(g)%fine(iq)  ,g)+zzi(mg(g)%fine_n(iq) ,g)    &
-                               +zzi(mg(g)%fine_e(iq),g)+zzi(mg(g)%fine_ne(iq),g))
-      w(iq,31) = 0.25*dfaci*(zzin(mg(g)%fine(iq)  ,g)+zzin(mg(g)%fine_n(iq) ,g) &
-                                +zzin(mg(g)%fine_e(iq),g)+zzin(mg(g)%fine_ne(iq),g))
-      w(iq,32) = 0.25*dfaci*(zzis(mg(g)%fine(iq)  ,g)+zzis(mg(g)%fine_n(iq) ,g) &
-                                +zzis(mg(g)%fine_e(iq),g)+zzis(mg(g)%fine_ne(iq),g))
-      w(iq,33) = 0.25*dfaci*(zzie(mg(g)%fine(iq)  ,g)+zzie(mg(g)%fine_n(iq) ,g) &
-                                +zzie(mg(g)%fine_e(iq),g)+zzie(mg(g)%fine_ne(iq),g))
-      w(iq,34) = 0.25*dfaci*(zziw(mg(g)%fine(iq)  ,g)+zziw(mg(g)%fine_n(iq) ,g) &
-                                +zziw(mg(g)%fine_e(iq),g)+zziw(mg(g)%fine_ne(iq),g))
-      w(iq,35) = 0.25*dfaci*(zzine(mg(g)%fine(iq)  ,g)+zzine(mg(g)%fine_n(iq) ,g) &
-                                 +zzine(mg(g)%fine_e(iq),g)+zzine(mg(g)%fine_ne(iq),g))
-      w(iq,36) = 0.25*dfaci*(zzien(mg(g)%fine(iq)  ,g)+zzien(mg(g)%fine_n(iq) ,g) &
-                                 +zzien(mg(g)%fine_e(iq),g)+zzien(mg(g)%fine_ne(iq),g))
-      w(iq,37) = 0.25*dfaci*(zzinw(mg(g)%fine(iq)  ,g)+zzinw(mg(g)%fine_n(iq) ,g) &
-                                 +zzinw(mg(g)%fine_e(iq),g)+zzinw(mg(g)%fine_ne(iq),g))
-      w(iq,38) = 0.25*dfaci*(zziwn(mg(g)%fine(iq)  ,g)+zziwn(mg(g)%fine_n(iq) ,g) &
-                                 +zziwn(mg(g)%fine_e(iq),g)+zziwn(mg(g)%fine_ne(iq),g))
-      w(iq,39) = 0.25*dfaci*(zzise(mg(g)%fine(iq)  ,g)+zzise(mg(g)%fine_n(iq) ,g) &
-                                 +zzise(mg(g)%fine_e(iq),g)+zzise(mg(g)%fine_ne(iq),g))
-      w(iq,40) = 0.25*dfaci*(zzies(mg(g)%fine(iq)  ,g)+zzies(mg(g)%fine_n(iq) ,g) &
-                                 +zzies(mg(g)%fine_e(iq),g)+zzies(mg(g)%fine_ne(iq),g))
-      w(iq,41) = 0.25*dfaci*(zzisw(mg(g)%fine(iq)  ,g)+zzisw(mg(g)%fine_n(iq) ,g) &
-                                 +zzisw(mg(g)%fine_e(iq),g)+zzisw(mg(g)%fine_ne(iq),g))
-      w(iq,42) = 0.25*dfaci*(zziws(mg(g)%fine(iq)  ,g)+zziws(mg(g)%fine_n(iq) ,g) &
-                                 +zziws(mg(g)%fine_e(iq),g)+zziws(mg(g)%fine_ne(iq),g))
+      w(iq,14) = 0.25*dfaci*(zzi(mg(g)%fine(iq)  ,g)+zzi(mg(g)%fine_n(iq) ,g)    &
+                            +zzi(mg(g)%fine_e(iq),g)+zzi(mg(g)%fine_ne(iq),g))
+      w(iq,15) = 0.25*dfaci*(zzin(mg(g)%fine(iq)  ,g)+zzin(mg(g)%fine_n(iq) ,g) &
+                            +zzin(mg(g)%fine_e(iq),g)+zzin(mg(g)%fine_ne(iq),g))
+      w(iq,16) = 0.25*dfaci*(zzis(mg(g)%fine(iq)  ,g)+zzis(mg(g)%fine_n(iq) ,g) &
+                            +zzis(mg(g)%fine_e(iq),g)+zzis(mg(g)%fine_ne(iq),g))
+      w(iq,17) = 0.25*dfaci*(zzie(mg(g)%fine(iq)  ,g)+zzie(mg(g)%fine_n(iq) ,g) &
+                            +zzie(mg(g)%fine_e(iq),g)+zzie(mg(g)%fine_ne(iq),g))
+      w(iq,18) = 0.25*dfaci*(zziw(mg(g)%fine(iq)  ,g)+zziw(mg(g)%fine_n(iq) ,g) &
+                            +zziw(mg(g)%fine_e(iq),g)+zziw(mg(g)%fine_ne(iq),g))
     end do
     
     ! merge grids if insufficent points on this processor
     if ( mg(g+1)%merge_len>1 ) then
-      call mgcollect(g+1,w(:,1:42)) 
+      call mgcollect(g+1,w(:,1:18)) 
     end if
     
     if ( g+1<=mg_maxlevel_local ) then
@@ -2429,42 +2057,18 @@ if ( mg_maxlevel_local>0 ) then
       yys(1:ng,g+1)   = w(1:ng,4)
       yye(1:ng,g+1)   = w(1:ng,5)
       yyw(1:ng,g+1)   = w(1:ng,6)
-      yyne(1:ng,g+1)  = w(1:ng,7)
-      yyen(1:ng,g+1)  = w(1:ng,8)
-      yynw(1:ng,g+1)  = w(1:ng,9)
-      yywn(1:ng,g+1)  = w(1:ng,10)
-      yyse(1:ng,g+1)  = w(1:ng,11)
-      yyes(1:ng,g+1)  = w(1:ng,12)
-      yysw(1:ng,g+1)  = w(1:ng,13)
-      yyws(1:ng,g+1)  = w(1:ng,14)
-      zz(1:ng,g+1)    = w(1:ng,15)
-      zzn(1:ng,g+1)   = w(1:ng,16)
-      zzs(1:ng,g+1)   = w(1:ng,17)
-      zze(1:ng,g+1)   = w(1:ng,18)
-      zzw(1:ng,g+1)   = w(1:ng,19)
-      zzne(1:ng,g+1)  = w(1:ng,20)
-      zzen(1:ng,g+1)  = w(1:ng,21)
-      zznw(1:ng,g+1)  = w(1:ng,22)
-      zzwn(1:ng,g+1)  = w(1:ng,23)
-      zzse(1:ng,g+1)  = w(1:ng,24)
-      zzes(1:ng,g+1)  = w(1:ng,25)
-      zzsw(1:ng,g+1)  = w(1:ng,26)
-      zzws(1:ng,g+1)  = w(1:ng,27)
-      hh(1:ng,g+1)    = w(1:ng,28)
-      rhsi(1:ng,g+1)  = w(1:ng,29)
-      zzi(1:ng,g+1)   = w(1:ng,30)
-      zzin(1:ng,g+1)  = w(1:ng,31)
-      zzis(1:ng,g+1)  = w(1:ng,32)
-      zzie(1:ng,g+1)  = w(1:ng,33)
-      zziw(1:ng,g+1)  = w(1:ng,34)
-      zzine(1:ng,g+1) = w(1:ng,35)
-      zzien(1:ng,g+1) = w(1:ng,36)
-      zzinw(1:ng,g+1) = w(1:ng,37)
-      zziwn(1:ng,g+1) = w(1:ng,38)
-      zzise(1:ng,g+1) = w(1:ng,39)
-      zzies(1:ng,g+1) = w(1:ng,40)
-      zzisw(1:ng,g+1) = w(1:ng,41)
-      zziws(1:ng,g+1) = w(1:ng,42)
+      zz(1:ng,g+1)    = w(1:ng,7)
+      zzn(1:ng,g+1)   = w(1:ng,8)
+      zzs(1:ng,g+1)   = w(1:ng,9)
+      zze(1:ng,g+1)   = w(1:ng,10)
+      zzw(1:ng,g+1)   = w(1:ng,11)
+      hh(1:ng,g+1)    = w(1:ng,12)
+      rhsi(1:ng,g+1)  = w(1:ng,13)
+      zzi(1:ng,g+1)   = w(1:ng,14)
+      zzin(1:ng,g+1)  = w(1:ng,15)
+      zzis(1:ng,g+1)  = w(1:ng,16)
+      zzie(1:ng,g+1)  = w(1:ng,17)
+      zziw(1:ng,g+1)  = w(1:ng,18)
     end if 
 
   end do
@@ -2487,42 +2091,18 @@ if ( mg_maxlevel_local>0 ) then
         yyscu(iq,nc)  = yys(col_iq(iq,nc),g)
         yyecu(iq,nc)  = yye(col_iq(iq,nc),g)
         yywcu(iq,nc)  = yyw(col_iq(iq,nc),g)
-        yynecu(iq,nc)  = yyne(col_iq(iq,nc),g)
-        yyencu(iq,nc)  = yyen(col_iq(iq,nc),g)
-        yynwcu(iq,nc)  = yynw(col_iq(iq,nc),g)
-        yywncu(iq,nc)  = yywn(col_iq(iq,nc),g)
-        yysecu(iq,nc)  = yyse(col_iq(iq,nc),g)
-        yyescu(iq,nc)  = yyes(col_iq(iq,nc),g)
-        yyswcu(iq,nc)  = yysw(col_iq(iq,nc),g)
-        yywscu(iq,nc)  = yyws(col_iq(iq,nc),g)
-        zzhhcu(iq,nc)  = zz(col_iq(iq,nc),g) + hh(col_iq(iq,nc),g)
-        zzncu(iq,nc)   = zzn(col_iq(iq,nc),g)
-        zzscu(iq,nc)   = zzs(col_iq(iq,nc),g)
-        zzecu(iq,nc)   = zze(col_iq(iq,nc),g)
-        zzwcu(iq,nc)   = zzw(col_iq(iq,nc),g)
-        zznecu(iq,nc)  = zzne(col_iq(iq,nc),g)
-        zzencu(iq,nc)  = zzen(col_iq(iq,nc),g)
-        zznwcu(iq,nc)  = zznw(col_iq(iq,nc),g)
-        zzwncu(iq,nc)  = zzwn(col_iq(iq,nc),g)
-        zzsecu(iq,nc)  = zzse(col_iq(iq,nc),g)
-        zzescu(iq,nc)  = zzes(col_iq(iq,nc),g)
-        zzswcu(iq,nc)  = zzsw(col_iq(iq,nc),g)
-        zzwscu(iq,nc)  = zzws(col_iq(iq,nc),g)
-        rhscu(iq,nc)   = rhs(col_iq(iq,nc),g)
+        zzhhcu(iq,nc) = zz(col_iq(iq,nc),g) + hh(col_iq(iq,nc),g)
+        zzncu(iq,nc)  = zzn(col_iq(iq,nc),g)
+        zzscu(iq,nc)  = zzs(col_iq(iq,nc),g)
+        zzecu(iq,nc)  = zze(col_iq(iq,nc),g)
+        zzwcu(iq,nc)  = zzw(col_iq(iq,nc),g)
+        rhscu(iq,nc)  = rhs(col_iq(iq,nc),g)
         ! ice
         zzicu(iq,nc)   = zzi(col_iq(iq,nc),g)
         zzincu(iq,nc)  = zzin(col_iq(iq,nc),g)
         zziscu(iq,nc)  = zzis(col_iq(iq,nc),g)
         zziecu(iq,nc)  = zzie(col_iq(iq,nc),g)
         zziwcu(iq,nc)  = zziw(col_iq(iq,nc),g)
-        zzinecu(iq,nc) = zzine(col_iq(iq,nc),g)
-        zziencu(iq,nc) = zzien(col_iq(iq,nc),g)
-        zzinwcu(iq,nc) = zzinw(col_iq(iq,nc),g)
-        zziwncu(iq,nc) = zziwn(col_iq(iq,nc),g)
-        zzisecu(iq,nc) = zzise(col_iq(iq,nc),g)
-        zziescu(iq,nc) = zzies(col_iq(iq,nc),g)
-        zziswcu(iq,nc) = zzisw(col_iq(iq,nc),g)
-        zziwscu(iq,nc) = zziws(col_iq(iq,nc),g)
         rhsicu(iq,nc)  = rhsi(col_iq(iq,nc),g)
       end do  
     end do  
@@ -2542,17 +2122,9 @@ if ( mg_maxlevel_local>0 ) then
         ! ocean
         bu(1:mg_ifull_maxcolour) = yyncu(:,nc)*v(col_iqn(:,nc),1,g) + yyscu(:,nc)*v(col_iqs(:,nc),1,g)     &
                                  + yyecu(:,nc)*v(col_iqe(:,nc),1,g) + yywcu(:,nc)*v(col_iqw(:,nc),1,g)     &
-                                 + yynecu(:,nc)*v(col_iqne(:,nc),1,g) + yyencu(:,nc)*v(col_iqen(:,nc),1,g) &
-                                 + yynwcu(:,nc)*v(col_iqnw(:,nc),1,g) + yywncu(:,nc)*v(col_iqwn(:,nc),1,g) &
-                                 + yysecu(:,nc)*v(col_iqse(:,nc),1,g) + yyescu(:,nc)*v(col_iqes(:,nc),1,g) &
-                                 + yyswcu(:,nc)*v(col_iqsw(:,nc),1,g) + yywscu(:,nc)*v(col_iqws(:,nc),1,g) &
                                  + zzhhcu(:,nc)
         cu(1:mg_ifull_maxcolour) = zzncu(:,nc)*v(col_iqn(:,nc),1,g) + zzscu(:,nc)*v(col_iqs(:,nc),1,g)     &
                                  + zzecu(:,nc)*v(col_iqe(:,nc),1,g) + zzwcu(:,nc)*v(col_iqw(:,nc),1,g)     &
-                                 + zznecu(:,nc)*v(col_iqne(:,nc),1,g) + zzencu(:,nc)*v(col_iqen(:,nc),1,g) &
-                                 + zznwcu(:,nc)*v(col_iqnw(:,nc),1,g) + zzwncu(:,nc)*v(col_iqwn(:,nc),1,g) &
-                                 + zzsecu(:,nc)*v(col_iqse(:,nc),1,g) + zzescu(:,nc)*v(col_iqes(:,nc),1,g) &
-                                 + zzswcu(:,nc)*v(col_iqsw(:,nc),1,g) + zzwscu(:,nc)*v(col_iqws(:,nc),1,g) &
                                  - rhscu(:,nc)
 !$omp simd
         do iq = 1,mg_ifull_maxcolour
@@ -2564,10 +2136,6 @@ if ( mg_maxlevel_local>0 ) then
         do iq = 1,mg_ifull_maxcolour
           v(col_iq(iq,nc),2,g) = ( - zzincu(iq,nc)*v(col_iqn(iq,nc),2,g) - zziscu(iq,nc)*v(col_iqs(iq,nc),2,g)     &
                                    - zziecu(iq,nc)*v(col_iqe(iq,nc),2,g) - zziwcu(iq,nc)*v(col_iqw(iq,nc),2,g)     &
-                                   - zzinecu(iq,nc)*v(col_iqne(iq,nc),2,g) - zziencu(iq,nc)*v(col_iqen(iq,nc),2,g) &
-                                   - zzinwcu(iq,nc)*v(col_iqnw(iq,nc),2,g) - zziwncu(iq,nc)*v(col_iqwn(iq,nc),2,g) &
-                                   - zzisecu(iq,nc)*v(col_iqse(iq,nc),2,g) - zziescu(iq,nc)*v(col_iqes(iq,nc),2,g) &
-                                   - zziswcu(iq,nc)*v(col_iqsw(iq,nc),2,g) - zziwscu(iq,nc)*v(col_iqws(iq,nc),2,g) &
                                   + rhsicu(iq,nc) ) / zzicu(iq,nc)
         end do
 
@@ -2602,54 +2170,26 @@ if ( mg_maxlevel_local>0 ) then
    
     
     do i = 1,itrend
-      call mgbounds(g,v(:,1:2,g),corner=.true.)
+      call mgbounds(g,v(:,1:2,g))
       ! ocean - post smoothing
       call mgunpack_nsew(g,v(:,1,g),v_n,v_s,v_e,v_w)
-      v_ne(1:ng) = v(mg(g)%ine,1,g)
-      v_en(1:ng) = v(mg(g)%ien,1,g)
-      v_nw(1:ng) = v(mg(g)%inw,1,g)
-      v_wn(1:ng) = v(mg(g)%iwn,1,g)
-      v_se(1:ng) = v(mg(g)%ise,1,g)
-      v_es(1:ng) = v(mg(g)%ies,1,g)
-      v_sw(1:ng) = v(mg(g)%isw,1,g)
-      v_ws(1:ng) = v(mg(g)%iws,1,g)
       bu(1:ng) = yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng)     &
                + yye(1:ng,g)*v_e(1:ng)+yyw(1:ng,g)*v_w(1:ng)     &
-               + yyne(1:ng,g)*v_ne(1:ng)+yyen(1:ng,g)*v_en(1:ng) &
-               + yynw(1:ng,g)*v_nw(1:ng)+yywn(1:ng,g)*v_wn(1:ng) &
-               + yyse(1:ng,g)*v_se(1:ng)+yyes(1:ng,g)*v_es(1:ng) &
-               + yysw(1:ng,g)*v_sw(1:ng)+yyws(1:ng,g)*v_ws(1:ng) &
                + zz(1:ng,g) + hh(1:ng,g)
       cu(1:ng) = zzn(1:ng,g)*v_n(1:ng)+zzs(1:ng,g)*v_s(1:ng)     &
                + zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng)     &
-               + zzne(1:ng,g)*v_ne(1:ng)+zzen(1:ng,g)*v_en(1:ng) &
-               + zznw(1:ng,g)*v_nw(1:ng)+zzwn(1:ng,g)*v_wn(1:ng) &
-               + zzse(1:ng,g)*v_se(1:ng)+zzes(1:ng,g)*v_es(1:ng) &
-               + zzsw(1:ng,g)*v_sw(1:ng)+zzws(1:ng,g)*v_ws(1:ng) &
                - rhs(1:ng,g)
       v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng)))
       
       ! ice - post smoothing
       call mgunpack_nsew(g,v(:,2,g),v_n,v_s,v_e,v_w)  
-      v_ne(1:ng) = v(mg(g)%ine,2,g)
-      v_en(1:ng) = v(mg(g)%ien,2,g)
-      v_nw(1:ng) = v(mg(g)%inw,2,g)
-      v_wn(1:ng) = v(mg(g)%iwn,2,g)
-      v_se(1:ng) = v(mg(g)%ise,2,g)
-      v_es(1:ng) = v(mg(g)%ies,2,g)
-      v_sw(1:ng) = v(mg(g)%isw,2,g)
-      v_ws(1:ng) = v(mg(g)%iws,2,g)
       v(1:ng,2,g) = ( - zzin(1:ng,g)*v_n(1:ng) - zzis(1:ng,g)*v_s(1:ng)     &
                       - zzie(1:ng,g)*v_e(1:ng) - zziw(1:ng,g)*v_w(1:ng)     &
-                      - zzine(1:ng,g)*v_ne(1:ng) - zzien(1:ng,g)*v_en(1:ng) &
-                      - zzinw(1:ng,g)*v_nw(1:ng) - zziwn(1:ng,g)*v_wn(1:ng) &
-                      - zzise(1:ng,g)*v_se(1:ng) - zzies(1:ng,g)*v_es(1:ng) &
-                      - zzisw(1:ng,g)*v_sw(1:ng) - zziws(1:ng,g)*v_ws(1:ng) &
                       + rhsi(1:ng,g) ) / zzi(1:ng,g)
       
     end do
     
-    call mgbounds(g,v(:,1:2,g),corner=.true.) ! for next mgbcast
+    call mgbounds(g,v(:,1:2,g)) ! for next mgbcast
 
   end do
 
@@ -2695,7 +2235,7 @@ dumc(1:ifull,2) = max( min( ipice(1:ifull)+vduma(1:ifull,2), ipmax(1:ifull) ), 0
 neta(1:ifull)  = dumc(1:ifull,1)
 ipice(1:ifull) = dumc(1:ifull,2)
 
-call bounds(dumc(:,1:2),corner=.true.)
+call bounds(dumc(:,1:2))
 
 do i = 1,itrend
   
@@ -2709,14 +2249,6 @@ do i = 1,itrend
         dumc_s(iq,k) = dumc(iqs(iq,nc),k)
         dumc_e(iq,k) = dumc(iqe(iq,nc),k)
         dumc_w(iq,k) = dumc(iqw(iq,nc),k)
-        dumc_ne(iq,k) = dumc(iqne(iq,nc),k)
-        dumc_en(iq,k) = dumc(iqen(iq,nc),k)
-        dumc_nw(iq,k) = dumc(iqnw(iq,nc),k)
-        dumc_wn(iq,k) = dumc(iqwn(iq,nc),k)
-        dumc_se(iq,k) = dumc(iqse(iq,nc),k)
-        dumc_es(iq,k) = dumc(iqes(iq,nc),k)
-        dumc_sw(iq,k) = dumc(iqsw(iq,nc),k)
-        dumc_ws(iq,k) = dumc(iqws(iq,nc),k)
       end do
     end do  
       
@@ -2727,17 +2259,9 @@ do i = 1,itrend
     ! ocean
     bu(isc:iec)=yync(isc:iec,nc)*dumc_n(isc:iec,1)+yysc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +yyec(isc:iec,nc)*dumc_e(isc:iec,1)+yywc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-               +yynec(isc:iec,nc)*dumc_ne(isc:iec,1)+yyenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-               +yynwc(isc:iec,nc)*dumc_nw(isc:iec,1)+yywnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-               +yysec(isc:iec,nc)*dumc_se(isc:iec,1)+yyesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-               +yyswc(isc:iec,nc)*dumc_sw(isc:iec,1)+yywsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                +zzhhc(isc:iec,nc)
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-               +zznec(isc:iec,nc)*dumc_ne(isc:iec,1)+zzenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-               +zznwc(isc:iec,nc)*dumc_nw(isc:iec,1)+zzwnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-               +zzsec(isc:iec,nc)*dumc_se(isc:iec,1)+zzesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-               +zzswc(isc:iec,nc)*dumc_sw(isc:iec,1)+zzwsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                -rhsc(isc:iec,nc)     
 !$omp simd
     do iq = isc,iec
@@ -2751,14 +2275,10 @@ do i = 1,itrend
       dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
          ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
            -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
-           -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
-           -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
-           -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
-           -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
           + rhscice(iq,nc) ) / zzcice(iq,nc) ))
     end do  
 
-    call bounds_colour_send(dumc(:,1:2),nc,corner=.true.)
+    call bounds_colour_send(dumc(:,1:2),nc)
     
     ! update interior
     isc = ifull_colour_border(nc) + 1
@@ -2767,17 +2287,9 @@ do i = 1,itrend
     ! ocean
     bu(isc:iec)=yync(isc:iec,nc)*dumc_n(isc:iec,1)+yysc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +yyec(isc:iec,nc)*dumc_e(isc:iec,1)+yywc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-               +yynec(isc:iec,nc)*dumc_ne(isc:iec,1)+yyenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-               +yynwc(isc:iec,nc)*dumc_nw(isc:iec,1)+yywnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-               +yysec(isc:iec,nc)*dumc_se(isc:iec,1)+yyesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-               +yyswc(isc:iec,nc)*dumc_sw(isc:iec,1)+yywsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                +zzhhc(isc:iec,nc)
     cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-               +zznec(isc:iec,nc)*dumc_ne(isc:iec,1)+zzenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-               +zznwc(isc:iec,nc)*dumc_nw(isc:iec,1)+zzwnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-               +zzsec(isc:iec,nc)*dumc_se(isc:iec,1)+zzesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-               +zzswc(isc:iec,nc)*dumc_sw(isc:iec,1)+zzwsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                -rhsc(isc:iec,nc)   
 !$omp simd
     do iq = isc,iec
@@ -2791,14 +2303,10 @@ do i = 1,itrend
       dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
          ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
            -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
-           -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
-           -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
-           -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
-           -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
           + rhscice(iq,nc) ) / zzcice(iq,nc) ))
     end do  
 
-    call bounds_colour_recv(dumc(:,1:2),nc,corner=.true.)
+    call bounds_colour_recv(dumc(:,1:2),nc)
     
   end do
 end do
@@ -2825,14 +2333,6 @@ do itr = 2,itr_mgice
           dumc_s(iq,k) = dumc(iqs(iq,nc),k)
           dumc_e(iq,k) = dumc(iqe(iq,nc),k)
           dumc_w(iq,k) = dumc(iqw(iq,nc),k)
-          dumc_ne(iq,k) = dumc(iqne(iq,nc),k)
-          dumc_en(iq,k) = dumc(iqen(iq,nc),k)
-          dumc_nw(iq,k) = dumc(iqnw(iq,nc),k)
-          dumc_wn(iq,k) = dumc(iqwn(iq,nc),k)
-          dumc_se(iq,k) = dumc(iqse(iq,nc),k)
-          dumc_es(iq,k) = dumc(iqes(iq,nc),k)
-          dumc_sw(iq,k) = dumc(iqsw(iq,nc),k)
-          dumc_ws(iq,k) = dumc(iqws(iq,nc),k)
         end do
       end do  
       
@@ -2843,17 +2343,9 @@ do itr = 2,itr_mgice
       ! ocean
       bu(isc:iec) = yync(isc:iec,nc)*dumc_n(isc:iec,1) + yysc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                   + yyec(isc:iec,nc)*dumc_e(isc:iec,1) + yywc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-                  + yynec(isc:iec,nc)*dumc_ne(isc:iec,1) + yyenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-                  + yynwc(isc:iec,nc)*dumc_nw(isc:iec,1) + yywnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-                  + yysec(isc:iec,nc)*dumc_se(isc:iec,1) + yyesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-                  + yyswc(isc:iec,nc)*dumc_sw(isc:iec,1) + yywsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                   + zzhhc(isc:iec,nc)
       cu(isc:iec) = zznc(isc:iec,nc)*dumc_n(isc:iec,1) + zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                   + zzec(isc:iec,nc)*dumc_e(isc:iec,1) + zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-                  + zznec(isc:iec,nc)*dumc_ne(isc:iec,1) + zzenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-                  + zznwc(isc:iec,nc)*dumc_nw(isc:iec,1) + zzwnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-                  + zzsec(isc:iec,nc)*dumc_se(isc:iec,1) + zzesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-                  + zzswc(isc:iec,nc)*dumc_sw(isc:iec,1) + zzwsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                   - rhsc(isc:iec,nc)   
 !$omp simd
       do iq = isc,iec
@@ -2867,14 +2359,10 @@ do itr = 2,itr_mgice
         dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
            ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
              -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
-             -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
-             -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
-             -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
-             -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
       end do  
 
-      call bounds_colour_send(dumc(:,1:2),nc,corner=.true.)
+      call bounds_colour_send(dumc(:,1:2),nc)
     
       ! update interior
       isc = ifull_colour_border(nc) + 1
@@ -2883,17 +2371,9 @@ do itr = 2,itr_mgice
       ! ocean
       bu(isc:iec)=yync(isc:iec,nc)*dumc_n(isc:iec,1) + yysc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                 + yyec(isc:iec,nc)*dumc_e(isc:iec,1) + yywc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-                + yynec(isc:iec,nc)*dumc_ne(isc:iec,1) + yyenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-                + yynwc(isc:iec,nc)*dumc_nw(isc:iec,1) + yywnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-                + yysec(isc:iec,nc)*dumc_se(isc:iec,1) + yyesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-                + yyswc(isc:iec,nc)*dumc_sw(isc:iec,1) + yywsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                 + zzhhc(isc:iec,nc)
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-                 +zznec(isc:iec,nc)*dumc_ne(isc:iec,1)+zzenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-                 +zznwc(isc:iec,nc)*dumc_nw(isc:iec,1)+zzwnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-                 +zzsec(isc:iec,nc)*dumc_se(isc:iec,1)+zzesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-                 +zzswc(isc:iec,nc)*dumc_sw(isc:iec,1)+zzwsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                  -rhsc(isc:iec,nc)
 !$omp simd
       do iq = isc,iec
@@ -2907,14 +2387,10 @@ do itr = 2,itr_mgice
         dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
            ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
              -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
-             -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
-             -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
-             -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
-             -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
       end do  
       
-      call bounds_colour_recv(dumc(:,1:2),nc,corner=.true.)
+      call bounds_colour_recv(dumc(:,1:2),nc)
     
     end do
   end do
@@ -2928,29 +2404,13 @@ do itr = 2,itr_mgice
 
   ! residual - ocean
   call unpack_nsew(dumc(:,1),dumc_n(:,1),dumc_s(:,1),dumc_e(:,1),dumc_w(:,1))
-  dumc_ne(:,1) = dumc(ine,1)
-  dumc_en(:,1) = dumc(ien,1)
-  dumc_nw(:,1) = dumc(inw,1)
-  dumc_wn(:,1) = dumc(iwn,1)
-  dumc_se(:,1) = dumc(ise,1)
-  dumc_es(:,1) = dumc(ies,1)
-  dumc_sw(:,1) = dumc(isw,1)
-  dumc_ws(:,1) = dumc(iws,1)
-  w(1:ifull,1)=(-neta(1:ifull)*(iyy(1:ifull)*neta(1:ifull)+iyyn(1:ifull)*dumc_n(1:ifull,1) &
-                                                          +iyys(1:ifull)*dumc_s(1:ifull,1) &
-                                                          +iyye(1:ifull)*dumc_e(1:ifull,1) &
-                                                          +iyyw(1:ifull)*dumc_w(1:ifull,1) &
-                  +iyyne(1:ifull)*dumc_ne(1:ifull,1)+iyyen(1:ifull)*dumc_en(1:ifull,1)     &
-                  +iyynw(1:ifull)*dumc_nw(1:ifull,1)+iyywn(1:ifull)*dumc_wn(1:ifull,1)     &
-                  +iyyse(1:ifull)*dumc_se(1:ifull,1)+iyyes(1:ifull)*dumc_es(1:ifull,1)     &
-                  +iyysw(1:ifull)*dumc_sw(1:ifull,1)+iyyws(1:ifull)*dumc_ws(1:ifull,1))    &
-               -(izz(1:ifull,1)*neta(1:ifull)                                              &
-                +izzn(1:ifull,1)*dumc_n(1:ifull,1)+izzs(1:ifull,1)*dumc_s(1:ifull,1)       &
-                +izze(1:ifull,1)*dumc_e(1:ifull,1)+izzw(1:ifull,1)*dumc_w(1:ifull,1)       &
-                +izzne(1:ifull,1)*dumc_ne(1:ifull,1)+izzen(1:ifull,1)*dumc_en(1:ifull,1)   &
-                +izznw(1:ifull,1)*dumc_nw(1:ifull,1)+izzwn(1:ifull,1)*dumc_wn(1:ifull,1)   &
-                +izzse(1:ifull,1)*dumc_se(1:ifull,1)+izzes(1:ifull,1)*dumc_es(1:ifull,1)   &
-                +izzsw(1:ifull,1)*dumc_sw(1:ifull,1)+izzws(1:ifull,1)*dumc_ws(1:ifull,1))  &
+  w(1:ifull,1)=(-neta(1:ifull)*(iyy(1:ifull)*neta(1:ifull)+iyyn(1:ifull)*dumc_n(1:ifull,1)  &
+                                                          +iyys(1:ifull)*dumc_s(1:ifull,1)  &
+                                                          +iyye(1:ifull)*dumc_e(1:ifull,1)  &
+                                                          +iyyw(1:ifull)*dumc_w(1:ifull,1)) &
+               -(izz(1:ifull,1)*neta(1:ifull)                                               &
+                +izzn(1:ifull,1)*dumc_n(1:ifull,1)+izzs(1:ifull,1)*dumc_s(1:ifull,1)        &
+                +izze(1:ifull,1)*dumc_e(1:ifull,1)+izzw(1:ifull,1)*dumc_w(1:ifull,1))       &
                -ihh(1:ifull)*neta(1:ifull)+irhs(1:ifull,1))*ee(1:ifull)
   
   w(1:ifull,2)  =  izz(1:ifull,1) +  iyy(1:ifull)*neta(1:ifull)
@@ -2958,45 +2418,21 @@ do itr = 2,itr_mgice
   w(1:ifull,4)  = izzs(1:ifull,1) + iyys(1:ifull)*neta(1:ifull)
   w(1:ifull,5)  = izze(1:ifull,1) + iyye(1:ifull)*neta(1:ifull)
   w(1:ifull,6)  = izzw(1:ifull,1) + iyyw(1:ifull)*neta(1:ifull)
-  w(1:ifull,7)  = izzne(1:ifull,1) + iyyne(1:ifull)*neta(1:ifull)
-  w(1:ifull,8)  = izzen(1:ifull,1) + iyyen(1:ifull)*neta(1:ifull)
-  w(1:ifull,9)  = izznw(1:ifull,1) + iyynw(1:ifull)*neta(1:ifull)
-  w(1:ifull,10) = izzwn(1:ifull,1) + iyywn(1:ifull)*neta(1:ifull)
-  w(1:ifull,11) = izzse(1:ifull,1) + iyyse(1:ifull)*neta(1:ifull)
-  w(1:ifull,12) = izzes(1:ifull,1) + iyyes(1:ifull)*neta(1:ifull)
-  w(1:ifull,13) = izzsw(1:ifull,1) + iyysw(1:ifull)*neta(1:ifull)
-  w(1:ifull,14) = izzws(1:ifull,1) + iyyws(1:ifull)*neta(1:ifull)
-  w(1:ifull,15) = iyyn*dumc_n(1:ifull,1) + iyys*dumc_s(1:ifull,1)     &
+  w(1:ifull,7)  = iyyn*dumc_n(1:ifull,1) + iyys*dumc_s(1:ifull,1)     &
                 + iyye*dumc_e(1:ifull,1) + iyyw*dumc_w(1:ifull,1)     &
-                + iyyne*dumc_ne(1:ifull,1) + iyyen*dumc_en(1:ifull,1) &
-                + iyynw*dumc_nw(1:ifull,1) + iyywn*dumc_wn(1:ifull,1) &
-                + iyyse*dumc_se(1:ifull,1) + iyyes*dumc_es(1:ifull,1) &
-                + iyysw*dumc_sw(1:ifull,1) + iyyws*dumc_ws(1:ifull,1) &
                 + iyy*neta(1:ifull) + ihh
   
   ! residual ice
   call unpack_nsew(dumc(:,2),dumc_n(:,2),dumc_s(:,2),dumc_e(:,2),dumc_w(:,2))
-  dumc_ne(:,2) = dumc(ine,2)
-  dumc_en(:,2) = dumc(ien,2)
-  dumc_nw(:,2) = dumc(inw,2)
-  dumc_wn(:,2) = dumc(iwn,2)
-  dumc_se(:,2) = dumc(ise,2)
-  dumc_es(:,2) = dumc(ies,2)
-  dumc_sw(:,2) = dumc(isw,2)
-  dumc_ws(:,2) = dumc(iws,2)
-  w(1:ifull,16) =(- izzn(1:ifull,2)*dumc_n(1:ifull,2) - izzs(1:ifull,2)*dumc_s(1:ifull,2)     &
+  w(1:ifull,8)  =(- izzn(1:ifull,2)*dumc_n(1:ifull,2) - izzs(1:ifull,2)*dumc_s(1:ifull,2)     &
                   - izze(1:ifull,2)*dumc_e(1:ifull,2) - izzw(1:ifull,2)*dumc_w(1:ifull,2)     &
-                  - izzne(1:ifull,2)*dumc_ne(1:ifull,2) - izzen(1:ifull,2)*dumc_en(1:ifull,2) &
-                  - izznw(1:ifull,2)*dumc_nw(1:ifull,2) - izzwn(1:ifull,2)*dumc_wn(1:ifull,2) &
-                  - izzse(1:ifull,2)*dumc_se(1:ifull,2) - izzes(1:ifull,2)*dumc_es(1:ifull,2) &
-                  - izzsw(1:ifull,2)*dumc_sw(1:ifull,2) - izzws(1:ifull,2)*dumc_ws(1:ifull,2) &
                   - izz(1:ifull,2)*ipice(1:ifull) + irhs(1:ifull,2))*ee(1:ifull)
   where ( ipice(1:ifull)>=ipmax(1:ifull) )
-    w(1:ifull,16) = 0. ! improves convergence
+    w(1:ifull,8) = 0. ! improves convergence
   end where
   
   ! For when the inital grid cannot be upscaled
-  call mgcollect(1,w(:,1:16),dsolmax_g(1:16))
+  call mgcollect(1,w(:,1:8),dsolmax_g(1:8))
   
   call END_LOG(mgfine_end)
   
@@ -3023,27 +2459,11 @@ do itr = 2,itr_mgice
                           +w(mg(1)%fine_e(iq),5)+w(mg(1)%fine_ne(iq),5))
       zzw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,6)+w(mg(1)%fine_n(iq) ,6)   &
                            +w(mg(1)%fine_e(iq),6)+w(mg(1)%fine_ne(iq),6))
-      zzne(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,7)+w(mg(1)%fine_n(iq) ,7)   &
-                           +w(mg(1)%fine_e(iq),7)+w(mg(1)%fine_ne(iq),7))
-      zzen(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,8)+w(mg(1)%fine_n(iq) ,8)   &
-                           +w(mg(1)%fine_e(iq),8)+w(mg(1)%fine_ne(iq),8))
-      zznw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,9)+w(mg(1)%fine_n(iq) ,9)   &
-                           +w(mg(1)%fine_e(iq),9)+w(mg(1)%fine_ne(iq),9))
-      zzwn(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,10)+w(mg(1)%fine_n(iq) ,10)   &
-                           +w(mg(1)%fine_e(iq),10)+w(mg(1)%fine_ne(iq),10))
-      zzse(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,11)+w(mg(1)%fine_n(iq) ,11)   &
-                           +w(mg(1)%fine_e(iq),11)+w(mg(1)%fine_ne(iq),11))
-      zzes(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,12)+w(mg(1)%fine_n(iq) ,12)   &
-                           +w(mg(1)%fine_e(iq),12)+w(mg(1)%fine_ne(iq),12))
-      zzsw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,13)+w(mg(1)%fine_n(iq) ,13)   &
-                           +w(mg(1)%fine_e(iq),13)+w(mg(1)%fine_ne(iq),13))
-      zzws(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,14)+w(mg(1)%fine_n(iq) ,14)   &
-                           +w(mg(1)%fine_e(iq),14)+w(mg(1)%fine_ne(iq),14))
-      hh(iq,2)    =0.25*(w(mg(1)%fine(iq)  ,15)+w(mg(1)%fine_n(iq) ,15)     &
-                        +w(mg(1)%fine_e(iq),15)+w(mg(1)%fine_ne(iq),15))
+      hh(iq,2)    =0.25*(w(mg(1)%fine(iq)  ,7)+w(mg(1)%fine_n(iq) ,7)     &
+                        +w(mg(1)%fine_e(iq),7)+w(mg(1)%fine_ne(iq),7))
       
-      rhsi(iq,2)=0.25*(w(mg(1)%fine(iq)  ,16)+w(mg(1)%fine_n(iq) ,16)      &
-                      +w(mg(1)%fine_e(iq),16)+w(mg(1)%fine_ne(iq),16))
+      rhsi(iq,2)=0.25*(w(mg(1)%fine(iq)  ,8)+w(mg(1)%fine_n(iq) ,8)      &
+                      +w(mg(1)%fine_e(iq),8)+w(mg(1)%fine_ne(iq),8))
     end do  
 
     ! merge grids if insufficent points on this processor
@@ -3054,17 +2474,9 @@ do itr = 2,itr_mgice
       w(1:ng4,4)  = zzs(1:ng4,2)
       w(1:ng4,5)  = zze(1:ng4,2)
       w(1:ng4,6)  = zzw(1:ng4,2)
-      w(1:ng4,7)  = zzne(1:ng4,2)
-      w(1:ng4,8)  = zzen(1:ng4,2)
-      w(1:ng4,9)  = zznw(1:ng4,2)
-      w(1:ng4,10) = zzwn(1:ng4,2)
-      w(1:ng4,11) = zzse(1:ng4,2)
-      w(1:ng4,12) = zzes(1:ng4,2)
-      w(1:ng4,13) = zzsw(1:ng4,2)
-      w(1:ng4,14) = zzws(1:ng4,2)
-      w(1:ng4,15) = hh(1:ng4,2)
-      w(1:ng4,16) = rhsi(1:ng4,2)
-      call mgcollect(2,w(:,1:16),dsolmax_g(1:16))
+      w(1:ng4,7)  = hh(1:ng4,2)
+      w(1:ng4,8)  = rhsi(1:ng4,2)
+      call mgcollect(2,w(:,1:8),dsolmax_g(1:8))
       if ( 2<=mg_maxlevel_local ) then
         ng = mg(2)%ifull
         rhs(1:ng,2)  = w(1:ng,1)
@@ -3073,16 +2485,8 @@ do itr = 2,itr_mgice
         zzs(1:ng,2)  = w(1:ng,4)
         zze(1:ng,2)  = w(1:ng,5)
         zzw(1:ng,2)  = w(1:ng,6)
-        zzne(1:ng,2) = w(1:ng,7)
-        zzen(1:ng,2) = w(1:ng,8)
-        zznw(1:ng,2) = w(1:ng,9)
-        zzwn(1:ng,2) = w(1:ng,10)
-        zzse(1:ng,2) = w(1:ng,11)
-        zzes(1:ng,2) = w(1:ng,12)
-        zzsw(1:ng,2) = w(1:ng,13)
-        zzws(1:ng,2) = w(1:ng,14)
-        hh(1:ng,2)   = w(1:ng,15)
-        rhsi(1:ng,2) = w(1:ng,16)
+        hh(1:ng,2)   = w(1:ng,7)
+        rhsi(1:ng,2) = w(1:ng,8)
       end if  
     end if
     
@@ -3103,53 +2507,25 @@ do itr = 2,itr_mgice
       v(:,1:2,g) = 0.
       v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng)))
       v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)
-      call mgbounds(g,v(:,1:2,g),corner=.true.)
+      call mgbounds(g,v(:,1:2,g))
       
       do i = 2,itrbgn
         ! ocean - post smoothing
         call mgunpack_nsew(g,v(:,1,g),v_n,v_s,v_e,v_w)
-        v_ne(1:ng) = v(mg(g)%ine,1,g)
-        v_en(1:ng) = v(mg(g)%ien,1,g)
-        v_nw(1:ng) = v(mg(g)%inw,1,g)
-        v_wn(1:ng) = v(mg(g)%iwn,1,g)
-        v_se(1:ng) = v(mg(g)%ise,1,g)
-        v_es(1:ng) = v(mg(g)%ies,1,g)
-        v_sw(1:ng) = v(mg(g)%isw,1,g)
-        v_ws(1:ng) = v(mg(g)%iws,1,g)
         bu(1:ng) = yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng)     &
                  + yye(1:ng,g)*v_e(1:ng)+yyw(1:ng,g)*v_w(1:ng)     &
-                 + yyne(1:ng,g)*v_ne(1:ng)+yyen(1:ng,g)*v_en(1:ng) &
-                 + yynw(1:ng,g)*v_nw(1:ng)+yywn(1:ng,g)*v_wn(1:ng) &
-                 + yyse(1:ng,g)*v_se(1:ng)+yyes(1:ng,g)*v_es(1:ng) &
-                 + yysw(1:ng,g)*v_sw(1:ng)+yyws(1:ng,g)*v_ws(1:ng) &
                  + zz(1:ng,g) + hh(1:ng,g)
         cu(1:ng) = zzn(1:ng,g)*v_n(1:ng)+zzs(1:ng,g)*v_s(1:ng)     &
                  + zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng)     &
-                 + zzne(1:ng,g)*v_ne(1:ng)+zzen(1:ng,g)*v_en(1:ng) &
-                 + zznw(1:ng,g)*v_nw(1:ng)+zzwn(1:ng,g)*v_wn(1:ng) &
-                 + zzse(1:ng,g)*v_se(1:ng)+zzes(1:ng,g)*v_es(1:ng) &
-                 + zzsw(1:ng,g)*v_sw(1:ng)+zzws(1:ng,g)*v_ws(1:ng) &
                  - rhs(1:ng,g)
         v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng)))
         
         ! ice - post smoothing
         call mgunpack_nsew(g,v(:,2,g),v_n,v_s,v_e,v_w)
-        v_ne(1:ng) = v(mg(g)%ine,2,g)
-        v_en(1:ng) = v(mg(g)%ien,2,g)
-        v_nw(1:ng) = v(mg(g)%inw,2,g)
-        v_wn(1:ng) = v(mg(g)%iwn,2,g)
-        v_se(1:ng) = v(mg(g)%ise,2,g)
-        v_es(1:ng) = v(mg(g)%ies,2,g)
-        v_sw(1:ng) = v(mg(g)%isw,2,g)
-        v_ws(1:ng) = v(mg(g)%iws,2,g)
         v(1:ng,2,g) = ( - zzin(1:ng,g)*v_n(1:ng) - zzis(1:ng,g)*v_s(1:ng)     &
                         - zzie(1:ng,g)*v_e(1:ng) - zziw(1:ng,g)*v_w(1:ng)     &
-                        - zzine(1:ng,g)*v_ne(1:ng) - zzien(1:ng,g)*v_en(1:ng) &
-                        - zzinw(1:ng,g)*v_nw(1:ng) - zziwn(1:ng,g)*v_wn(1:ng) &
-                        - zzise(1:ng,g)*v_se(1:ng) - zzies(1:ng,g)*v_es(1:ng) &
-                        - zzisw(1:ng,g)*v_sw(1:ng) - zziws(1:ng,g)*v_ws(1:ng) &
                         + rhsi(1:ng,g) ) / zzi(1:ng,g)
-        call mgbounds(g,v(:,1:2,g),corner=.true.)
+        call mgbounds(g,v(:,1:2,g))
       end do
     
       ! restriction
@@ -3159,20 +2535,8 @@ do itr = 2,itr_mgice
 
       ! ocean residual
       call mgunpack_nsew(g,v(:,1,g),v_n,v_s,v_e,v_w)
-      v_ne(1:ng) = v(mg(g)%ine,1,g)
-      v_en(1:ng) = v(mg(g)%ien,1,g)
-      v_nw(1:ng) = v(mg(g)%inw,1,g)
-      v_wn(1:ng) = v(mg(g)%iwn,1,g)
-      v_se(1:ng) = v(mg(g)%ise,1,g)
-      v_es(1:ng) = v(mg(g)%ies,1,g)
-      v_sw(1:ng) = v(mg(g)%isw,1,g)
-      v_ws(1:ng) = v(mg(g)%iws,1,g)
       ws(1:ng,1)=-(zz(1:ng,g)*v(1:ng,1,g)+zzn(1:ng,g)*v_n(1:ng)+zzs(1:ng,g)*v_s(1:ng)      &
-                                         +zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng)      &
-                                         +zzne(1:ng,g)*v_ne(1:ng)+zzen(1:ng,g)*v_en(1:ng)  &
-                                         +zznw(1:ng,g)*v_nw(1:ng)+zzwn(1:ng,g)*v_wn(1:ng)  &
-                                         +zzse(1:ng,g)*v_se(1:ng)+zzes(1:ng,g)*v_es(1:ng)  &
-                                         +zzsw(1:ng,g)*v_sw(1:ng)+zzws(1:ng,g)*v_ws(1:ng)) &
+                                         +zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng))     &
                   -hh(1:ng,g)*v(1:ng,1,g)+rhs(1:ng,g)
       w(1:ng4,1)=0.25*(ws(mg(g)%fine  ,1)+ws(mg(g)%fine_n ,1) &
                       +ws(mg(g)%fine_e,1)+ws(mg(g)%fine_ne,1))
@@ -3212,98 +2576,31 @@ do itr = 2,itr_mgice
                             +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
       end do
       
-      ws(1:ng,1) = zzne(1:ng,g) + yyne(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-      do iq = 1,ng4
-        w(iq,7) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                            +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-      end do
-      
-      ws(1:ng,1) = zzen(1:ng,g) + yyen(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-      do iq = 1,ng4
-        w(iq,8) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                            +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-      end do
-      
-      ws(1:ng,1) = zznw(1:ng,g) + yynw(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-      do iq = 1,ng4
-        w(iq,9) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                            +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-      end do
-      
-      ws(1:ng,1) = zzwn(1:ng,g) + yywn(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-      do iq = 1,ng4
-        w(iq,10) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                             +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-      end do
-      
-      ws(1:ng,1) = zzse(1:ng,g) + yyse(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-      do iq = 1,ng4
-        w(iq,11) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                             +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-      end do
-      
-      ws(1:ng,1) = zzes(1:ng,g) + yyes(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-      do iq = 1,ng4
-        w(iq,12) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                             +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-      end do
-      
-      ws(1:ng,1) = zzsw(1:ng,g) + yysw(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-      do iq = 1,ng4
-        w(iq,13) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                             +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-      end do
-      
-      ws(1:ng,1) = zzws(1:ng,g) + yyws(1:ng,g)*v(1:ng,1,g)
-!$omp simd
-      do iq = 1,ng4
-        w(iq,14) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                             +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-      end do
-      
       
       ws(1:ng,1) = yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng)   &
                   +yye(1:ng,g)*v_e(1:ng)+yyw(1:ng,g)*v_w(1:ng)   &
                   +yyz(1:ng,g)*v(1:ng,1,g) + hh(1:ng,g)
 !$omp simd
       do iq = 1,ng4
-        w(iq,15) = 0.25*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                        +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
+        w(iq,7) = 0.25*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
+                       +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
       end do  
  
       
       ! ice residual
       call mgunpack_nsew(g,v(:,2,g),v_n,v_s,v_e,v_w)
-      v_ne(1:ng) = v(mg(g)%ine,2,g)
-      v_en(1:ng) = v(mg(g)%ien,2,g)
-      v_nw(1:ng) = v(mg(g)%inw,2,g)
-      v_wn(1:ng) = v(mg(g)%iwn,2,g)
-      v_se(1:ng) = v(mg(g)%ise,2,g)
-      v_es(1:ng) = v(mg(g)%ies,2,g)
-      v_sw(1:ng) = v(mg(g)%isw,2,g)
       ws(1:ng,2) = -zzin(1:ng,g)*v_n(1:ng)-zzis(1:ng,g)*v_s(1:ng)     &
                    -zzie(1:ng,g)*v_e(1:ng)-zziw(1:ng,g)*v_w(1:ng)     &
-                   -zzine(1:ng,g)*v_ne(1:ng)-zzien(1:ng,g)*v_en(1:ng) &
-                   -zzinw(1:ng,g)*v_nw(1:ng)-zziwn(1:ng,g)*v_wn(1:ng) &
-                   -zzise(1:ng,g)*v_se(1:ng)-zzies(1:ng,g)*v_es(1:ng) &
-                   -zzisw(1:ng,g)*v_sw(1:ng)-zziws(1:ng,g)*v_ws(1:ng) &
                    -zzi(1:ng,g)*v(1:ng,2,g)+rhsi(1:ng,g)
 !$omp simd
       do iq = 1,ng4
-        w(iq,16)=0.25*(ws(mg(g)%fine(iq)  ,2)+ws(mg(g)%fine_n(iq) ,2)  &
-                          +ws(mg(g)%fine_e(iq),2)+ws(mg(g)%fine_ne(iq),2))
+        w(iq,8)=0.25*(ws(mg(g)%fine(iq)  ,2)+ws(mg(g)%fine_n(iq) ,2)  &
+                     +ws(mg(g)%fine_e(iq),2)+ws(mg(g)%fine_ne(iq),2))
       end do
 
       ! merge grids if insufficent points on this processor
       if ( mg(g+1)%merge_len>1 ) then
-        call mgcollect(g+1,w(:,1:16),dsolmax_g(1:16))
+        call mgcollect(g+1,w(:,1:8),dsolmax_g(1:8))
       end if
 
       if ( g+1<=mg_maxlevel_local ) then
@@ -3314,16 +2611,8 @@ do itr = 2,itr_mgice
         zzs(1:ng,g+1)    =w(1:ng,4)
         zze(1:ng,g+1)    =w(1:ng,5)
         zzw(1:ng,g+1)    =w(1:ng,6)
-        zzne(1:ng,g+1)   =w(1:ng,7)
-        zzen(1:ng,g+1)   =w(1:ng,8)
-        zznw(1:ng,g+1)   =w(1:ng,9)
-        zzwn(1:ng,g+1)   =w(1:ng,10)
-        zzse(1:ng,g+1)   =w(1:ng,11)
-        zzes(1:ng,g+1)   =w(1:ng,12)
-        zzsw(1:ng,g+1)   =w(1:ng,13)
-        zzws(1:ng,g+1)   =w(1:ng,14)
-        hh(1:ng,g+1)     =w(1:ng,15)
-        rhsi(1:ng,g+1)   =w(1:ng,16)
+        hh(1:ng,g+1)     =w(1:ng,7)
+        rhsi(1:ng,g+1)   =w(1:ng,8)
       end if  
       
     end do
@@ -3349,14 +2638,6 @@ do itr = 2,itr_mgice
           zzscu(iq,nc)  = zzs(col_iq(iq,nc),g)
           zzecu(iq,nc)  = zze(col_iq(iq,nc),g)
           zzwcu(iq,nc)  = zzw(col_iq(iq,nc),g)
-          zznecu(iq,nc) = zzne(col_iq(iq,nc),g)
-          zzencu(iq,nc) = zzen(col_iq(iq,nc),g)
-          zznwcu(iq,nc) = zznw(col_iq(iq,nc),g)
-          zzwncu(iq,nc) = zzwn(col_iq(iq,nc),g)
-          zzsecu(iq,nc) = zzse(col_iq(iq,nc),g)
-          zzescu(iq,nc) = zzes(col_iq(iq,nc),g)
-          zzswcu(iq,nc) = zzsw(col_iq(iq,nc),g)
-          zzwscu(iq,nc) = zzws(col_iq(iq,nc),g)
           rhscu(iq,nc)  = rhs(col_iq(iq,nc),g)
           ! ice
           rhsicu(iq,nc) = rhsi(col_iq(iq,nc),g)
@@ -3378,17 +2659,9 @@ do itr = 2,itr_mgice
           ! ocean
           bu(1:mg_ifull_maxcolour) = yyncu(:,nc)*v(col_iqn(:,nc),1,g) + yyscu(:,nc)*v(col_iqs(:,nc),1,g)     &
                                    + yyecu(:,nc)*v(col_iqe(:,nc),1,g) + yywcu(:,nc)*v(col_iqw(:,nc),1,g)     &
-                                   + yynecu(:,nc)*v(col_iqne(:,nc),1,g) + yyencu(:,nc)*v(col_iqen(:,nc),1,g) &
-                                   + yynwcu(:,nc)*v(col_iqnw(:,nc),1,g) + yywncu(:,nc)*v(col_iqwn(:,nc),1,g) &
-                                   + yysecu(:,nc)*v(col_iqse(:,nc),1,g) + yyescu(:,nc)*v(col_iqes(:,nc),1,g) &
-                                   + yyswcu(:,nc)*v(col_iqsw(:,nc),1,g) + yywscu(:,nc)*v(col_iqws(:,nc),1,g) &
                                    + zzhhcu(:,nc)
           cu(1:mg_ifull_maxcolour) = zzncu(:,nc)*v(col_iqn(:,nc),1,g) + zzscu(:,nc)*v(col_iqs(:,nc),1,g)     &
                                    + zzecu(:,nc)*v(col_iqe(:,nc),1,g) + zzwcu(:,nc)*v(col_iqw(:,nc),1,g)     &
-                                   + zznecu(:,nc)*v(col_iqne(:,nc),1,g) + zzencu(:,nc)*v(col_iqen(:,nc),1,g) &
-                                   + zznwcu(:,nc)*v(col_iqnw(:,nc),1,g) + zzwncu(:,nc)*v(col_iqwn(:,nc),1,g) &
-                                   + zzsecu(:,nc)*v(col_iqse(:,nc),1,g) + zzescu(:,nc)*v(col_iqes(:,nc),1,g) &
-                                   + zzswcu(:,nc)*v(col_iqsw(:,nc),1,g) + zzwscu(:,nc)*v(col_iqws(:,nc),1,g) &
                                    - rhscu(:,nc)
 !$omp simd
           do iq = 1,mg_ifull_maxcolour
@@ -3400,10 +2673,6 @@ do itr = 2,itr_mgice
           do iq = 1,mg_ifull_maxcolour
             v(col_iq(iq,nc),2,g) = ( - zzincu(iq,nc)*v(col_iqn(iq,nc),2,g) - zziscu(iq,nc)*v(col_iqs(iq,nc),2,g)     &
                                      - zziecu(iq,nc)*v(col_iqe(iq,nc),2,g) - zziwcu(iq,nc)*v(col_iqw(iq,nc),2,g)     &
-                                     - zzinecu(iq,nc)*v(col_iqne(iq,nc),2,g) - zziencu(iq,nc)*v(col_iqen(iq,nc),2,g) &
-                                     - zzinwcu(iq,nc)*v(col_iqnw(iq,nc),2,g) - zziwncu(iq,nc)*v(col_iqwn(iq,nc),2,g) &
-                                     - zzisecu(iq,nc)*v(col_iqse(iq,nc),2,g) - zziescu(iq,nc)*v(col_iqes(iq,nc),2,g) &
-                                     - zziswcu(iq,nc)*v(col_iqsw(iq,nc),2,g) - zziwscu(iq,nc)*v(col_iqws(iq,nc),2,g) &
                                     + rhsicu(iq,nc) ) / zzicu(iq,nc)
           end do
           
@@ -3442,52 +2711,24 @@ do itr = 2,itr_mgice
       v(1:ng,1:2,g) = v(1:ng,1:2,g) + ws(1:ng,1:2)
 
       do i = 1,itrend
-        call mgbounds(g,v(:,1:2,g),corner=.true.)  
+        call mgbounds(g,v(:,1:2,g))  
         ! ocean - post smoothing
         call mgunpack_nsew(g,v(:,1,g),v_n,v_s,v_e,v_w)
-        v_ne(1:ng) = v(mg(g)%ine,1,g)
-        v_en(1:ng) = v(mg(g)%ien,1,g)
-        v_nw(1:ng) = v(mg(g)%inw,1,g)
-        v_wn(1:ng) = v(mg(g)%iwn,1,g)
-        v_se(1:ng) = v(mg(g)%ise,1,g)
-        v_es(1:ng) = v(mg(g)%ies,1,g)
-        v_sw(1:ng) = v(mg(g)%isw,1,g)
-        v_ws(1:ng) = v(mg(g)%iws,1,g)
         bu(1:ng) = yyn(1:ng,g)*v_n(1:ng)+yys(1:ng,g)*v_s(1:ng)     &
                  + yye(1:ng,g)*v_e(1:ng)+yyw(1:ng,g)*v_w(1:ng)     &
-                 + yyne(1:ng,g)*v_ne(1:ng)+yyen(1:ng,g)*v_en(1:ng) &
-                 + yynw(1:ng,g)*v_nw(1:ng)+yywn(1:ng,g)*v_wn(1:ng) &
-                 + yyse(1:ng,g)*v_se(1:ng)+yyes(1:ng,g)*v_es(1:ng) &
-                 + yysw(1:ng,g)*v_sw(1:ng)+yyws(1:ng,g)*v_ws(1:ng) &
                  + zz(1:ng,g) + hh(1:ng,g)
         cu(1:ng) = zzn(1:ng,g)*v_n(1:ng)+zzs(1:ng,g)*v_s(1:ng)     &
                  + zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng)     &
-                 + zzne(1:ng,g)*v_ne(1:ng)+zzen(1:ng,g)*v_en(1:ng) &
-                 + zznw(1:ng,g)*v_nw(1:ng)+zzwn(1:ng,g)*v_wn(1:ng) &
-                 + zzse(1:ng,g)*v_se(1:ng)+zzes(1:ng,g)*v_es(1:ng) &
-                 + zzsw(1:ng,g)*v_sw(1:ng)+zzws(1:ng,g)*v_ws(1:ng) &
                  - rhs(1:ng,g)
         v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng)))
         ! ice - post smoothing
         call mgunpack_nsew(g,v(:,2,g),v_n,v_s,v_e,v_w)  
-        v_ne(1:ng) = v(mg(g)%ine,2,g)
-        v_en(1:ng) = v(mg(g)%ien,2,g)
-        v_nw(1:ng) = v(mg(g)%inw,2,g)
-        v_wn(1:ng) = v(mg(g)%iwn,2,g)
-        v_se(1:ng) = v(mg(g)%ise,2,g)
-        v_es(1:ng) = v(mg(g)%ies,2,g)
-        v_sw(1:ng) = v(mg(g)%isw,2,g)
-        v_ws(1:ng) = v(mg(g)%iws,2,g)
         v(1:ng,2,g) = ( - zzin(1:ng,g)*v_n(1:ng) - zzis(1:ng,g)*v_s(1:ng)     &
                         - zzie(1:ng,g)*v_e(1:ng) - zziw(1:ng,g)*v_w(1:ng)     &
-                        - zzine(1:ng,g)*v_ne(1:ng) - zzien(1:ng,g)*v_en(1:ng) &
-                        - zzinw(1:ng,g)*v_nw(1:ng) - zziwn(1:ng,g)*v_wn(1:ng) &
-                        - zzise(1:ng,g)*v_se(1:ng) - zzies(1:ng,g)*v_es(1:ng) &
-                        - zzisw(1:ng,g)*v_sw(1:ng) - zziws(1:ng,g)*v_ws(1:ng) &
                         + rhsi(1:ng,g) ) / zzi(1:ng,g)
       end do
       
-      call mgbounds(g,v(:,1:2,g),corner=.true.) ! for next mgbcast
+      call mgbounds(g,v(:,1:2,g)) ! for next mgbcast
 
     end do
 
@@ -3538,7 +2779,7 @@ do itr = 2,itr_mgice
   ! update fine spatial scales
   dumc(1:ifull,1) = neta(1:ifull)
   dumc(1:ifull,2) = ipice(1:ifull)
-  call bounds(dumc(:,1:2),corner=.true.)
+  call bounds(dumc(:,1:2))
   
   do i = 1,itrend
     do nc = 1,maxcolour
@@ -3550,14 +2791,6 @@ do itr = 2,itr_mgice
           dumc_s(iq,k) = dumc(iqs(iq,nc),k)
           dumc_e(iq,k) = dumc(iqe(iq,nc),k)
           dumc_w(iq,k) = dumc(iqw(iq,nc),k)
-          dumc_ne(iq,k) = dumc(iqne(iq,nc),k)
-          dumc_en(iq,k) = dumc(iqen(iq,nc),k)
-          dumc_nw(iq,k) = dumc(iqnw(iq,nc),k)
-          dumc_wn(iq,k) = dumc(iqwn(iq,nc),k)
-          dumc_se(iq,k) = dumc(iqse(iq,nc),k)
-          dumc_es(iq,k) = dumc(iqes(iq,nc),k)
-          dumc_sw(iq,k) = dumc(iqsw(iq,nc),k)
-          dumc_ws(iq,k) = dumc(iqws(iq,nc),k)
         end do
       end do  
       
@@ -3568,17 +2801,9 @@ do itr = 2,itr_mgice
       ! ocean
       bu(isc:iec)=yync(isc:iec,nc)*dumc_n(isc:iec,1)+yysc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +yyec(isc:iec,nc)*dumc_e(isc:iec,1)+yywc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-                 +yynec(isc:iec,nc)*dumc_ne(isc:iec,1)+yyenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-                 +yynwc(isc:iec,nc)*dumc_nw(isc:iec,1)+yywnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-                 +yysec(isc:iec,nc)*dumc_se(isc:iec,1)+yyesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-                 +yyswc(isc:iec,nc)*dumc_sw(isc:iec,1)+yywsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                  +zzhhc(isc:iec,nc)
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-                 +zznec(isc:iec,nc)*dumc_ne(isc:iec,1)+zzenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-                 +zznwc(isc:iec,nc)*dumc_nw(isc:iec,1)+zzwnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-                 +zzsec(isc:iec,nc)*dumc_se(isc:iec,1)+zzesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-                 +zzswc(isc:iec,nc)*dumc_sw(isc:iec,1)+zzwsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                  -rhsc(isc:iec,nc)    
 !$omp simd
       do iq = isc,iec
@@ -3592,14 +2817,10 @@ do itr = 2,itr_mgice
         dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
            ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
              -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
-             -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
-             -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
-             -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
-             -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
       end do  
 
-      call bounds_colour_send(dumc,nc,corner=.true.)
+      call bounds_colour_send(dumc,nc)
     
       ! update interior
       isc = ifull_colour_border(nc) + 1
@@ -3608,17 +2829,9 @@ do itr = 2,itr_mgice
       ! ocean
       bu(isc:iec)=yync(isc:iec,nc)*dumc_n(isc:iec,1)+yysc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +yyec(isc:iec,nc)*dumc_e(isc:iec,1)+yywc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-                 +yynec(isc:iec,nc)*dumc_ne(isc:iec,1)+yyenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-                 +yynwc(isc:iec,nc)*dumc_nw(isc:iec,1)+yywnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-                 +yysec(isc:iec,nc)*dumc_se(isc:iec,1)+yyesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-                 +yyswc(isc:iec,nc)*dumc_sw(isc:iec,1)+yywsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                  +zzhhc(isc:iec,nc)
       cu(isc:iec)=zznc(isc:iec,nc)*dumc_n(isc:iec,1)+zzsc(isc:iec,nc)*dumc_s(isc:iec,1)      &
                  +zzec(isc:iec,nc)*dumc_e(isc:iec,1)+zzwc(isc:iec,nc)*dumc_w(isc:iec,1)      &
-                 +zznec(isc:iec,nc)*dumc_ne(isc:iec,1)+zzenc(isc:iec,nc)*dumc_en(isc:iec,1)  &
-                 +zznwc(isc:iec,nc)*dumc_nw(isc:iec,1)+zzwnc(isc:iec,nc)*dumc_wn(isc:iec,1)  &
-                 +zzsec(isc:iec,nc)*dumc_se(isc:iec,1)+zzesc(isc:iec,nc)*dumc_es(isc:iec,1)  &
-                 +zzswc(isc:iec,nc)*dumc_sw(isc:iec,1)+zzwsc(isc:iec,nc)*dumc_ws(isc:iec,1)  &
                  -rhsc(isc:iec,nc)   
 !$omp simd
       do iq = isc,iec
@@ -3632,14 +2845,10 @@ do itr = 2,itr_mgice
         dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
            ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
              -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
-             -zznecice(iq,nc)*dumc_ne(iq,2) - zzencice(iq,nc)*dumc_en(iq,2)  &
-             -zznwcice(iq,nc)*dumc_nw(iq,2) - zzwncice(iq,nc)*dumc_wn(iq,2)  &
-             -zzsecice(iq,nc)*dumc_se(iq,2) - zzescice(iq,nc)*dumc_es(iq,2)  &
-             -zzswcice(iq,nc)*dumc_sw(iq,2) - zzwscice(iq,nc)*dumc_ws(iq,2)  &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
       end do
 
-      call bounds_colour_recv(dumc,nc,corner=.true.)
+      call bounds_colour_recv(dumc,nc)
     
     end do
   end do
