@@ -1104,6 +1104,10 @@ do i = 1,imax
         zi(i) = zzh(i,k-1) + xp*(zzh(i,k)-zzh(i,k-1))
         exit
       end if    
+      ! MJT bug fix
+      if ( zi(i)>10000. ) then
+        zi(i) = zzh(i,1)
+      end if
     end do    
   end if
 end do

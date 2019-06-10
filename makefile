@@ -33,7 +33,7 @@ else
 OMPFLAG =
 endif
 # Default intel compiler options
-FFLAGS = $(FHOST) -ftz -fp-model precise -no-fma -traceback $(MPIFLAG) $(NCFLAG) $(OMPFLAG)
+FFLAGS = $(FHOST) -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG) $(OMPFLAG)
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 ifneq ($(NCCLIB),yes)
 LIBS += -lnetcdff

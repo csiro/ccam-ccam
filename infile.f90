@@ -1459,6 +1459,7 @@ end if
 ! distribute comms
 if ( myid==0 ) then
   write(6,*) "Splitting comms for distributing file data with fnresid ",fnresid
+  write(6,*) "Number of files to be read with mynproc ",mynproc
 end if
 
 ! define comm group to read the residual files
