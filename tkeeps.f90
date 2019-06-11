@@ -372,7 +372,11 @@ do kcount = 1,mcount
     templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
     ! calculate saturated air mixing ratio
-    call getfice(fice,templ,qlg(:,k),qfg(:,k))
+    where ( qfg(:,k)>1.e-12 )
+      fice = min( qfg(:,k)/(qfg(:,k)+qlg(:,k)), 1. )
+    elsewhere
+      fice = 0.
+    end where
     call getqsat(qsat(:,k),templ(:),pres(:),fice)
     thetav(:,k) = theta(:,k)*(1.+0.61*qvg(:,k)-qlg(:,k)-qfg(:,k))
     qtot(:,k) = qvg(:,k) + qlg(:,k) + qfg(:,k)
@@ -772,7 +776,11 @@ do kcount = 1,mcount
     temp(:) = theta(:,k)/sigkap(k)
     templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
-    call getfice(fice,templ,qlg(:,k),qfg(:,k))
+    where ( qfg(:,k)>1.e-12 )
+      fice = min( qfg(:,k)/(qfg(:,k)+qlg(:,k)), 1. )
+    elsewhere
+      fice = 0.
+    end where
     call getqsat(qsat(:,k),templ(:),pres(:),fice)
     lx(:) = lv + lf*fice(:)
     dqsdt(:) = qsat(:,k)*lx(:)/(rv*templ(:)**2)
@@ -953,7 +961,11 @@ do k = 2,kl
   qtup = qvup_p(:,k) + qlup_p(:,k) + qfup_p(:,k)    ! qtot,up
   templ = tlup_p(:,k)/sigkap(k)                     ! templ,up
   pres = ps_p(:)*sig(k)
-  call getfice(fice,templ,qlup_p(:,k),qfup_p(:,k))
+  where ( qfup_p(:,k)>1.e-12 )
+    fice = min( qfup_p(:,k)/(qfup_p(:,k)+qlup_p(:,k)), 1. )
+  elsewhere
+    fice = 0.
+  end where
   call getqsat(qupsat,templ,pres,fice)
   where ( qtup > qupsat )
     qxup = qupsat
@@ -1092,11 +1104,7 @@ do i = 1,imax
         zi(i) = zzh(i,k-1) + xp*(zzh(i,k)-zzh(i,k-1))
         exit
       end if    
-    end do
-    ! MJT bug fix
-    if ( zi(i)>10000. ) then
-      zi(i) = zzh(i,1)  
-    end if
+    end do    
   end if
 end do
 
@@ -1169,38 +1177,32 @@ qsat = fice*qsati + (1.-fice)*qsatl
 return
 end subroutine getqsat
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Estimate ice fraction
-
-subroutine getfice(fice,templ,qlg,qfg)
-
-implicit none
-
-real, dimension(:), intent(in) :: templ
-real, dimension(size(templ)), intent(in) :: qlg, qfg
-real, dimension(size(templ)), intent(out) :: fice
-real, dimension(size(templ)) :: temp
-
-!where ( qfg>1.e-12 )
-!  fice = min( qfg/(qfg+qlg), 1. )
-!elsewhere
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! Estimate ice fraction
+!
+!subroutine getfice(fice,templ,qlg,qfg)
+!
+!implicit none
+!
+!real, dimension(:), intent(in) :: templ
+!real, dimension(size(templ)), intent(in) :: qlg, qfg
+!real, dimension(size(templ)), intent(out) :: fice
+!real, dimension(size(templ)) :: temp
+!
+!temp = templ + (lv*qlg+ls*qfg)/cp
+!
+!where ( temp>=tfrz )
 !  fice = 0.
+!elsewhere ( temp>=tice .and. qfg>1.e-12 )
+!  fice = min( qfg/(qfg+qlg), 1. )
+!elsewhere ( temp>=tice )
+!  fice = 0.
+!elsewhere
+!  fice = 1.
 !end where
-
-temp = templ + (lv*qlg+ls*qfg)/cp
-
-where ( temp>=tfrz )
-  fice = 0.
-elsewhere ( temp>=tice .and. qfg>1.e-12 )
-  fice = min( qfg/(qfg+qlg), 1. )
-elsewhere ( temp>=tice )
-  fice = 0.
-elsewhere
-  fice = 1.
-end where
-
-return
-end subroutine getfice
+!
+!return
+!end subroutine getfice
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update diffusion coeffs at half levels
