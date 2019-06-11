@@ -983,7 +983,6 @@ do k = 2,kl
   al = cp/(cp+lx*dqsdt)
   qcup = max(al*(qtup-qxup), 0.)                             ! qcondensate,up after redistribution
   qcup = min(qcup, qcmf)                                     ! limit condensation with simple autoconversion
-  qxup = qtup - qcup                                         ! qv,up after redistribution
   thup = tlup_p(:,k) + sigkap(k)*qcup*lx/cp                  ! theta,up after redistribution
   tvup = thup + theta_p*(0.61*qxup-qcup)                     ! thetav,up after redistribution
   where ( w2up(:,k-1)>0. )
