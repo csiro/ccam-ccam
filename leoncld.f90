@@ -446,7 +446,7 @@ call newcloud(dt,land,prf,rhoa,cdrop,tenv,qenv,qlg,qfg,cfrac,cfa,qca, &
 ! Vertically sub-grid cloud
 ccov(1:imax,1:kl) = cfrac(1:imax,1:kl)
 do k = 2,kl-1
-  where ( cfrac(1:imax,k-1)<1.e-8 .and. cfrac(1:imax,k)>1.e-2 .and. cfrac(1:imax,k+1)<1.e-8 )
+  where ( cfrac(1:imax,k-1)<1.e-10 .and. cfrac(1:imax,k)>1.e-2 .and. cfrac(1:imax,k+1)<1.e-10 )
     ccov(1:imax,k) = sqrt(cfrac(1:imax,k))
   end where
 end do
@@ -673,7 +673,7 @@ cfrac(:,1:kl) = min( 1., ccov(:,1:kl)+clcon(:,1:kl) ) ! original
 !  enddo ! k
 !
 !  do iq = 1,icfrp
-!    if ( cldmax(iq)>1.e-8 ) then
+!    if ( cldmax(iq)>1.e-10 ) then
 !      tautot(iq) = tautot(iq)/cldmax(iq)
 !
 !      cfd = 0.
@@ -684,7 +684,7 @@ cfrac(:,1:kl) = min( 1., ccov(:,1:kl)+clcon(:,1:kl) ) ! original
 !        cfd = max(cfrac(iq,k),cfd)
 !      enddo ! k=kl,kcldfmax(iq),-1
 !
-!    endif ! (cldmax(iq).gt.1.e-8) then
+!    endif ! (cldmax(iq).gt.1.e-10) then
 !  enddo   ! iq
 !endif    ! ncfrp.eq.1
 !========================= end of Jack's diag stuff ======================
@@ -1368,7 +1368,7 @@ if ( ncloud==1 ) then
   ! Using new (subgrid) autoconv scheme... 
   do k = kl-1,1,-1
     do iq = 1,imax  
-      if ( clfr(iq,k)>1.e-8 .and. cfa(iq,k)>1.e-8 ) then 
+      if ( clfr(iq,k)>0. .and. cfa(iq,k)>0. ) then 
         cfla = cfa(iq,k)*clfr(iq,k)/(clfr(iq,k)+cifr(iq,k))
         qla  = qca(iq,k)/cfa(iq,k)
         ! Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
@@ -1405,7 +1405,7 @@ else
 
   do k = kl-1,1,-1
     do iq = 1,imax
-      if ( clfr(iq,k)>1.e-8 ) then
+      if ( clfr(iq,k)>0. ) then
         qcrit = (4.*pi/3.)*rhow*Rcm**3*cdrop(iq,k)/rhoa(iq,k)
         qcic  = qlg(iq,k)/clfr(iq,k) !In cloud value
         if ( qcic>=qcrit ) then
@@ -1545,7 +1545,7 @@ do n = 1,njumps
   mxclfrgraupel(1:imax) = 0. ! max overlap graupel fraction
   rdclfrgraupel(1:imax) = 0. ! rnd overlap graupel fraction
   cgfra(1:imax)         = 0. ! total graupel fraction = mx+rd-mx*rd
-  vg2(1:imax)           = 0.2
+  vg2(1:imax)           = 0.1
 
   fluxsnow(1:imax)   = 0.
   mxclfrsnow(1:imax) = 0. ! max overlap snow fraction
@@ -1588,13 +1588,22 @@ do n = 1,njumps
       fluxgraupel(:) = fluxgraupel(:) + fluxautograupel(:,k)*tdt/tdt_in
       
       ! Detect max/random overlap clouds that are separated by a clear layer
-      where ( (cfrac(1:imax,k)>=1.e-8.and.cfrac(1:imax,k+1)<1.e-8) .or. nmr==0 )
+      where ( (cfrac(1:imax,k)>=1.e-10.and.cfrac(1:imax,k+1)<1.e-10) .or. nmr==0 )
         rdclfrgraupel(1:imax) = rdclfrgraupel(:) + mxclfrgraupel(:) - rdclfrgraupel(:)*mxclfrgraupel(:)
         mxclfrgraupel(1:imax) = 0.
       end where
        
-      call graupel_velocity(vg2,fluxgraupel,rhog(:,k),dz(:,k),cgfra)
+      ! graupel fall speed (from Lin et al 1983 - see GFDL AM3)
+      rg(1:imax) = max( fluxgraupel(:)/dz(:,k), 0. )
+      where ( cgfra(1:imax)>=1.e-10 )
+        vg2(1:imax) = max( 0.1, 5.34623815*(rg/cgfra)**0.125 )
+      end where
 
+      ! Set up the parameters for the flux-divergence calculation
+      alph(:)         = tdt*vg2(:)/dz(:,k)
+      foutgraupel(:)  = 1. - exp(-alph(:))             !analytical
+      fthrugraupel(:) = 1. - foutgraupel(:)/alph(:)  !analytical
+      
       if ( any( fluxgraupel>0. ) ) then
 
         alphaf(1:imax) = hls*qsatg(:,k)/(rvap*ttg(:,k)**2)
@@ -1739,12 +1748,21 @@ do n = 1,njumps
       fluxsnow(:) = fluxsnow(:) + fluxautosnow(:,k)*tdt/tdt_in
       
       ! Detect max/random overlap clouds that are separated by a clear layer
-      where ( (cfrac(1:imax,k)>=1.e-8.and.cfrac(1:imax,k+1)<1.e-8) .or. nmr==0 )
+      where ( (cfrac(1:imax,k)>=1.e-10.and.cfrac(1:imax,k+1)<1.e-10) .or. nmr==0 )
         rdclfrsnow(1:imax) = rdclfrsnow(:) + mxclfrsnow(:) - rdclfrsnow(:)*mxclfrsnow(:)
         mxclfrsnow(1:imax) = 0.
       end where
   
-      call snow_velocity(vs2,fluxsnow,rhos(:,k),dz(:,k),csfra)
+      ! Snow fall speed (from Lin et al 1983 - see GFDL AM3)
+      rs(1:imax) = max( fluxsnow(:)/dz(:,k), 0. )
+      where ( csfra(1:imax)>=1.e-10 )
+        vs2(1:imax) = max( 0.1, 1.82*(rs/csfra)**0.0625 )
+      end where
+
+      ! Set up the parameters for the flux-divergence calculation
+      alph(:)      = tdt*vs2/dz(:,k)
+      foutsnow(:)  = 1. - exp(-alph(:))          !analytical
+      fthrusnow(:) = 1. - foutsnow(:)/alph(:)  !analytical
 
       if ( any( fluxsnow>0. ) ) then
 
@@ -1888,12 +1906,56 @@ do n = 1,njumps
     Csbsav(1:imax) = 4.*curly(:)/(rhoa(:,k)*qsatg(:,k)*(Aprpr(:)+Bprpr(:))*pi*vi2*rho_s)
     
     ! Detect max/random overlap clouds that are separated by a clear layer
-    where ( (cfrac(1:imax,k)>=1.e-8.and.cfrac(1:imax,k+1)<1.e-8) .or. nmr==0 )
+    where ( (cfrac(1:imax,k)>=1.e-10.and.cfrac(1:imax,k+1)<1.e-10) .or. nmr==0 )
       rdclfrice(1:imax) = rdclfrice(:) + mxclfrice(:) - rdclfrice(:)*mxclfrice(:)
       mxclfrice(1:imax) = 0.
     end where
   
-    call ice_velocity(vi2,rhoi(:,k),rhoa(:,k),cifr(:,k))
+    ! Set up snow fall speed field
+    select case(abs(ldr))
+      case(1)
+        where ( cifr(1:imax,k)>=1.e-10 )
+          vi2(1:imax) = max( 0.1, 3.23*(max(rhoi(:,k),0.)/cifr(:,k))**0.17 )  ! Ice fall speed from LDR 1997
+        end where
+      case(2)
+        where ( cifr(:,k)>=1.e-10 )
+          vi2(:) = 0.9*3.23*(rhoi(:,k)/cifr(:,k))**0.17
+        end where
+      case(3)
+        where ( cifr(1:imax,k)>=1.e-10 )
+          vi2(1:imax) = max( 0.1, 2.05+0.35*log10(rhoi(:,k)/rhoa(:,k)/cifr(1:imax,k)) )
+        end where
+      case(4)
+        where ( cifr(1:imax,k)>=1.e-10 )
+          vi2(1:imax) = 1.4*3.23*(rhoi(:,k)/cifr(1:imax,k))**0.17
+        end where
+      case(5)
+        where ( cifr(1:imax,k)>=1.e-10 )  
+          vi2(1:imax) = max( 0.1, 3.29*(max( rhoi(:,k), 0. )/cifr(:,k))**0.16 ) ! from Lin et al 1983 
+        end where  
+      case(11)
+        ! following are alternative slightly-different versions of above
+        ! used for I runs from 29/4/05 till 30/8/05
+        ! for given qfg, large cifr implies small ice crystals, 
+        ! with a small fall speed. 
+        ! Note that for very small qfg, cifr is small.
+        ! But rhoi is like qfg, so ratio should also be small and OK.
+        vi2(1:imax) = max( vi2(1:imax), 3.23*(rhoi(:,k)/max(cifr(1:imax,k),1.e-30))**0.17 )
+      case(22)
+        vi2(1:imax) = max( vi2(1:imax), 0.9*3.23*(rhoi(:,k)/max(cifr(1:imax,k),1.e-30))**0.17 )
+      case(33)
+        ! following max gives vi2=.1 for qfg=cifr=0
+        vi2(1:imax) = max( vi2(1:imax), 2.05+0.35*log10(max(rhoi(:,k)/rhoa(:,k),2.68e-36)/max(cifr(1:imax,k),1.e-30)) )
+      case(55)
+        vi2(1:imax) = max( vi2(1:imax), 3.29*(max(rhoi(:,k),0.)/cifr(:,k))**0.16 ) ! from Lin et al 1983   
+    end select
+
+    vi2 = max( vi2, 0.001 )  
+      
+    ! Set up the parameters for the flux-divergence calculation
+    alph(:)     = tdt*vi2(:)/dz(:,k)
+    foutice(:)  = 1. - exp(-alph(:))         !analytical
+    fthruice(:) = 1. - foutice(:)/alph(:)  !analytical  
 
     if ( any( fluxice>0. ) ) then
 
@@ -2032,12 +2094,23 @@ do n = 1,njumps
     fluxrain(:) = fluxrain(:) + fluxmelt(:) + fluxautorain(:,k)*tdt/tdt_in
     
     ! Detect maximum/random overlap clouds that are separated by a clear layer
-    where ( (cfrac(1:imax,k)>=1.e-8.and.cfrac(1:imax,k+1)<1.e-8) .or. nmr==0 )
+    where ( (cfrac(1:imax,k)>=1.e-10.and.cfrac(1:imax,k+1)<1.e-10) .or. nmr==0 )
       rdclfrrain(:) = rdclfrrain(:) + mxclfrrain(:) - rdclfrrain(:)*mxclfrrain(:)
       mxclfrrain(:) = 0.
     end where
     
-    call rain_velocity(vr2,fluxrain,rhor(:,k),rhoa(:,k),dz(:,k),crfra,tdt)
+    ! Calculate rain fall speed (MJT suggestion)
+    if ( ncloud>=2 ) then
+      Fr(:)       = max( fluxrain(:)/tdt/max(crfra(:),1.e-15),0.)
+      vr2         = max( 0.1, 11.3*Fr(:)**(1./9.)/sqrt(rhoa(:,k)) )  !Actual fall speed
+      !vr2        = max( 0.1, 5./sqrt(rhoa(:,k)) )                   !Nominal fall speed
+      alph(:)     = tdt*vr2/dz(:,k)
+      foutliq(:)  = 1. - exp(-alph(:))
+      fthruliq(:) = 1. - foutliq(:)/alph(:)
+    else
+      foutliq(:)  = 1.
+      fthruliq(:) = 1.
+    end if
     
     if ( any( fluxrain>0. ) ) then
 
@@ -2224,6 +2297,8 @@ do n = 1,njumps
         
       ! Grauple
       ! calculate maximum and random overlap for falling graupel
+      pfstayice(:,k) = pfstayice(:,k) + fluxgraupel(:)*(1.-fthrugraupel(:))/tdt_in ! Save flux for the wet deposition scheme.  
+      pqfsedice(:,k) = pqfsedice(:,k) + xfrac_graupel(:)*foutgraupel(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
       rdclfrgraupel(1:imax) = min(1., rdclfrgraupel(:)+caccl_g(:)-rdclfrgraupel(:)*caccl_g(:))   ! rnd overlap
       mxclfrgraupel(1:imax) = max( mxclfrgraupel(:), caccf_g(:) )                                ! max overlap
       rdclfrgraupel(1:imax) = min(1., rdclfrgraupel(:)+cffreeze(:)-rdclfrgraupel(:)*cffreeze(:)) ! rnd overlap
@@ -2234,13 +2309,6 @@ do n = 1,njumps
       end where
       mxclfrgraupel(1:imax) = max( mxclfrgraupel(:), cfgraupel(:,k) ) ! for rhogout
       cgfra(1:imax) = max( 1.e-15, mxclfrgraupel(:)+rdclfrgraupel(:)-mxclfrgraupel(:)*rdclfrgraupel(:) ) ! rnd overlap
-      call graupel_velocity(vg2,fluxgraupel,rhog(:,k),dz(:,k),cgfra)  
-      ! Set up the parameters for the flux-divergence calculation
-      alph(:)         = tdt*vg2(:)/dz(:,k)
-      foutgraupel(:)  = 1. - exp(-alph(:))           !analytical
-      fthrugraupel(:) = 1. - foutgraupel(:)/alph(:)  !analytical
-      pfstayice(:,k) = pfstayice(:,k) + fluxgraupel(:)*(1.-fthrugraupel(:))/tdt_in ! Save flux for the wet deposition scheme.  
-      pqfsedice(:,k) = pqfsedice(:,k) + xfrac_graupel(:)*foutgraupel(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
       ! Compute fluxes into the box
       cffluxin(:) = cgfra(:) - cfgraupel(:,k)
       rhogin(:)   = fluxgraupel(:)/dz(:,k)
@@ -2260,6 +2328,8 @@ do n = 1,njumps
       
       ! Snow
       ! calculate maximum and random overlap for falling snow
+      pfstayice(:,k) = pfstayice(:,k) + fluxsnow(:)*(1.-fthrusnow(:))/tdt_in ! Save flux for the wet deposition scheme.
+      pqfsedice(:,k) = pqfsedice(:,k) + xfrac_snow(:)*foutsnow(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
       rdclfrsnow(1:imax) = min(1., rdclfrsnow(:)+caccl_s(:)-rdclfrsnow(:)*caccl_s(1:imax)) ! rnd overlap
       mxclfrsnow(1:imax) = max( mxclfrsnow(:), caccf_s(1:imax) )                           ! max overlap
       mxclfrsnow(1:imax) = max( mxclfrsnow(:), cfautosnow(:,k) )                           ! max overlap
@@ -2269,13 +2339,6 @@ do n = 1,njumps
       end where
       mxclfrsnow(1:imax) = max( mxclfrsnow(:), cfsnow(:,k) ) ! for rhosout
       csfra(1:imax) = max( 1.e-15, mxclfrsnow(:)+rdclfrsnow(:)-mxclfrsnow(:)*rdclfrsnow(:) ) ! rnd overlap 
-      call snow_velocity(vs2,fluxsnow,rhos(:,k),dz(:,k),csfra)
-      ! Set up the parameters for the flux-divergence calculation
-      alph(:)      = tdt*vs2/dz(:,k)
-      foutsnow(:)  = 1. - exp(-alph(:))        !analytical
-      fthrusnow(:) = 1. - foutsnow(:)/alph(:)  !analytical
-      pfstayice(:,k) = pfstayice(:,k) + fluxsnow(:)*(1.-fthrusnow(:))/tdt_in ! Save flux for the wet deposition scheme.
-      pqfsedice(:,k) = pqfsedice(:,k) + xfrac_snow(:)*foutsnow(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
       ! Compute fluxes into the box
       cffluxin(:) = csfra(:) - cfsnow(:,k)
       rhosin(:)   = fluxsnow(:)/dz(:,k)
@@ -2298,6 +2361,8 @@ do n = 1,njumps
     
     ! Ice
     ! calculate maximum and random overlap for falling ice
+    pfstayice(:,k) = pfstayice(:,k) + fluxice(:)*(1.-fthruice(:))/tdt_in ! Save flux for the wet deposition scheme.
+    pqfsedice(:,k) = pqfsedice(:,k) + xfrac_ice(:)*foutice(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
     rdclfrice(1:imax) = min( 1., rdclfrice(:)+caccl_i(:)-rdclfrice(:)*caccl_i(:) )  ! rnd overlap
     mxclfrice(1:imax) = max( mxclfrice(:), caccf_i(:) )                             ! max overlap
     where ( fluxice(:)<=0. )
@@ -2306,13 +2371,6 @@ do n = 1,njumps
     end where
     mxclfrice(1:imax) = max( mxclfrice(:), cifr(:,k) ) ! for rhoiout
     cifra(1:imax) = max( 1.e-15, mxclfrice(:)+rdclfrice(:)-mxclfrice(:)*rdclfrice(:) ) !rnd overlap the mx and rd ice fractions
-    call ice_velocity(vi2,rhoi(:,k),rhoa(:,k),cifr(:,k))
-    ! Set up the parameters for the flux-divergence calculation
-    alph(:)     = tdt*vi2(:)/dz(:,k)
-    foutice(:)  = 1. - exp(-alph(:))       !analytical
-    fthruice(:) = 1. - foutice(:)/alph(:)  !analytical
-    pfstayice(:,k) = pfstayice(:,k) + fluxice(:)*(1.-fthruice(:))/tdt_in ! Save flux for the wet deposition scheme.
-    pqfsedice(:,k) = pqfsedice(:,k) + xfrac_ice(:)*foutice(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
     ! Compute fluxes into the box
     cffluxin(:) = cifra(:) - cifr(:,k)
     rhoiin(:)   = fluxice(:)/dz(:,k)
@@ -2346,6 +2404,7 @@ do n = 1,njumps
   
     ! Rain
     ! Calculate the raining cloud cover down to this level, for stratiform (crfra).
+    pfstayliq(:,k) = pfstayliq(:,k) + fluxrain(:)*(1.-fthruliq(:))/tdt_in ! store liquid flux for aerosols
     rdclfrrain(1:imax) = min(1., rdclfrrain(:)+caccf_r(:)-rdclfrrain(:)*caccf_r(:))  ! rnd overlap
     mxclfrrain(1:imax) = max( mxclfrrain(:), caccl_r(:) )                            ! max overlap
     rdclfrrain(1:imax) = min(1., rdclfrrain(:)+cfmelt(:)-rdclfrrain(:)*cfmelt(:))    ! rnd overlap
@@ -2356,17 +2415,6 @@ do n = 1,njumps
     end where
     mxclfrrain(1:imax) = max( mxclfrrain(:), cfrain(:,k) ) ! for rhorout    
     crfra(:) = max( 1.e-15, rdclfrrain(:)+mxclfrrain(:)-rdclfrrain(:)*mxclfrrain(:) ) !rnd overlap the mx and rd rain fractions
-    call rain_velocity(vr2,fluxrain,rhor(:,k),rhoa(:,k),dz(:,k),crfra,tdt)
-    ! Set up the parameters for the flux-divergence calculation
-    if ( ncloud>=2 ) then
-      alph(:)     = tdt*vr2/dz(:,k)
-      foutliq(:)  = 1. - exp(-alph(:))
-      fthruliq(:) = 1. - foutliq(:)/alph(:)
-    else
-      foutliq(:)  = 1.
-      fthruliq(:) = 1.
-    end if
-    pfstayliq(:,k) = pfstayliq(:,k) + fluxrain(:)*(1.-fthruliq(:))/tdt_in ! store liquid flux for aerosols
     ! Compute fluxes into the box
     cffluxin(:) = crfra(:) - cfrain(:,k)
     rhorin(:)   = fluxrain(:)/dz(:,k)
@@ -2418,31 +2466,31 @@ preci(1:imax) = preci(1:imax) + fluxi(1:imax,1) + fluxs(1:imax,1)
 precg(1:imax) = precg(1:imax) + fluxg(1:imax,1)
 
 ! Remove small amounts of cloud and precip
-where ( qlg(1:imax,1:kl)<1.e-10 .or. clfr(1:imax,1:kl)<1.e-8 )
+where ( qlg(1:imax,1:kl)<1.e-10 .or. clfr(1:imax,1:kl)<1.e-5 )
   qtg(1:imax,1:kl)  = qtg(1:imax,1:kl) + qlg(1:imax,1:kl)
   ttg(1:imax,1:kl)  = ttg(1:imax,1:kl) - hlcp*qlg(1:imax,1:kl)
   qlg(1:imax,1:kl)  = 0.
   clfr(1:imax,1:kl) = 0.
 end where
-where ( qfg(1:imax,1:kl)<1.e-10 .or. cifr(1:imax,1:kl)<1.e-8 )
+where ( qfg(1:imax,1:kl)<1.e-10 .or. cifr(1:imax,1:kl)<1.e-5 )
   qtg(1:imax,1:kl)  = qtg(1:imax,1:kl) + qfg(1:imax,1:kl)
   ttg(1:imax,1:kl)  = ttg(1:imax,1:kl) - hlscp*qfg(1:imax,1:kl)
   qfg(1:imax,1:kl)  = 0.
   cifr(1:imax,1:kl) = 0.
 end where
-where ( qrg(1:imax,1:kl)<1.e-10 .or. cfrain(1:imax,1:kl)<1.e-8 )
+where ( qrg(1:imax,1:kl)<1.e-10 .or. cfrain(1:imax,1:kl)<1.e-5 )
   qtg(1:imax,1:kl)    = qtg(1:imax,1:kl) + qrg(1:imax,1:kl)
   ttg(1:imax,1:kl)    = ttg(1:imax,1:kl) - hlcp*qrg(1:imax,1:kl)
   qrg(1:imax,1:kl)    = 0.
   cfrain(1:imax,1:kl) = 0.
 end where
-where ( qsng(1:imax,1:kl)<1.e-10 .or. cfsnow(1:imax,1:kl)<1.e-8 )
+where ( qsng(1:imax,1:kl)<1.e-10 .or. cfsnow(1:imax,1:kl)<1.e-5 )
   qtg(1:imax,1:kl)    = qtg(1:imax,1:kl) + qsng(1:imax,1:kl)
   ttg(1:imax,1:kl)    = ttg(1:imax,1:kl) - hlscp*qsng(1:imax,1:kl)
   qsng(1:imax,1:kl)   = 0.
   cfsnow(1:imax,1:kl) = 0.
 end where
-where ( qgrg(1:imax,1:kl)<1.e-10 .or. cfgraupel(1:imax,1:kl)<1.e-8 )
+where ( qgrg(1:imax,1:kl)<1.e-10 .or. cfgraupel(1:imax,1:kl)<1.e-5 )
   qtg(1:imax,1:kl)       = qtg(1:imax,1:kl) + qgrg(1:imax,1:kl)
   ttg(1:imax,1:kl)       = ttg(1:imax,1:kl) - hlscp*qgrg(1:imax,1:kl)
   qgrg(1:imax,1:kl)      = 0.
@@ -2507,100 +2555,5 @@ end if  ! (diag.and.mydiag)
 
 return
 end subroutine newsnowrain
-
-subroutine graupel_velocity(vg2,fluxgraupel,rhog,dz,cgfra)
-
-implicit none
-
-real, dimension(:), intent(inout) :: vg2
-real, dimension(size(vg2)), intent(in) :: fluxgraupel, rhog, dz, cgfra
-real, dimension(size(vg2)) :: rg
-
-! graupel fall speed (from Lin et al 1983 - see GFDL AM3)
-rg = max( fluxgraupel/dz + rhog, 0. )
-vg2 = max( 0.1, 5.34623815*(rg/max(cgfra,1.e-8))**0.125 )
-
-return
-end subroutine graupel_velocity
-
-subroutine snow_velocity(vs2,fluxsnow,rhos,dz,csfra)
-
-implicit none
-
-real, dimension(:), intent(inout) :: vs2
-real, dimension(size(vs2)), intent(in) :: fluxsnow, rhos, dz, csfra
-real, dimension(size(vs2)) :: rs
-
-! Snow fall speed (from Lin et al 1983 - see GFDL AM3)
-rs = max( fluxsnow/dz + rhos, 0. )
-vs2 = max( 0.1, 1.82*(rs/max(csfra,1.e-8))**0.0625 )
-
-return
-end subroutine snow_velocity
-    
-subroutine ice_velocity(vi2,rhoi,rhoa,cifr)
-
-implicit none
-
-include 'kuocom.h'                ! Convection parameters
-
-real, dimension(:), intent(inout) :: vi2
-real, dimension(size(vi2)), intent(in) :: rhoi,rhoa,cifr
-
-! Set up snow fall speed field
-select case(abs(ldr))
-  case(1)
-    vi2 = 3.23*(max(rhoi,0.)/max(cifr,1.e-8))**0.17  ! Ice fall speed from LDR 1997
-  case(2)
-    vi2 = 0.9*3.23*(rhoi/max(cifr,1.e-8))**0.17
-  case(3)
-    vi2 = 2.05+0.35*log10(rhoi/rhoa/max(cifr,1.e-8))
-  case(4)
-    vi2 = 1.4*3.23*(rhoi/max(cifr,1.e-8))**0.17
-  case(5)
-    vi2 = 3.29*(max( rhoi, 0. )/max(cifr,1.e-8))**0.16 ! from Lin et al 1983 
-  case(11)
-    ! following are alternative slightly-different versions of above
-    ! used for I runs from 29/4/05 till 30/8/05
-    ! for given qfg, large cifr implies small ice crystals, 
-    ! with a small fall speed. 
-    ! Note that for very small qfg, cifr is small.
-    ! But rhoi is like qfg, so ratio should also be small and OK.
-    vi2 = max( vi2, 3.23*(rhoi/max(cifr,1.e-8))**0.17 )
-  case(22)
-    vi2 = max( vi2, 0.9*3.23*(rhoi/max(cifr,1.e-8))**0.17 )
-  case(33)
-    ! following max gives vi2=.1 for qfg=cifr=0
-    vi2 = max( vi2, 2.05+0.35*log10(max(rhoi/rhoa,2.68e-36)/max(cifr,1.e-8)) )
-  case(55)
-    vi2 = max( vi2, 3.29*(max(rhoi,0.)/max(cifr,1.e-8))**0.16 ) ! from Lin et al 1983   
-end select
-
-vi2 = max( 0.1, vi2 )  
-  
-return
-end subroutine ice_velocity
-
-subroutine rain_velocity(vr2,fluxrain,rhor,rhoa,dz,crfra,tdt)
-
-implicit none
-
-include 'kuocom.h'                ! Convection parameters
-
-real, intent(in) :: tdt
-real, dimension(:), intent(inout) :: vr2
-real, dimension(size(vr2)), intent(in) :: fluxrain, rhor, rhoa, dz, crfra
-real, dimension(size(vr2)) :: Fr
-
-! Calculate rain fall speed (MJT suggestion)
-if ( ncloud>=2 ) then
-  Fr(:)       = fluxrain(:) + rhor*dz
-  Fr(:)       = max( Fr(:)/tdt/max(crfra,1.e-8),0.)
-  vr2         = max( 0.1, 11.3*Fr(:)**(1./9.)/sqrt(rhoa) )  !Actual fall speed
-  !vr2        = max( 0.1, 5./sqrt(rhoa) )                   !Nominal fall speed
-end if
-
-return
-end subroutine rain_velocity
     
 end module leoncld_mod
