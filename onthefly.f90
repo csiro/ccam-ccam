@@ -1838,15 +1838,19 @@ if ( nested/=1 .and. nested/=3 ) then
     end if
     call gethist4a('cfrac',cfrac,5)           ! CLOUD FRACTION
     cfrac(1:ifull,1:kl) = max( cfrac(1:ifull,1:kl), 0. )
+    cfrac(1:ifull,1:kl) = min( cfrac(1:ifull,1:kl), 1. )
     if ( ncloud>=2 ) then
       call gethist4a('rfrac',rfrac,5)         ! RAIN FRACTION
       rfrac(1:ifull,1:kl) = max( rfrac(1:ifull,1:kl), 0. )
+      rfrac(1:ifull,1:kl) = min( rfrac(1:ifull,1:kl), 1. )
     end if
     if ( ncloud>=3 ) then
       call gethist4a('sfrac',sfrac,5)         ! SNOW FRACTION
       sfrac(1:ifull,1:kl) = max( sfrac(1:ifull,1:kl), 0. )
+      sfrac(1:ifull,1:kl) = min( sfrac(1:ifull,1:kl), 1. )
       call gethist4a('gfrac',gfrac,5)         ! GRAUPEL FRACTION
       gfrac(1:ifull,1:kl) = max( gfrac(1:ifull,1:kl), 0. )
+      gfrac(1:ifull,1:kl) = min( gfrac(1:ifull,1:kl), 1. )
     end if
     if ( ncloud>=4 ) then
       call gethist4a('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION

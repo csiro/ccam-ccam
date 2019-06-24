@@ -43,9 +43,10 @@ use microphys_rad_mod, only : microphys_rad_init,microphys_sw_driver,microphys_l
 private
 public seaesfrad_settime, seaesfrad, seaesfrad_init, sw_resolution, sw_diff_streams, liqradmethod, iceradmethod
 public carbonradmethod, so4radmethod, dustradmethod, seasaltradmethod, lwem_form
+public csolar
 
 real, parameter :: rhow     = 1000.            ! Density of water (kg/m^3)
-real, parameter :: csolar   = 1365             ! Solar constant in W/m^2
+real, save      :: csolar   = 1365             ! Solar constant in W/m^2 - change to 1361 for CMIP6
 real, parameter :: siglow   = 0.68             ! sigma level for top of low cloud (diagnostic)
 real, parameter :: sigmid   = 0.44             ! sigma level for top of medium cloud (diagnostic)
 real, parameter :: ratco2mw = 1.519449738      ! conversion factor for CO2 diagnostic

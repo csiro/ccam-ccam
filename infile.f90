@@ -2010,7 +2010,7 @@ ldim   = dim
 #ifdef usenc3
 ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
 #else
-if ( procformat .and. ndim>3 ) then
+if ( localhist .and. ndim>3 ) then
   ! MJT notes - PR identified (/il, jl, kl,vnode_nproc, min(10, tlen)/) as optimal.
   ! However, here we simplify the code and PR reports that the performance is
   ! similar
@@ -2096,12 +2096,10 @@ else
   wvar(:,1)=var(:)
 end if
 
-if ( local .and. procformat ) then
+if ( local ) then
   call fw3lp(wvar,sname,idnc,iarch,1)  
-else if ( procformat ) then
+else if ( localhist ) then
   call ccmpi_gatherx(var_t,wvar,0,comm_vnode)
-else if ( local ) then
-  call fw3l(wvar,sname,idnc,iarch,1)
 else if ( myid==0 ) then
   call fw3a(wvar,sname,idnc,iarch,1)
 else
@@ -2135,12 +2133,10 @@ else
   wvar(:,1)=var(:)
 end if
 
-if ( local .and. procformat ) then
+if ( local ) then
   call fw3lpr8(wvar,sname,idnc,iarch,1)  
-else if ( procformat ) then
+else if ( localhist ) then
   call ccmpi_gatherxr8(var_t,wvar,0,comm_vnode)
-else if ( local ) then
-  call fw3lr8(wvar,sname,idnc,iarch,1)
 else if ( myid==0 ) then
   call fw3ar8(wvar,sname,idnc,iarch,1)
 else
@@ -2165,12 +2161,10 @@ real, dimension(0,0,0) :: var_t
 logical, intent(in) :: local
 character(len=*), intent(in) :: cname
       
-if ( local .and. procformat ) then
+if ( local ) then
   call fw3lp(datain,cname,fncid,fiarch,istep)   
-else if ( procformat ) then
+else if ( localhist ) then
   call ccmpi_gatherx(var_t,datain,0,comm_vnode)
-else if ( local ) then
-  call fw3l(datain,cname,fncid,fiarch,istep)
 else if ( myid==0 ) then
   call fw3a(datain,cname,fncid,fiarch,istep)
 else
@@ -2255,62 +2249,6 @@ end if
 
 return
 end subroutine fw3lp
-
-! pure local(write)
-subroutine fw3l(var,sname,idnc,iarch,istep)
-
-use cc_mpi               ! CC MPI routines
-use newmpar_m            ! Grid parameters
-use parm_m               ! Model configuration
-      
-implicit none
-      
-integer, intent(in) :: idnc, iarch, istep
-integer ier, i
-integer(kind=4) :: lidnc, mid, vtype, ndims
-integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(ifull,istep) :: ipack
-real, dimension(ifull,istep), intent(in) :: var
-real(kind=4) laddoff, lscale_f
-character(len=*), intent(in) :: sname
-
-start = (/ 1, 1, iarch /)
-ncount = (/ il, jl, istep /)
-
-if ( any( var/=var ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw3p ",trim(sname)
-  call ccmpi_abort(-1)
-end if
-
-lidnc = idnc
-ier = nf90_inq_varid(lidnc,sname,mid)
-call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
-if ( vtype==nf90_short ) then
-  if ( all(var>9.8E36) ) then
-    ipack = missval
-  else
-    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do i = 1,istep
-      ipack(:,i) = nint(max(min((var(:,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
-    end do
-  end if
-  ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-else
-  ier = nf90_put_var(lidnc,mid,var,start=start(1:ndims),count=ncount(1:ndims))
-end if
-call ncmsg(sname,ier)
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-  if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
-    write(6,'(" histwrt3 ",a20,i8,a7)') sname,iarch,"missing"
-  else
-    write(6,'(" histwrt3 ",a20,i8)') sname,iarch
-  end if
-end if
-
-return
-end subroutine fw3l
       
 ! global(write) with single file
 subroutine fw3a(var,sname,idnc,iarch,istep)
@@ -2469,62 +2407,6 @@ end if
 return
 end subroutine fw3lpr8
 
-! pure local(write) (Double precision version)
-subroutine fw3lr8(var,sname,idnc,iarch,istep)
-
-use cc_mpi               ! CC MPI routines
-use newmpar_m            ! Grid parameters
-use parm_m               ! Model configuration
-      
-implicit none
-      
-integer, intent(in) :: idnc, iarch, istep
-integer :: ier, i
-integer(kind=4) :: lidnc, mid, vtype, ndims
-integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(ifull,istep) :: ipack
-real(kind=8), dimension(ifull,istep), intent(in) :: var
-real(kind=4) :: laddoff, lscale_f
-character(len=*), intent(in) :: sname
-
-start = (/ 1, 1, iarch /)
-ncount = (/ il, jl, istep /)
-
-if ( any( var/=var ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw3lr8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
-
-lidnc = idnc
-ier = nf90_inq_varid(lidnc,sname,mid)
-call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
-if ( vtype==nf90_short ) then
-  if ( all(var>9.8E36_8) ) then
-    ipack = missval
-  else
-    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do i = 1,istep
-      ipack(:,i) = nint(max(min((var(:,i)-real(laddoff,8))/real(lscale_f,8),real(maxv,8)),real(minv,8)),2)
-    end do
-  end if
-  ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-else
-  ier = nf90_put_var(lidnc,mid,var,start=start(1:ndims),count=ncount(1:ndims))
-end if
-call ncmsg(sname,ier)
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-  if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
-    write(6,'(" histwrt3r8 ",a20,i8,a7)') sname,iarch,"missing"
-  else
-    write(6,'(" histwrt3r8 ",a20,i8)') sname,iarch
-  end if
-end if
-
-return
-end subroutine fw3lr8
-      
 ! global(write) with single file (double precision version)
 subroutine fw3ar8(var,sname,idnc,iarch,istep)
 
@@ -2632,12 +2514,10 @@ else
   wvar(:,:)=var(1:ifull,1:ll)
 endif
 
-if ( local .and. procformat ) then
+if ( local ) then
   call hw4lp(wvar,sname,idnc,iarch)  
-else if ( procformat ) then
+else if ( localhist ) then
   call ccmpi_gatherx(var_g,wvar,0,comm_vnode)
-else if ( local ) then
-  call hw4l(wvar,sname,idnc,iarch)
 else if ( myid==0 ) then
   call hw4a(wvar,sname,idnc,iarch)
 else
@@ -2672,12 +2552,10 @@ else
   wvar(:,:)=var(1:ifull,1:ll)
 endif
 
-if ( local .and. procformat ) then
+if ( local ) then
   call hw4lpr8(wvar,sname,idnc,iarch)  
-else if ( procformat ) then
+else if ( localhist ) then
   call ccmpi_gatherxr8(var_g,wvar,0,comm_vnode)
-else if ( local ) then
-  call hw4lr8(wvar,sname,idnc,iarch)
 else if ( myid==0 ) then
   call hw4ar8(wvar,sname,idnc,iarch)
 else
@@ -2761,66 +2639,6 @@ end if
 
 return
 end subroutine hw4lp           
-
-! pure local(write)
-subroutine hw4l(var,sname,idnc,iarch)
-
-use cc_mpi               ! CC MPI routines
-use newmpar_m            ! Grid parameters
-use parm_m               ! Model configuration
-
-implicit none
-
-integer, intent(in) :: idnc, iarch
-integer iq, k, ier, ll
-integer(kind=4) mid, vtype, lidnc, ndims
-integer(kind=4), dimension(4) :: start, ncount
-real, dimension(:,:), intent(in) :: var
-real(kind=4) laddoff, lscale_f
-character(len=*), intent(in) :: sname
-integer(kind=2), dimension(ifull,size(var,2)) :: ipack
-
-ll = size(var,2)
-start = (/ 1, 1, 1, iarch /)
-ncount = (/ il, jl, ll, 1 /)
-
-if ( any( var/=var ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw4l ",trim(sname)
-  call ccmpi_abort(-1)
-end if
-
-lidnc = idnc
-ier = nf90_inq_varid(lidnc,sname,mid)
-call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
-if ( vtype==nf90_short ) then
-  if ( all(var>9.8e36) ) then
-    ipack = missval
-  else
-    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do k = 1,ll
-      do iq = 1,ifull
-        ipack(iq,k) = nint(max(min((var(iq,k)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
-      end do
-    end do
-  end if
-  ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-else
-  ier = nf90_put_var(lidnc,mid,var,start=start(1:ndims),count=ncount(1:ndims))
-endif
-call ncmsg(sname,ier)
-
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-  if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
-    write(6,'(" histwrt4 ",a20,i4,a7)') sname,iarch,"missing"
-  else
-    write(6,'(" histwrt4 ",a20,i4)') sname,iarch
-  end if
-end if
-
-return
-end subroutine hw4l      
 
 ! global write with single file
 subroutine hw4a(var,sname,idnc,iarch)
@@ -2974,66 +2792,6 @@ end if
 return
 end subroutine hw4lpr8        
 
-! pure local(write)
-subroutine hw4lr8(var,sname,idnc,iarch)
-
-use cc_mpi               ! CC MPI routines
-use newmpar_m            ! Grid parameters
-use parm_m               ! Model configuration
-
-implicit none
-
-integer, intent(in) :: idnc, iarch
-integer :: iq, k, ier, ll
-integer(kind=4) :: mid, vtype, lidnc, ndims
-integer(kind=4), dimension(4) :: start, ncount
-real(kind=8), dimension(:,:), intent(in) :: var
-real(kind=4) :: laddoff, lscale_f
-character(len=*), intent(in) :: sname
-integer(kind=2), dimension(ifull,size(var,2)) :: ipack
-
-ll = size(var,2)
-start = (/ 1, 1, 1, iarch /)
-ncount = (/ il, jl, ll, 1 /)
-
-if ( any( var/=var ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw4lr8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
-
-lidnc = idnc
-ier = nf90_inq_varid(lidnc,sname,mid)
-call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
-if ( vtype==nf90_short ) then
-  if ( all(var>9.8e36_8) ) then
-    ipack = missval
-  else
-    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do k = 1,ll
-      do iq = 1,ifull
-        ipack(iq,k) = nint(max(min((var(iq,k)-real(laddoff,8))/real(lscale_f,8),real(maxv,8)),real(minv,8)),2)
-      end do
-    end do
-  end if
-  ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-else
-  ier = nf90_put_var(lidnc,mid,var,start=start(1:ndims),count=ncount(1:ndims))
-endif
-call ncmsg(sname,ier)
-
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-  if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
-    write(6,'(" histwrt4r8 ",a20,i4,a7)') sname,iarch,"missing"
-  else
-    write(6,'(" histwrt4r8 ",a20,i4)') sname,iarch
-  end if
-end if
-
-return
-end subroutine hw4lr8      
-
 ! global write with single file
 subroutine hw4ar8(var,sname,idnc,iarch)
 
@@ -3139,12 +2897,10 @@ else
   wvar(:,:,:)=var(1:ifull,1:kk,1:ll)
 endif
 
-if ( local .and. procformat ) then
+if ( local ) then
   call hw5lp(wvar,sname,idnc,iarch)  
-else if ( procformat ) then
+else if ( localhist ) then
   call ccmpi_gatherx(var_g,var,0,comm_vnode)
-else if ( local ) then
-  call hw5l(wvar,sname,idnc,iarch)
 else if ( myid==0 ) then
   call hw5a(wvar,sname,idnc,iarch)
 else
@@ -3180,12 +2936,10 @@ else
   wvar(:,:,:)=var(1:ifull,1:kk,1:ll)
 endif
 
-if ( local .and. procformat ) then
+if ( local ) then
   call hw5lpr8(wvar,sname,idnc,iarch)  
-else if ( procformat ) then
+else if ( localhist ) then
   call ccmpi_gatherxr8(var_g,wvar,0,comm_vnode)
-else if ( local ) then
-  call hw5lr8(wvar,sname,idnc,iarch)
 else if ( myid==0 ) then
   call hw5ar8(wvar,sname,idnc,iarch)
 else
@@ -3272,69 +3026,6 @@ end if
 
 return
 end subroutine hw5lp           
-
-! pure local(write)
-subroutine hw5l(var,sname,idnc,iarch)
-
-use cc_mpi               ! CC MPI routines
-use newmpar_m            ! Grid parameters
-use parm_m               ! Model configuration
-
-implicit none
-
-integer, intent(in) :: idnc, iarch
-integer iq, k, ier, kk, l, ll
-integer(kind=4) mid, vtype, lidnc, ndims
-integer(kind=4), dimension(5) :: start, ncount
-real, dimension(:,:,:), intent(in) :: var
-real(kind=4) laddoff, lscale_f
-character(len=*), intent(in) :: sname
-integer(kind=2), dimension(ifull,size(var,2),size(var,3)) :: ipack
-
-kk = size(var,2)
-ll = size(var,3)
-start = (/ 1, 1, 1, 1, iarch /)
-ncount = (/ il, jl, kk, ll, 1 /)
-
-if ( any( var/=var ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw5l ",trim(sname)
-  call ccmpi_abort(-1)
-end if
-
-lidnc = idnc
-ier = nf90_inq_varid(lidnc,sname,mid)
-call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
-if ( vtype==nf90_short ) then
-  if ( all(var>9.8e36) ) then
-    ipack = missval
-  else
-    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do l = 1,ll
-      do k = 1,kk
-        do iq = 1,ifull
-          ipack(iq,k,l) = nint(max(min((var(iq,k,l)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
-        end do  
-      end do
-    end do
-  end if
-  ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-else
-  ier = nf90_put_var(lidnc,mid,var,start=start(1:ndims),count=ncount(1:ndims))
-endif
-call ncmsg(sname,ier)
-
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-  if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
-    write(6,'(" histwrt5 ",a20,i4,a7)') sname,iarch,"missing"
-  else
-    write(6,'(" histwrt5 ",a20,i4)') sname,iarch
-  end if
-end if
-
-return
-end subroutine hw5l      
 
 ! global write with single file
 subroutine hw5a(var,sname,idnc,iarch)
@@ -3487,69 +3178,6 @@ end if
 
 return
 end subroutine hw5lpr8    
-
-! pure local(write)
-subroutine hw5lr8(var,sname,idnc,iarch)
-
-use cc_mpi               ! CC MPI routines
-use newmpar_m            ! Grid parameters
-use parm_m               ! Model configuration
-
-implicit none
-
-integer, intent(in) :: idnc, iarch
-integer iq, k, ier, kk, l, ll
-integer(kind=4) mid, vtype, lidnc, ndims
-integer(kind=4), dimension(5) :: start, ncount
-real(kind=8), dimension(:,:,:), intent(in) :: var
-real(kind=4) laddoff, lscale_f
-character(len=*), intent(in) :: sname
-integer(kind=2), dimension(ifull,size(var,2),size(var,3)) :: ipack
-
-kk = size(var,2)
-ll = size(var,3)
-start = (/ 1, 1, 1, 1, iarch /)
-ncount = (/ il, jl, kk, ll, 1 /)
-
-if ( any( var/=var ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw5lr8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
-
-lidnc = idnc
-ier = nf90_inq_varid(lidnc,sname,mid)
-call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
-if ( vtype==nf90_short ) then
-  if ( all(var>9.8e36_8) ) then
-    ipack = missval
-  else
-    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do l = 1,ll
-      do k = 1,kk
-        do iq = 1,ifull
-          ipack(iq,k,l) = nint(max(min((var(iq,k,l)-real(laddoff,8))/real(lscale_f,8),real(maxv,8)),real(minv,8)),2)
-        end do  
-      end do
-    end do
-  end if
-  ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-else
-  ier = nf90_put_var(lidnc,mid,var,start=start(1:ndims),count=ncount(1:ndims))
-endif
-call ncmsg(sname,ier)
-
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-  if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
-    write(6,'(" histwrt5r8 ",a20,i4,a7)') sname,iarch,"missing"
-  else
-    write(6,'(" histwrt5r8 ",a20,i4)') sname,iarch
-  end if
-end if
-
-return
-end subroutine hw5lr8      
 
 ! global write with single file
 subroutine hw5ar8(var,sname,idnc,iarch)

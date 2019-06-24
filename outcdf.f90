@@ -21,16 +21,15 @@
 
 ! CCAM netCDF output routines
 
-! itype=1,  iout=20               write outfile history file
-! itype=-1, iout=19               write restart file (uncompressed)
-! itype=-1, iout=21               write ensemble file (uncompressed)
-! hp_output=0                     compressed history file
-! hp_output=1                     uncompressed history file
-! localhist=f                     single file output 
-! localhist=t .and. procformat=f  parallel output for each processor
-! localhist=t .and. procformat=t  parallel output for a group of processors (e.g., for a node)
-! unlimitedhist=f                 fixed length time dimension (faster)
-! unlimitedhist=t                 use unlimited record dimension for time
+! itype=1,  iout=20  write outfile history file
+! itype=-1, iout=19  write restart file (uncompressed)
+! itype=-1, iout=21  write ensemble file (uncompressed)
+! hp_output=0        compressed history file
+! hp_output=1        uncompressed history file
+! localhist=f        single file output 
+! localhist=t        parallel output for a group of processors (e.g., for a node)
+! unlimitedhist=f    fixed length time dimension (faster)
+! unlimitedhist=t    use unlimited record dimension for time
 
 ! Thanks to Paul Ryan for optimising netcdf routines.
     
@@ -218,16 +217,15 @@ character(len=*), intent(in) :: cdffile_in
 character(len=1024) cdffile
 character(len=33) grdtim
 
-! localhist=.true. indicates that the output will be written in parallel.  procformat=.true.
-! requires localhist=.true. to work.
+! localhist=.true. indicates that the output will be written in parallel.
 
-! procformat=.true. indicates that procformat mode is active where one 'node' captian will
+! local=.true. indicates that procformat mode is active where one 'node' captian will
 ! write the output for that 'node' of processes.  Procformat supports virtual nodes, although
 ! they cannot be split across physical nodes.
 
 ! local=.true. if this process needs to write to a file
 
-local = localhist .and. ((procformat.and.vnode_myid==0).or.(.not.procformat))
+local = localhist .and. vnode_myid==0
 
 ! File setup follows
 if ( itype==1 ) then  
@@ -241,10 +239,8 @@ else
 end if ! ( itype==1) ..else..
 
 ! Determine file names depending on output
-if ( procformat ) then
+if ( local ) then
   write(cdffile,"(a,'.',i6.6)") trim(cdffile_in), vnode_vleaderid
-elseif ( local ) then
-  write(cdffile,"(a,'.',i6.6)") trim(cdffile_in), myid
 else
   cdffile = cdffile_in
 end if
@@ -279,7 +275,7 @@ if ( myid==0 .or. local ) then
     if ( abs(nmlo)>0. .and. abs(nmlo)<=9 ) then
       call ccnf_def_dim(idnc,'olev',ol,ocdim)
     end if 
-    if ( procformat ) then ! procformat=.true. ensures localhist=.true.
+    if ( local ) then
        call ccnf_def_dim(idnc,'processor',vnode_nproc,pdim)   
        if ( myid==0 ) then
          call ccnf_def_dim(idnc,'gprocessor',nproc,gpdim)
@@ -325,7 +321,7 @@ if ( myid==0 .or. local ) then
     end if  
     
     ! set-up multi-dimensional arrays
-    if ( procformat ) then
+    if ( local ) then
       ! atmosphere dimensions
       dima = (/ xdim, ydim, zdim, pdim, tdim /)
       ! soil dimensions
@@ -366,14 +362,14 @@ if ( myid==0 .or. local ) then
     end if
 
     ! Define coords.
-    if ( procformat ) then
+    if ( local ) then
       call ccnf_def_var(idnc,'longitude','float',2,dimpx(1:2),ixp)
     else
       call ccnf_def_var(idnc,'longitude','float',1,dimpx(1:1),ixp)
     end if
     call ccnf_put_att(idnc,ixp,'point_spacing','even')
     call ccnf_put_att(idnc,ixp,'units','degrees_east')
-    if ( procformat ) then
+    if ( local ) then
       call ccnf_def_var(idnc,'latitude','float',2,dimpy(1:2),iyp)
     else
       call ccnf_def_var(idnc,'latitude','float',1,dimpy(1:1),iyp)
@@ -404,7 +400,7 @@ if ( myid==0 .or. local ) then
       end if    
     end if  
     
-    if ( procformat ) then
+    if ( local ) then
       call ccnf_def_var(idnc,'processor','int',1,dima(4:4),idproc)
       call ccnf_put_att(idnc,idproc,'long_name','processor number')
       if ( myid==0 ) then
@@ -415,7 +411,7 @@ if ( myid==0 .or. local ) then
       end if
     end if
 
-    if ( procformat ) then
+    if ( local ) then
       call ccnf_def_var(idnc,'time','float',1,dima(5:5),idnt)
     else
       call ccnf_def_var(idnc,'time','float',1,dima(4:4),idnt)
@@ -662,6 +658,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'carbmtn',carbmtn)
     call ccnf_put_attg(idnc,'carbonradmethod',carbonradmethod)
     call ccnf_put_attg(idnc,'ch_dust',ch_dust)
+    call ccnf_put_attg(idnc,'csolar',csolar)
     call ccnf_put_attg(idnc,'dustradmethod',dustradmethod)
     call ccnf_put_attg(idnc,'iceradmethod',iceradmethod)
     call ccnf_put_attg(idnc,'liqradmethod',liqradmethod)
@@ -1015,11 +1012,12 @@ lday     = mod(ktau,nperday)==0.or.ktau==ntau
 lday     = lday.and.lwrite
 lday_0   = mod(ktau,nperday)==0.or.ktau==ntau
 lday_0   = lday_0.and.lwrite_0
-l3hr = (real(nwt)*dt>10800.)
+l3hr     = (real(nwt)*dt>10800.)
 
 ! compression
-cptype = itype
-if ( hp_output==1 ) then
+if ( hp_output/=1 ) then
+  cptype = itype
+else
   cptype = -1
 end if
 
@@ -1028,7 +1026,7 @@ end if
 ! dimj is for 3-D (2 dimensions+time)
 ! dimk is for 2-D (2 dimension without time)
 ! dimc1-7 is for cable POP npatch (3 dimensions+time)
-if ( procformat ) then
+if ( localhist ) then
   dimj(1:2) = dima(1:2)
   dimj(3:4) = dima(4:5)
   dimk(1:2) = dima(1:2)
@@ -1072,9 +1070,7 @@ if( myid==0 .or. local ) then
 !   Grid decomposition
     if ( local ) then
       call ccnf_put_attg(idnc,'nproc',nproc)
-      if ( procformat ) then
-        call ccnf_put_attg(idnc,'procmode',vnode_nproc)
-      end if
+      call ccnf_put_attg(idnc,'procmode',vnode_nproc)
       if ( uniform_decomp ) then
         call ccnf_put_attg(idnc,'decomp','uniform1')
       else
@@ -2146,7 +2142,7 @@ if( myid==0 .or. local ) then
 !   Leave define mode
     call ccnf_enddef(idnc)
 
-    if ( procformat ) then
+    if ( local ) then
       ! procformat
       allocate(xpnt(il),xpnt2(il,vnode_nproc))
       do i = 1,ipan
@@ -2165,23 +2161,6 @@ if( myid==0 .or. local ) then
       call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
       call ccnf_put_vara(idnc,iyp,(/1,1/),(/jl,vnode_nproc/),ypnt2)
       deallocate(ypnt,ypnt2)
-    elseif ( local ) then
-      ! Set these to global indices (relative to panel 0 in uniform decomp)
-      allocate(xpnt(il))
-      do i = 1,ipan
-        xpnt(i) = float(i + ioff)
-      end do
-      call ccnf_put_vara(idnc,ixp,1,il,xpnt(1:il))
-      deallocate(xpnt)
-      allocate(ypnt(jl))
-      do n = 1,npan
-        do j = 1,jpan
-          i = j + (n-1)*jpan  
-          ypnt(i) = float(j + joff + (n-noff)*il_g)
-        end do
-      end do
-      call ccnf_put_vara(idnc,iyp,1,jl,ypnt(1:jl))
-      deallocate(ypnt)
     else
       ! single file
       allocate(xpnt(il_g))
@@ -2214,24 +2193,12 @@ if( myid==0 .or. local ) then
     end if
     
     ! procformat
-    if ( procformat ) then
+    if ( local ) then
       ! store local processor id in output file
       allocate(vnode_dat(vnode_nproc))
       call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
       call ccnf_put_vara(idnc,idproc,(/1/),(/vnode_nproc/),vnode_dat)
       deallocate(vnode_dat)
-      !! store global processor id in output file number 000000
-      !if ( myid==0 ) then
-      !  allocate(procmap(nproc))
-      !else
-      !  allocate(procmap(1)) ! not used
-      !end if
-      !gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
-      !call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
-      !if ( myid==0 ) then
-      !  call ccnf_put_vara(idnc,idgproc,(/1/),(/nproc/),procmap)  
-      !end if
-      !deallocate(procmap)
       ! store file id for a given processor number in output file number 000000
       if ( myid==0 ) then
         allocate( procnode(nproc) )
@@ -2330,7 +2297,7 @@ if( myid==0 .or. local ) then
     write(6,*) 'timer,timeg=',timer,timeg
   end if
   
-elseif ( procformat ) then
+elseif ( localhist ) then
     
   if ( iarch==1 ) then  
     allocate(xpnt(il),xpnt2(il,vnode_nproc))
@@ -2352,10 +2319,6 @@ elseif ( procformat ) then
     allocate(vnode_dat(vnode_nproc))
     call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
     deallocate(vnode_dat)
-    !allocate(procmap(1)) ! not used
-    !gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
-    !call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
-    !deallocate(procmap)
     allocate(procnode(1)) ! not used
     call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
     deallocate(procnode)
@@ -2364,7 +2327,7 @@ elseif ( procformat ) then
     deallocate(procoffset)
   end if
     
-end if ! myid == 0 .or. local ..else..
+end if ! myid == 0 .or. local ..else.. localhist ...
 
 
 ! extract data from ocean model
@@ -3382,17 +3345,16 @@ character(len=33) :: grdtim
 
 call START_LOG(outfile_begin)
 
-! localhist=.true. indicates that the output will be written in parallel.  procformat=.true.
-! requires localhist=.true. to work.
+! localhist=.true. indicates that the output will be written in parallel.
 
-! procformat=.true. indicates that procformat mode is active where one 'node' captian will
+! localhist=.true. indicates that procformat mode is active where one 'node' captian will
 ! write the output for that 'node' of processes.  Procformat supports virtual nodes, although
 ! they cannot be split across physical nodes.
 
 ! local=.true. if this process needs to write to a file
 
-local = localhist .and. ((procformat.and.vnode_myid==0).or.(.not.procformat))
-if ( procformat ) then
+local = localhist .and. vnode_myid==0
+if ( localhist ) then
   dproc = 4
   d4    = 5
   asize = 5
@@ -3411,10 +3373,8 @@ if ( first ) then
   end if
   allocate(freqstore(ifull,tblock,freqvars))
   freqstore(:,:,:) = 0.
-  if ( procformat ) then
+  if ( local ) then
     write(ffile,"(a,'.',i6.6)") trim(surfile), vnode_vleaderid
-  elseif ( local ) then
-    write(ffile,"(a,'.',i6.6)") trim(surfile), myid
   else
     ffile = surfile
   end if
@@ -3431,12 +3391,12 @@ if ( first ) then
       call ccnf_def_dim(fncid,'latitude',jl_g,adim(2))
     endif
     call ccnf_def_dim(fncid,'lev',1,adim(3))
-    if ( procformat ) then
+    if ( local ) then
       call ccnf_def_dim(fncid,'processor',vnode_nproc,adim(dproc)) 
       if ( myid==0 ) then
         call ccnf_def_dim(fncid,'gprocessor',nproc,gpdim(1)) 
       else
-         gpdim(1)=0
+        gpdim(1)=0
       end if
     end if
     if ( unlimitedhist ) then
@@ -3446,7 +3406,7 @@ if ( first ) then
       call ccnf_def_dim(fncid,'time',tlen,adim(d4))  
     end if
     ! Define coords.
-    if ( procformat ) then
+    if ( local ) then
       outdim(1) = adim(1)
       outdim(2) = adim(dproc)
       call ccnf_def_var(fncid,'longitude','float',2,outdim(1:2),ixp)        
@@ -3455,7 +3415,7 @@ if ( first ) then
     end if
     call ccnf_put_att(fncid,ixp,'point_spacing','even')
     call ccnf_put_att(fncid,ixp,'units','degrees_east')
-    if ( procformat ) then
+    if ( local ) then
       outdim(1) = adim(2)
       outdim(2) = adim(dproc)
       call ccnf_def_var(fncid,'latitude','float',2,outdim(1:2),iyp)
@@ -3468,10 +3428,9 @@ if ( first ) then
     call ccnf_put_att(fncid,izp,'positive','down')
     call ccnf_put_att(fncid,izp,'point_spacing','uneven')
     call ccnf_put_att(fncid,izp,'units','sigma_level')
-    if ( procformat ) then
+    if ( local ) then
       call ccnf_def_var(fncid,'processor','float',1,adim(dproc:dproc),idnp)  
       if ( myid==0 ) then
-        !call ccnf_def_var(fncid,'gprocessor','int',1,gpdim(1:1),idgp)
         call ccnf_def_var(fncid,'gprocnode','int',1,gpdim(1:1),idgpn)
         call ccnf_def_var(fncid,'gprocoffset','int',1,gpdim(1:1),idgpo)
       end if
@@ -3569,12 +3528,8 @@ if ( first ) then
     call ccnf_put_attg(fncid,'real_header',ahead)
     call ccnf_put_attg(fncid,'int_header',nahead)
     if ( local ) then
-      !call ccnf_put_attg(fncid,'processor_num',myid)
       call ccnf_put_attg(fncid,'nproc',nproc)
-      if ( procformat ) then
-        !call ccnf_put_attg(fncid,'nnodes',vleader_nproc) 
-        call ccnf_put_attg(fncid,'procmode',vnode_nproc)
-      end if
+      call ccnf_put_attg(fncid,'procmode',vnode_nproc)
       if ( uniform_decomp ) then
         call ccnf_put_attg(fncid,'decomp','uniform1')
       else
@@ -3582,7 +3537,7 @@ if ( first ) then
       end if
     end if 
     ! define variables
-    if ( procformat ) then
+    if ( local ) then
       sdim(1:2) = adim(1:2) 
       sdim(3:4) = adim(4:5)
     else
@@ -3624,7 +3579,7 @@ if ( first ) then
 
     ! end definition mode
     call ccnf_enddef(fncid)
-    if ( procformat ) then
+    if ( local ) then
       ! procformat
       allocate(xpnt(il),xpnt2(il,vnode_nproc))
       do i = 1,ipan
@@ -3643,24 +3598,6 @@ if ( first ) then
       call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
       call ccnf_put_vara(fncid,iyp,(/1,1/),(/jl,vnode_nproc/),ypnt2)
       deallocate(ypnt,ypnt2)
-    else if ( local ) then
-      ! Set these to global indices (relative to panel 0 in uniform decomp)
-      allocate(xpnt(il))
-      do i=1,ipan
-        xpnt(i) = float(i) + ioff
-      end do
-      call ccnf_put_vara(fncid,ixp,1,il,xpnt(1:il))
-      deallocate(xpnt)
-      allocate(ypnt(jl))
-      i=1
-      do n=1,npan
-        do j=1,jpan
-          ypnt(i) = float(j) + joff + (n-noff)*il_g
-          i=i+1
-        end do
-      end do
-      call ccnf_put_vara(fncid,iyp,1,jl,ypnt(1:jl))
-      deallocate(ypnt)
     else
       allocate(xpnt(il_g))
       do i=1,il_g
@@ -3678,24 +3615,12 @@ if ( first ) then
     zpnt(1)=1.
     call ccnf_put_vara(fncid,izp,1,1,zpnt(1:1))
     
-    if ( procformat ) then
+    if ( local ) then
       ! store local processor order in output file  
       allocate( vnode_dat(vnode_nproc) )  
       call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
       call ccnf_put_vara(fncid,idnp,(/1/),(/vnode_nproc/),vnode_dat)
       deallocate( vnode_dat )
-      !! store global processor order in output file number 000000
-      !if ( myid==0 ) then
-      !  allocate( procmap(nproc) )
-      !else
-      !  allocate( procmap(1) ) ! not used  
-      !end if
-      !gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
-      !call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
-      !if ( myid==0 ) then
-      !  call ccnf_put_vara(fncid,idgp,(/1/),(/nproc/),procmap)  
-      !end if
-      !deallocate(procmap)
       ! store file id for a given processor number in output file number 000000
       if ( myid==0 ) then
         allocate( procnode(nproc) )
@@ -3720,7 +3645,7 @@ if ( first ) then
       deallocate(procoffset)
     end if
     
-  else if ( procformat ) then
+  else if ( localhist ) then
     
     allocate(xpnt(il),xpnt2(il,vnode_nproc))
     do i = 1,ipan
@@ -3741,10 +3666,6 @@ if ( first ) then
     allocate( vnode_dat(vnode_nproc) )
     call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
     deallocate( vnode_dat )
-    !allocate(procmap(1)) ! not used
-    !gprocrank = vnode_vleaderid*procmode + vnode_myid ! this is procmap_inv
-    !call ccmpi_gatherx(procmap,(/gprocrank/),0,comm_world)
-    !deallocate(procmap)
     allocate(procnode(1)) ! not used
     call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
     deallocate(procnode)
@@ -3752,16 +3673,12 @@ if ( first ) then
     call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
     deallocate(procoffset)
     
-  end if ! myid==0 .or. local ..else if ( procformat ) ..
+  end if ! myid==0 .or. local ..else if ( localhist ) ..
   
   first=.false.
   if ( myid==0 ) write(6,*) "Finished initialising high frequency output"
  
 end if
-
-!if ( procformat ) then
-!  call init_iobuffer(idnc,itype)
-!end if
 
 ! store output
 ti = mod(ktau,tblock*tbave)
@@ -3839,9 +3756,6 @@ end if
 if ( myid==0 .or. local ) then
   ! close file at end of run
   if ( ktau==ntau ) then
-    !if ( procformat ) then
-    !  call init_iobuffer(idnc,itype)
-    !end if
     call ccnf_close(fncid)
   end if
 end if

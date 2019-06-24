@@ -49,7 +49,7 @@ public save_ocean, save_radiation, save_urban, save_carbon, save_river
 public diaglevel_aerosols, diaglevel_pbl, diaglevel_cloud, diaglevel_land, diaglevel_maxmin
 public diaglevel_ocean, diaglevel_radiation, diaglevel_urban, diaglevel_carbon, diaglevel_river
 public diaglevel_pop
-public procmode, procformat, compression
+public procmode, compression
 public nud_period, mins_rad, nalpha, jalbfix, irest, nwrite
 public nstagin, nstaguin
 public hp_output
@@ -86,7 +86,6 @@ real, save :: ensemble_rsfactor=0.1
 logical, save :: diag=.false., localhist=.false., unlimitedhist=.true., synchist=.false., amipo3=.false.
 logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_land=.true., save_maxmin=.true.
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.
-logical, save :: procformat=.false.
 !logical, save :: pio=.false., mpiio=.true., npio=.false., useiobuffer=.false.
 
 end module parm_m

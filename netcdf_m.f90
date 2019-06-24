@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -19,6 +19,15 @@
 
 !------------------------------------------------------------------------------
 
+! options:
+
+! default        f77 include interface with netcdf4 (requires -lnetcdf -lnetcdff and netcdf.inc)
+! -Dusenc_mod    f90 module interface (requires -lnetcdf -lnetcdff and netcdf.mod)
+! -Dncclib       C interface (only requires -lnetcdf)
+! -Dusenc3       Force netcdf3 interface
+
+! Plan to depreciate fortran interface in preference to -Dncclib
+    
 #ifdef ncclib
 ! C interface
 #else
@@ -937,37 +946,37 @@ end interface nf_get_att_double
     
 interface nf_get_vara_real
   module procedure nf_get_vara_real_d1, nf_get_vara_real_d2, nf_get_vara_real_d3, nf_get_vara_real_d4, &
-                   nf_get_vara_real_d5
+                   nf_get_vara_real_d5, nf_get_vara_real_d6
 end interface nf_get_vara_real
 
 interface nf_get_vara_int
   module procedure nf_get_vara_int_d1, nf_get_vara_int_d2, nf_get_vara_int_d3, nf_get_vara_int_d4, &
-                   nf_get_vara_int_d5
+                   nf_get_vara_int_d5, nf_get_vara_int_d6
 end interface nf_get_vara_int
 
 interface nf_get_vara_int2
   module procedure nf_get_vara_int2_d1, nf_get_vara_int2_d2, nf_get_vara_int2_d3, nf_get_vara_int2_d4, &
-                   nf_get_vara_int2_d5
+                   nf_get_vara_int2_d5, nf_get_vara_int2_d6
 end interface nf_get_vara_int2
 
 interface nf_get_vara_double
   module procedure nf_get_vara_double_d1, nf_get_vara_double_d2, nf_get_vara_double_d3, nf_get_vara_double_d4, &
-                   nf_get_vara_double_d5
+                   nf_get_vara_double_d5, nf_get_vara_double_d6
 end interface nf_get_vara_double
 
 interface nf_get_var_real
   module procedure nf_get_var_real_d1, nf_get_var_real_d2, nf_get_var_real_d3, nf_get_var_real_d4, &
-                   nf_get_var_real_d5
+                   nf_get_var_real_d5, nf_get_var_real_d6
 end interface nf_get_var_real
 
 interface nf_get_var_int
   module procedure nf_get_var_int_d1, nf_get_var_int_d2, nf_get_var_int_d3, nf_get_var_int_d4, &
-                   nf_get_var_int_d5
+                   nf_get_var_int_d5, nf_get_var_int_d6
 end interface nf_get_var_int    
     
 interface nf_get_var_double
   module procedure nf_get_var_double_d1, nf_get_var_double_d2, nf_get_var_double_d3, nf_get_var_double_d4, &
-                   nf_get_var_double_d5
+                   nf_get_var_double_d5, nf_get_var_double_d6
 end interface nf_get_var_double    
     
 interface nf_get_var1_real
@@ -1066,32 +1075,32 @@ end interface nf_put_att_double
     
 interface nf_put_vara_real
   module procedure nf_put_vara_real_d1, nf_put_vara_real_d2, nf_put_vara_real_d3, nf_put_vara_real_d4, &
-                   nf_put_vara_real_d5
+                   nf_put_vara_real_d5, nf_put_vara_real_d6
 end interface nf_put_vara_real
 
 interface nf_put_vara_int
   module procedure nf_put_vara_int_d1, nf_put_vara_int_d2, nf_put_vara_int_d3, nf_put_vara_int_d4, &
-                   nf_put_vara_int_d5
+                   nf_put_vara_int_d5, nf_put_vara_int_d6
 end interface nf_put_vara_int
 
 interface nf_put_vara_int2
   module procedure nf_put_vara_int2_d1, nf_put_vara_int2_d2, nf_put_vara_int2_d3, nf_put_vara_int2_d4, &
-                   nf_put_vara_int2_d5
+                   nf_put_vara_int2_d5, nf_put_vara_int2_d6
 end interface nf_put_vara_int2
     
 interface nf_put_vara_double
   module procedure nf_put_vara_double_d1, nf_put_vara_double_d2, nf_put_vara_double_d3, nf_put_vara_double_d4, &
-                   nf_put_vara_double_d5
+                   nf_put_vara_double_d5, nf_put_vara_double_d6
 end interface nf_put_vara_double
 
 interface nf_put_var_real
   module procedure nf_put_var_real_d1, nf_put_var_real_d2, nf_put_var_real_d3, nf_put_var_real_d4, &
-                   nf_put_var_real_d5
+                   nf_put_var_real_d5, nf_put_var_real_d6
 end interface nf_put_var_real
 
 interface nf_put_var_int
   module procedure nf_put_var_int_d1, nf_put_var_int_d2, nf_put_var_int_d3, nf_put_var_int_d4, &
-                   nf_put_var_int_d5
+                   nf_put_var_int_d5, nf_put_var_int_d6
 end interface nf_put_var_int    
     
 interface nf_put_vars_int1
@@ -3100,6 +3109,30 @@ integer function nf_get_vara_real_d5(ncid,varid,start,ncount,fp) result(ierr)
   fp = c_fp
 end function nf_get_vara_real_d5
 
+integer function nf_get_vara_real_d6(ncid,varid,start,ncount,fp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in) :: start, ncount
+  real(kind=4), dimension(:,:,:,:,:,:), intent(out) :: fp
+  integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_ndims
+  integer (C_SIZE_T), dimension(size(start)) :: c_start, c_ncount
+  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5),size(fp,6)), &
+      target :: c_fp
+  integer i, ndims
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_ndims = size(start)
+  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
+  ndims = c_ndims
+  do i = 1,ndims
+    c_start(ndims-i+1) = start(i) - 1
+    c_ncount(ndims-i+1) = ncount(i)
+  end do
+  ierr = nc_get_vara_float(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_fp))
+  fp = c_fp
+end function nf_get_vara_real_d6
+
 integer function nf_get_vara_int_d1(ncid,varid,start,ncount,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
@@ -3215,6 +3248,30 @@ integer function nf_get_vara_int_d5(ncid,varid,start,ncount,ip) result(ierr)
   ierr = nc_get_vara_int(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_vara_int_d5
+
+integer function nf_get_vara_int_d6(ncid,varid,start,ncount,ip) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in) :: start, ncount
+  integer(kind=4), dimension(:,:,:,:,:,:), intent(out) :: ip
+  integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_ndims
+  integer (C_SIZE_T), dimension(size(start)) :: c_start, c_ncount
+  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5),size(ip,6)), &
+      target :: c_ip
+  integer i, ndims
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_ndims = size(start)
+  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
+  ndims = c_ndims
+  do i = 1,ndims
+    c_start(ndims-i+1) = start(i) - 1
+    c_ncount(ndims-i+1) = ncount(i)
+  end do
+  ierr = nc_get_vara_int(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_ip))
+  ip = c_ip
+end function nf_get_vara_int_d6
 
 integer function nf_get_vara_int2_d1(ncid,varid,start,ncount,sp) result(ierr)
   implicit none
@@ -3332,6 +3389,30 @@ integer function nf_get_vara_int2_d5(ncid,varid,start,ncount,sp) result(ierr)
   sp = c_sp
 end function nf_get_vara_int2_d5
 
+integer function nf_get_vara_int2_d6(ncid,varid,start,ncount,sp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in) :: start, ncount
+  integer(kind=2), dimension(:,:,:,:,:,:), intent(out) :: sp
+  integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_ndims
+  integer (C_SIZE_T), dimension(size(start)) :: c_start, c_ncount
+  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5),size(sp,6)), &
+      target :: c_sp
+  integer i, ndims
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_ndims = size(start)
+  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
+  ndims = c_ndims
+  do i = 1,ndims
+    c_start(ndims-i+1) = start(i) - 1
+    c_ncount(ndims-i+1) = ncount(i)
+  end do
+  ierr = nc_get_vara_short(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_sp))
+  sp = c_sp
+end function nf_get_vara_int2_d6
+
 integer function nf_get_vara_double_d1(ncid,varid,start,ncount,dp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
@@ -3448,6 +3529,30 @@ integer function nf_get_vara_double_d5(ncid,varid,start,ncount,dp) result(ierr)
   dp = c_dp
 end function nf_get_vara_double_d5
 
+integer function nf_get_vara_double_d6(ncid,varid,start,ncount,dp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in) :: start, ncount
+  real(kind=8), dimension(:,:,:,:,:,:), intent(out) :: dp
+  integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_ndims
+  integer (C_SIZE_T), dimension(size(start)) :: c_start, c_ncount
+  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5),size(dp,6)), &
+      target :: c_dp
+  integer i, ndims
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_ndims = size(start)
+  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
+  ndims = c_ndims
+  do i = 1,ndims
+    c_start(ndims-i+1) = start(i) - 1
+    c_ncount(ndims-i+1) = ncount(i)
+  end do
+  ierr = nc_get_vara_double(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_dp))
+  dp = c_dp
+end function nf_get_vara_double_d6
+
 integer function nf_get_var_real_d1(ncid,varid,fp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
@@ -3508,6 +3613,19 @@ integer function nf_get_var_real_d5(ncid,varid,fp) result(ierr)
   ierr = nc_get_var_float(c_ncid,c_varid,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_var_real_d5
+
+integer function nf_get_var_real_d6(ncid,varid,fp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  real(kind=4), dimension(:,:,:,:,:,:), intent(out) :: fp
+  integer (C_INT) :: c_ncid, c_varid
+  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5),size(fp,6)), &
+      target :: c_fp
+  c_ncid = ncid
+  c_varid = varid - 1
+  ierr = nc_get_var_float(c_ncid,c_varid,C_LOC(c_fp))
+  fp = c_fp
+end function nf_get_var_real_d6
 
 integer function nf_get_var_int_d1(ncid,varid,ip) result(ierr)
   implicit none
@@ -3570,6 +3688,19 @@ integer function nf_get_var_int_d5(ncid,varid,ip) result(ierr)
   ip = c_ip
 end function nf_get_var_int_d5
 
+integer function nf_get_var_int_d6(ncid,varid,ip) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer(kind=4), dimension(:,:,:,:,:,:), intent(out) :: ip
+  integer (C_INT) :: c_ncid, c_varid
+  real (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5),size(ip,6)), &
+      target :: c_ip
+  c_ncid = ncid
+  c_varid = varid - 1
+  ierr = nc_get_var_int(c_ncid,c_varid,C_LOC(c_ip))
+  ip = c_ip
+end function nf_get_var_int_d6
+
 integer function nf_get_var_double_d1(ncid,varid,dp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
@@ -3630,6 +3761,19 @@ integer function nf_get_var_double_d5(ncid,varid,dp) result(ierr)
   ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_var_double_d5
+
+integer function nf_get_var_double_d6(ncid,varid,dp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  real(kind=8), dimension(:,:,:,:,:,:), intent(out) :: dp
+  integer (C_INT) :: c_ncid, c_varid
+  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5),size(dp,6)), &
+      target :: c_dp
+  c_ncid = ncid
+  c_varid = varid - 1
+  ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
+  dp = c_dp
+end function nf_get_var_double_d6
 
 integer function nf_get_var1_real_s(ncid,varid,start,fp) result(ierr)
   implicit none
@@ -6203,6 +6347,30 @@ integer function nf_put_vara_real_d5(ncid,varid,start,ncount,fp) result(ierr)
   ierr = nc_put_vara_float(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_fp))
 end function nf_put_vara_real_d5
 
+integer function nf_put_vara_real_d6(ncid,varid,start,ncount,fp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in) :: start, ncount
+  real(kind=4), dimension(:,:,:,:,:,:), intent(in) :: fp
+  integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_ndims
+  integer (C_SIZE_T), dimension(size(start)) :: c_start, c_ncount
+  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5),size(fp,6)), &
+      target :: c_fp
+  integer i, ndims
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_ndims = size(start)
+  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
+  ndims = c_ndims
+  do i = 1,ndims
+    c_start(ndims-i+1) = start(i) - 1
+    c_ncount(ndims-i+1) = ncount(i)
+  end do
+  c_fp = fp
+  ierr = nc_put_vara_float(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_fp))
+end function nf_put_vara_real_d6
+
 integer function nf_put_vara_int_d1(ncid,varid,start,ncount,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
@@ -6318,6 +6486,30 @@ integer function nf_put_vara_int_d5(ncid,varid,start,ncount,ip) result(ierr)
   c_ip = ip
   ierr = nc_put_vara_int(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_ip))
 end function nf_put_vara_int_d5
+
+integer function nf_put_vara_int_d6(ncid,varid,start,ncount,ip) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in) :: start, ncount
+  integer(kind=4), dimension(:,:,:,:,:,:), intent(in) :: ip
+  integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_ndims
+  integer (C_SIZE_T), dimension(size(start)) :: c_start, c_ncount
+  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5),size(ip,6)), &
+      target :: c_ip
+  integer i, ndims
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_ndims = size(start)
+  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
+  ndims = c_ndims
+  do i = 1,ndims
+    c_start(ndims-i+1) = start(i) - 1
+    c_ncount(ndims-i+1) = ncount(i)
+  end do
+  c_ip = ip
+  ierr = nc_put_vara_int(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_ip))
+end function nf_put_vara_int_d6
 
 integer function nf_put_vara_int2_d1(ncid,varid,start,ncount,sp) result(ierr)
   implicit none
@@ -6435,6 +6627,30 @@ integer function nf_put_vara_int2_d5(ncid,varid,start,ncount,sp) result(ierr)
   ierr = nc_put_vara_short(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_sp))
 end function nf_put_vara_int2_d5
 
+integer function nf_put_vara_int2_d6(ncid,varid,start,ncount,sp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in) :: start, ncount
+  integer(kind=2), dimension(:,:,:,:,:,:), intent(in) :: sp
+  integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_ndims
+  integer (C_SIZE_T), dimension(size(start)) :: c_start, c_ncount
+  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5),size(sp,6)), &
+      target :: c_sp
+  integer i, ndims
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_ndims = size(start)
+  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
+  ndims = c_ndims
+  do i = 1,ndims
+    c_start(ndims-i+1) = start(i) - 1
+    c_ncount(ndims-i+1) = ncount(i)
+  end do
+  c_sp = sp
+  ierr = nc_put_vara_short(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_sp))
+end function nf_put_vara_int2_d6
+
 integer function nf_put_vara_double_d1(ncid,varid,start,ncount,dp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
@@ -6550,6 +6766,29 @@ integer function nf_put_vara_double_d5(ncid,varid,start,ncount,dp) result(ierr)
   ierr = nc_put_vara_double(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_dp))
 end function nf_put_vara_double_d5
 
+integer function nf_put_vara_double_d6(ncid,varid,start,ncount,dp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in) :: start, ncount
+  real(kind=8), dimension(:,:,:,:,:,:), intent(in) :: dp
+  integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_ndims
+  integer (C_SIZE_T), dimension(size(start)) :: c_start, c_ncount
+  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5),size(dp,6)), target :: c_dp
+  integer i, ndims
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_ndims = size(start)
+  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
+  ndims = c_ndims
+  do i = 1,ndims
+    c_start(ndims-i+1) = start(i) - 1
+    c_ncount(ndims-i+1) = ncount(i)
+  end do
+  c_dp = dp
+  ierr = nc_put_vara_double(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_dp))
+end function nf_put_vara_double_d6
+
 integer function nf_put_var_real_d1(ncid,varid,fp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
@@ -6611,6 +6850,19 @@ integer function nf_put_var_real_d5(ncid,varid,fp) result(ierr)
   ierr = nc_put_var_float(c_ncid,c_varid,C_LOC(c_fp))
 end function nf_put_var_real_d5
 
+integer function nf_put_var_real_d6(ncid,varid,fp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  real(kind=4), dimension(:,:,:,:,:,:), intent(in) :: fp
+  integer (C_INT) :: c_ncid, c_varid
+  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5),size(fp,6)), &
+      target :: c_fp
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_fp = fp
+  ierr = nc_put_var_float(c_ncid,c_varid,C_LOC(c_fp))
+end function nf_put_var_real_d6
+
 integer function nf_put_var_int_d1(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
@@ -6671,6 +6923,19 @@ integer function nf_put_var_int_d5(ncid,varid,ip) result(ierr)
   c_ip = ip
   ierr = nc_put_var_int(c_ncid,c_varid,C_LOC(c_ip))
 end function nf_put_var_int_d5
+
+integer function nf_put_var_int_d6(ncid,varid,ip) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer(kind=4), dimension(:,:,:,:,:,:), intent(in) :: ip
+  integer (C_INT) :: c_ncid, c_varid
+  real (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5),size(ip,6)), &
+      target :: c_ip
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_ip = ip
+  ierr = nc_put_var_int(c_ncid,c_varid,C_LOC(c_ip))
+end function nf_put_var_int_d6
 
 integer function nf_put_var1_int(ncid,varid,start,ip) result(ierr)
   implicit none

@@ -29,14 +29,11 @@ module cc_mpi
 
 ! Preprocessor directives:
 
-! usempi_mod is for users that want to link to MPI using Fortran 90 bindings
-
-! usempi3 exploits MPI-3 shared memory that is currently used for sharing global arrays within a node to reduce
+! -Dusempi_mod is for users that want to link to MPI using Fortran 90 bindings
+! -Dusempi3 exploits MPI-3 shared memory that is currently used for sharing global arrays within a node to reduce
 ! the size of the CCAM memory footprint
-
-! vampir is for coupling with VAMPIR for tracers
-
-! i8r8 is for running in double precision mode
+! -Dvampir is for coupling with VAMPIR for tracers
+! -Di8r8 is for running in double precision mode
 
    use cc_omp
 #ifndef scm
@@ -490,12 +487,15 @@ contains
       ! Decompose grid over processes
       if ( uniform_decomp ) then
          call proc_setup_uniform(id,jd,idjd)
-         maxbuflen = (max(ipan,jpan)+4)*2*2*2*npan + 4
+         ! may require two boundries from the same process
+         maxbuflen = (max(ipan,jpan)+4)*2*2*2*npan
       else
          call proc_setup(id,jd,idjd)
          if ( nproc < npanels+1 ) then
+            ! possible to have two boundaries from the same process 
             maxbuflen = (il_g+4)*2*2*2*npan + 4
          else
+            ! only one boundary can be sent from a process 
             maxbuflen = (max(ipan,jpan)+4)*2*2 + 4
          end if    
       end if
@@ -4648,7 +4648,7 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
-         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4767,7 +4767,7 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
-         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4884,7 +4884,7 @@ contains
       rcount = rreq
       do while ( rcount>0 )
          call START_LOG(mpiwait_begin)
-         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -5010,7 +5010,7 @@ contains
          rcount = rreq
          do while ( rcount > 0 )
             call START_LOG(mpiwait_begin)
-            call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+            call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
             call END_LOG(mpiwait_end)
             rcount = rcount - ldone
             do jproc = 1,ldone
@@ -8543,23 +8543,21 @@ contains
    
    end subroutine ccmpi_finalize
    
-   subroutine ccmpi_procformat_init(procformat,procmode)
-
+   subroutine ccmpi_procformat_init(localhist,procmode)
+   
       integer, intent(inout) :: procmode
-      logical, intent(inout) :: procformat
-#ifdef usempi3
       integer(kind=4) :: procmode_save, procerr, procerr_g, lcomm, lerr
       integer(kind=4) :: lcolour, lcommout, lrank, lsize
+      logical, intent(in) :: localhist
       logical lastprocmode
-#endif
-   
+
+      if ( localhist ) then
 #ifdef usempi3
-      if ( procformat ) then
          ! configure procmode
          lastprocmode = node_captainid==nodecaptain_nproc-1  
          if ( procmode == 0 ) then
             ! procmode=0 uses existing nodes, even if they have different numbers of processes
-            if ( myid==0 ) then
+            if ( myid == 0 ) then
                write(6,*) "Configure procformat output with nodes=",nodecaptain_nproc
             end if
             ! Intra-procmode communicator 
@@ -8572,18 +8570,17 @@ contains
             vleader_myid  = nodecaptain_myid
             ! Communicate procmode id
             vnode_vleaderid = node_captainid
-            procmode = node_nproc ! can be different on different on different nodes
+            procmode = node_nproc ! can be different on different nodes
          else
             ! user specified procmode>0 
-            if ( myid==0 ) then
-               write(6,*) "Configure procformat output with procmode=",procmode
-            end if
             if ( .not.lastprocmode ) then
-               if ( mod(node_nproc, procmode)/=0 ) then
-                  write(6,*) "ERROR: procmode must be a factor of the number of ranks on a node"
-                  write(6,*) "node_nproc,procmode ",node_nproc,procmode
-                  call ccmpi_abort(-1)
-               end if
+               procmode = max(procmode, 1) 
+               do while ( mod(node_nproc, procmode)/=0 )
+                  procmode = procmode - 1 ! can be different on different nodes
+               end do  
+            end if
+            if ( myid == 0 ) then
+               write(6,*) "Configure procformat output with procmode=",procmode
             end if
             ! Intra-procmode communicator
             lcolour = node_myid/procmode
@@ -8614,33 +8611,33 @@ contains
          end if    
          !call ccmpi_node_leader ! setup comm_vleader and comm_reordered with myid2
          !call ccmpi_node_ioreaders
-      else
-         procmode = nproc
-         comm_vnode  = comm_node ! Should not be used for procformat=.false.
-         vnode_nproc = 1
-         vnode_myid  = 0
-         comm_vleader  = comm_world
-         vleader_nproc = nproc
-         vleader_myid  = myid
-         vnode_vleaderid = myid
-      end if
 #else
-      if ( procformat ) then
-         if ( myid==0 ) then  
-            write(6,*) "Disable procformat as CCAM was compiled without -Dusempi3"
+         if ( myid == 0 ) then  
+            write(6,*) "Set procmode=1 as CCAM was compiled without -Dusempi3"
          end if  
-         procformat = .false.
-         procmode = nproc
-         comm_vnode  = comm_node ! Should not be used for procformat=.false.
-         vnode_nproc = 1
-         vnode_myid  = 0
-         comm_vleader  = comm_world
+         procmode = 1
+         ! Intra-procmode communicator
+         comm_vnode = comm_node
+         vnode_nproc = node_nproc ! =1
+         vnode_myid = node_myid   ! =0
+         ! Inter-procmode communicator
+         comm_vleader = comm_world
          vleader_nproc = nproc
-         vleader_myid  = myid
-         vnode_vleaderid = myid
-      end if
+         vleader_myid = myid
+         vnode_vleaderid = vleader_myid
 #endif
-   
+      else
+         ! localhist = .false.
+         procmode = nproc
+         comm_vnode = comm_world
+         vnode_nproc = nproc
+         vnode_myid = myid
+         comm_vleader = comm_world
+         vleader_nproc = nproc
+         vleader_myid = myid
+         vnode_vleaderid = 0
+      end if
+
    end subroutine ccmpi_procformat_init
    
    ! This routine allows multi-grid bounds updates

@@ -117,9 +117,9 @@ real pwatr, bb_2, cc_2, rat
 logical oxidant_update
 character(len=10) timeval
 
+
 ! Start model timer
 call date_and_time(values=times_total_a)
-
 
 ! Compile options tests
 #ifdef i8r8
@@ -138,8 +138,7 @@ end if
 !--------------------------------------------------------------
 ! INITALISE MPI and OpenMP ROUTINES
 ! CCAM has been optimised around MPI for parallel processing, although
-! CCAM does support OMP parallel threads for its physical
-! parameterisations
+! CCAM does support OMP parallel threads for its physical parameterisations
 call ccmpi_init
 call ccomp_init
 
@@ -151,7 +150,7 @@ if ( myid==0 ) then
 end if
 
 #ifndef stacklimit
-! For Linux only - automatically removes stacklimit on all processes
+! For Linux only - removes stacklimit on all processes
 call setstacklimit(-1)
 #endif
 
@@ -163,991 +162,867 @@ call log_setup
 call globpe_init
 
 
-!****************************************************************
-! only perform calculation on processes that are still active
-if ( myid<nproc ) then
+!--------------------------------------------------------------
+! Shutdown unused processes
+if ( myid>=nproc ) then
+  call ccmpi_finalize
+  stop
+end if
 
 
-  !--------------------------------------------------------------
-  ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
-  if ( nwt>0 ) then
-    ! write out the first ofile data set
-    if ( myid==0 ) write(6,*) "Calling outfile"
-    call outfile(20,ofile,psl,u,v,t,qg)
-  end if    ! (nwt>0)
-  if ( newtop<0 ) then
-    ! just for outcdf to plot zs  & write fort.22      
-    if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"
-    call ccmpi_abort(-1)
-  end if
+!--------------------------------------------------------------
+! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
+if ( nwt>0 ) then
+  ! write out the first ofile data set
+  if ( myid==0 ) write(6,*) "Calling outfile"
+  call outfile(20,ofile,psl,u,v,t,qg)
+end if    ! (nwt>0)
+if ( newtop<0 ) then
+  ! just for outcdf to plot zs  & write fort.22      
+  if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"
+  call ccmpi_abort(-1)
+end if
 
 
-  !-------------------------------------------------------------
-  ! SETUP DIAGNOSTIC ARRAYS
-  allocate( spare1(ifull) )
-  do n3hr = 1,8
-    nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
-  end do
-  n3hr = 1           ! initial value at start of run
-  nlx = 0            ! diagnostic level
-  call zero_nperavg  ! reset average period diagnostics
-  call zero_nperday  ! reset daily period diagnostics
+!-------------------------------------------------------------
+! SETUP DIAGNOSTIC ARRAYS
+allocate( spare1(ifull) )
+do n3hr = 1,8
+  nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
+end do
+n3hr = 1           ! initial value at start of run
+nlx = 0            ! diagnostic level
+call zero_nperavg  ! reset average period diagnostics
+call zero_nperday  ! reset daily period diagnostics
 
 
-  !--------------------------------------------------------------
-  ! INITIALISE DYNAMICS
-  dtin = dt
-  if ( myid==0 ) then
-    write(6,*) "number of time steps per day = ",nperday
-    write(6,*) "nper3hr,nper6hr .. ",nper3hr(:)
-  end if
-  mspeca = 1
-  ! use half time-step for initialisation
-  if ( mex/=1 .and. .not.lrestart ) then
-    mspeca = 2
-    dt     = 0.5*dtin
-  endif
-  call gettin(0) ! preserve initial mass & T fields
+!--------------------------------------------------------------
+! INITIALISE DYNAMICS
+dtin = dt
+if ( myid==0 ) then
+  write(6,*) "number of time steps per day = ",nperday
+  write(6,*) "nper3hr,nper6hr .. ",nper3hr(:)
+end if
+mspeca = 1
+! use half time-step for initialisation
+if ( mex/=1 .and. .not.lrestart ) then
+  mspeca = 2
+  dt = 0.5*dtin
+endif
+call gettin(0) ! preserve initial mass & T fields
 
 
-  !--------------------------------------------------------------
-  ! SET-UP TIMERS
-  mtimer_sav = 0      ! saved value for minute timer
-  nmaxprsav  = nmaxpr
-  nwtsav     = nwt
-  hourst     = real(nint(0.01*real(ktime))) + real(mod(ktime,100))/60. ! for tracers
-  mtimer_in  = mtimer
+!--------------------------------------------------------------
+! SET-UP TIMERS
+mtimer_sav = 0      ! saved value for minute timer
+nmaxprsav  = nmaxpr
+nwtsav     = nwt
+hourst     = real(nint(0.01*real(ktime))) + real(mod(ktime,100))/60. ! for tracers
+mtimer_in  = mtimer
  
 
-  !--------------------------------------------------------------
-  ! BEGIN MAIN TIME LOOP
-  if ( myid==0 ) then
-    call date_and_time(time=timeval,values=tvals1)
-    write(6,*) "Start of loop time ", timeval
+!--------------------------------------------------------------
+! BEGIN MAIN TIME LOOP
+if ( myid==0 ) then
+  call date_and_time(time=timeval,values=tvals1)
+  write(6,*) "Start of loop time ", timeval
+end if
+call log_on
+call START_LOG(maincalc_begin)
+
+do ktau = 1,ntau   ! ****** start of main time loop
+
+  timer    = timer + real(ktau)*dtin/3600.             ! timer now only used to give timeg
+  timeg    = mod( timer+hourst, 24. )                  ! UTC time for tracers
+  mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! to allow dt < 1 minute
+  mins_gmt = mod( mtimer+60*ktime/100, 24*60 )         ! for radiation
+  call getzinp(jyear,jmonth,jday,jhour,jmin,mins)      ! define mins as time since start of the year
+  diag = ( ktau>=abs(ndi) .and. ktau<=ndi2 )           ! set diagnostic printout flag
+  if ( ndi<0 ) then
+    if ( mod(ktau,ndi)==0 ) then
+      diag = .true.
+    end if
+  endif
+
+  ! interpolate tracer fluxes to current timestep
+  if ( ngas>0 ) then
+    call interp_tracerflux
   end if
-  call log_on
-  call START_LOG(maincalc_begin)
 
-  do ktau = 1,ntau   ! ****** start of main time loop
 
-    timer    = timer + real(ktau)*dtin/3600.             ! timer now only used to give timeg
-    timeg    = mod( timer+hourst, 24. )                  ! UTC time for tracers
-    mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! to allow dt < 1 minute
-    mins_gmt = mod( mtimer+60*ktime/100, 24*60 )         ! for radiation
-    call getzinp(jyear,jmonth,jday,jhour,jmin,mins)      ! define mins as time since start of the year
-    diag = ( ktau>=abs(ndi) .and. ktau<=ndi2 )           ! set diagnostic printout flag
-    if ( ndi<0 ) then
-      if ( mod(ktau,ndi)==0 ) then
-        diag = .true.
+  ! ***********************************************************************
+  ! START ATMOSPHERE DYNAMICS
+  ! ***********************************************************************
+
+
+  ! NESTING ---------------------------------------------------------------
+  if ( nbd/=0 ) then
+    ! Newtonian relaxiation
+    call nantest("before nesting",1,ifull)  
+    call START_LOG(nestin_begin)
+    call nestin
+    call END_LOG(nestin_end)
+    call nantest("after nesting",1,ifull)
+  else
+    call nantest("before atmosphere dynamics",1,ifull)
+  end if
+
+
+  ! DYNAMICS --------------------------------------------------------------
+  if ( nstaguin>0 .and. ktau>=1 ) then   ! swapping here for nstaguin>0
+    if ( nstagin<0 .and. mod(ktau-nstagoff,abs(nstagin))==0 ) then
+      nstag  = 7 - nstag  ! swap between 3 & 4
+      nstagu = nstag
+    end if
+  end if
+
+  do mspec = mspeca,1,-1    ! start of introductory time loop
+
+    un(1:ifull,:) = 0. 
+    vn(1:ifull,:) = 0.
+    tn(1:ifull,:) = 0.
+
+    if ( mup/=1 .or. (ktau==1.and.mspec==mspeca.and..not.lrestart) ) then
+      call bounds(psl)
+      ! updps called first step or to permit clean restart option      
+      call updps(0) 
+    end if
+    
+    if ( ktau<10 .and. nmaxpr==1 ) then
+      if ( myid==0 ) then
+        write(6,*) 'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
       end if
+    end if
+    
+    ! set up tau +.5 velocities in ubar, vbar
+    sbar(:,2:kl) = sdot(:,2:kl)
+    if ( (ktau==1.and..not.lrestart) .or. mex==1 ) then
+      ubar(1:ifull,1:kl) = u(1:ifull,1:kl)
+      vbar(1:ifull,1:kl) = v(1:ifull,1:kl)
+    else if ( (ktau==2.and..not.lrestart) .or. mex==2 ) then        
+      ! (tau+.5) from tau, tau-1
+      ubar(1:ifull,1:kl) = u(1:ifull,1:kl)*1.5 - savu(1:ifull,1:kl)*.5
+      vbar(1:ifull,1:kl) = v(1:ifull,1:kl)*1.5 - savv(1:ifull,1:kl)*.5
+    else if ( mex==3 )then
+      ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
+      ubar(1:ifull,1:kl) = u(1:ifull,1:kl)+.5*(savu(1:ifull,1:kl)-savu1(1:ifull,1:kl))
+      vbar(1:ifull,1:kl) = v(1:ifull,1:kl)+.5*(savv(1:ifull,1:kl)-savv1(1:ifull,1:kl))
+    else if ( mex==30 ) then  ! using tau, tau-1, tau-2, tau-3
+      do k = 1,kl
+        do iq = 1,ifull
+          bb = 1.5*u(iq,k) - 2.*savu(iq,k) + .5*savu1(iq,k)                             ! simple b
+          bb_2 = (40.*u(iq,k) - 35.*savu(iq,k) - 16.*savu1(iq,k) + 11.*savu2(iq,k))/34. ! cwqls b
+          cc = .5*u(iq,k) - savu(iq,k) + .5*savu1(iq,k)                                 ! simple c
+          cc_2 = (10.*u(iq,k) - 13.*savu(iq,k) - 4.*savu1(iq,k) + 7.*savu2(iq,k))/34.   ! cwqls c
+          aa = cc_2 - cc
+          rat = max( 0., min( 1., cc_2/(aa+sign(1.e-9,aa)) ) )
+          cc = rat*cc + (1.-rat)*cc_2 
+          bb = rat*bb + (1.-rat)*bb_2 
+          ubar(iq,k) = u(iq,k) + .5*bb + .25*cc
+          bb = 1.5*v(iq,k) - 2.*savv(iq,k) + .5*savv1(iq,k)                             ! simple b
+          bb_2 = (40.*v(iq,k)-35.*savv(iq,k)-16.*savv1(iq,k)+11.*savv2(iq,k))/34.       ! cwqls b
+          cc = .5*v(iq,k) - savv(iq,k) + .5*savv1(iq,k)                                 ! simple c
+          cc_2 = (10.*v(iq,k)-13.*savv(iq,k)-4.*savv1(iq,k)+7.*savv2(iq,k))/34.         ! cwqls c
+          aa = cc_2 - cc
+          rat = max( 0., min( 1., cc_2/(aa+sign(1.e-9,aa)) ) )
+          cc = rat*cc + (1.-rat)*cc_2 
+          bb = rat*bb + (1.-rat)*bb_2 
+          vbar(iq,k) = v(iq,k)+.5*bb+.25*cc
+        end do ! iq loop
+      end do   ! k loop 
+    else       ! i.e. mex >=4 and ktau>=3
+      ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
+      ubar(1:ifull,1:kl) = (u(1:ifull,1:kl)*15.-savu(1:ifull,1:kl)*10.+savu1(1:ifull,1:kl)*3.)/8.
+      vbar(1:ifull,1:kl) = (v(1:ifull,1:kl)*15.-savv(1:ifull,1:kl)*10.+savv1(1:ifull,1:kl)*3.)/8.
+    end if     ! (ktau==1) .. else ..
+      
+    if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
+      nlx = max( 2, nlv )  ! as savs not defined for k=1
+      write (6,"(i4,' savu2,savu1,savu,u,ubar',5f8.2)") ktau,savu2(idjd,nlv),savu1(idjd,nlv),savu(idjd,nlv), &
+                                                        u(idjd,nlv),ubar(idjd,nlv)
+      write (6,"(i4,' savv2,savv1,savv,v,vbar',5f8.2)") ktau,savv2(idjd,nlv),savv1(idjd,nlv),savv(idjd,nlv), &
+                                                        v(idjd,nlv),vbar(idjd,nlv)
+    end if
+    if ( ktau>2 .and. epsp>1. .and. epsp<2. ) then
+      if ( ktau==3 .and. nmaxpr==1 ) then
+        if ( myid==0 ) then
+          write(6,*) "using epsp= ",epsp
+        end if
+      end if
+      where ( dpsdt(1:ifull)*dpsdtb(1:ifull)<0. .and. dpsdtbb(1:ifull)*dpsdtb(1:ifull)<0. )
+        epst(1:ifull) = epsp - 1.
+      elsewhere
+        epst(1:ifull) = 0.
+      end where
+    endif ! (ktau>2.and.epsp>1..and.epsp<2.)
+
+    if ( ktau<10 .and. mydiag ) then
+      write(6,*)'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),ubar(idjd,1)
+    end if
+    if ( ktau==1 .and. .not.lrestart .and. mspec==1 .and. mex/=1 ) then
+      u(1:ifull,:) = savu(1:ifull,:)  ! reset u,v to original values
+      v(1:ifull,:) = savv(1:ifull,:)
+    end if
+    savu2(1:ifull,:) = savu1(1:ifull,:)  
+    savv2(1:ifull,:) = savv1(1:ifull,:)
+    savs1(1:ifull,:) = savs(1:ifull,:)  
+    savu1(1:ifull,:) = savu(1:ifull,:)  
+    savv1(1:ifull,:) = savv(1:ifull,:)
+    savs(1:ifull,:)  = sdot(1:ifull,2:kl)  
+    savu(1:ifull,:)  = u(1:ifull,:)  ! before any time-splitting occurs
+    savv(1:ifull,:)  = v(1:ifull,:)
+
+    ! update non-linear dynamic terms
+    call nonlin
+      
+    if ( diag ) then
+      if ( mydiag ) write(6,*) 'before hadv'
+      call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,0.,1.)
+      if ( mydiag ) then
+        nlx = min( nlv, kl-8 )
+        write(6,"('tx  ',9f8.2)") (tx(idjd,k),k=nlx,nlx+8)
+        write(6,"('txe ',9f8.2)") (tx(ie(idjd),k),k=nlx,nlx+8)
+        write(6,"('txw ',9f8.2)") (tx(iw(idjd),k),k=nlx,nlx+8)
+        write(6,"('txn ',9f8.2)") (tx(in(idjd),k),k=nlx,nlx+8)
+        write(6,"('txs ',9f8.2)") (tx(is(idjd),k),k=nlx,nlx+8)
+        write(6,'(i2," qgv ",18f7.4)')ktau,(1000.*qg(idjd,k),k=1,kl)
+      end if
+      call printa('qgv ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e3)
     endif
 
-    ! interpolate tracer fluxes to current timestep
-    if ( ngas>0 ) then
-      call interp_tracerflux
+    ! evaluate horizontal advection for combined quantities
+    call upglobal
+      
+    if ( diag ) then
+      if ( mydiag ) then
+        write(6,*) 'after hadv'
+        write (6,"('tx  ',9f8.2)") (tx(idjd,k),k=nlx,nlx+8)
+      end if
+      call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,200.,1.)
+      if ( mydiag ) then
+        write(6,'(i2," qgh ",18f7.4)')ktau,1000.*qg(idjd,:)
+      end if  
     end if
 
-
-    ! ***********************************************************************
-    ! START ATMOSPHERE DYNAMICS
-    ! ***********************************************************************
-
-
-    ! NESTING ---------------------------------------------------------------
-    if ( nbd/=0 ) then
-      ! Newtonian relaxiation
-      call nantest("before nesting",1,ifull)  
-      call START_LOG(nestin_begin)
-      call nestin
-      call END_LOG(nestin_end)
-      call nantest("after nesting",1,ifull)
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after nesting"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-    else
-      call nantest("before atmosphere dynamics",1,ifull)
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting before atmosphere dynamics"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-    end if
-
-
-    ! DYNAMICS --------------------------------------------------------------
-    if ( nstaguin>0 .and. ktau>=1 ) then   ! swapping here for nstaguin>0
+    if ( nstaguin<0 .and. ktau>=1 ) then  ! swapping here (lower down) for nstaguin<0
       if ( nstagin<0 .and. mod(ktau-nstagoff,abs(nstagin))==0 ) then
         nstag  = 7 - nstag  ! swap between 3 & 4
         nstagu = nstag
       end if
     end if
-
-    do mspec = mspeca,1,-1    ! start of introductory time loop
-
-      un(1:ifull,:) = 0. 
-      vn(1:ifull,:) = 0.
-      tn(1:ifull,:) = 0.
-
-      if ( mup/=1 .or. (ktau==1.and.mspec==mspeca.and..not.lrestart) ) then
-        call bounds(psl)
-        ! updps called first step or to permit clean restart option      
-        call updps(0) 
-      end if
-    
-      if ( ktau<10 .and. nmaxpr==1 ) then
-        if ( myid==0 ) then
-          write(6,*) 'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
-        end if
-      end if
-    
-      ! set up tau +.5 velocities in ubar, vbar
-      sbar(:,2:kl) = sdot(:,2:kl)
-      if ( (ktau==1.and..not.lrestart) .or. mex==1 ) then
-        ubar(1:ifull,1:kl) = u(1:ifull,1:kl)
-        vbar(1:ifull,1:kl) = v(1:ifull,1:kl)
-      else if ( (ktau==2.and..not.lrestart) .or. mex==2 ) then        
-        ! (tau+.5) from tau, tau-1
-        ubar(1:ifull,1:kl) = u(1:ifull,1:kl)*1.5 - savu(1:ifull,1:kl)*.5
-        vbar(1:ifull,1:kl) = v(1:ifull,1:kl)*1.5 - savv(1:ifull,1:kl)*.5
-      else if ( mex==3 )then
-        ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
-        ubar(1:ifull,1:kl) = u(1:ifull,1:kl)+.5*(savu(1:ifull,1:kl)-savu1(1:ifull,1:kl))
-        vbar(1:ifull,1:kl) = v(1:ifull,1:kl)+.5*(savv(1:ifull,1:kl)-savv1(1:ifull,1:kl))
-      else if ( mex==30 ) then  ! using tau, tau-1, tau-2, tau-3
-        do k = 1,kl
-          do iq = 1,ifull
-            bb = 1.5*u(iq,k) - 2.*savu(iq,k) + .5*savu1(iq,k)                             ! simple b
-            bb_2 = (40.*u(iq,k) - 35.*savu(iq,k) - 16.*savu1(iq,k) + 11.*savu2(iq,k))/34. ! cwqls b
-            cc = .5*u(iq,k) - savu(iq,k) + .5*savu1(iq,k)                                 ! simple c
-            cc_2 = (10.*u(iq,k) - 13.*savu(iq,k) - 4.*savu1(iq,k) + 7.*savu2(iq,k))/34.   ! cwqls c
-            aa = cc_2 - cc
-            rat = max( 0., min( 1., cc_2/(aa+sign(1.e-9,aa)) ) )
-            cc = rat*cc + (1.-rat)*cc_2 
-            bb = rat*bb + (1.-rat)*bb_2 
-            ubar(iq,k) = u(iq,k) + .5*bb + .25*cc
-            bb = 1.5*v(iq,k) - 2.*savv(iq,k) + .5*savv1(iq,k)                             ! simple b
-            bb_2 = (40.*v(iq,k)-35.*savv(iq,k)-16.*savv1(iq,k)+11.*savv2(iq,k))/34.       ! cwqls b
-            cc = .5*v(iq,k) - savv(iq,k) + .5*savv1(iq,k)                                 ! simple c
-            cc_2 = (10.*v(iq,k)-13.*savv(iq,k)-4.*savv1(iq,k)+7.*savv2(iq,k))/34.         ! cwqls c
-            aa = cc_2 - cc
-            rat = max( 0., min( 1., cc_2/(aa+sign(1.e-9,aa)) ) )
-            cc = rat*cc + (1.-rat)*cc_2 
-            bb = rat*bb + (1.-rat)*bb_2 
-            vbar(iq,k) = v(iq,k)+.5*bb+.25*cc
-          end do ! iq loop
-        end do   ! k loop 
-      else       ! i.e. mex >=4 and ktau>=3
-        ! (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
-        ubar(1:ifull,1:kl) = (u(1:ifull,1:kl)*15.-savu(1:ifull,1:kl)*10.+savu1(1:ifull,1:kl)*3.)/8.
-        vbar(1:ifull,1:kl) = (v(1:ifull,1:kl)*15.-savv(1:ifull,1:kl)*10.+savv1(1:ifull,1:kl)*3.)/8.
-      end if     ! (ktau==1) .. else ..
       
-      if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
-        nlx = max( 2, nlv )  ! as savs not defined for k=1
-        write (6,"(i4,' savu2,savu1,savu,u,ubar',5f8.2)") ktau,savu2(idjd,nlv),savu1(idjd,nlv),savu(idjd,nlv), &
-                                                          u(idjd,nlv),ubar(idjd,nlv)
-        write (6,"(i4,' savv2,savv1,savv,v,vbar',5f8.2)") ktau,savv2(idjd,nlv),savv1(idjd,nlv),savv(idjd,nlv), &
-                                                          v(idjd,nlv),vbar(idjd,nlv)
-      end if
-      if ( ktau>2 .and. epsp>1. .and. epsp<2. ) then
-        if ( ktau==3 .and. nmaxpr==1 ) then
-          if ( myid==0 ) then
-            write(6,*) "using epsp= ",epsp
-          end if
-        end if
-        where ( dpsdt(1:ifull)*dpsdtb(1:ifull)<0. .and. dpsdtbb(1:ifull)*dpsdtb(1:ifull)<0. )
-          epst(1:ifull) = epsp - 1.
-        elsewhere
-          epst(1:ifull) = 0.
-        end where
-      endif ! (ktau>2.and.epsp>1..and.epsp<2.)
+    ! Update the semi-implicit solution to the augumented geopotential
+    call adjust5
 
-      if ( ktau<10 .and. mydiag ) then
-        write(6,*)'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),ubar(idjd,1)
-      end if
-      if ( ktau==1 .and. .not.lrestart .and. mspec==1 .and. mex/=1 ) then
-        u(1:ifull,:) = savu(1:ifull,:)  ! reset u,v to original values
-        v(1:ifull,:) = savv(1:ifull,:)
-      end if
-      savu2(1:ifull,:) = savu1(1:ifull,:)  
-      savv2(1:ifull,:) = savv1(1:ifull,:)
-      savs1(1:ifull,:) = savs(1:ifull,:)  
-      savu1(1:ifull,:) = savu(1:ifull,:)  
-      savv1(1:ifull,:) = savv(1:ifull,:)
-      savs(1:ifull,:)  = sdot(1:ifull,2:kl)  
-      savu(1:ifull,:)  = u(1:ifull,:)  ! before any time-splitting occurs
-      savv(1:ifull,:)  = v(1:ifull,:)
-
-      ! update non-linear dynamic terms
-      call nonlin
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after nonlin"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-
-      
-      if ( diag ) then
-        if ( mydiag ) write(6,*) 'before hadv'
-        call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        if ( mydiag ) then
-          nlx = min( nlv, kl-8 )
-          write(6,"('tx  ',9f8.2)") (tx(idjd,k),k=nlx,nlx+8)
-          write(6,"('txe ',9f8.2)") (tx(ie(idjd),k),k=nlx,nlx+8)
-          write(6,"('txw ',9f8.2)") (tx(iw(idjd),k),k=nlx,nlx+8)
-          write(6,"('txn ',9f8.2)") (tx(in(idjd),k),k=nlx,nlx+8)
-          write(6,"('txs ',9f8.2)") (tx(is(idjd),k),k=nlx,nlx+8)
-          write(6,'(i2," qgv ",18f7.4)')ktau,(1000.*qg(idjd,k),k=1,kl)
-        end if
-        call printa('qgv ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e3)
-      endif
-
-      ! evaluate horizontal advection for combined quantities
-      call upglobal
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after upglobal"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-
-      
-      if ( diag ) then
-        if ( mydiag ) then
-          write(6,*) 'after hadv'
-          write (6,"('tx  ',9f8.2)") (tx(idjd,k),k=nlx,nlx+8)
-        end if
-        call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,200.,1.)
-        if ( mydiag ) then
-          write(6,'(i2," qgh ",18f7.4)')ktau,1000.*qg(idjd,:)
-        end if  
-      end if
-
-      if ( nstaguin<0 .and. ktau>=1 ) then  ! swapping here (lower down) for nstaguin<0
-        if ( nstagin<0 .and. mod(ktau-nstagoff,abs(nstagin))==0 ) then
-          nstag  = 7 - nstag  ! swap between 3 & 4
-          nstagu = nstag
-        end if
-      end if
-      
-      ! Update the semi-implicit solution to the augumented geopotential
-      call adjust5
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after adjust5"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-
-
-      ! check for rounding errors
-      call fixqg(1,ifull)
-  
-      call nantest("after atmosphere dynamics",1,ifull)
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after atmosphere dynamics"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
+    ! check for rounding errors
+    call fixqg(1,ifull)
+    call nantest("after atmosphere dynamics",1,ifull)
       
       
-      ! NESTING ---------------------------------------------------------------
-      ! nesting now after mass fixers
-      if ( mspec==1 ) then
-        if ( mbd/=0 .or. (mbd_mlo/=0.and.namip==0) ) then
-          ! scale-selective filter
-          call START_LOG(nestin_begin)
-          call nestinb
-          call nantest("after nesting",1,ifull)      
-          call END_LOG(nestin_end)
-        else if ( nbd/=0 ) then
-          ! Newtonian relaxiation
-          call START_LOG(nestin_begin)
-          call davies
-          call nantest("after nesting",1,ifull)      
-          call END_LOG(nestin_end)
-        end if
-#ifdef globpedebug
-        if ( myid==0 ) then
-          write(6,*) "Waiting after nesting"
-        end if
-        call ccmpi_barrier(comm_world)
-#endif
+    ! NESTING ---------------------------------------------------------------
+    ! nesting now after mass fixers
+    if ( mspec==1 ) then
+      if ( mbd/=0 .or. (mbd_mlo/=0.and.namip==0) ) then
+        ! scale-selective filter
+        call START_LOG(nestin_begin)
+        call nestinb
+        call nantest("after nesting",1,ifull)      
+        call END_LOG(nestin_end)
+      else if ( nbd/=0 ) then
+        ! Newtonian relaxiation
+        call START_LOG(nestin_begin)
+        call davies
+        call nantest("after nesting",1,ifull)      
+        call END_LOG(nestin_end)
       end if
+    end if
     
       
-      ! DYNAMICS --------------------------------------------------------------
-      if ( mspec==2 ) then     ! for very first step restore mass & T fields
-        call gettin(1)
-      endif    !  (mspec==2) 
-      dt = dtin
+    ! DYNAMICS --------------------------------------------------------------
+    if ( mspec==2 ) then     ! for very first step restore mass & T fields
+      call gettin(1)
+    endif    !  (mspec==2) 
+    dt = dtin
       
-    end do ! ****** end of introductory time loop
+  end do ! ****** end of introductory time loop
 
-    mspeca = 1
+  mspeca = 1
   
     
-    ! HORIZONTAL DIFFUSION ----------------------------------------------------
-    if ( nhor<0 ) then
-      call START_LOG(hordifg_begin)  
-      call hordifgt
-      if ( diag .and. mydiag ) then
-        write(6,*) 'after hordifgt t ',t(idjd,:)
-      end if
-      call nantest("after atm horizontal diffusion",1,ifull)    
-      call END_LOG(hordifg_end)
-    end if  
-#ifdef globpedebug
-    if ( myid==0 ) then
-      write(6,*) "Waiting after horizontal diffusion"
+  ! HORIZONTAL DIFFUSION ----------------------------------------------------
+  if ( nhor<0 ) then
+    call START_LOG(hordifg_begin)  
+    call hordifgt
+    if ( diag .and. mydiag ) then
+      write(6,*) 'after hordifgt t ',t(idjd,:)
     end if
-    call ccmpi_barrier(comm_world)
-#endif
+    call nantest("after atm horizontal diffusion",1,ifull)    
+    call END_LOG(hordifg_end)
+  end if  
 
     
-    ! ***********************************************************************
-    ! START RIVER ROUTING
-    ! ***********************************************************************
+  ! ***********************************************************************
+  ! START RIVER ROUTING
+  ! ***********************************************************************
     
-    ! nriver = 0   No transport of surface water
-    ! nriver = 1   River routing
+  ! nriver = 0   No transport of surface water
+  ! nriver = 1   River routing
     
-    if ( abs(nriver)==1 ) then  
-      call START_LOG(river_begin)
-      call rvrrouter
-      call END_LOG(river_end)
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after river routing"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-    end if
+  if ( abs(nriver)==1 ) then  
+    call START_LOG(river_begin)
+    call rvrrouter
+    call END_LOG(river_end)
+  end if
 
     
-    ! ***********************************************************************
-    ! START OCEAN DYNAMICS
-    ! ***********************************************************************
+  ! ***********************************************************************
+  ! START OCEAN DYNAMICS
+  ! ***********************************************************************
 
-    ! nmlo=0   Prescriped SSTs and sea-ice with JLM skin enhancement
-    ! nmlo=1   1D mixed-layer-ocean model
-    ! nmlo=2   nmlo=1 plus river-routing and horiontal diffusion
-    ! nmlo=3   nmlo=2 plus 3D dynamics
-    ! nmlo>9   Use external PCOM ocean model
+  ! nmlo=0   Prescriped SSTs and sea-ice with JLM skin enhancement
+  ! nmlo=1   1D mixed-layer-ocean model
+  ! nmlo=2   nmlo=1 plus river-routing and horiontal diffusion
+  ! nmlo=3   nmlo=2 plus 3D dynamics
+  ! nmlo>9   Use external PCOM ocean model
   
-    if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
-      ! DYNAMICS ------------------------------------------------------------
-      call START_LOG(waterdynamics_begin)
-      call mlohadv
-      call END_LOG(waterdynamics_end)
-#ifdef globpedebug
-    if ( myid==0 ) then
-      write(6,*) "Waiting after water dynamics"
-    end if
-    call ccmpi_barrier(comm_world)
-#endif
-    end if
-    if ( abs(nmlo)>=2 .and. abs(nmlo)<=9 ) then
-      ! DIFFUSION -----------------------------------------------------------
-      call START_LOG(waterdynamics_begin)
-      call mlodiffusion
-      call END_LOG(waterdynamics_end)
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after mlodiffusion"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-    end if
+  if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
+    ! DYNAMICS ------------------------------------------------------------
+    call START_LOG(waterdynamics_begin)
+    call mlohadv
+    call END_LOG(waterdynamics_end)
+  end if
+  if ( abs(nmlo)>=2 .and. abs(nmlo)<=9 ) then
+    ! DIFFUSION -----------------------------------------------------------
+    call START_LOG(waterdynamics_begin)
+    call mlodiffusion
+    call END_LOG(waterdynamics_end)
+  end if
       
       
 #ifdef csircoupled
-    ! ***********************************************************************
-    ! VCOM ADVECTION
-    ! ***********************************************************************
-    call vcom_ccam_advect(fracice,sicedep,tss,tgg(:,1),tggsn(:,1))
+  ! ***********************************************************************
+  ! VCOM ADVECTION
+  ! ***********************************************************************
+  call vcom_ccam_advect(fracice,sicedep,tss,tgg(:,1),tggsn(:,1))
 #endif
       
 
-    ! ***********************************************************************
-    ! START PHYSICS 
-    ! ***********************************************************************
-    call START_LOG(phys_begin)
+  ! ***********************************************************************
+  ! START PHYSICS 
+  ! ***********************************************************************
+  call START_LOG(phys_begin)
 
     
-    ! MISC (SINGLE) ---------------------------------------------------------
-    ! radiation timer calculations
-    if ( nrad==5 ) then
-      if ( nhstest<0 ) then      ! aquaplanet test -1 to -8  
-        mtimer_sav = mtimer
-        mtimer     = mins_gmt    ! so radn scheme repeatedly works thru same day
-        call seaesfrad_settime
-        mtimer = mtimer_sav
-      else
-        call seaesfrad_settime  
-      end if    ! (nhstest<0)      
-    end if    
-    ! aerosol timer (true indicates update oxidants, etc)
-    oxidant_update = oxidant_timer<=mins-updateoxidant
+  ! MISC (SINGLE) ---------------------------------------------------------
+  ! radiation timer calculations
+  if ( nrad==5 ) then
+    if ( nhstest<0 ) then      ! aquaplanet test -1 to -8  
+      mtimer_sav = mtimer
+      mtimer     = mins_gmt    ! so radn scheme repeatedly works thru same day
+      call seaesfrad_settime
+      mtimer = mtimer_sav
+    else
+      call seaesfrad_settime  
+    end if    ! (nhstest<0)      
+  end if    
+  ! aerosol timer (true indicates update oxidants, etc)
+  oxidant_update = oxidant_timer<=mins-updateoxidant
 
     
-    ! MISC (PARALLEL) -------------------------------------------------------
+  ! MISC (PARALLEL) -------------------------------------------------------
 !$omp parallel
 !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      ! initialse surface rainfall to zero
-      condc(js:je) = 0. ! default convective rainfall (assumed to be rain)
-      condx(js:je) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
-      conds(js:je) = 0. ! default total ice + snow (convection and large scale)
-      condg(js:je) = 0. ! default total graupel (convection and large scale)
-      ! Held & Suarez or no surf fluxes
-      if ( ntsur<=1 .or. nhstest==2 ) then 
-        eg(js:je)   = 0.
-        fg(js:je)   = 0.
-        cdtq(js:je) = 0.
-        cduv(js:je) = 0.
-      end if     ! (ntsur<=1.or.nhstest==2) 
-      ! Save aerosol concentrations for outside convective fraction of grid box
-      if ( abs(iaero)>=2 ) then
-        xtosav(js:je,1:kl,1:naero) = xtg(js:je,1:kl,1:naero) ! Aerosol mixing ratio outside convective cloud
-      end if
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      call nantest("start of physics",js,je)
-    end do  
-!$omp end do nowait
-
-
-    ! GWDRAG ----------------------------------------------------------------
-!$omp master
-    call START_LOG(gwdrag_begin)
-!$omp end master
-    if ( ngwd<0 ) then
-      call gwdrag  ! <0 for split - only one now allowed
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    ! initialse surface rainfall to zero
+    condc(js:je) = 0. ! default convective rainfall (assumed to be rain)
+    condx(js:je) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
+    conds(js:je) = 0. ! default total ice + snow (convection and large scale)
+    condg(js:je) = 0. ! default total graupel (convection and large scale)
+    ! Held & Suarez or no surf fluxes
+    if ( ntsur<=1 .or. nhstest==2 ) then 
+      eg(js:je)   = 0.
+      fg(js:je)   = 0.
+      cdtq(js:je) = 0.
+      cduv(js:je) = 0.
+    end if     ! (ntsur<=1.or.nhstest==2) 
+    ! Save aerosol concentrations for outside convective fraction of grid box
+    if ( abs(iaero)>=2 ) then
+      xtosav(js:je,1:kl,1:naero) = xtg(js:je,1:kl,1:naero) ! Aerosol mixing ratio outside convective cloud
     end if
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    call nantest("start of physics",js,je)
+  end do  
+!$omp end do nowait
+
+
+  ! GWDRAG ----------------------------------------------------------------
+!$omp master
+  call START_LOG(gwdrag_begin)
+!$omp end master
+  if ( ngwd<0 ) then
+    call gwdrag  ! <0 for split - only one now allowed
+  end if
 !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      call nantest("after gravity wave drag",js,je)
-    end do  
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    call nantest("after gravity wave drag",js,je)
+  end do  
 !$omp end do nowait
 !$omp master
-    call END_LOG(gwdrag_end)
+  call END_LOG(gwdrag_end)
 !$omp end master
 
   
-    ! CONVECTION ------------------------------------------------------------
+  ! CONVECTION ------------------------------------------------------------
 !$omp master
-    call START_LOG(convection_begin)
+  call START_LOG(convection_begin)
 !$omp end master
 !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) - t(js:je,1:kl)*real(nperday)/real(nperavg)        
-    end do
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) - t(js:je,1:kl)*real(nperday)/real(nperavg)        
+  end do
 !$omp end do nowait
-    ! Select convection scheme
-    select case ( nkuo )
-      case(5)
+  ! Select convection scheme
+  select case ( nkuo )
+    case(5)
 !$omp barrier  
 !$omp single  
-        call betts(t,qg,tn,land,ps) ! not called these days
+      call betts(t,qg,tn,land,ps) ! not called these days
 !$omp end single
-      case(21,22)
-        call convjlm22              ! split convjlm 
-      case(23,24)
-        call convjlm                ! split convjlm 
-    end select
+    case(21,22)
+      call convjlm22              ! split convjlm 
+    case(23,24)
+      call convjlm                ! split convjlm 
+  end select
 !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      call fixqg(js,je)
-      call nantest("after convection",js,je)
-    end do  
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    call fixqg(js,je)
+    call nantest("after convection",js,je)
+  end do  
 !$omp end do nowait
 !$omp master
-    call END_LOG(convection_end)
+  call END_LOG(convection_end)
 !$omp end master
 
     
     ! CLOUD MICROPHYSICS ----------------------------------------------------
 !$omp master
-    call START_LOG(cloud_begin)
+  call START_LOG(cloud_begin)
 !$omp end master
-    if ( ldr/=0 ) then
-      ! LDR microphysics scheme
-      call leoncld
-    end if
+  if ( ldr/=0 ) then
+    ! LDR microphysics scheme
+    call leoncld
+  end if
 !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) + t(js:je,1:kl)*real(nperday)/real(nperavg)    
-      call nantest("after cloud microphysics",js,je) 
-    end do  
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) + t(js:je,1:kl)*real(nperday)/real(nperavg)    
+    call nantest("after cloud microphysics",js,je) 
+  end do  
 !$omp end do nowait
 !$omp master    
-    call END_LOG(cloud_end)
+  call END_LOG(cloud_end)
 !$omp end master
     
     
     ! RADIATION -------------------------------------------------------------
 !$omp master
-    call START_LOG(radnet_begin)
+  call START_LOG(radnet_begin)
 !$omp end master
-    if ( ncloud>=4 ) then
+  if ( ncloud>=4 ) then
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      nettend(js:je,1:kl) = nettend(js:je,1:kl) + t(js:je,1:kl)/dt
+    end do
+!$omp end do nowait
+  end if   ! (ncloud>=4)
+  select case ( nrad )
+    case(4)
+!$omp barrier  
+!$omp single  
+      ! Fels-Schwarzkopf radiation
+      if ( nhstest<0 ) then    ! aquaplanet test -1 to -8  
+        mtimer_sav = mtimer
+        mtimer     = mins_gmt  ! so radn scheme repeatedly works thru same day
+        call radrive(il*nrows_rad)
+        mtimer = mtimer_sav
+      else
+        call radrive(il*nrows_rad)  
+      end if    ! (nhstest<0)
+!$omp end single
+    case(5)
+      ! GFDL SEA-EFS radiation
+      call seaesfrad
+    case DEFAULT
+      ! use preset slwa array (use +ve nrad)
 !$omp do schedule(static) private(js,je)
       do tile = 1,ntiles
         js = (tile-1)*imax + 1
         je = tile*imax
-        nettend(js:je,1:kl) = nettend(js:je,1:kl) + t(js:je,1:kl)/dt
+        slwa(js:je) = -real(10*nrad)
       end do
 !$omp end do nowait
-    end if   ! (ncloud>=4)
-    select case ( nrad )
-      case(4)
-!$omp barrier  
-!$omp single  
-        ! Fels-Schwarzkopf radiation
-        if ( nhstest<0 ) then    ! aquaplanet test -1 to -8  
-          mtimer_sav = mtimer
-          mtimer     = mins_gmt  ! so radn scheme repeatedly works thru same day
-          call radrive(il*nrows_rad)
-          mtimer = mtimer_sav
-        else
-          call radrive(il*nrows_rad)  
-        end if    ! (nhstest<0)
-!$omp end single
-      case(5)
-        ! GFDL SEA-EFS radiation
-        call seaesfrad
-      case DEFAULT
-        ! use preset slwa array (use +ve nrad)
-!$omp do schedule(static) private(js,je)
-        do tile = 1,ntiles
-          js = (tile-1)*imax + 1
-          je = tile*imax
-          slwa(js:je) = -real(10*nrad)
-        end do
-!$omp end do nowait
-    end select
+  end select
 !$omp do schedule(static) private(js,je)  
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    t(js:je,1:kl) = t(js:je,1:kl) - dt*(sw_tend(js:je,1:kl)+lw_tend(js:je,1:kl))
+    call nantest("after radiation",js,je)    
+  end do
+!$omp end do nowait
+!$omp master
+  call END_LOG(radnet_end)
+!$omp end master
+
+    
+  ! HELD & SUAREZ ---------------------------------------------------------
+  if ( nhstest==2 ) then
+    call hs_phys
+  end if
+
+    
+  ! SURFACE FLUXES ---------------------------------------------
+  ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
+!$omp master
+  call START_LOG(sfluxnet_begin)
+!$omp end master
+  if ( diag .and. ntiles==1 ) then
+    call maxmin(u,'#u',ktau,1.,kl)
+    call maxmin(v,'#v',ktau,1.,kl)
+    call maxmin(t,'#t',ktau,1.,kl)
+    call maxmin(qg,'qg',ktau,1.e3,kl)     
+  end if
+  if ( ntsur>1 ) then
+    call sflux
+  endif   ! (ntsur>1)    
+!$omp do schedule(static) private(js,je)  
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax 
+    call nantest("after surface fluxes",js,je)
+  end do  
+!$omp end do nowait
+!$omp master
+  call END_LOG(sfluxnet_end)
+!$omp end master
+
+
+  ! AEROSOLS --------------------------------------------------------------
+  ! MJT notes - aerosols called before vertical mixing so that convective
+  ! and strat cloud can be separated in a way that is consistent with
+  ! cloud microphysics
+!$omp master
+  call START_LOG(aerosol_begin)
+!$omp end master
+  if ( abs(iaero)>=2 ) then
+    call aerocalc(oxidant_update,mins)
+  end if
+!$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call nantest("after aerosols",js,je)
+  end do  
+!$omp end do nowait
+!$omp master
+  call END_LOG(aerosol_end)
+!$omp end master
+    
+    
+  ! VERTICAL MIXING ------------------------------------------------------
+!$omp master
+  call START_LOG(vertmix_begin)
+  if ( nmaxpr==1 ) then
+    if ( mydiag .and. ntiles==1 ) then
+      write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+    end if
+  end if
+!$omp end master
+  if ( ntsur>=1 ) then
+    call vertmix
+  endif  ! (ntsur>=1)
+!$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call fixqg(js,je)
+    call nantest("after PBL mixing",js,je)
+  end do  
+!$omp end do nowait
+!$omp master
+  if ( nmaxpr==1 ) then
+    if ( mydiag .and. ntiles==1 ) then
+      write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+    end if
+  end if
+  call END_LOG(vertmix_end)
+!$omp end master
+
+
+  ! MISC (PARALLEL) -------------------------------------------------------
+  ! Update diagnostics for consistancy in history file
+  if ( rescrn>0 ) then
+!$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax
-      t(js:je,1:kl) = t(js:je,1:kl) - dt*(sw_tend(js:je,1:kl)+lw_tend(js:je,1:kl))
-      call nantest("after radiation",js,je)    
+      je = tile*imax  
+      call autoscrn(js,je)
     end do
 !$omp end do nowait
-!$omp master
-    call END_LOG(radnet_end)
-!$omp end master
-
-    
-    ! HELD & SUAREZ ---------------------------------------------------------
-    if ( nhstest==2 ) then
-      call hs_phys
-    end if
-
-    
-    ! SURFACE FLUXES ---------------------------------------------
-    ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
-!$omp master
-    call START_LOG(sfluxnet_begin)
-!$omp end master
-    if ( diag .and. ntiles==1 ) then
-      call maxmin(u,'#u',ktau,1.,kl)
-      call maxmin(v,'#v',ktau,1.,kl)
-      call maxmin(t,'#t',ktau,1.,kl)
-      call maxmin(qg,'qg',ktau,1.e3,kl)     
-    end if
-    if ( ntsur>1 ) then
-      call sflux
-    endif   ! (ntsur>1)    
-!$omp do schedule(static) private(js,je)  
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax 
-      call nantest("after surface fluxes",js,je)
-    end do  
-!$omp end do nowait
-!$omp master
-    call END_LOG(sfluxnet_end)
-!$omp end master
-
-
-    ! AEROSOLS --------------------------------------------------------------
-    ! MJT notes - aerosols called before vertical mixing so that convective
-    ! and strat cloud can be separated in a way that is consistent with
-    ! cloud microphysics
-!$omp master
-    call START_LOG(aerosol_begin)
-!$omp end master
-    if ( abs(iaero)>=2 ) then
-      call aerocalc(oxidant_update,mins)
-    end if
+  end if
 !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      call nantest("after aerosols",js,je)
-    end do  
-!$omp end do nowait
-!$omp master
-    call END_LOG(aerosol_end)
-!$omp end master
-    
-    
-    ! VERTICAL MIXING ------------------------------------------------------
-!$omp master
-    call START_LOG(vertmix_begin)
-    if ( nmaxpr==1 ) then
-      if ( mydiag .and. ntiles==1 ) then
-        write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
-      end if
-    end if
-!$omp end master
-    if ( ntsur>=1 ) then
-      call vertmix
-    endif  ! (ntsur>=1)
-!$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      call fixqg(js,je)
-      call nantest("after PBL mixing",js,je)
-    end do  
-!$omp end do nowait
-!$omp master
-    if ( nmaxpr==1 ) then
-      if ( mydiag .and. ntiles==1 ) then
-        write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
-      end if
-    end if
-    call END_LOG(vertmix_end)
-!$omp end master
-
-
-    ! MISC (PARALLEL) -------------------------------------------------------
-    ! Update diagnostics for consistancy in history file
-    if ( rescrn>0 ) then
-!$omp do schedule(static) private(js,je)
-      do tile = 1,ntiles
-        js = (tile-1)*imax + 1
-        je = tile*imax  
-        call autoscrn(js,je)
-      end do
-!$omp end do nowait
-    end if
-!$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      ! Convection diagnostic output
-      cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
-      ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
-      ! Microphysics diagnostic output
-      do k = 1,kl
-        riwp_ave(js:je) = riwp_ave(js:je) - qfrad(js:je,k)*dsig(k)*ps(js:je)/grav ! ice water path
-        rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
-      end do
-      rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
-    end do  
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    ! Convection diagnostic output
+    cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
+    ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
+    ! Microphysics diagnostic output
+    do k = 1,kl
+      riwp_ave(js:je) = riwp_ave(js:je) - qfrad(js:je,k)*dsig(k)*ps(js:je)/grav ! ice water path
+      rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
+    end do
+    rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+  end do  
 !$omp end do nowait
 
 !$omp end parallel
 
 
-    ! MISC (SINGLE) ---------------------------------------------------------
-    ! Update aerosol timer
-    if ( oxidant_update ) then
-      oxidant_timer = mins
-    end if
+  ! MISC (SINGLE) ---------------------------------------------------------
+  ! Update aerosol timer
+  if ( oxidant_update ) then
+    oxidant_timer = mins
+  end if
 
-    call END_LOG(phys_end)
-#ifdef globpedebug
-    if ( myid==0 ) then
-      write(6,*) "Waiting after physics"
-    end if
-    call ccmpi_barrier(comm_world)
-#endif
-
+  call END_LOG(phys_end)
     
     
 #ifdef csircoupled
-    ! ***********************************************************************
-    ! VCOM DIFFUSION
-    ! ***********************************************************************
-    call vcom_ccam_diffusion(fracice,sicedep,tss,tgg(:,1),tggsn(:,1))
+  ! ***********************************************************************
+  ! VCOM DIFFUSION
+  ! ***********************************************************************
+  call vcom_ccam_diffusion(fracice,sicedep,tss,tgg(:,1),tggsn(:,1))
 #endif
 
   
-    ! ***********************************************************************
-    ! DIAGNOSTICS AND OUTPUT
-    ! ***********************************************************************
+  ! ***********************************************************************
+  ! DIAGNOSTICS AND OUTPUT
+  ! ***********************************************************************
 
-    ! TIME AVERAGED OUTPUT ---------------------------------------
-    ! update diag_averages and daily max and min screen temps 
-    ! N.B. runoff is accumulated in sflux
-    if ( ktau==1 ) then
-      tmaxscr(:)  = tscrn(:) 
-      tminscr(:)  = tscrn(:) 
-      rhmaxscr(:) = rhscrn(:) 
-      rhminscr(:) = rhscrn(:) 
-      tmaxscr_clearing(:)  = tscrn_clearing(:) 
-      tminscr_clearing(:)  = tscrn_clearing(:) 
-      rhmaxscr_clearing(:) = rhscrn_clearing(:) 
-      rhminscr_clearing(:) = rhscrn_clearing(:)
-    end if    
-    call calculate_timeaverage
+  ! TIME AVERAGED OUTPUT ---------------------------------------
+  ! update diag_averages and daily max and min screen temps 
+  ! N.B. runoff is accumulated in sflux
+  if ( ktau==1 ) then
+    tmaxscr(:)  = tscrn(:) 
+    tminscr(:)  = tscrn(:) 
+    rhmaxscr(:) = rhscrn(:) 
+    rhminscr(:) = rhscrn(:) 
+    tmaxscr_clearing(:)  = tscrn_clearing(:) 
+    tminscr_clearing(:)  = tscrn_clearing(:) 
+    rhmaxscr_clearing(:) = rhscrn_clearing(:) 
+    rhminscr_clearing(:) = rhscrn_clearing(:)
+  end if    
+  call calculate_timeaverage
 
 
-    ! TRACER OUTPUT ----------------------------------------------
-    if ( ngas>0 ) then
-      call tracer_mass !also updates average tracer array
-      call write_ts(ktau,ntau,dt)
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after write_ts"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
+  ! TRACER OUTPUT ----------------------------------------------
+  if ( ngas>0 ) then
+    call tracer_mass !also updates average tracer array
+    call write_ts(ktau,ntau,dt)
+  endif
+
+    
+  ! STATION OUTPUT ---------------------------------------------
+  if ( nstn>0 ) then
+    call stationa ! write every time step
+  end if
+    
+    
+  ! DIAGNOSTICS ------------------------------------------------
+  call write_diagnostics(mins_gmt,nmaxprsav)
+
+    
+  if ( myid==0 ) then
+    write(6,*) 'ktau,mod,nper3hr ',ktau,mod(ktau-1,nperday)+1,nper3hr(n3hr)
+  end if
+
+  ! rnd03 to rnd21 are accumulated in mm     
+  if ( mod(ktau-1,nperday)+1 == nper3hr(n3hr) ) then
+    rnd_3hr(1:ifull,n3hr) = rnd_3hr(1:ifull,8)
+    if ( nextout>=2 ) then
+      spare1(:) = max( .001, sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2) )
+      u10_3hr(:,n3hr) = u10(:)*u(1:ifull,1)/spare1(:)
+      v10_3hr(:,n3hr) = u10(:)*v(1:ifull,1)/spare1(:)
+      tscr_3hr(:,n3hr) = tscrn(:)
+      spare1(:) = establ(t(1:ifull,1)) ! spare1 = es
+      rh1_3hr(1:ifull,n3hr) = 100.*qg(1:ifull,1)*(ps(1:ifull)*sig(1)-spare1(:))/(.622*spare1(:))
+    end if    ! (nextout==2)
+    n3hr = n3hr + 1
+    if ( n3hr>8 ) n3hr = 1
+  endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
+
+  
+  ! Turn off log before writing output
+  call log_off
+
+
+  ! WRITE DATA TO HISTORY AND RESTART FILES ---------------
+  if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
+    call outfile(20,ofile,psl,u,v,t,qg)  ! which calls outcdf
+    if ( ktau==ntau .and. irest==1 ) then
+      ! Don't include the time for writing the restart file
+      call END_LOG(maincalc_end)
+      ! write restart file
+      call outfile(19,restfile,psl,u,v,t,qg)
+      if ( myid==0 ) write(6,*) 'finished writing restart file in outfile'
+      call START_LOG(maincalc_begin)
     endif
+  endif
+  ! write high temporal frequency fields
+  if ( surfile/=' ' ) then
+    call freqfile
+  end if
 
     
-    ! STATION OUTPUT ---------------------------------------------
-    if ( nstn>0 ) then
-      call stationa ! write every time step
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after stationa"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-    end if
-    
-    
-    ! DIAGNOSTICS ------------------------------------------------
-    call write_diagnostics(mins_gmt,nmaxprsav)
-#ifdef globpedebug
-    if ( myid==0 ) then
-      write(6,*) "Waiting after write diagnostics"
-    end if
-    call ccmpi_barrier(comm_world)
-#endif
-
-    
-    if ( myid==0 ) then
-      write(6,*) 'ktau,mod,nper3hr ',ktau,mod(ktau-1,nperday)+1,nper3hr(n3hr)
-    end if
-
-    ! rnd03 to rnd21 are accumulated in mm     
-    if ( mod(ktau-1,nperday)+1 == nper3hr(n3hr) ) then
-      rnd_3hr(1:ifull,n3hr) = rnd_3hr(1:ifull,8)
-      if ( nextout>=2 ) then
-        spare1(:) = max( .001, sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2) )
-        u10_3hr(:,n3hr) = u10(:)*u(1:ifull,1)/spare1(:)
-        v10_3hr(:,n3hr) = u10(:)*v(1:ifull,1)/spare1(:)
-        tscr_3hr(:,n3hr) = tscrn(:)
-        spare1(:) = establ(t(1:ifull,1)) ! spare1 = es
-        rh1_3hr(1:ifull,n3hr) = 100.*qg(1:ifull,1)*(ps(1:ifull)*sig(1)-spare1(:))/(.622*spare1(:))
-      end if    ! (nextout==2)
-      n3hr = n3hr + 1
-      if ( n3hr>8 ) n3hr = 1
-    endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
+  ! ENSEMBLE --------------------------------------------------
+  if ( ensemble_mode>0 ) then
+    call update_ensemble
+    call fixqg(1,ifull)
+  end if
   
-
-    ! WRITE DATA TO HISTORY AND RESTART FILES ---------------
-    call log_off
-    if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
-      call outfile(20,ofile,psl,u,v,t,qg)  ! which calls outcdf
-      if ( ktau==ntau .and. irest==1 ) then
-        ! Don't include the time for writing the restart file
-        call END_LOG(maincalc_end)
-        ! write restart file
-        call outfile(19,restfile,psl,u,v,t,qg)
-        if ( myid==0 ) write(6,*) 'finished writing restart file in outfile'
-        call START_LOG(maincalc_begin)
-      endif  ! (ktau==ntau.and.irest==1)
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after outfile"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-    endif    ! (ktau==ntau.or.mod(ktau,nwt)==0)
-    ! write high temporal frequency fields
-    if ( surfile /= ' ' ) then
-      call freqfile
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after freqfile"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-    end if
-
-    
-    ! ENSEMBLE --------------------------------------------------
-    if ( ensemble_mode>0 ) then
-      call update_ensemble
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after update_ensemble"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-      call fixqg(1,ifull)
-    end if
-    call log_on
+  
+  ! Turn on log after writing output
+  call log_on
  
     
-    ! TIME AVERAGED DIAGNOSTICS ---------------------------------
-    if ( mod(ktau,nperavg)==0 ) then    
-      ! produce some diags & reset most averages once every nperavg
-      if ( nmaxpr==1 ) then
-        precavge = sum(precip(1:ifull)*wts(1:ifull))
-        evapavge = sum(evap(1:ifull)*wts(1:ifull))   ! in mm/day
-        pwatr    = 0.   ! in mm
-        do k = 1,kl
-          pwatr = pwatr - sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))/grav
-        enddo
-        temparray(1:3) = (/ precavge, evapavge, pwatr /)
-        call ccmpi_reduce(temparray(1:3),gtemparray(1:3),"max",0,comm_world)
-        if ( myid==0 ) then
-          precavge = gtemparray(1)
-          evapavge = gtemparray(2)
-          pwatr    = gtemparray(3)
-          write(6,985) pwatr,precavge,evapavge ! MJT bug fix
-985       format(' average pwatr,precc,prec,evap: ',4f7.3)
-        end if
-      end if
-      ! also zero most averaged fields every nperavg
-      call zero_nperavg
-#ifdef globpedebug
+  ! TIME AVERAGED DIAGNOSTICS ---------------------------------
+  if ( mod(ktau,nperavg)==0 ) then    
+    ! produce some diags & reset most averages once every nperavg
+    if ( nmaxpr==1 ) then
+      precavge = sum(precip(1:ifull)*wts(1:ifull))
+      evapavge = sum(evap(1:ifull)*wts(1:ifull))   ! in mm/day
+      pwatr    = 0.   ! in mm
+      do k = 1,kl
+        pwatr = pwatr - sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))/grav
+      enddo
+      temparray(1:3) = (/ precavge, evapavge, pwatr /)
+      call ccmpi_reduce(temparray(1:3),gtemparray(1:3),"max",0,comm_world)
       if ( myid==0 ) then
-        write(6,*) "Waiting after time averaged diagnostics"
+        precavge = gtemparray(1)
+        evapavge = gtemparray(2)
+        pwatr    = gtemparray(3)
+        write(6,985) pwatr,precavge,evapavge ! MJT bug fix
+985     format(' average pwatr,precc,prec,evap: ',4f7.3)
       end if
-      call ccmpi_barrier(comm_world)
-#endif
-    endif  ! (mod(ktau,nperavg)==0)
-
-    ! DAILY DIAGNOSTICS ----------------------------------------
-    if ( mod(ktau,nperday)==0 ) then   ! re-set at the end of each 24 hours
-      if ( ntau<10*nperday .and. nstn>0 ) then     ! print stn info
-        do nn = 1,nstn
-          if ( mystn(nn) ) then
-            i = istn(nn)
-            j = jstn(nn)
-            iq = i+(j-1)*il
-            write(6,956) ktau,iunp(nn),name_stn(nn),rnd_3hr(iq,4),rnd_3hr(iq,8), &
-                         tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
-                         tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
-                         tmaxscr(iq)-273.16,tminscr(iq)-273.16
-956         format(i5,i3,a5,6f7.1)
-          end if               
-        end do
-      end if  ! (ntau<10*nperday)
-      call zero_nperday
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after daily diagnostics"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-    endif   ! (mod(ktau,nperday)==0)
-  
-    
-    ! AMIP SSTs --------------------------------------------------
-    if ( namip/=0 ) then
-      call START_LOG(amipsst_begin)
-      call amipsst
-      call END_LOG(amipsst_end)
-#ifdef globpedebug
-      if ( myid==0 ) then
-        write(6,*) "Waiting after amipsst"
-      end if
-      call ccmpi_barrier(comm_world)
-#endif
-
     end if
+    ! also zero most averaged fields every nperavg
+    call zero_nperavg
+  endif  ! (mod(ktau,nperavg)==0)
+
+  ! DAILY DIAGNOSTICS ----------------------------------------
+  if ( mod(ktau,nperday)==0 ) then   ! re-set at the end of each 24 hours
+    if ( ntau<10*nperday .and. nstn>0 ) then     ! print stn info
+      do nn = 1,nstn
+        if ( mystn(nn) ) then
+          i = istn(nn)
+          j = jstn(nn)
+          iq = i+(j-1)*il
+          write(6,956) ktau,iunp(nn),name_stn(nn),rnd_3hr(iq,4),rnd_3hr(iq,8), &
+                       tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
+                       tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
+                       tmaxscr(iq)-273.16,tminscr(iq)-273.16
+956       format(i5,i3,a5,6f7.1)
+        end if               
+      end do
+    end if  ! (ntau<10*nperday)
+    call zero_nperday
+  endif   ! (mod(ktau,nperday)==0)
+  
+    
+  ! AMIP SSTs --------------------------------------------------
+  if ( namip/=0 ) then
+    call START_LOG(amipsst_begin)
+    call amipsst
+    call END_LOG(amipsst_end)
+  end if
 
     
-    ! Flush trace information to disk to save memory.
-    call log_flush()
+  ! Flush trace information to disk to save memory.
+  call log_flush()
 
     
-  end do                  ! *** end of main time loop
+end do                  ! *** end of main time loop
   
-  call END_LOG(maincalc_end)
-  call log_off
+call END_LOG(maincalc_end)
+call log_off
   
   
-  !------------------------------------------------------------------
-  ! SIMULATION COMPLETE
+!------------------------------------------------------------------
+! SIMULATION COMPLETE
   
-  ! Report timings of run
-  if ( myid==0 ) then
-    call date_and_time(time=timeval,values=tvals2)
-    write(6,*) "End of time loop ", timeval
-    write(6,*) "normal termination of run"
-    write(6,*) "End time ", timeval
-    aa = sum( real(tvals2(5:8)-tvals1(5:8))*(/ 3600., 60., 1., 0.001 /) )
-    if ( aa<0. ) aa = aa + 86400.
-    write(6,*) "Model time in main loop",aa
-  end if
+! Report timings of run
+if ( myid==0 ) then
+  call date_and_time(time=timeval,values=tvals2)
+  write(6,*) "End of time loop ", timeval
+  write(6,*) "normal termination of run"
+  write(6,*) "End time ", timeval
+  aa = sum( real(tvals2(5:8)-tvals1(5:8))*(/ 3600., 60., 1., 0.001 /) )
+  if ( aa<0. ) aa = aa + 86400.
+  write(6,*) "Model time in main loop",aa
+end if
   
-  ! close mesonest files
-  if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) then
-    call histclose
-  end if
+! close mesonest files
+if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) then
+  call histclose
+end if
 
 #ifdef csircoupled
-  ! finalize VCOM
-  call vcom_finialize
+! finalize VCOM
+call vcom_finialize
 #endif
   
-  call date_and_time(values=times_total_b)
-  total_time = sum( real(times_total_b(5:8)-times_total_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
-  if ( total_time<0 ) total_time = total_time + 86400.
+call date_and_time(values=times_total_b)
+total_time = sum( real(times_total_b(5:8)-times_total_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
+if ( total_time<0 ) total_time = total_time + 86400.
   
 #ifdef simple_timer
-  ! report subroutine timings
-  call simple_timer_finalize
+! report subroutine timings
+call simple_timer_finalize
 #endif
 
-  ! Complete
-  if ( myid==0 ) then
-    write(6,*) "------------------------------------------------------------------------------"
-    write(6,*) "CCAM: globpea completed successfully"
-    call finishbanner
-  end if
+! Complete
+if ( myid==0 ) then
+  write(6,*) "------------------------------------------------------------------------------"
+  write(6,*) "CCAM: globpea completed successfully"
+  call finishbanner
+end if
 
 #ifdef usempi3
-  call ccmpi_freeshdata(xx4_win)
-  call ccmpi_freeshdata(yy4_win)
-  call ccmpi_freeshdata(em_g_win)
-  call ccmpi_freeshdata(x_g_win)
-  call ccmpi_freeshdata(y_g_win)
-  call ccmpi_freeshdata(z_g_win)
+call ccmpi_freeshdata(xx4_win)
+call ccmpi_freeshdata(yy4_win)
+call ccmpi_freeshdata(em_g_win)
+call ccmpi_freeshdata(x_g_win)
+call ccmpi_freeshdata(y_g_win)
+call ccmpi_freeshdata(z_g_win)
 #else
-  deallocate(xx4_dummy,yy4_dummy)
-  deallocate(em_g_dummy)
-  deallocate(x_g_dummy,y_g_dummy,z_g_dummy)
+deallocate(xx4_dummy,yy4_dummy)
+deallocate(em_g_dummy)
+deallocate(x_g_dummy,y_g_dummy,z_g_dummy)
 #endif
   
-end if ! myid<nproc
 !****************************************************************
 
 ! finalize MPI comms
@@ -1510,7 +1385,7 @@ real, dimension(1) :: gtemparray
 real targetlev, dsx, pwatr_l, pwatr
 real cgmap_offset, cgmap_scale ! depreciated namelist options
 real(kind=8), dimension(:), allocatable, save :: dumr8
-logical lmlosigma
+logical lmlosigma, procformat
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) optarg
 character(len=60) comm, comment
@@ -1546,15 +1421,16 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,nriver,           &
     atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
-    procformat,procmode,compression,hp_output,                    & ! file io
+    procmode,compression,hp_output,                               & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
-    npa,npb,cgmap_offset,cgmap_scale                                ! depreciated
+    npa,npb,cgmap_offset,cgmap_scale,procformat                     ! depreciated
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
+    csolar,                                                       &
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
     saltlargemtn,                                                 &
     o3_vert_interpolate,o3_time_interpolate                         ! ozone
@@ -1676,7 +1552,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(118) ) 
+allocate( dumr(33), dumi(117) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1821,17 +1697,16 @@ if ( myid==0 ) then
   dumi(105) = nriver
   dumi(106) = atebnmlfile
   dumi(107) = nud_period
-  if ( procformat ) dumi(108) = 1
-  dumi(109) = procmode
-  dumi(110) = compression
-  dumi(111) = nmr
-  dumi(112) = maxtilesize
-  dumi(113) = mfix_t
-  dumi(114) = ensemble_mode
-  dumi(115) = ensemble_period
-  dumi(116) = hp_output
-  dumi(117) = intsch_mode
-  dumi(118) = qg_fix
+  dumi(108) = procmode
+  dumi(109) = compression
+  dumi(110) = nmr
+  dumi(111) = maxtilesize
+  dumi(112) = mfix_t
+  dumi(113) = ensemble_mode
+  dumi(114) = ensemble_period
+  dumi(115) = hp_output
+  dumi(116) = intsch_mode
+  dumi(117) = qg_fix
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1975,17 +1850,16 @@ nud_aero          = dumi(104)
 nriver            = dumi(105)
 atebnmlfile       = dumi(106)
 nud_period        = dumi(107)
-procformat        = dumi(108)==1
-procmode          = dumi(109)
-compression       = dumi(110)
-nmr               = dumi(111)
-maxtilesize       = dumi(112)
-mfix_t            = dumi(113)
-ensemble_mode     = dumi(114)
-ensemble_period   = dumi(115)
-hp_output         = dumi(116)
-intsch_mode       = dumi(117)
-qg_fix            = dumi(118)
+procmode          = dumi(108)
+compression       = dumi(109)
+nmr               = dumi(110)
+maxtilesize       = dumi(111)
+mfix_t            = dumi(112)
+ensemble_mode     = dumi(113)
+ensemble_period   = dumi(114)
+hp_output         = dumi(115)
+intsch_mode       = dumi(116)
+qg_fix            = dumi(117)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -1998,7 +1872,7 @@ if ( nstn>0 ) then
     call ccmpi_bcast(name_stn(i),0,comm_world)
   end do
 end if
-allocate( dumr(8), dumi(10) )
+allocate( dumr(9), dumi(10) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2011,6 +1885,7 @@ if ( myid==0 ) then
   dumr(6)  = carbmtn
   dumr(7)  = saltsmallmtn
   dumr(8)  = saltlargemtn
+  dumr(9)  = csolar
   dumi(1)  = mins_rad
   dumi(2)  = liqradmethod
   dumi(3)  = iceradmethod
@@ -2034,6 +1909,7 @@ so4mtn              = dumi(5)
 carbmtn             = dumr(6)
 saltsmallmtn        = dumr(7)
 saltlargemtn        = dumr(8)
+csolar              = dumr(9)
 mins_rad            = dumi(1)
 liqradmethod        = dumi(2)
 iceradmethod        = dumi(3)
@@ -2926,8 +2802,8 @@ if ( myid<nproc ) then
     write(6,*)'I/O options:'
     write(6,*)' m_fly  io_in io_nest io_out io_rest  nwt  nperavg'
     write(6,'(i5,4i7,3i8)') m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg
-    write(6,*)' hp_output procformat procmode compression'
-    write(6,'(i5,l5,2i5)') hp_output,procformat,procmode,compression
+    write(6,*)' hp_output procmode compression'
+    write(6,'(i5,l5,2i5)') hp_output,procmode,compression
 
     write(6, cardin)
     write(6, skyin)
@@ -2979,11 +2855,7 @@ if ( myid<nproc ) then
 
   ! This is the procformat IO system where a single output file is
   ! written per node
-  call ccmpi_procformat_init(procformat,procmode) 
-  if ( procformat .and. .not.localhist ) then
-    write(6,*) "ERROR: procformat=.true. requires localhist=.true."
-    call ccmpi_abort(-1)
-  end if
+  call ccmpi_procformat_init(localhist,procmode) 
 
 
   !--------------------------------------------------------------
