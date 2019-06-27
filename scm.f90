@@ -400,7 +400,7 @@ ifull = 1
 iextra = 0
 nrows_rad = 1
 
-procformat=.false.
+localhist=.false.
 procmode = nproc
 comm_vnode = comm_world
 vnode_nproc = 1

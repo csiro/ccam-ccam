@@ -12174,24 +12174,46 @@ contains
    subroutine ccmpi_commsplit(commout,comm,colour,rank)
       integer, intent(out) :: commout
       integer, intent(in) :: comm, colour, rank
+         commout = comm
    end subroutine ccmpi_commsplit
    
    subroutine dix_set(ipan_l,jpan_l,noff_l,ioff_l,joff_l,npan_l,il_gx,myid_l,nproc_l,nxproc_l,nyproc_l)
       integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
       integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
-      integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
+      integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l
+         ipan_l = 1
+         jpan_l = 1
+         noff_l = 1
+         nxproc_l = 1
+         nyproc_l = 1
+         ioff_l(:) = 0
+         joff_l(:) = 0 
    end subroutine dix_set
    
    subroutine face_set(ipan_l, jpan_l, noff_l, ioff_l, joff_l, npan_l, il_gx, myid_l, nproc_l, nxproc_l, nyproc_l)
       integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
       integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
-      integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
+      integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l
+         ipan_l = 1
+         jpan_l = 1
+         noff_l = 1
+         nxproc_l = 1
+         nyproc_l = 1
+         ioff_l(:) = 0
+         joff_l(:) = 0
    end subroutine face_set
 
    subroutine uniform_set(ipan_l,jpan_l,noff_l,ioff_l,joff_l,npan_l,il_gx,myid_l,nproc_l,nxproc_l,nyproc_l)
       integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
       integer, intent(out) :: ipan_l, jpan_l, noff_l, nxproc_l, nyproc_l
       integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
+         ipan_l = 1
+         jpan_l = 1
+         noff_l = 1
+         nxproc_l = 1
+         nyproc_l = 1
+         ioff_l(:) = 0
+         joff_l(:) = 0
    end subroutine uniform_set
    
    subroutine ccmpi_gatherx2r(gdat,ldat,host,comm)

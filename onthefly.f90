@@ -170,44 +170,55 @@ if ( myid==0 .or. pfall ) then
   end if
   
   ! search for required date ----------------------------------------
-  if ( myid==0 ) then
-    write(6,*)'Search for kdate_s,ktime_s >= ',kdate_s,ktime_s
-  end if
-  ltest = .true.       ! flag indicates that the date is not yet found
-  iarchi = iarchi - 1  ! move time index back one step to check current position in file
-  call ccnf_inq_varid(ncid,'time',idvtime)
-  call ccnf_get_att(ncid,idvtime,'units',datestring)
-  call processdatestring(datestring,kdate_rsav,ktime_rsav)
-  ! start search for required date/time
-  do while( ltest .and. iarchi<maxarchi )
-    ! could read this as one array, but we only usually need to advance 1 step
-    iarchi = iarchi + 1
-    kdate_r = kdate_rsav
-    ktime_r = ktime_rsav
-    call ccnf_get_vara(ncid,idvtime,iarchi,timer)
-    mtimer = nint(timer)
-    call datefix(kdate_r,ktime_r,mtimer)
-    ! ltest = .false. when correct date is found
-    ltest = (2400*(kdate_r-kdate_s)-1200*nsemble+(ktime_r-ktime_s))<0
-  end do
-  if ( nsemble/=0 ) then
-    kdate_r = kdate_s
+  if ( nrungcm==-14 ) then
+    iarchi = 1
+    ltest = .true.
+    kdate_r = kdate_s 
     ktime_r = ktime_s
-  end if
-  if ( ltest ) then
-    ! ran out of file before correct date was located
-    ktime_r = -1
     if ( myid==0 ) then
-      write(6,*) 'Search failed with ltest,iarchi =',ltest, iarchi
-      write(6,*) '                kdate_r,ktime_r =',kdate_r, ktime_r 
-    end if
-  else
-    ! valid date found  
-    if ( myid==0 ) then
-      write(6,*) 'Search succeeded with ltest,iarchi =',ltest, iarchi
+      write(6,*)'Reading climatology for iarch=1'
       write(6,*) '                   kdate_r,ktime_r =',kdate_r, ktime_r
     end if
-  end if
+  else  
+    if ( myid==0 ) then
+      write(6,*)'Search for kdate_s,ktime_s >= ',kdate_s,ktime_s
+    end if
+    ltest = .true.       ! flag indicates that the date is not yet found
+    iarchi = iarchi - 1  ! move time index back one step to check current position in file
+    call ccnf_inq_varid(ncid,'time',idvtime)
+    call ccnf_get_att(ncid,idvtime,'units',datestring)
+    call processdatestring(datestring,kdate_rsav,ktime_rsav)
+    ! start search for required date/time
+    do while( ltest .and. iarchi<maxarchi )
+      ! could read this as one array, but we only usually need to advance 1 step
+      iarchi = iarchi + 1
+      kdate_r = kdate_rsav
+      ktime_r = ktime_rsav
+      call ccnf_get_vara(ncid,idvtime,iarchi,timer)
+      mtimer = nint(timer)
+      call datefix(kdate_r,ktime_r,mtimer)
+      ! ltest = .false. when correct date is found
+      ltest = (2400*(kdate_r-kdate_s)-1200*nsemble+(ktime_r-ktime_s))<0
+    end do
+    if ( nsemble/=0 ) then
+      kdate_r = kdate_s
+      ktime_r = ktime_s
+    end if
+    if ( ltest ) then
+      ! ran out of file before correct date was located
+      ktime_r = -1
+      if ( myid==0 ) then
+        write(6,*) 'Search failed with ltest,iarchi =',ltest, iarchi
+        write(6,*) '                kdate_r,ktime_r =',kdate_r, ktime_r 
+      end if
+    else
+      ! valid date found  
+      if ( myid==0 ) then
+        write(6,*) 'Search succeeded with ltest,iarchi =',ltest, iarchi
+        write(6,*) '                   kdate_r,ktime_r =',kdate_r, ktime_r
+      end if
+    end if
+  end if  
 
 endif  ! ( myid==0 .or. pfall )
 

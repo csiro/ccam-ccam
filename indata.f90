@@ -1390,13 +1390,17 @@ end if     ! (nhstest<0)
 !                    -4  read_in          | not written  (usual for netCDF input)
 !                    -5  read_in (not wb) |     written  (should be good)
 !                    -6 same as -1 bit tapered wb over dry interio of Aust
+!                   -14 same is -4, but ignores date (usual for climatology)
 !                    >5 like -1 but sets most wb percentages
 
 ! preset soil data
 if ( .not.lrestart ) then
-  if((nrungcm.le.-1.and.nrungcm.ge.-2).or.nrungcm==-6.or.nrungcm>5)then
-    if (myid==0) write(6,*) "Using preset soil/snow initial conditions with nrungcm=",nrungcm
-    ! presetting wb when no soil moisture available initially
+    
+  ! presetting wb when no soil moisture available initially  
+  if ( nrungcm==-1 .or. nrungcm==-2 .or. nrungcm==-6 .or. nrungcm>5 ) then
+    if ( myid==0 ) then
+      write(6,*) "Using preset soil/snow initial conditions with nrungcm=",nrungcm
+    end if  
     iyr=kdate/10000
     imo=(kdate-10000*iyr)/100
     do iq=1,ifull
@@ -1461,7 +1465,7 @@ if ( .not.lrestart ) then
   endif       !  ((nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)
 
   ! Soil recycling input
-  if( nrungcm>=-5 .and. nrungcm<=-3 ) then
+  if( nrungcm==-3 .or. nrungcm==-4 .or. nrungcm==-5 .or. nrungcm==-14 ) then
     if ( myid==0 ) then
       write(6,*) '============================================================================'  
       write(6,*) 'Opening surface data input from ',trim(surf_00)
@@ -1482,7 +1486,9 @@ if ( .not.lrestart ) then
                     ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
       ! UPDATE BIOSPHERE DATA (nsib)
       if ( nsib==6 .or. nsib==7 ) then
-        if ( myid==0 ) write(6,*) 'Replacing CABLE and CASA data'
+        if ( myid==0 ) then
+          write(6,*) 'Replacing CABLE and CASA data'
+        end if  
         call loadtile(usedefault=.true.)
       end if
       call histclose
@@ -1528,7 +1534,7 @@ if ( .not.lrestart ) then
     end if  ! ier==0
   endif    !  (nrungcm<=-3.and.nrungcm>=-5)
 
-  if(nrungcm==4)then !  wb fix for ncep input 
+  if ( nrungcm==4 ) then !  wb fix for ncep input 
     ! this is related to eak's temporary fix for soil moisture
     ! - to compensate for ncep drying out, increase minimum value
     do k=1,ms
@@ -1541,7 +1547,7 @@ if ( .not.lrestart ) then
     enddo    !  k loop
   endif      !  (nrungcm==4)
 
-  if(nrungcm==5)then !  tgg, wb fix for mark 3 input
+  if ( nrungcm==5 ) then !  tgg, wb fix for mark 3 input
     ! unfortunately mk 3 only writes out 2 levels
     ! wb just saved as excess above wilting; top level & integrated values
     ! tgg saved for levels 2 and ms 
@@ -1567,8 +1573,8 @@ if ( .not.lrestart ) then
     end if
   endif      !  (nrungcm==5)
 
-  if(nrungcm==1)then  ! jlm alternative wb fix for nsib runs off early mark 2 gcm
-    if (mydiag ) then
+  if ( nrungcm==1 ) then  ! jlm alternative wb fix for nsib runs off early mark 2 gcm
+    if ( mydiag ) then
       isoil = isoilm(idjd)
       write(6,"('before nrungcm=1 fix-up wb(1-ms)',9f7.3)") (wb(idjd,k),k=1,ms)
       write(6,*)'nfixwb,isoil,swilt,sfc,ssat,alb ',nfixwb,isoil,swilt(isoil),sfc(isoil),ssat(isoil),albvisnir(idjd,1)
@@ -1637,8 +1643,8 @@ if ( .not.lrestart ) then
     end if
   endif          !  (nrungcm==1)
 
-  if(nrungcm==2)then  ! for nsib runs off early mark 2 gcm
-    if (mydiag) then
+  if ( nrungcm==2 ) then  ! for nsib runs off early mark 2 gcm
+    if ( mydiag ) then
       isoil = isoilm(idjd)
       write(6,*)'before nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
       write(6,*)'isoil,swilt,ssat,alb ',isoil,swilt(isoil),ssat(isoil),albvisnir(idjd,1)
@@ -1691,6 +1697,7 @@ if (nspecial==43) then
 end if
 #endif 
 if (nspecial==48.or.nspecial==49) then
+  ! for Andrew Lenton SCOPEX geoengineering  
   do k = 1,kl
     if ( sig(k)<0.05 ) exit
   end do
