@@ -5481,7 +5481,7 @@ end if
 call ccnf_close(ncid)
 deallocate( pncid )
 
-write(6,*) "Finished resading restart file"
+write(6,*) "Finished reading restart file"
 
 return
 end subroutine loadrestart
