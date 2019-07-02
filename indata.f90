@@ -263,29 +263,29 @@ if ( myid==0 ) then
   dumc(3*kl+5)=0.     ! urbantypes
   if ( nsib>=6 ) then
     call ccnf_open(vegfile,ncidveg,ierr)
-    if (ierr==0) then
-      dumc(3*kl+1)=1. ! lncveg
+    if ( ierr==0 ) then
+      dumc(3*kl+1) = 1. ! lncveg
       call ccnf_get_attg(ncidveg,'atebformat',urbanformat,ierr=iernc)
       if ( iernc/=0 ) then
         urbanformat = 0.  
       end if
       dumc(3*kl+4) = urbanformat  
-      ateb_len=0
-      call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len)
-      dumc(3*kl+5)=real(ateb_len)
+      ateb_len = 0
+      call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len,failok=.true.)
+      dumc(3*kl+5) = real(ateb_len)
     end if
   else if ( nsib==5 ) then
     call ccnf_open(vegfile,ncidveg,ierr)
-    if (ierr==0) then
-      dumc(3*kl+1)=1. ! lncveg
+    if ( ierr==0 ) then
+      dumc(3*kl+1) = 1. ! lncveg
       call ccnf_get_attg(ncidveg,'atebformat',urbanformat,ierr=iernc)
       if ( iernc/=0 ) then
         urbanformat = 0.  
       end if
       dumc(3*kl+4) = urbanformat   
-      ateb_len=0
-      call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len)
-      dumc(3*kl+5)=real(ateb_len)
+      ateb_len = 0
+      call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len,failok=.true.)
+      dumc(3*kl+5) = real(ateb_len)
     end if
   end if
   
@@ -315,12 +315,12 @@ end if ! (myid==0)
 ! dumc(3*kl+1) = lncveg,     dumc(3*kl+2)    = lncbath,  dumc(3*kl+3)      = lncriver
 ! dumc(3*kl+4) = urbanformat
 call ccmpi_bcast(dumc(1:3*kl+5),0,comm_world)
-sig      = dumc(1:kl)
-sigmh    = dumc(kl+1:2*kl)
-tbar     = dumc(2*kl+1:3*kl)
-lncveg   = nint(dumc(3*kl+1))
-lncbath  = nint(dumc(3*kl+2))
-lncriver = nint(dumc(3*kl+3))
+sig         = dumc(1:kl)
+sigmh       = dumc(kl+1:2*kl)
+tbar        = dumc(2*kl+1:3*kl)
+lncveg      = nint(dumc(3*kl+1))
+lncbath     = nint(dumc(3*kl+2))
+lncriver    = nint(dumc(3*kl+3))
 urbanformat = dumc(3*kl+4)
 ateb_len    = nint(dumc(3*kl+5))
 if ( myid==0 ) then
@@ -1390,7 +1390,7 @@ end if     ! (nhstest<0)
 !                    -4  read_in          | not written  (usual for netCDF input)
 !                    -5  read_in (not wb) |     written  (should be good)
 !                    -6 same as -1 bit tapered wb over dry interio of Aust
-!                   -14 same is -4, but ignores date (usual for climatology)
+!                   -14 same as -4, but ignores date (usual for climatology)
 !                    >5 like -1 but sets most wb percentages
 
 ! preset soil data

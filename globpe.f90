@@ -466,7 +466,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! ***********************************************************************
     
   ! nriver = 0   No transport of surface water
-  ! nriver = 1   River routing
+  ! nriver = 1   River routing (-1=save in output)
     
   if ( abs(nriver)==1 ) then  
     call START_LOG(river_begin)
@@ -2463,8 +2463,8 @@ end if
 wlev     = ol                   ! set nmlo and nmlodynamics ocean levels
 mindep   = max( 0., mindep )    ! limit ocean minimum depth below sea-level
 minwater = max( 0., minwater )  ! limit ocean minimum water level
-if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (output in history file)
-if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (no output in history file)
+if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (no output in history file)
+if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (output in history file)
 tke_umin = vmodmin              ! minimum wind speed for surface fluxes
 
 

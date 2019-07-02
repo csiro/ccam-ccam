@@ -1729,7 +1729,7 @@ do i = 1,itrbgn
                -rhsc(isc:iec,nc)        
 !$omp simd
     do iq = isc,iec
-      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,    &
+      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),    &
          -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
     end do  
     
@@ -1757,7 +1757,7 @@ do i = 1,itrbgn
                -rhsc(isc:iec,nc)   
 !$omp simd
     do iq = isc,iec
-      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,     &
+      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),     &
          -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
     end do  
     
@@ -2265,7 +2265,7 @@ do i = 1,itrend
                -rhsc(isc:iec,nc)     
 !$omp simd
     do iq = isc,iec
-      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,    &
+      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),    &
          -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
     end do  
     
@@ -2293,7 +2293,7 @@ do i = 1,itrend
                -rhsc(isc:iec,nc)   
 !$omp simd
     do iq = isc,iec
-      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
+      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),              &
          -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
     end do  
     
@@ -2349,7 +2349,7 @@ do itr = 2,itr_mgice
                   - rhsc(isc:iec,nc)   
 !$omp simd
       do iq = isc,iec
-        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,           &
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),           &
            -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
       end do
         
@@ -2377,7 +2377,7 @@ do itr = 2,itr_mgice
                  -rhsc(isc:iec,nc)
 !$omp simd
       do iq = isc,iec
-        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,           &
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),           &
            -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
       end do
         
@@ -2807,7 +2807,7 @@ do itr = 2,itr_mgice
                  -rhsc(isc:iec,nc)    
 !$omp simd
       do iq = isc,iec
-        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),              &
            -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
       end do  
     
@@ -2835,7 +2835,7 @@ do itr = 2,itr_mgice
                  -rhsc(isc:iec,nc)   
 !$omp simd
       do iq = isc,iec
-        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc)+minwater,              &
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),              &
            -2.*cu(iq)/(bu(iq)+sqrt(bu(iq)**2-4.*yyc(iq,nc)*cu(iq))) )
       end do
       

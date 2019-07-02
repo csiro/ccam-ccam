@@ -169,9 +169,9 @@ if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
   allocate(stwgt(ifull,wlev))
   stwgt = 0.
   do ii = 1,wlev
-    where ( wtr(in,ii) .and. wtr(ien,ii) .and. wtr(ie,ii) .and. wtr(1:ifull,ii) .and. &
-            wtr(is,ii) .and. wtr(ies,ii) .and. wtr(ine,ii) .and. wtr(iw,ii) .and.     &
-            wtr(inw,ii) )
+    where ( wtr(in,ii) .and. wtr(ien,ii) .and. wtr(ie,ii) .and. wtr(ine,ii) .and. &
+            wtr(is,ii) .and. wtr(ies,ii) .and. wtr(iw,ii) .and. wtr(inw,ii) .and. &
+            wtr(1:ifull,ii) )
       stwgt(1:ifull,ii) = 1.
     end where
   end do  
@@ -333,14 +333,14 @@ do k = 1,wlev
   call unpack_svwu(eeu(:,k),eev(:,k),eev_s,eeu_w)  
   call unpack_nveu(uau(:,k),uav(:,k),v_n,u_e)  
   call unpack_svwu(uau(:,k),uav(:,k),v_s,u_w)
-  dudx = 0.5*((u_e-uau(1:ifull,k))*emu(1:ifull)*eeu(1:ifull,k)        &
-             +(uau(1:ifull,k)-u_w)*emu_w*eeu_w)/ds
-  dudy = 0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull)*eev(1:ifull,k) &
-             +(uau(1:ifull,k)-uau(isu,k))*emv_s*eev_s)/ds
-  dvdx = 0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull)*eeu(1:ifull,k) &
-             +(uav(1:ifull,k)-uav(iwv,k))*emu_w*eeu_w)/ds
-  dvdy = 0.5*((v_n-uav(1:ifull,k))*emv(1:ifull)*eev(1:ifull,k)        &
-             +(uav(1:ifull,k)-v_s)*emv_s*eev_s)/ds
+  dudx = 0.5*((u_e-uau(1:ifull,k))*emu(1:ifull)        &
+             +(uau(1:ifull,k)-u_w)*emu_w)/ds
+  dudy = 0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull) &
+             +(uau(1:ifull,k)-uau(isu,k))*emv_s)/ds
+  dvdx = 0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull) &
+             +(uav(1:ifull,k)-uav(iwv,k))*emu_w)/ds
+  dvdy = 0.5*((v_n-uav(1:ifull,k))*emv(1:ifull)        &
+             +(uav(1:ifull,k)-v_s)*emv_s)/ds
 
   !t_kh(1:ifull,k) = sqrt((dudx-dvdy)**2+(dudy+dvdx)**2)*hdif*emi
   t_kh(1:ifull,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi
@@ -361,15 +361,15 @@ if ( mlosigma>=0 .and. mlosigma<4 ) then
     tx_fact = 1./(1.+(abs(dep_e-dep(1:ifull,k))/ocndelphi)**nf)
     ty_fact = 1./(1.+(abs(dep_n-dep(1:ifull,k))/ocndelphi)**nf)
     call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
-    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*tx_fact*eeu(1:ifull,k) ! reduction factor
-    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*ty_fact*eev(1:ifull,k) ! reduction factor
+    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*tx_fact ! reduction factor
+    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*ty_fact ! reduction factor
   end do
 else
   ! z-star levels
   do k = 1,wlev
     call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
-    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*eeu(1:ifull,k)
-    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*eev(1:ifull,k)
+    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)
+    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)
   end do
 end if    
 call boundsuv(xfact,yfact,stag=-9)
@@ -438,7 +438,16 @@ else
   write(6,*) "ERROR: Unknown option for mlodiff = ",mlodiff
   call ccmpi_abort(-1)
 end if
-  
+
+do k = 1,wlev  
+  call unpack_svwu(eeu(:,k),eev(:,k),eev_s,eeu_w)
+  xfact(1:ifull,k) = xfact(1:ifull,k)*eeu(1:ifull,k)
+  xfact_iwu(:,k) = xfact_iwu(:,k)*eeu_w
+  yfact(1:ifull,k) = yfact(1:ifull,k)*eev(1:Ifull,k)
+  yfact_isv(:,k) = yfact_isv(:,k)*eev_s
+  base(:,k) = emi + xfact(1:ifull,k) + xfact_iwu(:,k) + yfact(1:ifull,k) + yfact_isv(:,k)
+end do
+
 ! Potential temperature and salinity
 duma(1:ifull,:,1) = tt(1:ifull,:)
 duma(1:ifull,:,2) = ss(1:ifull,:) - 34.72
@@ -548,8 +557,8 @@ real, dimension(ifull,wlev) :: mfixdum
 real, dimension(ifull,wlev+1) :: tau,tav,ttau,ttav
 real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s
 real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav
-real, dimension(ifull,wlev) :: kku,llu,mmu,nnu,oou
-real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv,oov
+real, dimension(ifull,wlev) :: kku,llu,mmu,nnu,oou,ppu
+real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv,oov,ppv
 real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull,wlev) :: dfrhobardyu,dfrhobardxv
 real, dimension(ifull,wlev) :: rhou, rhov
@@ -1138,11 +1147,6 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! u^(t+1) = nu = au^(t*) + bu*dpdxu^(t+1)/wrtrho + cu*dpdyu^(t+1)/wrtrho (staggered)
     ! v^(t+1) = nv = av^(t*) + bv*dpdyv^(t+1)/wrtrho + cv*dpdxv^(t+1)/wrtrho (staggered)
       
-    ! u^(t+1) = u^(t*) + dt*f*v^(t+1) = u^(t*) + dt*f*v^(t*) - (dt*f)^2*u^(t+1)  
-    ! v^(t+1) = v^(t*) - dt*f*u^(t+1)
-      
-    ! u^(t+1)*(1+(dt*f)^2) = u^(t*) + dt*f*v^(t*)  
-
     ! u^(t+1)*(1+(0.5*dt*f)^2) = [u + 0.5*dt*f*v - 0.5*dt/wrtrho*dpdx]^(t*) + 0.5*dt*f*[v - 0.5*dt*f*u - 0.5*dt/wrtrho*dpdy]^(t*)
     !                            - 0.5*dt/wrtrho*[dpdx + 0.5*dt*f*dpdy]^(t+1)     
     ! v^(t+1)*(1+(0.5*dt*f)^2) = [v - 0.5*dt*f*u - 0.5*dt/wrtrho*dpdy]^(t*) - 0.5*dt*f*[u + 0.5*dt*f*v - 0.5*dt/wrtrho*dpdx]^(t*)
@@ -1180,8 +1184,8 @@ do mspec_mlo = mspeca_mlo,1,-1
 
     ! Create arrays for u and v at t+1 in terms of neta gradients
     
-    ! nu = kku + llu*ddu + mmu*detadxu + nnu*dfetadyu + oou*netau   (staggered)
-    ! nv = kkv + llv*ddv + mmv*detadyv + nnv*dfetadxv + oov*netav   (staggered)
+    ! nu = kku + llu*ddu + mmu*detadxu + nnu*dfetadyu + (oou+ppu)*netau   (staggered)
+    ! nv = kkv + llv*ddv + mmv*detadyv + nnv*dfetadxv + (oov+ppv)*netav   (staggered)
     
     gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
     gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
@@ -1191,14 +1195,16 @@ do mspec_mlo = mspeca_mlo,1,-1
     llu(:,ii) = grav*gosigu*(bu*drhobardxu(:,ii)/wrtrho - cu*dfdyu + cu*dfrhobardyu(:,ii)/wrtrho)
     mmu(:,ii) = bu*grav
     nnu(:,ii) = cu*grav
-    oou(:,ii) = grav*gosigu*(bu*drhobardxu(:,ii)/wrtrho -cu*dfdyu + cu*dfrhobardyu(:,ii)/wrtrho)
+    oou(:,ii) = grav*gosigu*(bu*drhobardxu(:,ii)/wrtrho - cu*dfdyu + cu*dfrhobardyu(:,ii)/wrtrho)
+    ppu(:,ii) = -grav*cu*dfdyu
 
     kkv(:,ii) = av + bv*(dpsdyv/wrtrho+grav*dttdyv) - cv*dfdxv*(picev/wrtrho+grav*tidev) &
               + cv*(dfpsdxv/wrtrho+grav*dfttdxv)
     llv(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii)/wrtrho - cv*dfdxv + cv*dfrhobardxv(:,ii)/wrtrho)
     mmv(:,ii) = bv*grav 
     nnv(:,ii) = cv*grav
-    oov(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii)/wrtrho - cv*dfdxv + grav*gosigv*cv*dfrhobardxv(:,ii)/wrtrho)
+    oov(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii)/wrtrho - cv*dfdxv + cv*dfrhobardxv(:,ii)/wrtrho)
+    ppv(:,ii) = -grav*cv*dfdxv
 
     if ( mlojacobi==7 ) then
       mmu(:,ii) = mmu(:,ii) + grav*rhou(:,ii)/wrtrho*(1.-gosigu)*bu
@@ -1216,12 +1222,14 @@ do mspec_mlo = mspeca_mlo,1,-1
     mmu(:,ii) = mmu(:,ii)*eeu(1:ifull,ii)
     nnu(:,ii) = nnu(:,ii)*eeu(1:ifull,ii)
     oou(:,ii) = oou(:,ii)*eeu(1:ifull,ii)
+    ppu(:,ii) = ppu(:,ii)*eeu(1:ifull,ii)
 
     kkv(:,ii) = kkv(:,ii)*eev(1:ifull,ii)
     llv(:,ii) = llv(:,ii)*eev(1:ifull,ii)
     mmv(:,ii) = mmv(:,ii)*eev(1:ifull,ii)
     nnv(:,ii) = nnv(:,ii)*eev(1:ifull,ii)
     oov(:,ii) = oov(:,ii)*eev(1:ifull,ii)
+    ppv(:,ii) = ppv(:,ii)*eev(1:ifull,ii)
     
     ! Pre-integrate arrays for u and v at t+1 (i.e., for calculating net divergence at t+1)
   
@@ -1232,13 +1240,13 @@ do mspec_mlo = mspeca_mlo,1,-1
     spu(1:ifull) = spu(1:ifull) + llu(:,ii)*godsigu(1:ifull,ii)
     squ(1:ifull) = squ(1:ifull) + mmu(:,ii)*godsigu(1:ifull,ii)
     ssu(1:ifull) = ssu(1:ifull) + nnu(:,ii)*godsigu(1:ifull,ii)
-    szu(1:ifull) = szu(1:ifull) + oou(:,ii)*godsigu(1:ifull,ii)
+    szu(1:ifull) = szu(1:ifull) + (oou(:,ii)+ppu(:,ii))*godsigu(1:ifull,ii)
 
     sov(1:ifull) = sov(1:ifull) + kkv(:,ii)*godsigv(1:ifull,ii)
     spv(1:ifull) = spv(1:ifull) + llv(:,ii)*godsigv(1:ifull,ii)
     sqv(1:ifull) = sqv(1:ifull) + mmv(:,ii)*godsigv(1:ifull,ii)
     ssv(1:ifull) = ssv(1:ifull) + nnv(:,ii)*godsigv(1:ifull,ii)
-    szv(1:ifull) = szv(1:ifull) + oov(:,ii)*godsigv(1:ifull,ii)
+    szv(1:ifull) = szv(1:ifull) + (oov(:,ii)+ppu(:,ii))*godsigv(1:ifull,ii)
 
   end do
 
@@ -1332,12 +1340,43 @@ do mspec_mlo = mspeca_mlo,1,-1
   detadyv = (neta_n-neta(1:ifull))*emv(1:ifull)/ds
   oeu(1:ifull) = 0.5*(neta_e+neta(1:ifull))
   oev(1:ifull) = 0.5*(neta_n+neta(1:ifull))
+  
+  !! if a grid point is drained, then treat as land
+  !drainmsk = neta(:)<-dd(:)+minwater
+  !do iq = 1,ifull
+  !  if ( drainmsk(ie(iq)) .or. drainmsk(iq) ) then
+  !    kku(iq,:) = 0.
+  !    llu(iq,:) = 0.
+  !    mmu(iq,:) = 0.
+  !    nnu(iq,:) = 0.
+  !    oou(iq,:) = 0.
+  !    ppu(iq,:) = 0.
+  !  end if
+  !  if ( drainmsk(in(iq)) .or. drainmsk(ien(iq)) .or. drainmsk(is(iq)) .or. drainmsk(ies(iq)) .or. &
+  !       drainmsk(ie(iq)) .or. drainmsk(ine(iq)) .or. drainmsk(iw(iq)) .or. drainmsk(inw(iq)) .or. &
+  !       drainmsk(iq) ) then
+  !    nnu(iq,:) = 0.
+  !    ppu(iq,:) = 0.
+  !    nnv(iq,:) = 0.
+  !    ppv(iq,:) = 0.
+  !  end if
+  !  if ( drainmsk(in(iq)) .or. drainmsk(iq) ) then
+  !    kkv(iq,:) = 0.
+  !    llv(iq,:) = 0.
+  !    mmv(iq,:) = 0.
+  !    nnv(iq,:) = 0.
+  !    oov(iq,:) = 0.
+  !    ppv(iq,:) = 0.
+  !  end if
+  !end do  
 
   ! Update currents once neta is calculated
   do ii = 1,wlev
     ! update currents (staggered)
-    nu(1:ifull,ii) = kku(:,ii) + llu(:,ii)*ddu(1:ifull) + mmu(:,ii)*detadxu + nnu(:,ii)*dfetadyu + oou(:,ii)*oeu(1:ifull)
-    nv(1:ifull,ii) = kkv(:,ii) + llv(:,ii)*ddv(1:ifull) + mmv(:,ii)*detadyv + nnv(:,ii)*dfetadxv + oov(:,ii)*oev(1:ifull)
+    nu(1:ifull,ii) = kku(:,ii) + llu(:,ii)*ddu(1:ifull) + mmu(:,ii)*detadxu + nnu(:,ii)*dfetadyu &
+                   + (oou(:,ii)+ppu(:,ii))*oeu(1:ifull)
+    nv(1:ifull,ii) = kkv(:,ii) + llv(:,ii)*ddv(1:ifull) + mmv(:,ii)*detadyv + nnv(:,ii)*dfetadxv &
+                   + (oov(:,ii)+ppv(:,ii))*oev(1:ifull)
   end do 
   
   
@@ -2230,12 +2269,12 @@ logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
 
 call START_LOG(waterints_begin)
 
-ntr=size(s,3)
-intsch=mod(ktau,2)
+ntr = size(s,3)
+intsch = mod(ktau,2)
 
-do nn=1,ntr
-  do k=1,wlev
-    where (.not.wtr(1:ifull,k))
+do nn = 1,ntr
+  do k = 1,wlev
+    where ( .not.wtr(1:ifull,k) )
       s(1:ifull,k,nn) = 0.
     end where
   end do
