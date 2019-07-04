@@ -1329,8 +1329,6 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'u10max',lname,'m/s',-99.,99.,1,cptype)
       lname = 'y-component max 10m wind'
       call attrib(idnc,dimj,jsize,'v10max',lname,'m/s',-99.,99.,1,cptype)
-      lname = 'Maximum 10m wind speed'
-      call attrib(idnc,dimj,jsize,'sfcWindmax',lname,'m/s',0.,199.,0,cptype)
       lname = 'Maximum screen temperature (station)'
       call attrib(idnc,dimj,jsize,'tmaxscr_stn',lname,'K',100.,425.,1,cptype)
       lname = 'Minimum screen temperature (station)'
@@ -1343,8 +1341,6 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'u10max_stn',lname,'m/s',-99.,99.,1,cptype)
       lname = 'y-component max 10m wind (station)'
       call attrib(idnc,dimj,jsize,'v10max_stn',lname,'m/s',-99.,99.,1,cptype)
-      lname = 'Maximum 10m wind speed (station)'
-      call attrib(idnc,dimj,jsize,'sfcWindmax_stn',lname,'m/s',0.,199.,0,cptype)
       lname = 'x-component max level_1 wind'
       call attrib(idnc,dimj,jsize,'u1max',lname,'m/s',-99.,99.,1,cptype)
       lname = 'y-component max level_1 wind'
@@ -2543,14 +2539,12 @@ if ( itype/=-1 .and. save_maxmin ) then  ! these not written to restart file
   call histwrt(rhminscr,'rhminscr',idnc,iarch,local,lday)
   call histwrt(u10max,'u10max',idnc,iarch,local,lday)
   call histwrt(v10max,'v10max',idnc,iarch,local,lday)
-  call histwrt(u10mx,'sfcWindmax',idnc,iarch,local,lave)
   call histwrt(tmaxscr_clearing,'tmaxscr_stn',idnc,iarch,local,lday)
   call histwrt(tminscr_clearing,'tminscr_stn',idnc,iarch,local,lday)
   call histwrt(rhmaxscr_clearing,'rhmaxscr_stn',idnc,iarch,local,lday)
   call histwrt(rhminscr_clearing,'rhminscr_stn',idnc,iarch,local,lday)
   call histwrt(u10max_clearing,'u10max_stn',idnc,iarch,local,lday)
   call histwrt(v10max_clearing,'v10max_stn',idnc,iarch,local,lday)
-  call histwrt(u10mx_clearing,'sfcWindmax_stn',idnc,iarch,local,lave)
   call histwrt(u1max,'u1max',idnc,iarch,local,lday)
   call histwrt(v1max,'v1max',idnc,iarch,local,lday)
   call histwrt(u2max,'u2max',idnc,iarch,local,lday)
@@ -2559,7 +2553,7 @@ if ( itype/=-1 .and. save_maxmin ) then  ! these not written to restart file
   ! needed to augment accumulated 3-hourly rainfall in rnd06 to rnd21 
   ! to allow for intermediate zeroing of precip()
   ! but not needed from 17/9/03 with introduction of rnd24
-  if (l3hr) then
+  if ( l3hr ) then
     call histwrt(rnd_3hr(:,1),'rnd03',idnc,iarch,local,lday)
     call histwrt(rnd_3hr(:,2),'rnd06',idnc,iarch,local,lday)
     call histwrt(rnd_3hr(:,3),'rnd09',idnc,iarch,local,lday)

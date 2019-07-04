@@ -935,7 +935,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   
   ! HOURLY DIAGNOSTICS ---------------------------------------
   if ( mod(ktau,nperhr)==0 ) then
-    call zero_nperday
+    call zero_nperhour
   end if
 
   ! DAILY DIAGNOSTICS ----------------------------------------
@@ -3698,8 +3698,6 @@ grpl(:)              = 0.  ! converted to mm/day in outcdf
 runoff(:)            = 0.  ! converted to mm/day in outcdf
 runoff_surface(:)    = 0.  ! converted to mm/day in outcdf
 snowmelt(:)          = 0.  ! converted to mm/day in outcdf
-u10mx(:)             = 0.
-u10mx_clearing(:)    = 0.
 cape_max(:)          = 0.
 cape_ave(:)          = 0.
 
@@ -3851,12 +3849,10 @@ tminscr_clearing(1:ifull)  = min( tminscr_clearing(1:ifull), tscrn_clearing )
 rhmaxscr_clearing(1:ifull) = max( rhmaxscr_clearing(1:ifull), rhscrn_clearing )
 rhminscr_clearing(1:ifull) = min( rhminscr_clearing(1:ifull), rhscrn_clearing )
 rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
-prhour(1:ifull)            = prhour(1:ifull) + condx/3600. ! condx/dt*dt/3600 to give kg/m2/s
+prhour(1:ifull)            = prhour(1:ifull) + condx/3600. ! condx/dt*dt/3600 to give kg/m2/hr
 prhmax(1:ifull)            = max( prhmax(1:ifull), prhour )
 cape_max(1:ifull)          = max( cape_max(1:ifull), cape )
 cape_ave(1:ifull)          = cape_ave(1:ifull) + cape
-u10mx(1:ifull)             = max( u10mx(1:ifull), u10 )  ! for hourly scrnfile
-u10mx_clearing(1:ifull)    = max( u10mx_clearing(1:ifull), u10_clearing )  ! for hourly scrnfile
 dew_ave(1:ifull)           = dew_ave(1:ifull) - min( 0., eg )    
 epan_ave(1:ifull)          = epan_ave(1:ifull) + epan
 epot_ave(1:ifull)          = epot_ave(1:ifull) + epot 
