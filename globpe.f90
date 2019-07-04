@@ -193,6 +193,7 @@ end do
 n3hr = 1           ! initial value at start of run
 nlx = 0            ! diagnostic level
 call zero_nperavg  ! reset average period diagnostics
+call zero_nperhour ! reset hourly period diagnostics
 call zero_nperday  ! reset daily period diagnostics
 
 
@@ -208,7 +209,7 @@ mspeca = 1
 if ( mex/=1 .and. .not.lrestart ) then
   mspeca = 2
   dt = 0.5*dtin
-endif
+end if
 call gettin(0) ! preserve initial mass & T fields
 
 
@@ -873,7 +874,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     n3hr = n3hr + 1
     if ( n3hr>8 ) n3hr = 1
   endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
-
+  
   
   ! Turn off log before writing output
   call log_off
@@ -931,6 +932,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
     ! also zero most averaged fields every nperavg
     call zero_nperavg
   endif  ! (mod(ktau,nperavg)==0)
+  
+  ! HOURLY DIAGNOSTICS ---------------------------------------
+  if ( mod(ktau,nperhr)==0 ) then
+    call zero_nperday
+  end if
 
   ! DAILY DIAGNOSTICS ----------------------------------------
   if ( mod(ktau,nperday)==0 ) then   ! re-set at the end of each 24 hours
@@ -3749,6 +3755,20 @@ return
 end subroutine zero_nperavg
     
 !--------------------------------------------------------------
+! Reset diagnostics for averaging period    
+subroutine zero_nperhour
+
+use histave_m                              ! Time average arrays
+
+implicit none
+
+prhour(:) = 0.
+
+return
+end subroutine zero_nperhour
+    
+    
+!--------------------------------------------------------------
 ! Reset diagnostics for daily averages    
 subroutine zero_nperday
 
@@ -3759,7 +3779,8 @@ use screen_m                               ! Screen level diagnostics
 
 implicit none
 
-rndmax (:)  = 0.
+rndmax(:)   = 0.
+prhmax(:)   = 0.
 tmaxscr(:)  = tscrn(:) 
 tminscr(:)  = tscrn(:) 
 rhmaxscr(:) = rhscrn(:) 
@@ -3830,6 +3851,8 @@ tminscr_clearing(1:ifull)  = min( tminscr_clearing(1:ifull), tscrn_clearing )
 rhmaxscr_clearing(1:ifull) = max( rhmaxscr_clearing(1:ifull), rhscrn_clearing )
 rhminscr_clearing(1:ifull) = min( rhminscr_clearing(1:ifull), rhscrn_clearing )
 rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
+prhour(1:ifull)            = prhour(1:ifull) + condx/3600. ! condx/dt*dt/3600 to give kg/m2/s
+prhmax(1:ifull)            = max( prhmax(1:ifull), prhour )
 cape_max(1:ifull)          = max( cape_max(1:ifull), cape )
 cape_ave(1:ifull)          = cape_ave(1:ifull) + cape
 u10mx(1:ifull)             = max( u10mx(1:ifull), u10 )  ! for hourly scrnfile

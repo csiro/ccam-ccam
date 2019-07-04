@@ -100,7 +100,7 @@ public nf_get_var1_real, nf_get_var1_int, nf_get_var1_int1, nf_get_var1_int2, nf
 public nf_get_vars_text, nf_get_vars_int1, nf_get_vars_int2, nf_get_vars_int, nf_get_vars_real
 public nf_get_vars_double
 public nf_get_varm_int1, nf_get_varm_int2, nf_get_varm_int, nf_get_varm_real, nf_get_varm_double
-public nf_def_dim, nf_def_var, nf_def_var_deflate
+public nf_def_dim, nf_def_var, nf_def_var_deflate, nf_def_var_chunking
 public nf_rename_dim, nf_rename_att, nf_rename_var
 public nf_put_att_text, nf_put_att_int2, nf_put_att_real, nf_put_att_int, nf_put_att_int1
 public nf_put_att_double

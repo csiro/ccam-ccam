@@ -1315,6 +1315,8 @@ if( myid==0 .or. local ) then
     if ( itype/=-1 .and. save_maxmin ) then
       lname = 'Maximum precip rate in a timestep'
       call attrib(idnc,dimj,jsize,'maxrnd',lname,'mm/day',0.,2600.,1,-1) ! -1=long
+      lname = 'Maximum hourly precip rate'
+      call attrib(idnc,dimj,jsize,'prhmax',lname,'kg/m2/s',0.,2600.,1,-1) ! -1=long
       lname = 'Maximum screen temperature'
       call attrib(idnc,dimj,jsize,'tmaxscr',lname,'K',100.,425.,1,cptype)
       lname = 'Minimum screen temperature'
@@ -1328,7 +1330,7 @@ if( myid==0 .or. local ) then
       lname = 'y-component max 10m wind'
       call attrib(idnc,dimj,jsize,'v10max',lname,'m/s',-99.,99.,1,cptype)
       lname = 'Maximum 10m wind speed'
-      call attrib(idnc,dimj,jsize,'sfcWindmax',lname,'m/s',0.,199.,1,cptype)
+      call attrib(idnc,dimj,jsize,'sfcWindmax',lname,'m/s',0.,199.,0,cptype)
       lname = 'Maximum screen temperature (station)'
       call attrib(idnc,dimj,jsize,'tmaxscr_stn',lname,'K',100.,425.,1,cptype)
       lname = 'Minimum screen temperature (station)'
@@ -1342,7 +1344,7 @@ if( myid==0 .or. local ) then
       lname = 'y-component max 10m wind (station)'
       call attrib(idnc,dimj,jsize,'v10max_stn',lname,'m/s',-99.,99.,1,cptype)
       lname = 'Maximum 10m wind speed (station)'
-      call attrib(idnc,dimj,jsize,'sfcWindmax_stn',lname,'m/s',0.,199.,1,cptype)
+      call attrib(idnc,dimj,jsize,'sfcWindmax_stn',lname,'m/s',0.,199.,0,cptype)
       lname = 'x-component max level_1 wind'
       call attrib(idnc,dimj,jsize,'u1max',lname,'m/s',-99.,99.,1,cptype)
       lname = 'y-component max level_1 wind'
@@ -2534,6 +2536,7 @@ end if
 if ( itype/=-1 .and. save_maxmin ) then  ! these not written to restart file
   aa = rndmax(:)*86400./dt ! scale up to mm/day
   call histwrt(aa,'maxrnd',idnc,iarch,local,lday)
+  call histwrt(prhmax,'prhmax',idnc,iarch,local,lday)
   call histwrt(tmaxscr,'tmaxscr',idnc,iarch,local,lday)
   call histwrt(tminscr,'tminscr',idnc,iarch,local,lday)
   call histwrt(rhmaxscr,'rhmaxscr',idnc,iarch,local,lday)

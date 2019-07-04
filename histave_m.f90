@@ -26,7 +26,7 @@ implicit none
 
 private
 public eg_ave,fg_ave,ga_ave,epan_ave,dew_ave
-public cbas_ave,ctop_ave,rndmax
+public cbas_ave,ctop_ave,rndmax,prhmax,prhour
 public tmaxscr,tminscr,tscr_ave
 public rhmaxscr,rhminscr,rhscr_ave
 public tmaxscr_clearing, tminscr_clearing, tscr_ave_clearing
@@ -45,7 +45,7 @@ public histave_init,histave_end
 public fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
 
 real, dimension(:), allocatable, save :: eg_ave,fg_ave,ga_ave,epan_ave,dew_ave
-real, dimension(:), allocatable, save :: cbas_ave,ctop_ave,rndmax
+real, dimension(:), allocatable, save :: cbas_ave,ctop_ave,rndmax,prhmax,prhour
 real, dimension(:), allocatable, save :: tmaxscr,tminscr,tscr_ave
 real, dimension(:), allocatable, save :: rhmaxscr,rhminscr,rhscr_ave
 real, dimension(:), allocatable, save :: tmaxscr_clearing,tminscr_clearing,tscr_ave_clearing
@@ -72,7 +72,7 @@ implicit none
 integer, intent(in) :: ifull,kl,ms,ccycle
 
 allocate(eg_ave(ifull),fg_ave(ifull),ga_ave(ifull),epan_ave(ifull),dew_ave(ifull))
-allocate(cbas_ave(ifull),ctop_ave(ifull),rndmax(ifull))
+allocate(cbas_ave(ifull),ctop_ave(ifull),rndmax(ifull),prhmax(ifull),prhour(ifull))
 allocate(tmaxscr(ifull),tminscr(ifull),tscr_ave(ifull))
 allocate(rhmaxscr_clearing(ifull),rhminscr_clearing(ifull),rhscr_ave_clearing(ifull))
 allocate(tmaxscr_clearing(ifull),tminscr_clearing(ifull),tscr_ave_clearing(ifull))
@@ -88,6 +88,8 @@ allocate(anth_elecgas_ave(ifull), anth_heating_ave(ifull), anth_cooling_ave(iful
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
 rndmax(:)      = 0.
+prhmax(:)      = 0.
+prhour(:)      = 0.
 tmaxscr(:)     = 0.
 tminscr(:)     = 400.
 tscr_ave(:)    = 0.
@@ -168,7 +170,7 @@ subroutine histave_end
 implicit none
 
 deallocate(eg_ave,fg_ave,ga_ave,epan_ave,dew_ave)
-deallocate(cbas_ave,ctop_ave,rndmax)
+deallocate(cbas_ave,ctop_ave,rndmax,prhmax,prhour)
 deallocate(tmaxscr,tminscr,tscr_ave)
 deallocate(rhmaxscr,rhminscr,rhscr_ave)
 deallocate(tmaxscr_clearing,tminscr_clearing,tscr_ave_clearing)
