@@ -139,32 +139,32 @@ public smrf_switch, strf_switch
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 
 ! CABLE biophysical options
-integer, save :: soil_struc         = 0          ! 0 default, 1 SLI soil model
-integer, save :: fwsoil_switch      = 0          ! 0 default, 1 non-linear, 2 Lai and Ktaul, 3 Haverd2013
-integer, save :: cable_litter       = 0          ! 0 off, 1 on
-integer, save :: gs_switch          = 0          ! 0 leuning, 1 medlyn
-integer, save :: smrf_switch        = 4          ! 1 CASA-CNP, 2 SOLIN, 3 TRIFFID, 4 Trudinger2016(default),
-                                                 ! 5 DAMM (Soil Moist Respiration Function)
-integer, save :: strf_switch        = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 4 LT1994(default),
-                                                 ! 5 DAMM (Soil Temp Respiration Function)
+integer, save :: soil_struc      = 0          ! 0 default, 1 SLI soil model
+integer, save :: fwsoil_switch   = 0          ! 0 default, 1 non-linear, 2 Lai and Ktaul, 3 Haverd2013
+integer, save :: cable_litter    = 0          ! 0 off, 1 on
+integer, save :: gs_switch       = 0          ! 0 leuning, 1 medlyn
+integer, save :: smrf_switch     = 4          ! 1 CASA-CNP, 2 SOLIN, 3 TRIFFID, 4 Trudinger2016(default),
+                                              ! 5 DAMM (Soil Moist Respiration Function)
+integer, save :: strf_switch     = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 4 LT1994(default),
+                                              ! 5 DAMM (Soil Temp Respiration Function)
 ! CABLE biochemical options
-integer, save :: ccycle             = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
-integer, save :: proglai            = -1         ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
-integer, save :: progvcmax          = 0          ! 0 prescribed, 1 prognostic vcmax (standard), 2 prognostic vcmax (Walker2014)
+integer, save :: ccycle          = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
+integer, save :: proglai         = -1         ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
+integer, save :: progvcmax       = 0          ! 0 prescribed, 1 prognostic vcmax (standard), 2 prognostic vcmax (Walker2014)
 ! CABLE POP options
-integer, save :: cable_pop          = 0          ! 0 off, 1 on
+integer, save :: cable_pop       = 0          ! 0 off, 1 on
 ! CABLE climate options
-integer, save :: cable_climate      = 0          ! 0 off, 1 on
+integer, save :: cable_climate   = 0          ! 0 off, 1 on
 ! CABLE parameters
-integer, parameter :: maxtile       = 5          ! maximum possible number of tiles
+integer, parameter :: maxtile    = 5          ! maximum possible number of tiles
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
 integer, parameter :: COLDEST_DAY_SHEMISPHERE = 172
-integer, save :: POP_NPATCH = -1
-integer, save :: POP_NLAYER = -1
-integer, save :: POP_NCOHORT = -1
+integer, save :: POP_NPATCH      = -1
+integer, save :: POP_NLAYER      = -1
+integer, save :: POP_NCOHORT     = -1
 integer, save :: POP_HEIGHT_BINS = -1
-integer, save :: POP_NDISTURB = -1
-integer, save :: POP_AGEMAX= -1
+integer, save :: POP_NDISTURB    = -1
+integer, save :: POP_AGEMAX      = -1
 real, parameter :: minfrac = 0.01                ! minimum non-zero tile fraction (improves load balancing)
 
 integer, save :: maxnb                           ! maximum number of actual tiles
@@ -4377,6 +4377,18 @@ if ( mp_global>0 ) then
   !veg%rp20      = real(rp20(veg%iveg),8)
   !veg%rs20      = real(rs20(veg%iveg),8)
   !veg%vegcf     = real(vegcf(veg%iveg),8)
+  
+  ! patch
+  if ( gs_switch==1 ) then
+    if ( any( veg%g0==0. ) ) then
+      if ( myid==0 ) then
+        write(6,*) "WARN: Replacing g0=0. with g0=0.01 for gs_switch=1"
+        where ( veg%g0==0. ) 
+          veg%g0 = 0.01
+        end where
+      end if    
+    end if    
+  end if    
 
 end if
 
