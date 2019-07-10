@@ -831,10 +831,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
     tminscr(:)  = tscrn(:) 
     rhmaxscr(:) = rhscrn(:) 
     rhminscr(:) = rhscrn(:) 
-    tmaxscr_clearing(:)  = tscrn_clearing(:) 
-    tminscr_clearing(:)  = tscrn_clearing(:) 
-    rhmaxscr_clearing(:) = rhscrn_clearing(:) 
-    rhminscr_clearing(:) = rhscrn_clearing(:)
+    tmaxscr_stn(:)  = tscrn_stn(:) 
+    tminscr_stn(:)  = tscrn_stn(:) 
+    rhmaxscr_stn(:) = rhscrn_stn(:) 
+    rhminscr_stn(:) = rhscrn_stn(:)
   end if    
   call calculate_timeaverage
 
@@ -884,7 +884,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
     call outfile(20,ofile,psl,u,v,t,qg)  ! which calls outcdf
     if ( ktau==ntau .and. irest==1 ) then
-      ! Don't include the time for writing the restart file
+      ! do not include the time for writing the restart file
       call END_LOG(maincalc_end)
       ! write restart file
       call outfile(19,restfile,psl,u,v,t,qg)
@@ -1462,7 +1462,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,                                                          &
-    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cirrus_decay         ! cloud
+    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & ! EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
@@ -2008,7 +2008,7 @@ diaglevel_carbon    = dumi(19)
 diaglevel_river     = dumi(20)
 diaglevel_pop       = dumi(21)
 deallocate( dumi )
-allocate( dumr(34), dumi(21) )
+allocate( dumr(33), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2046,7 +2046,6 @@ if ( myid==0 ) then
   dumr(31) = rcm
   dumr(32) = rcrit_l
   dumr(33) = rcrit_s
-  dumr(34) = cirrus_decay
   dumi(1)  = iterconv
   dumi(2)  = ksc
   dumi(3)  = kscmom
@@ -2104,7 +2103,6 @@ bcon           = dumr(30)
 rcm            = dumr(31)
 rcrit_l        = dumr(32)
 rcrit_s        = dumr(33)
-cirrus_decay   = dumr(34)
 iterconv       = dumi(1) 
 ksc            = dumi(2)
 kscmom         = dumi(3)
@@ -3661,8 +3659,8 @@ riwp_ave(:)          = 0.
 rlwp_ave(:)          = 0.
 rhscr_ave(:)         = 0.
 tscr_ave(:)          = 0.
-rhscr_ave_clearing(:) = 0.
-tscr_ave_clearing(:)  = 0.
+rhscr_ave_stn(:)     = 0.
+tscr_ave_stn(:)      = 0.
 wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
 !tsu_ave(:)           = 0.
@@ -3785,12 +3783,12 @@ rhmaxscr(:) = rhscrn(:)
 rhminscr(:) = rhscrn(:) 
 u10max(:)   = 0.
 v10max(:)   = 0.
-tmaxscr_clearing(:)  = tscrn_clearing(:) 
-tminscr_clearing(:)  = tscrn_clearing(:) 
-rhmaxscr_clearing(:) = rhscrn_clearing(:) 
-rhminscr_clearing(:) = rhscrn_clearing(:)
-u10max_clearing(:)   = 0.
-v10max_clearing(:)   = 0.
+tmaxscr_stn(:)  = tscrn_stn(:) 
+tminscr_stn(:)  = tscrn_stn(:) 
+rhmaxscr_stn(:) = rhscrn_stn(:) 
+rhminscr_stn(:) = rhscrn_stn(:)
+u10max_stn(:)   = 0.
+v10max_stn(:)   = 0.
 u1max(:)    = 0.
 v1max(:)    = 0.
 u2max(:)    = 0.
@@ -3844,10 +3842,10 @@ tmaxscr(1:ifull)           = max( tmaxscr(1:ifull), tscrn )
 tminscr(1:ifull)           = min( tminscr(1:ifull), tscrn )
 rhmaxscr(1:ifull)          = max( rhmaxscr(1:ifull), rhscrn )
 rhminscr(1:ifull)          = min( rhminscr(1:ifull), rhscrn )
-tmaxscr_clearing(1:ifull)  = max( tmaxscr_clearing(1:ifull), tscrn_clearing )
-tminscr_clearing(1:ifull)  = min( tminscr_clearing(1:ifull), tscrn_clearing )
-rhmaxscr_clearing(1:ifull) = max( rhmaxscr_clearing(1:ifull), rhscrn_clearing )
-rhminscr_clearing(1:ifull) = min( rhminscr_clearing(1:ifull), rhscrn_clearing )
+tmaxscr_stn(1:ifull)       = max( tmaxscr_stn(1:ifull), tscrn_stn )
+tminscr_stn(1:ifull)       = min( tminscr_stn(1:ifull), tscrn_stn )
+rhmaxscr_stn(1:ifull)      = max( rhmaxscr_stn(1:ifull), rhscrn_stn )
+rhminscr_stn(1:ifull)      = min( rhminscr_stn(1:ifull), rhscrn_stn )
 rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
 prhour(1:ifull)            = prhour(1:ifull) + condx/3600. ! condx/dt*dt/3600 to give kg/m2/hr
 prhmax(1:ifull)            = max( prhmax(1:ifull), prhour )
@@ -3863,33 +3861,25 @@ anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
 anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull) + urban_elecgas_flux
 anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull) + urban_heating_flux
 anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull) + urban_cooling_flux
-!tasurban_ave(1:ifull)      = tasurban_ave(1:ifull) + urban_tas
 tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urban_tas )
 tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
 rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
 tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
 rhscr_ave(1:ifull)         = rhscr_ave(1:ifull) + rhscrn 
-tscr_ave_clearing(1:ifull)  = tscr_ave_clearing(1:ifull) + tscrn_clearing 
-rhscr_ave_clearing(1:ifull) = rhscr_ave_clearing(1:ifull) + rhscrn_clearing 
+tscr_ave_stn(1:ifull)      = tscr_ave_stn(1:ifull) + tscrn_stn 
+rhscr_ave_stn(1:ifull)     = rhscr_ave_stn(1:ifull) + rhscrn_stn 
 wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
-!tsu_ave(1:ifull)           = tsu_ave(1:ifull) + tss
-!call mslp(spare2,psl,zs,t) ! calculate MSLP from psl
-!spare2 = spare2/100.       ! convert MSLP to hPa
-!psl_ave(1:ifull)           = psl_ave(1:ifull) + spare2(1:ifull)
-!spare1(1:ifull)            = 0.
-!call mlodiag(spare1,0)     ! obtain ocean mixed level depth
-!mixdep_ave(1:ifull)        = mixdep_ave(1:ifull) + spare1(1:ifull)
 spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
 spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
 do iq = 1,ifull
-  if ( u10(iq)**2 > u10max(iq)**2 +v10max(iq)**2 ) then
+  if ( u10(iq)**2 > u10max(iq)**2 + v10max(iq)**2 ) then
     u10max(iq) = u10(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
     v10max(iq) = u10(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
   end if
-  if ( u10_clearing(iq)**2 > u10max_clearing(iq)**2 +v10max_clearing(iq)**2 ) then
-    u10max_clearing(iq) = u10_clearing(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
-    v10max_clearing(iq) = u10_clearing(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
+  if ( u10_stn(iq)**2 > u10max_stn(iq)**2 + v10max_stn(iq)**2 ) then
+    u10max_stn(iq) = u10_stn(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
+    v10max_stn(iq) = u10_stn(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
   end if
   if ( spare1(iq) > u1max(iq)**2+v1max(iq)**2 ) then
     u1max(iq) = u(iq,1)
@@ -3934,22 +3924,18 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull)/min(ntau,nperavg)
   anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull)/min(ntau,nperavg)
   anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull)/min(ntau,nperavg) 
-  !tasurban_ave(1:ifull)      = tasurban_ave(1:ifull)/min(ntau,nperavg)
   rnet_ave(1:ifull)          = rnet_ave(1:ifull)/min(ntau,nperavg)
   sunhours(1:ifull)          = sunhours(1:ifull)/min(ntau,nperavg)
   riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
   rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
   tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
   rhscr_ave(1:ifull)         = rhscr_ave(1:ifull)/min(ntau,nperavg)
-  tscr_ave_clearing(1:ifull)  = tscr_ave_clearing(1:ifull)/min(ntau,nperavg)
-  rhscr_ave_clearing(1:ifull) = rhscr_ave_clearing(1:ifull)/min(ntau,nperavg)
+  tscr_ave_stn(1:ifull)      = tscr_ave_stn(1:ifull)/min(ntau,nperavg)
+  rhscr_ave_stn(1:ifull)     = rhscr_ave_stn(1:ifull)/min(ntau,nperavg)
   do k = 1,ms
     wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
     wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)
   end do
-  !tsu_ave(1:ifull)    = tsu_ave(1:ifull)/min(ntau,nperavg)
-  !psl_ave(1:ifull)    = psl_ave(1:ifull)/min(ntau,nperavg)
-  !mixdep_ave(1:ifull) = mixdep_ave(1:ifull)/min(ntau,nperavg)
   sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
   sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
   sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)

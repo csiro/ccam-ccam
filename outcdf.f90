@@ -551,7 +551,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ch_dust',ch_dust)
     call ccnf_put_attg(idnc,'charnock',charnock)
     call ccnf_put_attg(idnc,'chn10',chn10)
-    call ccnf_put_attg(idnc,'cirrus_decay',cirrus_decay)
     call ccnf_put_attg(idnc,'divdamp',divdamp)
     call ccnf_put_attg(idnc,'ensemble_mode',ensemble_mode)
     call ccnf_put_attg(idnc,'ensemble_period',ensemble_period)
@@ -2523,7 +2522,7 @@ call histwrt(fracice,'fracice',idnc,iarch,local,.true.)
      
 ! DIAGNOSTICS -------------------------------------------------
 call histwrt(u10,'u10',idnc,iarch,local,.true.)
-call histwrt(u10_clearing,'u10_stn',idnc,iarch,local,.true.)
+call histwrt(u10_stn,'u10_stn',idnc,iarch,local,.true.)
 if ( save_cloud ) then
   call histwrt(cape_max,'cape_max',idnc,iarch,local,lwrite)
   call histwrt(cape_ave,'cape_ave',idnc,iarch,local,lwrite)
@@ -2539,12 +2538,12 @@ if ( itype/=-1 .and. save_maxmin ) then  ! these not written to restart file
   call histwrt(rhminscr,'rhminscr',idnc,iarch,local,lday)
   call histwrt(u10max,'u10max',idnc,iarch,local,lday)
   call histwrt(v10max,'v10max',idnc,iarch,local,lday)
-  call histwrt(tmaxscr_clearing,'tmaxscr_stn',idnc,iarch,local,lday)
-  call histwrt(tminscr_clearing,'tminscr_stn',idnc,iarch,local,lday)
-  call histwrt(rhmaxscr_clearing,'rhmaxscr_stn',idnc,iarch,local,lday)
-  call histwrt(rhminscr_clearing,'rhminscr_stn',idnc,iarch,local,lday)
-  call histwrt(u10max_clearing,'u10max_stn',idnc,iarch,local,lday)
-  call histwrt(v10max_clearing,'v10max_stn',idnc,iarch,local,lday)
+  call histwrt(tmaxscr_stn,'tmaxscr_stn',idnc,iarch,local,lday)
+  call histwrt(tminscr_stn,'tminscr_stn',idnc,iarch,local,lday)
+  call histwrt(rhmaxscr_stn,'rhmaxscr_stn',idnc,iarch,local,lday)
+  call histwrt(rhminscr_stn,'rhminscr_stn',idnc,iarch,local,lday)
+  call histwrt(u10max_stn,'u10max_stn',idnc,iarch,local,lday)
+  call histwrt(v10max_stn,'v10max_stn',idnc,iarch,local,lday)
   call histwrt(u1max,'u1max',idnc,iarch,local,lday)
   call histwrt(v1max,'v1max',idnc,iarch,local,lday)
   call histwrt(u2max,'u2max',idnc,iarch,local,lday)
@@ -2603,8 +2602,8 @@ end if
 ! only write these once per avg period
 call histwrt(tscr_ave,'tscr_ave',idnc,iarch,local,lave_0)
 call histwrt(rhscr_ave,'rhscr_ave',idnc,iarch,local,lave_0)
-call histwrt(tscr_ave_clearing,'tscr_ave_stn',idnc,iarch,local,lave_0)
-call histwrt(rhscr_ave_clearing,'rhscr_ave_stn',idnc,iarch,local,lave_0)
+call histwrt(tscr_ave_stn,'tscr_ave_stn',idnc,iarch,local,lave_0)
+call histwrt(rhscr_ave_stn,'rhscr_ave_stn',idnc,iarch,local,lave_0)
 if ( save_cloud .or. itype==-1 ) then
   call histwrt(cbas_ave,'cbas_ave',idnc,iarch,local,lave_0)
   call histwrt(ctop_ave,'ctop_ave',idnc,iarch,local,lave_0)
@@ -2666,11 +2665,11 @@ if ( itype/=-1 ) then  ! these not written to restart file
   call histwrt(rhscrn,'rhscrn',idnc,iarch,local,lwrite)
   call histwrt(uscrn,'uscrn',idnc,iarch,local,lwrite)
 end if  
-call histwrt(tscrn_clearing,'tscrn_stn',idnc,iarch,local,lwrite_0)
-call histwrt(qgscrn_clearing,'qgscrn_stn',idnc,iarch,local,lwrite_0)
+call histwrt(tscrn_stn,'tscrn_stn',idnc,iarch,local,lwrite_0)
+call histwrt(qgscrn_stn,'qgscrn_stn',idnc,iarch,local,lwrite_0)
 if ( itype/=-1 ) then  ! these not written to restart file
-  call histwrt(rhscrn_clearing,'rhscrn_stn',idnc,iarch,local,lwrite)
-  call histwrt(uscrn_clearing,'uscrn_stn',idnc,iarch,local,lwrite)
+  call histwrt(rhscrn_stn,'rhscrn_stn',idnc,iarch,local,lwrite)
+  call histwrt(uscrn_stn,'uscrn_stn',idnc,iarch,local,lwrite)
   if ( save_radiation ) then
     call histwrt(rnet,'rnet',idnc,iarch,local,lwrite)
   end if
@@ -3683,22 +3682,22 @@ if ( ti==0 ) ti = tblock*tbave
 ti = (ti-1)/tbave + 1
 umag = sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
 call mslp(pmsl,psl,zs,t)
-freqstore(1:ifull,ti,1)  = freqstore(1:ifull,ti,1)  + u10*u(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,2)  = freqstore(1:ifull,ti,2)  + u10*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,3)  = freqstore(1:ifull,ti,3)  + tscrn
-freqstore(1:ifull,ti,4)  = freqstore(1:ifull,ti,4)  + rhscrn
-freqstore(1:ifull,ti,5)  = freqstore(1:ifull,ti,5)  + condx*86400./dt
-freqstore(1:ifull,ti,6)  = freqstore(1:ifull,ti,6)  + conds*86400./dt
-freqstore(1:ifull,ti,7)  = freqstore(1:ifull,ti,7)  + condg*86400./dt
-freqstore(1:ifull,ti,8)  = freqstore(1:ifull,ti,8)  + pmsl/100.
-freqstore(1:ifull,ti,9)  = freqstore(1:ifull,ti,9)  + sgdn
-freqstore(1:ifull,ti,10) = freqstore(1:ifull,ti,10) + sgn
-freqstore(1:ifull,ti,11) = freqstore(1:ifull,ti,11) + rgdn
-freqstore(1:ifull,ti,12) = freqstore(1:ifull,ti,12) + rgn
-freqstore(1:ifull,ti,13) = freqstore(1:ifull,ti,13) + u10_clearing*u(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,14) = freqstore(1:ifull,ti,14) + u10_clearing*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,15) = freqstore(1:ifull,ti,15) + tscrn_clearing
-freqstore(1:ifull,ti,16) = freqstore(1:ifull,ti,16) + rhscrn_clearing
+freqstore(1:ifull,ti,1)  = u10*u(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,ti,2)  = u10*v(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,ti,3)  = tscrn
+freqstore(1:ifull,ti,4)  = rhscrn
+freqstore(1:ifull,ti,5)  = freqstore(1:ifull,ti,5)  + condx*86400./dt/real(tbave)
+freqstore(1:ifull,ti,6)  = freqstore(1:ifull,ti,6)  + conds*86400./dt/real(tbave)
+freqstore(1:ifull,ti,7)  = freqstore(1:ifull,ti,7)  + condg*86400./dt/real(tbave)
+freqstore(1:ifull,ti,8)  = pmsl/100.
+freqstore(1:ifull,ti,9)  = freqstore(1:ifull,ti,9)  + sgdn/real(tbave)
+freqstore(1:ifull,ti,10) = freqstore(1:ifull,ti,10) + sgn/real(tbave)
+freqstore(1:ifull,ti,11) = freqstore(1:ifull,ti,11) + rgdn/real(tbave)
+freqstore(1:ifull,ti,12) = freqstore(1:ifull,ti,12) + rgn/real(tbave)
+freqstore(1:ifull,ti,13) = u10_stn*u(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,ti,14) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,ti,15) = tscrn_stn
+freqstore(1:ifull,ti,16) = rhscrn_stn
 
 ! write data to file
 if ( mod(ktau,tblock*tbave)==0 ) then
@@ -3729,7 +3728,6 @@ if ( mod(ktau,tblock*tbave)==0 ) then
   end if
 
   ! record output
-  freqstore(:,:,:) = freqstore(:,:,:)/real(tbave)
   call freqwrite(fncid,'uas',       fiarch,tblock,local,freqstore(:,:,1))
   call freqwrite(fncid,'vas',       fiarch,tblock,local,freqstore(:,:,2))
   call freqwrite(fncid,'tscrn',     fiarch,tblock,local,freqstore(:,:,3))

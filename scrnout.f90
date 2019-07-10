@@ -480,9 +480,9 @@ real, dimension(is:ie) :: ou, ov, atu, atv, iu, iv
 real, dimension(is:ie) :: au, av, es, rho
 real, dimension(is:ie) :: u_qgscrn, u_rhscrn, u_tscrn, u_uscrn, u_u10
 real, dimension(is:ie) :: u_ustar, u_tstar, u_qstar, u_thetavstar
-real, dimension(imax) :: new_zo, new_zoh, new_zoq, new_tss, new_smixr
-real, dimension(imax) :: ustar_clearing, tstar_clearing
-real, dimension(imax) :: qstar_clearing, thetavstar_clearing
+real, dimension(is:ie) :: new_zo, new_zoh, new_zoq, new_tss, new_smixr
+real, dimension(is:ie) :: ustar_stn, tstar_stn
+real, dimension(is:ie) :: qstar_stn, thetavstar_stn
     
 tile = ie/imax
 
@@ -510,16 +510,16 @@ es(is:ie) = establ(tss(is:ie))
 qsttg(is:ie) = 0.622*es(is:ie)/(ps(is:ie)-es(is:ie))
 smixr(is:ie) = wetfac(is:ie)*qsttg(is:ie) + (1.-wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
 
-new_zo = zo(is:ie)
-new_zoh = zoh(is:ie)
-new_zoq = zoq(is:ie)
-new_tss = tss(is:ie)
-new_smixr = smixr(is:ie)
+new_zo(is:ie) = zo(is:ie)
+new_zoh(is:ie) = zoh(is:ie)
+new_zoq(is:ie) = zoq(is:ie)
+new_tss(is:ie) = tss(is:ie)
+new_smixr(is:ie) = smixr(is:ie)
 
 call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie), &
-                ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),new_zo,          &
-                new_zoh,new_zoq,new_tss,t(is:ie,1),new_smixr,qg(is:ie,1),                 &
-                umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
+                ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),new_zo(is:ie),   &
+                new_zoh(is:ie),new_zoq(is:ie),new_tss(is:ie),t(is:ie,1),new_smixr(is:ie), &
+                qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
 
 rho(is:ie) = ps(is:ie)/(rdry*tss(is:ie))
 cduv(is:ie) = ustar(is:ie)**2/umag(is:ie)
@@ -535,47 +535,48 @@ u10(is:ie)   = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
 
 
 ! urban tile
-new_zo = zo(is:ie)
-new_zoh = zoh(is:ie)
-new_zoq = zoq(is:ie)
-new_tss = tss(is:ie)
-new_smixr = smixr(is:ie)
+new_zo(is:ie) = zo(is:ie)
+new_zoh(is:ie) = zoh(is:ie)
+new_zoq(is:ie) = zoq(is:ie)
+new_tss(is:ie) = tss(is:ie)
+new_smixr(is:ie) = smixr(is:ie)
 where ( sigmu(is:ie)>0. )
-  new_tss   = urban_ts(is:ie)
-  new_smixr = urban_wetfac(is:ie)*qsttg(is:ie) + (1.-urban_wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
-  new_zo  = urban_zom(is:ie)
-  new_zoh = urban_zoh(is:ie)
-  new_zoq = urban_zoq(is:ie)
+  new_tss(is:ie)   = urban_ts(is:ie)
+  new_smixr(is:ie) = urban_wetfac(is:ie)*qsttg(is:ie) + (1.-urban_wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
+  new_zo(is:ie)  = urban_zom(is:ie)
+  new_zoh(is:ie) = urban_zoh(is:ie)
+  new_zoq(is:ie) = urban_zoq(is:ie)
 end where
 call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn(is:ie),u_u10(is:ie), &
-                u_ustar(is:ie),u_tstar(is:ie),u_qstar(is:ie),u_thetavstar(is:ie),new_zo,              &
-                new_zoh,new_zoq,new_tss,t(is:ie,1),new_smixr,qg(is:ie,1),                             &
-                umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
+                u_ustar(is:ie),u_tstar(is:ie),u_qstar(is:ie),u_thetavstar(is:ie),new_zo(is:ie),       &
+                new_zoh(is:ie),new_zoq(is:ie),new_tss(is:ie),t(is:ie,1),new_smixr(is:ie),             &
+                qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
 
 ! clearing
-new_zo = zo(is:ie)
-new_zoh = zoh(is:ie)
-new_zoq = zoq(is:ie)
-new_tss = tss(is:ie)
-new_smixr = smixr(is:ie)
+new_zo(is:ie) = zo(is:ie)
+new_zoh(is:ie) = zoh(is:ie)
+new_zoq(is:ie) = zoq(is:ie)
+new_tss(is:ie) = tss(is:ie)
+new_smixr(is:ie) = smixr(is:ie)
 if ( zo_clearing>0. ) then
   where ( land(is:ie) )  
-    new_zo  = zo_clearing
-    new_zoh = 0.1*zo_clearing
-    new_zoq = 0.1*zo_clearing
+    new_zo(is:ie)  = min( zo_clearing, zo(is:ie) )
+    new_zoh(is:ie) = min( 0.1*zo_clearing, zoh(is:ie) )
+    new_zoq(is:ie) = min( 0.1*zo_clearing, zoq(is:ie) )
   end where  
 end if
-call screencalc(ie-is+1,qgscrn_clearing(is:ie),rhscrn_clearing(is:ie),tscrn_clearing(is:ie), &
-                uscrn_clearing(is:ie),u10_clearing(is:ie),ustar_clearing,tstar_clearing,     &
-                qstar_clearing,thetavstar_clearing,new_zo,new_zoh,new_zoq,new_tss,           &
-                t(is:ie,1),new_smixr,qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
+call screencalc(ie-is+1,qgscrn_stn(is:ie),rhscrn_stn(is:ie),tscrn_stn(is:ie),          &
+                uscrn_stn(is:ie),u10_stn(is:ie),ustar_stn(is:ie),                      &
+                tstar_stn(is:ie),qstar_stn(is:ie),thetavstar_stn(is:ie),               &
+                new_zo(is:ie),new_zoh(is:ie),new_zoq(is:ie),new_tss(is:ie),t(is:ie,1), &
+                new_smixr(is:ie),qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
 
-atu(is:ie)            = au(is:ie)*uscrn_clearing(is:ie)/umag(is:ie) + ou(is:ie)
-atv(is:ie)            = av(is:ie)*uscrn_clearing(is:ie)/umag(is:ie) + ov(is:ie)
-uscrn_clearing(is:ie) = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
-atu(is:ie)            = au(is:ie)*u10_clearing(is:ie)/umag(is:ie) + ou(is:ie)
-atv(is:ie)            = av(is:ie)*u10_clearing(is:ie)/umag(is:ie) + ov(is:ie)      
-u10_clearing(is:ie)   = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
+atu(is:ie)            = au(is:ie)*uscrn_stn(is:ie)/umag(is:ie) + ou(is:ie)
+atv(is:ie)            = av(is:ie)*uscrn_stn(is:ie)/umag(is:ie) + ov(is:ie)
+uscrn_stn(is:ie) = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
+atu(is:ie)            = au(is:ie)*u10_stn(is:ie)/umag(is:ie) + ou(is:ie)
+atv(is:ie)            = av(is:ie)*u10_stn(is:ie)/umag(is:ie) + ov(is:ie)      
+u10_stn(is:ie)   = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
 
 return
 end subroutine autoscrn
