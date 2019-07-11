@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -107,8 +107,7 @@ do tile = 1,ntiles
   lu      = u(is:ie,:)
   lv      = v(is:ie,:)
   
-  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie), &
-                   idjd_t,mydiag_t)
+  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),idjd_t,mydiag_t)
 
   u(is:ie,:) = lu
   v(is:ie,:) = lv
@@ -127,8 +126,7 @@ end subroutine gwdrag
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
-subroutine gwdrag_work(t,u,v,tss,he,                 &
-                       idjd,mydiag)   ! globpea/darlam (but not staggered)
+subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag)
 
 use cc_omp, only : imax
 use const_phys
@@ -142,8 +140,8 @@ integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
 integer, intent(in) :: idjd
 integer iq, k
 real dzx
-real, dimension(:,:), intent(in)    :: t
-real, dimension(:,:), intent(inout) :: u, v
+real, dimension(imax,kl), intent(in)    :: t
+real, dimension(imax,kl), intent(inout) :: u, v
 real, dimension(imax,kl) :: uu, fni, bvnf
 real, dimension(imax,kl) :: theta_full
 real, dimension(imax,kl) :: dtheta_dz_kmh
@@ -164,21 +162,21 @@ logical, intent(in) :: mydiag
 sigk(:) = sig(:)**(rdry/cp)
 ! put theta in theta_full()
 do k = 1,kl
-  theta_full(:,k) = t(1:imax,k)/sigk(k)
+  theta_full(:,k) = t(:,k)/sigk(k)
 end do
 
 !  calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
 dzx = .5*grav*(1.+sig(1))/((1.-sig(1))*rdry)    
-dzi(:) = dzx/t(1:imax,1)
+dzi(:) = dzx/t(:,1)
 dtheta_dz_kmh(:,1) = (theta_full(:,1)-tss(:))*dzi(:)    
 do k = 2,kl
  dzx = grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)  
- dzi(:) = dzx/(t(1:imax,k-1)+t(1:imax,k)) 
+ dzi(:) = dzx/(t(:,k-1)+t(:,k)) 
  dtheta_dz_kmh(:,k) = (theta_full(:,k)-theta_full(:,k-1))*dzi(:)
 end do    ! k loop          
 
 !     form wmag at surface
-wmag(:) = sqrt(max(u(1:imax,1)**2+v(1:imax,1)**2, vmodmin**2))
+wmag(:) = sqrt(max(u(:,1)**2+v(:,1)**2, vmodmin**2))
 
 
 !**** calculate Brunt-Vaisala frequency at full levels (bvnf)
@@ -198,7 +196,7 @@ else
 end if
 
 do k = 1,2 ! uu is +ve wind compt in dirn of (u_1,v_1)
-  uu(:,k) = max(0., u(1:imax,k)*u(1:imax,1)+v(1:imax,k)*v(1:imax,1))/wmag(:)
+  uu(:,k) = max(0., u(:,k)**2+v(:,k)**2)/wmag(:)
 end do    ! k loop
 
 !**** set uu() to zero above if uu() zero below
@@ -207,7 +205,7 @@ do k = 3,kl
   where ( uu(:,k-1)<1.e-20 )
     uu(:,k) = 0.
   elsewhere
-    uu(:,k) = max(0., u(1:imax,k)*u(1:imax,1)+v(1:imax,k)*v(1:imax,1))/wmag(:)
+    uu(:,k) = max(0., u(:,k)**2+v(:,k)**2)/wmag(:)
   end where
 end do    ! k loop
 
@@ -236,8 +234,8 @@ else  ! newer usage with alphaj around 0.0075 (similar to resemble Hal's value)
   alambda(:) = alphaj*he(:)*bvnf(:,kbot)*wmag(:)*grav/(rdry*tss(:)*max(fnii(:), 1.e-9))
 end if  
 !      define apuw=alambda.u1/wmag , apvw=alambda.v1/wmag
-apuw(:) = alambda(:)*u(1:imax,1)/wmag(:)
-apvw(:) = alambda(:)*v(1:imax,1)/wmag(:)
+apuw(:) = alambda(:)*u(:,1)/wmag(:)
+apvw(:) = alambda(:)*v(:,1)/wmag(:)
 
 do k = kbot,kl
   !**** form fni=alambda*max(--,0) and
@@ -247,8 +245,8 @@ do k = kbot,kl
   !**** form dv/dt due to gw-drag at each level
   !**** = -alambda.v*/wmag.uu(t+1)**2.max(--,0)
   xxx(:) = uux(:)*uux(:)*fni(:,k)
-  u(1:imax,k) = u(1:imax,k) - apuw(:)*xxx(:)*dt
-  v(1:imax,k) = v(1:imax,k) - apvw(:)*xxx(:)*dt
+  u(:,k) = u(:,k) - apuw(:)*xxx(:)*dt
+  v(:,k) = v(:,k) - apvw(:)*xxx(:)*dt
 end do     ! k loop
 
 
