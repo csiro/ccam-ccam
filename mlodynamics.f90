@@ -962,9 +962,9 @@ do mspec_mlo = mspeca_mlo,1,-1
     do ii = 1,wlev
       gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
       gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
-      tau(:,ii) = tau(:,ii) + grav*rhou(1:ifull,ii)/wrtrho &
+      tau(:,ii) = tau(:,ii) - grav*rhou(1:ifull,ii)/wrtrho &
                  *((1.-gosigu)*detadxu+gosigu*oeu(1:ifull)/ddu(1:ifull)*ddddxu) ! staggered
-      tav(:,ii) = tav(:,ii) + grav*rhov(1:ifull,ii)/wrtrho &
+      tav(:,ii) = tav(:,ii) - grav*rhov(1:ifull,ii)/wrtrho &
                  *((1.-gosigv)*detadyv+gosigv*oev(1:ifull)/ddv(1:ifull)*ddddyv)
     end do
   end if
@@ -1207,13 +1207,16 @@ do mspec_mlo = mspeca_mlo,1,-1
     ppv(:,ii) = -grav*cv*dfdxv
 
     if ( mlojacobi==7 ) then
-      mmu(:,ii) = mmu(:,ii) + grav*rhou(:,ii)/wrtrho*(1.-gosigu)*bu
-      nnu(:,ii) = nnu(:,ii) + grav*rhou(:,ii)/wrtrho*(1.-gosigu)*cu
-      oou(:,ii) = oou(:,ii) + grav*rhou(:,ii)/wrtrho*gosigu*(bu*ddddxu/ddu(1:ifull) &
+      ! Include rho/wrtho term from geopotential gradient (see Adcroft and Campin  2004)
+      ! dphidx = grav*(ddddx*sig*eta/(D+eta)+detadx*D/(D+eta)*(1-sig))
+      ! dphidx = grav*(ddddx*sig*eta/D+detadx*(1-sig)) (approx)
+      mmu(:,ii) = mmu(:,ii) - grav*rhou(:,ii)/wrtrho*(1.-gosigu)*bu
+      nnu(:,ii) = nnu(:,ii) - grav*rhou(:,ii)/wrtrho*(1.-gosigu)*cu
+      oou(:,ii) = oou(:,ii) - grav*rhou(:,ii)/wrtrho*gosigu*(bu*ddddxu/ddu(1:ifull) &
           -cu*dfdyu+cu*dfdddyu/ddu(1:ifull))
-      mmv(:,ii) = mmv(:,ii) + grav*rhov(:,ii)/wrtrho*(1.-gosigv)*bv
-      nnv(:,ii) = nnv(:,ii) + grav*rhov(:,ii)/wrtrho*(1.-gosigv)*cv
-      oov(:,ii) = oov(:,ii) + grav*rhov(:,ii)/wrtrho*gosigv*(bv*ddddyv/ddv(1:ifull) &
+      mmv(:,ii) = mmv(:,ii) - grav*rhov(:,ii)/wrtrho*(1.-gosigv)*bv
+      nnv(:,ii) = nnv(:,ii) - grav*rhov(:,ii)/wrtrho*(1.-gosigv)*cv
+      oov(:,ii) = oov(:,ii) - grav*rhov(:,ii)/wrtrho*gosigv*(bv*ddddyv/ddv(1:ifull) &
           -cv*dfdxv+cv*dfdddxv/ddv(1:ifull))
     end if
     
@@ -4818,13 +4821,13 @@ select case( mlojacobi )
       rhov(:,ii) = 0.
     end do
 
-  case(1,2,7) 
+  case(1,2,7,8) 
     select case( mlojacobi )
       case(1) ! non-local - spline  
         call seekdelta(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
       case(2) ! non-local - linear
         call seekdelta_l(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
-      case(7) ! z* - 2nd order
+      case(7,8) ! z* - 2nd order
         call zstar2(na,dnadxu,dfnadyu,dfnadxv,dnadyv)  
       case default
         write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
@@ -5402,12 +5405,10 @@ do jj = 1,2
   
     ! process staggered u locations  
     drhodxu(:,ii,jj)=(sse(:)-ssi(:))*eeu(1:ifull,ii)*emu(1:ifull)/ds
-
     dfrhodyu(:,ii,jj)=0.5*stwgt(1:ifull,ii)*emu(1:ifull)/ds*(ssn(:)*f_in-sss(:)*f_is+ssen(:)*f_ien-sses(:)*f_ies)
 
     ! now process staggered v locations
     drhodyv(:,ii,jj)=(ssn(:)-ssi(:))*eev(1:ifull,ii)*emv(1:ifull)/ds
-
     dfrhodxv(:,ii,jj)=0.5*stwgt(1:ifull,ii)*emv(1:ifull)/ds*(sse(:)*f_ie-ssw(:)*f_iw+ssne(:)*f_ine-ssnw(:)*f_inw)
   end do
 
