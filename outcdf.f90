@@ -3303,7 +3303,7 @@ implicit none
 
 include 'kuocom.h'                    ! Convection parameters
 
-integer, parameter :: freqvars = 16  ! number of variables to write
+integer, parameter :: freqvars = 17  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
@@ -3558,12 +3558,12 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'pmsl',lname,'hPa',800.,1200.,0,1)    
     lname ='Solar downwelling at ground'
     call attrib(fncid,sdim,ssize,'sgdn_ave',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long 
-    lname = 'Solar net at ground (+ve down)'
-    call attrib(fncid,sdim,ssize,'sgn_ave',lname,'W/m2',-500.,2000.,0,-1) ! -1 = long
-    lname = 'LW downwelling at ground'
-    call attrib(fncid,sdim,ssize,'rgdn_ave',lname,'W/m2',-500.,1.e3,0,-1) ! -1 = long
-    lname = 'LW net at ground (+ve up)'
-    call attrib(fncid,sdim,ssize,'rgn_ave',lname,'W/m2',-500.,1000.,0,-1) ! -1 = long
+    lname = 'Scaled Log Surface pressure'
+    call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.3,0.2,0,1)
+    lname = 'Fraction of direct radiation'
+    call attrib(fncid,sdim,ssize,'fbeam_ave',lname,'none',-3.25,3.25,0,1)
+    lname = 'Screen mixing ratio'
+    call attrib(fncid,sdim,ssize,'qgscrn',lname,'kg/kg',0.,0.06,0,1)
     lname='x-component 10m wind (station)'
     call attrib(fncid,sdim,ssize,'uas_stn',lname,'m/s',-130.,130.,0,1)
     lname='y-component 10m wind (station)'     
@@ -3572,6 +3572,8 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'tscrn_stn',lname,'K',100.,425.,0,1)
     lname='Screen relative humidity (station)'     
     call attrib(fncid,sdim,ssize,'rhscrn_stn',lname,'%',0.,200.,0,1)
+    lname = 'Screen mixing ratio (station)'
+    call attrib(fncid,sdim,ssize,'qgscrn_stn',lname,'kg/kg',0.,0.06,0,1)
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -3691,13 +3693,14 @@ freqstore(1:ifull,ti,6)  = freqstore(1:ifull,ti,6)  + conds*86400./dt/real(tbave
 freqstore(1:ifull,ti,7)  = freqstore(1:ifull,ti,7)  + condg*86400./dt/real(tbave)
 freqstore(1:ifull,ti,8)  = pmsl/100.
 freqstore(1:ifull,ti,9)  = freqstore(1:ifull,ti,9)  + sgdn/real(tbave)
-freqstore(1:ifull,ti,10) = freqstore(1:ifull,ti,10) + sgn/real(tbave)
-freqstore(1:ifull,ti,11) = freqstore(1:ifull,ti,11) + rgdn/real(tbave)
-freqstore(1:ifull,ti,12) = freqstore(1:ifull,ti,12) + rgn/real(tbave)
+freqstore(1:ifull,ti,10) = psl
+freqstore(1:ifull,ti,11) = fbeam_ave
+freqstore(1:ifull,ti,12) = qgscrn
 freqstore(1:ifull,ti,13) = u10_stn*u(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,ti,14) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,ti,15) = tscrn_stn
 freqstore(1:ifull,ti,16) = rhscrn_stn
+freqstore(1:ifull,ti,17) = qgscrn_stn
 
 ! write data to file
 if ( mod(ktau,tblock*tbave)==0 ) then
@@ -3737,13 +3740,15 @@ if ( mod(ktau,tblock*tbave)==0 ) then
   call freqwrite(fncid,'grpl',      fiarch,tblock,local,freqstore(:,:,7))
   call freqwrite(fncid,'pmsl',      fiarch,tblock,local,freqstore(:,:,8))
   call freqwrite(fncid,'sgdn_ave',  fiarch,tblock,local,freqstore(:,:,9))
-  call freqwrite(fncid,'sgn_ave',   fiarch,tblock,local,freqstore(:,:,10))
-  call freqwrite(fncid,'rgdn_ave',  fiarch,tblock,local,freqstore(:,:,11))
-  call freqwrite(fncid,'rgn_ave',   fiarch,tblock,local,freqstore(:,:,12))
+  call freqwrite(fncid,'psf',       fiarch,tblock,local,freqstore(:,:,10))
+  call freqwrite(fncid,'fbeam_ave', fiarch,tblock,local,freqstore(:,:,11))
+  call freqwrite(fncid,'qgscrn',    fiarch,tblock,local,freqstore(:,:,12))  
   call freqwrite(fncid,'uas_stn',   fiarch,tblock,local,freqstore(:,:,13))
   call freqwrite(fncid,'vas_stn',   fiarch,tblock,local,freqstore(:,:,14))
   call freqwrite(fncid,'tscrn_stn', fiarch,tblock,local,freqstore(:,:,15))
   call freqwrite(fncid,'rhscrn_stn',fiarch,tblock,local,freqstore(:,:,16))
+  call freqwrite(fncid,'qgscrn_stn',fiarch,tblock,local,freqstore(:,:,17)) 
+  
   freqstore(:,:,:) = 0.
 
 end if
@@ -3771,7 +3776,6 @@ use sigs_m
 implicit none
 ! this one will ignore negative zs (i.e. over the ocean)
 
-integer, parameter :: meth=1 ! 0 for original, 1 for other jlm - always now
 integer, save :: lev = -1
 real c,conr,con
 real, dimension(ifull), intent(out) :: pmsl
@@ -3779,23 +3783,21 @@ real, dimension(ifull), intent(in) :: psl,zs
 real, dimension(ifull) :: phi1,tsurf,tav,dlnps
 real, dimension(:,:), intent(in) :: t
       
-c=grav/stdlapse
-conr=c/rdry
+c = grav/stdlapse
+conr = c/rdry
 if ( lev<0 ) then
   lev=1
   do while (sig(lev+1)<=0.9)
-    lev=lev+1
+    lev = lev + 1
   end do
 end if
 con=sig(lev)**(rdry/c)/c
       
-if ( meth==1 ) then
-  phi1(:)=t(1:ifull,lev)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce
-  tsurf(:)=t(1:ifull,lev)+phi1(:)*stdlapse/grav
-  tav(:)=tsurf(:)+zs(1:ifull)*.5*stdlapse/grav
-  dlnps(:)=zs(1:ifull)/(rdry*tav(:))
-  pmsl(:)=1.e5*exp(psl(:)+dlnps(:))
-end if  ! (meth==1)
+phi1(:)=t(1:ifull,lev)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce
+tsurf(:)=t(1:ifull,lev)+phi1(:)*stdlapse/grav
+tav(:)=tsurf(:)+zs(1:ifull)*.5*stdlapse/grav
+dlnps(:)=zs(1:ifull)/(rdry*tav(:))
+pmsl(:)=1.e5*exp(psl(:)+dlnps(:))
       
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'meth,lev,sig(lev) ',meth,lev,sig(lev)

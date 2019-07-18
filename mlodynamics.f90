@@ -516,7 +516,7 @@ real alph_p, khdif
 real, dimension(2) :: delpos, delneg
 real, dimension(ifull+iextra) :: neta,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv
-real, dimension(ifull+iextra) :: snu,sou,spu,squ,ssu,szu,snv,sov,spv,sqv,ssv,szv
+real, dimension(ifull+iextra) :: snu,sou,spu,squ,szu,snv,sov,spv,sqv,szv
 real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,idu,idv,spnet,tide
 real, dimension(ifull+iextra) :: ipmax
 real, dimension(ifull) :: i_u,i_v,i_sto,ndum
@@ -846,12 +846,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! 1/(neta+D) dH(neta+D)/dt + du/dx + dv/dy + dw/dz = 0
   ! dH(neta+D)/dt + (neta+D)*(du/dx+dv/dy) + (neta+D)*dw/dz = 0
   ! dH(neta)/dt + neta*(du/dx+dv/dy) + d(D*u)/dx + d(D*v)/dy + dw/dsig = 0  ! where D is now included in flux form
-  ! dH(neta)/dt + d(D*u)/dx + d(D*v)/dy + dw/dsig = 0 (split)
-  ! d(neta)/dt + (d(neta*u)/dx+d(neta*v)/dy) = 0      (split)
   
   ! Lagrangian version of the contunity equation with D included in flux form
-  !   [neta + (1+eps)*0.5*dt*(d(D*u)/dx+d(D*v)/dy+dw/dsig)]^(t+1)  (split)
-  ! = [neta - (1-eps)*0.5*dt*(d(D*u)/dx+d(D*v)/dy+dw/dsig)]^(t*)
+  !   [neta + (1+eps)*0.5*dt*(neta*(du/dx+dv/dy)+d(D*u)/dx+d(D*v)/dy+dw/dsig)]^(t+1)
+  ! = [neta - (1-eps)*0.5*dt*(neta*(du/dx+dv/dy)+d(D*u)/dx+d(D*v)/dy+dw/dsig)]^(t*)
   
   ! Vertical velocity is then (sum_0_sig is the integral from 0 to sig)
 
@@ -1105,12 +1103,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   sou = 0.
   spu = 0.
   squ = 0.
-  ssu = 0.
   szu = 0.
   sov = 0.
   spv = 0.
   sqv = 0.
-  ssv = 0.
   szv = 0.
 
   ! ocean
@@ -1238,17 +1234,17 @@ do mspec_mlo = mspeca_mlo,1,-1
   
     !sum nu dz = sou+spu*ddu+squ*detadxu+ssu*detadyu+szu*etau
     !sum nv dz = sov+spv*ddv+sqv*detadyv+ssv*detadxv+szv*etav
+    
+    ! ssu and ssv should cancel for 5-point stencil
 
     sou(1:ifull) = sou(1:ifull) + kku(:,ii)*godsigu(1:ifull,ii)
     spu(1:ifull) = spu(1:ifull) + llu(:,ii)*godsigu(1:ifull,ii)
     squ(1:ifull) = squ(1:ifull) + mmu(:,ii)*godsigu(1:ifull,ii)
-    ssu(1:ifull) = ssu(1:ifull) + nnu(:,ii)*godsigu(1:ifull,ii)
     szu(1:ifull) = szu(1:ifull) + (oou(:,ii)+ppu(:,ii))*godsigu(1:ifull,ii)
 
     sov(1:ifull) = sov(1:ifull) + kkv(:,ii)*godsigv(1:ifull,ii)
     spv(1:ifull) = spv(1:ifull) + llv(:,ii)*godsigv(1:ifull,ii)
     sqv(1:ifull) = sqv(1:ifull) + mmv(:,ii)*godsigv(1:ifull,ii)
-    ssv(1:ifull) = ssv(1:ifull) + nnv(:,ii)*godsigv(1:ifull,ii)
     szv(1:ifull) = szv(1:ifull) + (oov(:,ii)+ppu(:,ii))*godsigv(1:ifull,ii)
 
   end do
@@ -1276,44 +1272,40 @@ do mspec_mlo = mspeca_mlo,1,-1
   data_d(1:ifull,2) = spv(1:ifull)
   data_c(1:ifull,3) = squ(1:ifull)
   data_d(1:ifull,3) = sqv(1:ifull)
-  data_c(1:ifull,4) = ssu(1:ifull)
-  data_d(1:ifull,4) = ssv(1:ifull)
-  data_c(1:ifull,5) = szu(1:ifull)
-  data_d(1:ifull,5) = szv(1:ifull)
-  data_c(1:ifull,6) = ibu(1:ifull)
-  data_d(1:ifull,6) = ibv(1:ifull)
-  data_c(1:ifull,7) = icu(1:ifull)
-  data_d(1:ifull,7) = icv(1:ifull)
-  data_c(1:ifull,8) = idu(1:ifull)
-  data_d(1:ifull,8) = idv(1:ifull)
-  data_c(1:ifull,9) = niu(1:ifull)
-  data_d(1:ifull,9) = niv(1:ifull)
-  call boundsuv(data_c(:,1:9),data_d(:,1:9),stag=-9) ! stag=-9 updates iwu and isv
+  data_c(1:ifull,4) = szu(1:ifull)
+  data_d(1:ifull,4) = szv(1:ifull)
+  data_c(1:ifull,5) = ibu(1:ifull)
+  data_d(1:ifull,5) = ibv(1:ifull)
+  data_c(1:ifull,6) = icu(1:ifull)
+  data_d(1:ifull,6) = icv(1:ifull)
+  data_c(1:ifull,7) = idu(1:ifull)
+  data_d(1:ifull,7) = idv(1:ifull)
+  data_c(1:ifull,8) = niu(1:ifull)
+  data_d(1:ifull,8) = niv(1:ifull)
+  call boundsuv(data_c(:,1:8),data_d(:,1:8),stag=-9) ! stag=-9 updates iwu and isv
   sou(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,1)
   sov(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,1)
   spu(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,2)
   spv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,2)
   squ(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,3)
   sqv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,3)
-  ssu(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,4)
-  ssv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,4)
-  szu(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,5)
-  szv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,5)
-  ibu(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,6)
-  ibv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,6)
-  icu(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,7)
-  icv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,7)
-  idu(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,8)
-  idv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,8)
-  niu(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,9)
-  niv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,9)
+  szu(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,4)
+  szv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,4)
+  ibu(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,5)
+  ibv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,5)
+  icu(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,6)
+  icv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,6)
+  idu(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,7)
+  idv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,7)
+  niu(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,8)
+  niv(ifull+1:ifull+iextra) = data_d(ifull+1:ifull+iextra,8)
 
   ! Iteratively solve for free surface height, eta
   ! Iterative loop to estimate ice 'pressure'
   if ( precon<-9999 ) then
     ! Multi-grid
-    call mlomg(neta,sou,sov,spu,spv,squ,sqv,ssu,ssv,szu,szv,xps,   &
-               ipice,niu,niv,ibu,ibv,icu,icv,idu,idv,              &
+    call mlomg(neta,sou,sov,spu,spv,squ,sqv,szu,szv,xps,   &
+               ipice,niu,niv,ibu,ibv,icu,icv,idu,idv,      &
                ipmax,totits,maxglobseta,maxglobip,minwater)
   else
     ! Usual SOR
@@ -4821,13 +4813,13 @@ select case( mlojacobi )
       rhov(:,ii) = 0.
     end do
 
-  case(1,2,7,8) 
+  case(1,2,7) 
     select case( mlojacobi )
       case(1) ! non-local - spline  
         call seekdelta(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
       case(2) ! non-local - linear
         call seekdelta_l(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
-      case(7,8) ! z* - 2nd order
+      case(7) ! z* - 2nd order
         call zstar2(na,dnadxu,dfnadyu,dfnadxv,dnadyv)  
       case default
         write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
@@ -5610,8 +5602,8 @@ end subroutine upwind_iceadv
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Use multi-grid to solve for free surface and ice pressure
 
-subroutine mlomg(neta,sou,sov,spu,spv,squ,sqv,ssu,ssv,szu,szv,xps,   &
-                 ipice,niu,niv,ibu,ibv,icu,icv,idu,idv,              &
+subroutine mlomg(neta,sou,sov,spu,spv,squ,sqv,szu,szv,xps,   &
+                 ipice,niu,niv,ibu,ibv,icu,icv,idu,idv,      &
                  ipmax,totits,maxglobseta,maxglobip,minwater)
 
 use helmsolve
@@ -5631,7 +5623,6 @@ real, dimension(ifull+iextra), intent(in) :: ipmax
 real, dimension(ifull+iextra), intent(in) :: sou, sov
 real, dimension(ifull+iextra), intent(in) :: spu, spv
 real, dimension(ifull+iextra), intent(in) :: squ, sqv
-real, dimension(ifull+iextra), intent(in) :: ssu, ssv
 real, dimension(ifull+iextra), intent(in) :: szu, szv
 real, dimension(ifull+iextra), intent(in) :: niu, niv
 real, dimension(ifull+iextra), intent(in) :: ibu, ibv
@@ -5639,7 +5630,6 @@ real, dimension(ifull+iextra), intent(in) :: icu, icv
 real, dimension(ifull+iextra), intent(in) :: idu, idv
 real, dimension(ifull,2) :: zz, zzn, zzs, zze, zzw
 real, dimension(ifull,2) :: rhs
-real, dimension(ifull) :: sue, svn, suw, svs
 real, dimension(ifull) :: que, qvn, quw, qvs
 real, dimension(ifull) :: zue, zvn, zuw, zvs
 real, dimension(ifull) :: pdiv_d, pdiv_n, odiv_d, odiv_n
@@ -5648,7 +5638,6 @@ real, dimension(ifull) :: yy, yyn, yys, yye, yyw
 real, dimension(ifull) :: so_isv, so_iwu
 real, dimension(ifull) :: sp_isv, sp_iwu
 real, dimension(ifull) :: sq_isv, sq_iwu
-real, dimension(ifull) :: ss_isv, ss_iwu
 real, dimension(ifull) :: sz_isv, sz_iwu
 real, dimension(ifull) :: dd_n, dd_s, dd_e, dd_w
 real, dimension(ifull) :: id_isv, id_iwu, ic_isv, ic_iwu, ib_isv, ib_iwu
@@ -5665,8 +5654,24 @@ call unpack_svwu(emu,emv,em_isv,em_iwu)
 call unpack_svwu(sou,sov,so_isv,so_iwu)
 call unpack_svwu(spu,spv,sp_isv,sp_iwu)
 call unpack_svwu(squ,sqv,sq_isv,sq_iwu)
-call unpack_svwu(ssu,ssv,ss_isv,ss_iwu)
 call unpack_svwu(szu,szv,sz_isv,sz_iwu)
+
+!sum nu dz = sou+spu*ddu+squ*detadxu+ssu*detadyu+szu*etau
+!sum nv dz = sov+spv*ddv+sqv*detadyv+ssv*detadxv+szv*etav
+
+! ssu and ssv should cancel for 5-point stencil
+
+! Lagrangian version of the contunity equation with D included in flux form
+!   [neta + (1+eps)*0.5*dt*(neta*(du/dx+dv/dy)+d(D*u)/dx+d(D*v)/dy+dw/dsig)]^(t+1) = xps
+
+! neta + (1+eps)*0.5*dt*( neta*(d(sou)/dx+d(sov)/dy) + neta*(d(spu*ddu)/dx+d(spv*ddv)/dy
+!                        + neta*(d(squ*detadx)/dx+d(sqv*detady)/dy + neta*(d(szu*eta)/dx+d(szv*eta)/dy
+!                        + d(D*sou)/dx+d(D*sov)/dy + d(D^2*spu)/dx + d(D^2*spv)/dy)
+!                        + d(D*squ*detadx)/dx + d(D*sqv*detady)/dy + d(D*szu*eta)/dx + d(D*szv*eta)/dy ) = xps
+! neta + (1+eps)*0.5*dt*( neta*odiv_n + neta*pdiv_n
+!                        + yy*neta*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy)
+!                        + odiv_d + pdiv_d
+!                        + zz*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) ) = xps
 
 ! prep ocean gradient terms - constant
 odiv_d = (sou(1:ifull)*ddu(1:ifull)/emu(1:ifull)-so_iwu*dd_iwu/em_iwu  &
@@ -5693,10 +5698,10 @@ qvn = sqv(1:ifull)*ddv(1:ifull)/ds
 qvs = sq_isv*dd_isv/ds
 
 ! prep ocean gradient terms - detadyu and detadxv
-sue = 0.5*ssu(1:ifull)*ddu(1:ifull)/ds
-suw = 0.5*ss_iwu*dd_iwu/ds
-svn = 0.5*ssv(1:ifull)*ddv(1:ifull)/ds
-svs = 0.5*ss_isv*dd_isv/ds
+!sue = 0.5*ssu(1:ifull)*ddu(1:ifull)/ds
+!suw = 0.5*ss_iwu*dd_iwu/ds
+!svn = 0.5*ssv(1:ifull)*ddv(1:ifull)/ds
+!svs = 0.5*ss_isv*dd_isv/ds
 
 ! prep ocean gradient terms - netau and netav
 zue = 0.5*szu(1:ifull)*ddu(1:ifull)/emu(1:ifull)/ds
@@ -5704,30 +5709,29 @@ zuw = -0.5*sz_iwu*dd_iwu/em_iwu/ds
 zvn = 0.5*szv(1:ifull)*ddv(1:ifull)/emv(1:ifull)/ds
 zvs = -0.5*sz_isv*dd_isv/em_isv/ds
 
-! yy*neta*(d2neta/dx2+d2neta/dy2) + zz*(d2neta/dx2+d2neta/dy2) + zz*(dneta/dx+dneta/dy) + hh*neta = rhs
+! yy*neta*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) + zz*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) + hh*neta = rhs
 
-yyn(:) = (1.+ocneps)*0.5*dt*sqv(1:ifull)/ds*em(1:ifull)**2/ds                                                   &
+yyn(:) = (1.+ocneps)*0.5*dt*sqv(1:ifull)/ds*em(1:ifull)**2/ds                     &
         +(1.+ocneps)*0.5*dt*0.5*szv(1:ifull)/emv(1:ifull)/ds*em(1:ifull)**2
-yys(:) = (1.+ocneps)*0.5*dt*sq_isv/ds*em(1:ifull)**2/ds                                                          &
+yys(:) = (1.+ocneps)*0.5*dt*sq_isv/ds*em(1:ifull)**2/ds                           &
         +(1.+ocneps)*0.5*dt*(-0.5*sz_isv/em_isv/ds)*em(1:ifull)**2
-yye(:) =(1.+ocneps)*0.5*dt*squ(1:ifull)/ds*em(1:ifull)**2/ds                                                   &
+yye(:) =(1.+ocneps)*0.5*dt*squ(1:ifull)/ds*em(1:ifull)**2/ds                      &
         +(1.+ocneps)*0.5*dt*0.5*szu(1:ifull)/emu(1:ifull)/ds*em(1:ifull)**2
-yyw(:) = (1.+ocneps)*0.5*dt*sq_iwu/ds*em(1:ifull)**2/ds                                                          &
+yyw(:) = (1.+ocneps)*0.5*dt*sq_iwu/ds*em(1:ifull)**2/ds                           &
         +(1.+ocneps)*0.5*dt*(-0.5*sz_iwu/em_iwu/ds)*em(1:ifull)**2
-yy(:) = (1.+ocneps)*0.5*dt*(-sqv(1:ifull)/ds-sq_isv/ds-squ(1:ifull)/ds-sq_iwu/ds) &
-                          *em(1:ifull)**2/ds                                      &
-       +(1.+ocneps)*0.5*dt*(0.5*szv(1:ifull)/emv(1:ifull)/ds-0.5*sz_isv/em_isv/ds &
+yy(:) = (1.+ocneps)*0.5*dt*(-sqv(1:ifull)/ds-sq_isv/ds-squ(1:ifull)/ds-sq_iwu/ds)*em(1:ifull)**2/ds &
+       +(1.+ocneps)*0.5*dt*(0.5*szv(1:ifull)/emv(1:ifull)/ds-0.5*sz_isv/em_isv/ds                   &
                            +0.5*szu(1:ifull)/emu(1:ifull)/ds-0.5*sz_iwu/em_iwu/ds)*em(1:ifull)**2
 
-zzn(:,1)  = (1.+ocneps)*0.5*dt*qvn*em(1:ifull)**2/ds                                      &
+zzn(:,1)  = (1.+ocneps)*0.5*dt*qvn*em(1:ifull)**2/ds  &
            +(1.+ocneps)*0.5*dt*zvn*em(1:ifull)**2
-zzs(:,1)  = (1.+ocneps)*0.5*dt*qvs*em(1:ifull)**2/ds                                      &
+zzs(:,1)  = (1.+ocneps)*0.5*dt*qvs*em(1:ifull)**2/ds  &
            +(1.+ocneps)*0.5*dt*zvs*em(1:ifull)**2
-zze(:,1)  = (1.+ocneps)*0.5*dt*que*em(1:ifull)**2/ds                                      &
+zze(:,1)  = (1.+ocneps)*0.5*dt*que*em(1:ifull)**2/ds  &
            +(1.+ocneps)*0.5*dt*zue*em(1:ifull)**2
-zzw(:,1)  = (1.+ocneps)*0.5*dt*quw*em(1:ifull)**2/ds                                      &
+zzw(:,1)  = (1.+ocneps)*0.5*dt*quw*em(1:ifull)**2/ds  &
            +(1.+ocneps)*0.5*dt*zuw*em(1:ifull)**2
-zz(:,1)   = (1.+ocneps)*0.5*dt*(-qvn-qvs-que-quw)*em(1:ifull)**2/ds                       &
+zz(:,1)   = (1.+ocneps)*0.5*dt*(-qvn-qvs-que-quw)*em(1:ifull)**2/ds  &
            +(1.+ocneps)*0.5*dt*(zvn+zvs+zue+zuw)*em(1:ifull)**2
 
 
