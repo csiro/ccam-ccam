@@ -3286,6 +3286,7 @@ use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use dates_m                           ! Date data
 use filnames_m                        ! Filenames
+use histave_m                         ! Time average arrays
 use infile                            ! Input file routines
 use morepbl_m                         ! Additional boundary layer diagnostics
 use newmpar_m                         ! Grid parameters
@@ -3800,7 +3801,7 @@ dlnps(:)=zs(1:ifull)/(rdry*tav(:))
 pmsl(:)=1.e5*exp(psl(:)+dlnps(:))
       
 if ( nmaxpr==1 .and. mydiag ) then
-  write(6,*) 'meth,lev,sig(lev) ',meth,lev,sig(lev)
+  write(6,*) 'meth,lev,sig(lev) ',1,lev,sig(lev)
   write(6,*) 'zs,t_lev,psl,pmsl ',zs(idjd),t(idjd,lev),psl(idjd),pmsl(idjd)
 end if
       
