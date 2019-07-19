@@ -101,6 +101,7 @@ subroutine leoncld
 
 use aerointerface                 ! Aerosol interface
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
+use cc_mpi, only : mydiag         ! CC MPI routines
 use cc_omp                        ! CC OpenMP routines
 use cfrac_m                       ! Cloud fraction
 use cloudmod                      ! Prognostic cloud fraction
@@ -139,6 +140,9 @@ logical mydiag_t
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
+  
+  idjd_t = mod(idjd-1,imax)+1
+  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
   
   lcfrac   = cfrac(is:ie,:)
   lgfrac   = gfrac(is:ie,:)
@@ -1809,7 +1813,7 @@ do n = 1,njumps
     select case(abs(ldr))
       case(1)
         where ( cifr(:,k)>=1.e-10 )
-          vi2(:) = max( 0.1, 3.23*(max( rhoi(:,k), 0. )/cifr(:,k))**0.17 )  ! Ice fall speed from LDR 1997
+          vi2(:) = max( 0.1, 3.23*(max(rhoi(:,k),0.)/cifr(:,k))**0.17 )  ! Ice fall speed from LDR 1997
         end where
       case(2)
         where ( cifr(:,k)>=1.e-10 )
@@ -1825,7 +1829,7 @@ do n = 1,njumps
         end where
       case(5)
         where ( cifr(:,k)>=1.e-10 )  
-          vi2(:) = max( 0.1, 3.29*(max( rhoi(:,k), 0. )/cifr(:,k))**0.16 ) ! from Lin et al 1983 
+          vi2(:) = max( 0.1, 3.29*(max(rhoi(:,k),0.)/cifr(:,k))**0.16 ) ! from Lin et al 1983 
         end where  
       case(11)
         ! following are alternative slightly-different versions of above
@@ -1834,14 +1838,14 @@ do n = 1,njumps
         ! with a small fall speed. 
         ! Note that for very small qfg, cifr is small.
         ! But rhoi is like qfg, so ratio should also be small and OK.
-        vi2(:) = max( vi2(:), 3.23*(rhoi(:,k)/max(cifr(:,k),1.e-30))**0.17 )
+        vi2(:) = max( vi2, 3.23*(rhoi(:,k)/max(cifr(:,k),1.e-30))**0.17 )
       case(22)
-        vi2(:) = max( vi2(:), 0.9*3.23*(rhoi(:,k)/max(cifr(:,k),1.e-30))**0.17 )
+        vi2(:) = max( vi2, 0.9*3.23*(rhoi(:,k)/max(cifr(:,k),1.e-30))**0.17 )
       case(33)
         ! following max gives vi2=.1 for qfg=cifr=0
-        vi2(:) = max( vi2(:), 2.05+0.35*log10(max(rhoi(:,k)/rhoa(:,k),2.68e-36)/max(cifr(:,k),1.e-30)) )
+        vi2(:) = max( vi2, 2.05+0.35*log10(max(rhoi(:,k)/rhoa(:,k),2.68e-36)/max(cifr(:,k),1.e-30)) )
       case(55)
-        vi2(:) = max( vi2(:), 3.29*(max( rhoi(:,k), 0. )/cifr(:,k))**0.16 ) ! from Lin et al 1983   
+        vi2(:) = max( vi2, 3.29*(max( rhoi(:,k), 0. )/cifr(:,k))**0.16 ) ! from Lin et al 1983   
     end select
       
     vi2(:) = max( vi2(:), 0.001 ) ! MJT suggestion to prevent crash 
@@ -2171,8 +2175,8 @@ do n = 1,njumps
       cffluxin(:) = cgfra(:) - cfgraupel(:,k)
       rhogin(:)   = fluxgraupel(:)/dz(:,k)
       ! Compute the fluxes of snow leaving the box
-      cffluxout(:) = cfgraupel(:,k)*foutgraupel(:)
-      rhogout(:)   = rhog(:,k)*foutgraupel(:)
+      cffluxout(:) = cfgraupel(:,k)*foutgraupel
+      rhogout(:)   = rhog(:,k)*foutgraupel
       ! Update the rhos and cfsnow fields
       cfgraupel(:,k) = cfgraupel(:,k) - cffluxout(:) + cffluxin(:)*(1.-fthrugraupel(:))
       rhog(:,k)      = rhog(:,k) - rhogout(:) + rhogin(:)*(1.-fthrugraupel(:))
@@ -2199,18 +2203,18 @@ do n = 1,njumps
       cffluxin(:) = csfra(:) - cfsnow(:,k)
       rhosin(:)   = fluxsnow(:)/dz(:,k)
       ! Compute the fluxes of snow leaving the box
-      cffluxout(:) = cfsnow(:,k)*foutsnow(:)
-      rhosout(:)   = rhos(:,k)*foutsnow(:)
+      cffluxout(:) = cfsnow(:,k)*foutsnow
+      rhosout(:)   = rhos(:,k)*foutsnow
       ! Update the rhos and cfsnow fields
       cfsnow(:,k) = cfsnow(:,k) - cffluxout(:) + cffluxin(:)*(1.-fthrusnow(:))
       rhos(:,k)   = rhos(:,k) - rhosout(:) + rhosin(:)*(1.-fthrusnow(:))
       fluxsnow(:) = max( rhosout(:)*dz(:,k) + fluxsnow(:)*fthrusnow(:), 0. )
       where ( fluxsnow<1.e-20 )
         rhos(:,k) = rhos(:,k) + fluxsnow/dz(:,k)
-        fluxsnow = 0.
+        fluxsnow(:) = 0.
       end where  
       ! Now fluxsnow is flux leaving layer k
-      fluxs(:,k) = fluxs(:,k) + fluxsnow(:)
+      fluxs(:,k) = fluxs(:,k) + fluxsnow
     
     end if ! ncloud>=3
 
@@ -2229,8 +2233,8 @@ do n = 1,njumps
     cffluxin(:) = cifra(:) - cifr(:,k)
     rhoiin(:)   = fluxice(:)/dz(:,k)
     ! Compute the fluxes of ice leaving the box
-    cffluxout(:) = cifr(:,k)*foutice(:)
-    rhoiout(:)   = rhoi(:,k)*foutice(:)
+    cffluxout(:) = cifr(:,k)*foutice
+    rhoiout(:)   = rhoi(:,k)*foutice
     ! Update the rhoi and cifr fields
     cifr(:,k)  = min( 1.-clfr(:,k), cifr(:,k)-cffluxout(:)+cffluxin(:)*(1.-fthruice(:)) )
     rhoi(:,k)  = rhoi(:,k) - rhoiout(:) + rhoiin(:)*(1.-fthruice(:))
@@ -2257,8 +2261,8 @@ do n = 1,njumps
     rhorin(:)   = fluxrain(:)/dz(:,k)
     ! Compute the fluxes of rain leaving the box
     ! Use the flux-divergent form as in Rotstayn (QJRMS, 1997)
-    cffluxout(:) = cfrain(:,k)*foutliq(:)
-    rhorout(:)   = rhor(:,k)*foutliq(:)
+    cffluxout(:) = cfrain(:,k)*foutliq
+    rhorout(:)   = rhor(:,k)*foutliq
     ! Update the rhor and cfrain fields
     cfrain(:,k) = cfrain(:,k) - cffluxout(:) + cffluxin(:)*(1.-fthruliq(:))
     rhor(:,k)   = rhor(:,k) - rhorout(:) + rhorin(:)*(1.-fthruliq(:))

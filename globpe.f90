@@ -4358,7 +4358,7 @@ if ( any(cfrac(js:je,1:kl)/=cfrac(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(cfrac(js:je,1:kl)<-1.e-8) .or. any(cfrac(js:je,1:kl)>1.) ) then
+if ( any(cfrac(js:je,1:kl)<-1.e-8) .or. any(cfrac(js:je,1:kl)>1.001) ) then
   write(6,*) "ERROR: Out-of-range detected in cfrac on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(cfrac(js:je,1:kl)),maxval(cfrac(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(cfrac(js:je,1:kl)),maxloc(cfrac(js:je,1:kl))

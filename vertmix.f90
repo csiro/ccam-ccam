@@ -163,7 +163,11 @@ do tile = 1,ntiles
   lqg       = qg(is:ie,:)
   lqfg      = qfg(is:ie,:)
   lqlg      = qlg(is:ie,:)
-  lcfrac    = stratcloud(is:ie,:)
+  if ( ncloud>=4 ) then
+    lcfrac = stratcloud(is:ie,:)
+  else
+    lcfrac = cfrac(is:ie,:)
+  end if  
   if ( abs(iaero)>=2 ) then
     lxtg = xtg(is:ie,:,:)
   end if
@@ -225,7 +229,11 @@ do tile = 1,ntiles
   qg(is:ie,:)         = lqg
   qfg(is:ie,:)        = lqfg
   qlg(is:ie,:)        = lqlg
-  stratcloud(is:ie,:) = lcfrac
+  if ( ncloud>=4 ) then
+    stratcloud(is:ie,:) = lcfrac
+  else
+    cfrac(is:ie,:) = lcfrac
+  end if  
   if ( abs(iaero)>=2 ) then
     xtg(is:ie,:,:) = lxtg
   end if
@@ -389,7 +397,7 @@ if ( diag .or. ntest>=1 .and. ntiles==1 ) then
   end if
 end if
 
-! Calculate half level heights, temperatures and NHS correction
+! Calculate half level heights and temperatures
 rlogs1=log(sig(1))
 rlogs2=log(sig(2))
 rlogh1=log(sigmh(2))

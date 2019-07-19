@@ -89,10 +89,10 @@ use pbl_m
 
 implicit none
 
-integer :: tile, is, ie
-integer :: idjd_t
+integer tile, is, ie
+integer idjd_t
 real, dimension(imax,kl) :: lt, lu, lv
-logical :: mydiag_t
+logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),        &
 !$omp private(lt,lu,lv,idjd_t,mydiag_t)
@@ -100,7 +100,7 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   
-  idjd_t = mod(idjd-1,imax)+1
+  idjd_t = mod(idjd-1,imax) + 1
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
   
   lt      = t(is:ie,:)
@@ -126,7 +126,7 @@ end subroutine gwdrag
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
-subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag)
+subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag)   ! globpea/darlam (but not staggered)
 
 use cc_omp, only : imax
 use const_phys
@@ -142,15 +142,15 @@ integer iq, k
 real dzx
 real, dimension(imax,kl), intent(in)    :: t
 real, dimension(imax,kl), intent(inout) :: u, v
-real, dimension(imax,kl) :: uu, fni, bvnf
+real, dimension(imax,kl) :: uu,fni,bvnf
 real, dimension(imax,kl) :: theta_full
 real, dimension(imax,kl) :: dtheta_dz_kmh
 real, dimension(imax), intent(in) :: tss, he
 real, dimension(imax) :: dzi, uux, xxx, froude2_inv
-real, dimension(imax) :: temp, fnii
+real, dimension(imax) :: temp,fnii
 real, dimension(imax) :: bvng ! to be depreciated
-real, dimension(imax) :: apuw, apvw, alambda, wmag
-real, dimension(kl) :: sigk
+real, dimension(imax) :: apuw,apvw,alambda,wmag
+real, dimension(kl) :: dsk,sigk
 logical, intent(in) :: mydiag
 
 ! older values:  
@@ -159,10 +159,11 @@ logical, intent(in) :: mydiag
 !   ngwd=-20 helim=1600. fc2=-.5 sigbot_gw=1. alphaj=0.05
 ! If desire to tune, only need to vary alphaj (increase for stronger GWD)
 
-sigk(:) = sig(:)**(rdry/cp)
-! put theta in theta_full()
 do k = 1,kl
-  theta_full(:,k) = t(:,k)/sigk(k)
+  dsk(k) = -dsig(k)
+  sigk(k) = sig(k)**(rdry/cp)
+  ! put theta in theta_full()
+  theta_full(:,k) = t(:,k)/sigk(k)                ! gwdrag
 end do
 
 !  calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
@@ -176,7 +177,7 @@ do k = 2,kl
 end do    ! k loop          
 
 !     form wmag at surface
-wmag(:) = sqrt(max(u(:,1)**2+v(:,1)**2, vmodmin**2))
+wmag(:) = sqrt(max(u(:,1)**2+v(:,1)**2, vmodmin**2)) ! MJT suggestion
 
 
 !**** calculate Brunt-Vaisala frequency at full levels (bvnf)
@@ -196,7 +197,7 @@ else
 end if
 
 do k = 1,2 ! uu is +ve wind compt in dirn of (u_1,v_1)
-  uu(:,k) = max(0., u(:,k)**2+v(:,k)**2)/wmag(:)
+  uu(:,k) = max(0., u(:,k)*u(:,1)+v(:,k)*v(:,1))/wmag(:)
 end do    ! k loop
 
 !**** set uu() to zero above if uu() zero below
@@ -205,7 +206,7 @@ do k = 3,kl
   where ( uu(:,k-1)<1.e-20 )
     uu(:,k) = 0.
   elsewhere
-    uu(:,k) = max(0., u(:,k)**2+v(:,k)**2)/wmag(:)
+    uu(:,k) = max(0., u(:,k)*u(:,1)+v(:,k)*v(:,1))/wmag(:)
   end where
 end do    ! k loop
 
@@ -221,7 +222,7 @@ end if
 ! form integral of above*uu**2 from sig=sigbot_gwd to sig=0
 fnii(:) = -fni(:,kbot)*dsig(kbot)*uu(:,kbot)*uu(:,kbot)
 do k = kbot+1,kl
-  fnii(:) = fnii(:) - fni(:,k)*dsig(k)*uu(:,k)*uu(:,k)
+  fnii(:) = fnii(:)-fni(:,k)*dsig(k)*uu(:,k)*uu(:,k)
 end do    ! k loop
 
 !     Chouinard et al. use alpha=.01
