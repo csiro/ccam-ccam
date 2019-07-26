@@ -686,6 +686,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'cldh_sea',cldh_sea)
     call ccnf_put_attg(idnc,'cldl_sea',cldl_sea)
     call ccnf_put_attg(idnc,'cldm_sea',cldm_sea)
+    call ccnf_put_attg(idnc,'cloudtol',cloudtol)
     call ccnf_put_attg(idnc,'convfact',convfact)
     call ccnf_put_attg(idnc,'convtime',convtime)
     call ccnf_put_attg(idnc,'detrain',detrain)
@@ -1973,6 +1974,9 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'qgrg','Graupel',  'kg/kg',0.,.065,0,cptype)
       end if
       call attrib(idnc,dima,asize,'cfrac','Cloud fraction',    'none',0.,1.,0,cptype)
+      if ( itype==-1 .or. diaglevel_cloud>5 ) then
+        call attrib(idnc,dima,asize,'stratcf','Strat cloud fraction','none',0.,1.,0,cptype)  
+      end if
       if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
         call attrib(idnc,dima,asize,'rfrac','Rain fraction',   'none',0.,1.,0,cptype)
       end if
@@ -1981,7 +1985,6 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'gfrac','Graupel fraction','none',0.,1.,0,cptype)
       end if
       if ( ncloud>=4 .and. (itype==-1.or.diaglevel_cloud>5) ) then
-        call attrib(idnc,dima,asize,'stratcf','Strat cloud fraction','none',0.,1.,0,cptype)
         call attrib(idnc,dima,asize,'strat_nt','Strat net temp tendency','K/s',0.,1.,0,cptype)
       end if
     end if
@@ -3114,6 +3117,9 @@ if ( ldr/=0 .and. save_cloud ) then
     call histwrt(qgrg,'qgrg',idnc,iarch,local,.true.)
   end if
   call histwrt(cfrac,'cfrac',idnc,iarch,local,.true.)
+  if ( itype==-1 .or. diaglevel_cloud>5 ) then
+    call histwrt(stratcloud,'stratcf',idnc,iarch,local,.true.)   
+  end if
   if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
     call histwrt(rfrac,'rfrac',idnc,iarch,local,.true.)
   end if
@@ -3121,8 +3127,7 @@ if ( ldr/=0 .and. save_cloud ) then
     call histwrt(sfrac,'sfrac',idnc,iarch,local,.true.)
     call histwrt(gfrac,'gfrac',idnc,iarch,local,.true.)
   end if
-  if ( ncloud>=4 .and. (itype==-1.or.diaglevel_cloud>5) ) then
-    call histwrt(stratcloud,'stratcf',idnc,iarch,local,.true.)  
+  if ( ncloud>=4 .and. (itype==-1.or.diaglevel_cloud>5) ) then 
     call histwrt(nettend,'strat_nt',idnc,iarch,local,.true.)
   end if
 endif
@@ -3338,7 +3343,7 @@ logical :: local
 character(len=1024) :: ffile
 character(len=40) :: lname
 character(len=33) :: grdtim
-!character(len=20) :: timorg
+character(len=20) :: timorg
 
 call START_LOG(outfile_begin)
 
@@ -3443,8 +3448,8 @@ if ( first ) then
     ich=ktime/100
     icmi=(ktime-ich*100)
     ics=0
-    !write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
-    !call ccnf_put_att(fncid,idnt,'time_origin',timorg)
+    write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
+    call ccnf_put_att(fncid,idnt,'time_origin',timorg)
     write(grdtim,'("seconds since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
     call ccnf_put_att(fncid,idnt,'units',grdtim)
     if ( leap==0 ) then

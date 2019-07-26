@@ -302,6 +302,9 @@ do iq_tile = 1,ifull,imax
     elseif (abs(nmlo)<=9) then
       ! MLO albedo ----------------------------------------------------
       call mloalb4(istart,imax,coszro,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)
+    else
+      write(6,*) "ERROR: PCOM albedo is required in seaesfrad"
+      call ccmpi_abort(-1)
     end if
 
     ! Urban albedo --------------------------------------------------
@@ -311,11 +314,10 @@ do iq_tile = 1,ifull,imax
     call atebalb1(istart,imax,cirrf_dif(1:imax),0,split=2) ! diffuse
 
     ! Aerosols -------------------------------------------------------
-    rhoa(:,1) = ps(istart:iend)*sig(1)/(rdry*t(istart:iend,1)) !density of air
-    dz(:,1) = -rdry*dsig(1)*t(istart:iend,1)/(grav*sig(1))
-    do k = 2,kl
+    do k = 1,kl
       rhoa(:,k) = ps(istart:iend)*sig(k)/(rdry*t(istart:iend,k)) !density of air
       dz(:,k) = -rdry*dsig(k)*t(istart:iend,k)/(grav*sig(k))
+      dz(:,k) = min( max(dz(:,k), 1.), 2.e4 )
     end do
     select case (abs(iaero))
       case(0)
@@ -396,7 +398,7 @@ do iq_tile = 1,ifull,imax
       mx = 0.
       do k = 1,nlow
         mx = max(mx, cfrac(istart:iend,k))
-        where ( cfrac(istart:iend,k)<1.e-10 )
+        where ( cfrac(istart:iend,k)<1.e-4 )
           cloudlo(istart:iend) = cloudlo(istart:iend) + mx*(1.-cloudlo(istart:iend))
           mx = 0.
         end where
@@ -405,7 +407,7 @@ do iq_tile = 1,ifull,imax
       mx = 0.
       do k = nlow+1,nmid
         mx = max(mx, cfrac(istart:iend,k))
-        where ( cfrac(istart:iend,k)<1.e-10 )
+        where ( cfrac(istart:iend,k)<1.e-4 )
           cloudmi(istart:iend) = cloudmi(istart:iend) + mx*(1.-cloudmi(istart:iend))
           mx = 0.
         end where
@@ -414,7 +416,7 @@ do iq_tile = 1,ifull,imax
       mx = 0.
       do k = nmid+1,kl-1
         mx = max(mx, cfrac(istart:iend,k))
-        where ( cfrac(istart:iend,k)<1.e-10 )
+        where ( cfrac(istart:iend,k)<1.e-4 )
           cloudhi(istart:iend) = cloudhi(istart:iend) + mx*(1.-cloudhi(istart:iend))
           mx = 0.
         end where
@@ -576,7 +578,7 @@ do iq_tile = 1,ifull,imax
     ! sg = +Snet = Sdown - Sup
     sgn(istart:iend)  = sgdn(istart:iend) - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
     sgvis      = sgdnvis - real(Sw_output(mythread)%ufsw_vis_sfc(:,1,1))
-    !sgvisdir  = Sw_output(mythread)%dfsw_vis_sfc_dir(:,1,1)
+    !sgvisdir  = Sw_output(mythread)%dfsw_vis_sfc_dir(:,1,1)-Sw_output(mythread)%ufsw_vis_sfc_dir(:,1,1)
     !sgvisdif  = Sw_output(mythread)%dfsw_vis_sfc_dif(:,1,1)-Sw_output(mythread)%ufsw_vis_sfc_dif(:,1,1)
     !sgnirdir  = Sw_output(mythread)%dfsw_dir_sfc(:,1,1)-sgvisdir
     !sgnirdif  = Sw_output(mythread)%dfsw_dif_sfc(:,1,1)-Sw_output(mythread)%ufsw_dif_sfc(:,1,1)-sgvisdif
@@ -617,8 +619,6 @@ do iq_tile = 1,ifull,imax
     ! shortwave output ----------------------------------------------
     sint(1:imax) = real(Sw_output(mythread)%dfsw(:,1,1,1))   ! solar in top
     sout(1:imax) = real(Sw_output(mythread)%ufsw(:,1,1,1))   ! solar out top
-    !sgdn(istart:iend) = sgn(istart:iend) / ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
-    !              -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) )
 
     ! Clear sky calculation -----------------------------------------
     if ( do_totcld_forcing ) then
@@ -1023,7 +1023,7 @@ return
 end subroutine shortwave_driver
 
 ! This subroutine is based on cloud2.f
-subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlg,qfg,prf,ttg,cdrop,imax,kl)
+subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlrad,qfrad,prf,ttg,cdrop,imax,kl)
 
 use cc_mpi              ! CC MPI routines
 use const_phys          ! Physical constants
@@ -1033,7 +1033,7 @@ implicit none
 
 integer, intent(in) :: imax, kl
 integer iq, k, kr
-real, dimension(imax,kl), intent(in) :: cfrac, qlg, qfg, prf, ttg
+real, dimension(imax,kl), intent(in) :: cfrac, qlrad, qfrad, prf, ttg
 real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop, Rice, conl, coni
 real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa
@@ -1078,10 +1078,10 @@ end select
 
 ! Reffl is the effective radius calculated following
 ! Martin etal 1994, JAS 51, 1823-1842
-where ( qlg(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
-  Wliq(:,:) = rhoa(:,:)*qlg(:,:)/cfrac(:,:) !kg/m^3
+where ( qlrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
+  Wliq(:,:) = rhoa(:,:)*qlrad(:,:)/cfrac(:,:) !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
-  eps(:,:) = 1.-0.7*exp(liqparm*cdrop(:,:))
+  eps(:,:) = 1. - 0.7*exp(liqparm*cdrop(:,:))
   rk(:,:)  = (1.+eps(:,:)**2)/(1.+2.*eps(:,:)**2)**2
 
   ! k_ratio = rk**(-1./3.)  
@@ -1112,15 +1112,15 @@ end where
 if ( do_brenguier ) then
   if ( nmr>=1 ) then
     ! Max-Rnd overlap
-    where ( cfrac(:,2)<1.e-10 )
+    where ( cfrac(:,2)<1.e-4 )
       reffl(:,1) = reffl(:,1)*1.134
     end where
     do k = 2,kl-1
-      where ( cfrac(:,k-1)<1.e-10 .and. cfrac(:,k+1)<1.e-10 )
+      where ( cfrac(:,k-1)<1.e-4 .and. cfrac(:,k+1)<1.e-4 )
         reffl(:,k) = reffl(:,k)*1.134
       end where
     end do
-    where ( cfrac(:,kl-1)<1.e-10 )
+    where ( cfrac(:,kl-1)<1.e-4 )
       reffl(:,kl) = reffl(:,kl)*1.134
     end where 
   else
@@ -1132,8 +1132,8 @@ end if
 select case(iceradmethod)
   case(0)
     !Lohmann et al.(1999)
-    where ( qfg(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
-      Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) !kg/m**3
+    where ( qfrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
+      Wice(:,:) = rhoa(:,:)*qfrad(:,:)/cfrac(:,:) !kg/m**3
       reffi(:,:) = 0.5*min(150.e-6, 3.73e-4*Wice(:,:)**0.216) 
     elsewhere
       Wice(:,:) = 0.
@@ -1169,8 +1169,8 @@ select case(iceradmethod)
     elsewhere
       basesize(:,:) = 20.2
     end where
-    where ( qfg(:,:)>1.e-10 .and. cfrac(:,:)>1.e-10 )
-      Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) ! kg/m**3
+    where ( qfrad(:,:)>1.e-8 .and. cfrac(:,:)>1.e-4 )
+      Wice(:,:) = rhoa(:,:)*qfrad(:,:)/cfrac(:,:) ! kg/m**3
       reffi(:,:) = 5.e-7*basesize(:,:)
     elsewhere
       Wice(:,:) = 0.
@@ -1179,8 +1179,8 @@ select case(iceradmethod)
    
   case(2)
     ! Fu 2007
-    where ( qfg(:,:)>1.E-10 .and. cfrac(:,:)>1.E-10 )
-      Wice(:,:) = rhoa(:,:)*qfg(:,:)/cfrac(:,:) !kg/m**3
+    where ( qfrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
+      Wice(:,:) = rhoa(:,:)*qfrad(:,:)/cfrac(:,:) !kg/m**3
       reffi(:,:) = 5.E-7*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
     elsewhere
       Wice(:,:) = 0.
@@ -1190,8 +1190,8 @@ select case(iceradmethod)
   case(3)
     do k = 1,kl
       do iq = 1,imax
-        if ( qfg(iq,k)>1.E-10 .and. cfrac(iq,k)>1.E-10 ) then
-          Wice(iq,k) = rhoa(iq,k)*qfg(iq,k)/cfrac(iq,k) ! kg/m**3
+        if ( qfrad(iq,k)>1.E-8 .and. cfrac(iq,k)>1.E-4 ) then
+          Wice(iq,k) = rhoa(iq,k)*qfrad(iq,k)/cfrac(iq,k) ! kg/m**3
           if ( ttg(iq,k)>248.16 ) then
             reffi(iq,k) = 5.E-7*100.6
           elseif ( ttg(iq,k)>243.16 ) then
@@ -1216,9 +1216,8 @@ select case(iceradmethod)
       end do
     end do
 
-end select
-    
-
+end select 
+  
 do k = 1,kl
   kr = kl + 1 - k
   Rdrop(:,kr) = real(2.E6*reffl(:,k), 8) ! convert to diameter and microns

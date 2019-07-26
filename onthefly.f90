@@ -1850,6 +1850,9 @@ if ( nested/=1 .and. nested/=3 ) then
     call gethist4a('cfrac',cfrac,5)           ! CLOUD FRACTION
     cfrac(1:ifull,1:kl) = max( cfrac(1:ifull,1:kl), 0. )
     cfrac(1:ifull,1:kl) = min( cfrac(1:ifull,1:kl), 1. )
+    call gethist4a('stratcf',stratcloud,5)
+    stratcloud(1:ifull,1:kl) = max( stratcloud(1:ifull,1:kl), 0. )
+    stratcloud(1:ifull,1:kl) = min( stratcloud(1:ifull,1:kl), 1. )
     if ( ncloud>=2 ) then
       call gethist4a('rfrac',rfrac,5)         ! RAIN FRACTION
       rfrac(1:ifull,1:kl) = max( rfrac(1:ifull,1:kl), 0. )
@@ -1864,7 +1867,6 @@ if ( nested/=1 .and. nested/=3 ) then
       gfrac(1:ifull,1:kl) = min( gfrac(1:ifull,1:kl), 1. )
     end if
     if ( ncloud>=4 ) then
-      call gethist4a('stratcf',stratcloud,5)  ! STRAT CLOUD FRACTION
       call gethist4a('strat_nt',nettend,5)    ! STRAT NET TENDENCY
     end if ! (ncloud>=4)
   end if   ! (nested==0)

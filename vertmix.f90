@@ -124,7 +124,7 @@ integer :: is, ie, tile, k
 integer :: idjd_t
 real, dimension(imax,kl,naero) :: lxtg
 real, dimension(imax,kl) :: lt, lqg, lqfg,  lqlg
-real, dimension(imax,kl) :: lcfrac, lu, lv
+real, dimension(imax,kl) :: lcfrac, lu, lv, lstratcloud
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
 real, dimension(imax,kl) :: lat, lct
 real, dimension(imax) :: lou, lov, liu, liv
@@ -142,7 +142,7 @@ real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 
 !$omp do schedule(static) private(is,ie,k),                                &
 !$omp private(lt,lqg,lqfg,lqlg),                                           &
-!$omp private(lcfrac,lxtg,lu,lv,lsavu,lsavv,ltke,leps,lshear),             &
+!$omp private(lcfrac,lstratcloud,lxtg,lu,lv,lsavu,lsavv,ltke,leps,lshear), &
 !$omp private(lou,lov,liu,liv,lat,lct,idjd_t,mydiag_t),                    &
 #ifdef scm
 !$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave),      &
@@ -163,11 +163,8 @@ do tile = 1,ntiles
   lqg       = qg(is:ie,:)
   lqfg      = qfg(is:ie,:)
   lqlg      = qlg(is:ie,:)
-  if ( ncloud>=4 ) then
-    lcfrac = stratcloud(is:ie,:)
-  else
-    lcfrac = cfrac(is:ie,:)
-  end if  
+  lcfrac    = cfrac(is:ie,:)
+  lstratcloud = stratcloud(is:ie,:)
   if ( abs(iaero)>=2 ) then
     lxtg = xtg(is:ie,:,:)
   end if
@@ -214,14 +211,14 @@ do tile = 1,ntiles
     lsavv = savv(is:ie,:)
   end if
   
-  call vertmix_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),           &
-                    ps(is:ie),lqg,lqfg,lqlg,                                                                         &
-                    condc(is:ie),lcfrac,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),zo(is:ie),lsavu,lsavv,land(is:ie),        &
-                    tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),ltke,leps,lshear,        &
-                    lat,lct                                                                                          &
+  call vertmix_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),     &
+                    ps(is:ie),lqg,lqfg,lqlg,lstratcloud,                                                       &
+                    condc(is:ie),lcfrac,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),zo(is:ie),lsavu,lsavv,land(is:ie),  &
+                    tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),ltke,leps,lshear,  &
+                    lat,lct                                                                                    &
 #ifdef scm
-                    ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave                &
-                    ,lbuoyproduction,lshearproduction,ltotaltransport                                                &
+                    ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave          &
+                    ,lbuoyproduction,lshearproduction,ltotaltransport                                          &
 #endif
                     ,idjd_t,mydiag_t)
                     
@@ -229,11 +226,7 @@ do tile = 1,ntiles
   qg(is:ie,:)         = lqg
   qfg(is:ie,:)        = lqfg
   qlg(is:ie,:)        = lqlg
-  if ( ncloud>=4 ) then
-    stratcloud(is:ie,:) = lcfrac
-  else
-    cfrac(is:ie,:) = lcfrac
-  end if  
+  stratcloud(is:ie,:) = lstratcloud
   if ( abs(iaero)>=2 ) then
     xtg(is:ie,:,:) = lxtg
   end if
@@ -292,7 +285,7 @@ end subroutine vertmix
 
 !--------------------------------------------------------------
 ! Control subroutine for vertical mixing
-subroutine vertmix_work(t,em,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,condc,cfrac,                     &
+subroutine vertmix_work(t,em,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,stratcloud,condc,cfrac,          &
                         xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear,   &
                         at,ct                                                                              &
 #ifdef scm
@@ -324,10 +317,10 @@ integer, parameter :: ntest = 0
 integer k, nt
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
-real, dimension(imax,kl), intent(inout) :: cfrac, u, v
+real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(inout) :: tke, eps
 real, dimension(imax,kl), intent(out) :: at, ct
-real, dimension(imax,kl), intent(in) :: savu, savv, shear
+real, dimension(imax,kl), intent(in) :: savu, savv, shear, cfrac
 real, dimension(imax), intent(inout) :: pblh, ustar
 real, dimension(imax), intent(in) :: em, tss, eg, fg, convpsav, ps, condc
 real, dimension(imax), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs
@@ -545,10 +538,10 @@ if ( nvmix/=6 ) then
     rhs=qlg(1:imax,:)
     call trim(at,ct,rhs)
     qlg(1:imax,:)=rhs
-    ! now do cfrac
-    rhs = cfrac(1:imax,:)
+    ! now do stratcloud
+    rhs = stratcloud(1:imax,:)
     call trim(at,ct,rhs)
-    cfrac(1:imax,:)=rhs
+    stratcloud(1:imax,:)=rhs
   end if    ! (ldr/=0)
   
   !--------------------------------------------------------------
@@ -633,19 +626,13 @@ else
 
   ! calculate height on full levels
   zg(:,1) = bet(1)*t(1:imax,1)/grav
-  zg(:,1) = max( 1., zg(:,1) )
   zh(:,1) = t(1:imax,1)*delh(1)
-  zh(:,1) = max( zg(:,1)+1., zh(:,1) )
   do k = 2,kl-1
     zg(:,k) = zg(:,k-1) + (bet(k)*t(1:imax,k)+betm(k)*t(1:imax,k-1))/grav
-    zg(:,k) = max( zh(:,k-1)+1., zg(:,k) )
     zh(:,k) = zh(:,k-1) + t(1:imax,k)*delh(k)
-    zh(:,k) = max( zg(:,k)+1., zh(:,k) )
   end do ! k  loop
   zg(:,kl) = zg(:,kl-1) + (bet(kl)*t(1:imax,kl)+betm(kl)*t(1:imax,kl-1))/grav
-  zg(:,kl) = max( zh(:,kl-1)+1., zg(:,kl) )
   zh(:,kl) = zh(:,kl-1) + t(1:imax,kl)*delh(kl)
-  zh(:,kl) = max( zg(:,kl)+1., zh(:,kl) )
        
   ! near surface air density (see sflux.f and cable_ccam2.f90)
   rhos(1:imax) = ps(1:imax)/(rdry*tss(1:imax))
@@ -659,17 +646,17 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,    &
-                  ustar,dt,qgmin,1,0,tke,eps,shear,dx,                               &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,             &
-                  shearproduction,totaltransport,                                    &
+      call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                  ustar,dt,qgmin,1,0,tke,eps,shear,dx,                                 &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,               &
+                  shearproduction,totaltransport,                                      &
                   imax)
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,    &
-                  ustar,dt,qgmin,1,0,tke,eps,shear,dx,                               &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,             &
-                  shearproduction,totaltransport,                                    &
+      call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                  ustar,dt,qgmin,1,0,tke,eps,shear,dx,                                 &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,               &
+                  shearproduction,totaltransport,                                      &
                   imax)
       rkh = rkm
       do k = 1,kl
@@ -680,10 +667,10 @@ else
                   t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
                   wth_flux,wq_flux)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,    &
-                  ustar,dt,qgmin,0,0,tke,eps,shear,dx,                               &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,             &
-                  shearproduction,totaltransport,                                    &
+      call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                  ustar,dt,qgmin,0,0,tke,eps,shear,dx,                                 &
+                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,               &
+                  shearproduction,totaltransport,                                      &
                   imax)
       rkh = rkm
     case DEFAULT
@@ -694,13 +681,13 @@ else
   ! Evaluate EDMF scheme
   select case(nlocal)
     case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
-                  ustar,dt,qgmin,1,0,tke,eps,shear,dx,                             &
+      call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                  ustar,dt,qgmin,1,0,tke,eps,shear,dx,                                 &
                   imax) 
       rkh = rkm
     case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
-                  ustar,dt,qgmin,1,0,tke,eps,shear,dx,                             &
+      call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                  ustar,dt,qgmin,1,0,tke,eps,shear,dx,                                 &
                   imax) 
       rkh = rkm
       do k = 1,kl
@@ -710,8 +697,8 @@ else
       call pbldif(rkm,rkh,rhs,uav,vav,dx,                &
                   t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac)
     case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,cfrac,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
-                  ustar,dt,qgmin,0,0,tke,eps,shear,dx,                             &
+      call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                  ustar,dt,qgmin,0,0,tke,eps,shear,dx,                                 &
                   imax) 
       rkh = rkm
     case DEFAULT

@@ -25,7 +25,6 @@ use aerosolldr             ! LDR prognostic aerosols
 use arrays_m               ! Atmosphere dyamics prognostic arrays
 use cc_mpi                 ! CC MPI routines
 use cc_omp                 ! CC OpenMP routines
-use cfrac_m                ! Cloud fraction
 use cloudmod               ! Prognostic cloud fraction
 use const_phys             ! Physical constants
 use diag_m                 ! Diagnostic routines
@@ -350,14 +349,12 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     duma(1:ifull,:,1) = qg(1:ifull,:)
     duma(1:ifull,:,2) = qlg(1:ifull,:)
     duma(1:ifull,:,3) = qfg(1:ifull,:)
-    call ints(3,duma,intsch,nface,xg,yg,4)
+    duma(1:ifull,:,4) = stratcloud(1:ifull,:)
+    call ints(4,duma,intsch,nface,xg,yg,4)
     qg(1:ifull,:)  = duma(1:ifull,:,1)
     qlg(1:ifull,:) = duma(1:ifull,:,2)
     qfg(1:ifull,:) = duma(1:ifull,:,3)
-    if ( ncloud>=4 ) then
-      ! prognostic cloud fraction and condensate version
-      call ints(1,stratcloud,intsch,nface,xg,yg,4)
-    end if
+    stratcloud(1:ifull,:) = duma(1:ifull,:,4)
   else
     call ints(1,qg,intsch,nface,xg,yg,3)
   end if    ! ldr/=0

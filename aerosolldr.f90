@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -126,7 +126,7 @@ real, save :: zvolcemi       = 8.               ! Total emission from volcanoes 
 real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
 
 ! Indirect effect coefficients
-! converts from mass (kg/m3) to number concentration (/m3) for dist'n
+! converts from mass (kg/m3) to number concentration (1/m3) for dist'n
 real, save :: so4mtn = 1.24e17                  ! Penner et al (1998)
 real, save :: carbmtn = 1.25e17                 ! Penner et al (1998)
 real, save :: saltsmallmtn = 1.89e16            ! Nillson et al. number mode radius = 0.1 um, sd=2
@@ -143,7 +143,7 @@ real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /) 
 real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 /) ! Main effective radius (m)
                                                                                    ! (Clay, small silt, small slit, small silt)
 ! This frac_s array gives fraction of source in each size bin.
-! Doesn't quite add to 1, because larger sizes (omitted) account for some too.
+! Does not quite add to 1, because larger sizes (omitted) account for some too.
 ! All source is in first four bins, even when using eight bins, since next four are hydrophilic.
 real, dimension(ndust), parameter :: frac_s = (/ 0.1, 0.25, 0.25, 0.25 /)
 integer, dimension(ndust), parameter :: ipoint = (/ 3, 2, 2, 2 /)                  ! Pointer used for dust classes
@@ -350,12 +350,12 @@ end subroutine aldrloaderod
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Main routine
 
-subroutine aldrcalc(dt,sig,zz,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,                &
-                    ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,cfrac,clcon,cldcon,pccw,rhoa,vt,     &
-                    pfprec,pfmelt,pfsnow,pfevap,pfsubl,plambs,pmrate,pmaccr,pfstayice,            &
-                    pfstayliq,pqfsedice,prscav,prfreeze,zdayfac,kbsav,xtg,duste,dustdd,xtosav,    &
-                    xtg_solub,dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,         &
-                    so2_burden,so4_burden,erod,ssn,zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,         &
+subroutine aldrcalc(dt,sig,zz,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,                 &
+                    ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,stratcloud,clcon,cldcon,pccw,rhoa,vt, &
+                    pfprec,pfmelt,pfsnow,pfevap,pfsubl,plambs,pmrate,pmaccr,pfstayice,             &
+                    pfstayliq,pqfsedice,prscav,prfreeze,zdayfac,kbsav,xtg,duste,dustdd,xtosav,     &
+                    xtg_solub,dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,          &
+                    so2_burden,so4_burden,erod,ssn,zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,          &
                     emissfield,vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,imax)
 
 implicit none
@@ -382,15 +382,15 @@ real, dimension(imax), intent(in) :: vt        ! transfer velocity
 real, dimension(imax), intent(in) :: zdayfac   ! scale factor for day length
 real, dimension(imax,kl), intent(in) :: zz     ! Height of vertical level (meters)
 real, dimension(imax,kl), intent(in) :: dz
-real, dimension(imax,kl), intent(in) :: ttg        ! Air temperature
-real, dimension(imax,kl), intent(in) :: qvg        ! liquid water mixing ratio
-real, dimension(imax,kl), intent(in) :: qlg        ! liquid water mixing ratio
-real, dimension(imax,kl), intent(in) :: qfg        ! frozen water mixing ratio
-real, dimension(imax,kl), intent(in) :: cfrac ! cloud fraction
+real, dimension(imax,kl), intent(in) :: ttg    ! Air temperature
+real, dimension(imax,kl), intent(in) :: qvg    ! liquid water mixing ratio
+real, dimension(imax,kl), intent(in) :: qlg    ! liquid water mixing ratio
+real, dimension(imax,kl), intent(in) :: qfg    ! frozen water mixing ratio
+real, dimension(imax,kl), intent(in) :: stratcloud  ! stratiform cloud fraction
 real, dimension(imax,kl), intent(in) :: clcon  ! convective cloud fraction
 real, dimension(imax), intent(in) :: cldcon    ! Convective rainfall area fraction
 real, dimension(imax,kl), intent(in) :: pccw
-real, dimension(imax,kl), intent(in) :: rhoa   ! density of air
+real, dimension(imax,kl), intent(in) :: rhoa   ! density of air (kg/m3)
 real, dimension(imax,kl), intent(in) :: pfprec, pfmelt, pfsnow         ! from LDR prog cloud
 real, dimension(imax,kl), intent(in) :: pfevap, pfsubl, plambs, pmrate ! from LDR prog cloud
 real, dimension(imax,kl), intent(in) :: pmaccr, pqfsedice, prscav      ! from LDR prog cloud
@@ -492,10 +492,10 @@ select case(enhanceu10)
 end select
 
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
-call xtemiss(dt, rhoa, ts, fracice, vefn, land, tsigmf, cgssnowd, wg, dz,  & !Inputs
-             xte, xtem, bbem,                                              & !Outputs
+call xtemiss(dt, rhoa, ts, fracice, vefn, land, tsigmf, cgssnowd, wg, dz,      & !Inputs
+             xte, xtem, bbem,                                                  & !Outputs
              emissfield,vso2,dmse,so2e,so4e,bce,oce,xtg,so2dd,so4dd,bcdd,ocdd, &
-             imax)                                                     !Inputs
+             imax)                                                               !Inputs
 xtg(1:imax,:,:) = max( xtg(1:imax,:,:)+xte(:,:,:)*dt, 0. )
 
 #ifdef debugaero
@@ -516,7 +516,7 @@ do k = 1,ndust
   dcola(:,k) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu+k-1)*dz(:,:), dim=2 )
 end do  
 ! Calculate the settling of large dust particles
-call dsettling(dt,rhoa,ttg,dz,aphp1(:,1:kl),xtg,imax)
+call dsettling(dt,rhoa,ttg,dz,aphp1,xtg,imax)
 #ifdef debugaero
 if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
   write(6,*) "xtg out-of-range after dsettling"
@@ -540,8 +540,7 @@ end if
 #endif
 
 ! Decay of hydrophobic black and organic carbon into hydrophilic forms
-call xtsink(dt,xte,xtg,imax)
-xtg(1:imax,:,:) = max( xtg(1:imax,:,:)+xte(:,:,:)*dt, 0. )
+call xtsink(dt,xtg,imax)
 
 #ifdef debugaero
 if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
@@ -584,12 +583,11 @@ do k = 1,kl
   prhop1(:,kl+1-k) = rhoa(:,k)                                  ! air density
   ptp1(:,kl+1-k)   = ttg(1:imax,k)                              ! air temperature
   pclcon(:,kl+1-k) = min(max(clcon(:,k),0.),1.)                 ! convective cloud fraction
-  qtot = qlg(1:imax,k)+qfg(1:imax,k)                            ! total liquid and ice mixing ratio
-  cstrat = max(min(cfrac(:,k)-clcon(:,k),1.),0.)                ! strat cloud fraction (i.e., ccov from leoncld.f)
-  pclcover(:,kl+1-k) = cstrat*qlg(1:imax,k)/max(qtot,1.E-8)     ! Liquid-cloud fraction
-  pcfcover(:,kl+1-k) = cstrat*qfg(1:imax,k)/max(qtot,1.E-8)     ! Ice-cloud fraction
-  pmlwc(:,kl+1-k) = qlg(1:imax,k)
-  pmiwc(:,kl+1-k) = qfg(1:imax,k)
+  qtot = qlg(1:imax,k) + qfg(1:imax,k)                          ! total liquid and ice mixing ratio
+  pclcover(:,kl+1-k) = stratcloud(:,k)*qlg(:,k)/max(qtot,1.E-8) ! Liquid-cloud fraction
+  pcfcover(:,kl+1-k) = stratcloud(:,k)*qfg(:,k)/max(qtot,1.E-8) ! Ice-cloud fraction
+  pmlwc(:,kl+1-k) = qlg(:,k)
+  pmiwc(:,kl+1-k) = qfg(:,k)
   where ( k<=kbsav )
     pfconv(:,kl+1-k) = condc(:)/dt
   elsewhere
@@ -1016,7 +1014,7 @@ end subroutine xtemiss
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! xt sink
 
-SUBROUTINE XTSINK (PTMST,PXTE,xtg,imax)
+SUBROUTINE XTSINK(PTMST,xtg,imax)
 !
 !   *XTSINK*  CALCULATES THE DECREASE OF TRACER CONCENTRATION
 !             FOR  A GIVEN HALF-LIFE-TIME
@@ -1027,49 +1025,34 @@ SUBROUTINE XTSINK (PTMST,PXTE,xtg,imax)
 !  ---------------
 !   THE MASS MIXING-RATIO OF TRACERS IS MULTIPLIED WITH
 !   EXP(ALOG(0.5)*TIME-STEP/HALF-LIFE-TIME).
-!   THIS ROUTINE COULD ALSO BE USED FOR EMISSION OR SINK
-!   ABOVE THE SURFACE
 !
 
 implicit none
 
-! Argument list
 integer, intent(in) :: imax
 REAL, intent(in) :: PTMST
-REAL, dimension(imax,kl,naero), intent(out) :: PXTE
-!global
-real, dimension(imax,kl,naero), intent(in) :: xtg
-!
-
-! Local data, functions etc
-real, dimension(imax) :: zxtp1,zdxtdt
+real, dimension(imax,kl,naero), intent(inout) :: xtg
+real, dimension(imax) :: zdxtdt
 real pqtmst,zfac,zdecay
-
 integer jk
 
 ! Start code : ----------------------------------------------------------
-
-pxte(:,:,:)=0. !Very important!
 
 PQTMST=1./PTMST
 ZFAC=ALOG(0.5)*PTMST
 
 ZDECAY=EXP(ZFAC/86400.) ! 1 day
 DO JK=1,kl
-  ZXTP1=xtg(1:imax,JK,ITRACBC)+PXTE(1:imax,JK,ITRACBC)*PTMST
-  ZXTP1=ZXTP1*ZDECAY
-  ZDXTDT=(ZXTP1-xtg(1:imax,JK,ITRACBC))*PQTMST-PXTE(1:imax,JK,ITRACBC)
-  PXTE(1:imax,JK,ITRACBC)  =PXTE(1:imax,JK,ITRACBC)  +ZDXTDT
-  PXTE(1:imax,JK,ITRACBC+1)=PXTE(1:imax,JK,ITRACBC+1)-ZDXTDT 
+  ZDXTDT=xtg(1:imax,JK,ITRACBC)*(ZDECAY-1.)
+  xtg(1:imax,JK,ITRACBC)   = xtg(1:imax,JK,ITRACBC)   + ZDXTDT
+  xtg(1:imax,JK,ITRACBC+1) = xtg(1:imax,JK,ITRACBC+1) - ZDXTDT
 end do
 
 ZDECAY=EXP(ZFAC/86400.) ! 1 day
 DO JK=1,kl
-  ZXTP1=xtg(1:imax,JK,ITRACOC)+PXTE(1:imax,JK,ITRACOC)*PTMST
-  ZXTP1=ZXTP1*ZDECAY
-  ZDXTDT=(ZXTP1-xtg(1:imax,JK,ITRACOC))*PQTMST-PXTE(1:imax,JK,ITRACOC)
-  PXTE(1:imax,JK,ITRACOC)  =PXTE(1:imax,JK,ITRACOC)  +ZDXTDT
-  PXTE(1:imax,JK,ITRACOC+1)=PXTE(1:imax,JK,ITRACOC+1)-ZDXTDT 
+  ZDXTDT=xtg(1:imax,JK,ITRACOC)*(ZDECAY-1.)*PQTMST
+  xtg(1:imax,JK,ITRACOC)   = xtg(1:imax,JK,ITRACOC)   + ZDXTDT
+  xtg(1:imax,JK,ITRACOC+1) = xtg(1:imax,JK,ITRACOC+1) - ZDXTDT
 end do
 
 RETURN
@@ -2292,6 +2275,10 @@ do n = 1, ndust
   b = Veff / dz1
 
   ! Update mixing ratio
+  !! Write in form dx/dt = a - b*x (a = source term, b = drydep term)
+  !! solution is x = a/b*(1.-exp(-b*tdt))+X0*exp(-b*tdt) which is approximately
+  !! x /approx a*tdt + X0*exp(-b*tdt) + O( a*b*tdt^2 )
+  !!xtg(1:imax,1,n+itracdu-1) = xtg(1:imax,1,n+itracdu-1)*exp(-b*tdt) + a*tdt
   ! Write in form dx/dt = a - b*x (a = source term, b = drydep term)
   ! solution is x = a/b + X0*exp(-b*tdt).  However, in split form
   ! x = a*tdt

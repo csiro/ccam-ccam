@@ -36,7 +36,6 @@ use aerosolldr
 use arrays_m
 use cc_mpi
 use cc_omp
-use cfrac_m
 use cloudmod
 use diag_m
 use liqwpar_m  ! ifullw
@@ -111,9 +110,7 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 ) then
     call vadv_work(qlg,nvadh_pass,nits,tile)
     call vadv_work(qfg,nvadh_pass,nits,tile)
-    if ( ncloud>=4 ) then
-      call vadv_work(stratcloud,nvadh_pass,nits,tile)
-    end if
+    call vadv_work(stratcloud,nvadh_pass,nits,tile)
     if ( diag .and. mydiag .and. ntiles==1 ) then
       write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
       write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 

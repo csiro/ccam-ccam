@@ -5098,7 +5098,7 @@ if ( any(cfrac(js:je,1:kl)/=cfrac(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(cfrac(js:je,1:kl)<-1.e-8) .or. any(cfrac(js:je,1:kl)>1.) ) then
+if ( any(cfrac(js:je,1:kl)<-1.e-8) .or. any(cfrac(js:je,1:kl)>1.001) ) then
   write(6,*) "ERROR: Out-of-range detected in cfrac on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(cfrac(js:je,1:kl)),maxval(cfrac(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(cfrac(js:je,1:kl)),maxloc(cfrac(js:je,1:kl))
@@ -5110,7 +5110,7 @@ if ( any(rfrac(js:je,1:kl)/=rfrac(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(rfrac(js:je,1:kl)<-1.e-8) .or. any(rfrac(js:je,1:kl)>1.) ) then
+if ( any(rfrac(js:je,1:kl)<-1.e-8) .or. any(rfrac(js:je,1:kl)>1.001) ) then
   write(6,*) "ERROR: Out-of-range detected in rfrac on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(rfrac(js:je,1:kl)),maxval(rfrac(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(rfrac(js:je,1:kl)),maxloc(rfrac(js:je,1:kl))
@@ -5122,7 +5122,7 @@ if ( any(sfrac(js:je,1:kl)/=sfrac(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(sfrac(js:je,1:kl)<-1.e-8) .or. any(sfrac(js:je,1:kl)>1.) ) then
+if ( any(sfrac(js:je,1:kl)<-1.e-8) .or. any(sfrac(js:je,1:kl)>1.001) ) then
   write(6,*) "ERROR: Out-of-range detected in sfrac on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(sfrac(js:je,1:kl)),maxval(sfrac(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(sfrac(js:je,1:kl)),maxloc(sfrac(js:je,1:kl))
@@ -5134,7 +5134,7 @@ if ( any(gfrac(js:je,1:kl)/=gfrac(js:je,1:kl)) ) then
   call ccmpi_abort(-1)    
 end if
 
-if ( any(gfrac(js:je,1:kl)<-1.e-8) .or. any(gfrac(js:je,1:kl)>1.) ) then
+if ( any(gfrac(js:je,1:kl)<-1.e-8) .or. any(gfrac(js:je,1:kl)>1.001) ) then
   write(6,*) "ERROR: Out-of-range detected in gfrac on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(gfrac(js:je,1:kl)),maxval(gfrac(js:je,1:kl))
   write(6,*) "minloc,maxloc ",minloc(gfrac(js:je,1:kl)),maxloc(gfrac(js:je,1:kl))

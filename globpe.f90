@@ -1462,7 +1462,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,                                                          &
-    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
+    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cloudtol             ! cloud
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & ! EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
@@ -2008,7 +2008,7 @@ diaglevel_carbon    = dumi(19)
 diaglevel_river     = dumi(20)
 diaglevel_pop       = dumi(21)
 deallocate( dumi )
-allocate( dumr(33), dumi(21) )
+allocate( dumr(33), dumi(22) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2067,6 +2067,7 @@ if ( myid==0 ) then
   dumi(19) = nclddia
   dumi(20) = nmr
   dumi(21) = nevapls
+  dumi(22) = cloudtol
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2124,6 +2125,7 @@ ncloud         = dumi(18)
 nclddia        = dumi(19) 
 nmr            = dumi(20)
 nevapls        = dumi(21)
+cloudtol       = dumi(22)
 deallocate( dumr, dumi )
 allocate( dumr(31), dumi(4) )
 dumr = 0.
@@ -3553,8 +3555,8 @@ end subroutine proctest_uniform
 subroutine fixqg(js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
-use cfrac_m                           ! Cloud fraction
 use const_phys                        ! Physical constants
+use cloudmod                          ! Prognostic cloud fraction
 use estab                             ! Liquid saturation function
 use liqwpar_m                         ! Cloud water mixing ratios
 use newmpar_m                         ! Grid parameters
@@ -3583,7 +3585,7 @@ do k = 1,kl
   qsng(js:je,k)  = max( qsng(js:je,k), 0. )
   qgrg(js:je,k)  = max( qgrg(js:je,k), 0. )
   
-  where ( qfg(js:je,k)>1.e-12 )
+  where ( qfg(js:je,k)>1.e-8 )
     fice(js:je) = min( qfg(js:je,k)/(qfg(js:je,k)+qlg(js:je,k)), 1. )
   elsewhere
     fice(js:je) = 0.
@@ -3604,10 +3606,10 @@ do k = 1,kl
 
   qg(js:je,k) = max( qtot(js:je) - qlg(js:je,k) - qfg(js:je,k), 0. )
   t(js:je,k)  = tliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
-  where ( qlg(js:je,k)+qfg(js:je,k)>1.E-12 )
-    cfrac(js:je,k) = max( cfrac(js:je,k), 1.E-8 )
+  where ( qlg(js:je,k)+qfg(js:je,k)>1.E-8 )
+    stratcloud(js:je,k) = max( stratcloud(js:je,k), 1.E-8 )
   elsewhere
-    cfrac(js:je,k) = 0.  
+    stratcloud(js:je,k) = 0.  
   end where
 end do
 

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -55,6 +55,361 @@ real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
 
 contains
 
+subroutine aerocalc(oxidant_update,mins)
+
+use aerosolldr           ! LDR prognostic aerosols
+use arrays_m             ! Atmosphere dyamics prognostic arrays
+use cc_omp
+use cloudmod             ! Prognostic strat cloud
+use extraout_m           ! Additional diagnostics
+use infile               ! Input file routines
+use kuocomb_m            ! JLM convection
+use latlong_m            ! Lat/lon coordinates
+use liqwpar_m            ! Cloud water mixing ratios
+use morepbl_m            ! Additional boundary layer diagnostics
+use newmpar_m            ! Grid parameters
+use nharrs_m             ! Non-hydrostatic atmosphere arrays
+use nsibd_m              ! Land-surface arrays
+use ozoneread            ! Ozone input routines
+use pbl_m                ! Boundary layer arrays
+use screen_m             ! Screen level diagnostics
+use sigs_m               ! Atmosphere sigma levels
+use soil_m               ! Soil and surface data
+use soilsnow_m           ! Soil, snow and surface data
+use soilv_m              ! Soil parameters
+use vegpar_m             ! Vegetation arrays
+use work2_m              ! Diagnostic arrays
+use zenith_m             ! Astronomy routines
+
+implicit none
+
+integer, intent(in) :: mins
+integer :: tile, is, ie
+real, dimension(imax,ilev,4) :: loxidantprev, loxidantnow, loxidantnext
+real, dimension(imax,kl,naero) :: lxtg, lxtosav, lxtg_solub
+real, dimension(imax,kl,4) :: lzoxidant
+real, dimension(imax,kl,2) :: lssn
+real, dimension(imax,kl) :: lt, lqg, lqlg, lqfg, lstratcloud
+real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfevap, lppfsubl, lpplambs
+real, dimension(imax,kl) :: lppmrate, lppmaccr, lppfstayice, lppfstayliq, lppqfsedice
+real, dimension(imax,kl) :: lpprscav, lpprfreeze
+real, dimension(imax,ndust) :: lduste, ldustdd, ldust_burden, ldustwd
+real, dimension(imax,ndcls) :: lerod
+real, dimension(imax,15) :: lemissfield
+logical, intent(in) :: oxidant_update
+
+!$omp do schedule(static) private(is,ie),                                                              &
+!$omp private(loxidantprev,loxidantnow,loxidantnext,lt,lqg,lqlg,lqfg),                                 &
+!$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr),    &
+!$omp private(lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),  &
+!$omp private(lxtosav,lxtg_solub,ldust_burden,lerod,lssn,ldustwd,lemissfield)
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  
+  loxidantprev(1:imax,1:ilev,1:4) = oxidantprev_g(is:ie,1:ilev,1:4)
+  loxidantnow(1:imax,1:ilev,1:4)  = oxidantnow_g(is:ie,1:ilev,1:4)
+  loxidantnext(1:imax,1:ilev,1:4) = oxidantnext_g(is:ie,1:ilev,1:4)
+  lzoxidant(1:imax,1:kl,1:4)      = zoxidant_g(is:ie,1:kl,1:4)
+  lxtg                            = xtg(is:ie,:,:)
+  lxtosav                         = xtosav(is:ie,:,:)
+  lssn                            = ssn(is:ie,:,:)
+  lduste                          = duste(is:ie,:)
+  ldustdd                         = dustdd(is:ie,:)
+  ldustwd                         = dustwd(is:ie,:)
+  ldust_burden                    = dust_burden(is:ie,:)
+  lemissfield                     = emissfield(is:ie,:)
+  lerod                           = erod(is:ie,:)
+  lt                              = t(is:ie,:)
+  lqg                             = qg(is:ie,:)
+  lqlg                            = qlg(is:ie,:)
+  lqfg                            = qfg(is:ie,:)
+  lstratcloud                     = stratcloud(is:ie,:)
+  lppfprec                        = ppfprec(is:ie,:)
+  lppfmelt                        = ppfmelt(is:ie,:)
+  lppfsnow                        = ppfsnow(is:ie,:)
+  lppfevap                        = ppfevap(is:ie,:)
+  lppfsubl                        = ppfsubl(is:ie,:)
+  lpplambs                        = pplambs(is:ie,:)
+  lppmrate                        = ppmrate(is:ie,:)
+  lppmaccr                        = ppmaccr(is:ie,:)
+  lppfstayice                     = ppfstayice(is:ie,:)
+  lppfstayliq                     = ppfstayliq(is:ie,:)
+  lppqfsedice                     = ppqfsedice(is:ie,:)
+  lpprscav                        = pprscav(is:ie,:)
+  lpprfreeze                      = pprfreeze(is:ie,:)  
+  if ( aeromode>=1 ) then
+    lxtg_solub = xtg_solub(is:ie,:,:)
+  end if
+
+  call aerocalc_work(loxidantprev,loxidantnow,loxidantnext,ps(is:ie),zdayfac(is:ie),rlatt(is:ie),rlongg(is:ie),       &
+                     lt,kbsav(is:ie),ktsav(is:ie),                                                                    &
+                     wetfac(is:ie),pblh(is:ie),tss(is:ie),condc(is:ie),snowd(is:ie),fg(is:ie),eg(is:ie),              &
+                     u10(is:ie),ustar(is:ie),zo(is:ie),land(is:ie),fracice(is:ie),sigmf(is:ie),lqg,lqlg,lqfg,         &
+                     lstratcloud,cdtq(is:ie),lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr, &
+                     lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,so4t(is:ie),lxtg,lzoxidant,lduste,       &
+                     ldustdd,                                                                                         &
+                     lxtosav,lxtg_solub,dmsso2o(is:ie),so2so4o(is:ie),ldust_burden,bc_burden(is:ie),                  &
+                     oc_burden(is:ie),dms_burden(is:ie),                                                              &
+                     so2_burden(is:ie),so4_burden(is:ie),lerod,lssn,so2wd(is:ie),so4wd(is:ie),bcwd(is:ie),            &
+                     ocwd(is:ie),ldustwd,lemissfield,vso2(is:ie),dmse(is:ie),                                         &
+                     so2e(is:ie),so4e(is:ie),bce(is:ie),oce(is:ie),so2dd(is:ie),so4dd(is:ie),bcdd(is:ie),             &
+                     ocdd(is:ie),mins,oxidant_update)
+
+  zoxidant_g(is:ie,1:kl,1:4) = lzoxidant(1:imax,1:kl,1:4)
+  xtg(is:ie,1:kl,1:naero)    = lxtg(1:imax,1:kl,1:naero)
+  ssn(is:ie,:,:)             = lssn
+  duste(is:ie,:)             = lduste
+  dustdd(is:ie,:)            = ldustdd
+  dustwd(is:ie,:)            = ldustwd
+  dust_burden(is:ie,:)       = ldust_burden
+  if ( aeromode>=1 ) then
+    xtg_solub(is:ie,:,:) = lxtg_solub
+  end if
+  
+end do
+!$omp end do nowait
+
+return
+end subroutine aerocalc
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Update prognostic aerosols
+subroutine aerocalc_work(oxidantprev,oxidantnow,oxidantnext,ps,zdayfac,rlatt,rlongg,t,kbsav,ktsav,          &
+                         wetfac,pblh,tss,condc,snowd,fg,eg,u10,ustar,zo,land,fracice,sigmf,qg,qlg,qfg,      &
+                         stratcloud,cdtq,ppfprec,ppfmelt,ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,   &
+                         ppfstayice,ppfstayliq,ppqfsedice,pprscav,pprfreeze,so4t,xtg,zoxidant,duste,dustdd, &
+                         xtosav,xtg_solub,dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,       &
+                         so2_burden,so4_burden,erod,ssn,so2wd,so4wd,bcwd,ocwd,dustwd,emissfield,vso2,dmse,  &
+                         so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,mins,oxidant_update)
+
+use aerosolldr, only : naero,ndcls,aldrcalc,ndust                  ! LDR prognostic aerosols
+use cc_mpi                                                         ! CC MPI routines
+use cc_omp, only : imax, ntiles                                    ! CC OpenMP routines
+use cloudmod, only : convectivecloudfrac                           ! Prognostic strat cloud
+use const_phys                                                     ! Physical constants
+use newmpar_m                                                      ! Grid parameters
+use ozoneread, only : fieldinterpolate                             ! Ozone input routines
+use parm_m                                                         ! Model configuration
+use sigs_m                                                         ! Atmosphere sigma levels
+use zenith_m, only : solargh,zenith                                ! Astronomy routines
+
+implicit none
+
+include 'kuocom.h'      ! Convection parameters
+
+integer, intent(in) :: mins
+integer smins
+integer j,k,tt,ttx,kinv
+integer, dimension(imax), intent(in) :: kbsav, ktsav
+real dhr,fjd,r1,dlt,alp,slag
+real, dimension(imax,ilev,4), intent(in) :: oxidantprev, oxidantnow, oxidantnext
+real, dimension(imax,kl,naero), intent(inout) :: xtg, xtg_solub
+real, dimension(imax,kl,naero), intent(in) :: xtosav
+real, dimension(imax,kl,4), intent(inout) :: zoxidant
+real, dimension(imax,kl,2), intent(inout) :: ssn
+real, dimension(imax,kl), intent(in) :: t, qg, qlg, qfg, stratcloud
+real, dimension(imax,kl), intent(in) :: ppfprec
+real, dimension(imax,kl), intent(in) :: ppfmelt
+real, dimension(imax,kl), intent(in) :: ppfsnow
+real, dimension(imax,kl), intent(in) :: ppfevap
+real, dimension(imax,kl), intent(in) :: ppfsubl
+real, dimension(imax,kl), intent(in) :: pplambs
+real, dimension(imax,kl), intent(in) :: ppmrate
+real, dimension(imax,kl), intent(in) :: ppmaccr
+real, dimension(imax,kl), intent(in) :: ppfstayice
+real, dimension(imax,kl), intent(in) :: ppfstayliq
+real, dimension(imax,kl), intent(in) :: ppqfsedice
+real, dimension(imax,kl), intent(in) :: pprscav
+real, dimension(imax,kl), intent(in) :: pprfreeze
+real, dimension(imax,ndust), intent(inout) :: duste, dustdd, dust_burden, dustwd
+real, dimension(imax,ndcls), intent(in) :: erod
+real, dimension(imax,15), intent(in) :: emissfield
+real, dimension(imax), intent(inout) :: zdayfac
+real, dimension(imax), intent(in) :: ps, rlatt, rlongg, wetfac, pblh, tss, condc, snowd
+real, dimension(imax), intent(in) :: fg, eg, u10, ustar, zo, fracice, sigmf, cdtq
+real, dimension(imax), intent(in) :: vso2
+real, dimension(imax), intent(inout) :: dmsso2o, so2so4o, bc_burden, oc_burden, dms_burden
+real, dimension(imax), intent(inout) :: so2_burden, so4_burden, so2wd, so4wd, bcwd, ocwd
+real, dimension(imax), intent(inout) :: dmse, so2e, so4e, bce, oce, so2dd, so4dd, bcdd, ocdd
+real, dimension(imax), intent(out) :: so4t
+real, dimension(imax,kl) :: zg,clcon,pccw,rhoa
+real, dimension(imax,kl) :: dz
+real, dimension(imax) :: coszro,taudar
+real, dimension(imax) :: cldcon,wg
+logical, dimension(imax), intent(in) :: land
+logical, intent(in) :: oxidant_update
+
+! update prescribed oxidant fields
+dhr = dt/3600.
+if ( oxidant_update ) then
+  do j = 1,4 
+    ! note levels are inverted by fieldinterpolate
+    call fieldinterpolate(zoxidant(:,:,j),oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
+                          rlev,imax,kl,ilev,mins,sig,ps,interpmeth=0,meanmeth=1)
+  end do
+  ! estimate day length (presumably to preturb day-time OH levels)
+  ttx = nint(86400./dt)
+  zdayfac(:) = 0.
+  do tt = ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
+    smins = int(real(tt-1)*dt/60.) + mins
+    fjd = float(mod( smins, 525600 ))/1440.  ! 525600 = 1440*365
+    call solargh(fjd,bpyear,r1,dlt,alp,slag)
+    call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,imax,coszro,taudar)
+    where ( taudar>0.5 )
+      zdayfac(:) = zdayfac(:) + 1.
+    end where
+  end do
+  where ( zdayfac>0.5 )
+    zdayfac(:) = real(ttx)/zdayfac(:)
+  end where
+else
+  fjd = float(mod( mins, 525600 ))/1440.  ! 525600 = 1440*365
+  call solargh(fjd,bpyear,r1,dlt,alp,slag)
+  call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,imax,coszro,taudar)
+  ! taudar is for current timestep - used to indicate sunlit
+end if
+
+! set-up input data fields ------------------------------------------------
+
+zg(:,1) = bet(1)*t(1:imax,1)/grav
+do k = 2,kl
+  zg(:,k) = zg(:,k-1) + (bet(k)*t(1:imax,k)+betm(k)*t(1:imax,k-1))/grav ! height above surface in meters
+end do
+do k = 1,kl
+  dz(:,k) = -rdry*dsig(k)*t(1:imax,k)/(grav*sig(k))
+  dz(:,k) = min( max( dz(:,k), 1. ), 2.e4 )
+  rhoa(:,k) = ps(1:imax)*sig(k)/(rdry*t(1:imax,k)) ! density of air (kg/m**3)
+end do
+
+! estimate convective cloud fraction from leoncld.f
+call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax,cldcon=cldcon)
+pccw(:,:) = 0.
+do k = 1,kl
+  kinv = kl + 1 - k  
+  ! MJT notes - Assume rain for JLM convection
+  !where ( k>kbsav .and. k<=ktsav .and. t(1:imax,k)>ticeu )
+  !  pccw(:,kl+1-k) = 0.
+  where ( k>kbsav(1:imax) .and. k<=ktsav(1:imax) )
+    pccw(1:imax,kinv) = wlc/rhoa(1:imax,k)
+  end where
+end do
+
+! Water converage at surface
+wg(:) = min( max( wetfac, 0. ), 1. )
+
+! MJT notes - We have an option to update the aerosols before the vertical mixing
+! or after the vertical mixing.  Updating aerosols before the vertical mixing
+! ensures that we can split the convective and non-convective aerosol
+! concentrations.  However, updating aerosols after vertical mixing provides a
+! better estimate of u10 and pblh.
+
+! update prognostic aerosols
+call aldrcalc(dt,sig,zg,dz,wg,pblh,ps,tss,                    &
+              t,condc,snowd,taudar,fg,eg,u10,ustar,zo,        &
+              land,fracice,sigmf,qg,qlg,qfg,stratcloud,clcon, &
+              cldcon,pccw,rhoa,cdtq,ppfprec,ppfmelt,          &
+              ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,        &
+              ppmaccr,ppfstayice,ppfstayliq,ppqfsedice,       &
+              pprscav,pprfreeze,zdayfac,kbsav,xtg,duste,      &
+              dustdd,xtosav,xtg_solub,dmsso2o,so2so4o,        &
+              dust_burden,bc_burden,oc_burden,dms_burden,     &
+              so2_burden,so4_burden,erod,ssn,zoxidant,        &
+              so2wd,so4wd,bcwd,ocwd,dustwd,emissfield,        &
+              vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,        &
+              bcdd,ocdd,imax)
+              
+
+! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
+! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
+so4t(:) = 0.
+do k = 1,kl
+  so4t(:) = so4t(:) + 3.e3*xtg(1:imax,k,3)*rhoa(:,k)*dz(:,k)
+enddo
+
+if ( diag .and. mydiag .and. ntiles==1 ) then
+  write(6,*) "tdiag ",t(idjd,:)
+  write(6,*) "qgdiag ",qg(idjd,:)
+  write(6,*) "qlgdiag ",qlg(idjd,:)
+  write(6,*) "qfgdiag ",qfg(idjd,:)
+  write(6,*) "u10diag ",u10(idjd)
+  write(6,*) "pblhdiag ",pblh(idjd)
+  write(6,*) "fracicediag ",fracice(idjd)
+  write(6,*) "DMSdiag ",xtg(idjd,:,1)
+  write(6,*) "SO2diag ",xtg(idjd,:,2)
+  write(6,*) "SO4diag ",xtg(idjd,:,3)
+  write(6,*) "BCphobdiag ",xtg(idjd,:,4)
+  write(6,*) "BCphildiag ",xtg(idjd,:,5)
+  write(6,*) "OCphobdiag ",xtg(idjd,:,6)
+  write(6,*) "OCphildiag ",xtg(idjd,:,7)
+  write(6,*) "dust0.8diag ",xtg(idjd,:,8)
+  write(6,*) "dust1.0diag ",xtg(idjd,:,9)
+  write(6,*) "dust2.0diag ",xtg(idjd,:,10)
+  write(6,*) "dust4.0diag ",xtg(idjd,:,11)
+  write(6,*) "saltfilmdiag ",ssn(idjd,:,1)
+  write(6,*) "saltjetdiag  ",ssn(idjd,:,2)
+end if
+
+return
+end subroutine aerocalc_work
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Estimate cloud droplet size
+subroutine aerodrop(istart,imax,cdn,rhoa,outconv)
+
+use aerosolldr              ! LDR prognostic aerosols
+use const_phys              ! Physical constants
+use latlong_m, only : rlatt ! Lat/lon coordinates
+use newmpar_m               ! Grid parameters
+use parm_m                  ! Model configuration
+use soil_m, only : land     ! Soil and surface data
+
+implicit none
+
+integer, intent(in) :: istart,imax
+integer k,indirmode,iend
+real, dimension(imax,kl), intent(out) :: cdn
+real, dimension(imax,kl), intent(in) :: rhoa
+real, parameter :: cdrops_nh=1.e8, cdropl_nh=3.e8 !Cloud droplet conc sea/land nh
+!real, parameter :: cdrops_sh=1.e8, cdropl_sh=3.e8 !Cloud droplet conc sea/land sh
+real, parameter :: cdrops_sh=.5e8, cdropl_sh=1.e8 !Cloud droplet conc sea/land sh
+logical, intent(in), optional :: outconv
+logical convmode
+
+convmode = .true.
+if ( present(outconv) ) then
+  convmode = .not.outconv
+end if
+
+indirmode = abs(iaero)
+if ( aeroindir==2 ) then
+  indirmode = 0 ! option for no indirect effects
+end if
+
+select case( indirmode )
+  case( 2, 3 )
+    ! prognostic aerosols for indirect effects
+    call cldrop(istart,imax,cdn,rhoa,convmode)
+  case default
+    ! diagnosed for prescribed aerosol indirect effects
+    iend = istart + imax - 1
+    where ( land(istart:iend).and.rlatt(istart:iend)>0. )
+      cdn(:,1) = cdropl_nh
+    elsewhere ( land(istart:iend) )
+      cdn(:,1) = cdropl_sh
+    elsewhere ( rlatt(istart:iend)>0. )
+      cdn(:,1) = cdrops_nh
+    elsewhere
+      cdn(:,1) = cdrops_sh
+    end where
+    do k = 2,kl
+      cdn(:,k) = cdn(:,1)
+    end do
+end select
+
+return
+end subroutine aerodrop
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Load aerosols emissions from netcdf
 subroutine load_aerosolldr(aerofile, oxidantfile, kdatein)
@@ -87,7 +442,7 @@ real, parameter :: iotol = 1.E-5 ! tolarance for iotest
 character(len=*), intent(in) :: aerofile, oxidantfile
 logical tst
 
-if ( myid==0 ) write(6,*) "Initialising prognostic aerosols"
+if ( myid==0 ) write(6,*) "Initialise LDR prognostic aerosols"
 
 allocate( ppfprec(ifull,kl), ppfmelt(ifull,kl) )
 allocate( ppfsnow(ifull,kl) )
@@ -118,7 +473,7 @@ call aldrinit(ifull,iextra,kl,sig)
 
 if ( myid==0 ) then
   allocate( dumg(ifull_g,16) )
-  write(6,*) "Reading ",trim(aerofile)
+  write(6,*) "Opening emissions file ",trim(aerofile)
   call ccnf_open(aerofile,ncid,ncstatus)
   call ncmsg('Aerosol emissions',ncstatus)
   ! check dimensions and location
@@ -286,14 +641,13 @@ if ( myid==0 ) then
   end do
   deallocate( dumg )
   ! load oxidant fields
-  write(6,*) "Reading ",trim(oxidantfile)
+  write(6,*) "Opening oxidants file ",trim(oxidantfile)
   call ccnf_open(oxidantfile,ncid,ncstatus)
   call ncmsg('Oxidants',ncstatus)
   ! check dimensions and location
   call ccnf_inq_dimlen(ncid,'lon',ilon)
   call ccnf_inq_dimlen(ncid,'lat',ilat)
   call ccnf_inq_dimlen(ncid,'lev',ilev)
-  write(6,*) "Found oxidant dimensions ",ilon,ilat,ilev
   idum(1) = ilon
   idum(2) = ilat
   idum(3) = ilev
@@ -432,364 +786,7 @@ else
   deallocate(oxidantdum,rlat,rlon)
 end if
 
-if ( myid==0 ) write(6,*) "Finished initialising prognostic aerosols"
-
 return
-end subroutine load_aerosolldr
-
-subroutine aerocalc(oxidant_update,mins)
-
-use aerosolldr           ! LDR prognostic aerosols
-use arrays_m             ! Atmosphere dyamics prognostic arrays
-use cc_omp
-use cfrac_m              ! Cloud fraction
-use cloudmod             ! Prognostic strat cloud
-use extraout_m           ! Additional diagnostics
-use infile               ! Input file routines
-use kuocomb_m            ! JLM convection
-use latlong_m            ! Lat/lon coordinates
-use liqwpar_m            ! Cloud water mixing ratios
-use morepbl_m            ! Additional boundary layer diagnostics
-use newmpar_m            ! Grid parameters
-use nharrs_m             ! Non-hydrostatic atmosphere arrays
-use nsibd_m              ! Land-surface arrays
-use ozoneread            ! Ozone input routines
-use pbl_m                ! Boundary layer arrays
-use screen_m             ! Screen level diagnostics
-use sigs_m               ! Atmosphere sigma levels
-use soil_m               ! Soil and surface data
-use soilsnow_m           ! Soil, snow and surface data
-use soilv_m              ! Soil parameters
-use vegpar_m             ! Vegetation arrays
-use work2_m              ! Diagnostic arrays
-use zenith_m             ! Astronomy routines
-
-implicit none
-
-integer, intent(in) :: mins
-integer :: tile, is, ie
-real, dimension(imax,ilev,4) :: loxidantprev, loxidantnow, loxidantnext
-real, dimension(imax,kl,naero) :: lxtg, lxtosav, lxtg_solub
-real, dimension(imax,kl,4) :: lzoxidant
-real, dimension(imax,kl,2) :: lssn
-real, dimension(imax,kl) :: lt, lqg, lqlg, lqfg, lcfrac
-real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfevap, lppfsubl, lpplambs
-real, dimension(imax,kl) :: lppmrate, lppmaccr, lppfstayice, lppfstayliq, lppqfsedice
-real, dimension(imax,kl) :: lpprscav, lpprfreeze
-real, dimension(imax,ndust) :: lduste, ldustdd, ldust_burden, ldustwd
-real, dimension(imax,ndcls) :: lerod
-real, dimension(imax,15) :: lemissfield
-logical, intent(in) :: oxidant_update
-
-!$omp do schedule(static) private(is,ie),                                                              &
-!$omp private(loxidantprev,loxidantnow,loxidantnext,lt,lqg,lqlg,lqfg),                                 &
-!$omp private(lcfrac,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr),         &
-!$omp private(lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),  &
-!$omp private(lxtosav,lxtg_solub,ldust_burden,lerod,lssn,ldustwd,lemissfield)
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  
-  loxidantprev(1:imax,1:ilev,1:4) = oxidantprev_g(is:ie,1:ilev,1:4)
-  loxidantnow(1:imax,1:ilev,1:4)  = oxidantnow_g(is:ie,1:ilev,1:4)
-  loxidantnext(1:imax,1:ilev,1:4) = oxidantnext_g(is:ie,1:ilev,1:4)
-  lzoxidant(1:imax,1:kl,1:4)      = zoxidant_g(is:ie,1:kl,1:4)
-  lxtg                            = xtg(is:ie,:,:)
-  lxtosav                         = xtosav(is:ie,:,:)
-  lssn                            = ssn(is:ie,:,:)
-  lduste                          = duste(is:ie,:)
-  ldustdd                         = dustdd(is:ie,:)
-  ldustwd                         = dustwd(is:ie,:)
-  ldust_burden                    = dust_burden(is:ie,:)
-  lemissfield                     = emissfield(is:ie,:)
-  lerod                           = erod(is:ie,:)
-  lt                              = t(is:ie,:)
-  lqg                             = qg(is:ie,:)
-  lqlg                            = qlg(is:ie,:)
-  lqfg                            = qfg(is:ie,:)
-  lcfrac                          = cfrac(is:ie,:)
-  lppfprec                        = ppfprec(is:ie,:)
-  lppfmelt                        = ppfmelt(is:ie,:)
-  lppfsnow                        = ppfsnow(is:ie,:)
-  lppfevap                        = ppfevap(is:ie,:)
-  lppfsubl                        = ppfsubl(is:ie,:)
-  lpplambs                        = pplambs(is:ie,:)
-  lppmrate                        = ppmrate(is:ie,:)
-  lppmaccr                        = ppmaccr(is:ie,:)
-  lppfstayice                     = ppfstayice(is:ie,:)
-  lppfstayliq                     = ppfstayliq(is:ie,:)
-  lppqfsedice                     = ppqfsedice(is:ie,:)
-  lpprscav                        = pprscav(is:ie,:)
-  lpprfreeze                      = pprfreeze(is:ie,:)  
-  if ( aeromode>=1 ) then
-    lxtg_solub = xtg_solub(is:ie,:,:)
-  end if
-
-  call aerocalc_work(loxidantprev,loxidantnow,loxidantnext,ps(is:ie),zdayfac(is:ie),rlatt(is:ie),rlongg(is:ie),    &
-                     lt,kbsav(is:ie),ktsav(is:ie),                                                                 &
-                     wetfac(is:ie),pblh(is:ie),tss(is:ie),condc(is:ie),snowd(is:ie),fg(is:ie),eg(is:ie),           &
-                     u10(is:ie),ustar(is:ie),zo(is:ie),land(is:ie),fracice(is:ie),sigmf(is:ie),lqg,lqlg,lqfg,      &
-                     lcfrac,cdtq(is:ie),lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr,   &
-                     lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,so4t(is:ie),lxtg,lzoxidant,lduste,    &
-                     ldustdd,                                                                                      &
-                     lxtosav,lxtg_solub,dmsso2o(is:ie),so2so4o(is:ie),ldust_burden,bc_burden(is:ie),               &
-                     oc_burden(is:ie),dms_burden(is:ie),                                                           &
-                     so2_burden(is:ie),so4_burden(is:ie),lerod,lssn,so2wd(is:ie),so4wd(is:ie),bcwd(is:ie),         &
-                     ocwd(is:ie),ldustwd,lemissfield,vso2(is:ie),dmse(is:ie),                                      &
-                     so2e(is:ie),so4e(is:ie),bce(is:ie),oce(is:ie),so2dd(is:ie),so4dd(is:ie),bcdd(is:ie),          &
-                     ocdd(is:ie),mins,oxidant_update)
-
-  zoxidant_g(is:ie,1:kl,1:4) = lzoxidant(1:imax,1:kl,1:4)
-  xtg(is:ie,1:kl,1:naero)    = lxtg(1:imax,1:kl,1:naero)
-  ssn(is:ie,:,:)             = lssn
-  duste(is:ie,:)             = lduste
-  dustdd(is:ie,:)            = ldustdd
-  dustwd(is:ie,:)            = ldustwd
-  dust_burden(is:ie,:)       = ldust_burden
-  if ( aeromode>=1 ) then
-    xtg_solub(is:ie,:,:) = lxtg_solub
-  end if
-  
-end do
-!$omp end do nowait
-
-return
-end subroutine aerocalc
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Update prognostic aerosols
-subroutine aerocalc_work(oxidantprev,oxidantnow,oxidantnext,ps,zdayfac,rlatt,rlongg,t,kbsav,ktsav,          &
-                         wetfac,pblh,tss,condc,snowd,fg,eg,u10,ustar,zo,land,fracice,sigmf,qg,qlg,qfg,      &
-                         cfrac,cdtq,ppfprec,ppfmelt,ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,        &
-                         ppfstayice,ppfstayliq,ppqfsedice,pprscav,pprfreeze,so4t,xtg,zoxidant,duste,dustdd, &
-                         xtosav,xtg_solub,dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,       &
-                         so2_burden,so4_burden,erod,ssn,so2wd,so4wd,bcwd,ocwd,dustwd,emissfield,vso2,dmse,  &
-                         so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,mins,oxidant_update)
-
-use aerosolldr, only : naero,ndcls,aldrcalc,ndust                  ! LDR prognostic aerosols
-use cc_mpi                                                         ! CC MPI routines
-use cc_omp, only : imax, ntiles                                    ! CC OpenMP routines
-use cloudmod, only : convectivecloudfrac                           ! Prognostic strat cloud
-use const_phys                                                     ! Physical constants
-use newmpar_m                                                      ! Grid parameters
-use ozoneread, only : fieldinterpolate                             ! Ozone input routines
-use parm_m                                                         ! Model configuration
-use sigs_m                                                         ! Atmosphere sigma levels
-use zenith_m, only : solargh,zenith                                ! Astronomy routines
-
-implicit none
-
-include 'kuocom.h'      ! Convection parameters
-
-integer, intent(in) :: mins
-integer smins
-integer j,k,tt,ttx,kinv
-integer, dimension(imax), intent(in) :: kbsav, ktsav
-real dhr,fjd,r1,dlt,alp,slag
-real, dimension(imax,ilev,4), intent(in) :: oxidantprev, oxidantnow, oxidantnext
-real, dimension(imax,kl,naero), intent(inout) :: xtg, xtg_solub
-real, dimension(imax,kl,naero), intent(in) :: xtosav
-real, dimension(imax,kl,4), intent(inout) :: zoxidant
-real, dimension(imax,kl,2), intent(inout) :: ssn
-real, dimension(imax,kl), intent(in) :: t, qg, qlg, qfg, cfrac
-real, dimension(imax,kl), intent(in) :: ppfprec
-real, dimension(imax,kl), intent(in) :: ppfmelt
-real, dimension(imax,kl), intent(in) :: ppfsnow
-real, dimension(imax,kl), intent(in) :: ppfevap
-real, dimension(imax,kl), intent(in) :: ppfsubl
-real, dimension(imax,kl), intent(in) :: pplambs
-real, dimension(imax,kl), intent(in) :: ppmrate
-real, dimension(imax,kl), intent(in) :: ppmaccr
-real, dimension(imax,kl), intent(in) :: ppfstayice
-real, dimension(imax,kl), intent(in) :: ppfstayliq
-real, dimension(imax,kl), intent(in) :: ppqfsedice
-real, dimension(imax,kl), intent(in) :: pprscav
-real, dimension(imax,kl), intent(in) :: pprfreeze
-real, dimension(imax,ndust), intent(inout) :: duste, dustdd, dust_burden, dustwd
-real, dimension(imax,ndcls), intent(in) :: erod
-real, dimension(imax,15), intent(in) :: emissfield
-real, dimension(imax), intent(inout) :: zdayfac
-real, dimension(imax), intent(in) :: ps, rlatt, rlongg, wetfac, pblh, tss, condc, snowd
-real, dimension(imax), intent(in) :: fg, eg, u10, ustar, zo, fracice, sigmf, cdtq
-real, dimension(imax), intent(in) :: vso2
-real, dimension(imax), intent(inout) :: dmsso2o, so2so4o, bc_burden, oc_burden, dms_burden
-real, dimension(imax), intent(inout) :: so2_burden, so4_burden, so2wd, so4wd, bcwd, ocwd
-real, dimension(imax), intent(inout) :: dmse, so2e, so4e, bce, oce, so2dd, so4dd, bcdd, ocdd
-real, dimension(imax), intent(out) :: so4t
-real, dimension(imax,kl) :: zg,clcon,pccw,rhoa
-real, dimension(imax,kl) :: dz
-real, dimension(imax) :: coszro,taudar
-real, dimension(imax) :: cldcon,wg
-logical, dimension(imax), intent(in) :: land
-logical, intent(in) :: oxidant_update
-
-! update prescribed oxidant fields
-dhr = dt/3600.
-if ( oxidant_update ) then
-  do j = 1,4 
-    ! note levels are inverted by fieldinterpolate
-    call fieldinterpolate(zoxidant(:,:,j),oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
-                          rlev,imax,kl,ilev,mins,sig,ps,interpmeth=0,meanmeth=1)
-  end do
-  ! estimate day length (presumably to preturb day-time OH levels)
-  ttx = nint(86400./dt)
-  zdayfac(:) = 0.
-  do tt = ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
-    smins = int(real(tt-1)*dt/60.) + mins
-    fjd = float(mod( smins, 525600 ))/1440.  ! 525600 = 1440*365
-    call solargh(fjd,bpyear,r1,dlt,alp,slag)
-    call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,imax,coszro,taudar)
-    where ( taudar>0.5 )
-      zdayfac(:) = zdayfac(:) + 1.
-    end where
-  end do
-  where ( zdayfac>0.5 )
-    zdayfac(:) = real(ttx)/zdayfac(:)
-  end where
-else
-  fjd = float(mod( mins, 525600 ))/1440.  ! 525600 = 1440*365
-  call solargh(fjd,bpyear,r1,dlt,alp,slag)
-  call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,imax,coszro,taudar)
-  ! taudar is for current timestep - used to indicate sunlit
-end if
-
-! set-up input data fields ------------------------------------------------
-
-zg(:,1) = bet(1)*t(1:imax,1)/grav
-do k = 2,kl
-  zg(:,k) = zg(:,k-1) + (bet(k)*t(1:imax,k)+betm(k)*t(1:imax,k-1))/grav ! height above surface in meters
-end do
-do k = 1,kl
-  dz(:,k) = -rdry*dsig(k)*t(1:imax,k)/(grav*sig(k))
-  rhoa(:,k) = ps(1:imax)*sig(k)/(rdry*t(1:imax,k)) ! density of air (kg/m**3)
-end do
-
-! estimate convective cloud fraction from leoncld.f
-call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax,cldcon=cldcon)
-pccw(:,:) = 0.
-do k = 1,kl
-  kinv = kl + 1 - k  
-  ! MJT notes - Assume rain for JLM convection
-  !where ( k>kbsav .and. k<=ktsav .and. t(1:imax,k)>ticeu )
-  !  pccw(:,kl+1-k) = 0.
-  where ( k>kbsav(1:imax) .and. k<=ktsav(1:imax) )
-    pccw(1:imax,kinv) = wlc/rhoa(1:imax,k)
-  end where
-end do
-
-! Water converage at surface
-wg(:) = min( max( wetfac, 0. ), 1. )
-
-! MJT notes - We have an option to update the aerosols before the vertical mixing
-! or after the vertical mixing.  Updating aerosols before the vertical mixing
-! ensures that we can split the convective and non-convective aerosol
-! concentrations.  However, updating aerosols after vertical mixing provides a
-! better estimate of u10 and pblh.
-
-! update prognostic aerosols
-call aldrcalc(dt,sig,zg,dz,wg,pblh,ps,tss,                 &
-              t,condc,snowd,taudar,fg,eg,u10,ustar,zo,     &
-              land,fracice,sigmf,qg,qlg,qfg,cfrac,clcon,   &
-              cldcon,pccw,rhoa,cdtq,ppfprec,ppfmelt,       &
-              ppfsnow,ppfevap,ppfsubl,pplambs,ppmrate,     &
-              ppmaccr,ppfstayice,ppfstayliq,ppqfsedice,    &
-              pprscav,pprfreeze,zdayfac,kbsav,xtg,duste,   &
-              dustdd,xtosav,xtg_solub,dmsso2o,so2so4o,     &
-              dust_burden,bc_burden,oc_burden,dms_burden,  &
-              so2_burden,so4_burden,erod,ssn,zoxidant,     &
-              so2wd,so4wd,bcwd,ocwd,dustwd,emissfield,     &
-              vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,     &
-              bcdd,ocdd,imax)
-              
-
-! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
-! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
-so4t(:) = 0.
-do k = 1,kl
-  so4t(:) = so4t(:) + 3.e3*xtg(1:imax,k,3)*rhoa(:,k)*dz(:,k)
-enddo
-
-if ( diag .and. mydiag .and. ntiles==1 ) then
-  write(6,*) "tdiag ",t(idjd,:)
-  write(6,*) "qgdiag ",qg(idjd,:)
-  write(6,*) "qlgdiag ",qlg(idjd,:)
-  write(6,*) "qfgdiag ",qfg(idjd,:)
-  write(6,*) "u10diag ",u10(idjd)
-  write(6,*) "pblhdiag ",pblh(idjd)
-  write(6,*) "fracicediag ",fracice(idjd)
-  write(6,*) "DMSdiag ",xtg(idjd,:,1)
-  write(6,*) "SO2diag ",xtg(idjd,:,2)
-  write(6,*) "SO4diag ",xtg(idjd,:,3)
-  write(6,*) "BCphobdiag ",xtg(idjd,:,4)
-  write(6,*) "BCphildiag ",xtg(idjd,:,5)
-  write(6,*) "OCphobdiag ",xtg(idjd,:,6)
-  write(6,*) "OCphildiag ",xtg(idjd,:,7)
-  write(6,*) "dust0.8diag ",xtg(idjd,:,8)
-  write(6,*) "dust1.0diag ",xtg(idjd,:,9)
-  write(6,*) "dust2.0diag ",xtg(idjd,:,10)
-  write(6,*) "dust4.0diag ",xtg(idjd,:,11)
-  write(6,*) "saltfilmdiag ",ssn(idjd,:,1)
-  write(6,*) "saltjetdiag  ",ssn(idjd,:,2)
-end if
-
-return
-end subroutine aerocalc_work
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Estimate cloud droplet size
-subroutine aerodrop(istart,imax,cdn,rhoa,outconv)
-
-use aerosolldr              ! LDR prognostic aerosols
-use const_phys              ! Physical constants
-use latlong_m, only : rlatt ! Lat/lon coordinates
-use newmpar_m               ! Grid parameters
-use parm_m                  ! Model configuration
-use soil_m, only : land     ! Soil and surface data
-
-implicit none
-
-integer, intent(in) :: istart,imax
-integer k,indirmode,iend
-real, dimension(imax,kl), intent(out) :: cdn
-real, dimension(imax,kl), intent(in) :: rhoa
-real, parameter :: cdrops_nh=1.e8, cdropl_nh=3.e8 !Cloud droplet conc sea/land nh
-!real, parameter :: cdrops_sh=1.e8, cdropl_sh=3.e8 !Cloud droplet conc sea/land sh
-real, parameter :: cdrops_sh=.5e8, cdropl_sh=1.e8 !Cloud droplet conc sea/land sh
-logical, intent(in), optional :: outconv
-logical convmode
-
-convmode = .true.
-if ( present(outconv) ) then
-  convmode = .not.outconv
-end if
-
-indirmode = abs(iaero)
-if ( aeroindir==2 ) then
-  indirmode = 0 ! option for no indirect effects
-end if
-
-select case( indirmode )
-  case( 2, 3 )
-    ! prognostic aerosols for indirect effects
-    call cldrop(istart,imax,cdn,rhoa,convmode)
-  case default
-    ! diagnosed for prescribed aerosol indirect effects
-    iend = istart + imax - 1
-    where ( land(istart:iend).and.rlatt(istart:iend)>0. )
-      cdn(:,1) = cdropl_nh
-    elsewhere ( land(istart:iend) )
-      cdn(:,1) = cdropl_sh
-    elsewhere ( rlatt(istart:iend)>0. )
-      cdn(:,1) = cdrops_nh
-    elsewhere
-      cdn(:,1) = cdrops_sh
-    end where
-    do k = 2,kl
-      cdn(:,k) = cdn(:,1)
-    end do
-end select
-
-return
-end subroutine aerodrop
-
+end subroutine load_aerosolldr    
+    
 end module aerointerface

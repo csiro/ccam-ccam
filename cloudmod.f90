@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -29,10 +29,12 @@ module cloudmod
 implicit none
     
 private
-public progcloud, cloudmod_init, combinecloudfrac
+public progcloud, cloudmod_init
 public stratcloud, nettend
 public convectivecloudfrac, convectivecloudarea
+public cloudtol
 
+integer, save :: cloudtol = 1 ! determins cloud tolerance levels
 real, dimension(:,:), allocatable, save :: stratcloud  ! prognostic cloud fraction
 real, dimension(:,:), allocatable, save :: nettend     ! change in temperature from radiation and vertical mixing
 real, save :: u00ramp = 0.01
@@ -45,19 +47,18 @@ implicit none
 
 integer, intent(in) :: ifull, iextra, kl, ncloud
 
+allocate(stratcloud(ifull+iextra,kl))
+stratcloud = 0.
+
 if ( ncloud>=4 ) then
-  allocate(stratcloud(ifull+iextra,kl),nettend(ifull,kl))
-  stratcloud = 0.
+  allocate(nettend(ifull,kl))
   nettend = 0.
-else
-  allocate(stratcloud(ifull,kl))
-  stratcloud = 0.
 end if
 
 return
 end subroutine cloudmod_init
     
-subroutine progcloud(cloudfrac,qc,qtot,ps,rho,fice,qs,t,rhcrit, &
+subroutine progcloud(qc,qtot,ps,rho,fice,qs,t,rhcrit, &
                      dpsldt,fluxtot,nettend,stratcloud,imax)
 
 use const_phys           ! Physical constants
@@ -70,7 +71,6 @@ implicit none
 include 'kuocom.h'       ! Convection parameters
 
 integer, intent(in) :: imax
-real, dimension(imax,kl), intent(out) :: cloudfrac
 real, dimension(imax,kl), intent(inout) :: qc ! condensate = qf + ql
 real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, t, rhcrit
 real, dimension(imax), intent(in) :: ps
@@ -186,45 +186,12 @@ elsewhere
   stratcloud(1:imax,:) = 0.
   qc = 0.
 end where
-cloudfrac = stratcloud(1:imax,:)
 
 ! Reset tendency and mass flux for next time-step
 nettend = 0.
 
 return
 end subroutine progcloud
-
-
-! This subroutine combines large scale and subgrid scale cloud fractions
-
-subroutine combinecloudfrac(stratcloud,cfrac,kbsav,ktsav,condc,imax)
-
-use newmpar_m        ! Grid parameters
-use parm_m           ! Model configuration
-
-implicit none
-
-include 'kuocom.h'   ! Convection parameters
-
-integer, intent(in) :: imax
-real, dimension(imax,kl) :: clcon
-real, dimension(imax,kl), intent(in) :: stratcloud
-real, dimension(imax,kl), intent(inout) :: cfrac
-integer, dimension(imax), intent(in) :: kbsav
-integer, dimension(imax), intent(in) :: ktsav
-real, dimension(imax), intent(in) :: condc
-
-if ( ncloud>=4 ) then
-  cfrac(:,:) = stratcloud(1:imax,:)
-else
-  ! estimate convective cloud fraction from leoncld.f
-  clcon = 0. ! cray compiler bug
-  call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax)
-  cfrac(:,:) = stratcloud(1:imax,:) + clcon(:,:) - stratcloud(1:imax,:)*clcon(:,:)
-end if
-
-return
-end subroutine combinecloudfrac
 
 subroutine convectivecloudfrac(clcon,kbsav,ktsav,condc,imax,cldcon)
 

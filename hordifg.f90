@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -73,7 +73,7 @@ implicit none
 
 include 'kuocom.h'
 
-real, dimension(ifull+iextra,kl,3) :: work
+real, dimension(ifull+iextra,kl,nagg) :: work
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: uav, vav, ww
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
@@ -81,13 +81,13 @@ real, dimension(ifull,kl) :: xfact_iwu, yfact_isv
 real, dimension(ifull,kl) :: dudx, dudy, dudz
 real, dimension(ifull,kl) :: dvdx, dvdy, dvdz
 real, dimension(ifull,kl) :: dwdx, dwdy, dwdz
-real, dimension(ifull,kl) :: emi
+real, dimension(ifull,kl) :: emi, base
 real, dimension(ifull,kl) :: zg
 real, dimension(ifull) :: zgh_a, zgh_b
 real, dimension(ifull) :: ptemp, tx_fact, ty_fact
 real, dimension(ifull) :: sx_fact, sy_fact
 real, dimension(ifull) :: r1, r2, cc
-real, dimension(ifull) :: ucc, vcc, wcc, base
+real, dimension(ifull) :: ucc, vcc, wcc
 real, dimension(ifull) :: zs_n, zs_s, zs_e, zs_w
 real, dimension(ifull) :: ww_n, ww_s, ww_e, ww_w
 real, dimension(ifull) :: uc_n, uc_s, uc_e, uc_w
@@ -142,14 +142,14 @@ ty_fact(1:ifull) = 1./(1.+(abs(zs_n-zs(1:ifull))/delphi)**nf)
 sx_fact(1:ifull) = 1./(1.+(0.5*abs(zs_e-zs_w)/delphi)**nf)
 sy_fact(1:ifull) = 1./(1.+(0.5*abs(zs_n-zs_s)/delphi)**nf)
 
-#ifdef debug
-if(diag.and.mydiag)then
+if ( diag .and. mydiag ) then
   write(6,*) 'hordifgt u ',(u(idjd,k),k=1,kl)
   write(6,*) 'hordifgt v ',(v(idjd,k),k=1,kl)
   write(6,*) 'ax,ay,az ',ax(idjd),ay(idjd),az(idjd)
   write(6,*) 'bx,by,bz ',bx(idjd),by(idjd),bz(idjd)
+  write(6,*) 'zs,zse,zsn ',zs(idjd),zs(ie(idjd)),zs(in(idjd))
+  write(6,*) 'tx_,ty_ ',tx_fact(idjd),ty_fact(idjd)
 endif
-#endif
 
 ! This option is for Smag diffusion or prognostic TKE
 if ( nhorjlm==0 .or. nhorjlm==3 .or. nvmix==6 ) then
@@ -378,41 +378,40 @@ call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
 
 do k = 1,kl
   call unpack_svwu(xfact(:,k),yfact(:,k),yfact_isv(:,k),xfact_iwu(:,k))  
-  base(1:ifull) = emi(1:ifull,k) + xfact(1:ifull,k) + xfact_iwu(1:ifull,k) &
-                                 + yfact(1:ifull,k) + yfact_isv(1:ifull,k)
-  emi(1:ifull,k) = emi(1:ifull,k)/base(1:ifull)
-  xfact(1:ifull,k) = xfact(1:ifull,k)/base(1:ifull)
-  yfact(1:ifull,k) = yfact(1:ifull,k)/base(1:ifull)
-  xfact_iwu(1:ifull,k) = xfact_iwu(1:ifull,k)/base(1:ifull)
-  yfact_isv(1:ifull,k) = yfact_isv(1:ifull,k)/base(1:ifull)
+  base(1:ifull,k) = emi(1:ifull,k) + xfact(1:ifull,k) + xfact_iwu(1:ifull,k) &
+                                   + yfact(1:ifull,k) + yfact_isv(1:ifull,k)
+  !emi(1:ifull,k) = emi(1:ifull,k)/base(1:ifull)
+  !xfact(1:ifull,k) = xfact(1:ifull,k)/base(1:ifull)
+  !yfact(1:ifull,k) = yfact(1:ifull,k)/base(1:ifull)
+  !xfact_iwu(1:ifull,k) = xfact_iwu(1:ifull,k)/base(1:ifull)
+  !yfact_isv(1:ifull,k) = yfact_isv(1:ifull,k)/base(1:ifull)
 end do
 
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   do k = 1,kl
     call unpack_nsew(uc(:,k),uc_n,uc_s,uc_e,uc_w)  
-    ucc = emi(1:ifull,k)*uc(1:ifull,k) +     &
-          xfact(1:ifull,k)*uc_e +            &
-          xfact_iwu(1:ifull,k)*uc_w +        &
-          yfact(1:ifull,k)*uc_n +            &
-          yfact_isv(1:ifull,k)*uc_s
+    ucc = ( emi(1:ifull,k)*uc(1:ifull,k) +     &
+            xfact(1:ifull,k)*uc_e +            &
+            xfact_iwu(1:ifull,k)*uc_w +        &
+            yfact(1:ifull,k)*uc_n +            &
+            yfact_isv(1:ifull,k)*uc_s ) / base(1:ifull,k)
     call unpack_nsew(vc(:,k),vc_n,vc_s,vc_e,vc_w)
-    vcc = emi(1:ifull,k)*vc(1:ifull,k) +     &
-          xfact(1:ifull,k)*vc_e +            &
-          xfact_iwu(1:ifull,k)*vc_w +        &
-          yfact(1:ifull,k)*vc_n +            &
-          yfact_isv(1:ifull,k)*vc_s
+    vcc = ( emi(1:ifull,k)*vc(1:ifull,k) +     &
+            xfact(1:ifull,k)*vc_e +            &
+            xfact_iwu(1:ifull,k)*vc_w +        &
+            yfact(1:ifull,k)*vc_n +            &
+            yfact_isv(1:ifull,k)*vc_s ) / base(1:ifull,k)
     call unpack_nsew(wc(:,k),wc_n,wc_s,wc_e,wc_w)
-    wcc = emi(1:ifull,k)*wc(1:ifull,k) +     &
-          xfact(1:ifull,k)*wc_e +            &
-          xfact_iwu(1:ifull,k)*wc_w +        &
-          yfact(1:ifull,k)*wc_n +            &
-          yfact_isv(1:ifull,k)*wc_s
+    wcc = ( emi(1:ifull,k)*wc(1:ifull,k) +     &
+            xfact(1:ifull,k)*wc_e +            &
+            xfact_iwu(1:ifull,k)*wc_w +        &
+            yfact(1:ifull,k)*wc_n +            &
+            yfact_isv(1:ifull,k)*wc_s ) / base(1:ifull,k)
     u(1:ifull,k) = ax(1:ifull)*ucc + ay(1:ifull)*vcc + az(1:ifull)*wcc
     v(1:ifull,k) = bx(1:ifull)*ucc + by(1:ifull)*vcc + bz(1:ifull)*wcc
   end do
 end if   ! nhorps==0 .or. nhorps==-2
 
-#ifdef debug
 if ( diag .and. mydiag ) then
   do k = 1,kl
     write(6,*) 'k,id,jd,idjd ',k,id,jd,idjd
@@ -422,7 +421,6 @@ if ( diag .and. mydiag ) then
     write(6,*) 'k,u,v ',k,u(idjd,k),v(idjd,k)
   end do
 endif
-#endif
 
 ! do t diffusion based on potential temperature ff
 ! for nhorps=-3 don't diffuse T or cloud; only qg
@@ -434,11 +432,11 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 )
   call bounds(work(:,:,1))
   do k = 1,kl
     call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)  
-    t(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,1) +   &
-                   xfact(1:ifull,k)*work_e +            &
-                   xfact_iwu(1:ifull,k)*work_w +        &
-                   yfact(1:ifull,k)*work_n +            &
-                   yfact_isv(1:ifull,k)*work_s
+    t(1:ifull,k) = ( emi(1:ifull,k)*work(1:ifull,k,1) +   &
+                     xfact(1:ifull,k)*work_e +            &
+                     xfact_iwu(1:ifull,k)*work_w +        &
+                     yfact(1:ifull,k)*work_n +            &
+                     yfact_isv(1:ifull,k)*work_s ) / base(1:ifull,k)
     t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k)
   end do
 end if  
@@ -448,11 +446,11 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 )
   call bounds(work(:,:,1))
   do k = 1,kl      
     call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)
-    qg(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,1) +  &
-                    xfact(1:ifull,k)*work_e +           &
-                    xfact_iwu(1:ifull,k)*work_w +       &
-                    yfact(1:ifull,k)*work_n +           &
-                    yfact_isv(1:ifull,k)*work_s
+    qg(1:ifull,k) = ( emi(1:ifull,k)*work(1:ifull,k,1) +  &
+                      xfact(1:ifull,k)*work_e +           &
+                      xfact_iwu(1:ifull,k)*work_w +       &
+                      yfact(1:ifull,k)*work_n +           &
+                      yfact_isv(1:ifull,k)*work_s ) / base(1:ifull,k)
   end do
 end if
   
@@ -460,35 +458,32 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   ! cloud microphysics
   work(1:ifull,1:kl,1) = qlg(1:ifull,1:kl)
   work(1:ifull,1:kl,2) = qfg(1:ifull,1:kl)
-  call bounds(work(:,:,1:2))
+  work(1:ifull,1:kl,3) = stratcloud(1:ifull,1:kl)
+  call bounds(work(:,:,1:3))
   do k = 1,kl
     call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)  
-    qlg(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,2) +  &
-                    xfact(1:ifull,k)*work_e +            &
-                    xfact_iwu(1:ifull,k)*work_w +        &
-                    yfact(1:ifull,k)*work_n +            &
-                    yfact_isv(1:ifull,k)*work_s
+    qlg(1:ifull,k) = ( emi(1:ifull,k)*work(1:ifull,k,2) +  &
+                       xfact(1:ifull,k)*work_e +           &
+                       xfact_iwu(1:ifull,k)*work_w +       &
+                       yfact(1:ifull,k)*work_n +           &
+                       yfact_isv(1:ifull,k)*work_s ) / base(1:ifull,k)
   end do
   do k = 1,kl
     call unpack_nsew(work(:,k,2),work_n,work_s,work_e,work_w)
-    qfg(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,2) + &
-                   xfact(1:ifull,k)*work_e +            &
-                   xfact_iwu(1:ifull,k)*work_w +        &
-                   yfact(1:ifull,k)*work_n +            &
-                   yfact_isv(1:ifull,k)*work_s
+    qfg(1:ifull,k) = ( emi(1:ifull,k)*work(1:ifull,k,2) + &
+                       xfact(1:ifull,k)*work_e +          &
+                       xfact_iwu(1:ifull,k)*work_w +      &
+                       yfact(1:ifull,k)*work_n +          &
+                       yfact_isv(1:ifull,k)*work_s ) / base(1:ifull,k)
   end do
-  if ( ncloud>=4 ) then
-    work(1:ifull,1:kl,1) = stratcloud(1:ifull,1:kl)  
-    call bounds(work(:,:,1))
-    do k = 1,kl
-      call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)  
-      stratcloud(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,2) + &
+  do k = 1,kl
+    call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)  
+    stratcloud(1:ifull,k) = ( emi(1:ifull,k)*work(1:ifull,k,2) + &
                         xfact(1:ifull,k)*work_e +                &
                         xfact_iwu(1:ifull,k)*work_w +            &
                         yfact(1:ifull,k)*work_n +                &
-                        yfact_isv(1:ifull,k)*work_s
-    end do
-  end if
+                        yfact_isv(1:ifull,k)*work_s ) / base(1:ifull,k)
+  end do
 end if       ! (ldr/=0.and.nhorps==-4)
 
 ! apply horizontal diffusion to TKE and EPS terms
@@ -498,36 +493,36 @@ if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. nvmix==6 ) then
   call bounds(work(:,:,1:2))
   do k = 1,kl
     call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w) 
-    tke(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,1) +    &
-                            xfact(1:ifull,k)*work_e +      &
-                            xfact_iwu(1:ifull,k)*work_w +  &
-                            yfact(1:ifull,k)*work_n +      &
-                            yfact_isv(1:ifull,k)*work_s
+    tke(1:ifull,k) = ( emi(1:ifull,k)*work(1:ifull,k,1) +    &
+                              xfact(1:ifull,k)*work_e +      &
+                              xfact_iwu(1:ifull,k)*work_w +  &
+                              yfact(1:ifull,k)*work_n +      &
+                              yfact_isv(1:ifull,k)*work_s ) / base(1:ifull,k)
   end do
   do k = 1,kl
     call unpack_nsew(work(:,k,2),work_n,work_s,work_e,work_w)
-    eps(1:ifull,k) = emi(1:ifull,k)*work(1:ifull,k,2) +    &
-                            xfact(1:ifull,k)*work_e +      &
-                            xfact_iwu(1:ifull,k)*work_w +  &
-                            yfact(1:ifull,k)*work_n +      &
-                            yfact_isv(1:ifull,k)*work_s
+    eps(1:ifull,k) = ( emi(1:ifull,k)*work(1:ifull,k,2) +    &
+                              xfact(1:ifull,k)*work_e +      &
+                              xfact_iwu(1:ifull,k)*work_w +  &
+                              yfact(1:ifull,k)*work_n +      &
+                              yfact_isv(1:ifull,k)*work_s ) / base(1:ifull,k)
   end do
 end if   ! (nvmix==6)
 
 ! prgnostic aerosols
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
-  do nstart = 1,naero,3
-    nend = min(nstart+2, naero)
-    work(1:ifull,1:kl,1:3) = xtg(1:ifull,1:kl,nstart:nend)
-    call bounds(work(:,:,1:3))
-    do ntr = 1,3
+  do nstart = 1,naero,nagg
+    nend = min(nstart+nagg-1, naero)
+    work(1:ifull,1:kl,1:nagg) = xtg(1:ifull,1:kl,nstart:nend)
+    call bounds(work(:,:,1:nagg))
+    do ntr = 1,nagg
       do k = 1,kl  
         call unpack_nsew(work(:,k,ntr),work_n,work_s,work_e,work_w)  
-        xtg(1:ifull,k,nstart+ntr-1) = emi(1:ifull,k)*work(1:ifull,k,ntr) +    &
-                             xfact(1:ifull,k)*work_e +                        &
-                             xfact_iwu(1:ifull,k)*work_w +                    &
-                             yfact(1:ifull,k)*work_n +                        &
-                             yfact_isv(1:ifull,k)*work_s
+        xtg(1:ifull,k,nstart+ntr-1) = ( emi(1:ifull,k)*work(1:ifull,k,ntr) +    &
+                               xfact(1:ifull,k)*work_e +                        &
+                               xfact_iwu(1:ifull,k)*work_w +                    &
+                               yfact(1:ifull,k)*work_n +                        &
+                               yfact_isv(1:ifull,k)*work_s ) / base(1:ifull,k)
       end do
     end do
   end do

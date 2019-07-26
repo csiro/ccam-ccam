@@ -25,8 +25,8 @@ subroutine adjust5
 use aerosolldr             ! LDR prognostic aerosols
 use arrays_m               ! Atmosphere dyamics prognostic arrays
 use cc_mpi                 ! CC MPI routines
-use cfrac_m                ! Cloud fraction
 use const_phys             ! Physical constants
+use cloudmod               ! Prognostic cloud fraction
 use diag_m                 ! Diagnostic routines
 use dpsdt_m                ! Vertical velocity
 use epst_m                 ! Off-centre terms
@@ -64,8 +64,8 @@ integer, save :: precon_in = -99999
 real, dimension(:), allocatable, save :: zz, zzn, zze, zzw, zzs
 real, dimension(:), allocatable, save :: pfact, alff, alf, alfe
 real, dimension(:), allocatable, save :: alfn, alfu, alfv
-real, dimension(ifull+iextra,kl,3) :: dums
-real, dimension(ifull,kl,3) :: dumssav
+real, dimension(ifull+iextra,kl,nagg) :: dums
+real, dimension(ifull,kl,nagg) :: dumssav
 real, dimension(ifull+iextra,kl) :: p, cc, dd, pe
 real, dimension(ifull,kl) :: omgfnl, wrk1, wrk2, wrk3, wrk4
 real, dimension(ifull,kl) :: helm, rhsl, omgf, e
@@ -83,7 +83,7 @@ real alph_p, alph_pm, delneg, delpos
 real const_nh
 real sumx
 real, save :: dtsave = 0.
-logical, dimension(3) :: llim
+logical, dimension(nagg) :: llim
 
 call START_LOG(adjust_begin)
 
@@ -582,11 +582,7 @@ end if
 ! Cloud water conservation
 if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
   do k = 1,kl
-    cfrac(1:ifull,k) = min( max( cfrac(1:ifull,k), 0. ), 1. )
-    rfrac(1:ifull,k) = min( max( rfrac(1:ifull,k), 0. ), 1. )
-    sfrac(1:ifull,k) = min( max( sfrac(1:ifull,k), 0. ), 1. )
-    gfrac(1:ifull,k) = min( max( gfrac(1:ifull,k), 0. ), 1. )
-
+    stratcloud(1:ifull,k) = min( max( stratcloud(1:ifull,k), 0. ), 1. )
     dums(1:ifull,k,1) = max( qg(1:ifull,k), qgmin-qfg(1:ifull,k)-qlg(1:ifull,k), 0. )
     dums(1:ifull,k,2) = max( qfg(1:ifull,k), 0. )
     dums(1:ifull,k,3) = max( qlg(1:ifull,k), 0. )
@@ -611,9 +607,9 @@ end if !  (mfix_qg/=0.and.mspec==1.and.ldr/=0) ..else..
 !------------------------------------------------------------------------
 ! Tracer conservation
 if ( mfix_tr/=0 .and. mspec==1 .and. ngas>0 ) then
-  llim(1:3) = .true.
-  do nstart = 1,ngas,3
-    nend = min( nstart+2, ngas )
+  llim(1:nagg) = .true.
+  do nstart = 1,ngas,nagg
+    nend = min( nstart+nagg-1, ngas )
     ntot = nend - nstart + 1
     call massfix(mfix_tr,ntot,tr(:,:,nstart:nend),trsav(:,:,nstart:nend),ps,ps_sav,llim(1:ntot))
   end do
@@ -623,9 +619,9 @@ end if !  (mfix_tr/=0.and.mspec==1.and.ngas>0)
 ! Aerosol conservation
 if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)>=2 ) then
   xtg(1:ifull,1:kl,1:naero) = max( xtg(1:ifull,1:kl,1:naero), 0. )
-  llim(1:3) = .true.
-  do nstart = 1,naero,3
-    nend = min( nstart+2, naero )
+  llim(1:nagg) = .true.
+  do nstart = 1,naero,nagg
+    nend = min( nstart+nagg-1, naero )
     ntot = nend - nstart + 1
     call massfix(mfix_aero,ntot,xtg(:,:,nstart:nend),xtgsav(:,:,nstart:nend),ps,ps_sav,llim(1:ntot))
   end do
