@@ -640,21 +640,6 @@ MODULE cable_def_types_mod
       scalex_shade, & ! canopy depth scaling factor on vcmax and jmax (shade leaves)
       fwsoil         ! soil-moisture modifier to stomatal conductance
 
-#ifdef CCAM
-      REAL, DIMENSION(:), POINTER :: &
-      APAR_leaf_sun_save,   &
-      APAR_leaf_shade_save, &
-      Dleaf_sun_save,       &
-      fwsoil_save,          &
-      Dleaf_shade_save,     &
-      Tleaf_sun_save,       &
-      Tleaf_shade_save,     &
-      cs_sun_save,          &
-      cs_shade_save,        &
-      scalex_sun_save,      &
-      scalex_shade_save
-#endif
-
    END TYPE climate_type
 
 ! .............................................................................
@@ -1282,21 +1267,6 @@ SUBROUTINE alloc_climate_type(var, mp, ktauday)
    ALLOCATE ( var %   scalex_sun(mp,ktauday*5) )
    ALLOCATE ( var %   scalex_shade(mp,ktauday*5) )
    ALLOCATE ( var %   fwsoil(mp,ktauday*5) )
-
-#ifdef CCAM
-   ALLOCATE ( var %   APAR_leaf_sun_save(mp) )
-   ALLOCATE ( var %   APAR_leaf_shade_save(mp) )
-   ALLOCATE ( var %   Dleaf_sun_save(mp) )
-   ALLOCATE ( var %   fwsoil_save(mp) )
-   ALLOCATE ( var %   Dleaf_shade_save(mp) )
-   ALLOCATE ( var %   Tleaf_sun_save(mp) )
-   ALLOCATE ( var %   Tleaf_shade_save(mp) )
-   ALLOCATE ( var %   cs_sun_save(mp) )
-   ALLOCATE ( var %   cs_shade_save(mp) )
-   ALLOCATE ( var %   scalex_sun_save(mp) )
-   ALLOCATE ( var %   scalex_shade_save(mp) )
-#endif
-   
    
 END SUBROUTINE alloc_climate_type
 

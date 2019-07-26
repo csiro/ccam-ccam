@@ -26,6 +26,7 @@ use cable_def_types_mod, only : air_type, balances_type, canopy_type, climate_ty
 use casavariable, only : casa_balance, casa_biome, casa_flux, casa_met, casa_pool
 use phenvariable, only : phen_variable
 use pop_types, only : pop_type, dp
+use cable_ccam3, only : climate_save_type
 
 implicit none
 
@@ -78,7 +79,8 @@ interface setp
   module procedure setp_air, setp_bal, setp_canopy, setp_casabal,            &
                    setp_casaflux, setp_casamet, setp_casapool, setp_climate, &
                    setp_met, setp_phen, setp_pop, setp_rad, setp_rough,      &
-                   setp_soil, setp_ssnow, setp_sumflux, setp_veg
+                   setp_soil, setp_ssnow, setp_sumflux, setp_veg,            &
+                   setp_climate_save
 end interface
 
 contains
@@ -1136,19 +1138,7 @@ subroutine setp_climate(climate,lclimate,tile)
     lclimate%cs_shade => climate%cs_shade(is:ie,:)
     lclimate%scalex_sun => climate%scalex_sun(is:ie,:)
     lclimate%scalex_shade => climate%scalex_shade(is:ie,:)
-  
-    lclimate%APAR_leaf_sun_save => climate%APAR_leaf_sun_save(is:ie)
-    lclimate%APAR_leaf_shade_save => climate%APAR_leaf_shade_save(is:ie)
-    lclimate%Dleaf_sun_save => climate%Dleaf_sun_save(is:ie)
-    lclimate%fwsoil_save => climate%fwsoil_save(is:ie)
-    lclimate%Dleaf_shade_save => climate%Dleaf_shade_save(is:ie)
-    lclimate%Tleaf_sun_save => climate%Tleaf_sun_save(is:ie)
-    lclimate%Tleaf_shade_save => climate%Tleaf_shade_save(is:ie)
-    lclimate%cs_sun_save => climate%cs_sun_save(is:ie)
-    lclimate%cs_shade_save => climate%cs_shade_save(is:ie)
-    lclimate%scalex_sun_save => climate%scalex_sun_save(is:ie)
-    lclimate%scalex_shade_save => climate%scalex_shade_save(is:ie)
-    
+      
   end if  
   
 end subroutine setp_climate
@@ -1608,5 +1598,34 @@ subroutine setp_veg(veg,lveg,tile)
   end if  
 
 end subroutine setp_veg
+
+subroutine setp_climate_save(climate_save,lclimate_save,tile)
+  implicit none
+
+  type(climate_save_type), intent(in) :: climate_save
+  type(climate_save_type), intent(inout) :: lclimate_save
+  integer, intent(in) :: tile
+  integer :: is, ie
+
+  is = tdata(tile)%toffset + 1
+  ie = tdata(tile)%toffset + tdata(tile)%mp
+  
+  if ( is<=ie ) then
+    
+    lclimate_save%APAR_leaf_sun => climate_save%APAR_leaf_sun(is:ie)
+    lclimate_save%APAR_leaf_shade => climate_save%APAR_leaf_shade(is:ie)
+    lclimate_save%Dleaf_sun => climate_save%Dleaf_sun(is:ie)
+    lclimate_save%fwsoil => climate_save%fwsoil(is:ie)
+    lclimate_save%Dleaf_shade => climate_save%Dleaf_shade(is:ie)
+    lclimate_save%Tleaf_sun => climate_save%Tleaf_sun(is:ie)
+    lclimate_save%Tleaf_shade => climate_save%Tleaf_shade(is:ie)
+    lclimate_save%cs_sun => climate_save%cs_sun(is:ie)
+    lclimate_save%cs_shade => climate_save%cs_shade(is:ie)
+    lclimate_save%scalex_sun => climate_save%scalex_sun(is:ie)
+    lclimate_save%scalex_shade => climate_save%scalex_shade(is:ie)
+    
+  end if  
+  
+end subroutine setp_climate_save
 
 end module cable_ccam4

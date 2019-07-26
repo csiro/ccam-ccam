@@ -243,6 +243,7 @@ type(soil_snow_type) :: lssnow
 type(sum_flux_type) :: lsum_flux
 type(veg_parameter_type) :: lveg
 type(bgc_pool_type) :: lbgc
+type(climate_save_type) :: lclimate_save
 
 !$omp do schedule(static) private(is,ie,js,je,ltind,ltmap,lmaxnb),                                             &
 !$omp private(lclitter,lcnbp,lcnpp,lcplant,lcsoil,lfnee,lfpn),                                                 &
@@ -251,7 +252,7 @@ type(bgc_pool_type) :: lbgc
 !$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg),  &
 !$omp private(lclimate_biome,lclimate_iveg,lclimate_min20,lclimate_max20,lclimate_alpha20,lclimate_agdd5),     &
 !$omp private(lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover),                 &
-!$omp private(lplant_turnover_wood)
+!$omp private(lplant_turnover_wood,lclimate_save)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -348,6 +349,7 @@ do tile=1,ntiles
     end if
     if ( cable_climate==1 ) then
       call setp(climate,lclimate,tile)
+      call setp(climate_save,lclimate_save,tile)
     end if  
 
     call sib4_work(albnirdif(is:ie),albnirdir(is:ie),albnirsav(is:ie),albvisdif(is:ie),albvisdir(is:ie),                 &
@@ -364,7 +366,7 @@ do tile=1,ntiles
                    lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,    &
                    lsum_flux,lveg,lclimate_iveg,lclimate_biome,lclimate_min20,lclimate_max20,lclimate_alpha20,           &
                    lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover,        &
-                   lplant_turnover_wood,imax)
+                   lplant_turnover_wood,lclimate_save,imax)
 
     smass(is:ie,:) = lsmass
     ssdn(is:ie,:) = lssdn
@@ -426,7 +428,7 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,veg,          &
                      climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,climate_agdd5,     &
                      climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,plant_turnover,                 &
-                     plant_turnover_wood,imax)
+                     plant_turnover_wood,climate_save,imax)
 
 use const_phys
 use dates_m
@@ -502,6 +504,7 @@ type(soil_parameter_type), intent(inout) :: soil
 type(soil_snow_type), intent(inout) :: ssnow
 type(sum_flux_type), intent(inout) :: sum_flux
 type(veg_parameter_type), intent(inout) :: veg
+type(climate_save_type), intent(inout) :: climate_save
 
 cansto = 0.
 fwet = 0.
@@ -687,7 +690,8 @@ end if
 
 !--------------------------------------------------------------
 ! CABLE CLIMATE
-call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,air,ssnow,veg,npercasa,ktau)
+call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,air,ssnow,veg, &
+                  climate_save,npercasa,ktau)
 
 !--------------------------------------------------------------
 ! CASA CNP
@@ -1573,7 +1577,8 @@ end subroutine POPdriver
 
 ! *************************************************************************************
 ! track climate feedback into CABLE
-subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,air,ssnow,veg,npercasa,ktau)
+subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,air,ssnow,veg, &
+                        climate_save,npercasa,ktau)
 
 use parm_m, only : dt, nperhr
 
@@ -1590,8 +1595,9 @@ type(climate_type), intent(inout) :: climate
 type(met_type), intent(in) :: met
 type(radiation_type), intent(inout) :: rad
 type(air_type), intent(inout) :: air
-type (soil_snow_type), intent(in) :: ssnow
-type (veg_parameter_type), intent(in) :: veg
+type(soil_snow_type), intent(in) :: ssnow
+type(veg_parameter_type), intent(in) :: veg
+type(climate_save_type), intent(in) :: climate_save 
 
 real(kind=8), parameter :: Gaero   = 0.015_8    ! (m s-1) aerodynmaic conductance (for use in PT evap)
 real(kind=8), parameter :: Capp    = 29.09_8    ! isobaric spec heat air    [J/molA/K]
@@ -1628,29 +1634,29 @@ if ( mod(ktau,npercasa)==1 ) climate%dtemp_min = met%tk - 273.15_8
 climate%dtemp_min = min( climate%dtemp_min, met%tk - 273.15_8 )
 
 if ( mod(ktau,nperhr)==1 ) then
-  climate%apar_leaf_sun_save = 0._8
-  climate%apar_leaf_shade_save = 0._8
-  climate%dleaf_sun_save = 0._8
-  climate%fwsoil_save = 0._8
-  climate%dleaf_shade_save = 0._8
-  climate%tleaf_sun_save = 0._8
-  climate%tleaf_shade_save = 0._8
-  climate%cs_sun_save = 0._8
-  climate%cs_shade_save = 0._8
-  climate%scalex_sun_save = 0._8
-  climate%scalex_shade_save = 0._8
+  climate_save%apar_leaf_sun = 0._8
+  climate_save%apar_leaf_shade = 0._8
+  climate_save%dleaf_sun = 0._8
+  climate_save%fwsoil = 0._8
+  climate_save%dleaf_shade = 0._8
+  climate_save%tleaf_sun = 0._8
+  climate_save%tleaf_shade = 0._8
+  climate_save%cs_sun = 0._8
+  climate_save%cs_shade = 0._8
+  climate_save%scalex_sun = 0._8
+  climate_save%scalex_shade = 0._8
 end if
-climate%apar_leaf_sun_save = climate%apar_leaf_sun_save + rad%qcan(:,1,1)*4.6_8 ! umol m-2 s-1
-climate%apar_leaf_shade_save = climate%apar_leaf_shade_save + rad%qcan(:,2,1)*4.6_8 ! umod m-2 s-1
-climate%dleaf_sun_save = climate%dleaf_sun_save + canopy%dlf
-climate%fwsoil_save = climate%fwsoil_save + canopy%fwsoil
-climate%dleaf_shade_save = climate%dleaf_shade_save + canopy%dlf
-climate%tleaf_sun_save = climate%tleaf_sun_save + canopy%tlf
-climate%tleaf_shade_save = climate%tleaf_shade_save + canopy%tlf
-climate%cs_sun_save = climate%cs_sun_save + canopy%cs_sl ! ppm
-climate%cs_shade_save = climate%cs_shade_save + canopy%cs_sh ! ppm
-climate%scalex_sun_save = climate%scalex_sun_save + rad%scalex(:,1)
-climate%scalex_shade_save = climate%scalex_shade_save + rad%scalex(:,2)
+climate_save%apar_leaf_sun = climate_save%apar_leaf_sun + rad%qcan(:,1,1)*4.6_8 ! umol m-2 s-1
+climate_save%apar_leaf_shade = climate_save%apar_leaf_shade + rad%qcan(:,2,1)*4.6_8 ! umod m-2 s-1
+climate_save%dleaf_sun = climate_save%dleaf_sun + canopy%dlf
+climate_save%fwsoil = climate_save%fwsoil + canopy%fwsoil
+climate_save%dleaf_shade = climate_save%dleaf_shade + canopy%dlf
+climate_save%tleaf_sun = climate_save%tleaf_sun + canopy%tlf
+climate_save%tleaf_shade = climate_save%tleaf_shade + canopy%tlf
+climate_save%cs_sun = climate_save%cs_sun + canopy%cs_sl ! ppm
+climate_save%cs_shade = climate_save%cs_shade + canopy%cs_sh ! ppm
+climate_save%scalex_sun = climate_save%scalex_sun + rad%scalex(:,1)
+climate_save%scalex_shade = climate_save%scalex_shade + rad%scalex(:,2)
 
 ! midday fraction of incoming visible radiation absorbed by the canopy
 !if ( mod(ktau,npercasa) == npercasa/2 ) THEN
@@ -1672,17 +1678,17 @@ if ( mod(ktau,nperhr)==0 ) then
   climate%cs_shade(:,1:nsd-1)        = climate%cs_shade(:,2:nsd)
   climate%scalex_sun(:,1:nsd-1)      = climate%scalex_sun(:,2:nsd)
   climate%scalex_shade(:,1:nsd-1)    = climate%scalex_shade(:,2:nsd)
-  climate%APAR_leaf_sun(:,nsd)   = climate%apar_leaf_sun_save/real(nperhr,8)
-  climate%APAR_leaf_shade(:,nsd) = climate%apar_leaf_shade_save/real(nperhr,8)
-  climate%Dleaf_sun(:,nsd)       = climate%dleaf_sun_save/real(nperhr,8)
-  climate%fwsoil(:,nsd)          = climate%fwsoil_save/real(nperhr,8)
-  climate%Dleaf_shade(:,nsd)     = climate%dleaf_shade_save/real(nperhr,8)
-  climate%Tleaf_sun(:,nsd)       = climate%tleaf_sun_save/real(nperhr,8)
-  climate%Tleaf_shade(:,nsd)     = climate%tleaf_shade_save/real(nperhr,8)
-  climate%cs_sun(:,nsd)          = climate%cs_sun_save/real(nperhr,8)
-  climate%cs_shade(:,nsd)        = climate%cs_shade_save/real(nperhr,8)
-  climate%scalex_sun(:,nsd)      = climate%scalex_sun_save/real(nperhr,8)
-  climate%scalex_shade(:,nsd)    = climate%scalex_shade_save/real(nperhr,8)
+  climate%APAR_leaf_sun(:,nsd)   = climate_save%apar_leaf_sun/real(nperhr,8)
+  climate%APAR_leaf_shade(:,nsd) = climate_save%apar_leaf_shade/real(nperhr,8)
+  climate%Dleaf_sun(:,nsd)       = climate_save%dleaf_sun/real(nperhr,8)
+  climate%fwsoil(:,nsd)          = climate_save%fwsoil/real(nperhr,8)
+  climate%Dleaf_shade(:,nsd)     = climate_save%dleaf_shade/real(nperhr,8)
+  climate%Tleaf_sun(:,nsd)       = climate_save%tleaf_sun/real(nperhr,8)
+  climate%Tleaf_shade(:,nsd)     = climate_save%tleaf_shade/real(nperhr,8)
+  climate%cs_sun(:,nsd)          = climate_save%cs_sun/real(nperhr,8)
+  climate%cs_shade(:,nsd)        = climate_save%cs_shade/real(nperhr,8)
+  climate%scalex_sun(:,nsd)      = climate_save%scalex_sun/real(nperhr,8)
+  climate%scalex_shade(:,nsd)    = climate_save%scalex_shade/real(nperhr,8)
 end if
   
 ! accumulate daily temperature, evap and potential evap
@@ -2692,6 +2698,17 @@ if ( mp_global>0 ) then
   call alloc_cbm_var(veg, mp_global)
   if ( cable_climate==1 ) then
     call alloc_cbm_var(climate, mp_global, 24)
+    allocate( climate_save%APAR_leaf_sun(mp_global) )
+    allocate( climate_save%APAR_leaf_shade(mp_global) )
+    allocate( climate_save%Dleaf_sun(mp_global) )
+    allocate( climate_save%fwsoil(mp_global) )
+    allocate( climate_save%Dleaf_shade(mp_global) )
+    allocate( climate_save%Tleaf_sun(mp_global) )
+    allocate( climate_save%Tleaf_shade(mp_global) )
+    allocate( climate_save%cs_sun(mp_global) )
+    allocate( climate_save%cs_shade(mp_global) )
+    allocate( climate_save%scalex_sun(mp_global) )
+    allocate( climate_save%scalex_shade(mp_global) )
   end if
   allocate( dummy_unpack(mp_global) )
   
@@ -3015,17 +3032,17 @@ if ( mp_global>0 ) then
     climate%cs_shade = 0._8
     climate%scalex_sun = 0._8
     climate%scalex_shade = 0._8
-    climate%APAR_leaf_sun_save = 0._8
-    climate%APAR_leaf_shade_save = 0._8
-    climate%Dleaf_sun_save = 0._8
-    climate%fwsoil_save = 0._8
-    climate%Dleaf_shade_save = 0._8
-    climate%Tleaf_sun_save = 0._8
-    climate%Tleaf_shade_save = 0._8
-    climate%cs_sun_save = 0._8
-    climate%cs_shade_save = 0._8
-    climate%scalex_sun_save = 0._8
-    climate%scalex_shade_save = 0._8
+    climate_save%APAR_leaf_sun = 0._8
+    climate_save%APAR_leaf_shade = 0._8
+    climate_save%Dleaf_sun = 0._8
+    climate_save%fwsoil = 0._8
+    climate_save%Dleaf_shade = 0._8
+    climate_save%Tleaf_sun = 0._8
+    climate_save%Tleaf_shade = 0._8
+    climate_save%cs_sun = 0._8
+    climate_save%cs_shade = 0._8
+    climate_save%scalex_sun = 0._8
+    climate_save%scalex_shade = 0._8
   end if
   
   if ( ccycle==0 ) then
