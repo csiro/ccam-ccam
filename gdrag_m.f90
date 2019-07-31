@@ -159,7 +159,7 @@ logical, intent(in) :: mydiag
 !   ngwd=-20 helim=1600. fc2=-.5 sigbot_gw=1. alphaj=0.05
 ! If desire to tune, only need to vary alphaj (increase for stronger GWD)
 
-do k = 1,kl
+do concurrent (k = 1:kl)
   dsk(k) = -dsig(k)
   sigk(k) = sig(k)**(rdry/cp)
   ! put theta in theta_full()
@@ -170,7 +170,7 @@ end do
 dzx = .5*grav*(1.+sig(1))/((1.-sig(1))*rdry)    
 dzi(:) = dzx/t(:,1)
 dtheta_dz_kmh(:,1) = (theta_full(:,1)-tss(:))*dzi(:)    
-do k = 2,kl
+do concurrent (k = 2:kl)
  dzx = grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)  
  dzi(:) = dzx/(t(:,k-1)+t(:,k)) 
  dtheta_dz_kmh(:,k) = (theta_full(:,k)-theta_full(:,k-1))*dzi(:)
@@ -183,7 +183,7 @@ wmag(:) = sqrt(max(u(:,1)**2+v(:,1)**2, vmodmin**2)) ! MJT suggestion
 !**** calculate Brunt-Vaisala frequency at full levels (bvnf)
 !      if unstable reference level then no gwd 
 !            - happens automatically via effect on bvnf & alambda
-do k = 1,kl-1
+do concurrent (k = 1:kl-1)
   bvnf(:,k) = sqrt(max(1.e-20, grav*0.5*(dtheta_dz_kmh(:,k)+dtheta_dz_kmh(:,k+1))/theta_full(:,k)) ) ! MJT fixup
 end do    ! k loop
 bvnf(:,kl) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(:,kl)/theta_full(:,kl)))    ! jlm fixup
@@ -196,13 +196,13 @@ else
   temp(:) = theta_full(:,1)/max(bvnf(:,1)*wmag(:)*he(:)**2, 1.e-10)      
 end if
 
-do k = 1,2 ! uu is +ve wind compt in dirn of (u_1,v_1)
+do concurrent (k = 1:2) ! uu is +ve wind compt in dirn of (u_1,v_1)
   uu(:,k) = max(0., u(:,k)*u(:,1)+v(:,k)*v(:,1))/wmag(:)
 end do    ! k loop
 
 !**** set uu() to zero above if uu() zero below
 !**** uu>0 at k=1, uu>=0 at k=1+1 - only set for k=1+2 to kl  
-do k = 3,kl
+do concurrent (k = 3:kl)
   where ( uu(:,k-1)<1.e-20 )
     uu(:,k) = 0.
   elsewhere
@@ -210,7 +210,7 @@ do k = 3,kl
   end where
 end do    ! k loop
 
-do k = kbot,kl
+do concurrent (k = kbot:kl)
   !       calc max(1-Fc**2/F**2,0) : put in fni()
   froude2_inv(:) = sig(k)*temp(:)*uu(:,k)**3/(sigk(k)*bvnf(:,k)*theta_full(:,k))
   fni(:,k) = max(0., 1.-abs(fc2)*froude2_inv(:))
@@ -221,8 +221,8 @@ end if
 
 ! form integral of above*uu**2 from sig=sigbot_gwd to sig=0
 fnii(:) = -fni(:,kbot)*dsig(kbot)*uu(:,kbot)*uu(:,kbot)
-do k = kbot+1,kl
-  fnii(:) = fnii(:)-fni(:,k)*dsig(k)*uu(:,k)*uu(:,k)
+do concurrent (k = kbot+1:kl)
+  fnii(:) = fnii(:) - fni(:,k)*dsig(k)*uu(:,k)*uu(:,k)
 end do    ! k loop
 
 !     Chouinard et al. use alpha=.01
@@ -238,7 +238,7 @@ end if
 apuw(:) = alambda(:)*u(:,1)/wmag(:)
 apvw(:) = alambda(:)*v(:,1)/wmag(:)
 
-do k = kbot,kl
+do concurrent (k = kbot:kl)
   !**** form fni=alambda*max(--,0) and
   !**** solve for uu at t+1 (implicit solution)
   uux(:) = 2.*uu(:,k)/(1.+sqrt(1. + 4.*dt*alambda(:)*fni(:,k)*uu(:,k)))

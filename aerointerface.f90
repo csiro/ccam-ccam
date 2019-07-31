@@ -283,7 +283,7 @@ do k = 1,kl
 end do
 
 ! estimate convective cloud fraction from leoncld.f
-call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax,cldcon=cldcon)
+call convectivecloudfrac(clcon,kbsav,ktsav,condc,cldcon=cldcon)
 pccw(:,:) = 0.
 do k = 1,kl
   kinv = kl + 1 - k  

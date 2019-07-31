@@ -32,9 +32,7 @@ private
 public progcloud, cloudmod_init
 public stratcloud, nettend
 public convectivecloudfrac, convectivecloudarea
-public cloudtol
 
-integer, save :: cloudtol = 1 ! determins cloud tolerance levels
 real, dimension(:,:), allocatable, save :: stratcloud  ! prognostic cloud fraction
 real, dimension(:,:), allocatable, save :: nettend     ! change in temperature from radiation and vertical mixing
 real, save :: u00ramp = 0.01
@@ -58,8 +56,8 @@ end if
 return
 end subroutine cloudmod_init
     
-subroutine progcloud(qc,qtot,ps,rho,fice,qs,t,rhcrit, &
-                     dpsldt,fluxtot,nettend,stratcloud,imax)
+subroutine progcloud(qc,qtot,press,rho,fice,qs,t,rhcrit, &
+                     dpsldt,fluxtot,nettend,stratcloud)
 
 use const_phys           ! Physical constants
 use newmpar_m            ! Grid parameters
@@ -70,38 +68,27 @@ implicit none
 
 include 'kuocom.h'       ! Convection parameters
 
-integer, intent(in) :: imax
-real, dimension(imax,kl), intent(inout) :: qc ! condensate = qf + ql
-real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, t, rhcrit
-real, dimension(imax), intent(in) :: ps
-real, dimension(imax,kl), intent(in) :: dpsldt
-real, dimension(imax,kl), intent(in) :: fluxtot
-real, dimension(imax,kl), intent(inout) :: nettend
-real, dimension(imax,kl), intent(inout) :: stratcloud
-real, dimension(imax,kl) :: erosion_scale
-real, dimension(imax,kl) :: dqs, cfbar, qv
-real, dimension(imax,kl) :: cf1, cfeq, a_dt, b_dt
-real, dimension(imax,kl) :: dqsdT, gamma
-real, dimension(imax,kl) :: aa, bb, cc, omega
-real, dimension(imax,kl) :: cmflx, hlrvap, xf, at
+real, dimension(:,:), intent(inout) :: qc ! condensate = qf + ql
+real, dimension(:,:), intent(in) :: qtot, rho, fice, qs, t, rhcrit
+real, dimension(:,:), intent(in) :: press
+real, dimension(:,:), intent(in) :: dpsldt
+real, dimension(:,:), intent(in) :: fluxtot
+real, dimension(:,:), intent(inout) :: nettend
+real, dimension(:,:), intent(inout) :: stratcloud
+real, dimension(size(qc,1)) :: erosion_scale
+real, dimension(size(qc,1)) :: dqs, cfbar, qv
+real, dimension(size(qc,1)) :: cf1, cfeq, a_dt, b_dt
+real, dimension(size(qc,1)) :: dqsdT, gamma
+real, dimension(size(qc,1)) :: aa, bb, cc, omega
+real, dimension(size(qc,1)) :: hlrvap, xf, at
+real, dimension(size(qc,1),kl) :: cmflx
 integer k
 
-stratcloud(1:imax,:) = max( min( stratcloud(1:imax,:), 1. ), 0. )
-qv = qtot-qc
+stratcloud(:,:) = max( min( stratcloud, 1. ), 0. )
 
-! background erosion scale in 1/secs
-erosion_scale(:,:) = 1.E-6
-
-! calculate vertical velocity, dqs/dT and gamma
-do k=1,kl
-  omega(:,k) = ps(1:imax)*dpsldt(:,k)
-end do
-hlrvap = (hl+fice*hlf)/rvap
-dqsdT = qs*hlrvap/(t*t)
-gamma = (hlcp+fice*hlfcp)*dqsdT
 if ( ncloud>=4 ) then
   ! convert convective mass flux from half levels to full levels
-  do k=1,kl-1
+  do k = 1,kl-1
     cmflx(:,k) = rathb(k)*fluxtot(:,k)+ratha(k)*fluxtot(:,k+1)
   end do
   cmflx(:,kl) = rathb(kl)*fluxtot(:,kl)
@@ -129,71 +116,83 @@ end if
 ! BB = -(1+gamma*cf)
 ! CC = ((omega + grav*mflx)/(cp*rho)+netten)*dqsdT*dt
 
-do k=1,kl
-  xf(:,k) = max(min( (qv(:,k)/qs(:,k) - rhcrit(:,k) - u00ramp ) / ( 2.*u00ramp ), 1. ), 0. ) ! MJT suggestion
+! calculate vertical velocity, dqs/dT and gamma
+do concurrent (k = 1:kl)
+  qv = qtot(:,k) - qc(:,k)
+
+  ! background erosion scale in 1/secs
+  erosion_scale = 1.E-6
+
+  omega = press(:,k)*dpsldt(:,k)
+  hlrvap = (hl+fice(:,k)*hlf)/rvap
+  dqsdT = qs(:,k)*hlrvap/(t(:,k)**2)
+  gamma = (hlcp+fice(:,k)*hlfcp)*dqsdT
+
+  xf = max(min( (qv/qs(:,k) - rhcrit(:,k) - u00ramp ) / ( 2.*u00ramp ), 1. ), 0. ) ! MJT suggestion
+  cc = ((omega + grav*cmflx(:,k))/(cp*rho(:,k))+nettend(:,k))*dt*dqsdT
+  at = 1.-stratcloud(:,k)
+  aa = 0.5*at*at/max( qs(:,k)-qv, 1.e-20 )
+  bb = 1.+gamma*stratcloud(:,k)
+  where ( cc<=0. .and. xf>0. )
+    !dqs = ( bb - sqrt( bb*bb - 2.*gamma*xf*aa*cc ) ) / ( gamma*xf*aa ) ! GFDL style
+    !dqs = min( dqs, cc/(1. + 0.5*bb) )                                 ! GFDL style
+    dqs = 2.*cc/( bb + sqrt( bb*bb - 2.*gamma*xf*aa*cc ) ) ! alternative form of quadratic equation
+                                                           ! note that aa and bb have been multipled by 2 and -1, respectively.
+    ! Large scale cloud formation via condensation (A)
+    a_dt = -xf*aa*dqs
+  elsewhere
+    ! da = 0, so dqs can be solved from a linear equation
+    dqs = cc/bb
+    ! Large scale cloud formation via condensation (A)
+    a_dt = 0.
+  end where
+
+  ! Large scale cloud destruction via erosion (B)
+  b_dt = stratcloud(:,k)*erosion_scale*dt*max(qs(:,k)-qv, 1.e-20)/max(qc(:,k), 1.e-20)
+
+  ! Integrate
+  !   dcf/dt = (1-cf)*A - cf*B
+  ! to give (use cf' = A-cf*(A+B))
+  !   cf(t=1) = cfeq + (cf(t=0) - cfeq)*exp(-(A+B)*dt)
+  !   cfeq = A/(A+B)
+  ! Average cloud fraction over the interval t=tau to t=tau+1
+  !   cfbar = cfeq - (cf(t=1) - cf(t=0))/((A+B)*dt)
+  ! cfeq is the equilibrum cloud fraction that is approached with
+  ! a time scale of 1/(A+B)
+  where ( a_dt>1.e-20 .or. b_dt>1.e-20 )
+    cfeq  = a_dt/(a_dt+b_dt)
+    cf1   = cfeq + (stratcloud(:,k) - cfeq)*exp(-a_dt-b_dt)
+    cfbar = cfeq + (stratcloud(:,k) - cf1 )/(a_dt+b_dt)
+  elsewhere
+    cfeq  = stratcloud(:,k)
+    cf1   = stratcloud(:,k)
+    cfbar = stratcloud(:,k)
+  end where
+
+  ! Change in condensate
+  ! dqc = -dqs*(stratcloud+0.5*da) = -dqs*cfbar
+  ! MJT notes - missing erosion term -cfbar*erosion_scale*dt*(qs-qv)
+  qc(:,k) = max(min( qc(:,k) - max(cfbar,1.e-20)*dqs, qtot(:,k)-qgmin ), 0. )
+
+  ! Change in cloud fraction
+  where ( qc(:,k)>1.e-20 )
+    stratcloud(:,k) = max(min( cf1, 1.), 1.e-20 )
+  elsewhere
+    ! MJT notes - cloud fraction is maintained (da=0.) while condesate evaporates (dqc<0.) until
+    ! the condesate dissipates
+    stratcloud(:,k) = 0.
+    qc(:,k) = 0.
+  end where
+
+  ! Reset tendency and mass flux for next time-step
+  nettend(:,k) = 0.
+  
 end do
-cc = ((omega + grav*cmflx)/(cp*rho)+nettend)*dt*dqsdT
-at = 1.-stratcloud(1:imax,:)
-aa = 0.5*at*at/max( qs-qv, 1.e-20 )
-bb = 1.+gamma*stratcloud(1:imax,:)
-where ( cc<=0. .and. xf>0. )
-  !dqs = ( bb - sqrt( bb*bb - 2.*gamma*xf*aa*cc ) ) / ( gamma*xf*aa ) ! GFDL style
-  !dqs = min( dqs, cc/(1. + 0.5*bb) )                                 ! GFDL style
-  dqs = 2.*cc/( bb + sqrt( bb*bb - 2.*gamma*xf*aa*cc ) ) ! alternative form of quadratic equation
-                                                         ! note that aa and bb have been multipled by 2 and -1, respectively.
-  ! Large scale cloud formation via condensation (A)
-  a_dt = -xf*aa*dqs
-elsewhere
-  ! da = 0, so dqs can be solved from a linear equation
-  dqs = cc/bb
-  ! Large scale cloud formation via condensation (A)
-  a_dt = 0.
-end where
-
-! Large scale cloud destruction via erosion (B)
-b_dt = stratcloud(1:imax,:)*erosion_scale*dt*max(qs-qv, 1.e-20)/max(qc, 1.e-20)
-
-! Integrate
-!   dcf/dt = (1-cf)*A - cf*B
-! to give (use cf' = A-cf*(A+B))
-!   cf(t=1) = cfeq + (cf(t=0) - cfeq)*exp(-(A+B)*dt)
-!   cfeq = A/(A+B)
-! Average cloud fraction over the interval t=tau to t=tau+1
-!   cfbar = cfeq - (cf(t=1) - cf(t=0))/((A+B)*dt)
-! cfeq is the equilibrum cloud fraction that is approached with
-! a time scale of 1/(A+B)
-where ( a_dt>1.e-20 .or. b_dt>1.e-20 )
-  cfeq  = a_dt/(a_dt+b_dt)
-  cf1   = cfeq + (stratcloud(1:imax,:) - cfeq)*exp(-a_dt-b_dt)
-  cfbar = cfeq + (stratcloud(1:imax,:) - cf1 )/(a_dt+b_dt)
-elsewhere
-  cfeq  = stratcloud(1:imax,:)
-  cf1   = stratcloud(1:imax,:)
-  cfbar = stratcloud(1:imax,:)
-end where
-
-! Change in condensate
-! dqc = -dqs*(stratcloud+0.5*da) = -dqs*cfbar
-! MJT notes - missing erosion term -cfbar*erosion_scale*dt*(qs-qv)
-qc = max(min( qc - max(cfbar,1.e-20)*dqs, qtot-qgmin ), 0. )
-
-! Change in cloud fraction
-where ( qc>1.e-20 )
-  stratcloud(1:imax,:) = max(min( cf1, 1.), 1.e-20 )
-elsewhere
-  ! MJT notes - cloud fraction is maintained (da=0.) while condesate evaporates (dqc<0.) until
-  ! the condesate dissipates
-  stratcloud(1:imax,:) = 0.
-  qc = 0.
-end where
-
-! Reset tendency and mass flux for next time-step
-nettend = 0.
 
 return
 end subroutine progcloud
 
-subroutine convectivecloudfrac(clcon,kbsav,ktsav,condc,imax,cldcon)
+pure subroutine convectivecloudfrac(clcon,kbsav,ktsav,condc,cldcon)
 
 use newmpar_m        ! Grid parameters
 use parm_m           ! Model configuration
@@ -203,16 +202,13 @@ implicit none
 include 'kuocom.h'   ! Convection parameters
 
 integer k
-integer, intent(in) :: imax
-real, dimension(imax,kl), intent(out) :: clcon
-real, dimension(imax), intent(out), optional :: cldcon
-real, dimension(imax) :: cldcon_temp
-real, dimension(imax) :: n, cldcon_local
-!global
-integer, dimension(imax), intent(in) :: kbsav
-integer, dimension(imax), intent(in) :: ktsav
-real, dimension(imax), intent(in) :: condc
-!
+integer, dimension(:), intent(in) :: kbsav
+integer, dimension(:), intent(in) :: ktsav
+real, dimension(:,:), intent(out) :: clcon
+real, dimension(:), intent(out), optional :: cldcon
+real, dimension(:), intent(in) :: condc
+real, dimension(size(clcon)) :: cldcon_temp
+real, dimension(size(clcon)) :: n, cldcon_local
 
 ! MJT notes - This is an old parameterisation from NCAR.  acon and
 ! bcon represent shallow and deep convection, respectively.  It can
@@ -223,7 +219,7 @@ real, dimension(imax), intent(in) :: condc
 ! spatial resolution.
 
 cldcon_temp = 0. ! for cray compiler
-call convectivecloudarea(cldcon_temp,ktsav,condc,imax)
+cldcon_temp = convectivecloudarea(ktsav,condc)
 if ( present(cldcon) ) then
   cldcon = cldcon_temp
 end if
@@ -247,7 +243,7 @@ end do
 return
 end subroutine convectivecloudfrac
 
-subroutine convectivecloudarea(cldcon,ktsav,condc,imax)
+pure function convectivecloudarea(ktsav,condc) result(cldcon)
 
 use newmpar_m        ! Grid parameters
 use parm_m           ! Model configuration
@@ -256,12 +252,9 @@ implicit none
 
 include 'kuocom.h'   ! Convection parameters
 
-integer, intent(in) :: imax
-!global
-integer, dimension(imax), intent(in) :: ktsav
-real, dimension(imax), intent(in) :: condc
-!
-real, dimension(imax), intent(out) :: cldcon
+integer, dimension(:), intent(in) :: ktsav
+real, dimension(:), intent(in) :: condc
+real, dimension(size(condc)) :: cldcon
 
 where ( ktsav<kl-1 )
   cldcon = min( acon+bcon*log(1.+condc*86400./dt), 0.8 ) !NCAR
@@ -270,6 +263,6 @@ elsewhere
 end where
 
 return
-end subroutine convectivecloudarea
+end function convectivecloudarea
 
 end module cloudmod

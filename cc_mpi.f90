@@ -821,10 +821,10 @@ contains
       
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do n = 1,npan
-               do j = 1,jpan
+            do concurrent (n = 1:npan)
+               do concurrent (j = 1:jpan)
                   iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                   slen = (j-1)*ipan + (n-1)*ipan*jpan
                   sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
@@ -832,10 +832,10 @@ contains
             end do
          end do
       else
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do n = 1,npan
-               do j = 1,jpan
+            do concurrent (n = 1:npan)
+               do concurrent (j = 1:jpan)
                   iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                   slen = (j-1)*ipan + (n-1)*ipan*jpan
                   sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
@@ -888,10 +888,10 @@ contains
       
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do n = 1,npan
-               do j = 1,jpan
+            do concurrent (n = 1:npan)
+               do concurrent (j = 1:jpan)
                   iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                   slen = (j-1)*ipan + (n-1)*ipan*jpan
                   sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
@@ -899,10 +899,10 @@ contains
             end do
          end do
       else
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do n = 1,npan
-               do j = 1,jpan
+            do concurrent (n = 1:npan)
+               do concurrent (j = 1:jpan)
                   iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                   slen = (j-1)*ipan + (n-1)*ipan*jpan
                   sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
@@ -955,10 +955,10 @@ contains
       
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do n = 1,npan
-               do j = 1,jpan
+            do concurrent (n = 1:npan)
+               do concurrent (j = 1:jpan)
                   iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                   slen = (j-1)*ipan + (n-1)*ipan*jpan
                   sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
@@ -966,10 +966,10 @@ contains
             end do
          end do
       else
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do n = 1,npan
-               do j = 1,jpan
+            do concurrent (n = 1:npan)
+               do concurrent (j = 1:jpan)
                   iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                   slen = (j-1)*ipan + (n-1)*ipan*jpan
                   sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
@@ -1032,11 +1032,11 @@ contains
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do k = 1,kx
-            do iproc = 0,nproc-1
+         do concurrent (k = 1:kx)
+            do concurrent (iproc = 0:nproc-1)
                call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               do n = 1,npan
-                  do j = 1,jpan
+               do concurrent (n = 1:npan)
+                  do concurrent (j = 1:jpan)
                      iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                      slen = (j-1)*ipan + (n-1)*ipan*jpan
                      sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
@@ -1045,11 +1045,11 @@ contains
             end do
          end do
       else
-         do k = 1,kx
-            do iproc = 0,nproc-1
+         do concurrent (k = 1:kx)
+            do concurrent (iproc = 0:nproc-1)
                call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               do n = 1,npan
-                  do j = 1,jpan
+               do concurrent (n = 1:npan)
+                  do concurrent (j = 1:jpan)
                      iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                      slen = (j-1)*ipan + (n-1)*ipan*jpan
                      sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
@@ -1125,11 +1125,11 @@ contains
       
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do k = 1,kx 
-            do iproc = 0,nproc-1
+         do concurrent (k = 1:kx) 
+            do concurrent (iproc = 0:nproc-1)
                call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               do n = 1,npan
-                  do j = 1,jpan
+               do concurrent (n = 1:npan)
+                  do concurrent (j = 1:jpan)
                      iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                      slen = (j-1)*ipan + (n-1)*ipan*jpan
                      sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
@@ -1138,11 +1138,11 @@ contains
             end do
          end do
       else
-         do k = 1,kx 
-            do iproc = 0,nproc-1
+         do concurrent (k = 1:kx) 
+            do concurrent (iproc = 0:nproc-1)
                call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               do n = 1,npan
-                  do j = 1,jpan
+               do concurrent (n = 1:npan)
+                  do concurrent (j = 1:jpan)
                      iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                      slen = (j-1)*ipan + (n-1)*ipan*jpan
                      sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
@@ -1218,11 +1218,11 @@ contains
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do k = 1,kx
-            do iproc = 0,nproc-1
+         do concurrent (k = 1:kx)
+            do concurrent (iproc = 0:nproc-1)
                call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               do n = 1,npan
-                  do j = 1,jpan
+               do concurrent (n = 1:npan)
+                  do concurrent (j = 1:jpan)
                      iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                      slen = (j-1)*ipan + (n-1)*ipan*jpan
                      sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
@@ -1231,11 +1231,11 @@ contains
             end do
          end do
       else
-         do k = 1,kx
-            do iproc = 0,nproc-1
+         do concurrent (k = 1:kx)
+            do concurrent (iproc = 0:nproc-1)
                call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               do n = 1,npan
-                  do j = 1,jpan
+               do concurrent (n = 1:npan)
+                  do concurrent (j = 1:jpan)
                      iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                      slen = (j-1)*ipan + (n-1)*ipan*jpan
                      sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
@@ -1319,12 +1319,12 @@ contains
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do l = 1,lx 
-            do k = 1,kx
-               do iproc = 0,nproc-1
+         do concurrent (l = 1:lx) 
+            do concurrent (k = 1:kx)
+               do concurrent (iproc = 0:nproc-1)
                   call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-                  do n = 1,npan
-                     do j = 1,jpan
+                  do concurrent (n = 1:npan)
+                     do concurrent (j = 1:jpan)
                         iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                         slen = (j-1)*ipan + (n-1)*ipan*jpan
                         sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
@@ -1334,12 +1334,12 @@ contains
             end do
          end do
       else
-         do l = 1,lx 
-            do k = 1,kx
-               do iproc = 0,nproc-1
+         do concurrent (l = 1:lx) 
+            do concurrent (k = 1:kx)
+               do concurrent (iproc = 0:nproc-1)
                   call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-                  do n = 1,npan
-                     do j = 1,jpan
+                  do concurrent (n = 1:npan)
+                     do concurrent (j = 1:jpan)
                         iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                         slen = (j-1)*ipan + (n-1)*ipan*jpan
                         sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
@@ -1418,12 +1418,12 @@ contains
       
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do l = 1,lx  
-            do k = 1,kx 
-               do iproc = 0,nproc-1
+         do concurrent (l = 1:lx)  
+            do concurrent (k = 1:kx) 
+               do concurrent (iproc = 0:nproc-1)
                   call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-                  do n = 1,npan
-                     do j = 1,jpan
+                  do concurrent (n = 1:npan)
+                     do concurrent (j = 1:jpan)
                         iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                         slen = (j-1)*ipan + (n-1)*ipan*jpan
                         sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
@@ -1433,12 +1433,12 @@ contains
             end do
          end do
       else
-         do l = 1,lx  
-            do k = 1,kx 
-               do iproc = 0,nproc-1
+         do concurrent (l = 1:lx)  
+            do concurrent (k = 1:kx) 
+               do concurrent (iproc = 0:nproc-1)
                   call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-                  do n = 1,npan
-                     do j = 1,jpan
+                  do concurrent (n = 1:npan)
+                     do concurrent (j = 1:jpan)
                         iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                         slen = (j-1)*ipan + (n-1)*ipan*jpan
                         sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
@@ -1517,10 +1517,10 @@ contains
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do n = 1,npan
-               do j = 1,jpan
+            do concurrent (n = 1:npan)
+               do concurrent (j = 1:jpan)
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                   iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -1529,10 +1529,10 @@ contains
             end do
          end do
       else
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do n = 1,npan
-               do j = 1,jpan
+            do concurrent (n = 1:npan)
+               do concurrent (j = 1:jpan)
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                   iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -1587,10 +1587,10 @@ contains
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do n = 1,npan
-               do j = 1,jpan
+            do concurrent (n = 1:npan)
+               do concurrent (j = 1:jpan)
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                   iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -1599,10 +1599,10 @@ contains
             end do
          end do
       else
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do n = 1,npan
-               do j = 1,jpan
+            do concurrent (n = 1:npan)
+               do concurrent (j = 1:jpan)
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                   iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -1666,11 +1666,11 @@ contains
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
+            do concurrent (k = 1:kx)
+               do concurrent (n = 1:npan)
+                  do concurrent (j = 1:jpan)
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
                      iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                      iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -1680,11 +1680,11 @@ contains
             end do
          end do
       else
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
+            do concurrent (k = 1:kx)
+               do concurrent (n = 1:npan)
+                  do concurrent (j = 1:jpan)
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
                      iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                      iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -1759,11 +1759,11 @@ contains
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
+            do concurrent (k = 1:kx)
+               do concurrent (n = 1:npan)
+                  do concurrent (j = 1:jpan)
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
                      iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                      iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -1773,11 +1773,11 @@ contains
             end do
          end do
       else
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
+            do concurrent (k = 1:kx)
+               do concurrent (n = 1:npan)
+                  do concurrent (j = 1:jpan)
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
                      iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                      iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -1853,12 +1853,12 @@ contains
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do l = 1,lx
-               do k = 1,kx
-                  do n = 1,npan
-                     do j = 1,jpan
+            do concurrent (l = 1:lx)
+               do concurrent (k = 1:kx)
+                  do concurrent (n = 1:npan)
+                     do concurrent (j = 1:jpan)
                         ! Global indices are i+ipoff, j+jpoff, n-npoff
                         iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                         iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -1869,12 +1869,12 @@ contains
             end do
          end do
       else
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do l = 1,lx
-               do k = 1,kx
-                  do n = 1,npan
-                     do j = 1,jpan
+            do concurrent (l = 1:lx)
+               do concurrent (k = 1:kx)
+                  do concurrent (n = 1:npan)
+                     do concurrent (j = 1:jpan)
                         ! Global indices are i+ipoff, j+jpoff, n-npoff
                         iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                         iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -1952,12 +1952,12 @@ contains
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do l = 1,lx
-               do k = 1,kx
-                  do n = 1,npan
-                     do j = 1,jpan
+            do concurrent (l = 1:lx)
+               do concurrent (k = 1:kx)
+                  do concurrent (n = 1:npan)
+                     do concurrent (j = 1:jpan)
                         ! Global indices are i+ipoff, j+jpoff, n-npoff
                         iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                         iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -1968,12 +1968,12 @@ contains
             end do
          end do
       else
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do l = 1,lx
-               do k = 1,kx
-                  do n = 1,npan
-                     do j = 1,jpan
+            do concurrent (l = 1:lx)
+               do concurrent (k = 1:kx)
+                  do concurrent (n = 1:npan)
+                     do concurrent (j = 1:jpan)
                         ! Global indices are i+ipoff, j+jpoff, n-npoff
                         iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                         iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -2040,10 +2040,10 @@ contains
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do n = 1,npan
-               do j = 1,jpan
+            do concurrent (n = 1:npan)
+               do concurrent (j = 1:jpan)
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                   iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -2052,10 +2052,10 @@ contains
             end do
          end do
       else
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do n = 1,npan
-               do j = 1,jpan
+            do concurrent (n = 1:npan)
+               do concurrent (j = 1:jpan)
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                   iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -2098,11 +2098,11 @@ contains
 
       ! map array in order of processor rank
       if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
+            do concurrent (k = 1:kx)
+               do concurrent (n = 1:npan)
+                  do concurrent (j = 1:jpan)
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
                      iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                      iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -2112,11 +2112,11 @@ contains
             end do
          end do
       else
-         do iproc = 0,nproc-1
+         do concurrent (iproc = 0:nproc-1)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
+            do concurrent (k = 1:kx)
+               do concurrent (n = 1:npan)
+                  do concurrent (j = 1:jpan)
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
                      iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                      iq = (j-1)*ipan + (n-1)*ipan*jpan
@@ -2176,13 +2176,13 @@ contains
             call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
             call END_LOG(mpiwaitmap_end)
             rcount = rcount - ldone
-            do jproc = 1,ldone
+            do concurrent (jproc = 1:ldone)
                w = i_list(donelist(jproc))
                iproc = specmap_recv(w)
                call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
                ipak = ipoff/ipan
                jpak = jpoff/jpan
-               do n = 1,npan
+               do concurrent (n = 1:npan)
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iq = (n-1)*ipan*jpan
                   globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
@@ -2196,13 +2196,13 @@ contains
             call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
             call END_LOG(mpiwaitmap_end)
             rcount = rcount - ldone
-            do jproc = 1,ldone
+            do concurrent (jproc = 1:ldone)
                w = i_list(donelist(jproc))
                iproc = specmap_recv(w)
                call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
                ipak = ipoff/ipan
                jpak = jpoff/jpan
-               do n = 1,npan
+               do concurrent (n = 1:npan)
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iq = (n-1)*ipan*jpan
                   globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
@@ -2272,14 +2272,14 @@ contains
             call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
             call END_LOG(mpiwaitmap_end)
             rcount = rcount - ldone
-            do jproc = 1,ldone
+            do concurrent (jproc = 1:ldone)
                w = i_list(donelist(jproc))        
                iproc = specmap_recv(w)
                call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
                ipak = ipoff/ipan
                jpak = jpoff/jpan
-               do k = 1,kx
-                  do n = 1,npan
+               do concurrent (k = 1:kx)
+                  do concurrent (n = 1:npan)
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
                      iq = (n-1)*ipan*jpan
                      globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
@@ -2294,14 +2294,14 @@ contains
             call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
             call END_LOG(mpiwaitmap_end)
             rcount = rcount - ldone
-            do jproc = 1,ldone
+            do concurrent (jproc = 1:ldone)
                w = i_list(donelist(jproc))
                iproc = specmap_recv(w)
                call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
                ipak = ipoff/ipan
                jpak = jpoff/jpan
-               do k = 1,kx
-                  do n = 1,npan
+               do concurrent (k = 1:kx)
+                  do concurrent (n = 1:npan)
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
                      iq = (n-1)*ipan*jpan
                      globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
@@ -2356,11 +2356,6 @@ contains
       e_iloc = im1 + 1 - e_ipak*ipan
       e_jloc = jm1 + 1 - e_jpak*jpan
       
-      if ( b_n /= e_n ) then
-         write(6,*) "ERROR: setglobalpack_v requires ibeg and iend to belong to the same face"
-         call ccmpi_abort(-1)
-      end if
-
       if ( e_jpak >= b_jpak) then
          s_jpak = 1
       else
@@ -2384,33 +2379,14 @@ contains
 
       ilen = abs(e_iloc-b_iloc) + 1
       jlen = abs(e_jloc-b_jloc) + 1
-      
-      if ( ilen > 1 .and. jlen > 1 ) then
-         write(6,*) "ERROR: setglobalpack_v requires ibeg and iend to be on the same column or row"
-         call ccmpi_abort(-1)
-      end if   
-      
+            
       if ( jlen > ilen ) then
-         iq = jlen*((e_jpak-b_jpak)/s_jpak+1)
-         if ( iq > size(datain) ) then
-            write(6,*) "ERROR: setglobalpack_v length of datain is too small"
-            write(6,*) "iq,size(datain) ",iq,size(datain)
-            write(6,*) "b_jpak,e_jpak,s_jpak,jlen ",b_jpak,e_jpak,s_jpak,jlen
-            call ccmpi_abort(-1)
-         end if   
          iq = 0
          do c_jpak = b_jpak,e_jpak,s_jpak
             globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k) = datain(iq+1:iq+jlen)
             iq = iq + jlen
          end do
       else
-         iq = ilen*((e_ipak-b_ipak)/s_ipak+1)
-         if ( iq > size(datain) ) then
-            write(6,*) "ERROR: setglobalpack_v length of datain is too small"
-            write(6,*) "iq,size(datain) ",iq,size(datain)
-            write(6,*) "b_ipak,e_ipak,s_ipak,ilen ",b_ipak,e_ipak,s_ipak,ilen
-            call ccmpi_abort(-1)
-         end if    
          iq = 0
          do c_ipak = b_ipak,e_ipak,s_ipak
             globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k) = datain(iq+1:iq+ilen)
@@ -2454,12 +2430,7 @@ contains
       e_jpak = jm1/jpan
       e_iloc = im1 + 1 - e_ipak*ipan
       e_jloc = jm1 + 1 - e_jpak*jpan
-      
-      if ( b_n /= e_n ) then
-         write(6,*) "ERROR: getglobalpack_v requires ibeg and iend to belong to the same face"
-         call ccmpi_abort(-1)
-      end if
-      
+            
       if ( e_jpak >= b_jpak) then
          s_jpak = 1
       else
@@ -2483,33 +2454,14 @@ contains
 
       ilen = abs(e_iloc-b_iloc) + 1
       jlen = abs(e_jloc-b_jloc) + 1
-
-      if ( ilen > 1 .and. jlen > 1 ) then
-         write(6,*) "ERROR: getglobalpack_v requires ibeg and iend to be on the same column or row"
-         call ccmpi_abort(-1)
-      end if   
       
       if ( jlen > ilen ) then
-         iq = jlen*((e_jpak-b_jpak)/s_jpak+1)
-         if ( iq > size(dataout) ) then
-            write(6,*) "ERROR: getglobalpack_v length of dataout is too small"
-            write(6,*) "iq,size(dataout) ",iq,size(dataout)
-            write(6,*) "b_jpak,e_jpak,s_jpak,jlen ",b_jpak,e_jpak,s_jpak,jlen
-            call ccmpi_abort(-1)
-         end if   
          iq = 0
          do c_jpak = b_jpak,e_jpak,s_jpak
             dataout(iq+1:iq+jlen) = globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k)
             iq = iq + jlen
          end do
       else
-         iq = ilen*((e_ipak-b_ipak)/s_ipak+1)
-         if ( iq > size(dataout) ) then
-            write(6,*) "ERROR: getglobalpack_v length of dataout is too small"
-            write(6,*) "iq,size(dataout) ",iq,size(dataout)
-            write(6,*) "b_ipak,e_ipak,s_ipak,ilen ",b_ipak,e_ipak,s_ipak,ilen
-            call ccmpi_abort(-1)
-         end if    
          iq = 0
          do c_ipak = b_ipak,e_ipak,s_ipak
             dataout(iq+1:iq+ilen) = globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k)
@@ -2532,24 +2484,24 @@ contains
    
       ncount = size(specmap_recv)
       if ( uniform_decomp ) then
-         do w = 1,ncount
+         do concurrent (w = 1:ncount)
             iproc = specmap_recv(w)
             call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
             ipak = ipoff/ipan
             jpak = jpoff/jpan
-            do n = 1,npan
+            do concurrent (n = 1:npan)
                ! Global indices are i+ipoff, j+jpoff, n-npoff
                globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefout+1:krefout+kx) = &
                   globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
             end do
          end do
       else
-         do w = 1,ncount
+         do concurrent (w = 1:ncount)
             iproc = specmap_recv(w)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             ipak = ipoff/ipan
             jpak = jpoff/jpan
-            do n = 1,npan
+            do concurrent (n = 1:npan)
                ! Global indices are i+ipoff, j+jpoff, n-npoff
                globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefout+1:krefout+kx) = &
                   globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
@@ -2724,8 +2676,8 @@ contains
       kx  = size(array,2)
       ntr = size(array,3)
       local_sum(1:2*ntr) = cmplx(0.,0.)
-      do i = 1,ntr
-         do k=1,kx
+      do concurrent (i = 1:ntr)
+         do k = 1,kx
             tmparr(1:ifull) = max(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
             call drpdr_local(tmparr, local_sum(i))
             tmparr(1:ifull) = min(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
@@ -2763,8 +2715,8 @@ contains
       kx  = size(array,2)
       ntr = size(array,3)
       local_sum(1:2*ntr) = cmplx(0.,0.)
-      do i = 1,ntr
-         do k=1,kx
+      do concurrent (i = 1:ntr)
+         do k = 1,kx
             tmparr(1:ifull) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
             call drpdr_local(tmparr, local_sum(i))
             tmparr(1:ifull) = min(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
@@ -2857,9 +2809,9 @@ contains
       lnnw = huge(1)
       lnee = huge(1)
       lnne = huge(1)
-      do n=1,npan
-         do j=1,jpan
-            do i=1,ipan
+      do n = 1,npan
+         do j = 1,jpan
+            do i = 1,ipan
                iq = indp(i,j,n)   ! Local
                iqg = indg(i,j,n)  ! Global
 
@@ -4633,8 +4585,7 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
-!$omp simd
-            do iq = 1,send_len
+            do concurrent (iq = 1:send_len)
                bnds(lproc)%sbuf(iq) = t(bnds(lproc)%send_list(iq))
             end do   
             nreq  = nreq + 1
@@ -4651,13 +4602,12 @@ contains
          call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
-         do jproc = 1,ldone
+         do concurrent (jproc = 1:ldone)
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
             ! unpack_list(iq) is index into extended region
-!$omp simd
-            do iq = 1,rslen(iproc)
+            do concurrent (iq = 1:rslen(iproc))
                t(ifull+bnds(lproc)%unpack_list(iq)) = bnds(lproc)%rbuf(iq)
             end do   
          end do
@@ -4750,9 +4700,8 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
-            do k = 1, kx
-!$omp simd
-               do iq = 1,send_len 
+            do concurrent (k = 1:kx)
+               do concurrent (iq = 1:send_len) 
                   bnds(lproc)%sbuf(iq+(k-1)*send_len) = t(bnds(lproc)%send_list(iq),k)
                end do
             end do   
@@ -4770,13 +4719,12 @@ contains
          call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
-         do jproc = 1,ldone
+         do concurrent (jproc = 1:ldone)
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
-            do k = 1,kx
-!$omp simd
-               do iq = 1,rslen(iproc)
+            do concurrent (k = 1:kx)
+               do concurrent (iq = 1:rslen(iproc))
                   t(ifull+bnds(lproc)%unpack_list(iq),k) &
                       = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc))
                end do
@@ -4867,9 +4815,8 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
-            do k = 1,kx
-!$omp simd
-               do iq = 1,send_len
+            do concurrent (k = 1:kx)
+               do concurrent (iq = 1:send_len)
                   bnds(lproc)%s8buf(iq+(k-1)*send_len) = t(bnds(lproc)%send_list(iq),k)
                end do
             end do   
@@ -4887,13 +4834,12 @@ contains
          call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
-         do jproc = 1,ldone
+         do concurrent (jproc = 1:ldone)
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
-            do k = 1,kx
-!$omp simd
-               do iq = 1,rslen(iproc)
+            do concurrent (k = 1:kx)
+               do concurrent (iq = 1:rslen(iproc))
                   t(ifull+bnds(lproc)%unpack_list(iq),k) &
                       = bnds(lproc)%r8buf(iq+(k-1)*rslen(iproc))
                end do
@@ -4991,10 +4937,9 @@ contains
             send_len = sslen(iproc)
             if ( send_len > 0 ) then
                lproc = neighlist(iproc)  ! Send to
-               do l = 1,ntot
-                  do k = 1,kx 
-!$omp simd
-                     do iq = 1,send_len
+               do concurrent (l = 1:ntot)
+                  do concurrent (k = 1:kx) 
+                     do concurrent (iq = 1:send_len)
                         bnds(lproc)%sbuf(iq+(k-1)*send_len+(l-1)*send_len*kx) = t(bnds(lproc)%send_list(iq),k,l+nstart-1)
                      end do
                   end do
@@ -5013,14 +4958,13 @@ contains
             call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
             call END_LOG(mpiwait_end)
             rcount = rcount - ldone
-            do jproc = 1,ldone
+            do concurrent (jproc = 1:ldone)
                mproc = donelist(jproc)
                iproc = rlist(mproc)  ! Recv from
                lproc = neighlist(iproc)
-               do l = 1,ntot
-                  do k = 1,kx 
-!$omp simd
-                     do iq = 1,rslen(iproc)  
+               do concurrent (l = 1:ntot)
+                  do concurrent (k = 1:kx) 
+                     do concurrent (iq = 1:rslen(iproc))  
                         t(ifull+bnds(lproc)%unpack_list(iq),k,l+nstart-1)              &
                              = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc)+(l-1)*rslen(iproc)*kx)
                      end do
@@ -5096,9 +5040,8 @@ contains
          ibeg = bnds(lproc)%slenh_bg(lcolour)
          iend = bnds(lproc)%slenh_fn(lcolour)
          if ( iend >= ibeg ) then
-            do k = 1,kx 
-!$omp simd
-               do iq = 1,iend-ibeg+1    
+            do concurrent (k = 1:kx) 
+               do concurrent (iq = 1:iend-ibeg+1)    
                   bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1))  &
                       = t(bnds(lproc)%send_list(iq+ibeg-1),k)
                end do
@@ -5108,9 +5051,8 @@ contains
          ibeg = bnds(lproc)%slen_bg(lcolour)
          iend = bnds(lproc)%slen_fn(lcolour)
          if ( iend >= ibeg ) then
-            do k = 1,kx 
-!$omp simd
-               do iq = 1,iend-ibeg+1    
+            do concurrent (k = 1:kx) 
+               do concurrent (iq = 1:iend-ibeg+1)    
                   bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1))  &
                       = t(bnds(lproc)%send_list(iq+ibeg-1),k)
                end do
@@ -5121,9 +5063,8 @@ contains
             ibeg = bnds(lproc)%slenx_bg(lcolour)
             iend = bnds(lproc)%slenx_fn(lcolour)
             if ( iend >= ibeg ) then
-               do k = 1,kx 
-!$omp simd
-                  do iq = 1,iend-ibeg+1    
+               do concurrent (k = 1:kx) 
+                  do concurrent (iq = 1:iend-ibeg+1)    
                      bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1))  &
                          = t(bnds(lproc)%send_list(iq+ibeg-1),k)
                   end do
@@ -5181,9 +5122,8 @@ contains
             iqq = 0
             ibeg = bnds(lproc)%rlenh_bg(lcolour)
             iend = bnds(lproc)%rlenh_fn(lcolour)
-            do k = 1,kx
-!$omp simd
-               do iq = 1,iend-ibeg+1
+            do concurrent (k = 1:kx)
+               do concurrent (iq = 1:iend-ibeg+1)
                   t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
                       = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
                end do
@@ -5191,9 +5131,8 @@ contains
             iqq = iqq + (iend-ibeg+1)*kx
             ibeg = bnds(lproc)%rlen_bg(lcolour)
             iend = bnds(lproc)%rlen_fn(lcolour)
-            do k = 1,kx
-!$omp simd
-               do iq = 1,iend-ibeg+1
+            do concurrent (k = 1:kx)
+               do concurrent (iq = 1:iend-ibeg+1)
                   t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
                       = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
                end do
@@ -5202,9 +5141,8 @@ contains
             if ( extra ) then
                ibeg = bnds(lproc)%rlenx_bg(lcolour)
                iend = bnds(lproc)%rlenx_fn(lcolour)
-               do k = 1,kx
-!$omp simd
-                  do iq = 1,iend-ibeg+1
+               do concurrent (k = 1:kx)
+                  do concurrent (iq = 1:iend-ibeg+1)
                      t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
                          = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
                   end do
@@ -5372,8 +5310,7 @@ contains
          iqq = 0
          if ( fsvwu ) then
             iqz = iqq - bnds(lproc)%slen_sv_bg + 1 
-!$omp simd
-            do iq = bnds(lproc)%slen_sv_bg,bnds(lproc)%slen_wu_fn
+            do concurrent (iq = bnds(lproc)%slen_sv_bg:bnds(lproc)%slen_wu_fn)
                ! Use abs because sign is used as u/v flag
                if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
                   bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
@@ -5385,8 +5322,7 @@ contains
          end if
          if ( fnveu ) then
             iqz = iqq - bnds(lproc)%slen_nv_bg + 1 
-!$omp simd
-            do iq = bnds(lproc)%slen_nv_bg,bnds(lproc)%slen_eu_fn
+            do concurrent (iq = bnds(lproc)%slen_nv_bg:bnds(lproc)%slen_eu_fn)
                ! Use abs because sign is used as u/v flag
                if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
                   bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
@@ -5398,8 +5334,7 @@ contains
          end if
          if ( fssvwwu ) then
             iqz = iqq - bnds(lproc)%slen_ssv_bg + 1 
-!$omp simd
-            do iq = bnds(lproc)%slen_ssv_bg,bnds(lproc)%slen_wwu_fn
+            do concurrent (iq = bnds(lproc)%slen_ssv_bg:bnds(lproc)%slen_wwu_fn)
                ! Use abs because sign is used as u/v flag
                if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
                   bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
@@ -5411,8 +5346,7 @@ contains
          end if
          if ( fnnveeu ) then
             iqz = iqq - bnds(lproc)%slen_nnv_bg + 1 
-!$omp simd
-            do iq = bnds(lproc)%slen_nnv_bg,bnds(lproc)%slen_eeu_fn
+            do concurrent (iq = bnds(lproc)%slen_nnv_bg:bnds(lproc)%slen_eeu_fn)
                ! Use abs because sign is used as u/v flag
                if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
                   bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
@@ -5424,8 +5358,7 @@ contains
          end if
          if ( fsuev ) then
             iqz = iqq - bnds(lproc)%slen_su_bg + 1 
-!$omp simd
-            do iq = bnds(lproc)%slen_su_bg,bnds(lproc)%slen_ev_fn
+            do concurrent (iq = bnds(lproc)%slen_su_bg:bnds(lproc)%slen_ev_fn)
                ! Use abs because sign is used as u/v flag
                if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
                   bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
@@ -5437,8 +5370,7 @@ contains
          end if
          if ( fnnueev ) then
             iqz = iqq - bnds(lproc)%slen_nnu_bg + 1 
-!$omp simd
-            do iq = bnds(lproc)%slen_nnu_bg,bnds(lproc)%slen_eev_fn
+            do concurrent (iq = bnds(lproc)%slen_nnu_bg:bnds(lproc)%slen_eev_fn)
                ! Use abs because sign is used as u/v flag
                if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
                   bnds(lproc)%sbuf(iqz+iq) = bnds(lproc)%send_neg(iq)*u(abs(bnds(lproc)%send_list_uv(iq)))
@@ -5458,8 +5390,7 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-!$omp simd
-      do iq = 1,myrlen
+      do concurrent (iq = 1:myrlen)
          ! request_list is same as send_list in this case
          ! unpack_list(iq) is index into extended region 
          if ( bnds(myid)%unpack_list_uv(iq) > 0 .and. (bnds(myid)%request_list_uv(iq)>0 .neqv. bnds(myid)%uv_swap(iq)) ) then
@@ -5487,8 +5418,7 @@ contains
             iqq = 0
             if ( fsvwu ) then
                iqz = iqq - bnds(lproc)%rlen_sv_bg + 1 
-!$omp simd
-               do iq = bnds(lproc)%rlen_sv_bg,bnds(lproc)%rlen_wu_fn
+               do concurrent (iq = bnds(lproc)%rlen_sv_bg:bnds(lproc)%rlen_wu_fn)
                   ! unpack_list(iq) is index into extended region
                   if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
                      u(ifull+bnds(lproc)%unpack_list_uv(iq)) = bnds(lproc)%rbuf(iqz+iq)
@@ -5500,8 +5430,7 @@ contains
             end if
             if ( fnveu ) then
                iqz = iqq - bnds(lproc)%rlen_nv_bg + 1 
-!$omp simd
-               do iq = bnds(lproc)%rlen_nv_bg,bnds(lproc)%rlen_eu_fn
+               do concurrent (iq = bnds(lproc)%rlen_nv_bg:bnds(lproc)%rlen_eu_fn)
                   ! unpack_list(iq) is index into extended region
                   if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
                      u(ifull+bnds(lproc)%unpack_list_uv(iq)) = bnds(lproc)%rbuf(iqz+iq)
@@ -5513,8 +5442,7 @@ contains
             end if
             if ( fssvwwu ) then
                iqz = iqq - bnds(lproc)%rlen_ssv_bg + 1 
-!$omp simd
-               do iq = bnds(lproc)%rlen_ssv_bg,bnds(lproc)%rlen_wwu_fn
+               do concurrent (iq = bnds(lproc)%rlen_ssv_bg:bnds(lproc)%rlen_wwu_fn)
                   ! unpack_list(iq) is index into extended region
                   if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
                      u(ifull+bnds(lproc)%unpack_list_uv(iq)) = bnds(lproc)%rbuf(iqz+iq)
@@ -5526,8 +5454,7 @@ contains
             end if
             if ( fnnveeu ) then
                iqz = iqq - bnds(lproc)%rlen_nnv_bg + 1 
-!$omp simd
-               do iq = bnds(lproc)%rlen_nnv_bg,bnds(lproc)%rlen_eeu_fn
+               do concurrent (iq = bnds(lproc)%rlen_nnv_bg:bnds(lproc)%rlen_eeu_fn)
                   ! unpack_list(iq) is index into extended region
                   if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
                      u(ifull+bnds(lproc)%unpack_list_uv(iq)) = bnds(lproc)%rbuf(iqz+iq)
@@ -5539,8 +5466,7 @@ contains
             end if
             if ( fsuev ) then
                iqz = iqq - bnds(lproc)%rlen_su_bg + 1 
-!$omp simd
-               do iq = bnds(lproc)%rlen_su_bg,bnds(lproc)%rlen_ev_fn
+               do concurrent (iq = bnds(lproc)%rlen_su_bg:bnds(lproc)%rlen_ev_fn)
                   ! unpack_list(iq) is index into extended region
                   if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
                      u(ifull+bnds(lproc)%unpack_list_uv(iq)) = bnds(lproc)%rbuf(iqz+iq)
@@ -5552,8 +5478,7 @@ contains
             end if
             if ( fnnueev ) then
                iqz = iqq - bnds(lproc)%rlen_nnu_bg + 1 
-!$omp simd
-               do iq = bnds(lproc)%rlen_nnu_bg,bnds(lproc)%rlen_eev_fn
+               do concurrent (iq = bnds(lproc)%rlen_nnu_bg:bnds(lproc)%rlen_eev_fn)
                   ! unpack_list(iq) is index into extended region
                   if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
                      u(ifull+bnds(lproc)%unpack_list_uv(iq)) = bnds(lproc)%rbuf(iqz+iq)
@@ -5729,8 +5654,7 @@ contains
          if ( fsvwu ) then
             do k = 1,kx
                iqz = iqq - bnds(sproc)%slen_sv_bg + 1 
-!$omp simd
-               do iq = bnds(sproc)%slen_sv_bg,bnds(sproc)%slen_wu_fn
+               do concurrent (iq = bnds(sproc)%slen_sv_bg:bnds(sproc)%slen_wu_fn)
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
@@ -5745,8 +5669,7 @@ contains
          if ( fnveu ) then
             do k = 1,kx 
                iqz = iqq - bnds(sproc)%slen_nv_bg + 1 
-!$omp simd
-               do iq = bnds(sproc)%slen_nv_bg,bnds(sproc)%slen_eu_fn
+               do concurrent (iq = bnds(sproc)%slen_nv_bg:bnds(sproc)%slen_eu_fn)
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
@@ -5761,8 +5684,7 @@ contains
          if ( fssvwwu ) then
             do k = 1,kx 
                iqz = iqq - bnds(sproc)%slen_ssv_bg + 1 
-!$omp simd
-               do iq = bnds(sproc)%slen_ssv_bg,bnds(sproc)%slen_wwu_fn
+               do concurrent (iq = bnds(sproc)%slen_ssv_bg:bnds(sproc)%slen_wwu_fn)
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
@@ -5777,8 +5699,7 @@ contains
          if ( fnnveeu ) then
             do k = 1,kx
                iqz = iqq - bnds(sproc)%slen_nnv_bg + 1 
-!$omp simd
-               do iq = bnds(sproc)%slen_nnv_bg,bnds(sproc)%slen_eeu_fn
+               do concurrent (iq = bnds(sproc)%slen_nnv_bg:bnds(sproc)%slen_eeu_fn)
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
@@ -5793,8 +5714,7 @@ contains
          if ( fsuev ) then
             do k = 1,kx 
                iqz = iqq - bnds(sproc)%slen_su_bg + 1 
-!$omp simd
-               do iq = bnds(sproc)%slen_su_bg,bnds(sproc)%slen_ev_fn
+               do concurrent (iq = bnds(sproc)%slen_su_bg:bnds(sproc)%slen_ev_fn)
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
@@ -5809,8 +5729,7 @@ contains
          if ( fnnueev ) then
             do k = 1,kx 
                iqz = iqq - bnds(sproc)%slen_nnu_bg + 1 
-!$omp simd
-               do iq = bnds(sproc)%slen_nnu_bg,bnds(sproc)%slen_eev_fn
+               do concurrent (iq = bnds(sproc)%slen_nnu_bg:bnds(sproc)%slen_eev_fn)
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
                   if ( bnds(sproc)%send_list_uv(iq)>0 .neqv. bnds(sproc)%send_swap(iq) ) then
@@ -5833,9 +5752,8 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      do k = 1,kx
-!$omp simd
-         do iq = 1,myrlen
+      do concurrent (k = 1:kx)
+         do concurrent (iq = 1:myrlen)
             ! request_list is same as send_list in this case
             ! unpack_list(iq) is index into extended region
             if ( bnds(myid)%unpack_list_uv(iq)>0 .and. (bnds(myid)%request_list_uv(iq)>0 .neqv. bnds(myid)%uv_swap(iq)) ) then
@@ -5857,7 +5775,7 @@ contains
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
-         do jproc = 1,ldone
+         do concurrent (jproc = 1:ldone)
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             rproc = neighlist(iproc)
@@ -5865,8 +5783,7 @@ contains
             if ( fsvwu ) then
                do k = 1,kx  
                   iqz = iqq - bnds(rproc)%rlen_sv_bg + 1 
-!$omp simd
-                  do iq = bnds(rproc)%rlen_sv_bg,bnds(rproc)%rlen_wu_fn
+                  do concurrent(iq = bnds(rproc)%rlen_sv_bg:bnds(rproc)%rlen_wu_fn)
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
                         u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
@@ -5880,8 +5797,7 @@ contains
             if ( fnveu ) then
                do k = 1,kx 
                   iqz = iqq - bnds(rproc)%rlen_nv_bg + 1 
-!$omp simd
-                  do iq = bnds(rproc)%rlen_nv_bg,bnds(rproc)%rlen_eu_fn
+                  do concurrent (iq = bnds(rproc)%rlen_nv_bg:bnds(rproc)%rlen_eu_fn)
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
                         u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
@@ -5895,8 +5811,7 @@ contains
             if ( fssvwwu ) then
                do k = 1,kx 
                   iqz = iqq - bnds(rproc)%rlen_ssv_bg + 1 
-!$omp simd
-                  do iq = bnds(rproc)%rlen_ssv_bg,bnds(rproc)%rlen_wwu_fn
+                  do concurrent (iq = bnds(rproc)%rlen_ssv_bg:bnds(rproc)%rlen_wwu_fn)
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
                         u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
@@ -5910,8 +5825,7 @@ contains
             if ( fnnveeu ) then
                do k = 1,kx 
                   iqz = iqq - bnds(rproc)%rlen_nnv_bg + 1 
-!$omp simd
-                  do iq = bnds(rproc)%rlen_nnv_bg,bnds(rproc)%rlen_eeu_fn
+                  do concurrent (iq = bnds(rproc)%rlen_nnv_bg:bnds(rproc)%rlen_eeu_fn)
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
                         u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
@@ -5925,8 +5839,7 @@ contains
             if ( fsuev ) then
                do k = 1,kx 
                   iqz = iqq - bnds(rproc)%rlen_su_bg + 1 
-!$omp simd
-                  do iq = bnds(rproc)%rlen_su_bg,bnds(rproc)%rlen_ev_fn
+                  do concurrent (iq = bnds(rproc)%rlen_su_bg:bnds(rproc)%rlen_ev_fn)
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
                         u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
@@ -5940,8 +5853,7 @@ contains
             if ( fnnueev ) then
                do k = 1,kx 
                   iqz = iqq - bnds(rproc)%rlen_nnu_bg + 1 
-!$omp simd
-                  do iq = bnds(rproc)%rlen_nnu_bg,bnds(rproc)%rlen_eev_fn
+                  do concurrent (iq = bnds(rproc)%rlen_nnu_bg:bnds(rproc)%rlen_eev_fn)
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
                         u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = rbuf(iqz+iq,iproc)
@@ -6155,11 +6067,10 @@ contains
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwaitdep_end)
          rcount = rcount - ldone
-         do jproc = 1,ldone
+         do concurrent (jproc = 1:ldone)
             iproc = rlist(donelist(jproc))
-            do l = 1,ntr
-!$omp simd
-               do iq = 1,dslen(iproc)
+            do concurrent (l = 1:ntr)
+               do concurrent (iq = 1:dslen(iproc))
                   s(dindex(iproc)%a(iq,1),dindex(iproc)%a(iq,2),l) = dbuf(iproc)%b(iq+(l-1)*dslen(iproc))
                end do
             end do   
@@ -6235,8 +6146,8 @@ contains
       ! MJT bug fix (should be ipan and jpan, not il and jl)
       ! Calculate local i, j, n
       n = 1 + (iq-1)/(ipan*jpan)  ! In range 1 .. npan
-      j = 1 + ( iq - (n-1)*(ipan*jpan) - 1) / ipan
-      i = iq - (j-1)*ipan - (n-1)*(ipan*jpan)
+      j = 1 + ( iq - (n-1)*ipan*jpan - 1) / ipan
+      i = iq - (j-1)*ipan - (n-1)*ipan*jpan
       iqg = indg(i,j,n)
 
    end function iq2iqg
@@ -8705,14 +8616,14 @@ contains
       ! unpack buffers (nmax is zero unless this is the host processor)
       if ( nmax > 0 ) then
          ! general case
-         do yproc = 1,nmax
+         do concurrent (yproc = 1:nmax)
             ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
             ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
             is = (ir-1)*nrow + 1
             js = (ic-1)*ncol + 1
-            do k = 1,kx
-               do n = 1,npanx
-                  do j = js,js+ncol-1
+            do concurrent (k = 1:kx)
+               do concurrent (n = 1:npanx)
+                  do concurrent (j = js:js+ncol-1)
                      iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
                      iqq = 1 - is + (j-js)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
                      vdat(iq+is:iq+is+nrow-1,k) = tdat_g(iqq+is:iqq+is+nrow-1,yproc)
@@ -8784,14 +8695,14 @@ contains
 
       ! unpack buffers (nmax is zero unless this is the host processor)
       if ( nmax > 0 ) then
-         do yproc = 1,nmax
+         do concurrent (yproc = 1:nmax)
             ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
             ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
             is = (ir-1)*nrow + 1
             js = (ic-1)*ncol + 1
-            do k = 1,kx
-               do n = 1,npanx
-                  do j = js,js+ncol-1
+            do concurrent (k = 1:kx)
+               do concurrent (n = 1:npanx)
+                  do concurrent (j = js:js+ncol-1)
                      iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
                      iqq = 1 - is + (j-js)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
                      vdat(iq+is:iq+is+nrow-1,k) = tdat_g(iqq+is:iqq+is+nrow-1,yproc)
@@ -8865,14 +8776,14 @@ contains
 
       ! unpack buffers (nmax is zero unless this is the host processor)
       if ( nmax > 0 ) then
-         do yproc = 1,nmax
+         do concurrent (yproc = 1:nmax)
             ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
             ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
             is = (ir-1)*nrow + 1
             js = (ic-1)*ncol + 1
-            do k = 1,kx
-               do n = 1,npanx
-                  do j = js,js+ncol-1
+            do concurrent (k = 1:kx)
+               do concurrent (n = 1:npanx)
+                  do concurrent (j = js:js+ncol-1)
                      iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
                      iqq = 1 - is + (j-js)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
                      vdat(iq+is:iq+is+nrow-1,k) = tdat_g(iqq+is:iqq+is+nrow-1,yproc)
@@ -9874,8 +9785,7 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = mg(g)%neighlist(iproc)  ! Send to
-!$omp simd
-            do iq = 1,send_len
+            do concurrent (iq = 1:send_len)
                bnds(lproc)%sbuf(iq) = vdat(mg_bnds(lproc,g)%send_list(iq))
             end do   
             nreq = nreq + 1
@@ -9891,12 +9801,11 @@ contains
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwaitmg_end)
          rcount = rcount - ldone
-         do jproc = 1,ldone
+         do concurrent (jproc = 1:ldone)
             iproc = rlist(donelist(jproc))  ! Recv from
             lproc = mg(g)%neighlist(iproc)
             recv_len = rslen(iproc)
-!$omp simd
-            do iq = 1,recv_len
+            do concurrent (iq = 1:recv_len)
                vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq)) &
                    = bnds(lproc)%rbuf(iq)
             end do    
@@ -9972,9 +9881,8 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = mg(g)%neighlist(iproc)  ! Send to
-            do k = 1,kx
-!$omp simd
-               do iq = 1,send_len
+            do concurrent (k = 1:kx)
+               do concurrent (iq = 1:send_len)
                   bnds(lproc)%sbuf(iq+(k-1)*send_len) = vdat(mg_bnds(lproc,g)%send_list(iq),k)
                end do
             end do   
@@ -9991,13 +9899,12 @@ contains
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwaitmg_end)
          rcount = rcount - ldone
-         do jproc = 1,ldone
+         do concurrent (jproc = 1:ldone)
             iproc = rlist(donelist(jproc))  ! Recv from
             lproc = mg(g)%neighlist(iproc)
             recv_len = rslen(iproc)
-            do k = 1,kx
-!$omp simd
-               do iq = 1,recv_len
+            do concurrent (k = 1:kx)
+               do concurrent (iq = 1:recv_len)
                   vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq),k) &
                       = bnds(lproc)%rbuf(iq+(k-1)*recv_len)
                end do
@@ -10181,7 +10088,7 @@ contains
          lsize = nlen*kx
          lcomm = comm_world
           
-         do ipf = 0,mynproc-1
+         do concurrent (ipf = 0:mynproc-1)
             cc = nlen*ipf 
             cbuf(1:nlen,1:kx,ipf+1) = sinp(1+cc:nlen+cc,1:kx)
          end do  
@@ -10212,7 +10119,7 @@ contains
             call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
             call END_LOG(mpiwaitmap_end)
             rcount = rcount - ldone
-            do jproc = 1,ldone
+            do concurrent (jproc = 1:ldone)
                w = i_list(donelist(jproc))
                abuf(1:nlen,w,1:kx) = bbuf(1:nlen,1:kx,w)
             end do
@@ -10237,9 +10144,9 @@ contains
 
       ncount = size(filemap_recv)
       
-      do w = 1,ncount
+      do concurrent (w = 1:ncount)
          ip = filemap_recv(w) + filemap_rmod(w)*fnresid
-         do n = 0,pnpan-1
+         do concurrent (n = 0:pnpan-1)
             no = n - pnoff(ip) + 1
             ca = pioff(ip,no)
             cb = pjoff(ip,no)
@@ -10638,8 +10545,7 @@ contains
             send_len = sslen(iproc)
             llen = send_len
             lproc = fileneighlist(iproc)  ! Send to
-!$omp simd
-            do iq = 1,send_len
+            do concurrent (iq = 1:send_len)
                bnds(lproc)%sbuf(iq) = sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2), &
                                            filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4))
             end do
@@ -10684,8 +10590,7 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up.
-!$omp simd
-      do iq = 1,myrlen
+      do concurrent (iq = 1:myrlen)
          ! request_list is same as send_list in this case
          sdat(filebnds(myid)%unpack_list(iq,1),filebnds(myid)%unpack_list(iq,2),   &
               filebnds(myid)%unpack_list(iq,3),filebnds(myid)%unpack_list(iq,4)) = &
@@ -10700,13 +10605,12 @@ contains
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwaitfile_end)
          rcount = rcount - ldone
-         do jproc = 1,ldone
+         do concurrent (jproc = 1:ldone)
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             lproc = fileneighlist(iproc)
             ! unpack_list(iq) is index into extended region
-!$omp simd
-            do iq = 1,rslen(iproc)
+            do concurrent (iq = 1:rslen(iproc))
                sdat(filebnds(lproc)%unpack_list(iq,1),filebnds(lproc)%unpack_list(iq,2),   &
                     filebnds(lproc)%unpack_list(iq,3),filebnds(lproc)%unpack_list(iq,4)) = &
                bnds(lproc)%rbuf(iq)
@@ -10774,9 +10678,8 @@ contains
             send_len = sslen(iproc)
             llen = send_len*kx
             lproc = fileneighlist(iproc)  ! Send to
-            do k = 1,kx
-!$omp simd
-               do iq = 1,send_len
+            do concurrent (k = 1:kx)
+               do concurrent (iq = 1:send_len)
                   bnds(lproc)%sbuf(iq+(k-1)*send_len) = sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2),      &
                                                              filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4),k)
                end do
@@ -10824,9 +10727,8 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up.
-      do k = 1,kx
-!$omp simd
-         do iq = 1,myrlen
+      do concurrent (k = 1:kx)
+         do concurrent (iq = 1:myrlen)
             ! request_list is same as send_list in this case
             sdat(filebnds(myid)%unpack_list(iq,1),filebnds(myid)%unpack_list(iq,2),     &
                  filebnds(myid)%unpack_list(iq,3),filebnds(myid)%unpack_list(iq,4),k) = &
@@ -10842,13 +10744,12 @@ contains
          call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwaitfile_end)
          rcount = rcount - ldone
-         do jproc = 1,ldone
+         do concurrent (jproc = 1:ldone)
             mproc = donelist(jproc)
             iproc = rlist(mproc)  ! Recv from
             lproc = fileneighlist(iproc)
-            do k = 1,kx
-!$omp simd
-               do iq = 1,rslen(iproc)
+            do concurrent (k = 1:kx)
+               do concurrent (iq = 1:rslen(iproc))
                   sdat(filebnds(lproc)%unpack_list(iq,1),filebnds(lproc)%unpack_list(iq,2),     &
                        filebnds(lproc)%unpack_list(iq,3),filebnds(lproc)%unpack_list(iq,4),k) = &
                   bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc))
@@ -10889,11 +10790,11 @@ contains
       call END_LOG(gatherfile_end)
 
       ! map array in order of processor rank
-      do iproc = 0,fnresid-1
-         do ipf = 0,fncount-1
+      do concurrent (iproc = 0:fnresid-1)
+         do concurrent (ipf = 0:fncount-1)
             ip = iproc + ipf*fnresid
-            do n = 0,pnpan-1
-               do j = 1,pjpan
+            do concurrent (n = 0:pnpan-1)
+               do concurrent (j = 1:pjpan)
                   ca = (j-1)*pipan + n*pipan*pjpan + ipf*pipan*pjpan*pnpan
                   cb = pioff(ip,n) + (j+pjoff(ip,n)-1)*pil_g + (n-pnoff(ip)+1)*pil_g*pil_g
                   ag(1+cb:pipan+cb) = abuf(1+ca:pipan+ca,iproc)
@@ -10952,12 +10853,12 @@ contains
       call END_LOG(gatherfile_end)
 
       ! map array in order of processor rank
-      do iproc = 0,fnresid-1
-         do k = 1,kx 
-            do ipf = 0,fncount-1
+      do concurrent (iproc = 0:fnresid-1)
+         do concurrent (k = 1:kx) 
+            do concurrent (ipf = 0:fncount-1)
                ip = iproc + ipf*fnresid
-               do n = 0,pnpan-1
-                  do j = 1,pjpan
+               do concurrent (n = 0:pnpan-1)
+                  do concurrent (j = 1:pjpan)
                      ca = (j-1)*pipan + n*pipan*pjpan + ipf*pipan*pjpan*pnpan
                      cb = pioff(ip,n) + (j+pjoff(ip,n)-1)*pil_g + (n-pnoff(ip)+1)*pil_g*pil_g
                      ag(1+cb:pipan+cb,k) = abuf(1+ca:pipan+ca,k,iproc)
@@ -11012,11 +10913,11 @@ contains
       real, dimension(pipan*pjpan*pnpan*fncount,0:fnresid-1) :: sbuf
 
       ! map array in order of processor rank
-      do iproc = 0,fnresid-1
-         do ipf = 0,fncount-1
+      do concurrent (iproc = 0:fnresid-1)
+         do concurrent (ipf = 0:fncount-1)
             ip = iproc + ipf*fnresid
-            do n = 0,pnpan-1
-               do j = 1,pjpan
+            do concurrent (n = 0:pnpan-1)
+               do concurrent (j = 1:pjpan)
                   ca = (j-1)*pipan + n*pipan*pjpan + ipf*pipan*pjpan*pnpan
                   cb = pioff(ip,n) + (j+pjoff(ip,n)-1)*pil_g + (n-pnoff(ip)+1)*pil_g*pil_g
                   sbuf(1+ca:pipan+ca,iproc) = a1(1+cb:pipan+cb)
@@ -11076,12 +10977,12 @@ contains
       kx = size(af,2)
       
       ! map array in order of processor rank
-      do iproc = 0,fnresid-1
-         do k = 1,kx 
-            do ipf = 0,fncount-1
+      do concurrent (iproc = 0:fnresid-1)
+         do concurrent (k = 1:kx) 
+            do concurrent (ipf = 0:fncount-1)
                ip = iproc + ipf*fnresid
-               do n = 0,pnpan-1
-                  do j = 1,pjpan
+               do concurrent (n = 0:pnpan-1)
+                  do concurrent (j = 1:pjpan)
                      ca = (j-1)*pipan + n*pipan*pjpan + ipf*pipan*pjpan*pnpan
                      cb = pioff(ip,n) + (j+pjoff(ip,n)-1)*pil_g + (n-pnoff(ip)+1)*pil_g*pil_g
                      sbuf(1+ca:pipan+ca,k,iproc) = a1(1+cb:pipan+cb,k)

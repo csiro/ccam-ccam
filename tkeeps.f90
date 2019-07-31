@@ -310,7 +310,7 @@ if ( diag>0 ) write(6,*) "Update PBL mixing with TKE-eps + MF turbulence closure
 
 sigkap(1:kl) = sig(1:kl)**(-rd/cp)
 
-do k = 1,kl
+do concurrent (k = 1:kl)
   ! Impose limits on tke and eps after being advected by the host model
   tke(:,k) = max(tke(:,k), mintke)
   tff(:)   = cm34*tke(:,k)*sqrt(tke(:,k))
@@ -369,7 +369,7 @@ ddts   = dt/real(mcount)
 do kcount = 1,mcount
 
   ! Set-up thermodynamic variables temp, theta_v, qtot and saturated mixing ratio
-  do k = 1,kl
+  do concurrent (k = 1:kl)
     templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
     ! calculate saturated air mixing ratio
@@ -447,7 +447,7 @@ do kcount = 1,mcount
 #else
     cgmap(:) = 1. - tanh(mfbeta*zturb/dx)*max(0.,1.-0.25*dx/zturb)
 #endif
-    do k = 1,kl
+    do concurrent (k = 1:kl)
       mflx(:,k) = mflx(:,k)*cgmap(:)
     end do
     
@@ -483,7 +483,7 @@ do kcount = 1,mcount
       qsatc=max(qsat,qvg(:,:))                          ! assume qvg is saturated inside cloud
       ff=qfg(:,:)/max(stratcloud(:,:),1.E-8)            ! inside cloud value  assuming max overlap
       dd=qlg(:,:)/max(stratcloud(:,:),1.E-8)            ! inside cloud value assuming max overlap
-      do k=1,kl
+      do concurrent (k = 1:kl)
         tbb=max(1.-stratcloud(:,k),1.E-8)
         qgnc(:,k)=(qvg(:,k)-(1.-tbb)*qsatc(:,k))/tbb    ! outside cloud value
         qgnc(:,k)=min(max(qgnc(:,k),qgmin),qsatc(:,k))
@@ -495,7 +495,7 @@ do kcount = 1,mcount
       call updatekmo(qfhl,ff,fzzh,imax)                      ! inside cloud value
       ! fixes for clear/cloudy interface
       lta(:,2:kl)=stratcloud(:,2:kl)<=1.E-6
-      do k=2,kl-1
+      do concurrent (k = 2:kl-1)
         where(lta(:,k).and..not.lta(:,k+1))
           qlhl(:,k)=dd(:,k+1)
           qfhl(:,k)=ff(:,k+1)
@@ -504,7 +504,7 @@ do kcount = 1,mcount
           qfhl(:,k)=ff(:,k)
         end where
       end do
-      do k=2,kl-1
+      do concurrent (k = 2:kl-1)
         ! saturated
         thetac(:)=thetal(:,k)+sigkap(k)*(lv*dd(:,k)+ls*ff(:,k))/cp              ! inside cloud value
         tempc(:)=thetac(:)/sigkap(k)                                            ! inside cloud value          
@@ -533,7 +533,7 @@ do kcount = 1,mcount
     case(1) ! Marquet and Geleyn QJRMS (2012) for partially saturated
       call updatekmo(thetalhl,thetal,fzzh,imax)
       call updatekmo(qthl,qtot,fzzh,imax)
-      do k=2,kl-1
+      do concurrent (k = 2:kl-1)
         temp(:)  = theta(:,k)/sigkap(k)
         tempv(:) = thetav(:,k)/sigkap(k)
         rvar=rd*tempv/temp ! rvar = qd*rd+qv*rv
@@ -556,7 +556,7 @@ do kcount = 1,mcount
       
     case(2) ! dry convection from Hurley 2007
       call updatekmo(thetavhl,thetav,fzzh,imax)
-      do k=2,kl-1
+      do concurrent (k = 2:kl-1)
         tcc=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
         ppb(:,k)=tcc
       end do
@@ -599,7 +599,7 @@ do kcount = 1,mcount
 
   ! limit decay of TKE and EPS with coupling to mass flux term
   if ( tkemeth==1 ) then
-    do k = 2,kl-1
+    do concurrent (k = 2:kl-1)
       tbb(:) = max(1.-0.05*dz_hl(:,k-1)/250.,0.)
       where ( wstar(:)>0.5 .and. zz(:,k)>0.5*min(zi,zimax) .and. zz(:,k)<0.95*min(zi,zimax) )
         tke(:,k) = max( tke(:,k), tbb(:)*tke(:,k-1) )
@@ -609,7 +609,7 @@ do kcount = 1,mcount
   end if
   
   ! apply limits and corrections to tke and eps terms
-  do k = 2,kl-1
+  do concurrent (k = 2:kl-1)
     tke(:,k) = max(tke(:,k),mintke)
     tff = cm34*tke(:,k)*sqrt(tke(:,k))
     eps(:,k) = min(eps(:,k),tff/minl)
@@ -764,7 +764,7 @@ do kcount = 1,mcount
   ustar_ave = ustar_ave + ustar/real(mcount)
 
   ! Account for phase transistions
-  do k = 1,kl
+  do concurrent (k = 1:kl)
     ! Check for -ve values  
     qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
     qc(:) = max( qfg(:,k) + qlg(:,k), 0. )
@@ -804,7 +804,7 @@ do kcount = 1,mcount
   uwflux(:,2:kl) = -kmo(:,1:kl-1)*(uo(:,2:kl)-uo(:,1:kl-1))/dz_hl(:,1:kl-1)
   vwflux(:,1) = 0.
   vwflux(:,2:kl) = -kmo(:,1:kl-1)*(vo(:,2:kl)-vo(:,1:kl-1))/dz_hl(:,1:kl-1)
-  do k = 1,kl
+  do concurrent (k = 1:kl)
     wthflux(:,k) = wthlflux(:,k) - (sigkap(k-1)*(1.-fzzh(:,k)+sigkap(k)*fzzh(:,k)) &
                                  *(lv*wqlflux(:,k)+ls*wqfflux(:,k)))
   end do
@@ -877,7 +877,7 @@ wt0_p   = pack( wt0, lmask )
 wq0_p   = pack( wq0, lmask )
 wtv0_p  = pack( wtv0, lmask )
 ps_p    = pack( ps, lmask )
-do k = 1,kl
+do concurrent (k = 1:kl)
   mflx_p(:,k) = 0.
   tlup_p(:,k) = pack( thetal(:,k), lmask )
   qvup_p(:,k) = pack( qvg(:,k), lmask )
@@ -886,7 +886,7 @@ do k = 1,kl
   cfup_p(:,k) = pack( stratcloud(:,k), lmask )
   zz_p(:,k) = pack( zz(:,k), lmask )
 end do
-do k = 1,kl-1
+do concurrent (k = 1:kl-1)
   dz_hl_p(:,k) = pack( dz_hl(:,k), lmask )  
 end do
 
@@ -1011,7 +1011,7 @@ wstar_p = (grav*min(zi_p,zimax)*max(wtv0_p,0.)/thetav_p)**(1./3.)
           
 ! update mass flux
 mflx_p(:,1) = m0*sqrt(max(w2up(:,1), 0.))
-do k = 2,ktopmax
+do concurrent (k = 2:ktopmax)
   dzht = dz_hl_p(:,k-1)
   upf = mflx_p(:,k-1)/sqrt(max(w2up(:,k-1), 1.e-8))
   where ( w2up(:,k)>0. )
@@ -1027,7 +1027,7 @@ end do
 zi = unpack( zi_p, lmask, zz(:,1) )
 tke(:,1) = unpack( tke1, lmask, tke(:,1) )
 wstar = unpack( wstar_p, lmask, wstar )
-do k = 1,ktopmax
+do concurrent (k = 1:ktopmax)
   mflx(:,k) = unpack( mflx_p(:,k), lmask, 0. )
   tlup(:,k) = unpack( tlup_p(:,k), lmask, thetal(:,k) )
   qvup(:,k) = unpack( qvup_p(:,k), lmask, qvg(:,k) )
@@ -1037,7 +1037,7 @@ do k = 1,ktopmax
 end do
 
 #ifdef offline
-do k = 1,ktopmax
+do concurrent (k = 1:ktopmax)
   mf(:,k) = unpack( mflx_p(:,k), lmask, 0. )
   w_up(:,k) = unpack( sqrt(w2up(:,k)), lmask, 0. )
   tl_up(:,k) = unpack( tlup_p(:,k), lmask, thetal(:,k) )
@@ -1054,7 +1054,7 @@ dtr = -1./dzht + ent
 dtr = max( dtr, 0. )
 ents(:,1) = unpack( ent, lmask, 0. )
 dtrs(:,1) = unpack( dtr, lmask, 0. )
-do k = 2,ktopmax
+do concurrent (k = 2:ktopmax)
   dzht = dz_hl_p(:,k-1)
   ! Entrainment and detrainment rates
   where ( w2up(:,k)>0. )
@@ -1087,7 +1087,7 @@ real, dimension(kl) :: wpv_flux
 real xp
 logical, dimension(imax), intent(in) :: lmask
 
-do i = 1,imax
+do concurrent (i = 1:imax)
   if ( lmask(i) ) then
     !wpv_flux is calculated at half levels  
     wpv_flux(1) = -kmo(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1) !+gamt_hl(i,1)
@@ -1149,7 +1149,7 @@ end subroutine thomas
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio
 
-subroutine getqsat(qsat,templ,ps,fice)
+pure subroutine getqsat(qsat,templ,ps,fice)
 
 implicit none
 
@@ -1264,7 +1264,7 @@ end function entfn
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate phi_m for atmospheric stability
 
-subroutine calc_phi(phim,z_on_l)
+pure subroutine calc_phi(phim,z_on_l)
 
 implicit none
 
@@ -1286,9 +1286,6 @@ select case(stabmeth)
     elsewhere
       phim = aa1*bb1*(z_on_l**bb1)*(1.+cc1/bb1*z_on_l**(1.-bb1)) ! Luhar
     end where
-  case default
-    write(6,*) "ERROR: Invalid option for stabmeth in tkeeps ",stabmeth
-    stop
 end select
 
 return
