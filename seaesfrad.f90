@@ -314,7 +314,7 @@ do iq_tile = 1,ifull,imax
     call atebalb1(istart,imax,cirrf_dif(1:imax),0,split=2) ! diffuse
 
     ! Aerosols -------------------------------------------------------
-    do concurrent (k = 1:kl)
+    do k = 1,kl
       rhoa(:,k) = ps(istart:iend)*sig(k)/(rdry*t(istart:iend,k)) !density of air
       dz(:,k) = -rdry*dsig(k)*t(istart:iend,k)/(grav*sig(k))
       dz(:,k) = min( max(dz(:,k), 1.), 2.e4 )
@@ -324,7 +324,7 @@ do iq_tile = 1,ifull,imax
         ! no aerosols
       case(1)
         ! aerosols are read in (direct effect only)
-        do concurrent (i = 1:imax)
+        do i = 1,imax
           iq = i + iq_tile - 1
           cosz = max( coszro(i), 1.e-4 )
           delta = coszro(i)*0.29*8.*so4t(iq)*((1.-0.25*(cuvrf_dir(i)+cuvrf_dif(i)+cirrf_dir(i)+cirrf_dif(i)))/cosz)**2
@@ -338,7 +338,7 @@ do iq_tile = 1,ifull,imax
         ! convert to units kg / m^2
         Aerosol(mythread)%aerosol(:,:,:,:) = 0._8
         if ( so4radmethod/=-1 ) then
-          do concurrent (k = 1:kl)
+          do k = 1,kl
             kr = kl + 1 - k
             dzrho = rhoa(:,k)*dz(:,k)
             ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
@@ -346,7 +346,7 @@ do iq_tile = 1,ifull,imax
           end do
         end if
         if ( carbonradmethod/=-1 ) then
-          do concurrent (k = 1:kl)
+          do k = 1,kl
             kr = kl + 1 - k
             dzrho = rhoa(:,k)*dz(:,k)
             Aerosol(mythread)%aerosol(:,1,kr,2) = real(xtg(istart:iend,k,4)*dzrho, 8)        ! bc hydrophobic
@@ -356,7 +356,7 @@ do iq_tile = 1,ifull,imax
           end do
         end if
         if ( dustradmethod/=-1 ) then
-          do concurrent (k = 1:kl)
+          do k = 1,kl
             kr = kl + 1 - k
             dzrho = rhoa(:,k)*dz(:,k)
             Aerosol(mythread)%aerosol(:,1,kr,6) = real(xtg(istart:iend,k,8)*dzrho, 8)        ! dust 0.8
@@ -366,7 +366,7 @@ do iq_tile = 1,ifull,imax
           end do
         end if
         if ( seasaltradmethod/=-1 ) then
-          do concurrent (k = 1:kl)
+          do k = 1,kl
             kr = kl + 1 - k
             ! note that units for sea-salt differ to the prognostic aerosols
             Aerosol(mythread)%aerosol(:,1,kr,10) = real((ssn(istart:iend,k,1)/saltsmallmtn  & ! Small film sea salt (0.1)
@@ -424,20 +424,20 @@ do iq_tile = 1,ifull,imax
       cloudhi(istart:iend) = cloudhi(istart:iend) + mx*(1.-cloudhi(istart:iend))  
     else
       ! rnd cloud overlap
-      do concurrent (k = 1:nlow)
+      do k = 1,nlow
         cloudlo(istart:iend) = cloudlo(istart:iend) + cfrac(istart:iend,k)*(1.-cloudlo(istart:iend))
       end do
-      do concurrent (k = nlow+1:nmid)
+      do k = nlow+1,nmid
         cloudmi(istart:iend) = cloudmi(istart:iend) + cfrac(istart:iend,k)*(1.-cloudmi(istart:iend))
       end do
-      do concurrent (k = nmid+1:kl-1)
+      do k = nmid+1,kl-1
         cloudhi(istart:iend) = cloudhi(istart:iend) + cfrac(istart:iend,k)*(1.-cloudhi(istart:iend))
       end do
     end if
 
     ! Prepare SEA-ESF arrays ----------------------------------------
     dumtss = min( max( tss(istart:iend), 100.), 370.)
-    do concurrent (k = 1:kl)
+    do k = 1,kl
       kr = kl + 1 - k
       dumt(:,k) = min( max( t(istart:iend,k), 100.), 370.)
       p2(:,k) = ps(istart:iend)*sig(k)
@@ -451,7 +451,7 @@ do iq_tile = 1,ifull,imax
     Atmos_input(mythread)%press(:,1,kl+1) = real(ps(istart:iend), 8)
     Atmos_input(mythread)%pflux(:,1,1  )  = 0._8
     Atmos_input(mythread)%tflux(:,1,1  )  = Atmos_input(mythread)%temp(:,1,1)
-    do concurrent (k = 1:kl-1)
+    do k = 1,kl-1
       kr = kl + 1 - k
       Atmos_input(mythread)%pflux(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1), 8)
       Atmos_input(mythread)%tflux(:,1,kr) = real(rathb(k)*dumt(:,k)+ratha(k)*dumt(:,k+1), 8)
@@ -463,7 +463,7 @@ do iq_tile = 1,ifull,imax
     Atmos_input(mythread)%psfc(:,1)    = real(ps(istart:iend), 8)
     Atmos_input(mythread)%tsfc(:,1)    = real(dumtss, 8)
     Atmos_input(mythread)%phalf(:,1,1) = 0._8
-    do concurrent (k = 1:kl-1)
+    do k = 1,kl-1
       kr = kl + 1 - k
       Atmos_input(mythread)%phalf(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1), 8)
     end do
@@ -474,7 +474,7 @@ do iq_tile = 1,ifull,imax
     
     ! cloud overlap
     if ( nmr>=1 ) then
-      do concurrent (i = 1:imax) ! maximum-random overlap
+      do i = 1,imax ! maximum-random overlap
         iq = i + istart - 1
         Cld_spec(mythread)%cmxolw(i,1,:) = 0._8
         k = 1
@@ -492,9 +492,9 @@ do iq_tile = 1,ifull,imax
           k = ktop + 1
         end do
       end do  
-      do concurrent (k = 1:kl)
+      do k = 1,kl
         kr = kl + 1 - k
-        do concurrent (i = 1:imax)
+        do i = 1,imax
           iq = i + istart - 1  
           ! Max+Rnd overlap clouds for SW
           Cld_spec(mythread)%camtsw(i,1,kr) = real(cfrac(iq,k), 8)                                   
@@ -505,9 +505,9 @@ do iq_tile = 1,ifull,imax
         end do
       end do
     else
-      do concurrent (k = 1:kl)
+      do k = 1,kl
         kr = kl + 1 - k  
-        do concurrent (i = 1:imax) ! random overlap
+        do i = 1,imax ! random overlap
           iq = i + istart - 1
           Cld_spec(mythread)%camtsw(i,1,kr) = real(cfrac(iq,k), 8) ! Max+Rnd overlap clouds for SW
           Cld_spec(mythread)%crndlw(i,1,kr) = real(cfrac(iq,k), 8) ! Rnd overlap for LW
@@ -634,7 +634,7 @@ do iq_tile = 1,ifull,imax
     end if
 
     ! heating rate --------------------------------------------------
-    do concurrent (k = 1:kl)
+    do k = 1,kl
       ! total heating rate (convert deg K/day to deg K/sec)
       sw_tend(istart:iend,kl+1-k) = -real(Sw_output(mythread)%hsw(:,1,k,1)/86400._8)
       lw_tend(istart:iend,kl+1-k) = -real(Lw_output(mythread)%heatra(:,1,k)/86400._8)
@@ -667,7 +667,7 @@ do iq_tile = 1,ifull,imax
     if ( do_aerosol_forcing ) then
       opticaldepth(istart:iend,:,:) = 0.
       ! Sulfate
-      do concurrent (k = 1:kl)
+      do k = 1,kl
         opticaldepth(istart:iend,3,1) = opticaldepth(istart:iend,3,1) &
                                       + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,1,1)) ! Visible
         opticaldepth(istart:iend,3,2) = opticaldepth(istart:iend,3,2) &
@@ -676,8 +676,8 @@ do iq_tile = 1,ifull,imax
                                       + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,1,3)) ! Longwave
       end do
       ! BC
-      do concurrent (nr = 2:3)
-        do concurrent (k = 1:kl)          
+      do nr = 2,3
+        do k = 1,kl          
           opticaldepth(istart:iend,5,1) = opticaldepth(istart:iend,5,1) &
                                         + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,1)) ! Visible
           opticaldepth(istart:iend,5,2) = opticaldepth(istart:iend,5,2) &
@@ -687,8 +687,8 @@ do iq_tile = 1,ifull,imax
         end do
       end do
       ! OC
-      do concurrent (nr = 4:5)
-        do concurrent (k = 1:kl)    
+      do nr = 4,5
+        do k = 1,kl    
           opticaldepth(istart:iend,6,1) = opticaldepth(istart:iend,6,1) &
                                         + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,1)) ! Visible
           opticaldepth(istart:iend,6,2) = opticaldepth(istart:iend,6,2) &
@@ -698,7 +698,7 @@ do iq_tile = 1,ifull,imax
         end do
       end do
       ! Small dust
-      do concurrent (k = 1:kl)
+      do k = 1,kl
         opticaldepth(istart:iend,1,1) = opticaldepth(istart:iend,1,1) &
                                       + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,6,1)) ! Visible
         opticaldepth(istart:iend,1,2) = opticaldepth(istart:iend,1,2) &
@@ -707,8 +707,8 @@ do iq_tile = 1,ifull,imax
                                       + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,6,3)) ! Longwave
       end do
       ! Large dust
-      do concurrent (nr = 7:9)
-        do concurrent (k = 1:kl)
+      do nr = 7,9
+        do k = 1,kl
           opticaldepth(istart:iend,2,1) = opticaldepth(istart:iend,2,1) &
                                         + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,1)) ! Visible
           opticaldepth(istart:iend,2,2) = opticaldepth(istart:iend,2,2) &
@@ -718,7 +718,7 @@ do iq_tile = 1,ifull,imax
         end do
       end do
       ! Seasalt
-      do concurrent (k = 1:kl)
+      do k = 1,kl
         opticaldepth(istart:iend,7,1) = opticaldepth(istart:iend,7,1) &
                                       + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,10,1)) ! Visible
         opticaldepth(istart:iend,7,2) = opticaldepth(istart:iend,7,2) &
@@ -727,8 +727,8 @@ do iq_tile = 1,ifull,imax
                                       + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,10,3)) ! Longwave
       end do
       ! Aerosol
-      do concurrent (nr = 1:nfields)
-        do concurrent (k = 1:kl)
+      do nr = 1,nfields
+        do k = 1,kl
           opticaldepth(istart:iend,4,1) = opticaldepth(istart:iend,4,1) &
                                         + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,1)) ! Visible
           opticaldepth(istart:iend,4,2) = opticaldepth(istart:iend,4,2) &
@@ -753,7 +753,7 @@ do iq_tile = 1,ifull,imax
       sgn_amp(istart:iend)     = sgn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
       sgdn_amp(istart:iend)    = sgdn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
     end where
-    do concurrent (k = 1:kl)
+    do k = 1,kl
       where ( coszro(1:imax)*taudar(1:imax)<=1.E-5 )
         sw_tend_amp(istart:iend,k)  = 0.
       elsewhere
@@ -821,7 +821,7 @@ do iq_tile = 1,ifull,imax
   slwa(istart:iend) = -sgsave(istart:iend) + rgsave(istart:iend)
 
   ! Update tendencies
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     sw_tend(istart:iend,k) = sw_tend_amp(istart:iend,k)*coszro2(1:imax)*taudar2(1:imax)
   end do  
 
@@ -1115,7 +1115,7 @@ if ( do_brenguier ) then
     where ( cfrac(:,2)<1.e-4 )
       reffl(:,1) = reffl(:,1)*1.134
     end where
-    do concurrent (k = 2:kl-1)
+    do k = 2,kl-1
       where ( cfrac(:,k-1)<1.e-4 .and. cfrac(:,k+1)<1.e-4 )
         reffl(:,k) = reffl(:,k)*1.134
       end where
@@ -1188,8 +1188,8 @@ select case(iceradmethod)
     end where
 
   case(3)
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:imax)
+    do k = 1,kl
+      do iq = 1,imax
         if ( qfrad(iq,k)>1.E-8 .and. cfrac(iq,k)>1.E-4 ) then
           Wice(iq,k) = rhoa(iq,k)*qfrad(iq,k)/cfrac(iq,k) ! kg/m**3
           if ( ttg(iq,k)>248.16 ) then
@@ -1218,7 +1218,7 @@ select case(iceradmethod)
 
 end select 
   
-do concurrent (k = 1:kl)
+do k = 1,kl
   kr = kl + 1 - k
   Rdrop(:,kr) = real(2.E6*reffl(:,k), 8) ! convert to diameter and microns
   Rice(:,kr)  = real(2.E6*reffi(:,k), 8)
@@ -1250,9 +1250,9 @@ real alvo, aliro, dnsnow, ttbg, ar1, exp_ar1, ar2, exp_ar2, snr, ar3
 real snrat, dtau, fage, cczen, fzen, fzenm, alvd, alv, alird, alir
 
 ! The following snow calculation should be done by sib3 (sflux.f)
-alvo = 0.95  !alb. for vis. on a new snow
-aliro = 0.65 !alb. for near-infr. on a new snow      
-do concurrent (i = 1:imax)
+alvo = 0.95         !alb. for vis. on a new snow
+aliro = 0.65        !alb. for near-infr. on a new snow      
+do i = 1,imax
   iq = i + iq_tile - 1
   if ( land(iq) .and. snowd(iq)>0. ) then
     dnsnow = min(1., .1*max(0.,snowd(iq)-osnowd(iq)))
@@ -1349,7 +1349,7 @@ end if
 allocate( pref(kl+1,2) )
 pref(kl+1,1) = 101325.
 pref(kl+1,2) = 81060. !=0.8*pref(kl+1,1)
-do concurrent (k = 1:kl)
+do k = 1,kl
   kr = kl + 1 - k
   pref(kr,:) = sig(k)*pref(kl+1,:)
 end do  
@@ -2289,9 +2289,9 @@ Aerosol_props%aerssalbbandlw    = 0._8
 Aerosol_props%aerextbandlw_cn   = 0._8
 Aerosol_props%aerssalbbandlw_cn = 0._8
 
-do concurrent (nw = 1:naermodels)    
-  do concurrent (na = 1:N_AEROSOL_BANDS)  
-    do ni = 1,num_wavenumbers 
+do nw=1,naermodels    
+  do na=1,N_AEROSOL_BANDS  
+    do ni=1,num_wavenumbers 
       Aerosol_props%aerextbandlw(na,nw) =                   &
                       Aerosol_props%aerextbandlw(na,nw) +   &
                       aeroextivl(ni,nw)*sflwwts(na,ni)*     &
@@ -2301,8 +2301,10 @@ do concurrent (nw = 1:naermodels)
                       aerossalbivl(ni,nw)*sflwwts(na,ni)
     end do
   end do
-  do concurrent (na = 1:N_AEROSOL_BANDS_CN)
-    do ni = 1,num_wavenumbers 
+end do
+do nw=1,naermodels    
+  do na=1,N_AEROSOL_BANDS_CN
+    do ni=1,num_wavenumbers 
       Aerosol_props%aerextbandlw_cn(na,nw) =                   &
                       Aerosol_props%aerextbandlw_cn(na,nw) +   &
                       aeroextivl(ni,nw)*sflwwts_cn(na,ni)*     &
@@ -2500,17 +2502,17 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !    define arrays containing the characteristics of all the ir aerosol
 !    emissivity bands, both continuum and non-continuum.
 !--------------------------------------------------------------------
-      do concurrent (n = 1:N_AEROSOL_BANDS_FR)
+      do n=1,N_AEROSOL_BANDS_FR
         aerbandlo(n)     = aerbandlo_fr(n)
         aerbandhi(n)     = aerbandhi_fr(n)
         istartaerband(n) = istartaerband_fr(n)
         iendaerband(n)   = iendaerband_fr(n)
       end do
-      do concurrent (n = N_AEROSOL_BANDS_FR+1:N_AEROSOL_BANDS)
-        aerbandlo(n)     = aerbandlo_co(n - N_AEROSOL_BANDS_FR)
-        aerbandhi(n)     = aerbandhi_co(n - N_AEROSOL_BANDS_FR)
-        istartaerband(n) = istartaerband_co(n - N_AEROSOL_BANDS_FR)
-        iendaerband(n)   = iendaerband_co(n - N_AEROSOL_BANDS_FR)
+      do n=N_AEROSOL_BANDS_FR+1,N_AEROSOL_BANDS
+        aerbandlo(n)     = aerbandlo_co     (n - N_AEROSOL_BANDS_FR)
+        aerbandhi(n)     = aerbandhi_co     (n - N_AEROSOL_BANDS_FR)
+        istartaerband(n) = istartaerband_co (n - N_AEROSOL_BANDS_FR)
+        iendaerband(n)   = iendaerband_co   (n - N_AEROSOL_BANDS_FR)
       end do
 
 !---------------------------------------------------------------------
@@ -2530,7 +2532,7 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !    compute the planck function at 10C over each of the longwave
 !    parameterization bands to be used as the weighting function. 
 !--------------------------------------------------------------------
-      do concurrent (n = 1:NBLW)
+      do n=1,NBLW 
         del  = 10.0E+00_8
         xtemv = 283.15_8
         centnb(n) = 5.0_8 + real(n - 1,8)*del
@@ -2547,13 +2549,13 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !    emissivity bands. 
 !--------------------------------------------------------------------
       planckaerband(:) = 0.0E+00_8
-      do concurrent (n = 1:N_AEROSOL_BANDS)
+      do n = 1,N_AEROSOL_BANDS
         do ib = istartaerband(n),iendaerband(n)
           planckaerband(n) = planckaerband(n) + src1nb(ib)
         end do
       end do
       planckaerband_cn(:) = 0.0E+00_8
-      do concurrent (n = 1:N_AEROSOL_BANDS_CN)
+      do n = 1,N_AEROSOL_BANDS_CN
         do ib = istartaerband_cn(n),iendaerband_cn(n)
           planckaerband_cn(n) = planckaerband_cn(n) + src1nb(ib)
         end do
@@ -2709,21 +2711,21 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !    aerosol emissivity bands.
 !--------------------------------------------------------------------
       sflwwts_fr(:,:) = 0.0E+00_8
-      do concurrent (n = 1:N_AEROSOL_BANDS_FR)
-        do concurrent (ni = nivl1aer_fr(n):nivl2aer_fr(n))
+      do n=1,N_AEROSOL_BANDS_FR
+        do ni=nivl1aer_fr(n),nivl2aer_fr(n)
           sflwwts_fr(n,ni) = planckivlaer_fr(n,ni)/planckaerband(n)
         end do
       end do
       sflwwts_co(:,:) = 0.0E+00_8
-      do concurrent (n = 1:N_AEROSOL_BANDS_CO)
-        do concurrent (ni = nivl1aer_co(n):nivl2aer_co(n))
+      do n=1,N_AEROSOL_BANDS_CO
+        do ni=nivl1aer_co(n),nivl2aer_co(n)
           sflwwts_co(n,ni) = planckivlaer_co(n,ni)/     &
                              planckaerband(N_AEROSOL_BANDS_FR+n)
         end do
       end do
       sflwwts_cn(:,:) = 0.0E+00_8
-      do concurrent (n = 1:N_AEROSOL_BANDS_CN)
-        do concurrent (ni = nivl1aer_cn(n):nivl2aer_cn(n))
+      do n=1,N_AEROSOL_BANDS_CN
+        do ni=nivl1aer_cn(n),nivl2aer_cn(n)
           sflwwts_cn(n,ni) = planckivlaer_cn(n,ni)/     &
                              planckaerband_cn(n)
         end do
@@ -2733,13 +2735,13 @@ real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sfl
 !    consolidate the continuum and non-continuum weights into an
 !    array covering all ir aerosol emissivity bands.
 !--------------------------------------------------------------------
-      do concurrent (n = 1:N_AEROSOL_BANDS_FR)
-        do concurrent (ni = 1:num_wavenumbers)
+      do n=1,N_AEROSOL_BANDS_FR
+        do ni = 1,num_wavenumbers
           sflwwts(n,ni) = sflwwts_fr(n,ni)
         end do
       end do
-      do concurrent (n = N_AEROSOL_BANDS_FR+1:N_AEROSOL_BANDS)
-        do concurrent (ni = 1:num_wavenumbers)
+      do n=N_AEROSOL_BANDS_FR+1,N_AEROSOL_BANDS
+        do ni = 1,num_wavenumbers
           sflwwts(n,ni) = sflwwts_co(n-N_AEROSOL_BANDS_FR,ni)
         end do
       end do

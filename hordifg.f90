@@ -424,14 +424,12 @@ endif
 
 ! do t diffusion based on potential temperature ff
 ! for nhorps=-3 don't diffuse T or cloud; only qg
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then  
-  do k = 1,kl
-    work(1:ifull,k,1) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
-    work(1:ifull,k,2) = qg(1:ifull,k)
-  end do
-  call bounds(work(:,:,1:2))
-end if
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then  
+  do k = 1,kl
+    t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
+  end do
+  work(1:ifull,1:kl,1) = t(1:ifull,1:kl)
+  call bounds(work(:,:,1))
   do k = 1,kl
     call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)  
     t(1:ifull,k) = ( emi(1:ifull,k)*work(1:ifull,k,1) +   &
@@ -441,11 +439,14 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 )
                      yfact_isv(1:ifull,k)*work_s ) / base(1:ifull,k)
     t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k)
   end do
-end if    
+end if  
+  
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then  
+  work(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
+  call bounds(work(:,:,1))
   do k = 1,kl      
-    call unpack_nsew(work(:,k,2),work_n,work_s,work_e,work_w)
-    qg(1:ifull,k) = ( emi(1:ifull,k)*work(1:ifull,k,2) +  &
+    call unpack_nsew(work(:,k,1),work_n,work_s,work_e,work_w)
+    qg(1:ifull,k) = ( emi(1:ifull,k)*work(1:ifull,k,1) +  &
                       xfact(1:ifull,k)*work_e +           &
                       xfact_iwu(1:ifull,k)*work_w +       &
                       yfact(1:ifull,k)*work_n +           &

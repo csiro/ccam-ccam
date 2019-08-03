@@ -66,6 +66,23 @@ INT8FLAG = -fdefault-int-8
 DEBUGFLAG = -g -Wall -Wextra -fbounds-check
 endif
 
+#PGFORTRAN
+ifeq ($(PGI),yes)
+MPIFC = pgfortran
+MPIF77 = pgfortran
+FC = mpif90
+FCSCM = fgfortran
+FHOST = 
+FFLAGS = -O3 $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
+FOVERRIDE =
+PPFLAG90 = 
+PPFLAG77 = 
+PPFLAG90F =
+REAL8FLAG = -r8
+INT8FLAG = -i8
+DEBUGFLAG =
+endif
+
 # CRAY compiler options
 ifeq ($(CRAY),yes)
 FC = ftn

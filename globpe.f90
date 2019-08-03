@@ -1462,7 +1462,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,                                                          &
-    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
+    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cloudtol             ! cloud
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & ! EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
@@ -2008,7 +2008,7 @@ diaglevel_carbon    = dumi(19)
 diaglevel_river     = dumi(20)
 diaglevel_pop       = dumi(21)
 deallocate( dumi )
-allocate( dumr(33), dumi(21) )
+allocate( dumr(33), dumi(22) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2067,6 +2067,7 @@ if ( myid==0 ) then
   dumi(19) = nclddia
   dumi(20) = nmr
   dumi(21) = nevapls
+  dumi(22) = cloudtol
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2124,6 +2125,7 @@ ncloud         = dumi(18)
 nclddia        = dumi(19) 
 nmr            = dumi(20)
 nevapls        = dumi(21)
+cloudtol       = dumi(22)
 deallocate( dumr, dumi )
 allocate( dumr(31), dumi(4) )
 dumr = 0.

@@ -220,7 +220,8 @@ subroutine leoncld_work(cfrac,condc,condg,conds,condx,gfrac,kbsav,ktsav,land,   
       
 use aerointerface, only : aerodrop       ! Aerosol interface
 use cc_omp, only : imax                  ! CC OpenMP routines
-use cloudmod, only : convectivecloudfrac ! Prognostic cloud fraction
+use cloudmod, only : convectivecloudfrac, &
+    cloudtol                             ! Prognostic cloud fraction
 use diag_m                               ! Diagnostic routines
 use estab                                ! Liquid saturation function
 use newmpar_m                            ! Grid parameters
@@ -293,8 +294,16 @@ real, dimension(imax) :: t1
 real, dimension(kl) :: diag_temp
 real invdt
 
+#ifdef debugleoncld
+  if ( minval(t)<100. .or. maxval(t)>400. ) then
+    write(6,*) "ERROR: t out-of-range at start of leoncld"
+    write(6,*) minval(t),maxval(t)
+    stop
+  end if
+#endif
+
 ! meterological fields
-do concurrent (k = 1:kl)
+do k = 1,kl
   t1(:)       = t(:,k)  
   prf_temp(:) = ps*sig(k)
   prf(:,k)    = 0.01*prf_temp          !ps is SI units
@@ -316,7 +325,7 @@ preci(:) = 0. ! snow
 precg(:) = 0. ! graupel
 
 !     Set up convective cloud column
-call convectivecloudfrac(clcon,kbsav,ktsav,condc)
+call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax)
 where ( ktsav(:)<kl-1 )
   ktop(:)  = ktsav
   kbase(:) = kbsav + 1
@@ -349,7 +358,7 @@ endif
 if ( ncloud<=4 ) then
 
   ! diagnose cloud fraction (ncloud<=3) or prognostic strat. cloud but diagnostic conv. cloud (ncloud==4)
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( clcon(:,k)>0. )
       !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
       qccon(:,k)  = clcon(:,k)*wcon/rhoa(:,k)
@@ -413,11 +422,19 @@ call newcloud(dt,land,prf,rhoa,cdrop,tenv,qenv,qlg,qfg, &
 
 ! Vertically sub-grid cloud
 ccov(:,:) = stratcloud(:,:)
-do concurrent (k = 2:kl-1)
-  where ( stratcloud(:,k-1)<1.e-8 .and. stratcloud(:,k)>1.e-6 .and. stratcloud(:,k+1)<1.e-8 )
-    ccov(:,k) = sqrt(stratcloud(:,k))
-  end where
-end do
+if ( cloudtol==0 ) then
+  do k = 2,kl-1
+    where ( stratcloud(:,k-1)==0. .and. stratcloud(:,k)>1.e-2 .and. stratcloud(:,k+1)==0. )
+      ccov(:,k) = sqrt(stratcloud(:,k))
+    end where
+  end do    
+else
+  do k = 2,kl-1
+    where ( stratcloud(:,k-1)<1.e-8 .and. stratcloud(:,k)>1.e-6 .and. stratcloud(:,k+1)<1.e-8 )
+      ccov(:,k) = sqrt(stratcloud(:,k))
+    end where
+  end do
+end if    
      
 
 if ( nmaxpr==1 .and. mydiag ) then
@@ -442,7 +459,7 @@ endif
 
 
 !     Weight output variables according to non-convective fraction of grid-box            
-do concurrent (k = 1:kl)
+do k = 1,kl
   t(:,k)  = clcon(:,k)*t(:,k) + (1.-clcon(:,k))*tenv(:,k)
   qg(:,k) = clcon(:,k)*qcl(:,k) + (1.-clcon(:,k))*qenv(:,k)
   stratcloud(:,k) = stratcloud(:,k)*(1.-clcon(:,k))
@@ -450,6 +467,14 @@ do concurrent (k = 1:kl)
   qlg(:,k)   = qlg(:,k)*(1.-clcon(:,k))
   qfg(:,k)   = qfg(:,k)*(1.-clcon(:,k))
 end do
+
+#ifdef debugleoncld
+  if ( minval(t)<100. .or. maxval(t)>400. ) then
+    write(6,*) "ERROR: t out-of-range at after newcloud"
+    write(6,*) minval(t),maxval(t)
+    stop
+  end if
+#endif
 
 
 if ( nmaxpr==1 .and. mydiag ) then
@@ -478,7 +503,7 @@ endif
 ! Moved up 16/1/06 (and ccov,cfrac NOT UPDATED in newrain)
 ! done because sometimes newrain drops out all qlg, ending up with 
 ! zero cloud (although it will be rediagnosed as 1 next timestep)
-do concurrent (k = 1:kl)
+do k = 1,kl
   fl(:)      = max(0., min(1., (t(:,k)-ticon)/(273.15-ticon)))
   qlrad(:,k) = qlg(:,k) + fl*qccon(:,k)
   qfrad(:,k) = qfg(:,k) + (1.-fl)*qccon(:,k)
@@ -493,6 +518,13 @@ call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                  
                  fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,              &
                  condx,ktsav,idjd,mydiag)
 
+#ifdef debugleoncld
+  if ( minval(t)<100. .or. maxval(t)>400. ) then
+    write(6,*) "ERROR: t out-of-range at after newsnowrain"
+    write(6,*) minval(t),maxval(t)
+    stop
+  end if
+#endif
 
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newsnowrain',ktau
@@ -531,14 +563,14 @@ if ( abs(iaero)>=2 ) then
   ppfmelt(:,1) = 0.   !At TOA
   ppfsnow(:,1) = 0.   !At TOA
   pprfreeze(:,1) = 0. !At TOA
-  do concurrent (k = 1:kl-1)
+  do k = 1,kl-1
     ppfprec(:,kl+1-k) = (fluxr(:,k+1)+fluxm(:,k)-fluxf(:,k))*invdt     !flux *entering* layer k
     ppfmelt(:,kl+1-k) = fluxm(:,k)*invdt                               !flux melting in layer k
     ppfsnow(:,kl+1-k) = (fluxi(:,k+1)+fluxs(:,k+1)+fluxg(:,k+1) &
                         -fluxm(:,k)+fluxf(:,k))*invdt                  !flux *entering* layer k
     pprfreeze(:,kl+1-k) = fluxf(:,k)*invdt                             !flux freezing in layer k
   end do
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     rhodz(:)             = rhoa(:,k)*dz(:,k)
     ppfevap(:,kl+1-k)    = qevap(:,k)*rhodz*invdt
     ppfsubl(:,kl+1-k)    = qsubl(:,k)*rhodz*invdt !flux sublimating or staying in k
@@ -581,7 +613,7 @@ end subroutine leoncld_work
 ! This routine is part of the prognostic cloud water scheme
 
 use cc_omp
-use cloudmod, only : progcloud
+use cloudmod, only : progcloud, cloudtol
 use estab, only : esdiffx, qsati
 use newmpar_m
 use parm_m, only : diag,nmaxpr,ds
@@ -624,12 +656,20 @@ real, dimension(imax) :: qcrit, qc
 real, dimension(imax) :: qfnew, qsi, qsl
 real, dimension(kl) :: diag_temp
 integer k
-real decayfac
+real decayfac, qctol, cftol
 
 real, parameter :: rhoic = 700.
 real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 
 ! Start code : ----------------------------------------------------------
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at start of newcloud"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
 
 
 if ( diag .and. mydiag ) then
@@ -646,15 +686,22 @@ if ( diag .and. mydiag ) then
   write(6,*) 'qfg ',diag_temp
 end if
 
+if ( cloudtol==0 ) then
+  qctol = 1.e-12  
+  cftol = 0.
+else
+  qctol = 1.e-8
+  cftol = 1.e-6
+end if
 
 ! First melt cloud ice or freeze cloud water to give correct ice fraction fice.
 ! Then calculate the cloud conserved variables qtot and tliq.
 ! Note that qcg is the total cloud water (liquid+frozen)
 
-do concurrent (k = 1:kl)
+do k = 1,kl
   where ( ttg(:,k)>=tfrz )
     fice(:,k) = 0.
-  elsewhere ( ttg(:,k)>=tice .and. qfg(:,k)>1.e-8 )
+  elsewhere ( ttg(:,k)>=tice .and. qfg(:,k)>qctol )
     fice(:,k) = min(qfg(:,k)/(qfg(:,k)+qlg(:,k)), 1.)
   elsewhere( ttg(:,k)>=tice )
     fice(:,k) = 0.
@@ -671,6 +718,14 @@ do concurrent (k = 1:kl)
   qtot(:,k)  = qtg(:,k) + qcg(:,k)
   tliq(:,k)  = ttg(:,k) - hlcp*qcg(:,k) - hlfcp*qfg(:,k)
 end do
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after fice"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
 
 
 if ( diag .and. mydiag ) then
@@ -691,7 +746,7 @@ end if
 
 ! Precompute the array of critical relative humidities 
 if ( nclddia==-3 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, (1.-16.*(1.-sig(k))**3) )
     elsewhere
@@ -699,7 +754,7 @@ if ( nclddia==-3 ) then
     end where
   enddo
 else if ( nclddia<0 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, (1.-4.*(1.-sig(k))**2) )
     elsewhere
@@ -707,7 +762,7 @@ else if ( nclddia<0 ) then
     end where
   enddo
 else if ( nclddia==1 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, sig(k)**3 )
     elsewhere
@@ -715,7 +770,7 @@ else if ( nclddia==1 ) then
     end where
   enddo
 else if ( nclddia==2 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=rcrit_l
     elsewhere
@@ -723,7 +778,7 @@ else if ( nclddia==2 ) then
     end where
   enddo
 else if ( nclddia==3 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, sig(k)**2 )          ! .75 for R21 Mk2
     elsewhere
@@ -731,7 +786,7 @@ else if ( nclddia==3 ) then
     end where
   enddo
 else if ( nclddia==4 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, sig(k) )             ! .75 for test Mk2/3
     elsewhere
@@ -739,7 +794,7 @@ else if ( nclddia==4 ) then
     end where
   enddo
 else if ( nclddia==5 ) then  ! default till May 08
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, min(.99,sig(k)) )    ! .75 for same as T63
     elsewhere
@@ -747,7 +802,7 @@ else if ( nclddia==5 ) then  ! default till May 08
     end where
   enddo
 else if ( nclddia==6 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max(rcrit_l*(1.-.15*sig(k)),sig(k)**4)
     elsewhere
@@ -755,7 +810,7 @@ else if ( nclddia==6 ) then
     end where
   enddo
 else if ( nclddia==7 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max(rcrit_l*(1.-.2*sig(k)),sig(k)**4)
     elsewhere
@@ -766,7 +821,7 @@ else if ( nclddia>7 ) then  ! e.g. 12    JLM
   ! MJT notes - Lopez (2002) "Implementation and validation of a new pronostic large-scale cloud
   ! and precipitation scheme for climate and data-assimilation purposes" Q J R Met Soc 128, 229-257,
   ! has a useful discussion of the dependence of RHcrit on grid spacing
-  do concurrent (k = 1:kl)  ! typically set rcrit_l=.75,  rcrit_s=.85
+  do k = 1,kl  ! typically set rcrit_l=.75,  rcrit_s=.85
     tk(:) = ds/(em(:)*208498.) ! MJT suggestion
     fl(:) = (1.+real(nclddia))*tk(:)/(1.+real(nclddia)*tk(:))
     ! for rcit_l=.75 & nclddia=12 get rcrit=(0.751, 0.769, .799, .901, .940, .972, .985) for (200, 100, 50, 10, 5, 2, 1) km
@@ -785,7 +840,7 @@ if ( ncloud<=3 ) then
   ! Calculate cloudy fraction of grid box (stratcloud) and gridbox-mean cloud water
   ! using the triangular PDF of Smith (1990)
 
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     hlrvap(:) = (hl+fice(:,k)*hlf)/rvap
     ! Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
     pk(:) = 100.0*prf(:,k)
@@ -876,24 +931,38 @@ if ( ncloud<=3 ) then
   ! The grid-box-mean values of qtg and ttg are adjusted later on (below).
   decayfac = exp ( -tdt/7200. )  ! Try 2 hrs
   !decayfac = 0.                 ! Instant adjustment (old scheme)
-  do concurrent (k = 1:kl)
-    where( ttg(:,k)>=Tice )
-      qfg(:,k) = fice(:,k)*qcg(:,k)
-      qlg(:,k) = qcg(:,k) - qfg(:,k)
-    elsewhere
-      ! Cirrus T range
-      qfg(:,k) = qcold(:,k)*decayfac + qcg(:,k)*(1.-decayfac)
-      qlg(:,k) = 0.
-      qcg(:,k) = qfg(:,k)
-      stratcloud(:,k) = cfold(:,k)*decayfac + stratcloud(:,k)*(1.-decayfac)
-    end where
-  end do
+  if ( cloudtol==0 ) then
+    do k = 1,kl
+      where( ttg(:,k)>=Tice )
+        qfg(:,k) = fice(:,k)*qcg(:,k)
+        qlg(:,k) = qcg(:,k) - qfg(:,k)
+      elsewhere
+        ! Cirrus T range
+        qfg(:,k) = qcold(:,k)*decayfac + qcg(:,k)*(1.-decayfac)
+        qlg(:,k) = 0.
+        qcg(:,k) = qfg(:,k)
+      end where
+    end do      
+  else
+    do k = 1,kl
+      where( ttg(:,k)>=Tice )
+        qfg(:,k) = fice(:,k)*qcg(:,k)
+        qlg(:,k) = qcg(:,k) - qfg(:,k)
+      elsewhere
+        ! Cirrus T range
+        qfg(:,k) = qcold(:,k)*decayfac + qcg(:,k)*(1.-decayfac)
+        qlg(:,k) = 0.
+        qcg(:,k) = qfg(:,k)
+        stratcloud(:,k) = cfold(:,k)*decayfac + stratcloud(:,k)*(1.-decayfac)
+      end where
+    end do
+  end if  
   
 else
   
   ! Tiedtke prognostic cloud fraction model
   ! MJT notes - we use ttg instead of tliq
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     pk = 100.*prf(:,k)
     qsi = qsati(pk,ttg(:,k)) ! Ice value
     deles = esdiffx(ttg(:,k))
@@ -902,11 +971,11 @@ else
   end do
   
   call progcloud(qcg,qtot,prf,rhoa,fice,qsw,ttg,rcrit, &
-                 dpsldt,fluxtot,nettend,stratcloud)
+                 dpsldt,fluxtot,nettend,stratcloud,imax)
         
   decayfac = exp ( -tdt/7200. )             ! Try 2 hrs
   !decayfac = 0.                            ! Instant adjustment (old scheme)
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where( ttg(:,k)>=Tice )
       qfg(:,k) = fice(:,k)*qcg(:,k)
       qlg(:,k) = qcg(:,k) - qfg(:,k)
@@ -926,12 +995,12 @@ end if ! ncloud<=3 ..else..
 ! liquid and ice values.
 pk(:) = 1.e5   ! default
 Tk(:) = 300.   ! default
-do concurrent (k = 1:kl)  
-  where ( stratcloud(:,k)>1.e-6 )
+do k = 1,kl  
+  where ( stratcloud(:,k)>cftol )
     Tk(:) = tliq(:,k) + hlcp*(qlg(:,k)+qfg(:,k))/stratcloud(:,k) !T in liq cloud
     !fl(:) = qlg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-8)
   end where
-  where ( stratcloud(:,k)>1.e-6 .and. Tk(:)<tfrz .and. qlg(:,k)>1.e-8 )
+  where ( stratcloud(:,k)>cftol .and. Tk(:)<tfrz .and. qlg(:,k)>1.e-8 )
     pk(:)      = 100.*prf(:,k)
     qs(:)      = qsati(pk,Tk)
     es(:)      = qs(:)*pk/0.622 !ice value
@@ -958,6 +1027,14 @@ end do
 ! Calculate new values of vapour mixing ratio and temperature
 qtg(:,:) = qtot - qcg
 ttg(:,:) = tliq + hlcp*qcg + hlfcp*qfg
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at end of newcloud"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
 
 
 if ( diag .and. mydiag ) then
@@ -1147,6 +1224,14 @@ real, parameter :: gcon = 44.628 ! = 40.74*sqrt(sfcrho)
 !real, parameter :: tau_s = 90.   ! (sec) snow melt
 !real, parameter :: tau_g = 180.  ! (sec) graupel melt
 
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at start of newsnowrain"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
+
 
 scm3 = (visk/vdifu)**(1./3.)
 
@@ -1167,7 +1252,7 @@ prscav(:,:) = 0.
 pfstayice(:,:) = 0.  
 pfstayliq(:,:) = 0. 
 pslopes(:,:) = 0.
-do concurrent (k = 1:kl)
+do k = 1,kl
   pk(:) = 100.*prf(:,k)
   qsatg(:,k) = qsati(pk,ttg(:,k))
   cifr(:,k) = qfg(:,k)*stratcloud(:,k)/max( qlg(:,k)+qfg(:,k), 1.e-8 )
@@ -1193,7 +1278,7 @@ do n = 1,njumps
   fluxautorain(:,:) = 0.
   fluxautograupel(:,:) = 0.
   fluxautosnow(:,:) = 0.
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     pk(:) = 100.*prf(:,k)
     qsatg(:,k) = qsati(pk,ttg(:,k))
   end do
@@ -1243,8 +1328,8 @@ do n = 1,njumps
   !! Or, using old autoconv scheme... also used by prognostic cloud scheme
   !else
 
-  do concurrent (k = kl-1:1:-1)
-    do concurrent (iq = 1:imax)
+  do k = kl-1,1,-1
+    do iq = 1,imax
       if ( clfr(iq,k)>0. ) then
         qcrit = (4.*pi/3.)*rhow*Rcm**3*cdrop(iq,k)/rhoa(iq,k)
         qcic  = qlg(iq,k)/clfr(iq,k) !In cloud value
@@ -1274,11 +1359,11 @@ do n = 1,njumps
   ! calculate rate of precipitation of frozen cloud water to snow
   if ( ncloud>=3 ) then
 
-    do concurrent (k = kl:1:-1)
+    do k = kl,1,-1
       
       ! autoconversion of ice to snow (from Lin et al 1983)
       ! Threshold from WSM6 scheme, Hong et al 2004, Eq(13) : qi0_crt ~8.e-5
-      do concurrent (iq = 1:imax)
+      do iq = 1,imax
         if ( qfg(iq,k)*rhoa(iq,k)>qi0_crt ) then
           qfs  = max( qfg(iq,k)-qi0_crt/rhoa(iq,k), 0. )
           cdts = tdt*c_psaut*exp(0.025*(ttg(iq,k)-tfrz))
@@ -1290,7 +1375,7 @@ do n = 1,njumps
       end do  
     
       ! autoconversion of snow to graupel (from Lin et al 1983)
-      do concurrent (iq = 1:imax)
+      do iq = 1,imax
         if ( qsng(iq,k)*rhoa(iq,k)>qs0_crt ) then
           qfs  = max( qsng(iq,k)-qs0_crt/rhoa(iq,k), 0. )
           cdts = tdt*1.e-3*exp(0.09*(ttg(iq,k)-tfrz))
@@ -1443,6 +1528,14 @@ do n = 1,njumps
           cgfra(:)       = cftmp
         end where
 
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after graupel melt"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
+        
         ! Sublimation of graupel is neglected in the UM and ACCESS 1.3.
         ! (Currently treated the same as LDR97 ice sublimation)
         slopes_g(:) = ( max( fluxgraupel, 0. )/dz(:,k)/(pi*n0g*rho_g))**0.25
@@ -1465,6 +1558,14 @@ do n = 1,njumps
           ttg(:,k)       = ttg(:,k) + dttg
           qsatg(:,k)     = qsatg(:,k) + gam1*dttg/hlscp
         end where
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after graupel sublimation"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
         
         ! Accretion of cloud liquid by falling graupel (from Lin et al 1983 - pgacw)
         ! This calculation uses the incoming fluxgraupel without subtracting sublimation
@@ -1486,6 +1587,15 @@ do n = 1,njumps
           clfr(:,k)      = max( clfr(:,k) - cftmp, 0. )
           mxclfrgraupel(:) = max( mxclfrgraupel, cftmp )
         end where
+       
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after graupel accretion of liquid"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
+
         
         ! Accretion of rain by falling graupel (from Lin et al 1983 - pgacr)
         ! (Neglected in UM and ACCESS 1.3)
@@ -1509,6 +1619,14 @@ do n = 1,njumps
           cfrain(:,k)    = max( cfrain(:,k) - cftmp, 0. )
           mxclfrgraupel(:) = max( mxclfrgraupel, cftmp )
         end where     
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after graupel accretion of rain"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
         
         ! Accretion of cloud ice by falling graupel (from Lin et al 1983 - pgaci)
         ! (Neglected in UM and ACCESS 1.3)
@@ -1606,6 +1724,15 @@ do n = 1,njumps
           cfmelt(:)   = max( cfmelt(:), max( csfra(:)-cftmp, 0. ) )
           csfra(:)    = cftmp
         end where
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after snow melt"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
+
         
         ! Compute the sublimation of snow falling from level k+1 into level k
         ! (Currently treated the same as LDR97 ice sublimation - see UM and ACCESS 1.3)
@@ -1630,6 +1757,14 @@ do n = 1,njumps
           ttg(:,k)    = ttg(:,k) + dttg(:)
           qsatg(:,k)  = qsatg(:,k) + gam1*dttg(:)/hlscp
         end where
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after snow sublimation"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
         
         ! Accretion of cloud liquid by falling snow (from Lin et al 1983 - psacw)
         n0s(:) = 2.e6*exp(-0.12*max(ttg(:,k)-tfrz,-200.))        
@@ -1650,6 +1785,14 @@ do n = 1,njumps
           clfr(:,k)   = max( clfr(:,k) - cftmp(:), 0. )
           mxclfrsnow(:) = max( mxclfrsnow(:), cftmp(:) )
         end where
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after snow accretion of liquid"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
         
         ! Accretion of rain by falling snow to form snow (from Lin et al 1983 - psacr)
         n0s(:) = 2.e6*exp(-0.12*max(ttg(:,k)-tfrz,-200.))        
@@ -1673,6 +1816,14 @@ do n = 1,njumps
           cfrain(:,k)  = max( cfrain(:,k) - cftmp(:), 0. )
           mxclfrsnow(:) = max( mxclfrsnow(:), cftmp(:) )
         end where
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after snow accretion of rain"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
         
         ! Accretion of rain by falling snow to form graupel (neglected in Lin83 but included in UM)   
     
@@ -1792,6 +1943,14 @@ do n = 1,njumps
         rdclfrice(:) = 0.
         mxclfrice(:) = 0.
       end where
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after ice melt"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
       
       ! Compute the sublimation of ice falling from level k+1 into level k
       qvp(:) = rhov(:,k)/rhoa(:,k)
@@ -1812,6 +1971,14 @@ do n = 1,njumps
         ttg(:,k)    = ttg(:,k) + dttg(:)
         qsatg(:,k)  = qsatg(:,k) + gam1*dttg(:)/hlscp
       end where
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after ice sublimation"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
       
       ! Accretion of cloud liquid by falling ice (neglected in Lin et al 1983, but
       ! included in UM and ACCESS 1.3 as piacw)
@@ -1833,6 +2000,14 @@ do n = 1,njumps
         clfr(:,k)  = max( clfr(:,k) - cftmp, 0. )
         mxclfrice(:) = max( mxclfrice, cftmp )
       end where
+  
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after ice accretion of liquid"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
       
       if ( ncloud>=3 ) then
         ! Accretion of rain by falling ice to produce ice (from Lin et al 1983 - piacr)
@@ -1854,6 +2029,14 @@ do n = 1,njumps
           mxclfrice(:) = max( mxclfrice(:), cftmp(:) )
         end where
       end if  
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after ice accretion of rain"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
       
       ! Accretion of rain by falling ice to produce graupel (Neglected in Lin et al 1983)
       ! (see UM and ACCESS 1.3 piacr-g for an alternate formulation)
@@ -1920,6 +2103,14 @@ do n = 1,njumps
           mxclfrgraupel(:) = max( mxclfrgraupel(:), clfra(:) )
         end where
       end if  
+    
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after rain freezing"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
       
       ! Evaporation of rain
       qpf(:) = fluxrain(:)/rhodz(:) !Mix ratio of rain which falls into layer
@@ -1962,6 +2153,14 @@ do n = 1,njumps
       rhov(:,k) = rhov(:,k)  + drl(:)
       ttg(:,k)  = ttg(:,k) - hlcp*evap(:)
       frclr(:)  = rhodz(:)*(clrevap(:)-evap(:)) ! flux over tdt
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after rain evaporation"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
       
       ! Now do the collection of liquid cloud by rain term (cf. pracc in Lin83).
       where ( fluxrain(:)>0. )
@@ -2014,6 +2213,14 @@ do n = 1,njumps
           mxclfrliq(:) = max( mxclfrliq(:), cftmp(:) )
         end where
       end if  
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after rain accretion of snow"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
       
       ! store for aerosols
       qevap(:,k) = qevap(:,k) + evap(:)
@@ -2244,6 +2451,14 @@ do n = 1,njumps
   elsewhere
     cfgraupel(:,:) = max( cfgraupel, 1.e-6 )  
   end where
+
+#ifdef debugleoncld
+if ( minval(ttg)<100. .or. maxval(ttg)>400. ) then
+  write(6,*) "ERROR: t out-of-range at after remove small cloud"
+  write(6,*) minval(ttg),maxval(ttg)
+  stop
+end if
+#endif
   
   ! update stratcloud based on changes to clfr and cifr
   stratcloud(:,:) = clfr + cifr
@@ -2256,6 +2471,7 @@ end do   ! n
 precs(:) = precs(:) + fluxr(:,1) + fluxi(:,1) + fluxs(:,1) + fluxg(:,1)
 preci(:) = preci(:) + fluxi(:,1) + fluxs(:,1)
 precg(:) = precg(:) + fluxg(:,1)
+
 
 ! clean-up rounding errors
 stratcloud = max( min( stratcloud, 1. ), 0. )

@@ -198,7 +198,7 @@ do tile = 1,ntiles
     call mloexpice(liv,10,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
     lou = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
     lov = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
-    do concurrent (k = 1:kl)
+    do k = 1,kl
       lu(:,k) = u(is:ie,k) - lou
       lv(:,k) = v(is:ie,k) - lov
       lsavu(:,k) = savu(is:ie,k) - lou
@@ -238,7 +238,7 @@ do tile = 1,ntiles
     nettend(is:ie,1:kl) = (nettend(is:ie,1:kl)-lt/dt)
   endif
   if ( nmlo/=0 ) then
-    do concurrent (k = 1:kl)  
+    do k = 1,kl  
       u(is:ie,k) = lu(:,k) + lou
       v(is:ie,k) = lv(:,k) + lov
     end do  
@@ -365,11 +365,11 @@ dx = ds/em(1:imax)
 
 ! Set-up potential temperature transforms
 rong = rdry/grav
-do concurrent (k = 1:kl-1)
+do k = 1,kl-1
   sighkap(k) = sigmh(k+1)**(-roncp)
   delons(k)  = rong*((sig(k+1)-sig(k))/sigmh(k+1))
 end do      ! k loop
-do concurrent (k = 1:kl)
+do k = 1,kl
   delh(k)   = -rong*dsig(k)/sig(k)  ! sign of delh defined so always +ve
   sigkap(k) = sig(k)**(-roncp)
 end do      ! k loop
@@ -638,7 +638,7 @@ else
   rhos(1:imax) = ps(1:imax)/(rdry*tss(1:imax))
     
   ! transform to ocean reference frame and temp to theta
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     rhs(:,k) = t(1:imax,k)*sigkap(k) ! theta
   end do
 
@@ -659,7 +659,7 @@ else
                   shearproduction,totaltransport,                                      &
                   imax)
       rkh = rkm
-      do concurrent (k = 1:kl)
+      do k = 1,kl
         uav(1:imax,k) = av_vmod*u(1:imax,k) + (1.-av_vmod)*savu(1:imax,k)
         vav(1:imax,k) = av_vmod*v(1:imax,k) + (1.-av_vmod)*savv(1:imax,k)
       end do
@@ -690,7 +690,7 @@ else
                   ustar,dt,qgmin,1,0,tke,eps,shear,dx,                                 &
                   imax) 
       rkh = rkm
-      do concurrent (k = 1:kl)
+      do k = 1,kl
         uav(1:imax,k) = av_vmod*u(1:imax,k) + (1.-av_vmod)*savu(1:imax,k)
         vav(1:imax,k) = av_vmod*v(1:imax,k) + (1.-av_vmod)*savv(1:imax,k)
       end do
@@ -708,9 +708,9 @@ else
 #endif
   
   ! transform winds back to Earth reference frame and theta to temp
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     t(1:imax,k) = rhs(1:imax,k)/sigkap(k)
-  end do    !  k loop
+  enddo    !  k loop
 
 #ifdef scm
   ! save Km and Kh for output
@@ -722,7 +722,7 @@ else
 #endif
 
   ! tracers
-  do concurrent (k = 1:kl-1)
+  do k = 1,kl-1
     delsig      =sig(k+1)-sig(k)
     dz(1:imax)  =-tmnht(1:imax,k)*delons(k)  ! this is z(k+1)-z(k)
     dzr(1:imax) =1./dz(1:imax)
@@ -731,7 +731,7 @@ else
   gt(:,kl)=0.
   at(:,1) =0.
   ct(:,kl)=0.
-  do concurrent (k = 1:kl-1)
+  do k = 1,kl-1
     at(1:imax,k+1)=-gt(1:imax,k)/dsig(k+1)  
     ct(1:imax,k)=-gt(1:imax,k)/dsig(k)
   end do
@@ -743,7 +743,7 @@ else
   
   ! Aerosols
   if ( abs(iaero)>=2 ) then
-    do concurrent (nt = 1:naero)
+    do nt = 1,naero
       rhs(:,:) = xtg(1:imax,:,nt) ! Total grid-box
       call trim(at,ct,rhs)
       xtg(1:imax,:,nt) = max(rhs(:,:), 0.)
@@ -1425,7 +1425,7 @@ endif
 return
 end subroutine vertjlm
 
-pure subroutine trim(a,c,rhs)
+subroutine trim(a,c,rhs)
 
 use cc_omp
 use newmpar_m

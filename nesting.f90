@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -587,7 +587,7 @@ if ( nud_uv==3 ) then
   polenx = -cos(rlat0*pi/180.)
   poleny = 0.
   polenz = sin(rlat0*pi/180.)
-  do concurrent (iq = 1:ifull)
+  do iq = 1,ifull
    zonx = real(            -polenz*y(iq))
    zony = real(polenz*x(iq)-polenx*z(iq))
    zonz = real(polenx*y(iq)             )
@@ -595,7 +595,7 @@ if ( nud_uv==3 ) then
    costh(iq) =  (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
    sinth(iq) = -(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
   enddo
-  do concurrent (k = kbotdav:ktopdav)
+  do k = kbotdav,ktopdav
     dum(:) = costh(:)*ubb(:,k) - sinth(:)*vbb(:,k)
     ubb(:,k) = dum(:)
   end do
@@ -640,13 +640,13 @@ if ( nud_p>0 ) then
 end if
 if ( nud_uv/=0 ) then
   if ( nud_uv==3 ) then
-    do concurrent (k = kbotdav:ktopdav)
+    do k = kbotdav,ktopdav
       dum(:) = ub(:,k)
       ubb(1:ifull,k) = costh(:)*dum(:)
       vbb(1:ifull,k) = -sinth(:)*dum(:)
     end do
   end if
-  do concurrent (k = kbotdav:ktopdav)
+  do k = kbotdav,ktopdav
     u(1:ifull,k) = u(1:ifull,k) + ubb(:,k)*vertwgt(k)
     v(1:ifull,k) = v(1:ifull,k) + vbb(:,k)*vertwgt(k)
     savu(1:ifull,k) = savu(1:ifull,k) + ubb(:,k)*vertwgt(k)
@@ -658,12 +658,12 @@ if ( nud_uv/=0 ) then
   end do
 end if
 if ( nud_t>0 ) then
-  do concurrent (k = kbotdav:ktopdav)
+  do k = kbotdav,ktopdav
     t(1:ifull,k) = t(1:ifull,k) + tbb(:,k)*vertwgt(k)
   end do
 end if
 if ( nud_q>0 ) then
-  do concurrent (k = kbotdav:ktopdav)
+  do k = kbotdav,ktopdav
     qg(1:ifull,k) = max(qg(1:ifull,k)+qbb(:,k)*vertwgt(k), 0.)
   end do
 end if
@@ -676,8 +676,8 @@ if ( nud_t>0 .or. nud_q>0 ) then
   phi(:,:) = phi(:,:) + phi_nh(:,:)
 end if
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
-  do concurrent (ntr = 1:naero)
-    do concurrent (k = kbotdav:ktopdav)
+  do ntr = 1,naero
+    do k = kbotdav,ktopdav
       xtg(1:ifull,k,ntr) = max(xtg(1:ifull,k,ntr)+xtgbb(:,k,ntr)*vertwgt(k), 0.)
     end do
   end do
@@ -726,7 +726,7 @@ if ( nud_uv==3 ) then
 else if ( nud_uv>0 ) then
   ! vectors are processed as Cartesian coordinates (X,Y,Z),
   ! avoiding complications along panel boundaries
-  do concurrent (k = kln:klx)
+  do k = kln,klx
     da(:) = ubb(:,k)
     db(:) = vbb(:,k)
     ubb(:,k) = ax(1:ifull)*da(:) + bx(1:ifull)*db(:)
@@ -770,6 +770,7 @@ subroutine slowspecmpi_work(cq,tt,tbb,klt)
 use cc_mpi            ! CC MPI routines
 use map_m             ! Grid map arrays
 use newmpar_m         ! Grid parameters
+use sumdd_m           ! High precision sum
 use xyzinfo_m         ! Grid coordinate arrays
       
 implicit none
@@ -780,29 +781,38 @@ real, intent(in) :: cq
 real, dimension(ifull,klt), intent(out) :: tbb
 real, dimension(ifull_g,klt), intent(in) :: tt
 real, dimension(ifull_g) :: r, sm ! large working array
-real, dimension(klt+1) :: local_sum
+real psum
+complex local_sum
 
 ! evaluate the 2D convolution
 call START_LOG(nestcalc_begin)
 
-sm(:) = 1./em_g(:)**2
-
-!$omp parallel do private(j,i,n,iqg,iq,r,psum,k,sm,local_sum)
-do concurrent (iq = 1:ifull)
-  n = (iq-1)/(ipan*jpan) + 1
-  j = (iq-1-(n-1)*ipan*jpan)/ipan + 1
-  i = iq-(j-1)*ipan-(n-1)*ipan*jpan
-  iqg = i + ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
-  ! calculate distance between targer grid point and all other grid points
-  r(:) = real(x_g(iqg)*x_g(:)+y_g(iqg)*y_g(:)+z_g(iqg)*z_g(:))
-  r(:) = acos(max( min( r(:), 1. ), -1. ))
-  ! evaluate Gaussian weights as a function of distance
-  r(:) = exp(-(cq*r(:))**2)
-  ! apply low band pass filter
-  call drpdr_fast(r,sm,tt,local_sum)
-  tbb(iq,1:klt) = local_sum(1:klt)/local_sum(klt+1)
-end do
+do n = 1,npan
+!$omp parallel do private(j,i,iqg,iq,r,psum,k,sm,local_sum)
+  do j = 1,jpan
+    do i = 1,ipan
+      iqg = i + ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
+      iq  = i + (j-1)*ipan + (n-1)*ipan*jpan
+      ! calculate distance between targer grid point and all other grid points
+      r(:) = real(x_g(iqg)*x_g(:)+y_g(iqg)*y_g(:)+z_g(iqg)*z_g(:))
+      r(:) = acos(max( min( r(:), 1. ), -1. ))
+      ! evaluate Gaussian weights as a function of distance
+      r(:) = exp(-(cq*r(:))**2)/(em_g(:)*em_g(:))
+      ! discrete normalisation factor
+      local_sum = (0., 0.)
+      call drpdr_local(r(:),local_sum)
+      psum = real(local_sum)
+      ! apply low band pass filter
+      do k = 1,klt
+        sm(:) = r(:)*tt(:,k)
+        local_sum = (0., 0.)
+        call drpdr_local(sm(:),local_sum)
+        tbb(iq,k) = real(local_sum)/psum
+      end do
+    end do
+  end do
 !$omp end parallel do
+end do
 
 call END_LOG(nestcalc_end)
 
@@ -869,49 +879,49 @@ logical, intent(in) :: lblock
 
 if ( nud_p>0 .and. lblock ) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap(pslbb,1)           ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(pslbb,1)            ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx                ! loop over panels
+  do ppass = pprocn,pprocx
     call copyglobalpack(1,0,1)            ! copy sparse array data (1) to (0)
-    call fastspecmpi_work(cin,qt,1,ppass) ! filter sparse array (0) and store as qt
-    ibase = ipan*jpan*(ppass-pprocn)
-    pslbb(1+ibase:ipan*jpan+ibase) = qt(1:ipan*jpan,1) ! update data for panel
+    call fastspecmpi_work(cin,qt,1,ppass) ! filter sparse array (0)
+    ibase=ipan*jpan*(ppass-pprocn)
+    pslbb(1+ibase:ipan*jpan+ibase) = qt(1:ipan*jpan,1)
   end do
 end if
 if ( nud_t>0 ) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap(tbb(:,kln:klx),klt)  ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(tbb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx                  ! loop over panels  
+  do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
-    tbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt) ! update data for panel
+    tbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
 end if
 if ( nud_q>0 ) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap(qbb(:,kln:klx),klt)  ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(qbb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx                  ! loop over panels
+  do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
-    qbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt) ! update data for panel
+    qbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
 end if
 if ( nud_uv==3 ) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap(ubb(:,kln:klx),klt)  ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(ubb(:,kln:klx),klt)        ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx                  ! loop over panels 
-    call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
-    call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
+  do ppass = pprocn,pprocx
+    call copyglobalpack(klt,0,klt)               ! copy sparse array data (1) to (0)
+    call fastspecmpi_work(cin,qt,klt,ppass)      ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
-    ubb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt) ! update data for panel
+    ubb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
 else if ( nud_uv>0 ) then
-  do concurrent (k = kln:klx)
+  do k = kln,klx
     da(:) = ubb(:,k)
     db(:) = vbb(:,k)
     ubb(:,k) = ax(1:ifull)*da(:) + bx(1:ifull)*db(:)
@@ -919,33 +929,33 @@ else if ( nud_uv>0 ) then
     wbb(:,k) = az(1:ifull)*da(:) + bz(1:ifull)*db(:)
   end do
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap(ubb(:,kln:klx),klt)  ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(ubb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx                  ! loop over panels
+  do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
-    ubb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt) ! update data for panel
+    ubb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap(vbb(:,kln:klx),klt)  ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(vbb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx                  ! loop over panels
+  do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
-    vbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt) ! update data for panel
+    vbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap(wbb(:,kln:klx),klt)  ! gather data onto global sparse array (1)
+  call ccmpi_gathermap(wbb(:,kln:klx),klt)   ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx                  ! loop over panels
+  do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
-    wbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt) ! update data for panel
+    wbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
-  do concurrent (k = kln:klx)
+  do k = kln,klx
     da(:) = ax(1:ifull)*ubb(:,k) + ay(1:ifull)*vbb(:,k) + az(1:ifull)*wbb(:,k)
     db(:) = bx(1:ifull)*ubb(:,k) + by(1:ifull)*vbb(:,k) + bz(1:ifull)*wbb(:,k)
     ubb(:,k) = da(:)
@@ -957,11 +967,11 @@ if ( abs(iaero)>=2 .and. nud_aero>0 ) then
     call START_LOG(nestwin_begin)  
     call ccmpi_gathermap(xtgbb(:,kln:klx,i),klt) ! gather data onto global sparse array (1)
     call END_LOG(nestwin_end)
-    do ppass = pprocn,pprocx                     ! loop over panels
-      call copyglobalpack(klt,0,klt)             ! copy sparse array data (1) to (0)
-      call fastspecmpi_work(cin,qt,klt,ppass)    ! filter sparse array (0)
+    do ppass = pprocn,pprocx
+      call copyglobalpack(klt,0,klt)            ! copy sparse array data (1) to (0)
+      call fastspecmpi_work(cin,qt,klt,ppass)   ! filter sparse array (0)
       ibase = ipan*jpan*(ppass-pprocn)
-      xtgbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1,i) = qt(1:ipan*jpan,1:klt) ! update data for panel
+      xtgbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1,i) = qt(1:ipan*jpan,1:klt)
     end do
   end do
 end if      
@@ -995,19 +1005,19 @@ logical, intent(in) :: lblock
       
 if ( nud_p>0 .and. lblock ) then
   call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap(pslbb,0)               ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(pslbb,0)                ! gather data onto global sparse array (0)
   call END_LOG(nestwin_end)
   call fastspecmpi_work(cin,qt(:,1),1,pprocn) ! filter sparse array (0)
   pslbb(:) = qt(:,1)
 end if
 if ( nud_uv==3 ) then
   call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap(ubb(:,kln:klx),0)   ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(ubb(:,kln:klx),0)    ! gather data onto global sparse array (0)
   call END_LOG(nestwin_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   ubb(:,kln:klx) = qt(:,:)
 else if ( nud_uv>0 ) then
-  do concurrent (k = kln:klx)
+  do k = kln,klx
     da(:) = ubb(:,k)
     db(:) = vbb(:,k)
     ubb(:,k) = ax(1:ifull)*da(:) + bx(1:ifull)*db(:)
@@ -1015,21 +1025,21 @@ else if ( nud_uv>0 ) then
     wbb(:,k) = az(1:ifull)*da(:) + bz(1:ifull)*db(:)
   end do
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap(ubb(:,kln:klx),0)   ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(ubb(:,kln:klx),0)    ! gather data onto global sparse array (0)
   call END_LOG(nestwin_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   ubb(:,kln:klx) = qt(:,:)
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap(vbb(:,kln:klx),0)   ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(vbb(:,kln:klx),0)    ! gather data onto global sparse array (0)
   call END_LOG(nestwin_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   vbb(:,kln:klx) = qt(:,:)
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap(wbb(:,kln:klx),0)   ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(wbb(:,kln:klx),0)    ! gather data onto global sparse array (0)
   call END_LOG(nestwin_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   wbb(:,kln:klx) = qt(:,:)
-  do concurrent (k = kln:klx)
+  do k = kln,klx
     da(:) = ax(1:ifull)*ubb(:,k) + ay(1:ifull)*vbb(:,k) + az(1:ifull)*wbb(:,k)
     db(:) = bx(1:ifull)*ubb(:,k) + by(1:ifull)*vbb(:,k) + bz(1:ifull)*wbb(:,k)
     ubb(:,k) = da(:)
@@ -1038,14 +1048,14 @@ else if ( nud_uv>0 ) then
 endif
 if ( nud_t>0 ) then
   call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap(tbb(:,kln:klx),0)   ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(tbb(:,kln:klx),0)    ! gather data onto global sparse array (0)
   call END_LOG(nestwin_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   tbb(:,kln:klx) = qt(:,:)
 end if
 if ( nud_q>0 ) then
   call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap(qbb(:,kln:klx),0)   ! gather data onto global sparse array (0)
+  call ccmpi_gathermap(qbb(:,kln:klx),0)    ! gather data onto global sparse array (0)
   call END_LOG(nestwin_end)
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   qbb(:,kln:klx) = qt(:,:)
@@ -1055,7 +1065,7 @@ if ( abs(iaero)>=2 .and. nud_aero>0 ) then
     call START_LOG(nestwin_begin)  
     call ccmpi_gathermap(xtgbb(:,kln:klx,n),0) ! gather data onto global sparse array (0)
     call END_LOG(nestwin_end)
-    call fastspecmpi_work(cin,qt,klt,pprocn)   ! filter sparse array (0)
+    call fastspecmpi_work(cin,qt,klt,pprocn)  ! filter sparse array (0)
     xtgbb(:,kln:klx,n) = qt(:,:)
   end do
 end if      
@@ -1162,13 +1172,13 @@ do ipass = 0,2
       asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
         ! v version is faster for getglobalpack  
-        call getglobalpack_v(at(sn:sn+il_g-1,k),ibeg,iend,k)
+        call getglobalpack_v(at(sn:sn+il_g-1,k),ibeg,iend,k)  
         at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
     
     ! start convolution
-    do concurrent (n = 1:ipan)
+    do n = 1,ipan
       nn = n + os - 1
       ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       ra(1:me) = acos(max(min(ra(1:me), 1.), -1.))
@@ -1177,9 +1187,11 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      call drpdr_fast(ra(1:me),asum(1:me),at,local_sum) ! calculates sum(ra(1:me)*at(1:me,k)) and sum(ra(1:me)*asum(1:me))
-      ibase = n + (j-1)*ipan
-      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan) = local_sum(1:klt+1) ! = dot_product(ra(1:me)*at(1:me,k))
+      call drpdr_fast(me,ra,asum,at,local_sum) ! calculates sum(ra(1:me)*at(1:me,k)) and sum(ra(1:me)*asum(1:me))
+      do k = 1,klt+1
+         ibase = (j-1)*ipan + (k-1)*ipan*jpan 
+         ff(n+ibase) = local_sum(k) ! = dot_product(ra(1:me)*at(1:me,k))
+      end do
     end do  
    
   end do
@@ -1202,7 +1214,7 @@ do ipass = 0,2
   do n = 1,ipan
     nn = n + os - 1
     do k = 1,klt
-      do concurrent (jpoff = 0:il_g-1:jpan)
+      do jpoff = 0,il_g-1,jpan
         sy = jpoff/jpan
         ibase = n + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
         ra(1+jpoff:jpan+jpoff) = dd(ibase:ibase+ipan*(jpan-1):ipan)
@@ -1211,7 +1223,7 @@ do ipass = 0,2
       iend = a*nn + b*il_g + c
       call setglobalpack_v(ra(1:il_g),ibeg,iend,k)
     end do  
-    do concurrent (jpoff = 0:il_g-1:jpan)
+    do jpoff = 0,il_g-1,jpan
       sy = jpoff/jpan
       ibase = n + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
       ra(1+jpoff:jpan+jpoff) = dd(ibase:ibase+ipan*(jpan-1):ipan)
@@ -1259,7 +1271,7 @@ do j = 1,ipan
   end do
   
   ! start convolution
-  do concurrent (n = 1:jpan)
+  do n = 1,jpan
     nn = n + os - 1
     ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     ra(1:me) = acos(max(min(ra(1:me), 1.), -1.))
@@ -1268,7 +1280,7 @@ do j = 1,ipan
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    call drpdr_fast(ra(1:me),asum(1:me),at,local_sum)
+    call drpdr_fast(me,ra,asum,at,local_sum)
     qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(klt+1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
   end do
   
@@ -1352,7 +1364,7 @@ do ipass = 0,2
     end do
     
     ! start convolution
-    do concurrent (n = 1:jpan)
+    do n = 1,jpan
       nn = n + os - 1
       ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       ra(1:me) = acos(max( min(ra(1:me), 1.), -1.))
@@ -1361,9 +1373,11 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      call drpdr_fast(ra(1:me),asum(1:me),at,local_sum)
-      ibase = n + (j-1)*jpan
-      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan) = local_sum(1:klt+1) ! = dot_product(ra(1:me)*at(1:me,k))
+      call drpdr_fast(me,ra,asum,at,local_sum)
+      do k = 1,klt+1
+        ibase = (j-1)*jpan + (k-1)*jpan*ipan  
+        ff(n+ibase) = local_sum(k)
+      end do  
     end do
     
   end do
@@ -1385,7 +1399,7 @@ do ipass = 0,2
   do n = 1,jpan
     nn = n + os - 1
     do k = 1,klt
-      do concurrent (jpoff = 0:il_g-1:ipan)
+      do jpoff = 0,il_g-1,ipan
         sy = jpoff/ipan
         ibase = n + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
         ra(1+jpoff:ipan+jpoff) = dd(ibase:ibase+jpan*(ipan-1):jpan)
@@ -1394,7 +1408,7 @@ do ipass = 0,2
       iend = a*nn + b*il_g + c
       call setglobalpack_v(ra(1:il_g),ibeg,iend,k)
     end do
-    do concurrent (jpoff = 0:il_g-1:ipan)
+    do jpoff = 0,il_g-1,ipan
       sy = jpoff/ipan
       ibase = n + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
       ra(1+jpoff:ipan+jpoff) = dd(ibase:ibase+jpan*(ipan-1):jpan)
@@ -1442,7 +1456,7 @@ do j = 1,jpan
   end do
   
   ! start convolution
-  do concurrent (n = 1:ipan)
+  do n = 1,ipan
     nn = n + os - 1
     ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     ra(1:me) = acos(max(min( ra(1:me), 1.), -1.))
@@ -1451,7 +1465,7 @@ do j = 1,jpan
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    call drpdr_fast(ra(1:me),asum(1:me),at,local_sum)
+    call drpdr_fast(me,ra,asum,at,local_sum)
     qt(n + ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(klt+1)
   end do
 
@@ -1465,7 +1479,7 @@ end subroutine speclocal_right
 
 !---------------------------------------------------------------------------------
 ! Map from 1D convolution to global index
-pure subroutine getiqa(a,b,c,ne,ipass,ppass,il_g)
+subroutine getiqa(a,b,c,ne,ipass,ppass,il_g)
       
 implicit none
       
@@ -1641,6 +1655,9 @@ do sn = 1,ne,il_g
       a(sy) = 1
       b(sy) = il_g
       c(sy) = -2*il_g
+    case DEFAULT
+      write(6,*) "Invalid index ",ppass,ipass,sn,ppass*100+ipass*10+sy
+      stop
   end select
 
 end do
@@ -1920,7 +1937,7 @@ if (nud_sss/=0) then
   call mlofilterhost(diff_g,diffs_l,kd)
 end if
 if (nud_ouv/=0) then
-  do concurrent (k = 1:kd)
+  do k=1,kd
     xa_l=diffu_l(:,k)
     xb_l=diffv_l(:,k)
     diffu_l(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
@@ -1958,34 +1975,42 @@ implicit none
 
 integer, intent(in) :: kd
 integer i, j, n, iqq, iqqg, k
-real cq
+real nsum, cq
 real, dimension(ifull_g,kd), intent(inout) :: diff_g ! large common array
 real, dimension(ifull_g) :: rr, sm
 real, dimension(ifull,kd), intent(out) :: dd
-real, dimension(kd+1) :: local_sum
+complex local_sum
 
 ! eventually will be replaced with mbd once full ocean coupling is complete
 cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
 
 call START_LOG(nestcalc_begin)
 dd(:,:) = 0.
-sm(:) = 1./em_g(:)**2
 
-!$omp parallel do private(j,i,n,iqqg,iqq,rr,nsum,k,sm,local_sum)    
-do concurrent (iqq = 1:ifull)
-  n = (iqq-1)/(ipan*jpan) + 1
-  j = (iqq-1-(n-1)*ipan*jpan)/ipan + 1
-  i = iqq-(j-1)*ipan-(n-1)*ipan*jpan
-  iqqg = i + ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
-  rr(:) = real(x_g(iqqg)*x_g(:)+y_g(iqqg)*y_g(:)+z_g(iqqg)*z_g(:))
-  rr(:) = acos(max( min( rr(:), 1. ), -1. ))
-  rr(:) = exp(-(cq*rr(:))**2)
-  call drpdr_fast(rr,sm,diff_g,local_sum)
-  if ( local_sum(kd+1)>1.e-8 ) then
-    dd(iqq,1:kd) = local_sum(1:kd)/local_sum(kd+1)
-  end if  
-end do
+do n = 1,npan
+!$omp parallel do private(j,i,iqqg,iqq,rr,nsum,k,sm,local_sum)    
+  do j = 1,jpan
+    do i = 1,ipan
+      iqqg = i + ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
+      iqq = i + (j-1)*ipan + (n-1)*ipan*jpan
+      rr(:) = real(x_g(iqqg)*x_g(:)+y_g(iqqg)*y_g(:)+z_g(iqqg)*z_g(:))
+      rr(:) = acos(max( min( rr(:), 1. ), -1. ))
+      rr(:) = exp(-(cq*rr(:))**2)/(em_g(:)*em_g(:))
+      local_sum = (0.,0.)
+      call drpdr_local(rr,local_sum)
+      nsum = real(local_sum)
+      if ( nsum>1.e-8 ) then
+        do k = 1,kd
+          sm(:) = rr(:)*diff_g(:,k)
+          local_sum = (0.,0.)
+          call drpdr_local(sm,local_sum)
+          dd(iqq,k) = real(local_sum)
+        end do
+      end if  
+    end do
+  end do
 !$omp end parallel do
+end do
 
 call END_LOG(nestcalc_end)
 
@@ -2046,7 +2071,7 @@ use vecsuv_m           ! Map to cartesian coordinates
 implicit none
       
 integer, intent(in) :: kd
-integer n,k,ppass,ibase
+integer n,k,ppass
 real, intent(in) :: cq
 real, dimension(ifull,1), intent(inout) :: diffh_l
 real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
@@ -2060,60 +2085,75 @@ if (nud_sst/=0) then
   call START_LOG(nestwin_begin)
   call ccmpi_gathermap(diff_l(:,:),kd)         ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx
+  do ppass=pprocn,pprocx
     call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
     call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
-    ibase = ipan*jpan*(ppass-pprocn)
-    diff_l(1+ibase:ipan*jpan+ibase,1:kd) = qp(1:ipan*jpan,1:kd)
+    do k=1,kd
+      do n=1,ipan*jpan
+        diff_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
+      end do
+    end do
   end do
 end if
 if (nud_sss/=0) then
-  call START_LOG(nestwin_begin)
+  call START_LOG(nestwin_begin)  
   call ccmpi_gathermap(diffs_l(:,:),kd)        ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx
+  do ppass=pprocn,pprocx
     call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
     call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
-    ibase = ipan*jpan*(ppass-pprocn)
-    diffs_l(1+ibase:ipan*jpan+ibase,1:kd) = qp(1:ipan*jpan,1:kd)
+    do k=1,kd
+      do n=1,ipan*jpan
+        diffs_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
+      end do
+    end do
   end do
 end if
 if (nud_ouv/=0) then
-  do concurrent (k = 1:kd)
-    xa_l = diffu_l(:,k)
-    xb_l = diffv_l(:,k)
-    diffu_l(:,k) = ax(1:ifull)*xa_l + bx(1:ifull)*xb_l
-    diffv_l(:,k) = ay(1:ifull)*xa_l + by(1:ifull)*xb_l
-    diffw_l(:,k) = az(1:ifull)*xa_l + bz(1:ifull)*xb_l
+  do k=1,kd
+    xa_l=diffu_l(:,k)
+    xb_l=diffv_l(:,k)
+    diffu_l(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
+    diffv_l(:,k)=ay(1:ifull)*xa_l+by(1:ifull)*xb_l
+    diffw_l(:,k)=az(1:ifull)*xa_l+bz(1:ifull)*xb_l
   end do
   call START_LOG(nestwin_begin)
   call ccmpi_gathermap(diffu_l(:,:),kd)        ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx
+  do ppass=pprocn,pprocx
     call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
     call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
-    ibase = ipan*jpan*(ppass-pprocn)
-    diffu_l(1+ibase:ipan*jpan+ibase,1:kd) = qp(1:ipan*jpan,1:kd)
+    do k=1,kd
+      do n=1,ipan*jpan
+        diffu_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
+      end do
+    end do
   end do
   call START_LOG(nestwin_begin)
   call ccmpi_gathermap(diffv_l(:,:),kd)        ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx
+  do ppass=pprocn,pprocx
     call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
     call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
-    ibase = ipan*jpan*(ppass-pprocn)
-    diffv_l(1+ibase:ipan*jpan+ibase,1:kd) = qp(1:ipan*jpan,1:kd)
+    do k=1,kd
+      do n=1,ipan*jpan
+        diffv_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
+      end do
+    end do
   end do
   call START_LOG(nestwin_begin)
   call ccmpi_gathermap(diffw_l(:,:),kd)        ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx
+  do ppass=pprocn,pprocx
     call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
     call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
-    ibase = ipan*jpan*(ppass-pprocn)
-    diffw_l(1+ibase:ipan*jpan+ibase,1:kd) = qp(1:ipan*jpan,1:kd)
+    do k=1,kd
+      do n=1,ipan*jpan
+        diffw_l(n+ipan*jpan*(ppass-pprocn),k)=qp(n,k)
+      end do
+    end do
   end do
-  do concurrent (k = 1:kd)
+  do k=1,kd
     xa_l=ax(1:ifull)*diffu_l(:,k)+ay(1:ifull)*diffv_l(:,k)+az(1:ifull)*diffw_l(:,k)
     xb_l=bx(1:ifull)*diffu_l(:,k)+by(1:ifull)*diffv_l(:,k)+bz(1:ifull)*diffw_l(:,k)
     diffu_l(:,k)=xa_l
@@ -2124,11 +2164,12 @@ if (nud_sfh/=0.and.lblock) then
   call START_LOG(nestwin_begin)
   call ccmpi_gathermap(diffh_l(:,1),1)        ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
-  do ppass = pprocn,pprocx
+  do ppass=pprocn,pprocx
     call copyglobalpack(1,0,1)                ! copy sparse array (1) to (0)
     call mlofastspec_work(cq,qp,1,ppass)      ! filter sparse array (0)
-    ibase = ipan*jpan*(ppass-pprocn)
-    diffh_l(1+ibase:ipan*jpan+ibase,1) = qp(1:ipan*jpan,1)
+    do n=1,ipan*jpan
+      diffh_l(n+ipan*jpan*(ppass-pprocn),1)=qp(n,1)
+    end do
   end do
 end if
 
@@ -2169,7 +2210,7 @@ if (nud_sss/=0) then
   call mlofastspec_work(cq,diffs_l,kd,pprocn)      ! filter sparse array (0)
 end if
 if (nud_ouv/=0) then
-  do concurrent (k = 1:kd)
+  do k=1,kd
     xa_l=diffu_l(:,k)
     xb_l=diffv_l(:,k)
     diffu_l(:,k)=ax(1:ifull)*xa_l+bx(1:ifull)*xb_l
@@ -2188,7 +2229,7 @@ if (nud_ouv/=0) then
   call ccmpi_gathermap(diffw_l(:,:),0)             ! gather data onto global sparse array (0)
   call END_LOG(nestwin_end)
   call mlofastspec_work(cq,diffw_l,kd,pprocn)      ! filter sparse array (0)
-  do concurrent (k = 1:kd)
+  do k=1,kd
     xa_l=ax(1:ifull)*diffu_l(:,k)+ay(1:ifull)*diffv_l(:,k)+az(1:ifull)*diffw_l(:,k)
     xb_l=bx(1:ifull)*diffu_l(:,k)+by(1:ifull)*diffv_l(:,k)+bz(1:ifull)*diffw_l(:,k)
     diffu_l(:,k)=xa_l
@@ -2298,14 +2339,16 @@ do ipass = 0,2
     end do
     
     ! start convolution
-    do concurrent (n = 1:ipan)
+    do n = 1,ipan
       nn = n + os - 1
       rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
-      call drpdr_fast(rr(1:me),asum(1:me),ap,local_sum)
-      ibase = n + (j-1)*ipan
-      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan) = local_sum(1:kd+1)
+      call drpdr_fast(me,rr,asum,ap,local_sum)
+      do k = 1,kd+1
+        ibase = (j-1)*ipan + (k-1)*ipan*jpan
+        yy(n+ibase) = local_sum(k)
+      end do  
     end do
     
   end do
@@ -2328,7 +2371,7 @@ do ipass = 0,2
   do n = 1,ipan
     nn = n + os - 1
     do k = 1,kd
-      do concurrent (jpoff = 0:il_g-1:jpan)
+      do jpoff = 0,il_g-1,jpan
         sy = jpoff/jpan
         ibase = n + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
         rr(1+jpoff:jpan+jpoff) = zz(ibase:ibase+ipan*(jpan-1):ipan)
@@ -2337,7 +2380,7 @@ do ipass = 0,2
       iend = a*nn + b*il_g + c
       call setglobalpack_v(rr(1:il_g),ibeg,iend,k)
     end do  
-    do concurrent (jpoff = 0:il_g-1:jpan)
+    do jpoff = 0,il_g-1,jpan
       sy = jpoff/jpan
       ibase = n + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
       rr(1+jpoff:jpan+jpoff) = zz(ibase:ibase+ipan*(jpan-1):ipan)
@@ -2385,15 +2428,17 @@ do j = 1,ipan
   end do
   
   ! start convolution
-  do concurrent (n = 1:jpan)
+  do n = 1,jpan
     nn = n + os - 1
     rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
-    call drpdr_fast(rr(1:me),asum(1:me),ap,local_sum)
+    call drpdr_fast(me,rr,asum,ap,local_sum)
     psum = local_sum(kd+1)
-    if ( psum>1.e-8 ) then  
-      qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/psum  
+    if ( psum>1.e-8 ) then
+      do k = 1,kd  
+        qp(j+ipan*(n-1),k) = local_sum(k)/psum  
+      end do    
     end if  
   end do
   
@@ -2474,14 +2519,16 @@ do ipass = 0,2
     end do
     
     ! start convolution
-    do concurrent (n = 1:jpan)
+    do n = 1,jpan
       nn = n + os - 1
       rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
-      call drpdr_fast(rr(1:me),asum(1:me),ap,local_sum)
-      ibase = n + (j-1)*jpan
-      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan) = local_sum(1:kd+1)
+      call drpdr_fast(me,rr,asum,ap,local_sum)
+      do k = 1,kd+1
+        ibase = (j-1)*jpan + (k-1)*jpan*ipan  
+        yy(n+ibase) = local_sum(k)  
+      end do
     end do
     
   end do
@@ -2504,7 +2551,7 @@ do ipass = 0,2
   do n = 1,jpan
     nn = n + os - 1
     do k = 1,kd
-      do concurrent (jpoff = 0:il_g-1:ipan)
+      do jpoff = 0,il_g-1,ipan
         sy = jpoff/ipan
         ibase = n + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
         rr(1+jpoff:ipan+jpoff) = zz(ibase:ibase+jpan*(ipan-1):jpan)
@@ -2513,7 +2560,7 @@ do ipass = 0,2
       iend = a*nn + b*il_g + c
       call setglobalpack_v(rr(1:il_g),ibeg,iend,k)
     end do  
-    do concurrent (jpoff = 0:il_g-1:ipan)
+    do jpoff = 0,il_g-1,ipan
       sy = jpoff/ipan
       ibase = n + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
       rr(1+jpoff:ipan+jpoff) = zz(ibase:ibase+jpan*(ipan-1):jpan)
@@ -2561,15 +2608,18 @@ do j = 1,jpan
   end do
   
   ! start convolution
-  do concurrent (n = 1:ipan)
+  do n = 1,ipan
     nn = n + os - 1
     rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
-    call drpdr_fast(rr(1:me),asum(1:me),ap,local_sum)
+    call drpdr_fast(me,rr,asum,ap,local_sum)
     psum = local_sum(kd+1)
-    if ( psum>1.e-8 ) then   
-      qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/psum  
+    if ( psum>1.e-8 ) then
+      ibase = ipan*(j-1)  
+      do k = 1,kd
+        qp(n+ibase,k) = local_sum(k)/psum  
+      end do
     end if  
   end do
   
@@ -2852,12 +2902,21 @@ do khigh = kl,2,-1
   if ( sighigh<=sig(khigh) ) exit
 end do
 
-
-vertwgt(1:kbotdav-1) = 0.
-vertwgt(kbotdav:klow-1) = (sig(kbotdav)-sig(kbotdav:klow-1))/(sig(kbotdav)-siglow)
-vertwgt(klow:khigh) = 1.
-vertwgt(khigh+1:ktopdav) = (sig(khigh+1:ktopdav)-sig(ktopdav))/(sighigh-sig(ktopdav))
-vertwgt(ktopdav+1:kl) = 0.
+do k = 1,kbotdav-1
+  vertwgt(k) = 0.
+end do
+do k = kbotdav,klow-1
+  vertwgt(k) = (sig(kbotdav)-sig(k))/(sig(kbotdav)-siglow)
+end do
+do k = klow,khigh
+  vertwgt(k) = 1.
+end do
+do k = khigh+1,ktopdav
+  vertwgt(k) = (sig(k)-sig(ktopdav))/(sighigh-sig(ktopdav))
+end do
+do k = ktopdav+1,kl
+  vertwgt(k) = 0.
+end do
 
 return
 end subroutine setdavvertwgt
@@ -2913,26 +2972,26 @@ ans = ans + iday
 
 end function iabsdate
 
-pure subroutine drpdr_fast(ra,asum,at,out_sum)
+subroutine drpdr_fast(ilen,ra,asum,at,out_sum)
 
 implicit none
 
+integer, intent(in) :: ilen
+real, dimension(:,:), intent(in) :: at
+real, dimension(size(at,2)+1,ilen) :: at_t
 real, dimension(:), intent(in) :: ra
 real, dimension(:), intent(in) :: asum
-real, dimension(:,:), intent(in) :: at
 real, dimension(:), intent(out) :: out_sum
-real, dimension(size(at,2)+1,size(ra)) :: at_t
 real, dimension(size(at,2)+1) :: e, t1, t2
 complex, dimension(size(at,2)+1) :: local_sum
-integer :: i, kx, kn, ilen
+integer :: i, kx, kn
 
-ilen = size(ra)
 kn = size(at,2)
 kx = kn + 1
 
 local_sum(1:kx) = (0.,0.)
 
-do concurrent (i = 1:kn)
+do i = 1,kn
   at_t(i,1:ilen) = ra(1:ilen)*at(1:ilen,i)
 end do
 at_t(kx,1:ilen) = ra(1:ilen)*asum(1:ilen)
