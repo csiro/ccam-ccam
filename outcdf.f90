@@ -686,7 +686,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'cldh_sea',cldh_sea)
     call ccnf_put_attg(idnc,'cldl_sea',cldl_sea)
     call ccnf_put_attg(idnc,'cldm_sea',cldm_sea)
-    call ccnf_put_attg(idnc,'cloudtol',cloudtol)
     call ccnf_put_attg(idnc,'convfact',convfact)
     call ccnf_put_attg(idnc,'convtime',convtime)
     call ccnf_put_attg(idnc,'detrain',detrain)

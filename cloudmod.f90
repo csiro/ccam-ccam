@@ -32,9 +32,7 @@ private
 public progcloud, cloudmod_init
 public stratcloud, nettend
 public convectivecloudfrac, convectivecloudarea
-public cloudtol
 
-integer, save :: cloudtol = 1 ! determins cloud tolerance levels
 real, dimension(:,:), allocatable, save :: stratcloud  ! prognostic cloud fraction
 real, dimension(:,:), allocatable, save :: nettend     ! change in temperature from radiation and vertical mixing
 real, save :: u00ramp = 0.01

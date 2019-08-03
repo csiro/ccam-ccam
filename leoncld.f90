@@ -220,8 +220,7 @@ subroutine leoncld_work(cfrac,condc,condg,conds,condx,gfrac,kbsav,ktsav,land,   
       
 use aerointerface, only : aerodrop       ! Aerosol interface
 use cc_omp, only : imax                  ! CC OpenMP routines
-use cloudmod, only : convectivecloudfrac, &
-    cloudtol                             ! Prognostic cloud fraction
+use cloudmod, only : convectivecloudfrac ! Prognostic cloud fraction
 use diag_m                               ! Diagnostic routines
 use estab                                ! Liquid saturation function
 use newmpar_m                            ! Grid parameters
@@ -422,19 +421,11 @@ call newcloud(dt,land,prf,rhoa,cdrop,tenv,qenv,qlg,qfg, &
 
 ! Vertically sub-grid cloud
 ccov(:,:) = stratcloud(:,:)
-if ( cloudtol==0 ) then
-  do k = 2,kl-1
-    where ( stratcloud(:,k-1)==0. .and. stratcloud(:,k)>1.e-2 .and. stratcloud(:,k+1)==0. )
-      ccov(:,k) = sqrt(stratcloud(:,k))
-    end where
-  end do    
-else
-  do k = 2,kl-1
-    where ( stratcloud(:,k-1)<1.e-8 .and. stratcloud(:,k)>1.e-6 .and. stratcloud(:,k+1)<1.e-8 )
-      ccov(:,k) = sqrt(stratcloud(:,k))
-    end where
-  end do
-end if    
+do k = 2,kl-1
+  where ( stratcloud(:,k-1)<1.e-8 .and. stratcloud(:,k)>1.e-6 .and. stratcloud(:,k+1)<1.e-8 )
+    ccov(:,k) = sqrt(stratcloud(:,k))
+  end where
+end do
      
 
 if ( nmaxpr==1 .and. mydiag ) then
@@ -613,7 +604,7 @@ end subroutine leoncld_work
 ! This routine is part of the prognostic cloud water scheme
 
 use cc_omp
-use cloudmod, only : progcloud, cloudtol
+use cloudmod, only : progcloud
 use estab, only : esdiffx, qsati
 use newmpar_m
 use parm_m, only : diag,nmaxpr,ds
@@ -656,7 +647,7 @@ real, dimension(imax) :: qcrit, qc
 real, dimension(imax) :: qfnew, qsi, qsl
 real, dimension(kl) :: diag_temp
 integer k
-real decayfac, qctol, cftol
+real decayfac
 
 real, parameter :: rhoic = 700.
 real, parameter :: cm0 = 1.e-12 !Initial crystal mass
@@ -686,13 +677,6 @@ if ( diag .and. mydiag ) then
   write(6,*) 'qfg ',diag_temp
 end if
 
-if ( cloudtol==0 ) then
-  qctol = 1.e-12  
-  cftol = 0.
-else
-  qctol = 1.e-8
-  cftol = 1.e-6
-end if
 
 ! First melt cloud ice or freeze cloud water to give correct ice fraction fice.
 ! Then calculate the cloud conserved variables qtot and tliq.
@@ -701,7 +685,7 @@ end if
 do k = 1,kl
   where ( ttg(:,k)>=tfrz )
     fice(:,k) = 0.
-  elsewhere ( ttg(:,k)>=tice .and. qfg(:,k)>qctol )
+  elsewhere ( ttg(:,k)>=tice .and. qfg(:,k)>1.e-8 )
     fice(:,k) = min(qfg(:,k)/(qfg(:,k)+qlg(:,k)), 1.)
   elsewhere( ttg(:,k)>=tice )
     fice(:,k) = 0.
@@ -931,32 +915,18 @@ if ( ncloud<=3 ) then
   ! The grid-box-mean values of qtg and ttg are adjusted later on (below).
   decayfac = exp ( -tdt/7200. )  ! Try 2 hrs
   !decayfac = 0.                 ! Instant adjustment (old scheme)
-  if ( cloudtol==0 ) then
-    do k = 1,kl
-      where( ttg(:,k)>=Tice )
-        qfg(:,k) = fice(:,k)*qcg(:,k)
-        qlg(:,k) = qcg(:,k) - qfg(:,k)
-      elsewhere
-        ! Cirrus T range
-        qfg(:,k) = qcold(:,k)*decayfac + qcg(:,k)*(1.-decayfac)
-        qlg(:,k) = 0.
-        qcg(:,k) = qfg(:,k)
-      end where
-    end do      
-  else
-    do k = 1,kl
-      where( ttg(:,k)>=Tice )
-        qfg(:,k) = fice(:,k)*qcg(:,k)
-        qlg(:,k) = qcg(:,k) - qfg(:,k)
-      elsewhere
-        ! Cirrus T range
-        qfg(:,k) = qcold(:,k)*decayfac + qcg(:,k)*(1.-decayfac)
-        qlg(:,k) = 0.
-        qcg(:,k) = qfg(:,k)
-        stratcloud(:,k) = cfold(:,k)*decayfac + stratcloud(:,k)*(1.-decayfac)
-      end where
-    end do
-  end if  
+  do k = 1,kl
+    where( ttg(:,k)>=Tice )
+      qfg(:,k) = fice(:,k)*qcg(:,k)
+      qlg(:,k) = qcg(:,k) - qfg(:,k)
+    elsewhere
+      ! Cirrus T range
+      qfg(:,k) = qcold(:,k)*decayfac + qcg(:,k)*(1.-decayfac)
+      qlg(:,k) = 0.
+      qcg(:,k) = qfg(:,k)
+      stratcloud(:,k) = cfold(:,k)*decayfac + stratcloud(:,k)*(1.-decayfac)
+    end where
+  end do
   
 else
   
@@ -996,11 +966,11 @@ end if ! ncloud<=3 ..else..
 pk(:) = 1.e5   ! default
 Tk(:) = 300.   ! default
 do k = 1,kl  
-  where ( stratcloud(:,k)>cftol )
+  where ( stratcloud(:,k)>1.e-6 )
     Tk(:) = tliq(:,k) + hlcp*(qlg(:,k)+qfg(:,k))/stratcloud(:,k) !T in liq cloud
     !fl(:) = qlg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-8)
   end where
-  where ( stratcloud(:,k)>cftol .and. Tk(:)<tfrz .and. qlg(:,k)>1.e-8 )
+  where ( stratcloud(:,k)>1.e-6 .and. Tk(:)<tfrz .and. qlg(:,k)>1.e-8 )
     pk(:)      = 100.*prf(:,k)
     qs(:)      = qsati(pk,Tk)
     es(:)      = qs(:)*pk/0.622 !ice value
