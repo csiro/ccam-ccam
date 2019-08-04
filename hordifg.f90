@@ -52,7 +52,6 @@ use aerosolldr
 use arrays_m
 use cc_mpi
 use cfrac_m
-use cloudmod
 use const_phys
 use dpsdt_m
 use indices_m

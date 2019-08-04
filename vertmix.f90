@@ -89,7 +89,6 @@ use carbpools_m                     ! Carbon pools
 use cc_mpi                          ! CC MPI routines
 use cc_omp                          ! CC OpenMP routines
 use cfrac_m                         ! Cloud fraction
-use cloudmod                        ! Prognostic strat cloud
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use extraout_m                      ! Additional diagnostics

@@ -38,7 +38,7 @@ use arrays_m                               ! Atmosphere dyamics prognostic array
 use bigxy4_m                               ! Grid interpolation
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
-use cloudmod                               ! Prognostic cloud fraction
+use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
 use convjlm_m                              ! Convection
 use convjlm22_m                            ! Convection v2
@@ -2964,8 +2964,7 @@ if ( myid<nproc ) then
   allocate( dums(ifull,kl) )
   call arrays_init(ifull,iextra,kl)
   call carbpools_init(ifull,nsib,ccycle)
-  call cfrac_init(ifull,kl)
-  call cloudmod_init(ifull,iextra,kl,ncloud)
+  call cfrac_init(ifull,iextra,kl,ncloud)
   call dpsdt_init(ifull,epsp)
   call epst_init(ifull)
   call estab_init
@@ -3554,7 +3553,7 @@ subroutine fixqg(js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use const_phys                        ! Physical constants
-use cloudmod                          ! Prognostic cloud fraction
+use cfrac_m                           ! Cloud fraction
 use estab                             ! Liquid saturation function
 use liqwpar_m                         ! Cloud water mixing ratios
 use newmpar_m                         ! Grid parameters
@@ -3795,7 +3794,7 @@ u2max(:)    = 0.
 v2max(:)    = 0.
 rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
 
-if ( nextout >= 4 ) then
+if ( nextout>=4 ) then
   call setllp ! reset once per day
 end if
 

@@ -59,8 +59,8 @@ subroutine aerocalc(oxidant_update,mins)
 
 use aerosolldr           ! LDR prognostic aerosols
 use arrays_m             ! Atmosphere dyamics prognostic arrays
-use cc_omp
-use cloudmod             ! Prognostic strat cloud
+use cc_omp               ! CC OpenMP routines
+use cfrac_m              ! Cloud fraction
 use extraout_m           ! Additional diagnostics
 use infile               ! Input file routines
 use kuocomb_m            ! JLM convection
@@ -283,7 +283,7 @@ do k = 1,kl
 end do
 
 ! estimate convective cloud fraction from leoncld.f
-call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax,cldcon=cldcon)
+call convectivecloudfrac(clcon,kbsav,ktsav,condc,cldcon=cldcon)
 pccw(:,:) = 0.
 do k = 1,kl
   kinv = kl + 1 - k  

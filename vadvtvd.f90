@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -36,7 +36,7 @@ use aerosolldr
 use arrays_m
 use cc_mpi
 use cc_omp
-use cloudmod
+use cfrac_m, only : stratcloud
 use diag_m
 use liqwpar_m  ! ifullw
 use map_m

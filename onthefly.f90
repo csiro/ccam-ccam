@@ -311,7 +311,6 @@ use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
 use carbpools_m                                ! Carbon pools
 use cc_mpi                                     ! CC MPI routines
 use cfrac_m                                    ! Cloud fraction
-use cloudmod                                   ! Prognostic strat cloud
 use const_phys                                 ! Physical constants
 use darcdf_m                                   ! Netcdf data
 use extraout_m                                 ! Additional diagnostics      

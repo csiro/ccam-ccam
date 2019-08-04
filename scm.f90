@@ -251,7 +251,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     nclddia,ncvcloud,ncvmix,nevapcc,nevapls,nkuo,nrhcrit,         &
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
-    rcm,rcrit_l,rcrit_s,ncloud,cirrus_decay
+    rcm,rcrit_l,rcrit_s,ncloud
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL scheme
     m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
@@ -430,8 +430,7 @@ call map_init(ifull_g,ifull,iextra,myid)
 
 call arrays_init(ifull,iextra,kl)
 call carbpools_init(ifull,nsib,ccycle)
-call cfrac_init(ifull,kl)
-call cloudmod_init(ifull,iextra,kl,ncloud)
+call cfrac_init(ifull,iextra,kl,ncloud)
 call estab_init
 call extraout_init(ifull,nextout)
 call gdrag_init(ifull)
@@ -1803,7 +1802,7 @@ subroutine nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv,  &
 use aerosolldr, only : xtg,naero           ! LDR prognostic aerosols
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use cable_ccam
-use cloudmod                               ! Prognostic cloud fraction
+use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
 use infile                                 ! Input file routines
 use liqwpar_m                              ! Cloud water mixing ratios
@@ -6337,7 +6336,6 @@ grpl(:)              = 0.  ! converted to mm/day in outcdf
 runoff(:)            = 0.  ! converted to mm/day in outcdf
 runoff_surface(:)    = 0.  ! converted to mm/day in outcdf
 snowmelt(:)          = 0.  ! converted to mm/day in outcdf
-u10mx(:)             = 0.
 cape_max(:)          = 0.
 cape_ave(:)          = 0.
 
@@ -6466,7 +6464,6 @@ rhminscr(1:ifull)          = min( rhminscr(1:ifull), rhscrn )
 rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
 cape_max(1:ifull)          = max( cape_max(1:ifull), cape )
 cape_ave(1:ifull)          = cape_ave(1:ifull) + cape
-u10mx(1:ifull)             = max( u10mx(1:ifull), u10 )  ! for hourly scrnfile
 dew_ave(1:ifull)           = dew_ave(1:ifull) - min( 0., eg )    
 epan_ave(1:ifull)          = epan_ave(1:ifull) + epan
 epot_ave(1:ifull)          = epot_ave(1:ifull) + epot 

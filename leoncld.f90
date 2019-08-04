@@ -104,7 +104,6 @@ use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use cc_mpi, only : mydiag         ! CC MPI routines
 use cc_omp                        ! CC OpenMP routines
 use cfrac_m                       ! Cloud fraction
-use cloudmod                      ! Prognostic cloud fraction
 use kuocomb_m                     ! JLM convection
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
@@ -324,7 +323,7 @@ preci(:) = 0. ! snow
 precg(:) = 0. ! graupel
 
 !     Set up convective cloud column
-call convectivecloudfrac(clcon,kbsav,ktsav,condc,imax)
+call convectivecloudfrac(clcon,kbsav,ktsav,condc)
 where ( ktsav(:)<kl-1 )
   ktop(:)  = ktsav
   kbase(:) = kbsav + 1
@@ -941,7 +940,7 @@ else
   end do
   
   call progcloud(qcg,qtot,prf,rhoa,fice,qsw,ttg,rcrit, &
-                 dpsldt,fluxtot,nettend,stratcloud,imax)
+                 dpsldt,fluxtot,nettend,stratcloud)
         
   decayfac = exp ( -tdt/7200. )             ! Try 2 hrs
   !decayfac = 0.                            ! Instant adjustment (old scheme)

@@ -2356,11 +2356,6 @@ contains
       e_iloc = im1 + 1 - e_ipak*ipan
       e_jloc = jm1 + 1 - e_jpak*jpan
       
-      if ( b_n /= e_n ) then
-         write(6,*) "ERROR: setglobalpack_v requires ibeg and iend to belong to the same face"
-         call ccmpi_abort(-1)
-      end if
-
       if ( e_jpak >= b_jpak) then
          s_jpak = 1
       else
@@ -2384,33 +2379,14 @@ contains
 
       ilen = abs(e_iloc-b_iloc) + 1
       jlen = abs(e_jloc-b_jloc) + 1
-      
-      if ( ilen > 1 .and. jlen > 1 ) then
-         write(6,*) "ERROR: setglobalpack_v requires ibeg and iend to be on the same column or row"
-         call ccmpi_abort(-1)
-      end if   
-      
+            
       if ( jlen > ilen ) then
-         iq = jlen*((e_jpak-b_jpak)/s_jpak+1)
-         if ( iq > size(datain) ) then
-            write(6,*) "ERROR: setglobalpack_v length of datain is too small"
-            write(6,*) "iq,size(datain) ",iq,size(datain)
-            write(6,*) "b_jpak,e_jpak,s_jpak,jlen ",b_jpak,e_jpak,s_jpak,jlen
-            call ccmpi_abort(-1)
-         end if   
          iq = 0
          do c_jpak = b_jpak,e_jpak,s_jpak
             globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k) = datain(iq+1:iq+jlen)
             iq = iq + jlen
          end do
       else
-         iq = ilen*((e_ipak-b_ipak)/s_ipak+1)
-         if ( iq > size(datain) ) then
-            write(6,*) "ERROR: setglobalpack_v length of datain is too small"
-            write(6,*) "iq,size(datain) ",iq,size(datain)
-            write(6,*) "b_ipak,e_ipak,s_ipak,ilen ",b_ipak,e_ipak,s_ipak,ilen
-            call ccmpi_abort(-1)
-         end if    
          iq = 0
          do c_ipak = b_ipak,e_ipak,s_ipak
             globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k) = datain(iq+1:iq+ilen)
@@ -2454,12 +2430,7 @@ contains
       e_jpak = jm1/jpan
       e_iloc = im1 + 1 - e_ipak*ipan
       e_jloc = jm1 + 1 - e_jpak*jpan
-      
-      if ( b_n /= e_n ) then
-         write(6,*) "ERROR: getglobalpack_v requires ibeg and iend to belong to the same face"
-         call ccmpi_abort(-1)
-      end if
-      
+            
       if ( e_jpak >= b_jpak) then
          s_jpak = 1
       else
@@ -2483,33 +2454,14 @@ contains
 
       ilen = abs(e_iloc-b_iloc) + 1
       jlen = abs(e_jloc-b_jloc) + 1
-
-      if ( ilen > 1 .and. jlen > 1 ) then
-         write(6,*) "ERROR: getglobalpack_v requires ibeg and iend to be on the same column or row"
-         call ccmpi_abort(-1)
-      end if   
       
       if ( jlen > ilen ) then
-         iq = jlen*((e_jpak-b_jpak)/s_jpak+1)
-         if ( iq > size(dataout) ) then
-            write(6,*) "ERROR: getglobalpack_v length of dataout is too small"
-            write(6,*) "iq,size(dataout) ",iq,size(dataout)
-            write(6,*) "b_jpak,e_jpak,s_jpak,jlen ",b_jpak,e_jpak,s_jpak,jlen
-            call ccmpi_abort(-1)
-         end if   
          iq = 0
          do c_jpak = b_jpak,e_jpak,s_jpak
             dataout(iq+1:iq+jlen) = globalpack(b_ipak,c_jpak,b_n)%localdata(b_iloc,b_jloc:e_jloc:s_jloc,k)
             iq = iq + jlen
          end do
       else
-         iq = ilen*((e_ipak-b_ipak)/s_ipak+1)
-         if ( iq > size(dataout) ) then
-            write(6,*) "ERROR: getglobalpack_v length of dataout is too small"
-            write(6,*) "iq,size(dataout) ",iq,size(dataout)
-            write(6,*) "b_ipak,e_ipak,s_ipak,ilen ",b_ipak,e_ipak,s_ipak,ilen
-            call ccmpi_abort(-1)
-         end if    
          iq = 0
          do c_ipak = b_ipak,e_ipak,s_ipak
             dataout(iq+1:iq+ilen) = globalpack(c_ipak,b_jpak,b_n)%localdata(b_iloc:e_iloc:s_iloc,b_jloc,k)

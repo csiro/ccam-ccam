@@ -25,7 +25,7 @@ use aerosolldr             ! LDR prognostic aerosols
 use arrays_m               ! Atmosphere dyamics prognostic arrays
 use cc_mpi                 ! CC MPI routines
 use cc_omp                 ! CC OpenMP routines
-use cloudmod               ! Prognostic cloud fraction
+use cfrac_m                ! Cloud fraction
 use const_phys             ! Physical constants
 use diag_m                 ! Diagnostic routines
 use epst_m                 ! Off-centre terms

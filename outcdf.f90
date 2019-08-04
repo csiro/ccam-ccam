@@ -164,7 +164,6 @@ use cable_ccam, only : proglai           & ! CABLE
     ,POP_NCOHORT,ccycle                  &
     ,smrf_switch,strf_switch,POP_AGEMAX
 use cc_mpi                                 ! CC MPI routines
-use cloudmod                               ! Prognostic cloud fraction
 use dates_m                                ! Date data
 use filnames_m                             ! Filenames
 use infile                                 ! Input file routines
@@ -904,7 +903,6 @@ use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
 use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines
 use cfrac_m                                      ! Cloud fraction
-use cloudmod                                     ! Prognostic strat cloud
 use const_phys                                   ! Physical constants
 use dates_m                                      ! Date data
 use daviesnudge                                  ! Far-field nudging
