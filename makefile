@@ -14,17 +14,21 @@ MPIFLAG = -Dusempi3
 endif
 FHOST = -O3 -xHost
 FOVERRIDE =
+ZMM =
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
 FOVERRIDE =
+ZMM =
 endif
 ifeq ($(BROADWELL),yes)
 FHOST = -O3 -xCORE-AVX2
 FOVERRIDE =
+ZMM =
 endif
 ifeq ($(SKYLAKE),yes)
 FHOST = -O3 -xSKYLAKE-AVX512
 FOVERRIDE = -qoverride-limits
+ZMM = -qopt-zmm-usage=high
 endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
@@ -58,6 +62,7 @@ FHOST = -march=broadwell
 endif
 FFLAGS = -O2 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
+ZMM =
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
@@ -75,6 +80,7 @@ FCSCM = pgfortran
 FHOST = 
 FFLAGS = -O3 $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
+ZMM =
 PPFLAG90 = -cpp
 PPFLAG77 = -cpp
 PPFLAG90F = -cpp
@@ -89,6 +95,7 @@ FC = ftn
 FCSCM = ftn
 FFLAGS = -h noomp -Dusenc_mod
 FOVERRIDE =
+ZMM =
 PPFLAG90 = -eZ
 PPFLAG77 = -eZ
 PPFLAG90F = -eZ
@@ -284,6 +291,8 @@ POP.o: POP.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 helmsolve.o: helmsolve.f90
 	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
+ints.o: ints.f90
+	$(FC) -c $(PPFLAG90) $(FFLAGS) $(ZMM) $<
 mlodynamics.o: mlodynamics.f90
 	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
 stacklimit.o: stacklimit.c
