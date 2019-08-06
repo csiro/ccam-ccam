@@ -156,10 +156,10 @@ implicit none
       
 integer, intent(in) :: tile
 integer, dimension(ifull), intent(in) :: nits, nvadh_pass
-integer i, k, iq, kp, kx, js, je
+integer i, k, iq, iqq, kp, kx, js, je
 real, dimension(imax) :: tfact
 real, dimension(:,:), intent(inout) :: tarr
-real, dimension(imax) :: rat, phitvd, fluxhi, fluxlo
+real :: rat, phitvd, fluxhi, fluxlo
 real, dimension(imax,0:kl) :: delt, fluxh
 
 js = (tile-1)*imax + 1
@@ -180,17 +180,20 @@ delt(1:imax,kl)     = 0.     ! for T,u,v
 delt(1:imax,0)      = min(delt(1:imax,1), tarr(js:je,1))       ! for non-negative tt
 
 do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-  where ( sdot(js:je,k+1)>0. )
-    rat(1:imax) = delt(:imax,k-1)/(delt(1:imax,k)+sign(1.e-20,delt(1:imax,k)))
-    fluxlo(1:imax) = tarr(js:je,k)
-  elsewhere
-    rat(1:imax) = delt(1:imax,k+1)/(delt(1:imax,k)+sign(1.e-20,delt(1:imax,k)))
-    fluxlo(1:imax) = tarr(js:je,k+1)
-  end where
-  phitvd(1:imax) = max(0., min(2.*rat(1:imax),.5+.5*rat(1:imax), 2.))    ! 0 for -ve rat
-  ! higher order scheme
-  fluxhi(1:imax) = rathb(k)*tarr(js:je,k) + ratha(k)*tarr(js:je,k+1) - .5*delt(1:imax,k)*tfact(1:imax)*sdot(js:je,k+1)
-  fluxh(1:imax,k) = sdot(js:je,k+1)*(fluxlo(1:imax)+phitvd(1:imax)*(fluxhi(1:imax)-fluxlo(1:imax)))
+  do iq = 1,imax      
+    iqq = iq+js-1
+    if ( sdot(iqq,k+1)>0. ) then
+      rat = delt(iq,k-1)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+      fluxlo = tarr(iqq,k)
+    else
+      rat = delt(iq,k+1)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+      fluxlo = tarr(iqq,k+1)
+    end if
+    phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
+    ! higher order scheme
+    fluxhi = rathb(k)*tarr(iqq,k) + ratha(k)*tarr(iqq,k+1) - .5*delt(iq,k)*tfact(iq)*sdot(iqq,k+1)
+    fluxh(iq,k) = sdot(iqq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+  enddo
 enddo      ! k loop
 do k = 1,kl
   tarr(js:je,k) = tarr(js:je,k) + tfact(1:imax)*(fluxh(1:imax,k-1)-fluxh(1:imax,k)+tarr(js:je,k)*(sdot(js:je,k+1)-sdot(js:je,k)))
@@ -207,12 +210,12 @@ do iq = 1,imax
     do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
       kp = nint(sign(1.,sdot(iq+js-1,k+1)))
       kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-      rat(iq) = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-      fluxlo(iq) = tarr(iq+js-1,kx)
-      phitvd(iq) = max(0., min(2.*rat(iq), .5+.5*rat(iq), 2.))   ! 0 for -ve rat
+      rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+      fluxlo = tarr(iq+js-1,kx)
+      phitvd = max(0., min(2.*rat, .5+.5*rat, 2.))   ! 0 for -ve rat
       ! higher order scheme
-      fluxhi(iq) = rathb(k)*tarr(iq+js-1,k) + ratha(k)*tarr(iq+js-1,k+1) - .5*delt(iq,k)*tfact(iq)*sdot(iq+js-1,k+1)
-      fluxh(iq,k) = sdot(iq+js-1,k+1)*(fluxlo(iq)+phitvd(iq)*(fluxhi(iq)-fluxlo(iq)))
+      fluxhi = rathb(k)*tarr(iq+js-1,k) + ratha(k)*tarr(iq+js-1,k+1) - .5*delt(iq,k)*tfact(iq)*sdot(iq+js-1,k+1)
+      fluxh(iq,k) = sdot(iq+js-1,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
     end do ! k
     do k = 1,kl
       tarr(iq+js-1,k) = tarr(iq+js-1,k) &
