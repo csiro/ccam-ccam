@@ -2010,6 +2010,7 @@ lcdfid = cdfid
 ldim   = dim
 #ifdef usenc3
 ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+call ncmsg("def_var - "//trim(name),ier)
 #else
 if ( localhist .and. ndim>3 ) then
   ! MJT notes - PR identified (/il, jl, kl,vnode_nproc, min(10, tlen)/) as optimal.
@@ -2030,15 +2031,16 @@ if ( localhist .and. ndim>3 ) then
   ! for file IO.  However, file sizes can increase significantly without compression.
   lcompression = compression   
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+  call ncmsg("def_var - "//trim(name),ier)
   ier = nf90_def_var_deflate(lcdfid, idv, 1_4, 1_4, lcompression)
   ier = nf90_def_var_chunking(lcdfid, idv, NF90_CHUNKED, chunks )
 else
   lcompression = compression
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+  call ncmsg("def_var - "//trim(name),ier)
   ier = nf90_def_var_deflate(lcdfid, idv, 1_4, 1_4, lcompression)
 end if
 #endif
-call ncmsg("def_var - "//trim(name),ier)
 lsize = len_trim(lname)
 ier = nf90_put_att(lcdfid,idv,'long_name',lname)
 call ncmsg("long_name",ier)

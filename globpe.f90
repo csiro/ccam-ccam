@@ -65,7 +65,7 @@ use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
 use newmpar_m                              ! Grid parameters
-use nharrs_m, only : lrestart,phi          ! Non-hydrostatic atmosphere arrays
+use nharrs_m, only : lrestart              ! Non-hydrostatic atmosphere arrays
 use nlin_m                                 ! Atmosphere non-linear dynamics
 use outcdf                                 ! Output file routines
 use parm_m                                 ! Model configuration
@@ -109,10 +109,9 @@ integer mins_gmt, mspeca, mtimer_in
 integer nlx, nmaxprsav, n3hr
 integer nwtsav, mtimer_sav
 integer jyear, jmonth, jday, jhour, jmin, mins
-integer k150m, k250m
 real, dimension(:), allocatable, save :: spare1
 real, dimension(3) :: temparray, gtemparray
-real aa, bb, cc, xx
+real aa, bb, cc
 real hourst, hrs_dt, evapavge, precavge
 real pwatr, bb_2, cc_2, rat
 logical oxidant_update
@@ -806,28 +805,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
       rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
     end do
     rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
-    ! special output for wind farms
-    do iq = js,je
-      do k = 1,kl-1  
-        if ( phi(iq,k)/grav<150. ) then
-          k150m = k
-        end if
-        if ( phi(iq,k)/grav<250. ) then
-          k250m = k
-        else
-          exit
-        end if
-      end do
-      xx = (150.*grav-phi(iq,k150m))/(phi(iq,k150m+1)-phi(iq,k150m))
-      ua150(iq) = u(iq,k150m)*(1.-xx) + u(iq,k150m+1)*xx
-      va150(iq) = v(iq,k150m)*(1.-xx) + v(iq,k150m+1)*xx      
-      xx = (250.*grav-phi(iq,k250m))/(phi(iq,k250m+1)-phi(iq,k250m))
-      ua250(iq) = u(iq,k250m)*(1.-xx) + u(iq,k250m+1)*xx
-      va250(iq) = v(iq,k250m)*(1.-xx) + v(iq,k250m+1)*xx
-    end do  
   end do  
 !$omp end do nowait
-
+  call update_misc
+  
 !$omp end parallel
 
 
@@ -2996,7 +2977,7 @@ if ( myid<nproc ) then
   call histave_init(ifull,kl,ms,ccycle)
   call kuocomb_init(ifull,kl)
   call liqwpar_init(ifull,iextra,kl)
-  call morepbl_init(ifull)
+  call morepbl_init(ifull,diaglevel_pbl)
   call nharrs_init(ifull,iextra,kl)
   call nlin_init(ifull,kl)
   call nsibd_init(ifull,nsib,cable_climate)
@@ -4214,7 +4195,56 @@ if ( mod(ktau,nmaxpr)==0 .or. ktau==ntau ) then
 endif                  ! (mod(ktau,nmaxpr)==0)
 
 return
-end subroutine write_diagnostics
+    end subroutine write_diagnostics
+    
+!--------------------------------------------------------------------
+! Update misc diagnostics
+    
+subroutine update_misc
+
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use cc_omp                            ! CC OpenMP routines
+use const_phys                        ! Physical constants
+use morepbl_m                         ! Additional boundary layer diagnostics
+use newmpar_m                         ! Grid parameters
+use nharrs_m                          ! Non-hydrostatic atmosphere arrays
+use parm_m                            ! Model configuration
+
+implicit none
+
+integer tile, js, je, iq, k, k250m, k150m
+real xx
+
+! special output for wind farms
+if ( diaglevel_pbl>5 ) then
+!$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    do iq = js,je
+      do k = 1,kl-1  
+        if ( (phi(iq,k)-zs(iq))/grav<150. ) then
+          k150m = k
+        end if
+        if ( (phi(iq,k)-zs(iq))/grav<250. ) then
+          k250m = k
+        else
+          exit
+        end if
+      end do
+      xx = (150.*grav-phi(iq,k150m)+zs(iq))/(phi(iq,k150m+1)-phi(iq,k150m))
+      ua150(iq) = u(iq,k150m)*(1.-xx) + u(iq,k150m+1)*xx
+      va150(iq) = v(iq,k150m)*(1.-xx) + v(iq,k150m+1)*xx      
+      xx = (250.*grav-phi(iq,k250m)+zs(iq))/(phi(iq,k250m+1)-phi(iq,k250m))
+      ua250(iq) = u(iq,k250m)*(1.-xx) + u(iq,k250m+1)*xx
+      va250(iq) = v(iq,k250m)*(1.-xx) + v(iq,k250m+1)*xx
+    end do  
+  end do  
+!$omp end do nowait
+end if ! diaglevel_pbl>5
+
+return
+end subroutine update_misc
     
 !-------------------------------------------------------------------- 
 ! Check for NaN errors

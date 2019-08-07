@@ -60,7 +60,7 @@ contains
 #ifdef scm
 subroutine morepbl_init(ifull,kl)
 #else
-subroutine morepbl_init(ifull)
+subroutine morepbl_init(ifull,diaglevel_pbl)
 #endif
 
 implicit none
@@ -68,7 +68,7 @@ implicit none
 #ifdef scm
 integer, intent(in) :: ifull, kl
 #else
-integer, intent(in) :: ifull
+integer, intent(in) :: ifull, diaglevel_pbl
 #endif
 
 allocate( condx(ifull), fg(ifull), eg(ifull), epot(ifull) )
@@ -78,7 +78,6 @@ allocate( anthropogenic_flux(ifull), urban_tas(ifull), urban_ts(ifull), urban_we
 allocate( urban_storage_flux(ifull), urban_elecgas_flux(ifull) )
 allocate( urban_heating_flux(ifull), urban_cooling_flux(ifull) )
 allocate( urban_zom(ifull), urban_zoh(ifull), urban_zoq(ifull), urban_emiss(ifull) )
-allocate( ua150(ifull), va150(ifull), ua250(ifull), va250(ifull) )
 
 fg=0.
 eg=0.
@@ -103,10 +102,6 @@ urban_zom          = 0.
 urban_zoh          = 0.
 urban_zoq          = 0.
 urban_emiss        = 0.
-ua150              = 0.
-va150              = 0.
-ua250              = 0.
-va250              = 0.
 
 #ifdef scm
 allocate( wth_flux(ifull,kl), wq_flux(ifull,kl) )
@@ -127,6 +122,14 @@ rkhsave=0.
 buoyproduction=0.
 shearproduction=0.
 totaltransport=0.
+#else
+if ( diaglevel_pbl>5 ) then
+  allocate( ua150(ifull), va150(ifull), ua250(ifull), va250(ifull) )
+  ua150 = 0.
+  va150 = 0.
+  ua250 = 0.
+  va250 = 0.
+end if
 #endif
 
 return
@@ -149,6 +152,8 @@ deallocate( tkesave, epssave, mfsave )
 deallocate( rkmsave, rkhsave )
 deallocate( buoyproduction, shearproduction )
 deallocate( totaltransport )
+#else
+deallocate( ua150, va150, ua250, va250 )
 #endif
 
 return

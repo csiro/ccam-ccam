@@ -3285,6 +3285,7 @@ subroutine freqfile
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use dates_m                           ! Date data
+use extraout_m                        ! Additional diagnostics
 use filnames_m                        ! Filenames
 use histave_m                         ! Time average arrays
 use infile                            ! Input file routines
@@ -3304,7 +3305,7 @@ implicit none
 
 include 'kuocom.h'                    ! Convection parameters
 
-integer, parameter :: freqvars = 21  ! number of variables to write
+integer, parameter :: freqvars = 22  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
@@ -3580,10 +3581,12 @@ if ( first ) then
       lname='y-component 150m wind'     
       call attrib(fncid,sdim,ssize,'va150',lname,'m/s',-130.,130.,0,1)
       lname='x-component 250m wind'
-      call attrib(fncid,sdim,ssize,'ua150',lname,'m/s',-130.,130.,0,1)
+      call attrib(fncid,sdim,ssize,'ua250',lname,'m/s',-130.,130.,0,1)
       lname='y-component 250m wind'     
-      call attrib(fncid,sdim,ssize,'va150',lname,'m/s',-130.,130.,0,1)
+      call attrib(fncid,sdim,ssize,'va250',lname,'m/s',-130.,130.,0,1)
     end if
+    lname = 'Total cloud ave'
+    call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -3689,7 +3692,7 @@ if ( first ) then
 end if
 
 ! store output
-umag = sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
+umag = sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)
 call mslp(pmsl,psl,zs,t)
 freqstore(1:ifull,1)  = u10*u(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,2)  = u10*v(1:ifull,1)/max(umag,1.E-6)
@@ -3712,6 +3715,7 @@ freqstore(1:ifull,18) = ua150
 freqstore(1:ifull,19) = va150
 freqstore(1:ifull,20) = ua250
 freqstore(1:ifull,21) = va250
+freqstore(1:ifull,22) = cloudtot
 
 ! write data to file
 if ( mod(ktau,tbave)==0 ) then
@@ -3752,6 +3756,7 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(freqstore(:,20),"ua250",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,21),"va250",fncid,fiarch,local,.true.)      
   end if
+  call histwrt(freqstore(:,22),"cld",fncid,fiarch,local,.true.)
   
   freqstore(:,:) = 0.
 
