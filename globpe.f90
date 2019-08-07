@@ -65,7 +65,7 @@ use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
 use newmpar_m                              ! Grid parameters
-use nharrs_m, only : lrestart              ! Non-hydrostatic atmosphere arrays
+use nharrs_m, only : lrestart,phi          ! Non-hydrostatic atmosphere arrays
 use nlin_m                                 ! Atmosphere non-linear dynamics
 use outcdf                                 ! Output file routines
 use parm_m                                 ! Model configuration
@@ -109,9 +109,10 @@ integer mins_gmt, mspeca, mtimer_in
 integer nlx, nmaxprsav, n3hr
 integer nwtsav, mtimer_sav
 integer jyear, jmonth, jday, jhour, jmin, mins
+integer k150m, k250m
 real, dimension(:), allocatable, save :: spare1
 real, dimension(3) :: temparray, gtemparray
-real aa, bb, cc 
+real aa, bb, cc, xx
 real hourst, hrs_dt, evapavge, precavge
 real pwatr, bb_2, cc_2, rat
 logical oxidant_update
@@ -754,6 +755,15 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( ntsur>=1 ) then
     call vertmix
   endif  ! (ntsur>=1)
+  if ( ncloud>=4 ) then
+!$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      nettend(js:je,1:kl) = nettend(js:je,1:kl) - t(js:je,1:kl)/dt
+    end do
+!$omp end do nowait
+  end if   ! (ncloud>=4)
 !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -796,6 +806,25 @@ do ktau = 1,ntau   ! ****** start of main time loop
       rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
     end do
     rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+    ! special output for wind farms
+    do iq = js,je
+      do k = 1,kl-1  
+        if ( phi(iq,k)/grav<150. ) then
+          k150m = k
+        end if
+        if ( phi(iq,k)/grav<250. ) then
+          k250m = k
+        else
+          exit
+        end if
+      end do
+      xx = (150.*grav-phi(iq,k150m))/(phi(iq,k150m+1)-phi(iq,k150m))
+      ua150(iq) = u(iq,k150m)*(1.-xx) + u(iq,k150m+1)*xx
+      va150(iq) = v(iq,k150m)*(1.-xx) + v(iq,k150m+1)*xx      
+      xx = (250.*grav-phi(iq,k250m))/(phi(iq,k250m+1)-phi(iq,k250m))
+      ua250(iq) = u(iq,k250m)*(1.-xx) + u(iq,k250m+1)*xx
+      va250(iq) = v(iq,k250m)*(1.-xx) + v(iq,k250m+1)*xx
+    end do  
   end do  
 !$omp end do nowait
 
@@ -1383,7 +1412,7 @@ integer isoth, nsig, lapsbot
 integer secs_rad, nversion
 integer mstn, io_nest, mbd_min
 integer opt, nopt
-integer npa, npb, mlomfix, tkecduv ! depreciated namelist options
+integer npa, npb, mlomfix, tkecduv, tblock ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -1464,9 +1493,9 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     rcm,                                                          &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
 ! boundary layer turbulence and gravity wave namelist
-namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & ! EDMF PBL scheme
-    m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
-    stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,mfbeta,zimax,    &
+namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
+    dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
+    stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,zimax,             &
     amxlsq,                                                       & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
     tkecduv                                                         ! depreciated
@@ -1558,7 +1587,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(117) ) 
+allocate( dumr(33), dumi(116) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1674,45 +1703,44 @@ if ( myid==0 ) then
   dumi(76)  = io_nest
   dumi(77)  = io_out
   dumi(78)  = io_rest
-  dumi(79)  = tblock
-  dumi(80)  = tbave
-  if ( localhist) dumi(81) = 1
-  if ( unlimitedhist ) dumi(82) = 1
-  if ( synchist ) dumi(83) = 1
-  dumi(84)  = m_fly
-  dumi(85)  = nurban
-  dumi(86)  = ktopdav
-  dumi(87)  = mbd_mlo
-  dumi(88)  = mbd_maxscale_mlo
-  dumi(89)  = nud_sst
-  dumi(90)  = nud_sss
-  dumi(91)  = mfix_tr
-  dumi(92)  = mfix_aero
-  dumi(93)  = kbotmlo
-  dumi(94)  = ktopmlo
-  dumi(95)  = mloalpha
-  dumi(96)  = nud_ouv
-  dumi(97)  = nud_sfh
-  dumi(98)  = rescrn
-  dumi(99) = helmmeth
-  dumi(100) = nmlo
-  dumi(101) = ol
-  dumi(102) = knh
-  dumi(103) = kblock
-  dumi(104) = nud_aero
-  dumi(105) = nriver
-  dumi(106) = atebnmlfile
-  dumi(107) = nud_period
-  dumi(108) = procmode
-  dumi(109) = compression
-  dumi(110) = nmr
-  dumi(111) = maxtilesize
-  dumi(112) = mfix_t
-  dumi(113) = ensemble_mode
-  dumi(114) = ensemble_period
-  dumi(115) = hp_output
-  dumi(116) = intsch_mode
-  dumi(117) = qg_fix
+  dumi(79)  = tbave
+  if ( localhist) dumi(80) = 1
+  if ( unlimitedhist ) dumi(81) = 1
+  if ( synchist ) dumi(82) = 1
+  dumi(83)  = m_fly
+  dumi(84)  = nurban
+  dumi(85)  = ktopdav
+  dumi(86)  = mbd_mlo
+  dumi(87)  = mbd_maxscale_mlo
+  dumi(88)  = nud_sst
+  dumi(89)  = nud_sss
+  dumi(90)  = mfix_tr
+  dumi(91)  = mfix_aero
+  dumi(92)  = kbotmlo
+  dumi(93)  = ktopmlo
+  dumi(94)  = mloalpha
+  dumi(95)  = nud_ouv
+  dumi(96)  = nud_sfh
+  dumi(97)  = rescrn
+  dumi(98) = helmmeth
+  dumi(99) = nmlo
+  dumi(100) = ol
+  dumi(101) = knh
+  dumi(102) = kblock
+  dumi(103) = nud_aero
+  dumi(104) = nriver
+  dumi(105) = atebnmlfile
+  dumi(106) = nud_period
+  dumi(107) = procmode
+  dumi(108) = compression
+  dumi(109) = nmr
+  dumi(110) = maxtilesize
+  dumi(111) = mfix_t
+  dumi(112) = ensemble_mode
+  dumi(113) = ensemble_period
+  dumi(114) = hp_output
+  dumi(115) = intsch_mode
+  dumi(116) = qg_fix
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1827,45 +1855,44 @@ io_in             = dumi(75)
 io_nest           = dumi(76)
 io_out            = dumi(77)
 io_rest           = dumi(78)
-tblock            = dumi(79)
-tbave             = dumi(80)
-localhist         = dumi(81)==1
-unlimitedhist     = dumi(82)==1
-synchist          = dumi(83)==1
-m_fly             = dumi(84)
-nurban            = dumi(85)
-ktopdav           = dumi(86)
-mbd_mlo           = dumi(87)
-mbd_maxscale_mlo  = dumi(88)
-nud_sst           = dumi(89)
-nud_sss           = dumi(90)
-mfix_tr           = dumi(91)
-mfix_aero         = dumi(92)
-kbotmlo           = dumi(93)
-ktopmlo           = dumi(94)
-mloalpha          = dumi(95)
-nud_ouv           = dumi(96)
-nud_sfh           = dumi(97)
-rescrn            = dumi(98)
-helmmeth          = dumi(99)
-nmlo              = dumi(100)
-ol                = dumi(101)
-knh               = dumi(102)
-kblock            = dumi(103)
-nud_aero          = dumi(104)
-nriver            = dumi(105)
-atebnmlfile       = dumi(106)
-nud_period        = dumi(107)
-procmode          = dumi(108)
-compression       = dumi(109)
-nmr               = dumi(110)
-maxtilesize       = dumi(111)
-mfix_t            = dumi(112)
-ensemble_mode     = dumi(113)
-ensemble_period   = dumi(114)
-hp_output         = dumi(115)
-intsch_mode       = dumi(116)
-qg_fix            = dumi(117)
+tbave             = dumi(79)
+localhist         = dumi(80)==1
+unlimitedhist     = dumi(81)==1
+synchist          = dumi(82)==1
+m_fly             = dumi(83)
+nurban            = dumi(84)
+ktopdav           = dumi(85)
+mbd_mlo           = dumi(86)
+mbd_maxscale_mlo  = dumi(87)
+nud_sst           = dumi(88)
+nud_sss           = dumi(89)
+mfix_tr           = dumi(90)
+mfix_aero         = dumi(91)
+kbotmlo           = dumi(92)
+ktopmlo           = dumi(93)
+mloalpha          = dumi(94)
+nud_ouv           = dumi(95)
+nud_sfh           = dumi(96)
+rescrn            = dumi(97)
+helmmeth          = dumi(98)
+nmlo              = dumi(99)
+ol                = dumi(100)
+knh               = dumi(101)
+kblock            = dumi(102)
+nud_aero          = dumi(103)
+nriver            = dumi(104)
+atebnmlfile       = dumi(105)
+nud_period        = dumi(106)
+procmode          = dumi(107)
+compression       = dumi(108)
+nmr               = dumi(109)
+maxtilesize       = dumi(110)
+mfix_t            = dumi(111)
+ensemble_mode     = dumi(112)
+ensemble_period   = dumi(113)
+hp_output         = dumi(114)
+intsch_mode       = dumi(115)
+qg_fix            = dumi(116)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -2125,7 +2152,7 @@ nclddia        = dumi(19)
 nmr            = dumi(20)
 nevapls        = dumi(21)
 deallocate( dumr, dumi )
-allocate( dumr(31), dumi(4) )
+allocate( dumr(29), dumi(4) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2141,7 +2168,7 @@ if ( myid==0 ) then
   dumr(4)  = ce1
   dumr(5)  = ce2
   dumr(6)  = ce3
-  dumr(7)  = cq
+  dumr(7)  = cqmix
   dumr(8)  = ent0
   dumr(9)  = ent1
   dumr(10) = entc0
@@ -2154,17 +2181,16 @@ if ( myid==0 ) then
   dumr(17) = mineps
   dumr(18) = minl
   dumr(19) = maxl
-  dumr(20) = tke_umin
-  dumr(21) = qcmf
-  dumr(22) = ezmin
-  dumr(23) = amxlsq
-  dumr(25) = helim
-  dumr(26) = fc2
-  dumr(27) = sigbot_gwd
-  dumr(28) = alphaj
-  dumr(29) = ent_min
-  dumr(30) = mfbeta
-  dumr(31) = zimax
+  dumr(20) = qcmf
+  dumr(21) = ezmin
+  dumr(22) = amxlsq
+  dumr(23) = helim
+  dumr(24) = fc2
+  dumr(25) = sigbot_gwd
+  dumr(26) = alphaj
+  dumr(27) = ent_min
+  dumr(28) = mfbeta
+  dumr(29) = zimax
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
@@ -2178,7 +2204,7 @@ ce0        = dumr(3)
 ce1        = dumr(4)
 ce2        = dumr(5)
 ce3        = dumr(6)
-cq         = dumr(7)
+cqmix      = dumr(7)
 ent0       = dumr(8)
 ent1       = dumr(9)
 entc0      = dumr(10)
@@ -2191,17 +2217,16 @@ mintke     = dumr(16)
 mineps     = dumr(17) 
 minl       = dumr(18)
 maxl       = dumr(19)
-tke_umin   = dumr(20)
-qcmf       = dumr(21)
-ezmin      = dumr(22)
-amxlsq     = dumr(23)
-helim      = dumr(25)
-fc2        = dumr(26)
-sigbot_gwd = dumr(27)
-alphaj     = dumr(28)
-ent_min    = dumr(29)
-mfbeta     = dumr(30)
-zimax      = dumr(31)
+qcmf       = dumr(20)
+ezmin      = dumr(21)
+amxlsq     = dumr(22)
+helim      = dumr(23)
+fc2        = dumr(24)
+sigbot_gwd = dumr(25)
+alphaj     = dumr(26)
+ent_min    = dumr(27)
+mfbeta     = dumr(28)
+zimax      = dumr(29)
 buoymeth   = dumi(1)
 stabmeth   = dumi(2)
 tkemeth    = dumi(3)
@@ -2469,7 +2494,6 @@ mindep   = max( 0., mindep )    ! limit ocean minimum depth below sea-level
 minwater = max( 0., minwater )  ! limit ocean minimum water level
 if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (no output in history file)
 if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (output in history file)
-tke_umin = vmodmin              ! minimum wind speed for surface fluxes
 
 
 !--------------------------------------------------------------
@@ -2715,16 +2739,16 @@ if ( myid<nproc ) then
     write(6,*)'Vertical mixing/physics options:'
     write(6,*)' nvmix nlocal ncvmix  lgwd' 
     write(6,'(i5,6i7)') nvmix,nlocal,ncvmix,lgwd
-    write(6,*)' be   cm0  ce0  ce1  ce2  ce3  cq'
-    write(6,'(7f5.2)') be,cm0,ce0,ce1,ce2,ce3,cq
+    write(6,*)' be   cm0  ce0  ce1  ce2  ce3  cqmix'
+    write(6,'(7f5.2)') be,cm0,ce0,ce1,ce2,ce3,cqmix
     write(6,*)' ent0  ent1  entc0  dtrc0   m0    b1    b2'
     write(6,'(7f6.2)') ent0,ent1,entc0,dtrc0,m0,b1,b2
     write(6,*)' buoymeth stabmeth maxdts qcmf'
     write(6,'(2i9,f8.2,g9.2)') buoymeth,stabmeth,maxdts,qcmf
     write(6,*)'  mintke   mineps     minl     maxl'
     write(6,'(4g9.2)') mintke,mineps,minl,maxl
-    write(6,*) ' tke_umin tkemeth ezmin ent_min'
-    write(6,'(f8.2,i5,2f8.2)') tke_umin,tkemeth,ezmin,ent_min
+    write(6,*) ' tkemeth ezmin ent_min'
+    write(6,'(i5,2f8.2)') tkemeth,ezmin,ent_min
     write(6,*) ' amxlsq'
     write(6,'(f8.2)') amxlsq
     write(6,*)'Gravity wave drag options:'
@@ -2840,18 +2864,17 @@ if ( myid<nproc ) then
     endif
   endif
   if ( surfile /= ' ' ) then
-    if ( tblock<=0 .or. tbave<=0 ) then
-      write(6,*) "ERROR: tblock and tbave must be greater than zero"
-      write(6,*) "tblock,tbave ",tblock,tbave
+    if ( tbave<=0 ) then
+      write(6,*) "ERROR: tbave must be greater than zero"
+      write(6,*) "tbave ",tbave
       call ccmpi_abort(-1)  
     end if
-    if ( mod(ntau, tblock*tbave)/=0 ) then
-      write(6,*) "ERROR: tblock*tave must be a factor of ntau"
-      write(6,*) "ntau,tblock,tbave ",ntau,tblock,tbave
+    if ( mod(ntau, tbave)/=0 ) then
+      write(6,*) "ERROR: tave must be a factor of ntau"
+      write(6,*) "ntau,tbave ",ntau,tbave
       call ccmpi_abort(-1)
     end if
   end if
-  tke_umin = vmodmin
 
 
   !--------------------------------------------------------------
@@ -3001,7 +3024,7 @@ if ( myid<nproc ) then
   call work3f_init(ifull,kl)
   call xarrs_init(ifull,iextra,kl)
   if ( nvmix==6 ) then
-    call tkeinit(ifull,iextra,kl,0)
+    call tkeinit(ifull,iextra,kl)
   end if
   if ( tracerlist/=' ' ) then
     call init_tracer

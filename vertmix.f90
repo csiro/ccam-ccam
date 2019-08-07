@@ -122,10 +122,12 @@ include 'kuocom.h'                  ! Convection parameters
 integer :: is, ie, tile, k
 integer :: idjd_t
 real, dimension(imax,kl,naero) :: lxtg
+real, dimension(ifull,kl) :: at_save, ct_save
 real, dimension(imax,kl) :: lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lcfrac, lu, lv, lstratcloud
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
 real, dimension(imax,kl) :: lat, lct
+real, dimension(ifull) :: uadj, vadj
 real, dimension(imax) :: lou, lov, liu, liv
 logical :: mydiag_t
 #ifdef scm
@@ -138,55 +140,11 @@ real, dimension(imax,numtracer) :: lco2em
 real, dimension(imax,kl,ntrac) :: ltr
 real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 #endif
-
-!$omp do schedule(static) private(is,ie,k),                                &
-!$omp private(lt,lqg,lqfg,lqlg),                                           &
-!$omp private(lcfrac,lstratcloud,lxtg,lu,lv,lsavu,lsavv,ltke,leps,lshear), &
-!$omp private(lou,lov,liu,liv,lat,lct,idjd_t,mydiag_t),                    &
-#ifdef scm
-!$omp private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave),      &
-!$omp private(lepssave,lrkmsave,lrkhsave,lbuoyproduction,),                &
-!$omp private(lshearproduction,ltotaltransport)
-#else
-!$omp private(ltr,lco2em,loh,lstrloss,ljmcf)
-#endif
-
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-
-  idjd_t = mod(idjd-1,imax)+1
-  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-  
-  lt        = t(is:ie,:)
-  lqg       = qg(is:ie,:)
-  lqfg      = qfg(is:ie,:)
-  lqlg      = qlg(is:ie,:)
-  lcfrac    = cfrac(is:ie,:)
-  lstratcloud = stratcloud(is:ie,:)
-  if ( abs(iaero)>=2 ) then
-    lxtg = xtg(is:ie,:,:)
-  end if
-  if ( nvmix==6 ) then
-    ltke   = tke(is:ie,:)
-    leps   = eps(is:ie,:)
-    lshear = shear(is:ie,:)
-  end if
-#ifdef scm
-  lwth_flux = wth_flux(is:ie,:)
-  lwq_flux  = wq_flux(is:ie,:)
-  luw_flux  = uw_flux(is:ie,:)
-  lvw_flux  = vw_flux(is:ie,:)
-  lmfsave   = mfsave(is:ie,:)
-  ltkesave  = tkesave(is:ie,:)
-  lepssave  = epssave(is:ie,:)
-  lbuoyproduction = buoyproduction
-  lshearproduction = shearproduction
-  ltotaltransport = totaltransport
-#endif
-
-  ! Adjustment for moving ocean surface
-  if ( nmlo/=0 ) then
+   
+if ( nmlo/=0 ) then
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
     lou = 0.
     lov = 0.
     liu = 0.
@@ -197,101 +155,244 @@ do tile = 1,ntiles
     call mloexpice(liv,10,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
     lou = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
     lov = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
-    do k = 1,kl
-      lu(:,k) = u(is:ie,k) - lou
-      lv(:,k) = v(is:ie,k) - lov
-      lsavu(:,k) = savu(is:ie,k) - lou
-      lsavv(:,k) = savv(is:ie,k) - lov
-    end do  
-  else
-    lu = u(is:ie,:)
-    lv = v(is:ie,:)
-    lsavu = savu(is:ie,:)
-    lsavv = savv(is:ie,:)
-  end if
+    uadj(is:ie) = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
+    vadj(is:ie) = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
+  end do
+else
+  uadj = 0.
+  vadj = 0.
+end if
+
+select case(nvmix)
+case(6)  
+    ! k-e + MF closure scheme
+    
+!$omp do schedule(static) private(is,ie,k),             &
+!$omp private(lt,lqg,lqfg,lqlg),                        &
+!$omp private(lstratcloud,lxtg,lu,lv,ltke,leps,lshear), &
+!$omp private(lat,lct,idjd_t,mydiag_t)
+!$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v) copyin(shear,uadj,vadj) copyout(at_save,ct_save)
+!$acc loop gang private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,ltke,leps,lshear,lat,lct,lu,lv)
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+
+      idjd_t = mod(idjd-1,imax)+1
+      mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
   
-  call vertmix_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),     &
-                    ps(is:ie),lqg,lqfg,lqlg,lstratcloud,                                                       &
-                    condc(is:ie),lcfrac,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),zo(is:ie),lsavu,lsavv,land(is:ie),  &
-                    tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),ltke,leps,lshear,  &
-                    lat,lct                                                                                    &
+      lt = t(is:ie,:)
+      lqg = qg(is:ie,:)
+      lqfg = qfg(is:ie,:)
+      lqlg = qlg(is:ie,:)
+      lstratcloud = stratcloud(is:ie,:)
+      if ( abs(iaero)>=2 ) then
+        lxtg = xtg(is:ie,:,:)
+      end if
+      ltke   = tke(is:ie,:)
+      leps   = eps(is:ie,:)
+      lshear = shear(is:ie,:)
 #ifdef scm
-                    ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave          &
-                    ,lbuoyproduction,lshearproduction,ltotaltransport                                          &
+#ifdef _OPENMP
+      write(6,*) "ERROR: scm requires OMP is disabled"
+      stop
 #endif
-                    ,idjd_t,mydiag_t)
-                    
-  t(is:ie,:)          = lt
-  qg(is:ie,:)         = lqg
-  qfg(is:ie,:)        = lqfg
-  qlg(is:ie,:)        = lqlg
-  stratcloud(is:ie,:) = lstratcloud
-  if ( abs(iaero)>=2 ) then
-    xtg(is:ie,:,:) = lxtg
-  end if
-  if ( nvmix==6 ) then
-    tke(is:ie,:) = ltke
-    eps(is:ie,:) = leps
-  end if
-  if ( ncloud>=4 ) then
-    nettend(is:ie,1:kl) = (nettend(is:ie,1:kl)-lt/dt)
-  endif
-  if ( nmlo/=0 ) then
-    do k = 1,kl  
-      u(is:ie,k) = lu(:,k) + lou
-      v(is:ie,k) = lv(:,k) + lov
-    end do  
-  else
-    u(is:ie,:) = lu
-    v(is:ie,:) = lv   
-  end if    
-#ifdef scm
-  rkmsave(is:ie,:) = lrkmsave
-  rkhsave(is:ie,:) = lrkhsave  
-  tkesave(is:ie,:) = ltkesave
-  epssave(is:ie,:) = lepssave
-  wth_flux(is:ie,:) = lwth_flux 
-  wq_flux(is:ie,:) = lwq_flux 
-  uw_flux(is:ie,:) = luw_flux 
-  vw_flux(is:ie,:) = lvw_flux 
-  mfsave(is:ie,:) = lmfsave 
-  buoyproduction(is:ie,:) = lbuoyproduction
-  shearproduction(is:ie,:) = lshearproduction
-  totaltransport(is:ie,:) = ltotaltransport
+      lwth_flux = wth_flux(is:ie,:)
+      lwq_flux  = wq_flux(is:ie,:)
+      luw_flux  = uw_flux(is:ie,:)
+      lvw_flux  = vw_flux(is:ie,:)
+      lmfsave   = mfsave(is:ie,:)
+      ltkesave  = tkesave(is:ie,:)
+      lepssave  = epssave(is:ie,:)
+      lbuoyproduction = buoyproduction
+      lshearproduction = shearproduction
+      ltotaltransport = totaltransport
 #endif
 
-#ifndef scm
-  if ( ngas>0 ) then
-    ltr      = tr(is:ie,:,:)
-    lco2em   = co2em(is:ie,:)
-    loh      = oh(is:ie,:)
-    lstrloss = strloss(is:ie,:)
-    ljmcf    = jmcf(is:ie,:)
+      ! Adjustment for moving ocean surface
+      do k = 1,kl
+        lu(:,k) = u(is:ie,k) - uadj(is:ie)
+        lv(:,k) = v(is:ie,k) - vadj(is:ie)
+      end do  
     
-    ! Tracers/
-    call tracervmix(lat,lct,lt,ps(is:ie),cdtq(is:ie),ltr,fnee(is:ie),fpn(is:ie),             &
-                    frp(is:ie),frs(is:ie),lco2em,loh,lstrloss,ljmcf,mcfdep(is:ie),tile,imax)
+      call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),convpsav(is:ie),                               &
+                       ps(is:ie),lqg,lqfg,lqlg,lstratcloud,                                                       &
+                       condc(is:ie),lxtg,cduv(is:ie),lu,lv,pblh(is:ie),zo(is:ie),land(is:ie),                     &
+                       tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),ltke,leps,lshear,  &
+                       lat,lct,                                                                                   &
+#ifdef scm
+                       lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave,          &
+                       lbuoyproduction,lshearproduction,ltotaltransport,                                          &
+#endif
+                       sig,dsig,sigmh,ratha,rathb,bet,betm,                                                       &
+                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix)      
+                       
+      t(is:ie,:)          = lt
+      qg(is:ie,:)         = lqg
+      qfg(is:ie,:)        = lqfg
+      qlg(is:ie,:)        = lqlg
+      stratcloud(is:ie,:) = lstratcloud
+      at_save(is:ie,:)    = lat
+      ct_save(is:ie,:)    = lct
+      if ( abs(iaero)>=2 ) then
+        xtg(is:ie,:,:) = lxtg
+      end if
+      tke(is:ie,:) = ltke
+      eps(is:ie,:) = leps
+      do k = 1,kl  
+        u(is:ie,k) = lu(:,k) + uadj(is:ie)
+        v(is:ie,k) = lv(:,k) + vadj(is:ie)
+      end do  
+#ifdef scm
+      rkmsave(is:ie,:) = lrkmsave
+      rkhsave(is:ie,:) = lrkhsave  
+      tkesave(is:ie,:) = ltkesave
+      epssave(is:ie,:) = lepssave
+      wth_flux(is:ie,:) = lwth_flux 
+      wq_flux(is:ie,:) = lwq_flux 
+      uw_flux(is:ie,:) = luw_flux 
+      vw_flux(is:ie,:) = lvw_flux 
+      mfsave(is:ie,:) = lmfsave 
+      buoyproduction(is:ie,:) = lbuoyproduction
+      shearproduction(is:ie,:) = lshearproduction
+      totaltransport(is:ie,:) = ltotaltransport
+#endif
+
+end do ! tile = 1,ntiles
+!$acc end parallel
+!$omp end do nowait
+
+  case default  
+      ! JLM's local Ri scheme
     
-    tr(is:ie,:,:) = ltr
-  end if   
+!$omp do schedule(static) private(is,ie,k),               &
+!$omp private(lt,lqg,lqfg,lqlg),                          &
+!$omp private(lcfrac,lstratcloud,lxtg,lu,lv,lsavu,lsavv), &
+!$omp private(lat,lct,idjd_t,mydiag_t)
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+
+      idjd_t = mod(idjd-1,imax)+1
+      mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+  
+      lt = t(is:ie,:)
+      lqg = qg(is:ie,:)
+      lqfg = qfg(is:ie,:)
+      lqlg = qlg(is:ie,:)
+      lcfrac = cfrac(is:ie,:)
+      lstratcloud = stratcloud(is:ie,:)
+      if ( abs(iaero)>=2 ) then
+        lxtg = xtg(is:ie,:,:)
+      end if
+#ifdef scm
+#ifdef _OPENMP
+      write(6,*) "ERROR: scm requires OMP is disabled"
+      stop
+#endif
+      lwth_flux = wth_flux(is:ie,:)
+      lwq_flux  = wq_flux(is:ie,:)
+      luw_flux  = uw_flux(is:ie,:)
+      lvw_flux  = vw_flux(is:ie,:)
+      lmfsave   = mfsave(is:ie,:)
+      ltkesave  = tkesave(is:ie,:)
+      lepssave  = epssave(is:ie,:)
+      lbuoyproduction = buoyproduction
+      lshearproduction = shearproduction
+      ltotaltransport = totaltransport
+#endif
+
+      ! Adjustment for moving ocean surface
+      do k = 1,kl
+        lu(:,k) = u(is:ie,k) - uadj(is:ie)
+        lv(:,k) = v(is:ie,k) - vadj(is:ie)
+        lsavu(:,k) = savu(is:ie,k) - uadj(is:ie)
+        lsavv(:,k) = savv(is:ie,k) - vadj(is:ie)
+      end do  
+    
+      call vertmix_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),     &
+                        ps(is:ie),lqg,lqfg,lqlg,lstratcloud,                                                       &
+                        condc(is:ie),lcfrac,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),zo(is:ie),lsavu,lsavv,land(is:ie),  &
+                        tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),                   &
+                        lat,lct,                                                                                   &
+#ifdef scm
+                        lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,lrkmsave,lrkhsave,                            &
+                        lbuoyproduction,lshearproduction,ltotaltransport,                                          &
+#endif
+                        idjd_t,mydiag_t)
+                        
+      t(is:ie,:)          = lt
+      qg(is:ie,:)         = lqg
+      qfg(is:ie,:)        = lqfg
+      qlg(is:ie,:)        = lqlg
+      stratcloud(is:ie,:) = lstratcloud
+      at_save(is:ie,:)    = lat
+      ct_save(is:ie,:)    = lct
+      if ( abs(iaero)>=2 ) then
+        xtg(is:ie,:,:) = lxtg
+      end if
+      do k = 1,kl  
+        u(is:ie,k) = lu(:,k) + uadj(is:ie)
+        v(is:ie,k) = lv(:,k) + vadj(is:ie)
+      end do  
+#ifdef scm
+      rkmsave(is:ie,:) = lrkmsave
+      rkhsave(is:ie,:) = lrkhsave  
+      wth_flux(is:ie,:) = lwth_flux 
+      wq_flux(is:ie,:) = lwq_flux 
+      uw_flux(is:ie,:) = luw_flux 
+      vw_flux(is:ie,:) = lvw_flux 
+      mfsave(is:ie,:) = lmfsave 
+      buoyproduction(is:ie,:) = lbuoyproduction
+      shearproduction(is:ie,:) = lshearproduction
+      totaltransport(is:ie,:) = ltotaltransport
 #endif
 
 end do ! tile = 1,ntiles
 !$omp end do nowait
 
+end select
+    
+
+#ifndef scm
+if ( ngas>0 ) then 
+!$omp do schedule(static) private(is,ie,k),  &
+!$omp private(lt,lat,lct,idjd_t,mydiag_t),   &
+!$omp private(ltr,lco2em,loh,lstrloss,ljmcf)
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+    idjd_t = mod(idjd-1,imax)+1
+    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+    ltr      = tr(is:ie,:,:)
+    lco2em   = co2em(is:ie,:)
+    loh      = oh(is:ie,:)
+    lstrloss = strloss(is:ie,:)
+    ljmcf    = jmcf(is:ie,:)
+    lat      = at_save(is:ie,:)
+    lct      = ct_save(is:ie,:)
+    lt       = t(is:ie,:)
+    ! Tracers
+    call tracervmix(lat,lct,lt,ps(is:ie),cdtq(is:ie),ltr,fnee(is:ie),fpn(is:ie),             &
+                    frp(is:ie),frs(is:ie),lco2em,loh,lstrloss,ljmcf,mcfdep(is:ie),tile,imax)
+    tr(is:ie,:,:) = ltr
+  end do ! tile = 1,ntiles
+!$omp end do nowait
+end if 
+#endif
+   
 return
 end subroutine vertmix
 
 !--------------------------------------------------------------
 ! Control subroutine for vertical mixing
 subroutine vertmix_work(t,em,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,stratcloud,condc,cfrac,          &
-                        xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear,   &
-                        at,ct                                                                              &
+                        xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,                 &
+                        at,ct,                                                                             &
 #ifdef scm
-                        ,wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave           &
-                        ,buoyproduction,shearproduction,totaltransport                                     &
+                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,rkmsave,rkhsave,                           &
+                        buoyproduction,shearproduction,totaltransport,                                     &
 #endif
-                        ,idjd,mydiag)
+                        idjd,mydiag)
 
 use aerosolldr, only : naero        ! LDR prognostic aerosols
 use cc_mpi, only : comm_world,       &
@@ -299,48 +400,62 @@ use cc_mpi, only : comm_world,       &
 use cc_omp                          ! CC OpenMP routines
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
+use estab, only : establ            ! Liquid saturation function
 use newmpar_m                       ! Grid parameters
 use parm_m, only : diag,ds,ktau,     &
     nvmix,dt,nlv,ia,ib,ja,jb,nmaxpr, &
-    iaero,nlocal,qgmin,av_vmod      ! Model configuration
+    iaero,nlocal,qgmin,av_vmod,      &
+    amxlsq                          ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
-use tkeeps, only : cq,tkemix        ! TKE-EPS boundary layer
+use soil_m, only : zmin             ! Soil and surface data
 
 implicit none
       
 include 'kuocom.h'                  ! Convection parameters
 
+integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
 integer, intent(in) :: idjd
 integer, dimension(imax), intent(in) :: kbsav, ktsav
+integer, dimension(imax) :: kbase,ktop
 integer, parameter :: ntest = 0
-integer k, nt
+integer k, nt, iq
+real, parameter :: lambda=0.45               ! coefficients for Louis scheme
+real, parameter :: vkar4=0.4                 ! coefficients for Louis scheme
+real, parameter :: bprmj=5.                  ! coefficients for Louis scheme
+real, parameter :: cmj=5.                    ! coefficients for Louis scheme
+real, parameter :: chj=2.6                   ! coefficients for Louis scheme
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
-real, dimension(imax,kl), intent(inout) :: tke, eps
 real, dimension(imax,kl), intent(out) :: at, ct
-real, dimension(imax,kl), intent(in) :: savu, savv, shear, cfrac
+real, dimension(imax,kl), intent(in) :: savu, savv, cfrac
 real, dimension(imax), intent(inout) :: pblh, ustar
 real, dimension(imax), intent(in) :: em, tss, eg, fg, convpsav, ps, condc
 real, dimension(imax), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs
-
-real rong, rlogs1, rlogs2, rlogh1, rlog12
-real delsig, conflux, condrag
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, guv, gt
 real, dimension(imax,kl) :: au, cu, zg
 real, dimension(imax,kl) :: uav, vav
 real, dimension(imax,kl) :: rkm, rkh
+real, dimension(imax,kl) :: qs, betatt, betaqt, delthet, ri, rk_shal, thee
+real, dimension(imax,kl) :: thebas
 real, dimension(imax,kl-1) :: tmnht
 real, dimension(imax) :: dz, dzr
-real, dimension(imax) :: rhos, dx
+real, dimension(imax) :: rhos
+real, dimension(imax) :: zhv, dvmod, dqtot, x, csq, sqmxl, fm, fh, theeb
+real, dimension(imax) :: sigsp
 real, dimension(kl) :: sighkap,sigkap,delons,delh
+real, dimension(kl) :: prcpv
+real rong, rlogs1, rlogs2, rlogh1, rlog12
+real delsig, conflux, condrag
+real w1, w2, pk, delta, es, dqsdt, betat, betaq, betac, qc, fice, al
+real denma, denha, esp, epart, tsp, qbas
 logical, intent(in) :: mydiag
 logical, dimension(imax), intent(in) :: land
 
 #ifdef scm
 real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
-real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave, epssave
+real, dimension(imax,kl), intent(inout) :: vw_flux
 real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax,kl), intent(inout) :: buoyproduction, shearproduction
 real, dimension(imax,kl), intent(inout) :: totaltransport
@@ -359,8 +474,10 @@ mfsave(:,:) = 0.
 tkesave(:,:) = -1. ! missing value
 #endif
 
-! estimate grid spacing for scale aware MF
-dx = ds/em(1:imax)
+w1=0.
+pk=0.
+rkm = 0.
+rkh = 0.
 
 ! Set-up potential temperature transforms
 rong = rdry/grav
@@ -403,439 +520,12 @@ do k = 2,kl-1
 end do      !  k loop
 zh(:,kl) = zh(:,kl-1) + t(1:imax,kl)*delh(kl)
 
-if ( nvmix/=6 ) then
-
-  !--------------------------------------------------------------
-  ! JLM's local Ri scheme
-
-  ! Calculate theta
-  do k = 1,kl
-    rhs(:,k) = t(1:imax,k)*sigkap(k)  ! rhs is theta here
-  enddo      !  k loop
+! Calculate theta
+do k = 1,kl
+  rhs(:,k) = t(1:imax,k)*sigkap(k)  ! rhs is theta here
+enddo      !  k loop
     
-  call vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,ntest,dx,                          &
-               t,u,v,savu,savv,qg,qlg,qfg,pblh,ps,cfrac,kbsav,ktsav,condc,land,tscrn,qgscrn, &
-               ustar,f,fg,eg,condx,zs                                                        &
-#ifdef scm
-               ,wth_flux,wq_flux                                                             &
-#endif
-               ,idjd,mydiag)
-
-  do k = 1,kl-1
-    delsig   = sig(k+1) - sig(k)
-    dz(:)    = -tmnht(:,k)*delons(k)  ! this is z(k+1)-z(k)
-    dzr(:)   = 1./dz(:)
-    guv(:,k) = rkm(:,k)*dt*delsig*dzr(:)**2
-    gt(:,k)  = rkh(:,k)*dt*delsig*dzr(:)**2
-  end do      ! k loop
-  guv(:,kl) = 0.
-  gt(:,kl)  = 0.
-
-  if ( diag .and. ntiles==1 ) then
-    call maxmin(rkh,'rk',ktau,.01,kl-1)
-    if ( mydiag ) then
-      write(6,*)'vertmix guv ',(guv(idjd,k),k=1,kl)
-      write(6,*)'vertmix gt ',(gt(idjd,k),k=1,kl)
-    end if
-    call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
-    call printa('tss ',tss,ktau,nlv,ia,ib,ja,jb,200.,1.)
-    call printa('eg  ',eg,ktau,nlv,ia,ib,ja,jb,0.,1.)
-    call printa('fg  ',fg,ktau,nlv,ia,ib,ja,jb,0.,1.)
-    call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
-  end if
-
-  if ( ncvmix>0 ) then  ! cumulus mixing of momentum - jlm version
-    do k = kuocb+1-ncvmix,kl-3
-      ! for no-conv-points, doing k=1-ncvmix,1 with convpsav=0.
-      !  1 below for ncvmix=2
-      where ( kbsav>0 .and. k>=kbsav+1-ncvmix .and. k<ktsav )
-        guv(:,k) = guv(:,k) - convpsav(:)*.5 ! with factor of .5
-      end where
-    enddo    ! k loop
-    if ( diag .and. mydiag ) then
-      write(6,*)'vertmix after conv; kb,kt,convp',kbsav(idjd),ktsav(idjd),convpsav(idjd)
-      write(6,*)'new guv',(guv(idjd,k),k=1,kl)
-    end if
-  end if      !   (ncvmix>0)
-
-  conflux = grav*dt/dsig(1)
-  condrag = grav*dt/(dsig(1)*rdry)
-  ! first do theta (then convert back to t)
-  at(:,1)  = 0.
-  ct(:,kl) = 0.
-
-  do k = 2,kl
-    at(:,k) = -gt(:,k-1)/dsig(k)
-  end do
-  do k = 1,kl-1
-    ct(:,k) = -gt(:,k)/dsig(k)
-  enddo    !  k loop
-  if ( ( diag .or. ntest==2 ) .and. mydiag ) then
-    write(6,*)'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)
-    write(6,*)'at ',(at(idjd,k),k=1,kl)
-    write(6,*)'ct ',(ct(idjd,k),k=1,kl)
-    write(6,*)'rhs ',(rhs(idjd,k),k=1,kl)
-  end if      ! (ntest==2)
-
-  !--------------------------------------------------------------
-  ! Temperature
-  if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
-  rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/ps(1:imax)
-  call trim(at,ct,rhs)   ! for t
-  if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
-  do k = 1,kl
-    t(1:imax,k) = rhs(:,k)/sigkap(k)
-  enddo    !  k loop
-  if ( diag ) then
-    if ( mydiag ) then
-      write(6,*)'vertmix eg,fg ',eg(idjd),fg(idjd)
-    end if
-    if ( ntiles==1 ) then
-      call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
-    end if  
-  end if
- 
-#ifdef scm
-  ! Save Km and Kh for output
-  rkmsave(:,:) = rkm(:,:)
-  rkhsave(:,:) = rkh(:,:)
-  ! counter-gradied included in pbldif.f90
-  wth_flux(:,1) = fg(:)*rdry*t(1:imax,1)/(ps(1:imax)*cp)
-  do k = 1,kl-1
-    wth_flux(:,k+1) = rkh(:,k)*(rhs(1:imax,k+1)-rhs(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
-  end do    
-#endif
-
-  !--------------------------------------------------------------
-  ! Moisture
-  rhs = qg(1:imax,:)
-  rhs(:,1) = rhs(:,1) - (conflux/hl)*eg/ps(1:imax)
-  ! could add extra sfce moisture flux term for crank-nicholson
-  call trim(at,ct,rhs)    ! for qg
-  qg(1:imax,:) = rhs
-  if ( diag .and. mydiag ) then
-    write(6,*)'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
-    write (6,"('qg ',9f7.3/(8x,9f7.3))") (1000.*qg(idjd,k),k=1,kl)
-  end if
-
-#ifdef scm  
-  ! counter-gradied included in pbldif.f90
-  wq_flux(:,1) = eg(:)*rdry*t(1:imax,1)/(ps(1:imax)*hl)
-  do k = 1,kl-1
-    wq_flux(:,k+1) = rkh(:,k)*(qg(1:imax,k+1)-qg(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
-  end do  
-#endif
-  
-  !--------------------------------------------------------------
-  ! Cloud microphysics terms
-  if ( ldr/=0 ) then
-    ! now do qfg
-    rhs=qfg(1:imax,:)
-    call trim(at,ct,rhs)
-    qfg(1:imax,:)=rhs
-    ! now do qlg
-    rhs=qlg(1:imax,:)
-    call trim(at,ct,rhs)
-    qlg(1:imax,:)=rhs
-    ! now do stratcloud
-    rhs = stratcloud(1:imax,:)
-    call trim(at,ct,rhs)
-    stratcloud(1:imax,:)=rhs
-  end if    ! (ldr/=0)
-  
-  !--------------------------------------------------------------
-  ! Aerosols
-  if ( abs(iaero)>=2 ) then
-    do nt = 1,naero
-      rhs(:,:) = xtg(1:imax,:,nt) ! Total grid-box
-      call trim(at,ct,rhs)
-      xtg(1:imax,:,nt) = max( rhs(:,:), 0. )
-    end do
-  end if ! (abs(iaero)>=2)
-
-  !--------------------------------------------------------------
-  ! Momentum terms
-  au(:,1) = cduv(:)*condrag/tss(:)
-  do k = 2,kl
-    au(:,k) = -guv(:,k-1)/dsig(k)
-  enddo    !  k loop
-  do k = 1,kl-1
-    cu(:,k) = -guv(:,k)/dsig(k)
-  enddo    !  k loop
-  cu(:,kl) = 0.
-  if ( ( diag .or. ntest==2 ) .and. mydiag ) then
-    write(6,*)'au ',(au(idjd,k),k=1,kl)
-    write(6,*)'cu ',(cu(idjd,k),k=1,kl)
-  end if      ! (ntest==2)
-
-  ! first do u
-  do k = 1,kl
-    rhs(:,k) = u(1:imax,k)
-  end do
-  call trim(au,cu,rhs)
-  do k = 1,kl
-    u(1:imax,k) = rhs(:,k)
-  end do
-  
-#ifdef scm
-  uw_flux(:,1) = -cduv(:)*u(1:imax,1)
-  do k = 1,kl-1
-    uw_flux(:,k+1) = rkm(:,k)*(u(1:imax,k+1)-u(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
-  end do
-#endif
-  
-  ! now do v; with properly unstaggered au,cu
-  do k = 1,kl
-    rhs(:,k) = v(1:imax,k)
-  end do
-  call trim(au,cu,rhs)    ! note now that au, cu unstaggered globpea
-  do k = 1,kl
-    v(1:imax,k) = rhs(:,k)
-  end do
-
-#ifdef scm
-  vw_flux(:,1) = -cduv(:)*v(1:imax,1)
-  do k = 1,kl-1
-    vw_flux(:,k+1) = rkm(:,k)*(v(1:imax,k+1)-v(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
-  end do
-#endif
-  
-  if ( ( diag .or. ntest>=1 ) .and. mydiag ) then
-    write(6,*)'after trim in vertmix '
-    write (6,"('thet',9f7.2/(8x,9f7.2))") (sigkap(k)*t(idjd,k),k=1,kl) 
-    write (6,"('t   ',9f7.2/(8x,9f7.2))") (t(idjd,k),k=1,kl) 
-    write (6,"('u   ',9f7.2/(8x,9f7.2))") (u(idjd,k),k=1,kl) 
-    write (6,"('v   ',9f7.2/(8x,9f7.2))") (v(idjd,k),k=1,kl) 
-    write(6,*)'cduv,cduv+1,cduvj+1,tss ',cduv(idjd),cduv(idjd+1),cduv(idjd+il),tss(idjd)
-    write (6,"('au ',9f7.3/(8x,9f7.3))") (au(idjd,k),k=1,kl) 
-    write (6,"('cu ',9f7.3/(8x,9f7.3))") (cu(idjd,k),k=1,kl) 
-  end if
-  if ( nmaxpr==1 .and. mydiag ) then
-    write (6,"('qg_vm ',9f7.3/(6x,9f7.3))") (1000.*qg(idjd,k),k=1,kl)
-  end if
-     
-else
-      
-  !-------------------------------------------------------------
-  ! k-e + MF closure scheme
-      
-  ! note ksc/=0 options are clobbered when nvmix=6
-  ! However, nvmix=6 with nlocal=7 supports its own shallow
-  ! convection options
-
-  ! calculate height on full levels
-  zg(:,1) = bet(1)*t(1:imax,1)/grav
-  zh(:,1) = t(1:imax,1)*delh(1)
-  do k = 2,kl-1
-    zg(:,k) = zg(:,k-1) + (bet(k)*t(1:imax,k)+betm(k)*t(1:imax,k-1))/grav
-    zh(:,k) = zh(:,k-1) + t(1:imax,k)*delh(k)
-  end do ! k  loop
-  zg(:,kl) = zg(:,kl-1) + (bet(kl)*t(1:imax,kl)+betm(kl)*t(1:imax,kl-1))/grav
-  zh(:,kl) = zh(:,kl-1) + t(1:imax,kl)*delh(kl)
-       
-  ! near surface air density (see sflux.f and cable_ccam2.f90)
-  rhos(1:imax) = ps(1:imax)/(rdry*tss(1:imax))
-    
-  ! transform to ocean reference frame and temp to theta
-  do k = 1,kl
-    rhs(:,k) = t(1:imax,k)*sigkap(k) ! theta
-  end do
-
-#ifdef scm
-  ! Evaluate EDMF scheme
-  select case(nlocal)
-    case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                  ustar,dt,qgmin,1,0,tke,eps,shear,dx,                                 &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,               &
-                  shearproduction,totaltransport,                                      &
-                  imax)
-      rkh = rkm
-    case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                  ustar,dt,qgmin,1,0,tke,eps,shear,dx,                                 &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,               &
-                  shearproduction,totaltransport,                                      &
-                  imax)
-      rkh = rkm
-      do k = 1,kl
-        uav(1:imax,k) = av_vmod*u(1:imax,k) + (1.-av_vmod)*savu(1:imax,k)
-        vav(1:imax,k) = av_vmod*v(1:imax,k) + (1.-av_vmod)*savv(1:imax,k)
-      end do
-      call pbldif(rkm,rkh,rhs,uav,vav,dx,                &
-                  t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac, &
-                  wth_flux,wq_flux)
-    case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                  ustar,dt,qgmin,0,0,tke,eps,shear,dx,                                 &
-                  wth_flux,wq_flux,uw_flux,vw_flux,mfout,buoyproduction,               &
-                  shearproduction,totaltransport,                                      &
-                  imax)
-      rkh = rkm
-    case DEFAULT
-      write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
-      call ccmpi_abort(-1)
-    end select
-#else
-  ! Evaluate EDMF scheme
-  select case(nlocal)
-    case(0) ! no counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                  ustar,dt,qgmin,1,0,tke,eps,shear,dx,                                 &
-                  imax) 
-      rkh = rkm
-    case(1,2,3,4,5,6) ! KCN counter gradient method
-      call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                  ustar,dt,qgmin,1,0,tke,eps,shear,dx,                                 &
-                  imax) 
-      rkh = rkm
-      do k = 1,kl
-        uav(1:imax,k) = av_vmod*u(1:imax,k) + (1.-av_vmod)*savu(1:imax,k)
-        vav(1:imax,k) = av_vmod*v(1:imax,k) + (1.-av_vmod)*savv(1:imax,k)
-      end do
-      call pbldif(rkm,rkh,rhs,uav,vav,dx,                &
-                  t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac)
-    case(7) ! mass-flux counter gradient
-      call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                  ustar,dt,qgmin,0,0,tke,eps,shear,dx,                                 &
-                  imax) 
-      rkh = rkm
-    case DEFAULT
-      write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
-      call ccmpi_abort(-1)
-    end select
-#endif
-  
-  ! transform winds back to Earth reference frame and theta to temp
-  do k = 1,kl
-    t(1:imax,k) = rhs(1:imax,k)/sigkap(k)
-  enddo    !  k loop
-
-#ifdef scm
-  ! save Km and Kh for output
-  rkmsave(:,:) = rkm(:,:)
-  rkhsave(:,:) = rkh(:,:)
-  tkesave(:,:) = tke(1:ifull,:)
-  epssave(:,:) = eps(1:ifull,:)
-  mfsave(:,:) = mfout(:,:)
-#endif
-
-  ! tracers
-  do k = 1,kl-1
-    delsig      =sig(k+1)-sig(k)
-    dz(1:imax)  =-tmnht(1:imax,k)*delons(k)  ! this is z(k+1)-z(k)
-    dzr(1:imax) =1./dz(1:imax)
-    gt(1:imax,k)=rkh(1:imax,k)*dt*delsig*dzr(1:imax)**2
-  end do      ! k loop
-  gt(:,kl)=0.
-  at(:,1) =0.
-  ct(:,kl)=0.
-  do k = 1,kl-1
-    at(1:imax,k+1)=-gt(1:imax,k)/dsig(k+1)  
-    ct(1:imax,k)=-gt(1:imax,k)/dsig(k)
-  end do
-  ! increase mixing to replace counter gradient term      
-  if ( nlocal>0 ) then
-    at=cq*at
-    ct=cq*ct
-  end if
-  
-  ! Aerosols
-  if ( abs(iaero)>=2 ) then
-    do nt = 1,naero
-      rhs(:,:) = xtg(1:imax,:,nt) ! Total grid-box
-      call trim(at,ct,rhs)
-      xtg(1:imax,:,nt) = max(rhs(:,:), 0.)
-    end do
-  end if ! (abs(iaero)>=2)  
-       
-end if ! nvmix/=6 ..else..
-      
-return
-end subroutine vertmix_work
-
-subroutine vertjlm(rkm,rkh,rhs,sigkap,sighkap,delons,zh,tmnht,ntest,dx,                          &
-                   t,u,v,savu,savv,qg,qlg,qfg,pblh,ps,cfrac,kbsav,ktsav,condc,land,tscrn,qgscrn, &
-                   ustar,f,fg,eg,condx,zs                                                        &
-#ifdef scm
-                   ,wth_flux,wq_flux                                                             &
-#endif
-                   ,idjd,mydiag)
-
-!use cc_mpi                          ! CC MPI routines
-use cc_omp                          ! CC OpenMP routines
-use const_phys                      ! Physical constants
-use diag_m                          ! Diagnostic routines
-use estab, only : establ            ! Liquid saturation function
-use newmpar_m                       ! Grid parameters
-use parm_m, only : diag,nmaxpr,     &
-    nvmix,av_vmod,amxlsq,dt,nlocal, &
-    ktau,nlv,ia,ib,ja,jb            ! Model configuration
-use sigs_m                          ! Atmosphere sigma levels
-use soil_m, only : zmin             ! Soil and surface data
-
-implicit none
-
-include 'kuocom.h'                  ! Convection parameters
-
-integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
-integer, intent(in) :: idjd, ntest
-logical, intent(in) :: mydiag
-integer iq,k
-integer, dimension(imax) :: kbase,ktop
-real, parameter :: lambda=0.45               ! coefficients for Louis scheme
-real, parameter :: vkar4=0.4                 ! coefficients for Louis scheme
-real, parameter :: bprmj=5.                  ! coefficients for Louis scheme
-real, parameter :: cmj=5.                    ! coefficients for Louis scheme
-real, parameter :: chj=2.6                   ! coefficients for Louis scheme
-real delta,es,pk,dqsdt,betat,betaq,betac,al,qc,fice
-real w1,w2
-real denma,denha,esp,epart,tsp,qbas
-real, dimension(imax,kl), intent(inout) :: rhs, rkm, rkh
-real, dimension(imax,kl), intent(in) :: zh
-real, dimension(imax,kl-1), intent(in) :: tmnht
-real, dimension(imax,kl) :: qs,betatt,betaqt,delthet
-real, dimension(imax,kl) :: uav,vav,ri,rk_shal
-real, dimension(imax,kl) :: thee,thebas
-real, dimension(imax), intent(in) :: dx
-real, dimension(imax) :: dz,dzr,dvmod,dqtot,x,zhv
-real, dimension(imax) :: csq,sqmxl,fm,fh,sigsp
-real, dimension(imax) :: theeb
-real, dimension(kl), intent(in) :: sigkap,sighkap,delons
-real, dimension(imax,kl), intent(in) :: t
-real, dimension(imax,kl), intent(in) :: u
-real, dimension(imax,kl), intent(in) :: v
-real, dimension(imax,kl), intent(in) :: savu
-real, dimension(imax,kl), intent(in) :: savv
-real, dimension(imax,kl), intent(inout) :: qg
-real, dimension(imax,kl), intent(in) :: qlg
-real, dimension(imax,kl), intent(in) :: qfg
-real, dimension(imax), intent(inout) :: pblh
-real, dimension(imax), intent(in) :: ps
-real, dimension(imax,kl), intent(in) :: cfrac
-integer, dimension(imax), intent(in) :: kbsav
-integer, dimension(imax), intent(in) :: ktsav
-real, dimension(imax), intent(in) :: condc
-logical, dimension(imax), intent(in) :: land
-real, dimension(imax), intent(in) :: tscrn
-real, dimension(imax), intent(in) :: qgscrn
-real, dimension(imax), intent(inout) :: ustar
-real, dimension(imax), intent(in) :: f
-real, dimension(imax), intent(in) :: eg
-real, dimension(imax), intent(in) :: fg
-real, dimension(imax), intent(in) :: condx
-real, dimension(imax), intent(in) :: zs
-real, dimension(kl) :: prcpv
-#ifdef scm
-real, dimension(imax,kl), intent(in) :: wth_flux
-real, dimension(imax,kl), intent(in) :: wq_flux
-#endif
-
-w1=0.
-pk=0.
 prcpv(1:kl) = sig(1:kl)**(-roncp)
-rkm = 0.
-rkh = 0.
 
 if ( nmaxpr==1 .and. mydiag ) then
   write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
@@ -1151,7 +841,7 @@ if(nmaxpr==1.and.mydiag)then
 endif
 
 if (nlocal/=0) then
-  call pbldif(rkm,rkh,rhs,uav,vav,dx,                &
+  call pbldif(rkm,rkh,rhs,uav,vav,                   &
               t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac  &
 #ifdef scm
               ,wth_flux,wq_flux                      &
@@ -1421,21 +1111,665 @@ if(ksc/=0.and.(ntest/=0.or.diag).and.nproc==1)then
   endif ! mydiag
 endif
 
+
+do k = 1,kl-1
+  delsig   = sig(k+1) - sig(k)
+  dz(:)    = -tmnht(:,k)*delons(k)  ! this is z(k+1)-z(k)
+  dzr(:)   = 1./dz(:)
+  guv(:,k) = rkm(:,k)*dt*delsig*dzr(:)**2
+  gt(:,k)  = rkh(:,k)*dt*delsig*dzr(:)**2
+end do      ! k loop
+guv(:,kl) = 0.
+gt(:,kl)  = 0.
+
+if ( diag .and. ntiles==1 ) then
+  call maxmin(rkh,'rk',ktau,.01,kl-1)
+  if ( mydiag ) then
+    write(6,*)'vertmix guv ',(guv(idjd,k),k=1,kl)
+    write(6,*)'vertmix gt ',(gt(idjd,k),k=1,kl)
+  end if
+  call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
+  call printa('tss ',tss,ktau,nlv,ia,ib,ja,jb,200.,1.)
+  call printa('eg  ',eg,ktau,nlv,ia,ib,ja,jb,0.,1.)
+  call printa('fg  ',fg,ktau,nlv,ia,ib,ja,jb,0.,1.)
+  call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
+end if
+
+if ( ncvmix>0 ) then  ! cumulus mixing of momentum - jlm version
+  do k = kuocb+1-ncvmix,kl-3
+    ! for no-conv-points, doing k=1-ncvmix,1 with convpsav=0.
+    !  1 below for ncvmix=2
+    where ( kbsav>0 .and. k>=kbsav+1-ncvmix .and. k<ktsav )
+      guv(:,k) = guv(:,k) - convpsav(:)*.5 ! with factor of .5
+    end where
+  enddo    ! k loop
+  if ( diag .and. mydiag ) then
+    write(6,*)'vertmix after conv; kb,kt,convp',kbsav(idjd),ktsav(idjd),convpsav(idjd)
+    write(6,*)'new guv',(guv(idjd,k),k=1,kl)
+  end if
+end if      !   (ncvmix>0)
+
+conflux = grav*dt/dsig(1)
+condrag = grav*dt/(dsig(1)*rdry)
+! first do theta (then convert back to t)
+at(:,1)  = 0.
+ct(:,kl) = 0.
+
+do k = 2,kl
+  at(:,k) = -gt(:,k-1)/dsig(k)
+end do
+do k = 1,kl-1
+  ct(:,k) = -gt(:,k)/dsig(k)
+enddo    !  k loop
+if ( ( diag .or. ntest==2 ) .and. mydiag ) then
+  write(6,*)'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)
+  write(6,*)'at ',(at(idjd,k),k=1,kl)
+  write(6,*)'ct ',(ct(idjd,k),k=1,kl)
+  write(6,*)'rhs ',(rhs(idjd,k),k=1,kl)
+end if      ! (ntest==2)
+
+!--------------------------------------------------------------
+! Temperature
+if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
+rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/ps(1:imax)
+call trim(at,ct,rhs)   ! for t
+if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
+do k = 1,kl
+  t(1:imax,k) = rhs(:,k)/sigkap(k)
+enddo    !  k loop
+if ( diag ) then
+  if ( mydiag ) then
+    write(6,*)'vertmix eg,fg ',eg(idjd),fg(idjd)
+  end if
+  if ( ntiles==1 ) then
+    call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
+  end if  
+end if
+ 
+#ifdef scm
+! Save Km and Kh for output
+rkmsave(:,:) = rkm(:,:)
+rkhsave(:,:) = rkh(:,:)
+! counter-gradied included in pbldif.f90
+wth_flux(:,1) = fg(:)*rdry*t(1:imax,1)/(ps(1:imax)*cp)
+do k = 1,kl-1
+  wth_flux(:,k+1) = rkh(:,k)*(rhs(1:imax,k+1)-rhs(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
+end do    
+#endif
+
+!--------------------------------------------------------------
+! Moisture
+rhs = qg(1:imax,:)
+rhs(:,1) = rhs(:,1) - (conflux/hl)*eg/ps(1:imax)
+! could add extra sfce moisture flux term for crank-nicholson
+call trim(at,ct,rhs)    ! for qg
+qg(1:imax,:) = rhs
+if ( diag .and. mydiag ) then
+  write(6,*)'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
+  write (6,"('qg ',9f7.3/(8x,9f7.3))") (1000.*qg(idjd,k),k=1,kl)
+end if
+
+#ifdef scm  
+! counter-gradied included in pbldif.f90
+wq_flux(:,1) = eg(:)*rdry*t(1:imax,1)/(ps(1:imax)*hl)
+do k = 1,kl-1
+  wq_flux(:,k+1) = rkh(:,k)*(qg(1:imax,k+1)-qg(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
+end do  
+#endif
+  
+!--------------------------------------------------------------
+! Cloud microphysics terms
+if ( ldr/=0 ) then
+  ! now do qfg
+  rhs=qfg(1:imax,:)
+  call trim(at,ct,rhs)
+  qfg(1:imax,:)=rhs
+  ! now do qlg
+  rhs=qlg(1:imax,:)
+  call trim(at,ct,rhs)
+  qlg(1:imax,:)=rhs
+  ! now do stratcloud
+  rhs = stratcloud(1:imax,:)
+  call trim(at,ct,rhs)
+  stratcloud(1:imax,:)=rhs
+end if    ! (ldr/=0)
+  
+!--------------------------------------------------------------
+! Aerosols
+if ( abs(iaero)>=2 ) then
+  do nt = 1,naero
+    rhs(:,:) = xtg(1:imax,:,nt) ! Total grid-box
+    call trim(at,ct,rhs)
+    xtg(1:imax,:,nt) = max( rhs(:,:), 0. )
+  end do
+end if ! (abs(iaero)>=2)
+
+!--------------------------------------------------------------
+! Momentum terms
+au(:,1) = cduv(:)*condrag/tss(:)
+do k = 2,kl
+  au(:,k) = -guv(:,k-1)/dsig(k)
+enddo    !  k loop
+do k = 1,kl-1
+  cu(:,k) = -guv(:,k)/dsig(k)
+enddo    !  k loop
+cu(:,kl) = 0.
+if ( ( diag .or. ntest==2 ) .and. mydiag ) then
+  write(6,*)'au ',(au(idjd,k),k=1,kl)
+  write(6,*)'cu ',(cu(idjd,k),k=1,kl)
+end if      ! (ntest==2)
+
+! first do u
+do k = 1,kl
+  rhs(:,k) = u(1:imax,k)
+end do
+call trim(au,cu,rhs)
+do k = 1,kl
+  u(1:imax,k) = rhs(:,k)
+end do
+  
+#ifdef scm
+uw_flux(:,1) = -cduv(:)*u(1:imax,1)
+do k = 1,kl-1
+  uw_flux(:,k+1) = rkm(:,k)*(u(1:imax,k+1)-u(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
+end do
+#endif
+  
+! now do v; with properly unstaggered au,cu
+do k = 1,kl
+  rhs(:,k) = v(1:imax,k)
+end do
+call trim(au,cu,rhs)    ! note now that au, cu unstaggered globpea
+do k = 1,kl
+  v(1:imax,k) = rhs(:,k)
+end do
+
+#ifdef scm
+vw_flux(:,1) = -cduv(:)*v(1:imax,1)
+do k = 1,kl-1
+  vw_flux(:,k+1) = rkm(:,k)*(v(1:imax,k+1)-v(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
+end do
+#endif
+  
+if ( ( diag .or. ntest>=1 ) .and. mydiag ) then
+  write(6,*)'after trim in vertmix '
+  write (6,"('thet',9f7.2/(8x,9f7.2))") (sigkap(k)*t(idjd,k),k=1,kl) 
+  write (6,"('t   ',9f7.2/(8x,9f7.2))") (t(idjd,k),k=1,kl) 
+  write (6,"('u   ',9f7.2/(8x,9f7.2))") (u(idjd,k),k=1,kl) 
+  write (6,"('v   ',9f7.2/(8x,9f7.2))") (v(idjd,k),k=1,kl) 
+  write(6,*)'cduv,cduv+1,cduvj+1,tss ',cduv(idjd),cduv(idjd+1),cduv(idjd+il),tss(idjd)
+  write (6,"('au ',9f7.3/(8x,9f7.3))") (au(idjd,k),k=1,kl) 
+  write (6,"('cu ',9f7.3/(8x,9f7.3))") (cu(idjd,k),k=1,kl) 
+end if
+if ( nmaxpr==1 .and. mydiag ) then
+  write (6,"('qg_vm ',9f7.3/(6x,9f7.3))") (1000.*qg(idjd,k),k=1,kl)
+end if
+           
 return
-end subroutine vertjlm
+end subroutine vertmix_work
 
-subroutine trim(a,c,rhs)
+subroutine pbldif(rkm,rkh,theta,uav,vav,                &
+                  t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac &
+#ifdef scm
+                  ,wth_flux,wq_flux                     &
+#endif
+                  )
+!$acc routine vector     
 
+use cc_mpi, only : mydiag, myid
 use cc_omp
+use const_phys
 use newmpar_m
+use parm_m
+use sigs_m     !sig,sigmh
 
 implicit none
 
-integer k
-real, dimension(imax,kl), intent(in) :: a, c
-real, dimension(imax,kl), intent(inout) :: rhs
-real, dimension(imax,kl) :: e, g
-real, dimension(imax) :: b, temp
+include 'kuocom.h'
+
+integer, parameter :: ntest=0
+integer, parameter :: nrkmin=1   ! 1 original (& from 0510); 2 new; 3 newer
+integer, parameter :: npblmin=4  ! 1 original (best for Oz); 2 new ; 3,4 newer
+integer kmax,iq
+integer k                 ! level index
+integer, dimension(imax) :: iflag
+
+!------------------------------------------------------------------------
+! 
+! Atmospheric boundary layer computation.
+!
+! Nonlocal scheme that determines eddy diffusivities based on a
+! diagnosed boundary layer height and a turbulent velocity scale;
+! also, countergradient effects for heat and moisture, and constituents
+! are included, along with temperature and humidity perturbations which 
+! measure the strength of convective thermals in the lower part of the 
+! atmospheric boundary layer.
+!
+! For more information, see Holtslag, A.A.M., and B.A. Boville, 1993:
+! Local versus Nonlocal Boundary-Layer Diffusion in a Global Climate
+! Model. J. Clim., vol. 6., p. 1825--1842.
+!
+! Updated by Holtslag and Hack to exclude the surface layer from the
+! definition of the boundary layer Richardson number. Ri is now defined
+! across the outer layer of the pbl (between the top of the surface
+! layer and the pbl top) instead of the full pbl (between the surface and
+! the pbl top). For simplicity, the surface layer is assumed to be the
+! region below the first model level (otherwise the boundary layer depth 
+! determination would require iteration).
+!
+! NOTE that all calculation in this module is at temperature points (DARLAM)
+!------------------------------Code history--------------------------------
+!
+! Original version:  B. Boville
+! Standardized:      J. Rosinski, June 1992
+! Reviewed:          B. Boville, P. Rasch, August 1992
+! Reviewed:          B. Boville, P. Rasch, April 1996
+!
+! Modified for boundary layer height diagnosis: Bert Holtslag, june 1994
+! >>>>>>>>>  (Use ricr = 0.3 in this formulation)
+!
+!------------------------------Arguments--------------------------------
+!
+! Input arguments:u,v,fg,eg,theta,ustar,uav,vav
+      
+! Input & Output arguments
+real, dimension(imax,kl) :: rkm            ! eddy diffusivity for momentum [m2/s]
+real, dimension(imax,kl) :: rkh            ! eddy diffusivity for heat [m2/s]
+real, dimension(imax,kl) :: theta          ! potential temperature [K]
+!     also qg                              ! mixing ratio [kg/kg}
+
+real, dimension(imax,kl) :: cgh            ! counter-gradient term for heat [K/m]
+real, dimension(imax,kl) :: cgq            ! counter-gradient term for constituents
+real, dimension(imax,kl) :: zg
+real ztodtgor,delsig,tmp1,sigotbk,sigotbkm1
+real cgs                     ! counter-gradient star (cg/flux)
+real, dimension(imax,kl), intent(in) :: t
+real, dimension(imax), intent(inout) :: pblh
+real, dimension(imax), intent(inout) :: ustar
+real, dimension(imax), intent(in) :: f
+real, dimension(imax), intent(in) :: ps
+real, dimension(imax), intent(in) :: fg
+real, dimension(imax), intent(in) :: eg
+real, dimension(imax,kl), intent(inout) :: qg
+logical, dimension(imax), intent(in) :: land
+real, dimension(imax,kl), intent(in) :: cfrac
+#ifdef scm
+real, dimension(imax,kl), intent(inout) :: wth_flux
+real, dimension(imax,kl), intent(inout) :: wq_flux
+#endif
+!
+!---------------------------Local parameters----------------------------
+!
+real, parameter :: tiny=1.e-36             ! lower bound for wind magnitude
+!
+!---------------------------Local workspace-----------------------------
+!
+
+real, dimension(imax) :: heatv          ! surface virtual heat flux
+real, dimension(imax) :: thvref         ! reference level virtual temperature
+real, dimension(imax) :: phiminv        ! inverse phi function for momentum
+real, dimension(imax) :: phihinv        ! inverse phi function for heat 
+real, dimension(imax) :: wm             ! turbulent velocity scale for momentum
+real, dimension(imax) :: rkhfs          ! surface kinematic heat flux [mK/s]
+real, dimension(imax) :: rkqfs          ! sfc kinematic constituent flux [m/s]
+real, dimension(imax,kl) :: rino        ! bulk Richardson no. from level to ref lev
+real, dimension(imax) :: tlv            ! ref. level pot tmp + tmp excess
+real, dimension(imax) :: wstr           ! w*, convective velocity scale
+real, dimension(imax) :: obklen         ! Obukhov length
+real tkv                                ! model level potential temperature
+real therm                              ! thermal virtual temperature excess
+real pmid                               ! midpoint pressures
+real vvk                                ! velocity magnitude squared
+real zmzp                               ! level height halfway between zm and zp
+real fak1                               ! k*ustar*pblh
+real fak2                               ! k*wm*pblh
+real fak3                               ! fakn*wstr/wm 
+real pblk                               ! level eddy diffusivity for momentum
+real pr                                 ! Prandtl number for eddy diffusivities
+real zm                                 ! current level height
+real zp                                 ! current level height + one level up
+real zl                                 ! zmzp / Obukhov length
+real zh                                 ! zmzp / pblh      at half levels
+real zzh                                ! (1-(zmzp/pblh))**2      at half levels
+real rrho                               ! 1./bottom level density (temporary)
+real term                               ! intermediate calculation
+real fac                                ! interpolation factor
+
+!------------------------------Commons----------------------------------
+real, dimension(imax,kl) :: uav,vav
+
+real, parameter :: betam  = 15.0  ! Constant in wind gradient expression
+real, parameter :: betas  = 5.0   ! Constant in surface layer gradient expression
+real, parameter :: betah  = 15.0  ! Constant in temperature gradient expression
+real, parameter :: fak    = 8.5   ! Constant in surface temperature excess
+real, parameter :: fakn   = 7.2   ! Constant in turbulent prandtl number
+real, parameter :: ricr   = 0.25  ! Critical richardson number
+real, parameter :: sffrac = 0.1   ! Surface layer fraction of boundary layer
+real, parameter :: vk     = 0.4   ! Von Karman's constant
+real, parameter :: mfbeta = 0.    ! Horizontal scale constant (usual is 0.15)
+real ccon    ! fak * sffrac * vk
+real binm    ! betam * sffrac
+real binh    ! betah * sffrac
+real rkmin ! minimum eddy coeffs based on Hourdin et. al. (2001)
+      
+kmax=kl-1
+if (nlocal==6) then
+  fac=10.
+else
+  fac=100.
+end if
+binh   = betah*sffrac
+binm   = betam*sffrac
+ccon   = fak*sffrac*vk
+!****************************************************************
+zg(1:imax,1) = bet(1)*t(1:imax,1)/grav
+do k = 2,kl
+  zg(1:imax,k) = zg(1:imax,k-1)+(bet(k)*t(1:imax,k)+betm(k)*t(1:imax,k-1))/grav
+enddo         ! k  loop
+cgh(:,:) = 0.   ! 3D
+cgq(:,:) = 0.   ! 3D
+if ( ktau==1 .and. myid==0 .and. ntiles==1 ) then
+  write(6,*) 'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
+end if
+      
+! Compute kinematic surface fluxes
+do iq=1,imax
+  pmid=ps(iq)*sigmh(1) 
+  rrho = rdry*t(iq,1)/pmid
+  ustar(iq) = max(ustar(iq),0.01)
+  rkhfs(iq) = fg(iq)*rrho/cp           !khfs=w'theta'
+  rkqfs(iq) = eg(iq)*rrho/hl           !kqfs=w'q'
+
+  ! Compute various arrays for use later:
+
+  thvref(iq) = theta(iq,1)*(1.0 + 0.61*qg(iq,1))
+  heatv(iq)  = rkhfs(iq) + 0.61*theta(iq,1)*rkqfs(iq)
+  wm(iq)     = 0.
+  ! obklen at t point
+  obklen(iq) = -thvref(iq)*ustar(iq)**3/(grav*vk*(heatv(iq) + sign(1.e-10,heatv(iq))))
+         
+  ! >>>> Define first a new factor fac=100 for use in Richarson number
+  !      Calculate virtual potential temperature first level
+  !      and initialize pbl height to z1 i.e  1st full level
+
+  pblh(iq) = zg(iq,1)    
+  rino(iq,1) = 0.
+enddo
+
+! PBL height calculation:
+! Search for level of pbl. Scan upward until the Richardson number between
+! the first level and the current level exceeds the "critical" value.
+! Richardson no. is computed using eq. (4.d.18) NCAR technical report, CCM3)
+
+iflag(:)=0
+do k=2,kmax
+  do iq=1,imax
+    vvk = (uav(iq,k) - uav(iq,1))**2 + (vav(iq,k) - vav(iq,1))**2 + fac*ustar(iq)**2
+    tkv = theta(iq,k)*(1. + 0.61*qg(iq,k))
+    rino(iq,k) = grav*(tkv - thvref(iq))*(zg(iq,k)-zg(iq,1))/max(thvref(iq)*vvk,tiny)
+    if(rino(iq,k)>=ricr.and.iflag(iq)==0)then
+      pblh(iq) = zg(iq,k-1) + (ricr - rino(iq,k-1))/(rino(iq,k) - rino(iq,k-1))*(zg(iq,k) - zg(iq,k-1))
+      iflag(iq)=1
+    endif  ! (rino(iq,k)>=ricr.and.iflag(iq)==0)
+  enddo  ! iq loop
+enddo   ! k loop
+if(nmaxpr==1.and.mydiag.and.ntiles==1)then
+  write (6,"('zg',9f8.1)") zg(idjd,1:kmax)
+  write (6,"('rino_pa',9f8.3)") rino(idjd,1:kmax)
+endif
+
+! Set pbl height to maximum value where computation exceeds number of
+! layers allowed
+ 
+! Improve estimate of pbl height for the unstable points.
+! Find unstable points (virtual heat flux is positive):
+!
+phiminv=0. ! MJT bug fix for IBM compiler
+tlv=thvref
+
+do iq=1,imax
+  if(heatv(iq)>0.)then  ! unstable case
+    phiminv(iq) = (1. - binm*pblh(iq)/obklen(iq))**(1./3.)
+    wm(iq)= ustar(iq)*phiminv(iq)
+    ! therm: 2nd term in eq. (4.d.19):
+    ! temperature excess due to convective thermal
+    therm = heatv(iq)*fak/wm(iq)
+    ! eq. (4.d.19) : tlv then used in eq. (4.d.18) to improve pblh
+    tlv(iq) = thvref(iq) + therm
+  end if  
+end do
+
+! Improve pblh estimate for unstable conditions using the
+! convective temperature excess:
+
+do k=2,kmax
+  do iq=1,imax
+    vvk = (uav(iq,k) - uav(iq,1))**2 + (vav(iq,k) - vav(iq,1))**2 + fac*ustar(iq)**2
+    vvk = max(vvk,tiny)
+    tkv = theta(iq,k)*(1. + 0.61*qg(iq,k))
+    rino(iq,k) = grav*(tkv - tlv(iq))*(zg(iq,k)-zg(iq,1))/max(thvref(iq)*vvk,tiny)     ! (see (4.d.18)
+  enddo  !  i loop
+enddo   !  k loop
+
+iflag(:)=0
+do k=2,kmax
+  do iq=1,imax
+    if(heatv(iq)>0..and.iflag(iq)==0)then  ! unstable case
+      pblh(iq) = zg(iq,kl)    ! large default for unstable case
+      if(rino(iq,k)>=ricr)then
+        pblh(iq) = zg(iq,k-1) + (ricr - rino(iq,k-1))/(rino(iq,k) - rino(iq,k-1))*(zg(iq,k) - zg(iq,k-1))
+        iflag(iq)=1  ! i.e. found it
+      endif  ! (rino(iq,k)>=ricr)
+    endif    ! (heatv(iq)>0..and.iflag(iq)==0)
+  enddo     ! i loop
+enddo      ! k loop
+
+! Points for which pblh exceeds number of pbl layers allowed;
+! set to maximum
+ 
+! PBL height must be greater than some minimum mechanical mixing depth
+! Several investigators have proposed minimum mechanical mixing depth
+! relationships as a function of the local friction velocity, u*.  We 
+! make use of a linear relationship of the form h = c u* where c=700.
+! The scaling arguments that give rise to this relationship most often 
+! represent the coefficient c as some constant over the local coriolis
+! parameter.  Here we make use of the experimental results of Koracin 
+! and Berkowicz (1988) [BLM, Vol 43] for which they recommend 0.07/f
+! where f was evaluated at 39.5 N and 52 N.  Thus we use a typical mid
+! latitude value for f so that c = 0.07/f = 700.
+ 
+if(npblmin==1)pblh(:) = max(pblh(:),min(200.,700.*ustar(:)))
+if(npblmin==2)pblh(:) = max(pblh(:),.07*ustar(:)/max(.5e-4,abs(f(1:imax))))
+if(npblmin==3)pblh(:) = max(pblh(:),.07*ustar(:)/max(1.e-4,abs(f(1:imax)))) ! to ~agree 39.5N
+if(npblmin==4)pblh(1:imax) = max(pblh(1:imax),50.)
+
+! pblh is now available; do preparation for diffusivity calculation:
+
+! Do additional preparation for unstable cases only, set temperature
+! and moisture perturbations depending on stability.
+
+do iq=1,imax
+  if(heatv(iq)>0.)then  ! unstable case
+    phiminv(iq) =     (1. - binm*pblh(iq)/obklen(iq))**(1./3.)
+    phihinv(iq) = sqrt(1. - binh*pblh(iq)/obklen(iq))
+    wm(iq)      = ustar(iq)*phiminv(iq)
+    wstr(iq)    = (heatv(iq)*grav*pblh(iq)/thvref(iq))**(1./3.)
+  end if
+end do
+
+! Main level loop to compute the diffusivities and 
+! counter-gradient terms:
+
+if(nlocal==3)then
+  ! suppress nonlocal scheme over the sea   jlm
+  do iq=1,imax
+    if(.not.land(iq))pblh(iq)=0.
+  enddo
+endif  !  (nlocal==3)
+
+if(nlocal==4)then
+  ! suppress nonlocal scheme for column if cloudy layer in pbl   jlm
+  do k=1,kl/2
+    do iq=1,imax
+      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)pblh(iq)=0.
+    enddo
+  enddo
+endif  !  (nlocal==4)
+
+if(nlocal==5)then
+  ! suppress nonlocal scheme for column if cloudy layer in pbl   jlm
+  ! restores pblh at the bottom to have it available in convjlm/vertmix
+  do k=1,kl/2
+    do iq=1,imax
+      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.) pblh(iq)=-pblh(iq)  
+    enddo
+  enddo
+endif  !  (nlocal==5)
+
+if(nlocal==2)then
+  do k=1,kmax-1        
+    ! suppress nonlocal scheme if cloudy layers in pbl   jlm
+    ! note this allows layers below to be done as nonlocal
+    do iq=1,imax
+      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)pblh(iq)=0.
+    enddo
+  end do
+endif  !  (nlocal==2)
+
+! Find levels within boundary layer:
+! This is where Kh is at half model levels 
+! zmzp = 0.5*(zm + zp)
+
+do k=1,kmax-1
+  do iq=1,imax
+    fak1 = ustar(iq)*pblh(iq)*vk
+    zm = zg(iq,k)
+    zp = zg(iq,k+1)
+    if (zm < pblh(iq)) then
+      zmzp = 0.5*(zm + zp)
+      zh = zmzp/pblh(iq)
+      zl = zmzp/obklen(iq)
+      zzh= 0.
+      if (zh<=1.0) zzh = (1. - zh)**2
+
+! stblev for points zm < plbh and stable and neutral
+! unslev for points zm < plbh and unstable
+      if(heatv(iq)>0.)then  ! unstable case
+        fak2   = wm(iq)*pblh(iq)*vk
+! unssrf, unstable within surface layer of pbl
+! Unstable for surface layer; counter-gradient terms zero
+        if (zh<sffrac) then
+          term =     (1. - betam*zl)**(1./3.)
+          pblk = fak1*zh*zzh*term
+          pr = term/sqrt(1. - betah*zl)
+        else
+! unsout, unstable within outer   layer of pbl
+! Unstable for outer layer; counter-gradient terms non-zero:
+          pblk = fak2*zh*zzh
+          fak3 = fakn*wstr(iq)/wm(iq)
+          cgs     = fak3/(pblh(iq)*wm(iq))
+          cgh(iq,k) = rkhfs(iq)*cgs                 !eq. (4.d.17)
+          cgq(iq,k) = rkqfs(iq)*cgs                 !eq. (4.d.17)
+          pr = phiminv(iq)/phihinv(iq) + ccon*fak3/fak
+        end if
+        rkm(iq,k) = max(pblk,rkm(iq,k))
+        rkh(iq,k) = max(pblk/pr,rkh(iq,k))
+      elseif(nlocal>0)then    ! following are stable or neutral
+! Stable and neutral points; set diffusivities; counter-gradient
+! terms zero for stable case:
+! term: pblk is Kc in eq. (4.d.16)
+! but reverts to Louis stable treatment for nlocal=-1
+        if (zl<=1.) then   ! 0 < z/L < 1.
+          pblk = fak1*zh*zzh/(1. + betas*zl)
+        else
+          pblk = fak1*zh*zzh/(betas + zl)
+        endif
+        if(nrkmin==2)rkmin=vk*ustar(iq)*zmzp*zzh
+        if(nrkmin==3)rkmin=max(rkh(iq,k),vk*ustar(iq)*zmzp*zzh)
+        if(nrkmin==1.or.nlocal==6)rkmin=rkh(iq,k)
+        if(ntest==1.and.mydiag.and.ntiles==1)then
+          if(iq==idjd)then
+            write(6,*) 'in pbldif k,ustar,zmzp,zh,zl,zzh ',k,ustar(iq),zmzp,zh,zl,zzh
+            write(6,*) 'rkh_L,rkmin,pblk,fak1,pblh ',rkh(iq,k),rkmin,pblk,fak1,pblh(iq)
+          endif  ! (iq==idjd)
+        endif    ! (ntest==1)
+        rkm(iq,k) = max(pblk,rkmin)        
+        rkh(iq,k) = rkm(iq,k)
+      endif      ! (heatv(iq)>0.)    unstbl(i)
+    endif        ! zm < pblh(iq)
+  enddo         ! iq=1,imax
+enddo             !end of k loop
+if(diag.and.mydiag.and.ntiles==1)then
+  if(heatv(idjd)>0.) write (6,"('rino_pb',9f8.3)") rino(idjd,1:kmax) ! not meaningful or used otherwise
+  write (6,*) 'ricr,obklen,heatv,pblh ',ricr,obklen(idjd),heatv(idjd),pblh(idjd)
+  write (6,"('rkh_p',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
+endif
+
+
+ztodtgor = dtin*grav/rdry
+!     update theta and qtg due to counter gradient
+do k=2,kmax-1
+  do iq=1,imax
+    delsig = sigmh(k+1)-sigmh(k)
+    tmp1 = ztodtgor/delsig
+    sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
+    sigotbkm1=sigmh(k)/(0.5*(t(iq,k-1) + t(iq,k)))
+    theta(iq,k) = theta(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgh(iq,k) - sigotbkm1*rkh(iq,k-1)*cgh(iq,k-1))
+    qg(iq,k) = qg(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgq(iq,k) - sigotbkm1*rkh(iq,k-1)*cgq(iq,k-1))
+#ifdef scm
+    wth_flux(iq,k+1) = wth_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
+    wq_flux(iq,k+1) = wq_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
+#endif
+  end do
+end do
+k=1
+do iq=1,imax
+  delsig = sigmh(k+1)-sigmh(k)
+  tmp1 = ztodtgor/delsig
+  sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
+  theta(iq,k) = theta(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)
+  qg(iq,k) = qg(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)
+#ifdef scm
+  wth_flux(iq,k+1) = wth_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
+  wq_flux(iq,k+1) = wq_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
+#endif
+end do
+
+if (ntest>0.and.mydiag.and.ntiles==1) then
+  write(6,*) 'pbldif'
+  write(6,*) 'rkh= ',(rkh(idjd,k),k=1,kl)
+  write(6,*) 'theta= ',(theta(idjd,k),k=1,kl)
+  write(6,*) 'qg= ',(qg(idjd,k),k=1,kl)
+  write(6,*) 'cgh= ',(cgh(idjd,k),k=1,kl)
+  write(6,*) 'cgq= ',(cgq(idjd,k),k=1,kl)
+endif
+!
+!    Check for neg qtg's and put the original vertical
+!    profile back if a neg value is found. A neg value implies that the
+!    quasi-equilibrium conditions assumed for the countergradient term are
+!    strongly violated.
+!    Original code rewritten by Rosinski 7/8/91 to vectorize in longitude.
+
+if(nlocal==5)then
+  ! restoring pblh to have it available in convjlm/vertmix jlm
+  pblh(:)=abs(pblh(:))
+endif  !  (nlocal==5)
+
+return
+end subroutine pbldif
+
+subroutine trim(a,c,rhs)
+!$acc routine vector
+
+implicit none
+
+integer k, kl
+real, dimension(:,:), intent(in) :: a, c
+real, dimension(:,:), intent(inout) :: rhs
+real, dimension(size(a,1),size(a,2)) :: e, g
+real, dimension(size(a,1)) :: b, temp
+
+kl = size(a,2)
 
 ! this routine solves the system
 !   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
@@ -1462,5 +1796,175 @@ end do
 
 return
 end subroutine trim
+
+subroutine tkeeps_work(t,em,tss,eg,fg,convpsav,ps,qg,qfg,qlg,stratcloud,condc,                  &
+                       xtg,cduv,u,v,pblh,zo,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear,   &
+                       at,ct,                                                                   &
+#ifdef scm
+                       wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave, &
+                       buoyproduction,shearproduction,totaltransport,                           &
+#endif
+                       sig,dsig,sigmh,ratha,rathb,bet,betm,                                     &
+                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix)
+!$acc routine vector
+
+use tkeeps, only : tkemix        ! TKE-EPS boundary layer
+
+implicit none
+
+integer, intent(in) :: iaero, nlocal
+integer k, nt, kl
+real, dimension(:,:,:), intent(inout) :: xtg
+real, dimension(:,:), intent(inout) :: t, qg, qfg, qlg
+real, dimension(:,:), intent(inout) :: stratcloud, u, v
+real, dimension(:,:), intent(inout) :: tke, eps
+real, dimension(:,:), intent(out) :: at, ct
+real, dimension(:,:), intent(in) :: shear
+real, dimension(size(t,1),size(t,2)) :: zh
+real, dimension(size(t,1),size(t,2)) :: rhs, gt, zg
+real, dimension(size(t,1),size(t,2)) :: rkm, rkh
+real, dimension(size(t,1),size(t,2)-1) :: tmnht
+real, dimension(:), intent(inout) :: pblh, ustar
+real, dimension(:), intent(in) :: em, tss, eg, fg, convpsav, ps, condc
+real, dimension(:), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs
+real, dimension(:), intent(In) :: sig, dsig, sigmh, ratha, rathb, bet, betm
+real, dimension(size(t,1)) :: dz
+real, dimension(size(t,1)) :: rhos, dx
+real, dimension(size(t,2)) :: sigkap, delh
+real, intent(in) :: rdry, grav, cp
+real, intent(in) :: ds,dt,qgmin,cqmix
+real rong, rlogs1, rlogs2, rlogh1, rlog12
+real conflux, condrag
+logical, dimension(:), intent(in) :: land
+#ifdef scm
+real, dimension(:,:), intent(inout) :: wth_flux, wq_flux, uw_flux
+real, dimension(:,:), intent(inout) :: vw_flux, tkesave, epssave
+real, dimension(:,:), intent(out) :: rkmsave, rkhsave
+real, dimension(:,:), intent(inout) :: buoyproduction, shearproduction
+real, dimension(:,:), intent(inout) :: totaltransport
+real, dimension(:,:), intent(inout) :: mfsave
+#endif
+
+kl = size(t,2)
+
+! estimate grid spacing for scale aware MF
+dx(:) = ds/em
+
+! Set-up potential temperature transforms
+rong = rdry/grav
+do k = 1,kl
+  delh(k)   = -rong*dsig(k)/sig(k)  ! sign of delh defined so always +ve
+  sigkap(k) = sig(k)**(-rdry/cp)
+end do      ! k loop
+
+! Calculate half level heights and temperatures
+rlogs1=log(sig(1))
+rlogs2=log(sig(2))
+rlogh1=log(sigmh(2))
+rlog12=1./(rlogs1-rlogs2)
+tmnht(:,1)=(t(:,2)*rlogs1-t(:,1)*rlogs2+(t(:,1)-t(:,2))*rlogh1)*rlog12
+! n.b. an approximate zh (in m) is quite adequate for this routine
+do k = 2,kl-1
+  tmnht(:,k) = ratha(k)*t(:,k+1) + rathb(k)*t(:,k)
+end do      !  k loop
+      
+! note ksc/=0 options are clobbered when nvmix=6
+! However, nvmix=6 with nlocal=7 supports its own shallow
+! convection options
+
+! calculate height on full levels
+zg(:,1) = bet(1)*t(:,1)/grav
+zh(:,1) = t(:,1)*delh(1)
+do k = 2,kl-1
+  zg(:,k) = zg(:,k-1) + (bet(k)*t(:,k)+betm(k)*t(:,k-1))/grav
+  zh(:,k) = zh(:,k-1) + t(:,k)*delh(k)
+end do ! k  loop
+zg(:,kl) = zg(:,kl-1) + (bet(kl)*t(:,kl)+betm(kl)*t(:,kl-1))/grav
+zh(:,kl) = zh(:,kl-1) + t(:,kl)*delh(kl)
+       
+! near surface air density (see sflux.f and cable_ccam2.f90)
+rhos(:) = ps(:)/(rdry*tss(:))
+    
+! transform to ocean reference frame and temp to theta
+do k = 1,kl
+  rhs(:,k) = t(:,k)*sigkap(k) ! theta
+end do
+
+#ifdef scm
+! Initial flux for SCM to be added up below.
+wth_flux(:,:) = 0.
+wq_flux(:,:) = 0.
+uw_flux(:,:) = 0.
+vw_flux(:,:) = 0.
+mfsave(:,:) = 0.
+tkesave(:,:) = -1. ! missing value
+! Evaluate EDMF scheme
+select case(nlocal)
+  case(0) ! no counter gradient
+    call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                ustar,dt,qgmin,1,tke,eps,shear,dx,                                   &
+                wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
+                shearproduction,totaltransport)
+  case(7) ! mass-flux counter gradient
+    call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                ustar,dt,qgmin,0,tke,eps,shear,dx,                                   &
+                wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
+                shearproduction,totaltransport)
+    
+end select
+rkh = rkm
+! save Km and Kh for output
+rkmsave(:,:) = rkm(:,:)
+rkhsave(:,:) = rkh(:,:)
+tkesave(:,:) = tke(1:ifull,:)
+epssave(:,:) = eps(1:ifull,:)
+#else
+! Evaluate EDMF scheme
+select case(nlocal)
+  case(0) ! no counter gradient
+    call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                ustar,dt,qgmin,1,tke,eps,shear,dx) 
+  case(7) ! mass-flux counter gradient
+    call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                ustar,dt,qgmin,0,tke,eps,shear,dx) 
+    
+end select
+rkh = rkm
+#endif
+
+! replace counter gradient term  
+rkh = rkh*cqmix
+rkm = rkm*cqmix
+
+! transform winds back to Earth reference frame and theta to temp
+do k = 1,kl
+  t(:,k) = rhs(:,k)/sigkap(k)
+enddo    !  k loop
+
+! tracers
+do k = 1,kl-1
+  dz(:) = -tmnht(:,k)*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+  gt(:,k) = rkh(:,k)*dt*(sig(k+1)-sig(k))/(dz**2)
+end do      ! k loop
+gt(:,kl) = 0.
+at(:,1) = 0.
+ct(:,kl) = 0.
+do k = 1,kl-1
+  at(:,k+1) =-gt(:,k)/dsig(k+1)  
+  ct(:,k) = -gt(:,k)/dsig(k)
+end do
+  
+! Aerosols
+if ( abs(iaero)>=2 ) then
+  do nt = 1,size(xtg,3)
+    rhs(:,:) = xtg(:,:,nt) ! Total grid-box
+    call trim(at,ct,rhs)
+    xtg(:,:,nt) = max(rhs(:,:), 0.)
+  end do
+end if ! (abs(iaero)>=2)  
+      
+return
+end subroutine tkeeps_work
+
 
 end module vertmix_m

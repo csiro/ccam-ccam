@@ -644,7 +644,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'sigramplow',sigramplow)
     call ccnf_put_attg(idnc,'snmin',snmin)
     call ccnf_put_attg(idnc,'tbave',tbave)
-    call ccnf_put_attg(idnc,'tblock',tblock)
     call ccnf_put_attg(idnc,'tss_sh',tss_sh)
     call ccnf_put_attg(idnc,'vmodmin',vmodmin)
     call ccnf_put_attg(idnc,'zobgin',zobgin)
@@ -742,7 +741,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ce2',ce2)
     call ccnf_put_attg(idnc,'ce3',ce3)
     call ccnf_put_attg(idnc,'cm0',cm0)
-    call ccnf_put_attg(idnc,'cq',cq)
+    call ccnf_put_attg(idnc,'cqmix',cqmix)
     call ccnf_put_attg(idnc,'dtrc0',dtrc0)
     call ccnf_put_attg(idnc,'ent_min',ent_min)
     call ccnf_put_attg(idnc,'ent0',ent0)
@@ -762,7 +761,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'qcmf',qcmf)
     call ccnf_put_attg(idnc,'sigbot_gwd',sigbot_gwd)    
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
-    call ccnf_put_attg(idnc,'tke_umin',tke_umin)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
     call ccnf_put_attg(idnc,'zimax',zimax)
 
@@ -3306,11 +3304,10 @@ implicit none
 
 include 'kuocom.h'                    ! Convection parameters
 
-integer, parameter :: freqvars = 17  ! number of variables to write
+integer, parameter :: freqvars = 21  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
-integer, dimension(tblock) :: datedat
 integer, dimension(:), allocatable :: vnode_dat
 integer, dimension(:), allocatable :: procnode, procoffset
 integer, dimension(5) :: adim
@@ -3318,7 +3315,7 @@ integer, dimension(4) :: sdim
 integer, dimension(1) :: start,ncount,gpdim
 integer, dimension(5) :: outdim
 integer ixp,iyp,izp,tlen
-integer icy,icm,icd,ich,icmi,ics,ti
+integer icy,icm,icd,ich,icmi,ics
 integer i,j,n,fiarch
 integer dproc, d4, asize, ssize, idnp, idgpn, idgpo
 integer, save :: fncid = -1
@@ -3326,7 +3323,7 @@ integer, save :: idnt = 0
 integer, save :: idkdate = 0
 integer, save :: idktime = 0
 integer, save :: idmtimer = 0
-real, dimension(:,:,:), allocatable, save :: freqstore
+real, dimension(:,:), allocatable, save :: freqstore
 real, dimension(ifull) :: umag, pmsl
 real, dimension(:,:), allocatable :: xpnt2
 real, dimension(:,:), allocatable :: ypnt2
@@ -3334,7 +3331,7 @@ real, dimension(:), allocatable :: xpnt
 real, dimension(:), allocatable :: ypnt
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
-real(kind=8), dimension(tblock) :: tpnt
+real(kind=8) :: tpnt
 logical, save :: first = .true.
 logical :: local
 character(len=1024) :: ffile
@@ -3370,8 +3367,8 @@ if ( first ) then
   if ( myid==0 ) then
     write(6,*) "Initialise high frequency output"
   end if
-  allocate(freqstore(ifull,tblock,freqvars))
-  freqstore(:,:,:) = 0.
+  allocate(freqstore(ifull,freqvars))
+  freqstore(:,:) = 0.
   if ( local ) then
     write(ffile,"(a,'.',i6.6)") trim(surfile), vnode_vleaderid
   else
@@ -3577,6 +3574,16 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'rhscrn_stn',lname,'%',0.,200.,0,1)
     lname = 'Screen mixing ratio (station)'
     call attrib(fncid,sdim,ssize,'qgscrn_stn',lname,'kg/kg',0.,0.06,0,1)
+    if ( diaglevel_pbl>5 ) then
+      lname='x-component 150m wind'
+      call attrib(fncid,sdim,ssize,'ua150',lname,'m/s',-130.,130.,0,1)
+      lname='y-component 150m wind'     
+      call attrib(fncid,sdim,ssize,'va150',lname,'m/s',-130.,130.,0,1)
+      lname='x-component 250m wind'
+      call attrib(fncid,sdim,ssize,'ua150',lname,'m/s',-130.,130.,0,1)
+      lname='y-component 250m wind'     
+      call attrib(fncid,sdim,ssize,'va150',lname,'m/s',-130.,130.,0,1)
+    end if
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -3682,77 +3689,71 @@ if ( first ) then
 end if
 
 ! store output
-ti = mod(ktau,tblock*tbave)
-if ( ti==0 ) ti = tblock*tbave
-ti = (ti-1)/tbave + 1
 umag = sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
 call mslp(pmsl,psl,zs,t)
-freqstore(1:ifull,ti,1)  = u10*u(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,2)  = u10*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,3)  = tscrn
-freqstore(1:ifull,ti,4)  = rhscrn
-freqstore(1:ifull,ti,5)  = freqstore(1:ifull,ti,5)  + condx*86400./dt/real(tbave)
-freqstore(1:ifull,ti,6)  = freqstore(1:ifull,ti,6)  + conds*86400./dt/real(tbave)
-freqstore(1:ifull,ti,7)  = freqstore(1:ifull,ti,7)  + condg*86400./dt/real(tbave)
-freqstore(1:ifull,ti,8)  = pmsl/100.
-freqstore(1:ifull,ti,9)  = freqstore(1:ifull,ti,9)  + sgdn/real(tbave)
-freqstore(1:ifull,ti,10) = psl
-freqstore(1:ifull,ti,11) = fbeam_ave
-freqstore(1:ifull,ti,12) = qgscrn
-freqstore(1:ifull,ti,13) = u10_stn*u(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,14) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,ti,15) = tscrn_stn
-freqstore(1:ifull,ti,16) = rhscrn_stn
-freqstore(1:ifull,ti,17) = qgscrn_stn
+freqstore(1:ifull,1)  = u10*u(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,2)  = u10*v(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,3)  = tscrn
+freqstore(1:ifull,4)  = rhscrn
+freqstore(1:ifull,5)  = freqstore(1:ifull,5)  + condx*86400./dt/real(tbave)
+freqstore(1:ifull,6)  = freqstore(1:ifull,6)  + conds*86400./dt/real(tbave)
+freqstore(1:ifull,7)  = freqstore(1:ifull,7)  + condg*86400./dt/real(tbave)
+freqstore(1:ifull,8)  = pmsl/100.
+freqstore(1:ifull,9)  = freqstore(1:ifull,9)  + sgdn/real(tbave)
+freqstore(1:ifull,10) = psl
+freqstore(1:ifull,11) = fbeam_ave
+freqstore(1:ifull,12) = qgscrn
+freqstore(1:ifull,13) = u10_stn*u(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,14) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,15) = tscrn_stn
+freqstore(1:ifull,16) = rhscrn_stn
+freqstore(1:ifull,17) = qgscrn_stn
+freqstore(1:ifull,18) = ua150
+freqstore(1:ifull,19) = va150
+freqstore(1:ifull,20) = ua250
+freqstore(1:ifull,21) = va250
 
 ! write data to file
-if ( mod(ktau,tblock*tbave)==0 ) then
+if ( mod(ktau,tbave)==0 ) then
     
   if ( myid==0 .or. local ) then
     if ( myid==0 ) then
       write(6,*) "Write high frequency output"
     end if
-    fiarch = ktau/tbave - tblock + 1
-    start(1) = fiarch
-    ncount(1) = tblock
-    do i = 1,tblock
-      tpnt(i)=real(ktau+(i-tblock)*tbave,8)*real(dt,8)
-    end do
-    call ccnf_put_vara(fncid,idnt,start,ncount,tpnt)
-    do i = 1,tblock
-      datedat(i) = kdate
-    end do
-    call ccnf_put_vara(fncid,idkdate,start,ncount,datedat)
-    do i = 1,tblock
-      datedat(i) = ktime
-    end do
-    call ccnf_put_vara(fncid,idktime,start,ncount,datedat)
-    do i = 1,tblock
-      datedat(i) = mtimer + nint(real((i-tblock)*tbave)*dt/60.)
-    end do
-    call ccnf_put_vara(fncid,idmtimer,start,ncount,datedat)
+    fiarch = ktau/tbave
+    tpnt = real(ktau,8)*real(dt,8)
+    call ccnf_put_vara(fncid,'time',fiarch,tpnt)
+    call ccnf_put_vara(fncid,'kdate',fiarch,kdate)
+    call ccnf_put_vara(fncid,'ktime',fiarch,ktime)
+    call ccnf_put_vara(fncid,'mtimer',fiarch,mtimer)
   end if
 
   ! record output
-  call freqwrite(fncid,'uas',       fiarch,tblock,local,freqstore(:,:,1))
-  call freqwrite(fncid,'vas',       fiarch,tblock,local,freqstore(:,:,2))
-  call freqwrite(fncid,'tscrn',     fiarch,tblock,local,freqstore(:,:,3))
-  call freqwrite(fncid,'rhscrn',    fiarch,tblock,local,freqstore(:,:,4))
-  call freqwrite(fncid,'rnd',       fiarch,tblock,local,freqstore(:,:,5))
-  call freqwrite(fncid,'sno',       fiarch,tblock,local,freqstore(:,:,6))
-  call freqwrite(fncid,'grpl',      fiarch,tblock,local,freqstore(:,:,7))
-  call freqwrite(fncid,'pmsl',      fiarch,tblock,local,freqstore(:,:,8))
-  call freqwrite(fncid,'sgdn_ave',  fiarch,tblock,local,freqstore(:,:,9))
-  call freqwrite(fncid,'psf',       fiarch,tblock,local,freqstore(:,:,10))
-  call freqwrite(fncid,'fbeam_ave', fiarch,tblock,local,freqstore(:,:,11))
-  call freqwrite(fncid,'qgscrn',    fiarch,tblock,local,freqstore(:,:,12))  
-  call freqwrite(fncid,'uas_stn',   fiarch,tblock,local,freqstore(:,:,13))
-  call freqwrite(fncid,'vas_stn',   fiarch,tblock,local,freqstore(:,:,14))
-  call freqwrite(fncid,'tscrn_stn', fiarch,tblock,local,freqstore(:,:,15))
-  call freqwrite(fncid,'rhscrn_stn',fiarch,tblock,local,freqstore(:,:,16))
-  call freqwrite(fncid,'qgscrn_stn',fiarch,tblock,local,freqstore(:,:,17)) 
+  call histwrt(freqstore(:,1),"uas",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,2),"vas",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,3),"tscrn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,4),"rhscrn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,5),"rnd",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,6),"sno",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,7),"grpl",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,8),"pmsl",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,9),"sgdn_ave",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,10),"psf",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,11),"fbeam_ave",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,12),"qgscrn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,13),"uas_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,14),"vas_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,15),"tscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,16),"rhscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,17),"qgscrn_stn",fncid,fiarch,local,.true.)
+  if ( diaglevel_pbl>5 ) then
+    call histwrt(freqstore(:,18),"ua150",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,19),"va150",fncid,fiarch,local,.true.)      
+    call histwrt(freqstore(:,20),"ua250",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,21),"va250",fncid,fiarch,local,.true.)      
+  end if
   
-  freqstore(:,:,:) = 0.
+  freqstore(:,:) = 0.
 
 end if
 
