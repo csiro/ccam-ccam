@@ -26,7 +26,7 @@ FOVERRIDE =
 ZMM =
 endif
 ifeq ($(SKYLAKE),yes)
-FHOST = -O3 -xSKYLAKE-AVX512
+FHOST = -O3 -xSKYLAKE-AVX512 -align array64byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 endif
@@ -62,7 +62,7 @@ FHOST = -march=broadwell
 endif
 FFLAGS = -O2 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
-ZMM =
+ZMM = -mprefer-vector-width=512
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =

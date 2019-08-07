@@ -65,13 +65,18 @@ contains
       complex, intent(inout) :: local_sum
       real :: e, t1, t2 
       integer :: i
+      real :: local_sum_r, local_sum_i
       
+      local_sum_r = real(local_sum)
+      local_sum_i = aimag(local_sum)
       do i = 1,size(array)
-         t1 = array(i) + real(local_sum) 
+         t1 = array(i) + local_sum_r
          e = t1 - array(i) 
-         t2 = ((real(local_sum) - e) + (array(i) - (t1 - e)))  + aimag(local_sum)
-         local_sum = cmplx (t1 + t2, t2 - ((t1 + t2) - t1)) 
+         t2 = ((local_sum_r - e) + (array(i) - (t1 - e)))  + local_sum_i
+         local_sum_r = t1 + t2
+         local_sum_i = t2 - ((t1 + t2) - t1)
       end do
+      local_sum = cmplx(local_sum_r,local_sum_i)
       
    end subroutine drpdr_local
    
