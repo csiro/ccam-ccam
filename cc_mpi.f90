@@ -2671,19 +2671,18 @@ contains
       integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
       complex, dimension(2*size(array,3)) :: local_sum, global_sum
-      real, dimension(ifull) :: tmparr
+      real, dimension(ifull,2*size(array,3)) :: tmparr
 
       kx  = size(array,2)
       ntr = size(array,3)
       local_sum(1:2*ntr) = cmplx(0.,0.)
-      do i = 1,ntr
-         do k=1,kx
-            tmparr(1:ifull) = max(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
-            call drpdr_local(tmparr, local_sum(i))
-            tmparr(1:ifull) = min(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
-            call drpdr_local(tmparr, local_sum(i+ntr))
-         end do ! k loop
-      end do
+      do k=1,kx
+          do i = 1,ntr
+            tmparr(1:ifull,i) = max(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
+            tmparr(1:ifull,i+ntr) = min(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
+          end do
+          call drpdr_local_v(tmparr, local_sum)
+      end do ! k loop
       mnum = 2*ntr
       global_sum(1:2*ntr) = cmplx(0.,0.)
       lcomm = comm_world
