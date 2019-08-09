@@ -766,6 +766,8 @@ qlg_p    = qlg(iqmap,1)
 qfg_p    = qfg(iqmap,1)
 stratcloud_p = stratcloud(iqmap,1)
 
+ent = entfn(zz_p(:,k), zi_p(:))
+
 ! first level -----------------
 ! initial thermodynamic state
 ! split qtot into components (conservation of thetal and qtot is maintained)
