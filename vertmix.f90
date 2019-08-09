@@ -171,8 +171,16 @@ case(6)
 !$omp private(lt,lqg,lqfg,lqlg),                        &
 !$omp private(lstratcloud,lxtg,lu,lv,ltke,leps,lshear), &
 !$omp private(lat,lct,idjd_t,mydiag_t)
-!$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v) copyin(shear,uadj,vadj) copyout(at_save,ct_save)
-!$acc loop gang private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,ltke,leps,lshear,lat,lct,lu,lv)
+!$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v) &
+!$acc copyin(shear,uadj,vadj) copyout(at_save,ct_save,       &
+!$acc   wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,     &
+!$acc   epssave,rkmsave,rkhsave,buoyproduction,              &
+!$acc   shearproduction,totaltransport)
+!$acc loop gang private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,   &
+!$acc   ltke,leps,lshear,lat,lct,lu,lv,lwth_flux,lwq_flux,   &
+!$acc   luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,         &
+!$acc   lrkmsave,lrkhsave,lbuoyproduction,lshearproduction,  &
+!$acc   ltotaltransport)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -191,23 +199,6 @@ case(6)
       ltke   = tke(is:ie,:)
       leps   = eps(is:ie,:)
       lshear = shear(is:ie,:)
-#ifdef scm
-#ifdef _OPENMP
-      write(6,*) "ERROR: scm requires OMP is disabled"
-      stop
-#endif
-      lwth_flux = wth_flux(is:ie,:)
-      lwq_flux  = wq_flux(is:ie,:)
-      luw_flux  = uw_flux(is:ie,:)
-      lvw_flux  = vw_flux(is:ie,:)
-      lmfsave   = mfsave(is:ie,:)
-      ltkesave  = tkesave(is:ie,:)
-      lepssave  = epssave(is:ie,:)
-      lbuoyproduction = buoyproduction
-      lshearproduction = shearproduction
-      ltotaltransport = totaltransport
-#endif
-
       ! Adjustment for moving ocean surface
       do k = 1,kl
         lu(:,k) = u(is:ie,k) - uadj(is:ie)
@@ -243,6 +234,10 @@ case(6)
         v(is:ie,k) = lv(:,k) + vadj(is:ie)
       end do  
 #ifdef scm
+#ifdef _OPENMP
+      write(6,*) "ERROR: scm requires OMP is disabled"
+      stop
+#endif
       rkmsave(is:ie,:) = lrkmsave
       rkhsave(is:ie,:) = lrkhsave  
       tkesave(is:ie,:) = ltkesave
@@ -284,23 +279,6 @@ end do ! tile = 1,ntiles
       if ( abs(iaero)>=2 ) then
         lxtg = xtg(is:ie,:,:)
       end if
-#ifdef scm
-#ifdef _OPENMP
-      write(6,*) "ERROR: scm requires OMP is disabled"
-      stop
-#endif
-      lwth_flux = wth_flux(is:ie,:)
-      lwq_flux  = wq_flux(is:ie,:)
-      luw_flux  = uw_flux(is:ie,:)
-      lvw_flux  = vw_flux(is:ie,:)
-      lmfsave   = mfsave(is:ie,:)
-      ltkesave  = tkesave(is:ie,:)
-      lepssave  = epssave(is:ie,:)
-      lbuoyproduction = buoyproduction
-      lshearproduction = shearproduction
-      ltotaltransport = totaltransport
-#endif
-
       ! Adjustment for moving ocean surface
       do k = 1,kl
         lu(:,k) = u(is:ie,k) - uadj(is:ie)
@@ -335,6 +313,10 @@ end do ! tile = 1,ntiles
         v(is:ie,k) = lv(:,k) + vadj(is:ie)
       end do  
 #ifdef scm
+#ifdef _OPENMP
+      write(6,*) "ERROR: scm requires OMP is disabled"
+      stop
+#endif
       rkmsave(is:ie,:) = lrkmsave
       rkhsave(is:ie,:) = lrkhsave  
       wth_flux(is:ie,:) = lwth_flux 
@@ -471,7 +453,6 @@ wq_flux(:,:) = 0.
 uw_flux(:,:) = 0.
 vw_flux(:,:) = 0.
 mfsave(:,:) = 0.
-tkesave(:,:) = -1. ! missing value
 #endif
 
 w1=0.
@@ -1916,8 +1897,8 @@ rkh = rkm
 ! save Km and Kh for output
 rkmsave(:,:) = rkm(:,:)
 rkhsave(:,:) = rkh(:,:)
-tkesave(:,:) = tke(1:ifull,:)
-epssave(:,:) = eps(1:ifull,:)
+tkesave(:,:) = tke(:,:)
+epssave(:,:) = eps(:,:)
 #else
 ! Evaluate EDMF scheme
 select case(nlocal)

@@ -76,7 +76,7 @@ FCSCM = pgfortran
 CC = pgcc
 FHOST = 
 FFLAGS = -O3 $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
-FFLAGS += -Minfo=accel -acc -ta=nvidia -Minline
+FFLAGS += -Minfo=accel -acc -ta=nvidia:cc35
 FOVERRIDE =
 PPFLAG90 = -cpp
 PPFLAG77 = -cpp
