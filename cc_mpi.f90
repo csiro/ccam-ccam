@@ -2673,7 +2673,6 @@ contains
       complex, dimension(2*size(array,3)) :: local_sum, global_sum
       complex, dimension(2*size(array,2)) :: local_sum_t
       real, dimension(ifull,2*size(array,2)) :: tmparr
-#endif
 
       kx  = size(array,2)
       ntr = size(array,3)
