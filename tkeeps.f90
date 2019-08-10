@@ -307,6 +307,7 @@ do kcount = 1,mcount
       
     zi_save = zi  
 
+    ! crude pack since pack intrinsic does not work with pgi on gpu
     imax_p = 0
     isbl_p = 0
     do iq = 1,size(wtv0,1)
@@ -452,10 +453,7 @@ do kcount = 1,mcount
       end do
       tcc=-grav*km(:,1)*(thetavhl(:,1)-thetav(:,1))/(thetav(:,1)*(zzh(:,1)-zz(:,1)))
       ppb(:,1)=tcc 
-      
-   case default
-     write(6,*) "ERROR: Unknown buoymeth option ",buoymeth
-     stop
+
   end select
 
   ! Calculate transport source term on full levels
@@ -702,7 +700,7 @@ pure subroutine plumerise(iqmap,cm12,                                  &
 !$acc routine vector
 
 integer, dimension(:), intent(in) :: iqmap
-integer k, ktopmax, kl, imax_p
+integer k, kl, imax_p
 real, dimension(:,:), intent(inout) :: mflx, tlup, qvup, qlup, qfup, cfup
 real, dimension(:,:), intent(in) :: theta, qvg, qlg, qfg, stratcloud
 real, dimension(:,:), intent(in) :: zz, thetal, thetav, km 
@@ -755,8 +753,6 @@ do k = 1,kl
   w2up(:,k) = 0.
   nn(:,k) = 0.
 end do
-dzht = zz_p(:,1)
-ktopmax = 0
 
 theta_p  = theta(iqmap,1)
 thetal_p = thetal(iqmap,1)
@@ -766,9 +762,13 @@ qlg_p    = qlg(iqmap,1)
 qfg_p    = qfg(iqmap,1)
 stratcloud_p = stratcloud(iqmap,1)
 
-ent = entfn(zz_p(:,k), zi_p(:))
 
 ! first level -----------------
+
+dzht = zz_p(:,1)
+! Entrainment rates
+ent = entfn(zz_p(:,k), zi_p(:))
+
 ! initial thermodynamic state
 ! split qtot into components (conservation of thetal and qtot is maintained)
 tlup_p(:,1) = thetal_p + be*wt0_p/sqrt(tke1)       ! Hurley 2007
@@ -789,9 +789,6 @@ cxup(:,1) = 0.
 
 ! updraft with condensation
 do k = 2,kl
-  dzht = dz_hl_p(:,k-1)
-  ! Entrainment and detrainment rates
-  ent = entfn(zz_p(:,k), zi_p(:))
   theta_p  = theta(iqmap,k)
   thetal_p = thetal(iqmap,k)
   thetav_p = thetav(iqmap,k)
@@ -802,6 +799,10 @@ do k = 2,kl
   tke_p = tke(iqmap,k)
   eps_p = eps(iqmap,k)
   km_p  = km(iqmap,k)
+
+  dzht = dz_hl_p(:,k-1)
+  ! Entrainment rates
+  ent = entfn(zz_p(:,k), zi_p(:))
   where ( w2up(:,k-1)>0. )
     ! entrain air into plume
     ! split qtot into components (conservation of qtot is maintained)
@@ -809,7 +810,7 @@ do k = 2,kl
     qvup_p(:,k) = (qvup_p(:,k-1)+dzht*ent*qvg_p   )/(1.+dzht*ent)
     qlup_p(:,k) = (qlup_p(:,k-1)+dzht*ent*qlg_p   )/(1.+dzht*ent)
     qfup_p(:,k) = (qfup_p(:,k-1)+dzht*ent*qfg_p   )/(1.+dzht*ent)
-    cfup_p(:,k) = (cfup_p(:,k-1)+dzht*ent*stratcloud_p )/(1.+dzht*ent)
+    cfup_p(:,k) = (cfup_p(:,k-1)+dzht*ent*stratcloud_p)/(1.+dzht*ent)
   elsewhere
     tlup_p(:,k) = thetal_p
     qvup_p(:,k) = qvg_p
@@ -861,8 +862,6 @@ do k = 2,kl
     xp = min(max(xp,0.),dzht)
     zi_p(:) = xp + zz_p(:,k-1)
   end where
-  ktopmax = k - 1
-  if ( all(w2up(:,k)<=0.) ) exit
 end do
           
 thetav_p = thetav(iqmap,1)
@@ -870,7 +869,7 @@ wstar_p = (grav*min(zi_p,zimax)*max(wtv0_p,0.)/thetav_p)**(1./3.)
           
 ! update mass flux
 mflx_p(:,1) = m0*sqrt(max(w2up(:,1), 0.))
-do k = 2,ktopmax
+do k = 2,kl
   dzht = dz_hl_p(:,k-1)
   upf = mflx_p(:,k-1)/sqrt(max(w2up(:,k-1), 1.e-8))
   where ( w2up(:,k)>0. )
@@ -887,9 +886,6 @@ zi(iqmap) = zi_p
 tke(iqmap,1) = tke1
 wstar(iqmap) = wstar_p
 do k = 1,kl
-  mflx(:,k) = 0.
-end do
-do k = 1,ktopmax
   mflx(iqmap,k) = mflx_p(:,k)
   tlup(iqmap,k) = tlup_p(:,k)
   qvup(iqmap,k) = qvup_p(:,k)

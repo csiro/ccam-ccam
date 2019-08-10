@@ -171,11 +171,13 @@ case(6)
 !$omp private(lt,lqg,lqfg,lqlg),                        &
 !$omp private(lstratcloud,lxtg,lu,lv,ltke,leps,lshear), &
 !$omp private(lat,lct,idjd_t,mydiag_t)
-!$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v) &
-!$acc copyin(shear,uadj,vadj) copyout(at_save,ct_save,       &
-!$acc   wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,     &
-!$acc   epssave,rkmsave,rkhsave,buoyproduction,              &
-!$acc   shearproduction,totaltransport)
+!$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
+!$acc   pblh,ustar)                                          &
+!$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv,sig,dsig,  &
+!$acc        sigmh,ratha,rathb,bet,betm)                     &
+!$acc copyout(at_save,ct_save,wth_flux,wq_flux,uw_flux,      &
+!$acc   vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave,      &
+!$acc   buoyproduction,shearproduction,totaltransport)
 !$acc loop gang private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,   &
 !$acc   ltke,leps,lshear,lat,lct,lu,lv,lwth_flux,lwq_flux,   &
 !$acc   luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,         &
@@ -205,16 +207,14 @@ case(6)
         lv(:,k) = v(is:ie,k) - vadj(is:ie)
       end do  
     
-      call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),convpsav(is:ie),                               &
-                       ps(is:ie),lqg,lqfg,lqlg,lstratcloud,                                                       &
-                       condc(is:ie),lxtg,cduv(is:ie),lu,lv,pblh(is:ie),zo(is:ie),land(is:ie),                     &
-                       tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),ltke,leps,lshear,  &
-                       lat,lct,                                                                                   &
+      call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                                      &
+                       ps(is:ie),lqg,lqfg,lqlg,lstratcloud,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),           &
+                       ustar(is:ie),ltke,leps,lshear,lat,lct,                                            &
 #ifdef scm
-                       lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave,          &
-                       lbuoyproduction,lshearproduction,ltotaltransport,                                          &
+                       lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave, &
+                       lbuoyproduction,lshearproduction,ltotaltransport,                                 &
 #endif
-                       sig,dsig,sigmh,ratha,rathb,bet,betm,                                                       &
+                       sig,dsig,sigmh,ratha,rathb,bet,betm,                                              &
                        rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix)      
                        
       t(is:ie,:)          = lt
@@ -287,7 +287,7 @@ end do ! tile = 1,ntiles
         lsavv(:,k) = savv(is:ie,k) - vadj(is:ie)
       end do  
     
-      call vertmix_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),     &
+      call vertmix_work(lt,tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),               &
                         ps(is:ie),lqg,lqfg,lqlg,lstratcloud,                                                       &
                         condc(is:ie),lcfrac,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),zo(is:ie),lsavu,lsavv,land(is:ie),  &
                         tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),                   &
@@ -367,12 +367,12 @@ end subroutine vertmix
 
 !--------------------------------------------------------------
 ! Control subroutine for vertical mixing
-subroutine vertmix_work(t,em,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,stratcloud,condc,cfrac,          &
-                        xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,                 &
-                        at,ct,                                                                             &
+subroutine vertmix_work(t,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,stratcloud,condc,cfrac, &
+                        xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,     &
+                        at,ct,                                                                 &
 #ifdef scm
-                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,rkmsave,rkhsave,                           &
-                        buoyproduction,shearproduction,totaltransport,                                     &
+                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,rkmsave,rkhsave,               &
+                        buoyproduction,shearproduction,totaltransport,                         &
 #endif
                         idjd,mydiag)
 
@@ -412,7 +412,7 @@ real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(out) :: at, ct
 real, dimension(imax,kl), intent(in) :: savu, savv, cfrac
 real, dimension(imax), intent(inout) :: pblh, ustar
-real, dimension(imax), intent(in) :: em, tss, eg, fg, convpsav, ps, condc
+real, dimension(imax), intent(in) :: tss, eg, fg, convpsav, ps, condc
 real, dimension(imax), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, guv, gt
@@ -1294,8 +1294,7 @@ subroutine pbldif(rkm,rkh,theta,uav,vav,                &
 #ifdef scm
                   ,wth_flux,wq_flux                     &
 #endif
-                  )
-!$acc routine vector     
+                  )   
 
 use cc_mpi, only : mydiag, myid
 use cc_omp
@@ -1778,9 +1777,8 @@ end do
 return
 end subroutine trim
 
-subroutine tkeeps_work(t,em,tss,eg,fg,convpsav,ps,qg,qfg,qlg,stratcloud,condc,                  &
-                       xtg,cduv,u,v,pblh,zo,land,tscrn,qgscrn,ustar,f,condx,zs,tke,eps,shear,   &
-                       at,ct,                                                                   &
+subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                                 &
+                       xtg,cduv,u,v,pblh,ustar,tke,eps,shear,at,ct,                             &
 #ifdef scm
                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave, &
                        buoyproduction,shearproduction,totaltransport,                           &
@@ -1806,9 +1804,9 @@ real, dimension(size(t,1),size(t,2)) :: rhs, gt, zg
 real, dimension(size(t,1),size(t,2)) :: rkm, rkh
 real, dimension(size(t,1),size(t,2)-1) :: tmnht
 real, dimension(:), intent(inout) :: pblh, ustar
-real, dimension(:), intent(in) :: em, tss, eg, fg, convpsav, ps, condc
-real, dimension(:), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs
-real, dimension(:), intent(In) :: sig, dsig, sigmh, ratha, rathb, bet, betm
+real, dimension(:), intent(in) :: em, tss, eg, fg, ps
+real, dimension(:), intent(in) :: cduv
+real, dimension(:), intent(in) :: sig, dsig, sigmh, ratha, rathb, bet, betm
 real, dimension(size(t,1)) :: dz
 real, dimension(size(t,1)) :: rhos, dx
 real, dimension(size(t,2)) :: sigkap, delh
@@ -1816,7 +1814,6 @@ real, intent(in) :: rdry, grav, cp
 real, intent(in) :: ds,dt,qgmin,cqmix
 real rong, rlogs1, rlogs2, rlogh1, rlog12
 real conflux, condrag
-logical, dimension(:), intent(in) :: land
 #ifdef scm
 real, dimension(:,:), intent(inout) :: wth_flux, wq_flux, uw_flux
 real, dimension(:,:), intent(inout) :: vw_flux, tkesave, epssave
@@ -1873,12 +1870,14 @@ end do
 
 #ifdef scm
 ! Initial flux for SCM to be added up below.
-wth_flux(:,:) = 0.
-wq_flux(:,:) = 0.
-uw_flux(:,:) = 0.
-vw_flux(:,:) = 0.
-mfsave(:,:) = 0.
-tkesave(:,:) = -1. ! missing value
+do k = 1,kl
+  wth_flux(:,k) = 0.
+  wq_flux(:,k) = 0.
+  uw_flux(:,k) = 0.
+  vw_flux(:,k) = 0.
+  mfsave(:,k) = 0.
+  tkesave(:,k) = -1. ! missing value
+end do
 ! Evaluate EDMF scheme
 select case(nlocal)
   case(0) ! no counter gradient
@@ -1893,12 +1892,14 @@ select case(nlocal)
                 shearproduction,totaltransport)
     
 end select
-rkh = rkm
-! save Km and Kh for output
-rkmsave(:,:) = rkm(:,:)
-rkhsave(:,:) = rkh(:,:)
-tkesave(:,:) = tke(:,:)
-epssave(:,:) = eps(:,:)
+do k = 1,kl
+  rkh(:,k) = rkm(:,k)
+  ! save Km and Kh for output
+  rkmsave(:,k) = rkm(:,k)
+  rkhsave(:,k) = rkh(:,k)
+  tkesave(:,k) = tke(:,k)
+  epssave(:,k) = eps(:,k)
+end do
 #else
 ! Evaluate EDMF scheme
 select case(nlocal)
@@ -1910,12 +1911,16 @@ select case(nlocal)
                 ustar,dt,qgmin,0,tke,eps,shear,dx) 
     
 end select
-rkh = rkm
+do k = 1,kl  
+  rkh(:,k) = rkm(:,k)
+end do
 #endif
 
-! replace counter gradient term  
-rkh = rkh*cqmix
-rkm = rkm*cqmix
+! replace counter gradient term
+do k = 1,kl
+  rkh(:,k) = rkh(:,k)*cqmix
+  rkm(:,k) = rkm(:,k)*cqmix
+end do
 
 ! transform winds back to Earth reference frame and theta to temp
 do k = 1,kl
@@ -1938,9 +1943,13 @@ end do
 ! Aerosols
 if ( abs(iaero)>=2 ) then
   do nt = 1,size(xtg,3)
-    rhs(:,:) = xtg(:,:,nt) ! Total grid-box
+    do k = 1,kl  
+      rhs(:,k) = xtg(:,k,nt) ! Total grid-box
+    end do  
     call trim(at,ct,rhs)
-    xtg(:,:,nt) = max(rhs(:,:), 0.)
+    do k = 1,kl
+      xtg(:,k,nt) = max(rhs(:,k), 0.)
+    end do  
   end do
 end if ! (abs(iaero)>=2)  
       
