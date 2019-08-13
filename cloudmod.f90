@@ -37,11 +37,10 @@ real, save :: u00ramp = 0.01
 contains
     
 subroutine progcloud(qc,qtot,press,rho,fice,qs,t,rhcrit, &
-                     dpsldt,fluxtot,nettend,stratcloud)
+                     dpsldt,nettend,stratcloud)
 
 use const_phys           ! Physical constants
 use parm_m               ! Model configuration
-use sigs_m               ! Atmosphere sigma levels
 
 implicit none
 
@@ -51,10 +50,8 @@ integer k, kl
 real, dimension(:,:), intent(inout) :: qc ! condensate = qf + ql
 real, dimension(:,:), intent(in) :: qtot, rho, fice, qs, t, rhcrit, press
 real, dimension(:,:), intent(in) :: dpsldt
-real, dimension(:,:), intent(in) :: fluxtot
 real, dimension(:,:), intent(inout) :: nettend
 real, dimension(:,:), intent(inout) :: stratcloud
-real, dimension(size(qc,1),size(qc,2)) :: cmflx
 real, dimension(size(qc,1)) :: aa, bb, cc, at, a_dt, b_dt, cf1, cfeq, cfbar
 real, dimension(size(qc,1)) :: qv, omega, hlrvap, dqsdT, gamma, xf, dqs
 real erosion_scale
@@ -66,16 +63,16 @@ stratcloud = max( min( stratcloud, 1. ), 0. )
 ! background erosion scale in 1/secs
 erosion_scale = 1.E-6
 
-if ( ncloud>=4 ) then
-  ! convert convective mass flux from half levels to full levels
-  do k = 1,kl-1
-    cmflx(:,k) = rathb(k)*fluxtot(:,k)+ratha(k)*fluxtot(:,k+1)
-  end do
-  cmflx(:,kl) = rathb(kl)*fluxtot(:,kl)
-else ! ncloud==3
-  ! use convective area fraction in leoncld.f, instead of convective mass flux
-  cmflx = 0.
-end if
+!if ( ncloud>=5 ) then
+!  ! convert convective mass flux from half levels to full levels
+!  do k = 1,kl-1
+!    cmflx(:,k) = rathb(k)*fluxtot(:,k)+ratha(k)*fluxtot(:,k+1)
+!  end do
+!  cmflx(:,kl) = rathb(kl)*fluxtot(:,kl)
+!else ! ncloud==4
+!  ! use convective area fraction in leoncld.f, instead of convective mass flux
+!  cmflx = 0.
+!end if
 
 ! calculate dqs = ((omega + grav*Mc)/(cp*rho)+nettend)*dqsdT*dt
 !                 -------------------------------------------------------
@@ -106,7 +103,8 @@ do k = 1,kl
   
   xf = max(min( (qv/qs(:,k) - rhcrit(:,k) - u00ramp ) / ( 2.*u00ramp ), 1. ), 0. ) ! MJT suggestion
   
-  cc = ((omega + grav*cmflx(:,k))/(cp*rho(:,k))+nettend(:,k))*dt*dqsdT
+  !cc = ((omega + grav*cmflx(:,k))/(cp*rho(:,k))+nettend(:,k))*dt*dqsdT
+  cc = (omega/(cp*rho(:,k))+nettend(:,k))*dt*dqsdT ! neglect cmflx
   at = 1.-stratcloud(:,k)
   aa = 0.5*at*at/max( qs(:,k)-qv, 1.e-20 )
   bb = 1.+gamma*stratcloud(:,k)
