@@ -264,6 +264,7 @@ do k = kbot,kl
 end do     ! k loop
 
 
+#ifndef GPU
 if ( ntest==1 .and. mydiag ) then ! JLM
   do iq = idjd-1,idjd+1
     write(6,*) 'from gwdrag, iq,ngwd,alambda,fnii,apuw,apvw,wmag',  &
@@ -284,6 +285,7 @@ if ( ntest==1 .and. mydiag ) then ! JLM
     !write(6,*) 'vincr',(-apvw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
   end do
 end if
+#endif
 
 return
 end subroutine gwdrag_work
