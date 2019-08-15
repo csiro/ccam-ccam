@@ -139,19 +139,28 @@ real, dimension(imax,kl) :: lcfrac, lgfrac, lppfevap, lppfmelt, lppfprec, lppfsn
 real, dimension(imax,kl) :: lppfstayice, lppfstayliq, lppfsubl, lpplambs, lppmaccr, lppmrate
 real, dimension(imax,kl) :: lppqfsedice, lpprfreeze, lpprscav, lqccon, lqfg, lqfrad
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfrac, lt
-real, dimension(imax,kl) :: ldpsldt, lnettend, lstratcloud, lclcon, lcdrop
+real, dimension(imax,kl) :: ldpsldt, lnettend, lstratcloud, lclcon, lcdrop, lrhoa
 real, dimension(ifull,kl) :: clcon, cdrop, rhoa
 logical mydiag_t
 
-! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
-do k = 1,kl
-  rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k))  
+!$omp do schedule(static) private(is,ie),                                             &
+!$omp private(lrhoa,lcdrop,lclcon)
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+
+  ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
+  do k = 1,kl
+    lrhoa(:,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k))  
+  end do
+  call aerodrop(is,imax,lcdrop,lrhoa,outconv=.true.)
+  cdrop(is:ie,:) = lcdrop
+
+  ! Calculate convective cloud fraction
+  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie))
+  clcon(is:ie,:) = lclcon
 end do
-call aerodrop(1,ifull,cdrop,rhoa,outconv=.true.)
-
-! Calculate convective cloud fraction
-call convectivecloudfrac(clcon,kbsav,ktsav,condc)
-
+!$omp end do nowait
 
 !$omp do schedule(static) private(is,ie),                                             &
 !$omp private(lcfrac,lgfrac),                                                         &
