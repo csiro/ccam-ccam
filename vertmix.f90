@@ -164,8 +164,8 @@ else
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
-    uadj(is:ie,:) = 0.
-    vadj(is:ie,:) = 0.
+    uadj(is:ie) = 0.
+    vadj(is:ie) = 0.
   end do
 !$omp end do nowait  
 end if
