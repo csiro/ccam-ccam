@@ -142,6 +142,8 @@ real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 #endif
    
 if ( nmlo/=0 ) then
+!$omp do schedule(static) private(is,ie,k),             &
+!$omp private(lou,lov,liu,liv)
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
@@ -153,14 +155,19 @@ if ( nmlo/=0 ) then
     call mloexport(3,lov,1,0,water_g(tile),wpack_g(:,tile),wfull_g(tile))
     call mloexpice(liu, 9,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
     call mloexpice(liv,10,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
-    lou = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
-    lov = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
     uadj(is:ie) = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
     vadj(is:ie) = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
   end do
+!$omp end do nowait
 else
-  uadj = 0.
-  vadj = 0.
+!$omp do schedule(static) private(is,ie,k)
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+    uadj(is:ie,:) = 0.
+    vadj(is:ie,:) = 0.
+  end do
+!$omp end do nowait  
 end if
 
 select case(nvmix)
