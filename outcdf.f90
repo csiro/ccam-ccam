@@ -3711,10 +3711,12 @@ freqstore(1:ifull,14) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,15) = tscrn_stn
 freqstore(1:ifull,16) = rhscrn_stn
 freqstore(1:ifull,17) = qgscrn_stn
-freqstore(1:ifull,18) = ua150
-freqstore(1:ifull,19) = va150
-freqstore(1:ifull,20) = ua250
-freqstore(1:ifull,21) = va250
+if ( diag_pbl>5 ) then
+  freqstore(1:ifull,18) = ua150
+  freqstore(1:ifull,19) = va150
+  freqstore(1:ifull,20) = ua250
+  freqstore(1:ifull,21) = va250
+end if
 freqstore(1:ifull,22) = cloudtot
 
 ! write data to file
