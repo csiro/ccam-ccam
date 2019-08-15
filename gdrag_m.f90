@@ -85,20 +85,22 @@ use const_phys, only : grav, rdry, cp
 use arrays_m
 use newmpar_m
 use nharrs_m
-use parm_m, only : idjd,vmodmin,sigbot_gwd,fc2,alphaj,ngwd,dt
+use parm_m, only : idjd, vmodmin, sigbot_gwd, fc2, alphaj, ngwd, dt
 use pbl_m
 use sigs_m, only : dsig, sig
+
 
 implicit none
 
 integer tile, is, ie
 integer idjd_t
 real, dimension(imax,kl) :: lt, lu, lv
-real, dimension(imax) :: ltss, lhe
 logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),        &
-!$omp private(lt,lu,lv,ltss,lhe,idjd_t,mydiag_t)
+!$omp private(lt,lu,lv,idjd_t,mydiag_t)
+!$acc parallel copy(u,v), copyin(t,tss,he,dsig,sig)
+!$acc loop gang private(lt,lu,lv)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -106,24 +108,19 @@ do tile = 1,ntiles
   idjd_t = mod(idjd-1,imax) + 1
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
   
-  lt   = t(is:ie,:)
-  lu   = u(is:ie,:)
-  lv   = v(is:ie,:)
-  ltss = tss(is:ie)
-  lhe  = he(is:ie)
-
-!$acc kernels copy(lu,lv), copyin(lt,ltss,lhe,idjd_t,mydiag_t), &
-!$acc copyin(vmodmin,sigbot_gwd,fc2,alphaj,ngwd,dt)             &
-!$acc copyin(dsig,sig), copyin(grav,rdry,cp)
-  call gwdrag_work(lt,lu,lv,ltss,lhe,idjd_t,mydiag_t,     &
-                   vmodmin,sigbot_gwd,fc2,alphaj,ngwd,dt, &
-                   dsig,sig,grav,rdry,cp)
-!$acc end kernels
+  lt = t(is:ie,:)
+  lu = u(is:ie,:)
+  lv = v(is:ie,:)
+  
+  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),idjd_t,mydiag_t,  &
+                   dsig,sig,vmodmin,sigbot_gwd,fc2,alphaj,ngwd,dt, &
+                   grav,rdry,cp,kbot)
 
   u(is:ie,:) = lu
   v(is:ie,:) = lv
  
 end do
+!$acc end parallel
 !$omp end do nowait
 
 return
@@ -137,14 +134,16 @@ end subroutine gwdrag
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
-subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag,              &
-                       vmodmin,sigbot_gwd,fc2,alphaj,ngwd,dt, &
-                       dsig,sig,grav,rdry,cp)
+subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag,                       &
+                       dsig,sig,vmodmin,sigbot_gwd,fc2,alphaj,ngwd,dt, &
+                       grav,rdry,cp,kbot)
+!$acc routine vector
 
 implicit none
 
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
 integer, intent(in) :: idjd
+integer, intent(in) :: kbot
 integer, intent(in) :: ngwd
 integer iq, k, imax, kl
 real, dimension(:,:), intent(in)    :: t
@@ -159,19 +158,19 @@ real, dimension(size(t,1)) :: temp,fnii
 real, dimension(size(t,1)) :: bvng ! to be depreciated
 real, dimension(size(t,1)) :: apuw,apvw,alambda,wmag
 real, dimension(size(t,2)) :: dsk,sigk
-real, intent(in) :: vmodmin, sigbot_gwd, fc2, alphaj, dt
-real, intent(in) :: grav, rdry, cp
+real, intent(in) :: vmodmin,sigbot_gwd,fc2,alphaj,dt
+real, intent(in) :: grav,rdry,cp
 real dzx
 logical, intent(in) :: mydiag
+
+imax = size(t,1)
+kl = size(t,2)
 
 ! older values:  
 !   ngwd=-5  helim=800.  fc2=1.  sigbot_gw=0. alphaj=1.E-6 (almost equiv to 0.0075)
 ! new JLM suggestion to resemble Chouinard et al values (apart from alphaj):
 !   ngwd=-20 helim=1600. fc2=-.5 sigbot_gw=1. alphaj=0.05
 ! If desire to tune, only need to vary alphaj (increase for stronger GWD)
-
-imax = size(t,1)
-kl = size(t,2)
 
 do k = 1,kl
   dsk(k) = -dsig(k)
@@ -198,7 +197,7 @@ wmag(:) = sqrt(max(u(:,1)**2+v(:,1)**2, vmodmin**2)) ! MJT suggestion
 !      if unstable reference level then no gwd 
 !            - happens automatically via effect on bvnf & alambda
 do k = 1,kl-1
-  bvnf(:,k) = sqrt(max(1.e-20, grav*0.5*(dtheta_dz_kmh(:,k)+dtheta_dz_kmh(:,k+1))/theta_full(:,k)) )
+  bvnf(:,k) = sqrt(max(1.e-20, grav*0.5*(dtheta_dz_kmh(:,k)+dtheta_dz_kmh(:,k+1))/theta_full(:,k)) ) ! MJT fixup
 end do    ! k loop
 bvnf(:,kl) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(:,kl)/theta_full(:,kl)))    ! jlm fixup
 
@@ -265,6 +264,7 @@ do k = kbot,kl
 end do     ! k loop
 
 
+#ifndef GPU
 if ( ntest==1 .and. mydiag ) then ! JLM
   do iq = idjd-1,idjd+1
     write(6,*) 'from gwdrag, iq,ngwd,alambda,fnii,apuw,apvw,wmag',  &
@@ -277,9 +277,15 @@ if ( ntest==1 .and. mydiag ) then ! JLM
     write(6,*) 'bvnf',bvnf(iq,1:kl)
     write(6,*) 'dtheta_dz_kmh',dtheta_dz_kmh(iq,1:kl)
     write(6,*) 'uu',uu(iq,kbot:kl)
+    !write(6,*) 'froude2_inv',froude2_inv(iq,kbot:kl)
     write(6,*) 'fni',fni(iq,kbot:kl)
+    !write(6,*) 'uux',uux(iq,kbot:kl)
+!   following in reverse k order to assist viewing by grep	 
+    !write(6,*) 'uincr',(-apuw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
+    !write(6,*) 'vincr',(-apvw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
   end do
 end if
+#endif
 
 return
 end subroutine gwdrag_work

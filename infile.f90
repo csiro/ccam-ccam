@@ -47,7 +47,7 @@ private
 public vertint, datefix, getzinp, ncmsg, processdatestring
 public ptest, pfall, ncidold, resprocformat, pncid
 public histopen, histclose, histrd, surfread
-public attrib, histwrt, freqwrite
+public attrib, histwrt
 public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef
 public ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
 public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim, ccnf_def_dimu
@@ -127,7 +127,8 @@ interface ccnf_put_vara
   module procedure ccnf_put_vara_int1i_s, ccnf_put_vara_int1i_t
   module procedure ccnf_put_vara_int2i
 #ifndef i8r8
-  module procedure ccnf_put_vara_double1r_s, ccnf_put_vara_double2r
+  module procedure ccnf_put_vara_double1r_s, ccnf_put_vara_double1r_t
+  module procedure ccnf_put_vara_double2r
 #endif
 end interface ccnf_put_vara
 
@@ -2009,6 +2010,7 @@ lcdfid = cdfid
 ldim   = dim
 #ifdef usenc3
 ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+call ncmsg("def_var - "//trim(name),ier)
 #else
 if ( localhist .and. ndim>3 ) then
   ! MJT notes - PR identified (/il, jl, kl,vnode_nproc, min(10, tlen)/) as optimal.
@@ -2029,15 +2031,16 @@ if ( localhist .and. ndim>3 ) then
   ! for file IO.  However, file sizes can increase significantly without compression.
   lcompression = compression   
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+  call ncmsg("def_var - "//trim(name),ier)
   ier = nf90_def_var_deflate(lcdfid, idv, 1_4, 1_4, lcompression)
   ier = nf90_def_var_chunking(lcdfid, idv, NF90_CHUNKED, chunks )
 else
   lcompression = compression
   ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
+  call ncmsg("def_var - "//trim(name),ier)
   ier = nf90_def_var_deflate(lcdfid, idv, 1_4, 1_4, lcompression)
 end if
 #endif
-call ncmsg("def_var - "//trim(name),ier)
 lsize = len_trim(lname)
 ier = nf90_put_att(lcdfid,idv,'long_name',lname)
 call ncmsg("long_name",ier)
@@ -2085,25 +2088,25 @@ implicit none
 
 integer, intent(in) :: idnc, iarch
 real, dimension(ifull), intent(in) :: var
-real, dimension(ifull,1) :: wvar
-real, dimension(0,0,0) :: var_t
+real, dimension(ifull) :: wvar
+real, dimension(0,0) :: var_t
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
 if (.not.lwrite) then
-  wvar(:,1)=real(nf90_fill_float)
+  wvar(:)=real(nf90_fill_float)
 else
-  wvar(:,1)=var(:)
+  wvar(:)=var(:)
 end if
 
 if ( local ) then
-  call fw3lp(wvar,sname,idnc,iarch,1)  
+  call fw3lp(wvar,sname,idnc,iarch)  
 else if ( localhist ) then
   call ccmpi_gatherx(var_t,wvar,0,comm_vnode)
 else if ( myid==0 ) then
-  call fw3a(wvar,sname,idnc,iarch,1)
+  call fw3a(wvar,sname,idnc,iarch)
 else
-  call ccmpi_gather(wvar(1:ifull,1:1))
+  call ccmpi_gather(wvar)
 end if
 
 return
@@ -2122,60 +2125,33 @@ implicit none
 
 integer, intent(in) :: idnc, iarch
 real(kind=8), dimension(ifull), intent(in) :: var
-real(kind=8), dimension(ifull,1) :: wvar
-real(kind=8), dimension(0,0,0) :: var_t
+real(kind=8), dimension(ifull) :: wvar
+real(kind=8), dimension(0,0) :: var_t
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
 if (.not.lwrite) then
-  wvar(:,1)=real(nf90_fill_float,8)
+  wvar(:)=real(nf90_fill_float,8)
 else
-  wvar(:,1)=var(:)
+  wvar(:)=var(:)
 end if
 
 if ( local ) then
-  call fw3lpr8(wvar,sname,idnc,iarch,1)  
+  call fw3lpr8(wvar,sname,idnc,iarch)  
 else if ( localhist ) then
   call ccmpi_gatherxr8(var_t,wvar,0,comm_vnode)
 else if ( myid==0 ) then
-  call fw3ar8(wvar,sname,idnc,iarch,1)
+  call fw3ar8(wvar,sname,idnc,iarch)
 else
-  call ccmpi_gatherr8(wvar(1:ifull,1:1))
+  call ccmpi_gatherr8(wvar)
 end if
 
 return
 end subroutine histwrt3r8
 #endif
 
-subroutine freqwrite(fncid,cname,fiarch,istep,local,datain)
-
-use cc_mpi               ! CC MPI routines
-use newmpar_m            ! Grid parameters
-use parm_m               ! Model configuration
-
-implicit none
-      
-integer, intent(in) :: fncid, fiarch, istep
-real, dimension(ifull,istep), intent(in) :: datain
-real, dimension(0,0,0) :: var_t
-logical, intent(in) :: local
-character(len=*), intent(in) :: cname
-      
-if ( local ) then
-  call fw3lp(datain,cname,fncid,fiarch,istep)   
-else if ( localhist ) then
-  call ccmpi_gatherx(var_t,datain,0,comm_vnode)
-else if ( myid==0 ) then
-  call fw3a(datain,cname,fncid,fiarch,istep)
-else
-  call ccmpi_gather(datain(1:ifull,1:istep))
-endif
-     
-return
-end subroutine freqwrite
-
 ! procformat and local(write)
-subroutine fw3lp(var,sname,idnc,iarch,istep)
+subroutine fw3lp(var,sname,idnc,iarch)
 
 use cc_mpi               ! CC MPI routines
 use newmpar_m            ! Grid parameters
@@ -2183,23 +2159,23 @@ use parm_m               ! Model configuration
       
 implicit none
       
-integer, intent(in) :: idnc, iarch, istep
-integer ier, i, v
+integer, intent(in) :: idnc, iarch
+integer ier, v
 integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(4) :: start, ncount
-integer(kind=2), dimension(ifull,vnode_nproc,istep) :: ipack_g
-real, dimension(ifull,istep), intent(in) :: var
-real, dimension(ifull,vnode_nproc,istep) :: var_g
-real, dimension(ifull,istep,vnode_nproc) :: var_t
+integer(kind=2), dimension(ifull,vnode_nproc) :: ipack_g
+real, dimension(ifull), intent(in) :: var
+real, dimension(ifull,vnode_nproc) :: var_g
+real, dimension(ifull,vnode_nproc) :: var_t
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
 start = (/ 1, 1, 1, iarch /)
-ncount = (/ il, jl, vnode_nproc, istep /)
+ncount = (/ il, jl, vnode_nproc, 1 /)
 
 !if ( useiobuffer ) then
 !  ! MJT notes - move this to its own subroutine ...  
-!  !call add_iobuffer(idnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
+!  !call add_iobuffer(idnc,mid,ndims,ifull,1,vnode_nproc,start,ncount,var)
 !  write(6,*) "ERROR: iobuffer not yet implemented"
 !  call ccmpi_abort(-1)
 !  return
@@ -2207,9 +2183,7 @@ ncount = (/ il, jl, vnode_nproc, istep /)
 
 call ccmpi_gatherx(var_t,var,0,comm_vnode)
 do v = 1,vnode_nproc
-  do i = 1,istep    
-    var_g(1:ifull,v,i) = var_t(1:ifull,i,v)
-  end do
+  var_g(1:ifull,v) = var_t(1:ifull,v)
 end do
 
 if ( any( var_g/=var_g ) ) then
@@ -2223,14 +2197,12 @@ call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
 if ( vtype==nf90_short ) then
   if ( all(var_g>9.8E36) ) then
-    ipack_g(:,:,:) = missval
+    ipack_g(:,:) = missval
   else
     ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do i = 1,istep
-      do v = 1,vnode_nproc        
-        ipack_g(:,v,i) = nint(max(min((var_g(:,v,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
-      end do
+    do v = 1,vnode_nproc        
+      ipack_g(:,v) = nint(max(min((var_g(:,v)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
     end do
   end if
   ier = nf90_put_var(lidnc,mid,ipack_g,start=start(1:ndims),count=ncount(1:ndims))
@@ -2251,7 +2223,7 @@ return
 end subroutine fw3lp
       
 ! global(write) with single file
-subroutine fw3a(var,sname,idnc,iarch,istep)
+subroutine fw3a(var,sname,idnc,iarch)
 
 use cc_mpi               ! CC MPI routines
 use newmpar_m            ! Grid parameters
@@ -2259,23 +2231,23 @@ use parm_m               ! Model configuration
 
 implicit none
 
-integer, intent(in) :: idnc, iarch, istep
-integer :: ier, imn, imx, jmn, jmx, iq, i
+integer, intent(in) :: idnc, iarch
+integer :: ier, imn, imx, jmn, jmx, iq
 integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(:,:), allocatable :: ipack
-real, dimension(ifull,istep), intent(in) :: var
-real, dimension(:,:), allocatable :: globvar
+integer(kind=2), dimension(:), allocatable :: ipack
+real, dimension(ifull), intent(in) :: var
+real, dimension(:), allocatable :: globvar
 real :: varn, varx
 real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
       
-allocate( globvar(ifull_g,istep), ipack(ifull_g,istep) )
+allocate( globvar(ifull_g), ipack(ifull_g) )
 
-call ccmpi_gather(var(1:ifull,1:istep), globvar(1:ifull_g,1:istep))
+call ccmpi_gather(var(1:ifull), globvar(1:ifull_g))
 
 start = (/ 1, 1, iarch /)
-ncount = (/ il_g, jl_g, istep /)
+ncount = (/ il_g, jl_g, 1 /)
 
 if ( any( globvar/=globvar ) ) then
   write(6,*) "ERROR: NaN detected in write for fw3a ",trim(sname)
@@ -2293,9 +2265,7 @@ if ( vtype==nf90_short ) then
   else
     ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do i = 1,istep
-      ipack(:,i) = nint(max(min((globvar(:,i)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
-    end do
+    ipack(:) = nint(max(min((globvar-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
   endif
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
 else
@@ -2307,21 +2277,21 @@ if ( mod(ktau,nmaxpr)==0 ) then
   if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt3 ",a20,i4,a7)') sname,iarch,"missing"
   else
-    varn = minval(globvar(:,1))
-    varx = maxval(globvar(:,1))
+    varn = minval(globvar(:))
+    varx = maxval(globvar(:))
     ! This should work ???? but sum trick is more portable???
     ! iq = minloc(globvar,dim=1)
-    iq = sum(minloc(globvar(:,1)))
+    iq = sum(minloc(globvar(:)))
     ! Convert this 1D index to 2D
     imn = 1 + modulo(iq-1,il_g)
     jmn = 1 + (iq-1)/il_g
-    iq = sum(maxloc(globvar(:,1)))
+    iq = sum(maxloc(globvar(:)))
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
     write(6,'(" histwrt3 ",a20,i4,f12.4,2i4,f12.4,2i4,f12.4)') &
                     sname,iarch,varn,imn,jmn,varx,imx,jmx,    &
-                    globvar(id+(jd-1)*il_g,1)
+                    globvar(id+(jd-1)*il_g)
   end if
 end if
 
@@ -2332,7 +2302,7 @@ end subroutine fw3a
 
 #ifndef i8r8
 ! procformat and local(write) (double precision version)
-subroutine fw3lpr8(var,sname,idnc,iarch,istep)
+subroutine fw3lpr8(var,sname,idnc,iarch)
 
 use cc_mpi               ! CC MPI routines
 use newmpar_m            ! Grid parameters
@@ -2340,23 +2310,23 @@ use parm_m               ! Model configuration
       
 implicit none
       
-integer, intent(in) :: idnc, iarch, istep
-integer :: ier, i, v
+integer, intent(in) :: idnc, iarch
+integer :: ier, v
 integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(4) :: start, ncount
-integer(kind=2), dimension(ifull,vnode_nproc,istep) :: ipack_g
-real(kind=8), dimension(ifull,istep), intent(in) :: var
-real(kind=8), dimension(ifull,vnode_nproc,istep) :: var_g
-real(kind=8), dimension(ifull,istep,vnode_nproc) :: var_t
+integer(kind=2), dimension(ifull,vnode_nproc) :: ipack_g
+real(kind=8), dimension(ifull), intent(in) :: var
+real(kind=8), dimension(ifull,vnode_nproc) :: var_g
+real(kind=8), dimension(ifull,vnode_nproc) :: var_t
 real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
 start = (/ 1, 1, 1, iarch /)
-ncount = (/ il, jl, vnode_nproc, istep /)
+ncount = (/ il, jl, vnode_nproc, 1 /)
 
 !if ( useiobuffer ) then
 !  ! MJT notes - move this to its own subroutine ...  
-!  !call add_iobuffer(idnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
+!  !call add_iobuffer(idnc,mid,ndims,ifull,1,vnode_nproc,start,ncount,var)
 !  write(6,*) "ERROR: iobuffer not yet implemented"
 !  call ccmpi_abort(-1)
 !  return
@@ -2364,9 +2334,7 @@ ncount = (/ il, jl, vnode_nproc, istep /)
 
 call ccmpi_gatherxr8(var_t,var,0,comm_vnode)
 do v = 1,vnode_nproc
-  do i = 1,istep    
-    var_g(1:ifull,v,i) = var_t(1:ifull,i,v)
-  end do
+  var_g(1:ifull,v) = var_t(1:ifull,v)
 end do
 
 if ( any( var_g/=var_g ) ) then
@@ -2380,14 +2348,12 @@ call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
 if ( vtype==nf90_short ) then
   if ( all(var_g>9.8E36_8) ) then
-    ipack_g(:,:,:) = missval
+    ipack_g(:,:) = missval
   else
     ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do i = 1,istep
-      do v = 1,vnode_nproc        
-        ipack_g(:,v,i) = nint(max(min((var_g(:,v,i)-real(laddoff,8))/real(lscale_f,8),real(maxv,8)),real(minv,8)),2)
-      end do
+    do v = 1,vnode_nproc        
+      ipack_g(:,v) = nint(max(min((var_g(:,v)-real(laddoff,8))/real(lscale_f,8),real(maxv,8)),real(minv,8)),2)
     end do
   end if
   ier = nf90_put_var(lidnc,mid,ipack_g,start=start(1:ndims),count=ncount(1:ndims))
@@ -2408,7 +2374,7 @@ return
 end subroutine fw3lpr8
 
 ! global(write) with single file (double precision version)
-subroutine fw3ar8(var,sname,idnc,iarch,istep)
+subroutine fw3ar8(var,sname,idnc,iarch)
 
 use cc_mpi               ! CC MPI routines
 use newmpar_m            ! Grid parameters
@@ -2416,23 +2382,23 @@ use parm_m               ! Model configuration
 
 implicit none
 
-integer, intent(in) :: idnc, iarch, istep
+integer, intent(in) :: idnc, iarch
 integer :: ier, imn, imx, jmn, jmx, iq, i
 integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(:,:), allocatable :: ipack
-real(kind=8), dimension(ifull,istep), intent(in) :: var
-real(kind=8), dimension(:,:), allocatable :: globvar
+integer(kind=2), dimension(:), allocatable :: ipack
+real(kind=8), dimension(ifull), intent(in) :: var
+real(kind=8), dimension(:), allocatable :: globvar
 real(kind=8) :: varn, varx
 real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
       
-allocate( globvar(ifull_g,istep), ipack(ifull_g,istep) )
+allocate( globvar(ifull_g), ipack(ifull_g) )
 
-call ccmpi_gatherr8(var(1:ifull,1:istep), globvar(1:ifull_g,1:istep))
+call ccmpi_gatherr8(var(1:ifull), globvar(1:ifull_g))
 
 start = (/ 1, 1, iarch /)
-ncount = (/ il_g, jl_g, istep /)
+ncount = (/ il_g, jl_g, 1 /)
 
 if ( any( globvar/=globvar ) ) then
   write(6,*) "ERROR: NaN detected in write for fw3ar8 ",trim(sname)
@@ -2450,9 +2416,7 @@ if ( vtype==nf90_short ) then
   else
     ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do i = 1,istep
-      ipack(:,i) = nint(max(min((globvar(:,i)-real(laddoff,8))/real(lscale_f,8),real(maxv,8)),real(minv,8)),2)
-    end do
+    ipack(:) = nint(max(min((globvar-real(laddoff,8))/real(lscale_f,8),real(maxv,8)),real(minv,8)),2)
   endif
   ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
 else
@@ -2464,21 +2428,21 @@ if ( mod(ktau,nmaxpr)==0 ) then
   if ( any(abs(globvar-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt3r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
-    varn = minval(globvar(:,1))
-    varx = maxval(globvar(:,1))
+    varn = minval(globvar(:))
+    varx = maxval(globvar(:))
     ! This should work ???? but sum trick is more portable???
     ! iq = minloc(globvar,dim=1)
-    iq = sum(minloc(globvar(:,1)))
+    iq = sum(minloc(globvar(:)))
     ! Convert this 1D index to 2D
     imn = 1 + modulo(iq-1,il_g)
     jmn = 1 + (iq-1)/il_g
-    iq = sum(maxloc(globvar(:,1)))
+    iq = sum(maxloc(globvar(:)))
     ! Convert this 1D index to 2D
     imx = 1 + modulo(iq-1,il_g)
     jmx = 1 + (iq-1)/il_g
     write(6,'(" histwrt3r8 ",a20,i4,f12.4,2i4,f12.4,2i4,f12.4)') &
                     sname,iarch,varn,imn,jmn,varx,imx,jmx,    &
-                    globvar(id+(jd-1)*il_g,1)
+                    globvar(id+(jd-1)*il_g)
   end if
 end if
 
@@ -4501,6 +4465,34 @@ call ncmsg("put_vara",ncstatus)
 
 return
 end subroutine ccnf_put_vara_double1r_s
+
+subroutine ccnf_put_vara_double1r_t(ncid,name,start,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid
+integer ncstatus
+integer, intent(in) :: start
+integer(kind=4) lncid, lvid
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
+real(kind=8), intent(in) :: vdat
+real(kind=8), dimension(1) :: lvdat
+character(len=*), intent(in) :: name
+
+lncid=ncid
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+call ncmsg(name,ncstatus)
+lstart=start
+lncount=1
+lvdat=vdat
+ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
+call ncmsg("put_vara_double1r",ncstatus)
+
+return
+end subroutine ccnf_put_vara_double1r_t
 #endif
 
 #ifndef i8r8

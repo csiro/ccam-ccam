@@ -27,7 +27,7 @@ implicit none
 
 private
 public establ,estabi,qsat,qsati,estab_init
-public esdiffx,pow75
+public esdiffx
 
 real, dimension(:), allocatable, save :: table, tablei
 real, dimension(:), allocatable, save :: esdiff
@@ -53,9 +53,6 @@ end interface tdiffx
 interface esdiffx
   module procedure esdiffx_s, esdiffx_v
 end interface esdiffx
-interface pow75
-  module procedure pow75_s, pow75_v
-end interface
 
 contains
 
@@ -298,21 +295,5 @@ tfrac = tstore - aint(tstore)
 tpos = int(tstore)
 ans = (1.-tfrac)*esdiff(tpos)+tfrac*esdiff(tpos+1)
 end function esdiffx_v
-
-pure function pow75_s(x) result(ans)
-implicit none
-real, intent(in) :: x
-real ans, y
-y=sqrt(x)
-ans=y*sqrt(y)
-end function pow75_s
-
-pure function pow75_v(x) result(ans)
-implicit none
-real, dimension(:), intent(in) :: x
-real, dimension(size(x)) :: ans, y
-y=sqrt(x)
-ans=y*sqrt(y)
-end function pow75_v
 
 end module estab

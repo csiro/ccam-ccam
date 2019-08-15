@@ -156,6 +156,7 @@ integer spinup, spinup_start, ntau_end, ntau_spinup
 integer opt, nopt
 integer, save :: iarch_nudge = 0
 integer nud_ql, nud_qf
+integer tblock
 real, dimension(1000) :: press_in
 real press_surf, gridres, soil_albedo
 real es
@@ -168,7 +169,7 @@ real ateb_infilach,  ateb_intgains, ateb_bldairtemp
 real ateb_heatprop, ateb_coolprop
 real ateb_zovegc
 real ps_adj
-real cgmap_offset, cgmap_scale
+real cgmap_offset, cgmap_scale, tke_umin
 real, dimension(4) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
 real, dimension(4) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
@@ -253,8 +254,8 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,rcrit_l,rcrit_s,ncloud
 ! boundary layer turbulence and gravity wave namelist
-namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cq,ent0,ent1,entc0,dtrc0, & !EDMF PBL scheme
-    m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,             &
+namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & !EDMF PBL scheme
+    dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
     stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,                 &
     amxlsq,                                                       & !JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj                                !GWdrag
@@ -456,7 +457,7 @@ call work2_init(ifull,nsib)
 call work3_init(ifull,nsib)
 call work3f_init(ifull,kl)
 if ( nvmix==6 ) then
-  call tkeinit(ifull,iextra,kl,0)
+  call tkeinit(ifull,iextra,kl)
 end if
 
 rlatt(1) = rlat_in*pi/180.

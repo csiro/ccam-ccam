@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -30,6 +30,7 @@ public anthropogenic_flux, urban_tas, urban_ts, urban_wetfac
 public urban_storage_flux, urban_elecgas_flux
 public urban_heating_flux, urban_cooling_flux
 public urban_zom, urban_zoh, urban_zoq, urban_emiss
+public ua150, va150, ua250, va250
 public morepbl_init, morepbl_end
 
 #ifdef scm
@@ -45,6 +46,7 @@ real, dimension(:), allocatable, save :: urban_storage_flux, urban_elecgas_flux
 real, dimension(:), allocatable, save :: urban_heating_flux, urban_cooling_flux
 real, dimension(:), allocatable, save :: urban_zom, urban_zoh, urban_zoq, urban_emiss
 real, dimension(:), allocatable, save :: condc, condx, conds, condg, pblh, fg, eg
+real, dimension(:), allocatable, save :: ua150, va150, ua250, va250
 
 #ifdef scm
 real, dimension(:,:), allocatable, save :: wth_flux, wq_flux, uw_flux, vw_flux
@@ -58,7 +60,7 @@ contains
 #ifdef scm
 subroutine morepbl_init(ifull,kl)
 #else
-subroutine morepbl_init(ifull)
+subroutine morepbl_init(ifull,diaglevel_pbl)
 #endif
 
 implicit none
@@ -66,7 +68,7 @@ implicit none
 #ifdef scm
 integer, intent(in) :: ifull, kl
 #else
-integer, intent(in) :: ifull
+integer, intent(in) :: ifull, diaglevel_pbl
 #endif
 
 allocate( condx(ifull), fg(ifull), eg(ifull), epot(ifull) )
@@ -120,6 +122,14 @@ rkhsave=0.
 buoyproduction=0.
 shearproduction=0.
 totaltransport=0.
+#else
+if ( diaglevel_pbl>5 ) then
+  allocate( ua150(ifull), va150(ifull), ua250(ifull), va250(ifull) )
+  ua150 = 0.
+  va150 = 0.
+  ua250 = 0.
+  va250 = 0.
+end if
 #endif
 
 return
@@ -142,6 +152,8 @@ deallocate( tkesave, epssave, mfsave )
 deallocate( rkmsave, rkhsave )
 deallocate( buoyproduction, shearproduction )
 deallocate( totaltransport )
+#else
+deallocate( ua150, va150, ua250, va250 )
 #endif
 
 return

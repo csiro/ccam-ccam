@@ -1050,7 +1050,7 @@ end do
 
 ZDECAY=EXP(ZFAC/86400.) ! 1 day
 DO JK=1,kl
-  ZDXTDT=xtg(1:imax,JK,ITRACOC)*(ZDECAY-1.)*PQTMST
+  ZDXTDT=xtg(1:imax,JK,ITRACOC)*(ZDECAY-1.)
   xtg(1:imax,JK,ITRACOC)   = xtg(1:imax,JK,ITRACOC)   + ZDXTDT
   xtg(1:imax,JK,ITRACOC+1) = xtg(1:imax,JK,ITRACOC+1) - ZDXTDT
 end do
