@@ -86,7 +86,6 @@ if ( intsch==1 ) then
   do nn = 1,3
     do k = 1,kl
       do n = 1,npan
-!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
@@ -95,7 +94,6 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s(is(iq),k,nn)
@@ -104,9 +102,6 @@ if ( intsch==1 ) then
           sx(i,jpan+1,n,k,nn) = s(in(iq),k,nn)
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
         end do            ! i loop
-      end do
-!$omp simd
-      do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lwws(n),k,nn)
         sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),k,nn)
         sx(0,-1,n,k,nn)          = s(lwss(n),k,nn)
@@ -160,6 +155,7 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
 
+!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
   do nn = 1,3
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -191,6 +187,7 @@ if ( intsch==1 ) then
       end do   ! iq loop
     end do     ! k loop
   end do       ! nn loop
+!$acc end parallel
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -200,7 +197,6 @@ else     ! if(intsch==1)then
   do nn = 1,3
     do k = 1,kl
       do n = 1,npan
-!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
@@ -209,7 +205,6 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s(is(iq),k,nn)
@@ -218,9 +213,6 @@ else     ! if(intsch==1)then
           sx(i,jpan+1,n,k,nn) = s(in(iq),k,nn)
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
         end do            ! i loop
-      end do
-!$omp simd
-      do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
         sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),k,nn)
         sx(0,-1,n,k,nn)          = s(lssw(n),k,nn)
@@ -273,6 +265,7 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
+!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
   do nn = 1,3
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -304,6 +297,7 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! k loop
   end do              ! nn loop
+!$acc end parallel
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -366,6 +360,7 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
 
+!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
   do nn = 1,3
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -397,6 +392,7 @@ if ( intsch==1 ) then
       end do   ! iq loop
     end do     ! k loop
   end do       ! nn loop
+!$acc end parallel
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -439,6 +435,7 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
+!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
   do nn = 1,3
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -471,6 +468,7 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! nn loop
   end do              ! k loop
+!$acc end parallel
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
