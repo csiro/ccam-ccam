@@ -2303,7 +2303,8 @@ do k = 1,kl
     qgrg(:,k)      = 0.
     cfgraupel(:,k) = 0.
   end where
-
+  qtg(:,k) = max( qtg(:,k), 0. )
+    
   stratcloud(:,k) = clfr(:,k) + cifr(:,k)
 
 end do

@@ -613,7 +613,7 @@
         endif  ! (ktau==1.and.mydiag)
         
         do iq=1,imax
-         alfqarr(iq)=qplume(iq,kkbb(iq))/qq(iq,kkbb(iq))
+         alfqarr(iq)=qplume(iq,kkbb(iq))/max(qq(iq,kkbb(iq)),1.e-20) ! MJT suggestion
         enddo    ! iq loop             	 
       endif  ! (itn==1) !--------------------------------------
       

@@ -767,7 +767,7 @@ stratcloud_p = stratcloud(iqmap,1)
 
 dzht = zz_p(:,1)
 ! Entrainment rates
-ent = entfn(zz_p(:,k), zi_p(:))
+ent = entfn(zz_p(:,1), zi_p(:))
 
 ! initial thermodynamic state
 ! split qtot into components (conservation of thetal and qtot is maintained)

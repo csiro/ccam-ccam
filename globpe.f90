@@ -258,12 +258,12 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   ! NESTING ---------------------------------------------------------------
   if ( nbd/=0 ) then
-    ! Newtonian relaxiation
-    call nantest("before nesting",1,ifull)  
+    ! Newtonian relaxiati
     call START_LOG(nestin_begin)
+    call nantest("before nesting",1,ifull)  
     call nestin
-    call END_LOG(nestin_end)
     call nantest("after nesting",1,ifull)
+    call END_LOG(nestin_end)
   else
     call nantest("before atmosphere dynamics",1,ifull)
   end if
