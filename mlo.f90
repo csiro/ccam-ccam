@@ -1,5 +1,5 @@
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -554,19 +554,19 @@ dd = min( mxd, max( mindep, depin ) )
 x = real(wlin)
 select case(mlosigma)
   case(0) ! cubic
-    al = dd*(mindep*x/mxd-1.)/(x-x*x*x) ! sigma levels
-    bt = dd*(mindep*x*x*x/mxd-1.)/(x*x*x-x) 
+    al = dd*(mindep*x/mxd-1.)/(x-x**3) ! sigma levels
+    bt = dd*(mindep*x**3/mxd-1.)/(x**3-x) 
     do ii = 1,wlin+1
       x = real(ii-1)
-      depth_hlout(ii) = al*x*x*x + bt*x ! ii is for half level ii-0.5
+      depth_hlout(ii) = al*x**3 + bt*x ! ii is for half level ii-0.5
     end do
     
   case(1) ! quadratic
-    al = dd*(1.-mindep*x/mxd)/(x*x-x)   ! sigma levels 
-    bt = dd*(1.-mindep*x*x/mxd)/(x-x*x)
+    al = dd*(1.-mindep*x/mxd)/(x**2-x)   ! sigma levels 
+    bt = dd*(1.-mindep*x*x/mxd)/(x-x**2)
     do ii = 1,wlin+1
       x = real(ii-1)
-      depth_hlout(ii) = al*x*x + bt*x   ! ii is for half leel ii-0.5
+      depth_hlout(ii) = al*x**2 + bt*x   ! ii is for half leel ii-0.5
     end do
 
   case(2) !gotm dynamic
@@ -582,19 +582,19 @@ select case(mlosigma)
     end do
     
   case(4) ! Adcroft and Campin 2003 - cubic
-    al = (mindep*x-mxd)/(x-x*x*x)     ! z* levels
-    bt = (mindep*x*x*x-mxd)/(x*x*x-x)  
+    al = (mindep*x-mxd)/(x-x**3)     ! z* levels
+    bt = (mindep*x**3-mxd)/(x**3-x)  
     do ii = 1,wlin+1
       x = real(ii-1)
-      depth_hlout(ii) = al*x*x*x + bt*x ! ii is for half level ii-0.5
+      depth_hlout(ii) = al*x**3 + bt*x ! ii is for half level ii-0.5
     end do
     
   case(5) ! Adcroft and Campin 2003 - quadratic  
-    al = (mxd-mindep*x)/(x*x-x)      ! z* levels
-    bt = (mxd-mindep*x*x)/(x-x*x)
+    al = (mxd-mindep*x)/(x**2-x)      ! z* levels
+    bt = (mxd-mindep*x*x)/(x-x**2)
     do ii = 1,wlin+1
       x = real(ii-1)
-      depth_hlout(ii) = al*x*x + bt*x ! ii is for half leel ii-0.5
+      depth_hlout(ii) = al*x**2 + bt*x ! ii is for half leel ii-0.5
     end do
     
   case default
@@ -1535,7 +1535,7 @@ subroutine mloregrid_work(wlin,sig_tmp,depin,mloin,mlodat,mode, &
 implicit none
 
 integer, intent(in) :: wlin,mode,wfull
-integer iqw,ii,pos(1)
+integer iqw,ii,jj,jj_found,pos(1)
 real, dimension(wlin), intent(in) :: sig_tmp
 real, dimension(imax), intent(in) :: depin
 real, dimension(imax,wlin), intent(in) :: mloin
@@ -1577,7 +1577,7 @@ end if
 select case(mode)
   case(0,1) ! interpolate to depth
     do iqw = 1,wfull
-      dpin(1:wlin) = sigin(iqw,1:wlin)*deptmp(iqw)  
+      dpin(1:wlin) = min( sigin(iqw,1:wlin)*deptmp(iqw), deptmp(iqw) )  
       if ( wlev==wlin ) then
         if ( all( abs(depth%depth(iqw,1:wlev)-dpin(1:wlev))/depth%depth(iqw,1:wlev)<1.e-6 ) ) then
           newdatb(iqw,1:wlev) = newdata(iqw,1:wlev)
@@ -1585,16 +1585,24 @@ select case(mode)
         end if
       end if
       do ii = 1,wlev
-        if ( depth%depth(iqw,ii)>=dpin(wlin) ) then
-          newdatb(iqw,ii) = newdata(iqw,wlin)
-        else if ( depth%depth(iqw,ii)<=dpin(1) ) then
+        if ( depth%depth(iqw,ii)<=dpin(1) ) then
           newdatb(iqw,ii) = newdata(iqw,1)
         else
-          pos = maxloc(dpin,dpin<depth%depth(iqw,ii))
-          pos(1) = max(1,min(wlin-1,pos(1)))
-          x = (depth%depth(iqw,ii)-dpin(pos(1)))/max(dpin(pos(1)+1)-dpin(pos(1)),1.e-20)
-          x = max(0.,min(1.,x))
-          newdatb(iqw,ii) = newdata(iqw,pos(1)+1)*x + newdata(iqw,pos(1))*(1.-x)
+          ! search down column.  May have multiple levels with same depth, so
+          ! we want the first level of the same depth.
+          jj_found = wlin  
+          do jj = 2,wlin
+            if ( depth%depth(iqw,ii)<dpin(jj) ) then
+              jj_found = jj  
+              exit
+            end if
+          end do  
+          if ( depth%depth(iqw,ii)<dpin(jj_found) ) then
+            x = (depth%depth(iqw,ii)-dpin(jj_found-1))/max(dpin(jj_found)-dpin(jj_found-1),1.e-20)
+            newdatb(iqw,ii) = newdata(iqw,jj_found)*x + newdata(iqw,jj_found-1)*(1.-x)
+          else
+            newdatb(iqw,ii) = newdata(iqw,wlin)
+          end if
         end if
       end do
     end do
