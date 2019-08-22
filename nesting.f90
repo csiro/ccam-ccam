@@ -781,7 +781,7 @@ real, dimension(ifull_g,klt), intent(in) :: tt
 real, dimension(ifull_g) :: r, sm ! large working array
 real, dimension(klt+1) :: local_sum
 real, intent(in) :: cq
-real, dimension(klt,ifull_g) :: tt_t
+real, dimension(klt+1,ifull_g) :: tt_t
 
 ! evaluate the 2D convolution
 call START_LOG(nestcalc_begin)
@@ -789,7 +789,8 @@ call START_LOG(nestcalc_begin)
 ! discrete normalisation factor
 sm = 1.
 
-tt_t=transpose(tt)
+tt_t(1:klt,:)=transpose(tt)
+tt_t(klt+1,:)=sm(:)
 !$omp parallel do private(iqg,iq,r,local_sum)
 do iq = 1,ifull
   iqg = iq2iqg(iq)  
@@ -1122,7 +1123,7 @@ real, dimension(4*il_g,klt) :: at             ! subset of sparse array
 real, dimension(4*il_g) :: asum, ra           ! subset of sparse array
 real, dimension(klt+1) :: local_sum
 real(kind=8), dimension(4*il_g) :: xa, ya, za ! subset of shared array
-real, dimension(klt,4*il_g) :: at_t           ! subset of sparse array
+real, dimension(klt+1,4*il_g) :: at_t           ! subset of sparse array
       
 ! matched for panels 1,2 and 3
       
@@ -1168,7 +1169,8 @@ do ipass = 0,2
       end do
     end do
     
-    at_t=transpose(at)
+    at_t(1:klt,:)=transpose(at)
+    at_t(klt+1,1:me)=asum(1:me)
     ! start convolution
     do n = 1,ipan
       nn = n + os - 1
@@ -1260,7 +1262,8 @@ do j = 1,ipan
     end do
   end do
   
-  at_t=transpose(at)
+  at_t(1:klt,:)=transpose(at)
+  at_t(klt+1,1:me)=asum(1:me)
   ! start convolution
   do n = 1,jpan
     nn = n + os - 1
@@ -1309,7 +1312,7 @@ real, dimension(il_g*jpan*(klt+1)) :: dd
 real, dimension(ipan*jpan*(klt+1)) :: ff
 real, dimension(klt+1) :: local_sum
 real(kind=8), dimension(4*il_g) :: xa, ya, za
-real, dimension(klt,4*il_g) :: at_t
+real, dimension(klt+1,4*il_g) :: at_t
       
 ! matched for panels 0, 4 and 5
       
@@ -1355,7 +1358,8 @@ do ipass = 0,2
       end do
     end do
     
-    at_t=transpose(at)
+    at_t(1:klt,:)=transpose(at)
+    at_t(klt+1,1:me)=asum(1:me)
     ! start convolution
     do n = 1,jpan
       nn = n + os - 1
@@ -1446,7 +1450,8 @@ do j = 1,jpan
     end do
   end do
   
-  at_t=transpose(at)
+  at_t(1:klt,:)=transpose(at)
+  at_t(klt+1,1:me)=asum(1:me)
   ! start convolution
   do n = 1,ipan
     nn = n + os - 1
@@ -1977,7 +1982,7 @@ real, dimension(ifull,kd), intent(out) :: dd
 real, dimension(ifull_g) :: rr, sm
 real, dimension(kd+1) :: local_sum
 real cq
-real, dimension(kd,ifull_g) :: diff_g_t ! large common array
+real, dimension(kd+1,ifull_g) :: diff_g_t ! large common array
 
 ! eventually will be replaced with mbd once full ocean coupling is complete
 cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
@@ -1986,7 +1991,8 @@ call START_LOG(nestcalc_begin)
 dd(:,:) = 0.
 sm(:) = 1.
 
-diff_g_t=transpose(diff_g)
+diff_g_t(1:kd,:)=transpose(diff_g)
+diff_g_t(kd+1,:)=sm(:)
 !$omp parallel do private(iqqg,iqq,rr,local_sum)
 do iqq = 1,ifull
   iqqg = iq2iqg(iqq)
@@ -2268,7 +2274,7 @@ real, dimension(il_g*ipan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1)) :: yy
 real, dimension(kd+1) :: local_sum
 real(kind=8), dimension(4*il_g) :: xa, ya, za
-real, dimension(kd,4*il_g) :: ap_t
+real, dimension(kd+1,4*il_g) :: ap_t
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
@@ -2311,7 +2317,8 @@ do ipass = 0,2
       end do
     end do
     
-    ap_t=transpose(ap)
+    ap_t(1:kd,:)=transpose(ap)
+    ap_t(kd+1,1:me)=asum(1:me)
     ! start convolution
     do n = 1,ipan
       nn = n + os - 1
@@ -2399,7 +2406,8 @@ do j = 1,ipan
     end do
   end do
   
-  ap_t=transpose(ap)
+  ap_t(1:kd,:)=transpose(ap)
+  ap_t(kd+1,1:me)=asum(1:me)
   ! start convolution
   do n = 1,jpan
     nn = n + os - 1
@@ -2447,7 +2455,7 @@ real, dimension(il_g*jpan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1)) :: yy
 real, dimension(kd+1) :: local_sum
 real(kind=8), dimension(4*il_g) :: xa, ya, za
-real, dimension(kd,4*il_g) :: ap_t
+real, dimension(kd+1,4*il_g) :: ap_t
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g*il_g
@@ -2490,7 +2498,8 @@ do ipass = 0,2
       end do
     end do
     
-    ap_t=transpose(ap)
+    ap_t(1:kd,:)=transpose(ap)
+    ap_t(kd+1,1:me)=asum(1:me)
     ! start convolution
     do n = 1,jpan
       nn = n + os - 1
@@ -2578,7 +2587,8 @@ do j = 1,jpan
     end do
   end do
   
-  ap_t=transpose(ap)
+  ap_t(1:kd,:)=transpose(ap)
+  ap_t(kd+1,1:me)=asum(1:me)
   ! start convolution
   do n = 1,ipan
     nn = n + os - 1
@@ -2954,14 +2964,13 @@ complex, dimension(size(at,1)+1) :: local_sum
 integer i, kx, kn, ilen
 
 ilen = size(ra,1)
-kn = size(at,1)
-kx = kn + 1
+kx = size(at,1)
+kn = kx - 1
 
 local_sum(1:kx) = (0.,0.)
 
 do i = 1,ilen
-  at_t(1:kn) = ra(i)*at(1:kn,i)
-  at_t(kx) = ra(i)*asum(i)
+  at_t(1:kx) = ra(i)*at(1:kx,i)
   t1(1:kx) = at_t(1:kx) + real(local_sum(1:kx))
   e(1:kx)  = t1(1:kx) - at_t(1:kx)
   t2(1:kx) = ((real(local_sum(1:kx)) - e(1:kx)) + (at_t(1:kx) - (t1(1:kx) - e(1:kx)))) + aimag(local_sum(1:kx))
