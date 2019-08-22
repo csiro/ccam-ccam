@@ -2838,8 +2838,8 @@ END SUBROUTINE photosynthesis_gm
    
 
    
-    DO i=1,mp
-       DO j=1,mf
+    DO j=1,mf
+      DO i=1,mp
           IF ((vlaiz(i,j)) .GT. C%LAI_THRESH) THEN
              IF(  deltlfz(i,j) .GT. 0.1) THEN
 
