@@ -67,7 +67,8 @@ FHOST = -march=broadwell
 endif
 FFLAGS = -O2 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
-ZMM = -mprefer-vector-width=512
+#ZMM = -mprefer-vector-width=512
+ZMM =
 IPFLAG =
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
