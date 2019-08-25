@@ -1861,6 +1861,10 @@ call mloeval_work(dt,atm_zmin,atm_zmins,atm_sg,atm_rg,atm_rnd,atm_snd,atm_u,atm_
 
 workb=emisice**0.25*ice%tsurf
 sst    =unpack((1.-ice%fracice)*(water%temp(:,1)+wrtemp)+ice%fracice*workb,wpack,sst)
+if ( maxval(water%temp(:,1))>380.-wrtemp ) then
+  write(6,*) "WARN: water%temp = ",maxval(water%temp(:,1))+wrtemp
+  water%temp(:,1) = min( water%temp(:,1), 380.-wrtemp )
+end if
 dumazmin=max(atm_zmin,dgwater%zo+0.2,zoseaice+0.2)
 workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/zoseaice)**2
 zo     =unpack(dumazmin*exp(-1./sqrt(workc)),wpack,zo)

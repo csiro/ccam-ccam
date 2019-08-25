@@ -329,7 +329,7 @@ do kcount = 1,mcount
 
     ! stable boundary layer
 #ifdef scm
-    zi(iqsbl) = zz(iqsbl,1)  
+    zi(iqsbl(1:isbl_p)) = zz(iqsbl(1:isbl_p),1)  
 #else
     call stablepbl(iqsbl(1:isbl_p),zi,zzh,dz_hl,thetav,kmo)
     
