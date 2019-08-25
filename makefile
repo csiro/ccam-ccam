@@ -65,7 +65,7 @@ FHOST = -march=native
 ifeq ($(BROADWELL),yes)
 FHOST = -march=broadwell
 endif
-FFLAGS = -O2 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
 ZMM =
 IPFLAG =
@@ -300,7 +300,7 @@ casa_variable.o: casa_variable.F90
 POP.o: POP.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 helmsolve.o: helmsolve.f90
-	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $(IPFLAG) $<
+	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
 ints.o: ints.f90
 	$(FC) -c $(FFLAGS) $(IPFLAG) $(ZMM) $(PPFLAG90) $<
 mlodynamics.o: mlodynamics.f90
