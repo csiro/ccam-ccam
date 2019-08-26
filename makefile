@@ -27,7 +27,7 @@ ifeq ($(BROADWELL),yes)
 FHOST = -O3 -xCORE-AVX2
 FOVERRIDE =
 ZMM =
-IPFLAG =
+IPFLAG = -ip
 endif
 ifeq ($(SKYLAKE),yes)
 FHOST = -O3 -xSKYLAKE-AVX512
