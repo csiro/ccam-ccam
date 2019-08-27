@@ -15,17 +15,25 @@ MPIFLAG = -Dusempi3
 endif
 FHOST = -O3 -xHost
 FOVERRIDE =
+ZMM =
+IPFLAG =
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
 FOVERRIDE =
+ZMM =
+IPFLAG =
 endif
 ifeq ($(BROADWELL),yes)
 FHOST = -O3 -xCORE-AVX2
 FOVERRIDE =
+ZMM =
+IPFLAG = -ip
 endif
 ifeq ($(SKYLAKE),yes)
-FHOST = -O3 -xSKYLAKE-AVX512
+FHOST = -O3 -xSKYLAKE-AVX512 -fimf-use-svml
 FOVERRIDE = -qoverride-limits
+ZMM = -qopt-zmm-usage=high
+IPFLAG = -ip
 endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
@@ -34,7 +42,7 @@ else
 OMPFLAG =
 endif
 # Default intel compiler options
-FFLAGS = $(FHOST) -ftz -fp-model precise -traceback $(MPIFLAG) $(NCFLAG) $(OMPFLAG)
+FFLAGS = $(FHOST) -ftz -fp-model precise -no-fma -traceback $(MPIFLAG) $(NCFLAG) $(OMPFLAG)
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 ifneq ($(NCCLIB),yes)
 LIBS += -lnetcdff
@@ -57,8 +65,10 @@ FHOST = -march=native
 ifeq ($(BROADWELL),yes)
 FHOST = -march=broadwell
 endif
-FFLAGS = -O2 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
+ZMM =
+IPFLAG =
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
@@ -78,6 +88,8 @@ FHOST =
 FFLAGS = -O3 $(FHOST) -DGPU -traceback $(MPIFLAG) $(NCFLAG)
 FFLAGS += -Minfo=accel -acc -ta=nvidia:cc35
 FOVERRIDE =
+ZMM =
+IPFLAG =
 PPFLAG90 = -cpp
 PPFLAG77 = -cpp
 PPFLAG90F = -cpp
@@ -92,6 +104,8 @@ FC = ftn
 FCSCM = ftn
 FFLAGS = -h noomp -Dusenc_mod
 FOVERRIDE =
+ZMM =
+IPFLAG =
 PPFLAG90 = -eZ
 PPFLAG77 = -eZ
 PPFLAG90F = -eZ
@@ -228,69 +242,77 @@ esfsw_driver.o: esfsw_driver.f90
 esfsw_parameters.o: esfsw_parameters.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 gas_tf.o: gas_tf.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 longwave_clouds.o: longwave_clouds.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 longwave_fluxes.o: longwave_fluxes.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 longwave_tables.o: longwave_tables.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 longwave_params.o: longwave_params.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 lw_gases_stdtf.o: lw_gases_stdtf.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 microphys_rad.o: microphys_rad.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 optical_path.o: optical_path.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 rad_utilities.o: rad_utilities.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 sealw99.o: sealw99.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_air.o: cable_air.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_albedo.o: cable_albedo.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_canopy.o: cable_canopy.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_ccam3.o: cable_ccam3.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_common.o: cable_common.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_data.o: cable_data.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_define_types.o: cable_define_types.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_optimiseJVratio.o: cable_optimiseJVratio.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_radiation.o: cable_radiation.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_roughness.o: cable_roughness.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_sli_main.o: cable_sli_main.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_sli_numbers.o: cable_sli_numbers.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_sli_roots.o: cable_sli_roots.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_sli_solve.o: cable_sli_solve.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_sli_utils.o: cable_sli_utils.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_soilsnow.o: cable_soilsnow.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 casa_cnp.o: casa_cnp.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 casa_variable.o: casa_variable.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 POP.o: POP.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 helmsolve.o: helmsolve.f90
 	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
+ints.o: ints.f90
+	$(FC) -c $(FFLAGS) $(IPFLAG) $(ZMM) $(PPFLAG90) $<
 mlodynamics.o: mlodynamics.f90
-	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
+	$(FC) -c $(PPFLAG90) $(FFLAGS) $(IPFLAG) $(FOVERRIDE) $<
+seaesfrad.o: seaesfrad.f90
+	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
 stacklimit.o: stacklimit.c
 	$(CC) -c stacklimit.c
+tkeeps.o: tkeeps.f90
+	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
+vertmix.o: vertmix.f90
+	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
 version.h: FORCE
 	rm -f brokenver tmpver
 	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
@@ -300,11 +322,11 @@ FORCE:
 
 
 .f90.o:
-	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
+	$(FC) -c $(FFLAGS) $(IPFLAG) $(PPFLAG90) $<
 .F90.o:
-	$(FC) -c $(FFLAGS) $(PPFLAG90F) $<	
+	$(FC) -c $(FFLAGS) $(IPFLAG) $(PPFLAG90F) $<	
 .f.o:
-	$(FC) -c $(FFLAGS) $(PPFLAG77) $<
+	$(FC) -c $(FFLAGS) $(IPFLAG) $(PPFLAG77) $<
 
 # Remove mod rule from Modula 2 so GNU make doesn't get confused
 %.o : %.mod

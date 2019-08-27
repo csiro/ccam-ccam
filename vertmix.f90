@@ -177,7 +177,7 @@ case(6)
 !$omp do schedule(static) private(is,ie,k),             &
 !$omp private(lt,lqg,lqfg,lqlg),                        &
 !$omp private(lstratcloud,lxtg,lu,lv,ltke,leps,lshear), &
-!$omp private(lat,lct,idjd_t,mydiag_t)
+!$omp private(lat,lct,lsavu,lsavv,idjd_t,mydiag_t)
 !$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
 !$acc   pblh,ustar)                                          &
 !$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv,sig,dsig,  &
@@ -212,6 +212,10 @@ case(6)
       do k = 1,kl
         lu(:,k) = u(is:ie,k) - uadj(is:ie)
         lv(:,k) = v(is:ie,k) - vadj(is:ie)
+#ifndef GPU
+        lsavu(:,k) = savu(is:ie,k) - uadj(is:ie)
+        lsavv(:,k) = savv(is:ie,k) - vadj(is:ie)
+#endif
       end do  
     
       call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                                      &
@@ -222,7 +226,11 @@ case(6)
                        lbuoyproduction,lshearproduction,ltotaltransport,                                 &
 #endif
                        sig,dsig,sigmh,ratha,rathb,bet,betm,                                              &
-                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix)      
+                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix                                       &
+#ifndef GPU
+                       ,lsavu,lsavv,f(is:ie),land(is:ie),av_vmod                                         &
+#endif
+                       )      
                        
       t(is:ie,:)          = lt
       qg(is:ie,:)         = lqg
@@ -833,7 +841,7 @@ if(nmaxpr==1.and.mydiag)then
 endif
 
 if (nlocal/=0) then
-  call pbldif(rkm,rkh,rhs,uav,vav,                   &
+  call pbldif(rhs,rkm,rkh,uav,vav,                   &
               t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac  &
 #ifdef scm
               ,wth_flux,wq_flux                      &
@@ -1304,7 +1312,7 @@ end if
 return
 end subroutine vertmix_work
 
-subroutine pbldif(rkm,rkh,theta,uav,vav,                &
+subroutine pbldif(theta,rkm,rkh,uav,vav,                &
                   t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac &
 #ifdef scm
                   ,wth_flux,wq_flux                     &
@@ -1574,9 +1582,9 @@ enddo      ! k loop
 ! latitude value for f so that c = 0.07/f = 700.
  
 if(npblmin==1)pblh(:) = max(pblh(:),min(200.,700.*ustar(:)))
-if(npblmin==2)pblh(:) = max(pblh(:),.07*ustar(:)/max(.5e-4,abs(f(1:imax))))
-if(npblmin==3)pblh(:) = max(pblh(:),.07*ustar(:)/max(1.e-4,abs(f(1:imax)))) ! to ~agree 39.5N
-if(npblmin==4)pblh(1:imax) = max(pblh(1:imax),50.)
+if(npblmin==2)pblh(:) = max(pblh(:),.07*ustar(:)/max(.5e-4,abs(f(:))))
+if(npblmin==3)pblh(:) = max(pblh(:),.07*ustar(:)/max(1.e-4,abs(f(:)))) ! to ~agree 39.5N
+if(npblmin==4)pblh(:) = max(pblh(1:imax),50.)
 
 ! pblh is now available; do preparation for diffusivity calculation:
 
@@ -1799,7 +1807,11 @@ subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                 
                        buoyproduction,shearproduction,totaltransport,                           &
 #endif
                        sig,dsig,sigmh,ratha,rathb,bet,betm,                                     &
-                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix)
+                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix                              &
+#ifndef GPU
+                       ,savu,savv,f,land,av_vmod                                                       &
+#endif
+                       )
 !$acc routine vector
 
 use tkeeps, only : tkemix        ! TKE-EPS boundary layer
@@ -1829,6 +1841,13 @@ real, intent(in) :: rdry, grav, cp
 real, intent(in) :: ds,dt,qgmin,cqmix
 real rong, rlogs1, rlogs2, rlogh1, rlog12
 real conflux, condrag
+#ifndef GPU
+real, intent(in) :: av_vmod
+real, dimension(:,:), intent(in) :: savu, savv
+real, dimension(:), intent(in) :: f
+real, dimension(size(t,1),size(t,2)) :: uav, vav
+logical, dimension(:), intent(in) :: land
+#endif
 #ifdef scm
 real, dimension(:,:), intent(inout) :: wth_flux, wq_flux, uw_flux
 real, dimension(:,:), intent(inout) :: vw_flux, tkesave, epssave
@@ -1900,6 +1919,21 @@ select case(nlocal)
                 ustar,dt,qgmin,1,tke,eps,shear,dx,                                   &
                 wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                 shearproduction,totaltransport)
+#ifndef GPU
+  case(1,2,3,4,5,6) ! KCN counter gradient method
+    call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                ustar,dt,qgmin,1,tke,eps,shear,dx,                                   &
+                wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
+                shearproduction,totaltransport)
+    do k = 1,kl
+      rkh(:,k) = rkm(:,k)
+      uav(:,k) = av_vmod*u(:,k) + (1.-av_vmod)*savu(:,k)
+      vav(:,k) = av_vmod*v(:,k) + (1.-av_vmod)*savv(:,k)
+    end do
+    call pbldif(rhs,rkm,rkh,uav,vav,                        &
+                t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud, &
+                wth_flux,wq_flux)  ! rhs is theta or thetal
+#endif
   case(7) ! mass-flux counter gradient
     call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
                 ustar,dt,qgmin,0,tke,eps,shear,dx,                                   &
@@ -1921,6 +1955,18 @@ select case(nlocal)
   case(0) ! no counter gradient
     call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
                 ustar,dt,qgmin,1,tke,eps,shear,dx) 
+#ifndef GPU
+  case(1,2,3,4,5,6) ! KCN counter gradient method
+    call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                ustar,dt,qgmin,1,tke,eps,shear,dx) 
+    do k = 1,kl
+      rkh(:,k) = rkm(:,k)
+      uav(:,k) = av_vmod*u(:,k) + (1.-av_vmod)*savu(:,k)
+      vav(:,k) = av_vmod*v(:,k) + (1.-av_vmod)*savv(:,k)
+    end do
+    call pbldif(rhs,rkm,rkh,uav,vav,                   &
+                t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud)  ! rhs is theta or thetal
+#endif
   case(7) ! mass-flux counter gradient
     call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
                 ustar,dt,qgmin,0,tke,eps,shear,dx) 

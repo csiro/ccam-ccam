@@ -75,5 +75,29 @@ contains
       
    end subroutine drpdr_local
    
+   pure subroutine drpdr_local_v (array, local_sum)
+   ! This is a local version of drpdr that takes an array of reals on 
+   ! one processor and returns the double-real sum
+   ! Note that it accumulates into local_sum so this has to be zeroed
+   ! before use.
+      implicit none 
+      real, dimension(:,:), intent(in)  :: array
+      complex, dimension(:), intent(inout) :: local_sum
+      real, dimension(size(array,2)) :: e, t1, t2 
+      integer :: i, n, ntr
+      
+      ntr = size(array,2)
+
+      do i = 1,size(array,1)
+         do n = 1,ntr
+            t1(n) = array(i,n) + real(local_sum(n))
+            e(n) = t1(n) - array(i,n) 
+            t2(n) = ((real(local_sum(n)) - e(n)) + (array(i,n) - (t1(n) - e(n))))  + aimag(local_sum(n))
+            local_sum(n) = cmplx(t1(n) + t2(n), t2(n) - ((t1(n) + t2(n)) - t1(n)))
+         end do
+      end do
+      
+   end subroutine drpdr_local_v
+   
 end module sumdd_m
 
