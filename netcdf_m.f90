@@ -967,6 +967,7 @@ end interface nf_get_vara_double
 interface nf_get_var_real
   module procedure nf_get_var_real_d1, nf_get_var_real_d2, nf_get_var_real_d3, nf_get_var_real_d4, &
                    nf_get_var_real_d5, nf_get_var_real_d6
+  module procedure nf_get_var_real_s
 end interface nf_get_var_real
 
 interface nf_get_var_int
@@ -3552,6 +3553,18 @@ integer function nf_get_vara_double_d6(ncid,varid,start,ncount,dp) result(ierr)
   ierr = nc_get_vara_double(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_vara_double_d6
+
+integer function nf_get_var_real_s(ncid,varid,fp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  real(kind=4), intent(out) :: fp
+  integer (C_INT) :: c_ncid, c_varid
+  real (C_FLOAT), target :: c_fp
+  c_ncid = ncid
+  c_varid = varid - 1
+  ierr = nc_get_var_float(c_ncid,c_varid,C_LOC(c_fp))
+  fp = c_fp
+end function nf_get_var_real_s
 
 integer function nf_get_var_real_d1(ncid,varid,fp) result(ierr)
   implicit none

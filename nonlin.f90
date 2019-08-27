@@ -366,7 +366,7 @@ end do
 
 if ( diag ) then
   if ( mydiag ) then
-    write(6,*) 'at end of nonlin; idjd = ', idjd
+    write(6,*) 'at end of nonlin; idjd,dt', idjd,dt
     write(6,*) 'p1 . & e ',p(idjd,nlv),p(ie(idjd),nlv)
     write(6,*) 'p1 . & n ',p(idjd,nlv),p(in(idjd),nlv)
     write(6,*) 'tx ',tx(idjd,:)

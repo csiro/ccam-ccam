@@ -861,7 +861,7 @@ endif
 if ( tss_test .and. iop_test ) then
   call histrd(iarchi,ier,'tsu',ik,tss,ifull)
   tss = abs(tss)
-  if ( any( tss<100. .or. tss>400. ) ) then
+  if ( any( tss<100. .or. tss>425. ) ) then
     write(6,*) "ERROR: Invalid tsu read in onthefly"
     write(6,*) "minval,maxval ",minval(tss),maxval(tss)
     call ccmpi_abort(-1)
@@ -870,7 +870,7 @@ else
   call histrd(iarchi,ier,'tsu',ik,tss_a,6*ik*ik)
   tss_a(:) = abs(tss_a(:))
   if ( fwsize>0 ) then
-    if ( any( tss_a<100. .or. tss_a>400. ) ) then
+    if ( any( tss_a<100. .or. tss_a>425. ) ) then
       write(6,*) "ERROR: Invalid tsu read in onthefly"
       write(6,*) "minval,maxval ",minval(tss_a),maxval(tss_a)
       call ccmpi_abort(-1)

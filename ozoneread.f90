@@ -66,7 +66,7 @@ use newmpar_m
 implicit none
       
 integer, intent(in) :: jyear, jmonth
-integer nlev, i, l, k
+integer nlev, i, l, k, ierr
 integer ncstatus, ncid, tt
 integer valident, yy, mm, nn
 integer, dimension(1) :: iti
@@ -174,7 +174,12 @@ if ( myid==0 ) then
     ii = 0
     jj = 0
     kk = 0
-    open(16,file=o3file,form='formatted',status='old')
+    open(16,file=o3file,form='formatted',status='old',iostat=ierr)
+    if ( ierr /=0 ) then
+      write(6,*) "ERROR: Cannot open ",trim(o3file)
+      write(6,*) "ierr = ",ierr
+      call ccmpi_abort(-1)
+    end if    
     read(16,*) nlev
     if ( nlev/=kl ) then
       write(6,*) ' ERROR - Number of levels wrong in o3_data file'

@@ -309,6 +309,7 @@ end do ! tile = 1,ntiles
       qg(is:ie,:)         = lqg
       qfg(is:ie,:)        = lqfg
       qlg(is:ie,:)        = lqlg
+      cfrac(is:ie,:)      = lcfrac
       stratcloud(is:ie,:) = lstratcloud
       at_save(is:ie,:)    = lat
       ct_save(is:ie,:)    = lct
@@ -415,9 +416,9 @@ real, parameter :: cmj=5.                    ! coefficients for Louis scheme
 real, parameter :: chj=2.6                   ! coefficients for Louis scheme
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
-real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
+real, dimension(imax,kl), intent(inout) :: stratcloud, u, v, cfrac
 real, dimension(imax,kl), intent(out) :: at, ct
-real, dimension(imax,kl), intent(in) :: savu, savv, cfrac
+real, dimension(imax,kl), intent(in) :: savu, savv
 real, dimension(imax), intent(inout) :: pblh, ustar
 real, dimension(imax), intent(in) :: tss, eg, fg, convpsav, ps, condc
 real, dimension(imax), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs
@@ -427,7 +428,7 @@ real, dimension(imax,kl) :: au, cu, zg
 real, dimension(imax,kl) :: uav, vav
 real, dimension(imax,kl) :: rkm, rkh
 real, dimension(imax,kl) :: qs, betatt, betaqt, delthet, ri, rk_shal, thee
-real, dimension(imax,kl) :: thebas
+real, dimension(imax,kl) :: thebas, tv
 real, dimension(imax,kl-1) :: tmnht
 real, dimension(imax) :: dz, dzr
 real, dimension(imax) :: rhos
@@ -467,6 +468,8 @@ pk=0.
 rkm = 0.
 rkh = 0.
 
+tv(:,:)=t*(1.+0.61*qg-qlg-qfg)
+
 ! Set-up potential temperature transforms
 rong = rdry/grav
 do k = 1,kl-1
@@ -501,12 +504,12 @@ rlogh1=log(sigmh(2))
 rlog12=1./(rlogs1-rlogs2)
 tmnht(:,1)=(t(1:imax,2)*rlogs1-t(1:imax,1)*rlogs2+(t(1:imax,1)-t(1:imax,2))*rlogh1)*rlog12
 ! n.b. an approximate zh (in m) is quite adequate for this routine
-zh(:,1) = t(1:imax,1)*delh(1)
+zh(:,1) = tv(1:imax,1)*delh(1)
 do k = 2,kl-1
-  zh(:,k)    = zh(:,k-1) + t(1:imax,k)*delh(k)
-  tmnht(:,k) = ratha(k)*t(1:imax,k+1) + rathb(k)*t(1:imax,k)
+  zh(:,k)    = zh(:,k-1) + tv(1:imax,k)*delh(k)
+  tmnht(:,k) = ratha(k)*tv(1:imax,k+1) + rathb(k)*tv(1:imax,k)
 end do      !  k loop
-zh(:,kl) = zh(:,kl-1) + t(1:imax,kl)*delh(kl)
+zh(:,kl) = zh(:,kl-1) + tv(1:imax,kl)*delh(kl)
 
 ! Calculate theta
 do k = 1,kl
@@ -531,7 +534,8 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
         es=establ(t(iq,k))
         pk=ps(iq)*sig(k)
         qs(iq,k)=.622*es/max(1.,pk-es)  
-        dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(1.,pk-es))
+        !dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(1.,pk-es))
+        dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*(pk-es))
         rhs(iq,k)=rhs(iq,k)-(hlcp*qlg(iq,k)+hlscp*qfg(iq,k))*sigkap(k)   !Convert to thetal - used only to calc Ri
         betat=1./t(iq,k)
         qc=qlg(iq,k)+qfg(iq,k)
@@ -1216,6 +1220,10 @@ if ( ldr/=0 ) then
   rhs=qlg(1:imax,:)
   call trim(at,ct,rhs)
   qlg(1:imax,:)=rhs
+  ! now do cfrac
+  rhs = cfrac(1:imax,:)
+  call trim(at,ct,rhs)
+  cfrac(1:imax,:)=rhs
   ! now do stratcloud
   rhs = stratcloud(1:imax,:)
   call trim(at,ct,rhs)

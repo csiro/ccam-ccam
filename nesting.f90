@@ -1798,7 +1798,7 @@ do kbb = ktopmlo,kc,kblock
       old = sstb(:,ka)
       call mloexport(0,old,k,0)
       old = old + diff_l(:,kb)*nudgewgt
-      old = max( old, 260.-wrtemp )
+      old = min( max( old, 260.-wrtemp ), 380.-wrtemp )
       call mloimport(0,old,k,0)
     end do
     if ( klx==kc ) then
@@ -1806,7 +1806,7 @@ do kbb = ktopmlo,kc,kblock
         old = sstb(:,ka)
         call mloexport(0,old,k,0)
         old = old + diff_l(:,kb)*nudgewgt ! kb saved from above loop
-        old = max( old, 260.-wrtemp )
+        old = min( max( old, 260.-wrtemp ), 380.-wrtemp )
         call mloimport(0,old,k,0)
       end do
     end if
