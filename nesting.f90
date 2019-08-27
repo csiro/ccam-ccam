@@ -800,7 +800,7 @@ do iq = 1,ifull
   ! evaluate Gaussian weights as a function of distance
   r(:) = exp(-(cq*r(:))**2)/(em_g(:)**2)
   ! apply low band pass filter
-  local_sum = drpdr_fast(r,sm,tt_t)
+  local_sum = drpdr_fast(r,tt_t)
   tbb(iq,1:klt) = local_sum(1:klt)/local_sum(klt+1)
 end do
 !$omp end parallel do
@@ -1181,7 +1181,7 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      local_sum = drpdr_fast(ra(1:me),asum(1:me),at_t) ! calculates sum(ra(1:me)*at(1:me,k)) and sum(ra(1:me)*asum(1:me))
+      local_sum = drpdr_fast(ra(1:me),at_t) ! calculates sum(ra(1:me)*at(1:me,k)) and sum(ra(1:me)*asum(1:me))
       ibase = n + (j-1)*ipan
       ff(ibase:ibase+klt*ipan*jpan:ipan*jpan) = local_sum(1:klt+1) ! = dot_product(ra(1:me)*at(1:me,k))
     end do  
@@ -1274,7 +1274,7 @@ do j = 1,ipan
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    local_sum = drpdr_fast(ra(1:me),asum(1:me),at_t)
+    local_sum = drpdr_fast(ra(1:me),at_t)
     qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(klt+1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
   end do
   
@@ -1370,7 +1370,7 @@ do ipass = 0,2
       ! analytically over the length element (but slower)
       !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      local_sum = drpdr_fast(ra(1:me),asum(1:me),at_t)
+      local_sum = drpdr_fast(ra(1:me),at_t)
       ibase = n + (j-1)*jpan
       ff(ibase:ibase+klt*ipan*jpan:ipan*jpan) = local_sum(1:klt+1)
     end do
@@ -1462,7 +1462,7 @@ do j = 1,jpan
     ! analytically over the length element (but slower)
     !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
     !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    local_sum = drpdr_fast(ra(1:me),asum(1:me),at_t)
+    local_sum = drpdr_fast(ra(1:me),at_t)
     qt(n + ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(klt+1)
   end do
 
@@ -1999,7 +1999,7 @@ do iqq = 1,ifull
   rr(:) = real(x_g(iqqg)*x_g(:)+y_g(iqqg)*y_g(:)+z_g(iqqg)*z_g(:))
   rr(:) = acos(max( min( rr(:), 1. ), -1. ))
   rr(:) = exp(-(cq*rr(:))**2)/(em_g(:)**2)
-  local_sum = drpdr_fast(rr,sm,diff_g_t)
+  local_sum = drpdr_fast(rr,diff_g_t)
   if ( local_sum(kd+1)>1.e-8 ) then
     dd(iqq,1:kd) = local_sum(1:kd)/local_sum(kd+1)
   end if  
@@ -2325,7 +2325,7 @@ do ipass = 0,2
       rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
-      local_sum = drpdr_fast(rr(1:me),asum(1:me),ap_t)
+      local_sum = drpdr_fast(rr(1:me),ap_t)
       ibase = n + (j-1)*ipan
       yy(ibase:ibase+kd*ipan*jpan:ipan*jpan) = local_sum(1:kd+1)
     end do
@@ -2414,7 +2414,7 @@ do j = 1,ipan
     rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
-    local_sum = drpdr_fast(rr(1:me),asum(1:me),ap_t)
+    local_sum = drpdr_fast(rr(1:me),ap_t)
     psum = local_sum(kd+1)
     if ( psum>1.e-8 ) then
       qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/psum
@@ -2506,7 +2506,7 @@ do ipass = 0,2
       rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
       rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
       rr(1:me) = exp(-(cq*rr(1:me))**2)
-      local_sum = drpdr_fast(rr(1:me),asum(1:me),ap_t)
+      local_sum = drpdr_fast(rr(1:me),ap_t)
       ibase = n + (j-1)*jpan
       yy(ibase:ibase+kd*ipan*jpan:ipan*jpan) = local_sum(1:kd+1)
     end do
@@ -2595,7 +2595,7 @@ do j = 1,jpan
     rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
     rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
     rr(1:me) = exp(-(cq*rr(1:me))**2)
-    local_sum = drpdr_fast(rr(1:me),asum(1:me),ap_t)
+    local_sum = drpdr_fast(rr(1:me),ap_t)
     psum = local_sum(kd+1)
     if ( psum>1.e-8 ) then
       qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/psum  
@@ -2951,13 +2951,12 @@ ans = ans + iday
 
 end function iabsdate
 
-pure function drpdr_fast(ra,asum,at) result(out_sum)
+pure function drpdr_fast(ra,at) result(out_sum)
 
 implicit none
 
 real, dimension(:), intent(in) :: ra
 real, dimension(:,:), intent(in) :: at
-real, dimension(:), intent(in) :: asum
 real, dimension(size(at,1)+1) :: out_sum
 real, dimension(size(at,1)+1) :: at_t, e, t1, t2
 complex, dimension(size(at,1)+1) :: local_sum
