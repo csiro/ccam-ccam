@@ -1026,18 +1026,18 @@ if ( myid==0 ) then
   call finishbanner
 end if
 
-#ifdef usempi3
-call ccmpi_freeshdata(xx4_win)
-call ccmpi_freeshdata(yy4_win)
-call ccmpi_freeshdata(em_g_win)
-call ccmpi_freeshdata(x_g_win)
-call ccmpi_freeshdata(y_g_win)
-call ccmpi_freeshdata(z_g_win)
-#else
-deallocate(xx4_dummy,yy4_dummy)
-deallocate(em_g_dummy)
-deallocate(x_g_dummy,y_g_dummy,z_g_dummy)
-#endif
+!#ifdef usempi3
+!call ccmpi_freeshdata(xx4_win)
+!call ccmpi_freeshdata(yy4_win)
+!call ccmpi_freeshdata(em_g_win)
+!call ccmpi_freeshdata(x_g_win)
+!call ccmpi_freeshdata(y_g_win)
+!call ccmpi_freeshdata(z_g_win)
+!#else
+!deallocate(xx4_dummy,yy4_dummy)
+!deallocate(em_g_dummy)
+!deallocate(x_g_dummy,y_g_dummy,z_g_dummy)
+!#endif
   
 !****************************************************************
 
