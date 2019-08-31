@@ -175,6 +175,7 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,mlosigma,oclosure
 use mlodynamics                            ! Ocean dynamics
 use newmpar_m                              ! Grid parameters
+use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use ozoneread                              ! Ozone input routines
 use parm_m                                 ! Model configuration
 use parmdyn_m                              ! Dynamics parameters
@@ -205,7 +206,7 @@ integer tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim, ubdim
 integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
 integer icy, icm, icd, ich, icmi, ics, idv
-integer namipo3
+integer namipo3, nalways_mspeca
 integer, save :: idnc_hist=0, iarch_hist=0
 integer :: idnc, iarch
 real, dimension(:), intent(in) :: psl_in
@@ -540,6 +541,12 @@ if ( myid==0 .or. local ) then
     
     ! main
     call ccnf_put_attg(idnc,'aeroindir',aeroindir)
+    if ( always_mspeca ) then
+      nalways_mspeca = 1
+    else
+      nalways_mspeca = 0
+    end if
+    call ccnf_put_attg(idnc,'always_mspeca',nalways_mspeca)
     if ( amipo3 ) then
       namipo3 = 1
     else
