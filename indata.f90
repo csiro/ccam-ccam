@@ -49,8 +49,7 @@ contains
 subroutine indataf(lapsbot,isoth,nsig,io_nest)
      
 use aerointerface                                ! Aerosol interface
-use aerosolldr, only : xtg,naero,aeromode, &
-                       itracdu                   ! LDR prognostic aerosols
+use aerosolldr, only : xtg,naero,itracdu         ! LDR prognostic aerosols
 use amipsst_m                                    ! AMIP SSTs
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use ateb, ateb_energytol => energytol            ! Urban
@@ -891,7 +890,6 @@ end if
 ! iaero=0 no aerosol effects
 ! iaero=1 prescribed aerosol direct effect
 ! iaero=2 LDR prognostic aerosols 
-! iaero=3 LDR prognostic aerosols with terms for prognostic rain and evaporation
 select case(abs(iaero))
   case(0)
     ! do nothing  
@@ -899,10 +897,6 @@ select case(abs(iaero))
     if ( myid==0 ) write(6,*)'so4total data read from file ',so4tfile
     call readreal(so4tfile,so4t,ifull)
   case(2)
-    aeromode = 0  
-    call load_aerosolldr(so4tfile,oxidantfile,kdate)
-  case(3)
-    aeromode = 1  
     call load_aerosolldr(so4tfile,oxidantfile,kdate)
   case default
     write(6,*) "ERROR: Unknown iaero option ",iaero
@@ -2168,7 +2162,6 @@ call sflux_init
 ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Importing MLO data'
-  !mlodwn(1:ifull,1:wlev,1)=max(mlodwn(1:ifull,1:wlev,1),271.-wrtemp)
   mlodwn(1:ifull,1:wlev,2) = max(mlodwn(1:ifull,1:wlev,2),0.)
   micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),100.),300.)
   where ( .not.land(1:ifull) )

@@ -38,7 +38,7 @@ public itracdms,itracso2,itracso4
 public dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
 public Ch_dust,zvolcemi,ticeu,aeroindir,so4mtn,carbmtn,saltsmallmtn,saltlargemtn,dustreff
-public xtg_solub,aeromode,zoxidant_g,erod,ndcls,emissfield,vso2
+public xtg_solub,zoxidant_g,erod,ndcls,emissfield,vso2
 
 integer, save :: ifull,kl
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9                ! levels for injection
@@ -109,8 +109,6 @@ integer, parameter :: iocna  = 15     ! Natural organic
 ! options
 integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed for emissions (0=none, 1=quadrature, 2=linear)
 integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+salt, 1=SO4, 2=None)
-integer, save :: aeromode   = 0                 ! Aerosol configuration (0=No evaporation in wet deposition, 
-                                                !   1=prognostic variable for wet deposition)
 real, parameter :: zmin     = 1.e-20            ! Minimum concentration tolerance
 
 ! physical constants
@@ -233,11 +231,6 @@ dms_burden=0.
 so2_burden=0.
 so4_burden=0.
 
-if ( aeromode>=1 ) then
-  allocate(xtg_solub(ifull,kl,naero))
-  xtg_solub=0.
-end if
-
 ! MJT - define injection levels
 
 ! scale to CSIRO9 18 levels
@@ -288,10 +281,6 @@ deallocate(dmse,dmsso2o)
 deallocate(so2e,so2so4o,so2dd,so2wd)
 deallocate(so4e,so4dd,so4wd)
 deallocate(dms_burden,so2_burden,so4_burden)
-
-if ( aeromode>=1 ) then
-  deallocate(xtg_solub)  
-end if
 
 return
 end subroutine aldrend
@@ -432,7 +421,6 @@ real, dimension(imax), intent(inout) :: ocdd
 real, dimension(imax,naero) :: conwd           ! Diagnostic only: Convective wet deposition
 real, dimension(imax,naero) :: xtem
 real, dimension(imax,kl,naero) :: xte,xtu,xtm1
-real, dimension(imax,kl,naero) :: xliquid
 real, dimension(imax,kl) :: aphp1
 real, dimension(imax,kl) :: pclcon
 real, dimension(imax,kl) :: prhop1,ptp1
@@ -569,15 +557,6 @@ do nt = 1,naero
     xtu(:,kl+1-k,nt) = max(xtg(1:imax,k,nt)-(1.-clcon(:,k))*xtosav(:,k,nt),0.)/max(clcon(:,k),1.E-8)
   end do
 end do
-if ( aeromode>= 1 ) then
-  do nt = 1,naero
-    do k = 1,kl
-      xliquid(1:imax,kl+1-k,nt) = xtg_solub(1:imax,k,nt)
-    end do
-  end do
-else
-  xliquid(:,:,:) = 0.    
-end if
 do k = 1,kl
   aphp1(:,kl+1-k)  = rhoa(:,k)*dz(:,k)                          ! density * thickness
   prhop1(:,kl+1-k) = rhoa(:,k)                                  ! air density
@@ -601,7 +580,7 @@ call xtchemie (2, dt, zdayfac, aphp1, pmrate, pfprec,                    & !Inpu
                pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,     & !Inputs
                pfstayliq,pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,  & !Inputs
                pccw,pfconv,xtu,                                          & !Inputs
-               conwd,xliquid,                                            & !In and Out
+               conwd,                                                    & !In and Out
                xte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                   & !Output
                zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,                    &
                imax)                                                       !Inputs
@@ -610,13 +589,6 @@ do nt = 1,naero
     xtg(1:imax,k,nt) = max( xtg(1:imax,k,nt)+xte(:,kl+1-k,nt)*dt, 0. )
   end do
 enddo
-if ( aeromode>=1 ) then
-  do nt = 1,naero
-    do k = 1,kl
-      xtg_solub(1:imax,k,nt) = xliquid(1:imax,kl+1-k,nt)  
-    end do
-  end do
-end if
 dmsso2o(:) = dmsso2o(:) + dmsoh(:) + dmsn3(:)             ! oxidation of DMS to SO2
 so2so4o(:) = so2so4o(:) + so2oh(:) + so2h2(:) + so2o3(:)  ! oxidation of SO2 to SO4
 
@@ -1065,7 +1037,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
                     PCLCOVER, PMLWC, PRHOP1, PTP1, taudar, xtm1, pfevap,             & !Inputs
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,pfstayliq,  & !Inputs
                     pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,pccw,pfconv,xtu,   & !Inputs
-                    conwd,xliquid,                                                   & !In and Out
+                    conwd,                                                           & !In and Out
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3,                               & !Outputs
                     zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,                           &
                     imax)                                                              !Inputs
@@ -1163,7 +1135,6 @@ real, dimension(imax) :: taudar
 real, dimension(imax) :: fracc
 real, dimension(imax), intent(in) :: zdayfac
 real, dimension(imax,naero), intent(inout) :: conwd
-real, dimension(imax,kl,naero), intent(inout) :: xliquid
 real, dimension(imax,kl,naero), intent(out) :: xte
 real, dimension(imax), intent(out) :: dmsoh, dmsn3, so2oh, so2h2, so2o3 !Diagnostic output
 
@@ -1177,7 +1148,6 @@ real, dimension(imax,kl) :: so2oh3d, dmsoh3d, dmsn33d
 real, dimension(imax,kl) :: ZXTP10, ZXTP1C, ZHENRY, ZSO4, ZRKH2O2, ZSO4i, ZSO4C, ZHENRYC, ZXTP1CON, zsolub
 real, dimension(imax,kl) :: ZZOH, ZZH2O2, ZZO3, ZZNO2
 real, dimension(imax,kl) :: zdep3d, zlwcic, ziwcic
-real, dimension(imax,kl) :: zliquid
 real, dimension(imax) :: zxtp1
 real, dimension(imax) :: zlwcl, zlwcv, zhp
 real, dimension(imax) :: zqtp1, zrk, zrke
@@ -1646,37 +1616,31 @@ DO JT=ITRACSO2,naero
 
   if(jt==itracso2) then        !SO2
     zsolub(:,:)=zhenry(:,:)
-    zliquid(:,:)=xliquid(:,:,jt)
   elseif(jt==itracso4) then    !sulfate
     zxtp10(:,:)=zso4i(:,:)
     zxtp1c(:,:)=zso4(:,:)    
     zxtp1con(:,:)=zso4c(:,:)
     zsolub (:,:)=0.6
-    zliquid(:,:)=xliquid(:,:,jt)
   elseif(jt==itracbc.or.jt==itracoc)then  !hydrophobic BC and OC
     zxtp10(:,:)=xto(:,:,jt)
     zxtp1c(:,:)=xto(:,:,jt)
     zxtp1con(:,:)=xtu(:,:,jt)
     zsolub(:,:)=0.
-    zliquid(:,:)=xliquid(:,:,jt)
   elseif(jt==itracbc+1.or.jt==itracoc+1)then !hydrophilic BC and OC
     zxtp10(:,:)=xto(:,:,jt)
     zxtp1c(:,:)=xto(:,:,jt)
     zxtp1con(:,:)=xtu(:,:,jt)
     zsolub(:,:)=0.2
-    zliquid(:,:)=xliquid(:,:,jt)
   elseif(jt>=itracdu.and.jt<itracdu+ndust)then !hydrophobic dust (first 4 dust vars)
     zxtp10(:,:)=xto(:,:,jt)
     zxtp1c(:,:)=xto(:,:,jt)
     zxtp1con(:,:)=xtu(:,:,jt)
     zsolub(:,:)=0.05
-    zliquid(:,:)=xliquid(:,:,jt)
 !  elseif(jt>=itracdu+ndust)then !hydrophilic dust !hydrophilic dust (last 4 dust vars)
 !    zxtp10(:,:)=xto(:,:,jt)
 !    zxtp1c(:,:)=xto(:,:,jt)
 !    zxtp1con(:,:)=xtu(:,:,jt)
 !    zsolub(:,:)=1.
-!    zliquid(:,:)=xliquid(:,:,jt)    
   endif
 
   CALL XTWETDEP( JT,                                         &
@@ -1688,7 +1652,7 @@ DO JT=ITRACSO2,naero
                  pfstayice,pfstayliq,pqfsedice,plambs,       &
                  prscav,prfreeze,pfconv,pclcon,              & 
                  fracc,                                      & !Inputs
-                 ZXTP10, ZXTP1C,ZDEP3D,conwd,zliquid,imax)
+                 ZXTP10, ZXTP1C,ZDEP3D,conwd,imax)
 
 !   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
   do JK=KTOP,kl
@@ -1713,8 +1677,6 @@ DO JT=ITRACSO2,naero
     dustwd(:,jt-itracdu+1) = dustwd(:,jt-itracdu+1) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
   endif
   
-  xliquid(:,ktop:kl,jt) = zliquid(:,ktop:kl)
-
   !    CHANGE THE TOTAL TENDENCIES
   xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
 end do
@@ -1837,7 +1799,7 @@ SUBROUTINE XTWETDEP(KTRAC,                                                      
                     PCLCOVER, PSOLUB, pmlwc, ptp1,                                   &
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,pfstayliq,  &
                     pqfsedice,plambs,prscav,prfreeze,pfconv,pclcon,fracc,            & !Inputs
-                    PXTP10, PXTP1C, PDEP3D, conwd, zliquid, imax)                      !In & Out
+                    PXTP10, PXTP1C, PDEP3D, conwd, imax)                      !In & Out
 
 !
 !   *XTWETDEP* CALCULATES THE WET DEPOSITION OF TRACE GASES OR AEROSOLS
@@ -1892,7 +1854,6 @@ real, dimension(imax,kl), intent(in) :: plambs
 real, dimension(imax,kl), intent(in) :: prscav
 real, dimension(imax,kl), intent(in) :: prfreeze
 real, dimension(imax,naero), intent(inout) :: conwd
-real, dimension(imax,kl), intent(inout) :: zliquid
 
 ! Local work arrays and variables
 integer, dimension(imax) :: kbase
@@ -1994,12 +1955,6 @@ do JK = KTOP,kl
     end if
   end do
   
-  if ( aeromode>=1 ) then
-    zdepr(:) = zdepr(:) + zliquid(1:imax,jk)*zmtof(:)
-    pdep3d(:,jk) = pdep3d(:,jk) + zliquid(1:imax,jk)
-    zliquid(1:imax,jk) = 0.
-  end if
-
   !  In-cloud scavenging by warm-rain processes (autoconversion and collection)
   do i = 1,imax
     if ( pmratep(i,jk)>zmin .and. pmlwc(i,jk)>zmin ) then ! MJT suggestion
@@ -2022,45 +1977,7 @@ do JK = KTOP,kl
       pxtp10(i,jk) = pxtp10(i,jk) - xbcscav 
       zdepr(i) = zdepr(i) + xbcscav*zclr0(i)*zmtof(i)
     end if
-  end do
-  
-  if ( aeromode>=1 ) then
-  
-    ! Redistribution by rain that evaporates
-    lmask(:) = pfprec(:,jk)>zmin .and. zclr0(:)>zmin
-    where ( lmask(:) )
-      zstay(:) = pfevap(:,jk)/pfprec(:,jk)
-    elsewhere
-      zstay(:)=0.
-    end where
-    where ( lmask(:) .and. zstay(:)<1. )
-      zstay(:) = zstay(:)*evfac(ktrac)
-    end where
-    do i = 1,imax
-      if( lmask(i) ) then
-        zstay(i) = max( min( 1., zstay(i) ), 0. )
-        xstay = zdepr(i)*zstay(i)/zmtof(i)
-        pdep3d(i,jk) = pdep3d(i,jk) - xstay
-        pxtp10(i,jk) = pxtp10(i,jk) + xstay/zclr0(i)
-        zdepr(i) = zdepr(i) - xstay*zmtof(i)
-        zdepr(i) = max( 0., zdepr(i) )
-      end if
-    end do
-
-    ! Redistribution by rain that stays in layer
-    do i = 1,imax
-      if ( pfprec(i,jk)>zmin ) then
-        zstay_t = pfstayliq(i,jk)/pfprec(i,jk)
-        zstay_t = max( min( 1., zstay_t ), 0. )
-        xstay = zdepr(i)*zstay_t/zmtof(i)
-        pdep3d(i,jk) = pdep3d(i,jk) - xstay
-        zliquid(i,jk) = zliquid(i,jk) + xstay
-        zdepr(i) = zdepr(i) - xstay*zmtof(i)
-        zdepr(i) = max( 0., zdepr(i) )
-      end if
-    end do
-    
-  end if
+  end do  
   
   ! Freezing of rain... 
   do i = 1,imax
