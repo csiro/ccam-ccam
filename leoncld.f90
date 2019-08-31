@@ -203,6 +203,8 @@ do tile = 1,ntiles
   if ( ncloud>=4 ) then
     lnettend    = nettend(is:ie,:)
     lstratcloud = stratcloud(is:ie,:)
+  else
+    lstratcloud = cfrac(is:ie,:)
   end if
 
   call leoncld_work(lcfrac,condg(is:ie),conds(is:ie),condx(is:ie),lgfrac,                           &
@@ -325,7 +327,7 @@ integer k, imax, kl
 real, dimension(size(cfrac,1),size(cfrac,2)) :: qevap, qsubl, qauto, qcoll, qaccr, qaccf
 real, dimension(size(cfrac,1),size(cfrac,2)) :: fluxr, fluxi, fluxs, fluxg, fluxm, fluxf
 real, dimension(size(cfrac,1),size(cfrac,2)) :: pqfsedice, pfstayice, pfstayliq, pslopes, prscav
-real, dimension(size(cfrac,1)) :: prf_temp, fl, invclcon
+real, dimension(size(cfrac,1)) :: prf_temp, fl
 real, dimension(size(cfrac,1)) :: rhodz
 real, dimension(size(cfrac,1)) :: qccon1
 real, dimension(size(cfrac,2)) :: diag_temp
@@ -388,14 +390,13 @@ endif
 ! Calculate convective cloud fraction and adjust moisture variables before calling newcloud
 do k = 1,kl
   where ( clcon(:,k)>0. )  
-    invclcon(:) = 1./(1.-clcon(:,k))  
     !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
     qccon(:,k)  = clcon(:,k)*wcon(:)/rhoa(:,k)  
-    qenv(:,k)   = max( 1.e-8, (qg(:,k)-clcon(:,k)*max(qsatg(:,k),qg(:,k)))*invclcon(:) )
+    qenv(:,k)   = max( 1.e-8, (qg(:,k)-clcon(:,k)*max(qsatg(:,k),qg(:,k)))/(1.-clcon(:,k)) )
     qcl(:,k)    = (qg(:,k)-(1.-clcon(:,k))*qenv(:,k))/clcon(:,k)
-    qlg(:,k)    = qlg(:,k)*invclcon
-    qfg(:,k)    = qfg(:,k)*invclcon
-    stratcloud(:,k) = stratcloud(:,k)*invclcon
+    qlg(:,k)    = qlg(:,k)/(1.-clcon(:,k))  
+    qfg(:,k)    = qfg(:,k)/(1.-clcon(:,k))  
+    stratcloud(:,k) = stratcloud(:,k)/(1.-clcon(:,k)) 
   elsewhere
     qccon(:,k)  = 0.  
     qcl(:,k)    = qg(:,k)
@@ -481,10 +482,12 @@ endif
 do k = 1,kl
   t(:,k)  = clcon(:,k)*t(:,k) + (1.-clcon(:,k))*tenv(:,k)
   qg(:,k) = clcon(:,k)*qcl(:,k) + (1.-clcon(:,k))*qenv(:,k)
-  stratcloud(:,k) = stratcloud(:,k)*(1.-clcon(:,k))
-  ccov(:,k)  = ccov(:,k)*(1.-clcon(:,k))              
-  qlg(:,k)   = qlg(:,k)*(1.-clcon(:,k))
-  qfg(:,k)   = qfg(:,k)*(1.-clcon(:,k))
+  where ( k>=kbase(:) .and. k<=ktop(:) )
+    stratcloud(:,k) = stratcloud(:,k)*(1.-clcon(:,k))
+    ccov(:,k)  = ccov(:,k)*(1.-clcon(:,k))              
+    qlg(:,k)   = qlg(:,k)*(1.-clcon(:,k))
+    qfg(:,k)   = qfg(:,k)*(1.-clcon(:,k))
+  end where  
 end do
 
 
@@ -516,10 +519,9 @@ endif
 ! done because sometimes newrain drops out all qlg, ending up with 
 ! zero cloud (although it will be rediagnosed as 1 next timestep)
 do k = 1,kl
-  qccon1 = qccon(:,k)  
   fl(:)      = max(0., min(1., (t(:,k)-ticon)/(273.15-ticon)))
-  qlrad(:,k) = qlg(:,k) + fl(:)*qccon1
-  qfrad(:,k) = qfg(:,k) + (1.-fl(:))*qccon1
+  qlrad(:,k) = qlg(:,k) + fl(:)*qccon(:,k)
+  qfrad(:,k) = qfg(:,k) + (1.-fl(:))*qccon(:,k)
   cfrac(:,:) = min( 1., ccov(:,:)+clcon(:,:) ) ! original
 end do
 

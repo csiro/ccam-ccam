@@ -65,7 +65,7 @@ use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
 use newmpar_m                              ! Grid parameters
-use nharrs_m, only : lrestart              ! Non-hydrostatic atmosphere arrays
+use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use nlin_m                                 ! Atmosphere non-linear dynamics
 use outcdf                                 ! Output file routines
 use parm_m                                 ! Model configuration
@@ -206,7 +206,7 @@ if ( myid==0 ) then
 end if
 mspeca = 1
 ! use half time-step for initialisation
-if ( mex/=1 .and. .not.lrestart ) then
+if ( mex/=1 .and. ((.not.lrestart).or.always_mspeca) ) then
   mspeca = 2
   dt = 0.5*dtin
 end if
@@ -283,7 +283,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     vn(1:ifull,:) = 0.
     tn(1:ifull,:) = 0.
 
-    if ( mup/=1 .or. (ktau==1.and.mspec==mspeca.and..not.lrestart) ) then
+    if ( mup/=1 .or. (ktau==1.and.mspec==mspeca.and.((.not.lrestart).or.always_mspeca)) ) then
       call bounds(psl)
       ! updps called first step or to permit clean restart option      
       call updps(0) 
@@ -297,10 +297,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
     
     ! set up tau +.5 velocities in ubar, vbar
     sbar(:,2:kl) = sdot(:,2:kl)
-    if ( (ktau==1.and..not.lrestart) .or. mex==1 ) then
+    if ( (ktau==1.and.((.not.lrestart).or.always_mspeca)) .or. mex==1 ) then
       ubar(1:ifull,1:kl) = u(1:ifull,1:kl)
       vbar(1:ifull,1:kl) = v(1:ifull,1:kl)
-    else if ( (ktau==2.and..not.lrestart) .or. mex==2 ) then        
+    else if ( (ktau==2.and.((.not.lrestart).or.always_mspeca)) .or. mex==2 ) then        
       ! (tau+.5) from tau, tau-1
       ubar(1:ifull,1:kl) = u(1:ifull,1:kl)*1.5 - savu(1:ifull,1:kl)*.5
       vbar(1:ifull,1:kl) = v(1:ifull,1:kl)*1.5 - savv(1:ifull,1:kl)*.5
@@ -360,7 +360,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     if ( ktau<10 .and. mydiag ) then
       write(6,*)'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),ubar(idjd,1)
     end if
-    if ( ktau==1 .and. .not.lrestart .and. mspec==1 .and. mex/=1 ) then
+    if ( ktau==1 .and. ((.not.lrestart).or.always_mspeca) .and. mspec==1 .and. mex/=1 ) then
       u(1:ifull,:) = savu(1:ifull,:)  ! reset u,v to original values
       v(1:ifull,:) = savv(1:ifull,:)
     end if
@@ -1336,7 +1336,7 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
-use nharrs_m, only : nharrs_init           ! Non-hydrostatic atmosphere arrays
+use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use nlin_m                                 ! Atmosphere non-linear dynamics
 use nsibd_m                                ! Land-surface arrays
 use ozoneread                              ! Ozone input routines
@@ -1437,6 +1437,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,nriver,           &
     atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
+    always_mspeca,                                                &
     procmode,compression,hp_output,                               & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
@@ -1568,7 +1569,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(116) ) 
+allocate( dumr(33), dumi(117) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1722,6 +1723,7 @@ if ( myid==0 ) then
   dumi(114) = hp_output
   dumi(115) = intsch_mode
   dumi(116) = qg_fix
+  if ( always_mspeca ) dumi(117) = 1
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1874,6 +1876,7 @@ ensemble_period   = dumi(113)
 hp_output         = dumi(114)
 intsch_mode       = dumi(115)
 qg_fix            = dumi(116)
+always_mspeca     = dumi(117)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)

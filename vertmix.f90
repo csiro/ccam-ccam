@@ -171,7 +171,7 @@ else
 end if
 
 select case(nvmix)
-case(6)  
+  case(6)  
     ! k-e + MF closure scheme
     
 !$omp do schedule(static) private(is,ie,k),             &
@@ -267,7 +267,7 @@ case(6)
       totaltransport(is:ie,:) = ltotaltransport
 #endif
 
-end do ! tile = 1,ntiles
+    end do ! tile = 1,ntiles
 !$acc end parallel
 !$omp end do nowait
 
@@ -345,7 +345,7 @@ end do ! tile = 1,ntiles
       totaltransport(is:ie,:) = ltotaltransport
 #endif
 
-end do ! tile = 1,ntiles
+    end do ! tile = 1,ntiles
 !$omp end do nowait
 
 end select
@@ -510,12 +510,12 @@ rlogs1=log(sig(1))
 rlogs2=log(sig(2))
 rlogh1=log(sigmh(2))
 rlog12=1./(rlogs1-rlogs2)
-tmnht(:,1)=(t(1:imax,2)*rlogs1-t(1:imax,1)*rlogs2+(t(1:imax,1)-t(1:imax,2))*rlogh1)*rlog12
+tmnht(:,1)=(tv(:,2)*rlogs1-tv(:,1)*rlogs2+(tv(:,1)-tv(:,2))*rlogh1)*rlog12
 ! n.b. an approximate zh (in m) is quite adequate for this routine
-zh(:,1) = tv(1:imax,1)*delh(1)
+zh(:,1) = tv(:,1)*delh(1)
 do k = 2,kl-1
-  zh(:,k)    = zh(:,k-1) + tv(1:imax,k)*delh(k)
-  tmnht(:,k) = ratha(k)*tv(1:imax,k+1) + rathb(k)*tv(1:imax,k)
+  zh(:,k)    = zh(:,k-1) + tv(:,k)*delh(k)
+  tmnht(:,k) = ratha(k)*tv(:,k+1) + rathb(k)*tv(:,k)
 end do      !  k loop
 zh(:,kl) = zh(:,kl-1) + tv(1:imax,kl)*delh(kl)
 
@@ -673,8 +673,8 @@ end select
 !     ********* end of Geleyn shallow convection section ****************
 
 ! following now defined in vertmix (don't need to pass from sflux)
-uav(1:imax,:) = av_vmod*u(1:imax,:) + (1.-av_vmod)*savu(1:imax,:) 
-vav(1:imax,:) = av_vmod*v(1:imax,:) + (1.-av_vmod)*savv(1:imax,:) 
+uav(:,:) = av_vmod*u(:,:) + (1.-av_vmod)*savu(:,:) 
+vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:) 
 do k = 1,kl-1
   do iq = 1,imax
     dz(iq) =-tmnht(iq,k)*delons(k)  ! this is z(k+1)-z(k)
@@ -696,7 +696,7 @@ do k = 1,kl-1
     case (1)
       ! usually nvmix=3       
       if ( sig(k)>.8 ) then ! change made 17/1/06
-        dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
+        dqtot(:)=qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-(qg(:,k)+qlg(:,k)+qfg(:,k))
       else
         dqtot(:)=0.
       end if
@@ -705,22 +705,22 @@ do k = 1,kl-1
       do iq=1,imax
         x(iq)=grav*dz(iq)*((w1*betatt(iq,k)+w2*betatt(iq,k+1))*delthet(iq,k) + (w1*betaqt(iq,k)+w2*betaqt(iq,k+1))*dqtot(iq) )
       enddo ! iq loop	 
-      rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
+      rhs(:,k)=t(:,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
     case (2) !  jlm May '05
       ! usually nvmix=3       
       if ( sig(k)>.8 ) then ! change made 17/1/06
-        dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
+        dqtot(:)=qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-(qg(:,k)+qlg(:,k)+qfg(:,k))
       else
         dqtot(:)=0.
       end if
       do iq=1,imax
         x(iq)=grav*dz(iq)*((min(betatt(iq,k),betatt(iq,k+1)))*delthet(iq,k) + (max(betaqt(iq,k),betaqt(iq,k+1)))*dqtot(iq) )
       enddo ! iq loop	
-      rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
-    case (3)
+      rhs(:,k)=t(:,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
+    case (3,7)
       ! usually nvmix=3       
       if ( sig(k)>.8 ) then ! change made 17/1/06
-        dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
+        dqtot(:)=qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-(qg(:,k)+qlg(:,k)+qfg(:,k))
       else
         dqtot(:)=0.
       end if
@@ -729,23 +729,10 @@ do k = 1,kl-1
       do iq=1,imax
         x(iq)=grav*dz(iq)*((w1*betatt(iq,k)+w2*betatt(iq,k+1))*delthet(iq,k) + (w1*betaqt(iq,k)+w2*betaqt(iq,k+1))*dqtot(iq) )
       enddo ! iq loop
-      rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
+      rhs(:,k)=t(:,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
     case (5) ! non-cloudy x with qfg, qlg
       x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))+.61*(qg(1:imax,k+1)-qg(1:imax,k)) &
        -qfg(1:imax,k+1)-qlg(1:imax,k+1)+qfg(1:imax,k)+qlg(1:imax,k) )
-    case (7)
-      ! usually nvmix=3       
-      if ( sig(k)>.8 ) then ! change made 17/1/06
-        dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
-      else
-        dqtot(:)=0.
-      end if
-      w1 = 1.  
-      w2=1.-w1   !weight for upper level
-      do iq=1,imax
-        x(iq)=grav*dz(iq)*((w1*betatt(iq,k)+w2*betatt(iq,k+1))*delthet(iq,k) + (w1*betaqt(iq,k)+w2*betaqt(iq,k+1))*dqtot(iq) )
-      enddo ! iq loop
-      rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
     case default ! original non-cloudy x, nvmix=4
       x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))+.61*(qg(1:imax,k+1)-qg(1:imax,k)))  
   end select 
