@@ -1830,7 +1830,7 @@ if ( nested/=1 .and. nested/=3 ) then
   
   ! -----------------------------------------------------------------
   ! Read cloud fields
-  if ( nested==0 .and. ldr/=0 ) then
+  if ( nested==0 ) then
     call gethist4a('qfg',qfg,5)               ! CLOUD FROZEN WATER
     qfg(1:ifull,1:kl) = max( qfg(1:ifull,1:kl), 0. )
     call gethist4a('qlg',qlg,5)               ! CLOUD LIQUID WATER
