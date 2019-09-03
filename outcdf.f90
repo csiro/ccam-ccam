@@ -3560,7 +3560,7 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'rhscrn_stn',lname,'%',0.,200.,0,1)
     lname = 'Screen mixing ratio (station)'
     call attrib(fncid,sdim,ssize,'qgscrn_stn',lname,'kg/kg',0.,0.06,0,1)
-    if ( diaglevel_pbl>5 ) then
+    if ( diaglevel_pbl>3 ) then
       lname='x-component 150m wind'
       call attrib(fncid,sdim,ssize,'ua150',lname,'m/s',-130.,130.,0,1)
       lname='y-component 150m wind'     
@@ -3696,7 +3696,7 @@ freqstore(1:ifull,14) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,15) = tscrn_stn
 freqstore(1:ifull,16) = rhscrn_stn
 freqstore(1:ifull,17) = qgscrn_stn
-if ( diaglevel_pbl>5 ) then
+if ( diaglevel_pbl>3 ) then
   freqstore(1:ifull,18) = ua150
   freqstore(1:ifull,19) = va150
   freqstore(1:ifull,20) = ua250
