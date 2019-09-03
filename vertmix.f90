@@ -436,7 +436,7 @@ real, dimension(imax,kl) :: au, cu, zg
 real, dimension(imax,kl) :: uav, vav
 real, dimension(imax,kl) :: rkm, rkh
 real, dimension(imax,kl) :: qs, betatt, betaqt, delthet, ri, rk_shal, thee
-real, dimension(imax,kl) :: thebas, tv
+real, dimension(imax,kl) :: thebas
 real, dimension(imax,kl-1) :: tmnht
 real, dimension(imax) :: dz, dzr
 real, dimension(imax) :: rhos
@@ -476,8 +476,6 @@ pk=0.
 rkm = 0.
 rkh = 0.
 
-tv(:,:)=t*(1.+0.61*qg-qlg-qfg)
-
 ! Set-up potential temperature transforms
 rong = rdry/grav
 do k = 1,kl-1
@@ -510,18 +508,18 @@ rlogs1=log(sig(1))
 rlogs2=log(sig(2))
 rlogh1=log(sigmh(2))
 rlog12=1./(rlogs1-rlogs2)
-tmnht(:,1)=(tv(:,2)*rlogs1-tv(:,1)*rlogs2+(tv(:,1)-tv(:,2))*rlogh1)*rlog12
+tmnht(:,1)=(t(:,2)*rlogs1-t(:,1)*rlogs2+(t(:,1)-t(:,2))*rlogh1)*rlog12
 ! n.b. an approximate zh (in m) is quite adequate for this routine
-zh(:,1) = tv(:,1)*delh(1)
+zh(:,1) = t(:,1)*delh(1)
 do k = 2,kl-1
-  zh(:,k)    = zh(:,k-1) + tv(:,k)*delh(k)
-  tmnht(:,k) = ratha(k)*tv(:,k+1) + rathb(k)*tv(:,k)
+  zh(:,k)    = zh(:,k-1) + t(:,k)*delh(k)
+  tmnht(:,k) = ratha(k)*t(:,k+1) + rathb(k)*t(:,k)
 end do      !  k loop
-zh(:,kl) = zh(:,kl-1) + tv(1:imax,kl)*delh(kl)
+zh(:,kl) = zh(:,kl-1) + t(1:imax,kl)*delh(kl)
 
 ! Calculate theta
 do k = 1,kl
-  rhs(:,k) = t(1:imax,k)*sigkap(k)  ! rhs is theta here
+  rhs(:,k) = t(:,k)*sigkap(k)  ! rhs is theta here
 enddo      !  k loop
     
 prcpv(1:kl) = sig(1:kl)**(-roncp)
@@ -541,7 +539,8 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
       do iq=1,imax
         es=establ(t(iq,k))
         pk=ps(iq)*sig(k)
-        qs(iq,k)=.622*es/max(1.,pk-es)  
+        !qs(iq,k)=.622*es/max(1.,pk-es)  
+        qs(iq,k)=.622*es/(pk-es)
         !dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(1.,pk-es))
         dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*(pk-es))
         rhs(iq,k)=rhs(iq,k)-(hlcp*qlg(iq,k)+hlscp*qfg(iq,k))*sigkap(k)   !Convert to thetal - used only to calc Ri
