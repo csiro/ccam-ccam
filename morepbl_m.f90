@@ -123,7 +123,7 @@ buoyproduction=0.
 shearproduction=0.
 totaltransport=0.
 #else
-if ( diaglevel_pbl>5 ) then
+if ( diaglevel_pbl>3 ) then
   allocate( ua150(ifull), va150(ifull), ua250(ifull), va250(ifull) )
   ua150 = 0.
   va150 = 0.
