@@ -212,10 +212,6 @@ select case(nvmix)
       do k = 1,kl
         lu(:,k) = u(is:ie,k) - uadj(is:ie)
         lv(:,k) = v(is:ie,k) - vadj(is:ie)
-#ifndef GPU
-        lsavu(:,k) = savu(is:ie,k) - uadj(is:ie)
-        lsavv(:,k) = savv(is:ie,k) - vadj(is:ie)
-#endif
       end do  
     
       call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                                      &
@@ -226,11 +222,7 @@ select case(nvmix)
                        lbuoyproduction,lshearproduction,ltotaltransport,                                 &
 #endif
                        sig,dsig,sigmh,ratha,rathb,bet,betm,                                              &
-                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix                                       &
-#ifndef GPU
-                       ,lsavu,lsavv,f(is:ie),land(is:ie),av_vmod                                         &
-#endif
-                       )      
+                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix,imax,kl,naero)      
                        
       t(is:ie,:)          = lt
       qg(is:ie,:)         = lqg
@@ -1793,11 +1785,7 @@ subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                 
                        buoyproduction,shearproduction,totaltransport,                           &
 #endif
                        sig,dsig,sigmh,ratha,rathb,bet,betm,                                     &
-                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix                              &
-#ifndef GPU
-                       ,savu,savv,f,land,av_vmod                                                       &
-#endif
-                       )
+                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix,imax,kl,naero)
 !$acc routine vector
 
 use tkeeps, only : tkemix        ! TKE-EPS boundary layer
@@ -1805,45 +1793,38 @@ use tkeeps, only : tkemix        ! TKE-EPS boundary layer
 implicit none
 
 integer, intent(in) :: iaero, nlocal
-integer k, nt, kl
-real, dimension(:,:,:), intent(inout) :: xtg
-real, dimension(:,:), intent(inout) :: t, qg, qfg, qlg
-real, dimension(:,:), intent(inout) :: stratcloud, u, v
-real, dimension(:,:), intent(inout) :: tke, eps
-real, dimension(:,:), intent(out) :: at, ct
-real, dimension(:,:), intent(in) :: shear
-real, dimension(size(t,1),size(t,2)) :: zh
-real, dimension(size(t,1),size(t,2)) :: rhs, gt, zg
-real, dimension(size(t,1),size(t,2)) :: rkm, rkh
-real, dimension(size(t,1),size(t,2)-1) :: tmnht
-real, dimension(:), intent(inout) :: pblh, ustar
-real, dimension(:), intent(in) :: em, tss, eg, fg, ps
-real, dimension(:), intent(in) :: cduv
-real, dimension(:), intent(in) :: sig, dsig, sigmh, ratha, rathb, bet, betm
-real, dimension(size(t,1)) :: dz
-real, dimension(size(t,1)) :: rhos, dx
-real, dimension(size(t,2)) :: sigkap, delh
+integer, intent(in) :: imax, kl, naero
+integer k, nt
+real, dimension(imax,kl,naero), intent(inout) :: xtg
+real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
+real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
+real, dimension(imax,kl), intent(inout) :: tke, eps
+real, dimension(imax,kl), intent(out) :: at, ct
+real, dimension(imax,kl), intent(in) :: shear
+real, dimension(imax,kl) :: zh
+real, dimension(imax,kl) :: rhs, gt, zg
+real, dimension(imax,kl) :: rkm, rkh
+real, dimension(imax,kl-1) :: tmnht
+real, dimension(imax), intent(inout) :: pblh, ustar
+real, dimension(imax), intent(in) :: em, tss, eg, fg, ps
+real, dimension(imax), intent(in) :: cduv
+real, dimension(kl), intent(in) :: sig, dsig, sigmh, ratha, rathb, bet, betm
+real, dimension(imax) :: dz
+real, dimension(imax) :: rhos, dx
+real, dimension(kl) :: sigkap, delh
 real, intent(in) :: rdry, grav, cp
 real, intent(in) :: ds,dt,qgmin,cqmix
 real rong, rlogs1, rlogs2, rlogh1, rlog12
 real conflux, condrag
-#ifndef GPU
-real, intent(in) :: av_vmod
-real, dimension(:,:), intent(in) :: savu, savv
-real, dimension(:), intent(in) :: f
-real, dimension(size(t,1),size(t,2)) :: uav, vav
-logical, dimension(:), intent(in) :: land
-#endif
 #ifdef scm
-real, dimension(:,:), intent(inout) :: wth_flux, wq_flux, uw_flux
-real, dimension(:,:), intent(inout) :: vw_flux, tkesave, epssave
-real, dimension(:,:), intent(out) :: rkmsave, rkhsave
-real, dimension(:,:), intent(inout) :: buoyproduction, shearproduction
-real, dimension(:,:), intent(inout) :: totaltransport
-real, dimension(:,:), intent(inout) :: mfsave
+real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
+real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave, epssave
+real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
+real, dimension(imax,kl), intent(inout) :: buoyproduction, shearproduction
+real, dimension(imax,kl), intent(inout) :: totaltransport
+real, dimension(imax,kl), intent(inout) :: mfsave
 #endif
 
-kl = size(t,2)
 
 ! estimate grid spacing for scale aware MF
 dx(:) = ds/em
@@ -1905,21 +1886,6 @@ select case(nlocal)
                 ustar,dt,qgmin,1,tke,eps,shear,dx,                                   &
                 wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                 shearproduction,totaltransport)
-#ifndef GPU
-  case(1,2,3,4,5,6) ! KCN counter gradient method
-    call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                ustar,dt,qgmin,1,tke,eps,shear,dx,                                   &
-                wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
-                shearproduction,totaltransport)
-    do k = 1,kl
-      rkh(:,k) = rkm(:,k)
-      uav(:,k) = av_vmod*u(:,k) + (1.-av_vmod)*savu(:,k)
-      vav(:,k) = av_vmod*v(:,k) + (1.-av_vmod)*savv(:,k)
-    end do
-    call pbldif(rhs,rkm,rkh,uav,vav,                        &
-                t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud, &
-                wth_flux,wq_flux)  ! rhs is theta or thetal
-#endif
   case(7) ! mass-flux counter gradient
     call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
                 ustar,dt,qgmin,0,tke,eps,shear,dx,                                   &
@@ -1941,22 +1907,9 @@ select case(nlocal)
   case(0) ! no counter gradient
     call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
                 ustar,dt,qgmin,1,tke,eps,shear,dx) 
-#ifndef GPU
-  case(1,2,3,4,5,6) ! KCN counter gradient method
-    call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                ustar,dt,qgmin,1,tke,eps,shear,dx) 
-    do k = 1,kl
-      rkh(:,k) = rkm(:,k)
-      uav(:,k) = av_vmod*u(:,k) + (1.-av_vmod)*savu(:,k)
-      vav(:,k) = av_vmod*v(:,k) + (1.-av_vmod)*savv(:,k)
-    end do
-    call pbldif(rhs,rkm,rkh,uav,vav,                   &
-                t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud)  ! rhs is theta or thetal
-#endif
   case(7) ! mass-flux counter gradient
     call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                ustar,dt,qgmin,0,tke,eps,shear,dx) 
-    
+                ustar,dt,qgmin,0,tke,eps,shear,dx)     
 end select
 do k = 1,kl  
   rkh(:,k) = rkm(:,k)

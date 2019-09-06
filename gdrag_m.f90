@@ -114,7 +114,7 @@ do tile = 1,ntiles
   
   call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),idjd_t,mydiag_t,  &
                    dsig,sig,vmodmin,sigbot_gwd,fc2,alphaj,ngwd,dt, &
-                   grav,rdry,cp,kbot)
+                   grav,rdry,cp,kbot,imax,kl)
 
   u(is:ie,:) = lu
   v(is:ie,:) = lv
@@ -136,35 +136,31 @@ end subroutine gwdrag
     
 subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag,                       &
                        dsig,sig,vmodmin,sigbot_gwd,fc2,alphaj,ngwd,dt, &
-                       grav,rdry,cp,kbot)
+                       grav,rdry,cp,kbot,imax,kl)
 !$acc routine vector
 
 implicit none
 
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
-integer, intent(in) :: idjd
-integer, intent(in) :: kbot
-integer, intent(in) :: ngwd
-integer iq, k, imax, kl
-real, dimension(:,:), intent(in)    :: t
-real, dimension(:,:), intent(inout) :: u, v
-real, dimension(size(t,1),size(t,2)) :: uu,fni,bvnf
-real, dimension(size(t,1),size(t,2)) :: theta_full
-real, dimension(size(t,1),size(t,2)) :: dtheta_dz_kmh
-real, dimension(:), intent(in) :: tss, he
-real, dimension(:), intent(in) :: dsig, sig
-real, dimension(size(t,1)) :: dzi, uux, xxx, froude2_inv
-real, dimension(size(t,1)) :: temp,fnii
-real, dimension(size(t,1)) :: bvng ! to be depreciated
-real, dimension(size(t,1)) :: apuw,apvw,alambda,wmag
-real, dimension(size(t,2)) :: dsk,sigk
+integer, intent(in) :: idjd, kbot, ngwd
+integer, intent(in) :: imax, kl
+integer iq, k
+real, dimension(imax,kl), intent(in)    :: t
+real, dimension(imax,kl), intent(inout) :: u, v
+real, dimension(imax,kl) :: uu,fni,bvnf
+real, dimension(imax,kl) :: theta_full
+real, dimension(imax,kl) :: dtheta_dz_kmh
+real, dimension(imax), intent(in) :: tss, he
+real, dimension(kl), intent(in) :: dsig, sig
+real, dimension(imax) :: dzi, uux, xxx, froude2_inv
+real, dimension(imax) :: temp,fnii
+real, dimension(imax) :: bvng ! to be depreciated
+real, dimension(imax) :: apuw,apvw,alambda,wmag
+real, dimension(kl) :: dsk,sigk
 real, intent(in) :: vmodmin,sigbot_gwd,fc2,alphaj,dt
 real, intent(in) :: grav,rdry,cp
 real dzx
 logical, intent(in) :: mydiag
-
-imax = size(t,1)
-kl = size(t,2)
 
 ! older values:  
 !   ngwd=-5  helim=800.  fc2=1.  sigbot_gw=0. alphaj=1.E-6 (almost equiv to 0.0075)

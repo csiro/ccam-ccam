@@ -214,7 +214,7 @@ do tile = 1,ntiles
                     ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
                     ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),idjd_t,mydiag_t,is,        &
                     sig,dsig,rcm,ncloud,nclddia,rcrit_l,rcrit_s,nevapls,ldr,ds,dt,qgmin,nmaxpr,     &
-                    iaero,diag,nmr,rdry,hl,hlf,cp,rvap,tfrz,epsil,grav,pi)
+                    iaero,diag,nmr,rdry,hl,hlf,cp,rvap,tfrz,epsil,grav,pi,imax,kl)
 
   cfrac(is:ie,:) = lcfrac
   gfrac(is:ie,:) = lgfrac
@@ -265,77 +265,74 @@ subroutine leoncld_work(cfrac,condg,conds,condx,gfrac,kbsav,ktsav,land,         
                         dpsldt,nettend,stratcloud,clcon,cdrop,em,idjd,mydiag,is,        &
                         sig,dsig,rcm,ncloud,nclddia,rcrit_l,rcrit_s,nevapls,ldr,ds,dt,  &
                         qgmin,nmaxpr,iaero,diag,nmr,rdry,hl,hlf,cp,rvap,tfrz,epsil,     &
-                        grav,pi)
+                        grav,pi,imax,kl)
 !$acc routine vector
 
 implicit none
       
 integer, intent(in) :: idjd, is, ncloud, nclddia, nevapls, ldr
 integer, intent(in) :: nmaxpr, iaero, nmr
-integer, dimension(:), intent(in) :: kbsav
-integer, dimension(:), intent(in) :: ktsav
-real, dimension(:,:), intent(inout) :: cfrac, gfrac, rfrac, sfrac
-real, dimension(:,:), intent(inout) :: qg, qlg, qfg, qrg, qsng, qgrg
-real, dimension(:,:), intent(inout) :: qlrad, qfrad
-real, dimension(:,:), intent(inout) :: t
-real, dimension(:,:), intent(inout) :: nettend
-real, dimension(:,:), intent(inout) :: stratcloud, clcon, cdrop
-real, dimension(:,:), intent(out) :: qccon
-real, dimension(:,:), intent(out) :: ppfevap
-real, dimension(:,:), intent(out) :: ppfmelt
-real, dimension(:,:), intent(out) :: ppfprec
-real, dimension(:,:), intent(out) :: ppfsnow
-real, dimension(:,:), intent(out) :: ppfstayice
-real, dimension(:,:), intent(out) :: ppfstayliq
-real, dimension(:,:), intent(out) :: ppfsubl
-real, dimension(:,:), intent(out) :: pplambs
-real, dimension(:,:), intent(out) :: ppmaccr
-real, dimension(:,:), intent(out) :: ppmrate
-real, dimension(:,:), intent(out) :: ppqfsedice
-real, dimension(:,:), intent(out) :: pprfreeze
-real, dimension(:,:), intent(out) :: pprscav
-real, dimension(:,:), intent(in) :: dpsldt
-real, dimension(:), intent(inout) :: condg
-real, dimension(:), intent(inout) :: conds
-real, dimension(:), intent(inout) :: condx
-real, dimension(:), intent(inout) :: precip
-real, dimension(:), intent(in) :: ps
-real, dimension(:), intent(in) :: em
-real, dimension(:), intent(in) :: sig, dsig
+integer, intent(in) :: imax, kl
+integer, dimension(imax), intent(in) :: kbsav
+integer, dimension(imax), intent(in) :: ktsav
+real, dimension(imax,kl), intent(inout) :: cfrac, gfrac, rfrac, sfrac
+real, dimension(imax,kl), intent(inout) :: qg, qlg, qfg, qrg, qsng, qgrg
+real, dimension(imax,kl), intent(inout) :: qlrad, qfrad
+real, dimension(imax,kl), intent(inout) :: t
+real, dimension(imax,kl), intent(inout) :: nettend
+real, dimension(imax,kl), intent(inout) :: stratcloud, clcon, cdrop
+real, dimension(imax,kl), intent(out) :: qccon
+real, dimension(imax,kl), intent(out) :: ppfevap
+real, dimension(imax,kl), intent(out) :: ppfmelt
+real, dimension(imax,kl), intent(out) :: ppfprec
+real, dimension(imax,kl), intent(out) :: ppfsnow
+real, dimension(imax,kl), intent(out) :: ppfstayice
+real, dimension(imax,kl), intent(out) :: ppfstayliq
+real, dimension(imax,kl), intent(out) :: ppfsubl
+real, dimension(imax,kl), intent(out) :: pplambs
+real, dimension(imax,kl), intent(out) :: ppmaccr
+real, dimension(imax,kl), intent(out) :: ppmrate
+real, dimension(imax,kl), intent(out) :: ppqfsedice
+real, dimension(imax,kl), intent(out) :: pprfreeze
+real, dimension(imax,kl), intent(out) :: pprscav
+real, dimension(imax,kl), intent(in) :: dpsldt
+real, dimension(imax), intent(inout) :: condg
+real, dimension(imax), intent(inout) :: conds
+real, dimension(imax), intent(inout) :: condx
+real, dimension(imax), intent(inout) :: precip
+real, dimension(imax), intent(in) :: ps
+real, dimension(imax), intent(in) :: em
+real, dimension(kl), intent(in) :: sig, dsig
 real, intent(in) :: rcm, rcrit_l, rcrit_s, ds, dt, qgmin
 real, intent(in) :: rdry, hl, hlf, cp, rvap, tfrz, epsil
 real, intent(in) :: grav, pi
 logical, intent(in) :: mydiag, diag
-logical, dimension(:), intent(in) :: land
+logical, dimension(imax), intent(in) :: land
 
-integer, dimension(size(cfrac,1)) :: kbase,ktop          !Bottom and top of convective cloud 
-real, dimension(size(cfrac,1),size(cfrac,2)) :: prf      !Pressure on full levels (hPa)
-real, dimension(size(cfrac,1),size(cfrac,2)) :: dprf     !Pressure thickness (hPa)
-real, dimension(size(cfrac,1),size(cfrac,2)) :: rhoa     !Air density (kg/m3)
-real, dimension(size(cfrac,1),size(cfrac,2)) :: dz       !Layer thickness (m)
-real, dimension(size(cfrac,1),size(cfrac,2)) :: ccov     !Cloud cover (may differ from cloud frac if vertically subgrid)
-real, dimension(size(cfrac,1),size(cfrac,2)) :: qsatg    !Saturation mixing ratio
-real, dimension(size(cfrac,1),size(cfrac,2)) :: qcl      !Vapour mixing ratio inside convective cloud
-real, dimension(size(cfrac,1),size(cfrac,2)) :: qenv     !Vapour mixing ratio outside convective cloud
-real, dimension(size(cfrac,1),size(cfrac,2)) :: tenv     !Temperature outside convective cloud
-real, dimension(size(cfrac,1)) :: precs                  !Amount of stratiform precipitation in timestep (mm)
-real, dimension(size(cfrac,1)) :: preci                  !Amount of stratiform snowfall in timestep (mm)
-real, dimension(size(cfrac,1)) :: precg                  !Amount of stratiform graupel in timestep (mm)
-real, dimension(size(cfrac,1)) :: wcon                   !Convective cloud water content (in-cloud, prescribed)
+integer, dimension(imax) :: kbase,ktop          !Bottom and top of convective cloud 
+real, dimension(imax,kl) :: prf      !Pressure on full levels (hPa)
+real, dimension(imax,kl) :: dprf     !Pressure thickness (hPa)
+real, dimension(imax,kl) :: rhoa     !Air density (kg/m3)
+real, dimension(imax,kl) :: dz       !Layer thickness (m)
+real, dimension(imax,kl) :: ccov     !Cloud cover (may differ from cloud frac if vertically subgrid)
+real, dimension(imax,kl) :: qsatg    !Saturation mixing ratio
+real, dimension(imax,kl) :: qcl      !Vapour mixing ratio inside convective cloud
+real, dimension(imax,kl) :: qenv     !Vapour mixing ratio outside convective cloud
+real, dimension(imax,kl) :: tenv     !Temperature outside convective cloud
+real, dimension(imax) :: precs                  !Amount of stratiform precipitation in timestep (mm)
+real, dimension(imax) :: preci                  !Amount of stratiform snowfall in timestep (mm)
+real, dimension(imax) :: precg                  !Amount of stratiform graupel in timestep (mm)
+real, dimension(imax) :: wcon                   !Convective cloud water content (in-cloud, prescribed)
 
-integer k, imax, kl
-real, dimension(size(cfrac,1),size(cfrac,2)) :: qevap, qsubl, qauto, qcoll, qaccr, qaccf
-real, dimension(size(cfrac,1),size(cfrac,2)) :: fluxr, fluxi, fluxs, fluxg, fluxm, fluxf
-real, dimension(size(cfrac,1),size(cfrac,2)) :: pqfsedice, pfstayice, pfstayliq, pslopes, prscav
-real, dimension(size(cfrac,1)) :: prf_temp, fl
-real, dimension(size(cfrac,1)) :: rhodz
-real, dimension(size(cfrac,1)) :: qccon1
-real, dimension(size(cfrac,2)) :: diag_temp
+integer k
+real, dimension(imax,kl) :: qevap, qsubl, qauto, qcoll, qaccr, qaccf
+real, dimension(imax,kl) :: fluxr, fluxi, fluxs, fluxg, fluxm, fluxf
+real, dimension(imax,kl) :: pqfsedice, pfstayice, pfstayliq, pslopes, prscav
+real, dimension(imax) :: prf_temp, fl
+real, dimension(imax) :: rhodz
+real, dimension(imax) :: qccon1
+real, dimension(imax) :: diag_temp
 real invdt
-
-imax = size(cfrac,1)
-kl = size(cfrac,2)
-
 
 ! meterological fields
 do k = 1,kl
@@ -441,7 +438,7 @@ call newcloud(dt,land,prf,rhoa,cdrop,tenv,qenv,qlg,qfg, &
               dpsldt,nettend,stratcloud,em,idjd,mydiag, &
               sig,nclddia,ncloud,rcrit_l,rcrit_s,diag,  &
               nmaxpr,ds,dt,qgmin,hl,hlf,cp,rvap,epsil,  &
-              tfrz)
+              tfrz,imax,kl)
 
 
 ! Vertically sub-grid cloud
@@ -532,7 +529,7 @@ call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                  
                  qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,           &
                  fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,              &
                  condx,ktsav,idjd,mydiag,diag,nmaxpr,nmr,rcm,ncloud,nevapls,ldr,  &
-                 epsil,pi,tfrz,hl,hlf,rvap,cp)
+                 epsil,pi,tfrz,hl,hlf,rvap,cp,imax,kl)
 
 
 #ifndef GPU
@@ -696,7 +693,7 @@ end subroutine leoncld_work
                      dpsldt,nettend,stratcloud,em,idjd,mydiag, &
                      sig,nclddia,ncloud,rcrit_l,rcrit_s,diag,  &
                      nmaxpr,ds,dt,qgmin,hl,hlf,cp,rvap,epsil,  &
-                     tfrz)
+                     tfrz,imax,kl)
 !$acc routine vector
  
 ! This routine is part of the prognostic cloud water scheme
@@ -705,46 +702,44 @@ implicit none
 
 ! Argument list
 integer, intent(in) :: idjd, nclddia, ncloud, nmaxpr
+integer, intent(in) :: imax, kl
 real, intent(in) :: tdt, rcrit_l, rcrit_s, ds, dt, qgmin
 real, intent(in) :: hl, hlf, cp, rvap, epsil, tfrz
-real, dimension(:,:), intent(in) :: prf
-real, dimension(:,:), intent(in) :: rhoa
-real, dimension(:,:), intent(in) :: cdrop
-real, dimension(:,:), intent(inout) :: ttg
-real, dimension(:,:), intent(inout) :: qtg
-real, dimension(:,:), intent(inout) :: qlg
-real, dimension(:,:), intent(inout) :: qfg
-real, dimension(:,:), intent(in) :: dpsldt
-real, dimension(:,:), intent(inout) :: nettend
-real, dimension(:,:), intent(inout) :: stratcloud
-real, dimension(:), intent(in) :: em
-real, dimension(:), intent(in) :: sig
+real, dimension(imax,kl), intent(in) :: prf
+real, dimension(imax,kl), intent(in) :: rhoa
+real, dimension(imax,kl), intent(in) :: cdrop
+real, dimension(imax,kl), intent(inout) :: ttg
+real, dimension(imax,kl), intent(inout) :: qtg
+real, dimension(imax,kl), intent(inout) :: qlg
+real, dimension(imax,kl), intent(inout) :: qfg
+real, dimension(imax,kl), intent(in) :: dpsldt
+real, dimension(imax,kl), intent(inout) :: nettend
+real, dimension(imax,kl), intent(inout) :: stratcloud
+real, dimension(imax), intent(in) :: em
+real, dimension(kl), intent(in) :: sig
 logical, intent(in) :: mydiag, diag
-logical, dimension(:), intent(in) :: land
+logical, dimension(imax), intent(in) :: land
 
 ! Local work arrays and variables
-real, dimension(size(prf,1),size(prf,2)) :: qsl, qsw
-real, dimension(size(prf,1),size(prf,2)) :: qcg, qtot, tliq
-real, dimension(size(prf,1),size(prf,2)) :: fice, qcold, rcrit
-real, dimension(size(prf,1),size(prf,2)) :: qsi, qfnew
-real, dimension(size(prf,1)) :: tk, fl, aprpr, bprpr, cice, es
-real, dimension(size(prf,1)) :: qi0, fd, crate, qfdep
-real, dimension(size(prf,1)) :: hlrvap, pk, deles, dqsdt
-real, dimension(size(prf,1)) :: al, qs, delq, qcic, wliq
-real, dimension(size(prf,1)) :: r6c, eps, beta6, r3c
-real, dimension(size(prf,1)) :: qcrit, qc2, qto, qc
-real, dimension(size(prf,2)) :: diag_temp
+real, dimension(imax,kl) :: qsl, qsw
+real, dimension(imax,kl) :: qcg, qtot, tliq
+real, dimension(imax,kl) :: fice, qcold, rcrit
+real, dimension(imax,kl) :: qsi, qfnew
+real, dimension(imax) :: tk, fl, aprpr, bprpr, cice, es
+real, dimension(imax) :: qi0, fd, crate, qfdep
+real, dimension(imax) :: hlrvap, pk, deles, dqsdt
+real, dimension(imax) :: al, qs, delq, qcic, wliq
+real, dimension(imax) :: r6c, eps, beta6, r3c
+real, dimension(imax) :: qcrit, qc2, qto, qc
+real, dimension(imax) :: diag_temp
 
-integer k, imax, kl
+integer k
 
 real decayfac, hlcp, hlfcp, hls
 real, parameter :: rhoic = 700.
 real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 
 ! Start code : ----------------------------------------------------------
-
-imax = size(prf,1)
-kl = size(prf,2)
 
 hlcp = hl/cp
 hlfcp = hlf/cp
@@ -788,7 +783,6 @@ do k = 1,kl
   ttg(:,k)   = ttg(:,k) + hlfcp*(qfnew(:,k)-qfg(:,k)) !Release L.H. of fusion
   qfg(:,k)   = qfnew(:,k)
   qlg(:,k)   = max(0., qcg(:,k)-qfg(:,k))
-
   qtot(:,k) = qtg(:,k) + qcg(:,k)
   tliq(:,k) = ttg(:,k) - hlcp*qcg(:,k) - hlfcp*qfg(:,k) 
 end do
@@ -995,7 +989,7 @@ else
   
   call progcloud(qcg,qtot,prf,rhoa,fice,qsw,ttg,rcrit,  &
                  dpsldt,nettend,stratcloud,hl,hlf,rvap, &
-                 cp,dt,qgmin)
+                 cp,dt,qgmin,imax,kl)
 
   decayfac = exp ( -tdt/7200. )      ! Try 2 hrs
   !decayfac = 0.                     ! Instant adjustment (old scheme)
@@ -1121,104 +1115,102 @@ subroutine newsnowrain(tdt_in,rhoa,dz,prf,cdrop,ttg,qlg,qfg,qrg,qsng,qgrg,precs,
                        cfsnow,cfgraupel,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,            &
                        fluxi,fluxs,fluxg,fluxm,fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,        &
                        condx,ktsav,idjd,mydiag,diag,nmaxpr,nmr,rcm,ncloud,nevapls,ldr,                    &
-                       epsil,pi,tfrz,hl,hlf,rvap,cp)
+                       epsil,pi,tfrz,hl,hlf,rvap,cp,imax,kl)
 !$acc routine vector
 
 implicit none
 
 integer, intent(in) :: idjd, nmaxpr, nmr, ncloud, nevapls, ldr
+integer, intent(in) :: imax, kl
 real, intent(in) :: tdt_in
-real, dimension(:,:), intent(in) :: rhoa
-real, dimension(:,:), intent(in) :: dz
-real, dimension(:,:), intent(in) :: prf
-real, dimension(:,:), intent(in) :: cdrop
-real, dimension(:,:), intent(inout) :: ttg
-real, dimension(:,:), intent(inout) :: qlg
-real, dimension(:,:), intent(inout) :: qfg
-real, dimension(:,:), intent(inout) :: qrg
-real, dimension(:,:), intent(inout) :: qsng
-real, dimension(:,:), intent(inout) :: qgrg
-real, dimension(:,:), intent(inout) :: qtg
-real, dimension(:,:), intent(inout) :: stratcloud
-real, dimension(:,:), intent(inout) :: cfrain
-real, dimension(:,:), intent(inout) :: cfsnow
-real, dimension(:,:), intent(inout) :: cfgraupel
-real, dimension(:,:), intent(out) :: qevap
-real, dimension(:,:), intent(out) :: qsubl
-real, dimension(:,:), intent(out) :: qauto
-real, dimension(:,:), intent(out) :: qcoll
-real, dimension(:,:), intent(out) :: qaccr
-real, dimension(:,:), intent(out) :: qaccf
-real, dimension(:,:), intent(out) :: pqfsedice
-real, dimension(:,:), intent(out) :: pfstayice
-real, dimension(:,:), intent(out) :: pfstayliq
-real, dimension(:,:), intent(out) :: pslopes
-real, dimension(:,:), intent(out) :: prscav
-real, dimension(:,:), intent(out) :: fluxr
-real, dimension(:,:), intent(out) :: fluxi
-real, dimension(:,:), intent(out) :: fluxs
-real, dimension(:,:), intent(out) :: fluxg
-real, dimension(:,:), intent(out) :: fluxm
-real, dimension(:,:), intent(out) :: fluxf
-real, dimension(:), intent(in) :: condx
-real, dimension(:), intent(inout) :: precs
-real, dimension(:), intent(inout) :: preci
-real, dimension(:), intent(inout) :: precg
+real, dimension(imax,kl), intent(in) :: rhoa
+real, dimension(imax,kl), intent(in) :: dz
+real, dimension(imax,kl), intent(in) :: prf
+real, dimension(imax,kl), intent(in) :: cdrop
+real, dimension(imax,kl), intent(inout) :: ttg
+real, dimension(imax,kl), intent(inout) :: qlg
+real, dimension(imax,kl), intent(inout) :: qfg
+real, dimension(imax,kl), intent(inout) :: qrg
+real, dimension(imax,kl), intent(inout) :: qsng
+real, dimension(imax,kl), intent(inout) :: qgrg
+real, dimension(imax,kl), intent(inout) :: qtg
+real, dimension(imax,kl), intent(inout) :: stratcloud
+real, dimension(imax,kl), intent(inout) :: cfrain
+real, dimension(imax,kl), intent(inout) :: cfsnow
+real, dimension(imax,kl), intent(inout) :: cfgraupel
+real, dimension(imax,kl), intent(out) :: qevap
+real, dimension(imax,kl), intent(out) :: qsubl
+real, dimension(imax,kl), intent(out) :: qauto
+real, dimension(imax,kl), intent(out) :: qcoll
+real, dimension(imax,kl), intent(out) :: qaccr
+real, dimension(imax,kl), intent(out) :: qaccf
+real, dimension(imax,kl), intent(out) :: pqfsedice
+real, dimension(imax,kl), intent(out) :: pfstayice
+real, dimension(imax,kl), intent(out) :: pfstayliq
+real, dimension(imax,kl), intent(out) :: pslopes
+real, dimension(imax,kl), intent(out) :: prscav
+real, dimension(imax,kl), intent(out) :: fluxr
+real, dimension(imax,kl), intent(out) :: fluxi
+real, dimension(imax,kl), intent(out) :: fluxs
+real, dimension(imax,kl), intent(out) :: fluxg
+real, dimension(imax,kl), intent(out) :: fluxm
+real, dimension(imax,kl), intent(out) :: fluxf
+real, dimension(imax), intent(in) :: condx
+real, dimension(imax), intent(inout) :: precs
+real, dimension(imax), intent(inout) :: preci
+real, dimension(imax), intent(inout) :: precg
 real, intent(in) :: rcm, epsil, pi, tfrz, hl, hlf, rvap, cp
-integer, dimension(:), intent(in) :: ktsav
+integer, dimension(imax), intent(in) :: ktsav
 logical, intent(in) :: mydiag, diag
 
-real, dimension(size(rhoa,1),size(rhoa,2)) :: fluxautorain, fluxautosnow, fluxautograupel
-real, dimension(size(rhoa,1),size(rhoa,2)) :: cfautorain, cfautosnow, cfautograupel
-real, dimension(size(rhoa,1),size(rhoa,2)) :: rhov, rhol, rhoi, rhos, rhog, rhor
-real, dimension(size(rhoa,1),size(rhoa,2)) :: clfr,cifr,qsatg
-real, dimension(size(rhoa,1)) :: fthruliq,foutliq,fthruice,foutice
-real, dimension(size(rhoa,1)) :: fthrusnow,foutsnow,fthrugraupel,foutgraupel
-real, dimension(size(rhoa,1)) :: vi2, vr2, vs2, vg2
-real, dimension(size(rhoa,1)) :: fluxice,fluxsnow,fluxgraupel,fluxrain
-real, dimension(size(rhoa,1)) :: rhoiin,rhoiout,rhorin,rhorout
-real, dimension(size(rhoa,1)) :: rhosin,rhosout,rhogin,rhogout
-real, dimension(size(rhoa,1)) :: cffluxin,cffluxout
-real, dimension(size(rhoa,1)) :: crfra,cifra,csfra,cgfra
-real, dimension(size(rhoa,1)) :: mxclfrrain,rdclfrrain,mxclfrice,rdclfrice
-real, dimension(size(rhoa,1)) :: mxclfrsnow,rdclfrsnow,mxclfrgraupel,rdclfrgraupel
-real, dimension(size(rhoa,1)) :: frclr
-real :: fsclr_g, fsclr_s, fsclr_i
-!!!real, dimension(size(rhoa,1)) :: caccl_g,caccl_s,caccl_i,caccl_r
-!!!real, dimension(size(rhoa,1)) :: caccf_g,caccf_s,caccf_i,caccf_r
-!!!real, dimension(size(rhoa,1)) :: cffreeze
-real :: qvp, iflux, lflux
-real, dimension(size(rhoa,1)) :: rl, rf, rg, rn, rs
-real :: drf, drl
-real :: dqf, dqs, dql
-real, dimension(size(rhoa,1)) :: sublflux
-real :: cdt, dttg, csb, bf
-real :: qrn, qsn, qif, qf
-real, dimension(size(rhoa,1)) :: rhodz,evap,qpf,clrevap,fr
-real, dimension(size(rhoa,1)) :: mxovr,rdovr,fcol,alph
-real :: coll
-real, dimension(size(rhoa,1)) :: alphaf,pk,aprpr,bprpr
-real :: es
-real, dimension(size(rhoa,1)) :: curly,Csbsav
-real, dimension(size(rhoa,1)) :: n0s
-real, dimension(size(rhoa,1)) :: xwgt, cfmelt, fluxmelt, fluxfreeze
-real :: cftmp, cltmp
-real, dimension(size(rhoa,1)) :: slopes_s, slopes_g
-real :: slopes_r, slopes_i
-real, dimension(size(rhoa,1)) :: denfac, qsl
-real :: esi, apr, bpr, cev
-real :: dqsdt, bl, satevap
-real, dimension(size(rhoa,1)) :: xfrac_graupel, xfrac_snow, xfrac_ice
-real, dimension(size(rhoa,1)) :: rhototf
-real, dimension(size(rhoa,1)) :: gam1
-real, dimension(size(rhoa,2)) :: diag_temp
+real, dimension(imax,kl) :: fluxautorain, fluxautosnow, fluxautograupel
+real, dimension(imax,kl) :: cfautorain, cfautosnow, cfautograupel
+real, dimension(imax,kl) :: rhov, rhol, rhoi, rhos, rhog, rhor
+real, dimension(imax,kl) :: clfr,cifr,qsatg
+real, dimension(imax) :: fthruliq,foutliq,fthruice,foutice
+real, dimension(imax) :: fthrusnow,foutsnow,fthrugraupel,foutgraupel
+real, dimension(imax) :: vi2, vr2, vs2, vg2
+real, dimension(imax) :: fluxice,fluxsnow,fluxgraupel,fluxrain
+real, dimension(imax) :: rhoiin,rhoiout,rhorin,rhorout
+real, dimension(imax) :: rhosin,rhosout,rhogin,rhogout
+real, dimension(imax) :: cffluxin,cffluxout
+real, dimension(imax) :: crfra,cifra,csfra,cgfra
+real, dimension(imax) :: mxclfrrain,rdclfrrain,mxclfrice,rdclfrice
+real, dimension(imax) :: mxclfrsnow,rdclfrsnow,mxclfrgraupel,rdclfrgraupel
+real, dimension(imax) :: frclr
+real, dimension(imax) :: rl, rf, rg, rn, rs
+real, dimension(imax) :: sublflux
+real, dimension(imax) :: rhodz,evap,qpf,clrevap,fr
+real, dimension(imax) :: mxovr,rdovr,fcol,alph
+real, dimension(imax) :: alphaf,pk,aprpr,bprpr
+real, dimension(imax) :: curly,Csbsav
+real, dimension(imax) :: n0s
+real, dimension(imax) :: xwgt, cfmelt, fluxmelt, fluxfreeze
+real, dimension(imax) :: slopes_s, slopes_g
+real, dimension(imax) :: denfac, qsl
+real, dimension(imax) :: xfrac_graupel, xfrac_snow, xfrac_ice
+real, dimension(imax) :: rhototf
+real, dimension(imax) :: gam1
+real, dimension(kl) :: diag_temp
 
-integer k, n, njumps, iq, imax, kl
+integer k, n, njumps, iq
 real scm3, tdt
 real qcrit, qcic, ql, dqls, Crate, ql1, ql2
 real Frb, cdts, selfcoll, cfla
 real qla, Wliq, R6c, eps, beta6, R3c
 real dqla, qfs, dqfs, hls, hlcp, hlfcp, hlscp
+real fsclr_g, fsclr_s, fsclr_i
+real qvp, iflux, lflux
+real drf, drl
+real dqf, dqs, dql
+real cdt, dttg, csb, bf
+real qrn, qsn, qif, qf
+real coll
+real es
+real cftmp, cltmp
+real slopes_r, slopes_i
+real esi, apr, bpr, cev
+real dqsdt, bl, satevap
 
 real, parameter :: n0r = 8.e6        ! intercept for rain
 real, parameter :: n0g = 4.e6        ! intercept for graupel
@@ -1245,9 +1237,6 @@ real, parameter :: clin = 4.8
 real, parameter :: gcon = 44.628 ! = 40.74*sqrt(sfcrho)
 !real, parameter :: tau_s = 90.   ! (sec) snow melt
 !real, parameter :: tau_g = 180.  ! (sec) graupel melt
-
-imax = size(rhoa,1)
-kl = size(rhoa,2)
 
 hls = hl + hlf
 hlcp = hl/cp
@@ -1541,7 +1530,6 @@ do n = 1,njumps
             cftmp           = clfr(iq,k)*drl/rl(iq)
             clfr(iq,k)      = clfr(iq,k) - cftmp
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), cftmp )
-            !!!caccl_g(iq)     = max( caccl_g(iq), cftmp )
           end if
         end do
         
@@ -1567,7 +1555,6 @@ do n = 1,njumps
             cftmp           = cfrain(iq,k)*drl/rn(iq)
             cfrain(iq,k)    = cfrain(iq,k) - cftmp
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), cftmp )
-            !!!caccl_g(iq)     = max( caccl_g(iq), cftmp )        
           end if
         end do
         
@@ -1587,7 +1574,6 @@ do n = 1,njumps
             cftmp           = cifr(iq,k)*drf/rf(iq)
             cifr(iq,k)      = cifr(iq,k) - cftmp
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), cftmp )
-            !!!caccf_g(iq)     = max( caccf_g(iq), cftmp )
           end if
         end do
         
@@ -1611,7 +1597,6 @@ do n = 1,njumps
             cftmp           = cfsnow(iq,k)*drf/rs(iq)
             cfsnow(iq,k)    = cfsnow(iq,k) - cftmp
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), cftmp )
-            !!!caccf_g(iq)     = max( caccf_g(iq), cftmp )
           end if
         end do
         
@@ -1620,8 +1605,6 @@ do n = 1,njumps
       
       ! Snow ------------------------------------------------------------------------------
       sublflux(:) = 0.
-      !!!caccl_s(:)  = 0.
-      !!!caccf_s(:)  = 0.
       
       fluxsnow(:) = fluxsnow + fluxautosnow(:,k)*tdt/tdt_in
       
@@ -1720,7 +1703,6 @@ do n = 1,njumps
             cftmp        = clfr(iq,k)*drl/rl(iq)
             clfr(iq,k)   = clfr(iq,k) - cftmp
             mxclfrsnow(iq) = max( mxclfrsnow(iq), cftmp )
-            !!!caccl_s(iq)  = max( caccl_s(iq), cftmp )
           end if
         end do
         
@@ -1746,7 +1728,6 @@ do n = 1,njumps
             cftmp        = cfrain(iq,k)*drl/rn(iq)
             cfrain(iq,k) = cfrain(iq,k) - cftmp
             mxclfrsnow(iq) = max( mxclfrsnow(iq), cftmp )
-            !!!caccl_s(iq)  = max( caccl_s(iq), cftmp )
           end if
         end do
         
@@ -1769,7 +1750,6 @@ do n = 1,njumps
             cftmp        = cifr(iq,k)*drf/rf(iq)
             cifr(iq,k)   = cifr(iq,k) - cftmp
             mxclfrsnow(iq) = max( mxclfrsnow(iq), cftmp )
-            !!!caccf_s(iq)  = max( caccf_s(iq), cftmp )
           end if
         end do
         
@@ -1780,8 +1760,6 @@ do n = 1,njumps
   
     ! Ice ---------------------------------------------------------------------------------
     sublflux(:) = 0.
-    !!!caccl_i(:)  = 0.
-    !!!caccf_i(:)  = 0.
    
     ! Set up the rate constant for ice sublimation
     ! MJT notes - curly and Csbsav depend on vi2(:,k+1), so vi2(:,k) can be updated below
@@ -1916,7 +1894,6 @@ do n = 1,njumps
           cftmp       = clfr(iq,k)*drl/rl(iq)
           clfr(iq,k)  = clfr(iq,k) - cftmp
           mxclfrice(iq) = max( mxclfrice(iq), cftmp )
-          !!!caccl_i(iq) = max( caccl_i(iq), cftmp) )
         end if
       end do
       
@@ -1939,7 +1916,6 @@ do n = 1,njumps
             cftmp        = cfrain(iq,k)*drl/rn(iq)
             cfrain(iq,k) = cfrain(iq,k) - cftmp
             mxclfrice(iq) = max( mxclfrice(iq), cftmp )
-            !!!caccl_i(iq)  = max( caccl_i(iq), cftmp )
           end if
         end do
       end if
@@ -1958,8 +1934,6 @@ do n = 1,njumps
     
     ! Rain --------------------------------------------------------------------------------
     evap(:) = 0.
-    !!!caccl_r(:) = 0.
-    !!!caccf_r(:) = 0.
 
     ! Add flux of melted snow to fluxrain
     fluxrain(:) = fluxrain(:) + fluxmelt(:) + fluxautorain(:,k)*tdt/tdt_in
@@ -2014,7 +1988,6 @@ do n = 1,njumps
             mxclfrrain(iq)  = mxclfrrain(iq)*(1.-drl/rn(iq))
             cltmp           = mxclfrrain(iq) + rdclfrrain(iq) - mxclfrrain(iq)*rdclfrrain(iq)
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), max(crfra(iq)-cltmp, 0.) )
-            !!!cffreeze(iq)    = max( cffreeze(iq), max(crfra(iq)-cltmp,0.) )
             crfra(iq)       = cltmp
           end if
         end do
@@ -2085,7 +2058,6 @@ do n = 1,njumps
           cltmp        = clfr(iq,k)*coll/rl(iq)
           clfr(iq,k)   = clfr(iq,k) - cltmp
           mxclfrrain(iq) = max( mxclfrrain(iq), cltmp )
-          !!!caccl_r(iq)  = max( caccl_r(iq), cltmp )
         end if
       end do
       
@@ -2118,7 +2090,6 @@ do n = 1,njumps
             cftmp        = cfsnow(iq,k)*drf/rs(iq)
             cfsnow(iq,k) = cfsnow(iq,k) - cftmp
             mxclfrrain(iq) = max( mxclfrrain(iq), cftmp )
-            !!!caccf_r(iq)  = max( caccf_r(iq), cftmp )
           end if
         end do
 
@@ -2163,8 +2134,6 @@ do n = 1,njumps
             cifr(iq,k)      = cifr(iq,k) - cftmp
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), cftmp*xwgt(iq) )
             mxclfrsnow(iq)    = max( mxclfrsnow(iq), cftmp*(1.-xwgt(iq)) )
-            !!!caccf_g(iq)     = max( caccf_g(iq), cftmp*xwgt(iq) )
-            !!!caccf_s(iq)     = max( caccf_s(iq), cftmp*(1.-xwgt(iq)) )
           end if
         end do
         
@@ -2191,10 +2160,6 @@ do n = 1,njumps
       ! calculate maximum and random overlap for falling graupel
       pfstayice(:,k) = pfstayice(:,k) + fluxgraupel(:)*(1.-fthrugraupel(:))/tdt_in ! Save flux for the wet deposition scheme.  
       pqfsedice(:,k) = pqfsedice(:,k) + xfrac_graupel(:)*foutgraupel(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
-      !!!rdclfrgraupel(:) = min(1., rdclfrgraupel(:)+caccl_g(:)-rdclfrgraupel(:)*caccl_g(:))   ! rnd overlap
-      !!!mxclfrgraupel(:) = max( mxclfrgraupel(:), caccf_g(:) )                                ! max overlap
-      !!!rdclfrgraupel(:) = min(1., rdclfrgraupel(:)+cffreeze(:)-rdclfrgraupel(:)*cffreeze(:)) ! rnd overlap
-      !!!mxclfrgraupel(:) = max( mxclfrgraupel(:), cfautograupel(:,k) )                        ! max overlap
       where ( fluxgraupel(:)<=0. )
         rdclfrgraupel(:) = 0.
         mxclfrgraupel(:) = 0.
@@ -2222,9 +2187,6 @@ do n = 1,njumps
       ! calculate maximum and random overlap for falling snow
       pfstayice(:,k) = pfstayice(:,k) + fluxsnow(:)*(1.-fthrusnow(:))/tdt_in ! Save flux for the wet deposition scheme.
       pqfsedice(:,k) = pqfsedice(:,k) + xfrac_snow(:)*foutsnow(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
-      !!!rdclfrsnow(:) = min(1., rdclfrsnow(:)+caccl_s(:)-rdclfrsnow(:)*caccl_s(:)) ! rnd overlap
-      !!!mxclfrsnow(:) = max( mxclfrsnow(:), caccf_s(:) )                           ! max overlap
-      !!!mxclfrsnow(:) = max( mxclfrsnow(:), cfautosnow(:,k) )                           ! max overlap
       where ( fluxsnow(:)<=0. )
         rdclfrsnow(:) = 0.
         mxclfrsnow(:) = 0.
@@ -2283,10 +2245,6 @@ do n = 1,njumps
     ! Rain
     ! Calculate the raining cloud cover down to this level, for stratiform (crfra).
     pfstayliq(:,k) = pfstayliq(:,k) + fluxrain(:)*(1.-fthruliq(:))/tdt_in ! store liquid flux for aerosols
-    !!!rdclfrrain(:) = min(1., rdclfrrain(:)+caccf_r(:)-rdclfrrain(:)*caccf_r(:))  ! rnd overlap
-    !!!mxclfrrain(:) = max( mxclfrrain(:), caccl_r(:) )                            ! max overlap
-    !!!rdclfrrain(:) = min(1., rdclfrrain(:)+cfmelt(:)-rdclfrrain(:)*cfmelt(:))    ! rnd overlap
-    !!!mxclfrrain(:) = max( mxclfrrain(:), cfautorain(:,k) )                       ! max overlap
     where ( fluxrain(:)<=0. )
       rdclfrrain(:) = 0.
       mxclfrrain(:) = 0.
@@ -2429,24 +2387,23 @@ end subroutine newsnowrain
     
 subroutine progcloud(qc,qtot,press,rho,fice,qs,t,rhcrit,    &
                      dpsldt,nettend,stratcloud,hl,hlf,rvap, &
-                     cp,dt,qgmin)
+                     cp,dt,qgmin,imax,kl)
 !$acc routine vector
 
 implicit none
 
-integer k, kl
+integer, intent(in) :: imax, kl
+integer k
 real, intent(in) :: hl, hlf, rvap, cp, dt, qgmin
-real, dimension(:,:), intent(inout) :: qc ! condensate = qf + ql
-real, dimension(:,:), intent(in) :: qtot, rho, fice, qs, t, rhcrit, press
-real, dimension(:,:), intent(in) :: dpsldt
-real, dimension(:,:), intent(inout) :: nettend
-real, dimension(:,:), intent(inout) :: stratcloud
-real, dimension(size(qc,1)) :: aa, bb, cc, at, a_dt, b_dt, cf1, cfeq, cfbar
-real, dimension(size(qc,1)) :: qv, omega, hlrvap, dqsdT, gamma, xf, dqs
+real, dimension(imax,kl), intent(inout) :: qc ! condensate = qf + ql
+real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, t, rhcrit, press
+real, dimension(imax,kl), intent(in) :: dpsldt
+real, dimension(imax,kl), intent(inout) :: nettend
+real, dimension(imax,kl), intent(inout) :: stratcloud
+real, dimension(imax) :: aa, bb, cc, at, a_dt, b_dt, cf1, cfeq, cfbar
+real, dimension(imax) :: qv, omega, hlrvap, dqsdT, gamma, xf, dqs
 real erosion_scale, hlcp, hlfcp
 real, parameter :: u00ramp = 0.01
-
-kl = size(qc,2)
 
 hlcp = hl/cp
 hlfcp = hlf/cp
