@@ -432,7 +432,6 @@ call map_init(ifull_g,ifull,iextra,myid)
 call arrays_init(ifull,iextra,kl)
 call carbpools_init(ifull,nsib,ccycle)
 call cfrac_init(ifull,iextra,kl,ncloud)
-call estab_init
 call extraout_init(ifull,nextout)
 call gdrag_init(ifull)
 call histave_init(ifull,kl,ms,ccycle)

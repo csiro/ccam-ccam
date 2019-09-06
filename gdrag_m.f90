@@ -30,6 +30,7 @@ public gdrag_init,gdrag_sbl,gdrag_end,gwdrag
 real, dimension(:), allocatable, save :: helo
 real, dimension(:), allocatable, save :: he
 integer, save :: kbot
+!$acc declare create(kbot)
 
 contains
 
@@ -81,14 +82,11 @@ subroutine gwdrag
 
 use cc_mpi, only : mydiag
 use cc_omp
-use const_phys, only : grav, rdry, cp
 use arrays_m
 use newmpar_m
 use nharrs_m
-use parm_m, only : idjd, vmodmin, sigbot_gwd, fc2, alphaj, ngwd, dt
+use parm_m, only : idjd
 use pbl_m
-use sigs_m, only : dsig, sig
-
 
 implicit none
 
@@ -99,7 +97,7 @@ logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),        &
 !$omp private(lt,lu,lv,idjd_t,mydiag_t)
-!$acc parallel copy(u,v), copyin(t,tss,he,dsig,sig)
+!$acc parallel copy(u,v), copyin(t,tss,he)
 !$acc loop gang private(lt,lu,lv)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -112,9 +110,7 @@ do tile = 1,ntiles
   lu = u(is:ie,:)
   lv = v(is:ie,:)
   
-  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),idjd_t,mydiag_t,  &
-                   dsig,sig,vmodmin,sigbot_gwd,fc2,alphaj,ngwd,dt, &
-                   grav,rdry,cp,kbot,imax,kl)
+  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),idjd_t,mydiag_t,imax,kl)
 
   u(is:ie,:) = lu
   v(is:ie,:) = lv
@@ -134,16 +130,17 @@ end subroutine gwdrag
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
-subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag,                       &
-                       dsig,sig,vmodmin,sigbot_gwd,fc2,alphaj,ngwd,dt, &
-                       grav,rdry,cp,kbot,imax,kl)
+subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag,imax,kl)
 !$acc routine vector
+
+use const_phys
+use parm_m, only : vmodmin, sigbot_gwd, fc2, dt, alphaj, ngwd
+use sigs_m
 
 implicit none
 
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
-integer, intent(in) :: idjd, kbot, ngwd
-integer, intent(in) :: imax, kl
+integer, intent(in) :: idjd, imax, kl
 integer iq, k
 real, dimension(imax,kl), intent(in)    :: t
 real, dimension(imax,kl), intent(inout) :: u, v
@@ -151,14 +148,11 @@ real, dimension(imax,kl) :: uu,fni,bvnf
 real, dimension(imax,kl) :: theta_full
 real, dimension(imax,kl) :: dtheta_dz_kmh
 real, dimension(imax), intent(in) :: tss, he
-real, dimension(kl), intent(in) :: dsig, sig
 real, dimension(imax) :: dzi, uux, xxx, froude2_inv
 real, dimension(imax) :: temp,fnii
 real, dimension(imax) :: bvng ! to be depreciated
 real, dimension(imax) :: apuw,apvw,alambda,wmag
 real, dimension(kl) :: dsk,sigk
-real, intent(in) :: vmodmin,sigbot_gwd,fc2,alphaj,dt
-real, intent(in) :: grav,rdry,cp
 real dzx
 logical, intent(in) :: mydiag
 

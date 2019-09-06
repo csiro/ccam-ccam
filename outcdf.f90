@@ -3606,7 +3606,7 @@ if ( first ) then
         ypnt(j) = float(j)
       end do
       call ccnf_put_vara(fncid,iyp,1,jl_g,ypnt(1:jl_g))
-      deallocate(xpnt)
+      deallocate(ypnt)
     end if
     zpnt(1)=1.
     call ccnf_put_vara(fncid,izp,1,1,zpnt(1:1))

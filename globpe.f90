@@ -783,6 +783,13 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   ! MISC (PARALLEL) -------------------------------------------------------
   ! Update diagnostics for consistancy in history file
+!$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call fixsat(js,je) ! if qg_fix>1, then removes supersaturated qg
+  end do  
+!$omp end do nowait
   if ( rescrn>0 ) then
 !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -2974,7 +2981,6 @@ if ( myid<nproc ) then
   call cfrac_init(ifull,iextra,kl,ncloud)
   call dpsdt_init(ifull,epsp)
   call epst_init(ifull)
-  call estab_init
   call extraout_init(ifull,nextout)
   call gdrag_init(ifull)
   call histave_init(ifull,kl,ms,ccycle)
@@ -3572,9 +3578,6 @@ implicit none
 integer, intent(in) :: js, je
 integer k
 real, dimension(js:je) :: qtot, tliq
-real, dimension(js:je) :: pk, qsi, deles, qsl, qsw, fice
-real, dimension(js:je) :: dqsdt, hlrvap, al, qc
-real, parameter :: tice = 233.16
 
 if ( qg_fix<=0 ) return
 
@@ -3596,11 +3599,34 @@ do k = 1,kl
     stratcloud(js:je,k) = 0.  
   end where
 end do
-  
+
+return
+end subroutine fixqg
+    
+subroutine fixsat(js,je)
+
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use const_phys                        ! Physical constants
+use cfrac_m                           ! Cloud fraction
+use estab                             ! Liquid saturation function
+use liqwpar_m                         ! Cloud water mixing ratios
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+use sigs_m                            ! Atmosphere sigma levels
+
+implicit none
+
+integer, intent(in) :: js, je
+integer k
+real, dimension(js:je) :: qtot, tliq
+real, dimension(js:je) :: pk, qsi, deles, qsl, qsw, fice
+real, dimension(js:je) :: dqsdt, hlrvap, al, qc
+real, parameter :: tice = 233.16
+
 if ( qg_fix<=1 ) return
 
 do k = 1,kl
-  qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), 0. ) ! qtot
+  qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), 0. )
   qc(js:je)   = max( qlg(js:je,k) + qfg(js:je,k), 0. )
   tliq(js:je) = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
   
@@ -3633,7 +3659,7 @@ do k = 1,kl
 end do
 
 return
-end subroutine fixqg
+end subroutine fixsat    
 
 !--------------------------------------------------------------
 ! Reset diagnostics for averaging period    
@@ -4213,7 +4239,7 @@ if ( mod(ktau,nmaxpr)==0 .or. ktau==ntau ) then
 endif                  ! (mod(ktau,nmaxpr)==0)
 
 return
-    end subroutine write_diagnostics
+end subroutine write_diagnostics
     
 !--------------------------------------------------------------------
 ! Update misc diagnostics
@@ -4234,7 +4260,7 @@ integer tile, js, je, iq, k, k250m, k150m
 real xx
 
 ! special output for wind farms
-if ( diaglevel_pbl>5 ) then
+if ( diaglevel_pbl>3 ) then
 !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -4259,7 +4285,7 @@ if ( diaglevel_pbl>5 ) then
     end do  
   end do  
 !$omp end do nowait
-end if ! diaglevel_pbl>5
+end if ! diaglevel_pbl>3
 
 return
 end subroutine update_misc
@@ -4287,6 +4313,8 @@ integer, intent(in) :: js, je
 integer, dimension(2) :: posmin, posmax
 integer, dimension(3) :: posmin3, posmax3
 character(len=*), intent(in) :: message
+
+if ( qg_fix<=-1 ) return
 
 if ( js<1 .or. je>ifull ) then
   write(6,*) "ERROR: Invalid index for nantest - ",trim(message)
