@@ -171,13 +171,13 @@ else
 end if
 
 select case(nvmix)
-case(6)  
+  case(6)  
     ! k-e + MF closure scheme
     
 !$omp do schedule(static) private(is,ie,k),             &
 !$omp private(lt,lqg,lqfg,lqlg),                        &
 !$omp private(lstratcloud,lxtg,lu,lv,ltke,leps,lshear), &
-!$omp private(lat,lct,idjd_t,mydiag_t)
+!$omp private(lat,lct,lsavu,lsavv,idjd_t,mydiag_t)
 !$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
 !$acc   pblh,ustar)                                          &
 !$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv,sig,dsig,  &
@@ -222,7 +222,7 @@ case(6)
                        lbuoyproduction,lshearproduction,ltotaltransport,                                 &
 #endif
                        sig,dsig,sigmh,ratha,rathb,bet,betm,                                              &
-                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix)      
+                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix,imax,kl,naero)      
                        
       t(is:ie,:)          = lt
       qg(is:ie,:)         = lqg
@@ -259,7 +259,7 @@ case(6)
       totaltransport(is:ie,:) = ltotaltransport
 #endif
 
-end do ! tile = 1,ntiles
+    end do ! tile = 1,ntiles
 !$acc end parallel
 !$omp end do nowait
 
@@ -337,7 +337,7 @@ end do ! tile = 1,ntiles
       totaltransport(is:ie,:) = ltotaltransport
 #endif
 
-end do ! tile = 1,ntiles
+    end do ! tile = 1,ntiles
 !$omp end do nowait
 
 end select
@@ -428,7 +428,7 @@ real, dimension(imax,kl) :: au, cu, zg
 real, dimension(imax,kl) :: uav, vav
 real, dimension(imax,kl) :: rkm, rkh
 real, dimension(imax,kl) :: qs, betatt, betaqt, delthet, ri, rk_shal, thee
-real, dimension(imax,kl) :: thebas, tv
+real, dimension(imax,kl) :: thebas
 real, dimension(imax,kl-1) :: tmnht
 real, dimension(imax) :: dz, dzr
 real, dimension(imax) :: rhos
@@ -468,8 +468,6 @@ pk=0.
 rkm = 0.
 rkh = 0.
 
-tv(:,:)=t*(1.+0.61*qg-qlg-qfg)
-
 ! Set-up potential temperature transforms
 rong = rdry/grav
 do k = 1,kl-1
@@ -502,18 +500,18 @@ rlogs1=log(sig(1))
 rlogs2=log(sig(2))
 rlogh1=log(sigmh(2))
 rlog12=1./(rlogs1-rlogs2)
-tmnht(:,1)=(t(1:imax,2)*rlogs1-t(1:imax,1)*rlogs2+(t(1:imax,1)-t(1:imax,2))*rlogh1)*rlog12
+tmnht(:,1)=(t(:,2)*rlogs1-t(:,1)*rlogs2+(t(:,1)-t(:,2))*rlogh1)*rlog12
 ! n.b. an approximate zh (in m) is quite adequate for this routine
-zh(:,1) = tv(1:imax,1)*delh(1)
+zh(:,1) = t(:,1)*delh(1)
 do k = 2,kl-1
-  zh(:,k)    = zh(:,k-1) + tv(1:imax,k)*delh(k)
-  tmnht(:,k) = ratha(k)*tv(1:imax,k+1) + rathb(k)*tv(1:imax,k)
+  zh(:,k)    = zh(:,k-1) + t(:,k)*delh(k)
+  tmnht(:,k) = ratha(k)*t(:,k+1) + rathb(k)*t(:,k)
 end do      !  k loop
-zh(:,kl) = zh(:,kl-1) + tv(1:imax,kl)*delh(kl)
+zh(:,kl) = zh(:,kl-1) + t(1:imax,kl)*delh(kl)
 
 ! Calculate theta
 do k = 1,kl
-  rhs(:,k) = t(1:imax,k)*sigkap(k)  ! rhs is theta here
+  rhs(:,k) = t(:,k)*sigkap(k)  ! rhs is theta here
 enddo      !  k loop
     
 prcpv(1:kl) = sig(1:kl)**(-roncp)
@@ -533,7 +531,8 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
       do iq=1,imax
         es=establ(t(iq,k))
         pk=ps(iq)*sig(k)
-        qs(iq,k)=.622*es/max(1.,pk-es)  
+        !qs(iq,k)=.622*es/max(1.,pk-es)  
+        qs(iq,k)=.622*es/(pk-es)
         !dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(1.,pk-es))
         dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*(pk-es))
         rhs(iq,k)=rhs(iq,k)-(hlcp*qlg(iq,k)+hlscp*qfg(iq,k))*sigkap(k)   !Convert to thetal - used only to calc Ri
@@ -665,8 +664,8 @@ end select
 !     ********* end of Geleyn shallow convection section ****************
 
 ! following now defined in vertmix (don't need to pass from sflux)
-uav(1:imax,:) = av_vmod*u(1:imax,:) + (1.-av_vmod)*savu(1:imax,:) 
-vav(1:imax,:) = av_vmod*v(1:imax,:) + (1.-av_vmod)*savv(1:imax,:) 
+uav(:,:) = av_vmod*u(:,:) + (1.-av_vmod)*savu(:,:) 
+vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:) 
 do k = 1,kl-1
   do iq = 1,imax
     dz(iq) =-tmnht(iq,k)*delons(k)  ! this is z(k+1)-z(k)
@@ -688,7 +687,7 @@ do k = 1,kl-1
     case (1)
       ! usually nvmix=3       
       if ( sig(k)>.8 ) then ! change made 17/1/06
-        dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
+        dqtot(:)=qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-(qg(:,k)+qlg(:,k)+qfg(:,k))
       else
         dqtot(:)=0.
       end if
@@ -697,22 +696,22 @@ do k = 1,kl-1
       do iq=1,imax
         x(iq)=grav*dz(iq)*((w1*betatt(iq,k)+w2*betatt(iq,k+1))*delthet(iq,k) + (w1*betaqt(iq,k)+w2*betaqt(iq,k+1))*dqtot(iq) )
       enddo ! iq loop	 
-      rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
+      rhs(:,k)=t(:,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
     case (2) !  jlm May '05
       ! usually nvmix=3       
       if ( sig(k)>.8 ) then ! change made 17/1/06
-        dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
+        dqtot(:)=qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-(qg(:,k)+qlg(:,k)+qfg(:,k))
       else
         dqtot(:)=0.
       end if
       do iq=1,imax
         x(iq)=grav*dz(iq)*((min(betatt(iq,k),betatt(iq,k+1)))*delthet(iq,k) + (max(betaqt(iq,k),betaqt(iq,k+1)))*dqtot(iq) )
       enddo ! iq loop	
-      rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
-    case (3)
+      rhs(:,k)=t(:,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
+    case (3,7)
       ! usually nvmix=3       
       if ( sig(k)>.8 ) then ! change made 17/1/06
-        dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
+        dqtot(:)=qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-(qg(:,k)+qlg(:,k)+qfg(:,k))
       else
         dqtot(:)=0.
       end if
@@ -721,23 +720,10 @@ do k = 1,kl-1
       do iq=1,imax
         x(iq)=grav*dz(iq)*((w1*betatt(iq,k)+w2*betatt(iq,k+1))*delthet(iq,k) + (w1*betaqt(iq,k)+w2*betaqt(iq,k+1))*dqtot(iq) )
       enddo ! iq loop
-      rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
+      rhs(:,k)=t(:,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
     case (5) ! non-cloudy x with qfg, qlg
       x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))+.61*(qg(1:imax,k+1)-qg(1:imax,k)) &
        -qfg(1:imax,k+1)-qlg(1:imax,k+1)+qfg(1:imax,k)+qlg(1:imax,k) )
-    case (7)
-      ! usually nvmix=3       
-      if ( sig(k)>.8 ) then ! change made 17/1/06
-        dqtot(:)=qg(1:imax,k+1)+qlg(1:imax,k+1)+qfg(1:imax,k+1)-(qg(1:imax,k)  +qlg(1:imax,k)  +qfg(1:imax,k))
-      else
-        dqtot(:)=0.
-      end if
-      w1 = 1.  
-      w2=1.-w1   !weight for upper level
-      do iq=1,imax
-        x(iq)=grav*dz(iq)*((w1*betatt(iq,k)+w2*betatt(iq,k+1))*delthet(iq,k) + (w1*betaqt(iq,k)+w2*betaqt(iq,k+1))*dqtot(iq) )
-      enddo ! iq loop
-      rhs(:,k)=t(1:imax,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
     case default ! original non-cloudy x, nvmix=4
       x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))+.61*(qg(1:imax,k+1)-qg(1:imax,k)))  
   end select 
@@ -833,7 +819,7 @@ if(nmaxpr==1.and.mydiag)then
 endif
 
 if (nlocal/=0) then
-  call pbldif(rkm,rkh,rhs,uav,vav,                   &
+  call pbldif(rhs,rkm,rkh,uav,vav,                   &
               t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac  &
 #ifdef scm
               ,wth_flux,wq_flux                      &
@@ -1304,7 +1290,7 @@ end if
 return
 end subroutine vertmix_work
 
-subroutine pbldif(rkm,rkh,theta,uav,vav,                &
+subroutine pbldif(theta,rkm,rkh,uav,vav,                &
                   t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac &
 #ifdef scm
                   ,wth_flux,wq_flux                     &
@@ -1574,9 +1560,9 @@ enddo      ! k loop
 ! latitude value for f so that c = 0.07/f = 700.
  
 if(npblmin==1)pblh(:) = max(pblh(:),min(200.,700.*ustar(:)))
-if(npblmin==2)pblh(:) = max(pblh(:),.07*ustar(:)/max(.5e-4,abs(f(1:imax))))
-if(npblmin==3)pblh(:) = max(pblh(:),.07*ustar(:)/max(1.e-4,abs(f(1:imax)))) ! to ~agree 39.5N
-if(npblmin==4)pblh(1:imax) = max(pblh(1:imax),50.)
+if(npblmin==2)pblh(:) = max(pblh(:),.07*ustar(:)/max(.5e-4,abs(f(:))))
+if(npblmin==3)pblh(:) = max(pblh(:),.07*ustar(:)/max(1.e-4,abs(f(:)))) ! to ~agree 39.5N
+if(npblmin==4)pblh(:) = max(pblh(1:imax),50.)
 
 ! pblh is now available; do preparation for diffusivity calculation:
 
@@ -1799,7 +1785,7 @@ subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                 
                        buoyproduction,shearproduction,totaltransport,                           &
 #endif
                        sig,dsig,sigmh,ratha,rathb,bet,betm,                                     &
-                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix)
+                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix,imax,kl,naero)
 !$acc routine vector
 
 use tkeeps, only : tkemix        ! TKE-EPS boundary layer
@@ -1807,38 +1793,38 @@ use tkeeps, only : tkemix        ! TKE-EPS boundary layer
 implicit none
 
 integer, intent(in) :: iaero, nlocal
-integer k, nt, kl
-real, dimension(:,:,:), intent(inout) :: xtg
-real, dimension(:,:), intent(inout) :: t, qg, qfg, qlg
-real, dimension(:,:), intent(inout) :: stratcloud, u, v
-real, dimension(:,:), intent(inout) :: tke, eps
-real, dimension(:,:), intent(out) :: at, ct
-real, dimension(:,:), intent(in) :: shear
-real, dimension(size(t,1),size(t,2)) :: zh
-real, dimension(size(t,1),size(t,2)) :: rhs, gt, zg
-real, dimension(size(t,1),size(t,2)) :: rkm, rkh
-real, dimension(size(t,1),size(t,2)-1) :: tmnht
-real, dimension(:), intent(inout) :: pblh, ustar
-real, dimension(:), intent(in) :: em, tss, eg, fg, ps
-real, dimension(:), intent(in) :: cduv
-real, dimension(:), intent(in) :: sig, dsig, sigmh, ratha, rathb, bet, betm
-real, dimension(size(t,1)) :: dz
-real, dimension(size(t,1)) :: rhos, dx
-real, dimension(size(t,2)) :: sigkap, delh
+integer, intent(in) :: imax, kl, naero
+integer k, nt
+real, dimension(imax,kl,naero), intent(inout) :: xtg
+real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
+real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
+real, dimension(imax,kl), intent(inout) :: tke, eps
+real, dimension(imax,kl), intent(out) :: at, ct
+real, dimension(imax,kl), intent(in) :: shear
+real, dimension(imax,kl) :: zh
+real, dimension(imax,kl) :: rhs, gt, zg
+real, dimension(imax,kl) :: rkm, rkh
+real, dimension(imax,kl-1) :: tmnht
+real, dimension(imax), intent(inout) :: pblh, ustar
+real, dimension(imax), intent(in) :: em, tss, eg, fg, ps
+real, dimension(imax), intent(in) :: cduv
+real, dimension(kl), intent(in) :: sig, dsig, sigmh, ratha, rathb, bet, betm
+real, dimension(imax) :: dz
+real, dimension(imax) :: rhos, dx
+real, dimension(kl) :: sigkap, delh
 real, intent(in) :: rdry, grav, cp
 real, intent(in) :: ds,dt,qgmin,cqmix
 real rong, rlogs1, rlogs2, rlogh1, rlog12
 real conflux, condrag
 #ifdef scm
-real, dimension(:,:), intent(inout) :: wth_flux, wq_flux, uw_flux
-real, dimension(:,:), intent(inout) :: vw_flux, tkesave, epssave
-real, dimension(:,:), intent(out) :: rkmsave, rkhsave
-real, dimension(:,:), intent(inout) :: buoyproduction, shearproduction
-real, dimension(:,:), intent(inout) :: totaltransport
-real, dimension(:,:), intent(inout) :: mfsave
+real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
+real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave, epssave
+real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
+real, dimension(imax,kl), intent(inout) :: buoyproduction, shearproduction
+real, dimension(imax,kl), intent(inout) :: totaltransport
+real, dimension(imax,kl), intent(inout) :: mfsave
 #endif
 
-kl = size(t,2)
 
 ! estimate grid spacing for scale aware MF
 dx(:) = ds/em
@@ -1923,8 +1909,7 @@ select case(nlocal)
                 ustar,dt,qgmin,1,tke,eps,shear,dx) 
   case(7) ! mass-flux counter gradient
     call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                ustar,dt,qgmin,0,tke,eps,shear,dx) 
-    
+                ustar,dt,qgmin,0,tke,eps,shear,dx)     
 end select
 do k = 1,kl  
   rkh(:,k) = rkm(:,k)

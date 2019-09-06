@@ -302,8 +302,7 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
                          snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
                          ocndwn,xtgdwn)
       
-use aerosolldr, only : ssn,aeromode,          &
-    xtg_solub                                  ! LDR aerosol scheme
+use aerosolldr, only : ssn,xtg_solub           ! LDR aerosol scheme
 use ateb, only : atebdwn, urbtemp, atebloadd, &
     nfrac                                      ! Urban
 use cable_ccam, only : ccycle                  ! CABLE
@@ -589,8 +588,8 @@ if ( newfile ) then
         do k = 1,wlev
           x_o = real(k-1)
           y_o = real(k)
-          depth_hl_xo = (al_o*x_o*x_o*x_o+bt_o*x_o)/mxd_o ! ii is for half level ii-0.5
-          depth_hl_yo = (al_o*y_o*y_o*y_o+bt_o*y_o)/mxd_o ! ii+1 is for half level ii+0.5
+          depth_hl_xo = (al_o*x_o**3+bt_o*x_o)/mxd_o ! ii is for half level ii-0.5
+          depth_hl_yo = (al_o*y_o**3+bt_o*y_o)/mxd_o ! ii+1 is for half level ii+0.5
           gosig_in(k) = 0.5*(depth_hl_xo+depth_hl_yo)
         end do
       else
@@ -629,12 +628,12 @@ if ( newfile ) then
   
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
-    dumr(1:kk)      = sigin(1:kk)
+    dumr(1:kk) = sigin(1:kk)
     dumr(kk+1:kk+10) = real(iers(1:10))
     if ( ok>0 ) dumr(kk+11:kk+ok+10) = gosig_in(1:ok)
     call ccmpi_bcast(dumr(1:kk+ok+10),0,comm_world)
     sigin(1:kk) = dumr(1:kk)
-    iers(1:10)  = nint(dumr(kk+1:kk+10))
+    iers(1:10) = nint(dumr(kk+1:kk+10))
     if ( ok>0 ) gosig_in(1:ok) = dumr(kk+11:kk+ok+10)
   end if
   
@@ -763,8 +762,8 @@ if ( newfile ) then
         do k = 1,ok
           land_3d(:,k) = land_a 
         end do
-      endif
-    end if  
+      end if
+    end if
     sea_a = .not.land_a
   end if  
   
@@ -1831,7 +1830,7 @@ if ( nested/=1 .and. nested/=3 ) then
   
   ! -----------------------------------------------------------------
   ! Read cloud fields
-  if ( nested==0 .and. ldr/=0 ) then
+  if ( nested==0 ) then
     call gethist4a('qfg',qfg,5)               ! CLOUD FROZEN WATER
     qfg(1:ifull,1:kl) = max( qfg(1:ifull,1:kl), 0. )
     call gethist4a('qlg',qlg,5)               ! CLOUD LIQUID WATER
@@ -1891,19 +1890,6 @@ if ( nested/=1 .and. nested/=3 ) then
   !------------------------------------------------------------------
   ! Aerosol data ( non-nudged or diagnostic )
   if ( nested==0 .and. abs(iaero)>=2 ) then
-    if ( aeromode>=1 ) then
-      call gethist4a('dms_s',  xtg_solub(:,:,1), 5)
-      call gethist4a('so2_s',  xtg_solub(:,:,2), 5)
-      call gethist4a('so4_s',  xtg_solub(:,:,3), 5)
-      call gethist4a('bco_s',  xtg_solub(:,:,4), 5)
-      call gethist4a('bci_s',  xtg_solub(:,:,5), 5)
-      call gethist4a('oco_s',  xtg_solub(:,:,6), 5)
-      call gethist4a('oci_s',  xtg_solub(:,:,7), 5)
-      call gethist4a('dust1_s',xtg_solub(:,:,8), 5)
-      call gethist4a('dust2_s',xtg_solub(:,:,9), 5)
-      call gethist4a('dust3_s',xtg_solub(:,:,10),5)
-      call gethist4a('dust4_s',xtg_solub(:,:,11),5)      
-    end if
     call gethist4a('seasalt1',ssn(:,:,1),5)
     call gethist4a('seasalt2',ssn(:,:,2),5)
     ssn = max( ssn, 0. ) ! patch for rounding error with cray compiler
@@ -3265,8 +3251,8 @@ else
 end if ! iop_test
 
 ! vertical interpolation
-!varout=0.
-varout(:,:)=0.5*(minval(u_k)+maxval(u_k)) ! easier for debuging
+!varout = 0.
+varout(:,:) = 0.5*(minval(u_k)+maxval(u_k)) ! easier for debuging
 call mloregrid(ok,gosig_in,bath,u_k,varout,0) ! should use mode 3 or 4?
 
 return

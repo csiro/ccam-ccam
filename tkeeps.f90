@@ -263,7 +263,7 @@ idzp(:,1:kl-1) = rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
 ustar_ave(:) = 0.
 
 ! Main loop to prevent time splitting errors
-mcount = int(dt/(maxdts+0.01)) + 1
+mcount = int(dt/(min(maxdts,12./max(m0,0.1))+0.01)) + 1
 ddts   = dt/real(mcount)
 do kcount = 1,mcount
 
@@ -776,11 +776,6 @@ qvup_p(:,1) = qvg_p    + be*wq0_p/sqrt(max(tke1,1.5e-4))       ! Hurley 2007
 qlup_p(:,1) = qlg_p
 qfup_p(:,1) = qfg_p
 cfup_p(:,1) = stratcloud_p
-! calculate thermodynamic variables assuming no condensation
-qtup = qvup_p(:,1) + qlup_p(:,1) + qfup_p(:,1)                    ! qtot,up
-thup = tlup_p(:,1) + sigkap(1)*(lv*qlup_p(:,1)+ls*qfup_p(:,1))/cp ! theta,up
-tvup = thup + theta_p*0.61*qtup                                   ! thetav,up
-templ = tlup_p(:,1)/sigkap(1)                                     ! templ,up
 ! update updraft velocity and mass flux
 nn(:,1) = grav*be*wtv0_p/(thetav_p*sqrt(max(tke1,1.5e-4))) ! Hurley 2007
 w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent)         ! Hurley 2007
@@ -828,14 +823,10 @@ do k = 2,kl
     fice = 0.
   end where
   call getqsat(qupsat,templ,pres,fice)
-  where ( qtup > qupsat )
+  where ( qtup>qupsat .and. w2up(:,k-1)>0. )
     qxup = qupsat
     cxup(:,k) = 1.
   elsewhere
-    qxup = qtup
-    cxup(:,k) = 0.
-  end where
-  where ( w2up(:,k-1)<=0. )
     qxup = qtup
     cxup(:,k) = 0.
   end where

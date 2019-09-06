@@ -138,9 +138,6 @@ do tile = 1,ntiles
   lppqfsedice                     = ppqfsedice(is:ie,:)
   lpprscav                        = pprscav(is:ie,:)
   lpprfreeze                      = pprfreeze(is:ie,:)  
-  if ( aeromode>=1 ) then
-    lxtg_solub = xtg_solub(is:ie,:,:)
-  end if
 
   call aerocalc_work(loxidantprev,loxidantnow,loxidantnext,ps(is:ie),zdayfac(is:ie),rlatt(is:ie),rlongg(is:ie),       &
                      lt,kbsav(is:ie),ktsav(is:ie),                                                                    &
@@ -163,9 +160,6 @@ do tile = 1,ntiles
   dustdd(is:ie,:)            = ldustdd
   dustwd(is:ie,:)            = ldustwd
   dust_burden(is:ie,:)       = ldust_burden
-  if ( aeromode>=1 ) then
-    xtg_solub(is:ie,:,:) = lxtg_solub
-  end if
   
 end do
 !$omp end do nowait

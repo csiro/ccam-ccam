@@ -175,6 +175,7 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,mlosigma,oclosure
 use mlodynamics                            ! Ocean dynamics
 use newmpar_m                              ! Grid parameters
+use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use ozoneread                              ! Ozone input routines
 use parm_m                                 ! Model configuration
 use parmdyn_m                              ! Dynamics parameters
@@ -205,7 +206,7 @@ integer tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim, ubdim
 integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
 integer icy, icm, icd, ich, icmi, ics, idv
-integer namipo3
+integer namipo3, nalways_mspeca
 integer, save :: idnc_hist=0, iarch_hist=0
 integer :: idnc, iarch
 real, dimension(:), intent(in) :: psl_in
@@ -540,6 +541,12 @@ if ( myid==0 .or. local ) then
     
     ! main
     call ccnf_put_attg(idnc,'aeroindir',aeroindir)
+    if ( always_mspeca ) then
+      nalways_mspeca = 1
+    else
+      nalways_mspeca = 0
+    end if
+    call ccnf_put_attg(idnc,'always_mspeca',nalways_mspeca)
     if ( amipo3 ) then
       namipo3 = 1
     else
@@ -1949,7 +1956,7 @@ if( myid==0 .or. local ) then
         lname = "Ocean Eddy Diffusivity"
         call attrib(idnc,dimo,osize,"kso",lname,'m2/s',0.,10.,0,cptype)
       end if  
-      if ( oclosure==1 ) then
+      if ( oclosure==1 .and. (diaglevel_ocean>5.or.itype==-1) ) then
         lname = "Ocean Turbulent Kinetic Energy"
         call attrib(idnc,dimo,osize,"tkeo",lname,'m2/s2',0.,65.,0,cptype)
         lname = "Ocean Eddy dissipation rate"
@@ -1985,7 +1992,7 @@ if( myid==0 .or. local ) then
     end if
         
     ! TURBULENT MIXING ----------------------------------------------
-    if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
+    if ( nvmix==6 .and. (diaglevel_pbl>5.or.itype==-1) ) then
       call attrib(idnc,dima,asize,'tke','Turbulent Kinetic Energy','m2/s2',0.,65.,0,cptype)
       call attrib(idnc,dima,asize,'eps','Eddy dissipation rate','m2/s3',0.,6.5,0,cptype)
     end if
@@ -2022,21 +2029,10 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dima,asize,'dust2','Dust 1-2 micrometers','kg/kg',0.,6.5E-6,0,cptype)
       call attrib(idnc,dima,asize,'dust3','Dust 2-3 micrometers','kg/kg',0.,6.5E-6,0,cptype)
       call attrib(idnc,dima,asize,'dust4','Dust 3-6 micrometers','kg/kg',0.,6.5E-6,0,cptype)
-      if ( aeromode>=1 .and. itype==-1 ) then
-        call attrib(idnc,dima,asize,'dms_s','Dissolved Dimethyl sulfide','kg/kg',0.,6.5E-7,0,cptype)
-        call attrib(idnc,dima,asize,'so2_s','Dissolved Sulfur dioxide','kg/kg',0.,6.5E-7,0,cptype)
-        call attrib(idnc,dima,asize,'so4_s','Dissolved Sulfate','kg/kg',0.,6.5E-7,0,cptype)
-        call attrib(idnc,dima,asize,'bco_s','Dissolved Black carbon hydrophobic','kg/kg',0.,6.5E-6,0,cptype)
-        call attrib(idnc,dima,asize,'bci_s','Dissolved Black carbon hydrophilic','kg/kg',0.,6.5E-6,0,cptype)
-        call attrib(idnc,dima,asize,'oco_s','Dissolved Organic aerosol hydrophobic','kg/kg',0.,6.5E-6,0,cptype)
-        call attrib(idnc,dima,asize,'oci_s','Dissolved Organic aerosol hydrophilic','kg/kg',0.,6.5E-6,0,cptype)
-        call attrib(idnc,dima,asize,'dust1_s','Dissolved Dust 0.1-1 micrometers','kg/kg',0.,6.5E-6,0,cptype)
-        call attrib(idnc,dima,asize,'dust2_s','Dissolved Dust 1-2 micrometers','kg/kg',0.,6.5E-6,0,cptype)
-        call attrib(idnc,dima,asize,'dust3_s','Dissolved Dust 2-3 micrometers','kg/kg',0.,6.5E-6,0,cptype)
-        call attrib(idnc,dima,asize,'dust4_s','Dissolved Dust 3-6 micrometers','kg/kg',0.,6.5E-6,0,cptype)
-      end if
-      call attrib(idnc,dima,asize,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,cptype)
-      call attrib(idnc,dima,asize,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,cptype)
+      if ( diaglevel_aerosols>5 .or. itype==-1 ) then
+        call attrib(idnc,dima,asize,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,cptype)
+        call attrib(idnc,dima,asize,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,cptype)
+      end if  
       if ( save_aerosols ) then
         if ( iaero<=-2 .and. diaglevel_aerosols>5 ) then 
           call attrib(idnc,dima,asize,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,cptype)
@@ -3093,7 +3089,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
       call histwrt(mlodwn(:,:,5),"kmo",idnc,iarch,local,lwrite)
       call histwrt(mlodwn(:,:,6),"kso",idnc,iarch,local,lwrite)
     end if  
-    if ( oclosure==1 ) then
+    if ( oclosure==1 .and. (diaglevel_ocean>5.or.itype==-1) ) then
       call histwrt(mlodwn(:,:,7),'tkeo',idnc,iarch,local,.true.)
       call histwrt(mlodwn(:,:,8),'epso',idnc,iarch,local,.true.)
     end if  
@@ -3128,7 +3124,7 @@ if ( ldr/=0 .and. save_cloud ) then
 endif
       
 ! TURBULENT MIXING --------------------------------------------
-if ( nvmix==6 .and. ((nextout>=1.and.save_pbl).or.itype==-1) ) then
+if ( nvmix==6 .and. (diaglevel_pbl>5.or.itype==-1) ) then
   call histwrt(tke,'tke',idnc,iarch,local,.true.)
   call histwrt(eps,'eps',idnc,iarch,local,.true.)
   !do k = 1,kl
@@ -3179,21 +3175,10 @@ if ( abs(iaero)>=2 ) then
   call histwrt(xtg(:,:,9), 'dust2',idnc,iarch,local,.true.)
   call histwrt(xtg(:,:,10),'dust3',idnc,iarch,local,.true.)
   call histwrt(xtg(:,:,11),'dust4',idnc,iarch,local,.true.)
-  if ( aeromode>=1 .and. itype==-1 ) then
-    call histwrt(xtg_solub(:,:,1), 'dms_s',  idnc,iarch,local,.true.)
-    call histwrt(xtg_solub(:,:,2), 'so2_s',  idnc,iarch,local,.true.)
-    call histwrt(xtg_solub(:,:,3), 'so4_s',  idnc,iarch,local,.true.)
-    call histwrt(xtg_solub(:,:,4), 'bco_s',  idnc,iarch,local,.true.)
-    call histwrt(xtg_solub(:,:,5), 'bci_s',  idnc,iarch,local,.true.)
-    call histwrt(xtg_solub(:,:,6), 'oco_s',  idnc,iarch,local,.true.)
-    call histwrt(xtg_solub(:,:,7), 'oci_s',  idnc,iarch,local,.true.)
-    call histwrt(xtg_solub(:,:,8), 'dust1_s',idnc,iarch,local,.true.)
-    call histwrt(xtg_solub(:,:,9), 'dust2_s',idnc,iarch,local,.true.)
-    call histwrt(xtg_solub(:,:,10),'dust3_s',idnc,iarch,local,.true.)
-    call histwrt(xtg_solub(:,:,11),'dust4_s',idnc,iarch,local,.true.) 
-  end if
-  call histwrt(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
-  call histwrt(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
+  if ( diaglevel_aerosols>5 .or. itype==-1 ) then
+    call histwrt(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
+    call histwrt(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
+  end if  
   if ( save_aerosols ) then
     if ( iaero<=-2 .and. diaglevel_aerosols>5 ) then
       do k = 1,kl
@@ -3575,7 +3560,7 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'rhscrn_stn',lname,'%',0.,200.,0,1)
     lname = 'Screen mixing ratio (station)'
     call attrib(fncid,sdim,ssize,'qgscrn_stn',lname,'kg/kg',0.,0.06,0,1)
-    if ( diaglevel_pbl>5 ) then
+    if ( diaglevel_pbl>3 ) then
       lname='x-component 150m wind'
       call attrib(fncid,sdim,ssize,'ua150',lname,'m/s',-130.,130.,0,1)
       lname='y-component 150m wind'     
@@ -3711,7 +3696,7 @@ freqstore(1:ifull,14) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,15) = tscrn_stn
 freqstore(1:ifull,16) = rhscrn_stn
 freqstore(1:ifull,17) = qgscrn_stn
-if ( diaglevel_pbl>5 ) then
+if ( diaglevel_pbl>3 ) then
   freqstore(1:ifull,18) = ua150
   freqstore(1:ifull,19) = va150
   freqstore(1:ifull,20) = ua250
