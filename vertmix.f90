@@ -89,7 +89,6 @@ use carbpools_m                     ! Carbon pools
 use cc_mpi                          ! CC MPI routines
 use cc_omp                          ! CC OpenMP routines
 use cfrac_m                         ! Cloud fraction
-use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use extraout_m                      ! Additional diagnostics
 use kuocomb_m                       ! JLM convection
@@ -100,11 +99,11 @@ use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m                       ! Grid parameters
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays
 use nsibd_m                         ! Land-surface arrays
-use parm_m                          ! Model configuration
+use parm_m, only : idjd, nmlo, iaero, nvmix
+                                    ! Model configuration
 use pbl_m                           ! Boundary layer arrays
 use savuvt_m                        ! Saved dynamic arrays
 use screen_m                        ! Screen level diagnostics
-use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : land             ! Soil and surface data
 use soilsnow_m, only : fracice      ! Soil, snow and surface data
 use tkeeps                          ! TKE-EPS boundary layer
@@ -180,8 +179,7 @@ select case(nvmix)
 !$omp private(lat,lct,lsavu,lsavv,idjd_t,mydiag_t)
 !$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
 !$acc   pblh,ustar)                                          &
-!$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv,sig,dsig,  &
-!$acc        sigmh,ratha,rathb,bet,betm)                     &
+!$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv)           &
 !$acc copyout(at_save,ct_save,wth_flux,wq_flux,uw_flux,      &
 !$acc   vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave,      &
 !$acc   buoyproduction,shearproduction,totaltransport)
@@ -221,8 +219,7 @@ select case(nvmix)
                        lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave, &
                        lbuoyproduction,lshearproduction,ltotaltransport,                                 &
 #endif
-                       sig,dsig,sigmh,ratha,rathb,bet,betm,                                              &
-                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix,imax,kl,naero)      
+                       imax,kl,naero)      
                        
       t(is:ie,:)          = lt
       qg(is:ie,:)         = lqg
@@ -1199,30 +1196,21 @@ end do
 ! Cloud microphysics terms
 if ( ldr/=0 ) then
   ! now do qfg
-  rhs=qfg(1:imax,:)
-  call trim(at,ct,rhs)
-  qfg(1:imax,:)=rhs
+  call trim(at,ct,qfg)
   ! now do qlg
-  rhs=qlg(1:imax,:)
-  call trim(at,ct,rhs)
-  qlg(1:imax,:)=rhs
+  call trim(at,ct,qlg)
   ! now do cfrac
-  rhs = cfrac(1:imax,:)
-  call trim(at,ct,rhs)
-  cfrac(1:imax,:)=rhs
+  call trim(at,ct,cfrac)
   ! now do stratcloud
-  rhs = stratcloud(1:imax,:)
-  call trim(at,ct,rhs)
-  stratcloud(1:imax,:)=rhs
+  call trim(at,ct,stratcloud)
 end if    ! (ldr/=0)
   
 !--------------------------------------------------------------
 ! Aerosols
 if ( abs(iaero)>=2 ) then
   do nt = 1,naero
-    rhs(:,:) = xtg(1:imax,:,nt) ! Total grid-box
-    call trim(at,ct,rhs)
-    xtg(1:imax,:,nt) = max( rhs(:,:), 0. )
+    call trim(at,ct,xtg(:,:,nt))
+    xtg(:,:,nt) = max( xtg(:,:,nt), 0. )
   end do
 end if ! (abs(iaero)>=2)
 
@@ -1242,13 +1230,7 @@ if ( ( diag .or. ntest==2 ) .and. mydiag ) then
 end if      ! (ntest==2)
 
 ! first do u
-do k = 1,kl
-  rhs(:,k) = u(1:imax,k)
-end do
-call trim(au,cu,rhs)
-do k = 1,kl
-  u(1:imax,k) = rhs(:,k)
-end do
+call trim(au,cu,u)
   
 #ifdef scm
 uw_flux(:,1) = -cduv(:)*u(1:imax,1)
@@ -1258,13 +1240,7 @@ end do
 #endif
   
 ! now do v; with properly unstaggered au,cu
-do k = 1,kl
-  rhs(:,k) = v(1:imax,k)
-end do
-call trim(au,cu,rhs)    ! note now that au, cu unstaggered globpea
-do k = 1,kl
-  v(1:imax,k) = rhs(:,k)
-end do
+call trim(au,cu,v)    ! note now that au, cu unstaggered globpea
 
 #ifdef scm
 vw_flux(:,1) = -cduv(:)*v(1:imax,1)
@@ -1784,15 +1760,17 @@ subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                 
                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave, &
                        buoyproduction,shearproduction,totaltransport,                           &
 #endif
-                       sig,dsig,sigmh,ratha,rathb,bet,betm,                                     &
-                       rdry,grav,cp,ds,dt,iaero,nlocal,qgmin,cqmix,imax,kl,naero)
+                       imax,kl,naero)
 !$acc routine vector
 
+use const_phys                   ! Physical constants
+use parm_m, only : ds, nlocal, iaero, dt, qgmin, cqmix
+                                 ! Model configuration
+use sigs_m                       ! Atmosphere sigma levels
 use tkeeps, only : tkemix        ! TKE-EPS boundary layer
 
 implicit none
 
-integer, intent(in) :: iaero, nlocal
 integer, intent(in) :: imax, kl, naero
 integer k, nt
 real, dimension(imax,kl,naero), intent(inout) :: xtg
@@ -1808,12 +1786,9 @@ real, dimension(imax,kl-1) :: tmnht
 real, dimension(imax), intent(inout) :: pblh, ustar
 real, dimension(imax), intent(in) :: em, tss, eg, fg, ps
 real, dimension(imax), intent(in) :: cduv
-real, dimension(kl), intent(in) :: sig, dsig, sigmh, ratha, rathb, bet, betm
 real, dimension(imax) :: dz
 real, dimension(imax) :: rhos, dx
 real, dimension(kl) :: sigkap, delh
-real, intent(in) :: rdry, grav, cp
-real, intent(in) :: ds,dt,qgmin,cqmix
 real rong, rlogs1, rlogs2, rlogh1, rlog12
 real conflux, condrag
 #ifdef scm
@@ -1822,7 +1797,7 @@ real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave, epssave
 real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax,kl), intent(inout) :: buoyproduction, shearproduction
 real, dimension(imax,kl), intent(inout) :: totaltransport
-real, dimension(imax,kl), intent(inout) :: mfsave
+real, dimension(imax,kl-1), intent(inout) :: mfsave
 #endif
 
 
@@ -1942,14 +1917,8 @@ end do
   
 ! Aerosols
 if ( abs(iaero)>=2 ) then
-  do nt = 1,size(xtg,3)
-    do k = 1,kl  
-      rhs(:,k) = xtg(:,k,nt) ! Total grid-box
-    end do  
-    call trim(at,ct,rhs)
-    do k = 1,kl
-      xtg(:,k,nt) = max(rhs(:,k), 0.)
-    end do  
+  do nt = 1,naero
+    call trim(at,ct,xtg(:,:,nt))
   end do
 end if ! (abs(iaero)>=2)  
       

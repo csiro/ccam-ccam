@@ -345,8 +345,10 @@ do kcount = 1,mcount
   end if
 
 #ifdef scm  
-  mfout(:,1:kl-1) = mflx(:,1:kl-1)*(1.-fzzh(:,1:kl-1)) &
-                  + mflx(:,2:kl)*fzzh(:,1:kl-1)
+  do k = 1,kl-1
+    mfout(:,k) = mflx(:,k)*(1.-fzzh(:,k)) &
+               + mflx(:,k+1)*fzzh(:,k)
+  end do  
 #endif
   
   
@@ -681,9 +683,11 @@ do kcount = 1,mcount
 end do
 
 #ifdef scm
-buoyproduction = ppb
-shearproduction = pps
-totaltransport = ppt
+do k = 1,kl
+  buoyproduction(:,k) = ppb(:,k)
+  shearproduction(:,k) = pps(:,k)
+  totaltransport(:,k) = ppt(:,k)
+end do
 #endif
 
 return
@@ -700,7 +704,10 @@ pure subroutine plumerise(iqmap,cm12,                                  &
 !$acc routine vector
 
 integer, dimension(:), intent(in) :: iqmap
-integer k, kl, imax_p, kmax
+integer k, kl, imax_p
+#ifndef GPU
+integer kmax
+#endif
 real, dimension(:,:), intent(inout) :: mflx, tlup, qvup, qlup, qfup, cfup
 real, dimension(:,:), intent(in) :: theta, qvg, qlg, qfg, stratcloud
 real, dimension(:,:), intent(in) :: zz, thetal, thetav, km 
@@ -853,8 +860,8 @@ do k = 2,kl
     xp = min(max(xp,0.),dzht)
     zi_p(:) = xp + zz_p(:,k-1)
   end where
-  kmax = k
 #ifndef GPU
+  kmax = k
   if ( all( w2up(:,k)<=0. ) ) exit
 #endif
 end do
@@ -864,7 +871,11 @@ wstar_p = (grav*min(zi_p,zimax)*max(wtv0_p,0.)/thetav_p)**(1./3.)
           
 ! update mass flux
 mflx_p(:,1) = m0*sqrt(max(w2up(:,1), 0.))
+#ifndef GPU
 do k = 2,kmax
+#else
+do k = 2,kl
+#endif
   dzht = dz_hl_p(:,k-1)
   upf = mflx_p(:,k-1)/sqrt(max(w2up(:,k-1), 1.e-8))
   where ( w2up(:,k)>0. )
@@ -919,12 +930,16 @@ do iq = 1,size(iqsbl)
       xp = (0.05*wpv_flux(1)-wpv_flux(k-1))/(wpv_flux(k)-wpv_flux(k-1))
       xp = min( max( xp, 0. ), 1. )
       zi(i) = zzh(i,k-1) + xp*(zzh(i,k)-zzh(i,k-1))
+#ifndef GPU
       exit
+#endif
     else if ( abs(wpv_flux(k))<0.05*abs(wpv_flux(1)) ) then
       xp = (0.05*abs(wpv_flux(1))-abs(wpv_flux(k-1)))/(abs(wpv_flux(k))-abs(wpv_flux(k-1)))
       xp = min( max( xp, 0. ), 1. )
        zi(i) = zzh(i,k-1) + xp*(zzh(i,k)-zzh(i,k-1))
+#ifndef GPU
       exit
+#endif
     end if    
   end do    
 end do
@@ -976,8 +991,8 @@ pure subroutine getqsat(qsat,templ,ps,fice)
 implicit none
 
 real, dimension(:), intent(in) :: templ
-real, dimension(size(templ)), intent(in) :: ps, fice
-real, dimension(size(templ)), intent(out) :: qsat
+real, dimension(:), intent(in) :: ps, fice
+real, dimension(:), intent(out) :: qsat
 real, dimension(size(templ)) :: estafi, tdiff, tdiffx, rx, rxx
 real, dimension(size(templ)) :: qsatl, qsati, deles
 real, dimension(0:220), parameter :: tablei = &

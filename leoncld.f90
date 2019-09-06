@@ -92,15 +92,6 @@ real, parameter :: ticon=238.15 !Temp at which conv cloud becomes ice
 real, parameter :: aice=1.016 !Constant in Platt optical depth for ice (SI units)
 real, parameter :: bice=0.68  !Constant in Platt optical depth for ice (SI units)
 
-interface qsat
-  module procedure qsat_s, qsat_v
-end interface qsat
-interface qsati
-  module procedure qsati_s, qsati_v
-end interface qsati
-interface esdiffx
-  module procedure esdiffx_s, esdiffx_v
-end interface esdiffx
 interface pow75
   module procedure pow75_s, pow75_v
 end interface
@@ -122,7 +113,8 @@ use map_m                         ! Grid map arrays
 use morepbl_m                     ! Additional boundary layer diagnostics
 use newmpar_m                     ! Grid parameters
 use nharrs_m                      ! Non-hydrostatic atmosphere arrays 
-use parm_m                        ! Model configuration
+use parm_m, only : idjd, iaero
+                                  ! Model configuration
 use prec_m                        ! Precipitation
 use sigs_m                        ! Atmosphere sigma levels
 use soil_m                        ! Soil and surface data
@@ -170,7 +162,7 @@ end do
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,idjd_t,mydiag_t)
 !$acc parallel copy(stratcloud,gfrac,rfrac,sfrac,t,qg,qgrg,qlg,qfg,qrg,qsng,nettend,   &
 !$acc   condg,conds,condx,precip)                                                      &
-!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em,sig,dsig)                       &
+!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em)                                &
 !$acc copyout(cfrac,qlrad,qfrad,qccon,ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,      &
 !$acc   ppfstayliq,ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)
 !$acc loop gang private(lcfrac,lgfrac,lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice, &
@@ -213,8 +205,7 @@ do tile = 1,ntiles
                     lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
                     ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
                     ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),idjd_t,mydiag_t,is,        &
-                    sig,dsig,rcm,ncloud,nclddia,rcrit_l,rcrit_s,nevapls,ldr,ds,dt,qgmin,nmaxpr,     &
-                    iaero,diag,nmr,rdry,hl,hlf,cp,rvap,tfrz,epsil,grav,pi,imax,kl)
+                    ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,imax,kl)
 
   cfrac(is:ie,:) = lcfrac
   gfrac(is:ie,:) = lgfrac
@@ -263,15 +254,18 @@ subroutine leoncld_work(cfrac,condg,conds,condx,gfrac,kbsav,ktsav,land,         
                         pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,precip,    &
                         ps,qccon,qfg,qfrad,qg,qgrg,qlg,qlrad,qrg,qsng,rfrac,sfrac,t,    &
                         dpsldt,nettend,stratcloud,clcon,cdrop,em,idjd,mydiag,is,        &
-                        sig,dsig,rcm,ncloud,nclddia,rcrit_l,rcrit_s,nevapls,ldr,ds,dt,  &
-                        qgmin,nmaxpr,iaero,diag,nmr,rdry,hl,hlf,cp,rvap,tfrz,epsil,     &
-                        grav,pi,imax,kl)
+                        ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,imax,kl)
 !$acc routine vector
 
+use const_phys                    ! Physical constants
+use estab                         ! Liquid saturation function
+use parm_m, only : iaero, nmaxpr, dt
+                                  ! Model configuration
+use sigs_m                        ! Atmosphere sigma levels
+
 implicit none
-      
+
 integer, intent(in) :: idjd, is, ncloud, nclddia, nevapls, ldr
-integer, intent(in) :: nmaxpr, iaero, nmr
 integer, intent(in) :: imax, kl
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
@@ -302,11 +296,8 @@ real, dimension(imax), intent(inout) :: condx
 real, dimension(imax), intent(inout) :: precip
 real, dimension(imax), intent(in) :: ps
 real, dimension(imax), intent(in) :: em
-real, dimension(kl), intent(in) :: sig, dsig
-real, intent(in) :: rcm, rcrit_l, rcrit_s, ds, dt, qgmin
-real, intent(in) :: rdry, hl, hlf, cp, rvap, tfrz, epsil
-real, intent(in) :: grav, pi
-logical, intent(in) :: mydiag, diag
+real, intent(in) :: rcrit_l, rcrit_s, rcm
+logical, intent(in) :: mydiag
 logical, dimension(imax), intent(in) :: land
 
 integer, dimension(imax) :: kbase,ktop          !Bottom and top of convective cloud 
@@ -340,7 +331,7 @@ do k = 1,kl
   prf(:,k)    = 0.01*prf_temp    !ps is SI units
   dprf(:,k)   = -0.01*ps*dsig(k) !dsig is -ve
   rhoa(:,k)   = prf_temp/(rdry*t(:,k))             ! air density
-  qsatg(:,k)  = qsat(prf_temp,t(:,k),epsil)        ! saturated mixing ratio
+  qsatg(:,k)  = qsat(prf_temp,t(:,k))              ! saturated mixing ratio
   dz(:,k)     = -rdry*dsig(k)*t(:,k)/(grav*sig(k)) ! level thickness in metres 
   dz(:,k)     = min( max(dz(:,k), 1.), 2.e4 )
 end do
@@ -436,9 +427,7 @@ endif
 !     Calculate cloud fraction and cloud water mixing ratios
 call newcloud(dt,land,prf,rhoa,cdrop,tenv,qenv,qlg,qfg, &
               dpsldt,nettend,stratcloud,em,idjd,mydiag, &
-              sig,nclddia,ncloud,rcrit_l,rcrit_s,diag,  &
-              nmaxpr,ds,dt,qgmin,hl,hlf,cp,rvap,epsil,  &
-              tfrz,imax,kl)
+              ncloud,nclddia,rcrit_l,rcrit_s,imax,kl)
 
 
 ! Vertically sub-grid cloud
@@ -528,8 +517,7 @@ call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                  
                  precs,qg,stratcloud,rfrac,sfrac,gfrac,preci,precg,qevap,qsubl,   &
                  qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,           &
                  fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,              &
-                 condx,ktsav,idjd,mydiag,diag,nmaxpr,nmr,rcm,ncloud,nevapls,ldr,  &
-                 epsil,pi,tfrz,hl,hlf,rvap,cp,imax,kl)
+                 condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
 
 
 #ifndef GPU
@@ -691,20 +679,21 @@ end subroutine leoncld_work
 
  subroutine newcloud(tdt,land,prf,rhoa,cdrop,ttg,qtg,qlg,qfg,  &
                      dpsldt,nettend,stratcloud,em,idjd,mydiag, &
-                     sig,nclddia,ncloud,rcrit_l,rcrit_s,diag,  &
-                     nmaxpr,ds,dt,qgmin,hl,hlf,cp,rvap,epsil,  &
-                     tfrz,imax,kl)
+                     ncloud,nclddia,rcrit_l,rcrit_s,imax,kl)
 !$acc routine vector
  
 ! This routine is part of the prognostic cloud water scheme
 
+use const_phys                    ! Physical constants
+use estab                         ! Liquid saturation function
+use parm_m, only : diag, ds       ! Model configuration
+use sigs_m                        ! Atmosphere sigma levels
+ 
 implicit none
 
 ! Argument list
-integer, intent(in) :: idjd, nclddia, ncloud, nmaxpr
+integer, intent(in) :: idjd, ncloud, nclddia
 integer, intent(in) :: imax, kl
-real, intent(in) :: tdt, rcrit_l, rcrit_s, ds, dt, qgmin
-real, intent(in) :: hl, hlf, cp, rvap, epsil, tfrz
 real, dimension(imax,kl), intent(in) :: prf
 real, dimension(imax,kl), intent(in) :: rhoa
 real, dimension(imax,kl), intent(in) :: cdrop
@@ -716,8 +705,9 @@ real, dimension(imax,kl), intent(in) :: dpsldt
 real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
 real, dimension(imax), intent(in) :: em
-real, dimension(kl), intent(in) :: sig
-logical, intent(in) :: mydiag, diag
+real, intent(in) :: tdt
+real, intent(in) :: rcrit_l, rcrit_s
+logical, intent(in) :: mydiag
 logical, dimension(imax), intent(in) :: land
 
 ! Local work arrays and variables
@@ -735,15 +725,11 @@ real, dimension(imax) :: diag_temp
 
 integer k
 
-real decayfac, hlcp, hlfcp, hls
+real decayfac
 real, parameter :: rhoic = 700.
 real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 
 ! Start code : ----------------------------------------------------------
-
-hlcp = hl/cp
-hlfcp = hlf/cp
-hls = hl + hlf
 
 
 #ifndef GPU
@@ -907,8 +893,8 @@ if ( ncloud<=3 ) then
     hlrvap(:) = (hl+fice(:,k)*hlf)/rvap
     ! Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
     pk(:) = 100.0*prf(:,k)
-    qsi(:,k) = qsati(pk,tliq(:,k),epsil)                      !Ice value
-    deles(:) = esdiffx(tliq(:,k),tfrz)                        ! MJT suggestion
+    qsi(:,k) = qsati(pk,tliq(:,k)) !Ice value
+    deles(:) = esdiffx(tliq(:,k))  ! MJT suggestion
     qsl(:,k) = qsi(:,k) + epsil*deles/pk !qs over liquid
     qsw(:,k) = fice(:,k)*qsi(:,k) +    & 
                      (1.-fice(:,k))*qsl(:,k) !Weighted qs at temperature Tliq
@@ -981,15 +967,14 @@ else
   ! MJT notes - we use ttg instead of tliq
   do k = 1,kl
     pk = 100.*prf(:,k)
-    qsi(:,k) = qsati(pk,ttg(:,k),epsil) ! Ice value
-    deles = esdiffx(ttg(:,k),tfrz)
+    qsi(:,k) = qsati(pk,ttg(:,k)) ! Ice value
+    deles = esdiffx(ttg(:,k))
     qsl(:,k) = qsi(:,k) + epsil*deles/pk ! Liquid value
     qsw(:,k) = fice(:,k)*qsi(:,k) + (1.-fice(:,k))*qsl(:,k)        ! Weighted qs at temperature Tliq
   end do
   
-  call progcloud(qcg,qtot,prf,rhoa,fice,qsw,ttg,rcrit,  &
-                 dpsldt,nettend,stratcloud,hl,hlf,rvap, &
-                 cp,dt,qgmin,imax,kl)
+  call progcloud(tdt,qcg,qtot,prf,rhoa,fice,qsw,ttg,rcrit,  &
+                 dpsldt,nettend,stratcloud,imax,kl)
 
   decayfac = exp ( -tdt/7200. )      ! Try 2 hrs
   !decayfac = 0.                     ! Instant adjustment (old scheme)
@@ -1019,11 +1004,11 @@ do k = 1,kl
   end where
   where ( stratcloud(:,k)>0. .and. Tk(:)<tfrz .and. qlg(:,k)>1.e-8 )
     pk(:)    = 100.*prf(:,k)
-    qs(:)    = qsati(pk,Tk,epsil)
+    qs(:)    = qsati(pk,Tk)
     es(:)    = qs*pk/0.622 !ice value
     Aprpr(:) = hl/(rKa*Tk)*(hls/(rvap*Tk)-1.)
     Bprpr(:) = rvap*Tk/((Dva/pk)*es)
-    deles(:) = (1.-fice(:,k))*esdiffx(Tk,tfrz)
+    deles(:) = (1.-fice(:,k))*esdiffx(Tk)
     Cice(:)  = 1.e3*exp(12.96*deles/es - 0.639) !Meyers et al 1992
     qi0(:)   = cm0*Cice/rhoa(:,k) !Initial ice mixing ratio
     ! Next 2 lines are for assumption of fully mixed ql and qf (also a line further down).
@@ -1114,13 +1099,17 @@ end subroutine newcloud
 subroutine newsnowrain(tdt_in,rhoa,dz,prf,cdrop,ttg,qlg,qfg,qrg,qsng,qgrg,precs,qtg,stratcloud,cfrain,    &
                        cfsnow,cfgraupel,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,            &
                        fluxi,fluxs,fluxg,fluxm,fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,        &
-                       condx,ktsav,idjd,mydiag,diag,nmaxpr,nmr,rcm,ncloud,nevapls,ldr,                    &
-                       epsil,pi,tfrz,hl,hlf,rvap,cp,imax,kl)
+                       condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
 !$acc routine vector
+
+use const_phys                    ! Physical constants
+use estab                         ! Liquid saturation function
+use parm_m, only : diag, nmr, nmaxpr
+                                  ! Model configuration
 
 implicit none
 
-integer, intent(in) :: idjd, nmaxpr, nmr, ncloud, nevapls, ldr
+integer, intent(in) :: idjd, ncloud, nevapls, ldr
 integer, intent(in) :: imax, kl
 real, intent(in) :: tdt_in
 real, dimension(imax,kl), intent(in) :: rhoa
@@ -1159,9 +1148,9 @@ real, dimension(imax), intent(in) :: condx
 real, dimension(imax), intent(inout) :: precs
 real, dimension(imax), intent(inout) :: preci
 real, dimension(imax), intent(inout) :: precg
-real, intent(in) :: rcm, epsil, pi, tfrz, hl, hlf, rvap, cp
+real, intent(in) :: rcm
 integer, dimension(imax), intent(in) :: ktsav
-logical, intent(in) :: mydiag, diag
+logical, intent(in) :: mydiag
 
 real, dimension(imax,kl) :: fluxautorain, fluxautosnow, fluxautograupel
 real, dimension(imax,kl) :: cfautorain, cfautosnow, cfautograupel
@@ -1198,7 +1187,7 @@ real scm3, tdt
 real qcrit, qcic, ql, dqls, Crate, ql1, ql2
 real Frb, cdts, selfcoll, cfla
 real qla, Wliq, R6c, eps, beta6, R3c
-real dqla, qfs, dqfs, hls, hlcp, hlfcp, hlscp
+real dqla, qfs, dqfs
 real fsclr_g, fsclr_s, fsclr_i
 real qvp, iflux, lflux
 real drf, drl
@@ -1238,11 +1227,6 @@ real, parameter :: gcon = 44.628 ! = 40.74*sqrt(sfcrho)
 !real, parameter :: tau_s = 90.   ! (sec) snow melt
 !real, parameter :: tau_g = 180.  ! (sec) graupel melt
 
-hls = hl + hlf
-hlcp = hl/cp
-hlfcp = hlf/cp
-hlscp = hlcp + hlfcp
-
 scm3 = (visk/vdifu)**(1./3.)
 
 do k = 1,kl
@@ -1267,7 +1251,7 @@ do k = 1,kl
   pfstayliq(:,k)       = 0. 
   pslopes(:,k)         = 0.
   pk(:)                = 100.*prf(:,k)
-  qsatg(:,k)           = qsati(pk(:),ttg(:,k),epsil)
+  qsatg(:,k)           = qsati(pk(:),ttg(:,k))
   cifr(:,k)            = qfg(:,k)*stratcloud(:,k)/max( qlg(:,k)+qfg(:,k), 1.e-30 )
   clfr(:,k)            = qlg(:,k)*stratcloud(:,k)/max( qlg(:,k)+qfg(:,k), 1.e-30 )
   cfautorain(:,k)      = 0.
@@ -1296,7 +1280,6 @@ do k = kl-1,1,-1
         ql       = clfr(iq,k)*ql2
         dqls     = max( qlg(iq,k)-ql, 0. )
         cfautorain(iq,k) = clfr(iq,k)
-        !!!cfautorain(iq,k) = clfr(iq,k)*dqls/qlg(iq,k)
         qauto(iq,k)      = qauto(iq,k) + dqls
         qlg(iq,k)        = qlg(iq,k)   - dqls
         fluxautorain(iq,k) = dqls*rhoa(iq,k)*dz(iq,k)
@@ -1318,7 +1301,6 @@ if ( ncloud>=3 ) then
         cdts = tdt*c_psaut*exp(0.025*(ttg(iq,k)-tfrz))
         dqfs = max( min( qfg(iq,k), qfs*cdts ), 0. )
         cfautosnow(iq,k)   = cifr(iq,k)
-        !!!cfautosnow(iq,k)   = cifr(iq,k)*dqfs/qfg(iq,k)
         qfg(iq,k)          = qfg(iq,k) - dqfs
         fluxautosnow(iq,k) = dqfs*rhoa(iq,k)*dz(iq,k)
       end if
@@ -1329,7 +1311,6 @@ if ( ncloud>=3 ) then
         cdts = tdt*1.e-3*exp(0.09*(ttg(iq,k)-tfrz))
         dqfs = max( min( qsng(iq,k), qfs*cdts ), 0.) 
         cfautograupel(iq,k)   = cfsnow(iq,k)
-        !!!cfautograupel(iq,k)   = cfsnow(iq,k)*dqfs/qsng(iq,k)
         qsng(iq,k)            = qsng(iq,k) - dqfs
         fluxautograupel(iq,k) = dqfs*rhoa(iq,k)*dz(iq,k)
       end if
@@ -1426,14 +1407,11 @@ do n = 1,njumps
     fluxmelt(:)   = 0.
     fluxfreeze(:) = 0.
     cfmelt(:)     = 0.
-    !!!cffreeze(:)   = 0.
     
     if ( ncloud>=3 ) then
   
       ! Graupel ---------------------------------------------------------------------------
       sublflux(:) = 0.
-      !!!caccl_g(:)  = 0.
-      !!!caccf_g(:)  = 0.
     
       fluxgraupel(:) = fluxgraupel + fluxautograupel(:,k)*tdt/tdt_in
       
@@ -1998,7 +1976,7 @@ do n = 1,njumps
       qpf(:)     = fluxrain/rhodz !Mix ratio of rain which falls into layer
       clrevap(:) = (1.-clfr(:,k)-cifr(:,k))*qpf
       where ( ttg(:,k)<tfrz .and. ttg(:,k)>=tice )
-        qsl(:)   = qsatg(:,k) + epsil*esdiffx(ttg(:,k),tfrz)/pk
+        qsl(:)   = qsatg(:,k) + epsil*esdiffx(ttg(:,k))/pk
       elsewhere
         qsl(:)   = qsatg(:,k)
       end where
@@ -2217,8 +2195,6 @@ do n = 1,njumps
     ! calculate maximum and random overlap for falling ice
     pfstayice(:,k) = pfstayice(:,k) + fluxice(:)*(1.-fthruice(:))/tdt_in ! Save flux for the wet deposition scheme.
     pqfsedice(:,k) = pqfsedice(:,k) + xfrac_ice(:)*foutice(:)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
-    !!!rdclfrice(:) = min( 1., rdclfrice(:)+caccl_i(:)-rdclfrice(:)*caccl_i(:) )  ! rnd overlap
-    !!!mxclfrice(:) = max( mxclfrice(:), caccf_i(:) )                             ! max overlap
     where ( fluxice(:)<=0. )
       rdclfrice(:) = 0.
       mxclfrice(:) = 0.
@@ -2385,16 +2361,17 @@ end if  ! (diag.and.mydiag)
 return
 end subroutine newsnowrain
     
-subroutine progcloud(qc,qtot,press,rho,fice,qs,t,rhcrit,    &
-                     dpsldt,nettend,stratcloud,hl,hlf,rvap, &
-                     cp,dt,qgmin,imax,kl)
+subroutine progcloud(dt,qc,qtot,press,rho,fice,qs,t,rhcrit, &
+                     dpsldt,nettend,stratcloud,imax,kl)
 !$acc routine vector
+
+use const_phys                    ! Physical constants
+use parm_m, only : qgmin          ! Model configuration
 
 implicit none
 
 integer, intent(in) :: imax, kl
 integer k
-real, intent(in) :: hl, hlf, rvap, cp, dt, qgmin
 real, dimension(imax,kl), intent(inout) :: qc ! condensate = qf + ql
 real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, t, rhcrit, press
 real, dimension(imax,kl), intent(in) :: dpsldt
@@ -2402,11 +2379,9 @@ real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
 real, dimension(imax) :: aa, bb, cc, at, a_dt, b_dt, cf1, cfeq, cfbar
 real, dimension(imax) :: qv, omega, hlrvap, dqsdT, gamma, xf, dqs
-real erosion_scale, hlcp, hlfcp
+real, intent(in) :: dt
+real erosion_scale
 real, parameter :: u00ramp = 0.01
-
-hlcp = hl/cp
-hlfcp = hlf/cp
 
 ! background erosion scale in 1/secs
 erosion_scale = 1.E-6
@@ -2534,241 +2509,5 @@ real, dimension(size(x)) :: ans, y
 y=sqrt(x)
 ans=y*sqrt(y)
 end function pow75_v    
-    
-pure function esdiffx_s(tx_,tfrz) result(ans)
-!$acc routine vector
-implicit none
-real, intent(in) :: tx_
-real ans
-real tstore, tfrac
-integer tpos
-real, intent(in) :: tfrz
-real, dimension(-40:2), parameter :: esdiff= &
-(/ 6.22, 6.76, 7.32, 7.92, 8.56, 9.23, 9.94,10.68,11.46,12.27,  &
-   13.11,13.99,14.89,15.82,16.76,17.73,18.70,19.68,20.65,21.61, &
-   22.55,23.45,24.30,25.08,25.78,26.38,26.86,27.18,27.33,27.27, &
-   26.96,26.38,25.47,24.20,22.51,20.34,17.64,14.34,10.37, 5.65, &
-   0.08, 0.0, 0.0 /)
-tstore = min(max( tx_-tfrz, -40.), 1.)
-tfrac = tstore - aint(tstore)
-tpos = int(tstore)
-ans = (1.-tfrac)*esdiff(tpos)+tfrac*esdiff(tpos+1)
-end function esdiffx_s
-
-pure function esdiffx_v(tx_,tfrz) result(ans)
-!$acc routine vector
-implicit none
-real, dimension(:), intent(in) :: tx_
-real, dimension(size(tx_)) :: ans
-real, dimension(size(tx_)) :: tstore, tfrac
-integer, dimension(size(tx_)) :: tpos
-real, intent(in) :: tfrz
-real, dimension(-40:2), parameter :: esdiff= &
-(/ 6.22, 6.76, 7.32, 7.92, 8.56, 9.23, 9.94,10.68,11.46,12.27,  &
-   13.11,13.99,14.89,15.82,16.76,17.73,18.70,19.68,20.65,21.61, &
-   22.55,23.45,24.30,25.08,25.78,26.38,26.86,27.18,27.33,27.27, &
-   26.96,26.38,25.47,24.20,22.51,20.34,17.64,14.34,10.37, 5.65, &
-   0.08, 0.0, 0.0 /)
-tstore = min(max( tx_-tfrz, -40.), 1.)
-tfrac = tstore - aint(tstore)
-tpos = int(tstore)
-ans = (1.-tfrac)*esdiff(tpos)+tfrac*esdiff(tpos+1)
-end function esdiffx_v    
-    
-pure function qsati_s(pp_,t_,epsil) result(ans)
-!$acc routine vector
-implicit none
-real, intent(in) :: pp_, t_
-real ans
-real estore
-real tstore, tfrac
-integer tpos
-real, intent(in) :: epsil
-real, dimension(0:220), parameter :: tablei = &
-(/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9,                                   & !-146C
-   6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9,                                & !-141C
-   36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9,                             & !-136C
-   0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648,     & !-131C
-   0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774,     & !-126C
-   0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081,      & !-121C
-   0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866,          & !-116C
-   0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280,            & !-111C
-   0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951,               & !-106C
-   0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143,                & !-101C
-   .001403, .001719, .002101, .002561, .003117, .003784,                & !-95C
-   .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658,    & !-87C
-   .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577,    & !-78C
-   .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032,      & !-69C
-   .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080,       & !-60C
-   1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476,       & !-51C
-      3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098,            & !-43C
-      10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88,    & !-34C
-      27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85, & !-24C 
-      77.09, 85.02, 93.70, 103.06, 113.40, 124.68, 136.98, 150.39,      & !-16C
-      164.99, 180.88, 198.16, 216.94, 237.34, 259.47, 283.49, 309.51,   & !-8C
-      337.71, 368.23, 401.25, 436.96, 475.54, 517.21, 562.19, 610.70,   & !0C
-      656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2,   & !8C
-      1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3,   & !16C
-      1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1,   & !24C
-      3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1,   & !32C
-      5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7,   & !40C
-      7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0,         & !47C
-      11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0,    & !54C
-      15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0,    & !61C
-      21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0,    & !68C
-      29845.0, 31169.0/)                                                  !70C
-tstore = min(max( t_-123.16, 0.), 219.)
-tfrac = tstore - aint(tstore)
-tpos = int(tstore)
-estore = (1.-tfrac)*tablei(tpos)+ tfrac*tablei(tpos+1)
-ans = epsil*estore/max(pp_-estore,.1) !jlm strato
-end function qsati_s
-
-pure function qsati_v(pp_,t_,epsil) result(ans)
-!$acc routine vector
-implicit none
-real, dimension(:), intent(in) :: pp_, t_
-real, dimension(size(pp_)) :: ans
-real, dimension(size(pp_)) :: estore
-real, dimension(size(pp_)) :: tstore, tfrac
-integer, dimension(size(pp_)) :: tpos
-real, intent(in) :: epsil
-real, dimension(0:220), parameter :: tablei = &
-(/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9,                                   & !-146C
-   6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9,                                & !-141C
-   36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9,                             & !-136C
-   0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648,     & !-131C
-   0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774,     & !-126C
-   0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081,      & !-121C
-   0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866,          & !-116C
-   0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280,            & !-111C
-   0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951,               & !-106C
-   0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143,                & !-101C
-   .001403, .001719, .002101, .002561, .003117, .003784,                & !-95C
-   .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658,    & !-87C
-   .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577,    & !-78C
-   .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032,      & !-69C
-   .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080,       & !-60C
-   1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476,       & !-51C
-      3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098,            & !-43C
-      10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88,    & !-34C
-      27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85, & !-24C 
-      77.09, 85.02, 93.70, 103.06, 113.40, 124.68, 136.98, 150.39,      & !-16C
-      164.99, 180.88, 198.16, 216.94, 237.34, 259.47, 283.49, 309.51,   & !-8C
-      337.71, 368.23, 401.25, 436.96, 475.54, 517.21, 562.19, 610.70,   & !0C
-      656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2,   & !8C
-      1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3,   & !16C
-      1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1,   & !24C
-      3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1,   & !32C
-      5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7,   & !40C
-      7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0,         & !47C
-      11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0,    & !54C
-      15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0,    & !61C
-      21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0,    & !68C
-      29845.0, 31169.0/)                                                  !70C
-tstore = min(max( t_-123.16, 0.), 219.)
-tfrac = tstore - aint(tstore)
-tpos = int(tstore)
-estore = (1.-tfrac)*tablei(tpos)+ tfrac*tablei(tpos+1)
-ans = epsil*estore/max(pp_-estore,.1) !jlm strato
-end function qsati_v    
-    
-pure function qsat_s(pp_,t_,epsil) result(ans)
-!$acc routine vector
-implicit none
-real, intent(in) :: pp_, t_
-real ans      
-real estore
-real tstore, tfrac
-integer tpos
-real, intent(in) :: epsil
-real, dimension(0:220), parameter :: tablel = &
-(/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9,                                    & !-146C
-   6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9,                                 & !-141C
-   36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9,                              & !-136C
-   0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648,      & !-131C
-   0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774,      & !-126C
-   0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081,       & !-121C
-   0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866,           & !-116C
-   0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280,             & !-111C
-   0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951,                & !-106C
-   0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143,                 & !-101C
-   .001403, .001719, .002101, .002561, .003117, .003784,                 & !-95C
-   .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658,     & !-87C
-   .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577,     & !-78C
-   .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032,       & !-69C
-   .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080,        & !-60C
-   1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476,        & !-51C
-      3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098,             & !-43C
-      10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88,     & !-34C
-      27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85,  & !-24C 
-      77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67,       & !-16C
-      171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78,   & !-8C
-      353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78,    & !0C
-      656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2,    & !8C
-      1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3,    & !16C
-      1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1,    & !24C
-      3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1,    & !32C
-      5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7,    & !40C
-      7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0,          & !47C
-      11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0,     & !54C
-      15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0,     & !61C
-      21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0,     & !68C
-      29845.0, 31169.0 /)                                                  !70C
-tstore = min(max( t_-123.16, 0.), 219.)
-tfrac = tstore - aint(tstore)
-tpos = int(tstore)
-estore = (1.-tfrac)*tablel(tpos)+ tfrac*tablel(tpos+1)
-ans = epsil*estore/max(pp_-estore,.1) !jlm strato
-end function qsat_s
-
-pure function qsat_v(pp_,t_,epsil) result(ans)
-!$acc routine vector
-implicit none
-real, dimension(:), intent(in) :: pp_, t_
-real, dimension(size(pp_)) :: ans
-real, dimension(size(pp_)) :: estore
-real, dimension(size(pp_)) :: tstore, tfrac
-integer, dimension(size(pp_)) :: tpos
-real, intent(in) :: epsil
-real, dimension(0:220), parameter :: tablel = &
-(/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9,                                    & !-146C
-   6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9,                                 & !-141C
-   36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9,                              & !-136C
-   0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648,      & !-131C
-   0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774,      & !-126C
-   0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081,       & !-121C
-   0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866,           & !-116C
-   0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280,             & !-111C
-   0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951,                & !-106C
-   0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143,                 & !-101C
-   .001403, .001719, .002101, .002561, .003117, .003784,                 & !-95C
-   .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658,     & !-87C
-   .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577,     & !-78C
-   .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032,       & !-69C
-   .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080,        & !-60C
-   1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476,        & !-51C
-      3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098,             & !-43C
-      10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88,     & !-34C
-      27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85,  & !-24C 
-      77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67,       & !-16C
-      171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78,   & !-8C
-      353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78,    & !0C
-      656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2,    & !8C
-      1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3,    & !16C
-      1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1,    & !24C
-      3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1,    & !32C
-      5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7,    & !40C
-      7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0,          & !47C
-      11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0,     & !54C
-      15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0,     & !61C
-      21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0,     & !68C
-      29845.0, 31169.0 /)                                                  !70C
-tstore = min(max( t_-123.16, 0.), 219.)
-tfrac = tstore - aint(tstore)
-tpos = int(tstore)
-estore = (1.-tfrac)*tablel(tpos)+ tfrac*tablel(tpos+1)
-ans = epsil*estore/max(pp_-estore,.1) !jlm strato
-end function qsat_v    
     
 end module leoncld_mod
