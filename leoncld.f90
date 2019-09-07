@@ -872,14 +872,16 @@ else if ( nclddia>7 ) then  ! e.g. 12    JLM
   ! and precipitation scheme for climate and data-assimilation purposes" Q J R Met Soc 128, 229-257,
   ! has a useful discussion of the dependence of RHcrit on grid spacing
   do k = 1,kl  ! typically set rcrit_l=.75,  rcrit_s=.85
-    tk(:) = ds/(em(:)*208498.) ! MJT suggestion
-    fl(:) = (1.+real(nclddia))*tk(:)/(1.+real(nclddia)*tk(:))
-    ! for rcit_l=.75 & nclddia=12 get rcrit=(0.751, 0.769, .799, .901, .940, .972, .985) for (200, 100, 50, 10, 5, 2, 1) km
-    where ( land(:) )
-      rcrit(:,k) = max( 1.-fl(:)*(1.-rcrit_l), sig(k)**3 )
-    elsewhere
-      rcrit(:,k) = max( 1.-fl(:)*(1.-rcrit_s), sig(k)**3 )
-    end where
+    do iq = 1,imax
+      tk(iq) = ds/(em(iq)*208498.) ! MJT suggestion
+      fl(iq) = (1.+real(nclddia))*tk(iq)/(1.+real(nclddia)*tk(iq))
+      ! for rcit_l=.75 & nclddia=12 get rcrit=(0.751, 0.769, .799, .901, .940, .972, .985) for (200, 100, 50, 10, 5, 2, 1) km
+      if ( land(iq) ) then
+        rcrit(iq,k) = max( 1.-fl(iq)*(1.-rcrit_l), sig(k)**3 )
+      else
+        rcrit(iq,k) = max( 1.-fl(iq)*(1.-rcrit_s), sig(k)**3 )
+      end if
+    end do
   end do
 end if  ! (nclddia<0)  .. else ..
 
@@ -1406,12 +1408,14 @@ do n = 1,njumps
   do k = kl-1,1,-1
   
     ! misc fields
-    pk(:)     = 100.*prf(:,k)
-    rhodz(:)  = rhoa(:,k)*dz(:,k)
-    denfac(:) = sqrt(sfcrho/rhoa(:,k))
-    fluxmelt(:)   = 0.
-    fluxfreeze(:) = 0.
-    cfmelt(:)     = 0.
+    do iq = 1,imax
+      pk(iq)     = 100.*prf(iq,k)
+      rhodz(iq)  = rhoa(iq,k)*dz(iq,k)
+      denfac(iq) = sqrt(sfcrho/rhoa(iq,k))
+      fluxmelt(iq)   = 0.
+      fluxfreeze(iq) = 0.
+      cfmelt(iq)     = 0.
+    end do
     
     if ( ncloud>=3 ) then
   
