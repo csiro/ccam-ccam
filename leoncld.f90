@@ -1003,6 +1003,7 @@ do k = 1,kl
     Tk(:) = tliq(:,k) + hlcp*(qlg(:,k)+qfg(:,k))/stratcloud(:,k) !T in liq cloud
     !fl(:) = qlg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-30)
   end where
+!dir$ ivdep
   do iq = 1,imax
     if ( stratcloud(iq,k)>0. .and. Tk(iq)<tfrz .and. qlg(iq,k)>1.e-8 ) then
       pk(iq)    = 100.*prf(iq,k)
