@@ -763,7 +763,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   call unpack_svwu(eeu(:,1),eev(:,1),ee_isv,ee_iwu)
 
   ! surface pressure
-!$omp simd
   do iq = 1,ifull
     tnu(iq) = 0.5*( pice_n(iq)*f_n(iq) + pice(ien(iq))*f(ien(iq)) )
     tsu(iq) = 0.5*( pice_s(iq)*f_s(iq) + pice(ies(iq))*f(ies(iq)) )
@@ -779,7 +778,6 @@ do mspec_mlo = mspeca_mlo,1,-1
  
 
   ! tides
-!$omp simd
   do iq = 1,ifull
     tnu(iq) = 0.5*( tide_n(iq)*f_n(iq) + tide(ien(iq))*f(ien(iq)) )
     tsu(iq) = 0.5*( tide_s(iq)*f_s(iq) + tide(ies(iq))*f(ies(iq)) )
@@ -946,7 +944,6 @@ do mspec_mlo = mspeca_mlo,1,-1
                + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv  
   end do
   if ( mlojacobi==7 ) then
-!$omp simd
     do iq = 1,ifull
       tnu(iq) = 0.5*( dd_n(iq)*f_n(iq) + dd(ien(iq))*f(ien(iq)) )
       tsu(iq) = 0.5*( dd_s(iq)*f_s(iq) + dd(ies(iq))*f(ies(iq)) )
@@ -1322,7 +1319,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   call unpack_nsew(neta,neta_n,neta_s,neta_e,neta_w)
   call unpack_nsew(ipice,ipice_n,ipice_s,ipice_e,ipice_w)
   
-!$omp simd
   do iq = 1,ifull
     tnu(iq) = 0.5*( neta_n(iq)*f_n(iq) + neta(ien(iq))*f(ien(iq)) )
     tsu(iq) = 0.5*( neta_s(iq)*f_s(iq) + neta(ies(iq))*f(ies(iq)) )
@@ -1405,7 +1401,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   call START_LOG(wateriadv_begin)
 
   ! Update ice velocity with internal pressure terms
-!$omp simd
   do iq = 1,ifull
     tnu(iq) = 0.5*(ipice_n(iq)*f_n(iq)+ipice(ien(iq))*f(ien(iq)))
     tsu(iq) = 0.5*(ipice_s(iq)*f_s(iq)+ipice(ies(iq))*f(ies(iq)))
@@ -1718,7 +1713,6 @@ if ( intsch==1 ) then
   do nn = 1,3
     do k = 1,wlev
       do n = 1,npan
-!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -1727,7 +1721,6 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do
-!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -1737,7 +1730,6 @@ if ( intsch==1 ) then
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
         end do
       end do
-!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lwws(n),k,nn)
         sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
@@ -1832,7 +1824,6 @@ else     ! if(intsch==1)then
   do nn = 1,3
     do k = 1,wlev
       do n = 1,npan
-!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -1841,7 +1832,6 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -1851,7 +1841,6 @@ else     ! if(intsch==1)then
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
         end do            ! i loop
       end do
-!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
         sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),k,nn)
@@ -2283,7 +2272,6 @@ if ( intsch==1 ) then
   do nn = 1,ntr
     do k = 1,wlev
       do n = 1,npan
-!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -2292,7 +2280,6 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -2305,7 +2292,6 @@ if ( intsch==1 ) then
 !   for ew interpolation, sometimes need (different from ns):
 !       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lwws(n),                  k,nn)
         sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
@@ -2401,7 +2387,6 @@ else     ! if(intsch==1)then
   do nn = 1,ntr
     do k = 1,wlev
       do n = 1,npan
-!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -2410,7 +2395,6 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -2423,7 +2407,6 @@ else     ! if(intsch==1)then
 !   for ns interpolation, sometimes need (different from ew):
 !        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
         sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),   k,nn)
@@ -2609,7 +2592,6 @@ if ( intsch==1 ) then
   do nn = 1,ntr
     do k = 1,wlev      
       do n = 1,npan
-!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -2618,7 +2600,6 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -2631,7 +2612,6 @@ if ( intsch==1 ) then
 !   for ew interpolation, sometimes need (different from ns):
 !       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lwws(n),                  k,nn)
         sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
@@ -2728,7 +2708,6 @@ else     ! if(intsch==1)then
   do nn = 1,ntr
     do k = 1,wlev
       do n = 1,npan
-!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -2737,7 +2716,6 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -2750,7 +2728,6 @@ else     ! if(intsch==1)then
 !   for ns interpolation, sometimes need (different from ew):
 !        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
         sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),k,nn)
@@ -2941,7 +2918,6 @@ if ( intsch==1 ) then
   do nn = 1,ntr
     do k = 1,wlev
       do n = 1,npan
-!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -2950,7 +2926,6 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-!$omp simd
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -2963,7 +2938,6 @@ if ( intsch==1 ) then
 !   for ew interpolation, sometimes need (different from ns):
 !       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lwws(n),                  k,nn)
         sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
@@ -3069,7 +3043,6 @@ else     ! if(intsch==1)then
   do nn = 1,ntr
     do k = 1,wlev
       do n = 1,npan
-!$omp simd
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
@@ -3078,7 +3051,6 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-!$omp simd
         do i=1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -3091,7 +3063,6 @@ else     ! if(intsch==1)then
 !   for ns interpolation, sometimes need (different from ew):
 !        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-!$omp simd
       do n = 1,npan
         sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
         sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),   k,nn)
@@ -3692,14 +3663,12 @@ if ( ltest ) then
 
   call boundsuv(uin,vin,stag=1)
   do k=1,kn
-!$omp simd
     do iq = 1,ifull  
       ud(iq,k)=dtul(iq,k,1)*uin(ieeu(iq),k)+dtul(iq,k,2)*uin(ieu(iq),k)+dtul(iq,k,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,k,1)*vin(innv(iq),k)+dtvl(iq,k,2)*vin(inv(iq),k)+dtvl(iq,k,3)*vin(iq,k)
     end do  
   end do
   do k=kn+1,kx
-!$omp simd
     do iq = 1,ifull  
       ud(iq,k)=dtul(iq,1,1)*uin(ieeu(iq),k)+dtul(iq,1,2)*uin(ieu(iq),k)+dtul(iq,1,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,1,1)*vin(innv(iq),k)+dtvl(iq,1,2)*vin(inv(iq),k)+dtvl(iq,1,3)*vin(iq,k)
@@ -3739,7 +3708,6 @@ if ( ltest ) then
     do k=1,kn
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*u_e(iq)+wtul(iq,k,2)*u_w(iq)+wtul(iq,k,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*v_n(iq)+wtvl(iq,k,2)*v_s(iq)+wtvl(iq,k,3)*va(innv(iq),k)
@@ -3748,7 +3716,6 @@ if ( ltest ) then
     do k=kn+1,kx
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*u_e(iq)+wtul(iq,1,2)*u_w(iq)+wtul(iq,1,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*v_n(iq)+wtvl(iq,1,2)*v_s(iq)+wtvl(iq,1,3)*va(innv(iq),k)
@@ -3758,7 +3725,6 @@ if ( ltest ) then
     do k=1,kn
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*u_e(iq)+wtul(iq,k,2)*u_w(iq)+wtul(iq,k,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*v_n(iq)+wtvl(iq,k,2)*v_s(iq)+wtvl(iq,k,3)*vin(innv(iq),k)
@@ -3767,7 +3733,6 @@ if ( ltest ) then
     do k=kn+1,kx
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*u_e(iq)+wtul(iq,1,2)*u_w(iq)+wtul(iq,1,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*v_n(iq)+wtvl(iq,1,2)*v_s(iq)+wtvl(iq,1,3)*vin(innv(iq),k)
@@ -3781,7 +3746,6 @@ else
   do k=1,kn
     call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
     do iq = 1,ifull  
       ud(iq,k)=dtur(iq,k,1)*u_w(iq)+dtur(iq,k,2)*uin(iq,k)+dtur(iq,k,3)*u_e(iq)
       vd(iq,k)=dtvr(iq,k,1)*v_s(iq)+dtvr(iq,k,2)*vin(iq,k)+dtvr(iq,k,3)*v_n(iq)
@@ -3790,7 +3754,6 @@ else
   do k=kn+1,kx
     call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
     do iq = 1,ifull  
       ud(iq,k)=dtur(iq,1,1)*u_w(iq)+dtur(iq,1,2)*uin(iq,k)+dtur(iq,1,3)*u_e(iq)
       vd(iq,k)=dtvr(iq,1,1)*v_s(iq)+dtvr(iq,1,2)*vin(iq,k)+dtvr(iq,1,3)*v_n(iq)
@@ -3824,7 +3787,6 @@ else
     do k=1,kn
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*u_e(iq)+wtur(iq,k,2)*u_w(iq)+wtur(iq,k,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*v_n(iq)+wtvr(iq,k,2)*v_s(iq)+wtvr(iq,k,3)*va(issv(iq),k)
@@ -3833,7 +3795,6 @@ else
     do k=kn+1,kx
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*u_e(iq)+wtur(iq,1,2)*u_w(iq)+wtur(iq,1,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*v_n(iq)+wtvr(iq,1,2)*v_s(iq)+wtvr(iq,1,3)*va(issv(iq),k)
@@ -3843,7 +3804,6 @@ else
     do k=1,kn
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*u_e(iq)+wtur(iq,k,2)*u_w(iq)+wtur(iq,k,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*v_n(iq)+wtvr(iq,k,2)*v_s(iq)+wtvr(iq,k,3)*vin(issv(iq),k)
@@ -3852,7 +3812,6 @@ else
     do k=kn+1,kx
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*u_e(iq)+wtur(iq,1,2)*u_w(iq)+wtur(iq,1,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*v_n(iq)+wtvr(iq,1,2)*v_s(iq)+wtvr(iq,1,3)*vin(issv(iq),k)
@@ -4422,7 +4381,6 @@ if (ltest) then
   call boundsuv(uin,vin,stag=5)
   do k=1,kn
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
     do iq = 1,ifull  
       ud(iq,k)=dtul(iq,k,1)*uin(iwwu(iq),k)+dtul(iq,k,2)*u_w(iq)+dtul(iq,k,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,k,1)*vin(issv(iq),k)+dtvl(iq,k,2)*v_s(iq)+dtvl(iq,k,3)*vin(iq,k)
@@ -4430,7 +4388,6 @@ if (ltest) then
   end do
   do k=kn+1,kx
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
     do iq = 1,ifull  
       ud(iq,k)=dtul(iq,1,1)*uin(iwwu(iq),k)+dtul(iq,1,2)*u_w(iq)+dtul(iq,1,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,1,1)*vin(issv(iq),k)+dtvl(iq,1,2)*v_s(iq)+dtvl(iq,1,3)*vin(iq,k)
@@ -4464,7 +4421,6 @@ if (ltest) then
     do k=1,kn
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*u_e(iq)+wtul(iq,k,2)*u_w(iq)+wtul(iq,k,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*v_n(iq)+wtvl(iq,k,2)*v_s(iq)+wtvl(iq,k,3)*va(issv(iq),k)
@@ -4473,7 +4429,6 @@ if (ltest) then
     do k=kn+1,kx
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*u_e(iq)+wtul(iq,1,2)*u_w(iq)+wtul(iq,1,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*v_n(iq)+wtvl(iq,1,2)*v_s(iq)+wtvl(iq,1,3)*va(issv(iq),k)
@@ -4483,7 +4438,6 @@ if (ltest) then
     do k=1,kn
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*u_e(iq)+wtul(iq,k,2)*u_w(iq)+wtul(iq,k,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*v_n(iq)+wtvl(iq,k,2)*v_s(iq)+wtvl(iq,k,3)*vin(issv(iq),k)
@@ -4492,7 +4446,6 @@ if (ltest) then
     do k=kn+1,kx
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*u_e(iq)+wtul(iq,1,2)*u_w(iq)+wtul(iq,1,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*v_n(iq)+wtvl(iq,1,2)*v_s(iq)+wtvl(iq,1,3)*vin(issv(iq),k)
@@ -4507,7 +4460,6 @@ else
   do k=1,kn
     call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
     do iq = 1,ifull  
       ud(iq,k)=dtur(iq,k,1)*u_e(iq)+dtur(iq,k,2)*uin(iq,k)+dtur(iq,k,3)*u_w(iq)
       vd(iq,k)=dtvr(iq,k,1)*v_n(iq)+dtvr(iq,k,2)*vin(iq,k)+dtvr(iq,k,3)*v_s(iq)
@@ -4516,7 +4468,6 @@ else
   do k=kn+1,kx
     call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
     call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
     do iq = 1,ifull  
       ud(iq,k)=dtur(iq,1,1)*u_e(iq)+dtur(iq,1,2)*uin(iq,k)+dtur(iq,1,3)*u_w(iq)
       vd(iq,k)=dtvr(iq,1,1)*v_n(iq)+dtvr(iq,1,2)*vin(iq,k)+dtvr(iq,1,3)*v_s(iq)
@@ -4550,7 +4501,6 @@ else
     do k=1,kn
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*u_e(iq)+wtur(iq,k,2)*u_w(iq)+wtur(iq,k,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*v_n(iq)+wtvr(iq,k,2)*v_s(iq)+wtvr(iq,k,3)*va(innv(iq),k)
@@ -4559,7 +4509,6 @@ else
     do k=kn+1,kx
       call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
       call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*u_e(iq)+wtur(iq,1,2)*u_w(iq)+wtur(iq,1,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*v_n(iq)+wtvr(iq,1,2)*v_s(iq)+wtvr(iq,1,3)*va(innv(iq),k)
@@ -4569,7 +4518,6 @@ else
     do k=1,kn
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*u_e(iq)+wtur(iq,k,2)*u_w(iq)+wtur(iq,k,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*v_n(iq)+wtvr(iq,k,2)*v_s(iq)+wtvr(iq,k,3)*vin(innv(iq),k)
@@ -4578,7 +4526,6 @@ else
     do k=kn+1,kx
       call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
       call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-!$omp simd
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*u_e(iq)+wtur(iq,1,2)*u_w(iq)+wtur(iq,1,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*v_n(iq)+wtvr(iq,1,2)*v_s(iq)+wtvr(iq,1,3)*vin(innv(iq),k)
@@ -4930,7 +4877,6 @@ end do
 
 do jj = 1,2
   do ii = 1,wlev
-!$omp simd
     do iq = 1,ifull  
       sss(iq,ii,jj) =rho(is(iq),ii,jj)
       ssen(iq,ii,jj)=rho(ien(iq),ii,jj)
@@ -4942,7 +4888,6 @@ do jj = 1,2
   end do
 end do  
 do ii = 1,wlev
-!$omp simd
   do iq = 1,ifull
     dds(iq,ii)   =dd_i(is(iq),ii)
     dden(iq,ii)  =dd_i(ien(iq),ii)
@@ -4951,7 +4896,6 @@ do ii = 1,wlev
 end do  
   
 call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
-!$omp simd
 do iq = 1,ifull
   f_ien(iq)=f(ien(iq))
   f_ies(iq)=f(ies(iq))
@@ -4982,7 +4926,6 @@ end do
 
 do jj = 1,2
   do ii = 1,wlev
-!$omp simd
     do iq = 1,ifull  
       ssw(iq,ii,jj) =rho(iw(iq),ii,jj)
       ssne(iq,ii,jj)=rho(ine(iq),ii,jj)
@@ -4994,7 +4937,6 @@ do jj = 1,2
   end do
 end do 
 do ii = 1,wlev
-!$omp simd
   do iq = 1,ifull  
     ddw(iq,ii) =dd_i(iw(iq),ii)
     ddne(iq,ii)=dd_i(ine(iq),ii)
@@ -5199,7 +5141,6 @@ end do
 
 do jj = 1,2
   do ii = 1,wlev
-!$omp simd
     do iq = 1,ifull  
       sss(iq,ii,jj) =rho(is(iq),ii,jj)
       ssen(iq,ii,jj)=rho(ien(iq),ii,jj)
@@ -5208,7 +5149,6 @@ do jj = 1,2
   end do
 end do  
 do ii = 1,wlev
-!$omp simd
   do iq = 1,ifull
     dds(iq,ii)   =dd_i(is(iq),ii)
     dden(iq,ii)  =dd_i(ien(iq),ii)
@@ -5217,7 +5157,6 @@ do ii = 1,wlev
 end do  
 
 call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
-!$omp simd
 do iq = 1,ifull
   f_ien(iq)=f(ien(iq))
   f_ies(iq)=f(ies(iq))
@@ -5248,7 +5187,6 @@ end do
 
 do jj = 1,2
   do ii = 1,wlev
-!$omp simd
     do iq = 1,ifull  
       ssw(iq,ii,jj) =rho(iw(iq),ii,jj)
       ssne(iq,ii,jj)=rho(ine(iq),ii,jj)
@@ -5257,7 +5195,6 @@ do jj = 1,2
   end do
 end do 
 do ii = 1,wlev
-!$omp simd
   do iq = 1,ifull  
     ddw(iq,ii) =dd_i(iw(iq),ii)
     ddne(iq,ii)=dd_i(ine(iq),ii)
@@ -5373,7 +5310,6 @@ real, dimension(ifull,wlev,2), intent(out) :: drhodxu,dfrhodyu,dfrhodxv,drhodyv
 real, dimension(ifull) :: f_in,f_ien,f_ie,f_is,f_ies,f_ine,f_iw,f_inw
 
 call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
-!$omp simd
 do iq = 1,ifull
   f_ien(iq)=f(ien(iq))
   f_ies(iq)=f(ies(iq))
@@ -5387,7 +5323,6 @@ do jj = 1,2
   do ii = 1,wlev
     ssi(:) = rho(1:ifull,ii,jj)
     call unpack_nsew(rho(:,ii,jj),ssn(:),sss(:),sse(:),ssw(:))
-!$omp simd
     do iq = 1,ifull
       ssen(iq) = rho(ien(iq),ii,jj)
       sses(iq) = rho(ies(iq),ii,jj)

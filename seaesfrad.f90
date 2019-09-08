@@ -386,7 +386,7 @@ do iq_tile = 1,ifull,imax
     end select
 
     ! define droplet size distribution ------------------------------
-    call aerodrop(istart,imax,cd2,rhoa)
+    call aerodrop(istart,cd2,rhoa)
     
     ! Cloud fraction diagnostics ------------------------------------
     cloudlo(istart:iend) = 0.

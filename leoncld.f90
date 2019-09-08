@@ -132,7 +132,7 @@ real, dimension(imax,kl) :: lppfstayice, lppfstayliq, lppfsubl, lpplambs, lppmac
 real, dimension(imax,kl) :: lppqfsedice, lpprfreeze, lpprscav, lqccon, lqfg, lqfrad
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfrac, lt
 real, dimension(imax,kl) :: ldpsldt, lnettend, lstratcloud, lclcon, lcdrop, lrhoa
-real, dimension(ifull,kl) :: clcon, cdrop, rhoa
+real, dimension(ifull,kl) :: clcon, cdrop
 logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),                                             &
@@ -145,7 +145,7 @@ do tile = 1,ntiles
   do k = 1,kl
     lrhoa(:,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k))  
   end do
-  call aerodrop(is,imax,lcdrop,lrhoa,outconv=.true.)
+  call aerodrop(is,lcdrop,lrhoa,outconv=.true.)
   cdrop(is:ie,:) = lcdrop
 
   ! Calculate convective cloud fraction
