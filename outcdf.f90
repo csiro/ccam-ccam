@@ -3186,7 +3186,7 @@ if ( abs(iaero)>=2 ) then
         tv(:)     = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))   ! virtual temperature
         rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*tv(:))                ! density of air
       end do
-      call aerodrop(1,ifull,tmpry(:,1:kl),rhoa)
+      call aerodrop(1,tmpry(:,1:kl),rhoa)
       call histwrt(tmpry(:,1:kl),'cdn',idnc,iarch,local,.true.)
     end if
   end if
@@ -3737,7 +3737,7 @@ if ( mod(ktau,tbave)==0 ) then
   call histwrt(freqstore(:,15),"tscrn_stn",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,16),"rhscrn_stn",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,17),"qgscrn_stn",fncid,fiarch,local,.true.)
-  if ( diaglevel_pbl>5 ) then
+  if ( diaglevel_pbl>3 ) then
     call histwrt(freqstore(:,18),"ua150",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,19),"va150",fncid,fiarch,local,.true.)      
     call histwrt(freqstore(:,20),"ua250",fncid,fiarch,local,.true.)

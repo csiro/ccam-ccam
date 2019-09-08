@@ -503,7 +503,7 @@ c       Stuff needed for cloud2 routine...
         do k=1,kl
           rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*t(istart:iend,k)) !density of air
         end do
-        call aerodrop(istart,imax,cd2,rhoa)
+        call aerodrop(istart,cd2,rhoa)
       endif  ! (ldr.ne.0)
       
 c  Clear sky calculation
