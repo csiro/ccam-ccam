@@ -55,7 +55,7 @@ public Nor, rk2, rho0, Ecol
 public wlc, wls, ticon
 public aice, bice
 
-real, parameter :: maxlintime = 60. ! time-step for Lin et al 83 cloud microphysics
+real, parameter :: maxlintime = 120. ! time-step for Lin et al 83 cloud microphysics
 
 ! Physical constants
 real, parameter :: rhow=1000.  !Density of water
