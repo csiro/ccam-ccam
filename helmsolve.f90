@@ -1696,7 +1696,7 @@ do i = 1,itrbgn
                -rhsc(isc:iec,nc)        
     do iq = isc,iec
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),    &
-         -2.*cu(iq)/(bu(iq)+sqrt(max(min(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),1.e8),0.1))) )
+         -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
     end do  
     
     ! sea-ice (cavitating fluid)
@@ -1722,7 +1722,7 @@ do i = 1,itrbgn
                -rhsc(isc:iec,nc)   
     do iq = isc,iec
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),     &
-         -2.*cu(iq)/(bu(iq)+sqrt(max(min(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),1.e8),0.1))) )
+         -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
     end do  
     
     ! sea-ice (cavitating fluid)
@@ -1887,7 +1887,7 @@ if ( mg_maxlevel_local>0 ) then
     bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
     cu(1:ng) = -rhs(1:ng,g)    
     v(:,1:2,g) = 0.
-    v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(min(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),1.e8),0.1)))
+    v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1)))
     v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)
     call mgbounds(g,v(:,1:2,g))
     
@@ -1901,7 +1901,7 @@ if ( mg_maxlevel_local>0 ) then
       cu(1:ng) = zzn(1:ng,g)*v_n(1:ng) + zzs(1:ng,g)*v_s(1:ng)     &
                + zze(1:ng,g)*v_e(1:ng) + zzw(1:ng,g)*v_w(1:ng)     &
                - rhs(1:ng,g)
-      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(min(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),1.e8),0.1)))
+      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1)))
       
       ! ice - post smoothing
       call mgunpack_nsew(g,v(:,2,g),v_n,v_s,v_e,v_w)
@@ -2065,7 +2065,7 @@ if ( mg_maxlevel_local>0 ) then
     bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
     cu(1:ng) = -rhs(1:ng,g)
     v(:,1:2,g) = 0.
-    v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(min(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),1.e8),0.1))) ! ocean
+    v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1))) ! ocean
     v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                                        ! ice
     do itrc = 1,itr_mgice
       ! store previous guess for convegence test
@@ -2080,7 +2080,7 @@ if ( mg_maxlevel_local>0 ) then
                                  + zzecu(:,nc)*v(col_iqe(:,nc),1,g) + zzwcu(:,nc)*v(col_iqw(:,nc),1,g)     &
                                  - rhscu(:,nc)
         do iq = 1,mg_ifull_maxcolour
-          v(col_iq(iq,nc),1,g) = -2.*cu(iq)/(bu(iq)+sqrt(max(min(bu(iq)**2-4.*yyzcu(iq,nc)*cu(iq),1.e8),0.1)))
+          v(col_iq(iq,nc),1,g) = -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyzcu(iq,nc)*cu(iq),0.1)))
         end do  
         
         ! ice
@@ -2129,7 +2129,7 @@ if ( mg_maxlevel_local>0 ) then
       cu(1:ng) = zzn(1:ng,g)*v_n(1:ng)+zzs(1:ng,g)*v_s(1:ng)     &
                + zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng)     &
                - rhs(1:ng,g)
-      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(min(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),1.e8),0.1)))
+      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1)))
       
       ! ice - post smoothing
       call mgunpack_nsew(g,v(:,2,g),v_n,v_s,v_e,v_w)  
@@ -2213,7 +2213,7 @@ do i = 1,itrend
                -rhsc(isc:iec,nc)     
     do iq = isc,iec
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),    &
-         -2.*cu(iq)/(bu(iq)+sqrt(max(min(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),1.e8),0.1))) )
+         -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
     end do  
     
     ! sea-ice (cavitating fluid)
@@ -2239,7 +2239,7 @@ do i = 1,itrend
                -rhsc(isc:iec,nc)   
     do iq = isc,iec
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),              &
-         -2.*cu(iq)/(bu(iq)+sqrt(max(min(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),1.e8),0.1))) )
+         -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
     end do  
     
     ! sea-ice (cavitating fluid)
@@ -2292,7 +2292,7 @@ do itr = 2,itr_mgice
                   - rhsc(isc:iec,nc)   
       do iq = isc,iec
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),           &
-           -2.*cu(iq)/(bu(iq)+sqrt(max(min(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),1.e8),0.1))) )
+           -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
       end do
         
       ! ice (cavitating fluid)
@@ -2318,7 +2318,7 @@ do itr = 2,itr_mgice
                  -rhsc(isc:iec,nc)
       do iq = isc,iec
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),           &
-           -2.*cu(iq)/(bu(iq)+sqrt(max(min(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),1.e8),0.1))) )
+           -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
       end do
         
       ! ice (cavitating fluid)
@@ -2443,7 +2443,7 @@ do itr = 2,itr_mgice
       bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
       cu(1:ng) = -rhs(1:ng,g)
       v(:,1:2,g) = 0.
-      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(min(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),1.e8),0.1)))
+      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1)))
       v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)
       call mgbounds(g,v(:,1:2,g))
       
@@ -2456,7 +2456,7 @@ do itr = 2,itr_mgice
         cu(1:ng) = zzn(1:ng,g)*v_n(1:ng)+zzs(1:ng,g)*v_s(1:ng)     &
                  + zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng)     &
                  - rhs(1:ng,g)
-        v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(min(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),1.e8),0.1)))
+        v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1)))
         
         ! ice - post smoothing
         call mgunpack_nsew(g,v(:,2,g),v_n,v_s,v_e,v_w)
@@ -2579,7 +2579,7 @@ do itr = 2,itr_mgice
       bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
       cu(1:ng) = -rhs(1:ng,g)
       v(:,1:2,g) = 0.
-      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(min(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),1.e8),0.1))) ! ocean
+      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1))) ! ocean
       v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                                        ! ice
       do itrc = 1,itr_mgice
         ! store previous guess for convegence test
@@ -2594,7 +2594,7 @@ do itr = 2,itr_mgice
                                    + zzecu(:,nc)*v(col_iqe(:,nc),1,g) + zzwcu(:,nc)*v(col_iqw(:,nc),1,g)     &
                                    - rhscu(:,nc)
           do iq = 1,mg_ifull_maxcolour
-            v(col_iq(iq,nc),1,g) = -2.*cu(iq)/(bu(iq)+sqrt(max(min(bu(iq)**2-4.*yyzcu(iq,nc)*cu(iq),1.e8),0.1)))
+            v(col_iq(iq,nc),1,g) = -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyzcu(iq,nc)*cu(iq),0.1)))
           end do  
       
           ! ice
@@ -2647,7 +2647,7 @@ do itr = 2,itr_mgice
         cu(1:ng) = zzn(1:ng,g)*v_n(1:ng)+zzs(1:ng,g)*v_s(1:ng)     &
                  + zze(1:ng,g)*v_e(1:ng)+zzw(1:ng,g)*v_w(1:ng)     &
                  - rhs(1:ng,g)
-        v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(min(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),1.e8),0.1)))
+        v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1)))
         ! ice - post smoothing
         call mgunpack_nsew(g,v(:,2,g),v_n,v_s,v_e,v_w)  
         v(1:ng,2,g) = ( - zzin(1:ng,g)*v_n(1:ng) - zzis(1:ng,g)*v_s(1:ng)     &
@@ -2732,7 +2732,7 @@ do itr = 2,itr_mgice
                  -rhsc(isc:iec,nc)    
       do iq = isc,iec
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),              &
-           -2.*cu(iq)/(bu(iq)+sqrt(max(min(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),1.e8),0.1))) )
+           -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
       end do  
     
       ! ice (cavitating fluid)
@@ -2758,7 +2758,7 @@ do itr = 2,itr_mgice
                  -rhsc(isc:iec,nc)   
       do iq = isc,iec
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),              &
-           -2.*cu(iq)/(bu(iq)+sqrt(max(min(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),1.e8),0.1))) )
+           -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
       end do
       
       ! ice (cavitating fluid)
