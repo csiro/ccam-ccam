@@ -17,23 +17,27 @@ FHOST = -O3 -xHost
 FOVERRIDE =
 ZMM =
 IPFLAG =
+IPOFLAG =
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
 FOVERRIDE =
 ZMM =
 IPFLAG =
+IPOFLAG =
 endif
 ifeq ($(BROADWELL),yes)
 FHOST = -O3 -xCORE-AVX2
 FOVERRIDE =
 ZMM =
 IPFLAG = -ip
+IPOFLAG = -ipo
 endif
 ifeq ($(SKYLAKE),yes)
 FHOST = -O3 -xSKYLAKE-AVX512 -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
+IPOFLAG = -ipo
 endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
@@ -69,6 +73,7 @@ FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NC
 FOVERRIDE =
 ZMM =
 IPFLAG =
+IPOFLAG =
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
@@ -90,6 +95,7 @@ FFLAGS += -Minfo=accel -acc -ta=nvidia:cc35
 FOVERRIDE =
 ZMM =
 IPFLAG =
+IPOFLAG =
 PPFLAG90 = -cpp
 PPFLAG77 = -cpp
 PPFLAG90F = -cpp
@@ -106,6 +112,7 @@ FFLAGS = -h noomp -Dusenc_mod
 FOVERRIDE =
 ZMM =
 IPFLAG =
+IPOFLAG =
 PPFLAG90 = -eZ
 PPFLAG77 = -eZ
 PPFLAG90F = -eZ
@@ -299,10 +306,14 @@ casa_variable.o: casa_variable.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 POP.o: POP.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
+estab.o: estab.f90
+	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 helmsolve.o: helmsolve.f90
 	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
 ints.o: ints.f90
 	$(FC) -c $(FFLAGS) $(IPFLAG) $(ZMM) $(PPFLAG90) $<
+leoncld.o: leoncld.f90
+	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 mlodynamics.o: mlodynamics.f90
 	$(FC) -c $(PPFLAG90) $(FFLAGS) $(IPFLAG) $(FOVERRIDE) $<
 seaesfrad.o: seaesfrad.f90
