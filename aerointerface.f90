@@ -105,9 +105,9 @@ real, dimension(imax,kl) :: zg, dz, rhoa, pccw
 real, dimension(imax,ndust) :: lduste, ldustdd, ldust_burden, ldustwd
 real, dimension(imax,ndcls) :: lerod
 real, dimension(imax,15) :: lemissfield
-real, dimension(imax) :: coszro, cldcon, wg
+real, dimension(imax) :: coszro, wg
 real, dimension(ifull,kl) :: clcon
-real, dimension(ifull) :: taudar
+real, dimension(ifull) :: taudar, cldcon
 real dhr, fjd, r1, dlt, alp, slag
 logical, intent(in) :: oxidant_update
 logical mydiag_t
