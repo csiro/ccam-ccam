@@ -323,7 +323,7 @@ stacklimit.o: stacklimit.c
 tkeeps.o: tkeeps.f90
 	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
 vertmix.o: vertmix.f90
-	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
+	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 version.h: FORCE
 	rm -f brokenver tmpver
 	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
