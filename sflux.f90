@@ -451,11 +451,11 @@ implicit none
 
 integer iq, it
 real, dimension(ifull) :: charnck,fgf,rgg,fev,dirad,dfgdt,degdt
-real, dimension(ifull) :: cie,gamm,fh,fq,afq,factch,facqch
+real, dimension(ifull) :: cie,gamm,fh,factch
 real afrootpan,es,constz,xx,afroot,fm,consea,con,daf,den,dden,dfm
 real dtsol,con1,conw,zminlog,drst,ri_ice,factchice,zoice,zologice
 real conh,epotice,qtgnet,qtgair,eg2,gbot,deltat,b1,deg,eg1,denha
-real denma,root,dcs
+real denma,root,dcs,fq,afq,facqch
 
 integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
 ! Beljaars parameters
@@ -519,8 +519,9 @@ do iq=1,ifull                                                                   
     zo(iq)=panzo                                                                                 ! sea
     af(iq)=afrootpan**2                                                                          ! sea
     aft(iq)=chnsea                                                                               ! sea
+    afq=chnsea                                                                                   ! sea
     factch(iq)=1.                                                                                ! sea
-    facqch(iq)=1.                                                                                ! sea
+    facqch=1.                                                                                    ! sea
   else                                                                                           ! sea
     if ( charnock<-10. ) then ! Beljarrs                                                         ! sea
       zo(iq)=.001    ! .0005 better first guess                                                  ! sea
@@ -562,15 +563,15 @@ do iq=1,ifull                                                                   
       zoh(iq)=max(zcoh1+zcoh2*gnu/(vmod(iq)*sqrt(fm*af(iq))),1.5e-7)                             ! sea
       zoq(iq)=max(zcoq1+zcoq2*gnu/(vmod(iq)*sqrt(fm*af(iq))),1.5e-7)                             ! sea
       aft(iq)=vkar**2/(log(zmin/zo(iq))*log(zmin/zoh(iq)))                                       ! sea
-      afq(iq)=vkar**2/(log(zmin/zo(iq))*log(zmin/zoq(iq)))                                       ! sea
+      afq=vkar**2/(log(zmin/zo(iq))*log(zmin/zoq(iq)))                                           ! sea
       factch(iq)=sqrt(zo(iq)/zoh(iq))                                                            ! sea
-      facqch(iq)=sqrt(zo(iq)/zoq(iq))                                                            ! sea
+      facqch=sqrt(zo(iq)/zoq(iq))                                                                ! sea
     else if(charnock<0.)then  ! Moon (2004) over sea                                             ! sea
       zo(iq)=charnck(iq)                                                                         ! sea
       afroot=vkar/log(zmin/zo(iq))                                                               ! sea
       af(iq)=afroot**2                                                                           ! sea
       aft(iq)=chnsea                                                                             ! sea
-      afq(iq)=chnsea                                                                             ! sea
+      afq=chnsea                                                                                 ! sea
       if ( newztsea==0 ) then ! 0 for original, 1 for different zt over sea                      ! sea
         ! enhanced formula used in Feb '92 Air-Sea conference follows:                           ! sea
         ! factch=sqrt(zo*exp(vkar*vkar/(chnsea*log(zmin/zo)))/zmin)                              ! sea
@@ -578,7 +579,7 @@ do iq=1,ifull                                                                   
       else                                                                                       ! sea
         factch(iq)=sqrt(zo(iq)*ztv) ! for use in unstable fh                                     ! sea
       end if                                                                                     ! sea
-      facqch(iq)=factch(iq)                                                                      ! sea
+      facqch=factch(iq)                                                                          ! sea
     else            ! usual charnock method over sea                                             ! sea
       consea=vmod(iq)*charnck(iq)/grav  ! usually charnock=.018                                  ! sea  
       zo(iq)=.001    ! .0005 better first guess                                                  ! sea
@@ -609,7 +610,7 @@ do iq=1,ifull                                                                   
         enddo  ! it=1,3                                                                          ! sea
       endif    ! (xx>0.) .. else..                                                               ! sea
       aft(iq)=chnsea                                                                             ! sea
-      afq(iq)=chnsea                                                                             ! sea
+      afq=chnsea                                                                                 ! sea
       if ( newztsea==0 ) then ! 0 for original, 1 for different zt over sea                      ! sea
         ! enhanced formula used in Feb '92 Air-Sea conference follows:                           ! sea
         ! factch=sqrt(zo*exp(vkar*vkar/(chnsea*log(zmin/zo)))/zmin)                              ! sea
@@ -617,7 +618,7 @@ do iq=1,ifull                                                                   
       else                                                                                       ! sea
         factch(iq)=sqrt(zo(iq)*ztv) ! for use in unstable fh                                     ! sea
       end if                                                                                     ! sea
-      facqch(iq)=factch(iq)                                                                      ! sea
+      facqch=factch(iq)                                                                          ! sea
     endif     ! (charnock<-1.) .. else ..                                                        ! sea
   endif      ! (land(iq)) .. else ..                                                             ! sea
 
@@ -625,7 +626,7 @@ do iq=1,ifull                                                                   
   if(ri(iq)>0.)then                                                                              ! sea
     fm=vmod(iq)/(1.+bprm*ri(iq))**2  ! no zo contrib for stable                                  ! sea
     fh(iq)=fm                                                                                    ! sea
-    fq(iq)=fm                                                                                    ! sea
+    fq=fm                                                                                        ! sea
   else        ! ri is -ve                                                                        ! sea
     root=sqrt(-ri(iq)*zmin/zo(iq))                                                               ! sea
     ! First do momentum                                                                          ! sea
@@ -637,17 +638,17 @@ do iq=1,ifull                                                                   
     ! so eg (& epan) and fg  (also aft) then indept of zo                                        ! sea
     denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root                                                 ! sea
     fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                                               ! sea
-    denha=1.+chs*2.*bprm*facqch(iq)*afq(iq)*root                                                 ! sea
-    fq(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                                               ! sea
+    denha=1.+chs*2.*bprm*facqch*afq*root                                                         ! sea
+    fq=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                                                   ! sea
   endif                                                                                          ! sea
                                                                                                  ! sea
   conh=rho(iq)*aft(iq)*cp                                                                        ! sea
-  conw=rho(iq)*afq(iq)*hl                                                                        ! sea
+  conw=rho(iq)*afq*hl                                                                            ! sea
   fg(iq)=conh*fh(iq)*(tpan(iq)-theta(iq))                                                        ! sea
-  eg(iq)=conw*fq(iq)*(qsttg(iq)-qg(iq,1))                                                        ! sea
+  eg(iq)=conw*fq*(qsttg(iq)-qg(iq,1))                                                            ! sea
   rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tpan(iq)**4                                              ! sea
   zoh(iq)=zo(iq)/(factch(iq)**2)                                                                 ! sea
-  zoq(iq)=zo(iq)/(facqch(iq)**2)                                                                 ! sea
+  zoq(iq)=zo(iq)/(facqch**2)                                                                     ! sea
   ! cduv is now drag coeff *vmod                                                                 ! sea
   cduv(iq) =af(iq)*fm                                                                            ! sea
   cdtq(iq) =aft(iq)*fh(iq)                                                                       ! sea
