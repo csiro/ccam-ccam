@@ -66,7 +66,7 @@ integer, parameter :: itnmax      = 6       ! number of interations for reversib
 integer, parameter :: nxtrrho     = 1       ! Estimate rho at t+1 (0=off, 1=on)
 integer, save      :: usepice     = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
 integer, save      :: mlodiff     = 0       ! diffusion (0=all, 1=scalars only)
-integer, save      :: mlojacobi   = 1       ! density gradient method (0=off, 1=non-local spline, 2=non-local linear, 7=AC2003)
+integer, save      :: mlojacobi   = 1       ! density gradient method (0=off, 1=non-local spline, 2=non-local linear, 6=local, 7=AC2003)
 integer, parameter :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on)
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
 real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)
@@ -4760,13 +4760,13 @@ select case( mlojacobi )
       rhov(:,ii) = 0.
     end do
 
-  case(1,2,7) 
+  case(1,2,6,7) 
     select case( mlojacobi )
       case(1) ! non-local - spline  
         call seekdelta(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
       case(2) ! non-local - linear
         call seekdelta_l(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
-      case(7) ! z* - 2nd order
+      case(6,7) ! z* - 2nd order
         call zstar2(na,dnadxu,dfnadyu,dfnadxv,dnadyv)  
       case default
         write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
