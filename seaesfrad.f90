@@ -46,7 +46,7 @@ public carbonradmethod, so4radmethod, dustradmethod, seasaltradmethod, lwem_form
 public csolar
 
 real, parameter :: rhow     = 1000.            ! Density of water (kg/m^3)
-real, save      :: csolar   = 1365             ! Solar constant in W/m^2 - change to 1361 for CMIP6
+real, save      :: csolar   = 1365.            ! Solar constant in W/m^2 - change to 1361 for CMIP6
 real, parameter :: siglow   = 0.68             ! sigma level for top of low cloud (diagnostic)
 real, parameter :: sigmid   = 0.44             ! sigma level for top of medium cloud (diagnostic)
 real, parameter :: ratco2mw = 1.519449738      ! conversion factor for CO2 diagnostic
@@ -179,7 +179,7 @@ real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
 real, dimension(imax) :: sint, sout, rt, sgdnvis, sgdnnir
 real, dimension(imax) :: soutclr, sgclr, rtclr, rgclr
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
-real, dimension(imax) :: dzrho, dumfbeam, dumtss
+real, dimension(imax) :: dzrho, dumtss
 real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
@@ -228,7 +228,7 @@ end if
 !$omp private(sigh,duo3n,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,rhoa,dz,i,iq,cosz),       &
 !$omp private(delta,k,kr,dzrho,cd2,mx,dumt,p2,ktop,kbot,dumcf),                            &
 !$omp private(dumql,dumqf,sgdnvis,sgdnnir,sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir),         &
-!$omp private(sgdnnirdif,rt,sint,sout,soutclr,sgclr,rtclr,rgclr,dumfbeam)
+!$omp private(sgdnnirdif,rt,sint,sout,soutclr,sgclr,rtclr,rgclr)
 do iq_tile = 1,ifull,imax
   istart = iq_tile
   iend   = istart + imax - 1
@@ -769,6 +769,8 @@ do iq_tile = 1,ifull,imax
     rtsave(istart:iend)   = rt(1:imax) 
     rtclsave(istart:iend) = rtclr(1:imax)  
     sgclsave(istart:iend) = sgclr(1:imax)
+    fbeam(istart:iend)    = fbeamvis(istart:iend)*swrsave(istart:iend) &
+                          + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
 
     ! cloud amounts for saving --------------------------------------
     cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
@@ -792,13 +794,11 @@ do iq_tile = 1,ifull,imax
       clh_ave(istart:iend)   = clh_ave(istart:iend)  + cloudhi(istart:iend)
       !alb_ave(istart:iend)   = alb_ave(istart:iend)+swrsave(istart:iend)*albvisnir(istart:iend,1) &
       !                         + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
-      fbeam_ave(istart:iend) = fbeam_ave(istart:iend)+fbeamvis(istart:iend)*swrsave(istart:iend) &
-                               + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
+      fbeam_ave(istart:iend) = fbeam_ave(istart:iend) + fbeam(istart:iend)
     endif   ! (ktau>0)
     
     ! Store fraction of direct radiation in urban scheme
-    dumfbeam = fbeamvis(istart:iend)*swrsave(istart:iend) + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
-    call atebfbeam(istart,imax,dumfbeam,0)
+    call atebfbeam(istart,imax,fbeam(istart:iend),0)
 
   end if  ! odcalc
 

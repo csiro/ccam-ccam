@@ -652,6 +652,8 @@ c        Save the value excluding Ts^4 part.  This is allowed to change.
          rtsave(iq) = rt(i) 
          rtclsave(iq) = rtclr(i)  
          sgclsave(iq) = sgclr(i)
+         fbeam(iq)    = fbeamvis(iq)*swrsave(iq)
+     &                 +fbeamnir(iq)*(1.-swrsave(iq))
       end do
 
 c     cloud amounts for saving
@@ -682,8 +684,7 @@ c     cloud amounts for saving
          clh_ave(iq)  = clh_ave(iq)  + cloudhi(iq)
 !         alb_ave(iq)  = alb_ave(iq)  + swrsave(iq)*albvisnir(iq,1)
 !     &                               +(1.-swrsave(iq))*albvisnir(iq,2)
-         fbeam_ave(iq)= fbeam_ave(iq)+fbeamvis(iq)*swrsave(iq)
-     &                               +fbeamnir(iq)*(1.-swrsave(iq))
+         fbeam_ave(iq)= fbeam_ave(iq) + fbeam(iq)
         end do
       endif   ! (ktau>0)
       

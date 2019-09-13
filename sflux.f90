@@ -455,7 +455,7 @@ real, dimension(ifull) :: cie,gamm,fh,factch
 real afrootpan,es,constz,xx,afroot,fm,consea,con,daf,den,dden,dfm
 real dtsol,con1,conw,zminlog,drst,ri_ice,factchice,zoice,zologice
 real conh,epotice,qtgnet,qtgair,eg2,gbot,deltat,b1,deg,eg1,denha
-real denma,root,dcs,fq,afq,facqch
+real denma,root,dcs,fq,afq,facqch,denqa
 
 integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
 ! Beljaars parameters
@@ -638,8 +638,8 @@ do iq=1,ifull                                                                   
     ! so eg (& epan) and fg  (also aft) then indept of zo                                        ! sea
     denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root                                                 ! sea
     fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                                               ! sea
-    denha=1.+chs*2.*bprm*facqch*afq*root                                                         ! sea
-    fq=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                                                   ! sea
+    denqa=1.+chs*2.*bprm*facqch*afq*root                                                         ! sea
+    fq=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denqa                                                   ! sea
   endif                                                                                          ! sea
                                                                                                  ! sea
   conh=rho(iq)*aft(iq)*cp                                                                        ! sea
