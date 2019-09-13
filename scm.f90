@@ -6303,11 +6303,7 @@ rlwp_ave(:)          = 0.
 !tscr_ave(:)          = 0.
 wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
-!tsu_ave(:)           = 0.
-!alb_ave(:)           = 0.
 fbeam_ave(:)         = 0.
-!psl_ave(:)           = 0.
-!mixdep_ave(:)        = 0.
 
 ! radiation
 koundiag             = 0

@@ -100,7 +100,6 @@ c     parameters for the aerosol calculation
       real, dimension(:,:), allocatable, save :: hlwsav,hswsav
       real, dimension(:,:), allocatable, save :: sw_tend_amp
       real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
-      real, dimension(:), allocatable, save :: fbeam_amp
       
 c     Following are for cloud2 routine
       real t2(ixin,kl),ql2(ixin,kl),qf2(ixin,kl),cf2(ixin,kl),
@@ -201,7 +200,6 @@ c     Stuff from cldset
 
          allocate(hlwsav(ifull,kl),hswsav(ifull,kl))
          allocate(sgn_amp(ifull),sgdn_amp(ifull))
-         allocate(fbeam_amp(ifull))
          allocate(sw_tend_amp(ifull,kl))
       
          if(ntest==1)write(6,*)'id,jd,imax,idrad,jdrad0,jdrad ',
@@ -620,12 +618,10 @@ c           The sun isn't up at all over the radiation period so no
 c           fitting need be done.
             sgn_amp(iq)  = 0.
             sgdn_amp(iq) = 0.
-            fbeam_amp(iq) = 0.
             sw_tend_amp(iq,1:kl) = 0.
          else
             sgn_amp(iq)  = sgn(iq) / (coszro(i)*taudar(i))
             sgdn_amp(iq) = sgdn(iq) / (coszro(i)*taudar(i))
-            fbeam_amp(iq) = fbeam(iq) / (coszro(i)*taudar(i))
             sw_tend_amp(iq,1:kl) = sw_tend(iq,1:kl)
      &                      / (coszro(i)*taudar(i))
          end if
@@ -674,6 +670,7 @@ c     cloud amounts for saving
          clh_ave(iq)  = clh_ave(iq)  + cloudhi(iq)
 !         alb_ave(iq)  = alb_ave(iq)  + swrsave(iq)*albvisnir(iq,1)
 !     &                               +(1.-swrsave(iq))*albvisnir(iq,2)
+         fbeam_ave(iq) = fbeam_ave(iq) + fbeam(iq)
         end do
       endif   ! (ktau>0)
       
@@ -684,7 +681,6 @@ c     cloud amounts for saving
        iq=i+(j-1)*il
        sgn(iq)  = sgn_amp(iq)*coszro2(i)*taudar2(i)
        sgdn(iq) = sgdn_amp(iq)*coszro2(i)*taudar2(i)
-       fbeam(iq) = fbeam_amp(iq)*coszro2(i)*taudar2(i)
       end do
       
       if(ktau>0)then ! averages not added at time zero
@@ -692,7 +688,6 @@ c     cloud amounts for saving
          iq=i+(j-1)*il
          sgn_ave(iq)  = sgn_ave(iq)  + sgn(iq)
          sgdn_ave(iq) = sgdn_ave(iq) + sgdn(iq)
-         fbeam_ave(iq)= fbeam_ave(iq) + fbeam(iq)
          if ( sgdn(iq)>120. ) then
            sunhours(iq)=sunhours(iq)+86400.
          end if
