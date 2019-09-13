@@ -70,7 +70,7 @@ logical, parameter :: include_volcanoes  = .false.
 logical, save :: do_aerosol_forcing ! =.true. when abs(iaero)>=2
 
 integer, save :: nlow, nmid
-real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
+real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp, fbeam_amp
 real, dimension(:,:), allocatable, save :: sw_tend_amp
 real(kind=8), dimension(:,:), allocatable, save :: pref
 
@@ -603,6 +603,8 @@ do iq_tile = 1,ifull,imax
     elsewhere  
       fbeamnir(istart:iend) = sgdnnirdir/sgdnnir
     end where
+    fbeam(istart:iend) = fbeamvis(istart:iend)*swrsave(istart:iend) &
+                       + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
     
     ! Store albedo data ---------------------------------------------
     albvisnir(istart:iend,1) = real(Surface(mythread)%asfc_vis_dir(:,1))*fbeamvis(istart:iend)      &
@@ -749,9 +751,11 @@ do iq_tile = 1,ifull,imax
       ! fitting need be done.
       sgn_amp(istart:iend)  = 0.
       sgdn_amp(istart:iend) = 0.
+      fbeam_amp(istart:iend) = 0.
     elsewhere
-      sgn_amp(istart:iend)     = sgn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
-      sgdn_amp(istart:iend)    = sgdn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
+      sgn_amp(istart:iend)  = sgn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
+      sgdn_amp(istart:iend) = sgdn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
+      fbeam_amp(istart:iend) = fbeam(istart:iend)/(coszro(1:imax)*taudar(1:imax))
     end where
     do k = 1,kl
       where ( coszro(1:imax)*taudar(1:imax)<=1.E-5 )
@@ -769,8 +773,6 @@ do iq_tile = 1,ifull,imax
     rtsave(istart:iend)   = rt(1:imax) 
     rtclsave(istart:iend) = rtclr(1:imax)  
     sgclsave(istart:iend) = sgclr(1:imax)
-    fbeam(istart:iend)    = fbeamvis(istart:iend)*swrsave(istart:iend) &
-                          + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
 
     ! cloud amounts for saving --------------------------------------
     cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
@@ -794,7 +796,6 @@ do iq_tile = 1,ifull,imax
       clh_ave(istart:iend)   = clh_ave(istart:iend)  + cloudhi(istart:iend)
       !alb_ave(istart:iend)   = alb_ave(istart:iend)+swrsave(istart:iend)*albvisnir(istart:iend,1) &
       !                         + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
-      fbeam_ave(istart:iend) = fbeam_ave(istart:iend) + fbeam(istart:iend)
     endif   ! (ktau>0)
     
     ! Store fraction of direct radiation in urban scheme
@@ -805,9 +806,11 @@ do iq_tile = 1,ifull,imax
   ! Calculate the solar using the saved amplitude.
   sgn(istart:iend)  = sgn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
   sgdn(istart:iend) = sgdn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
+  fbeam(istart:iend) = fbeam_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
   if ( ktau>0 ) then ! averages not added at time zero
     sgn_ave(istart:iend)  = sgn_ave(istart:iend)  + sgn(istart:iend)
     sgdn_ave(istart:iend) = sgdn_ave(istart:iend) + sgdn(istart:iend)
+    fbeam_ave(istart:iend) = fbeam_ave(istart:iend) + fbeam(istart:iend)
     where ( sgdn(istart:iend)>120. )
       sunhours(istart:iend) = sunhours(istart:iend) + 86400.
     end where
@@ -1332,6 +1335,7 @@ fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 
 allocate(sgn_amp(ifull),sgdn_amp(ifull),sw_tend_amp(ifull,kl))
+allocate(fbeam_amp(ifull))
 
 ! initialise co2
 call co2_read(sig,jyear)

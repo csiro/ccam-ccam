@@ -100,6 +100,7 @@ c     parameters for the aerosol calculation
       real, dimension(:,:), allocatable, save :: hlwsav,hswsav
       real, dimension(:,:), allocatable, save :: sw_tend_amp
       real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
+      real, dimension(:), allocatable, save :: fbeam_amp
       
 c     Following are for cloud2 routine
       real t2(ixin,kl),ql2(ixin,kl),qf2(ixin,kl),cf2(ixin,kl),
@@ -123,8 +124,8 @@ c     Stuff from cldset
       
       real rhoa(ixin,kl)
 
-      logical clforflag, solarfit
-      parameter (clforflag = .true., solarfit=.true.)
+      logical clforflag
+      parameter (clforflag = .true.)
       logical cldoff
       integer, dimension(12) :: ndoy   ! days from beginning of year (1st Jan is 0)
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
@@ -200,6 +201,7 @@ c     Stuff from cldset
 
          allocate(hlwsav(ifull,kl),hswsav(ifull,kl))
          allocate(sgn_amp(ifull),sgdn_amp(ifull))
+         allocate(fbeam_amp(ifull))
          allocate(sw_tend_amp(ifull,kl))
       
          if(ntest==1)write(6,*)'id,jd,imax,idrad,jdrad0,jdrad ',
@@ -250,11 +252,9 @@ C---------------------------------------------------------------------*
       endif       ! (ldr==0)
 
 !     Calculate sun position
-      if ( solarfit .or. odcalc ) then
-         call solargh(fjd,bpyear,r1,dlt,alp,slag)
-         ssolar = csolar / (r1**2)
-         if(ntest.eq.9)ssolar=0.
-      end if
+      call solargh(fjd,bpyear,r1,dlt,alp,slag)
+      ssolar = csolar / (r1**2)
+      if(ntest.eq.9)ssolar=0.
 
 !     Main loop over rows. imax/il is the number of rows done at once
       if(mod(ifull,imax).ne.0)then
@@ -266,15 +266,13 @@ C---------------------------------------------------------------------*
       iend=istart+imax-1
       if(ntest==1)write(6,*)'in radriv90 j = ',j
 !     Calculate zenith angle for the solarfit calculation.
-      if ( solarfit ) then
-!        This call averages zenith angle just over this time step.
-         dhr = dt/3600.0
-         call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
-     &               rlongg(istart:iend),dhr,imax,coszro2,taudar2)
-         call atebccangle(istart,imax,coszro2(1:imax) ! MJT urban
-     &    ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt
-     &    ,sin(dlt)) 
-      end if    !  ( solarfit )
+!     This call averages zenith angle just over this time step.
+      dhr = dt/3600.0
+      call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
+     &            rlongg(istart:iend),dhr,imax,coszro2,taudar2)
+      call atebccangle(istart,imax,coszro2(1:imax) ! MJT urban
+     & ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt
+     & ,sin(dlt)) 
 
       if ( odcalc ) then     ! Do the calculation
 
@@ -569,6 +567,7 @@ c       write(24,*)coszro2
       call spitter(imax,fjd,coszro,sgdn(istart:iend),
      &             fbeamvis(istart:iend))
       fbeamnir(istart:iend)=fbeamvis(istart:iend)
+      fbeam(istart:iend) = fbeamvis(istart:iend)
       
       if(ntest>0.and.j==jdrad)then
         write(6,*)'idrad,j,sint,sout,soutclr,cuvrf1 ',
@@ -608,36 +607,29 @@ c         Convert from cgs to SI units
          end do
       end do
 
-      if ( solarfit ) then
-c       Calculate the amplitude of the diurnal cycle of solar radiation
-c       at the surface (using the value for the middle of the radiation
-c       step) and use this value to get solar radiation at other times.
-c       Use the zenith angle and daylight fraction calculated in zenith
-c       to remove these factors.
+c     Calculate the amplitude of the diurnal cycle of solar radiation
+c     at the surface (using the value for the middle of the radiation
+c     step) and use this value to get solar radiation at other times.
+c     Use the zenith angle and daylight fraction calculated in zenith
+c     to remove these factors.
 
-        do i=1,imax
-           iq=i+(j-1)*il 
-           if ( coszro(i)*taudar(i) .le. 1.e-5 ) then ! 1.e-5 to avoid precision problems
-c             The sun isn't up at all over the radiation period so no 
-c             fitting need be done.
-              sgn_amp(iq)     = 0.
-              sgdn_amp(iq)    = 0.
-              sw_tend_amp(iq,1:kl) = 0.
-           else
-              sgn_amp(iq)     = sgn(iq) / (coszro(i)*taudar(i))
-              sgdn_amp(iq)    = sgdn(iq) / (coszro(i)*taudar(i))
-              sw_tend_amp(iq,1:kl) = sw_tend(iq,1:kl)
-     &                        / (coszro(i)*taudar(i))
-           end if
-        end do
-      else
-        do i=1,imax
-          iq=i+(j-1)*il  
-          sgn_amp(iq)     = 0.
-          sgdn_amp(iq)    = 0.
-          sw_tend_amp(iq,1:kl) = 0.
-        end do
-      end if    !  ( solarfit )
+      do i=1,imax
+         iq=i+(j-1)*il 
+         if ( coszro(i)*taudar(i) .le. 1.e-5 ) then ! 1.e-5 to avoid precision problems
+c           The sun isn't up at all over the radiation period so no 
+c           fitting need be done.
+            sgn_amp(iq)  = 0.
+            sgdn_amp(iq) = 0.
+            fbeam_amp(iq) = 0.
+            sw_tend_amp(iq,1:kl) = 0.
+         else
+            sgn_amp(iq)  = sgn(iq) / (coszro(i)*taudar(i))
+            sgdn_amp(iq) = sgdn(iq) / (coszro(i)*taudar(i))
+            fbeam_amp(iq) = fbeam(iq) / (coszro(i)*taudar(i))
+            sw_tend_amp(iq,1:kl) = sw_tend(iq,1:kl)
+     &                      / (coszro(i)*taudar(i))
+         end if
+      end do
 
 !     Save things for non-radiation time steps
       fractss=.05
@@ -652,8 +644,6 @@ c        Save the value excluding Ts^4 part.  This is allowed to change.
          rtsave(iq) = rt(i) 
          rtclsave(iq) = rtclr(i)  
          sgclsave(iq) = sgclr(i)
-         fbeam(iq)    = fbeamvis(iq)*swrsave(iq)
-     &                 +fbeamnir(iq)*(1.-swrsave(iq))
       end do
 
 c     cloud amounts for saving
@@ -684,33 +674,25 @@ c     cloud amounts for saving
          clh_ave(iq)  = clh_ave(iq)  + cloudhi(iq)
 !         alb_ave(iq)  = alb_ave(iq)  + swrsave(iq)*albvisnir(iq,1)
 !     &                               +(1.-swrsave(iq))*albvisnir(iq,2)
-         fbeam_ave(iq)= fbeam_ave(iq) + fbeam(iq)
         end do
       endif   ! (ktau>0)
       
       end if  ! odcalc
       
-      if (solarfit) then 
-!        Calculate the solar using the saved amplitude.
-         do i=1,imax
-          iq=i+(j-1)*il
-          sgn(iq)  = sgn_amp(iq)*coszro2(i)*taudar2(i)
-          sgdn(iq) = sgdn_amp(iq)*coszro2(i)*taudar2(i)
-         end do
-      else
-         do i=1,imax
-          iq=i+(j-1)*il
-          sgn(iq) = sgsave(iq)
-          sgdn(iq) = sgsave(iq) / ( 1. - swrsave(iq)*albvisnir(iq,1)
-     &            -(1.-swrsave(iq))*albvisnir(iq,2) )
-         end do
-      end if  ! (solarfit) .. else ..
+!     Calculate the solar using the saved amplitude.
+      do i=1,imax
+       iq=i+(j-1)*il
+       sgn(iq)  = sgn_amp(iq)*coszro2(i)*taudar2(i)
+       sgdn(iq) = sgdn_amp(iq)*coszro2(i)*taudar2(i)
+       fbeam(iq) = fbeam_amp(iq)*coszro2(i)*taudar2(i)
+      end do
       
       if(ktau>0)then ! averages not added at time zero
        do i=1,imax
          iq=i+(j-1)*il
          sgn_ave(iq)  = sgn_ave(iq)  + sgn(iq)
          sgdn_ave(iq) = sgdn_ave(iq) + sgdn(iq)
+         fbeam_ave(iq)= fbeam_ave(iq) + fbeam(iq)
          if ( sgdn(iq)>120. ) then
            sunhours(iq)=sunhours(iq)+86400.
          end if
@@ -734,14 +716,12 @@ c slwa is negative net radiational htg at ground
       endif
 
 ! Update SW if solarfit is true
-      if ( solarfit ) then
-        do k=1,kl
-           do i=1,imax
-              iq=i+(j-1)*il
-              sw_tend(iq,k)=sw_tend_amp(iq,k)*coszro2(i)*taudar2(i)
-           end do
-        end do
-      end if  
+      do k=1,kl
+         do i=1,imax
+            iq=i+(j-1)*il
+            sw_tend(iq,k)=sw_tend_amp(iq,k)*coszro2(i)*taudar2(i)
+         end do
+      end do
 
       
  100  continue  ! Row loop (j)  j=1,jl,imax/il

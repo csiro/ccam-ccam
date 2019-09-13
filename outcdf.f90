@@ -2694,7 +2694,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
       call histwrt(sgc_ave,'sgc_ave',idnc,iarch,local,lrad)
       aa(:) = sunhours(:)/3600.
       call histwrt(aa,'sunhours',idnc,iarch,local,lave)
-      call histwrt(fbeam_ave,'fbeam_ave',idnc,iarch,local,lrad)
+      call histwrt(fbeam_ave,'fbeam_ave',idnc,iarch,local,lave)
     end if
     call histwrt(dpsdt,'dpsdt',idnc,iarch,local,lwrite)
   endif   ! nextout>=1
@@ -3702,7 +3702,7 @@ if ( diaglevel_pbl>3 ) then
   freqstore(1:ifull,20) = ua250
   freqstore(1:ifull,21) = va250
 end if
-freqstore(1:ifull,22) = cloudtot
+freqstore(1:ifull,22) = freqstore(1:ifull,22) + cloudtot/real(tbave)
 
 ! write data to file
 if ( mod(ktau,tbave)==0 ) then

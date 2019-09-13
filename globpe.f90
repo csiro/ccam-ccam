@@ -3985,6 +3985,7 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   end do
   sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
   sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
+  fbeam_ave(1:ifull)  = fbeam_ave(1:ifull)/min(ntau,nperavg)
   sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)
   sot_ave(1:ifull)    = sot_ave(1:ifull)/max(koundiag,1)
   soc_ave(1:ifull)    = soc_ave(1:ifull)/max(koundiag,1)
@@ -3999,7 +4000,6 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   clm_ave(1:ifull)    = clm_ave(1:ifull)/max(koundiag,1)
   clh_ave(1:ifull)    = clh_ave(1:ifull)/max(koundiag,1)
   !alb_ave(1:ifull)    = alb_ave(1:ifull)/max(koundiag,1)
-  fbeam_ave(1:ifull)  = fbeam_ave(1:ifull)/max(koundiag,1)
   cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
   ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
  
