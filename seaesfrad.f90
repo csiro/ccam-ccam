@@ -70,7 +70,7 @@ logical, parameter :: include_volcanoes  = .false.
 logical, save :: do_aerosol_forcing ! =.true. when abs(iaero)>=2
 
 integer, save :: nlow, nmid
-real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
+real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp, dni_amp
 real, dimension(:,:), allocatable, save :: sw_tend_amp
 real(kind=8), dimension(:,:), allocatable, save :: pref
 
@@ -176,8 +176,7 @@ integer ktop, kbot, mythread
 real, dimension(imax,kl) :: duo3n, rhoa
 real, dimension(imax,kl) :: p2, cd2, dumcf, dumql, dumqf, dumt, dz
 real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
-real, dimension(imax) :: sint, sout, rt, sgdnvis, sgdnnir
-real, dimension(imax) :: soutclr, sgclr, rtclr, rgclr
+real, dimension(imax) :: sgdnvis, sgdnnir
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
 real, dimension(imax) :: dzrho, dumtss
 real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif
@@ -228,7 +227,7 @@ end if
 !$omp private(sigh,duo3n,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,rhoa,dz,i,iq,cosz),       &
 !$omp private(delta,k,kr,dzrho,cd2,mx,dumt,p2,ktop,kbot,dumcf),                            &
 !$omp private(dumql,dumqf,sgdnvis,sgdnnir,sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir),         &
-!$omp private(sgdnnirdif,rt,sint,sout,soutclr,sgclr,rtclr,rgclr)
+!$omp private(sgdnnirdif,rt)
 do iq_tile = 1,ifull,imax
   istart = iq_tile
   iend   = istart + imax - 1
@@ -605,6 +604,11 @@ do iq_tile = 1,ifull,imax
     end where
     fbeam(istart:iend) = fbeamvis(istart:iend)*swrsave(istart:iend) &
                        + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
+    where ( coszro<=1.e-5 )
+      dni(istart:iend) = 0.
+    elsewhere
+      dni(istart:iend) = (sgdnvisdir+sgdnnirdir)/coszro
+    end where
     
     ! Store albedo data ---------------------------------------------
     albvisnir(istart:iend,1) = real(Surface(mythread)%asfc_vis_dir(:,1))*fbeamvis(istart:iend)      &
@@ -614,25 +618,25 @@ do iq_tile = 1,ifull,imax
     
     ! longwave output -----------------------------------------------
     rgn(istart:iend) = real(Lw_output(mythread)%flxnet(:,1,kl+1))          ! longwave at surface
-    rt(1:imax) = real(Lw_output(mythread)%flxnet(:,1,1))                   ! longwave at top
+    rt(istart:iend) = real(Lw_output(mythread)%flxnet(:,1,1))              ! longwave at top
     ! rg = -Rnet = Rup - Rdown = stefbo T^4 - Rdown
     rgdn(istart:iend) = stefbo*tss(istart:iend)**4 - rgn(istart:iend)
 
     ! shortwave output ----------------------------------------------
-    sint(1:imax) = real(Sw_output(mythread)%dfsw(:,1,1,1))   ! solar in top
-    sout(1:imax) = real(Sw_output(mythread)%ufsw(:,1,1,1))   ! solar out top
+    sint(istart:iend) = real(Sw_output(mythread)%dfsw(:,1,1,1))   ! solar in top
+    sout(istart:iend) = real(Sw_output(mythread)%ufsw(:,1,1,1))   ! solar out top
 
     ! Clear sky calculation -----------------------------------------
     if ( do_totcld_forcing ) then
-      soutclr(1:imax) = real(Sw_output(mythread)%ufswcf(:,1,1,1))      ! solar out top
-      sgclr(1:imax)   = -real(Sw_output(mythread)%fswcf(:,1,kl+1,1))   ! solar absorbed at the surface
-      rtclr(1:imax)   = real(Lw_output(mythread)%flxnetcf(:,1,1))      ! clr sky lw at top
-      rgclr(1:imax)   = real(Lw_output(mythread)%flxnetcf(:,1,kl+1))   ! clear sky longwave at surface
+      soutclr(istart:iend) = real(Sw_output(mythread)%ufswcf(:,1,1,1))      ! solar out top
+      sgclr(istart:iend)   = -real(Sw_output(mythread)%fswcf(:,1,kl+1,1))   ! solar absorbed at the surface
+      rtclr(istart:iend)   = real(Lw_output(mythread)%flxnetcf(:,1,1))      ! clr sky lw at top
+      rgclr(istart:iend)   = real(Lw_output(mythread)%flxnetcf(:,1,kl+1))   ! clear sky longwave at surface
     else
-      soutclr(1:imax) = 0.
-      sgclr(1:imax)   = 0.
-      rtclr(1:imax)   = 0.
-      rgclr(1:imax)   = 0.
+      soutclr(istart:iend) = 0.
+      sgclr(istart:iend)   = 0.
+      rtclr(istart:iend)   = 0.
+      rgclr(istart:iend)   = 0.
     end if
 
     ! heating rate --------------------------------------------------
@@ -751,9 +755,11 @@ do iq_tile = 1,ifull,imax
       ! fitting need be done.
       sgn_amp(istart:iend)  = 0.
       sgdn_amp(istart:iend) = 0.
+      dni_amp(istart:iend)  = 0.
     elsewhere
       sgn_amp(istart:iend)  = sgn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
       sgdn_amp(istart:iend) = sgdn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
+      dni_amp(istart:iend)  = dni(istart:iend)/taudar(1:imax)
     end where
     do k = 1,kl
       where ( coszro(1:imax)*taudar(1:imax)<=1.E-5 )
@@ -767,35 +773,9 @@ do iq_tile = 1,ifull,imax
     sgsave(istart:iend)   = sgn(istart:iend)   ! repeated after solarfit
     ! Save the value excluding Ts^4 part.  This is allowed to change.
     rgsave(istart:iend)   = rgn(istart:iend) - stefbo*tss(istart:iend)**4
-    sintsave(istart:iend) = sint(1:imax) 
-    rtsave(istart:iend)   = rt(1:imax) 
-    rtclsave(istart:iend) = rtclr(1:imax)  
-    sgclsave(istart:iend) = sgclr(1:imax)
 
     ! cloud amounts for saving --------------------------------------
     cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
-
-    ! Use explicit indexing rather than array notation so that we can run
-    ! over the end of the first index
-    if ( ktau>0 ) then ! averages not added at time zero
-      if ( iq_tile==1 ) koundiag = koundiag + 1  
-      sint_ave(istart:iend)  = sint_ave(istart:iend) + sint(1:imax)
-      sot_ave(istart:iend)   = sot_ave(istart:iend)  + sout(1:imax)
-      soc_ave(istart:iend)   = soc_ave(istart:iend)  + soutclr(1:imax)
-      rtu_ave(istart:iend)   = rtu_ave(istart:iend)  + rt(1:imax)
-      rtc_ave(istart:iend)   = rtc_ave(istart:iend)  + rtclr(1:imax)
-      rgn_ave(istart:iend)   = rgn_ave(istart:iend)  + rgn(istart:iend)
-      rgc_ave(istart:iend)   = rgc_ave(istart:iend)  + rgclr(1:imax)
-      rgdn_ave(istart:iend)  = rgdn_ave(istart:iend) + rgdn(istart:iend)
-      sgc_ave(istart:iend)   = sgc_ave(istart:iend)  + sgclr(1:imax)
-      cld_ave(istart:iend)   = cld_ave(istart:iend)  + cloudtot(istart:iend)
-      cll_ave(istart:iend)   = cll_ave(istart:iend)  + cloudlo(istart:iend)
-      clm_ave(istart:iend)   = clm_ave(istart:iend)  + cloudmi(istart:iend)
-      clh_ave(istart:iend)   = clh_ave(istart:iend)  + cloudhi(istart:iend)
-      !alb_ave(istart:iend)   = alb_ave(istart:iend)+swrsave(istart:iend)*albvisnir(istart:iend,1) &
-      !                         + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
-      fbeam_ave(istart:iend) = fbeam_ave(istart:iend) + fbeam(istart:iend)
-    endif   ! (ktau>0)
     
     ! Store fraction of direct radiation in urban scheme
     call atebfbeam(istart,imax,fbeam(istart:iend),0)
@@ -805,13 +785,7 @@ do iq_tile = 1,ifull,imax
   ! Calculate the solar using the saved amplitude.
   sgn(istart:iend)  = sgn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
   sgdn(istart:iend) = sgdn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
-  if ( ktau>0 ) then ! averages not added at time zero
-    sgn_ave(istart:iend)  = sgn_ave(istart:iend)  + sgn(istart:iend)
-    sgdn_ave(istart:iend) = sgdn_ave(istart:iend) + sgdn(istart:iend)
-    where ( sgdn(istart:iend)>120. )
-      sunhours(istart:iend) = sunhours(istart:iend) + 86400.
-    end where
-  endif  ! (ktau>0)
+  dni(istart:iend)  = dni_amp(istart:iend)*taudar2(1:imax)
       
   ! Set up the CC model radiation fields
   ! slwa is negative net radiational htg at ground
@@ -1331,7 +1305,7 @@ fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 ! Calculate sun position
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 
-allocate(sgn_amp(ifull),sgdn_amp(ifull),sw_tend_amp(ifull,kl))
+allocate(sgn_amp(ifull),sgdn_amp(ifull),dni_amp(ifull),sw_tend_amp(ifull,kl))
 
 ! initialise co2
 call co2_read(sig,jyear)

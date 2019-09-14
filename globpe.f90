@@ -3713,7 +3713,6 @@ wbice_ave(:,:)       = 0.
 fbeam_ave(:)         = 0.
 
 ! radiation
-koundiag             = 0
 sint_ave(:)          = 0.
 sot_ave(:)           = 0.
 soc_ave(:)           = 0.
@@ -3729,6 +3728,7 @@ cld_ave(:)           = 0.
 cll_ave(:)           = 0.
 clm_ave(:)           = 0.
 clh_ave(:)           = 0.
+dni_ave(:)           = 0.
 
 ! zero evap, precip, precc, sno, runoff fields each nperavg (3/12/04) 
 evap(:)              = 0.  
@@ -3862,6 +3862,7 @@ use cable_ccam, only : ccycle              ! CABLE
 use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
     ,frpw,frpr,frs,cnpp,cnbp,fevc        &
     ,plant_turnover,plant_turnover_wood
+use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
 use mlo, only : mlodiag                    ! Ocean physics and prognostic arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -3955,6 +3956,27 @@ if ( ccycle/=0 ) then
   end if
 end if
 
+sgn_ave(1:ifull)  = sgn_ave(1:ifull)  + sgn(1:ifull)
+sgdn_ave(1:ifull) = sgdn_ave(1:ifull) + sgdn(1:ifull)
+fbeam_ave(1:ifull) = fbeam_ave(1:ifull) + fbeam(1:ifull)
+sint_ave(1:ifull)  = sint_ave(1:ifull) + sint(1:ifull)
+sot_ave(1:ifull)   = sot_ave(1:ifull)  + sout(1:ifull)
+soc_ave(1:ifull)   = soc_ave(1:ifull)  + soutclr(1:ifull)
+rtu_ave(1:ifull)   = rtu_ave(1:ifull)  + rt(1:ifull)
+rtc_ave(1:ifull)   = rtc_ave(1:ifull)  + rtclr(1:ifull)
+rgn_ave(1:ifull)   = rgn_ave(1:ifull)  + rgn(1:ifull)
+rgc_ave(1:ifull)   = rgc_ave(1:ifull)  + rgclr(1:ifull)
+rgdn_ave(1:ifull)  = rgdn_ave(1:ifull) + rgdn(1:ifull)
+sgc_ave(1:ifull)   = sgc_ave(1:ifull)  + sgclr(1:ifull)
+cld_ave(1:ifull)   = cld_ave(1:ifull)  + cloudtot(1:ifull)
+cll_ave(1:ifull)   = cll_ave(1:ifull)  + cloudlo(1:ifull)
+clm_ave(1:ifull)   = clm_ave(1:ifull)  + cloudmi(1:ifull)
+clh_ave(1:ifull)   = clh_ave(1:ifull)  + cloudhi(1:ifull)
+dni_ave(1:ifull)   = dni_ave(1:ifull)  + dni(1:ifull)
+where ( sgdn(1:ifull)>120. )
+  sunhours(1:ifull) = sunhours(1:ifull) + 86400.
+end where
+
 if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   cape_ave(1:ifull)          = cape_ave(1:ifull)/min(ntau,nperavg)
   dew_ave(1:ifull)           = dew_ave(1:ifull)/min(ntau,nperavg)
@@ -3981,21 +4003,21 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   end do
   sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
   sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
-  sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)
-  sot_ave(1:ifull)    = sot_ave(1:ifull)/max(koundiag,1)
-  soc_ave(1:ifull)    = soc_ave(1:ifull)/max(koundiag,1)
-  rtu_ave(1:ifull)    = rtu_ave(1:ifull)/max(koundiag,1)
-  rtc_ave(1:ifull)    = rtc_ave(1:ifull)/max(koundiag,1)
-  rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
-  rgn_ave(1:ifull)    = rgn_ave(1:ifull)/max(koundiag,1)
-  rgc_ave(1:ifull)    = rgc_ave(1:ifull)/max(koundiag,1)
-  sgc_ave(1:ifull)    = sgc_ave(1:ifull)/max(koundiag,1)
-  cld_ave(1:ifull)    = cld_ave(1:ifull)/max(koundiag,1)
-  cll_ave(1:ifull)    = cll_ave(1:ifull)/max(koundiag,1)
-  clm_ave(1:ifull)    = clm_ave(1:ifull)/max(koundiag,1)
-  clh_ave(1:ifull)    = clh_ave(1:ifull)/max(koundiag,1)
-  !alb_ave(1:ifull)    = alb_ave(1:ifull)/max(koundiag,1)
-  fbeam_ave(1:ifull)  = fbeam_ave(1:ifull)/max(koundiag,1)
+  sint_ave(1:ifull)   = sint_ave(1:ifull)/min(ntau,nperavg)
+  sot_ave(1:ifull)    = sot_ave(1:ifull)/min(ntau,nperavg)
+  soc_ave(1:ifull)    = soc_ave(1:ifull)/min(ntau,nperavg)
+  rtu_ave(1:ifull)    = rtu_ave(1:ifull)/min(ntau,nperavg)
+  rtc_ave(1:ifull)    = rtc_ave(1:ifull)/min(ntau,nperavg)
+  rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/min(ntau,nperavg)
+  rgn_ave(1:ifull)    = rgn_ave(1:ifull)/min(ntau,nperavg)
+  rgc_ave(1:ifull)    = rgc_ave(1:ifull)/min(ntau,nperavg)
+  sgc_ave(1:ifull)    = sgc_ave(1:ifull)/min(ntau,nperavg)
+  cld_ave(1:ifull)    = cld_ave(1:ifull)/min(ntau,nperavg)
+  cll_ave(1:ifull)    = cll_ave(1:ifull)/min(ntau,nperavg)
+  clm_ave(1:ifull)    = clm_ave(1:ifull)/min(ntau,nperavg)
+  clh_ave(1:ifull)    = clh_ave(1:ifull)/min(ntau,nperavg)
+  fbeam_ave(1:ifull)  = fbeam_ave(1:ifull)/min(ntau,nperavg)
+  dni_ave(1:ifull)    = dni_ave(1:ifull)/min(ntau,nperavg) 
   cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
   ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
  
@@ -4073,6 +4095,7 @@ use nsibd_m                                ! Land-surface arrays
 use parm_m                                 ! Model configuration
 use pbl_m                                  ! Boundary layer arrays
 use prec_m                                 ! Precipitation
+use raddiag_m                              ! Radiation diagnostic
 use screen_m                               ! Screen level diagnostics
 use sigs_m                                 ! Atmosphere sigma levels
 use soil_m                                 ! Soil and surface data
@@ -4122,7 +4145,7 @@ if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
   write (6,"('ps,qgscrn',5f8.2,f8.3)") .01*ps(idjd),1000.*qgscrn(idjd)
   write (6,"('dew_,eg_,epot,epan,eg,fg,ga',9f8.2)") dew_ave(idjd),eg_ave(idjd),epot(idjd),epan(idjd),eg(idjd),fg(idjd),ga(idjd)
   write (6,"('zo,cduv',2f8.5)") zo(idjd),cduv(idjd)/vmod(idjd)
-  write (6,"('slwa,sint,sg,rt,rg    ',9f8.2)") slwa(idjd),sintsave(idjd),sgsave(idjd),rtsave(idjd),rgsave(idjd)
+  write (6,"('slwa,sint,sg,rt,rg    ',9f8.2)") slwa(idjd),sint(idjd),sgsave(idjd),rt(idjd),rgsave(idjd)
   write (6,"('cll,clm,clh,clt ',9f8.2)") cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
   write (6,"('u10max,v10max,rhmin,rhmax   ',9f8.2)") u10max(iq),v10max(iq),rhminscr(iq),rhmaxscr(iq)
   write (6,"('kbsav,ktsav,convpsav ',2i3,f8.4,9f8.2)") kbsav(idjd),ktsav(idjd),convpsav(idjd)

@@ -995,8 +995,8 @@ character(len=21) mnam, nnam
 character(len=20) vname
 character(len=3) trnum
 logical, intent(in) :: local
-logical lwrite, lave, lrad, lday
-logical lwrite_0, lave_0, lrad_0, lday_0 ! includes the zeroth time-step when using restart
+logical lwrite, lave, lday
+logical lwrite_0, lave_0, lday_0 ! includes the zeroth time-step when using restart
 logical l3hr
 
 ! flags to control output
@@ -1006,10 +1006,6 @@ lave     = mod(ktau,nperavg)==0.or.ktau==ntau
 lave     = lave.and.lwrite
 lave_0   = mod(ktau,nperavg)==0.or.ktau==ntau
 lave_0   = lave_0.and.lwrite_0
-lrad     = mod(ktau,kountr)==0.or.ktau==ntau
-lrad     = lrad.and.lwrite
-lrad_0   = mod(ktau,kountr)==0.or.ktau==ntau
-lrad_0   = lrad_0.and.lwrite_0
 lday     = mod(ktau,nperday)==0.or.ktau==ntau
 lday     = lday.and.lwrite
 lday_0   = mod(ktau,nperday)==0.or.ktau==ntau
@@ -1563,6 +1559,8 @@ if( myid==0 .or. local ) then
           call attrib(idnc,dimj,jsize,'sunhours',lname,'hrs',0.,24.,0,cptype)
           lname = 'Fraction of direct radiation'
           call attrib(idnc,dimj,jsize,'fbeam_ave',lname,'none',-3.25,3.25,0,cptype)
+          lname = 'Direct normal irradiance'
+          call attrib(idnc,dimj,jsize,'dni',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
         end if
         lname = 'Surface pressure tendency'
         call attrib(idnc,dimj,jsize,'dpsdt',lname,'hPa/day',-400.,400.,0,cptype)
@@ -2618,10 +2616,10 @@ if ( itype/=-1 ) then  ! these not written to restart file
     call histwrt(rlwp_ave,'lwp_ave',idnc,iarch,local,lave)
   end if
   if ( save_cloud ) then
-    call histwrt(cll_ave,'cll',idnc,iarch,local,lrad_0)
-    call histwrt(clm_ave,'clm',idnc,iarch,local,lrad_0)
-    call histwrt(clh_ave,'clh',idnc,iarch,local,lrad_0)
-    call histwrt(cld_ave,'cld',idnc,iarch,local,lrad_0)
+    call histwrt(cll_ave,'cll',idnc,iarch,local,lave)
+    call histwrt(clm_ave,'clm',idnc,iarch,local,lave)
+    call histwrt(clh_ave,'clh',idnc,iarch,local,lave)
+    call histwrt(cld_ave,'cld',idnc,iarch,local,lave)
   end if
 end if
 if ( save_land .or. itype==-1 ) then
@@ -2642,11 +2640,6 @@ if ( save_land .or. itype==-1 ) then
   call histwrt(aa,'snm',idnc,iarch,local,lwrite)
 end if
 if ( itype/=-1 ) then  ! these not written to restart file  
-  !if ( save_land .or. save_ocean ) then
-  !  call histwrt(tsu_ave,'tsu_ave',idnc,iarch,local,lave)
-  !  call histwrt(alb_ave,'alb_ave',idnc,iarch,local,lrad)
-  !end if
-  !call histwrt(psl_ave,'pmsl_ave',idnc,iarch,local,lave)
   if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean ) then
     aa = 0.  
     call mlodiag(aa,0)  
@@ -2681,20 +2674,21 @@ if ( itype/=-1 ) then  ! these not written to restart file
   ! "extra" outputs
   if ( nextout>=1 ) then
     if ( save_radiation ) then
-      call histwrt(rtu_ave,'rtu_ave',idnc,iarch,local,lrad)
-      call histwrt(rtc_ave,'rtc_ave',idnc,iarch,local,lrad)
-      call histwrt(rgdn_ave,'rgdn_ave',idnc,iarch,local,lrad)
-      call histwrt(rgn_ave,'rgn_ave',idnc,iarch,local,lrad)
-      call histwrt(rgc_ave,'rgc_ave',idnc,iarch,local,lrad)
-      call histwrt(sint_ave,'sint_ave',idnc,iarch,local,lrad)
-      call histwrt(sot_ave,'sot_ave',idnc,iarch,local,lrad)
-      call histwrt(soc_ave,'soc_ave',idnc,iarch,local,lrad)
+      call histwrt(rtu_ave,'rtu_ave',idnc,iarch,local,lave)
+      call histwrt(rtc_ave,'rtc_ave',idnc,iarch,local,lave)
+      call histwrt(rgdn_ave,'rgdn_ave',idnc,iarch,local,lave)
+      call histwrt(rgn_ave,'rgn_ave',idnc,iarch,local,lave)
+      call histwrt(rgc_ave,'rgc_ave',idnc,iarch,local,lave)
+      call histwrt(sint_ave,'sint_ave',idnc,iarch,local,lave)
+      call histwrt(sot_ave,'sot_ave',idnc,iarch,local,lave)
+      call histwrt(soc_ave,'soc_ave',idnc,iarch,local,lave)
       call histwrt(sgdn_ave,'sgdn_ave',idnc,iarch,local,lave)
       call histwrt(sgn_ave,'sgn_ave',idnc,iarch,local,lave)
-      call histwrt(sgc_ave,'sgc_ave',idnc,iarch,local,lrad)
+      call histwrt(sgc_ave,'sgc_ave',idnc,iarch,local,lave)
       aa(:) = sunhours(:)/3600.
       call histwrt(aa,'sunhours',idnc,iarch,local,lave)
       call histwrt(fbeam_ave,'fbeam_ave',idnc,iarch,local,lave)
+      call histwrt(dni_ave,'dni',idnc,iarch,local,lave)
     end if
     call histwrt(dpsdt,'dpsdt',idnc,iarch,local,lwrite)
   endif   ! nextout>=1
@@ -3560,6 +3554,10 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'rhscrn_stn',lname,'%',0.,200.,0,1)
     lname = 'Screen mixing ratio (station)'
     call attrib(fncid,sdim,ssize,'qgscrn_stn',lname,'kg/kg',0.,0.06,0,1)
+    lname = 'Total cloud ave'
+    call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)
+    lname = 'Direct normal irradiance'
+    call attrib(fncid,sdim,ssize,'dni',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
     if ( diaglevel_pbl>3 ) then
       lname='x-component 150m wind'
       call attrib(fncid,sdim,ssize,'ua150',lname,'m/s',-130.,130.,0,1)
@@ -3570,8 +3568,6 @@ if ( first ) then
       lname='y-component 250m wind'     
       call attrib(fncid,sdim,ssize,'va250',lname,'m/s',-130.,130.,0,1)
     end if
-    lname = 'Total cloud ave'
-    call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -3689,27 +3685,27 @@ freqstore(1:ifull,7)  = freqstore(1:ifull,7)  + condg*86400./dt/real(tbave)
 freqstore(1:ifull,8)  = pmsl/100.
 freqstore(1:ifull,9)  = freqstore(1:ifull,9)  + sgdn/real(tbave)
 freqstore(1:ifull,10) = psl
-freqstore(1:ifull,11) = freqstore(1:ifull,11) + fbeam/real(tbave)
-freqstore(1:ifull,12) = qgscrn
-freqstore(1:ifull,13) = u10_stn*u(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,14) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,15) = tscrn_stn
-freqstore(1:ifull,16) = rhscrn_stn
-freqstore(1:ifull,17) = qgscrn_stn
+freqstore(1:ifull,11) = qgscrn
+freqstore(1:ifull,12) = u10_stn*u(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,13) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,14) = tscrn_stn
+freqstore(1:ifull,15) = rhscrn_stn
+freqstore(1:ifull,16) = qgscrn_stn
+freqstore(1:ifull,17) = freqstore(1:ifull,18) + cloudtot/real(tbave)
+freqstore(1:ifull,18) = freqstore(1:ifull,19) + dni/real(tbave)
 if ( diaglevel_pbl>3 ) then
-  freqstore(1:ifull,18) = ua150
-  freqstore(1:ifull,19) = va150
-  freqstore(1:ifull,20) = ua250
-  freqstore(1:ifull,21) = va250
+  freqstore(1:ifull,19) = ua150
+  freqstore(1:ifull,20) = va150
+  freqstore(1:ifull,21) = ua250
+  freqstore(1:ifull,22) = va250
 end if
-freqstore(1:ifull,22) = freqstore(1:ifull,22) + cloudtot/real(tbave)
 
 ! write data to file
 if ( mod(ktau,tbave)==0 ) then
     
   if ( myid==0 .or. local ) then
     if ( myid==0 ) then
-      write(6,*) "Write high frequency output"
+      write(6,*) "Write high-frequency output"
     end if
     fiarch = ktau/tbave
     tpnt = real(ktau,8)*real(dt,8)
@@ -3730,20 +3726,20 @@ if ( mod(ktau,tbave)==0 ) then
   call histwrt(freqstore(:,8),"pmsl",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,9),"sgdn_ave",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,10),"psf",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,11),"fbeam_ave",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,12),"qgscrn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,13),"uas_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,14),"vas_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,15),"tscrn_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,16),"rhscrn_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,17),"qgscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,11),"qgscrn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,12),"uas_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,13),"vas_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,14),"tscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,15),"rhscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,16),"qgscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,17),"cld",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,18),"dni",fncid,fiarch,local,.true.)
   if ( diaglevel_pbl>3 ) then
-    call histwrt(freqstore(:,18),"ua150",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,19),"va150",fncid,fiarch,local,.true.)      
-    call histwrt(freqstore(:,20),"ua250",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,21),"va250",fncid,fiarch,local,.true.)      
+    call histwrt(freqstore(:,19),"ua150",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,20),"va150",fncid,fiarch,local,.true.)      
+    call histwrt(freqstore(:,21),"ua250",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,22),"va250",fncid,fiarch,local,.true.)      
   end if
-  call histwrt(freqstore(:,22),"cld",fncid,fiarch,local,.true.)
   
   freqstore(:,:) = 0.
 

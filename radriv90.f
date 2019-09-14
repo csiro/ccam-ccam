@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -95,11 +95,10 @@ c     parameters for the aerosol calculation
       real sigh(kl+1)
 
 !     Radiation fields (CSIRO GCM names)
-      real sgclr(ixin), sint(ixin), sout(ixin), soutclr(ixin)
-      real rgclr(ixin), rt(ixin), rtclr(ixin)
       real, dimension(:,:), allocatable, save :: hlwsav,hswsav
       real, dimension(:,:), allocatable, save :: sw_tend_amp
       real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
+      real, dimension(:), allocatable, save :: dni_amp
       
 c     Following are for cloud2 routine
       real t2(ixin,kl),ql2(ixin,kl),qf2(ixin,kl),cf2(ixin,kl),
@@ -199,7 +198,7 @@ c     Stuff from cldset
          call work3lwr_init(kl,imax)      
 
          allocate(hlwsav(ifull,kl),hswsav(ifull,kl))
-         allocate(sgn_amp(ifull),sgdn_amp(ifull))
+         allocate(sgn_amp(ifull),sgdn_amp(ifull),dni_amp(ifull))
          allocate(sw_tend_amp(ifull,kl))
       
          if(ntest==1)write(6,*)'id,jd,imax,idrad,jdrad0,jdrad ',
@@ -523,13 +522,15 @@ c         write(24,*)coszro2
         if(ndi<0.and.nmaxpr==1)
      &     write(6,*)'after  swr99 ktau,j,myid ',ktau,j,myid
         do i=1,imax
-          soutclr(i) = ufsw(i,1)*h1m3 ! solar out top
-          sgclr(i)   = -fsw(i,lp1)*h1m3  ! solar absorbed at the surface
+          iq=i+(j-1)*il  
+          soutclr(iq) = ufsw(i,1)*h1m3 ! solar out top
+          sgclr(iq)   = -fsw(i,lp1)*h1m3  ! solar absorbed at the surface
         end do
       else ! .not.clforflag
         do i=1,imax
-          soutclr(i) = 0.
-          sgclr(i) = 0.
+          iq=i+(j-1)*il  
+          soutclr(iq) = 0.
+          sgclr(iq) = 0.
         end do
       endif
 
@@ -555,9 +556,9 @@ c       write(24,*)coszro2
      &           ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
      &           swrsave(istart:iend),cldoff)
       do i=1,imax
-          sint(i) = dfsw(i,1)*h1m3   ! solar in top
-          sout(i) = ufsw(i,1)*h1m3   ! solar out top
           iq=i+(j-1)*il              ! fixed Mar '05
+          sint(iq) = dfsw(i,1)*h1m3   ! solar in top
+          sout(iq) = ufsw(i,1)*h1m3   ! solar out top
           sgn(iq)  = sgn(iq)*h1m3    ! solar absorbed at the surface
           sgdn(iq) = sgn(iq) / ( 1. - swrsave(iq)*albvisnir(iq,1)
      &            -(1.-swrsave(iq))*albvisnir(iq,2) )
@@ -566,14 +567,19 @@ c       write(24,*)coszro2
      &             fbeamvis(istart:iend))
       fbeamnir(istart:iend)=fbeamvis(istart:iend)
       fbeam(istart:iend) = fbeamvis(istart:iend)
+      where ( coszro<=1.e-5 )
+        dni(istart:iend) = 0.
+      elsewhere
+        dni(istart:iend) = sgdn(istart:iend)*fbeam(istart:iend)/coszro
+      end where
       
       if(ntest>0.and.j==jdrad)then
         write(6,*)'idrad,j,sint,sout,soutclr,cuvrf1 ',
-     &           idrad,j,sint(idrad),sout(idrad),soutclr(idrad),
-     &           cuvrf(idrad,1)
-c       print *,'sint ',(sint(i),i=1,imax)
-c       print *,'sout ',(sout(i),i=1,imax)
-c       print *,'soutclr ',(soutclr(i),i=1,imax)
+     &           idrad,j,sint(idjd),sout(idjd),
+     &           soutclr(idjd),cuvrf(idrad,1)
+c       print *,'sint ',(sint(i+(j-1)*il),i=1,imax)
+c       print *,'sout ',(sout(i+(j-1)*il),i=1,imax)
+c       print *,'soutclr ',(soutclr(i+(j-1)*il),i=1,imax)
 c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
       endif
 
@@ -584,10 +590,10 @@ c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
 
       do i=1,imax
          iq=i+(j-1)*il 
-         rt(i) = ( gxcts(i)+flx1e1(i) ) * h1m3          ! longwave at top
-         rtclr(i) = ( gxctsclr(i)+flx1e1clr(i) ) * h1m3 ! clr sky lw at top
-         rgn(iq) = grnflx(i)*h1m3                       ! longwave at surface
-         rgclr(i) = grnflxclr(i)*h1m3                   ! clear sky longwave at surface
+         rt(iq) = ( gxcts(i)+flx1e1(i) ) * h1m3          ! longwave at top
+         rtclr(iq) = ( gxctsclr(i)+flx1e1clr(i) ) * h1m3 ! clr sky lw at top
+         rgn(iq) = grnflx(i)*h1m3                        ! longwave at surface
+         rgclr(iq) = grnflxclr(i)*h1m3                   ! clear sky longwave at surface
          ! rgn is net upwards = sigma T^4 - Rdown
          rgdn(iq) = stefbo*temp(i,lp1)**4 - rgn(iq)
       end do
@@ -618,10 +624,12 @@ c           The sun isn't up at all over the radiation period so no
 c           fitting need be done.
             sgn_amp(iq)  = 0.
             sgdn_amp(iq) = 0.
+            dni_amp(iq)  = 0.
             sw_tend_amp(iq,1:kl) = 0.
          else
             sgn_amp(iq)  = sgn(iq) / (coszro(i)*taudar(i))
             sgdn_amp(iq) = sgdn(iq) / (coszro(i)*taudar(i))
+            dni_amp(iq)  = dni(iq) / taudar(i)
             sw_tend_amp(iq,1:kl) = sw_tend(iq,1:kl)
      &                      / (coszro(i)*taudar(i))
          end if
@@ -636,10 +644,6 @@ c        Save the value excluding Ts^4 part.  This is allowed to change.
          xxx = stefbo*tss(iq)**4
          rgsave(iq) = rgn(iq) - xxx  ! opposite sign to prev. darlam scam
 !###     hlwsav(iq,1) = hlwsav(iq,1)-fractss*xxx  ! removed 18/6/03
-         sintsave(iq) = sint(i) 
-         rtsave(iq) = rt(i) 
-         rtclsave(iq) = rtclr(i)  
-         sgclsave(iq) = sgclr(i)
       end do
 
 c     cloud amounts for saving
@@ -648,31 +652,6 @@ c     cloud amounts for saving
          cloudtot(iq) = 1. - (1.-cloudlo(iq)) * (1.-cloudmi(iq)) *
      &        (1.-cloudhi(iq))
       end do
-
-!     Use explicit indexing rather than array notation so that we can run
-!     over the end of the first index
-      if(ktau>0)then ! averages not added at time zero
-        if(j==1)koundiag=koundiag+1  
-        do i=1,imax
-         iq=i+(j-1)*il
-         sint_ave(iq) = sint_ave(iq) + sint(i)
-         sot_ave(iq)  = sot_ave(iq)  + sout(i)
-         soc_ave(iq)  = soc_ave(iq)  + soutclr(i)
-         rtu_ave(iq)  = rtu_ave(iq)  + rt(i)
-         rtc_ave(iq)  = rtc_ave(iq)  + rtclr(i)
-         rgn_ave(iq)  = rgn_ave(iq)  + rgn(iq)
-         rgc_ave(iq)  = rgc_ave(iq)  + rgclr(i)
-         rgdn_ave(iq) = rgdn_ave(iq) + rgdn(iq)
-         sgc_ave(iq)  = sgc_ave(iq)  + sgclr(i)
-         cld_ave(iq)  = cld_ave(iq)  + cloudtot(iq)
-         cll_ave(iq)  = cll_ave(iq)  + cloudlo(iq)
-         clm_ave(iq)  = clm_ave(iq)  + cloudmi(iq)
-         clh_ave(iq)  = clh_ave(iq)  + cloudhi(iq)
-!         alb_ave(iq)  = alb_ave(iq)  + swrsave(iq)*albvisnir(iq,1)
-!     &                               +(1.-swrsave(iq))*albvisnir(iq,2)
-         fbeam_ave(iq) = fbeam_ave(iq) + fbeam(iq)
-        end do
-      endif   ! (ktau>0)
       
       end if  ! odcalc
       
@@ -681,19 +660,9 @@ c     cloud amounts for saving
        iq=i+(j-1)*il
        sgn(iq)  = sgn_amp(iq)*coszro2(i)*taudar2(i)
        sgdn(iq) = sgdn_amp(iq)*coszro2(i)*taudar2(i)
+       dni(iq)  = dni_amp(iq)*taudar2(i)
       end do
-      
-      if(ktau>0)then ! averages not added at time zero
-       do i=1,imax
-         iq=i+(j-1)*il
-         sgn_ave(iq)  = sgn_ave(iq)  + sgn(iq)
-         sgdn_ave(iq) = sgdn_ave(iq) + sgdn(iq)
-         if ( sgdn(iq)>120. ) then
-           sunhours(iq)=sunhours(iq)+86400.
-         end if
-       end do
-      endif  ! (ktau>0)
-      
+            
 ! Set up the CC model radiation fields
 c slwa is negative net radiational htg at ground
 ! Note that this does not include the upward LW radiation from the surface.
@@ -722,9 +691,9 @@ c slwa is negative net radiational htg at ground
  100  continue  ! Row loop (j)  j=1,jl,imax/il
       if(ntest>0.and.mydiag)then
         write(6,*)'rgsave,rtsave,sintsave ',
-     .           rgsave(idjd),rtsave(idjd),sintsave(idjd)
+     .           rgsave(idjd),rt(idjd),sint(idjd)
         write(6,*)'sgsave,rtclsave,sgclsave ',
-     .           sgsave(idjd),rtclsave(idjd),sgclsave(idjd)
+     .           sgsave(idjd),rtclr(idjd),sgclr(idjd)
         write(6,*)'alb ',albvisnir(idjd,1)
       endif
       if(nmaxpr==1.and.mydiag)then
