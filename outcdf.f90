@@ -3691,8 +3691,8 @@ freqstore(1:ifull,13) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,14) = tscrn_stn
 freqstore(1:ifull,15) = rhscrn_stn
 freqstore(1:ifull,16) = qgscrn_stn
-freqstore(1:ifull,17) = freqstore(1:ifull,18) + cloudtot/real(tbave)
-freqstore(1:ifull,18) = freqstore(1:ifull,19) + dni/real(tbave)
+freqstore(1:ifull,17) = freqstore(1:ifull,17) + cloudtot/real(tbave)
+freqstore(1:ifull,18) = freqstore(1:ifull,18) + dni/real(tbave)
 if ( diaglevel_pbl>3 ) then
   freqstore(1:ifull,19) = ua150
   freqstore(1:ifull,20) = va150
