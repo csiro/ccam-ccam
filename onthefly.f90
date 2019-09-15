@@ -1381,15 +1381,15 @@ if ( nested/=1 .and. nested/=3 ) then
         if ( tst ) lrestart_radiation = .false.
         call ccnf_inq_varid(ncid,'rgc',idv,tst)
         if ( tst ) lrestart_radiation = .false. 
-        call ccnf_inq_varid(ncid,'sint',idv,tst)
+        call ccnf_inq_varid(ncid,'sint_amp',idv,tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'sot',idv,tst)
+        call ccnf_inq_varid(ncid,'sout_amp',idv,tst)
         if ( tst ) lrestart_radiation = .false. 
-        call ccnf_inq_varid(ncid,'soc',idv,tst)
+        call ccnf_inq_varid(ncid,'soutclr_amp',idv,tst)
         if ( tst ) lrestart_radiation = .false.
         call ccnf_inq_varid(ncid,'sgdn_amp',idv,tst)
         if ( tst ) lrestart_radiation = .false. 
-        call ccnf_inq_varid(ncid,'sgc',idv,tst)
+        call ccnf_inq_varid(ncid,'sgclr_amp',idv,tst)
         if ( tst ) lrestart_radiation = .false.
         call ccnf_inq_varid(ncid,'dni_amp',idv,tst)
         if ( tst ) lrestart_radiation = .false. 
@@ -2044,11 +2044,11 @@ if ( nested/=1 .and. nested/=3 ) then
       call gethist1('rgdn',rgdn)
       call gethist1('rgn',rgn)
       call gethist1('rgc',rgclr)
-      call gethist1('sint',sint)
-      call gethist1('sot',sout)
-      call gethist1('soc',soutclr)
+      call gethist1('sint_amp',sint_amp)
+      call gethist1('sout_amp',sout_amp)
+      call gethist1('soutclr_amp',soutclr_amp)
       call gethist1('sgdn_amp',sgdn_amp)
-      call gethist1('sgc',sgclr)
+      call gethist1('sgclr_amp',sgclr_amp)
       call gethist1('dni_amp',dni_amp)
       call gethist1('fbeamvis',fbeamvis)
       call gethist1('fbeamnir',fbeamnir)

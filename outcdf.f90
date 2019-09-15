@@ -2134,16 +2134,16 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'rgn',lname,'W/m2',-500.,1000.,0,-1) ! -1 = long
       lname = 'Clear sky LW at ground'
       call attrib(idnc,dimj,jsize,'rgc',lname,'W/m2',-500.,1000.,0,cptype)
-      lname = 'Solar in at TOA'
-      call attrib(idnc,dimj,jsize,'sint',lname,'W/m2',0.,1600.,0,-1) ! -1 = long
-      lname = 'Solar out at TOA'
-      call attrib(idnc,dimj,jsize,'sot',lname,'W/m2',0.,1000.,0,-1)  ! -1 = long
-      lname = 'Clear sky SW out at TOA'
-      call attrib(idnc,dimj,jsize,'soc',lname,'W/m2',0.,900.,0,cptype)
+      lname = 'Solar in at TOA (AMP)'
+      call attrib(idnc,dimj,jsize,'sint_amp',lname,'W/m2',0.,1600.,0,-1) ! -1 = long
+      lname = 'Solar out at TOA (AMP)'
+      call attrib(idnc,dimj,jsize,'sout_amp',lname,'W/m2',0.,1000.,0,-1)  ! -1 = long
+      lname = 'Clear sky SW out at TOA (AMP)'
+      call attrib(idnc,dimj,jsize,'soutclr_amp',lname,'W/m2',0.,900.,0,cptype)
       lname = 'Solar downwelling at ground (AMP)'
       call attrib(idnc,dimj,jsize,'sgdn_amp',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
-      lname = 'Clear sky SW at ground (+ve down)'
-      call attrib(idnc,dimj,jsize,'sgc',lname,'W/m2',-500.,2000.,0,cptype)
+      lname = 'Clear sky SW at ground (+ve down) (AMP)'
+      call attrib(idnc,dimj,jsize,'sgclr_amp',lname,'W/m2',-500.,2000.,0,cptype)
       lname = 'Direct normal irradiance (AMP)'
       call attrib(idnc,dimj,jsize,'dni_amp',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
       lname = 'Fraction of direct VIS radiation'
@@ -3285,11 +3285,11 @@ if ( itype==-1 ) then
   call histwrt(rgdn,'rgdn',idnc,iarch,local,.true.)
   call histwrt(rgn,'rgn',idnc,iarch,local,.true.)
   call histwrt(rgclr,'rgc',idnc,iarch,local,.true.)
-  call histwrt(sint,'sint',idnc,iarch,local,.true.)
-  call histwrt(sout,'sot',idnc,iarch,local,.true.)
-  call histwrt(soutclr,'soc',idnc,iarch,local,.true.)
+  call histwrt(sint_amp,'sint_amp',idnc,iarch,local,.true.)
+  call histwrt(sout_amp,'sout_amp',idnc,iarch,local,.true.)
+  call histwrt(soutclr_amp,'soutclr_amp',idnc,iarch,local,.true.)
   call histwrt(sgdn_amp,'sgdn_amp',idnc,iarch,local,.true.)
-  call histwrt(sgclr,'sgc',idnc,iarch,local,.true.)
+  call histwrt(sgclr_amp,'sgclr_amp',idnc,iarch,local,.true.)
   call histwrt(dni_amp,'dni_amp',idnc,iarch,local,.true.)
   call histwrt(fbeamvis,'fbeamvis',idnc,iarch,local,.true.)
   call histwrt(fbeamnir,'fbeamnir',idnc,iarch,local,.true.)

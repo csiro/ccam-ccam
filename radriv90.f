@@ -409,8 +409,6 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
         write(6,*) "ERROR: Unknown aerosol option ",iaero
         stop       
       end select
-      albvisnir(istart:iend,1)=cuvrf(1:imax,1)
-      albvisnir(istart:iend,2)=cirrf(1:imax,1)
       !--------------------------------------------------------------
       
       if ( odcalc ) then     ! Do the calculation
@@ -626,10 +624,18 @@ c           The sun isn't up at all over the radiation period so no
 c           fitting need be done.
             sgdn_amp(iq) = 0.
             dni_amp(iq)  = 0.
+            sint_amp(iq) = 0.
+            sout_amp(iq) = 0.
+            soutclr_amp(iq) = 0.
+            sgclr_amp(iq)   = 0.
             sw_tend_amp(iq,1:kl) = 0.
          else
             sgdn_amp(iq) = sgdn(iq) / (coszro(i)*taudar(i))
             dni_amp(iq)  = dni(iq) / taudar(i)
+            sint_amp(iq) = sint(iq) / (coszro(i)*taudar(i))
+            sout_amp(iq) = sout(iq) / (coszro(i)*taudar(i))
+            soutclr_amp(iq) = soutclr(iq) / (coszro(i)*taudar(i))
+            sgclr_amp(iq)   = sgclr(iq) / (coszro(i)*taudar(i))
             sw_tend_amp(iq,1:kl) = sw_tend(iq,1:kl)
      &                      / (coszro(i)*taudar(i))
          end if
@@ -647,6 +653,9 @@ c        Save the value excluding Ts^4 part.  This is allowed to change.
             
       end if  ! odcalc
 
+      albvisnir(istart:iend,1)=cuvrf(1:imax,1)
+      albvisnir(istart:iend,2)=cirrf(1:imax,1)
+         
       ! Store fraction of direct radiation in urban scheme
       fbeam = fbeamvis(istart:iend)   
       call atebfbeam(istart,imax,fbeam,0)
@@ -666,7 +675,11 @@ c     cloud amounts for saving
      &      + (1.-swrsave(iq))*albvisnir(iq,2)
        sgn(iq)  = sgdn(iq)*(1.-talb)
        dni(iq)  = dni_amp(iq)*taudar2(i)
+       sint(iq) = sint_amp(iq)*coszro2(i)*taudar2(i)
+       sout(iq) = sout_amp(iq)*coszro2(i)*taudar2(i)
        !sout(iq) = sout(iq) + sgn_save(i) - sgn(iq)
+       soutclr(iq) = soutclr_amp(iq)*coszro2(i)*taudar2(i)
+       sgclr(iq)   = sgclr_amp(iq)*coszro2(i)*taudar2(i)
       end do
             
 ! Set up the CC model radiation fields

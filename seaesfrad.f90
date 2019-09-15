@@ -237,7 +237,7 @@ do iq_tile = 1,ifull,imax
   ! Calculate zenith angle for the solarfit calculation.
   dhr = dt/3600.
   call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),rlongg(istart:iend),dhr,imax,coszro2,taudar2)
-  call atebccangle(istart,imax,coszro2(1:imax),rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt,sin(dlt))
+  call atebccangle(istart,imax,coszro2,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt,sin(dlt))
 
   ! Set-up albedo
   ! Land albedo ---------------------------------------------------
@@ -292,13 +292,7 @@ do iq_tile = 1,ifull,imax
   call atebalb1(istart,imax,cirrf_dir,0,split=1) ! direct
   call atebalb1(istart,imax,cuvrf_dif,0,split=2) ! diffuse
   call atebalb1(istart,imax,cirrf_dif,0,split=2) ! diffuse
- 
-  ! Store albedo data ---------------------------------------------
-  albvisnir(istart:iend,1) = cuvrf_dir*fbeamvis(istart:iend)      &
-                           + cuvrf_dif*(1.-fbeamvis(istart:iend))
-  albvisnir(istart:iend,2) = cirrf_dir*fbeamnir(istart:iend)      &
-                           + cirrf_dif*(1.-fbeamnir(istart:iend))
-  
+   
   ! Call radiation --------------------------------------------------
   if ( odcalc ) then     ! Do the calculation
 
@@ -753,9 +747,17 @@ do iq_tile = 1,ifull,imax
       ! fitting need be done.
       sgdn_amp(istart:iend) = 0.
       dni_amp(istart:iend)  = 0.
+      sint_amp(istart:iend) = 0.
+      sout_amp(istart:iend) = 0.
+      soutclr_amp(istart:iend) = 0.
+      sgclr_amp(istart:iend)   = 0.
     elsewhere
-      sgdn_amp(istart:iend) = sgdn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
+      sgdn_amp(istart:iend) = sgdn(istart:iend)/(coszro*taudar)
       dni_amp(istart:iend)  = dni(istart:iend)/taudar(1:imax)
+      sint_amp(istart:iend) = sint(istart:iend)/(coszro*taudar)
+      sout_amp(istart:iend) = sout(istart:iend)/(coszro*taudar)
+      soutclr_amp(istart:iend) = soutclr(istart:iend)/(coszro*taudar)
+      sgclr_amp(istart:iend)   = sgclr(istart:iend)/(coszro*taudar)
     end where
     do k = 1,kl
       where ( coszro(1:imax)*taudar(1:imax)<=1.E-5 )
@@ -771,6 +773,12 @@ do iq_tile = 1,ifull,imax
    
   end if  ! odcalc
 
+  ! Store albedo data ---------------------------------------------
+  albvisnir(istart:iend,1) = cuvrf_dir*fbeamvis(istart:iend)      &
+                           + cuvrf_dif*(1.-fbeamvis(istart:iend))
+  albvisnir(istart:iend,2) = cirrf_dir*fbeamnir(istart:iend)      &
+                           + cirrf_dif*(1.-fbeamnir(istart:iend))
+  
   ! Store fraction of direct radiation in urban scheme
   fbeam = fbeamvis(istart:iend)*swrsave(istart:iend) &
         + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
@@ -780,12 +788,16 @@ do iq_tile = 1,ifull,imax
   cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
    
   ! Calculate the solar using the saved amplitude.
-  sgdn(istart:iend) = sgdn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
+  sgdn(istart:iend) = sgdn_amp(istart:iend)*coszro2*taudar2
   alb = swrsave(istart:iend)*albvisnir(istart:iend,1)     &
      + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
   sgn(istart:iend)  = sgdn(istart:iend)*(1.-alb)
-  dni(istart:iend)  = dni_amp(istart:iend)*taudar2(1:imax)
+  dni(istart:iend)  = dni_amp(istart:iend)*taudar2
+  sint(istart:iend) = sint_amp(istart:iend)*coszro2*taudar2
+  sout(istart:iend) = sout_amp(istart:iend)*coszro2*taudar2
   !sout(istart:iend) = sout(istart:iend) + sgn_save - sgn(istart:iend)
+  soutclr(istart:iend) = soutclr_amp(istart:iend)*coszro2*taudar2
+  sgclr(istart:iend)   = sgclr_amp(istart:iend)*coszro2*taudar2
       
   ! Set up the CC model radiation fields
   ! slwa is negative net radiational htg at ground
