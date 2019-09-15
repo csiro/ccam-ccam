@@ -6303,7 +6303,6 @@ rlwp_ave(:)          = 0.
 !tscr_ave(:)          = 0.
 wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
-fbeam_ave(:)         = 0.
 
 ! radiation
 sint_ave(:)          = 0.
@@ -6524,9 +6523,8 @@ if ( ccycle/=0 ) then
   end if
 end if
 
-sgn_ave(1:ifull)  = sgn_ave(1:ifull)  + sgn(1:ifull)
+sgn_ave(1:ifull)  = sgn_ave(1:ifull)  + sg(1:ifull)
 sgdn_ave(1:ifull) = sgdn_ave(1:ifull) + sgdn(1:ifull)
-fbeam_ave(1:ifull) = fbeam_ave(1:ifull) + fbeam(1:ifull)
 sint_ave(1:ifull)  = sint_ave(1:ifull) + sint(1:ifull)
 sot_ave(1:ifull)   = sot_ave(1:ifull)  + sout(1:ifull)
 soc_ave(1:ifull)   = soc_ave(1:ifull)  + soutclr(1:ifull)
@@ -6586,7 +6584,6 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   cll_ave(1:ifull)    = cll_ave(1:ifull)/min(ntau,nperavg)
   clm_ave(1:ifull)    = clm_ave(1:ifull)/min(ntau,nperavg)
   clh_ave(1:ifull)    = clh_ave(1:ifull)/min(ntau,nperavg)
-  fbeam_ave(1:ifull)  = fbeam_ave(1:ifull)/min(ntau,nperavg)
   dni_ave(1:ifull)    = dni_ave(1:ifull)/min(ntau,nperavg)
   cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
   ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc

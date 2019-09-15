@@ -35,7 +35,7 @@ public riwp_ave,rlwp_ave,u10max,v10max
 public u10max_stn,v10max_stn
 public u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave
 public rnet_ave
-public wb_ave,wbice_ave,fbeam_ave,convh_ave
+public wb_ave,wbice_ave,convh_ave
 public fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 public cnpp_ave,cnbp_ave
 public anthropogenic_ave, tmaxurban, tminurban
@@ -55,7 +55,6 @@ real, dimension(:), allocatable, save :: u10max_stn,v10max_stn
 real, dimension(:), allocatable, save :: u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave
 real, dimension(:), allocatable, save :: rnet_ave
 real, dimension(:,:), allocatable, save :: wb_ave,wbice_ave,convh_ave
-real, dimension(:), allocatable, save :: fbeam_ave
 real, dimension(:), allocatable, save :: fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 real, dimension(:), allocatable, save :: cnpp_ave,cnbp_ave
 real, dimension(:), allocatable, save :: anthropogenic_ave, tmaxurban, tminurban
@@ -81,7 +80,7 @@ allocate(riwp_ave(ifull),rlwp_ave(ifull),u10max(ifull),v10max(ifull))
 allocate(u10max_stn(ifull),v10max_stn(ifull))
 allocate(u1max(ifull),v1max(ifull),u2max(ifull),v2max(ifull),cape_max(ifull),cape_ave(ifull),epot_ave(ifull))
 allocate(rnet_ave(ifull))
-allocate(wb_ave(ifull,ms),wbice_ave(ifull,ms),fbeam_ave(ifull),convh_ave(ifull,kl))
+allocate(wb_ave(ifull,ms),wbice_ave(ifull,ms),convh_ave(ifull,kl))
 allocate(anthropogenic_ave(ifull), tmaxurban(ifull), tminurban(ifull))
 allocate(anth_elecgas_ave(ifull), anth_heating_ave(ifull), anth_cooling_ave(ifull) )
 !allocate(tgg_ave(ifull,ms))
@@ -126,7 +125,6 @@ cbas_ave(:)    = 0.
 ctop_ave(:)    = 0.
 wb_ave(:,:)    = 0.
 wbice_ave(:,:) = 0.
-fbeam_ave(:)   = 0.
 anthropogenic_ave(:) = 0.
 anth_elecgas_ave(:)  = 0.
 anth_heating_ave(:)  = 0.
@@ -177,7 +175,7 @@ deallocate(riwp_ave,rlwp_ave,u10max,v10max)
 deallocate(u10max_stn,v10max_stn)
 deallocate(u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave)
 deallocate(rnet_ave)
-deallocate(wb_ave,wbice_ave,fbeam_ave,convh_ave)
+deallocate(wb_ave,wbice_ave,convh_ave)
 deallocate(anthropogenic_ave, tmaxurban, tminurban)
 !deallocate(tgg_ave)
 

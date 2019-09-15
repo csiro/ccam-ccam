@@ -70,8 +70,6 @@ logical, parameter :: include_volcanoes  = .false.
 logical, save :: do_aerosol_forcing ! =.true. when abs(iaero)>=2
 
 integer, save :: nlow, nmid
-real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp, dni_amp
-real, dimension(:,:), allocatable, save :: sw_tend_amp
 real(kind=8), dimension(:,:), allocatable, save :: pref
 
 integer, save :: mins
@@ -106,6 +104,7 @@ contains
 subroutine seaesfrad_settime
 
 use infile                                          ! Input file routines
+use nharrs_m                                        ! Non-hydrostatic atmosphere arrays
 use parm_m                                          ! Model configuration
 use raddiag_m                                       ! Radiation diagnostic
 use zenith_m                                        ! Astronomy routines
@@ -115,7 +114,7 @@ implicit none
 integer jyear, jmonth, jday, jhour, jmin
 
 ! True for full radiation calculation
-odcalc = mod(ktau,kountr)==0 .or. ktau==1
+odcalc = mod(ktau,kountr)==0 .or. (ktau==1.and.((.not.lrestart_radiation).or.always_mspeca))
 
 ! astronomy ---------------------------------------------------------
 ! Set up number of minutes from beginning of year
@@ -149,7 +148,6 @@ use cfrac_m                                         ! Cloud fraction
 use const_phys                                      ! Physical constants
 use extraout_m                                      ! Additional diagnostics
 use estab                                           ! Liquid saturation function
-use histave_m, only : fbeam_ave                     ! Time average arrays
 use infile                                          ! Input file routines
 use latlong_m                                       ! Lat/lon coordinates
 use mlo, only : mloalb4                             ! Ocean physics and prognostic arrays
@@ -178,8 +176,8 @@ real, dimension(imax,kl) :: p2, cd2, dumcf, dumql, dumqf, dumt, dz
 real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
 real, dimension(imax) :: sgdnvis, sgdnnir
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
-real, dimension(imax) :: dzrho, dumtss
-real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif
+real, dimension(imax) :: dzrho, dumtss, alb
+real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif, fbeam, sgn_save
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
 real dhr, cosz, delta
@@ -227,24 +225,86 @@ end if
 !$omp private(sigh,duo3n,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,rhoa,dz,i,iq,cosz),       &
 !$omp private(delta,k,kr,dzrho,cd2,mx,dumt,p2,ktop,kbot,dumcf),                            &
 !$omp private(dumql,dumqf,sgdnvis,sgdnnir,sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir),         &
-!$omp private(sgdnnirdif,rt)
+!$omp private(sgdnnirdif,rt,fbeam)
 do iq_tile = 1,ifull,imax
   istart = iq_tile
   iend   = istart + imax - 1
   
   call ccomp_mythread(mythread)
   
+  sgn_save = sgn(istart:iend)
+  
   ! Calculate zenith angle for the solarfit calculation.
   dhr = dt/3600.
   call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),rlongg(istart:iend),dhr,imax,coszro2,taudar2)
   call atebccangle(istart,imax,coszro2(1:imax),rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt,sin(dlt))
 
+  ! Set-up albedo
+  ! Land albedo ---------------------------------------------------
+  if ( nsib==6 .or. nsib==7 ) then
+    ! CABLE version
+    where ( land(istart:iend) )
+      cuvrf_dir(1:imax) = albvisdir(istart:iend) ! from cable (inc snow)
+      cirrf_dir(1:imax) = albnirdir(istart:iend) ! from cable (inc snow)
+      cuvrf_dif(1:imax) = albvisdif(istart:iend) ! from cable (inc snow)
+      cirrf_dif(1:imax) = albnirdif(istart:iend) ! from cable (inc snow)
+    end where
+  else
+    ! nsib=3 version (calculate snow)
+    where ( land(istart:iend) )
+      cuvrf_dir(1:imax) = albvissav(istart:iend) ! from albfile (indata.f)
+      cirrf_dir(1:imax) = albnirsav(istart:iend) ! from albnirfile (indata.f)
+      cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
+      cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
+    end where
+    call calc_snow_albedo(coszro2,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,iq_tile)
+  end if
+
+  ! Water/Ice albedo --------------------------------------------
+  if ( nmlo==0 ) then ! prescribed SSTs
+    ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
+    ! J. Clim. and Appl. Met., v. 27, 214-226)
+    where ( .not.land(istart:iend) .and. coszro2>=0. )
+      cuvrf_dir(1:imax) = 0.026/(coszro2**1.7+0.065)                 &
+        + 0.15*(coszro2-0.1)*(coszro2-0.5)*(coszro2-1.)
+    elsewhere ( .not.land(istart:iend) )
+      cuvrf_dir(1:imax) = 0.3925 ! coszen=0 value of above expression
+    end where
+    where ( .not.land(istart:iend) )
+      cuvrf_dif(1:imax) = 0.06
+      cirrf_dir(1:imax) = cuvrf_dir(1:imax)
+      cirrf_dif(1:imax) = 0.06
+      cuvrf_dir(1:imax) = 0.85*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dir(1:imax)
+      cuvrf_dif(1:imax) = 0.85*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dif(1:imax)
+      cirrf_dir(1:imax) = 0.45*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dir(1:imax)
+      cirrf_dif(1:imax) = 0.45*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dif(1:imax)
+    end where
+  elseif (abs(nmlo)<=9) then
+    ! MLO albedo ----------------------------------------------------
+    call mloalb4(istart,imax,coszro2,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)
+  else
+    write(6,*) "ERROR: PCOM albedo is required in seaesfrad"
+    call ccmpi_abort(-1)
+  end if
+
+  ! Urban albedo --------------------------------------------------
+  call atebalb1(istart,imax,cuvrf_dir,0,split=1) ! direct
+  call atebalb1(istart,imax,cirrf_dir,0,split=1) ! direct
+  call atebalb1(istart,imax,cuvrf_dif,0,split=2) ! diffuse
+  call atebalb1(istart,imax,cirrf_dif,0,split=2) ! diffuse
+ 
+  ! Store albedo data ---------------------------------------------
+  albvisnir(istart:iend,1) = cuvrf_dir*fbeamvis(istart:iend)      &
+                           + cuvrf_dif*(1.-fbeamvis(istart:iend))
+  albvisnir(istart:iend,2) = cirrf_dir*fbeamnir(istart:iend)      &
+                           + cirrf_dif*(1.-fbeamnir(istart:iend))
+  
   ! Call radiation --------------------------------------------------
   if ( odcalc ) then     ! Do the calculation
 
     ! Average the zenith angle over the time (hours) between radiation
     ! calculations
-    dhr = kountr*dt/3600.
+    dhr = real(kountr)*dt/3600.
     call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),rlongg(istart:iend),dhr,imax,coszro,taudar)
     
     ! Set up ozone for this time and row
@@ -257,60 +317,6 @@ do iq_tile = 1,ifull,imax
       call o3set(imax,istart,mins,duo3n,sig,ps(istart:iend))
     end if
     Rad_gases(mythread)%qo3(:,1,:) = real( max( 1.e-10, duo3n ), 8 )
-
-    ! Set-up albedo
-    ! Land albedo ---------------------------------------------------
-    if ( nsib==6 .or. nsib==7 ) then
-      ! CABLE version
-      where ( land(istart:iend) )
-        cuvrf_dir(1:imax) = albvisdir(istart:iend) ! from cable (inc snow)
-        cirrf_dir(1:imax) = albnirdir(istart:iend) ! from cable (inc snow)
-        cuvrf_dif(1:imax) = albvisdif(istart:iend) ! from cable (inc snow)
-        cirrf_dif(1:imax) = albnirdif(istart:iend) ! from cable (inc snow)
-      end where
-    else
-      ! nsib=3 version (calculate snow)
-      where ( land(istart:iend) )
-        cuvrf_dir(1:imax) = albvissav(istart:iend) ! from albfile (indata.f)
-        cirrf_dir(1:imax) = albnirsav(istart:iend) ! from albnirfile (indata.f)
-        cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
-        cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
-      end where
-      call calc_snow_albedo(coszro,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,iq_tile)
-    end if
-
-    ! Water/Ice albedo --------------------------------------------
-    if ( nmlo==0 ) then ! prescribed SSTs
-      ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
-      ! J. Clim. and Appl. Met., v. 27, 214-226)
-      where ( .not.land(istart:iend) .and. coszro(1:imax)>=0. )
-        cuvrf_dir(1:imax) = 0.026/(coszro(1:imax)**1.7+0.065)                 &
-          + 0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
-      elsewhere ( .not.land(istart:iend) )
-        cuvrf_dir(1:imax) = 0.3925 ! coszen=0 value of above expression
-      end where
-      where ( .not.land(istart:iend) )
-        cuvrf_dif(1:imax) = 0.06
-        cirrf_dir(1:imax) = cuvrf_dir(1:imax)
-        cirrf_dif(1:imax) = 0.06
-        cuvrf_dir(1:imax) = 0.85*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dir(1:imax)
-        cuvrf_dif(1:imax) = 0.85*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dif(1:imax)
-        cirrf_dir(1:imax) = 0.45*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dir(1:imax)
-        cirrf_dif(1:imax) = 0.45*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dif(1:imax)
-      end where
-    elseif (abs(nmlo)<=9) then
-      ! MLO albedo ----------------------------------------------------
-      call mloalb4(istart,imax,coszro,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)
-    else
-      write(6,*) "ERROR: PCOM albedo is required in seaesfrad"
-      call ccmpi_abort(-1)
-    end if
-
-    ! Urban albedo --------------------------------------------------
-    call atebalb1(istart,imax,cuvrf_dir(1:imax),0,split=1) ! direct
-    call atebalb1(istart,imax,cirrf_dir(1:imax),0,split=1) ! direct
-    call atebalb1(istart,imax,cuvrf_dif(1:imax),0,split=2) ! diffuse
-    call atebalb1(istart,imax,cirrf_dif(1:imax),0,split=2) ! diffuse
 
     ! Aerosols -------------------------------------------------------
     do k = 1,kl
@@ -575,7 +581,7 @@ do iq_tile = 1,ifull,imax
     sgdnvis           = real(Sw_output(mythread)%dfsw_vis_sfc(:,1,1))
     sgdnnir           = sgdn(istart:iend) - sgdnvis
     ! sg = +Snet = Sdown - Sup
-    sgn(istart:iend)  = sgdn(istart:iend) - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
+    sgn_save   = sgdn(istart:iend) - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
     sgvis      = sgdnvis - real(Sw_output(mythread)%ufsw_vis_sfc(:,1,1))
     !sgvisdir  = Sw_output(mythread)%dfsw_vis_sfc_dir(:,1,1)-Sw_output(mythread)%ufsw_vis_sfc_dir(:,1,1)
     !sgvisdif  = Sw_output(mythread)%dfsw_vis_sfc_dif(:,1,1)-Sw_output(mythread)%ufsw_vis_sfc_dif(:,1,1)
@@ -602,20 +608,12 @@ do iq_tile = 1,ifull,imax
     elsewhere  
       fbeamnir(istart:iend) = sgdnnirdir/sgdnnir
     end where
-    fbeam(istart:iend) = fbeamvis(istart:iend)*swrsave(istart:iend) &
-                       + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
     where ( coszro<=1.e-5 )
       dni(istart:iend) = 0.
     elsewhere
       dni(istart:iend) = (sgdnvisdir+sgdnnirdir)/coszro
     end where
-    
-    ! Store albedo data ---------------------------------------------
-    albvisnir(istart:iend,1) = real(Surface(mythread)%asfc_vis_dir(:,1))*fbeamvis(istart:iend)      &
-                             + real(Surface(mythread)%asfc_vis_dif(:,1))*(1.-fbeamvis(istart:iend))
-    albvisnir(istart:iend,2) = real(Surface(mythread)%asfc_nir_dir(:,1))*fbeamnir(istart:iend)      &
-                             + real(Surface(mythread)%asfc_nir_dif(:,1))*(1.-fbeamnir(istart:iend))
-    
+        
     ! longwave output -----------------------------------------------
     rgn(istart:iend) = real(Lw_output(mythread)%flxnet(:,1,kl+1))          ! longwave at surface
     rt(istart:iend) = real(Lw_output(mythread)%flxnet(:,1,1))              ! longwave at top
@@ -753,11 +751,9 @@ do iq_tile = 1,ifull,imax
     where ( coszro(1:imax)*taudar(1:imax)<=1.E-5 )
       ! The sun is not up at all over the radiation period so no 
       ! fitting need be done.
-      sgn_amp(istart:iend)  = 0.
       sgdn_amp(istart:iend) = 0.
       dni_amp(istart:iend)  = 0.
     elsewhere
-      sgn_amp(istart:iend)  = sgn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
       sgdn_amp(istart:iend) = sgdn(istart:iend)/(coszro(1:imax)*taudar(1:imax))
       dni_amp(istart:iend)  = dni(istart:iend)/taudar(1:imax)
     end where
@@ -770,22 +766,26 @@ do iq_tile = 1,ifull,imax
     end do
 
     ! Save things for non-radiation time steps ----------------------
-    sgsave(istart:iend)   = sgn(istart:iend)   ! repeated after solarfit
     ! Save the value excluding Ts^4 part.  This is allowed to change.
-    rgsave(istart:iend)   = rgn(istart:iend) - stefbo*tss(istart:iend)**4
-
-    ! cloud amounts for saving --------------------------------------
-    cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
-    
-    ! Store fraction of direct radiation in urban scheme
-    call atebfbeam(istart,imax,fbeam(istart:iend),0)
-
+    rgsave(istart:iend) = rgn(istart:iend) - stefbo*tss(istart:iend)**4
+   
   end if  ! odcalc
 
+  ! Store fraction of direct radiation in urban scheme
+  fbeam = fbeamvis(istart:iend)*swrsave(istart:iend) &
+        + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
+  call atebfbeam(istart,imax,fbeam,0)
+  
+  ! cloud amounts for saving --------------------------------------
+  cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
+   
   ! Calculate the solar using the saved amplitude.
-  sgn(istart:iend)  = sgn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
   sgdn(istart:iend) = sgdn_amp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
+  alb = swrsave(istart:iend)*albvisnir(istart:iend,1)     &
+     + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
+  sgn(istart:iend)  = sgdn(istart:iend)*(1.-alb)
   dni(istart:iend)  = dni_amp(istart:iend)*taudar2(1:imax)
+  sout(istart:iend) = sout(istart:iend) + sgn_save - sgn(istart:iend)
       
   ! Set up the CC model radiation fields
   ! slwa is negative net radiational htg at ground
@@ -1304,8 +1304,6 @@ call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
 fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 ! Calculate sun position
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
-
-allocate(sgn_amp(ifull),sgdn_amp(ifull),dni_amp(ifull),sw_tend_amp(ifull,kl))
 
 ! initialise co2
 call co2_read(sig,jyear)

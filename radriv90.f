@@ -35,7 +35,7 @@
 
       use aerointerface
       use arrays_m
-      use ateb, only : atebalb1,atebccangle
+      use ateb, only : atebalb1,atebccangle,atebfbeam
       use cc_mpi
       use cfrac_m
       use cldcom_m
@@ -44,7 +44,6 @@
       use diag_m
       use estab
       use extraout_m ! sintsave, etc
-      use histave_m, only : fbeam_ave
       use infile
       use kdacom_m, only : kdacom_init
       use kuocomb_m
@@ -53,6 +52,7 @@
       use lwout_m
       use mlo        ! MJT mlo
       use newmpar_m
+      use nharrs_m 
       use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,rmc
       use ozoneread  ! MJT radiation
       use parm_m
@@ -96,15 +96,13 @@ c     parameters for the aerosol calculation
 
 !     Radiation fields (CSIRO GCM names)
       real, dimension(:,:), allocatable, save :: hlwsav,hswsav
-      real, dimension(:,:), allocatable, save :: sw_tend_amp
-      real, dimension(:), allocatable, save :: sgn_amp, sgdn_amp
-      real, dimension(:), allocatable, save :: dni_amp
       
 c     Following are for cloud2 routine
       real t2(ixin,kl),ql2(ixin,kl),qf2(ixin,kl),cf2(ixin,kl),
      &     qc2(ixin,kl),cd2(ixin,kl),p2(ixin,kl),
      &     dp2(ixin,kl),cll(ixin),clm(ixin),clh(ixin)
       logical land2(ixin)
+      real fbeam(ixin),sgn_save(ixin)
 
 
 c     Stuff from cldset
@@ -141,7 +139,8 @@ c     Stuff from cldset
       real exp_ar2,exp_ar1,ar1,ar2,ttbg
 
       
-      odcalc = mod(ktau,kountr)==0 .or. ktau==1
+      odcalc = mod(ktau,kountr)==0 .or.
+     &  (ktau==1.and.((.not.lrestart_radiation).or.always_mspeca))
 
       kcl_top=kl-2
       imax=ixin
@@ -155,7 +154,7 @@ c     Stuff from cldset
       jdrad0=idjd/imax+1
       idrad=idjd-(jdrad0-1)*imax
       jdrad=1+(jdrad0-1)*imax/il  ! j increases in increments of imax/il
-
+      
 !     Set up number of minutes from beginning of year
       call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
       fjd = float(mod(mins,525600))/1440. ! restrict to 365 day calendar
@@ -198,8 +197,6 @@ c     Stuff from cldset
          call work3lwr_init(kl,imax)      
 
          allocate(hlwsav(ifull,kl),hswsav(ifull,kl))
-         allocate(sgn_amp(ifull),sgdn_amp(ifull),dni_amp(ifull))
-         allocate(sw_tend_amp(ifull,kl))
       
          if(ntest==1)write(6,*)'id,jd,imax,idrad,jdrad0,jdrad ',
      .                          id,jd,imax,idrad,jdrad0,jdrad
@@ -261,6 +258,9 @@ C---------------------------------------------------------------------*
       do 100 j=1,jl,imax/il
       istart=1+(j-1)*il
       iend=istart+imax-1
+      
+      sgn_save = sgn(istart:iend)
+      
       if(ntest==1)write(6,*)'in radriv90 j = ',j
 !     Calculate zenith angle for the solarfit calculation.
 !     This call averages zenith angle just over this time step.
@@ -270,36 +270,6 @@ C---------------------------------------------------------------------*
       call atebccangle(istart,imax,coszro2(1:imax) ! MJT urban
      & ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt
      & ,sin(dlt)) 
-
-      if ( odcalc ) then     ! Do the calculation
-
-c     Average the zenith angle over the time (hours) between radiation
-c     calculations
-      dhr = kountr*dt/3600.0
-      call zenith(fjd,r1,dlt,slag,rlatt(1+(j-1)*il),
-     &            rlongg(1+(j-1)*il),dhr,imax,coszro,taudar)
-
-c     Set up basic variables, reversing the order of the vertical levels
-      do i=1,imax
-         iq=i+(j-1)*il
-         temp(i,lp1) = tss(iq)
-         press(i,lp1) = ps(iq) * 10. ! Convert to cgs
-         cirab(i,1) = zero
-      end do
-
-c     Set up ozone for this time and row
-      if (amipo3) then
-         call o3set_amip ( rlatt(1+(j-1)*il:(j-1)*il+imax), imax, mins,
-     &                     sigh, ps(1+(j-1)*il:(j-1)*il+imax), qo3 )
-         qo3(:,:)=max(1.e-10,qo3(:,:))    ! July 2008
-      else
-         call o3set(imax,istart,mins,duo3n,sig,ps(1+(j-1)*il))
-         do k=1,kl
-            do i=1,imax
-              qo3(i,k) = duo3n(i,k)
-            end do
-         end do
-      end if
 
 !     Set up surface albedo. The input value is > 1 over ocean points where
 !     the zenith angle dependent formula should be used.
@@ -364,7 +334,7 @@ c	     Snow albedo is dependent on zenith angle and  snow age.
 c	     albedo zenith dependence
 c	     alvd = alvo * (1.0-cs*fage); alird = aliro * (1.-cn*fage)
 c                   where cs = 0.2, cn = 0.5, b = 2.0
-             cczen=max(.17365, coszro(i))
+             cczen=max(.17365, coszro2(i))
              fzen=( 1.+1./2.)/(1.+2.*2.*cczen) -1./2.
              if( cczen .gt. 0.5 ) fzen = 0.
              fzenm = max ( fzen, 0. )
@@ -399,21 +369,21 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
       if (nsib==3) then
         where (.not.land(istart:iend))
           cuvrf(1:imax,1)=.65*fracice(istart:iend)+
-     &       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
+     &       (1.-fracice(istart:iend))*.05/(coszro2+0.15)
           cirrf(1:imax,1)=.65*fracice(istart:iend)+
-     &       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
+     &       (1.-fracice(istart:iend))*.05/(coszro2+0.15)
         end where
       else
         where (.not.land(istart:iend))
           cuvrf(1:imax,1)=.85*fracice(istart:iend)+
-     &       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
+     &       (1.-fracice(istart:iend))*.05/(coszro2+0.15)
           cirrf(1:imax,1)=.45*fracice(istart:iend)+
-     &       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
+     &       (1.-fracice(istart:iend))*.05/(coszro2+0.15)
         end where
       end if
       
       ! MLO ---------------------------------------------------------
-      call mloalb2(istart,imax,coszro,cuvrf(:,1),cirrf(:,1),0)
+      call mloalb2(istart,imax,coszro2,cuvrf(:,1),cirrf(:,1),0)
 
       ! URBAN -------------------------------------------------------
       ! The direct beam fraction is effectively 1 in this case to
@@ -429,8 +399,8 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
                    ! with this radiation code
         do i=1,imax
           iq=i+(j-1)*il
-           cosz = max ( coszro(i), 1.e-4)
-           delta =  coszro(i)*beta_ave*alpha*so4t(iq)* ! still broadband
+           cosz = max ( coszro2(i), 1.e-4)
+           delta =  coszro2(i)*beta_ave*alpha*so4t(iq)* ! still broadband
      &                ((1.-0.5*(cuvrf(i,1)+cirrf(i,1)))/cosz)**2
            cuvrf(i,1)=min(0.99, delta+cuvrf(i,1)) ! surface albedo
            cirrf(i,1)=min(0.99, delta+cirrf(i,1)) ! still broadband
@@ -442,6 +412,36 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
       albvisnir(istart:iend,1)=cuvrf(1:imax,1)
       albvisnir(istart:iend,2)=cirrf(1:imax,1)
       !--------------------------------------------------------------
+      
+      if ( odcalc ) then     ! Do the calculation
+
+c     Average the zenith angle over the time (hours) between radiation
+c     calculations
+      dhr = kountr*dt/3600.0
+      call zenith(fjd,r1,dlt,slag,rlatt(1+(j-1)*il),
+     &            rlongg(1+(j-1)*il),dhr,imax,coszro,taudar)
+
+c     Set up basic variables, reversing the order of the vertical levels
+      do i=1,imax
+         iq=i+(j-1)*il
+         temp(i,lp1) = tss(iq)
+         press(i,lp1) = ps(iq) * 10. ! Convert to cgs
+         cirab(i,1) = zero
+      end do
+
+c     Set up ozone for this time and row
+      if (amipo3) then
+         call o3set_amip ( rlatt(1+(j-1)*il:(j-1)*il+imax), imax, mins,
+     &                     sigh, ps(1+(j-1)*il:(j-1)*il+imax), qo3 )
+         qo3(:,:)=max(1.e-10,qo3(:,:))    ! July 2008
+      else
+         call o3set(imax,istart,mins,duo3n,sig,ps(1+(j-1)*il))
+         do k=1,kl
+            do i=1,imax
+              qo3(i,k) = duo3n(i,k)
+            end do
+         end do
+      end if
 
       do k=1,kl
          kr = kl+1-k
@@ -557,20 +557,22 @@ c       write(24,*)coszro2
      &           swrsave(istart:iend),cldoff)
       do i=1,imax
           iq=i+(j-1)*il              ! fixed Mar '05
-          sint(iq) = dfsw(i,1)*h1m3   ! solar in top
-          sout(iq) = ufsw(i,1)*h1m3   ! solar out top
+          sint(iq) = dfsw(i,1)*h1m3  ! solar in top
+          sout(iq) = ufsw(i,1)*h1m3  ! solar out top
           sgn(iq)  = sgn(iq)*h1m3    ! solar absorbed at the surface
-          sgdn(iq) = sgn(iq) / ( 1. - swrsave(iq)*albvisnir(iq,1)
-     &            -(1.-swrsave(iq))*albvisnir(iq,2) )
+          talb = swrsave(iq)*albvisnir(iq,1)
+     &         -(1.-swrsave(iq))*albvisnir(iq,2)
+          sgdn(iq) = sgn(iq) / ( 1. - talb )
+          sgn_save(i) = sgn(iq)
       end do
       call spitter(imax,fjd,coszro,sgdn(istart:iend),
      &             fbeamvis(istart:iend))
       fbeamnir(istart:iend)=fbeamvis(istart:iend)
-      fbeam(istart:iend) = fbeamvis(istart:iend)
+      fbeam = fbeamvis(istart:iend)
       where ( coszro<=1.e-5 )
         dni(istart:iend) = 0.
       elsewhere
-        dni(istart:iend) = sgdn(istart:iend)*fbeam(istart:iend)/coszro
+        dni(istart:iend) = sgdn(istart:iend)*fbeam/coszro
       end where
       
       if(ntest>0.and.j==jdrad)then
@@ -622,12 +624,10 @@ c     to remove these factors.
          if ( coszro(i)*taudar(i) .le. 1.e-5 ) then ! 1.e-5 to avoid precision problems
 c           The sun isn't up at all over the radiation period so no 
 c           fitting need be done.
-            sgn_amp(iq)  = 0.
             sgdn_amp(iq) = 0.
             dni_amp(iq)  = 0.
             sw_tend_amp(iq,1:kl) = 0.
          else
-            sgn_amp(iq)  = sgn(iq) / (coszro(i)*taudar(i))
             sgdn_amp(iq) = sgdn(iq) / (coszro(i)*taudar(i))
             dni_amp(iq)  = dni(iq) / taudar(i)
             sw_tend_amp(iq,1:kl) = sw_tend(iq,1:kl)
@@ -639,28 +639,34 @@ c           fitting need be done.
       fractss=.05
       do i=1,imax
          iq=i+(j-1)*il
-         sgsave(iq) = sgn(iq)   ! repeated after solarfit
 c        Save the value excluding Ts^4 part.  This is allowed to change.
          xxx = stefbo*tss(iq)**4
          rgsave(iq) = rgn(iq) - xxx  ! opposite sign to prev. darlam scam
 !###     hlwsav(iq,1) = hlwsav(iq,1)-fractss*xxx  ! removed 18/6/03
       end do
+            
+      end if  ! odcalc
 
+      ! Store fraction of direct radiation in urban scheme
+      fbeam = fbeamvis(istart:iend)   
+      call atebfbeam(istart,imax,fbeam,0)
+         
 c     cloud amounts for saving
       do i=1,imax
          iq=i+(j-1)*il
          cloudtot(iq) = 1. - (1.-cloudlo(iq)) * (1.-cloudmi(iq)) *
      &        (1.-cloudhi(iq))
-      end do
-      
-      end if  ! odcalc
-      
+      end do  
+         
 !     Calculate the solar using the saved amplitude.
       do i=1,imax
        iq=i+(j-1)*il
-       sgn(iq)  = sgn_amp(iq)*coszro2(i)*taudar2(i)
        sgdn(iq) = sgdn_amp(iq)*coszro2(i)*taudar2(i)
+       talb = swrsave(iq)*albvisnir(iq,1)
+     &      + (1.-swrsave(iq))*albvisnir(iq,2)
+       sgn(iq)  = sgdn(iq)*(1.-talb)
        dni(iq)  = dni_amp(iq)*taudar2(i)
+       sout(iq) = sout(iq) + sgn_save(i) - sgn(iq)
       end do
             
 ! Set up the CC model radiation fields

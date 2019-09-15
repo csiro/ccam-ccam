@@ -195,6 +195,7 @@ use parm_m
 use pbl_m
 use permsurf_m
 use prec_m
+use raddiag_m
 use radisw_m
 use screen_m
 use sigs_m
@@ -359,8 +360,8 @@ do tile=1,ntiles
                    lfrpr,lfrpw,lfrs,fwet(is:ie),ga(is:ie),isflag(is:ie),land(is:ie),lmaxnb,mp,lnilitter,lniplant,        &
                    lnisoil,lplitter,lpplant,ps(is:ie),lpsoil,qg(is:ie,1),qsttg(is:ie),rgsave(is:ie),                     &
                    rlatt(is:ie),rlongg(is:ie),rnet(is:ie),rsmin(is:ie),runoff(is:ie),runoff_surface(is:ie),              &
-                   sgsave(is:ie),sigmf(is:ie),lsmass,snage(is:ie),snowd(is:ie),snowmelt(is:ie),lssdn,ssdnn(is:ie),       &
-                   sv(js:je),swrsave(is:ie),t(is:ie,1),ltgg,ltggsn,theta(is:ie),ltind,ltmap,                             &
+                   sigmf(is:ie),lsmass,snage(is:ie),snowd(is:ie),snowmelt(is:ie),lssdn,ssdnn(is:ie),                     &
+                   sv(js:je),sgdn(is:ie),swrsave(is:ie),t(is:ie,1),ltgg,ltggsn,theta(is:ie),ltind,ltmap,                 &
                    latmco2,tss(is:ie),ustar(is:ie),vlai(is:ie),vl1(js:je),vl2(js:je),vl3(js:je),vl4(js:je),vmod(is:ie),  &
                    lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),lair,lbal,c,lcanopy,                         &
                    lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,    &
@@ -422,11 +423,11 @@ end subroutine sib4
 subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav,cansto,cdtq,cduv,clitter,cnbp, &
                      cnpp,condg,conds,condx,cplant,csoil,eg,epot,fbeamnir,fbeamvis,fg,fnee,fpn,frd,frp,frpr,    &
                      frpw,frs,fwet,ga,isflag,land,maxnb,mp,nilitter,niplant,nisoil,plitter,pplant,ps,           &
-                     psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sgsave,sigmf,smass,    &
-                     snage,snowd,snowmelt,ssdn,ssdnn,sv,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,ustar,   &
-                     vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,air,bal,c,canopy,casabal,casabiome,   &
-                     casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,veg,          &
-                     climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,climate_agdd5,     &
+                     psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sigmf,smass,           &
+                     snage,snowd,snowmelt,ssdn,ssdnn,sv,sgdn,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,    &
+                     ustar,vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,air,bal,c,canopy,casabal,       &
+                     casabiome,casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,    &
+                     veg,climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,climate_agdd5, &
                      climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,plant_turnover,                 &
                      plant_turnover_wood,climate_save,imax)
 
@@ -471,8 +472,8 @@ real, dimension(imax), intent(inout) :: climate_agdd5
 real, dimension(imax), intent(inout) :: climate_dmoist_min20, climate_dmoist_max20
 real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
-real, dimension(imax), intent(in) :: sgsave, swrsave, theta, vmod
-real, dimension(imax) :: coszro2, taudar2, tmps, swdwn, alb, qsttg_land
+real, dimension(imax), intent(in) :: sgdn, swrsave, theta, vmod
+real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land
 real, dimension(mp), intent(in) :: sv, vl1, vl2, vl3, vl4
 real(kind=8) :: dtr8
 real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
@@ -538,15 +539,8 @@ if ( any(atmco2<1.) ) then
 end if
 
 ! set meteorological forcing
-! swdwn is downwelling shortwave (positive) W/m^2
-albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
-albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif
-alb       = swrsave*albvissav + (1.-swrsave)*albnirsav
-if ( any(alb<1.e-20) ) then
-  write(6,*) "ERROR: Invalid albedo in cable_ccam2 ",minval(alb)
-  stop
-end if
-swdwn = sgsave/(1.-alb)
+albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif ! for nrad=4
+albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif ! for nrad=4
 do nb = 1,maxnb
   is = tind(nb,1)
   ie = tind(nb,2)
@@ -561,8 +555,8 @@ do nb = 1,maxnb
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
   ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
-  met%fsd(is:ie,1)     = real(pack(swrsave*swdwn,      tmap(:,nb)), 8)
-  met%fsd(is:ie,2)     = real(pack((1.-swrsave)*swdwn, tmap(:,nb)), 8)
+  met%fsd(is:ie,1)     = real(pack(swrsave*sgdn,       tmap(:,nb)), 8)
+  met%fsd(is:ie,2)     = real(pack((1.-swrsave)*sgdn,  tmap(:,nb)), 8)
   met%fld(is:ie)       = real(pack(-rgsave,            tmap(:,nb)), 8)      ! long wave down (positive) W/m^2
   rad%fbeam(is:ie,1)   = real(pack(fbeamvis,           tmap(:,nb)), 8)
   rad%fbeam(is:ie,2)   = real(pack(fbeamnir,           tmap(:,nb)), 8)
@@ -850,9 +844,7 @@ end if
       
 ! Unpack tiles into grid point averages.
 ! Note that albsav and albnirsav are the VIS and NIR albedo output from CABLE to
-! be used by the radiadiation scheme at the next time step.  albvisnir(:,1) and
-! albvisnir(:,2) are the VIS and NIR albedo used by the radiation scheme for the
-! current time step.
+! be used by the radiadiation scheme at the next time step.
 do k = 1,ms
   where ( land(1:imax) )
     tgg(:,k) = 0.
@@ -1038,10 +1030,8 @@ where ( land(1:imax) )
   tss       = tss**0.25
   rsmin     = 1./rsmin
   ! update albedo and tss before calculating net radiation
-  albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif
-  albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif  
-  alb       = swrsave*albvissav + (1.-swrsave)*albnirsav
-  !rnet      = sgsave - rgsave - stefbo*tss**4
+  albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif ! for nrad=4
+  albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif ! for nrad=4 
   isflag(:) = nint(tmps(:)) ! tmps is average isflag
 end where
 qsttg_land(:) = qsat(ps(1:imax),tss(1:imax)) ! must wait for tss to be updated first
@@ -6321,11 +6311,11 @@ else
   call histrd(iarchi-1,ierr,vname,il_g,albnirdir,ifull)
   vname = 'albnirdif'
   call histrd(iarchi-1,ierr,vname,il_g,albnirdif,ifull)
-  ! albvis and albnir are used when nrad=4
+  ! albvissav and albnirsav are used when nrad=4
   vname = 'albvis'
-  call histrd(iarchi-1,ierr,vname,il_g,albvisnir(:,1),ifull)
+  call histrd(iarchi-1,ierr,vname,il_g,albvissav,ifull)
   vname = 'albnir'
-  call histrd(iarchi-1,ierr,vname,il_g,albvisnir(:,2),ifull)
+  call histrd(iarchi-1,ierr,vname,il_g,albnirsav,ifull)
   
   call fixtile
   
@@ -8464,9 +8454,9 @@ if ( itype==-1 ) then !just for restart file
   vname='albnirdif'
   call histwrt(albnirdif,vname,idnc,iarch,local,.true.)
   vname='albvis'
-  call histwrt(albvisnir(:,1),vname,idnc,iarch,local,.true.)
+  call histwrt(albvissav,vname,idnc,iarch,local,.true.)
   vname='albnir'
-  call histwrt(albvisnir(:,2),vname,idnc,iarch,local,.true.)
+  call histwrt(albnirsav,vname,idnc,iarch,local,.true.)
 end if
   
 return
