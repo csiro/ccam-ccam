@@ -4749,69 +4749,62 @@ call mloexpdensity(lrho,alphabar,betabar,nti,nsi,dzdum_rho,pice,0,rawrho=.true.)
 na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
 na(:,:,2) = min(max(0.,  nsi),50. )-34.72
 
-select case( mlojacobi )
-  case(0) ! off
-    do ii = 1,wlev
-      drhobardxu(1:ifull,ii) = 0.
-      dfrhobardxv(1:ifull,ii) = 0.
-      dfrhobardyu(1:ifull,ii) = 0.
-      drhobardyv(1:ifull,ii) = 0.
-      rhou(:,ii) = 0.
-      rhov(:,ii) = 0.
-    end do
+if ( mlojacobi==0 ) then !off
+  do ii = 1,wlev
+    drhobardxu(1:ifull,ii) = 0.
+    dfrhobardxv(1:ifull,ii) = 0.
+    dfrhobardyu(1:ifull,ii) = 0.
+    drhobardyv(1:ifull,ii) = 0.
+    rhou(:,ii) = 0.
+    rhov(:,ii) = 0.
+  end do
+else
+  select case( mlojacobi )
+    case(1) ! non-local - spline  
+      call seekdelta(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+    case(2) ! non-local - linear
+      call seekdelta_l(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+    case(6,7) ! z* - 2nd order
+      call zstar2(na,dnadxu,dfnadyu,dfnadxv,dnadyv)  
+    case default
+      write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
+      stop
+  end select  
+  do ii = 1,wlev
+    call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
+    call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
+    absu = 0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull,ii)
+    bbsu = 0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull,ii)
+    absv = 0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull,ii)
+    bbsv = 0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull,ii)
 
-  case(1,2,6,7) 
-    select case( mlojacobi )
-      case(1) ! non-local - spline  
-        call seekdelta(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
-      case(2) ! non-local - linear
-        call seekdelta_l(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
-      case(6,7) ! z* - 2nd order
-        call zstar2(na,dnadxu,dfnadyu,dfnadxv,dnadyv)  
-      case default
-        write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
-        stop
-    end select  
-    do ii = 1,wlev
-      call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
-      call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
-      absu = 0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull,ii)
-      bbsu = 0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull,ii)
-      absv = 0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull,ii)
-      bbsv = 0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull,ii)
+    ! This relationship neglects compression effects due to neta from the EOS.
+    drhobardxu(1:ifull,ii) = -absu*dnadxu(1:ifull,ii,1) + bbsu*dnadxu(1:ifull,ii,2)
+    dfrhobardxv(1:ifull,ii) = -absv*dfnadxv(1:ifull,ii,1) + bbsv*dfnadxv(1:ifull,ii,2)
+    dfrhobardyu(1:ifull,ii) = -absu*dfnadyu(1:ifull,ii,1) + bbsu*dfnadyu(1:ifull,ii,2)
+    drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
+    rhou(:,ii) = 0.5*(lrho(1:ifull,ii)+lrho(ie,ii)) 
+    rhov(:,ii) = 0.5*(lrho(1:ifull,ii)+lrho(in,ii))    
+  end do
 
-      ! This relationship neglects compression effects due to neta from the EOS.
-      drhobardxu(1:ifull,ii) = -absu*dnadxu(1:ifull,ii,1) + bbsu*dnadxu(1:ifull,ii,2)
-      dfrhobardxv(1:ifull,ii) = -absv*dfnadxv(1:ifull,ii,1) + bbsv*dfnadxv(1:ifull,ii,2)
-      dfrhobardyu(1:ifull,ii) = -absu*dfnadyu(1:ifull,ii,1) + bbsu*dfnadyu(1:ifull,ii,2)
-      drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
-      rhou(:,ii) = 0.5*(lrho(1:ifull,ii)+lrho(ie,ii)) 
-      rhov(:,ii) = 0.5*(lrho(1:ifull,ii)+lrho(in,ii))    
-    end do
-
-    ! integrate density gradient  
-    drhobardxu(:,1) = drhobardxu(:,1)*godsig(1:ifull,1)
-    dfrhobardxv(:,1) = dfrhobardxv(:,1)*godsig(1:ifull,1)
-    dfrhobardyu(:,1) = dfrhobardyu(:,1)*godsig(1:ifull,1)
-    drhobardyv(:,1) = drhobardyv(:,1)*godsig(1:ifull,1)
-    do ii = 2,wlev
-      drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsig(1:ifull,ii)
-      dfrhobardxv(:,ii) = dfrhobardxv(:,ii-1) + dfrhobardxv(:,ii)*godsig(1:ifull,ii)
-      dfrhobardyu(:,ii) = dfrhobardyu(:,ii-1) + dfrhobardyu(:,ii)*godsig(1:ifull,ii)
-      drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsig(1:ifull,ii)
-    end do
-    do ii = 1,wlev
-      drhobardxu(:,ii) = drhobardxu(:,ii)/gosigh(:,ii)
-      dfrhobardxv(:,ii) = dfrhobardxv(:,ii)/gosigh(:,ii)
-      dfrhobardyu(:,ii) = dfrhobardyu(:,ii)/gosigh(:,ii)
-      drhobardyv(:,ii) = drhobardyv(:,ii)/gosigh(:,ii)
-    end do
-    
-  case default
-    write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
-    stop
-
-end select
+  ! integrate density gradient  
+  drhobardxu(:,1) = drhobardxu(:,1)*godsig(1:ifull,1)
+  dfrhobardxv(:,1) = dfrhobardxv(:,1)*godsig(1:ifull,1)
+  dfrhobardyu(:,1) = dfrhobardyu(:,1)*godsig(1:ifull,1)
+  drhobardyv(:,1) = drhobardyv(:,1)*godsig(1:ifull,1)
+  do ii = 2,wlev
+    drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsig(1:ifull,ii)
+    dfrhobardxv(:,ii) = dfrhobardxv(:,ii-1) + dfrhobardxv(:,ii)*godsig(1:ifull,ii)
+    dfrhobardyu(:,ii) = dfrhobardyu(:,ii-1) + dfrhobardyu(:,ii)*godsig(1:ifull,ii)
+    drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsig(1:ifull,ii)
+  end do
+  do ii = 1,wlev
+    drhobardxu(:,ii) = drhobardxu(:,ii)/gosigh(:,ii)
+    dfrhobardxv(:,ii) = dfrhobardxv(:,ii)/gosigh(:,ii)
+    dfrhobardyu(:,ii) = dfrhobardyu(:,ii)/gosigh(:,ii)
+    drhobardyv(:,ii) = drhobardyv(:,ii)/gosigh(:,ii)
+  end do
+end if
   
 return
 end subroutine tsjacobi
@@ -5308,7 +5301,38 @@ real, dimension(ifull) :: ssi,sse,ssw,ssn,sss,ssen,sses,ssne,ssnw
 real, dimension(ifull+iextra,wlev,2), intent (in) :: rho
 real, dimension(ifull,wlev,2), intent(out) :: drhodxu,dfrhodyu,dfrhodxv,drhodyv
 real, dimension(ifull) :: f_in,f_ien,f_ie,f_is,f_ies,f_ine,f_iw,f_inw
+real, dimension(ifull+iextra) :: dd_i
+real, dimension(ifull) :: ddn, dds, dde, ddw, dden, ddes, ddne, ddnw
+real, dimension(ifull,wlev) :: ffu, ffv, ffwgt
 
+do ii = 1,wlev
+  dd_i(:) = gosig(:,ii)*dd(:)
+  call unpack_nsew(dd_i(:),ddn,dds,dde,ddw)
+  do iq = 1,ifull
+    dden(iq) = dd(ien(iq))
+    ddes(iq) = dd(ies(iq))
+    ddne(iq) = dd(ine(iq))
+    ddnw(iq) = dd(inw(iq))
+  end do
+  where ( abs(dd_i(1:ifull)-dde)<0.1 )
+    ffu(:,ii) = 1.
+  elsewhere
+    ffu(:,ii) = 0.
+  end where
+  where ( abs(dd_i(1:ifull)-ddn)<0.1 )
+    ffv(:,ii) = 1.
+  elsewhere
+    ffv(:,ii) = 0.
+  end where
+  where ( abs(dd_i(1:ifull)-ddn)<0.1 .and. abs(dd_i(1:ifull)-dden)<0.1 .and. abs(dd_i(1:ifull)-dde)<0.1 .and.  &
+          abs(dd_i(1:ifull)-ddne)<0.1 .and. abs(dd_i(1:ifull)-dds)<0.1 .and. abs(dd_i(1:ifull)-ddes)<0.1 .and. &
+          abs(dd_i(1:ifull)-ddw)<0.1 .and. abs(dd_i(1:ifull)-ddnw)<0.1 )
+    ffwgt(:,ii) = 1.
+  elsewhere
+    ffwgt(:,ii) = 0.
+  end where
+end do
+  
 call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
 do iq = 1,ifull
   f_ien(iq)=f(ien(iq))
@@ -5331,12 +5355,12 @@ do jj = 1,2
     end do  
   
     ! process staggered u locations  
-    drhodxu(:,ii,jj)=(sse(:)-ssi(:))*eeu(1:ifull,ii)*emu(1:ifull)/ds
-    dfrhodyu(:,ii,jj)=0.5*stwgt(1:ifull,ii)*emu(1:ifull)/ds*(ssn(:)*f_in-sss(:)*f_is+ssen(:)*f_ien-sses(:)*f_ies)
+    drhodxu(:,ii,jj)=(sse(:)-ssi(:))*ffu(1:ifull,ii)*emu(1:ifull)/ds
+    dfrhodyu(:,ii,jj)=0.5*ffwgt(1:ifull,ii)*emu(1:ifull)/ds*(ssn(:)*f_in-sss(:)*f_is+ssen(:)*f_ien-sses(:)*f_ies)
 
     ! now process staggered v locations
-    drhodyv(:,ii,jj)=(ssn(:)-ssi(:))*eev(1:ifull,ii)*emv(1:ifull)/ds
-    dfrhodxv(:,ii,jj)=0.5*stwgt(1:ifull,ii)*emv(1:ifull)/ds*(sse(:)*f_ie-ssw(:)*f_iw+ssne(:)*f_ine-ssnw(:)*f_inw)
+    drhodyv(:,ii,jj)=(ssn(:)-ssi(:))*ffv(1:ifull,ii)*emv(1:ifull)/ds
+    dfrhodxv(:,ii,jj)=0.5*ffwgt(1:ifull,ii)*emv(1:ifull)/ds*(sse(:)*f_ie-ssw(:)*f_iw+ssne(:)*f_ine-ssnw(:)*f_inw)
   end do
 
 end do

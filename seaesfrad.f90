@@ -177,14 +177,14 @@ real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
 real, dimension(imax) :: sgdnvis, sgdnnir
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
 real, dimension(imax) :: dzrho, dumtss, alb
-real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif, fbeam, sgn_save
+real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif, fbeam
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
 real dhr, cosz, delta
 
 real(kind=8), dimension(1,1,1,1) :: r
 
-if ( diag .and. mydiag .and. ntiles==1 ) then
+if ( diag .and. mydiag ) then
   diag_temp(:) = t(idjd,:)
   write(6,*) "tdiag ",diag_temp
   diag_temp(:) = qg(idjd,:)
@@ -232,7 +232,7 @@ do iq_tile = 1,ifull,imax
   
   call ccomp_mythread(mythread)
   
-  sgn_save = sgn(istart:iend)
+  !sgn_save = sgn(istart:iend)
   
   ! Calculate zenith angle for the solarfit calculation.
   dhr = dt/3600.
@@ -581,7 +581,7 @@ do iq_tile = 1,ifull,imax
     sgdnvis           = real(Sw_output(mythread)%dfsw_vis_sfc(:,1,1))
     sgdnnir           = sgdn(istart:iend) - sgdnvis
     ! sg = +Snet = Sdown - Sup
-    sgn_save   = sgdn(istart:iend) - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
+    !sgn_save   = sgdn(istart:iend) - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
     sgvis      = sgdnvis - real(Sw_output(mythread)%ufsw_vis_sfc(:,1,1))
     !sgvisdir  = Sw_output(mythread)%dfsw_vis_sfc_dir(:,1,1)-Sw_output(mythread)%ufsw_vis_sfc_dir(:,1,1)
     !sgvisdif  = Sw_output(mythread)%dfsw_vis_sfc_dif(:,1,1)-Sw_output(mythread)%ufsw_vis_sfc_dif(:,1,1)
@@ -785,7 +785,7 @@ do iq_tile = 1,ifull,imax
      + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
   sgn(istart:iend)  = sgdn(istart:iend)*(1.-alb)
   dni(istart:iend)  = dni_amp(istart:iend)*taudar2(1:imax)
-  sout(istart:iend) = sout(istart:iend) + sgn_save - sgn(istart:iend)
+  !sout(istart:iend) = sout(istart:iend) + sgn_save - sgn(istart:iend)
       
   ! Set up the CC model radiation fields
   ! slwa is negative net radiational htg at ground
@@ -803,7 +803,7 @@ end do  ! iq_tile = 1,ifull,imax
 !$omp end do nowait
 
 
-if ( diag .and. mydiag .and. ntiles==1 ) then
+if ( diag .and. mydiag ) then
   diag_temp(:) = t(idjd,:)
   write(6,*) "tdiag ",diag_temp
   diag_temp(:) = qg(idjd,:)

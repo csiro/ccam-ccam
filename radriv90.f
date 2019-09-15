@@ -102,7 +102,7 @@ c     Following are for cloud2 routine
      &     qc2(ixin,kl),cd2(ixin,kl),p2(ixin,kl),
      &     dp2(ixin,kl),cll(ixin),clm(ixin),clh(ixin)
       logical land2(ixin)
-      real fbeam(ixin),sgn_save(ixin)
+      real fbeam(ixin)
 
 
 c     Stuff from cldset
@@ -259,7 +259,7 @@ C---------------------------------------------------------------------*
       istart=1+(j-1)*il
       iend=istart+imax-1
       
-      sgn_save = sgn(istart:iend)
+      !sgn_save = sgn(istart:iend)
       
       if(ntest==1)write(6,*)'in radriv90 j = ',j
 !     Calculate zenith angle for the solarfit calculation.
@@ -563,7 +563,7 @@ c       write(24,*)coszro2
           talb = swrsave(iq)*albvisnir(iq,1)
      &         -(1.-swrsave(iq))*albvisnir(iq,2)
           sgdn(iq) = sgn(iq) / ( 1. - talb )
-          sgn_save(i) = sgn(iq)
+          !sgn_save(i) = sgn(iq)
       end do
       call spitter(imax,fjd,coszro,sgdn(istart:iend),
      &             fbeamvis(istart:iend))
@@ -666,7 +666,7 @@ c     cloud amounts for saving
      &      + (1.-swrsave(iq))*albvisnir(iq,2)
        sgn(iq)  = sgdn(iq)*(1.-talb)
        dni(iq)  = dni_amp(iq)*taudar2(i)
-       sout(iq) = sout(iq) + sgn_save(i) - sgn(iq)
+       !sout(iq) = sout(iq) + sgn_save(i) - sgn(iq)
       end do
             
 ! Set up the CC model radiation fields
