@@ -693,8 +693,8 @@ c slwa is negative net radiational htg at ground
       if(odcalc.and.ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
         write(6,*)'bit after  lwr88 ktau,j,myid ',ktau,j,myid  
         write(6,*)'sum_rg ',sum(rgn(:))     
-        write(6,*)'slwa,sg,rgsave,rg,tss,grnflx ',slwa(idjd),sgsave(idjd),
-     &           rgsave(idjd),rgn(idjd),tss(idjd),grnflx(idjd)
+        write(6,*)'slwa,sg,rgsave,rg,tss,grnflx ',slwa(idjd),
+     & sgsave(idjd),rgsave(idjd),rgn(idjd),tss(idjd),grnflx(idjd)
       endif
 
 ! Update SW if solarfit is true
