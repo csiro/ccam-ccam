@@ -178,6 +178,7 @@ real, dimension(imax) :: sgdnvis, sgdnnir
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
 real, dimension(imax) :: dzrho, dumtss, alb
 real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif, fbeam, sgn_save
+real, dimension(imax) :: sgn
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
 real dhr, cosz, delta
@@ -225,7 +226,7 @@ end if
 !$omp private(sigh,duo3n,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,rhoa,dz,i,iq,cosz),       &
 !$omp private(delta,k,kr,dzrho,cd2,mx,dumt,p2,ktop,kbot,dumcf),                            &
 !$omp private(dumql,dumqf,sgdnvis,sgdnnir,sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir),         &
-!$omp private(sgdnnirdif,rt,fbeam,sgn_save)
+!$omp private(sgdnnirdif,rt,fbeam,sgn_save,sgn)
 do iq_tile = 1,ifull,imax
   istart = iq_tile
   iend   = istart + imax - 1
@@ -752,7 +753,7 @@ do iq_tile = 1,ifull,imax
       sgclr_amp(istart:iend)   = 0.
     elsewhere
       sgdn_amp(istart:iend) = sgdn(istart:iend)/(coszro*taudar)
-      sgn_amp(istart:iend)  = sgn(istart:iend)/(coszro*taudar)
+      sgn_amp(istart:iend)  = sgn/(coszro*taudar)
       dni_amp(istart:iend)  = dni(istart:iend)/taudar
       sint_amp(istart:iend) = sint(istart:iend)/(coszro*taudar)
       sout_amp(istart:iend) = sout(istart:iend)/(coszro*taudar)
@@ -791,12 +792,12 @@ do iq_tile = 1,ifull,imax
   sgdn(istart:iend) = sgdn_amp(istart:iend)*coszro2*taudar2
   alb = swrsave(istart:iend)*albvisnir(istart:iend,1)     &
      + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
-  sgn(istart:iend)  = sgdn(istart:iend)*(1.-alb)
-  sgn_save(istart:iend) = sgn_amp(istart:iend)*coszro2*taudar2
+  sgn = sgdn(istart:iend)*(1.-alb)
+  sgn_save = sgn_amp(istart:iend)*coszro2*taudar2
   dni(istart:iend)  = dni_amp(istart:iend)*taudar2
   sint(istart:iend) = sint_amp(istart:iend)*coszro2*taudar2
   sout(istart:iend) = sout_amp(istart:iend)*coszro2*taudar2
-  sout(istart:iend) = sout(istart:iend) + sgn_save - sgn(istart:iend) ! correct for changing albedo
+  sout(istart:iend) = sout(istart:iend) + sgn_save - sgn ! correct for changing albedo
   soutclr(istart:iend) = soutclr_amp(istart:iend)*coszro2*taudar2
   sgclr(istart:iend)   = sgclr_amp(istart:iend)*coszro2*taudar2
       
@@ -804,7 +805,7 @@ do iq_tile = 1,ifull,imax
   ! slwa is negative net radiational htg at ground
   ! Note that this does not include the upward LW radiation from the surface.
   ! That is included in sflux.f90
-  sgsave(istart:iend) = sgn(istart:iend)   ! Net solar radiation (after solar fit)
+  sgsave(istart:iend) = sgn   ! Net solar radiation (after solar fit)
   slwa(istart:iend) = -sgsave(istart:iend) + rgsave(istart:iend)
 
   ! Update tendencies

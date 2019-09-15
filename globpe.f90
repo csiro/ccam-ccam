@@ -523,7 +523,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call seaesfrad_settime
       mtimer = mtimer_sav
     else
-      call seaesfrad_settime  
+      call seaesfrad_settime 
     end if    ! (nhstest<0)      
   end if    
   ! aerosol timer (true indicates update oxidants, etc)
@@ -3955,7 +3955,7 @@ if ( ccycle/=0 ) then
   end if
 end if
 
-sgn_ave(1:ifull)   = sgn_ave(1:ifull)  + sgn(1:ifull)
+sgn_ave(1:ifull)   = sgn_ave(1:ifull)  + sgsave(1:ifull)
 sgdn_ave(1:ifull)  = sgdn_ave(1:ifull) + sgdn(1:ifull)
 sint_ave(1:ifull)  = sint_ave(1:ifull) + sint(1:ifull)
 sot_ave(1:ifull)   = sot_ave(1:ifull)  + sout(1:ifull)

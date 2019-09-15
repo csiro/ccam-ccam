@@ -6523,7 +6523,7 @@ if ( ccycle/=0 ) then
   end if
 end if
 
-sgn_ave(1:ifull)  = sgn_ave(1:ifull)  + sg(1:ifull)
+sgn_ave(1:ifull)  = sgn_ave(1:ifull)  + sgsave(1:ifull)
 sgdn_ave(1:ifull) = sgdn_ave(1:ifull) + sgdn(1:ifull)
 sint_ave(1:ifull)  = sint_ave(1:ifull) + sint(1:ifull)
 sot_ave(1:ifull)   = sot_ave(1:ifull)  + sout(1:ifull)

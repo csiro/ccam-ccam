@@ -102,7 +102,7 @@ c     Following are for cloud2 routine
      &     qc2(ixin,kl),cd2(ixin,kl),p2(ixin,kl),
      &     dp2(ixin,kl),cll(ixin),clm(ixin),clh(ixin)
       logical land2(ixin)
-      real fbeam(ixin), sgn_save(ixin)
+      real fbeam(ixin), sgn_save(ixin), sgn(ixin)
 
 
 c     Stuff from cldset
@@ -510,7 +510,7 @@ c         write(24,*)coszro2
         endif  ! (ldr.ne.0)
         if(ndi<0.and.nmaxpr==1)
      &     write(6,*)'before swr99 ktau,j,myid ',ktau,j,myid
-        call swr99(fsw,hsw,sgn(istart:iend),ufsw,dfsw,press,press2,
+        call swr99(fsw,hsw,sgn,ufsw,dfsw,press,press2,
      &             coszro,taudar,rh2o,rrco2,ssolar,qo3,nclds,
      &             ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
      &             swrsave(istart:iend),cldoff) ! MJT cable
@@ -546,7 +546,7 @@ c       write(24,*)coszro2
       else
         call cloud(cldoff,sig,j,rhg) ! jlm
       endif  ! (ldr.ne.0)
-      call swr99(fsw,hsw,sgn(istart:iend),ufsw,dfsw,press,press2,
+      call swr99(fsw,hsw,sgn,ufsw,dfsw,press,press2,
      &           coszro,taudar,rh2o,rrco2,ssolar,qo3,nclds,
      &           ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
      &           swrsave(istart:iend),cldoff)
@@ -554,10 +554,10 @@ c       write(24,*)coszro2
           iq=i+(j-1)*il              ! fixed Mar '05
           sint(iq) = dfsw(i,1)*h1m3  ! solar in top
           sout(iq) = ufsw(i,1)*h1m3  ! solar out top
-          sgn(iq)  = sgn(iq)*h1m3    ! solar absorbed at the surface
+          sgn(i)   = sgn(i)*h1m3    ! solar absorbed at the surface
           talb = swrsave(iq)*albvisnir(iq,1)
      &         -(1.-swrsave(iq))*albvisnir(iq,2)
-          sgdn(iq) = sgn(iq) / ( 1. - talb )
+          sgdn(iq) = sgn(i) / ( 1. - talb )
       end do
       call spitter(imax,fjd,coszro,sgdn(istart:iend),
      &             fbeamvis(istart:iend))
@@ -628,7 +628,7 @@ c           fitting need be done.
             sw_tend_amp(iq,1:kl) = 0.
          else
             sgdn_amp(iq) = sgdn(iq) / (coszro(i)*taudar(i))
-            sgn_amp(iq)  = sgn(iq) / (coszro(i)*taudar(i))
+            sgn_amp(iq)  = sgn(i) / (coszro(i)*taudar(i))
             dni_amp(iq)  = dni(iq) / taudar(i)
             sint_amp(iq) = sint(iq) / (coszro(i)*taudar(i))
             sout_amp(iq) = sout(iq) / (coszro(i)*taudar(i))
@@ -671,12 +671,12 @@ c     cloud amounts for saving
        sgdn(iq) = sgdn_amp(iq)*coszro2(i)*taudar2(i)
        talb = swrsave(iq)*albvisnir(iq,1)
      &      + (1.-swrsave(iq))*albvisnir(iq,2)
-       sgn(iq)  = sgdn(iq)*(1.-talb)
-       sgn_save(iq) = sgn_amp(iq)*coszro2(i)*taudar2(i)
+       sgn(i)  = sgdn(iq)*(1.-talb)
+       sgn_save(i) = sgn_amp(iq)*coszro2(i)*taudar2(i)
        dni(iq)  = dni_amp(iq)*taudar2(i)
        sint(iq) = sint_amp(iq)*coszro2(i)*taudar2(i)
        sout(iq) = sout_amp(iq)*coszro2(i)*taudar2(i)
-       sout(iq) = sout(iq) + sgn_save(i) - sgn(iq)
+       sout(iq) = sout(iq) + sgn_save(i) - sgn(i)
        soutclr(iq) = soutclr_amp(iq)*coszro2(i)*taudar2(i)
        sgclr(iq)   = sgclr_amp(iq)*coszro2(i)*taudar2(i)
       end do
@@ -687,13 +687,13 @@ c slwa is negative net radiational htg at ground
 ! That is included in sflux.f
       do i=1,imax
          iq=i+(j-1)*il
-         slwa(iq) = -sgn(iq)+rgsave(iq)
-         sgsave(iq) = sgn(iq)   ! this is the repeat after solarfit 26/7/02
+         slwa(iq) = -sgn(i)+rgsave(iq)
+         sgsave(iq) = sgn(i)   ! this is the repeat after solarfit 26/7/02
       end do
       if(odcalc.and.ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
         write(6,*)'bit after  lwr88 ktau,j,myid ',ktau,j,myid  
         write(6,*)'sum_rg ',sum(rgn(:))     
-        write(6,*)'slwa,sg,rgsave,rg,tss,grnflx ',slwa(idjd),sgn(idjd),
+        write(6,*)'slwa,sg,rgsave,rg,tss,grnflx ',slwa(idjd),sgsave(idjd),
      &           rgsave(idjd),rgn(idjd),tss(idjd),grnflx(idjd)
       endif
 

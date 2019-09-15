@@ -26,7 +26,7 @@ implicit none
 private
 public odcalc
 public sint_ave,sot_ave,soc_ave,sgn_ave
-public sgdn_ave,rgdn_ave,sgdn,rgdn,sgn,rgn
+public sgdn_ave,rgdn_ave,sgdn,rgdn,rgn
 public rtu_ave,rtc_ave,rgn_ave,rgc_ave,sgc_ave
 public cld_ave,cll_ave,clm_ave,clh_ave,dni_ave
 public sunhours,sint,sout,rt,dni
@@ -37,7 +37,7 @@ public raddiag_init,raddiag_end
 public sw_tend, lw_tend
 
 real, dimension(:), allocatable, save :: sint_ave,sot_ave,soc_ave,sgn_ave
-real, dimension(:), allocatable, save :: sgdn_ave,rgdn_ave,sgdn,rgdn,sgn,rgn
+real, dimension(:), allocatable, save :: sgdn_ave,rgdn_ave,sgdn,rgdn,rgn
 real, dimension(:), allocatable, save :: rtu_ave,rtc_ave,rgn_ave,rgc_ave,sgc_ave
 real, dimension(:), allocatable, save :: cld_ave,cll_ave,clm_ave,clh_ave,dni_ave
 real, dimension(:), allocatable, save :: sunhours,sint,sout,rt,dni
@@ -57,7 +57,7 @@ implicit none
 integer, intent(in) :: ifull,kl
 
 allocate(sint_ave(ifull),sot_ave(ifull),soc_ave(ifull),sgn_ave(ifull))
-allocate(sgdn_ave(ifull),rgdn_ave(ifull),sgdn(ifull),rgdn(ifull),sgn(ifull),rgn(ifull))
+allocate(sgdn_ave(ifull),rgdn_ave(ifull),sgdn(ifull),rgdn(ifull),rgn(ifull))
 allocate(rtu_ave(ifull),rtc_ave(ifull),rgn_ave(ifull),rgc_ave(ifull),sgc_ave(ifull))
 allocate(cld_ave(ifull),cll_ave(ifull),clm_ave(ifull),clh_ave(ifull),dni_ave(ifull))
 allocate(sunhours(ifull),sint(ifull),sout(ifull),rt(ifull),dni(ifull))
@@ -76,7 +76,6 @@ sgdn_ave=0.
 rgdn_ave=0.
 sgdn=0.
 rgdn=0.
-sgn=0.
 rgn=0.
 rtu_ave=0.
 rtc_ave=0.
@@ -116,7 +115,7 @@ subroutine raddiag_end
 implicit none
 
 deallocate(sint_ave,sot_ave,soc_ave,sgn_ave)
-deallocate(sgdn_ave,rgdn_ave,sgdn,rgdn,sgn,rgn)
+deallocate(sgdn_ave,rgdn_ave,sgdn,rgdn,rgn)
 deallocate(rtu_ave,rtc_ave,rgn_ave,rgc_ave,sgc_ave)
 deallocate(cld_ave,cll_ave,clm_ave,clh_ave,dni_ave)
 deallocate(sunhours,sint,sout,rt,dni)
