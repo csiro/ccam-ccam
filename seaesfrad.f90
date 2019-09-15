@@ -177,7 +177,7 @@ real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
 real, dimension(imax) :: sgdnvis, sgdnnir
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
 real, dimension(imax) :: dzrho, dumtss, alb
-real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif, fbeam
+real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif, fbeam, sgn_save
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
 real dhr, cosz, delta
@@ -225,14 +225,12 @@ end if
 !$omp private(sigh,duo3n,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,rhoa,dz,i,iq,cosz),       &
 !$omp private(delta,k,kr,dzrho,cd2,mx,dumt,p2,ktop,kbot,dumcf),                            &
 !$omp private(dumql,dumqf,sgdnvis,sgdnnir,sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir),         &
-!$omp private(sgdnnirdif,rt,fbeam)
+!$omp private(sgdnnirdif,rt,fbeam,sgn_save)
 do iq_tile = 1,ifull,imax
   istart = iq_tile
   iend   = istart + imax - 1
   
   call ccomp_mythread(mythread)
-  
-  !sgn_save = sgn(istart:iend)
   
   ! Calculate zenith angle for the solarfit calculation.
   dhr = dt/3600.
@@ -575,7 +573,7 @@ do iq_tile = 1,ifull,imax
     sgdnvis           = real(Sw_output(mythread)%dfsw_vis_sfc(:,1,1))
     sgdnnir           = sgdn(istart:iend) - sgdnvis
     ! sg = +Snet = Sdown - Sup
-    !sgn_save   = sgdn(istart:iend) - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
+    sgn        = sgdn(istart:iend) - real(Sw_output(mythread)%ufsw(:,1,kl+1,1))
     sgvis      = sgdnvis - real(Sw_output(mythread)%ufsw_vis_sfc(:,1,1))
     !sgvisdir  = Sw_output(mythread)%dfsw_vis_sfc_dir(:,1,1)-Sw_output(mythread)%ufsw_vis_sfc_dir(:,1,1)
     !sgvisdif  = Sw_output(mythread)%dfsw_vis_sfc_dif(:,1,1)-Sw_output(mythread)%ufsw_vis_sfc_dif(:,1,1)
@@ -742,10 +740,11 @@ do iq_tile = 1,ifull,imax
     ! step) and use this value to get solar radiation at other times.
     ! Use the zenith angle and daylight fraction calculated in zenith
     ! to remove these factors.
-    where ( coszro(1:imax)*taudar(1:imax)<=1.E-5 )
+    where ( coszro*taudar<=1.E-5 )
       ! The sun is not up at all over the radiation period so no 
       ! fitting need be done.
       sgdn_amp(istart:iend) = 0.
+      sgn_amp(istart:iend)  = 0.
       dni_amp(istart:iend)  = 0.
       sint_amp(istart:iend) = 0.
       sout_amp(istart:iend) = 0.
@@ -753,7 +752,8 @@ do iq_tile = 1,ifull,imax
       sgclr_amp(istart:iend)   = 0.
     elsewhere
       sgdn_amp(istart:iend) = sgdn(istart:iend)/(coszro*taudar)
-      dni_amp(istart:iend)  = dni(istart:iend)/taudar(1:imax)
+      sgn_amp(istart:iend)  = sgn(istart:iend)/(coszro*taudar)
+      dni_amp(istart:iend)  = dni(istart:iend)/taudar
       sint_amp(istart:iend) = sint(istart:iend)/(coszro*taudar)
       sout_amp(istart:iend) = sout(istart:iend)/(coszro*taudar)
       soutclr_amp(istart:iend) = soutclr(istart:iend)/(coszro*taudar)
@@ -792,10 +792,11 @@ do iq_tile = 1,ifull,imax
   alb = swrsave(istart:iend)*albvisnir(istart:iend,1)     &
      + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
   sgn(istart:iend)  = sgdn(istart:iend)*(1.-alb)
+  sgn_save(istart:iend) = sgn_amp(istart:iend)*coszro2*taudar2
   dni(istart:iend)  = dni_amp(istart:iend)*taudar2
   sint(istart:iend) = sint_amp(istart:iend)*coszro2*taudar2
   sout(istart:iend) = sout_amp(istart:iend)*coszro2*taudar2
-  !sout(istart:iend) = sout(istart:iend) + sgn_save - sgn(istart:iend)
+  sout(istart:iend) = sout(istart:iend) + sgn_save - sgn(istart:iend) ! correct for changing albedo
   soutclr(istart:iend) = soutclr_amp(istart:iend)*coszro2*taudar2
   sgclr(istart:iend)   = sgclr_amp(istart:iend)*coszro2*taudar2
       

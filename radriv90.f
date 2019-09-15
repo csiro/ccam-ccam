@@ -102,7 +102,7 @@ c     Following are for cloud2 routine
      &     qc2(ixin,kl),cd2(ixin,kl),p2(ixin,kl),
      &     dp2(ixin,kl),cll(ixin),clm(ixin),clh(ixin)
       logical land2(ixin)
-      real fbeam(ixin)
+      real fbeam(ixin), sgn_save(ixin)
 
 
 c     Stuff from cldset
@@ -258,9 +258,6 @@ C---------------------------------------------------------------------*
       do 100 j=1,jl,imax/il
       istart=1+(j-1)*il
       iend=istart+imax-1
-      
-      !sgn_save = sgn(istart:iend)
-      
       if(ntest==1)write(6,*)'in radriv90 j = ',j
 !     Calculate zenith angle for the solarfit calculation.
 !     This call averages zenith angle just over this time step.
@@ -561,7 +558,6 @@ c       write(24,*)coszro2
           talb = swrsave(iq)*albvisnir(iq,1)
      &         -(1.-swrsave(iq))*albvisnir(iq,2)
           sgdn(iq) = sgn(iq) / ( 1. - talb )
-          !sgn_save(i) = sgn(iq)
       end do
       call spitter(imax,fjd,coszro,sgdn(istart:iend),
      &             fbeamvis(istart:iend))
@@ -623,6 +619,7 @@ c     to remove these factors.
 c           The sun isn't up at all over the radiation period so no 
 c           fitting need be done.
             sgdn_amp(iq) = 0.
+            sgn_amp(iq)  = 0.
             dni_amp(iq)  = 0.
             sint_amp(iq) = 0.
             sout_amp(iq) = 0.
@@ -631,6 +628,7 @@ c           fitting need be done.
             sw_tend_amp(iq,1:kl) = 0.
          else
             sgdn_amp(iq) = sgdn(iq) / (coszro(i)*taudar(i))
+            sgn_amp(iq)  = sgn(iq) / (coszro(i)*taudar(i))
             dni_amp(iq)  = dni(iq) / taudar(i)
             sint_amp(iq) = sint(iq) / (coszro(i)*taudar(i))
             sout_amp(iq) = sout(iq) / (coszro(i)*taudar(i))
@@ -674,10 +672,11 @@ c     cloud amounts for saving
        talb = swrsave(iq)*albvisnir(iq,1)
      &      + (1.-swrsave(iq))*albvisnir(iq,2)
        sgn(iq)  = sgdn(iq)*(1.-talb)
+       sgn_save(iq) = sgn_amp(iq)*coszro2(i)*taudar2(i)
        dni(iq)  = dni_amp(iq)*taudar2(i)
        sint(iq) = sint_amp(iq)*coszro2(i)*taudar2(i)
        sout(iq) = sout_amp(iq)*coszro2(i)*taudar2(i)
-       !sout(iq) = sout(iq) + sgn_save(i) - sgn(iq)
+       sout(iq) = sout(iq) + sgn_save(i) - sgn(iq)
        soutclr(iq) = soutclr_amp(iq)*coszro2(i)*taudar2(i)
        sgclr(iq)   = sgclr_amp(iq)*coszro2(i)*taudar2(i)
       end do

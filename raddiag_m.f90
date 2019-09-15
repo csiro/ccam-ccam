@@ -32,7 +32,7 @@ public cld_ave,cll_ave,clm_ave,clh_ave,dni_ave
 public sunhours,sint,sout,rt,dni
 public soutclr,rtclr,rgclr,sgclr
 public sgdn_amp, dni_amp, sw_tend_amp, sint_amp, sout_amp
-public soutclr_amp,sgclr_amp
+public soutclr_amp, sgclr_amp, sgn_amp
 public raddiag_init,raddiag_end
 public sw_tend, lw_tend
 
@@ -43,7 +43,7 @@ real, dimension(:), allocatable, save :: cld_ave,cll_ave,clm_ave,clh_ave,dni_ave
 real, dimension(:), allocatable, save :: sunhours,sint,sout,rt,dni
 real, dimension(:), allocatable, save :: soutclr,rtclr,rgclr,sgclr
 real, dimension(:), allocatable, save :: sgdn_amp, dni_amp, sint_amp, sout_amp
-real, dimension(:), allocatable, save :: soutclr_amp, sgclr_amp
+real, dimension(:), allocatable, save :: soutclr_amp, sgclr_amp, sgn_amp
 real, dimension(:,:), allocatable, save :: sw_tend, lw_tend
 real, dimension(:,:), allocatable, save :: sw_tend_amp
 logical, save :: odcalc = .false.
@@ -63,7 +63,7 @@ allocate(cld_ave(ifull),cll_ave(ifull),clm_ave(ifull),clh_ave(ifull),dni_ave(ifu
 allocate(sunhours(ifull),sint(ifull),sout(ifull),rt(ifull),dni(ifull))
 allocate(soutclr(ifull),rtclr(ifull),rgclr(ifull),sgclr(ifull))
 allocate(sgdn_amp(ifull),dni_amp(ifull),sint_amp(ifull),sout_amp(ifull))
-allocate(soutclr_amp(ifull),sgclr_amp(ifull))
+allocate(soutclr_amp(ifull),sgclr_amp(ifull),sgn_amp(ifull))
 allocate(sw_tend(ifull,kl),lw_tend(ifull,kl))
 allocate(sw_tend_amp(ifull,kl))
 
@@ -103,6 +103,7 @@ sint_amp=0.
 sout_amp=0.
 soutclr_amp=0.
 sgclr_amp=0.
+sgn_amp=0.
 sw_tend=0.
 lw_tend=0.
 sw_tend_amp=0.
@@ -121,7 +122,7 @@ deallocate(cld_ave,cll_ave,clm_ave,clh_ave,dni_ave)
 deallocate(sunhours,sint,sout,rt,dni)
 deallocate(soutclr,rtclr,rgclr,sgclr)
 deallocate(sgdn_amp,dni_amp,sint_amp,sout_amp)
-deallocate(soutclr_amp,sgclr_amp)
+deallocate(soutclr_amp,sgclr_amp,sgn_amp)
 deallocate(sw_tend,lw_tend)
 deallocate(sw_tend_amp)
 

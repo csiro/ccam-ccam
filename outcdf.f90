@@ -2142,6 +2142,8 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'soutclr_amp',lname,'W/m2',0.,900.,0,cptype)
       lname = 'Solar downwelling at ground (AMP)'
       call attrib(idnc,dimj,jsize,'sgdn_amp',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
+      lname = 'Solar net at ground (+ve down) (AMP)'
+      call attrib(idnc,dimj,jsize,'sgn_amp',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
       lname = 'Clear sky SW at ground (+ve down) (AMP)'
       call attrib(idnc,dimj,jsize,'sgclr_amp',lname,'W/m2',-500.,2000.,0,cptype)
       lname = 'Direct normal irradiance (AMP)'
@@ -3289,6 +3291,7 @@ if ( itype==-1 ) then
   call histwrt(sout_amp,'sout_amp',idnc,iarch,local,.true.)
   call histwrt(soutclr_amp,'soutclr_amp',idnc,iarch,local,.true.)
   call histwrt(sgdn_amp,'sgdn_amp',idnc,iarch,local,.true.)
+  call histwrt(sgn_amp,'sgn_amp',idnc,iarch,local,.true.)
   call histwrt(sgclr_amp,'sgclr_amp',idnc,iarch,local,.true.)
   call histwrt(dni_amp,'dni_amp',idnc,iarch,local,.true.)
   call histwrt(fbeamvis,'fbeamvis',idnc,iarch,local,.true.)
