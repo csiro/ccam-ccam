@@ -983,21 +983,26 @@ real, dimension(:,:), intent(in) :: bbi,ddi
 real, dimension(:,:), intent(in) :: cci
 real, dimension(:,:), intent(out) :: outdat
 real, dimension(size(outdat,1),size(outdat,2)) :: cc,dd
-real, dimension(size(outdat,1)) :: n
-integer k,klin
+real :: n_s
+integer k,klin,iq,imax
 
 klin=size(outdat,2)
+imax=size(outdat,1)
 cc(:,1)=cci(:,1)/bbi(:,1)
 dd(:,1)=ddi(:,1)/bbi(:,1)
 
 do k=2,klin-1
-  n(:)=bbi(:,k)-cc(:,k-1)*aai(:,k)
-  cc(:,k)=cci(:,k)/n(:)
-  dd(:,k)=(ddi(:,k)-dd(:,k-1)*aai(:,k))/n(:)
+  do iq = 1,imax
+    n_s=bbi(iq,k)-cc(iq,k-1)*aai(iq,k)
+    cc(iq,k)=cci(iq,k)/n_s
+    dd(iq,k)=(ddi(iq,k)-dd(iq,k-1)*aai(iq,k))/n_s
+  end do
 end do
-n(:)=bbi(:,klin)-cc(:,klin-1)*aai(:,klin)
-dd(:,klin)=(ddi(:,klin)-dd(:,klin-1)*aai(:,klin))/n(:)
-outdat(:,klin)=dd(:,klin)
+do iq = 1,imax
+  n_s=bbi(iq,klin)-cc(iq,klin-1)*aai(iq,klin)
+  dd(iq,klin)=(ddi(iq,klin)-dd(iq,klin-1)*aai(iq,klin))/n_s
+  outdat(iq,klin)=dd(iq,klin)
+end do
 do k=klin-1,1,-1
   outdat(:,k)=dd(:,k)-cc(:,k)*outdat(:,k+1)
 end do
