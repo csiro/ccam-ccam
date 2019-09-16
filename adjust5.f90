@@ -480,11 +480,11 @@ if ( nh/=0 .and. (ktau>knh.or.lrestart) ) then
   !end do   ! k loop 
   
   ! update phi for use in next time step
-  !phi(1:ifull,1) = zs(1:ifull) + bet(1)*t(1:ifull,1)
-  !do k = 2,kl
-  !  phi(1:ifull,k) = phi(1:ifull,k-1) + bet(k)*t(1:ifull,k) + betm(k)*t(1:ifull,k-1)
-  !end do
-  !phi(1:ifull,1:kl) = phi(1:ifull,1:kl) + phi_nh(1:ifull,1:kl)
+  phi(1:ifull,1) = zs(1:ifull) + bet(1)*t(1:ifull,1)
+  do k = 2,kl
+    phi(1:ifull,k) = phi(1:ifull,k-1) + bet(k)*t(1:ifull,k) + betm(k)*t(1:ifull,k-1)
+  end do
+  phi(1:ifull,1:kl) = phi(1:ifull,1:kl) + phi_nh(1:ifull,1:kl)
 
   if ( nmaxpr==1 .and. mydiag ) then
     write(6,*) 'phi_nh ',(phi_nh(idjd,k),k=1,kl)
