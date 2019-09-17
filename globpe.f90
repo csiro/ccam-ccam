@@ -4292,10 +4292,10 @@ if ( diaglevel_pbl>3 ) then
           exit
         end if
       end do
-      xx = (150.*grav-phi(iq,k150m)-zs(iq))/(phi(iq,k150m+1)-phi(iq,k150m))
+      xx = (150.*grav-phi(iq,k150m)+zs(iq))/(phi(iq,k150m+1)-phi(iq,k150m))
       ua150(iq) = u(iq,k150m)*(1.-xx) + u(iq,k150m+1)*xx
       va150(iq) = v(iq,k150m)*(1.-xx) + v(iq,k150m+1)*xx      
-      xx = (250.*grav-phi(iq,k250m)-zs(iq))/(phi(iq,k250m+1)-phi(iq,k250m))
+      xx = (250.*grav-phi(iq,k250m)+zs(iq))/(phi(iq,k250m+1)-phi(iq,k250m))
       ua250(iq) = u(iq,k250m)*(1.-xx) + u(iq,k250m+1)*xx
       va250(iq) = v(iq,k250m)*(1.-xx) + v(iq,k250m+1)*xx
     end do  
