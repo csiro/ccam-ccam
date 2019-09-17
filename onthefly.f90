@@ -2056,9 +2056,9 @@ if ( nested/=1 .and. nested/=3 ) then
       call gethist1('fbeamvis',fbeamvis)
       call gethist1('fbeamnir',fbeamnir)
       call gethist1('swrsave',swrsave)
-      call gethist1('cll',cloudlo)
-      call gethist1('clm',cloudmi)
-      call gethist1('clh',cloudhi)
+      call gethist1('cloudlo',cloudlo)
+      call gethist1('cloudmi',cloudmi)
+      call gethist1('cloudhi',cloudhi)
       call gethist4('sw_tend_amp',sw_tend_amp)
       call gethist4('lw_tend',lw_tend)
     end if

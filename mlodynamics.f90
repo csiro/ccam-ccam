@@ -5315,19 +5315,19 @@ do ii = 1,wlev
     ddnw(iq) = dd(inw(iq))
   end do
   where ( abs(dd_i(1:ifull)-dde)<0.1 )
-    ffu(:,ii) = 1.
+    ffu(:,ii) = eeu(1:ifull,ii)
   elsewhere
     ffu(:,ii) = 0.
   end where
   where ( abs(dd_i(1:ifull)-ddn)<0.1 )
-    ffv(:,ii) = 1.
+    ffv(:,ii) = eev(1:ifull,ii)
   elsewhere
     ffv(:,ii) = 0.
   end where
   where ( abs(dd_i(1:ifull)-ddn)<0.1 .and. abs(dd_i(1:ifull)-dden)<0.1 .and. abs(dd_i(1:ifull)-dde)<0.1 .and.  &
           abs(dd_i(1:ifull)-ddne)<0.1 .and. abs(dd_i(1:ifull)-dds)<0.1 .and. abs(dd_i(1:ifull)-ddes)<0.1 .and. &
           abs(dd_i(1:ifull)-ddw)<0.1 .and. abs(dd_i(1:ifull)-ddnw)<0.1 )
-    ffwgt(:,ii) = 1.
+    ffwgt(:,ii) = stwgt(1:ifull,ii)
   elsewhere
     ffwgt(:,ii) = 0.
   end where
