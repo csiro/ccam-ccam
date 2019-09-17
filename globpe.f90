@@ -4267,35 +4267,40 @@ use cc_omp                            ! CC OpenMP routines
 use const_phys                        ! Physical constants
 use morepbl_m                         ! Additional boundary layer diagnostics
 use newmpar_m                         ! Grid parameters
-use nharrs_m                          ! Non-hydrostatic atmosphere arrays
 use parm_m                            ! Model configuration
+use sigs_m                            ! Atmosphere sigma levels
 
 implicit none
 
 integer tile, js, je, iq, k, k250m, k150m
 real xx
+real, dimension(kl) :: phi
 
 ! special output for wind farms
 if ( diaglevel_pbl>3 ) then
-!$omp do schedule(static) private(js,je)
+!$omp do schedule(static) private(js,je,iq,k,k150m,k250m,xx,phi)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax  
     do iq = js,je
+      phi(1) = bet(1)*t(iq,1)  
+      do k = 2,kl
+        phi(k) = phi(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)  
+      end do    
       do k = 1,kl-1  
-        if ( (phi(iq,k)-zs(iq))/grav<150. ) then
+        if ( phi(k)/grav<150. ) then
           k150m = k
         end if
-        if ( (phi(iq,k)-zs(iq))/grav<250. ) then
+        if ( phi(k)/grav<250. ) then
           k250m = k
         else
           exit
         end if
       end do
-      xx = (150.*grav-phi(iq,k150m)+zs(iq))/(phi(iq,k150m+1)-phi(iq,k150m))
+      xx = (150.*grav-phi(k150m))/(phi(k150m+1)-phi(k150m))
       ua150(iq) = u(iq,k150m)*(1.-xx) + u(iq,k150m+1)*xx
       va150(iq) = v(iq,k150m)*(1.-xx) + v(iq,k150m+1)*xx      
-      xx = (250.*grav-phi(iq,k250m)+zs(iq))/(phi(iq,k250m+1)-phi(iq,k250m))
+      xx = (250.*grav-phi(k250m))/(phi(k250m+1)-phi(k250m))
       ua250(iq) = u(iq,k250m)*(1.-xx) + u(iq,k250m+1)*xx
       va250(iq) = v(iq,k250m)*(1.-xx) + v(iq,k250m+1)*xx
     end do  

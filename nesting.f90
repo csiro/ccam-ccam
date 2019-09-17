@@ -572,7 +572,6 @@ real, dimension(ifull), intent(inout) :: pslbb
 real, dimension(ifull) :: costh,sinth
 real, dimension(ifull,kl), intent(inout) :: ubb, vbb, tbb, qbb
 real, dimension(ifull,kl,naero), intent(inout) :: xtgbb
-real, dimension(ifull,kl) :: tv
 real, dimension(ifull) :: dum
 real den, polenx, poleny, polenz, zonx, zony, zonz
 logical lblock
@@ -668,10 +667,9 @@ if ( nud_q>0 ) then
   end do
 end if
 if ( nud_t>0 .or. nud_q>0 ) then
-  tv(:,:) = t(1:ifull,:)*(1.+0.61*qg(1:ifull,:)-qlg(1:ifull,:)-qfg(1:ifull,:))
-  phi(:,1) = bet(1)*tv(1:ifull,1)
+  phi(:,1) = zs(1:ifull) + bet(1)*t(1:ifull,1)
   do k = 2,kl
-    phi(:,k) = phi(:,k-1) + bet(k)*tv(1:ifull,k) + betm(k)*tv(1:ifull,k-1)
+    phi(:,k) = phi(:,k-1) + bet(k)*t(1:ifull,k) + betm(k)*t(1:ifull,k-1)
   end do
   phi(:,:) = phi(:,:) + phi_nh(:,:)
 end if
