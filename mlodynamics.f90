@@ -1536,7 +1536,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     do ii = 1,wlev
       nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
       where( wtr(1:ifull,ii) )
-        mfixdum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
+        !mfixdum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
+        mfixdum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull)
       elsewhere
         mfixdum(:,ii)=0.
       end where
@@ -1545,9 +1546,12 @@ do mspec_mlo = mspeca_mlo,1,-1
     alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
     do ii = 1,wlev
       where(wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20)
+        !nt(1:ifull,ii)=w_t(1:ifull,ii)                                              &
+        !               +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
+        !               /max(dd(1:ifull)+w_e(1:ifull),minwater)
         nt(1:ifull,ii)=w_t(1:ifull,ii)                                              &
                        +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
-                       /max(dd(1:ifull)+w_e(1:ifull),minwater)
+                       /dd(1:ifull)
       elsewhere
         nt(1:ifull,ii) = w_t(:,ii)              
       end where
@@ -1571,7 +1575,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     do ii = 1,wlev
       ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
       where( wtr(1:ifull,ii) )    
-        mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
+        !mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
+        mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)
       elsewhere
         mfixdum(:,ii) = 0.
       end where
@@ -1580,9 +1585,12 @@ do mspec_mlo = mspeca_mlo,1,-1
     alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
     do ii = 1,wlev
       where( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )    
+        !ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
+        !               +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
+        !               /max(dd(1:ifull)+w_e(1:ifull),minwater)
         ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
                        +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
-                       /max(dd(1:ifull)+w_e(1:ifull),minwater)
+                       /dd(1:ifull)
       elsewhere
         ns(1:ifull,ii) = w_s(:,ii)              
       end where
@@ -4849,7 +4857,7 @@ real, dimension(ifull) :: f_in,f_ien,f_ie,f_is,f_ies,f_ine,f_iw,f_inw
 
 
 do ii = 1,wlev
-  dd_i(:,ii) = gosig(1:ifull,ii)*dd(:)
+  dd_i(:,ii) = gosig(:,ii)*dd(:)
   ddux(:,ii) = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))*ddu(1:ifull)
   ddvy(:,ii) = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))*ddv(1:ifull)
 end do
@@ -4990,7 +4998,7 @@ do iq = 1,ifull
   ii = 2
   do jj = 1,wlev
     if ( ddseek(iq,jj)<ddin(iq,wlev-1) .and. ii<wlev ) then
-      pos = maxloc( ddin(iq,ii:wlev-1), ddseek(iq,jj)<ddin(iq,ii:wlev-1) )
+      pos = minloc( ddin(iq,ii:wlev-1), ddseek(iq,jj)<ddin(iq,ii:wlev-1) )
       sindx(iq,jj) = pos(1) + ii - 1
       ii = sindx(iq,jj)
     else
@@ -5222,7 +5230,7 @@ end subroutine seekdelta_l
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Interpolate to common depths - linear
 
-pure subroutine seekval_l(rout,ssin,ddin,ddseek,ramp)
+subroutine seekval_l(rout,ssin,ddin,ddseek,ramp)
 
 use cc_mpi
 use mlo, only : wlev
@@ -5248,7 +5256,7 @@ do iq = 1,ifull
   ii = 2
   do jj = 1,wlev
     if ( ddseek(iq,jj)<ddin(iq,wlev-1) .and. ii<wlev ) then
-      pos = maxloc( ddin(iq,ii:wlev-1), ddseek(iq,jj)<ddin(iq,ii:wlev-1) )
+      pos = minloc( ddin(iq,ii:wlev-1), ddseek(iq,jj)<ddin(iq,ii:wlev-1) )
       sindx(iq,jj) = pos(1) + ii - 1
       ii = sindx(iq,jj)
     else
