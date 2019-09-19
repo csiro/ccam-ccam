@@ -1400,7 +1400,7 @@ integer isoth, nsig, lapsbot
 integer secs_rad, nversion
 integer mstn, io_nest, mbd_min
 integer opt, nopt
-integer npa, npb, mlomfix, tkecduv, tblock ! depreciated namelist options
+integer npa, npb, tkecduv, tblock ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -2351,7 +2351,7 @@ ateb_statsmeth    = dumi(29)
 ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(15), dumi(19) )
+allocate( dumr(15), dumi(20) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2395,6 +2395,7 @@ if ( myid==0 ) then
   dumi(17) = nops
   dumi(18) = nopb
   dumi(19) = fixedstabfunc
+  dumi(20) = mlomfix
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2432,6 +2433,7 @@ calcinloop      = dumi(16)
 nops            = dumi(17)
 nopb            = dumi(18)
 fixedstabfunc   = dumi(19)
+mlomfix         = dumi(20)
 if ( oclosure==0 ) then
   nsteps = 1
 end if

@@ -837,6 +837,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'minwater',minwater)
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
+    call ccnf_put_attg(idnc,'mlomfix',mlomfix)
     call ccnf_put_attg(idnc,'mlosigma',mlosigma)
     call ccnf_put_attg(idnc,'mxd',mxd)
     call ccnf_put_attg(idnc,'oclosure',oclosure)
@@ -3279,7 +3280,7 @@ if ( itype==-1 ) then
   call histwrt(ssdn(:,3), 'ssdn3', idnc,iarch,local,.true.)
   call histwrt(snage,     'snage', idnc,iarch,local,.true.)
   aa(:) = isflag(:)
-  call histwrt(aa,    'sflag', idnc,iarch,local,.true.)
+  call histwrt(aa,'sflag', idnc,iarch,local,.true.)
   call histwrt(sgsave,'sgsave',idnc,iarch,local,.true.)  
   call histwrt(rgsave,'rgsave',idnc,iarch,local,.true.)
   call histwrt(rt,'rtu',idnc,iarch,local,.true.)
@@ -3619,7 +3620,7 @@ if ( first ) then
     lname = 'Screen mixing ratio (station)'
     call attrib(fncid,sdim,ssize,'qgscrn_stn',lname,'kg/kg',0.,0.06,0,1)
     lname = 'Total cloud ave'
-    call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)
+    call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.3,0,1)
     lname = 'Direct normal irradiance'
     call attrib(fncid,sdim,ssize,'dni',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
     if ( diaglevel_pbl>3 ) then

@@ -45,7 +45,7 @@ implicit none
 private
 public mlodiffusion,mlohadv,mlodyninit
 public gosig,gosigh,godsig,ocnsmag,ocneps,ocndelphi
-public mlodiff,usetide,mlojacobi
+public mlodiff,usetide,mlojacobi,mlomfix
 public usepice
 public dd
 public nstagoffmlo,mstagf,koff
@@ -68,6 +68,7 @@ integer, save      :: usepice     = 0       ! include ice in surface pressure (0
 integer, save      :: mlodiff     = 0       ! diffusion (0=all, 1=scalars only)
 integer, save      :: mlojacobi   = 1       ! density gradient method (0=off, 1=non-local spline, 2=non-local linear, 6=local, 7=AC2003)
 integer, parameter :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on)
+integer, save      :: mlomfix     = 1       ! Conserve T & S (0=off, 1=no free surface, 2=free surface)
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
 real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)
 real, parameter :: grav           = 9.80616 ! gravitational constant (m s^-2)
@@ -1533,29 +1534,52 @@ do mspec_mlo = mspeca_mlo,1,-1
   if ( nud_sst==0 ) then
     delpos(1) = 0.
     delneg(1) = 0.
-    do ii = 1,wlev
-      nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
-      where( wtr(1:ifull,ii) )
-        !mfixdum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
-        mfixdum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull)
-      elsewhere
-        mfixdum(:,ii)=0.
-      end where
-    end do
-    call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
-    alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
-    do ii = 1,wlev
-      where(wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20)
-        !nt(1:ifull,ii)=w_t(1:ifull,ii)                                              &
-        !               +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
-        !               /max(dd(1:ifull)+w_e(1:ifull),minwater)
-        nt(1:ifull,ii)=w_t(1:ifull,ii)                                              &
-                       +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
-                       /dd(1:ifull)
-      elsewhere
-        nt(1:ifull,ii) = w_t(:,ii)              
-      end where
-    end do
+    select case( mlomfix )
+      case(1)  ! no free surface
+        do ii = 1,wlev
+          nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
+          where( wtr(1:ifull,ii) )
+            mfixdum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull)
+          elsewhere
+            mfixdum(:,ii)=0.
+          end where
+        end do
+        call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
+        alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
+        do ii = 1,wlev
+          where(wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20)
+            nt(1:ifull,ii)=w_t(1:ifull,ii)                                              &
+                           +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
+                           /dd(1:ifull)
+          elsewhere
+            nt(1:ifull,ii) = w_t(:,ii)              
+          end where
+        end do  
+      case(2)  ! include free surface
+        do ii = 1,wlev
+          nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
+          where( wtr(1:ifull,ii) )
+            mfixdum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
+          elsewhere
+            mfixdum(:,ii)=0.
+          end where
+        end do
+        call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
+        alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
+        do ii = 1,wlev
+          where(wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20)
+            nt(1:ifull,ii)=w_t(1:ifull,ii)                                              &
+                           +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
+                           /max(dd(1:ifull)+w_e(1:ifull),minwater)
+          elsewhere
+            nt(1:ifull,ii) = w_t(:,ii)              
+          end where
+        end do  
+      case default  
+        do ii = 1,wlev
+          nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
+        end do  
+    end select
     
 #ifdef mlodebug
     if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
@@ -1572,29 +1596,52 @@ do mspec_mlo = mspeca_mlo,1,-1
   if ( nud_sss==0 ) then
     delpos(1) = 0.
     delneg(1) = 0.
-    do ii = 1,wlev
-      ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
-      where( wtr(1:ifull,ii) )    
-        !mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
-        mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)
-      elsewhere
-        mfixdum(:,ii) = 0.
-      end where
-    end do
-    call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
-    alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
-    do ii = 1,wlev
-      where( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )    
-        !ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
-        !               +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
-        !               /max(dd(1:ifull)+w_e(1:ifull),minwater)
-        ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
-                       +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
-                       /dd(1:ifull)
-      elsewhere
-        ns(1:ifull,ii) = w_s(:,ii)              
-      end where
-    end do
+    select case( mlomfix )
+      case(1)
+        do ii = 1,wlev
+          ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
+          where( wtr(1:ifull,ii) )    
+            mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)
+          elsewhere
+            mfixdum(:,ii) = 0.
+          end where
+        end do
+        call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
+        alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
+        do ii = 1,wlev
+          where( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )    
+            ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
+                           +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
+                           /dd(1:ifull)
+          elsewhere
+            ns(1:ifull,ii) = w_s(:,ii)              
+          end where
+        end do  
+      case(2)
+        do ii = 1,wlev
+          ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
+          where( wtr(1:ifull,ii) )    
+            mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
+          elsewhere
+            mfixdum(:,ii) = 0.
+          end where
+        end do
+        call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
+        alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
+        do ii = 1,wlev
+          where( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )    
+            ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
+                           +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
+                           /max(dd(1:ifull)+w_e(1:ifull),minwater)
+          elsewhere
+            ns(1:ifull,ii) = w_s(:,ii)              
+          end where
+        end do            
+      case default
+        do ii = 1,wlev
+          ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
+        end do  
+    end select
   end if
 
   if ( myid==0 .and. (ktau<=5.or.maxglobseta>tol.or.maxglobip>itol) ) then
