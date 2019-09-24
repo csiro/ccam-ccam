@@ -749,7 +749,6 @@ if ( diag.and.mydiag ) then
 end if
 #endif
 
-
 ! First melt cloud ice or freeze cloud water to give correct ice fraction fice.
 ! Then calculate the cloud conserved variables qtot and tliq.
 ! Note that qcg is the total cloud water (liquid+frozen)
@@ -773,7 +772,6 @@ do k = 1,kl
   qtot(:,k) = qtg(:,k) + qcg(:,k)
   tliq(:,k) = ttg(:,k) - hlcp*qcg(:,k) - hlfcp*qfg(:,k) 
 end do
-
 
 #ifndef GPU
 if ( diag .and. mydiag ) then
@@ -1037,7 +1035,6 @@ do k = 1,kl
   qtg(:,k) = qtot(:,k) - qcg(:,k)
   ttg(:,k) = tliq(:,k) + hlcp*qcg(:,k) + hlfcp*qfg(:,k)
 end do
-
 
 #ifndef GPU
 if ( diag .and. mydiag ) then
@@ -1547,7 +1544,7 @@ do n = 1,njumps
             cfrain(iq,k)    = cfrain(iq,k) - cftmp
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), cftmp )
           end if
-        end do
+        end do  
         
         ! Accretion of cloud ice by falling graupel (from Lin et al 1983 - pgaci)
         ! (Neglected in UM and ACCESS 1.3)
@@ -1651,7 +1648,7 @@ do n = 1,njumps
             cfmelt(iq)     = max( cfmelt(iq), max( csfra(iq)-cftmp, 0. ) )
             csfra(iq)      = cftmp      
           end if
-        end do
+        end do 
         
         ! Compute the sublimation of snow falling from level k+1 into level k
         ! (Currently treated the same as LDR97 ice sublimation - see UM and ACCESS 1.3)
@@ -1677,7 +1674,7 @@ do n = 1,njumps
             ttg(iq,k)    = ttg(iq,k) + dttg
             qsatg(iq,k)  = qsatg(iq,k) + gam1(iq)*dttg/hlscp
           end if
-        end do
+        end do   
         
         ! Accretion of cloud liquid by falling snow (from Lin et al 1983 - psacw)
         do iq = 1,imax
@@ -1699,7 +1696,7 @@ do n = 1,njumps
             clfr(iq,k)   = clfr(iq,k) - cftmp
             mxclfrsnow(iq) = max( mxclfrsnow(iq), cftmp )
           end if
-        end do
+        end do 
         
         ! Accretion of rain by falling snow to form snow (from Lin et al 1983 - psacr)
         do iq = 1,imax
@@ -1847,7 +1844,7 @@ do n = 1,njumps
           mxclfrice(iq) = 0.
         end if
       end do
-     
+      
       ! Compute the sublimation of ice falling from level k+1 into level k
       do iq = 1,imax
         qvp = rhov(iq,k)/rhoa(iq,k)
@@ -1868,8 +1865,8 @@ do n = 1,njumps
           ttg(iq,k)    = ttg(iq,k) + dttg
           qsatg(iq,k)  = qsatg(iq,k) + gam1(iq)*dttg/hlscp
         end if
-      end do
-     
+      end do  
+      
       ! Accretion of cloud liquid by falling ice (neglected in Lin et al 1983, but
       ! included in UM and ACCESS 1.3 as piacw)
       ! This calculation uses the incoming fluxice without subtracting sublimation
@@ -1880,11 +1877,11 @@ do n = 1,njumps
           slopes_i    = 1.6e3*10**(-0.023*(ttg(iq,k)-tfrz))
           cdt         = Eac*slopes_i*(fluxice(iq)+sublflux(iq))/(2.*rhosno)
           drl         = max( min( cifra(iq)*rl, rl*cdt/(1.+0.5*cdt) ), 0. ) ! mass of liquid
-          lflux       = drl*dz(iq,k)                                                 ! flux of liquid
-          dql         = drl/rhoa(iq,k)                                               ! mixing ratio of liquid
+          lflux       = drl*dz(iq,k)   ! flux of liquid
+          dql         = drl/rhoa(iq,k) ! mixing ratio of liquid
           fluxice(iq) = fluxice(iq) + lflux
           rhol(iq,k)  = rhol(iq,k)  - drl
-          qaccr(iq,k)      = qaccr(iq,k) + dql
+          qaccr(iq,k) = qaccr(iq,k) + dql
           dttg        = hlfcp*dql
           ttg(iq,k)   = ttg(iq,k) + dttg
           qsatg(iq,k) = qsatg(iq,k) + gam1(iq)*dttg/hlscp
@@ -1903,8 +1900,8 @@ do n = 1,njumps
             qf           = max(fluxice(iq)+sublflux(iq),0.)/rhodz(iq)  
             cdt          = tdt*denfac(iq)*c_piacr*qf/sqrt(rhoa(iq,k))
             drl          = max( min( cifra(iq)*rn, rn*cdt/(1.+0.5*cdt) ), 0. ) ! mass of rain
-            lflux        = drl*dz(iq,k)                                                 ! flux of rain
-            dql          = drl/rhoa(iq,k)                                               ! mixing ratio of rain
+            lflux        = drl*dz(iq,k)   ! flux of rain
+            dql          = drl/rhoa(iq,k) ! mixing ratio of rain
             fluxice(iq)  = fluxice(iq) + lflux
             rhor(iq,k)   = rhor(iq,k)  - drl
             dttg         = hlfcp*dql
@@ -1915,7 +1912,7 @@ do n = 1,njumps
             mxclfrice(iq) = max( mxclfrice(iq), cftmp )
           end if
         end do
-      end if
+      end if 
       
       ! Accretion of rain by falling ice to produce graupel (Neglected in Lin et al 1983)
       ! (see UM and ACCESS 1.3 piacr-g for an alternate formulation)
@@ -1975,8 +1972,9 @@ do n = 1,njumps
                                    *(exp(-0.66*max(ttg(iq,k)-tfrz,-100.))-1.)
             drl             = max( min( rn, rn*cdt/(1.+0.5*cdt) ), 0. )
             lflux           = min( drl*dz(iq,k), fluxrain(iq) ) ! flux
-            drl             = lflux/dz(iq,k)                ! mass
-            dql             = drl/rhoa(iq,k)                ! mixing ratio
+            lflux           = min( lflux, rhodz(iq)*(tfrz-ttg(iq,k))/hlfcp ) ! do not overshoot tfrz
+            drl             = lflux/dz(iq,k) ! mass
+            dql             = drl/rhoa(iq,k) ! mixing ratio
             fluxrain(iq)    = fluxrain(iq)    - lflux
             fluxgraupel(iq) = fluxgraupel(iq) + lflux
             fluxfreeze(iq)  = fluxfreeze(iq)  + lflux
@@ -2037,8 +2035,8 @@ do n = 1,njumps
         rhov(iq,k) = rhov(iq,k) + drl
         ttg(iq,k)  = ttg(iq,k) - hlcp*evap(iq)
         frclr(iq)  = rhodz(iq)*(clrevap(iq)-evap(iq)) ! flux over tdt
-      end do
-
+      end do  
+      
       ! Now do the collection of liquid cloud by rain term (cf. pracc in Lin83).
       fcol(:) = 0.
       Fr(:) = 0.
@@ -2092,8 +2090,8 @@ do n = 1,njumps
           end if
         end do
 
-      end if  
-
+      end if   
+      
       ! store for aerosols
       qevap(:,k) = qevap(:,k) + evap
       prscav(:,k) = prscav(:,k) + tdt*0.24*fcol*pow75(Fr)   !Strat only
@@ -2319,9 +2317,8 @@ do k = 1,kl
   qtg(:,k) = max( qtg(:,k), 0. )
     
   stratcloud(:,k) = clfr(:,k) + cifr(:,k)
-
-end do
-
+  
+end do  
 
 #ifndef GPU
 !      Adjust cloud fraction (and cloud cover) after precipitation
