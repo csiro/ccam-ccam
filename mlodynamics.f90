@@ -45,7 +45,7 @@ implicit none
 private
 public mlodiffusion,mlohadv,mlodyninit
 public gosig,gosigh,godsig,ocnsmag,ocneps,ocndelphi
-public mlodiff,usetide,mlojacobi
+public mlodiff,usetide,mlojacobi,mlomfix
 public usepice
 public dd
 public nstagoffmlo,mstagf,koff
@@ -66,8 +66,9 @@ integer, parameter :: itnmax      = 6       ! number of interations for reversib
 integer, parameter :: nxtrrho     = 1       ! Estimate rho at t+1 (0=off, 1=on)
 integer, save      :: usepice     = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
 integer, save      :: mlodiff     = 0       ! diffusion (0=all, 1=scalars only)
-integer, save      :: mlojacobi   = 1       ! density gradient method (0=off, 1=non-local spline, 2=non-local linear, 7=AC2003)
+integer, save      :: mlojacobi   = 1       ! density gradient method (0=off, 1=non-local spline, 2=non-local linear, 6=local, 7=AC2003)
 integer, parameter :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on)
+integer, save      :: mlomfix     = 1       ! Conserve T & S (0=off, 1=no free surface, 2=free surface)
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
 real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)
 real, parameter :: grav           = 9.80616 ! gravitational constant (m s^-2)
@@ -1533,25 +1534,52 @@ do mspec_mlo = mspeca_mlo,1,-1
   if ( nud_sst==0 ) then
     delpos(1) = 0.
     delneg(1) = 0.
-    do ii = 1,wlev
-      nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
-      where( wtr(1:ifull,ii) )
-        mfixdum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
-      elsewhere
-        mfixdum(:,ii)=0.
-      end where
-    end do
-    call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
-    alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
-    do ii = 1,wlev
-      where(wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20)
-        nt(1:ifull,ii)=w_t(1:ifull,ii)                                              &
-                       +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
-                       /max(dd(1:ifull)+w_e(1:ifull),minwater)
-      elsewhere
-        nt(1:ifull,ii) = w_t(:,ii)              
-      end where
-    end do
+    select case( mlomfix )
+      case(1)  ! no free surface
+        do ii = 1,wlev
+          nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
+          where( wtr(1:ifull,ii) )
+            mfixdum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull)
+          elsewhere
+            mfixdum(:,ii)=0.
+          end where
+        end do
+        call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
+        alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
+        do ii = 1,wlev
+          where(wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20)
+            nt(1:ifull,ii)=w_t(1:ifull,ii)                                              &
+                           +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
+                           /dd(1:ifull)
+          elsewhere
+            nt(1:ifull,ii) = w_t(:,ii)              
+          end where
+        end do  
+      case(2)  ! include free surface
+        do ii = 1,wlev
+          nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
+          where( wtr(1:ifull,ii) )
+            mfixdum(:,ii)=(nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
+          elsewhere
+            mfixdum(:,ii)=0.
+          end where
+        end do
+        call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
+        alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
+        do ii = 1,wlev
+          where(wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20)
+            nt(1:ifull,ii)=w_t(1:ifull,ii)                                              &
+                           +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
+                           /max(dd(1:ifull)+w_e(1:ifull),minwater)
+          elsewhere
+            nt(1:ifull,ii) = w_t(:,ii)              
+          end where
+        end do  
+      case default  
+        do ii = 1,wlev
+          nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
+        end do  
+    end select
     
 #ifdef mlodebug
     if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
@@ -1568,25 +1596,52 @@ do mspec_mlo = mspeca_mlo,1,-1
   if ( nud_sss==0 ) then
     delpos(1) = 0.
     delneg(1) = 0.
-    do ii = 1,wlev
-      ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
-      where( wtr(1:ifull,ii) )    
-        mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
-      elsewhere
-        mfixdum(:,ii) = 0.
-      end where
-    end do
-    call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
-    alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
-    do ii = 1,wlev
-      where( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )    
-        ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
-                       +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
-                       /max(dd(1:ifull)+w_e(1:ifull),minwater)
-      elsewhere
-        ns(1:ifull,ii) = w_s(:,ii)              
-      end where
-    end do
+    select case( mlomfix )
+      case(1)
+        do ii = 1,wlev
+          ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
+          where( wtr(1:ifull,ii) )    
+            mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)
+          elsewhere
+            mfixdum(:,ii) = 0.
+          end where
+        end do
+        call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
+        alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
+        do ii = 1,wlev
+          where( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )    
+            ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
+                           +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
+                           /dd(1:ifull)
+          elsewhere
+            ns(1:ifull,ii) = w_s(:,ii)              
+          end where
+        end do  
+      case(2)
+        do ii = 1,wlev
+          ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
+          where( wtr(1:ifull,ii) )    
+            mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
+          elsewhere
+            mfixdum(:,ii) = 0.
+          end where
+        end do
+        call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
+        alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
+        do ii = 1,wlev
+          where( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )    
+            ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
+                           +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
+                           /max(dd(1:ifull)+w_e(1:ifull),minwater)
+          elsewhere
+            ns(1:ifull,ii) = w_s(:,ii)              
+          end where
+        end do            
+      case default
+        do ii = 1,wlev
+          ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
+        end do  
+    end select
   end if
 
   if ( myid==0 .and. (ktau<=5.or.maxglobseta>tol.or.maxglobip>itol) ) then
@@ -4749,69 +4804,62 @@ call mloexpdensity(lrho,alphabar,betabar,nti,nsi,dzdum_rho,pice,0,rawrho=.true.)
 na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
 na(:,:,2) = min(max(0.,  nsi),50. )-34.72
 
-select case( mlojacobi )
-  case(0) ! off
-    do ii = 1,wlev
-      drhobardxu(1:ifull,ii) = 0.
-      dfrhobardxv(1:ifull,ii) = 0.
-      dfrhobardyu(1:ifull,ii) = 0.
-      drhobardyv(1:ifull,ii) = 0.
-      rhou(:,ii) = 0.
-      rhov(:,ii) = 0.
-    end do
+if ( mlojacobi==0 ) then !off
+  do ii = 1,wlev
+    drhobardxu(1:ifull,ii) = 0.
+    dfrhobardxv(1:ifull,ii) = 0.
+    dfrhobardyu(1:ifull,ii) = 0.
+    drhobardyv(1:ifull,ii) = 0.
+    rhou(:,ii) = 0.
+    rhov(:,ii) = 0.
+  end do
+else
+  select case( mlojacobi )
+    case(1) ! non-local - spline  
+      call seekdelta(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+    case(2) ! non-local - linear
+      call seekdelta_l(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
+    case(6,7) ! z* - 2nd order
+      call zstar2(na,dnadxu,dfnadyu,dfnadxv,dnadyv)  
+    case default
+      write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
+      stop
+  end select  
+  do ii = 1,wlev
+    call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
+    call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
+    absu = 0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull,ii)
+    bbsu = 0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull,ii)
+    absv = 0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull,ii)
+    bbsv = 0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull,ii)
 
-  case(1,2,7) 
-    select case( mlojacobi )
-      case(1) ! non-local - spline  
-        call seekdelta(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
-      case(2) ! non-local - linear
-        call seekdelta_l(na,dnadxu,dfnadyu,dfnadxv,dnadyv)
-      case(7) ! z* - 2nd order
-        call zstar2(na,dnadxu,dfnadyu,dfnadxv,dnadyv)  
-      case default
-        write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
-        stop
-    end select  
-    do ii = 1,wlev
-      call unpack_ne(alphabar(:,ii),alphabar_n,alphabar_e)  
-      call unpack_ne(betabar(:,ii),betabar_n,betabar_e)
-      absu = 0.5*(alphabar(1:ifull,ii)+alphabar_e)*eeu(1:ifull,ii)
-      bbsu = 0.5*(betabar(1:ifull,ii) +betabar_e )*eeu(1:ifull,ii)
-      absv = 0.5*(alphabar(1:ifull,ii)+alphabar_n)*eev(1:ifull,ii)
-      bbsv = 0.5*(betabar(1:ifull,ii) +betabar_n )*eev(1:ifull,ii)
+    ! This relationship neglects compression effects due to neta from the EOS.
+    drhobardxu(1:ifull,ii) = -absu*dnadxu(1:ifull,ii,1) + bbsu*dnadxu(1:ifull,ii,2)
+    dfrhobardxv(1:ifull,ii) = -absv*dfnadxv(1:ifull,ii,1) + bbsv*dfnadxv(1:ifull,ii,2)
+    dfrhobardyu(1:ifull,ii) = -absu*dfnadyu(1:ifull,ii,1) + bbsu*dfnadyu(1:ifull,ii,2)
+    drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
+    rhou(:,ii) = 0.5*(lrho(1:ifull,ii)+lrho(ie,ii)) 
+    rhov(:,ii) = 0.5*(lrho(1:ifull,ii)+lrho(in,ii))    
+  end do
 
-      ! This relationship neglects compression effects due to neta from the EOS.
-      drhobardxu(1:ifull,ii) = -absu*dnadxu(1:ifull,ii,1) + bbsu*dnadxu(1:ifull,ii,2)
-      dfrhobardxv(1:ifull,ii) = -absv*dfnadxv(1:ifull,ii,1) + bbsv*dfnadxv(1:ifull,ii,2)
-      dfrhobardyu(1:ifull,ii) = -absu*dfnadyu(1:ifull,ii,1) + bbsu*dfnadyu(1:ifull,ii,2)
-      drhobardyv(1:ifull,ii) = -absv*dnadyv(1:ifull,ii,1) + bbsv*dnadyv(1:ifull,ii,2)
-      rhou(:,ii) = 0.5*(lrho(1:ifull,ii)+lrho(ie,ii)) 
-      rhov(:,ii) = 0.5*(lrho(1:ifull,ii)+lrho(in,ii))    
-    end do
-
-    ! integrate density gradient  
-    drhobardxu(:,1) = drhobardxu(:,1)*godsig(1:ifull,1)
-    dfrhobardxv(:,1) = dfrhobardxv(:,1)*godsig(1:ifull,1)
-    dfrhobardyu(:,1) = dfrhobardyu(:,1)*godsig(1:ifull,1)
-    drhobardyv(:,1) = drhobardyv(:,1)*godsig(1:ifull,1)
-    do ii = 2,wlev
-      drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsig(1:ifull,ii)
-      dfrhobardxv(:,ii) = dfrhobardxv(:,ii-1) + dfrhobardxv(:,ii)*godsig(1:ifull,ii)
-      dfrhobardyu(:,ii) = dfrhobardyu(:,ii-1) + dfrhobardyu(:,ii)*godsig(1:ifull,ii)
-      drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsig(1:ifull,ii)
-    end do
-    do ii = 1,wlev
-      drhobardxu(:,ii) = drhobardxu(:,ii)/gosigh(:,ii)
-      dfrhobardxv(:,ii) = dfrhobardxv(:,ii)/gosigh(:,ii)
-      dfrhobardyu(:,ii) = dfrhobardyu(:,ii)/gosigh(:,ii)
-      drhobardyv(:,ii) = drhobardyv(:,ii)/gosigh(:,ii)
-    end do
-    
-  case default
-    write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
-    stop
-
-end select
+  ! integrate density gradient  
+  drhobardxu(:,1) = drhobardxu(:,1)*godsig(1:ifull,1)
+  dfrhobardxv(:,1) = dfrhobardxv(:,1)*godsig(1:ifull,1)
+  dfrhobardyu(:,1) = dfrhobardyu(:,1)*godsig(1:ifull,1)
+  drhobardyv(:,1) = drhobardyv(:,1)*godsig(1:ifull,1)
+  do ii = 2,wlev
+    drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsig(1:ifull,ii)
+    dfrhobardxv(:,ii) = dfrhobardxv(:,ii-1) + dfrhobardxv(:,ii)*godsig(1:ifull,ii)
+    dfrhobardyu(:,ii) = dfrhobardyu(:,ii-1) + dfrhobardyu(:,ii)*godsig(1:ifull,ii)
+    drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsig(1:ifull,ii)
+  end do
+  do ii = 1,wlev
+    drhobardxu(:,ii) = drhobardxu(:,ii)/gosigh(:,ii)
+    dfrhobardxv(:,ii) = dfrhobardxv(:,ii)/gosigh(:,ii)
+    dfrhobardyu(:,ii) = dfrhobardyu(:,ii)/gosigh(:,ii)
+    drhobardyv(:,ii) = drhobardyv(:,ii)/gosigh(:,ii)
+  end do
+end if
   
 return
 end subroutine tsjacobi
@@ -4856,7 +4904,7 @@ real, dimension(ifull) :: f_in,f_ien,f_ie,f_is,f_ies,f_ine,f_iw,f_inw
 
 
 do ii = 1,wlev
-  dd_i(:,ii) = gosig(1:ifull,ii)*dd(:)
+  dd_i(:,ii) = gosig(:,ii)*dd(:)
   ddux(:,ii) = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))*ddu(1:ifull)
   ddvy(:,ii) = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))*ddv(1:ifull)
 end do
@@ -4997,7 +5045,7 @@ do iq = 1,ifull
   ii = 2
   do jj = 1,wlev
     if ( ddseek(iq,jj)<ddin(iq,wlev-1) .and. ii<wlev ) then
-      pos = maxloc( ddin(iq,ii:wlev-1), ddseek(iq,jj)<ddin(iq,ii:wlev-1) )
+      pos = minloc( ddin(iq,ii:wlev-1), ddseek(iq,jj)<ddin(iq,ii:wlev-1) )
       sindx(iq,jj) = pos(1) + ii - 1
       ii = sindx(iq,jj)
     else
@@ -5229,7 +5277,7 @@ end subroutine seekdelta_l
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Interpolate to common depths - linear
 
-pure subroutine seekval_l(rout,ssin,ddin,ddseek,ramp)
+subroutine seekval_l(rout,ssin,ddin,ddseek,ramp)
 
 use cc_mpi
 use mlo, only : wlev
@@ -5255,7 +5303,7 @@ do iq = 1,ifull
   ii = 2
   do jj = 1,wlev
     if ( ddseek(iq,jj)<ddin(iq,wlev-1) .and. ii<wlev ) then
-      pos = maxloc( ddin(iq,ii:wlev-1), ddseek(iq,jj)<ddin(iq,ii:wlev-1) )
+      pos = minloc( ddin(iq,ii:wlev-1), ddseek(iq,jj)<ddin(iq,ii:wlev-1) )
       sindx(iq,jj) = pos(1) + ii - 1
       ii = sindx(iq,jj)
     else
@@ -5308,7 +5356,38 @@ real, dimension(ifull) :: ssi,sse,ssw,ssn,sss,ssen,sses,ssne,ssnw
 real, dimension(ifull+iextra,wlev,2), intent (in) :: rho
 real, dimension(ifull,wlev,2), intent(out) :: drhodxu,dfrhodyu,dfrhodxv,drhodyv
 real, dimension(ifull) :: f_in,f_ien,f_ie,f_is,f_ies,f_ine,f_iw,f_inw
+real, dimension(ifull+iextra) :: dd_i
+real, dimension(ifull) :: ddn, dds, dde, ddw, dden, ddes, ddne, ddnw
+real, dimension(ifull,wlev) :: ffu, ffv, ffwgt
 
+do ii = 1,wlev
+  dd_i(:) = gosig(:,ii)*dd(:)
+  call unpack_nsew(dd_i(:),ddn,dds,dde,ddw)
+  do iq = 1,ifull
+    dden(iq) = dd(ien(iq))
+    ddes(iq) = dd(ies(iq))
+    ddne(iq) = dd(ine(iq))
+    ddnw(iq) = dd(inw(iq))
+  end do
+  where ( abs(dd_i(1:ifull)-dde)<0.1 )
+    ffu(:,ii) = eeu(1:ifull,ii)
+  elsewhere
+    ffu(:,ii) = 0.
+  end where
+  where ( abs(dd_i(1:ifull)-ddn)<0.1 )
+    ffv(:,ii) = eev(1:ifull,ii)
+  elsewhere
+    ffv(:,ii) = 0.
+  end where
+  where ( abs(dd_i(1:ifull)-ddn)<0.1 .and. abs(dd_i(1:ifull)-dden)<0.1 .and. abs(dd_i(1:ifull)-dde)<0.1 .and.  &
+          abs(dd_i(1:ifull)-ddne)<0.1 .and. abs(dd_i(1:ifull)-dds)<0.1 .and. abs(dd_i(1:ifull)-ddes)<0.1 .and. &
+          abs(dd_i(1:ifull)-ddw)<0.1 .and. abs(dd_i(1:ifull)-ddnw)<0.1 )
+    ffwgt(:,ii) = stwgt(1:ifull,ii)
+  elsewhere
+    ffwgt(:,ii) = 0.
+  end where
+end do
+  
 call unpack_nsew(f,f_in,f_is,f_ie,f_iw)
 do iq = 1,ifull
   f_ien(iq)=f(ien(iq))
@@ -5331,12 +5410,12 @@ do jj = 1,2
     end do  
   
     ! process staggered u locations  
-    drhodxu(:,ii,jj)=(sse(:)-ssi(:))*eeu(1:ifull,ii)*emu(1:ifull)/ds
-    dfrhodyu(:,ii,jj)=0.5*stwgt(1:ifull,ii)*emu(1:ifull)/ds*(ssn(:)*f_in-sss(:)*f_is+ssen(:)*f_ien-sses(:)*f_ies)
+    drhodxu(:,ii,jj)=(sse(:)-ssi(:))*ffu(1:ifull,ii)*emu(1:ifull)/ds
+    dfrhodyu(:,ii,jj)=0.5*ffwgt(1:ifull,ii)*emu(1:ifull)/ds*(ssn(:)*f_in-sss(:)*f_is+ssen(:)*f_ien-sses(:)*f_ies)
 
     ! now process staggered v locations
-    drhodyv(:,ii,jj)=(ssn(:)-ssi(:))*eev(1:ifull,ii)*emv(1:ifull)/ds
-    dfrhodxv(:,ii,jj)=0.5*stwgt(1:ifull,ii)*emv(1:ifull)/ds*(sse(:)*f_ie-ssw(:)*f_iw+ssne(:)*f_ine-ssnw(:)*f_inw)
+    drhodyv(:,ii,jj)=(ssn(:)-ssi(:))*ffv(1:ifull,ii)*emv(1:ifull)/ds
+    dfrhodxv(:,ii,jj)=0.5*ffwgt(1:ifull,ii)*emv(1:ifull)/ds*(sse(:)*f_ie-ssw(:)*f_iw+ssne(:)*f_ine-ssnw(:)*f_inw)
   end do
 
 end do

@@ -837,6 +837,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'minwater',minwater)
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
+    call ccnf_put_attg(idnc,'mlomfix',mlomfix)
     call ccnf_put_attg(idnc,'mlosigma',mlosigma)
     call ccnf_put_attg(idnc,'mxd',mxd)
     call ccnf_put_attg(idnc,'oclosure',oclosure)
@@ -995,8 +996,8 @@ character(len=21) mnam, nnam
 character(len=20) vname
 character(len=3) trnum
 logical, intent(in) :: local
-logical lwrite, lave, lrad, lday
-logical lwrite_0, lave_0, lrad_0, lday_0 ! includes the zeroth time-step when using restart
+logical lwrite, lave, lday
+logical lwrite_0, lave_0, lday_0 ! includes the zeroth time-step when using restart
 logical l3hr
 
 ! flags to control output
@@ -1006,10 +1007,6 @@ lave     = mod(ktau,nperavg)==0.or.ktau==ntau
 lave     = lave.and.lwrite
 lave_0   = mod(ktau,nperavg)==0.or.ktau==ntau
 lave_0   = lave_0.and.lwrite_0
-lrad     = mod(ktau,kountr)==0.or.ktau==ntau
-lrad     = lrad.and.lwrite
-lrad_0   = mod(ktau,kountr)==0.or.ktau==ntau
-lrad_0   = lrad_0.and.lwrite_0
 lday     = mod(ktau,nperday)==0.or.ktau==ntau
 lday     = lday.and.lwrite
 lday_0   = mod(ktau,nperday)==0.or.ktau==ntau
@@ -1561,8 +1558,8 @@ if( myid==0 .or. local ) then
           call attrib(idnc,dimj,jsize,'sgc_ave',lname,'W/m2',-500.,2000.,0,cptype)
           lname = 'Sunshine hours'
           call attrib(idnc,dimj,jsize,'sunhours',lname,'hrs',0.,24.,0,cptype)
-          lname = 'Fraction of direct radiation'
-          call attrib(idnc,dimj,jsize,'fbeam_ave',lname,'none',-3.25,3.25,0,cptype)
+          lname = 'Direct normal irradiance'
+          call attrib(idnc,dimj,jsize,'dni',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
         end if
         lname = 'Surface pressure tendency'
         call attrib(idnc,dimj,jsize,'dpsdt',lname,'hPa/day',-400.,400.,0,cptype)
@@ -1586,81 +1583,85 @@ if( myid==0 .or. local ) then
 
         
     ! AEROSOL OPTICAL DEPTHS ------------------------------------
-    if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 .and. save_aerosols ) then
-      lname = 'Total column small dust optical depth VIS'
-      call attrib(idnc,dimj,jsize,'sdust_vis',lname,'none',0.,13.,0,cptype)
-      lname = 'Total column large dust optical depth VIS'
-      call attrib(idnc,dimj,jsize,'ldust_vis',lname,'none',0.,13.,0,cptype)
-      lname = 'Total column sulfate optical depth VIS'
-      call attrib(idnc,dimj,jsize,'so4_vis',lname,'none',0.,13.,0,cptype)
-      lname = 'Total column aerosol optical depth VIS'
-      call attrib(idnc,dimj,jsize,'aero_vis',lname,'none',0.,13.,0,cptype)
-      lname = 'Total column BC optical depth VIS'
-      call attrib(idnc,dimj,jsize,'bc_vis',lname,'none',0.,13.,0,cptype)
-      lname = 'Total column OC optical depth VIS'
-      call attrib(idnc,dimj,jsize,'oc_vis',lname,'none',0.,13.,0,cptype)
-      lname = 'Total column seasalt optical depth VIS'
-      call attrib(idnc,dimj,jsize,'ssalt_vis',lname,'none',0.,13.,0,cptype)
-      do k = 1,ndust
-        write(lname,'("Dust emissions bin ",I1.1)') k
-        write(vname,'("dust",I1.1,"e_ave")') k
-        call attrib(idnc,dimj,jsize,vname,lname,'g/(m2 yr)',0.,13000.,0,cptype)  
-      end do
-      do k = 1,ndust
-        write(lname,'("Dust dry deposition bin ",I1.1)') k  
-        write(vname,'("dust",I1.1,"dd_ave")') k
-        call attrib(idnc,dimj,jsize,vname,lname,'g/(m2 yr)',0.,13000.,0,cptype) 
-      end do  
-      do k = 1,ndust
-        write(lname,'("Dust wet deposition bin ",I1.1)') k
-        write(vname,'("dust",I1.1,"wd_ave")') k
-        call attrib(idnc,dimj,jsize,vname,lname,'g/(m2 yr)',0.,13000.,0,cptype)
-      end do
-      do k = 1,ndust
-        write(lname,'("Dust burden bin ",I1.1)') k
-        write(vname,'("dust",I1.1,"b_ave")') k
-        call attrib(idnc,dimj,jsize,vname,lname,'mg/m2',0.,1300.,0,cptype)
-      end do  
-      lname = 'Black carbon emissions'
-      call attrib(idnc,dimj,jsize,'bce_ave',lname,'g/(m2 yr)',0.,390.,0,cptype)  
-      lname = 'Black carbon dry deposition'
-      call attrib(idnc,dimj,jsize,'bcdd_ave',lname,'g/(m2 yr)',0.,390.,0,cptype) 
-      lname = 'Black carbon wet deposition'
-      call attrib(idnc,dimj,jsize,'bcwd_ave',lname,'g/(m2 yr)',0.,390.,0,cptype)
-      lname = 'Black carbon burden'
-      call attrib(idnc,dimj,jsize,'bcb_ave',lname,'mg/m2',0.,130.,0,cptype)
-      lname = 'Organic carbon emissions'
-      call attrib(idnc,dimj,jsize,'oce_ave',lname,'g/(m2 yr)',0.,390.,0,cptype)  
-      lname = 'Organic carbon dry deposition'
-      call attrib(idnc,dimj,jsize,'ocdd_ave',lname,'g/(m2 yr)',0.,390.,0,cptype) 
-      lname = 'Organic carbon wet deposition'
-      call attrib(idnc,dimj,jsize,'ocwd_ave',lname,'g/(m2 yr)',0.,390.,0,cptype)
-      lname = 'Organic carbon burden'
-      call attrib(idnc,dimj,jsize,'ocb_ave',lname,'mg/m2',0.,130.,0,cptype)
-      lname = 'DMS emissions'
-      call attrib(idnc,dimj,jsize,'dmse_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype) 
-      lname = 'DMS to SO2 oxidation'
-      call attrib(idnc,dimj,jsize,'dmsso2_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype)
-      lname = 'SO2 emissions'
-      call attrib(idnc,dimj,jsize,'so2e_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype) 
-      lname = 'SO2 to SO4 oxidation'
-      call attrib(idnc,dimj,jsize,'so2so4_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype)
-      lname = 'SO2 dry deposition'
-      call attrib(idnc,dimj,jsize,'so2dd_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype)
-      lname = 'SO2 wet deposition'
-      call attrib(idnc,dimj,jsize,'so2wd_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype)
-      lname = 'SO4 emissions'
-      call attrib(idnc,dimj,jsize,'so4e_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype)
-      lname = 'SO4 dry deposition'
-      call attrib(idnc,dimj,jsize,'so4dd_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype) 
-      lname = 'SO4 wet deposition'
-      call attrib(idnc,dimj,jsize,'so4wd_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype) 
-      lname = 'DMS burden'
-      call attrib(idnc,dimj,jsize,'dmsb_ave',lname,'mgS/m2',0.,13.,0,cptype) 
-      lname = 'SO2 burden'
-      call attrib(idnc,dimj,jsize,'so2b_ave',lname,'mgS/m2',0.,13.,0,cptype) 
-      lname = 'SO4 burden'
-      call attrib(idnc,dimj,jsize,'so4b_ave',lname,'mgS/m2',0.,13.,0,cptype) 
+    if ( abs(iaero)>=2 .and. nrad==5 ) then
+      if ( itype==-1 .or. (nextout>=1.and.save_aerosols) ) then
+        lname = 'Total column small dust optical depth VIS'
+        call attrib(idnc,dimj,jsize,'sdust_vis',lname,'none',0.,13.,0,cptype)
+        lname = 'Total column large dust optical depth VIS'
+        call attrib(idnc,dimj,jsize,'ldust_vis',lname,'none',0.,13.,0,cptype)
+        lname = 'Total column sulfate optical depth VIS'
+        call attrib(idnc,dimj,jsize,'so4_vis',lname,'none',0.,13.,0,cptype)
+        lname = 'Total column aerosol optical depth VIS'
+        call attrib(idnc,dimj,jsize,'aero_vis',lname,'none',0.,13.,0,cptype)
+        lname = 'Total column BC optical depth VIS'
+        call attrib(idnc,dimj,jsize,'bc_vis',lname,'none',0.,13.,0,cptype)
+        lname = 'Total column OC optical depth VIS'
+        call attrib(idnc,dimj,jsize,'oc_vis',lname,'none',0.,13.,0,cptype)
+        lname = 'Total column seasalt optical depth VIS'
+        call attrib(idnc,dimj,jsize,'ssalt_vis',lname,'none',0.,13.,0,cptype)
+      end if  
+      if ( nextout>=1 .and. save_aerosols .and. itype/=-1 ) then
+        do k = 1,ndust
+          write(lname,'("Dust emissions bin ",I1.1)') k
+          write(vname,'("dust",I1.1,"e_ave")') k
+          call attrib(idnc,dimj,jsize,vname,lname,'g/(m2 yr)',0.,13000.,0,cptype)  
+        end do
+        do k = 1,ndust
+          write(lname,'("Dust dry deposition bin ",I1.1)') k  
+          write(vname,'("dust",I1.1,"dd_ave")') k
+          call attrib(idnc,dimj,jsize,vname,lname,'g/(m2 yr)',0.,13000.,0,cptype) 
+        end do  
+        do k = 1,ndust
+          write(lname,'("Dust wet deposition bin ",I1.1)') k
+          write(vname,'("dust",I1.1,"wd_ave")') k
+          call attrib(idnc,dimj,jsize,vname,lname,'g/(m2 yr)',0.,13000.,0,cptype)
+        end do
+        do k = 1,ndust
+          write(lname,'("Dust burden bin ",I1.1)') k
+          write(vname,'("dust",I1.1,"b_ave")') k
+          call attrib(idnc,dimj,jsize,vname,lname,'mg/m2',0.,1300.,0,cptype)
+        end do  
+        lname = 'Black carbon emissions'
+        call attrib(idnc,dimj,jsize,'bce_ave',lname,'g/(m2 yr)',0.,390.,0,cptype)  
+        lname = 'Black carbon dry deposition'
+        call attrib(idnc,dimj,jsize,'bcdd_ave',lname,'g/(m2 yr)',0.,390.,0,cptype) 
+        lname = 'Black carbon wet deposition'
+        call attrib(idnc,dimj,jsize,'bcwd_ave',lname,'g/(m2 yr)',0.,390.,0,cptype)
+        lname = 'Black carbon burden'
+        call attrib(idnc,dimj,jsize,'bcb_ave',lname,'mg/m2',0.,130.,0,cptype)
+        lname = 'Organic carbon emissions'
+        call attrib(idnc,dimj,jsize,'oce_ave',lname,'g/(m2 yr)',0.,390.,0,cptype)  
+        lname = 'Organic carbon dry deposition'
+        call attrib(idnc,dimj,jsize,'ocdd_ave',lname,'g/(m2 yr)',0.,390.,0,cptype) 
+        lname = 'Organic carbon wet deposition'
+        call attrib(idnc,dimj,jsize,'ocwd_ave',lname,'g/(m2 yr)',0.,390.,0,cptype)
+        lname = 'Organic carbon burden'
+        call attrib(idnc,dimj,jsize,'ocb_ave',lname,'mg/m2',0.,130.,0,cptype)
+        lname = 'DMS emissions'
+        call attrib(idnc,dimj,jsize,'dmse_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype) 
+        lname = 'DMS to SO2 oxidation'
+        call attrib(idnc,dimj,jsize,'dmsso2_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype)
+        lname = 'SO2 emissions'
+        call attrib(idnc,dimj,jsize,'so2e_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype) 
+        lname = 'SO2 to SO4 oxidation'
+        call attrib(idnc,dimj,jsize,'so2so4_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype)
+        lname = 'SO2 dry deposition'
+        call attrib(idnc,dimj,jsize,'so2dd_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype)
+        lname = 'SO2 wet deposition'
+        call attrib(idnc,dimj,jsize,'so2wd_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype)
+        lname = 'SO4 emissions'
+        call attrib(idnc,dimj,jsize,'so4e_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype)
+        lname = 'SO4 dry deposition'
+        call attrib(idnc,dimj,jsize,'so4dd_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype) 
+        lname = 'SO4 wet deposition'
+        call attrib(idnc,dimj,jsize,'so4wd_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype) 
+        lname = 'DMS burden'
+        call attrib(idnc,dimj,jsize,'dmsb_ave',lname,'mgS/m2',0.,13.,0,cptype) 
+        lname = 'SO2 burden'
+        call attrib(idnc,dimj,jsize,'so2b_ave',lname,'mgS/m2',0.,13.,0,cptype) 
+        lname = 'SO4 burden'
+        call attrib(idnc,dimj,jsize,'so4b_ave',lname,'mgS/m2',0.,13.,0,cptype)
+      end if  
     end if
 
     ! CABLE -----------------------------------------------------
@@ -1987,7 +1988,7 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'gfrac','Graupel fraction','none',0.,1.,0,cptype)
       end if
       if ( ncloud>=4 .and. (itype==-1.or.diaglevel_cloud>5) ) then
-        call attrib(idnc,dima,asize,'strat_nt','Strat net temp tendency','K/s',0.,1.,0,cptype)
+        call attrib(idnc,dima,asize,'strat_nt','Strat net temp tendency','K/s',-50.,50.,0,cptype)
       end if
     end if
         
@@ -2120,9 +2121,50 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'snage',lname,'none',0.,20.,0,cptype)   
       lname = 'Snow flag'
       call attrib(idnc,dimj,jsize,'sflag',lname,'none',0.,4.,0,cptype)
-      lname = 'Solar net at ground (+ve down)'
+      lname = 'sgsave'
       call attrib(idnc,dimj,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,cptype)
-      
+      lname = 'rgsave'
+      call attrib(idnc,dimj,jsize,'rgsave',lname,'W/m2',-500.,2000.,0,cptype)
+      lname = 'LW at TOA'
+      call attrib(idnc,dimj,jsize,'rtu',lname,'W/m2',0.,800.,0,-1) ! -1 = long
+      lname = 'Clear sky LW at TOA'
+      call attrib(idnc,dimj,jsize,'rtc',lname,'W/m2',0.,800.,0,cptype)
+      lname = 'LW downwelling at ground'
+      call attrib(idnc,dimj,jsize,'rgdn',lname,'W/m2',-500.,1.e3,0,-1) ! -1 = long
+      lname = 'LW net at ground (+ve up)'
+      call attrib(idnc,dimj,jsize,'rgn',lname,'W/m2',-500.,1000.,0,-1) ! -1 = long
+      lname = 'Clear sky LW at ground'
+      call attrib(idnc,dimj,jsize,'rgc',lname,'W/m2',-500.,1000.,0,cptype)
+      lname = 'Solar in at TOA (AMP)'
+      call attrib(idnc,dimj,jsize,'sint_amp',lname,'W/m2',0.,1600.,0,-1) ! -1 = long
+      lname = 'Solar out at TOA (AMP)'
+      call attrib(idnc,dimj,jsize,'sout_amp',lname,'W/m2',0.,1000.,0,-1)  ! -1 = long
+      lname = 'Clear sky SW out at TOA (AMP)'
+      call attrib(idnc,dimj,jsize,'soutclr_amp',lname,'W/m2',0.,900.,0,cptype)
+      lname = 'Solar downwelling at ground (AMP)'
+      call attrib(idnc,dimj,jsize,'sgdn_amp',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
+      lname = 'Solar net at ground (+ve down) (AMP)'
+      call attrib(idnc,dimj,jsize,'sgn_amp',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
+      lname = 'Clear sky SW at ground (+ve down) (AMP)'
+      call attrib(idnc,dimj,jsize,'sgclr_amp',lname,'W/m2',-500.,2000.,0,cptype)
+      lname = 'Direct normal irradiance (AMP)'
+      call attrib(idnc,dimj,jsize,'dni_amp',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
+      lname = 'Fraction of direct VIS radiation'
+      call attrib(idnc,dimj,jsize,'fbeamvis',lname,'none',0.,1.,0,cptype)
+      lname = 'Fraction of direct NIR radiation'
+      call attrib(idnc,dimj,jsize,'fbeamnir',lname,'none',0.,1.,0,cptype)
+      lname = 'Fraction of VIS radiation'
+      call attrib(idnc,dimj,jsize,'swrsave',lname,'frac',0.,1.,0,cptype)
+      lname = 'Low cloud'
+      call attrib(idnc,dimj,jsize,'cloudlo',lname,'frac',0.,1.,0,cptype)
+      lname = 'Mid cloud'
+      call attrib(idnc,dimj,jsize,'cloudmi',lname,'frac',0.,1.,0,cptype)
+      lname = 'Hi cloud'
+      call attrib(idnc,dimj,jsize,'cloudhi',lname,'frac',0.,1.,0,cptype)
+      lname = 'SW tendency (AMP)'
+      call attrib(idnc,dima,asize,'sw_tend_amp',lname,'K/s',-50.,50.,0,cptype)
+      lname = 'LW tendency'
+      call attrib(idnc,dima,asize,'lw_tend',lname,'K/s',-50.,50.,0,cptype)
     endif  ! (itype==-1)
         
     if ( nsib==6 .or. nsib==7 ) then
@@ -2618,10 +2660,10 @@ if ( itype/=-1 ) then  ! these not written to restart file
     call histwrt(rlwp_ave,'lwp_ave',idnc,iarch,local,lave)
   end if
   if ( save_cloud ) then
-    call histwrt(cll_ave,'cll',idnc,iarch,local,lrad_0)
-    call histwrt(clm_ave,'clm',idnc,iarch,local,lrad_0)
-    call histwrt(clh_ave,'clh',idnc,iarch,local,lrad_0)
-    call histwrt(cld_ave,'cld',idnc,iarch,local,lrad_0)
+    call histwrt(cll_ave,'cll',idnc,iarch,local,lave)
+    call histwrt(clm_ave,'clm',idnc,iarch,local,lave)
+    call histwrt(clh_ave,'clh',idnc,iarch,local,lave)
+    call histwrt(cld_ave,'cld',idnc,iarch,local,lave)
   end if
 end if
 if ( save_land .or. itype==-1 ) then
@@ -2642,11 +2684,6 @@ if ( save_land .or. itype==-1 ) then
   call histwrt(aa,'snm',idnc,iarch,local,lwrite)
 end if
 if ( itype/=-1 ) then  ! these not written to restart file  
-  !if ( save_land .or. save_ocean ) then
-  !  call histwrt(tsu_ave,'tsu_ave',idnc,iarch,local,lave)
-  !  call histwrt(alb_ave,'alb_ave',idnc,iarch,local,lrad)
-  !end if
-  !call histwrt(psl_ave,'pmsl_ave',idnc,iarch,local,lave)
   if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean ) then
     aa = 0.  
     call mlodiag(aa,0)  
@@ -2681,20 +2718,20 @@ if ( itype/=-1 ) then  ! these not written to restart file
   ! "extra" outputs
   if ( nextout>=1 ) then
     if ( save_radiation ) then
-      call histwrt(rtu_ave,'rtu_ave',idnc,iarch,local,lrad)
-      call histwrt(rtc_ave,'rtc_ave',idnc,iarch,local,lrad)
-      call histwrt(rgdn_ave,'rgdn_ave',idnc,iarch,local,lrad)
-      call histwrt(rgn_ave,'rgn_ave',idnc,iarch,local,lrad)
-      call histwrt(rgc_ave,'rgc_ave',idnc,iarch,local,lrad)
-      call histwrt(sint_ave,'sint_ave',idnc,iarch,local,lrad)
-      call histwrt(sot_ave,'sot_ave',idnc,iarch,local,lrad)
-      call histwrt(soc_ave,'soc_ave',idnc,iarch,local,lrad)
+      call histwrt(rtu_ave,'rtu_ave',idnc,iarch,local,lave)
+      call histwrt(rtc_ave,'rtc_ave',idnc,iarch,local,lave)
+      call histwrt(rgdn_ave,'rgdn_ave',idnc,iarch,local,lave)
+      call histwrt(rgn_ave,'rgn_ave',idnc,iarch,local,lave)
+      call histwrt(rgc_ave,'rgc_ave',idnc,iarch,local,lave)
+      call histwrt(sint_ave,'sint_ave',idnc,iarch,local,lave)
+      call histwrt(sot_ave,'sot_ave',idnc,iarch,local,lave)
+      call histwrt(soc_ave,'soc_ave',idnc,iarch,local,lave)
       call histwrt(sgdn_ave,'sgdn_ave',idnc,iarch,local,lave)
       call histwrt(sgn_ave,'sgn_ave',idnc,iarch,local,lave)
-      call histwrt(sgc_ave,'sgc_ave',idnc,iarch,local,lrad)
+      call histwrt(sgc_ave,'sgc_ave',idnc,iarch,local,lave)
       aa(:) = sunhours(:)/3600.
       call histwrt(aa,'sunhours',idnc,iarch,local,lave)
-      call histwrt(fbeam_ave,'fbeam_ave',idnc,iarch,local,lrad)
+      call histwrt(dni_ave,'dni',idnc,iarch,local,lave)
     end if
     call histwrt(dpsdt,'dpsdt',idnc,iarch,local,lwrite)
   endif   ! nextout>=1
@@ -2713,74 +2750,78 @@ call histwrt(pblh,'pblh',idnc,iarch,local,.true.)
 
 
 ! AEROSOL OPTICAL DEPTH ---------------------------------------
-if ( nextout>=1 .and. abs(iaero)>=2 .and. nrad==5 .and. save_aerosols ) then
-  call histwrt(opticaldepth(:,1,1),'sdust_vis',idnc,iarch,local,lwrite)
-  call histwrt(opticaldepth(:,2,1),'ldust_vis',idnc,iarch,local,lwrite)
-  call histwrt(opticaldepth(:,3,1),'so4_vis',idnc,iarch,local,lwrite)
-  call histwrt(opticaldepth(:,4,1),'aero_vis',idnc,iarch,local,lwrite)
-  call histwrt(opticaldepth(:,5,1),'bc_vis',idnc,iarch,local,lwrite)
-  call histwrt(opticaldepth(:,6,1),'oc_vis',idnc,iarch,local,lwrite)
-  call histwrt(opticaldepth(:,7,1),'ssalt_vis',idnc,iarch,local,lwrite)
-  do k = 1,ndust
-    aa = max(duste(:,k)*3.154e10,0.) ! g/m2/yr
-    write(vname,'("dust",I1.1,"e_ave")') k
-    call histwrt(aa,trim(vname),idnc,iarch,local,lave)
-  end do  
-  do k = 1,ndust
-    aa=max(dustdd(:,k)*3.154e10,0.) ! g/m2/yr
-    write(vname,'("dust",I1.1,"dd_ave")') k
-    call histwrt(aa,trim(vname),idnc,iarch,local,lave)
-  end do
-  do k = 1,ndust
-    aa=max(dustwd(:,k)*3.154e10,0.) ! g/m2/yr
-    write(vname,'("dust",I1.1,"wd_ave")') k
-    call histwrt(aa,trim(vname),idnc,iarch,local,lave)
-  end do  
-  do k = 1,ndust
-    aa=max(dust_burden(:,k)*1.e6,0.) ! mg/m2
-    write(vname,'("dust",I1.1,"b_ave")') k
-    call histwrt(aa,trim(vname),idnc,iarch,local,lave)
-  end do  
-  aa=max(bce*3.154e10,0.) ! g/m2/yr
-  call histwrt(aa,'bce_ave',idnc,iarch,local,lave)
-  aa=max(bcdd*3.154e10,0.) ! g/m2/yr
-  call histwrt(aa,'bcdd_ave',idnc,iarch,local,lave)
-  aa=max(bcwd*3.154e10,0.) ! g/m2/yr
-  call histwrt(aa,'bcwd_ave',idnc,iarch,local,lave)
-  aa=max(bc_burden*1.e6,0.) ! mg/m2
-  call histwrt(aa,'bcb_ave',idnc,iarch,local,lave)
-  aa=max(oce*3.154e10,0.) ! g/m2/yr
-  call histwrt(aa,'oce_ave',idnc,iarch,local,lave)
-  aa=max(ocdd*3.154e10,0.) ! g/m2/yr
-  call histwrt(aa,'ocdd_ave',idnc,iarch,local,lave)
-  aa=max(ocwd*3.154e10,0.) ! g/m2/yr
-  call histwrt(aa,'ocwd_ave',idnc,iarch,local,lave)
-  aa=max(oc_burden*1.e6,0.) ! mg/m2
-  call histwrt(aa,'ocb_ave',idnc,iarch,local,lave)
-  aa=max(dmse*3.154e10,0.) ! gS/m2/yr (*1.938 for g/m2/yr)
-  call histwrt(aa,'dmse_ave',idnc,iarch,local,lave)
-  aa=max(dmsso2o*3.154e10,0.) ! gS/m2/yr
-  call histwrt(aa,'dmsso2_ave',idnc,iarch,local,lave)
-  aa=max(so2e*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
-  call histwrt(aa,'so2e_ave',idnc,iarch,local,lave)
-  aa=max(so2so4o*3.154e10,0.) ! gS/m2/yr
-  call histwrt(aa,'so2so4_ave',idnc,iarch,local,lave)
-  aa=max(so2dd*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
-  call histwrt(aa,'so2dd_ave',idnc,iarch,local,lave)
-  aa=max(so2wd*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
-  call histwrt(aa,'so2wd_ave',idnc,iarch,local,lave)
-  aa=max(so4e*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
-  call histwrt(aa,'so4e_ave',idnc,iarch,local,lave)
-  aa=max(so4dd*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
-  call histwrt(aa,'so4dd_ave',idnc,iarch,local,lave)
-  aa=max(so4wd*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
-  call histwrt(aa,'so4wd_ave',idnc,iarch,local,lave)
-  aa=max(dms_burden*1.e6,0.) ! mgS/m2
-  call histwrt(aa,'dmsb_ave',idnc,iarch,local,lave)
-  aa=max(so2_burden*1.e6,0.) ! mgS/m2
-  call histwrt(aa,'so2b_ave',idnc,iarch,local,lave)
-  aa=max(so4_burden*1.e6,0.) ! mgS/m2
-  call histwrt(aa,'so4b_ave',idnc,iarch,local,lave)
+if ( abs(iaero)>=2 .and. nrad==5 ) then    
+  if ( itype==-1 .or. (nextout>=1.and.save_aerosols) ) then
+    call histwrt(opticaldepth(:,1,1),'sdust_vis',idnc,iarch,local,lwrite)
+    call histwrt(opticaldepth(:,2,1),'ldust_vis',idnc,iarch,local,lwrite)
+    call histwrt(opticaldepth(:,3,1),'so4_vis',idnc,iarch,local,lwrite)
+    call histwrt(opticaldepth(:,4,1),'aero_vis',idnc,iarch,local,lwrite)
+    call histwrt(opticaldepth(:,5,1),'bc_vis',idnc,iarch,local,lwrite)
+    call histwrt(opticaldepth(:,6,1),'oc_vis',idnc,iarch,local,lwrite)
+    call histwrt(opticaldepth(:,7,1),'ssalt_vis',idnc,iarch,local,lwrite)
+  end if
+  if ( nextout>=1 .and. save_aerosols .and. itype/=-1 ) then
+    do k = 1,ndust
+      aa = max(duste(:,k)*3.154e10,0.) ! g/m2/yr
+      write(vname,'("dust",I1.1,"e_ave")') k
+      call histwrt(aa,trim(vname),idnc,iarch,local,lave)
+    end do  
+    do k = 1,ndust
+      aa=max(dustdd(:,k)*3.154e10,0.) ! g/m2/yr
+      write(vname,'("dust",I1.1,"dd_ave")') k
+      call histwrt(aa,trim(vname),idnc,iarch,local,lave)
+    end do
+    do k = 1,ndust
+      aa=max(dustwd(:,k)*3.154e10,0.) ! g/m2/yr
+      write(vname,'("dust",I1.1,"wd_ave")') k
+      call histwrt(aa,trim(vname),idnc,iarch,local,lave)
+    end do  
+    do k = 1,ndust
+      aa=max(dust_burden(:,k)*1.e6,0.) ! mg/m2
+      write(vname,'("dust",I1.1,"b_ave")') k
+      call histwrt(aa,trim(vname),idnc,iarch,local,lave)
+    end do  
+    aa=max(bce*3.154e10,0.) ! g/m2/yr
+    call histwrt(aa,'bce_ave',idnc,iarch,local,lave)
+    aa=max(bcdd*3.154e10,0.) ! g/m2/yr
+    call histwrt(aa,'bcdd_ave',idnc,iarch,local,lave)
+    aa=max(bcwd*3.154e10,0.) ! g/m2/yr
+    call histwrt(aa,'bcwd_ave',idnc,iarch,local,lave)
+    aa=max(bc_burden*1.e6,0.) ! mg/m2
+    call histwrt(aa,'bcb_ave',idnc,iarch,local,lave)
+    aa=max(oce*3.154e10,0.) ! g/m2/yr
+    call histwrt(aa,'oce_ave',idnc,iarch,local,lave)
+    aa=max(ocdd*3.154e10,0.) ! g/m2/yr
+    call histwrt(aa,'ocdd_ave',idnc,iarch,local,lave)
+    aa=max(ocwd*3.154e10,0.) ! g/m2/yr
+    call histwrt(aa,'ocwd_ave',idnc,iarch,local,lave)
+    aa=max(oc_burden*1.e6,0.) ! mg/m2
+    call histwrt(aa,'ocb_ave',idnc,iarch,local,lave)
+    aa=max(dmse*3.154e10,0.) ! gS/m2/yr (*1.938 for g/m2/yr)
+    call histwrt(aa,'dmse_ave',idnc,iarch,local,lave)
+    aa=max(dmsso2o*3.154e10,0.) ! gS/m2/yr
+    call histwrt(aa,'dmsso2_ave',idnc,iarch,local,lave)
+    aa=max(so2e*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
+    call histwrt(aa,'so2e_ave',idnc,iarch,local,lave)
+    aa=max(so2so4o*3.154e10,0.) ! gS/m2/yr
+    call histwrt(aa,'so2so4_ave',idnc,iarch,local,lave)
+    aa=max(so2dd*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
+    call histwrt(aa,'so2dd_ave',idnc,iarch,local,lave)
+    aa=max(so2wd*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
+    call histwrt(aa,'so2wd_ave',idnc,iarch,local,lave)
+    aa=max(so4e*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
+    call histwrt(aa,'so4e_ave',idnc,iarch,local,lave)
+    aa=max(so4dd*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
+    call histwrt(aa,'so4dd_ave',idnc,iarch,local,lave)
+    aa=max(so4wd*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
+    call histwrt(aa,'so4wd_ave',idnc,iarch,local,lave)
+    aa=max(dms_burden*1.e6,0.) ! mgS/m2
+    call histwrt(aa,'dmsb_ave',idnc,iarch,local,lave)
+    aa=max(so2_burden*1.e6,0.) ! mgS/m2
+    call histwrt(aa,'so2b_ave',idnc,iarch,local,lave)
+    aa=max(so4_burden*1.e6,0.) ! mgS/m2
+    call histwrt(aa,'so4b_ave',idnc,iarch,local,lave)
+  end if  
 end if
 
 ! CABLE -------------------------------------------------------
@@ -3239,9 +3280,29 @@ if ( itype==-1 ) then
   call histwrt(ssdn(:,3), 'ssdn3', idnc,iarch,local,.true.)
   call histwrt(snage,     'snage', idnc,iarch,local,.true.)
   aa(:) = isflag(:)
-  call histwrt(aa,    'sflag', idnc,iarch,local,.true.)
-  call histwrt(sgsave,'sgsave',idnc,iarch,local,.true.)       
-  
+  call histwrt(aa,'sflag', idnc,iarch,local,.true.)
+  call histwrt(sgsave,'sgsave',idnc,iarch,local,.true.)  
+  call histwrt(rgsave,'rgsave',idnc,iarch,local,.true.)
+  call histwrt(rt,'rtu',idnc,iarch,local,.true.)
+  call histwrt(rtclr,'rtc',idnc,iarch,local,.true.)
+  call histwrt(rgdn,'rgdn',idnc,iarch,local,.true.)
+  call histwrt(rgn,'rgn',idnc,iarch,local,.true.)
+  call histwrt(rgclr,'rgc',idnc,iarch,local,.true.)
+  call histwrt(sint_amp,'sint_amp',idnc,iarch,local,.true.)
+  call histwrt(sout_amp,'sout_amp',idnc,iarch,local,.true.)
+  call histwrt(soutclr_amp,'soutclr_amp',idnc,iarch,local,.true.)
+  call histwrt(sgdn_amp,'sgdn_amp',idnc,iarch,local,.true.)
+  call histwrt(sgn_amp,'sgn_amp',idnc,iarch,local,.true.)
+  call histwrt(sgclr_amp,'sgclr_amp',idnc,iarch,local,.true.)
+  call histwrt(dni_amp,'dni_amp',idnc,iarch,local,.true.)
+  call histwrt(fbeamvis,'fbeamvis',idnc,iarch,local,.true.)
+  call histwrt(fbeamnir,'fbeamnir',idnc,iarch,local,.true.)
+  call histwrt(swrsave,'swrsave',idnc,iarch,local,.true.)
+  call histwrt(cloudlo,'cloudlo',idnc,iarch,local,.true.)
+  call histwrt(cloudmi,'cloudmi',idnc,iarch,local,.true.)
+  call histwrt(cloudhi,'cloudhi',idnc,iarch,local,.true.)
+  call histwrt(sw_tend,'sw_tend_amp',idnc,iarch,local,.true.)
+  call histwrt(lw_tend,'lw_tend',idnc,iarch,local,.true.)  
 endif  ! (itype==-1)
 
 if ( nsib==6 .or. nsib==7 ) then
@@ -3546,8 +3607,6 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'sgdn_ave',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long 
     lname = 'Scaled Log Surface pressure'
     call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.3,0.2,0,1)
-    lname = 'Fraction of direct radiation'
-    call attrib(fncid,sdim,ssize,'fbeam_ave',lname,'none',-3.25,3.25,0,1)
     lname = 'Screen mixing ratio'
     call attrib(fncid,sdim,ssize,'qgscrn',lname,'kg/kg',0.,0.06,0,1)
     lname='x-component 10m wind (station)'
@@ -3560,6 +3619,10 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'rhscrn_stn',lname,'%',0.,200.,0,1)
     lname = 'Screen mixing ratio (station)'
     call attrib(fncid,sdim,ssize,'qgscrn_stn',lname,'kg/kg',0.,0.06,0,1)
+    lname = 'Total cloud ave'
+    call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.3,0,1)
+    lname = 'Direct normal irradiance'
+    call attrib(fncid,sdim,ssize,'dni',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
     if ( diaglevel_pbl>3 ) then
       lname='x-component 150m wind'
       call attrib(fncid,sdim,ssize,'ua150',lname,'m/s',-130.,130.,0,1)
@@ -3570,8 +3633,6 @@ if ( first ) then
       lname='y-component 250m wind'     
       call attrib(fncid,sdim,ssize,'va250',lname,'m/s',-130.,130.,0,1)
     end if
-    lname = 'Total cloud ave'
-    call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -3689,27 +3750,27 @@ freqstore(1:ifull,7)  = freqstore(1:ifull,7)  + condg*86400./dt/real(tbave)
 freqstore(1:ifull,8)  = pmsl/100.
 freqstore(1:ifull,9)  = freqstore(1:ifull,9)  + sgdn/real(tbave)
 freqstore(1:ifull,10) = psl
-freqstore(1:ifull,11) = fbeam_ave
-freqstore(1:ifull,12) = qgscrn
-freqstore(1:ifull,13) = u10_stn*u(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,14) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,15) = tscrn_stn
-freqstore(1:ifull,16) = rhscrn_stn
-freqstore(1:ifull,17) = qgscrn_stn
+freqstore(1:ifull,11) = qgscrn
+freqstore(1:ifull,12) = u10_stn*u(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,13) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,14) = tscrn_stn
+freqstore(1:ifull,15) = rhscrn_stn
+freqstore(1:ifull,16) = qgscrn_stn
+freqstore(1:ifull,17) = freqstore(1:ifull,17) + cloudtot/real(tbave)
+freqstore(1:ifull,18) = freqstore(1:ifull,18) + dni/real(tbave)
 if ( diaglevel_pbl>3 ) then
-  freqstore(1:ifull,18) = ua150
-  freqstore(1:ifull,19) = va150
-  freqstore(1:ifull,20) = ua250
-  freqstore(1:ifull,21) = va250
+  freqstore(1:ifull,19) = ua150
+  freqstore(1:ifull,20) = va150
+  freqstore(1:ifull,21) = ua250
+  freqstore(1:ifull,22) = va250
 end if
-freqstore(1:ifull,22) = cloudtot
 
 ! write data to file
 if ( mod(ktau,tbave)==0 ) then
     
   if ( myid==0 .or. local ) then
     if ( myid==0 ) then
-      write(6,*) "Write high frequency output"
+      write(6,*) "Write high-frequency output"
     end if
     fiarch = ktau/tbave
     tpnt = real(ktau,8)*real(dt,8)
@@ -3730,20 +3791,20 @@ if ( mod(ktau,tbave)==0 ) then
   call histwrt(freqstore(:,8),"pmsl",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,9),"sgdn_ave",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,10),"psf",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,11),"fbeam_ave",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,12),"qgscrn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,13),"uas_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,14),"vas_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,15),"tscrn_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,16),"rhscrn_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,17),"qgscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,11),"qgscrn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,12),"uas_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,13),"vas_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,14),"tscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,15),"rhscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,16),"qgscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,17),"cld",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,18),"dni",fncid,fiarch,local,.true.)
   if ( diaglevel_pbl>3 ) then
-    call histwrt(freqstore(:,18),"ua150",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,19),"va150",fncid,fiarch,local,.true.)      
-    call histwrt(freqstore(:,20),"ua250",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,21),"va250",fncid,fiarch,local,.true.)      
+    call histwrt(freqstore(:,19),"ua150",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,20),"va150",fncid,fiarch,local,.true.)      
+    call histwrt(freqstore(:,21),"ua250",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,22),"va250",fncid,fiarch,local,.true.)      
   end if
-  call histwrt(freqstore(:,22),"cld",fncid,fiarch,local,.true.)
   
   freqstore(:,:) = 0.
 

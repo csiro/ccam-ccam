@@ -1,4 +1,4 @@
-! aTEB urban canopy model
+! UCLEM urban canopy model
     
 ! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     

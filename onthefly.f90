@@ -302,6 +302,7 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
                          snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
                          ocndwn,xtgdwn)
       
+use aerointerface, only : opticaldepth         ! Aerosol interface          
 use aerosolldr, only : ssn,xtg_solub           ! LDR aerosol scheme
 use ateb, only : atebdwn, urbtemp, atebloadd, &
     nfrac                                      ! Urban
@@ -324,7 +325,8 @@ use mlodynamics                                ! Ocean dynamics
 use mlodynamicsarrays_m                        ! Ocean dynamics data
 use morepbl_m                                  ! Additional boundary layer diagnostics
 use newmpar_m                                  ! Grid parameters
-use nharrs_m, only : phi_nh,lrestart           ! Non-hydrostatic atmosphere arrays
+use nharrs_m, only : phi_nh,lrestart,         &
+    lrestart_radiation                         ! Non-hydrostatic atmosphere arrays
 use nsibd_m, only : isoilm,rsmin               ! Land-surface arrays
 use parm_m                                     ! Model configuration
 use parmdyn_m                                  ! Dynamics parmaters
@@ -361,7 +363,7 @@ integer idv, retopo_test
 integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac
 integer, dimension(:), intent(out) :: isflag
-integer, dimension(7+3*ms) :: ierc
+integer, dimension(8+3*ms) :: ierc
 integer, dimension(10), save :: iers
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
@@ -1269,18 +1271,18 @@ if ( nested/=1 .and. nested/=3 ) then
   if ( myid==0 .or. pfall ) then
     if ( ccycle/=0 ) then
       call ccnf_inq_varid(ncid,'nplant1',idv,tst)
-      if ( .not.tst ) ierc(7) = 1
+      if ( .not.tst ) ierc(8) = 1
     end if
     do k = 1,ms
       write(vname,'("tgg",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( .not.tst ) ierc(7+k) = 1
+      if ( .not.tst ) ierc(8+k) = 1
       write(vname,'("wetfrac",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( .not.tst ) ierc(7+ms+k) = 1
+      if ( .not.tst ) ierc(8+ms+k) = 1
       write(vname,'("wb",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( .not.tst ) ierc(7+2*ms+k) = 1
+      if ( .not.tst ) ierc(8+2*ms+k) = 1
     end do
   end if
   
@@ -1314,19 +1316,19 @@ if ( nested/=1 .and. nested/=3 ) then
         if ( tst ) then
           lrestart = .false.
         else 
-          call ccnf_get_vara(ncid,idv,iarchi,ierc(3))
+          call ccnf_get_vara(ncid,idv,iarchi,ierc(4))
         end if
         call ccnf_inq_varid(ncid,'nstagu',idv,tst)
         if ( tst ) then
           lrestart = .false.
         else 
-          call ccnf_get_vara(ncid,idv,iarchi,ierc(4))
+          call ccnf_get_vara(ncid,idv,iarchi,ierc(5))
         end if
         call ccnf_inq_varid(ncid,'nstagoff',idv,tst)
         if ( tst ) then
           lrestart = .false.
         else 
-          call ccnf_get_vara(ncid,idv,iarchi,ierc(5))
+          call ccnf_get_vara(ncid,idv,iarchi,ierc(6))
         end if
         if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
           if ( ok==wlev ) then
@@ -1344,7 +1346,7 @@ if ( nested/=1 .and. nested/=3 ) then
             if ( tst ) then
               lrestart = .false.
             else
-              call ccnf_get_vara(ncid,idv,iarchi,ierc(6))
+              call ccnf_get_vara(ncid,idv,iarchi,ierc(7))
             end if
           else
             lrestart = .false.
@@ -1364,27 +1366,75 @@ if ( nested/=1 .and. nested/=3 ) then
             lrestart = .false.
           end if
         end if
+        lrestart_radiation = .true.
+        call ccnf_inq_varid(ncid,'sgsave',idv,tst)
+        if ( tst ) lrestart_radiation = .false. 
+        call ccnf_inq_varid(ncid,'rgsave',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
+        call ccnf_inq_varid(ncid,'rtu',idv,tst)
+        if ( tst ) lrestart_radiation = .false. 
+        call ccnf_inq_varid(ncid,'rtc',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
+        call ccnf_inq_varid(ncid,'rgdn',idv,tst)
+        if ( tst ) lrestart_radiation = .false. 
+        call ccnf_inq_varid(ncid,'rgn',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
+        call ccnf_inq_varid(ncid,'rgc',idv,tst)
+        if ( tst ) lrestart_radiation = .false. 
+        call ccnf_inq_varid(ncid,'sint_amp',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
+        call ccnf_inq_varid(ncid,'sout_amp',idv,tst)
+        if ( tst ) lrestart_radiation = .false. 
+        call ccnf_inq_varid(ncid,'soutclr_amp',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
+        call ccnf_inq_varid(ncid,'sgdn_amp',idv,tst)
+        if ( tst ) lrestart_radiation = .false. 
+        call ccnf_inq_varid(ncid,'sgn_amp',idv,tst)
+        if ( tst ) lrestart_radiation = .false. 
+        call ccnf_inq_varid(ncid,'sgclr_amp',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
+        call ccnf_inq_varid(ncid,'dni_amp',idv,tst)
+        if ( tst ) lrestart_radiation = .false. 
+        call ccnf_inq_varid(ncid,'fbeamvis',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
+        call ccnf_inq_varid(ncid,'fbeamnir',idv,tst)
+        if ( tst ) lrestart_radiation = .false. 
+        call ccnf_inq_varid(ncid,'swrsave',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
+        call ccnf_inq_varid(ncid,'cloudlo',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
+        call ccnf_inq_varid(ncid,'cloudmi',idv,tst)
+        if ( tst ) lrestart_radiation = .false. 
+        call ccnf_inq_varid(ncid,'cloudhi',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
+        call ccnf_inq_varid(ncid,'sw_tend_amp',idv,tst)
+        if ( tst ) lrestart_radiation = .false. 
+        call ccnf_inq_varid(ncid,'lw_tend',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
       else
         lrestart = .false.
+        lrestart_radiation = .false.
       end if ! kk=kl .and. iotest
-      ierc(1:2) = 0
+      ierc(1:3) = 0
       if ( lrestart ) ierc(1) = 1
+      if ( lrestart_radiation ) ierc(2) = 1
       call ccnf_inq_varid(ncid,'u10',idv,tst)
-      if ( .not.tst ) ierc(2) = 1
+      if ( .not.tst ) ierc(3) = 1
     end if ! myid==0 .or. pfall
   end if   ! nested==0  
     
   if ( .not.pfall ) then
-    call ccmpi_bcast(ierc(1:7+3*ms),0,comm_world)
+    call ccmpi_bcast(ierc(1:8+3*ms),0,comm_world)
   end if
   
   lrestart  = (ierc(1)==1)
-  u10_found = (ierc(2)==1)
+  lrestart_radiation = (ierc(2)==1)
+  u10_found = (ierc(3)==1)
   if ( lrestart ) then
-    nstag       = ierc(3)
-    nstagu      = ierc(4)
-    nstagoff    = ierc(5)
-    nstagoffmlo = ierc(6)
+    nstag       = ierc(4)
+    nstagu      = ierc(5)
+    nstagoff    = ierc(6)
+    nstagoffmlo = ierc(7)
     if ( myid==0 ) then
       write(6,*) "Continue staggering from"
       write(6,*) "nstag,nstagu,nstagoff ",nstag,nstagu,nstagoff
@@ -1393,10 +1443,10 @@ if ( nested/=1 .and. nested/=3 ) then
       end if
     end if
   end if
-  carbon_found        = (ierc(7)==1)
-  tgg_found(1:ms)     = (ierc(8:7+ms)==1)
-  wetfrac_found(1:ms) = (ierc(8+ms:7+2*ms)==1)
-  wb_found(1:ms)      = (ierc(8+2*ms:7+3*ms)==1)
+  carbon_found        = (ierc(8)==1)
+  tgg_found(1:ms)     = (ierc(9:8+ms)==1)
+  wetfrac_found(1:ms) = (ierc(9+ms:8+2*ms)==1)
+  wb_found(1:ms)      = (ierc(9+2*ms:8+3*ms)==1)
         
   !------------------------------------------------------------------
   ! Read basic fields
@@ -1586,6 +1636,20 @@ if ( nested/=1 .and. nested/=3 ) then
     call gethist1('pblh',pblh)
     pblh(:) = max(pblh(:), 1.)
   end if
+  
+  !------------------------------------------------------------------
+  ! Read aerosol optical depth
+  if ( abs(iaero)>=2 .and. nrad==5 ) then
+    if ( nested==0 ) then
+      call gethist1('sdust_vis',opticaldepth(:,1,1))
+      call gethist1('ldust_vis',opticaldepth(:,2,1))
+      call gethist1('so4_vis',opticaldepth(:,3,1))
+      call gethist1('aero_vis',opticaldepth(:,4,1))
+      call gethist1('bc_vis',opticaldepth(:,5,1))
+      call gethist1('oc_vis',opticaldepth(:,6,1))
+      call gethist1('ssalt_vis',opticaldepth(:,7,1))
+    end if    
+  end if    
 
   !------------------------------------------------------------------
   ! Read CABLE/CASA aggregate C+N+P pools
@@ -1976,6 +2040,28 @@ if ( nested/=1 .and. nested/=3 ) then
   ! sgsave is needed for convection
   if ( nested==0 ) then
     call gethist1('sgsave',sgsave)
+    if ( lrestart_radiation ) then
+      call gethist1('rgsave',rgsave)
+      call gethist1('rtu',rt)
+      call gethist1('rgdn',rgdn)
+      call gethist1('rgn',rgn)
+      call gethist1('rgc',rgclr)
+      call gethist1('sint_amp',sint_amp)
+      call gethist1('sout_amp',sout_amp)
+      call gethist1('soutclr_amp',soutclr_amp)
+      call gethist1('sgdn_amp',sgdn_amp)
+      call gethist1('sgn_amp',sgn_amp)
+      call gethist1('sgclr_amp',sgclr_amp)
+      call gethist1('dni_amp',dni_amp)
+      call gethist1('fbeamvis',fbeamvis)
+      call gethist1('fbeamnir',fbeamnir)
+      call gethist1('swrsave',swrsave)
+      call gethist1('cloudlo',cloudlo)
+      call gethist1('cloudmi',cloudmi)
+      call gethist1('cloudhi',cloudhi)
+      call gethist4('sw_tend_amp',sw_tend_amp)
+      call gethist4('lw_tend',lw_tend)
+    end if
   end if
         
 endif    ! (nested/=1.and.nested/=3)
@@ -2002,7 +2088,7 @@ kdate_s = kdate_r
 ktime_s = ktime_r + 1
 
 if ( myid==0 .and. nested==0 ) then
-  write(6,*) "Final lrestart ",lrestart
+  write(6,*) "Final lrestart, lrestart_radiation ",lrestart,lrestart_radiation
 end if
 
 return
