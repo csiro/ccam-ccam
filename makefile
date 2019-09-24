@@ -32,7 +32,7 @@ FHOST = -g -O3 -xCORE-AVX2 -fimf-use-svml -qopt-report=5
 FOVERRIDE =
 ZMM =
 IPFLAG = -ip
-IPOFLAG =
+IPOFLAG = -ipo
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(SKYLAKE),yes)
@@ -40,7 +40,7 @@ FHOST = -O3 -xSKYLAKE-AVX512 -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
-IPOFLAG =
+IPOFLAG = -ipo
 VTHRESH = -vec-threshold0
 endif
 # OpenMP compile flag
