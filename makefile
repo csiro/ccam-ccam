@@ -1,4 +1,4 @@
-FC = mpif90
+FC = mpiifort
 FCSCM = ifort
 CC = cc
 
