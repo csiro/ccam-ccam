@@ -4800,9 +4800,8 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
                                                                    
 !---------------------------------------------------------------------
 ! local variables:
-      integer     :: k, n
-      real, dimension(size(conc_ice,1),size(conc_ice,2))  :: &
-          cldextivlice, cldssalbivlice
+      integer     :: k, n, i, j
+      real  :: cldextivlice, cldssalbivlice
 !     real, dimension(size(conc_ice,1),size(conc_ice,2))  :: &
 !         cldasymmivlice
 
@@ -4912,35 +4911,39 @@ real, dimension (:,:,:  ), intent(out)   ::  cldextbndicelw,   &
 !    wavenumber bands).
 !-----------------------------------------------------------------------
         do n=1,NBFL                                               
-          where (mask(:,:,k))
-            cldextivlice  = 1.0E+03*conc_ice(:,:,k)*              &
-                            (a0(n) +                              &
-                             a1(n)/size_ice(:,:,k) +              &
-                             a2(n)/size_ice2)
-
+          do j = 1,size(conc_ice,2)
+            do i = 1,size(conc_ice,1)
+              if (mask(i,j,k)) then
+                cldextivlice  = 1.0E+03*conc_ice(i,j,k)*              &
+                                (a0(n) +                              &
+                                 a1(n)/size_ice(i,j,k) +              &
+                                 a2(n)/size_ice2(i,j))
+    
 !-----------------------------------------------------------------------
 !    calculate single-scattering albedo and asymmetry parameter.
 !    the asymmetry parameter is not currently used in the infrared 
 !    code. therefore its calculation is commented out.
 !-----------------------------------------------------------------------
-            cldssalbivlice  = 1.0E+00 -                           &
-                              (b(n,0) +                           &
-                               b(n,1)*size_ice(:,:,k) +           &
-                               b(n,2)*size_ice2 +                 &
-                               b(n,3)*size_ice3)
-!           cldasymmivlice  = cpr(n,0) +                          &
-!                             cpr(n,1)*size_ice(:,:,k) +          &
-!                             cpr(n,2)*size_ice2 +                &
-!                             cpr(n,3)*size_ice3
+                cldssalbivlice  = 1.0E+00 -                           &
+                                  (b(n,0) +                           &
+                                   b(n,1)*size_ice(i,j,k) +           &
+                                   b(n,2)*size_ice2(i,j) +                 &
+                                   b(n,3)*size_ice3(i,j))
+!              cldasymmivlice  = cpr(n,0) +                          &
+!                                cpr(n,1)*size_ice(i,j,k) +          &
+!                                cpr(n,2)*size_ice2(i,j) +                &
+!                                cpr(n,3)*size_ice3(i,j)
  
 !-----------------------------------------------------------------------
 !    use the band weighting factors computed in microphys_rad_init
 !    to define the radiation band values for the scattering parameters.
 !-----------------------------------------------------------------------
-            sumext    = sumext + cldextivlice*fulwwts(nb,n )
-            sumssalb  = sumssalb + cldssalbivlice*fulwwts(nb,n )
-!           sumasymm  = sumasymm + cldasymmivlice*fulwwts(nb,n )
-          end where
+                sumext(i,j)    = sumext(i,j) + cldextivlice*fulwwts(nb,n )
+                sumssalb(i,j)  = sumssalb(i,j) + cldssalbivlice*fulwwts(nb,n )
+!               sumasymm(i,j)  = sumasymm(i,j) + cldasymmivlice*fulwwts(nb,n )
+              end if
+            end do
+          end do
         end do
         cldextbndicelw(:,:,k)   = sumext       
         cldssalbbndicelw(:,:,k) = sumssalb       
