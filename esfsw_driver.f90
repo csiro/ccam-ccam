@@ -4716,10 +4716,11 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
                                       radddowndif2,  tadddowndir2
 
       real, dimension (size(calc_flag,1),size(calc_flag,2)) ::      &
-              dm1tl2, dm2tl2, rdm2tl2, dm32, dm3r2, dm3r1p2, alpp2, &
+              dm2tl2, rdm2tl2, &
               raddupdif2p, raddupdir2p, tlevel2p, radddowndifm,     &
               tadddowndirm
-      integer     ::  k
+      real :: dm1tl2, dm32, dm3r2, dm3r1p2, alpp2
+      integer     ::  k, i, j
 
 !-------------------------------------------------------------------
 !   local variables:
@@ -4785,64 +4786,72 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
       radddowndifm    =  rlayerdif(:,:,1)
       tadddowndirm    =  tlayerdir(:,:,1)
       do k= 2,kx    
-        dm1tl2 = tlayerdif(:,:,k)/(1.0 - rlayerdif(:,:,k)*  &
-                 radddowndifm)
-        radddowndif2(:,:,k) = rlayerdif(:,:,k) + radddowndifm* &
-                              tlayerdif(:,:,k)*dm1tl2      
-        tadddowndir2(:,:,k) = tlevel2p*(tlayerdir(:,:,k) + &
-                              rlayerdir(:,:,k)*radddowndifm* &
-                              dm1tl2) + (tadddowndirm -  &
-                              tlevel2p)*dm1tl2           
-
+        do j = 1,size(calc_flag,2)
+          do i = 1,size(calc_flag,1)
+            dm1tl2 = tlayerdif(i,j,k)/(1.0 - rlayerdif(i,j,k)*  &
+                     radddowndifm(i,j))
+            radddowndif2(i,j,k) = rlayerdif(i,j,k) + radddowndifm(i,j)* &
+                                  tlayerdif(i,j,k)*dm1tl2      
+            tadddowndir2(i,j,k) = tlevel2p(i,j)*(tlayerdir(i,j,k) + &
+                                  rlayerdir(i,j,k)*radddowndifm(i,j)* &
+                                  dm1tl2) + (tadddowndirm(i,j) -  &
+                                  tlevel2p(i,j))*dm1tl2           
+    
 !---------------------------------------------------------------------
 !    add downward to calculate the resultant reflectances and           
 !    transmittances at flux levels.                                    
 !------------------------------------------------------------------
-        dm32  = 1.0/(1.0 - raddupdif2(:,:,k)*radddowndifm)
-        dm3r2 = dm32*radddowndifm      
-        dm3r1p2 = 1.0 + raddupdif2(:,:,k)*dm3r2   
-        alpp2 = (tadddowndirm - tlevel2p)*dm32   
-        where ( calc_flag )
-          transmittance(:,:,k) = (tlevel2p*(1.0 + raddupdir2(:,:,k)* &
-                                 dm3r2) + alpp2)
-          tr_dir(:,:,k) = tlevel2p
-          reflectance(:,:,k) = (tlevel2p*raddupdir2(:,:,k)*   &
-                                dm3r1p2 + alpp2*   &
-                                raddupdif2(:,:,k))
-        end where
-        tlevel2p = tlevel2p*tlayerde (:,:,k) 
-        radddowndifm = radddowndif2(:,:,k)
-        tadddowndirm = tadddowndir2(:,:,k)
+            dm32  = 1.0/(1.0 - raddupdif2(i,j,k)*radddowndifm(i,j))
+            dm3r2 = dm32*radddowndifm(i,j)      
+            dm3r1p2 = 1.0 + raddupdif2(i,j,k)*dm3r2   
+            alpp2 = (tadddowndirm(i,j) - tlevel2p(i,j))*dm32   
+            if ( calc_flag(i,j) ) then
+              transmittance(i,j,k) = (tlevel2p(i,j)*(1.0 + raddupdir2(i,j,k)* &
+                                     dm3r2) + alpp2)
+              tr_dir(i,j,k) = tlevel2p(i,j)
+              reflectance(i,j,k) = (tlevel2p(i,j)*raddupdir2(i,j,k)*   &
+                                    dm3r1p2 + alpp2*   &
+                                    raddupdif2(i,j,k))
+            end if
+            tlevel2p(i,j) = tlevel2p(i,j)*tlayerde (i,j,k) 
+            radddowndifm(i,j) = radddowndif2(i,j,k)
+            tadddowndirm(i,j) = tadddowndir2(i,j,k)
+          end do
+        end do
       end do
+      do j = 1,size(calc_flag,2)
+        do i = 1,size(calc_flag,1)
 !! CORRECT ???
-!     dm32  = 1.0/(1.0 - sfcalb(:,:)*radddowndifm)
-      dm32          = 1.0/(1.0 - sfcalb_dif(:,:)*   &
-                      radddowndifm       )
-      dm3r2 = dm32*radddowndifm       
+!         dm32  = 1.0/(1.0 - sfcalb(i,j)*radddowndifm(i,j))
+          dm32          = 1.0/(1.0 - sfcalb_dif(i,j)*   &
+                          radddowndifm(i,j)       )
+          dm3r2 = dm32*radddowndifm(i,j)       
 !! CORRECT ???
-!     dm3r1p2 = 1.0 + sfcalb(:,:)*dm3r2         
-      dm3r1p2          = 1.0 + sfcalb_dif(:,:) * dm3r2
-      alpp2 = (tadddowndirm - tlevel2p)*dm32
-      where ( calc_flag ) 
-        transmittance(:,:,kx+1) = (tlevel2p*(1.0 +   &
+!         dm3r1p2 = 1.0 + sfcalb(i,j)*dm3r2         
+          dm3r1p2          = 1.0 + sfcalb_dif(i,j) * dm3r2
+          alpp2 = (tadddowndirm(i,j) - tlevel2p(i,j))*dm32
+          if ( calc_flag(i,j) ) then
+            transmittance(i,j,kx+1) = (tlevel2p(i,j)*(1.0 +   &
 !! CORRECT ???
-!                                 sfcalb(:,:)* &
-!12-08-03:  CHANGE THIS TO _dir as per SMF  sfcalb_dif(:,:)* &
-                                  sfcalb_dir(:,:)* &
-                                  dm3r2) + alpp2)
-        tr_dir(:,:,kx+1) = tlevel2p
-        reflectance(:,:,kx+1) = (tlevel2p*  &
+!                                 sfcalb(i,j)* &
+!12-08-03:  CHANGE THIS TO _dir as per SMF  sfcalb_dif(i,j)* &
+                                      sfcalb_dir(i,j)* &
+                                      dm3r2) + alpp2)
+            tr_dir(i,j,kx+1) = tlevel2p(i,j)
+            reflectance(i,j,kx+1) = (tlevel2p(i,j)*  &
 !! CORRECT ???
-!                               sfcalb(:,:)*   &
-                                sfcalb_dir(:,:)* &
-                                dm3r1p2 + alpp2* &
+!                                   sfcalb(i,j)*   &
+                                    sfcalb_dir(i,j)* &
+                                    dm3r1p2 + alpp2* &
 !! CORRECT ???
-!                               sfcalb(:,:) )
-                                sfcalb_dif(:,:))  
-        reflectance(:,:,1) = raddupdir2p         
-        transmittance(:,:,1) = 1.0
-        tr_dir(:,:,1) = 1.0
-      end where
+!                                   sfcalb(i,j) )
+                                    sfcalb_dif(i,j))  
+            reflectance(i,j,1) = raddupdir2p(i,j)         
+            transmittance(i,j,1) = 1.0
+            tr_dir(i,j,1) = 1.0
+          end if
+        end do
+      end do
 
 !------------------------------------------------------------------
 
