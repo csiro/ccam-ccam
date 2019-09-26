@@ -1,4 +1,4 @@
-FC = mpiifort
+FC = mpif90
 FCSCM = ifort
 CC = cc
 
@@ -28,7 +28,7 @@ IPOFLAG =
 VTHRESH =
 endif
 ifeq ($(BROADWELL),yes)
-FHOST = -O3 -xCORE-AVX2 -fimf-use-svml
+FHOST = -O3 -xCORE-AVX2
 FOVERRIDE =
 ZMM =
 IPFLAG = -ip
