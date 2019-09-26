@@ -28,7 +28,7 @@ IPOFLAG =
 VTHRESH =
 endif
 ifeq ($(BROADWELL),yes)
-FHOST = -g -O3 -xCORE-AVX2 -fimf-use-svml -qopt-report=5
+FHOST = -O3 -xCORE-AVX2 -fimf-use-svml
 FOVERRIDE =
 ZMM =
 IPFLAG = -ip
