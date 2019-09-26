@@ -4716,10 +4716,9 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
                                       radddowndif2,  tadddowndir2
 
       real, dimension (size(calc_flag,1),size(calc_flag,2)) ::      &
-              dm2tl2, rdm2tl2, &
               raddupdif2p, raddupdir2p, tlevel2p, radddowndifm,     &
               tadddowndirm
-      real :: dm1tl2, dm32, dm3r2, dm3r1p2, alpp2
+      real :: dm1tl2, dm32, dm3r2, dm3r1p2, alpp2, dm2tl2, rdm2tl2
       integer     ::  k, i, j
 
 !-------------------------------------------------------------------
@@ -4759,17 +4758,21 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
       raddupdif2p = sfcalb_dif(:,:)
       raddupdir2p = sfcalb_dir(:,:)
       do k = kx, 1,-1
-        dm2tl2    = tlayerdif(:,:,k)/(1.0 - rlayerdif(:,:,k)*     &
-                    raddupdif2p )
-        rdm2tl2    = dm2tl2*raddupdif2p     
-        raddupdif2(:,:,k) = rlayerdif(:,:,k) + tlayerdif(:,:,k)*  &
-                            rdm2tl2    
-        raddupdir2(:,:,k) = rlayerdir(:,:,k) + tlayerde(:,:,k)*   &
-                        raddupdir2p* dm2tl2 +                     &     
-                        (tlayerdir(:,:,k) - tlayerde(:,:,k))*     &
-                        rdm2tl2   
-        raddupdir2p = raddupdir2(:,:,k)
-        raddupdif2p = raddupdif2(:,:,k)
+        do j = 1,size(calc_flag,2)
+          do i = 1,size(calc_flag,1)
+            dm2tl2    = tlayerdif(i,j,k)/(1.0 - rlayerdif(i,j,k)*     &
+                        raddupdif2p(i,j) )
+            rdm2tl2    = dm2tl2*raddupdif2p(i,j)     
+            raddupdif2(i,j,k) = rlayerdif(i,j,k) + tlayerdif(i,j,k)*  &
+                                rdm2tl2    
+            raddupdir2(i,j,k) = rlayerdir(i,j,k) + tlayerde(i,j,k)*   &
+                            raddupdir2p(i,j)* dm2tl2 +                     &     
+                            (tlayerdir(i,j,k) - tlayerde(i,j,k))*     &
+                            rdm2tl2   
+            raddupdir2p(i,j) = raddupdir2(i,j,k)
+            raddupdif2p(i,j) = raddupdif2(i,j,k)
+          end do
+        end do
       end do
  
 !---------------------------------------------------------------------
