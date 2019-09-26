@@ -86,12 +86,14 @@ endif
 ifeq ($(PGI),yes)
 MPIFC = pgfortran
 MPIF77 = pgfortran
-FC = mpif90
+FC = pgfortran
 FCSCM = pgfortran
 CC = pgcc
 FHOST = 
-FFLAGS = -O3 $(FHOST) -DGPU -traceback $(MPIFLAG) $(NCFLAG)
-FFLAGS += -Minfo=accel -acc -ta=nvidia:cc35
+MPIFLAG += -I/apps/intel/impi/5.0.1.035/include64 -L/apps/intel/impi/5.0.1.035/lib64 -lmpi -lmpiif
+#FFLAGS = -O3 $(FHOST) -DGPU -traceback $(MPIFLAG) $(NCFLAG)
+#FFLAGS += -Minfo=accel -acc -ta=nvidia:cc35
+FFLAGS = -g -O2 $(FHOST) -D_GPU -traceback $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
 ZMM =
 IPFLAG =
