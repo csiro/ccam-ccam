@@ -1283,15 +1283,15 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_minsnowden=>minsnowden         &
     ,ateb_refheight=>refheight           &
     ,ateb_zomratio=>zomratio             &
-    ,ateb_zocanyon=>zocanyon             &
-    ,ateb_zoroof=>zoroof                 &
+    ,zocanyon                            &
+    ,zoroof                              &
     ,ateb_maxrfwater=>maxrfwater         &
     ,ateb_maxrdwater=>maxrdwater         &
     ,ateb_maxrfsn=>maxrfsn               &
     ,ateb_maxrdsn=>maxrdsn               &
     ,ateb_maxvwatf=>maxvwatf             &
-    ,ateb_intairtmeth=>intairtmeth       &
-    ,ateb_intmassmeth=>intmassmeth       &
+    ,intairtmeth                         &
+    ,intmassmeth                         &
     ,ateb_cvcoeffmeth=>cvcoeffmeth       &
     ,ateb_statsmeth=>statsmeth           &
     ,ateb_lwintmeth=>lwintmeth           &
@@ -1400,12 +1400,14 @@ integer isoth, nsig, lapsbot
 integer secs_rad, nversion
 integer mstn, io_nest, mbd_min
 integer opt, nopt
+integer ateb_intairtmeth, ateb_intmassmeth
 integer npa, npb, tkecduv, tblock ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
 real targetlev, dsx, pwatr_l, pwatr
+real ateb_zocanyon, ateb_zoroof
 real cgmap_offset, cgmap_scale ! depreciated namelist options
 real(kind=8), dimension(:), allocatable, save :: dumr8
 logical lmlosigma, procformat
@@ -1555,6 +1557,8 @@ atebnmlfile      = 0
 ateb_energytol   = 1._8
 ateb_intairtmeth = 0
 ateb_intmassmeth = 0
+ateb_zocanyon    = zocanyon
+ateb_zoroof      = zoroof
 lapsbot          = 0
 io_nest          = 1
 npa              = 0  ! depreciated
@@ -2305,8 +2309,8 @@ ateb_maxsnowden   = dumr(7)
 ateb_minsnowden   = dumr(8)
 ateb_refheight    = dumr(9) 
 ateb_zomratio     = dumr(10)
-ateb_zocanyon     = dumr(11)
-ateb_zoroof       = dumr(12)
+zocanyon          = dumr(11)
+zoroof            = dumr(12)
 ateb_maxrfwater   = dumr(13)
 ateb_maxrdwater   = dumr(14)
 ateb_maxrfsn      = dumr(15)
@@ -2344,8 +2348,8 @@ ateb_wbrelaxr     = dumi(22)
 ateb_lweff        = dumi(23) 
 ateb_ncyits       = dumi(24)
 ateb_nfgits       = dumi(25) 
-ateb_intairtmeth  = dumi(26)
-ateb_intmassmeth  = dumi(27) 
+intairtmeth       = dumi(26)
+intmassmeth       = dumi(27) 
 ateb_cvcoeffmeth  = dumi(28) 
 ateb_statsmeth    = dumi(29) 
 ateb_lwintmeth    = dumi(30) 
@@ -2383,8 +2387,8 @@ if ( myid==0 ) then
   dumi(5)  = rivermd
   dumi(6)  = basinmd
   dumi(7)  = mlojacobi
-  dumi(8) = usepice
-  dumi(9) = mlosigma
+  dumi(8)  = usepice
+  dumi(9)  = mlosigma
   dumi(10) = oclosure
   dumi(11) = nsteps
   dumi(12) = k_mode
