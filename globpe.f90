@@ -1283,15 +1283,15 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_minsnowden=>minsnowden         &
     ,ateb_refheight=>refheight           &
     ,ateb_zomratio=>zomratio             &
-    ,ateb_zocanyon=>zocanyon             &
-    ,ateb_zoroof=>zoroof                 &
+    ,zocanyon                            &
+    ,zoroof                              &
     ,ateb_maxrfwater=>maxrfwater         &
     ,ateb_maxrdwater=>maxrdwater         &
     ,ateb_maxrfsn=>maxrfsn               &
     ,ateb_maxrdsn=>maxrdsn               &
     ,ateb_maxvwatf=>maxvwatf             &
-    ,ateb_intairtmeth=>intairtmeth       &
-    ,ateb_intmassmeth=>intmassmeth       &
+    ,intairtmeth                         &
+    ,intmassmeth                         &
     ,ateb_cvcoeffmeth=>cvcoeffmeth       &
     ,ateb_statsmeth=>statsmeth           &
     ,ateb_lwintmeth=>lwintmeth           &
@@ -1498,9 +1498,9 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_lweff,ateb_ncyits,ateb_nfgits,ateb_tol,ateb_alpha,       &
     ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,                 &
     ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
-    ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
+    ateb_refheight,ateb_zomratio,zocanyon,zoroof,       &
     ateb_maxrfwater,ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,    &
-    ateb_maxvwatf,ateb_intairtmeth,ateb_intmassmeth,              &
+    ateb_maxvwatf,intairtmeth,intmassmeth,              &
     ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
     ateb_ac_smooth,                                               &
@@ -1553,8 +1553,8 @@ nhorjlm          = 1
 ngas             = 0
 atebnmlfile      = 0
 ateb_energytol   = 1._8
-ateb_intairtmeth = 0
-ateb_intmassmeth = 0
+intairtmeth = 0
+intmassmeth = 0
 lapsbot          = 0
 io_nest          = 1
 npa              = 0  ! depreciated
@@ -2245,8 +2245,8 @@ if ( myid==0 ) then
   dumr(8)  = ateb_minsnowden
   dumr(9)  = ateb_refheight
   dumr(10) = ateb_zomratio
-  dumr(11) = ateb_zocanyon
-  dumr(12) = ateb_zoroof
+  dumr(11) = zocanyon
+  dumr(12) = zoroof
   dumr(13) = ateb_maxrfwater
   dumr(14) = ateb_maxrdwater
   dumr(15) = ateb_maxrfsn
@@ -2284,8 +2284,8 @@ if ( myid==0 ) then
   dumi(23) = ateb_lweff
   dumi(24) = ateb_ncyits
   dumi(25) = ateb_nfgits
-  dumi(26) = ateb_intairtmeth
-  dumi(27) = ateb_intmassmeth
+  dumi(26) = intairtmeth
+  dumi(27) = intmassmeth
   dumi(28) = ateb_cvcoeffmeth
   dumi(29) = ateb_statsmeth
   dumi(30) = ateb_lwintmeth
@@ -2305,8 +2305,8 @@ ateb_maxsnowden   = dumr(7)
 ateb_minsnowden   = dumr(8)
 ateb_refheight    = dumr(9) 
 ateb_zomratio     = dumr(10)
-ateb_zocanyon     = dumr(11)
-ateb_zoroof       = dumr(12)
+zocanyon     = dumr(11)
+zoroof       = dumr(12)
 ateb_maxrfwater   = dumr(13)
 ateb_maxrdwater   = dumr(14)
 ateb_maxrfsn      = dumr(15)
@@ -2344,8 +2344,8 @@ ateb_wbrelaxr     = dumi(22)
 ateb_lweff        = dumi(23) 
 ateb_ncyits       = dumi(24)
 ateb_nfgits       = dumi(25) 
-ateb_intairtmeth  = dumi(26)
-ateb_intmassmeth  = dumi(27) 
+intairtmeth  = dumi(26)
+intmassmeth  = dumi(27) 
 ateb_cvcoeffmeth  = dumi(28) 
 ateb_statsmeth    = dumi(29) 
 ateb_lwintmeth    = dumi(30) 
