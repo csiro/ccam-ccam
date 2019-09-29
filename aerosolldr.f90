@@ -307,7 +307,7 @@ integer, intent(in) :: inda
 real, dimension(:), intent(in) :: aa
 
 ! EROD is the soil fraction of Sand (inda=1), Silt (inda=2) and Clay (inda=3) that can erode
-erod(:,inda) = aa(1:size(erod))
+erod(:,inda) = aa(1:size(erod,1))
 
 return
 end subroutine aldrloaderod

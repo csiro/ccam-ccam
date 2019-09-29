@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -25,29 +25,34 @@ use cc_mpi, only : myid
 use vecs_m, only : emat,einv,bam
 use newmpar_m
 implicit none
+#ifdef pgi
+integer, parameter :: r16 = kind(1._8)
+#else
+integer, parameter :: r16 = kind(1._16)
+#endif
 integer, intent(in) :: nh,nsig,lapsbot,isoth
 integer :: nchng,k,l
 integer, parameter :: neig = 1
 real, intent(in) :: dtin, epspin, epshin
 real, dimension(kl), intent(in) :: sigin,sigmhin
 real, dimension(kl), intent(in) :: tbarin,betin,betmin
-real(kind=16) :: tem, dt, epsp, epsh
-real(kind=16), dimension(kl) :: sig,tbar,bet,betm,lbam
-real(kind=16), dimension(kl+1) :: sigmh
-real(kind=16), dimension(kl,kl) :: lemat,leinv
+real(kind=r16) :: tem, dt, epsp, epsh
+real(kind=r16), dimension(kl) :: sig,tbar,bet,betm,lbam
+real(kind=r16), dimension(kl+1) :: sigmh
+real(kind=r16), dimension(kl,kl) :: lemat,leinv
 
-dt = real(dtin,16)
-epsp = real(epspin,16)
-epsh = real(epshin,16)
-sig(:) = real(sigin(:),16)
-sigmh(1:kl) = real(sigmhin(:),16)
-sigmh(kl+1) = 0._16
-tbar = real(tbarin,16)
-bet = real(betin,16)
-betm = real(betmin,16)
-lemat = real(emat,16)
-leinv = real(einv,16)
-lbam = real(bam,16)
+dt = real(dtin,r16)
+epsp = real(epspin,r16)
+epsh = real(epshin,r16)
+sig(:) = real(sigin(:),r16)
+sigmh(1:kl) = real(sigmhin(:),r16)
+sigmh(kl+1) = 0._r16
+tbar = real(tbarin,r16)
+bet = real(betin,r16)
+betm = real(betmin,r16)
+lemat = real(emat,r16)
+leinv = real(einv,r16)
+lbam = real(bam,r16)
 ! lapsbot=1 gives zero lowest t lapse for phi calc
 if ( myid==0 ) then
   write(6,*) 'this run configured with kl = ',kl
@@ -122,21 +127,25 @@ use newmpar_m
 
 implicit none
 
+#ifdef pgi
+integer, parameter :: r16 = kind(1._8)
+#else
+integer, parameter :: r16 = kind(1._16)
+#endif
 integer isoth, nh
 integer k, l, irror
 integer, dimension(kl) :: indic
-real(kind=16) dt, epsp, epsh
-real(kind=16) dp !, factg, factr
+real(kind=r16) dt, epsp, epsh
+real(kind=r16) dp !, factg, factr
 !     sets up eigenvectors
-real(kind=16), dimension(kl) :: sig, dsig
-real(kind=16), dimension(kl) :: bet, betm, bam
-!real(kind=16), dimension(kl) :: get, getm
-real(kind=16), dimension(kl) :: evimag, sum1, tbar
-real(kind=16), dimension(kl+1) :: sigmh
-real(kind=16), dimension(kl,kl) :: emat, einv
-real(kind=16), dimension(kl,kl) :: bmat, veci !, gmat
-real(kind=16), dimension(kl,kl) :: aa, ab, ac
-real(kind=16), dimension(kl,kl) :: aaa, cc
+real(kind=r16), dimension(kl) :: sig, dsig
+real(kind=r16), dimension(kl) :: bet, betm, bam
+real(kind=r16), dimension(kl) :: evimag, sum1, tbar
+real(kind=r16), dimension(kl+1) :: sigmh
+real(kind=r16), dimension(kl,kl) :: emat, einv
+real(kind=r16), dimension(kl,kl) :: bmat, veci !, gmat
+real(kind=r16), dimension(kl,kl) :: aa, ab, ac
+real(kind=r16), dimension(kl,kl) :: aaa, cc
       
 do k = 1,kl
   dsig(k) = sigmh(k+1) - sigmh(k)
@@ -155,7 +164,7 @@ end if
 !factg = 2./(dt*(1.+epsp))      
 !factr = factg*rdry*rdry*tbar(1)*tbar(1)/(grav*grav)
       
-bmat(:,:) = 0.  ! N.B. bmat includes effect of r/sig weighting
+bmat(:,:) = 0._r16  ! N.B. bmat includes effect of r/sig weighting
 !gmat(:,:) = 0.  ! N.B. gmat may include effect of 1/sig**2 weighting
 do k = 2,kl
   do l = 1,k-1
@@ -183,7 +192,7 @@ do l = 1,kl
     ac(k,l) = dsig(l)
   end do
 end do
-aa(:,:) = 0.
+aa(:,:) = 0._r16
 do k = 1,kl
   do l = k,kl
     aa(k,l) = -rdry*tbar(1)*dsig(l)/(cp*sig(k))
@@ -191,7 +200,7 @@ do k = 1,kl
 end do
 do k = 1,kl
   aa(k,k) = -rdry*tbar(1)*(sigmh(k+1)-sig(k))/(cp*sig(k))
-  ac(k,k) = ac(k,k) + 1.
+  ac(k,k) = ac(k,k) + 1._r16
 end do
 
 if ( isoth==1 ) then  !  extra vadv terms added
@@ -200,7 +209,7 @@ end if
 
 if ( nh>0 ) then
   ! non-hydrostatic
-  bmat(:,:) = bmat(:,:)*(1.+4.*cp*tbar(1)/((grav*dt)**2*(1.+epsp)*(1.+epsh)))
+  bmat(:,:) = bmat(:,:)*real(1.+4.*cp*tbar(1)/((grav*dt)**2*(1.+epsp)*(1.+epsh)),r16)
 end if  ! (nh<=0) ..else..
 aaa(:,:) = matmul(bmat(:,:), aa(:,:))
 cc(:,:) = aaa(:,:) - rdry*tbar(1)*ab(:,:)
@@ -219,10 +228,15 @@ end subroutine eigs
 
 subroutine flip3(a,il,jl,kl,ll)
 implicit none
+#ifdef pgi
+integer, parameter :: r16 = kind(1._8)
+#else
+integer, parameter :: r16 = kind(1._16)
+#endif
 integer, intent(in) :: il,jl,kl,ll
 integer l,j,i,k
-real(kind=16), dimension(il,jl,kl,ll), intent(inout) :: a
-real(kind=16) tem
+real(kind=r16), dimension(il,jl,kl,ll), intent(inout) :: a
+real(kind=r16) tem
 do l = 1,ll
   do j = 1,jl
     do i = 1,il
@@ -240,15 +254,20 @@ end subroutine flip3
 subroutine eigenp(a,evr,evi,vecr,veci,indic)
 use newmpar_m
 implicit none
+#ifdef pgi
+integer, parameter :: r16 = kind(1._8)
+#else
+integer, parameter :: r16 = kind(1._16)
+#endif
 integer, dimension(kl*kl) :: iwork,local
 integer, dimension(kl) :: indic
 integer i,j,k,l,m
 integer k1,l1,kon,ivec
-real(kind=16), dimension(:), allocatable :: prfact,subdia,work ! use allocatable for cray compiler
-real(kind=16), dimension(kl,kl) :: a,vecr,veci
-real(kind=16), dimension(kl) :: evr,evi
-real(kind=16) d1,d2,d3,enorm
-real(kind=16) r,r1,ex,eps
+real(kind=r16), dimension(:), allocatable :: prfact,subdia,work ! use allocatable for cray compiler
+real(kind=r16), dimension(kl,kl) :: a,vecr,veci
+real(kind=r16), dimension(kl) :: evr,evi
+real(kind=r16) d1,d2,d3,enorm
+real(kind=r16) r,r1,ex,eps
       
 ! a.c.m. algorithm number 343
 ! revised july, 1970 by n.r.pummeroy, dcr, csiro, canberra
@@ -310,7 +329,7 @@ call scaler(a,veci,prfact,enorm)
 !  take t=50 significant binary figures.  ex=2**(-t)
 !     ex=8.88178418e-16
 !  following for 60 binary figures:
-ex = 8.674e-19_16
+ex = 8.674e-19_r16
 call hesqr(a,veci,evr,evi,subdia,indic,eps,ex)
 
 ! the possible decomposition of the upper-hessenberg matrix
@@ -343,8 +362,7 @@ do i = 1,kl
     l = l + local(k)
   end if
   if ( indic(ivec)/=0 ) then
-    if ( abs(evi(ivec))<1.e-99_16 ) then
-
+    if ( abs(evi(ivec))<1.e-99_r16 ) then
 ! transfer of an upper-hessenberg matrix of the order m from
 ! the arrays veci and subdia into the array a.
       do l1 = 1,m
@@ -383,16 +401,16 @@ end do
 ! matrix a to an upper-hessenberg form by householder method
 do i = 1,kl
   do j = i,kl
-    a(i,j) = 0.0_16
-    a(j,i) = 0.0_16
+    a(i,j) = 0.0_r16  
+    a(j,i) = 0.0_r16
   end do
-  a(i,i) = 1.0_16
+  a(i,i) = 1.0_r16
 end do
 m = kl-2
 do k = 1,m
   l = k + 1
   do j = 2,kl
-    d1 = 0.0_16
+    d1 = 0.0_r16
     do i = l,kl
       d2 = veci(i,k)
       d1 = d1+ d2*a(j,i)
@@ -408,7 +426,7 @@ end do
 kon = 1
 do i = 1,kl
   l = 0
-  if ( abs(evi(i))>1.e-99_16 ) then
+  if ( abs(evi(i))>1.e-99_r16 ) then
     l = 1
     if ( kon/=0 ) then
       kon = 0
@@ -416,8 +434,8 @@ do i = 1,kl
     end if
   end if
   do j = 1,kl
-    d1 = 0.0_16
-    d2 = 0.0_16
+    d1 = 0.0_r16
+    d2 = 0.0_r16
     do k = 1,kl
       d3 = a(j,k)
       d1 = d1+d3*vecr(k,i)
@@ -434,13 +452,13 @@ do i = 1,kl
 ! the normalisation of the eigenvectors and the computation
 ! of the eigenvalues of the original non-normalised matrix.
   if(l/=1) then
-    d1 = 0.0_16
+    d1 = 0.0_r16
     do m = 1,kl
       d1 = d1 + work(m)**2
     end do
     d1 = sqrt(d1)
     do m = 1,kl
-      veci(m,i) = 0.0_16
+      veci(m,i) = 0.0_r16
       vecr(m,i) = work(m)/d1
     end do
     evr(i) = evr(i)*enorm
@@ -452,7 +470,7 @@ do i = 1,kl
     evr(i-1) = evr(i)
     evi(i) = evi(i)*enorm
     evi(i-1) =-evi(i)
-    r = 0.0_16
+    r = 0.0_r16
     do j = 1,kl
       r1 = work(j)**2 + subdia(j)**2
       if ( r<r1 ) then
@@ -482,16 +500,21 @@ subroutine hesqr(a,h,evr,evi,subdia,indic,eps,ex)
 use newmpar_m
 implicit none
 
+#ifdef pgi
+integer, parameter :: r16 = kind(1._8)
+#else
+integer, parameter :: r16 = kind(1._16)
+#endif
 ! the following real variables were initially single prec.-
 ! subdia, eps, ex, r, shift
 integer, dimension(kl) :: indic
 integer i,j,k,l,m
 integer m1,maxst,ns
-real(kind=16), dimension(kl,kl) :: a,h
-real(kind=16), dimension(kl) :: evr,evi,subdia
-real(kind=16) eps,ex
-real(kind=16) sr,sr2,shift
-real(kind=16) r,s,t,x,y,z
+real(kind=r16), dimension(kl,kl) :: a,h
+real(kind=r16), dimension(kl) :: evr,evi,subdia
+real(kind=r16) eps,ex
+real(kind=r16) sr,sr2,shift
+real(kind=r16) r,s,t,x,y,z
 logical fflag
 ! this sub.routine finds all the eigenvalues of a real
 ! general matrix. the original matrix a of order n is
@@ -523,16 +546,16 @@ logical fflag
 m = kl-2
 do k=1,m
   l = k+1
-  s = 0.0_16
+  s = 0.0_r16
   do i=l,kl
     h(i,k) = a(i,k)
     s=s+abs(a(i,k))
   end do
-  if(abs(s-abs(a(k+1,k)))<1.e-99_16)then
+  if(abs(s-abs(a(k+1,k)))<1.e-99_8)then
     subdia(k) = a(k+1,k)
-    h(k+1,k) = 0.0_16
+    h(k+1,k) = 0.0_r16
   else
-    sr2 = 0.0_16
+    sr2 = 0.0_r16
     do i=l,kl
       sr = a(i,k)
       sr = sr/s
@@ -540,7 +563,7 @@ do k=1,m
       sr2 = sr2+sr*sr
     end do
     sr = sqrt(sr2)
-    if(a(l,k)>=0.0_16)then
+    if(a(l,k)>=0.0_r16)then
       sr = -sr
     end if
     sr2 = sr2-sr*a(l,k)
@@ -575,7 +598,7 @@ end do
 ! array h and the calculation of the small positive number
 ! eps.
 subdia(kl-1) = a(kl,kl-1)
-eps = 0.0_16
+eps = 0.0_r16
 do k=1,kl
   indic(k) = 0
   if(k/=kl)eps = eps+subdia(k)**2
@@ -592,9 +615,9 @@ eps = ex*sqrt(eps)
 ! determination of the shift of origin for the first step of
 ! the qr iterative process.
 shift = a(kl,kl-1)
-if(abs(a(kl,kl))>1.e-99_16)shift = 0.0_16
-if(abs(a(kl-1,kl))>1.e-99_16)shift = 0.0_16
-if(abs(a(kl-1,kl-1))>1.e-99_16)shift = 0.0_16
+if(abs(a(kl,kl))>1.e-99_r16)shift = 0.0_r16
+if(abs(a(kl-1,kl))>1.e-99_r16)shift = 0.0_r16
+if(abs(a(kl-1,kl-1))>1.e-99_r16)shift = 0.0_r16
 m = kl
 ns= 0
 maxst = kl*10
@@ -604,7 +627,7 @@ maxst = kl*10
 fflag=.true.
 do i=2,kl
   do k=i,kl
-    if(abs(a(i-1,k))>1.e-99_16) fflag=.false.
+    if(abs(a(i-1,k))>1.e-99_r16) fflag=.false.
   end do
 end do
 
@@ -612,7 +635,7 @@ if (fflag) then
   do i=1,kl
     indic(i)=1
     evr(i) = a(i,i)
-    evi(i) = 0.0_16
+    evi(i) = 0.0_r16
   end do
 else
 
@@ -627,7 +650,7 @@ else
     else if (k==0.or.abs(a(m,max(k,1)))<=eps) then
       ! compute the last eigenvalue.
       evr(m) = a(m,m)
-      evi(m) = 0.0_16
+      evi(m) = 0.0_r16
       indic(m) = 1
       m = k
       cycle
@@ -640,7 +663,7 @@ else
       s = s*s + a(k,m)*a(m,k)
       indic(k) = 1
       indic(m) = 1
-      if(s<0.0_16)then
+      if(s<0.0_r16)then
         t = sqrt(-s)
         evr(k) = r
         evi(k) = t
@@ -650,8 +673,8 @@ else
         t = sqrt(s)
         evr(k) = r-t
         evr(m) = r+t
-        evi(k) = 0.0_16
-        evi(m) = 0.0_16
+        evi(k) = 0.0_r16
+        evi(m) = 0.0_r16
       end if
       m = m-2
       cycle
@@ -669,7 +692,7 @@ else
       s = s*s + a(k,m)*a(m,k)
       indic(k) = 1
       indic(m) = 1
-      if(s<0.0_16)then
+      if(s<0.0_r16)then
         t = sqrt(-s)
         evr(k) = r
         evi(k) = t
@@ -679,27 +702,27 @@ else
         t = sqrt(s)
         evr(k) = r-t
         evr(m) = r+t
-        evi(k) = 0.0_16
-        evi(m) = 0.0_16
+        evi(k) = 0.0_r16
+        evi(m) = 0.0_r16
       end if
       m = m-2
       cycle
     end if
-    r = 0.0_16
-    do while(abs(r)<1.e-99_16)
+    r = 0.0_r16
+    do while(abs(r)<1.e-99_r16)
 ! transformation of the matrix of the order greater than two
       s = a(m,m)+a(m1,m1)+shift
       sr= a(m,m)*a(m1,m1)-a(m,m1)*a(m1,m)+0.25*shift**2
-      a(k+2,k) = 0.0_16
+      a(k+2,k) = 0.0_r16
 ! calculate x1,y1,z1,for the submatrix obtained by the
 ! decomposition
       x = a(k,k)*(a(k,k)-s)+a(k,k+1)*a(k+1,k)+sr
       y = a(k+1,k)*(a(k,k)+a(k+1,k+1)-s)
       r = abs(x)+abs(y)
-      if(abs(r)<1.e-99_16)shift = a(m,m-1)
+      if(abs(r)<1.e-99_r16)shift = a(m,m-1)
     end do
     z = a(k+2,k+1)*a(k+1,k)
-    shift = 0.0_16
+    shift = 0.0_r16
     ns = ns+1
 
 ! the loop for one step of the qr process.
@@ -708,25 +731,25 @@ else
 ! calculate xr,yr,zr.
         x = a(i,i-1)
         y = a(i+1,i-1)
-        z = 0.0_16
+        z = 0.0_r16
         if(i+2<=m)then
           z = a(i+2,i-1)
         end if
       end if
       sr2 = abs(x)+abs(y)+abs(z)
-      if(abs(sr2)>1.e-99_16)then
+      if(abs(sr2)>1.e-99_r16)then
         x = x/sr2
         y = y/sr2
         z = z/sr2
       end if
       s = sqrt(x*x + y*y + z*z)
-      if(x>=0.0_16)then
+      if(x>=0.0_r16)then
         s = -s
       end if
       if(i/=k)then
         a(i,i-1) = s*sr2
       end if
-      if(abs(sr2)<1.e-99_16)then
+      if(abs(sr2)<1.e-99_r16)then
         if(i+3<=m)then
           a(i+3,i) = s
           a(i+3,i+1) = s*x
@@ -734,7 +757,7 @@ else
         end if
         cycle
       end if
-      sr = 1.0-x/s
+      sr = 1.0_r16-x/s
       s = x-s
       x = y/s
       y = z/s
@@ -785,15 +808,20 @@ end subroutine hesqr
 subroutine matinv(a,b,l,d,irror)
 use newmpar_m
 implicit none
+#ifdef pgi
+integer, parameter :: r16 = kind(1._8)
+#else
+integer, parameter :: r16 = kind(1._16)
+#endif
 integer, dimension(kl,2) :: ind
 integer, dimension(kl) :: ipiv
 integer, intent(in) :: l
 integer, intent(out) :: irror
 integer i,j,k,m
 integer irow,icol
-real(kind=16), dimension(kl,kl), intent(inout) :: a,b
-real(kind=16), intent(out) :: d
-real(kind=16) :: amax
+real(kind=r16), dimension(kl,kl), intent(inout) :: a,b
+real(kind=r16), intent(out) :: d
+real(kind=r16) :: amax
 !     a is an nxn matrix to be inverted,or containing equation coeffs
 !     b is an nxm rhs matrix for equations
 !     if l=0,inverse only given.l positive,solutions only.l negative
@@ -809,7 +837,7 @@ do i=1,kl
   ipiv(i)=0
 end do
 do i=1,kl
-  amax=0.0
+  amax=0.0_r16
 !       search sub-matrix for largest element as pivot
   do j=1,kl
     if (ipiv(j)<0) then
@@ -833,7 +861,7 @@ do i=1,kl
   end do
 !       pivot found
   ipiv(icol)=ipiv(icol)+1
-  if(amax<=1.0e-20)then
+  if(amax<=1.0e-20_r16)then
 !         matrix singular,error return
     irror=1
     return
@@ -901,16 +929,21 @@ end subroutine matinv
 subroutine realve(m,ivec,a,vecr,evr,evi,iwork,work,indic,eps,ex)
 use newmpar_m
 implicit none
+#ifdef pgi
+integer, parameter :: r16 = kind(1._8)
+#else
+integer, parameter :: r16 = kind(1._16)
+#endif
 integer, dimension(kl) :: iwork,indic
 integer m
 integer i,j,k,l
 integer ivec,iter,ns
-real(kind=16), dimension(kl,kl) :: a,vecr
-real(kind=16), dimension(kl) :: evr,evi
-real(kind=16), dimension(kl) :: work
-real(kind=16) eps,ex
-real(kind=16) r,r1,t,evalue,previs
-real(kind=16) s,sr,bound
+real(kind=r16), dimension(kl,kl) :: a,vecr
+real(kind=r16), dimension(kl) :: evr,evi
+real(kind=r16), dimension(kl) :: work
+real(kind=r16) eps,ex
+real(kind=r16) r,r1,t,evalue,previs
+real(kind=r16) s,sr,bound
 
 ! the following real variables were initially single-
 ! bound,eps,evalue,ex,previs,r,r1,work
@@ -948,18 +981,18 @@ real(kind=16) s,sr,bound
 ! ex = 2**(-t). t is the number of binary digits in the
 ! mantissa of a floating point number.
 
-previs=0._16
+previs=0._r16
 
-vecr(1,ivec) = 1.0_16
+vecr(1,ivec) = 1.0_r16
 ! small perturbation of equal eigenvalues to obtain a full
 ! set of eigenvectors.
 evalue = evr(ivec)
 if(ivec/=m)then
   k = ivec+1
-  r = 0.0_16
+  r = 0.0_r16
   do i=k,m
-    if(abs(evalue-evr(i))<1.e-99_16.and.abs(evi(i))<1.e-99_16) then
-      r = r+3.0_16
+    if(abs(evalue-evr(i))<1.e-99_r16.and.abs(evi(i))<1.e-99_r16) then
+      r = r+3.0_r16
     end if
   end do
   evalue = evalue+r*ex
@@ -975,10 +1008,10 @@ k = m-1
 do i=1,k
   l = i+1
   iwork(i) = 0
-  if (abs(a(i+1,i))<1.e-99_16.and.abs(a(i,i))<1.e-99_16) then
+  if (abs(a(i+1,i))<1.e-99_r16.and.abs(a(i,i))<1.e-99_r16) then
     a(i,i)=eps
     cycle
-  else if (abs(a(i+1,i))<1.e-99_16) then
+  else if (abs(a(i+1,i))<1.e-99_r16) then
     cycle
   end if
   if(abs(a(i,i))<abs(a(i+1,i)))then
@@ -996,29 +1029,29 @@ do i=1,k
   end do
 end do
       
-if(abs(a(m,m))<1.e-99_16) then
+if(abs(a(m,m))<1.e-99_r16) then
   a(m,m) = eps
 end if
 
 ! the vector (1,1,...,1) is stored in the place of the right
 ! hand side column vector.
 do i=1,m
-  work(i) = 1.0_16
+  work(i) = 1.0_r16
 end do
 do i=m+1,kl
-  work(i) = 0.0_16
+  work(i) = 0.0_r16
 end do
 
 ! the inverse iteration is performed on the matrix until the
 ! infinite norm of the right-hand side vector is greater
 ! than the bound defined as  0.01(n*ex).
-bound = 0.01_16/(ex * float(kl))
+bound = 0.01_r16/(ex * float(kl))
 ns = 0
 iter = 1
 
 ! the backsubstitution.
 do while(.true.)
-  r = 0.0_16
+  r = 0.0_r16
   do i=1,m
     j = m-i+1
     s = work(j)
@@ -1046,7 +1079,7 @@ do while(.true.)
 ! greater than the infinite norm of the previous residual
 ! vector the computed eigenvector of the previous step is
 ! taken as the final eigenvector.
-  r1 = 0.0_16
+  r1 = 0.0_r16
   do i=1,m
     t = sum(a(i,i:m)*work(i:m))
     t = abs(t)
@@ -1084,7 +1117,7 @@ end if
 if(m/=kl)then
   j = m+1
   do i=j,kl
-    vecr(i,ivec) = 0.0_16
+    vecr(i,ivec) = 0.0_r16
   end do
 end if
       
@@ -1094,15 +1127,20 @@ end subroutine realve
 subroutine scaler(a,h,prfact,enorm)
 use newmpar_m
 implicit none
+#ifdef pgi
+integer, parameter :: r16 = kind(1._8)
+#else
+integer, parameter :: r16 = kind(1._16)
+#endif
 ! the following real variables were initially single prec.-
 ! bound1,bound2,enorm
 integer i,j
 integer iter,ncount
-real(kind=16), dimension(kl,kl) :: a,h
-real(kind=16), dimension(kl) :: prfact
-real(kind=16) enorm
-real(kind=16) fnorm,column,row
-real(kind=16) bound1,bound2,q,factor
+real(kind=r16), dimension(kl,kl) :: a,h
+real(kind=r16), dimension(kl) :: prfact
+real(kind=r16) enorm
+real(kind=r16) fnorm,column,row
+real(kind=r16) bound1,bound2,q,factor
 ! this sub.routine stores the matrix of the order n from the
 ! array a into the array h. afterward the matrix in the
 ! array a is scaled so that the quotient of the absolute sum
@@ -1128,24 +1166,24 @@ do i=1,kl
   do j=1,kl
     h(i,j) = a(i,j)
   end do
-  prfact(i)= 1.0_16
+  prfact(i)= 1.0_r16
 end do
-bound1 = 0.75_16
-bound2 = 1.33_16
+bound1 = 0.75_r16
+bound2 = 1.33_r16
 iter = 0
 ncount = 0
 do while (ncount<kl.and.iter<=2*kl)
   ncount = 0
   do i=1,kl
-    column = 0.0_16
-    row    = 0.0_16
+    column = 0.0_r16
+    row    = 0.0_r16
     do j=1,kl
       if(i/=j)then
         column=column+abs(a(j,i))
         row   =row   +abs(a(i,j))
        end if
     end do
-    if(column<1.e-99_16.or.row<1.e-99_16) then
+    if(column<1.e-99_r16.or.row<1.e-99_r16) then
       ncount = ncount + 1
       cycle
     end if
@@ -1167,7 +1205,7 @@ do while (ncount<kl.and.iter<=2*kl)
 end do
       
 if (iter<=2*kl) then
-  fnorm = 0.0_16
+  fnorm = 0.0_r16
   do i=1,kl
     do j=1,kl
       q = a(i,j)
@@ -1185,12 +1223,12 @@ if (iter<=2*kl) then
 else
   do i=1,kl
 ! modification suggested by referee in a.c.m.certification
-    prfact(i)=1.0_16
+    prfact(i)=1.0_r16
     do j=1,kl
       a(i,j) = h(i,j)
     end do
   end do
-  enorm = 1.0_16
+  enorm = 1.0_r16
 
 end if
 
@@ -1199,21 +1237,31 @@ end subroutine scaler
       
 subroutine sigtosigh(sig,sigmh,kl)
 implicit none
+#ifdef pgi
+integer, parameter :: r16 = kind(1._8)
+#else
+integer, parameter :: r16 = kind(1._16)
+#endif
 integer, intent(in) :: kl
 ! these routines are written from top down
-real(kind=16), dimension(kl), intent(in) :: sig
-real(kind=16), dimension(kl+1), intent(out) :: sigmh
-sigmh(1)=1.
-sigmh(2:kl)=.5*(sig(1:kl-1)+sig(2:kl))
-sigmh(kl+1)=0.
+real(kind=r16), dimension(kl), intent(in) :: sig
+real(kind=r16), dimension(kl+1), intent(out) :: sigmh
+sigmh(1)=1._r16
+sigmh(2:kl)=.5_r16*(sig(1:kl-1)+sig(2:kl))
+sigmh(kl+1)=0._r16
 return
 end subroutine sigtosigh
       
 subroutine sightosig(sig,sigmh,kl)
 implicit none
+#ifdef pgi
+integer, parameter :: r16 = kind(1._8)
+#else
+integer, parameter :: r16 = kind(1._16)
+#endif
 integer, intent(in) :: kl
-real(kind=16), dimension(kl), intent(out) :: sig
-real(kind=16), dimension(kl+1), intent(in) :: sigmh
-sig(1:kl) = .5*(sigmh(2:kl+1)+sigmh(1:kl))
+real(kind=r16), dimension(kl), intent(out) :: sig
+real(kind=r16), dimension(kl+1), intent(in) :: sigmh
+sig(1:kl) = .5+r16*(sigmh(2:kl+1)+sigmh(1:kl))
 return
 end subroutine sightosig

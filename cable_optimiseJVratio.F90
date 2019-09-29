@@ -349,7 +349,7 @@ END FUNCTION total_photosynthesis
 		golden=f2
 		xmin=x2
 	end if
-	CONTAINS
+	END FUNCTION golden
 !BL
 	SUBROUTINE shft2(a,b,c)
 	REAL, INTENT(OUT) :: a
@@ -367,7 +367,6 @@ END FUNCTION total_photosynthesis
 	b=c
 	c=d
 	END SUBROUTINE shft3
-	END FUNCTION golden
 
 
 
