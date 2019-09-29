@@ -93,7 +93,7 @@ FHOST =
 MPIFLAG += -I/apps/intel/impi/5.0.1.035/include64 -L/apps/intel/impi/5.0.1.035/lib64 -lmpi -lmpiif
 #FFLAGS = -O3 $(FHOST) -DGPU -traceback $(MPIFLAG) $(NCFLAG)
 #FFLAGS += -Minfo=accel -acc -ta=nvidia:cc35
-FFLAGS = -g -O2 $(FHOST) -D_GPU -traceback $(MPIFLAG) $(NCFLAG)
+FFLAGS = -g -O2 $(FHOST) -Dpgi -D_GPU -traceback $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
 ZMM =
 IPFLAG =

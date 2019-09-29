@@ -1014,7 +1014,8 @@ CONTAINS
       REAL(r_2), INTENT(IN), DIMENSION(:,:) ::                                    &
            gbhu,    &  ! forcedConvectionBndryLayerCond
            gbhf        ! freeConvectionBndryLayerCond
-      REAL, DIMENSION(mp), INTENT(IN) :: rt0, qstvair
+      REAL, DIMENSION(mp), INTENT(IN) :: rt0
+      REAL, DIMENSION(mp), INTENT(INOUT) :: qstvair
 
       TYPE (canopy_type), INTENT(IN) :: canopy
       TYPE (air_type), INTENT(IN) :: air
