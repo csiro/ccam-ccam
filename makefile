@@ -91,7 +91,7 @@ FCSCM = pgfortran
 CC = pgcc
 FHOST = -O3 -tp=haswell -fast
 MPIFLAG += -I$(I_MPI_ROOT)/include64 -L$(I_MPI_ROOT)/lib64 -lmpi -lmpiif
-#FFLAGS = -O3 $(FHOST) -Dpgi -DGPU -traceback $(MPIFLAG) $(NCFLAG)
+#FFLAGS = $(FHOST) -Dpgi -DGPU -traceback $(MPIFLAG) $(NCFLAG)
 #FFLAGS += -Minfo=accel -acc -ta=nvidia:cc35
 FFLAGS = $(FHOST) -Dpgi -D_GPU -traceback $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
