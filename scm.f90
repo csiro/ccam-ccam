@@ -6574,7 +6574,7 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   sint_ave(1:ifull)   = sint_ave(1:ifull)/min(ntau,nperavg)
   sot_ave(1:ifull)    = sot_ave(1:ifull)/min(ntau,nperavg)
   soc_ave(1:ifull)    = soc_ave(1:ifull)/min(ntau,nperavg)
-  rtu_ave(1:ifull)    = rtu_ave(1:ifull)min(ntau,nperavg)
+  rtu_ave(1:ifull)    = rtu_ave(1:ifull)/min(ntau,nperavg)
   rtc_ave(1:ifull)    = rtc_ave(1:ifull)/min(ntau,nperavg)
   rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/min(ntau,nperavg)
   rgn_ave(1:ifull)    = rgn_ave(1:ifull)/min(ntau,nperavg)   

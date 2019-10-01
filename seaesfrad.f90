@@ -1754,10 +1754,10 @@ end do
 swrsave(:) = 0.5
 
 ! error checking
-if ( ldr==0 ) then
-  write(6,*) "ERROR: SEA-ESF radiation requires ldr/=0"
-  call ccmpi_abort(-1)
-end if
+!if ( ldr==0 ) then
+!  write(6,*) "ERROR: SEA-ESF radiation requires ldr/=0"
+!  call ccmpi_abort(-1)
+!end if
   
 call END_LOG(radinit_end)
 

@@ -66,6 +66,8 @@ if ( sigbot_gwd>=.5 ) then
 end if
 if ( mydiag ) write(6,*) 'in gwdrag sigbot_gwd,kbot:',sigbot_gwd,kbot
 
+!$acc update device(kbot)
+
 return
 end subroutine gdrag_sbl
 
