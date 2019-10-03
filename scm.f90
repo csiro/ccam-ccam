@@ -148,7 +148,7 @@ include 'kuocom.h'                         ! Convection parameters
 include 'version.h'                        ! Model version data
 
 integer io_nest, npa, npb, mstn
-integer secs_rad
+integer secs_rad, koundiag
 integer iq, k
 integer ivegt_in, isoil_in, gablsflux
 integer jyear, jmonth, jday, jhour, jmin, mins
@@ -640,7 +640,7 @@ do spinup = spinup_start,1,-1
     select case ( nrad )
       case(5)
         ! GFDL SEA-EFS radiation
-        call seaesfrad
+        call seaesfrad(koundiag)
         if ( .not.noradiation ) then
           do k = 1,kl
             t(1:ifull,k) = t(1:ifull,k) - dt*(sw_tend(1:ifull,k)+lw_tend(1:ifull,k))

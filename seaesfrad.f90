@@ -136,7 +136,7 @@ end subroutine seaesfrad_settime
 ! CCAM interface with GFDL SEA-ESF radiation
 !
 
-subroutine seaesfrad
+subroutine seaesfrad(koundiag)
 
 use aerointerface                                   ! Aerosol interface
 use aerosolldr                                      ! LDR prognostic aerosols
@@ -168,6 +168,7 @@ implicit none
 
 include 'kuocom.h'                                  ! Convection parameters
 
+integer, intent(inout) :: koundiag
 integer k
 integer i, iq, istart, iend, kr, nr, iq_tile
 integer ktop, kbot, mythread
@@ -299,6 +300,39 @@ do iq_tile = 1,ifull,imax
     ! calculations
     dhr = real(kountr)*dt/3600.
     call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),rlongg(istart:iend),dhr,imax,coszro,taudar)
+
+    ! Recalculate albedo for backwards compatibility
+    if ( always_mspeca ) then
+      if ( .not.(nsib==6.or.nsib==7) ) then
+        ! nsib=3 version (calculate snow)
+        where ( land(istart:iend) )
+          cuvrf_dir(1:imax) = albvissav(istart:iend) ! from albfile (indata.f)
+          cirrf_dir(1:imax) = albnirsav(istart:iend) ! from albnirfile (indata.f)
+          cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
+          cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
+        end where
+        call calc_snow_albedo(coszro,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,iq_tile)
+      end if  
+      if ( nmlo==0 ) then ! prescribed SSTs
+        ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
+        ! J. Clim. and Appl. Met., v. 27, 214-226)
+        where ( .not.land(istart:iend) .and. coszro>=0. )
+          cuvrf_dir(1:imax) = 0.026/(coszro**1.7+0.065)                 &
+            + 0.15*(coszro-0.1)*(coszro-0.5)*(coszro-1.)
+        elsewhere ( .not.land(istart:iend) )
+         cuvrf_dir(1:imax) = 0.3925 ! coszen=0 value of above expression
+        end where
+        where ( .not.land(istart:iend) )
+          cuvrf_dif(1:imax) = 0.06
+          cirrf_dir(1:imax) = cuvrf_dir(1:imax)
+          cirrf_dif(1:imax) = 0.06
+          cuvrf_dir(1:imax) = 0.85*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dir(1:imax)
+          cuvrf_dif(1:imax) = 0.85*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dif(1:imax)
+          cirrf_dir(1:imax) = 0.45*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dir(1:imax)
+          cirrf_dif(1:imax) = 0.45*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dif(1:imax)
+        end where
+      end if
+    end if ! always_mspeca
     
     ! Set up ozone for this time and row
     if ( amipo3 ) then
@@ -736,37 +770,83 @@ do iq_tile = 1,ifull,imax
       end do
     end if
 
-    ! Calculate the amplitude of the diurnal cycle of solar radiation
-    ! at the surface (using the value for the middle of the radiation
-    ! step) and use this value to get solar radiation at other times.
-    ! Use the zenith angle and daylight fraction calculated in zenith
-    ! to remove these factors.
-    where ( coszro*taudar<=1.E-5 )
-      ! The sun is not up at all over the radiation period so no 
-      ! fitting need be done.
-      sgdn_amp(istart:iend) = 0.
-      sgn_amp(istart:iend)  = 0.
-      dni_amp(istart:iend)  = 0.
-      sint_amp(istart:iend) = 0.
-      sout_amp(istart:iend) = 0.
-      soutclr_amp(istart:iend) = 0.
-      sgclr_amp(istart:iend)   = 0.
-    elsewhere
-      sgdn_amp(istart:iend) = sgdn(istart:iend)/(coszro*taudar)
-      sgn_amp(istart:iend)  = sgn/(coszro*taudar)
-      dni_amp(istart:iend)  = dni(istart:iend)/taudar
-      sint_amp(istart:iend) = sint(istart:iend)/(coszro*taudar)
-      sout_amp(istart:iend) = sout(istart:iend)/(coszro*taudar)
-      soutclr_amp(istart:iend) = soutclr(istart:iend)/(coszro*taudar)
-      sgclr_amp(istart:iend)   = sgclr(istart:iend)/(coszro*taudar)
-    end where
-    do k = 1,kl
-      where ( coszro(1:imax)*taudar(1:imax)<=1.E-5 )
-        sw_tend_amp(istart:iend,k)  = 0.
+    if ( always_mspeca ) then
+      where ( coszro*taudar<=1.E-5 )
+        sgdn_amp(istart:iend) = 0.
+        sgn_amp(istart:iend)  = 0.
+        dni_amp(istart:iend)  = 0.
+        sint_amp(istart:iend) = 0.
+        sout_amp(istart:iend) = 0.
+        soutclr_amp(istart:iend) = 0.
+        sgclr_amp(istart:iend)   = 0.
       elsewhere
-        sw_tend_amp(istart:iend,k) = sw_tend(istart:iend,k)/(coszro(1:imax)*taudar(1:imax))
-      end where   
-    end do
+        sgdn_amp(istart:iend) = sgdn(istart:iend)
+        sgn_amp(istart:iend)  = sgn/(coszro*taudar)
+        dni_amp(istart:iend)  = dni(istart:iend)/taudar
+        sint_amp(istart:iend) = sint(istart:iend)
+        sout_amp(istart:iend) = sout(istart:iend)
+        soutclr_amp(istart:iend) = soutclr(istart:iend)
+        sgclr_amp(istart:iend)   = sgclr(istart:iend)
+      end where
+      do k = 1,kl
+        where ( coszro*taudar<=1.E-5 )
+          sw_tend_amp(istart:iend,k)  = 0.
+        elsewhere
+          sw_tend_amp(istart:iend,k) = sw_tend(istart:iend,k)
+        end where   
+      end do
+      sgsave(istart:iend) = sgn   ! Net solar radiation (after solar fit)
+      slwa(istart:iend) = -sgsave(istart:iend) + rgsave(istart:iend)
+      if ( ktau>0 ) then
+        if ( istart==1 ) koundiag = koundiag + 1  
+        cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
+        sint_ave(istart:iend) = sint_ave(istart:iend) + sint(istart:iend)
+        sot_ave(istart:iend)  = sot_ave(istart:iend)  + sout(istart:iend)
+        soc_ave(istart:iend)  = soc_ave(istart:iend)  + soutclr(istart:iend)
+        rtu_ave(istart:iend)  = rtu_ave(istart:iend)  + rt(istart:iend)
+        rtc_ave(istart:iend)  = rtc_ave(istart:iend)  + rtclr(istart:iend)
+        rgn_ave(istart:iend)  = rgn_ave(istart:iend)  + rgn(istart:iend)
+        rgc_ave(istart:iend)  = rgc_ave(istart:iend)  + rgclr(istart:iend)
+        rgdn_ave(istart:iend) = rgdn_ave(istart:iend) + rgdn(istart:iend)
+        sgc_ave(istart:iend)  = sgc_ave(istart:iend)  + sgclr(istart:iend)
+        cld_ave(istart:iend)  = cld_ave(istart:iend)  + cloudtot(istart:iend)
+        cll_ave(istart:iend)  = cll_ave(istart:iend)  + cloudlo(istart:iend)
+        clm_ave(istart:iend)  = clm_ave(istart:iend)  + cloudmi(istart:iend)
+        clh_ave(istart:iend)  = clh_ave(istart:iend)  + cloudhi(istart:iend)
+      end if
+    else
+      ! Calculate the amplitude of the diurnal cycle of solar radiation
+      ! at the surface (using the value for the middle of the radiation
+      ! step) and use this value to get solar radiation at other times.
+      ! Use the zenith angle and daylight fraction calculated in zenith
+      ! to remove these factors.
+      where ( coszro*taudar<=1.E-5 )
+        ! The sun is not up at all over the radiation period so no 
+        ! fitting need be done.
+        sgdn_amp(istart:iend) = 0.
+        sgn_amp(istart:iend)  = 0.
+        dni_amp(istart:iend)  = 0.
+        sint_amp(istart:iend) = 0.
+        sout_amp(istart:iend) = 0.
+        soutclr_amp(istart:iend) = 0.
+        sgclr_amp(istart:iend)   = 0.
+      elsewhere
+        sgdn_amp(istart:iend) = sgdn(istart:iend)/(coszro*taudar)
+        sgn_amp(istart:iend)  = sgn/(coszro*taudar)
+        dni_amp(istart:iend)  = dni(istart:iend)/taudar
+        sint_amp(istart:iend) = sint(istart:iend)/(coszro*taudar)
+        sout_amp(istart:iend) = sout(istart:iend)/(coszro*taudar)
+        soutclr_amp(istart:iend) = soutclr(istart:iend)/(coszro*taudar)
+        sgclr_amp(istart:iend)   = sgclr(istart:iend)/(coszro*taudar)
+      end where
+      do k = 1,kl
+        where ( coszro*taudar<=1.E-5 )
+          sw_tend_amp(istart:iend,k)  = 0.
+        elsewhere
+          sw_tend_amp(istart:iend,k) = sw_tend(istart:iend,k)/(coszro*taudar)
+        end where   
+      end do
+    end if  
 
     ! Save things for non-radiation time steps ----------------------
     ! Save the value excluding Ts^4 part.  This is allowed to change.
@@ -789,29 +869,42 @@ do iq_tile = 1,ifull,imax
   cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
    
   ! Calculate the solar using the saved amplitude.
-  sgdn(istart:iend) = sgdn_amp(istart:iend)*coszro2*taudar2
-  alb = swrsave(istart:iend)*albvisnir(istart:iend,1)     &
-     + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
-  sgn = sgdn(istart:iend)*(1.-alb)
-  sgn_save = sgn_amp(istart:iend)*coszro2*taudar2
-  dni(istart:iend)  = dni_amp(istart:iend)*taudar2
-  sint(istart:iend) = sint_amp(istart:iend)*coszro2*taudar2
-  sout(istart:iend) = sout_amp(istart:iend)*coszro2*taudar2
-  sout(istart:iend) = sout(istart:iend) + sgn_save - sgn ! correct for changing albedo
-  soutclr(istart:iend) = soutclr_amp(istart:iend)*coszro2*taudar2
-  sgclr(istart:iend)   = sgclr_amp(istart:iend)*coszro2*taudar2
-      
-  ! Set up the CC model radiation fields
-  ! slwa is negative net radiational htg at ground
-  ! Note that this does not include the upward LW radiation from the surface.
-  ! That is included in sflux.f90
-  sgsave(istart:iend) = sgn   ! Net solar radiation (after solar fit)
-  slwa(istart:iend) = -sgsave(istart:iend) + rgsave(istart:iend)
-
-  ! Update tendencies
-  do k = 1,kl
-    sw_tend(istart:iend,k) = sw_tend_amp(istart:iend,k)*coszro2(1:imax)*taudar2(1:imax)
-  end do  
+  if ( always_mspeca ) then
+    sgdn(istart:iend) = sgdn_amp(istart:iend)  
+    sgn = sgn_amp(istart:iend)*coszro2*taudar2
+    dni(istart:iend) = dni_amp(istart:iend)*taudar2
+    sint(istart:iend) = sint_amp(istart:iend)
+    sout(istart:iend) = sout_amp(istart:iend)
+    soutclr(istart:iend) = soutclr_amp(istart:iend)
+    sgclr(istart:iend)   = sgclr_amp(istart:iend)
+    sgsave(istart:iend) = sgn   ! Net solar radiation (after solar fit)
+    slwa(istart:iend) = -sgsave(istart:iend) + rgsave(istart:iend)
+    do k = 1,kl
+      sw_tend(istart:iend,k) = sw_tend_amp(istart:iend,k)
+    end do
+  else
+    sgdn(istart:iend) = sgdn_amp(istart:iend)*coszro2*taudar2
+    alb = swrsave(istart:iend)*albvisnir(istart:iend,1)     &
+       + (1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
+    sgn = sgdn(istart:iend)*(1.-alb)
+    sgn_save = sgn_amp(istart:iend)*coszro2*taudar2
+    dni(istart:iend)  = dni_amp(istart:iend)*taudar2
+    sint(istart:iend) = sint_amp(istart:iend)*coszro2*taudar2
+    sout(istart:iend) = sout_amp(istart:iend)*coszro2*taudar2
+    sout(istart:iend) = sout(istart:iend) + sgn_save - sgn ! correct for changing albedo
+    soutclr(istart:iend) = soutclr_amp(istart:iend)*coszro2*taudar2
+    sgclr(istart:iend)   = sgclr_amp(istart:iend)*coszro2*taudar2
+    ! Set up the CC model radiation fields
+    ! slwa is negative net radiational htg at ground
+    ! Note that this does not include the upward LW radiation from the surface.
+    ! That is included in sflux.f90
+    sgsave(istart:iend) = sgn   ! Net solar radiation (after solar fit)
+    slwa(istart:iend) = -sgsave(istart:iend) + rgsave(istart:iend)
+    ! Update tendencies
+    do k = 1,kl
+      sw_tend(istart:iend,k) = sw_tend_amp(istart:iend,k)*coszro2(1:imax)*taudar2(1:imax)
+    end do
+  end if  
 
 end do  ! iq_tile = 1,ifull,imax
 !$omp end do nowait
