@@ -772,12 +772,12 @@ do k = 1,kl-1
       where ( ri(:,k)>0. )
         sqmxl(:)=(vkar4*zh(:,k)/(1.+vkar4*zh(:,k)/amxlsq+vkar4*zh(:,k)*ri(:,k)/lambda))**2
         rkm(:,k)=dvmod(:)*dzr(:)*sqmxl(:)
-        rkh(:,k)=rkh(:,k)
+        rkh(:,k)=rkm(:,k)
       end where
     end if
   else
-    rkm(:,:)=0.
-    rkh(:,:)=0.
+    rkm(:,k)=0.
+    rkh(:,k)=0.
   endif     ! (nvmix/=0)
 
   if((diag.or.ntest>=1).and.mydiag)then
