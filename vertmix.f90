@@ -764,17 +764,18 @@ do k = 1,kl-1
   ! calculate k's, guv and gt
   ! nonlocal scheme usually applied to temperature and moisture, not momentum
   ! (i.e. local scheme is applied to momentum for nlocal=0,1)
-  if (nvmix/=0) then    ! use nvmix=0 only for special test runs
+  if ( nvmix==7 ) then
+    !added by Jing Huang on 4 Feb 2016
     rkm(:,k)=fm(:)*sqmxl(:)*dzr(:)
     rkh(:,k)=fh(:)*sqmxl(:)*dzr(:)
-    !added by Jing Huang on 4 Feb 2016
-    if (nvmix==7) then
-      where ( ri(:,k)>0. )
-        sqmxl(:)=(vkar4*zh(:,k)/(1.+vkar4*zh(:,k)/amxlsq+vkar4*zh(:,k)*ri(:,k)/lambda))**2
-        rkm(:,k)=dvmod(:)*dzr(:)*sqmxl(:)
-        rkh(:,k)=rkm(:,k)
-      end where
-    end if
+    where ( ri(:,k)>0. )
+      sqmxl(:)=(vkar4*zh(:,k)/(1.+vkar4*zh(:,k)/amxlsq+vkar4*zh(:,k)*ri(:,k)/lambda))**2
+      rkm(:,k)=dvmod(:)*dzr(:)*sqmxl(:)
+      rkh(:,k)=rkm(:,k)/0.85
+    end where
+  else if ( nvmix/=0 ) then    ! use nvmix=0 only for special test runs
+    rkm(:,k)=fm(:)*sqmxl(:)*dzr(:)
+    rkh(:,k)=fh(:)*sqmxl(:)*dzr(:)
   else
     rkm(:,k)=0.
     rkh(:,k)=0.
