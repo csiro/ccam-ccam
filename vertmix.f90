@@ -392,7 +392,7 @@ use newmpar_m                       ! Grid parameters
 use parm_m, only : diag,ds,ktau,     &
     nvmix,dt,nlv,ia,ib,ja,jb,nmaxpr, &
     iaero,nlocal,qgmin,av_vmod,      &
-    amxlsq                          ! Model configuration
+    amxlsq,dvmodmin                 ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : zmin             ! Soil and surface data
 
@@ -733,7 +733,7 @@ do k = 1,kl-1
   ! newest code, stable same as csiro9 here (originally for nvmix=4)
   do iq=1,imax
     sqmxl(iq)=(vkar4*zh(iq,k)/(1.+vkar4*zh(iq,k)/amxlsq))**2
-    dvmod(iq)=max( dvmod(iq) , 1. )
+    dvmod(iq)=max( dvmod(iq) , dvmodmin )
     ri(iq,k)=x(iq)/dvmod(iq)**2
     if(ri(iq,k)< 0.)then  ! unstable case
       ! first do momentum
@@ -764,20 +764,21 @@ do k = 1,kl-1
   ! calculate k's, guv and gt
   ! nonlocal scheme usually applied to temperature and moisture, not momentum
   ! (i.e. local scheme is applied to momentum for nlocal=0,1)
-  if (nvmix/=0) then    ! use nvmix=0 only for special test runs
+  if ( nvmix==7 ) then
+    !added by Jing Huang on 4 Feb 2016
     rkm(:,k)=fm(:)*sqmxl(:)*dzr(:)
     rkh(:,k)=fh(:)*sqmxl(:)*dzr(:)
-    !added by Jing Huang on 4 Feb 2016
-    if (nvmix==7) then
-      where ( ri(:,k)>0. )
-        sqmxl(:)=(vkar4*zh(:,k)/(1.+vkar4*zh(:,k)/amxlsq+vkar4*zh(:,k)*ri(:,k)/lambda))**2
-        rkm(:,k)=dvmod(:)*dzr(:)*sqmxl(:)
-        rkh(:,k)=rkh(:,k)
-      end where
-    end if
+    where ( ri(:,k)>0. )
+      sqmxl(:)=(vkar4*zh(:,k)/(1.+vkar4*zh(:,k)/amxlsq+vkar4*zh(:,k)*ri(:,k)/lambda))**2
+      rkm(:,k)=dvmod(:)*dzr(:)*sqmxl(:)
+      rkh(:,k)=rkm(:,k)/0.85
+    end where
+  else if ( nvmix/=0 ) then    ! use nvmix=0 only for special test runs
+    rkm(:,k)=fm(:)*sqmxl(:)*dzr(:)
+    rkh(:,k)=fh(:)*sqmxl(:)*dzr(:)
   else
-    rkm(:,:)=0.
-    rkh(:,:)=0.
+    rkm(:,k)=0.
+    rkh(:,k)=0.
   endif     ! (nvmix/=0)
 
   if((diag.or.ntest>=1).and.mydiag)then

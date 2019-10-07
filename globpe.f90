@@ -109,6 +109,7 @@ integer mins_gmt, mspeca, mtimer_in
 integer nlx, nmaxprsav, n3hr
 integer nwtsav, mtimer_sav
 integer jyear, jmonth, jday, jhour, jmin, mins
+integer koundiag
 real, dimension(:), allocatable, save :: spare1
 real, dimension(3) :: temparray, gtemparray
 real aa, bb, cc
@@ -192,7 +193,7 @@ do n3hr = 1,8
 end do
 n3hr = 1           ! initial value at start of run
 nlx = 0            ! diagnostic level
-call zero_nperavg  ! reset average period diagnostics
+call zero_nperavg(koundiag)  ! reset average period diagnostics
 call zero_nperhour ! reset hourly period diagnostics
 call zero_nperday  ! reset daily period diagnostics
 
@@ -664,7 +665,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 !$omp end single
     case(5)
       ! GFDL SEA-EFS radiation
-      call seaesfrad
+      call seaesfrad(koundiag)
     case DEFAULT
       ! use preset slwa array (use +ve nrad)
 !$omp do schedule(static) private(js,je)
@@ -853,7 +854,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     rhmaxscr_stn(:) = rhscrn_stn(:) 
     rhminscr_stn(:) = rhscrn_stn(:)
   end if    
-  call calculate_timeaverage
+  call calculate_timeaverage(koundiag)
 
 
   ! TRACER OUTPUT ----------------------------------------------
@@ -947,7 +948,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       end if
     end if
     ! also zero most averaged fields every nperavg
-    call zero_nperavg
+    call zero_nperavg(koundiag)
   endif  ! (mod(ktau,nperavg)==0)
   
   ! HOURLY DIAGNOSTICS ---------------------------------------
@@ -1487,7 +1488,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
     stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,zimax,             &
-    amxlsq,                                                       & ! JH PBL scheme
+    amxlsq,dvmodmin,                                              & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
     tkecduv                                                         ! depreciated
 ! land, urban and carbon namelist
@@ -2147,7 +2148,7 @@ nclddia        = dumi(19)
 nmr            = dumi(20)
 nevapls        = dumi(21)
 deallocate( dumr, dumi )
-allocate( dumr(29), dumi(4) )
+allocate( dumr(30), dumi(4) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2186,6 +2187,7 @@ if ( myid==0 ) then
   dumr(27) = ent_min
   dumr(28) = mfbeta
   dumr(29) = zimax
+  dumr(30) = dvmodmin
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
@@ -2222,6 +2224,7 @@ alphaj     = dumr(26)
 ent_min    = dumr(27)
 mfbeta     = dumr(28)
 zimax      = dumr(29)
+dvmodmin   = dumr(30)
 buoymeth   = dumi(1)
 stabmeth   = dumi(2)
 tkemeth    = dumi(3)
@@ -2492,6 +2495,9 @@ minwater = max( 0., minwater )  ! limit ocean minimum water level
 if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (no output in history file)
 if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (output in history file)
 
+!$acc update device(vmodmin,sigbot_gwd,fc2,dt,alphaj,ngwd,iaero,ds,nmr,diag)
+!$acc update device(qgmin,nlocal,cqmix)
+
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -2631,7 +2637,7 @@ if ( myid<nproc ) then
   ! some default values for unspecified parameters
   if ( ia<0 ) ia = il/2          ! diagnostic point
   if ( ib<0 ) ib = ia + 3        ! diagnostic point
-  if ( ldr==0 ) mbase = 0        ! convection
+  !if ( ldr==0 ) mbase = 0        ! convection
   dsig4 = max(dsig2+.01, dsig4)  ! convection
 
   ! check nudging settings - adjust mbd scale parameter to satisfy mbd_maxscale and mbd_maxgrid settings
@@ -3669,7 +3675,7 @@ end subroutine fixsat
 
 !--------------------------------------------------------------
 ! Reset diagnostics for averaging period    
-subroutine zero_nperavg
+subroutine zero_nperavg(koundiag)
 
 use aerosolldr, only :                   & ! LDR prognostic aerosols
      duste,dustwd,dustdd,dust_burden     &
@@ -3689,6 +3695,8 @@ use soilsnow_m                             ! Soil, snow and surface data
 use tracers_m                              ! Tracer data
 
 implicit none
+
+integer, intent(inout) :: koundiag
 
 convh_ave(:,:)       = 0.
 cbas_ave(:)          = 0.
@@ -3718,6 +3726,7 @@ wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
 
 ! radiation
+koundiag             = 0
 sint_ave(:)          = 0.
 sot_ave(:)           = 0.
 soc_ave(:)           = 0.
@@ -3852,7 +3861,7 @@ end subroutine zero_nperday
     
 !--------------------------------------------------------------
 ! Update diagnostics for averaging period    
-subroutine calculate_timeaverage
+subroutine calculate_timeaverage(koundiag)
 
 use aerosolldr, only :                   & ! LDR prognostic aerosols
      duste,dustwd,dustdd,dust_burden     &
@@ -3872,6 +3881,7 @@ use histave_m                              ! Time average arrays
 use mlo, only : mlodiag                    ! Ocean physics and prognostic arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
+use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use outcdf                                 ! Output file routines
 use parm_m                                 ! Model configuration
 use pbl_m                                  ! Boundary layer arrays
@@ -3884,6 +3894,7 @@ use work3_m                                ! Mk3 land-surface diagnostic arrays
 
 implicit none
 
+integer, intent(inout) :: koundiag
 integer iq, k
 real, dimension(ifull) :: spare1, spare2
 
@@ -3963,19 +3974,21 @@ end if
 
 sgn_ave(1:ifull)   = sgn_ave(1:ifull)  + sgsave(1:ifull)
 sgdn_ave(1:ifull)  = sgdn_ave(1:ifull) + sgdn(1:ifull)
-sint_ave(1:ifull)  = sint_ave(1:ifull) + sint(1:ifull)
-sot_ave(1:ifull)   = sot_ave(1:ifull)  + sout(1:ifull)
-soc_ave(1:ifull)   = soc_ave(1:ifull)  + soutclr(1:ifull)
-rtu_ave(1:ifull)   = rtu_ave(1:ifull)  + rt(1:ifull)
-rtc_ave(1:ifull)   = rtc_ave(1:ifull)  + rtclr(1:ifull)
-rgn_ave(1:ifull)   = rgn_ave(1:ifull)  + rgn(1:ifull)
-rgc_ave(1:ifull)   = rgc_ave(1:ifull)  + rgclr(1:ifull)
-rgdn_ave(1:ifull)  = rgdn_ave(1:ifull) + rgdn(1:ifull)
-sgc_ave(1:ifull)   = sgc_ave(1:ifull)  + sgclr(1:ifull)
-cld_ave(1:ifull)   = cld_ave(1:ifull)  + cloudtot(1:ifull)
-cll_ave(1:ifull)   = cll_ave(1:ifull)  + cloudlo(1:ifull)
-clm_ave(1:ifull)   = clm_ave(1:ifull)  + cloudmi(1:ifull)
-clh_ave(1:ifull)   = clh_ave(1:ifull)  + cloudhi(1:ifull)
+if ( .not.always_mspeca ) then
+  sint_ave(1:ifull)  = sint_ave(1:ifull) + sint(1:ifull)
+  sot_ave(1:ifull)   = sot_ave(1:ifull)  + sout(1:ifull)
+  soc_ave(1:ifull)   = soc_ave(1:ifull)  + soutclr(1:ifull)
+  rtu_ave(1:ifull)   = rtu_ave(1:ifull)  + rt(1:ifull)
+  rtc_ave(1:ifull)   = rtc_ave(1:ifull)  + rtclr(1:ifull)
+  rgn_ave(1:ifull)   = rgn_ave(1:ifull)  + rgn(1:ifull)
+  rgc_ave(1:ifull)   = rgc_ave(1:ifull)  + rgclr(1:ifull)
+  rgdn_ave(1:ifull)  = rgdn_ave(1:ifull) + rgdn(1:ifull)
+  sgc_ave(1:ifull)   = sgc_ave(1:ifull)  + sgclr(1:ifull)
+  cld_ave(1:ifull)   = cld_ave(1:ifull)  + cloudtot(1:ifull)
+  cll_ave(1:ifull)   = cll_ave(1:ifull)  + cloudlo(1:ifull)
+  clm_ave(1:ifull)   = clm_ave(1:ifull)  + cloudmi(1:ifull)
+  clh_ave(1:ifull)   = clh_ave(1:ifull)  + cloudhi(1:ifull)
+end if
 dni_ave(1:ifull)   = dni_ave(1:ifull)  + dni(1:ifull)
 where ( sgdn(1:ifull)>120. )
   sunhours(1:ifull) = sunhours(1:ifull) + 86400.
@@ -4007,19 +4020,35 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   end do
   sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
   sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
-  sint_ave(1:ifull)   = sint_ave(1:ifull)/min(ntau,nperavg)
-  sot_ave(1:ifull)    = sot_ave(1:ifull)/min(ntau,nperavg)
-  soc_ave(1:ifull)    = soc_ave(1:ifull)/min(ntau,nperavg)
-  rtu_ave(1:ifull)    = rtu_ave(1:ifull)/min(ntau,nperavg)
-  rtc_ave(1:ifull)    = rtc_ave(1:ifull)/min(ntau,nperavg)
-  rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/min(ntau,nperavg)
-  rgn_ave(1:ifull)    = rgn_ave(1:ifull)/min(ntau,nperavg)
-  rgc_ave(1:ifull)    = rgc_ave(1:ifull)/min(ntau,nperavg)
-  sgc_ave(1:ifull)    = sgc_ave(1:ifull)/min(ntau,nperavg)
-  cld_ave(1:ifull)    = cld_ave(1:ifull)/min(ntau,nperavg)
-  cll_ave(1:ifull)    = cll_ave(1:ifull)/min(ntau,nperavg)
-  clm_ave(1:ifull)    = clm_ave(1:ifull)/min(ntau,nperavg)
-  clh_ave(1:ifull)    = clh_ave(1:ifull)/min(ntau,nperavg)
+  if ( always_mspeca ) then
+    sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)
+    sot_ave(1:ifull)    = sot_ave(1:ifull)/max(koundiag,1)
+    soc_ave(1:ifull)    = soc_ave(1:ifull)/max(koundiag,1)
+    rtu_ave(1:ifull)    = rtu_ave(1:ifull)/max(koundiag,1)
+    rtc_ave(1:ifull)    = rtc_ave(1:ifull)/max(koundiag,1)
+    rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
+    rgn_ave(1:ifull)    = rgn_ave(1:ifull)/max(koundiag,1)
+    rgc_ave(1:ifull)    = rgc_ave(1:ifull)/max(koundiag,1)
+    sgc_ave(1:ifull)    = sgc_ave(1:ifull)/max(koundiag,1)
+    cld_ave(1:ifull)    = cld_ave(1:ifull)/max(koundiag,1)
+    cll_ave(1:ifull)    = cll_ave(1:ifull)/max(koundiag,1)
+    clm_ave(1:ifull)    = clm_ave(1:ifull)/max(koundiag,1)
+    clh_ave(1:ifull)    = clh_ave(1:ifull)/max(koundiag,1)      
+  else
+    sint_ave(1:ifull)   = sint_ave(1:ifull)/min(ntau,nperavg)
+    sot_ave(1:ifull)    = sot_ave(1:ifull)/min(ntau,nperavg)
+    soc_ave(1:ifull)    = soc_ave(1:ifull)/min(ntau,nperavg)
+    rtu_ave(1:ifull)    = rtu_ave(1:ifull)/min(ntau,nperavg)
+    rtc_ave(1:ifull)    = rtc_ave(1:ifull)/min(ntau,nperavg)
+    rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/min(ntau,nperavg)
+    rgn_ave(1:ifull)    = rgn_ave(1:ifull)/min(ntau,nperavg)
+    rgc_ave(1:ifull)    = rgc_ave(1:ifull)/min(ntau,nperavg)
+    sgc_ave(1:ifull)    = sgc_ave(1:ifull)/min(ntau,nperavg)
+    cld_ave(1:ifull)    = cld_ave(1:ifull)/min(ntau,nperavg)
+    cll_ave(1:ifull)    = cll_ave(1:ifull)/min(ntau,nperavg)
+    clm_ave(1:ifull)    = clm_ave(1:ifull)/min(ntau,nperavg)
+    clh_ave(1:ifull)    = clh_ave(1:ifull)/min(ntau,nperavg)
+  end if
   dni_ave(1:ifull)    = dni_ave(1:ifull)/min(ntau,nperavg) 
   cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
   ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
