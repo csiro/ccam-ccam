@@ -392,7 +392,7 @@ use newmpar_m                       ! Grid parameters
 use parm_m, only : diag,ds,ktau,     &
     nvmix,dt,nlv,ia,ib,ja,jb,nmaxpr, &
     iaero,nlocal,qgmin,av_vmod,      &
-    amxlsq                          ! Model configuration
+    amxlsq,dvmodmin                 ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : zmin             ! Soil and surface data
 
@@ -733,7 +733,7 @@ do k = 1,kl-1
   ! newest code, stable same as csiro9 here (originally for nvmix=4)
   do iq=1,imax
     sqmxl(iq)=(vkar4*zh(iq,k)/(1.+vkar4*zh(iq,k)/amxlsq))**2
-    dvmod(iq)=max( dvmod(iq) , 1. )
+    dvmod(iq)=max( dvmod(iq) , dvmodmin )
     ri(iq,k)=x(iq)/dvmod(iq)**2
     if(ri(iq,k)< 0.)then  ! unstable case
       ! first do momentum

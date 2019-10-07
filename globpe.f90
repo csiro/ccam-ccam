@@ -1488,7 +1488,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
     stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,zimax,             &
-    amxlsq,                                                       & ! JH PBL scheme
+    amxlsq,dvmodmin,                                              & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
     tkecduv                                                         ! depreciated
 ! land, urban and carbon namelist
@@ -2148,7 +2148,7 @@ nclddia        = dumi(19)
 nmr            = dumi(20)
 nevapls        = dumi(21)
 deallocate( dumr, dumi )
-allocate( dumr(29), dumi(4) )
+allocate( dumr(30), dumi(4) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2187,6 +2187,7 @@ if ( myid==0 ) then
   dumr(27) = ent_min
   dumr(28) = mfbeta
   dumr(29) = zimax
+  dumr(30) = dvmodmin
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
@@ -2223,6 +2224,7 @@ alphaj     = dumr(26)
 ent_min    = dumr(27)
 mfbeta     = dumr(28)
 zimax      = dumr(29)
+dvmodmin   = dumr(30)
 buoymeth   = dumi(1)
 stabmeth   = dumi(2)
 tkemeth    = dumi(3)
