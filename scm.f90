@@ -257,7 +257,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & !EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
     stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,                 &
-    amxlsq,                                                       & !JH PBL scheme
+    amxlsq,dvmodmin,                                              & !JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj                                !GWdrag
 ! land, urban and carbon namelist
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
