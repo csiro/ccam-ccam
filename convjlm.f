@@ -474,16 +474,16 @@
 !     parameter (nuvconv=0)    ! usually 0, >0 or <0 to turn on momentum mixing
 !     parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing (base layers too)
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
-      real, dimension(:,:,:), intent(inout)    :: xtg
-      real, dimension(:,:,:), intent(inout)    :: tr
+      real, dimension(:,:,:), contiguous, intent(inout)    :: xtg
+      real, dimension(:,:,:), contiguous, intent(inout)    :: tr
       real, dimension(imax,kl), intent(in)         :: dpsldt
       real, dimension(imax,kl), intent(in)         :: cfrac
-      real, dimension(:,:), intent(inout)          :: t
-      real, dimension(:,:), intent(inout)          :: qg
-      real, dimension(:,:), intent(inout)          :: qlg
-      real, dimension(:,:), intent(inout)          :: qfg
-      real, dimension(:,:), intent(inout)          :: u
-      real, dimension(:,:), intent(inout)          :: v
+      real, dimension(:,:), contiguous, intent(inout)          :: t
+      real, dimension(:,:), contiguous, intent(inout)          :: qg
+      real, dimension(:,:), contiguous, intent(inout)          :: qlg
+      real, dimension(:,:), contiguous, intent(inout)          :: qfg
+      real, dimension(:,:), contiguous, intent(inout)          :: u
+      real, dimension(:,:), contiguous, intent(inout)          :: v
       real, dimension(imax,kl), intent(out)            :: fluxtot
       real, dimension(imax,ndust), intent(inout)       :: dustwd
       real, dimension(imax), intent(in)                :: alfin
