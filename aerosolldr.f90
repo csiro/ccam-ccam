@@ -233,6 +233,10 @@ jk8=max(pos(1),jk6+1)
 pos=maxloc(sig,sig<=0.350) ! 8,000m
 jk9=max(pos(1),jk8+1)
 
+!$acc update device(jk2,jk3,jk4,jk5,jk6,jk8,jk9)
+!$acc update device(enhanceu10)
+!$acc update device(zvolcemi,ch_dust)
+
 return
 end subroutine aldrinit
 

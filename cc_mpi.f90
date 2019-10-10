@@ -798,6 +798,7 @@ contains
       ! comm between rows in work group      
       colour = joff
       rank = ioff/ipan
+      lcommin = comm_proc
       call MPI_Comm_Split( lcommin, colour, rank, lcommout, ierr )
       comm_rows = lcommout
             

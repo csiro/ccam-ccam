@@ -315,6 +315,7 @@
         fluxtot(is:ie,:) = lfluxtot
         u(is:ie,:)       = lu
         v(is:ie,:)       = lv
+        cfrac(is:ie,:)   = lcfrac
         if ( abs(iaero)>=2 ) then
           xtg(is:ie,:,:)  = lxtg
           dustwd(is:ie,:) = ldustwd
@@ -387,7 +388,7 @@
       real, dimension(:,:,:), intent(inout)    :: xtg
       real, dimension(:,:,:), intent(inout)    :: tr
       real, dimension(imax,kl), intent(in)         :: dpsldt
-      real, dimension(imax,kl), intent(in)         :: cfrac
+      real, dimension(imax,kl), intent(inout)      :: cfrac
       real, dimension(:,:), intent(inout)          :: t
       real, dimension(:,:), intent(inout)          :: qg
       real, dimension(:,:), intent(inout)          :: qlg
@@ -445,6 +446,11 @@
       integer kdown(imax)
       real factr(imax)
       real fluxqs,fluxt_k(kl)
+      real gam, dqrx, rKa, Dva, cdls, cflscon, rhodz
+      real qpf, Apr, Bpr, Fr, rhoa, Vr, dtev, qr
+      real qgdiff, Cev2, qr2, Cevx, alphal, blx
+      real evapls, revq, cfls
+      real fluxr(imax)
 
       do k=1,kl
        dsk(k)=-dsig(k)    !   dsk = delta sigma (positive)
@@ -1716,7 +1722,87 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
       else      ! for ldr=0
         qq(1:imax,:)=qq(1:imax,:)+qliqw(1:imax,:)         
         tt(1:imax,:)=tt(1:imax,:)-hl*qliqw(1:imax,:)/cp   ! evaporate it
+        !qliqw(1:imax,:)=0.   ! just for final diags
+!       following is old 2014 ldr=0 code for large-scale calculations 
+        do k=1,kl   
+         do iq=1,imax
+          es(iq,k)=establ(tt(iq,k))
+         enddo  ! iq loop
+         if(sig(k)> .25)klon2=k
+        enddo   ! k loop
+        do k=klon2,1,-1    ! top down to end up with proper kbsav_ls
+         do iq=1,imax
+          pk=ps(iq)*sig(k)
+          qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),1.)  
+          if(qq(iq,k)>rhsat*qs(iq,k))then
+            kbsav_ls(iq)=k
+            gam=hlcp*qs(iq,k)*pk*hlars/(tt(iq,k)**2*max(pk-es(iq,k),1.))
+            dqrx=(qq(iq,k)-rhsat*qs(iq,k))/(1.+rhsat*gam)
+            tt(iq,k)=tt(iq,k)+hlcp*dqrx
+            qq(iq,k)=qq(iq,k)-dqrx
+            rnrt(iq)=rnrt(iq)+dqrx*dsk(k)
+          endif   ! (qq(iq,k)>rhsat*qs(iq,k))
+         enddo    ! iq loop
+        enddo     ! k loop
+!!!     now do evaporation of L/S precip (ONLY for ldr=0) !!
+        rnrt(:)=rnrt(:)*conrev(:)                 
+!       here the rainfall rate rnrt has been converted to g/m**2/sec
+        fluxr(:)=rnrt(:)*1.e-3*dt ! kg/m2      
+        if(nmaxpr==1.and.mydiag)then
+          iq=idjd
+          write(6,*) 'after large scale rain: kbsav_ls,rnrt,convpsav',
+     &                kbsav_ls(iq),rnrt(iq),convpsav(iq)
+          write (6,"('qliqw ',12f7.3/(8x,12f7.3))") 
+     &              (1000.*qliqw(iq,k),k=1,kl)
+          write (6,"('qs ',12f7.3/(8x,12f7.3))") 
+     &              (1000.*qs(iq,k),k=1,kl)
+          write (6,"('qg ',12f7.3/(8x,12f7.3))") 
+     &              (1000.*qq(iq,k),k=1,kl)
+          write (6,"('tt ',12f7.2/(8x,12f7.2))") 
+     &              (tt(iq,k),k=1,kl)
+        endif
         qliqw(1:imax,:)=0.   ! just for final diags
+        if(nevapls>.0)then ! even newer UKMO (just for ldr=0)
+         rKa=2.4e-2
+         Dva=2.21
+         cfls=1. ! cld frac7 large scale
+         cflscon=4560.*cfls**.3125
+         do k=kl,1,-1  ! JLM
+          do iq=1,imax
+           if(k<kbsav_ls(iq))then
+             rhodz=ps(iq)*dsk(k)/grav
+             qpf=fluxr(iq)/rhodz     ! Mix ratio of rain which falls into layer
+             pk=ps(iq)*sig(k)
+!            es(iq,k)=qs(iq,k)*pk/.622
+             Apr=hl*hl/(rKa*tt(iq,k)*(rvap*tt(iq,k))-1.)
+             Bpr=rvap*tt(iq,k)*pk/(Dva*es(iq,k))
+             Fr=fluxr(iq)/(cfls*dt)
+             rhoa=pk/(rdry*tt(iq,k))
+             dz=pk/(rhoa*grav)
+             Vr=max(.01 , 11.3*Fr**(1./9.)/sqrt(rhoa)) ! Actual fall speed
+             dtev=dz/Vr
+             qr=fluxr(iq)/(dt*rhoa*Vr)
+             qgdiff=qs(iq,k)-qq(iq,k)
+             Cev2=cflscon*qgdiff/(qs(iq,k)*(Apr+Bpr))  ! Ignore rhoa**0.12
+             qr2=max(0. , qr**.3125 - .3125*Cev2*dtev)**3.2
+             Cevx=(qr-qr2)/dtev  ! i.e. Cev*qgdiff
+             alphal=hl*qs(iq,k)/(ars*tt(iq,k)**2)
+             blx=qgdiff+Cevx*dt*(1.+hlcp*alphal)  ! i.e. bl*qgdiff
+             evapls= cfls*dt*Cevx*qgdiff/blx      ! UKMO
+             evapls=max(0. , min(evapls,qpf))
+             qpf=qpf-evapls
+             fluxr(iq)=fluxr(iq)+rhodz*qpf
+             revq=evapls
+             revq=min(revq , rnrt(iq)/(conrev(iq)*dsk(k)))
+!            max needed for roundoff
+             rnrt(iq)=max(1.e-10 , rnrt(iq)-revq*dsk(k)*conrev(iq))
+             tt(iq,k)=tt(iq,k)-revq*hlcp
+             qq(iq,k)=qq(iq,k)+revq
+           endif   ! (k<kbsav_ls(iq))
+          enddo    ! iq loop
+         enddo     ! k loop
+        endif      ! (nevapls>0)
+        cfrac=.3   ! just a default for radn
       endif  ! (ldr.ne.0)
 !_______________end of convective calculations__________________
      
