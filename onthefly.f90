@@ -692,10 +692,10 @@ if ( newfile ) then
     if ( zht_found ) then  
       if ( tss_test .and. iop_test ) then
         allocate( zss_a(ifull) )
-        call histrd(iarchi,ier,'zht',ik,zss_a,ifull)
+        call histrd(iarchi,ier,'zht',zss_a)
       else     
         allocate( zss_a(fwsize) )
-        call histrd(iarchi,ier,'zht',ik,zss_a,6*ik*ik)
+        call histrd(iarchi,ier,'zht',zss_a)
         if ( fwsize>0 ) then
           nemi = 2  
           land_a = zss_a>0. ! 2nd guess for land-sea mask
@@ -720,7 +720,7 @@ if ( newfile ) then
   if ( soilt_found ) then
     ! read soilt for land-sea mask  
     if ( .not.(tss_test.and.iop_test) ) then
-      call histrd(iarchi,ier,'soilt',ik,ucc,6*ik*ik)
+      call histrd(iarchi,ier,'soilt',ucc)
       if ( fwsize>0 ) then
         nemi = 3
         land_a = nint(ucc)>0 ! 1st guess for land-sea mask
@@ -734,10 +734,10 @@ if ( newfile ) then
   if ( mlo_found ) then
     if ( tss_test .and. iop_test ) then
       allocate( ocndep_a(ifull) )
-      call histrd(iarchi,ier,'ocndepth',ik,ocndep_a,ifull)
+      call histrd(iarchi,ier,'ocndepth',ocndep_a)
     else     
       allocate( ocndep_a(fwsize) )
-      call histrd(iarchi,ier,'ocndepth',ik,ocndep_a,6*ik*ik)
+      call histrd(iarchi,ier,'ocndepth',ocndep_a)
       if ( fwsize>0 ) then
         if ( nemi==-1 ) then
           nemi = 2  
@@ -788,9 +788,9 @@ if ( newfile ) then
       write(6,*) "Determine urban mask"
     end if  
     if ( urban_found ) then
-      call histrd(iarchi,ier,'t1_intmtgg1',ik,ucc,6*ik*ik)  
+      call histrd(iarchi,ier,'t1_intmtgg1',ucc)  
     else if ( urban2_found ) then
-      call histrd(iarchi,ier,'intmtgg1',ik,ucc,6*ik*ik)
+      call histrd(iarchi,ier,'intmtgg1',ucc)
     else
       if ( fwsize>0 ) then
         ucc = 0. ! will use tsu so all points are valid
@@ -848,11 +848,11 @@ end if
 psl(1:ifull) = 0.
 if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
   if ( iop_test ) then
-    call histrd(iarchi,ier,'psf',ik,psl,ifull)
+    call histrd(iarchi,ier,'psf',psl)
   else
     allocate( psl_a(fwsize) )
     psl_a(:) = 0.
-    call histrd(iarchi,ier,'psf',ik,psl_a,6*ik*ik)
+    call histrd(iarchi,ier,'psf',psl_a)
   end if
 endif
 
@@ -860,7 +860,7 @@ endif
 ! Read surface temperature 
 ! read global tss to diagnose sea-ice or land-sea mask
 if ( tss_test .and. iop_test ) then
-  call histrd(iarchi,ier,'tsu',ik,tss,ifull)
+  call histrd(iarchi,ier,'tsu',tss)
   tss = abs(tss)
   if ( any( tss<100. .or. tss>425. ) ) then
     write(6,*) "ERROR: Invalid tsu read in onthefly"
@@ -868,7 +868,7 @@ if ( tss_test .and. iop_test ) then
     call ccmpi_abort(-1)
   end if
 else
-  call histrd(iarchi,ier,'tsu',ik,tss_a,6*ik*ik)
+  call histrd(iarchi,ier,'tsu',tss_a)
   tss_a(:) = abs(tss_a(:))
   if ( fwsize>0 ) then
     if ( any( tss_a<100. .or. tss_a>425. ) ) then
@@ -903,8 +903,8 @@ end if
 ! mixed-layer-ocean
 if ( tss_test .and. iop_test ) then
 
-  call histrd(iarchi,ier,'siced',  ik,sicedep,ifull)
-  call histrd(iarchi,ier,'fracice',ik,fracice,ifull)
+  call histrd(iarchi,ier,'siced',sicedep)
+  call histrd(iarchi,ier,'fracice',fracice)
   if ( any(fracice(1:ifull)>1.1) ) then
     write(6,*) "ERROR: Invalid fracice in input file"
     write(6,*) "Fracice should be between 0 and 1"
@@ -926,8 +926,8 @@ else
   allocate( fracice_a(fwsize), sicedep_a(fwsize) )  
   allocate( tss_l_a(fwsize), tss_s_a(fwsize) )
     
-  call histrd(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik)
-  call histrd(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik)
+  call histrd(iarchi,ier,'siced',sicedep_a)
+  call histrd(iarchi,ier,'fracice',fracice_a)
         
   ! diagnose sea-ice if required
   if ( fwsize>0 ) then
@@ -1454,7 +1454,8 @@ if ( nested/=1 .and. nested/=3 ) then
     if ( nsib==6 .or. nsib==7 ) then
       call gethist1('rs',rsmin)  
     end if
-    call gethist1('zolnd',zo)    
+    call gethist1('zolnd',zo)
+    call gethist1('tpan',tpan)
     call gethist1('rnd',precip)
     precip(:) = precip(:)/real(nperday)
     call gethist1('rnc',precc)
@@ -1490,13 +1491,13 @@ if ( nested/=1 .and. nested/=3 ) then
         if ( k==1 .and. .not.tgg_found(1) ) then
           tgg(1:ifull,k) = tss(1:ifull)
         else
-          call histrd(iarchi,ier,vname,ik,tgg(:,k),ifull)
+          call histrd(iarchi,ier,vname,tgg(:,k))
         end if
       else
         if ( k==1 .and. .not.tgg_found(1) ) then
           ucc(1:fwsize) = tss_a(1:fwsize)
         else
-          call histrd(iarchi,ier,vname,ik,ucc,6*ik*ik)
+          call histrd(iarchi,ier,vname,ucc)
         end if
         call fill_cc1(ucc,sea_a,fill_sea)
         call doints1(ucc,tgg(:,k))
@@ -1566,12 +1567,12 @@ if ( nested/=1 .and. nested/=3 ) then
         vname = "wfb"
       end if
       if ( iop_test ) then
-        call histrd(iarchi,ier,vname,ik,wb(:,k),ifull)
+        call histrd(iarchi,ier,vname,wb(:,k))
         if ( wetfrac_found(k) ) then
           wb(1:ifull,k) = wb(1:ifull,k) + 20. ! flag for fraction of field capacity
         end if
       else
-        call histrd(iarchi,ier,vname,ik,ucc,6*ik*ik)
+        call histrd(iarchi,ier,vname,ucc)
         if ( wetfrac_found(k) ) then
           ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
         end if
@@ -3057,10 +3058,10 @@ character(len=*), intent(in) :: vname
       
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,vname,ik,varout,ifull)
+  call histrd(iarchi,ier,vname,varout)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,vname,ik,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ucc)
   call doints1(ucc, varout)
 end if ! iop_test
 
@@ -3086,10 +3087,10 @@ character(len=*), intent(in) :: vname
       
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,vname,ik,varout,ifull)
+  call histrd(iarchi,ier,vname,varout)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,vname,ik,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ucc)
   call fill_cc1(ucc,mask_a,fill_count)
   call doints1(ucc, varout)
 end if ! iop_test
@@ -3116,12 +3117,12 @@ character(len=*), intent(in) :: uname, vname
       
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,uname,ik,uarout,ifull)
-  call histrd(iarchi,ier,vname,ik,varout,ifull)
+  call histrd(iarchi,ier,uname,uarout)
+  call histrd(iarchi,ier,vname,varout)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,uname,ik,ucc,6*ik*ik)
-  call histrd(iarchi,ier,vname,ik,vcc,6*ik*ik)
+  call histrd(iarchi,ier,uname,ucc)
+  call histrd(iarchi,ier,vname,vcc)
   call interpcurrent1(uarout,varout,ucc,vcc,mask_a,fill_count)
 end if ! iop_test
       
@@ -3138,7 +3139,7 @@ use newmpar_m          ! Grid parameters
       
 implicit none
 
-integer ier, kx
+integer ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,size(varout,2)) :: ucc
 character(len=*), intent(in) :: vname
@@ -3148,14 +3149,12 @@ if ( size(varout,1)<ifull ) then
   call ccmpi_abort(-1)
 end if
 
-kx = size(varout,2)
-
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,vname,ik,kx,varout,ifull)
+  call histrd(iarchi,ier,vname,varout)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,vname,ik,kx,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ucc)
   call doints4(ucc,varout)
 end if ! iop_test
       
@@ -3194,10 +3193,10 @@ end if
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,vname,ik,kk,u_k,ifull)
+  call histrd(iarchi,ier,vname,u_k)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,vname,ik,kk,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ucc)
   if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
     if ( levkin<1 .or. levkin>kk ) then
       write(6,*) "ERROR: Invalid choice of levkin in gethist4a - ",trim(vname)
@@ -3253,12 +3252,12 @@ end if
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,uname,ik,kk,u_k,ifull)
-  call histrd(iarchi,ier,vname,ik,kk,v_k,ifull)
+  call histrd(iarchi,ier,uname,u_k)
+  call histrd(iarchi,ier,vname,v_k)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,uname,ik,kk,ucc,6*ik*ik)
-  call histrd(iarchi,ier,vname,ik,kk,vcc,6*ik*ik)
+  call histrd(iarchi,ier,uname,ucc)
+  call histrd(iarchi,ier,vname,vcc)
   call interpwind4(u_k,v_k,ucc,vcc)
 end if ! iop_test
 
@@ -3280,13 +3279,11 @@ use newmpar_m          ! Grid parameters
 implicit none
       
 integer, intent(inout) :: fill_count
-integer ier, kx
+integer ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,size(varout,2)) :: ucc
 logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
-
-kx = size(varout,2)
 
 if ( size(varout,1)<ifull ) then
   write(6,*) "ERROR: varout is too small in fillhist4"
@@ -3295,10 +3292,10 @@ end if
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,vname,ik,kx,varout,ifull)
+  call histrd(iarchi,ier,vname,varout)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,vname,ik,kx,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ucc)
   call fill_cc4(ucc,mask_a,fill_count)
   call doints4(ucc, varout)
 end if ! iop_test
@@ -3328,16 +3325,15 @@ character(len=*), intent(in) :: vname
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,vname,ik,ok,u_k,ifull)
+  call histrd(iarchi,ier,vname,u_k)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,vname,ik,ok,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ucc)
   call fill_cc4(ucc,mask_3d,fill_count)
   call doints4(ucc,u_k)
 end if ! iop_test
 
 ! vertical interpolation
-!varout = 0.
 varout(:,:) = 0.5*(minval(u_k)+maxval(u_k)) ! easier for debuging
 call mloregrid(ok,gosig_in,bath,u_k,varout,0) ! should use mode 3 or 4?
 
@@ -3366,12 +3362,12 @@ character(len=*), intent(in) :: uname, vname
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,uname,ik,ok,u_k,ifull)
-  call histrd(iarchi,ier,vname,ik,ok,v_k,ifull)
+  call histrd(iarchi,ier,uname,u_k)
+  call histrd(iarchi,ier,vname,v_k)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,uname,ik,ok,ucc,6*ik*ik)
-  call histrd(iarchi,ier,vname,ik,ok,vcc,6*ik*ik)
+  call histrd(iarchi,ier,uname,ucc)
+  call histrd(iarchi,ier,vname,vcc)
   call interpcurrent4(u_k,v_k,ucc,vcc,mask_a,fill_count)
 end if ! iop_test
 
