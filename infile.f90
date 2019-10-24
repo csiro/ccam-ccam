@@ -136,7 +136,7 @@ contains
 
 !--------------------------------------------------------------
 ! Interface for reading 2D+time fields
-subroutine histrd3r4(iarchi,ier,name,var)
+subroutine histrd3r4(iarchi,ier,name,ik,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reduce, histrd3_begin, histrd3_end, fnresid, &
                    start_log, end_log, ccmpi_distribute
@@ -144,26 +144,56 @@ use parm_m
 
 implicit none
       
-integer, intent(in) :: iarchi
+integer, intent(in) :: iarchi,ik,ifull
 integer, intent(out) :: ier
+integer :: iq
 real :: vmax, vmin, vmax_g, vmin_g
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
+real, dimension(:), allocatable :: globvar
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd3_begin)
 
-! read local arrays
-call hr3p(iarchi,ier,name,var)
-if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
-  vmax = maxval(var)
-  vmin = minval(var) 
-  call ccmpi_reduce(vmax,vmax_g,"max",0,comm_ip)
-  call ccmpi_reduce(vmin,vmin_g,"min",0,comm_ip)
-   if ( myid==0 ) then
-    write(6,'(" done histrd3 ",a8,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
+if ( ifull==6*ik*ik .or. ptest ) then
+
+  ! read local arrays
+  call hr3p(iarchi,ier,name,.true.,var)
+  if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
+    vmax = maxval(var)
+    vmin = minval(var) 
+    call ccmpi_reduce(vmax,vmax_g,"max",0,comm_ip)
+    call ccmpi_reduce(vmin,vmin_g,"min",0,comm_ip)
+    if ( myid==0 ) then
+      write(6,'(" done histrd3 ",a8,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
+    end if
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+    write(6,'(" done histrd3 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
-else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-  write(6,'(" done histrd3 ",a48,i4,i3)') trim(name),ier,iarchi
+
+else
+
+  ! gather and distribute (i.e., change in number of processors) 
+  if ( myid==0 ) then
+     allocate( globvar(6*ik*ik) )
+     globvar(:) = 0.
+     call hr3p(iarchi,ier,name,.false.,globvar)
+     if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+       vmax = maxval(globvar)
+       vmin = minval(globvar)
+       iq = id + (jd-1)*ik
+       if ( iq<=size(globvar) ) then
+         write(6,'(" done histrd3 ",a8,i4,i3,3e14.6)') trim(name),ier,iarchi,vmin,vmax,globvar(iq)
+       else
+         write(6,'(" done histrd3 ",a20,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
+       end if
+     end if
+     call ccmpi_distribute(var,globvar)
+     deallocate( globvar )
+  else
+    call hr3p(iarchi,ier,name,.false.)
+    call ccmpi_distribute(var)
+  end if
+
 end if
 
 call END_LOG(histrd3_end)
@@ -177,7 +207,7 @@ end subroutine histrd3r4
 ! when qtest=.true. the input grid decomposition should
 ! match the current processor decomposition.  We can then
 ! skip the MPI gather and distribute steps.
-subroutine hr3p(iarchi,ier,name,var)
+subroutine hr3p(iarchi,ier,name,qtest,var)
 
 use cc_mpi
       
@@ -188,21 +218,17 @@ integer, intent(out) :: ier
 integer :: ipf, jpf, ca, cc, ip, no, n, j
 integer(kind=4), dimension(4) :: start, ncount
 integer(kind=4) :: idv, ndims
-real, dimension(:), intent(inout) :: var
+real, dimension(:), intent(inout), optional :: var
 real, dimension(pipan*pjpan*pnpan) :: rvar
+real, dimension(:,:), allocatable :: gvar 
 real(kind=4) :: laddoff, lsf
+logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
 
 if ( mynproc>0 ) then
-
-  if ( size(var)<pipan*pjpan*pnpan*mynproc ) then
-    write(6,*) "ERROR: internal error in hr3p (infile). var size too small"
-    write(6,*) "var ",size(var)," expected ",pipan*pjpan*pnpan*mynproc
-    call ccmpi_abort(-1)
-  end if
-    
+         
   do ipf = 0,mynproc-1  
     
     rvar(:) = 0. ! default for missing field
@@ -237,8 +263,36 @@ if ( mynproc>0 ) then
       rvar(:) = rvar(:)*real(lsf) + real(laddoff)
     end if ! ier
       
-    ca = pipan*pjpan*pnpan*ipf
-    var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
+    if ( qtest ) then
+      ! usual
+      ca = pipan*pjpan*pnpan*ipf
+      var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
+    else
+      ! gather-scatter
+      if ( myid==0 .and. fnproc==1 ) then
+        var(1:pipan*pjpan*pnpan) = rvar(1:pipan*pjpan*pnpan)
+      else if ( myid==0 ) then
+        allocate( gvar(pipan*pjpan*pnpan,fnresid) )
+        call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+        do jpf = 1,fnresid
+          ip = ipf*fnresid + jpf - 1
+          do n = 0,pnpan-1
+            no = n - pnoff(ip) + 1
+            ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
+            cc = n*pipan*pjpan - pipan
+            do j = 1,pjpan
+              var(1+j*pil_g+ca:pipan+j*pil_g+ca) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,jpf)
+            end do
+          end do
+        end do
+        deallocate( gvar )
+      else
+        allocate( gvar(0,0) )  
+        call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+        deallocate( gvar )
+      end if
+      
+    end if ! qtest
 
   end do ! ipf
   
@@ -250,7 +304,7 @@ end subroutine hr3p
 #ifndef i8r8
 !--------------------------------------------------------------
 ! Interface for reading 2D+time fields (double precision version)
-subroutine histrd3r8(iarchi,ier,name,var)
+subroutine histrd3r8(iarchi,ier,name,ik,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reducer8, histrd3_begin, histrd3_end, fnresid, &
                    start_log, end_log, ccmpi_distributer8
@@ -258,26 +312,55 @@ use parm_m
 
 implicit none
       
-integer, intent(in) :: iarchi
+integer, intent(in) :: iarchi,ik,ifull
 integer, intent(out) :: ier
+integer :: iq
 real(kind=8) :: vmax, vmin, vmax_g, vmin_g
 real(kind=8), dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
+real(kind=8), dimension(:), allocatable :: globvar
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd3_begin)
 
-! read local arrays
-call hr3pr8(iarchi,ier,name,var)
-if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
-  vmax = maxval(var)
-  vmin = minval(var) 
-  call ccmpi_reducer8(vmax,vmax_g,"max",0,comm_ip)
-  call ccmpi_reducer8(vmin,vmin_g,"min",0,comm_ip)
-  if ( myid==0 ) then
-    write(6,'(" done histrd3r8 ",a8,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
+if ( ifull==6*ik*ik .or. ptest ) then
+  ! read local arrays without gather and distribute (e.g., restart file)
+  call hr3pr8(iarchi,ier,name,.true.,var)
+  if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
+    vmax = maxval(var)
+    vmin = minval(var) 
+    call ccmpi_reducer8(vmax,vmax_g,"max",0,comm_ip)
+    call ccmpi_reducer8(vmin,vmin_g,"min",0,comm_ip)
+    if ( myid==0 ) then
+      write(6,'(" done histrd3r8 ",a8,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
+    end if
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+    write(6,'(" done histrd3r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
-else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
-  write(6,'(" done histrd3r8 ",a46,i4,i3)') trim(name),ier,iarchi
+
+else
+
+  ! read local arrays with gather and distribute (i.e., change in number of processors) 
+  if ( myid==0 ) then
+    allocate( globvar(6*ik*ik) )
+    globvar(:) = 0.
+    call hr3pr8(iarchi,ier,name,.false.,globvar)
+    if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+      vmax = maxval(globvar)
+      vmin = minval(globvar)
+      iq = id+(jd-1)*ik
+      if ( iq<=size(globvar) ) then
+        write(6,'(" done histrd3r8 ",a8,i4,i3,3e14.6)') trim(name),ier,iarchi,vmin,vmax,globvar(iq)
+      else
+        write(6,'(" done histrd3r8 ",a18,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
+      end if
+    end if
+    call ccmpi_distributer8(var,globvar)
+    deallocate( globvar )
+  else
+    call hr3pr8(iarchi,ier,name,.false.)
+    call ccmpi_distributer8(var)
+  end if
+
 end if
 
 call END_LOG(histrd3_end)
@@ -285,7 +368,7 @@ call END_LOG(histrd3_end)
 return
 end subroutine histrd3r8   
 
-subroutine hr3pr8(iarchi,ier,name,var)
+subroutine hr3pr8(iarchi,ier,name,qtest,var)
 
 use cc_mpi
       
@@ -296,20 +379,16 @@ integer, intent(out) :: ier
 integer :: ipf, ca, jpf, ip, n, no, cc, j
 integer(kind=4), dimension(4) :: start, ncount
 integer(kind=4) :: idv, ndims
-real(kind=8), dimension(:), intent(inout) :: var
+real(kind=8), dimension(:), intent(inout), optional :: var
 real(kind=8), dimension(pipan*pjpan*pnpan) :: rvar
+real(kind=8), dimension(:,:), allocatable :: gvar 
 real(kind=4) :: laddoff, lsf
+logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
 ier = 0
 
 if ( mynproc>0 ) then
-    
-  if ( size(var)<pipan*pjpan*pnpan*mynproc ) then
-    write(6,*) "ERROR: internal error in hr3pr8 (infile). var size too small"
-    write(6,*) "var ",size(var)," expected ",pipan*pjpan*pnpan*mynproc
-    call ccmpi_abort(-1)
-  end if
 
   do ipf = 0,mynproc-1   
     
@@ -346,9 +425,36 @@ if ( mynproc>0 ) then
       rvar(:) = rvar(:)*real(lsf,8) + real(laddoff,8)
     end if ! ier
       
-    ca = pipan*pjpan*pnpan*ipf
-    var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
- 
+    if ( qtest ) then
+      ! usual
+      ca = pipan*pjpan*pnpan*ipf
+      var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
+    else
+      ! gather-scatter
+      if ( myid==0 .and. fnproc==1 ) then
+        var(1:pipan*pjpan*pnpan) = rvar(1:pipan*pjpan*pnpan)
+      else if ( myid==0 ) then
+        allocate( gvar(pipan*pjpan*pnpan,fnresid) )
+        call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+        do jpf = 1,fnresid
+          ip = ipf*fnresid + jpf - 1
+          do n = 0,pnpan-1
+            no = n - pnoff(ip) + 1
+            ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
+            cc = n*pipan*pjpan - pipan
+            do j = 1,pjpan
+              var(1+j*pil_g+ca:pipan+j*pil_g+ca) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,jpf)
+            end do
+          end do
+        end do
+        deallocate( gvar )
+      else
+        allocate( gvar(0,0) )  
+        call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+        deallocate( gvar )
+      end if
+    end if ! qtest
+
   end do ! ipf
   
 end if ! mynproc>0
@@ -359,7 +465,7 @@ end subroutine hr3pr8
 
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields
-subroutine histrd4r4(iarchi,ier,name,var)
+subroutine histrd4r4(iarchi,ier,name,ik,kk,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reduce, histrd4_begin, histrd4_end, fnresid, &
                    start_log, end_log, ccmpi_distribute, ccmpi_abort
@@ -367,26 +473,63 @@ use parm_m
       
 implicit none
       
-integer, intent(in) :: iarchi
+integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
+integer :: iq
 real, dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
+real, dimension(:,:), allocatable :: globvar
 real :: vmax, vmin, vmax_g, vmin_g
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd4_begin)
 
-! read local arrays
-call hr4p(iarchi,ier,name,var)
-if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
-  vmax = maxval(var)
-  vmin = minval(var) 
-  call ccmpi_reduce(vmax,vmax_g,"max",0,comm_ip)
-  call ccmpi_reduce(vmin,vmin_g,"min",0,comm_ip)
-  if ( myid==0 ) then
-    write(6,'(" done histrd4 ",a6,i3,i4,i3,2f12.4)') trim(name),size(var,2),ier,iarchi,vmin,vmax
+if ( ifull==6*ik*ik .or. ptest ) then
+  ! read local arrays without gather and distribute
+  if ( size(var,2)/=kk ) then
+    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
+    call ccmpi_abort(-1)
   end if
-else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
-  write(6,'(" done histrd4 ",a48,i4,i3)') trim(name),ier,iarchi
+  call hr4p(iarchi,ier,name,kk,.true.,var)
+  if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
+    vmax = maxval(var)
+    vmin = minval(var) 
+    call ccmpi_reduce(vmax,vmax_g,"max",0,comm_ip)
+    call ccmpi_reduce(vmin,vmin_g,"min",0,comm_ip)
+    if ( myid==0 ) then
+      write(6,'(" done histrd4 ",a6,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
+    end if
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
+    write(6,'(" done histrd4 ",a48,i4,i3)') trim(name),ier,iarchi
+  end if
+
+else 
+
+  ! read local arrays with gather and distribute
+  if ( size(var,2)/=kk ) then
+    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
+    call ccmpi_abort(-1)
+  end if
+  if ( myid==0 ) then
+    allocate( globvar(6*ik*ik,kk) )
+    globvar(:,:) = 0.
+    call hr4p(iarchi,ier,name,kk,.false.,globvar)     
+    if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+      vmax = maxval(globvar)
+      vmin = minval(globvar)
+      iq = id+(jd-1)*ik
+      if ( iq>=1 .and. iq<=size(globvar,1) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
+        write(6,'(" done histrd4 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
+      else
+        write(6,'(" done histrd4 ",a18,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
+      end if
+    end if
+    call ccmpi_distribute(var,globvar)
+    deallocate( globvar )
+  else 
+    call hr4p(iarchi,ier,name,kk,.false.)
+    call ccmpi_distribute(var)
+  end if
+
 end if
 
 call END_LOG(histrd4_end)
@@ -394,34 +537,29 @@ call END_LOG(histrd4_end)
 return
 end subroutine histrd4r4
 
-subroutine hr4p(iarchi,ier,name,var)
+subroutine hr4p(iarchi,ier,name,kk,qtest,var)
 
 use cc_mpi
       
 implicit none
 
-integer, intent(in) :: iarchi
+integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer(kind=4), dimension(5) :: start, ncount
-integer :: ipf, k, ca, jpf, ip, n, no, cc, j, kk
+integer :: ipf, k, ca, jpf, ip, n, no, cc, j
 integer(kind=4) :: idv, ndims
-real, dimension(:,:), intent(inout) :: var
-real, dimension(pipan*pjpan*pnpan,size(var,2)) :: rvar
+real, dimension(:,:), intent(inout), optional :: var
+real, dimension(pipan*pjpan*pnpan,kk) :: rvar
+real, dimension(:,:,:), allocatable :: gvar 
 real(kind=4) :: laddoff, lsf
+logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
 
-kk = size(var,2)
 ier = 0
 
 if ( mynproc>0 ) then
 
-  if ( size(var,1)<pipan*pjpan*pnpan*mynproc ) then
-    write(6,*) "ERROR: internal error in hr4p (infile). var size too small"
-    write(6,*) "var ",size(var,1)," expected ",pipan*pjpan*pnpan*mynproc
-    call ccmpi_abort(-1)
-  end if
-    
   do ipf = 0,mynproc-1
       
     rvar = 0. ! default for missing field
@@ -492,8 +630,37 @@ if ( mynproc>0 ) then
       end do
     end if ! ier
 
-    ca = pipan*pjpan*pnpan*ipf
-    var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
+    if ( qtest ) then
+      ! usual
+      ca = pipan*pjpan*pnpan*ipf
+      var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
+    else
+      ! gather-scatter
+      if ( myid==0 .and. fnproc==1 ) then
+        var(1:pipan*pjpan*pnpan,1:kk) = rvar(1:pipan*pjpan*pnpan,1:kk)
+      else if ( myid==0 ) then
+        allocate( gvar(pipan*pjpan*pnpan,size(rvar,2),fnresid) )
+        call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+        do jpf = 1,fnresid
+          ip = ipf*fnresid + jpf - 1   ! local file number
+          do k = 1,kk
+            do n = 0,pnpan-1
+              no = n - pnoff(ip) + 1   ! global panel number of local file
+              ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+              cc = n*pipan*pjpan - pipan
+              do j = 1,pjpan
+                var(1+j*pil_g+ca:pipan+j*pil_g+ca,k) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,jpf)
+              end do
+            end do
+          end do
+        end do
+        deallocate( gvar )
+      else
+        allocate( gvar(0,0,0) )  
+        call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+        deallocate( gvar )
+      end if
+    end if ! qtest
 
   end do ! ipf
   
@@ -505,7 +672,7 @@ end subroutine hr4p
 #ifndef i8r8
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields (double precision version)
-subroutine histrd4r8(iarchi,ier,name,var)
+subroutine histrd4r8(iarchi,ier,name,ik,kk,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reducer8, histrd4_begin, histrd4_end, fnresid, &
                    start_log, end_log, ccmpi_distributer8, ccmpi_abort
@@ -513,26 +680,65 @@ use parm_m
       
 implicit none
       
-integer, intent(in) :: iarchi
+integer, intent(in) :: iarchi, ik, kk, ifull
 integer, intent(out) :: ier
+integer :: iq
 real(kind=8), dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
+real(kind=8), dimension(:,:), allocatable :: globvar
 real(kind=8) :: vmax, vmin, vmax_g, vmin_g
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd4_begin)
 
-! read local arrays
-call hr4pr8(iarchi,ier,name,var)
-if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
-  vmax = maxval(var)
-  vmin = minval(var) 
-  call ccmpi_reducer8(vmax,vmax_g,"max",0,comm_ip)
-  call ccmpi_reducer8(vmin,vmin_g,"min",0,comm_ip)
-  if ( myid==0 ) then
-    write(6,'(" done histrd4r8 ",a6,i3,i4,i3,2f12.4)') trim(name),size(var,2),ier,iarchi,vmin,vmax
+
+if ( ifull==6*ik*ik .or. ptest ) then
+    
+  ! read local arrays without gather and distribute
+  if ( size(var,2)/=kk ) then
+    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
+    call ccmpi_abort(-1)
   end if
-else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
-  write(6,'(" done histrd4r8 ",a46,i4,i3)') trim(name),ier,iarchi
+  call hr4pr8(iarchi,ier,name,kk,.true.,var)
+  if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
+    vmax = maxval(var)
+    vmin = minval(var) 
+    call ccmpi_reducer8(vmax,vmax_g,"max",0,comm_ip)
+    call ccmpi_reducer8(vmin,vmin_g,"min",0,comm_ip)
+    if ( myid==0 ) then
+      write(6,'(" done histrd4r8 ",a6,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
+    end if
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
+    write(6,'(" done histrd4r8 ",a46,i4,i3)') trim(name),ier,iarchi
+  end if
+
+else
+    
+  ! gather and distribute
+  if ( size(var,2)/=kk ) then
+    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
+    call ccmpi_abort(-1)
+  end if
+  if ( myid==0 ) then
+    allocate( globvar(6*ik*ik,kk) )
+    globvar(:,:) = 0._8
+    call hr4pr8(iarchi,ier,name,kk,.false.,globvar)     
+    if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+      vmax = maxval(globvar)
+      vmin = minval(globvar)
+      iq = id+(jd-1)*ik
+      if ( iq>=1 .and. iq<=size(globvar,1) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
+        write(6,'(" done histrd4r8 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
+      else
+        write(6,'(" done histrd4r8 ",a16,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
+      end if
+    end if
+    call ccmpi_distributer8(var,globvar)
+    deallocate( globvar )
+  else 
+    call hr4pr8(iarchi,ier,name,kk,.false.)
+    call ccmpi_distributer8(var)
+  end if
+  
 end if
 
 call END_LOG(histrd4_end)
@@ -540,34 +746,29 @@ call END_LOG(histrd4_end)
 return
 end subroutine histrd4r8
 
-subroutine hr4pr8(iarchi,ier,name,var)
+subroutine hr4pr8(iarchi,ier,name,kk,qtest,var)
 
 use cc_mpi
       
 implicit none
 
-integer, intent(in) :: iarchi
+integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer(kind=4), dimension(5) :: start, ncount
-integer :: ipf, k, ca, jpf, ip, n, no, cc, j, kk
+integer :: ipf, k, ca, jpf, ip, n, no, cc, j
 integer(kind=4) :: idv, ndims
-real(kind=8), dimension(:,:), intent(inout) :: var
-real(kind=8), dimension(pipan*pjpan*pnpan,size(var,2)) :: rvar
+real(kind=8), dimension(:,:), intent(inout), optional :: var
+real(kind=8), dimension(pipan*pjpan*pnpan,kk) :: rvar
+real(kind=8), dimension(:,:,:), allocatable :: gvar
 real(kind=4) :: laddoff, lsf
+logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
 
-kk = size(var,2)
 ier = 0
       
 if ( mynproc>0 ) then
 
-  if ( size(var,1)<pipan*pjpan*pnpan*mynproc ) then
-    write(6,*) "ERROR: internal error in hr4pr8 (infile). var size too small"
-    write(6,*) "var ",size(var,1)," expected ",pipan*pjpan*pnpan*mynproc
-    call ccmpi_abort(-1)
-  end if
-    
   do ipf = 0,mynproc-1
     
     ! get variable idv
@@ -637,8 +838,37 @@ if ( mynproc>0 ) then
       end do
     end if ! ier
 
-    ca = pipan*pjpan*pnpan*ipf
-    var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pipan*pjpan*pnpan*ipf
+      var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
+    else
+      ! e.g., mesonest file
+      if ( myid==0 .and. fnproc==1 ) then
+        var(1:pipan*pjpan*pnpan,1:kk) = rvar(1:pipan*pjpan*pnpan,1:kk)
+      else if ( myid==0 ) then
+        allocate( gvar(pipan*pjpan*pnpan,size(rvar,2),fnresid) )
+        call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+        do jpf = 1,fnresid
+          ip = ipf*fnresid + jpf - 1   ! local file number
+          do k = 1,kk
+            do n = 0,pnpan-1
+              no = n - pnoff(ip) + 1   ! global panel number of local file
+              ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+              cc = n*pipan*pjpan - pipan
+              do j = 1,pjpan
+                var(1+j*pil_g+ca:pipan+j*pil_g+ca,k) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,jpf)
+              end do
+            end do
+          end do
+        end do
+        deallocate( gvar )
+      else
+        allocate( gvar(0,0,0) )
+        call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+        deallocate( gvar )
+      end if
+    end if ! qtest
 
   end do ! ipf
   
@@ -648,7 +878,7 @@ return
 end subroutine hr4pr8
 #endif
 
-subroutine histrd5r4(iarchi,ier,name,var)
+subroutine histrd5r4(iarchi,ier,name,ik,kk,ll,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reduce, histrd5_begin, histrd5_end, &
                    start_log, end_log, ccmpi_distribute, ccmpi_abort
@@ -656,18 +886,49 @@ use parm_m
       
 implicit none
       
-integer, intent(in) :: iarchi
+integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 real, dimension(:,:,:), intent(inout) :: var ! may be dummy argument from myid/=0
+real, dimension(:,:,:), allocatable :: globvar
 real :: vmax, vmin
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd5_begin)
 
-! read local arrays
-call hr5p(iarchi,ier,name,var)
-if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
-  write(6,'(" done histrd5 ",a48,i4,i3)') trim(name),ier,iarchi
+if ( ifull==6*ik*ik .or. ptest ) then
+  ! read local arrays without gather and distribute
+  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+    write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
+    call ccmpi_abort(-1)
+  end if
+  call hr5p(iarchi,ier,name,kk,ll,.true.,var)
+  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
+    write(6,'(" done histrd5 ",a48,i4,i3)') trim(name),ier,iarchi
+  end if
+
+else
+    
+  ! read local arrays with gather and distribute
+  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+    write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
+    call ccmpi_abort(-1)
+  end if
+  if ( myid==0 ) then
+    allocate( globvar(6*ik*ik,kk,ll) )
+    globvar(:,:,:) = 0.
+    call hr5p(iarchi,ier,name,kk,ll,.false.,globvar)     
+    if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+      vmax = maxval(globvar)
+      vmin = minval(globvar)
+      write(6,'(" done histrd5 ",a18,2i3,i4,i3,2f12.4)') trim(name),kk,ll,ier,iarchi,vmin,vmax
+    end if
+    call ccmpi_distribute(var,globvar)
+    deallocate( globvar )
+  else 
+    call hr5p(iarchi,ier,name,kk,ll,.false.)
+    call ccmpi_distribute(var)
+  end if
+
 end if
 
 call END_LOG(histrd5_end)
@@ -675,34 +936,28 @@ call END_LOG(histrd5_end)
 return
 end subroutine histrd5r4
 
-subroutine hr5p(iarchi,ier,name,var)
+subroutine hr5p(iarchi,ier,name,kk,ll,qtest,var)
 
 use cc_mpi
       
 implicit none
 
-integer, intent(in) :: iarchi
+integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
-integer :: ipf, ca, jpf, ip, n, no, cc, j, k, l, kk, ll
+integer :: ipf, ca, jpf, ip, n, no, cc, j, k, l
 integer(kind=4), dimension(6) :: start, ncount
 integer(kind=4) :: idv, ndims
-real, dimension(:,:,:), intent(inout) :: var
-real, dimension(pipan*pjpan*pnpan,size(var,2),size(var,3)) :: rvar
+real, dimension(:,:,:), intent(inout), optional :: var
+real, dimension(pipan*pjpan*pnpan,kk,ll) :: rvar
+real, dimension(:,:,:,:), allocatable :: gvar
 real(kind=4) :: laddoff, lsf
+logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
-kk = size(var,2)
-ll = size(var,3)
 ier = 0
 
 if ( mynproc>0 ) then
       
-  if ( size(var,1)<pipan*pjpan*pnpan*mynproc ) then
-    write(6,*) "ERROR: internal error in hr5p (infile). var size too small"
-    write(6,*) "var ",size(var,1)," expected ",pipan*pjpan*pnpan*mynproc
-    call ccmpi_abort(-1)
-  end if
-    
   do ipf = 0,mynproc-1
     
     ! get variable idv
@@ -729,8 +984,39 @@ if ( mynproc>0 ) then
     ! unpack data
     rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)
 
-    ca = pipan*pjpan*pnpan*ipf
-    var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pipan*pjpan*pnpan*ipf
+      var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
+    else
+      ! e.g., mesonest file
+      if ( myid==0 .and. fnproc==1 ) then
+        var(1:pipan*pjpan*pnpan,1:kk,1:ll) = rvar(1:pipan*pjpan*pnpan,1:kk,1:ll)
+      else if ( myid==0 ) then
+        allocate( gvar(pipan*pjpan*pnpan,size(var,2),size(var,3),fnresid) )
+        call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+        do jpf = 1,fnresid
+          ip = ipf*fnresid + jpf - 1   ! local file number
+          do l = 1,ll
+            do k = 1,kk
+              do n = 0,pnpan-1
+                no = n - pnoff(ip) + 1   ! global panel number of local file
+                ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+                cc = n*pipan*pjpan - pipan
+                do j = 1,pjpan
+                  var(1+j*pil_g+ca:pipan+j*pil_g+ca,k,l) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,l,jpf)
+                end do
+              end do
+            end do
+          end do
+        end do
+        deallocate( gvar )
+      else
+        allocate( gvar(0,0,0,0) )  
+        call ccmpi_gatherx(gvar,rvar,0,comm_ip)
+        deallocate( gvar )
+      end if
+    end if ! qtest
 
   end do ! ipf
   
@@ -742,7 +1028,7 @@ end subroutine hr5p
 #ifndef i8r8
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields (double precision version)
-subroutine histrd5r8(iarchi,ier,name,var)
+subroutine histrd5r8(iarchi,ier,name,ik,kk,ll,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reducer8, histrd5_begin, histrd5_end, &
                    start_log, end_log, ccmpi_distributer8, ccmpi_abort
@@ -750,50 +1036,78 @@ use parm_m
       
 implicit none
       
-integer, intent(in) :: iarchi
+integer, intent(in) :: iarchi, ik, kk, ll, ifull
 integer, intent(out) :: ier
 real(kind=8), dimension(:,:,:), intent(inout) :: var ! may be dummy argument from myid/=0
+real(kind=8), dimension(:,:,:), allocatable :: globvar
 real :: vmax, vmin
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd5_begin)
 
-! read local arrays
-call hr5pr8(iarchi,ier,name,var)
+if ( ifull==6*ik*ik .or. ptest ) then
+  ! read local arrays without gather and distribute
+  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+    write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
+    call ccmpi_abort(-1)
+  end if
+  call hr5pr8(iarchi,ier,name,kk,ll,.true.,var)
+  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
+    write(6,'(" done histrd5r8 ",a46,i4,i3)') trim(name),ier,iarchi
+  end if
+
+else
+    
+  ! read local arrays with gather and distribute
+  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
+    write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
+    call ccmpi_abort(-1)
+  end if
+  if ( myid==0 ) then
+    allocate( globvar(6*ik*ik,kk,ll) )
+    globvar(:,:,:) = 0._8
+    call hr5pr8(iarchi,ier,name,kk,ll,.false.,globvar)     
+    if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+      vmax = maxval(globvar)
+      vmin = minval(globvar)
+      write(6,'(" done histrd5r8 ",a16,2i3,i4,i3,2f12.4)') trim(name),kk,ll,ier,iarchi,vmin,vmax
+    end if
+    call ccmpi_distributer8(var,globvar)
+    deallocate( globvar )
+  else 
+    call hr5pr8(iarchi,ier,name,kk,ll,.false.)
+    call ccmpi_distributer8(var)
+  end if
+  
+end if
 
 call END_LOG(histrd5_end)
 
 return
 end subroutine histrd5r8
 
-subroutine hr5pr8(iarchi,ier,name,var)
+subroutine hr5pr8(iarchi,ier,name,kk,ll,qtest,var)
 
 use cc_mpi
       
 implicit none
 
-integer, intent(in) :: iarchi
+integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer(kind=4), dimension(6) :: start, ncount
-integer ipf, ca,jpf, ip, n, no, cc, j, k, l, kk, ll
+integer ipf, ca,jpf, ip, n, no, cc, j, k, l
 integer(kind=4) idv, ndims
-real(kind=8), dimension(:,:,:), intent(inout) :: var
-real(kind=8), dimension(pipan*pjpan*pnpan,size(var,2),size(var,3)) :: rvar
+real(kind=8), dimension(:,:,:), intent(inout), optional :: var
+real(kind=8), dimension(pipan*pjpan*pnpan,kk,ll) :: rvar
+real(kind=8), dimension(:,:,:,:), allocatable :: gvar
 real(kind=4) laddoff, lsf
+logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 
-kk = size(var,2)
-ll = size(var,3)
 ier = 0
 
 if ( mynproc>0 ) then
       
-  if ( size(var,1)<pipan*pjpan*pnpan*mynproc ) then
-    write(6,*) "ERROR: internal error in hr5pr8 (infile). var size too small"
-    write(6,*) "var ",size(var,1)," expected ",pipan*pjpan*pnpan*mynproc
-    call ccmpi_abort(-1)
-  end if
-    
   do ipf = 0,mynproc-1
     
     rvar(:,:,:) = 0.  
@@ -822,8 +1136,39 @@ if ( mynproc>0 ) then
     ! unpack data
     rvar(:,:,:) = rvar(:,:,:)*real(lsf,8) + real(laddoff,8)
 
-    ca = pipan*pjpan*pnpan*ipf
-    var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
+    if ( qtest ) then
+      ! e.g., restart file or nogather=.true.
+      ca = pipan*pjpan*pnpan*ipf
+      var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
+    else
+      ! e.g., mesonest file
+      if ( myid==0 .and. fnproc==1 ) then
+        var(1:pipan*pjpan*pnpan,1:kk,1:ll) = rvar(1:pipan*pjpan*pnpan,1:kk,1:ll)
+      else if ( myid==0 ) then
+        allocate( gvar(pipan*pjpan*pnpan,size(rvar,2),size(rvar,3),fnresid) )
+        call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+        do jpf = 1,fnresid
+          ip = ipf*fnresid + jpf - 1   ! local file number
+          do l = 1,ll
+            do k = 1,kk
+              do n = 0,pnpan-1
+                no = n - pnoff(ip) + 1   ! global panel number of local file
+                ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+                cc = n*pipan*pjpan - pipan
+                do j = 1,pjpan
+                  var(1+j*pil_g+ca:pipan+j*pil_g+ca,k,l) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,l,jpf)
+                end do
+              end do  
+            end do
+          end do
+        end do
+        deallocate( gvar )
+      else
+        allocate( gvar(0,0,0,0) ) 
+        call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
+        deallocate( gvar )
+      end if
+    end if ! qtest
 
   end do ! ipf
   
