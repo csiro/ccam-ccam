@@ -1034,6 +1034,9 @@ if ( myid==0 ) then
   call finishbanner
 end if
 
+nullify(xx4, yy4)
+nullify(em_g)
+nullify(x_g, y_g, z_g)
 #ifdef usempi3
 call ccmpi_freeshdata(xx4_win)
 call ccmpi_freeshdata(yy4_win)
@@ -1042,9 +1045,9 @@ call ccmpi_freeshdata(x_g_win)
 call ccmpi_freeshdata(y_g_win)
 call ccmpi_freeshdata(z_g_win)
 #else
-deallocate(xx4_dummy,yy4_dummy)
+deallocate(xx4_dummy, yy4_dummy)
 deallocate(em_g_dummy)
-deallocate(x_g_dummy,y_g_dummy,z_g_dummy)
+deallocate(x_g_dummy, y_g_dummy, z_g_dummy)
 #endif
   
 !****************************************************************
@@ -1067,7 +1070,7 @@ write(6,*) "CCAM: Finished globpea"
 write(6,*) "=============================================================================="
 
 return
-end
+end subroutine finishbanner
     
 
 !--------------------------------------------------------------
@@ -2586,13 +2589,13 @@ if ( myid<nproc ) then
     
   if ( myid==0 ) then
     write(6,'(a20," running for nproc =",i7)') version,nproc
-    if ( using_omp ) then
-      write(6,*) 'Using OpenMP with number of threads = ',maxthreads
-    end if
     write(6,*) 'Using defaults for nversion = ',nversion
 #ifdef usempi3
     write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
 #endif
+    if ( using_omp ) then
+      write(6,*) 'Using OpenMP with number of threads = ',maxthreads
+    end if
     write(6,*) 'Reading namelist from ',trim(nmlfile)
     write(6,*) 'ilx,jlx              ',ilx,jlx
     write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
@@ -2606,7 +2609,7 @@ if ( myid<nproc ) then
   end if
   jl_g    = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
   ifull_g = il_g*jl_g                           ! total number of global horizontal grid points
-  iquad   = 1 + il_g*((8*npanels)/(npanels+4))  ! grid size for interpolation calculations
+  iquad   = 1 + il_g*((8*npanels)/(npanels+4))  ! grid size for interpolation
   il      = il_g/nxp                            ! local grid size on process in X direction
   jl      = jl_g/nyp                            ! local grid size on process in Y direction
   ifull   = il*jl                               ! total number of local horizontal grid points

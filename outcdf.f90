@@ -1193,10 +1193,8 @@ if( myid==0 .or. local ) then
     end if
     lname = 'Surface temperature'
     call attrib(idnc,dimj,jsize,'tsu',lname,'K',100.,425.,0,cptype)
-    if ( save_land .or. save_ocean ) then
-      lname = 'Pan temperature'
-      call attrib(idnc,dimj,jsize,'tpan',lname,'K',100.,425.,0,cptype)
-    end if
+    lname = 'Pan temperature'
+    call attrib(idnc,dimj,jsize,'tpan',lname,'K',100.,425.,0,cptype)
     lname = 'Precipitation'
     call attrib(idnc,dimj,jsize,'rnd',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname = 'Convective precipitation'
@@ -2442,9 +2440,7 @@ if ( save_land ) then
   call histwrt(vlai,'lai',idnc,iarch,local,.true.)
 end if
 call histwrt(tss,'tsu',idnc,iarch,local,.true.)
-if ( save_land .or. save_ocean ) then
-  call histwrt(tpan,'tpan',idnc,iarch,local,.true.)
-end if
+call histwrt(tpan,'tpan',idnc,iarch,local,.true.)
 ! scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
 ! ktau in next line in case ntau (& thus ktau) < nwt 
 scale_factor = real(nperday)/real(min(nwt,max(ktau,1)))
