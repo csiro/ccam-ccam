@@ -5122,94 +5122,94 @@ else
   if ( myid==0 ) write(6,*) "Use tiled data to initialise CABLE"
   do n = 1,maxtile
     write(vname,'("t",I1.1,"_tgg")') n
-    call histrd(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+    call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
         call cable_pack(datms(:,k),ssnow%tgg(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_wb")') n
-    call histrd(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+    call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
         call cable_pack(datms(:,k),ssnow%wb(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_wbice")') n
-    call histrd(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+    call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
         call cable_pack(datms(:,k),ssnow%wbice(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_tggsn")') n
-    call histrd(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
+    call histrd(iarchi-1,ierr,vname,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
         call cable_pack(dat3(:,k),ssnow%tggsn(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_smass")') n
-    call histrd(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
+    call histrd(iarchi-1,ierr,vname,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
         call cable_pack(dat3(:,k),ssnow%smass(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_ssdn")') n
-    call histrd(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
+    call histrd(iarchi-1,ierr,vname,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
         call cable_pack(dat3(:,k),ssnow%ssdn(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_sdepth",I1.1)') n
-    call histrd(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
+    call histrd(iarchi-1,ierr,vname,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
         call cable_pack(dat3(:,k),ssnow%sdepth(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_sconds")') n
-    call histrd(iarchi-1,ierr,vname,il_g,3,dat3(:,1:3),ifull)
+    call histrd(iarchi-1,ierr,vname,dat3(:,1:3),ifull)
     if ( n<=maxnb ) then
       do k = 1,3
         call cable_pack(dat3(:,k),ssnow%sconds(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_ssdnn")') n
-    call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,ssnow%ssdnn(:),n)
     write(vname,'("t",I1.1,"_sflag")') n
-    call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
     dati = nint(dat)
     if ( n<=maxnb ) call cable_pack(dati,ssnow%isflag(:),n)
     write(vname,'("t",I1.1,"_snd")') n
-    call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,ssnow%snowd(:),n)
     write(vname,'("t",I1.1,"_osnd")') n
-    call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,ssnow%osnowd(:),n)
     write(vname,'("t",I1.1,"_snage")') n
-    call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,ssnow%snage(:),n)
     write(vname,'("t",I1.1,"_rtsoil")') n
-    call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,ssnow%rtsoil(:),n)
     write(vname,'("t",I1.1,"_cansto")') n
-    call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,canopy%cansto(:),n)
     write(vname,'("t",I1.1,"_us")') n
-    call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,canopy%us(:),n)
     write(vname,'("t",I1.1,"_pudsto")') n
-    call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,ssnow%pudsto(:),n)
     write(vname,'("t",I1.1,"_wetfac")') n
-    call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,ssnow%wetfac(:),n)
     write(vname,'("t",I1.1,"_ga")') n
-    call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,canopy%ga(:),n)
   end do
   if ( soil_struc==1 ) then
@@ -5219,41 +5219,41 @@ else
     else    
       do n = 1,maxtile
         write(vname,'("t",I1.1,"_hzero")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,ssnow%h0(:),n)
         write(vname,'("t",I1.1,"_s")') n
-        call histrd(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+        call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
         if ( n<=maxnb ) then
           do k = 1,ms
             call cable_pack(datms(:,k),ssnow%S(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_tsoil")') n
-        call histrd(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+        call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
         if ( n<=maxnb ) then
           do k = 1,ms
             call cable_pack(datms(:,k),ssnow%tsoil(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_thetai")') n
-        call histrd(iarchi-1,ierr,vname,il_g,ms,datms(:,1:ms),ifull)
+        call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
         if ( n<=maxnb ) then
           do k = 1,ms
             call cable_pack(datms(:,k),ssnow%thetai(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,ssnow%snowliq(:,1),n) ! currently nsnow_max=1
         write(vname,'("t",I1.1,"_tsurface")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,ssnow%tsurface(:),n)
         write(vname,'("t",I1.1,"_nsnow")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         dati = nint(dat)
         if ( n<=maxnb ) call cable_pack(dati,ssnow%nsnow(:),n)
         write(vname,'("t",I1.1,"_fwsoil")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,canopy%fwsoil(:),n)
       end do  
     end if
@@ -5266,142 +5266,142 @@ else
       if ( myid==0 ) write(6,*) "Use tiled data to initialise CASA-CNP"  
       do n = 1,maxtile
         write(vname,'("t",I1.1,"_cplant")') n
-        call histrd(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
+        call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
             call cable_pack(datmplant(:,k),casapool%cplant(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_nplant")') n
-        call histrd(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
+        call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
             call cable_pack(datmplant(:,k),casapool%nplant(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_pplant")') n
-        call histrd(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
+        call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
             call cable_pack(datmplant(:,k),casapool%pplant(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_clitter")') n
-        call histrd(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
+        call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
         if ( n<=maxnb ) then
           do k = 1,mlitter
             call cable_pack(datmlitter(:,k),casapool%clitter(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_nlitter")') n
-        call histrd(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
+        call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
         if ( n<=maxnb ) then
           do k = 1,mlitter
             call cable_pack(datmlitter(:,k),casapool%nlitter(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_plitter")') n
-        call histrd(iarchi-1,ierr,vname,il_g,mlitter,datmlitter(:,1:mlitter),ifull)
+        call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
         if ( n<=maxnb ) then
           do k = 1,mlitter
             call cable_pack(datmlitter(:,k),casapool%plitter(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_csoil")') n
-        call histrd(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
+        call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
         if ( n<=maxnb ) then
           do k = 1,msoil
             call cable_pack(datmsoil(:,k),casapool%csoil(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_nsoil")') n
-        call histrd(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
+        call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
         if ( n<=maxnb ) then
           do k = 1,msoil
             call cable_pack(datmsoil(:,k),casapool%nsoil(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_psoil")') n
-        call histrd(iarchi-1,ierr,vname,il_g,msoil,datmsoil(:,1:msoil),ifull)
+        call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
         if ( n<=maxnb ) then
           do k = 1,msoil
             call cable_pack(datmsoil(:,k),casapool%psoil(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_glai")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casamet%glai,n)
         write(vname,'("t",I1.1,"_phen")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,phen%phen,n)
         write(vname,'("t",I1.1,"_aphen")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,phen%aphen,n)
         write(vname,'("t",I1.1,"_phenphase")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         dati = nint(dat)
         if ( n<=maxnb ) call cable_pack(dati,phen%phase,n)
         write(vname,'("t",I1.1,"_doyphase3")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         dati = nint(dat)
         if ( n<=maxnb ) call cable_pack(dati,phen%doyphase(:,3),n)
         write(vname,'("t",I1.1,"_clabile")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casapool%clabile,n)
         write(vname,'("t",I1.1,"_nsoilmin")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casapool%nsoilmin,n)
         write(vname,'("t",I1.1,"_psoillab")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casapool%psoillab,n)
         write(vname,'("t",I1.1,"_psoilsorb")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casapool%psoilsorb,n)
         write(vname,'("t",I1.1,"_psoilocc")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casapool%psoilocc,n)
         write(vname,'("t",I1.1,"_crmplant")') n
-        call histrd(iarchi-1,ierr,vname,il_g,mplant,datmplant(:,1:mplant),ifull)
+        call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
             call cable_pack(datmplant(:,k),casaflux%crmplant(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_fracsapwood")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casaflux%frac_sapwood,n)
         write(vname,'("t",I1.1,"_sapwoodarea")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casaflux%sapwood_area,n)
         write(vname,'("t",I1.1,"_crsoil")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casaflux%crsoil,n)
         write(vname,'("t",I1.1,"_cnpp")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casaflux%cnpp,n)
         write(vname,'("t",I1.1,"_clabloss")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casaflux%clabloss,n)
         write(vname,'("t",I1.1,"_crgplant")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casaflux%crgplant,n)
         write(vname,'("t",I1.1,"_stemnpp")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casaflux%stemnpp,n)
         write(vname,'("t",I1.1,"_LAImax")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casabal%laimax,n)
         write(vname,'("t",I1.1,"_Cleafmean")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casabal%cleafmean,n)
         write(vname,'("t",I1.1,"_Crootmean")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,casabal%crootmean,n)
         write(vname,'("t",I1.1,"_fpn")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,canopy%fpn,n)
         write(vname,'("t",I1.1,"_frday")') n
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,canopy%frday,n)
       end do  
     end if
@@ -5417,83 +5417,83 @@ else
     dat5days = 0._8
     do n = 1,maxtile
       write(vname,'("t",I1.1,"_climateiveg")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       dati = nint(dat)
       if ( n<=maxnb ) call cable_pack(dati,climate%iveg,n)
       write(vname,'("t",I1.1,"_climatebiome")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       dati = nint(dat)
       if ( n<=maxnb ) call cable_pack(dati,climate%biome,n)
       write(vname,'("t",I1.1,"_climateevapPT")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%evap_PT,n)
       write(vname,'("t",I1.1,"_climateaevap")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%aevap,n)
       write(vname,'("t",I1.1,"_climatemtempmax")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%mtemp_max,n)
       write(vname,'("t",I1.1,"_climatemtempmin")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%mtemp_min,n)
       write(vname,'("t",I1.1,"_climatedmoistmax")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%dmoist_max,n)
       write(vname,'("t",I1.1,"_climatedmoistmin")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%dmoist_min,n)
       write(vname,'("t",I1.1,"_climateqtempmax")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%qtemp_max,n)
       write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%qtemp_max_last_year,n)
       write(vname,'("t",I1.1,"_climategdd0")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%gdd0,n)
       write(vname,'("t",I1.1,"_climategdd5")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%gdd5,n)
       write(vname,'("t",I1.1,"_climateagdd0")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%agdd0,n)
       write(vname,'("t",I1.1,"_climateagdd5")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%agdd5,n)
       write(vname,'("t",I1.1,"_climatechilldays")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       dati = nint(dat)      
       if ( n<=maxnb ) call cable_pack(dati,climate%chilldays,n)
       write(vname,'("t",I1.1,"_climategdd0_rec")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%gdd0_rec,n)
       write(vname,'("t",I1.1,"_climatemtempmin20")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%mtemp_min20,n)
       write(vname,'("t",I1.1,"_climatemtempmax20")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%mtemp_max20,n)
       write(vname,'("t",I1.1,"_climatealphaPT20")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%alpha_PT20,n)
       write(vname,'("t",I1.1,"_climatedmoistmin20")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%dmoist_min20,n)
       write(vname,'("t",I1.1,"_climatedmoistmax20")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%dmoist_max20,n)
       write(vname,'("t",I1.1,"_climatefrec")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%frec,n)
       write(vname,'("t",I1.1,"_climatefdorm")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,climate%fdorm,n)
       write(vname,'("t",I1.1,"_climategmd")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       dati = nint(dat)      
       if ( n<=maxnb ) call cable_pack(dati,climate%gmd,n)
       write(vname,'("t",I1.1,"_climatedtemp")') n
-      call histrd(iarchi-1,ierr,vname,il_g,91,dat91days,ifull)
+      call histrd(iarchi-1,ierr,vname,dat91days,ifull)
       if ( n<=maxnb ) then
         do k = 1,91  
           call cable_pack(dat91days(:,k),climate%dtemp_91(:,k),n)
@@ -5503,128 +5503,128 @@ else
         end do
       end if
       write(vname,'("t",I1.1,"_climatedmoist")') n
-      call histrd(iarchi-1,ierr,vname,il_g,31,dat31days,ifull)
+      call histrd(iarchi-1,ierr,vname,dat31days,ifull)
       if ( n<=maxnb ) then
         do k = 1,31  
           call cable_pack(dat31days(:,k),climate%dmoist_31(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climatemtemp_min_20")') n
-      call histrd(iarchi-1,ierr,vname,il_g,20,dat20years,ifull)
+      call histrd(iarchi-1,ierr,vname,dat20years,ifull)
       if ( n<=maxnb ) then
         do k = 1,20  
           call cable_pack(dat20years(:,k),climate%mtemp_min_20(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climatemtemp_max_20")') n
-      call histrd(iarchi-1,ierr,vname,il_g,20,dat20years,ifull)
+      call histrd(iarchi-1,ierr,vname,dat20years,ifull)
       if ( n<=maxnb ) then
         do k = 1,20  
           call cable_pack(dat20years(:,k),climate%mtemp_max_20(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climatealpha_PT_20")') n
-      call histrd(iarchi-1,ierr,vname,il_g,20,dat20years,ifull)
+      call histrd(iarchi-1,ierr,vname,dat20years,ifull)
       if ( n<=maxnb ) then
         do k = 1,20  
           call cable_pack(dat20years(:,k),climate%alpha_PT_20(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climatedmoist_min_20")') n
-      call histrd(iarchi-1,ierr,vname,il_g,20,dat20years,ifull)
+      call histrd(iarchi-1,ierr,vname,dat20years,ifull)
       if ( n<=maxnb ) then
         do k = 1,20  
           call cable_pack(dat20years(:,k),climate%dmoist_min_20(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climatedmoist_max_20")') n
-      call histrd(iarchi-1,ierr,vname,il_g,20,dat20years,ifull)
+      call histrd(iarchi-1,ierr,vname,dat20years,ifull)
       if ( n<=maxnb ) then
         do k = 1,20  
           call cable_pack(dat20years(:,k),climate%dmoist_max_20(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climateapar_leaf_sun")') n
-      call histrd(iarchi-1,ierr,vname,il_g,120,dat5days,ifull)
+      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
       if ( n<=maxnb ) then
         do k = 1,120  
           call cable_pack(dat5days(:,k),climate%apar_leaf_sun(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climateapar_leaf_shade")') n
-      call histrd(iarchi-1,ierr,vname,il_g,120,dat5days,ifull)
+      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
       if ( n<=maxnb ) then
         do k = 1,120  
           call cable_pack(dat5days(:,k),climate%apar_leaf_shade(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climatedleaf_sun")') n
-      call histrd(iarchi-1,ierr,vname,il_g,120,dat5days,ifull)
+      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
       if ( n<=maxnb ) then
         do k = 1,120  
           call cable_pack(dat5days(:,k),climate%dleaf_sun(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climatedleaf_shade")') n
-      call histrd(iarchi-1,ierr,vname,il_g,120,dat5days,ifull)
+      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
       if ( n<=maxnb ) then
         do k = 1,120  
           call cable_pack(dat5days(:,k),climate%dleaf_shade(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climatetleaf_sun")') n
-      call histrd(iarchi-1,ierr,vname,il_g,120,dat5days,ifull)
+      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
       if ( n<=maxnb ) then
         do k = 1,120  
           call cable_pack(dat5days(:,k),climate%tleaf_sun(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climatetleaf_shade")') n
-      call histrd(iarchi-1,ierr,vname,il_g,120,dat5days,ifull)
+      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
       if ( n<=maxnb ) then
         do k = 1,120  
           call cable_pack(dat5days(:,k),climate%tleaf_shade(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climatecs_sun")') n
-      call histrd(iarchi-1,ierr,vname,il_g,120,dat5days,ifull)
+      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
       if ( n<=maxnb ) then
         do k = 1,120  
           call cable_pack(dat5days(:,k),climate%cs_sun(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climatecs_shade")') n
-      call histrd(iarchi-1,ierr,vname,il_g,120,dat5days,ifull)
+      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
       if ( n<=maxnb ) then
         do k = 1,120  
           call cable_pack(dat5days(:,k),climate%cs_shade(:,k),n)
         end do  
       end if
           write(vname,'("t",I1.1,"_climatescalex_sun")') n
-      call histrd(iarchi-1,ierr,vname,il_g,120,dat5days,ifull)
+      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
       if ( n<=maxnb ) then
         do k = 1,120  
           call cable_pack(dat5days(:,k),climate%scalex_sun(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_climatescalex_shade")') n
-      call histrd(iarchi-1,ierr,vname,il_g,120,dat5days,ifull)
+      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
       if ( n<=maxnb ) then
         do k = 1,120  
           call cable_pack(dat5days(:,k),climate%scalex_shade(:,k),n)
         end do  
       end if
       write(vname,'("t",I1.1,"_vegvcmax_sun")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,veg%vcmax_sun,n)
       write(vname,'("t",I1.1,"_vegvcmax_shade")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,veg%vcmax_shade,n)
       write(vname,'("t",I1.1,"_vegejmax_sun")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,veg%ejmax_sun,n)
       write(vname,'("t",I1.1,"_vegejmax_shade")') n
-      call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
       if ( n<=maxnb ) call cable_pack(dat,veg%ejmax_shade,n)
     end do
     deallocate( dat91days )
@@ -5645,86 +5645,86 @@ else
       datpc = 0._8
       do n = 1,maxtile  
         write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%cmass_sum,n)
         write(vname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call  pop_pack(dat,pop%pop_grid(:)%cmass_sum_old,n)
         write(vname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%cheartwood_sum,n)
         write(vname,'("t",I1.1,"_pop_grid_csapwood_sum")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%csapwood_sum,n)
         write(vname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%csapwood_sum_old,n)
         write(vname,'("t",I1.1,"_pop_grid_densindiv")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%densindiv,n)
         write(vname,'("t",I1.1,"_pop_grid_height_mean")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%height_mean,n)
         write(vname,'("t",I1.1,"_pop_grid_height_max")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%height_max,n)        
         write(vname,'("t",I1.1,"_pop_grid_basal_area")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%basal_area,n)
         write(vname,'("t",I1.1,"_pop_grid_sapwood_loss")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%sapwood_loss,n)
         write(vname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%sapwood_area_loss,n)
         write(vname,'("t",I1.1,"_pop_grid_stress_mortality")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%stress_mortality,n)
         write(vname,'("t",I1.1,"_pop_grid_crowding_mortality")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%crowding_mortality,n)
         write(vname,'("t",I1.1,"_pop_grid_fire_mortality")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%fire_mortality,n)
         write(vname,'("t",I1.1,"_pop_grid_cat_mortality")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%cat_mortality,n)
         write(vname,'("t",I1.1,"_pop_grid_res_mortality")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%res_mortality,n)
         write(vname,'("t",I1.1,"_pop_grid_growth")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%growth,n)        
         write(vname,'("t",I1.1,"_pop_grid_area_growth")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%area_growth,n)
         write(vname,'("t",I1.1,"_pop_grid_crown_cover")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%crown_cover,n)
         write(vname,'("t",I1.1,"_pop_grid_crown_area")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%crown_area,n)
         write(vname,'("t",I1.1,"_pop_grid_crown_volume")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%crown_volume,n)
         write(vname,'("t",I1.1,"_pop_grid_sapwood_area")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%sapwood_area,n)        
         write(vname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%sapwood_area_old,n)
         write(vname,'("t",I1.1,"_pop_grid_KClump")') n  
-        call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+        call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%KClump,n)    
         write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_AGEMAX,datage,ifull)
+        call histrd(iarchi-1,ierr,vname,datage,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_AGEMAX
             call pop_pack(datage(:,k),pop%pop_grid(:)%freq_age(k),n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_AGEMAX,datage,ifull)
+        call histrd(iarchi-1,ierr,vname,datage,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_AGEMAX
             call pop_pack(datage(:,k),pop%pop_grid(:)%biomass_age(k),n)
@@ -5732,52 +5732,52 @@ else
         end if  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll  
-          call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd(iarchi-1,ierr,vname,dat,ifull)
           if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%biomass(ll),n)
         end do
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd(iarchi-1,ierr,vname,dat,ifull)
           if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%density(ll),n)
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll  
-          call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd(iarchi-1,ierr,vname,dat,ifull)
           if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%hmean(ll),n)
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd(iarchi-1,ierr,vname,dat,ifull)
           if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%hmax(ll),n)
         end do
         do hh = 1,POP_HEIGHT_BINS
           write(vname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh  
-          call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd(iarchi-1,ierr,vname,dat,ifull)
           if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%cmass_stem_bin(hh),n) 
         end do  
         do hh = 1,POP_HEIGHT_BINS
           write(vname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh
-          call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd(iarchi-1,ierr,vname,dat,ifull)
           if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%densindiv_bin(hh),n)
         end do
         do hh = 1,POP_HEIGHT_BINS
           write(vname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh  
-          call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd(iarchi-1,ierr,vname,dat,ifull)
           if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%height_bin(hh),n)        
         end do
         do hh = 1,POP_HEIGHT_BINS
           write(vname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh
-          call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd(iarchi-1,ierr,vname,dat,ifull)
           if ( n<=maxnb ) call pop_pack(dat,pop%pop_grid(:)%diameter_bin(hh),n)
         end do
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd  
-          call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+          call histrd(iarchi-1,ierr,vname,dat,ifull)
           dati = nint(dat)
           if ( n<=maxnb ) call pop_pack(dati,pop%pop_grid(:)%n_age(dd),n)
         end do  
         write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb )  then
           do k = 1,POP_NPATCH
             dati = nint(datpatch(:,k))  
@@ -5785,175 +5785,175 @@ else
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_freq")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%freq(k),n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_freq_old")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%freq_old(k),n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%factor_recruit,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%pgap,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_lai")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%lai,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_biomass")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%biomass,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%biomass_old,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%sapwood,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%heartwood,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%sapwood_old,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%sapwood_area,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%sapwood_area_old,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%stress_mortality,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%fire_mortality,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%cat_mortality,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%crowding_mortality,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%cpc,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%mortality,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%sapwood_loss,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%sapwood_area_loss,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_growth")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%growth,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%area_growth,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%frac_NPP,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%frac_respiration,n)
           end do
         end if  
         write(vname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
-        call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+        call histrd(iarchi-1,ierr,vname,datpatch,ifull)
         if ( n<=maxnb ) then
           do k = 1,POP_NPATCH
             call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%frac_light_uptake,n)
@@ -5961,7 +5961,7 @@ else
         end if  
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+          call histrd(iarchi-1,ierr,vname,datpatch,ifull)
           if ( n<=maxnb ) then
             do k = 1,POP_NPATCH
               dati = nint(datpatch(:,k))  
@@ -5971,7 +5971,7 @@ else
         end do  
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+          call histrd(iarchi-1,ierr,vname,datpatch,ifull)
           if ( n<=maxnb ) then
             do k = 1,POP_NPATCH
               dati = nint(datpatch(:,k))   
@@ -5981,7 +5981,7 @@ else
         end do  
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+          call histrd(iarchi-1,ierr,vname,datpatch,ifull)
           if ( n<=maxnb ) then
             do k = 1,POP_NPATCH
               dati = nint(datpatch(:,k)) 
@@ -5991,7 +5991,7 @@ else
         end do  
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+          call histrd(iarchi-1,ierr,vname,datpatch,ifull)
           if ( n<=maxnb ) then
             do k = 1,POP_NPATCH
               dati = nint(datpatch(:,k))  
@@ -6001,7 +6001,7 @@ else
         end do  
         do dd = 1,POP_NDISTURB
           write(vname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+          call histrd(iarchi-1,ierr,vname,datpatch,ifull)
           if ( n<=maxnb ) then
             do k = 1,POP_NPATCH
               call pop_pack(datpatch(:,k),pop%pop_grid(:)%freq_ranked_age_unique(k,dd),n)
@@ -6010,7 +6010,7 @@ else
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+          call histrd(iarchi-1,ierr,vname,datpatch,ifull)
           if ( n<=maxnb ) then
             do k = 1,POP_NPATCH  
               dati = nint(datpatch(:,k))  
@@ -6020,7 +6020,7 @@ else
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+          call histrd(iarchi-1,ierr,vname,datpatch,ifull)
           if ( n<=maxnb ) then
             do k = 1,POP_NPATCH  
               call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%layer(ll)%biomass,n)
@@ -6029,7 +6029,7 @@ else
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+          call histrd(iarchi-1,ierr,vname,datpatch,ifull)
           if ( n<=maxnb ) then
             do k = 1,POP_NPATCH  
               call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%layer(ll)%density,n)
@@ -6038,7 +6038,7 @@ else
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+          call histrd(iarchi-1,ierr,vname,datpatch,ifull)
           if ( n<=maxnb ) then
             do k = 1,POP_NPATCH  
               call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%layer(ll)%hmean,n)
@@ -6047,7 +6047,7 @@ else
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,datpatch,ifull)
+          call histrd(iarchi-1,ierr,vname,datpatch,ifull)
           if ( n<=maxnb ) then
             do k = 1,POP_NPATCH  
               call pop_pack(datpatch(:,k),pop%pop_grid(:)%patch(k)%layer(ll)%hmax,n)
@@ -6056,7 +6056,7 @@ else
         end do  
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT                  
               do k = 1,POP_NPATCH
@@ -6068,7 +6068,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT    
               do k = 1,POP_NPATCH
@@ -6080,7 +6080,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT    
               do k = 1,POP_NPATCH  
@@ -6091,7 +6091,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT    
               do k = 1,POP_NPATCH  
@@ -6102,7 +6102,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT    
               do k = 1,POP_NPATCH  
@@ -6113,7 +6113,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT    
               do k = 1,POP_NPATCH  
@@ -6124,7 +6124,7 @@ else
         end do        
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6135,7 +6135,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6146,7 +6146,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6157,7 +6157,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6168,7 +6168,7 @@ else
         end do         
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6179,7 +6179,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6190,7 +6190,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6201,7 +6201,7 @@ else
         end do         
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6212,7 +6212,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6223,7 +6223,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6234,7 +6234,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6245,7 +6245,7 @@ else
         end do         
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6256,7 +6256,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6267,7 +6267,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6278,7 +6278,7 @@ else
         end do 
         do ll = 1,POP_NLAYER
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
-          call histrd(iarchi-1,ierr,vname,il_g,POP_NPATCH,POP_NCOHORT,datpc,ifull)
+          call histrd(iarchi-1,ierr,vname,datpc,ifull)
           if ( n<=maxnb ) then
             do cc = 1,POP_NCOHORT
               do k = 1,POP_NPATCH  
@@ -6296,26 +6296,26 @@ else
   ! CABLE correction terms
   !do n = 1,maxtile
   !  write(vname,'("t",I1.1,"_fhscor")') n
-  !  call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+  !  call histrd(iarchi-1,ierr,vname,dat,ifull)
   !  if ( n<=maxnb ) call cable_pack(dat,canopy%fhs_cor,n)
   !  write(vname,'("t",I1.1,"_fescor")') n
-  !  call histrd(iarchi-1,ierr,vname,il_g,dat,ifull)
+  !  call histrd(iarchi-1,ierr,vname,dat,ifull)
   !  if ( n<=maxnb ) call cable_pack(dat,canopy%fes_cor,n)
   !end do
   ! albvisdir, albvisdif, albnirdir, albnirdif are used when nrad=5
   vname = 'albvisdir'
-  call histrd(iarchi-1,ierr,vname,il_g,albvisdir,ifull)
+  call histrd(iarchi-1,ierr,vname,albvisdir,ifull)
   vname = 'albvisdif'
-  call histrd(iarchi-1,ierr,vname,il_g,albvisdif,ifull)
+  call histrd(iarchi-1,ierr,vname,albvisdif,ifull)
   vname = 'albnirdir'
-  call histrd(iarchi-1,ierr,vname,il_g,albnirdir,ifull)
+  call histrd(iarchi-1,ierr,vname,albnirdir,ifull)
   vname = 'albnirdif'
-  call histrd(iarchi-1,ierr,vname,il_g,albnirdif,ifull)
+  call histrd(iarchi-1,ierr,vname,albnirdif,ifull)
   ! albvissav and albnirsav are used when nrad=4
   vname = 'albvis'
-  call histrd(iarchi-1,ierr,vname,il_g,albvissav,ifull)
+  call histrd(iarchi-1,ierr,vname,albvissav,ifull)
   vname = 'albnir'
-  call histrd(iarchi-1,ierr,vname,il_g,albnirsav,ifull)
+  call histrd(iarchi-1,ierr,vname,albnirsav,ifull)
   
   call fixtile
   

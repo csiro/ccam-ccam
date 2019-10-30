@@ -136,15 +136,15 @@ contains
 
 !--------------------------------------------------------------
 ! Interface for reading 2D+time fields
-subroutine histrd3r4(iarchi,ier,name,ik,var,ifull)
+subroutine histrd3r4(iarchi,ier,name,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reduce, histrd3_begin, histrd3_end, fnresid, &
-                   start_log, end_log, ccmpi_distribute
+                   start_log, end_log, ccmpi_distribute, pil_g
 use parm_m
 
 implicit none
       
-integer, intent(in) :: iarchi,ik,ifull
+integer, intent(in) :: iarchi,ifull
 integer, intent(out) :: ier
 integer :: iq
 real :: vmax, vmin, vmax_g, vmin_g
@@ -154,7 +154,7 @@ character(len=*), intent(in) :: name
 
 call START_LOG(histrd3_begin)
 
-if ( ifull==6*ik*ik .or. ptest ) then
+if ( ifull==6*pil_g*pil_g .or. ptest ) then
 
   ! read local arrays
   call hr3p(iarchi,ier,name,.true.,var)
@@ -174,13 +174,13 @@ else
 
   ! gather and distribute (i.e., change in number of processors) 
   if ( myid==0 ) then
-     allocate( globvar(6*ik*ik) )
+     allocate( globvar(6*pil_g*pil_g) )
      globvar(:) = 0.
      call hr3p(iarchi,ier,name,.false.,globvar)
      if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
        vmax = maxval(globvar)
        vmin = minval(globvar)
-       iq = id + (jd-1)*ik
+       iq = id + (jd-1)*pil_g
        if ( iq<=size(globvar) ) then
          write(6,'(" done histrd3 ",a8,i4,i3,3e14.6)') trim(name),ier,iarchi,vmin,vmax,globvar(iq)
        else
@@ -304,15 +304,15 @@ end subroutine hr3p
 #ifndef i8r8
 !--------------------------------------------------------------
 ! Interface for reading 2D+time fields (double precision version)
-subroutine histrd3r8(iarchi,ier,name,ik,var,ifull)
+subroutine histrd3r8(iarchi,ier,name,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reducer8, histrd3_begin, histrd3_end, fnresid, &
-                   start_log, end_log, ccmpi_distributer8
+                   start_log, end_log, ccmpi_distributer8, pil_g
 use parm_m
 
 implicit none
       
-integer, intent(in) :: iarchi,ik,ifull
+integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
 integer :: iq
 real(kind=8) :: vmax, vmin, vmax_g, vmin_g
@@ -322,7 +322,7 @@ character(len=*), intent(in) :: name
 
 call START_LOG(histrd3_begin)
 
-if ( ifull==6*ik*ik .or. ptest ) then
+if ( ifull==6*pil_g*pil_g .or. ptest ) then
   ! read local arrays without gather and distribute (e.g., restart file)
   call hr3pr8(iarchi,ier,name,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
@@ -336,18 +336,16 @@ if ( ifull==6*ik*ik .or. ptest ) then
   else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
     write(6,'(" done histrd3r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
-
 else
-
   ! read local arrays with gather and distribute (i.e., change in number of processors) 
   if ( myid==0 ) then
-    allocate( globvar(6*ik*ik) )
+    allocate( globvar(6*pil_g*pil_g) )
     globvar(:) = 0.
     call hr3pr8(iarchi,ier,name,.false.,globvar)
     if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
-      iq = id+(jd-1)*ik
+      iq = id+(jd-1)*pil_g
       if ( iq<=size(globvar) ) then
         write(6,'(" done histrd3r8 ",a8,i4,i3,3e14.6)') trim(name),ier,iarchi,vmin,vmax,globvar(iq)
       else
@@ -465,17 +463,17 @@ end subroutine hr3pr8
 
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields
-subroutine histrd4r4(iarchi,ier,name,ik,kk,var,ifull)
+subroutine histrd4r4(iarchi,ier,name,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reduce, histrd4_begin, histrd4_end, fnresid, &
-                   start_log, end_log, ccmpi_distribute, ccmpi_abort
+                   start_log, end_log, ccmpi_distribute, ccmpi_abort, pil_g
 use parm_m
       
 implicit none
       
-integer, intent(in) :: iarchi, ik, kk, ifull
+integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
-integer :: iq
+integer iq, kk
 real, dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
 real, dimension(:,:), allocatable :: globvar
 real :: vmax, vmin, vmax_g, vmin_g
@@ -483,12 +481,10 @@ character(len=*), intent(in) :: name
 
 call START_LOG(histrd4_begin)
 
-if ( ifull==6*ik*ik .or. ptest ) then
+kk = size(var,2)
+
+if ( ifull==6*pil_g*pil_g .or. ptest ) then
   ! read local arrays without gather and distribute
-  if ( size(var,2)/=kk ) then
-    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
-    call ccmpi_abort(-1)
-  end if
   call hr4p(iarchi,ier,name,kk,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
     vmax = maxval(var)
@@ -501,24 +497,18 @@ if ( ifull==6*ik*ik .or. ptest ) then
   else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
     write(6,'(" done histrd4 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
-
 else 
-
   ! read local arrays with gather and distribute
-  if ( size(var,2)/=kk ) then
-    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r4"
-    call ccmpi_abort(-1)
-  end if
   if ( myid==0 ) then
-    allocate( globvar(6*ik*ik,kk) )
+    allocate( globvar(6*pil_g*pil_g,kk) )
     globvar(:,:) = 0.
     call hr4p(iarchi,ier,name,kk,.false.,globvar)     
     if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
-      iq = id+(jd-1)*ik
+      iq = id+(jd-1)*pil_g
       if ( iq>=1 .and. iq<=size(globvar,1) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
-        write(6,'(" done histrd4 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
+        write(6,'(" done histrd4 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*pil_g,nlv)
       else
         write(6,'(" done histrd4 ",a18,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
       end if
@@ -529,7 +519,6 @@ else
     call hr4p(iarchi,ier,name,kk,.false.)
     call ccmpi_distribute(var)
   end if
-
 end if
 
 call END_LOG(histrd4_end)
@@ -672,17 +661,17 @@ end subroutine hr4p
 #ifndef i8r8
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields (double precision version)
-subroutine histrd4r8(iarchi,ier,name,ik,kk,var,ifull)
+subroutine histrd4r8(iarchi,ier,name,var,ifull)
       
 use cc_mpi, only : myid, ccmpi_reducer8, histrd4_begin, histrd4_end, fnresid, &
-                   start_log, end_log, ccmpi_distributer8, ccmpi_abort
+                   start_log, end_log, ccmpi_distributer8, ccmpi_abort, pil_g
 use parm_m
       
 implicit none
       
-integer, intent(in) :: iarchi, ik, kk, ifull
+integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
-integer :: iq
+integer iq, kk
 real(kind=8), dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
 real(kind=8), dimension(:,:), allocatable :: globvar
 real(kind=8) :: vmax, vmin, vmax_g, vmin_g
@@ -690,14 +679,10 @@ character(len=*), intent(in) :: name
 
 call START_LOG(histrd4_begin)
 
+kk = size(var,2)
 
-if ( ifull==6*ik*ik .or. ptest ) then
-    
+if ( ifull==6*pil_g*pil_g .or. ptest ) then
   ! read local arrays without gather and distribute
-  if ( size(var,2)/=kk ) then
-    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
-    call ccmpi_abort(-1)
-  end if
   call hr4pr8(iarchi,ier,name,kk,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
     vmax = maxval(var)
@@ -710,24 +695,18 @@ if ( ifull==6*ik*ik .or. ptest ) then
   else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
     write(6,'(" done histrd4r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
-
 else
-    
   ! gather and distribute
-  if ( size(var,2)/=kk ) then
-    write(6,*) "ERROR: Incorrect number of vertical levels in histrd4r8"
-    call ccmpi_abort(-1)
-  end if
   if ( myid==0 ) then
-    allocate( globvar(6*ik*ik,kk) )
+    allocate( globvar(6*pil_g*pil_g,kk) )
     globvar(:,:) = 0._8
     call hr4pr8(iarchi,ier,name,kk,.false.,globvar)     
     if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
-      iq = id+(jd-1)*ik
+      iq = id+(jd-1)*pil_g
       if ( iq>=1 .and. iq<=size(globvar,1) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
-        write(6,'(" done histrd4r8 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
+        write(6,'(" done histrd4r8 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*pil_g,nlv)
       else
         write(6,'(" done histrd4r8 ",a16,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
       end if
@@ -738,7 +717,6 @@ else
     call hr4pr8(iarchi,ier,name,kk,.false.)
     call ccmpi_distributer8(var)
   end if
-  
 end if
 
 call END_LOG(histrd4_end)
@@ -878,16 +856,17 @@ return
 end subroutine hr4pr8
 #endif
 
-subroutine histrd5r4(iarchi,ier,name,ik,kk,ll,var,ifull)
+subroutine histrd5r4(iarchi,ier,name,var,ifull)
       
-use cc_mpi, only : myid, ccmpi_reduce, histrd5_begin, histrd5_end, &
-                   start_log, end_log, ccmpi_distribute, ccmpi_abort
+use cc_mpi, only : myid, ccmpi_reduce, histrd5_begin, histrd5_end, start_log, end_log, &
+                   ccmpi_distribute, ccmpi_abort, pil_g
 use parm_m
       
 implicit none
       
-integer, intent(in) :: iarchi, ik, kk, ll, ifull
+integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
+integer kk, ll
 real, dimension(:,:,:), intent(inout) :: var ! may be dummy argument from myid/=0
 real, dimension(:,:,:), allocatable :: globvar
 real :: vmax, vmin
@@ -895,26 +874,19 @@ character(len=*), intent(in) :: name
 
 call START_LOG(histrd5_begin)
 
-if ( ifull==6*ik*ik .or. ptest ) then
+kk = size(var,2)
+ll = size(var,3)
+
+if ( ifull==6*pil_g*pil_g .or. ptest ) then
   ! read local arrays without gather and distribute
-  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
-    write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
-    call ccmpi_abort(-1)
-  end if
   call hr5p(iarchi,ier,name,kk,ll,.true.,var)
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
     write(6,'(" done histrd5 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
-
-else
-    
+else    
   ! read local arrays with gather and distribute
-  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
-    write(6,*) "ERROR: Incorrect number of levels in histrd5r4"
-    call ccmpi_abort(-1)
-  end if
   if ( myid==0 ) then
-    allocate( globvar(6*ik*ik,kk,ll) )
+    allocate( globvar(6*pil_g*pil_g,kk,ll) )
     globvar(:,:,:) = 0.
     call hr5p(iarchi,ier,name,kk,ll,.false.,globvar)     
     if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
@@ -928,7 +900,6 @@ else
     call hr5p(iarchi,ier,name,kk,ll,.false.)
     call ccmpi_distribute(var)
   end if
-
 end if
 
 call END_LOG(histrd5_end)
@@ -1028,43 +999,37 @@ end subroutine hr5p
 #ifndef i8r8
 !--------------------------------------------------------------   
 ! Interface for reading 3D+time fields (double precision version)
-subroutine histrd5r8(iarchi,ier,name,ik,kk,ll,var,ifull)
+subroutine histrd5r8(iarchi,ier,name,var,ifull)
       
-use cc_mpi, only : myid, ccmpi_reducer8, histrd5_begin, histrd5_end, &
-                   start_log, end_log, ccmpi_distributer8, ccmpi_abort
+use cc_mpi, only : myid, ccmpi_reducer8, histrd5_begin, histrd5_end, start_log, end_log, &
+                   ccmpi_distributer8, ccmpi_abort, pil_g
 use parm_m
       
 implicit none
       
-integer, intent(in) :: iarchi, ik, kk, ll, ifull
+integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
-real(kind=8), dimension(:,:,:), intent(inout) :: var ! may be dummy argument from myid/=0
+integer kk, ll
+real(kind=8), dimension(:,:,:), intent(inout) :: var
 real(kind=8), dimension(:,:,:), allocatable :: globvar
 real :: vmax, vmin
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd5_begin)
 
-if ( ifull==6*ik*ik .or. ptest ) then
+kk = size(var,2)
+ll = size(var,3)
+
+if ( ifull==6*pil_g*pil_g .or. ptest ) then
   ! read local arrays without gather and distribute
-  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
-    write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
-    call ccmpi_abort(-1)
-  end if
   call hr5pr8(iarchi,ier,name,kk,ll,.true.,var)
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
     write(6,'(" done histrd5r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
-
-else
-    
+else    
   ! read local arrays with gather and distribute
-  if ( size(var,2)/=kk .or. size(var,3)/=ll ) then
-    write(6,*) "ERROR: Incorrect number of levels in histrd5r8"
-    call ccmpi_abort(-1)
-  end if
   if ( myid==0 ) then
-    allocate( globvar(6*ik*ik,kk,ll) )
+    allocate( globvar(6*pil_g*pil_g,kk,ll) )
     globvar(:,:,:) = 0._8
     call hr5pr8(iarchi,ier,name,kk,ll,.false.,globvar)     
     if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
@@ -1078,7 +1043,6 @@ else
     call hr5pr8(iarchi,ier,name,kk,ll,.false.)
     call ccmpi_distributer8(var)
   end if
-  
 end if
 
 call END_LOG(histrd5_end)

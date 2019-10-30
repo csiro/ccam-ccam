@@ -1891,7 +1891,7 @@ ensemble_period   = dumi(113)
 hp_output         = dumi(114)
 intsch_mode       = dumi(115)
 qg_fix            = dumi(116)
-always_mspeca     = dumi(117)
+always_mspeca     = dumi(117)==1
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
