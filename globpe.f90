@@ -1460,7 +1460,6 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
-    csolar,                                                       &
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
     saltlargemtn,                                                 &
     o3_vert_interpolate,o3_time_interpolate                         ! ozone
@@ -1470,7 +1469,8 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     surfile,topofile,vegfile,zofile,surf_00,surf_12,laifile,      &
     albnirfile,urbanfile,bathfile,vegprev,vegnext,vegnext2,       &
     cnsdir,salfile,oxidantfile,casafile,phenfile,casapftfile,     &
-    ensembleoutfile,                                              &
+    ensembleoutfile,solarfile,ch4file,n2ofile,cfc11file,          &
+    cfc12file,cfc113file,hcfc22file,                              &
     save_aerosols,save_pbl,save_cloud,save_land,save_maxmin,      &
     save_ocean,save_radiation,save_urban,save_carbon,save_river,  &
     diaglevel_aerosols,diaglevel_pbl,diaglevel_cloud,             &
@@ -1904,7 +1904,7 @@ if ( nstn>0 ) then
     call ccmpi_bcast(name_stn(i),0,comm_world)
   end do
 end if
-allocate( dumr(9), dumi(10) )
+allocate( dumr(8), dumi(10) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -1917,7 +1917,6 @@ if ( myid==0 ) then
   dumr(6)  = carbmtn
   dumr(7)  = saltsmallmtn
   dumr(8)  = saltlargemtn
-  dumr(9)  = csolar
   dumi(1)  = mins_rad
   dumi(2)  = liqradmethod
   dumi(3)  = iceradmethod
@@ -1941,7 +1940,6 @@ so4mtn              = dumi(5)
 carbmtn             = dumr(6)
 saltsmallmtn        = dumr(7)
 saltlargemtn        = dumr(8)
-csolar              = dumr(9)
 mins_rad            = dumi(1)
 liqradmethod        = dumi(2)
 iceradmethod        = dumi(3)
@@ -1995,8 +1993,6 @@ call ccmpi_bcast(ensembleoutfile,0,comm_world)
 !call ccmpi_bcast(albfile,0,comm_world)
 !call ccmpi_bcast(eigenv,0,comm_world)
 !call ccmpi_bcast(icefile,0,comm_world)
-!call ccmpi_bcast(o3file,0,comm_world)
-!call ccmpi_bcast(radfile,0,comm_world)
 !call ccmpi_bcast(rsmfile,0,comm_world)
 !call ccmpi_bcast(so4tfile,0,comm_world)
 !call ccmpi_bcast(soilfile,0,comm_world)
@@ -2012,6 +2008,15 @@ call ccmpi_bcast(ensembleoutfile,0,comm_world)
 !call ccmpi_bcast(oxidantfile,0,comm_world)
 !call ccmpi_bcast(casafile,0,comm_world)
 !call ccmpi_bcast(phenfile,0,comm_world)
+!call ccmpi_bcast(solarfile,0,comm_world)
+!call ccmpi_bcast(radfile,0,comm_world)
+!call ccmpi_bcast(ch4file,0,comm_world)
+!call ccmpi_bcast(n2ofile,0,comm_world)
+!call ccmpi_bcast(cfc11file,0,comm_world)
+!call ccmpi_bcast(cfc12file,0,comm_world)
+!call ccmpi_bcast(cfc113file,0,comm_world)
+!call ccmpi_bcast(hcfc22file,0,comm_world)
+!call ccmpi_bcast(o3file,0,comm_world)
 save_aerosols  = dumi(1)==1
 save_pbl       = dumi(2)==1
 save_cloud     = dumi(3)==1

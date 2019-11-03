@@ -1703,7 +1703,7 @@ end subroutine vertint
 
 !--------------------------------------------------------------------
 ! This subroutine advances input date by the amount of time defined by mtimer_r
-subroutine datefix(kdate_r,ktime_r,mtimer_r,allleap)
+subroutine datefix(kdate_r,ktime_r,mtimer_r,allleap,silent)
 
 use cc_mpi
 use newmpar_m
@@ -1718,6 +1718,8 @@ integer iyr,imo,iday,ihr,imins
 integer mtimerh,mtimerm,mtimer
 integer mdays_save, leap_l
 integer, parameter :: minsday = 1440
+logical, intent(in), optional :: silent
+logical quiet
 
 if ( present(allleap) ) then
   leap_l = allleap
@@ -1725,9 +1727,15 @@ else
   leap_l = leap
 end if
 
+if ( present(silent) ) then
+  quiet = silent
+else
+  quiet = .false.
+end if
+
 if ( kdate_r>=00600000 .and. kdate_r<=00991231 ) then   ! old 1960-1999
   kdate_r=kdate_r+19000000
-  if ( myid==0 ) write(6,*) 'For Y2K kdate_r altered to: ',kdate_r
+  if ( myid==0 .and. .not.quiet ) write(6,*) 'For Y2K kdate_r altered to: ',kdate_r
 endif
 
 iyr=kdate_r/10000
@@ -1735,7 +1743,7 @@ imo=(kdate_r-10000*iyr)/100
 iday=kdate_r-10000*iyr-100*imo
 ihr=ktime_r/100
 imins=ktime_r-100*ihr
-if ( myid==0 ) then
+if ( myid==0 .and. .not.quiet ) then
   write(6,*) 'entering datefix'
   write(6,*) 'iyr,imo,iday:       ',iyr,imo,iday
   write(6,*) 'ihr,imins,mtimer_r: ',ihr,imins,mtimer_r
@@ -1761,14 +1769,18 @@ do while ( mtimer_r>minsday*mdays(imo) )
     end if
   end if
 end do
-if(diag)write(6,*)'b datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
+if ( diag .and. .not.quiet ) then
+  write(6,*)'b datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
                              iyr,imo,iday,ihr,imins,mtimer_r
-
+end if
+  
 iday=iday+mtimer_r/minsday
 mtimer_r=mod(mtimer_r,minsday)
-if(diag)write(6,*)'c datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
+if ( diag .and. .not.quiet ) then
+  write(6,*)'c datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
                              iyr,imo,iday,ihr,imins,mtimer_r
-
+end if
+  
 ! at this point mtimer_r has been reduced to fraction of a day
 mtimerh=mtimer_r/60
 mtimerm=mtimer_r-mtimerh*60  ! minutes left over
@@ -1777,20 +1789,24 @@ imins=imins+mtimerm
 
 if ( imins==58 .or. imins==59 ) then
   ! allow for roundoff for real timer from old runs
-  if ( myid==0 ) write(6,*)'*** imins increased to 60 from imins = ',imins
+  if ( myid==0 .and. .not.quiet ) write(6,*)'*** imins increased to 60 from imins = ',imins
   imins=60
 endif
 
 ihr=ihr+imins/60
 imins=mod(imins,60)
-if(diag)write(6,*)'d datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
+if ( diag .and. .not.quiet ) then
+  write(6,*)'d datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
                              iyr,imo,iday,ihr,imins,mtimer_r
-
+end if
+  
 iday=iday+ihr/24
 ihr=mod(ihr,24)
-if(diag)write(6,*)'e datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
+if ( diag .and. .not.quiet ) then
+  write(6,*)'e datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
                              iyr,imo,iday,ihr,imins,mtimer_r
-
+end if
+  
 mdays_save=mdays(imo)
 imo=imo+(iday-1)/mdays(imo)
 iday=mod(iday-1,mdays_save)+1
@@ -1801,11 +1817,15 @@ imo=mod(imo-1,12)+1
 kdate_r=iday+100*(imo+100*iyr)
 ktime_r=ihr*100+imins
 mtimer=0
-if(diag)write(6,*)'end datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
+if ( diag .and. .not.quiet ) then
+  write(6,*)'end datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
                                iyr,imo,iday,ihr,imins,mtimer_r
-
-if ( myid==0 ) write(6,*)'leaving datefix kdate_r,ktime_r: ',kdate_r,ktime_r
-
+end if
+  
+if ( myid==0 .and. .not.quiet ) then
+  write(6,*)'leaving datefix kdate_r,ktime_r: ',kdate_r,ktime_r
+end if
+  
 return
 end subroutine datefix
 
@@ -1821,9 +1841,13 @@ integer, intent(out) :: kdate_rsav, ktime_rsav
 integer iposa, iposb, ierx
 integer yyyy, mm, dd, hh, mt
 character(len=*), intent(in) :: datestring
+logical found_minutes, found_days
 
-if ( datestring(1:7)/='minutes' ) then
-  write(6,*) "ERROR: Time units expected to be minutes"
+found_minutes = datestring(1:7)=='minutes'
+found_days = datestring(1:4)=='days'
+
+if ( .not.found_minutes .and. .not.found_days ) then
+  write(6,*) "ERROR: Time units expected to be minutes or days"
   write(6,*) "Found ",trim(datestring)
   call ccmpi_abort(-1)
 end if
@@ -1853,6 +1877,16 @@ end if
 iposa = iposb + 2 ! skip '-'
 iposb = index(trim(datestring(iposa:)),' ')
 iposb = iposa + iposb - 2 ! remove ' '
+if ( iposb<iposa ) then
+  read(datestring(iposa:),FMT=*,iostat=ierx) dd
+  if ( ierx/=0 ) then
+    write(6,*) "ERROR reading time units.  Expecting day but found ",datestring(iposa:)
+    call ccmpi_abort(-1)
+  end if
+  kdate_rsav = yyyy*10000 + mm*100 + dd
+  ktime_rsav = 0
+  return
+end if
 read(datestring(iposa:iposb),FMT=*,iostat=ierx) dd
 if ( ierx/=0 ) then
   write(6,*) "ERROR reading time units.  Expecting day but found ",datestring(iposa:iposb)
@@ -1873,6 +1907,16 @@ end if
 iposa = iposb + 2 ! skip ':'
 iposb = index(trim(datestring(iposa:)),':')
 iposb = iposa + iposb - 2 ! remove ':'
+if ( iposb<iposa ) then
+  read(datestring(iposa:),FMT=*,iostat=ierx) mt
+  if ( ierx/=0 ) then
+    write(6,*) "ERROR reading time units.  Expecting minutes but found ",datestring(iposa:)
+    call ccmpi_abort(-1)
+  end if
+  kdate_rsav = yyyy*10000 + mm*100 + dd
+  ktime_rsav = hh*100 + mt
+  return
+end if
 read(datestring(iposa:iposb),FMT=*,iostat=ierx) mt
 if ( ierx/=0 ) then
   write(6,*) "ERROR reading time units.  Expecting minutes but found ",datestring(iposa:iposb)

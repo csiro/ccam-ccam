@@ -39,6 +39,7 @@
       use cc_mpi
       use cfrac_m
       use cldcom_m
+      use co2_read_m
       use co2dta_m, only : co2dta_init
       use const_phys
       use diag_m
@@ -137,6 +138,7 @@ c     Stuff from cldset
       real fzenm,fzen,fractss,cczen,fage
       real aliro,alvo,dtau,snrat,ar3,snr
       real exp_ar2,exp_ar1,ar1,ar2,ttbg
+      real csolarin
 
       
       odcalc = mod(ktau,kountr)==0 .or.
@@ -202,7 +204,7 @@ c     Stuff from cldset
      .                          id,jd,imax,idrad,jdrad0,jdrad
          first = .false.
          call hconst
-         call co2_read(sig,jyear) ! MJT radiation
+         call co2_read(sig,jyear,csolarin) !csolarin is currently ignored
          call radtable
          rrco2=rrvco2*ratco2mw
          if(amipo3)then
