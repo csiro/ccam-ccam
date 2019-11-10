@@ -129,7 +129,6 @@ if ( myid==0 ) then
         write(6,*) "ERROR: time variable not found"
         call ccmpi_abort(-1)
       end if
-      call ccnf_get_att(ncid,valident,'units',cdate)
       write(6,*) "Found ozone dimensions ",ii,jj,kk,tt
       allocate( o3dum(ii,jj,kk,3) )
       write(6,*) "Requested date ",jyear,jmonth
@@ -137,17 +136,33 @@ if ( myid==0 ) then
       call ccnf_inq_varid(ncid,'time',valident)
       call ccnf_get_att(ncid,valident,'units',datestring)
       call processdatestring(datestring,kdate_rsav,ktime_rsav)
-      ltest = .true.
-      iarchi = 0
-      do while ( ltest .and. iarchi<maxarchi )
-        iarchi = iarchi + 1  
-        kdate_r = kdate_rsav
-        ktime_r = ktime_rsav
-        call ccnf_get_vara(ncid,valident,iarchi,timer)
-        mtimer = nint(timer)*1440 ! units=days
-        call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
-        ltest = (kdate_r/100-jyear*100-jmonth)<0
-      end do
+      if ( datestring(1:6)=='months' ) then
+        ltest = .true.
+        iarchi = 0
+        do while ( ltest .and. iarchi<maxarchi )
+          iarchi = iarchi + 1  
+          kdate_r = kdate_rsav
+          call ccnf_get_vara(ncid,valident,iarchi,timer)
+          mtimer = int(timer) ! round down to start of month
+          call datefix_month(kdate_r,mtimer)
+          ltest = (kdate_r/100-jyear*100-jmonth)<0
+        end do
+      elseif ( datestring(1:4)=="days" ) then
+        ltest = .true.
+        iarchi = 0
+        do while ( ltest .and. iarchi<maxarchi )
+          iarchi = iarchi + 1  
+          kdate_r = kdate_rsav
+          ktime_r = ktime_rsav
+          call ccnf_get_vara(ncid,valident,iarchi,timer)
+          mtimer = nint(timer*1440.) ! units=days
+          call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
+          ltest = (kdate_r/100-jyear*100-jmonth)<0
+        end do
+      else
+        write(6,*) "ERROR: Unknown time unit in ",trim(o3file)
+        call ccmpi_abort(-1)
+      end if
       if ( ltest ) then
         write(6,*) "ERROR: Search failed with ltest,iarchi = ",ltest,iarchi
         write(6,*) "kdate_r = ",kdate_r
@@ -160,13 +175,15 @@ if ( myid==0 ) then
       npos(3) = kk
       npos(4) = 1
       write(6,*) "Reading O3"
-      spos(4) = max(iarchi-1,1)
-      call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,1))
       spos(4) = iarchi
       call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,2))
-      spos(4) = min(iarchi+1,maxarchi)
-      call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,3))
       call ccnf_close(ncid)
+      o3dum(:,:,:,1) = o3dum(:,:,:,2)
+      o3dum(:,:,:,3) = o3dum(:,:,:,2)
+      if ( o3_time_interpolate/=2 ) then
+        write(6,*) "WARN: Use constant o3_time_interpolate=2 for CMIP6 ozone"
+        o3_time_interpolate = 2
+      end if
       ! Here we fix missing values by filling down
       ! If we try to neglect these values in the
       ! vertical column integration, then block

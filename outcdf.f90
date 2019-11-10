@@ -1156,7 +1156,7 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimk,ksize,'vegt',lname,'none',0.,650.,0,cptype)
     end if
 
-    if ( (nmlo<0.and.nmlo>=-9.and.save_ocean) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
+    if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'Water bathymetry'
       call attrib(idnc,dimk,ksize,'ocndepth',lname,'m',0.,32500.,0,cptype)
     end if
@@ -1965,7 +1965,7 @@ if( myid==0 .or. local ) then
     end if
     
     ! CLOUD MICROPHYSICS --------------------------------------------
-    if ( ldr/=0 .and. save_cloud ) then
+    if ( ldr/=0 ) then
       call attrib(idnc,dima,asize,'qfg','Frozen water','kg/kg',0.,.065,0,cptype)
       call attrib(idnc,dima,asize,'qlg','Liquid water','kg/kg',0.,.065,0,cptype)
       if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
@@ -2402,7 +2402,7 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
     aa(:) = real(ivegt(:))
     call histwrt(aa,'vegt',idnc,iarch,local,.true.)
   end if
-  if ( (nmlo<0.and.nmlo>=-9.and.save_ocean) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
+  if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     call histwrt(ocndep,'ocndepth',idnc,iarch,local,.true.)
   end if
   if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
@@ -3135,7 +3135,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
 end if
 
 ! MICROPHYSICS ------------------------------------------------
-if ( ldr/=0 .and. save_cloud ) then
+if ( ldr/=0 ) then
   call histwrt(qfg,'qfg',idnc,iarch,local,.true.)
   call histwrt(qlg,'qlg',idnc,iarch,local,.true.)
   if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then

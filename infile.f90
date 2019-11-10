@@ -44,7 +44,7 @@ use netcdf_m
 implicit none
             
 private
-public vertint, datefix, getzinp, ncmsg, processdatestring
+public vertint, datefix, datefix_month, getzinp, ncmsg, processdatestring
 public ptest, pfall, ncidold, resprocformat, pncid
 public histopen, histclose, histrd, surfread
 public attrib, histwrt
@@ -1733,10 +1733,10 @@ else
   quiet = .false.
 end if
 
-if ( kdate_r>=00600000 .and. kdate_r<=00991231 ) then   ! old 1960-1999
-  kdate_r=kdate_r+19000000
-  if ( myid==0 .and. .not.quiet ) write(6,*) 'For Y2K kdate_r altered to: ',kdate_r
-endif
+!if ( kdate_r>=00600000 .and. kdate_r<=00991231 ) then   ! old 1960-1999
+!  kdate_r=kdate_r+19000000
+!  if ( myid==0 .and. .not.quiet ) write(6,*) 'For Y2K kdate_r altered to: ',kdate_r
+!endif
 
 iyr=kdate_r/10000
 imo=(kdate_r-10000*iyr)/100
@@ -1830,6 +1830,40 @@ return
 end subroutine datefix
 
 !--------------------------------------------------------------------
+! Same as datefix, but for time with units of months
+subroutine datefix_month(kdate_r,mtimer_r)
+
+use cc_mpi
+use newmpar_m
+use parm_m
+
+implicit none
+
+integer, intent(inout) :: kdate_r,mtimer_r
+integer iyr,imo,iday
+integer mtimerh,mtimerm,mtimer
+integer mdays_save, leap_l
+
+iyr=kdate_r/10000
+imo=(kdate_r-10000*iyr)/100
+iday=15
+
+do while ( mtimer_r>0 )
+  mtimer_r = mtimer_r-1
+  imo = imo + 1
+  if ( imo>12 ) then
+    imo = 1
+    iyr = iyr + 1
+  end if
+end do
+  
+kdate_r = iday + 100*(imo+100*iyr)
+mtimer = 0
+  
+return
+end subroutine datefix_month
+
+!--------------------------------------------------------------------
 ! This subroutine converts time units into a date
 subroutine processdatestring(datestring,kdate_rsav,ktime_rsav)
 
@@ -1841,16 +1875,6 @@ integer, intent(out) :: kdate_rsav, ktime_rsav
 integer iposa, iposb, ierx
 integer yyyy, mm, dd, hh, mt
 character(len=*), intent(in) :: datestring
-logical found_minutes, found_days
-
-found_minutes = datestring(1:7)=='minutes'
-found_days = datestring(1:4)=='days'
-
-if ( .not.found_minutes .and. .not.found_days ) then
-  write(6,*) "ERROR: Time units expected to be minutes or days"
-  write(6,*) "Found ",trim(datestring)
-  call ccmpi_abort(-1)
-end if
 
 ! process year
 iposa = index(trim(datestring),'since')
