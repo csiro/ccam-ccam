@@ -1357,6 +1357,10 @@ if ( myid==0 ) then
       ! procformat v1 format  
       allocate( resprocmap_inv(0:fnproc-1) )  
       der = nf90_inq_varid(lncid,'gprocessor',lvid)
+      if ( der/=nf90_noerr ) then
+        write(6,*) "ERROR: Corrupted procformat file"
+        call ccmpi_abort(-1)
+      end if    
       der = nf90_get_var(lncid,lvid,resprocmap_inv,start,ncount)
       do ipin = 0,fnproc-1
         ipin_new = resprocmap_inv(ipin)  

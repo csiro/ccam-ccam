@@ -175,6 +175,7 @@ if ( myid==0 ) then
       npos(3) = kk
       npos(4) = 1
       write(6,*) "Reading O3"
+      call ccnf_inq_varid(ncid,'vmro3',valident,tst)
       spos(4) = iarchi
       call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,2))
       call ccnf_close(ncid)
