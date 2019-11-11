@@ -180,10 +180,6 @@ if ( myid==0 ) then
       call ccnf_close(ncid)
       o3dum(:,:,:,1) = o3dum(:,:,:,2)
       o3dum(:,:,:,3) = o3dum(:,:,:,2)
-      if ( o3_time_interpolate/=2 ) then
-        write(6,*) "WARN: Use constant o3_time_interpolate=2 for CMIP6 ozone"
-        o3_time_interpolate = 2
-      end if
       ! Here we fix missing values by filling down
       ! If we try to neglect these values in the
       ! vertical column integration, then block
