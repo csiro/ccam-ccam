@@ -33,7 +33,7 @@ c     ******************************************************************
       use prec_m
       use sigs_m
 
-      dimension tin(ifull,kl), qg(ifull,kl), tn(ifull,kl)
+      dimension tin(ifull+iextra,kl), qg(ifull+iextra,kl), tn(ifull+iextra,kl)
       dimension land(ifull), ps(ifull)
       logical ofirst, land, oshal
       data oshal/.false./  ! jlm

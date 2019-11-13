@@ -1156,7 +1156,7 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimk,ksize,'vegt',lname,'none',0.,650.,0,cptype)
     end if
 
-    if ( (nmlo<0.and.nmlo>=-9.and.save_ocean) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
+    if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'Water bathymetry'
       call attrib(idnc,dimk,ksize,'ocndepth',lname,'m',0.,32500.,0,cptype)
     end if
@@ -1965,7 +1965,7 @@ if( myid==0 .or. local ) then
     end if
     
     ! CLOUD MICROPHYSICS --------------------------------------------
-    if ( ldr/=0 .and. save_cloud ) then
+    if ( ldr/=0 ) then
       call attrib(idnc,dima,asize,'qfg','Frozen water','kg/kg',0.,.065,0,cptype)
       call attrib(idnc,dima,asize,'qlg','Liquid water','kg/kg',0.,.065,0,cptype)
       if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
@@ -2402,7 +2402,7 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
     aa(:) = real(ivegt(:))
     call histwrt(aa,'vegt',idnc,iarch,local,.true.)
   end if
-  if ( (nmlo<0.and.nmlo>=-9.and.save_ocean) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
+  if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     call histwrt(ocndep,'ocndepth',idnc,iarch,local,.true.)
   end if
   if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
@@ -3135,7 +3135,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
 end if
 
 ! MICROPHYSICS ------------------------------------------------
-if ( ldr/=0 .and. save_cloud ) then
+if ( ldr/=0 ) then
   call histwrt(qfg,'qfg',idnc,iarch,local,.true.)
   call histwrt(qlg,'qlg',idnc,iarch,local,.true.)
   if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
@@ -3348,7 +3348,7 @@ implicit none
 
 include 'kuocom.h'                    ! Convection parameters
 
-integer, parameter :: freqvars = 22  ! number of variables to write
+integer, parameter :: freqvars = 23  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
@@ -3594,6 +3594,8 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'rhscrn',lname,'%',0.,200.,0,1)
     lname='Precipitation'
     call attrib(fncid,sdim,ssize,'rnd',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
+    lname='Convective precipitation'
+    call attrib(fncid,sdim,ssize,'rnc',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname='Snowfall'
     call attrib(fncid,sdim,ssize,'sno',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname='Graupelfall'
@@ -3742,24 +3744,25 @@ freqstore(1:ifull,2)  = u10*v(1:ifull,1)/max(umag,1.E-6)
 freqstore(1:ifull,3)  = tscrn
 freqstore(1:ifull,4)  = rhscrn
 freqstore(1:ifull,5)  = freqstore(1:ifull,5)  + condx*86400./dt/real(tbave)
-freqstore(1:ifull,6)  = freqstore(1:ifull,6)  + conds*86400./dt/real(tbave)
-freqstore(1:ifull,7)  = freqstore(1:ifull,7)  + condg*86400./dt/real(tbave)
-freqstore(1:ifull,8)  = pmsl/100.
-freqstore(1:ifull,9)  = freqstore(1:ifull,9)  + sgdn/real(tbave)
-freqstore(1:ifull,10) = psl(1:ifull)
-freqstore(1:ifull,11) = qgscrn
-freqstore(1:ifull,12) = u10_stn*u(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,13) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,14) = tscrn_stn
-freqstore(1:ifull,15) = rhscrn_stn
-freqstore(1:ifull,16) = qgscrn_stn
-freqstore(1:ifull,17) = freqstore(1:ifull,17) + cloudtot/real(tbave)
-freqstore(1:ifull,18) = freqstore(1:ifull,18) + dni/real(tbave)
+freqstore(1:ifull,6)  = freqstore(1:ifull,6)  + condc*86400./dt/real(tbave)
+freqstore(1:ifull,7)  = freqstore(1:ifull,7)  + conds*86400./dt/real(tbave)
+freqstore(1:ifull,8)  = freqstore(1:ifull,8)  + condg*86400./dt/real(tbave)
+freqstore(1:ifull,9)  = pmsl/100.
+freqstore(1:ifull,10)  = freqstore(1:ifull,10)  + sgdn/real(tbave)
+freqstore(1:ifull,11) = psl(1:ifull)
+freqstore(1:ifull,12) = qgscrn
+freqstore(1:ifull,13) = u10_stn*u(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,14) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
+freqstore(1:ifull,15) = tscrn_stn
+freqstore(1:ifull,16) = rhscrn_stn
+freqstore(1:ifull,17) = qgscrn_stn
+freqstore(1:ifull,18) = freqstore(1:ifull,18) + cloudtot/real(tbave)
+freqstore(1:ifull,19) = freqstore(1:ifull,19) + dni/real(tbave)
 if ( diaglevel_pbl>3 ) then
-  freqstore(1:ifull,19) = ua150
-  freqstore(1:ifull,20) = va150
-  freqstore(1:ifull,21) = ua250
-  freqstore(1:ifull,22) = va250
+  freqstore(1:ifull,20) = ua150
+  freqstore(1:ifull,21) = va150
+  freqstore(1:ifull,22) = ua250
+  freqstore(1:ifull,23) = va250
 end if
 
 ! write data to file
@@ -3783,24 +3786,25 @@ if ( mod(ktau,tbave)==0 ) then
   call histwrt(freqstore(:,3),"tscrn",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,4),"rhscrn",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,5),"rnd",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,6),"sno",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,7),"grpl",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,8),"pmsl",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,9),"sgdn_ave",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,10),"psf",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,11),"qgscrn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,12),"uas_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,13),"vas_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,14),"tscrn_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,15),"rhscrn_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,16),"qgscrn_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,17),"cld",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,18),"dni",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,6),"rnc",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,7),"sno",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,8),"grpl",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,9),"pmsl",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,10),"sgdn_ave",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,11),"psf",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,12),"qgscrn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,13),"uas_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,14),"vas_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,15),"tscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,16),"rhscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,17),"qgscrn_stn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,18),"cld",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,19),"dni",fncid,fiarch,local,.true.)
   if ( diaglevel_pbl>3 ) then
-    call histwrt(freqstore(:,19),"ua150",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,20),"va150",fncid,fiarch,local,.true.)      
-    call histwrt(freqstore(:,21),"ua250",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,22),"va250",fncid,fiarch,local,.true.)      
+    call histwrt(freqstore(:,20),"ua150",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,21),"va150",fncid,fiarch,local,.true.)      
+    call histwrt(freqstore(:,22),"ua250",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,23),"va250",fncid,fiarch,local,.true.)      
   end if
   
   freqstore(:,:) = 0.
