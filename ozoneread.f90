@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -31,7 +31,7 @@ public o3_read, o3set, fieldinterpolate, o3regrid
 public o3read_amip, o3set_amip
 public o3_vert_interpolate, o3_time_interpolate
 
-! CMIP3 / CMIP5 ozone fields
+! CMIP3, CMIP5 and CMIP6 ozone fields
 integer, save :: ii, jj, kk
 real, dimension(:,:), allocatable, save :: o3pre, o3mth, o3nxt
 real, dimension(:), allocatable, save :: o3pres
@@ -55,7 +55,7 @@ contains
 !--------------------------------------------------------------
 ! This subroutine reads ozone fields
 
-! This version supports CMIP3 (ASCII) and CMIP5 (netcdf) file formats            
+! This version supports CMIP3, CMIP5 and CMIP6 file formats            
 subroutine o3_read(sigma,jyear,jmonth)
 
 use cc_mpi
@@ -69,6 +69,9 @@ integer, intent(in) :: jyear, jmonth
 integer nlev, i, l, k, ierr
 integer ncstatus, ncid, tt
 integer valident, yy, mm, nn
+integer iarchi, maxarchi
+integer kdate_rsav, ktime_rsav
+integer kdate_r, ktime_r, mtimer
 integer, dimension(1) :: iti
 integer, dimension(4) :: spos, npos
 integer, dimension(3) :: dum
@@ -76,8 +79,10 @@ real, dimension(:,:,:,:), allocatable, save :: o3dum
 real, dimension(:), allocatable, save :: o3lon, o3lat
 real, dimension(:), allocatable, save :: o3pack
 real, dimension(kl) :: sigma, sigin
+real timer
 character(len=32) cdate
-logical tst
+character(len=80) datestring
+logical tst, ltest
 
 real, parameter :: sigtol = 1.e-3
       
@@ -87,88 +92,191 @@ if ( myid==0 ) then
   write(6,*) "Reading ",trim(o3file)
   call ccnf_open(o3file,ncid,ncstatus)
   if ( ncstatus==0 ) then
-    write(6,*) "Ozone in NetCDF format (CMIP5)"
-    call ccnf_inq_dimlen(ncid,'lon',ii)
-    allocate( o3lon(ii) )
-    call ccnf_inq_varid(ncid,'lon',valident,tst)
-    if ( tst ) then
-      write(6,*) "ERROR: lon variable not found"
-      call ccmpi_abort(-1)
-    end if
-    spos(1) = 1
-    npos(1) = ii
-    call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lon)
-    call ccnf_inq_dimlen(ncid,'lat',jj)
-    allocate( o3lat(jj) )
-    call ccnf_inq_varid(ncid,'lat',valident,tst)
-    if ( tst ) then
-      write(6,*) "ERROR: lat variable not found"
-      call ccmpi_abort(-1)
-    end if
-    npos(1) = jj
-    call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lat)
-    call ccnf_inq_dimlen(ncid,'plev',kk)
-    allocate( o3pres(kk) )
-    call ccnf_inq_varid(ncid,'plev',valident,tst)
-    if ( tst ) then
-      write(6,*) "ERROR: plev variable not found"
-      call ccmpi_abort(-1)
-    end if
-    npos(1) = kk
-    call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3pres)
-    call ccnf_inq_dimlen(ncid,'time',tt)
-    call ccnf_inq_varid(ncid,'time',valident,tst)
-    if ( tst ) then
-      write(6,*) "ERROR: time variable not found"
-      call ccmpi_abort(-1)
-    end if
-    call ccnf_get_att(ncid,valident,'units',cdate)
-    npos(1) = 1
-    call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),iti)
-    write(6,*) "Found ozone dimensions ",ii,jj,kk,tt
-    allocate( o3dum(ii,jj,kk,3) )
-    read(cdate(14:17),*) yy
-    read(cdate(19:20),*) mm
-    yy = yy + iti(1)/12
-    mm = mm + mod(iti(1),12)
-    write(6,*) "Requested date ",jyear,jmonth
-    write(6,*) "Initial ozone date ",yy,mm
-    nn = (jyear-yy)*12 + (jmonth-mm) + 1
-    if ( nn<1 .or. nn>tt ) then
-      write(6,*) "ERROR: Cannot find date in ozone data"
-      call ccmpi_abort(-1)
-    end if
-    write(6,*) "Found ozone data at index ",nn
-    spos = 1
-    npos(1) = ii
-    npos(2) = jj
-    npos(3) = kk
-    npos(4) = 1
-    write(6,*) "Reading O3"
-    call ccnf_inq_varid(ncid,'O3',valident,tst)
-    if ( tst ) then
-      write(6,*) "ERROR: O3 variable not found"
-      call ccmpi_abort(-1)
-    end if
-    spos(4) = max(nn-1,1)
-    call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,1))
-    spos(4) = nn
-    call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,2))
-    spos(4) = min(nn+1,tt)
-    call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,3))
-    call ccnf_close(ncid)
-    ! Here we fix missing values by filling down
-    ! If we try to neglect these values in the
-    ! vertical column integration, then block
-    ! artifacts are apparent
-     write(6,*) "Fix missing values in ozone"
-     do l = 1,3
-       do k = kk-1,1,-1
-         where ( o3dum(:,:,k,l)>1.E34 )
-           o3dum(:,:,k,l) = o3dum(:,:,k+1,l)
-         end where
-       end do
-     end do
+    call ccnf_inq_varid(ncid,'vmro3',valident,tst)
+    if ( .not.tst ) then
+      write(6,*) "Ozone in NetCDF format (CMIP6)"
+            call ccnf_inq_dimlen(ncid,'lon',ii)
+      allocate( o3lon(ii) )
+      call ccnf_inq_varid(ncid,'lon',valident,tst)
+      if ( tst ) then
+        write(6,*) "ERROR: lon variable not found"
+        call ccmpi_abort(-1)
+      end if
+      spos(1) = 1
+      npos(1) = ii
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lon)
+      call ccnf_inq_dimlen(ncid,'lat',jj)
+      allocate( o3lat(jj) )
+      call ccnf_inq_varid(ncid,'lat',valident,tst)
+      if ( tst ) then
+        write(6,*) "ERROR: lat variable not found"
+        call ccmpi_abort(-1)
+      end if
+      npos(1) = jj
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lat)
+      call ccnf_inq_dimlen(ncid,'plev',kk)
+      allocate( o3pres(kk) )
+      call ccnf_inq_varid(ncid,'plev',valident,tst)
+      if ( tst ) then
+        write(6,*) "ERROR: plev variable not found"
+        call ccmpi_abort(-1)
+      end if
+      npos(1) = kk
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3pres)
+      call ccnf_inq_dimlen(ncid,'time',tt)
+      call ccnf_inq_varid(ncid,'time',valident,tst)
+      if ( tst ) then
+        write(6,*) "ERROR: time variable not found"
+        call ccmpi_abort(-1)
+      end if
+      write(6,*) "Found ozone dimensions ",ii,jj,kk,tt
+      allocate( o3dum(ii,jj,kk,3) )
+      write(6,*) "Requested date ",jyear,jmonth
+      call ccnf_inq_dimlen(ncid,'time',maxarchi)
+      call ccnf_inq_varid(ncid,'time',valident)
+      call ccnf_get_att(ncid,valident,'units',datestring)
+      call processdatestring(datestring,kdate_rsav,ktime_rsav)
+      if ( datestring(1:6)=='months' ) then
+        ltest = .true.
+        iarchi = 0
+        do while ( ltest .and. iarchi<maxarchi )
+          iarchi = iarchi + 1  
+          kdate_r = kdate_rsav
+          call ccnf_get_vara(ncid,valident,iarchi,timer)
+          mtimer = int(timer) ! round down to start of month
+          call datefix_month(kdate_r,mtimer)
+          ltest = (kdate_r/100-jyear*100-jmonth)<0
+        end do
+      elseif ( datestring(1:4)=="days" ) then
+        ltest = .true.
+        iarchi = 0
+        do while ( ltest .and. iarchi<maxarchi )
+          iarchi = iarchi + 1  
+          kdate_r = kdate_rsav
+          ktime_r = ktime_rsav
+          call ccnf_get_vara(ncid,valident,iarchi,timer)
+          mtimer = nint(timer*1440.) ! units=days
+          call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
+          ltest = (kdate_r/100-jyear*100-jmonth)<0
+        end do
+      else
+        write(6,*) "ERROR: Unknown time unit in ",trim(o3file)
+        call ccmpi_abort(-1)
+      end if
+      if ( ltest ) then
+        write(6,*) "ERROR: Search failed with ltest,iarchi = ",ltest,iarchi
+        write(6,*) "kdate_r = ",kdate_r
+        call ccmpi_abort(-1)
+      end if
+      write(6,*) "Found ozone data at index ",iarchi
+      spos = 1
+      npos(1) = ii
+      npos(2) = jj
+      npos(3) = kk
+      npos(4) = 1
+      write(6,*) "Reading O3"
+      call ccnf_inq_varid(ncid,'vmro3',valident,tst)
+      spos(4) = iarchi
+      call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,2))
+      call ccnf_close(ncid)
+      o3dum(:,:,:,1) = o3dum(:,:,:,2)
+      o3dum(:,:,:,3) = o3dum(:,:,:,2)
+      ! Here we fix missing values by filling down
+      ! If we try to neglect these values in the
+      ! vertical column integration, then block
+      ! artifacts are apparent
+      write(6,*) "Fix missing values in ozone"
+      do l = 1,3
+        do k = kk-1,1,-1
+          where ( o3dum(:,:,k,l)>1.E19 )
+            o3dum(:,:,k,l) = o3dum(:,:,k+1,l)
+          end where
+        end do
+      end do
+    else  
+      write(6,*) "Ozone in NetCDF format (CMIP5)"
+      call ccnf_inq_dimlen(ncid,'lon',ii)
+      allocate( o3lon(ii) )
+      call ccnf_inq_varid(ncid,'lon',valident,tst)
+      if ( tst ) then
+        write(6,*) "ERROR: lon variable not found"
+        call ccmpi_abort(-1)
+      end if
+      spos(1) = 1
+      npos(1) = ii
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lon)
+      call ccnf_inq_dimlen(ncid,'lat',jj)
+      allocate( o3lat(jj) )
+      call ccnf_inq_varid(ncid,'lat',valident,tst)
+      if ( tst ) then
+        write(6,*) "ERROR: lat variable not found"
+        call ccmpi_abort(-1)
+      end if
+      npos(1) = jj
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lat)
+      call ccnf_inq_dimlen(ncid,'plev',kk)
+      allocate( o3pres(kk) )
+      call ccnf_inq_varid(ncid,'plev',valident,tst)
+      if ( tst ) then
+        write(6,*) "ERROR: plev variable not found"
+        call ccmpi_abort(-1)
+      end if
+      npos(1) = kk
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3pres)
+      call ccnf_inq_dimlen(ncid,'time',tt)
+      call ccnf_inq_varid(ncid,'time',valident,tst)
+      if ( tst ) then
+        write(6,*) "ERROR: time variable not found"
+        call ccmpi_abort(-1)
+      end if
+      call ccnf_get_att(ncid,valident,'units',cdate)
+      npos(1) = 1
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),iti)
+      write(6,*) "Found ozone dimensions ",ii,jj,kk,tt
+      allocate( o3dum(ii,jj,kk,3) )
+      read(cdate(14:17),*) yy
+      read(cdate(19:20),*) mm
+      yy = yy + iti(1)/12
+      mm = mm + mod(iti(1),12)
+      write(6,*) "Requested date ",jyear,jmonth
+      write(6,*) "Initial ozone date ",yy,mm
+      nn = (jyear-yy)*12 + (jmonth-mm) + 1
+      if ( nn<1 .or. nn>tt ) then
+        write(6,*) "ERROR: Cannot find date in ozone data"
+        call ccmpi_abort(-1)
+      end if
+      write(6,*) "Found ozone data at index ",nn
+      spos = 1
+      npos(1) = ii
+      npos(2) = jj
+      npos(3) = kk
+      npos(4) = 1
+      write(6,*) "Reading O3"
+      call ccnf_inq_varid(ncid,'O3',valident,tst)
+      if ( tst ) then
+        write(6,*) "ERROR: O3 variable not found"
+        call ccmpi_abort(-1)
+      end if
+      spos(4) = max(nn-1,1)
+      call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,1))
+      spos(4) = nn
+      call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,2))
+      spos(4) = min(nn+1,tt)
+      call ccnf_get_vara(ncid,valident,spos,npos,o3dum(:,:,:,3))
+      call ccnf_close(ncid)
+      ! Here we fix missing values by filling down
+      ! If we try to neglect these values in the
+      ! vertical column integration, then block
+      ! artifacts are apparent
+      write(6,*) "Fix missing values in ozone"
+      do l = 1,3
+        do k = kk-1,1,-1
+          where ( o3dum(:,:,k,l)>1.E19 )
+            o3dum(:,:,k,l) = o3dum(:,:,k+1,l)
+          end where
+        end do
+      end do
+    end if   
   else
     write(6,*) "Ozone in ASCII format (CMIP3)"
     ii = 0
@@ -277,7 +385,7 @@ real, parameter :: year=365.
 real, parameter :: amd=28.9644 ! molecular mass of air g/mol
 real, parameter :: amo=47.9982 ! molecular mass of o3 g/mol
       
-if (allocated(o3mth)) then ! CMIP5 ozone
+if (allocated(o3mth)) then ! CMIP5 and CMIP6 ozone
       
   iend=istart+npts-1
   duma=o3pre(istart:iend,:)
@@ -340,7 +448,7 @@ implicit none
 integer, intent(in) :: imax,kl_l,ilev,mins
 integer, intent(in), optional :: interpmeth, meanmeth
 integer ozoneintp ! ozone interpolation (0=simple, 1=integrate column)
-integer meanintp  ! temporal interpolation (0=PWCB, 1=linear(approx))
+integer meanintp  ! temporal interpolation (0=PWCB, 1=linear(approx), 2=constant)
 integer date,iq,m,k1,jyear,jmonth
 real, dimension(imax,kl_l), intent(out) :: outdat
 real, dimension(imax,ilev), intent(in) :: fpre,fmth,fnxt
@@ -378,16 +486,16 @@ end if
 
 !     Time interpolation factors
 date = nint(mins/1440.)
-if (jmonth==12) then
-  rang=(date-monlen(12))/31.
+if ( jmonth==12 ) then
+  rang = (date-monlen(12))/31.
 else
-  rang=(date-monlen(jmonth))/(monlen(jmonth+1)-monlen(jmonth))
+  rang = (date-monlen(jmonth))/(monlen(jmonth+1)-monlen(jmonth))
 end if
-if (rang>1.4) then ! use 1.4 to give 40% tolerance
+if ( rang>1.4 ) then ! use 1.4 to give 40% tolerance
   write(6,*) "WARN: fieldinterpolation is outside input range"
 end if
       
-do iq=1,imax
+do iq = 1,imax
 
   select case( meanintp )
     case(0)  
@@ -437,7 +545,7 @@ do iq=1,imax
       ! Note inverted levels      
       
       do m = ilev-1,1,-1
-        if ( o3inp(m)>1.E34 ) o3inp(m) = o3inp(m+1)
+        if ( o3inp(m)>1.E19 ) o3inp(m) = o3inp(m+1)
       end do
       prf = 0.01*ps(iq)*sig
       do m = 1,kl_l
@@ -467,13 +575,13 @@ do iq=1,imax
       o3sum=0.
       o3sum(ilev)=o3inp(ilev)*0.5*sum(fpres(ilev-1:ilev))
       do m=ilev-1,2,-1
-        if (o3inp(m)>1.E34) then
+        if (o3inp(m)>1.E19) then
           o3sum(m)=o3sum(m+1)
         else
           o3sum(m)=o3sum(m+1)+o3inp(m)*0.5*(fpres(m-1)-fpres(m+1))
         end if
       end do
-      if (o3inp(1)>1.E34) then
+      if (o3inp(1)>1.E19) then
         o3sum(1)=o3sum(2)
       else
         o3sum(1)=o3sum(2)+o3inp(1)*(fpres(1)+0.01*ps(iq)-prf(1)-0.5*sum(fpres(1:2)))
@@ -583,8 +691,8 @@ do iq = 1,ifull
     c(1:nlev) = o3dum(ilon,ilat+1,1:nlev,l)-o3dum(ilon,ilat,1:nlev,l)
     o3tmp(1:nlev) = b(1:nlev)*serlon + c(1:nlev)*serlat + d(1:nlev)*serlon*serlat &
                   + o3dum(ilon,ilat,1:nlev,l)
-    where ( o3dum(ilon,ilat,1:nlev,l) > 1.E34 .or. o3dum(ip,ilat,1:nlev,l) > 1.E34 .or.   &
-            o3dum(ilon,ilat+1,1:nlev,l) > 1.E34 .or. o3dum(ip,ilat+1,1:nlev,l) > 1.E34 )
+    where ( o3dum(ilon,ilat,1:nlev,l) > 1.E19 .or. o3dum(ip,ilat,1:nlev,l) > 1.E19 .or.   &
+            o3dum(ilon,ilat+1,1:nlev,l) > 1.E19 .or. o3dum(ip,ilat+1,1:nlev,l) > 1.E19 )
       o3tmp(1:nlev) = 1.E35
     end where
              
@@ -600,7 +708,7 @@ do iq = 1,ifull
   end do
 
   ! avoid interpolating missing values
-  where ( o3pre(iq,1:nlev) > 1.E34 .or. o3mth(iq,1:nlev) > 1.E34 .or. o3nxt(iq,1:nlev) > 1.E34 )
+  where ( o3pre(iq,1:nlev) > 1.E19 .or. o3mth(iq,1:nlev) > 1.E19 .or. o3nxt(iq,1:nlev) > 1.E19 )
     o3pre(iq,1:nlev) = 1.E35
     o3mth(iq,1:nlev) = 1.E35
     o3nxt(iq,1:nlev) = 1.E35

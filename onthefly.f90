@@ -198,7 +198,7 @@ if ( myid==0 .or. pfall ) then
       mtimer = nint(timer)
       call datefix(kdate_r,ktime_r,mtimer)
       ! ltest = .false. when correct date is found
-      ltest = (2400*(kdate_r-kdate_s)-1200*nsemble+(ktime_r-ktime_s))<0
+      ltest = (2400*(kdate_r-kdate_s)-1200*nsemble+ktime_r-ktime_s)<0
     end do
     if ( nsemble/=0 ) then
       kdate_r = kdate_s
@@ -364,7 +364,7 @@ integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(8+3*ms) :: ierc
-integer, dimension(10), save :: iers
+integer, dimension(11), save :: iers
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
 real, dimension(:,:,:), intent(out) :: xtgdwn
@@ -382,7 +382,7 @@ real, dimension(:), allocatable :: fracice_a, sicedep_a
 real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
 real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_a
-real, dimension(kk+ok+10) :: dumr
+real, dimension(kk+ok+11) :: dumr
 character(len=20) vname
 character(len=3) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
@@ -390,6 +390,7 @@ logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
 logical zht_needed, zht_found, urban_found, urban2_found
+logical aero_found
 logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
 
@@ -600,7 +601,7 @@ if ( newfile ) then
       end if  
     end if
     ! check for missing data
-    iers(1:10) = 0
+    iers(1:11) = 0
     call ccnf_inq_varid(ncid,'mixr',idv,tst)
     if ( tst ) iers(1) = -1
     call ccnf_inq_varid(ncid,'siced',idv,tst)
@@ -621,6 +622,8 @@ if ( newfile ) then
     if ( tst ) iers(9) = -1
     call ccnf_inq_varid(ncid,'zht',idv,tst)
     if ( tst ) iers(10) = -1
+    call ccnf_inq_varid(ncid,'dms',idv,tst)
+    if ( tst ) iers(11) = -1
     call ccnf_inq_varid(ncid,'tsu',idv,tst)
     if ( tst ) then
       write(6,*) "ERROR: Cannot locate tsu in input file"
@@ -631,12 +634,12 @@ if ( newfile ) then
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk) = sigin(1:kk)
-    dumr(kk+1:kk+10) = real(iers(1:10))
-    if ( ok>0 ) dumr(kk+11:kk+ok+10) = gosig_in(1:ok)
-    call ccmpi_bcast(dumr(1:kk+ok+10),0,comm_world)
+    dumr(kk+1:kk+11) = real(iers(1:11))
+    if ( ok>0 ) dumr(kk+12:kk+ok+11) = gosig_in(1:ok)
+    call ccmpi_bcast(dumr(1:kk+ok+11),0,comm_world)
     sigin(1:kk) = dumr(1:kk)
-    iers(1:10) = nint(dumr(kk+1:kk+10))
-    if ( ok>0 ) gosig_in(1:ok) = dumr(kk+11:kk+ok+10)
+    iers(1:11) = nint(dumr(kk+1:kk+11))
+    if ( ok>0 ) gosig_in(1:ok) = dumr(kk+12:kk+ok+11)
   end if
   
   mixr_found    = iers(1)==0
@@ -649,6 +652,7 @@ if ( newfile ) then
   urban2_found  = iers(8)==0
   mloice_found  = iers(9)==0
   zht_found     = iers(10)==0
+  aero_found    = iers(11)==0
   
   ! determine whether zht needs to be read
   zht_needed = nested==0 .or. (nested==1.and.retopo_test/=0) .or.          &
@@ -692,10 +696,10 @@ if ( newfile ) then
     if ( zht_found ) then  
       if ( tss_test .and. iop_test ) then
         allocate( zss_a(ifull) )
-        call histrd(iarchi,ier,'zht',ik,zss_a,ifull)
+        call histrd(iarchi,ier,'zht',zss_a,ifull)
       else     
         allocate( zss_a(fwsize) )
-        call histrd(iarchi,ier,'zht',ik,zss_a,6*ik*ik)
+        call histrd(iarchi,ier,'zht',zss_a,6*ik*ik)
         if ( fwsize>0 ) then
           nemi = 2  
           land_a = zss_a>0. ! 2nd guess for land-sea mask
@@ -720,7 +724,7 @@ if ( newfile ) then
   if ( soilt_found ) then
     ! read soilt for land-sea mask  
     if ( .not.(tss_test.and.iop_test) ) then
-      call histrd(iarchi,ier,'soilt',ik,ucc,6*ik*ik)
+      call histrd(iarchi,ier,'soilt',ucc,6*ik*ik)
       if ( fwsize>0 ) then
         nemi = 3
         land_a = nint(ucc)>0 ! 1st guess for land-sea mask
@@ -734,10 +738,10 @@ if ( newfile ) then
   if ( mlo_found ) then
     if ( tss_test .and. iop_test ) then
       allocate( ocndep_a(ifull) )
-      call histrd(iarchi,ier,'ocndepth',ik,ocndep_a,ifull)
+      call histrd(iarchi,ier,'ocndepth',ocndep_a,ifull)
     else     
       allocate( ocndep_a(fwsize) )
-      call histrd(iarchi,ier,'ocndepth',ik,ocndep_a,6*ik*ik)
+      call histrd(iarchi,ier,'ocndepth',ocndep_a,6*ik*ik)
       if ( fwsize>0 ) then
         if ( nemi==-1 ) then
           nemi = 2  
@@ -788,9 +792,9 @@ if ( newfile ) then
       write(6,*) "Determine urban mask"
     end if  
     if ( urban_found ) then
-      call histrd(iarchi,ier,'t1_intmtgg1',ik,ucc,6*ik*ik)  
+      call histrd(iarchi,ier,'t1_intmtgg1',ucc,6*ik*ik)  
     else if ( urban2_found ) then
-      call histrd(iarchi,ier,'intmtgg1',ik,ucc,6*ik*ik)
+      call histrd(iarchi,ier,'intmtgg1',ucc,6*ik*ik)
     else
       if ( fwsize>0 ) then
         ucc = 0. ! will use tsu so all points are valid
@@ -848,11 +852,11 @@ end if
 psl(1:ifull) = 0.
 if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
   if ( iop_test ) then
-    call histrd(iarchi,ier,'psf',ik,psl,ifull)
+    call histrd(iarchi,ier,'psf',psl,ifull)
   else
     allocate( psl_a(fwsize) )
     psl_a(:) = 0.
-    call histrd(iarchi,ier,'psf',ik,psl_a,6*ik*ik)
+    call histrd(iarchi,ier,'psf',psl_a,6*ik*ik)
   end if
 endif
 
@@ -860,7 +864,7 @@ endif
 ! Read surface temperature 
 ! read global tss to diagnose sea-ice or land-sea mask
 if ( tss_test .and. iop_test ) then
-  call histrd(iarchi,ier,'tsu',ik,tss,ifull)
+  call histrd(iarchi,ier,'tsu',tss,ifull)
   tss = abs(tss)
   if ( any( tss<100. .or. tss>425. ) ) then
     write(6,*) "ERROR: Invalid tsu read in onthefly"
@@ -868,7 +872,7 @@ if ( tss_test .and. iop_test ) then
     call ccmpi_abort(-1)
   end if
 else
-  call histrd(iarchi,ier,'tsu',ik,tss_a,6*ik*ik)
+  call histrd(iarchi,ier,'tsu',tss_a,6*ik*ik)
   tss_a(:) = abs(tss_a(:))
   if ( fwsize>0 ) then
     if ( any( tss_a<100. .or. tss_a>425. ) ) then
@@ -903,8 +907,8 @@ end if
 ! mixed-layer-ocean
 if ( tss_test .and. iop_test ) then
 
-  call histrd(iarchi,ier,'siced',  ik,sicedep,ifull)
-  call histrd(iarchi,ier,'fracice',ik,fracice,ifull)
+  call histrd(iarchi,ier,'siced',sicedep,ifull)
+  call histrd(iarchi,ier,'fracice',fracice,ifull)
   if ( any(fracice(1:ifull)>1.1) ) then
     write(6,*) "ERROR: Invalid fracice in input file"
     write(6,*) "Fracice should be between 0 and 1"
@@ -926,8 +930,8 @@ else
   allocate( fracice_a(fwsize), sicedep_a(fwsize) )  
   allocate( tss_l_a(fwsize), tss_s_a(fwsize) )
     
-  call histrd(iarchi,ier,'siced',  ik,sicedep_a,6*ik*ik)
-  call histrd(iarchi,ier,'fracice',ik,fracice_a,6*ik*ik)
+  call histrd(iarchi,ier,'siced',sicedep_a,6*ik*ik)
+  call histrd(iarchi,ier,'fracice',fracice_a,6*ik*ik)
         
   ! diagnose sea-ice if required
   if ( fwsize>0 ) then
@@ -1151,74 +1155,78 @@ end if     ! abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3
 !------------------------------------------------------------
 ! Aerosol data
 if ( abs(iaero)>=2 .and. nested/=3 ) then
-  if ( nested/=1 .or. nud_aero/=0 ) then 
-    call gethist4a('dms',  xtgdwn(:,:,1), 5)
-    if ( any(xtgdwn(:,:,1)>aerosol_tol) ) then
-      write(6,*) "ERROR: Bad DMS aerosol data in host"
-      write(6,*) "Maxval ",maxval(xtgdwn(:,:,1))
-      call ccmpi_abort(-1)
-    end if  
-    call gethist4a('so2',  xtgdwn(:,:,2), 5)
-    if ( any(xtgdwn(:,:,2)>aerosol_tol) ) then
-      write(6,*) "ERROR: Bad SO2 aerosol data in host"
-      write(6,*) "Maxval ",maxval(xtgdwn(:,:,2))
-      call ccmpi_abort(-1)
-    end if  
-    call gethist4a('so4',  xtgdwn(:,:,3), 5)
-    if ( any(xtgdwn(:,:,3)>aerosol_tol) ) then
-      write(6,*) "ERROR: Bad SO4 aerosol data in host"
-      write(6,*) "Maxval ",maxval(xtgdwn(:,:,3))
-      call ccmpi_abort(-1)
-    end if  
-    call gethist4a('bco',  xtgdwn(:,:,4), 5)
-    if ( any(xtgdwn(:,:,4)>aerosol_tol) ) then
-      write(6,*) "ERROR: Bad BCO aerosol data in host"
-      write(6,*) "Maxval ",maxval(xtgdwn(:,:,4))
-      call ccmpi_abort(-1)
-    end if  
-    call gethist4a('bci',  xtgdwn(:,:,5), 5)
-    if ( any(xtgdwn(:,:,5)>aerosol_tol) ) then
-      write(6,*) "ERROR: Bad BCI aerosol data in host"
-      write(6,*) "Maxval ",maxval(xtgdwn(:,:,5))
-      call ccmpi_abort(-1)
-    end if  
-    call gethist4a('oco',  xtgdwn(:,:,6), 5)
-    if ( any(xtgdwn(:,:,6)>aerosol_tol) ) then
-      write(6,*) "ERROR: Bad OCO aerosol data in host"
-      write(6,*) "Maxval ",maxval(xtgdwn(:,:,6))
-      call ccmpi_abort(-1)
-    end if  
-    call gethist4a('oci',  xtgdwn(:,:,7), 5)
-    if ( any(xtgdwn(:,:,7)>aerosol_tol) ) then
-      write(6,*) "ERROR: Bad OCI aerosol data in host"
-      write(6,*) "Maxval ",maxval(xtgdwn(:,:,7))
-      call ccmpi_abort(-1)
-    end if  
-    call gethist4a('dust1',xtgdwn(:,:,8), 5)
-    if ( any(xtgdwn(:,:,8)>aerosol_tol) ) then
-      write(6,*) "ERROR: Bad DUST1 aerosol data in host"
-      write(6,*) "Maxval ",maxval(xtgdwn(:,:,8))
-      call ccmpi_abort(-1)
-    end if  
-    call gethist4a('dust2',xtgdwn(:,:,9), 5)
-    if ( any(xtgdwn(:,:,9)>aerosol_tol) ) then
-      write(6,*) "ERROR: Bad DUST2 aerosol data in host"
-      write(6,*) "Maxval ",maxval(xtgdwn(:,:,9))
-      call ccmpi_abort(-1)
-    end if  
-    call gethist4a('dust3',xtgdwn(:,:,10),5)
-    if ( any(xtgdwn(:,:,10)>aerosol_tol) ) then
-      write(6,*) "ERROR: Bad DUST3 aerosol data in host"
-      write(6,*) "Maxval ",maxval(xtgdwn(:,:,10))
-      call ccmpi_abort(-1)
-    end if  
-    call gethist4a('dust4',xtgdwn(:,:,11),5)
-    if ( any(xtgdwn(:,:,11)>aerosol_tol) ) then
-      write(6,*) "ERROR: Bad DUST4 aerosol data in host"
-      write(6,*) "Maxval ",maxval(xtgdwn(:,:,11))
-      call ccmpi_abort(-1)
-    end if  
-    xtgdwn(:,:,:) = max( xtgdwn(:,:,:), 0. )
+  if ( nested/=1 .or. nud_aero/=0 ) then
+    if ( aero_found ) then  
+      call gethist4a('dms',  xtgdwn(:,:,1), 5)
+      if ( any(xtgdwn(:,:,1)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad DMS aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,1))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('so2',  xtgdwn(:,:,2), 5)
+      if ( any(xtgdwn(:,:,2)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad SO2 aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,2))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('so4',  xtgdwn(:,:,3), 5)
+      if ( any(xtgdwn(:,:,3)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad SO4 aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,3))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('bco',  xtgdwn(:,:,4), 5)
+      if ( any(xtgdwn(:,:,4)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad BCO aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,4))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('bci',  xtgdwn(:,:,5), 5)
+      if ( any(xtgdwn(:,:,5)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad BCI aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,5))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('oco',  xtgdwn(:,:,6), 5)
+      if ( any(xtgdwn(:,:,6)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad OCO aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,6))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('oci',  xtgdwn(:,:,7), 5)
+      if ( any(xtgdwn(:,:,7)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad OCI aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,7))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('dust1',xtgdwn(:,:,8), 5)
+      if ( any(xtgdwn(:,:,8)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad DUST1 aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,8))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('dust2',xtgdwn(:,:,9), 5)
+      if ( any(xtgdwn(:,:,9)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad DUST2 aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,9))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('dust3',xtgdwn(:,:,10),5)
+      if ( any(xtgdwn(:,:,10)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad DUST3 aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,10))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('dust4',xtgdwn(:,:,11),5)
+      if ( any(xtgdwn(:,:,11)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad DUST4 aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,11))
+        call ccmpi_abort(-1)
+      end if  
+      xtgdwn(:,:,:) = max( xtgdwn(:,:,:), 0. )
+    else
+      xtgdwn(:,:,:) = 0.  
+    end if    
   end if  
 end if
 
@@ -1490,13 +1498,13 @@ if ( nested/=1 .and. nested/=3 ) then
         if ( k==1 .and. .not.tgg_found(1) ) then
           tgg(1:ifull,k) = tss(1:ifull)
         else
-          call histrd(iarchi,ier,vname,ik,tgg(:,k),ifull)
+          call histrd(iarchi,ier,vname,tgg(:,k),ifull)
         end if
       else
         if ( k==1 .and. .not.tgg_found(1) ) then
           ucc(1:fwsize) = tss_a(1:fwsize)
         else
-          call histrd(iarchi,ier,vname,ik,ucc,6*ik*ik)
+          call histrd(iarchi,ier,vname,ucc,6*ik*ik)
         end if
         call fill_cc1(ucc,sea_a,fill_sea)
         call doints1(ucc,tgg(:,k))
@@ -1566,12 +1574,12 @@ if ( nested/=1 .and. nested/=3 ) then
         vname = "wfb"
       end if
       if ( iop_test ) then
-        call histrd(iarchi,ier,vname,ik,wb(:,k),ifull)
+        call histrd(iarchi,ier,vname,wb(:,k),ifull)
         if ( wetfrac_found(k) ) then
           wb(1:ifull,k) = wb(1:ifull,k) + 20. ! flag for fraction of field capacity
         end if
       else
-        call histrd(iarchi,ier,vname,ik,ucc,6*ik*ik)
+        call histrd(iarchi,ier,vname,ucc,6*ik*ik)
         if ( wetfrac_found(k) ) then
           ucc(:) = ucc(:) + 20.   ! flag for fraction of field capacity
         end if
@@ -3057,10 +3065,10 @@ character(len=*), intent(in) :: vname
       
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,vname,ik,varout,ifull)
+  call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,vname,ik,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call doints1(ucc, varout)
 end if ! iop_test
 
@@ -3086,10 +3094,10 @@ character(len=*), intent(in) :: vname
       
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,vname,ik,varout,ifull)
+  call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,vname,ik,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call fill_cc1(ucc,mask_a,fill_count)
   call doints1(ucc, varout)
 end if ! iop_test
@@ -3116,12 +3124,12 @@ character(len=*), intent(in) :: uname, vname
       
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,uname,ik,uarout,ifull)
-  call histrd(iarchi,ier,vname,ik,varout,ifull)
+  call histrd(iarchi,ier,uname,uarout,ifull)
+  call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,uname,ik,ucc,6*ik*ik)
-  call histrd(iarchi,ier,vname,ik,vcc,6*ik*ik)
+  call histrd(iarchi,ier,uname,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,vcc,6*ik*ik)
   call interpcurrent1(uarout,varout,ucc,vcc,mask_a,fill_count)
 end if ! iop_test
       
@@ -3138,24 +3146,17 @@ use newmpar_m          ! Grid parameters
       
 implicit none
 
-integer ier, kx
+integer ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,size(varout,2)) :: ucc
 character(len=*), intent(in) :: vname
 
-if ( size(varout,1)<ifull ) then
-  write(6,*) "ERROR: varout is too small in varout"
-  call ccmpi_abort(-1)
-end if
-
-kx = size(varout,2)
-
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,vname,ik,kx,varout,ifull)
+  call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,vname,ik,kx,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call doints4(ucc,varout)
 end if ! iop_test
       
@@ -3181,23 +3182,12 @@ real, dimension(fwsize,kk) :: ucc
 real, dimension(ifull,kk) :: u_k
 character(len=*), intent(in) :: vname
 
-if ( size(varout,1)<ifull ) then
-  write(6,*) "ERROR: varout is too small in gethist4a - ",trim(vname)
-  call ccmpi_abort(-1)
-end if
-
-if ( kl/=size(varout,2) ) then
-  write(6,*) "ERROR: Invalid number of vertical levels in gethist4a - ",trim(vname)
-  write(6,*) "Expecting ",kl,"  Found ",size(varout,2)
-  call ccmpi_abort(-1)
-end if
-
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,vname,ik,kk,u_k,ifull)
+  call histrd(iarchi,ier,vname,u_k,ifull)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,vname,ik,kk,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
     if ( levkin<1 .or. levkin>kk ) then
       write(6,*) "ERROR: Invalid choice of levkin in gethist4a - ",trim(vname)
@@ -3231,34 +3221,14 @@ real, dimension(fwsize,kk) :: ucc, vcc
 real, dimension(ifull,kk) :: u_k, v_k
 character(len=*), intent(in) :: uname, vname
 
-if ( size(uarout,1)<ifull ) then
-  write(6,*) "ERROR: uarout is too small in gethistuv4a"
-  call ccmpi_abort(-1)
-end if
-
-if ( kl/=size(uarout,2) ) then
-  write(6,*) "ERROR: Invalid number of vertical levels for uarout in gethistuv4a"
-  call ccmpi_abort(-1)
-end if
-
-if ( size(varout,1)<ifull ) then
-  write(6,*) "ERROR: varout is too small in gethistuv4a"
-  call ccmpi_abort(-1)
-end if
-
-if ( kl/=size(varout,2) ) then
-  write(6,*) "ERROR: Invalid number of vertical levels for varout in gethistuv4a"
-  call ccmpi_abort(-1)
-end if
-
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,uname,ik,kk,u_k,ifull)
-  call histrd(iarchi,ier,vname,ik,kk,v_k,ifull)
+  call histrd(iarchi,ier,uname,u_k,ifull)
+  call histrd(iarchi,ier,vname,v_k,ifull)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,uname,ik,kk,ucc,6*ik*ik)
-  call histrd(iarchi,ier,vname,ik,kk,vcc,6*ik*ik)
+  call histrd(iarchi,ier,uname,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,vcc,6*ik*ik)
   call interpwind4(u_k,v_k,ucc,vcc)
 end if ! iop_test
 
@@ -3280,25 +3250,18 @@ use newmpar_m          ! Grid parameters
 implicit none
       
 integer, intent(inout) :: fill_count
-integer ier, kx
+integer ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,size(varout,2)) :: ucc
 logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
 
-kx = size(varout,2)
-
-if ( size(varout,1)<ifull ) then
-  write(6,*) "ERROR: varout is too small in fillhist4"
-  call ccmpi_abort(-1)
-end if
-
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,vname,ik,kx,varout,ifull)
+  call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,vname,ik,kx,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call fill_cc4(ucc,mask_a,fill_count)
   call doints4(ucc, varout)
 end if ! iop_test
@@ -3328,16 +3291,15 @@ character(len=*), intent(in) :: vname
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,vname,ik,ok,u_k,ifull)
+  call histrd(iarchi,ier,vname,u_k,ifull)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,vname,ik,ok,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call fill_cc4(ucc,mask_3d,fill_count)
   call doints4(ucc,u_k)
 end if ! iop_test
 
 ! vertical interpolation
-!varout = 0.
 varout(:,:) = 0.5*(minval(u_k)+maxval(u_k)) ! easier for debuging
 call mloregrid(ok,gosig_in,bath,u_k,varout,0) ! should use mode 3 or 4?
 
@@ -3366,12 +3328,12 @@ character(len=*), intent(in) :: uname, vname
 
 if ( iop_test ) then
   ! read without interpolation or redistribution
-  call histrd(iarchi,ier,uname,ik,ok,u_k,ifull)
-  call histrd(iarchi,ier,vname,ik,ok,v_k,ifull)
+  call histrd(iarchi,ier,uname,u_k,ifull)
+  call histrd(iarchi,ier,vname,v_k,ifull)
 else
   ! for multiple input files
-  call histrd(iarchi,ier,uname,ik,ok,ucc,6*ik*ik)
-  call histrd(iarchi,ier,vname,ik,ok,vcc,6*ik*ik)
+  call histrd(iarchi,ier,uname,ucc,6*ik*ik)
+  call histrd(iarchi,ier,vname,vcc,6*ik*ik)
   call interpcurrent4(u_k,v_k,ucc,vcc,mask_a,fill_count)
 end if ! iop_test
 

@@ -46,7 +46,7 @@ public carbonradmethod, so4radmethod, dustradmethod, seasaltradmethod, lwem_form
 public csolar
 
 real, parameter :: rhow     = 1000.            ! Density of water (kg/m^3)
-real, save      :: csolar   = 1365.            ! Solar constant in W/m^2 - change to 1361 for CMIP6
+real, save      :: csolar   = 1365.            ! Solar constant in W/m^2
 real, parameter :: siglow   = 0.68             ! sigma level for top of low cloud (diagnostic)
 real, parameter :: sigmid   = 0.44             ! sigma level for top of medium cloud (diagnostic)
 real, parameter :: ratco2mw = 1.519449738      ! conversion factor for CO2 diagnostic
@@ -1381,6 +1381,7 @@ subroutine seaesfrad_init
 
 use cc_mpi
 use cc_omp
+use co2_read_m
 use extraout_m
 use infile
 use newmpar_m
@@ -1413,7 +1414,7 @@ fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 
 ! initialise co2
-call co2_read(sig,jyear)
+call co2_read(sig,jyear,csolar)
 rrco2 = rrvco2*ratco2mw
 
 ! initialise ozone
