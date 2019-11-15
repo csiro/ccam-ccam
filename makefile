@@ -39,6 +39,13 @@ ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
 IPOFLAG =
 endif
+ifeq ($(CASCADELAKE),yes)
+FHOST = -O3 -xCASCADELAKE -fimf-use-svml
+FOVERRIDE = -qoverride-limits
+ZMM = -qopt-zmm-usage=high
+IPFLAG = -ip
+IPOFLAG =
+endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
 OMPFLAG = -qopenmp -qno-openmp-simd
