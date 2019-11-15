@@ -8508,12 +8508,10 @@ contains
       integer(kind=4) :: procmode_save, procerr, procerr_g, lcomm, lerr
       integer(kind=4) :: lcolour, lcommout, lrank, lsize
       logical, intent(in) :: localhist
-      logical lastprocmode
 
       if ( localhist ) then
 #ifdef usempi3
          ! configure procmode
-         lastprocmode = node_captainid==nodecaptain_nproc-1  
          if ( procmode == 0 ) then
             ! procmode=0 uses existing nodes, even if they have different numbers of processes
             if ( myid == 0 ) then
@@ -8532,12 +8530,10 @@ contains
             procmode = node_nproc ! can be different on different nodes
          else
             ! user specified procmode>0 
-            if ( .not.lastprocmode ) then
-               procmode = max(procmode, 1) 
-               do while ( mod(node_nproc, procmode)/=0 )
-                  procmode = procmode - 1 ! can be different on different nodes
-               end do  
-            end if
+            procmode = max(procmode, 1) 
+            do while ( mod(node_nproc, procmode)/=0 )
+               procmode = procmode - 1 ! can be different on different nodes
+            end do  
             if ( myid == 0 ) then
                write(6,*) "Configure procformat output with procmode=",procmode
             end if
