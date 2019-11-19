@@ -77,7 +77,7 @@ module cc_mpi
    integer, allocatable, dimension(:), save, public :: neighlist           ! list of neighbour processors
    integer, allocatable, dimension(:), save, private :: neighmap           ! map of processor to neighbour index
    integer, save, public :: neighnum                                       ! number of neighbours
-   
+
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       specmap_recv                                                         ! gather map recived for spectral filter
    integer(kind=4), allocatable, dimension(:), save, public ::              &
@@ -121,7 +121,9 @@ module cc_mpi
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
              face_set, uniform_set, dix_set
    public :: allocateglobalpack, copyglobalpack, ccmpi_gathermap,           &
-             getglobalpack_v, setglobalpack_v
+             ccmpi_gathermap_send2, ccmpi_gathermap_recv2,                  &
+             ccmpi_gathermap_send3, ccmpi_gathermap_recv3, getglobalpack_v, &
+             setglobalpack_v
    public :: ccmpi_filewinget, ccmpi_filewinunpack, ccmpi_filebounds_setup, &
              ccmpi_filebounds_send, ccmpi_filebounds_recv,                  &
              ccmpi_filegather, ccmpi_filedistribute, procarray,             &
@@ -2149,7 +2151,7 @@ contains
       integer(kind=4) :: itag = 52
       integer(kind=4), dimension(size(specmap_recv)+size(specmap_send)) :: i_req
       integer(kind=4), dimension(size(specmap_recv)) :: i_list, donelist
-
+      
       ncount = size(specmap_recv)
       lsize = ifull
       lcomm = comm_world
@@ -2219,7 +2221,7 @@ contains
          call MPI_Waitall( sreq, i_req(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwaitmap_end)
       end if   
-   
+
    end subroutine ccmpi_gathermap2
 
    subroutine ccmpi_gathermap3(a,kref)
@@ -2248,8 +2250,8 @@ contains
       lsize = ifull*kx
       lcomm = comm_world
 
-      cbuf(1:ifull,1:kx) = a(1:ifull,1:kx)
-
+      cbuf(1:ifull,1:kx) = a(1:ifull,1:kx)      
+      
       ! Set up the buffers to recv
       nreq = 0
       do w = 1,ncount
@@ -2264,7 +2266,7 @@ contains
          nreq = nreq + 1
          call MPI_ISend( cbuf, lsize, ltype, specmap_send(w), itag, lcomm, i_req(nreq), ierr )
       end do
-      
+
       ! Unpack incomming messages
       rcount = rreq
       if ( uniform_decomp ) then
@@ -2319,9 +2321,233 @@ contains
          call MPI_Waitall( sreq, i_req(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwaitmap_end)
       end if   
-   
+
    end subroutine ccmpi_gathermap3
    
+   subroutine ccmpi_gathermap_send2(a)
+
+      real, dimension(ifull), intent(in) :: a
+      integer :: ncount, w
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: lcomm
+      integer(kind=4) :: itag = 52
+        
+      ncount = size(specmap_recv)
+      lsize = ifull
+      lcomm = comm_world
+
+      ! Set up the buffers to recv
+      nreq = 0
+      do w = 1,ncount
+         nreq = nreq + 1
+         rlist(nreq) = w
+         call MPI_IRecv( bnds(specmap_recv(w))%rbuf, lsize, ltype, specmap_recv(w), itag, lcomm, ireq(nreq), ierr )
+      end do
+      rreq = nreq
+
+      ! Set up the buffers to send
+      bnds(myid)%sbuf(1:ifull) = a
+      do w = 1,size(specmap_send)
+         nreq = nreq + 1
+         call MPI_ISend( bnds(myid)%sbuf, lsize, ltype, specmap_send(w), itag, lcomm, ireq(nreq), ierr )
+      end do
+
+   end subroutine ccmpi_gathermap_send2
+
+   subroutine ccmpi_gathermap_recv2(kref)
+
+      integer, intent(in) :: kref
+      integer :: ncount, w, iproc, n, iq
+      integer :: ipoff, jpoff, npoff
+      integer :: ipak, jpak
+      integer :: sreq, rcount, jproc
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: lcomm, ldone
+      integer(kind=4) :: itag = 52
+      integer(kind=4), dimension(size(specmap_recv)) :: donelist
+      
+      ncount = size(specmap_recv)
+      lsize = ifull
+      lcomm = comm_world
+
+      ! Unpack incomming messages
+      rcount = rreq
+      if ( uniform_decomp ) then
+         do while ( rcount > 0 )
+            call START_LOG(mpiwaitmap_begin) 
+            call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+            call END_LOG(mpiwaitmap_end)
+            rcount = rcount - ldone
+            do jproc = 1,ldone
+               w = rlist(donelist(jproc))
+               iproc = specmap_recv(w)
+               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+               ipak = ipoff/ipan
+               jpak = jpoff/jpan
+               do n = 1,npan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iq = (n-1)*ipan*jpan
+                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+                     reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+               end do
+            end do
+         end do   
+      else
+         do while ( rcount > 0 )
+            call START_LOG(mpiwaitmap_begin) 
+            call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+            call END_LOG(mpiwaitmap_end)
+            rcount = rcount - ldone
+            do jproc = 1,ldone
+               w = rlist(donelist(jproc))
+               iproc = specmap_recv(w)
+               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+               ipak = ipoff/ipan
+               jpak = jpoff/jpan
+               do n = 1,npan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iq = (n-1)*ipan*jpan
+                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+                     reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+               end do
+            end do
+         end do
+      end if
+      
+      sreq = nreq - rreq
+      if ( sreq > 0 ) then
+         call START_LOG(mpiwaitmap_begin) 
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwaitmap_end)
+      end if   
+
+   end subroutine ccmpi_gathermap_recv2
+
+    subroutine ccmpi_gathermap_send3(a)
+
+      real, dimension(:,:), intent(in) :: a
+      integer :: ncount, w, kx
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: lcomm
+      integer(kind=4) :: itag = 52
+
+      kx = size(a,2)
+      ncount = size(specmap_recv)
+      lsize = ifull*kx
+      lcomm = comm_world
+
+      bnds(myid)%sbuf(1:ifull*kx) = reshape( a(1:ifull,1:kx), (/ ifull*kx /) )      
+      
+      ! Set up the buffers to recv
+      nreq = 0
+      do w = 1,ncount
+         nreq = nreq + 1
+         rlist(nreq) = w
+         call MPI_IRecv( bnds(specmap_recv(w))%rbuf, lsize, ltype, specmap_recv(w), itag, lcomm, ireq(nreq), ierr )
+      end do
+      rreq = nreq
+      
+      ! Set up the buffers to send
+      do w = 1,size(specmap_send)
+         nreq = nreq + 1
+         call MPI_ISend( bnds(myid)%sbuf, lsize, ltype, specmap_send(w), itag, lcomm, ireq(nreq), ierr )
+      end do
+
+    end subroutine ccmpi_gathermap_send3
+  
+   subroutine ccmpi_gathermap_recv3(kx,kref)
+
+      integer, intent(in) :: kx, kref
+      integer :: ncount, w, iproc, k, n, iq
+      integer :: ipoff, jpoff, npoff
+      integer :: ipak, jpak
+      integer :: sreq, rcount, jproc
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      integer(kind=4) :: ierr, lsize
+      integer(kind=4) :: lcomm, ldone
+      integer(kind=4) :: itag = 52
+      integer(kind=4), dimension(size(specmap_recv)) :: donelist
+
+      ncount = size(specmap_recv)
+      lsize = ifull*kx
+      lcomm = comm_world
+
+      ! Unpack incomming messages
+      rcount = rreq
+      if ( uniform_decomp ) then
+         do while ( rcount > 0 )
+            call START_LOG(mpiwaitmap_begin) 
+            call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+            call END_LOG(mpiwaitmap_end)
+            rcount = rcount - ldone
+            do jproc = 1,ldone
+               w = rlist(donelist(jproc))        
+               iproc = specmap_recv(w)
+               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+               ipak = ipoff/ipan
+               jpak = jpoff/jpan
+               do k = 1,kx
+                  do n = 1,npan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iq = (n-1)*ipan*jpan + (k-1)*ifull
+                     globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+                        reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+                  end do
+               end do
+            end do
+         end do   
+      else
+         do while ( rcount > 0 )
+            call START_LOG(mpiwaitmap_begin) 
+            call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+            call END_LOG(mpiwaitmap_end)
+            rcount = rcount - ldone
+            do jproc = 1,ldone
+               w = rlist(donelist(jproc))
+               iproc = specmap_recv(w)
+               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+               ipak = ipoff/ipan
+               jpak = jpoff/jpan
+               do k = 1,kx
+                  do n = 1,npan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iq = (n-1)*ipan*jpan + (k-1)*ifull
+                     globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+                       reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+                  end do
+               end do
+            end do
+         end do
+      end if
+      
+      sreq = nreq - rreq
+      if ( sreq > 0 ) then
+         call START_LOG(mpiwaitmap_begin) 
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwaitmap_end)
+      end if   
+
+   end subroutine ccmpi_gathermap_recv3
+    
    subroutine setglobalpack_v(datain,ibeg,iend,k)
    
       ! This subroutine assigns a value to a gridpoint
@@ -2512,16 +2738,49 @@ contains
    
    end subroutine copyglobalpack
 
-   subroutine allocateglobalpack(kx)
+   subroutine allocateglobalpack(kx,ky)
    
       ! This allocates global sparse arrays for the digital filter.
       ! Usually this is 1:kl or 1:ol in size, but for some configurations
       ! we need to store the original values and hence use 1:2*kl or 1:2*ol.
       ! Also, the 0 index is to store the sum term for the digital filter.
    
-      integer, intent(in) :: kx
+      integer, intent(in) :: kx, ky
       integer :: ncount, w, ipak, jpak, n, iproc
       integer :: ipoff, jpoff, npoff
+      integer :: xlen
+      
+      if ( size(ireq)<(size(specmap_recv)+size(specmap_send)) ) then
+         deallocate( ireq )
+         allocate( ireq(size(specmap_recv)+size(specmap_send)) )
+      end if
+      if ( size(rlist)<size(specmap_recv) ) then
+         deallocate( rlist )
+         allocate( rlist(size(specmap_recv)) )
+      end if
+      xlen = ifull*ky
+      do w = 1,size(specmap_recv)
+         iproc = specmap_recv(w) 
+         if ( bnds(iproc)%rbuflen < xlen ) then
+            if ( bnds(iproc)%rbuflen > 0 ) then
+               deallocate( bnds(iproc)%rbuf )
+               deallocate( bnds(iproc)%r8buf )
+            end if
+            allocate( bnds(iproc)%rbuf(xlen) )
+            allocate( bnds(iproc)%r8buf(xlen) )
+            bnds(iproc)%rbuflen = xlen
+         end if   
+         iproc = myid
+         if ( bnds(iproc)%sbuflen < xlen ) then
+            if ( bnds(iproc)%sbuflen > 0 ) then
+               deallocate( bnds(iproc)%sbuf )
+               deallocate( bnds(iproc)%s8buf )
+            end if
+            allocate( bnds(iproc)%sbuf(xlen) )
+            allocate( bnds(iproc)%s8buf(xlen) )
+            bnds(iproc)%sbuflen = xlen
+         end if 
+      end do  
       
       ! allocate globalpack arrays for 1D scale-selective filter
       allocate(globalpack(0:nxproc-1,0:nyproc-1,0:5))
@@ -4340,17 +4599,15 @@ contains
 
       
       ! Allocate buffer arrays
-      do iproc = 0,nproc-1
-         bnds(iproc)%sbuflen = nagg*bnds(iproc)%len
-         bnds(iproc)%rbuflen = nagg*bnds(iproc)%len
-      end do
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
          if ( bnds(rproc)%len > 0 ) then
             allocate( bnds(rproc)%rbuf(nagg*bnds(rproc)%len) )
             allocate( bnds(rproc)%sbuf(nagg*bnds(rproc)%len) )
+            bnds(rproc)%rbuflen = nagg*bnds(rproc)%len
             allocate( bnds(rproc)%r8buf(nagg*bnds(rproc)%len) )
             allocate( bnds(rproc)%s8buf(nagg*bnds(rproc)%len) )
+            bnds(rproc)%sbuflen = nagg*bnds(rproc)%len     
          end if
       end do
       

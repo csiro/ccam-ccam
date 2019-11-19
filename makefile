@@ -40,7 +40,7 @@ FHOST = -O3 -xSKYLAKE-AVX512 -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
-IPOFLAG = -ipo
+IPOFLAG = 
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(CASCADELAKE),yes)
@@ -48,7 +48,7 @@ FHOST = -O3 -xCASCADELAKE -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
-IPOFLAG = -ipo
+IPOFLAG = 
 VTHRESH = -vec-threshold0
 endif
 # OpenMP compile flag

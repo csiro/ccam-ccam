@@ -689,10 +689,6 @@ if ( iernc==0 ) then
     allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
     xx4 => xx4_dummy
     yy4 => yy4_dummy
-    !if ( m_fly==1 ) then
-    !  rlong4_l(:,1) = rlongg(:)*180./pi
-    !  rlat4_l(:,1)  = rlatt(:)*180./pi
-    !end if
     write(6,*) "Defining input file grid"
     allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
     allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
