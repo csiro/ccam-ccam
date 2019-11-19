@@ -820,6 +820,7 @@ else
   urban2_found  = iers(8)==0
   mloice_found  = iers(9)==0
   zht_found     = iers(10)==0
+  aero_found    = iers(11)==0
   zht_needed    = nested==0 .or. (nested==1.and.retopo_test/=0) .or.      &
       nested==3 .or. .not.(soilt_found.or.mlo_found)
   allowtrivialfill = zht_needed .and. .not.zht_found .and.                &
