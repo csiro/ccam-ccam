@@ -1890,7 +1890,7 @@ real :: zilcscav, ziicscav,xdep,plambda,zbcscav,xbcscav,zstay_t,xstay,frc
 real :: zmelt,xmelt,zicscav,xicscav
 real :: xfreeze, zfreeze
 real, dimension(imax) :: zstay
-logical, dimension(imax) :: lmask
+logical :: lmask
 
 integer jk,i
 real pqtmst
@@ -1959,7 +1959,8 @@ do JK = KTOP,kl
 
   ! Below-cloud scavenging by snow
   do i = 1,imax
-    if ( pfsnow(i,jk)>zmin ) then
+    lmask = pfsnow(i,jk)>zmin
+    if ( lmask ) then
       !plambs(:,jk) = 1.6e3*10**(-0.023*(ttg(1:imax,k)-tfrz)) ! for ice
       plambda = min( plambs(i,jk), 8.e3 ) !Cut it off at about -30 deg. C
       zbcscav = zcollefs(ktrac)*plambda*pfsnow(i,jk)*ptmst/(2.*rhos)
@@ -1973,7 +1974,8 @@ do JK = KTOP,kl
 
   ! Redistribution by snow that evaporates or stays in layer
   do i = 1,imax
-    if ( pfsnow(i,jk)>zmin .and. zclr0(i)>zmin ) then
+    lmask = pfsnow(i,jk)>zmin .and. zclr0(i)>zmin
+    if ( lmask ) then
       zstay_t = (pfsubl(i,jk)+pfstayice(i,jk))/pfsnow(i,jk)
       zstay_t = max( min( 1., zstay_t ), 0. )
       xstay = zdeps(i)*zstay_t/zmtof(i)
@@ -1986,7 +1988,8 @@ do JK = KTOP,kl
 
   ! Melting of snow... 
   do i = 1,imax
-    if ( pfmelt(i,jk)>zmin ) then
+    lmask = pfmelt(i,jk)>zmin
+    if ( lmask ) then
       zmelt = pfmelt(i,jk)/max(pfsnow(i,jk)+pfmelt(i,jk),zmin) 
       zmelt = max( min( 1., zmelt ), 0. )
       xmelt = zmelt*zdeps(i)
@@ -1998,7 +2001,8 @@ do JK = KTOP,kl
   
   !  In-cloud scavenging by warm-rain processes (autoconversion and collection)
   do i = 1,imax
-    if ( pmratep(i,jk)>zmin .and. pmlwc(i,jk)>zmin ) then ! MJT suggestion
+    lmask = pmratep(i,jk)>zmin .and. pmlwc(i,jk)>zmin
+    if ( lmask ) then ! MJT suggestion
       zicscav = psolub(i,jk)*pmratep(i,jk)*ptmst/pmlwc(i,jk)
       zicscav = max( min( zicscav, 1. ), 0. )
       xicscav = pxtp1c(i,jk)*zicscav
@@ -2010,7 +2014,8 @@ do JK = KTOP,kl
  
   ! Below-cloud scavenging by stratiform rain (conv done below)
   do i = 1,imax
-    if ( prscav(i,jk)>zmin ) then
+    lmask = prscav(i,jk)>zmin
+    if ( lmask ) then
       zbcscav = zcollefr(ktrac)*prscav(i,jk)
       zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
       xbcscav = zbcscav*pxtp10(i,jk)
@@ -2018,11 +2023,12 @@ do JK = KTOP,kl
       pxtp10(i,jk) = pxtp10(i,jk) - xbcscav 
       zdepr(i) = zdepr(i) + xbcscav*zclr0(i)*zmtof(i)
     end if
-  end do  
+  end do
   
   ! Freezing of rain... 
   do i = 1,imax
-    if ( prfreeze(i,jk)>zmin ) then
+    lmask = prfreeze(i,jk)>zmin
+    if ( lmask ) then
       zfreeze = prfreeze(i,jk)/max(pfprec(i,jk)+prfreeze(i,jk),zmin) 
       zfreeze = max( min( 1., zfreeze ), 0. )
       xfreeze = zfreeze*zdepr(i)
@@ -2061,7 +2067,8 @@ do jk = ktop,kl
   
 ! Below-cloud scavenging by convective precipitation
   do i = 1,imax
-    if ( pfconv(i,jk-1)>zmin .and. fracc(i)>zmin ) then
+    lmask = pfconv(i,jk-1)>zmin .and. fracc(i)>zmin
+    if ( lmask ) then
       Frc = max( 0., pfconv(i,jk-1)/fracc(i) )
       zbcscav = zcollefc(i)*fracc(i)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
       !zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred

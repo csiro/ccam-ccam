@@ -18,33 +18,38 @@ FOVERRIDE =
 ZMM =
 IPFLAG =
 IPOFLAG =
+VTHRESH =
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
 FOVERRIDE =
 ZMM =
 IPFLAG =
 IPOFLAG =
+VTHRESH =
 endif
 ifeq ($(BROADWELL),yes)
 FHOST = -O3 -xCORE-AVX2
 FOVERRIDE =
 ZMM =
 IPFLAG = -ip
-IPOFLAG =
+IPOFLAG = -ipo
+VTHRESH = -vec-threshold0
 endif
 ifeq ($(SKYLAKE),yes)
 FHOST = -O3 -xSKYLAKE-AVX512 -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
-IPOFLAG =
+IPOFLAG = 
+VTHRESH = -vec-threshold0
 endif
 ifeq ($(CASCADELAKE),yes)
 FHOST = -O3 -xCASCADELAKE -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
-IPOFLAG =
+IPOFLAG = 
+VTHRESH = -vec-threshold0
 endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
@@ -81,6 +86,7 @@ FOVERRIDE =
 ZMM =
 IPFLAG =
 IPOFLAG =
+VTHRESH =
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
@@ -105,6 +111,7 @@ FOVERRIDE =
 ZMM =
 IPFLAG =
 IPOFLAG =
+VTHRESH =
 PPFLAG90 = -cpp
 PPFLAG77 = -cpp
 PPFLAG90F = -cpp
@@ -122,6 +129,7 @@ FOVERRIDE =
 ZMM =
 IPFLAG =
 IPOFLAG =
+VTHRESH =
 PPFLAG90 = -eZ
 PPFLAG77 = -eZ
 PPFLAG90F = -eZ
@@ -254,7 +262,7 @@ netcdf_m.o: netcdf_m.f90
 mpif_m.o: mpif_m.f90
 	$(FC) -c $(PPFLAG90) $(MPIFLAG) $<
 esfsw_driver.o: esfsw_driver.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(VTHRESH) $<
 esfsw_parameters.o: esfsw_parameters.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 gas_tf.o: gas_tf.f90
@@ -326,13 +334,13 @@ leoncld.o: leoncld.f90
 mlodynamics.o: mlodynamics.f90
 	$(FC) -c $(PPFLAG90) $(FFLAGS) $(IPFLAG) $(FOVERRIDE) $<
 seaesfrad.o: seaesfrad.f90
-	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
+	$(FC) -c $(FFLAGS) $(VTHRESH) $(PPFLAG90) $<
 stacklimit.o: stacklimit.c
 	$(CC) -c stacklimit.c
 tkeeps.o: tkeeps.f90
 	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
 vertmix.o: vertmix.f90
-	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
+	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 version.h: FORCE
 	rm -f brokenver tmpver
 	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver

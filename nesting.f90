@@ -1065,13 +1065,6 @@ if ( nud_uv==3 ) then
   call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
   ubb(:,kln:klx) = qt(:,:)
 else if ( nud_uv>0 ) then
-  do k = kln,klx
-    da(:) = ubb(:,k)
-    db(:) = vbb(:,k)
-    ubb(:,k) = ax(1:ifull)*da(:) + bx(1:ifull)*db(:)
-    vbb(:,k) = ay(1:ifull)*da(:) + by(1:ifull)*db(:)
-    wbb(:,k) = az(1:ifull)*da(:) + bz(1:ifull)*db(:)
-  end do
   call START_LOG(nestwin_begin)
   call ccmpi_gathermap_recv3(klt,0)   ! gather data onto global sparse array (0)
   call END_LOG(nestwin_end)
@@ -3099,9 +3092,9 @@ implicit none
 real, dimension(:), intent(in) :: ra
 real, dimension(:,:), intent(in) :: at
 real, dimension(size(at,1)+1) :: out_sum
-real, dimension(size(at,1)+1) :: at_t, e, t1, t2
+real :: at_t, e, t1, t2
 complex, dimension(size(at,1)+1) :: local_sum
-integer i, kx, kn, ilen
+integer i, kx, kn, ilen, k
 
 ilen = size(ra,1)
 kx = size(at,1)
@@ -3110,11 +3103,13 @@ kn = kx - 1
 local_sum(1:kx) = (0.,0.)
 
 do i = 1,ilen
-  at_t(1:kx) = ra(i)*at(1:kx,i)
-  t1(1:kx) = at_t(1:kx) + real(local_sum(1:kx))
-  e(1:kx)  = t1(1:kx) - at_t(1:kx)
-  t2(1:kx) = ((real(local_sum(1:kx)) - e(1:kx)) + (at_t(1:kx) - (t1(1:kx) - e(1:kx)))) + aimag(local_sum(1:kx))
-  local_sum(1:kx) = cmplx( t1(1:kx) + t2(1:kx), t2(1:kx) - ((t1(1:kx) + t2(1:kx)) - t1(1:kx)) )
+  do k = 1,kx
+    at_t = ra(i)*at(k,i)
+    t1 = at_t + real(local_sum(k))
+    e  = t1 - at_t
+    t2 = ((real(local_sum(k)) - e) + (at_t - (t1 - e))) + aimag(local_sum(k))
+    local_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
+  end do
 end do  
 
 out_sum(1:kx) = real(local_sum(1:kx))

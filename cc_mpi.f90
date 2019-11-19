@@ -7081,8 +7081,8 @@ contains
       call MPI_Reduce(time_l, time_min, llen, MPI_REAL,  &
                       MPI_MIN, 0_4, lcomm, ierr )
       if ( myid == 0 ) then
-         write(*,"(a,3f10.3)") "MPI_Initialise ",time_mean(1),time_max(1),time_min(1)
-         write(*,"(a,3f10.3)") "Total_Time     ",time_mean(2),time_max(2),time_min(2)
+         write(*,"(a,3f10.3)") "MPI_Initialise ",time_mean(1),time_min(1),time_max(1)
+         write(*,"(a,3f10.3)") "Total_Time     ",time_mean(2),time_min(2),time_max(2)
       end if   
         
    end subroutine simple_timer_finalize
