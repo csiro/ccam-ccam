@@ -867,21 +867,11 @@ endif
 if ( tss_test .and. iop_test ) then
   call histrd(iarchi,ier,'tsu',tss,ifull)
   tss = abs(tss)
-  if ( any( tss<100. .or. tss>425. ) ) then
-    write(6,*) "ERROR: Invalid tsu read in onthefly"
-    write(6,*) "minval,maxval ",minval(tss),maxval(tss)
-    call ccmpi_abort(-1)
-  end if
+  tss = min( max( tss, 100. ), 425. )
 else
   call histrd(iarchi,ier,'tsu',tss_a,6*ik*ik)
-  tss_a(:) = abs(tss_a(:))
-  if ( fwsize>0 ) then
-    if ( any( tss_a<100. .or. tss_a>425. ) ) then
-      write(6,*) "ERROR: Invalid tsu read in onthefly"
-      write(6,*) "minval,maxval ",minval(tss_a),maxval(tss_a)
-      call ccmpi_abort(-1)
-    end if  
-  end if  
+  tss_a = abs(tss_a)
+  tss_a = min( max( tss_a, 100. ), 425. )
 end if ! (tss_test) ..else..
 
  
@@ -1852,6 +1842,7 @@ if ( nested/=1 .and. nested/=3 ) then
       ! nested without urban data
       call gethist1("tsu",atebdwn(:,1))
       atebdwn(:,1) = abs(atebdwn(:,1))
+      atebdwn(:,1) = min( max( atebdwn(:,1), 100. ), 425. )
       do k = 2,5
         atebdwn(:,k) = atebdwn(:,1)
       end do

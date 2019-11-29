@@ -1196,7 +1196,7 @@ integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(il_g*ipan*(klt+1)) :: dd      ! subset of sparse array
-real, dimension(ipan*jpan*(klt+1)) :: ff
+real, dimension(ipan*jpan*(klt+1),0:2) :: ff
 real, dimension(4*il_g,klt) :: at             ! subset of sparse array
 real, dimension(4*il_g) :: asum, ra           ! subset of sparse array
 real, dimension(klt+1) :: local_sum
@@ -1216,15 +1216,15 @@ ns = joff + 1
 ne = joff + jpan
 os = ioff + 1
 oe = ioff + ipan
-      
+
+call START_LOG(nestcalc_begin)
+
+!$omp parallel do private(ipass,me,astr,bstr,cstr,j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
+!$omp private(n,nn,ra,asum,at,local_sum,at_t)
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-  call START_LOG(nestcalc_begin)
-
-!$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,ra,asum,at,local_sum,at_t)
   do j = 1,jpan
   
     ! pack data from sparse arrays
@@ -1241,14 +1241,13 @@ do ipass = 0,2
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
       asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
-        ! v version is faster for getglobalpack  
         call getglobalpack_v(at(sn:sn+il_g-1,k),ibeg,iend,k)  
         at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
     end do
     
-    at_t(1:klt,:)=transpose(at)
-    at_t(klt+1,1:me)=asum(1:me)
+    at_t(1:klt,:) = transpose(at)
+    at_t(klt+1,1:me) = asum(1:me)
     ! start convolution
     do n = 1,ipan
       nn = n + os - 1
@@ -1261,13 +1260,21 @@ do ipass = 0,2
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
       local_sum = drpdr_fast(ra(1:me),at_t) ! calculates sum(ra(1:me)*at(1:me,k)) and sum(ra(1:me)*asum(1:me))
       ibase = n + (j-1)*ipan
-      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan) = local_sum(1:klt+1) ! = dot_product(ra(1:me)*at(1:me,k))
+      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = local_sum(1:klt+1) ! = dot_product(ra(1:me)*at(1:me,k))
     end do  
    
   end do
+
+end do
 !$omp end parallel do
 
-  call END_LOG(nestcalc_end)
+call END_LOG(nestcalc_end)
+
+call START_LOG(nestcomm_begin)
+
+do ipass = 0,2
+  me = maps(ipass)
+  call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
   ! unpacking grid
   a = astr(0)
@@ -1275,12 +1282,9 @@ do ipass = 0,2
   c = cstr(0)
 
   ! gather data for final pass
-  call START_LOG(nestcomm_begin)
-  call ccmpi_allgatherx(dd(1:il_g*ipan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_cols)
-  call END_LOG(nestcomm_end)
+  call ccmpi_allgatherx(dd(1:il_g*ipan*(klt+1)),ff(1:ipan*jpan*(klt+1),ipass),comm_cols)
   
   ! unpack to sparse arrays
-  call START_LOG(nestcalc_begin)
   do n = 1,ipan
     nn = n + os - 1
     do k = 1,klt
@@ -1302,9 +1306,10 @@ do ipass = 0,2
     iend = a*nn + b*il_g + c
     call setglobalpack_v(ra(1:il_g),ibeg,iend,0)
   end do  
-  call END_LOG(nestcalc_end)
 
 end do
+
+call END_LOG(nestcomm_end)
 
 ns = ioff + 1
 ne = ioff + ipan
@@ -1333,7 +1338,6 @@ do j = 1,ipan
     xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-    ! v version is faster for getglobalpack  
     call getglobalpack_v(asum(sn:sn+il_g-1),ibeg,iend,0)     
     do k = 1,klt
       call getglobalpack_v(at(sn:sn+il_g-1,k),ibeg,iend,k)  
@@ -1387,7 +1391,7 @@ real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(4*il_g,klt) :: at
 real, dimension(4*il_g) :: asum, ra
 real, dimension(il_g*jpan*(klt+1)) :: dd
-real, dimension(ipan*jpan*(klt+1)) :: ff
+real, dimension(ipan*jpan*(klt+1),0:2) :: ff
 real, dimension(klt+1) :: local_sum
 real(kind=8), dimension(4*il_g) :: xa, ya, za
 real, dimension(klt+1,4*il_g) :: at_t
@@ -1405,15 +1409,15 @@ ns = ioff + 1
 ne = ioff + ipan
 os = joff + 1
 oe = joff + jpan
-      
+  
+call START_LOG(nestcalc_begin)
+
+!$omp parallel do private(ipass,me,astr,bstr,cstr,j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
+!$omp private(n,nn,ra,asum,at,local_sum,at_t)
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-  call START_LOG(nestcalc_begin)
-
-!$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,ra,asum,at,local_sum,at_t)
   do j = 1,ipan
       
     ! pack data from sparse arrays
@@ -1430,7 +1434,6 @@ do ipass = 0,2
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
       asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
-        ! v version is faster for getglobalpack  
         call getglobalpack_v(at(sn:sn+il_g-1,k),ibeg,iend,k) 
         at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
@@ -1450,25 +1453,30 @@ do ipass = 0,2
       !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
       local_sum = drpdr_fast(ra(1:me),at_t)
       ibase = n + (j-1)*jpan
-      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan) = local_sum(1:klt+1)
+      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = local_sum(1:klt+1)
     end do
     
   end do
+  
+end do
 !$omp end parallel do
 
-  call END_LOG(nestcalc_end)
+call END_LOG(nestcalc_end)
+
+call START_LOG(nestcomm_begin)
+
+do ipass = 0,2
+  me = maps(ipass)
+  call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
   ! unpacking grid
   a = astr(0)
   b = bstr(0)
   c = cstr(0)
 
-  call START_LOG(nestcomm_begin)
-  call ccmpi_allgatherx(dd(1:il_g*jpan*(klt+1)),ff(1:ipan*jpan*(klt+1)),comm_rows)
-  call END_LOG(nestcomm_end)
+  call ccmpi_allgatherx(dd(1:il_g*jpan*(klt+1)),ff(1:ipan*jpan*(klt+1),ipass),comm_rows)
 
   ! unpack data to sparse arrays
-  call START_LOG(nestcalc_begin)
   do n = 1,jpan
     nn = n + os - 1
     do k = 1,klt
@@ -1490,10 +1498,11 @@ do ipass = 0,2
     iend = a*nn + b*il_g + c
     call setglobalpack_v(ra(1:il_g),ibeg,iend,0)
   end do  
-  call END_LOG(nestcalc_end)
 
 end do
 
+call END_LOG(nestcomm_end)    
+    
 ns = joff + 1
 ne = joff + jpan
 os = ioff + 1
@@ -2405,7 +2414,7 @@ real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(4*il_g,kd) :: ap      
 real, dimension(4*il_g) :: rr, asum
 real, dimension(il_g*ipan*(kd+1)) :: zz
-real, dimension(ipan*jpan*(kd+1)) :: yy
+real, dimension(ipan*jpan*(kd+1),0:2) :: yy
 real, dimension(kd+1) :: local_sum
 real(kind=8), dimension(4*il_g) :: xa, ya, za
 real, dimension(kd+1,4*il_g) :: ap_t
@@ -2420,15 +2429,15 @@ ns = joff + 1
 ne = joff + jpan
 os = ioff + 1
 oe = ioff + ipan
-      
+ 
+call START_LOG(nestcalc_begin)
+
+!$omp parallel do private(ipass,me,astr,bstr,cstr,j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
+!$omp private(n,nn,rr,asum,ap,local_sum,ap_t)
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-  call START_LOG(nestcalc_begin)
-
-!$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,rr,asum,ap,local_sum,ap_t)
   do j = 1,jpan
       
     ! pack data from sparse arrays
@@ -2461,26 +2470,31 @@ do ipass = 0,2
       rr(1:me) = exp(-(cq*rr(1:me))**2)
       local_sum = drpdr_fast(rr(1:me),ap_t)
       ibase = n + (j-1)*ipan
-      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan) = local_sum(1:kd+1)
+      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = local_sum(1:kd+1)
     end do
     
   end do
+  
+end do
 !$omp end parallel do
 
-  call END_LOG(nestcalc_end)
+call END_LOG(nestcalc_end)
 
+call START_LOG(nestcomm_begin)
+
+do ipass = 0,2
+  me = maps(ipass)
+  call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
+  
   ! unpack grid
   a = astr(0)
   b = bstr(0)
   c = cstr(0)
 
   ! gather data on host processors
-  call START_LOG(nestcomm_begin)
-  call ccmpi_allgatherx(zz(1:il_g*ipan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_cols)
-  call END_LOG(nestcomm_end)
+  call ccmpi_allgatherx(zz(1:il_g*ipan*(kd+1)),yy(1:ipan*jpan*(kd+1),ipass),comm_cols)
   
   ! unpack data to sparse arrays
-  call START_LOG(nestcalc_begin)
   do n = 1,ipan
     nn = n + os - 1
     do k = 1,kd
@@ -2502,9 +2516,10 @@ do ipass = 0,2
     iend = a*nn + b*il_g + c
     call setglobalpack_v(rr(1:il_g),ibeg,iend,0)
   end do  
-  call END_LOG(nestcalc_end)
           
 end do
+
+call END_LOG(nestcomm_end)
     
 ns = ioff + 1
 ne = ioff + ipan
@@ -2586,7 +2601,7 @@ real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(4*il_g,kd) :: ap      
 real, dimension(4*il_g) :: rr, asum
 real, dimension(il_g*jpan*(kd+1)) :: zz
-real, dimension(ipan*jpan*(kd+1)) :: yy
+real, dimension(ipan*jpan*(kd+1),0:2) :: yy
 real, dimension(kd+1) :: local_sum
 real(kind=8), dimension(4*il_g) :: xa, ya, za
 real, dimension(kd+1,4*il_g) :: ap_t
@@ -2601,15 +2616,15 @@ ns = ioff + 1
 ne = ioff + ipan
 os = joff + 1
 oe  =joff + jpan
-      
+     
+call START_LOG(nestcalc_begin)
+
+!$omp parallel do private(ipass,me,astr,bstr,cstr,j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
+!$omp private(n,nn,rr,asum,ap,local_sum,ap_t)
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-  call START_LOG(nestcalc_begin)
-
-!$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,rr,asum,ap,local_sum,ap_t)
   do j = 1,ipan
       
     ! pack data from sparse arrays
@@ -2626,7 +2641,6 @@ do ipass = 0,2
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
       asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
       do k = 1,kd
-        ! v version is faster for getglobalpack  
         call getglobalpack_v(ap(sn:sn+il_g-1,k),ibeg,iend,k)           
         ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
       end do
@@ -2642,13 +2656,21 @@ do ipass = 0,2
       rr(1:me) = exp(-(cq*rr(1:me))**2)
       local_sum = drpdr_fast(rr(1:me),ap_t)
       ibase = n + (j-1)*jpan
-      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan) = local_sum(1:kd+1)
+      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = local_sum(1:kd+1)
     end do
     
   end do
+  
+    end do
 !$omp end parallel do
 
-  call END_LOG(nestcalc_end)
+call END_LOG(nestcalc_end)
+
+call START_LOG(nestcomm_begin)
+
+do ipass = 0,2
+  me = maps(ipass)
+  call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
   ! unpack grid
   a = astr(0)
@@ -2656,12 +2678,9 @@ do ipass = 0,2
   c = cstr(0)
 
   ! gather data on host processors
-  call START_LOG(nestcomm_begin)
-  call ccmpi_allgatherx(zz(1:il_g*jpan*(kd+1)),yy(1:ipan*jpan*(kd+1)),comm_rows)
-  call END_LOG(nestcomm_end)
+  call ccmpi_allgatherx(zz(1:il_g*jpan*(kd+1)),yy(1:ipan*jpan*(kd+1),ipass),comm_rows)
   
   ! unpack data to sparse arrays
-  call START_LOG(nestcalc_begin)
   do n = 1,jpan
     nn = n + os - 1
     do k = 1,kd
@@ -2683,10 +2702,11 @@ do ipass = 0,2
     iend = a*nn + b*il_g + c
     call setglobalpack_v(rr(1:il_g),ibeg,iend,0)
   end do  
-  call END_LOG(nestcalc_end)
           
 end do
 
+call END_LOG(nestcomm_end)
+    
 ns = joff + 1
 ne = joff + jpan
 os = ioff + 1

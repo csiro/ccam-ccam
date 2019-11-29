@@ -165,7 +165,6 @@ integer, save :: POP_NCOHORT     = -1
 integer, save :: POP_HEIGHT_BINS = -1
 integer, save :: POP_NDISTURB    = -1
 integer, save :: POP_AGEMAX      = -1
-real, parameter :: minfrac = 0.01                ! minimum non-zero tile fraction (improves load balancing)
 
 integer, save :: maxnb                           ! maximum number of actual tiles
 integer, save :: mp_global                       ! maximum number of land-points on this process
@@ -2501,12 +2500,12 @@ do iq = 1,ifull
       newgrid(:) = newgrid(:)/nsum
       ipos = count(newgrid(:)>0.)
     end do    
-    do while ( any(newgrid(:)<minfrac.and.newgrid(:)>0.) )
-      pos = minloc(newgrid(:), newgrid(:)>0.)
-      newgrid(pos(1)) = 0.
-      nsum = sum(newgrid(:))
-      newgrid(:) = newgrid(:)/nsum
-    end do
+    !do while ( any(newgrid(:)<minfrac.and.newgrid(:)>0.) )
+    !  pos = minloc(newgrid(:), newgrid(:)>0.)
+    !  newgrid(pos(1)) = 0.
+    !  nsum = sum(newgrid(:))
+    !  newgrid(:) = newgrid(:)/nsum
+    !end do
 
     n = 0
     ivs(iq,:) = 0
@@ -2634,8 +2633,8 @@ do tile=2,ntiles
 end do
 mp = 0 ! defined when CABLE model is integrated
 
-ktau_gl          = 900
-kend_gl          = 999
+ktau_gl = 900
+kend_gl = 999
 
 ! if CABLE is present on this processor, then start allocating arrays
 ! Write messages here in case myid==0 has no land-points (mp_global==0)
@@ -7282,7 +7281,7 @@ use vegpar_m
   
 implicit none
   
-integer, intent(in) :: idnc,iarch
+integer, intent(in) :: idnc,iarch,itype
 integer k,n
 integer cc,dd,hh,ll
 real(kind=8), dimension(ifull) :: dat
@@ -7296,15 +7295,12 @@ real(kind=8), dimension(:,:), allocatable, save :: dat20years
 real(kind=8), dimension(:,:), allocatable, save :: dat5days
 character(len=80) vname
 logical, intent(in) :: local
-integer, intent(in) :: itype
   
 if ( itype==-1 ) then !just for restart file
   do n = 1,maxtile  ! tile
     do k = 1,ms     ! soil layer
       dat=real(tgg(:,k),8)
-      if (n<=maxnb) then
-        call cable_unpack(ssnow%tgg(:,k),dat,n)
-      end if  
+      if (n<=maxnb) call cable_unpack(ssnow%tgg(:,k),dat,n)
       write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
@@ -7443,23 +7439,7 @@ if ( itype==-1 ) then !just for restart file
       call histwrt(dat,vname,idnc,iarch,local,.true.) 
     end do
   end if
-  if ( ccycle==0 ) then
-    !do n = 1,maxtile  ! tile
-      !do k = 1,ncp
-      !  dat=real(cplant(:,k),8)
-      !  if (n<=maxnb) call cable_unpack(bgc%cplant(:,k),dat,n)
-      !  write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
-      !  call histwrt(dat,vname,idnc,iarch,local,.true.)    
-      !end do
-      !do k = 1,ncs
-      !  dat=real(csoil(:,k),8)
-      !  if (n<=maxnb) call cable_unpack(bgc%csoil(:,k),dat,n)
-      !  write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
-      !  call histwrt(dat,vname,idnc,iarch,local,.true.)
-      !end do
-    !end do  
-  else
-    ! MJT notes - possible rounding error when using CASA CNP  
+  if ( ccycle/=0 ) then
     do n = 1,maxtile  ! tile
       do k = 1,mplant     
         dat=0._8

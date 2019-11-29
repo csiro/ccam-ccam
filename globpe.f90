@@ -1302,10 +1302,8 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_infilmeth=>infilmeth           &
     ,ateb_ac_heatcap=>ac_heatcap         &
     ,ateb_ac_coolcap=>ac_coolcap         &
-    ,ateb_ac_smooth=>ac_smooth           &
     ,ateb_ac_deltat=>ac_deltat           &
-    ,ateb_acfactor=>acfactor             &
-    ,ateb_ac_copmax=>ac_copmax
+    ,ateb_acfactor=>acfactor
 use bigxy4_m                               ! Grid interpolation
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
@@ -1405,14 +1403,15 @@ integer secs_rad, nversion
 integer mstn, io_nest, mbd_min
 integer opt, nopt
 integer ateb_intairtmeth, ateb_intmassmeth
-integer npa, npb, tkecduv, tblock ! depreciated namelist options
+integer npa, npb, tkecduv, tblock  ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
 real targetlev, dsx, pwatr_l, pwatr
 real ateb_zocanyon, ateb_zoroof
-real cgmap_offset, cgmap_scale ! depreciated namelist options
+real cgmap_offset, cgmap_scale      ! depreciated namelist options
+real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
 real(kind=8), dimension(:), allocatable, save :: dumr8
 logical lmlosigma, procformat
 character(len=1024) nmlfile
@@ -1509,9 +1508,9 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_maxvwatf,ateb_intairtmeth,ateb_intmassmeth,              &
     ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
-    ateb_ac_smooth,                                               &
-    ateb_ac_deltat,ateb_acfactor,ateb_ac_copmax,                  &
-    siburbanfrac
+    ateb_ac_deltat,ateb_acfactor,                                 &
+    siburbanfrac,                                                 &
+    ateb_ac_smooth,ateb_ac_copmax                                   ! depreciated
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
@@ -2238,7 +2237,7 @@ stabmeth   = dumi(2)
 tkemeth    = dumi(3)
 ngwd       = dumi(4)
 deallocate( dumr, dumi )
-allocate( dumr8(1), dumr(24), dumi(31) )
+allocate( dumr8(1), dumr(22), dumi(31) )
 dumr8 = 0._8
 dumr = 0.
 dumi = 0
@@ -2269,11 +2268,9 @@ if ( myid==0 ) then
   dumr(17) = ateb_maxvwatf
   dumr(18) = ateb_ac_heatcap
   dumr(19) = ateb_ac_coolcap
-  dumr(20) = ateb_ac_smooth
-  dumr(21) = ateb_ac_deltat
-  dumr(22) = ateb_acfactor
-  dumr(23) = ateb_ac_copmax
-  dumr(24) = siburbanfrac
+  dumr(20) = ateb_ac_deltat
+  dumr(21) = ateb_acfactor
+  dumr(22) = siburbanfrac
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -2329,11 +2326,9 @@ ateb_maxrdsn      = dumr(16)
 ateb_maxvwatf     = dumr(17) 
 ateb_ac_heatcap   = dumr(18)
 ateb_ac_coolcap   = dumr(19)
-ateb_ac_smooth    = dumr(20)
-ateb_ac_deltat    = dumr(21)
-ateb_acfactor     = dumr(22)
-ateb_ac_copmax    = dumr(23)
-siburbanfrac      = dumr(24) 
+ateb_ac_deltat    = dumr(20)
+ateb_acfactor     = dumr(21)
+siburbanfrac      = dumr(22) 
 proglai           = dumi(1)
 ccycle            = dumi(2)
 soil_struc        = dumi(3)

@@ -1252,11 +1252,11 @@ urban_elecgas_flux = 0.                                                         
 urban_heating_flux = 0.                                                                          ! urban
 urban_cooling_flux = 0.                                                                          ! urban
 urban_storage_flux = 0.                                                                          ! urban
-call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,upack,ufull)                          ! urban
-call atebenergy(urban_elecgas_flux,"elecgas",0,fp,pd,upack,ufull)                                ! urban
-call atebenergy(urban_heating_flux,"heating",0,fp,pd,upack,ufull)                                ! urban
-call atebenergy(urban_cooling_flux,"cooling",0,fp,pd,upack,ufull)                                ! urban
-call atebenergy(urban_storage_flux,"storage",0,fp,pd,upack,ufull)                                ! urban
+call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,rdhyd,rfhyd,upack,ufull)                          ! urban
+call atebenergy(urban_elecgas_flux,"elecgas",0,fp,pd,rdhyd,rfhyd,upack,ufull)                                ! urban
+call atebenergy(urban_heating_flux,"heating",0,fp,pd,rdhyd,rfhyd,upack,ufull)                                ! urban
+call atebenergy(urban_cooling_flux,"cooling",0,fp,pd,rdhyd,rfhyd,upack,ufull)                                ! urban
+call atebenergy(urban_storage_flux,"storage",0,fp,pd,rdhyd,rfhyd,upack,ufull)                                ! urban
 where ( u_sigma>0. )                                                                             ! urban
   qsttg(1:imax) = qsat(ps(1:imax),tss(1:imax))                                                   ! urban
   rnet(1:imax) = sgsave(1:imax) - rgsave(1:imax) - stefbo*tss(1:imax)**4                         ! urban

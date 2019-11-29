@@ -151,10 +151,8 @@ use ateb, only :                         & ! Urban
     ,ateb_infilmeth=>infilmeth           &
     ,ateb_ac_heatcap=>ac_heatcap         &
     ,ateb_ac_coolcap=>ac_coolcap         &
-    ,ateb_ac_smooth=>ac_smooth           &
     ,ateb_ac_deltat=>ac_deltat           &
     ,ateb_acfactor=>acfactor             &
-    ,ateb_ac_copmax=>ac_copmax           &
     ,ateb_nl=>nl
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
@@ -774,10 +772,8 @@ if ( myid==0 .or. local ) then
 
     ! land, urban and carbon
     call ccnf_put_attg(idnc,'ateb_ac_coolcap',ateb_ac_coolcap)
-    call ccnf_put_attg(idnc,'ateb_ac_copmax',ateb_ac_copmax)
     call ccnf_put_attg(idnc,'ateb_ac_deltat',ateb_ac_deltat)
     call ccnf_put_attg(idnc,'ateb_ac_heatcap',ateb_ac_heatcap)
-    call ccnf_put_attg(idnc,'ateb_ac_smooth',ateb_ac_smooth)
     call ccnf_put_attg(idnc,'ateb_acfactor',ateb_acfactor)
     call ccnf_put_attg(idnc,'ateb_alpha',ateb_alpha)
     call ccnf_put_attg(idnc,'ateb_lwintmeth',ateb_lwintmeth)   

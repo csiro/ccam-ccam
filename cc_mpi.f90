@@ -2750,13 +2750,15 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: xlen
       
-      if ( size(ireq)<(size(specmap_recv)+size(specmap_send)) ) then
+      xlen = size(specmap_recv)  +size(specmap_send)
+      if ( size(ireq)<xlen ) then
          deallocate( ireq )
-         allocate( ireq(size(specmap_recv)+size(specmap_send)) )
+         allocate( ireq(xlen) )
       end if
-      if ( size(rlist)<size(specmap_recv) ) then
+      xlen = size(specmap_recv)
+      if ( size(rlist)<xlen ) then
          deallocate( rlist )
-         allocate( rlist(size(specmap_recv)) )
+         allocate( rlist(xlen) )
       end if
       xlen = ifull*ky
       do w = 1,size(specmap_recv)
