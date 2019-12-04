@@ -390,11 +390,8 @@ if ( myid==0 .or. local ) then
       call ccnf_put_att(idnc,idoc,'point_spacing','uneven')
       if ( mlosigma>=0 .and. mlosigma<4 ) then
         call ccnf_put_att(idnc,idoc,'units','sigma_level')
-      else if ( mlosigma>3 .and. mlosigma<6 ) then
-        call ccnf_put_att(idnc,idoc,'units','depth')  
       else
-        write(6,*) "ERROR: Unknown option mlosigma ",mlosigma
-        call ccmpi_abort(-1)
+        call ccnf_put_att(idnc,idoc,'units','depth')  
       end if    
     end if  
     
