@@ -217,12 +217,9 @@ if ( mlosigma>=0 .and. mlosigma<=3 ) then
     gosigh(:,ii) = gdumz(ii+wlev)
     godsig(:,ii) = gdumz(ii+2*wlev)
   end do    
-else if ( mlosigma>=4 .and. mlosigma<=5 ) then 
+else
   call bounds(gosig)
   call bounds(godsig)
-else
-  write(6,*) "ERROR: Unknown option in mlodyninit for mlosigma ",mlosigma
-  call ccmpi_abort(-1)
 end if
 do ii = 1,wlev
   godsigu(1:ifull,ii) = 0.5*(godsig(1:ifull,ii)+godsig(ie,ii))*eeu(1:ifull,ii)
@@ -350,7 +347,7 @@ call bounds(t_kh(:,1:wlev),nehalf=.true.)
 !eta(:) = t_kh(:,wlev+1)
 
 ! reduce diffusion errors where bathymetry gradients are steep
-if ( mlosigma>=0 .and. mlosigma<4 ) then
+if ( mlosigma>=0 .and. mlosigma<=3 ) then
   ! sigma levels  
   do k = 1,wlev
     dep(1:ifull,k) = gosig(1:ifull,k)*dd(1:ifull) !+ gosig(1:ifull,k)*eta(1:ifull)
@@ -574,7 +571,7 @@ logical lleap
 ! Vertical coordinates are defined as:
 !  mlosigma=0,1,2,3
 !   sig = (z+eta)/(D+eta)
-!  mlosigma=4,5
+!  mlosigma=4,5,6,7
 !   z* = D*(z+eta)/(D+eta) = sig*D
 !   from Adcroft and Campin 2003 (see also MPAS)
 
@@ -912,7 +909,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   dnetady = (oev(1:ifull)/emv(1:ifull)-oev_isv/em_isv)*em(1:ifull)**2/ds
   ddddx = (ddu(1:ifull)/emu(1:ifull)-dd_iwu/em_iwu)*em(1:ifull)**2/ds
   ddddy = (ddv(1:ifull)/emv(1:ifull)-dd_isv/em_isv)*em(1:ifull)**2/ds
-  if ( mlosigma==7 ) then
+  if ( mlojacobi==7 ) then
     do ii = 1,wlev
       w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))*(dd(1:ifull)+neta(1:ifull))/dd(1:ifull)                      &
                      - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx + neta(1:ifull)/dd(1:ifull)*gosig(1:ifull,ii)*ddddx) &
@@ -921,11 +918,9 @@ do mspec_mlo = mspeca_mlo,1,-1
     end do
   else
     do ii = 1,wlev  
-      w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))          &
-                     - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx  &
-                                      - gosig(1:ifull,ii)*ddddx)       &
-                     - nv(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetady  &
-                                      - gosig(1:ifull,ii)*ddddy))
+      w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))                                      &
+                     - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx - gosig(1:ifull,ii)*ddddx)   &
+                     - nv(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetady - gosig(1:ifull,ii)*ddddy))
                     !- (1.-gosig(1:ifull,ii))*dnetadt ! neglect for now 
     end do
   end if  
@@ -4778,7 +4773,7 @@ subroutine tsjacobi(nti,nsi,dzdum_rho,pice,drhobardxu,dfrhobardyu,dfrhobardxv,dr
 
 use indices_m
 use map_m, only : f, emu, emv
-use mlo, only : wlev, wrtemp, mloexpdensity, mlosigma
+use mlo, only : wlev, wrtemp, mloexpdensity
 use newmpar_m
 use parm_m, only : ds
 

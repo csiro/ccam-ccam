@@ -199,7 +199,7 @@ integer, parameter :: incradgam = 1       ! include shortwave in non-local term
 integer, save      :: zomode    = 2       ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: deprelax  = 0       ! surface height (0=vary, 1=relax, 2=set to zero)
 integer, save      :: otaumode  = 0       ! Momentum coupling (0=Explicit, 1=Implicit, 2=Mixed)
-integer, save      :: mlosigma  = 0       ! Sigma levels (0=cubic, 1=quad, 2=gotm, 3=linear)
+integer, save      :: mlosigma  = 0       ! Sigma levels (0=sig-cubic, 1=sig-quad, 2=sig-gotm, 3=sig-linear, 4=zstar-cubic, 5=zstar-quad, 6=zstar-gotm, 7=zstar-linear)
 integer, save      :: oclosure  = 0       ! 0- kpp, 1- k-eps
 
 !k-eps parameters
@@ -597,6 +597,18 @@ select case(mlosigma)
       depth_hlout(ii) = al*x**2 + bt*x ! ii is for half leel ii-0.5
     end do
     
+  case(6) ! Adcroft and Campin 2003 - gotm dynamic
+    do ii = 1,wlin+1
+      x = real(ii-1)
+      depth_hlout(ii) = mxd*(tanh((pdu+pdl)*x/wlin -pdu) + tanh(pdu))/(tanh(pdu)+tanh(pdl))
+    end do
+
+  case(7) ! Adcroft and Campin 2003 - linear
+    do ii = 1,wlin+1
+      x = real(ii-1)
+      depth_hlout(ii) = x*mxd/wlin
+    end do
+    
   case default
     write(6,*) "ERROR: Unknown option mlosigma=",mlosigma
     stop
@@ -635,7 +647,7 @@ select case(mlosigma)
   case(0,1,2,3)
     call vgrid(wlev,1000.,ans,ans_hl)
     ans = ans/1000.
-  case(4,5)
+  case(4,5,6,7)
     call vgrid(wlev,mxd,ans,ans_hl)
     if ( usesigma ) then
       ans = ans/mxd  
@@ -1861,10 +1873,6 @@ call mloeval_work(dt,atm_zmin,atm_zmins,atm_sg,atm_rg,atm_rnd,atm_snd,atm_u,atm_
 
 workb=emisice**0.25*ice%tsurf
 sst    =unpack((1.-ice%fracice)*(water%temp(:,1)+wrtemp)+ice%fracice*workb,wpack,sst)
-if ( maxval(water%temp(:,1))>380.-wrtemp ) then
-  write(6,*) "WARN: water%temp = ",maxval(water%temp(:,1))+wrtemp
-  water%temp(:,1) = min( water%temp(:,1), 380.-wrtemp )
-end if
 dumazmin=max(atm_zmin,dgwater%zo+0.2,zoseaice+0.2)
 workc=(1.-ice%fracice)/log(dumazmin/dgwater%zo)**2+ice%fracice/log(dumazmin/zoseaice)**2
 zo     =unpack(dumazmin*exp(-1./sqrt(workc)),wpack,zo)
@@ -3468,19 +3476,19 @@ select case(zomode)
     do it=1,4
       dumazmin=max(atm_zmin,dgwater%zo+0.2)
       afroot=vkar/log(dumazmin/dgwater%zo)
-      af=afroot*afroot
+      af=afroot**2
       daf=2.*af*afroot/(vkar*dgwater%zo)
       where ( ri>=0. ) ! stable water points
         fm=1./(1.+bprm*ri)**2
-        consea=zcom1*vmagn*vmagn*af*fm/grav+zcom2*gnu/(vmagn*sqrt(fm*af))
-        dcs=(zcom1*vmagn*vmagn/grav-0.5*zcom2*gnu/(vmagn*sqrt(fm*af)*fm*af))*(fm*daf)
+        consea=zcom1*vmagn**2*af*fm/grav+zcom2*gnu/(vmagn*sqrt(fm*af))
+        dcs=(zcom1*vmagn**2/grav-0.5*zcom2*gnu/(vmagn*sqrt(fm*af)*fm*af))*(fm*daf)
       elsewhere        ! unstable water points
         con=cms*2.*bprm*sqrt(-ri*dumazmin/dgwater%zo)
         den=1.+af*con
         fm=1.-2.*bprm*ri/den
-        dfm=2.*bprm*ri*(con*daf+af*cms*bprm*sqrt(-ri)*dumazmin/(sqrt(dumazmin/dgwater%zo)*dgwater%zo*dgwater%zo))/(den*den)
-        consea=zcom1*vmagn*vmagn*af*fm/grav+zcom2*gnu/(vmagn*sqrt(fm*af))
-        dcs=(zcom1*vmagn*vmagn/grav-0.5*zcom2*gnu/(vmagn*sqrt(fm*af)*fm*af))*(fm*daf+dfm*af)
+        dfm=2.*bprm*ri*(con*daf+af*cms*bprm*sqrt(-ri)*dumazmin/(sqrt(dumazmin/dgwater%zo)*dgwater%zo**2))/(den**2)
+        consea=zcom1*vmagn**2*af*fm/grav+zcom2*gnu/(vmagn*sqrt(fm*af))
+        dcs=(zcom1*vmagn**2/grav-0.5*zcom2*gnu/(vmagn*sqrt(fm*af)*fm*af))*(fm*daf+dfm*af)
       end where
       dgwater%zo=dgwater%zo-(dgwater%zo-consea)/(1.-dcs)      
       dgwater%zo=min(max(dgwater%zo,1.5e-5),6.)
@@ -3511,8 +3519,8 @@ select case(zomode)
     dgwater%zoh=max(zcoh1+zcoh2*gnu/(vmagn*sqrt(fm*af)),1.5E-7)
     dgwater%zoq=max(zcoq1+zcoq2*gnu/(vmagn*sqrt(fm*af)),1.5E-7)
     dumazmins=max(atm_zmins,dgwater%zo+0.2,dgwater%zoh+0.2,dgwater%zoq+0.2)
-    aft=vkar*vkar/(log(dumazmins/dgwater%zo)*log(dumazmins/dgwater%zoh))
-    afq=vkar*vkar/(log(dumazmins/dgwater%zo)*log(dumazmins/dgwater%zoq))
+    aft=vkar**2/(log(dumazmins/dgwater%zo)*log(dumazmins/dgwater%zoh))
+    afq=vkar**2/(log(dumazmins/dgwater%zo)*log(dumazmins/dgwater%zoq))
     factch=sqrt(dgwater%zo/dgwater%zoh)
     facqch=sqrt(dgwater%zo/dgwater%zoq)
 end select
