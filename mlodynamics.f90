@@ -30,13 +30,12 @@
 ! approximation which is reasonably valid to 1km resolution.
 
 ! Ocean and sea-ice dynamics are based on the R-grid used by CCAM.
-! sigma-s coordinates are used by the ocean to improve coastal
-! regions.  Flexible nudging options are used for error correction
-! (see nesting.f90).
+! z* coordinates are used by the ocean to improve density gradients.
+! Flexible nudging options are used for error correction (see
+! nesting.f90).
     
 ! Several versions of the pressure gradient terms are avaliable and
-! are specified using mlojacobi.  mlo_rtest can also be used to
-! check that the grid is sufficently smooth for sigma coordinates.
+! are specified using mlojacobi.
 
 module mlodynamics
 
@@ -45,7 +44,7 @@ implicit none
 private
 public mlodiffusion,mlohadv,mlodyninit
 public gosig,gosigh,godsig,ocnsmag,ocneps,ocndelphi
-public mlodiff,usetide,mlojacobi,mlomfix
+public mlodiff,usetide,mlojacobi,mlomfix,nodrift
 public usepice
 public dd
 public nstagoffmlo,mstagf,koff
@@ -67,7 +66,7 @@ integer, parameter :: nxtrrho     = 1       ! Estimate rho at t+1 (0=off, 1=on)
 integer, save      :: usepice     = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
 integer, save      :: mlodiff     = 0       ! diffusion (0=all, 1=scalars only)
 integer, save      :: mlojacobi   = 1       ! density gradient method (0=off, 1=non-local spline, 2=non-local linear, 6=local, 7=AC2003)
-integer, parameter :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on)
+integer, save      :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on)
 integer, save      :: mlomfix     = 1       ! Conserve T & S (0=off, 1=no free surface, 2=free surface)
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
 real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)

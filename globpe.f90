@@ -1514,7 +1514,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
-    alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,         &
+    alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,nodrift, &
     pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    & ! k-e
     nops,nopb,fixedstabfunc,omink,omineps,oclosure,               &
     rivermd,basinmd,rivercoeff,                                   & ! River
@@ -2361,7 +2361,7 @@ ateb_statsmeth    = dumi(29)
 ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(15), dumi(20) )
+allocate( dumr(15), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2406,6 +2406,7 @@ if ( myid==0 ) then
   dumi(18) = nopb
   dumi(19) = fixedstabfunc
   dumi(20) = mlomfix
+  dumi(21) = nodrift
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2444,6 +2445,7 @@ nops            = dumi(17)
 nopb            = dumi(18)
 fixedstabfunc   = dumi(19)
 mlomfix         = dumi(20)
+nodrift         = dumi(21)
 if ( oclosure==0 ) then
   nsteps = 1
 end if

@@ -837,6 +837,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mlomfix',mlomfix)
     call ccnf_put_attg(idnc,'mlosigma',mlosigma)
     call ccnf_put_attg(idnc,'mxd',mxd)
+    call ccnf_put_attg(idnc,'nodrift',nodrift)
     call ccnf_put_attg(idnc,'oclosure',oclosure)
     call ccnf_put_attg(idnc,'ocndelphi',ocndelphi)
     call ccnf_put_attg(idnc,'ocneps',ocneps)
