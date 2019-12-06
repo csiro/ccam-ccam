@@ -927,37 +927,41 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   
   ! ocean
-  ! Prepare pressure gradient terms at t=t and incorporate into velocity field
+  ! Prepare pressure gradient terms at time t and incorporate into velocity field
   detadxu = (neta_e-neta(1:ifull))*emu(1:ifull)/ds
   detadyv = (neta_n-neta(1:ifull))*emv(1:ifull)/ds
   do ii = 1,wlev
     gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
     gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
-    tau(:,ii) = grav*gosigu*max(ddu(1:ifull)+oeu(1:ifull),minwater)*drhobardxu(:,ii)/wrtrho  &
+    !tau(:,ii) = grav*gosigu*max(ddu(1:ifull)+oeu(1:ifull),minwater)*drhobardxu(:,ii)/wrtrho  &
+    !           + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu ! staggered
+    !tav(:,ii) = grav*gosigv*max(ddv(1:ifull)+oev(1:ifull),minwater)*drhobardyv(:,ii)/wrtrho  &
+    !           + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv
+    tau(:,ii) = grav*gosigu*ddu(1:ifull)*drhobardxu(:,ii)/wrtrho  &
                + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu ! staggered
-    tav(:,ii) = grav*gosigv*max(ddv(1:ifull)+oev(1:ifull),minwater)*drhobardyv(:,ii)/wrtrho  &
+    tav(:,ii) = grav*gosigv*ddv(1:ifull)*drhobardyv(:,ii)/wrtrho  &
                + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv  
   end do
-  if ( mlojacobi==7 ) then
-    do iq = 1,ifull
-      tnu(iq) = 0.5*( dd_n(iq)*f_n(iq) + dd(ien(iq))*f(ien(iq)) )
-      tsu(iq) = 0.5*( dd_s(iq)*f_s(iq) + dd(ies(iq))*f(ies(iq)) )
-      tev(iq) = 0.5*( dd_e(iq)*f_e(iq) + dd(ine(iq))*f(ine(iq)) )
-      twv(iq) = 0.5*( dd_w(iq)*f_w(iq) + dd(inw(iq))*f(inw(iq)) )
-    end do  
-    ddddxu = (dd_e-dd(1:ifull))*emu(1:ifull)/ds
-    dfdddyu = (stwgt(1:ifull,1)*(tnu-tsu))*emu(1:ifull)/ds
-    dfdddxv = (stwgt(1:ifull,1)*(tev-twv))*emv(1:ifull)/ds
-    ddddyv = (dd_n-dd(1:ifull))*emv(1:ifull)/ds
-    do ii = 1,wlev
-      gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
-      gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
-      tau(:,ii) = tau(:,ii) - grav*rhou(1:ifull,ii)/wrtrho &
-                 *((1.-gosigu)*detadxu+gosigu*oeu(1:ifull)/ddu(1:ifull)*ddddxu) ! staggered
-      tav(:,ii) = tav(:,ii) - grav*rhov(1:ifull,ii)/wrtrho &
-                 *((1.-gosigv)*detadyv+gosigv*oev(1:ifull)/ddv(1:ifull)*ddddyv)
-    end do
-  end if
+  !if ( mlojacobi==7 ) then
+  !  do iq = 1,ifull
+  !    tnu(iq) = 0.5*( dd_n(iq)*f_n(iq) + dd(ien(iq))*f(ien(iq)) )
+  !    tsu(iq) = 0.5*( dd_s(iq)*f_s(iq) + dd(ies(iq))*f(ies(iq)) )
+  !    tev(iq) = 0.5*( dd_e(iq)*f_e(iq) + dd(ine(iq))*f(ine(iq)) )
+  !    twv(iq) = 0.5*( dd_w(iq)*f_w(iq) + dd(inw(iq))*f(inw(iq)) )
+  !  end do  
+  !  ddddxu = (dd_e-dd(1:ifull))*emu(1:ifull)/ds
+  !  dfdddyu = (stwgt(1:ifull,1)*(tnu-tsu))*emu(1:ifull)/ds
+  !  dfdddxv = (stwgt(1:ifull,1)*(tev-twv))*emv(1:ifull)/ds
+  !  ddddyv = (dd_n-dd(1:ifull))*emv(1:ifull)/ds
+  !  do ii = 1,wlev
+  !    gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
+  !    gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
+  !    tau(:,ii) = tau(:,ii) - grav*rhou(1:ifull,ii)/wrtrho &
+  !               *((1.-gosigu)*detadxu+gosigu*oeu(1:ifull)/ddu(1:ifull)*ddddxu) ! staggered
+  !    tav(:,ii) = tav(:,ii) - grav*rhov(1:ifull,ii)/wrtrho &
+  !               *((1.-gosigv)*detadyv+gosigv*oev(1:ifull)/ddv(1:ifull)*ddddyv)
+  !  end do
+  !end if
   ! ice
   !tau(:,wlev+1)=grav*(neta_e-neta(1:ifull))*emu(1:ifull)/ds ! staggered
   !tav(:,wlev+1)=grav*(neta_n-neta(1:ifull))*emv(1:ifull)/ds
@@ -1004,7 +1008,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     cou(1:ifull,ii,3) = az(1:ifull)*uau(:,ii) + bz(1:ifull)*uav(:,ii)
   end do
   ! Horizontal advection for U, V, W
-  call mlob2ints_uv(cou(:,:,1:3),nface,xg,yg,wtr)
+  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr)
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
   ! Convert (U,V,W) back to conformal cubic coordinates
@@ -1015,20 +1019,17 @@ do mspec_mlo = mspeca_mlo,1,-1
     uav(:,ii) = uav(:,ii)*ee(1:ifull,ii)
   end do
 
-  ! Horizontal advection for continuity
-  cou(1:ifull,1:wlev,1) = mps(1:ifull,1:wlev)
-  call mlob2ints(cou(:,:,1:1),nface,xg,yg,wtr)
-  mps(1:ifull,1:wlev) = cou(1:ifull,1:wlev,1)
-
-  ! Horizontal advection for T and S
+  ! Horizontal advection for T, S and continuity
   do ii = 1,wlev
     cou(1:ifull,ii,1) = nt(1:ifull,ii)
     cou(1:ifull,ii,2) = ns(1:ifull,ii) - 34.72
+    cou(1:ifull,ii,3) = mps(1:ifull,ii)
   end do
-  call mlob2ints_bs(cou(:,:,1:2),nface,xg,yg,wtr)
+  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr)
   do ii = 1,wlev
     nt(1:ifull,ii) = max( cou(1:ifull,ii,1), -wrtemp )
     ns(1:ifull,ii) = max( cou(1:ifull,ii,2) + 34.72, 0. )
+    mps(1:ifull,ii) = cou(1:ifull,ii,3)
   end do
 
 
@@ -1142,15 +1143,16 @@ do mspec_mlo = mspeca_mlo,1,-1
             
     au(:) = ccu(1:ifull,ii)
     bu(:) = dumf(:)
-    cu(:) =  (1.+ocneps)*0.5*dt*fu(1:ifull)*bu(:)*stwgt(1:ifull,ii)
+    cu(:) =  (1.+ocneps)*0.5*dt*fu(1:ifull)*bu(:)
   
     av(:) = ccv(1:ifull,ii)
     bv(:) = dumg(:)
-    cv(:) = -(1.+ocneps)*0.5*dt*fv(1:ifull)*bv(:)*stwgt(1:ifull,ii)
+    cv(:) = -(1.+ocneps)*0.5*dt*fv(1:ifull)*bv(:)
 
-    ! P = grav*rhobar*(z*)
-    ! dPdx = grav*sig*dd*drhobardx + grav*rhobar*(1/(dd+neta))*(dd*(1-sig)*detadx+eta*sig*d(dd)dx)
-    !      = grav*sig*dd*drhobardx + grav*rhobar*detadx (approximate)
+    ! dPdz = grav*rho
+    ! dPdz* = grav*rho*(eta+D)/D
+    ! P = grav*rhobar*(eta+D)*(z*)/D = grav*rhobar*(z+eta) = grav*rhobar*sig*(eta+D)
+    ! dPdx = grav*sig*(eta+D)*drhobardx + grav*rhobar*detadx
     
     ! Note pressure gradients are along constant z surfaces
     !p = ps + grav*wrtrho*tt + grav*sig*dd*wrtrho
@@ -1161,14 +1163,14 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! which produces a 5-point stencil when solving for
     ! neta and ip.
     
-    !dpdxu=dpsdxu+grav*wrtrho*dttdxu+grav*sig*ddu*drhobardxu+grav*wrtrho*detadxu 
-    !! +grav*(rho-rhobar)*sig*((etau/ddu)*d(ddu)/dxu-detadxu) ! for z*
+    !dpdxu=dpsdxu+grav*wrtrho*dttdxu+grav*sig*ddu*drhobardxu+grav*wrtrho*detadxu
+    !! + grav*sig*etau*drhobardxu
     !dpdyu=dpsdyu+grav*wrtrho*dttdyu+grav*sig*ddu*drhobardyu+grav*wrtrho*detadyu
-    !! +grav*(rho-rhobar)*sig*((etau/ddu)*d(ddu)/dyu-detadyu) ! for z*
+    !! + grav*sig*etau*drhobardyu
     !dpdxv=dpsdxv+grav*wrtrho*dttdxv+grav*sig*ddv*drhobardxv+grav*wrtrho*detadxv
-    !! +grav*(rho-rhobar)*sig*((etav/ddv)*d(ddv)/dxv-detadxv) ! for z*
+    !! + grav*sig*etav*drhobardxv
     !dpdyv=dpsdyv+grav*wrtrho*dttdyv+grav*sig*ddv*drhobardyv+grav*wrtrho*detadyv
-    !! +grav*(rho-rhobar)*sig*((etav/ddv)*d(ddv)/dyv-detadyv) ! for z*
+    !! + grav*sig*etav*drhobardyv
 
     ! Create arrays for u and v at t+1 in terms of neta gradients
     
@@ -1182,31 +1184,33 @@ do mspec_mlo = mspeca_mlo,1,-1
               + cu*(dfpsdyu/wrtrho+grav*dfttdyu)
     llu(:,ii) = grav*gosigu*(bu*drhobardxu(:,ii)/wrtrho - cu*dfdyu + cu*dfrhobardyu(:,ii)/wrtrho)
     mmu(:,ii) = bu*grav
-    nnu(:,ii) = cu*grav
+    nnu(:,ii) = cu*grav   
     oou(:,ii) = grav*gosigu*(bu*drhobardxu(:,ii)/wrtrho - cu*dfdyu + cu*dfrhobardyu(:,ii)/wrtrho)
+    oou(:,ii) = 0. ! neglect grav*sig*etau*drhobardxu
     ppu(:,ii) = -grav*cu*dfdyu
 
     kkv(:,ii) = av + bv*(dpsdyv/wrtrho+grav*dttdyv) - cv*dfdxv*(picev/wrtrho+grav*tidev) &
               + cv*(dfpsdxv/wrtrho+grav*dfttdxv)
     llv(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii)/wrtrho - cv*dfdxv + cv*dfrhobardxv(:,ii)/wrtrho)
-    mmv(:,ii) = bv*grav 
+    mmv(:,ii) = bv*grav
     nnv(:,ii) = cv*grav
     oov(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii)/wrtrho - cv*dfdxv + cv*dfrhobardxv(:,ii)/wrtrho)
+    oov(:,ii) = 0. ! neglect grav*sig*etav*drhobardyv
     ppv(:,ii) = -grav*cv*dfdxv
 
-    if ( mlojacobi==7 ) then
-      ! Include rho/wrtho term from geopotential gradient (see Adcroft and Campin  2004)
-      ! dphidx = grav*(ddddx*sig*eta/(D+eta)+detadx*D/(D+eta)*(1-sig))
-      ! dphidx = grav*(ddddx*sig*eta/D+detadx*(1-sig)) (approx)
-      mmu(:,ii) = mmu(:,ii) - grav*rhou(:,ii)/wrtrho*(1.-gosigu)*bu
-      nnu(:,ii) = nnu(:,ii) - grav*rhou(:,ii)/wrtrho*(1.-gosigu)*cu
-      oou(:,ii) = oou(:,ii) - grav*rhou(:,ii)/wrtrho*gosigu*(bu*ddddxu/ddu(1:ifull) &
-          -cu*dfdyu+cu*dfdddyu/ddu(1:ifull))
-      mmv(:,ii) = mmv(:,ii) - grav*rhov(:,ii)/wrtrho*(1.-gosigv)*bv
-      nnv(:,ii) = nnv(:,ii) - grav*rhov(:,ii)/wrtrho*(1.-gosigv)*cv
-      oov(:,ii) = oov(:,ii) - grav*rhov(:,ii)/wrtrho*gosigv*(bv*ddddyv/ddv(1:ifull) &
-          -cv*dfdxv+cv*dfdddxv/ddv(1:ifull))
-    end if
+    !if ( mlojacobi==7 ) then
+    !  ! Include rho/wrtho term from geopotential gradient (see Adcroft and Campin  2004)
+    !  ! dphidx = grav*(ddddx*sig*eta/(D+eta)+detadx*D/(D+eta)*(1-sig))
+    !  ! dphidx = grav*(ddddx*sig*eta/D+detadx*(1-sig)) (approx)
+    !  mmu(:,ii) = mmu(:,ii) - grav*rhou(:,ii)/wrtrho*(1.-gosigu)*bu
+    !  nnu(:,ii) = nnu(:,ii) - grav*rhou(:,ii)/wrtrho*(1.-gosigu)*cu
+    !  oou(:,ii) = oou(:,ii) - grav*rhou(:,ii)/wrtrho*gosigu*(bu*ddddxu/ddu(1:ifull) &
+    !      -cu*dfdyu+cu*dfdddyu/ddu(1:ifull))
+    !  mmv(:,ii) = mmv(:,ii) - grav*rhov(:,ii)/wrtrho*(1.-gosigv)*bv
+    !  nnv(:,ii) = nnv(:,ii) - grav*rhov(:,ii)/wrtrho*(1.-gosigv)*cv
+    !  oov(:,ii) = oov(:,ii) - grav*rhov(:,ii)/wrtrho*gosigv*(bv*ddddyv/ddv(1:ifull) &
+    !      -cv*dfdxv+cv*dfdddxv/ddv(1:ifull))
+    !end if
     
     kku(:,ii) = kku(:,ii)*eeu(1:ifull,ii)
     llu(:,ii) = llu(:,ii)*eeu(1:ifull,ii)
@@ -2546,10 +2550,10 @@ endif                     ! (intsch==1) .. else ..
 
 call intssync_recv(s)
 
-do nn=1,ntr
-  do k=1,wlev
+do nn = 1,ntr
+  do k = 1,wlev
     where ( .not.wtr(1:ifull,k) )
-      s(1:ifull,k,nn)=0.
+      s(1:ifull,k,nn) =0.
     end where
   end do
 end do
@@ -2589,13 +2593,13 @@ logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
 
 call START_LOG(waterints_begin)
 
-ntr=size(s,3)
-intsch=mod(ktau,2)
+ntr = size(s,3)
+intsch = mod(ktau,2)
 
-do nn=1,ntr
-  do k=1,wlev
+do nn = 1,ntr
+  do k = 1,wlev
     where (.not.wtr(1:ifull,k))
-      s(1:ifull,k,nn)=cxx-1. ! missing value flag
+      s(1:ifull,k,nn) = cxx - 1. ! missing value flag
     end where
   end do
 end do
@@ -2868,10 +2872,10 @@ end if                     ! (intsch==1) .. else ..
 
 call intssync_recv(s)
 
-do nn=1,ntr
-  do k=1,wlev
+do nn = 1,ntr
+  do k = 1,wlev
     where ( .not.wtr(1:ifull,k) .or. s(1:ifull,k,nn)<cxx+10. )
-      s(1:ifull,k,nn)=0.
+      s(1:ifull,k,nn) = 0.
     end where
   end do
 end do
