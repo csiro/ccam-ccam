@@ -909,21 +909,21 @@ do mspec_mlo = mspeca_mlo,1,-1
   dnetady = (oev(1:ifull)/emv(1:ifull)-oev_isv/em_isv)*em(1:ifull)**2/ds
   ddddx = (ddu(1:ifull)/emu(1:ifull)-dd_iwu/em_iwu)*em(1:ifull)**2/ds
   ddddy = (ddv(1:ifull)/emv(1:ifull)-dd_isv/em_isv)*em(1:ifull)**2/ds
-  if ( mlojacobi==7 ) then
-    do ii = 1,wlev
-      w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))*(dd(1:ifull)+neta(1:ifull))/dd(1:ifull)                      &
-                     - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx + neta(1:ifull)/dd(1:ifull)*gosig(1:ifull,ii)*ddddx) &
-                     - nv(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetady + neta(1:ifull)/dd(1:ifull)*gosig(1:ifull,ii)*ddddy))
-                     !- (1.-gosig(1:ifull,ii))*dnetadt ! neglect for now
-    end do
-  else
+  !if ( mlojacobi==7 ) then
+  !  do ii = 1,wlev
+  !    w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))*(dd(1:ifull)+neta(1:ifull))/dd(1:ifull)                      &
+  !                   - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx + neta(1:ifull)/dd(1:ifull)*gosig(1:ifull,ii)*ddddx) &
+  !                   - nv(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetady + neta(1:ifull)/dd(1:ifull)*gosig(1:ifull,ii)*ddddy))
+  !                   !- (1.-gosig(1:ifull,ii))*dnetadt ! neglect for now
+  !  end do
+  !else
     do ii = 1,wlev  
       w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))                                      &
                      - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx - gosig(1:ifull,ii)*ddddx)   &
                      - nv(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetady - gosig(1:ifull,ii)*ddddy))
                     !- (1.-gosig(1:ifull,ii))*dnetadt ! neglect for now 
     end do
-  end if  
+  !end if  
 
   
   ! ocean
@@ -1008,7 +1008,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     cou(1:ifull,ii,3) = az(1:ifull)*uau(:,ii) + bz(1:ifull)*uav(:,ii)
   end do
   ! Horizontal advection for U, V, W
-  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr)
+  call mlob2ints_uv(cou(:,:,1:3),nface,xg,yg,wtr)
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
   ! Convert (U,V,W) back to conformal cubic coordinates
@@ -1155,7 +1155,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! dPdx = grav*sig*(eta+D)*drhobardx + grav*rhobar*detadx
     
     ! Note pressure gradients are along constant z surfaces
-    !p = ps + grav*wrtrho*tt + grav*sig*dd*wrtrho
+    ! p = ps + grav*wrtrho*tt + grav*sig*(dd+eta)*wrtrho
 
     ! We use a modified form of JLM's trick where:
     !   dP/dx+f dP/dy = dP/dx + d(fP)/dy - P df/dy
@@ -1164,13 +1164,13 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! neta and ip.
     
     !dpdxu=dpsdxu+grav*wrtrho*dttdxu+grav*sig*ddu*drhobardxu+grav*wrtrho*detadxu
-    !! + grav*sig*etau*drhobardxu
+    !! + grav*sig*etau*drhobardxu (neglect)
     !dpdyu=dpsdyu+grav*wrtrho*dttdyu+grav*sig*ddu*drhobardyu+grav*wrtrho*detadyu
-    !! + grav*sig*etau*drhobardyu
+    !! + grav*sig*etau*drhobardyu (neglect)
     !dpdxv=dpsdxv+grav*wrtrho*dttdxv+grav*sig*ddv*drhobardxv+grav*wrtrho*detadxv
-    !! + grav*sig*etav*drhobardxv
+    !! + grav*sig*etav*drhobardxv (neglect)
     !dpdyv=dpsdyv+grav*wrtrho*dttdyv+grav*sig*ddv*drhobardyv+grav*wrtrho*detadyv
-    !! + grav*sig*etav*drhobardyv
+    !! + grav*sig*etav*drhobardyv (neglect)
 
     ! Create arrays for u and v at t+1 in terms of neta gradients
     
@@ -5357,6 +5357,18 @@ real, dimension(ifull) :: f_in,f_ien,f_ie,f_is,f_ies,f_ine,f_iw,f_inw
 real, dimension(ifull+iextra) :: dd_i
 real, dimension(ifull) :: ddn, dds, dde, ddw, dden, ddes, ddne, ddnw
 real, dimension(ifull,wlev) :: ffu, ffv, ffwgt
+
+! Here we calculate the slow contribution of the pressure gradient
+
+! dP/dx = g rhobar dneta/dx + g sigma D drhobar/dx + g sigma neta drhobar/dx
+!                   (fast)               (slow)          (mixed - neglected?)
+
+! rhobar = int_0^sigma rho dsigma / sigma
+
+! MJT notes - this version fades out extrapolated gradients using ramp_a, etc.
+!
+! Idealy, we want to separate the neta contribution to drhobar/dx so that it
+! can be included in the implicit solution to neta.
 
 do ii = 1,wlev
   dd_i(:) = gosig(:,ii)*dd(:)
