@@ -216,9 +216,15 @@ end if
 select case(nhorjlm)
   case(0)
     ! This is based on 2D Smagorinsky closure
+    ! uses (dv/dx+du/dy)**2 + .5*(du/dx)**2 + .5*(dv/dy)**2
+    ! following Kikuchi et al. 1981      now Smag. Wed  04-30-1997
+    ! N.B. original Smag. had m on top (in D formulae) and khdif=3.2
+    ! More recently (21/9/00) I think original Smag has khdif=0.8
+    ! Smag's actual diffusion also differentiated Dt and Ds
+    ! t_kh is kh at t points
     do k = 1,kl
       hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
-      r1(:)=(dudx(:,k)-dvdy(:,k))**2+(dvdx(:,k)+dudy(:,k))**2
+      r1 = (dvdx(:,k)+dudy(:,k))**2 + 0.5*dudx(:,k)**2 + 0.5*dvdy(:,k)**2
       t_kh(1:ifull,k)=sqrt(r1(:))*hdif*emi(:,k)
     end do
     call bounds(t_kh,nehalf=.true.)
@@ -476,10 +482,10 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
     do k = 1,kl  
       call unpack_nsew(work(:,k),work_n,work_s,work_e,work_w)  
       xtg(1:ifull,k,nstart) = ( emi(1:ifull,k)*work(1:ifull,k) +    &
-                             xfact(1:ifull,k)*work_e +                    &
-                             xfact_iwu(1:ifull,k)*work_w +                &
-                             yfact(1:ifull,k)*work_n +                    &
-                             yfact_isv(1:ifull,k)*work_s ) / base(1:ifull,k)
+                                xfact(1:ifull,k)*work_e +           &
+                                xfact_iwu(1:ifull,k)*work_w +       &
+                                yfact(1:ifull,k)*work_n +           &
+                                yfact_isv(1:ifull,k)*work_s ) / base(1:ifull,k)
     end do
   end do
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
