@@ -164,14 +164,6 @@ call globpe_init
 
 
 !--------------------------------------------------------------
-! Shutdown unused processes
-if ( myid>=nproc ) then
-  call ccmpi_finalize
-  stop
-end if
-
-
-!--------------------------------------------------------------
 ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
 if ( nwt>0 ) then
   ! write out the first ofile data set
@@ -1404,6 +1396,7 @@ integer mstn, io_nest, mbd_min
 integer opt, nopt
 integer ateb_intairtmeth, ateb_intmassmeth
 integer npa, npb, tkecduv, tblock  ! depreciated namelist options
+integer o3_time_interpolate        ! depreciated namelist opeions
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -1461,7 +1454,8 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
     saltlargemtn,                                                 &
-    o3_vert_interpolate,o3_time_interpolate                         ! ozone
+    o3_vert_interpolate,                                          & ! ozone
+    o3_time_interpolate                                             ! depreciated
 ! file namelist
 namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &
@@ -2586,6 +2580,7 @@ nsig    = nint(temparray(8))
 ! requires a larger number of MPI messages.
 call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp,uniform_decomp)
 call ccmpi_reinit(new_nproc) 
+
 
 if ( myid<nproc ) then
     

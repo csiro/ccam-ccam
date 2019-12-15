@@ -40,9 +40,7 @@ integer, save :: ilon, ilat, ilev
 integer, save :: oxidant_timer = -9999
 integer, parameter :: naerofamilies = 7      ! Number of aerosol families for optical depth
 integer, parameter :: updateoxidant = 1440   ! update prescribed oxidant fields once per day
-real, dimension(:,:,:), allocatable, save :: oxidantprev_g
 real, dimension(:,:,:), allocatable, save :: oxidantnow_g
-real, dimension(:,:,:), allocatable, save :: oxidantnext_g
 real, dimension(:,:,:), allocatable, save :: opticaldepth
 real, dimension(:,:), allocatable, save :: ppfprec, ppfmelt, ppfsnow           ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfevap, ppfsubl, pplambs, ppmrate  ! data saved from LDR cloud scheme
@@ -92,7 +90,7 @@ include 'kuocom.h'                          ! Convection parameters
 integer, intent(in) :: mins
 integer tile, is, ie, idjd_t
 integer k, j, tt, ttx, kinv, smins
-real, dimension(imax,ilev) :: loxidantprev, loxidantnow, loxidantnext
+real, dimension(imax,ilev) :: loxidantnow
 real, dimension(imax,kl,naero) :: lxtg, lxtosav, lxtg_solub
 real, dimension(imax,kl,4) :: lzoxidant
 real, dimension(imax,kl,2) :: lssn
@@ -121,12 +119,9 @@ if ( oxidant_update ) then
     is = (tile-1)*imax + 1
     ie = tile*imax
     do j = 1,4
-      loxidantprev(:,1:ilev) = oxidantprev_g(is:ie,1:ilev,j)
       loxidantnow(:,1:ilev)  = oxidantnow_g(is:ie,1:ilev,j)
-      loxidantnext(:,1:ilev) = oxidantnext_g(is:ie,1:ilev,j)
       ! note levels are inverted by fieldinterpolate
-      call fieldinterpolate(lzoxidant(:,:,j),loxidantprev,loxidantnow,loxidantnext, &
-                            rlev,imax,kl,ilev,mins,sig,ps(is:ie),interpmeth=0,meanmeth=1)
+      call fieldinterpolate(lzoxidant(:,:,j),loxidantnow,rlev,imax,kl,ilev,sig,ps(is:ie),interpmeth=0)
       zoxidant_g(is:ie,:,j) = lzoxidant(:,:,j)
     end do
     ! estimate day length (presumably to preturb day-time OH levels)
@@ -169,7 +164,7 @@ do tile = 1,ntiles
   ie = tile*imax
   call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),cldcon=cldcon(is:ie))
   clcon(is:ie,:) = lclcon    
-    end do
+end do
 !$omp end do nowait    
     
 !$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                              &
@@ -400,13 +395,12 @@ implicit none
 integer, intent(in) :: kdatein
 integer ncstatus, ncid, i, j, varid, tilg
 integer jyear, jmonth
-integer premonth, nxtmonth
 integer, dimension(2) :: spos, npos
 integer, dimension(3) :: idum
 integer, dimension(4) :: sposs, nposs
 real, dimension(:,:), allocatable, save :: dumg
 real, dimension(ifull,16) :: duma
-real, dimension(:,:,:,:), allocatable, save :: oxidantdum
+real, dimension(:,:,:), allocatable, save :: oxidantdum
 real, dimension(:), allocatable, save :: rlon, rlat
 real, dimension(:), allocatable, save :: rpack
 real tlat, tlon, tschmidt
@@ -624,11 +618,9 @@ if ( myid==0 ) then
   idum(2) = ilat
   idum(3) = ilev
   call ccmpi_bcast(idum(1:3),0,comm_world)
-  allocate( oxidantprev_g(ifull,ilev,4) )
   allocate( oxidantnow_g(ifull,ilev,4) )
-  allocate( oxidantnext_g(ifull,ilev,4) )
   allocate( rlon(ilon), rlat(ilat), rlev(ilev) )
-  allocate( oxidantdum(ilon,ilat,ilev,3) )
+  allocate( oxidantdum(ilon,ilat,ilev) )
   sposs = 1
   nposs(1) = ilon
   nposs(2) = ilat
@@ -637,10 +629,6 @@ if ( myid==0 ) then
   ! use kdate_s as kdate has not yet been defined
   jyear = kdatein/10000
   jmonth = (kdatein-jyear*10000)/100
-  premonth = jmonth - 1
-  if ( premonth < 1 ) premonth = 12
-  nxtmonth = jmonth + 1
-  if ( nxtmonth > 12 ) nxtmonth = 1
   write(6,*) "Processing oxidant file for month ",jmonth
   call ccnf_inq_varid(ncid,'lon',varid,tst)
   if (tst) then
@@ -672,56 +660,40 @@ if ( myid==0 ) then
     write(6,*) "ERROR: Cannot locate OH"
     call ccmpi_abort(-1)
   end if
-  sposs(4) = premonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
   sposs(4) = jmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-  sposs(4) = nxtmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
-  call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev_g(:,:,1),oxidantnow_g(:,:,1),oxidantnext_g(:,:,1),oxidantdum,rlon,rlat)
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum)
+  call ccmpi_bcast(oxidantdum,0,comm_world)
+  call o3regrid(oxidantnow_g(:,:,1),oxidantdum,rlon,rlat)
   write(6,*) "Reading H2O2"
   call ccnf_inq_varid(ncid,'H2O2',varid,tst)
   if ( tst ) then
     write(6,*) "ERROR: Cannot locate H2O2"
     call ccmpi_abort(-1)
   end if
-  sposs(4) = premonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
   sposs(4) = jmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-  sposs(4) = nxtmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
-  call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev_g(:,:,2),oxidantnow_g(:,:,2),oxidantnext_g(:,:,2),oxidantdum,rlon,rlat)
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum)
+  call ccmpi_bcast(oxidantdum,0,comm_world)
+  call o3regrid(oxidantnow_g(:,:,2),oxidantdum,rlon,rlat)
   write(6,*) "Reading O3"
   call ccnf_inq_varid(ncid,'O3',varid,tst)
   if ( tst ) then
     write(6,*) "ERROR: Cannot locate O3"
     call ccmpi_abort(-1)
   end if
-  sposs(4) = premonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
   sposs(4) = jmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-  sposs(4) = nxtmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
-  call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev_g(:,:,3),oxidantnow_g(:,:,3),oxidantnext_g(:,:,3),oxidantdum,rlon,rlat)
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum)
+  call ccmpi_bcast(oxidantdum,0,comm_world)
+  call o3regrid(oxidantnow_g(:,:,3),oxidantdum,rlon,rlat)
   write(6,*) "Reading NO2"
   call ccnf_inq_varid(ncid,'NO2',varid,tst)
   if ( tst ) then
     write(6,*) "ERROR: Cannot locate NO2"
     call ccmpi_abort(-1)
   end if
-  sposs(4) = premonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
   sposs(4) = jmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-  sposs(4) = nxtmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
-  call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev_g(:,:,4),oxidantnow_g(:,:,4),oxidantnext_g(:,:,4),oxidantdum,rlon,rlat)
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum)
+  call ccmpi_bcast(oxidantdum,0,comm_world)
+  call o3regrid(oxidantnow_g(:,:,4),oxidantdum,rlon,rlat)
   call ccnf_close(ncid)
   deallocate(oxidantdum,rlat,rlon)
 else
@@ -740,11 +712,9 @@ else
   ilon = idum(1)
   ilat = idum(2)
   ilev = idum(3)
-  allocate( oxidantprev_g(ifull,ilev,4) )
   allocate( oxidantnow_g(ifull,ilev,4) )
-  allocate( oxidantnext_g(ifull,ilev,4) )
   allocate( rlon(ilon), rlat(ilat), rlev(ilev) )
-  allocate( oxidantdum(ilon,ilat,ilev,3) )
+  allocate( oxidantdum(ilon,ilat,ilev) )
   allocate( rpack(ilon+ilat+ilev) )
   call ccmpi_bcast(rpack,0,comm_world)
   rlon(1:ilon) = rpack(1:ilon)
@@ -752,8 +722,8 @@ else
   rlev(1:ilev) = rpack(ilon+ilat+1:ilon+ilat+ilev)
   deallocate( rpack )
   do j = 1,4
-    call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-    call o3regrid(oxidantprev_g(:,:,j),oxidantnow_g(:,:,j),oxidantnext_g(:,:,j),oxidantdum,rlon,rlat)    
+    call ccmpi_bcast(oxidantdum,0,comm_world)
+    call o3regrid(oxidantnow_g(:,:,j),oxidantdum,rlon,rlat)    
   end do
   deallocate(oxidantdum,rlat,rlon)
 end if

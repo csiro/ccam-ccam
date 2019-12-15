@@ -1396,65 +1396,65 @@ if ( .not.lrestart ) then
     if ( myid==0 ) then
       write(6,*) "Using preset soil/snow initial conditions with nrungcm=",nrungcm
     end if  
-    iyr=kdate/10000
-    imo=(kdate-10000*iyr)/100
-    do iq=1,ifull
-      if(land(iq))then
-        iveg=ivegt(iq)
-        if (nsib==6.or.nsib==7) iveg=1
-        isoil=isoilm(iq)
-        rlonx=rlongg(iq)*180./pi
-        rlatx=rlatt(iq)*180./pi
+    iyr = kdate/10000
+    imo = (kdate-10000*iyr)/100
+    do iq = 1,ifull
+      if ( land(iq) ) then
+        iveg = ivegt(iq)
+        if ( nsib==6 .or. nsib==7 ) iveg = 1
+        isoil = isoilm(iq)
+        rlonx = rlongg(iq)*180./pi
+        rlatx = rlatt(iq)*180./pi
         ! fracsum(imo) is .5 for nh summer value, -.5 for nh winter value
-        fracs=sign(1.,rlatt(iq))*fracsum(imo)  ! +ve for local summer
-        if(nrungcm>5)then
-          fracwet=.01*nrungcm   ! e.g. 50 gives .5
+        fracs = sign(1.,rlatt(iq))*fracsum(imo)  ! +ve for local summer
+        if ( nrungcm>5 ) then
+          fracwet = .01*nrungcm   ! e.g. 50 gives .5
         else
-          fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
+          fracwet = (.5+fracs)*fracwets(iveg) + (.5-fracs)*fracwetw(iveg)
           ! N.B. for all Dean's points, fracwet=fracwets=fracwetw=.5           
-        endif
-        wb(iq,ms)= (1.-fracwet)*swilt(isoilm(iq))+fracwet*sfc(isoilm(iq)) 
-        if(abs(rlatx)<18.)wb(iq,ms)=sfc(isoilm(iq)) ! tropics
+        end if
+        wb(iq,ms) = (1.-fracwet)*swilt(isoilm(iq)) + fracwet*sfc(isoilm(iq)) 
+        if ( abs(rlatx)<18. ) wb(iq,ms) = sfc(isoilm(iq)) ! tropics
         ! following jlm subtropics from Aug 2003 (.1/.9), (.6, .4)
-        if(rlatx<20..and.rlatx>8.) then
-          wb(iq,ms)=(.35-.5*fracsum(imo))*swilt(isoilm(iq))+(.65+.5*fracsum(imo))*sfc(isoilm(iq)) ! NH
+        if ( rlatx<20. .and. rlatx>8. ) then
+          wb(iq,ms) = (.35-.5*fracsum(imo))*swilt(isoilm(iq)) + (.65+.5*fracsum(imo))*sfc(isoilm(iq)) ! NH
         end if
-        if(rlatx>-16..and.rlatx<-8.) then
-          wb(iq,ms)=(.35+.5*fracsum(imo))*swilt(isoilm(iq))+(.65-.5*fracsum(imo))*sfc(isoilm(iq)) ! SH
+        if( rlatx>-16. .and. rlatx<-8. ) then
+          wb(iq,ms) = (.35+.5*fracsum(imo))*swilt(isoilm(iq)) + (.65-.5*fracsum(imo))*sfc(isoilm(iq)) ! SH
         end if
-        if(rlatx>-32..and.rlatx<-22..and.rlonx>117..and.rlonx<146.) then
-          if(nrungcm==-6)then
+        if ( rlatx>-32. .and. rlatx<-22. .and. rlonx>117. .and. rlonx<146. ) then
+          if ( nrungcm==-6 ) then
             ! following tapers it over 2 degrees lat/long
-            alf=.5*min(abs(rlonx-117.),abs(rlonx-146.),abs(rlatx+22.),abs(rlatx+32.),2.)
-            wb(iq,ms)=alf*swilt(isoilm(iq))+(1.-alf)*wb(iq,ms)
+            alf = .5*min(abs(rlonx-117.),abs(rlonx-146.),abs(rlatx+22.),abs(rlatx+32.),2.)
+            wb(iq,ms) = alf*swilt(isoilm(iq)) + (1.-alf)*wb(iq,ms)
           else
-            wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of Australia
+            wb(iq,ms) = swilt(isoilm(iq)) ! dry interior of Australia
           endif
         endif
       endif    ! (land(iq))
     enddo     ! iq loop
-    do k=1,ms-1
-      wb(:,k)=wb(:,ms)
+    do k = 1,ms-1
+      wb(:,k) = wb(:,ms)
     enddo    !  k loop
     if ( nsib==6 .or. nsib==7 ) then
       ! update CABLE soil moisture
       call newcbmwb
     end if
 
-    do iq=1,ifull
+    do iq = 1,ifull
       ! fix for antarctic snow
-      if(land(iq).and.rlatt(iq)*180./pi<-60.)snowd(iq)=max(snowd(iq),400.)
+      if ( land(iq) .and. rlatt(iq)*180./pi<-60. ) snowd(iq) = max(snowd(iq),400.)
     enddo   ! iq loop
 
     if ( mydiag ) then
-      iveg=ivegt(idjd)
-      if (nsib==6.or.nsib==7) iveg=1
-      isoil=isoilm(idjd)
-      if (isoil>0 .and. iveg>0) then
+      iveg = ivegt(idjd)
+      if ( nsib==6 .or. nsib==7 ) iveg = 1
+      isoil = isoilm(idjd)
+      if ( isoil>0 .and. iveg>0 ) then
         write(6,*)'isoil,iveg,month,fracsum,rlatt: ',isoil,iveg,imo,fracsum(imo),rlatt(idjd)
-        fracs=sign(1.,rlatt(idjd))*fracsum(imo) ! +ve for local summer
-        fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
-        write(6,*)'fracs,fracwet,initial_wb: ',fracs,fracwet,wb(idjd,ms)
+        fracs = sign(1.,rlatt(idjd))*fracsum(imo) ! +ve for local summer
+        fracwet = (.5+fracs)*fracwets(iveg) + (.5-fracs)*fracwetw(iveg)
+        write(6,*) 'fracs,fracwet,initial_wb: ',fracs,fracwet,wb(idjd,ms)
       end if
     end if
   endif       !  ((nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)
@@ -1503,18 +1503,18 @@ if ( .not.lrestart ) then
     else
       ! ASCII file format
       ! for sequence of runs starting with values saved from last run
-      if(ktime==1200)then
-        surfin=surf_12    ! 'surf.12'
+      if ( ktime == 1200 ) then
+        surfin = surf_12    ! 'surf.12'
       else
-        surfin=surf_00    ! 'surf.00'
+        surfin = surf_00    ! 'surf.00'
       endif
-      if ( myid == 0 ) then
+      if ( myid==0 ) then
         write(6,*) 'reading previously saved wb,tgg,tss (land),snowd,sice from ',surfin
         open(87,file=surfin,form='formatted',status='old')
         read(87,'(a80)') header
         write(6,*)'header: ',header
       end if
-      if(nrungcm==-5)then
+      if ( nrungcm==-5 ) then
         call readglobvar(87, tgg, fmt="*") ! this acts as dummy read 
       else
         call readglobvar(87, wb, fmt="*")
@@ -1522,9 +1522,9 @@ if ( .not.lrestart ) then
       call readglobvar(87, tgg, fmt="*")
       call readglobvar(87, aa, fmt="*")    ! only use land values of tss
       call readglobvar(87, snowd, fmt="*")
-      if ( myid == 0 ) close(87)
-      where (land(1:ifull))
-        tss(1:ifull)=aa(1:ifull)
+      if ( myid==0 ) close(87)
+      where ( land(1:ifull) )
+        tss(1:ifull) = aa(1:ifull)
       end where
     end if  ! ier==0
   endif    !  (nrungcm<=-3.and.nrungcm>=-5)
@@ -1532,36 +1532,36 @@ if ( .not.lrestart ) then
   if ( nrungcm==4 ) then !  wb fix for ncep input 
     ! this is related to eak's temporary fix for soil moisture
     ! - to compensate for ncep drying out, increase minimum value
-    do k=1,ms
-      do iq=1,ifull     
-        isoil=isoilm(iq)
-        wb(iq,k)=min( sfc(isoil) , max(.75*swilt(isoil)+.25*sfc(isoil),wb(iq,k)) )
+    do k = 1,ms
+      do iq = 1,ifull     
+        isoil = isoilm(iq)
+        wb(iq,k) = min( sfc(isoil) , max(.75*swilt(isoil)+.25*sfc(isoil),wb(iq,k)) )
         ! for antarctic snow
-        if(land(iq).and.rlatt(iq)*180./pi<-60.)snowd(iq)=max(snowd(iq),400.)
-      enddo   ! iq loop
-    enddo    !  k loop
-  endif      !  (nrungcm==4)
+        if ( land(iq) .and. rlatt(iq)*180./pi<-60. ) snowd(iq) = max(snowd(iq),400.)
+      end do  ! iq loop
+    end do    !  k loop
+  end if      !  (nrungcm==4)
 
   if ( nrungcm==5 ) then !  tgg, wb fix for mark 3 input
     ! unfortunately mk 3 only writes out 2 levels
     ! wb just saved as excess above wilting; top level & integrated values
     ! tgg saved for levels 2 and ms 
-    do iq=1,ifull     
-      isoil=isoilm(iq)
-      do k=2,3
-        wb(iq,k)=wb(iq,ms)
+    do iq = 1,ifull     
+      isoil = isoilm(iq)
+      do k =2,3
+        wb(iq,k) = wb(iq,ms)
       enddo    !  k loop
-      do k=1,ms
+      do k = 1,ms
         ! wb(iq,k)=min( sfc(isoil) ,wb(iq,k)+swilt(isoil) ) ! till 22/8/02
-        wb(iq,k)=wb(iq,k)+swilt(isoil) 
+        wb(iq,k) = wb(iq,k) + swilt(isoil) 
       enddo    !  k loop
-      tgg(iq,3)=.75*tgg(iq,2)+.25*tgg(iq,6)
-      tgg(iq,4)= .5*tgg(iq,2)+ .5*tgg(iq,6)
-      tgg(iq,5)=.25*tgg(iq,2)+.75*tgg(iq,6)
+      tgg(iq,3) = .75*tgg(iq,2) + .25*tgg(iq,6)
+      tgg(iq,4) = .5*tgg(iq,2) + .5*tgg(iq,6)
+      tgg(iq,5) = .25*tgg(iq,2) + .75*tgg(iq,6)
       ! fix for antarctic snow
-      if(land(iq).and.rlatt(iq)*180./pi<-60.)snowd(iq)=max(snowd(iq),400.)
-    enddo   ! iq loop
-    if (mydiag) then
+      if ( land(iq) .and. rlatt(iq)*180./pi<-60. ) snowd(iq) = max(snowd(iq),400.)
+    end do   ! iq loop
+    if ( mydiag ) then
       write(6,*) 'after nrungcm=5 fixup of mk3 soil variables:'
       write(6,*) 'tgg ',(tgg(idjd,k),k=1,ms)
       write(6,*) 'wb ',(wb(idjd,k),k=1,ms)
@@ -1574,63 +1574,63 @@ if ( .not.lrestart ) then
       write(6,"('before nrungcm=1 fix-up wb(1-ms)',9f7.3)") (wb(idjd,k),k=1,ms)
       write(6,*)'nfixwb,isoil,swilt,sfc,ssat,alb ',nfixwb,isoil,swilt(isoil),sfc(isoil),ssat(isoil),albvisnir(idjd,1)
     end if
-    do ip=1,ipland  ! all land points in this nsib=1+ loop
-      iq=iperm(ip)
+    do ip = 1,ipland  ! all land points in this nsib=1+ loop
+      iq = iperm(ip)
       isoil = isoilm(iq)
 
-      if(nfixwb==0)then
+      if ( nfixwb==0 ) then
         ! very dry jlm suggestion. assume vegfrac ~.5, so try to satisfy
         ! wb0/.36=.5*(wb/sfc + (wb-swilt)/(sfc-swilt) )
-        wb(iq,1)=( sfc(isoil)*(sfc(isoil)-swilt(isoil))*wb(iq,1)/.36 +.5*sfc(isoil)*swilt(isoil) )/(sfc(isoil)-.5*swilt(isoil))
-        do k=2,ms
-          wb(iq,k)=( sfc(isoil)*(sfc(isoil)-swilt(isoil))*wb(iq,ms)/.36+.5*sfc(isoil)*swilt(isoil) )/(sfc(isoil)-.5*swilt(isoil))
-        enddo   !  k=2,ms
-      endif   ! (nfixwb==0)
-      if(nfixwb==1.or.nfixwb==2)then
+        wb(iq,1) = ( sfc(isoil)*(sfc(isoil)-swilt(isoil))*wb(iq,1)/.36 +.5*sfc(isoil)*swilt(isoil) )/(sfc(isoil)-.5*swilt(isoil))
+        do k = 2,ms
+          wb(iq,k) = ( sfc(isoil)*(sfc(isoil)-swilt(isoil))*wb(iq,ms)/.36+.5*sfc(isoil)*swilt(isoil) )/(sfc(isoil)-.5*swilt(isoil))
+        end do   !  k=2,ms
+      end if     ! (nfixwb==0)
+      if ( nfixwb==1 .or. nfixwb==2 ) then
         ! alternative simpler jlm fix-up	
         ! wb0/.36=(wb-swilt)/(sfc-swilt)
-        wb(iq,1)=swilt(isoil)+(sfc(isoil)-swilt(isoil))*wb(iq,1)/.36
-        do k=2,ms
-          wb(iq,k)=swilt(isoil)+(sfc(isoil)-swilt(isoil))*wb(iq,ms)/.36
+        wb(iq,1) = swilt(isoil)+(sfc(isoil)-swilt(isoil))*wb(iq,1)/.36
+        do k = 2,ms
+          wb(iq,k) =swilt(isoil)+(sfc(isoil)-swilt(isoil))*wb(iq,ms)/.36
         enddo   !  k=2,ms
       endif   ! (nfixwb==1.or.nfixwb==2)
-      if(ip==1)write(6,*)'kdate ',kdate
-      if(nfixwb==2.and.kdate>3210100.and.kdate<3210200)then
-        rlon_d=rlongg(iq)*180./pi
-        rlat_d=rlatt(iq)*180./pi
-        if(ip==1)then
+      if ( ip==1 ) write(6,*)'kdate ',kdate
+      if ( nfixwb==2 .and. kdate>3210100 .and. kdate<3210200 ) then
+        rlon_d = rlongg(iq)*180./pi
+        rlat_d = rlatt(iq)*180./pi
+        if ( ip==1 ) then
           write(6,*)'kdate in nfixwb=2 ',kdate
           write(6,*)'iq,rlon_d,rlat_d ',rlon_d,rlat_d
-        endif
+        end if
         ! jlm fix-up for tropical oz in january 321
-        if(rlon_d>130..and.rlon_d<150..and.rlat_d>-20..and.rlat_d<0.)then
-          do k=1,ms
-            wb(iq,k)=max(wb(iq,k),.5*(swilt(isoil)+sfc(isoil))) ! tropics
-          enddo   !  k=1,ms
-        endif
+        if ( rlon_d>130. .and. rlon_d<150. .and. rlat_d>-20. .and. rlat_d<0. ) then
+          do k = 1,ms
+            wb(iq,k) = max(wb(iq,k),.5*(swilt(isoil)+sfc(isoil))) ! tropics
+          end do   !  k=1,ms
+        end if
         ! jlm fix-up for dry interior in january 321
-        if(rlon_d>117..and.rlon_d<142..and.rlat_d>-32..and.rlat_d<-22.)then
-          do k=1,ms
-            wb(iq,k)=swilt(isoil)  ! dry interior
-          enddo   !  k=1,ms
-        endif
-      endif   ! (nfixwb==2)
-      if(nfixwb==10)then    ! was default for nrungcm=1 till oct 2001
+        if ( rlon_d>117. .and. rlon_d<142. .and. rlat_d>-32. .and. rlat_d<-22. ) then
+          do k = 1,ms
+            wb(iq,k) = swilt(isoil)  ! dry interior
+          end do   !  k=1,ms
+        end if
+      end if   ! (nfixwb==2)
+      if ( nfixwb==10 ) then    ! was default for nrungcm=1 till oct 2001
         ! jlm suggestion, assume vegfrac ~.5, so try to satisfy
         ! wb0/.36=.5*(wb/ssat + (wb-swilt)/(ssat-swilt) )
-        wb(iq,1)=( ssat(isoil)*(ssat(isoil)-swilt(isoil))*wb(iq,1)/.36+.5*ssat(isoil)*swilt(isoil) )    &
+        wb(iq,1) = ( ssat(isoil)*(ssat(isoil)-swilt(isoil))*wb(iq,1)/.36+.5*ssat(isoil)*swilt(isoil) )    &
                 /(ssat(isoil)-.5*swilt(isoil))
-        do k=2,ms                                                       
-          wb(iq,k)=( ssat(isoil)*(ssat(isoil)-swilt(isoil))*wb(iq,ms)/.36+.5*ssat(isoil)*swilt(isoil) ) &
+        do k = 2,ms                                                       
+          wb(iq,k) = ( ssat(isoil)*(ssat(isoil)-swilt(isoil))*wb(iq,ms)/.36+.5*ssat(isoil)*swilt(isoil) ) &
                   /(ssat(isoil)-.5*swilt(isoil))
-        enddo   !  k=2,ms
-      endif   ! (nfixwb.ne.10)
+        end do !  k=2,ms
+      end if   ! (nfixwb.ne.10)
 
-      do k=1,ms
-        wb(iq,k)=max( swilt(isoil) , min(wb(iq,k),sfc(isoil)) )
-      enddo     !  k=1,ms
-    enddo        !  ip=1,ipland
-    if (mydiag) then
+      do k = 1,ms
+        wb(iq,k) = max( swilt(isoil) , min(wb(iq,k),sfc(isoil)) )
+      end do     !  k=1,ms
+    end do       !  ip=1,ipland
+    if ( mydiag ) then
       write(6,"('after nrungcm=1 fix-up wb(1-ms)',9f7.3)") (wb(idjd,k),k=1,ms)
       write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
       write(6,"('wb3frac#',9f8.2)") (diagvals(wb(:,3)) - swilt(diagvals(isoilm)))     &
@@ -1644,23 +1644,23 @@ if ( .not.lrestart ) then
       write(6,*)'before nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
       write(6,*)'isoil,swilt,ssat,alb ',isoil,swilt(isoil),ssat(isoil),albvisnir(idjd,1)
     end if
-    do ip=1,ipland  ! all land points in this nsib=1+ loop
-      iq=iperm(ip)
+    do ip = 1,ipland  ! all land points in this nsib=1+ loop
+      iq = iperm(ip)
       isoil = isoilm(iq)
       if( albvisnir(iq,1) >= 0.25 ) then
-        diffg=max(0. , wb(iq,1)-0.068)*ssat(isoil)/0.395   ! for sib3
-        diffb=max(0. , wb(iq,ms)-0.068)*ssat(isoil)/0.395  ! for sib3
+        diffg = max(0. , wb(iq,1)-0.068)*ssat(isoil)/0.395   ! for sib3
+        diffb = max(0. , wb(iq,ms)-0.068)*ssat(isoil)/0.395  ! for sib3
       else
-        diffg=max(0. , wb(iq,1)-0.175)*ssat(isoil)/0.42    ! for sib3
-        diffb=max(0. , wb(iq,ms)-0.175)*ssat(isoil)/0.42   ! for sib3
+        diffg = max(0. , wb(iq,1)-0.175)*ssat(isoil)/0.42    ! for sib3
+        diffb = max(0. , wb(iq,ms)-0.175)*ssat(isoil)/0.42   ! for sib3
       endif
-      wb(iq,1)=swilt(isoil)+diffg          ! for sib3
-      do k=2,ms                            ! for sib3
-        wb(iq,k)=swilt(isoil)+diffb         ! for sib3
-      enddo     !  k=2,ms
-    enddo      !  ip=1,ipland
-    if(mydiag) write(6,*)'after nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
-  endif          !  (nrungcm==2)
+      wb(iq,1) = swilt(isoil) + diffg        ! for sib3
+      do k = 2,ms                            ! for sib3
+        wb(iq,k) = swilt(isoil) + diffb      ! for sib3
+      end do    !  k=2,ms
+    end do      !  ip=1,ipland
+    if ( mydiag ) write(6,*)'after nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
+  end if        !  (nrungcm==2)
 end if ! ( .not.lrestart )
 
 

@@ -61,7 +61,7 @@ integer, save :: nhstest=0, namip=0, nspecial=0, newrough=0, nsib=3
 integer, save :: ntaft=2, ntsea=6, ntsur=6, ntsur2, lgwd=0, newztsea=1, nglacier=1, mbd=0
 integer, save :: mbd_mlo=0, nbd=0, kbotdav=4, kbotu=0, nud_p=0, nud_q=0, nud_t=0, nud_uv=1
 integer, save :: nud_hrs=24, nudu_hrs=0, ktau, ndi=1, ndi2=0, ntau, nperavg=-99, nperday, nperhr
-integer, save :: nmaxpr=99, nlv=1, ia=1, ib=3, ja=1, jb=10, id=2, jd=5, idjd
+integer, save :: nmaxpr=99, nlv=1, ia=1, ib=1, ja=1, jb=1, id=1, jd=1, idjd
 integer, save :: io_in=1, io_out=1, io_rest=1
 integer, save :: nwt=-99, nrun=0, nextout=3, m_fly=4, nsemble=0, tblock=1, tbave=1
 integer, save :: nurban=0, nmr=0, nmlo=0, ktopdav=0, nud_sst=0, nud_sss=0, kbotmlo=-1000, ktopmlo=1

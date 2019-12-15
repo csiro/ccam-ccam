@@ -663,7 +663,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'liqradmethod',liqradmethod)
     call ccnf_put_attg(idnc,'lwem_form',lwem_form)
     call ccnf_put_attg(idnc,'mins_rad',mins_rad)
-    call ccnf_put_attg(idnc,'o3_time_interpolate',o3_time_interpolate)
     call ccnf_put_attg(idnc,'o3_vert_interpolate',o3_vert_interpolate)
     call ccnf_put_attg(idnc,'qgmin',qgmin)
     call ccnf_put_attg(idnc,'saltlargemtn',saltlargemtn)
