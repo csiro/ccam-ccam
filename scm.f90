@@ -155,6 +155,7 @@ integer opt, nopt
 integer, save :: iarch_nudge = 0
 integer nud_ql, nud_qf
 integer tblock
+integer o3_time_interpolate ! depreciated
 real, dimension(1000) :: press_in
 real press_surf, gridres, soil_albedo
 real es
@@ -234,7 +235,8 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
     saltlargemtn,                                                 &
-    o3_vert_interpolate,o3_time_interpolate                         ! ozone
+    o3_vert_interpolate,                                          & ! ozone
+    o3_time_interpolate                                             ! depreciated
 ! file namelist
 namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &
