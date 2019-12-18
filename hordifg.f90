@@ -72,8 +72,9 @@ implicit none
 
 include 'kuocom.h'
 
-real, dimension(ifull+iextra,kl) :: work, uc, vc, wc
-real, dimension(ifull+iextra,kl) :: uav, vav
+real, dimension(ifull+iextra,kl) :: work
+real, dimension(ifull+iextra,kl) :: uc, vc, wc
+real, dimension(ifull+iextra,kl) :: uav, vav, ww
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
 real, dimension(ifull,kl) :: xfact_iwu, yfact_isv
 real, dimension(ifull,kl) :: dudx, dudy, dudz
@@ -92,8 +93,8 @@ real, dimension(ifull) :: wc_n, wc_s, wc_e, wc_w
 real, dimension(ifull) :: t_kh_n, t_kh_e
 real, dimension(ifull) :: work_n, work_s, work_e, work_w
 real delphi, hdif
-integer k, nhora, nhorx
-integer nstart
+integer k, nhora, nhorx, ntr
+integer nstart, nend
 integer, save :: kmax=-1
 integer, parameter :: nf=2
 
@@ -122,6 +123,7 @@ do k = 1,kl
   yfact(:,k) = 0.
   uav(:,k) = 0.
   vav(:,k) = 0.
+  ww(:,k) = 0.
   uc(:,k) = 0.
   vc(:,k) = 0.
   wc(:,k) = 0.
@@ -310,23 +312,10 @@ end select
 ! Calculate horizontal diffusion based on prognostic TKE
 ! This can be combined with the diffusion coefficents above
 ! so as to operate over a large range of grid leng th scales
-if (nvmix==6) then
-  if (nhorx==1) then
-    do k=1,kl
-      shear(:,k) = (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2
-    end do
-  else if (nhorx>=7) then
-    do k=1,kmax
-      shear(:,k) = (dudx(:,k)*sx_fact)**2+(dvdy(:,k)*sy_fact)**2
-    end do
-    do k=kmax+1,kl
-      shear(:,k) = dudx(:,k)**2+dvdy(:,k)**2
-    end do
-  else
-    do k = 1,kl
-      shear(:,k) = dudx(:,k)**2+dvdy(:,k)**2
-    end do
-  end if
+if ( nvmix==6 ) then
+  do k = 1,kl
+    shear(:,k) = dudz(:,k)**2 + dvdz(:,k)**2
+  end do
 end if
 
 if ( nhorx==1 ) then
