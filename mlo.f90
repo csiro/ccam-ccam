@@ -614,17 +614,27 @@ select case(mlosigma)
     stop
     
 end select
-      
+    
+! calculate cell mid-points  
 do ii = 1,wlin
   depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
 end do
 do ii = 1,wlin
   depth_hlout(ii+1) = min( depth_hlout(ii+1), dd )
   if ( depthout(ii)>dd ) then
+    ! avoids thin layers by extending the previous layer  
     depth_hlout(ii) = depth_hlout(ii+1)
     depthout(ii) = dd
   end if
 end do
+! recalculate mid-points of cells
+do ii = 1,wlin
+  depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
+end do
+
+!do ii = 1,wlin
+!  print *,"depth ",ii,depth_hlout(ii),depthout(ii),depth_hlout(ii+1)
+!end do
 
 return
 end subroutine vgrid

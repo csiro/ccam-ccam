@@ -176,7 +176,7 @@ if ( myid==0 .or. pfall ) then
     kdate_r = kdate_s 
     ktime_r = ktime_s
     if ( myid==0 ) then
-      write(6,*)'Reading climatology for iarch=1'
+      write(6,*) 'Reading climatology for iarch=1'
       write(6,*) '                   kdate_r,ktime_r =',kdate_r, ktime_r
     end if
   else  
@@ -200,6 +200,8 @@ if ( myid==0 .or. pfall ) then
       ! ltest = .false. when correct date is found
       ltest = (2400*(kdate_r-kdate_s)-1200*nsemble+ktime_r-ktime_s)<0
     end do
+    ! check if start date/time was too late
+    ltest = (2400*(kdate_r-kdate_s)-1200*nsemble+ktime_r-ktime_s)>2400 ! 2400 = 1 day
     if ( nsemble/=0 ) then
       kdate_r = kdate_s
       ktime_r = ktime_s
@@ -797,7 +799,8 @@ if ( newfile ) then
       call histrd(iarchi,ier,'intmtgg1',ucc,6*ik*ik)
     else
       if ( fwsize>0 ) then
-        ucc = 0. ! will use tsu so all points are valid
+        ! will use tsu for urban temperatures so all points are valid  
+        ucc = 0.
       end if
     end if  
     if ( fwsize>0 ) then
@@ -997,7 +1000,7 @@ else
   tss_l    = udum6(:,3)
   tss_s    = udum6(:,4)
   sicedep  = udum6(:,5)
-  fracice  = udum6(:,6)      
+  fracice  = udum6(:,6)
 
   !   incorporate other target land mask effects
   where ( land(1:ifull) )

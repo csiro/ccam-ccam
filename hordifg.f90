@@ -74,7 +74,7 @@ include 'kuocom.h'
 
 real, dimension(ifull+iextra,kl) :: work
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
-real, dimension(ifull+iextra,kl) :: uav, vav, ww
+real, dimension(ifull+iextra,kl) :: uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
 real, dimension(ifull,kl) :: xfact_iwu, yfact_isv
 real, dimension(ifull,kl) :: dudx, dudy, dudz
@@ -123,7 +123,6 @@ do k = 1,kl
   yfact(:,k) = 0.
   uav(:,k) = 0.
   vav(:,k) = 0.
-  ww(:,k) = 0.
   uc(:,k) = 0.
   vc(:,k) = 0.
   wc(:,k) = 0.
@@ -311,7 +310,7 @@ end select
        
 ! Calculate horizontal diffusion based on prognostic TKE
 ! This can be combined with the diffusion coefficents above
-! so as to operate over a large range of grid leng th scales
+! so as to operate over a large range of grid length scales
 if ( nvmix==6 ) then
   do k = 1,kl
     shear(:,k) = dudz(:,k)**2 + dvdz(:,k)**2
@@ -441,7 +440,7 @@ end if       ! (ldr/=0.and.nhorps==-4)
 
 ! apply horizontal diffusion to TKE and EPS terms
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. nvmix==6 ) then
-  work(1:ifull,1:k) = tke(1:ifull,1:kl)
+  work(1:ifull,1:kl) = tke(1:ifull,1:kl)
   call bounds(work)
   do k = 1,kl
     call unpack_nsew(work(:,k),work_n,work_s,work_e,work_w) 
