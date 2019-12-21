@@ -200,8 +200,6 @@ if ( myid==0 .or. pfall ) then
       ! ltest = .false. when correct date is found
       ltest = (2400*(kdate_r-kdate_s)-1200*nsemble+ktime_r-ktime_s)<0
     end do
-    ! check if start date/time was too late
-    ltest = (2400*(kdate_r-kdate_s)-1200*nsemble+ktime_r-ktime_s)>2400 ! 2400 = 1 day
     if ( nsemble/=0 ) then
       kdate_r = kdate_s
       ktime_r = ktime_s
