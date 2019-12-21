@@ -935,9 +935,13 @@ do mspec_mlo = mspeca_mlo,1,-1
     gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
     dzdxu = (depdum_rho(ie,ii)-depdum_rho(1:ifull,ii))*emu(1:ifull)/ds
     dzdyv = (depdum_rho(in,ii)-depdum_rho(1:ifull,ii))*emv(1:ifull)/ds
-    tau(:,ii) = grav*gosigu*max(ddu(1:ifull)+oeu(1:ifull),minwater)*drhobardxu(:,ii)/wrtrho  &
+    !tau(:,ii) = grav*gosigu*max(ddu(1:ifull)+oeu(1:ifull),minwater)*drhobardxu(:,ii)/wrtrho  &
+    !           + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu !+ grav*rhou(1:ifull,ii)/wrtrho*dzdxu! staggered
+    !tav(:,ii) = grav*gosigv*max(ddv(1:ifull)+oev(1:ifull),minwater)*drhobardyv(:,ii)/wrtrho  &
+    !           + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv !+ grav*rhov(1:ifull,ii)/wrtrho*dzdyv
+    tau(:,ii) = grav*gosigu*ddu(1:ifull)*drhobardxu(:,ii)/wrtrho  &
                + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu !+ grav*rhou(1:ifull,ii)/wrtrho*dzdxu! staggered
-    tav(:,ii) = grav*gosigv*max(ddv(1:ifull)+oev(1:ifull),minwater)*drhobardyv(:,ii)/wrtrho  &
+    tav(:,ii) = grav*gosigv*ddv(1:ifull)*drhobardyv(:,ii)/wrtrho  &
                + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv !+ grav*rhov(1:ifull,ii)/wrtrho*dzdyv
   end do
   ! ice
