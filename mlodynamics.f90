@@ -936,9 +936,9 @@ do mspec_mlo = mspeca_mlo,1,-1
     dzdxu = (depdum_rho(ie,ii)-depdum_rho(1:ifull,ii))*emu(1:ifull)/ds
     dzdyv = (depdum_rho(in,ii)-depdum_rho(1:ifull,ii))*emv(1:ifull)/ds
     tau(:,ii) = grav*gosigu*max(ddu(1:ifull)+oeu(1:ifull),minwater)*drhobardxu(:,ii)/wrtrho  &
-               + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu + grav*rhou(1:ifull,ii)/wrtrho*dzdxu! staggered
+               + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu !+ grav*rhou(1:ifull,ii)/wrtrho*dzdxu! staggered
     tav(:,ii) = grav*gosigv*max(ddv(1:ifull)+oev(1:ifull),minwater)*drhobardyv(:,ii)/wrtrho  &
-               + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv + grav*rhov(1:ifull,ii)/wrtrho*dzdyv
+               + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv !+ grav*rhov(1:ifull,ii)/wrtrho*dzdyv
   end do
   ! ice
   !tau(:,wlev+1)=grav*(neta_e-neta(1:ifull))*emu(1:ifull)/ds ! staggered
@@ -1173,9 +1173,9 @@ do mspec_mlo = mspeca_mlo,1,-1
     dzdyv = (depdum_rho(in,ii)-depdum_rho(1:ifull,ii))*emv(1:ifull)/ds
     
     kku(:,ii) = au + bu*(dpsdxu/wrtrho+grav*dttdxu) - cu*dfdyu*(piceu/wrtrho+grav*tideu)  &
-              + cu*(dfpsdyu/wrtrho+grav*dfttdyu)                                          &
-              + bu*grav*rhou(:,ii)*dzdxu/wrtrho - cu*grav*rhou(:,ii)*dfdyu*zu/wrtrho      &
-              + cu*grav*rhou(:,ii)*dfzdyu/wrtrho
+              + cu*(dfpsdyu/wrtrho+grav*dfttdyu) !                                         &
+              !+ bu*grav*rhou(:,ii)*dzdxu/wrtrho - cu*grav*rhou(:,ii)*dfdyu*zu/wrtrho      &
+              !+ cu*grav*rhou(:,ii)*dfzdyu/wrtrho
     llu(:,ii) = grav*gosigu*(bu*drhobardxu(:,ii)/wrtrho - cu*dfdyu + cu*dfrhobardyu(:,ii)/wrtrho)
     mmu(:,ii) = bu*grav
     nnu(:,ii) = cu*grav   
@@ -1184,9 +1184,9 @@ do mspec_mlo = mspeca_mlo,1,-1
     ppu(:,ii) = -grav*cu*dfdyu
 
     kkv(:,ii) = av + bv*(dpsdyv/wrtrho+grav*dttdyv) - cv*dfdxv*(picev/wrtrho+grav*tidev)  &
-              + cv*(dfpsdxv/wrtrho+grav*dfttdxv)                                          &
-              + bv*grav*rhov(:,ii)*dzdyv/wrtrho - cv*grav*rhov(:,ii)*dfdxv*zv/wrtrho      &
-              + cv*grav*rhov(:,ii)*dfzdxv/wrtrho
+              + cv*(dfpsdxv/wrtrho+grav*dfttdxv) !                                         &
+              !+ bv*grav*rhov(:,ii)*dzdyv/wrtrho - cv*grav*rhov(:,ii)*dfdxv*zv/wrtrho      &
+              !+ cv*grav*rhov(:,ii)*dfzdxv/wrtrho
     llv(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii)/wrtrho - cv*dfdxv + cv*dfrhobardxv(:,ii)/wrtrho)
     mmv(:,ii) = bv*grav
     nnv(:,ii) = cv*grav
