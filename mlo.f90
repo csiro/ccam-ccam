@@ -476,12 +476,12 @@ do tile = 1,ntiles
     !          1130.9,1289.6,1455.8,1622.9,1801.6,1984.9,2182.9,2388.4,2610.9,2842.6, &
     !          3092.2,3351.3,3628.1,3913.3,4214.5,4521.9,4842.6,5166.1,5499.2,5831.3 /)
 
-    deptmp(1:wfull_g(tile))=pack(depin(is:ie),wpack_g(:,tile))
+    deptmp(1:wfull_g(tile)) = pack(depin(is:ie),wpack_g(:,tile))
 
     do iqw = 1,wfull_g(tile)
       call vgrid(wlev,deptmp(iqw),dumdf,dumdh)
-      depth_g(tile)%depth(iqw,:)=dumdf
-      depth_g(tile)%depth_hl(iqw,:)=dumdh
+      depth_g(tile)%depth(iqw,:) = dumdf
+      depth_g(tile)%depth_hl(iqw,:) = dumdh
     end do
     do ii = 1,wlev
       depth_g(tile)%dz(:,ii) = depth_g(tile)%depth_hl(:,ii+1) - depth_g(tile)%depth_hl(:,ii)
@@ -490,10 +490,10 @@ do tile = 1,ntiles
       depth_g(tile)%dz_hl(:,ii) = depth_g(tile)%depth(:,ii) - depth_g(tile)%depth(:,ii-1)
     end do
 
-    turb_g(tile)%km=0.
-    turb_g(tile)%ks=0.
-    turb_g(tile)%k=mink
-    turb_g(tile)%eps=mineps
+    turb_g(tile)%km = 0.
+    turb_g(tile)%ks = 0.
+    turb_g(tile)%k = mink
+    turb_g(tile)%eps = mineps
     
   end if  
 
@@ -619,21 +619,25 @@ end select
 do ii = 1,wlin
   depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
 end do
+
+! full step version
 do ii = 1,wlin
-  depth_hlout(ii+1) = min( depth_hlout(ii+1), dd )
   if ( depthout(ii)>dd ) then
-    ! avoids thin layers by extending the previous layer  
-    depth_hlout(ii) = depth_hlout(ii+1)
-    depthout(ii) = dd
+    depth_hlout(ii+1) = depth_hlout(ii)
   end if
 end do
-! recalculate mid-points of cells
-do ii = 1,wlin
-  depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
-end do
 
+!! partial step version
 !do ii = 1,wlin
-!  print *,"depth ",ii,depth_hlout(ii),depthout(ii),depth_hlout(ii+1)
+!  depth_hlout(ii+1) = min( depth_hlout(ii+1), dd )
+!  if ( depthout(ii)>dd ) then
+!    ! avoids thin layers by extending the previous layer  
+!    depth_hlout(ii) = depth_hlout(ii+1)
+!    depthout(ii) = dd
+!  end if
+!end do
+!do ii = 1,wlin
+!  depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
 !end do
 
 return
@@ -3307,7 +3311,7 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:)                   &
                 +p2(:)*(-2.040237e-6                                    &
                 + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
        
-    d_rho(:,ii)=(rho0+wrtrho)*sk/max(sk-p1,1.)
+    d_rho(:,ii)=(rho0*sk + wrtrho*p1)/max(sk-p1,1.)
   
     drhodt=drho0dt*sk/max(sk-p1,1.)-(rho0+wrtrho)*p1*dskdt/(max(sk-p1,1.)**2)
     drhods=drho0ds*sk/max(sk-p1,1.)-(rho0+wrtrho)*p1*dskds/(max(sk-p1,1.)**2)

@@ -539,8 +539,7 @@ real, dimension(ifull) :: oev_isv, oeu_iwu, cc_isv, cc_iwu
 real, dimension(ifull) :: eo_isv, eo_iwu, ni_isv, ni_iwu
 real, dimension(ifull) :: dnetadx, dnetady, ddddx, ddddy, ddddxu, ddddyv, dfdddyu, dfdddxv
 real, dimension(ifull) :: sdiv, ddiv_n, ddiv_e, nv_isv, nu_iwu
-real, dimension(ifull) :: gosigu, gosigv, zu, zv
-real, dimension(ifull) :: dzdxu, dzdyv, dfzdyu, dfzdxv
+real, dimension(ifull) :: gosigu, gosigv
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev) :: eou,eov,ccu,ccv
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,dzdum_rho
@@ -764,8 +763,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     twv(iq) = 0.5*( pice_w(iq)*f_w(iq) + pice(inw(iq))*f(iwn(iq)) )
   end do  
   dpsdxu = (pice_e-pice(1:ifull))*emu(1:ifull)/ds ! staggered at time t
-  dfpsdyu = (stwgt(1:ifull,1)*(tnu-tsu))*emu(1:ifull)/ds
-  dfpsdxv = (stwgt(1:ifull,1)*(tev-twv))*emv(1:ifull)/ds
+  dfpsdyu = stwgt(1:ifull,1)*(tnu-tsu)*emu(1:ifull)/ds
+  dfpsdxv = stwgt(1:ifull,1)*(tev-twv)*emv(1:ifull)/ds
   dpsdyv = (pice_n-pice(1:ifull))*emv(1:ifull)/ds
   piceu = 0.5*(pice(1:ifull)+pice_e)
   picev = 0.5*(pice(1:ifull)+pice_n)
@@ -779,8 +778,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     twv(iq) = 0.5*( tide_w(iq)*f_w(iq) + tide(inw(iq))*f(inw(iq)) )
   end do  
   dttdxu = (tide_e-tide(1:ifull))*emu(1:ifull)/ds ! staggered
-  dfttdyu = (stwgt(1:ifull,1)*(tnu-tsu))*emu(1:ifull)/ds
-  dfttdxv = (stwgt(1:ifull,1)*(tev-twv))*emv(1:ifull)/ds
+  dfttdyu = stwgt(1:ifull,1)*(tnu-tsu)*emu(1:ifull)/ds
+  dfttdxv = stwgt(1:ifull,1)*(tev-twv)*emv(1:ifull)/ds
   dttdyv = (tide_n-tide(1:ifull))*emv(1:ifull)/ds
   tideu = 0.5*(tide(1:ifull)+tide_e)
   tidev = 0.5*(tide(1:ifull)+tide_n)
@@ -908,7 +907,6 @@ do mspec_mlo = mspeca_mlo,1,-1
                          -eo_isv*(dd_isv+neta(1:ifull))/em_isv)                     &
                          *em(1:ifull)**2/ds                                         &
                         +(nw(:,ii)-nw(:,ii-1))/godsig(1:ifull,ii))
-
     end where  
   end do
       
@@ -933,16 +931,20 @@ do mspec_mlo = mspeca_mlo,1,-1
   do ii = 1,wlev
     gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
     gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
-    dzdxu = (depdum_rho(ie,ii)-depdum_rho(1:ifull,ii))*emu(1:ifull)/ds
-    dzdyv = (depdum_rho(in,ii)-depdum_rho(1:ifull,ii))*emv(1:ifull)/ds
+    !dzdxu = (depdum_rho(ie,ii)-depdum_rho(1:ifull,ii))*emu(1:ifull)*eeu(1:ifull,ii)/ds
+    !dzdyv = (depdum_rho(in,ii)-depdum_rho(1:ifull,ii))*emv(1:ifull)*eev(1:ifull,ii)/ds
     !tau(:,ii) = grav*gosigu*max(ddu(1:ifull)+oeu(1:ifull),minwater)*drhobardxu(:,ii)/wrtrho  &
-    !           + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu !+ grav*rhou(1:ifull,ii)/wrtrho*dzdxu! staggered
+    !           + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu + grav*rhou(1:ifull,ii)*dzdxu/wrtrho ! staggered
     !tav(:,ii) = grav*gosigv*max(ddv(1:ifull)+oev(1:ifull),minwater)*drhobardyv(:,ii)/wrtrho  &
-    !           + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv !+ grav*rhov(1:ifull,ii)/wrtrho*dzdyv
+    !           + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv + grav*rhov(1:ifull,ii)*dzdyv/wrtrho
     tau(:,ii) = grav*gosigu*ddu(1:ifull)*drhobardxu(:,ii)/wrtrho  &
-               + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu !+ grav*rhou(1:ifull,ii)/wrtrho*dzdxu! staggered
+               + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu
+               !+ grav*rhou(1:ifull,ii)*dzdxu/wrtrho ! staggered
     tav(:,ii) = grav*gosigv*ddv(1:ifull)*drhobardyv(:,ii)/wrtrho  &
-               + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv !+ grav*rhov(1:ifull,ii)/wrtrho*dzdyv
+               + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv
+               !+ grav*rhov(1:ifull,ii)*dzdyv/wrtrho
+    tau(:,ii) = tau(:,ii)*eeu(1:ifull,ii)
+    tav(:,ii) = tav(:,ii)*eev(1:ifull,ii)
   end do
   ! ice
   !tau(:,wlev+1)=grav*(neta_e-neta(1:ifull))*emu(1:ifull)/ds ! staggered
@@ -1135,6 +1137,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! dPdz* = grav*rho*(eta+D)/D
     ! P = grav*rhobar*(eta+D)*(z*)/D = grav*rhobar*(z+eta) = grav*rhobar*sig*(eta+D)
     ! dPdx = grav*sig*(eta+D)*drhobardx + grav*rhobar*detadx
+    ! dPdx = grav*sig*D*drhobardx + grav*rhobar*detadx (approx)
     
     ! Note pressure gradients are along constant z surfaces
     ! p = ps + grav*wrtrho*tt + grav*sig*(dd+eta)*wrtrho
@@ -1162,22 +1165,21 @@ do mspec_mlo = mspeca_mlo,1,-1
     gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
     gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
     
-    zu = 0.5*(depdum_rho(1:ifull,ii)+depdum_rho(ie,ii))
-    zv = 0.5*(depdum_rho(1:ifull,ii)+depdum_rho(in,ii))
+    !zu = 0.5*(depdum_rho(1:ifull,ii)+depdum_rho(ie,ii))
+    !zv = 0.5*(depdum_rho(1:ifull,ii)+depdum_rho(in,ii))   
+    !do iq = 1,ifull
+    !  tnu(iq) = 0.5*( depdum_rho(in(iq),ii)*f_n(iq) + depdum_rho(ien(iq),ii)*f(ien(iq)) )
+    !  tsu(iq) = 0.5*( depdum_rho(is(iq),ii)*f_s(iq) + depdum_rho(ies(iq),ii)*f(ies(iq)) )
+    !  tev(iq) = 0.5*( depdum_rho(ie(iq),ii)*f_e(iq) + depdum_rho(ine(iq),ii)*f(ine(iq)) )
+    !  twv(iq) = 0.5*( depdum_rho(iw(iq),ii)*f_w(iq) + depdum_rho(inw(iq),ii)*f(inw(iq)) )
+    !end do  
+    !dzdxu = (depdum_rho(ie,ii)-depdum_rho(1:ifull,ii))*emu(1:ifull)*eeu(1:ifull,ii)/ds
+    !dfzdyu = stwgt(1:ifull,ii)*(tnu-tsu)*emu(1:ifull)/ds
+    !dfzdxv = stwgt(1:ifull,ii)*(tev-twv)*emv(1:ifull)/ds
+    !dzdyv = (depdum_rho(in,ii)-depdum_rho(1:ifull,ii))*emv(1:ifull)*eev(1:ifull,ii)/ds
         
-    do iq = 1,ifull
-      tnu(iq) = 0.5*( depdum_rho(in(iq),ii)*f_n(iq) + depdum_rho(ien(iq),ii)*f(ien(iq)) )
-      tsu(iq) = 0.5*( depdum_rho(is(iq),ii)*f_s(iq) + depdum_rho(ies(iq),ii)*f(ies(iq)) )
-      tev(iq) = 0.5*( depdum_rho(ie(iq),ii)*f_e(iq) + depdum_rho(ine(iq),ii)*f(ine(iq)) )
-      twv(iq) = 0.5*( depdum_rho(iw(iq),ii)*f_w(iq) + depdum_rho(inw(iq),ii)*f(inw(iq)) )
-    end do  
-    dzdxu = (depdum_rho(ie,ii)-depdum_rho(1:ifull,ii))*emu(1:ifull)/ds
-    dfzdyu = (stwgt(1:ifull,1)*(tnu-tsu))*emu(1:ifull)/ds
-    dfzdxv = (stwgt(1:ifull,1)*(tev-twv))*emv(1:ifull)/ds
-    dzdyv = (depdum_rho(in,ii)-depdum_rho(1:ifull,ii))*emv(1:ifull)/ds
-    
     kku(:,ii) = au + bu*(dpsdxu/wrtrho+grav*dttdxu) - cu*dfdyu*(piceu/wrtrho+grav*tideu)  &
-              + cu*(dfpsdyu/wrtrho+grav*dfttdyu) !                                         &
+              + cu*(dfpsdyu/wrtrho+grav*dfttdyu)
               !+ bu*grav*rhou(:,ii)*dzdxu/wrtrho - cu*grav*rhou(:,ii)*dfdyu*zu/wrtrho      &
               !+ cu*grav*rhou(:,ii)*dfzdyu/wrtrho
     llu(:,ii) = grav*gosigu*(bu*drhobardxu(:,ii)/wrtrho - cu*dfdyu + cu*dfrhobardyu(:,ii)/wrtrho)
@@ -1188,7 +1190,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     ppu(:,ii) = -grav*cu*dfdyu
 
     kkv(:,ii) = av + bv*(dpsdyv/wrtrho+grav*dttdyv) - cv*dfdxv*(picev/wrtrho+grav*tidev)  &
-              + cv*(dfpsdxv/wrtrho+grav*dfttdxv) !                                         &
+              + cv*(dfpsdxv/wrtrho+grav*dfttdxv)
               !+ bv*grav*rhov(:,ii)*dzdyv/wrtrho - cv*grav*rhov(:,ii)*dfdxv*zv/wrtrho      &
               !+ cv*grav*rhov(:,ii)*dfzdxv/wrtrho
     llv(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii)/wrtrho - cv*dfdxv + cv*dfrhobardxv(:,ii)/wrtrho)
