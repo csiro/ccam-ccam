@@ -95,7 +95,8 @@ implicit none
 
 integer, dimension(ifull) :: dumm
 integer i, kdate_r, ktime_r, kdhour, kdmin, kddate
-integer khour_r, kmin_r, khour, kmin, num
+integer khour_r, kmin_r, khour, kmin
+integer :: num=0
 real, dimension(ifull,kl,5) :: dumv
 real, dimension(ifull,wlev,4) :: dumaa
 real, dimension(ifull,ms,3) :: dumg

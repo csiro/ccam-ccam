@@ -3208,64 +3208,14 @@ real, parameter :: density = 1035.
 wsize = size(tt,1)
 wlx = size(tt,2)
 
-if ( size(ss,1)/=wsize .or. size(ddz,1)/=wsize .or. size(pxtr)/=wsize ) then
-  write(6,*) "ERROR: argument size mismatch in calcdensity"
-  stop
-end if
-
-if ( size(d_rho,1)/=wsize .or. size(d_alpha,1)/=wsize .or. size(d_beta,1)/=wsize .or. size(rho0,1)/=wsize ) then
-  write(6,*) "ERROR: argument size mismatch in calcdensity"
-  stop
-end if
-
-if ( size(ss,2)/=wlx .or. size(ddz,2)/=wlx ) then
-  write(6,*) "ERROR: argument vertical level mismatch in calcdensity"
-  stop
-end if
-
-if ( size(d_rho,2)/=wlx .or. size(d_alpha,2)/=wlx .or. size(d_beta,2)/=wlx ) then
-  write(6,*) "ERROR: argument vertical level mismatch in calcdensity"
-  stop
-end if
-
-d_rho = density - wrtrho
-
-t = min(max(tt(:,1)+(wrtemp-273.16),-2.2),100.)
-s = min(max(ss(:,1),0.),maxsal) ! limit max salinity for equation of state
-t2 = t*t
-t3 = t2*t
-t4 = t3*t
-t5 = t4*t
-s2 = s*s
-s3 = s2*s
-s32 = sqrt(s3)
-
-rs0 = (999.842594 - wrtrho) + 6.793952e-2*t(:)                          &
-       - 9.095290e-3*t2(:) + 1.001685e-4*t3(:)                          &
-       - 1.120083e-6*t4(:) + 6.536332e-9*t5(:) ! density for sal=0.
-rho0 = rs0+ s(:)*(0.824493 - 4.0899e-3*t(:)                             &
-       + 7.6438e-5*t2(:)                                                &
-       - 8.2467e-7*t3(:) + 5.3875e-9*t4(:))                             &
-       + s32(:)*(-5.72466e-3 + 1.0227e-4*t(:)                           &
-       - 1.6546e-6*t2(:)) + 4.8314e-4*s2(:)     ! + sal terms    
-drho0dt=6.793952e-2                                                     &
-       - 2.*9.095290e-3*t(:) + 3.*1.001685e-4*t2(:)                     &
-       - 4.*1.120083e-6*t3(:) + 5.*6.536332e-9*t4(:)                    &
-       + s(:)*( - 4.0899e-3 + 2.*7.6438e-5*t(:)                         &
-       - 3.*8.2467e-7*t2(:) + 4.*5.3875e-9*t3(:))                       &
-       + s32(:)*(1.0227e-4 - 2.*1.6546e-6*t(:))
-drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:)                   &
-       - 8.2467e-7*t3(:) + 5.3875e-9*t4(:))                             &
-       + 1.5*sqrt(s(:))*(-5.72466e-3 + 1.0227e-4*t(:)                   &
-       - 1.6546e-6*t2(:)) + 2.*4.8314e-4*s(:)
-
 !do i=1,nits
-  ptot=pxtr*1.E-5
+  !ptot=pxtr*1.E-5 ! convert Pa to bars
+  ptot = 0. ! ignore atm pressure and ice
   do ii=1,wlx
     t = min(max(tt(:,ii)+(wrtemp-273.16),-2.2),100.)
     s = min(max(ss(:,ii),0.),maxsal)
-    p1   = ptot+grav*(d_rho(:,ii)+wrtrho)*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
-    ptot = ptot+grav*(d_rho(:,ii)+wrtrho)*ddz(:,ii)*1.E-5
+    p1   = ptot+grav*density*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
+    ptot = ptot+grav*density*ddz(:,ii)*1.E-5
     t2 = t*t
     t3 = t2*t
     t4 = t3*t
@@ -3274,6 +3224,25 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:)                   &
     s3 = s2*s
     p2 = p1*p1
     s32 = sqrt(s3)
+
+    rs0 = (999.842594 - wrtrho) + 6.793952e-2*t(:)                          &
+           - 9.095290e-3*t2(:) + 1.001685e-4*t3(:)                          &
+           - 1.120083e-6*t4(:) + 6.536332e-9*t5(:) ! density for sal=0.
+    rho0 = rs0+ s(:)*(0.824493 - 4.0899e-3*t(:)                             &
+           + 7.6438e-5*t2(:)                                                &
+           - 8.2467e-7*t3(:) + 5.3875e-9*t4(:))                             &
+           + s32(:)*(-5.72466e-3 + 1.0227e-4*t(:)                           &
+           - 1.6546e-6*t2(:)) + 4.8314e-4*s2(:)    ! + sal terms    
+    drho0dt=6.793952e-2                                                     &
+           - 2.*9.095290e-3*t(:) + 3.*1.001685e-4*t2(:)                     &
+           - 4.*1.120083e-6*t3(:) + 5.*6.536332e-9*t4(:)                    &
+           + s(:)*( -4.0899e-3 + 2.*7.6438e-5*t(:)                          &
+           - 3.*8.2467e-7*t2(:) + 4.*5.3875e-9*t3(:))                       &
+           + s32(:)*(1.0227e-4 - 2.*1.6546e-6*t(:))
+    drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:)                   &
+           - 8.2467e-7*t3(:) + 5.3875e-9*t4(:))                             &
+           + 1.5*sqrt(s(:))*(-5.72466e-3 + 1.0227e-4*t(:)                   &
+           - 1.6546e-6*t2(:)) + 2.*4.8314e-4*s(:)
     
     sks = 1.965933e4 + 1.444304e2*t(:) - 1.706103*t2(:)                 &
                 + 9.648704e-3*t3(:)  - 4.190253e-5*t4(:)                &
