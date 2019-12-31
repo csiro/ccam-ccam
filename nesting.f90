@@ -140,7 +140,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
                     sssb,ocndep,xtghostb)
       call END_LOG(nestotf_end)
       tssb(:) = abs(tssb(:))
-      qb = max(qb,0.)
+      !qb = max(qb,0.)
       call retopo(pslb,zsb,zs(1:ifull),tb,qb)
     else
       write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
@@ -150,7 +150,8 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
     call setdavvertwgt
     
     ! record time of saved data
-    mtimeb = mtimer
+    !mtimeb = mtimer
+    mtimeb = 0
   endif       ! (.not.allocated(ta))
       
 ! transfer mtimeb fields to mtimea and update sice variables
@@ -207,7 +208,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
   end if
 
 ! ensure qb big enough, but not too big in top levels (from Sept '04)
-  qb(1:ifull,:) = max(qb(1:ifull,:), 0.)
+  !qb(1:ifull,:) = max(qb(1:ifull,:), 0.)
 
   
 ! following is useful if troublesome data is read in
