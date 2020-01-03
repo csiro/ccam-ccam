@@ -170,7 +170,7 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,minwater,mxd,zomode,zoseaice        &
     ,factchseaice,otaumode               &
     ,alphavis_seaice,alphanir_seaice     &
-    ,mlosigma,oclosure
+    ,mlosigma,oclosure,usepice
 use mlodynamics                            ! Ocean dynamics
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays

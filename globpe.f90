@@ -1333,7 +1333,8 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,pdl,pdu,nsteps,k_mode,eps_mode      &
     ,limitL,fixedce3,calcinloop,nops     &
     ,nopb,fixedstabfunc,omink => mink    &
-    ,omineps => mineps,mlovlevels
+    ,omineps => mineps,mlovlevels        &
+    ,usepice
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
@@ -2637,7 +2638,7 @@ if ( myid<nproc ) then
   ! some default values for unspecified parameters
   if ( ia<0 ) ia = il/2          ! diagnostic point
   if ( ib<0 ) ib = ia + 3        ! diagnostic point
-  !if ( ldr==0 ) mbase = 0        ! convection
+  !if ( ldr==0 ) mbase = 0       ! convection
   dsig4 = max(dsig2+.01, dsig4)  ! convection
 
   ! check nudging settings - adjust mbd scale parameter to satisfy mbd_maxscale and mbd_maxgrid settings

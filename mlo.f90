@@ -60,7 +60,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mloimport3d,mloexport3d,mlovlevels
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
-public oclosure,pdl,pdu,nsteps
+public oclosure,pdl,pdu,nsteps,usepice
 
 #ifdef CCAM
 public water_g,ice_g,wpack_g,wfull_g
@@ -201,6 +201,7 @@ integer, parameter :: deprelax  = 0       ! surface height (0=vary, 1=relax, 2=s
 integer, save      :: otaumode  = 0       ! Momentum coupling (0=Explicit, 1=Implicit, 2=Mixed)
 integer, save      :: mlosigma  = 0       ! Sigma levels (0=sig-cubic, 1=sig-quad, 2=sig-gotm, 3=sig-linear, 4=zstar-cubic, 5=zstar-quad, 6=zstar-gotm, 7=zstar-linear)
 integer, save      :: oclosure  = 0       ! 0- kpp, 1- k-eps
+integer, save      :: usepice   = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
 
 !k-eps parameters
 integer, save :: nsteps        = 1        ! Number of sub-steps to couple k-eps equations
@@ -2138,20 +2139,20 @@ end where
 
 ! Diffusion term for scalars (aa,bb,cc)
 where ( depth%dz_hl(:,2)*depth%dz(:,1)>1.e-4 )
-  cc(:,1) = -dt*ks(:,2)/(depth%dz_hl(:,2)*depth%dz(:,1)*d_zcr*d_zcr)
+  cc(:,1) = -dt*ks(:,2)/(depth%dz_hl(:,2)*depth%dz(:,1)*d_zcr**2)
 end where  
 bb(:,1) = 1._8 - cc(:,1)
 do ii = 2,wlev-1
   where ( depth%dz_hl(:,ii)*depth%dz(:,ii)>1.e-4 )  
-    aa(:,ii) = -dt*ks(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr*d_zcr)
+    aa(:,ii) = -dt*ks(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr**2)
   end where
   where ( depth%dz_hl(:,ii+1)*depth%dz(:,ii)>1.e-4 )
-    cc(:,ii) = -dt*ks(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr*d_zcr)
+    cc(:,ii) = -dt*ks(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr**2)
   end where  
   bb(:,ii) = 1._8 - aa(:,ii) - cc(:,ii)
 end do
 where ( depth%dz_hl(:,wlev)*depth%dz(:,wlev)>1.e-4 )
-  aa(:,wlev) = -dt*ks(:,wlev)/(depth%dz_hl(:,wlev)*depth%dz(:,wlev)*d_zcr*d_zcr)
+  aa(:,wlev) = -dt*ks(:,wlev)/(depth%dz_hl(:,wlev)*depth%dz(:,wlev)*d_zcr**2)
 end where  
 bb(:,wlev) = 1._8 - aa(:,wlev)
 
@@ -2190,7 +2191,7 @@ water%sal=max(0.,water%sal)
 
 ! Diffusion term for momentum (aa,bb,cc)
 where ( depth%dz_hl(:,2)*depth%dz(:,1)>1.e-4 )
-  cc(:,1) = -dt*km(:,2)/(depth%dz_hl(:,2)*depth%dz(:,1)*d_zcr*d_zcr)
+  cc(:,1) = -dt*km(:,2)/(depth%dz_hl(:,2)*depth%dz(:,1)*d_zcr**2)
 end where
 select case( otaumode )
   case(1)
@@ -2218,15 +2219,15 @@ select case( otaumode )
 end select
 do ii = 2,wlev-1
   where ( depth%dz_hl(:,ii)*depth%dz(:,ii)>1.e-4 )  
-    aa(:,ii) = -dt*km(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr*d_zcr)
+    aa(:,ii) = -dt*km(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr**2)
   end where
   where ( depth%dz_hl(:,ii+1)*depth%dz(:,ii)>1.e-4 )
-    cc(:,ii) = -dt*km(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr*d_zcr)
+    cc(:,ii) = -dt*km(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr**2)
   end where  
   bb(:,ii) = 1._8 - aa(:,ii) - cc(:,ii)
 end do
 where ( depth%dz_hl(:,wlev)*depth%dz(:,wlev)>1.e-4 )
-  aa(:,wlev) = -dt*km(:,wlev)/(depth%dz_hl(:,wlev)*depth%dz(:,wlev)*d_zcr*d_zcr)
+  aa(:,wlev) = -dt*km(:,wlev)/(depth%dz_hl(:,wlev)*depth%dz(:,wlev)*d_zcr**2)
 end where
 bb(:,wlev) = 1._8 - aa(:,wlev)
 uoave = fluxwgt*water%u(:,wlev) + (1.-fluxwgt)*water%ubot
@@ -2943,40 +2944,6 @@ do iqw=1,wfull
   end do 
 end do
 
-! Refine mixed-layer-depth calculation by improving vertical profile of buoyancy
-!if (mixmeth==1) then
-!  do iqw=1,wfull
-!    ii=dgwater%mixind(iqw)+1
-!    jj=min(ii+1,wlev)
-!    oldxp=0.
-!    oldtrib=rib(iqw,ii-1)
-!    xp=(dgwater%mixdepth(iqw)-depth(iqw,ii-1)*d_zcr(iqw))/((depth(iqw,ii)-depth(iqw,ii-1))*d_zcr(iqw))
-!    do kk=1,maxits
-!      if (xp<0.5) then
-!        tnsq=(1.-2.*xp)*0.5*max(d_nsq(iqw,ii-1)+d_nsq(iqw,ii),0.)+(2.*xp)*max(d_nsq(iqw,ii),0.)
-!      else
-!        tnsq=(2.-2.*xp)*max(d_nsq(iqw,ii),0.)+(2.*xp-1.)*0.5*max(d_nsq(iqw,ii)+d_nsq(iqw,jj),0.)
-!      end if
-!      tws=(1.-xp)*ws(iqw,ii-1)+xp*ws(iqw,ii)
-!      twu=(1.-xp)*water%u(iqw,ii-1)+xp*water%u(iqw,ii)
-!      twv=(1.-xp)*water%v(iqw,ii-1)+xp*water%v(iqw,ii)
-!      tdepth=((1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii))*d_zcr(iqw)
-!      tbuoy=(1.-xp)*dumbuoy(iqw,ii-1)+xp*dumbuoy(iqw,ii)
-!      trho=(1.-xp)*d_rho(iqw,ii-1)+xp*d_rho(iqw,ii)
-!      vtsq=tdepth*tws*sqrt(tnsq)*vtc
-!      dvsq=(usf(iqw)-twu)**2+(vsf(iqw)-twv)**2
-!      trib=(tdepth-minsfc)*tbuoy/(max(dvsq+vtsq,1.E-20)*(trho+wrtrho))
-!      if (abs(trib-oldtrib)<1.E-5) exit
-!      newxp=xp-(trib-ric)*(xp-oldxp)/(trib-oldtrib) ! i.e., (trib-ric-oldtrib+ric)
-!      oldtrib=trib
-!      oldxp=xp
-!      xp=newxp
-!      xp=min(max(xp,0.),1.)
-!    end do
-!    dgwater%mixdepth(iqw)=((1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii))*d_zcr(iqw)
-!  end do
-!end if
-
 ! calculate buoyancy forcing
 call getbf(d_rad,d_alpha,d_b0,dgwater,wfull)
 
@@ -3103,9 +3070,12 @@ type(icedata), intent(in) :: ice
 type(waterdata), intent(in) :: water
 type(depthdata), intent(in) :: depth
 
-pxtr=atm_ps+grav*ice%fracice*(ice%thick*rhoic+ice%snowd*rhosn)
-do ii=1,wlev
-  d_dz(:,ii)=depth%dz(:,ii)*d_zcr
+pxtr = atm_ps
+if ( usepice==1 ) then
+  pxtr = pxtr + grav*ice%fracice*(ice%thick*rhoic+ice%snowd*rhosn)
+end if
+do ii = 1,wlev
+  d_dz(:,ii) = depth%dz(:,ii)*d_zcr
 end do
 call calcdensity(d_rho,d_alpha,d_beta,rho0,water%temp,water%sal,d_dz,pxtr)
 
@@ -3193,8 +3163,7 @@ subroutine calcdensity(d_rho,d_alpha,d_beta,rho0,tt,ss,ddz,pxtr)
 
 implicit none
 
-integer wsize,wlx,ii
-!integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
+integer wlx,ii
 real, dimension(:,:), intent(in) :: tt ! potential temperature
 real, dimension(:,:), intent(in) :: ss,ddz
 real, dimension(:,:), intent(out) :: d_rho,d_alpha,d_beta
@@ -3205,92 +3174,88 @@ real, dimension(size(tt,1)) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
 real, dimension(size(tt,1)) :: drhodt,drhods,rs0
 real, parameter :: density = 1035.
 
-wsize = size(tt,1)
 wlx = size(tt,2)
 
-!do i=1,nits
-  !ptot=pxtr*1.E-5 ! convert Pa to bars
-  ptot = 0. ! ignore atm pressure and ice
-  do ii=1,wlx
-    t = min(max(tt(:,ii)+(wrtemp-273.16),-2.2),100.)
-    s = min(max(ss(:,ii),0.),maxsal)
-    p1   = ptot+grav*density*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
-    ptot = ptot+grav*density*ddz(:,ii)*1.E-5
-    t2 = t*t
-    t3 = t2*t
-    t4 = t3*t
-    t5 = t4*t
-    s2 = s*s
-    s3 = s2*s
-    p2 = p1*p1
-    s32 = sqrt(s3)
+ptot = pxtr*1.E-5 ! convert Pa to bars
 
-    rs0 = (999.842594 - wrtrho) + 6.793952e-2*t(:)                          &
-           - 9.095290e-3*t2(:) + 1.001685e-4*t3(:)                          &
-           - 1.120083e-6*t4(:) + 6.536332e-9*t5(:) ! density for sal=0.
-    rho0 = rs0+ s(:)*(0.824493 - 4.0899e-3*t(:)                             &
-           + 7.6438e-5*t2(:)                                                &
-           - 8.2467e-7*t3(:) + 5.3875e-9*t4(:))                             &
-           + s32(:)*(-5.72466e-3 + 1.0227e-4*t(:)                           &
-           - 1.6546e-6*t2(:)) + 4.8314e-4*s2(:)    ! + sal terms    
-    drho0dt=6.793952e-2                                                     &
-           - 2.*9.095290e-3*t(:) + 3.*1.001685e-4*t2(:)                     &
-           - 4.*1.120083e-6*t3(:) + 5.*6.536332e-9*t4(:)                    &
-           + s(:)*( -4.0899e-3 + 2.*7.6438e-5*t(:)                          &
-           - 3.*8.2467e-7*t2(:) + 4.*5.3875e-9*t3(:))                       &
-           + s32(:)*(1.0227e-4 - 2.*1.6546e-6*t(:))
-    drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:)                   &
-           - 8.2467e-7*t3(:) + 5.3875e-9*t4(:))                             &
-           + 1.5*sqrt(s(:))*(-5.72466e-3 + 1.0227e-4*t(:)                   &
-           - 1.6546e-6*t2(:)) + 2.*4.8314e-4*s(:)
+do ii = 1,wlx
+  t = min(max(tt(:,ii)+(wrtemp-273.16),-2.2),100.)
+  s = min(max(ss(:,ii),0.),maxsal)
+  p1   = ptot + grav*density*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
+  ptot = ptot + grav*density*ddz(:,ii)*1.E-5
+  t2 = t*t
+  t3 = t2*t
+  t4 = t3*t
+  t5 = t4*t
+  s2 = s*s
+  s3 = s2*s
+  p2 = p1*p1
+  s32 = sqrt(s3)
+
+  rs0 = (999.842594 - wrtrho) + 6.793952e-2*t(:)                          &
+         - 9.095290e-3*t2(:) + 1.001685e-4*t3(:)                          &
+         - 1.120083e-6*t4(:) + 6.536332e-9*t5(:) ! density for sal=0.
+  rho0 = rs0+ s(:)*(0.824493 - 4.0899e-3*t(:)                             &
+         + 7.6438e-5*t2(:)                                                &
+         - 8.2467e-7*t3(:) + 5.3875e-9*t4(:))                             &
+         + s32(:)*(-5.72466e-3 + 1.0227e-4*t(:)                           &
+         - 1.6546e-6*t2(:)) + 4.8314e-4*s2(:)    ! + sal terms    
+  drho0dt=6.793952e-2                                                     &
+         - 2.*9.095290e-3*t(:) + 3.*1.001685e-4*t2(:)                     &
+         - 4.*1.120083e-6*t3(:) + 5.*6.536332e-9*t4(:)                    &
+         + s(:)*( -4.0899e-3 + 2.*7.6438e-5*t(:)                          &
+         - 3.*8.2467e-7*t2(:) + 4.*5.3875e-9*t3(:))                       &
+         + s32(:)*(1.0227e-4 - 2.*1.6546e-6*t(:))
+  drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:)                   &
+         - 8.2467e-7*t3(:) + 5.3875e-9*t4(:))                             &
+         + 1.5*sqrt(s(:))*(-5.72466e-3 + 1.0227e-4*t(:)                   &
+         - 1.6546e-6*t2(:)) + 2.*4.8314e-4*s(:)
     
-    sks = 1.965933e4 + 1.444304e2*t(:) - 1.706103*t2(:)                 &
-                + 9.648704e-3*t3(:)  - 4.190253e-5*t4(:)                &
-                + p1(:)*(3.186519 + 2.212276e-2*t(:)                    &
-                - 2.984642e-4*t2(:) + 1.956415e-6*t3(:))                &
-                + p2(:)*(2.102898e-4 - 1.202016e-5*t(:)                 &
-                + 1.394680e-7*t2(:)) ! sal=0.
-    sk=sks+ s(:)*(52.84855 - 3.101089e-1*t(:)                           &
-                + 6.283263e-3*t2(:) -5.084188e-5*t3(:))                 &
-                + s32(:)*(3.886640e-1 + 9.085835e-3*t(:)                &
-                - 4.619924e-4*t2(:))                                    &
-                + p1(:)*s(:)*(6.704388e-3  -1.847318e-4*t(:)            &
-                + 2.059331e-7*t2(:)) + 1.480266e-4*p1(:)*s32(:)         &
-                +p2(:)*s(:)*(-2.040237e-6 &
-                + 6.128773e-8*t(:) + 6.207323e-10*t2(:)) ! + sal terms             
-    dskdt= 1.444304e2 - 2.*1.706103*t(:)                                &
-                + 3.*9.648704e-3*t2(:)  - 4.*4.190253e-5*t3(:)          &
-                + s(:)*( - 3.101089e-1                                  &
-                + 2.*6.283263e-3*t(:) -3.*5.084188e-5*t2(:))            &
-                + s32(:)*(9.085835e-3                                   &
-                - 2.*4.619924e-4*t(:))                                  &
-                + p1(:)*(2.212276e-2                                    &
-                - 2.*2.984642e-4*t(:) + 3.*1.956415e-6*t2(:))           &
-                + p1(:)*s(:)*(-1.847318e-4                              &
-                + 2.*2.059331e-7*t(:))                                  &
-                + p2(:)*(- 1.202016e-5                                  &
-                + 2.*1.394680e-7*t(:)) +p2(:)*s(:)*(                    &
-                + 6.128773e-8 + 2.*6.207323e-10*t(:))
-    dskds=(52.84855 - 3.101089e-1*t(:)                                  &
-                + 6.283263e-3*t2(:) -5.084188e-5*t3(:))                 &
-                + 1.5*sqrt(s(:))*(3.886640e-1 + 9.085835e-3*t(:)        &
-                - 4.619924e-4*t2(:))                                    &
-                + p1(:)*(6.704388e-3  -1.847318e-4*t(:)                 &
-                + 2.059331e-7*t2(:)) + 1.5*1.480266e-4*p1(:)*sqrt(s(:)) &
-                +p2(:)*(-2.040237e-6                                    &
-                + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
+  sks = 1.965933e4 + 1.444304e2*t(:) - 1.706103*t2(:)                 &
+              + 9.648704e-3*t3(:)  - 4.190253e-5*t4(:)                &
+              + p1(:)*(3.186519 + 2.212276e-2*t(:)                    &
+              - 2.984642e-4*t2(:) + 1.956415e-6*t3(:))                &
+              + p2(:)*(2.102898e-4 - 1.202016e-5*t(:)                 &
+              + 1.394680e-7*t2(:)) ! sal=0.
+  sk=sks+ s(:)*(52.84855 - 3.101089e-1*t(:)                           &
+              + 6.283263e-3*t2(:) -5.084188e-5*t3(:))                 &
+              + s32(:)*(3.886640e-1 + 9.085835e-3*t(:)                &
+              - 4.619924e-4*t2(:))                                    &
+              + p1(:)*s(:)*(6.704388e-3  -1.847318e-4*t(:)            &
+              + 2.059331e-7*t2(:)) + 1.480266e-4*p1(:)*s32(:)         &
+              +p2(:)*s(:)*(-2.040237e-6 &
+              + 6.128773e-8*t(:) + 6.207323e-10*t2(:)) ! + sal terms             
+  dskdt= 1.444304e2 - 2.*1.706103*t(:)                                &
+              + 3.*9.648704e-3*t2(:)  - 4.*4.190253e-5*t3(:)          &
+              + s(:)*( - 3.101089e-1                                  &
+              + 2.*6.283263e-3*t(:) -3.*5.084188e-5*t2(:))            &
+              + s32(:)*(9.085835e-3                                   &
+              - 2.*4.619924e-4*t(:))                                  &
+              + p1(:)*(2.212276e-2                                    &
+              - 2.*2.984642e-4*t(:) + 3.*1.956415e-6*t2(:))           &
+              + p1(:)*s(:)*(-1.847318e-4                              &
+              + 2.*2.059331e-7*t(:))                                  &
+              + p2(:)*(- 1.202016e-5                                  &
+              + 2.*1.394680e-7*t(:)) +p2(:)*s(:)*(                    &
+              + 6.128773e-8 + 2.*6.207323e-10*t(:))
+  dskds=(52.84855 - 3.101089e-1*t(:)                                  &
+              + 6.283263e-3*t2(:) -5.084188e-5*t3(:))                 &
+              + 1.5*sqrt(s(:))*(3.886640e-1 + 9.085835e-3*t(:)        &
+              - 4.619924e-4*t2(:))                                    &
+              + p1(:)*(6.704388e-3  -1.847318e-4*t(:)                 &
+              + 2.059331e-7*t2(:)) + 1.5*1.480266e-4*p1(:)*sqrt(s(:)) &
+              +p2(:)*(-2.040237e-6                                    &
+              + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
        
-    d_rho(:,ii)=(rho0*sk + wrtrho*p1)/max(sk-p1,1.)
+  d_rho(:,ii)=(rho0*sk + wrtrho*p1)/max(sk-p1,1.)
   
-    drhodt=drho0dt*sk/max(sk-p1,1.)-(rho0+wrtrho)*p1*dskdt/(max(sk-p1,1.)**2)
-    drhods=drho0ds*sk/max(sk-p1,1.)-(rho0+wrtrho)*p1*dskds/(max(sk-p1,1.)**2)
-    
-    d_alpha(:,ii)=-drhodt              ! Large et al (1993) convention
-    d_beta(:,ii)=drhods                ! Large et al (1993) convention
-    
-  end do
-
-!end do
+  drhodt=drho0dt*sk/max(sk-p1,1.)-(rho0+wrtrho)*p1*dskdt/(max(sk-p1,1.)**2)
+  drhods=drho0ds*sk/max(sk-p1,1.)-(rho0+wrtrho)*p1*dskds/(max(sk-p1,1.)**2)
+  
+  d_alpha(:,ii)=-drhodt              ! Large et al (1993) convention
+  d_beta(:,ii)=drhods                ! Large et al (1993) convention
+  
+end do
 
 return
 end subroutine calcdensity

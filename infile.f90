@@ -1171,19 +1171,20 @@ character(len=*), intent(in) :: ifile
 character(len=170) pfile
 character(len=8) fdecomp
 
+fnproc = 1              ! number of files to be read over all processors
+dmode = 0               ! Single file (dmode=0), Face decomposition (dmode=1),
+                        ! Depreciated (dmode=2) or Uniform decomposition (dmode=3)
+pipan = 0               ! Number of X grid points within a file panel
+pjpan = 0               ! Number of Y grid points within a file panel
+pnpan = 0               ! Number of panels in file
+ptest = .false.         ! Files match current processor (e.g., Restart file), allowing MPI gather/scatter to be avoided
+pfall = .false.         ! Every processor has been assigned at least one file, no need to Bcast metadata data
+resprocformat = .false. ! procformat file format with multiple processes per file
+
 if ( myid==0 ) then
   ! attempt to open single file with myid==0
   ier = nf90_open(ifile,nf90_nowrite,lncid)
   ncid = lncid
-  fnproc = 1              ! number of files to be read over all processors
-  dmode = 0               ! Single file (dmode=0), Face decomposition (dmode=1),
-                          ! Depreciated (dmode=2) or Uniform decomposition (dmode=3)
-  pipan = 0               ! Number of X grid points within a file panel
-  pjpan = 0               ! Number of Y grid points within a file panel
-  pnpan = 0               ! Number of panels in file
-  ptest = .false.         ! Files match current processor (e.g., Restart file), allowing MPI gather/scatter to be avoided
-  pfall = .false.         ! Every processor has been assigned at least one file, no need to Bcast metadata data
-  resprocformat = .false. ! procformat file format with multiple processes per file
       
   ! attempt to open parallel files
   if ( ier/=nf90_noerr ) then
@@ -1791,11 +1792,11 @@ mtimerm=mtimer_r-mtimerh*60  ! minutes left over
 ihr=ihr+mtimerh
 imins=imins+mtimerm
 
-if ( imins==58 .or. imins==59 ) then
-  ! allow for roundoff for real timer from old runs
-  if ( myid==0 .and. .not.quiet ) write(6,*)'*** imins increased to 60 from imins = ',imins
-  imins=60
-endif
+!if ( imins==58 .or. imins==59 ) then
+!  ! allow for roundoff for real timer from old runs
+!  if ( myid==0 .and. .not.quiet ) write(6,*)'*** imins increased to 60 from imins = ',imins
+!  imins=60
+!endif
 
 ihr=ihr+imins/60
 imins=mod(imins,60)
