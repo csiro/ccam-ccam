@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -170,7 +170,7 @@ if ( myid==0 .or. pfall ) then
   end if
   
   ! search for required date ----------------------------------------
-  if ( nrungcm==-14 ) then
+  if ( nrungcm==-14 .and. nested==2 ) then
     iarchi = 1
     ltest = .true.
     kdate_r = kdate_s 
@@ -269,6 +269,7 @@ if ( ktime_r<0 ) then
     return
   else
     write(6,*) "ERROR: Cannot locate date/time in input file"
+    write(6,*) "myid,pfall,ktime_r ",myid,pfall,ktime_r
     call ccmpi_abort(-1)
   end if
 end if

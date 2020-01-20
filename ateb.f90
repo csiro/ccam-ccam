@@ -1,6 +1,6 @@
 ! UCLEM urban canopy model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the UCLEM urban canopy model
 !
@@ -4698,9 +4698,9 @@ roadpsi=sqrt(fp_effhwratio*fp_effhwratio+1.)-fp_effhwratio
 
 ! integrate through 180 deg instead of 360 deg.  Hence partitioning to east and west facing walls
 where (fp_vangle>=0.5*pi)
-  walles=0.
-  wallws=1./fp_hwratio
-  roads=0.
+  walles=(1.-fp_fbeam)*wallpsi
+  wallws=fp_fbeam/fp_hwratio + (1.-fp_fbeam)*wallpsi
+  roads=(1.-fp_fbeam)*roadpsi
 elsewhere
   ta=tan(fp_vangle)
   thetazero=asin(1./max(fp_hwratio*ta,1.))

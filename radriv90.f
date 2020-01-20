@@ -742,7 +742,7 @@ c slwa is negative net radiational htg at ground
       real, parameter :: two_pi = 2. * 3.1415927
       fbeam = 0.0
       tmpr = 0.847 + coszen * (1.04 * coszen - 1.61)
-      tmpk = (1.47 - tmpr) / 1.66
+      tmpk = (1.4728 - tmpr) / 1.66
       WHERE (coszen > 1.0e-10 .AND. fsd > 10.0)
        tmprat = fsd / (solcon * (1.0 + 0.033 * 
      &          COS(two_pi * (doy-10.0) / 365.0)) * coszen)
