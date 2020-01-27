@@ -194,11 +194,11 @@ type(depthdata), dimension(:), allocatable, save :: depth_g
 type(turbdata), dimension(:), allocatable, save :: turb_g
   
 ! mode
-integer, save      :: zomode    = 2       ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
-integer, save      :: otaumode  = 0       ! momentum coupling (0=Explicit, 1=Implicit, 2=Mixed)
-integer, save      :: mlosigma  = 0       ! vertical levels (0=sig-cubic, 1=sig-quad, 2=sig-gotm, 3=sig-linear, 4=zstar-cubic, 5=zstar-quad, 6=zstar-gotm, 7=zstar-linear)
-integer, save      :: oclosure  = 0       ! 0- kpp, 1- k-eps
-integer, save      :: usepice   = 0       ! include ice in surface pressure (0=without ice, 1=with ice)
+integer, save :: zomode    = 2            ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
+integer, save :: otaumode  = 0            ! momentum coupling (0=Explicit, 1=Implicit, 2=Mixed)
+integer, save :: mlosigma  = 0            ! vertical levels (0=sig-cubic, 1=sig-quad, 2=sig-gotm, 3=sig-linear, 4=zstar-cubic, 5=zstar-quad, 6=zstar-gotm, 7=zstar-linear)
+integer, save :: oclosure  = 0            ! 0=kpp, 1=k-eps
+integer, save :: usepice   = 0            ! include ice in surface pressure (0=without ice, 1=with ice)
 
 ! kpp parameters
 integer, parameter :: incradbf  = 1       ! include shortwave in buoyancy forcing
@@ -206,14 +206,14 @@ integer, parameter :: incradgam = 1       ! include shortwave in non-local term
 
 ! k-eps parameters
 integer, save :: nsteps        = 1        ! Number of sub-steps to couple k-eps equations
-integer, save :: k_mode        = 2        ! 0-fully explicit k, 1-implicit k, 2-implicit k & pb
-integer, save :: eps_mode      = 2        ! 0-fully explicit eps, 1-implicit eps, 2-implicit eps & pb
-integer, save :: limitL        = 1        ! 0-no length scale limit, 1-limit length scale
-integer, save :: fixedce3      = 0        ! 0-dynamic ce3, 1-fixed ce3
-integer, save :: calcinloop    = 0        ! 0-shear & production outside coupling loop, 1-inside
-integer, save :: nops          = 0        ! 0-calculate shear production, 1-no shear production
-integer, save :: nopb          = 0        ! 0-calculate buoyancy production, 1-no buoyancy production
-integer, save :: fixedstabfunc = 0        ! 0-dynamic stability functions, 1-fixed stability functions
+integer, save :: k_mode        = 2        ! 0=fully explicit k, 1=implicit k, 2=implicit k & pb
+integer, save :: eps_mode      = 2        ! 0=fully explicit eps, 1=implicit eps, 2=implicit eps & pb
+integer, save :: limitL        = 1        ! 0=no length scale limit, 1=limit length scale
+integer, save :: fixedce3      = 0        ! 0=dynamic ce3, 1=fixed ce3
+integer, save :: calcinloop    = 0        ! 0=shear & production outside coupling loop, 1=inside
+integer, save :: nops          = 0        ! 0=calculate shear production, 1=no shear production
+integer, save :: nopb          = 0        ! 0=calculate buoyancy production, 1=no buoyancy production
+integer, save :: fixedstabfunc = 0        ! 0=dynamic stability functions, 1=fixed stability functions
 real, save :: pdu    = 2.7                ! Zoom factor near the surface for mlosigma==gotm
 real, save :: pdl    = 0.0                ! Zoom factor near the bottom for mlosigma==gotm
 real, save :: mink   = 1.e-8              ! Minimum k
@@ -3104,11 +3104,20 @@ visalb=dgwater%visdiralb*atm_fbvis+dgwater%visdifalb*(1.-atm_fbvis)
 niralb=dgwater%nirdiralb*atm_fbnir+dgwater%nirdifalb*(1.-atm_fbnir)
 netvis=(1.-visalb)*atm_vnratio
 netnir=(1.-niralb)*(1.-atm_vnratio)
-d_rad(:,1)=netvis*(exp(-depth%depth_hl(:,2)*d_zcr/mu_1)-1.) &
-          +netnir*(exp(-depth%depth_hl(:,2)*d_zcr/mu_2)-1.)
+where ( depth%depth_hl(:,2)<depth%depth_hl(:,wlev+1) )
+  d_rad(:,1)=netvis*(exp(-depth%depth_hl(:,2)*d_zcr/mu_1)-1.) &
+            +netnir*(exp(-depth%depth_hl(:,2)*d_zcr/mu_2)-1.)
+elsewhere
+  d_rad(:,1)=-netvis-netnir
+end where
 do ii=2,wlev-1 
-  d_rad(:,ii)=netvis*(exp(-depth%depth_hl(:,ii+1)*d_zcr/mu_1)-exp(-depth%depth_hl(:,ii)*d_zcr/mu_1)) &
-             +netnir*(exp(-depth%depth_hl(:,ii+1)*d_zcr/mu_2)-exp(-depth%depth_hl(:,ii)*d_zcr/mu_2))
+  where ( depth%depth_hl(:,ii+1)<depth%depth_hl(:,wlev+1) )
+    d_rad(:,ii)=netvis*(exp(-depth%depth_hl(:,ii+1)*d_zcr/mu_1)-exp(-depth%depth_hl(:,ii)*d_zcr/mu_1)) &
+               +netnir*(exp(-depth%depth_hl(:,ii+1)*d_zcr/mu_2)-exp(-depth%depth_hl(:,ii)*d_zcr/mu_2))
+  elsewhere
+    d_rad(:,ii)=-netvis*exp(-depth%depth_hl(:,ii)*d_zcr/mu_1) &
+                -netnir*exp(-depth%depth_hl(:,ii)*d_zcr/mu_2)      
+  end where 
 end do
 d_rad(:,wlev)=-netvis*exp(-depth%depth_hl(:,wlev)*d_zcr/mu_1) &
               -netnir*exp(-depth%depth_hl(:,wlev)*d_zcr/mu_2) ! remainder

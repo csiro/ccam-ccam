@@ -3115,14 +3115,13 @@ implicit none
 
 real, dimension(:), intent(in) :: ra
 real, dimension(:,:), intent(in) :: at
-real, dimension(size(at,1)+1) :: out_sum
+real, dimension(size(at,1)) :: out_sum
 real :: at_t, e, t1, t2
-complex, dimension(size(at,1)+1) :: local_sum
-integer i, kx, kn, ilen, k
+complex, dimension(size(at,1)) :: local_sum
+integer i, kx, ilen, k
 
 ilen = size(ra,1)
 kx = size(at,1)
-kn = kx - 1
 
 local_sum(1:kx) = (0.,0.)
 
