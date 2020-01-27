@@ -2122,9 +2122,7 @@ cc = 0._8
 
 ! Counter-gradient term for scalars (rhs)
 ! +ve sign for rhs terms since z +ve is down
-where ( depth%dz(:,1)>1.e-4 )
-  rhs(:,1) = ks(:,2)*gammas(:,2)/(depth%dz(:,1)*d_zcr)
-end where  
+rhs(:,1) = ks(:,2)*gammas(:,2)/(depth%dz(:,1)*d_zcr)
 do ii = 2,wlev-1
   where ( depth%dz(:,ii)>1.e-4 )  
     rhs(:,ii) = (ks(:,ii+1)*gammas(:,ii+1)-ks(:,ii)*gammas(:,ii))/(depth%dz(:,ii)*d_zcr)
@@ -2170,9 +2168,7 @@ do ii = 1,wlev
     dd(:,ii) = dd(:,ii) - dt*d_rad(:,ii)/(depth%dz(:,ii)*d_zcr)
   end where  
 end do
-where ( depth%dz(:,1)>1.e-4 )
-  dd(:,1) = dd(:,1) - dt*d_wt0/(depth%dz(:,1)*d_zcr)
-end where  
+dd(:,1) = dd(:,1) - dt*d_wt0/(depth%dz(:,1)*d_zcr)
 call thomas(water%temp,aa,bb,cc,dd)
 
 
@@ -2180,9 +2176,7 @@ call thomas(water%temp,aa,bb,cc,dd)
 do ii = 1,wlev
   dd(:,ii) = water%sal(:,ii) + dt*rhs(:,ii)*d_ws0
 end do
-where ( depth%dz(:,1)>1.e-4 )
-  dd(:,1) = dd(:,1) - dt*d_ws0/(depth%dz(:,1)*d_zcr)
-end where
+dd(:,1) = dd(:,1) - dt*d_ws0/(depth%dz(:,1)*d_zcr)
 call thomas(water%sal,aa,bb,cc,dd)
 water%sal = max(0.,water%sal)
 
@@ -2198,20 +2192,16 @@ select case( otaumode )
     vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                                 ! implicit
     rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))                     ! implicit
     bb(:,1) = 1._8 - cc(:,1)
-    where ( depth%dz(:,1)>1.e-4 )
-      bb(:,1) = bb(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn &
+    bb(:,1) = bb(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn &
                                            /(rhowt*depth%dz(:,1)*d_zcr)      ! implicit  
-    end where  
   case(2)
     atu = atm_u - fluxwgt*water%u(:,1) - (1.-fluxwgt)*water%utop             ! mixed
     atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*water%vtop             ! mixed
     vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                                 ! mixed
     rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))                     ! mixed
     bb(:,1) = 1._8 - cc(:,1)
-    where ( depth%dz(:,1)>1.e-4 )
-      bb(:,1) = bb(:,1) + 0.5*dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn &
+    bb(:,1) = bb(:,1) + 0.5*dt*(1.-ice%fracice)*rho*dgwater%cd*vmagn &
                                                /(rhowt*depth%dz(:,1)*d_zcr)  ! mixed
-    end where  
   case default
     bb(:,1) = 1._8 - cc(:,1)                                                 ! explicit  
 end select
@@ -2241,27 +2231,20 @@ end do
 
 
 ! U diffusion term
-dd(:,1) = water%u(:,1)
-select case( otaumode )
-  case(1)
-    where ( depth%dz(:,1)>1.e-4 )
-      dd(:,1) = dd(:,1) + dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
-                      +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
-    end where  
-  case(2)
-    where( depth%dz(:,1)>1.e-4 )
-      dd(:,1) = dd(:,1) + 0.5*dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u     &
-                          +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr) & ! mixed
-                          -0.5*dt*d_wu0/(depth%dz(:,1)*d_zcr)
-    end where  
-  case default
-    where ( depth%dz(:,1)>1.e-4 )
-      dd(:,1) = dd(:,1) - dt*d_wu0/(depth%dz(:,1)*d_zcr)                        ! explicit
-    end where  
-end select
-do ii = 2,wlev
+do ii = 1,wlev
   dd(:,ii) = water%u(:,ii)
 end do
+select case( otaumode )
+  case(1)
+    dd(:,1) = dd(:,1) + dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
+                      +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
+  case(2)
+    dd(:,1) = dd(:,1) + 0.5*dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u     &
+                          +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr) & ! mixed
+                          -0.5*dt*d_wu0/(depth%dz(:,1)*d_zcr)
+  case default
+    dd(:,1) = dd(:,1) - dt*d_wu0/(depth%dz(:,1)*d_zcr)                        ! explicit
+end select
 call thomas(water%u,aa,bb,cc,dd)
 select case( otaumode )
   case(1)
@@ -2274,27 +2257,20 @@ select case( otaumode )
 end select
 
 ! V diffusion term
-dd(:,1) = water%v(:,1)
-select case( otaumode )
-  case(1)
-    where ( depth%dz(:,1)>1.e-4 )
-      dd(:,1) = dd(:,1) + dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v         &
-                        +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr) ! implicit
-    end where  
-  case(2)
-    where ( depth%dz(:,1)>1.e-4 )  
-      dd(:,1) = dd(:,1) + 0.5*dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v     &
-                          +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr) & ! mixed
-                          -0.5*dt*d_wv0/(depth%dz(:,1)*d_zcr)
-    end where  
-  case default
-    where ( depth%dz(:,1)>1.e-4 ) 
-      dd(:,1) = dd(:,1) - dt*d_wv0/(depth%dz(:,1)*d_zcr)                        ! explicit
-    end where  
-end select
-do ii = 2,wlev
+do ii = 1,wlev
   dd(:,ii) = water%v(:,ii)
 end do
+select case( otaumode )
+  case(1)
+    dd(:,1) = dd(:,1) + dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v         &
+                          +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr) ! implicit
+  case(2)
+    dd(:,1) = dd(:,1) + 0.5*dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v     &
+                        +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr) & ! mixed
+                        -0.5*dt*d_wv0/(depth%dz(:,1)*d_zcr)
+  case default
+    dd(:,1) = dd(:,1) - dt*d_wv0/(depth%dz(:,1)*d_zcr)                            ! explicit
+end select
 call thomas(water%v,aa,bb,cc,dd)
 select case( otaumode )
   case(1)  
@@ -2825,7 +2801,7 @@ cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.) ! Large (1994)
 !cg=5.*vkar*(98.96*vkar*epsilon)**(1./3.) ! Bernie (2004)
 gammas(:,1)=0.
 do ii=2,wlev
-  where (dgwater%bf<0..and.ii<=mixind_hl) ! unstable
+  where (dgwater%bf<0..and.ii<=mixind_hl.and.depth%depth_hl(:,ii+1)<depth%depth_hl(:,wlev+1)) ! unstable
     gammas(:,ii)=cg/max(ws(:,ii)*dgwater%mixdepth,1.E-20)
   elsewhere
     gammas(:,ii)=0.
@@ -2845,9 +2821,7 @@ implicit none
 
 integer ii,jj,iqw
 integer, intent(in) :: wfull
-integer, dimension(wfull) :: isf
 real vtc,dvsq,vtsq,xp
-real deldz,aa,bb,dsf
 real, dimension(wfull,wlev) :: ws,wm,dumbuoy,rib
 real, dimension(wfull) :: dumbf,l,d_depth,usf,vsf,rsf
 real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
@@ -2875,39 +2849,14 @@ else
 end if
 
 ! Estimate surface layer values
-usf=0.
-vsf=0.
-rsf=0.
-dsf=0.
-isf=wlev-1
-do iqw=1,wfull
-  dsf=0.
-  do ii=1,wlev-1
-    aa=depth%dz(iqw,ii)*d_zcr(iqw)
-    bb=max(minsfc-dsf,0.)
-    deldz=min(aa,bb)
-    usf(iqw)=usf(iqw)+water%u(iqw,ii)*deldz
-    vsf(iqw)=vsf(iqw)+water%v(iqw,ii)*deldz
-    rsf(iqw)=rsf(iqw)+d_rho(iqw,ii)*deldz
-    dsf=dsf+deldz
-    if (bb<=0.) exit
-  end do
-  if (depth%depth(iqw,ii)*d_zcr(iqw)>minsfc) then
-    isf(iqw)=ii
-  else
-    isf(iqw)=ii+1
-  end if
-  usf(iqw)=usf(iqw)/dsf
-  vsf(iqw)=vsf(iqw)/dsf
-  rsf(iqw)=rsf(iqw)/dsf
-end do
+usf=water%u(:,1)
+vsf=water%v(:,1)
+rsf=d_rho(:,1)
 
 ! Calculate local buoyancy
 dumbuoy=0.
-do iqw=1,wfull
-  do ii=isf(iqw),wlev
-    dumbuoy(iqw,ii)=grav*(d_rho(iqw,ii)-rsf(iqw))
-  end do
+do ii=1,wlev
+  dumbuoy(:,ii)=grav*(d_rho(:,ii)-rsf(:))
 end do
 
 ! Calculate mixed layer depth from critical Ri
@@ -2915,7 +2864,7 @@ dgwater%mixind=wlev-1
 dgwater%mixdepth=depth%depth(:,wlev)*d_zcr
 rib=0.
 do iqw=1,wfull
-  do ii=isf(iqw),wlev
+  do ii=1,wlev
     jj=min(ii+1,wlev)
     vtsq=depth%depth(iqw,ii)*d_zcr(iqw)*ws(iqw,ii)*sqrt(0.5*max(d_nsq(iqw,ii)+d_nsq(iqw,jj),0.))*vtc
     dvsq=(usf(iqw)-water%u(iqw,ii))**2+(vsf(iqw)-water%v(iqw,ii))**2
@@ -2925,7 +2874,7 @@ do iqw=1,wfull
       jj=max(ii-1,1)
       dgwater%mixind(iqw)=jj
       xp=min(max((ric-rib(iqw,jj))/max(rib(iqw,ii)-rib(iqw,jj),1.E-20),0.),1.)
-      dgwater%mixdepth(iqw ) = ((1.-xp)*depth%depth(iqw,jj)+xp*depth%depth(iqw,ii))*d_zcr(iqw)
+      dgwater%mixdepth(iqw) = ((1.-xp)*depth%depth(iqw,jj)+xp*depth%depth(iqw,ii))*d_zcr(iqw)
       exit
     end if
   end do 
@@ -2950,7 +2899,7 @@ dgwater%mixdepth=min(dgwater%mixdepth,depth%depth(:,wlev)*d_zcr)
 dgwater%mixind=wlev-1
 do iqw=1,wfull
   do ii=2,wlev
-    if (depth%depth(iqw,ii)*d_zcr(iqw)>dgwater%mixdepth(iqw)) then
+    if (depth%depth(iqw,ii)*d_zcr(iqw)>dgwater%mixdepth(iqw).or.depth%dz(iqw,ii)<=1.e-4) then
       dgwater%mixind(iqw)=ii-1
       exit
     end if
@@ -3270,22 +3219,9 @@ real, dimension(wfull), intent(out) :: d_timelt
 type(waterdata), intent(in) :: water
 type(depthdata), intent(in) :: depth
 real, dimension(wfull) :: ssf
-real dsf,aa,bb,deldz
 
 ! Integrate over minsfc to estimate near surface salinity
-ssf=0.
-do iqw=1,wfull
-  dsf=0.
-  do ii=1,wlev-1
-    aa=depth%dz(iqw,ii) ! neglect d_zcr correction so that d_timelt is independent of eta
-    bb=minsfc-dsf
-    deldz=min(aa,bb)
-    ssf(iqw)=ssf(iqw)+water%sal(iqw,ii)*deldz
-    dsf=dsf+deldz
-    if (aa>=bb) exit
-  end do
-  ssf(iqw)=ssf(iqw)/dsf
-end do
+ssf=water%sal(:,1)
 d_timelt=273.16-0.054*min(max(ssf,0.),maxsal) ! ice melting temperature from CICE
 
 return
