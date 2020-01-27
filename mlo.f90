@@ -2099,8 +2099,6 @@ type(icedata), intent(in) :: ice
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
 
-
-
 if ( diag>=1 ) write(6,*) "Calculate ocean mixing"
 
 ! solve for mixed layer depth (calculated at full levels)
@@ -2235,7 +2233,7 @@ voave = fluxwgt*water%v(:,wlev) + (1.-fluxwgt)*water%vbot
 umag = sqrt(uoave*uoave+voave*voave)
 ! bottom drag
 do ii = 1,wlev
-  lbottom = depth%depth_hl(:,ii+1)>=depth%depth_hl(:,wlev+1) .and. depth%depth_hl(:,wlev+1)<mxd .and. depth%dz(:,wlev)>1.e-4  
+  lbottom = depth%depth_hl(:,ii+1)>=depth%depth_hl(:,wlev+1) .and. depth%depth_hl(:,wlev+1)<mxd .and. depth%dz(:,ii)>1.e-4  
   where ( lbottom )
     bb(:,ii) = bb(:,ii) + dt*cdbot*umag/(depth%dz(:,ii)*d_zcr)
   end where
@@ -3108,19 +3106,25 @@ where ( depth%depth_hl(:,2)<depth%depth_hl(:,wlev+1) )
   d_rad(:,1)=netvis*(exp(-depth%depth_hl(:,2)*d_zcr/mu_1)-1.) &
             +netnir*(exp(-depth%depth_hl(:,2)*d_zcr/mu_2)-1.)
 elsewhere
-  d_rad(:,1)=-netvis-netnir
+  d_rad(:,1)=-netvis-netnir ! remainder
 end where
 do ii=2,wlev-1 
   where ( depth%depth_hl(:,ii+1)<depth%depth_hl(:,wlev+1) )
     d_rad(:,ii)=netvis*(exp(-depth%depth_hl(:,ii+1)*d_zcr/mu_1)-exp(-depth%depth_hl(:,ii)*d_zcr/mu_1)) &
                +netnir*(exp(-depth%depth_hl(:,ii+1)*d_zcr/mu_2)-exp(-depth%depth_hl(:,ii)*d_zcr/mu_2))
-  elsewhere
+  elsewhere ( depth%dz(:,ii)>1.e-4 )
     d_rad(:,ii)=-netvis*exp(-depth%depth_hl(:,ii)*d_zcr/mu_1) &
-                -netnir*exp(-depth%depth_hl(:,ii)*d_zcr/mu_2)      
+                -netnir*exp(-depth%depth_hl(:,ii)*d_zcr/mu_2) ! remainder
+  elsewhere
+    d_rad(:,ii)=0.  
   end where 
 end do
-d_rad(:,wlev)=-netvis*exp(-depth%depth_hl(:,wlev)*d_zcr/mu_1) &
-              -netnir*exp(-depth%depth_hl(:,wlev)*d_zcr/mu_2) ! remainder
+where ( depth%dz(:,wlev)>1.e-4 )
+  d_rad(:,wlev)=-netvis*exp(-depth%depth_hl(:,wlev)*d_zcr/mu_1) &
+                -netnir*exp(-depth%depth_hl(:,wlev)*d_zcr/mu_2) ! remainder
+elsewhere
+  d_rad(:,wlev)=0.
+end where
 do ii=1,wlev
   d_rad(:,ii)=d_rad(:,ii)*(1.-ice%fracice)*atm_sg/(cp0*rhowt)
 end do
