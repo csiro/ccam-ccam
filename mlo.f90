@@ -1760,14 +1760,14 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   if ( wfull_g(tile)>0 ) then
-    call mloexpmelt_work(omelt(is:ie),water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+    call mloexpmelt_work(omelt(is:ie),water_g(tile),wpack_g(:,tile),wfull_g(tile))
   end if
 end do
 
 return
 end subroutine mloexpmelt
     
-subroutine mloexpmelt_work(omelt,water,depth,wpack,wfull)
+subroutine mloexpmelt_work(omelt,water,wpack,wfull)
 
 implicit none
 
@@ -1776,11 +1776,10 @@ real, dimension(imax), intent(inout) :: omelt
 real, dimension(wfull) :: tmelt
 logical, dimension(imax) :: wpack
 type(waterdata), intent(in) :: water
-type(depthdata), intent(in) :: depth
 
 if (wfull==0) return
 
-call calcmelt(tmelt,water,depth,wfull)
+call calcmelt(tmelt,water,wfull)
 omelt=unpack(tmelt,wpack,omelt)
 
 return
@@ -1973,7 +1972,7 @@ d_zcr = max(1.+water%eta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev
 !oldzcr=d_zcr
 
 ! calculate melting temperature
-call calcmelt(d_timelt,water,depth,wfull)
+call calcmelt(d_timelt,water,wfull)
 
 ! equation of state
 call getrho(atm_ps,d_rho,d_alpha,d_beta,depth,ice,water,wfull)
@@ -2039,6 +2038,7 @@ water%vtop = vtop_save
 water%ubot = ubot_save
 water%vbot = vbot_save
 
+
 #ifdef mlodebug
 call mlocheck("MLO-end",water_temp=water%temp,ice_tsurf=ice%tsurf,ice_temp=ice%temp)
 if ( any(abs(water%u)>20.) .or. any(abs(water%v)>20.) ) then
@@ -2048,6 +2048,7 @@ if ( any(abs(water%u)>20.) .or. any(abs(water%v)>20.) ) then
   stop
 end if
 #endif
+
 
 ! energy conservation check
 !d_zcr=max(1.+water%eta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
@@ -2101,24 +2102,28 @@ type(depthdata), intent(in) :: depth
 
 if ( diag>=1 ) write(6,*) "Calculate ocean mixing"
 
-! solve for mixed layer depth (calculated at full levels)
-call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,atm_f,d_zcr, &
-                 depth,dgwater,water,wfull)
-! solve for stability functions and non-local term (calculated at half levels)
-call getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr, &
-             depth,dgwater,water,wfull)
-
-select case(oclosure)
-case(1)
-  km = 0.0
-  ks = 0.0
-  call keps(km,ks,k,eps,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull)
-end select
-
 rhs = 0.
 aa = 0._8
 bb = 1._8
 cc = 0._8
+gammas = 0.
+
+! solve for mixed layer depth (calculated at full levels)
+call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,atm_f,d_zcr, &
+                 depth,dgwater,water,wfull)
+
+! solve for stability functions and non-local term (calculated at half levels)
+select case(oclosure)
+  case(1)
+    ! k-e  
+    km = 0.
+    ks = 0.
+    call keps(km,ks,k,eps,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull)
+  case default
+    ! kpp
+    call getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr, &
+             depth,dgwater,water,wfull)
+end select
 
 ! Counter-gradient term for scalars (rhs)
 ! +ve sign for rhs terms since z +ve is down
@@ -2784,11 +2789,11 @@ a3s=1.-2.*g1s+dg1sds
 km(:,1)=0.
 ks(:,1)=0.
 do ii=2,wlev
-  where (ii<=mixind_hl)
+  where (ii<=mixind_hl .and. depth%dz(:,ii)>1.e-4 )
     sigma=depth%depth_hl(:,ii)*d_zcr/dgwater%mixdepth
     km(:,ii)=max(dgwater%mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma)),num(:,ii))
     ks(:,ii)=max(dgwater%mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2s+a3s*sigma)),nus(:,ii))
-  elsewhere
+  elsewhere ( depth%dz(:,ii)>1.e-4 )
     km(:,ii)=num(:,ii)
     ks(:,ii)=nus(:,ii)
   end where
@@ -2801,10 +2806,8 @@ cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.) ! Large (1994)
 !cg=5.*vkar*(98.96*vkar*epsilon)**(1./3.) ! Bernie (2004)
 gammas(:,1)=0.
 do ii=2,wlev
-  where (dgwater%bf<0..and.ii<=mixind_hl.and.depth%depth_hl(:,ii+1)<depth%depth_hl(:,wlev+1)) ! unstable
+  where (dgwater%bf<0..and.ii<=mixind_hl.and.depth%dz(:,ii)>1.e-4) ! unstable
     gammas(:,ii)=cg/max(ws(:,ii)*dgwater%mixdepth,1.E-20)
-  elsewhere
-    gammas(:,ii)=0.
   end where
 end do
 
@@ -2868,7 +2871,7 @@ do iqw=1,wfull
     jj=min(ii+1,wlev)
     vtsq=depth%depth(iqw,ii)*d_zcr(iqw)*ws(iqw,ii)*sqrt(0.5*max(d_nsq(iqw,ii)+d_nsq(iqw,jj),0.))*vtc
     dvsq=(usf(iqw)-water%u(iqw,ii))**2+(vsf(iqw)-water%v(iqw,ii))**2
-    rib(iqw,ii)=(depth%depth(iqw,ii)*d_zcr(iqw)-minsfc)*dumbuoy(iqw,ii) &
+    rib(iqw,ii)=(depth%depth(iqw,ii)*d_zcr(iqw)-depth%depth(iqw,1))*dumbuoy(iqw,ii) &
         /(max(dvsq+vtsq,1.E-20)*(d_rho(iqw,ii)+wrtrho))
     if (rib(iqw,ii)>ric) then
       jj=max(ii-1,1)
@@ -2900,7 +2903,10 @@ dgwater%mixind=wlev-1
 do iqw=1,wfull
   do ii=2,wlev
     if (depth%depth(iqw,ii)*d_zcr(iqw)>dgwater%mixdepth(iqw).or.depth%dz(iqw,ii)<=1.e-4) then
-      dgwater%mixind(iqw)=ii-1
+      jj = ii - 1  
+      dgwater%mixind(iqw) = jj
+      xp=min(max((ric-rib(iqw,jj))/max(rib(iqw,ii)-rib(iqw,jj),1.E-20),0.),1.)
+      dgwater%mixdepth(iqw) = ((1.-xp)*depth%depth(iqw,jj)+xp*depth%depth(iqw,ii))*d_zcr(iqw)
       exit
     end if
   end do
@@ -3209,7 +3215,7 @@ end subroutine calcdensity
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate melting/freezing point
-pure subroutine calcmelt(d_timelt,water,depth,wfull)
+pure subroutine calcmelt(d_timelt,water,wfull)
 
 implicit none
 
@@ -3217,12 +3223,8 @@ integer iqw,ii
 integer, intent(in) :: wfull
 real, dimension(wfull), intent(out) :: d_timelt
 type(waterdata), intent(in) :: water
-type(depthdata), intent(in) :: depth
-real, dimension(wfull) :: ssf
 
-! Integrate over minsfc to estimate near surface salinity
-ssf=water%sal(:,1)
-d_timelt=273.16-0.054*min(max(ssf,0.),maxsal) ! ice melting temperature from CICE
+d_timelt=273.16-0.054*min(max(water%sal(:,1),0.),maxsal) ! ice melting temperature from CICE
 
 return
 end subroutine calcmelt
