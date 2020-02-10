@@ -32,7 +32,7 @@ use aerosolldr, only : xtosav,xtg,naero  & ! LDR prognostic aerosols
     ,saltsmallmtn,saltlargemtn
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebnmlfile             & ! Urban
-    ,ateb_energytol=>energytol           &
+    ,energytol                           &
     ,ateb_resmeth=>resmeth               &
     ,ateb_useonewall=>useonewall         &
     ,ateb_zohmeth=>zohmeth               &
@@ -168,6 +168,7 @@ real ateb_infilach,  ateb_intgains, ateb_bldairtemp
 real ateb_heatprop, ateb_coolprop
 real ateb_zovegc
 real ps_adj
+real ateb_energytol
 real cgmap_offset, cgmap_scale, tke_umin
 real ateb_ac_smooth, ateb_ac_copmax
 real, dimension(4) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
@@ -427,6 +428,8 @@ if ( abs(nmlo)>=2 ) then
   write(6,*) "ERROR: Cannot use dynamical MLO with nmlo ",nmlo
   stop -1
 end if
+
+energytol = real(ateb_energytol,8)
 
 call map_init(ifull_g,ifull,iextra,myid)
 

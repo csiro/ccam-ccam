@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1254,7 +1254,7 @@ use aerosolldr, only : naero,ch_dust     & ! LDR prognostic aerosols
     ,saltsmallmtn,saltlargemtn
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebnmlfile             & ! Urban
-    ,ateb_energytol=>energytol           &
+    ,energytol                           &
     ,ateb_resmeth=>resmeth               &
     ,ateb_useonewall=>useonewall         &
     ,ateb_zohmeth=>zohmeth               &
@@ -1404,9 +1404,9 @@ real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
 real targetlev, dsx, pwatr_l, pwatr
 real ateb_zocanyon, ateb_zoroof
+real ateb_energytol
 real cgmap_offset, cgmap_scale      ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
-real(kind=8), dimension(:), allocatable, save :: dumr8
 logical lmlosigma, procformat
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) optarg
@@ -1552,7 +1552,7 @@ khdif            = 2
 nhorjlm          = 1
 ngas             = 0
 atebnmlfile      = 0
-ateb_energytol   = 4._8
+ateb_energytol   = 4.
 ateb_intairtmeth = 0
 ateb_intmassmeth = 0
 ateb_zocanyon    = zocanyon
@@ -2232,8 +2232,7 @@ stabmeth   = dumi(2)
 tkemeth    = dumi(3)
 ngwd       = dumi(4)
 deallocate( dumr, dumi )
-allocate( dumr8(1), dumr(22), dumi(31) )
-dumr8 = 0._8
+allocate( dumr(23), dumi(31) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2243,29 +2242,29 @@ if ( myid==0 ) then
     ! if namelist is not missing, then trigger an error message
     if ( .not.is_iostat_end(ierr) ) read(99, landnml)
   end if
-  dumr8(1) = ateb_energytol
-  dumr(1)  = ateb_tol
-  dumr(2)  = ateb_alpha
-  dumr(3)  = ateb_zosnow
-  dumr(4)  = ateb_snowemiss
-  dumr(5)  = ateb_maxsnowalpha
-  dumr(6)  = ateb_minsnowalpha
-  dumr(7)  = ateb_maxsnowden
-  dumr(8)  = ateb_minsnowden
-  dumr(9)  = ateb_refheight
-  dumr(10) = ateb_zomratio
-  dumr(11) = ateb_zocanyon
-  dumr(12) = ateb_zoroof
-  dumr(13) = ateb_maxrfwater
-  dumr(14) = ateb_maxrdwater
-  dumr(15) = ateb_maxrfsn
-  dumr(16) = ateb_maxrdsn
-  dumr(17) = ateb_maxvwatf
-  dumr(18) = ateb_ac_heatcap
-  dumr(19) = ateb_ac_coolcap
-  dumr(20) = ateb_ac_deltat
-  dumr(21) = ateb_acfactor
-  dumr(22) = siburbanfrac
+  dumr(1)  = ateb_energytol ! note conversion from ateb_energytol to energytol
+  dumr(2)  = ateb_tol
+  dumr(3)  = ateb_alpha
+  dumr(4)  = ateb_zosnow
+  dumr(5)  = ateb_snowemiss
+  dumr(6)  = ateb_maxsnowalpha
+  dumr(7)  = ateb_minsnowalpha
+  dumr(8)  = ateb_maxsnowden
+  dumr(9)  = ateb_minsnowden
+  dumr(10) = ateb_refheight
+  dumr(11) = ateb_zomratio
+  dumr(12) = ateb_zocanyon
+  dumr(13) = ateb_zoroof
+  dumr(14) = ateb_maxrfwater
+  dumr(15) = ateb_maxrdwater
+  dumr(16) = ateb_maxrfsn
+  dumr(17) = ateb_maxrdsn
+  dumr(18) = ateb_maxvwatf
+  dumr(19) = ateb_ac_heatcap
+  dumr(20) = ateb_ac_coolcap
+  dumr(21) = ateb_ac_deltat
+  dumr(22) = ateb_acfactor
+  dumr(23) = siburbanfrac
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -2298,32 +2297,31 @@ if ( myid==0 ) then
   dumi(30) = ateb_lwintmeth
   dumi(31) = ateb_infilmeth
 end if
-call ccmpi_bcastr8(dumr8,0,comm_world)
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
-ateb_energytol    = dumr8(1)
-ateb_tol          = dumr(1)
-ateb_alpha        = dumr(2)
-ateb_zosnow       = dumr(3)
-ateb_snowemiss    = dumr(4)
-ateb_maxsnowalpha = dumr(5)
-ateb_minsnowalpha = dumr(6)
-ateb_maxsnowden   = dumr(7)
-ateb_minsnowden   = dumr(8)
-ateb_refheight    = dumr(9) 
-ateb_zomratio     = dumr(10)
-zocanyon          = dumr(11)
-zoroof            = dumr(12)
-ateb_maxrfwater   = dumr(13)
-ateb_maxrdwater   = dumr(14)
-ateb_maxrfsn      = dumr(15)
-ateb_maxrdsn      = dumr(16)
-ateb_maxvwatf     = dumr(17) 
-ateb_ac_heatcap   = dumr(18)
-ateb_ac_coolcap   = dumr(19)
-ateb_ac_deltat    = dumr(20)
-ateb_acfactor     = dumr(21)
-siburbanfrac      = dumr(22) 
+energytol         = real(dumr(1),8) ! note conversion from ateb_energytol to energytol
+ateb_tol          = dumr(2)
+ateb_alpha        = dumr(3)
+ateb_zosnow       = dumr(4)
+ateb_snowemiss    = dumr(5)
+ateb_maxsnowalpha = dumr(6)
+ateb_minsnowalpha = dumr(7)
+ateb_maxsnowden   = dumr(8)
+ateb_minsnowden   = dumr(9)
+ateb_refheight    = dumr(10) 
+ateb_zomratio     = dumr(11)
+zocanyon          = dumr(12)
+zoroof            = dumr(13)
+ateb_maxrfwater   = dumr(14)
+ateb_maxrdwater   = dumr(15)
+ateb_maxrfsn      = dumr(16)
+ateb_maxrdsn      = dumr(17)
+ateb_maxvwatf     = dumr(18) 
+ateb_ac_heatcap   = dumr(19)
+ateb_ac_coolcap   = dumr(20)
+ateb_ac_deltat    = dumr(21)
+ateb_acfactor     = dumr(22)
+siburbanfrac      = dumr(23) 
 proglai           = dumi(1)
 ccycle            = dumi(2)
 soil_struc        = dumi(3)
