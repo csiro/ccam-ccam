@@ -38,7 +38,7 @@ public rnet_ave
 public wb_ave,wbice_ave,convh_ave
 public fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 public cnpp_ave,cnbp_ave
-public anthropogenic_ave, tmaxurban, tminurban
+public anthropogenic_ave, urban_storage_ave, tmaxurban, tminurban
 public anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 !public tgg_ave
 public histave_init,histave_end
@@ -57,7 +57,7 @@ real, dimension(:), allocatable, save :: rnet_ave
 real, dimension(:,:), allocatable, save :: wb_ave,wbice_ave,convh_ave
 real, dimension(:), allocatable, save :: fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 real, dimension(:), allocatable, save :: cnpp_ave,cnbp_ave
-real, dimension(:), allocatable, save :: anthropogenic_ave, tmaxurban, tminurban
+real, dimension(:), allocatable, save :: anthropogenic_ave, urban_storage_ave, tmaxurban, tminurban
 real, dimension(:), allocatable, save :: anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 real, dimension(:), allocatable, save :: fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
 !real, dimension(:,:), allocatable, save :: tgg_ave
@@ -81,7 +81,7 @@ allocate(u10max_stn(ifull),v10max_stn(ifull))
 allocate(u1max(ifull),v1max(ifull),u2max(ifull),v2max(ifull),cape_max(ifull),cape_ave(ifull),epot_ave(ifull))
 allocate(rnet_ave(ifull))
 allocate(wb_ave(ifull,ms),wbice_ave(ifull,ms),convh_ave(ifull,kl))
-allocate(anthropogenic_ave(ifull), tmaxurban(ifull), tminurban(ifull))
+allocate(anthropogenic_ave(ifull), urban_storage_ave(ifull), tmaxurban(ifull), tminurban(ifull))
 allocate(anth_elecgas_ave(ifull), anth_heating_ave(ifull), anth_cooling_ave(ifull) )
 !allocate(tgg_ave(ifull,ms))
 
@@ -126,6 +126,7 @@ ctop_ave(:)    = 0.
 wb_ave(:,:)    = 0.
 wbice_ave(:,:) = 0.
 anthropogenic_ave(:) = 0.
+urban_storage_ave(:) = 0.
 anth_elecgas_ave(:)  = 0.
 anth_heating_ave(:)  = 0.
 anth_cooling_ave(:)  = 0.
@@ -176,7 +177,8 @@ deallocate(u10max_stn,v10max_stn)
 deallocate(u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave)
 deallocate(rnet_ave)
 deallocate(wb_ave,wbice_ave,convh_ave)
-deallocate(anthropogenic_ave, tmaxurban, tminurban)
+deallocate(anthropogenic_ave, urban_storage_ave, tmaxurban, tminurban)
+deallocate(anth_elecgas_ave, anth_heating_ave, anth_cooling_ave)
 !deallocate(tgg_ave)
 
 if ( allocated(fpn_ave) ) then

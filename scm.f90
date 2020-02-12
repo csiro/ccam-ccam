@@ -504,6 +504,7 @@ ktau = 0
 call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv,  &
               use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf, &
               ps_adj)
+call fixqg(1,ifull)
 call nantest("after nudging",1,ifull)
 
 savu(1:ifull,:) = u(1:ifull,:)
@@ -664,6 +665,7 @@ do spinup = spinup_start,1,-1
     call nudgescm(scm_mode,metforcing,fixtsurf,iarch_nudge,vert_adv,  &
                   use_file_for_rain,use_file_for_cloud,nud_ql,nud_qf, &
                   ps_adj)
+    call fixqg(1,ifull)
     call nantest("after nudging",1,ifull)
 
     ! REPLACE SCM WITH INPUT DATA, PRIOR TO SFLUX
@@ -2522,6 +2524,7 @@ use sigs_m                                 ! Atmosphere sigma levels
 use screen_m                               ! Screen level diagnostics
 use soilsnow_m                             ! Soil, snow and surface data
 use work2_m                                ! Diagnostic arrays
+use histave_m                              ! Averaged over multiple timesteps
 
 use scmarrays_m
 
@@ -2693,6 +2696,11 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
       call ccnf_def_var(timencid,'qf_cool',vtype,1,jdim(1:1),idnt)
       call ccnf_put_att(timencid,idnt,'long_name',lname)
       call ccnf_put_att(timencid,idnt,'units','W/m2')
+      call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
+      lname = 'building air temperature - fully conditioned'
+      call ccnf_def_var(timencid,'t_bem1',vtype,1,jdim(1:1),idnt)
+      call ccnf_put_att(timencid,idnt,'long_name',lname)
+      call ccnf_put_att(timencid,idnt,'units','K')
       call ccnf_put_att(timencid,idnt,'missing_value',nf90_fill_float)
       lname = 'urban storage heat flux'
       call ccnf_def_var(timencid,'g',vtype,1,jdim(1:1),idnt)
@@ -3594,6 +3602,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
       call ccnf_put_vara(timencid,'qf_bem',iarch,aa(1))
       call ccnf_put_vara(timencid,'qf_heat',iarch,aa(1))
       call ccnf_put_vara(timencid,'qf_cool',iarch,aa(1))
+      call ccnf_put_vara(timencid,'t_bem1',iarch,aa(1))
       call ccnf_put_vara(timencid,'g',iarch,aa(1))
     end if
     call ccnf_put_vara(timencid,'ustar',iarch,aa(1))
@@ -3741,17 +3750,19 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
     else    
       call ccnf_put_vara(timencid,'qup',iarch,aa(1))
     end if
-    call ccnf_put_vara(timencid,'shf',iarch,fg(1))
-    call ccnf_put_vara(timencid,'lhf',iarch,eg(1))
+    call ccnf_put_vara(timencid,'shf',iarch,fg_ave(1))
+    call ccnf_put_vara(timencid,'lhf',iarch,eg_ave(1))
     if ( scm_mode=="gabls4" ) then
       aa(:) = eg(:)*86400./hls ! this assumes sublimation
       call ccnf_put_vara(timencid,'evap',iarch,aa(1))  
     else    
-      call ccnf_put_vara(timencid,'qf',iarch,anthropogenic_flux(1))
-      call ccnf_put_vara(timencid,'qf_bem',iarch,urban_elecgas_flux(1))
-      call ccnf_put_vara(timencid,'qf_heat',iarch,urban_heating_flux(1))
-      call ccnf_put_vara(timencid,'qf_cool',iarch,urban_cooling_flux(1))
-      call ccnf_put_vara(timencid,'g',iarch,urban_storage_flux(1))
+      call ccnf_put_vara(timencid,'qf',iarch,anthropogenic_ave(1))
+      call ccnf_put_vara(timencid,'qf_bem',iarch,anth_elecgas_ave(1))
+      call ccnf_put_vara(timencid,'qf_heat',iarch,anth_heating_ave(1))
+      call ccnf_put_vara(timencid,'qf_cool',iarch,anth_cooling_ave(1))
+      call atebsaved(aa,"roomtemp",1,0)
+      call ccnf_put_vara(timencid,'t_bem1',iarch,aa(1))      
+      call ccnf_put_vara(timencid,'g',iarch,urban_storage_ave(1))
     end if  
     call ccnf_put_vara(timencid,'ustar',iarch,ustar(1))
     scale_factor = real(nperday)/real(min(nwt,max(ktau,1)))
@@ -5730,6 +5741,7 @@ eg_ave(:)            = 0.
 fg_ave(:)            = 0.
 ga_ave(:)            = 0.
 anthropogenic_ave(:) = 0.
+urban_storage_ave(:) = 0.
 anth_elecgas_ave(:)  = 0.
 anth_heating_ave(:)  = 0.
 anth_cooling_ave(:)  = 0.
@@ -5908,6 +5920,7 @@ eg_ave(1:ifull)            = eg_ave(1:ifull) + eg
 fg_ave(1:ifull)            = fg_ave(1:ifull) + fg
 ga_ave(1:ifull)            = ga_ave(1:ifull) + ga
 anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
+urban_storage_ave(1:ifull) = urban_storage_ave(1:ifull) + urban_storage_flux
 anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull) + urban_elecgas_flux
 anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull) + urban_heating_flux
 anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull) + urban_cooling_flux
@@ -5993,6 +6006,7 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   fg_ave(1:ifull)            = fg_ave(1:ifull)/min(ntau,nperavg)
   ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg)   
   anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull)/min(ntau,nperavg)
+  urban_storage_ave(1:ifull) = urban_storage_ave(1:ifull)/min(ntau,nperavg)
   anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull)/min(ntau,nperavg)
   anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull)/min(ntau,nperavg)
   anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull)/min(ntau,nperavg)  
