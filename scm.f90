@@ -157,7 +157,7 @@ integer nud_ql, nud_qf
 integer tblock
 integer o3_time_interpolate ! depreciated
 real, dimension(1000) :: press_in
-real press_surf, gridres, soil_albedo
+real press_surf, gridres, soil_albedo_vis, soil_albedo_nir, vlai_in
 real es
 real rlong_in, rlat_in, z_in
 real ateb_bldheight, ateb_hwratio, ateb_sigvegc, ateb_sigmabld
@@ -195,8 +195,8 @@ namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     z_in,ivegt_in,isoil_in,metforcing,lsmforcing,lsmoutput,       &
     fixtsurf,nolatent,timeoutput,profileoutput,noradiation,       &
     nogwdrag,noconvection,nocloud,noaerosol,novertmix,            &
-    lsm_only,vert_adv,urbanscrn,soil_albedo,                      &
-    gablsflux,scm_mode,spinup_start,ntau_spinup,                  &
+    lsm_only,vert_adv,urbanscrn,soil_albedo_vis,soil_albedo_nir,  &
+    vlai_in,gablsflux,scm_mode,spinup_start,ntau_spinup,          &
     use_file_for_rain, use_file_for_cloud,                        &
     nud_ql, nud_qf, ps_adj,                                       &
     ateb_bldheight,ateb_hwratio,ateb_sigvegc,ateb_sigmabld,       &
@@ -298,7 +298,9 @@ imax = 1
 scm_mode = "gabls4"
 spinup_start = 1
 ntau_spinup = 0
-soil_albedo = 0.81 ! for GABLS
+soil_albedo_vis = 0.81 ! for GABLS
+soil_albedo_nir = 0.81 ! for GABLS
+vlai_in = 0.
 fixtsurf = .false.
 nolatent = .false.
 noradiation = .false.
@@ -471,7 +473,8 @@ rrvco2 = 330./1.e6
 
 write(6,*) "Calling initialscm"
 call initialscm(scm_mode,metforcing,lsmforcing,press_in(1:kl),press_surf,z_in,ivegt_in, &
-                isoil_in,soil_albedo,ateb_bldheight,ateb_hwratio,ateb_sigvegc,          &
+                isoil_in,soil_albedo_vis,soil_albedo_nir,vlai_in,ateb_bldheight,        &
+                ateb_hwratio,ateb_sigvegc,                                              &
                 ateb_sigmabld,ateb_industryfg,ateb_trafficfg,ateb_vegalphac,            &
                 ateb_roofalpha,ateb_wallalpha,ateb_roadalpha,                           &
                 ateb_roofemiss,ateb_wallemiss,ateb_roademiss,                           &
@@ -827,7 +830,8 @@ end if
 end subroutine calcshear
     
 subroutine initialscm(scm_mode,metforcing,lsmforcing,press_in,press_surf,z_in,ivegt_in, &
-                      isoil_in,soil_albedo,ateb_bldheight,ateb_hwratio,ateb_sigvegc,    &
+                      isoil_in,soil_albedo_vis,soil_albedo_nir,vlai_in,ateb_bldheight,  &
+                      ateb_hwratio,ateb_sigvegc,                                        &
                       ateb_sigmabld,ateb_industryfg,ateb_trafficfg,ateb_vegalphac,      &
                       ateb_roofalpha,ateb_wallalpha,ateb_roadalpha,                     &
                       ateb_roofemiss,ateb_wallemiss,ateb_roademiss,                     &
@@ -880,8 +884,8 @@ integer, dimension(ifull,5) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
 integer, dimension(3) :: spos, npos
 integer, dimension(ifull) :: urbantype
-real, dimension(kl), intent(in) :: press_in, soil_albedo
-real, intent(in) :: press_surf, z_in
+real, dimension(kl), intent(in) :: press_in
+real, intent(in) :: press_surf, z_in, soil_albedo_vis, soil_albedo_nir, vlai_in
 real, dimension(ifull,5) :: svs, vlin, vlinprev, vlinnext, vlinnext2
 real, dimension(ifull,5) :: casapoint
 real, dimension(ifull) :: aa
@@ -1329,15 +1333,15 @@ end if
 if (nsib>=1) then
   write(6,*) "Initialise land-surface"
   call insoil
-  albvisnir(:,1) = soil_albedo
-  albvisnir(:,2) = soil_albedo
-  albvisdir(:) = soil_albedo
-  albvisdif(:) = soil_albedo
-  albnirdir(:) = soil_albedo
-  albnirdif(:) = soil_albedo
+  albvisnir(:,1) = soil_albedo_vis
+  albvisnir(:,2) = soil_albedo_nir
+  albvisdir(:) = soil_albedo_vis
+  albvisdif(:) = soil_albedo_vis
+  albnirdir(:) = soil_albedo_nir
+  albnirdif(:) = soil_albedo_nir
   rsmin(:) = 300.
   zolnd(:) = 0.001
-  vlai(:) = 0.
+  vlai(:) = vlai_in
   ivegt(:) = ivegt_in
   isoilm(:) = isoil_in
   isoilm_in(:) = isoilm(:)
