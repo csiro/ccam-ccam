@@ -166,7 +166,7 @@ real ateb_wallalpha, ateb_roadalpha, ateb_roofalpha
 real ateb_wallemiss, ateb_roademiss, ateb_roofemiss
 real ateb_infilach,  ateb_intgains, ateb_bldairtemp
 real ateb_heatprop, ateb_coolprop
-real ateb_zovegc
+real ateb_zovegc, ateb_sigmu
 real ps_adj
 real ateb_energytol
 real cgmap_offset, cgmap_scale, tke_umin
@@ -208,7 +208,7 @@ namelist/scmnml/rlong_in,rlat_in,kl,press_in,press_surf,gridres,  &
     ateb_road_thick,ateb_road_cp,ateb_road_cond,                  &
     ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                  &
     ateb_infilach,ateb_intgains,ateb_bldairtemp,                  &
-    ateb_heatprop,ateb_coolprop,ateb_zovegc
+    ateb_heatprop,ateb_coolprop,ateb_zovegc,ateb_sigmu
 ! main namelist
 namelist/cardin/comment,dt,ntau,nwt,npa,npb,nhorps,nperavg,ia,ib, &
     ja,jb,id,jd,iaero,khdif,khor,nhorjlm,mex,mbd,nbd,             &
@@ -346,6 +346,7 @@ ateb_coolprop = -999.
 ateb_bldairtemp = -999.
 ateb_zovegc = -999.
 ateb_energytol = 0.005_8
+ateb_sigmu = 1.
 
 #ifndef stacklimit
 ! For linux only - removes stacklimit on all processors
@@ -479,7 +480,7 @@ call initialscm(scm_mode,metforcing,lsmforcing,press_in(1:kl),press_surf,z_in,iv
                 ateb_road_thick,ateb_road_cp,ateb_road_cond,                            &
                 ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                            &
                 ateb_infilach,ateb_intgains,ateb_bldairtemp,                            &
-                ateb_heatprop,ateb_coolprop,ateb_zovegc)
+                ateb_heatprop,ateb_coolprop,ateb_zovegc,ateb_sigmu)
 
 allocate( t_save(ifull,kl), qg_save(ifull,kl), u_save(ifull,kl), v_save(ifull,kl) )
 allocate( psl_save(ifull) )
@@ -835,7 +836,7 @@ subroutine initialscm(scm_mode,metforcing,lsmforcing,press_in,press_surf,z_in,iv
                       ateb_road_thick,ateb_road_cp,ateb_road_cond,                      &
                       ateb_slab_thick,ateb_slab_cp,ateb_slab_cond,                      &
                       ateb_infilach,ateb_intgains,ateb_bldairtemp,                      &
-                      ateb_heatprop,ateb_coolprop,ateb_zovegc)
+                      ateb_heatprop,ateb_coolprop,ateb_zovegc,ateb_sigmu)
 
 use aerointerface                          ! Aerosol interface
 use aerosolldr                             ! LDR prognostic aerosols
@@ -899,7 +900,7 @@ real, intent(in) :: ateb_roofalpha, ateb_wallalpha, ateb_roadalpha
 real, intent(in) :: ateb_roofemiss, ateb_wallemiss, ateb_roademiss
 real, intent(in) :: ateb_infilach,  ateb_intgains, ateb_bldairtemp
 real, intent(in) :: ateb_heatprop, ateb_coolprop
-real, intent(in) :: ateb_zovegc
+real, intent(in) :: ateb_zovegc, ateb_sigmu
 real, dimension(4), intent(in) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4), intent(in) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
 real, dimension(4), intent(in) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
@@ -1378,7 +1379,7 @@ end if
 ! nurban=-1 urban (save in history and restart files)
 if (nurban/=0) then
   write(6,*) 'Initialising ateb urban scheme'
-  sigmu(:) = 1.
+  sigmu(:) = ateb_sigmu
   where ( .not.land(1:ifull) .or. sigmu<0.01 )
     sigmu(:) = 0.
   end where
