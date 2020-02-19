@@ -1075,7 +1075,12 @@ call vcom_init(comm_world,land,fracice,sicedep,tss,tgg(:,1),tggsn(:,1), &
 if ( nspecial>100 ) then ! increase ps globally by nspecial Pa
   ps(1:ifull) = ps(1:ifull) + nspecial
   psl(:) = log(1.e-5*ps(:))
-endif  ! (nspecial>100)       
+endif  ! (nspecial>100)   
+
+if ( nspecial==50 ) then
+  fracice = 0.
+  sicedep = 0.
+end uf
 
 if ( nsib==3 ) then
   ! put in Antarctica ice-shelf fixes 5/3/07
