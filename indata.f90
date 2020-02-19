@@ -1080,7 +1080,7 @@ endif  ! (nspecial>100)
 if ( nspecial==50 ) then
   fracice = 0.
   sicedep = 0.
-end uf
+end if
 
 if ( nsib==3 ) then
   ! put in Antarctica ice-shelf fixes 5/3/07
