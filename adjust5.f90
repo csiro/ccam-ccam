@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -57,8 +57,7 @@ implicit none
 
 include 'kuocom.h'         ! Convection parameters
 
-integer, parameter :: ntest = 0
-integer k, l, nstart, nend, ntot, iq
+integer k, l, iq
 integer its
 integer, save :: precon_in = -99999
 real, dimension(:), allocatable, save :: zz, zzn, zze, zzw, zzs
@@ -302,7 +301,6 @@ call unpack_ne(alf,alf_n,alf_e)
 call unpack_nsew(alff,alff_n,alff_s,alff_e,alff_w)
 do k = 1,kl
   call unpack_nsew(p(:,k),p_n,p_s,p_e,p_w)  
-!$omp simd
   do iq = 1,ifull
     cc(iq,k) = alfu(iq)*ux(iq,k) - hdtds*emu(iq)*(                              &
                alf_e(iq)*p_e(iq)-alf(iq)*p(iq,k)-.5*alfe(iq)*(p(iq,k)+p_e(iq))  &
@@ -367,8 +365,8 @@ end if  ! (nh/=0.and.ktau<=-knh)
 ! straightforward rev. cubic interp of u and v (i.e. nuv=10)
 if ( nstag==0 ) then
   call staguv(u,v,wrk1,wrk2)
+  its = ifull + iextra
   if ( nmaxpr==1 .and. nproc==1 ) then
-    its = ifull + iextra
     write(6,"('u_u0 ',10f8.2)") (u(iq,nlv),iq=idjd-3,idjd+3)
     write(6,"('v_u0 ',10f8.2)") (v(iq,nlv),iq=idjd-3*its,idjd+3*its,its)
     write(6,"('u_s0 ',10f8.2)") (wrk1(iq,nlv),iq=idjd-3,idjd+3)
@@ -511,7 +509,7 @@ if ( mfix==1 .or. mfix==2 ) then   ! perform conservation fix on ps
   ! delpos is the sum of all positive changes over globe
   ! delneg is the sum of all negative changes over globe
   ! alph_p is chosen to satisfy alph_p*delpos + delneg/alph_p = 0
-  ! _l means local to this processor     
+  ! _l means local to this processor
   bb(1:ifull)    = ps(1:ifull)   
   delps(1:ifull) = ps(1:ifull) - ps_sav(1:ifull)
   call ccglobal_posneg(delps,delpos,delneg)
@@ -798,11 +796,11 @@ select case(mfix)
     end do
     call ccglobal_posneg(s,delpos,delneg,dsig)
     if ( llim ) then
-      ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)  
+      ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
       alph_g(1:ntr) = max(sqrt(ratio(1:ntr)), 1.e-30)
     else
-      ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)  
-      alph_g(1:ntr) = sqrt(ratio(1:ntr))      
+      ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
+      alph_g(1:ntr) = sqrt(ratio(1:ntr))
     end if
     do i = 1,ntr
       do k = 1,kl

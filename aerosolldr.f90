@@ -321,9 +321,9 @@ end subroutine aldrloaderod
 
 subroutine aldrcalc(dt,sig,zz,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,                 &
                     ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,stratcloud,clcon,cldcon,pccw,rhoa,vt, &
-                    pfprec,pfmelt,pfsnow,pfevap,pfsubl,plambs,pmrate,pmaccr,pfstayice,             &
-                    pfstayliq,pqfsedice,prscav,prfreeze,zdayfac,kbsav,xtg,duste,dustdd,xtosav,     &
-                    xtg_solub,dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,          &
+                    pfprec,pfmelt,pfsnow,pfsubl,plambs,pmrate,pmaccr,pfstayice,                    &
+                    pqfsedice,prscav,prfreeze,zdayfac,kbsav,xtg,duste,dustdd,xtosav,               &
+                    dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,                    &
                     so2_burden,so4_burden,erod,ssn,zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,          &
                     emissfield,vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,dustden,dustreff, &
                     imax,kl)
@@ -363,16 +363,15 @@ real, dimension(imax), intent(in) :: cldcon    ! Convective rainfall area fracti
 real, dimension(imax,kl), intent(in) :: pccw
 real, dimension(imax,kl), intent(in) :: rhoa   ! density of air (kg/m3)
 real, dimension(imax,kl), intent(in) :: pfprec, pfmelt, pfsnow         ! from LDR prog cloud
-real, dimension(imax,kl), intent(in) :: pfevap, pfsubl, plambs, pmrate ! from LDR prog cloud
+real, dimension(imax,kl), intent(in) :: pfsubl, plambs, pmrate         ! from LDR prog cloud
 real, dimension(imax,kl), intent(in) :: pmaccr, pqfsedice, prscav      ! from LDR prog cloud
 real, dimension(imax,kl), intent(in) :: prfreeze                       ! from LDR prog cloud
-real, dimension(imax,kl), intent(in) :: pfstayice, pfstayliq           ! from LDR prog cloud
+real, dimension(imax,kl), intent(in) :: pfstayice                      ! from LDR prog cloud
 logical, dimension(imax), intent(in) :: land   ! land/sea mask (t=land)
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,ndust), intent(inout) :: duste
 real, dimension(imax,ndust), intent(inout) :: dustdd
 real, dimension(imax,kl,naero), intent(in) :: xtosav
-real, dimension(imax,kl,naero), intent(inout) :: xtg_solub
 real, dimension(imax), intent(inout) :: dmsso2o
 real, dimension(imax), intent(inout) :: so2so4o
 real, dimension(imax,ndust), intent(inout) :: dust_burden
@@ -412,7 +411,7 @@ real, dimension(imax) :: bbem,fracc
 real, dimension(imax) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
 real, dimension(imax) :: cgssnowd
 real, dimension(imax) :: veff,vefn
-real, dimension(imax) :: cstrat,qtot
+real, dimension(imax) :: qtot
 real, dimension(imax) :: rrate,Wstar3,Vgust_free,Vgust_deep
 real, dimension(imax) :: v10n,thetav,burden
 real, dimension(imax,ndust) :: dcola,dcolb
@@ -563,9 +562,9 @@ end do
 !fracc = 0.1   ! LDR suggestion (0.1 to 0.3)
 fracc = cldcon ! MJT suggestion (use NCAR scheme)
 call xtchemie (2, dt, zdayfac, aphp1, pmrate, pfprec,                    & !Inputs
-               pclcover, pmlwc, prhop1, ptp1, taudar, xtm1, pfevap,      & !Inputs
+               pclcover, pmlwc, prhop1, ptp1, taudar, xtm1,              & !Inputs
                pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,     & !Inputs
-               pfstayliq,pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,  & !Inputs
+               pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,            & !Inputs
                pccw,pfconv,xtu,                                          & !Inputs
                conwd,                                                    & !In and Out
                xte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                   & !Output
@@ -1025,8 +1024,8 @@ END subroutine xtsink
 ! xt chemie
 
 SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                      & !Inputs
-                    PCLCOVER, PMLWC, PRHOP1, PTP1, taudar, xtm1, pfevap,             & !Inputs
-                    pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,pfstayliq,  & !Inputs
+                    PCLCOVER, PMLWC, PRHOP1, PTP1, taudar, xtm1,                     & !Inputs
+                    pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,            & !Inputs
                     pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,pccw,pfconv,xtu,   & !Inputs
                     conwd,                                                           & !In and Out
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3,                               & !Outputs
@@ -1046,7 +1045,6 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
 ! ptp1: temperature (k)
 ! taudar: fraction of time sunlit (used to determine if daytime)
 ! xtm1: tracer mixing ratio (kg/kg)
-! pfevap: rainfall flux evaporating in layer k (kg/m2/s)
 ! pfsnow: snowfall flux (entering from above) (kg/m2/s)
 ! pfsubl: snowfall flux evaporating in layer k (kg/m2/s)
 ! pcfcover: ice cloud fraction
@@ -1054,7 +1052,6 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
 ! pmaccr: accretion rate (kg/kg/s)
 ! pfmelt: snowfall flux melting in layer k (kg/m2/s)
 ! pfstayice: snowfall flux staying in layer k (kg/m2/s)
-! pfstayliq: rainfall flux staying in layer k (kg/m2/s)
 ! pqfsedice: fractional ice sedimentation in timestep
 ! plambs: slope (lambda) for snow crystal size distribution (m**-1)
 ! prscav: fractional rain scavenging rate in time step (needs to be mult. by coll. eff.)
@@ -1103,7 +1100,6 @@ real, dimension(imax,kl,naero) :: xtu
 REAL rhodz(imax,kl)
 REAL PMRATEP(imax,kl)
 REAL PFPREC(imax,kl)
-REAL PFEVAP(imax,kl)
 REAL PCLCOVER(imax,kl)
 REAL PMLWC(imax,kl)
 REAL PRHOP1(imax,kl)
@@ -1116,7 +1112,6 @@ real pmiwc(imax,kl)
 real pmaccr(imax,kl)
 real pfmelt(imax,kl)
 real pfstayice(imax,kl)
-real pfstayliq(imax,kl)
 real pqfsedice(imax,kl)
 real plambs(imax,kl)
 real prscav(imax,kl)
@@ -1668,15 +1663,15 @@ DO JT=ITRACSO2,naero
 !    end do    
   endif
 
-  CALL XTWETDEP( JT,                                         &
-                 PTMST,                                      &
-                 rhodz,                                      &
-                 PMRATEP, PFPREC, PFEVAP,                    &
-                 PCLCOVER, zsolub, pmlwc, ptp1,              &
-                 pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt, &
-                 pfstayice,pfstayliq,pqfsedice,plambs,       &
-                 prscav,prfreeze,pfconv,pclcon,              & 
-                 fracc,                                      & !Inputs
+  CALL XTWETDEP( JT,                                   &
+                 PTMST,                                &
+                 rhodz,                                &
+                 PMRATEP, PFPREC,                      &
+                 PCLCOVER, zsolub, pmlwc, ptp1,        &
+                 pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
+                 pfstayice,pqfsedice,plambs,           &
+                 prscav,prfreeze,pfconv,pclcon,        & 
+                 fracc,                                & !Inputs
                  ZXTP10, ZXTP1C,ZDEP3D,conwd,imax,kl)
 
 !   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
@@ -1818,14 +1813,14 @@ END subroutine xtchemie
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! xt wetdep
 
-SUBROUTINE XTWETDEP(KTRAC,                                                           &
-                    PTMST,                                                           &
-                    rhodz,                                                           &
-                    PMRATEP, PFPREC, PFEVAP,                                         &
-                    PCLCOVER, PSOLUB, pmlwc, ptp1,                                   &
-                    pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,pfstayliq,  &
-                    pqfsedice,plambs,prscav,prfreeze,pfconv,pclcon,fracc,            & !Inputs
-                    PXTP10, PXTP1C, PDEP3D, conwd, imax, kl)                      !In & Out
+SUBROUTINE XTWETDEP(KTRAC,                                                 &
+                    PTMST,                                                 &
+                    rhodz,                                                 &
+                    PMRATEP, PFPREC,                                       &
+                    PCLCOVER, PSOLUB, pmlwc, ptp1,                         &
+                    pfsnow,pfsubl,pcfcover,pmaccr,pfmelt,pfstayice,        &
+                    pqfsedice,plambs,prscav,prfreeze,pfconv,pclcon,fracc,  & !Inputs
+                    PXTP10, PXTP1C, PDEP3D, conwd, imax, kl)                 !In & Out
 !$acc routine vector
 
 !
@@ -1859,7 +1854,6 @@ real, dimension(imax,kl), intent(inout) :: PXTP1C   !Tracer m.r.  inside liquid-
 real, dimension(imax,kl), intent(in) :: rhodz
 real, dimension(imax,kl), intent(in) :: PMRATEP
 real, dimension(imax,kl), intent(in) :: PFPREC
-real, dimension(imax,kl), intent(in) :: PFEVAP
 real, dimension(imax,kl), intent(inout) :: PDEP3D
 real, dimension(imax,kl), intent(in) :: PCLCOVER
 real, dimension(imax,kl), intent(in) :: PSOLUB
@@ -1871,11 +1865,9 @@ real, dimension(imax,kl), intent(in) :: pclcon
 real, dimension(imax), intent(in) :: fracc    !Convective rain fraction (originially set to 0.1)
 real, dimension(imax,kl), intent(in) :: pfsubl
 real, dimension(imax,kl), intent(in) :: pcfcover
-real, dimension(imax,kl), intent(in) :: pmiwc
 real, dimension(imax,kl), intent(in) :: pmaccr
 real, dimension(imax,kl), intent(in) :: pfmelt
 real, dimension(imax,kl), intent(in) :: pfstayice
-real, dimension(imax,kl), intent(in) :: pfstayliq
 real, dimension(imax,kl), intent(in) :: pqfsedice
 real, dimension(imax,kl), intent(in) :: plambs
 real, dimension(imax,kl), intent(in) :: prscav
@@ -1889,7 +1881,6 @@ real, dimension(imax) :: zcollefc
 real :: zilcscav, ziicscav,xdep,plambda,zbcscav,xbcscav,zstay_t,xstay,frc
 real :: zmelt,xmelt,zicscav,xicscav
 real :: xfreeze, zfreeze
-real, dimension(imax) :: zstay
 logical :: lmask
 
 integer jk,i
@@ -2352,11 +2343,8 @@ real, dimension(imax), intent(in) :: fracice   !Sea-ice fraction
 real, dimension(imax,kl), intent(in) :: zmid   !Height of full level (m)
 real, dimension(imax), intent(in) :: pblh      !PBL height (m)
 real, dimension(imax), intent(in) :: v10m      !10m windpseed, including effect of sub-grid gustiness (m/s)
-real, dimension(imax) :: Veff
 real, dimension(imax,2) :: ssn_base
-!global
 real, dimension(imax,kl,2), intent(inout) :: ssn
-!
 integer k
 
 ! Calculate number and mass concentration of seasalt within the marine BL.
@@ -2371,12 +2359,18 @@ integer k
 !             Nilsson et al. (2001) JGR 106, 32139-32154.
 
 ! Jones et al. give different windspeed relations for v10m < 2, 2 <= v10m <= 17.5,
-! and v10m > 17.5, but let's apply the middle one everywhere, since a min. windspeed 
-! of 2 m/s seems reasonable, and the model gives few points with v10m > 17.5.
-Veff=min(max(2.,v10m),20.) ! MJT suggestion - limit to 20m
-ssn_base(:,1)=10.**(0.0950*Veff+6.2830) 
-ssn_base(:,2)=10.**(0.0422*Veff+5.7122) 
-
+! and v10m > 17.5.
+where ( v10m<2. )
+  ssn_base(:,1)=3.856e6*(1.-exp(-0.736*v10m))
+  ssn_base(:,2)=0.671e6*(1.-exp(-1.351*v10m))
+elsewhere ( v10m<17.5 )
+  ssn_base(:,1)=10.**(0.0950*v10m+6.2830) 
+  ssn_base(:,2)=10.**(0.0422*v10m+5.7122) 
+elsewhere
+  ssn_base(:,1)=1.5e8*(1.-97.874*exp(-0.313*v10m))
+  ssn_base(:,2)=3.6e6*(1.-103.926*exp(-0.353*v10m))
+end where
+  
 ! Number-to-mass conversion factors are derived from the parameters of the two
 ! lognormal modes given by Nilsson, together with rhosalt=2.0e3 kg/m3.
 do k=1,kl
@@ -2391,8 +2385,8 @@ do k=1,kl
     ssn(:,k,2) = 0.
   end where
   ! Reduce over sea ice...
-  ssn(:,k,1) = (1.-fracice(:))*ssn(:,k,1)
-  ssn(:,k,2) = (1.-fracice(:))*ssn(:,k,2)
+  ssn(:,k,1) = (1.-fracice)*ssn(:,k,1)
+  ssn(:,k,2) = (1.-fracice)*ssn(:,k,2)
 end do
 
 ! These relations give ssm in kg/m3 based on ssn in m^{-3}...
@@ -2452,8 +2446,8 @@ select case(aeroindir)
   case(1)
     ! Use ECHAM SO4 to get cdn_strat.
     do k = 1,kl
-      so4mk = max(1.e-5,3.e9*rhoa(:,k)*xtgso4(:,k)) ! x 3 to convert to ug/m3 SO4
-      cdn(:,k) = max(2.e7, 1.62e8*so4mk**0.41)      !Combined land/ocean.
+      so4mk = max( 1.e-5, 3.e9*rhoa(:,k)*xtgso4(:,k) ) ! x 3 to convert to ug/m3 SO4
+      cdn(:,k) = max( 2.e7, 1.62e8*so4mk**0.41 )       !Combined land/ocean.
     end do
     
   case default
@@ -2488,7 +2482,7 @@ logical, dimension(size(fscav)) :: bwkp1
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
 !real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05/) ! liquid
 real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.30,0.30,0.30,0.30/) ! liquid
-real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/) ! ice
+!real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/) ! ice
 
 !bwkp1(:) = tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)
 bwkp1(:) = .true.        ! assume liquid for JLM convection

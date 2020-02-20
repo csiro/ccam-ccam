@@ -2968,7 +2968,7 @@ if ( myid<nproc ) then
   if ( myid==0 ) then
     write(6,*) "Calling ccmpi_setup"
   end if
-  call ccmpi_setup(kblock,id,jd,idjd,dt)
+  call ccmpi_setup(id,jd,idjd,dt)
 
       
   !--------------------------------------------------------------

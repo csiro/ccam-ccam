@@ -151,7 +151,7 @@ subroutine tkemix(kmo,theta,qvg,qlg,qfg,stratcloud,uo,vo,zi,fg,eg,cduv,ps,zz,zzh
 implicit none
 
 integer, intent(in) :: mode
-integer k, j, imax_p, kl, iq, isbl_p, imax
+integer k, imax_p, kl, iq, isbl_p, imax
 integer kcount, mcount
 real, intent(in) :: dt, qgmin
 real, dimension(:,:), contiguous, intent(inout) :: theta,stratcloud,uo,vo
@@ -183,9 +183,9 @@ real, dimension(size(kmo,1),size(kmo,2)-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(size(kmo,1),size(kmo,2)-1) :: fzzh
 real, dimension(size(kmo,1)) :: wt0,wq0,wtv0
 real, dimension(size(kmo,1)) :: wstar,z_on_l,phim
-real, dimension(size(kmo,1)) :: tgg,pres,temp
+real, dimension(size(kmo,1)) :: pres,temp
 real :: tff,tempc,thetac,tempt
-real, dimension(size(kmo,1)) :: cdrag,umag,ustar
+real, dimension(size(kmo,1)) :: ustar
 real :: tbb,tqq,tcc,tempv,fc,dc,mc,bvf,rvar
 real, dimension(size(kmo,1)) :: zi_save, zturb, cgmap
 real, dimension(size(kmo,1)) :: templ, dqsdt, al, fice, qc, qt, lx
@@ -753,7 +753,7 @@ real, dimension(size(iqmap,1)) :: zi_p, tke_p, eps_p, km_p, thetal_p, theta_p, t
 real, dimension(size(iqmap,1)) :: qvg_p, qlg_p, qfg_p, stratcloud_p 
 real, dimension(size(iqmap,1)) :: ustar_p, wstar_p, wt0_p, wq0_p, wtv0_p, ps_p
 real, dimension(size(iqmap,1)) :: tke1, dzht, ent, templ, pres, upf, qxup, qupsat
-real, dimension(size(iqmap,1)) :: tempd, fice, lx, qcup, dqsdt, al, xp, as, bs, cs
+real, dimension(size(iqmap,1)) :: fice, lx, qcup, dqsdt, al, xp, as, bs, cs
 real, dimension(size(iqmap,1)) :: thup, tvup, qtup
 
 kl = size(tke,2)

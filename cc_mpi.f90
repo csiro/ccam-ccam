@@ -471,7 +471,7 @@ module cc_mpi
 
 contains
 
-   subroutine ccmpi_setup(kx,id,jd,idjd,dt)
+   subroutine ccmpi_setup(id,jd,idjd,dt)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
       use indices_m
       use latlong_m
@@ -480,7 +480,7 @@ contains
       use vecsuv_m
       use workglob_m
       use xyzinfo_m
-      integer, intent(in) :: kx, id, jd
+      integer, intent(in) :: id, jd
       integer, intent(out) :: idjd
       integer iproc, dproc, iq, iqg, i, j, n
       integer(kind=4) :: ierr, colour, rank, lcommin, lcommout
@@ -2375,14 +2375,8 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
       integer :: sreq, rcount, jproc
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
       integer(kind=4) :: ierr, lsize
       integer(kind=4) :: lcomm, ldone
-      integer(kind=4) :: itag = 52
       integer(kind=4), dimension(size(specmap_recv)) :: donelist
       
       ncount = size(specmap_recv)
@@ -2486,14 +2480,8 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
       integer :: sreq, rcount, jproc
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
       integer(kind=4) :: ierr, lsize
       integer(kind=4) :: lcomm, ldone
-      integer(kind=4) :: itag = 52
       integer(kind=4), dimension(size(specmap_recv)) :: donelist
 
       ncount = size(specmap_recv)
@@ -2563,7 +2551,7 @@ contains
       ! in the global sparse array
    
       integer, intent(in) :: ibeg, iend, k
-      integer :: il2, iqg, im1, jm1, ilen, jlen, iq, iql
+      integer :: il2, iqg, im1, jm1, ilen, jlen, iq
       integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
       integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
       integer :: s_ipak, s_jpak, s_iloc, s_jloc
@@ -2638,7 +2626,7 @@ contains
       ! in the global sparse array
 
       integer, intent(in) :: ibeg, iend, k
-      integer :: il2, iqg, im1, jm1, ilen, jlen, iq, iql
+      integer :: il2, iqg, im1, jm1, ilen, jlen, iq
       integer :: b_n, b_ipak, b_jpak, b_iloc, b_jloc
       integer :: e_n, e_ipak, e_jpak, e_iloc, e_jloc
       integer :: s_ipak, s_jpak, s_iloc, s_jloc
@@ -2759,7 +2747,7 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: xlen
       
-      xlen = size(specmap_recv)  +size(specmap_send)
+      xlen = size(specmap_recv) + size(specmap_send)
       if ( size(ireq)<xlen ) then
          deallocate( ireq )
          allocate( ireq(xlen) )
@@ -3022,7 +3010,7 @@ contains
       integer :: iext, iextu, iextv
       integer, dimension(:), allocatable :: dumi
       integer, dimension(:,:), allocatable :: dums, dumr
-      integer(kind=4) :: ierr, itag=0, lcount
+      integer(kind=4) :: ierr, itag=0
       integer(kind=4) :: llen, lproc, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltypei = MPI_INTEGER8
@@ -3034,7 +3022,7 @@ contains
       logical :: swap
       logical, dimension(:), allocatable :: neigharray_g
       logical(kind=4), dimension(:,:), allocatable :: dumsl, dumrl
-      real :: maxdis, disarray_g
+      real :: maxdis
       real, intent(in) :: dt
 
       ! Just set values that point to values within own processors region.
@@ -8796,7 +8784,7 @@ contains
    subroutine ccmpi_procformat_init(localhist,procmode)
    
       integer, intent(inout) :: procmode
-      integer(kind=4) :: procmode_save, procerr, procerr_g, lcomm, lerr
+      integer(kind=4) :: lcomm, lerr
       integer(kind=4) :: lcolour, lcommout, lrank, lsize
       logical, intent(in) :: localhist
 
@@ -9380,8 +9368,7 @@ contains
       integer, dimension(3) :: mg_ifull_colour
       integer, dimension(:,:), allocatable :: dums, dumr
       integer :: mioff, mjoff
-      integer :: i, j, n, iq, iqq, iqg, iqb, iqtmp, mfull_g
-      integer :: iloc, jloc, nloc
+      integer :: i, j, n, iq, iqq, iqg, mfull_g
       integer :: iext, iproc, xlen, jx, nc, xlev, rproc, sproc
       integer :: ntest, ncount
       integer(kind=4) :: itag=22, lproc, ierr, llen, lcomm
@@ -9400,6 +9387,8 @@ contains
       ! calculate processor map in iq coordinates
       lglob = .true.
       lflag = .true.
+      mioff = 0
+      mjoff = 0
       do n = 0,npanels
          do j = 1,mil_g
             do i = 1,mil_g
@@ -10373,8 +10362,8 @@ contains
 
    subroutine ccmpi_filewinget3(abuf,sinp)
    
-      integer :: n, w, ncount, nlen, kx, k
-      integer :: ca, cc, ipf
+      integer :: n, w, ncount, nlen, kx
+      integer :: cc, ipf
       integer :: rcount, jproc
       integer :: is, ie
       integer(kind=4) :: lsize, ierr
@@ -10881,7 +10870,6 @@ contains
             send_len = sslen(iproc)
             llen = send_len
             lproc = fileneighlist(iproc)  ! Send to
-!$omp simd
             do iq = 1,send_len
                bnds(lproc)%sbuf(iq) = sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2), &
                                            filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4))
@@ -10898,13 +10886,7 @@ contains
       integer, intent(in) :: comm
       integer :: myrlen, iproc, jproc, mproc, iq, rcount
       integer, dimension(fileneighnum) :: rslen
-      integer(kind=4) :: llen, lproc, ierr, ldone, sreq, lcomm
-      integer(kind=4) :: itag=40
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
+      integer(kind=4) :: lproc, ierr, ldone, sreq, lcomm
       integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:pipan+1,0:pjpan+1,pnpan,1:fncount), intent(inout) :: sdat
       logical, intent(in), optional :: corner
@@ -11037,13 +11019,7 @@ contains
       integer :: myrlen, iproc, jproc, mproc, iq, rcount, kx
       integer :: k
       integer, dimension(fileneighnum) :: rslen
-      integer(kind=4) :: llen, lproc, ierr, ldone, sreq, lcomm
-      integer(kind=4) :: itag=41
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
+      integer(kind=4) :: lproc, ierr, ldone, sreq, lcomm
       integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:,0:,1:,1:,1:), intent(inout) :: sdat
       logical, intent(in), optional :: corner
@@ -11619,7 +11595,7 @@ contains
       ! returns the process id the holds the file corresponding to the input grid point
       integer, intent(in) :: i_in, j_in, n_in
       integer :: face_out
-      integer :: i, j, n
+      integer :: i, j
       
       i = i_in
       j = j_in

@@ -63,7 +63,7 @@ integer, save :: mbd_mlo=0, nbd=0, kbotdav=4, kbotu=0, nud_p=0, nud_q=0, nud_t=0
 integer, save :: nud_hrs=24, nudu_hrs=0, ktau, ndi=1, ndi2=0, ntau, nperavg=-99, nperday, nperhr
 integer, save :: nmaxpr=99, nlv=1, ia=1, ib=1, ja=1, jb=1, id=1, jd=1, idjd
 integer, save :: io_in=1, io_out=1, io_rest=1
-integer, save :: nwt=-99, nrun=0, nextout=3, m_fly=4, nsemble=0, tblock=1, tbave=1
+integer, save :: nwt=-99, nrun=0, nextout=3, m_fly=4, nsemble=0, tbave=1
 integer, save :: nurban=0, nmr=0, nmlo=0, ktopdav=0, nud_sst=0, nud_sss=0, kbotmlo=-1000, ktopmlo=1
 integer, save :: mloalpha=0, nud_ouv=0, nud_sfh=0, kblock=-1, rescrn=0, knh=-1, iaero=0
 integer, save :: nud_aero=0, mbd_maxscale=3000, mbd_maxgrid=999999, mbd_maxscale_mlo=3000, nriver=0

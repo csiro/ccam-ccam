@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -828,7 +828,7 @@ use parmdyn_m
 implicit none
 
 integer, dimension(kl) :: iters
-integer itr, ng, ng4, g, k, jj, i, j, iq
+integer itr, ng, ng4, g, k, jj, i, iq
 integer knew, klim, ir, ic, nc, n, iq_a, iq_c
 integer isc, iec, klimc, itrc
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
@@ -1564,7 +1564,7 @@ end subroutine mghelm
 subroutine mgmlo(neta,ipice,iyy,iyyn,iyys,iyye,iyyw,                   &
                  izz,izzn,izzs,izze,izzw,                              &
                  ihh,irhs,tol,itol,totits,maxglobseta,maxglobip,ipmax, &
-                 ee,dd,minwater)
+                 ee,dd)
 
 use cc_mpi
 use indices_m
@@ -1576,7 +1576,7 @@ integer, intent(out) :: totits
 integer itr, itrc, g, ng, ng4, n, i, j, ir, ic, iq
 integer iq_a, iq_c
 integer nc, isc, iec, k
-real, intent(in) :: tol, itol, minwater
+real, intent(in) :: tol, itol
 real, intent(out) :: maxglobseta, maxglobip
 real, dimension(ifull+iextra), intent(inout) :: neta, ipice
 real, dimension(ifull+iextra), intent(in) :: ee, dd
@@ -3636,7 +3636,7 @@ use parmdyn_m
 
 implicit none
 
-integer g, gp, np, iq, iqq, iql, nn, ii, jj
+integer g, gp, np, iq, iqq, nn, ii, jj
 integer mipan, mjpan, hipan, hjpan, mil_g, iia, jja
 integer i, j, n, mg_npan, mxpr, mypr, sii, eii, sjj, ejj
 integer cid, ix, jx, colour, rank, ncol, nrow

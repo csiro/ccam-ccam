@@ -450,6 +450,10 @@ do tile = 1,ntiles
     !depth = (/   0.5,   2.1,   5.3,  11.3,  21.1,  36.0,  56.9,  85.0, 121.5, 167.3, &
     !           223.7, 291.7, 372.4, 467.0, 576.5, 702.1, 844.8,1005.8,1186.2,1387.1, &
     !          1609.6,1854.7,2123.7,2417.6,2737.5,3084.6,3456.9,3864.5,4299.6,4766.2 /)
+    ! MLO - 30 level ( mlosigma=6 )
+    !depth = (/   4.5,  14.2,  25.9,  39.8,  56.5,  76.3, 100.0, 128.1, 161.7, 201.5, &
+    !           248.7, 304.7, 370.9, 449.0, 540.8, 648.4, 774.0, 920.0,1088.9,1283.0, &
+    !          1504.5,1755.3,2036.8,2349.6,2693.2,3066.2,3456.6,3887.4,4325.2,4775.7 /)
     ! MLO - 40 level ( mlosigma=0 )
     !depth = (/   0.5,   1.7,   3.7,   6.8,  11.5,  18.3,  27.7,  40.1,  56.0,  75.9, &
     !           100.2, 129.4, 164.0, 204.3, 251.0, 304.4, 365.1, 433.4, 509.9, 595.0, &
@@ -2641,10 +2645,10 @@ call interpolate_hl(ks,fdepth_hl,ks_hl)
 end do
 
 !update the output variables (internal variables are double precision)
-k_out = k
-eps_out = eps
-km_out = km_hl
-ks_out = ks_hl
+k_out = real(k,4)
+eps_out = real(eps,4)
+km_out = real(km_hl,4)
+ks_out = real(ks_hl,4)
 
 return
 end subroutine keps
@@ -4241,7 +4245,7 @@ integer, intent(in) :: nc,diag
 integer, dimension(nc), intent(inout) :: dt_nk
 real, intent(in) :: dt
 real htup,htdown
-real, dimension(nc) :: rhin,qmax,sbrine,fl,con,gamm,ssubl,isubl,conb
+real, dimension(nc) :: rhin,sbrine,fl,con,gamm,ssubl,isubl,conb
 real, dimension(nc) :: subl,simelt,dhb,snmelt,flnew
 real, dimension(nc), intent(inout) :: it_tn0,it_tn1,it_tn2
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_tsurf,it_sto

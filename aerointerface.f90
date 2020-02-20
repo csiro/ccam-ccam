@@ -91,12 +91,12 @@ integer, intent(in) :: mins
 integer tile, is, ie, idjd_t
 integer k, j, tt, ttx, kinv, smins
 real, dimension(imax,ilev) :: loxidantnow
-real, dimension(imax,kl,naero) :: lxtg, lxtosav, lxtg_solub
+real, dimension(imax,kl,naero) :: lxtg, lxtosav
 real, dimension(imax,kl,4) :: lzoxidant
 real, dimension(imax,kl,2) :: lssn
 real, dimension(imax,kl) :: lt, lqg, lqlg, lqfg, lstratcloud
-real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfevap, lppfsubl, lpplambs
-real, dimension(imax,kl) :: lppmrate, lppmaccr, lppfstayice, lppfstayliq, lppqfsedice
+real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfsubl, lpplambs
+real, dimension(imax,kl) :: lppmrate, lppmaccr, lppfstayice, lppqfsedice
 real, dimension(imax,kl) :: lpprscav, lpprfreeze
 real, dimension(imax,kl) :: lclcon
 real, dimension(imax,kl) :: zg, dz, rhoa, pccw
@@ -169,19 +169,19 @@ end do
     
 !$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                              &
 !$omp private(k,zg,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                             &
-!$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr),    &
-!$omp private(lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),  &
-!$omp private(lxtosav,lxtg_solub,ldust_burden,lerod,lssn,ldustwd,lemissfield,lclcon)
+!$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),             &
+!$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
+!$omp private(lxtosav,ldust_burden,lerod,lssn,ldustwd,lemissfield,lclcon)
 !$acc parallel copy(xtg,ssn,duste,dustdd,dustwd,dust_burden,so4t,dmsso2o,so2so4o,bc_burden,oc_burden, &
 !$acc   dms_burden,so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd,so4dd,    &
 !$acc   bcdd,ocdd)                                                                                    &
 !$acc copyin(zoxidant_g,xtosav,emissfield,erod,t,qg,qlg,qfg,stratcloud,ppfprec,ppfmelt,ppfsnow,       &
-!$acc   ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,ppfstayliq,ppqfsedice,pprscav,pprfreeze,   &
+!$acc   ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,                      &
 !$acc   clcon,bet,betm,dsig,sig,ps,kbsav,ktsav,wetfac,pblh,tss,condc,snowd,taudar,fg,eg,u10,ustar,    &
 !$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2)
 !$acc loop gang private(lzoxidant,lxtg,lxtosav,lssn,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,  &
-!$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,     &
-!$acc   lppmrate,lppmaccr,lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,lclcon,zg,dz,rhoa,  &
+!$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,              &
+!$acc   lppmrate,lppmaccr,lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lclcon,zg,dz,rhoa,              &
 !$acc   wg,pccw)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -208,13 +208,11 @@ do tile = 1,ntiles
   lppfprec           = ppfprec(is:ie,:)
   lppfmelt           = ppfmelt(is:ie,:)
   lppfsnow           = ppfsnow(is:ie,:)
-  lppfevap           = ppfevap(is:ie,:)
   lppfsubl           = ppfsubl(is:ie,:)
   lpplambs           = pplambs(is:ie,:)
   lppmrate           = ppmrate(is:ie,:)
   lppmaccr           = ppmaccr(is:ie,:)
   lppfstayice        = ppfstayice(is:ie,:)
-  lppfstayliq        = ppfstayliq(is:ie,:)
   lppqfsedice        = ppqfsedice(is:ie,:)
   lpprscav           = pprscav(is:ie,:)
   lpprfreeze         = pprfreeze(is:ie,:)
@@ -257,11 +255,11 @@ do tile = 1,ntiles
                 eg(is:ie),u10(is:ie),ustar(is:ie),zo(is:ie),           &
                 land(is:ie),fracice(is:ie),sigmf(is:ie),lqg,lqlg,lqfg, &
                 lstratcloud,lclcon,cldcon(is:ie),pccw,rhoa,            &
-                cdtq(is:ie),lppfprec,lppfmelt,lppfsnow,lppfevap,       &
+                cdtq(is:ie),lppfprec,lppfmelt,lppfsnow,                &
                 lppfsubl,lpplambs,lppmrate,lppmaccr,lppfstayice,       &
-                lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,           &
+                lppqfsedice,lpprscav,lpprfreeze,                       &
                 zdayfac(is:ie),kbsav(is:ie),lxtg,lduste,ldustdd,       &
-                lxtosav,lxtg_solub,dmsso2o(is:ie),so2so4o(is:ie),      &
+                lxtosav,dmsso2o(is:ie),so2so4o(is:ie),                 &
                 ldust_burden,bc_burden(is:ie),oc_burden(is:ie),        &
                 dms_burden(is:ie),so2_burden(is:ie),so4_burden(is:ie), &
                 lerod,lssn,lzoxidant,so2wd(is:ie),so4wd(is:ie),        &

@@ -1448,11 +1448,7 @@ do mspec_mlo = mspeca_mlo,1,-1
       case(1)  ! no free surface
         do ii = 1,wlev
           nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
-          where( wtr(1:ifull,ii) )
-            mfixdum(:,ii) = (nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull)
-          elsewhere
-            mfixdum(:,ii) = 0.
-          end where
+          mfixdum(:,ii) = (nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull)*ee(1:ifull,ii)
         end do
         call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
         alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
@@ -1468,11 +1464,7 @@ do mspec_mlo = mspeca_mlo,1,-1
       case(2)  ! include free surface
         do ii = 1,wlev
           nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
-          where( wtr(1:ifull,ii) )
-            mfixdum(:,ii) = (nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
-          elsewhere
-            mfixdum(:,ii) = 0.
-          end where
+          mfixdum(:,ii) = (nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)*ee(1:ifull,ii)
         end do
         call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
         alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
@@ -1510,11 +1502,7 @@ do mspec_mlo = mspeca_mlo,1,-1
       case(1)
         do ii = 1,wlev
           ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
-          where( wtr(1:ifull,ii) )    
-            mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)
-          elsewhere
-            mfixdum(:,ii) = 0.
-          end where
+          mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)*ee(1:ifull,ii)
         end do
         call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
         alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
@@ -1530,11 +1518,7 @@ do mspec_mlo = mspeca_mlo,1,-1
       case(2)
         do ii = 1,wlev
           ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
-          where( wtr(1:ifull,ii) )    
-            mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)
-          elsewhere
-            mfixdum(:,ii) = 0.
-          end where
+          mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)*ee(1:ifull,ii)
         end do
         call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
         alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
@@ -1552,6 +1536,14 @@ do mspec_mlo = mspeca_mlo,1,-1
           ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
         end do  
     end select
+    !if ( nodrift==1 ) then
+    !  odum = (ns(1:ifull,1)-34.7)*ee(1:ifull,1)*em(1:ifull)**2
+    !  call mlosum(odum,lsum)
+    !  call ccmpi_allreduce(lsum,gsum,"sumdr",comm_world)
+    !  delta = real(gsum)/real(emsum)
+    !  ns(1:ifull,1) = (ns(1:ifull,1) - delta)*ee(1:ifull,1)
+    !  ns(1:ifull,1) = max( ns(1:ifull,1), 0. )
+    !end if
   end if
 
   if ( myid==0 .and. (ktau<=5.or.maxglobseta>tol.or.maxglobip>itol) ) then
@@ -4879,7 +4871,7 @@ end where
 
 call mgmlo(neta,ipice,yy,yyn,yys,yye,yyw,zz,zzn,zzs,zze,zzw,   &
            hh,rhs,tol,itol,totits,maxglobseta,maxglobip,ipmax, &
-           ee(:,1),dd,minwater)
+           ee(:,1),dd)
 
 return
 end subroutine mlomg

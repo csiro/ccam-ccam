@@ -81,6 +81,7 @@ FHOST = -march=native
 ifeq ($(BROADWELL),yes)
 FHOST = -march=broadwell
 endif
+MPIFLAG =
 FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
 ZMM =

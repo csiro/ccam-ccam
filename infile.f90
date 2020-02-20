@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -21,17 +21,12 @@
     
 module infile
       
-! This module contains routines for reading netcdf files,
-! vertical interpolation and some calendar functions.
-! This module also contains the interface to the netcdf
-! library.
+! This module contains routines for reading netcdf files, vertical interpolation and some calendar functions.
+! This module also contains the interface to the netcdf library.
       
-! This version of infile.f90 supports parallel localhist input
-! files.  Multiple processors read as many input files as
-! supplied in parallel and then makes this data avaliable to 
-! all processors for interpolation. The code can also identify
-! restart files, in which case no additional message passing
-! is required.
+! This version of infile.f90 supports parallel localhist input files.  Multiple processors read as many input files as
+! supplied in parallel and then makes this data avaliable to all processors for interpolation. The code can also identify
+! restart files, in which case no additional message passing is required.
 
 #ifdef usenc_mod
 ! use netcdf.mod interface
@@ -255,10 +250,10 @@ if ( mynproc>0 ) then
       ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      if ( any( rvar/=rvar ) ) then
-        write(6,*) "ERROR: NaN read in hr3p_procformat ",trim(name)
-        call ccmpi_abort(-1)
-      end if
+      !if ( any( rvar/=rvar ) ) then
+      !  write(6,*) "ERROR: NaN read in hr3p_procformat ",trim(name)
+      !  call ccmpi_abort(-1)
+      !end if
       ! unpack compressed data
       rvar(:) = rvar(:)*real(lsf) + real(laddoff)
     end if ! ier
@@ -415,10 +410,10 @@ if ( mynproc>0 ) then
       call ncmsg(name,ier)
       ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      if ( any( rvar/=rvar ) ) then
-        write(6,*) "ERROR: NaN read in hr3p_procformatr8 ",trim(name)
-        call ccmpi_abort(-1)
-      end if
+      !if ( any( rvar/=rvar ) ) then
+      !  write(6,*) "ERROR: NaN read in hr3p_procformatr8 ",trim(name)
+      !  call ccmpi_abort(-1)
+      !end if
       ! unpack compressed data
       rvar(:) = rvar(:)*real(lsf,8) + real(laddoff,8)
     end if ! ier
@@ -571,10 +566,10 @@ if ( mynproc>0 ) then
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      if ( any( rvar/=rvar ) ) then
-        write(6,*) "ERROR: NaN read in hr4p_procformat ",trim(name)
-        call ccmpi_abort(-1)
-      end if
+      !if ( any( rvar/=rvar ) ) then
+      !  write(6,*) "ERROR: NaN read in hr4p_procformat ",trim(name)
+      !  call ccmpi_abort(-1)
+      !end if
       ! unpack data
       rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
     else
@@ -611,10 +606,10 @@ if ( mynproc>0 ) then
         ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
         ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
         call ncmsg(name,ier)
-        if ( any( rvar(:,k)/=rvar(:,k) ) ) then
-          write(6,*) "ERROR: NaN read in hr4p_procformat ",trim(name)
-          call ccmpi_abort(-1)
-        end if      ! unpack data
+        !if ( any( rvar(:,k)/=rvar(:,k) ) ) then
+        !  write(6,*) "ERROR: NaN read in hr4p_procformat ",trim(name)
+        !  call ccmpi_abort(-1)
+        !end if      ! unpack data
         rvar(:,k) = rvar(:,k)*real(lsf) + real(laddoff)      
       end do
     end if ! ier
@@ -767,10 +762,10 @@ if ( mynproc>0 ) then
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      if ( any( rvar/=rvar ) ) then
-        write(6,*) "ERROR: NaN read in hr4p_procformatr8 ",trim(name)
-        call ccmpi_abort(-1)
-      end if
+      !if ( any( rvar/=rvar ) ) then
+      !  write(6,*) "ERROR: NaN read in hr4p_procformatr8 ",trim(name)
+      !  call ccmpi_abort(-1)
+      !end if
       ! unpack data
       rvar(:,:) = rvar(:,:)*real(lsf,8) + real(laddoff,8)
     else
@@ -807,10 +802,10 @@ if ( mynproc>0 ) then
         ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
         ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
         call ncmsg(name,ier)
-        if ( any( rvar(:,k)/=rvar(:,k) ) ) then
-          write(6,*) "ERROR: NaN read in hr4p_procformatr8 ",trim(name)
-          call ccmpi_abort(-1)
-        end if
+        !if ( any( rvar(:,k)/=rvar(:,k) ) ) then
+        !  write(6,*) "ERROR: NaN read in hr4p_procformatr8 ",trim(name)
+        !  call ccmpi_abort(-1)
+        !end if
         ! unpack data
         rvar(:,k) = rvar(:,k)*real(lsf,8) + real(laddoff,8)      
       end do
@@ -948,10 +943,10 @@ if ( mynproc>0 ) then
     ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
     ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
-    if ( any( rvar/=rvar ) ) then
-      write(6,*) "ERROR: NaN read in hr5p_procformat ",trim(name)
-      call ccmpi_abort(-1)
-    end if
+    !if ( any( rvar/=rvar ) ) then
+    !  write(6,*) "ERROR: NaN read in hr5p_procformat ",trim(name)
+    !  call ccmpi_abort(-1)
+    !end if
     ! unpack data
     rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)
 
@@ -1012,7 +1007,7 @@ integer, intent(out) :: ier
 integer kk, ll
 real(kind=8), dimension(:,:,:), intent(inout) :: var
 real(kind=8), dimension(:,:,:), allocatable :: globvar
-real :: vmax, vmin
+real(kind=8) :: vmax, vmin
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd5_begin)
@@ -1093,10 +1088,10 @@ if ( mynproc>0 ) then
     ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
     ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
-    if ( any( rvar/=rvar ) ) then
-      write(6,*) "ERROR: NaN read in hr5p_procformatr8 ",trim(name)
-      call ccmpi_abort(-1)
-    end if
+    !if ( any( rvar/=rvar ) ) then
+    !  write(6,*) "ERROR: NaN read in hr5p_procformatr8 ",trim(name)
+    !  call ccmpi_abort(-1)
+    !end if
     ! unpack data
     rvar(:,:,:) = rvar(:,:,:)*real(lsf,8) + real(laddoff,8)
 
@@ -1170,6 +1165,8 @@ integer(kind=4) lncid, lidum, ldid, lvid, llen
 character(len=*), intent(in) :: ifile
 character(len=170) pfile
 character(len=8) fdecomp
+
+resprocmode = 0
 
 if ( myid==0 ) then
   ! attempt to open single file with myid==0
@@ -1737,11 +1734,6 @@ else
   quiet = .false.
 end if
 
-!if ( kdate_r>=00600000 .and. kdate_r<=00991231 ) then   ! old 1960-1999
-!  kdate_r=kdate_r+19000000
-!  if ( myid==0 .and. .not.quiet ) write(6,*) 'For Y2K kdate_r altered to: ',kdate_r
-!endif
-
 iyr=kdate_r/10000
 imo=(kdate_r-10000*iyr)/100
 iday=kdate_r-10000*iyr-100*imo
@@ -1791,12 +1783,6 @@ mtimerm=mtimer_r-mtimerh*60  ! minutes left over
 ihr=ihr+mtimerh
 imins=imins+mtimerm
 
-!if ( imins==58 .or. imins==59 ) then
-!  ! allow for roundoff for real timer from old runs
-!  if ( myid==0 .and. .not.quiet ) write(6,*)'*** imins increased to 60 from imins = ',imins
-!  imins=60
-!endif
-
 ihr=ihr+imins/60
 imins=mod(imins,60)
 if ( diag .and. .not.quiet ) then
@@ -1845,8 +1831,7 @@ implicit none
 
 integer, intent(inout) :: kdate_r,mtimer_r
 integer iyr,imo,iday
-integer mtimerh,mtimerm,mtimer
-integer mdays_save, leap_l
+integer mtimer
 
 iyr=kdate_r/10000
 imo=(kdate_r-10000*iyr)/100
@@ -2222,10 +2207,10 @@ do v = 1,vnode_nproc
   var_g(1:ifull,v) = var_t(1:ifull,v)
 end do
 
-if ( any( var_g/=var_g ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw3lp ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( var_g/=var_g ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw3lp ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -2285,10 +2270,10 @@ call ccmpi_gather(var(1:ifull), globvar(1:ifull_g))
 start = (/ 1, 1, iarch /)
 ncount = (/ il_g, jl_g, 1 /)
 
-if ( any( globvar/=globvar ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw3a ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( globvar/=globvar ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw3a ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 !     find variable index
 lidnc = idnc
@@ -2373,10 +2358,10 @@ do v = 1,vnode_nproc
   var_g(1:ifull,v) = var_t(1:ifull,v)
 end do
 
-if ( any( var_g/=var_g ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw3lpr8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( var_g/=var_g ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw3lpr8 ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -2419,7 +2404,7 @@ use parm_m               ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer :: ier, imn, imx, jmn, jmx, iq, i
+integer :: ier, imn, imx, jmn, jmx, iq
 integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(:), allocatable :: ipack
@@ -2436,10 +2421,10 @@ call ccmpi_gatherr8(var(1:ifull), globvar(1:ifull_g))
 start = (/ 1, 1, iarch /)
 ncount = (/ il_g, jl_g, 1 /)
 
-if ( any( globvar/=globvar ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw3ar8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( globvar/=globvar ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw3ar8 ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 !     find variable index
 lidnc = idnc
@@ -2599,10 +2584,10 @@ ncount = (/ il, jl, ll, vnode_nproc, 1 /)
 
 call ccmpi_gatherx(var_g,var,0,comm_vnode)
 
-if ( any( var_g/=var_g ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw4lp ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( var_g/=var_g ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw4lp ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -2668,10 +2653,10 @@ call ccmpi_gather(var(1:ifull,1:ll), globvar(1:ifull_g,1:ll))
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, ll, 1 /)
 
-if ( any( globvar/=globvar ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw4a ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( globvar/=globvar ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw4a ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 !     find variable index
 lidnc = idnc
@@ -2751,10 +2736,10 @@ ncount = (/ il, jl, ll, vnode_nproc, 1 /)
 
 call ccmpi_gatherxr8(var_g,var,0,comm_vnode)
 
-if ( any( var_g/=var_g ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw4lpr8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( var_g/=var_g ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw4lpr8 ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -2820,10 +2805,10 @@ call ccmpi_gatherr8(var(1:ifull,1:ll), globvar(1:ifull_g,1:ll))
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, ll, 1 /)
 
-if ( any( globvar/=globvar ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw4ar8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( globvar/=globvar ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw4ar8 ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 !     find variable index
 lidnc = idnc
@@ -2984,10 +2969,10 @@ ncount = (/ il, jl, kk, ll, vnode_nproc, 1 /)
 
 call ccmpi_gatherx(var_g,var,0,comm_vnode)
 
-if ( any( var_g/=var_g ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw5lp ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( var_g/=var_g ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw5lp ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -3055,10 +3040,10 @@ call ccmpi_gather(var(1:ifull,1:kk,1:ll), globvar(1:ifull_g,1:kk,1:ll))
 start = (/ 1, 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, kk, ll, 1 /)
 
-if ( any( globvar/=globvar ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw5a ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( globvar/=globvar ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw5a ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 !     find variable index
 lidnc = idnc
@@ -3135,10 +3120,10 @@ ncount = (/ il, jl, kk, ll, vnode_nproc, 1 /)
 
 call ccmpi_gatherxr8(var_g,var,0,comm_vnode)
 
-if ( any( var_g/=var_g ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw5lpr8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( var_g/=var_g ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw5lpr8 ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -3207,10 +3192,10 @@ call ccmpi_gatherr8(var(1:ifull,1:kk,1:ll), globvar(1:ifull_g,1:kk,1:ll))
 start = (/ 1, 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, kk, ll, 1 /)
 
-if ( any( globvar/=globvar ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw5ar8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( globvar/=globvar ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw5ar8 ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 !     find variable index
 lidnc = idnc
@@ -4834,11 +4819,11 @@ logical tst
 ifull_l=size(dat)
 allocate( glob2d(ifull_g) )
 
+iernc=0
 if (present(filename)) then
   call ccnf_open(filename,ncidx,iernc)
 else if (present(netcdfid)) then
   ncidx=netcdfid
-  iernc=0
 end if
 
 if (iernc==0) then ! Netcdf file
