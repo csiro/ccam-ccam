@@ -152,7 +152,7 @@ real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 
 
 ! Salt coefficients
 real, dimension(2), parameter :: saltden = (/ 2165., 2165. /)     ! density of salt
-real, dimension(2), parameter :: saltreff = (/ 0.1e-6, 0.5e-6 /)  ! radius of salt
+real, dimension(2), parameter :: saltreff = (/ 0.1e-6, 0.5e-6 /)  ! radius of salt (um)
 
 ! convective scavenging coefficients
 real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
@@ -618,7 +618,7 @@ call xtchemie (2, dt, zdayfac, aphp1, pmrate, pfprec,                    & !Inpu
                pccw,pfconv,xtu,                                          & !Inputs
                conwd,                                                    & !In and Out
                xte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                   & !Output
-               zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,                    &
+               zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,             &
                imax,kl)                                                    !Inputs
 do nt = 1,naero
   do k = 1,kl
@@ -660,6 +660,12 @@ so2_burden(:) = so2_burden(:) + burden(:)
 
 burden(:) = sum( xtg(1:imax,:,itracso4)*rhoa(:,:)*dz(:,:), dim=2 )
 so4_burden(:) = so4_burden(:) + burden(:)
+
+burden(:) = 0.
+do nt = itracsa,itracsa+nsalt-1
+  burden(:) = burden(:) + sum( xtg(1:imax,:,nt)*rhoa(:,:)*dz(:,:), dim=2 )
+end do
+salt_burden(:) = salt_burden(:) + burden(:)
 
 return
 end subroutine aldrcalc
@@ -1079,7 +1085,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
                     pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,pccw,pfconv,xtu,   & !Inputs
                     conwd,                                                           & !In and Out
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3,                               & !Outputs
-                    zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,                           &
+                    zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,                    &
                     imax,kl)                                                           !Inputs
 !$acc routine vector
 
@@ -1197,6 +1203,7 @@ real, dimension(imax), intent(inout) :: so4wd
 real, dimension(imax), intent(inout) :: bcwd
 real, dimension(imax), intent(inout) :: ocwd
 real, dimension(imax,ndust), intent(inout) :: dustwd
+real, dimension(imax), intent(inout) :: saltwd
 real x,pqtmst
 real ze1,ze2,ze3,zfac1,zrkfac
 real zza,za21,za22,zph_o3,zf_o3,zdt
@@ -1751,6 +1758,8 @@ DO JT=ITRACSO2,naero
     ocwd(:) = ocwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
   elseif ( jt>=itracdu .and. jt<itracdu+ndust ) then
     dustwd(:,jt-itracdu+1) = dustwd(:,jt-itracdu+1) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+  elseif ( jt>=itracsa .and. jt<itracsa+nsalt ) then
+    saltwd(:) = saltwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )  
   endif
   
   !    CHANGE THE TOTAL TENDENCIES
@@ -2535,9 +2544,9 @@ real, dimension(imax), intent(inout) :: salte
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax) :: wu10, dfdd, df0dd, a, b, veff, diam
 real, dimension(imax) :: ftw, fsw, airden
-real, dimension(2) :: mtnfactor
+real, dimension(nsalt) :: mtnfactor
 real, dimension(nsalt), intent(in) :: saltreff
-real, dimension(nsalt), parameter :: saltrange = (/ 0.4e-6, 3.5e-6 /) ! 0.1-0.5um and 0.5-4um following geos-chem
+real, dimension(nsalt), parameter :: saltrange = (/ 0.4e-6, 7.5e-6 /) ! 0.1-0.5um and 0.5-8um
 logical, dimension(imax), intent(in) :: land
 
 ! Follows Sofiev et al 2011 for emissions
@@ -2559,8 +2568,8 @@ do n = 1,nsalt
   df0dd = 1.e6*exp(-0.09/(diam+3.e-3))/(2.+exp(-5./diam))*(1.+0.05*diam**1.05)/(diam**3) &
          *10**(1.05*exp(-((0.27-log(diam))/1.1)**2))
     
-  !ftw = 0.48*diam**(-0.36)  ! 15C
-  ftw = 0.15*diam**(-0.88)   ! 5C
+  ftw = 0.48*diam**(-0.36)   ! 15C
+  !ftw = 0.15*diam**(-0.88)  ! 5C
   !ftw = 0.092*diam**(-0.96) ! -2C
   
   fsw = 0.12*diam**(-0.71)
@@ -2574,9 +2583,9 @@ do n = 1,nsalt
     a = 0.
   end where 
   
-  a = a/mtnfactor(n) ! kg/kg/s
-
-  salte = salte + a*airden ! Diagnostic
+  a = a/mtnfactor(n) ! kg/kg/s  
+  
+  salte = salte + a*rhoa*dz1 ! Diagnostic
 
   
   !den = saltden(n)*1.e-3
@@ -2691,7 +2700,7 @@ logical, dimension(size(fscav)) :: bwkp1
 ! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
 !real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05,0.05,0.05/) ! liquid
-real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.30,0.30,0.30,0.30,0.3,0.3/) ! liquid
+real, parameter, dimension(naero) :: scav_effl = (/0.0,1.0,0.9,0.0,0.3,0.0,0.3,0.3,0.3,0.3,0.3,0.05,0.05/) ! liquid
 !real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/) ! ice
 
 !bwkp1(:) = tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)

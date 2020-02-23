@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -50,12 +50,12 @@ real, save      :: csolar   = 1365.            ! Solar constant in W/m^2
 real, parameter :: siglow   = 0.68             ! sigma level for top of low cloud (diagnostic)
 real, parameter :: sigmid   = 0.44             ! sigma level for top of medium cloud (diagnostic)
 real, parameter :: ratco2mw = 1.519449738      ! conversion factor for CO2 diagnostic
-integer, parameter :: naermodels         = 93  ! number of aerosol optical models
+integer, parameter :: naermodels         = 218 ! number of aerosol optical models
 integer, parameter :: N_AEROSOL_BANDS_FR = 8
 integer, parameter :: N_AEROSOL_BANDS_CO = 1
 integer, parameter :: N_AEROSOL_BANDS_CN = 1
 integer, parameter :: N_AEROSOL_BANDS    = N_AEROSOL_BANDS_FR + N_AEROSOL_BANDS_CO
-integer, parameter :: nfields            = 10 ! number of aerosol fields for radiation
+integer, parameter :: nfields            = 11 ! number of aerosol fields for radiation
 integer, save :: liqradmethod = 0     ! Method for calculating radius of liquid droplets
                                       ! (0=Martin Mid/NBer, 1=Martin Low/NBer, 2=Martin High/NBer
                                       !  3=Martin Mid/Ber,  4=Martin Low/Ber,  5=Martin High/Ber )
@@ -400,9 +400,10 @@ do iq_tile = 1,ifull,imax
         if ( seasaltradmethod/=-1 ) then
           do k = 1,kl
             kr = kl + 1 - k
-            ! note that units for sea-salt differ to the prognostic aerosols
-            Aerosol(mythread)%aerosol(:,1,kr,10) = real(xtg(istart:iend,k,12)*dzrho         & ! Small film sea salt (0.1)
-                                                       +xtg(istart:iend,k,13)*dzrho,8)        ! Large jet sea salt (0.5)
+            !Aerosol(mythread)%aerosol(:,1,kr,10) = real(xtg(istart:iend,k,12)*dzrho         & ! Small film sea salt (0.1)
+            !                                           +xtg(istart:iend,k,13)*dzrho,8)        ! Large jet sea salt (0.5)
+            Aerosol(mythread)%aerosol(:,1,kr,10) = real(xtg(istart:iend,k,12)*dzrho,8)        ! Small film sea salt (0.1)
+            Aerosol(mythread)%aerosol(:,1,kr,11) = real(xtg(istart:iend,k,13)*dzrho,8)        ! Large jet sea salt (0.5)
           end do
         end if
         Aerosol(mythread)%aerosol=max(Aerosol(mythread)%aerosol, 0._8)
@@ -748,14 +749,16 @@ do iq_tile = 1,ifull,imax
         end do
       end do
       ! Seasalt
-      do k = 1,kl
-        opticaldepth(istart:iend,7,1) = opticaldepth(istart:iend,7,1) &
-                                      + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,10,1)) ! Visible
-        opticaldepth(istart:iend,7,2) = opticaldepth(istart:iend,7,2) &
-                                      + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,10,2)) ! Near IR
-        opticaldepth(istart:iend,7,3) = opticaldepth(istart:iend,7,3) &
-                                      + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,10,3)) ! Longwave
-      end do
+      do nr = 10,11
+        do k = 1,kl
+          opticaldepth(istart:iend,7,1) = opticaldepth(istart:iend,7,1) &
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,1)) ! Visible
+          opticaldepth(istart:iend,7,2) = opticaldepth(istart:iend,7,2) &
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,2)) ! Near IR
+          opticaldepth(istart:iend,7,3) = opticaldepth(istart:iend,7,3) &
+                                        + real(Aerosol_diags(mythread)%extopdep(1:imax,1,k,nr,3)) ! Longwave
+        end do
+      end do  
       ! Aerosol
       do nr = 1,nfields
         do k = 1,kl
@@ -1678,7 +1681,9 @@ if ( do_aerosol_forcing ) then
   Aerosol_props%optical_index(7) = naermodels - 2                    ! dust_1.4  (using 1.4)
   Aerosol_props%optical_index(8) = naermodels - 1                    ! dust_2.4  (using 2.4)
   Aerosol_props%optical_index(9) = naermodels                        ! dust_4.5  (using 4.5)
-  Aerosol_props%optical_index(10) = 1                                ! sea_salt (film drop + jet drop)
+  !Aerosol_props%optical_index(10) = 1                               ! sea_salt (film drop + jet drop)
+  Aerosol_props%optical_index(10) = Aerosol_props%seasalt1_flag      ! sea salt film drop (0.1)
+  Aerosol_props%optical_index(11) = Aerosol_props%seasalt2_flag      ! sea salt jet drop (0.5)
   ! GFDL bins dust1=0.1-0.5, dust2=0.5-1, dust3=1-2.5, dust4=2.5-5, dust5=5-10
   ! GFDL bins salt1=0.1-0.5, salt2=0.5-1, salt3=1-2.5, salt4=2.5-5, dust5=5-10
 
@@ -1801,18 +1806,18 @@ if ( do_aerosol_forcing ) then
   Aerosol_props%bcphilic_index(84: 97)=(/  24,  24,  25,  25,  26,  26,  27,  28,  29,  30,  31,  32,  33,  34 /)
   Aerosol_props%bcphilic_index(98:100)=(/  34,  34,  34 /)
   Aerosol_props%omphilic_index(:) = Aerosol_props%bcphilic_index(:) + 25
-  !Aerosol_props%seasalt1_index( 0: 13)=(/ 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772 /)
-  !Aerosol_props%seasalt1_index(14: 27)=(/ 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772, 772 /)
-  !Aerosol_props%seasalt1_index(28: 41)=(/ 772, 772, 772, 772, 772, 773, 773, 773, 773, 773, 774, 774, 774, 774 /)
-  !Aerosol_props%seasalt1_index(42: 55)=(/ 774, 775, 775, 775, 775, 775, 776, 776, 776, 776, 776, 777, 777, 777 /)
-  !Aerosol_props%seasalt1_index(56: 69)=(/ 777, 777, 778, 778, 778, 778, 778, 779, 779, 779, 779, 779, 780, 780 /)
-  !Aerosol_props%seasalt1_index(70: 83)=(/ 780, 780, 780, 781, 781, 781, 781, 781, 782, 782, 782, 782, 783, 783 /)
-  !Aerosol_props%seasalt1_index(84: 97)=(/ 784, 784, 785, 785, 786, 786, 787, 788, 789, 790, 791, 792, 793, 794 /)
-  !Aerosol_props%seasalt1_index(98:100)=(/ 794, 794, 794 /)
-  !Aerosol_props%seasalt2_index(:) = Aerosol_props%seasalt1_index(:) + 25
-  !Aerosol_props%seasalt3_index(:) = Aerosol_props%seasalt2_index(:) + 25
-  !Aerosol_props%seasalt4_index(:) = Aerosol_props%seasalt3_index(:) + 25
-  !Aerosol_props%seasalt5_index(:) = Aerosol_props%seasalt4_index(:) + 25
+  Aerosol_props%seasalt1_index( 0: 13)=(/  88,  88,  88,  88,  88,  88,  88,  88,  88,  88,  88,  88,  88,  88 /)
+  Aerosol_props%seasalt1_index(14: 27)=(/  88,  88,  88,  88,  88,  88,  88,  88,  88,  88,  88,  88,  88,  88 /)
+  Aerosol_props%seasalt1_index(28: 41)=(/  88,  88,  88,  88,  88,  89,  89,  89,  89,  89,  90,  90,  90,  90 /)
+  Aerosol_props%seasalt1_index(42: 55)=(/  90,  91,  91,  91,  91,  91,  92,  92,  92,  92,  92,  93,  93,  93 /)
+  Aerosol_props%seasalt1_index(56: 69)=(/  93,  93,  94,  94,  94,  94,  94,  95,  95,  95,  95,  95,  96,  96 /)
+  Aerosol_props%seasalt1_index(70: 83)=(/  96,  96,  96,  97,  97,  97,  97,  97,  98,  98,  98,  98,  99,  99 /)
+  Aerosol_props%seasalt1_index(84: 97)=(/ 100, 100, 101, 101, 102, 102, 103, 104, 105, 106, 107, 108, 109, 110 /)
+  Aerosol_props%seasalt1_index(98:100)=(/ 111, 111, 111 /)
+  Aerosol_props%seasalt2_index(:) = Aerosol_props%seasalt1_index(:) + 25
+  Aerosol_props%seasalt3_index(:) = Aerosol_props%seasalt2_index(:) + 25
+  Aerosol_props%seasalt4_index(:) = Aerosol_props%seasalt3_index(:) + 25
+  Aerosol_props%seasalt5_index(:) = Aerosol_props%seasalt4_index(:) + 25
   call loadaerooptical(Aerosol_props)
     
   if ( include_volcanoes ) then
@@ -1928,6 +1933,41 @@ aerosol_optical_names(82:83)=(/ "sulfate_95%_100%", "sulfate_96%_100%" /)
 aerosol_optical_names(84:85)=(/ "sulfate_97%_100%", "sulfate_98%_100%" /)
 aerosol_optical_names(86)=      "sulfate_99%_100%"
 aerosol_optical_names(87)=      "sulfate_100%_100%"
+aerosol_optical_names( 88: 91)=(/ "seasalt1_30%", "seasalt1_35%", "seasalt1_40%", "seasalt1_45%" /)
+aerosol_optical_names( 92: 95)=(/ "seasalt1_50%", "seasalt1_55%", "seasalt1_60%", "seasalt1_65%" /)
+aerosol_optical_names( 96: 99)=(/ "seasalt1_70%", "seasalt1_75%", "seasalt1_80%", "seasalt1_82%" /)
+aerosol_optical_names(100:103)=(/ "seasalt1_84%", "seasalt1_86%", "seasalt1_88%", "seasalt1_90%" /)
+aerosol_optical_names(104:107)=(/ "seasalt1_91%", "seasalt1_92%", "seasalt1_93%", "seasalt1_94%" /)
+aerosol_optical_names(108:111)=(/ "seasalt1_95%", "seasalt1_96%", "seasalt1_97%", "seasalt1_98%" /)
+aerosol_optical_names(112)=       "seasalt1_99%"
+aerosol_optical_names(113:116)=(/ "seasalt2_30%", "seasalt2_35%", "seasalt2_40%", "seasalt2_45%" /)
+aerosol_optical_names(117:120)=(/ "seasalt2_50%", "seasalt2_55%", "seasalt2_60%", "seasalt2_65%" /)
+aerosol_optical_names(121:124)=(/ "seasalt2_70%", "seasalt2_75%", "seasalt2_80%", "seasalt2_82%" /)
+aerosol_optical_names(125:128)=(/ "seasalt2_84%", "seasalt2_86%", "seasalt2_88%", "seasalt2_90%" /)
+aerosol_optical_names(129:132)=(/ "seasalt2_91%", "seasalt2_92%", "seasalt2_93%", "seasalt2_94%" /)
+aerosol_optical_names(133:136)=(/ "seasalt2_95%", "seasalt2_96%", "seasalt2_97%", "seasalt2_98%" /)
+aerosol_optical_names(137)=       "seasalt2_99%"
+aerosol_optical_names(138:141)=(/ "seasalt3_30%", "seasalt3_35%", "seasalt3_40%", "seasalt3_45%" /)
+aerosol_optical_names(142:145)=(/ "seasalt3_50%", "seasalt3_55%", "seasalt3_60%", "seasalt3_65%" /)
+aerosol_optical_names(146:149)=(/ "seasalt3_70%", "seasalt3_75%", "seasalt3_80%", "seasalt3_82%" /)
+aerosol_optical_names(150:153)=(/ "seasalt3_84%", "seasalt3_86%", "seasalt3_88%", "seasalt3_90%" /)
+aerosol_optical_names(154:157)=(/ "seasalt3_91%", "seasalt3_92%", "seasalt3_93%", "seasalt3_94%" /)
+aerosol_optical_names(158:161)=(/ "seasalt3_95%", "seasalt3_96%", "seasalt3_97%", "seasalt3_98%" /)
+aerosol_optical_names(162)=       "seasalt3_99%"
+aerosol_optical_names(163:166)=(/ "seasalt4_30%", "seasalt4_35%", "seasalt4_40%", "seasalt4_45%" /)
+aerosol_optical_names(167:170)=(/ "seasalt4_50%", "seasalt4_55%", "seasalt4_60%", "seasalt4_65%" /)
+aerosol_optical_names(171:174)=(/ "seasalt4_70%", "seasalt4_75%", "seasalt4_80%", "seasalt4_82%" /)
+aerosol_optical_names(175:178)=(/ "seasalt4_84%", "seasalt4_86%", "seasalt4_88%", "seasalt4_90%" /)
+aerosol_optical_names(179:182)=(/ "seasalt4_91%", "seasalt4_92%", "seasalt4_93%", "seasalt4_94%" /)
+aerosol_optical_names(183:186)=(/ "seasalt4_95%", "seasalt4_96%", "seasalt4_97%", "seasalt4_98%" /)
+aerosol_optical_names(187)=       "seasalt4_99%"
+aerosol_optical_names(188:191)=(/ "seasalt5_30%", "seasalt5_35%", "seasalt5_40%", "seasalt5_45%" /)
+aerosol_optical_names(192:195)=(/ "seasalt5_50%", "seasalt5_55%", "seasalt5_60%", "seasalt5_65%" /)
+aerosol_optical_names(196:199)=(/ "seasalt5_70%", "seasalt5_75%", "seasalt5_80%", "seasalt5_82%" /)
+aerosol_optical_names(200:203)=(/ "seasalt5_84%", "seasalt5_86%", "seasalt5_88%", "seasalt5_90%" /)
+aerosol_optical_names(204:207)=(/ "seasalt5_91%", "seasalt5_92%", "seasalt5_93%", "seasalt5_94%" /)
+aerosol_optical_names(208:211)=(/ "seasalt5_95%", "seasalt5_96%", "seasalt5_97%", "seasalt5_98%" /)
+aerosol_optical_names(212)=       "seasalt5_99%"
 !aerosol_optical_names( 88: 91)=(/ "sulfate_30%_98%", "sulfate_35%_98%", "sulfate_40%_98%", "sulfate_45%_98%" /)
 !aerosol_optical_names( 92: 95)=(/ "sulfate_50%_98%", "sulfate_55%_98%", "sulfate_60%_98%", "sulfate_65%_98%" /)
 !aerosol_optical_names( 96: 99)=(/ "sulfate_70%_98%", "sulfate_75%_98%", "sulfate_80%_98%", "sulfate_82%_98%" /)
@@ -2139,41 +2179,6 @@ aerosol_optical_names(87)=      "sulfate_100%_100%"
 !aerosol_optical_names(766:769)=(/ "dust1",       "dust2",       "dust3",       "dust4"    /)
 !aerosol_optical_names(770)=       "dust5"
 !aerosol_optical_names(771)=       "bcdry"
-!aerosol_optical_names(772:775)=(/ "seasalt1_30%", "seasalt1_35%", "seasalt1_40%", "seasalt1_45%" /)
-!aerosol_optical_names(776:779)=(/ "seasalt1_50%", "seasalt1_55%", "seasalt1_60%", "seasalt1_65%" /)
-!aerosol_optical_names(780:783)=(/ "seasalt1_70%", "seasalt1_75%", "seasalt1_80%", "seasalt1_82%" /)
-!aerosol_optical_names(784:787)=(/ "seasalt1_84%", "seasalt1_86%", "seasalt1_88%", "seasalt1_90%" /)
-!aerosol_optical_names(788:791)=(/ "seasalt1_91%", "seasalt1_92%", "seasalt1_93%", "seasalt1_94%" /)
-!aerosol_optical_names(792:795)=(/ "seasalt1_95%", "seasalt1_96%", "seasalt1_97%", "seasalt1_98%" /)
-!aerosol_optical_names(796)=       "seasalt1_99%"
-!aerosol_optical_names(797:800)=(/ "seasalt2_30%", "seasalt2_35%", "seasalt2_40%", "seasalt2_45%" /)
-!aerosol_optical_names(801:804)=(/ "seasalt2_50%", "seasalt2_55%", "seasalt2_60%", "seasalt2_65%" /)
-!aerosol_optical_names(805:808)=(/ "seasalt2_70%", "seasalt2_75%", "seasalt2_80%", "seasalt2_82%" /)
-!aerosol_optical_names(809:812)=(/ "seasalt2_84%", "seasalt2_86%", "seasalt2_88%", "seasalt2_90%" /)
-!aerosol_optical_names(813:816)=(/ "seasalt2_91%", "seasalt2_92%", "seasalt2_93%", "seasalt2_94%" /)
-!aerosol_optical_names(817:820)=(/ "seasalt2_95%", "seasalt2_96%", "seasalt2_97%", "seasalt2_98%" /)
-!aerosol_optical_names(821)=       "seasalt2_99%"
-!aerosol_optical_names(822:825)=(/ "seasalt3_30%", "seasalt3_35%", "seasalt3_40%", "seasalt3_45%" /)
-!aerosol_optical_names(826:829)=(/ "seasalt3_50%", "seasalt3_55%", "seasalt3_60%", "seasalt3_65%" /)
-!aerosol_optical_names(830:833)=(/ "seasalt3_70%", "seasalt3_75%", "seasalt3_80%", "seasalt3_82%" /)
-!aerosol_optical_names(834:837)=(/ "seasalt3_84%", "seasalt3_86%", "seasalt3_88%", "seasalt3_90%" /)
-!aerosol_optical_names(838:841)=(/ "seasalt3_91%", "seasalt3_92%", "seasalt3_93%", "seasalt3_94%" /)
-!aerosol_optical_names(842:845)=(/ "seasalt3_95%", "seasalt3_96%", "seasalt3_97%", "seasalt3_98%" /)
-!aerosol_optical_names(846)=       "seasalt3_99%"
-!aerosol_optical_names(847:850)=(/ "seasalt4_30%", "seasalt4_35%", "seasalt4_40%", "seasalt4_45%" /)
-!aerosol_optical_names(851:854)=(/ "seasalt4_50%", "seasalt4_55%", "seasalt4_60%", "seasalt4_65%" /)
-!aerosol_optical_names(855:858)=(/ "seasalt4_70%", "seasalt4_75%", "seasalt4_80%", "seasalt4_82%" /)
-!aerosol_optical_names(859:862)=(/ "seasalt4_84%", "seasalt4_86%", "seasalt4_88%", "seasalt4_90%" /)
-!aerosol_optical_names(863:866)=(/ "seasalt4_91%", "seasalt4_92%", "seasalt4_93%", "seasalt4_94%" /)
-!aerosol_optical_names(867:870)=(/ "seasalt4_95%", "seasalt4_96%", "seasalt4_97%", "seasalt4_98%" /)
-!aerosol_optical_names(871)=       "seasalt4_99%"
-!aerosol_optical_names(872:875)=(/ "seasalt5_30%", "seasalt5_35%", "seasalt5_40%", "seasalt5_45%" /)
-!aerosol_optical_names(876:879)=(/ "seasalt5_50%", "seasalt5_55%", "seasalt5_60%", "seasalt5_65%" /)
-!aerosol_optical_names(880:883)=(/ "seasalt5_70%", "seasalt5_75%", "seasalt5_80%", "seasalt5_82%" /)
-!aerosol_optical_names(884:887)=(/ "seasalt5_84%", "seasalt5_86%", "seasalt5_88%", "seasalt5_90%" /)
-!aerosol_optical_names(888:891)=(/ "seasalt5_91%", "seasalt5_92%", "seasalt5_93%", "seasalt5_94%" /)
-!aerosol_optical_names(892:895)=(/ "seasalt5_95%", "seasalt5_96%", "seasalt5_97%", "seasalt5_98%" /)
-!aerosol_optical_names(896)=       "seasalt5_99%"
 aerosol_optical_names(naermodels-5)="organic_carbon"
 aerosol_optical_names(naermodels-4)="soot"
 aerosol_optical_names(naermodels-3)="dust_0.73"

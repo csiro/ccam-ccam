@@ -1953,7 +1953,7 @@ c           print *,'has tied_con=0'
      &          +xtgscav(:,k)*ps(1:imax)*dsk(k)
      &          /(grav*dt)
             end do
-          elseif (ntr>-itracsa.and.ntr<=itracsa+nsalt-1) then
+          elseif (ntr>=itracsa.and.ntr<=itracsa+nsalt-1) then
             do k=1,kl
               saltwd=saltwd+xtgscav(:,k)*ps(1:imax)*dsk(k)
      &          /(grav*dt)
