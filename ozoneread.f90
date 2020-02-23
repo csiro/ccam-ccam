@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -401,8 +401,7 @@ real, dimension(imax), intent(in) :: ps
 real, dimension(kl_l), intent(in) :: sig
 real, dimension(kl_l) :: prf,o3new
 real, dimension(ilev) :: o3inp,o3sum
-real, dimension(ilev,3) :: o3tmp
-real fp,mino3,x
+real fp,mino3
 
 if (present(interpmeth)) then
   ozoneintp=interpmeth

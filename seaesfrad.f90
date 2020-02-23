@@ -214,9 +214,9 @@ if ( diag .and. mydiag ) then
     write(6,*) "dust2.0diag ",diag_temp
     diag_temp(:) = xtg(idjd,:,11)
     write(6,*) "dust4.0diag ",diag_temp
-    diag_temp(:) = ssn(idjd,:,1)
+    diag_temp(:) = xtg(idjd,:,12)
     write(6,*) "saltfilmdiag ",diag_temp
-    diag_temp(:) = ssn(idjd,:,2)
+    diag_temp(:) = xtg(idjd,:,13)
     write(6,*) "saltjetdiag  ",diag_temp
   end if
 end if
@@ -401,9 +401,8 @@ do iq_tile = 1,ifull,imax
           do k = 1,kl
             kr = kl + 1 - k
             ! note that units for sea-salt differ to the prognostic aerosols
-            Aerosol(mythread)%aerosol(:,1,kr,10) = real((ssn(istart:iend,k,1)/saltsmallmtn  & ! Small film sea salt (0.1)
-                                                        +ssn(istart:iend,k,2)/saltlargemtn) & ! Large jet sea salt (0.5)
-                                                        *dz(1:imax,k),8)                
+            Aerosol(mythread)%aerosol(:,1,kr,10) = real(xtg(istart:iend,k,12)*dzrho         & ! Small film sea salt (0.1)
+                                                       +xtg(istart:iend,k,13)*dzrho,8)        ! Large jet sea salt (0.5)
           end do
         end if
         Aerosol(mythread)%aerosol=max(Aerosol(mythread)%aerosol, 0._8)

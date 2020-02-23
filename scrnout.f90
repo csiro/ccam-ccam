@@ -24,7 +24,7 @@ subroutine scrnout(zo,ustar,zoh,wetfac,qsttg,qgscrn,tscrn,uscrn,u10,rhscrn,af,af
 
 use arrays_m
 use cc_mpi, only : mydiag,myid
-use cc_omp, only : imax, ntiles
+use cc_omp, only : ntiles
 use const_phys
 use diag_m
 use estab
@@ -451,7 +451,7 @@ end subroutine screencalc
 subroutine autoscrn(is,ie)
       
 use arrays_m
-use cc_omp, only : imax, ntiles
+use cc_omp, only : imax
 use const_phys
 use estab
 use extraout_m
@@ -478,7 +478,7 @@ integer :: tile
 real, dimension(is:ie) :: umag, zminx, smixr
 real, dimension(is:ie) :: ou, ov, atu, atv, iu, iv
 real, dimension(is:ie) :: au, av, es, rho
-real, dimension(is:ie) :: u_qgscrn, u_rhscrn, u_tscrn, u_uscrn, u_u10
+real, dimension(is:ie) :: u_qgscrn, u_rhscrn, u_uscrn, u_u10
 real, dimension(is:ie) :: u_ustar, u_tstar, u_qstar, u_thetavstar
 real, dimension(is:ie) :: new_zo, new_zoh, new_zoq, new_tss, new_smixr
 real, dimension(is:ie) :: ustar_stn, tstar_stn

@@ -29,7 +29,8 @@ use aerosolldr, only : xtosav,xtg,naero  & ! LDR prognostic aerosols
     ,so4e,so4wd,so4dd,so4_burden         &
     ,Ch_dust,zvolcemi,aeroindir          &
     ,so4mtn,carbmtn                      &
-    ,saltsmallmtn,saltlargemtn
+    ,saltsmallmtn,saltlargemtn,salte     &
+    ,saltdd,saltwd,salt_burden
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebnmlfile             & ! Urban
     ,energytol                           &
@@ -4899,8 +4900,8 @@ if ( abs(iaero)>=2 ) then
   call histrd(iarchi,ier,'dust2',xtg(:,:,9),ifull)
   call histrd(iarchi,ier,'dust3',xtg(:,:,10),ifull)
   call histrd(iarchi,ier,'dust4',xtg(:,:,11),ifull)
-  call histrd(iarchi,ier,'seasalt1',ssn(:,:,1),ifull)
-  call histrd(iarchi,ier,'seasalt2',ssn(:,:,2),ifull)
+  call histrd(iarchi,ier,'salt1',xtg(:,:,12),ifull)
+  call histrd(iarchi,ier,'salt2',xtg(:,:,13),ifull)
   ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
   so4t(:) = 0.
   do k = 1,kl
@@ -5323,8 +5324,8 @@ if ( abs(iaero)>=2 ) then
   call attrib(idnc,dima,asize,'dust2','Dust 1-2 micrometers','kg/kg',0.,6.5E-6,0,itype)
   call attrib(idnc,dima,asize,'dust3','Dust 2-3 micrometers','kg/kg',0.,6.5E-6,0,itype)
   call attrib(idnc,dima,asize,'dust4','Dust 3-6 micrometers','kg/kg',0.,6.5E-6,0,itype)
-  call attrib(idnc,dima,asize,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,itype)
-  call attrib(idnc,dima,asize,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,itype)
+  call attrib(idnc,dima,asize,'salt1','Sea salt small','kg/kg',0.,6.5E9,0,itype)
+  call attrib(idnc,dima,asize,'salt2','Sea salt large','kg/kg',0.,6.5E7,0,itype)
 end if
 
 lname = 'Soil ice lev 1'
@@ -5676,8 +5677,8 @@ if ( abs(iaero)>=2 ) then
   call histwrt(xtg(:,:,9), 'dust2',idnc,iarch,local,.true.)
   call histwrt(xtg(:,:,10),'dust3',idnc,iarch,local,.true.)
   call histwrt(xtg(:,:,11),'dust4',idnc,iarch,local,.true.)
-  call histwrt(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
-  call histwrt(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,12),'salt1',idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,13),'salt2',idnc,iarch,local,.true.)
 end if
   
 call histwrt(wbice(:,1),'wbice1',idnc,iarch,local,.true.)
@@ -5724,7 +5725,8 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
     ,dmse,dms_burden                     &
     ,so2e,so2wd,so2dd,so2_burden         &
     ,so4e,so4wd,so4dd,so4_burden         &
-    ,dmsso2o,so2so4o
+    ,dmsso2o,so2so4o,salte,saltdd        &
+    ,saltwd,salt_burden
 use cable_ccam, only : ccycle              ! CABLE
 use histave_m                              ! Time average arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -5838,6 +5840,10 @@ if ( abs(iaero)>=2 ) then
   dms_burden    = 0.  ! DMS burden
   so2_burden    = 0.  ! SO2 burden
   so4_burden    = 0.  ! SO4 burden
+  salte         = 0.  ! Salt emissions
+  saltdd        = 0.  ! Salt dry deposition
+  saltwd        = 0.  ! Salt wet deposition
+  salt_burden   = 0.  ! Salt burden
 end if
 
 return
@@ -5885,7 +5891,8 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
     ,dmse,dms_burden                     &
     ,so2e,so2wd,so2dd,so2_burden         &
     ,so4e,so4wd,so4dd,so4_burden         &
-    ,dmsso2o,so2so4o
+    ,dmsso2o,so2so4o,salte,saltdd        &
+    ,saltwd,salt_burden
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use cable_ccam, only : ccycle              ! CABLE
 use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
@@ -6094,6 +6101,10 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     dms_burden    = dms_burden/min(ntau,nperavg)   ! DMS burden
     so2_burden    = so2_burden/min(ntau,nperavg)   ! SO2 burden
     so4_burden    = so4_burden/min(ntau,nperavg)   ! SO4 burden
+    salte         = salte/min(ntau,nperavg)        ! Salt emissions
+    saltdd        = saltdd/min(ntau,nperavg)       ! Salt dry deposition
+    saltwd        = saltwd/min(ntau,nperavg)       ! Salt wet deposition
+    salt_burden   = salt_burden/min(ntau,nperavg)  ! Salt burden
   end if
 
 end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)

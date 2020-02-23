@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -29,7 +29,7 @@ implicit none
 
 private
 public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,cldrop,convscav
-public xtg,xtgsav,xtosav,naero,ssn
+public xtg,xtgsav,xtosav,naero
 public itracdu,ndust
 public dustdd,dustwd,duste,dust_burden
 public itracbc,bce,bcdd,bcwd,bc_burden
@@ -37,6 +37,7 @@ public itracoc,oce,ocdd,ocwd,oc_burden
 public itracdms,itracso2,itracso4
 public dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
+public itracsa,nsalt,salte,saltdd,saltwd,salt_burden
 public Ch_dust,zvolcemi,ticeu,aeroindir,so4mtn,carbmtn,saltsmallmtn,saltlargemtn
 public dustden,dustreff
 public xtg_solub,zoxidant_g,erod,ndcls,emissfield,vso2
@@ -46,7 +47,6 @@ real, dimension(:,:,:), allocatable, save :: xtg            ! prognostic aerosol
 real, dimension(:,:,:), allocatable, save :: xtgsav         ! save for mass conservation in semi-Lagrangian models
 real, dimension(:,:,:), allocatable, save :: xtosav         ! aerosol mixing ratio outside convective cloud
 real, dimension(:,:,:), allocatable, save :: xtg_solub      ! aerosol mixing ratio that is dissolved in rain
-real, dimension(:,:,:), allocatable, save :: ssn            ! diagnostic sea salt concentration
 real, dimension(:,:), allocatable, save :: erod             ! sand, clay and silt fraction that can erode
 real, dimension(:,:), allocatable, save :: emissfield       ! non-volcanic emissions
 real, dimension(:,:,:), allocatable, save :: zoxidant_g     ! oxidant fields
@@ -72,23 +72,29 @@ real, dimension(:), allocatable, save :: so2wd              ! Diagnostic - so2 w
 real, dimension(:), allocatable, save :: so4e               ! Diagnostic - so4 emissions
 real, dimension(:), allocatable, save :: so4dd              ! Diagnostic - so4 dry deposition
 real, dimension(:), allocatable, save :: so4wd              ! Diagnostic - so4 wet deposition
+real, dimension(:), allocatable, save :: salte              ! Diagnostic - salt emission
+real, dimension(:), allocatable, save :: saltdd             ! Diagnostic - salt dry deposition
+real, dimension(:), allocatable, save :: saltwd             ! Diagnostic - salt wet deposition
 real, dimension(:), allocatable, save :: dms_burden         ! Diagnostic - DMS burden
 real, dimension(:), allocatable, save :: so2_burden         ! Diagnostic - so2 burden
 real, dimension(:), allocatable, save :: so4_burden         ! Diagnostic - so4 burden
+real, dimension(:), allocatable, save :: salt_burden        ! Diagnostic - salt burden
 !$acc declare create(jk2,jk3,jk4,jk5,jk6,jk8,jk9)
 
 ! tracers
 integer, parameter :: nsulf = 3
 integer, parameter :: ncarb = 4
 integer, parameter :: ndust = 4
-integer, parameter :: naero = nsulf+ncarb+ndust ! Tracers: DMS, SO2, SO4, BCO, BCI, OCO, OCI, DUST(4)
-integer, parameter :: itracdms = 1              ! Index for DMS tracer
-integer, parameter :: itracso2 = 2              ! Index for SO2 tracer
-integer, parameter :: itracso4 = 3              ! Index for SO4 tracer
-integer, parameter :: itracbc = nsulf+1         ! Index for BC tracer (hydrophobic, hydrophillic)
-integer, parameter :: itracoc = nsulf+3         ! Index for OC tracer (hydrophobic, hydrophillic)
-integer, parameter :: itracdu = nsulf+ncarb+1   ! Index for dust tracer
-integer, parameter :: ndcls = 3                 ! Number of dust emission classes (sand, silt, clay)
+integer, parameter :: nsalt = 2
+integer, parameter :: naero = nsulf+ncarb+ndust+nsalt ! Tracers: DMS, SO2, SO4, BCO, BCI, OCO, OCI, DUST(4), SALT(2)
+integer, parameter :: itracdms = 1                  ! Index for DMS tracer
+integer, parameter :: itracso2 = 2                  ! Index for SO2 tracer
+integer, parameter :: itracso4 = 3                  ! Index for SO4 tracer
+integer, parameter :: itracbc = nsulf+1             ! Index for BC tracer (hydrophobic, hydrophillic)
+integer, parameter :: itracoc = nsulf+3             ! Index for OC tracer (hydrophobic, hydrophillic)
+integer, parameter :: itracdu = nsulf+ncarb+1       ! Index for dust tracer
+integer, parameter :: itracsa = nsulf+ncarb+ndust+1 ! Index for salt tracer
+integer, parameter :: ndcls = 3                     ! Number of dust emission classes (sand, silt, clay)
 
 ! emission indices
 integer, parameter :: iso2a1 = 1      ! SO2/SO4 Anthropogenic surface
@@ -144,6 +150,10 @@ real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /) 
 real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 /) ! Main effective radius (m)
                                                                                    ! (Clay, small silt, small slit, small silt)
 
+! Salt coefficients
+real, dimension(2), parameter :: saltden = (/ 2165., 2165. /)     ! density of salt
+real, dimension(2), parameter :: saltreff = (/ 0.1e-6, 0.5e-6 /)  ! radius of salt
+
 ! convective scavenging coefficients
 real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
 
@@ -162,7 +172,7 @@ real, dimension(kl), intent(in) :: sig
 
 allocate(xtg(ifull+iextra,kl,naero),xtgsav(ifull,kl,naero))
 allocate(xtosav(ifull,kl,naero),vso2(ifull))
-allocate(emissfield(ifull,15),ssn(ifull,kl,2))
+allocate(emissfield(ifull,15))
 allocate(zoxidant_g(ifull,kl,4),erod(ifull,ndcls))
 allocate(duste(ifull,ndust),dustdd(ifull,ndust),dustwd(ifull,ndust),dust_burden(ifull,ndust))
 allocate(bce(ifull),bcdd(ifull),bcwd(ifull))
@@ -173,13 +183,13 @@ allocate(dmse(ifull),dmsso2o(ifull))
 allocate(so2e(ifull),so2so4o(ifull),so2dd(ifull),so2wd(ifull))
 allocate(so4e(ifull),so4dd(ifull),so4wd(ifull))
 allocate(dms_burden(ifull),so2_burden(ifull),so4_burden(ifull))
+allocate(salte(ifull),saltdd(ifull),saltwd(ifull),salt_burden(ifull))
 
 xtg=0.
 xtgsav=0.
 xtosav=0.
 vso2=0.
 emissfield=0.
-ssn=0.
 zoxidant_g=0.
 erod=0.
 duste=0.
@@ -203,9 +213,13 @@ so2wd=0.
 so4e=0.
 so4dd=0.
 so4wd=0.
+salte=0.
+saltdd=0.
+saltwd=0.
 dms_burden=0.
 so2_burden=0.
 so4_burden=0.
+salt_burden=0.
 
 ! MJT - define injection levels
 
@@ -250,7 +264,6 @@ implicit none
 deallocate(xtg,xtgsav,xtosav)
 deallocate(vso2)
 deallocate(emissfield)
-deallocate(ssn)
 deallocate(zoxidant_g,erod)
 deallocate(duste,dustdd,dustwd,dust_burden)
 deallocate(bce,bcdd,bcwd)
@@ -261,6 +274,7 @@ deallocate(dmse,dmsso2o)
 deallocate(so2e,so2so4o,so2dd,so2wd)
 deallocate(so4e,so4dd,so4wd)
 deallocate(dms_burden,so2_burden,so4_burden)
+deallocate(salte,saltdd,saltwd,salt_burden)
 
 return
 end subroutine aldrend
@@ -324,9 +338,9 @@ subroutine aldrcalc(dt,sig,zz,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10
                     pfprec,pfmelt,pfsnow,pfsubl,plambs,pmrate,pmaccr,pfstayice,                    &
                     pqfsedice,prscav,prfreeze,zdayfac,kbsav,xtg,duste,dustdd,xtosav,               &
                     dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,                    &
-                    so2_burden,so4_burden,erod,ssn,zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,          &
-                    emissfield,vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,dustden,dustreff, &
-                    imax,kl)
+                    so2_burden,so4_burden,erod,zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,              &
+                    emissfield,vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,salte,saltdd,     &
+                    saltwd,salt_burden,dustden,dustreff,imax,kl)
 !$acc routine vector
 
 implicit none
@@ -381,7 +395,6 @@ real, dimension(imax), intent(inout) :: dms_burden
 real, dimension(imax), intent(inout) :: so2_burden
 real, dimension(imax), intent(inout) :: so4_burden
 real, dimension(imax,ndcls), intent(in) :: erod
-real, dimension(imax,kl,2), intent(inout) :: ssn
 real, dimension(imax,kl,4), intent(in) :: zoxidant
 real, dimension(imax), intent(inout) :: so2wd
 real, dimension(imax), intent(inout) :: so4wd
@@ -399,6 +412,10 @@ real, dimension(imax), intent(inout) :: so2dd
 real, dimension(imax), intent(inout) :: so4dd
 real, dimension(imax), intent(inout) :: bcdd
 real, dimension(imax), intent(inout) :: ocdd
+real, dimension(imax), intent(inout) :: salte
+real, dimension(imax), intent(inout) :: saltdd
+real, dimension(imax), intent(inout) :: saltwd
+real, dimension(imax), intent(inout) :: salt_burden
 real, dimension(ndust), intent(in) :: dustden, dustreff
 real, dimension(imax,naero) :: conwd           ! Diagnostic only: Convective wet deposition
 real, dimension(imax,naero) :: xtem
@@ -416,6 +433,7 @@ real, dimension(imax) :: rrate,Wstar3,Vgust_free,Vgust_deep
 real, dimension(imax) :: v10n,thetav,burden
 real, dimension(imax,ndust) :: dcola,dcolb
 real, dimension(imax,ndust) :: oldduste
+real, dimension(imax) :: oldsalte
 real, parameter :: beta = 0.65
 integer nt,k
 
@@ -524,7 +542,39 @@ end if
 #endif
 
 ! Compute diagnostic sea salt aerosol
-call seasalt(land,fracice,zz,pblh,veff,ssn,imax,kl)
+!call seasalt(land,fracice,zz,pblh,veff,ssn,imax,kl)
+
+oldsalte = salte ! salte is cumulative salt emissions
+dcola = 0.
+do k = 1,nsalt
+  dcola(:,1) = dcola(:,1) + sum( rhoa(:,:)*xtg(1:imax,:,itracsa+k-1)*dz(:,:), dim=2 )
+end do
+  
+! Calculate the settling of large dust particles
+call ssettling(dt,rhoa,ttg,dz,aphp1,xtg,saltden,saltreff,imax,kl)
+#ifdef debugaero
+if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+  write(6,*) "xtg out-of-range after ssettling"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+end if
+#endif
+
+! Calculate dust emission and turbulent dry deposition at the surface
+call seasaltem(dt,veff,vt,wg,rhoa(:,1),dz(:,1),salte,xtg,saltreff,land,imax,kl)
+#ifdef debugaero
+if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+  write(6,*) "xtg out-of-range after seasaltem"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+end if
+#endif
+
+dcolb = 0.
+do k = 1,nsalt
+  ! Calculate integrated column dust after settling
+  dcolb(:,1) = dcolb(:,1) + sum( rhoa(:,:)*xtg(1:imax,:,itracsa+k-1)*dz(:,:), dim=2 )
+end do  
+! Calculate deposition flux to surface
+saltdd = saltdd + (dcola(:,1)-dcolb(:,1))/dt + salte - oldsalte  
 
 #ifdef debugaero
 if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
@@ -1660,7 +1710,14 @@ DO JT=ITRACSO2,naero
 !      zxtp1c(:,jk)=xto(:,jk,jt)
 !      zxtp1con(:,jk)=xtu(:,jk,jt)
 !      zsolub(:,jk)=1.
-!    end do    
+!    end do 
+  elseif(jt>=itracsa.and.jt<itracsa+nsalt)then !salt
+    do jk = 1,kl  
+      zxtp10(:,jk)=xto(:,jk,jt)
+      zxtp1c(:,jk)=xto(:,jk,jt)
+      zxtp1con(:,jk)=xtu(:,jk,jt)
+      zsolub(:,jk)=0.05
+    end do  
   endif
 
   CALL XTWETDEP( JT,                                   &
@@ -1890,18 +1947,18 @@ integer, parameter :: ktop = 2    !Top level for wet deposition (counting from t
 logical, parameter :: assume_convliq = .true. ! assume convective rainfall is liquid
 
 !Below-cloud collection eff. for rain
-!real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40/)
-real, dimension(naero), parameter :: zcollefr = (/0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.05,0.10,0.20,0.40/)
+!real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40,0.05,0.10/)
+real, dimension(naero), parameter :: zcollefr = (/0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.05,0.10,0.20,0.40,0.05,0.10/)
 !Below-cloud collection eff. for snow
-!real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08/)
-real, dimension(naero), parameter :: zcollefs = (/0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.01,0.02,0.04,0.08/)
+!real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08,0.01,0.02/)
+real, dimension(naero), parameter :: zcollefs = (/0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.01,0.02,0.04,0.08,0.01,0.02/)
 !Retention coeff. on riming
-real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00/)
+real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00/)
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
-real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/)
+real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/)
 ! wet deposition coefficients
 !!Relative re-evaporation rate
-!real, dimension(naero), parameter :: Evfac = (/0.25,1.00,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25/)
+!real, dimension(naero), parameter :: Evfac = (/0.25,1.00,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25/)
 
 ! Start code : ----------------------------------------------------------
 
@@ -2328,73 +2385,222 @@ end subroutine dustem
 !return
 !end subroutine dustage
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! A simple diagnostic treatment of seasalt aerosol (LDR 3/02)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! A simple diagnostic treatment of seasalt aerosol (LDR 3/02)
+!
+!subroutine seasalt(land,fracice,zmid,pblh,v10m,ssn,imax,kl) !Inputs
+!!$acc routine vector
+!
+!implicit none
+!
+!integer, intent(in) :: imax, kl
+!logical, dimension(imax), intent(in) :: land   !True for land points
+!real, dimension(imax), intent(in) :: fracice   !Sea-ice fraction
+!real, dimension(imax,kl), intent(in) :: zmid   !Height of full level (m)
+!real, dimension(imax), intent(in) :: pblh      !PBL height (m)
+!real, dimension(imax), intent(in) :: v10m      !10m windpseed, including effect of sub-grid gustiness (m/s)
+!real, dimension(imax,2) :: ssn_base
+!real, dimension(imax,kl,2), intent(inout) :: ssn
+!integer k
+!
+!! Calculate number and mass concentration of seasalt within the marine BL.
+!! Set seasalt conc. to zero elsewhere.
+!! Height of BL taken from ncarpbl scheme, so needs this turned on (although we 
+!! set it to 2000m in hvertmx if ncarpbl=F)
+!! The first mode is the "film-drop" mode, and the second is the "jet-drop" mode.
+!! Smaller number mode radii are given by Nilsson et al. (2001) cf. O'Dowd's.
+!!
+!! References: O'Dowd et al. (1997) Atmos. Environ. 31, 73-80
+!!             Jones et al. (2001) JGR 106, 20293-20310.
+!!             Nilsson et al. (2001) JGR 106, 32139-32154.
+!
+!! Jones et al. give different windspeed relations for v10m < 2, 2 <= v10m <= 17.5,
+!! and v10m > 17.5.
+!where ( v10m<2. )
+!  ssn_base(:,1)=3.856e6*(1.-exp(-0.736*v10m))
+!  ssn_base(:,2)=0.671e6*(1.-exp(-1.351*v10m))
+!elsewhere ( v10m<17.5 )
+!  ssn_base(:,1)=10.**(0.0950*v10m+6.2830) 
+!  ssn_base(:,2)=10.**(0.0422*v10m+5.7122) 
+!elsewhere
+!  ssn_base(:,1)=1.5e8*(1.-97.874*exp(-0.313*v10m))
+!  ssn_base(:,2)=3.6e6*(1.-103.926*exp(-0.353*v10m))
+!end where
+!  
+!! Number-to-mass conversion factors are derived from the parameters of the two
+!! lognormal modes given by Nilsson, together with rhosalt=2.0e3 kg/m3.
+!do k=1,kl
+!  where ( .not.land .and. zmid(:,k)<pblh )
+!    ssn(:,k,1) = ssn_base(:,1)
+!    ssn(:,k,2) = ssn_base(:,2)
+!  elsewhere ( .not.land )
+!    ssn(:,k,1) = 1.e7*exp(-zmid(:,k)/3000.)
+!    ssn(:,k,2) = 1.e6*exp(-zmid(:,k)/1500.)
+!  elsewhere
+!    ssn(:,k,1) = 0.
+!    ssn(:,k,2) = 0.
+!  end where
+!  ! Reduce over sea ice...
+!  ssn(:,k,1) = (1.-fracice)*ssn(:,k,1)
+!  ssn(:,k,2) = (1.-fracice)*ssn(:,k,2)
+!end do
+!
+!! These relations give ssm in kg/m3 based on ssn in m^{-3}...
+!!ssm(:,:,1)=ssn(:,:,1)/saltsmallmtn
+!!ssm(:,:,2)=ssn(:,:,2)/saltlargemtn
+!
+!return
+!end subroutine seasalt
 
-subroutine seasalt(land,fracice,zmid,pblh,v10m,ssn,imax,kl) !Inputs
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! sea salt settling
+subroutine ssettling(tdt,rhoa,tmp,delz,prf,xtg,saltden,saltreff,imax,kl)
 !$acc routine vector
 
 implicit none
 
-! Argument list
 integer, intent(in) :: imax, kl
-logical, dimension(imax), intent(in) :: land   !True for land points
-real, dimension(imax), intent(in) :: fracice   !Sea-ice fraction
-real, dimension(imax,kl), intent(in) :: zmid   !Height of full level (m)
-real, dimension(imax), intent(in) :: pblh      !PBL height (m)
-real, dimension(imax), intent(in) :: v10m      !10m windpseed, including effect of sub-grid gustiness (m/s)
-real, dimension(imax,2) :: ssn_base
-real, dimension(imax,kl,2), intent(inout) :: ssn
-integer k
+real, intent(in) :: tdt                  !timestep (s)
+real, dimension(imax,kl), intent(in) :: rhoa !air density (kg/m3)
+real, dimension(imax,kl), intent(in) :: tmp  !temperature (K)
+real, dimension(imax,kl), intent(in) :: delz !Layer thickness (m)
+real, dimension(imax,kl), intent(in) :: prf  !Pressure (hPa)
+real, dimension(imax,kl,naero), intent(inout) :: xtg
+real, dimension(nsalt), intent(in) :: saltden, saltreff
+real, dimension(imax) :: c_stokes, corr, c_cun
+real, dimension(imax) :: newxtg, b, dfall
+real, dimension(imax) :: vd_cor
+integer nt, k
 
-! Calculate number and mass concentration of seasalt within the marine BL.
-! Set seasalt conc. to zero elsewhere.
-! Height of BL taken from ncarpbl scheme, so needs this turned on (although we 
-! set it to 2000m in hvertmx if ncarpbl=F)
-! The first mode is the "film-drop" mode, and the second is the "jet-drop" mode.
-! Smaller number mode radii are given by Nilsson et al. (2001) cf. O'Dowd's.
-!
-! References: O'Dowd et al. (1997) Atmos. Environ. 31, 73-80
-!             Jones et al. (2001) JGR 106, 20293-20310.
-!             Nilsson et al. (2001) JGR 106, 32139-32154.
-
-! Jones et al. give different windspeed relations for v10m < 2, 2 <= v10m <= 17.5,
-! and v10m > 17.5.
-where ( v10m<2. )
-  ssn_base(:,1)=3.856e6*(1.-exp(-0.736*v10m))
-  ssn_base(:,2)=0.671e6*(1.-exp(-1.351*v10m))
-elsewhere ( v10m<17.5 )
-  ssn_base(:,1)=10.**(0.0950*v10m+6.2830) 
-  ssn_base(:,2)=10.**(0.0422*v10m+5.7122) 
-elsewhere
-  ssn_base(:,1)=1.5e8*(1.-97.874*exp(-0.313*v10m))
-  ssn_base(:,2)=3.6e6*(1.-103.926*exp(-0.353*v10m))
-end where
+do nt = 1,nsalt
   
-! Number-to-mass conversion factors are derived from the parameters of the two
-! lognormal modes given by Nilsson, together with rhosalt=2.0e3 kg/m3.
-do k=1,kl
-  where ( .not.land .and. zmid(:,k)<pblh )
-    ssn(:,k,1) = ssn_base(:,1)
-    ssn(:,k,2) = ssn_base(:,2)
-  elsewhere ( .not.land )
-    ssn(:,k,1) = 1.e7*exp(-zmid(:,k)/3000.)
-    ssn(:,k,2) = 1.e6*exp(-zmid(:,k)/1500.)
-  elsewhere
-    ssn(:,k,1) = 0.
-    ssn(:,k,2) = 0.
-  end where
-  ! Reduce over sea ice...
-  ssn(:,k,1) = (1.-fracice)*ssn(:,k,1)
-  ssn(:,k,2) = (1.-fracice)*ssn(:,k,2)
+  ! Solve at the model top
+  ! Dynamic viscosity
+  C_Stokes = 1.458E-6*TMP(1:imax,kl)**1.5/(TMP(1:imax,kl)+110.4) 
+  ! Cuningham correction
+  Corr = 6.6E-8*prf(:,kl)/1013.*TMP(1:imax,kl)/293.15
+  C_Cun = 1. + 1.249*corr/saltreff(nt)
+  ! Settling velocity
+  Vd_cor(:) = 2./9.*grav*saltden(nt)*saltreff(nt)**2/C_Stokes*C_Cun
+  
+  ! Update mixing ratio
+  b = tdt*VD_cor(:)/DELZ(:,kl)
+  newxtg = xtg(1:imax,kl,nt+itracsa-1)*exp(-b)
+  newxtg = max( newxtg, 0. )
+  dfall = max( xtg(1:imax,kl,nt+itracsa-1) - newxtg, 0. )
+  xtg(1:imax,kl,nt+itracsa-1) = newxtg
+  
+  ! Solve each vertical layer successively (layer k)
+  do k = kl-1,1,-1
+    ! Dynamic viscosity
+    C_Stokes = 1.458E-6*TMP(1:imax,k)**1.5/(TMP(1:imax,k)+110.4) 
+    ! Cuningham correction
+    Corr = 6.6E-8*prf(:,k)/1013.*TMP(1:imax,k)/293.15
+    C_Cun = 1. + 1.249*corr/saltreff(nt)
+    ! Settling velocity
+    Vd_cor(:) = 2./9.*grav*saltden(nt)*saltreff(nt)**2/C_Stokes*C_Cun
+      
+    ! Update mixing ratio
+    b = tdt*Vd_cor(:)/DELZ(:,k)
+    dfall = dfall * delz(:,k+1)*rhoa(:,k+1)/(delz(:,k)*rhoa(:,k))
+    ! Fout = 1.-exp(-b)
+    ! Fthru = 1.-Fout/b
+    newxtg = xtg(1:imax,k,nt+itracsa-1)*exp(-b) + dfall*(1.-exp(-b))/b
+    newxtg = max( newxtg, 0. )
+    dfall = max( xtg(1:imax,k,nt+itracsa-1) + dfall - newxtg, 0. )
+    xtg(1:imax,k,nt+itracsa-1) = newxtg
+  end do
+  
 end do
 
-! These relations give ssm in kg/m3 based on ssn in m^{-3}...
-!ssm(:,:,1)=ssn(:,:,1)/saltsmallmtn
-!ssm(:,:,2)=ssn(:,:,2)/saltlargemtn
+return
+end subroutine ssettling
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! sea salt emissions
+subroutine seasaltem(tdt,v10m,vt,wg,rhoa,dz1,salte,xtg,saltreff,land,imax,kl)
+!$acc routine vector
+
+implicit none
+
+integer, intent(in) :: imax, kl
+integer n
+real, intent(in) :: tdt
+real, dimension(imax), intent(in) :: v10m    ! 10m wind speed
+real, dimension(imax), intent(in) :: vt      ! transfer velocity
+real, dimension(imax), intent(in) :: dz1     ! layer thickness
+real, dimension(imax), intent(in) :: rhoa    ! air density
+real, dimension(imax), intent(in) :: wg
+real, dimension(imax), intent(inout) :: salte
+real, dimension(imax,kl,naero), intent(inout) :: xtg
+real, dimension(imax) :: wu10, dfdd, df0dd, a, b, veff, diam
+real, dimension(imax) :: ftw, fsw, airden
+real, dimension(2) :: mtnfactor
+real, dimension(nsalt), intent(in) :: saltreff
+real, dimension(nsalt), parameter :: saltrange = (/ 0.4e-6, 3.5e-6 /) ! 0.1-0.5um and 0.5-4um following geos-chem
+logical, dimension(imax), intent(in) :: land
+
+! Follows Sofiev et al 2011 for emissions
+wu10 = 3.84e-6*v10m**3.41
+
+!g = grav*1.e2
+airden = rhoa*1.e-3
+
+mtnfactor(1) = saltsmallmtn
+mtnfactor(2) = saltlargemtn
+
+do n = 1,nsalt
+  ! Calculate emissions  
+  diam = 2.*saltreff(n)*1.e6
+    
+  !df0dr = 3.6e5*(1.+0.057*diam**1.05)/(diam**3)*10**(1.19*exp(-((0.38-log(diam))/0.65)**2))
+  
+  ! Follows Sofiev et al 2011 for emissions (accounts for <0.1 microns)
+  df0dd = 1.e6*exp(-0.09/(diam+3.e-3))/(2.+exp(-5./diam))*(1.+0.05*diam**1.05)/(diam**3) &
+         *10**(1.05*exp(-((0.27-log(diam))/1.1)**2))
+    
+  !ftw = 0.48*diam**(-0.36)  ! 15C
+  ftw = 0.15*diam**(-0.88)   ! 5C
+  !ftw = 0.092*diam**(-0.96) ! -2C
+  
+  fsw = 0.12*diam**(-0.71)
+  !fsw = 5.85*e-5*diam**-1.7 ! sal = 0.
+  
+  dfdd = wu10*df0dd*ftw*fsw  ! number/micro/m^2/s
+  
+  where ( .not.land )
+    a = dfdd*2.*saltrange(n)*1.e6/(rhoa*dz1) ! number/kg/s
+  elsewhere
+    a = 0.
+  end where 
+  
+  a = a/mtnfactor(n) ! kg/kg/s
+
+  salte = salte + a*airden ! Diagnostic
+
+  
+  !den = saltden(n)*1.e-3
+  !diam = 2.*saltreff(n)*1.e2
+  !
+  !! Following is from Ginoux et al (2004) Env. Modelling & Software.
+  !!u_ts0 = 0.13*1.e-2*sqrt(den*g*diam/airden)*sqrt(1.+0.006/den/g/diam**2.5)/ &
+  !!        sqrt(1.928*(1331.*diam**1.56+0.38)**0.092-1.)
+  
+  ! Calculate turbulent dry deposition at surface
+  veff = Vt
+  b = Veff / dz1
+
+  ! Update mixing ratio
+  ! Write in form dx/dt = a - b*x (a = source term, b = drydep term)
+  ! solution is x = a/b + (X0-a/b)*exp(-b*tdt).  However, in split form
+  ! x = X0 + a*tdt, and x = X0*exp(-b*tdt), or combined
+  ! x = (X0 + a*tdt)*exp(-b*tdt)
+  xtg(1:imax,1,n+itracsa-1) = (xtg(1:imax,1,n+itracsa-1)+a*tdt)*exp(-b*tdt)
+  xtg(1:imax,1,n+itracsa-1) = max( 0., xtg(1:imax,1,n+itracsa-1) )
+end do    
 
 return
-end subroutine seasalt
+end subroutine seasaltem
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! cloud droplet concentration
@@ -2407,7 +2613,7 @@ integer, intent(in) :: istart
 integer k,is,ie,imax,kl
 real, dimension(:,:), intent(in) :: rhoa
 real, dimension(:,:), intent(out) :: cdn
-real, dimension(size(cdn,1),size(cdn,2)) :: xtgso4,xtgbc,xtgoc
+real, dimension(size(cdn,1),size(cdn,2)) :: xtgso4,xtgbc,xtgoc,xtgsa1,xtgsa2
 real, dimension(size(cdn,1)) :: so4_n,cphil_n,salt_n,Atot
 real, dimension(size(cdn,1)) :: so4mk
 logical, intent(in) :: convmode
@@ -2423,11 +2629,15 @@ if ( convmode ) then
   xtgso4 = xtg(is:ie,:,itracso4)
   xtgbc  = xtg(is:ie,:,itracbc+1)
   xtgoc  = xtg(is:ie,:,itracoc+1)
+  xtgsa1 = xtg(is:ie,:,itracsa)
+  xtgsa2 = xtg(is:ie,:,itracsa+1)
 else
   ! outside convective fraction of grid-box
   xtgso4 = xtosav(is:ie,:,itracso4)
   xtgbc  = xtosav(is:ie,:,itracbc+1)
   xtgoc  = xtosav(is:ie,:,itracoc+1)
+  xtgsa1 = xtosav(is:ie,:,itracsa)
+  xtgsa2 = xtosav(is:ie,:,itracsa+1)
 end if
 
 select case(aeroindir)
@@ -2437,7 +2647,7 @@ select case(aeroindir)
       so4_n = so4mtn * (132.14/32.06) * rhoa(:,k) * xtgso4(:,k)
       ! Factor of 1.3 converts from OC to organic matter (OM) 
       cphil_n = carbmtn * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
-      salt_n = ssn(is:ie,k,1) + ssn(is:ie,k,2)
+      salt_n = saltsmallmtn*rhoa(:,k)*xtgsa1(:,k) + saltlargemtn*rhoa(:,k)*xtgsa2(:,k)
       ! Jones et al., modified to account for hydrophilic carb aerosols as well
       Atot = max( so4_n + cphil_n + salt_n, 0. )
       cdn(:,k) = max( 1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)) )
@@ -2480,9 +2690,9 @@ logical, dimension(size(fscav)) :: bwkp1
 
 ! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
-!real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05/) ! liquid
-real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.30,0.30,0.30,0.30/) ! liquid
-!real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05/) ! ice
+!real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05,0.05,0.05/) ! liquid
+real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.30,0.30,0.30,0.30,0.3,0.3/) ! liquid
+!real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/) ! ice
 
 !bwkp1(:) = tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)
 bwkp1(:) = .true.        ! assume liquid for JLM convection

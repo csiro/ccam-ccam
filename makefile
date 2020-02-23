@@ -35,14 +35,6 @@ IPFLAG = -ip
 IPOFLAG = -ipo
 VTHRESH = -vec-threshold0
 endif
-ifeq ($(SKYLAKE),yes)
-FHOST = -O3 -xSKYLAKE-AVX512 -fimf-use-svml
-FOVERRIDE = -qoverride-limits
-ZMM = -qopt-zmm-usage=high
-IPFLAG = -ip
-IPOFLAG = 
-VTHRESH = -vec-threshold0
-endif
 ifeq ($(CASCADELAKE),yes)
 FHOST = -O3 -xCASCADELAKE -fimf-use-svml
 FOVERRIDE = -qoverride-limits
@@ -78,9 +70,6 @@ MPIF77 = gfortran
 FC = mpif90
 FCSCM = gfortran
 FHOST = -march=native
-ifeq ($(BROADWELL),yes)
-FHOST = -march=broadwell
-endif
 MPIFLAG =
 FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =

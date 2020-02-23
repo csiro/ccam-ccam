@@ -304,11 +304,9 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
                          ocndwn,xtgdwn)
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
-use aerosolldr, only : ssn,xtg_solub           ! LDR aerosol scheme
 use ateb, only : atebdwn, urbtemp, atebloadd, &
     nfrac                                      ! Urban
 use cable_ccam, only : ccycle                  ! CABLE
-use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
 use carbpools_m                                ! Carbon pools
 use cc_mpi                                     ! CC MPI routines
 use cfrac_m                                    ! Cloud fraction
@@ -1216,6 +1214,18 @@ if ( abs(iaero)>=2 .and. nested/=3 ) then
         write(6,*) "Maxval ",maxval(xtgdwn(:,:,11))
         call ccmpi_abort(-1)
       end if  
+      call gethist4a('salt1',xtgdwn(:,:,12),5)
+      if ( any(xtgdwn(:,:,12)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad SALT1 aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,12))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('salt2',xtgdwn(:,:,13),5)
+      if ( any(xtgdwn(:,:,13)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad SALT2 aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,13))
+        call ccmpi_abort(-1)
+      end if  
       xtgdwn(:,:,:) = max( xtgdwn(:,:,:), 0. )
     else
       xtgdwn(:,:,:) = 0.  
@@ -1951,14 +1961,6 @@ if ( nested/=1 .and. nested/=3 ) then
       write(trnum,'(i3.3)') igas
       call gethist4a('tr'//trnum,tr(:,:,igas),7)
     end do
-  end if
-
-  !------------------------------------------------------------------
-  ! Aerosol data ( non-nudged or diagnostic )
-  if ( nested==0 .and. abs(iaero)>=2 ) then
-    call gethist4a('seasalt1',ssn(:,:,1),5)
-    call gethist4a('seasalt2',ssn(:,:,2),5)
-    ssn = max( ssn, 0. ) ! patch for rounding error with cray compiler
   end if
   
   ! -----------------------------------------------------------------
@@ -3353,7 +3355,7 @@ use parm_m             ! Model configuration
 
 implicit none
 
-integer i, j, n, ipf
+integer n, ipf
 integer mm, iq, idel, jdel
 integer ncount, w, colour
 logical, dimension(0:fnproc-1) :: lfile

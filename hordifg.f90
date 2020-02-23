@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -93,8 +93,8 @@ real, dimension(ifull) :: wc_n, wc_s, wc_e, wc_w
 real, dimension(ifull) :: t_kh_n, t_kh_e
 real, dimension(ifull) :: work_n, work_s, work_e, work_w
 real delphi, hdif
-integer k, nhora, nhorx, ntr
-integer nstart, nend
+integer k, nhora, nhorx
+integer nstart
 integer, save :: kmax=-1
 integer, parameter :: nf=2
 

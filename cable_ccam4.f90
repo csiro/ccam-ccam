@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -400,7 +400,7 @@ subroutine cable_unpack_r8_2_r4(indata,outdata)
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
-        outdata(js:je) = outdata(js:je) + unpack(indata(is:ie),tdata(tile)%tmap(:,nb),lfillvalue)
+        outdata(js:je) = outdata(js:je) + real(unpack(indata(is:ie),tdata(tile)%tmap(:,nb),lfillvalue),4)
       end if  
     end do
   end do
@@ -425,7 +425,7 @@ subroutine cable_unpack_r8_2_r4_tile(indata,outdata,inb)
     if ( is<=ie ) then
       js=1+(tile-1)*imax
       je=tile*imax
-      outdata(js:je) = unpack(indata(is:ie),tdata(tile)%tmap(:,nb),real(outdata(js:je),8))
+      outdata(js:je) = real(unpack(indata(is:ie),tdata(tile)%tmap(:,nb),real(outdata(js:je),8)),4)
     end if  
   end do
 

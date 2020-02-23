@@ -104,7 +104,7 @@ include 'kuocom.h'                         ! Convection parameters
       
 integer, dimension(8) :: tvals1, tvals2, nper3hr
 integer, dimension(8) :: times_total_a, times_total_b
-integer iq, isoil, i, j, k, nn, js, je, tile
+integer iq, i, j, k, nn, js, je, tile
 integer mins_gmt, mspeca, mtimer_in
 integer nlx, nmaxprsav, n3hr
 integer nwtsav, mtimer_sav
@@ -113,7 +113,7 @@ integer koundiag
 real, dimension(:), allocatable, save :: spare1
 real, dimension(3) :: temparray, gtemparray
 real aa, bb, cc
-real hourst, hrs_dt, evapavge, precavge
+real hourst, evapavge, precavge
 real pwatr, bb_2, cc_2, rat
 logical oxidant_update
 character(len=10) timeval
@@ -1407,7 +1407,7 @@ real ateb_zocanyon, ateb_zoroof
 real ateb_energytol
 real cgmap_offset, cgmap_scale      ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
-logical lmlosigma, procformat
+logical procformat
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) optarg
 character(len=60) comm, comment
@@ -2713,7 +2713,9 @@ if ( myid<nproc ) then
   ! REMAP MPI PROCESSES
 
   ! Optimise the MPI process ranks to reduce inter-node message passing
+#ifdef usempi3
   call ccmpi_remap
+#endif
 
 
   !--------------------------------------------------------------
@@ -3496,6 +3498,9 @@ integer, intent(out) :: newnproc, nxp, nyp
 integer nproc_low, nxp_test, nyp_test
 logical, intent(out) :: uniform_test
 
+nxp_test = 0
+nyp_test = 0
+
 ! try face decompositoin
 uniform_test = .false.
 do nproc_low = nproc,1,-1
@@ -3683,7 +3688,8 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
     ,dmse,dms_burden                     &
     ,so2e,so2wd,so2dd,so2_burden         &
     ,so4e,so4wd,so4dd,so4_burden         &
-    ,dmsso2o,so2so4o
+    ,dmsso2o,so2so4o, salte,saltdd       &
+    ,saltwd,salt_burden
 use cable_ccam, only : ccycle              ! CABLE
 use histave_m                              ! Time average arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -3802,6 +3808,10 @@ if ( abs(iaero)>=2 ) then
   dms_burden    = 0.  ! DMS burden
   so2_burden    = 0.  ! SO2 burden
   so4_burden    = 0.  ! SO4 burden
+  salte         = 0.  ! Salt emissions
+  saltdd        = 0.  ! Salt dry deposition
+  saltwd        = 0.  ! Salt wet deposition
+  salt_burden   = 0.  ! Salt burden
 end if
 
 return
@@ -3870,7 +3880,8 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
     ,dmse,dms_burden                     &
     ,so2e,so2wd,so2dd,so2_burden         &
     ,so4e,so4wd,so4dd,so4_burden         &
-    ,dmsso2o,so2so4o
+    ,dmsso2o,so2so4o,salte,saltdd        &
+    ,saltwd,salt_burden
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use cable_ccam, only : ccycle              ! CABLE
 use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
@@ -4101,6 +4112,10 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     dms_burden    = dms_burden/min(ntau,nperavg)   ! DMS burden
     so2_burden    = so2_burden/min(ntau,nperavg)   ! SO2 burden
     so4_burden    = so4_burden/min(ntau,nperavg)   ! SO4 burden
+    salte         = salte/min(ntau,nperavg)        ! Salt emissions
+    saltdd        = saltdd/min(ntau,nperavg)       ! Salt dry deposition
+    saltwd        = saltwd/min(ntau,nperavg)       ! Salt wet deposition
+    salt_burden   = salt_burden/min(ntau,nperavg)  ! Salt burden
   end if
 
 end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
@@ -4313,6 +4328,9 @@ integer tile, js, je, iq, k, k250m, k150m
 real xx
 real, dimension(kl) :: phi
 
+k150m = 0
+k250m = 0
+
 ! special output for wind farms
 if ( diaglevel_pbl>3 ) then
 !$omp do schedule(static) private(js,je,iq,k,k150m,k250m,xx,phi)
@@ -4352,7 +4370,7 @@ end subroutine update_misc
 ! Check for NaN errors
 subroutine nantest(message,js,je)
 
-use aerosolldr, only : xtg,ssn,naero  ! LDR prognostic aerosols
+use aerosolldr, only : xtg,naero      ! LDR prognostic aerosols
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use cfrac_m                           ! Cloud fraction
@@ -4707,22 +4725,6 @@ if ( abs(iaero)>=2 ) then
     write(6,*) "minloc,maxloc ",posmin3,posmax3
     call ccmpi_abort(-1) 
   end if  
-  if ( any(ssn(js:je,1:kl,1:2)/=ssn(js:je,1:kl,1:2)) ) then
-    write(6,*) "ERROR: NaN detected in ssn on myid=",myid," at ",trim(message)
-    call ccmpi_abort(-1)
-  end if
-  if ( any(ssn(js:je,1:kl,1:2)<-1.e-8) .or. any(ssn(js:je,1:kl,1:2)>6.5e9) ) then
-    write(6,*) "ERROR: Out-of-range detected in ssn on myid=",myid," at ",trim(message)
-    write(6,*) "minval,maxval ",minval(ssn(js:je,1:kl,1:2)),maxval(ssn(js:je,1:kl,1:2))
-    posmin3 = minloc(ssn(js:je,1:kl,1:2))
-    posmax3 = maxloc(ssn(js:je,1:kl,1:2))
-    posmin3(1) = posmin3(1) + js - 1
-    posmax3(1) = posmax3(1) + js - 1
-    posmin3(1) = iq2iqg(posmin3(1))
-    posmax3(1) = iq2iqg(posmax3(1))
-    write(6,*) "minloc,maxloc ",posmin3,posmax3
-    call ccmpi_abort(-1) 
-  end if    
 end if
 
 if ( any( fg(js:je)/=fg(js:je) ) ) then

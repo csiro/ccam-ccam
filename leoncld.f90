@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -321,7 +321,6 @@ real, dimension(imax,kl) :: fluxr, fluxi, fluxs, fluxg, fluxm, fluxf
 real, dimension(imax,kl) :: pqfsedice, pfstayice, pfstayliq, pslopes, prscav
 real, dimension(imax) :: prf_temp, fl
 real, dimension(imax) :: rhodz
-real, dimension(imax) :: qccon1
 real, dimension(imax) :: diag_temp
 real invdt
 
@@ -719,9 +718,8 @@ real, dimension(imax) :: tk, fl
 real :: es, Aprpr, Bprpr, Cice
 real :: qi0, fd, Crate, Qfdep
 real, dimension(imax) :: hlrvap, pk, deles, dqsdt
-real, dimension(imax) :: al, qs, delq, qcic, wliq
-real, dimension(imax) :: r6c, eps, beta6, r3c
-real, dimension(imax) :: qcrit, qc2, qto, qc
+real, dimension(imax) :: al, qs, delq
+real, dimension(imax) :: qc
 real, dimension(imax) :: diag_temp
 
 integer k, iq
@@ -1173,7 +1171,7 @@ real, dimension(imax) :: frclr
 real :: rg, rl, rn, rf, rs
 real, dimension(imax) :: sublflux
 real, dimension(imax) :: rhodz,evap,qpf,clrevap,fr
-real, dimension(imax) :: mxovr,rdovr,fcol
+real, dimension(imax) :: fcol
 real :: alph
 real, dimension(imax) :: alphaf,pk,aprpr,bprpr
 real, dimension(imax) :: curly,Csbsav
@@ -1189,9 +1187,8 @@ real, dimension(kl) :: diag_temp
 integer k, n, njumps, iq
 real scm3, tdt
 real qcrit, qcic, ql, dqls, Crate, ql1, ql2
-real Frb, cdts, selfcoll, cfla
-real qla, Wliq, R6c, eps, beta6, R3c
-real dqla, qfs, dqfs
+real Frb, cdts, selfcoll
+real qfs, dqfs
 real fsclr_g, fsclr_s, fsclr_i
 real qvp, iflux, lflux
 real drf, drl

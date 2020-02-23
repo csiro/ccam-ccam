@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -389,9 +389,9 @@ use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use estab, only : establ            ! Liquid saturation function
 use newmpar_m                       ! Grid parameters
-use parm_m, only : diag,ds,ktau,     &
+use parm_m, only : diag,ktau,        &
     nvmix,dt,nlv,ia,ib,ja,jb,nmaxpr, &
-    iaero,nlocal,qgmin,av_vmod,      &
+    iaero,nlocal,av_vmod,            &
     amxlsq,dvmodmin                 ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : zmin             ! Soil and surface data
@@ -421,14 +421,13 @@ real, dimension(imax), intent(in) :: tss, eg, fg, convpsav, ps, condc
 real, dimension(imax), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, guv, gt
-real, dimension(imax,kl) :: au, cu, zg
+real, dimension(imax,kl) :: au, cu
 real, dimension(imax,kl) :: uav, vav
 real, dimension(imax,kl) :: rkm, rkh
 real, dimension(imax,kl) :: qs, betatt, betaqt, delthet, ri, rk_shal, thee
 real, dimension(imax,kl) :: thebas
 real, dimension(imax,kl-1) :: tmnht
 real, dimension(imax) :: dz, dzr
-real, dimension(imax) :: rhos
 real, dimension(imax) :: zhv, dvmod, dqtot, x, csq, sqmxl, fm, fh, theeb
 real, dimension(imax) :: sigsp
 real, dimension(kl) :: sighkap,sigkap,delons,delh
@@ -1408,7 +1407,6 @@ real, parameter :: fakn   = 7.2   ! Constant in turbulent prandtl number
 real, parameter :: ricr   = 0.25  ! Critical richardson number
 real, parameter :: sffrac = 0.1   ! Surface layer fraction of boundary layer
 real, parameter :: vk     = 0.4   ! Von Karman's constant
-real, parameter :: mfbeta = 0.    ! Horizontal scale constant (usual is 0.15)
 real ccon    ! fak * sffrac * vk
 real binm    ! betam * sffrac
 real binh    ! betah * sffrac
@@ -1801,7 +1799,6 @@ real, dimension(imax) :: dz
 real, dimension(imax) :: rhos, dx
 real, dimension(kl) :: sigkap, delh
 real rong, rlogs1, rlogs2, rlogh1, rlog12
-real conflux, condrag
 #ifdef scm
 real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
 real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave, epssave

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -74,7 +74,7 @@ implicit none
 integer, dimension(ifull), intent(in) :: river_accin
 integer, dimension(ifull+iextra) :: river_outloc_cc, river_acc
 integer, dimension(ifull) :: xp_i, xp_j, xp_n
-integer n, iq, iq_g, xp_g, xpb_g, i, j, jq
+integer n, iq, iq_g, xp_g, xpb_g, i, j
 integer iqout, maxacc, testacc
 real(kind=8), dimension(ifull+iextra,3) :: xyzbc
 real, dimension(ifull+iextra) ::  ee

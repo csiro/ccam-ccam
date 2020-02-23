@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -152,8 +152,7 @@ use ateb, only :                         & ! Urban
     ,ateb_ac_heatcap=>ac_heatcap         &
     ,ateb_ac_coolcap=>ac_coolcap         &
     ,ateb_ac_deltat=>ac_deltat           &
-    ,ateb_acfactor=>acfactor             &
-    ,ateb_nl=>nl
+    ,ateb_acfactor=>acfactor
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
     ,fwsoil_switch                       &
@@ -937,7 +936,7 @@ use sigs_m                                       ! Atmosphere sigma levels
 use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
 use soilv_m                                      ! Soil parameters
-use tkeeps, only : tke,eps,cm0,mintke,mineps     ! TKE-EPS boundary layer
+use tkeeps, only : tke,eps                       ! TKE-EPS boundary layer
 use tracermodule, only : writetrpm               ! Tracer routines
 use tracers_m                                    ! Tracer data
 use vegpar_m                                     ! Vegetation arrays
@@ -1653,6 +1652,14 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,'so2b_ave',lname,'mgS/m2',0.,13.,0,cptype) 
         lname = 'SO4 burden'
         call attrib(idnc,dimj,jsize,'so4b_ave',lname,'mgS/m2',0.,13.,0,cptype)
+        lname = 'Salt emissions'
+        call attrib(idnc,dimj,jsize,'salte_ave',lname,'g/(m2 yr)',0.,390.,0,cptype)  
+        lname = 'Salt dry deposition'
+        call attrib(idnc,dimj,jsize,'saltdd_ave',lname,'g/(m2 yr)',0.,390.,0,cptype) 
+        lname = 'Salt wet deposition'
+        call attrib(idnc,dimj,jsize,'saltwd_ave',lname,'g/(m2 yr)',0.,390.,0,cptype)
+        lname = 'Salt burden'
+        call attrib(idnc,dimj,jsize,'saltb_ave',lname,'mg/m2',0.,130.,0,cptype)        
       end if  
     end if
 
@@ -2022,10 +2029,8 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dima,asize,'dust2','Dust 1-2 micrometers','kg/kg',0.,6.5E-6,0,cptype)
       call attrib(idnc,dima,asize,'dust3','Dust 2-3 micrometers','kg/kg',0.,6.5E-6,0,cptype)
       call attrib(idnc,dima,asize,'dust4','Dust 3-6 micrometers','kg/kg',0.,6.5E-6,0,cptype)
-      if ( diaglevel_aerosols>5 .or. itype==-1 ) then
-        call attrib(idnc,dima,asize,'seasalt1','Sea salt small','1/m3',0.,6.5E9,0,cptype)
-        call attrib(idnc,dima,asize,'seasalt2','Sea salt large','1/m3',0.,6.5E7,0,cptype)
-      end if  
+      call attrib(idnc,dima,asize,'salt1','Sea salt 0.1 micrometers','kg/kg',0.,6.5E-6,0,cptype)
+      call attrib(idnc,dima,asize,'salt2','Sea salt 0.5 micrometers','kg/kg',0.,6.5E-6,0,cptype)
       if ( save_aerosols ) then
         if ( iaero<=-2 .and. diaglevel_aerosols>5 ) then 
           call attrib(idnc,dima,asize,'cdn','Cloud droplet concentration','1/m3',1.E7,6.6E8,0,cptype)
@@ -2423,7 +2428,7 @@ call mslp(aa,psl_in,zs,t_in)
 aa(:) = aa(:)/100.
 call histwrt(aa,'pmsl',idnc,iarch,local,.true.)
 if ( save_land .or. save_ocean ) then
-  if ( all(zo==0.) ) then
+  if ( all(zo<1.e-8) ) then
     call histwrt(zo,'zolnd',idnc,iarch,local,.false.)  
   else  
     call histwrt(zo,'zolnd',idnc,iarch,local,.true.)
@@ -2811,6 +2816,14 @@ if ( abs(iaero)>=2 .and. nrad==5 ) then
     call histwrt(aa,'so2b_ave',idnc,iarch,local,lave)
     aa=max(so4_burden*1.e6,0.) ! mgS/m2
     call histwrt(aa,'so4b_ave',idnc,iarch,local,lave)
+    aa=max(salte*3.154e10,0.) ! g/m2/yr
+    call histwrt(aa,'salte_ave',idnc,iarch,local,lave)
+    aa=max(saltdd*3.154e10,0.) ! g/m2/yr
+    call histwrt(aa,'saltdd_ave',idnc,iarch,local,lave)
+    aa=max(saltwd*3.154e10,0.) ! g/m2/yr
+    call histwrt(aa,'saltwd_ave',idnc,iarch,local,lave)
+    aa=max(salt_burden*1.e6,0.) ! mg/m2
+    call histwrt(aa,'saltb_ave',idnc,iarch,local,lave)
   end if  
 end if
 
@@ -3206,10 +3219,8 @@ if ( abs(iaero)>=2 ) then
   call histwrt(xtg(:,:,9), 'dust2',idnc,iarch,local,.true.)
   call histwrt(xtg(:,:,10),'dust3',idnc,iarch,local,.true.)
   call histwrt(xtg(:,:,11),'dust4',idnc,iarch,local,.true.)
-  if ( diaglevel_aerosols>5 .or. itype==-1 ) then
-    call histwrt(ssn(:,:,1), 'seasalt1',idnc,iarch,local,.true.)
-    call histwrt(ssn(:,:,2), 'seasalt2',idnc,iarch,local,.true.)
-  end if  
+  call histwrt(xtg(:,:,12),'salt1',idnc,iarch,local,.true.)
+  call histwrt(xtg(:,:,13),'salt2',idnc,iarch,local,.true.)
   if ( save_aerosols ) then
     if ( iaero<=-2 .and. diaglevel_aerosols>5 ) then
       do k = 1,kl
@@ -3349,7 +3360,7 @@ integer, dimension(:), allocatable :: vnode_dat
 integer, dimension(:), allocatable :: procnode, procoffset
 integer, dimension(5) :: adim
 integer, dimension(4) :: sdim
-integer, dimension(1) :: start,ncount,gpdim
+integer, dimension(1) :: gpdim
 integer, dimension(5) :: outdim
 integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics
@@ -3799,6 +3810,45 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(freqstore(:,22),"ua250",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,23),"va250",fncid,fiarch,local,.true.)      
   end if
+  !call histwrt(freqstore(:,24),"sunhours",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,25),"rgdn_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,26),"eg_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,27),"fg_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,28),"sgn_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,29),"rgn_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,30),"epot_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,31),"mrso",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,32),"mrfso",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,33),"mrros",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,34),"runoff",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,35),"snd",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,36),"snm",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,37),"rtu_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,38),"sint_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,39),"sot_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,40),"taux",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,41),"tauy",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,42),"tsu",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,43),"pblh",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,44),"prw",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,45),"clwvl",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,46),"clivl",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,47),"ua850p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,48),"va850p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,49),"ta850p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,50),"hus850p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,51),"ua500p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,52),"va500p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,53),"ta500p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,54),"hus500p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,55),"ua200p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,56),"va200p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,57),"ta200p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,58),"hus200p",fncid,fiarch,local,.true.)  
+  !call histwrt(freqstore(:,59),"clh",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,60),"clm",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,61),"cll",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,63),"sic",fncid,fiarch,local,.true.)
   
   freqstore(:,:) = 0.
 

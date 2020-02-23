@@ -94,7 +94,7 @@ use stime_m                      ! File date data
 implicit none
 
 integer, dimension(ifull) :: dumm
-integer i, kdate_r, ktime_r, kdhour, kdmin, kddate
+integer kdate_r, ktime_r, kdhour, kdmin, kddate
 integer khour_r, kmin_r, khour, kmin
 integer :: num=0
 real, dimension(ifull,kl,5) :: dumv
@@ -349,7 +349,7 @@ use stime_m                      ! File date data
 implicit none
  
 integer, dimension(ifull) :: dumm
-integer kdate_r, ktime_r, i ,ntr
+integer kdate_r, ktime_r, ntr
 integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
 real, dimension(ifull,kl,naero) :: xtghostc
 real, dimension(ifull,kl,5) :: dumv
@@ -859,7 +859,7 @@ use vecsuv_m           ! Map to cartesian coordinates
 implicit none
       
 integer, intent(in) :: klt, kln, klx
-integer i, k, n, ppass, ibase
+integer i, k, ppass, ibase
 real, intent(in) :: cin
 real, dimension(ifull), intent(inout) :: pslbb
 real, dimension(ifull,kl), intent(inout) :: ubb, vbb

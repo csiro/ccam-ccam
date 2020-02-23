@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -53,7 +53,7 @@
 ! 15 Urban
 ! 16 Lakes
 ! 17 Ice
-! (18 Evergreen Broadleaf (Savanna)) - MJT defined
+! (18 Evergreen Broadleaf Savanna) - MJT defined
   
 ! isoilm  type
 ! 0       water/ocean
@@ -228,7 +228,6 @@ type(air_type) :: lair
 type(balances_type) :: lbal
 type(canopy_type) :: lcanopy
 type(casa_balance) :: lcasabal
-type(casa_biome) :: lcasabiome
 type(casa_flux) :: lcasaflux
 type(casa_met) :: lcasamet
 type(casa_pool) :: lcasapool
@@ -242,13 +241,12 @@ type(soil_parameter_type) :: lsoil
 type(soil_snow_type) :: lssnow
 type(sum_flux_type) :: lsum_flux
 type(veg_parameter_type) :: lveg
-type(bgc_pool_type) :: lbgc
 type(climate_save_type) :: lclimate_save
 
 !$omp do schedule(static) private(is,ie,js,je,ltind,ltmap,lmaxnb),                                             &
 !$omp private(lclitter,lcnbp,lcnpp,lcplant,lcsoil,lfnee,lfpn),                                                 &
 !$omp private(lfrd,lfrp,lfrpr,lfrpw,lfrs,lnilitter,lniplant,lnisoil,lplitter,lpplant,lpsoil),                  &
-!$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,lcasabiome,latmco2),              &
+!$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,latmco2),                         &
 !$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg),  &
 !$omp private(lclimate_biome,lclimate_iveg,lclimate_min20,lclimate_max20,lclimate_alpha20,lclimate_agdd5),     &
 !$omp private(lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover),                 &
@@ -438,7 +436,6 @@ use newmpar_m
 use parm_m
 use sigs_m
 use soil_m, only : zmin
-use tracers_m, only : ntrac
 use zenith_m, only : solargh, zenith
   
 implicit none
@@ -449,7 +446,7 @@ integer jyear, jmonth, jday, jhour, jmin, idoy
 integer k, mins, nb, j
 integer is, ie, casaperiod, npercasa
 integer lalloc
-integer mp_POP, loy
+integer mp_POP
 integer, dimension(maxtile,2), intent(in) :: tind
 integer, dimension(imax), intent(inout) :: isflag
 integer, dimension(13), parameter :: ndoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 0 /) 
@@ -481,7 +478,6 @@ real(kind=8), dimension(mp) :: pleaf2met, pleaf2str, proot2met, proot2str, pwood
 real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
 real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
-real(r_2), dimension(mp) :: delwb, deltgg, tbal
 real(r_2), dimension(mp,ms) :: bwb, btgg
 logical, dimension(imax,maxtile), intent(in) :: tmap
 logical, dimension(imax), intent(in) :: land
@@ -1006,13 +1002,13 @@ if ( cable_climate==1 ) then
   ! just extract the first tile for now  
   climate_ivegt        = unpack(climate%iveg,tmap(:,1),0)
   climate_biome        = unpack(climate%biome,tmap(:,1),0)
-  climate_min20        = unpack(climate%mtemp_min20,tmap(:,1),0._8)
-  climate_max20        = unpack(climate%mtemp_max20,tmap(:,1),0._8)
-  climate_alpha20      = unpack(climate%alpha_PT20,tmap(:,1),0._8)
-  climate_agdd5        = unpack(climate%agdd5,tmap(:,1),0._8)
+  climate_min20        = real(unpack(climate%mtemp_min20,tmap(:,1),0._8),4)
+  climate_max20        = real(unpack(climate%mtemp_max20,tmap(:,1),0._8),4)
+  climate_alpha20      = real(unpack(climate%alpha_PT20,tmap(:,1),0._8),4)
+  climate_agdd5        = real(unpack(climate%agdd5,tmap(:,1),0._8),4)
   climate_gmd          = unpack(climate%gmd,tmap(:,1),0)
-  climate_dmoist_min20 = unpack(climate%dmoist_min20,tmap(:,1),0._8)
-  climate_dmoist_max20 = unpack(climate%dmoist_max20,tmap(:,1),0._8)
+  climate_dmoist_min20 = real(unpack(climate%dmoist_min20,tmap(:,1),0._8),4)
+  climate_dmoist_max20 = real(unpack(climate%dmoist_max20,tmap(:,1),0._8),4)
 end if
 
 ! MJT notes - ustar, cduv, fg and eg are passed to the boundary layer turbulence scheme
@@ -1227,7 +1223,7 @@ type(veg_parameter_type), intent(inout) :: veg
 type(climate_type), intent(in) :: climate
 integer, intent(in) :: ktau
 integer np, ivt
-real(kind=8) ajv, bjvref
+real(kind=8) bjvref
 real(kind=8), dimension(mp) :: ncleafx, npleafx, pleafx, nleafx
 real(kind=8), dimension(mxvt), parameter :: xnslope = (/ 0.8,1.,2.,1.,1.,1.,0.5,1.,0.34,1.,1.,1.,1.,1.,1.,1.,1. /)
 
@@ -1354,7 +1350,7 @@ real(kind=8) :: gdd0
 real(kind=8) :: phengdd5ramp
 real(kind=8) :: phen_tmp
 real(kind=8), parameter :: k_chilla = 0._8, k_chillb = 100._8, k_chillk = 0.05_8
-real(kind=8), parameter :: APHEN_MAX = 200._8, mmoisture_min=0.30_8
+real(kind=8), parameter :: APHEN_MAX = 200._8
 type(climate_type), intent(in) :: climate
 type(phen_variable), intent(inout) :: phen
 type(radiation_type), intent(in) :: rad
@@ -1414,13 +1410,13 @@ do np = 1,mp
 
   if ( (ivt==3.or.ivt==4) .or. (ivt>=6.and.ivt<=10) ) then
 
-    if (phen_tmp>0._8 .and. (phen_tmp.lt.1.0_8)) then
+    if (phen_tmp>0._8 .and. (phen_tmp<1._8)) then
       phen%phase(np) = 1 ! greenup
       phen%doyphase(np,1) = climate%doy
     elseif (phen_tmp>=1._8) then
       phen%phase(np) = 2 ! steady LAI
       phen%doyphase(np,2) = climate%doy
-    elseif (phen_tmp==0._8) then
+    elseif (phen_tmp<0.0000001_8) then
       phen%phase(np) = 3 ! senescence
       phen%doyphase(np,3) = climate%doy
     endif
@@ -1832,7 +1828,7 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
       climate%dmoist_max20 = 0._8
       climate%nyears = 0
       do y = 1,20      
-        if ( .not.(all(climate%mtemp_min_20(:,y)==0._8).and.all(climate%mtemp_max_20(:,y)==0._8)) ) then
+        if ( .not.(all(climate%mtemp_min_20(:,y)<0.00000001_8).and.all(climate%mtemp_max_20(:,y)<0.00000001_8)) ) then
           climate%nyears = climate%nyears + 1
           climate%mtemp_min20 = climate%mtemp_min20 + climate%mtemp_min_20(:,y)
           climate%mtemp_max20 = climate%mtemp_max20 + climate%mtemp_max_20(:,y)
@@ -2560,7 +2556,7 @@ integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
 integer, dimension(:), allocatable, save :: cveg
 integer(kind=4), dimension(:), allocatable, save :: Iwood
 integer(kind=4), dimension(:,:), allocatable, save :: disturbance_interval
-integer i,iq,n,k,ipos,iv,ilat,ivp,is,ie
+integer i,iq,n,k,ipos,ilat,ivp,is,ie
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
 integer(kind=4) mp_POP
@@ -3925,9 +3921,9 @@ else
                   2.7123327E-05_r_2, 2.1095921E-05_r_2 /)
     xxkpocc = 2.73973E-05_r_2
 
-    casabiome%ivt2     =(/        3_r_2,        3_r_2,        3_r_2,        3_r_2,        2_r_2,        1_r_2,   1_r_2,   2_r_2, &
-                                  1_r_2,        1_r_2,        0_r_2,        0_r_2,        0_r_2,        1_r_2,   0_r_2,   0_r_2, &
-                                  0_r_2 /)
+    casabiome%ivt2     =(/        3,        3,        3,        3,        2,        1,   1,   2, &
+                                  1,        1,        0,        0,        0,        1,   0,   0, &
+                                  0 /)
     casabiome%kroot    =(/      5.5_r_2,      3.9_r_2,      5.5_r_2,      3.9_r_2,      2.0_r_2,      5.5_r_2, 5.5_r_2, 5.5_r_2, &
                                 5.5_r_2,      5.5_r_2,      5.5_r_2,      5.5_r_2,      5.5_r_2,      2.0_r_2, 2.0_r_2, 5.5_r_2, &
                                 5.5_r_2 /)
@@ -4386,10 +4382,10 @@ if ( mp_global>0 ) then
   
   ! patch
   if ( gs_switch==1 ) then
-    if ( any( veg%g0==0. ) ) then
+    if ( any( veg%g0<1.e-8 ) ) then
       if ( myid==0 ) then
         write(6,*) "WARN: Replacing g0=0. with g0=0.01 for gs_switch=1"
-        where ( veg%g0==0. ) 
+        where ( veg%g0<1.e-8 ) 
           veg%g0 = 0.01
         end where
       end if    
@@ -4852,7 +4848,7 @@ use vegpar_m
   
 implicit none
   
-integer k, n, is, ie
+integer k
 real, dimension(ifull) :: dummy_pack
 
 if ( mp_global>0 ) then
@@ -4969,8 +4965,6 @@ use soilsnow_m
 use vegpar_m
   
 implicit none
-  
-integer k, n, is, ie
 
 if ( mp_global>0 ) then
 
@@ -5011,7 +5005,7 @@ use soilsnow_m
 
 implicit none
 
-integer k, n, is, ie
+integer k
 
 if ( mp_global>0 ) then
   do k = 1,ms
@@ -8451,7 +8445,7 @@ use soil_m
 
 implicit none
 
-integer nb, k, is, ie
+integer k
 real, dimension(ifull), intent(inout) :: inflow
 real, dimension(ifull) :: delflow
 real, dimension(mp_global) :: xx, ll, delxx

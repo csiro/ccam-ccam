@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -65,7 +65,6 @@ contains
 
 subroutine sflux_init
 
-use cc_omp, only : imax, ntiles    ! CC OpenMP routines
 use const_phys                     ! Physical constants
 use newmpar_m, only : ifull        ! Grid parameters
 use parm_m                         ! Model configuration
@@ -435,7 +434,7 @@ use const_phys                      ! Physical constants
 use estab                           ! Liquid saturation function
 use extraout_m                      ! Additional diagnostics
 use morepbl_m                       ! Additional boundary layer diagnostics
-use newmpar_m, only : ifull,ms,kl   ! Grid parameters
+use newmpar_m, only : ifull         ! Grid parameters
 use parm_m                          ! Model configuration
 use pbl_m                           ! Boundary layer arrays
 use riverarrays_m                   ! River data
@@ -945,7 +944,7 @@ use const_phys                       ! Physical constants
 use estab                            ! Liquid saturation function
 use mlo, only : waterdata,icedata, & ! Ocean physics and prognostic arrays
   dgwaterdata,dgicedata,dgscrndata,& 
-  depthdata,wrtemp,wlev,mloeval,   &
+  depthdata,mloeval,               & 
   mloexport,mloimport,mloextra,    &
   mloexpice,turbdata
 use newmpar_m                        ! Grid parameters
@@ -954,7 +953,7 @@ use soil_m, only : zmin              ! Soil and surface data
 
 implicit none
 
-integer iq, k
+integer iq
 integer, intent(in) :: wfull
 real root, denha, esatf
 real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
@@ -1159,7 +1158,6 @@ implicit none
 
 integer, intent(in) :: ufull
 real, dimension(imax), intent(in) :: uzon,vmer
-real, dimension(imax) :: newrunoff
 real, dimension(imax) :: dumrg,dumx,dums
 real, dimension(imax) :: newsnowmelt
 real, dimension(imax) :: u_fg, u_eg, u_rn
@@ -1293,8 +1291,8 @@ implicit none
 
 integer iq
 real, dimension(ifull) :: fh,taftfhg_temp,factch
-real zologx,xx,fhbg,es,afroot,fm,con,daf,den,dden,dfm,root,denma,denha
-real deg,b1,zobg,zologbg,afland,aftlandg,rootbg,denhabg,thnew,thgnew,thnewa,aftland
+real zologx,xx,fhbg,es,afroot,fm,root,denma,denha
+real zobg,zologbg,afland,aftlandg,rootbg,denhabg,thnew,thgnew,thnewa,aftland
 real thgnewa,ri_tmp,fh_tmp
 
 integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af

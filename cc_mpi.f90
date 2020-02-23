@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -115,7 +115,7 @@ module cc_mpi
              ccglobal_posneg, readglobvar, writeglobvar, ccmpi_reduce,      &
              ccmpi_reducer8, ccmpi_allreduce, ccmpi_abort, ccmpi_bcast,     &
              ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_gatherxr8,  &
-             ccmpi_scatterx, ccmpi_allgatherx, ccmpi_init, ccmpi_remap,     &
+             ccmpi_scatterx, ccmpi_allgatherx, ccmpi_init,                  &
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
              bounds_colour_send, bounds_colour_recv, boundsr8,              &
              ccmpi_reinit, ccmpi_alltoall, ccmpi_procformat_init
@@ -132,7 +132,7 @@ module cc_mpi
              ccmpi_filegather, ccmpi_filedistribute, procarray,             &
              procarray_face
 #ifdef usempi3
-   public :: ccmpi_allocshdata, ccmpi_allocshdatar8
+   public :: ccmpi_allocshdata, ccmpi_allocshdatar8, ccmpi_remap
    public :: ccmpi_shepoch, ccmpi_freeshdata
 #endif
    
@@ -2761,7 +2761,7 @@ contains
       do w = 1,size(specmap_recv)
          iproc = specmap_recv(w) 
          if ( bnds(iproc)%rbuflen < xlen ) then
-            if ( bnds(iproc)%rbuflen > 0 ) then
+            if ( allocated(bnds(iproc)%rbuf) ) then
                deallocate( bnds(iproc)%rbuf )
                deallocate( bnds(iproc)%r8buf )
             end if
@@ -2771,7 +2771,7 @@ contains
          end if   
          iproc = myid
          if ( bnds(iproc)%sbuflen < xlen ) then
-            if ( bnds(iproc)%sbuflen > 0 ) then
+            if ( allocated(bnds(iproc)%sbuf) ) then
                deallocate( bnds(iproc)%sbuf )
                deallocate( bnds(iproc)%s8buf )
             end if
@@ -3229,6 +3229,8 @@ contains
 
       do n = 0,nproc-1
          bnds(n)%len = 0
+         bnds(n)%rbuflen = 0
+         bnds(n)%sbuflen = 0
          bnds(n)%rlenh_bg(1:maxcolour) = 0
          bnds(n)%rlenh_fn(1:maxcolour) = 0
          bnds(n)%slenh_bg(1:maxcolour) = 0
@@ -8710,6 +8712,7 @@ contains
 
    end subroutine ccmpi_reinit
    
+#ifdef usempi3
    subroutine ccmpi_remap
    
       integer :: node_nx, node_ny, node_dx, node_dy
@@ -8772,6 +8775,7 @@ contains
       end if
    
    end subroutine ccmpi_remap
+#endif   
    
    subroutine ccmpi_finalize
    
@@ -8784,9 +8788,11 @@ contains
    subroutine ccmpi_procformat_init(localhist,procmode)
    
       integer, intent(inout) :: procmode
-      integer(kind=4) :: lcomm, lerr
-      integer(kind=4) :: lcolour, lcommout, lrank, lsize
       logical, intent(in) :: localhist
+#ifdef usempi3
+      integer(kind=4) :: lcolour, lcomm, lrank
+      integer(kind=4) :: lcommout, lerr, lsize
+#endif
 
       if ( localhist ) then
 #ifdef usempi3
@@ -9930,7 +9936,7 @@ contains
             xlev = max( kl, 1 ) ! ol is not required
             xlen = xlev*mg_bnds(iproc,g)%rlenx
             if ( bnds(iproc)%rbuflen < xlen ) then
-               if ( bnds(iproc)%rbuflen > 0 ) then
+               if ( allocated(bnds(iproc)%rbuf) ) then
                   deallocate( bnds(iproc)%rbuf )
                   deallocate( bnds(iproc)%r8buf )
                end if
@@ -9940,7 +9946,7 @@ contains
             end if
             xlen = xlev*mg_bnds(iproc,g)%slenx
             if ( bnds(iproc)%sbuflen < xlen ) then
-               if ( bnds(iproc)%sbuflen > 0 ) then
+               if ( allocated(bnds(iproc)%sbuf) ) then
                   deallocate( bnds(iproc)%sbuf )
                   deallocate( bnds(iproc)%s8buf )
                end if
@@ -10204,7 +10210,6 @@ contains
          if ( send_len > 0 ) then
             lproc = mg(g)%neighlist(iproc)  ! Send to
             do k = 1,kx
-!$omp simd
                do iq = 1,send_len
                   bnds(lproc)%sbuf(iq+(k-1)*send_len) = vdat(mg_bnds(lproc,g)%send_list(iq),k)
                end do
@@ -10779,7 +10784,7 @@ contains
          iproc = fileneighlist(jproc)
          xlen = maxvertlen*filebnds(iproc)%rlenx
          if ( bnds(iproc)%rbuflen < xlen ) then
-            if ( bnds(iproc)%rbuflen > 0 ) then
+            if ( allocated(bnds(iproc)%rbuf) ) then
                deallocate( bnds(iproc)%rbuf )
                deallocate( bnds(iproc)%r8buf )
             end if
@@ -10789,7 +10794,7 @@ contains
          end if
          xlen = maxvertlen*filebnds(iproc)%slenx
          if ( bnds(iproc)%sbuflen < xlen ) then
-            if ( bnds(iproc)%sbuflen > 0 ) then
+            if ( allocated(bnds(iproc)%sbuf) ) then
                deallocate( bnds(iproc)%sbuf )
                deallocate( bnds(iproc)%s8buf )
             end if

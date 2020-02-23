@@ -97,9 +97,7 @@ use soil_m
 implicit none
 
 integer ii, iq
-real, dimension(ifull) :: tnu,tsu,tev,twv
 real, dimension(ifull) :: odum
-real, dimension(ifull) :: bb_n, bb_s, bb_e, bb_w
 real, dimension(ifull,0:wlev) :: dephl
 real, dimension(ifull,wlev) :: dep,dz
 real, dimension(3*wlev) :: dumz,gdumz
@@ -258,8 +256,7 @@ use vecsuv_m
 
 implicit none
 
-integer k, iq
-integer kp1, km1
+integer k
 real hdif
 real, dimension(ifull+iextra,wlev,3) :: duma
 real, dimension(ifull+iextra,wlev) :: uau,uav
@@ -274,11 +271,6 @@ real, dimension(ifull) :: emi, emu_w, emv_s
 real, dimension(ifull) :: dep_e, dep_n
 real, dimension(ifull) :: duma_n, duma_s, duma_e, duma_w
 real, dimension(ifull) :: v_n, v_s, u_e, u_w
-real, dimension(ifull) :: v_e, v_w, u_n, u_s
-real, dimension(ifull) :: vm1_n, vm1_s, um1_e, um1_w
-real, dimension(ifull) :: vm1_e, vm1_w, um1_n, um1_s
-real, dimension(ifull) :: ddi, ddi_n, ddi_e, ddim1, ddim1_n, ddim1_e
-real, dimension(ifull) :: ddi_s, ddi_w, ddim1_s, ddim1_w
 real, dimension(ifull) :: t_kh_n, t_kh_e
 real, dimension(ifull) :: tx_fact, ty_fact
 
@@ -481,13 +473,13 @@ integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart, iq, mspec_mlo, mspeca_mlo
 integer, dimension(ifull,wlev) :: nface
 real maxglobseta,maxglobip,hdt,dtin_mlo
-real alph_p, khdif, delta
+real alph_p, delta
 real, save :: dtsave=0.
 real, dimension(2) :: delpos, delneg
 real, dimension(ifull+iextra) :: neta,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv
 real, dimension(ifull+iextra) :: sou,sov,snu,snv
-real, dimension(ifull+iextra) :: ispnet, tide, depdum_rho
+real, dimension(ifull+iextra) :: tide, depdum_rho
 real, dimension(ifull+iextra) :: ipmax, spnet
 real, dimension(ifull+iextra) :: bb, bb3u, bb4v
 real, dimension(ifull+iextra) :: ibb, ibb3u, ibb4v
@@ -495,8 +487,8 @@ real, dimension(ifull) :: lbu, lbv, lcu, lcv
 real, dimension(ifull) :: cc_n, cc_s, cc_e, cc_w
 real, dimension(ifull) :: dzdxu, dzdxv, dzdyu, dzdyv
 real, dimension(ifull) :: ibb_n, ibb_s, ibb_e, ibb_w
-real, dimension(ifull) :: bb_n, bb_s, bb_e, bb_w
-real, dimension(ifull) :: i_u,i_v,i_sto,ndum
+real, dimension(ifull) :: bb_n, bb_e
+real, dimension(ifull) :: i_u,i_v,i_sto
 real, dimension(ifull) :: w_e,xps,oeu,oev
 real, dimension(ifull) :: tnu,tsu,tev,twv
 real, dimension(ifull) :: dpsdxu,dpsdyu,dpsdxv,dpsdyv
@@ -505,7 +497,6 @@ real, dimension(ifull) :: detadxu,detadyu,detadxv,detadyv
 real, dimension(ifull) :: dipdxu,dipdyu,dipdxv,dipdyv
 real, dimension(ifull) :: odum,ibu,ibv
 real, dimension(ifull) :: dd_e, dd_n, dd_w, dd_s
-real, dimension(ifull) :: ddu_e, ddv_n, ddu_w, ddv_s
 real, dimension(ifull) :: pice_n, pice_e, pice_s, pice_w
 real, dimension(ifull) :: tide_n, tide_s, tide_e, tide_w
 real, dimension(ifull) :: f_n, f_e, f_s, f_w
@@ -514,13 +505,13 @@ real, dimension(ifull) :: ipice_n, ipice_s, ipice_e, ipice_w
 real, dimension(ifull) :: dd_isv, dd_iwu, em_isv, em_iwu, ee_isv, ee_iwu
 real, dimension(ifull) :: oev_isv, oeu_iwu, cc_isv, cc_iwu
 real, dimension(ifull) :: eo_isv, eo_iwu, ni_isv, ni_iwu
-real, dimension(ifull) :: dnetadx, dnetady, ddddx, ddddy, ddddxu, ddddyv, dfdddyu, dfdddxv
-real, dimension(ifull) :: sdiv, ddiv_n, ddiv_e, nv_isv, nu_iwu
+real, dimension(ifull) :: dnetadx, dnetady, ddddx, ddddy
+real, dimension(ifull) :: sdiv
 real, dimension(ifull) :: gosigu, gosigv, gosig_n, gosig_e
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: cc
 real, dimension(ifull+iextra,wlev) :: eou,eov,ccu,ccv
-real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,ddiv
+real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns
 real, dimension(ifull+iextra,9) :: data_c,data_d
 real, dimension(ifull+iextra,4) :: nit
 real, dimension(ifull,wlev+1) :: tau,tav,ttau,ttav
@@ -530,7 +521,7 @@ real, dimension(ifull,wlev) :: kku,kkv,oou,oov
 real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull,wlev) :: rhobaru, rhobarv, rhobar
 real, dimension(ifull,wlev) :: depdum,dzdum,mfixdum
-real, dimension(ifull,wlev) :: dd_adv,mps
+real, dimension(ifull,wlev) :: mps
 real, dimension(ifull,0:wlev) :: nw
 real, dimension(ifull,4) :: i_it
 real, dimension(ifull,3) :: gamm
@@ -1255,7 +1246,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   if ( precon<-9999 ) then
     ! Multi-grid
     call mlomg(neta,sou,sov,snu,snv,xps,bb,bb3u,bb4v,ipice,niu,niv,ibb,ibb3u,ibb4v, &
-               ipmax,totits,maxglobseta,maxglobip,minwater)
+               ipmax,totits,maxglobseta,maxglobip)
   else
     ! Usual SOR
     write(6,*) "ERROR: MLO dynamics requires precon=-10000"
@@ -4111,14 +4102,12 @@ subroutine tsjacobi(nti,nsi,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
                     rhobar,rhobaru,rhobarv)
 
 use indices_m
-use map_m, only : f, emu, emv
 use mlo, only : wlev, wrtemp, mloexpdensity
 use newmpar_m
-use parm_m, only : ds
 
 implicit none
 
-integer ii, jj
+integer ii
 real, dimension(ifull+iextra,wlev), intent(in) :: nti, nsi
 real, dimension(ifull,wlev), intent(out) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
 real, dimension(ifull,wlev), intent(out) :: rhobaru, rhobarv, rhobar
@@ -4475,7 +4464,7 @@ use parm_m
 
 implicit none
 
-integer ii, jj, kk, iq
+integer ii, jj, iq
 real, dimension(ifull) :: ssi,sse,ssw,ssn,sss,ssen,sses,ssne,ssnw
 real, dimension(ifull+iextra,wlev,2), intent (in) :: rho
 real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
@@ -4726,7 +4715,7 @@ end subroutine upwind_iceadv
 ! Use multi-grid to solve for free surface and ice pressure
 
 subroutine mlomg(neta,sou,sov,snu,snv,xps,bb,bb3u,bb4v,ipice,niu,niv,ibb,ibb3u,ibb4v, &
-                 ipmax,totits,maxglobseta,maxglobip,minwater)
+                 ipmax,totits,maxglobseta,maxglobip)
 
 use helmsolve
 use indices_m
@@ -4738,7 +4727,6 @@ implicit none
 
 integer, intent(out) :: totits
 real, intent(out) :: maxglobseta, maxglobip
-real, intent(in) :: minwater
 real, dimension(ifull), intent(in) :: xps
 real, dimension(ifull+iextra), intent(inout) :: neta, ipice
 real, dimension(ifull+iextra), intent(in) :: ipmax

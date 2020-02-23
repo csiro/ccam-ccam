@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -93,7 +93,6 @@ integer k, j, tt, ttx, kinv, smins
 real, dimension(imax,ilev) :: loxidantnow
 real, dimension(imax,kl,naero) :: lxtg, lxtosav
 real, dimension(imax,kl,4) :: lzoxidant
-real, dimension(imax,kl,2) :: lssn
 real, dimension(imax,kl) :: lt, lqg, lqlg, lqfg, lstratcloud
 real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfsubl, lpplambs
 real, dimension(imax,kl) :: lppmrate, lppmaccr, lppfstayice, lppqfsedice
@@ -171,15 +170,15 @@ end do
 !$omp private(k,zg,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                             &
 !$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),             &
 !$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
-!$omp private(lxtosav,ldust_burden,lerod,lssn,ldustwd,lemissfield,lclcon)
-!$acc parallel copy(xtg,ssn,duste,dustdd,dustwd,dust_burden,so4t,dmsso2o,so2so4o,bc_burden,oc_burden, &
+!$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon)
+!$acc parallel copy(xtg,duste,dustdd,dustwd,dust_burden,so4t,dmsso2o,so2so4o,bc_burden,oc_burden,     &
 !$acc   dms_burden,so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd,so4dd,    &
-!$acc   bcdd,ocdd)                                                                                    &
+!$acc   bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                                    &
 !$acc copyin(zoxidant_g,xtosav,emissfield,erod,t,qg,qlg,qfg,stratcloud,ppfprec,ppfmelt,ppfsnow,       &
 !$acc   ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,                      &
 !$acc   clcon,bet,betm,dsig,sig,ps,kbsav,ktsav,wetfac,pblh,tss,condc,snowd,taudar,fg,eg,u10,ustar,    &
 !$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2)
-!$acc loop gang private(lzoxidant,lxtg,lxtosav,lssn,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,  &
+!$acc loop gang private(lzoxidant,lxtg,lxtosav,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,       &
 !$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,              &
 !$acc   lppmrate,lppmaccr,lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lclcon,zg,dz,rhoa,              &
 !$acc   wg,pccw)
@@ -193,7 +192,6 @@ do tile = 1,ntiles
   lzoxidant(:,:,1:4) = zoxidant_g(is:ie,:,1:4)
   lxtg               = xtg(is:ie,:,:)
   lxtosav            = xtosav(is:ie,:,:)
-  lssn               = ssn(is:ie,:,:)
   lduste             = duste(is:ie,:)
   ldustdd            = dustdd(is:ie,:)
   ldustwd            = dustwd(is:ie,:)
@@ -262,11 +260,13 @@ do tile = 1,ntiles
                 lxtosav,dmsso2o(is:ie),so2so4o(is:ie),                 &
                 ldust_burden,bc_burden(is:ie),oc_burden(is:ie),        &
                 dms_burden(is:ie),so2_burden(is:ie),so4_burden(is:ie), &
-                lerod,lssn,lzoxidant,so2wd(is:ie),so4wd(is:ie),        &
+                lerod,lzoxidant,so2wd(is:ie),so4wd(is:ie),             &
                 bcwd(is:ie),ocwd(is:ie),ldustwd,lemissfield,           &
                 vso2(is:ie),dmse(is:ie),so2e(is:ie),so4e(is:ie),       &
                 bce(is:ie),oce(is:ie),so2dd(is:ie),so4dd(is:ie),       &
-                bcdd(is:ie),ocdd(is:ie),dustden,dustreff,imax,kl)
+                bcdd(is:ie),ocdd(is:ie),salte(is:ie),saltdd(is:ie),    &
+                saltwd(is:ie),salt_burden(is:ie),dustden,dustreff,     &
+                imax,kl)
 
   ! MJT notes - passing dustden and dustreff due to issues with pgi compiler
   
@@ -278,7 +278,6 @@ do tile = 1,ntiles
   enddo
    
   xtg(is:ie,:,:)       = lxtg
-  ssn(is:ie,:,:)       = lssn
   duste(is:ie,:)       = lduste
   dustdd(is:ie,:)      = ldustdd
   dustwd(is:ie,:)      = ldustwd
@@ -304,8 +303,8 @@ do tile = 1,ntiles
     write(6,*) "dust1.0diag ",xtg(idjd,:,9)
     write(6,*) "dust2.0diag ",xtg(idjd,:,10)
     write(6,*) "dust4.0diag ",xtg(idjd,:,11)
-    write(6,*) "saltfilmdiag ",ssn(idjd,:,1)
-    write(6,*) "saltjetdiag  ",ssn(idjd,:,2)
+    write(6,*) "saltfilmdiag ",xtg(idjd,:,12)
+    write(6,*) "saltjetdiag  ",xtg(idjd,:,13)
   end if
 #endif
   
