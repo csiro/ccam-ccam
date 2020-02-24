@@ -2082,8 +2082,7 @@ implicit none
 
 integer, intent(in) :: wfull
 integer, intent(in) :: diag
-integer ii, iqw, i
-integer :: step
+integer ii, iqw
 real, intent(in) :: dt
 real, dimension(wfull,wlev), intent(inout) :: km, ks
 real, dimension(wfull,wlev), intent(inout) :: k, eps
@@ -2122,7 +2121,7 @@ select case(oclosure)
     ! k-e  
     km = 0.
     ks = 0.
-    call keps(km,ks,k,eps,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull)
+    call keps(km,ks,k,eps,d_ustar,depth,dgwater,water,d_rho,dt,wfull)
   case default
     ! kpp
     call getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr, &
@@ -2314,7 +2313,8 @@ call mlocheck("MLO-mixing",water_temp=water%temp)
 return
 end subroutine mlocalc
 
-subroutine keps(km_out,ks_out,k_out,eps_out,d_ustar,d_zcr,depth,dgwater,water,d_rho,dt,wfull)
+subroutine keps(km_out,ks_out,k_out,eps_out,d_ustar,depth,dgwater,water,d_rho,dt,wfull)
+
 implicit none
 
 integer, intent(in) :: wfull
@@ -2323,7 +2323,6 @@ real, dimension(wfull,wlev), intent(inout) :: ks_out
 real, dimension(wfull,wlev), intent(inout) :: k_out
 real, dimension(wfull,wlev), intent(inout) :: eps_out
 real, dimension(wfull), intent(in) :: d_ustar
-real, dimension(wfull), intent(in) :: d_zcr
 type(dgwaterdata), intent(in) :: dgwater
 type(waterdata), intent(in) :: water
 type(depthdata), intent(in) :: depth
@@ -3005,7 +3004,6 @@ subroutine getrho(atm_ps,d_rho,d_alpha,d_beta,depth,ice,water,wfull)
 
 implicit none
 
-integer ii
 integer, intent(in) :: wfull
 real, dimension(wfull) :: rho0,pxtr
 real, dimension(wfull,wlev), intent(inout) :: d_rho,d_alpha,d_beta
@@ -3223,7 +3221,6 @@ pure subroutine calcmelt(d_timelt,water,wfull)
 
 implicit none
 
-integer iqw,ii
 integer, intent(in) :: wfull
 real, dimension(wfull), intent(out) :: d_timelt
 type(waterdata), intent(in) :: water
@@ -3493,7 +3490,6 @@ subroutine mloice(dt,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_f
 implicit none
 
 integer, intent(in) :: diag
-integer ii
 integer, intent(in) :: wfull
 integer, dimension(wfull), intent(inout) :: d_nk
 real, intent(in) :: dt
@@ -3505,7 +3501,7 @@ type(icedata), intent(inout) :: ice
 type(waterdata), intent(in) :: water
 type(depthdata), intent(in) :: depth
 real, dimension(wfull) :: d_salflx, d_wavail
-real, dimension(wfull) :: deld, xxx
+real, dimension(wfull) :: xxx
 
 if (diag>=1) write(6,*) "Update ice thermodynamic model"
 
@@ -3553,7 +3549,7 @@ integer, intent(in) :: diag
 integer iqw, ii, maxlevel
 real aa, bb, dsf, deldz, delt
 real, dimension(wfull,wlev) :: sdic
-real, dimension(wfull) :: newdic, newicesal, cdic
+real, dimension(wfull) :: newdic, cdic
 real, dimension(wfull), intent(inout) :: d_timelt, d_zcr
 type(icedata), intent(inout) :: ice
 type(waterdata), intent(inout) :: water
@@ -4531,7 +4527,7 @@ real, intent(in) :: dt
 real, dimension(wfull) :: qsat,dqdt,ri,rho,srcp,tnew,qsatnew,gamm,bot
 real, dimension(wfull) :: fm,fh,fq,af,aft,afq
 real, dimension(wfull) :: den,sig,root
-real, dimension(wfull) :: alb,qmax,eye
+real, dimension(wfull) :: alb,eye
 real, dimension(wfull) :: uu,vv,du,dv,vmagn,icemagn
 real, dimension(wfull) :: ustar,g,h,dgu,dgv,dhu,dhv,det
 real, dimension(wfull) :: newiu,newiv,dtsurf

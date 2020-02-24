@@ -204,7 +204,7 @@ do tile = 1,ntiles
                     lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl,           &
                     lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
                     ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-                    ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),idjd_t,mydiag_t,is,        &
+                    ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),idjd_t,mydiag_t,           &
                     ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,imax,kl)
 
   cfrac(is:ie,:) = lcfrac
@@ -253,7 +253,7 @@ subroutine leoncld_work(cfrac,condg,conds,condx,gfrac,kbsav,ktsav,land,         
                         ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,ppfstayliq,ppfsubl,  &
                         pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,precip,    &
                         ps,qccon,qfg,qfrad,qg,qgrg,qlg,qlrad,qrg,qsng,rfrac,sfrac,t,    &
-                        dpsldt,nettend,stratcloud,clcon,cdrop,em,idjd,mydiag,is,        &
+                        dpsldt,nettend,stratcloud,clcon,cdrop,em,idjd,mydiag,           &
                         ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,imax,kl)
 !$acc routine vector
 
@@ -265,7 +265,7 @@ use sigs_m                        ! Atmosphere sigma levels
 
 implicit none
 
-integer, intent(in) :: idjd, is, ncloud, nclddia, nevapls, ldr
+integer, intent(in) :: idjd, ncloud, nclddia, nevapls, ldr
 integer, intent(in) :: imax, kl
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
@@ -424,7 +424,7 @@ endif
 
 
 !     Calculate cloud fraction and cloud water mixing ratios
-call newcloud(dt,land,prf,rhoa,cdrop,tenv,qenv,qlg,qfg, &
+call newcloud(dt,land,prf,rhoa,tenv,qenv,qlg,qfg,       &
               dpsldt,nettend,stratcloud,em,idjd,mydiag, &
               ncloud,nclddia,rcrit_l,rcrit_s,imax,kl)
 
@@ -676,7 +676,7 @@ end subroutine leoncld_work
 ! 
 !******************************************************************************
 
- subroutine newcloud(tdt,land,prf,rhoa,cdrop,ttg,qtg,qlg,qfg,  &
+ subroutine newcloud(tdt,land,prf,rhoa,ttg,qtg,qlg,qfg,        &
                      dpsldt,nettend,stratcloud,em,idjd,mydiag, &
                      ncloud,nclddia,rcrit_l,rcrit_s,imax,kl)
 !$acc routine vector
@@ -695,7 +695,6 @@ integer, intent(in) :: idjd, ncloud, nclddia
 integer, intent(in) :: imax, kl
 real, dimension(imax,kl), intent(in) :: prf
 real, dimension(imax,kl), intent(in) :: rhoa
-real, dimension(imax,kl), intent(in) :: cdrop
 real, dimension(imax,kl), intent(inout) :: ttg
 real, dimension(imax,kl), intent(inout) :: qtg
 real, dimension(imax,kl), intent(inout) :: qlg

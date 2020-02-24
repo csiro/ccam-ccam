@@ -98,7 +98,7 @@ real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfsubl, lpplambs
 real, dimension(imax,kl) :: lppmrate, lppmaccr, lppfstayice, lppqfsedice
 real, dimension(imax,kl) :: lpprscav, lpprfreeze
 real, dimension(imax,kl) :: lclcon
-real, dimension(imax,kl) :: zg, dz, rhoa, pccw
+real, dimension(imax,kl) :: dz, rhoa, pccw
 real, dimension(imax,ndust) :: lduste, ldustdd, ldust_burden, ldustwd
 real, dimension(imax,ndcls) :: lerod
 real, dimension(imax,15) :: lemissfield
@@ -167,7 +167,7 @@ end do
 !$omp end do nowait    
     
 !$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                              &
-!$omp private(k,zg,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                             &
+!$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                                &
 !$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),             &
 !$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
 !$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon)
@@ -180,7 +180,7 @@ end do
 !$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2)
 !$acc loop gang private(lzoxidant,lxtg,lxtosav,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,       &
 !$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,              &
-!$acc   lppmrate,lppmaccr,lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lclcon,zg,dz,rhoa,              &
+!$acc   lppmrate,lppmaccr,lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lclcon,dz,rhoa,                 &
 !$acc   wg,pccw)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -216,10 +216,10 @@ do tile = 1,ntiles
   lpprfreeze         = pprfreeze(is:ie,:)
   lclcon             = clcon(is:ie,:)
 
-  zg(:,1) = bet(1)*lt(:,1)/grav
-  do k = 2,kl
-    zg(:,k) = zg(:,k-1) + (bet(k)*lt(:,k)+betm(k)*lt(:,k-1))/grav ! height above surface in meters
-  end do
+  !zg(:,1) = bet(1)*lt(:,1)/grav
+  !do k = 2,kl
+  !  zg(:,k) = zg(:,k-1) + (bet(k)*lt(:,k)+betm(k)*lt(:,k-1))/grav ! height above surface in meters
+  !end do
   do k = 1,kl
     dz(:,k) = -rdry*dsig(k)*lt(:,k)/(grav*sig(k))
     dz(:,k) = min( max( dz(:,k), 1. ), 2.e4 )
@@ -248,7 +248,7 @@ do tile = 1,ntiles
   ! better estimate of u10 and pblh.
 
   ! update prognostic aerosols
-  call aldrcalc(dt,sig,zg,dz,wg,pblh(is:ie),ps(is:ie),tss(is:ie),      &
+  call aldrcalc(dt,sig,dz,wg,pblh(is:ie),ps(is:ie),tss(is:ie),         &
                 lt,condc(is:ie),snowd(is:ie),taudar(is:ie),fg(is:ie),  &
                 eg(is:ie),u10(is:ie),ustar(is:ie),zo(is:ie),           &
                 land(is:ie),fracice(is:ie),sigmf(is:ie),lqg,lqlg,lqfg, &

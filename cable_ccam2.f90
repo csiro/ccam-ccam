@@ -570,7 +570,7 @@ rough%za_uv    = rough%za_tq
 rad%fbeam(:,3) = 0._8            ! dummy for now
 
 ! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
-call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp,sv,vl1,vl2,vl3,vl4,casamet,veg,imax,tind,tmap,maxnb)
+call setlai(sigmf,jmonth,jday,jhour,jmin,mp,sv,vl1,vl2,vl3,vl4,casamet,veg,imax,tind,tmap,maxnb)
 
 ! Calculate vcmax
 call vcmax_feedback(casabiome,casamet,casapool,veg,climate,ktau)
@@ -679,7 +679,7 @@ end if
 
 !--------------------------------------------------------------
 ! CABLE CLIMATE
-call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,air,ssnow,veg, &
+call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,ssnow,veg, &
                   climate_save,npercasa,ktau)
 
 !--------------------------------------------------------------
@@ -1107,7 +1107,7 @@ return
 end subroutine cbmemiss_work
 
 ! *************************************************************************************
-subroutine setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp,sv,vl1,vl2,vl3,vl4,casamet,veg,imax,tind,tmap,maxnb)
+subroutine setlai(sigmf,jmonth,jday,jhour,jmin,mp,sv,vl1,vl2,vl3,vl4,casamet,veg,imax,tind,tmap,maxnb)
 
 use cc_mpi
 use dates_m
@@ -1116,7 +1116,7 @@ use parm_m
 
 implicit none
   
-integer, intent(in) :: jyear,jmonth,jday,jhour,jmin,mp
+integer, intent(in) :: jmonth,jday,jhour,jmin,mp
 integer, intent(in) :: imax
 integer, optional :: maxnb
 integer monthstart, nb, is, ie
@@ -1562,7 +1562,7 @@ end subroutine POPdriver
 
 ! *************************************************************************************
 ! track climate feedback into CABLE
-subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,air,ssnow,veg, &
+subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,ssnow,veg, &
                         climate_save,npercasa,ktau)
 
 use parm_m, only : dt, nperhr
@@ -1579,7 +1579,6 @@ type(canopy_type), intent(in) :: canopy
 type(climate_type), intent(inout) :: climate
 type(met_type), intent(in) :: met
 type(radiation_type), intent(inout) :: rad
-type(air_type), intent(inout) :: air
 type(soil_snow_type), intent(in) :: ssnow
 type(veg_parameter_type), intent(in) :: veg
 type(climate_save_type), intent(in) :: climate_save 
@@ -3218,7 +3217,7 @@ if ( mp_global>0 ) then
   ! Calculate LAI and veg fraction diagnostics
   ! (needs to occur after CASA-CNP in case prognostic LAI is required)
   call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-  call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp_global,sv,vl1,vl2,vl3,vl4,casamet,veg,ifull)
+  call setlai(sigmf,jmonth,jday,jhour,jmin,mp_global,sv,vl1,vl2,vl3,vl4,casamet,veg,ifull)
   vlai(:) = 0.
   dummy_unpack(1:mp_global) = sv(1:mp_global)*real(veg%vlai(1:mp_global))
   call cable_unpack(dummy_unpack,vlai)
@@ -6319,7 +6318,7 @@ vlai(:) = 0.
 sigmf(:) = 0.
 if ( mp_global>0 ) then
   call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-  call setlai(sigmf,jyear,jmonth,jday,jhour,jmin,mp_global,sv,vl1,vl2,vl3,vl4,casamet,veg,ifull)
+  call setlai(sigmf,jmonth,jday,jhour,jmin,mp_global,sv,vl1,vl2,vl3,vl4,casamet,veg,ifull)
   dummy_unpack = sv*real(veg%vlai)
   call cable_unpack(dummy_unpack,vlai)
 end if

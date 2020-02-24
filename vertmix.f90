@@ -293,7 +293,7 @@ select case(nvmix)
     
       call vertmix_work(lt,tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),               &
                         ps(is:ie),lqg,lqfg,lqlg,lstratcloud,                                                       &
-                        condc(is:ie),lcfrac,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),zo(is:ie),lsavu,lsavv,land(is:ie),  &
+                        condc(is:ie),lcfrac,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),lsavu,lsavv,land(is:ie),            &
                         tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),                   &
                         lat,lct,                                                                                   &
 #ifdef scm
@@ -373,7 +373,7 @@ end subroutine vertmix
 !--------------------------------------------------------------
 ! Control subroutine for vertical mixing
 subroutine vertmix_work(t,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,stratcloud,condc,cfrac, &
-                        xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,     &
+                        xtg,cduv,u,v,pblh,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,        &
                         at,ct,                                                                 &
 #ifdef scm
                         wth_flux,wq_flux,uw_flux,vw_flux,mfsave,rkmsave,rkhsave,               &
@@ -418,7 +418,7 @@ real, dimension(imax,kl), intent(out) :: at, ct
 real, dimension(imax,kl), intent(in) :: savu, savv
 real, dimension(imax), intent(inout) :: pblh, ustar
 real, dimension(imax), intent(in) :: tss, eg, fg, convpsav, ps, condc
-real, dimension(imax), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs
+real, dimension(imax), intent(in) :: cduv, tscrn, qgscrn, f, condx, zs
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, guv, gt
 real, dimension(imax,kl) :: au, cu

@@ -333,7 +333,7 @@ end subroutine aldrloaderod
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Main routine
 
-subroutine aldrcalc(dt,sig,zz,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,                 &
+subroutine aldrcalc(dt,sig,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,                    &
                     ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,stratcloud,clcon,cldcon,pccw,rhoa,vt, &
                     pfprec,pfmelt,pfsnow,pfsubl,plambs,pmrate,pmaccr,pfstayice,                    &
                     pqfsedice,prscav,prfreeze,zdayfac,kbsav,xtg,duste,dustdd,xtosav,               &
@@ -365,8 +365,7 @@ real, dimension(imax), intent(in) :: fracice   ! Sea-ice fraction
 real, dimension(imax), intent(in) :: tsigmf    ! Vegetation fraction
 real, dimension(imax), intent(in) :: vt        ! transfer velocity
 real, dimension(imax), intent(in) :: zdayfac   ! scale factor for day length
-real, dimension(imax,kl), intent(in) :: zz     ! Height of vertical level (meters)
-real, dimension(imax,kl), intent(in) :: dz
+real, dimension(imax,kl), intent(in) :: dz     ! thickness of vertical levels (m)
 real, dimension(imax,kl), intent(in) :: ttg    ! Air temperature
 real, dimension(imax,kl), intent(in) :: qvg    ! liquid water mixing ratio
 real, dimension(imax,kl), intent(in) :: qlg    ! liquid water mixing ratio
@@ -560,7 +559,7 @@ end if
 #endif
 
 ! Calculate dust emission and turbulent dry deposition at the surface
-call seasaltem(dt,veff,vt,wg,rhoa(:,1),dz(:,1),salte,xtg,saltreff,land,imax,kl)
+call seasaltem(dt,veff,vt,rhoa(:,1),dz(:,1),salte,xtg,saltreff,land,imax,kl)
 #ifdef debugaero
 if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
   write(6,*) "xtg out-of-range after seasaltem"
@@ -2527,7 +2526,7 @@ end subroutine ssettling
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! sea salt emissions
-subroutine seasaltem(tdt,v10m,vt,wg,rhoa,dz1,salte,xtg,saltreff,land,imax,kl)
+subroutine seasaltem(tdt,v10m,vt,rhoa,dz1,salte,xtg,saltreff,land,imax,kl)
 !$acc routine vector
 
 implicit none
@@ -2539,21 +2538,20 @@ real, dimension(imax), intent(in) :: v10m    ! 10m wind speed
 real, dimension(imax), intent(in) :: vt      ! transfer velocity
 real, dimension(imax), intent(in) :: dz1     ! layer thickness
 real, dimension(imax), intent(in) :: rhoa    ! air density
-real, dimension(imax), intent(in) :: wg
 real, dimension(imax), intent(inout) :: salte
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax) :: wu10, dfdd, df0dd, a, b, veff, diam
-real, dimension(imax) :: ftw, fsw, airden
+real, dimension(imax) :: ftw, fsw
 real, dimension(nsalt) :: mtnfactor
 real, dimension(nsalt), intent(in) :: saltreff
-real, dimension(nsalt), parameter :: saltrange = (/ 0.4e-6, 7.5e-6 /) ! 0.1-0.5um and 0.5-8um
+real, dimension(nsalt), parameter :: saltrange = (/ 0.4e-6, 3.5e-6 /) ! 0.1-0.5um and 0.5-4um
 logical, dimension(imax), intent(in) :: land
 
 ! Follows Sofiev et al 2011 for emissions
 wu10 = 3.84e-6*v10m**3.41
 
 !g = grav*1.e2
-airden = rhoa*1.e-3
+!airden = rhoa*1.e-3
 
 mtnfactor(1) = saltsmallmtn
 mtnfactor(2) = saltlargemtn

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -88,7 +88,6 @@ integer, dimension(0:13) :: mdays
 integer idjd_g, iq, k
 integer, save :: iyr, imo, iday
 integer, parameter :: curr_month = 3 ! centre of 5-points
-integer, parameter :: mlotime = 6 ! scale-select period in hours
 
 if ( .not.allocated(ssta) ) then
   if ( myid==0 ) then
@@ -613,7 +612,7 @@ integer, parameter :: nrhead = 14
 integer, intent(in) :: iyr, imo, idjd_g
 integer imonth, iyear, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
 integer varid, ncidx, iarchx, maxarchi, iernc, lsmid
-integer varid_date, varid_time, varid_timer
+integer varid_time
 integer mtimer_r, kdate_r, ktime_r
 integer kdate_rsav, ktime_rsav
 integer iq, mm
@@ -634,10 +633,7 @@ real of, sc
 real timer_r
 real, dimension(:), allocatable :: axs_a, ays_a, azs_a
 real, dimension(:), allocatable :: bxs_a, bys_a, bzs_a
-real, dimension(:), allocatable :: axs_w, ays_w, azs_w
-real, dimension(:), allocatable :: bxs_w, bys_w, bzs_w 
 real, dimension(:), allocatable :: wts_a
-real, dimension(:), allocatable :: lsm_a
 real(kind=8), dimension(:,:), pointer :: xx4, yy4
 real(kind=8), dimension(:,:), allocatable, target :: xx4_dummy, yy4_dummy
 real(kind=8), dimension(:), pointer :: z_a, x_a, y_a

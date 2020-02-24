@@ -1126,6 +1126,9 @@ real :: liqparm
 logical :: do_brenguier   ! Adjust effective radius for vertically stratified cloud
 real :: scale_factor      ! account for the plane-parallel homogenous cloud bias  (e.g. Cahalan effect)
 
+scale_factor = 1.
+liqparm = -0.003e-6
+do_brenguier = .false.
 
 rhoa(:,:) = prf(:,:)/(rdry*ttg(:,:))
 

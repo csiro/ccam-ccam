@@ -879,12 +879,11 @@ use work3_m                        ! Mk3 land-surface diagnostic arrays
 implicit none
 
 integer tile, is, ie, k
-real, dimension(imax) :: loldu1, loldv1
 real, dimension(imax) :: lwatbdy
 logical, dimension(imax) :: loutflowmask
 
 !$omp do schedule(static) private(is,ie,k),                                         &
-!$omp private(loldu1,loldv1,lwatbdy,loutflowmask)
+!$omp private(lwatbdy,loutflowmask)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -893,10 +892,6 @@ do tile = 1,ntiles
     lwatbdy      = watbdy(is:ie)
     loutflowmask = outflowmask(is:ie)
   end if
-  if ( abs(nmlo)>=3 ) then
-    loldu1 = oldu1(is:ie,1)
-    loldv1 = oldv1(is:ie,1)
-  end if
   
   call sflux_mlo_work(ri(is:ie),srcp,vmag(is:ie),ri_max,bprm,chs,ztv,chnsea,rho(is:ie),azmin(is:ie),     &
                       uav(is:ie),vav(is:ie),                                                             &
@@ -904,7 +899,7 @@ do tile = 1,ntiles
                       swrsave(is:ie),fbeamvis(is:ie),fbeamnir(is:ie),taux(is:ie),tauy(is:ie),            &
                       ustar(is:ie),f(is:ie),water_g(tile),wpack_g(:,tile),wfull_g(tile),depth_g(tile),   &
                       dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),ice_g(tile),                          &
-                      loldu1,loldv1,tpan(is:ie),epan(is:ie),rnet(is:ie),condx(is:ie),                    &
+                      tpan(is:ie),epan(is:ie),rnet(is:ie),condx(is:ie),                                  &
                       conds(is:ie),condg(is:ie),fg(is:ie),eg(is:ie),epot(is:ie),                         &
                       tss(is:ie),cduv(is:ie),cdtq(is:ie),lwatbdy,loutflowmask,land(is:ie),               &
                       fracice(is:ie),sicedep(is:ie),snowd(is:ie),sno(is:ie),grpl(is:ie),qsttg(is:ie),    &
@@ -934,7 +929,7 @@ end subroutine sflux_mlo
 subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,      &
                           ps,t,qg,sgdn,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy, &
                           ustar,f,water,wpack,wfull,depth,dgice,dgscrn,dgwater,ice,       &
-                          oldu1,oldv1,tpan,epan,rnet,condx,conds,condg,fg,eg,epot,        &
+                          tpan,epan,rnet,condx,conds,condg,fg,eg,epot,                    &
                           tss,cduv,cdtq,watbdy,outflowmask,land,                          &
                           fracice,sicedep,snowd,sno,grpl,qsttg,vmod,zo,wetfac,            &
                           zoh,zoq,theta,ga,turb)
@@ -958,7 +953,6 @@ integer, intent(in) :: wfull
 real root, denha, esatf
 real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
 real, dimension(imax), intent(in) :: t, qg
-real, dimension(imax), intent(in) :: oldu1, oldv1
 real, dimension(imax), intent(inout) :: ri, taux, tauy, ustar, tpan, epan, rnet
 real, dimension(imax), intent(inout) :: fg, eg, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
 real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh, zoq, ga
@@ -1083,7 +1077,6 @@ use parm_m                         ! Model configuration
 use parmgeom_m                     ! Coordinate data
 use pbl_m                          ! Boundary layer arrays
 use raddiag_m                      ! Radiation diagnostic
-use soil_m, only : land            ! Soil and surface data
 use soilsnow_m                     ! Soil, snow and surface data
 use vecsuv_m                       ! Map to cartesian coordinates
 use work2_m                        ! Diagnostic arrays
@@ -1115,13 +1108,13 @@ do tile=1,ntiles
     lvmer= sinth*uav(is:ie)+costh*vav(is:ie)  ! meridonal wind
 #endif
 
-  call sflux_urban_work(azmin(is:ie),uav(is:ie),vav(is:ie),oldrunoff(is:ie),rho(is:ie),vmag(is:ie),                  &
+  call sflux_urban_work(azmin(is:ie),oldrunoff(is:ie),rho(is:ie),vmag(is:ie),                                        &
                         oldsnowmelt(is:ie),f_g(tile),                                                                &
                         f_intm(tile),f_road(tile),f_roof(tile),f_slab(tile),f_wall(tile),intm_g(:,tile),p_g(:,tile), &
                         rdhyd_g(:,tile),rfhyd_g(:,tile),rfveg_g(tile),road_g(:,tile),roof_g(:,tile),room_g(:,tile),  &
                         slab_g(:,tile),walle_g(:,tile),wallw_g(:,tile),cnveg_g(tile),intl_g(tile),                   &
                         luzon,lvmer,cdtq(is:ie),cduv(is:ie),conds(is:ie),                                            &
-                        condg(is:ie),condx(is:ie),eg(is:ie),fg(is:ie),land(is:ie),ps(is:ie),qg(is:ie,1),             &
+                        condg(is:ie),condx(is:ie),eg(is:ie),fg(is:ie),ps(is:ie),qg(is:ie,1),                         &
                         qsttg(is:ie),rgsave(is:ie),rnet(is:ie),runoff(is:ie),sgdn(is:ie),sgsave(is:ie),              &
                         snowmelt(is:ie),t(is:ie,1),taux(is:ie),tauy(is:ie),tss(is:ie),u(is:ie,1),                    &
                         ustar(is:ie),v(is:ie,1),vmod(is:ie),wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),           &
@@ -1136,10 +1129,10 @@ end do
 return
 end subroutine sflux_urban
 
-subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,              &
+subroutine sflux_urban_work(azmin,oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,              &
                             fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl, &
                             uzon,vmer,cdtq,cduv,                                                                  &
-                            conds,condg,condx,eg,fg,land,ps,qg,qsttg,rgsave,rnet,runoff,sgdn,sgsave,snowmelt,     &
+                            conds,condg,condx,eg,fg,ps,qg,qsttg,rgsave,rnet,runoff,sgdn,sgsave,snowmelt,          &
                             t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,                                     &
                             anthropogenic_flux,urban_ts,urban_wetfac,urban_zom,urban_zoh,urban_zoq,urban_emiss,   &
                             urban_storage_flux,urban_elecgas_flux,urban_heating_flux,urban_cooling_flux,          &
@@ -1163,7 +1156,7 @@ real, dimension(imax) :: newsnowmelt
 real, dimension(imax) :: u_fg, u_eg, u_rn
 real, dimension(imax) :: zo_work, zoh_work, zoq_work, u_sigma
 real, dimension(imax) :: cduv_work, cdtq_work
-real, dimension(imax), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
+real, dimension(imax), intent(in) :: azmin, oldrunoff, rho, vmag, oldsnowmelt
 real, dimension(imax), intent(inout) :: anthropogenic_flux, urban_ts, urban_wetfac
 real, dimension(imax), intent(inout) :: urban_zom, urban_zoh, urban_zoq, urban_emiss
 real, dimension(imax), intent(inout) :: urban_storage_flux,urban_elecgas_flux
@@ -1176,7 +1169,7 @@ real, dimension(imax), intent(inout) :: rnet, runoff, snowmelt
 real, dimension(imax), intent(inout) :: taux, tauy, tss, ustar, wetfac
 real, dimension(imax), intent(inout) :: zo, zoh, zoq
 real, dimension(imax), intent(in) :: qg, t, u, v
-logical, dimension(imax), intent(in) :: land, upack
+logical, dimension(imax), intent(in) :: upack
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
 type(hydrodata), dimension(nfrac), intent(inout) :: rdhyd, rfhyd
 type(vegdata), intent(inout) :: rfveg, cnveg
