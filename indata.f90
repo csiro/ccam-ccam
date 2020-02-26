@@ -714,11 +714,11 @@ if ( nsib>=1 ) then   !  check here for soil & veg mismatches
 endif      ! (nsib>=1)
 
 
-! Fix for inland water bodies
+! Fix for inland water bodies (in case of changes to isoilm)
 where ( isoilm>0 )
   isoilm_in = isoilm
 elsewhere
-  isoilm_in = min(isoilm, 0)
+  isoilm_in = min(isoilm, isoilm_in) ! preserve isoilm_in=-1 if still water
 end where
 
 
@@ -1675,27 +1675,25 @@ end if ! ( .not.lrestart )
 if(nspecial==34)then      ! test for Andy Pitman & Faye
   tgg(1:ifull,6)=tgg(1:ifull,6)+.1
 endif
-#ifdef caispecial
-! for CAI experiment
-if (nspecial==42) then
-  call caispecial
-endif 
-if (nspecial==43) then
-  call caispecial
-  do iq=1,ifull
-    rlongd=rlongg(iq)*180./pi
-    rlatd=rlatt(iq)*180./pi
-    if (rlatd.ge.-6..and.rlatd.le.6.) then
-      if (rlongd.ge.180..and.rlongd.le.290.) then
-        if (.not.land(iq)) then
-          tgg(iq,1)=293.16
-          tss(iq)=293.16
-        end if
-      end if
-    end if
-  end do
-end if
-#endif 
+!! for CAI experiment
+!if (nspecial==42) then
+!  call caispecial
+!endif 
+!if (nspecial==43) then
+!  call caispecial
+!  do iq=1,ifull
+!    rlongd=rlongg(iq)*180./pi
+!    rlatd=rlatt(iq)*180./pi
+!    if (rlatd.ge.-6..and.rlatd.le.6.) then
+!      if (rlongd.ge.180..and.rlongd.le.290.) then
+!        if (.not.land(iq)) then
+!          tgg(iq,1)=293.16
+!          tss(iq)=293.16
+!        end if
+!      end if
+!    end if
+!  end do
+!end if
 if (nspecial==48.or.nspecial==49) then
   ! for Andrew Lenton SCOPEX geoengineering  
   do k = 1,kl
@@ -3079,79 +3077,77 @@ end subroutine cruf2
 !=======================================================================
 
 
-#ifdef caispecial
-!--------------------------------------------------------------
-! SPECIAL FUNCTION FOR SSTs
-subroutine caispecial
-      
-use cc_mpi
-use const_phys
-use infile
-use latlong_m
-use newmpar_m
-use pbl_m
-use soil_m
-use soilsnow_m
-      
-implicit none
-      
-integer iq,ix
-integer ncid,ncs,varid
-integer, dimension(3) :: spos,npos
-real x,r
-real, dimension(300) :: sdata,ldata
-logical tst
-      
-if (myid==0) then
-  write(6,*) "Reading nspecial=42 SSTs"
-  spos=1
-  call ccnf_open('sst_djf.cdf',ncid,ncs)
-  if (ncs/=0) then
-    write(6,*) "ERROR: Cannot open sst_djf.cdf"
-    call ccmpi_abort(-1)
-  end if
-  npos=1
-  npos(1)=300
-  call ccnf_inq_varid(ncid,'SST_DJF',varid,tst)
-  if (tst) then
-    write(6,*) "ERROR: Cannot read SST_DJF"
-    call ccmpi_abort(-1)
-  end if
-  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),sdata)
-  npos=1
-  npos(1)=300
-  call ccnf_inq_varid(ncid,'YT_OCEAN',varid,tst)
-  if (tst) then
-    write(6,*) "ERROR: Cannot read SST_DJF"
-    call ccmpi_abort(-1)
-  end if
-  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),ldata)
-  call ccnf_close(ncid)
-  sdata=sdata+273.16
-end if
-call ccmpi_bcast(sdata,0,comm_world)
-call ccmpi_bcast(ldata,0,comm_world)
-      
-do iq=1,ifull
-  if (.not.land(iq)) then
-    r=rlatt(iq)*180./pi
-    if (r.lt.ldata(2)) then
-      tss(iq)=sdata(2)
-    elseif (r.gt.ldata(300)) then
-      tss(iq)=sdata(300)
-    else
-      do ix=2,300
-        if (ldata(ix).gt.r) exit
-      end do
-      x=(r-ldata(ix))/(ldata(ix+1)-ldata(ix))
-      tss(iq)=(1.-x)*sdata(ix)+x*sdata(ix+1)
-    end if
-    tgg(iq,1)=tss(iq)
-  end if
-end do
-      
-return
-end subroutine caispecial
-#endif
+!!--------------------------------------------------------------
+!! SPECIAL FUNCTION FOR SSTs
+!subroutine caispecial
+!      
+!use cc_mpi
+!use const_phys
+!use infile
+!use latlong_m
+!use newmpar_m
+!use pbl_m
+!use soil_m
+!use soilsnow_m
+!      
+!implicit none
+!      
+!integer iq,ix
+!integer ncid,ncs,varid
+!integer, dimension(3) :: spos,npos
+!real x,r
+!real, dimension(300) :: sdata,ldata
+!logical tst
+!      
+!if (myid==0) then
+!  write(6,*) "Reading nspecial=42 SSTs"
+!  spos=1
+!  call ccnf_open('sst_djf.cdf',ncid,ncs)
+!  if (ncs/=0) then
+!    write(6,*) "ERROR: Cannot open sst_djf.cdf"
+!    call ccmpi_abort(-1)
+!  end if
+!  npos=1
+!  npos(1)=300
+!  call ccnf_inq_varid(ncid,'SST_DJF',varid,tst)
+!  if (tst) then
+!    write(6,*) "ERROR: Cannot read SST_DJF"
+!    call ccmpi_abort(-1)
+!  end if
+!  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),sdata)
+!  npos=1
+!  npos(1)=300
+!  call ccnf_inq_varid(ncid,'YT_OCEAN',varid,tst)
+!  if (tst) then
+!    write(6,*) "ERROR: Cannot read SST_DJF"
+!    call ccmpi_abort(-1)
+!  end if
+!  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),ldata)
+!  call ccnf_close(ncid)
+!  sdata=sdata+273.16
+!end if
+!call ccmpi_bcast(sdata,0,comm_world)
+!call ccmpi_bcast(ldata,0,comm_world)
+!      
+!do iq=1,ifull
+!  if (.not.land(iq)) then
+!    r=rlatt(iq)*180./pi
+!    if (r.lt.ldata(2)) then
+!      tss(iq)=sdata(2)
+!    elseif (r.gt.ldata(300)) then
+!      tss(iq)=sdata(300)
+!    else
+!      do ix=2,300
+!        if (ldata(ix).gt.r) exit
+!      end do
+!      x=(r-ldata(ix))/(ldata(ix+1)-ldata(ix))
+!      tss(iq)=(1.-x)*sdata(ix)+x*sdata(ix+1)
+!    end if
+!    tgg(iq,1)=tss(iq)
+!  end if
+!end do
+!      
+!return
+!end subroutine caispecial
 
 end module indata

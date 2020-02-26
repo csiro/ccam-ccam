@@ -1344,8 +1344,8 @@ if (nsib>=1) then
   zolnd(:) = 0.001
   vlai(:) = vlai_in
   ivegt(:) = ivegt_in
-  isoilm(:) = isoil_in
-  isoilm_in(:) = isoilm(:)
+  isoilm_in(:) = isoil_in
+  isoilm(:) = max( isoilm_n(:), 0 )
   if (nsib==6.or.nsib==7) then
     ! albvisnir at this point holds soil albedo for cable initialisation
     ivs(:,1) = ivegt(:)

@@ -108,6 +108,7 @@ real, dimension(ifull) :: taudar, cldcon
 real dhr, fjd, r1, dlt, alp, slag
 logical, intent(in) :: oxidant_update
 logical mydiag_t
+logical, dimension(imax) :: locean
 
 ! update prescribed oxidant fields
 if ( oxidant_update ) then
@@ -170,18 +171,18 @@ end do
 !$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                                &
 !$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),             &
 !$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
-!$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon)
+!$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean)
 !$acc parallel copy(xtg,duste,dustdd,dustwd,dust_burden,so4t,dmsso2o,so2so4o,bc_burden,oc_burden,     &
 !$acc   dms_burden,so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd,so4dd,    &
 !$acc   bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                                    &
 !$acc copyin(zoxidant_g,xtosav,emissfield,erod,t,qg,qlg,qfg,stratcloud,ppfprec,ppfmelt,ppfsnow,       &
 !$acc   ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,                      &
 !$acc   clcon,bet,betm,dsig,sig,ps,kbsav,ktsav,wetfac,pblh,tss,condc,snowd,taudar,fg,eg,u10,ustar,    &
-!$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2)
+!$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2,isoilm_in)
 !$acc loop gang private(lzoxidant,lxtg,lxtosav,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,       &
 !$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,              &
 !$acc   lppmrate,lppmaccr,lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lclcon,dz,rhoa,                 &
-!$acc   wg,pccw)
+!$acc   wg,pccw,locean)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -239,6 +240,8 @@ do tile = 1,ntiles
 
   ! Water converage at surface
   wg(:) = min( max( wetfac(is:ie), 0. ), 1. )
+  
+  locean = isoilm_in(is:ie) == 0 ! excludes lakes
 
 
   ! MJT notes - We have an option to update the aerosols before the vertical mixing
@@ -266,7 +269,7 @@ do tile = 1,ntiles
                 bce(is:ie),oce(is:ie),so2dd(is:ie),so4dd(is:ie),       &
                 bcdd(is:ie),ocdd(is:ie),salte(is:ie),saltdd(is:ie),    &
                 saltwd(is:ie),salt_burden(is:ie),dustden,dustreff,     &
-                imax,kl)
+                locean,imax,kl)
 
   ! MJT notes - passing dustden and dustreff due to issues with pgi compiler
   

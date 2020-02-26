@@ -340,7 +340,7 @@ subroutine aldrcalc(dt,sig,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m, 
                     dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,                    &
                     so2_burden,so4_burden,erod,zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,              &
                     emissfield,vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,salte,saltdd,     &
-                    saltwd,salt_burden,dustden,dustreff,imax,kl)
+                    saltwd,salt_burden,dustden,dustreff,locean,imax,kl)
 !$acc routine vector
 
 implicit none
@@ -380,7 +380,8 @@ real, dimension(imax,kl), intent(in) :: pfsubl, plambs, pmrate         ! from LD
 real, dimension(imax,kl), intent(in) :: pmaccr, pqfsedice, prscav      ! from LDR prog cloud
 real, dimension(imax,kl), intent(in) :: prfreeze                       ! from LDR prog cloud
 real, dimension(imax,kl), intent(in) :: pfstayice                      ! from LDR prog cloud
-logical, dimension(imax), intent(in) :: land   ! land/sea mask (t=land)
+logical, dimension(imax), intent(in) :: land   ! land/water mask (t=land).  Water includes lakes and ocean
+logical, dimension(imax), intent(in) :: locean ! sea mask without lakes (t=ocean)
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,ndust), intent(inout) :: duste
 real, dimension(imax,ndust), intent(inout) :: dustdd
@@ -540,9 +541,6 @@ if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
 end if
 #endif
 
-! Compute diagnostic sea salt aerosol
-!call seasalt(land,fracice,zz,pblh,veff,ssn,imax,kl)
-
 oldsalte = salte ! salte is cumulative salt emissions
 dcola = 0.
 do k = 1,nsalt
@@ -559,7 +557,7 @@ end if
 #endif
 
 ! Calculate dust emission and turbulent dry deposition at the surface
-call seasaltem(dt,veff,vt,rhoa(:,1),dz(:,1),salte,xtg,saltreff,land,imax,kl)
+call seasaltem(dt,veff,vt,rhoa(:,1),dz(:,1),salte,xtg,saltreff,locean,imax,kl)
 #ifdef debugaero
 if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
   write(6,*) "xtg out-of-range after seasaltem"
@@ -2526,7 +2524,7 @@ end subroutine ssettling
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! sea salt emissions
-subroutine seasaltem(tdt,v10m,vt,rhoa,dz1,salte,xtg,saltreff,land,imax,kl)
+subroutine seasaltem(tdt,v10m,vt,rhoa,dz1,salte,xtg,saltreff,locean,imax,kl)
 !$acc routine vector
 
 implicit none
@@ -2545,13 +2543,10 @@ real, dimension(imax) :: ftw, fsw
 real, dimension(nsalt) :: mtnfactor
 real, dimension(nsalt), intent(in) :: saltreff
 real, dimension(nsalt), parameter :: saltrange = (/ 0.4e-6, 3.5e-6 /) ! 0.1-0.5um and 0.5-4um
-logical, dimension(imax), intent(in) :: land
+logical, dimension(imax), intent(in) :: locean
 
 ! Follows Sofiev et al 2011 for emissions
 wu10 = 3.84e-6*v10m**3.41
-
-!g = grav*1.e2
-!airden = rhoa*1.e-3
 
 mtnfactor(1) = saltsmallmtn
 mtnfactor(2) = saltlargemtn
@@ -2575,7 +2570,7 @@ do n = 1,nsalt
   
   dfdd = wu10*df0dd*ftw*fsw  ! number/micro/m^2/s
   
-  where ( .not.land )
+  where ( locean )
     a = dfdd*2.*saltrange(n)*1.e6/(rhoa*dz1) ! number/kg/s
   elsewhere
     a = 0.
@@ -2584,14 +2579,6 @@ do n = 1,nsalt
   a = a/mtnfactor(n) ! kg/kg/s  
   
   salte = salte + a*rhoa*dz1 ! Diagnostic
-
-  
-  !den = saltden(n)*1.e-3
-  !diam = 2.*saltreff(n)*1.e2
-  !
-  !! Following is from Ginoux et al (2004) Env. Modelling & Software.
-  !!u_ts0 = 0.13*1.e-2*sqrt(den*g*diam/airden)*sqrt(1.+0.006/den/g/diam**2.5)/ &
-  !!        sqrt(1.928*(1331.*diam**1.56+0.38)**0.092-1.)
   
   ! Calculate turbulent dry deposition at surface
   veff = Vt

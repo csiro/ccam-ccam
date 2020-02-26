@@ -326,7 +326,7 @@ use morepbl_m                                  ! Additional boundary layer diagn
 use newmpar_m                                  ! Grid parameters
 use nharrs_m, only : phi_nh,lrestart,         &
     lrestart_radiation                         ! Non-hydrostatic atmosphere arrays
-use nsibd_m, only : isoilm,rsmin               ! Land-surface arrays
+use nsibd_m, only : isoilm,isoilm_in,rsmin     ! Land-surface arrays
 use parm_m                                     ! Model configuration
 use parmdyn_m                                  ! Dynamics parmaters
 use parmgeom_m                                 ! Coordinate data
@@ -1024,31 +1024,6 @@ else
 end if ! (tss_test .and. iop_test ) ..else..
 
 
-! to be depeciated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!if (nspecial==44.or.nspecial==46) then
-!  do iq=1,ifull
-!    rlongd=rlongg(iq)*180./pi
-!    rlatd=rlatt(iq)*180./pi
-!    if (rlatd>=-43..and.rlatd<=-30.) then
-!      if (rlongd>=155..and.rlongd<=170.) then
-!        tss(iq)=tss(iq)+1.
-!      end if
-!    end if
-!  end do
-!end if
-!if (nspecial==45.or.nspecial==46) then
-!  do iq=1,ifull
-!    rlongd=rlongg(iq)*180./pi
-!    rlatd=rlatt(iq)*180./pi
-!    if (rlatd>=-15..and.rlatd<=-5.) then
-!      if (rlongd>=150..and.rlongd<=170.) then
-!        tss(iq)=tss(iq)+1.
-!      end if
-!    end if
-!  end do
-!end if
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 ! -------------------------------------------------------------------
 ! read atmospheric fields for nested=0 or nested=1.and.nud/=0 or nested=3
 
@@ -1101,7 +1076,11 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     elsewhere
       mlodwn(1:ifull,k,1) = 275.16 - wrtemp
     end where
-    mlodwn(1:ifull,k,2) = 34.72 ! sal
+    where ( isoilm_in == 0 )
+      mlodwn(1:ifull,k,2) = 34.72 ! sal
+    elsewhere
+      mlodwn(1:ifull,k,2) = 0.    ! sal (freshwater)  
+    end where    
     mlodwn(1:ifull,k,3) = 0.    ! uoc
     mlodwn(1:ifull,k,4) = 0.    ! voc
     mlodwn(1:ifull,k,5) = 0.    ! km
