@@ -50,6 +50,8 @@ implicit none
 private
 public amipsst
 
+integer, save :: amip_mode = -1 ! 0=month (ASCII), 1=month (NetCDF), 2=day (NetCDF)
+integer, save :: ncidx          ! Netcdf
 integer, save :: ik
 integer, dimension(:,:), allocatable :: nface4
 real, dimension(:,:), allocatable :: xg4, yg4
@@ -57,6 +59,53 @@ real, dimension(:,:), allocatable :: xg4, yg4
 contains
     
 subroutine amipsst
+
+use cc_mpi                ! CC MPI routines
+use filnames_m            ! Filenames
+use infile                ! Input file routines
+
+implicit none
+
+integer iernc, varid_time
+real timer_a, timer_b
+
+if ( amip_mode==-1 ) then
+  if ( myid==0 ) then
+    call ccnf_open(sstfile,ncidx,iernc)
+    if ( iernc==0 ) then
+      call ccnf_inq_varid(ncidx,'time',varid_time)
+      call ccnf_get_vara(ncidx,varid_time,1,timer_a)
+      call ccnf_get_vara(ncidx,varid_time,2,timer_b)
+      if ( timer_b-timer_a <= 1440.01 ) then
+        write(6,*) "Found daily data in sstfile for AMIPSST"  
+        amip_mode = 2
+      else
+        write(6,*) "Found monthly data in sstfile for AMIPSST"  
+        amip_mode = 1
+      end if
+    else
+      write(6,*) "Assuming ASCII format monthly data for AMIPSST."
+      amip_mode = 0
+    end if    
+  end if
+  call ccmpi_bcast(amip_mode,0,comm_world)  
+end if
+
+select case(amip_mode)
+  case(0,1)
+    call amipsst_month
+  case(2)
+    call amipsst_day
+  case default
+    write(6,*) "ERROR: Cannot assign amip_mode to amipsst file"
+    write(6,*) "amip_mode = ",amip_mode
+    call ccmpi_abort(-1)
+end select
+
+return
+end subroutine amipsst
+    
+subroutine amipsst_month
 
 use arrays_m                                      ! Atmosphere dyamics prognostic arrays
 use cc_mpi                                        ! CC MPI routines
@@ -143,7 +192,7 @@ fraciceb = 0.
 if ( ktau==0 ) then
     
   if ( myid==0 ) then 
-    call amiprd(ssta,aice,asal,iyr,imo,idjd_g)
+    call amiprd_month(ssta,aice,asal,iyr,imo,idjd_g)
   else
     call ccmpi_distribute(ssta(:,1:5))
     if ( namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=13.and.namip<=15) .or. &
@@ -572,7 +621,7 @@ elseif ( ktau>0 ) then
   wgt = dt/real(nud_hrs*3600)
   call mloexport(0,old,1,0)
   delta = new - old
-  do k = 1,wlev
+  do k = 1,kbotmlo
     call mloexport(0,old,k,0)
     old = wgt*delta + old
     call mloimport(0,old,k,0)
@@ -587,10 +636,10 @@ end if ! if (nmlo==0) ..else..
 
 
 return
-end subroutine amipsst
+end subroutine amipsst_month
       
     
-subroutine amiprd(ssta,aice,asal,iyr,imo,idjd_g)
+subroutine amiprd_month(ssta,aice,asal,iyr,imo,idjd_g)
       
 use cc_mpi                ! CC MPI routines
 use const_phys            ! Physical constants
@@ -611,8 +660,7 @@ integer, parameter :: nrhead = 14
       
 integer, intent(in) :: iyr, imo, idjd_g
 integer imonth, iyear, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
-integer varid, ncidx, iarchx, maxarchi, iernc, lsmid
-integer varid_time
+integer varid, iarchx, maxarchi, iernc, lsmid, varid_time
 integer mtimer_r, kdate_r, ktime_r
 integer kdate_rsav, ktime_rsav
 integer iq, mm
@@ -649,8 +697,7 @@ aice = 0.
 asal = 0.
 
 ! check for netcdf file format
-call ccnf_open(sstfile,ncidx,iernc)
-if ( iernc==0 ) then
+if ( amip_mode==1 ) then
 
   iyr_m = iyr
   imo_m = imo
@@ -716,19 +763,27 @@ if ( iernc==0 ) then
     end do
     nullify( xx4, yy4 )
     deallocate( xx4_dummy, yy4_dummy )    
-  else
-    write(6,*) "No interpolation is required for AMIPSST"
-  end if
-
-  if ( interpolate ) then
     allocate( ssta_g(ik*ik*6,5), ssta_l(ifull_g,5), lsma_g(ik*ik*6) )
     lsma_g = .false.
     ssta_g = 0.
     ssta_l = 0.
+    call ccnf_inq_varid(ncidx,'lsm',lsmid,tst)
+    if ( tst ) then
+      write(6,*) "ERROR: Cannot locate lsm"
+      call ccmpi_abort(-1)
+    end if
+    npos(1) = ik
+    npos(2) = 6*ik
+    spos(1:2) = 1
+    allocate( lsmr_g(ik*ik*6) )  
+    call ccnf_get_vara(ncidx,lsmid,spos(1:2),npos(1:2),lsmr_g(:))
+    lsma_g = lsmr_g >= 0.5
+    deallocate( lsmr_g )
   else
+    write(6,*) "No interpolation is required for AMIPSST"
     allocate( ssta_g(ifull_g,5) )
     ssta_g = 0.
-  end if    
+  end if
   
   ! search for required month
   iarchx = 0
@@ -770,18 +825,7 @@ if ( iernc==0 ) then
   npos(2) = 6*ik
   npos(3) = 1    
   spos(1:2) = 1
-  spos(3) = max( iarchx - 2, 1 )
-  if ( interpolate ) then
-    call ccnf_inq_varid(ncidx,'lsm',lsmid,tst)
-    if ( tst ) then
-      write(6,*) "ERROR: Cannot locate lsm"
-      call ccmpi_abort(-1)
-    end if
-    allocate( lsmr_g(ik*ik*6) )  
-    call ccnf_get_vara(ncidx,lsmid,spos(1:2),npos(1:2),lsmr_g(:))
-    lsma_g = lsmr_g >= 0.5
-    deallocate( lsmr_g )
-  end if    
+  spos(3) = max( iarchx - 2, 1 )   
   if ( namip>=11 .or. namip<=15 ) then
     if ( spos(3)>iarchx-2 .and. myid==0 ) then
       write(6,*) "Warning: Using current SSTs for previous month(s)"
@@ -1174,7 +1218,348 @@ else
 end if ! (iernc==0) .. else ..
 
 return
-end subroutine amiprd
+end subroutine amiprd_month
+
+! Read daily SST data
+subroutine amipsst_day
+
+use cc_mpi                                   ! CC MPI routines
+use dates_m                                  ! Date data
+use filnames_m                               ! Filenames
+use infile                                   ! Input file routines
+use latlong_m                                ! Lat/lon coordinates
+use latltoij_m                               ! Lat/Lon to cubic ij conversion
+use mlo, only : mloexport,mloexpmelt,wlev, &
+                wrtemp,mloimport             ! Ocean physics and prognostic arrays
+use newmpar_m                                ! Grid parameters
+use nharrs_m, only : lrestart                ! Non-hydrostatic atmosphere arrays
+use parm_m                                   ! Model configuration
+use parmgeom_m                               ! Coordinate data
+use pbl_m                                    ! Boundary layer arrays
+use setxyz_m                                 ! Define CCAM grid
+use soil_m                                   ! Soil and surface data
+use soilsnow_m                               ! Soil, snow and surface data
+use workglob_m                               ! Additional grid interpolation
+
+implicit none
+
+integer, parameter :: nihead = 54
+integer, parameter :: nrhead = 14
+
+integer il_in, jl_in
+integer iq, k, mm, varid, varid_time, lsmid, ierr
+integer iyear, imonth, iday, iyr_m, imo_m, idy_m
+integer mtimer_r, kdate_r, ktime_r
+integer kdate_rsav, ktime_rsav
+integer, save :: iarchx = 0
+integer, save :: maxarchi = -1
+integer, save :: leap_in = 0
+integer, dimension(3) :: spos, npos
+#ifdef i8r8
+integer, dimension(nihead) :: nahead
+#else
+integer(kind=4), dimension(nihead) :: nahead
+#endif
+real rlon_in, rlat_in, schmidt_in
+real of, sc
+real timer_r, wgt
+real, dimension(nrhead) :: ahead
+real, dimension(ifull) :: oldsst, newsst, deltasst, timelt
+real, dimension(:), allocatable :: axs_a, ays_a, azs_a
+real, dimension(:), allocatable :: bxs_a, bys_a, bzs_a
+real, dimension(:), allocatable :: wts_a
+real, dimension(:), allocatable :: lsmr_g
+real, dimension(:,:), allocatable :: ssta_g, ssta_l
+real, dimension(:), allocatable, save :: fraciceb, ssta
+real(kind=8), dimension(:,:), pointer :: xx4, yy4
+real(kind=8), dimension(:,:), allocatable, target :: xx4_dummy, yy4_dummy
+real(kind=8), dimension(:), pointer :: z_a, x_a, y_a
+real(kind=8), dimension(:), allocatable, target :: z_a_dummy, x_a_dummy, y_a_dummy
+logical tst, ltest
+logical, save :: firstcall = .true.
+logical, save :: interpolate = .false.
+logical, dimension(:), allocatable, save :: lsma_g
+character(len=10), save :: unitstr
+character(len=80) datestring
+
+if ( .not.allocated(ssta) ) then
+  allocate(ssta(ifull),fraciceb(ifull))
+end if
+
+if ( mod(ktau,nperday)==0 ) then
+  if ( myid==0 ) then
+    write(6,*) "amipsst called at end of day for ktau,mtimer,namip ",ktau,mtimer,namip
+
+    kdate_r = kdate
+    ktime_r = ktime
+    mtimer_r = mtimer
+    call datefix(kdate_r,ktime_r,mtimer_r)
+    
+    iyr_m = kdate_r/10000
+    imo_m = (kdate_r-10000*iyr_m)/100
+    idy_m = kdate_r - 10000*iyr_m - 100*imo_m
+    write(6,*) "Searching for iyr_m,imo_m,idy_m ",iyr_m,imo_m,idy_m
+  
+    if ( firstcall ) then
+      ! check grid definition
+      call ccnf_get_attg(ncidx,'int_header',nahead)
+      call ccnf_get_attg(ncidx,'real_header',ahead)
+      il_in      = nahead(1)
+      jl_in      = nahead(2)
+      rlon_in    = ahead(5)
+      rlat_in    = ahead(6)
+      schmidt_in = ahead(7)
+      if ( schmidt_in<=0. .or. schmidt_in>1. ) then
+        rlon_in    = ahead(6)
+        rlat_in    = ahead(7)
+        schmidt_in = ahead(8)
+      end if  ! (schmidtx<=0..or.schmidtx>1.)  
+      call ccnf_get_attg(ncidx,'leap',leap_in,tst)
+      if ( tst ) leap_in = 0
+      call ccnf_inq_dimlen(ncidx,'time',maxarchi)
+         
+      interpolate = ( il_g/=il_in .or. jl_g/=jl_in .or. abs(rlong0-rlon_in)>1.e-6 .or. abs(rlat0-rlat_in)>1.e-6 .or. &
+           abs(schmidt-schmidt_in)>0.0002 )
+      ik = il_in
+  
+      if ( interpolate ) then
+        write(6,*) "Interpolation is required for AMIPSST"
+    
+        allocate( nface4(ifull_g,4), xg4(ifull_g,4), yg4(ifull_g,4) )
+        allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
+        xx4 => xx4_dummy
+        yy4 => yy4_dummy
+        write(6,*) "Defining input file grid"
+        allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
+        allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
+        allocate( x_a_dummy(ik*ik*6), y_a_dummy(ik*ik*6), z_a_dummy(ik*ik*6) )
+        allocate( wts_a(ik*ik*6) )
+        x_a => x_a_dummy
+        y_a => y_a_dummy
+        z_a => z_a_dummy
+        !   following setxyz call is for source data geom    ****   
+        do iq = 1,ik*ik*6
+          axs_a(iq) = real(iq)
+          ays_a(iq) = real(iq)
+          azs_a(iq) = real(iq)
+        end do 
+        call setxyz(ik,rlon_in,rlat_in,-schmidt_in,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4, &
+                    id,jd,ktau,ds)
+        nullify( x_a, y_a, z_a )
+        deallocate( x_a_dummy, y_a_dummy, z_a_dummy ) 
+        deallocate( axs_a, ays_a, azs_a, bxs_a, bys_a, bzs_a )
+        deallocate( wts_a ) 
+        ! setup interpolation arrays
+        do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
+          do iq = 1,ifull_g
+            call latltoij(rlong4(iq,mm),rlat4(iq,mm),           & !input
+                          rlon_in,rlat_in,schmidt_in,           & !input
+                          xg4(iq,mm),yg4(iq,mm),nface4(iq,mm),  & !output (source)
+                          xx4,yy4,ik)
+          end do
+        end do
+        nullify( xx4, yy4 )
+        deallocate( xx4_dummy, yy4_dummy )   
+        allocate( lsma_g(ik*ik*6) )
+        lsma_g = .false.
+        call ccnf_inq_varid(ncidx,'lsm',lsmid,tst)
+        if ( tst ) then
+          write(6,*) "ERROR: Cannot locate lsm"
+          call ccmpi_abort(-1)
+        end if
+        npos(1) = ik
+        npos(2) = 6*ik
+        spos(1:2) = 1
+        allocate( lsmr_g(ik*ik*6) )  
+        call ccnf_get_vara(ncidx,lsmid,spos(1:2),npos(1:2),lsmr_g(:))
+        lsma_g = lsmr_g >= 0.5
+        deallocate( lsmr_g )
+      else
+        write(6,*) "No interpolation is required for AMIPSST"
+      end if
+    
+      call ccnf_inq_varid(ncidx,'tos',varid,tst)
+      if ( tst ) then
+        write(6,*) "ERROR: Cannot locate tos"
+        call ccmpi_abort(-1)
+      end if
+      unitstr = ''
+      call ccnf_get_att(ncidx,varid,'units',unitstr)
+    
+      firstcall = .false.
+    end if
+    
+    ! temporary arrays
+    if ( interpolate ) then
+      allocate( ssta_g(ik*ik*6,1), ssta_l(ifull_g,1) )
+      ssta_g = 0.
+      ssta_l = 0.
+    else
+      allocate( ssta_g(ifull_g,1) )
+      ssta_g = 0.
+    end if
+    
+    ! search for required day
+    iyear  = -999
+    imonth = -999
+    iday   = -999
+    ltest = .true.
+    call ccnf_inq_varid(ncidx,'time',varid_time)
+    call ccnf_get_att(ncidx,varid_time,'units',datestring)
+    call processdatestring(datestring,kdate_rsav,ktime_rsav)
+    do while ( ltest .and. iarchx<maxarchi )
+      iarchx = iarchx + 1
+      kdate_r = kdate_rsav
+      ktime_r = ktime_rsav
+      call ccnf_get_vara(ncidx,varid_time,iarchx,timer_r)
+      mtimer_r = nint(timer_r)
+      call datefix(kdate_r,ktime_r,mtimer_r,allleap=leap_in)
+      iyear  = kdate_r/10000
+      imonth = (kdate_r-iyear*10000)/100
+      iday   = kdate_r - 10000*iyear - 100*imonth
+      ltest  = iyr_m/=iyear .or. imo_m/=imonth .or. idy_m/=iday
+    end do    
+    if ( ltest ) then
+      write(6,*) "ERROR: Cannot locate year,month,day ",iyr_m,imo_m,idy_m
+      write(6,*) "       in file ",trim(sstfile)
+      call ccmpi_abort(-1)
+    end if
+    call ccnf_inq_varid(ncidx,'tos',varid,tst)
+    if ( tst ) then
+      write(6,*) "ERROR: Cannot locate tos"
+      call ccmpi_abort(-1)
+    end if
+    write(6,*) "Reading SST data from amipsst file at iarchx=",iarchx
+    npos(1) = ik
+    npos(2) = 6*ik
+    npos(3) = 1    
+    spos(1:2) = 1
+    spos(3) = iarchx
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
+    call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
+    if ( ierr /= 0 ) of = 0.
+    call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
+    if ( ierr /= 0 ) sc = 1.
+    ssta_g(:,1) = sc*ssta_g(:,1) + of
+    if ( trim(unitstr) == 'C' ) then
+      write(6,*) "Converting SSTs from degC to degK"    
+      ssta_g(:,1) = ssta_g(:,1) + 273.16
+    end if  
+    if ( interpolate ) then
+      call fill_cc4(ssta_g(:,1:1),lsma_g)
+      call doints4(ssta_g(:,1:1),ssta_l(:,1:1))
+      call ccmpi_distribute(ssta, ssta_l(:,1))
+    else
+      call ccmpi_distribute(ssta, ssta_g(:,1))
+    end if  
+
+    if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
+         namip==14 .or. namip==15 .or. namip==24 .or. namip==25 ) then   ! sice also read at middle of month
+
+      ! NETCDF
+      call ccnf_inq_varid(ncidx,'sic',varid,tst)
+      if (tst) then
+        write(6,*) "ERROR: Cannot locate sic"
+        call ccmpi_abort(-1)
+      end if
+      write(6,*) "Reading Sea Ice data from amipsst file"
+      spos(3) = iarchx
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
+      call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
+      if (ierr/=0) of=0.
+      call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
+      if (ierr/=0) sc=1.
+      ssta_g(:,1) = sc*ssta_g(:,1) + of
+      !ssta_g(:,1) = 100.*ssta_g(:,1)  
+      if ( interpolate ) then
+        call fill_cc4(ssta_g(:,1:1),lsma_g)
+        call doints4(ssta_g(:,1:1),ssta_l(:,1:1))
+        call ccmpi_distribute(fraciceb, ssta_l(:,1))
+      else
+        call ccmpi_distribute(fraciceb, ssta_g(:,1))
+      end if  
+
+    end if       
+    
+    if ( interpolate ) then
+      deallocate( ssta_g, ssta_l )
+    else
+      deallocate( ssta_g )
+    end if         
+         
+  else      
+    
+    call ccmpi_distribute(ssta)  
+    if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
+         namip==14 .or. namip==15 .or. namip==24 .or. namip==25 ) then     
+      call ccmpi_distribute(fraciceb)
+    end if  
+      
+  end if ! myid==0 ..else..        
+       
+else
+  if ( nmlo==0 ) return  
+end if    
+
+!--------------------------------------------------------------------------------------------------
+! Sea-ice and Sea-Surface-Temperature
+if ( nmlo==0 ) then
+  sicedep(:) = 0. 
+  if ( ktau==0 .and. .not.lrestart ) then  ! will set sicedep in indata
+    ! This case is for poor initial conditions ifile  
+    fracice(:) = fraciceb(:)
+    where ( .not.land(1:ifull) )
+      tss(:)   = ssta
+      tgg(:,1) = ssta
+    end where
+  else
+    do iq = 1,ifull
+      if ( .not.land(iq) ) then
+        if ( fraciceb(iq)>0. ) then
+          if ( fracice(iq)<1.e-20 ) then
+            ! create values for tice, and set averaged tss
+            ! N.B. if already a sice point, keep present tice
+            tggsn(iq,1) = 271.2
+          end if  ! (fracice(iq)==0.)
+          if ( rlatt(iq)>0. ) then
+            sicedep(iq) = 2.
+          else
+            sicedep(iq) = 1.
+          endif ! (rlatt(iq)>0.)
+        endif   ! (fraciceb(iq)>0.)
+        fracice(iq) = fraciceb(iq)
+        tss(iq) = tggsn(iq,1)*fracice(iq) + ssta(iq)*(1.-fracice(iq))
+      endif      ! (.not.land(iq))
+    enddo
+  end if  
+elseif ( ktau>0 ) then
+  if ( nud_hrs<=0 ) then
+    write(6,*) "ERROR: namip/=0 has been selected with in-line ocean model (nmlo/=0)"  
+    write(6,*) "nud_hrs>0 must be specified for relaxiation of SSTs"
+    call ccmpi_abort(-1)
+  end if
+  oldsst = ssta
+  call mloexpmelt(timelt)
+  timelt = min(timelt,271.2)
+  newsst = ssta*(1.-fraciceb(:)) + timelt(:)*fraciceb(:) - wrtemp
+  wgt = dt/real(nud_hrs*3600)
+  call mloexport(0,oldsst,1,0)
+  deltasst = newsst - oldsst
+  do k = 1,kbotmlo
+    call mloexport(0,oldsst,k,0)
+    newsst = wgt*deltasst + oldsst
+    call mloimport(0,newsst,k,0)
+  end do  
+  do k = 1,ms
+    call mloexport(0,tgg(:,k),k,0)
+    where ( tgg(:,k)<100. )
+      tgg(:,k) = tgg(:,k) + wrtemp
+    end where    
+  end do
+end if ! if (nmlo==0) ..else..
+
+return
+end subroutine amipsst_day
 
 subroutine doints4(s,sout)
       
