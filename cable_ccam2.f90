@@ -156,7 +156,7 @@ integer, save :: cable_pop       = 0          ! 0 off, 1 on
 ! CABLE climate options
 integer, save :: cable_climate   = 0          ! 0 off, 1 on
 ! CABLE parameters
-integer, parameter :: maxtile    = 5          ! maximum possible number of tiles
+integer, parameter :: maxtile    = 5          ! maximum possible number of tiles (1-5=natural/secondary, 6-7=pasture/rangeland, 8-9=crops)
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
 integer, parameter :: COLDEST_DAY_SHEMISPHERE = 172
 integer, save :: POP_NPATCH      = -1
@@ -2595,8 +2595,6 @@ albvisdif = 0.08
 albnirdir = 0.08
 albnirdif = 0.08
 zolnd     = 0.
-!cplant   = 0.
-!csoil    = 0.
 mvtype = mxvt
 mstype = mxst
 
@@ -4150,7 +4148,7 @@ use infile     ! Input file routines
 
 implicit none
 
-integer k, numpft
+integer k
 integer, dimension(mp_global), intent(in) :: cveg
 integer, dimension(1) :: nstart, ncount
 integer, dimension(:), allocatable, save :: csiropft
@@ -4163,28 +4161,20 @@ real, dimension(:), allocatable, save :: gswmin, conkc0, conko0, ekc, eko, g0, g
 real, dimension(:), allocatable, save :: zr, clitt
 real, dimension(:,:), allocatable, save :: refl, taul, froot2
 
-numpft = -1 ! missing flag
-
-if ( myid==0 .and. lncveg==1 ) then
-  call ccnf_inq_dimlen(ncidveg,'pft',numpft,failok=.true.)
-end if
-    
-call ccmpi_bcast(numpft,0,comm_world)
-
-if ( numpft<1 ) then
+if ( lncveg_numpft<1 ) then
     
   ! default biophysical parameter tables
   if ( myid==0 ) then
     write(6,*) "Using default CABLE biophysical parameter tables"
   end if
-  numpft = 18
-  allocate( csiropft(numpft), hc(numpft), xfang(numpft), leaf_w(numpft), leaf_l(numpft) )
-  allocate( canst1(numpft), shelrb(numpft), extkn(numpft), refl(numpft,2), taul(numpft,2) )
-  allocate( vcmax(numpft), rpcoef(numpft), rootbeta(numpft), c4frac(numpft), froot2(numpft,ms) )
-  allocate( vbeta(numpft) )
-  allocate( a1gs(numpft), d0gs(numpft), alpha(numpft), convex(numpft), cfrd(numpft) )
-  allocate( gswmin(numpft), conkc0(numpft), conko0(numpft), ekc(numpft), eko(numpft), g0(numpft), g1(numpft) )
-  allocate( zr(numpft), clitt(numpft) )
+  lncveg_numpft = 18
+  allocate( csiropft(lncveg_numpft), hc(lncveg_numpft), xfang(lncveg_numpft), leaf_w(lncveg_numpft), leaf_l(lncveg_numpft) )
+  allocate( canst1(lncveg_numpft), shelrb(lncveg_numpft), extkn(lncveg_numpft), refl(lncveg_numpft,2), taul(lncveg_numpft,2) )
+  allocate( vcmax(lncveg_numpft), rpcoef(lncveg_numpft), rootbeta(lncveg_numpft), c4frac(lncveg_numpft) )
+  allocate( froot2(lncveg_numpft,ms), vbeta(lncveg_numpft) )
+  allocate( a1gs(lncveg_numpft), d0gs(lncveg_numpft), alpha(lncveg_numpft), convex(lncveg_numpft), cfrd(lncveg_numpft) )
+  allocate( gswmin(lncveg_numpft), conkc0(lncveg_numpft), conko0(lncveg_numpft), ekc(lncveg_numpft), eko(lncveg_numpft) )
+  allocate( g0(lncveg_numpft), g1(lncveg_numpft), zr(lncveg_numpft), clitt(lncveg_numpft) )
   csiropft=(/ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 2 /)
   hc    =(/   17.,  35.,  15.5,  20.,   0.6, 0.567, 0.567, 0.567, 0.55, 0.55, 0.567,  0.2, 6.017,  0.2,  0.2,  0.2,  0.2, 17. /)
   xfang =(/  0.01,  0.1,  0.01, 0.25,  0.01,  -0.3,  -0.3,  -0.3, -0.3, -0.3,  -0.3,  0.1,    0.,   0.,   0.,   0.,   0., 0.1 /)
@@ -4226,17 +4216,17 @@ else
   if ( myid==0 ) then
     write(6,*) "Using user defined CABLE biophysical parameter tables"
   end if
-  allocate( csiropft(numpft), hc(numpft), xfang(numpft), leaf_w(numpft), leaf_l(numpft) )
-  allocate( canst1(numpft), shelrb(numpft), extkn(numpft), refl(numpft,2), taul(numpft,2) )
-  allocate( vcmax(numpft), rpcoef(numpft), rootbeta(numpft), c4frac(numpft), froot2(numpft,ms) )
-  allocate( vbeta(numpft) )
-  allocate( a1gs(numpft), d0gs(numpft), alpha(numpft), convex(numpft), cfrd(numpft) )
-  allocate( gswmin(numpft), conkc0(numpft), conko0(numpft), ekc(numpft), eko(numpft), g0(numpft), g1(numpft) )
-  allocate( zr(numpft), clitt(numpft) )
+  allocate( csiropft(lncveg_numpft), hc(lncveg_numpft), xfang(lncveg_numpft), leaf_w(lncveg_numpft), leaf_l(lncveg_numpft) )
+  allocate( canst1(lncveg_numpft), shelrb(lncveg_numpft), extkn(lncveg_numpft), refl(lncveg_numpft,2), taul(lncveg_numpft,2) )
+  allocate( vcmax(lncveg_numpft), rpcoef(lncveg_numpft), rootbeta(lncveg_numpft), c4frac(lncveg_numpft) )
+  allocate( froot2(lncveg_numpft,ms), vbeta(lncveg_numpft) )
+  allocate( a1gs(lncveg_numpft), d0gs(lncveg_numpft), alpha(lncveg_numpft), convex(lncveg_numpft), cfrd(lncveg_numpft) )
+  allocate( gswmin(lncveg_numpft), conkc0(lncveg_numpft), conko0(lncveg_numpft), ekc(lncveg_numpft), eko(lncveg_numpft) )
+  allocate( g0(lncveg_numpft), g1(lncveg_numpft), zr(lncveg_numpft), clitt(lncveg_numpft) )
 
   if ( myid==0 ) then
     nstart(1) = 1
-    ncount(1) = numpft
+    ncount(1) = lncveg_numpft
     call ccnf_get_vara(ncidveg,'csiropft',nstart,ncount,csiropft)
     call ccnf_get_vara(ncidveg,'hc',nstart,ncount,hc)
     call ccnf_get_vara(ncidveg,'xfang',nstart,ncount,xfang)
@@ -4323,10 +4313,10 @@ if ( mp_global>0 ) then
   !froot2(:,5)=0.20
   !froot2(:,6)=0.15
 
-  if ( maxval(cveg)>numpft .or. minval(cveg)<1 ) then
+  if ( maxval(cveg)>lncveg_numpft .or. minval(cveg)<1 ) then
     write(6,*) "ERROR: Invalid range of vegetation classes for CABLE"
     write(6,*) "cveg min,max           = ",minval(cveg),maxval(cveg)
-    write(6,*) "Expected range min,max = ",1,numpft
+    write(6,*) "Expected range min,max = ",1,lncveg_numpft
     call ccmpi_abort(-1)
   end if
 
@@ -4415,18 +4405,10 @@ use soilv_m
 implicit none
 
 type(soil_parameter_type), intent(inout) :: soil
-integer  numsoil, isoil, k
+integer isoil, k
 integer, dimension(1) :: nstart, ncount
 
-numsoil = -1 ! missing flag
-
-if ( myid==0 .and. lncveg==1 ) then
-  call ccnf_inq_dimlen(ncidveg,'soil',numsoil,failok=.true.)
-end if
-    
-call ccmpi_bcast(numsoil,0,comm_world)
-
-if ( numsoil<1 ) then
+if ( lncveg_numsoil<1 ) then
     
   ! default soil parameter tables
   if ( myid==0 ) then
@@ -4448,8 +4430,8 @@ else
   if ( myid==0 ) then
     write(6,*) "Using user defined CABLE soil parameter tables"
   end if
-  if ( numsoil > mxst ) then
-    write(6,*) "ERROR: Number of soil types larger than maximum, mxst,numsoil:",mxst,numsoil
+  if ( lncveg_numsoil > mxst ) then
+    write(6,*) "ERROR: Number of soil types larger than maximum, mxst,numsoil:",mxst,lncveg_numsoil
     call ccmpi_abort(-1)
   end if
 
@@ -4470,13 +4452,13 @@ else
 
   if ( myid==0 ) then
     nstart(1) = 1
-    ncount(1) = numsoil
+    ncount(1) = lncveg_numsoil
     call ccnf_get_vara(ncidveg,'silt',nstart,ncount,silt)
     call ccnf_get_vara(ncidveg,'clay',nstart,ncount,clay)
     call ccnf_get_vara(ncidveg,'sand',nstart,ncount,sand)
-    call ccnf_get_vara(ncidveg,'swilt',nstart,ncount,swilt(1:numsoil))
-    call ccnf_get_vara(ncidveg,'sfc',nstart,ncount,sfc(1:numsoil))
-    call ccnf_get_vara(ncidveg,'ssat',nstart,ncount,ssat(1:numsoil))
+    call ccnf_get_vara(ncidveg,'swilt',nstart,ncount,swilt(1:lncveg_numsoil))
+    call ccnf_get_vara(ncidveg,'sfc',nstart,ncount,sfc(1:lncveg_numsoil))
+    call ccnf_get_vara(ncidveg,'ssat',nstart,ncount,ssat(1:lncveg_numsoil))
     call ccnf_get_vara(ncidveg,'bch',nstart,ncount,bch)
     call ccnf_get_vara(ncidveg,'hyds',nstart,ncount,hyds)
     call ccnf_get_vara(ncidveg,'sucs',nstart,ncount,sucs)
