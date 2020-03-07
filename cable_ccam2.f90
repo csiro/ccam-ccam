@@ -156,7 +156,7 @@ integer, save :: cable_pop       = 0          ! 0 off, 1 on
 ! CABLE climate options
 integer, save :: cable_climate   = 0          ! 0 off, 1 on
 ! CABLE parameters
-integer, parameter :: maxtile    = 5          ! maximum possible number of tiles (1-5=natural/secondary, 6-7=pasture/rangeland, 8-9=crops)
+integer, parameter :: maxtile    = 9          ! maximum possible number of tiles (1-5=natural/secondary, 6-7=pasture/rangeland, 8-9=crops)
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
 integer, parameter :: COLDEST_DAY_SHEMISPHERE = 172
 integer, save :: POP_NPATCH      = -1
@@ -4418,7 +4418,7 @@ if ( lncveg_numsoil<1 ) then
   ! redefine rhos
   rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)
 
-  if ( myid == 0 ) then
+  if ( myid==0 ) then
     do isoil = 1,mxst
       write(6,"('isoil,ssat,sfc,swilt,hsbh ',i2,3f7.3,e11.4)") isoil,ssat(isoil),sfc(isoil),swilt(isoil),hsbh(isoil)
     end do
@@ -4483,7 +4483,7 @@ else
     hsbh(isoil)  = hyds(isoil)*abs(sucs(isoil))*bch(isoil) !difsat*etasat
     ibp2(isoil)  = nint(bch(isoil))+2
     i2bp3(isoil) = 2*nint(bch(isoil))+3
-    if ( myid == 0 ) then
+    if ( myid==0 ) then
       write(6,"('isoil,ssat,sfc,swilt,hsbh ',i2,3f7.3,e11.4)") isoil,ssat(isoil),sfc(isoil),swilt(isoil),hsbh(isoil)
     end if
   end do
@@ -4594,32 +4594,35 @@ if ( lncveg==1 ) then
     cableformat=0.
   end if
   do n = 1,maxtile
+    vling(:,n) = 0.
+    svsg(:,n) = 0.
+    ivsg(:,n) = 0
     write(vname,"(A,I1.1)") "lai",n
-    call ccnf_inq_varid(ncidveg,vname,varid)
-    call ccnf_inq_varndims(ncidveg,varid,ndims)
-    call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),vling(:,n)) 
-    write(vname,"(A,I1.1)") "vegt",n
-    call ccnf_inq_varid(ncidveg,vname,varid)
-    call ccnf_inq_varndims(ncidveg,varid,ndims)
-    call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),svsg(:,n)) 
-    ivsg(:,n)=nint(svsg(:,n))
-    write(vname,"(A,I1.1)") "vfrac",n
-    call ccnf_inq_varid(ncidveg,vname,varid)
-    call ccnf_inq_varndims(ncidveg,varid,ndims)
-    call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),svsg(:,n))
-  end do
-  if ( abs(cableformat-1.)>1.e-20 ) then
-    vname="savanna"
     call ccnf_inq_varid(ncidveg,vname,varid,tst)
     if ( .not.tst ) then
       call ccnf_inq_varndims(ncidveg,varid,ndims)
-      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),savannafrac_g)
-      do n = 1,maxtile
-        where ( savannafrac_g>0.5*svsg(:,n) .and. ivsg(:,n)==2 )
-          ivsg(:,n) = 18
-        end where
-      end do
-    end if
+      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),vling(:,n)) 
+      write(vname,"(A,I1.1)") "vegt",n
+      call ccnf_inq_varid(ncidveg,vname,varid)
+      call ccnf_inq_varndims(ncidveg,varid,ndims)
+      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),svsg(:,n)) 
+      ivsg(:,n)=nint(svsg(:,n))
+      write(vname,"(A,I1.1)") "vfrac",n
+      call ccnf_inq_varid(ncidveg,vname,varid)
+      call ccnf_inq_varndims(ncidveg,varid,ndims)
+      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),svsg(:,n))
+    end if  
+  end do
+  vname="savanna"
+  call ccnf_inq_varid(ncidveg,vname,varid,tst)
+  if ( .not.tst ) then
+    call ccnf_inq_varndims(ncidveg,varid,ndims)
+    call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),savannafrac_g)
+    do n = 1,maxtile
+      where ( savannafrac_g>0.5*svsg(:,n) .and. ivsg(:,n)==2 )
+        ivsg(:,n) = 18
+      end where
+    end do
   end if
   call ccmpi_distribute(ivs,ivsg)
   call ccmpi_distribute(svs,svsg)
@@ -4641,10 +4644,13 @@ if ( lncveg==1 ) then
       call ccmpi_abort(-1)
     end if
     do n = 1,maxtile
+      vling(:,n) = 0.  
       write(vname,"(A,I1.1)") "lai",n
-      call ccnf_inq_varid(ncidveg,vname,varid)
-      call ccnf_inq_varndims(ncidveg,varid,ndims)
-      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),vling(:,n)) 
+      call ccnf_inq_varid(ncidveg,vname,varid,tst)
+      if ( .not.tst ) then
+        call ccnf_inq_varndims(ncidveg,varid,ndims)
+        call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),vling(:,n))
+      end if  
     end do
     call ccnf_close(ncidx)
     call ccmpi_distribute(vlinprev,vling)
@@ -4664,10 +4670,13 @@ if ( lncveg==1 ) then
       call ccmpi_abort(-1)
     end if
     do n=1,maxtile
+      vling(:,n) = 0.  
       write(vname,"(A,I1.1)") "lai",n
-      call ccnf_inq_varid(ncidveg,vname,varid)
-      call ccnf_inq_varndims(ncidveg,varid,ndims)
-      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),vling(:,n)) 
+      call ccnf_inq_varid(ncidveg,vname,varid,tst)
+      if ( .not.tst ) then
+        call ccnf_inq_varndims(ncidveg,varid,ndims)
+        call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),vling(:,n))
+      end if  
     end do
     call ccnf_close(ncidx)
     call ccmpi_distribute(vlinnext,vling)
@@ -4692,10 +4701,13 @@ if ( lncveg==1 ) then
       call ccmpi_abort(-1)
     end if
     do n = 1,maxtile
+      vling(:,n) = 0.  
       write(vname,"(A,I1.1)") "lai",n
-      call ccnf_inq_varid(ncidveg,vname,varid)
-      call ccnf_inq_varndims(ncidveg,varid,ndims)
-      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),vling(:,n)) 
+      call ccnf_inq_varid(ncidveg,vname,varid,tst)
+      if ( .not.tst ) then
+        call ccnf_inq_varndims(ncidveg,varid,ndims)
+        call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),vling(:,n))
+      end if  
     end do
     call ccnf_close(ncidx)
     call ccmpi_distribute(vlinnext2,vling)
@@ -4711,6 +4723,9 @@ else
     write(6,*) 'wrong data file supplied ',trim(fveg)
     call ccmpi_abort(-1)
   end if
+  ivsg = 0
+  svsg = 0.
+  vling = 0.
   do iq = 1,ifull_g
     read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
                ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
@@ -4727,6 +4742,9 @@ else
       write(6,*) 'wrong data file supplied ',trim(fvegprev)
       call ccmpi_abort(-1)
     end if
+    ivsg = 0
+    svsg = 0.
+    vling = 0.
     do iq=1,ifull_g
       read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
                  ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
@@ -4740,6 +4758,9 @@ else
       write(6,*) 'wrong data file supplied ',trim(fvegnext)
       call ccmpi_abort(-1)
     end if
+    ivsg = 0
+    svsg = 0.
+    vling = 0.
     do iq=1,ifull_g
       read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
                  ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
@@ -4758,6 +4779,9 @@ else
       write(6,*) 'wrong data file supplied ',trim(fvegprev)
       call ccmpi_abort(-1)
     end if
+    ivsg = 0
+    svsg = 0.
+    vling = 0.
     do iq=1,ifull_g
       read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
                  ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
@@ -5013,11 +5037,13 @@ use vegpar_m
 implicit none
   
 logical, intent(in), optional :: usedefault
-integer k, n, ierr, idv, ierr_casa, ierr_sli, ierr_pop
+integer k, n, ierr, idv, ierr_casa, ierr_sli, ierr_pop, ierr_svs
 integer jyear,jmonth,jday,jhour,jmin,mins, ll, cc, hh, dd
-integer, dimension(4) :: ierr_check
+integer, dimension(5) :: ierr_check
 integer, dimension(ifull) :: dati
 real, dimension(mp_global) :: dummy_unpack
+real, dimension(mp_global) :: old_sv
+real, dimension(ifull) :: datr
 real(kind=8), dimension(ifull) :: dat
 real(kind=8), dimension(ifull,ms) :: datms
 real(kind=8), dimension(ifull,3) :: dat3
@@ -5050,6 +5076,7 @@ ierr = 1
 ierr_casa = 1
 ierr_sli = 1
 ierr_pop = 1
+ierr_svs = 1
 ! io_in==1 ensures no interpolation is required
 if ( io_in==1 .and. .not.defaultmode ) then
   if ( myid==0 .or. pfall ) then
@@ -5073,17 +5100,24 @@ if ( io_in==1 .and. .not.defaultmode ) then
     if ( .not.tst ) then
       ierr_pop = 0
     end if
+    write(testname,'("t",I1.1,"_svs")') maxtile  
+    call ccnf_inq_varid(ncid,testname,idv,tst)
+    if ( .not.tst ) then
+      ierr_svs = 0
+    end if
   end if
   if ( .not.pfall ) then
     ierr_check(1) = ierr
     ierr_check(2) = ierr_casa
     ierr_check(3) = ierr_sli
     ierr_check(4) = ierr_pop
-    call ccmpi_bcast(ierr_check(1:4),0,comm_world)
+    ierr_check(5) = ierr_svs
+    call ccmpi_bcast(ierr_check(1:5),0,comm_world)
     ierr      = ierr_check(1)
     ierr_casa = ierr_check(2)
     ierr_sli  = ierr_check(3)
     ierr_pop  = ierr_check(4)
+    ierr_svs  = ierr_check(5)
   end if
 end if
   
@@ -5095,6 +5129,15 @@ else
   ! Located CABLE tile data
   if ( myid==0 ) write(6,*) "Use tiled data to initialise CABLE"
   do n = 1,maxtile
+    if ( ierr_svs /= 0 ) then
+      old_sv = sv    
+    else    
+      write(vname,'("t",I1.1,"_svs")') n
+      call histrd(iarchi-1,ierr,vname,datr,ifull)
+      if ( n<=maxnb ) then
+        call cable_pack(datr,old_sv,n)
+      end if
+    end if  
     write(vname,'("t",I1.1,"_tgg")') n
     call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
@@ -6450,6 +6493,9 @@ if (myid==0.or.local) then
   end if
   if ( itype==-1 ) then !just for restart file
     do n=1,maxtile
+      write(lname,'("Veg fraction tile ",I1.1)') n
+      write(vname,'("t",I1.1,"_svs")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.,0,2) ! kind=8        
       do k=1,ms
         write(lname,'("Soil temperature tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
@@ -7259,6 +7305,7 @@ implicit none
 integer, intent(in) :: idnc,iarch,itype
 integer k,n
 integer cc,dd,hh,ll
+real, dimension(ifull) :: datr
 real(kind=8), dimension(ifull) :: dat
 real(kind=8), dimension(mp_global) :: dummy_unpack
 real(kind=8), dimension(:,:), allocatable, save :: datpatch
@@ -7273,6 +7320,10 @@ logical, intent(in) :: local
   
 if ( itype==-1 ) then !just for restart file
   do n = 1,maxtile  ! tile
+    datr=0.
+    if (n<=maxnb) call cable_unpack(sv,datr,n)
+    write(vname,'("t",I1.1,"_svs")') n
+    call histwrt(datr,vname,idnc,iarch,local,.true.)      
     do k = 1,ms     ! soil layer
       dat=real(tgg(:,k),8)
       if (n<=maxnb) call cable_unpack(ssnow%tgg(:,k),dat,n)

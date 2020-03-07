@@ -113,7 +113,7 @@ logical, dimension(imax) :: locean
 ! update prescribed oxidant fields
 if ( oxidant_update ) then
 !$omp do schedule(static) private(is,ie),                       &
-!$omp private(loxidantprev,loxidantnow,loxidantnext,lzoxidant), &
+!$omp private(loxidantnow,lzoxidant),                           &
 !$omp private(dhr,ttx,j,tt,smins,fjd,r1,dlt,alp,slag,coszro)
   do tile = 1,ntiles
     is = (tile-1)*imax + 1

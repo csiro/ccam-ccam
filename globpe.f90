@@ -226,7 +226,7 @@ call START_LOG(maincalc_begin)
 
 do ktau = 1,ntau   ! ****** start of main time loop
 
-  timer    = timer + real(ktau)*dtin/3600.             ! timer now only used to give timeg
+  timer    = real(ktau)*dtin/3600.                     ! timer now only used to give timeg
   timeg    = mod( timer+hourst, 24. )                  ! UTC time for tracers
   mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! to allow dt < 1 minute
   mins_gmt = mod( mtimer+60*ktime/100, 24*60 )         ! for radiation

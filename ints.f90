@@ -478,18 +478,15 @@ call bounds(s,corner=.true.)
 sx(1:ipan,1:jpan,1:npan,1:kl) = reshape(s(1:ipan*jpan*npan,1:kl,1), (/ipan,jpan,npan,kl/))
 do k = 1,kl
   do n = 1,npan
-!$omp simd
     do j = 1,jpan
       sx(0,j,n,k)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k,1)
       sx(ipan+1,j,n,k) = s(ie(j*ipan+(n-1)*ipan*jpan),k,1)
     end do               ! j loop
-!$omp simd
     do i = 1,ipan
       sx(i,0,n,k)      = s(is(i+(n-1)*ipan*jpan),k,1)
       sx(i,jpan+1,n,k) = s(in(i-ipan+n*ipan*jpan),k,1)
     end do               ! i loop
   end do
-!$omp simd
   do n = 1,npan
     sx(0,0,n,k)           = s(iws(1+(n-1)*ipan*jpan),k,1)
     sx(ipan+1,0,n,k)      = s(ies(ipan+(n-1)*ipan*jpan),k,1)

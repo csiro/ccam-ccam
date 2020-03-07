@@ -59,7 +59,7 @@ end interface
 
 interface cable_unpack
   module procedure cable_unpack_r4_2_r4, cable_unpack_r8_2_r4
-  module procedure cable_unpack_r8_2_r4_tile
+  module procedure cable_unpack_r4_2_r4_tile, cable_unpack_r8_2_r4_tile
 #ifndef i8r8
   module procedure cable_unpack_r4_2_r8
   module procedure cable_unpack_r8_2_r8_tile
@@ -406,6 +406,30 @@ subroutine cable_unpack_r8_2_r4(indata,outdata)
   end do
 
 end subroutine cable_unpack_r8_2_r4
+
+subroutine cable_unpack_r4_2_r4_tile(indata,outdata,inb)
+  use cc_mpi, only : ccmpi_abort
+  use newmpar_m, only : ifull
+
+  implicit none
+
+  real(kind=4), dimension(:), intent(in) :: indata
+  real, dimension(ifull), intent(inout) :: outdata
+  integer, intent(in) :: inb
+  integer :: is, ie, js, je, tile, nb
+
+  nb = inb
+  do tile = 1,ntiles
+    is = tdata(tile)%tind(nb,1)
+    ie = tdata(tile)%tind(nb,2)
+    if ( is<=ie ) then
+      js=1+(tile-1)*imax
+      je=tile*imax
+      outdata(js:je) = unpack(indata(is:ie),tdata(tile)%tmap(:,nb),outdata(js:je))
+    end if  
+  end do
+
+end subroutine cable_unpack_r4_2_r4_tile
 
 subroutine cable_unpack_r8_2_r4_tile(indata,outdata,inb)
   use cc_mpi, only : ccmpi_abort

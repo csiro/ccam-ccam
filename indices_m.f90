@@ -113,14 +113,12 @@ data_w(2:ifull)      = data_in(1:ifull-1)
 data_n(1:ifull-ipan) = data_in(ipan+1:ifull)
 data_s(ipan+1:ifull) = data_in(1:ifull-ipan)
 do n = 1,npan
-!$omp simd
   do j = 1,jpan
     iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
     data_w(iq) = data_in(iw(iq))
     iq = j*ipan + (n-1)*ipan*jpan
     data_e(iq) = data_in(ie(iq))
   end do
-!$omp simd
   do i = 1,ipan
     iq = i + (n-1)*ipan*jpan
     data_s(iq) = data_in(is(iq))
@@ -148,12 +146,10 @@ jpan = jl/npan
 data_e(1:ifull-1)    = data_in(2:ifull)
 data_n(1:ifull-ipan) = data_in(ipan+1:ifull)
 do n = 1,npan
-!$omp simd
   do j = 1,jpan
     iq = j*ipan + (n-1)*ipan*jpan
     data_e(iq) = data_in(ie(iq))
   end do
-!$omp simd
   do i = 1,ipan
     iq = i - ipan + n*ipan*jpan
     data_n(iq) = data_in(in(iq))
@@ -179,12 +175,10 @@ jpan = jl/npan
 data_eu(1:ifull-1) = data_in_u(2:ifull)
 data_nv(1:ifull-ipan) = data_in_v(ipan+1:ifull)
 do n = 1,npan
-!$omp simd
   do j = 1,jpan
     iq = j*ipan + (n-1)*ipan*jpan
     data_eu(iq) = data_in_u(ieu(iq))
   end do
-!$omp simd
   do i = 1,ipan
     iq = i - ipan + n*ipan*jpan
     data_nv(iq) = data_in_v(inv(iq))
@@ -210,12 +204,10 @@ jpan = jl/npan
 data_wu(2:ifull)      = data_in_u(1:ifull-1)
 data_sv(ipan+1:ifull) = data_in_v(1:ifull-ipan)
 do n = 1,npan
-!$omp simd
   do j = 1,jpan
     iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
     data_wu(iq) = data_in_u(iwu(iq))
   end do
-!$omp simd
   do i = 1,ipan
     iq = i + (n-1)*ipan*jpan
     data_sv(iq) = data_in_v(isv(iq))
