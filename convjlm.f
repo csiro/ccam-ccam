@@ -339,7 +339,7 @@
       real, dimension(imax,kl)          :: lqlg, lu, lv, lqfg
       real, dimension(imax,kl)          :: lcfrac
       real, dimension(imax,ndust)       :: ldustwd
-      real, dimension(imax)             :: lcape, lso2wd, lso4wd
+      real, dimension(imax)             :: lso2wd, lso4wd
       real, dimension(imax)             :: lbcwd, locwd, lsaltwd
       logical :: mydiag_t
 

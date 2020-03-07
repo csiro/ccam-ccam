@@ -136,7 +136,7 @@ real, dimension(ifull,kl) :: clcon, cdrop
 logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),                                             &
-!$omp private(lrhoa,lcdrop,lclcon)
+!$omp private(k,lrhoa,lcdrop,lclcon)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
