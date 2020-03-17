@@ -1,4 +1,4 @@
-FC = mpif90
+FC = mpifort
 FCSCM = ifort
 CC = cc
 
@@ -364,7 +364,7 @@ cable_canopy.o : cable_air.o cable_common.o cable_data.o cable_define_types.o ca
 cable_common.o : cable_define_types.o
 cable_ccam2.o : arrays_m.o cable_air.o cable_albedo.o cable_canopy.o cable_ccam3.o cable_ccam4.o cable_common.o cable_define_types.o cable_optimiseJVratio.o cable_radiation.o cable_roughness.o cable_sli_main.o cable_soilsnow.o carbpools_m.o casa_cnp.o casa_variable.o cc_mpi.o cc_omp.o const_phys.o darcdf_m.o dates_m.o estab.o extraout_m.o infile.o latlong_m.o liqwpar_m.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o parmgeom_m.o pbl_m.o permsurf_m.o POP.o prec_m.o raddiag_m.o radisw_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o tracers_m.o vegpar_m.o work2_m.o work3_m.o zenith.o
 cable_ccam3.o : cable_data.o cable_define_types.o casa_variable.o POP.o
-cable_ccam4.o : cable_ccam3.o cable_data.o cable_define_types.o casa_variable.o cc_mpi.o cc_omp.o newmpar_m.o POP.o
+cable_ccam4.o : cable_ccam3.o cable_data.o cable_define_types.o casa_variable.o cc_omp.o newmpar_m.o POP.o
 cable_optimiseJVratio.o : cable_canopy.o cable_data.o cable_define_types.o POP.o
 cable_radiation.o : cable_common.o cable_data.o cable_define_types.o
 cable_roughness.o : cable_common.o cable_data.o cable_define_types.o
