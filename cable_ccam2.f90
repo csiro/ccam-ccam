@@ -2804,7 +2804,6 @@ if ( mp_global>0 ) then
 
   ! pack biome data into CABLE vector
   ! prepare LAI arrays for temporal interpolation (PWCB)  
-  ! now up to maxtile=5 PFT tiles from 5 IGBP classes (need correct order for vectorisation)
   do tile = 1,ntiles
     allocate(tdata(tile)%tmap(imax,maxtile))
     tdata(tile)%tmap = .false.
@@ -4379,10 +4378,10 @@ if ( mp_global>0 ) then
     if ( any( veg%g0<1.e-8 ) ) then
       if ( myid==0 ) then
         write(6,*) "WARN: Replacing g0=0. with g0=0.01 for gs_switch=1"
-        where ( veg%g0<1.e-8 ) 
-          veg%g0 = 0.01
-        end where
-      end if    
+      end if
+      where ( veg%g0<1.e-8 ) 
+        veg%g0 = 0.01
+      end where
     end if    
   end if    
 
@@ -6477,28 +6476,32 @@ implicit none
 integer k
 real, dimension(mp_global), intent(in) :: old_sv
 
-if ( any( abs(sv-old_sv)>1.e-8 ) ) then
+if ( mp_global>0 ) then
+
+  if ( any( abs(sv-old_sv)>1.e-8 ) ) then
     
-  ! assume common soil texture and soil heat capacity
-  do k = 1,ms
-    call redistribute_work(old_sv,ssnow%tgg(:,k))
-    call redistribute_work(old_sv,ssnow%wb(:,k))
-    !call redistribute_work(old_sv,ssnow%wbice(:,k))
-  end do
-  !if ( soil_struc==1 ) then
-  !  do k = 1,ms
-  !    call redistribute_work(old_sv,ssnow%tsoil(:,k))
-  !  end do
-  !end if
-  !do k = 1,3
-  !  call redistribute_work(old_sv,ssnow%tggsn(:,k))
-  !  call redistribute_work(old_sv,ssnow%smass(:,k))
-  !  call redistribute_work(old_sv,ssnow%ssdn(:,k))
-  !  call redistribute_work(old_sv,ssnow%sdepth(:,k))
-  !end do
-  !call redistribute_work(old_sv,ssnow%ssdn(:))
-  !call redistribute_work(old_sv,ssnow%snowd(:))
-  !call redistribute_work(old_sv,ssnow%osnowd(:))
+    ! assume common soil texture and soil heat capacity
+    do k = 1,ms
+      call redistribute_work(old_sv,ssnow%tgg(:,k))
+      call redistribute_work(old_sv,ssnow%wb(:,k))
+      !call redistribute_work(old_sv,ssnow%wbice(:,k))
+    end do
+    !if ( soil_struc==1 ) then
+    !  do k = 1,ms
+    !    call redistribute_work(old_sv,ssnow%tsoil(:,k))
+    !  end do
+    !end if
+    !do k = 1,3
+    !  call redistribute_work(old_sv,ssnow%tggsn(:,k))
+    !  call redistribute_work(old_sv,ssnow%smass(:,k))
+    !  call redistribute_work(old_sv,ssnow%ssdn(:,k))
+    !  call redistribute_work(old_sv,ssnow%sdepth(:,k))
+    !end do
+    !call redistribute_work(old_sv,ssnow%ssdn(:))
+    !call redistribute_work(old_sv,ssnow%snowd(:))
+    !call redistribute_work(old_sv,ssnow%osnowd(:))
+  
+  end if
   
 end if
   
