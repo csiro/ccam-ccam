@@ -183,22 +183,21 @@ allocate( spare1(ifull) )
 do n3hr = 1,8
   nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
 end do
-n3hr = 1           ! initial value at start of run
-nlx = 0            ! diagnostic level
+n3hr = 1
+nlx = 0                      ! diagnostic level
 call zero_nperavg(koundiag)  ! reset average period diagnostics
-call zero_nperhour ! reset hourly period diagnostics
-call zero_nperday  ! reset daily period diagnostics
+call zero_nperhour           ! reset hourly period diagnostics
+call zero_nperday            ! reset daily period diagnostics
 
 
 !--------------------------------------------------------------
 ! INITIALISE DYNAMICS
-dtin = dt
 if ( myid==0 ) then
   write(6,*) "number of time steps per day = ",nperday
-  write(6,*) "nper3hr,nper6hr .. ",nper3hr(:)
 end if
-mspeca = 1
 ! use half time-step for initialisation
+dtin = dt
+mspeca = 1
 if ( mex/=1 .and. ((.not.lrestart).or.always_mspeca) ) then
   mspeca = 2
   dt = 0.5*dtin
@@ -460,7 +459,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! ***********************************************************************
     
   ! nriver = 0   No transport of surface water
-  ! nriver = 1   River routing (-1=save in output)
+  ! nriver = 1   River routing (-1=write to history file)
     
   if ( abs(nriver)==1 ) then  
     call START_LOG(river_begin)
@@ -1510,6 +1509,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
     alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,nodrift, &
+    kmlo,                                                         &
     pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    & ! k-e
     nops,nopb,fixedstabfunc,omink,omineps,oclosure,               &
     rivermd,basinmd,rivercoeff,                                   & ! River
@@ -2354,7 +2354,7 @@ ateb_statsmeth    = dumi(29)
 ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(15), dumi(21) )
+allocate( dumr(15), dumi(22) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2400,6 +2400,7 @@ if ( myid==0 ) then
   dumi(19) = fixedstabfunc
   dumi(20) = mlomfix
   dumi(21) = nodrift
+  dumi(22) = kmlo
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2439,6 +2440,7 @@ nopb            = dumi(18)
 fixedstabfunc   = dumi(19)
 mlomfix         = dumi(20)
 nodrift         = dumi(21)
+kmlo            = dumi(22)
 if ( oclosure==0 ) then
   nsteps = 1
 end if
@@ -2774,8 +2776,8 @@ if ( myid<nproc ) then
     write(6,*)'  acon   bcon   qgmin      rcm    rcrit_l rcrit_s'
     write(6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,rcrit_l,rcrit_s
     write(6,*)'Radiation options A:'
-    write(6,*)' nrad  mins_rad iaero  dt'
-    write(6,'(i5,2i7,f10.2)') nrad,mins_rad,iaero,dt
+    write(6,*)' nrad  mins_rad  dt'
+    write(6,'(i5,i7,f10.2)') nrad,mins_rad,dt
     write(6,*)'Radiation options B:'
     write(6,*)' nmr bpyear sw_diff_streams sw_resolution'
     write(6,'(i4,f9.2,i4," ",a5,i4)') nmr,bpyear,sw_diff_streams,sw_resolution
@@ -2783,10 +2785,8 @@ if ( myid<nproc ) then
     write(6,*)' liqradmethod iceradmethod carbonradmethod'
     write(6,'(3i4)') liqradmethod,iceradmethod,carbonradmethod
     write(6,*)'Aerosol options:'
-    write(6,*)'  iaero ch_dust'
-    write(6,'(i7,g9.2,f7.2)') iaero,ch_dust
-    write(6,*)'  zvolcemi aeroindir'
-    write(6,'(f7.2,i5)') zvolcemi,aeroindir
+    write(6,*)'  iaero ch_dust zvolcemi aeroindir'
+    write(6,'(i7,g9.2,f7.2,i5)') iaero,ch_dust,zvolcemi,aeroindir
     write(6,*)'Cloud options:'
     write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
     write(6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,sigcll
@@ -3595,6 +3595,7 @@ integer, intent(in) :: js, je
 integer k
 real, dimension(js:je) :: qtot, tliq
 
+! requires qg_fix>=1
 if ( qg_fix<=0 ) return
 
 do k = 1,kl
@@ -3639,6 +3640,7 @@ real, dimension(js:je) :: pk, qsi, deles, qsl, qsw, fice
 real, dimension(js:je) :: dqsdt, hlrvap, al, qc
 real, parameter :: tice = 233.16
 
+! requires qg_fix>=2
 if ( qg_fix<=1 ) return
 
 do k = 1,kl

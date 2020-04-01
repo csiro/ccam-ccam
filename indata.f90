@@ -165,7 +165,7 @@ real urbanformat
 character(len=1024) :: surfin
 character(len=80) :: header
 character(len=20) :: vname
-logical tst
+logical tst, fileerror
 
 ! The following look-up tables are for the Mk3 land-surface scheme
 real, dimension(44), parameter :: vegpmin = (/                           &
@@ -1386,7 +1386,8 @@ end if     ! (nhstest<0)
 !                    -4  read_in          | not written  (usual for netCDF input)
 !                    -5  read_in (not wb) |     written  (should be good)
 !                    -6 same as -1 bit tapered wb over dry interio of Aust
-!                   -14 same as -4, but ignores date (usual for climatology)
+!                   -14 same as -4, but ignores date (usual for climatology) and requires netcdf format
+!                   -24 same as -4, but requires netcdf format
 !                    >5 like -1 but sets most wb percentages
 
 ! preset soil data
@@ -1461,12 +1462,13 @@ if ( .not.lrestart ) then
   endif       !  ((nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)
 
   ! Soil recycling input
-  if( nrungcm==-3 .or. nrungcm==-4 .or. nrungcm==-5 .or. nrungcm==-14 ) then
+  if( nrungcm==-3 .or. nrungcm==-4 .or. nrungcm==-5 .or. nrungcm==-14 .or. nrungcm==-24 ) then
     if ( myid==0 ) then
       write(6,*) '============================================================================'  
       write(6,*) 'Opening surface data input from ',trim(surf_00)
     end if
-    call histopen(ncid,surf_00,ier)
+    fileerror = nrungcm==-14 .or. nrungcm==-24
+    call histopen(ncid,surf_00,ier,fileerror=fileerror)
     if ( ier==0 ) then
       ! NETCDF file format
       ! clobber ifile surface data with surfin surface data
@@ -1528,7 +1530,7 @@ if ( .not.lrestart ) then
         tss(1:ifull) = aa(1:ifull)
       end where
     end if  ! ier==0
-  endif    !  (nrungcm<=-3.and.nrungcm>=-5)
+  endif     !  (nrungcm<=-3.and.nrungcm>=-5)
 
   if ( nrungcm==4 ) then !  wb fix for ncep input 
     ! this is related to eak's temporary fix for soil moisture

@@ -1139,7 +1139,7 @@ end subroutine hr5pr8
 
 !--------------------------------------------------------------
 ! This subroutine opens parallel input files
-subroutine histopen(ncid,ifile,ier)
+subroutine histopen(ncid,ifile,ier,fileerror)
       
 use cc_mpi
 use newmpar_m
@@ -1162,11 +1162,17 @@ integer, dimension(:), allocatable, save :: procfileowner
 integer(kind=4), dimension(1) :: start, ncount
 integer(kind=4), dimension(nihead) :: lahead
 integer(kind=4) lncid, lidum, ldid, lvid, llen
+logical, intent(in), optional :: fileerror
+logical ferror
 character(len=*), intent(in) :: ifile
 character(len=170) pfile
 character(len=8) fdecomp
 
 resprocmode = 0
+ferror = .false.
+if ( present(fileerror) ) then
+  ferror = fileerror
+end if
 
 if ( myid==0 ) then
   ! attempt to open single file with myid==0
@@ -1188,8 +1194,12 @@ if ( myid==0 ) then
     ier = nf90_open(pfile,nf90_nowrite,lncid)
     ncid = lncid
     if ( ier/=nf90_noerr ) then
-      write(6,*) "WARN: Cannot open ",trim(pfile)
-      write(6,*) "WARN: Cannot open ",trim(ifile)
+      if ( ferror ) then
+        write(6,*) "ERROR: Cannot open ",trim(pfile)," or ",trim(ifile)
+        call ccmpi_abort(-1)
+      else  
+        write(6,*) "WARN: Cannot open ",trim(pfile)," or ",trim(ifile)
+      end if  
     else
       ! found parallel input file  
       der = nf90_get_att(lncid,nf90_global,"nproc",lidum)

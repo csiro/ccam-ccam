@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -338,7 +338,7 @@ do kcount = 1,mcount
     zi(iqsbl(1:isbl_p)) = zz(iqsbl(1:isbl_p),1)  
 #else
     ! stable boundary layer
-    call stablepbl(iqsbl(1:isbl_p),zi,zzh,dz_hl,thetav,kmo)
+    call stablepbl(iqsbl(1:isbl_p),zi,zz,thetav,uo,vo,ustar)
 
     ! Turn off MF term if small grid spacing (mfbeta=0 implies MF is always non-zero)
     ! Based on Boutle et al 2014
@@ -931,7 +931,7 @@ return
 end subroutine plumerise
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-pure subroutine stablepbl(iqsbl,zi,zzh,dz_hl,thetav,kmo)
+pure subroutine stablepbl(iqsbl,zi,zz,thetav,uo,vo,ustar)
 !$acc routine vector
 
 implicit none
@@ -939,37 +939,37 @@ implicit none
 integer i, k, imax, kl, iq
 integer, dimension(:), intent(in) :: iqsbl
 real, dimension(:), intent(inout) :: zi
-real, dimension(:,:), intent(in) :: dz_hl
-real, dimension(:,:), intent(in) :: zzh, thetav, kmo 
-real, dimension(size(kmo,2)) :: wpv_flux
-real xp
+real, dimension(:), intent(in) :: ustar
+real, dimension(:,:), intent(in) :: zz, thetav, uo, vo
+real, dimension(size(zz,2)) :: rino
+real xp, thvref, vvk, tkv
+real, parameter :: fac = 10. ! originally fac=100.
+real, parameter :: ricr = 0.3
+logical ltest
 
-imax = size(kmo,1)
-kl = size(kmo,2)
+imax = size(zz,1)
+kl = size(zz,2)
+
+rino(:) = 0.
 
 do iq = 1,size(iqsbl)
   i = iqsbl(iq)
-  !wpv_flux is calculated at half levels  
-  wpv_flux(1) = -kmo(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1) !+gamt_hl(i,1)
+  ! Use Richardson number for pbl height
+  ! Richardson no. is computed using eq. (4.d.18) NCAR technical report, CCM3)
+  thvref = thetav(i,1)
+  ltest = .true.
   do k = 2,kl-1
-    wpv_flux(k) = -kmo(i,k)*(thetav(i,k+1)-thetav(i,k))/dz_hl(i,k) !+gamt_hl(i,k)
-    if ( wpv_flux(k)*wpv_flux(1)<0. ) then ! change in sign
-      xp = (0.05*wpv_flux(1)-wpv_flux(k-1))/(wpv_flux(k)-wpv_flux(k-1))
-      xp = min( max( xp, 0. ), 1. )
-      zi(i) = zzh(i,k-1) + xp*(zzh(i,k)-zzh(i,k-1))
-#ifndef GPU
-      exit
-#endif
-    else if ( abs(wpv_flux(k))<0.05*abs(wpv_flux(1)) ) then
-      xp = (0.05*abs(wpv_flux(1))-abs(wpv_flux(k-1)))/(abs(wpv_flux(k))-abs(wpv_flux(k-1)))
-      xp = min( max( xp, 0. ), 1. )
-       zi(i) = zzh(i,k-1) + xp*(zzh(i,k)-zzh(i,k-1))
-#ifndef GPU
-      exit
-#endif
-    end if    
-  end do    
-end do
+    vvk = (uo(i,k)-uo(i,1))**2 + (vo(i,k)-vo(i,1))**2 + fac*ustar(i)**2
+    tkv = thetav(i,k)
+    rino(k) = grav*(tkv-thvref)*(zz(i,k)-zz(i,1))/max(thvref*vvk,1.e-30)
+    if ( rino(k)>ricr .and. ltest ) then
+      xp = (ricr-rino(k-1))/(rino(k)-rino(k-1)) 
+      xp = min( max(xp, 0.), 1.)
+      zi(i) = zz(i,k-1) + xp*(zz(i,k)-zz(i,k-1))
+      ltest = .false.
+    end if  
+  end do
+end do  
 
 return
 end subroutine stablepbl

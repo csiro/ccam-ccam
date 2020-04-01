@@ -2188,6 +2188,12 @@ else
   call casa_readphen(fphen,greenup,fall,phendoy1) ! read MODIS leaf phenology
 end if
 
+if ( any(vlinprev>10.) .or. any(vlin>10.) .or. any(vlinnext>10.) .or. any(vlinnext2>10.) ) then
+  write(6,*) "ERROR: LAI is out of range"
+  write(6,*) "vlinprev,vlin,vlinnext,vlinnext2 ",maxval(vlinprev),maxval(vlin),maxval(vlinnext),maxval(vlinnext2)
+  call ccmpi_abort(-1)
+end if
+
 return
 end subroutine loadcbmparm
 
@@ -4378,7 +4384,7 @@ if ( mp_global>0 ) then
     if ( any( veg%g0<1.e-8 ) ) then
       if ( myid==0 ) then
         write(6,*) "WARN: Replacing g0=0. with g0=0.01 for gs_switch=1"
-      end if
+      end if  
       where ( veg%g0<1.e-8 ) 
         veg%g0 = 0.01
       end where
