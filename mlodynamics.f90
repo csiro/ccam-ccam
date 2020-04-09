@@ -43,7 +43,7 @@ implicit none
 
 private
 public mlodiffusion,mlohadv,mlodyninit
-public gosig,gosigh,godsig,ocnsmag,ocneps,ocndelphi,kmlo
+public gosig,gosigh,godsig,ocnsmag,ocneps,ocndelphi
 public mlodiff,usetide,mlojacobi,mlomfix,nodrift
 public dd
 public nstagoffmlo,mstagf,koff
@@ -67,7 +67,6 @@ integer, save      :: mlodiff     = 0       ! diffusion (0=all, 1=scalars only)
 integer, save      :: mlojacobi   = 1       ! density gradient method (0=off, 1=non-local spline, 6,7=AC2003)
 integer, save      :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on)
 integer, save      :: mlomfix     = 1       ! Conserve T & S (0=off, 1=no free surface, 2=free surface)
-integer, save      :: kmlo        = -1      ! Number of time-steps with ocneps=1. (-1 = off) For initialsation
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
 real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)
 real, parameter :: grav           = 9.80616 ! gravitational constant (m s^-2)
@@ -474,7 +473,7 @@ integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart, iq, mspec_mlo, mspeca_mlo
 integer, dimension(ifull,wlev) :: nface
 real maxglobseta,maxglobip,hdt,dtin_mlo
-real alph_p, delta, oeps
+real alph_p, delta
 real, save :: dtsave=0.
 real, dimension(2) :: delpos, delneg
 real, dimension(ifull+iextra) :: neta,pice,imass
@@ -522,7 +521,7 @@ real, dimension(ifull,wlev) :: kku,kkv,oou,oov
 real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull,wlev) :: rhobaru, rhobarv, rhobar
 real, dimension(ifull,wlev) :: depdum,dzdum,mfixdum
-real, dimension(ifull,wlev) :: mps
+real, dimension(ifull,wlev) :: mps, workdata, worku, workv
 real, dimension(ifull,0:wlev) :: nw
 real, dimension(ifull,4) :: i_it
 real, dimension(ifull,3) :: gamm
@@ -645,32 +644,12 @@ if ( ktau==1 .and. .not.lrestart ) then
   dt = 0.5*dtin_mlo
 end if
 
-if ( ktau>kmlo .or. lrestart) then
-  oeps = ocneps  
-else
-  oeps = 1.    
-end if
 
-#ifdef mlodebug
-if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
-  write(6,*) "ERROR: nt is out of range at start of mlodynamics"
-  write(6,*) "minval,maxval ",minval(nt(1:ifull,:)),maxval(nt(1:ifull,:))
-  write(6,*) "minloc,maxloc ",minloc(nt(1:ifull,:)),maxloc(nt(1:ifull,:))
-  call ccmpi_abort(-1)
-end if
-if ( any(abs(nu(1:ifull,:))>20.) .or. any(abs(nv(1:ifull,:))>20.) ) then
-  write(6,*) "ERROR: current out-of-range at start of mlodynamics"
-  write(6,*) "u ",minval(nu(1:ifull,:)),maxval(nu(1:ifull,:))
-  write(6,*) "v ",minval(nv(1:ifull,:)),maxval(nv(1:ifull,:))
-  stop
-end if
-if ( any( nit(1:ifull,1)<100. .or. nit(1:ifull,1)>400. ) ) then
-  write(6,*) "ERROR: nit1 is out of range at start of mloynamics"
-  write(6,*) "minval,maxval ",minval(nit(1:ifull,1)),maxval(nit(1:ifull,1))
-  write(6,*) "minloc,maxloc ",minloc(nit(1:ifull,1)),maxloc(nit(1:ifull,1))
-  call ccmpi_abort(-1)  
-end if
-#endif
+workdata = nt(1:ifull,:)
+worku = nu(1:ifull,:)
+workv = nv(1:ifull,:)
+call mlocheck("start of mlodynamics",water_temp=workdata,water_u=worku,water_v=workv, &
+                  ice_tsurf=nit(1:ifull,1))
 
 
 do mspec_mlo = mspeca_mlo,1,-1
@@ -756,13 +735,13 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! for 5-point stencil
   if ( abs(dt-dtsave)>1.e-20 ) then
-    bb(1:ifull) = -ee(1:ifull,1)*(1.+oeps)*0.5*dt/(1.+((1.+oeps)*0.5*dt*f(1:ifull))**2) ! unstaggered
+    bb(1:ifull) = -ee(1:ifull,1)*(1.+ocneps)*0.5*dt/(1.+((1.+ocneps)*0.5*dt*f(1:ifull))**2) ! unstaggered
     call bounds(bb,nehalf=.true.)
     call unpack_ne(bb,bb_n,bb_e)
     bu = 0.5*(bb(1:ifull)+bb_e)*eeu(1:ifull,1)
     bv = 0.5*(bb(1:ifull)+bb_n)*eev(1:ifull,1)
-    cu =  bu*(1.+oeps)*0.5*dt*fu
-    cv = -bv*(1.+oeps)*0.5*dt*fv
+    cu =  bu*(1.+ocneps)*0.5*dt*fu
+    cv = -bv*(1.+ocneps)*0.5*dt*fv
     dtsave = dt
   end if
   
@@ -867,7 +846,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   do ii = 1,wlev
     call unpack_svwu(eou(:,ii),eov(:,ii),eo_isv,eo_iwu)  
     where ( wtr(1:ifull,ii) )
-      mps(1:ifull,ii) = neta(1:ifull) - (1.-oeps)*0.5*dt                            &
+      mps(1:ifull,ii) = neta(1:ifull) - (1.-ocneps)*0.5*dt                          &
                        *((eou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull) &
                          -eo_iwu*(dd_iwu+neta(1:ifull))/em_iwu                      &
                          +eov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull) &
@@ -930,8 +909,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlounstaguv(tau(:,1:wlev),tav(:,1:wlev),ttau(:,1:wlev),ttav(:,1:wlev),toff=1)
   ! ocean
   do ii = 1,wlev
-    uau(:,ii) = nu(1:ifull,ii) + (1.-oeps)*0.5*dt*( f(1:ifull)*nv(1:ifull,ii)-ttau(:,ii)) ! unstaggered
-    uav(:,ii) = nv(1:ifull,ii) + (1.-oeps)*0.5*dt*(-f(1:ifull)*nu(1:ifull,ii)-ttav(:,ii))
+    uau(:,ii) = nu(1:ifull,ii) + (1.-ocneps)*0.5*dt*( f(1:ifull)*nv(1:ifull,ii)-ttau(:,ii)) ! unstaggered
+    uav(:,ii) = nv(1:ifull,ii) + (1.-ocneps)*0.5*dt*(-f(1:ifull)*nu(1:ifull,ii)-ttav(:,ii))
     uau(:,ii) = uau(:,ii)*ee(1:ifull,ii)
     uav(:,ii) = uav(:,ii)*ee(1:ifull,ii)
   end do
@@ -944,20 +923,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlovadv(hdt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr,1)
 
   
-#ifdef mlodebug
-  if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
-    write(6,*) "ERROR: nt is out of range after first vertical advection"
-    write(6,*) "minval,maxval ",minval(nt(1:ifull,:)),maxval(nt(1:ifull,:))
-    write(6,*) "minloc,maxloc ",minloc(nt(1:ifull,:)),maxloc(nt(1:ifull,:))
-    call ccmpi_abort(-1)
-  end if
-  if ( any(abs(uau(1:ifull,:))>20.) .or. any(abs(uav(1:ifull,:))>20.) ) then
-    write(6,*) "ERROR: current out-of-range after vertical advection 1"
-    write(6,*) "u ",minval(uau(1:ifull,:)),maxval(uau(1:ifull,:))
-    write(6,*) "v ",minval(uav(1:ifull,:)),maxval(uav(1:ifull,:))
-    call ccmpi_abort(-1)
-  end if
-#endif
+  workdata = nt(1:ifull,:)
+  call mlocheck("first vertical advection",water_temp=workdata,water_u=uau,water_v=uav)
 
 
   ! Calculate depature points
@@ -995,20 +962,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
 
 
-#ifdef mlodebug
-  if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
-    write(6,*) "ERROR: nt is out of range after horizontal advection"
-    write(6,*) "minval,maxval ",minval(nt(1:ifull,:)),maxval(nt(1:ifull,:))
-    write(6,*) "minloc,maxloc ",minloc(nt(1:ifull,:)),maxloc(nt(1:ifull,:))
-    call ccmpi_abort(-1)
-  end if
-  if ( any(abs(uau(1:ifull,:))>20.) .or. any(abs(uav(1:ifull,:))>20.) ) then
-    write(6,*) "ERROR: current out-of-range after horizontal advection"
-    write(6,*) "u ",minval(uau(1:ifull,:)),maxval(uau(1:ifull,:))
-    write(6,*) "v ",minval(uav(1:ifull,:)),maxval(uav(1:ifull,:))
-    stop
-  end if
-#endif
+  workdata = nt(1:ifull,:)
+  call mlocheck("horizontal advection",water_temp=workdata,water_u=uau,water_v=uav)
 
 
   ! Vertical advection (second call for 0.5*dt)
@@ -1017,20 +972,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlovadv(hdt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr,2)
 
 
-#ifdef mlodebug
-  if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
-    write(6,*) "ERROR: nt is out of range after second vertical advection"
-    write(6,*) "minval,maxval ",minval(nt(1:ifull,:)),maxval(nt(1:ifull,:))
-    write(6,*) "minloc,maxloc ",minloc(nt(1:ifull,:)),maxloc(nt(1:ifull,:))
-    call ccmpi_abort(-1)
-  end if
-  if ( any(abs(uau(1:ifull,:))>20.) .or. any(abs(uav(1:ifull,:))>20.) ) then
-    write(6,*) "ERROR: current out-of-range after vertical advection 2"
-    write(6,*) "u ",minval(uau(1:ifull,:)),maxval(uau(1:ifull,:))
-    write(6,*) "v ",minval(uav(1:ifull,:)),maxval(uav(1:ifull,:))
-    call ccmpi_abort(-1)
-  end if
-#endif
+  workdata = nt(1:ifull,:)
+  call mlocheck("second vertical advection",water_temp=workdata,water_u=uau,water_v=uav)
 
 
   xps(:) = mps(1:ifull,1)*godsig(1:ifull,1)
@@ -1058,8 +1001,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Precompute U,V current and integral terms at t+1
   ! ocean
   do ii = 1,wlev
-    tau(:,ii) = uau(:,ii) + (1.+oeps)*0.5*dt*f(1:ifull)*uav(:,ii) ! unstaggered
-    tav(:,ii) = uav(:,ii) - (1.+oeps)*0.5*dt*f(1:ifull)*uau(:,ii)
+    tau(:,ii) = uau(:,ii) + (1.+ocneps)*0.5*dt*f(1:ifull)*uav(:,ii) ! unstaggered
+    tav(:,ii) = uav(:,ii) - (1.+ocneps)*0.5*dt*f(1:ifull)*uau(:,ii)
   end do
   ! ice
   tau(:,wlev+1) = snu(1:ifull) + dt*f(1:ifull)*snv(1:ifull) ! unstaggered
@@ -1068,11 +1011,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   ! Set-up calculation of ocean and ice at t+1
   ! ocean
-  odum = eeu(1:ifull,1)/(1.+((1.+oeps)*0.5*dt*fu(1:ifull))**2)
+  odum = eeu(1:ifull,1)/(1.+((1.+ocneps)*0.5*dt*fu(1:ifull))**2)
   do ii = 1,wlev
     ccu(1:ifull,ii) = ttau(:,ii)*odum ! staggered
   end do
-  odum = eev(1:ifull,1)/(1.+((1.+oeps)*0.5*dt*fv(1:ifull))**2)
+  odum = eev(1:ifull,1)/(1.+((1.+ocneps)*0.5*dt*fv(1:ifull))**2)
   do ii = 1,wlev
     ccv(1:ifull,ii) = ttav(:,ii)*odum ! staggered
   end do
@@ -1083,7 +1026,7 @@ do mspec_mlo = mspeca_mlo,1,-1
  
   
   ! calculate 5-point stencil
-  bb(1:ifull) = -ee(1:ifull,1)*(1.+oeps)*0.5*dt/(1.+((1.+oeps)*0.5*dt*f(1:ifull))**2) ! unstaggered
+  bb(1:ifull) = -ee(1:ifull,1)*(1.+ocneps)*0.5*dt/(1.+((1.+ocneps)*0.5*dt*f(1:ifull))**2) ! unstaggered
   ibb(1:ifull) = -ee(1:ifull,1)*dt/(imass(1:ifull)*(1.+(dt*f(1:ifull))**2))  ! unstaggered
   do ii = 1,wlev
     cc(1:ifull,ii) = (1.+rhobar(1:ifull,ii)/wrtrho)*bb(1:ifull)*ee(1:ifull,ii)
@@ -1099,10 +1042,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   do ii = 1,wlev
     call unpack_nsew(cc(:,ii),cc_n,cc_s,cc_e,cc_w)
     do iq = 1,ifull
-      tnu(iq) = 0.5*(1.+oeps)*0.5*dt*( cc_n(iq)*f_n(iq) + cc(ien(iq),ii)*f(ien(iq)) )
-      tsu(iq) = 0.5*(1.+oeps)*0.5*dt*( cc_s(iq)*f_s(iq) + cc(ies(iq),ii)*f(ies(iq)) )
-      tev(iq) = 0.5*(1.+oeps)*0.5*dt*( cc_e(iq)*f_e(iq) + cc(ine(iq),ii)*f(ine(iq)) )
-      twv(iq) = 0.5*(1.+oeps)*0.5*dt*( cc_w(iq)*f_w(iq) + cc(inw(iq),ii)*f(inw(iq)) )
+      tnu(iq) = 0.5*(1.+ocneps)*0.5*dt*( cc_n(iq)*f_n(iq) + cc(ien(iq),ii)*f(ien(iq)) )
+      tsu(iq) = 0.5*(1.+ocneps)*0.5*dt*( cc_s(iq)*f_s(iq) + cc(ies(iq),ii)*f(ies(iq)) )
+      tev(iq) = 0.5*(1.+ocneps)*0.5*dt*( cc_e(iq)*f_e(iq) + cc(ine(iq),ii)*f(ine(iq)) )
+      twv(iq) = 0.5*(1.+ocneps)*0.5*dt*( cc_w(iq)*f_w(iq) + cc(inw(iq),ii)*f(inw(iq)) )
     end do
     bb(:) = bb(:) + cc(:,ii)*godsig(:,ii)
     bb3u(1:ifull) = bb3u(1:ifull) + ((cc_e-cc(1:ifull,ii))*emu(1:ifull)/ds*eeu(1:ifull,ii) &
@@ -1114,8 +1057,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   do ii = 1,wlev
     ! Create arrays to calcuate u and v at t+1, based on pressure gradient at t+1
       
-    ! ffu = (1.+oeps)*0.5*dt*fu
-    ! ffv = (1.+oeps)*0.5*dt*fv     
+    ! ffu = (1.+ocneps)*0.5*dt*fu
+    ! ffv = (1.+ocneps)*0.5*dt*fv     
     ! u^(t+1) = nu = ccu^(t*) + bu*dpdxu^(t+1)/wrtrho + bu*ffu*dpdyu^(t+1)/wrtrho (staggered)
     ! v^(t+1) = nv = ccv^(t*) + bv*dpdyv^(t+1)/wrtrho - bv*ffv*dpdxv^(t+1)/wrtrho (staggered)
       
@@ -1135,7 +1078,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! We use a modified form of JLM's trick where:
     !   a*dP/dx+a*F*dP/dy = d(aP)/dx + d(aFP)/dy - (da/dx+daF/dy)*P
     !   a*dP/dy-a*F*dP/dx = d(aP)/dy - d(aFP)/dx - (da/dy-daF/dx)*P
-    !   F = (1+oeps)*0.5*dt*f
+    !   F = (1+ocneps)*0.5*dt*f
     ! which produces a 5-point stencil when solving for neta and ip.
     
     !dpdxu=dpsdxu+grav*wrtrho*dttdxu+grav*sig*(ddu+etau)*drhobardxu+grav*rhobar*detadxu+grav*(rhobar-wrtrho)*dzdxu
@@ -1252,7 +1195,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   if ( precon<-9999 ) then
     ! Multi-grid
     call mlomg(neta,sou,sov,snu,snv,xps,bb,bb3u,bb4v,ipice,niu,niv,ibb,ibb3u,ibb4v, &
-               ipmax,totits,maxglobseta,maxglobip,oeps)
+               ipmax,totits,maxglobseta,maxglobip)
   else
     ! Usual SOR
     write(6,*) "ERROR: MLO dynamics requires precon=-10000"
@@ -1288,21 +1231,16 @@ do mspec_mlo = mspeca_mlo,1,-1
     call unpack_ne(cc(:,ii),cc_n,cc_e)
     lbu = 0.5*(cc(1:ifull,ii)+cc_e)*eeu(1:ifull,ii)
     lbv = 0.5*(cc(1:ifull,ii)+cc_n)*eev(1:ifull,ii)
-    lcu =  lbu*(1.+oeps)*0.5*dt*fu
-    lcv = -lbv*(1.+oeps)*0.5*dt*fv
+    lcu =  lbu*(1.+ocneps)*0.5*dt*fu
+    lcv = -lbv*(1.+ocneps)*0.5*dt*fv
     nu(1:ifull,ii) = kku(:,ii) + oou(:,ii)*oeu(1:ifull) + grav*lbu*detadxu + grav*lcu*detadyu
     nv(1:ifull,ii) = kkv(:,ii) + oov(:,ii)*oev(1:ifull) + grav*lbv*detadyv + grav*lcv*detadxv
   end do 
   
   
-#ifdef mlodebug
-  if ( any(abs(nu(1:ifull,:))>20.) .or. any(abs(nv(1:ifull,:))>20.) ) then
-    write(6,*) "ERROR: current out-of-range after solver"
-    write(6,*) "u ",minval(nu(1:ifull,:)),maxval(nu(1:ifull,:))
-    write(6,*) "v ",minval(nv(1:ifull,:)),maxval(nv(1:ifull,:))
-    call ccmpi_abort(-1)
-  end if
-#endif
+  worku = nu(1:ifull,:)
+  workv = nv(1:ifull,:)
+  call mlocheck("solver",water_u=worku,water_v=workv)
 
 
   call START_LOG(wateriadv_begin)
@@ -1385,14 +1323,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   end where
 
   
-#ifdef mlodebug
-  if ( any( nit(1:ifull,1)<100. .or. nit(1:ifull,1)>400. ) ) then
-    write(6,*) "ERROR: nit1 is out of range after seaice advection"
-    write(6,*) "minval,maxval ",minval(nit(1:ifull,1)),maxval(nit(1:ifull,1))
-    write(6,*) "minloc,maxloc ",minloc(nit(1:ifull,1)),maxloc(nit(1:ifull,1))
-    call ccmpi_abort(-1)  
-  end if
-#endif
+  call mlocheck("seaice advection",ice_tsurf=nit(1:ifull,1))
   
   
   ! unstagged currents and ice velocity
@@ -1480,14 +1411,8 @@ do mspec_mlo = mspeca_mlo,1,-1
         end do  
     end select
     
-#ifdef mlodebug
-    if ( any( nt(1:ifull,:)+wrtemp<100. .or. nt(1:ifull,:)+wrtemp>400. ) ) then
-      write(6,*) "ERROR: nt is out of range after conservation fix"
-      write(6,*) "minval,maxval ",minval(nt(1:ifull,:)),maxval(nt(1:ifull,:))
-      write(6,*) "minloc,maxloc ",minloc(nt(1:ifull,:)),maxloc(nt(1:ifull,:))
-      call ccmpi_abort(-1)
-    end if
-#endif
+    workdata = nt(1:ifull,:)
+    call mlocheck("conservation fix",water_temp=workdata)
     
   end if
 
@@ -1556,20 +1481,9 @@ do mspec_mlo = mspeca_mlo,1,-1
 end do ! mspec_mlo
 
 
-#ifdef mlodebug
-if ( any(abs(nu(1:ifull,:))>20.) .or. any(abs(nv(1:ifull,:))>20.) ) then
-  write(6,*) "ERROR: current out-of-range at end of mlodynamics"
-  write(6,*) "u ",minval(nu(1:ifull,:)),maxval(nu(1:ifull,:))
-  write(6,*) "v ",minval(nv(1:ifull,:)),maxval(nv(1:ifull,:))
-  call ccmpi_abort(-1)
-end if
-if ( any( nit(1:ifull,1)<100. .or. nit(1:ifull,1)>400. ) ) then
-  write(6,*) "ERROR: nit1 is out of range at end of mloynamics"
-  write(6,*) "minval,maxval ",minval(nit(1:ifull,1)),maxval(nit(1:ifull,1))
-  write(6,*) "minloc,maxloc ",minloc(nit(1:ifull,1)),maxloc(nit(1:ifull,1))
-  call ccmpi_abort(-1)  
-end if
-#endif
+worku = nu(1:ifull,:)
+workv = nv(1:ifull,:)
+call mlocheck("end of mlodynamics",water_u=worku,water_v=workv,ice_tsurf=nit(1:ifull,1))
 
 
 ! STORE WATER AND ICE DATA IN MLO ------------------------------------------
@@ -4721,7 +4635,7 @@ end subroutine upwind_iceadv
 ! Use multi-grid to solve for free surface and ice pressure
 
 subroutine mlomg(neta,sou,sov,snu,snv,xps,bb,bb3u,bb4v,ipice,niu,niv,ibb,ibb3u,ibb4v, &
-                 ipmax,totits,maxglobseta,maxglobip,oeps)
+                 ipmax,totits,maxglobseta,maxglobip)
 
 use helmsolve
 use indices_m
@@ -4733,7 +4647,6 @@ implicit none
 
 integer, intent(out) :: totits
 real, intent(out) :: maxglobseta, maxglobip
-real, intent(in) :: oeps
 real, dimension(ifull), intent(in) :: xps
 real, dimension(ifull+iextra), intent(inout) :: neta, ipice
 real, dimension(ifull+iextra), intent(in) :: ipmax
@@ -4763,7 +4676,7 @@ call unpack_svwu(snu,snv,sn_isv,sn_iwu)
 call unpack_nsew(bb,bb_n,bb_s,bb_e,bb_w)
 call unpack_svwu(bb3u,bb4v,bb4v_isv,bb3u_iwu)
 
-ff = (1.+oeps)*0.5*dt*f(1:ifull)
+ff = (1.+ocneps)*0.5*dt*f(1:ifull)
 ddddx = (ddu/emu(1:ifull)-dd_iwu/em_iwu)*em(1:ifull)**2/ds
 ddddy = (ddv/emv(1:ifull)-dd_isv/em_isv)*em(1:ifull)**2/ds
 
@@ -4773,8 +4686,8 @@ ddddy = (ddv/emv(1:ifull)-dd_isv/em_isv)*em(1:ifull)**2/ds
 !sum nu dz = sou + snu*etau + grav*d(b*eta)/dx + grav*d(b*ff*eta)/dy - grav*b3*eta
 !sum nv dz = sov + snv*etav + grav*d(b*eta)/dy - grav*d(b*ff*eta)/dy - grav*b4*eta
 
-!ff = (1.+oeps)*0.5*dt*f
-!b = -(1.+oeps)*0.5*dt/(1.+ff**2)
+!ff = (1.+ocneps)*0.5*dt*f
+!b = -(1.+ocneps)*0.5*dt/(1.+ff**2)
 !b3 = db/dx + d(b*ff)/dy
 !b4 = db/dy - d(b*ff)/dx
 
@@ -4803,27 +4716,27 @@ odiv_n = (sou(1:ifull)/emu(1:ifull)-so_iwu/em_iwu  &
 
 ! yy*neta*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) + zz*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) + hh*neta = rhs
 
-yyn(:) = (1.+oeps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_n/ds-0.5*bb4v(1:ifull)/emv(1:ifull)+0.5*snv(1:ifull)/emv(1:ifull))
-yys(:) = (1.+oeps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_s/ds+0.5*bb4v_isv/em_isv-0.5*sn_isv/em_isv)
-yye(:) = (1.+oeps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_e/ds-0.5*bb3u(1:ifull)/emu(1:ifull)+0.5*snu(1:ifull)/emu(1:ifull))
-yyw(:) = (1.+oeps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_w/ds+0.5*bb3u_iwu/em_iwu-0.5*sn_iwu/em_iwu)
-yy(:)  = (1.+oeps)*0.5*dt*grav*em(1:ifull)**2/ds*(-4.*bb(1:ifull)/ds                                        &
+yyn(:) = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_n/ds-0.5*bb4v(1:ifull)/emv(1:ifull)+0.5*snv(1:ifull)/emv(1:ifull))
+yys(:) = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_s/ds+0.5*bb4v_isv/em_isv-0.5*sn_isv/em_isv)
+yye(:) = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_e/ds-0.5*bb3u(1:ifull)/emu(1:ifull)+0.5*snu(1:ifull)/emu(1:ifull))
+yyw(:) = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_w/ds+0.5*bb3u_iwu/em_iwu-0.5*sn_iwu/em_iwu)
+yy(:)  = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(-4.*bb(1:ifull)/ds                                        &
          -0.5*bb4v(1:ifull)/emv(1:ifull)+0.5*snv(1:ifull)/emv(1:ifull)+0.5*bb4v_isv/em_isv-0.5*sn_isv/em_isv  &
          -0.5*bb3u(1:ifull)/emu(1:ifull)+0.5*snu(1:ifull)/emu(1:ifull)+0.5*bb3u_iwu/em_iwu-0.5*sn_iwu/em_iwu)
 
-zzn(:,1) = (1.+oeps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_n*dd(1:ifull)/ds-0.5*bb4v(1:ifull)*dd(1:ifull)/emv(1:ifull) &
+zzn(:,1) = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_n*dd(1:ifull)/ds-0.5*bb4v(1:ifull)*dd(1:ifull)/emv(1:ifull) &
           +0.5*bb(1:ifull)*ddddy/emv(1:ifull)+0.5*bb(1:ifull)*ff*ddddx/emv(1:ifull)                                  &
           +0.5*snv(1:ifull)*ddv(1:ifull)/emv(1:ifull))
-zzs(:,1) = (1.+oeps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_s*dd(1:ifull)/ds+0.5*bb4v_isv*dd(1:ifull)/em_isv &
+zzs(:,1) = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_s*dd(1:ifull)/ds+0.5*bb4v_isv*dd(1:ifull)/em_isv &
           -0.5*bb(1:ifull)*ddddy/em_isv-0.5*bb(1:ifull)*ff*ddddx/em_isv                                   &
           -0.5*sn_isv*dd_isv/em_isv)
-zze(:,1) = (1.+oeps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_e*dd(1:ifull)/ds-0.5*bb3u(1:ifull)*dd(1:ifull)/emu(1:ifull) &
+zze(:,1) = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_e*dd(1:ifull)/ds-0.5*bb3u(1:ifull)*dd(1:ifull)/emu(1:ifull) &
           +0.5*bb(1:ifull)*ddddx/emu(1:ifull)-0.5*bb(1:ifull)*ff*ddddy/emu(1:ifull)                                  &
           +0.5*snu(1:ifull)*ddu(1:ifull)/emu(1:ifull))
-zzw(:,1) = (1.+oeps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_w*dd(1:ifull)/ds+0.5*bb3u_iwu*dd(1:ifull)/em_iwu & 
+zzw(:,1) = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb_w*dd(1:ifull)/ds+0.5*bb3u_iwu*dd(1:ifull)/em_iwu & 
           -0.5*bb(1:ifull)*ddddx/em_iwu+0.5*bb(1:ifull)*ff*ddddy/em_iwu                                   &
           -0.5*sn_iwu*dd_iwu/em_iwu)
-zz(:,1)  = (1.+oeps)*0.5*dt*grav*em(1:ifull)**2/ds*(-4.*bb(1:ifull)*dd(1:ifull)/ds   &
+zz(:,1)  = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(-4.*bb(1:ifull)*dd(1:ifull)/ds   &
           -0.5*bb4v(1:ifull)*dd(1:ifull)/emv(1:ifull)+0.5*bb4v_isv*dd(1:ifull)/em_isv  &
           -0.5*bb3u(1:ifull)*dd(1:ifull)/emu(1:ifull)+0.5*bb3u_iwu*dd(1:ifull)/em_iwu  &
           +0.5*bb(1:ifull)*ddddy/emv(1:ifull)+0.5*bb(1:ifull)*ff*ddddx/emv(1:ifull)    &
@@ -4833,9 +4746,9 @@ zz(:,1)  = (1.+oeps)*0.5*dt*grav*em(1:ifull)**2/ds*(-4.*bb(1:ifull)*dd(1:ifull)/
           +0.5*snv(1:ifull)*ddv(1:ifull)/emu(1:ifull)-0.5*sn_isv*dd_isv/em_isv         &
           +0.5*snu(1:ifull)*ddu(1:ifull)/emv(1:ifull)-0.5*sn_iwu*dd_iwu/em_iwu)
 
-hh(:) = 1. + (1.+oeps)*0.5*dt*odiv_n
+hh(:) = 1. + (1.+ocneps)*0.5*dt*odiv_n
 
-rhs(:,1) = xps(1:ifull) - (1.+oeps)*0.5*dt*odiv_d
+rhs(:,1) = xps(1:ifull) - (1.+ocneps)*0.5*dt*odiv_d
 
 
 ! ice

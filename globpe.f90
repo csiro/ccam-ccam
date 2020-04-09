@@ -1396,7 +1396,8 @@ integer mstn, io_nest, mbd_min
 integer opt, nopt
 integer ateb_intairtmeth, ateb_intmassmeth
 integer npa, npb, tkecduv, tblock  ! depreciated namelist options
-integer o3_time_interpolate        ! depreciated namelist opeions
+integer o3_time_interpolate        ! depreciated namelist options
+integer kmlo                       ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -2354,7 +2355,7 @@ ateb_statsmeth    = dumi(29)
 ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(15), dumi(22) )
+allocate( dumr(15), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2400,7 +2401,6 @@ if ( myid==0 ) then
   dumi(19) = fixedstabfunc
   dumi(20) = mlomfix
   dumi(21) = nodrift
-  dumi(22) = kmlo
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2440,7 +2440,6 @@ nopb            = dumi(18)
 fixedstabfunc   = dumi(19)
 mlomfix         = dumi(20)
 nodrift         = dumi(21)
-kmlo            = dumi(22)
 if ( oclosure==0 ) then
   nsteps = 1
 end if

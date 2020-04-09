@@ -332,7 +332,7 @@ end if   ! (nmaxpr==1)
 
 
 ! following is JLM sliding divergence damping (N.B. d dimensions with iextra)
-if ( nh/=0 .and. ktau<=-knh ) then  ! e.g. knh=-10, divdamp=450.
+if ( nh/=0 .and. ktau<=-knh .and. .not.lrestart ) then  ! e.g. knh=-10, divdamp=450.
   if ( nmaxpr==1 .and. mydiag ) then
     write(6,*) 'div damping'
     write(6,*) 'cc,cc-,dd,dd-', cc(idjd,nlv)/emu(idjd),cc(iwu(idjd),nlv)/emu(iwu(idjd)), &
@@ -358,7 +358,7 @@ if ( nh/=0 .and. ktau<=-knh ) then  ! e.g. knh=-10, divdamp=450.
                                             dd(idjd,nlv)/emv(idjd),dd(isv(idjd),nlv)/emv(isv(idjd))      
     write(6,*) 'd',d(idjd,:)
   end if
-end if  ! (nh/=0.and.ktau<=-knh)
+end if  ! (nh/=0.and.ktau<=-knh.and..not.lrestart)
 
 
 

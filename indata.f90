@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1467,7 +1467,7 @@ if ( .not.lrestart ) then
       write(6,*) '============================================================================'  
       write(6,*) 'Opening surface data input from ',trim(surf_00)
     end if
-    fileerror = nrungcm==-14 .or. nrungcm==-24
+    fileerror = nrungcm==-14 .or. nrungcm==-24 ! force error message if file cannot be read as NetCDF
     call histopen(ncid,surf_00,ier,fileerror=fileerror)
     if ( ier==0 ) then
       ! NETCDF file format
@@ -2166,6 +2166,11 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Importing MLO data'
   mlodwn(1:ifull,1:wlev,2) = max(mlodwn(1:ifull,1:wlev,2),0.)
   micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),100.),300.)
+  if ( .not.lrestart ) then
+    ocndwn(:,2) = min( max( ocndwn(:,2), -20.), 20. )
+    mlodwn(:,:,3) = min( max( mlodwn(:,:,3), -5.), 5. )
+    mlodwn(:,:,4) = min( max( mlodwn(:,:,4), -5.), 5. )
+  end if
   where ( .not.land(1:ifull) )
     fracice(1:ifull) = micdwn(1:ifull,5)
     sicedep(1:ifull) = micdwn(1:ifull,6)

@@ -57,7 +57,7 @@ implicit none
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
-       mloimport3d,mloexport3d,mlovlevels
+       mloimport3d,mloexport3d,mlovlevels,mlocheck
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,nsteps,usepice,minicemass
@@ -124,6 +124,7 @@ type waterdata
   real, dimension(:), allocatable :: vbot           ! water v-current at bottom from previous time-step (m/s)  
   real, dimension(:), allocatable :: utop           ! water u-current at top from previous time-step (m/s)
   real, dimension(:), allocatable :: vtop           ! water v-current at top from previous time-step (m/s)  
+  integer, dimension(:), allocatable :: ibot        ! index of bottom layer
 end type waterdata
 
 type icedata
@@ -310,6 +311,7 @@ real, dimension(ifin), intent(in) :: depin
 real, dimension(ifin) :: deptmp
 real, dimension(wlev) :: dumdf
 real, dimension(wlev+1) :: dumdh
+logical, dimension(ifin) :: lbottom
 
 if (diag>=1) write(6,*) "Initialising MLO"
 
@@ -357,6 +359,7 @@ do tile = 1,ntiles
   allocate(water_g(tile)%eta(wfull_g(tile)))
   allocate(water_g(tile)%ubot(wfull_g(tile)),water_g(tile)%vbot(wfull_g(tile)))
   allocate(water_g(tile)%utop(wfull_g(tile)),water_g(tile)%vtop(wfull_g(tile)))
+  allocate(water_g(tile)%ibot(wfull_g(tile)))
   allocate(ice_g(tile)%temp(wfull_g(tile),0:2),ice_g(tile)%thick(wfull_g(tile)),ice_g(tile)%snowd(wfull_g(tile)))
   allocate(ice_g(tile)%fracice(wfull_g(tile)),ice_g(tile)%tsurf(wfull_g(tile)),ice_g(tile)%store(wfull_g(tile)))
   allocate(ice_g(tile)%u(wfull_g(tile)),ice_g(tile)%v(wfull_g(tile)))
@@ -395,6 +398,7 @@ do tile = 1,ntiles
     water_g(tile)%vbot=0.             ! m/s
     water_g(tile)%utop=0.             ! m/s
     water_g(tile)%vtop=0.             ! m/s
+    water_g(tile)%ibot=wlev
 
     ice_g(tile)%thick=0.              ! m
     ice_g(tile)%snowd=0.              ! m
@@ -495,6 +499,14 @@ do tile = 1,ntiles
     end do
     do ii = 2,wlev
       depth_g(tile)%dz_hl(:,ii) = depth_g(tile)%depth(:,ii) - depth_g(tile)%depth(:,ii-1)
+    end do
+    
+    ! find bottom index
+    do ii = 1,wlev
+      lbottom(1:wfull_g(tile)) = depth_g(tile)%depth_hl(:,ii+1)>=depth_g(tile)%depth_hl(:,wlev+1) .and. depth_g(tile)%depth_hl(:,wlev+1)<mxd .and. depth_g(tile)%dz(:,ii)>1.e-4  
+      where ( lbottom(1:wfull_g(tile)) )
+        water_g(tile)%ibot(:) = ii
+      end where
     end do
 
     turb_g(tile)%km = 0.
@@ -697,6 +709,7 @@ if ( mlo_active ) then
     deallocate(water_g(tile)%eta)
     deallocate(water_g(tile)%ubot,water_g(tile)%vbot)
     deallocate(water_g(tile)%utop,water_g(tile)%vtop)
+    deallocate(water_g(tile)%ibot)
     deallocate(ice_g(tile)%temp,ice_g(tile)%thick,ice_g(tile)%snowd)
     deallocate(ice_g(tile)%fracice,ice_g(tile)%tsurf,ice_g(tile)%store)
     deallocate(ice_g(tile)%u,ice_g(tile)%v)
@@ -789,9 +802,8 @@ do tile = 1,ntiles
       turb_g(tile)%eps(:,ii) =pack(datain(is:ie,ii,8),wpack_g(:,tile))
     end do
 
-#ifdef mlodebug
-    call mlocheck("MLO-load",water_temp=water_g(tile)%temp,ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp)
-#endif
+    call mlocheck("MLO-load",water_temp=water_g(tile)%temp,water_u=water_g(tile)%u,water_v=water_g(tile)%v, &
+                  ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp)
 
   end if
 
@@ -853,9 +865,8 @@ do tile = 1,ntiles
       dataout(is:ie,ii,8)=unpack(turb_g(tile)%eps(:,ii),wpack_g(:,tile),dataout(is:ie,ii,8))
     end do
 
-#ifdef mlodebug
-    call mlocheck("MLO-save",water_temp=water_g(tile)%temp,ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp)
-#endif
+    call mlocheck("MLO-save",water_temp=water_g(tile)%temp,water_u=water_g(tile)%u,water_v=water_g(tile)%v, &
+                  ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp)
 
   end if
 
@@ -1923,6 +1934,7 @@ subroutine mloeval_work(dt,atm_zmin,atm_zmins,atm_sg,atm_rg,atm_rnd,atm_snd,atm_
 implicit none
 
 integer, intent(in) :: wfull, diag
+integer iqw
 real, intent(in) :: dt
 real, dimension(wfull), intent(in) :: atm_sg, atm_rg, atm_rnd, atm_snd, atm_f, atm_u, atm_v
 real, dimension(wfull), intent(in) :: atm_temp, atm_qg, atm_ps
@@ -1945,22 +1957,17 @@ type(turbdata), intent(inout) :: turb
 if (diag>=1) write(6,*) "Evaluate MLO"
 
 
-#ifdef mlodebug
-call mlocheck("MLO-start",water_temp=water%temp,ice_tsurf=ice%tsurf,ice_temp=ice%temp)
-if ( any(abs(water%u)>20.) .or. any(abs(water%v)>20.) ) then
-  write(6,*) "ERROR: current out-of-range in MLO-start"
-  write(6,*) "u ",minval(water%u),maxval(water%u)
-  write(6,*) "v ",minval(water%v),maxval(water%v)
-  stop
-end if
-#endif
+call mlocheck("MLO-start",water_temp=water%temp,water_u=water%u,water_v=water%v, &
+              ice_tsurf=ice%tsurf,ice_temp=ice%temp)
 
 
 ! store data for time-averaging
 utop_save = water%u(:,1)
 vtop_save = water%v(:,1)
-ubot_save = water%u(:,wlev)
-vbot_save = water%v(:,wlev)
+do iqw = 1,wfull
+  ubot_save(iqw) = water%u(iqw,water%ibot(iqw))
+  vbot_save(iqw) = water%v(iqw,water%ibot(iqw))
+end do
 
 ! adjust levels for free surface
 d_zcr = max(1.+water%eta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
@@ -2043,15 +2050,8 @@ water%ubot = ubot_save
 water%vbot = vbot_save
 
 
-#ifdef mlodebug
-call mlocheck("MLO-end",water_temp=water%temp,ice_tsurf=ice%tsurf,ice_temp=ice%temp)
-if ( any(abs(water%u)>20.) .or. any(abs(water%v)>20.) ) then
-  write(6,*) "ERROR: current out-of-range in MLO-end"
-  write(6,*) "u ",minval(water%u),maxval(water%u)
-  write(6,*) "v ",minval(water%v),maxval(water%v)
-  stop
-end if
-#endif
+call mlocheck("MLO-end",water_temp=water%temp,water_u=water%u,water_v=water%v, &
+              ice_tsurf=ice%tsurf,ice_temp=ice%temp)
 
 
 ! energy conservation check
@@ -2096,7 +2096,6 @@ real, dimension(wfull) :: vmagn, rho, atu, atv, uoave, voave
 real, dimension(wfull), intent(in) :: atm_f
 real, dimension(wfull), intent(in) :: atm_u, atm_v, atm_ps
 real, dimension(wfull), intent(inout) :: d_b0, d_ustar, d_wu0, d_wv0, d_wt0, d_ws0, d_zcr, d_neta
-logical, dimension(wfull) :: lbottom
 type(dgicedata), intent(in) :: dgice
 type(dgwaterdata), intent(inout) :: dgwater
 type(icedata), intent(in) :: ice
@@ -2226,15 +2225,13 @@ where ( depth%dz_hl(:,wlev)*depth%dz(:,wlev)>1.e-4 )
   aa(:,wlev) = -dt*km(:,wlev)/(depth%dz_hl(:,wlev)*depth%dz(:,wlev)*d_zcr**2)
 end where
 bb(:,wlev) = 1._8 - aa(:,wlev)
-uoave = fluxwgt*water%u(:,wlev) + (1.-fluxwgt)*water%ubot
-voave = fluxwgt*water%v(:,wlev) + (1.-fluxwgt)*water%vbot
-umag = sqrt(uoave*uoave+voave*voave)
 ! bottom drag
-do ii = 1,wlev
-  lbottom = depth%depth_hl(:,ii+1)>=depth%depth_hl(:,wlev+1) .and. depth%depth_hl(:,wlev+1)<mxd .and. depth%dz(:,ii)>1.e-4  
-  where ( lbottom )
-    bb(:,ii) = bb(:,ii) + dt*cdbot*umag/(depth%dz(:,ii)*d_zcr)
-  end where
+do iqw = 1,wfull
+  ii =water%ibot(iqw)  
+  uoave(iqw) = fluxwgt*water%u(iqw,ii) + (1.-fluxwgt)*water%ubot(iqw)
+  voave(iqw) = fluxwgt*water%v(iqw,ii) + (1.-fluxwgt)*water%vbot(iqw)
+  umag(iqw) = sqrt(uoave(iqw)**2+voave(iqw)**2)
+  bb(iqw,ii) = bb(iqw,ii) + dt*cdbot*umag(iqw)/(depth%dz(iqw,ii)*d_zcr(iqw))
 end do
 
 
@@ -2306,9 +2303,7 @@ end select
 ! adjust surface height
 water%eta = d_neta
 
-#ifdef mlodebug
-call mlocheck("MLO-mixing",water_temp=water%temp)  
-#endif
+call mlocheck("MLO-mixing",water_temp=water%temp,water_u=water%u,water_v=water%v)  
   
 return
 end subroutine mlocalc
@@ -2356,12 +2351,10 @@ real(kind=8), dimension(wfull,wlev) :: d_rho_hl  !d_rho at half level
 real(kind=8), dimension(wfull,wlev) :: km_hl     !km on half level
 real(kind=8), dimension(wfull,wlev) :: ks_hl     !ks on half level
 
-logical, dimension(wfull) :: lbottom
-
 real :: dtt
 real :: minL
 
-integer :: ii,step
+integer :: ii,step,iqw
 
 real, parameter :: ce1 = 1.44        !eps production coefficient
 real, parameter :: ce2 = 1.92        !eps sink coefficient
@@ -2400,15 +2393,11 @@ end do
 where ( depth%dz_hl(:,3)>1.e-4 )
   n2(:,1)    = n2(:,2)      - depth%dz_hl(:,2   )*(n2(:,3     )-n2(:,2     ))/depth%dz_hl(:,3     )
 end where
-do ii = 1,wlev
-  lbottom = depth%depth_hl(:,ii+1)>=depth%depth_hl(:,wlev+1) .and. depth%depth_hl(:,wlev+1)<mxd .and. depth%dz(:,wlev)>1.e-4  
-  where ( lbottom )
-    n2(:,ii) = n2(:,ii-1) + depth%dz_hl(:,ii)*(n2(:,ii-1)-n2(:,ii-2))/depth%dz_hl(:,ii-1)
-  end where  
+do iqw = 1,wfull
+  ii = water%ibot(iqw)
+  n2(iqw,ii) = n2(iqw,ii-1) + depth%dz_hl(iqw,ii)*(n2(iqw,ii-1)-n2(iqw,ii-2))/depth%dz_hl(iqw,ii-1)
+  umag(iqw) = sqrt(water%u(iqw,ii)**2+water%v(iqw,ii)**2)
 end do
-
-!umag at floor
-umag(:) = sqrt(water%u(:,wlev)**2+water%v(:,wlev)**2)
 
 !initial conditions
 k = k_out
@@ -2416,7 +2405,10 @@ eps = eps_out
 
 !boundary conditions
 k(:,1   ) = (d_ustar(:   )/cu0)**2
-k(:,wlev) = (sqrt(cdbot)*umag(:)/cu0)**2
+do iqw = 1,wfull
+  ii = water%ibot(iqw)  
+  k(iqw,ii) = (sqrt(cdbot)*umag(iqw)/cu0)**2
+end do  
 k=max(k,real(mink,8))
 
 eps = 0.
@@ -2426,12 +2418,10 @@ where ( depth%dz(:,1   )>1.e-4 )
   eps(:,1   ) = (cu0)**3*k(:,1   )**1.5/(vkar*(0.5_8*depth%dz(:,1   )+zrough(:)))
 end where
 
-zrough(:) = 0.5_8*depth%dz(:,wlev)/exp(vkar/sqrt(cdbot))
-do ii = 1,wlev
-  lbottom = depth%depth_hl(:,ii+1)>=depth%depth_hl(:,wlev+1) .and. depth%depth_hl(:,wlev+1)<mxd .and. depth%dz(:,wlev)>1.e-4
-  where ( lbottom )
-    eps(:,ii) = (cu0)**3*k(:,ii)**1.5/(vkar*(0.5_8*depth%dz(:,ii)+zrough(:)))
-  end where
+do iqw = 1,wfull
+  ii = water%ibot(iqw)  
+  zrough(iqw) = 0.5_8*depth%dz(iqw,ii)/exp(vkar/sqrt(cdbot))
+  eps(iqw,ii) = (cu0)**3*k(iqw,ii)**1.5/(vkar*(0.5_8*depth%dz(iqw,ii)+zrough(iqw)))
 end do  
 eps=max(eps,real(mineps,8))
 
@@ -2837,7 +2827,7 @@ type(dgwaterdata), intent(inout) :: dgwater
 type(waterdata), intent(in) :: water
 type(depthdata), intent(in) :: depth
 
-vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar*vkar*ric)
+vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar**2*ric)
 
 ! Modify buoyancy forcing with solar radiation
 if (incradbf>0) then
@@ -3621,9 +3611,7 @@ do iqw=1,wfull
   end if
 end do
 
-#ifdef mlodebug
 call mlocheck("MLO-newice",ice_tsurf=ice%tsurf,ice_temp=ice%temp)
-#endif
 
 ! removal
 lremove = ice%thick<=icemin .and. ice%fracice>0.
@@ -3670,9 +3658,7 @@ do iqw=1,wfull
   end if
 end do
 
-#ifdef mlodebug
 call mlocheck("MLO-icemelt",ice_tsurf=ice%tsurf,ice_temp=ice%temp)
-#endif
 
 return
 end subroutine mlonewice
@@ -3766,7 +3752,6 @@ do pc=1,5
     ice%store    =unpack(it_sto(1:nc(pc)),pqpack(:,pc),ice%store)
     d_salflx     =unpack(dt_salflx(1:nc(pc)),pqpack(:,pc),d_salflx)
     d_nk         =unpack(dt_nk(1:nc(pc)),pqpack(:,pc),d_nk)
-#ifdef mlodebug
     select case(pc)
       case(1)
         call mlocheck("MLO-icetemps1s2i",ice_tsurf=ice%tsurf,ice_temp=ice%temp)
@@ -3779,7 +3764,6 @@ do pc=1,5
       case(5)
         call mlocheck("MLO-icetemps",ice_tsurf=ice%tsurf,ice_temp=ice%temp)    
     end select
-#endif  
   end if
 end do
 
@@ -4890,13 +4874,12 @@ u10  =max(umag-ustar*integralm10/vkar,0.)
 return
 end subroutine scrntile
 
-#ifdef mlodebug
-subroutine mlocheck(message,water_temp,ice_tsurf,ice_temp)
+subroutine mlocheck(message,water_temp,water_u,water_v,ice_tsurf,ice_temp)
 
 implicit none
 
 character(len=*), intent(in) :: message
-real, dimension(:,:), intent(in), optional :: water_temp
+real, dimension(:,:), intent(in), optional :: water_temp, water_u, water_v
 real, dimension(:), intent(in), optional :: ice_tsurf
 real, dimension(:,:), intent(in), optional :: ice_temp
 
@@ -4905,6 +4888,15 @@ if ( present( water_temp ) ) then
     write(6,*) "ERRROR: water_temp is out-of-range in ",trim(message)
     write(6,*) "minval,maxval ",minval(water_temp+wrtemp),maxval(water_temp+wrtemp)
     write(6,*) "minloc,maxloc ",minloc(water_temp+wrtemp),maxloc(water_temp+wrtemp)
+    stop -1
+  end if
+end if  
+
+if ( present( water_u ) .and. present( water_v ) ) then
+  if ( any(abs(water_u)>20.) .or. any(abs(water_v)>20.) ) then
+    write(6,*) "ERROR: current out-of-range in ",trim(message)
+    write(6,*) "u ",minval(water_u),maxval(water_u)
+    write(6,*) "v ",minval(water_v),maxval(water_v)
     stop -1
   end if
 end if  
@@ -4929,6 +4921,5 @@ end if
 
 return
 end subroutine mlocheck
-#endif
 
 end module mlo
