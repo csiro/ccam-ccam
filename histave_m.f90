@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -29,10 +29,7 @@ public eg_ave,fg_ave,ga_ave,epan_ave,dew_ave
 public cbas_ave,ctop_ave,rndmax,prhmax,prhour
 public tmaxscr,tminscr,tscr_ave
 public rhmaxscr,rhminscr,rhscr_ave
-public tmaxscr_stn, tminscr_stn, tscr_ave_stn
-public rhmaxscr_stn,rhminscr_stn,rhscr_ave_stn
 public riwp_ave,rlwp_ave,u10max,v10max
-public u10max_stn,v10max_stn
 public u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave
 public rnet_ave
 public wb_ave,wbice_ave,convh_ave
@@ -48,10 +45,7 @@ real, dimension(:), allocatable, save :: eg_ave,fg_ave,ga_ave,epan_ave,dew_ave
 real, dimension(:), allocatable, save :: cbas_ave,ctop_ave,rndmax,prhmax,prhour
 real, dimension(:), allocatable, save :: tmaxscr,tminscr,tscr_ave
 real, dimension(:), allocatable, save :: rhmaxscr,rhminscr,rhscr_ave
-real, dimension(:), allocatable, save :: tmaxscr_stn,tminscr_stn,tscr_ave_stn
-real, dimension(:), allocatable, save :: rhmaxscr_stn,rhminscr_stn,rhscr_ave_stn
 real, dimension(:), allocatable, save :: riwp_ave,rlwp_ave,u10max,v10max
-real, dimension(:), allocatable, save :: u10max_stn,v10max_stn
 real, dimension(:), allocatable, save :: u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave
 real, dimension(:), allocatable, save :: rnet_ave
 real, dimension(:,:), allocatable, save :: wb_ave,wbice_ave,convh_ave
@@ -73,11 +67,8 @@ integer, intent(in) :: ifull,kl,ms,ccycle
 allocate(eg_ave(ifull),fg_ave(ifull),ga_ave(ifull),epan_ave(ifull),dew_ave(ifull))
 allocate(cbas_ave(ifull),ctop_ave(ifull),rndmax(ifull),prhmax(ifull),prhour(ifull))
 allocate(tmaxscr(ifull),tminscr(ifull),tscr_ave(ifull))
-allocate(rhmaxscr_stn(ifull),rhminscr_stn(ifull),rhscr_ave_stn(ifull))
-allocate(tmaxscr_stn(ifull),tminscr_stn(ifull),tscr_ave_stn(ifull))
 allocate(rhmaxscr(ifull),rhminscr(ifull),rhscr_ave(ifull))
 allocate(riwp_ave(ifull),rlwp_ave(ifull),u10max(ifull),v10max(ifull))
-allocate(u10max_stn(ifull),v10max_stn(ifull))
 allocate(u1max(ifull),v1max(ifull),u2max(ifull),v2max(ifull),cape_max(ifull),cape_ave(ifull),epot_ave(ifull))
 allocate(rnet_ave(ifull))
 allocate(wb_ave(ifull,ms),wbice_ave(ifull,ms),convh_ave(ifull,kl))
@@ -97,14 +88,6 @@ rhminscr(:)    = 400.
 rhscr_ave(:)   = 0.
 u10max(:)      = 0.
 v10max(:)      = 0.
-tmaxscr_stn(:)     = 0.
-tminscr_stn(:)     = 400.
-tscr_ave_stn(:)    = 0.
-rhmaxscr_stn(:)    = 0.
-rhminscr_stn(:)    = 400.
-rhscr_ave_stn(:)   = 0.
-u10max_stn(:)      = 0.
-v10max_stn(:)      = 0.
 u1max(:)       = 0.
 v1max(:)       = 0.
 u2max(:)       = 0.
@@ -170,10 +153,7 @@ deallocate(eg_ave,fg_ave,ga_ave,epan_ave,dew_ave)
 deallocate(cbas_ave,ctop_ave,rndmax,prhmax,prhour)
 deallocate(tmaxscr,tminscr,tscr_ave)
 deallocate(rhmaxscr,rhminscr,rhscr_ave)
-deallocate(tmaxscr_stn,tminscr_stn,tscr_ave_stn)
-deallocate(rhmaxscr_stn,rhminscr_stn,rhscr_ave_stn)
 deallocate(riwp_ave,rlwp_ave,u10max,v10max)
-deallocate(u10max_stn,v10max_stn)
 deallocate(u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave)
 deallocate(rnet_ave)
 deallocate(wb_ave,wbice_ave,convh_ave)

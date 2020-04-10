@@ -77,7 +77,7 @@ integer, save :: diaglevel_aerosols=0, diaglevel_pbl=0, diaglevel_cloud=0, diagl
 integer, save :: diaglevel_ocean=0, diaglevel_radiation=0, diaglevel_urban=0, diaglevel_carbon=0, diaglevel_river=0
 integer, save :: diaglevel_pop=0
 !integer, save :: filemode=0, ioreaders=-1
-real, save :: qgmin=1.e-6, zo_clearing=0.05
+real, save :: qgmin=1.e-6, zo_clearing=0.
 real, save :: av_vmod=0.7, vmodmin=0.2, snmin=0.11, tss_sh=1., charnock=0.018, chn10=0.00125, zobgin=0.02
 real, save :: rlongdn=0., rlongdx=0., rlatdn=0., rlatdx=0., ds=0., dt=0., dtin=0., panfg=4., panzo=0.001
 real, save :: bpyear=0., helim=800., fc2=1., sigbot_gwd=0., alphaj=1.e-6, divdamp=450.

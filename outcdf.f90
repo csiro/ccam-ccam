@@ -1293,8 +1293,6 @@ if( myid==0 .or. local ) then
     call attrib(idnc,dimj,jsize,'fracice',lname,'none',0.,6.5,0,cptype)
     lname = '10m wind speed'
     call attrib(idnc,dimj,jsize,'u10',lname,'m/s',0.,130.,0,cptype)
-    lname = '10m wind speed (station)'
-    call attrib(idnc,dimj,jsize,'u10_stn',lname,'m/s',0.,130.,0,cptype)
     if ( save_cloud ) then
       lname = 'Maximum CAPE'
       call attrib(idnc,dimj,jsize,'cape_max',lname,'J/kg',0.,20000.,0,cptype)
@@ -1319,18 +1317,6 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'u10max',lname,'m/s',-99.,99.,1,cptype)
       lname = 'y-component max 10m wind'
       call attrib(idnc,dimj,jsize,'v10max',lname,'m/s',-99.,99.,1,cptype)
-      lname = 'Maximum screen temperature (station)'
-      call attrib(idnc,dimj,jsize,'tmaxscr_stn',lname,'K',100.,425.,1,cptype)
-      lname = 'Minimum screen temperature (station)'
-      call attrib(idnc,dimj,jsize,'tminscr_stn',lname,'K',100.,425.,1,cptype)
-      lname = 'Maximum screen relative humidity (station)'
-      call attrib(idnc,dimj,jsize,'rhmaxscr_stn',lname,'%',0.,200.,1,cptype)
-      lname = 'Minimum screen relative humidity (station)'
-      call attrib(idnc,dimj,jsize,'rhminscr_stn',lname,'%',0.,200.,1,cptype)
-      lname = 'x-component max 10m wind (station)'
-      call attrib(idnc,dimj,jsize,'u10max_stn',lname,'m/s',-99.,99.,1,cptype)
-      lname = 'y-component max 10m wind (station)'
-      call attrib(idnc,dimj,jsize,'v10max_stn',lname,'m/s',-99.,99.,1,cptype)
       lname = 'x-component max level_1 wind'
       call attrib(idnc,dimj,jsize,'u1max',lname,'m/s',-99.,99.,1,cptype)
       lname = 'y-component max level_1 wind'
@@ -1404,10 +1390,6 @@ if( myid==0 .or. local ) then
     call attrib(idnc,dimj,jsize,'tscr_ave',lname,'K',100.,425.,0,cptype)
     lname = 'Average screen relative humidity'
     call attrib(idnc,dimj,jsize,'rhscr_ave',lname,'%',0.,200.,0,cptype)
-    lname = 'Average screen temperature (station)'
-    call attrib(idnc,dimj,jsize,'tscr_ave_stn',lname,'K',100.,425.,0,cptype)
-    lname = 'Average screen relative humidity (station)'
-    call attrib(idnc,dimj,jsize,'rhscr_ave_stn',lname,'%',0.,200.,0,cptype)
     if ( save_cloud .or. itype==-1 ) then
       lname = 'Avg cloud base'
       call attrib(idnc,dimj,jsize,'cbas_ave',lname,'sigma',0.,1.1,0,cptype)
@@ -1494,15 +1476,7 @@ if( myid==0 .or. local ) then
       lname = 'Screen level wind speed'
       call attrib(idnc,dimj,jsize,'uscrn',lname,'m/s',0.,65.,0,cptype)
     end if  
-    lname = 'Screen temperature (station)'
-    call attrib(idnc,dimj,jsize,'tscrn_stn',lname,'K',100.,425.,0,cptype)
-    lname = 'Screen mixing ratio (station)'
-    call attrib(idnc,dimj,jsize,'qgscrn_stn',lname,'kg/kg',0.,.06,0,cptype)
     if ( itype/=-1 ) then
-      lname = 'Screen relative humidity (station)'
-      call attrib(idnc,dimj,jsize,'rhscrn_stn',lname,'%',0.,200.,0,cptype)
-      lname = 'Screen level wind speed (station)'
-      call attrib(idnc,dimj,jsize,'uscrn_stn',lname,'m/s',0.,65.,0,cptype)
       if ( save_radiation ) then
         lname = 'Net radiation'
         call attrib(idnc,dimj,jsize,'rnet',lname,'W/m2',-3000.,3000.,0,cptype)
@@ -2553,7 +2527,6 @@ call histwrt(fracice,'fracice',idnc,iarch,local,.true.)
      
 ! DIAGNOSTICS -------------------------------------------------
 call histwrt(u10,'u10',idnc,iarch,local,.true.)
-call histwrt(u10_stn,'u10_stn',idnc,iarch,local,.true.)
 if ( save_cloud ) then
   call histwrt(cape_max,'cape_max',idnc,iarch,local,lwrite)
   call histwrt(cape_ave,'cape_ave',idnc,iarch,local,lwrite)
@@ -2569,12 +2542,6 @@ if ( itype/=-1 .and. save_maxmin ) then  ! these not written to restart file
   call histwrt(rhminscr,'rhminscr',idnc,iarch,local,lday)
   call histwrt(u10max,'u10max',idnc,iarch,local,lday)
   call histwrt(v10max,'v10max',idnc,iarch,local,lday)
-  call histwrt(tmaxscr_stn,'tmaxscr_stn',idnc,iarch,local,lday)
-  call histwrt(tminscr_stn,'tminscr_stn',idnc,iarch,local,lday)
-  call histwrt(rhmaxscr_stn,'rhmaxscr_stn',idnc,iarch,local,lday)
-  call histwrt(rhminscr_stn,'rhminscr_stn',idnc,iarch,local,lday)
-  call histwrt(u10max_stn,'u10max_stn',idnc,iarch,local,lday)
-  call histwrt(v10max_stn,'v10max_stn',idnc,iarch,local,lday)
   call histwrt(u1max,'u1max',idnc,iarch,local,lday)
   call histwrt(v1max,'v1max',idnc,iarch,local,lday)
   call histwrt(u2max,'u2max',idnc,iarch,local,lday)
@@ -2633,8 +2600,6 @@ end if
 ! only write these once per avg period
 call histwrt(tscr_ave,'tscr_ave',idnc,iarch,local,lave_0)
 call histwrt(rhscr_ave,'rhscr_ave',idnc,iarch,local,lave_0)
-call histwrt(tscr_ave_stn,'tscr_ave_stn',idnc,iarch,local,lave_0)
-call histwrt(rhscr_ave_stn,'rhscr_ave_stn',idnc,iarch,local,lave_0)
 if ( save_cloud .or. itype==-1 ) then
   call histwrt(cbas_ave,'cbas_ave',idnc,iarch,local,lave_0)
   call histwrt(ctop_ave,'ctop_ave',idnc,iarch,local,lave_0)
@@ -2691,11 +2656,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
   call histwrt(rhscrn,'rhscrn',idnc,iarch,local,lwrite)
   call histwrt(uscrn,'uscrn',idnc,iarch,local,lwrite)
 end if  
-call histwrt(tscrn_stn,'tscrn_stn',idnc,iarch,local,lwrite_0)
-call histwrt(qgscrn_stn,'qgscrn_stn',idnc,iarch,local,lwrite_0)
 if ( itype/=-1 ) then  ! these not written to restart file
-  call histwrt(rhscrn_stn,'rhscrn_stn',idnc,iarch,local,lwrite)
-  call histwrt(uscrn_stn,'uscrn_stn',idnc,iarch,local,lwrite)
   if ( save_radiation ) then
     call histwrt(rnet,'rnet',idnc,iarch,local,lwrite)
   end if
@@ -3352,7 +3313,7 @@ implicit none
 
 include 'kuocom.h'                    ! Convection parameters
 
-integer, parameter :: freqvars = 23  ! number of variables to write
+integer, parameter :: freqvars = 18  ! number of variables to write
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
@@ -3612,16 +3573,6 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.3,0.2,0,1)
     lname = 'Screen mixing ratio'
     call attrib(fncid,sdim,ssize,'qgscrn',lname,'kg/kg',0.,0.06,0,1)
-    lname='x-component 10m wind (station)'
-    call attrib(fncid,sdim,ssize,'uas_stn',lname,'m/s',-130.,130.,0,1)
-    lname='y-component 10m wind (station)'     
-    call attrib(fncid,sdim,ssize,'vas_stn',lname,'m/s',-130.,130.,0,1)
-    lname='Screen temperature (station)'     
-    call attrib(fncid,sdim,ssize,'tscrn_stn',lname,'K',100.,425.,0,1)
-    lname='Screen relative humidity (station)'     
-    call attrib(fncid,sdim,ssize,'rhscrn_stn',lname,'%',0.,200.,0,1)
-    lname = 'Screen mixing ratio (station)'
-    call attrib(fncid,sdim,ssize,'qgscrn_stn',lname,'kg/kg',0.,0.06,0,1)
     lname = 'Total cloud ave'
     call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.3,0,1)
     lname = 'Direct normal irradiance'
@@ -3755,18 +3706,13 @@ freqstore(1:ifull,9)  = pmsl/100.
 freqstore(1:ifull,10)  = freqstore(1:ifull,10)  + sgdn/real(tbave)
 freqstore(1:ifull,11) = psl(1:ifull)
 freqstore(1:ifull,12) = qgscrn
-freqstore(1:ifull,13) = u10_stn*u(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,14) = u10_stn*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,15) = tscrn_stn
-freqstore(1:ifull,16) = rhscrn_stn
-freqstore(1:ifull,17) = qgscrn_stn
-freqstore(1:ifull,18) = freqstore(1:ifull,18) + cloudtot/real(tbave)
-freqstore(1:ifull,19) = freqstore(1:ifull,19) + dni/real(tbave)
+freqstore(1:ifull,13) = freqstore(1:ifull,18) + cloudtot/real(tbave)
+freqstore(1:ifull,14) = freqstore(1:ifull,19) + dni/real(tbave)
 if ( diaglevel_pbl>3 ) then
-  freqstore(1:ifull,20) = ua150
-  freqstore(1:ifull,21) = va150
-  freqstore(1:ifull,22) = ua250
-  freqstore(1:ifull,23) = va250
+  freqstore(1:ifull,15) = ua150
+  freqstore(1:ifull,16) = va150
+  freqstore(1:ifull,17) = ua250
+  freqstore(1:ifull,18) = va250
 end if
 
 ! write data to file
@@ -3797,58 +3743,53 @@ if ( mod(ktau,tbave)==0 ) then
   call histwrt(freqstore(:,10),"sgdn_ave",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,11),"psf",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,12),"qgscrn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,13),"uas_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,14),"vas_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,15),"tscrn_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,16),"rhscrn_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,17),"qgscrn_stn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,18),"cld",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,19),"dni",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,13),"cld",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,14),"dni",fncid,fiarch,local,.true.)
   if ( diaglevel_pbl>3 ) then
-    call histwrt(freqstore(:,20),"ua150",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,21),"va150",fncid,fiarch,local,.true.)      
-    call histwrt(freqstore(:,22),"ua250",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,23),"va250",fncid,fiarch,local,.true.)      
+    call histwrt(freqstore(:,15),"ua150",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,16),"va150",fncid,fiarch,local,.true.)      
+    call histwrt(freqstore(:,17),"ua250",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,18),"va250",fncid,fiarch,local,.true.)      
   end if
-  !call histwrt(freqstore(:,24),"sunhours",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,25),"rgdn_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,26),"eg_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,27),"fg_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,28),"sgn_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,29),"rgn_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,30),"epot_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,31),"mrso",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,32),"mrfso",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,33),"mrros",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,34),"runoff",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,35),"snd",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,36),"snm",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,37),"rtu_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,38),"sint_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,39),"sot_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,40),"taux",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,41),"tauy",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,42),"tsu",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,43),"pblh",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,44),"prw",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,45),"clwvl",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,46),"clivl",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,47),"ua850p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,48),"va850p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,49),"ta850p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,50),"hus850p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,51),"ua500p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,52),"va500p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,53),"ta500p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,54),"hus500p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,55),"ua200p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,56),"va200p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,57),"ta200p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,58),"hus200p",fncid,fiarch,local,.true.)  
-  !call histwrt(freqstore(:,59),"clh",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,60),"clm",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,61),"cll",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,63),"sic",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,19),"sunhours",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,20),"rgdn_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,21),"eg_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,22),"fg_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,23),"sgn_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,25),"rgn_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,26),"epot_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,27),"mrso",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,28),"mrfso",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,29),"mrros",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,30),"runoff",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,31),"snd",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,32),"snm",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,33),"rtu_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,34),"sint_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,35),"sot_ave",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,36),"taux",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,37),"tauy",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,38),"tsu",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,39),"pblh",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,40),"prw",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,41),"clwvl",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,42),"clivl",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,43),"ua850p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,44),"va850p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,45),"ta850p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,46),"hus850p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,47),"ua500p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,48),"va500p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,49),"ta500p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,50),"hus500p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,51),"ua200p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,52),"va200p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,53),"ta200p",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,54),"hus200p",fncid,fiarch,local,.true.)  
+  !call histwrt(freqstore(:,55),"clh",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,56),"clm",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,57),"cll",fncid,fiarch,local,.true.)
+  !call histwrt(freqstore(:,58),"sic",fncid,fiarch,local,.true.)
   
   freqstore(:,:) = 0.
 

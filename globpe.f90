@@ -840,10 +840,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     tminscr(:)  = tscrn(:) 
     rhmaxscr(:) = rhscrn(:) 
     rhminscr(:) = rhscrn(:) 
-    tmaxscr_stn(:)  = tscrn_stn(:) 
-    tminscr_stn(:)  = tscrn_stn(:) 
-    rhmaxscr_stn(:) = rhscrn_stn(:) 
-    rhminscr_stn(:) = rhscrn_stn(:)
   end if    
   call calculate_timeaverage(koundiag)
 
@@ -3727,8 +3723,6 @@ riwp_ave(:)          = 0.
 rlwp_ave(:)          = 0.
 rhscr_ave(:)         = 0.
 tscr_ave(:)          = 0.
-rhscr_ave_stn(:)     = 0.
-tscr_ave_stn(:)      = 0.
 wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
 
@@ -3851,12 +3845,6 @@ rhmaxscr(:) = rhscrn(:)
 rhminscr(:) = rhscrn(:) 
 u10max(:)   = 0.
 v10max(:)   = 0.
-tmaxscr_stn(:)  = tscrn_stn(:) 
-tminscr_stn(:)  = tscrn_stn(:) 
-rhmaxscr_stn(:) = rhscrn_stn(:) 
-rhminscr_stn(:) = rhscrn_stn(:)
-u10max_stn(:)   = 0.
-v10max_stn(:)   = 0.
 u1max(:)    = 0.
 v1max(:)    = 0.
 u2max(:)    = 0.
@@ -3914,10 +3902,6 @@ tmaxscr(1:ifull)           = max( tmaxscr(1:ifull), tscrn )
 tminscr(1:ifull)           = min( tminscr(1:ifull), tscrn )
 rhmaxscr(1:ifull)          = max( rhmaxscr(1:ifull), rhscrn )
 rhminscr(1:ifull)          = min( rhminscr(1:ifull), rhscrn )
-tmaxscr_stn(1:ifull)       = max( tmaxscr_stn(1:ifull), tscrn_stn )
-tminscr_stn(1:ifull)       = min( tminscr_stn(1:ifull), tscrn_stn )
-rhmaxscr_stn(1:ifull)      = max( rhmaxscr_stn(1:ifull), rhscrn_stn )
-rhminscr_stn(1:ifull)      = min( rhminscr_stn(1:ifull), rhscrn_stn )
 rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
 prhour(1:ifull)            = prhour(1:ifull) + condx/3600. ! condx/dt*dt/3600 to give kg/m2/hr
 prhmax(1:ifull)            = max( prhmax(1:ifull), prhour )
@@ -3939,8 +3923,6 @@ tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
 rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
 tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
 rhscr_ave(1:ifull)         = rhscr_ave(1:ifull) + rhscrn 
-tscr_ave_stn(1:ifull)      = tscr_ave_stn(1:ifull) + tscrn_stn 
-rhscr_ave_stn(1:ifull)     = rhscr_ave_stn(1:ifull) + rhscrn_stn 
 wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
 spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
@@ -3949,10 +3931,6 @@ do iq = 1,ifull
   if ( u10(iq)**2 > u10max(iq)**2 + v10max(iq)**2 ) then
     u10max(iq) = u10(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
     v10max(iq) = u10(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
-  end if
-  if ( u10_stn(iq)**2 > u10max_stn(iq)**2 + v10max_stn(iq)**2 ) then
-    u10max_stn(iq) = u10_stn(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
-    v10max_stn(iq) = u10_stn(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
   end if
   if ( spare1(iq) > u1max(iq)**2+v1max(iq)**2 ) then
     u1max(iq) = u(iq,1)
@@ -4026,8 +4004,6 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
   tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
   rhscr_ave(1:ifull)         = rhscr_ave(1:ifull)/min(ntau,nperavg)
-  tscr_ave_stn(1:ifull)      = tscr_ave_stn(1:ifull)/min(ntau,nperavg)
-  rhscr_ave_stn(1:ifull)     = rhscr_ave_stn(1:ifull)/min(ntau,nperavg)
   do k = 1,ms
     wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
     wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)

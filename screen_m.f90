@@ -25,13 +25,10 @@ implicit none
 
 private
 public tscrn,qgscrn,uscrn,rhscrn,u10
-public tscrn_stn,qgscrn_stn,uscrn_stn,rhscrn_stn,u10_stn
 public screen_init,screen_end
 
 real, dimension(:), allocatable, save :: uscrn, rhscrn
 real, dimension(:), allocatable, save :: tscrn, qgscrn, u10
-real, dimension(:), allocatable, save :: uscrn_stn, rhscrn_stn
-real, dimension(:), allocatable, save :: tscrn_stn, qgscrn_stn, u10_stn
 
 contains
 
@@ -42,18 +39,12 @@ implicit none
 integer, intent(in) :: ifull
 
 allocate(tscrn(ifull),qgscrn(ifull),uscrn(ifull),rhscrn(ifull),u10(ifull))
-allocate(tscrn_stn(ifull),qgscrn_stn(ifull),uscrn_stn(ifull),rhscrn_stn(ifull),u10_stn(ifull))
 
 tscrn = 0.
 qgscrn = 0.
 uscrn = 0.
 rhscrn = 0.
 u10 = 0.
-tscrn_stn = 0.
-qgscrn_stn = 0.
-uscrn_stn = 0.
-rhscrn_stn = 0.
-u10_stn = 0.
 
 return
 end subroutine screen_init
@@ -63,7 +54,6 @@ subroutine screen_end
 implicit none
 
 deallocate(tscrn,qgscrn,uscrn,rhscrn,u10)
-deallocate(tscrn_stn,qgscrn_stn,uscrn_stn,rhscrn_stn,u10_stn)
 
 return
 end subroutine screen_end
