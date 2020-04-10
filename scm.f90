@@ -1345,7 +1345,7 @@ if (nsib>=1) then
   vlai(:) = vlai_in
   ivegt(:) = ivegt_in
   isoilm_in(:) = isoil_in
-  isoilm(:) = max( isoilm_n(:), 0 )
+  isoilm(:) = max( isoilm_in(:), 0 )
   if (nsib==6.or.nsib==7) then
     ! albvisnir at this point holds soil albedo for cable initialisation
     ivs(:,1) = ivegt(:)
@@ -4395,7 +4395,7 @@ end subroutine fixqg
 ! Check for NaN errors
 subroutine nantest(message,js,je)
 
-use aerosolldr, only : xtg,ssn,naero  ! LDR prognostic aerosols
+use aerosolldr, only : xtg,naero      ! LDR prognostic aerosols
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use cfrac_m                           ! Cloud fraction
@@ -4638,16 +4638,6 @@ if ( abs(iaero)>=2 ) then
     write(6,*) "minloc,maxloc ",minloc(xtg(js:je,1:kl,1:naero)),maxloc(xtg(js:je,1:kl,1:naero))
     call ccmpi_abort(-1) 
   end if  
-  if ( any(ssn(js:je,1:kl,1:2)/=ssn(js:je,1:kl,1:2)) ) then
-    write(6,*) "ERROR: NaN detected in ssn on myid=",myid," at ",trim(message)
-    call ccmpi_abort(-1)
-  end if
-  if ( any(ssn(js:je,1:kl,1:2)<-1.e-8) .or. any(ssn(js:je,1:kl,1:2)>6.5e9) ) then
-    write(6,*) "ERROR: Out-of-range detected in ssn on myid=",myid," at ",trim(message)
-    write(6,*) "minval,maxval ",minval(ssn(js:je,1:kl,1:2)),maxval(ssn(js:je,1:kl,1:2))
-    write(6,*) "minloc,maxloc ",minloc(ssn(js:je,1:kl,1:2)),maxloc(ssn(js:je,1:kl,1:2))
-    call ccmpi_abort(-1) 
-  end if    
 end if
 
 if ( any( fg(js:je)/=fg(js:je) ) ) then

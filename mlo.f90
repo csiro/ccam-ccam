@@ -2084,6 +2084,7 @@ integer, intent(in) :: wfull
 integer, intent(in) :: diag
 integer ii, iqw
 real, intent(in) :: dt
+real umag, uoave, voave
 real, dimension(wfull,wlev), intent(inout) :: km, ks
 real, dimension(wfull,wlev), intent(inout) :: k, eps
 real, dimension(wfull,wlev) :: gammas, rhs
@@ -2091,8 +2092,8 @@ real(kind=8), dimension(wfull,2:wlev) :: aa
 real(kind=8), dimension(wfull,wlev) :: bb, dd
 real(kind=8), dimension(wfull,1:wlev-1) :: cc
 real, dimension(wfull,wlev), intent(in) :: d_rho, d_nsq, d_rad, d_alpha
-real, dimension(wfull) :: dumt0, umag
-real, dimension(wfull) :: vmagn, rho, atu, atv, uoave, voave
+real, dimension(wfull) :: dumt0
+real, dimension(wfull) :: vmagn, rho, atu, atv
 real, dimension(wfull), intent(in) :: atm_f
 real, dimension(wfull), intent(in) :: atm_u, atm_v, atm_ps
 real, dimension(wfull), intent(inout) :: d_b0, d_ustar, d_wu0, d_wv0, d_wt0, d_ws0, d_zcr, d_neta
@@ -2227,11 +2228,11 @@ end where
 bb(:,wlev) = 1._8 - aa(:,wlev)
 ! bottom drag
 do iqw = 1,wfull
-  ii =water%ibot(iqw)  
-  uoave(iqw) = fluxwgt*water%u(iqw,ii) + (1.-fluxwgt)*water%ubot(iqw)
-  voave(iqw) = fluxwgt*water%v(iqw,ii) + (1.-fluxwgt)*water%vbot(iqw)
-  umag(iqw) = sqrt(uoave(iqw)**2+voave(iqw)**2)
-  bb(iqw,ii) = bb(iqw,ii) + dt*cdbot*umag(iqw)/(depth%dz(iqw,ii)*d_zcr(iqw))
+  ii = water%ibot(iqw)  
+  uoave = fluxwgt*water%u(iqw,ii) + (1.-fluxwgt)*water%ubot(iqw)
+  voave = fluxwgt*water%v(iqw,ii) + (1.-fluxwgt)*water%vbot(iqw)
+  umag = sqrt(uoave**2+voave**2)
+  bb(iqw,ii) = bb(iqw,ii) + dt*cdbot*umag/(depth%dz(iqw,ii)*d_zcr(iqw))
 end do
 
 
@@ -2241,20 +2242,20 @@ do ii = 1,wlev
 end do
 select case( otaumode )
   case(1)
-    dd(:,1) = dd(:,1) + dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u      &
-                      +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
+    dd(:,1) = dd(:,1) + dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u         &
+                        +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
   case(2)
     dd(:,1) = dd(:,1) + 0.5*dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_u     &
-                          +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr) & ! mixed
-                          -0.5*dt*d_wu0/(depth%dz(:,1)*d_zcr)
+                        +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr) & ! mixed
+                        -0.5*dt*d_wu0/(depth%dz(:,1)*d_zcr)
   case default
-    dd(:,1) = dd(:,1) - dt*d_wu0/(depth%dz(:,1)*d_zcr)                        ! explicit
+    dd(:,1) = dd(:,1) - dt*d_wu0/(depth%dz(:,1)*d_zcr)                            ! explicit
 end select
 call thomas(water%u,aa,bb,cc,dd)
 select case( otaumode )
   case(1)
     d_wu0 = -((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))        &
-          +ice%fracice*dgice%tauxicw)/rhowt                                     ! implicit
+            +ice%fracice*dgice%tauxicw)/rhowt                                     ! implicit
   case(2)
     d_wu0 = -0.5*((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_u-water%u(:,1))    &
             +ice%fracice*dgice%tauxicw)/rhowt                                   & ! mixed
@@ -2268,7 +2269,7 @@ end do
 select case( otaumode )
   case(1)
     dd(:,1) = dd(:,1) + dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v         &
-                          +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr) ! implicit
+                        +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
   case(2)
     dd(:,1) = dd(:,1) + 0.5*dt*((1.-ice%fracice)*rho*dgwater%cd*vmagn*atm_v     &
                         +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr) & ! mixed
@@ -2280,7 +2281,7 @@ call thomas(water%v,aa,bb,cc,dd)
 select case( otaumode )
   case(1)  
     d_wv0 = -((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1))        &
-          +ice%fracice*dgice%tauyicw)/rhowt                                     ! implicit
+            +ice%fracice*dgice%tauyicw)/rhowt                                     ! implicit
   case(2)
     d_wv0 = -0.5*((1.-ice%fracice)*rho*dgwater%cd*vmagn*(atm_v-water%v(:,1))    &
             +ice%fracice*dgice%tauyicw)/rhowt                                   & ! mixed

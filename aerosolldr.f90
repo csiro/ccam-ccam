@@ -39,7 +39,7 @@ public dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
 public itracsa,nsalt,salte,saltdd,saltwd,salt_burden
 public Ch_dust,zvolcemi,ticeu,aeroindir,so4mtn,carbmtn,saltsmallmtn,saltlargemtn
-public dustden,dustreff
+public dustden,dustreff,saltden,saltreff
 public xtg_solub,zoxidant_g,erod,ndcls,emissfield,vso2
 
 integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9                ! levels for injection
@@ -117,7 +117,7 @@ integer, parameter :: iocna  = 15     ! Natural organic
 integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed for emissions (0=none, 1=quadrature, 2=linear)
 integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+salt, 1=SO4, 2=None)
 real, parameter :: zmin     = 1.e-20            ! Minimum concentration tolerance
-!$acc declare create(enhanceu10)
+!$acc declare create(enhanceu10,aeroindir)
 
 ! physical constants
 real, parameter :: grav      = 9.80616          ! Gravitation constant
@@ -143,6 +143,7 @@ real, save :: saltlargemtn = 1.1e14             ! Nillson et al. number mode rad
 !real, save :: carbmtn = 2.30e17                ! counts Aitken mode as well as accumulation mode carb aerosols
 !real, save :: saltsmallmtn = 3.79e17           ! Herzog number mode radius = 0.035 um, sd=1.92, rho=2.165 g/cm3
 !real, save :: saltlargemtn = 7.25e14           ! Herzog number mode radius = 0.35 um, sd=1.7, rho=2.165
+!$acc declare create(so4mtn,carbmtn,saltsmallmtn,saltlargemtn)
 
 ! Dust coefficients
 real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /)    ! Density of dust (kg/m3)
@@ -248,8 +249,9 @@ pos=maxloc(sig,sig<=0.350) ! 8,000m
 jk9=max(pos(1),jk8+1)
 
 !$acc update device(jk2,jk3,jk4,jk5,jk6,jk8,jk9)
-!$acc update device(enhanceu10)
+!$acc update device(enhanceu10,aeroindir)
 !$acc update device(zvolcemi,ch_dust)
+!$acc update device(so4mtn,carbmtn,saltsmallmtn,saltlargemtn)
 
 return
 end subroutine aldrinit
@@ -340,7 +342,7 @@ subroutine aldrcalc(dt,sig,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m, 
                     dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,                    &
                     so2_burden,so4_burden,erod,zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,              &
                     emissfield,vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,salte,saltdd,     &
-                    saltwd,salt_burden,dustden,dustreff,locean,imax,kl)
+                    saltwd,salt_burden,dustden,dustreff,saltden,saltreff,locean,imax,kl)
 !$acc routine vector
 
 implicit none
@@ -417,6 +419,7 @@ real, dimension(imax), intent(inout) :: saltdd
 real, dimension(imax), intent(inout) :: saltwd
 real, dimension(imax), intent(inout) :: salt_burden
 real, dimension(ndust), intent(in) :: dustden, dustreff
+real, dimension(2), intent(in) :: saltden, saltreff
 real, dimension(imax,naero) :: conwd           ! Diagnostic only: Convective wet deposition
 real, dimension(imax,naero) :: xtem
 real, dimension(imax,kl,naero) :: xte,xtu,xtm1
@@ -542,7 +545,7 @@ end if
 #endif
 
 oldsalte = salte ! salte is cumulative salt emissions
-dcola = 0.
+dcola(:,1) = 0.
 do k = 1,nsalt
   dcola(:,1) = dcola(:,1) + sum( rhoa(:,:)*xtg(1:imax,:,itracsa+k-1)*dz(:,:), dim=2 )
 end do
@@ -565,7 +568,7 @@ if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
 end if
 #endif
 
-dcolb = 0.
+dcolb(:,1) = 0.
 do k = 1,nsalt
   ! Calculate integrated column dust after settling
   dcolb(:,1) = dcolb(:,1) + sum( rhoa(:,:)*xtg(1:imax,:,itracsa+k-1)*dz(:,:), dim=2 )
@@ -608,15 +611,15 @@ do k = 1,kl
 end do
 !fracc = 0.1   ! LDR suggestion (0.1 to 0.3)
 fracc = cldcon ! MJT suggestion (use NCAR scheme)
-call xtchemie (2, dt, zdayfac, aphp1, pmrate, pfprec,                    & !Inputs
-               pclcover, pmlwc, prhop1, ptp1, taudar, xtm1,              & !Inputs
-               pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,     & !Inputs
-               pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,            & !Inputs
-               pccw,pfconv,xtu,                                          & !Inputs
-               conwd,                                                    & !In and Out
-               xte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                   & !Output
-               zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,             &
-               imax,kl)                                                    !Inputs
+call xtchemie(2, dt, zdayfac, aphp1, pmrate, pfprec,                    & !Inputs
+              pclcover, pmlwc, prhop1, ptp1, taudar, xtm1,              & !Inputs
+              pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,     & !Inputs
+              pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,            & !Inputs
+              pccw,pfconv,xtu,                                          & !Inputs
+              conwd,                                                    & !In and Out
+              xte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                   & !Output
+              zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,             &
+              imax,kl)                                                    !Inputs
 do nt = 1,naero
   do k = 1,kl
     xtg(1:imax,k,nt) = max( xtg(1:imax,k,nt)+xte(:,kl+1-k,nt)*dt, 0. )

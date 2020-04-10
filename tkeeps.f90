@@ -333,13 +333,10 @@ do kcount = 1,mcount
                    stratcloud,km,ustar,wt0,wq0,wtv0,ps,          &
                    sig,sigkap,tke,eps)
 
-#ifdef scm
-    ! stable boundary layer
-    zi(iqsbl(1:isbl_p)) = zz(iqsbl(1:isbl_p),1)  
-#else
     ! stable boundary layer
     call stablepbl(iqsbl(1:isbl_p),zi,zz,thetav,uo,vo,ustar)
 
+#ifndef scm
     ! Turn off MF term if small grid spacing (mfbeta=0 implies MF is always non-zero)
     ! Based on Boutle et al 2014
     zturb = min( 0.5*(zi_save + zi), zimax )
@@ -360,10 +357,10 @@ do kcount = 1,mcount
   
   
   ! calculate tke and eps boundary condition at 1st vertical level
-  z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
-  z_on_l=min(z_on_l,10.) ! See fig 10 in Beljarrs and Holtslag (1991)
+  z_on_l = -vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
+  z_on_l = min(z_on_l,10.) ! See fig 10 in Beljarrs and Holtslag (1991)
   call calc_phi(phim,z_on_l)
-  do iq =1,imax
+  do iq = 1,imax
     tke(iq,1) = cm12*ustar(iq)*ustar(iq)+ce3*wstar(iq)*wstar(iq)
     eps(iq,1) = ustar(iq)*ustar(iq)*ustar(iq)*phim(iq)/(vkar*zz(iq,1))+grav*wtv0(iq)/thetav(iq,1)
     tke(iq,1) = max( tke(iq,1), mintke )
@@ -941,36 +938,40 @@ integer, dimension(:), intent(in) :: iqsbl
 real, dimension(:), intent(inout) :: zi
 real, dimension(:), intent(in) :: ustar
 real, dimension(:,:), intent(in) :: zz, thetav, uo, vo
-real, dimension(size(zz,2)) :: rino
-real xp, thvref, vvk, tkv
+real, dimension(size(iqsbl),size(zz,2)) :: rino
+real, dimension(size(iqsbl),size(zz,2)) :: thetav_p, uo_p, vo_p, zz_p
+real, dimension(size(iqsbl)) :: vvk, xp, ustar_p, zi_p
 real, parameter :: fac = 10. ! originally fac=100.
 real, parameter :: ricr = 0.3
-logical ltest
 
 imax = size(zz,1)
 kl = size(zz,2)
 
-rino(:) = 0.
+rino(:,1) = 0.
+xp(:) = 0.
+zi_p(:) = 0.
+ustar_p = ustar(iqsbl)
+do k = 1,kl
+  thetav_p(:,k) = thetav(iqsbl,k)
+  uo_p(:,k) = uo(iqsbl,k)
+  vo_p(:,k) = vo(iqsbl,k)
+  zz_p(:,k) = zz(iqsbl,k)
+end do
 
-do iq = 1,size(iqsbl)
-  i = iqsbl(iq)
+do k = 2,kl
   ! Use Richardson number for pbl height
   ! Richardson no. is computed using eq. (4.d.18) NCAR technical report, CCM3)
-  thvref = thetav(i,1)
-  ltest = .true.
-  do k = 2,kl-1
-    vvk = (uo(i,k)-uo(i,1))**2 + (vo(i,k)-vo(i,1))**2 + fac*ustar(i)**2
-    tkv = thetav(i,k)
-    rino(k) = grav*(tkv-thvref)*(zz(i,k)-zz(i,1))/max(thvref*vvk,1.e-30)
-    if ( rino(k)>ricr .and. ltest ) then
-      xp = (ricr-rino(k-1))/(rino(k)-rino(k-1)) 
-      xp = min( max(xp, 0.), 1.)
-      zi(i) = zz(i,k-1) + xp*(zz(i,k)-zz(i,k-1))
-      ltest = .false.
-    end if  
-  end do
-end do  
+  vvk(:) = (uo_p(:,k)-uo_p(:,1))**2 + (vo_p(:,k)-vo_p(:,1))**2 + fac*ustar_p(:)**2  
+  rino(:,k) = grav*(thetav_p(:,k)-thetav_p(:,1))*(zz_p(:,k)-zz_p(:,1))/max(thetav_p(:,1)*vvk,1.e-30)
+  where ( rino(:,k)>ricr .and. rino(:,k-1)<=ricr )
+    xp(:) = (ricr-rino(:,k-1))/(rino(:,k)-rino(:,k-1))
+    xp(:) = min( max(xp(:), 0.), 1.)
+    zi_p(:) = zz_p(:,k-1) + xp(:)*(zz_p(:,k)-zz_p(:,k-1))
+  end where
+end do
 
+zi(iqsbl) = zi_p(:)
+  
 return
 end subroutine stablepbl
                      

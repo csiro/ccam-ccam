@@ -178,7 +178,7 @@ end do
 !$acc copyin(zoxidant_g,xtosav,emissfield,erod,t,qg,qlg,qfg,stratcloud,ppfprec,ppfmelt,ppfsnow,       &
 !$acc   ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,                      &
 !$acc   clcon,bet,betm,dsig,sig,ps,kbsav,ktsav,wetfac,pblh,tss,condc,snowd,taudar,fg,eg,u10,ustar,    &
-!$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2,isoilm_in)
+!$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2,isoilm_in,dustden,dustreff,saltden,saltreff)
 !$acc loop gang private(lzoxidant,lxtg,lxtosav,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,       &
 !$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,              &
 !$acc   lppmrate,lppmaccr,lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lclcon,dz,rhoa,                 &
@@ -269,9 +269,9 @@ do tile = 1,ntiles
                 bce(is:ie),oce(is:ie),so2dd(is:ie),so4dd(is:ie),       &
                 bcdd(is:ie),ocdd(is:ie),salte(is:ie),saltdd(is:ie),    &
                 saltwd(is:ie),salt_burden(is:ie),dustden,dustreff,     &
-                locean,imax,kl)
+                saltden,saltreff,locean,imax,kl)
 
-  ! MJT notes - passing dustden and dustreff due to issues with pgi compiler
+  ! MJT notes - passing dustden, dustreff, saltden and saltref due to issues with pgi compiler
   
   ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
   ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
