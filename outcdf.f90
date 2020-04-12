@@ -2459,7 +2459,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   end where
 end if
 
-call histwrt(snowd,'snd', idnc,iarch,local,.true.)  ! long write
+call histwrt(snowd,'snd',idnc,iarch,local,.true.)  ! long write
 do k=1,ms
   where ( tgg(:,k)<100. .and. itype==1 )
     aa(:) = tgg(:,k) + wrtemp
@@ -2667,8 +2667,8 @@ endif    ! (itype/=-1)
 if ( save_land .or. save_ocean .or. itype==-1 ) then
   call histwrt(eg,'eg',idnc,iarch,local,lwrite_0)
   call histwrt(fg,'fg',idnc,iarch,local,lwrite_0)
-  call histwrt(taux,'taux',idnc,iarch,local,lwrite_0)
-  call histwrt(tauy,'tauy',idnc,iarch,local,lwrite_0)
+  call histwrt(taux_ave,'taux',idnc,iarch,local,lave)
+  call histwrt(tauy_ave,'tauy',idnc,iarch,local,lave)
 end if
 if ( itype/=-1 ) then  ! these not written to restart file
   ! "extra" outputs
@@ -3304,9 +3304,11 @@ use parmdyn_m                         ! Dynamics parameters
 use parmgeom_m                        ! Coordinate data
 use parmhdff_m                        ! Horizontal diffusion parameters
 use parmhor_m                         ! Horizontal advection parameters
+use pbl_m                             ! Boundary layer arrays
 use raddiag_m                         ! Radiation diagnostic
 use screen_m                          ! Screen level diagnostics
 use sigs_m                            ! Atmosphere sigma levels
+use soilsnow_m                        ! Soil, snow and surface data
 use tracers_m                         ! Tracer data
       
 implicit none
@@ -3333,7 +3335,10 @@ integer, save :: idkdate = 0
 integer, save :: idktime = 0
 integer, save :: idmtimer = 0
 real, dimension(:,:), allocatable, save :: freqstore
-real, dimension(ifull) :: umag, pmsl
+real, dimension(:), allocatable, save :: runoff_old, runoff_store
+real, dimension(:), allocatable, save :: runoff_surface_old, runoff_surface_store
+real, dimension(:), allocatable, save :: snowmelt_old, snowmelt_store
+real, dimension(ifull) :: umag, pmsl, outdata
 real, dimension(:,:), allocatable :: xpnt2
 real, dimension(:,:), allocatable :: ypnt2
 real, dimension(:), allocatable :: xpnt
@@ -3377,7 +3382,16 @@ if ( first ) then
     write(6,*) "Initialise high frequency output"
   end if
   allocate(freqstore(ifull,freqvars))
+  allocate(runoff_old(ifull),runoff_store(ifull))
+  allocate(runoff_surface_old(ifull),runoff_surface_store(ifull))
+  allocate(snowmelt_old(ifull),snowmelt_store(ifull))
   freqstore(:,:) = 0.
+  runoff_old(:) = 0.
+  runoff_store(:) = 0.
+  runoff_surface_old(:) = 0.
+  runoff_surface_store(:) = 0.
+  snowmelt_old(:) = 0.
+  snowmelt_store(:) = 0.
   if ( local ) then
     write(ffile,"(a,'.',i6.6)") trim(surfile), vnode_vleaderid
   else
@@ -3453,7 +3467,7 @@ if ( first ) then
     ics=0
     write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
     call ccnf_put_att(fncid,idnt,'time_origin',timorg)
-    write(grdtim,'("seconds since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
+    write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
     call ccnf_put_att(fncid,idnt,'units',grdtim)
     if ( leap==0 ) then
       call ccnf_put_att(fncid,idnt,'calendar','noleap')
@@ -3577,7 +3591,7 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.3,0,1)
     lname = 'Direct normal irradiance'
     call attrib(fncid,sdim,ssize,'dni',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
-    if ( diaglevel_pbl>3 ) then
+    if ( diaglevel_pbl>3 .or. surf_windfarm==1 ) then
       lname='x-component 150m wind'
       call attrib(fncid,sdim,ssize,'ua150',lname,'m/s',-130.,130.,0,1)
       lname='y-component 150m wind'     
@@ -3587,6 +3601,53 @@ if ( first ) then
       lname='y-component 250m wind'     
       call attrib(fncid,sdim,ssize,'va250',lname,'m/s',-130.,130.,0,1)
     end if
+    if ( surf_cordex==1 ) then
+      ! missing sund  
+      lname = 'LW downwelling at ground'
+      call attrib(fncid,sdim,ssize,'rgdn_ave',lname,'W/m2',-500.,1.e3,0,-1)   ! -1 = long
+      lname = 'Avg latent heat flux'
+      call attrib(fncid,sdim,ssize,'eg_ave',lname,'W/m2',-3000.,3000.,0,-1)   ! -1 = long
+      lname = 'Avg sensible heat flux'
+      call attrib(fncid,sdim,ssize,'fg_ave',lname,'W/m2',-3000.,3000.,0,-1)   ! -1 = long
+      lname = 'Solar net at ground (+ve down)'
+      call attrib(fncid,sdim,ssize,'sgn_ave',lname,'W/m2',-500.,2000.,0,-1)   ! -1 = long
+      lname = 'LW net at ground (+ve up)'
+      call attrib(fncid,sdim,ssize,'rgn_ave',lname,'W/m2',-500.,1000.,0,-1)   ! -1 = long
+      lname = 'Avg potential evaporation'
+      call attrib(fncid,sdim,ssize,'epot_ave',lname,'W/m2',-1000.,10.e3,0,1)
+      ! missing mrfso
+      lname = 'Surface runoff'
+      call attrib(fncid,sdim,ssize,'mrros',lname,'mm/day',0.,1300.,0,-1)      ! -1 = long
+      lname = 'Runoff'
+      call attrib(fncid,sdim,ssize,'runoff',lname,'mm/day',0.,1300.,0,-1)     ! -1 = long
+      ! missing mrso
+      lname = 'Snow melt'
+      call attrib(fncid,sdim,ssize,'snm',lname,'mm/day',0.,1300.,0,-1)        ! -1 = long
+      lname = 'LW at TOA'
+      call attrib(fncid,sdim,ssize,'rtu_ave',lname,'W/m2',0.,800.,0,-1)       ! -1 = long
+      lname = 'Solar in at TOA'
+      call attrib(fncid,sdim,ssize,'sint_ave',lname,'W/m2',0.,1600.,0,-1)     ! -1 = long
+      lname = 'Solar out at TOA'
+      call attrib(fncid,sdim,ssize,'sot_ave',lname,'W/m2',0.,1000.,0,-1)      ! -1 = long
+      ! missing wsgsmax
+      lname = 'x-component wind stress'
+      call attrib(fncid,sdim,ssize,'taux',lname,'N/m2',-50.,50.,0,1)
+      lname = 'y-component wind stress'
+      call attrib(fncid,sdim,ssize,'tauy',lname,'N/m2',-50.,50.,0,1)
+      lname = 'Surface temperature'
+      call attrib(fncid,sdim,ssize,'tsu',lname,'K',100.,425.,0,1)
+      lname = 'PBL depth'
+      call attrib(fncid,sdim,ssize,'pblh',lname,'m',0.,13000.,0,1)
+      ! missing prw
+      ! missing clwvi
+      ! missing clivi
+      ! missing clh
+      ! missing clm
+      ! missing cll
+      lname = 'Snow depth (liquid water)'
+      call attrib(fncid,sdim,ssize,'snd',lname,'mm',0.,6500.,0,-1)            ! -1 = long
+      ! missing sic
+    end if    
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -3692,27 +3753,25 @@ if ( first ) then
 end if
 
 ! store output
-umag = sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)
-call mslp(pmsl,psl,zs,t)
-freqstore(1:ifull,1)  = u10*u(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,2)  = u10*v(1:ifull,1)/max(umag,1.E-6)
-freqstore(1:ifull,3)  = tscrn
-freqstore(1:ifull,4)  = rhscrn
-freqstore(1:ifull,5)  = freqstore(1:ifull,5)  + condx*86400./dt/real(tbave)
-freqstore(1:ifull,6)  = freqstore(1:ifull,6)  + condc*86400./dt/real(tbave)
-freqstore(1:ifull,7)  = freqstore(1:ifull,7)  + conds*86400./dt/real(tbave)
-freqstore(1:ifull,8)  = freqstore(1:ifull,8)  + condg*86400./dt/real(tbave)
-freqstore(1:ifull,9)  = pmsl/100.
-freqstore(1:ifull,10)  = freqstore(1:ifull,10)  + sgdn/real(tbave)
-freqstore(1:ifull,11) = psl(1:ifull)
-freqstore(1:ifull,12) = qgscrn
-freqstore(1:ifull,13) = freqstore(1:ifull,18) + cloudtot/real(tbave)
-freqstore(1:ifull,14) = freqstore(1:ifull,19) + dni/real(tbave)
-if ( diaglevel_pbl>3 ) then
-  freqstore(1:ifull,15) = ua150
-  freqstore(1:ifull,16) = va150
-  freqstore(1:ifull,17) = ua250
-  freqstore(1:ifull,18) = va250
+freqstore(1:ifull,1) = freqstore(1:ifull,1) + condx*(86400./dt/real(tbave))
+freqstore(1:ifull,2) = freqstore(1:ifull,2) + condc*(86400./dt/real(tbave))
+freqstore(1:ifull,3) = freqstore(1:ifull,3) + conds*(86400./dt/real(tbave))
+freqstore(1:ifull,4) = freqstore(1:ifull,4) + condg*(86400./dt/real(tbave))
+freqstore(1:ifull,5) = freqstore(1:ifull,5) + sgdn/real(tbave)
+freqstore(1:ifull,6) = freqstore(1:ifull,6) + cloudtot/real(tbave)
+freqstore(1:ifull,7) = freqstore(1:ifull,7) + dni/real(tbave)
+if ( surf_cordex==1 ) then
+  freqstore(1:ifull,8) = freqstore(1:ifull,8) + rgdn/real(tbave)    
+  freqstore(1:ifull,9) = freqstore(1:ifull,9) + eg/real(tbave)    
+  freqstore(1:ifull,10) = freqstore(1:ifull,10) + fg/real(tbave)
+  freqstore(1:ifull,11) = freqstore(1:ifull,11) + sgsave/real(tbave)
+  freqstore(1:ifull,12) = freqstore(1:ifull,12) + rgn/real(tbave)
+  freqstore(1:ifull,13) = freqstore(1:ifull,13) + epot/real(tbave)
+  freqstore(1:ifull,14) = freqstore(1:ifull,14) + rt/real(tbave)
+  freqstore(1:ifull,15) = freqstore(1:ifull,15) + sint/real(tbave)
+  freqstore(1:ifull,16) = freqstore(1:ifull,16) + sout/real(tbave)
+  freqstore(1:ifull,17) = freqstore(1:ifull,17) + taux/real(tbave)
+  freqstore(1:ifull,18) = freqstore(1:ifull,18) + tauy/real(tbave)
 end if
 
 ! write data to file
@@ -3723,7 +3782,7 @@ if ( mod(ktau,tbave)==0 ) then
       write(6,*) "Write high-frequency output"
     end if
     fiarch = ktau/tbave
-    tpnt = real(ktau,8)*real(dt,8)
+    tpnt = real(ktau,8)*(real(dt,8)/60._8)
     call ccnf_put_vara(fncid,'time',fiarch,tpnt)
     call ccnf_put_vara(fncid,'kdate',fiarch,kdate)
     call ccnf_put_vara(fncid,'ktime',fiarch,ktime)
@@ -3731,68 +3790,71 @@ if ( mod(ktau,tbave)==0 ) then
   end if
 
   ! record output
-  call histwrt(freqstore(:,1),"uas",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,2),"vas",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,3),"tscrn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,4),"rhscrn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,5),"rnd",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,6),"rnc",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,7),"sno",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,8),"grpl",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,9),"pmsl",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,10),"sgdn_ave",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,11),"psf",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,12),"qgscrn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,13),"cld",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,14),"dni",fncid,fiarch,local,.true.)
-  if ( diaglevel_pbl>3 ) then
-    call histwrt(freqstore(:,15),"ua150",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,16),"va150",fncid,fiarch,local,.true.)      
-    call histwrt(freqstore(:,17),"ua250",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,18),"va250",fncid,fiarch,local,.true.)      
+  umag = sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)
+  call mslp(pmsl,psl,zs,t)
+  outdata = u10*u(1:ifull,1)/max(umag,1.E-6)
+  call histwrt(outdata,"uas",fncid,fiarch,local,.true.)
+  outdata = u10*v(1:ifull,1)/max(umag,1.E-6)
+  call histwrt(outdata,"vas",fncid,fiarch,local,.true.)
+  call histwrt(tscrn,"tscrn",fncid,fiarch,local,.true.)
+  call histwrt(rhscrn,"rhscrn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,1),"rnd",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,2),"rnc",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,3),"sno",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,4),"grpl",fncid,fiarch,local,.true.)
+  outdata = pmsl/100.
+  call histwrt(outdata,"pmsl",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,5),"sgdn_ave",fncid,fiarch,local,.true.)
+  call histwrt(psl,"psf",fncid,fiarch,local,.true.)
+  call histwrt(qgscrn,"qgscrn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,6),"cld",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,7),"dni",fncid,fiarch,local,.true.)
+  if ( diaglevel_pbl>3 .or. surf_windfarm==1 ) then
+    call histwrt(ua150,"ua150",fncid,fiarch,local,.true.)
+    call histwrt(va150,"va150",fncid,fiarch,local,.true.)
+    call histwrt(ua250,"ua250",fncid,fiarch,local,.true.)
+    call histwrt(va250,"va250",fncid,fiarch,local,.true.)      
   end if
-  !call histwrt(freqstore(:,19),"sunhours",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,20),"rgdn_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,21),"eg_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,22),"fg_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,23),"sgn_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,25),"rgn_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,26),"epot_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,27),"mrso",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,28),"mrfso",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,29),"mrros",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,30),"runoff",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,31),"snd",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,32),"snm",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,33),"rtu_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,34),"sint_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,35),"sot_ave",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,36),"taux",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,37),"tauy",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,38),"tsu",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,39),"pblh",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,40),"prw",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,41),"clwvl",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,42),"clivl",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,43),"ua850p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,44),"va850p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,45),"ta850p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,46),"hus850p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,47),"ua500p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,48),"va500p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,49),"ta500p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,50),"hus500p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,51),"ua200p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,52),"va200p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,53),"ta200p",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,54),"hus200p",fncid,fiarch,local,.true.)  
-  !call histwrt(freqstore(:,55),"clh",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,56),"clm",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,57),"cll",fncid,fiarch,local,.true.)
-  !call histwrt(freqstore(:,58),"sic",fncid,fiarch,local,.true.)
+  if ( surf_cordex==1 ) then
+    call histwrt(freqstore(:,8),"rgdn_ave",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,9),"eg_ave",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,10),"fg_ave",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,11),"sgn_ave",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,12),"rgn_ave",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,13),"epot_ave",fncid,fiarch,local,.true.)
+    outdata = runoff_surface - runoff_surface_old + runoff_surface_store
+    runoff_surface_old = runoff_surface
+    call histwrt(outdata,"mrros",fncid,fiarch,local,.true.)
+    outdata = runoff - runoff_old + runoff_store
+    runoff_old = runoff
+    call histwrt(outdata,"runoff",fncid,fiarch,local,.true.)
+    outdata = snowmelt - snowmelt_old + snowmelt_store
+    snowmelt_old = snowmelt
+    call histwrt(outdata,"snm",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,14),"rtu_ave",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,15),"sint_ave",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,16),"sot_ave",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,17),"taux",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,18),"tauy",fncid,fiarch,local,.true.)
+    call histwrt(tss,"tsu",fncid,fiarch,local,.true.)
+    call histwrt(pblh,"pblh",fncid,fiarch,local,.true.)
+    call histwrt(snowd,"snd",fncid,fiarch,local,.true.)
+  end if
   
   freqstore(:,:) = 0.
+  runoff_surface_store(:) = 0.
+  runoff_store(:) = 0.
+  snowmelt_store(:) = 0.
 
+end if
+
+if ( mod(ktau,nperavg)==0 ) then
+  runoff_surface_store = runoff_surface_store + runoff_surface - runoff_surface_old
+  runoff_surface_old = 0.
+  runoff_store = runoff_store + runoff - runoff_old
+  runoff_old = 0.
+  snowmelt_store = snowmelt_store + snowmelt - snowmelt_old
+  snowmelt_old = 0.
 end if
 
 if ( myid==0 .or. local ) then

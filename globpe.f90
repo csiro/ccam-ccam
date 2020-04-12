@@ -1466,7 +1466,8 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_aerosols,diaglevel_pbl,diaglevel_cloud,             &
     diaglevel_land,diaglevel_maxmin,diaglevel_ocean,              &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
-    diaglevel_river,diaglevel_pop
+    diaglevel_river,diaglevel_pop,                                &
+    surf_cordex,surf_windfarm
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,shaltime,        &
@@ -1942,7 +1943,7 @@ aeroindir           = dumi(8)
 o3_vert_interpolate = dumi(9)
 o3_time_interpolate = dumi(10)
 deallocate( dumr, dumi )
-allocate( dumi(21) )
+allocate( dumi(23) )
 dumi = 0
 if ( myid==0 ) then
   read(99, datafile)
@@ -1967,6 +1968,8 @@ if ( myid==0 ) then
   dumi(19) = diaglevel_carbon
   dumi(20) = diaglevel_river
   dumi(21) = diaglevel_pop
+  dumi(22) = surf_cordex
+  dumi(23) = surf_windfarm
 end if
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(ifile,0,comm_world)
@@ -2029,6 +2032,8 @@ diaglevel_urban     = dumi(18)
 diaglevel_carbon    = dumi(19)
 diaglevel_river     = dumi(20)
 diaglevel_pop       = dumi(21)
+surf_cordex         = dumi(22)
+surf_windfarm       = dumi(23)
 deallocate( dumi )
 allocate( dumr(33), dumi(21) )
 dumr = 0.
@@ -3688,6 +3693,7 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
     ,dmsso2o,so2so4o, salte,saltdd       &
     ,saltwd,salt_burden
 use cable_ccam, only : ccycle              ! CABLE
+use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
 use parm_m                                 ! Model configuration
@@ -3721,10 +3727,11 @@ rnet_ave(:)          = 0.
 sunhours(:)          = 0.
 riwp_ave(:)          = 0.
 rlwp_ave(:)          = 0.
-rhscr_ave(:)         = 0.
 tscr_ave(:)          = 0.
 wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
+taux_ave(:)          = 0.
+tauy_ave(:)          = 0.
 
 ! radiation
 koundiag             = 0
@@ -3922,9 +3929,11 @@ tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urban_tas )
 tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
 rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
 tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
-rhscr_ave(1:ifull)         = rhscr_ave(1:ifull) + rhscrn 
 wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
+taux_ave(1:ifull)          = taux_ave(1:ifull) + taux
+tauy_ave(1:ifull)          = tauy_ave(1:ifull) + tauy
+
 spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
 spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
 do iq = 1,ifull
@@ -4003,11 +4012,12 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
   rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
   tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
-  rhscr_ave(1:ifull)         = rhscr_ave(1:ifull)/min(ntau,nperavg)
   do k = 1,ms
     wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
     wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)
   end do
+  taux_ave(1:ifull)   = taux_ave(1:ifull)/min(ntau,nperavg)
+  tauy_ave(1:ifull)   = tauy_ave(1:ifull)/min(ntau,nperavg)
   sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
   sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
   if ( always_mspeca ) then
@@ -4309,7 +4319,7 @@ k150m = 0
 k250m = 0
 
 ! special output for wind farms
-if ( diaglevel_pbl>3 ) then
+if ( diaglevel_pbl>3 .or. surf_windfarm==1 ) then
 !$omp do schedule(static) private(js,je,iq,k,k150m,k250m,xx,phi)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -4338,7 +4348,7 @@ if ( diaglevel_pbl>3 ) then
     end do  
   end do  
 !$omp end do nowait
-end if ! diaglevel_pbl>3
+end if ! diaglevel_pbl>3 .or. surf_windfarm==1
 
 return
 end subroutine update_misc
