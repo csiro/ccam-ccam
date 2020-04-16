@@ -4894,7 +4894,7 @@ if ( present( water_temp ) ) then
 end if  
 
 if ( present( water_u ) .and. present( water_v ) ) then
-  if ( any(abs(water_u)>20.) .or. any(abs(water_v)>20.) ) then
+  if ( any(abs(water_u)>30.) .or. any(abs(water_v)>30.) ) then
     write(6,*) "ERROR: current out-of-range in ",trim(message)
     write(6,*) "u ",minval(water_u),maxval(water_u)
     write(6,*) "v ",minval(water_v),maxval(water_v)

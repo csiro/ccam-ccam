@@ -1290,7 +1290,7 @@ if( myid==0 .or. local ) then
     lname = 'Sea ice depth'
     call attrib(idnc,dimj,jsize,'siced',lname,'m',0.,65.,0,-1)
     lname = 'Sea ice fraction'
-    call attrib(idnc,dimj,jsize,'fracice',lname,'none',0.,6.5,0,cptype)
+    call attrib(idnc,dimj,jsize,'fracice',lname,'none',0.,1.,0,cptype)
     lname = '10m wind speed'
     call attrib(idnc,dimj,jsize,'u10',lname,'m/s',0.,130.,0,cptype)
     if ( save_cloud ) then
@@ -3315,7 +3315,8 @@ implicit none
 
 include 'kuocom.h'                    ! Convection parameters
 
-integer, parameter :: freqvars = 18  ! number of variables to write
+integer, parameter :: freqvars = 21  ! number of variables to average
+integer, parameter :: runoffvars = 3 ! number of runoff variables
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
@@ -3335,9 +3336,7 @@ integer, save :: idkdate = 0
 integer, save :: idktime = 0
 integer, save :: idmtimer = 0
 real, dimension(:,:), allocatable, save :: freqstore
-real, dimension(:), allocatable, save :: runoff_old, runoff_store
-real, dimension(:), allocatable, save :: runoff_surface_old, runoff_surface_store
-real, dimension(:), allocatable, save :: snowmelt_old, snowmelt_store
+real, dimension(:,:), allocatable, save :: runoff_old, runoff_store
 real, dimension(ifull) :: umag, pmsl, outdata
 real, dimension(:,:), allocatable :: xpnt2
 real, dimension(:,:), allocatable :: ypnt2
@@ -3382,16 +3381,10 @@ if ( first ) then
     write(6,*) "Initialise high frequency output"
   end if
   allocate(freqstore(ifull,freqvars))
-  allocate(runoff_old(ifull),runoff_store(ifull))
-  allocate(runoff_surface_old(ifull),runoff_surface_store(ifull))
-  allocate(snowmelt_old(ifull),snowmelt_store(ifull))
+  allocate(runoff_old(ifull,runoffvars),runoff_store(ifull,runoffvars))
   freqstore(:,:) = 0.
-  runoff_old(:) = 0.
-  runoff_store(:) = 0.
-  runoff_surface_old(:) = 0.
-  runoff_surface_store(:) = 0.
-  snowmelt_old(:) = 0.
-  snowmelt_store(:) = 0.
+  runoff_old(:,:) = 0.
+  runoff_store(:,:) = 0.
   if ( local ) then
     write(ffile,"(a,'.',i6.6)") trim(surfile), vnode_vleaderid
   else
@@ -3572,25 +3565,25 @@ if ( first ) then
     lname='Screen relative humidity'     
     call attrib(fncid,sdim,ssize,'rhscrn',lname,'%',0.,200.,0,1)
     lname='Precipitation'
-    call attrib(fncid,sdim,ssize,'rnd',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
+    call attrib(fncid,sdim,ssize,'rnd',lname,'mm/day',0.,1300.,0,-1)          ! -1=long
     lname='Convective precipitation'
-    call attrib(fncid,sdim,ssize,'rnc',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
+    call attrib(fncid,sdim,ssize,'rnc',lname,'mm/day',0.,1300.,0,-1)          ! -1=long
     lname='Snowfall'
-    call attrib(fncid,sdim,ssize,'sno',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
+    call attrib(fncid,sdim,ssize,'sno',lname,'mm/day',0.,1300.,0,-1)          ! -1=long
     lname='Graupelfall'
-    call attrib(fncid,sdim,ssize,'grpl',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+    call attrib(fncid,sdim,ssize,'grpl',lname,'mm/day',0.,1300.,0,-1)         ! -1=long
     lname ='Mean sea level pressure'
     call attrib(fncid,sdim,ssize,'pmsl',lname,'hPa',800.,1200.,0,1)    
     lname ='Solar downwelling at ground'
-    call attrib(fncid,sdim,ssize,'sgdn_ave',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long 
+    call attrib(fncid,sdim,ssize,'sgdn_ave',lname,'W/m2',-500.,2.e3,0,-1)     ! -1 = long 
     lname = 'Scaled Log Surface pressure'
     call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.3,0.2,0,1)
     lname = 'Screen mixing ratio'
     call attrib(fncid,sdim,ssize,'qgscrn',lname,'kg/kg',0.,0.06,0,1)
     lname = 'Total cloud ave'
-    call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.3,0,1)
+    call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)
     lname = 'Direct normal irradiance'
-    call attrib(fncid,sdim,ssize,'dni',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
+    call attrib(fncid,sdim,ssize,'dni',lname,'W/m2',-500.,2.e3,0,-1)          ! -1 = long
     if ( diaglevel_pbl>3 .or. surf_windfarm==1 ) then
       lname='x-component 150m wind'
       call attrib(fncid,sdim,ssize,'ua150',lname,'m/s',-130.,130.,0,1)
@@ -3615,12 +3608,12 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'rgn_ave',lname,'W/m2',-500.,1000.,0,-1)   ! -1 = long
       lname = 'Avg potential evaporation'
       call attrib(fncid,sdim,ssize,'epot_ave',lname,'W/m2',-1000.,10.e3,0,1)
-      ! missing mrfso
+      ! missing mrfso - requires wbice
       lname = 'Surface runoff'
       call attrib(fncid,sdim,ssize,'mrros',lname,'mm/day',0.,1300.,0,-1)      ! -1 = long
       lname = 'Runoff'
       call attrib(fncid,sdim,ssize,'runoff',lname,'mm/day',0.,1300.,0,-1)     ! -1 = long
-      ! missing mrso
+      ! missing mrso - requires wb
       lname = 'Snow melt'
       call attrib(fncid,sdim,ssize,'snm',lname,'mm/day',0.,1300.,0,-1)        ! -1 = long
       lname = 'LW at TOA'
@@ -3638,15 +3631,19 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'tsu',lname,'K',100.,425.,0,1)
       lname = 'PBL depth'
       call attrib(fncid,sdim,ssize,'pblh',lname,'m',0.,13000.,0,1)
-      ! missing prw
-      ! missing clwvi
-      ! missing clivi
-      ! missing clh
-      ! missing clm
-      ! missing cll
+      ! missing prw   - requires mixr
+      ! missing clwvi - requires qlg
+      ! missing clivi - requires qfg
+      lname = 'Hi cloud ave'
+      call attrib(fncid,sdim,ssize,'clh',lname,'frac',0.,1.,0,1)
+      lname = 'Mid cloud ave'
+      call attrib(fncid,sdim,ssize,'clm',lname,'frac',0.,1.,0,1)
+      lname = 'Low cloud ave'
+      call attrib(fncid,sdim,ssize,'cll',lname,'frac',0.,1.,0,1)
       lname = 'Snow depth (liquid water)'
       call attrib(fncid,sdim,ssize,'snd',lname,'mm',0.,6500.,0,-1)            ! -1 = long
-      ! missing sic
+      lname = 'Sea ice fraction'
+      call attrib(fncid,sdim,ssize,'fracice',lname,'none',0.,1.,0,1)
     end if    
 
     ! end definition mode
@@ -3772,6 +3769,9 @@ if ( surf_cordex==1 ) then
   freqstore(1:ifull,16) = freqstore(1:ifull,16) + sout/real(tbave)
   freqstore(1:ifull,17) = freqstore(1:ifull,17) + taux/real(tbave)
   freqstore(1:ifull,18) = freqstore(1:ifull,18) + tauy/real(tbave)
+  freqstore(1:ifull,19) = freqstore(1:ifull,19) + cloudhi/real(tbave)
+  freqstore(1:ifull,20) = freqstore(1:ifull,20) + cloudmi/real(tbave)
+  freqstore(1:ifull,21) = freqstore(1:ifull,21) + cloudlo/real(tbave)
 end if
 
 ! write data to file
@@ -3822,14 +3822,14 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(freqstore(:,11),"sgn_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,12),"rgn_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,13),"epot_ave",fncid,fiarch,local,.true.)
-    outdata = runoff_surface - runoff_surface_old + runoff_surface_store
-    runoff_surface_old = runoff_surface
+    outdata = runoff_surface - runoff_old(:,1) + runoff_store(:,1)
+    runoff_old(:,1) = runoff_surface
     call histwrt(outdata,"mrros",fncid,fiarch,local,.true.)
-    outdata = runoff - runoff_old + runoff_store
-    runoff_old = runoff
+    outdata = runoff - runoff_old(:,2) + runoff_store(:,2)
+    runoff_old(:,2) = runoff
     call histwrt(outdata,"runoff",fncid,fiarch,local,.true.)
-    outdata = snowmelt - snowmelt_old + snowmelt_store
-    snowmelt_old = snowmelt
+    outdata = snowmelt - runoff_old(:,3) + runoff_store(:,3)
+    runoff_old(:,3) = snowmelt
     call histwrt(outdata,"snm",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,14),"rtu_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,15),"sint_ave",fncid,fiarch,local,.true.)
@@ -3839,22 +3839,22 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(tss,"tsu",fncid,fiarch,local,.true.)
     call histwrt(pblh,"pblh",fncid,fiarch,local,.true.)
     call histwrt(snowd,"snd",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,19),"clh",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,20),"clm",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,21),"cll",fncid,fiarch,local,.true.)
+    call histwrt(fracice,"fracice",fncid,fiarch,local,.true.)
   end if
   
   freqstore(:,:) = 0.
-  runoff_surface_store(:) = 0.
-  runoff_store(:) = 0.
-  snowmelt_store(:) = 0.
+  runoff_store(:,:) = 0.
 
 end if
 
 if ( mod(ktau,nperavg)==0 ) then
-  runoff_surface_store = runoff_surface_store + runoff_surface - runoff_surface_old
-  runoff_surface_old = 0.
-  runoff_store = runoff_store + runoff - runoff_old
-  runoff_old = 0.
-  snowmelt_store = snowmelt_store + snowmelt - snowmelt_old
-  snowmelt_old = 0.
+  runoff_store(:,1) = runoff_store(:,1) + runoff_surface - runoff_old(:,1)
+  runoff_store(:,2) = runoff_store(:,2) + runoff - runoff_old(:,2)
+  runoff_store(:,3) = runoff_store(:,3) + snowmelt - runoff_old(:,3)
+  runoff_old(:,:) = 0.
 end if
 
 if ( myid==0 .or. local ) then
