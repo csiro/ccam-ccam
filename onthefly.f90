@@ -388,7 +388,7 @@ logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
-logical zht_needed, zht_found, urban_found, urban2_found
+logical zht_needed, zht_found, urban1_found, urban2_found
 logical aero_found
 logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
@@ -647,7 +647,7 @@ if ( newfile ) then
   soilt_found   = iers(4)==0
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
-  urban_found   = iers(7)==0
+  urban1_found  = iers(7)==0
   urban2_found  = iers(8)==0
   mloice_found  = iers(9)==0
   zht_found     = iers(10)==0
@@ -661,19 +661,17 @@ if ( newfile ) then
   if ( myid==0 ) then
     if ( zht_needed ) then
       write(6,*) "Surface height is required with zht_needed =",zht_needed
-      write(6,*) "nested,retopo_test              =",nested,retopo_test
-      write(6,*) "soilt_found,mlo_found,zht_found =",soilt_found,mlo_found,zht_found
-      write(6,*) "allowtrivialfill                =",allowtrivialfill
-      if ( .not.zht_found .and. .not.allowtrivialfill ) then
-        write(6,*) "ERROR: Surface height is required but not found in input file"
-        call ccmpi_abort(-1)
-      end if     
     else  
       write(6,*) "Surface height is not required with zht_needed =",zht_needed
-      write(6,*) "nested,retopo_test              =",nested,retopo_test
-      write(6,*) "soilt_found,mlo_found,zht_found =",soilt_found,mlo_found,zht_found
-      write(6,*) "allowtrivialfill                =",allowtrivialfill
     end if
+    write(6,*) "nested,retopo_test              =",nested,retopo_test
+    write(6,*) "soilt_found,mlo_found,zht_found =",soilt_found,mlo_found,zht_found
+    write(6,*) "allowtrivialfill                =",allowtrivialfill
+    if ( zht_needed .and. .not.zht_found .and. .not.allowtrivialfill ) then
+      write(6,*) "ERROR: Surface height is required but not found in input file"
+      call ccmpi_abort(-1)
+    end if     
+    write(6,*) "urban1_found,urban2_found = ",urban1_found,urban2_found
   end if  
       
   ! determine whether surface temperature needs to be interpolated (tss_test=.false.)
@@ -790,7 +788,7 @@ if ( newfile ) then
     if ( myid==0 ) then
       write(6,*) "Determine urban mask"
     end if  
-    if ( urban_found ) then
+    if ( urban1_found ) then
       call histrd(iarchi,ier,'t1_intmtgg1',ucc,6*ik*ik)  
     else if ( urban2_found ) then
       call histrd(iarchi,ier,'intmtgg1',ucc,6*ik*ik)
@@ -816,7 +814,7 @@ else
   soilt_found   = iers(4)==0
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
-  urban_found   = iers(7)==0
+  urban1_found   = iers(7)==0
   urban2_found  = iers(8)==0
   mloice_found  = iers(9)==0
   zht_found     = iers(10)==0
@@ -1663,7 +1661,7 @@ if ( nested/=1 .and. nested/=3 ) then
   ! Read urban data
   if ( nurban/=0 ) then
     if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,5))
-    if ( urban_found ) then
+    if ( urban1_found ) then
       ! restart  
       do ifrac = 1,nfrac
         write(vname,'("t",I1.1,"_rooftgg")') ifrac    
@@ -1772,9 +1770,7 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4("rooftgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("rooftemp",I1.1)') k
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
+        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
         do ifrac = 1,nfrac
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
@@ -1782,9 +1778,7 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4("waletgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("walletemp",I1.1)') k
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
+        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
         do ifrac = 1,nfrac
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
@@ -1792,9 +1786,7 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4("walwtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("wallwtemp",I1.1)') k
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
+        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
         do ifrac = 1,nfrac
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
@@ -1802,9 +1794,7 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4("roadtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("roadtemp",I1.1)') k
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
+        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
         do ifrac = 1,nfrac
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
@@ -1812,9 +1802,7 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4("slabtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("slabtemp",I1.1)') k
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
+        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
         do ifrac = 1,nfrac
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
@@ -1822,9 +1810,7 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4("intmtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("intmtemp",I1.1)') k
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
+        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
         do ifrac = 1,nfrac
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
@@ -1833,7 +1819,7 @@ if ( nested/=1 .and. nested/=3 ) then
       ! nested without urban data
       call gethist1("tsu",atebdwn(:,1))
       atebdwn(:,1) = abs(atebdwn(:,1))
-      atebdwn(:,1) = min( max( atebdwn(:,1), 100. ), 425. )
+      atebdwn(:,1) = min( max( atebdwn(:,1), 170. ), 380. )
       do k = 2,5
         atebdwn(:,k) = atebdwn(:,1)
       end do

@@ -48,7 +48,7 @@ public tkeinit,tkemix,tkeend,tke,eps,shear
 public cm0,ce0,ce1,ce2,ce3,be,ent0,ent1,entc0,ezmin,dtrc0
 public m0,b1,b2,qcmf,ent_min,mfbeta
 public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
-public tkemeth,zimax
+public tkemeth
 
 real, dimension(:,:), allocatable, save :: shear
 real, dimension(:,:), allocatable, save :: tke,eps
@@ -63,8 +63,7 @@ real, save :: mintke   = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
 real, save :: mineps   = 1.E-11   ! min value for eps (1.0e-6 in TAPM)
 real, save :: minl     = 1.       ! min value for L   (5. in TAPM)
 real, save :: maxl     = 1000.    ! max value for L   (500. in TAPM)
-real, save :: zimax    = 10000.   ! maximum PBL height feeding back into model calculations
-!$acc declare create(cm0,minl,maxl,mintke,mineps,zimax,ce0,ce1,ce2,ce3)
+!$acc declare create(cm0,minl,maxl,mintke,mineps,ce0,ce1,ce2,ce3)
 ! model MF constants
 real, save :: be       = 0.1      ! Surface boundary condition (Hurley (2007) 1., Soares et al (2004) 0.3)
 real, save :: ent0     = 0.25     ! Entrainment constant (Controls height of boundary layer) (Hurley (2007) 0.5)
@@ -126,7 +125,7 @@ tke=mintke
 eps=mineps
 shear=0.
 
-!$acc update device(cm0,minl,maxl,mintke,mineps,zimax,ce0,ce1,ce2,ce3)
+!$acc update device(cm0,minl,maxl,mintke,mineps,ce0,ce1,ce2,ce3)
 !$acc update device(be,ent0,ent1,ent_min,ezmin,entc0,dtrc0,m0,b1,b2,qcmf,mfbeta)
 !$acc update device(buoymeth,tkemeth,stabmeth,maxdts)
 
@@ -294,7 +293,7 @@ do kcount = 1,mcount
   
   ! Update momentum flux
   ustar = sqrt(cduv*sqrt(uo(:,1)**2+vo(:,1)**2))  
-  wstar = (grav*min(zi,zimax)*max(wtv0,0.)/thetav(:,1))**(1./3.)   
+  wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)   
   
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
@@ -339,7 +338,7 @@ do kcount = 1,mcount
 #ifndef scm
     ! Turn off MF term if small grid spacing (mfbeta=0 implies MF is always non-zero)
     ! Based on Boutle et al 2014
-    zturb = min( 0.5*(zi_save + zi), zimax )
+    zturb = 0.5*(zi_save + zi)
     cgmap(:) = 1. - tanh(mfbeta*zturb/dx)*max(0.,1.-0.25*dx/zturb)
     do k = 1,kl
       mflx(:,k) = mflx(:,k)*cgmap(:)
@@ -512,7 +511,7 @@ do kcount = 1,mcount
     do k = 2,kl-1
       do iq = 1,imax
         tbb = max(1.-0.05*dz_hl(iq,k-1)/250.,0.)
-        if ( wstar(iq)>0.5 .and. zz(iq,k)>0.5*min(zi(iq),zimax) .and. zz(iq,k)<0.95*min(zi(iq),zimax) ) then
+        if ( wstar(iq)>0.5 .and. zz(iq,k)>0.5*zi(iq) .and. zz(iq,k)<0.95*zi(iq) ) then
           tke(iq,k) = max( tke(iq,k), tbb*tke(iq,k-1) )
           eps(iq,k) = max( eps(iq,k), tbb*eps(iq,k-1) )
         end if
@@ -891,7 +890,7 @@ do k = 2,kl
 end do
           
 thetav_p = thetav(iqmap,1)
-wstar_p = (grav*min(zi_p,zimax)*max(wtv0_p,0.)/thetav_p)**(1./3.)
+wstar_p = (grav*zi_p*max(wtv0_p,0.)/thetav_p)**(1./3.)
           
 ! update mass flux
 mflx_p(:,1) = m0*sqrt(max(w2up(:,1), 0.))
@@ -1123,7 +1122,7 @@ real, dimension(size(zht)) :: ans
 !ans=2./max(100.,zi)                                  ! Angevine et al (2010)
 !ans=1./zht                                           ! Siebesma et al (2003)
 !ans=0.5*(1./min(zht,zi-zmin)+1./max(zi-zht,zmin))    ! Soares et al (2004)
-ans = max( ent0/max( zht, 1. ) + ent1/max( min(zi,zimax)-zht, ezmin ), ent_min )
+ans = max( ent0/max( zht, 1. ) + ent1/max( zi-zht, ezmin ), ent_min )
 
 return
 end function entfn

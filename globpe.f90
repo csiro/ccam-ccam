@@ -1403,6 +1403,7 @@ real ateb_zocanyon, ateb_zoroof
 real ateb_energytol
 real cgmap_offset, cgmap_scale      ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
+real zimax                          ! depreciated namelist options
 logical procformat
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) optarg
@@ -1481,10 +1482,10 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
-    stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,zimax,             &
+    stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,                   &
     amxlsq,dvmodmin,                                              & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
-    tkecduv                                                         ! depreciated
+    tkecduv,zimax                                                   ! depreciated
 ! land, urban and carbon namelist
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
@@ -2152,7 +2153,7 @@ nclddia        = dumi(19)
 nmr            = dumi(20)
 nevapls        = dumi(21)
 deallocate( dumr, dumi )
-allocate( dumr(30), dumi(4) )
+allocate( dumr(29), dumi(4) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2190,8 +2191,7 @@ if ( myid==0 ) then
   dumr(26) = alphaj
   dumr(27) = ent_min
   dumr(28) = mfbeta
-  dumr(29) = zimax
-  dumr(30) = dvmodmin
+  dumr(29) = dvmodmin
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
@@ -2227,8 +2227,7 @@ sigbot_gwd = dumr(25)
 alphaj     = dumr(26)
 ent_min    = dumr(27)
 mfbeta     = dumr(28)
-zimax      = dumr(29)
-dvmodmin   = dumr(30)
+dvmodmin   = dumr(29)
 buoymeth   = dumi(1)
 stabmeth   = dumi(2)
 tkemeth    = dumi(3)
@@ -3727,6 +3726,7 @@ rnet_ave(:)          = 0.
 sunhours(:)          = 0.
 riwp_ave(:)          = 0.
 rlwp_ave(:)          = 0.
+rhscr_ave(:)         = 0.
 tscr_ave(:)          = 0.
 wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
@@ -3929,6 +3929,7 @@ tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urban_tas )
 tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
 rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
 tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
+rhscr_ave(1:ifull)         = rhscr_ave(1:ifull) + rhscrn 
 wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
 taux_ave(1:ifull)          = taux_ave(1:ifull) + taux
@@ -4012,6 +4013,7 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
   rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
   tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
+  rhscr_ave(1:ifull)         = rhscr_ave(1:ifull)/min(ntau,nperavg)
   do k = 1,ms
     wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
     wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)

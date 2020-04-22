@@ -763,7 +763,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'sigbot_gwd',sigbot_gwd)    
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
-    call ccnf_put_attg(idnc,'zimax',zimax)
 
     ! land, urban and carbon
     call ccnf_put_attg(idnc,'ateb_ac_coolcap',ateb_ac_coolcap)
@@ -2926,9 +2925,6 @@ if ( nurban/=0 .and. itype==-1 ) then
       write(vname,'("rooftemp",I1.1)') k
       aa = 999.
       call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
-      where ( aa<100. .and. itype==1 )
-        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-      end where  
       write(vname,'("t",I1.1,"_rooftgg",I1.1)') ifrac,k
       call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
     end do  
@@ -2936,9 +2932,6 @@ if ( nurban/=0 .and. itype==-1 ) then
       write(vname,'("walletemp",I1.1)') k  
       aa = 999.
       call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
-      where ( aa<100. .and. itype==1 )
-        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-      end where  
       write(vname,'("t",I1.1,"_waletgg",I1.1)') ifrac,k
       call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
     end do  
@@ -2946,9 +2939,6 @@ if ( nurban/=0 .and. itype==-1 ) then
       write(vname,'("wallwtemp",I1.1)') k  
       aa = 999.
       call atebsaved(aa,vname,ifrac,0,rawtemp=.true.)
-      where ( aa<100. .and. itype==1 )
-        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-      end where  
       write(vname,'("t",I1.1,"_walwtgg",I1.1)') ifrac,k
       call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
     end do  
@@ -2956,9 +2946,6 @@ if ( nurban/=0 .and. itype==-1 ) then
       write(vname,'("roadtemp",I1.1)') k  
       aa = 999.
       call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
-      where ( aa<100. .and. itype==1 )
-        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-      end where  
       write(vname,'("t",I1.1,"_roadtgg",I1.1)') ifrac,k
       call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
     end do
@@ -2966,9 +2953,6 @@ if ( nurban/=0 .and. itype==-1 ) then
       write(vname,'("slabtemp",I1.1)') k  
       aa = 999.
       call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
-      where ( aa<100. .and. itype==1 )
-        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-      end where  
       write(vname,'("t",I1.1,"_slabtgg",I1.1)') ifrac,k
       call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
     end do
@@ -2976,9 +2960,6 @@ if ( nurban/=0 .and. itype==-1 ) then
       write(vname,'("intmtemp",I1.1)') k  
       aa = 999.
       call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
-      where ( aa<100. .and. itype==1 )
-        aa = aa + urbtemp ! Allows urban temperatures to use a 290K offset
-      end where  
       write(vname,'("t",I1.1,"_intmtgg",I1.1)') ifrac,k
       call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
     end do

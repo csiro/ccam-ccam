@@ -4056,6 +4056,9 @@ ncstatus = nf90_get_att(lncid,lvid,aname,atext)
 if (present(ierr)) then
   ierr=ncstatus
 else
+  if ( ncstatus/=nf90_noerr ) then  
+    write(6,*) "ERROR: Cannot read ",aname  
+  end if     
   call ncmsg(aname,ncstatus)
 end if
 
@@ -4081,6 +4084,9 @@ ncstatus = nf90_get_att(lncid,lvid,aname,vdat)
 if (present(ierr)) then
   ierr=ncstatus
 else
+  if ( ncstatus/=nf90_noerr ) then  
+    write(6,*) "ERROR: Cannot read ",aname  
+  end if     
   call ncmsg(aname,ncstatus)
 end if
 
@@ -4106,6 +4112,9 @@ ncstatus = nf90_get_att(lncid,nf90_global,aname,vdat)
 if (present(ierr)) then
   ierr = ncstatus
 else
+  if ( ncstatus/=nf90_noerr ) then  
+    write(6,*) "ERROR: Cannot read ",aname  
+  end if  
   call ncmsg("get_attg",ncstatus)
 end if
 
@@ -4126,6 +4135,9 @@ real, dimension(:), intent(out) :: vdat
 
 lncid=ncid
 ncstatus = nf90_get_att(lncid,nf90_global,aname,vdat(:))
+if ( ncstatus/=nf90_noerr ) then  
+  write(6,*) "ERROR: Cannot read ",aname  
+end if   
 call ncmsg("get_attg",ncstatus)
 
 return
@@ -4151,6 +4163,9 @@ vdat=lvdat
 if (present(tst)) then
   tst=ncstatus/=nf90_noerr
 else
+  if ( ncstatus/=nf90_noerr ) then  
+    write(6,*) "ERROR: Cannot read ",aname  
+  end if  
   call ncmsg("get_attg",ncstatus)
 end if
 
@@ -4173,6 +4188,9 @@ character(len=*), intent(in) :: aname
 lncid=ncid
 ncstatus = nf90_get_att(lncid,nf90_global,aname,lvdat)
 vdat=lvdat
+if ( ncstatus/=nf90_noerr ) then  
+  write(6,*) "ERROR: Cannot read ",aname  
+end if 
 call ncmsg("get_attg",ncstatus)
 
 return
@@ -4197,6 +4215,9 @@ ncstatus = nf90_get_att(lncid,nf90_global,aname,atext)
 if (present(ierr)) then
   ierr=ncstatus
 else
+  if ( ncstatus/=nf90_noerr ) then  
+    write(6,*) "ERROR: Cannot read ",aname  
+  end if     
   call ncmsg(aname,ncstatus)
 end if
 
