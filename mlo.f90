@@ -1914,10 +1914,8 @@ eg     =unpack((1.-ice%fracice)*dgwater%eg  +ice%fracice*dgice%eg,wpack,eg)
 wetfac =unpack((1.-ice%fracice)             +ice%fracice*dgice%wetfrac,wpack,wetfac)
 epan   =unpack(dgwater%eg,wpack,epan)
 epot   =unpack((1.-ice%fracice)*dgwater%eg  +ice%fracice*dgice%eg/max(dgice%wetfrac,1.e-20),wpack,epot)
-fracice=0.
-fracice=unpack(ice%fracice,wpack,fracice)
-siced  =0.
-siced  =unpack(ice%thick,wpack,siced)
+fracice=unpack(ice%fracice,wpack,0.)
+siced  =unpack(ice%thick,wpack,0.)
 snowd  =unpack(ice%snowd,wpack,snowd)
 
 return
@@ -2327,8 +2325,6 @@ real, intent(in) :: dt
 
 real(kind=8), dimension(wfull,wlev) :: k    !kinetic energy
 real(kind=8), dimension(wfull,wlev) :: eps  !dissipation rate
-real(kind=8), dimension(wfull) :: umag     !water current magnitude at floor
-real(kind=8), dimension(wfull) :: zrough   !surface/floor roughness
 real(kind=8), dimension(wfull,wlev) :: aa  !lower diagnonal
 real(kind=8), dimension(wfull,wlev) :: bb  !diagnoal
 real(kind=8), dimension(wfull,wlev) :: cc  !upper diagonal
@@ -2354,6 +2350,7 @@ real(kind=8), dimension(wfull,wlev) :: ks_hl     !ks on half level
 
 real :: dtt
 real :: minL
+real(kind=8) :: umag, zrough
 
 integer :: ii,step,iqw
 
@@ -2374,63 +2371,69 @@ call interpolate_hl(water%v,fdepth_hl,v_hl)
 !d_rho at half levels
 call interpolate_hl(d_rho,fdepth_hl,d_rho_hl)
 
-!shear
+!shear (full levels)
 shear = 0.
-do ii=2,wlev-1
+do ii = 2,wlev-1
   where ( depth%dz(:,ii)>1.e-4 )  
     shear(:,ii) = ( ((u_hl(:,ii+1)-u_hl(:,ii))/depth%dz(:,ii))**2 + &
                     ((v_hl(:,ii+1)-v_hl(:,ii))/depth%dz(:,ii))**2 )
   end where  
 end do
 
-!n2
+!n2 (full levels)
 n2 = 0.
-do ii=2,wlev-1
+do ii = 2,wlev-1
   where ( depth%dz(:,ii)>1.e-4 )
     n2(:,ii) = -grav/wrtrho*(d_rho_hl(:,ii)-d_rho_hl(:,ii+1))/depth%dz(:,ii)
   end where  
 end do
 !linear interpolation of end values for stability functions
-where ( depth%dz_hl(:,3)>1.e-4 )
-  n2(:,1)    = n2(:,2)      - depth%dz_hl(:,2   )*(n2(:,3     )-n2(:,2     ))/depth%dz_hl(:,3     )
-end where
-do iqw = 1,wfull
-  ii = water%ibot(iqw)
-  n2(iqw,ii) = n2(iqw,ii-1) + depth%dz_hl(iqw,ii)*(n2(iqw,ii-1)-n2(iqw,ii-2))/depth%dz_hl(iqw,ii-1)
-  umag(iqw) = sqrt(water%u(iqw,ii)**2+water%v(iqw,ii)**2)
-end do
+!where ( depth%dz_hl(:,3)>1.e-4 )
+!  n2(:,1)    = n2(:,2)      - depth%dz_hl(:,2   )*(n2(:,3     )-n2(:,2     ))/depth%dz_hl(:,3     )
+!end where
+n2(:,1) = n2(:,2) ! MJT suggestion
+!do iqw = 1,wfull
+!  ii = water%ibot(iqw)
+!  !n2(iqw,ii) = n2(iqw,ii-1) + depth%dz_hl(iqw,ii)*(n2(iqw,ii-1)-n2(iqw,ii-2))/depth%dz_hl(iqw,ii-1)
+!end do
+n2(:,wlev) = n2(:,wlev-1) ! MJT suggestion
 
 !initial conditions
-k = k_out
-eps = eps_out
+do ii = 1,wlev
+  where ( depth%dz(:,ii)>1.e-4 )  
+    k(:,ii) = k_out(:,ii)
+    eps(:,ii) = eps_out(:,ii)
+  elsewhere
+    k(:,ii) = mink
+    eps(:,ii) = mineps
+  end where
+end do
 
 !boundary conditions
 k(:,1   ) = (d_ustar(:   )/cu0)**2
-do iqw = 1,wfull
-  ii = water%ibot(iqw)  
-  k(iqw,ii) = (sqrt(cdbot)*umag(iqw)/cu0)**2
-end do  
-k=max(k,real(mink,8))
-
-eps = 0.
-
-zrough(:) = dgwater%zo(:)
 where ( depth%dz(:,1   )>1.e-4 )
-  eps(:,1   ) = (cu0)**3*k(:,1   )**1.5/(vkar*(0.5_8*depth%dz(:,1   )+zrough(:)))
+  eps(:,1   ) = (cu0)**3*k(:,1   )**1.5/(vkar*(0.5_8*depth%dz(:,1   )+dgwater%zo(:)))
 end where
-
 do iqw = 1,wfull
-  ii = water%ibot(iqw)  
-  zrough(iqw) = 0.5_8*depth%dz(iqw,ii)/exp(vkar/sqrt(cdbot))
-  eps(iqw,ii) = (cu0)**3*k(iqw,ii)**1.5/(vkar*(0.5_8*depth%dz(iqw,ii)+zrough(iqw)))
+  ii = water%ibot(iqw)
+  umag = sqrt(water%u(iqw,ii)**2+water%v(iqw,ii)**2) 
+  zrough = 0.5_8*depth%dz(iqw,ii)/exp(vkar/sqrt(cdbot))
+  if ( ii==1 ) then
+    k(iqw,1) = 0.5*( k(iqw,1) + (sqrt(cdbot)*umag/cu0)**2 )
+    eps(iqw,1) = 0.5*( eps(iqw,1) + (cu0)**3*k(iqw,1)**1.5/(vkar*(0.5_8*depth%dz(iqw,1)+zrough)) )      
+  else
+    k(iqw,ii) = (sqrt(cdbot)*umag/cu0)**2
+    eps(iqw,ii) = (cu0)**3*k(iqw,ii)**1.5/(vkar*(0.5_8*depth%dz(iqw,ii)+zrough))
+  end if
 end do  
-eps=max(eps,real(mineps,8))
+k = max( k, real(mink,8) )
+eps = max( eps, real(mineps,8) )
 
 !limit length scale
 L = cu0**3*k**1.5/eps
 if ( limitL==1 ) then
-  minL=cu0**3*mink**1.5/mineps
-  do ii=2,wlev-1  
+  minL = cu0**3*mink**1.5/mineps
+  do ii = 2,wlev-1  
     where ( n2(:,ii) > 0._8 )
       L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),real(minL,8))
     end where
@@ -2448,8 +2451,8 @@ else
   cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
 end if
 
-km = cu*sqrt(k)*L
-ks = cud*sqrt(k)*L
+km = max( cu*sqrt(k)*L, 1.e-6 )
+ks = max( cud*sqrt(k)*L, 1.e-6 )
 
 !km & ks at half levels
 call interpolate_hl(km,fdepth_hl,km_hl)
@@ -2482,7 +2485,7 @@ if ( calcinloop==0 ) then
   if ( fixedce3==1 ) then
     ce3 = ce3stable
   else if ( fixedce3==0 ) then
-    do ii=2,wlev-1
+    do ii = 2,wlev-1
       where( pb(:,ii) < 0.0_8 )
         ce3(:,ii) = ce3unstable
       else where
@@ -2493,144 +2496,165 @@ if ( calcinloop==0 ) then
 end if
 
 !coupling loop
-dtt=dt/nsteps
-do step=1,nsteps
+dtt = dt/real(nsteps,8)
+do step = 1,nsteps
 
-if ( calcinloop==1 ) then
-  !shear production
-  if ( nops==0 ) then
-    do ii=2,wlev-1
-      ps(:,ii) = km(:,ii)*shear(:,ii)
-    end do
-  else
-    do ii=2,wlev-1
-      ps(:,ii) = 0.0_8
-    end do
+  if ( calcinloop==1 ) then
+    !shear production
+    if ( nops==0 ) then
+      do ii=2,wlev-1
+        ps(:,ii) = km(:,ii)*shear(:,ii)
+      end do
+    else
+      do ii=2,wlev-1
+        ps(:,ii) = 0.0_8
+      end do
+    end if
+
+    !buoyancy production
+    if ( nopb==0 ) then
+      do ii=2,wlev-1
+        pb(:,ii) = -ks(:,ii)*n2(:,ii)
+      end do
+    else
+      do ii=2,wlev-1
+        pb(:,ii) = 0.0_8
+      end do
+    end if
+
+    !calculate ce3
+    if ( fixedce3==1 ) then
+      ce3 = ce3stable
+    else if ( fixedce3==0 ) then
+      do ii=2,wlev-1
+        where( pb(:,ii) < 0.0_8 )
+          ce3(:,ii) = ce3unstable
+        else where
+          ce3(:,ii) = ce3stable
+        endwhere
+      end do
+    end if
   end if
 
-  !buoyancy production
-  if ( nopb==0 ) then
-    do ii=2,wlev-1
-      pb(:,ii) = -ks(:,ii)*n2(:,ii)
-    end do
-  else
-    do ii=2,wlev-1
-      pb(:,ii) = 0.0_8
-    end do
-  end if
-
-  !calculate ce3
-  if ( fixedce3==1 ) then
-    ce3 = ce3stable
-  else if ( fixedce3==0 ) then
-    do ii=2,wlev-1
-      where( pb(:,ii) < 0.0_8 )
-        ce3(:,ii) = ce3unstable
-      else where
-        ce3(:,ii) = ce3stable
-      endwhere
-    end do
-  end if
-end if
-
-!solve k
-!setup diagonals
-aa = 0._8
-bb = 1._8
-cc = 0._8
-dd = 0._8
-do ii=2,wlev-1
-  where ( depth%dz(:,ii)*depth%dz_hl(:,ii  )>1.e-4 )  
-    aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  ))
-  end where
-  where ( depth%dz(:,ii)*depth%dz_hl(:,ii+1)>1.e-4 )
-    cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1))
-  end where  
-  if ( k_mode==0 ) then !explicit eps
+  !solve k
+  !setup diagonals
+  aa = 0._8
+  bb = 1._8
+  cc = 0._8
+  dd = k
+  do ii = 2,wlev-1
+    where ( depth%dz(:,ii)*depth%dz_hl(:,ii  )>1.e-4 )  
+      aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  ))
+    end where
+    where ( depth%dz(:,ii)*depth%dz_hl(:,ii+1)>1.e-4 )
+      cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1))
+    end where
     bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii)
-    dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii) - eps(:,ii))
-  else if ( k_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
-    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)
-    dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
-  else if ( k_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
-    where ( ps(:,ii) + pb(:,ii) > 0.0_8 )
-      bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)
-      dd(:,ii) = k(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
-    elsewhere
-      bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt/k(:,ii)*(eps(:,ii) - pb(:,ii))
-      dd(:,ii) = k(:,ii) + dtt*ps(:,ii)
-    end where
-  end if 
-end do
-dd(:,2     ) = dd(:,2     ) - aa(:,2     )*k(:,1)
-dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*k(:,wlev)
-
-!solve using thomas algorithm
-call thomas(k(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
-
-!solve eps
-!setup diagonals
-do ii=2,wlev-1
-  where ( depth%dz(:,ii)*depth%dz_hl(:,ii  )>1.e-4 )  
-    aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  )*sigmaeps)
-  end where
-  where ( depth%dz(:,ii)*depth%dz_hl(:,ii+1)>1.e-4 )
-    cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1)*sigmaeps)
-  end where  
-  if ( eps_mode==0 ) then !explicit eps
-    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii)
-    dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) - ce2*eps(:,ii))
-  else if ( eps_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
-    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
-    dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
-  else if ( eps_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
-    where ( ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) > 0.0_8 )
-      bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
-      dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
-    elsewhere
-      bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce2 - ce3(:,ii)*pb(:,ii)/eps(:,ii))
-      dd(:,ii) = eps(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii))
-    end where
-  end if
-end do
-dd(:,2     ) = dd(:,2     ) - aa(:,2     )*eps(:,1)
-dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*eps(:,wlev)
-
-!solve using thomas algorithm
-call thomas(eps(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
-
-!limit k & eps
-k = max(k,real(mink,8))
-eps = max(eps,real(mineps,8))
-
-!limit length scale
-L = cu0**3*k**1.5/eps
-if ( limitL==1 ) then
-  minL=cu0**3*mink**1.5/mineps
-  do ii=2,wlev-1
-    where ( n2(:,ii) > 0.0_8 )
-      L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),real(minL,8))
-    end where
   end do
-end if
+  if ( k_mode==0 ) then !explicit eps
+    do ii = 2,wlev-1
+      where ( depth%dz(:,ii)>1.e-4 )  
+        dd(:,ii) = dd(:,ii) + dtt*(ps(:,ii) + pb(:,ii) - eps(:,ii))
+      end where
+    end do    
+  else if ( k_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
+    do ii = 2,wlev-1
+      where ( depth%dz(:,ii)>1.e-4 )  
+        bb(:,ii) = bb(:,ii) + dtt*eps(:,ii)/k(:,ii)
+        dd(:,ii) = dd(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
+      end where    
+    end do    
+  else if ( k_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
+    do ii = 2,wlev-1
+      where ( depth%dz(:,ii)>1.e-4 .and. (ps(:,ii)+pb(:,ii))>0.0_8 )  
+        bb(:,ii) = bb(:,ii) + dtt*eps(:,ii)/k(:,ii)
+        dd(:,ii) = dd(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
+      elsewhere ( depth%dz(:,ii)>1.e-4 )
+        bb(:,ii) = bb(:,ii) + dtt/k(:,ii)*(eps(:,ii) - pb(:,ii))
+        dd(:,ii) = dd(:,ii) + dtt*ps(:,ii)
+      end where     
+    end do
+  end if
+  dd(:,2     ) = dd(:,2     ) - aa(:,2     )*k(:,1)
+  dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*k(:,wlev)
 
-!stability functions
-if ( fixedstabfunc==1 ) then
-  alpha = 0.0_8
-  cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
-  cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
-else
-  alpha = L**2*n2/k
-  cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
-  cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
-end if
+  !solve using thomas algorithm
+  call thomas(k(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
 
-km = cu*sqrt(k)*L
-ks = cud*sqrt(k)*L
+  !solve eps
+  !setup diagonals
+  dd = eps
+  do ii=2,wlev-1
+    where ( depth%dz(:,ii)*depth%dz_hl(:,ii  )>1.e-4 )  
+      aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  )*sigmaeps)
+    end where
+    where ( depth%dz(:,ii)*depth%dz_hl(:,ii+1)>1.e-4 )
+      cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1)*sigmaeps)
+    end where  
+    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii)
+  end do
+  if ( eps_mode==0 ) then !explicit eps
+    do ii = 2,wlev-1
+      where ( depth%dz(:,ii)>1.e-4 )  
+        dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) - ce2*eps(:,ii))
+      end where
+    end do  
+  else if ( eps_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
+    do ii = 2,wlev-1
+      where ( depth%dz(:,ii)>1.e-4 )  
+        bb(:,ii) = bb(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
+        dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
+      end where
+    end do  
+  else if ( eps_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
+    do ii = 2,wlev-1
+      where ( depth%dz(:,ii)>1.e-4 .and. (ce1*ps(:,ii)+ce3(:,ii)*pb(:,ii))>0.0_8 )
+        bb(:,ii) = bb(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
+        dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
+      elsewhere ( depth%dz(:,ii)>1.e-4 )
+        bb(:,ii) = bb(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce2 - ce3(:,ii)*pb(:,ii)/eps(:,ii))
+        dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii))
+      end where
+    end do  
+  end if
+  dd(:,2     ) = dd(:,2     ) - aa(:,2     )*eps(:,1)
+  dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*eps(:,wlev)
 
-!km & ks at half levels
-call interpolate_hl(km,fdepth_hl,km_hl)
-call interpolate_hl(ks,fdepth_hl,ks_hl)
+  !solve using thomas algorithm
+  call thomas(eps(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
+
+  !limit k & eps
+  k = max( k, real(mink,8) )
+  eps = max( eps, real(mineps,8) )
+
+  !limit length scale
+  L = cu0**3*k**1.5/eps
+  if ( limitL==1 ) then
+    minL = cu0**3*mink**1.5/mineps
+    do ii = 2,wlev-1
+      where ( n2(:,ii) > 0.0_8 )
+        L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),real(minL,8))
+      end where
+    end do
+  end if
+
+  !stability functions
+  if ( fixedstabfunc==1 ) then
+    alpha = 0.0_8
+    cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
+    cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
+  else
+    alpha = L**2*n2/k
+    cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
+    cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
+  end if
+
+  km = max( cu*sqrt(k)*L, 1.e-6 )
+  ks = max( cud*sqrt(k)*L, 1.e-6 )
+
+  !km & ks at half levels
+  call interpolate_hl(km,fdepth_hl,km_hl)
+  call interpolate_hl(ks,fdepth_hl,ks_hl)
 
 end do
 
@@ -3037,12 +3061,12 @@ type(depthdata), intent(in) :: depth
 
 ! buoyancy frequency (calculated at half levels)
 d_nsq = 0.
-do ii=2,wlev
+do ii = 2,wlev
   where ( depth%dz_hl(:,ii)>1.e-4 )  
-    d_nsq(:,ii)=-grav/wrtrho*(d_rho(:,ii-1)-d_rho(:,ii))/(depth%dz_hl(:,ii)*d_zcr)
+    d_nsq(:,ii) = -grav/wrtrho*(d_rho(:,ii-1)-d_rho(:,ii))/(depth%dz_hl(:,ii)*d_zcr)
   end where  
 end do
-d_nsq(:,1)=2.*d_nsq(:,2)-d_nsq(:,3) ! not used
+d_nsq(:,1) = 2.*d_nsq(:,2) - d_nsq(:,3) ! not used
 
 ! shortwave
 ! use -ve as depth is down

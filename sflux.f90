@@ -485,8 +485,8 @@ do iq=1,ifull                                                                   
     wetfac(iq)=1.                                                                                ! sea
     ! tpan holds effective sea for this loop                                                     ! sea
     if(ntss_sh==0)then                                                                           ! sea
-      dtsol=.01*sgsave(iq)/(1.+.25*vmod(iq)**2)   ! solar heating                                ! sea
-      tpan(iq)=tgg(iq,1)+tss_sh*min(dtsol,8.)     ! of ssts                                      ! sea
+      dtsol=tss_sh*.01*sgsave(iq)/(1.+.25*vmod(iq)**2)  ! solar heating                                ! sea
+      tpan(iq)=tgg(iq,1)+min(dtsol,8.)                  ! of ssts                                      ! sea
     elseif(ntss_sh==3)then                                                                       ! sea
       dtsol=tss_sh*.01*sgsave(iq)/(1.+.035*vmod(iq)**3) ! solar heating                          ! sea
       tpan(iq)=tgg(iq,1)+min(dtsol,8.)                  ! of ssts                                ! sea
@@ -958,8 +958,8 @@ real, dimension(imax), intent(inout) :: fg, eg, epot, tss, cduv, cdtq, watbdy, f
 real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh, zoq, ga
 real, dimension(imax), intent(in) :: vmag, rho, azmin, uav, vav, ps, sgdn, sgsave, rgsave, swrsave
 real, dimension(imax), intent(in) :: fbeamvis, fbeamnir, f, condx, conds, condg, vmod, theta
-real, dimension(imax) :: neta, oflow, dumw, dumrg, dumx, dums, rid, fhd, fh
-real, dimension(imax) :: umod
+real, dimension(imax) :: neta, oflow, dumw, dumrg, dumx, dums, fhd
+real, dimension(imax) :: umod, umag
 logical, dimension(imax), intent(in) :: wpack, outflowmask, land
 type(waterdata), intent(inout) :: water
 type(dgicedata), intent(inout) :: dgice
@@ -969,7 +969,7 @@ type(icedata), intent(inout) :: ice
 type(depthdata), intent(in) :: depth
 type(turbdata), intent(inout) :: turb
 
-umod = 0. ! this is vmod, but accounts for moving surface                                      ! MLO
+umod = vmod ! this is vmod, but accounts for moving surface                                    ! MLO
                                                                                                ! MLO
 if ( abs(nmlo)==1 ) then                                                                       ! MLO
   ! Single column                                                                              ! MLO
@@ -977,22 +977,6 @@ if ( abs(nmlo)==1 ) then                                                        
   neta=0.                                                                                      ! MLO
   call mloimport(4,neta,0,0,water,wpack,wfull)                                                 ! MLO
 end if                                                                                         ! MLO
-                                                                                               ! MLO
-! pan evaporation diagnostic                                                                   ! MLO
-qsttg=qsat(ps(1:imax),tpan)                                                                    ! MLO
-do iq=1,imax                                                                                   ! MLO
-  if ( land(iq) ) then                                                                         ! MLO  
-    ri(iq)=min(grav*zmin*(1.-tpan(iq)*srcp/t(iq))/vmag(iq)**2,ri_max)                          ! MLO
-    if(ri(iq)>0.)then                                                                          ! MLO
-      fh(iq)=vmod(iq)/(1.+bprm*ri(iq))**2                                                      ! MLO
-    else                                                                                       ! MLO
-      root=sqrt(-ri(iq)*zmin/panzo)                                                            ! MLO
-      denha=1.+chs*2.*bprm*sqrt(panzo*ztv)*chnsea*root                                         ! MLO
-      fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                                           ! MLO
-    endif                                                                                      ! MLO
-    epan(iq)=rho(iq)*chnsea*hl*fh(iq)*(qsttg(iq)-qg(iq))                                       ! MLO
-  end if                                                                                       ! MLO  
-end do                                                                                         ! MLO
                                                                                                ! MLO
 ! inflow and outflow model for rivers                                                          ! MLO
 if ( abs(nmlo)>=2 ) then                                                                       ! MLO
@@ -1029,35 +1013,42 @@ call mloextra(3,zoq,azmin,0,dgwater,dgice,ice,wpack,wfull)                      
 call mloextra(1,taux,azmin,0,dgwater,dgice,ice,wpack,wfull)                                    ! MLO
 call mloextra(2,tauy,azmin,0,dgwater,dgice,ice,wpack,wfull)                                    ! MLO
                                                                                                ! MLO
-! stuff to keep tpan over land working                                                         ! MLO
-rid=min(grav*zmin*(1.-tpan*srcp/t(1:imax))/vmag**2,ri_max)                                     ! MLO
-where (rid>0.)                                                                                 ! MLO
-  fhd=vmod/(1.+bprm*rid)**2                                                                    ! MLO
-elsewhere                                                                                      ! MLO
-  fhd=vmod-vmod*2.*bprm*rid/(1.+chs*2.*bprm*sqrt(panzo*ztv)*chnsea*sqrt(-rid*zmin/panzo))      ! MLO
+where ( .not.land(1:imax) )                                                                    ! MLO
+  tpan = tss(:) ! assume tss_sh=0.                                                             ! MLO
 end where                                                                                      ! MLO
                                                                                                ! MLO
+! pan evaporation diagnostic                                                                   ! MLO
+umag = max( umod, vmodmin )                                                                    ! MLO
+qsttg = qsat(ps(1:imax),tpan)                                                                  ! MLO
+ri = min(grav*zmin*(1.-tpan*srcp/t)/umag**2,ri_max)                                            ! MLO
+                                                                                               ! MLO
+! stuff to keep tpan over land working                                                         ! MLO
+where (ri>0.)                                                                                  ! MLO
+  fhd=umod/(1.+bprm*ri)**2                                                                     ! MLO
+elsewhere                                                                                      ! MLO
+  fhd=umod-umod*2.*bprm*ri/(1.+chs*2.*bprm*chnsea*sqrt(-ri*zmin/panzo))                        ! MLO
+end where                                                                                      ! MLO
+qsttg = qsat(ps(1:imax),tpan)                                                                  ! MLO
+                                                                                               ! MLO
 where ( .not.land(1:imax) )                                                                    ! MLO
-  snowd=snowd*1000.                                                                            ! MLO
-  ga=0.                                                                                        ! MLO
-  tpan=tss                                                                                     ! MLO
-  sno=sno+conds                                                                                ! MLO
-  grpl=grpl+condg                                                                              ! MLO
+  snowd = snowd*1000.                                                                          ! MLO
+  ga = 0.                                                                                      ! MLO
+  sno = sno + conds                                                                            ! MLO
+  grpl = grpl + condg                                                                          ! MLO
   ! This cduv accounts for a moving surface                                                    ! MLO
   cduv = cduv*umod                                                                             ! MLO
   cdtq = cdtq*umod                                                                             ! MLO
   ustar = sqrt(cduv*umod)                                                                      ! MLO
 elsewhere                                                                                      ! MLO
+  ! assume gflux = 0                                                                           ! MLO
+  ! note pan depth=.254 m, spec heat water=4186 joule/kg K                                     ! MLO
+  ! and change in heat supplied=spec_heatxmassxdelta_T                                         ! MLO
   fg=rho*chnsea*cp*fhd*(tpan-theta)                                                            ! MLO
   ga=sgsave-rgsave-5.67e-8*tpan**4-panfg*fg                                                    ! MLO
-  tpan=tpan+ga*dt/(4186.*.254*1000.)                                                           ! MLO
-endwhere                                                                                       ! MLO
-do iq=1,imax                                                                                   ! MLO
-  if (.not.land(iq)) then                                                                      ! MLO
-    esatf = establ(tss(iq))                                                                    ! MLO
-    qsttg(iq)=.622*esatf/max(ps(iq)-esatf,0.1)                                                 ! MLO
-  end if                                                                                       ! MLO
-end do                                                                                         ! MLO
+  tpan=tpan+ga*dt/(4186.*0.254*1000.)                                                          ! MLO
+  epan=rho*chnsea*hl*fhd*(qsttg-qg)                                                            ! MLO
+end where                                                                                      ! MLO
+qsttg = qsat(ps(1:imax),tss)                                                                   ! MLO
 
 return
 end subroutine sflux_mlo_work
