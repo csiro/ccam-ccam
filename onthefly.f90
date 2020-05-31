@@ -91,11 +91,12 @@ integer, parameter :: nrhead = 14
 integer, intent(in) :: nested
 integer, intent(out) :: kdate_r, ktime_r
 integer, save :: maxarchi
-integer mtimer, ierx, idvtime
+integer ierx, idvtime
 integer kdate_rsav, ktime_rsav
 integer, dimension(nihead) :: nahead
 integer, dimension(:), intent(out) :: isflag
-real timer
+integer(kind=8) mtimer
+real(kind=8) timer
 real, dimension(:,:,:), intent(out) :: mlodwn
 real, dimension(:,:,:), intent(out) :: xtgdwn
 real, dimension(:,:), intent(out) :: wb, wbice, tgg
@@ -195,7 +196,7 @@ if ( myid==0 .or. pfall ) then
       kdate_r = kdate_rsav
       ktime_r = ktime_rsav
       call ccnf_get_vara(ncid,idvtime,iarchi,timer)
-      mtimer = nint(timer)
+      mtimer = nint(timer,8)
       call datefix(kdate_r,ktime_r,mtimer)
       ! ltest = .false. when correct date is found
       ltest = (2400*(kdate_r-kdate_s)-1200*nsemble+ktime_r-ktime_s)<0
@@ -395,7 +396,7 @@ logical, dimension(:,:), allocatable, save :: land_3d
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
-real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
+real(kind=8), dimension(:,:,:), allocatable, target, save :: xy4_dummy
 real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y_a_dummy
 
@@ -476,9 +477,9 @@ end if
 ! Determine input grid coordinates and interpolation arrays
 if ( newfile .and. .not.iop_test ) then
     
-  allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
-  xx4 => xx4_dummy
-  yy4 => yy4_dummy
+  allocate( xy4_dummy(1+4*ik,1+4*ik,2) )
+  xx4 => xy4_dummy(:,:,1)
+  yy4 => xy4_dummy(:,:,2)
 
   if ( m_fly==1 ) then
     rlong4_l(:,1) = rlongg(:)*180./pi
@@ -511,8 +512,7 @@ if ( newfile .and. .not.iop_test ) then
     deallocate( wts_a )
   end if ! (myid==0)
   
-  call ccmpi_bcastr8(xx4_dummy,0,comm_world)
-  call ccmpi_bcastr8(yy4_dummy,0,comm_world)
+  call ccmpi_bcastr8(xy4_dummy,0,comm_world)
   
   ! calculate the rotated coords for host and model grid
   rotpoles = calc_rotpole(rlong0x,rlat0x)
@@ -529,7 +529,7 @@ if ( newfile .and. .not.iop_test ) then
       do i = 1,3
         write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpole(i,j),j=1,3)
       enddo
-      write(6,*)'xx4,yy4 ',xx4_dummy(id,jd),yy4_dummy(id,jd)
+      write(6,*)'xx4,yy4 ',xy4_dummy(id,jd,1),xy4_dummy(id,jd,2)
       write(6,*)'before latltoij for id,jd: ',id,jd
       write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,schmidtx
     end if                ! (nmaxpr==1)
@@ -546,7 +546,7 @@ if ( newfile .and. .not.iop_test ) then
   end do
 
   nullify( xx4, yy4 )
-  deallocate( xx4_dummy, yy4_dummy )  
+  deallocate( xy4_dummy )  
   
   ! Define filemap for multi-file method
   call file_wininit
@@ -1817,6 +1817,9 @@ if ( nested/=1 .and. nested/=3 ) then
       end do
     else
       ! nested without urban data
+      if ( myid==0 ) then
+        write(6,*) "Use tsu for urban data"  
+      end if
       call gethist1("tsu",atebdwn(:,1))
       atebdwn(:,1) = abs(atebdwn(:,1))
       atebdwn(:,1) = min( max( atebdwn(:,1), 170. ), 380. )

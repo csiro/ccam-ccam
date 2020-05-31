@@ -8696,6 +8696,10 @@ contains
       integer(kind=4) :: lerr, lid, lcommin, lcommout
       
       lcommin = comm_world
+      node_nx = 0
+      node_ny = 0
+      node_dx = nxp
+      node_dy = nyp
       
       ! communicate number of nodes to all processes
       ref_nodecaptain_nproc = nodecaptain_nproc
@@ -8714,10 +8718,8 @@ contains
             node_dx = nxp/max( node_nx, 1 )
             node_dy = nyp/node_ny
          end do   
-      end if
 
-      ! remap ranks if a valid decomposition has been found
-      if ( node_nx > 0 ) then
+        ! remap ranks if a valid decomposition has been found
          if ( myid == 0 ) then
             write(6,*) "Remapping ranks using node_nx,node_ny ",node_nx,node_ny
             write(6,*) "node_dx,node_dy                       ",node_dx,node_dy

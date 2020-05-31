@@ -742,7 +742,7 @@ end if
 ! nurban=-1 urban (save in history and restart files)
 if ( nurban/=0 ) then
   if ( myid==0 ) write(6,*) 'Initialise UCLEM urban scheme'
-  where ( .not.land(1:ifull) .or. sigmu<0.01 )
+  where ( .not.land(1:ifull) )
     sigmu(:) = 0.
   end where
   call atebinit(ifull,sigmu(:),0)

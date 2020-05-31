@@ -975,7 +975,7 @@ if ( abs(nmlo)==1 ) then                                                        
   ! Single column                                                                              ! MLO
   ! set free surface to zero when water is not conserved                                       ! MLO
   neta=0.                                                                                      ! MLO
-  call mloimport(4,neta,0,0,water,wpack,wfull)                                                 ! MLO
+  call mloimport(4,neta,0,0,water,depth,wpack,wfull)                                           ! MLO
 end if                                                                                         ! MLO
                                                                                                ! MLO
 ! inflow and outflow model for rivers                                                          ! MLO
@@ -992,7 +992,7 @@ if ( abs(nmlo)>=2 ) then                                                        
     watbdy(1:imax) = watbdy(1:imax) + 1000.*oflow(:)                                           ! MLO
     neta(1:imax) = neta(1:imax) - oflow(:)                                                     ! MLO
   end where                                                                                    ! MLO
-  call mloimport(4,neta,0,0,water,wpack,wfull)                                                 ! MLO
+  call mloimport(4,neta,0,0,water,depth,wpack,wfull)                                           ! MLO
 else                                                                                           ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO
 end if                                                                                         ! MLO

@@ -94,6 +94,7 @@ interface ccnf_get_vara
   module procedure ccnf_get_vara_int1i_s, ccnf_get_vara_int2i_t, ccnf_get_vara_int2i
   module procedure ccnf_get_vara_int3i_t
 #ifndef i8r8
+  module procedure ccnf_get_vara_double1r_s
   module procedure ccnf_get_vara_double2r_t, ccnf_get_vara_double4d
 #endif
 end interface ccnf_get_vara
@@ -1717,18 +1718,19 @@ end subroutine vertint
 subroutine datefix(kdate_r,ktime_r,mtimer_r,allleap,silent)
 
 use cc_mpi
-use newmpar_m
 use parm_m
 
 implicit none
 
-integer, intent(inout) :: kdate_r,ktime_r,mtimer_r
+integer, intent(inout) :: kdate_r,ktime_r
+integer(kind=8), intent(inout) :: mtimer_r
 integer, intent(in), optional :: allleap
-integer, dimension(12) :: mdays = (/31,28,31,30,31,30,31,31,30,31,30,31/)
-integer iyr,imo,iday,ihr,imins
-integer mtimerh,mtimerm,mtimer
-integer mdays_save, leap_l
-integer, parameter :: minsday = 1440
+integer(kind=8), dimension(12) :: mdays = (/31_8,28_8,31_8,30_8,31_8,30_8,31_8,31_8,30_8,31_8,30_8,31_8/)
+integer leap_l
+integer(kind=8) iyr,imo,iday,ihr,imins
+integer(kind=8) mtimerh,mtimerm
+integer(kind=8) mdays_save
+integer(kind=8), parameter :: minsday = 1440
 logical, intent(in), optional :: silent
 logical quiet
 
@@ -1744,82 +1746,82 @@ else
   quiet = .false.
 end if
 
-iyr=kdate_r/10000
-imo=(kdate_r-10000*iyr)/100
-iday=kdate_r-10000*iyr-100*imo
-ihr=ktime_r/100
-imins=ktime_r-100*ihr
+iyr=int(kdate_r,8)/10000_8
+imo=(int(kdate_r,8)-10000_8*iyr)/100_8
+iday=int(kdate_r,8)-10000_8*iyr-100_8*imo
+ihr=int(ktime_r,8)/100_8
+imins=int(ktime_r,8)-100_8*ihr
 if ( myid==0 .and. .not.quiet ) then
   write(6,*) 'entering datefix'
   write(6,*) 'iyr,imo,iday:       ',iyr,imo,iday
-  write(6,*) 'ihr,imins,mtimer_r: ',ihr,imins,mtimer_r
+  write(6,*) 'ihr,imins,mtimer_r: ',ihr,imins,int(mtimer_r)
 end if
 
-mdays(2)=28
+mdays(2)=28_8
 if ( leap_l==1 ) then
-  if ( mod(iyr,4)==0   ) mdays(2)=29
-  if ( mod(iyr,100)==0 ) mdays(2)=28
-  if ( mod(iyr,400)==0 ) mdays(2)=29
+  if ( mod(iyr,4_8)==0   ) mdays(2)=29_8
+  if ( mod(iyr,100_8)==0 ) mdays(2)=28_8
+  if ( mod(iyr,400_8)==0 ) mdays(2)=29_8
 end if
 do while ( mtimer_r>minsday*mdays(imo) )
   mtimer_r=mtimer_r-minsday*mdays(imo)
-  imo=imo+1
-  if ( imo>12 ) then
-    imo=1
-    iyr=iyr+1
+  imo=imo+1_8
+  if ( imo>12_8 ) then
+    imo=1_8
+    iyr=iyr+1_8
     if ( leap_l==1 ) then
-      mdays(2)=28      
-      if ( mod(iyr,4)==0   ) mdays(2)=29
-      if ( mod(iyr,100)==0 ) mdays(2)=28
-      if ( mod(iyr,400)==0 ) mdays(2)=29
+      mdays(2)=28_8      
+      if ( mod(iyr,4_8)==0   ) mdays(2)=29_8
+      if ( mod(iyr,100_8)==0 ) mdays(2)=28_8
+      if ( mod(iyr,400_8)==0 ) mdays(2)=29_8
     end if
   end if
 end do
 if ( diag .and. .not.quiet ) then
   write(6,*)'b datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                             iyr,imo,iday,ihr,imins,mtimer_r
+                       iyr,imo,iday,ihr,imins,int(mtimer_r)
 end if
   
 iday=iday+mtimer_r/minsday
 mtimer_r=mod(mtimer_r,minsday)
 if ( diag .and. .not.quiet ) then
   write(6,*)'c datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                             iyr,imo,iday,ihr,imins,mtimer_r
+                       iyr,imo,iday,ihr,imins,int(mtimer_r)
 end if
   
 ! at this point mtimer_r has been reduced to fraction of a day
-mtimerh=mtimer_r/60
-mtimerm=mtimer_r-mtimerh*60  ! minutes left over
+mtimerh=mtimer_r/60_8
+mtimerm=mtimer_r-mtimerh*60_8  ! minutes left over
 ihr=ihr+mtimerh
 imins=imins+mtimerm
 
-ihr=ihr+imins/60
-imins=mod(imins,60)
+ihr=ihr+imins/60_8
+imins=mod(imins,60_8)
 if ( diag .and. .not.quiet ) then
   write(6,*)'d datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                             iyr,imo,iday,ihr,imins,mtimer_r
+                       iyr,imo,iday,ihr,imins,int(mtimer_r)
 end if
   
-iday=iday+ihr/24
-ihr=mod(ihr,24)
+iday=iday+ihr/24_8
+ihr=mod(ihr,24_8)
 if ( diag .and. .not.quiet ) then
   write(6,*)'e datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                             iyr,imo,iday,ihr,imins,mtimer_r
+                       iyr,imo,iday,ihr,imins,int(mtimer_r)
 end if
   
 mdays_save=mdays(imo)
-imo=imo+(iday-1)/mdays(imo)
-iday=mod(iday-1,mdays_save)+1
+imo=imo+(iday-1_8)/mdays(imo)
+iday=mod(iday-1_8,mdays_save)+1_8
 
-iyr=iyr+(imo-1)/12
-imo=mod(imo-1,12)+1
+iyr=iyr+(imo-1_8)/12_8
+imo=mod(imo-1_8,12_8)+1_8
 
-kdate_r=iday+100*(imo+100*iyr)
-ktime_r=ihr*100+imins
-mtimer=0
+kdate_r=int(iday+100_8*(imo+100_8*iyr),8)
+ktime_r=int(ihr*100_8+imins,8)
+mtimer_r = 0.
 if ( diag .and. .not.quiet ) then
   write(6,*)'end datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                               iyr,imo,iday,ihr,imins,mtimer_r
+                         iyr,imo,iday,ihr,imins,int(mtimer_r)
 end if
   
 if ( myid==0 .and. .not.quiet ) then
@@ -1834,30 +1836,30 @@ end subroutine datefix
 subroutine datefix_month(kdate_r,mtimer_r)
 
 use cc_mpi
-use newmpar_m
 use parm_m
 
 implicit none
 
-integer, intent(inout) :: kdate_r,mtimer_r
-integer iyr,imo,iday
-integer mtimer
+integer, intent(inout) :: kdate_r
+integer(kind=8), intent(inout) :: mtimer_r
+integer(kind=8) iyr,imo,iday
+integer(kind=8) mtimer
 
-iyr=kdate_r/10000
-imo=(kdate_r-10000*iyr)/100
-iday=15
+iyr=int(kdate_r,8)/10000_8
+imo=(int(kdate_r,8)-10000_8*iyr)/100_8
+iday=15_8
 
-do while ( mtimer_r>0 )
-  mtimer_r = mtimer_r-1
-  imo = imo + 1
-  if ( imo>12 ) then
-    imo = 1
-    iyr = iyr + 1
+do while ( mtimer_r>0_8 )
+  mtimer_r = mtimer_r-1_8
+  imo = imo + 1_8
+  if ( imo>12_8 ) then
+    imo = 1_8
+    iyr = iyr + 1_8
   end if
 end do
   
-kdate_r = iday + 100*(imo+100*iyr)
-mtimer = 0
+kdate_r = int(iday + 100_8*(imo+100_8*iyr))
+mtimer = 0_8
   
 return
 end subroutine datefix_month
@@ -3985,6 +3987,31 @@ return
 end subroutine ccnf_get_vara_int3i_t
 
 #ifndef i8r8
+subroutine ccnf_get_vara_double1r_s(ncid,vid,start,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid, vid, start
+integer ncstatus
+integer(kind=4) lncid, lvid
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
+real(kind=8), intent(out) :: vdat
+real(kind=8), dimension(1) :: lvdat
+
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=1
+ncstatus=nf90_get_var(lncid,lvid,lvdat,start=lstart,count=lncount)
+call ncmsg("get_vara_real1r",ncstatus)
+vdat=lvdat(1)
+
+return
+end subroutine ccnf_get_vara_double1r_s
+
 subroutine ccnf_get_vara_double2r_t(ncid,name,start,ncount,vdat)
 
 use cc_mpi

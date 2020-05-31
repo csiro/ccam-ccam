@@ -763,6 +763,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'sigbot_gwd',sigbot_gwd)    
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
+    call ccnf_put_attg(idnc,'upshear',upshear)
 
     ! land, urban and carbon
     call ccnf_put_attg(idnc,'ateb_ac_coolcap',ateb_ac_coolcap)

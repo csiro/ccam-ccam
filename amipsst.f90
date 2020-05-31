@@ -661,7 +661,7 @@ integer, parameter :: nrhead = 14
 integer, intent(in) :: iyr, imo, idjd_g
 integer imonth, iyear, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
 integer varid, iarchx, maxarchi, iernc, lsmid, varid_time
-integer mtimer_r, kdate_r, ktime_r
+integer kdate_r, ktime_r
 integer kdate_rsav, ktime_rsav
 integer iq, mm
 integer, dimension(3) :: spos, npos
@@ -670,6 +670,7 @@ integer, dimension(nihead) :: nahead
 #else
 integer(kind=4), dimension(nihead) :: nahead
 #endif
+integer(kind=8) mtimer_r
 real, dimension(ifull,5), intent(out) :: ssta
 real, dimension(ifull,5), intent(out) :: aice
 real, dimension(ifull,5), intent(out) :: asal
@@ -798,7 +799,7 @@ if ( amip_mode==1 ) then
     kdate_r = kdate_rsav
     ktime_r = ktime_rsav
     call ccnf_get_vara(ncidx,varid_time,iarchx,timer_r)
-    mtimer_r = nint(timer_r)
+    mtimer_r = nint(timer_r,8)
     call datefix(kdate_r,ktime_r,mtimer_r,allleap=leap_in)
     iyear  = kdate_r/10000
     imonth = (kdate_r-iyear*10000)/100
@@ -1249,7 +1250,7 @@ integer, parameter :: nrhead = 14
 integer il_in, jl_in
 integer iq, k, mm, varid, varid_time, lsmid, ierr
 integer iyear, imonth, iday, iyr_m, imo_m, idy_m
-integer mtimer_r, kdate_r, ktime_r
+integer kdate_r, ktime_r
 integer kdate_rsav, ktime_rsav
 integer, save :: iarchx = 0
 integer, save :: maxarchi = -1
@@ -1260,6 +1261,7 @@ integer, dimension(nihead) :: nahead
 #else
 integer(kind=4), dimension(nihead) :: nahead
 #endif
+integer(kind=8) mtimer_r
 real rlon_in, rlat_in, schmidt_in
 real of, sc
 real timer_r, wgt
@@ -1292,7 +1294,7 @@ if ( mod(ktau,nperday)==0 ) then
 
     kdate_r = kdate
     ktime_r = ktime
-    mtimer_r = mtimer
+    mtimer_r = int(mtimer,8)
     call datefix(kdate_r,ktime_r,mtimer_r)
     
     iyr_m = kdate_r/10000
@@ -1412,7 +1414,7 @@ if ( mod(ktau,nperday)==0 ) then
       kdate_r = kdate_rsav
       ktime_r = ktime_rsav
       call ccnf_get_vara(ncidx,varid_time,iarchx,timer_r)
-      mtimer_r = nint(timer_r)
+      mtimer_r = nint(timer_r,8)
       call datefix(kdate_r,ktime_r,mtimer_r,allleap=leap_in)
       iyear  = kdate_r/10000
       imonth = (kdate_r-iyear*10000)/100

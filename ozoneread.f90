@@ -70,7 +70,8 @@ integer ncstatus, ncid, tt
 integer valident, yy, mm, nn
 integer iarchi, maxarchi
 integer kdate_rsav, ktime_rsav
-integer kdate_r, ktime_r, mtimer
+integer kdate_r, ktime_r
+integer(kind=8) mtimer
 integer, dimension(1) :: iti
 integer, dimension(4) :: spos, npos
 integer, dimension(3) :: dum
@@ -126,7 +127,7 @@ if ( myid==0 ) then
           iarchi = iarchi + 1  
           kdate_r = kdate_rsav
           call ccnf_get_vara(ncid,valident,iarchi,timer)
-          mtimer = int(timer) ! round down to start of month
+          mtimer = int(timer,8) ! round down to start of month
           call datefix_month(kdate_r,mtimer)
           ltest = (kdate_r/100-jyear*100-jmonth)<0
         end do
@@ -138,7 +139,7 @@ if ( myid==0 ) then
           kdate_r = kdate_rsav
           ktime_r = ktime_rsav
           call ccnf_get_vara(ncid,valident,iarchi,timer)
-          mtimer = nint(timer*1440.) ! units=days
+          mtimer = nint(timer*1440.,8) ! units=days
           call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
           ltest = (kdate_r/100-jyear*100-jmonth)<0
         end do
