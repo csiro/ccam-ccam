@@ -3291,7 +3291,6 @@ real(kind=r_2), dimension(mxvt) :: xcostnpup,xmaxfinelitter,xmaxcwd,xnintercept,
 real(kind=r_2), dimension(mxvt) :: xla_to_sa,xvcmax_scalar,xdisturbance_interval
 real(kind=r_2), dimension(mxvt) :: xDAMM_EnzPool,xDAMM_KMO2,xDAMM_KMcp,xDAMM_Ea,xDAMM_alpha
 real(kind=r_2), dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
-
 real(kind=r_2), dimension(mso) :: xkmlabp,xpsorbmax,xfPleach
 
 integer :: i, iso, nv, ierr
@@ -6490,13 +6489,13 @@ if ( mp_global>0 ) then
     do k = 1,ms
       call redistribute_work(old_sv,ssnow%tgg(:,k))
       call redistribute_work(old_sv,ssnow%wb(:,k))
-      !call redistribute_work(old_sv,ssnow%wbice(:,k))
+      call redistribute_work(old_sv,ssnow%wbice(:,k))
     end do
-    !if ( soil_struc==1 ) then
-    !  do k = 1,ms
-    !    call redistribute_work(old_sv,ssnow%tsoil(:,k))
-    !  end do
-    !end if
+    if ( soil_struc==1 ) then
+      do k = 1,ms
+        call redistribute_work(old_sv,ssnow%tsoil(:,k))
+      end do
+    end if
     !do k = 1,3
     !  call redistribute_work(old_sv,ssnow%tggsn(:,k))
     !  call redistribute_work(old_sv,ssnow%smass(:,k))

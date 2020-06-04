@@ -1668,6 +1668,9 @@ if ( nested/=1 .and. nested/=3 ) then
         call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
         do k = 1,5
           write(vname,'("rooftemp",I1.1)') k
+          where ( atebdwn(:,k)>900. ) ! missing
+            atebdwn(:,k) = 0.  
+          end where
           where ( atebdwn(:,k)>150. )  
             atebdwn(:,k) = atebdwn(:,k) - urbtemp
           end where 
@@ -1677,6 +1680,9 @@ if ( nested/=1 .and. nested/=3 ) then
         call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
         do k = 1,5
           write(vname,'("walletemp",I1.1)') k
+          where ( atebdwn(:,k)>900. ) ! missing
+            atebdwn(:,k) = 0.  
+          end where
           where ( atebdwn(:,k)>150. )  
             atebdwn(:,k) = atebdwn(:,k) - urbtemp
           end where 
@@ -1686,6 +1692,9 @@ if ( nested/=1 .and. nested/=3 ) then
         call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
         do k = 1,5
           write(vname,'("wallwtemp",I1.1)') k
+          where ( atebdwn(:,k)>900. ) ! missing
+            atebdwn(:,k) = 0.  
+          end where
           where ( atebdwn(:,k)>150. )  
             atebdwn(:,k) = atebdwn(:,k) - urbtemp
           end where 
@@ -1695,6 +1704,9 @@ if ( nested/=1 .and. nested/=3 ) then
         call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
         do k = 1,5
           write(vname,'("roadtemp",I1.1)') k
+          where ( atebdwn(:,k)>900. ) ! missing
+            atebdwn(:,k) = 0.  
+          end where
           where ( atebdwn(:,k)>150. )  
             atebdwn(:,k) = atebdwn(:,k) - urbtemp
           end where 
@@ -1704,6 +1716,9 @@ if ( nested/=1 .and. nested/=3 ) then
         call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
         do k = 1,5
           write(vname,'("slabtemp",I1.1)') k
+          where ( atebdwn(:,k)>900. ) ! missing
+            atebdwn(:,k) = 0.  
+          end where
           where ( atebdwn(:,k)>150. )  
             atebdwn(:,k) = atebdwn(:,k) - urbtemp
           end where 
@@ -1712,7 +1727,10 @@ if ( nested/=1 .and. nested/=3 ) then
         write(vname,'("t",I1.1,"_intmtgg")') ifrac
         call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
         do k = 1,5
-          write(vname,'("intmtemp",I1.1)') k 
+          write(vname,'("intmtemp",I1.1)') k
+          where ( atebdwn(:,k)>900. )
+            atebdwn(:,k) = 0.  
+          end where
           where ( atebdwn(:,k)>150. )  
             atebdwn(:,k) = atebdwn(:,k) - urbtemp
           end where 
@@ -1720,48 +1738,87 @@ if ( nested/=1 .and. nested/=3 ) then
         end do  
         write(vname,'("t",I1.1,"_roomtgg1")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         where ( atebdwn(:,1)>150. )
           atebdwn(:,1) = atebdwn(:,1) - urbtemp
         end where
         call atebloadd(atebdwn(:,1),"roomtemp",ifrac,0)
         write(vname,'("t",I1.1,"_urbnsmc")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"canyonsoilmoisture",ifrac,0)
         write(vname,'("t",I1.1,"_urbnsmr")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"roofsoilmoisture",ifrac,0)
         write(vname,'("t",I1.1,"_roofwtr")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"roofsurfacewater",ifrac,0)
         write(vname,'("t",I1.1,"_roadwtr")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"roadsurfacewater",ifrac,0)
         write(vname,'("t",I1.1,"_urbwtrc")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"canyonleafwater",ifrac,0)
         write(vname,'("t",I1.1,"_urbwtrr")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"roofleafwater",ifrac,0)
         write(vname,'("t",I1.1,"_roofsnd")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"roofsnowdepth",ifrac,0)
         write(vname,'("t",I1.1,"_roadsnd")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"roadsnowdepth",ifrac,0)
         write(vname,'("t",I1.1,"_roofden")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 100.  
+        end where
         if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
         call atebloadd(atebdwn(:,1),"roofsnowdensity",ifrac,0)
         write(vname,'("t",I1.1,"_roadden")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 100.  
+        end where
         if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
         call atebloadd(atebdwn(:,1),"roadsnowdensity",ifrac,0)
         write(vname,'("t",I1.1,"_roofsna")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.85  
+        end where
         if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
         call atebloadd(atebdwn(:,1),"roofsnowalbedo",ifrac,0)
         write(vname,'("t",I1.1,"_roadsna")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.85 
+        end where
         if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
         call atebloadd(atebdwn(:,1),"roadsnowalbedo",ifrac,0)
       end do

@@ -357,11 +357,11 @@ do kcount = 1,mcount
   
   
   ! calculate tke and eps boundary condition at 1st vertical level
-  z_on_l = -vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar**3,1.E-10))
+  z_on_l = -vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
   z_on_l = min(z_on_l,10.) ! See fig 10 in Beljarrs and Holtslag (1991)
   call calc_phi(phim,z_on_l)
   do iq = 1,imax
-    tke(iq,1) = cm12*ustar(iq)**2+ce3*wstar(iq)*wstar(iq)
+    tke(iq,1) = cm12*ustar(iq)*ustar(iq)+ce3*wstar(iq)*wstar(iq)
     eps(iq,1) = ustar(iq)*ustar(iq)*ustar(iq)*phim(iq)/(vkar*zz(iq,1))+grav*wtv0(iq)/thetav(iq,1)
     tke(iq,1) = max( tke(iq,1), mintke )
     tff = cm34*tke(iq,1)*sqrt(tke(iq,1))
@@ -408,7 +408,7 @@ do kcount = 1,mcount
       do k=2,kl-1
         ! saturated
         do iq = 1,imax
-          thetac=thetal(iq,k)+sigkap(k)*(lv*dd(iq,k)+ls*ff(iq,k))/cp        ! inside cloud value
+          thetac=thetal(iq,k)+sigkap(k)*(lv*dd(iq,k)+ls*ff(iq,k))/cp              ! inside cloud value
           tempc=thetac/sigkap(k)                                            ! inside cloud value          
           tqq=(1.+lv*qsatc(iq,k)/(rd*tempc))/(1.+lv*lv*qsatc(iq,k)/(cp*rv*tempc*tempc))
           tbb=-grav*km(iq,k)*(tqq*((thetalhl(iq,k)-thetalhl(iq,k-1)+sigkap(k)/cp*(lv*(qlhl(iq,k)-qlhl(iq,k-1))  &
@@ -422,7 +422,7 @@ do kcount = 1,mcount
       end do
       ! saturated
       do iq = 1,imax
-        thetac=thetal(iq,1)+sigkap(1)*(lv*dd(iq,1)+ls*ff(iq,1))/cp        ! inside cloud value
+        thetac=thetal(iq,1)+sigkap(1)*(lv*dd(iq,1)+ls*ff(iq,1))/cp              ! inside cloud value
         tempc=thetac/sigkap(1)                                            ! inside cloud value          
         tqq=(1.+lv*qsatc(iq,1)/(rd*tempc))/(1.+lv*lv*qsatc(iq,1)/(cp*rv*tempc*tempc))
         tbb=-grav*km(iq,1)*(tqq*((thetalhl(iq,1)-thetal(iq,1)+sigkap(1)/cp*(lv*(qlhl(iq,1)-qlg(iq,1))         &

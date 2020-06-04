@@ -485,8 +485,8 @@ do iq=1,ifull                                                                   
     wetfac(iq)=1.                                                                                ! sea
     ! tpan holds effective sea for this loop                                                     ! sea
     if(ntss_sh==0)then                                                                           ! sea
-      dtsol=tss_sh*.01*sgsave(iq)/(1.+.25*vmod(iq)**2)  ! solar heating                                ! sea
-      tpan(iq)=tgg(iq,1)+min(dtsol,8.)                  ! of ssts                                      ! sea
+      dtsol=tss_sh*.01*sgsave(iq)/(1.+.25*vmod(iq)**2)  ! solar heating                          ! sea
+      tpan(iq)=tgg(iq,1)+min(dtsol,8.)                  ! of ssts                                ! sea
     elseif(ntss_sh==3)then                                                                       ! sea
       dtsol=tss_sh*.01*sgsave(iq)/(1.+.035*vmod(iq)**3) ! solar heating                          ! sea
       tpan(iq)=tgg(iq,1)+min(dtsol,8.)                  ! of ssts                                ! sea
