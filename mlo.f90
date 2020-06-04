@@ -503,7 +503,8 @@ do tile = 1,ntiles
     
     ! find bottom index
     do ii = 1,wlev
-      lbottom(1:wfull_g(tile)) = depth_g(tile)%depth_hl(:,ii+1)>=depth_g(tile)%depth_hl(:,wlev+1) .and. depth_g(tile)%depth_hl(:,wlev+1)<mxd .and. depth_g(tile)%dz(:,ii)>1.e-4  
+      lbottom(1:wfull_g(tile)) = depth_g(tile)%depth_hl(:,ii+1)>=depth_g(tile)%depth_hl(:,wlev+1) .and.  &
+                                 depth_g(tile)%depth_hl(:,wlev+1)<mxd .and. depth_g(tile)%dz(:,ii)>1.e-4  
       where ( lbottom(1:wfull_g(tile)) )
         water_g(tile)%ibot(:) = ii
       end where
