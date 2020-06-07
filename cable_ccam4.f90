@@ -752,15 +752,15 @@ subroutine setp_canopy(canopy,lcanopy,tile)
     lcanopy%fevc => canopy%fevc(is:ie)
     lcanopy%ofes => canopy%ofes(is:ie)
   
-    lcanopy%A_sh => canopy%A_sh(is:ie)
-    lcanopy%A_sl => canopy%A_sl(is:ie)
+    !lcanopy%A_sh => canopy%A_sh(is:ie)
+    !lcanopy%A_sl => canopy%A_sl(is:ie)
     lcanopy%A_slC => canopy%A_slC(is:ie)
     lcanopy%A_shC => canopy%A_shC(is:ie)
     lcanopy%A_slJ => canopy%A_slJ(is:ie)
     lcanopy%A_shJ => canopy%A_shJ(is:ie)
-    lcanopy%eta_A_cs => canopy%eta_A_cs(is:ie)
-    lcanopy%dAdcs => canopy%dAdcs(is:ie)
-    lcanopy%cs => canopy%cs(is:ie)
+    !lcanopy%eta_A_cs => canopy%eta_A_cs(is:ie)
+    !lcanopy%dAdcs => canopy%dAdcs(is:ie)
+    !lcanopy%cs => canopy%cs(is:ie)
     lcanopy%cs_sl => canopy%cs_sl(is:ie)
     lcanopy%cs_sh => canopy%cs_sh(is:ie)
     lcanopy%tlf => canopy%tlf(is:ie)
@@ -775,6 +775,9 @@ subroutine setp_canopy(canopy,lcanopy,tile)
     lcanopy%fwsoil => canopy%fwsoil(is:ie)
     lcanopy%kthLitt => canopy%kthLitt(is:ie)
     lcanopy%DvLitt => canopy%DvLitt(is:ie)
+    
+    lcanopy%fns_cor => canopy%fns_cor(is:ie)
+    lcanopy%ga_cor => canopy%ga_cor(is:ie)
     
   end if  
 
@@ -935,10 +938,10 @@ subroutine setp_casaflux(casaflux,lcasaflux,tile)
     lcasaflux%FluxPtoclear => casaflux%FluxPtoclear(is:ie)
     lcasaflux%CtransferLUC => casaflux%CtransferLUC(is:ie)
 
-    lcasaflux%fHarvest => casaflux%fHarvest(is:ie)
-    lcasaflux%NHarvest => casaflux%NHarvest(is:ie)
-    lcasaflux%CHarvest => casaflux%CHarvest(is:ie)
-    lcasaflux%fcrop => casaflux%fcrop(is:ie)
+    !lcasaflux%fHarvest => casaflux%fHarvest(is:ie)
+    !lcasaflux%NHarvest => casaflux%NHarvest(is:ie)
+    !lcasaflux%CHarvest => casaflux%CHarvest(is:ie)
+    !lcasaflux%fcrop => casaflux%fcrop(is:ie)
     
   end if  
   
@@ -1135,7 +1138,7 @@ subroutine setp_climate(climate,lclimate,tile)
     lclimate%cs_shade => climate%cs_shade(is:ie,:)
     lclimate%scalex_sun => climate%scalex_sun(is:ie,:)
     lclimate%scalex_shade => climate%scalex_shade(is:ie,:)
-      
+     
   end if  
   
 end subroutine setp_climate
@@ -1221,10 +1224,10 @@ subroutine setp_pop(pop,lpop,tile)
   ie = tdata(tile)%poffset + tdata(tile)%np
 
   if ( is<=ie ) then
-    lpop%pop_grid => pop%pop_grid(is:ie)
-    lpop%it_pop => pop%it_pop(is:ie)
+    !lpop%pop_grid => pop%pop_grid(is:ie)
+    !lpop%it_pop => pop%it_pop(is:ie)
     lpop%np = tdata(tile)%np
-    lpop%Iwood => pop%Iwood(is:ie)
+    !lpop%Iwood => pop%Iwood(is:ie)
   end if  
 
 end subroutine setp_pop
@@ -1371,6 +1374,8 @@ subroutine setp_soil(soil,lsoil,tile)
     lsoil%ssat_vec => soil%ssat_vec(is:ie,:)
     lsoil%sfc_vec => soil%sfc_vec(is:ie,:)
     
+    lsoil%heat_cap_lower_limit => soil%heat_cap_lower_limit(is:ie,:)
+    
   end if  
 
 end subroutine setp_soil
@@ -1486,6 +1491,12 @@ subroutine setp_ssnow(ssnow,lssnow,tile)
     lssnow%Qevap_daily => ssnow%Qevap_daily(is:ie)
     lssnow%Qprec_daily => ssnow%Qprec_daily(is:ie)
     lssnow%Qprec_snow_daily => ssnow%Qprec_snow_daily(is:ie)
+    
+    lssnow%GWwb => ssnow%GWwb(is:ie)
+    lssnow%satfrac => ssnow%satfrac(is:ie)
+    lssnow%rh_srf => ssnow%rh_srf(is:ie)
+    lssnow%dfe_dtg => ssnow%dfe_dtg(is:ie)
+    lssnow%wbliq => ssnow%wbliq(is:ie,:)
     
   end if  
 

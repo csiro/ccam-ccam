@@ -124,8 +124,10 @@ use casa_cnp_module
 use casadimension
 use casaparm, xroot => froot
 use casavariable
+use phenvariable
 use popmodule, only : pop_init, popstep
 use pop_types
+use sli_main_mod
 
 implicit none
 
@@ -135,7 +137,7 @@ public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcb
 public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle
 public fwsoil_switch, cable_litter, gs_switch, cable_climate
-public smrf_switch, strf_switch
+public smrf_switch, strf_switch, cable_gw_model
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 
 ! CABLE biophysical options
@@ -147,6 +149,7 @@ integer, save :: smrf_switch     = 4          ! 1 CASA-CNP, 2 SOLIN, 3 TRIFFID, 
                                               ! 5 DAMM (Soil Moist Respiration Function)
 integer, save :: strf_switch     = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 4 LT1994(default),
                                               ! 5 DAMM (Soil Temp Respiration Function)
+integer, save :: cable_gw_model  = 0          ! 0 off, 1 GW_Hydro
 ! CABLE biochemical options
 integer, save :: ccycle          = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
 integer, save :: proglai         = -1         ! -1, piece-wise linear prescribed LAI, 0 PWCB prescribed LAI, 1 prognostic LAI
@@ -611,9 +614,11 @@ if ( soil_struc==0 ) then
   canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
   !canopy%fhs_cor  = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
   !canopy%fes_cor  = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
+  !canopy%fns_cor  = canopy%fns_cor + ssnow%deltss*ssnow%dfn_dtg
+  !canopy%ga_cor   = canopy%ga_cor + ssnow%deltss*canopy%dgdtg
   ! MJT fix
   ssnow%wb(:,ms) = ssnow%wb(:,ms) - (ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg)*dtr8 &
-                                   /(ssnow%cls*air%rlam*soil%zse(ms)*1000.) 
+                                   /(ssnow%cls*air%rlam*soil%zse(ms)*1000._8) 
 end if
 canopy%fh        = canopy%fhv + canopy%fhs
 canopy%fev       = canopy%fevc + canopy%fevw
@@ -1289,11 +1294,13 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
           veg%ejmax(np) = 2.0_8 * veg%vcmax(np)
         elseif (ivt==1) then
           ! account here for spring recovery
-          veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*casabiome%vcmax_scalar(ivt) &
-                         *climate%frec(np) 
+          !veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*casabiome%vcmax_scalar(ivt) &
+          !               *climate%frec(np)
+          veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*climate%frec(np)  
           veg%ejmax(np) =bjvref * veg%vcmax(np)
         else
-          veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*casabiome%vcmax_scalar(ivt)
+          !veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*casabiome%vcmax_scalar(ivt)
+          veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))
           veg%ejmax(np) =bjvref * veg%vcmax(np)
         endif
       end do
@@ -2711,6 +2718,8 @@ if ( mp_global>0 ) then
   cable_user%consistency_check = .false.
   cable_user%logworker = .false.
   cable_user%l_new_roughness_soil = .false.
+  cable_user%l_rev_corr = .true.
+  cable_user%gw_model = cable_gw_model==1
   select case ( cable_climate )
     case(1)
       cable_user%call_climate = .true.
@@ -2946,6 +2955,8 @@ if ( mp_global>0 ) then
   canopy%dgdtg=0._8
   canopy%fhs_cor=0._8
   canopy%fes_cor=0._8
+  canopy%fns_cor=0._8
+  canopy%ga_cor=0._8
   canopy%us=0.01_8
   ssnow%wb_lake=0._8 ! not used when mlo.f90 is active
   ssnow%fland=1._8
@@ -3102,10 +3113,10 @@ if ( mp_global>0 ) then
     casaflux%sapwood_area = 0._8
     casaflux%stemnpp      = 0._8
     casaflux%Cnpp         = 0._8
-    casaflux%fHarvest     = 0._8
-    casaflux%NHarvest     = 0._8
-    casaflux%CHarvest     = 0._8
-    casaflux%fcrop        = 0._8
+    !casaflux%fHarvest     = 0._8
+    !casaflux%NHarvest     = 0._8
+    !casaflux%CHarvest     = 0._8
+    !casaflux%fcrop        = 0._8
 
     canopy%fnee = 0._8
     canopy%fpn = 0._8
@@ -4045,14 +4056,14 @@ if ( mp_global>0 ) then
   casabiome%nintercept(:)      = xnintercept(:)
   casabiome%nslope(:)          = xnslope(:)    
 
-  casabiome%la_to_sa(:)             = xla_to_sa(:)
-  casabiome%vcmax_scalar(:)         = xvcmax_scalar(:)
-  casabiome%disturbance_interval(:) = xdisturbance_interval(:)
-  casabiome%DAMM_EnzPool(:)         = xDAMM_EnzPool(:)
-  casabiome%DAMM_KMO2(:)            = xDAMM_KMO2(:)
-  casabiome%DAMM_KMcp(:)            = xDAMM_KMcp(:)
-  casabiome%DAMM_Ea(:)              = xDAMM_Ea(:)
-  casabiome%DAMM_alpha(:)           = xDAMM_alpha(:)
+  !casabiome%la_to_sa(:)             = xla_to_sa(:)
+  !casabiome%vcmax_scalar(:)         = xvcmax_scalar(:)
+  !casabiome%disturbance_interval(:) = xdisturbance_interval(:)
+  !casabiome%DAMM_EnzPool(:)         = xDAMM_EnzPool(:)p
+  !casabiome%DAMM_KMO2(:)            = xDAMM_KMO2(:)
+  !casabiome%DAMM_KMcp(:)            = xDAMM_KMcp(:)
+  !casabiome%DAMM_Ea(:)              = xDAMM_Ea(:)
+  !casabiome%DAMM_alpha(:)           = xDAMM_alpha(:)
 
   casabiome%xkplab = xxkplab
   casabiome%xkpsorb = xxkpsorb
@@ -4523,13 +4534,26 @@ if ( mp_global>0 ) then
   soil%nhorizons = 1
   soil%ishorizon = 1
   do k = 1,ms
-    soil%swilt_vec(:,k) = soil%swilt
-    soil%ssat_vec(:,k)  = soil%ssat
-    soil%sfc_vec(:,k)   = soil%sfc
+    soil%swilt_vec(:,k)   = soil%swilt
+    soil%ssat_vec(:,k)    = soil%ssat
+    soil%sfc_vec(:,k)     = soil%sfc
+    soil%rhosoil_vec(:,k) = soil%rhosoil
+    soil%sucs_vec(:,k)    = soil%sucs
+    soil%bch_vec(:,k)     = soil%bch
+    soil%hyds_vec(:,k)    = soil%hyds
+    soil%watr(:,k)        = 0.01_8
   end do
+  soil%GWsucs_vec    = soil%sucs*1000._8
+  soil%GWhyds_vec    = soil%hyds*1000._8
+  soil%GWbch_vec     = soil%bch
+  soil%GWrhosoil_vec = soil%rhosoil
+  soil%GWssat_vec    = soil%ssat
+  soil%GWwatr        = 0.01_8
+  soil%GWdz          = 20._8
+  soil%GWdz = max( 1._8, min( 20._8, soil%GWdz - sum(soil%zse,dim=1) ) )
   
   ! depeciated
-  !bgc%ratecp(:) = real(ratecp(:),8)
+  !bgc%ratecp(:) = real(ratecp(:),8)/
   !bgc%ratecs(:) = real(ratecs(:),8)
 end if
 
@@ -4884,6 +4908,13 @@ if ( mp_global>0 ) then
   call cable_pack(isflag,ssnow%isflag)
   call cable_pack(snowd,ssnow%snowd)
   call cable_pack(snage,ssnow%snage)
+  ssnow%Qrecharge = 0._8
+  canopy%sublayer_dz = 0._8
+  ssnow%rtevap_sat = 0._8
+  ssnow%rtevap_unsat = 0._8
+  ssnow%satfrac = 0.5_8
+  ssnow%wbliq = ssnow%wb - ssnow%wbice
+  ssnow%GWwb = 0.95_8*soil%ssat 
   if ( soil_struc==0 ) then
     do k = 1,ms
       ssnow%wb(:,k) = max(ssnow%wb(:,k), 0.5_8*soil%swilt)
@@ -4901,6 +4932,8 @@ if ( mp_global>0 ) then
   ssnow%osnowd = ssnow%snowd
   canopy%fhs_cor = 0._8
   canopy%fes_cor = 0._8
+  canopy%fns_cor = 0._8
+  canopy%ga_cor = 0._8
   
   ! default value for fwsoil.  Recaculated by cable_canopy or by SLI
   canopy%fwsoil = max( 1.e-9_8, sum( veg%froot*max(1.e-9_8,min(1._8,ssnow%wb-spread(soil%swilt,2,ms))),2) &
@@ -5222,6 +5255,9 @@ else
     write(vname,'("t",I1.1,"_rtsoil")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,ssnow%rtsoil(:),n)
+    write(vname,'("t",I1.1,"_GWwb")') n
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
+    if ( n<=maxnb ) call cable_pack(dat,ssnow%GWwb(:),n)
     write(vname,'("t",I1.1,"_cansto")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,canopy%cansto(:),n)
@@ -6327,6 +6363,12 @@ else
   !  write(vname,'("t",I1.1,"_fescor")') n
   !  call histrd(iarchi-1,ierr,vname,dat,ifull)
   !  if ( n<=maxnb ) call cable_pack(dat,canopy%fes_cor,n)
+  !  write(vname,'("t",I1.1,"_fnscor")') n
+  !  call histrd(iarchi-1,ierr,vname,dat,ifull)
+  !  if ( n<=maxnb ) call cable_pack(dat,canopy%fns_cor,n)
+  !  write(vname,'("t",I1.1,"_gacor")') n
+  !  call histrd(iarchi-1,ierr,vname,dat,ifull)
+  !  if ( n<=maxnb ) call cable_pack(dat,canopy%ga_cor,n)
   !end do
   ! albvisdir, albvisdif, albnirdir, albnirdif are used when nrad=5
   vname = 'albvisdir'
@@ -6397,6 +6439,7 @@ if ( mp_global>0 ) then
   ssnow%osnowd = max(ssnow%osnowd,0._8)
   ssnow%wetfac = min(max(ssnow%wetfac,0._8),1._8)
   canopy%cansto = max(canopy%cansto,0._8)
+  ssnow%wbliq = ssnow%wb - ssnow%wbice
 
   ssnow%wbtot = 0._8
   ssnow%wbtot1 = 0._8
@@ -6491,6 +6534,7 @@ if ( mp_global>0 ) then
       call redistribute_work(old_sv,ssnow%wb(:,k))
       call redistribute_work(old_sv,ssnow%wbice(:,k))
     end do
+    call redistribute_work(old_sv,ssnow%GWwb)
     if ( soil_struc==1 ) then
       do k = 1,ms
         call redistribute_work(old_sv,ssnow%tsoil(:,k))
@@ -6668,6 +6712,9 @@ if (myid==0.or.local) then
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,26.,0,2) ! kind=8
       write(lname,'("Soil turbulent resistance tile ",I1.1)') n
       write(vname,'("t",I1.1,"_rtsoil")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3e5,0,2) ! kind=8
+      write(lname,'("Aquifer moisture content ",I1.1)') n
+      write(vname,'("t",I1.1,"_GWwb")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3e5,0,2) ! kind=8
       write(lname,'("cansto tile ",I1.1)') n
       write(vname,'("t",I1.1,"_cansto")') n
@@ -7513,7 +7560,11 @@ if ( itype==-1 ) then !just for restart file
     dat = 100._8
     if ( n<=maxnb ) call cable_unpack(ssnow%rtsoil,dat,n)
     write(vname,'("t",I1.1,"_rtsoil")') n
-    call histwrt(dat,vname,idnc,iarch,local,.true.)   
+    call histwrt(dat,vname,idnc,iarch,local,.true.)
+    dat = 0._8
+    if ( n<=maxnb ) call cable_unpack(ssnow%GWwb,dat,n)
+    write(vname,'("t",I1.1,"_GWwb")') n
+    call histwrt(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
     if (n<=maxnb) call cable_unpack(canopy%cansto,dat,n)
     write(vname,'("t",I1.1,"_cansto")') n
@@ -8564,6 +8615,14 @@ if ( itype==-1 ) then !just for restart file
     !dat=0._8
     !if (n<=maxnb) call cable_unpack(canopy%fes_cor(:),dat,n)
     !write(vname,'("t",I1.1,"_fescor")') n
+    !call histwrt(dat,vname,idnc,iarch,local,.true.)
+    !dat=0._8
+    !if (n<=maxnb) call cable_unpack(canopy%fns_cor(:),dat,n)
+    !write(vname,'("t",I1.1,"_fnscor")') n
+    !call histwrt(dat,vname,idnc,iarch,local,.true.)
+    !dat=0._8
+    !if (n<=maxnb) call cable_unpack(canopy%ga_cor(:),dat,n)
+    !write(vname,'("t",I1.1,"_gacor")') n
     !call histwrt(dat,vname,idnc,iarch,local,.true.)
   !end do
   vname='albvisdir'

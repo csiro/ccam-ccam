@@ -15,9 +15,13 @@
 /cable_ccam3.f90 -text
 /cable_ccam4.f90 -text
 /cable_common.F90 -text
+/cable_constants.F90 -text
 /cable_data.F90 -text
 /cable_define_types.F90 -text
+/cable_gw_hydro.F90 -text
 /cable_optimiseJVratio.F90 -text
+/cable_pft_params.F90 -text
+/cable_psm.F90 -text
 /cable_radiation.F90 -text
 /cable_roughness.F90 -text
 /cable_sli_main.F90 -text
@@ -25,9 +29,13 @@
 /cable_sli_roots.F90 -text
 /cable_sli_solve.F90 -text
 /cable_sli_utils.F90 -text
+/cable_soil_params.F90 -text
 /cable_soilsnow.F90 -text
 /carbpools_m.f90 -text
 /casa_cnp.F90 -text
+/casa_dimension.F90 -text
+/casa_param.F90 -text
+/casa_phenology.F90 -text
 /casa_variable.F90 -text
 /cc_omp.f90 -text
 /cfrac_m.f90 -text

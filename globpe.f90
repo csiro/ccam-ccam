@@ -1296,7 +1296,8 @@ use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
     ,gs_switch,cable_climate,ccycle      &
-    ,smrf_switch,strf_switch
+    ,smrf_switch,strf_switch             &
+    ,cable_gw_model
 use carbpools_m, only : carbpools_init     ! Carbon pools
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
@@ -1490,6 +1491,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL s
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
     gs_switch,cable_climate,smrf_switch,strf_switch,              &
+    cable_gw_model,                                               &
     ateb_energytol,ateb_resmeth,ateb_useonewall,ateb_zohmeth,     & ! urban
     ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &
     ateb_conductmeth,ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,   &

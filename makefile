@@ -201,9 +201,10 @@ xarrs_m.o \
 aerointerface.o aerosolldr.o \
 cable_air.o cable_albedo.o cable_canopy.o cable_ccam2.o cable_ccam3.o cable_ccam4.o cable_common.o \
 cable_data.o cable_define_types.o cable_radiation.o cable_roughness.o cable_soilsnow.o \
-cable_optimiseJVratio.o \
+cable_optimiseJVratio.o cable_psm.o cable_pft_params.o cable_soil_params.o cable_constants.o \
+cable_gw_hydro.o \
 cable_sli_main.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o \
-casa_cnp.o casa_variable.o POP.o \
+casa_cnp.o casa_variable.o POP.o casa_dimension.o casa_phenology.o casa_param.o \
 ateb.o mlo.o mlodynamics.o river.o tkeeps.o \
 seaesfrad.o rad_utilities.o microphys_rad.o esfsw_driver.o esfsw_parameters.o \
 longwave_params.o sealw99.o longwave_clouds.o longwave_fluxes.o longwave_tables.o \
@@ -216,9 +217,11 @@ netcdf_m.o mpif_m.o stacklimit.o
 OBJSCM = aerointerface.o aerosolldr.o arrays_m.o ateb.o cable_air.o cable_albedo.o \
 cable_canopy.o cable_ccam2.o cable_ccam3.o cable_ccam4.o cable_common.o cable_data.o \
 cable_define_types.o cable_radiation.o cable_roughness.o cable_soilsnow.o carbpools_m.o \
-cable_optimiseJVratio.o \
+cable_optimiseJVratio.o cable_psm.o cable_pft_params.o cable_soil_params.o cable_constants.o \
+cable_gw_hydro.o \
 cable_sli_main.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o \
-casa_cnp.o casa_variable.o POP.o cc_mpi.o cc_omp.o cfrac_m.o cloudmod.o co2_read.o co2dta_m.o  \
+casa_cnp.o casa_variable.o POP.o casa_dimension.o casa_phenology.o casa_param.o \
+cc_mpi.o cc_omp.o cfrac_m.o cloudmod.o co2_read.o co2dta_m.o  \
 const_phys.o convjlm.o convjlm22.o darcdf_m.o dates_m.o diag_m.o esfsw_driver.o esfsw_parameters.o estab.o \
 extraout_m.o filnames_m.o gas_tf.o gdrag_m.o histave_m.o indices_m.o infile.o \
 kuocomb_m.o latlong_m.o leoncld.o liqwpar_m.o longwave_clouds.o longwave_fluxes.o \
@@ -285,11 +288,19 @@ cable_ccam3.o: cable_ccam3.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_common.o: cable_common.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
+cable_constants.o: cable_constants.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_data.o: cable_data.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_define_types.o: cable_define_types.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
+cable_gw_hydro.o: cable_gw_hydro.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_optimiseJVratio.o: cable_optimiseJVratio.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
+cable_pft_params.o: cable_pft_params.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
+cable_psm.o: cable_psm.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_radiation.o: cable_radiation.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
@@ -305,9 +316,17 @@ cable_sli_solve.o: cable_sli_solve.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_sli_utils.o: cable_sli_utils.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
+cable_soil_params.o: cable_soil_params.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 cable_soilsnow.o: cable_soilsnow.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 casa_cnp.o: casa_cnp.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
+casa_dimension.o: casa_dimension.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
+casa_param.o: casa_param.F90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
+casa_phenology.o: casa_phenology.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 casa_variable.o: casa_variable.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
@@ -360,12 +379,15 @@ bettrain.o : betts1_m.o newmpar_m.o
 betts.o : betts1_m.o morepbl_m.o newmpar_m.o parm_m.o prec_m.o sigs_m.o
 cable_air.o : cable_common.o cable_data.o cable_define_types.o 
 cable_albedo.o : cable_common.o cable_data.o cable_define_types.o
-cable_canopy.o : cable_air.o cable_common.o cable_data.o cable_define_types.o cable_radiation.o cable_roughness.o cable_sli_utils.o
-cable_common.o : cable_define_types.o
-cable_ccam2.o : arrays_m.o cable_air.o cable_albedo.o cable_canopy.o cable_ccam3.o cable_ccam4.o cable_common.o cable_define_types.o cable_optimiseJVratio.o cable_radiation.o cable_roughness.o cable_sli_main.o cable_soilsnow.o carbpools_m.o casa_cnp.o casa_variable.o cc_mpi.o cc_omp.o const_phys.o darcdf_m.o dates_m.o estab.o extraout_m.o infile.o latlong_m.o liqwpar_m.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o parmgeom_m.o pbl_m.o permsurf_m.o POP.o prec_m.o raddiag_m.o radisw_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o tracers_m.o vegpar_m.o work2_m.o work3_m.o zenith.o
-cable_ccam3.o : cable_data.o cable_define_types.o casa_variable.o POP.o
+cable_canopy.o : cable_air.o cable_common.o cable_data.o cable_define_types.o cable_gw_hydro.o cable_psm.o cable_radiation.o cable_roughness.o cable_sli_main.o cable_sli_utils.o
+cable_common.o : cable_define_types.o cable_pft_params.o cable_soil_params.o
+cable_ccam2.o : arrays_m.o cable_air.o cable_albedo.o cable_canopy.o cable_ccam3.o cable_ccam4.o cable_common.o cable_define_types.o cable_optimiseJVratio.o cable_radiation.o cable_roughness.o cable_sli_main.o cable_soilsnow.o carbpools_m.o casa_cnp.o casa_variable.o casa_phenology.o cc_mpi.o cc_omp.o const_phys.o darcdf_m.o dates_m.o estab.o extraout_m.o infile.o latlong_m.o liqwpar_m.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o parmgeom_m.o pbl_m.o permsurf_m.o POP.o prec_m.o raddiag_m.o radisw_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o tracers_m.o vegpar_m.o work2_m.o work3_m.o zenith.o
+cable_ccam3.o : cable_data.o cable_define_types.o casa_phenology.o casa_variable.o POP.o
 cable_ccam4.o : cable_ccam3.o cable_data.o cable_define_types.o casa_variable.o cc_omp.o newmpar_m.o POP.o
+cable_data.o : cable_constants.o
+cable_gw_hydro.o : cable_define_types.o cable_common.o cable_soilsnow.o cable_data.o
 cable_optimiseJVratio.o : cable_canopy.o cable_data.o cable_define_types.o POP.o
+cable_psm.o : cable_common.o cable_define_types.o
 cable_radiation.o : cable_common.o cable_data.o cable_define_types.o
 cable_roughness.o : cable_common.o cable_data.o cable_define_types.o
 cable_sli_main.o : cable_common.o cable_define_types.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o
@@ -376,7 +398,10 @@ cable_sli_utils.o : cable_define_types.o cable_sli_numbers.o
 cable_soilsnow.o : cable_common.o cable_data.o cable_define_types.o parm_m.o
 carbpools_m.o : cable_define_types.o casa_variable.o parm_m.o
 casa_cnp.o : cable_define_types.o casa_variable.o
-casa_variable.o : cable_define_types.o
+casa_dimension.o : cable_define_types.o
+casa_param.o : casa_dimension.o
+casa_phenology.o : casa_dimension.o
+casa_variable.o : cable_define_types.o casa_dimension.o casa_param.o
 cc_mpi.o : cc_omp.o const_phys.o indices_m.o latlong_m.o map_m.o newmpar_m.o sumdd_m.o vecsuv_m.o workglob_m.o xyzinfo_m.o
 ifneq ($(SCM),yes)
 cc_mpi.o : mpif_m.o
