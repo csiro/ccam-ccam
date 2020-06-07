@@ -53,7 +53,8 @@ MODULE cable_gw_hydro_module
   PRIVATE
 
   TYPE(igwhydro_type), SAVE :: C
-
+!$omp threadprivate(C)
+  
   !mrd561 GW params
   REAL(r_2), SAVE :: smp_cor = 8.0
   REAL(r_2), PARAMETER :: sucmin       = -1.0e8      ! minimum soil pressure head [mm]
