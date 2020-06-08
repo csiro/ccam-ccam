@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -26,7 +26,7 @@ implicit none
 private
 public cloudlo,cloudmi,cloudhi,cloudtot
 public rgsave,sgsave
-public taux,tauy
+public taux,tauy,taux_ave,tauy_ave
 public ustar, tstar, qstar, thetavstar
 public swrsave,fbeamvis,fbeamnir
 public u10_3hr,v10_3hr,tscr_3hr,rh1_3hr
@@ -34,7 +34,7 @@ public extraout_init,extraout_end
 
 real, dimension(:), allocatable, save :: cloudlo,cloudmi,cloudhi,cloudtot
 real, dimension(:), allocatable, save :: rgsave
-real, dimension(:), allocatable, save :: taux,tauy
+real, dimension(:), allocatable, save :: taux,tauy,taux_ave,tauy_ave
 real, dimension(:), allocatable, save :: tstar, qstar, thetavstar
 real, dimension(:), allocatable, save :: swrsave,fbeamvis,fbeamnir
 real, dimension(:), allocatable, save :: sgsave, ustar
@@ -50,7 +50,7 @@ integer, intent(in) :: ifull,nextout
 
 allocate(cloudlo(ifull),cloudmi(ifull),cloudhi(ifull),cloudtot(ifull))
 allocate(rgsave(ifull),sgsave(ifull))
-allocate(taux(ifull),tauy(ifull))
+allocate(taux(ifull),tauy(ifull),taux_ave(ifull),tauy_ave(ifull))
 allocate( ustar(ifull), tstar(ifull), qstar(ifull), thetavstar(ifull) )
 allocate(swrsave(ifull),fbeamvis(ifull),fbeamnir(ifull))
 if (nextout>=2) then
@@ -68,6 +68,8 @@ qstar(:) = 0.
 thetavstar(:) = 0.
 taux(:) = 0.
 tauy(:) = 0.
+taux_ave(:) = 0.
+tauy_ave(:) = 0.
 
 return
 end subroutine extraout_init
@@ -78,7 +80,7 @@ implicit none
 
 deallocate(cloudlo,cloudmi,cloudhi,cloudtot)
 deallocate(rgsave,sgsave)
-deallocate(taux,tauy,ustar)
+deallocate(taux,tauy,taux_ave,tauy_ave,ustar)
 deallocate(swrsave,fbeamvis,fbeamnir)
 if (allocated(u10_3hr)) then
   deallocate(u10_3hr,v10_3hr,tscr_3hr,rh1_3hr)

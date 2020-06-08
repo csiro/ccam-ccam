@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -91,11 +91,12 @@ integer, parameter :: nrhead = 14
 integer, intent(in) :: nested
 integer, intent(out) :: kdate_r, ktime_r
 integer, save :: maxarchi
-integer mtimer, ierx, idvtime
+integer ierx, idvtime
 integer kdate_rsav, ktime_rsav
 integer, dimension(nihead) :: nahead
 integer, dimension(:), intent(out) :: isflag
-real timer
+integer(kind=8) mtimer
+real(kind=8) timer
 real, dimension(:,:,:), intent(out) :: mlodwn
 real, dimension(:,:,:), intent(out) :: xtgdwn
 real, dimension(:,:), intent(out) :: wb, wbice, tgg
@@ -170,13 +171,13 @@ if ( myid==0 .or. pfall ) then
   end if
   
   ! search for required date ----------------------------------------
-  if ( nrungcm==-14 ) then
+  if ( nrungcm==-14 .and. nested==2 ) then
     iarchi = 1
     ltest = .true.
     kdate_r = kdate_s 
     ktime_r = ktime_s
     if ( myid==0 ) then
-      write(6,*)'Reading climatology for iarch=1'
+      write(6,*) 'Reading climatology for iarch=1'
       write(6,*) '                   kdate_r,ktime_r =',kdate_r, ktime_r
     end if
   else  
@@ -195,7 +196,7 @@ if ( myid==0 .or. pfall ) then
       kdate_r = kdate_rsav
       ktime_r = ktime_rsav
       call ccnf_get_vara(ncid,idvtime,iarchi,timer)
-      mtimer = nint(timer)
+      mtimer = nint(timer,8)
       call datefix(kdate_r,ktime_r,mtimer)
       ! ltest = .false. when correct date is found
       ltest = (2400*(kdate_r-kdate_s)-1200*nsemble+ktime_r-ktime_s)<0
@@ -269,6 +270,7 @@ if ( ktime_r<0 ) then
     return
   else
     write(6,*) "ERROR: Cannot locate date/time in input file"
+    write(6,*) "myid,pfall,ktime_r ",myid,pfall,ktime_r
     call ccmpi_abort(-1)
   end if
 end if
@@ -303,11 +305,9 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
                          ocndwn,xtgdwn)
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
-use aerosolldr, only : ssn,xtg_solub           ! LDR aerosol scheme
 use ateb, only : atebdwn, urbtemp, atebloadd, &
     nfrac                                      ! Urban
 use cable_ccam, only : ccycle                  ! CABLE
-use casadimension, only : mplant,mlitter,msoil ! CASA dimensions
 use carbpools_m                                ! Carbon pools
 use cc_mpi                                     ! CC MPI routines
 use cfrac_m                                    ! Cloud fraction
@@ -327,7 +327,7 @@ use morepbl_m                                  ! Additional boundary layer diagn
 use newmpar_m                                  ! Grid parameters
 use nharrs_m, only : phi_nh,lrestart,         &
     lrestart_radiation                         ! Non-hydrostatic atmosphere arrays
-use nsibd_m, only : isoilm,rsmin               ! Land-surface arrays
+use nsibd_m, only : isoilm,isoilm_in,rsmin     ! Land-surface arrays
 use parm_m                                     ! Model configuration
 use parmdyn_m                                  ! Dynamics parmaters
 use parmgeom_m                                 ! Coordinate data
@@ -389,14 +389,14 @@ logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
-logical zht_needed, zht_found, urban_found, urban2_found
+logical zht_needed, zht_found, urban1_found, urban2_found
 logical aero_found
 logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
-real(kind=8), dimension(:,:), allocatable, target, save :: xx4_dummy, yy4_dummy
+real(kind=8), dimension(:,:,:), allocatable, target, save :: xy4_dummy
 real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y_a_dummy
 
@@ -477,9 +477,9 @@ end if
 ! Determine input grid coordinates and interpolation arrays
 if ( newfile .and. .not.iop_test ) then
     
-  allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
-  xx4 => xx4_dummy
-  yy4 => yy4_dummy
+  allocate( xy4_dummy(1+4*ik,1+4*ik,2) )
+  xx4 => xy4_dummy(:,:,1)
+  yy4 => xy4_dummy(:,:,2)
 
   if ( m_fly==1 ) then
     rlong4_l(:,1) = rlongg(:)*180./pi
@@ -512,8 +512,7 @@ if ( newfile .and. .not.iop_test ) then
     deallocate( wts_a )
   end if ! (myid==0)
   
-  call ccmpi_bcastr8(xx4_dummy,0,comm_world)
-  call ccmpi_bcastr8(yy4_dummy,0,comm_world)
+  call ccmpi_bcastr8(xy4_dummy,0,comm_world)
   
   ! calculate the rotated coords for host and model grid
   rotpoles = calc_rotpole(rlong0x,rlat0x)
@@ -530,7 +529,7 @@ if ( newfile .and. .not.iop_test ) then
       do i = 1,3
         write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpole(i,j),j=1,3)
       enddo
-      write(6,*)'xx4,yy4 ',xx4_dummy(id,jd),yy4_dummy(id,jd)
+      write(6,*)'xx4,yy4 ',xy4_dummy(id,jd,1),xy4_dummy(id,jd,2)
       write(6,*)'before latltoij for id,jd: ',id,jd
       write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,schmidtx
     end if                ! (nmaxpr==1)
@@ -547,7 +546,7 @@ if ( newfile .and. .not.iop_test ) then
   end do
 
   nullify( xx4, yy4 )
-  deallocate( xx4_dummy, yy4_dummy )  
+  deallocate( xy4_dummy )  
   
   ! Define filemap for multi-file method
   call file_wininit
@@ -648,7 +647,7 @@ if ( newfile ) then
   soilt_found   = iers(4)==0
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
-  urban_found   = iers(7)==0
+  urban1_found  = iers(7)==0
   urban2_found  = iers(8)==0
   mloice_found  = iers(9)==0
   zht_found     = iers(10)==0
@@ -662,19 +661,17 @@ if ( newfile ) then
   if ( myid==0 ) then
     if ( zht_needed ) then
       write(6,*) "Surface height is required with zht_needed =",zht_needed
-      write(6,*) "nested,retopo_test              =",nested,retopo_test
-      write(6,*) "soilt_found,mlo_found,zht_found =",soilt_found,mlo_found,zht_found
-      write(6,*) "allowtrivialfill                =",allowtrivialfill
-      if ( .not.zht_found .and. .not.allowtrivialfill ) then
-        write(6,*) "ERROR: Surface height is required but not found in input file"
-        call ccmpi_abort(-1)
-      end if     
     else  
       write(6,*) "Surface height is not required with zht_needed =",zht_needed
-      write(6,*) "nested,retopo_test              =",nested,retopo_test
-      write(6,*) "soilt_found,mlo_found,zht_found =",soilt_found,mlo_found,zht_found
-      write(6,*) "allowtrivialfill                =",allowtrivialfill
     end if
+    write(6,*) "nested,retopo_test              =",nested,retopo_test
+    write(6,*) "soilt_found,mlo_found,zht_found =",soilt_found,mlo_found,zht_found
+    write(6,*) "allowtrivialfill                =",allowtrivialfill
+    if ( zht_needed .and. .not.zht_found .and. .not.allowtrivialfill ) then
+      write(6,*) "ERROR: Surface height is required but not found in input file"
+      call ccmpi_abort(-1)
+    end if     
+    write(6,*) "urban1_found,urban2_found = ",urban1_found,urban2_found
   end if  
       
   ! determine whether surface temperature needs to be interpolated (tss_test=.false.)
@@ -791,13 +788,14 @@ if ( newfile ) then
     if ( myid==0 ) then
       write(6,*) "Determine urban mask"
     end if  
-    if ( urban_found ) then
+    if ( urban1_found ) then
       call histrd(iarchi,ier,'t1_intmtgg1',ucc,6*ik*ik)  
     else if ( urban2_found ) then
       call histrd(iarchi,ier,'intmtgg1',ucc,6*ik*ik)
     else
       if ( fwsize>0 ) then
-        ucc = 0. ! will use tsu so all points are valid
+        ! will use tsu for urban temperatures so all points are valid  
+        ucc = 0.
       end if
     end if  
     if ( fwsize>0 ) then
@@ -816,10 +814,11 @@ else
   soilt_found   = iers(4)==0
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
-  urban_found   = iers(7)==0
+  urban1_found   = iers(7)==0
   urban2_found  = iers(8)==0
   mloice_found  = iers(9)==0
   zht_found     = iers(10)==0
+  aero_found    = iers(11)==0
   zht_needed    = nested==0 .or. (nested==1.and.retopo_test/=0) .or.      &
       nested==3 .or. .not.(soilt_found.or.mlo_found)
   allowtrivialfill = zht_needed .and. .not.zht_found .and.                &
@@ -866,21 +865,11 @@ endif
 if ( tss_test .and. iop_test ) then
   call histrd(iarchi,ier,'tsu',tss,ifull)
   tss = abs(tss)
-  if ( any( tss<100. .or. tss>425. ) ) then
-    write(6,*) "ERROR: Invalid tsu read in onthefly"
-    write(6,*) "minval,maxval ",minval(tss),maxval(tss)
-    call ccmpi_abort(-1)
-  end if
+  tss = min( max( tss, 100. ), 425. )
 else
   call histrd(iarchi,ier,'tsu',tss_a,6*ik*ik)
-  tss_a(:) = abs(tss_a(:))
-  if ( fwsize>0 ) then
-    if ( any( tss_a<100. .or. tss_a>425. ) ) then
-      write(6,*) "ERROR: Invalid tsu read in onthefly"
-      write(6,*) "minval,maxval ",minval(tss_a),maxval(tss_a)
-      call ccmpi_abort(-1)
-    end if  
-  end if  
+  tss_a = abs(tss_a)
+  tss_a = min( max( tss_a, 100. ), 425. )
 end if ! (tss_test) ..else..
 
  
@@ -1006,7 +995,7 @@ else
   tss_l    = udum6(:,3)
   tss_s    = udum6(:,4)
   sicedep  = udum6(:,5)
-  fracice  = udum6(:,6)      
+  fracice  = udum6(:,6)
 
   !   incorporate other target land mask effects
   where ( land(1:ifull) )
@@ -1032,31 +1021,6 @@ else
   
 end if ! (tss_test .and. iop_test ) ..else..
 
-
-! to be depeciated !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!if (nspecial==44.or.nspecial==46) then
-!  do iq=1,ifull
-!    rlongd=rlongg(iq)*180./pi
-!    rlatd=rlatt(iq)*180./pi
-!    if (rlatd>=-43..and.rlatd<=-30.) then
-!      if (rlongd>=155..and.rlongd<=170.) then
-!        tss(iq)=tss(iq)+1.
-!      end if
-!    end if
-!  end do
-!end if
-!if (nspecial==45.or.nspecial==46) then
-!  do iq=1,ifull
-!    rlongd=rlongg(iq)*180./pi
-!    rlatd=rlatt(iq)*180./pi
-!    if (rlatd>=-15..and.rlatd<=-5.) then
-!      if (rlongd>=150..and.rlongd<=170.) then
-!        tss(iq)=tss(iq)+1.
-!      end if
-!    end if
-!  end do
-!end if
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 ! -------------------------------------------------------------------
 ! read atmospheric fields for nested=0 or nested=1.and.nud/=0 or nested=3
@@ -1110,7 +1074,11 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     elsewhere
       mlodwn(1:ifull,k,1) = 275.16 - wrtemp
     end where
-    mlodwn(1:ifull,k,2) = 34.72 ! sal
+    where ( isoilm_in == 0 )
+      mlodwn(1:ifull,k,2) = 34.72 ! sal
+    elsewhere
+      mlodwn(1:ifull,k,2) = 0.    ! sal (freshwater)  
+    end where    
     mlodwn(1:ifull,k,3) = 0.    ! uoc
     mlodwn(1:ifull,k,4) = 0.    ! voc
     mlodwn(1:ifull,k,5) = 0.    ! km
@@ -1221,6 +1189,18 @@ if ( abs(iaero)>=2 .and. nested/=3 ) then
       if ( any(xtgdwn(:,:,11)>aerosol_tol) ) then
         write(6,*) "ERROR: Bad DUST4 aerosol data in host"
         write(6,*) "Maxval ",maxval(xtgdwn(:,:,11))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('salt1',xtgdwn(:,:,12),5)
+      if ( any(xtgdwn(:,:,12)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad SALT1 aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,12))
+        call ccmpi_abort(-1)
+      end if  
+      call gethist4a('salt2',xtgdwn(:,:,13),5)
+      if ( any(xtgdwn(:,:,13)>aerosol_tol) ) then
+        write(6,*) "ERROR: Bad SALT2 aerosol data in host"
+        write(6,*) "Maxval ",maxval(xtgdwn(:,:,13))
         call ccmpi_abort(-1)
       end if  
       xtgdwn(:,:,:) = max( xtgdwn(:,:,:), 0. )
@@ -1681,13 +1661,16 @@ if ( nested/=1 .and. nested/=3 ) then
   ! Read urban data
   if ( nurban/=0 ) then
     if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,5))
-    if ( urban_found ) then
+    if ( urban1_found ) then
       ! restart  
       do ifrac = 1,nfrac
         write(vname,'("t",I1.1,"_rooftgg")') ifrac    
         call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
         do k = 1,5
           write(vname,'("rooftemp",I1.1)') k
+          where ( atebdwn(:,k)>900. ) ! missing
+            atebdwn(:,k) = 0.  
+          end where
           where ( atebdwn(:,k)>150. )  
             atebdwn(:,k) = atebdwn(:,k) - urbtemp
           end where 
@@ -1697,6 +1680,9 @@ if ( nested/=1 .and. nested/=3 ) then
         call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
         do k = 1,5
           write(vname,'("walletemp",I1.1)') k
+          where ( atebdwn(:,k)>900. ) ! missing
+            atebdwn(:,k) = 0.  
+          end where
           where ( atebdwn(:,k)>150. )  
             atebdwn(:,k) = atebdwn(:,k) - urbtemp
           end where 
@@ -1706,6 +1692,9 @@ if ( nested/=1 .and. nested/=3 ) then
         call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
         do k = 1,5
           write(vname,'("wallwtemp",I1.1)') k
+          where ( atebdwn(:,k)>900. ) ! missing
+            atebdwn(:,k) = 0.  
+          end where
           where ( atebdwn(:,k)>150. )  
             atebdwn(:,k) = atebdwn(:,k) - urbtemp
           end where 
@@ -1715,6 +1704,9 @@ if ( nested/=1 .and. nested/=3 ) then
         call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
         do k = 1,5
           write(vname,'("roadtemp",I1.1)') k
+          where ( atebdwn(:,k)>900. ) ! missing
+            atebdwn(:,k) = 0.  
+          end where
           where ( atebdwn(:,k)>150. )  
             atebdwn(:,k) = atebdwn(:,k) - urbtemp
           end where 
@@ -1724,6 +1716,9 @@ if ( nested/=1 .and. nested/=3 ) then
         call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
         do k = 1,5
           write(vname,'("slabtemp",I1.1)') k
+          where ( atebdwn(:,k)>900. ) ! missing
+            atebdwn(:,k) = 0.  
+          end where
           where ( atebdwn(:,k)>150. )  
             atebdwn(:,k) = atebdwn(:,k) - urbtemp
           end where 
@@ -1732,7 +1727,10 @@ if ( nested/=1 .and. nested/=3 ) then
         write(vname,'("t",I1.1,"_intmtgg")') ifrac
         call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
         do k = 1,5
-          write(vname,'("intmtemp",I1.1)') k 
+          write(vname,'("intmtemp",I1.1)') k
+          where ( atebdwn(:,k)>900. )
+            atebdwn(:,k) = 0.  
+          end where
           where ( atebdwn(:,k)>150. )  
             atebdwn(:,k) = atebdwn(:,k) - urbtemp
           end where 
@@ -1740,48 +1738,87 @@ if ( nested/=1 .and. nested/=3 ) then
         end do  
         write(vname,'("t",I1.1,"_roomtgg1")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         where ( atebdwn(:,1)>150. )
           atebdwn(:,1) = atebdwn(:,1) - urbtemp
         end where
         call atebloadd(atebdwn(:,1),"roomtemp",ifrac,0)
         write(vname,'("t",I1.1,"_urbnsmc")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"canyonsoilmoisture",ifrac,0)
         write(vname,'("t",I1.1,"_urbnsmr")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"roofsoilmoisture",ifrac,0)
         write(vname,'("t",I1.1,"_roofwtr")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"roofsurfacewater",ifrac,0)
         write(vname,'("t",I1.1,"_roadwtr")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"roadsurfacewater",ifrac,0)
         write(vname,'("t",I1.1,"_urbwtrc")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"canyonleafwater",ifrac,0)
         write(vname,'("t",I1.1,"_urbwtrr")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"roofleafwater",ifrac,0)
         write(vname,'("t",I1.1,"_roofsnd")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"roofsnowdepth",ifrac,0)
         write(vname,'("t",I1.1,"_roadsnd")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.  
+        end where
         call atebloadd(atebdwn(:,1),"roadsnowdepth",ifrac,0)
         write(vname,'("t",I1.1,"_roofden")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 100.  
+        end where
         if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
         call atebloadd(atebdwn(:,1),"roofsnowdensity",ifrac,0)
         write(vname,'("t",I1.1,"_roadden")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 100.  
+        end where
         if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
         call atebloadd(atebdwn(:,1),"roadsnowdensity",ifrac,0)
         write(vname,'("t",I1.1,"_roofsna")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.85  
+        end where
         if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
         call atebloadd(atebdwn(:,1),"roofsnowalbedo",ifrac,0)
         write(vname,'("t",I1.1,"_roadsna")') ifrac
         call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
+        where ( atebdwn(:,1)>900. ) ! missing
+          atebdwn(:,1) = 0.85 
+        end where
         if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
         call atebloadd(atebdwn(:,1),"roadsnowalbedo",ifrac,0)
       end do
@@ -1790,9 +1827,7 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4("rooftgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("rooftemp",I1.1)') k
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
+        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
         do ifrac = 1,nfrac
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
@@ -1800,9 +1835,7 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4("waletgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("walletemp",I1.1)') k
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
+        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
         do ifrac = 1,nfrac
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
@@ -1810,9 +1843,7 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4("walwtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("wallwtemp",I1.1)') k
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
+        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
         do ifrac = 1,nfrac
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
@@ -1820,9 +1851,7 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4("roadtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("roadtemp",I1.1)') k
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
+        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
         do ifrac = 1,nfrac
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
@@ -1830,9 +1859,7 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4("slabtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("slabtemp",I1.1)') k
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
+        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
         do ifrac = 1,nfrac
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
@@ -1840,17 +1867,19 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4("intmtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
       do k = 1,5
         write(vname,'("intmtemp",I1.1)') k
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
+        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
         do ifrac = 1,nfrac
           call atebloadd(atebdwn(:,k),vname,ifrac,0)
         end do  
       end do
     else
       ! nested without urban data
+      if ( myid==0 ) then
+        write(6,*) "Use tsu for urban data"  
+      end if
       call gethist1("tsu",atebdwn(:,1))
       atebdwn(:,1) = abs(atebdwn(:,1))
+      atebdwn(:,1) = min( max( atebdwn(:,1), 170. ), 380. )
       do k = 2,5
         atebdwn(:,k) = atebdwn(:,1)
       end do
@@ -1957,14 +1986,6 @@ if ( nested/=1 .and. nested/=3 ) then
       write(trnum,'(i3.3)') igas
       call gethist4a('tr'//trnum,tr(:,:,igas),7)
     end do
-  end if
-
-  !------------------------------------------------------------------
-  ! Aerosol data ( non-nudged or diagnostic )
-  if ( nested==0 .and. abs(iaero)>=2 ) then
-    call gethist4a('seasalt1',ssn(:,:,1),5)
-    call gethist4a('seasalt2',ssn(:,:,2),5)
-    ssn = max( ssn, 0. ) ! patch for rounding error with cray compiler
   end if
   
   ! -----------------------------------------------------------------
@@ -3359,7 +3380,7 @@ use parm_m             ! Model configuration
 
 implicit none
 
-integer i, j, n, ipf
+integer n, ipf
 integer mm, iq, idel, jdel
 integer ncount, w, colour
 logical, dimension(0:fnproc-1) :: lfile

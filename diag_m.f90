@@ -328,7 +328,7 @@ contains
                nloc = n + noff
                ilocal = i - ioff
                jlocal = j - n*il_g - joff
-               res(iq) = a(indp(ilocal,jlocal,nloc))
+               res(iq) = a(min(max(indp(ilocal,jlocal,nloc),1),size(a)))
             end if
          end do
       end do
@@ -354,7 +354,7 @@ contains
                nloc = n + noff
                ilocal = i - ioff
                jlocal = j - n*il_g - joff
-               res(iq) = a(indp(ilocal,jlocal,nloc))
+               res(iq) = a(min(max(indp(ilocal,jlocal,nloc),1),size(a)))
             end if
          end do
       end do
@@ -380,7 +380,7 @@ contains
                nloc = n + noff
                ilocal = i - ioff
                jlocal = j - n*il_g - joff
-               res(iq) = a(indp(ilocal,jlocal,nloc))
+               res(iq) = a(min(max(indp(ilocal,jlocal,nloc),1),size(a)))
             end if
          end do
       end do

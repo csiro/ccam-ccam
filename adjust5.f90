@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -57,15 +57,12 @@ implicit none
 
 include 'kuocom.h'         ! Convection parameters
 
-integer, parameter :: ntest = 0
-integer k, l, nstart, nend, ntot, iq
+integer k, l, iq
 integer its
 integer, save :: precon_in = -99999
 real, dimension(:), allocatable, save :: zz, zzn, zze, zzw, zzs
 real, dimension(:), allocatable, save :: pfact, alff, alf, alfe
 real, dimension(:), allocatable, save :: alfn, alfu, alfv
-real, dimension(ifull+iextra,kl,nagg) :: dums
-real, dimension(ifull,kl,nagg) :: dumssav
 real, dimension(ifull+iextra,kl) :: p, cc, dd, pe
 real, dimension(ifull,kl) :: omgfnl, wrk1, wrk2, wrk3, wrk4
 real, dimension(ifull,kl) :: helm, rhsl, omgf, e
@@ -83,7 +80,6 @@ real alph_p, alph_pm, delneg, delpos
 real const_nh
 real sumx
 real, save :: dtsave = 0.
-logical, dimension(nagg) :: llim
 
 call START_LOG(adjust_begin)
 
@@ -96,7 +92,6 @@ cc(:,:) = 0.
 dd(:,:) = 0.
 p(:,:) = 0.
 pe(:,:) = 0.
-dums(:,:,:) = 0.
 
 ! time step can change during initialisation
 if ( abs(dt-dtsave)>=1.e-20 ) then ! dt/=dtsave
@@ -306,7 +301,6 @@ call unpack_ne(alf,alf_n,alf_e)
 call unpack_nsew(alff,alff_n,alff_s,alff_e,alff_w)
 do k = 1,kl
   call unpack_nsew(p(:,k),p_n,p_s,p_e,p_w)  
-!$omp simd
   do iq = 1,ifull
     cc(iq,k) = alfu(iq)*ux(iq,k) - hdtds*emu(iq)*(                              &
                alf_e(iq)*p_e(iq)-alf(iq)*p(iq,k)-.5*alfe(iq)*(p(iq,k)+p_e(iq))  &
@@ -338,7 +332,7 @@ end if   ! (nmaxpr==1)
 
 
 ! following is JLM sliding divergence damping (N.B. d dimensions with iextra)
-if ( nh/=0 .and. ktau<=-knh ) then  ! e.g. knh=-10, divdamp=450.
+if ( nh/=0 .and. ktau<=-knh .and. .not.lrestart ) then  ! e.g. knh=-10, divdamp=450.
   if ( nmaxpr==1 .and. mydiag ) then
     write(6,*) 'div damping'
     write(6,*) 'cc,cc-,dd,dd-', cc(idjd,nlv)/emu(idjd),cc(iwu(idjd),nlv)/emu(iwu(idjd)), &
@@ -364,15 +358,15 @@ if ( nh/=0 .and. ktau<=-knh ) then  ! e.g. knh=-10, divdamp=450.
                                             dd(idjd,nlv)/emv(idjd),dd(isv(idjd),nlv)/emv(isv(idjd))      
     write(6,*) 'd',d(idjd,:)
   end if
-end if  ! (nh/=0.and.ktau<=-knh)
+end if  ! (nh/=0.and.ktau<=-knh.and..not.lrestart)
 
 
 
 ! straightforward rev. cubic interp of u and v (i.e. nuv=10)
 if ( nstag==0 ) then
   call staguv(u,v,wrk1,wrk2)
+  its = ifull + iextra
   if ( nmaxpr==1 .and. nproc==1 ) then
-    its = ifull + iextra
     write(6,"('u_u0 ',10f8.2)") (u(iq,nlv),iq=idjd-3,idjd+3)
     write(6,"('v_u0 ',10f8.2)") (v(iq,nlv),iq=idjd-3*its,idjd+3*its,its)
     write(6,"('u_s0 ',10f8.2)") (wrk1(iq,nlv),iq=idjd-3,idjd+3)
@@ -515,7 +509,7 @@ if ( mfix==1 .or. mfix==2 ) then   ! perform conservation fix on ps
   ! delpos is the sum of all positive changes over globe
   ! delneg is the sum of all negative changes over globe
   ! alph_p is chosen to satisfy alph_p*delpos + delneg/alph_p = 0
-  ! _l means local to this processor     
+  ! _l means local to this processor
   bb(1:ifull)    = ps(1:ifull)   
   delps(1:ifull) = ps(1:ifull) - ps_sav(1:ifull)
   call ccglobal_posneg(delps,delpos,delneg)
@@ -568,13 +562,12 @@ if ( mfix_t/=0 ) then
   ptemp(1:ifull) = ps(1:ifull)**.286
   ptempsav(1:ifull) = ps_sav(1:ifull)**.286
   do k = 1,kl
-    dums(1:ifull,k,1) = t(1:ifull,k)/ptemp(1:ifull)
-    dumssav(1:ifull,k,1) = tsav(1:ifull,k)/ptempsav(1:ifull)
+    t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull)
+    tsav(1:ifull,k) = tsav(1:ifull,k)/ptempsav(1:ifull)
   end do  
-  llim(1) = .false.
-  call massfix(mfix_t,1,dums(:,:,1:1),dumssav(:,:,1:1),ps,ps_sav,llim(1:1))
+  call massfix(mfix_t,1,t,tsav,ps,ps_sav,.false.)
   do k = 1,kl
-    t(1:ifull,k) = dums(1:ifull,k,1)*ptemp(1:ifull)
+    t(1:ifull,k) = t(1:ifull,k)*ptemp(1:ifull)
   end do
 end if
 
@@ -583,48 +576,35 @@ end if
 if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
   do k = 1,kl
     stratcloud(1:ifull,k) = min( max( stratcloud(1:ifull,k), 0. ), 1. )
-    dums(1:ifull,k,1) = max( qg(1:ifull,k), qgmin-qfg(1:ifull,k)-qlg(1:ifull,k), 0. )
-    dums(1:ifull,k,2) = max( qfg(1:ifull,k), 0. )
-    dums(1:ifull,k,3) = max( qlg(1:ifull,k), 0. )
-    dumssav(1:ifull,k,1) = qgsav(1:ifull,k)
-    dumssav(1:ifull,k,2) = qfgsav(1:ifull,k)
-    dumssav(1:ifull,k,3) = qlgsav(1:ifull,k)
+    qg(1:ifull,k) = max( qg(1:ifull,k), qgmin-qfg(1:ifull,k)-qlg(1:ifull,k), 0. )
+    qfg(1:ifull,k) = max( qfg(1:ifull,k), 0. )
+    qlg(1:ifull,k) = max( qlg(1:ifull,k), 0. )
   end do
-  llim(1:3) = (/ .false., .true., .true. /)
-  call massfix(mfix_qg,3,dums(:,:,1:3),dumssav(:,:,1:3),ps,ps_sav,llim(1:3)) 
+  call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,.false.) 
+  call massfix(mfix_qg,1,qfg,qfgsav,ps,ps_sav,.true.) 
+  call massfix(mfix_qg,1,qlg,qlgsav,ps,ps_sav,.true.) 
   do k = 1,kl
-    qlg(1:ifull,k)  = max( dums(1:ifull,k,3), 0. )
-    qfg(1:ifull,k)  = max( dums(1:ifull,k,2), 0. )    
-    qg(1:ifull,k)   = max( dums(1:ifull,k,1), qgmin-qfg(1:ifull,k)-qlg(1:ifull,k), 0. )
+    qlg(1:ifull,k) = max( qlg(1:ifull,k), 0. )
+    qfg(1:ifull,k) = max( qfg(1:ifull,k), 0. )    
+    qg(1:ifull,k)  = max( qg(1:ifull,k), qgmin-qfg(1:ifull,k)-qlg(1:ifull,k), 0. )
   end do
 else if ( mfix_qg/=0 .and. mspec==1 ) then
   qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), qgmin )
-  llim(1) = .false.
-  call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,llim(1:1))
+  call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,.false.)
   qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), qgmin )
 end if !  (mfix_qg/=0.and.mspec==1.and.ldr/=0) ..else..
 
 !------------------------------------------------------------------------
 ! Tracer conservation
 if ( mfix_tr/=0 .and. mspec==1 .and. ngas>0 ) then
-  llim(1:nagg) = .true.
-  do nstart = 1,ngas,nagg
-    nend = min( nstart+nagg-1, ngas )
-    ntot = nend - nstart + 1
-    call massfix(mfix_tr,ntot,tr(:,:,nstart:nend),trsav(:,:,nstart:nend),ps,ps_sav,llim(1:ntot))
-  end do
+  call massfix(mfix_tr,ngas,tr,trsav,ps,ps_sav,.true.)
 end if !  (mfix_tr/=0.and.mspec==1.and.ngas>0)
 
 !--------------------------------------------------------------
 ! Aerosol conservation
 if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)>=2 ) then
   xtg(1:ifull,1:kl,1:naero) = max( xtg(1:ifull,1:kl,1:naero), 0. )
-  llim(1:nagg) = .true.
-  do nstart = 1,naero,nagg
-    nend = min( nstart+nagg-1, naero )
-    ntot = nend - nstart + 1
-    call massfix(mfix_aero,ntot,xtg(:,:,nstart:nend),xtgsav(:,:,nstart:nend),ps,ps_sav,llim(1:ntot))
-  end do
+  call massfix(mfix_aero,naero,xtg,xtgsav,ps,ps_sav,.true.)
   xtg(1:ifull,1:kl,1:naero) = max( xtg(1:ifull,1:kl,1:naero), 0. )
 end if ! (mfix_aero/=0.and.mspec==1.and.abs(iaero)>=2)
 !--------------------------------------------------------------
@@ -759,97 +739,93 @@ integer k, i
 real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s
 real, dimension(ifull,kl,ntr), intent(in) :: ssav_in
 real, dimension(ifull), intent(in) :: ps, pssav
-real, dimension(ifull,kl,ntr) :: ssav
-real, dimension(ifull,kl,2*ntr) :: wrk1
-real, dimension(2*ntr) :: delpos_tmp, delneg_tmp
 real, dimension(ntr) :: delpos, delneg, ratio, alph_g
-real, dimension(ntr) :: delpos3, delneg3
-logical, dimension(ntr), intent(in) :: llim
+logical, intent(in) :: llim
 
 ratio = 0. ! for cray compiler
 
 select case(mfix)
-  case(4)  
-    do i = 1,ntr
-      do k = 1,kl
-        wrk1(1:ifull,k,i) = s(1:ifull,k,i)*ps(1:ifull) - ssav_in(1:ifull,k,i)*pssav(1:ifull)
-        wrk1(1:ifull,k,i+ntr) = (s(1:ifull,k,i)-ssav_in(1:ifull,k,i))*ps(1:ifull)
-      end do
-    end do
-    call ccglobal_posneg(wrk1(:,:,1:2*ntr),delpos_tmp,delneg_tmp,dsig)
-    delpos3(1:ntr) = delpos_tmp(1:ntr)
-    delneg3(1:ntr) = delneg_tmp(1:ntr)
-    delpos(1:ntr) = delpos_tmp(1+ntr:2*ntr)
-    delneg(1:ntr) = delneg_tmp(1+ntr:2*ntr)
-    alph_g(1:ntr) = -(delpos3(1:ntr)+delneg3(1:ntr))/(max(delpos(1:ntr),1.e-30)-delneg(1:ntr))
-    do i = 1,ntr
-      do k = 1,kl
-        s(1:ifull,k,i) = s(1:ifull,k,i)                                                           &
-            + alph_g(i)*(max(0.,wrk1(1:ifull,k,i+ntr))-min(0.,wrk1(1:ifull,k,i+ntr)))/ps(1:ifull)
-      end do
-    end do
+  !case(4)  
+  !  do i = 1,ntr
+  !    do k = 1,kl
+  !      wrk1(1:ifull,k,i) = s(1:ifull,k,i)*ps(1:ifull) - ssav_in(1:ifull,k,i)*pssav(1:ifull)
+  !    end do
+  !  end do
+  !  call ccglobal_posneg(wrk1(:,:,1:ntr),delpos3,delneg3,dsig)
+  !  do i = 1,ntr
+  !    do k = 1,kl
+  !      wrk1(1:ifull,k,i) = (s(1:ifull,k,i)-ssav_in(1:ifull,k,i))*ps(1:ifull)
+  !    end do
+  !  end do
+  !  call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg,dsig)
+  !  alph_g(1:ntr) = -(delpos3(1:ntr)+delneg3(1:ntr))/(max(delpos(1:ntr),1.e-30)-delneg(1:ntr))
+  !  do i = 1,ntr
+  !    do k = 1,kl
+  !      s(1:ifull,k,i) = s(1:ifull,k,i)                                                           &
+  !          + alph_g(i)*(max(0.,wrk1(1:ifull,k,i))-min(0.,wrk1(1:ifull,k,i)))/ps(1:ifull)
+  !    end do
+  !  end do
   
   case(3) ! newer scheme - preferred
     do i = 1,ntr
       do k = 1,kl
-        ssav(1:ifull,k,i) = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull)
-        wrk1(1:ifull,k,i) = s(1:ifull,k,i) - ssav(1:ifull,k,i) 
-        wrk1(1:ifull,k,i) = pssav(1:ifull)*wrk1(1:ifull,k,i)*(1.+0.5*wrk1(1:ifull,k,i))
+        s(1:ifull,k,i) = s(1:ifull,k,i) - ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull) 
+        s(1:ifull,k,i) = pssav(1:ifull)*s(1:ifull,k,i)*(1.+0.5*s(1:ifull,k,i))
       end do   ! k loop
     end do
-    call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg,dsig)
-    where ( llim(1:ntr) )
+    call ccglobal_posneg(s,delpos,delneg,dsig)
+    if ( llim ) then
       ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
-    elsewhere
+    else
       ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
-    end where
+    end if
     alph_g(1:ntr) = min(ratio(1:ntr), sqrt(ratio(1:ntr)))
     do i = 1,ntr
       do k = 1,kl
-        wrk1(:,k,i) = alph_g(i)*max(0., wrk1(1:ifull,k,i))+min(0., wrk1(1:ifull,k,i))/max(1., alph_g(i))
-        wrk1(:,k,i) = wrk1(:,k,i)/pssav(1:ifull)
-        s(1:ifull,k,i) = ssav(1:ifull,k,i) + wrk1(:,k,i)*(1.-0.5*wrk1(:,k,i))
+        s(1:ifull,k,i) = alph_g(i)*max(0., s(1:ifull,k,i))+min(0., s(1:ifull,k,i))/max(1., alph_g(i))
+        s(1:ifull,k,i) = s(1:ifull,k,i)/pssav(1:ifull)
+        s(1:ifull,k,i) = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull) + s(1:ifull,k,i)*(1.-0.5*s(1:ifull,k,i))
       end do    ! k  loop
     end do
 
   case(2)
     do i = 1,ntr
       do k = 1,kl
-        ssav(1:ifull,k,i) = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull)
-        wrk1(1:ifull,k,i) = s(1:ifull,k,i) - ssav(1:ifull,k,i) 
+        s(1:ifull,k,i) = s(1:ifull,k,i) - ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull) 
       end do   ! k loop
     end do
-    call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg,dsig)
-    where ( llim(1:ntr) )
-      ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)  
+    call ccglobal_posneg(s,delpos,delneg,dsig)
+    if ( llim ) then
+      ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
       alph_g(1:ntr) = max(sqrt(ratio(1:ntr)), 1.e-30)
-    elsewhere
-      ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)  
-      alph_g(1:ntr) = sqrt(ratio(1:ntr))      
-    end where
+    else
+      ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
+      alph_g(1:ntr) = sqrt(ratio(1:ntr))
+    end if
     do i = 1,ntr
       do k = 1,kl
-        s(1:ifull,k,i) = ssav(1:ifull,k,i) + alph_g(i)*max(0., wrk1(1:ifull,k,i))+min(0., wrk1(1:ifull,k,i))/max(1., alph_g(i))
+        s(1:ifull,k,i) = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull) &
+            + alph_g(i)*max(0., s(1:ifull,k,i))+min(0., s(1:ifull,k,i))/max(1., alph_g(i))
       end do    ! k  loop
     end do
 
   case(1) ! original scheme
     do i = 1,ntr
       do k = 1,kl
-        ssav(1:ifull,k,i) = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull)
-        wrk1(1:ifull,k,i) = s(1:ifull,k,i) - ssav(1:ifull,k,i) 
+        s(1:ifull,k,i) = s(1:ifull,k,i) - ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull) 
       end do   ! k loop
     end do
-    call ccglobal_posneg(wrk1(:,:,1:ntr),delpos,delneg,dsig)
-    where ( llim(1:ntr) )
+    call ccglobal_posneg(s,delpos,delneg,dsig)
+    if ( llim ) then
       ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
-    elsewhere
+    else
       ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
-    end where
+    end if
     alph_g(1:ntr) = min(ratio(1:ntr), sqrt(ratio(1:ntr)))
     do i = 1,ntr
       do k = 1,kl
-        s(1:ifull,k,i) = ssav(1:ifull,k,i) + alph_g(i)*max(0., wrk1(1:ifull,k,i))+min(0., wrk1(1:ifull,k,i))/max(1., alph_g(i))
+        s(1:ifull,k,i) = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull) &
+            + alph_g(i)*max(0., s(1:ifull,k,i))+min(0., s(1:ifull,k,i))/max(1., alph_g(i))
       end do    ! k  loop
     end do
    

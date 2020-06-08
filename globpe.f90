@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -104,7 +104,7 @@ include 'kuocom.h'                         ! Convection parameters
       
 integer, dimension(8) :: tvals1, tvals2, nper3hr
 integer, dimension(8) :: times_total_a, times_total_b
-integer iq, isoil, i, j, k, nn, js, je, tile
+integer iq, i, j, k, nn, js, je, tile
 integer mins_gmt, mspeca, mtimer_in
 integer nlx, nmaxprsav, n3hr
 integer nwtsav, mtimer_sav
@@ -113,7 +113,7 @@ integer koundiag
 real, dimension(:), allocatable, save :: spare1
 real, dimension(3) :: temparray, gtemparray
 real aa, bb, cc
-real hourst, hrs_dt, evapavge, precavge
+real hourst, evapavge, precavge
 real pwatr, bb_2, cc_2, rat
 logical oxidant_update
 character(len=10) timeval
@@ -164,14 +164,6 @@ call globpe_init
 
 
 !--------------------------------------------------------------
-! Shutdown unused processes
-if ( myid>=nproc ) then
-  call ccmpi_finalize
-  stop
-end if
-
-
-!--------------------------------------------------------------
 ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
 if ( nwt>0 ) then
   ! write out the first ofile data set
@@ -191,22 +183,21 @@ allocate( spare1(ifull) )
 do n3hr = 1,8
   nper3hr(n3hr) = nint(real(n3hr)*3.*3600./dt)
 end do
-n3hr = 1           ! initial value at start of run
-nlx = 0            ! diagnostic level
+n3hr = 1
+nlx = 0                      ! diagnostic level
 call zero_nperavg(koundiag)  ! reset average period diagnostics
-call zero_nperhour ! reset hourly period diagnostics
-call zero_nperday  ! reset daily period diagnostics
+call zero_nperhour           ! reset hourly period diagnostics
+call zero_nperday            ! reset daily period diagnostics
 
 
 !--------------------------------------------------------------
 ! INITIALISE DYNAMICS
-dtin = dt
 if ( myid==0 ) then
   write(6,*) "number of time steps per day = ",nperday
-  write(6,*) "nper3hr,nper6hr .. ",nper3hr(:)
 end if
-mspeca = 1
 ! use half time-step for initialisation
+dtin = dt
+mspeca = 1
 if ( mex/=1 .and. ((.not.lrestart).or.always_mspeca) ) then
   mspeca = 2
   dt = 0.5*dtin
@@ -234,7 +225,7 @@ call START_LOG(maincalc_begin)
 
 do ktau = 1,ntau   ! ****** start of main time loop
 
-  timer    = timer + real(ktau)*dtin/3600.             ! timer now only used to give timeg
+  timer    = real(ktau)*dtin/3600.                     ! timer now only used to give timeg
   timeg    = mod( timer+hourst, 24. )                  ! UTC time for tracers
   mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! to allow dt < 1 minute
   mins_gmt = mod( mtimer+60*ktime/100, 24*60 )         ! for radiation
@@ -468,7 +459,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! ***********************************************************************
     
   ! nriver = 0   No transport of surface water
-  ! nriver = 1   River routing (-1=save in output)
+  ! nriver = 1   River routing (-1=write to history file)
     
   if ( abs(nriver)==1 ) then  
     call START_LOG(river_begin)
@@ -849,10 +840,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     tminscr(:)  = tscrn(:) 
     rhmaxscr(:) = rhscrn(:) 
     rhminscr(:) = rhscrn(:) 
-    tmaxscr_stn(:)  = tscrn_stn(:) 
-    tminscr_stn(:)  = tscrn_stn(:) 
-    rhmaxscr_stn(:) = rhscrn_stn(:) 
-    rhminscr_stn(:) = rhscrn_stn(:)
   end if    
   call calculate_timeaverage(koundiag)
 
@@ -1262,7 +1249,7 @@ use aerosolldr, only : naero,ch_dust     & ! LDR prognostic aerosols
     ,saltsmallmtn,saltlargemtn
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebnmlfile             & ! Urban
-    ,ateb_energytol=>energytol           &
+    ,energytol                           &
     ,ateb_resmeth=>resmeth               &
     ,ateb_useonewall=>useonewall         &
     ,ateb_zohmeth=>zohmeth               &
@@ -1302,16 +1289,15 @@ use ateb, only : atebnmlfile             & ! Urban
     ,ateb_infilmeth=>infilmeth           &
     ,ateb_ac_heatcap=>ac_heatcap         &
     ,ateb_ac_coolcap=>ac_coolcap         &
-    ,ateb_ac_smooth=>ac_smooth           &
     ,ateb_ac_deltat=>ac_deltat           &
-    ,ateb_acfactor=>acfactor             &
-    ,ateb_ac_copmax=>ac_copmax
+    ,ateb_acfactor=>acfactor
 use bigxy4_m                               ! Grid interpolation
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
     ,gs_switch,cable_climate,ccycle      &
-    ,smrf_switch,strf_switch
+    ,smrf_switch,strf_switch             &
+    ,cable_gw_model
 use carbpools_m, only : carbpools_init     ! Carbon pools
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
@@ -1343,7 +1329,8 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,pdl,pdu,nsteps,k_mode,eps_mode      &
     ,limitL,fixedce3,calcinloop,nops     &
     ,nopb,fixedstabfunc,omink => mink    &
-    ,omineps => mineps,mlovlevels
+    ,omineps => mineps,mlovlevels        &
+    ,usepice
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
@@ -1405,16 +1392,20 @@ integer secs_rad, nversion
 integer mstn, io_nest, mbd_min
 integer opt, nopt
 integer ateb_intairtmeth, ateb_intmassmeth
-integer npa, npb, tkecduv, tblock ! depreciated namelist options
+integer npa, npb, tkecduv, tblock  ! depreciated namelist options
+integer o3_time_interpolate        ! depreciated namelist options
+integer kmlo                       ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
 real targetlev, dsx, pwatr_l, pwatr
 real ateb_zocanyon, ateb_zoroof
-real cgmap_offset, cgmap_scale ! depreciated namelist options
-real(kind=8), dimension(:), allocatable, save :: dumr8
-logical lmlosigma, procformat
+real ateb_energytol
+real cgmap_offset, cgmap_scale      ! depreciated namelist options
+real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
+real zimax                          ! depreciated namelist options
+logical procformat
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) optarg
 character(len=60) comm, comment
@@ -1462,7 +1453,8 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
     saltlargemtn,                                                 &
-    o3_vert_interpolate,o3_time_interpolate                         ! ozone
+    o3_vert_interpolate,                                          & ! ozone
+    o3_time_interpolate                                             ! depreciated
 ! file namelist
 namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &
@@ -1476,7 +1468,8 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_aerosols,diaglevel_pbl,diaglevel_cloud,             &
     diaglevel_land,diaglevel_maxmin,diaglevel_ocean,              &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
-    diaglevel_river,diaglevel_pop
+    diaglevel_river,diaglevel_pop,                                &
+    surf_cordex,surf_windfarm
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,shaltime,        &
@@ -1490,14 +1483,15 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
-    stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,zimax,             &
+    stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,upshear,           &
     amxlsq,dvmodmin,                                              & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
-    tkecduv                                                         ! depreciated
+    tkecduv,zimax                                                   ! depreciated
 ! land, urban and carbon namelist
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
     gs_switch,cable_climate,smrf_switch,strf_switch,              &
+    cable_gw_model,                                               &
     ateb_energytol,ateb_resmeth,ateb_useonewall,ateb_zohmeth,     & ! urban
     ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &
     ateb_conductmeth,ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,   &
@@ -1509,13 +1503,14 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_maxvwatf,ateb_intairtmeth,ateb_intmassmeth,              &
     ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
-    ateb_ac_smooth,                                               &
-    ateb_ac_deltat,ateb_acfactor,ateb_ac_copmax,                  &
-    siburbanfrac
+    ateb_ac_deltat,ateb_acfactor,                                 &
+    siburbanfrac,                                                 &
+    ateb_ac_smooth,ateb_ac_copmax                                   ! depreciated
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
-    alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,         &
+    alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,nodrift, &
+    kmlo,                                                         &
     pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    & ! k-e
     nops,nopb,fixedstabfunc,omink,omineps,oclosure,               &
     rivermd,basinmd,rivercoeff,                                   & ! River
@@ -1558,7 +1553,7 @@ khdif            = 2
 nhorjlm          = 1
 ngas             = 0
 atebnmlfile      = 0
-ateb_energytol   = 1._8
+ateb_energytol   = 4.
 ateb_intairtmeth = 0
 ateb_intmassmeth = 0
 ateb_zocanyon    = zocanyon
@@ -1951,7 +1946,7 @@ aeroindir           = dumi(8)
 o3_vert_interpolate = dumi(9)
 o3_time_interpolate = dumi(10)
 deallocate( dumr, dumi )
-allocate( dumi(21) )
+allocate( dumi(23) )
 dumi = 0
 if ( myid==0 ) then
   read(99, datafile)
@@ -1976,6 +1971,8 @@ if ( myid==0 ) then
   dumi(19) = diaglevel_carbon
   dumi(20) = diaglevel_river
   dumi(21) = diaglevel_pop
+  dumi(22) = surf_cordex
+  dumi(23) = surf_windfarm
 end if
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(ifile,0,comm_world)
@@ -2038,6 +2035,8 @@ diaglevel_urban     = dumi(18)
 diaglevel_carbon    = dumi(19)
 diaglevel_river     = dumi(20)
 diaglevel_pop       = dumi(21)
+surf_cordex         = dumi(22)
+surf_windfarm       = dumi(23)
 deallocate( dumi )
 allocate( dumr(33), dumi(21) )
 dumr = 0.
@@ -2156,7 +2155,7 @@ nclddia        = dumi(19)
 nmr            = dumi(20)
 nevapls        = dumi(21)
 deallocate( dumr, dumi )
-allocate( dumr(30), dumi(4) )
+allocate( dumr(29), dumi(5) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2194,12 +2193,12 @@ if ( myid==0 ) then
   dumr(26) = alphaj
   dumr(27) = ent_min
   dumr(28) = mfbeta
-  dumr(29) = zimax
-  dumr(30) = dvmodmin
+  dumr(29) = dvmodmin
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
   dumi(4)  = ngwd
+  dumi(5)  = upshear
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2231,15 +2230,14 @@ sigbot_gwd = dumr(25)
 alphaj     = dumr(26)
 ent_min    = dumr(27)
 mfbeta     = dumr(28)
-zimax      = dumr(29)
-dvmodmin   = dumr(30)
+dvmodmin   = dumr(29)
 buoymeth   = dumi(1)
 stabmeth   = dumi(2)
 tkemeth    = dumi(3)
 ngwd       = dumi(4)
+upshear    = dumi(5)
 deallocate( dumr, dumi )
-allocate( dumr8(1), dumr(24), dumi(31) )
-dumr8 = 0._8
+allocate( dumr(23), dumi(31) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2249,31 +2247,29 @@ if ( myid==0 ) then
     ! if namelist is not missing, then trigger an error message
     if ( .not.is_iostat_end(ierr) ) read(99, landnml)
   end if
-  dumr8(1) = ateb_energytol
-  dumr(1)  = ateb_tol
-  dumr(2)  = ateb_alpha
-  dumr(3)  = ateb_zosnow
-  dumr(4)  = ateb_snowemiss
-  dumr(5)  = ateb_maxsnowalpha
-  dumr(6)  = ateb_minsnowalpha
-  dumr(7)  = ateb_maxsnowden
-  dumr(8)  = ateb_minsnowden
-  dumr(9)  = ateb_refheight
-  dumr(10) = ateb_zomratio
-  dumr(11) = ateb_zocanyon
-  dumr(12) = ateb_zoroof
-  dumr(13) = ateb_maxrfwater
-  dumr(14) = ateb_maxrdwater
-  dumr(15) = ateb_maxrfsn
-  dumr(16) = ateb_maxrdsn
-  dumr(17) = ateb_maxvwatf
-  dumr(18) = ateb_ac_heatcap
-  dumr(19) = ateb_ac_coolcap
-  dumr(20) = ateb_ac_smooth
+  dumr(1)  = ateb_energytol ! note conversion from ateb_energytol to energytol
+  dumr(2)  = ateb_tol
+  dumr(3)  = ateb_alpha
+  dumr(4)  = ateb_zosnow
+  dumr(5)  = ateb_snowemiss
+  dumr(6)  = ateb_maxsnowalpha
+  dumr(7)  = ateb_minsnowalpha
+  dumr(8)  = ateb_maxsnowden
+  dumr(9)  = ateb_minsnowden
+  dumr(10) = ateb_refheight
+  dumr(11) = ateb_zomratio
+  dumr(12) = ateb_zocanyon
+  dumr(13) = ateb_zoroof
+  dumr(14) = ateb_maxrfwater
+  dumr(15) = ateb_maxrdwater
+  dumr(16) = ateb_maxrfsn
+  dumr(17) = ateb_maxrdsn
+  dumr(18) = ateb_maxvwatf
+  dumr(19) = ateb_ac_heatcap
+  dumr(20) = ateb_ac_coolcap
   dumr(21) = ateb_ac_deltat
   dumr(22) = ateb_acfactor
-  dumr(23) = ateb_ac_copmax
-  dumr(24) = siburbanfrac
+  dumr(23) = siburbanfrac
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -2306,34 +2302,31 @@ if ( myid==0 ) then
   dumi(30) = ateb_lwintmeth
   dumi(31) = ateb_infilmeth
 end if
-call ccmpi_bcastr8(dumr8,0,comm_world)
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
-ateb_energytol    = dumr8(1)
-ateb_tol          = dumr(1)
-ateb_alpha        = dumr(2)
-ateb_zosnow       = dumr(3)
-ateb_snowemiss    = dumr(4)
-ateb_maxsnowalpha = dumr(5)
-ateb_minsnowalpha = dumr(6)
-ateb_maxsnowden   = dumr(7)
-ateb_minsnowden   = dumr(8)
-ateb_refheight    = dumr(9) 
-ateb_zomratio     = dumr(10)
-zocanyon          = dumr(11)
-zoroof            = dumr(12)
-ateb_maxrfwater   = dumr(13)
-ateb_maxrdwater   = dumr(14)
-ateb_maxrfsn      = dumr(15)
-ateb_maxrdsn      = dumr(16)
-ateb_maxvwatf     = dumr(17) 
-ateb_ac_heatcap   = dumr(18)
-ateb_ac_coolcap   = dumr(19)
-ateb_ac_smooth    = dumr(20)
+energytol         = real(dumr(1),8) ! note conversion from ateb_energytol to energytol
+ateb_tol          = dumr(2)
+ateb_alpha        = dumr(3)
+ateb_zosnow       = dumr(4)
+ateb_snowemiss    = dumr(5)
+ateb_maxsnowalpha = dumr(6)
+ateb_minsnowalpha = dumr(7)
+ateb_maxsnowden   = dumr(8)
+ateb_minsnowden   = dumr(9)
+ateb_refheight    = dumr(10) 
+ateb_zomratio     = dumr(11)
+zocanyon          = dumr(12)
+zoroof            = dumr(13)
+ateb_maxrfwater   = dumr(14)
+ateb_maxrdwater   = dumr(15)
+ateb_maxrfsn      = dumr(16)
+ateb_maxrdsn      = dumr(17)
+ateb_maxvwatf     = dumr(18) 
+ateb_ac_heatcap   = dumr(19)
+ateb_ac_coolcap   = dumr(20)
 ateb_ac_deltat    = dumr(21)
 ateb_acfactor     = dumr(22)
-ateb_ac_copmax    = dumr(23)
-siburbanfrac      = dumr(24) 
+siburbanfrac      = dumr(23) 
 proglai           = dumi(1)
 ccycle            = dumi(2)
 soil_struc        = dumi(3)
@@ -2366,7 +2359,7 @@ ateb_statsmeth    = dumi(29)
 ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(15), dumi(20) )
+allocate( dumr(15), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2411,6 +2404,7 @@ if ( myid==0 ) then
   dumi(18) = nopb
   dumi(19) = fixedstabfunc
   dumi(20) = mlomfix
+  dumi(21) = nodrift
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2449,6 +2443,7 @@ nops            = dumi(17)
 nopb            = dumi(18)
 fixedstabfunc   = dumi(19)
 mlomfix         = dumi(20)
+nodrift         = dumi(21)
 if ( oclosure==0 ) then
   nsteps = 1
 end if
@@ -2590,6 +2585,7 @@ nsig    = nint(temparray(8))
 call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp,uniform_decomp)
 call ccmpi_reinit(new_nproc) 
 
+
 if ( myid<nproc ) then
     
   if ( myid==0 ) then
@@ -2645,7 +2641,7 @@ if ( myid<nproc ) then
   ! some default values for unspecified parameters
   if ( ia<0 ) ia = il/2          ! diagnostic point
   if ( ib<0 ) ib = ia + 3        ! diagnostic point
-  !if ( ldr==0 ) mbase = 0        ! convection
+  !if ( ldr==0 ) mbase = 0       ! convection
   dsig4 = max(dsig2+.01, dsig4)  ! convection
 
   ! check nudging settings - adjust mbd scale parameter to satisfy mbd_maxscale and mbd_maxgrid settings
@@ -2722,7 +2718,9 @@ if ( myid<nproc ) then
   ! REMAP MPI PROCESSES
 
   ! Optimise the MPI process ranks to reduce inter-node message passing
+#ifdef usempi3
   call ccmpi_remap
+#endif
 
 
   !--------------------------------------------------------------
@@ -2781,8 +2779,8 @@ if ( myid<nproc ) then
     write(6,*)'  acon   bcon   qgmin      rcm    rcrit_l rcrit_s'
     write(6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,rcrit_l,rcrit_s
     write(6,*)'Radiation options A:'
-    write(6,*)' nrad  mins_rad iaero  dt'
-    write(6,'(i5,2i7,f10.2)') nrad,mins_rad,iaero,dt
+    write(6,*)' nrad  mins_rad  dt'
+    write(6,'(i5,i7,f10.2)') nrad,mins_rad,dt
     write(6,*)'Radiation options B:'
     write(6,*)' nmr bpyear sw_diff_streams sw_resolution'
     write(6,'(i4,f9.2,i4," ",a5,i4)') nmr,bpyear,sw_diff_streams,sw_resolution
@@ -2790,10 +2788,8 @@ if ( myid<nproc ) then
     write(6,*)' liqradmethod iceradmethod carbonradmethod'
     write(6,'(3i4)') liqradmethod,iceradmethod,carbonradmethod
     write(6,*)'Aerosol options:'
-    write(6,*)'  iaero ch_dust'
-    write(6,'(i7,g9.2,f7.2)') iaero,ch_dust
-    write(6,*)'  zvolcemi aeroindir'
-    write(6,'(f7.2,i5)') zvolcemi,aeroindir
+    write(6,*)'  iaero ch_dust zvolcemi aeroindir'
+    write(6,'(i7,g9.2,f7.2,i5)') iaero,ch_dust,zvolcemi,aeroindir
     write(6,*)'Cloud options:'
     write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
     write(6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,sigcll
@@ -2977,7 +2973,7 @@ if ( myid<nproc ) then
   if ( myid==0 ) then
     write(6,*) "Calling ccmpi_setup"
   end if
-  call ccmpi_setup(kblock,id,jd,idjd,dt)
+  call ccmpi_setup(id,jd,idjd,dt)
 
       
   !--------------------------------------------------------------
@@ -3505,6 +3501,9 @@ integer, intent(out) :: newnproc, nxp, nyp
 integer nproc_low, nxp_test, nyp_test
 logical, intent(out) :: uniform_test
 
+nxp_test = 0
+nyp_test = 0
+
 ! try face decompositoin
 uniform_test = .false.
 do nproc_low = nproc,1,-1
@@ -3599,6 +3598,7 @@ integer, intent(in) :: js, je
 integer k
 real, dimension(js:je) :: qtot, tliq
 
+! requires qg_fix>=1
 if ( qg_fix<=0 ) return
 
 do k = 1,kl
@@ -3643,6 +3643,7 @@ real, dimension(js:je) :: pk, qsi, deles, qsl, qsw, fice
 real, dimension(js:je) :: dqsdt, hlrvap, al, qc
 real, parameter :: tice = 233.16
 
+! requires qg_fix>=2
 if ( qg_fix<=1 ) return
 
 do k = 1,kl
@@ -3692,8 +3693,10 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
     ,dmse,dms_burden                     &
     ,so2e,so2wd,so2dd,so2_burden         &
     ,so4e,so4wd,so4dd,so4_burden         &
-    ,dmsso2o,so2so4o
+    ,dmsso2o,so2so4o, salte,saltdd       &
+    ,saltwd,salt_burden
 use cable_ccam, only : ccycle              ! CABLE
+use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
 use parm_m                                 ! Model configuration
@@ -3716,6 +3719,7 @@ eg_ave(:)            = 0.
 fg_ave(:)            = 0.
 ga_ave(:)            = 0.
 anthropogenic_ave(:) = 0.
+urban_storage_ave(:) = 0.
 anth_elecgas_ave(:)  = 0.
 anth_heating_ave(:)  = 0.
 anth_cooling_ave(:)  = 0.
@@ -3728,10 +3732,10 @@ riwp_ave(:)          = 0.
 rlwp_ave(:)          = 0.
 rhscr_ave(:)         = 0.
 tscr_ave(:)          = 0.
-rhscr_ave_stn(:)     = 0.
-tscr_ave_stn(:)      = 0.
 wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
+taux_ave(:)          = 0.
+tauy_ave(:)          = 0.
 
 ! radiation
 koundiag             = 0
@@ -3810,6 +3814,10 @@ if ( abs(iaero)>=2 ) then
   dms_burden    = 0.  ! DMS burden
   so2_burden    = 0.  ! SO2 burden
   so4_burden    = 0.  ! SO4 burden
+  salte         = 0.  ! Salt emissions
+  saltdd        = 0.  ! Salt dry deposition
+  saltwd        = 0.  ! Salt wet deposition
+  salt_burden   = 0.  ! Salt burden
 end if
 
 return
@@ -3848,12 +3856,6 @@ rhmaxscr(:) = rhscrn(:)
 rhminscr(:) = rhscrn(:) 
 u10max(:)   = 0.
 v10max(:)   = 0.
-tmaxscr_stn(:)  = tscrn_stn(:) 
-tminscr_stn(:)  = tscrn_stn(:) 
-rhmaxscr_stn(:) = rhscrn_stn(:) 
-rhminscr_stn(:) = rhscrn_stn(:)
-u10max_stn(:)   = 0.
-v10max_stn(:)   = 0.
 u1max(:)    = 0.
 v1max(:)    = 0.
 u2max(:)    = 0.
@@ -3878,7 +3880,8 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
     ,dmse,dms_burden                     &
     ,so2e,so2wd,so2dd,so2_burden         &
     ,so4e,so4wd,so4dd,so4_burden         &
-    ,dmsso2o,so2so4o
+    ,dmsso2o,so2so4o,salte,saltdd        &
+    ,saltwd,salt_burden
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use cable_ccam, only : ccycle              ! CABLE
 use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
@@ -3910,10 +3913,6 @@ tmaxscr(1:ifull)           = max( tmaxscr(1:ifull), tscrn )
 tminscr(1:ifull)           = min( tminscr(1:ifull), tscrn )
 rhmaxscr(1:ifull)          = max( rhmaxscr(1:ifull), rhscrn )
 rhminscr(1:ifull)          = min( rhminscr(1:ifull), rhscrn )
-tmaxscr_stn(1:ifull)       = max( tmaxscr_stn(1:ifull), tscrn_stn )
-tminscr_stn(1:ifull)       = min( tminscr_stn(1:ifull), tscrn_stn )
-rhmaxscr_stn(1:ifull)      = max( rhmaxscr_stn(1:ifull), rhscrn_stn )
-rhminscr_stn(1:ifull)      = min( rhminscr_stn(1:ifull), rhscrn_stn )
 rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
 prhour(1:ifull)            = prhour(1:ifull) + condx/3600. ! condx/dt*dt/3600 to give kg/m2/hr
 prhmax(1:ifull)            = max( prhmax(1:ifull), prhour )
@@ -3926,6 +3925,7 @@ eg_ave(1:ifull)            = eg_ave(1:ifull) + eg
 fg_ave(1:ifull)            = fg_ave(1:ifull) + fg
 ga_ave(1:ifull)            = ga_ave(1:ifull) + ga
 anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
+urban_storage_ave(1:ifull) = urban_storage_ave(1:ifull) + urban_storage_flux
 anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull) + urban_elecgas_flux
 anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull) + urban_heating_flux
 anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull) + urban_cooling_flux
@@ -3934,20 +3934,17 @@ tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
 rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
 tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
 rhscr_ave(1:ifull)         = rhscr_ave(1:ifull) + rhscrn 
-tscr_ave_stn(1:ifull)      = tscr_ave_stn(1:ifull) + tscrn_stn 
-rhscr_ave_stn(1:ifull)     = rhscr_ave_stn(1:ifull) + rhscrn_stn 
 wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
+taux_ave(1:ifull)          = taux_ave(1:ifull) + taux
+tauy_ave(1:ifull)          = tauy_ave(1:ifull) + tauy
+
 spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
 spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
 do iq = 1,ifull
   if ( u10(iq)**2 > u10max(iq)**2 + v10max(iq)**2 ) then
     u10max(iq) = u10(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
     v10max(iq) = u10(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
-  end if
-  if ( u10_stn(iq)**2 > u10max_stn(iq)**2 + v10max_stn(iq)**2 ) then
-    u10max_stn(iq) = u10_stn(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
-    v10max_stn(iq) = u10_stn(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
   end if
   if ( spare1(iq) > u1max(iq)**2+v1max(iq)**2 ) then
     u1max(iq) = u(iq,1)
@@ -4011,6 +4008,7 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   fg_ave(1:ifull)            = fg_ave(1:ifull)/min(ntau,nperavg)
   ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg)   
   anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull)/min(ntau,nperavg)
+  urban_storage_ave(1:ifull) = urban_storage_ave(1:ifull)/min(ntau,nperavg)
   anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull)/min(ntau,nperavg)
   anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull)/min(ntau,nperavg)
   anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull)/min(ntau,nperavg) 
@@ -4020,12 +4018,12 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
   tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
   rhscr_ave(1:ifull)         = rhscr_ave(1:ifull)/min(ntau,nperavg)
-  tscr_ave_stn(1:ifull)      = tscr_ave_stn(1:ifull)/min(ntau,nperavg)
-  rhscr_ave_stn(1:ifull)     = rhscr_ave_stn(1:ifull)/min(ntau,nperavg)
   do k = 1,ms
     wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
     wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)
   end do
+  taux_ave(1:ifull)   = taux_ave(1:ifull)/min(ntau,nperavg)
+  tauy_ave(1:ifull)   = tauy_ave(1:ifull)/min(ntau,nperavg)
   sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
   sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
   if ( always_mspeca ) then
@@ -4107,6 +4105,10 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     dms_burden    = dms_burden/min(ntau,nperavg)   ! DMS burden
     so2_burden    = so2_burden/min(ntau,nperavg)   ! SO2 burden
     so4_burden    = so4_burden/min(ntau,nperavg)   ! SO4 burden
+    salte         = salte/min(ntau,nperavg)        ! Salt emissions
+    saltdd        = saltdd/min(ntau,nperavg)       ! Salt dry deposition
+    saltwd        = saltwd/min(ntau,nperavg)       ! Salt wet deposition
+    salt_burden   = salt_burden/min(ntau,nperavg)  ! Salt burden
   end if
 
 end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
@@ -4319,8 +4321,11 @@ integer tile, js, je, iq, k, k250m, k150m
 real xx
 real, dimension(kl) :: phi
 
+k150m = 0
+k250m = 0
+
 ! special output for wind farms
-if ( diaglevel_pbl>3 ) then
+if ( diaglevel_pbl>3 .or. surf_windfarm==1 ) then
 !$omp do schedule(static) private(js,je,iq,k,k150m,k250m,xx,phi)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -4349,7 +4354,7 @@ if ( diaglevel_pbl>3 ) then
     end do  
   end do  
 !$omp end do nowait
-end if ! diaglevel_pbl>3
+end if ! diaglevel_pbl>3 .or. surf_windfarm==1
 
 return
 end subroutine update_misc
@@ -4358,7 +4363,7 @@ end subroutine update_misc
 ! Check for NaN errors
 subroutine nantest(message,js,je)
 
-use aerosolldr, only : xtg,ssn,naero  ! LDR prognostic aerosols
+use aerosolldr, only : xtg,naero      ! LDR prognostic aerosols
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use cfrac_m                           ! Cloud fraction
@@ -4713,22 +4718,6 @@ if ( abs(iaero)>=2 ) then
     write(6,*) "minloc,maxloc ",posmin3,posmax3
     call ccmpi_abort(-1) 
   end if  
-  if ( any(ssn(js:je,1:kl,1:2)/=ssn(js:je,1:kl,1:2)) ) then
-    write(6,*) "ERROR: NaN detected in ssn on myid=",myid," at ",trim(message)
-    call ccmpi_abort(-1)
-  end if
-  if ( any(ssn(js:je,1:kl,1:2)<-1.e-8) .or. any(ssn(js:je,1:kl,1:2)>6.5e9) ) then
-    write(6,*) "ERROR: Out-of-range detected in ssn on myid=",myid," at ",trim(message)
-    write(6,*) "minval,maxval ",minval(ssn(js:je,1:kl,1:2)),maxval(ssn(js:je,1:kl,1:2))
-    posmin3 = minloc(ssn(js:je,1:kl,1:2))
-    posmax3 = maxloc(ssn(js:je,1:kl,1:2))
-    posmin3(1) = posmin3(1) + js - 1
-    posmax3(1) = posmax3(1) + js - 1
-    posmin3(1) = iq2iqg(posmin3(1))
-    posmax3(1) = iq2iqg(posmax3(1))
-    write(6,*) "minloc,maxloc ",posmin3,posmax3
-    call ccmpi_abort(-1) 
-  end if    
 end if
 
 if ( any( fg(js:je)/=fg(js:je) ) ) then

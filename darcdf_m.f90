@@ -26,8 +26,10 @@ implicit none
 private
 public idnc, ncid, ncidtopo, ncidveg, ncidbath
 public iarchi, lnctopo, lncveg, lncbath
+public lncveg_numpft, lncveg_numsoil
 
 integer, save :: idnc, ncid, ncidtopo, ncidveg, ncidbath
-integer, save :: iarchi, lnctopo, lncveg, lncbath  
+integer, save :: iarchi, lnctopo=0, lncveg=0, lncbath=0  
+integer, save :: lncveg_numpft=-1, lncveg_numsoil=-1
 
 end module darcdf_m

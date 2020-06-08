@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -131,7 +131,7 @@ if ( abs(iaero)>=2 .and. nud_aero/=0 )then
   do n = 1,naero
     do k = kbotdav,ktopdav
       do iq = 1,ifull
-        xtgdav(iq,k,k) = vertwgt(k)*(xtgdav(iq,k,n)-xtg(iq,k,n))*davt(iq)*dt/3600.
+        xtgdav(iq,k,n) = vertwgt(k)*(xtgdav(iq,k,n)-xtg(iq,k,n))*davt(iq)*dt/3600.
         xtg(iq,k,n) = xtg(iq,k,n) + xtgdav(iq,k,n)
       enddo  ! iq loop
     enddo    ! k loop

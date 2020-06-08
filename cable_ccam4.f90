@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -59,7 +59,7 @@ end interface
 
 interface cable_unpack
   module procedure cable_unpack_r4_2_r4, cable_unpack_r8_2_r4
-  module procedure cable_unpack_r8_2_r4_tile
+  module procedure cable_unpack_r4_2_r4_tile, cable_unpack_r8_2_r4_tile
 #ifndef i8r8
   module procedure cable_unpack_r4_2_r8
   module procedure cable_unpack_r8_2_r8_tile
@@ -86,7 +86,6 @@ end interface
 contains
 
 subroutine cable_pack_r4_2_r4(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
@@ -99,8 +98,8 @@ subroutine cable_pack_r4_2_r4(indata,outdata,inb)
   if ( present(inb) ) then
     nb = inb
     do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
+      js = 1 + (tile-1)*imax
+      je = tile*imax
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
@@ -109,8 +108,8 @@ subroutine cable_pack_r4_2_r4(indata,outdata,inb)
     end do
   else
     do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
+      js = 1 + (tile-1)*imax
+      je = tile*imax
       do nb = 1,tdata(tile)%maxnb
         is = tdata(tile)%tind(nb,1)
         ie = tdata(tile)%tind(nb,2)
@@ -124,7 +123,6 @@ subroutine cable_pack_r4_2_r4(indata,outdata,inb)
 end subroutine cable_pack_r4_2_r4
 
 subroutine cable_pack_r4_2_r8(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
@@ -142,7 +140,7 @@ subroutine cable_pack_r4_2_r8(indata,outdata,inb)
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
-        outdata(is:ie) =  pack(real(indata(js:je),8),tdata(tile)%tmap(:,nb))
+        outdata(is:ie) = pack(real(indata(js:je),8),tdata(tile)%tmap(:,nb))
       end if  
     end do
   else
@@ -153,7 +151,7 @@ subroutine cable_pack_r4_2_r8(indata,outdata,inb)
         is = tdata(tile)%tind(nb,1)
         ie = tdata(tile)%tind(nb,2)
         if ( is<=ie ) then
-          outdata(is:ie) =  pack(real(indata(js:je),8),tdata(tile)%tmap(:,nb))
+          outdata(is:ie) = pack(real(indata(js:je),8),tdata(tile)%tmap(:,nb))
         end if  
       end do
     end do
@@ -163,7 +161,6 @@ end subroutine cable_pack_r4_2_r8
 
 #ifndef i8r8
 subroutine cable_pack_r8_2_r8(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
@@ -202,7 +199,6 @@ end subroutine cable_pack_r8_2_r8
 #endif
 
 subroutine cable_pack_i4_2_i4(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
@@ -240,7 +236,6 @@ subroutine cable_pack_i4_2_i4(indata,outdata,inb)
 end subroutine cable_pack_i4_2_i4
 
 subroutine cable_pack_i4_2_i8(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
@@ -278,7 +273,6 @@ subroutine cable_pack_i4_2_i8(indata,outdata,inb)
 end subroutine cable_pack_i4_2_i8
 
 subroutine cable_pack_r4_2_i4(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
@@ -316,7 +310,6 @@ subroutine cable_pack_r4_2_i4(indata,outdata,inb)
 end subroutine cable_pack_r4_2_i4
 
 subroutine cable_pack_r4_2_i8(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
@@ -354,26 +347,22 @@ subroutine cable_pack_r4_2_i8(indata,outdata,inb)
 end subroutine cable_pack_r4_2_i8
 
 subroutine cable_unpack_r4_2_r4(indata,outdata)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
 
   real(kind=4), dimension(:), intent(in) :: indata
   real, dimension(ifull), intent(inout) :: outdata
-  real :: lfillvalue
   integer :: is, ie, js, je, tile, nb
 
-  lfillvalue = 0.
-
-  do tile =1,ntiles
-    js=1+(tile-1)*imax
-    je=tile*imax
+  do tile = 1,ntiles
+    js = 1 + (tile-1)*imax
+    je = tile*imax
     do nb = 1,tdata(tile)%maxnb
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
-        outdata(js:je) = outdata(js:je) + unpack(indata(is:ie),tdata(tile)%tmap(:,nb),lfillvalue)
+        outdata(js:je) = outdata(js:je) + unpack(indata(is:ie),tdata(tile)%tmap(:,nb),0.)
       end if  
     end do
   end do
@@ -381,17 +370,13 @@ subroutine cable_unpack_r4_2_r4(indata,outdata)
 end subroutine cable_unpack_r4_2_r4
 
 subroutine cable_unpack_r8_2_r4(indata,outdata)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
 
   real(kind=8), dimension(:), intent(in) :: indata
   real, dimension(ifull), intent(inout) :: outdata
-  real(kind=8) :: lfillvalue
   integer :: is, ie, js, je, tile, nb
-
-  lfillvalue = 0._8
 
   do tile =1,ntiles
     js=1+(tile-1)*imax
@@ -400,15 +385,37 @@ subroutine cable_unpack_r8_2_r4(indata,outdata)
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
-        outdata(js:je) = outdata(js:je) + unpack(indata(is:ie),tdata(tile)%tmap(:,nb),lfillvalue)
+        outdata(js:je) = outdata(js:je) + real(unpack(indata(is:ie),tdata(tile)%tmap(:,nb),0._8),4)
       end if  
     end do
   end do
 
 end subroutine cable_unpack_r8_2_r4
 
+subroutine cable_unpack_r4_2_r4_tile(indata,outdata,inb)
+  use newmpar_m, only : ifull
+
+  implicit none
+
+  real(kind=4), dimension(:), intent(in) :: indata
+  real, dimension(ifull), intent(inout) :: outdata
+  integer, intent(in) :: inb
+  integer :: is, ie, js, je, tile, nb
+
+  nb = inb
+  do tile = 1,ntiles
+    is = tdata(tile)%tind(nb,1)
+    ie = tdata(tile)%tind(nb,2)
+    if ( is<=ie ) then
+      js=1+(tile-1)*imax
+      je=tile*imax
+      outdata(js:je) = unpack(indata(is:ie),tdata(tile)%tmap(:,nb),outdata(js:je))
+    end if  
+  end do
+
+end subroutine cable_unpack_r4_2_r4_tile
+
 subroutine cable_unpack_r8_2_r4_tile(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
@@ -425,7 +432,7 @@ subroutine cable_unpack_r8_2_r4_tile(indata,outdata,inb)
     if ( is<=ie ) then
       js=1+(tile-1)*imax
       je=tile*imax
-      outdata(js:je) = unpack(indata(is:ie),tdata(tile)%tmap(:,nb),real(outdata(js:je),8))
+      outdata(js:je) = real(unpack(indata(is:ie),tdata(tile)%tmap(:,nb),real(outdata(js:je),8)),4)
     end if  
   end do
 
@@ -433,17 +440,13 @@ end subroutine cable_unpack_r8_2_r4_tile
 
 #ifndef i8r8
 subroutine cable_unpack_r4_2_r8(indata,outdata)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
 
   real(kind=4), dimension(:), intent(in) :: indata
   real(kind=8), dimension(ifull), intent(inout) :: outdata
-  real(kind=4) :: lfillvalue
   integer :: is, ie, js, je, tile, nb
-
-  lfillvalue = 0.
 
   do tile =1,ntiles
     js=1+(tile-1)*imax
@@ -452,7 +455,7 @@ subroutine cable_unpack_r4_2_r8(indata,outdata)
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
-        outdata(js:je) = outdata(js:je) + unpack(indata(is:ie),tdata(tile)%tmap(:,nb),lfillvalue)
+        outdata(js:je) = outdata(js:je) + unpack(indata(is:ie),tdata(tile)%tmap(:,nb),0._4)
       end if  
     end do
   end do
@@ -460,7 +463,6 @@ subroutine cable_unpack_r4_2_r8(indata,outdata)
 end subroutine cable_unpack_r4_2_r8
 
 subroutine cable_unpack_r8_2_r8_tile(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
@@ -485,7 +487,6 @@ end subroutine cable_unpack_r8_2_r8_tile
 #endif
 
 subroutine pop_pack_r8_2_r8_tile(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
   use TypeDef, only : dp
 
@@ -510,7 +511,6 @@ subroutine pop_pack_r8_2_r8_tile(indata,outdata,inb)
 end subroutine pop_pack_r8_2_r8_tile
 
 subroutine pop_pack_i4_2_i4_tile(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
@@ -534,7 +534,6 @@ subroutine pop_pack_i4_2_i4_tile(indata,outdata,inb)
 end subroutine pop_pack_i4_2_i4_tile
 
 subroutine pop_unpack_r8_2_r8_tile(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
   use TypeDef, only : dp
 
@@ -559,7 +558,6 @@ subroutine pop_unpack_r8_2_r8_tile(indata,outdata,inb)
 end subroutine pop_unpack_r8_2_r8_tile
 
 subroutine pop_unpack_i4_2_r8_tile(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
@@ -583,7 +581,6 @@ subroutine pop_unpack_i4_2_r8_tile(indata,outdata,inb)
 end subroutine pop_unpack_i4_2_r8_tile
 
 subroutine pop_unpack_i8_2_r8_tile(indata,outdata,inb)
-  use cc_mpi, only : ccmpi_abort
   use newmpar_m, only : ifull
 
   implicit none
@@ -755,15 +752,15 @@ subroutine setp_canopy(canopy,lcanopy,tile)
     lcanopy%fevc => canopy%fevc(is:ie)
     lcanopy%ofes => canopy%ofes(is:ie)
   
-    lcanopy%A_sh => canopy%A_sh(is:ie)
-    lcanopy%A_sl => canopy%A_sl(is:ie)
+    !lcanopy%A_sh => canopy%A_sh(is:ie)
+    !lcanopy%A_sl => canopy%A_sl(is:ie)
     lcanopy%A_slC => canopy%A_slC(is:ie)
     lcanopy%A_shC => canopy%A_shC(is:ie)
     lcanopy%A_slJ => canopy%A_slJ(is:ie)
     lcanopy%A_shJ => canopy%A_shJ(is:ie)
-    lcanopy%eta_A_cs => canopy%eta_A_cs(is:ie)
-    lcanopy%dAdcs => canopy%dAdcs(is:ie)
-    lcanopy%cs => canopy%cs(is:ie)
+    !lcanopy%eta_A_cs => canopy%eta_A_cs(is:ie)
+    !lcanopy%dAdcs => canopy%dAdcs(is:ie)
+    !lcanopy%cs => canopy%cs(is:ie)
     lcanopy%cs_sl => canopy%cs_sl(is:ie)
     lcanopy%cs_sh => canopy%cs_sh(is:ie)
     lcanopy%tlf => canopy%tlf(is:ie)
@@ -778,6 +775,9 @@ subroutine setp_canopy(canopy,lcanopy,tile)
     lcanopy%fwsoil => canopy%fwsoil(is:ie)
     lcanopy%kthLitt => canopy%kthLitt(is:ie)
     lcanopy%DvLitt => canopy%DvLitt(is:ie)
+    
+    lcanopy%fns_cor => canopy%fns_cor(is:ie)
+    lcanopy%ga_cor => canopy%ga_cor(is:ie)
     
   end if  
 
@@ -938,10 +938,10 @@ subroutine setp_casaflux(casaflux,lcasaflux,tile)
     lcasaflux%FluxPtoclear => casaflux%FluxPtoclear(is:ie)
     lcasaflux%CtransferLUC => casaflux%CtransferLUC(is:ie)
 
-    lcasaflux%fHarvest => casaflux%fHarvest(is:ie)
-    lcasaflux%NHarvest => casaflux%NHarvest(is:ie)
-    lcasaflux%CHarvest => casaflux%CHarvest(is:ie)
-    lcasaflux%fcrop => casaflux%fcrop(is:ie)
+    !lcasaflux%fHarvest => casaflux%fHarvest(is:ie)
+    !lcasaflux%NHarvest => casaflux%NHarvest(is:ie)
+    !lcasaflux%CHarvest => casaflux%CHarvest(is:ie)
+    !lcasaflux%fcrop => casaflux%fcrop(is:ie)
     
   end if  
   
@@ -1138,7 +1138,7 @@ subroutine setp_climate(climate,lclimate,tile)
     lclimate%cs_shade => climate%cs_shade(is:ie,:)
     lclimate%scalex_sun => climate%scalex_sun(is:ie,:)
     lclimate%scalex_shade => climate%scalex_shade(is:ie,:)
-      
+     
   end if  
   
 end subroutine setp_climate
@@ -1224,10 +1224,10 @@ subroutine setp_pop(pop,lpop,tile)
   ie = tdata(tile)%poffset + tdata(tile)%np
 
   if ( is<=ie ) then
-    lpop%pop_grid => pop%pop_grid(is:ie)
-    lpop%it_pop => pop%it_pop(is:ie)
+    !lpop%pop_grid => pop%pop_grid(is:ie)
+    !lpop%it_pop => pop%it_pop(is:ie)
     lpop%np = tdata(tile)%np
-    lpop%Iwood => pop%Iwood(is:ie)
+    !lpop%Iwood => pop%Iwood(is:ie)
   end if  
 
 end subroutine setp_pop
@@ -1374,6 +1374,8 @@ subroutine setp_soil(soil,lsoil,tile)
     lsoil%ssat_vec => soil%ssat_vec(is:ie,:)
     lsoil%sfc_vec => soil%sfc_vec(is:ie,:)
     
+    lsoil%heat_cap_lower_limit => soil%heat_cap_lower_limit(is:ie,:)
+    
   end if  
 
 end subroutine setp_soil
@@ -1489,6 +1491,12 @@ subroutine setp_ssnow(ssnow,lssnow,tile)
     lssnow%Qevap_daily => ssnow%Qevap_daily(is:ie)
     lssnow%Qprec_daily => ssnow%Qprec_daily(is:ie)
     lssnow%Qprec_snow_daily => ssnow%Qprec_snow_daily(is:ie)
+    
+    lssnow%GWwb => ssnow%GWwb(is:ie)
+    lssnow%satfrac => ssnow%satfrac(is:ie)
+    lssnow%rh_srf => ssnow%rh_srf(is:ie)
+    lssnow%dfe_dtg => ssnow%dfe_dtg(is:ie)
+    lssnow%wbliq => ssnow%wbliq(is:ie,:)
     
   end if  
 

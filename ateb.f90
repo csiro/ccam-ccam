@@ -1,6 +1,6 @@
 ! UCLEM urban canopy model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the UCLEM urban canopy model
 !
@@ -104,7 +104,7 @@ public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,veg
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
        zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf,        &
        intairtmeth,intmassmeth,statsmeth,lwintmeth,cvcoeffmeth,infilmeth,acfactor,     &
-       ac_heatcap,ac_coolcap,ac_smooth,ac_deltat,ac_copmax
+       ac_heatcap,ac_coolcap,ac_deltat,cyc_prop,cyc_base,cyc_traf,cyc_tran
 
 #ifdef CCAM
 public upack_g,ufull_g,nl,nfrac
@@ -180,6 +180,9 @@ type pdiagdata
   real, dimension(:), allocatable :: lzom, lzoh, cndzmin, cduv, cdtq
   real, dimension(:), allocatable :: tscrn, qscrn, uscrn, u10, emiss, snowmelt
   real, dimension(:), allocatable :: bldheat, bldcool, traf, intgains_full
+  real, dimension(:), allocatable :: rf_vegwetfac,gd_irrig,gd_acond_veg
+  real, dimension(:), allocatable :: gd_surfdrain,cn_vegwetfac
+  real, dimension(:), allocatable :: gd_vegtran,gd_soilmoist,gd_soilmoistchange
   real, dimension(:), allocatable :: frac_sigma
   real(kind=8), dimension(:), allocatable :: surferr, atmoserr, surferr_bias, atmoserr_bias
   real(kind=8), dimension(:), allocatable :: storage_flux
@@ -203,7 +206,7 @@ integer, save      :: resmeth=1            ! Canyon sensible heat transfer (0=Ma
 integer, save      :: useonewall=0         ! Combine both wall energy budgets into a single wall (0=two walls, 1=single wall) 
 integer, save      :: zohmeth=1            ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
 integer, save      :: acmeth=1             ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible, COP of 1.0)
-integer, save      :: intairtmeth=1        ! Internal air temperature (0=fixed, 1=implicit varying)
+integer, save      :: intairtmeth=0        ! Internal air temperature (0=prescribed, 1=aggregated varying, 2=fractional varying)
 integer, save      :: intmassmeth=2        ! Internal thermal mass (0=none, 1=one floor, 2=dynamic floor number)
 integer, save      :: cvcoeffmeth=1        ! Internal surface convection heat transfer coefficient (0=DOE,1=ISO6946,2=fixed)
 integer, save      :: statsmeth=1          ! Use statistically based diurnal QF amendments (0=off, 1=on) from Thatcher 2007 
@@ -263,16 +266,34 @@ real, save         :: maxvwatf=0.1         ! Factor multiplied to LAI to predict
 real, save         :: acfactor=5.          ! Air conditioning inefficiency factor
 real, save         :: ac_heatcap=10.       ! Maximum heating/cooling capacity (W m^-3)
 real, save         :: ac_coolcap=10.       ! Maximum heating/cooling capacity (W m^-3)
-real, save         :: ac_smooth=0.5        ! Synchronous heating/cooling smoothing parameter
 real, save         :: ac_deltat=1.         ! Comfort range for temperatures (+-K)
-real, save         :: ac_copmax=10.        ! Maximum COP for air-conditioner
 ! atmosphere stability parameters
 integer, save      :: icmax=5              ! number of iterations for stability functions (default=5)
 real, save         :: a_1=1.
 real, save         :: b_1=2./3.
 real, save         :: c_1=5.
 real, save         :: d_1=0.35
-
+! diurnal cycle profiles (start & end at 1am)
+! traffic diurnal cycle weights approximated from Chapman et al., 2016
+real, dimension(25), save :: cyc_traf = (/ 0.17, 0.12, 0.12, 0.17, 0.37, 0.88, & 
+                                           1.29, 1.48, 1.37, 1.42, 1.5 , 1.52, &
+                                           1.50, 1.57, 1.73, 1.84, 1.84, 1.45, &
+                                           1.01, 0.77, 0.65, 0.53, 0.41, 0.27, 0.17 /)
+! base electricity demand cycle weights from Thatcher (2007), mean for NSW, VIC, QLD, SA
+real, dimension(25), save :: cyc_base = (/ 0.92, 0.86, 0.81, 0.78, 0.8 , 0.87, & 
+                                           0.98, 1.06, 1.08, 1.09, 1.09, 1.09, &
+                                           1.08, 1.08, 1.06, 1.06, 1.08, 1.11, &
+                                           1.08, 1.06, 1.03, 1.00, 0.98, 0.95, 0.92 /)
+! normalised proportion of heating/cooling appliances in use approximated from Thatcher (2007)
+real, dimension(25), save :: cyc_prop = (/ 0.43, 0.40, 0.36, 0.33, 0.31, 0.36, &
+                                           0.53, 0.66, 0.70, 0.64, 0.60, 0.60, &
+                                           0.64, 0.69 ,0.75, 0.81, 0.88, 1.00, &
+                                           0.99, 0.91, 0.81, 0.69, 0.57, 0.43, 0.43 /)
+! internal temperature translation cycle from Thatcher (2007) (only used for intairtmeth=0)
+real, dimension(25), save :: cyc_tran = (/ -1.09, -1.21, -2.12, -2.77, -3.06, -2.34, &
+                                           -0.37,  1.03,  1.88,  2.37,  2.44,  2.26, &
+                                            1.93,  1.41,  0.74,  0.16,  0.34,  1.48, & 
+                                            1.03,  0.14, -0.74, -1.17, -1.15, -1.34, -1.09/)
 
 interface atebcalc
   module procedure atebcalc_standard, atebcalc_thread
@@ -513,6 +534,10 @@ do tile = 1,ntiles
     allocate(p_g(ifrac,tile)%tscrn(ufull_g(tile)),p_g(ifrac,tile)%qscrn(ufull_g(tile)),p_g(ifrac,tile)%uscrn(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%u10(ufull_g(tile)),p_g(ifrac,tile)%emiss(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%bldheat(ufull_g(tile)),p_g(ifrac,tile)%bldcool(ufull_g(tile)),p_g(ifrac,tile)%traf(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%gd_surfdrain(ufull_g(tile)),p_g(ifrac,tile)%gd_irrig(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%rf_vegwetfac(ufull_g(tile)),p_g(ifrac,tile)%cn_vegwetfac(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%gd_vegtran(ufull_g(tile)), p_g(ifrac,tile)%gd_acond_veg(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%gd_soilmoist(ufull_g(tile)),p_g(ifrac,tile)%gd_soilmoistchange(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%intgains_full(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%surferr(ufull_g(tile)),p_g(ifrac,tile)%atmoserr(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%storage_flux(ufull_g(tile)))
@@ -562,6 +587,14 @@ do tile = 1,ntiles
       p_g(ifrac,tile)%emiss=0.97                                                  ! updated in atebcalc
       p_g(ifrac,tile)%bldheat=0.
       p_g(ifrac,tile)%bldcool=0.
+      p_g(ifrac,tile)%gd_surfdrain=0.
+      p_g(ifrac,tile)%rf_vegwetfac=0.
+      p_g(ifrac,tile)%cn_vegwetfac=0.
+      p_g(ifrac,tile)%gd_vegtran=0.
+      p_g(ifrac,tile)%gd_soilmoist=rdhyd_g(ifrac,tile)%soilwater*waterden*4.*0.25
+      p_g(ifrac,tile)%gd_soilmoistchange=0.
+      p_g(ifrac,tile)%gd_irrig=0.
+      p_g(ifrac,tile)%gd_acond_veg=0.1
       p_g(ifrac,tile)%traf=0.
       p_g(ifrac,tile)%intgains_full=0.
       if ( ifrac==1 ) then 
@@ -676,6 +709,9 @@ if ( ateb_active ) then
       deallocate(p_g(ifrac,tile)%tscrn,p_g(ifrac,tile)%qscrn,p_g(ifrac,tile)%uscrn,p_g(ifrac,tile)%u10,p_g(ifrac,tile)%emiss)
       deallocate(p_g(ifrac,tile)%surferr,p_g(ifrac,tile)%atmoserr,p_g(ifrac,tile)%surferr_bias,p_g(ifrac,tile)%atmoserr_bias)
       deallocate(p_g(ifrac,tile)%bldheat,p_g(ifrac,tile)%bldcool,p_g(ifrac,tile)%traf,p_g(ifrac,tile)%intgains_full)
+      deallocate(p_g(ifrac,tile)%gd_surfdrain,p_g(ifrac,tile)%gd_irrig,p_g(ifrac,tile)%gd_acond_veg)
+      deallocate(p_g(ifrac,tile)%rf_vegwetfac,p_g(ifrac,tile)%cn_vegwetfac)
+      deallocate(p_g(ifrac,tile)%gd_vegtran,p_g(ifrac,tile)%gd_soilmoist,p_g(ifrac,tile)%gd_soilmoistchange)
       deallocate(p_g(ifrac,tile)%storage_flux,p_g(ifrac,tile)%snowmelt)
       
     end do  
@@ -1064,7 +1100,7 @@ namelist /atebnml/  resmeth,useonewall,zohmeth,acmeth,intairtmeth,intmassmeth,nr
                     infilmeth,lwintmeth,infilalpha
 namelist /atebsnow/ zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden
 namelist /atebgen/  refheight,zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf, &
-                    acfactor,ac_heatcap,ac_coolcap,ac_smooth,ac_deltat,ac_copmax
+                    acfactor,ac_heatcap,ac_coolcap,ac_deltat,cyc_prop,cyc_base,cyc_traf,cyc_tran
 namelist /atebtile/ czovegc,cvegrlaic,cvegrsminc,czovegr,cvegrlair,cvegrsminr,cswilt,csfc,cssat,       &
                     cvegemissc,cvegemissr,cvegdeptr,cvegalphac,cvegalphar,csigvegc,csigvegr,           &
                     csigmabld,cbldheight,chwratio,cindustryfg,cintgains,ctrafficfg,cbldtemp,           &
@@ -2147,6 +2183,7 @@ subroutine init_internal(fp)
 implicit none
 
 type(fparmdata), intent(inout) :: fp
+real :: floor_height = 3. ! assumed average floor to floor height (m)
 
 fp%bldwidth = fp%sigmabld*(fp%bldheight/fp%hwratio)/(1.-fp%sigmabld)
 ! define number of internal mass floors (based on building height)
@@ -2156,7 +2193,7 @@ select case(intmassmeth)
   case(1) ! one floor of internal mass
     fp%intmassn = 1
   case(2) ! dynamic floors of internal mass
-    fp%intmassn = max((nint(fp%bldheight/3.)-1),0)
+    fp%intmassn = max((nint(fp%bldheight/floor_height)-1),0)
 end select
 
 end subroutine init_internal
@@ -2465,14 +2502,15 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   if ( ufull_g(tile)>0 ) then
-    call atebenergy_thread(o_data(is:ie),mode,diag,f_g(tile),p_g(:,tile),upack_g(:,tile),ufull_g(tile))
+    call atebenergy_thread(o_data(is:ie),mode,diag,f_g(tile),p_g(:,tile),        & 
+                           rdhyd_g(:,tile),rfhyd_g(:,tile),upack_g(:,tile),ufull_g(tile))
   end if
 end do
 
 return
 end subroutine atebenergy_standard
 
-subroutine atebenergy_thread(o_data,mode,diag,fp,pd,upack,ufull)
+subroutine atebenergy_thread(o_data,mode,diag,fp,pd,rdhyd,rfhyd,upack,ufull)
 
 implicit none
 
@@ -2484,6 +2522,7 @@ character(len=*), intent(in) :: mode
 logical, dimension(:), intent(in) :: upack
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), dimension(nfrac), intent(in) :: pd
+type(hydrodata), dimension(nfrac), intent(in) :: rdhyd, rfhyd
 
 if ( diag>=2 ) write(6,*) "THREAD: Extract energy output"
 if ( ufull==0 ) return
@@ -2530,6 +2569,94 @@ select case(mode)
     ctmp = pack(o_data, upack)
     ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
     o_data = unpack(ctmp, upack, o_data)
+  case("gridsurfdrain")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + real(pd(ifrac)%gd_surfdrain)*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
+  case("roofvegwetfac")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + real(pd(ifrac)%rf_vegwetfac)*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
+  case("canyonvegwetfac")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + real(pd(ifrac)%cn_vegwetfac)*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
+  case("gridvegtranspiration")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + real(pd(ifrac)%gd_vegtran)*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
+  case("gridsoilmoisture")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + real(pd(ifrac)%gd_soilmoist)*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
+  case("gridsoilmoisturechange")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + real(pd(ifrac)%gd_soilmoistchange)*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
+  case("gridirrigation")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + real(pd(ifrac)%gd_irrig)*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
+  case("canyonsoilwaterfrac")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + real(rdhyd(ifrac)%soilwater)*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
+  case("roofsoilwaterfrac")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + real(rfhyd(ifrac)%soilwater)*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
+  case("gridsnowmelt")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + real(pd(ifrac)%snowmelt)*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)   
+  case("gridaeroconductionveg")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + real(pd(ifrac)%gd_acond_veg)*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)  
   case default
     write(6,*) "ERROR: Unknown atebenergy mode ",trim(mode)
     stop
@@ -3432,6 +3559,7 @@ end subroutine atebsigmau
 ! oeg = Input/Output latent heat flux (W/m^2)
 ! ots = Input/Output radiative/skin temperature (K)
 ! owf = Input/Output wetness fraction/surface water (%)
+! orn = runoff
 ! diag = diagnostic message mode (0=off, 1=basic messages, 2=more detailed messages, etc)
 
 subroutine atebcalc_standard(ofg,oeg,ots,owf,orn,dt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,umin,diag,raw)
@@ -3620,7 +3748,7 @@ real, dimension(ufull) :: rdsntemp,rfsntemp,rdsnmelt,rfsnmelt,garfsn,gardsn
 real, dimension(ufull) :: wallpsi,roadpsi,fgtop,egtop,qsatr,qsata
 real, dimension(ufull) :: cu,fgrooftop,egrooftop
 real, dimension(ufull) :: we,ww,wr,zolog,a,n,zom,zonet,dis
-real, dimension(ufull) :: roofvegwetfac,roadvegwetfac
+real, dimension(ufull) :: roofvegwetfac,roadvegwetfac,d_irrigwater
 real, dimension(ufull) :: z_on_l,pa,dts,dtt
 real, dimension(ufull) :: u_alb, u_melt
 real, dimension(ufull) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
@@ -3983,21 +4111,35 @@ fgtop = fp%hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_ro
 call updatewater(ddt,rdhyd%surfwater,rdhyd%soilwater,rdhyd%leafwater,rdhyd%snow,    &
                      rdhyd%den,rdhyd%snowalpha,rdsnmelt,a_rnd,a_snd,eg_road,        &
                      eg_rdsn,d_tranc,d_evapc,d_c1c,d_totdepth, cnveg%lai,wbrelaxc,  &
-                     fp%sfc,fp%swilt,ufull)
+                     fp%sfc,fp%swilt,d_irrigwater,ufull)
+! record grid irrigation road component [kg m-2 s-1]
+pd%gd_irrig = d_irrigwater*waterden*d_totdepth*cnveg%sigma*(1.-fp%sigmabld)/ddt
 
 ! calculate water/snow budgets for roof surface
 call updatewater(ddt,rfhyd%surfwater,rfhyd%soilwater,rfhyd%leafwater,rfhyd%snow,     &
                      rfhyd%den,rfhyd%snowalpha,rfsnmelt,a_rnd,a_snd,eg_roof,         &
                      eg_rfsn,d_tranr,d_evapr,d_c1r,fp%rfvegdepth,rfveg%lai,wbrelaxr, &
-                     fp%sfc,fp%swilt,ufull)
+                     fp%sfc,fp%swilt,d_irrigwater,ufull)
+! add grid irrigation roof component [kg m-2 s-1]
+pd%gd_irrig = pd%gd_irrig + d_irrigwater*waterden*fp%rfvegdepth*rfveg%sigma*fp%sigmabld/ddt
 
-! calculate runoff (leafwater runoff already accounted for in precip reaching canyon floor)
-u_rn = max(rfhyd%surfwater-maxrfwater,0.)*fp%sigmabld*(1.-rfveg%sigma)                   &
-      +max(rdhyd%surfwater-maxrdwater,0.)*(1.-fp%sigmabld)*(1.-cnveg%sigma)              &
-      +max(rfhyd%snow-maxrfsn,0.)*fp%sigmabld                                            &
-      +max(rdhyd%snow-maxrdsn,0.)*(1.-fp%sigmabld)                                       &
-      +max(rfhyd%soilwater-fp%ssat,0.)*waterden*fp%rfvegdepth*rfveg%sigma*fp%sigmabld    &
-      +max(rdhyd%soilwater-fp%ssat,0.)*waterden*d_totdepth*cnveg%sigma*(1.-fp%sigmabld)
+! area weighted vegetation aerodynamic conductance
+pd%gd_acond_veg = (acond_vegc*cnveg%sigma*(1.-fp%sigmabld) + acond_vegr*rfveg%sigma*fp%sigmabld)/  & 
+               (rfveg%sigma*fp%sigmabld + cnveg%sigma*(1.-fp%sigmabld))
+
+! calculate runoff (leafwater runoff already accounted for in precip reaching canyon floor) [kg m-2]
+u_rn = max(rfhyd%surfwater-maxrfwater,0.)*fp%sigmabld*(1.-rfveg%sigma)                   & ! roof surfwater runnoff 
+      +max(rdhyd%surfwater-maxrdwater,0.)*(1.-fp%sigmabld)*(1.-cnveg%sigma)              & ! road surfwater runnoff
+      +max(rfhyd%snow-maxrfsn,0.)*fp%sigmabld                                            & ! roof snow removal     
+      +max(rdhyd%snow-maxrdsn,0.)*(1.-fp%sigmabld)                                       & ! road snow removal     
+      +max(rfhyd%soilwater-fp%ssat,0.)*waterden*fp%rfvegdepth*rfveg%sigma*fp%sigmabld    & ! roofveg saturation runnoff
+      +max(rdhyd%soilwater-fp%ssat,0.)*waterden*d_totdepth*cnveg%sigma*(1.-fp%sigmabld)    ! canyveg saturation runnoff
+
+! diagnose surface drainage rate [kg m-2 s-1]
+pd%gd_surfdrain = u_rn/ddt
+
+! diagnose total vegetation transpiration [kg m-2 s-1]
+pd%gd_vegtran = (d_tranc*cnveg%sigma*(1.-fp%sigmabld) + d_tranr*rfveg%sigma*fp%sigmabld)/lv
 
 ! remove round-off problems
 rdhyd%soilwater(1:ufull) = min(max(rdhyd%soilwater(1:ufull),fp%swilt),fp%ssat)
@@ -4024,6 +4166,16 @@ egrooftop   = d_rfsndelta*eg_rfsn+(1.-d_rfsndelta)*((1.-rfveg%sigma)*eg_roof+rfv
 ! calculate wetfac for roof and road vegetation (see sflux.f or cable_canopy.f90)
 roofvegwetfac = max(min((rfhyd%soilwater-fp%swilt)/(fp%sfc-fp%swilt),1.),0.)
 roadvegwetfac = max(min((rdhyd%soilwater-fp%swilt)/(fp%sfc-fp%swilt),1.),0.)
+
+pd%rf_vegwetfac = roofvegwetfac
+pd%cn_vegwetfac = roadvegwetfac
+
+! record previous gd_soilmoist, then update
+pd%gd_soilmoistchange = pd%gd_soilmoist
+pd%gd_soilmoist = rfhyd%soilwater*waterden*fp%rfvegdepth*rfveg%sigma*fp%sigmabld      & ! roof integrated soil moisture
+                + rdhyd%soilwater*waterden*d_totdepth*cnveg%sigma*(1.-fp%sigmabld)      ! cany integrated soil moisture
+! calculate difference in gd_moist
+pd%gd_soilmoistchange = pd%gd_soilmoist - pd%gd_soilmoistchange
 
 ! calculate longwave, sensible heat latent heat outputs
 ! estimate surface temp from outgoing longwave radiation
@@ -4334,7 +4486,7 @@ end subroutine energyclosure
 subroutine updatewater(ddt,surfwater,soilwater,leafwater,snow,den,alpha, &
                        snmelt,a_rnd,a_snd,eg_surf,eg_snow,d_tran,d_evap, &
                        d_c1,d_totdepth,fp_vegrlai,iwbrelax,              &
-                       fp_sfc,fp_swilt,ufull)
+                       fp_sfc,fp_swilt,irrigwater,ufull)
 
 implicit none
 
@@ -4346,9 +4498,11 @@ real, dimension(ufull), intent(in) :: snmelt,a_rnd,a_snd,eg_surf,eg_snow
 real, dimension(ufull), intent(in) :: d_tran,d_evap,d_c1,d_totdepth,fp_vegrlai
 real, dimension(ufull) :: modrnd
 real, dimension(ufull), intent(in) :: fp_sfc, fp_swilt
+real, dimension(ufull), intent(out):: irrigwater
 
 modrnd = max(a_rnd-d_evap/lv-max(maxvwatf*fp_vegrlai-leafwater,0.)/ddt,0.) ! rainfall reaching the soil under vegetation
 
+! soil moisture based on Kowalczyk et al 1994 eq 12
 ! note that since sigmaf=1, then there is no soil evaporation, only transpiration.
 ! Evaporation only occurs from water on leafs.
 surfwater = surfwater+ddt*(a_rnd-eg_surf/lv+snmelt)                                         ! surface
@@ -4357,8 +4511,11 @@ leafwater = leafwater+ddt*(a_rnd-d_evap/lv)                                     
 leafwater = min(max(leafwater,0.),maxvwatf*fp_vegrlai)
 
 if (iwbrelax==1) then
-  ! increase soil moisture for irrigation 
-  soilwater=soilwater+max(0.75*fp_swilt+0.25*fp_sfc-soilwater,0.)/(86400./ddt+1.) ! 24h e-fold time
+  ! increase soil moisture for irrigation
+  irrigwater = max(0.75*fp_swilt+0.25*fp_sfc-soilwater,0.)/(86400./ddt+1.)    ! 24h e-fold time
+  soilwater=soilwater+irrigwater
+else
+  irrigwater = 0.
 end if
 
 ! snow fields
@@ -4541,9 +4698,9 @@ roadpsi=sqrt(fp_effhwratio*fp_effhwratio+1.)-fp_effhwratio
 
 ! integrate through 180 deg instead of 360 deg.  Hence partitioning to east and west facing walls
 where (fp_vangle>=0.5*pi)
-  walles=0.
-  wallws=1./fp_hwratio
-  roads=0.
+  walles=(1.-fp_fbeam)*wallpsi
+  wallws=fp_fbeam/fp_hwratio + (1.-fp_fbeam)*wallpsi
+  roads=(1.-fp_fbeam)*roadpsi
 elsewhere
   ta=tan(fp_vangle)
   thetazero=asin(1./max(fp_hwratio*ta,1.))
@@ -4934,7 +5091,7 @@ do l = 1,ncyits
   d_canyontemp = (aa*d_tempc+bb*rdsntemp+cc*road%nodetemp(:,0)+dd*cnveg%temp+ee*walle%nodetemp(:,0) & 
                 +ff*wallw%nodetemp(:,0)+d_traf+d_ac_canyon-int_infilfg)/(aa+bb+cc+dd+ee+ff)
 
-end do  
+end do
 
 room%nodetemp(:,1) = iroomtemp
 
@@ -5396,6 +5553,15 @@ select case(acmeth) ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible)
     stop
 end select
 
+! ! COP printout when canyon air is >35°C
+! if ( l==ncyits ) then
+!   if (( (d_canyontemp(1) + urbtemp) > (35. + 273.15) ) .and. ( (d_canyontemp(1) + urbtemp) < (36. + 273.15) )) then
+!     if ( ac_coeff(1) > 0 ) then 
+!       write(6,*) 'COP:', 1./ac_coeff
+!     end if
+!   end if
+! end if
+
 return
 end subroutine interiorflux_complex
 
@@ -5472,7 +5638,7 @@ rg_rdsn=effrdsn-lwflux_walle_rdsn-lwflux_wallw_rdsn
 ! estimate snow melt
 rdsnmelt=min(max(0.,rdsntemp+(urbtemp-273.16))*icecp*rdhyd%snow/(ddt*lf),rdhyd%snow/ddt)
 
-! calculate transpiration and evaporation of in-canyon vegetation
+! calculate latent heat of transpiration and evaporation of in-canyon vegetation
 d_tranc=lv*min(max((1.-dumvegdelta)*a_rho*(vegqsat-d_canyonmix)/(1./max(acond_vegc,1.e-10)+res),0.), &
                max((rdhyd%soilwater-fp%swilt)*d_totdepth*waterden/(d_c1c*ddt),0.))
 d_evapc=lv*min(dumvegdelta*a_rho*(vegqsat-d_canyonmix)*acond_vegc,rdhyd%leafwater/ddt+a_rnd)
@@ -5689,7 +5855,7 @@ where ( rfveg%sigma>0. )
   ! sensible heat flux
   fg_vegr=aircp*a_rho*(rfveg%temp-d_tempr)*acond_vegr
 
-  ! calculate transpiration and evaporation of in-canyon vegetation
+  ! calculate transpiration and evaporation of roof vegetation
   d_tranr=lv*min(max((1.-dumvegdelta)*a_rho*(vegqsat-d_mixrr)/(1./acond_vegr+res),0.), &
                  max((rfhyd%soilwater-fp%swilt)*fp%rfvegdepth*waterden/(d_c1r*ddt),0.))
   d_evapr=lv*min(dumvegdelta*a_rho*(vegqsat-d_mixrr)*acond_vegr,rfhyd%leafwater/ddt+a_rnd)
@@ -5741,50 +5907,20 @@ real, dimension(:), intent(out) :: icyc_traffic,icyc_basedemand,icyc_proportion,
 real, dimension(size(fp_ctime)) :: real_p
 integer, dimension(size(fp_ctime)) :: int_p
 
-! traffic diurnal cycle weights approximated from Chapman et al., 2016
-real, dimension(25), parameter :: trafcycle = (/ 0.17, 0.12, 0.12, 0.17, 0.37, 0.88, & 
-                                                 1.29, 1.48, 1.37, 1.42, 1.5 , 1.52, &
-                                                 1.50, 1.57, 1.73, 1.84, 1.84, 1.45, &
-                                                 1.01, 0.77, 0.65, 0.53, 0.41, 0.27, 0.17 /)
-
-! base electricity demand cycle weights approximated from Thatcher (2007), mean for NSW, VIC, QLD, SA
-real, dimension(25), parameter :: basecycle = (/ 0.92, 0.86, 0.81, 0.78, 0.8 , 0.87, & 
-                                                 0.98, 1.06, 1.08, 1.09, 1.09, 1.09, &
-                                                 1.08, 1.08, 1.06, 1.06, 1.08, 1.11, &
-                                                 1.08, 1.06, 1.03, 1.00, 0.98, 0.95, 0.92 /)
-
-! ! normalised proportion of heating/cooling appliances in use  approximated from Thatcher (2007)
-! real, dimension(25), parameter :: propcycle = (/ 0.43, 0.40, 0.36, 0.33, 0.31, 0.36, &
-!                                                  0.53, 0.66, 0.70, 0.64, 0.60, 0.60, &
-!                                                  0.64, 0.69 ,0.75, 0.81, 0.88, 1.00, &
-!                                                  0.99, 0.91, 0.81, 0.69, 0.57, 0.43, 0.43 /)
-
-! ! normalised proportion of heating/cooling appliances in use optimised for Melbourne
-! real, dimension(25), parameter :: propcycle = (/ 0.34, 0.30, 0.27, 0.25, 0.36, 0.43, &
-!                                                  0.69, 0.73, 0.69, 0.65, 0.57, 0.55, &
-!                                                  0.51, 0.54 ,0.57, 0.66, 0.85, 0.93, &
-!                                                  1.00, 0.96, 0.93, 0.80, 0.59, 0.41, 0.34 /)
-
-! normalised proportion of heating/cooling appliances in use optimised for Melbourne_new
-real, dimension(25), parameter :: propcycle = (/ 0.20, 0.15, 0.15, 0.15, 0.15, 0.35, &
-                                                 0.55, 0.67, 0.60, 0.55, 0.50, 0.45, &
-                                                 0.45, 0.45 ,0.52, 0.60, 0.90, 0.98, &
-                                                 0.99, 0.93, 0.80, 0.52, 0.37, 0.25, 0.20 /)
-
-! base temperature translation cycle optimised for Melbourne (used for simple internal physics)
-real, dimension(25), parameter :: trancycle =(/ -1.2, -1.7, -2.4, -2.9, -3.0, -2.1,  &
-                                                -1.1, -0.6, -0.7, -0.8, -1.2, -1.4,  &
-                                                -1.6, -1.8, -1.6, -1.0, -0.2,  1.1,  &
-                                                 2.1,  2.7,  3.0,  2.6,  1.6,  0.2, -1.2 /)
+! ! base temperature translation cycle optimised for Melbourne
+! real, dimension(25), save :: trancycle =(/ -1.2, -1.7, -2.4, -2.9, -3.0, -2.1,  &
+!                                            -1.1, -0.6, -0.7, -0.8, -1.2, -1.4,  &
+!                                            -1.6, -1.8, -1.6, -1.0, -0.2,  1.1,  &
+!                                             2.1,  2.7,  3.0,  2.6,  1.6,  0.2, -1.2 /)
 
 int_p=int(24.*fp_ctime)
 real_p=24.*fp_ctime-real(int_p)
 where (int_p<1) int_p=int_p+24
 
-icyc_traffic     = ((1.-real_p)*trafcycle(int_p)+real_p*trafcycle(int_p+1))*fp_weekdayload
-icyc_basedemand  = ((1.-real_p)*basecycle(int_p)+real_p*basecycle(int_p+1))*fp_weekdayload
-icyc_proportion  = ((1.-real_p)*propcycle(int_p)+real_p*propcycle(int_p+1))*fp_weekdayload
-icyc_translation = ((1.-real_p)*trancycle(int_p)+real_p*trancycle(int_p+1))
+icyc_traffic     = ((1.-real_p)*cyc_traf(int_p)+real_p*cyc_traf(int_p+1))*fp_weekdayload
+icyc_basedemand  = ((1.-real_p)*cyc_base(int_p)+real_p*cyc_base(int_p+1))*fp_weekdayload
+icyc_proportion  = ((1.-real_p)*cyc_prop(int_p)+real_p*cyc_prop(int_p+1))*fp_weekdayload
+icyc_translation = ((1.-real_p)*cyc_tran(int_p)+real_p*cyc_tran(int_p+1))
 
 return
 end subroutine getdiurnal

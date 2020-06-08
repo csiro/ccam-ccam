@@ -332,7 +332,8 @@ implicit none
 integer, intent(in) :: ncid
 integer kdate_rsav, ktime_rsav
 integer idvtime, iarchi, kdate_r, ktime_r
-integer maxarchi, mtimer
+integer maxarchi
+integer(kind=8) :: mtimer
 integer, dimension(2) :: nstart, ncount
 real, dimension(1) :: rdat
 real, intent(out) :: rrvc
@@ -352,7 +353,7 @@ do while ( ltest .and. iarchi<maxarchi )
   kdate_r = kdate_rsav
   ktime_r = ktime_rsav
   call ccnf_get_vara(ncid,idvtime,iarchi,timer)
-  mtimer = nint(timer)*1440 ! units=days
+  mtimer = nint(timer,8)*1440_8 ! units=days
   call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
   ltest = (kdate_r/100-kdate_s/100)<0
 end do
@@ -379,7 +380,8 @@ implicit none
 integer, intent(in) :: ncid
 integer kdate_rsav, ktime_rsav
 integer idvtime, iarchi, kdate_r, ktime_r
-integer maxarchi, mtimer
+integer maxarchi
+integer(kind=8) mtimer
 integer, dimension(1) :: nstart, ncount
 real, dimension(1) :: rdat
 real, intent(out) :: csolar
@@ -399,7 +401,7 @@ do while ( ltest .and. iarchi<maxarchi )
   kdate_r = kdate_rsav
   ktime_r = ktime_rsav
   call ccnf_get_vara(ncid,idvtime,iarchi,timer)
-  mtimer = nint(timer)*1440 ! units=days
+  mtimer = nint(timer,8)*1440_8 ! units=days
   call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
   ltest = (kdate_r/100-kdate_s/100)<0
 end do

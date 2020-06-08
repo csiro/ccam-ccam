@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -40,9 +40,7 @@ integer, save :: ilon, ilat, ilev
 integer, save :: oxidant_timer = -9999
 integer, parameter :: naerofamilies = 7      ! Number of aerosol families for optical depth
 integer, parameter :: updateoxidant = 1440   ! update prescribed oxidant fields once per day
-real, dimension(:,:,:), allocatable, save :: oxidantprev_g
 real, dimension(:,:,:), allocatable, save :: oxidantnow_g
-real, dimension(:,:,:), allocatable, save :: oxidantnext_g
 real, dimension(:,:,:), allocatable, save :: opticaldepth
 real, dimension(:,:), allocatable, save :: ppfprec, ppfmelt, ppfsnow           ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfevap, ppfsubl, pplambs, ppmrate  ! data saved from LDR cloud scheme
@@ -92,16 +90,15 @@ include 'kuocom.h'                          ! Convection parameters
 integer, intent(in) :: mins
 integer tile, is, ie, idjd_t
 integer k, j, tt, ttx, kinv, smins
-real, dimension(imax,ilev) :: loxidantprev, loxidantnow, loxidantnext
-real, dimension(imax,kl,naero) :: lxtg, lxtosav, lxtg_solub
+real, dimension(imax,ilev) :: loxidantnow
+real, dimension(imax,kl,naero) :: lxtg, lxtosav
 real, dimension(imax,kl,4) :: lzoxidant
-real, dimension(imax,kl,2) :: lssn
 real, dimension(imax,kl) :: lt, lqg, lqlg, lqfg, lstratcloud
-real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfevap, lppfsubl, lpplambs
-real, dimension(imax,kl) :: lppmrate, lppmaccr, lppfstayice, lppfstayliq, lppqfsedice
+real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfsubl, lpplambs
+real, dimension(imax,kl) :: lppmrate, lppmaccr, lppfstayice, lppqfsedice
 real, dimension(imax,kl) :: lpprscav, lpprfreeze
 real, dimension(imax,kl) :: lclcon
-real, dimension(imax,kl) :: zg, dz, rhoa, pccw
+real, dimension(imax,kl) :: dz, rhoa, pccw
 real, dimension(imax,ndust) :: lduste, ldustdd, ldust_burden, ldustwd
 real, dimension(imax,ndcls) :: lerod
 real, dimension(imax,15) :: lemissfield
@@ -111,22 +108,20 @@ real, dimension(ifull) :: taudar, cldcon
 real dhr, fjd, r1, dlt, alp, slag
 logical, intent(in) :: oxidant_update
 logical mydiag_t
+logical, dimension(imax) :: locean
 
 ! update prescribed oxidant fields
 if ( oxidant_update ) then
 !$omp do schedule(static) private(is,ie),                       &
-!$omp private(loxidantprev,loxidantnow,loxidantnext,lzoxidant), &
+!$omp private(loxidantnow,lzoxidant),                           &
 !$omp private(dhr,ttx,j,tt,smins,fjd,r1,dlt,alp,slag,coszro)
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
     do j = 1,4
-      loxidantprev(:,1:ilev) = oxidantprev_g(is:ie,1:ilev,j)
       loxidantnow(:,1:ilev)  = oxidantnow_g(is:ie,1:ilev,j)
-      loxidantnext(:,1:ilev) = oxidantnext_g(is:ie,1:ilev,j)
       ! note levels are inverted by fieldinterpolate
-      call fieldinterpolate(lzoxidant(:,:,j),loxidantprev,loxidantnow,loxidantnext, &
-                            rlev,imax,kl,ilev,mins,sig,ps(is:ie),interpmeth=0,meanmeth=1)
+      call fieldinterpolate(lzoxidant(:,:,j),loxidantnow,rlev,imax,kl,ilev,sig,ps(is:ie),interpmeth=0)
       zoxidant_g(is:ie,:,j) = lzoxidant(:,:,j)
     end do
     ! estimate day length (presumably to preturb day-time OH levels)
@@ -169,25 +164,25 @@ do tile = 1,ntiles
   ie = tile*imax
   call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),cldcon=cldcon(is:ie))
   clcon(is:ie,:) = lclcon    
-    end do
+end do
 !$omp end do nowait    
     
 !$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                              &
-!$omp private(k,zg,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                             &
-!$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,lppmrate,lppmaccr),    &
-!$omp private(lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),  &
-!$omp private(lxtosav,lxtg_solub,ldust_burden,lerod,lssn,ldustwd,lemissfield,lclcon)
-!$acc parallel copy(xtg,ssn,duste,dustdd,dustwd,dust_burden,so4t,dmsso2o,so2so4o,bc_burden,oc_burden, &
+!$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                                &
+!$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),             &
+!$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
+!$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean)
+!$acc parallel copy(xtg,duste,dustdd,dustwd,dust_burden,so4t,dmsso2o,so2so4o,bc_burden,oc_burden,     &
 !$acc   dms_burden,so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd,so4dd,    &
-!$acc   bcdd,ocdd)                                                                                    &
+!$acc   bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                                    &
 !$acc copyin(zoxidant_g,xtosav,emissfield,erod,t,qg,qlg,qfg,stratcloud,ppfprec,ppfmelt,ppfsnow,       &
-!$acc   ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,ppfstayliq,ppqfsedice,pprscav,pprfreeze,   &
+!$acc   ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,                      &
 !$acc   clcon,bet,betm,dsig,sig,ps,kbsav,ktsav,wetfac,pblh,tss,condc,snowd,taudar,fg,eg,u10,ustar,    &
-!$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2)
-!$acc loop gang private(lzoxidant,lxtg,lxtosav,lssn,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,  &
-!$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfevap,lppfsubl,lpplambs,     &
-!$acc   lppmrate,lppmaccr,lppfstayice,lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,lclcon,zg,dz,rhoa,  &
-!$acc   wg,pccw)
+!$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2,isoilm_in,dustden,dustreff,saltden,saltreff)
+!$acc loop gang private(lzoxidant,lxtg,lxtosav,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,       &
+!$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,              &
+!$acc   lppmrate,lppmaccr,lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lclcon,dz,rhoa,                 &
+!$acc   wg,pccw,locean)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -198,7 +193,6 @@ do tile = 1,ntiles
   lzoxidant(:,:,1:4) = zoxidant_g(is:ie,:,1:4)
   lxtg               = xtg(is:ie,:,:)
   lxtosav            = xtosav(is:ie,:,:)
-  lssn               = ssn(is:ie,:,:)
   lduste             = duste(is:ie,:)
   ldustdd            = dustdd(is:ie,:)
   ldustwd            = dustwd(is:ie,:)
@@ -213,22 +207,20 @@ do tile = 1,ntiles
   lppfprec           = ppfprec(is:ie,:)
   lppfmelt           = ppfmelt(is:ie,:)
   lppfsnow           = ppfsnow(is:ie,:)
-  lppfevap           = ppfevap(is:ie,:)
   lppfsubl           = ppfsubl(is:ie,:)
   lpplambs           = pplambs(is:ie,:)
   lppmrate           = ppmrate(is:ie,:)
   lppmaccr           = ppmaccr(is:ie,:)
   lppfstayice        = ppfstayice(is:ie,:)
-  lppfstayliq        = ppfstayliq(is:ie,:)
   lppqfsedice        = ppqfsedice(is:ie,:)
   lpprscav           = pprscav(is:ie,:)
   lpprfreeze         = pprfreeze(is:ie,:)
   lclcon             = clcon(is:ie,:)
 
-  zg(:,1) = bet(1)*lt(:,1)/grav
-  do k = 2,kl
-    zg(:,k) = zg(:,k-1) + (bet(k)*lt(:,k)+betm(k)*lt(:,k-1))/grav ! height above surface in meters
-  end do
+  !zg(:,1) = bet(1)*lt(:,1)/grav
+  !do k = 2,kl
+  !  zg(:,k) = zg(:,k-1) + (bet(k)*lt(:,k)+betm(k)*lt(:,k-1))/grav ! height above surface in meters
+  !end do
   do k = 1,kl
     dz(:,k) = -rdry*dsig(k)*lt(:,k)/(grav*sig(k))
     dz(:,k) = min( max( dz(:,k), 1. ), 2.e4 )
@@ -248,6 +240,8 @@ do tile = 1,ntiles
 
   ! Water converage at surface
   wg(:) = min( max( wetfac(is:ie), 0. ), 1. )
+  
+  locean = isoilm_in(is:ie) == 0 ! excludes lakes
 
 
   ! MJT notes - We have an option to update the aerosols before the vertical mixing
@@ -257,25 +251,27 @@ do tile = 1,ntiles
   ! better estimate of u10 and pblh.
 
   ! update prognostic aerosols
-  call aldrcalc(dt,sig,zg,dz,wg,pblh(is:ie),ps(is:ie),tss(is:ie),      &
+  call aldrcalc(dt,sig,dz,wg,pblh(is:ie),ps(is:ie),tss(is:ie),         &
                 lt,condc(is:ie),snowd(is:ie),taudar(is:ie),fg(is:ie),  &
                 eg(is:ie),u10(is:ie),ustar(is:ie),zo(is:ie),           &
                 land(is:ie),fracice(is:ie),sigmf(is:ie),lqg,lqlg,lqfg, &
                 lstratcloud,lclcon,cldcon(is:ie),pccw,rhoa,            &
-                cdtq(is:ie),lppfprec,lppfmelt,lppfsnow,lppfevap,       &
+                cdtq(is:ie),lppfprec,lppfmelt,lppfsnow,                &
                 lppfsubl,lpplambs,lppmrate,lppmaccr,lppfstayice,       &
-                lppfstayliq,lppqfsedice,lpprscav,lpprfreeze,           &
+                lppqfsedice,lpprscav,lpprfreeze,                       &
                 zdayfac(is:ie),kbsav(is:ie),lxtg,lduste,ldustdd,       &
-                lxtosav,lxtg_solub,dmsso2o(is:ie),so2so4o(is:ie),      &
+                lxtosav,dmsso2o(is:ie),so2so4o(is:ie),                 &
                 ldust_burden,bc_burden(is:ie),oc_burden(is:ie),        &
                 dms_burden(is:ie),so2_burden(is:ie),so4_burden(is:ie), &
-                lerod,lssn,lzoxidant,so2wd(is:ie),so4wd(is:ie),        &
+                lerod,lzoxidant,so2wd(is:ie),so4wd(is:ie),             &
                 bcwd(is:ie),ocwd(is:ie),ldustwd,lemissfield,           &
                 vso2(is:ie),dmse(is:ie),so2e(is:ie),so4e(is:ie),       &
                 bce(is:ie),oce(is:ie),so2dd(is:ie),so4dd(is:ie),       &
-                bcdd(is:ie),ocdd(is:ie),dustden,dustreff,imax,kl)
+                bcdd(is:ie),ocdd(is:ie),salte(is:ie),saltdd(is:ie),    &
+                saltwd(is:ie),salt_burden(is:ie),dustden,dustreff,     &
+                saltden,saltreff,locean,imax,kl)
 
-  ! MJT notes - passing dustden and dustreff due to issues with pgi compiler
+  ! MJT notes - passing dustden, dustreff, saltden and saltref due to issues with pgi compiler
   
   ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
   ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
@@ -285,7 +281,6 @@ do tile = 1,ntiles
   enddo
    
   xtg(is:ie,:,:)       = lxtg
-  ssn(is:ie,:,:)       = lssn
   duste(is:ie,:)       = lduste
   dustdd(is:ie,:)      = ldustdd
   dustwd(is:ie,:)      = ldustwd
@@ -311,8 +306,8 @@ do tile = 1,ntiles
     write(6,*) "dust1.0diag ",xtg(idjd,:,9)
     write(6,*) "dust2.0diag ",xtg(idjd,:,10)
     write(6,*) "dust4.0diag ",xtg(idjd,:,11)
-    write(6,*) "saltfilmdiag ",ssn(idjd,:,1)
-    write(6,*) "saltjetdiag  ",ssn(idjd,:,2)
+    write(6,*) "saltfilmdiag ",xtg(idjd,:,12)
+    write(6,*) "saltjetdiag  ",xtg(idjd,:,13)
   end if
 #endif
   
@@ -400,13 +395,12 @@ implicit none
 integer, intent(in) :: kdatein
 integer ncstatus, ncid, i, j, varid, tilg
 integer jyear, jmonth
-integer premonth, nxtmonth
 integer, dimension(2) :: spos, npos
 integer, dimension(3) :: idum
 integer, dimension(4) :: sposs, nposs
 real, dimension(:,:), allocatable, save :: dumg
 real, dimension(ifull,16) :: duma
-real, dimension(:,:,:,:), allocatable, save :: oxidantdum
+real, dimension(:,:,:), allocatable, save :: oxidantdum
 real, dimension(:), allocatable, save :: rlon, rlat
 real, dimension(:), allocatable, save :: rpack
 real tlat, tlon, tschmidt
@@ -624,11 +618,9 @@ if ( myid==0 ) then
   idum(2) = ilat
   idum(3) = ilev
   call ccmpi_bcast(idum(1:3),0,comm_world)
-  allocate( oxidantprev_g(ifull,ilev,4) )
   allocate( oxidantnow_g(ifull,ilev,4) )
-  allocate( oxidantnext_g(ifull,ilev,4) )
   allocate( rlon(ilon), rlat(ilat), rlev(ilev) )
-  allocate( oxidantdum(ilon,ilat,ilev,3) )
+  allocate( oxidantdum(ilon,ilat,ilev) )
   sposs = 1
   nposs(1) = ilon
   nposs(2) = ilat
@@ -637,10 +629,6 @@ if ( myid==0 ) then
   ! use kdate_s as kdate has not yet been defined
   jyear = kdatein/10000
   jmonth = (kdatein-jyear*10000)/100
-  premonth = jmonth - 1
-  if ( premonth < 1 ) premonth = 12
-  nxtmonth = jmonth + 1
-  if ( nxtmonth > 12 ) nxtmonth = 1
   write(6,*) "Processing oxidant file for month ",jmonth
   call ccnf_inq_varid(ncid,'lon',varid,tst)
   if (tst) then
@@ -672,56 +660,40 @@ if ( myid==0 ) then
     write(6,*) "ERROR: Cannot locate OH"
     call ccmpi_abort(-1)
   end if
-  sposs(4) = premonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
   sposs(4) = jmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-  sposs(4) = nxtmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
-  call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev_g(:,:,1),oxidantnow_g(:,:,1),oxidantnext_g(:,:,1),oxidantdum,rlon,rlat)
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum)
+  call ccmpi_bcast(oxidantdum,0,comm_world)
+  call o3regrid(oxidantnow_g(:,:,1),oxidantdum,rlon,rlat)
   write(6,*) "Reading H2O2"
   call ccnf_inq_varid(ncid,'H2O2',varid,tst)
   if ( tst ) then
     write(6,*) "ERROR: Cannot locate H2O2"
     call ccmpi_abort(-1)
   end if
-  sposs(4) = premonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
   sposs(4) = jmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-  sposs(4) = nxtmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
-  call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev_g(:,:,2),oxidantnow_g(:,:,2),oxidantnext_g(:,:,2),oxidantdum,rlon,rlat)
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum)
+  call ccmpi_bcast(oxidantdum,0,comm_world)
+  call o3regrid(oxidantnow_g(:,:,2),oxidantdum,rlon,rlat)
   write(6,*) "Reading O3"
   call ccnf_inq_varid(ncid,'O3',varid,tst)
   if ( tst ) then
     write(6,*) "ERROR: Cannot locate O3"
     call ccmpi_abort(-1)
   end if
-  sposs(4) = premonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
   sposs(4) = jmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-  sposs(4) = nxtmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
-  call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev_g(:,:,3),oxidantnow_g(:,:,3),oxidantnext_g(:,:,3),oxidantdum,rlon,rlat)
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum)
+  call ccmpi_bcast(oxidantdum,0,comm_world)
+  call o3regrid(oxidantnow_g(:,:,3),oxidantdum,rlon,rlat)
   write(6,*) "Reading NO2"
   call ccnf_inq_varid(ncid,'NO2',varid,tst)
   if ( tst ) then
     write(6,*) "ERROR: Cannot locate NO2"
     call ccmpi_abort(-1)
   end if
-  sposs(4) = premonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
   sposs(4) = jmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-  sposs(4) = nxtmonth
-  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
-  call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-  call o3regrid(oxidantprev_g(:,:,4),oxidantnow_g(:,:,4),oxidantnext_g(:,:,4),oxidantdum,rlon,rlat)
+  call ccnf_get_vara(ncid,varid,sposs,nposs,oxidantdum)
+  call ccmpi_bcast(oxidantdum,0,comm_world)
+  call o3regrid(oxidantnow_g(:,:,4),oxidantdum,rlon,rlat)
   call ccnf_close(ncid)
   deallocate(oxidantdum,rlat,rlon)
 else
@@ -740,11 +712,9 @@ else
   ilon = idum(1)
   ilat = idum(2)
   ilev = idum(3)
-  allocate( oxidantprev_g(ifull,ilev,4) )
   allocate( oxidantnow_g(ifull,ilev,4) )
-  allocate( oxidantnext_g(ifull,ilev,4) )
   allocate( rlon(ilon), rlat(ilat), rlev(ilev) )
-  allocate( oxidantdum(ilon,ilat,ilev,3) )
+  allocate( oxidantdum(ilon,ilat,ilev) )
   allocate( rpack(ilon+ilat+ilev) )
   call ccmpi_bcast(rpack,0,comm_world)
   rlon(1:ilon) = rpack(1:ilon)
@@ -752,8 +722,8 @@ else
   rlev(1:ilev) = rpack(ilon+ilat+1:ilon+ilat+ilev)
   deallocate( rpack )
   do j = 1,4
-    call ccmpi_bcast(oxidantdum(:,:,:,1:3),0,comm_world)
-    call o3regrid(oxidantprev_g(:,:,j),oxidantnow_g(:,:,j),oxidantnext_g(:,:,j),oxidantdum,rlon,rlat)    
+    call ccmpi_bcast(oxidantdum,0,comm_world)
+    call o3regrid(oxidantnow_g(:,:,j),oxidantdum,rlon,rlat)    
   end do
   deallocate(oxidantdum,rlat,rlon)
 end if

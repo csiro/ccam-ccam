@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -136,7 +136,7 @@ real, dimension(ifull,kl) :: clcon, cdrop
 logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),                                             &
-!$omp private(lrhoa,lcdrop,lclcon)
+!$omp private(k,lrhoa,lcdrop,lclcon)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -155,10 +155,10 @@ end do
 !$omp end do nowait
 
 !$omp do schedule(static) private(is,ie),                                             &
-!$omp private(lcfrac,lgfrac),                                                         &
+!$omp private(lcfrac,lgfrac,lrfrac,lsfrac),                                           &
 !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl),  &
 !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
-!$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt),  &
+!$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lt),                &
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,idjd_t,mydiag_t)
 !$acc parallel copy(stratcloud,gfrac,rfrac,sfrac,t,qg,qgrg,qlg,qfg,qrg,qsng,nettend,   &
 !$acc   condg,conds,condx,precip)                                                      &
@@ -173,7 +173,7 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   
-  idjd_t = mod(idjd-1,imax)+1
+  idjd_t = mod(idjd-1,imax) + 1
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
   
   lcfrac   = cfrac(is:ie,:)
@@ -204,7 +204,7 @@ do tile = 1,ntiles
                     lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl,           &
                     lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
                     ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-                    ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),idjd_t,mydiag_t,is,        &
+                    ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),idjd_t,mydiag_t,           &
                     ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,imax,kl)
 
   cfrac(is:ie,:) = lcfrac
@@ -253,7 +253,7 @@ subroutine leoncld_work(cfrac,condg,conds,condx,gfrac,kbsav,ktsav,land,         
                         ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,ppfstayliq,ppfsubl,  &
                         pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,precip,    &
                         ps,qccon,qfg,qfrad,qg,qgrg,qlg,qlrad,qrg,qsng,rfrac,sfrac,t,    &
-                        dpsldt,nettend,stratcloud,clcon,cdrop,em,idjd,mydiag,is,        &
+                        dpsldt,nettend,stratcloud,clcon,cdrop,em,idjd,mydiag,           &
                         ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,imax,kl)
 !$acc routine vector
 
@@ -265,7 +265,7 @@ use sigs_m                        ! Atmosphere sigma levels
 
 implicit none
 
-integer, intent(in) :: idjd, is, ncloud, nclddia, nevapls, ldr
+integer, intent(in) :: idjd, ncloud, nclddia, nevapls, ldr
 integer, intent(in) :: imax, kl
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
@@ -321,7 +321,6 @@ real, dimension(imax,kl) :: fluxr, fluxi, fluxs, fluxg, fluxm, fluxf
 real, dimension(imax,kl) :: pqfsedice, pfstayice, pfstayliq, pslopes, prscav
 real, dimension(imax) :: prf_temp, fl
 real, dimension(imax) :: rhodz
-real, dimension(imax) :: qccon1
 real, dimension(imax) :: diag_temp
 real invdt
 
@@ -425,7 +424,7 @@ endif
 
 
 !     Calculate cloud fraction and cloud water mixing ratios
-call newcloud(dt,land,prf,rhoa,cdrop,tenv,qenv,qlg,qfg, &
+call newcloud(dt,land,prf,rhoa,tenv,qenv,qlg,qfg,       &
               dpsldt,nettend,stratcloud,em,idjd,mydiag, &
               ncloud,nclddia,rcrit_l,rcrit_s,imax,kl)
 
@@ -470,9 +469,9 @@ do k = 1,kl
   qg(:,k) = clcon(:,k)*qcl(:,k) + (1.-clcon(:,k))*qenv(:,k)
   where ( k>=kbase(:) .and. k<=ktop(:) )
     stratcloud(:,k) = stratcloud(:,k)*(1.-clcon(:,k))
-    ccov(:,k)  = ccov(:,k)*(1.-clcon(:,k))              
-    qlg(:,k)   = qlg(:,k)*(1.-clcon(:,k))
-    qfg(:,k)   = qfg(:,k)*(1.-clcon(:,k))
+    ccov(:,k) = ccov(:,k)*(1.-clcon(:,k))              
+    qlg(:,k)  = qlg(:,k)*(1.-clcon(:,k))
+    qfg(:,k)  = qfg(:,k)*(1.-clcon(:,k))
   end where  
 end do
 
@@ -677,7 +676,7 @@ end subroutine leoncld_work
 ! 
 !******************************************************************************
 
- subroutine newcloud(tdt,land,prf,rhoa,cdrop,ttg,qtg,qlg,qfg,  &
+ subroutine newcloud(tdt,land,prf,rhoa,ttg,qtg,qlg,qfg,        &
                      dpsldt,nettend,stratcloud,em,idjd,mydiag, &
                      ncloud,nclddia,rcrit_l,rcrit_s,imax,kl)
 !$acc routine vector
@@ -696,7 +695,6 @@ integer, intent(in) :: idjd, ncloud, nclddia
 integer, intent(in) :: imax, kl
 real, dimension(imax,kl), intent(in) :: prf
 real, dimension(imax,kl), intent(in) :: rhoa
-real, dimension(imax,kl), intent(in) :: cdrop
 real, dimension(imax,kl), intent(inout) :: ttg
 real, dimension(imax,kl), intent(inout) :: qtg
 real, dimension(imax,kl), intent(inout) :: qlg
@@ -719,9 +717,8 @@ real, dimension(imax) :: tk, fl
 real :: es, Aprpr, Bprpr, Cice
 real :: qi0, fd, Crate, Qfdep
 real, dimension(imax) :: hlrvap, pk, deles, dqsdt
-real, dimension(imax) :: al, qs, delq, qcic, wliq
-real, dimension(imax) :: r6c, eps, beta6, r3c
-real, dimension(imax) :: qcrit, qc2, qto, qc
+real, dimension(imax) :: al, qs, delq
+real, dimension(imax) :: qc
 real, dimension(imax) :: diag_temp
 
 integer k, iq
@@ -1173,7 +1170,7 @@ real, dimension(imax) :: frclr
 real :: rg, rl, rn, rf, rs
 real, dimension(imax) :: sublflux
 real, dimension(imax) :: rhodz,evap,qpf,clrevap,fr
-real, dimension(imax) :: mxovr,rdovr,fcol
+real, dimension(imax) :: fcol
 real :: alph
 real, dimension(imax) :: alphaf,pk,aprpr,bprpr
 real, dimension(imax) :: curly,Csbsav
@@ -1189,9 +1186,8 @@ real, dimension(kl) :: diag_temp
 integer k, n, njumps, iq
 real scm3, tdt
 real qcrit, qcic, ql, dqls, Crate, ql1, ql2
-real Frb, cdts, selfcoll, cfla
-real qla, Wliq, R6c, eps, beta6, R3c
-real dqla, qfs, dqfs
+real Frb, cdts, selfcoll
+real qfs, dqfs
 real fsclr_g, fsclr_s, fsclr_i
 real qvp, iflux, lflux
 real drf, drl
@@ -1439,6 +1435,7 @@ do n = 1,njumps
       ! Set up the parameters for the flux-divergence calculation
       do iq = 1,imax
         alph         = tdt*vg2(iq)/dz(iq,k)
+        alph         = max( min( alph, 50. ), 0. )
         foutgraupel(iq)  = 1. - exp(-alph)        !analytical
         fthrugraupel(iq) = 1. - foutgraupel(iq)/alph  !analytical
       end do
@@ -1614,6 +1611,7 @@ do n = 1,njumps
       ! Set up the parameters for the flux-divergence calculation
       do iq = 1,imax
         alph          = tdt*vs2(iq)/dz(iq,k)
+        alph         = max( min( alph, 50. ), 0. )
         foutsnow(iq)  = 1. - exp(-alph)          !analytical
         fthrusnow(iq) = 1. - foutsnow(iq)/alph  !analytical
       end do
@@ -1820,6 +1818,7 @@ do n = 1,njumps
     ! Set up the parameters for the flux-divergence calculation
     do iq = 1,imax
       alph         = tdt*vi2(iq)/dz(iq,k)
+      alph         = max( min( alph, 50. ), 0. )
       foutice(iq)  = 1. - exp(-alph)    !analytical
       fthruice(iq) = 1. - foutice(iq)/alph  !analytical  
     end do
@@ -1945,8 +1944,9 @@ do n = 1,njumps
       do iq = 1,imax
         Fr(iq)       = max( fluxrain(iq)/tdt/max(crfra(iq),1.e-15),0.)
         vr2(iq)      = max( 0.1, 11.3*Fr(iq)**(1./9.)/sqrt(rhoa(iq,k)) )  !Actual fall speed
-        !vr2iq)      = max( 0.1, 5./sqrt(rhoa(iq,k)) )                   !Nominal fall speed
+        !vr2(iq)     = max( 0.1, 5./sqrt(rhoa(iq,k)) )                    !Nominal fall speed
         alph         = tdt*vr2(iq)/dz(iq,k)
+        alph         = max( min( alph, 50. ), 0. )
         foutliq(iq)  = 1. - exp(-alph)
         fthruliq(iq) = 1. - foutliq(iq)/alph
       end do

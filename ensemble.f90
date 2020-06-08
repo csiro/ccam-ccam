@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -28,7 +28,7 @@
 ! ensemble_mode = 1       control
 ! ensemble_mode = 2       breeding
 
-! ensemble_period = 720   (12 hour update by default. 0 uses all time-steps)
+! ensemble_period = 720   (12 hour update by default)
     
 ! ensemble_rsfactor = 0.1 (rescaling of initial perturbation)
     
@@ -422,7 +422,7 @@ use xyzinfo_m
 
 implicit none
 
-integer :: i, k
+integer :: i
 real, dimension(:,:), intent(in) :: datain
 real, dimension(size(datain,2)), intent(out) :: sumout
 real, dimension(size(datain,2)) :: e, t1, t2, datloc

@@ -52,7 +52,7 @@ public diaglevel_pop
 public procmode, compression
 public nud_period, mins_rad, nalpha, jalbfix, irest, nwrite
 public nstagin, nstaguin
-public hp_output
+public hp_output, surf_cordex, surf_windfarm
 public ensemble_mode, ensemble_period, ensemble_rsfactor
 
 integer, save :: ngwd=-5, nrungcm=-1, newtop=1
@@ -61,9 +61,9 @@ integer, save :: nhstest=0, namip=0, nspecial=0, newrough=0, nsib=3
 integer, save :: ntaft=2, ntsea=6, ntsur=6, ntsur2, lgwd=0, newztsea=1, nglacier=1, mbd=0
 integer, save :: mbd_mlo=0, nbd=0, kbotdav=4, kbotu=0, nud_p=0, nud_q=0, nud_t=0, nud_uv=1
 integer, save :: nud_hrs=24, nudu_hrs=0, ktau, ndi=1, ndi2=0, ntau, nperavg=-99, nperday, nperhr
-integer, save :: nmaxpr=99, nlv=1, ia=1, ib=3, ja=1, jb=10, id=2, jd=5, idjd
+integer, save :: nmaxpr=99, nlv=1, ia=1, ib=1, ja=1, jb=1, id=1, jd=1, idjd
 integer, save :: io_in=1, io_out=1, io_rest=1
-integer, save :: nwt=-99, nrun=0, nextout=3, m_fly=4, nsemble=0, tblock=1, tbave=1
+integer, save :: nwt=-99, nrun=0, nextout=3, m_fly=4, nsemble=0, tbave=1
 integer, save :: nurban=0, nmr=0, nmlo=0, ktopdav=0, nud_sst=0, nud_sss=0, kbotmlo=-1000, ktopmlo=1
 integer, save :: mloalpha=0, nud_ouv=0, nud_sfh=0, kblock=-1, rescrn=0, knh=-1, iaero=0
 integer, save :: nud_aero=0, mbd_maxscale=3000, mbd_maxgrid=999999, mbd_maxscale_mlo=3000, nriver=0
@@ -71,13 +71,13 @@ integer, save :: leap=0, nbarewet=0, nsigmf=1, qg_fix=2
 integer, save :: procmode=0, compression=1
 integer, save :: nud_period=-1, mins_rad=-1, nalpha=1, jalbfix=1, irest=1, nwrite=0
 integer, save :: nstagin=0, nstaguin=0, intsch_mode=-1
-integer, save :: hp_output=0
+integer, save :: hp_output=0, surf_cordex=0, surf_windfarm=0
 integer, save :: ensemble_mode=0, ensemble_period=720
 integer, save :: diaglevel_aerosols=0, diaglevel_pbl=0, diaglevel_cloud=0, diaglevel_land=0, diaglevel_maxmin=0
 integer, save :: diaglevel_ocean=0, diaglevel_radiation=0, diaglevel_urban=0, diaglevel_carbon=0, diaglevel_river=0
 integer, save :: diaglevel_pop=0
 !integer, save :: filemode=0, ioreaders=-1
-real, save :: qgmin=1.e-6, zo_clearing=0.05
+real, save :: qgmin=1.e-6, zo_clearing=0.
 real, save :: av_vmod=0.7, vmodmin=0.2, snmin=0.11, tss_sh=1., charnock=0.018, chn10=0.00125, zobgin=0.02
 real, save :: rlongdn=0., rlongdx=0., rlatdn=0., rlatdx=0., ds=0., dt=0., dtin=0., panfg=4., panzo=0.001
 real, save :: bpyear=0., helim=800., fc2=1., sigbot_gwd=0., alphaj=1.e-6, divdamp=450.

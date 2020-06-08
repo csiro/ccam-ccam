@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -65,7 +65,6 @@ contains
 
 subroutine sflux_init
 
-use cc_omp, only : imax, ntiles    ! CC OpenMP routines
 use const_phys                     ! Physical constants
 use newmpar_m, only : ifull        ! Grid parameters
 use parm_m                         ! Model configuration
@@ -374,7 +373,7 @@ do tile = 1,ntiles
 
   ! ----------------------------------------------------------------------
   evap(is:ie) = evap(is:ie) + dt*eg(is:ie)/hl        !time integ value in mm (wrong for snow)
-
+  
   ! Update runoff for river routing
   if ( abs(nriver)==1 ) then
     watbdy(is:ie) = watbdy(is:ie) + runoff(is:ie) - oldrunoff(is:ie) ! runoff in mm
@@ -435,7 +434,7 @@ use const_phys                      ! Physical constants
 use estab                           ! Liquid saturation function
 use extraout_m                      ! Additional diagnostics
 use morepbl_m                       ! Additional boundary layer diagnostics
-use newmpar_m, only : ifull,ms,kl   ! Grid parameters
+use newmpar_m, only : ifull         ! Grid parameters
 use parm_m                          ! Model configuration
 use pbl_m                           ! Boundary layer arrays
 use riverarrays_m                   ! River data
@@ -486,8 +485,8 @@ do iq=1,ifull                                                                   
     wetfac(iq)=1.                                                                                ! sea
     ! tpan holds effective sea for this loop                                                     ! sea
     if(ntss_sh==0)then                                                                           ! sea
-      dtsol=.01*sgsave(iq)/(1.+.25*vmod(iq)**2)   ! solar heating                                ! sea
-      tpan(iq)=tgg(iq,1)+tss_sh*min(dtsol,8.)     ! of ssts                                      ! sea
+      dtsol=tss_sh*.01*sgsave(iq)/(1.+.25*vmod(iq)**2)  ! solar heating                          ! sea
+      tpan(iq)=tgg(iq,1)+min(dtsol,8.)                  ! of ssts                                ! sea
     elseif(ntss_sh==3)then                                                                       ! sea
       dtsol=tss_sh*.01*sgsave(iq)/(1.+.035*vmod(iq)**3) ! solar heating                          ! sea
       tpan(iq)=tgg(iq,1)+min(dtsol,8.)                  ! of ssts                                ! sea
@@ -880,12 +879,11 @@ use work3_m                        ! Mk3 land-surface diagnostic arrays
 implicit none
 
 integer tile, is, ie, k
-real, dimension(imax) :: loldu1, loldv1
 real, dimension(imax) :: lwatbdy
 logical, dimension(imax) :: loutflowmask
 
 !$omp do schedule(static) private(is,ie,k),                                         &
-!$omp private(loldu1,loldv1,lwatbdy,loutflowmask)
+!$omp private(lwatbdy,loutflowmask)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -894,10 +892,6 @@ do tile = 1,ntiles
     lwatbdy      = watbdy(is:ie)
     loutflowmask = outflowmask(is:ie)
   end if
-  if ( abs(nmlo)>=3 ) then
-    loldu1 = oldu1(is:ie,1)
-    loldv1 = oldv1(is:ie,1)
-  end if
   
   call sflux_mlo_work(ri(is:ie),srcp,vmag(is:ie),ri_max,bprm,chs,ztv,chnsea,rho(is:ie),azmin(is:ie),     &
                       uav(is:ie),vav(is:ie),                                                             &
@@ -905,7 +899,7 @@ do tile = 1,ntiles
                       swrsave(is:ie),fbeamvis(is:ie),fbeamnir(is:ie),taux(is:ie),tauy(is:ie),            &
                       ustar(is:ie),f(is:ie),water_g(tile),wpack_g(:,tile),wfull_g(tile),depth_g(tile),   &
                       dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),ice_g(tile),                          &
-                      loldu1,loldv1,tpan(is:ie),epan(is:ie),rnet(is:ie),condx(is:ie),                    &
+                      tpan(is:ie),epan(is:ie),rnet(is:ie),condx(is:ie),                                  &
                       conds(is:ie),condg(is:ie),fg(is:ie),eg(is:ie),epot(is:ie),                         &
                       tss(is:ie),cduv(is:ie),cdtq(is:ie),lwatbdy,loutflowmask,land(is:ie),               &
                       fracice(is:ie),sicedep(is:ie),snowd(is:ie),sno(is:ie),grpl(is:ie),qsttg(is:ie),    &
@@ -935,7 +929,7 @@ end subroutine sflux_mlo
 subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,      &
                           ps,t,qg,sgdn,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy, &
                           ustar,f,water,wpack,wfull,depth,dgice,dgscrn,dgwater,ice,       &
-                          oldu1,oldv1,tpan,epan,rnet,condx,conds,condg,fg,eg,epot,        &
+                          tpan,epan,rnet,condx,conds,condg,fg,eg,epot,                    &
                           tss,cduv,cdtq,watbdy,outflowmask,land,                          &
                           fracice,sicedep,snowd,sno,grpl,qsttg,vmod,zo,wetfac,            &
                           zoh,zoq,theta,ga,turb)
@@ -945,7 +939,7 @@ use const_phys                       ! Physical constants
 use estab                            ! Liquid saturation function
 use mlo, only : waterdata,icedata, & ! Ocean physics and prognostic arrays
   dgwaterdata,dgicedata,dgscrndata,& 
-  depthdata,wrtemp,wlev,mloeval,   &
+  depthdata,mloeval,               & 
   mloexport,mloimport,mloextra,    &
   mloexpice,turbdata
 use newmpar_m                        ! Grid parameters
@@ -954,19 +948,18 @@ use soil_m, only : zmin              ! Soil and surface data
 
 implicit none
 
-integer iq, k
+integer iq
 integer, intent(in) :: wfull
 real root, denha, esatf
 real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
 real, dimension(imax), intent(in) :: t, qg
-real, dimension(imax), intent(in) :: oldu1, oldv1
 real, dimension(imax), intent(inout) :: ri, taux, tauy, ustar, tpan, epan, rnet
 real, dimension(imax), intent(inout) :: fg, eg, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
 real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh, zoq, ga
 real, dimension(imax), intent(in) :: vmag, rho, azmin, uav, vav, ps, sgdn, sgsave, rgsave, swrsave
 real, dimension(imax), intent(in) :: fbeamvis, fbeamnir, f, condx, conds, condg, vmod, theta
-real, dimension(imax) :: neta, oflow, dumw, dumrg, dumx, dums, rid, fhd, fh
-real, dimension(imax) :: umod
+real, dimension(imax) :: neta, oflow, dumw, dumrg, dumx, dums, fhd
+real, dimension(imax) :: umod, umag
 logical, dimension(imax), intent(in) :: wpack, outflowmask, land
 type(waterdata), intent(inout) :: water
 type(dgicedata), intent(inout) :: dgice
@@ -976,30 +969,14 @@ type(icedata), intent(inout) :: ice
 type(depthdata), intent(in) :: depth
 type(turbdata), intent(inout) :: turb
 
-umod = 0. ! this is vmod, but accounts for moving surface                                      ! MLO
+umod = vmod ! this is vmod, but accounts for moving surface                                    ! MLO
                                                                                                ! MLO
 if ( abs(nmlo)==1 ) then                                                                       ! MLO
   ! Single column                                                                              ! MLO
   ! set free surface to zero when water is not conserved                                       ! MLO
   neta=0.                                                                                      ! MLO
-  call mloimport(4,neta,0,0,water,wpack,wfull)                                                 ! MLO
+  call mloimport(4,neta,0,0,water,depth,wpack,wfull)                                           ! MLO
 end if                                                                                         ! MLO
-                                                                                               ! MLO
-! pan evaporation diagnostic                                                                   ! MLO
-qsttg=qsat(ps(1:imax),tpan)                                                                    ! MLO
-do iq=1,imax                                                                                   ! MLO
-  if ( land(iq) ) then                                                                         ! MLO  
-    ri(iq)=min(grav*zmin*(1.-tpan(iq)*srcp/t(iq))/vmag(iq)**2,ri_max)                          ! MLO
-    if(ri(iq)>0.)then                                                                          ! MLO
-      fh(iq)=vmod(iq)/(1.+bprm*ri(iq))**2                                                      ! MLO
-    else                                                                                       ! MLO
-      root=sqrt(-ri(iq)*zmin/panzo)                                                            ! MLO
-      denha=1.+chs*2.*bprm*sqrt(panzo*ztv)*chnsea*root                                         ! MLO
-      fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                                           ! MLO
-    endif                                                                                      ! MLO
-    epan(iq)=rho(iq)*chnsea*hl*fh(iq)*(qsttg(iq)-qg(iq))                                       ! MLO
-  end if                                                                                       ! MLO  
-end do                                                                                         ! MLO
                                                                                                ! MLO
 ! inflow and outflow model for rivers                                                          ! MLO
 if ( abs(nmlo)>=2 ) then                                                                       ! MLO
@@ -1015,7 +992,7 @@ if ( abs(nmlo)>=2 ) then                                                        
     watbdy(1:imax) = watbdy(1:imax) + 1000.*oflow(:)                                           ! MLO
     neta(1:imax) = neta(1:imax) - oflow(:)                                                     ! MLO
   end where                                                                                    ! MLO
-  call mloimport(4,neta,0,0,water,wpack,wfull)                                                 ! MLO
+  call mloimport(4,neta,0,0,water,depth,wpack,wfull)                                           ! MLO
 else                                                                                           ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO
 end if                                                                                         ! MLO
@@ -1036,35 +1013,42 @@ call mloextra(3,zoq,azmin,0,dgwater,dgice,ice,wpack,wfull)                      
 call mloextra(1,taux,azmin,0,dgwater,dgice,ice,wpack,wfull)                                    ! MLO
 call mloextra(2,tauy,azmin,0,dgwater,dgice,ice,wpack,wfull)                                    ! MLO
                                                                                                ! MLO
-! stuff to keep tpan over land working                                                         ! MLO
-rid=min(grav*zmin*(1.-tpan*srcp/t(1:imax))/vmag**2,ri_max)                                     ! MLO
-where (rid>0.)                                                                                 ! MLO
-  fhd=vmod/(1.+bprm*rid)**2                                                                    ! MLO
-elsewhere                                                                                      ! MLO
-  fhd=vmod-vmod*2.*bprm*rid/(1.+chs*2.*bprm*sqrt(panzo*ztv)*chnsea*sqrt(-rid*zmin/panzo))      ! MLO
+where ( .not.land(1:imax) )                                                                    ! MLO
+  tpan = tss(:) ! assume tss_sh=0.                                                             ! MLO
 end where                                                                                      ! MLO
                                                                                                ! MLO
+! pan evaporation diagnostic                                                                   ! MLO
+umag = max( umod, vmodmin )                                                                    ! MLO
+qsttg = qsat(ps(1:imax),tpan)                                                                  ! MLO
+ri = min(grav*zmin*(1.-tpan*srcp/t)/umag**2,ri_max)                                            ! MLO
+                                                                                               ! MLO
+! stuff to keep tpan over land working                                                         ! MLO
+where (ri>0.)                                                                                  ! MLO
+  fhd=umod/(1.+bprm*ri)**2                                                                     ! MLO
+elsewhere                                                                                      ! MLO
+  fhd=umod-umod*2.*bprm*ri/(1.+chs*2.*bprm*chnsea*sqrt(-ri*zmin/panzo))                        ! MLO
+end where                                                                                      ! MLO
+qsttg = qsat(ps(1:imax),tpan)                                                                  ! MLO
+                                                                                               ! MLO
 where ( .not.land(1:imax) )                                                                    ! MLO
-  snowd=snowd*1000.                                                                            ! MLO
-  ga=0.                                                                                        ! MLO
-  tpan=tss                                                                                     ! MLO
-  sno=sno+conds                                                                                ! MLO
-  grpl=grpl+condg                                                                              ! MLO
+  snowd = snowd*1000.                                                                          ! MLO
+  ga = 0.                                                                                      ! MLO
+  sno = sno + conds                                                                            ! MLO
+  grpl = grpl + condg                                                                          ! MLO
   ! This cduv accounts for a moving surface                                                    ! MLO
   cduv = cduv*umod                                                                             ! MLO
   cdtq = cdtq*umod                                                                             ! MLO
   ustar = sqrt(cduv*umod)                                                                      ! MLO
 elsewhere                                                                                      ! MLO
+  ! assume gflux = 0                                                                           ! MLO
+  ! note pan depth=.254 m, spec heat water=4186 joule/kg K                                     ! MLO
+  ! and change in heat supplied=spec_heatxmassxdelta_T                                         ! MLO
   fg=rho*chnsea*cp*fhd*(tpan-theta)                                                            ! MLO
   ga=sgsave-rgsave-5.67e-8*tpan**4-panfg*fg                                                    ! MLO
-  tpan=tpan+ga*dt/(4186.*.254*1000.)                                                           ! MLO
-endwhere                                                                                       ! MLO
-do iq=1,imax                                                                                   ! MLO
-  if (.not.land(iq)) then                                                                      ! MLO
-    esatf = establ(tss(iq))                                                                    ! MLO
-    qsttg(iq)=.622*esatf/max(ps(iq)-esatf,0.1)                                                 ! MLO
-  end if                                                                                       ! MLO
-end do                                                                                         ! MLO
+  tpan=tpan+ga*dt/(4186.*0.254*1000.)                                                          ! MLO
+  epan=rho*chnsea*hl*fhd*(qsttg-qg)                                                            ! MLO
+end where                                                                                      ! MLO
+qsttg = qsat(ps(1:imax),tss)                                                                   ! MLO
 
 return
 end subroutine sflux_mlo_work
@@ -1084,7 +1068,6 @@ use parm_m                         ! Model configuration
 use parmgeom_m                     ! Coordinate data
 use pbl_m                          ! Boundary layer arrays
 use raddiag_m                      ! Radiation diagnostic
-use soil_m, only : land            ! Soil and surface data
 use soilsnow_m                     ! Soil, snow and surface data
 use vecsuv_m                       ! Map to cartesian coordinates
 use work2_m                        ! Diagnostic arrays
@@ -1116,13 +1099,13 @@ do tile=1,ntiles
     lvmer= sinth*uav(is:ie)+costh*vav(is:ie)  ! meridonal wind
 #endif
 
-  call sflux_urban_work(azmin(is:ie),uav(is:ie),vav(is:ie),oldrunoff(is:ie),rho(is:ie),vmag(is:ie),                  &
+  call sflux_urban_work(azmin(is:ie),oldrunoff(is:ie),rho(is:ie),vmag(is:ie),                                        &
                         oldsnowmelt(is:ie),f_g(tile),                                                                &
                         f_intm(tile),f_road(tile),f_roof(tile),f_slab(tile),f_wall(tile),intm_g(:,tile),p_g(:,tile), &
                         rdhyd_g(:,tile),rfhyd_g(:,tile),rfveg_g(tile),road_g(:,tile),roof_g(:,tile),room_g(:,tile),  &
                         slab_g(:,tile),walle_g(:,tile),wallw_g(:,tile),cnveg_g(tile),intl_g(tile),                   &
                         luzon,lvmer,cdtq(is:ie),cduv(is:ie),conds(is:ie),                                            &
-                        condg(is:ie),condx(is:ie),eg(is:ie),fg(is:ie),land(is:ie),ps(is:ie),qg(is:ie,1),             &
+                        condg(is:ie),condx(is:ie),eg(is:ie),fg(is:ie),ps(is:ie),qg(is:ie,1),                         &
                         qsttg(is:ie),rgsave(is:ie),rnet(is:ie),runoff(is:ie),sgdn(is:ie),sgsave(is:ie),              &
                         snowmelt(is:ie),t(is:ie,1),taux(is:ie),tauy(is:ie),tss(is:ie),u(is:ie,1),                    &
                         ustar(is:ie),v(is:ie,1),vmod(is:ie),wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),           &
@@ -1137,10 +1120,10 @@ end do
 return
 end subroutine sflux_urban
 
-subroutine sflux_urban_work(azmin,uav,vav,oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,              &
+subroutine sflux_urban_work(azmin,oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,              &
                             fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl, &
                             uzon,vmer,cdtq,cduv,                                                                  &
-                            conds,condg,condx,eg,fg,land,ps,qg,qsttg,rgsave,rnet,runoff,sgdn,sgsave,snowmelt,     &
+                            conds,condg,condx,eg,fg,ps,qg,qsttg,rgsave,rnet,runoff,sgdn,sgsave,snowmelt,          &
                             t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,                                     &
                             anthropogenic_flux,urban_ts,urban_wetfac,urban_zom,urban_zoh,urban_zoq,urban_emiss,   &
                             urban_storage_flux,urban_elecgas_flux,urban_heating_flux,urban_cooling_flux,          &
@@ -1159,13 +1142,12 @@ implicit none
 
 integer, intent(in) :: ufull
 real, dimension(imax), intent(in) :: uzon,vmer
-real, dimension(imax) :: newrunoff
 real, dimension(imax) :: dumrg,dumx,dums
 real, dimension(imax) :: newsnowmelt
 real, dimension(imax) :: u_fg, u_eg, u_rn
 real, dimension(imax) :: zo_work, zoh_work, zoq_work, u_sigma
 real, dimension(imax) :: cduv_work, cdtq_work
-real, dimension(imax), intent(in) :: azmin, uav, vav, oldrunoff, rho, vmag, oldsnowmelt
+real, dimension(imax), intent(in) :: azmin, oldrunoff, rho, vmag, oldsnowmelt
 real, dimension(imax), intent(inout) :: anthropogenic_flux, urban_ts, urban_wetfac
 real, dimension(imax), intent(inout) :: urban_zom, urban_zoh, urban_zoq, urban_emiss
 real, dimension(imax), intent(inout) :: urban_storage_flux,urban_elecgas_flux
@@ -1178,7 +1160,7 @@ real, dimension(imax), intent(inout) :: rnet, runoff, snowmelt
 real, dimension(imax), intent(inout) :: taux, tauy, tss, ustar, wetfac
 real, dimension(imax), intent(inout) :: zo, zoh, zoq
 real, dimension(imax), intent(in) :: qg, t, u, v
-logical, dimension(imax), intent(in) :: land, upack
+logical, dimension(imax), intent(in) :: upack
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
 type(hydrodata), dimension(nfrac), intent(inout) :: rdhyd, rfhyd
 type(vegdata), intent(inout) :: rfveg, cnveg
@@ -1252,11 +1234,11 @@ urban_elecgas_flux = 0.                                                         
 urban_heating_flux = 0.                                                                          ! urban
 urban_cooling_flux = 0.                                                                          ! urban
 urban_storage_flux = 0.                                                                          ! urban
-call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,upack,ufull)                          ! urban
-call atebenergy(urban_elecgas_flux,"elecgas",0,fp,pd,upack,ufull)                                ! urban
-call atebenergy(urban_heating_flux,"heating",0,fp,pd,upack,ufull)                                ! urban
-call atebenergy(urban_cooling_flux,"cooling",0,fp,pd,upack,ufull)                                ! urban
-call atebenergy(urban_storage_flux,"storage",0,fp,pd,upack,ufull)                                ! urban
+call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,rdhyd,rfhyd,upack,ufull)                          ! urban
+call atebenergy(urban_elecgas_flux,"elecgas",0,fp,pd,rdhyd,rfhyd,upack,ufull)                                ! urban
+call atebenergy(urban_heating_flux,"heating",0,fp,pd,rdhyd,rfhyd,upack,ufull)                                ! urban
+call atebenergy(urban_cooling_flux,"cooling",0,fp,pd,rdhyd,rfhyd,upack,ufull)                                ! urban
+call atebenergy(urban_storage_flux,"storage",0,fp,pd,rdhyd,rfhyd,upack,ufull)                                ! urban
 where ( u_sigma>0. )                                                                             ! urban
   qsttg(1:imax) = qsat(ps(1:imax),tss(1:imax))                                                   ! urban
   rnet(1:imax) = sgsave(1:imax) - rgsave(1:imax) - stefbo*tss(1:imax)**4                         ! urban
@@ -1293,8 +1275,8 @@ implicit none
 
 integer iq
 real, dimension(ifull) :: fh,taftfhg_temp,factch
-real zologx,xx,fhbg,es,afroot,fm,con,daf,den,dden,dfm,root,denma,denha
-real deg,b1,zobg,zologbg,afland,aftlandg,rootbg,denhabg,thnew,thgnew,thnewa,aftland
+real zologx,xx,fhbg,es,afroot,fm,root,denma,denha
+real zobg,zologbg,afland,aftlandg,rootbg,denhabg,thnew,thgnew,thnewa,aftland
 real thgnewa,ri_tmp,fh_tmp
 
 integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af

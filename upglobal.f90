@@ -57,13 +57,12 @@ include 'kuocom.h'         ! Convection parameters
 
 integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
 integer ii, intsch, iq, jj, k, kk
-integer idjdd, nstart, nend, ntot, tile
+integer idjdd, nstart, tile
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits, nvadh_pass
 #ifdef debug
 integer, save :: num_hight = 0
 #endif
-real, dimension(ifull+iextra,kl,nagg) :: duma
 real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
 real, dimension(ifull+iextra) :: aa
 real, dimension(ifull,kl) :: theta
@@ -194,16 +193,13 @@ if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
   if ( nh/=0 ) then
     ! non-hydrostatic version
-    duma(1:ifull,:,1) = pslx(1:ifull,:)
-    duma(1:ifull,:,2) = h_nh(1:ifull,:)
-    call ints(2,duma,intsch,nface,xg,yg,1)
-    pslx(1:ifull,:) = duma(1:ifull,:,1)
-    h_nh(1:ifull,:) = duma(1:ifull,:,2)
+    call ints(pslx,intsch,nface,xg,yg,1)
+    call ints(h_nh,intsch,nface,xg,yg,1)
   else
     ! hydrostatic version
-    call ints(1,pslx,intsch,nface,xg,yg,1)
+    call ints(pslx,intsch,nface,xg,yg,1)
   end if ! nh/=0
-  call ints(1,tx,intsch,nface,xg,yg,3)
+  call ints(tx,intsch,nface,xg,yg,3)
 end if    ! mup/=0
 
 do k = 1,kl
@@ -270,13 +266,9 @@ if ( diag ) then
 end if
 
 if ( mup/=0 ) then
-  duma(1:ifull,:,1) = uc(1:ifull,:)
-  duma(1:ifull,:,2) = vc(1:ifull,:)
-  duma(1:ifull,:,3) = wc(1:ifull,:)
-  call ints(3,duma,intsch,nface,xg,yg,2)
-  uc(1:ifull,:) = duma(1:ifull,:,1)
-  vc(1:ifull,:) = duma(1:ifull,:,2)
-  wc(1:ifull,:) = duma(1:ifull,:,3)
+  call ints(uc,intsch,nface,xg,yg,2)
+  call ints(vc,intsch,nface,xg,yg,2)
+  call ints(wc,intsch,nface,xg,yg,2)
 end if
 
 if ( diag ) then
@@ -346,17 +338,12 @@ end if
 
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   if ( ldr/=0 ) then
-    duma(1:ifull,:,1) = qg(1:ifull,:)
-    duma(1:ifull,:,2) = qlg(1:ifull,:)
-    duma(1:ifull,:,3) = qfg(1:ifull,:)
-    duma(1:ifull,:,4) = stratcloud(1:ifull,:)
-    call ints(4,duma,intsch,nface,xg,yg,4)
-    qg(1:ifull,:)  = duma(1:ifull,:,1)
-    qlg(1:ifull,:) = duma(1:ifull,:,2)
-    qfg(1:ifull,:) = duma(1:ifull,:,3)
-    stratcloud(1:ifull,:) = duma(1:ifull,:,4)
+    call ints(qg,intsch,nface,xg,yg,4)
+    call ints(qlg,intsch,nface,xg,yg,4)
+    call ints(qfg,intsch,nface,xg,yg,4)
+    call ints(stratcloud,intsch,nface,xg,yg,4)
   else
-    call ints(1,qg,intsch,nface,xg,yg,3)
+    call ints(qg,intsch,nface,xg,yg,3)
   end if    ! ldr/=0
   if ( ngas>0 .or. nextout>=4 ) then
     if ( nmaxpr==1 .and. mydiag ) then
@@ -368,10 +355,8 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     end if
     if ( ngas>0 ) then
-      do nstart = 1, ngas, nagg
-        nend = min(nstart+nagg-1, ngas)
-        ntot = nend - nstart + 1
-        call ints(ntot,tr(:,:,nstart:nend),intsch,nface,xg,yg,5)
+      do nstart = 1, ngas
+        call ints(tr(:,:,nstart),intsch,nface,xg,yg,5)
       end do
     end if
     if ( nmaxpr==1 .and. mydiag ) then
@@ -381,17 +366,12 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     endif
   endif  ! (ngas>0.or.nextout>=4)
   if ( nvmix==6 ) then
-    duma(1:ifull,:,1) = tke(1:ifull,:)
-    duma(1:ifull,:,2) = eps(1:ifull,:)
-    call ints(2,duma,intsch,nface,xg,yg,4)
-    tke(1:ifull,:) = duma(1:ifull,:,1)
-    eps(1:ifull,:) = duma(1:ifull,:,2)
+    call ints(tke,intsch,nface,xg,yg,4)
+    call ints(eps,intsch,nface,xg,yg,4)
   endif                 ! nvmix==6
   if ( abs(iaero)>=2 ) then
-    do nstart = 1,naero,nagg
-      nend = min(nstart+nagg-1, naero)
-      ntot = nend - nstart + 1
-      call ints(ntot,xtg(:,:,nstart:nend),intsch,nface,xg,yg,5)
+    do nstart = 1,naero
+      call ints(xtg(:,:,nstart),intsch,nface,xg,yg,5)
     end do
   end if
 end if     ! mspec==1

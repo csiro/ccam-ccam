@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -293,7 +293,7 @@ select case(nvmix)
     
       call vertmix_work(lt,tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),               &
                         ps(is:ie),lqg,lqfg,lqlg,lstratcloud,                                                       &
-                        condc(is:ie),lcfrac,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),zo(is:ie),lsavu,lsavv,land(is:ie),  &
+                        condc(is:ie),lcfrac,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),lsavu,lsavv,land(is:ie),            &
                         tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),                   &
                         lat,lct,                                                                                   &
 #ifdef scm
@@ -373,7 +373,7 @@ end subroutine vertmix
 !--------------------------------------------------------------
 ! Control subroutine for vertical mixing
 subroutine vertmix_work(t,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,stratcloud,condc,cfrac, &
-                        xtg,cduv,u,v,pblh,zo,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,     &
+                        xtg,cduv,u,v,pblh,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,        &
                         at,ct,                                                                 &
 #ifdef scm
                         wth_flux,wq_flux,uw_flux,vw_flux,mfsave,rkmsave,rkhsave,               &
@@ -389,9 +389,9 @@ use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use estab, only : establ            ! Liquid saturation function
 use newmpar_m                       ! Grid parameters
-use parm_m, only : diag,ds,ktau,     &
+use parm_m, only : diag,ktau,        &
     nvmix,dt,nlv,ia,ib,ja,jb,nmaxpr, &
-    iaero,nlocal,qgmin,av_vmod,      &
+    iaero,nlocal,av_vmod,            &
     amxlsq,dvmodmin                 ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : zmin             ! Soil and surface data
@@ -418,17 +418,16 @@ real, dimension(imax,kl), intent(out) :: at, ct
 real, dimension(imax,kl), intent(in) :: savu, savv
 real, dimension(imax), intent(inout) :: pblh, ustar
 real, dimension(imax), intent(in) :: tss, eg, fg, convpsav, ps, condc
-real, dimension(imax), intent(in) :: cduv, zo, tscrn, qgscrn, f, condx, zs
+real, dimension(imax), intent(in) :: cduv, tscrn, qgscrn, f, condx, zs
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, guv, gt
-real, dimension(imax,kl) :: au, cu, zg
+real, dimension(imax,kl) :: au, cu
 real, dimension(imax,kl) :: uav, vav
 real, dimension(imax,kl) :: rkm, rkh
 real, dimension(imax,kl) :: qs, betatt, betaqt, delthet, ri, rk_shal, thee
 real, dimension(imax,kl) :: thebas
 real, dimension(imax,kl-1) :: tmnht
 real, dimension(imax) :: dz, dzr
-real, dimension(imax) :: rhos
 real, dimension(imax) :: zhv, dvmod, dqtot, x, csq, sqmxl, fm, fh, theeb
 real, dimension(imax) :: sigsp
 real, dimension(kl) :: sighkap,sigkap,delons,delh
@@ -613,6 +612,10 @@ select case(ksc)
       do iq=1,imax
         if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
           delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+        endif 
+      enddo  ! iq loop
+      do iq=1,imax
+        if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)<1.e-20)then  
           write(6,*)'-96 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
         endif 
       enddo  ! iq loop
@@ -1404,7 +1407,6 @@ real, parameter :: fakn   = 7.2   ! Constant in turbulent prandtl number
 real, parameter :: ricr   = 0.25  ! Critical richardson number
 real, parameter :: sffrac = 0.1   ! Surface layer fraction of boundary layer
 real, parameter :: vk     = 0.4   ! Von Karman's constant
-real, parameter :: mfbeta = 0.    ! Horizontal scale constant (usual is 0.15)
 real ccon    ! fak * sffrac * vk
 real binm    ! betam * sffrac
 real binh    ! betah * sffrac
@@ -1721,13 +1723,15 @@ subroutine trim(a,c,rhs)
 
 implicit none
 
-integer k, kl
-real, dimension(:,:), intent(in) :: a, c
-real, dimension(:,:), intent(inout) :: rhs
+integer k, kl, iq, imax
+real, dimension(:,:), contiguous, intent(in) :: a, c
+real, dimension(:,:), contiguous, intent(inout) :: rhs
 real, dimension(size(a,1),size(a,2)) :: e, g
-real, dimension(size(a,1)) :: b, temp
+real, dimension(size(a,1)) :: b
+real :: temp
 
 kl = size(a,2)
+imax = size(a,1)
 
 ! this routine solves the system
 !   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
@@ -1735,14 +1739,18 @@ kl = size(a,2)
 !   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
 
 ! the Thomas algorithm is used
-b(:)=1.-a(:,1)-c(:,1)
-e(:,1)=c(:,1)/b(:)
-g(:,1)=rhs(:,1)/b(:)
+do iq = 1,imax
+  b(iq)=1.-a(iq,1)-c(iq,1)
+  e(iq,1)=c(iq,1)/b(iq)
+  g(iq,1)=rhs(iq,1)/b(iq)
+end do
 do k = 2,kl-1
-  b(:)=1.-a(:,k)-c(:,k)
-  temp(:)= 1./(b(:)-a(:,k)*e(:,k-1))
-  e(:,k)=c(:,k)*temp(:)
-  g(:,k)=(rhs(:,k)-a(:,k)*g(:,k-1))*temp(:)
+  do iq = 1,imax
+    b(iq)=1.-a(iq,k)-c(iq,k)
+    temp= 1./(b(iq)-a(iq,k)*e(iq,k-1))
+    e(iq,k)=c(iq,k)*temp
+    g(iq,k)=(rhs(iq,k)-a(iq,k)*g(iq,k-1))*temp
+  end do
 end do
 
 ! do back substitution to give answer now
@@ -1791,7 +1799,6 @@ real, dimension(imax) :: dz
 real, dimension(imax) :: rhos, dx
 real, dimension(kl) :: sigkap, delh
 real rong, rlogs1, rlogs2, rlogh1, rlog12
-real conflux, condrag
 #ifdef scm
 real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
 real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave, epssave

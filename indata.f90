@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -142,7 +142,7 @@ real, dimension(ifull,kl,naero) :: xtgdwn
 real, dimension(ifull,kl,9) :: dumb
 real, dimension(:,:), allocatable, save :: global2d, local2d
 real, dimension(:), allocatable, save :: davt_g
-real, dimension(3*kl+5) :: dumc
+real, dimension(3*kl+7) :: dumc
 real, dimension(9) :: swilt_diag, sfc_diag
 real, dimension(ms) :: wb_tmpry
 real, dimension(ifull,maxtile) :: svs,vlin,vlinprev,vlinnext,vlinnext2
@@ -165,7 +165,7 @@ real urbanformat
 character(len=1024) :: surfin
 character(len=80) :: header
 character(len=20) :: vname
-logical tst
+logical tst, fileerror
 
 ! The following look-up tables are for the Mk3 land-surface scheme
 real, dimension(44), parameter :: vegpmin = (/                           &
@@ -260,32 +260,25 @@ if ( myid==0 ) then
   dumc(3*kl+1)=0.     ! lncveg 
   dumc(3*kl+4)=0.     ! urbanformat
   dumc(3*kl+5)=0.     ! urbantypes
-  if ( nsib>=6 ) then
-    call ccnf_open(vegfile,ncidveg,ierr)
-    if ( ierr==0 ) then
-      dumc(3*kl+1) = 1. ! lncveg
-      call ccnf_get_attg(ncidveg,'atebformat',urbanformat,ierr=iernc)
-      if ( iernc/=0 ) then
-        urbanformat = 0.  
-      end if
+  dumc(3*kl+6)=-1.    ! lncveg_numpft
+  dumc(3*kl+7)=-1.    ! lncveg_numsoil
+  call ccnf_open(vegfile,ncidveg,ierr)
+  if ( ierr==0 ) then
+    dumc(3*kl+1) = 1. ! lncveg
+    urbanformat = 0.
+    call ccnf_get_attg(ncidveg,'atebformat',urbanformat,ierr=iernc)
+    if ( iernc==0 ) then
       dumc(3*kl+4) = urbanformat  
-      ateb_len = 0
-      call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len,failok=.true.)
-      dumc(3*kl+5) = real(ateb_len)
     end if
-  else if ( nsib==5 ) then
-    call ccnf_open(vegfile,ncidveg,ierr)
-    if ( ierr==0 ) then
-      dumc(3*kl+1) = 1. ! lncveg
-      call ccnf_get_attg(ncidveg,'atebformat',urbanformat,ierr=iernc)
-      if ( iernc/=0 ) then
-        urbanformat = 0.  
-      end if
-      dumc(3*kl+4) = urbanformat   
-      ateb_len = 0
-      call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len,failok=.true.)
-      dumc(3*kl+5) = real(ateb_len)
-    end if
+    ateb_len = 0
+    call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len,failok=.true.)
+    dumc(3*kl+5) = real(ateb_len)
+    lncveg_numpft = -1
+    call ccnf_inq_dimlen(ncidveg,'pft',lncveg_numpft,failok=.true.)
+    dumc(3*kl+6) = real(lncveg_numpft)
+    lncveg_numsoil = -1
+    call ccnf_inq_dimlen(ncidveg,'soil',lncveg_numsoil,failok=.true.)
+    dumc(3*kl+7) = real(lncveg_numsoil)
   end if
   
   if ( ((nmlo/=0.and.abs(nmlo)<=9).or.nriver/=0) .and. bathfile==" " ) then
@@ -310,18 +303,21 @@ if ( myid==0 ) then
 end if ! (myid==0)
 
 ! distribute vertical and vegfile data to all processors
-! dumc(1:kl)   = sig,        dumc(kl+1:2*kl) = sigmh,    dumc(2*kl+1:3*kl) = tbar
-! dumc(3*kl+1) = lncveg,     dumc(3*kl+2)    = lncbath,  dumc(3*kl+3)      = lncriver
-! dumc(3*kl+4) = urbanformat
-call ccmpi_bcast(dumc(1:3*kl+5),0,comm_world)
-sig         = dumc(1:kl)
-sigmh       = dumc(kl+1:2*kl)
-tbar        = dumc(2*kl+1:3*kl)
-lncveg      = nint(dumc(3*kl+1))
-lncbath     = nint(dumc(3*kl+2))
-lncriver    = nint(dumc(3*kl+3))
-urbanformat = dumc(3*kl+4)
-ateb_len    = nint(dumc(3*kl+5))
+! dumc(1:kl)   = sig,         dumc(kl+1:2*kl) = sigmh,      dumc(2*kl+1:3*kl) = tbar
+! dumc(3*kl+1) = lncveg,      dumc(3*kl+2)    = lncbath,    dumc(3*kl+3)      = lncriver
+! dumc(3*kl+4) = urbanformat, dumc(3*kl+5)    = urbantypes, dumc(3*kl+6)      = lncveg_numpft
+! dumc(3*kl+7) = lncveg_numsoil
+call ccmpi_bcast(dumc(1:3*kl+7),0,comm_world)
+sig            = dumc(1:kl)
+sigmh          = dumc(kl+1:2*kl)
+tbar           = dumc(2*kl+1:3*kl)
+lncveg         = nint(dumc(3*kl+1))
+lncbath        = nint(dumc(3*kl+2))
+lncriver       = nint(dumc(3*kl+3))
+urbanformat    = dumc(3*kl+4)
+ateb_len       = nint(dumc(3*kl+5))
+lncveg_numpft  = nint(dumc(3*kl+6))
+lncveg_numsoil = nint(dumc(3*kl+7))
 if ( myid==0 ) then
   write(6,*) "Testing for NetCDF surface files"
   write(6,*) "lncveg,lncbath,lncriver=",lncveg,lncbath,lncriver
@@ -714,11 +710,11 @@ if ( nsib>=1 ) then   !  check here for soil & veg mismatches
 endif      ! (nsib>=1)
 
 
-! Fix for inland water bodies
+! Fix for inland water bodies (in case of changes to isoilm)
 where ( isoilm>0 )
   isoilm_in = isoilm
 elsewhere
-  isoilm_in = min(isoilm, 0)
+  isoilm_in = min(isoilm, isoilm_in) ! preserve isoilm_in=-1 if still water
 end where
 
 
@@ -746,7 +742,7 @@ end if
 ! nurban=-1 urban (save in history and restart files)
 if ( nurban/=0 ) then
   if ( myid==0 ) write(6,*) 'Initialise UCLEM urban scheme'
-  where ( .not.land(1:ifull) .or. sigmu<0.01 )
+  where ( .not.land(1:ifull) )
     sigmu(:) = 0.
   end where
   call atebinit(ifull,sigmu(:),0)
@@ -1075,7 +1071,12 @@ call vcom_init(comm_world,land,fracice,sicedep,tss,tgg(:,1),tggsn(:,1), &
 if ( nspecial>100 ) then ! increase ps globally by nspecial Pa
   ps(1:ifull) = ps(1:ifull) + nspecial
   psl(:) = log(1.e-5*ps(:))
-endif  ! (nspecial>100)       
+endif  ! (nspecial>100)   
+
+if ( nspecial==50 ) then
+  fracice = 0.
+  sicedep = 0.
+end if
 
 if ( nsib==3 ) then
   ! put in Antarctica ice-shelf fixes 5/3/07
@@ -1385,7 +1386,8 @@ end if     ! (nhstest<0)
 !                    -4  read_in          | not written  (usual for netCDF input)
 !                    -5  read_in (not wb) |     written  (should be good)
 !                    -6 same as -1 bit tapered wb over dry interio of Aust
-!                   -14 same as -4, but ignores date (usual for climatology)
+!                   -14 same as -4, but ignores date (usual for climatology) and requires netcdf format
+!                   -24 same as -4, but requires netcdf format
 !                    >5 like -1 but sets most wb percentages
 
 ! preset soil data
@@ -1396,76 +1398,77 @@ if ( .not.lrestart ) then
     if ( myid==0 ) then
       write(6,*) "Using preset soil/snow initial conditions with nrungcm=",nrungcm
     end if  
-    iyr=kdate/10000
-    imo=(kdate-10000*iyr)/100
-    do iq=1,ifull
-      if(land(iq))then
-        iveg=ivegt(iq)
-        if (nsib==6.or.nsib==7) iveg=1
-        isoil=isoilm(iq)
-        rlonx=rlongg(iq)*180./pi
-        rlatx=rlatt(iq)*180./pi
+    iyr = kdate/10000
+    imo = (kdate-10000*iyr)/100
+    do iq = 1,ifull
+      if ( land(iq) ) then
+        iveg = ivegt(iq)
+        if ( nsib==6 .or. nsib==7 ) iveg = 1
+        isoil = isoilm(iq)
+        rlonx = rlongg(iq)*180./pi
+        rlatx = rlatt(iq)*180./pi
         ! fracsum(imo) is .5 for nh summer value, -.5 for nh winter value
-        fracs=sign(1.,rlatt(iq))*fracsum(imo)  ! +ve for local summer
-        if(nrungcm>5)then
-          fracwet=.01*nrungcm   ! e.g. 50 gives .5
+        fracs = sign(1.,rlatt(iq))*fracsum(imo)  ! +ve for local summer
+        if ( nrungcm>5 ) then
+          fracwet = .01*nrungcm   ! e.g. 50 gives .5
         else
-          fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
+          fracwet = (.5+fracs)*fracwets(iveg) + (.5-fracs)*fracwetw(iveg)
           ! N.B. for all Dean's points, fracwet=fracwets=fracwetw=.5           
-        endif
-        wb(iq,ms)= (1.-fracwet)*swilt(isoilm(iq))+fracwet*sfc(isoilm(iq)) 
-        if(abs(rlatx)<18.)wb(iq,ms)=sfc(isoilm(iq)) ! tropics
+        end if
+        wb(iq,ms) = (1.-fracwet)*swilt(isoilm(iq)) + fracwet*sfc(isoilm(iq)) 
+        if ( abs(rlatx)<18. ) wb(iq,ms) = sfc(isoilm(iq)) ! tropics
         ! following jlm subtropics from Aug 2003 (.1/.9), (.6, .4)
-        if(rlatx<20..and.rlatx>8.) then
-          wb(iq,ms)=(.35-.5*fracsum(imo))*swilt(isoilm(iq))+(.65+.5*fracsum(imo))*sfc(isoilm(iq)) ! NH
+        if ( rlatx<20. .and. rlatx>8. ) then
+          wb(iq,ms) = (.35-.5*fracsum(imo))*swilt(isoilm(iq)) + (.65+.5*fracsum(imo))*sfc(isoilm(iq)) ! NH
         end if
-        if(rlatx>-16..and.rlatx<-8.) then
-          wb(iq,ms)=(.35+.5*fracsum(imo))*swilt(isoilm(iq))+(.65-.5*fracsum(imo))*sfc(isoilm(iq)) ! SH
+        if( rlatx>-16. .and. rlatx<-8. ) then
+          wb(iq,ms) = (.35+.5*fracsum(imo))*swilt(isoilm(iq)) + (.65-.5*fracsum(imo))*sfc(isoilm(iq)) ! SH
         end if
-        if(rlatx>-32..and.rlatx<-22..and.rlonx>117..and.rlonx<146.) then
-          if(nrungcm==-6)then
+        if ( rlatx>-32. .and. rlatx<-22. .and. rlonx>117. .and. rlonx<146. ) then
+          if ( nrungcm==-6 ) then
             ! following tapers it over 2 degrees lat/long
-            alf=.5*min(abs(rlonx-117.),abs(rlonx-146.),abs(rlatx+22.),abs(rlatx+32.),2.)
-            wb(iq,ms)=alf*swilt(isoilm(iq))+(1.-alf)*wb(iq,ms)
+            alf = .5*min(abs(rlonx-117.),abs(rlonx-146.),abs(rlatx+22.),abs(rlatx+32.),2.)
+            wb(iq,ms) = alf*swilt(isoilm(iq)) + (1.-alf)*wb(iq,ms)
           else
-            wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of Australia
+            wb(iq,ms) = swilt(isoilm(iq)) ! dry interior of Australia
           endif
         endif
       endif    ! (land(iq))
     enddo     ! iq loop
-    do k=1,ms-1
-      wb(:,k)=wb(:,ms)
+    do k = 1,ms-1
+      wb(:,k) = wb(:,ms)
     enddo    !  k loop
     if ( nsib==6 .or. nsib==7 ) then
       ! update CABLE soil moisture
       call newcbmwb
     end if
 
-    do iq=1,ifull
+    do iq = 1,ifull
       ! fix for antarctic snow
-      if(land(iq).and.rlatt(iq)*180./pi<-60.)snowd(iq)=max(snowd(iq),400.)
+      if ( land(iq) .and. rlatt(iq)*180./pi<-60. ) snowd(iq) = max(snowd(iq),400.)
     enddo   ! iq loop
 
     if ( mydiag ) then
-      iveg=ivegt(idjd)
-      if (nsib==6.or.nsib==7) iveg=1
-      isoil=isoilm(idjd)
-      if (isoil>0 .and. iveg>0) then
+      iveg = ivegt(idjd)
+      if ( nsib==6 .or. nsib==7 ) iveg = 1
+      isoil = isoilm(idjd)
+      if ( isoil>0 .and. iveg>0 ) then
         write(6,*)'isoil,iveg,month,fracsum,rlatt: ',isoil,iveg,imo,fracsum(imo),rlatt(idjd)
-        fracs=sign(1.,rlatt(idjd))*fracsum(imo) ! +ve for local summer
-        fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
-        write(6,*)'fracs,fracwet,initial_wb: ',fracs,fracwet,wb(idjd,ms)
+        fracs = sign(1.,rlatt(idjd))*fracsum(imo) ! +ve for local summer
+        fracwet = (.5+fracs)*fracwets(iveg) + (.5-fracs)*fracwetw(iveg)
+        write(6,*) 'fracs,fracwet,initial_wb: ',fracs,fracwet,wb(idjd,ms)
       end if
     end if
   endif       !  ((nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)
 
   ! Soil recycling input
-  if( nrungcm==-3 .or. nrungcm==-4 .or. nrungcm==-5 .or. nrungcm==-14 ) then
+  if( nrungcm==-3 .or. nrungcm==-4 .or. nrungcm==-5 .or. nrungcm==-14 .or. nrungcm==-24 ) then
     if ( myid==0 ) then
       write(6,*) '============================================================================'  
       write(6,*) 'Opening surface data input from ',trim(surf_00)
     end if
-    call histopen(ncid,surf_00,ier)
+    fileerror = nrungcm==-14 .or. nrungcm==-24 ! force error message if file cannot be read as NetCDF
+    call histopen(ncid,surf_00,ier,fileerror=fileerror)
     if ( ier==0 ) then
       ! NETCDF file format
       ! clobber ifile surface data with surfin surface data
@@ -1503,18 +1506,18 @@ if ( .not.lrestart ) then
     else
       ! ASCII file format
       ! for sequence of runs starting with values saved from last run
-      if(ktime==1200)then
-        surfin=surf_12    ! 'surf.12'
+      if ( ktime == 1200 ) then
+        surfin = surf_12    ! 'surf.12'
       else
-        surfin=surf_00    ! 'surf.00'
+        surfin = surf_00    ! 'surf.00'
       endif
-      if ( myid == 0 ) then
+      if ( myid==0 ) then
         write(6,*) 'reading previously saved wb,tgg,tss (land),snowd,sice from ',surfin
         open(87,file=surfin,form='formatted',status='old')
         read(87,'(a80)') header
         write(6,*)'header: ',header
       end if
-      if(nrungcm==-5)then
+      if ( nrungcm==-5 ) then
         call readglobvar(87, tgg, fmt="*") ! this acts as dummy read 
       else
         call readglobvar(87, wb, fmt="*")
@@ -1522,46 +1525,46 @@ if ( .not.lrestart ) then
       call readglobvar(87, tgg, fmt="*")
       call readglobvar(87, aa, fmt="*")    ! only use land values of tss
       call readglobvar(87, snowd, fmt="*")
-      if ( myid == 0 ) close(87)
-      where (land(1:ifull))
-        tss(1:ifull)=aa(1:ifull)
+      if ( myid==0 ) close(87)
+      where ( land(1:ifull) )
+        tss(1:ifull) = aa(1:ifull)
       end where
     end if  ! ier==0
-  endif    !  (nrungcm<=-3.and.nrungcm>=-5)
+  endif     !  (nrungcm<=-3.and.nrungcm>=-5)
 
   if ( nrungcm==4 ) then !  wb fix for ncep input 
     ! this is related to eak's temporary fix for soil moisture
     ! - to compensate for ncep drying out, increase minimum value
-    do k=1,ms
-      do iq=1,ifull     
-        isoil=isoilm(iq)
-        wb(iq,k)=min( sfc(isoil) , max(.75*swilt(isoil)+.25*sfc(isoil),wb(iq,k)) )
+    do k = 1,ms
+      do iq = 1,ifull     
+        isoil = isoilm(iq)
+        wb(iq,k) = min( sfc(isoil) , max(.75*swilt(isoil)+.25*sfc(isoil),wb(iq,k)) )
         ! for antarctic snow
-        if(land(iq).and.rlatt(iq)*180./pi<-60.)snowd(iq)=max(snowd(iq),400.)
-      enddo   ! iq loop
-    enddo    !  k loop
-  endif      !  (nrungcm==4)
+        if ( land(iq) .and. rlatt(iq)*180./pi<-60. ) snowd(iq) = max(snowd(iq),400.)
+      end do  ! iq loop
+    end do    !  k loop
+  end if      !  (nrungcm==4)
 
   if ( nrungcm==5 ) then !  tgg, wb fix for mark 3 input
     ! unfortunately mk 3 only writes out 2 levels
     ! wb just saved as excess above wilting; top level & integrated values
     ! tgg saved for levels 2 and ms 
-    do iq=1,ifull     
-      isoil=isoilm(iq)
-      do k=2,3
-        wb(iq,k)=wb(iq,ms)
+    do iq = 1,ifull     
+      isoil = isoilm(iq)
+      do k =2,3
+        wb(iq,k) = wb(iq,ms)
       enddo    !  k loop
-      do k=1,ms
+      do k = 1,ms
         ! wb(iq,k)=min( sfc(isoil) ,wb(iq,k)+swilt(isoil) ) ! till 22/8/02
-        wb(iq,k)=wb(iq,k)+swilt(isoil) 
+        wb(iq,k) = wb(iq,k) + swilt(isoil) 
       enddo    !  k loop
-      tgg(iq,3)=.75*tgg(iq,2)+.25*tgg(iq,6)
-      tgg(iq,4)= .5*tgg(iq,2)+ .5*tgg(iq,6)
-      tgg(iq,5)=.25*tgg(iq,2)+.75*tgg(iq,6)
+      tgg(iq,3) = .75*tgg(iq,2) + .25*tgg(iq,6)
+      tgg(iq,4) = .5*tgg(iq,2) + .5*tgg(iq,6)
+      tgg(iq,5) = .25*tgg(iq,2) + .75*tgg(iq,6)
       ! fix for antarctic snow
-      if(land(iq).and.rlatt(iq)*180./pi<-60.)snowd(iq)=max(snowd(iq),400.)
-    enddo   ! iq loop
-    if (mydiag) then
+      if ( land(iq) .and. rlatt(iq)*180./pi<-60. ) snowd(iq) = max(snowd(iq),400.)
+    end do   ! iq loop
+    if ( mydiag ) then
       write(6,*) 'after nrungcm=5 fixup of mk3 soil variables:'
       write(6,*) 'tgg ',(tgg(idjd,k),k=1,ms)
       write(6,*) 'wb ',(wb(idjd,k),k=1,ms)
@@ -1574,63 +1577,63 @@ if ( .not.lrestart ) then
       write(6,"('before nrungcm=1 fix-up wb(1-ms)',9f7.3)") (wb(idjd,k),k=1,ms)
       write(6,*)'nfixwb,isoil,swilt,sfc,ssat,alb ',nfixwb,isoil,swilt(isoil),sfc(isoil),ssat(isoil),albvisnir(idjd,1)
     end if
-    do ip=1,ipland  ! all land points in this nsib=1+ loop
-      iq=iperm(ip)
+    do ip = 1,ipland  ! all land points in this nsib=1+ loop
+      iq = iperm(ip)
       isoil = isoilm(iq)
 
-      if(nfixwb==0)then
+      if ( nfixwb==0 ) then
         ! very dry jlm suggestion. assume vegfrac ~.5, so try to satisfy
         ! wb0/.36=.5*(wb/sfc + (wb-swilt)/(sfc-swilt) )
-        wb(iq,1)=( sfc(isoil)*(sfc(isoil)-swilt(isoil))*wb(iq,1)/.36 +.5*sfc(isoil)*swilt(isoil) )/(sfc(isoil)-.5*swilt(isoil))
-        do k=2,ms
-          wb(iq,k)=( sfc(isoil)*(sfc(isoil)-swilt(isoil))*wb(iq,ms)/.36+.5*sfc(isoil)*swilt(isoil) )/(sfc(isoil)-.5*swilt(isoil))
-        enddo   !  k=2,ms
-      endif   ! (nfixwb==0)
-      if(nfixwb==1.or.nfixwb==2)then
+        wb(iq,1) = ( sfc(isoil)*(sfc(isoil)-swilt(isoil))*wb(iq,1)/.36 +.5*sfc(isoil)*swilt(isoil) )/(sfc(isoil)-.5*swilt(isoil))
+        do k = 2,ms
+          wb(iq,k) = ( sfc(isoil)*(sfc(isoil)-swilt(isoil))*wb(iq,ms)/.36+.5*sfc(isoil)*swilt(isoil) )/(sfc(isoil)-.5*swilt(isoil))
+        end do   !  k=2,ms
+      end if     ! (nfixwb==0)
+      if ( nfixwb==1 .or. nfixwb==2 ) then
         ! alternative simpler jlm fix-up	
         ! wb0/.36=(wb-swilt)/(sfc-swilt)
-        wb(iq,1)=swilt(isoil)+(sfc(isoil)-swilt(isoil))*wb(iq,1)/.36
-        do k=2,ms
-          wb(iq,k)=swilt(isoil)+(sfc(isoil)-swilt(isoil))*wb(iq,ms)/.36
+        wb(iq,1) = swilt(isoil)+(sfc(isoil)-swilt(isoil))*wb(iq,1)/.36
+        do k = 2,ms
+          wb(iq,k) =swilt(isoil)+(sfc(isoil)-swilt(isoil))*wb(iq,ms)/.36
         enddo   !  k=2,ms
       endif   ! (nfixwb==1.or.nfixwb==2)
-      if(ip==1)write(6,*)'kdate ',kdate
-      if(nfixwb==2.and.kdate>3210100.and.kdate<3210200)then
-        rlon_d=rlongg(iq)*180./pi
-        rlat_d=rlatt(iq)*180./pi
-        if(ip==1)then
+      if ( ip==1 ) write(6,*)'kdate ',kdate
+      if ( nfixwb==2 .and. kdate>3210100 .and. kdate<3210200 ) then
+        rlon_d = rlongg(iq)*180./pi
+        rlat_d = rlatt(iq)*180./pi
+        if ( ip==1 ) then
           write(6,*)'kdate in nfixwb=2 ',kdate
           write(6,*)'iq,rlon_d,rlat_d ',rlon_d,rlat_d
-        endif
+        end if
         ! jlm fix-up for tropical oz in january 321
-        if(rlon_d>130..and.rlon_d<150..and.rlat_d>-20..and.rlat_d<0.)then
-          do k=1,ms
-            wb(iq,k)=max(wb(iq,k),.5*(swilt(isoil)+sfc(isoil))) ! tropics
-          enddo   !  k=1,ms
-        endif
+        if ( rlon_d>130. .and. rlon_d<150. .and. rlat_d>-20. .and. rlat_d<0. ) then
+          do k = 1,ms
+            wb(iq,k) = max(wb(iq,k),.5*(swilt(isoil)+sfc(isoil))) ! tropics
+          end do   !  k=1,ms
+        end if
         ! jlm fix-up for dry interior in january 321
-        if(rlon_d>117..and.rlon_d<142..and.rlat_d>-32..and.rlat_d<-22.)then
-          do k=1,ms
-            wb(iq,k)=swilt(isoil)  ! dry interior
-          enddo   !  k=1,ms
-        endif
-      endif   ! (nfixwb==2)
-      if(nfixwb==10)then    ! was default for nrungcm=1 till oct 2001
+        if ( rlon_d>117. .and. rlon_d<142. .and. rlat_d>-32. .and. rlat_d<-22. ) then
+          do k = 1,ms
+            wb(iq,k) = swilt(isoil)  ! dry interior
+          end do   !  k=1,ms
+        end if
+      end if   ! (nfixwb==2)
+      if ( nfixwb==10 ) then    ! was default for nrungcm=1 till oct 2001
         ! jlm suggestion, assume vegfrac ~.5, so try to satisfy
         ! wb0/.36=.5*(wb/ssat + (wb-swilt)/(ssat-swilt) )
-        wb(iq,1)=( ssat(isoil)*(ssat(isoil)-swilt(isoil))*wb(iq,1)/.36+.5*ssat(isoil)*swilt(isoil) )    &
+        wb(iq,1) = ( ssat(isoil)*(ssat(isoil)-swilt(isoil))*wb(iq,1)/.36+.5*ssat(isoil)*swilt(isoil) )    &
                 /(ssat(isoil)-.5*swilt(isoil))
-        do k=2,ms                                                       
-          wb(iq,k)=( ssat(isoil)*(ssat(isoil)-swilt(isoil))*wb(iq,ms)/.36+.5*ssat(isoil)*swilt(isoil) ) &
+        do k = 2,ms                                                       
+          wb(iq,k) = ( ssat(isoil)*(ssat(isoil)-swilt(isoil))*wb(iq,ms)/.36+.5*ssat(isoil)*swilt(isoil) ) &
                   /(ssat(isoil)-.5*swilt(isoil))
-        enddo   !  k=2,ms
-      endif   ! (nfixwb.ne.10)
+        end do !  k=2,ms
+      end if   ! (nfixwb.ne.10)
 
-      do k=1,ms
-        wb(iq,k)=max( swilt(isoil) , min(wb(iq,k),sfc(isoil)) )
-      enddo     !  k=1,ms
-    enddo        !  ip=1,ipland
-    if (mydiag) then
+      do k = 1,ms
+        wb(iq,k) = max( swilt(isoil) , min(wb(iq,k),sfc(isoil)) )
+      end do     !  k=1,ms
+    end do       !  ip=1,ipland
+    if ( mydiag ) then
       write(6,"('after nrungcm=1 fix-up wb(1-ms)',9f7.3)") (wb(idjd,k),k=1,ms)
       write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
       write(6,"('wb3frac#',9f8.2)") (diagvals(wb(:,3)) - swilt(diagvals(isoilm)))     &
@@ -1644,23 +1647,23 @@ if ( .not.lrestart ) then
       write(6,*)'before nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
       write(6,*)'isoil,swilt,ssat,alb ',isoil,swilt(isoil),ssat(isoil),albvisnir(idjd,1)
     end if
-    do ip=1,ipland  ! all land points in this nsib=1+ loop
-      iq=iperm(ip)
+    do ip = 1,ipland  ! all land points in this nsib=1+ loop
+      iq = iperm(ip)
       isoil = isoilm(iq)
       if( albvisnir(iq,1) >= 0.25 ) then
-        diffg=max(0. , wb(iq,1)-0.068)*ssat(isoil)/0.395   ! for sib3
-        diffb=max(0. , wb(iq,ms)-0.068)*ssat(isoil)/0.395  ! for sib3
+        diffg = max(0. , wb(iq,1)-0.068)*ssat(isoil)/0.395   ! for sib3
+        diffb = max(0. , wb(iq,ms)-0.068)*ssat(isoil)/0.395  ! for sib3
       else
-        diffg=max(0. , wb(iq,1)-0.175)*ssat(isoil)/0.42    ! for sib3
-        diffb=max(0. , wb(iq,ms)-0.175)*ssat(isoil)/0.42   ! for sib3
+        diffg = max(0. , wb(iq,1)-0.175)*ssat(isoil)/0.42    ! for sib3
+        diffb = max(0. , wb(iq,ms)-0.175)*ssat(isoil)/0.42   ! for sib3
       endif
-      wb(iq,1)=swilt(isoil)+diffg          ! for sib3
-      do k=2,ms                            ! for sib3
-        wb(iq,k)=swilt(isoil)+diffb         ! for sib3
-      enddo     !  k=2,ms
-    enddo      !  ip=1,ipland
-    if(mydiag) write(6,*)'after nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
-  endif          !  (nrungcm==2)
+      wb(iq,1) = swilt(isoil) + diffg        ! for sib3
+      do k = 2,ms                            ! for sib3
+        wb(iq,k) = swilt(isoil) + diffb      ! for sib3
+      end do    !  k=2,ms
+    end do      !  ip=1,ipland
+    if ( mydiag ) write(6,*)'after nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
+  end if        !  (nrungcm==2)
 end if ! ( .not.lrestart )
 
 
@@ -1670,27 +1673,25 @@ end if ! ( .not.lrestart )
 if(nspecial==34)then      ! test for Andy Pitman & Faye
   tgg(1:ifull,6)=tgg(1:ifull,6)+.1
 endif
-#ifdef caispecial
-! for CAI experiment
-if (nspecial==42) then
-  call caispecial
-endif 
-if (nspecial==43) then
-  call caispecial
-  do iq=1,ifull
-    rlongd=rlongg(iq)*180./pi
-    rlatd=rlatt(iq)*180./pi
-    if (rlatd.ge.-6..and.rlatd.le.6.) then
-      if (rlongd.ge.180..and.rlongd.le.290.) then
-        if (.not.land(iq)) then
-          tgg(iq,1)=293.16
-          tss(iq)=293.16
-        end if
-      end if
-    end if
-  end do
-end if
-#endif 
+!! for CAI experiment
+!if (nspecial==42) then
+!  call caispecial
+!endif 
+!if (nspecial==43) then
+!  call caispecial
+!  do iq=1,ifull
+!    rlongd=rlongg(iq)*180./pi
+!    rlatd=rlatt(iq)*180./pi
+!    if (rlatd.ge.-6..and.rlatd.le.6.) then
+!      if (rlongd.ge.180..and.rlongd.le.290.) then
+!        if (.not.land(iq)) then
+!          tgg(iq,1)=293.16
+!          tss(iq)=293.16
+!        end if
+!      end if
+!    end if
+!  end do
+!end if
 if (nspecial==48.or.nspecial==49) then
   ! for Andrew Lenton SCOPEX geoengineering  
   do k = 1,kl
@@ -2165,6 +2166,11 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Importing MLO data'
   mlodwn(1:ifull,1:wlev,2) = max(mlodwn(1:ifull,1:wlev,2),0.)
   micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),100.),300.)
+  if ( .not.lrestart ) then
+    ocndwn(:,2) = min( max( ocndwn(:,2), -20.), 20. )
+    mlodwn(:,:,3) = min( max( mlodwn(:,:,3), -5.), 5. )
+    mlodwn(:,:,4) = min( max( mlodwn(:,:,4), -5.), 5. )
+  end if
   where ( .not.land(1:ifull) )
     fracice(1:ifull) = micdwn(1:ifull,5)
     sicedep(1:ifull) = micdwn(1:ifull,6)
@@ -3074,79 +3080,77 @@ end subroutine cruf2
 !=======================================================================
 
 
-#ifdef caispecial
-!--------------------------------------------------------------
-! SPECIAL FUNCTION FOR SSTs
-subroutine caispecial
-      
-use cc_mpi
-use const_phys
-use infile
-use latlong_m
-use newmpar_m
-use pbl_m
-use soil_m
-use soilsnow_m
-      
-implicit none
-      
-integer iq,ix
-integer ncid,ncs,varid
-integer, dimension(3) :: spos,npos
-real x,r
-real, dimension(300) :: sdata,ldata
-logical tst
-      
-if (myid==0) then
-  write(6,*) "Reading nspecial=42 SSTs"
-  spos=1
-  call ccnf_open('sst_djf.cdf',ncid,ncs)
-  if (ncs/=0) then
-    write(6,*) "ERROR: Cannot open sst_djf.cdf"
-    call ccmpi_abort(-1)
-  end if
-  npos=1
-  npos(1)=300
-  call ccnf_inq_varid(ncid,'SST_DJF',varid,tst)
-  if (tst) then
-    write(6,*) "ERROR: Cannot read SST_DJF"
-    call ccmpi_abort(-1)
-  end if
-  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),sdata)
-  npos=1
-  npos(1)=300
-  call ccnf_inq_varid(ncid,'YT_OCEAN',varid,tst)
-  if (tst) then
-    write(6,*) "ERROR: Cannot read SST_DJF"
-    call ccmpi_abort(-1)
-  end if
-  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),ldata)
-  call ccnf_close(ncid)
-  sdata=sdata+273.16
-end if
-call ccmpi_bcast(sdata,0,comm_world)
-call ccmpi_bcast(ldata,0,comm_world)
-      
-do iq=1,ifull
-  if (.not.land(iq)) then
-    r=rlatt(iq)*180./pi
-    if (r.lt.ldata(2)) then
-      tss(iq)=sdata(2)
-    elseif (r.gt.ldata(300)) then
-      tss(iq)=sdata(300)
-    else
-      do ix=2,300
-        if (ldata(ix).gt.r) exit
-      end do
-      x=(r-ldata(ix))/(ldata(ix+1)-ldata(ix))
-      tss(iq)=(1.-x)*sdata(ix)+x*sdata(ix+1)
-    end if
-    tgg(iq,1)=tss(iq)
-  end if
-end do
-      
-return
-end subroutine caispecial
-#endif
+!!--------------------------------------------------------------
+!! SPECIAL FUNCTION FOR SSTs
+!subroutine caispecial
+!      
+!use cc_mpi
+!use const_phys
+!use infile
+!use latlong_m
+!use newmpar_m
+!use pbl_m
+!use soil_m
+!use soilsnow_m
+!      
+!implicit none
+!      
+!integer iq,ix
+!integer ncid,ncs,varid
+!integer, dimension(3) :: spos,npos
+!real x,r
+!real, dimension(300) :: sdata,ldata
+!logical tst
+!      
+!if (myid==0) then
+!  write(6,*) "Reading nspecial=42 SSTs"
+!  spos=1
+!  call ccnf_open('sst_djf.cdf',ncid,ncs)
+!  if (ncs/=0) then
+!    write(6,*) "ERROR: Cannot open sst_djf.cdf"
+!    call ccmpi_abort(-1)
+!  end if
+!  npos=1
+!  npos(1)=300
+!  call ccnf_inq_varid(ncid,'SST_DJF',varid,tst)
+!  if (tst) then
+!    write(6,*) "ERROR: Cannot read SST_DJF"
+!    call ccmpi_abort(-1)
+!  end if
+!  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),sdata)
+!  npos=1
+!  npos(1)=300
+!  call ccnf_inq_varid(ncid,'YT_OCEAN',varid,tst)
+!  if (tst) then
+!    write(6,*) "ERROR: Cannot read SST_DJF"
+!    call ccmpi_abort(-1)
+!  end if
+!  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),ldata)
+!  call ccnf_close(ncid)
+!  sdata=sdata+273.16
+!end if
+!call ccmpi_bcast(sdata,0,comm_world)
+!call ccmpi_bcast(ldata,0,comm_world)
+!      
+!do iq=1,ifull
+!  if (.not.land(iq)) then
+!    r=rlatt(iq)*180./pi
+!    if (r.lt.ldata(2)) then
+!      tss(iq)=sdata(2)
+!    elseif (r.gt.ldata(300)) then
+!      tss(iq)=sdata(300)
+!    else
+!      do ix=2,300
+!        if (ldata(ix).gt.r) exit
+!      end do
+!      x=(r-ldata(ix))/(ldata(ix+1)-ldata(ix))
+!      tss(iq)=(1.-x)*sdata(ix)+x*sdata(ix+1)
+!    end if
+!    tgg(iq,1)=tss(iq)
+!  end if
+!end do
+!      
+!return
+!end subroutine caispecial
 
 end module indata

@@ -24,7 +24,7 @@ subroutine scrnout(zo,ustar,zoh,wetfac,qsttg,qgscrn,tscrn,uscrn,u10,rhscrn,af,af
 
 use arrays_m
 use cc_mpi, only : mydiag,myid
-use cc_omp, only : imax, ntiles
+use cc_omp, only : ntiles
 use const_phys
 use diag_m
 use estab
@@ -451,7 +451,7 @@ end subroutine screencalc
 subroutine autoscrn(is,ie)
       
 use arrays_m
-use cc_omp, only : imax, ntiles
+use cc_omp, only : imax
 use const_phys
 use estab
 use extraout_m
@@ -478,11 +478,9 @@ integer :: tile
 real, dimension(is:ie) :: umag, zminx, smixr
 real, dimension(is:ie) :: ou, ov, atu, atv, iu, iv
 real, dimension(is:ie) :: au, av, es, rho
-real, dimension(is:ie) :: u_qgscrn, u_rhscrn, u_tscrn, u_uscrn, u_u10
+real, dimension(is:ie) :: u_qgscrn, u_rhscrn, u_uscrn, u_u10
 real, dimension(is:ie) :: u_ustar, u_tstar, u_qstar, u_thetavstar
 real, dimension(is:ie) :: new_zo, new_zoh, new_zoq, new_tss, new_smixr
-real, dimension(is:ie) :: ustar_stn, tstar_stn
-real, dimension(is:ie) :: qstar_stn, thetavstar_stn
     
 tile = ie/imax
 
@@ -515,6 +513,13 @@ new_zoh(is:ie) = zoh(is:ie)
 new_zoq(is:ie) = zoq(is:ie)
 new_tss(is:ie) = tss(is:ie)
 new_smixr(is:ie) = smixr(is:ie)
+if ( zo_clearing>0. ) then
+  where ( land(is:ie) )  
+    new_zo(is:ie)  = min( zo_clearing, zo(is:ie) )
+    new_zoh(is:ie) = min( 0.1*zo_clearing, zoh(is:ie) )
+    new_zoq(is:ie) = min( 0.1*zo_clearing, zoq(is:ie) )
+  end where  
+end if
 
 call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie), &
                 ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),new_zo(is:ie),   &
@@ -551,32 +556,6 @@ call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn
                 u_ustar(is:ie),u_tstar(is:ie),u_qstar(is:ie),u_thetavstar(is:ie),new_zo(is:ie),       &
                 new_zoh(is:ie),new_zoq(is:ie),new_tss(is:ie),t(is:ie,1),new_smixr(is:ie),             &
                 qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
-
-! clearing
-new_zo(is:ie) = zo(is:ie)
-new_zoh(is:ie) = zoh(is:ie)
-new_zoq(is:ie) = zoq(is:ie)
-new_tss(is:ie) = tss(is:ie)
-new_smixr(is:ie) = smixr(is:ie)
-if ( zo_clearing>0. ) then
-  where ( land(is:ie) )  
-    new_zo(is:ie)  = min( zo_clearing, zo(is:ie) )
-    new_zoh(is:ie) = min( 0.1*zo_clearing, zoh(is:ie) )
-    new_zoq(is:ie) = min( 0.1*zo_clearing, zoq(is:ie) )
-  end where  
-end if
-call screencalc(ie-is+1,qgscrn_stn(is:ie),rhscrn_stn(is:ie),tscrn_stn(is:ie),          &
-                uscrn_stn(is:ie),u10_stn(is:ie),ustar_stn(is:ie),                      &
-                tstar_stn(is:ie),qstar_stn(is:ie),thetavstar_stn(is:ie),               &
-                new_zo(is:ie),new_zoh(is:ie),new_zoq(is:ie),new_tss(is:ie),t(is:ie,1), &
-                new_smixr(is:ie),qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
-
-atu(is:ie)            = au(is:ie)*uscrn_stn(is:ie)/umag(is:ie) + ou(is:ie)
-atv(is:ie)            = av(is:ie)*uscrn_stn(is:ie)/umag(is:ie) + ov(is:ie)
-uscrn_stn(is:ie) = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
-atu(is:ie)            = au(is:ie)*u10_stn(is:ie)/umag(is:ie) + ou(is:ie)
-atv(is:ie)            = av(is:ie)*u10_stn(is:ie)/umag(is:ie) + ov(is:ie)      
-u10_stn(is:ie)   = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
 
 return
 end subroutine autoscrn

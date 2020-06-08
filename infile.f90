@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -21,17 +21,12 @@
     
 module infile
       
-! This module contains routines for reading netcdf files,
-! vertical interpolation and some calendar functions.
-! This module also contains the interface to the netcdf
-! library.
+! This module contains routines for reading netcdf files, vertical interpolation and some calendar functions.
+! This module also contains the interface to the netcdf library.
       
-! This version of infile.f90 supports parallel localhist input
-! files.  Multiple processors read as many input files as
-! supplied in parallel and then makes this data avaliable to 
-! all processors for interpolation. The code can also identify
-! restart files, in which case no additional message passing
-! is required.
+! This version of infile.f90 supports parallel localhist input files.  Multiple processors read as many input files as
+! supplied in parallel and then makes this data avaliable to all processors for interpolation. The code can also identify
+! restart files, in which case no additional message passing is required.
 
 #ifdef usenc_mod
 ! use netcdf.mod interface
@@ -99,6 +94,7 @@ interface ccnf_get_vara
   module procedure ccnf_get_vara_int1i_s, ccnf_get_vara_int2i_t, ccnf_get_vara_int2i
   module procedure ccnf_get_vara_int3i_t
 #ifndef i8r8
+  module procedure ccnf_get_vara_double1r_s
   module procedure ccnf_get_vara_double2r_t, ccnf_get_vara_double4d
 #endif
 end interface ccnf_get_vara
@@ -255,10 +251,10 @@ if ( mynproc>0 ) then
       ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      if ( any( rvar/=rvar ) ) then
-        write(6,*) "ERROR: NaN read in hr3p_procformat ",trim(name)
-        call ccmpi_abort(-1)
-      end if
+      !if ( any( rvar/=rvar ) ) then
+      !  write(6,*) "ERROR: NaN read in hr3p_procformat ",trim(name)
+      !  call ccmpi_abort(-1)
+      !end if
       ! unpack compressed data
       rvar(:) = rvar(:)*real(lsf) + real(laddoff)
     end if ! ier
@@ -415,10 +411,10 @@ if ( mynproc>0 ) then
       call ncmsg(name,ier)
       ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      if ( any( rvar/=rvar ) ) then
-        write(6,*) "ERROR: NaN read in hr3p_procformatr8 ",trim(name)
-        call ccmpi_abort(-1)
-      end if
+      !if ( any( rvar/=rvar ) ) then
+      !  write(6,*) "ERROR: NaN read in hr3p_procformatr8 ",trim(name)
+      !  call ccmpi_abort(-1)
+      !end if
       ! unpack compressed data
       rvar(:) = rvar(:)*real(lsf,8) + real(laddoff,8)
     end if ! ier
@@ -571,10 +567,10 @@ if ( mynproc>0 ) then
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      if ( any( rvar/=rvar ) ) then
-        write(6,*) "ERROR: NaN read in hr4p_procformat ",trim(name)
-        call ccmpi_abort(-1)
-      end if
+      !if ( any( rvar/=rvar ) ) then
+      !  write(6,*) "ERROR: NaN read in hr4p_procformat ",trim(name)
+      !  call ccmpi_abort(-1)
+      !end if
       ! unpack data
       rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
     else
@@ -611,10 +607,10 @@ if ( mynproc>0 ) then
         ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
         ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
         call ncmsg(name,ier)
-        if ( any( rvar(:,k)/=rvar(:,k) ) ) then
-          write(6,*) "ERROR: NaN read in hr4p_procformat ",trim(name)
-          call ccmpi_abort(-1)
-        end if      ! unpack data
+        !if ( any( rvar(:,k)/=rvar(:,k) ) ) then
+        !  write(6,*) "ERROR: NaN read in hr4p_procformat ",trim(name)
+        !  call ccmpi_abort(-1)
+        !end if      ! unpack data
         rvar(:,k) = rvar(:,k)*real(lsf) + real(laddoff)      
       end do
     end if ! ier
@@ -767,10 +763,10 @@ if ( mynproc>0 ) then
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      if ( any( rvar/=rvar ) ) then
-        write(6,*) "ERROR: NaN read in hr4p_procformatr8 ",trim(name)
-        call ccmpi_abort(-1)
-      end if
+      !if ( any( rvar/=rvar ) ) then
+      !  write(6,*) "ERROR: NaN read in hr4p_procformatr8 ",trim(name)
+      !  call ccmpi_abort(-1)
+      !end if
       ! unpack data
       rvar(:,:) = rvar(:,:)*real(lsf,8) + real(laddoff,8)
     else
@@ -807,10 +803,10 @@ if ( mynproc>0 ) then
         ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
         ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
         call ncmsg(name,ier)
-        if ( any( rvar(:,k)/=rvar(:,k) ) ) then
-          write(6,*) "ERROR: NaN read in hr4p_procformatr8 ",trim(name)
-          call ccmpi_abort(-1)
-        end if
+        !if ( any( rvar(:,k)/=rvar(:,k) ) ) then
+        !  write(6,*) "ERROR: NaN read in hr4p_procformatr8 ",trim(name)
+        !  call ccmpi_abort(-1)
+        !end if
         ! unpack data
         rvar(:,k) = rvar(:,k)*real(lsf,8) + real(laddoff,8)      
       end do
@@ -948,10 +944,10 @@ if ( mynproc>0 ) then
     ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
     ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
-    if ( any( rvar/=rvar ) ) then
-      write(6,*) "ERROR: NaN read in hr5p_procformat ",trim(name)
-      call ccmpi_abort(-1)
-    end if
+    !if ( any( rvar/=rvar ) ) then
+    !  write(6,*) "ERROR: NaN read in hr5p_procformat ",trim(name)
+    !  call ccmpi_abort(-1)
+    !end if
     ! unpack data
     rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)
 
@@ -1012,7 +1008,7 @@ integer, intent(out) :: ier
 integer kk, ll
 real(kind=8), dimension(:,:,:), intent(inout) :: var
 real(kind=8), dimension(:,:,:), allocatable :: globvar
-real :: vmax, vmin
+real(kind=8) :: vmax, vmin
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd5_begin)
@@ -1093,10 +1089,10 @@ if ( mynproc>0 ) then
     ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
     ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
-    if ( any( rvar/=rvar ) ) then
-      write(6,*) "ERROR: NaN read in hr5p_procformatr8 ",trim(name)
-      call ccmpi_abort(-1)
-    end if
+    !if ( any( rvar/=rvar ) ) then
+    !  write(6,*) "ERROR: NaN read in hr5p_procformatr8 ",trim(name)
+    !  call ccmpi_abort(-1)
+    !end if
     ! unpack data
     rvar(:,:,:) = rvar(:,:,:)*real(lsf,8) + real(laddoff,8)
 
@@ -1144,7 +1140,7 @@ end subroutine hr5pr8
 
 !--------------------------------------------------------------
 ! This subroutine opens parallel input files
-subroutine histopen(ncid,ifile,ier)
+subroutine histopen(ncid,ifile,ier,fileerror)
       
 use cc_mpi
 use newmpar_m
@@ -1167,9 +1163,17 @@ integer, dimension(:), allocatable, save :: procfileowner
 integer(kind=4), dimension(1) :: start, ncount
 integer(kind=4), dimension(nihead) :: lahead
 integer(kind=4) lncid, lidum, ldid, lvid, llen
+logical, intent(in), optional :: fileerror
+logical ferror
 character(len=*), intent(in) :: ifile
 character(len=170) pfile
 character(len=8) fdecomp
+
+resprocmode = 0
+ferror = .false.
+if ( present(fileerror) ) then
+  ferror = fileerror
+end if
 
 if ( myid==0 ) then
   ! attempt to open single file with myid==0
@@ -1191,8 +1195,12 @@ if ( myid==0 ) then
     ier = nf90_open(pfile,nf90_nowrite,lncid)
     ncid = lncid
     if ( ier/=nf90_noerr ) then
-      write(6,*) "WARN: Cannot open ",trim(pfile)
-      write(6,*) "WARN: Cannot open ",trim(ifile)
+      if ( ferror ) then
+        write(6,*) "ERROR: Cannot open ",trim(pfile)," or ",trim(ifile)
+        call ccmpi_abort(-1)
+      else  
+        write(6,*) "WARN: Cannot open ",trim(pfile)," or ",trim(ifile)
+      end if  
     else
       ! found parallel input file  
       der = nf90_get_att(lncid,nf90_global,"nproc",lidum)
@@ -1710,18 +1718,19 @@ end subroutine vertint
 subroutine datefix(kdate_r,ktime_r,mtimer_r,allleap,silent)
 
 use cc_mpi
-use newmpar_m
 use parm_m
 
 implicit none
 
-integer, intent(inout) :: kdate_r,ktime_r,mtimer_r
+integer, intent(inout) :: kdate_r,ktime_r
+integer(kind=8), intent(inout) :: mtimer_r
 integer, intent(in), optional :: allleap
-integer, dimension(12) :: mdays = (/31,28,31,30,31,30,31,31,30,31,30,31/)
-integer iyr,imo,iday,ihr,imins
-integer mtimerh,mtimerm,mtimer
-integer mdays_save, leap_l
-integer, parameter :: minsday = 1440
+integer(kind=8), dimension(12) :: mdays = (/31_8,28_8,31_8,30_8,31_8,30_8,31_8,31_8,30_8,31_8,30_8,31_8/)
+integer leap_l
+integer(kind=8) iyr,imo,iday,ihr,imins
+integer(kind=8) mtimerh,mtimerm
+integer(kind=8) mdays_save
+integer(kind=8), parameter :: minsday = 1440
 logical, intent(in), optional :: silent
 logical quiet
 
@@ -1737,93 +1746,82 @@ else
   quiet = .false.
 end if
 
-!if ( kdate_r>=00600000 .and. kdate_r<=00991231 ) then   ! old 1960-1999
-!  kdate_r=kdate_r+19000000
-!  if ( myid==0 .and. .not.quiet ) write(6,*) 'For Y2K kdate_r altered to: ',kdate_r
-!endif
-
-iyr=kdate_r/10000
-imo=(kdate_r-10000*iyr)/100
-iday=kdate_r-10000*iyr-100*imo
-ihr=ktime_r/100
-imins=ktime_r-100*ihr
+iyr=int(kdate_r,8)/10000_8
+imo=(int(kdate_r,8)-10000_8*iyr)/100_8
+iday=int(kdate_r,8)-10000_8*iyr-100_8*imo
+ihr=int(ktime_r,8)/100_8
+imins=int(ktime_r,8)-100_8*ihr
 if ( myid==0 .and. .not.quiet ) then
   write(6,*) 'entering datefix'
   write(6,*) 'iyr,imo,iday:       ',iyr,imo,iday
-  write(6,*) 'ihr,imins,mtimer_r: ',ihr,imins,mtimer_r
+  write(6,*) 'ihr,imins,mtimer_r: ',ihr,imins,int(mtimer_r)
 end if
 
-mdays(2)=28
+mdays(2)=28_8
 if ( leap_l==1 ) then
-  if ( mod(iyr,4)==0   ) mdays(2)=29
-  if ( mod(iyr,100)==0 ) mdays(2)=28
-  if ( mod(iyr,400)==0 ) mdays(2)=29
+  if ( mod(iyr,4_8)==0   ) mdays(2)=29_8
+  if ( mod(iyr,100_8)==0 ) mdays(2)=28_8
+  if ( mod(iyr,400_8)==0 ) mdays(2)=29_8
 end if
 do while ( mtimer_r>minsday*mdays(imo) )
   mtimer_r=mtimer_r-minsday*mdays(imo)
-  imo=imo+1
-  if ( imo>12 ) then
-    imo=1
-    iyr=iyr+1
+  imo=imo+1_8
+  if ( imo>12_8 ) then
+    imo=1_8
+    iyr=iyr+1_8
     if ( leap_l==1 ) then
-      mdays(2)=28      
-      if ( mod(iyr,4)==0   ) mdays(2)=29
-      if ( mod(iyr,100)==0 ) mdays(2)=28
-      if ( mod(iyr,400)==0 ) mdays(2)=29
+      mdays(2)=28_8      
+      if ( mod(iyr,4_8)==0   ) mdays(2)=29_8
+      if ( mod(iyr,100_8)==0 ) mdays(2)=28_8
+      if ( mod(iyr,400_8)==0 ) mdays(2)=29_8
     end if
   end if
 end do
 if ( diag .and. .not.quiet ) then
   write(6,*)'b datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                             iyr,imo,iday,ihr,imins,mtimer_r
+                       iyr,imo,iday,ihr,imins,int(mtimer_r)
 end if
   
 iday=iday+mtimer_r/minsday
 mtimer_r=mod(mtimer_r,minsday)
 if ( diag .and. .not.quiet ) then
   write(6,*)'c datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                             iyr,imo,iday,ihr,imins,mtimer_r
+                       iyr,imo,iday,ihr,imins,int(mtimer_r)
 end if
   
 ! at this point mtimer_r has been reduced to fraction of a day
-mtimerh=mtimer_r/60
-mtimerm=mtimer_r-mtimerh*60  ! minutes left over
+mtimerh=mtimer_r/60_8
+mtimerm=mtimer_r-mtimerh*60_8  ! minutes left over
 ihr=ihr+mtimerh
 imins=imins+mtimerm
 
-if ( imins==58 .or. imins==59 ) then
-  ! allow for roundoff for real timer from old runs
-  if ( myid==0 .and. .not.quiet ) write(6,*)'*** imins increased to 60 from imins = ',imins
-  imins=60
-endif
-
-ihr=ihr+imins/60
-imins=mod(imins,60)
+ihr=ihr+imins/60_8
+imins=mod(imins,60_8)
 if ( diag .and. .not.quiet ) then
   write(6,*)'d datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                             iyr,imo,iday,ihr,imins,mtimer_r
+                       iyr,imo,iday,ihr,imins,int(mtimer_r)
 end if
   
-iday=iday+ihr/24
-ihr=mod(ihr,24)
+iday=iday+ihr/24_8
+ihr=mod(ihr,24_8)
 if ( diag .and. .not.quiet ) then
   write(6,*)'e datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                             iyr,imo,iday,ihr,imins,mtimer_r
+                       iyr,imo,iday,ihr,imins,int(mtimer_r)
 end if
   
 mdays_save=mdays(imo)
-imo=imo+(iday-1)/mdays(imo)
-iday=mod(iday-1,mdays_save)+1
+imo=imo+(iday-1_8)/mdays(imo)
+iday=mod(iday-1_8,mdays_save)+1_8
 
-iyr=iyr+(imo-1)/12
-imo=mod(imo-1,12)+1
+iyr=iyr+(imo-1_8)/12_8
+imo=mod(imo-1_8,12_8)+1_8
 
-kdate_r=iday+100*(imo+100*iyr)
-ktime_r=ihr*100+imins
-mtimer=0
+kdate_r=int(iday+100_8*(imo+100_8*iyr),8)
+ktime_r=int(ihr*100_8+imins,8)
+mtimer_r = 0.
 if ( diag .and. .not.quiet ) then
   write(6,*)'end datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
-                               iyr,imo,iday,ihr,imins,mtimer_r
+                         iyr,imo,iday,ihr,imins,int(mtimer_r)
 end if
   
 if ( myid==0 .and. .not.quiet ) then
@@ -1838,31 +1836,30 @@ end subroutine datefix
 subroutine datefix_month(kdate_r,mtimer_r)
 
 use cc_mpi
-use newmpar_m
 use parm_m
 
 implicit none
 
-integer, intent(inout) :: kdate_r,mtimer_r
-integer iyr,imo,iday
-integer mtimerh,mtimerm,mtimer
-integer mdays_save, leap_l
+integer, intent(inout) :: kdate_r
+integer(kind=8), intent(inout) :: mtimer_r
+integer(kind=8) iyr,imo,iday
+integer(kind=8) mtimer
 
-iyr=kdate_r/10000
-imo=(kdate_r-10000*iyr)/100
-iday=15
+iyr=int(kdate_r,8)/10000_8
+imo=(int(kdate_r,8)-10000_8*iyr)/100_8
+iday=15_8
 
-do while ( mtimer_r>0 )
-  mtimer_r = mtimer_r-1
-  imo = imo + 1
-  if ( imo>12 ) then
-    imo = 1
-    iyr = iyr + 1
+do while ( mtimer_r>0_8 )
+  mtimer_r = mtimer_r-1_8
+  imo = imo + 1_8
+  if ( imo>12_8 ) then
+    imo = 1_8
+    iyr = iyr + 1_8
   end if
 end do
   
-kdate_r = iday + 100*(imo+100*iyr)
-mtimer = 0
+kdate_r = int(iday + 100_8*(imo+100_8*iyr))
+mtimer = 0_8
   
 return
 end subroutine datefix_month
@@ -2222,10 +2219,10 @@ do v = 1,vnode_nproc
   var_g(1:ifull,v) = var_t(1:ifull,v)
 end do
 
-if ( any( var_g/=var_g ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw3lp ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( var_g/=var_g ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw3lp ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -2285,10 +2282,10 @@ call ccmpi_gather(var(1:ifull), globvar(1:ifull_g))
 start = (/ 1, 1, iarch /)
 ncount = (/ il_g, jl_g, 1 /)
 
-if ( any( globvar/=globvar ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw3a ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( globvar/=globvar ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw3a ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 !     find variable index
 lidnc = idnc
@@ -2373,10 +2370,10 @@ do v = 1,vnode_nproc
   var_g(1:ifull,v) = var_t(1:ifull,v)
 end do
 
-if ( any( var_g/=var_g ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw3lpr8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( var_g/=var_g ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw3lpr8 ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -2419,7 +2416,7 @@ use parm_m               ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer :: ier, imn, imx, jmn, jmx, iq, i
+integer :: ier, imn, imx, jmn, jmx, iq
 integer(kind=4) :: lidnc, mid, vtype, ndims
 integer(kind=4), dimension(3) :: start, ncount
 integer(kind=2), dimension(:), allocatable :: ipack
@@ -2436,10 +2433,10 @@ call ccmpi_gatherr8(var(1:ifull), globvar(1:ifull_g))
 start = (/ 1, 1, iarch /)
 ncount = (/ il_g, jl_g, 1 /)
 
-if ( any( globvar/=globvar ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw3ar8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( globvar/=globvar ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw3ar8 ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 !     find variable index
 lidnc = idnc
@@ -2599,10 +2596,10 @@ ncount = (/ il, jl, ll, vnode_nproc, 1 /)
 
 call ccmpi_gatherx(var_g,var,0,comm_vnode)
 
-if ( any( var_g/=var_g ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw4lp ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( var_g/=var_g ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw4lp ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -2668,10 +2665,10 @@ call ccmpi_gather(var(1:ifull,1:ll), globvar(1:ifull_g,1:ll))
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, ll, 1 /)
 
-if ( any( globvar/=globvar ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw4a ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( globvar/=globvar ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw4a ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 !     find variable index
 lidnc = idnc
@@ -2751,10 +2748,10 @@ ncount = (/ il, jl, ll, vnode_nproc, 1 /)
 
 call ccmpi_gatherxr8(var_g,var,0,comm_vnode)
 
-if ( any( var_g/=var_g ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw4lpr8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( var_g/=var_g ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw4lpr8 ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -2820,10 +2817,10 @@ call ccmpi_gatherr8(var(1:ifull,1:ll), globvar(1:ifull_g,1:ll))
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, ll, 1 /)
 
-if ( any( globvar/=globvar ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw4ar8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( globvar/=globvar ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw4ar8 ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 !     find variable index
 lidnc = idnc
@@ -2984,10 +2981,10 @@ ncount = (/ il, jl, kk, ll, vnode_nproc, 1 /)
 
 call ccmpi_gatherx(var_g,var,0,comm_vnode)
 
-if ( any( var_g/=var_g ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw5lp ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( var_g/=var_g ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw5lp ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -3055,10 +3052,10 @@ call ccmpi_gather(var(1:ifull,1:kk,1:ll), globvar(1:ifull_g,1:kk,1:ll))
 start = (/ 1, 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, kk, ll, 1 /)
 
-if ( any( globvar/=globvar ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw5a ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( globvar/=globvar ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw5a ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 !     find variable index
 lidnc = idnc
@@ -3135,10 +3132,10 @@ ncount = (/ il, jl, kk, ll, vnode_nproc, 1 /)
 
 call ccmpi_gatherxr8(var_g,var,0,comm_vnode)
 
-if ( any( var_g/=var_g ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw5lpr8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( var_g/=var_g ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw5lpr8 ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -3207,10 +3204,10 @@ call ccmpi_gatherr8(var(1:ifull,1:kk,1:ll), globvar(1:ifull_g,1:kk,1:ll))
 start = (/ 1, 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, kk, ll, 1 /)
 
-if ( any( globvar/=globvar ) ) then
-  write(6,*) "ERROR: NaN detected in write for fw5ar8 ",trim(sname)
-  call ccmpi_abort(-1)
-end if
+!if ( any( globvar/=globvar ) ) then
+!  write(6,*) "ERROR: NaN detected in write for fw5ar8 ",trim(sname)
+!  call ccmpi_abort(-1)
+!end if
 
 !     find variable index
 lidnc = idnc
@@ -3990,6 +3987,31 @@ return
 end subroutine ccnf_get_vara_int3i_t
 
 #ifndef i8r8
+subroutine ccnf_get_vara_double1r_s(ncid,vid,start,vdat)
+
+use cc_mpi
+
+implicit none
+
+integer, intent(in) :: ncid, vid, start
+integer ncstatus
+integer(kind=4) lncid, lvid
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
+real(kind=8), intent(out) :: vdat
+real(kind=8), dimension(1) :: lvdat
+
+lncid=ncid
+lvid=vid
+lstart=start
+lncount=1
+ncstatus=nf90_get_var(lncid,lvid,lvdat,start=lstart,count=lncount)
+call ncmsg("get_vara_real1r",ncstatus)
+vdat=lvdat(1)
+
+return
+end subroutine ccnf_get_vara_double1r_s
+
 subroutine ccnf_get_vara_double2r_t(ncid,name,start,ncount,vdat)
 
 use cc_mpi
@@ -4061,6 +4083,9 @@ ncstatus = nf90_get_att(lncid,lvid,aname,atext)
 if (present(ierr)) then
   ierr=ncstatus
 else
+  if ( ncstatus/=nf90_noerr ) then  
+    write(6,*) "ERROR: Cannot read ",aname  
+  end if     
   call ncmsg(aname,ncstatus)
 end if
 
@@ -4086,6 +4111,9 @@ ncstatus = nf90_get_att(lncid,lvid,aname,vdat)
 if (present(ierr)) then
   ierr=ncstatus
 else
+  if ( ncstatus/=nf90_noerr ) then  
+    write(6,*) "ERROR: Cannot read ",aname  
+  end if     
   call ncmsg(aname,ncstatus)
 end if
 
@@ -4111,6 +4139,9 @@ ncstatus = nf90_get_att(lncid,nf90_global,aname,vdat)
 if (present(ierr)) then
   ierr = ncstatus
 else
+  if ( ncstatus/=nf90_noerr ) then  
+    write(6,*) "ERROR: Cannot read ",aname  
+  end if  
   call ncmsg("get_attg",ncstatus)
 end if
 
@@ -4131,6 +4162,9 @@ real, dimension(:), intent(out) :: vdat
 
 lncid=ncid
 ncstatus = nf90_get_att(lncid,nf90_global,aname,vdat(:))
+if ( ncstatus/=nf90_noerr ) then  
+  write(6,*) "ERROR: Cannot read ",aname  
+end if   
 call ncmsg("get_attg",ncstatus)
 
 return
@@ -4156,6 +4190,9 @@ vdat=lvdat
 if (present(tst)) then
   tst=ncstatus/=nf90_noerr
 else
+  if ( ncstatus/=nf90_noerr ) then  
+    write(6,*) "ERROR: Cannot read ",aname  
+  end if  
   call ncmsg("get_attg",ncstatus)
 end if
 
@@ -4178,6 +4215,9 @@ character(len=*), intent(in) :: aname
 lncid=ncid
 ncstatus = nf90_get_att(lncid,nf90_global,aname,lvdat)
 vdat=lvdat
+if ( ncstatus/=nf90_noerr ) then  
+  write(6,*) "ERROR: Cannot read ",aname  
+end if 
 call ncmsg("get_attg",ncstatus)
 
 return
@@ -4202,6 +4242,9 @@ ncstatus = nf90_get_att(lncid,nf90_global,aname,atext)
 if (present(ierr)) then
   ierr=ncstatus
 else
+  if ( ncstatus/=nf90_noerr ) then  
+    write(6,*) "ERROR: Cannot read ",aname  
+  end if     
   call ncmsg(aname,ncstatus)
 end if
 
@@ -4834,11 +4877,11 @@ logical tst
 ifull_l=size(dat)
 allocate( glob2d(ifull_g) )
 
+iernc=0
 if (present(filename)) then
   call ccnf_open(filename,ncidx,iernc)
 else if (present(netcdfid)) then
   ncidx=netcdfid
-  iernc=0
 end if
 
 if (iernc==0) then ! Netcdf file

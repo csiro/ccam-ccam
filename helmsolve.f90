@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -828,7 +828,7 @@ use parmdyn_m
 implicit none
 
 integer, dimension(kl) :: iters
-integer itr, ng, ng4, g, k, jj, i, j, iq
+integer itr, ng, ng4, g, k, jj, i, iq
 integer knew, klim, ir, ic, nc, n, iq_a, iq_c
 integer isc, iec, klimc, itrc
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
@@ -1564,7 +1564,7 @@ end subroutine mghelm
 subroutine mgmlo(neta,ipice,iyy,iyyn,iyys,iyye,iyyw,                   &
                  izz,izzn,izzs,izze,izzw,                              &
                  ihh,irhs,tol,itol,totits,maxglobseta,maxglobip,ipmax, &
-                 ee,dd,minwater)
+                 ee,dd)
 
 use cc_mpi
 use indices_m
@@ -1576,7 +1576,7 @@ integer, intent(out) :: totits
 integer itr, itrc, g, ng, ng4, n, i, j, ir, ic, iq
 integer iq_a, iq_c
 integer nc, isc, iec, k
-real, intent(in) :: tol, itol, minwater
+real, intent(in) :: tol, itol
 real, intent(out) :: maxglobseta, maxglobip
 real, dimension(ifull+iextra), intent(inout) :: neta, ipice
 real, dimension(ifull+iextra), intent(in) :: ee, dd
@@ -3636,7 +3636,7 @@ use parmdyn_m
 
 implicit none
 
-integer g, gp, np, iq, iqq, iql, nn, ii, jj
+integer g, gp, np, iq, iqq, nn, ii, jj
 integer mipan, mjpan, hipan, hjpan, mil_g, iia, jja
 integer i, j, n, mg_npan, mxpr, mypr, sii, eii, sjj, ejj
 integer cid, ix, jx, colour, rank, ncol, nrow
@@ -4386,40 +4386,36 @@ use indices_m
 implicit none
 
 integer, intent(in) :: g
-integer ng
+integer ng, mg_npan, mg_ipan, mg_jpan
+integer i, j, n, iq
 real, dimension(:), intent(in) :: data_in
 real, dimension(:), intent(out) :: data_n, data_s, data_e, data_w
 
 ng = mg(g)%ifull
 
-data_n(1:ng) = data_in(mg(g)%in(1:ng))
-data_s(1:ng) = data_in(mg(g)%is(1:ng))
-data_e(1:ng) = data_in(mg(g)%ie(1:ng))
-data_w(1:ng) = data_in(mg(g)%iw(1:ng))
+mg_npan = mg(g)%npanx
+mg_ipan = mg(g)%ipan
+mg_jpan = ng/(mg(g)%ipan*mg_npan)
 
-!mg_npan = mg(g)%npanx
-!mg_ipan = mg(g)%ipan
-!mg_jpan = ng/(mg(g)%ipan*mg_npan)
-!
-!data_e(1:ng-1)       = data_in(2:ng)
-!data_w(2:ng)         = data_in(1:ng-1)
-!data_n(1:ng-mg_ipan) = data_in(mg_ipan+1:ng)
-!data_s(mg_ipan+1:ng) = data_in(1:ng-mg_ipan)
-!do n = 1,mg_npan
-!  do j = 1,mg_jpan
-!    iq = 1 + (j-1)*mg_ipan + (n-1)*mg_ipan*mg_jpan
-!    data_w(iq) = data_in(mg(g)%iw(iq))
-!    iq = j*mg_ipan + (n-1)*mg_ipan*mg_jpan
-!    data_e(iq) = data_in(mg(g)%ie(iq))
-!  end do
-!  do i = 1,mg_ipan
-!    iq = i + (n-1)*mg_ipan*mg_jpan
-!    data_s(iq) = data_in(mg(g)%is(iq))
-!    iq = i - mg_ipan + n*mg_ipan*mg_jpan
-!    data_n(iq) = data_in(mg(g)%in(iq))
-!  end do
-!end do
-
+data_e(1:ng-1)       = data_in(2:ng)
+data_w(2:ng)         = data_in(1:ng-1)
+data_n(1:ng-mg_ipan) = data_in(mg_ipan+1:ng)
+data_s(mg_ipan+1:ng) = data_in(1:ng-mg_ipan)
+do n = 1,mg_npan
+  do j = 1,mg_jpan
+    iq = 1 + (j-1)*mg_ipan + (n-1)*mg_ipan*mg_jpan
+    data_w(iq) = data_in(mg(g)%iw(iq))
+    iq = mg_ipan + (j-1)*mg_ipan + (n-1)*mg_ipan*mg_jpan
+    data_e(iq) = data_in(mg(g)%ie(iq))
+  end do
+  do i = 1,mg_ipan
+    iq = i + (n-1)*mg_ipan*mg_jpan
+    data_s(iq) = data_in(mg(g)%is(iq))
+    iq = i + (mg_jpan-1)*mg_ipan + (n-1)*mg_ipan*mg_jpan
+    data_n(iq) = data_in(mg(g)%in(iq))
+  end do
+end do
+    
 return
 end subroutine mgunpack_nsew
 

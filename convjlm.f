@@ -339,13 +339,13 @@
       real, dimension(imax,kl)          :: lqlg, lu, lv, lqfg
       real, dimension(imax,kl)          :: lcfrac
       real, dimension(imax,ndust)       :: ldustwd
-      real, dimension(imax)             :: lcape, lso2wd, lso4wd
-      real, dimension(imax)             :: lbcwd, locwd
+      real, dimension(imax)             :: lso2wd, lso4wd
+      real, dimension(imax)             :: lbcwd, locwd, lsaltwd
       logical :: mydiag_t
 
 !$omp  do schedule(static) private(is,ie),
 !$omp& private(ldpsldt,lt,lqg,lfluxtot),
-!$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd),
+!$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd),
 !$omp& private(lqlg,lqfg,lcfrac,lu,lv,ltr,idjd_t,mydiag_t)
       do tile=1,ntiles
         is=(tile-1)*imax+1
@@ -369,6 +369,7 @@
           lso4wd  = so4wd(is:ie)
           lbcwd   = bcwd(is:ie)
           locwd   = ocwd(is:ie)
+          lsaltwd = saltwd(is:ie)
         end if
         if ( ngas>0 ) then
           ltr = tr(is:ie,:,:)
@@ -376,7 +377,7 @@
 
         call convjlm_work(alfin(is:ie),ldpsldt,lt,lqg,
      &       ps(is:ie),lfluxtot,convpsav(is:ie),cape(is:ie),
-     &       lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,
+     &       lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd,
      &       lqlg,condc(is:ie),precc(is:ie),condx(is:ie),
      &       conds(is:ie),condg(is:ie),precip(is:ie),
      &       pblh(is:ie),fg(is:ie),wetfac(is:ie),land(is:ie),
@@ -398,6 +399,7 @@
           so4wd(is:ie) = lso4wd
           bcwd(is:ie) = lbcwd
           ocwd(is:ie) = locwd
+          saltwd(is:ie) = lsaltwd
         end if
         if ( ngas>0 ) then
           tr(is:ie,:,:) = ltr
@@ -411,7 +413,7 @@
 
       subroutine convjlm_work(alfin,dpsldt,t,qg,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
-     &       dustwd,qlg,condc,precc,condx,conds,condg,precip,
+     &       dustwd,saltwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,entrainn,u,v,timeconv,em,
      &       kbsav,ktsav,tr,qfg,cfrac,sgsave,
      &       idjd,mydiag)     ! jlm convective scheme
@@ -427,7 +429,7 @@
 !     has +ve fldownn depending on delta sigma; (-ve fldown descends from sig=.6))   
 !     nevapcc option now affects entrainment
       use aerosolldr, only : itracso2,itracbc,itracoc,itracdu,ndust,
-     &                       naero,convscav
+     &                       naero,convscav,itracsa,nsalt
       use cc_mpi, only : ccmpi_abort
       use cc_omp, only : imax, ntiles
       use const_phys
@@ -474,16 +476,16 @@
 !     parameter (nuvconv=0)    ! usually 0, >0 or <0 to turn on momentum mixing
 !     parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing (base layers too)
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
-      real, dimension(:,:,:), intent(inout)    :: xtg
-      real, dimension(:,:,:), intent(inout)    :: tr
+      real, dimension(:,:,:), contiguous, intent(inout)    :: xtg
+      real, dimension(:,:,:), contiguous, intent(inout)    :: tr
       real, dimension(imax,kl), intent(in)         :: dpsldt
       real, dimension(imax,kl), intent(in)         :: cfrac
-      real, dimension(:,:), intent(inout)          :: t
-      real, dimension(:,:), intent(inout)          :: qg
-      real, dimension(:,:), intent(inout)          :: qlg
-      real, dimension(:,:), intent(inout)          :: qfg
-      real, dimension(:,:), intent(inout)          :: u
-      real, dimension(:,:), intent(inout)          :: v
+      real, dimension(:,:), contiguous, intent(inout)          :: t
+      real, dimension(:,:), contiguous, intent(inout)          :: qg
+      real, dimension(:,:), contiguous, intent(inout)          :: qlg
+      real, dimension(:,:), contiguous, intent(inout)          :: qfg
+      real, dimension(:,:), contiguous, intent(inout)          :: u
+      real, dimension(:,:), contiguous, intent(inout)          :: v
       real, dimension(imax,kl), intent(out)            :: fluxtot
       real, dimension(imax,ndust), intent(inout)       :: dustwd
       real, dimension(imax), intent(in)                :: alfin
@@ -500,6 +502,7 @@
       real, dimension(imax), intent(inout)             :: so4wd
       real, dimension(imax), intent(inout)             :: bcwd
       real, dimension(imax), intent(inout)             :: ocwd
+      real, dimension(imax), intent(inout)             :: saltwd
       real, dimension(imax), intent(out)               :: condc
       real, dimension(imax), intent(inout)             :: precc
       real, dimension(imax), intent(out)               :: condx
@@ -1950,6 +1953,11 @@ c           print *,'has tied_con=0'
      &          +xtgscav(:,k)*ps(1:imax)*dsk(k)
      &          /(grav*dt)
             end do
+          elseif (ntr>=itracsa.and.ntr<=itracsa+nsalt-1) then
+            do k=1,kl
+              saltwd=saltwd+xtgscav(:,k)*ps(1:imax)*dsk(k)
+     &          /(grav*dt)
+            end do              
           end if
         end do     ! nt loop
       end if   ! (abs(iaero)==2) 
