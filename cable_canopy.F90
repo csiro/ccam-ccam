@@ -47,6 +47,15 @@
 
 MODULE cable_canopy_module
 
+  USE cable_def_types_mod
+  USE cable_radiation_module
+  USE cable_air_module
+  USE cable_common_module
+  USE cable_roughness_module
+  USE cable_psm, ONLY: or_soil_evap_resistance,rtevap_max,&
+       rt_Dff,update_or_soil_resis
+  USE cable_gw_hydro_module, ONLY : pore_space_relative_humidity
+  USE sli_main_mod, ONLY : sli_main
   USE cable_data_module, ONLY : icanopy_type, point2constants
 
   IMPLICIT NONE
@@ -64,15 +73,6 @@ CONTAINS
 
 
   SUBROUTINE define_canopy(bal,rad,rough,air,met,dels,ssnow,soil,veg, canopy,climate)
-    USE cable_def_types_mod
-    USE cable_radiation_module
-    USE cable_air_module
-    USE cable_common_module
-    USE cable_roughness_module
-    USE cable_psm, ONLY: or_soil_evap_resistance,rtevap_max,&
-         rt_Dff,update_or_soil_resis
-    USE cable_gw_hydro_module, ONLY : pore_space_relative_humidity
-    USE sli_main_mod, ONLY : sli_main
 
 
     TYPE (balances_type), INTENT(INOUT)  :: bal
@@ -123,7 +123,7 @@ CONTAINS
 
     ! temporary buffers to simplify equations
     REAL, DIMENSION(mp) ::                                                      &
-         ftemp,z_eff,psim_arg, psim_1, psim_2, rlower_limit,                      &
+         ftemp, rlower_limit,                      &
          term1, term2, term3, term5
     ! arguments for potential_evap (sli)
     REAL(r_2), DIMENSION(mp) ::  Rn, rbh, rbw, Ta, rha,Ts, &
@@ -263,7 +263,7 @@ CONTAINS
        ! AERODYNAMIC PROPERTIES: friction velocity us, thence turbulent
        ! resistances rt0, rt1 (elements of dispersion matrix):
        ! See CSIRO SCAM, Raupach et al 1997, eq. 3.46:
-       CALL comp_friction_vel()
+       CALL comp_friction_vel(canopy,met,rough,iter)
 
        ! E.Kowalczyk 2014
        IF (cable_user%l_new_roughness_soil)                                     &
@@ -492,7 +492,7 @@ CONTAINS
           IF(cable_user%ssnow_POTEV== "P-M") THEN
 
              !--- uses %ga from previous timestep
-             ssnow%potev = Penman_Monteith(canopy%ga)
+             ssnow%potev = Penman_Monteith(canopy%ga,canopy,air,met,ssnow,veg)
 
           ELSE !by default assumes Humidity Deficit Method
 
@@ -500,12 +500,12 @@ CONTAINS
              ! INH: I think this should be - met%qvair
              dq = ssnow%qstss - met%qv
              dq_unsat = ssnow%rh_srf*ssnow%qstss - met%qv
-             ssnow%potev =  Humidity_deficit_method(dq, dq_unsat,ssnow%qstss)
+             ssnow%potev =  Humidity_deficit_method(dq, dq_unsat,ssnow%qstss,ssnow,air,canopy,veg)
 
           ENDIF
 
           ! Soil latent heat:
-          CALL latent_heat_flux()
+          CALL latent_heat_flux(canopy,air,ssnow,soil,dels)
 
           ! Calculate soil sensible heat:
           ! INH: I think this should be - met%tvair
@@ -534,7 +534,7 @@ CONTAINS
 
        ENDIF
 
-       CALL within_canopy( gbhu, gbhf, rt0, rhlitt, relitt )
+       CALL within_canopy( gbhu, gbhf, rt0, rhlitt, relitt, canopy, air, ssnow, rough, veg, met, qstvair )
 
        ! Saturation specific humidity at soil/snow surface temperature:
 #ifdef CCAM
@@ -549,19 +549,19 @@ CONTAINS
           IF(cable_user%ssnow_POTEV== "P-M") THEN
 
              !--- uses %ga from previous timestep
-             ssnow%potev = Penman_Monteith(canopy%ga)
+             ssnow%potev = Penman_Monteith(canopy%ga, canopy, air, met, ssnow, veg)
 
           ELSE !by default assumes Humidity Deficit Method
 
              ! Humidity deficit
              dq = ssnow%qstss - met%qvair
              dq_unsat = ssnow%rh_srf*ssnow%qstss - met%qvair
-             ssnow%potev =  Humidity_deficit_method(dq, dq_unsat,ssnow%qstss)
+             ssnow%potev =  Humidity_deficit_method(dq, dq_unsat,ssnow%qstss, ssnow, air, canopy, veg)
 
           ENDIF
 
           ! Soil latent heat:
-          CALL latent_heat_flux()
+          CALL latent_heat_flux(canopy, air, ssnow, soil, dels)
 
           ! Soil sensible heat:
           !canopy%fhs = air%rho*C%CAPP*(ssnow%tss - met%tvair) /ssnow%rtsoil
@@ -642,7 +642,7 @@ CONTAINS
 
        ENDDO
 
-       CALL update_zetar()
+       CALL update_zetar(canopy,air,rough,met,iter,iterplus)
 
     END DO           ! do iter = 1, NITER
 
@@ -1001,13 +1001,22 @@ CONTAINS
 
     RETURN
 
-  CONTAINS
+  END SUBROUTINE define_canopy
 
     ! ------------------------------------------------------------------------------
 
-    SUBROUTINE comp_friction_vel()
+    SUBROUTINE comp_friction_vel(canopy,met,rough,iter)
       USE cable_def_types_mod, ONLY : mp
+
+      IMPLICIT NONE
+
+      TYPE (canopy_type) , INTENT(INOUT) :: canopy
+      TYPE (met_type) , INTENT(IN) :: met
+      TYPE (roughness_type) , INTENT(IN) :: rough
+      INTEGER, INTENT(IN) :: iter
+
       REAL, DIMENSION(mp)  :: lower_limit, rescale
+      REAL, DIMENSION(mp)  :: psim_1, psim_2, psim_arg, z_eff
 #ifdef CCAM
       REAL, DIMENSION(mp) :: dum
 #endif
@@ -1044,9 +1053,18 @@ CONTAINS
 
     ! ------------------------------------------------------------------------------
 
-    FUNCTION Penman_Monteith( ground_H_flux ) RESULT(ssnowpotev)
+    FUNCTION Penman_Monteith( ground_H_flux, canopy, air, met, ssnow, veg ) RESULT(ssnowpotev)
       USE cable_def_types_mod, ONLY : mp
+
+      IMPLICIT NONE
+
       REAL, INTENT(IN), DIMENSION(mp)  :: ground_H_flux
+      TYPE (canopy_type) , INTENT(IN) :: canopy
+      TYPE (air_type) , INTENT(IN) :: air
+      TYPE (met_type) , INTENT(IN) :: met
+      TYPE (soil_snow_type) , INTENT(IN) :: ssnow
+      TYPE (veg_parameter_type) , INTENT(IN) :: veg
+
       REAL, DIMENSION(MP)  ::                                                     &
            ssnowpotev,      & ! returned result of function
            sss,             & ! var for Penman-Monteith soil evap
@@ -1054,6 +1072,9 @@ CONTAINS
            cc2,             & ! var for Penman-Monteith soil evap
            qsatfvar           !
       INTEGER :: j
+#ifdef CCAM
+      REAL, DIMENSION(mp) :: dum
+#endif
 
       ! Penman-Monteith formula
       sss=air%dsatdk
@@ -1088,9 +1109,16 @@ CONTAINS
 
     ! ------------------------------------------------------------------------------
     ! method alternative to P-M formula above
-    FUNCTION humidity_deficit_method(dq,dqu,qstss ) RESULT(ssnowpotev)
+    FUNCTION humidity_deficit_method(dq,dqu,qstss,ssnow,air,canopy,veg ) RESULT(ssnowpotev)
 
       USE cable_def_types_mod, ONLY : mp
+
+      IMPLICIT NONE
+
+      TYPE (canopy_type) , INTENT(IN) :: canopy
+      TYPE (air_type) , INTENT(IN) :: air
+      TYPE (soil_snow_type) , INTENT(IN) :: ssnow
+      TYPE (veg_parameter_type) , INTENT(IN) :: veg
 
       REAL, DIMENSION(mp) ::                                                      &
            ssnowpotev,    & !
@@ -1157,13 +1185,21 @@ CONTAINS
 
     ! ------------------------------------------------------------------------------
 
-    SUBROUTINE Latent_heat_flux()
+    SUBROUTINE Latent_heat_flux(canopy,air,ssnow,soil,dels)
 
       USE cable_common_module
       USE cable_def_types_mod, ONLY : mp
 
+      IMPLICIT NONE
+
+      TYPE (canopy_type) , INTENT(INOUT) :: canopy
+      TYPE (air_type) , INTENT(IN) :: air
+      TYPE (soil_snow_type) , INTENT(INOUT) :: ssnow
+      TYPE (soil_parameter_type) , INTENT(IN) :: soil
+      REAL, INTENT(IN) :: dels
+
       REAL, DIMENSION(mp) ::                                                      &
-           frescale,  flower_limit, fupper_limit
+           frescale,  flower_limit, fupper_limit, pwet
 
       INTEGER :: j
 
@@ -1252,9 +1288,12 @@ CONTAINS
 
     ! -----------------------------------------------------------------------------
 
-    SUBROUTINE within_canopy( gbhu, gbhf, rt0, rhlitt, relitt )
+    SUBROUTINE within_canopy( gbhu, gbhf, rt0, rhlitt, relitt, canopy, air, ssnow, rough, veg, met, qstvair )
 
       USE cable_def_types_mod, ONLY : mp, r_2
+
+      IMPLICIT NONE
+
 
       REAL(r_2), INTENT(IN), DIMENSION(:,:) ::                                    &
            gbhu,    &  ! forcedConvectionBndryLayerCond
@@ -1264,6 +1303,14 @@ CONTAINS
            rt0,     &  ! resistance from ground to canopy air
            rhlitt,  &  ! additional litter resistance for heat (=0 by default)
            relitt      ! additional litter resistance for water
+
+      TYPE (canopy_type), INTENT(IN) :: canopy
+      TYPE (air_type), INTENT(IN) :: air
+      TYPE (soil_snow_type), INTENT(IN) :: ssnow
+      TYPE (roughness_type), INTENT(IN) :: rough
+      TYPE (veg_parameter_type), INTENT(IN) :: veg
+      TYPE (met_type), INTENT(INOUT) :: met
+      REAL, INTENT(INOUT), DIMENSION(mp) :: qstvair
 
       REAL, DIMENSION(mp) ::                                                      &
            rrsw,             & ! recipr. stomatal resistance for water
@@ -1382,7 +1429,16 @@ CONTAINS
 
     ! -----------------------------------------------------------------------------
 
-    SUBROUTINE update_zetar()
+    SUBROUTINE update_zetar(canopy,air,rough,met,iter,iterplus)
+
+      IMPLICIT NONE
+
+      TYPE (canopy_type), INTENT(INOUT) :: canopy
+      TYPE (air_type), INTENT(IN) :: air
+      TYPE (roughness_type), INTENT(IN) :: rough
+      TYPE (met_type), INTENT(IN) :: met
+      INTEGER, INTENT(IN) :: iter
+      INTEGER, INTENT(INOUT) :: iterplus
 
       INTEGER :: j
 
@@ -1444,6 +1500,9 @@ CONTAINS
 
 
     FUNCTION qsatf(j,tair,pmb) RESULT(r)
+
+      IMPLICIT NONE
+
       ! MRR, 1987
       ! AT TEMP tair (DEG C) AND PRESSURE pmb (MB), GET SATURATION SPECIFIC
       ! HUMIDITY (KG/KG) FROM TETEN FORMULA
@@ -1464,6 +1523,9 @@ CONTAINS
 
     SUBROUTINE qsatfjh(var,tair,pmb)
       USE cable_def_types_mod, ONLY : mp
+
+      IMPLICIT NONE
+
       REAL, INTENT(IN), DIMENSION(mp) ::                                          &
            tair,                        & ! air temperature (C)
            pmb                            ! pressure PMB (mb)
@@ -1485,6 +1547,8 @@ CONTAINS
 
     SUBROUTINE qsatfjh2(var,tair,pmb)
 
+      IMPLICIT NONE
+
       REAL, INTENT(IN) ::                                                         &
            tair,         & ! air temperature (C)
            pmb             ! pressure PMB (mb)
@@ -1500,6 +1564,9 @@ CONTAINS
 
     FUNCTION psim(zeta) RESULT(r)
       USE cable_def_types_mod, ONLY : mp
+
+      IMPLICIT NONE
+
       ! mrr, 16-sep-92 (from function psi: mrr, edinburgh 1977)
       ! computes integrated stability function psim(z/l) (z/l=zeta)
       ! for momentum, using the businger-dyer form for unstable cases
@@ -1540,6 +1607,8 @@ CONTAINS
 
     ELEMENTAL FUNCTION psis(zeta) RESULT(r)
 
+      IMPLICIT NONE
+
       ! mrr, 16-sep-92 (from function psi: mrr, edinburgh 1977)
       ! computes integrated stability function psis(z/l) (z/l=zeta)
       ! for scalars, using the businger-dyer form for unstable cases
@@ -1579,6 +1648,9 @@ CONTAINS
     ! -----------------------------------------------------------------------------
 
     ELEMENTAL FUNCTION rplant(rpconst, rpcoef, tair) RESULT(z)
+
+      IMPLICIT NONE
+
       REAL, INTENT(IN)     :: rpconst
       REAL, INTENT(IN)     :: rpcoef
       REAL, INTENT(IN)     :: tair
@@ -1592,6 +1664,8 @@ CONTAINS
          gbhu, gbhf, ghwet )
 
       USE cable_def_types_mod
+
+      IMPLICIT NONE
 
       TYPE (radiation_type), INTENT(INOUT) :: rad
       TYPE (roughness_type), INTENT(INOUT) :: rough
@@ -1681,9 +1755,6 @@ CONTAINS
 
     END SUBROUTINE wetLeaf
 
-    ! -----------------------------------------------------------------------------
-
-  END SUBROUTINE define_canopy
 
   ! -----------------------------------------------------------------------------
 
@@ -1692,6 +1763,8 @@ CONTAINS
     USE cable_common_module
     USE cable_def_types_mod
     USE cable_gw_hydro_module, ONLY : calc_srf_wet_fraction
+
+    IMPLICIT NONE
 
     TYPE (veg_parameter_type), INTENT(INOUT)    :: veg
     TYPE (soil_snow_type), INTENT(inout):: ssnow
@@ -1745,6 +1818,8 @@ CONTAINS
 
     USE cable_def_types_mod
     USE cable_common_module
+
+    IMPLICIT NONE
 
     TYPE (radiation_type), INTENT(INOUT) :: rad
     TYPE (roughness_type), INTENT(INOUT) :: rough
@@ -2464,6 +2539,8 @@ CONTAINS
        vx4z, gs_coeffz, vlaiz, deltlfz, anxz, fwsoilz )
     USE cable_def_types_mod, ONLY : mp, mf, r_2
 
+    IMPLICIT NONE
+
     REAL(r_2), DIMENSION(mp,mf), INTENT(IN) :: csxz
 
     REAL, DIMENSION(mp,mf), INTENT(IN) ::                                       &
@@ -2673,6 +2750,8 @@ CONTAINS
 
   FUNCTION ej3x(parx,alpha,convex,x) RESULT(z)
 
+    IMPLICIT NONE
+
     REAL, INTENT(IN)     :: parx
     REAL, INTENT(IN)     :: alpha
     REAL, INTENT(IN)     :: convex
@@ -2687,6 +2766,8 @@ CONTAINS
   ! ------------------------------------------------------------------------------
 
   FUNCTION ej4x(parx,alpha,convex,x) RESULT(z)
+
+    IMPLICIT NONE
 
     REAL, INTENT(IN)     :: parx
     REAL, INTENT(IN)     :: alpha
@@ -2705,6 +2786,8 @@ CONTAINS
   ! Explicit array dimensions as temporary work around for NEC inlining problem
   FUNCTION xvcmxt4(x) RESULT(z)
 
+    IMPLICIT NONE
+
     REAL, PARAMETER      :: q10c4 = 2.0
     REAL, INTENT(IN) :: x
     REAL :: z, xlim
@@ -2718,6 +2801,8 @@ CONTAINS
   ! ------------------------------------------------------------------------------
 
   FUNCTION xvcmxt3(x) RESULT(z)
+
+    IMPLICIT NONE
 
     !  leuning 2002 (p c & e) equation for temperature response
     !  used for vcmax for c3 plants
@@ -2739,6 +2824,8 @@ CONTAINS
   ! ------------------------------------------------------------------------------
   REAL FUNCTION xrdt(x)
 
+    IMPLICIT NONE
+
     !  Atkins et al. (Eq 1, New Phytologist (2015) 206: 614–636)
     !variable Q10 temperature of dark respiration
     ! Originally from Tjoelker et al. 2001
@@ -2753,6 +2840,8 @@ CONTAINS
   ! ------------------------------------------------------------------------------
 
   FUNCTION xejmxt3(x) RESULT(z)
+
+    IMPLICIT NONE
 
     !  leuning 2002 (p c & e) equation for temperature response
     !  used for jmax for c3 plants
@@ -2776,6 +2865,9 @@ CONTAINS
   SUBROUTINE fwsoil_calc_std(fwsoil, soil, ssnow, veg)
     USE cable_def_types_mod
     USE cable_common_module, ONLY : cable_user
+
+    IMPLICIT NONE
+
     TYPE (soil_snow_type), INTENT(INOUT):: ssnow
     TYPE (soil_parameter_type), INTENT(INOUT)   :: soil
     TYPE (veg_parameter_type), INTENT(INOUT)    :: veg
@@ -2812,6 +2904,9 @@ CONTAINS
 
   SUBROUTINE fwsoil_calc_non_linear(fwsoil, soil, ssnow, veg)
     USE cable_def_types_mod
+
+    IMPLICIT NONE
+
     TYPE (soil_snow_type), INTENT(INOUT):: ssnow
     TYPE (soil_parameter_type), INTENT(INOUT)   :: soil
     TYPE (veg_parameter_type), INTENT(INOUT)    :: veg
@@ -2859,6 +2954,9 @@ CONTAINS
   ! ypw 19/may/2010 soil water uptake efficiency (see Lai and Ktaul 2000)
   SUBROUTINE fwsoil_calc_Lai_Ktaul(fwsoil, soil, ssnow, veg)
     USE cable_def_types_mod
+
+    IMPLICIT NONE
+
     TYPE (soil_snow_type), INTENT(INOUT):: ssnow
     TYPE (soil_parameter_type), INTENT(INOUT)   :: soil
     TYPE (veg_parameter_type), INTENT(INOUT)    :: veg
@@ -2890,6 +2988,9 @@ CONTAINS
   ! ------------------------------------------------------------------------------
   SUBROUTINE fwsoil_calc_sli(fwsoil, soil, ssnow, veg)
     USE cable_def_types_mod
+
+    IMPLICIT NONE
+
     TYPE (soil_snow_type), INTENT(INOUT):: ssnow
     TYPE (soil_parameter_type), INTENT(INOUT)   :: soil
     TYPE (veg_parameter_type), INTENT(INOUT)    :: veg
