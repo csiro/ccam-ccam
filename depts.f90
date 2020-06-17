@@ -155,7 +155,7 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
 
-!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
+!paracc!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
   do nn = 1,3
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -187,7 +187,7 @@ if ( intsch==1 ) then
       end do   ! iq loop
     end do     ! k loop
   end do       ! nn loop
-!$acc end parallel
+!paracc!$acc end parallel
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -265,7 +265,7 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
+!paracc!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
   do nn = 1,3
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -297,7 +297,7 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! k loop
   end do              ! nn loop
-!$acc end parallel
+!paracc!$acc end parallel
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -360,7 +360,7 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
 
-!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
+!paracc!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
   do nn = 1,3
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -392,7 +392,7 @@ if ( intsch==1 ) then
       end do   ! iq loop
     end do     ! k loop
   end do       ! nn loop
-!$acc end parallel
+!paracc!$acc end parallel
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -435,7 +435,7 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
+!paracc!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
   do nn = 1,3
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -468,7 +468,7 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! nn loop
   end do              ! k loop
-!$acc end parallel
+!paracc!$acc end parallel
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================

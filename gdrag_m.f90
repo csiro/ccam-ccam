@@ -256,7 +256,7 @@ do k = kbot,kl
 end do     ! k loop
 
 
-#ifndef GPU
+#ifndef GPU1
 if ( ntest==1 .and. mydiag ) then ! JLM
   do iq = idjd-1,idjd+1
     write(6,*) 'from gwdrag, iq,ngwd,alambda,fnii,apuw,apvw,wmag',  &
