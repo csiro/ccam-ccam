@@ -2586,728 +2586,724 @@ call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp,uniform_decomp)
 call ccmpi_reinit(new_nproc) 
 
 
-if ( myid<nproc ) then
-    
-  if ( myid==0 ) then
-    write(6,'(a20," running for nproc =",i7)') version,nproc
-    write(6,*) 'Using defaults for nversion = ',nversion
+if ( myid==0 ) then
+  write(6,'(a20," running for nproc    =",i7)') version,nproc
+  write(6,*) 'Using defaults for nversion              = ',nversion
 #ifdef usempi3
-    write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
+  write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
 #endif
-    if ( using_omp ) then
-      write(6,*) 'Using OpenMP with number of threads = ',maxthreads
-    end if
-    write(6,*) 'Reading namelist from ',trim(nmlfile)
-    write(6,*) 'ilx,jlx              ',ilx,jlx
-    write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
-    write(6,*) 'kl,ol                ',kl,ol
-    write(6,*) 'lapsbot,isoth,nsig   ',lapsbot,isoth,nsig
-    if ( uniform_decomp ) then
-      write(6,*) "Using uniform grid decomposition"
-    else
-      write(6,*) "Using face grid decomposition"
-    end if
+  if ( using_omp ) then
+    write(6,*) 'Using OpenMP with number of threads     = ',maxthreads
   end if
-  jl_g    = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
-  ifull_g = il_g*jl_g                           ! total number of global horizontal grid points
-  iquad   = 1 + il_g*((8*npanels)/(npanels+4))  ! grid size for interpolation
-  il      = il_g/nxp                            ! local grid size on process in X direction
-  jl      = jl_g/nyp                            ! local grid size on process in Y direction
-  ifull   = il*jl                               ! total number of local horizontal grid points
-  ! The perimeter of the processor region has length 2*(il+jl).
-  ! The first row has 8 possible corner points per panel and the 
-  ! second has 16. In practice these are not all distinct so there could
-  ! be some optimisation.
+  write(6,*) 'Reading namelist from ',trim(nmlfile)
+  write(6,*) 'ilx,jlx              ',ilx,jlx
+  write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
+  write(6,*) 'kl,ol                ',kl,ol
+  write(6,*) 'lapsbot,isoth,nsig   ',lapsbot,isoth,nsig
   if ( uniform_decomp ) then
-    npan = npanels + 1               ! number of panels on this process
+    write(6,*) "Using uniform grid decomposition"
   else
-    npan = max(1, (npanels+1)/nproc) ! number of panels on this process
+    write(6,*) "Using face grid decomposition"
   end if
-  iextra = (4*(il+jl)+24)*npan + 4   ! size of halo for MPI message passing
-  call ccomp_ntiles
-  if ( myid==0 ) then
-    write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
+end if
+jl_g    = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
+ifull_g = il_g*jl_g                           ! total number of global horizontal grid points
+iquad   = 1 + il_g*((8*npanels)/(npanels+4))  ! grid size for interpolation
+il      = il_g/nxp                            ! local grid size on process in X direction
+jl      = jl_g/nyp                            ! local grid size on process in Y direction
+ifull   = il*jl                               ! total number of local horizontal grid points
+! The perimeter of the processor region has length 2*(il+jl).
+! The first row has 8 possible corner points per panel and the 
+! second has 16. In practice these are not all distinct so there could
+! be some optimisation.
+if ( uniform_decomp ) then
+  npan = npanels + 1               ! number of panels on this process
+else
+  npan = max(1, (npanels+1)/nproc) ! number of panels on this process
+end if
+iextra = (4*(il+jl)+24)*npan + 4   ! size of halo for MPI message passing
+call ccomp_ntiles
+if ( myid==0 ) then
+  write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
+end if  
+! nrows_rad is a subgrid decomposition for older radiation routines
+nrows_rad = max( min( maxtilesize/il, jl ), 1 ) 
+do while( mod(jl, nrows_rad)/=0 )
+  nrows_rad = nrows_rad - 1
+end do
+if ( myid==0 ) then
+  write(6,*) "il_g,jl_g,il,jl ",il_g,jl_g,il,jl
+  write(6,*) "nxp,nyp         ",nxp,nyp
+end if
+
+! some default values for unspecified parameters
+if ( ia<0 ) ia = il/2          ! diagnostic point
+if ( ib<0 ) ib = ia + 3        ! diagnostic point
+!if ( ldr==0 ) mbase = 0       ! convection
+dsig4 = max(dsig2+.01, dsig4)  ! convection
+
+! check nudging settings - adjust mbd scale parameter to satisfy mbd_maxscale and mbd_maxgrid settings
+if ( ensemble_mode>0 .and. (mbd/=0.or.nbd/=0.or.mbd_mlo/=0) ) then
+  write(6,*) "ERROR: mbd=0, nbd=0 and mbd_mlo=0 are required for ensemble_mode>0"
+  call ccmpi_abort(-1)
+end if
+if ( mbd/=0 .and. nbd/=0 ) then
+  if ( myid==0 ) then  
+    write(6,*) 'WARN: setting nbd=0 because mbd/=0'
   end if  
-  ! nrows_rad is a subgrid decomposition for older radiation routines
-  nrows_rad = max( min( maxtilesize/il, jl ), 1 ) 
-  do while( mod(jl, nrows_rad)/=0 )
-    nrows_rad = nrows_rad - 1
-  end do
-  if ( myid==0 ) then
-    write(6,*) "il_g,jl_g,il,jl ",il_g,jl_g,il,jl
-    write(6,*) "nxp,nyp         ",nxp,nyp
-  end if
-
-  ! some default values for unspecified parameters
-  if ( ia<0 ) ia = il/2          ! diagnostic point
-  if ( ib<0 ) ib = ia + 3        ! diagnostic point
-  !if ( ldr==0 ) mbase = 0       ! convection
-  dsig4 = max(dsig2+.01, dsig4)  ! convection
-
-  ! check nudging settings - adjust mbd scale parameter to satisfy mbd_maxscale and mbd_maxgrid settings
-  if ( ensemble_mode>0 .and. (mbd/=0.or.nbd/=0.or.mbd_mlo/=0) ) then
-    write(6,*) "ERROR: mbd=0, nbd=0 and mbd_mlo=0 are required for ensemble_mode>0"
+  nbd = 0
+end if
+if ( mbd<0 ) then
+  write(6,*) "ERROR: mbd<0 is invalid"
+  call ccmpi_abort(-1)
+end if
+if ( mbd/=0 ) then
+  if ( mbd_maxscale==0 ) then
+    write(6,*) "ERROR: mbd_maxscale must be >0 when mbd/=0"
     call ccmpi_abort(-1)
   end if
-  if ( mbd/=0 .and. nbd/=0 ) then
-    if ( myid==0 ) then  
-      write(6,*) 'WARN: setting nbd=0 because mbd/=0'
-    end if  
-    nbd = 0
+  mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale))
+  if ( mbd<mbd_min .and. mbd/=0 ) then
+    if ( myid==0 ) then
+      write(6,*) "Increasing mbd to satisfy mbd_maxscale ",mbd_maxscale
+      write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
+    end if
+    mbd = mbd_min
   end if
-  if ( mbd<0 ) then
-    write(6,*) "ERROR: mbd<0 is invalid"
+  if ( mbd_maxgrid==0 ) then
+    write(6,*) "ERROR: mbd_maxgrid must be >0 when mbd/=0"
     call ccmpi_abort(-1)
   end if
-  if ( mbd/=0 ) then
-    if ( mbd_maxscale==0 ) then
-      write(6,*) "ERROR: mbd_maxscale must be >0 when mbd/=0"
-      call ccmpi_abort(-1)
+  mbd_min = int(20.*real(il_g)/real(mbd_maxgrid))
+  if ( mbd<mbd_min .and. mbd/=0 ) then
+    if ( myid==0 ) then
+      write(6,*) "Adjusting mbd to satisfy mbd_maxgrid = ",mbd_maxgrid
+      write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
     end if
-    mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale))
-    if ( mbd<mbd_min .and. mbd/=0 ) then
-      if ( myid==0 ) then
-        write(6,*) "Increasing mbd to satisfy mbd_maxscale ",mbd_maxscale
-        write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
-      end if
-      mbd = mbd_min
-    end if
-    if ( mbd_maxgrid==0 ) then
-      write(6,*) "ERROR: mbd_maxgrid must be >0 when mbd/=0"
-      call ccmpi_abort(-1)
-    end if
-    mbd_min = int(20.*real(il_g)/real(mbd_maxgrid))
-    if ( mbd<mbd_min .and. mbd/=0 ) then
-      if ( myid==0 ) then
-        write(6,*) "Adjusting mbd to satisfy mbd_maxgrid = ",mbd_maxgrid
-        write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
-      end if
-      mbd = mbd_min
-    end if
-    nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
-    if ( nudu_hrs==0 ) then
-      nudu_hrs = nud_hrs
-    end if
+    mbd = mbd_min
   end if
-  if ( mbd_mlo<0 ) then
-    write(6,*) "ERROR: mbd_mlo<0 is invalid"
+  nud_hrs = abs(nud_hrs)  ! just for people with old -ves in namelist
+  if ( nudu_hrs==0 ) then
+    nudu_hrs = nud_hrs
+  end if
+end if
+if ( mbd_mlo<0 ) then
+  write(6,*) "ERROR: mbd_mlo<0 is invalid"
+  call ccmpi_abort(-1)
+end if
+if ( mbd_mlo/=0 ) then
+  if ( mbd_maxscale_mlo==0 ) then
+    write(6,*) "ERROR: mbd_maxscale_mlo must be >0 when mbd_mlo/=0"
     call ccmpi_abort(-1)
   end if
-  if ( mbd_mlo/=0 ) then
-    if ( mbd_maxscale_mlo==0 ) then
-      write(6,*) "ERROR: mbd_maxscale_mlo must be >0 when mbd_mlo/=0"
-      call ccmpi_abort(-1)
+  mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale_mlo))
+  if ( mbd_mlo<mbd_min ) then
+    if ( myid==0 ) then
+      write(6,*) "Adjusting mbd_mlo to satisfy mbd_maxscale_mlo = ",mbd_maxscale_mlo
+      write(6,*) "Original mbd_mlo and final mbd_mlo = ",mbd_mlo,mbd_min
     end if
-    mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale_mlo))
-    if ( mbd_mlo<mbd_min ) then
-      if ( myid==0 ) then
-        write(6,*) "Adjusting mbd_mlo to satisfy mbd_maxscale_mlo = ",mbd_maxscale_mlo
-        write(6,*) "Original mbd_mlo and final mbd_mlo = ",mbd_mlo,mbd_min
-      end if
-      mbd_mlo = mbd_min
-    end if
+    mbd_mlo = mbd_min
   end if
-  if ( kblock<0 ) then
-    kblock = max(kl, ol) ! must occur before indata
-  end if
-  if ( myid==0 ) write(6,*) "kblock ",kblock
+end if
+if ( kblock<0 ) then
+  kblock = max(kl, ol) ! must occur before indata
+end if
+if ( myid==0 ) write(6,*) "kblock ",kblock
 
-  ! **** do namelist fixes above this line ***
+! **** do namelist fixes above this line ***
 
-  !--------------------------------------------------------------
-  ! REMAP MPI PROCESSES
+!--------------------------------------------------------------
+! REMAP MPI PROCESSES
 
-  ! Optimise the MPI process ranks to reduce inter-node message passing
+! Optimise the MPI process ranks to reduce inter-node message passing
 #ifdef usempi3
-  call ccmpi_remap
+call ccmpi_remap
 #endif
 
 
-  !--------------------------------------------------------------
-  ! DISPLAY NAMELIST
+!--------------------------------------------------------------
+! DISPLAY NAMELIST
 
-  if ( myid==0 ) then   
-    write(6,*)'Dynamics options:'
-    write(6,*)'   mex   mfix  mfix_qg   mup    nh    precon' 
-    write(6,'(i4,i6,i10,3i7)')mex,mfix,mfix_qg,mup,nh,precon
-    write(6,*)'nritch_t ntbar  epsp    epsu   epsf   restol'
-    write(6,'(i5,i7,1x,3f8.3,g9.2)')nritch_t,ntbar,epsp,epsu,epsf,restol
-    write(6,*)'helmmeth mfix_aero mfix_tr'
-    write(6,'(i8,i10,i8)') helmmeth,mfix_aero,mfix_tr
-    write(6,*)'epsh'
-    write(6,'(f8.3)') epsh
-    write(6,*)'Horizontal advection/interpolation options:'
-    write(6,*)' nt_adv mh_bs'
-    write(6,'(i5,i7)') nt_adv,mh_bs
-    write(6,*)'Horizontal wind staggering options:'
-    write(6,*)'nstag nstagu'
-    write(6,'(2i7)') nstag,nstagu
-    write(6,*)'Horizontal mixing options:'
-    write(6,*)' khdif  khor   nhor   nhorps nhorjlm'
-    write(6,'(i5,11i7)') khdif,khor,nhor,nhorps,nhorjlm
-    write(6,*)'Vertical mixing/physics options:'
-    write(6,*)' nvmix nlocal ncvmix  lgwd' 
-    write(6,'(i5,6i7)') nvmix,nlocal,ncvmix,lgwd
-    write(6,*)' be   cm0  ce0  ce1  ce2  ce3  cqmix'
-    write(6,'(7f5.2)') be,cm0,ce0,ce1,ce2,ce3,cqmix
-    write(6,*)' ent0  ent1  entc0  dtrc0   m0    b1    b2'
-    write(6,'(7f6.2)') ent0,ent1,entc0,dtrc0,m0,b1,b2
-    write(6,*)' buoymeth stabmeth maxdts qcmf'
-    write(6,'(2i9,f8.2,g9.2)') buoymeth,stabmeth,maxdts,qcmf
-    write(6,*)'  mintke   mineps     minl     maxl'
-    write(6,'(4g9.2)') mintke,mineps,minl,maxl
-    write(6,*) ' tkemeth ezmin ent_min'
-    write(6,'(i5,2f8.2)') tkemeth,ezmin,ent_min
-    write(6,*) ' amxlsq'
-    write(6,'(f8.2)') amxlsq
-    write(6,*)'Gravity wave drag options:'
-    write(6,*)' ngwd   helim     fc2  sigbot_gwd  alphaj'
-    write(6,'(i5,2x,3f8.2,f12.6)') ngwd,helim,fc2,sigbot_gwd,alphaj
-    write(6,*)'Cumulus convection options A:'
-    write(6,*)' nkuo  sigcb sig_ct  rhcv  rhmois rhsat convfact convtime shaltime'
-    write(6,'(i5,6f7.2,3x,9f8.2)') nkuo,sigcb,sig_ct,rhcv,rhmois,rhsat,convfact,convtime,shaltime
-    write(6,*)'Cumulus convection options B:'
-    write(6,*)' alflnd alfsea fldown iterconv ncvcloud nevapcc nevapls nuvconv'
-    write(6,'(3f7.2,i6,i10,4i8)') alflnd,alfsea,fldown,iterconv,ncvcloud,nevapcc,nevapls,nuvconv
-    write(6,*)'Cumulus convection options C:'
-    write(6,*)' mbase mdelay methprec nbase detrain entrain methdetr detrainx dsig2  dsig4'
-    write(6,'(3i6,i9,f8.2,f9.2,i8,4f8.2)') mbase,mdelay,methprec,nbase,detrain,entrain,methdetr,detrainx,dsig2,dsig4
-    write(6,*)'Shallow convection options:'
-    write(6,*)'  ksc  kscsea kscmom sigkscb sigksct tied_con tied_over tied_rh '
-    write(6,'(i5,2i7,1x,3f8.3,2f10.3)') ksc,kscsea,kscmom,sigkscb,sigksct,tied_con,tied_over,tied_rh
-    write(6,*)'Other moist physics options:'
-    write(6,*)'  acon   bcon   qgmin      rcm    rcrit_l rcrit_s'
-    write(6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,rcrit_l,rcrit_s
-    write(6,*)'Radiation options A:'
-    write(6,*)' nrad  mins_rad  dt'
-    write(6,'(i5,i7,f10.2)') nrad,mins_rad,dt
-    write(6,*)'Radiation options B:'
-    write(6,*)' nmr bpyear sw_diff_streams sw_resolution'
-    write(6,'(i4,f9.2,i4," ",a5,i4)') nmr,bpyear,sw_diff_streams,sw_resolution
-    write(6,*)'Radiation options C:'
-    write(6,*)' liqradmethod iceradmethod carbonradmethod'
-    write(6,'(3i4)') liqradmethod,iceradmethod,carbonradmethod
-    write(6,*)'Aerosol options:'
-    write(6,*)'  iaero ch_dust zvolcemi aeroindir'
-    write(6,'(i7,g9.2,f7.2,i5)') iaero,ch_dust,zvolcemi,aeroindir
-    write(6,*)'Cloud options:'
-    write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
-    write(6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,sigcll
-    write(6,*)'  ncloud'
-    write(6,'(i5)') ncloud
-    write(6,*)'Soil and canopy options:'
-    write(6,*)' jalbfix nalpha nbarewet newrough nglacier nrungcm nsib  nsigmf'
-    write(6,'(i5,9i8)') jalbfix,nalpha,nbarewet,newrough,nglacier,nrungcm,nsib,nsigmf
-    write(6,*)' ntaft ntsea ntsur av_vmod tss_sh vmodmin  zobgin charnock chn10'
-    write(6,'(i5,2i6,4f8.2,f8.3,f9.5)') ntaft,ntsea,ntsur,av_vmod,tss_sh,vmodmin,zobgin,charnock,chn10
-    write(6,*)' ccycle proglai soil_struc cable_pop progvcmax fwsoil_switch cable_litter'
-    write(6,'(7i7)') ccycle,proglai,soil_struc,cable_pop,progvcmax,fwsoil_switch,cable_litter
-    write(6,*)' gs_switch cable_climate smrf_switch strf_switch'
-    write(6,'(4i7)') gs_switch,cable_climate,smrf_switch,strf_switch
-    write(6,*)' nurban siburbanfrac'
-    write(6,'(i7,f8.4)') nurban,siburbanfrac
-    write(6,*)'Ocean/lake options:'
-    write(6,*)' nmlo  ol      mxd   mindep minwater  ocnsmag   ocneps'
-    write(6,'(i5,i4,5f9.2)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
-    write(6,*)' mlodiff  zomode zoseaice factchseaice otaumode'
-    write(6,'(2i8,f9.6,f13.6,i8)') mlodiff,zomode,zoseaice,factchseaice,otaumode
-    write(6,*)' usetide mlojacobi alphavis_seaice alphanir_seaice'
-    write(6,'(2i8,2f8.4)') usetide,mlojacobi,alphavis_seaice,alphanir_seaice
-    write(6,*)'River options:'
-    write(6,*)' nriver rivermd basinmd rivercoeff'
-    write(6,'(3i8,g9.2)') nriver,rivermd,basinmd,rivercoeff
-    write(6,*)'Nudging options:'
-    write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
-    write(6,'(i5,3i7,7i8)') nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
-    write(6,*)' mbd    mbd_maxscale mbd_maxgrid mbd_maxscale_mlo ktopdav kblock'
-    write(6,'(i5,2i12,i16,2i8)') mbd,mbd_maxscale,mbd_maxgrid,mbd_maxscale_mlo,ktopdav,kblock
-    write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo kbotmlo mloalpha'
-    write(6,'(6i8,i9)') nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
-    write(6,*)' sigramplow sigramphigh nud_period'
-    write(6,*)'Ensemble options:'
-    write(6,*)' ensemble_mode ensemble_period ensemble_rsfactor'
-    write(6,'(2i5,f8.4)') ensemble_mode,ensemble_period,ensemble_rsfactor
-    write(6,'(2f10.6,i9)') sigramplow,sigramphigh,nud_period
-    write(6,*)'Special and test options A:'
-    write(6,*)' namip amipo3 newtop nhstest nsemble nspecial panfg panzo'
-    write(6,'(1i5,L7,3i7,i8,f9.1,f8.4)') namip,amipo3,newtop,nhstest,nsemble,nspecial,panfg,panzo
-    write(6,*)'Special and test options B:'
-    write(6,*)' knh rescrn maxtilesize'
-    write(6,'(i4,2i7)') knh,rescrn,maxtilesize
-    write(6,*)'I/O options:'
-    write(6,*)' m_fly  io_in io_nest io_out io_rest  nwt  nperavg'
-    write(6,'(i5,4i7,3i8)') m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg
-    write(6,*)' hp_output procmode compression'
-    write(6,'(i5,l5,2i5)') hp_output,procmode,compression
+if ( myid==0 ) then   
+  write(6,*)'Dynamics options:'
+  write(6,*)'   mex   mfix  mfix_qg   mup    nh    precon' 
+  write(6,'(i4,i6,i10,3i7)')mex,mfix,mfix_qg,mup,nh,precon
+  write(6,*)'nritch_t ntbar  epsp    epsu   epsf   restol'
+  write(6,'(i5,i7,1x,3f8.3,g9.2)')nritch_t,ntbar,epsp,epsu,epsf,restol
+  write(6,*)'helmmeth mfix_aero mfix_tr'
+  write(6,'(i8,i10,i8)') helmmeth,mfix_aero,mfix_tr
+  write(6,*)'epsh'
+  write(6,'(f8.3)') epsh
+  write(6,*)'Horizontal advection/interpolation options:'
+  write(6,*)' nt_adv mh_bs'
+  write(6,'(i5,i7)') nt_adv,mh_bs
+  write(6,*)'Horizontal wind staggering options:'
+  write(6,*)'nstag nstagu'
+  write(6,'(2i7)') nstag,nstagu
+  write(6,*)'Horizontal mixing options:'
+  write(6,*)' khdif  khor   nhor   nhorps nhorjlm'
+  write(6,'(i5,11i7)') khdif,khor,nhor,nhorps,nhorjlm
+  write(6,*)'Vertical mixing/physics options:'
+  write(6,*)' nvmix nlocal ncvmix  lgwd' 
+  write(6,'(i5,6i7)') nvmix,nlocal,ncvmix,lgwd
+  write(6,*)' be   cm0  ce0  ce1  ce2  ce3  cqmix'
+  write(6,'(7f5.2)') be,cm0,ce0,ce1,ce2,ce3,cqmix
+  write(6,*)' ent0  ent1  entc0  dtrc0   m0    b1    b2'
+  write(6,'(7f6.2)') ent0,ent1,entc0,dtrc0,m0,b1,b2
+  write(6,*)' buoymeth stabmeth maxdts qcmf'
+  write(6,'(2i9,f8.2,g9.2)') buoymeth,stabmeth,maxdts,qcmf
+  write(6,*)'  mintke   mineps     minl     maxl'
+  write(6,'(4g9.2)') mintke,mineps,minl,maxl
+  write(6,*) ' tkemeth ezmin ent_min'
+  write(6,'(i5,2f8.2)') tkemeth,ezmin,ent_min
+  write(6,*) ' amxlsq'
+  write(6,'(f8.2)') amxlsq
+  write(6,*)'Gravity wave drag options:'
+  write(6,*)' ngwd   helim     fc2  sigbot_gwd  alphaj'
+  write(6,'(i5,2x,3f8.2,f12.6)') ngwd,helim,fc2,sigbot_gwd,alphaj
+  write(6,*)'Cumulus convection options A:'
+  write(6,*)' nkuo  sigcb sig_ct  rhcv  rhmois rhsat convfact convtime shaltime'
+  write(6,'(i5,6f7.2,3x,9f8.2)') nkuo,sigcb,sig_ct,rhcv,rhmois,rhsat,convfact,convtime,shaltime
+  write(6,*)'Cumulus convection options B:'
+  write(6,*)' alflnd alfsea fldown iterconv ncvcloud nevapcc nevapls nuvconv'
+  write(6,'(3f7.2,i6,i10,4i8)') alflnd,alfsea,fldown,iterconv,ncvcloud,nevapcc,nevapls,nuvconv
+  write(6,*)'Cumulus convection options C:'
+  write(6,*)' mbase mdelay methprec nbase detrain entrain methdetr detrainx dsig2  dsig4'
+  write(6,'(3i6,i9,f8.2,f9.2,i8,4f8.2)') mbase,mdelay,methprec,nbase,detrain,entrain,methdetr,detrainx,dsig2,dsig4
+  write(6,*)'Shallow convection options:'
+  write(6,*)'  ksc  kscsea kscmom sigkscb sigksct tied_con tied_over tied_rh '
+  write(6,'(i5,2i7,1x,3f8.3,2f10.3)') ksc,kscsea,kscmom,sigkscb,sigksct,tied_con,tied_over,tied_rh
+  write(6,*)'Other moist physics options:'
+  write(6,*)'  acon   bcon   qgmin      rcm    rcrit_l rcrit_s'
+  write(6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,rcrit_l,rcrit_s
+  write(6,*)'Radiation options A:'
+  write(6,*)' nrad  mins_rad  dt'
+  write(6,'(i5,i7,f10.2)') nrad,mins_rad,dt
+  write(6,*)'Radiation options B:'
+  write(6,*)' nmr bpyear sw_diff_streams sw_resolution'
+  write(6,'(i4,f9.2,i4," ",a5,i4)') nmr,bpyear,sw_diff_streams,sw_resolution
+  write(6,*)'Radiation options C:'
+  write(6,*)' liqradmethod iceradmethod carbonradmethod'
+  write(6,'(3i4)') liqradmethod,iceradmethod,carbonradmethod
+  write(6,*)'Aerosol options:'
+  write(6,*)'  iaero ch_dust zvolcemi aeroindir'
+  write(6,'(i7,g9.2,f7.2,i5)') iaero,ch_dust,zvolcemi,aeroindir
+  write(6,*)'Cloud options:'
+  write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
+  write(6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,sigcll
+  write(6,*)'  ncloud'
+  write(6,'(i5)') ncloud
+  write(6,*)'Soil and canopy options:'
+  write(6,*)' jalbfix nalpha nbarewet newrough nglacier nrungcm nsib  nsigmf'
+  write(6,'(i5,9i8)') jalbfix,nalpha,nbarewet,newrough,nglacier,nrungcm,nsib,nsigmf
+  write(6,*)' ntaft ntsea ntsur av_vmod tss_sh vmodmin  zobgin charnock chn10'
+  write(6,'(i5,2i6,4f8.2,f8.3,f9.5)') ntaft,ntsea,ntsur,av_vmod,tss_sh,vmodmin,zobgin,charnock,chn10
+  write(6,*)' ccycle proglai soil_struc cable_pop progvcmax fwsoil_switch cable_litter'
+  write(6,'(7i7)') ccycle,proglai,soil_struc,cable_pop,progvcmax,fwsoil_switch,cable_litter
+  write(6,*)' gs_switch cable_climate smrf_switch strf_switch'
+  write(6,'(4i7)') gs_switch,cable_climate,smrf_switch,strf_switch
+  write(6,*)' nurban siburbanfrac'
+  write(6,'(i7,f8.4)') nurban,siburbanfrac
+  write(6,*)'Ocean/lake options:'
+  write(6,*)' nmlo  ol      mxd   mindep minwater  ocnsmag   ocneps'
+  write(6,'(i5,i4,5f9.2)') nmlo,ol,mxd,mindep,minwater,ocnsmag,ocneps
+  write(6,*)' mlodiff  zomode zoseaice factchseaice otaumode'
+  write(6,'(2i8,f9.6,f13.6,i8)') mlodiff,zomode,zoseaice,factchseaice,otaumode
+  write(6,*)' usetide mlojacobi alphavis_seaice alphanir_seaice'
+  write(6,'(2i8,2f8.4)') usetide,mlojacobi,alphavis_seaice,alphanir_seaice
+  write(6,*)'River options:'
+  write(6,*)' nriver rivermd basinmd rivercoeff'
+  write(6,'(3i8,g9.2)') nriver,rivermd,basinmd,rivercoeff
+  write(6,*)'Nudging options:'
+  write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
+  write(6,'(i5,3i7,7i8)') nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
+  write(6,*)' mbd    mbd_maxscale mbd_maxgrid mbd_maxscale_mlo ktopdav kblock'
+  write(6,'(i5,2i12,i16,2i8)') mbd,mbd_maxscale,mbd_maxgrid,mbd_maxscale_mlo,ktopdav,kblock
+  write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo kbotmlo mloalpha'
+  write(6,'(6i8,i9)') nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
+  write(6,*)' sigramplow sigramphigh nud_period'
+  write(6,*)'Ensemble options:'
+  write(6,*)' ensemble_mode ensemble_period ensemble_rsfactor'
+  write(6,'(2i5,f8.4)') ensemble_mode,ensemble_period,ensemble_rsfactor
+  write(6,'(2f10.6,i9)') sigramplow,sigramphigh,nud_period
+  write(6,*)'Special and test options A:'
+  write(6,*)' namip amipo3 newtop nhstest nsemble nspecial panfg panzo'
+  write(6,'(1i5,L7,3i7,i8,f9.1,f8.4)') namip,amipo3,newtop,nhstest,nsemble,nspecial,panfg,panzo
+  write(6,*)'Special and test options B:'
+  write(6,*)' knh rescrn maxtilesize'
+  write(6,'(i4,2i7)') knh,rescrn,maxtilesize
+  write(6,*)'I/O options:'
+  write(6,*)' m_fly  io_in io_nest io_out io_rest  nwt  nperavg'
+  write(6,'(i5,4i7,3i8)') m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg
+  write(6,*)' hp_output procmode compression'
+  write(6,'(i5,l5,2i5)') hp_output,procmode,compression
 
-    write(6, cardin)
-    write(6, skyin)
-    write(6, datafile)
-    write(6, kuonml)
-    write(6, turbnml)
-    write(6, landnml)
-    write(6, mlonml)
-  end if ! myid=0
-  if ( nllp==0 .and. nextout>=4 ) then
-    write(6,*) 'need nllp=3 for nextout>=4'
-    call ccmpi_abort(-1)
-  end if
-  if ( newtop>2 ) then
-    write(6,*) 'newtop>2 no longer allowed'
-    call ccmpi_abort(-1)
-  end if
-  if ( mfix_qg>0 .and. nkuo==4 ) then
-    write(6,*) 'nkuo=4: mfix_qg>0 not allowed'
-    call ccmpi_abort(-1)
-  end if
-  nstagin  = nstag    ! -ve nstagin gives swapping & its frequency
-  nstaguin = nstagu   ! only the sign of nstaguin matters (chooses scheme)
-  if ( nstagin==5 .or. nstagin<0 ) then
-    nstag  = 4
-    nstagu = 4
-    if ( nstagin==5 ) then  ! for backward compatability
-      nstagin  = -1 
-      nstaguin = 5  
-    endif
+  write(6, cardin)
+  write(6, skyin)
+  write(6, datafile)
+  write(6, kuonml)
+  write(6, turbnml)
+  write(6, landnml)
+  write(6, mlonml)
+end if ! myid=0
+if ( nllp==0 .and. nextout>=4 ) then
+  write(6,*) 'need nllp=3 for nextout>=4'
+  call ccmpi_abort(-1)
+end if
+if ( newtop>2 ) then
+  write(6,*) 'newtop>2 no longer allowed'
+  call ccmpi_abort(-1)
+end if
+if ( mfix_qg>0 .and. nkuo==4 ) then
+  write(6,*) 'nkuo=4: mfix_qg>0 not allowed'
+  call ccmpi_abort(-1)
+end if
+nstagin  = nstag    ! -ve nstagin gives swapping & its frequency
+nstaguin = nstagu   ! only the sign of nstaguin matters (chooses scheme)
+if ( nstagin==5 .or. nstagin<0 ) then
+  nstag  = 4
+  nstagu = 4
+  if ( nstagin==5 ) then  ! for backward compatability
+    nstagin  = -1 
+    nstaguin = 5  
   endif
-  if ( surfile /= ' ' ) then
-    if ( tbave<=0 ) then
-      write(6,*) "ERROR: tbave must be greater than zero"
-      write(6,*) "tbave ",tbave
-      call ccmpi_abort(-1)  
-    end if
-    if ( mod(ntau, tbave)/=0 ) then
-      write(6,*) "ERROR: tave must be a factor of ntau"
-      write(6,*) "ntau,tbave ",ntau,tbave
-      call ccmpi_abort(-1)
-    end if
+endif
+if ( surfile /= ' ' ) then
+  if ( tbave<=0 ) then
+    write(6,*) "ERROR: tbave must be greater than zero"
+    write(6,*) "tbave ",tbave
+    call ccmpi_abort(-1)  
   end if
+  if ( mod(ntau, tbave)/=0 ) then
+    write(6,*) "ERROR: tave must be a factor of ntau"
+    write(6,*) "ntau,tbave ",ntau,tbave
+    call ccmpi_abort(-1)
+  end if
+end if
 
 
-  !--------------------------------------------------------------
-  ! SHARED MEMORY AND FILE IO CONFIGURATION
+!--------------------------------------------------------------
+! SHARED MEMORY AND FILE IO CONFIGURATION
 
-  ! This is the procformat IO system where a single output file is
-  ! written per node
-  call ccmpi_procformat_init(localhist,procmode) 
+! This is the procformat IO system where a single output file is
+! written per node
+call ccmpi_procformat_init(localhist,procmode) 
 
 
-  !--------------------------------------------------------------
-  ! INITIALISE ifull_g ALLOCATABLE ARRAYS
+!--------------------------------------------------------------
+! INITIALISE ifull_g ALLOCATABLE ARRAYS
 
 #ifdef usempi3
-  ! Allocate xx4, yy4, em_g, x_g, y_g and z_g as shared
-  ! memory within a node.  The node captain is responsible
-  ! for updating these arrays.
-  shsize(1:2) = (/ iquad, iquad /)
-  call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
-  call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
-  shsize(1) = ifull_g
-  call ccmpi_allocshdata(em_g,shsize(1:1),em_g_win)
-  call ccmpi_allocshdatar8(x_g,shsize(1:1),x_g_win)
-  call ccmpi_allocshdatar8(y_g,shsize(1:1),y_g_win)
-  call ccmpi_allocshdatar8(z_g,shsize(1:1),z_g_win)
+! Allocate xx4, yy4, em_g, x_g, y_g and z_g as shared
+! memory within a node.  The node captain is responsible
+! for updating these arrays.
+shsize(1:2) = (/ iquad, iquad /)
+call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
+call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
+shsize(1) = ifull_g
+call ccmpi_allocshdata(em_g,shsize(1:1),em_g_win)
+call ccmpi_allocshdatar8(x_g,shsize(1:1),x_g_win)
+call ccmpi_allocshdatar8(y_g,shsize(1:1),y_g_win)
+call ccmpi_allocshdatar8(z_g,shsize(1:1),z_g_win)
 #else
-  ! Allocate xx4, yy4, em_g, x_g, y_g and z_g for each process
-  allocate( xx4_dummy(iquad,iquad), yy4_dummy(iquad,iquad) )
-  xx4 => xx4_dummy
-  yy4 => yy4_dummy
-  allocate( em_g_dummy(ifull_g) )
-  em_g => em_g_dummy
-  allocate( x_g_dummy(ifull_g), y_g_dummy(ifull_g), z_g_dummy(ifull_g) )
-  x_g => x_g_dummy
-  y_g => y_g_dummy
-  z_g => z_g_dummy
+! Allocate xx4, yy4, em_g, x_g, y_g and z_g for each process
+allocate( xx4_dummy(iquad,iquad), yy4_dummy(iquad,iquad) )
+xx4 => xx4_dummy
+yy4 => yy4_dummy
+allocate( em_g_dummy(ifull_g) )
+em_g => em_g_dummy
+allocate( x_g_dummy(ifull_g), y_g_dummy(ifull_g), z_g_dummy(ifull_g) )
+x_g => x_g_dummy
+y_g => y_g_dummy
+z_g => z_g_dummy
 #endif
-  call xyzinfo_init(ifull_g,ifull,myid)
-  call indices_init(ifull,npan)
-  call map_init(ifull_g,ifull,iextra,myid)
-  call latlong_init(ifull_g,ifull,myid)      
-  call vecsuv_init(ifull_g,ifull,iextra,myid)
-  call workglob_init(ifull_g,ifull,myid)
+call xyzinfo_init(ifull_g,ifull,myid)
+call indices_init(ifull,npan)
+call map_init(ifull_g,ifull,iextra,myid)
+call latlong_init(ifull_g,ifull,myid)      
+call vecsuv_init(ifull_g,ifull,iextra,myid)
+call workglob_init(ifull_g,ifull,myid)
 
 
-  !--------------------------------------------------------------
-  ! SET UP CC GEOMETRY
+!--------------------------------------------------------------
+! SET UP CC GEOMETRY
 
-  ! Only one process calls setxyz to save memory with large grids
-  if ( myid==0 ) then
-    write(6,*) "Calling setxyz"
-    call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4, &
-                id,jd,ktau,ds)
-  end if
-  ! Broadcast the following global data
-  ! xx4 and yy4 are used for calculating depature points
-  ! em_g, x_g, y_g and z_g are for the scale-selective filter (1D and 2D versions)
+! Only one process calls setxyz to save memory with large grids
+if ( myid==0 ) then
+  write(6,*) "Calling setxyz"
+  call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4, &
+              id,jd,ktau,ds)
+end if
+! Broadcast the following global data
+! xx4 and yy4 are used for calculating depature points
+! em_g, x_g, y_g and z_g are for the scale-selective filter (1D and 2D versions)
 #ifdef usempi3
-  ! use shared memory for global arrays common to all processes
-  call ccmpi_shepoch(xx4_win)
-  if ( node_myid==0 ) call ccmpi_bcastr8(xx4,0,comm_nodecaptain)
-  call ccmpi_shepoch(xx4_win)
-  call ccmpi_shepoch(yy4_win)
-  if ( node_myid==0 ) call ccmpi_bcastr8(yy4,0,comm_nodecaptain)
-  call ccmpi_shepoch(yy4_win)
-  call ccmpi_shepoch(em_g_win)
-  if ( node_myid==0 ) call ccmpi_bcast(em_g,0,comm_nodecaptain)
-  call ccmpi_shepoch(em_g_win)
-  call ccmpi_shepoch(x_g_win)
-  if ( node_myid==0 ) call ccmpi_bcastr8(x_g,0,comm_nodecaptain)
-  call ccmpi_shepoch(x_g_win)
-  call ccmpi_shepoch(y_g_win)
-  if ( node_myid==0 ) call ccmpi_bcastr8(y_g,0,comm_nodecaptain)
-  call ccmpi_shepoch(y_g_win)
-  call ccmpi_shepoch(z_g_win)
-  if ( node_myid==0 ) call ccmpi_bcastr8(z_g,0,comm_nodecaptain)
-  call ccmpi_shepoch(z_g_win)
+! use shared memory for global arrays common to all processes
+call ccmpi_shepoch(xx4_win)
+if ( node_myid==0 ) call ccmpi_bcastr8(xx4,0,comm_nodecaptain)
+call ccmpi_shepoch(xx4_win)
+call ccmpi_shepoch(yy4_win)
+if ( node_myid==0 ) call ccmpi_bcastr8(yy4,0,comm_nodecaptain)
+call ccmpi_shepoch(yy4_win)
+call ccmpi_shepoch(em_g_win)
+if ( node_myid==0 ) call ccmpi_bcast(em_g,0,comm_nodecaptain)
+call ccmpi_shepoch(em_g_win)
+call ccmpi_shepoch(x_g_win)
+if ( node_myid==0 ) call ccmpi_bcastr8(x_g,0,comm_nodecaptain)
+call ccmpi_shepoch(x_g_win)
+call ccmpi_shepoch(y_g_win)
+if ( node_myid==0 ) call ccmpi_bcastr8(y_g,0,comm_nodecaptain)
+call ccmpi_shepoch(y_g_win)
+call ccmpi_shepoch(z_g_win)
+if ( node_myid==0 ) call ccmpi_bcastr8(z_g,0,comm_nodecaptain)
+call ccmpi_shepoch(z_g_win)
 #else
-  ! make copies of global arrays on all processes
-  call ccmpi_bcastr8(xx4,0,comm_world)
-  call ccmpi_bcastr8(yy4,0,comm_world)
-  call ccmpi_bcast(em_g,0,comm_world)
-  call ccmpi_bcastr8(x_g,0,comm_world)
-  call ccmpi_bcastr8(y_g,0,comm_world)
-  call ccmpi_bcastr8(z_g,0,comm_world)
+! make copies of global arrays on all processes
+call ccmpi_bcastr8(xx4,0,comm_world)
+call ccmpi_bcastr8(yy4,0,comm_world)
+call ccmpi_bcast(em_g,0,comm_world)
+call ccmpi_bcastr8(x_g,0,comm_world)
+call ccmpi_bcastr8(y_g,0,comm_world)
+call ccmpi_bcastr8(z_g,0,comm_world)
 #endif
-  call ccmpi_bcast(ds,0,comm_world)
+call ccmpi_bcast(ds,0,comm_world)
 
-  if ( myid==0 ) then
-    write(6,*) "Calling ccmpi_setup"
-  end if
-  call ccmpi_setup(id,jd,idjd,dt)
+if ( myid==0 ) then
+  write(6,*) "Calling ccmpi_setup"
+end if
+call ccmpi_setup(id,jd,idjd,dt)
 
       
-  !--------------------------------------------------------------
-  ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
-  if ( myid==0 ) then
-    deallocate( wts_g, emu_g, emv_g )
-    deallocate( ax_g, ay_g, az_g )
-    deallocate( bx_g, by_g, bz_g )
-    deallocate( f_g, fu_g, fv_g )
-    deallocate( dmdx_g, dmdy_g )
-    deallocate( rlatt_g, rlongg_g )
-    !deallocate( rlong4, rlat4 )
-  end if
+!--------------------------------------------------------------
+! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
+if ( myid==0 ) then
+  deallocate( wts_g, emu_g, emv_g )
+  deallocate( ax_g, ay_g, az_g )
+  deallocate( bx_g, by_g, bz_g )
+  deallocate( f_g, fu_g, fv_g )
+  deallocate( dmdx_g, dmdy_g )
+  deallocate( rlatt_g, rlongg_g )
+  !deallocate( rlong4, rlat4 )
+end if
 
 
-  !--------------------------------------------------------------
-  ! INITIALISE LOCAL ARRAYS
-  allocate( dums(ifull,kl) )
-  call arrays_init(ifull,iextra,kl)
-  call carbpools_init(ifull,nsib,ccycle)
-  call cfrac_init(ifull,iextra,kl,ncloud)
-  call dpsdt_init(ifull,epsp)
-  call epst_init(ifull)
-  call extraout_init(ifull,nextout)
-  call gdrag_init(ifull)
-  call histave_init(ifull,kl,ms,ccycle)
-  call kuocomb_init(ifull,kl)
-  call liqwpar_init(ifull,iextra,kl)
-  call morepbl_init(ifull,diaglevel_pbl)
-  call nharrs_init(ifull,iextra,kl)
-  call nlin_init(ifull,kl)
-  call nsibd_init(ifull,nsib,cable_climate)
-  call parmhdff_init(kl)
-  call pbl_init(ifull)
-  call permsurf_init(ifull)
-  call prec_init(ifull)
-  call raddiag_init(ifull,kl)
-  call riverarrays_init(ifull,iextra,nriver)
-  call savuvt_init(ifull,kl)
-  call savuv1_init(ifull,kl)
-  call sbar_init(ifull,kl)
-  call screen_init(ifull)
-  call sigs_init(kl)
-  call soil_init(ifull,iaero,nsib)
-  call soilsnow_init(ifull,ms,nsib)
-  call tbar2d_init(ifull)
-  call unn_init(ifull,kl)
-  call uvbar_init(ifull,kl)
-  call vecs_init(kl)
-  call vegpar_init(ifull)
-  call vvel_init(ifull,kl)
-  call work2_init(ifull,nsib)
-  call work3_init(ifull,nsib)
-  call work3f_init(ifull,kl)
-  call xarrs_init(ifull,iextra,kl)
-  if ( nvmix==6 ) then
-    call tkeinit(ifull,iextra,kl)
-  end if
-  if ( tracerlist/=' ' ) then
-    call init_tracer
-  end if
-  call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
-  if ( nbd/=0 .or. mbd/=0 ) then
-    if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
-      call dav_init(ifull,kl,naero,nbd,mbd)
-    else
-      call dav_init(ifull,kl,0,nbd,mbd)
-    end if
-  end if
-  ! Remaining arrays are allocated in indata.f90, since their
-  ! definition requires additional input data (e.g, land-surface)
-
-  
-  !--------------------------------------------------------------
-  ! DISPLAY DIAGNOSTIC INDEX AND TIMER DATA
-  if ( mydiag ) then
-    write(6,"('id,jd,rlongg,rlatt in degrees: ',2i4,2f8.2)") id,jd,180./pi*rlongg(idjd),180./pi*rlatt(idjd)
-  end if
-  call date_and_time(rundate)
-  call date_and_time(time=timeval)
-  if ( myid==0 ) then
-    write(6,*)'RUNDATE IS ',rundate
-    write(6,*)'Starting time ',timeval
-  end if
-
-
-  !--------------------------------------------------------------
-  ! READ INITIAL CONDITIONS
-  if ( myid==0 ) then
-    write(6,*) "Calling indata"
-  end if
-  call indataf(lapsbot,isoth,nsig,io_nest)
-
-
-  !--------------------------------------------------------------
-  ! SETUP REMAINING PARAMETERS
-  if ( myid==0 ) then
-    write(6,*) "Setup remaining parameters"
-  end if
-  
-  ! fix nudging levels from pressure to level index
-  ! this is done after indata has loaded sig
-  if ( kbotdav<0 ) then
-    targetlev = real(-kbotdav)/1000.
-    do k = 1,kl
-      if ( sig(k)<=targetlev ) then
-        kbotdav = k
-        if ( myid==0 ) then
-          write(6,*) "Nesting kbotdav adjusted to ",kbotdav,"for sig ",sig(kbotdav)
-        end if
-        exit
-      end if
-    end do
-    if ( kbotdav<0 ) then
-      write(6,*) "ERROR: Cannot locate nudging level for kbotdav ",kbotdav
-      call ccmpi_abort(-1)
-    end if
-  end if
-  if ( ktopdav==0 ) then
-    ktopdav = kl
-  else if ( ktopdav<0 ) then
-    targetlev = real(-ktopdav)/1000.
-    do k = kl,1,-1
-      if ( sig(k)>=targetlev ) then
-        ktopdav = k
-        if ( myid == 0 ) then
-          write(6,*) "Nesting ktopdav adjusted to ",ktopdav,"for sig ",sig(ktopdav)
-        end if
-        exit
-      end if
-    end do
-    if ( ktopdav<0 ) then
-      write(6,*) "ERROR: Cannot locate nudging level for ktopdav ",ktopdav
-      call ccmpi_abort(-1)
-    end if
-  end if
-  if ( kbotdav<1 .or. ktopdav>kl .or. kbotdav>ktopdav ) then
-    write(6,*) "ERROR: Invalid kbotdav and ktopdav"
-    write(6,*) "kbotdav,ktopdav ",kbotdav,ktopdav
-    call ccmpi_abort(-1)
-  end if
-  if ( kbotu==0 ) kbotu = kbotdav
-
-  ! fix ocean nuding levels
-  if ( nmlo/=0 .and. abs(nmlo)<9 ) then
-    allocate( gosig_in(ol) )
-    call mlovlevels(gosig_in,sigma=.true.)
-    if ( kbotmlo<0 )  then
-      targetlev = real(-kbotmlo)/1000.   
-      do k = ol,1,-1
-        if ( gosig_in(k)<=targetlev ) then
-          kbotmlo = k
-          if ( myid==0 ) then
-            write(6,*) "Nesting kbotmlo adjusted to ",kbotmlo,"for sig ",gosig_in(kbotmlo)
-          end if
-          exit
-        end if
-      end do
-      if ( kbotmlo<0 ) then
-        write(6,*) "ERROR: Cannot locate nudging level for kbotmlo ",kbotmlo
-        call ccmpi_abort(-1)
-      end if   
-    end if
-    if ( ktopmlo<0 ) then
-      targetlev = real(-ktopmlo)/1000.
-      do k = 1,ol
-        if ( gosig_in(k)>=targetlev ) then
-          ktopmlo = k
-          if ( myid==0 ) then
-            write(6,*) "Nesting ktopmlo adjusted to ",ktopmlo,"for sig ",gosig_in(ktopmlo)
-          end if
-          exit
-        end if
-      end do
-      if ( ktopmlo<0 ) then
-        write(6,*) "ERROR: Cannot locate nudging level for ktopmlo ",ktopmlo
-        call ccmpi_abort(-1)
-      end if
-    end if
-    if ( ktopmlo<1 .or. kbotmlo>ol .or. ktopmlo>kbotmlo ) then
-      write(6,*) "ERROR: Invalid kbotmlo"
-      write(6,*) "kbotmlo,ktopmlo ",kbotmlo,ktopmlo
-      call ccmpi_abort(-1)
-    end if
-    deallocate(gosig_in)
-  end if  
-
-  ! identify reference level ntbar for temperature
-  if ( ntbar==-1 ) then
-    ntbar = 1
-    do while( sig(ntbar)>0.8 .and. ntbar<kl )
-      ntbar = ntbar + 1
-    end do
-  end if
-
-  ! estimate radiation calling frequency
-  if ( mins_rad<0 ) then
-    ! automatic estimate for mins_rad
-    secs_rad = min(nint((schmidt*112.*90./real(il_g))*8.*60.), nint(real(nwt)*dt), 3600)
-    kountr   = max(nint(real(secs_rad)/dt), 1)
-    secs_rad = nint(real(kountr)*dt)
-    do while ( (mod(3600, secs_rad)/=0 .or. mod(nint(real(nwt)*dt), secs_rad)/=0) .and. kountr>1 )
-      kountr = kountr - 1
-      secs_rad = nint(real(kountr)*dt)
-    end do
+!--------------------------------------------------------------
+! INITIALISE LOCAL ARRAYS
+allocate( dums(ifull,kl) )
+call arrays_init(ifull,iextra,kl)
+call carbpools_init(ifull,nsib,ccycle)
+call cfrac_init(ifull,iextra,kl,ncloud)
+call dpsdt_init(ifull,epsp)
+call epst_init(ifull)
+call extraout_init(ifull,nextout)
+call gdrag_init(ifull)
+call histave_init(ifull,kl,ms,ccycle)
+call kuocomb_init(ifull,kl)
+call liqwpar_init(ifull,iextra,kl)
+call morepbl_init(ifull,diaglevel_pbl)
+call nharrs_init(ifull,iextra,kl)
+call nlin_init(ifull,kl)
+call nsibd_init(ifull,nsib,cable_climate)
+call parmhdff_init(kl)
+call pbl_init(ifull)
+call permsurf_init(ifull)
+call prec_init(ifull)
+call raddiag_init(ifull,kl)
+call riverarrays_init(ifull,iextra,nriver)
+call savuvt_init(ifull,kl)
+call savuv1_init(ifull,kl)
+call sbar_init(ifull,kl)
+call screen_init(ifull)
+call sigs_init(kl)
+call soil_init(ifull,iaero,nsib)
+call soilsnow_init(ifull,ms,nsib)
+call tbar2d_init(ifull)
+call unn_init(ifull,kl)
+call uvbar_init(ifull,kl)
+call vecs_init(kl)
+call vegpar_init(ifull)
+call vvel_init(ifull,kl)
+call work2_init(ifull,nsib)
+call work3_init(ifull,nsib)
+call work3f_init(ifull,kl)
+call xarrs_init(ifull,iextra,kl)
+if ( nvmix==6 ) then
+  call tkeinit(ifull,iextra,kl)
+end if
+if ( tracerlist/=' ' ) then
+  call init_tracer
+end if
+call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
+if ( nbd/=0 .or. mbd/=0 ) then
+  if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
+    call dav_init(ifull,kl,naero,nbd,mbd)
   else
-    ! user specified mins_rad
-    kountr   = nint(real(mins_rad)*60./dt)  ! set default radiation to ~mins_rad m
-    secs_rad = nint(real(kountr)*dt)        ! redefine to actual value
+    call dav_init(ifull,kl,0,nbd,mbd)
   end if
-  if ( myid==0 ) then
-    write(6,*) "Radiation will use kountr ",kountr," for secs_rad ",secs_rad
-  end if
-  ! for 6-hourly output of sint_ave etc, want 6*60*60 = N*secs_rad      
-  if ( (nrad==4.or.nrad==5) .and. mod(21600,secs_rad)/=0 ) then
-    write(6,*) 'ERROR: CCAM would prefer 21600 = N*secs_rad ',secs_rad
-    call ccmpi_abort(-1)
-  end if
+end if
+! Remaining arrays are allocated in indata.f90, since their
+! definition requires additional input data (e.g, land-surface)
 
-  ! max/min diagnostics      
-  if ( nextout>=4 ) call setllp
+  
+!--------------------------------------------------------------
+! DISPLAY DIAGNOSTIC INDEX AND TIMER DATA
+if ( mydiag ) then
+  write(6,"('id,jd,rlongg,rlatt in degrees: ',2i4,2f8.2)") id,jd,180./pi*rlongg(idjd),180./pi*rlatt(idjd)
+end if
+call date_and_time(rundate)
+call date_and_time(time=timeval)
+if ( myid==0 ) then
+  write(6,*)'RUNDATE IS ',rundate
+  write(6,*)'Starting time ',timeval
+end if
 
-  if ( nmaxpr<=ntau ) then
-    call maxmin(u,' u',ktau,1.,kl)
-    call maxmin(v,' v',ktau,1.,kl)
-    dums(:,:) = sqrt(u(1:ifull,:)**2+v(1:ifull,:)**2)  ! 3D 
-    call maxmin(dums,'sp',ktau,1.,kl)
-    call maxmin(t,' t',ktau,1.,kl)
-    call maxmin(qg,'qg',ktau,1.e3,kl)
-    call maxmin(qfg,'qf',ktau,1.e3,kl)
-    call maxmin(qlg,'ql',ktau,1.e3,kl)
-    call maxmin(wb,'wb',ktau,1.,ms)
-    call maxmin(tggsn,'tS',ktau,1.,3)
-    call maxmin(tgg,'tgg',ktau,1.,ms)
-    pwatr_l = 0.   ! in mm
-    do k = 1,kl
-      pwatr_l = pwatr_l - sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))
-    enddo
-    pwatr_l = pwatr_l/grav
-    temparray(1) = pwatr_l
-    call ccmpi_reduce( temparray(1:1), gtemparray(1:1), "sum", 0, comm_world )
-    pwatr = gtemparray(1)
-    if ( myid==0 ) write (6,"('pwatr0 ',12f7.3)") pwatr
-    if ( ntrac>0 ) then
-      do ng = 1,ntrac
-        write (text,'("g",i1)')ng
-        call maxmin(tr(:,:,ng),text,ktau,1.,kl)
-      end do
-    end if   ! (ntrac>0)
-  end if  
 
-  ! convection
-  ! sig(kuocb) occurs for level just BELOW sigcb
-  kuocb = 1
-  do while( sig(kuocb+1)>=sigcb )
-    kuocb = kuocb + 1
-  end do
-  if ( myid==0 ) write(6,*) 'convective cumulus scheme: kuocb,sigcb = ',kuocb,sigcb
+!--------------------------------------------------------------
+! READ INITIAL CONDITIONS
+if ( myid==0 ) then
+  write(6,*) "Calling indata"
+end if
+call indataf(lapsbot,isoth,nsig,io_nest)
 
-  ! horizontal diffusion 
-  if ( khdif==-99 ) then   ! set default khdif appropriate to resolution
-    khdif = 5
-    if ( myid==0 ) write(6,*) 'Model has chosen khdif =',khdif
-  endif
+
+!--------------------------------------------------------------
+! SETUP REMAINING PARAMETERS
+if ( myid==0 ) then
+  write(6,*) "Setup remaining parameters"
+end if
+  
+! fix nudging levels from pressure to level index
+! this is done after indata has loaded sig
+if ( kbotdav<0 ) then
+  targetlev = real(-kbotdav)/1000.
   do k = 1,kl
-    hdiff(k) = khdif*0.1
+    if ( sig(k)<=targetlev ) then
+      kbotdav = k
+      if ( myid==0 ) then
+        write(6,*) "Nesting kbotdav adjusted to ",kbotdav,"for sig ",sig(kbotdav)
+      end if
+      exit
+    end if
   end do
-  if ( khor>0 ) then
-    do k = kl+1-khor,kl
-      hdiff(k) = 2.*hdiff(k-1)
-    end do
-  elseif ( khor<0 ) then ! following needed +hdiff() (JLM 29/6/15)
-    do k = 1,kl                    ! N.B. usually hdiff(k)=khdif*.1 
-      ! increase hdiff between sigma=.15  and sigma=0., 0 to khor
-      if ( sig(k)<0.15 ) then
-        hdiff(k) = .1*max(1.,(1.-sig(k)/.15)*abs(khor)) + hdiff(k)
+  if ( kbotdav<0 ) then
+    write(6,*) "ERROR: Cannot locate nudging level for kbotdav ",kbotdav
+    call ccmpi_abort(-1)
+  end if
+end if
+if ( ktopdav==0 ) then
+  ktopdav = kl
+else if ( ktopdav<0 ) then
+  targetlev = real(-ktopdav)/1000.
+  do k = kl,1,-1
+    if ( sig(k)>=targetlev ) then
+      ktopdav = k
+      if ( myid == 0 ) then
+        write(6,*) "Nesting ktopdav adjusted to ",ktopdav,"for sig ",sig(ktopdav)
+      end if
+      exit
+    end if
+  end do
+  if ( ktopdav<0 ) then
+    write(6,*) "ERROR: Cannot locate nudging level for ktopdav ",ktopdav
+    call ccmpi_abort(-1)
+  end if
+end if
+if ( kbotdav<1 .or. ktopdav>kl .or. kbotdav>ktopdav ) then
+  write(6,*) "ERROR: Invalid kbotdav and ktopdav"
+  write(6,*) "kbotdav,ktopdav ",kbotdav,ktopdav
+  call ccmpi_abort(-1)
+end if
+if ( kbotu==0 ) kbotu = kbotdav
+
+! fix ocean nuding levels
+if ( nmlo/=0 .and. abs(nmlo)<9 ) then
+  allocate( gosig_in(ol) )
+  call mlovlevels(gosig_in,sigma=.true.)
+  if ( kbotmlo<0 )  then
+    targetlev = real(-kbotmlo)/1000.   
+    do k = ol,1,-1
+      if ( gosig_in(k)<=targetlev ) then
+        kbotmlo = k
+        if ( myid==0 ) then
+          write(6,*) "Nesting kbotmlo adjusted to ",kbotmlo,"for sig ",gosig_in(kbotmlo)
+        end if
+        exit
       end if
     end do
-    if ( myid==0 ) write(6,*)'khor,hdiff: ',khor,hdiff
+    if ( kbotmlo<0 ) then
+      write(6,*) "ERROR: Cannot locate nudging level for kbotmlo ",kbotmlo
+      call ccmpi_abort(-1)
+    end if   
   end if
-  if ( nud_p==0 .and. mfix==0 ) then
-    write(6,*) "ERROR: Both nud_p=0 and mfix=0"
-    write(6,*) "Model will not conserve mass"
+  if ( ktopmlo<0 ) then
+    targetlev = real(-ktopmlo)/1000.
+    do k = 1,ol
+      if ( gosig_in(k)>=targetlev ) then
+        ktopmlo = k
+        if ( myid==0 ) then
+          write(6,*) "Nesting ktopmlo adjusted to ",ktopmlo,"for sig ",gosig_in(ktopmlo)
+        end if
+        exit
+      end if
+    end do
+    if ( ktopmlo<0 ) then
+      write(6,*) "ERROR: Cannot locate nudging level for ktopmlo ",ktopmlo
+      call ccmpi_abort(-1)
+    end if
+  end if
+  if ( ktopmlo<1 .or. kbotmlo>ol .or. ktopmlo>kbotmlo ) then
+    write(6,*) "ERROR: Invalid kbotmlo"
+    write(6,*) "kbotmlo,ktopmlo ",kbotmlo,ktopmlo
     call ccmpi_abort(-1)
   end if
-  if ( nud_q==0 .and. mfix_qg==0 ) then
-    write(6,*) "ERROR: Both nud_q=0 and mfix_qg=0"
-    write(6,*) "Model will not conserve moisture"
-    call ccmpi_abort(-1)
-  end if
-  if ( nud_aero==0 .and. mfix_aero==0 .and. iaero/=0 ) then
-    write(6,*) "ERROR: Both nud_aero=0 and mfix_aero=0"
-    write(6,*) "Model will not conserve aerosols"
-    call ccmpi_abort(-1)
-  end if
-  if ( mfix_tr==0 .and. ngas>0 ) then
-    write(6,*) "ERROR: mfix_tr=0 and ngas>0"
-    write(6,*) "Model will not conserve tracers"
-    call ccmpi_abort(-1)
-  end if
+  deallocate(gosig_in)
+end if  
+
+! identify reference level ntbar for temperature
+if ( ntbar==-1 ) then
+  ntbar = 1
+  do while( sig(ntbar)>0.8 .and. ntbar<kl )
+    ntbar = ntbar + 1
+  end do
+end if
+
+! estimate radiation calling frequency
+if ( mins_rad<0 ) then
+  ! automatic estimate for mins_rad
+  secs_rad = min(nint((schmidt*112.*90./real(il_g))*8.*60.), nint(real(nwt)*dt), 3600)
+  kountr   = max(nint(real(secs_rad)/dt), 1)
+  secs_rad = nint(real(kountr)*dt)
+  do while ( (mod(3600, secs_rad)/=0 .or. mod(nint(real(nwt)*dt), secs_rad)/=0) .and. kountr>1 )
+    kountr = kountr - 1
+    secs_rad = nint(real(kountr)*dt)
+  end do
+else
+  ! user specified mins_rad
+  kountr   = nint(real(mins_rad)*60./dt)  ! set default radiation to ~mins_rad m
+  secs_rad = nint(real(kountr)*dt)        ! redefine to actual value
+end if
+if ( myid==0 ) then
+  write(6,*) "Radiation will use kountr ",kountr," for secs_rad ",secs_rad
+end if
+! for 6-hourly output of sint_ave etc, want 6*60*60 = N*secs_rad      
+if ( (nrad==4.or.nrad==5) .and. mod(21600,secs_rad)/=0 ) then
+  write(6,*) 'ERROR: CCAM would prefer 21600 = N*secs_rad ',secs_rad
+  call ccmpi_abort(-1)
+end if
+
+! max/min diagnostics      
+if ( nextout>=4 ) call setllp
+
+if ( nmaxpr<=ntau ) then
+  call maxmin(u,' u',ktau,1.,kl)
+  call maxmin(v,' v',ktau,1.,kl)
+  dums(:,:) = sqrt(u(1:ifull,:)**2+v(1:ifull,:)**2)  ! 3D 
+  call maxmin(dums,'sp',ktau,1.,kl)
+  call maxmin(t,' t',ktau,1.,kl)
+  call maxmin(qg,'qg',ktau,1.e3,kl)
+  call maxmin(qfg,'qf',ktau,1.e3,kl)
+  call maxmin(qlg,'ql',ktau,1.e3,kl)
+  call maxmin(wb,'wb',ktau,1.,ms)
+  call maxmin(tggsn,'tS',ktau,1.,3)
+  call maxmin(tgg,'tgg',ktau,1.,ms)
+  pwatr_l = 0.   ! in mm
+  do k = 1,kl
+    pwatr_l = pwatr_l - sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))
+  enddo
+  pwatr_l = pwatr_l/grav
+  temparray(1) = pwatr_l
+  call ccmpi_reduce( temparray(1:1), gtemparray(1:1), "sum", 0, comm_world )
+  pwatr = gtemparray(1)
+  if ( myid==0 ) write (6,"('pwatr0 ',12f7.3)") pwatr
+  if ( ntrac>0 ) then
+    do ng = 1,ntrac
+      write (text,'("g",i1)')ng
+      call maxmin(tr(:,:,ng),text,ktau,1.,kl)
+    end do
+  end if   ! (ntrac>0)
+end if  
+
+! convection
+! sig(kuocb) occurs for level just BELOW sigcb
+kuocb = 1
+do while( sig(kuocb+1)>=sigcb )
+  kuocb = kuocb + 1
+end do
+if ( myid==0 ) write(6,*) 'convective cumulus scheme: kuocb,sigcb = ',kuocb,sigcb
+
+! horizontal diffusion 
+if ( khdif==-99 ) then   ! set default khdif appropriate to resolution
+  khdif = 5
+  if ( myid==0 ) write(6,*) 'Model has chosen khdif =',khdif
+endif
+do k = 1,kl
+  hdiff(k) = khdif*0.1
+end do
+if ( khor>0 ) then
+  do k = kl+1-khor,kl
+    hdiff(k) = 2.*hdiff(k-1)
+  end do
+elseif ( khor<0 ) then ! following needed +hdiff() (JLM 29/6/15)
+  do k = 1,kl                    ! N.B. usually hdiff(k)=khdif*.1 
+    ! increase hdiff between sigma=.15  and sigma=0., 0 to khor
+    if ( sig(k)<0.15 ) then
+      hdiff(k) = .1*max(1.,(1.-sig(k)/.15)*abs(khor)) + hdiff(k)
+    end if
+  end do
+  if ( myid==0 ) write(6,*)'khor,hdiff: ',khor,hdiff
+end if
+if ( nud_p==0 .and. mfix==0 ) then
+  write(6,*) "ERROR: Both nud_p=0 and mfix=0"
+  write(6,*) "Model will not conserve mass"
+  call ccmpi_abort(-1)
+end if
+if ( nud_q==0 .and. mfix_qg==0 ) then
+  write(6,*) "ERROR: Both nud_q=0 and mfix_qg=0"
+  write(6,*) "Model will not conserve moisture"
+  call ccmpi_abort(-1)
+end if
+if ( nud_aero==0 .and. mfix_aero==0 .and. iaero/=0 ) then
+  write(6,*) "ERROR: Both nud_aero=0 and mfix_aero=0"
+  write(6,*) "Model will not conserve aerosols"
+  call ccmpi_abort(-1)
+end if
+if ( mfix_tr==0 .and. ngas>0 ) then
+  write(6,*) "ERROR: mfix_tr=0 and ngas>0"
+  write(6,*) "Model will not conserve tracers"
+  call ccmpi_abort(-1)
+end if
       
 
-  call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
-  call printa('tss ',tss,0,0,ia,ib,ja,jb,200.,1.)
-  if ( mydiag ) write(6,*)'wb(idjd) ',(wb(idjd,k),k=1,6)
-  call printa('wb1   ',wb ,0,1,ia,ib,ja,jb,0.,100.)
-  call printa('wb6  ',wb,0,ms,ia,ib,ja,jb,0.,100.)
+call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
+call printa('tss ',tss,0,0,ia,ib,ja,jb,200.,1.)
+if ( mydiag ) write(6,*)'wb(idjd) ',(wb(idjd,k),k=1,6)
+call printa('wb1   ',wb ,0,1,ia,ib,ja,jb,0.,100.)
+call printa('wb6  ',wb,0,ms,ia,ib,ja,jb,0.,100.)
 
       
-  !--------------------------------------------------------------
-  ! NRUN COUNTER
-  if ( myid==0 ) then
-    open(11, file='nrun.dat',status='unknown')
-    if ( nrun==0 ) then
-      read(11,*,iostat=ierr) nrun
-      nrun = nrun + 1
-    end if   ! nrun==0
-    write(6,*) 'this is run ',nrun
-    rewind 11
-    write(11,*) nrun
-    write(11,cardin)
-    write(11,skyin)
-    write(11,datafile)
-    write(11,kuonml)
-    write(11,turbnml)
-    write(11,landnml)
-    write(11,mlonml)
-    close(11)
-  end if
+!--------------------------------------------------------------
+! NRUN COUNTER
+if ( myid==0 ) then
+  open(11, file='nrun.dat',status='unknown')
+  if ( nrun==0 ) then
+    read(11,*,iostat=ierr) nrun
+    nrun = nrun + 1
+  end if   ! nrun==0
+  write(6,*) 'this is run ',nrun
+  rewind 11
+  write(11,*) nrun
+  write(11,cardin)
+  write(11,skyin)
+  write(11,datafile)
+  write(11,kuonml)
+  write(11,turbnml)
+  write(11,landnml)
+  write(11,mlonml)
+  close(11)
+end if
 
-  deallocate( dums )
+deallocate( dums )
   
-end if ! myid<nproc  
-
 return
 end subroutine globpe_init
     

@@ -305,8 +305,7 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
                          ocndwn,xtgdwn)
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
-use ateb, only : atebdwn, urbtemp, atebloadd, &
-    nfrac                                      ! Urban
+use ateb, only : urbtemp, atebloadd, nfrac     ! Urban
 use cable_ccam, only : ccycle                  ! CABLE
 use carbpools_m                                ! Carbon pools
 use cc_mpi                                     ! CC MPI routines
@@ -537,12 +536,10 @@ if ( newfile .and. .not.iop_test ) then
 
   ! setup interpolation arrays
   do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
-    do iq = 1,ifull
-      call latltoij(rlong4_l(iq,mm),rlat4_l(iq,mm),       & !input
-                    rlong0x,rlat0x,schmidtx,              & !input
-                    xg4(iq,mm),yg4(iq,mm),nface4(iq,mm),  & !output (source)
-                    xx4,yy4,ik)
-    end do
+    call latltoij(rlong4_l(:,mm),rlat4_l(:,mm),      & !input
+                  rlong0x,rlat0x,schmidtx,           & !input
+                  xg4(:,mm),yg4(:,mm),nface4(:,mm),  & !output (source)
+                  xx4,yy4,ik)
   end do
 
   nullify( xx4, yy4 )
@@ -1660,262 +1657,86 @@ if ( nested/=1 .and. nested/=3 ) then
   !------------------------------------------------------------------
   ! Read urban data
   if ( nurban/=0 ) then
-    if ( .not.allocated(atebdwn) ) allocate(atebdwn(ifull,5))
     if ( urban1_found ) then
       ! restart  
       do ifrac = 1,nfrac
-        write(vname,'("t",I1.1,"_rooftgg")') ifrac    
-        call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
-        do k = 1,5
-          write(vname,'("rooftemp",I1.1)') k
-          where ( atebdwn(:,k)>900. ) ! missing
-            atebdwn(:,k) = 0.  
-          end where
-          where ( atebdwn(:,k)>150. )  
-            atebdwn(:,k) = atebdwn(:,k) - urbtemp
-          end where 
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do
+        write(vname,'("t",I1.1,"_rooftgg")') ifrac   
+        call fillhist4u(vname,"rooftemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_waletgg")') ifrac
-        call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
-        do k = 1,5
-          write(vname,'("walletemp",I1.1)') k
-          where ( atebdwn(:,k)>900. ) ! missing
-            atebdwn(:,k) = 0.  
-          end where
-          where ( atebdwn(:,k)>150. )  
-            atebdwn(:,k) = atebdwn(:,k) - urbtemp
-          end where 
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
+        call fillhist4u(vname,"walletemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_walwtgg")') ifrac
-        call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
-        do k = 1,5
-          write(vname,'("wallwtemp",I1.1)') k
-          where ( atebdwn(:,k)>900. ) ! missing
-            atebdwn(:,k) = 0.  
-          end where
-          where ( atebdwn(:,k)>150. )  
-            atebdwn(:,k) = atebdwn(:,k) - urbtemp
-          end where 
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do
+        call fillhist4u(vname,"wallwtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_roadtgg")') ifrac
-        call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
-        do k = 1,5
-          write(vname,'("roadtemp",I1.1)') k
-          where ( atebdwn(:,k)>900. ) ! missing
-            atebdwn(:,k) = 0.  
-          end where
-          where ( atebdwn(:,k)>150. )  
-            atebdwn(:,k) = atebdwn(:,k) - urbtemp
-          end where 
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do
+        call fillhist4u(vname,"roadtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_slabtgg")') ifrac
-        call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
-        do k = 1,5
-          write(vname,'("slabtemp",I1.1)') k
-          where ( atebdwn(:,k)>900. ) ! missing
-            atebdwn(:,k) = 0.  
-          end where
-          where ( atebdwn(:,k)>150. )  
-            atebdwn(:,k) = atebdwn(:,k) - urbtemp
-          end where 
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do
+        call fillhist4u(vname,"slabtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_intmtgg")') ifrac
-        call fillhist4(vname,atebdwn(:,1:5),nourban_a,fill_nourban)
-        do k = 1,5
-          write(vname,'("intmtemp",I1.1)') k
-          where ( atebdwn(:,k)>900. )
-            atebdwn(:,k) = 0.  
-          end where
-          where ( atebdwn(:,k)>150. )  
-            atebdwn(:,k) = atebdwn(:,k) - urbtemp
-          end where 
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
+        call fillhist4u(vname,"intmtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_roomtgg1")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 0.  
-        end where
-        where ( atebdwn(:,1)>150. )
-          atebdwn(:,1) = atebdwn(:,1) - urbtemp
-        end where
-        call atebloadd(atebdwn(:,1),"roomtemp",ifrac,0)
+        call fillhist1u(vname,"roomtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_urbnsmc")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 0.  
-        end where
-        call atebloadd(atebdwn(:,1),"canyonsoilmoisture",ifrac,0)
+        call fillhist1u(vname,"canyonsoilmoisture",ifrac,nourban_a,fill_nourban,0.,0)
         write(vname,'("t",I1.1,"_urbnsmr")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 0.  
-        end where
-        call atebloadd(atebdwn(:,1),"roofsoilmoisture",ifrac,0)
+        call fillhist1u(vname,"roofsoilmoisture",ifrac,nourban_a,fill_nourban,0.,0)
         write(vname,'("t",I1.1,"_roofwtr")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 0.  
-        end where
-        call atebloadd(atebdwn(:,1),"roofsurfacewater",ifrac,0)
+        call fillhist1u(vname,"roofsurfacewater",ifrac,nourban_a,fill_nourban,0.,0)
         write(vname,'("t",I1.1,"_roadwtr")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 0.  
-        end where
-        call atebloadd(atebdwn(:,1),"roadsurfacewater",ifrac,0)
+        call fillhist1u(vname,"roadsurfacewater",ifrac,nourban_a,fill_nourban,0.,0)
         write(vname,'("t",I1.1,"_urbwtrc")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 0.  
-        end where
-        call atebloadd(atebdwn(:,1),"canyonleafwater",ifrac,0)
+        call fillhist1u(vname,"canyonleafwater",ifrac,nourban_a,fill_nourban,0.,0)
         write(vname,'("t",I1.1,"_urbwtrr")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 0.  
-        end where
-        call atebloadd(atebdwn(:,1),"roofleafwater",ifrac,0)
+        call fillhist1u(vname,"roofleafwater",ifrac,nourban_a,fill_nourban,0.,0)
         write(vname,'("t",I1.1,"_roofsnd")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 0.  
-        end where
-        call atebloadd(atebdwn(:,1),"roofsnowdepth",ifrac,0)
+        call fillhist1u(vname,"roofsnowdepth",ifrac,nourban_a,fill_nourban,0.,0)
         write(vname,'("t",I1.1,"_roadsnd")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 0.  
-        end where
-        call atebloadd(atebdwn(:,1),"roadsnowdepth",ifrac,0)
+        call fillhist1u(vname,"roadsnowdepth",ifrac,nourban_a,fill_nourban,0.,0)
         write(vname,'("t",I1.1,"_roofden")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 100.  
-        end where
-        if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
-        call atebloadd(atebdwn(:,1),"roofsnowdensity",ifrac,0)
+        call fillhist1u(vname,"roofsnowdensity",ifrac,nourban_a,fill_nourban,100.,2)
         write(vname,'("t",I1.1,"_roadden")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 100.  
-        end where
-        if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=100.
-        call atebloadd(atebdwn(:,1),"roadsnowdensity",ifrac,0)
+        call fillhist1u(vname,"roadsnowdensity",ifrac,nourban_a,fill_nourban,100.,2)
         write(vname,'("t",I1.1,"_roofsna")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 0.85  
-        end where
-        if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
-        call atebloadd(atebdwn(:,1),"roofsnowalbedo",ifrac,0)
+        call fillhist1u(vname,"roofsnowalbedo",ifrac,nourban_a,fill_nourban,0.85,2)
         write(vname,'("t",I1.1,"_roadsna")') ifrac
-        call fillhist1(vname,atebdwn(:,1),nourban_a,fill_nourban)
-        where ( atebdwn(:,1)>900. ) ! missing
-          atebdwn(:,1) = 0.85 
-        end where
-        if ( all(atebdwn(:,1)<1.e-20) ) atebdwn(:,1)=0.85
-        call atebloadd(atebdwn(:,1),"roadsnowalbedo",ifrac,0)
+        call fillhist1u(vname,"roadsnowalbedo",ifrac,nourban_a,fill_nourban,0.85,2)
       end do
     else if ( urban2_found ) then
       ! nested with urban data  
-      call fillhist4("rooftgg",atebdwn(:,1:5),nourban_a,fill_nourban)
-      do k = 1,5
-        write(vname,'("rooftemp",I1.1)') k
-        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
-        do ifrac = 1,nfrac
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
-      end do
-      call fillhist4("waletgg",atebdwn(:,1:5),nourban_a,fill_nourban)
-      do k = 1,5
-        write(vname,'("walletemp",I1.1)') k
-        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
-        do ifrac = 1,nfrac
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
-      end do
-      call fillhist4("walwtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
-      do k = 1,5
-        write(vname,'("wallwtemp",I1.1)') k
-        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
-        do ifrac = 1,nfrac
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
-      end do
-      call fillhist4("roadtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
-      do k = 1,5
-        write(vname,'("roadtemp",I1.1)') k
-        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
-        do ifrac = 1,nfrac
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
-      end do
-      call fillhist4("slabtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
-      do k = 1,5
-        write(vname,'("slabtemp",I1.1)') k
-        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
-        do ifrac = 1,nfrac
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
-      end do
-      call fillhist4("intmtgg",atebdwn(:,1:5),nourban_a,fill_nourban)
-      do k = 1,5
-        write(vname,'("intmtemp",I1.1)') k
-        atebdwn(:,k) = min( max( atebdwn(:,k), 170. ), 380. ) - urbtemp
-        do ifrac = 1,nfrac
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
-      end do
+      do ifrac = 1,nfrac  
+        call fillhist4u("rooftgg","rooftemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u("waletgg","walletemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u("walwtgg","wallwtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u("roadtgg","roadtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u("slabtgg","slabtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u("intmtgg","intmtemp",ifrac,nourban_a,fill_nourban,0.,1)
+      end do  
     else
       ! nested without urban data
       if ( myid==0 ) then
         write(6,*) "Use tsu for urban data"  
       end if
-      call gethist1("tsu",atebdwn(:,1))
-      atebdwn(:,1) = abs(atebdwn(:,1))
-      atebdwn(:,1) = min( max( atebdwn(:,1), 170. ), 380. )
-      do k = 2,5
-        atebdwn(:,k) = atebdwn(:,1)
-      end do
-      do k = 1,5
-        where ( atebdwn(:,k)>150. )  
-          atebdwn(:,k) = atebdwn(:,k) - urbtemp
-        end where
-      end do
-      do k = 1,5
-        write(vname,'("rooftemp",I1.1)') k
-        do ifrac = 1,nfrac
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
-        write(vname,'("walletemp",I1.1)') k
-        do ifrac = 1,nfrac
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
-        write(vname,'("wallwtemp",I1.1)') k
-        do ifrac = 1,nfrac
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
-        write(vname,'("roadtemp",I1.1)') k
-        do ifrac = 1,nfrac
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
-        write(vname,'("slabtemp",I1.1)') k
-        do ifrac = 1,nfrac
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
-        end do  
-        write(vname,'("intmtemp",I1.1)') k
-        do ifrac = 1,nfrac
-          call atebloadd(atebdwn(:,k),vname,ifrac,0)
+      call gethist1("tsu",dum6)
+      dum6 = abs(dum6)
+      dum6 = min( max( dum6, 170. ), 380. )
+      where ( dum6>150. )  
+        dum6 = dum6 - urbtemp
+      end where
+      do ifrac = 1,nfrac
+        do k = 1,5
+          write(vname,'("rooftemp",I1.1)') k
+          call atebloadd(dum6,vname,ifrac,0)
+          write(vname,'("walletemp",I1.1)') k
+          call atebloadd(dum6,vname,ifrac,0)
+          write(vname,'("wallwtemp",I1.1)') k
+          call atebloadd(dum6,vname,ifrac,0)
+          write(vname,'("roadtemp",I1.1)') k
+          call atebloadd(dum6,vname,ifrac,0)
+          write(vname,'("slabtemp",I1.1)') k
+          call atebloadd(dum6,vname,ifrac,0)
+          write(vname,'("intmtemp",I1.1)') k
+          call atebloadd(dum6,vname,ifrac,0)
         end do  
       end do        
     end if    
-    deallocate( atebdwn )
   end if
 
   ! k-eps data
@@ -3157,6 +2978,47 @@ end if ! iop_test
 return
 end subroutine fillhistuv1o
 
+subroutine fillhist1u(vname,uname,ifrac,mask_a,fill_count,filldefault,fillmode)
+
+use cc_mpi                          ! CC MPI routines
+use ateb, only : urbtemp, atebloadd ! Urban
+use newmpar_m                       ! Grid parameters
+
+implicit none
+      
+integer, intent(inout) :: fill_count
+integer, intent(in) :: ifrac, fillmode
+integer ier
+real, intent(in) :: filldefault
+real, dimension(ifull) :: varout
+logical, dimension(fwsize), intent(in) :: mask_a
+character(len=*), intent(in) :: vname
+character(len=*), intent(in) :: uname
+
+call fillhist1(vname,varout,mask_a,fill_count)
+where ( varout>900. ) ! missing
+    varout = filldefault  
+end where
+select case(fillmode)
+  case(0)
+    ! do nothing  
+  case(1)
+    where ( varout>150. )  
+      varout = min( max( varout, 170.), 380. ) - urbtemp
+    end where
+  case(2)
+    where( varout<1.e-20 )
+      varout = filldefault
+    end where
+  case default
+    write(6,*) "ERROR: Unknown fillmode in fillhist1u"
+    call ccmpi_abort(-1)
+end select
+call atebloadd(varout,uname,ifrac,0)
+
+return
+end subroutine fillhist1u
+
 ! This version reads 3D fields
 subroutine gethist4(vname,varout)
 
@@ -3367,6 +3229,51 @@ call mloregrid(ok,gosig_in,bath,v_k,varout,0)
 return
 end subroutine fillhistuv4o
 
+subroutine fillhist4u(vname,uname,ifrac,mask_a,fill_count,filldefault,fillmode)
+
+use cc_mpi                          ! CC MPI routines
+use ateb, only : urbtemp, atebloadd ! Urban
+use newmpar_m                       ! Grid parameters
+
+implicit none
+      
+integer, intent(inout) :: fill_count
+integer, intent(in) :: ifrac, fillmode
+integer ier, k
+real, intent(in) :: filldefault
+real, dimension(ifull,5) :: varout
+logical, dimension(fwsize), intent(in) :: mask_a
+character(len=*), intent(in) :: vname
+character(len=*), intent(in) :: uname
+character(len=20) lname
+
+call fillhist4(vname,varout,mask_a,fill_count)
+where ( varout>900. ) ! missing
+  varout = filldefault  
+end where
+select case(fillmode)
+  case(0)
+    ! do nothing  
+  case(1)
+    where ( varout>150. )  
+      varout = min( max( varout, 170.), 380. ) - urbtemp
+    end where
+  case(2)
+    where( varout<1.e-20 )
+      varout = filldefault
+    end where
+  case default
+    write(6,*) "ERROR: Unknown fillmode in fillhist4u"
+    call ccmpi_abort(-1)
+end select
+do k = 1,5
+  write(lname,'(A,I1.1)') uname,k
+  call atebloadd(varout(:,k),lname,ifrac,0)
+end do
+        
+return
+end subroutine fillhist4u
+
 ! *****************************************************************************
 ! FILE DATA MESSAGE PASSING ROUTINES
 
@@ -3383,14 +3290,22 @@ implicit none
 integer n, ipf
 integer mm, iq, idel, jdel
 integer ncount, w, colour
+integer sourceid, newid
 logical, dimension(0:fnproc-1) :: lfile
 integer, dimension(:), allocatable :: tempmap_send, tempmap_smod
 logical, dimension(0:nproc-1) :: lproc
 
 if ( allocated(filemap_recv) ) then
-  deallocate( filemap_recv, filemap_rmod )
-  deallocate( filemap_send, filemap_smod )
-  deallocate( filemap_facetest, filemap_facecomm )
+  write(6,*) "ERROR: Close input file before opening a new file"
+  call ccmpi_abort(-1)
+end if
+if ( allocated(filemap_send) ) then
+  write(6,*) "ERROR: Close input file before opening a new file"
+  call ccmpi_abort(-1)
+end if
+if ( allocated(filemap_facecomm) ) then
+  write(6,*) "ERROR: Close input file before opening a new file"
+  call ccmpi_abort(-1)
 end if
 if ( allocated(axs_w) ) then
   deallocate( axs_w, ays_w, azs_w )
@@ -3402,9 +3317,7 @@ if ( myid==0 ) then
 end if
 
 ! calculate which grid points and input files are needed by this processor
-allocate( filemap_facetest(0:npanels), filemap_facecomm(0:npanels) )
 lfile(:) = .false.
-filemap_facetest(:) = .false.
 do mm = 1,m_fly
   do iq = 1,ifull
     idel = int(xg4(iq,mm))
@@ -3423,35 +3336,13 @@ do mm = 1,m_fly
     lfile(procarray(idel+2,jdel,  n)) = .true.
     lfile(procarray(idel,  jdel-1,n)) = .true.
     lfile(procarray(idel+1,jdel-1,n)) = .true.   
-    filemap_facetest(procarray_face(idel,  jdel+2,n)) = .true.
-    filemap_facetest(procarray_face(idel+1,jdel+2,n)) = .true.
-    filemap_facetest(procarray_face(idel-1,jdel+1,n)) = .true.
-    filemap_facetest(procarray_face(idel  ,jdel+1,n)) = .true.
-    filemap_facetest(procarray_face(idel+1,jdel+1,n)) = .true.
-    filemap_facetest(procarray_face(idel+2,jdel+1,n)) = .true.
-    filemap_facetest(procarray_face(idel-1,jdel,  n)) = .true.
-    filemap_facetest(procarray_face(idel  ,jdel,  n)) = .true.
-    filemap_facetest(procarray_face(idel+1,jdel,  n)) = .true.
-    filemap_facetest(procarray_face(idel+2,jdel,  n)) = .true.
-    filemap_facetest(procarray_face(idel,  jdel-1,n)) = .true.
-    filemap_facetest(procarray_face(idel+1,jdel-1,n)) = .true.
   end do
 end do
 
-! Construct bcast comms for single file case
-if ( myid==0 ) then
-  filemap_facetest(:) = .true.
-end if
-do n = 0, npanels
-  if ( filemap_facetest(n) ) then
-    colour = 1
-  else
-    colour = -1
-  end if    
-  call ccmpi_commsplit(filemap_facecomm(n),comm_world,colour,myid)
-end do
-
 ! Construct a map of files to be accessed by this process
+if ( myid==0 ) then
+  write(6,*) "--> Create map of files required by this process"
+end if
 ncount = count(lfile(0:fnproc-1))
 allocate( filemap_recv(ncount), filemap_rmod(ncount) )
 ncount = 0
@@ -3463,45 +3354,76 @@ do w = 0,fnproc-1
   end if
 end do
 
-! Construct a map of processes that need this file
-allocate( tempmap_send(nproc*fncount), tempmap_smod(nproc*fncount) )
-tempmap_send(:) = -1
-tempmap_smod(:) = -1
-ncount = 0
-do ipf = 0,fncount-1
-  lproc(:) = .false.
-  do w = 1,size(filemap_recv)
-    if ( filemap_rmod(w) == ipf ) then
-      lproc(filemap_recv(w)) = .true.
-    end if
-  end do  
-  call ccmpi_alltoall(lproc,comm_world) ! global transpose
-  do w = 0,nproc-1
-    if ( lproc(w) ) then
-      ncount = ncount + 1
-      tempmap_send(ncount) = w
-      tempmap_smod(ncount) = ipf
-    end if
-  end do  
-end do
-allocate( filemap_send(ncount), filemap_smod(ncount) )
-filemap_send(1:ncount) = tempmap_send(1:ncount)
-filemap_smod(1:ncount) = tempmap_smod(1:ncount)
-deallocate( tempmap_send, tempmap_smod )
+if ( fnproc<=6 ) then
+    
+  ! Construct bcast comms for single panel case
+  allocate( filemap_facecomm(0:fnproc-1), filemap_rinv(0:fnproc-1) )
+  filemap_rinv(:) = -1
+  if ( myid==0 ) then
+    write(6,*) "--> Create Bcast comms for panel input"
+  end if
+  do w = 0,fnproc-1
+    sourceid = mod( w, fnresid )
+    if ( lfile(w) .or. myid==sourceid ) then
+      colour = 1
+      do ncount = 1,size(filemap_recv)
+        if ( filemap_recv(ncount)+filemap_rmod(ncount)*fnresid==w ) then
+          filemap_rinv(w) = ncount  
+        end if    
+      end do   
+    else
+      colour = -1
+    end if  
+    newid = myid - sourceid
+    if ( newid<0 ) then
+      newid = newid + nproc
+    end if  
+    call ccmpi_commsplit(filemap_facecomm(w),comm_world,colour,newid)   
+  end do
+  
+else
+    
+  ! Construct a map of processes that need this file
+  if ( myid==0 ) then
+    write(6,*) "--> Create map of processes that need this file"  
+  end if
+  allocate( tempmap_send(nproc*fncount), tempmap_smod(nproc*fncount) )
+  tempmap_send(:) = -1
+  tempmap_smod(:) = -1
+  ncount = 0
+  do ipf = 0,fncount-1
+    lproc(:) = .false.
+    do w = 1,size(filemap_recv)
+      if ( filemap_rmod(w) == ipf ) then
+        lproc(filemap_recv(w)) = .true.
+      end if
+    end do  
+    call ccmpi_alltoall(lproc,comm_world) ! global transpose
+    do w = 0,nproc-1
+      if ( lproc(w) ) then
+        ncount = ncount + 1
+        tempmap_send(ncount) = w
+        tempmap_smod(ncount) = ipf
+      end if
+    end do  
+  end do
+  allocate( filemap_send(ncount), filemap_smod(ncount) )
+  filemap_send(1:ncount) = tempmap_send(1:ncount)
+  filemap_smod(1:ncount) = tempmap_smod(1:ncount)
+  deallocate( tempmap_send, tempmap_smod )
+
+end if
 
 ! Define halo indices for ccmpi_filebounds
 if ( myid==0 ) then
-  write(6,*) "Setup bounds function for processors reading input files"  
+  write(6,*) "--> Setup bounds function for processors reading input files"  
 end if
-
 call ccmpi_filebounds_setup(comm_ip)
-
 
 ! Distribute fields for vector rotation
 if ( myid==0 ) then
-  write(6,*) "Distribute vector rotation data to processors reading input files"
+  write(6,*) "--> Distribute vector rotation data to processors reading input files"
 end if
-
 allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
 allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
 if ( myid==0 ) then
@@ -3523,7 +3445,7 @@ else if ( fwsize>0 ) then
 end if
 
 if ( myid==0 ) then
-  write(6,*) "Finished creating control data for input file data"
+  write(6,*) "--> Finished creating control data for input file data"
 end if
 
 return

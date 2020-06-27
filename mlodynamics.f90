@@ -3874,7 +3874,7 @@ logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
 
 call START_LOG(watervadv_begin)
 
-!$omp parallel private(tile,iq,ii,its,js,je,its_g,ww_l)
+!$omp parallel private(tile,iq,ii,its,js,je,its_g,ww_l,dzdum,depdum_l,dtnew,dat_l)
 !$omp do
 do tile = 1,ntiles
   js = (tile-1)*imax + 1

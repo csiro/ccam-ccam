@@ -103,7 +103,7 @@ module cc_mpi
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       filemap_send, filemap_smod                                           ! file map sent for onthefly
    integer, allocatable, dimension(:), save, public :: filemap_facecomm    ! communicator for face bcast
-   logical, allocatable, dimension(:), save, public :: filemap_facetest    ! face data required from bcast
+   integer, allocatable, dimension(:), save, public :: filemap_rinv        ! inverse map for filemap_recv/rmod
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -129,8 +129,7 @@ module cc_mpi
              setglobalpack_v
    public :: ccmpi_filewinget, ccmpi_filewinunpack, ccmpi_filebounds_setup, &
              ccmpi_filebounds_send, ccmpi_filebounds_recv,                  &
-             ccmpi_filegather, ccmpi_filedistribute, procarray,             &
-             procarray_face
+             ccmpi_filegather, ccmpi_filedistribute, procarray
 #ifdef usempi3
    public :: ccmpi_allocshdata, ccmpi_allocshdatar8, ccmpi_remap
    public :: ccmpi_shepoch, ccmpi_freeshdata
@@ -8756,6 +8755,8 @@ contains
    
       integer(kind=4) :: lerr
       
+      !lcomm = MPI_COMM_WORLD
+      !call MPI_Barrier( lcomm, lerr ) ! work around for Pearcey bug
       call MPI_Finalize( lerr )
    
    end subroutine ccmpi_finalize
@@ -10282,31 +10283,35 @@ contains
       real, dimension(:), intent(in) :: sinp
       real, dimension(pipan*pjpan*pnpan,size(filemap_recv)), intent(out) :: abuf 
 
-      if ( fnproc == 1 ) then
+      nlen = pipan*pjpan*pnpan
+      lsize = nlen
+      
+      if ( fnproc <= 6 ) then
         
-         ! use Bcast for single input file
-         nlen = pipan*pjpan
-         lsize = nlen
+         ! use Bcast for single input panel
          abuf = 0.
          call START_LOG(bcast_begin)
-         do n = 0,npanels
-            if ( filemap_facetest(n) ) then
-               is = 1 + n*nlen
-               ie = (n+1)*nlen
-               lcomm = filemap_facecomm(n)
-               if ( myid==0 ) then 
-                  abuf(is:ie,1) = sinp(is:ie)
+         do w = 0,fnproc-1
+            lcomm = filemap_facecomm(w) 
+            n = filemap_rinv(w)
+            if ( myid == mod(w,fnresid) ) then
+               ipf = w/fnresid
+               cc = nlen*ipf
+               call MPI_Bcast( sinp(1+cc:nlen+cc), lsize, ltype, 0_4, lcomm, ierr )
+               if ( n > 0 ) then
+                 abuf(1:nlen,n) = sinp(1+cc:nlen+cc)
                end if   
-               call MPI_Bcast( abuf(is:ie,1), lsize, ltype, 0_4, lcomm, ierr )
-            end if
+            else
+               if ( n > 0 ) then 
+                  call MPI_Bcast( abuf(1:nlen,n), lsize, ltype, 0_4, lcomm, ierr ) 
+               end if   
+            end if   
          end do
          call END_LOG(bcast_end)
           
       else    
 
          ncount = size(filemap_recv)
-         nlen = pipan*pjpan*pnpan
-         lsize = nlen
          lcomm = comm_world
           
          !     Set up the buffers to recv
@@ -10355,27 +10360,32 @@ contains
       real, dimension(:,:,:), intent(out) :: abuf
       real, dimension(pipan*pjpan*pnpan,size(sinp,2),size(filemap_recv)) :: bbuf
       real, dimension(pipan*pjpan*pnpan,size(sinp,2),mynproc) :: cbuf
-      real, dimension(pipan*pjpan,size(sinp,2)) :: dbuf
 
       kx = size(sinp,2)
+      nlen = pipan*pjpan*pnpan
+      lsize = nlen*kx
       
-      if ( fnproc == 1 ) then
+      if ( fnproc <= 6 ) then
       
          ! use Bcast for single input file  
-         nlen = pipan*pjpan
-         lsize = nlen*kx
          abuf = 0.
          call START_LOG(bcast_begin)
-         do n = 0,npanels
-            if ( filemap_facetest(n) ) then
-               is = 1 + n*nlen
-               ie = (n+1)*nlen
-               lcomm = filemap_facecomm(n)                
-               if ( myid==0 ) then
-                  dbuf(:,:) = sinp(is:ie,1:kx) 
-               end if    
-               call MPI_Bcast( dbuf(:,:), lsize, ltype, 0_4, lcomm, ierr ) 
-               abuf(is:ie,1,1:kx) = dbuf(:,:)  
+         do w = 0,fnproc-1
+            lcomm = filemap_facecomm(w) 
+            n = filemap_rinv(w)
+            if ( myid == mod(w,fnresid) ) then
+               ipf = w/fnresid
+               cc = nlen*ipf             
+               cbuf(:,:,ipf+1) = sinp(1+cc:nlen+cc,1:kx) 
+               call MPI_Bcast( cbuf(:,:,ipf+1), lsize, ltype, 0_4, lcomm, ierr )
+               if ( n > 0 ) then
+                  abuf(1:nlen,n,1:kx) = cbuf(1:nlen,1:kx,ipf+1) 
+               end if   
+            else
+               if ( n > 0 ) then
+                  call MPI_Bcast( bbuf(:,:,n), lsize, ltype, 0_4, lcomm, ierr )
+                  abuf(1:nlen,n,1:kx) = bbuf(1:nlen,1:kx,n)
+               end if
             end if
          end do      
          call END_LOG(bcast_end)
@@ -10383,8 +10393,6 @@ contains
       else   
 
          ncount = size(filemap_recv)
-         nlen = pipan*pjpan*pnpan
-         lsize = nlen*kx
          lcomm = comm_world
           
          do ipf = 0,mynproc-1
@@ -11316,12 +11324,10 @@ contains
    end subroutine proc_filedistribute3
    
    pure subroutine procarray_ijn(i,j,n)
-      ! returns the process id the holds the file corresponding to the input grid point
+      ! converts (-2:il+2,-2:il+2,0:5) coordinate to (1:il,1:il,0:5)
       integer, intent(inout) :: i, j, n
-      integer :: proc_out
       integer :: i_in, j_in, n_in, n_n, n_s, n_e, n_w
       
-      proc_out = -1 ! missing
       i_in = i
       j_in = j
       n_in = n
@@ -11541,7 +11547,6 @@ contains
       i = i_in
       j = j_in
       n = n_in
-      
       call procarray_ijn(i,j,n)
       
       ! determine processor that owns the grid point
@@ -11560,20 +11565,6 @@ contains
       end do   
   
    end function procarray
-  
-   pure function procarray_face(i_in,j_in,n_in) result(face_out)
-      ! returns the process id the holds the file corresponding to the input grid point
-      integer, intent(in) :: i_in, j_in, n_in
-      integer :: face_out
-      integer :: i, j
-      
-      i = i_in
-      j = j_in
-      face_out = n_in
-      
-      call procarray_ijn(i,j,face_out)
-  
-   end function procarray_face
    
    pure subroutine file_ijnpg2ijnp(iloc,jloc,nloc,floc,iproc,ik)
       ! converts file global index to local index
