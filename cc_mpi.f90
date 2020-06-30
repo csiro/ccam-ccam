@@ -10290,24 +10290,26 @@ contains
         
          ! use Bcast for single input panel
          abuf = 0.
-         call START_LOG(bcast_begin)
          do w = 0,fnproc-1
             lcomm = filemap_facecomm(w) 
             n = filemap_rinv(w)
             if ( myid == mod(w,fnresid) ) then
                ipf = w/fnresid
                cc = nlen*ipf
+               call START_LOG(bcast_begin)
                call MPI_Bcast( sinp(1+cc:nlen+cc), lsize, ltype, 0_4, lcomm, ierr )
+               call END_LOG(bcast_end)
                if ( n > 0 ) then
-                 abuf(1:nlen,n) = sinp(1+cc:nlen+cc)
+                  abuf(1:nlen,n) = sinp(1+cc:nlen+cc)
                end if   
             else
                if ( n > 0 ) then 
-                  call MPI_Bcast( abuf(1:nlen,n), lsize, ltype, 0_4, lcomm, ierr ) 
+                  call START_LOG(bcast_begin)
+                  call MPI_Bcast( abuf(1:nlen,n), lsize, ltype, 0_4, lcomm, ierr )
+                  call END_LOG(bcast_end)
                end if   
             end if   
          end do
-         call END_LOG(bcast_end)
           
       else    
 
@@ -10369,7 +10371,6 @@ contains
       
          ! use Bcast for single input file  
          abuf = 0.
-         call START_LOG(bcast_begin)
          do w = 0,fnproc-1
             lcomm = filemap_facecomm(w) 
             n = filemap_rinv(w)
@@ -10377,18 +10378,21 @@ contains
                ipf = w/fnresid
                cc = nlen*ipf             
                cbuf(:,:,ipf+1) = sinp(1+cc:nlen+cc,1:kx) 
+               call START_LOG(bcast_begin)
                call MPI_Bcast( cbuf(:,:,ipf+1), lsize, ltype, 0_4, lcomm, ierr )
+               call END_LOG(bcast_end)
                if ( n > 0 ) then
                   abuf(1:nlen,n,1:kx) = cbuf(1:nlen,1:kx,ipf+1) 
                end if   
             else
                if ( n > 0 ) then
+                  call START_LOG(bcast_begin) 
                   call MPI_Bcast( bbuf(:,:,n), lsize, ltype, 0_4, lcomm, ierr )
+                  call END_LOG(bcast_end)
                   abuf(1:nlen,n,1:kx) = bbuf(1:nlen,1:kx,n)
                end if
             end if
          end do      
-         call END_LOG(bcast_end)
          
       else   
 

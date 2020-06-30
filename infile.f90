@@ -231,7 +231,7 @@ if ( mynproc>0 ) then
     rvar(:) = 0. ! default for missing field
   
     ! get variable idv
-    ier=nf90_inq_varid(pncid(ipf),name,idv)
+    ier = nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier/=nf90_noerr ) then
       if ( myid==0 .and. ipf==0 ) then
         write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
@@ -1257,7 +1257,6 @@ if ( myid==0 ) then
           call face_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
           pioff(ipf,:) = duma(:)
           pjoff(ipf,:) = dumb(:)
-          ppanid(ipf)  = 1 - pnoff(ipf)
         end do
       case(1) ! face decomposition
         pnpan = max(1,6/fnproc)
@@ -1265,7 +1264,6 @@ if ( myid==0 ) then
           call face_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
           pioff(ipf,:) = duma(:)
           pjoff(ipf,:) = dumb(:)
-          ppanid(ipf) = 0
         end do
       case(2) ! old uniform decomposition - depreciated
         pnpan = 6
@@ -1273,7 +1271,6 @@ if ( myid==0 ) then
           call uniform_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
           pioff(ipf,:) = duma(:)
           pjoff(ipf,:) = dumb(:)
-          ppanid(ipf) = 0
         end do
       case(3) ! new uniform decomposition
         pnpan = 6
@@ -1281,7 +1278,6 @@ if ( myid==0 ) then
           call dix_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
           pioff(ipf,:) = duma(:)
           pjoff(ipf,:) = dumb(:)
-          ppanid(ipf) = 0
         end do
     end select
 
@@ -1395,9 +1391,10 @@ if ( allocated(pncid) ) then
   call ccmpi_abort(-1)
 end if
 if ( mynproc>0 ) then
-  allocate( pncid(0:mynproc-1) )
-  allocate( pfown(0:mynproc-1) )
+  allocate( pncid(0:mynproc-1), pfown(0:mynproc-1) )
+  allocate( ppanid(0:mynproc-1) )
   pfown(:) = .false.
+  ppanid(:) = 0
 end if
 ! Rank 0 can start with the second file, because the first file has already been opened
 if ( myid==0 ) then 
@@ -1489,6 +1486,12 @@ if ( mynproc>0 ) then
   else  
     
     ! single input file decomposed into six panels
+
+    do ipf = 0,mynproc-1
+      ipin = ipf*fnresid + myid  
+      ppanid(ipf) = ipin
+    end do    
+    
     do ipf = is,mynproc-1
       ipin = ipf*fnresid + myid
       pfown(ipf) = .true.
@@ -1513,22 +1516,20 @@ if ( mynproc>0 ) then
 end if
 
 
-allocate( dum_off(0:fnproc-1,1:14) )
+allocate( dum_off(0:fnproc-1,1:13) )
 if ( myid==0 ) then
   write(6,*) "--> Broadcast file coordinate data"
   dum_off(0:fnproc-1,1:6)  = pioff(0:fnproc-1,0:5)
   dum_off(0:fnproc-1,7:12) = pjoff(0:fnproc-1,0:5)
   dum_off(0:fnproc-1,13)   = pnoff(0:fnproc-1)
-  dum_off(0:fnproc-1,14)   = ppanid(0:fnproc-1)
 else
   allocate( pioff(0:fnproc-1,0:5), pjoff(0:fnproc-1,0:5) )
-  allocate( pnoff(0:fnproc-1), ppanid(0:fnproc-1) )
+  allocate( pnoff(0:fnproc-1) )
 end if
 call ccmpi_bcast(dum_off,0,comm_world)
 pioff(0:fnproc-1,0:5) = dum_off(0:fnproc-1,1:6)
 pjoff(0:fnproc-1,0:5) = dum_off(0:fnproc-1,7:12)
 pnoff(0:fnproc-1)     = dum_off(0:fnproc-1,13)
-ppanid(0:fnproc-1)    = dum_off(0:fnproc-1,14)
 deallocate( dum_off )
 
 
@@ -1561,8 +1562,8 @@ if ( allocated(pncid) ) then
       ierr = nf90_close(pncid(ipf))
     end if
   end do
-  deallocate(pfown)
-  deallocate(pncid)
+  deallocate( pfown, pncid )
+  deallocate( ppanid )
 end if
 
 if ( allocated(pprid) ) then
@@ -1570,7 +1571,6 @@ if ( allocated(pprid) ) then
 end if
 if (allocated(pioff)) then
   deallocate(pioff,pjoff,pnoff)
-  deallocate(ppanid)
 end if
 if ( allocated(filemap_recv) ) then
   deallocate( filemap_recv, filemap_rmod )
