@@ -1248,7 +1248,7 @@ if ( myid==0 ) then
       call ccmpi_abort(-1)
     end if
     allocate( pioff(0:fnproc-1,0:5), pjoff(0:fnproc-1,0:5) )
-    allocate( pnoff(0:fnproc-1), ppanid(0:fnproc-1) )
+    allocate( pnoff(0:fnproc-1) )
         
     select case(dmode)
       case(0) ! single file - decompose into six panels
