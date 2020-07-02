@@ -399,6 +399,7 @@ end if
 zmin = -rdry*280.*log(sig(1))/grav
 if ( myid==0 ) write(6,*) 'zmin = ',zmin
 
+!$acc update device(sig,dsig)
 !paracc!$acc update device(sig,dsig,sigmh,bet,betm,ratha,rathb)
 
 !--------------------------------------------------------------

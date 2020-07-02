@@ -1299,6 +1299,7 @@ use cable_ccam, only : proglai           & ! CABLE
     ,smrf_switch,strf_switch             &
     ,cable_gw_model
 use carbpools_m, only : carbpools_init     ! Carbon pools
+use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
 use cfrac_m                                ! Cloud fraction
@@ -2498,6 +2499,8 @@ minwater = max( 0., minwater )  ! limit ocean minimum water level
 if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (no output in history file)
 if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (output in history file)
 
+!$acc update device(alphaj,dt,fc2,ngwd,sigbot_gwd,vmodmin)
+!$acc update device(iaero,qgmin,nmr)
 !paracc!$acc update device(vmodmin,sigbot_gwd,fc2,dt,alphaj,ngwd,iaero,ds,nmr,diag)
 !paracc!$acc update device(qgmin,nlocal,cqmix)
 
@@ -2584,6 +2587,7 @@ nsig    = nint(temparray(8))
 ! requires a larger number of MPI messages.
 call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp,uniform_decomp)
 call ccmpi_reinit(new_nproc) 
+call ccacc_init(node_myid,node_nproc)
 
 
 if ( myid<nproc ) then
@@ -2969,6 +2973,7 @@ if ( myid<nproc ) then
   call ccmpi_bcastr8(z_g,0,comm_world)
 #endif
   call ccmpi_bcast(ds,0,comm_world)
+!$acc update device(ds)
 
   if ( myid==0 ) then
     write(6,*) "Calling ccmpi_setup"

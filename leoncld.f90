@@ -160,15 +160,15 @@ end do
 !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lt),                &
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,idjd_t,mydiag_t)
-!paracc!$acc parallel copy(stratcloud,gfrac,rfrac,sfrac,t,qg,qgrg,qlg,qfg,qrg,qsng,nettend,   &
-!paracc!$acc   condg,conds,condx,precip)                                                      &
-!paracc!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em)                                &
-!paracc!$acc copyout(cfrac,qlrad,qfrad,qccon,ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,      &
-!paracc!$acc   ppfstayliq,ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)
-!paracc!$acc loop gang private(lcfrac,lgfrac,lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice, &
-!paracc!$acc   lppfstayliq,lppfsubl,lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,        &
-!paracc!$acc   lpprscav,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-!paracc!$acc   ldpsldt,lnettend,lstratcloud,lclcon,lcdrop)
+!$acc parallel copy(stratcloud,gfrac,rfrac,sfrac,t,qg,qgrg,qlg,qfg,qrg,qsng,nettend,   &
+!$acc   condg,conds,condx,precip)                                                      &
+!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em)                                &
+!$acc copyout(cfrac,qlrad,qfrad,qccon,ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,      &
+!$acc   ppfstayliq,ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)
+!$acc loop gang private(lcfrac,lgfrac,lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice, &
+!$acc   lppfstayliq,lppfsubl,lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,        &
+!$acc   lpprscav,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
+!$acc   ldpsldt,lnettend,lstratcloud,lclcon,lcdrop)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -242,7 +242,7 @@ do tile = 1,ntiles
   end if
   
 end do
-!paracc!$acc end parallel
+!$acc end parallel
 !$omp end do nowait
 
 return
@@ -255,7 +255,7 @@ subroutine leoncld_work(cfrac,condg,conds,condx,gfrac,kbsav,ktsav,land,         
                         ps,qccon,qfg,qfrad,qg,qgrg,qlg,qlrad,qrg,qsng,rfrac,sfrac,t,    &
                         dpsldt,nettend,stratcloud,clcon,cdrop,em,idjd,mydiag,           &
                         ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,imax,kl)
-!paracc!$acc routine vector
+!$acc routine vector
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -352,7 +352,7 @@ elsewhere
 end where
 
 
-#ifndef GPU
+#ifndef GPU1
 if ( nmaxpr==1 .and. mydiag ) then
   !if ( ktau==1 ) then
   !  write(6,*)'in leoncloud Rcm ',Rcm
@@ -393,7 +393,7 @@ do k = 1,kl
 end do
 
 
-#ifndef GPU
+#ifndef GPU1
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newcloud'
   diag_temp(:) = t(idjd,:)
@@ -440,7 +440,7 @@ do k = 2,kl-1
 end do
      
 
-#ifndef GPU
+#ifndef GPU1
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newcloud'
   diag_temp(:) = tenv(idjd,:)
@@ -476,7 +476,7 @@ do k = 1,kl
 end do
 
 
-#ifndef GPU
+#ifndef GPU1
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newsnowrain'
   diag_temp(:) = t(idjd,:)
@@ -519,7 +519,7 @@ call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                  
                  condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
 
 
-#ifndef GPU
+#ifndef GPU1
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newsnowrain'
   diag_temp(:) = t(idjd,:)
@@ -679,7 +679,7 @@ end subroutine leoncld_work
  subroutine newcloud(tdt,land,prf,rhoa,ttg,qtg,qlg,qfg,        &
                      dpsldt,nettend,stratcloud,em,idjd,mydiag, &
                      ncloud,nclddia,rcrit_l,rcrit_s,imax,kl)
-!paracc!$acc routine vector
+!$acc routine vector
  
 ! This routine is part of the prognostic cloud water scheme
 
@@ -730,7 +730,7 @@ real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 ! Start code : ----------------------------------------------------------
 
 
-#ifndef GPU
+#ifndef GPU1
 if ( diag.and.mydiag ) then
   write(6,*) 'entering newcloud'
   diag_temp(:) = prf(idjd,:)
@@ -770,7 +770,7 @@ do k = 1,kl
   tliq(:,k) = ttg(:,k) - hlcp*qcg(:,k) - hlfcp*qfg(:,k) 
 end do
 
-#ifndef GPU
+#ifndef GPU1
 if ( diag .and. mydiag ) then
   write(6,*) 'within newcloud'
   diag_temp = ttg(idjd,:)
@@ -917,7 +917,7 @@ if ( ncloud<=3 ) then
     
   end do
 
-#ifdef GPU
+#ifndef GPU1
   if ( diag .and. mydiag ) then
     diag_temp(:) = rcrit(idjd,:)
     write(6,*) 'rcrit ',diag_temp
@@ -1033,7 +1033,7 @@ do k = 1,kl
   ttg(:,k) = tliq(:,k) + hlcp*qcg(:,k) + hlfcp*qfg(:,k)
 end do
 
-#ifndef GPU
+#ifndef GPU1
 if ( diag .and. mydiag ) then
    write(6,*) 'at end of newcloud'
    diag_temp(:) = ttg(idjd,:)
@@ -1100,7 +1100,7 @@ subroutine newsnowrain(tdt_in,rhoa,dz,prf,cdrop,ttg,qlg,qfg,qrg,qsng,qgrg,precs,
                        cfsnow,cfgraupel,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,            &
                        fluxi,fluxs,fluxg,fluxm,fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,        &
                        condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
-!paracc!$acc routine vector
+!$acc routine vector
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -1333,7 +1333,7 @@ do k = 1,kl
 end do
 
 
-#ifndef GPU
+#ifndef GPU1
 if ( diag .and. mydiag ) then
   diag_temp(:) = stratcloud(idjd,:)
   write(6,*) 'stratcloud',diag_temp
@@ -2320,7 +2320,7 @@ do k = 1,kl
   
 end do  
 
-#ifndef GPU
+#ifndef GPU1
 !      Adjust cloud fraction (and cloud cover) after precipitation
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'diags from newrain for idjd ',idjd
@@ -2381,7 +2381,7 @@ end subroutine newsnowrain
     
 subroutine progcloud(dt,qc,qtot,press,rho,fice,qs,t,rhcrit, &
                      dpsldt,nettend,stratcloud,imax,kl)
-!paracc!$acc routine vector
+!$acc routine vector
 
 use const_phys                    ! Physical constants
 use parm_m, only : qgmin          ! Model configuration
@@ -2511,7 +2511,7 @@ return
 end subroutine progcloud    
     
 pure function pow75_s(x) result(ans)
-!paracc!$acc routine vector
+!$acc routine vector
 implicit none
 real, intent(in) :: x
 real ans, y
@@ -2520,7 +2520,7 @@ ans=y*sqrt(y)
 end function pow75_s
 
 pure function pow75_v(x) result(ans)
-!paracc!$acc routine vector
+!$acc routine vector
 implicit none
 real, dimension(:), intent(in) :: x
 real, dimension(size(x)) :: ans, y
