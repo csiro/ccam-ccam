@@ -128,7 +128,7 @@ shear=0.
 
 !$acc update device(cm0,minl,maxl,mintke,mineps,ce0,ce1,ce2,ce3)
 !$acc update device(be,ent0,ent1,ent_min,ezmin,entc0,dtrc0,m0,b1,b2,qcmf,mfbeta)
-!$acc update device(buoymeth,tkemeth,stabmeth,maxdts)
+!$acc update device(buoymeth,tkemeth,stabmeth,maxdts,upshear)
 
 return
 end subroutine tkeinit
