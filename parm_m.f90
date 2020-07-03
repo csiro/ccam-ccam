@@ -90,6 +90,7 @@ logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., sa
 
 !$acc declare create(alphaj,dt,fc2,ngwd,sigbot_gwd,vmodmin)
 !$acc declare create(iaero,ds,nmr,qgmin)
+!$acc declare create(cqmix,nlocal)
 !paracc!$acc declare create(vmodmin,sigbot_gwd,fc2,dt,alphaj,ngwd,iaero,ds,nmr,diag)
 !paracc!$acc declare create(qgmin,nlocal,cqmix)
 

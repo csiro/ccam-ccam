@@ -2501,6 +2501,7 @@ if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (output
 
 !$acc update device(alphaj,dt,fc2,ngwd,sigbot_gwd,vmodmin)
 !$acc update device(iaero,qgmin,nmr)
+!$acc update device(cqmix,nlocal)
 !paracc!$acc update device(vmodmin,sigbot_gwd,fc2,dt,alphaj,ngwd,iaero,ds,nmr,diag)
 !paracc!$acc update device(qgmin,nlocal,cqmix)
 
