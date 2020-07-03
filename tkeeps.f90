@@ -741,7 +741,7 @@ pure subroutine plumerise(iqmap,cm12,                                  &
 
 integer, dimension(:), intent(in) :: iqmap
 integer k, kl, imax_p
-#ifndef GPU1
+#ifndef GPU
 integer kmax
 #endif
 real, dimension(:,:), intent(inout) :: mflx, tlup, qvup, qlup, qfup, cfup
@@ -896,7 +896,7 @@ do k = 2,kl
     xp = min(max(xp,0.),dzht)
     zi_p(:) = xp + zz_p(:,k-1)
   end where
-#ifndef GPU1
+#ifndef GPU
   kmax = k
   if ( all( w2up(:,k)<=0. ) ) exit
 #endif
@@ -907,7 +907,7 @@ wstar_p = (grav*zi_p*max(wtv0_p,0.)/thetav_p)**(1./3.)
           
 ! update mass flux
 mflx_p(:,1) = m0*sqrt(max(w2up(:,1), 0.))
-#ifndef GPU1
+#ifndef GPU
 do k = 2,kmax
 #else
 do k = 2,kl

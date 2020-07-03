@@ -352,7 +352,7 @@ elsewhere
 end where
 
 
-#ifndef GPU1
+#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   !if ( ktau==1 ) then
   !  write(6,*)'in leoncloud Rcm ',Rcm
@@ -393,7 +393,7 @@ do k = 1,kl
 end do
 
 
-#ifndef GPU1
+#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newcloud'
   diag_temp(:) = t(idjd,:)
@@ -440,7 +440,7 @@ do k = 2,kl-1
 end do
      
 
-#ifndef GPU1
+#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newcloud'
   diag_temp(:) = tenv(idjd,:)
@@ -476,7 +476,7 @@ do k = 1,kl
 end do
 
 
-#ifndef GPU1
+#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newsnowrain'
   diag_temp(:) = t(idjd,:)
@@ -519,7 +519,7 @@ call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                  
                  condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
 
 
-#ifndef GPU1
+#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newsnowrain'
   diag_temp(:) = t(idjd,:)
@@ -730,7 +730,7 @@ real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 ! Start code : ----------------------------------------------------------
 
 
-#ifndef GPU1
+#ifndef GPU
 if ( diag.and.mydiag ) then
   write(6,*) 'entering newcloud'
   diag_temp(:) = prf(idjd,:)
@@ -770,7 +770,7 @@ do k = 1,kl
   tliq(:,k) = ttg(:,k) - hlcp*qcg(:,k) - hlfcp*qfg(:,k) 
 end do
 
-#ifndef GPU1
+#ifndef GPU
 if ( diag .and. mydiag ) then
   write(6,*) 'within newcloud'
   diag_temp = ttg(idjd,:)
@@ -917,7 +917,7 @@ if ( ncloud<=3 ) then
     
   end do
 
-#ifndef GPU1
+#ifndef GPU
   if ( diag .and. mydiag ) then
     diag_temp(:) = rcrit(idjd,:)
     write(6,*) 'rcrit ',diag_temp
@@ -1033,7 +1033,7 @@ do k = 1,kl
   ttg(:,k) = tliq(:,k) + hlcp*qcg(:,k) + hlfcp*qfg(:,k)
 end do
 
-#ifndef GPU1
+#ifndef GPU
 if ( diag .and. mydiag ) then
    write(6,*) 'at end of newcloud'
    diag_temp(:) = ttg(idjd,:)
@@ -1333,7 +1333,7 @@ do k = 1,kl
 end do
 
 
-#ifndef GPU1
+#ifndef GPU
 if ( diag .and. mydiag ) then
   diag_temp(:) = stratcloud(idjd,:)
   write(6,*) 'stratcloud',diag_temp
@@ -2320,7 +2320,7 @@ do k = 1,kl
   
 end do  
 
-#ifndef GPU1
+#ifndef GPU
 !      Adjust cloud fraction (and cloud cover) after precipitation
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'diags from newrain for idjd ',idjd

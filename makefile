@@ -1,4 +1,4 @@
-FC = mpiifort
+FC = mpif90
 FCSCM = ifort
 CC = cc
 
@@ -95,9 +95,8 @@ CC = pgcc
 FHOST = -O3 -tp=haswell -fast
 #FHOST = -g
 MPIFLAG += -I$(I_MPI_ROOT)/include64 -L$(I_MPI_ROOT)/lib64 -lmpi -lmpiif
-#FFLAGS = $(FHOST) -Dpgi -DGPU -traceback $(MPIFLAG) $(NCFLAG)
+FFLAGS = $(FHOST) -Dpgi -DGPU -traceback $(MPIFLAG) $(NCFLAG)
 #FFLAGS = $(FHOST) -Dpgi -D_GPU -traceback $(MPIFLAG) $(NCFLAG)
-FFLAGS = $(FHOST) -Dpgi -D_GPU -DGPU1 -traceback $(MPIFLAG) $(NCFLAG)
 #FFLAGS += -Minfo=accel -acc -ta=host
 #FFLAGS += -Minfo=accel -acc -ta=multicore
 #FFLAGS += -Minfo=accel -acc -ta=nvidia:cc60

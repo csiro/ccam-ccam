@@ -286,7 +286,7 @@ do tile = 1,ntiles
   dustwd(is:ie,:)      = ldustwd
   dust_burden(is:ie,:) = ldust_burden
   
-#ifndef GPU1  
+#ifndef GPU  
   if ( diag .and. mydiag_t ) then
     write(6,*) "tdiag ",t(idjd,:)
     write(6,*) "qgdiag ",qg(idjd,:)
