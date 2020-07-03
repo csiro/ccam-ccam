@@ -29,9 +29,7 @@ public sigs_init,sigs_end
 
 real, dimension(:), allocatable, save :: sig,sigmh,dsig,rata,ratb,bet,tbar,tbardsig,betm,ratha,rathb
 real, save :: dtmax
-!$acc declare create(dsig,sig)
-!$acc declare create(sigmh,rathb,ratha,bet,betm)
-!paracc!$acc declare create(sig,dsig,sigmh,bet,betm,ratha,rathb)
+!$acc declare create(sig,dsig,sigmh,bet,betm,ratha,rathb)
 
 contains
 

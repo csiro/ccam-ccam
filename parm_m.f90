@@ -88,10 +88,7 @@ logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.
 !logical, save :: pio=.false., mpiio=.true., npio=.false., useiobuffer=.false.
 
-!$acc declare create(alphaj,dt,fc2,ngwd,sigbot_gwd,vmodmin)
-!$acc declare create(iaero,ds,nmr,qgmin)
-!$acc declare create(cqmix,nlocal)
-!paracc!$acc declare create(vmodmin,sigbot_gwd,fc2,dt,alphaj,ngwd,iaero,ds,nmr,diag)
-!paracc!$acc declare create(qgmin,nlocal,cqmix)
+!$acc declare create(vmodmin,sigbot_gwd,fc2,dt,alphaj,ngwd,iaero,ds,nmr)
+!$acc declare create(qgmin,nlocal,cqmix)
 
 end module parm_m
