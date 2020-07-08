@@ -392,6 +392,7 @@ cable_constants.o : cable_define_types.o
 cable_data.o : cable_constants.o
 cable_gw_hydro.o : cable_define_types.o cable_common.o cable_soilsnow.o cable_data.o
 cable_optimiseJVratio.o : cable_canopy.o cable_data.o cable_define_types.o POP.o
+cable_pft_parms.o : cable_define_types.o
 cable_psm.o : cable_common.o cable_define_types.o
 cable_radiation.o : cable_common.o cable_data.o cable_define_types.o
 cable_roughness.o : cable_common.o cable_data.o cable_define_types.o

@@ -755,12 +755,10 @@ if ( amip_mode==1 ) then
     deallocate( wts_a ) 
     ! setup interpolation arrays
     do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
-      do iq = 1,ifull_g
-        call latltoij(rlong4(iq,mm),rlat4(iq,mm),           & !input
-                      rlon_in,rlat_in,schmidt_in,           & !input
-                      xg4(iq,mm),yg4(iq,mm),nface4(iq,mm),  & !output (source)
-                      xx4,yy4,ik)
-      end do
+      call latltoij(rlong4(:,mm),rlat4(:,mm),          & !input
+                    rlon_in,rlat_in,schmidt_in,        & !input
+                    xg4(:,mm),yg4(:,mm),nface4(:,mm),  & !output (source)
+                    xx4,yy4,ik)
     end do
     nullify( xx4, yy4 )
     deallocate( xx4_dummy, yy4_dummy )    
@@ -1353,12 +1351,10 @@ if ( mod(ktau,nperday)==0 ) then
         deallocate( wts_a ) 
         ! setup interpolation arrays
         do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
-          do iq = 1,ifull_g
-            call latltoij(rlong4(iq,mm),rlat4(iq,mm),           & !input
-                          rlon_in,rlat_in,schmidt_in,           & !input
-                          xg4(iq,mm),yg4(iq,mm),nface4(iq,mm),  & !output (source)
-                          xx4,yy4,ik)
-          end do
+          call latltoij(rlong4(:,mm),rlat4(:,mm),          & !input
+                        rlon_in,rlat_in,schmidt_in,        & !input
+                        xg4(:,mm),yg4(:,mm),nface4(:,mm),  & !output (source)
+                        xx4,yy4,ik)
         end do
         nullify( xx4, yy4 )
         deallocate( xx4_dummy, yy4_dummy )   

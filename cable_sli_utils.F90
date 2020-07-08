@@ -49,37 +49,37 @@ MODULE sli_utils
   INTERFACE generic_thomas
      MODULE PROCEDURE generic_thomas_1d
      MODULE PROCEDURE generic_thomas_2d
-  END INTERFACE
+  END INTERFACE generic_thomas
 
   INTERFACE getfluxes_vp
      MODULE PROCEDURE getfluxes_vp_1d
      MODULE PROCEDURE getfluxes_vp_2d
-  END INTERFACE
+  END INTERFACE getfluxes_vp
 
   INTERFACE getheatfluxes
      MODULE PROCEDURE getheatfluxes_1d
      MODULE PROCEDURE getheatfluxes_2d
-  END INTERFACE
+  END INTERFACE getheatfluxes
 
   INTERFACE massman_sparse
      MODULE PROCEDURE massman_sparse_1d
      MODULE PROCEDURE massman_sparse_2d
-  END INTERFACE
+  END INTERFACE massman_sparse
 
   INTERFACE tri
      MODULE PROCEDURE tri_1d
      MODULE PROCEDURE tri_2d
-  END INTERFACE
+  END INTERFACE tri
 
   ! Function interfaces
 
   INTERFACE mean
      MODULE PROCEDURE mean_1d, mean_2d
-  END INTERFACE
+  END INTERFACE mean
 
   INTERFACE nse
      MODULE PROCEDURE nse_1d, nse_2d
-  END INTERFACE
+  END INTERFACE nse
 
   !P.J. Ross 2005-2007:
   ! This module implements Brooks-Corey (BC) soil water retention and conductivity
@@ -127,12 +127,12 @@ CONTAINS
     v_aquifer%zzero     = 53.43_r_2  ! water table depth corresponding to Wa = zero
     v_aquifer%Sy        = 0.2_r_2  ! specific yield of aquifer
     ! initialise water content of aquifer
-    v_aquifer%Wa        = v_aquifer%Sy*(v_aquifer%zzero-MAX(v_aquifer%zdelta,v_aquifer%zsoil))
+    v_aquifer%Wa        = v_aquifer%Sy*(v_aquifer%zzero-max(v_aquifer%zdelta,v_aquifer%zsoil))
     v_aquifer%isat      = 0
-    IF (v_aquifer%zdelta <= v_aquifer%zsoil) v_aquifer%isat = 1
+    if (v_aquifer%zdelta <= v_aquifer%zsoil) v_aquifer%isat = 1
     v_aquifer%f         = 1.25_r_2 ! multiplier in exponent of Rs (m-1)
     v_aquifer%Rsmax     = 4.5e-7_r_2  ! maximum discharge rate from aquifer (ms-1)
-    v_aquifer%discharge = v_aquifer%Rsmax*EXP(-v_aquifer%f*v_aquifer%zdelta)
+    v_aquifer%discharge = v_aquifer%Rsmax*exp(-v_aquifer%f*v_aquifer%zdelta)
 
   END SUBROUTINE aquifer_props
 
@@ -159,40 +159,40 @@ CONTAINS
     REAL(r_2) :: w, rdz
 
     ! gf is gravity factor (0 to 1) assumed available in module
-    IF (gf < zero) THEN
+    if (gf < zero) then
        !if ((v1%isat /= 0 .and. v2%isat /= 0) .or. v1%h-gf*(-dz) >= parin%he) then
-       IF ((v1%isat /= 0 .AND. v2%isat /= 0) .OR. v1%h-gf*(-dz) >= v1%he) THEN
+       if ((v1%isat /= 0 .and. v2%isat /= 0) .or. v1%h-gf*(-dz) >= v1%he) then
           w = one
-       ELSE
+       else
           w = weight(parin, v1%h, v1%K*v1%macropore_factor, v1%phi, -dz)
           w = one-w
-       END IF
-    ELSE
+       end if
+    else
        !if ((v1%isat /= 0 .and. v2%isat /= 0) .or. v2%h-gf*dz >= parin%he) then
-       IF ((v1%isat /= 0 .AND. v2%isat /= 0) .OR. v2%h-gf*dz >= v2%he) THEN
+       if ((v1%isat /= 0 .and. v2%isat /= 0) .or. v2%h-gf*dz >= v2%he) then
           w = zero
-       ELSE
+       else
           w = weight(parin, v2%h, v2%K*v2%macropore_factor, v2%phi, dz)
-       END IF
-    END IF
+       end if
+    end if
 
     rdz = one/dz
     q   = (v1%phi-v2%phi)*rdz + gf*(w*v1%K*v1%macropore_factor+(one-w)*v2%K*v2%macropore_factor)
-    IF (v1%isat==0) THEN
+    if (v1%isat==0) then
        qya = v1%phiS*rdz + gf*w*v1%KS*v1%macropore_factor
        qTa = v1%phiT*rdz + gf*w*v1%KT*v1%macropore_factor
-    ELSE
+    else
        qya = rdz
        qTa = zero
-    END IF
+    end if
 
-    IF (v2%isat==0) THEN
+    if (v2%isat==0) then
        qyb = -v2%phiS*rdz + gf*(one-w)*v2%KS*v2%macropore_factor
        qTb = -v2%phiT*rdz + gf*(one-w)*v2%KT*v2%macropore_factor
-    ELSE
+    else
        qyb = -rdz
        qTb = zero
-    END IF
+    end if
 
   END SUBROUTINE flux
 
@@ -233,9 +233,9 @@ CONTAINS
 
     Tg = (Tg0 + dt*(c1*(a-b*Tg0)+c2*Tbar)) / (one + c2 *dt - b*c1*dt)
 
-    IF (iice.EQ.1) THEN
-       Tg = MIN(zero, Tg)
-    ENDIF
+    if (iice.eq.1) then
+       Tg = min(zero, Tg)
+    endif
 
     G = a + b*(Tg-Tg0)
     H = rhocp/rrc*(Tg-Ta)
@@ -275,9 +275,9 @@ CONTAINS
     Tg = Tg0 + (c1*a/(rhos*cs*d1) - c2/tau1*(Tg0-Tbar))/ &
          (1._r_2/dt - b*c1/(rhos*cs*d1) + c2/tau1)
 
-    IF (iice.EQ.1) THEN
-       Tg = MIN(zero, Tg)
-    ENDIF
+    if (iice.eq.1) then
+       Tg = min(zero, Tg)
+    endif
 
     G = a + b*(Tg-Tg0)
     H = rhocp/rrc*(Tg-Ta)
@@ -326,15 +326,15 @@ CONTAINS
     REAL(r_2) :: Tqw, dtqwdtb, rhocp1, cs
     LOGICAL   :: isEpot
 
-    IF (vsnow%nsnow.EQ.0) surface_case = 1
-    IF (vsnow%nsnow>0) surface_case = 2
+    if (vsnow%nsnow.eq.0) surface_case = 1
+    if (vsnow%nsnow>0) surface_case = 2
 
-    SELECT CASE (surface_case)
-    CASE (1) ! no snow
-       CALL potential_evap(vmet%Rn, vmet%rbh, vmet%rbw, vmet%Ta, vmet%rha, &
+    select case (surface_case)
+    case (1) ! no snow
+       call potential_evap(vmet%Rn, vmet%rbh, vmet%rbw, vmet%Ta, vmet%rha, &
             Tsoil(1), var(1)%kth, half*dx(1)+h0, var(1)%lambdav, Tsurface_pot, Epot, Hpot, &
             Gpot, dEdrha, dEdTs, dEdTsoil, dGdTa, dGdTsoil)
-       IF (var(1)%iice.EQ.1.AND.Tsurface_pot> zero) THEN
+       if (var(1)%iice.eq.1.and.Tsurface_pot> zero) then
           Tsurface_pot = 0.0_r_2
           Tsurface = 0.0_r_2
 
@@ -345,21 +345,21 @@ CONTAINS
           Hpot = rhocp*(Tsurface - vmet%Ta)/vmet%rbh
           Gpot = vmet%Rn - Hpot - Epot
           dEdTs = zero
-       ENDIF
+       endif
 
-       IF (var(1)%isat.EQ.1) THEN  ! saturated surface =>. potential evporation
-          isEpot = .TRUE.
+       if (var(1)%isat.eq.1) then  ! saturated surface =>. potential evporation
+          isEpot = .true.
           Tsurface = Tsurface_pot
           lE0 = Epot
           G0 = Gpot
           E_vap = zero
           dE_vapdT1 = zero
           E_liq = lE0
-       ELSE ! unsaturated surface: finite vapour transfer; surface flux may be supply limited
-          CALL hyofh(hmin, par(1)%lam, par(1)%eta, par(1)%Ke, par(1)%he, &
+       else ! unsaturated surface: finite vapour transfer; surface flux may be supply limited
+          call hyofh(hmin, par(1)%lam, par(1)%eta, par(1)%Ke, par(1)%he, &
                Kmin, Khmin, phimin) ! get phi at hmin
           E_liq = ((var(1)%phi-phimin)/(half*dx(1))-var(1)%K)*thousand*var(1)%lambdav
-          IF (var(1)%Dv > 1.e-12_r_2) THEN
+          if (var(1)%Dv > 1.e-12_r_2) then
              ! E = (cs-ca)/rbw = E_liq + E_vap = E_liq + (c1-cs)/Dv/dx/2
              cs = ( E_liq/var(1)%lambdav + var(1)%rh*csat(Tsoil(1))*var(1)%Dv/(half*dx(1)) + &
                   vmet%cva*thousand/vmet%rbw ) &
@@ -369,39 +369,39 @@ CONTAINS
              !      * (one - vmet%rbw*var(1)%Dv/(half*dx(1))/(one+vmet%rbw*var(1)%Dv/(half*dx(1)))) &
              !      * var(1)%lambdav
              dE_vapdT1 = var(1)%Dv/(half*dx(1)) * var(1)%rh*slope_csat(Tsoil(1)) * var(1)%lambdav
-          ELSE
+          else
              E_vap     = zero
              dE_vapdT1 = zero
-          ENDIF
-          IF (Epot <= (E_vap+E_liq)) THEN
-             isEpot = .TRUE.
+          endif
+          if (Epot <= (E_vap+E_liq)) then
+             isEpot = .true.
              lE0 = Epot
              cs  = csat(Tsurface_pot)
              E_vap = (var(1)%rh*csat(Tsoil(1)) - cs) * var(1)%Dv/(half*dx(1)) * var(1)%lambdav
              E_liq = lE0 - E_vap
              dE_vapdT1 = var(1)%Dv/(half*dx(1)) * var(1)%rh*slope_csat(Tsoil(1)) * var(1)%lambdav
-          ELSE
-             isEpot = .FALSE.
+          else
+             isEpot = .false.
              lE0 = E_vap+E_liq
              dEdTs = zero
-          ENDIF
+          endif          
           ! lE0 = min(Epot, E_vap+E_liq) ! analytic approximation (See Haverd et al. 2013, Appxx)
           ! if (Epot .gt. (E_vap+E_liq)) dEdTs = zero
           Tsurface = (-half*dx(1)*lE0 + half*dx(1)*vmet%Rn + &
                var(1)%kth*Tsoil(1) + half*dx(1)*(one/vmet%rbh*rhocp)*vmet%Ta) &
                /(var(1)%kth + half*dx(1)*(one/vmet%rbh*rhocp))
-
+          
           G0       = var(1)%kth/(half*dx(1))*(Tsurface-Tsoil(1))
           dGdTsoil  =  -var(1)%kth/(half*dx(1))
 
-          IF ((var(1)%iice.EQ.1) .AND. (Tsurface>zero)) THEN
+          if ((var(1)%iice.eq.1) .and. (Tsurface>zero)) then
              Tsurface = 0.0_r_2
              rhocp1 = rmair*101325._r_2/rgas/(vmet%Ta+Tzero)*cpa
              G0 = vmet%Rn - rhocp1*(Tsurface - vmet%Ta)/vmet%rbh - lE0
              dGdTsoil = 0.0_r_2
-          ENDIF
+          endif
 
-       ENDIF
+       endif
        ! write(*,*) var(1)%phi, phimin
 
        qevap = lE0/(thousand*var(1)%lambdav)
@@ -425,7 +425,7 @@ CONTAINS
        qvyb = zero
 
        ! potential evap independent of S(1), dependent on T1
-       IF ((var(1)%isat.EQ.1 .OR. vsnow%nsnow.GT.0)) THEN
+       if ((var(1)%isat.eq.1 .or. vsnow%nsnow.gt.0)) then
           qyb  = zero
           qTb  = -dEdTsoil/(thousand*var(1)%lambdav)
           qliq = -Epot/(thousand*var(1)%lambdav)
@@ -434,7 +434,7 @@ CONTAINS
           qvyb = zero
           qlTb = qTb
           qvTb = zero
-       ELSEIF (isEpot) THEN
+       elseif (isEpot) then
           qTb  = -dE_vapdT1/(thousand*var(1)%lambdav)
           qyb  = zero
           qliq = -E_liq/(thousand*var(1)%lambdav)
@@ -443,7 +443,7 @@ CONTAINS
           qvyb = zero
           qlTb = qTb
           qvTb = zero
-       ELSE ! supply limited
+       else ! supply limited
           qTb = -dE_vapdT1/(thousand*var(1)%lambdav)
           qyb = -(var(1)%phiS/(half*dx(1)) - var(1)%KS)  !!vh!! include vapour component??
           qliq = -E_liq/(thousand*var(1)%lambdav)
@@ -452,33 +452,33 @@ CONTAINS
           qvyb = zero
           qlTb = zero
           qvTb = qTb
-       ENDIF
+       endif
        ! end of partial derivative evaluation
 
        ! advective component of heat flux
-       qadv = rhow*cswat*qprec*(vmet%Ta) + rhow*csice*qprec_snow*(MIN(vmet%Ta,zero)) &
+       qadv = rhow*cswat*qprec*(vmet%Ta) + rhow*csice*qprec_snow*(min(vmet%Ta,zero)) &
             - rhow*qprec_snow*lambdaf
 
-       Tqw  = MERGE(vmet%Ta, Tsoil(1), (-qevap)>zero)
-       dTqwdTb = MERGE(zero, one, (-qevap)>zero)
+       Tqw  = merge(vmet%Ta, Tsoil(1), (-qevap)>zero)
+       dTqwdTb = merge(zero, one, (-qevap)>zero)
        qadv = qadv + rhow*cswat*Tqw*(-qevap)
 
        qadvTb = dTqwdTb + rhow*cswat*Tqw*qTb
        qadvyb =  rhow*cswat*qyb*Tqw
        qadvyb = 0
+     
 
-
-       qadvTb = 0 ! test vh!
-
+       qadvTb = 0 ! test vh! 
+       
        qh = qadv + G0
        qhyb = qadvyb
        qhTb = dGdTsoil + qadvTb
-
-    CASE (2) !dedicated snow layer
+      
+    case (2) !dedicated snow layer
        ! NB Only longwave component of net radiation directly affects SEB: sw component is absorbed internally
 
        ! SEB at snow/air interface
-       IF (vsnow%hliq(1)>zero) THEN
+       if (vsnow%hliq(1)>zero) then
           Tsurface = 0.0_r_2
           !Epot = (esat(Tsurface)*0.018_r_2/thousand/8.314_r_2/(vmet%Ta+Tzero)  - & ! m3 H2O (liq) m-3 (air)
           !            vmet%cva)*rhow*rlambda/vmet%rbw !!vh check this !!
@@ -495,15 +495,15 @@ CONTAINS
           qevap = Epot/(rhow*rlambda)
           qTb = zero
           !     write(*,*) "Epot2", Tsurface, vmet%Ta, Epot, Hpot, vmet%rrc, rhocp1
-       ELSE
+       else
           !! vh !! use max snow depth of 20 cm in this calculation to avoid huge resistances
           !! leading to large negative surface temperatures when snow-pack is thick and
           !! Rn is large and negative (~-100 Wm-2)
-          CALL potential_evap(vmet%Rn-vmet%Rnsw, vmet%rbh, vmet%rbw, vmet%Ta, vmet%rha, &
-               vsnow%tsn(1), MAX(vsnow%kth(1),0.1_r_2), half*MIN(vsnow%depth(1),0.05_r_2), &
+          call potential_evap(vmet%Rn-vmet%Rnsw, vmet%rbh, vmet%rbw, vmet%Ta, vmet%rha, &
+               vsnow%tsn(1), max(vsnow%kth(1),0.1_r_2), half*min(vsnow%depth(1),0.05_r_2), &
                lambdas, Tsurface, Epot, Hpot, &
                Gpot, dEdrha, dEdTs, dEdTsoil, dGdTa, dGdTsoil,iice=.TRUE.)
-          IF (Tsurface > zero) THEN ! temperature of frozen surface must be <= zero
+          if (Tsurface > zero) then ! temperature of frozen surface must be <= zero
              Tsurface = 0.0_r_2
              Epot = (esat(Tsurface)*0.018_r_2/thousand/8.314_r_2/(vmet%Ta+Tzero)  - & ! m3 H2O (liq) m-3 (air)
                   vmet%cva)*rhow*lambdas/vmet%rbw
@@ -513,7 +513,7 @@ CONTAINS
              Gpot = vmet%Rn-vmet%Rnsw - Hpot - Epot
              dEdTs= zero
              !   write(*,*) "Epot3", Tsurface, vmet%Ta, Epot, Hpot, vmet%rbh
-          ENDIF
+          endif
 !!$          elseif (abs(Tsurface - vmet%Ta).gt. 20) then
 !!$             Tsurface = min(vmet%Ta, 0.0)
 !!$             Epot = (esat(Tsurface)*0.018_r_2/thousand/8.314_r_2/(vmet%Ta+Tzero)  - & ! m3 H2O (liq) m-3 (air)
@@ -526,7 +526,7 @@ CONTAINS
 !!$           endif
           qevap = Epot/(rhow*lambdas)
           qTb = -dEdTsoil/(thousand*lambdas)
-       ENDIF
+       endif
        lE0 = Epot
        ! moisture flux at air/snow interface
        qsurface = qprec_snow+qprec-qevap
@@ -535,23 +535,23 @@ CONTAINS
        ! conductive heat flux at air/snow interface
        G0 = Gpot
        qhTb = dGdTsoil
-       IF (vsnow%hliq(1)>zero) THEN
+       if (vsnow%hliq(1)>zero) then
           qhTb = zero
           qTb = zero
-       ENDIF
+       endif
 
        ! advective heat flux at air/snow interface
-       qadv = rhow*(qprec_snow)*(csice*(MIN(vmet%Ta,zero))-lambdaf) + &
-            rhow*(qprec)*cswat*(MAX(vmet%Ta,zero))
-       Tqw  = MERGE(vmet%Ta, vsnow%tsn(1), -qevap>zero)
-       dTqwdTb = MERGE(zero,one, -qevap>zero)
-       IF (vsnow%hliq(vsnow%nsnow)>zero) THEN
+       qadv = rhow*(qprec_snow)*(csice*(min(vmet%Ta,zero))-lambdaf) + &
+            rhow*(qprec)*cswat*(max(vmet%Ta,zero))
+       Tqw  = merge(vmet%Ta, vsnow%tsn(1), -qevap>zero)
+       dTqwdTb = merge(zero,one, -qevap>zero)
+       if (vsnow%hliq(vsnow%nsnow)>zero) then
           qadv = qadv + rhow*(-qevap)*cswat*Tqw
           qadvTb = zero
-       ELSE
+       else
           qadv = qadv + rhow*(-qevap)*cswat*Tqw
           qadvTb = rhow*cswat*(-qevap)*dTqwdTb  +  rhow*cswat*Tqw*qTb
-       ENDIF
+       endif
 
        ! add sw energy absorption to G0
        G0 = G0 + vmet%Rnsw
@@ -560,7 +560,7 @@ CONTAINS
        qadvyb = zero
        qhyb   = qhyb + qadvyb
        qhTb   = qhTb + qadvTb
-
+       
 
        qv   = -qevap
        qliq = zero
@@ -569,7 +569,7 @@ CONTAINS
        qlyb = zero
        qlTb = zero
 
-    END SELECT ! surface_case
+    end select ! surface_case
 
     ! finished all the surfaces
 
@@ -615,15 +615,15 @@ CONTAINS
     REAL(r_2) :: Kmin, Khmin, phimin
     REAL(r_2) :: Tqw, dtqwdtb, d1, tmp1d2, Tbar, f, csnow
 
-    IF (vsnow%nsnow.EQ.0) surface_case = 1
-    IF (vsnow%nsnow>0) surface_case = 2
-    SELECT CASE (surface_case)
-    CASE (1)
-       CALL potential_evap(vmet%Rn, vmet%rrc, vmet%rbw, vmet%Ta, vmet%rha, &
+    if (vsnow%nsnow.eq.0) surface_case = 1
+    if (vsnow%nsnow>0) surface_case = 2
+    select case (surface_case)
+    case (1)
+       call potential_evap(vmet%Rn, vmet%rrc, vmet%rbw, vmet%Ta, vmet%rha, &
             Tsoil(1), var(1)%kth, half*dx(1)+h0, var(1)%lambdav, Tsurface_pot, Epot, Hpot, &
             Gpot, dEdrha, dEdTs, dEdTsoil, dGdTa, dGdTsoil)
 
-       IF (var(1)%iice.EQ.1.AND.Tsurface_pot> zero) THEN
+       if (var(1)%iice.eq.1.and.Tsurface_pot> zero) then
           Tsurface_pot = 0.0_r_2
           Epot = (esat(Tsurface)*0.018_r_2/thousand/8.314_r_2/(vmet%Ta+Tzero)  - & ! m3 H2O (liq) m-3 (air)
                vmet%cva)*rhow*var(1)%lambdav/vmet%rbw
@@ -632,35 +632,35 @@ CONTAINS
           Hpot = rhocp*(Tsurface - vmet%Ta)/vmet%rrc
           Gpot = vmet%Rn - Hpot - Epot
           dEdTs = zero
-       ENDIF
+       endif
 
-       IF (var(1)%isat.EQ.1) THEN  ! saturated surface =>. potential evporation
+       if (var(1)%isat.eq.1) then  ! saturated surface =>. potential evporation
           Tsurface = Tsurface_pot
           lE0 = Epot
           G0 = Gpot
           E_vap = zero
           dE_vapdT1 = zero
           E_liq = lE0
-       ELSE ! unsaturated surface: finite vapour transfer; surface flux may be supply limited
-          IF (var(1)%Dv > 1.e-12_r_2) THEN
+       else ! unsaturated surface: finite vapour transfer; surface flux may be supply limited
+          if (var(1)%Dv > 1.e-12_r_2) then
              E_vap = (var(1)%rh*csat(Tsoil(1))-vmet%cva*thousand)/(vmet%rbw + half*dx(1)/var(1)%Dv)*var(1)%lambdav
              dE_vapdT1 = (var(1)%rh*slope_csat(Tsoil(1)))/(vmet%rbw + half*dx(1)/var(1)%Dv)*var(1)%lambdav
-          ELSE
+          else
              E_vap = zero
              dE_vapdT1 = zero
-          ENDIF
-          CALL hyofh(hmin, par(1)%lam, par(1)%eta, par(1)%Ke, par(1)%he, &
+          endif
+          call hyofh(hmin, par(1)%lam, par(1)%eta, par(1)%Ke, par(1)%he, &
                Kmin, Khmin, phimin) ! get phi at hmin
           E_liq = ((var(1)%phi-phimin)/(half*dx(1))-var(1)%K)*thousand*var(1)%lambdav
-          lE0 = MIN(Epot,E_vap+ E_liq) ! analytic approximation (See Haverd et al. 2013, Appxx)
-          IF (Epot.GT.(E_vap+ E_liq)) dEdTs = zero
+          lE0 = min(Epot,E_vap+ E_liq) ! analytic approximation (See Haverd et al. 2013, Appxx)
+          if (Epot.gt.(E_vap+ E_liq)) dEdTs = zero
           Tsurface = (-half*dx(1)*lE0 + half*dx(1)*vmet%Rn + &
                var(1)%kth*Tsoil(1) + half*dx(1)*(one/vmet%rrc*rhocp)*vmet%Ta) &
                /(var(1)%kth + half*dx(1)*(one/vmet%rrc*rhocp))
-          IF (var(1)%iice.EQ.1.AND.Tsurface> zero) Tsurface = 0.0_r_2
+          if (var(1)%iice.eq.1.and.Tsurface> zero) Tsurface = 0.0_r_2
           G0       = var(1)%kth/(half*dx(1))*(Tsurface-Tsoil(1))
           dGdTsoil  =  -var(1)%kth/(half*dx(1))
-       ENDIF
+       endif
        ! write(*,*) var(1)%phi, phimin
 
        qevap = lE0/(thousand*var(1)%lambdav)
@@ -684,7 +684,7 @@ CONTAINS
        qvyb = zero
 
        ! potential evap independent of S(1), dependent on T1
-       IF ((Epot<=(E_vap+ E_liq)).OR.(var(1)%isat.EQ.1.OR.vsnow%nsnow.GT.0)) THEN
+       if ((Epot<=(E_vap+ E_liq)).or.(var(1)%isat.eq.1.or.vsnow%nsnow.gt.0)) then
           qyb = zero
           qTb = -dEdTsoil/(thousand*var(1)%lambdav)
           qliq = -Epot/(thousand*var(1)%lambdav)
@@ -693,7 +693,7 @@ CONTAINS
           qvyb = zero
           qlTb = qTb
           qvTb = zero
-       ELSE ! supply limited
+       else ! supply limited
           qTb = -dE_vapdT1/(thousand*var(1)%lambdav)
           qyb = -(var(1)%phiS/(half*dx(1)) - var(1)%KS)  !!vh!! include vapour component??
           qliq = -E_liq/(thousand*var(1)%lambdav)
@@ -702,15 +702,15 @@ CONTAINS
           qvyb = zero
           qlTb = zero
           qvTb = qTb
-       ENDIF
+       endif
        ! end of partial derivative evaluation
 
        ! advective component of heat flux
-       qadv = rhow*cswat*qprec*(vmet%Ta) + rhow*csice*qprec_snow*(MIN(vmet%Ta,zero)) &
+       qadv = rhow*cswat*qprec*(vmet%Ta) + rhow*csice*qprec_snow*(min(vmet%Ta,zero)) &
             - rhow*qprec_snow*lambdaf
 
-       Tqw  = MERGE(vmet%Ta, Tsoil(1), (-qevap)>zero)
-       dTqwdTb = MERGE(zero, one, (-qevap)>zero)
+       Tqw  = merge(vmet%Ta, Tsoil(1), (-qevap)>zero)
+       dTqwdTb = merge(zero, one, (-qevap)>zero)
        qadv = qadv + rhow*cswat*Tqw*(-qevap)
 
        qadvTb = dTqwdTb + rhow*cswat*Tqw*qTb
@@ -719,39 +719,39 @@ CONTAINS
        qhyb = qadvyb
        qhTb = dGdTsoil + qadvTb
 
-       IF (nsteps.EQ.-1) THEN
+       if (nsteps.eq.-1) then
           j = 1
           tmp1d2 = zero
-          DO WHILE (tmp1d2.LT.one)
+          do while (tmp1d2.lt.one)
              ! d1 = (var(j)%kth/(var(j)%csoileff)*86400./pi)**0.5
-             d1 = SQRT(var(j)%kth/(var(j)%csoileff)*86400./pi)
+             d1 = sqrt(var(j)%kth/(var(j)%csoileff)*86400./pi)
              tmp1d2 = tmp1d2 + dx(j)/d1
              Tbar = Tsoil(j)
              j = j+1
-          ENDDO
+          enddo
           j = j-1 ! integer corresponding to lowest layer contributing to soil col above damping depth
           ! damping depth = :sum(dx(k)) (k=1,j-1) +f dx(j)
-          IF (j.GT.1) THEN
+          if (j.gt.1) then
              f = (one - (tmp1d2 -dx(j)/d1))*d1/dx(j) ! fraction of lowest layer contributing to soil col above damping depth
-             d1 = SUM(dx(1:j-1)) + f*dx(j)  ! multilayer damping depth
-          ELSE
+             d1 = sum(dx(1:j-1)) + f*dx(j)  ! multilayer damping depth
+          else
              f = d1/dx(1)
              d1 = f*dx(1)
-          ENDIF
-          WRITE(21,"(2i8,3e16.6, i8, 8e16.6)") irec, j, f, d1, Tbar, vsnow%nsnow,Tsurface0, vmet%Rn, lE0, dEdTs, &
+          endif
+          write(21,"(2i8,3e16.6, i8, 8e16.6)") irec, j, f, d1, Tbar, vsnow%nsnow,Tsurface0, vmet%Rn, lE0, dEdTs, &
                vsnow%depth(1)!, vsnow%depth(2)
 
-          CALL forcerestore(Tsurface0, vmet%Rn, lE0, dEdTs, vmet%Ta, &
+          call forcerestore(Tsurface0, vmet%Rn, lE0, dEdTs, vmet%Ta, &
                Tbar, d1, vmet%rrc, var(1)%kth, &
                var(1)%csoileff, dt, var(1)%iice, TsurfaceFR, G0FR, HFR, lEFR)
           ! write(37,"(16e16.6)") Tsurface0, vmet%Rn, lE0, dEdTs, vmet%Ta, &
           !                       Tbar, d1, vmet%rrc, var(1)%csoileff, dt, real(var(1)%iice), TsurfaceFR, G0FR, HFR, lEFR
-       ENDIF
+       endif
 
-    CASE (2) !dedicated snow layer
+    case (2) !dedicated snow layer
 
        ! SEB at snow/air interface
-       IF (vsnow%hliq(1)>zero) THEN
+       if (vsnow%hliq(1)>zero) then
           Tsurface = 0.0_r_2
           Epot = (esat(Tsurface)*0.018_r_2/thousand/8.314_r_2/(vmet%Ta+Tzero)  - & ! m3 H2O (liq) m-3 (air)
                vmet%cva)*rhow*lambdaf/vmet%rbw
@@ -762,14 +762,14 @@ CONTAINS
           dEdTs = zero
           qevap = Epot/(thousand*lambdaf)
           qTb = zero
-       ELSE
+       else
 
-          CALL potential_evap(vmet%Rn, vmet%rrc, vmet%rbw, vmet%Ta, vmet%rha, &
+          call potential_evap(vmet%Rn, vmet%rrc, vmet%rbw, vmet%Ta, vmet%rha, &
                vsnow%tsn(1), vsnow%kth(1), half*vsnow%depth(1), &
                lambdas, Tsurface, Epot, Hpot, &
                Gpot, dEdrha, dEdTs, dEdTsoil, dGdTa, dGdTsoil)
 
-          IF (Tsurface > zero) THEN ! temperature of frozen surface must be <= zero
+          if (Tsurface > zero) then ! temperature of frozen surface must be <= zero
              Tsurface = 0.0_r_2
              Epot = (esat(Tsurface)*0.018_r_2/thousand/8.314_r_2/(vmet%Ta+Tzero)  - & ! m3 H2O (liq) m-3 (air)
                   vmet%cva)*rhow*lambdas/vmet%rbw
@@ -778,10 +778,10 @@ CONTAINS
              Hpot = rhocp*(Tsurface - vmet%Ta)/vmet%rrc
              Gpot = vmet%Rn - Hpot - Epot
              dEdTs= zero
-          ENDIF
+          endif
           qevap = Epot/(thousand*lambdas)
           qTb = -dEdTsoil/(thousand*lambdas)
-       ENDIF
+       endif
 
        ! moisture flux at air/snow interface
        qsurface = qprec_snow+qprec-qevap
@@ -790,78 +790,78 @@ CONTAINS
        ! conductive heat flux at air/snow interface
        G0 = Gpot
        qhTb = dGdTsoil
-       IF (vsnow%hliq(1)>zero) THEN
+       if (vsnow%hliq(1)>zero) then
           qhTb = zero
           qTb = zero
-       ENDIF
+       endif
 
        ! advective heat flux at air/snow interface
-       qadv = rhow*(qprec_snow)*(csice*(MIN(vmet%Ta,zero))-lambdaf) + &
+       qadv = rhow*(qprec_snow)*(csice*(min(vmet%Ta,zero))-lambdaf) + &
             rhow*(qprec)*cswat*(vmet%Ta)
-       Tqw  = MERGE(vmet%Ta, vsnow%tsn(1), -qevap>zero)
-       dTqwdTb = MERGE(zero,one, -qevap>zero)
-       IF (vsnow%hliq(vsnow%nsnow)>zero) THEN
+       Tqw  = merge(vmet%Ta, vsnow%tsn(1), -qevap>zero)
+       dTqwdTb = merge(zero,one, -qevap>zero)
+       if (vsnow%hliq(vsnow%nsnow)>zero) then
           qadv = qadv + rhow*(-qevap)*cswat*Tqw
           qadvTb = zero
-       ELSE
+       else
           qadv = qadv + rhow*(-qevap)*cswat*Tqw
           qadvTb = rhow*cswat*(-qevap)*dTqwdTb  +  rhow*cswat*Tqw*qTb
-       ENDIF
+       endif
        qh = qadv + G0
        qhyb = qhyb +  qadvyb
        qhTb = qhTb + qadvTb
 
-       IF (nsteps.EQ.-1) THEN
+       if (nsteps.eq.-1) then
           j = -vsnow%nsnow + 1
           tmp1d2 = zero
-          DO WHILE (tmp1d2.LT.one)
-             IF (j.LT.1) THEN
+          do while (tmp1d2.lt.one)
+             if (j.lt.1) then
                 !write(*,*) 'chk1', -j+vsnow%nsnow, j, vsnow%nsnow
                 csnow = (csice*(vsnow%hsnow(j+vsnow%nsnow)-vsnow%hliq(j+vsnow%nsnow))+cswat*vsnow%hliq(j+vsnow%nsnow))/ &
                      vsnow%depth(j+vsnow%nsnow)*rhow
                 ! d1 = (vsnow%kth(j+vsnow%nsnow)/(csnow)*86400./pi)**0.5
-                d1 = SQRT(vsnow%kth(j+vsnow%nsnow)/(csnow)*86400._r_2/pi)
+                d1 = sqrt(vsnow%kth(j+vsnow%nsnow)/(csnow)*86400._r_2/pi)
                 tmp1d2 = tmp1d2 + vsnow%depth(j+vsnow%nsnow)/d1  ! check snow index here!
                 Tbar = vsnow%tsn(j+vsnow%nsnow)
-             ELSE
+             else
                 ! d1 = (var(j)%kth/(var(j)%csoileff)*86400./pi)**0.5
-                d1 = SQRT(var(j)%kth/(var(j)%csoileff)*86400._r_2/pi)
+                d1 = sqrt(var(j)%kth/(var(j)%csoileff)*86400._r_2/pi)
                 tmp1d2 = tmp1d2 + dx(j)/d1
                 Tbar = Tsoil(j)
-             ENDIF
+             endif
 
              j = j+1
-          ENDDO
+          enddo
           j = j-1 ! integer corresponding to lowest layer contributing to soil col above damping depth
           ! damping depth = sum(dx(k)) (k=1,j-1) +f dx(j)
-          IF (j.GT.(-vsnow%nsnow + 1).AND.j.LE.0) THEN ! damping depth within snowpack
+          if (j.gt.(-vsnow%nsnow + 1).and.j.le.0) then ! damping depth within snowpack
              ! fraction of lowest layer contributing to soil col above damping depth
              f = (one - (tmp1d2 -vsnow%depth(j+vsnow%nsnow)/d1))*d1/vsnow%depth(j+vsnow%nsnow)
-             d1 = SUM(vsnow%depth(1:j+vsnow%nsnow-1)) + f*vsnow%depth(j+vsnow%nsnow) ! multilayer damping depth
-          ELSEIF (j.GT.0) THEN ! damping depth within soil column
+             d1 = sum(vsnow%depth(1:j+vsnow%nsnow-1)) + f*vsnow%depth(j+vsnow%nsnow) ! multilayer damping depth
+          elseif (j.gt.0) then ! damping depth within soil column
              f = (one - (tmp1d2 -dx(j)/d1))*d1/dx(j) ! fraction of lowest layer contributing to soil col above damping depth
-             IF (j.GT.1) THEN
-                d1 = SUM(vsnow%depth(1:vsnow%nsnow))+SUM(dx(1:j-1)) + f*dx(j)  ! multilayer damping depth
-             ELSE
-                d1 = SUM(vsnow%depth(1:vsnow%nsnow)) + f*dx(j)  ! multilayer damping depth
-             ENDIF
-          ELSEIF (j.EQ.-vsnow%nsnow + 1) THEN ! damping depth within top layer of snowpack
+             if (j.gt.1) then
+                d1 = sum(vsnow%depth(1:vsnow%nsnow))+sum(dx(1:j-1)) + f*dx(j)  ! multilayer damping depth
+             else
+                d1 = sum(vsnow%depth(1:vsnow%nsnow)) + f*dx(j)  ! multilayer damping depth
+             endif
+          elseif (j.eq.-vsnow%nsnow + 1) then ! damping depth within top layer of snowpack
              f = d1/vsnow%depth(j+vsnow%nsnow)
              d1 = f*vsnow%depth(j+vsnow%nsnow)
-          ENDIF
+          endif
 
           csnow = (csice*(vsnow%hsnow(1)-vsnow%hliq(1))+cswat*vsnow%hliq(1))/vsnow%depth(1)*rhow
-          WRITE(21,"(2i8,3e16.6,i8,8e16.6)") irec,j, f, d1, Tbar, vsnow%nsnow, Tsurface0, vmet%Rn, lE0, dEdTs, &
+          write(21,"(2i8,3e16.6,i8,8e16.6)") irec,j, f, d1, Tbar, vsnow%nsnow, Tsurface0, vmet%Rn, lE0, dEdTs, &
                vsnow%depth(1)!, vsnow%depth(2)
 
-          CALL forcerestore(Tsurface0, vmet%Rn, lE0, dEdTs, vmet%Ta, &
+          call forcerestore(Tsurface0, vmet%Rn, lE0, dEdTs, vmet%Ta, &
                Tbar, d1, vmet%rrc, vsnow%kth(1), &
                csnow, dt, 1, TsurfaceFR, G0FR, HFR, lEFR)
           ! write(37,"(16e16.6)") Tsurface0, vmet%Rn, lE0, dEdTs, vmet%Ta, &
           !                       Tbar, d1, vmet%rrc, var(1)%csoileff, dt, real(var(1)%iice), TsurfaceFR, G0FR, HFR, lEFR
-       ENDIF
+       endif
 
-    END SELECT ! surface_case
+    end select ! surface_case
     ! finished all the surfaces
 
   END SUBROUTINE SEB_FR
@@ -887,51 +887,51 @@ CONTAINS
     REAL(r_2)                         :: detbet, detbet1
     INTEGER(i_d)                      :: j
 
-    IF (PRESENT(err)) err = 0
+    if (present(err)) err = 0
     ! j=1
     bet(1:2,1:2) = B(1,1:2,1:2)
     detbet       = bet(1,1)*bet(2,2) - bet(1,2)*bet(2,1)
-    IF (ABS(detbet) < EPSILON(detbet)) THEN
-       WRITE(*,*) 'generic_thomas_1d error1: det = 0'
-       IF (PRESENT(err)) THEN
+    if (abs(detbet) < epsilon(detbet)) then
+       write(*,*) 'generic_thomas_1d error1: det = 0'
+       if (present(err)) then
           err = 1
-          RETURN
-       ELSE
-          STOP 1
-       ENDIF
-    ENDIF
+          return
+       else
+          stop 1
+       endif
+    endif
     detbet1 = one/detbet
     d(1:2)  = r(1,1:2)
     u(1,1)  = (bet(2,2)*d(1) - bet(1,2)*d(2))*detbet1
     u(1,2)  = (bet(1,1)*d(2) - bet(2,1)*d(1))*detbet1
     ! j=2, n
-    DO j=2, n
+    do j=2, n
        d(1:2)       = C(j-1,1:2,1)
        G(j,1,1)     = (bet(2,2)*d(1) - bet(1,2)*d(2))*detbet1
        G(j,2,1)     = (bet(1,1)*d(2) - bet(2,1)*d(1))*detbet1
        d(1:2)       = C(j-1,1:2,2)
        G(j,1,2)     = (bet(2,2)*d(1) - bet(1,2)*d(2))*detbet1
        G(j,2,2)     = (bet(1,1)*d(2) - bet(2,1)*d(1))*detbet1
-       bet(1:2,1:2) = B(j,1:2,1:2) - MATMUL(A(j,1:2,1:2),G(j,1:2,1:2))
+       bet(1:2,1:2) = B(j,1:2,1:2) - matmul(A(j,1:2,1:2),G(j,1:2,1:2))
        detbet       = bet(1,1)*bet(2,2) - bet(1,2)*bet(2,1)
-       IF (ABS(detbet) < EPSILON(detbet)) THEN
-          WRITE(*,*) 'generic_thomas_1d error2: det = 0 at j=', j
-          IF (PRESENT(err)) THEN
+       if (abs(detbet) < epsilon(detbet)) then
+          write(*,*) 'generic_thomas_1d error2: det = 0 at j=', j
+          if (present(err)) then
              err = 1
-             RETURN
-          ELSE
-             STOP 1
-          ENDIF
-       ENDIF
+             return
+          else
+             stop 1
+          endif
+       endif
        detbet1      = one/detbet
-       d(1:2)       = r(j,1:2) - MATMUL(A(j,1:2,1:2),u(j-1,1:2))
+       d(1:2)       = r(j,1:2) - matmul(A(j,1:2,1:2),u(j-1,1:2))
        u(j,1)       = (bet(2,2)*d(1) - bet(1,2)*d(2))*detbet1
        u(j,2)       = (bet(1,1)*d(2) - bet(2,1)*d(1))*detbet1
-    END DO
+    end do
     ! back substitution
-    DO j=n-1, 1, -1
-       u(j,1:2) = u(j,1:2) - MATMUL(G(j+1,1:2,1:2),u(j+1,1:2))
-    END DO
+    do j=n-1, 1, -1
+       u(j,1:2) = u(j,1:2) - matmul(G(j+1,1:2,1:2),u(j+1,1:2))
+    end do
     !
   END SUBROUTINE generic_thomas_1d
 
@@ -957,25 +957,25 @@ CONTAINS
     REAL(r_2), DIMENSION(1:mp,1:2)         :: tmp1d
     REAL(r_2), DIMENSION(1:mp,1:2,1:2)     :: tmp2d
 
-    IF (PRESENT(err)) err = 0
+    if (present(err)) err = 0
     ! j=1
     bet(1:mp,1:2,1:2) = B(1:mp,1,1:2,1:2)
     detbet(1:mp)      = bet(1:mp,1,1)*bet(1:mp,2,2) - bet(1:mp,1,2)*bet(1:mp,2,1)
-    IF (ANY(ABS(detbet(1:mp)) < EPSILON(detbet))) THEN
-       WRITE(*,*) 'generic_thomas_2d error1: det = 0'
-       IF (PRESENT(err)) THEN
+    if (any(abs(detbet(1:mp)) < epsilon(detbet))) then
+       write(*,*) 'generic_thomas_2d error1: det = 0'
+       if (present(err)) then
           err = 1
-          RETURN
-       ELSE
-          STOP 1
-       ENDIF
-    ENDIF
+          return
+       else
+          stop 1
+       endif
+    endif
     detbet1(1:mp) = one/detbet(1:mp)
     d(1:mp,1:2)   = r(1:mp,1,1:2)
     u(1:mp,1,1)   = (bet(1:mp,2,2)*d(1:mp,1) - bet(1:mp,1,2)*d(1:mp,2))*detbet1(1:mp)
     u(1:mp,1,2)   = (bet(1:mp,1,1)*d(1:mp,2) - bet(1:mp,2,1)*d(1:mp,1))*detbet1(1:mp)
     ! j=2, n
-    DO j=2, n
+    do j=2, n
        d(1:mp,1:2)       = C(1:mp,j-1,1:2,1)
        G(1:mp,j,1,1)     = (bet(1:mp,2,2)*d(1:mp,1) - bet(1:mp,1,2)*d(1:mp,2))*detbet1(1:mp)
        G(1:mp,j,2,1)     = (bet(1:mp,1,1)*d(1:mp,2) - bet(1:mp,2,1)*d(1:mp,1))*detbet1(1:mp)
@@ -988,28 +988,28 @@ CONTAINS
        tmp2d(1:mp,2,2)   = A(1:mp,j,2,1)*G(1:mp,j,1,2) + A(1:mp,j,2,2)*G(1:mp,j,2,2)
        bet(1:mp,1:2,1:2) = B(1:mp,j,1:2,1:2) - tmp2d(1:mp,1:2,1:2)
        detbet(1:mp)      = bet(1:mp,1,1)*bet(1:mp,2,2) - bet(1:mp,1,2)*bet(1:mp,2,1)
-       IF (ANY(ABS(detbet(1:mp)) < EPSILON(detbet))) THEN
-          WRITE(*,*) 'generic_thomas_2d error2: det = 0 at j=', j
-          IF (PRESENT(err)) THEN
+       if (any(abs(detbet(1:mp)) < epsilon(detbet))) then
+          write(*,*) 'generic_thomas_2d error2: det = 0 at j=', j
+          if (present(err)) then
              err = 1
-             RETURN
-          ELSE
-             STOP 1
-          ENDIF
-       ENDIF
+             return
+          else
+             stop 1
+          endif
+       endif
        detbet1(1:mp) = one/detbet(1:mp)
        tmp1d(1:mp,1) = A(1:mp,j,1,1)*u(1:mp,j-1,1) + A(1:mp,j,1,2)*u(1:mp,j-1,2)
        tmp1d(1:mp,2) = A(1:mp,j,2,1)*u(1:mp,j-1,1) + A(1:mp,j,2,2)*u(1:mp,j-1,2)
        d(1:mp,1:2)   = r(1:mp,j,1:2) - tmp1d(1:mp,1:2)
        u(1:mp,j,1)   = (bet(1:mp,2,2)*d(1:mp,1) - bet(1:mp,1,2)*d(1:mp,2))*detbet1(1:mp)
        u(1:mp,j,2)   = (bet(1:mp,1,1)*d(1:mp,2) - bet(1:mp,2,1)*d(1:mp,1))*detbet1(1:mp)
-    END DO
+    end do
     ! back substitution
-    DO j=n-1, 1, -1
+    do j=n-1, 1, -1
        tmp1d(1:mp,1) = G(1:mp,j+1,1,1)*u(1:mp,j+1,1) + G(1:mp,j+1,1,2)*u(1:mp,j+1,2)
        tmp1d(1:mp,2) = G(1:mp,j+1,2,1)*u(1:mp,j+1,1) + G(1:mp,j+1,2,2)*u(1:mp,j+1,2)
        u(1:mp,j,1:2) = u(1:mp,j,1:2) - tmp1d(1:mp,1:2)
-    END DO
+    end do
     !
   END SUBROUTINE generic_thomas_2d
 
@@ -1084,9 +1084,9 @@ CONTAINS
     vi1 = zerovars()
     vi2 = zerovars()
 
-    IF ((iflux==1) .OR. (var(1)%isat /= 0)) THEN ! get top flux if required
-       IF (getq0) THEN
-          CALL flux(parin(1), vtop, var(1), half*dx(1), q(0), qya(0), qyb(0), qTa(0), qTb(0))
+    if ((iflux==1) .or. (var(1)%isat /= 0)) then ! get top flux if required
+       if (getq0) then
+          call flux(parin(1), vtop, var(1), half*dx(1), q(0), qya(0), qyb(0), qTa(0), qTb(0))
 
           q(0)  = q(0)+(T0-Tsoil(1))*(var(1)%kE)/thousand/var(1)%lambdav/dx(1)*two
 
@@ -1097,62 +1097,62 @@ CONTAINS
 
           qvya(0) = zero
 
-          IF (vtop%isat==0) THEN
+          if (vtop%isat==0) then
              qvyb(0) = vtop%phivS/dx(1)*two
-          ELSE
+          else
              qvyb(0) = zero
-          END IF
+          end if
 
           qlya(0) = qya(0) - qvya(0)
           qlyb(0) = qyb(0) - qvyb(0)
-       END IF
-    END IF
+       end if
+    end if
     ! otherwise undefined
     qvh(0) = zero
     qvT(0) = zero
 
     ! get other fluxes
     l = 0
-    DO i=1, n-1
-       IF (iflux==1 .OR. var(i)%isat/=0 .OR. var(i+1)%isat/=0 .OR. nsat/=nsatlast) THEN ! get flux
-          IF (parin(i)%ishorizon == parin(i+1)%ishorizon) THEN ! same soil type, no interface
-             CALL flux(parin(i), var(i), var(i+1), dz(i), q(i), qya(i), qyb(i), qTa(i), qTb(i))
-          ELSE ! interface
+    do i=1, n-1
+       if (iflux==1 .or. var(i)%isat/=0 .or. var(i+1)%isat/=0 .or. nsat/=nsatlast) then ! get flux
+          if (parin(i)%ishorizon == parin(i+1)%ishorizon) then ! same soil type, no interface
+             call flux(parin(i), var(i), var(i+1), dz(i), q(i), qya(i), qyb(i), qTa(i), qTb(i))
+          else ! interface
              l  = l+1
-             IF (init) THEN ! initialise
-                CALL hyofh(hmin, parin(i)%lam, parin(i)%eta, parin(i)%Ke, parin(i)%he, vi1%K, Khi1, phimin(l)) ! get phi at hmin
+             if (init) then ! initialise
+                call hyofh(hmin, parin(i)%lam, parin(i)%eta, parin(i)%Ke, parin(i)%he, vi1%K, Khi1, phimin(l)) ! get phi at hmin
                 h1 = var(i)%h
                 h2 = var(i+1)%h
                 y1 = var(i)%K*dx(i+1)
                 y2 = var(i+1)%K*dx(i)
                 ! equate fluxes (K constant) to get initial estimate of h at interface
                 hint(l) = (y1*h1+y2*h2+half*gf*(var(i)%K-var(i+1)%K)*dx(i)*dx(i+1))/(y1+y2)
-             END IF
+             end if
              hi   = hint(l)
-             flag = .TRUE.
+             flag = .true.
              itmp = 0
              ! iterate to get hi at interface for equal fluxes using Newton's method
              ! get dphii1 at interface in upper layer, because of better linearity,
              ! then convert to dhi
-             DO WHILE (flag)
+             do while (flag)
                 itmp = itmp+1
-                IF (itmp>100) THEN
+                if (itmp>100) then
                    !write(*,*) "getfluxes: too many iterations finding interface h"
                    !stop
-                   CALL flux(parin(i), var(i), var(i+1), dz(i), q(i), qya(i), qyb(i), qTa(i), qTb(i))
-                   GOTO 111
-                END IF
+                   call flux(parin(i), var(i), var(i+1), dz(i), q(i), qya(i), qyb(i), qTa(i), qTb(i))
+                   goto 111
+                end if
 
-                IF (hi<parin(i)%he) THEN
+                if (hi<parin(i)%he) then
                    vi1%isat = 0
-                   CALL hyofh(hi, parin(i)%lam, parin(i)%eta, parin(i)%Ke, parin(i)%he, vi1%K, Khi1, phii1)
+                   call hyofh(hi, parin(i)%lam, parin(i)%eta, parin(i)%Ke, parin(i)%he, vi1%K, Khi1, phii1)
                    vi1%KS = Khi1/vi1%K ! use dK/dphi, not dK/dS
-                ELSE
+                else
                    vi1%isat = 1
                    vi1%K    = var(i)%Ksat
                    phii1    = var(i)%phie+(hi-parin(i)%he)*var(i)%Ksat
                    vi1%KS   = zero
-                END IF
+                end if
 
                 vi1%h    = hi
                 vi1%phi  = phii1
@@ -1162,17 +1162,17 @@ CONTAINS
                 vi1%KT   = zero
                 ! macropore_factor was not defined but is used in flux(), set to factor of upper layer
                 vi1%macropore_factor = var(i)%macropore_factor
-                CALL flux(parin(i), var(i), vi1, half*dx(i), q(i), qya(i), qyb(i), qTa(i), qTb(i))
+                call flux(parin(i), var(i), vi1, half*dx(i), q(i), qya(i), qyb(i), qTa(i), qTb(i))
 
-                IF (hi<parin(i+1)%he) THEN
+                if (hi<parin(i+1)%he) then
                    vi2%isat = 0
-                   CALL hyofh(hi, parin(i+1)%lam, parin(i+1)%eta, parin(i+1)%Ke, parin(i+1)%he, vi2%K, Khi2, vi2%phi)
+                   call hyofh(hi, parin(i+1)%lam, parin(i+1)%eta, parin(i+1)%Ke, parin(i+1)%he, vi2%K, Khi2, vi2%phi)
                    vi2%KS = Khi2/vi2%K ! dK/dphi
-                ELSE
+                else
                    vi2%isat = 1
                    vi2%K    = var(i+1)%Ksat
                    vi2%phi  = var(i+1)%phie+(hi-parin(i+1)%he)*var(i+1)%Ksat
-                END IF
+                end if
 
                 vi2%h    = hi
                 vi2%phiS = one ! dphi/dphi
@@ -1181,27 +1181,27 @@ CONTAINS
                 vi2%KT   = zero
                 ! macropore_factor was not defined but is used in flux(), set to factor of lower layer
                 vi2%macropore_factor = var(i+1)%macropore_factor
-                CALL flux(parin(i+1), vi2, var(i+1), half*dx(i+1), q2, qya2, qyb2, qTa2, qTb2)
+                call flux(parin(i+1), vi2, var(i+1), half*dx(i+1), q2, qya2, qyb2, qTa2, qTb2)
                 qya2   = qya2*vi2%K/vi1%K ! partial deriv wrt phii1
                 ! adjust for equal fluxes
                 dphii1 = -(q(i)-q2)/(qyb(i)-qya2)
-                limit  = .FALSE.
-                IF (phii1+dphii1<=phimin(l)) THEN ! out of range
-                   limit  = .TRUE.
+                limit  = .false.
+                if (phii1+dphii1<=phimin(l)) then ! out of range
+                   limit  = .true.
                    dphii1 = -half*(phii1-phimin(l))
-                END IF
+                end if
                 phii1 = phii1+dphii1
                 dhi   = dphii1/(vi1%K+half*vi1%KS*dphii1) ! 2nd order Pade approx
-                IF (-vi1%KS*dphii1 > 1.5_r_2*vi1%K) THEN ! use 1st order approx for dhi
+                if (-vi1%KS*dphii1 > 1.5_r_2*vi1%K) then ! use 1st order approx for dhi
                    dhi = dphii1/vi1%K
-                END IF
+                end if
                 hi = hi+dhi
 
                 ! check for convergence - dphi/(mean phi)<=dpmaxr
-                IF (.NOT.(limit .OR. ABS(dphii1/(phii1-half*dphii1))>dpmaxr)) THEN
-                   flag = .FALSE.
-                END IF
-             END DO ! while flag
+                if (.not.(limit .or. abs(dphii1/(phii1-half*dphii1))>dpmaxr)) then
+                   flag = .false.
+                end if
+             end do ! while flag
 
              q(i)    = q(i) + qyb(i)*dphii1
              hint(l) = hi
@@ -1209,8 +1209,8 @@ CONTAINS
              y      = one/(qya2-qyb(i))
              qya(i) = qya(i)*qya2*y
              qyb(i) = -qyb2*qyb(i)*y
-          END IF
-       END IF
+          end if
+       end if
 
 111    ql(i)  = q(i)
        qTa(i) = qTa(i)+(var(i)%kE+var(i+1)%kE)/thousand/var(1)%lambdav/two/dz(i)
@@ -1223,67 +1223,67 @@ CONTAINS
        !MC This should be re-checked
        ! qvh(i) = ((((Tsoil(i)+Tzero)/Tzero)**1.88+((Tsoil(i+1)+Tzero)/Tzero)**1.88)/two) &
        !      * ((var(i)%cvsat+var(i+1)%cvsat)/two)*(var(i)%phiv-var(i+1)%phiv)/dz(i)
-       qvh(i) = (half*(EXP(1.88_r_2*LOG((Tsoil(i)+Tzero)/Tzero))+EXP(1.88_r_2*LOG((Tsoil(i+1)+Tzero)/Tzero)))) &
+       qvh(i) = (half*(exp(1.88_r_2*log((Tsoil(i)+Tzero)/Tzero))+exp(1.88_r_2*log((Tsoil(i+1)+Tzero)/Tzero)))) &
             * (half*(var(i)%cvsat+var(i+1)%cvsat)) * (var(i)%phiv-var(i+1)%phiv)/dz(i)
        ! qvh(i) = ((var(i)%Dv+var(i+1)%Dv)/two)* ((var(i)%cvsat+var(i+1)%cvsat)/two)*(var(i)%rh-var(i+1)%rh)/dz(i)
        qv(i)  = qvh(i) + qvT(i) ! whole vapour flux has one part from humidity (qvh) and one part from temp diff (qvT)
        q(i)   = qv(i) + ql(i)
 
-       IF (var(i)%isat==0) THEN
+       if (var(i)%isat==0) then
           ! qvya(i) = var(i)%phivS/dz(i) *((((Tsoil(i)+Tzero)/Tzero)**1.88_r_2+ &
           !      ((Tsoil(i+1)+Tzero)/Tzero)**1.88_r_2)/two) &
           !      * ((var(i)%cvsat+var(i+1)%cvsat)/two)
-          qvya(i) = var(i)%phivS/dz(i) *(half*(EXP(1.88_r_2*LOG((Tsoil(i)+Tzero)/Tzero)) + &
-               EXP(1.88_r_2*LOG((Tsoil(i+1)+Tzero)/Tzero)))) &
+          qvya(i) = var(i)%phivS/dz(i) *(half*(exp(1.88_r_2*log((Tsoil(i)+Tzero)/Tzero)) + &
+               exp(1.88_r_2*log((Tsoil(i+1)+Tzero)/Tzero)))) &
                * (half*(var(i)%cvsat+var(i+1)%cvsat))
-       ELSE
+       else
           qvya(i) = zero
-       END IF
+       end if
 
-       IF (var(i)%isat==0) THEN
+       if (var(i)%isat==0) then
           ! qvyb(i) = -var(i+1)%phivS/dz(i) *((((Tsoil(i)+Tzero)/Tzero)**1.88_r_2+ &
           !      ((Tsoil(i+1)+Tzero)/Tzero)**1.88_r_2)/two) &
           !      * ((var(i)%cvsat+var(i+1)%cvsat)/two)
-          qvyb(i) = -var(i+1)%phivS/dz(i) *(half*(EXP(1.88_r_2*LOG((Tsoil(i)+Tzero)/Tzero)) + &
-               EXP(1.88_r_2*LOG((Tsoil(i+1)+Tzero)/Tzero)))) &
+          qvyb(i) = -var(i+1)%phivS/dz(i) *(half*(exp(1.88_r_2*log((Tsoil(i)+Tzero)/Tzero)) + &
+               exp(1.88_r_2*log((Tsoil(i+1)+Tzero)/Tzero)))) &
                * (half*(var(i)%cvsat+var(i+1)%cvsat))
-       ELSE
+       else
           qvyb(i) = zero
-       END IF
+       end if
 
        qlya(i) = qya(i)
        qlyb(i) = qyb(i)
        qya(i)  = qya(i) + qvya(i)
        qyb(i)  = qyb(i) + qvyb(i)
-    END DO
+    end do
 
-    IF (iflux==1 .OR. var(n)%isat/=0) THEN ! get bottom flux if required
-       IF (getqn) THEN
-          CALL flux(parin(n), var(n), vbot, half*dx(n), q(n), qya(n), qyb(n), qTa(n), qTb(n))
+    if (iflux==1 .or. var(n)%isat/=0) then ! get bottom flux if required
+       if (getqn) then
+          call flux(parin(n), var(n), vbot, half*dx(n), q(n), qya(n), qyb(n), qTa(n), qTb(n))
           qvya(n) = zero
           qvyb(n) = zero
           qlya(n) = qya(n)
           qlyb(n) = zero
-       ELSE
+       else
           qvya(n) = zero
           qvyb(n) = zero
           qlya(n) = qya(n)
           qlyb(n) = zero
-       END IF
-    ELSE
+       end if
+    else
        qvya(n) = zero
        qvyb(n) = zero
        qlya(n) = qya(n)
        qlyb(n) = zero
-    END IF
+    end if
     ! otherwise undefined
     ql(n)  = q(n)
     qv(n)  = zero
     qvh(n) = zero
     qvT(n) = zero
 
-    DO i=1, n-1
-       IF (var(i)%Dv == zero .OR. var(i+1)%Dv == zero) THEN
+    do i=1, n-1
+       if (var(i)%Dv == zero .or. var(i+1)%Dv == zero) then
           q(i)    = q(i) - qv(i)
           qya(i)  = qya(i) - qvya(i)
           qyb(i)  = qyb(i) - qvyb(i)
@@ -1292,8 +1292,8 @@ CONTAINS
           !qTb(i)  = zero
           qvya(i) = zero
           qvyb(i) = zero
-       ENDIF
-    ENDDO
+       endif
+    enddo
 
   END SUBROUTINE getfluxes_vp_1d
 
@@ -1353,31 +1353,31 @@ CONTAINS
     ! init    - true if hint and phimin to be initialised.
     ! getq0    - true if q(0) required.
     ! getqn    - true if q(n) required.
-    LOGICAL,      DIMENSION(1:SIZE(dx,1))                :: limit, l1, l2, l3
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1))                :: dphii1, dhi, h1, h2, hi, Khi1, Khi2, phii1
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1))                :: q2, qya2, qyb2, y, y1, y2
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1))                :: htmp
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1))                :: ztmp1, ztmp2, ztmp3, ztmp4, ztmp5
-    TYPE(vars),   DIMENSION(1:SIZE(dx,1))                :: vi1, vi2
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),1:SIZE(dx,2)-1) :: dz
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: q
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qya
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qyb
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qTa
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qTb
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: ql
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qlya
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qlyb
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qv
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qvT
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qvh
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qvya
-    REAL(r_2),    DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qvyb
+    LOGICAL,      DIMENSION(1:size(dx,1))                :: limit, l1, l2, l3
+    REAL(r_2),    DIMENSION(1:size(dx,1))                :: dphii1, dhi, h1, h2, hi, Khi1, Khi2, phii1
+    REAL(r_2),    DIMENSION(1:size(dx,1))                :: q2, qya2, qyb2, y, y1, y2
+    REAL(r_2),    DIMENSION(1:size(dx,1))                :: htmp
+    REAL(r_2),    DIMENSION(1:size(dx,1))                :: ztmp1, ztmp2, ztmp3, ztmp4, ztmp5
+    TYPE(vars),   DIMENSION(1:size(dx,1))                :: vi1, vi2
+    REAL(r_2),    DIMENSION(1:size(dx,1),1:size(dx,2)-1) :: dz
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: q
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: qya
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: qyb
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: qTa
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: qTb
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: ql
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: qlya
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: qlyb
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: qv
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: qvT
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: qvh
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: qvya
+    REAL(r_2),    DIMENSION(1:size(dx,1),0:size(dx,2))   :: qvyb
     TYPE(vars)    :: vtmp
     INTEGER(i_d)  :: i, n, mp, itmp
 
-    mp = SIZE(dx,1)
-    n  = SIZE(dx,2)
+    mp = size(dx,1)
+    n  = size(dx,2)
     dz(:,1:n-1) = half*(dx(:,1:n-1)+dx(:,2:n))
     q(:,0:n)    = i_q(:,1:n+1)
     qya(:,0:n)  = i_qya(:,1:n+1)
@@ -1394,18 +1394,18 @@ CONTAINS
     qvyb(:,0:n) = zero
 
     vtmp = zerovars()
-    vi1  = SPREAD(vtmp,1,mp)
-    vi2  = SPREAD(vtmp,1,mp)
+    vi1  = spread(vtmp,1,mp)
+    vi2  = spread(vtmp,1,mp)
     ztmp1(:) = zero
     ztmp2(:) = zero
     ztmp3(:) = zero
     ztmp4(:) = zero
     ztmp5(:) = zero
 
-    l1(:)   = ((iflux(:)==1) .OR. (var(:,1)%isat /= 0)) .AND. getq0(:)
-    IF (ANY(l1(:))) &
-         CALL flux(parin(:,1), vtop(:), var(:,1), half*dx(:,1), ztmp1(:), ztmp2(:), ztmp3(:), ztmp4(:), ztmp5(:))
-    WHERE (l1(:)) ! get top flux if required
+    l1(:)   = ((iflux(:)==1) .or. (var(:,1)%isat /= 0)) .and. getq0(:)
+    if (any(l1(:))) &
+         call flux(parin(:,1), vtop(:), var(:,1), half*dx(:,1), ztmp1(:), ztmp2(:), ztmp3(:), ztmp4(:), ztmp5(:))
+    where (l1(:)) ! get top flux if required
        q(:,0)   = ztmp1(:)
        qya(:,0) = ztmp2(:)
        qyb(:,0) = ztmp3(:)
@@ -1423,7 +1423,7 @@ CONTAINS
        qlya(:,0) = qya(:,0) - qvya(:,0)
        qlyb(:,0) = qyb(:,0) - qvyb(:,0)
     endwhere
-    WHERE (l1(:) .AND. (vtop(:)%isat==0))
+    where (l1(:) .and. (vtop(:)%isat==0))
        qvyb(:,0) = vtop(:)%phivS/dx(:,1)*two
        qlyb(:,0) = qyb(:,0) - qvyb(:,0)
     endwhere
@@ -1432,22 +1432,22 @@ CONTAINS
     qvT(:,0) = zero
 
     ! get other fluxes
-    DO i=1, n-1
-       l1(:) = (iflux(:)==1 .OR. var(:,i)%isat/=0 .OR. var(:,i+1)%isat/=0 .OR. nsat(:)/=nsatlast(:))
-       IF (ANY(l1(:) .AND. (parin(:,i)%ishorizon==parin(:,i+1)%ishorizon))) &
-            CALL flux(parin(:,i), var(:,i), var(:,i+1), dz(:,i), ztmp1(:), ztmp2(:), ztmp3(:), ztmp4(:), ztmp5(:))
-       WHERE (l1(:) .AND. (parin(:,i)%ishorizon==parin(:,i+1)%ishorizon)) ! same soil type, no interface
+    do i=1, n-1
+       l1(:) = (iflux(:)==1 .or. var(:,i)%isat/=0 .or. var(:,i+1)%isat/=0 .or. nsat(:)/=nsatlast(:))
+       if (any(l1(:) .and. (parin(:,i)%ishorizon==parin(:,i+1)%ishorizon))) &
+            call flux(parin(:,i), var(:,i), var(:,i+1), dz(:,i), ztmp1(:), ztmp2(:), ztmp3(:), ztmp4(:), ztmp5(:))
+       where (l1(:) .and. (parin(:,i)%ishorizon==parin(:,i+1)%ishorizon)) ! same soil type, no interface
           q(:,i)   = ztmp1(:)
           qya(:,i) = ztmp2(:)
           qyb(:,i) = ztmp3(:)
           qTa(:,i) = ztmp4(:)
           qTb(:,i) = ztmp5(:)
        endwhere
-       l2(:) = l1(:) .AND. (parin(:,i)%ishorizon /= parin(:,i+1)%ishorizon) ! interface
+       l2(:) = l1(:) .and. (parin(:,i)%ishorizon /= parin(:,i+1)%ishorizon) ! interface
        htmp(:) = hmin
-       IF (ANY(l2(:) .AND. init(:))) &
-            CALL hyofh(htmp(:), parin(:,i)%lam, parin(:,i)%eta, parin(:,i)%Ke, parin(:,i)%he, ztmp1(:), ztmp2(:), ztmp3(:))
-       WHERE (l2(:) .AND. init(:)) ! interface & get phi at hmin
+       if (any(l2(:) .and. init(:))) &
+            call hyofh(htmp(:), parin(:,i)%lam, parin(:,i)%eta, parin(:,i)%Ke, parin(:,i)%he, ztmp1(:), ztmp2(:), ztmp3(:))
+       where (l2(:) .and. init(:)) ! interface & get phi at hmin
           vi1(:)%K    = ztmp1(:)
           Khi1(:)     = ztmp2(:)
           phimin(:,i) = ztmp3(:)
@@ -1463,27 +1463,27 @@ CONTAINS
        ! iterate to get hi at interface for equal fluxes using Newton's method
        ! get dphii1 at interface in upper layer, because of better linearity,
        ! then convert to dhi
-       IF (ANY(l2(:))) THEN
+       if (any(l2(:))) then
           l3(:)    = l2(:)
-          limit(:) = .FALSE.
-          DO itmp=1, 100
-             IF (ANY(l3(:) .AND. (hi(:)<parin(:,i)%he))) &
-                  CALL hyofh(hi(:), parin(:,i)%lam, parin(:,i)%eta, parin(:,i)%Ke, parin(:,i)%he, ztmp1(:), ztmp2(:), ztmp3(:))
-             WHERE (l3(:) .AND. (hi(:)<parin(:,i)%he))
+          limit(:) = .false.
+          do itmp=1, 100
+             if (any(l3(:) .and. (hi(:)<parin(:,i)%he))) &
+                  call hyofh(hi(:), parin(:,i)%lam, parin(:,i)%eta, parin(:,i)%Ke, parin(:,i)%he, ztmp1(:), ztmp2(:), ztmp3(:))
+             where (l3(:) .and. (hi(:)<parin(:,i)%he))
                 vi1(:)%isat = 0
                 vi1(:)%K    = ztmp1(:)
                 Khi1(:)     = ztmp2(:)
                 phii1(:)    = ztmp3(:)
                 vi1(:)%KS   = Khi1(:)/vi1(:)%K ! use dK/dphi, not dK/dS
              endwhere
-             WHERE (l3(:) .AND. (hi(:)>=parin(:,i)%he))
+             where (l3(:) .and. (hi(:)>=parin(:,i)%he))
                 vi1(:)%isat = 1
                 vi1(:)%K    = var(:,i)%Ksat
                 phii1(:)    = var(:,i)%phie+(hi(:)-parin(:,i)%he)*var(:,i)%Ksat
                 vi1(:)%KS   = zero
              endwhere
 
-             WHERE (l3(:))
+             where (l3(:))
                 vi1(:)%h    = hi(:)
                 vi1(:)%phi  = phii1(:)
                 vi1(:)%phiS = one ! use dphi/dphi not dphi/dS
@@ -1494,9 +1494,9 @@ CONTAINS
                 vi1(:)%macropore_factor = var(:,i)%macropore_factor
              endwhere
 
-             IF (ANY(l3(:))) &
-                  CALL flux(parin(:,i), var(:,i), vi1(:), half*dx(:,i), ztmp1(:), ztmp2(:), ztmp3(:), ztmp4(:), ztmp5(:))
-             WHERE (l3(:))
+             if (any(l3(:))) &
+                  call flux(parin(:,i), var(:,i), vi1(:), half*dx(:,i), ztmp1(:), ztmp2(:), ztmp3(:), ztmp4(:), ztmp5(:))
+             where (l3(:))
                 q(:,i)      = ztmp1(:)
                 qya(:,i)    = ztmp2(:)
                 qyb(:,i)    = ztmp3(:)
@@ -1504,23 +1504,23 @@ CONTAINS
                 qTb(:,i)    = ztmp5(:)
              endwhere
 
-             IF (ANY(l3(:) .AND. (hi(:)<parin(:,i+1)%he))) &
-                  CALL hyofh(hi(:), parin(:,i+1)%lam, parin(:,i+1)%eta, parin(:,i+1)%Ke, parin(:,i+1)%he, &
+             if (any(l3(:) .and. (hi(:)<parin(:,i+1)%he))) &
+                  call hyofh(hi(:), parin(:,i+1)%lam, parin(:,i+1)%eta, parin(:,i+1)%Ke, parin(:,i+1)%he, &
                   ztmp1(:), ztmp2(:), ztmp3(:))
-             WHERE (l3(:) .AND. (hi(:)<parin(:,i+1)%he))
+             where (l3(:) .and. (hi(:)<parin(:,i+1)%he))
                 vi2(:)%K    = ztmp1(:)
                 Khi2(:)     = ztmp2(:)
                 vi2(:)%phi  = ztmp3(:)
                 vi2(:)%isat = 0
                 vi2(:)%KS   = Khi2(:)/vi2(:)%K ! dK/dphi
              endwhere
-             WHERE (l3(:) .AND. (hi(:)>=parin(:,i+1)%he))
+             where (l3(:) .and. (hi(:)>=parin(:,i+1)%he))
                 vi2(:)%isat = 1
                 vi2(:)%K    = var(:,i+1)%Ksat
                 vi2(:)%phi  = var(:,i+1)%phie+(hi(:)-parin(:,i+1)%he)*var(:,i+1)%Ksat
              endwhere
 
-             WHERE (l3(:))
+             where (l3(:))
                 vi2(:)%h    = hi(:)
                 vi2(:)%phiS = one ! dphi/dphi
                 ! define phiT=0, KT=0 to be consitent with undefined version
@@ -1529,51 +1529,51 @@ CONTAINS
                 ! macropore_factor was not defined but is used in flux(), set to factor of lower layer
                 vi2(:)%macropore_factor = var(:,i+1)%macropore_factor
              endwhere
-             IF (ANY(l3(:))) &
-                  CALL flux(parin(:,i+1), vi2(:), var(:,i+1), half*dx(:,i+1), ztmp1(:), ztmp2(:), ztmp3(:), ztmp4(:), ztmp5(:))
-             WHERE (l3(:))
+             if (any(l3(:))) &
+                  call flux(parin(:,i+1), vi2(:), var(:,i+1), half*dx(:,i+1), ztmp1(:), ztmp2(:), ztmp3(:), ztmp4(:), ztmp5(:))
+             where (l3(:))
                 q2(:)     = ztmp1(:)
                 qya2(:)   = ztmp2(:)
                 qyb2(:)   = ztmp3(:)
                 qya2(:)   = qya2(:)*vi2(:)%K/vi1(:)%K ! partial deriv wrt phii1
                 ! adjust for equal fluxes
                 dphii1(:) = -(q(:,i)-q2(:))/(qyb(:,i)-qya2(:))
-                limit(:)  = .FALSE.
+                limit(:)  = .false.
              endwhere
-             WHERE (l3(:) .AND. (phii1(:)+dphii1(:)<=phimin(:,i))) ! out of range
-                limit(:)  = .TRUE.
+             where (l3(:) .and. (phii1(:)+dphii1(:)<=phimin(:,i))) ! out of range
+                limit(:)  = .true.
                 dphii1(:) = -half*(phii1(:)-phimin(:,i))
              endwhere
-             WHERE (l3(:))
+             where (l3(:))
                 phii1(:) = phii1(:)+dphii1(:)
                 dhi(:)   = dphii1(:)/(vi1(:)%K+half*vi1(:)%KS*dphii1(:)) ! 2nd order Pade approx
              endwhere
-             WHERE (l3(:) .AND. (-vi1%KS*dphii1 > 1.5_r_2*vi1%K)) ! use 1st order approx for dhi
+             where (l3(:) .and. (-vi1%KS*dphii1 > 1.5_r_2*vi1%K)) ! use 1st order approx for dhi
                 dhi(:) = dphii1(:)/vi1(:)%K
              endwhere
-             WHERE (l3(:))
+             where (l3(:))
                 hi(:) = hi(:)+dhi(:)
              endwhere
 
              ! check for convergence - dphi/(mean phi)<=dpmaxr
-             WHERE (l3(:) .AND. &
-                  .NOT. (limit(:) .OR. (ABS(dphii1(:)/(phii1(:)-half*dphii1(:)))>dpmaxr))) l3(:) = .FALSE.
-             IF (.NOT. ANY(l3(:))) EXIT
-          END DO ! do itmp=1, 100
-          IF (itmp>=100) THEN
+             where (l3(:) .and. &
+                  .not. (limit(:) .or. (abs(dphii1(:)/(phii1(:)-half*dphii1(:)))>dpmaxr))) l3(:) = .false.
+             if (.not. any(l3(:))) exit
+          end do ! do itmp=1, 100
+          if (itmp>=100) then
              !write(*,*) "getfluxes: too many iterations finding interface h"
              !stop
-             IF (ANY(l2(:) .AND. l3(:))) &
-                  CALL flux(parin(:,i), var(:,i), var(:,i+1), dz(:,i), ztmp1(:), ztmp2(:), ztmp3(:), ztmp4(:), ztmp5(:))
-             WHERE (l2(:) .AND. l3(:))
+             if (any(l2(:) .and. l3(:))) &
+                  call flux(parin(:,i), var(:,i), var(:,i+1), dz(:,i), ztmp1(:), ztmp2(:), ztmp3(:), ztmp4(:), ztmp5(:))
+             where (l2(:) .and. l3(:))
                 q(:,i)   = ztmp1(:)
                 qya(:,i) = ztmp2(:)
                 qyb(:,i) = ztmp3(:)
                 qTa(:,i) = ztmp4(:)
                 qTb(:,i) = ztmp5(:)
              endwhere
-          ELSE
-             WHERE (l2(:) .AND. (.NOT. l3(:)))
+          else
+             where (l2(:) .and. (.not. l3(:)))
                 q(:,i)    = q(:,i) + qyb(:,i)*dphii1(:)
                 hint(:,i) = hi(:)
                 ! adjust derivs
@@ -1581,8 +1581,8 @@ CONTAINS
                 qya(:,i) = qya(:,i)*qya2(:)*y(:)
                 qyb(:,i) = -qyb2(:)*qyb(:,i)*y(:)
              endwhere
-          END IF
-       END IF
+          end if
+       end if
 
        ql(:,i)  = q(:,i)
        qTa(:,i) = qTa(:,i)+(var(:,i)%kE+var(:,i+1)%kE)/thousand/var(:,1)%lambdav/two/dz(:,i)
@@ -1595,32 +1595,32 @@ CONTAINS
        !MC This should be re-checked
        ! qvh(:,i) = ((((Tsoil(:,i)+Tzero)/Tzero)**1.88+((Tsoil(:,i+1)+Tzero)/Tzero)**1.88)/two) &
        !      * ((var(:,i)%cvsat+var(:,i+1)%cvsat)/two)*(var(:,i)%phiv-var(:,i+1)%phiv)/dz(:,i)
-       qvh(:,i) = (half*(EXP(1.88_r_2*LOG((Tsoil(:,i)+Tzero)/Tzero))+EXP(1.88_r_2*LOG((Tsoil(:,i+1)+Tzero)/Tzero)))) &
+       qvh(:,i) = (half*(exp(1.88_r_2*log((Tsoil(:,i)+Tzero)/Tzero))+exp(1.88_r_2*log((Tsoil(:,i+1)+Tzero)/Tzero)))) &
             * (half*(var(:,i)%cvsat+var(:,i+1)%cvsat)) * (var(:,i)%phiv-var(:,i+1)%phiv)/dz(:,i)
        ! qvh(:,i) = ((var(:,i)%Dv+var(:,i+1)%Dv)/two) * &
        !             ((var(:,i)%cvsat+var(:,i+1)%cvsat)/two)*(var(:,i)%rh-var(:,i+1)%rh)/dz(:,i)
        qv(:,i)  = qvh(:,i) + qvT(:,i) ! whole vapour flux has one part from humidity (qvh) and one part from temp diff (qvT)
        q(:,i)   = qv(:,i) + ql(:,i)
 
-       WHERE (var(:,i)%isat==0)
+       where (var(:,i)%isat==0)
           ! qvya(:,i) = var(:,i)%phivS/dz(:,i) *((((Tsoil(:,i)+Tzero)/Tzero)**1.88_r_2+ &
           !      ((Tsoil(:,i+1)+Tzero)/Tzero)**1.88_r_2)/two) &
           !      * ((var(:,i)%cvsat+var(:,i+1)%cvsat)/two)
-          qvya(:,i) = var(:,i)%phivS/dz(:,i) *(half*(EXP(1.88_r_2*LOG((Tsoil(:,i)+Tzero)/Tzero)) + &
-               EXP(1.88_r_2*LOG((Tsoil(:,i+1)+Tzero)/Tzero)))) &
+          qvya(:,i) = var(:,i)%phivS/dz(:,i) *(half*(exp(1.88_r_2*log((Tsoil(:,i)+Tzero)/Tzero)) + &
+               exp(1.88_r_2*log((Tsoil(:,i+1)+Tzero)/Tzero)))) &
                * (half*(var(:,i)%cvsat+var(:,i+1)%cvsat))
-       ELSEWHERE
+       elsewhere
           qvya(:,i) = zero
        endwhere
 
-       WHERE (var(:,i)%isat==0)
+       where (var(:,i)%isat==0)
           ! qvyb(:,i) = -var(:,i+1)%phivS/dz(:,i) *((((Tsoil(:,i)+Tzero)/Tzero)**1.88_r_2+ &
           !      ((Tsoil(:,i+1)+Tzero)/Tzero)**1.88_r_2)/two) &
           !      * ((var(:,i)%cvsat+var(:,i+1)%cvsat)/two)
-          qvyb(:,i) = -var(:,i+1)%phivS/dz(:,i) *(half*(EXP(1.88_r_2*LOG((Tsoil(:,i)+Tzero)/Tzero)) + &
-               EXP(1.88_r_2*LOG((Tsoil(:,i+1)+Tzero)/Tzero)))) &
+          qvyb(:,i) = -var(:,i+1)%phivS/dz(:,i) *(half*(exp(1.88_r_2*log((Tsoil(:,i)+Tzero)/Tzero)) + &
+               exp(1.88_r_2*log((Tsoil(:,i+1)+Tzero)/Tzero)))) &
                * (half*(var(:,i)%cvsat+var(:,i+1)%cvsat))
-       ELSEWHERE
+       elsewhere
           qvyb(:,i) = zero
        endwhere
 
@@ -1628,12 +1628,12 @@ CONTAINS
        qlyb(:,i) = qyb(:,i)
        qya(:,i)  = qya(:,i) + qvya(:,i)
        qyb(:,i)  = qyb(:,i) + qvyb(:,i)
-    END DO
+    end do
 
-    l1(:) = (iflux(:)==1) .OR. (var(:,n)%isat/=0)
-    IF (ANY(l1(:) .AND. getqn(:))) &  ! get bottom flux if required
-    CALL flux(parin(:,n), var(:,n), vbot(:), half*dx(:,n), ztmp1(:), ztmp2(:), ztmp3(:), ztmp4(:), ztmp5(:))
-    WHERE (l1(:) .AND. getqn(:))
+    l1(:) = (iflux(:)==1) .or. (var(:,n)%isat/=0)
+    if (any(l1(:) .and. getqn(:))) &  ! get bottom flux if required
+         call flux(parin(:,n), var(:,n), vbot(:), half*dx(:,n), ztmp1(:), ztmp2(:), ztmp3(:), ztmp4(:), ztmp5(:))
+    where (l1(:) .and. getqn(:))
        q(:,n)    = ztmp1(:)
        qya(:,n)  = ztmp2(:)
        qyb(:,n)  = ztmp3(:)
@@ -1645,13 +1645,13 @@ CONTAINS
        qlyb(:,n) = zero
     endwhere
 
-    WHERE (l1(:) .AND. (.NOT. getqn(:)))
+    where (l1(:) .and. (.not. getqn(:)))
        qvya(:,n) = zero
        qvyb(:,n) = zero
        qlya(:,n) = qya(:,n)
        qlyb(:,n) = zero
     endwhere
-    WHERE (.NOT. l1(:))
+    where (.not. l1(:))
        qvya(:,n) = zero
        qvyb(:,n) = zero
        qlya(:,n) = qya(:,n)
@@ -1663,8 +1663,8 @@ CONTAINS
     qvh(:,n) = zero
     qvT(:,n) = zero
 
-    DO i=1, n-1
-       WHERE (var(:,i)%Dv == zero .OR. var(:,i+1)%Dv == zero)
+    do i=1, n-1
+       where (var(:,i)%Dv == zero .or. var(:,i+1)%Dv == zero)
           q(:,i)    = q(:,i) - qv(:,i)
           qya(:,i)  = qya(:,i) - qvya(:,i)
           qyb(:,i)  = qyb(:,i) - qvyb(:,i)
@@ -1674,7 +1674,7 @@ CONTAINS
           qvya(:,i) = zero
           qvyb(:,i) = zero
        endwhere
-    ENDDO
+    enddo
 
     i_q(:,1:n+1)    = q(:,0:n)
     i_qya(:,1:n+1)  = qya(:,0:n)
@@ -1722,40 +1722,40 @@ CONTAINS
 
     dz(:) = half*(dx(1:n-1)+dx(2:n))
 
-    DO i=1, n-1
+    do i=1, n-1
        rdz = one/dz(i)
        keff = 2_r_2*(var(i)%kth*var(i+1)%kth)/(var(i)%kth*dx(i)+var(i+1)%kth*dx(i+1))
        ! qh(i) = keff*(T(i)-T(i+1)) +(var(i)%phiv-var(i+1)%phiv)*var(i)%lambdav*thousand*rdz &
        !      * ((((T(i)+Tzero) /Tzero)**1.88_r_2+((T(i+1)+Tzero) /Tzero)**1.88_r_2)/two) &
        !      *((var(i)%cvsat+var(i+1)%cvsat)/two)
        qh(i) = keff*(T(i)-T(i+1)) +(var(i)%phiv-var(i+1)%phiv)*var(i)%lambdav*thousand*rdz &
-            * (half*(EXP(1.88_r_2*LOG((T(i)+Tzero) /Tzero))+EXP(1.88_r_2*LOG((T(i+1)+Tzero) /Tzero)))) &
+            * (half*(exp(1.88_r_2*log((T(i)+Tzero) /Tzero))+exp(1.88_r_2*log((T(i+1)+Tzero) /Tzero)))) &
             *(half*(var(i)%cvsat+var(i+1)%cvsat))
-       IF (var(i)%isat==0) THEN
+       if (var(i)%isat==0) then
           ! qhya(i) = rdz*var(i)%lambdav*thousand*var(i)%phivS*((((T(i)+Tzero) /Tzero)**1.88_r_2+ &
           !      ((T(i+1)+Tzero) /Tzero)**1.88_r_2)/two) &
           !      * ((var(i)%cvsat+var(i+1)%cvsat)/two)
-          qhya(i) = rdz*var(i)%lambdav*thousand*var(i)%phivS*(half*(EXP(1.88_r_2*LOG((T(i)+Tzero) /Tzero)) + &
-               EXP(1.88_r_2*LOG((T(i+1)+Tzero) /Tzero)))) &
+          qhya(i) = rdz*var(i)%lambdav*thousand*var(i)%phivS*(half*(exp(1.88_r_2*log((T(i)+Tzero) /Tzero)) + &
+               exp(1.88_r_2*log((T(i+1)+Tzero) /Tzero)))) &
                * (half*(var(i)%cvsat+var(i+1)%cvsat))
-       ELSE
+       else
           qhya(i) = zero
-       END IF
-       IF (var(i+1)%isat==0) THEN
+       end if
+       if (var(i+1)%isat==0) then
           ! qhyb(i) = -rdz*var(i)%lambdav*thousand*var(i+1)%phivS*((((T(i)+Tzero) /Tzero)**1.88_r_2+ &
           !      ((T(i+1)+Tzero) /Tzero)**1.88_r_2)/two) &
           !      * ((var(i)%cvsat+var(i+1)%cvsat)/two)
-          qhyb(i) = -rdz*var(i)%lambdav*thousand*var(i+1)%phivS*(half*(EXP(1.88_r_2*LOG((T(i)+Tzero) /Tzero)) + &
-               EXP(1.88_r_2*LOG((T(i+1)+Tzero) /Tzero)))) &
+          qhyb(i) = -rdz*var(i)%lambdav*thousand*var(i+1)%phivS*(half*(exp(1.88_r_2*log((T(i)+Tzero) /Tzero)) + &
+               exp(1.88_r_2*log((T(i+1)+Tzero) /Tzero)))) &
                * (half*(var(i)%cvsat+var(i+1)%cvsat))
-       ELSE
+       else
           qhyb(i) = zero
-       END IF
+       end if
        qhTa(i) = keff
        qhTb(i) = -keff
 
        ! add advective terms
-       IF (advection==1) THEN
+       if (advection==1) then
 !!$                   if (q(i) > zero) then
 !!$                       w = (var(i)%kth/dx(i))/(var(i)%kth/dx(i)+var(i+1)%kth/dx(i+1))
 !!$                    else
@@ -1766,11 +1766,11 @@ CONTAINS
 !!$                    qadvyb(i) =  rhow*cswat*qyb(i)*(w*(T(i)+zero)+(one-w)*(T(i+1)+zero))
 !!$                    qadvTa(i) =  rhow*cswat*q(i)*w
 !!$                    qadvTb(i) =  rhow*cswat*q(i)*(one-w)
-          Tqw  = MERGE(T(i), T(i+1), q(i)>zero) +zero
+          Tqw  = merge(T(i), T(i+1), q(i)>zero) +zero
 
-          dTqwdTa = MERGE(one, zero, (q(i)>zero))
+          dTqwdTa = merge(one, zero, (q(i)>zero))
 
-          dTqwdTb = MERGE(zero,one, q(i)>zero)
+          dTqwdTb = merge(zero,one, q(i)>zero)
           qadv(i) = rhow*cswat*q(i)*Tqw
           qadvya(i) =  rhow*cswat*qya(i)*Tqw
           qadvyb(i) =  rhow*cswat*qyb(i)*Tqw
@@ -1783,8 +1783,8 @@ CONTAINS
           qhyb(i) = qhyb(i) + qadvyb(i)
           qhTa(i) = qhTa(i) + qadvTa(i)
           qhTb(i) = qhTb(i) + qadvTb(i)
-       ENDIF
-    ENDDO
+       endif
+    enddo
 
     qh(n)   = zero
     qhya(n) = zero
@@ -1826,27 +1826,27 @@ CONTAINS
     ! Gets heat fluxes qh and partial derivs qhya, qhyb wrt T and S (if unsat) or phi (if sat).
 
     INTEGER(i_d)          :: i, n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1))                :: rdz
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1))                :: keff
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),1:SIZE(dx,2)-1) :: dz
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qh   ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qhya ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qhyb ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qhTa ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qhTb ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: q   ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qya ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qyb ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qTa ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qTb ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qadv   ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qadvya ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qadvyb ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qadvTa ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1),0:SIZE(dx,2))   :: qadvTb ! :,0:n
-    REAL(r_2),  DIMENSION(1:SIZE(dx,1)) :: dTqwdTa, dTqwdTb, Tqw
+    REAL(r_2),  DIMENSION(1:size(dx,1))                :: rdz
+    REAL(r_2),  DIMENSION(1:size(dx,1))                :: keff
+    REAL(r_2),  DIMENSION(1:size(dx,1),1:size(dx,2)-1) :: dz
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qh   ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qhya ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qhyb ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qhTa ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qhTb ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: q   ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qya ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qyb ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qTa ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qTb ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qadv   ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qadvya ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qadvyb ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qadvTa ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1),0:size(dx,2))   :: qadvTb ! :,0:n
+    REAL(r_2),  DIMENSION(1:size(dx,1)) :: dTqwdTa, dTqwdTb, Tqw
 
-    n = SIZE(dx,2)
+    n = size(dx,2)
     dz(:,1:n-1) = half*(dx(:,1:n-1)+dx(:,2:n))
     qh(:,0:n)   = i_qh(:,1:n+1)
     qhya(:,0:n) = i_qhya(:,1:n+1)
@@ -1866,7 +1866,7 @@ CONTAINS
     qadvTa(:,0:n) = i_qadvTa(:,1:n+1)
     qadvTb(:,0:n) = i_qadvTb(:,1:n+1)
 
-    DO i=1, n-1
+    do i=1, n-1
        rdz =  one/dz(:,i)
        keff = 2_r_2*(var(:,i)%kth*var(:,i+1)%kth)/(var(:,i)%kth*dx(:,i)+var(:,i+1)%kth*dx(:,i+1))
        ! qh(:,i) = keff*(T(:,i)-T(:,i+1)) &
@@ -1875,37 +1875,37 @@ CONTAINS
        !      *((var(:,i)%cvsat+var(:,i+1)%cvsat)/two)
        qh(:,i) = keff*(T(:,i)-T(:,i+1)) &
             + (var(:,i)%phiv-var(:,i+1)%phiv)*var(:,i)%lambdav*thousand*rdz(:) &
-            * (half*EXP(1.88_r_2*LOG(((T(:,i)+Tzero) /Tzero)) + EXP(1.88_r_2*LOG((T(:,i+1)+Tzero) /Tzero)))) &
+            * (half*exp(1.88_r_2*log(((T(:,i)+Tzero) /Tzero)) + exp(1.88_r_2*log((T(:,i+1)+Tzero) /Tzero)))) &
             *(half*(var(:,i)%cvsat+var(:,i+1)%cvsat))
-       WHERE (var(:,i)%isat == 0)
+       where (var(:,i)%isat == 0)
           ! qhya(:,i) = rdz(:)*var(:,i)%lambdav*thousand*var(:,i)%phivS*((((T(:,i)+Tzero) /Tzero)**1.88_r_2+ &
           !      ((T(:,i+1)+Tzero) /Tzero)**1.88_r_2)/two) &
           !      * ((var(:,i)%cvsat+var(:,i+1)%cvsat)/two)
-          qhya(:,i) = rdz(:)*var(:,i)%lambdav*thousand*var(:,i)%phivS*(half*(EXP(1.88_r_2*LOG((T(:,i)+Tzero) /Tzero)) + &
-               EXP(1.88_r_2*LOG((T(:,i+1)+Tzero) /Tzero)))) &
+          qhya(:,i) = rdz(:)*var(:,i)%lambdav*thousand*var(:,i)%phivS*(half*(exp(1.88_r_2*log((T(:,i)+Tzero) /Tzero)) + &
+               exp(1.88_r_2*log((T(:,i+1)+Tzero) /Tzero)))) &
                * (half*(var(:,i)%cvsat+var(:,i+1)%cvsat))
-       ELSEWHERE
+       elsewhere
           qhya(:,i) = zero
        endwhere
-       WHERE (var(:,i+1)%isat == 0)
+       where (var(:,i+1)%isat == 0)
           ! qhyb(:,i) = -rdz(:)*var(:,i)%lambdav*thousand*var(:,i+1)%phivS*((((T(:,i)+Tzero) /Tzero)**1.88_r_2+ &
           !      ((T(:,i+1)+Tzero) /Tzero)**1.88_r_2)/two) &
           !      * ((var(:,i)%cvsat+var(:,i+1)%cvsat)/two)
-          qhyb(:,i) = -rdz(:)*var(:,i)%lambdav*thousand*var(:,i+1)%phivS*(half*EXP(1.88_r_2*LOG(((T(:,i)+Tzero) /Tzero)) + &
-               EXP(1.88_r_2*LOG((T(:,i+1)+Tzero) /Tzero)))) &
+          qhyb(:,i) = -rdz(:)*var(:,i)%lambdav*thousand*var(:,i+1)%phivS*(half*exp(1.88_r_2*log(((T(:,i)+Tzero) /Tzero)) + &
+               exp(1.88_r_2*log((T(:,i+1)+Tzero) /Tzero)))) &
                * (half*(var(:,i)%cvsat+var(:,i+1)%cvsat))
-       ELSEWHERE
+       elsewhere
           qhyb(:,i) = zero
        endwhere
        qhTa(:,i) = keff
        qhTb(:,i) = -keff
 
        ! add advective terms
-       IF (advection==1) THEN
+       if (advection==1) then
 
-          Tqw  = MERGE(T(:,i), T(:,i+1), q(:,i)>zero) +zero
-          dTqwdTa = MERGE(one, zero, q(:,i)>zero)
-          dTqwdTb = MERGE(zero,one, q(:,i)>zero)
+          Tqw  = merge(T(:,i), T(:,i+1), q(:,i)>zero) +zero
+          dTqwdTa = merge(one, zero, q(:,i)>zero)
+          dTqwdTb = merge(zero,one, q(:,i)>zero)
 
           qadv(:,i) = rhow*cswat*q(:,i)*Tqw
           qadvya(:,i) =  rhow*cswat*qya(:,i)*Tqw
@@ -1919,8 +1919,8 @@ CONTAINS
           qhyb(:,i) = qhyb(:,i) + qadvyb(:,i)
           qhTa(:,i) = qhTa(:,i) + qadvTa(:,i)
           qhTb(:,i) = qhTb(:,i) + qadvTb(:,i)
-       ENDIF
-    ENDDO
+       endif
+    enddo
 
     qh(:,n)   = zero
     qhya(:,n) = zero
@@ -1934,13 +1934,13 @@ CONTAINS
     i_qhTa(:,1:n+1) = qhTa(:,0:n)
     i_qhTb(:,1:n+1) = qhTb(:,0:n)
 
-    IF (advection==1) THEN
+    if (advection==1) then
        i_qadv(:,1:n+1)   = qadv(:,0:n)
        i_qadvya(:,1:n+1) = qadvya(:,0:n)
        i_qadvyb(:,1:n+1) = qadvyb(:,0:n)
        i_qadvTa(:,1:n+1) = qadvTa(:,0:n)
        i_qadvTb(:,1:n+1) = qadvTb(:,0:n)
-    ENDIF
+    endif
 
   END SUBROUTINE getheatfluxes_2d
 
@@ -1967,7 +1967,7 @@ CONTAINS
     REAL(r_2) :: a
 
     a   =  -lam * eta
-    K   =  Ke * EXP(a*LOG(h/he))
+    K   =  Ke * exp(a*log(h/he))
     Kh  =  a * K / h
     phi =  K * h / (one+a)
 
@@ -1977,7 +1977,7 @@ CONTAINS
 
   ! For debug: remove elemental pure
   ELEMENTAL PURE SUBROUTINE hyofS(S, Tsoil, parin, var)
-    !  SUBROUTINE hyofS(S, Tsoil, parin, var)
+  !  SUBROUTINE hyofS(S, Tsoil, parin, var)
 
     IMPLICIT NONE
 
@@ -2000,7 +2000,7 @@ CONTAINS
     REAL(r_2) :: F1, F2, F
     ! REAL(r_2) :: macropore_modifier
     REAL(r_2) :: cdry, tmp_thetai
-    REAL(r_2), PARAMETER :: tol = 1.e-6_r_2
+    REAL(r_2), parameter :: tol = 1.e-6_r_2
     theta         = S*(parin%thre) + (parin%the - parin%thre)
     var%lambdav   = rlambda       ! latent heat of vaporisation
     var%lambdav   = 1.91846e6_r_2*((Tsoil+Tzero)/((Tsoil+Tzero)-33.91_r_2))**2  ! Henderson-Sellers, QJRMS, 1984
@@ -2008,30 +2008,30 @@ CONTAINS
     !var%Tfrz      = Tfrz(S,parin%he,one/parin%lam)
     var%Tfrz      = Tfrz(S, parin%he, one/(parin%lambc*freezefac)) ! freezefac for test of steep freezing curve
 
-    IF ((Tsoil < var%Tfrz-tol) .AND. (experiment/=184)) THEN ! ice
+    if ((Tsoil < var%Tfrz-tol) .and. (experiment/=184)) then ! ice
        parin%lam     = parin%lambc * freezefac   ! freezefac>1 -> steeper freezing curve
        parin%eta     = two/parin%lam + two + one ! freezefac>1 -> steeper freezing curve
        thetal_max    = thetalmax(Tsoil,S,parin%he,one/parin%lam,parin%thre,parin%the)
        var%dthetaldT = dthetalmaxdT(Tsoil,S,parin%he,one/parin%lam,parin%thre,parin%the)
        var%iice   = 1
-       var%thetai = MAX((theta - thetal_max),zero) ! volumetric ice content (m3(liq H2O)/m3 soil)
-       tmp_thetai = MAX(MIN(theta, parin%thre) - thetal_max,zero)
+       var%thetai = max((theta - thetal_max),zero) ! volumetric ice content (m3(liq H2O)/m3 soil)
+       tmp_thetai = max(min(theta, parin%thre) - thetal_max,zero)
        var%thetal = thetal_max
        ! liquid water content, relative to saturation
        ! Sliq      = (var%thetal - (parin%the-parin%thre))/parin%thre
-       IF ((parin%thre-tmp_thetai) .LE. MAX(parin%thr,1.e-5_r_2)) THEN
-          Sliq = MAX(parin%thr,1.e-5_r_2)
-       ELSE
-          ! Sliq = min((var%thetal-(parin%the-parin%thre))/(parin%thre-var%thetai), one)
-          Sliq = MIN((var%thetal-(parin%the-parin%thre))/(parin%thre-tmp_thetai), one)
-       ENDIF
+       if ((parin%thre-tmp_thetai) .le. max(parin%thr,1.e-5_r_2)) then
+          Sliq = max(parin%thr,1.e-5_r_2)
+       else
+         ! Sliq = min((var%thetal-(parin%the-parin%thre))/(parin%thre-var%thetai), one)
+          Sliq = min((var%thetal-(parin%the-parin%thre))/(parin%thre-tmp_thetai), one)
+       endif
        var%Sliq = Sliq
        ! saturated liquid water content (< 1 for frozen soil)
        ! air entry potential, flux matric potential and hydraulic conductivity for saturated frozen soil
        var%he    = parin%he
-       lnS        = LOG(Sliq)
-       v3         = EXP(-lnS/parin%lam)
-       v4         = EXP(parin%eta*lnS)
+       lnS        = log(Sliq)
+       v3         = exp(-lnS/parin%lam)
+       v4         = exp(parin%eta*lnS)
        var%phie  = parin%phie*v3*v4
        var%Ksat  = parin%Ke*v4
 
@@ -2040,8 +2040,8 @@ CONTAINS
        var%K  = var%Ksat
        var%KS = zero
        ! var%KT = var%dthetaldT * parin%Ke * parin%eta * exp(lnS*(parin%eta-one))/parin%thre
-       var%KT = var%dthetaldT * parin%Ke * parin%eta * EXP(lnS*(parin%eta-one))/MAX(parin%thre-var%thetai,MAX(parin%thr,1e-5_r_2))
-       IF (S < one) var%phi = var%phie
+       var%KT = var%dthetaldT * parin%Ke * parin%eta * exp(lnS*(parin%eta-one))/max(parin%thre-var%thetai,max(parin%thr,1e-5_r_2))
+       if (S < one) var%phi = var%phie
 
        ! var%phiT = parin%phie * exp(lnS*(parin%eta-one/parin%lam-one)) * var%dthetaldT * &
        !      (parin%eta-one/parin%lam)/(parin%thre)
@@ -2050,32 +2050,32 @@ CONTAINS
        ! var%phiT =  -(((-1 +parin%eta*parin%lam)*parin%phie*(theta - parin%thre)* &
        !      (var%thetal/(-theta + var%thetal + parin%thre))**(-1 + parin%eta - 1./parin%lam))/ &
        !      (parin%lam*(-theta + var%thetal + parin%thre)**2))* var%dthetaldT
-       IF (var%isat==0) THEN
-          var%phiT =  -( ( (-one +parin%eta*parin%lam) * parin%phie * (MIN(theta,parin%thre) - parin%thre) &
-               * EXP( (-one + parin%eta - one/parin%lam) &
-               * LOG(var%thetal/(-MIN(theta,parin%thre) + var%thetal + parin%thre)) ) ) &
-               / (parin%lam*(-MIN(theta,parin%thre) + var%thetal + parin%thre)**2) ) * var%dthetaldT
-          ! if (S < one) then
+       if (var%isat==0) then
+          var%phiT =  -( ( (-one +parin%eta*parin%lam) * parin%phie * (min(theta,parin%thre) - parin%thre) &
+            * exp( (-one + parin%eta - one/parin%lam) &
+            * log(var%thetal/(-min(theta,parin%thre) + var%thetal + parin%thre)) ) ) &
+            / (parin%lam*(-min(theta,parin%thre) + var%thetal + parin%thre)**2) ) * var%dthetaldT
+      ! if (S < one) then
           ! var%phiS = ((parin%eta - 1./parin%lam)*parin%phie* &
           !     (Sliq)**(1 + parin%eta - 1/parin%lam))/var%thetal*parin%thre
           ! var%phiS =((-1. + parin%eta*parin%lam)*parin%phie* &
           !      (var%thetal/(-theta + var%thetal + parin%thre))**(1. + parin%eta - 1./parin%lam))/ &
           !      (parin%lam*var%thetal)*parin%thre
           var%phiS =((-one + parin%eta*parin%lam)*parin%phie* &
-               EXP((one + parin%eta - one/parin%lam)*LOG(var%thetal/(-MIN(theta,parin%thre) + var%thetal + parin%thre)))) / &
+               exp((one + parin%eta - one/parin%lam)*log(var%thetal/(-min(theta,parin%thre) + var%thetal + parin%thre)))) / &
                (parin%lam*var%thetal)*parin%thre
-       ELSE
+       else
           var%phiS = zero
           var%phiT = zero
-       ENDIF
+       endif
 
        !if ( ((parin%thre-var%thetai)<=max(parin%thr,1e-5_r_2)) .or. (Sliq==one) ) then
        !   var%phiS = zero
        !   var%phiT = zero
        !endif
 
-       var%rh   = MAX(EXP(Mw*gravity*var%h/Rgas/(Tsoil+Tzero)),rhmin)
-    ELSE ! no ice
+       var%rh   = max(exp(Mw*gravity*var%h/Rgas/(Tsoil+Tzero)),rhmin)
+    else ! no ice
        parin%lam  = parin%lambc               ! freezefac>1 -> steeper freezing curve
        parin%eta  = two/parin%lam + two + one ! freezefac>1 -> steeper freezing curve
        var%he     = parin%he
@@ -2087,28 +2087,28 @@ CONTAINS
        var%dthetaldT = zero
        dhdS   = zero
        Sliq    = S        ! liquid water content, relative to saturation
-       lnS     = LOG(Sliq)
-       v3      = EXP(-lnS/parin%lam)
-       v4      = EXP(parin%eta*lnS)
-    ENDIF
-    IF (var%thetal < 1.e-12_r_2) THEN ! completely frozen
+       lnS     = log(Sliq)
+       v3      = exp(-lnS/parin%lam)
+       v4      = exp(parin%eta*lnS)
+    endif
+    if (var%thetal < 1.e-12_r_2) then ! completely frozen
        var%dthetaldT = zero
        var%lambdav   = lambdas ! latent heat of sublimation
        var%KT        = zero
-    ENDIF
-    IF (((Tsoil >= var%Tfrz-tol) .OR. (experiment==184)) .AND. (S < one)) THEN ! unsaturated
+    endif
+    if (((Tsoil >= var%Tfrz-tol) .or. (experiment==184)) .and. (S < one)) then ! unsaturated
        var%h    = parin%he*v3  ! matric potential
        ! dhdS     = -parin%he/parin%lam*S**(-one/parin%lam-one)
-       dhdS     = -parin%he/parin%lam*EXP((-one/parin%lam-one)*LOG(S))
+       dhdS     = -parin%he/parin%lam*exp((-one/parin%lam-one)*log(S))
        var%K    = parin%Ke*v4
        var%phi  = parin%phie*v3*v4
        var%KS   = parin%eta*var%K/S
        var%KT   = zero
        var%phiS = (parin%eta-one/parin%lam)*var%phi/S
        var%phiT = zero
-       var%rh   = MAX(EXP(Mw*gravity*var%h/Rgas/(Tsoil+Tzero)),rhmin)
-    ENDIF
-    IF (((Tsoil >= var%Tfrz-tol) .OR. (experiment==184)) .AND. (S >= one)) THEN ! saturated
+       var%rh   = max(exp(Mw*gravity*var%h/Rgas/(Tsoil+Tzero)),rhmin)
+    endif
+    if (((Tsoil >= var%Tfrz-tol) .or. (experiment==184)) .and. (S >= one)) then ! saturated
        var%h    = parin%he
        dhdS     = zero
        var%K    = parin%Ke
@@ -2118,10 +2118,10 @@ CONTAINS
        var%phiT = zero
        var%rh   = one
        var%KT   = zero
-    ENDIF
+    endif
 
     !  variables required for vapour phase transfer
-    theta  =  MIN(S,one)*(parin%thre) + (parin%the - parin%thre)
+    theta  =  min(S,one)*(parin%thre) + (parin%the - parin%thre)
 
     ! if (z.lt.3.and.theta>parin%thfc) then
     !    macropore_modifier = exp(-parin%zeta*(z-3))
@@ -2136,43 +2136,43 @@ CONTAINS
     var%sl = slope_esat(Tsoil) * Mw/thousand/Rgas/(Tsoil+Tzero) ! m3 m-3 K-1
     c      = Mw*gravity/Rgas/(Tsoil+Tzero)
     lambda = parin%lam
-    IF (S < one) THEN
-       var%rh = MAX(EXP(Mw*gravity*var%h/Rgas/(Tsoil+Tzero)),rhmin)
-    ELSE
+    if (S < one) then
+       var%rh = max(exp(Mw*gravity*var%h/Rgas/(Tsoil+Tzero)),rhmin)
+    else
        var%rh = one
-    ENDIF
+    endif
     crh        = c*var%rh
     var%hS     = dhdS
     var%rhS    = crh*dhdS
     var%cvsat  = esat(Tsoil)*Mw/thousand/Rgas/(Tsoil+Tzero) ! m3 m-3
-    IF (S < one) THEN
+    if (S < one) then
        var%cv     = var%rh*var%cvsat
        var%cvS    = var%rhS *var%cvsat
        var%cvsatT = slope_esat(Tsoil)*Mw/thousand/Rgas/(Tsoil+Tzero) ! m3 m-3 K-1
-    ELSE
+    else
        var%cv = zero
        var%cvS    = zero
        var%cvsatT = zero
-    ENDIF
+    endif
     ! Penman (1940): tortuosity*theta
     ! var%Dv    = Dva*parin%tortuosity*(parin%the-theta)  * ((Tsoil+Tzero)/Tzero)**1.88_r_2 ! m2 s-1
-    var%Dv    = Dva*parin%tortuosity*(parin%the-theta)  * EXP(1.88_r_2*LOG((Tsoil+Tzero)/Tzero)) ! m2 s-1
+    var%Dv    = Dva*parin%tortuosity*(parin%the-theta)  * exp(1.88_r_2*log((Tsoil+Tzero)/Tzero)) ! m2 s-1
     ! ! Moldrup et al. (2003), Table 2 repacked soil (from Moldrup et al. (2000)
     ! ! (thetas-theta)**1.5 * (thetas-theta)/thetas
     ! var%Dv    = Dva* (parin%the-theta)**1.5_r_2 * (parin%the-theta)/parin%the * ((Tsoil+Tzero)/Tzero)**1.88_r_2 ! m2 s-1
     ! int       = (-c*parin%he)**lambda * igamma(one-lambda,-c*var%h)
-    int       = EXP(lambda*LOG(-c*parin%he)) * igamma(one-lambda,-c*var%h)
-    var%phiv  = Dva*parin%tortuosity * (parin%thre*EXP(c*var%h) -parin%thre*int)
+    int       = exp(lambda*log(-c*parin%he)) * igamma(one-lambda,-c*var%h)
+    var%phiv  = Dva*parin%tortuosity * (parin%thre*exp(c*var%h) -parin%thre*int)
     ! var%phivS = dhdS * Dva*parin%tortuosity * &
     !      ( (parin%thre)*c*exp(c*var%h) - parin%thre*c*(var%h/parin%he)**(-parin%lam)*exp(c*var%h) )
     var%phivS = dhdS * Dva*parin%tortuosity * &
-         ( (parin%thre)*c*EXP(c*var%h) - parin%thre*c*EXP(-parin%lam*LOG(var%h/parin%he))*EXP(c*var%h) )
+         ( (parin%thre)*c*exp(c*var%h) - parin%thre*c*exp(-parin%lam*log(var%h/parin%he))*exp(c*var%h) )
     var%kv    = var%Dv * var%cvsat *c * var%rh
 
-    SELECT CASE (ithermalcond)
-    CASE (0)
-       SELECT CASE (experiment)
-       CASE (11,17) ! Hansson et al. (2004) - special soil properties
+    select case (ithermalcond)
+    case (0)
+       select case (experiment)
+       case (11,17) ! Hansson et al. (2004) - special soil properties
           ! Hansson et al. (2004) - Eq. 13b
           ! A=C1, B=C2, C1=C3, D=C4, E=C5
           A  = 0.55_r_2
@@ -2180,53 +2180,53 @@ CONTAINS
           C1 = 3.07_r_2
           D  = 0.13_r_2
           E  = 4
-       CASE default
+       case default
           ! calculate v%kH as in Campbell (1985) p.32 eq. 4.20
           A  = 0.65_r_2 - 0.78_r_2*parin%rho/thousand + 0.60_r_2*(parin%rho/thousand)**2 ! (4.27)
           B  = 2.8_r_2 * (one-parin%thre) !*theta   ! (4.24)
           !MC if (parin%clay > 0.05) then
-          IF (parin%clay > 0.001_r_2) THEN ! clay=0.001 -> C1=9.2
-             C1 = one + 2.6_r_2/SQRT(parin%clay*100._r_2) ! (4.28)
-          ELSE
+          if (parin%clay > 0.001_r_2) then ! clay=0.001 -> C1=9.2
+             C1 = one + 2.6_r_2/sqrt(parin%clay*100._r_2) ! (4.28)
+          else
              C1 = one
-          ENDIF
+          endif
           D  = 0.03_r_2 + 0.7_r_2*(one-parin%thre)**2 ! (4.22)
           E  = 4
-       END SELECT
-       SELECT CASE (experiment)
-       CASE (15,17,182:184) ! ice = liquid thermal conductivity
+       end select
+       select case (experiment)
+       case (15,17,182:184) ! ice = liquid thermal conductivity
           ! calculate v%kH as in Campbell (1985) p.32 eq. 4.20
-          var%kH = A + B*theta-(A-D)*EXP(-(C1*theta)**E) ! (4.20)
-       CASE default ! different thermal conductivity in ice and water
+          var%kH = A + B*theta-(A-D)*exp(-(C1*theta)**E) ! (4.20)
+       case default ! different thermal conductivity in ice and water
           ! Hansson et al. (2004) - Eq. 15
           F1 = 13.05_r_2
           F2 = 1.06_r_2
-          IF  (Tsoil < var%Tfrz-tol .AND.  var%thetai.GT.zero ) THEN ! ice
+          if  (Tsoil < var%Tfrz-tol .and.  var%thetai.gt.zero ) then ! ice
              ! F  = one + F1*var%thetai**F2
-             F  = one + F1*EXP(F2*LOG(var%thetai))
-             IF ((C1*(theta+F*var%thetai))**E > 100._r_2) THEN
+             F  = one + F1*exp(F2*log(var%thetai))
+             if ((C1*(theta+F*var%thetai))**E > 100._r_2) then
                 var%kH = A + B*(theta+F*var%thetai)
-             ELSE
-                var%kH = A + B*(theta+F*var%thetai)-(A-D)*EXP(-(C1*(theta+F*var%thetai))**E)
-             ENDIF
-          ELSE
-             var%kH = A + B*(theta)-(A-D)*EXP(-(C1*(theta))**E)
-          ENDIF
-       END SELECT
-    CASE(1) ! van de Griend & O'Neill (1986)
+             else
+                var%kH = A + B*(theta+F*var%thetai)-(A-D)*exp(-(C1*(theta+F*var%thetai))**E)
+             endif
+          else
+             var%kH = A + B*(theta)-(A-D)*exp(-(C1*(theta))**E)
+          endif
+       end select
+    case(1) ! van de Griend & O'Neill (1986)
        cdry = 2.0e6_r_2 * (one-parin%thre) ! Sispat Manual (2000), Eq. 2.21
        var%kH = one/(cdry + 4.18e6_r_2*theta) * ( (parin%LambdaS + 2300._r_2*theta - 1890._r_2)/0.654_r_2 )**2
-    END SELECT
+    end select
     var%eta_th = one
     var%kE     = var%Dv*var%rh*var%sl*thousand*var%lambdav*var%eta_th
     var%kth    = var%kE + var%kH ! thermal conductivity of soil (includes contribution from vapour phase)
 
-    var%csoil    = parin%css*parin%rho + rhow*cswat*var%thetal + MERGE(0._r_2, rhow*csice*var%thetai, experiment==183)
-    IF (Tsoil < var%Tfrz) THEN ! increase effective heat capacity due to presence of ice
-       var%csoileff = var%csoil + MERGE(0._r_2, rhow*lambdaf*var%dthetaldT, experiment==183)
-    ELSE
+    var%csoil    = parin%css*parin%rho + rhow*cswat*var%thetal + merge(0._r_2, rhow*csice*var%thetai, experiment==183)
+    if (Tsoil < var%Tfrz) then ! increase effective heat capacity due to presence of ice
+       var%csoileff = var%csoil + merge(0._r_2, rhow*lambdaf*var%dthetaldT, experiment==183)
+    else
        var%csoileff = var%csoil
-    ENDIF
+    endif
 
   END SUBROUTINE hyofS
 
@@ -2251,32 +2251,32 @@ CONTAINS
     ! fc   - deriv of f wrt c (slope of isotherm curve).
     REAL(r_2) :: x
 
-    SELECT CASE (iso)
-    CASE ("Fr")
-       IF (p(3)==zero) THEN ! linearise near zero
+    select case (iso)
+    case ("Fr")
+       if (p(3)==zero) then ! linearise near zero
           p(3) = (0.01_r_2*dsmmax/p(1))**(one/p(2)) ! concn at 0.01*dsmmax
           p(4) = p(1)*p(3)**(p(2)-one) ! slope
-       END IF
-       IF (c < p(3)) THEN
+       end if
+       if (c < p(3)) then
           fd = p(4)
           f  = fd*c
-       ELSE
-          x  = p(1)*EXP((p(2)-one)*LOG(c))
+       else
+          x  = p(1)*exp((p(2)-one)*log(c))
           f  = x*c
           fd = p(2)*x
-       END IF
-    CASE ("La")
+       end if
+    case ("La")
        x  = one/(one+p(2)*c)
        f  = p(1)*c*x
        fd = p(1)*(x-p(2)*c*x**2)
-    CASE ("Ll")
+    case ("Ll")
        x  = one/(one+p(2)*c)
        f  = p(1)*c*x+p(3)*c
        fd = p(1)*(x-p(2)*c*x**2)+p(3)
-    CASE default
-       WRITE(*,*) "isosub: illegal isotherm type"
-       STOP 2
-    END SELECT
+    case default
+       write(*,*) "isosub: illegal isotherm type"
+       stop 2
+    end select
 
   END SUBROUTINE isosub
 
@@ -2297,13 +2297,13 @@ CONTAINS
     INTEGER(i_d),  OPTIONAL, INTENT(OUT) :: err ! 0: no error; >0: error
     ! local
     INTEGER(i_d)                         :: n, n2
-    REAL(r_2), DIMENSION(SIZE(cc),2,2)   :: A, B, C
-    REAL(r_2), DIMENSION(SIZE(cc),2)     :: d, x
+    REAL(r_2), DIMENSION(size(cc),2,2)   :: A, B, C
+    REAL(r_2), DIMENSION(size(cc),2)     :: d, x
     ! for conditioning
-    REAL(r_2), DIMENSION(2*SIZE(cc))       :: lST, cST
-    REAL(r_2), DIMENSION(SIZE(cc))         :: lS, lT, cS, cT
-    REAL(r_2), DIMENSION(2*SIZE(cc)*2*SIZE(cc)) :: allvec
-    REAL(r_2), DIMENSION(2*SIZE(cc),2*SIZE(cc)) :: allmat
+    REAL(r_2), DIMENSION(2*size(cc))       :: lST, cST
+    REAL(r_2), DIMENSION(size(cc))         :: lS, lT, cS, cT
+    REAL(r_2), DIMENSION(2*size(cc)*2*size(cc)) :: allvec
+    REAL(r_2), DIMENSION(2*size(cc),2*size(cc)) :: allmat
     REAL(r_2)    :: eps
     INTEGER(i_d) :: docond ! 0: no conditioning, 1: columns, 2: lines, 3: both
     INTEGER(i_d) :: ierr ! error code for generic_thomas
@@ -2311,30 +2311,30 @@ CONTAINS
     ! integer :: i, nn
     !
     ! check input sizes
-    IF (.NOT. ALL((/SIZE(aa)+1,SIZE(bb)+1,SIZE(dd),SIZE(ee)+1,SIZE(ff)+1,SIZE(gg)/) == SIZE(cc))) THEN
-       WRITE(*,*) 'massman_sparse_1d error1: unequal humidity coeffs.'
-       STOP 2
-    END IF
-    IF (.NOT. ALL((/SIZE(aah)+1,SIZE(bbh)+1,SIZE(ddh),SIZE(eeh)+1,SIZE(ffh)+1,SIZE(ggh)/) == SIZE(cch))) THEN
-       WRITE(*,*) 'massman_sparse_1d error2: unequal temperature coeffs.'
-       STOP 2
-    END IF
-    IF (SIZE(cc) /= SIZE(cch)) THEN
-       WRITE(*,*) 'massman_sparse_1d error3: unequal temperature and humidity coeffs.'
-       STOP 2
-    END IF
-    n = SIZE(cc)
-    IF (PRESENT(condition)) THEN
+    if (.not. all((/size(aa)+1,size(bb)+1,size(dd),size(ee)+1,size(ff)+1,size(gg)/) == size(cc))) then
+       write(*,*) 'massman_sparse_1d error1: unequal humidity coeffs.'
+       stop 2
+    end if
+    if (.not. all((/size(aah)+1,size(bbh)+1,size(ddh),size(eeh)+1,size(ffh)+1,size(ggh)/) == size(cch))) then
+       write(*,*) 'massman_sparse_1d error2: unequal temperature coeffs.'
+       stop 2
+    end if
+    if (size(cc) /= size(cch)) then
+       write(*,*) 'massman_sparse_1d error3: unequal temperature and humidity coeffs.'
+       stop 2
+    end if
+    n = size(cc)
+    if (present(condition)) then
        docond = condition
-    ELSE
+    else
        docond = 0
-    ENDIF
-    IF (PRESENT(err)) err = 0
+    endif
+    if (present(err)) err = 0
     ierr = 0
     !
     ! Overall matrix
-    IF (docond >= 1 .AND. docond <= 3) THEN
-       eps = EPSILON(one)
+    if (docond >= 1 .and. docond <= 3) then
+       eps = epsilon(one)
        n2  = 2*n*2*n
        allvec(:) = zero
        allvec(1:n2:4*n+2)         = cc(1:n)
@@ -2349,44 +2349,44 @@ CONTAINS
        allvec(4*n+2:n2:4*n+2)     = bb(1:n-1)
        allvec(6*n+1:n2:4*n+2)     = aah(1:n-1)
        allvec(6*n+1:n2:4*n+2)     = bbh(1:n-1)
-       allmat = RESHAPE(allvec,shape=(/2*n,2*n/),order=(/2,1/))
-    ENDIF
+       allmat = reshape(allvec,shape=(/2*n,2*n/),order=(/2,1/))
+    endif
     ! Get conditioning numbers
-    SELECT CASE (docond)
-    CASE (1)
-       cST = MAXVAL(ABS(allmat),1)
-       WHERE (cST < eps) cST = one
+    select case (docond)
+    case (1)
+       cST = maxval(abs(allmat),1)
+       where (cST < eps) cST = one
        cST     = one / cST
        cS(1:n) = cST(1:2*n-1:2)
        cT(1:n) = cST(2:2*n:2)
        lS(1:n) = one
        lT(1:n) = one
-    CASE (2)
-       lST = MAXVAL(ABS(allmat),2)
-       WHERE (lST < eps) lST = one
+    case (2)
+       lST = maxval(abs(allmat),2)
+       where (lST < eps) lST = one
        lST     = one / lST
        lS(1:n) = lST(1:2*n-1:2)
        lT(1:n) = lST(2:2*n:2)
        cS(1:n) = one
        cT(1:n) = one
-    CASE (3)
-       lST = MAXVAL(ABS(allmat),2)
-       WHERE (lST < eps) lST = one
+    case (3)
+       lST = maxval(abs(allmat),2)
+       where (lST < eps) lST = one
        lST     = one / lST
        lS(1:n) = lST(1:2*n-1:2)
        lT(1:n) = lST(2:2*n:2)
-       allmat  = SPREAD(lST,2,2*n)*allmat
-       cST = MAXVAL(ABS(allmat),1)
-       WHERE (cST < eps) cST = one
+       allmat  = spread(lST,2,2*n)*allmat
+       cST = maxval(abs(allmat),1)
+       where (cST < eps) cST = one
        cST     = one / cST
        cS(1:n) = cST(1:2*n-1:2)
        cT(1:n) = cST(2:2*n:2)
-    CASE default
+    case default
        cS(1:n) = one
        cT(1:n) = one
        lS(1:n) = one
        lT(1:n) = one
-    END SELECT
+    end select
     !
     ! fill matrices of generic thomas algorithm
     A(1,1:2,1:2) = zero
@@ -2407,15 +2407,15 @@ CONTAINS
     d(1:n,2)     = ggh(1:n)   * lT(1:n)
     !
     ! Call Generic Thomas algorithm
-    CALL generic_thomas(n,A,B,C,d,x,ierr)
-    IF (ierr /= 0) THEN
-       IF (PRESENT(err)) THEN
+    call generic_thomas(n,A,B,C,d,x,ierr)
+    if (ierr /= 0) then
+       if (present(err)) then
           err = 1
-          RETURN
-       ELSE
-          STOP 1
-       ENDIF
-    ENDIF
+          return
+       else
+          stop 1
+       endif
+    endif
     dy(1:n) = x(1:n,1) * cS(1:n)
     dT(1:n) = x(1:n,2) * cT(1:n)
     !
@@ -2437,13 +2437,13 @@ CONTAINS
     ! local
     INTEGER(i_d)                                        :: n, mp
     INTEGER(i_d)                                        :: n2
-    REAL(r_2), DIMENSION(1:SIZE(cc,1),1:SIZE(cc,2),2,2) :: A, B, C
-    REAL(r_2), DIMENSION(1:SIZE(cc,1),1:SIZE(cc,2),2)   :: d, x
+    REAL(r_2), DIMENSION(1:size(cc,1),1:size(cc,2),2,2) :: A, B, C
+    REAL(r_2), DIMENSION(1:size(cc,1),1:size(cc,2),2)   :: d, x
     ! for conditioning
-    REAL(r_2), DIMENSION(1:SIZE(cc,1),2*SIZE(cc,2))     :: lST, cST
-    REAL(r_2), DIMENSION(1:SIZE(cc,1),SIZE(cc,2))       :: lS, lT, cS, cT
-    REAL(r_2), DIMENSION(1:SIZE(cc,1),2*SIZE(cc,2)*2*SIZE(cc,2)) :: allvec
-    REAL(r_2), DIMENSION(1:SIZE(cc,1),2*SIZE(cc,2),2*SIZE(cc,2)) :: allmat
+    REAL(r_2), DIMENSION(1:size(cc,1),2*size(cc,2))     :: lST, cST
+    REAL(r_2), DIMENSION(1:size(cc,1),size(cc,2))       :: lS, lT, cS, cT
+    REAL(r_2), DIMENSION(1:size(cc,1),2*size(cc,2)*2*size(cc,2)) :: allvec
+    REAL(r_2), DIMENSION(1:size(cc,1),2*size(cc,2),2*size(cc,2)) :: allmat
     REAL(r_2)    :: eps
     INTEGER(i_d) :: docond ! 0: no conditioning, 1: columns, 2: lines, 3: both
     INTEGER(i_d) :: ierr ! error code for generic_thomas
@@ -2451,44 +2451,44 @@ CONTAINS
     ! integer :: i, k, nn
     !
     ! check input sizes
-    IF (.NOT. ALL((/SIZE(aa,1)+1,SIZE(bb,1)+1,SIZE(dd,1),SIZE(ee,1)+1,SIZE(ff,1)+1,SIZE(gg,1)/) == SIZE(cc,1))) THEN
-       WRITE(*,*) 'massman_sparse_2d error1: unequal humidity coeffs (1st dim).'
-       STOP 2
-    END IF
-    IF (.NOT. ALL((/SIZE(aah,1)+1,SIZE(bbh,1)+1,SIZE(ddh,1),SIZE(eeh,1)+1,SIZE(ffh,1)+1,SIZE(ggh,1)/) == SIZE(cch,1))) THEN
-       WRITE(*,*) 'massman_sparse_2d error2: unequal temperature coeffs (1st dim).'
-       STOP 2
-    END IF
-    IF (SIZE(cc,1) /= SIZE(cch,1)) THEN
-       WRITE(*,*) 'massman_sparse_2d error3: unequal temperature and humidity coeffs (1st dim).'
-       STOP 2
-    END IF
-    IF (.NOT. ALL((/SIZE(aa,2)+1,SIZE(bb,2)+1,SIZE(dd,2),SIZE(ee,2)+1,SIZE(ff,2)+1,SIZE(gg,2)/) == SIZE(cc,2))) THEN
-       WRITE(*,*) 'massman_sparse_2d error4: unequal humidity coeffs (2nd dim).'
-       STOP 2
-    END IF
-    IF (.NOT. ALL((/SIZE(aah,2)+1,SIZE(bbh,2)+1,SIZE(ddh,2),SIZE(eeh,2)+1,SIZE(ffh,2)+1,SIZE(ggh,2)/) == SIZE(cch,2))) THEN
-       WRITE(*,*) 'massman_sparse_2d error5: unequal temperature coeffs (2nd dim).'
-       STOP 2
-    END IF
-    IF (SIZE(cc,2) /= SIZE(cch,2)) THEN
-       WRITE(*,*) 'massman_sparse_2d error6: unequal temperature and humidity coeffs (2nd dim).'
-       STOP 2
-    END IF
+    if (.not. all((/size(aa,1)+1,size(bb,1)+1,size(dd,1),size(ee,1)+1,size(ff,1)+1,size(gg,1)/) == size(cc,1))) then
+       write(*,*) 'massman_sparse_2d error1: unequal humidity coeffs (1st dim).'
+       stop 2
+    end if
+    if (.not. all((/size(aah,1)+1,size(bbh,1)+1,size(ddh,1),size(eeh,1)+1,size(ffh,1)+1,size(ggh,1)/) == size(cch,1))) then
+       write(*,*) 'massman_sparse_2d error2: unequal temperature coeffs (1st dim).'
+       stop 2
+    end if
+    if (size(cc,1) /= size(cch,1)) then
+       write(*,*) 'massman_sparse_2d error3: unequal temperature and humidity coeffs (1st dim).'
+       stop 2
+    end if
+    if (.not. all((/size(aa,2)+1,size(bb,2)+1,size(dd,2),size(ee,2)+1,size(ff,2)+1,size(gg,2)/) == size(cc,2))) then
+       write(*,*) 'massman_sparse_2d error4: unequal humidity coeffs (2nd dim).'
+       stop 2
+    end if
+    if (.not. all((/size(aah,2)+1,size(bbh,2)+1,size(ddh,2),size(eeh,2)+1,size(ffh,2)+1,size(ggh,2)/) == size(cch,2))) then
+       write(*,*) 'massman_sparse_2d error5: unequal temperature coeffs (2nd dim).'
+       stop 2
+    end if
+    if (size(cc,2) /= size(cch,2)) then
+       write(*,*) 'massman_sparse_2d error6: unequal temperature and humidity coeffs (2nd dim).'
+       stop 2
+    end if
 
-    mp   = SIZE(cc,1)
-    n    = SIZE(cc,2)
-    IF (PRESENT(condition)) THEN
+    mp   = size(cc,1)
+    n    = size(cc,2)
+    if (present(condition)) then
        docond = condition
-    ELSE
+    else
        docond = 0
-    ENDIF
-    IF (PRESENT(err)) err = 0
+    endif
+    if (present(err)) err = 0
     ierr = 0
     !
     ! Overall matrix
-    IF (docond >= 1 .AND. docond <= 3) THEN
-       eps = EPSILON(one)
+    if (docond >= 1 .and. docond <= 3) then
+       eps = epsilon(one)
        n2  = 2*n*2*n
        allvec(1:mp,:) = zero
        allvec(1:mp,1:n2:4*n+2)         = cc(1:mp,1:n)
@@ -2503,44 +2503,44 @@ CONTAINS
        allvec(1:mp,4*n+2:n2:4*n+2)     = bb(1:mp,1:n-1)
        allvec(1:mp,6*n+1:n2:4*n+2)     = aah(1:mp,1:n-1)
        allvec(1:mp,6*n+1:n2:4*n+2)     = bbh(1:mp,1:n-1)
-       allmat = RESHAPE(allvec,shape=(/mp,2*n,2*n/),order=(/1,3,2/))
-    ENDIF
+       allmat = reshape(allvec,shape=(/mp,2*n,2*n/),order=(/1,3,2/))
+    endif
     ! Get conditioning numbers
-    SELECT CASE (docond)
-    CASE (1)
-       cST = MAXVAL(ABS(allmat),2)
-       WHERE (cST < eps) cST = one
+    select case (docond)
+    case (1)
+       cST = maxval(abs(allmat),2)
+       where (cST < eps) cST = one
        cST     = one / cST
        cS(1:mp,1:n) = cST(1:mp,1:2*n-1:2)
        cT(1:mp,1:n) = cST(1:mp,2:2*n:2)
        lS(1:mp,1:n) = one
        lT(1:mp,1:n) = one
-    CASE (2)
-       lST = MAXVAL(ABS(allmat),3)
-       WHERE (lST < eps) lST = one
+    case (2)
+       lST = maxval(abs(allmat),3)
+       where (lST < eps) lST = one
        lST  = one / lST
        lS(1:mp,1:n) = lST(1:mp,1:2*n-1:2)
        lT(1:mp,1:n) = lST(1:mp,2:2*n:2)
        cS(1:mp,1:n) = one
        cT(1:mp,1:n) = one
-    CASE (3)
-       lST = MAXVAL(ABS(allmat),3)
-       WHERE (lST < eps) lST = one
+    case (3)
+       lST = maxval(abs(allmat),3)
+       where (lST < eps) lST = one
        lST  = one / lST
        lS(1:mp,1:n) = lST(1:mp,1:2*n-1:2)
        lT(1:mp,1:n) = lST(1:mp,2:2*n:2)
-       allmat  = SPREAD(lST,2,2*n)*allmat
-       cST = MAXVAL(ABS(allmat),2)
-       WHERE (cST < eps) cST = one
+       allmat  = spread(lST,2,2*n)*allmat
+       cST = maxval(abs(allmat),2)
+       where (cST < eps) cST = one
        cST = one / cST
        cS(1:mp,1:n) = cST(1:mp,1:2*n-1:2)
        cT(1:mp,1:n) = cST(1:mp,2:2*n:2)
-    CASE default
+    case default
        cS(1:mp,1:n) = one
        cT(1:mp,1:n) = one
        lS(1:mp,1:n) = one
        lT(1:mp,1:n) = one
-    END SELECT
+    end select
     !
     ! fill matrices of generic thomas algorithm
     A(1:mp,1,1:2,1:2) = zero
@@ -2561,15 +2561,15 @@ CONTAINS
     d(1:mp,1:n,2)     = ggh(1:mp,1:n)   * lT(1:mp,1:n)
     !
     ! Call Generic Thomas algorithm
-    CALL generic_thomas(mp,n,A,B,C,d,x,ierr)
-    IF (ierr /= 0) THEN
-       IF (PRESENT(err)) THEN
+    call generic_thomas(mp,n,A,B,C,d,x,ierr)
+    if (ierr /= 0) then
+       if (present(err)) then
           err = 1
-          RETURN
-       ELSE
-          STOP 1
-       ENDIF
-    ENDIF
+          return
+       else
+          stop 1
+       endif
+    endif
     dy(1:mp,1:n) = x(1:mp,1:n,1) * cS(1:mp,1:n)
     dT(1:mp,1:n) = x(1:mp,1:n,2) * cT(1:mp,1:n)
     !
@@ -2605,23 +2605,23 @@ CONTAINS
     rhoL    = plit%rho
     ! dhdS    = -plit%he/plit%lam*S**(-one/plit%lam-one)*(thousand/rhoL*plit%the)**(-one/plit%lam)
 
-    dhdS    = -plit%he/plit%lam*EXP((-one/plit%lam-one)*LOG(S))*EXP(-one/plit%lam*LOG(thousand/rhoL*plit%the))
+    dhdS    = -plit%he/plit%lam*exp((-one/plit%lam-one)*log(S))*exp(-one/plit%lam*log(thousand/rhoL*plit%the))
     !    vlit%hS = dhdS
     ! Mathews (2006), A process-based model of offine fuel moisture,
     !                 International Journal of Wildland Fire 15,155-168
     chi     = 2.08_r_2+u*2.38_r_2 ! (Eq. 45, Tab. 1)
-    DT0     = Dva*EXP(u*2.6_r_2) ! (Eq. 46, Tab. 1)
-    vlit%Dv = DT0*EXP(-half*chi) ! heat and vapour diffusivity half-way through layer (Eq. 11)
+    DT0     = Dva*exp(u*2.6_r_2) ! (Eq. 46, Tab. 1)
+    vlit%Dv = DT0*exp(-half*chi) ! heat and vapour diffusivity half-way through layer (Eq. 11)
     !write(*,*) 'litter_props', vlit%Dv
-    IF (S < one) THEN
+    if (S < one) then
        ! vlit%h = plit%he*(thousand/rhoL*S*plit%the)**(-one/plit%lam)
-       vlit%h = plit%he*EXP(-one/plit%lam*LOG(thousand/rhoL*S*plit%the))
+       vlit%h = plit%he*exp(-one/plit%lam*log(thousand/rhoL*S*plit%the))
        vlit%K = zero
-    ELSE
+    else
        vlit%K = vlit%Ke
        vlit%h = plit%he
-    ENDIF
-    vlit%rh     = MAX(EXP(Mw*gravity*vlit%h/Rgas/(Tsoil+Tzero)),rhmin)
+    endif
+    vlit%rh     = max(exp(Mw*gravity*vlit%h/Rgas/(Tsoil+Tzero)),rhmin)
     vlit%cvsat  = esat(Tsoil)*Mw/thousand/Rgas/(Tsoil+Tzero) ! m3 m-3
     vlit%cv     = vlit%cvsat*vlit%rh
     vlit%cvS    = vlit%rhS *vlit%cvsat
@@ -2644,8 +2644,8 @@ CONTAINS
 
   !**********************************************************************************************************************
 
-  ! ELEMENTAL PURE
-  SUBROUTINE potential_evap(Rn, rbh, rbw, Ta, rha, Tsoil, k, dz,lambdav, &
+ ! ELEMENTAL PURE 
+SUBROUTINE potential_evap(Rn, rbh, rbw, Ta, rha, Tsoil, k, dz,lambdav, &
        Ts, E, H, G, &
        dEdrha, dEdTs, dEdTsoil, dGdTa, dGdTsoil,iice)
 
@@ -2659,23 +2659,23 @@ CONTAINS
     REAL(r_2) :: s, es, ea, dEdea, dEdesat, dTsdTa, dEdDa, Da
     REAL(r_2):: rhocp, gamma != 67.0 ! psychrometric constant
 
-    IF (PRESENT(iice)) THEN
-       IF(iice) THEN
+    if (present(iice)) then
+       if(iice) then
           es = esat_ice(Ta)
           s  = slope_esat_ice(Ta)
-       ELSE
+       else
           es = esat(Ta)
           s  = slope_esat(Ta)
-       ENDIF
-    ELSE
+       endif
+    else
        es = esat(Ta)
        s  = slope_esat(Ta)
-    ENDIF
+    endif
 
     rhocp = rmair*101325._r_2/rgas/(Ta+Tzero)*cpa
     gamma = 101325._r_2*cpa/lambdav/(Mw/rmair)
-    ea = es * MAX(rha, 0.1_r_2)
-    Da = ea/MAX(rha, 0.1_r_2) - ea
+    ea = es * max(rha, 0.1_r_2)
+    Da = ea/max(rha, 0.1_r_2) - ea
 
     E  = (rhocp*(Da*(k*rbh + dz*rhocp) + rbh*s*(dz*Rn + k*(-Ta + Tsoil)))) / &
          (gamma*rbw*(k*rbh + dz*rhocp) + dz*rbh*rhocp*s)
@@ -2706,10 +2706,10 @@ CONTAINS
 
     INTEGER(i_d),              INTENT(IN) :: mp
     TYPE(veg_parameter_type), INTENT(IN) :: veg
-    INTEGER(i_d), DIMENSION(:),  INTENT(IN) :: index
+    integer(i_d), DIMENSION(:),  INTENT(IN) :: index
 
-    ALLOCATE(plit(mp))
-    ALLOCATE(dxL(mp))
+    allocate(plit(mp))
+    allocate(dxL(mp))
 
     plit%the   = 0.09_r_2
     plit%thre  = 0.09_r_2
@@ -2722,7 +2722,7 @@ CONTAINS
     plit%phiSe = zero
     plit%rho   = 63.5_r_2
     ! dxL        = zero            ! litter params
-    dxL        = REAL(veg%clitt(index),r_2)*two/plit%rho*0.1_r_2
+    dxL        = real(veg%clitt(index),r_2)*two/plit%rho*0.1_r_2
 
     plit%ishorizon  = 0
     plit%thw        = zero
@@ -2753,37 +2753,73 @@ CONTAINS
     INTEGER(i_d),                 INTENT(IN) :: mp
     INTEGER(i_d),                 INTENT(IN) :: ms
     TYPE(soil_parameter_type),    INTENT(IN) :: soil
-    INTEGER(i_d), DIMENSION(:),   INTENT(IN) :: index
+    integer(i_d), DIMENSION(:),   INTENT(IN) :: index
 
     INTEGER(i_d) :: i
 
-    ALLOCATE(par(mp,ms))
+    allocate(par(mp,ms))
 
-    DO i=1, ms
+    do i=1, ms
        par(:,i)%ishorizon  = soil%ishorizon(index,i)
-       par(:,i)%thw        = REAL(soil%swilt(index),r_2)
-       par(:,i)%thfc       = REAL(soil%sfc(index),r_2)
-       par(:,i)%the        = REAL(soil%ssat(index),r_2)
+       par(:,i)%thw        = real(soil%swilt(index),r_2)
+       par(:,i)%thfc       = real(soil%sfc(index),r_2)
+       par(:,i)%the        = real(soil%ssat(index),r_2)
        par(:,i)%thr        = zero
-       par(:,i)%thre       = REAL(soil%ssat(index),r_2) - par(:,i)%thr
-       par(:,i)%he         = REAL(soil%sucs(index),r_2)
-       par(:,i)%Ke         = REAL(soil%hyds(index),r_2)
-       par(:,i)%lam        = one/REAL(soil%bch(index),r_2)
+       par(:,i)%thre       = real(soil%ssat(index),r_2) - par(:,i)%thr
+       par(:,i)%he         = real(soil%sucs(index),r_2)
+       par(:,i)%Ke         = real(soil%hyds(index),r_2)
+       par(:,i)%lam        = one/real(soil%bch(index),r_2)
        par(:,i)%eta        = two/par(:,i)%lam + two + one
        par(:,i)%KSe        = par(:,i)%eta * par(:,i)%Ke    ! dK/dS at he
        par(:,i)%phie       = par(:,i)%Ke * par(:,i)%he / (one - par(:,i)%lam * par(:,i)%eta) ! MFP at he
        par(:,i)%phiSe      = (par(:,i)%eta - one/par(:,i)%lam) * par(:,i)%phie    ! dphi/dS at he
-       par(:,i)%kd         = REAL(soil%cnsd(index),r_2)
-       par(:,i)%css        = REAL(soil%css(index),r_2)
-       par(:,i)%rho        = REAL(soil%rhosoil(index),r_2)
+       par(:,i)%kd         = real(soil%cnsd(index),r_2)
+       par(:,i)%css        = real(soil%css(index),r_2)
+       par(:,i)%rho        = real(soil%rhosoil(index),r_2)
        par(:,i)%tortuosity = 0.67_r_2
-       par(:,i)%clay       = REAL(soil%clay(index),r_2)
-       par(:,i)%zeta       = REAL(soil%zeta(index),r_2)
-       par(:,i)%fsatmax    = REAL(soil%fsatmax(index),r_2)
+       par(:,i)%clay       = real(soil%clay(index),r_2)
+       par(:,i)%zeta       = real(soil%zeta(index),r_2)
+       par(:,i)%fsatmax    = real(soil%fsatmax(index),r_2)
        par(:,i)%lambc      = par(:,i)%lam
        !par(:,i)%LambdaS    = real(soil%LambdaS(index),r_2)
        par(:,i)%LambdaS    = 2830_r_2 ! Sispat Manual Table 2
-    ENDDO
+    enddo
+    
+!!$! special for Cumberland: set soil params to clay                                                                                    
+!!$                                                                                                                                     
+!!$    do i=1,ms                                                                                                                        
+!!$      par(:,i)%thw        = 0.286                                                                                                    
+!!$      par(:,i)%thfc       = 0.367                                                                                                    
+!!$      par(:,i)%the        = 0.482                                                                                                    
+!!$      par(:,i)%thre       = real(soil%ssat(index),r_2) - par(:,i)%thr                                                                
+!!$      par(:,i)%he         = -0.405                                                                                                   
+!!$      par(:,i)%Ke         = 1e-6                                                                                                     
+!!$      par(:,i)%lam        = 1./11.4                                                                                                  
+!!$      par(:,i)%eta        = two/par(:,i)%lam + two + one                                                                             
+!!$      par(:,i)%KSe        = par(:,i)%eta * par(:,i)%Ke    ! dK/dS at he                                                              
+!!$      par(:,i)%phie       = par(:,i)%Ke * par(:,i)%he / (one - par(:,i)%lam * par(:,i)%eta) ! MFP at he                              
+!!$      par(:,i)%phiSe      = (par(:,i)%eta - one/par(:,i)%lam) * par(:,i)%phie    ! dphi/dS at he                                     
+!!$      par(:,i)%clay       = 0.67                                                                                                     
+!!$                                                                                                                                     
+!!$    enddo                                                                                                                            
+                                                                                                                                     
+!!$   ! special for Cumberland: set top 3 layers to sand                                                                             
+!!$   do i=1,3                                                                                                                       
+!!$      par(:,i)%thw        = 0.175                                                                                                 
+!!$      par(:,i)%thfc       = 0.255                                                                                                 
+!!$      par(:,i)%the        = 0.420                                                                                                 
+!!$      par(:,i)%thre       = real(soil%ssat(index),r_2) - par(:,i)%thr                                                             
+!!$      par(:,i)%he         = -0.299                                                                                                
+!!$      par(:,i)%Ke         = 6.e-6                                                                                                 
+!!$      par(:,i)%lam        = 1./7.12                                                                                               
+!!$      par(:,i)%eta        = two/par(:,i)%lam + two + one                                                                          
+!!$      par(:,i)%KSe        = par(:,i)%eta * par(:,i)%Ke    ! dK/dS at he                                                           
+!!$      par(:,i)%phie       = par(:,i)%Ke * par(:,i)%he / (one - par(:,i)%lam * par(:,i)%eta) ! MFP at he                           
+!!$      par(:,i)%phiSe      = (par(:,i)%eta - one/par(:,i)%lam) * par(:,i)%phie    ! dphi/dS at he                                  
+!!$      par(:,i)%clay       = 0.27                                                                                                  
+!!$                                                                                                                                  
+!!$   enddo
+
 
   END SUBROUTINE setpar
 
@@ -2799,10 +2835,10 @@ CONTAINS
 
     INTEGER(i_d) :: i
 
-    ALLOCATE(par(mp,ms))
+    allocate(par(mp,ms))
 
-    DO i=1, ms
-       WHERE (x2dx(:,i) .LT. 0.15_r_2)
+    do i=1, ms
+       where (x2dx(:,i) .lt. 0.15_r_2)
           par(:,i)%ishorizon  = 1
           par(:,i)%thw        = 0.07_r_2
           par(:,i)%thfc       = 0.45_r_2
@@ -2811,7 +2847,7 @@ CONTAINS
           par(:,i)%he         = -6.76_r_2
           par(:,i)%lam        = 0.70_r_2
           par(:,i)%Ke         = 2.754e-5_r_2
-       ELSEWHERE (x2dx(:,i) .GT. 2.0_r_2)
+       elsewhere (x2dx(:,i) .gt. 2.0_r_2)
           par(:,i)%ishorizon  = 3
           par(:,i)%thw        = 0.18_r_2
           par(:,i)%thfc       = 0.35_r_2
@@ -2820,7 +2856,7 @@ CONTAINS
           par(:,i)%he         = -1.23_r_2    ! optimised, was -1.46
           par(:,i)%lam        = 0.67_r_2     ! optimised, was 0.25
           par(:,i)%Ke         = 1.013e-5_r_2 ! optimised, was 2.481e-7
-       ELSEWHERE
+       elsewhere
           par(:,i)%ishorizon  = 2
           par(:,i)%thw        = 0.18_r_2
           par(:,i)%thfc       = 0.35_r_2
@@ -2829,8 +2865,8 @@ CONTAINS
           par(:,i)%he         = -1.46_r_2
           par(:,i)%lam        = 0.25_r_2
           par(:,i)%Ke         = 2.481e-5_r_2
-       END WHERE
-    ENDDO
+       end where
+    enddo
     par%clay       = 0.06_r_2
     par%tortuosity = 0.67_r_2
     par%thre       = par%the - par%thr
@@ -2881,7 +2917,7 @@ CONTAINS
 
     INTEGER(i_d), INTENT(IN) :: mp
 
-    ALLOCATE(sol(mp))
+    allocate(sol(mp))
 
     sol%T1      = zero
     sol%Ta      = zero
@@ -2917,19 +2953,19 @@ CONTAINS
     REAL(r_2), DIMENSION(ms) :: tmp1d
     INTEGER :: i
 
-    ALLOCATE(x(mp,ms))
-    ALLOCATE(dx(mp,ms))
+    allocate(x(mp,ms))
+    allocate(dx(mp,ms))
 
     ! cumulative soil layer depths = bottom of soil layers
-    tmp1d(1) = REAL(soil%zse(1),r_2)
-    DO i=2, ms
-       tmp1d(i) = tmp1d(i-1) + REAL(soil%zse(i),r_2)
-    END DO
+    tmp1d(1) = real(soil%zse(1),r_2)
+    do i=2, ms
+       tmp1d(i) = tmp1d(i-1) + real(soil%zse(i),r_2)
+    end do
 
     ! soil layer depth
-    dx(1:mp,1:ms) = SPREAD(REAL(soil%zse(1:ms),r_2),1,mp)
+    dx(1:mp,1:ms) = spread(real(soil%zse(1:ms),r_2),1,mp)
     ! bottom of each soil layer
-    x(1:mp,1:ms)  = SPREAD(tmp1d(1:ms),1,mp)
+    x(1:mp,1:ms)  = spread(tmp1d(1:ms),1,mp)
 
   END SUBROUTINE setx
 
@@ -2960,17 +2996,17 @@ CONTAINS
     INTEGER(i_d)                :: i
 
     dy(ns) = dd(ns) ! decomposition and forward substitution
-    DO i=ns, n-1
+    do i=ns, n-1
        ee(i)   = cc(i)/bb(i)
        dy(i)   = dy(i)/bb(i)
        bb(i+1) = bb(i+1)-aa(i+1)*ee(i)
        dy(i+1) = dd(i+1)-aa(i+1)*dy(i)
-    END DO
+    end do
 
     dy(n) = dy(n)/bb(n) ! back substitution
-    DO i=n-1, ns, -1
+    do i=n-1, ns, -1
        dy(i) = dy(i)-ee(i)*dy(i+1)
-    END DO
+    end do
 
   END SUBROUTINE tri_1d
 
@@ -3001,17 +3037,17 @@ CONTAINS
     INTEGER(i_d)                     :: i
 
     dy(:,ns) = dd(:,ns) ! decomposition and forward substitution
-    DO i=ns, n-1
+    do i=ns, n-1
        ee(:,i)   = cc(:,i)/bb(:,i)
        dy(:,i)   = dy(:,i)/bb(:,i)
        bb(:,i+1) = bb(:,i+1)-aa(:,i+1)*ee(:,i)
        dy(:,i+1) = dd(:,i+1)-aa(:,i+1)*dy(:,i)
-    END DO
+    end do
 
     dy(:,n) = dy(:,n)/bb(:,n) ! back substitution
-    DO i=n-1, ns, -1
+    do i=n-1, ns, -1
        dy(:,i) = dy(:,i)-ee(:,i)*dy(:,i+1)
-    END DO
+    end do
 
   END SUBROUTINE tri_2d
 
@@ -3025,9 +3061,9 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: T
+    real(r_2), intent(in) :: T
 
-    csat = esata * EXP(esatb*T/(T+esatc)) * Mw/Rgas/(T+Tzero)
+    csat = esata * exp(esatb*T/(T+esatc)) * Mw/Rgas/(T+Tzero)
 
   END FUNCTION csat
 
@@ -3039,7 +3075,7 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) ::  thetal, thetai, css, rho
+    real(r_2), intent(in) ::  thetal, thetai, css, rho
 
     csoil = css*rho + rhow*cswat*thetal + rhow*csice*thetai
 
@@ -3053,20 +3089,20 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: Tin,S,he,b,thre,the
-    REAL(r_2)             :: dthetaldh, h, psi, PI, T, thetalmax
+    real(r_2), intent(in) :: Tin,S,he,b,thre,the
+    real(r_2)             :: dthetaldh, h, psi, PI, T, thetalmax
 
-    T = MIN(Tfrz(MIN(S,one),he,b),Tin)
+    T = min(Tfrz(min(S,one),he,b),Tin)
     PI  = -csol*Rgas*(T+Tzero)/gravity ! osmotic potential (m)
     psi = lambdaf*T/(gravity*(T+Tzero))! total matric potential in presence of ice
     h   = psi-PI       ! moisture potential in presence of ice
 
     ! thetalmax = thre*(h/he)**(-one/b) + (the-thre)
-    thetalmax = thre*EXP(-one/b*LOG(h/he)) + (the-thre)
+    thetalmax = thre*exp(-one/b*log(h/he)) + (the-thre)
     dthetaldh = -thetalmax/b/h
 
     dthetalmaxdT = dthetaldh*(lambdaf/(T+Tzero)/gravity-lambdaf*T/gravity/(T+Tzero)**2+csol*Rgas/gravity)
-    IF (S>1) dthetalmaxdT = dthetalmaxdT * S
+    if (S>1) dthetalmaxdT = dthetalmaxdT * S
 
   END FUNCTION dthetalmaxdT
 
@@ -3079,12 +3115,12 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: Tin,S,he,b,thre,the
-    REAL(r_2)             :: dthetaldh, h, theta, T
+    real(r_2), INTENT(in) :: Tin,S,he,b,thre,the
+    real(r_2)             :: dthetaldh, h, theta, T
 
-    T     = MIN(Tfrz(S,he,b),Tin)
+    T     = min(Tfrz(S,he,b),Tin)
     ! h     = he * S**(-b)
-    h     = he * EXP(-b*LOG(S))
+    h     = he * exp(-b*log(S))
     theta = S*thre + (the-thre)
 
     dthetaldh = -theta/b/h
@@ -3101,9 +3137,9 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: T
+    real(r_2), intent(in) :: T
 
-    esat = esata * EXP(esatb*T/(T+esatc))
+    esat = esata * exp(esatb*T/(T+esatc))
 
   END FUNCTION esat
 
@@ -3157,32 +3193,32 @@ CONTAINS
 
     REAL(r_2), INTENT(IN) :: a,x
     INTEGER(i_d), PARAMETER :: ITMAX=100
-    REAL(r_2),    PARAMETER :: EPS=EPSILON(x)
-    REAL(r_2),    PARAMETER :: FPMIN=TINY(x)/EPS
+    REAL(r_2),    PARAMETER :: EPS=epsilon(x)
+    REAL(r_2),    PARAMETER :: FPMIN=tiny(x)/EPS
     INTEGER(i_d) :: i
     REAL(r_2)     :: an, b, c, d, del, h
 
-    IF (x == 0.0_r_2) THEN
+    if (x == 0.0_r_2) then
        gcf=1.0_r_2
        RETURN
-    END IF
+    end if
     b = x + 1.0_r_2 - a
     c = 1.0_r_2/FPMIN
     d = 1.0_r_2/b
     h = d
-    DO i=1, ITMAX
+    do i=1, ITMAX
        an  = -i*(i-a)
        b   = b + 2.0_r_2
        d   = an*d + b
-       IF (ABS(d)<FPMIN) d=FPMIN
+       if (abs(d)<FPMIN) d=FPMIN
        c   = b + an/c
-       IF (ABS(c)<FPMIN) c=FPMIN
+       if (abs(c)<FPMIN) c=FPMIN
        d   = 1.0_r_2/d
        del = d*c
        h   = h*del
-       IF (ABS(del-1.0_r_2) <= EPS) EXIT
-    END DO
-    gcf = EXP(-x + a*LOG(x) - gammln(a)) * h
+       if (abs(del-1.0_r_2) <= EPS) exit
+    end do
+    gcf = exp(-x + a*log(x) - gammln(a)) * h
 
   END FUNCTION gcf
 
@@ -3194,24 +3230,24 @@ CONTAINS
 
     REAL(r_2), INTENT(IN) :: a, x
     INTEGER(i_d), PARAMETER :: ITMAX=100
-    REAL(r_2),     PARAMETER :: EPS=EPSILON(x)
+    REAL(r_2),     PARAMETER :: EPS=epsilon(x)
     INTEGER(i_d) :: n
     REAL(r_2)     :: ap, del, summ
 
-    IF (x == 0.0_r_2) THEN
+    if (x == 0.0_r_2) then
        gser = 0.0_r_2
        RETURN
-    END IF
+    end if
     ap   = a
     summ = 1.0_r_2/a
     del  = summ
-    DO n=1, ITMAX
+    do n=1, ITMAX
        ap   = ap + 1.0_r_2
        del  = del*x/ap
        summ = summ + del
-       IF (ABS(del) < ABS(summ)*EPS) EXIT
-    END DO
-    gser=summ*EXP(-x+a*LOG(x)-gammln(a))
+       if (abs(del) < abs(summ)*EPS) exit
+    end do
+    gser=summ*exp(-x+a*log(x)-gammln(a))
 
   END FUNCTION gser
 
@@ -3223,12 +3259,12 @@ CONTAINS
     REAL(r_2), INTENT(IN) :: a, x
     REAL(r_2) :: gln
     gln = gammln(a)
-    IF (x < a+1.0_r_2) THEN
+    if (x < a+1.0_r_2) then
        igamma = 1.0_r_2 - gser(a,x)
-    ELSE
+    else
        igamma = gcf(a,x)
-    END IF
-    igamma = igamma * EXP(gln)
+    end if
+    igamma = igamma * exp(gln)
 
   END FUNCTION igamma
 
@@ -3248,22 +3284,22 @@ CONTAINS
 
     !MC freezing point? csol?
     csol1 = zero ! use zero instead of csol for the moment
-    IF (PRESENT(Ksat)) THEN
-       IF (T < zero) THEN     ! frozen soil  !! need to adjust freezing point for csol and use global csol
+    if (present(Ksat)) then
+       if (T < zero) then     ! frozen soil  !! need to adjust freezing point for csol and use global csol
           h   = (lambdaf*T/gravity/(T+Tzero)) + csol1*Rgas* (T + Tzero)/gravity
           ! phi = Ksat * he/(one-eta*lambda) * (h/he)**(one-eta*lambda)
-          phi = Ksat * he/(one-eta*lambda) * EXP((one-eta*lambda)*LOG(h/he))
-       ELSE
+          phi = Ksat * he/(one-eta*lambda) * exp((one-eta*lambda)*log(h/he))
+       else
           phi = zero
-       ENDIF
-    ELSE
-       IF (hr0 < one) THEN
+       endif
+    else
+       if (hr0 < one) then
           ! phi = phie * (Rgas *(T+Tzero) *log(hr0) /(gravity * he * Mw))**(one-eta*lambda)
-          phi = phie * EXP((one-eta*lambda)*LOG(Rgas *(T+Tzero) *LOG(hr0) /(gravity * he * Mw)))
-       ELSE
+          phi = phie * exp((one-eta*lambda)*log(Rgas *(T+Tzero) *log(hr0) /(gravity * he * Mw)))
+       else
           phi = phie
-       ENDIF
-    ENDIF
+       endif
+    endif
 
   END FUNCTION phi
 
@@ -3310,20 +3346,20 @@ CONTAINS
 
     fmid = rh0_sol(x2,sol)
     f    = rh0_sol(x1,sol)
-    IF (f < zero) THEN
+    if (f < zero) then
        rtbis_rh0 = x1
        dx        = x2-x1
-    ELSE
+    else
        rtbis_rh0 = x2
        dx        = x1-x2
-    END IF
-    DO j=1, MAXIT
+    end if
+    do j=1, MAXIT
        dx   = dx*half
        xmid = rtbis_rh0+dx
        fmid = rh0_sol(xmid,sol)
-       IF (fmid <= zero) rtbis_rh0 = xmid
-       IF (ABS(dx) < xacc .OR. fmid == zero) RETURN
-    END DO
+       if (fmid <= zero) rtbis_rh0 = xmid
+       if (abs(dx) < xacc .or. fmid == zero) RETURN
+    end do
 
   END FUNCTION rtbis_rh0
 
@@ -3335,10 +3371,10 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: T
-    REAL(r_2) :: csat
+    real(r_2), intent(in) :: T
+    real(r_2) :: csat
 
-    csat       = esata * EXP(esatb*T/(T+esatc)) * Mw/Rgas/(T+Tzero)
+    csat       = esata * exp(esatb*T/(T+esatc)) * Mw/Rgas/(T+Tzero)
     slope_csat = csat * esatb*esatc/(T+esatc)**2
 
   END FUNCTION slope_csat
@@ -3351,10 +3387,10 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: T
-    REAL(r_2) :: esat
+    real(r_2), intent(in) :: T
+    real(r_2) :: esat
 
-    esat       = esata * EXP(esatb*T/(T+esatc))
+    esat       = esata * exp(esatb*T/(T+esatc))
     slope_esat = esat * esatb*esatc/(T+esatc)**2
 
   END FUNCTION slope_esat
@@ -3367,9 +3403,9 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: T
+    real(r_2), intent(in) :: T
 
-    esat_ice = esata_ice * EXP(esatb_ice*T/(T+esatc_ice))
+    esat_ice = esata_ice * exp(esatb_ice*T/(T+esatc_ice))
 
   END FUNCTION esat_ice
 
@@ -3381,10 +3417,10 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: T
-    REAL(r_2) :: esat_ice
+    real(r_2), intent(in) :: T
+    real(r_2) :: esat_ice
 
-    esat_ice       = esata_ice * EXP(esatb_ice*T/(T+esatc_ice))
+    esat_ice       = esata_ice * exp(esatb_ice*T/(T+esatc_ice))
     slope_esat_ice = esat_ice * esatb_ice*esatc_ice/(T+esatc_ice)**2
 
   END FUNCTION slope_esat_ice
@@ -3403,7 +3439,7 @@ CONTAINS
     ! h   - matric head.
 
     ! Sofh = (h/parin%he)**(-parin%lam) ! Sofh not used much so ** not an issue
-    Sofh = EXP(-parin%lam*LOG(h/parin%he))
+    Sofh = exp(-parin%lam*log(h/parin%he))
 
   END FUNCTION Sofh
 
@@ -3415,21 +3451,21 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: S, he, b
+    real(r_2), intent(in) :: S, he, b
 
-    IF (csol > e3) THEN
+    if (csol > e3) then
        ! Tfrz = (gravity*he - (min(S,one))**b * (lambdaf + two*csol*Rgas*Tzero) + &
        !      sqrt(gravity**2 * he**2 - two*gravity*he*lambdaf*(min(S,one))**b + &
        !      lambdaf*(min(S,one))**(two*b)*(lambdaf + four*csol*Rgas*Tzero)))/ &
        !      (two*csol*Rgas*(min(S,one))**b)
-       Tfrz = (gravity*he - EXP(b*LOG(MIN(S,one))) * (lambdaf + two*csol*Rgas*Tzero) + &
-            SQRT(gravity**2 * he**2 - two*gravity*he*lambdaf*EXP(b*LOG(MIN(S,one))) + &
-            lambdaf*EXP(two*b*LOG(MIN(S,one)))*(lambdaf + four*csol*Rgas*Tzero))) / &
-            (two*csol*Rgas*EXP(b*LOG(MIN(S,one))))
-    ELSE
+       Tfrz = (gravity*he - exp(b*log(min(S,one))) * (lambdaf + two*csol*Rgas*Tzero) + &
+            sqrt(gravity**2 * he**2 - two*gravity*he*lambdaf*exp(b*log(min(S,one))) + &
+            lambdaf*exp(two*b*log(min(S,one)))*(lambdaf + four*csol*Rgas*Tzero))) / &
+            (two*csol*Rgas*exp(b*log(min(S,one))))
+    else
        ! Tfrz = (gravity*he*Tzero) / (-(gravity*he) + lambdaf*(S)**b)
-       Tfrz = (gravity*he*Tzero) / (-gravity*he + lambdaf*EXP(b*LOG(MAX(MIN(S,one),0.01_r_2))))
-    ENDIF
+       Tfrz = (gravity*he*Tzero) / (-gravity*he + lambdaf*exp(b*log(max(min(S,one),0.01_r_2))))
+    endif
 
   END FUNCTION Tfrz
 
@@ -3441,9 +3477,9 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: J, dx, theta, thetal, csoil, rhosoil, h0, thetasat
+    real(r_2), intent(in) :: J, dx, theta, thetal, csoil, rhosoil, h0, thetasat
 
-    IF (h0 > zero) THEN
+    if (h0 > zero) then
        Tfrozen = (cswat*h0*rhow*theta + h0*lambdaf*rhow*theta - &
             cswat*h0*rhow*thetal - h0*lambdaf*rhow*thetal + &
             J*thetasat - cswat*h0*rhow*thetasat + &
@@ -3453,10 +3489,10 @@ CONTAINS
             csoil*dx*rhosoil*thetasat + csice*dx*rhow*theta*thetasat - &
             csice*dx*rhow*thetal*thetasat +  &
             cswat*dx*rhow*thetal*thetasat)
-    ELSE
+    else
        Tfrozen = (J + dx*lambdaf*rhow*theta - dx*lambdaf*rhow*thetal)/ &
             (dx*(csoil*rhosoil + csice*rhow*theta - csice*rhow*thetal + cswat*rhow*thetal))
-    ENDIF
+    endif
 
   END FUNCTION Tfrozen
 
@@ -3468,17 +3504,17 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: T, J, dx, theta, csoil, rhosoil, h0, thre, the, he, b
-    REAL(r_2) :: thetal, S
+    real(r_2), intent(in) :: T, J, dx, theta, csoil, rhosoil, h0, thre, the, he, b
+    real(r_2) :: thetal, S
 
     S = (theta-(the-thre))/thre
 
-    IF (T<Tfrz(MIN(S,one),he,b)) THEN
+    if (T<Tfrz(min(S,one),he,b)) then
        !thetal = thetalmax(T,min(S,one),he,b,thre,the)
        thetal = thetalmax(T,S,he,b,thre,the)
-    ELSE
+    else
        thetal = theta
-    ENDIF
+    endif
 
     GTfrozen = -J + dx*(csoil*rhosoil*T + rhow*(-lambdaf + csice*T)*(theta - thetal) + &
          cswat*rhow*T*thetal) + cswat*T*h0*rhow*(1 - (theta - thetal)/thre) + &
@@ -3494,17 +3530,17 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: T,  dx, theta, csoil, rhosoil, h0, thre, the, he, b
-    REAL(r_2) :: thetal, S
+    real(r_2), intent(in) :: T,  dx, theta, csoil, rhosoil, h0, thre, the, he, b
+    real(r_2) :: thetal, S
 
     S = (theta-(the-thre))/thre
 
-    IF (T<Tfrz(S,he,b)) THEN
+    if (T<Tfrz(S,he,b)) then
        !thetal = thetalmax(T,min(S,one),he,b,thre,the)
        thetal = thetalmax(T,S,he,b,thre,the)
-    ELSE
+    else
        thetal = theta
-    ENDIF
+    endif
 
     JSoilLayer =  dx*(csoil*rhosoil*T + rhow*(-lambdaf + csice*T)*(theta - thetal) + &
          cswat*rhow*T*thetal) + cswat*T*h0*rhow*(one - (theta - thetal)/thre) + &
@@ -3524,7 +3560,7 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: J, dxsoil, theta, csoil, rhosoil, h0, thre, the, he, b
+    real(r_2), intent(in) :: J, dxsoil, theta, csoil, rhosoil, h0, thre, the, he, b
     REAL(r_2), INTENT(IN) :: x1, x2, xacc
 
     INTEGER(i_d), PARAMETER :: MAXIT=80
@@ -3533,24 +3569,24 @@ CONTAINS
 
     fmid = GTfrozen(x2, J, dxsoil, theta, csoil, rhosoil, h0, thre, the, he, b)
     f    = GTfrozen(x1, J, dxsoil, theta, csoil, rhosoil, h0, thre, the, he, b)
-    IF (f < zero) THEN
+    if (f < zero) then
        rtbis_Tfrozen = x1
        dx            = x2-x1
-    ELSE
+    else
        rtbis_Tfrozen = x2
        dx            = x1-x2
-    END IF
-    DO k=1, MAXIT
+    end if
+    do k=1, MAXIT
        dx   = dx*half
        xmid = rtbis_Tfrozen+dx
        fmid = GTfrozen(xmid, J, dxsoil, theta, csoil, rhosoil, h0, thre, the, he, b)
-       IF (fmid <= zero) rtbis_Tfrozen = xmid
+       if (fmid <= zero) rtbis_Tfrozen = xmid
        ! if (abs(dx) < xacc .or. fmid == zero) RETURN
-       IF (ABS(fmid) < one) THEN
+       if (abs(fmid) < one) then
           rtbis_Tfrozen = xmid
-          RETURN
-       ENDIF
-    END DO
+          return
+       endif
+    end do
 
   END FUNCTION rtbis_Tfrozen
 
@@ -3562,17 +3598,17 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: Tin, S, he, b, thre, the
-    REAL(r_2)             :: opsi, psi, h, T
+    real(r_2), intent(in) :: Tin, S, he, b, thre, the
+    real(r_2)             :: opsi, psi, h, T
 
-    T    = MIN(Tfrz(MIN(S,one),he,b),Tin)
+    T    = min(Tfrz(min(S,one),he,b),Tin)
     opsi = -csol *Rgas *(T+Tzero)/gravity ! osmotic potential (m)
     psi  = lambdaf*T/(gravity*(T+Tzero))  ! matric potential in presence of ice
     h    = psi-opsi                       ! moisture potential in presence of ice
 
     ! thetalmax = thre*(h/he)**(-1/b) + (the-thre)
-    thetalmax = thre*EXP(-one/b*LOG(h/he)) + (the-thre)
-    IF (S > one) thetalmax = S * thetalmax
+    thetalmax = thre*exp(-one/b*log(h/he)) + (the-thre)
+    if (S > one) thetalmax = S * thetalmax
 
   END FUNCTION thetalmax
 
@@ -3584,18 +3620,18 @@ CONTAINS
 
     IMPLICIT NONE
 
-    REAL(r_2), INTENT(in) :: thetal,S,he,b,thre,the,Tin
-    REAL(r_2)             :: opsi, psi, h, T, Tfreezing
+    real(r_2), intent(in) :: thetal,S,he,b,thre,the,Tin
+    real(r_2)             :: opsi, psi, h, T, Tfreezing
 
     !integer(i_d) :: k
 
     T = Tin
     !do k=1,20
     Tfreezing  = Tfrz(S,he,b)
-    T          = MIN(Tfreezing,T)
+    T          = min(Tfreezing,T)
     opsi       = -csol *Rgas *(T+Tzero)/gravity                ! osmotic potential (m)
     ! h          = he*(max((thetal-(the-thre)),0.01_r_2)/thre)**(-b) ! moisture potential in presence of ice
-    h          = he*EXP(-b*LOG(MAX((thetal-(the-thre)),0.01_r_2)/thre)) ! moisture potential in presence of ice
+    h          = he*exp(-b*log(max((thetal-(the-thre)),0.01_r_2)/thre)) ! moisture potential in presence of ice
     psi        = h + opsi
     Tthetalmax = psi*(gravity*(T+Tzero)) / lambdaf
     !T = T + 0.1*(Tthetalmax-T)
@@ -3625,22 +3661,22 @@ CONTAINS
     LOGICAL   :: done
     REAL(r_2) :: a, hz, Khz, Kz, phiz, w, x
 
-    done = .FALSE.
+    done = .false.
     hz   = h-gf*dz ! gf is gravity fac in direction of dz
-    IF (h<parin%he) THEN
+    if (h<parin%he) then
        a = parin%lam*parin%eta
        x = -gf*dz/h
-       IF (a <= 3.0_r_2 .OR. x*(a-3.0_r_2) <= 4.0_r_2) THEN ! use predetermined approx.
+       if (a <= 3.0_r_2 .or. x*(a-3.0_r_2) <= 4.0_r_2) then ! use predetermined approx.
           w    = (60.0_r_2+x*(70.0_r_2+10.0_r_2*a+x*(16.0_r_2+a*(5.0_r_2+a))))/ &
                (120.0_r_2+x*(120.0_r_2+x*(22.0_r_2+2.0_r_2*a**2)))
-          done = .TRUE.
-       END IF
-    END IF
-    IF (.NOT. done) THEN
-       CALL hyofh(hz, parin%lam, parin%eta, parin%Ke, parin%he, Kz, Khz, phiz) ! accurate but slower
+          done = .true.
+       end if
+    end if
+    if (.not. done) then
+       call hyofh(hz, parin%lam, parin%eta, parin%Ke, parin%he, Kz, Khz, phiz) ! accurate but slower
        w = -((phiz-phi)/(gf*dz)+K)/(Kz-K)
-    END IF
-    weight = MIN(MAX(w,zero),one)
+    end if
+    weight = min(max(w,zero),one)
 
   END FUNCTION weight
 
@@ -3697,7 +3733,7 @@ CONTAINS
 
   !**********************************************************************************************************************
 
-  SUBROUTINE bracket(x, xval, left, right)
+  subroutine bracket(x, xval, left, right)
 
     !*****************************************************************************80
     !
@@ -3735,40 +3771,40 @@ CONTAINS
     !    or
     !      X(LEFT) <= XVAL <= X(RIGHT).
     !
-    IMPLICIT NONE
+    implicit none
 
-    REAL(r_2), DIMENSION(:), INTENT(in) :: x
-    REAL(r_2), DIMENSION(:), INTENT(in) :: xval
-    INTEGER(i_d), DIMENSION(SIZE(xval)), INTENT(out) :: left
-    INTEGER(i_d), DIMENSION(SIZE(xval)), INTENT(out) :: right
+    real(r_2), dimension(:), intent(in) :: x
+    real(r_2), dimension(:), intent(in) :: xval
+    integer(i_d), dimension(size(xval)), intent(out) :: left
+    integer(i_d), dimension(size(xval)), intent(out) :: right
 
-    INTEGER(i_d) :: n, m
-    INTEGER(i_d) :: i, j
-    LOGICAL :: istheend
+    integer(i_d) :: n, m
+    integer(i_d) :: i, j
+    logical :: istheend
 
-    n = SIZE(x)
-    m = SIZE(xval)
-    DO j=1, m
-       istheend = .TRUE.
-       DO i = 2, n - 1
-          IF ( xval(j) < x(i) ) THEN
+    n = size(x)
+    m = size(xval)
+    do j=1, m
+       istheend = .true.
+       do i = 2, n - 1
+          if ( xval(j) < x(i) ) then
              left(j)  = i - 1
              right(j) = i
-             istheend = .FALSE.
-             EXIT
-          END IF
-       END DO
-       IF (istheend) THEN
+             istheend = .false.
+             exit
+          end if
+       end do
+       if (istheend) then
           left(j)  = n - 1
           right(j) = n
-       ENDIF
-    END DO
+       endif
+    end do
 
-    RETURN
+    return
 
-  END SUBROUTINE bracket
+  end subroutine bracket
 
-  FUNCTION spline_b(tval, tdata, ydata)
+  function spline_b(tval, tdata, ydata)
 
     !*****************************************************************************80
     !
@@ -3811,24 +3847,24 @@ CONTAINS
     !
     !    Output, real(r_2) SPLINE_B, the values of the function at TVAL.
     !
-    IMPLICIT NONE
+    implicit none
 
-    REAL(r_2), DIMENSION(:), INTENT(in) :: tval
-    REAL(r_2), DIMENSION(:), INTENT(in) :: tdata
-    REAL(r_2), DIMENSION(:), INTENT(in) :: ydata
-    REAL(r_2), DIMENSION(SIZE(tval))    :: spline_b
+    real(r_2), dimension(:), intent(in) :: tval
+    real(r_2), dimension(:), intent(in) :: tdata
+    real(r_2), dimension(:), intent(in) :: ydata
+    real(r_2), dimension(size(tval))    :: spline_b
 
-    INTEGER(i_d) :: ndata
-    REAL(r_2),    DIMENSION(SIZE(tval)) :: bval
-    INTEGER(i_d), DIMENSION(SIZE(tval)) :: left
-    INTEGER(i_d), DIMENSION(SIZE(tval)) :: right
-    REAL(r_2),    DIMENSION(SIZE(tval)) :: u
+    integer(i_d) :: ndata
+    real(r_2),    dimension(size(tval)) :: bval
+    integer(i_d), dimension(size(tval)) :: left
+    integer(i_d), dimension(size(tval)) :: right
+    real(r_2),    dimension(size(tval)) :: u
 
-    ndata = SIZE(tdata)
+    ndata = size(tdata)
     !
     !  Find the nearest interval [ TDATA(LEFT), TDATA(RIGHT) ] to TVAL.
     !
-    CALL bracket(tdata, tval, left, right)
+    call bracket(tdata, tval, left, right)
     !
     !  Evaluate the 5 nonzero B spline basis functions in the interval,
     !  weighted by their corresponding data values.
@@ -3844,11 +3880,11 @@ CONTAINS
          * u - 3.0_r_2 ) &
          * u + 1.0_r_2 ) / 6.0_r_2
 
-    WHERE ( 0 < left-1 )
+    where ( 0 < left-1 )
        spline_b = spline_b + ydata(left-1) * bval
-    ELSEWHERE
+    elsewhere
        spline_b = spline_b + ( 2.0_r_2 * ydata(1) - ydata(2) ) * bval
-    END WHERE
+    end where
     !
     !  B function associated with node LEFT,
     !  evaluated in its third interval.
@@ -3875,15 +3911,15 @@ CONTAINS
     !
     bval = u**3 / 6.0_r_2
 
-    WHERE ( right+1 <= ndata )
+    where ( right+1 <= ndata )
        spline_b = spline_b + ydata(right+1) * bval
-    ELSEWHERE
+    elsewhere
        spline_b = spline_b + ( 2.0_r_2 * ydata(ndata) - ydata(ndata-1) ) * bval
-    END WHERE
+    end where
 
-    RETURN
+    return
 
-  END FUNCTION spline_b
+  end function spline_b
 
   !**********************************************************************************************************************
 
@@ -3897,26 +3933,26 @@ CONTAINS
 
     REAL(r_2) :: n
 
-    LOGICAL, DIMENSION(SIZE(dat)) :: maske
+    LOGICAL, DIMENSION(size(dat)) :: maske
 
-    IF (PRESENT(mask)) THEN
-       IF (SIZE(mask) /= SIZE(dat)) THEN
-          WRITE(*,*) 'Error mean_1d: size(mask) /= size(dat)'
-          STOP 2
-       ENDIF
+    if (present(mask)) then
+       if (size(mask) /= size(dat)) then
+          write(*,*) 'Error mean_1d: size(mask) /= size(dat)'
+          stop 2
+       endif
        maske = mask
-       n = REAL(COUNT(maske),r_2)
-    ELSE
-       maske(:) = .TRUE.
-       n = REAL(SIZE(dat),r_2)
-    ENDIF
-    IF (n <= (1.0_r_2+TINY(1.0_r_2))) THEN
-       WRITE(*,*) 'mean_1d: n must be at least 2'
-       STOP 2
-    ENDIF
+       n = real(count(maske),r_2)
+    else
+       maske(:) = .true.
+       n = real(size(dat),r_2)
+    endif
+    if (n <= (1.0_r_2+tiny(1.0_r_2))) then
+       write(*,*) 'mean_1d: n must be at least 2'
+       stop 2
+    endif
 
     ! Mean
-    mean_1d  = SUM(dat(:), mask=maske)/n
+    mean_1d  = sum(dat(:), mask=maske)/n
 
   END FUNCTION mean_1d
 
@@ -3930,26 +3966,26 @@ CONTAINS
 
     REAL(r_2) :: n
 
-    LOGICAL, DIMENSION(SIZE(dat,1),SIZE(dat,2)) :: maske
+    LOGICAL, DIMENSION(size(dat,1),size(dat,2)) :: maske
 
-    IF (PRESENT(mask)) THEN
-       IF (SIZE(mask) /= SIZE(dat)) THEN
-          WRITE(*,*) 'Error mean_2d: size(mask) /= size(dat)'
-          STOP 2
-       ENDIF
+    if (present(mask)) then
+       if (size(mask) /= size(dat)) then
+          write(*,*) 'Error mean_2d: size(mask) /= size(dat)'
+          stop 2
+       endif
        maske = mask
-       n = REAL(COUNT(maske),r_2)
-    ELSE
-       maske = .TRUE.
-       n = REAL(SIZE(dat),r_2)
-    ENDIF
-    IF (n <= (1.0_r_2+TINY(1.0_r_2))) THEN
-       WRITE(*,*) 'mean_2d: n must be at least 2'
-       STOP 2
-    ENDIF
+       n = real(count(maske),r_2)
+    else
+       maske = .true.
+       n = real(size(dat),r_2)
+    endif
+    if (n <= (1.0_r_2+tiny(1.0_r_2))) then
+       write(*,*) 'mean_2d: n must be at least 2'
+       stop 2
+    endif
 
     ! Mean
-    mean_2d  = SUM(dat, mask=maske)/n
+    mean_2d  = sum(dat, mask=maske)/n
 
   END FUNCTION mean_2d
 
@@ -3965,21 +4001,21 @@ CONTAINS
     REAL(r_2)                                     :: nse_1d
 
     REAL(r_2)                                     :: xmean
-    REAL(r_2), DIMENSION(SIZE(x))                 :: v1, v2
-    LOGICAL,   DIMENSION(SIZE(x))                 :: maske
+    REAL(r_2), DIMENSION(size(x))                 :: v1, v2
+    LOGICAL,   DIMENSION(size(x))                 :: maske
 
-    IF (PRESENT(mask)) THEN
+    if (present(mask)) then
        maske = mask
-    ELSE
-       maske = .TRUE.
-    ENDIF
+    else
+       maske = .true.
+    endif
 
     ! mean of x
     xmean = mean(x, mask=maske)
     ! nse
-    v1 = MERGE(y - x    , 0.0_r_2, maske)
-    v2 = MERGE(x - xmean, 0.0_r_2, maske)
-    nse_1d = 1.0_r_2 - DOT_PRODUCT(v1,v1) / DOT_PRODUCT(v2,v2)
+    v1 = merge(y - x    , 0.0_r_2, maske)
+    v2 = merge(x - xmean, 0.0_r_2, maske)
+    nse_1d = 1.0_r_2 - dot_product(v1,v1) / dot_product(v2,v2)
 
   END FUNCTION nse_1d
 
@@ -3993,24 +4029,24 @@ CONTAINS
     REAL(r_2)                                       :: nse_2d
 
     REAL(r_2)                                       :: xmean
-    REAL(r_2), DIMENSION(SIZE(x,1),SIZE(x,2))       :: v1, v2
-    LOGICAL,   DIMENSION(SIZE(x,1),SIZE(x,2))       :: maske
+    REAL(r_2), DIMENSION(size(x,1),size(x,2))       :: v1, v2
+    LOGICAL,   DIMENSION(size(x,1),size(x,2))       :: maske
 
     INTEGER(i_d) :: i
 
-    IF (PRESENT(mask)) THEN
+    if (present(mask)) then
        maske = mask
-    ELSE
-       maske = .TRUE.
-    ENDIF
+    else
+       maske = .true.
+    endif
 
     ! nse
-    v1 = MERGE(y - x, 0.0_r_2, maske)
-    DO i=1, SIZE(x,1)
+    v1 = merge(y - x, 0.0_r_2, maske)
+    do i=1, size(x,1)
        xmean   = mean(x(i,:), mask=maske(i,:))
-       v2(i,:) = MERGE(x(i,:) - xmean, 0.0_r_2, maske(i,:))
-    ENDDO
-    nse_2d = 1.0_r_2 - SUM(v1*v1) / SUM(v2*v2)
+       v2(i,:) = merge(x(i,:) - xmean, 0.0_r_2, maske(i,:))
+    enddo
+    nse_2d = 1.0_r_2 - sum(v1*v1) / sum(v2*v2)
 
   END FUNCTION nse_2d
 

@@ -52,6 +52,7 @@ public comm_ip
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, dimension(:), allocatable, save :: pprid
+integer, dimension(:), allocatable, save :: ppanid
 integer, save :: ncidold = -1
 integer, save :: comm_ip
 logical, dimension(:), allocatable, save :: pfown
@@ -230,7 +231,7 @@ if ( mynproc>0 ) then
     rvar(:) = 0. ! default for missing field
   
     ! get variable idv
-    ier=nf90_inq_varid(pncid(ipf),name,idv)
+    ier = nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier/=nf90_noerr ) then
       if ( myid==0 .and. ipf==0 ) then
         write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
@@ -240,7 +241,7 @@ if ( mynproc>0 ) then
         start(1:4)  = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
       else
-        start(1:3)  = (/ 1, 1, iarchi /)
+        start(1:3)  = (/ 1, 1+ppanid(ipf)*pjpan, iarchi /)
         ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
       end if  
       ! obtain scaling factors and offsets from attributes
@@ -251,10 +252,6 @@ if ( mynproc>0 ) then
       ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      !if ( any( rvar/=rvar ) ) then
-      !  write(6,*) "ERROR: NaN read in hr3p_procformat ",trim(name)
-      !  call ccmpi_abort(-1)
-      !end if
       ! unpack compressed data
       rvar(:) = rvar(:)*real(lsf) + real(laddoff)
     end if ! ier
@@ -265,9 +262,7 @@ if ( mynproc>0 ) then
       var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
     else
       ! gather-scatter
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan) = rvar(1:pipan*pjpan*pnpan)
-      else if ( myid==0 ) then
+      if ( myid==0 ) then
         allocate( gvar(pipan*pjpan*pnpan,fnresid) )
         call ccmpi_gatherx(gvar,rvar,0,comm_ip)
         do jpf = 1,fnresid
@@ -399,7 +394,7 @@ if ( mynproc>0 ) then
         start(1:4)  = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
       else
-        start(1:3)  = (/ 1, 1, iarchi /)
+        start(1:3)  = (/ 1, 1+ppanid(ipf)*pjpan, iarchi /)
         ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
       end if 
       ! obtain scaling factors and offsets from attributes
@@ -411,10 +406,6 @@ if ( mynproc>0 ) then
       call ncmsg(name,ier)
       ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      !if ( any( rvar/=rvar ) ) then
-      !  write(6,*) "ERROR: NaN read in hr3p_procformatr8 ",trim(name)
-      !  call ccmpi_abort(-1)
-      !end if
       ! unpack compressed data
       rvar(:) = rvar(:)*real(lsf,8) + real(laddoff,8)
     end if ! ier
@@ -425,9 +416,7 @@ if ( mynproc>0 ) then
       var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
     else
       ! gather-scatter
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan) = rvar(1:pipan*pjpan*pnpan)
-      else if ( myid==0 ) then
+      if ( myid==0 ) then
         allocate( gvar(pipan*pjpan*pnpan,fnresid) )
         call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
         do jpf = 1,fnresid
@@ -556,7 +545,7 @@ if ( mynproc>0 ) then
         start(1:5)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
         ncount(1:5) = (/ pipan, pjpan*pnpan, kk, 1, 1 /)
       else
-        start(1:4)  = (/ 1, 1, 1, iarchi /)
+        start(1:4)  = (/ 1, 1+ppanid(ipf)*pjpan, 1, iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, kk, 1 /)
       end if    
       ! obtain scaling factors and offsets from attributes
@@ -567,10 +556,6 @@ if ( mynproc>0 ) then
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      !if ( any( rvar/=rvar ) ) then
-      !  write(6,*) "ERROR: NaN read in hr4p_procformat ",trim(name)
-      !  call ccmpi_abort(-1)
-      !end if
       ! unpack data
       rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
     else
@@ -578,7 +563,7 @@ if ( mynproc>0 ) then
         start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
       else
-        start(1:3) = (/ 1, 1, iarchi /)
+        start(1:3) = (/ 1, 1+ppanid(ipf)*pjpan, iarchi /)
         ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
       end if    
       do k = 1,kk        
@@ -607,10 +592,7 @@ if ( mynproc>0 ) then
         ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
         ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
         call ncmsg(name,ier)
-        !if ( any( rvar(:,k)/=rvar(:,k) ) ) then
-        !  write(6,*) "ERROR: NaN read in hr4p_procformat ",trim(name)
-        !  call ccmpi_abort(-1)
-        !end if      ! unpack data
+        ! unpack data
         rvar(:,k) = rvar(:,k)*real(lsf) + real(laddoff)      
       end do
     end if ! ier
@@ -621,9 +603,7 @@ if ( mynproc>0 ) then
       var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
     else
       ! gather-scatter
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk) = rvar(1:pipan*pjpan*pnpan,1:kk)
-      else if ( myid==0 ) then
+      if ( myid==0 ) then
         allocate( gvar(pipan*pjpan*pnpan,size(rvar,2),fnresid) )
         call ccmpi_gatherx(gvar,rvar,0,comm_ip)
         do jpf = 1,fnresid
@@ -752,7 +732,7 @@ if ( mynproc>0 ) then
         start(1:5)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
         ncount(1:5) = (/ pipan, pjpan*pnpan, kk, 1, 1 /)
       else
-        start(1:4)  = (/ 1, 1, 1, iarchi /)
+        start(1:4)  = (/ 1, 1+ppanid(ipf)*pjpan, 1, iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, kk, 1 /)   
       end if    
       ! obtain scaling factors and offsets from attributes
@@ -763,10 +743,6 @@ if ( mynproc>0 ) then
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      !if ( any( rvar/=rvar ) ) then
-      !  write(6,*) "ERROR: NaN read in hr4p_procformatr8 ",trim(name)
-      !  call ccmpi_abort(-1)
-      !end if
       ! unpack data
       rvar(:,:) = rvar(:,:)*real(lsf,8) + real(laddoff,8)
     else
@@ -774,7 +750,7 @@ if ( mynproc>0 ) then
         start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
       else
-        start(1:3) = (/ 1, 1, iarchi /)
+        start(1:3) = (/ 1, 1+ppanid(ipf)*pjpan, iarchi /)
         ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
       end if    
       do k = 1,kk        
@@ -803,10 +779,6 @@ if ( mynproc>0 ) then
         ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
         ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
         call ncmsg(name,ier)
-        !if ( any( rvar(:,k)/=rvar(:,k) ) ) then
-        !  write(6,*) "ERROR: NaN read in hr4p_procformatr8 ",trim(name)
-        !  call ccmpi_abort(-1)
-        !end if
         ! unpack data
         rvar(:,k) = rvar(:,k)*real(lsf,8) + real(laddoff,8)      
       end do
@@ -933,7 +905,7 @@ if ( mynproc>0 ) then
       start(1:6)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
       ncount(1:6) = (/ pipan, pjpan*pnpan, kk, ll, 1, 1 /)
     else
-      start(1:5)  = (/ 1, 1, 1, 1, iarchi /)
+      start(1:5)  = (/ 1, 1+ppanid(ipf)*pjpan, 1, 1, iarchi /)
       ncount(1:5) = (/ pipan, pjpan*pnpan, kk, ll, 1 /)   
     end if    
     ! obtain scaling factors and offsets from attributes
@@ -944,10 +916,6 @@ if ( mynproc>0 ) then
     ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
     ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
-    !if ( any( rvar/=rvar ) ) then
-    !  write(6,*) "ERROR: NaN read in hr5p_procformat ",trim(name)
-    !  call ccmpi_abort(-1)
-    !end if
     ! unpack data
     rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)
 
@@ -957,9 +925,7 @@ if ( mynproc>0 ) then
       var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
     else
       ! e.g., mesonest file
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk,1:ll) = rvar(1:pipan*pjpan*pnpan,1:kk,1:ll)
-      else if ( myid==0 ) then
+      if ( myid==0 ) then
         allocate( gvar(pipan*pjpan*pnpan,size(var,2),size(var,3),fnresid) )
         call ccmpi_gatherx(gvar,rvar,0,comm_ip)
         do jpf = 1,fnresid
@@ -1078,7 +1044,7 @@ if ( mynproc>0 ) then
       start(1:6)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
       ncount(1:6) = (/ pipan, pjpan*pnpan, kk, ll, 1, 1 /)
     else
-      start(1:5)  = (/ 1, 1, 1, 1, iarchi /)
+      start(1:5)  = (/ 1, 1+ppanid(ipf)*pjpan, 1, 1, iarchi /)
       ncount(1:5) = (/ pipan, pjpan*pnpan, kk, ll, 1 /)   
     end if    
     ! obtain scaling factors and offsets from attributes
@@ -1089,10 +1055,6 @@ if ( mynproc>0 ) then
     ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
     ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
-    !if ( any( rvar/=rvar ) ) then
-    !  write(6,*) "ERROR: NaN read in hr5p_procformatr8 ",trim(name)
-    !  call ccmpi_abort(-1)
-    !end if
     ! unpack data
     rvar(:,:,:) = rvar(:,:,:)*real(lsf,8) + real(laddoff,8)
 
@@ -1102,9 +1064,7 @@ if ( mynproc>0 ) then
       var(1+ca:pipan*pjpan*pnpan+ca,1:kk,1:ll) = rvar(:,:,:)
     else
       ! e.g., mesonest file
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk,1:ll) = rvar(1:pipan*pjpan*pnpan,1:kk,1:ll)
-      else if ( myid==0 ) then
+      if ( myid==0 ) then
         allocate( gvar(pipan*pjpan*pnpan,size(rvar,2),size(rvar,3),fnresid) )
         call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
         do jpf = 1,fnresid
@@ -1151,7 +1111,7 @@ implicit none
 integer, parameter :: nihead = 54
       
 integer, dimension(0:5) :: duma, dumb
-integer, dimension(11) :: idum
+integer, dimension(12) :: idum
 integer, intent(out) :: ncid, ier
 integer is, ipf, dmode
 integer ipin, ipin_f, ipin_new, nxpr, nypr
@@ -1275,20 +1235,29 @@ if ( myid==0 ) then
       pko_g = 0
     end if
         
+    ! special case for single file input
+    if ( dmode==0 ) then
+      if ( myid==0 ) then
+        write(6,*) "--> Decompose single file into six panels"
+      end if
+      fnproc = 6
+    end if  
+    
     if ( allocated(pioff) ) then
-      deallocate( pioff, pjoff, pnoff )
+      write(6,*) "ERROR: Cannot open new input file until old file is closed"
+      call ccmpi_abort(-1)
     end if
     allocate( pioff(0:fnproc-1,0:5), pjoff(0:fnproc-1,0:5) )
     allocate( pnoff(0:fnproc-1) )
         
     select case(dmode)
-      case(0) ! no decomposition
-        pnpan = 6
-        pnoff = 1
-        pioff = 0
-        pjoff = 0
-        pipan = pil_g
-        pjpan = pil_g
+      case(0) ! single file - decompose into six panels
+        pnpan = max(1,6/fnproc)
+        do ipf = 0,fnproc-1
+          call face_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
+          pioff(ipf,:) = duma(:)
+          pjoff(ipf,:) = dumb(:)
+        end do
       case(1) ! face decomposition
         pnpan = max(1,6/fnproc)
         do ipf = 0,fnproc-1
@@ -1296,7 +1265,7 @@ if ( myid==0 ) then
           pioff(ipf,:) = duma(:)
           pjoff(ipf,:) = dumb(:)
         end do
-      case(2) ! old uniform decomposition
+      case(2) ! old uniform decomposition - depreciated
         pnpan = 6
         do ipf = 0,fnproc-1
           call uniform_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
@@ -1327,7 +1296,7 @@ if ( myid==0 ) then
       end if
     end if
 
-    write(6,*) "dmode,ptest,resprocformat ",dmode,ptest,resprocformat
+    write(6,*) "--> dmode,ptest,resprocformat ",dmode,ptest,resprocformat
     
   end if
 
@@ -1350,6 +1319,7 @@ if ( myid==0 ) then
   idum(9) = pko_g
   idum(10) = pil_g
   idum(11) = pjl_g
+  idum(12) = dmode
   
   if ( resprocformat ) then
     start(1) = 1
@@ -1379,27 +1349,28 @@ if ( myid==0 ) then
     end if
   end if
   
-  write(6,*) "Broadcasting file metadata"
+  write(6,*) "--> Broadcasting file metadata"
 end if
 
 ! Broadcast file metadata
-call ccmpi_bcast(idum(1:11),0,comm_world)
+call ccmpi_bcast(idum(1:12),0,comm_world)
 fnproc        = idum(1)      ! number of files to be read
-resprocformat = (idum(2)==1) ! test for procformat file format
+resprocformat = idum(2)==1   ! test for procformat file format
 pipan         = idum(3)      ! width of panel in each file
 pjpan         = idum(4)      ! length of panel in each file
 pnpan         = idum(5)      ! number of panels in each file
-ptest         = (idum(6)==1) ! test for match between files and processes
+ptest         = idum(6)==1   ! test for match between files and processes
 ier           = idum(7)      ! file error flag
 pka_g         = idum(8)      ! number of atmosphere levels
 pko_g         = idum(9)      ! number of ocean levels
 pil_g         = idum(10)     ! global grid size
 pjl_g         = idum(11)     ! global grid size
+dmode         = idum(12)     ! file decomposition
 
 if ( ier/=nf90_noerr ) return
 
 if ( myid==0 ) then
-  write(6,*) "Opening data files"
+  write(6,*) "--> Opening data files"
 end if
 
 ! calculate number of files to be read on this processor
@@ -1416,13 +1387,14 @@ end if
 
 ! allocate array of file handles.  Unallocated implies no files to be read on this processor
 if ( allocated(pncid) ) then
-  write(6,*) "ERROR: Cannot open new parallel output until old file is closed"
+  write(6,*) "ERROR: Cannot open new input file until old file is closed"
   call ccmpi_abort(-1)
 end if
 if ( mynproc>0 ) then
-  allocate( pncid(0:mynproc-1) )
-  allocate( pfown(0:mynproc-1) )
+  allocate( pncid(0:mynproc-1), pfown(0:mynproc-1) )
+  allocate( ppanid(0:mynproc-1) )
   pfown(:) = .false.
+  ppanid(:) = 0
 end if
 ! Rank 0 can start with the second file, because the first file has already been opened
 if ( myid==0 ) then 
@@ -1435,8 +1407,8 @@ end if
 
 ! distribute comms
 if ( myid==0 ) then
-  write(6,*) "Splitting comms for distributing file data with fnresid ",fnresid
-  write(6,*) "Number of files to be read with mynproc ",mynproc
+  write(6,*) "--> Splitting comms for distributing file data with fnresid ",fnresid
+  write(6,*) "--> Number of files to be read with mynproc ",mynproc
 end if
 
 ! define comm group to read the residual files
@@ -1496,9 +1468,9 @@ if ( mynproc>0 ) then
     deallocate( procfileowner )
     deallocate( resprocdata_inv )    
    
-  else
+  else if ( dmode/=0 ) then
     
-    ! original parallel file
+    ! original parallel file without resprocformat
     ! loop through files to be opened by this processor
     do ipf = is,mynproc-1
       ipin = ipf*fnresid + myid
@@ -1511,6 +1483,25 @@ if ( mynproc>0 ) then
       end if
     end do
    
+  else  
+    
+    ! single input file decomposed into six panels
+
+    do ipf = 0,mynproc-1
+      ipin = ipf*fnresid + myid  
+      ppanid(ipf) = ipin
+    end do    
+    
+    do ipf = is,mynproc-1
+      ipin = ipf*fnresid + myid
+      pfown(ipf) = .true.
+      der = nf90_open(ifile,nf90_nowrite,pncid(ipf))
+      if ( der/=nf90_noerr ) then
+        write(6,*) "ERROR: Cannot open ",ifile
+        call ncmsg("open",der)
+      end if
+    end do 
+      
   end if ! resprocformat ..else..
 end if   ! mynproc>0
 
@@ -1527,13 +1518,13 @@ end if
 
 allocate( dum_off(0:fnproc-1,1:13) )
 if ( myid==0 ) then
-  write(6,*) "Broadcast file coordinate data"
+  write(6,*) "--> Broadcast file coordinate data"
   dum_off(0:fnproc-1,1:6)  = pioff(0:fnproc-1,0:5)
   dum_off(0:fnproc-1,7:12) = pjoff(0:fnproc-1,0:5)
   dum_off(0:fnproc-1,13)   = pnoff(0:fnproc-1)
 else
   allocate( pioff(0:fnproc-1,0:5), pjoff(0:fnproc-1,0:5) )
-  allocate( pnoff(0:fnproc-1))
+  allocate( pnoff(0:fnproc-1) )
 end if
 call ccmpi_bcast(dum_off,0,comm_world)
 pioff(0:fnproc-1,0:5) = dum_off(0:fnproc-1,1:6)
@@ -1543,7 +1534,7 @@ deallocate( dum_off )
 
 
 if ( myid==0 ) then
-  write(6,*) "Ready to read data from input file"
+  write(6,*) "--> Ready to read data from input file"
 end if
 
 return
@@ -1564,10 +1555,6 @@ if ( myid==0 ) then
   write(6,*) 'Closing input file'
 end if
 
-if ( allocated(pprid) ) then
-  deallocate(pprid)
-end if
-
 if ( allocated(pncid) ) then
   plen = size(pncid)
   do ipf = 0,plen-1
@@ -1575,19 +1562,32 @@ if ( allocated(pncid) ) then
       ierr = nf90_close(pncid(ipf))
     end if
   end do
-  deallocate(pfown)
-  deallocate(pncid)
+  deallocate( pfown, pncid )
+  deallocate( ppanid )
 end if
 
-if ( myid==0 ) then
-  write(6,*) 'Removing file communication group'
+if ( allocated(pprid) ) then
+  deallocate(pprid)
 end if
-call ccmpi_commfree(comm_ip)
-
 if (allocated(pioff)) then
   deallocate(pioff,pjoff,pnoff)
 end if
+if ( allocated(filemap_recv) ) then
+  deallocate( filemap_recv, filemap_rmod )
+end if
+if ( allocated(filemap_send) ) then
+  deallocate( filemap_send, filemap_smod )
+end if
+if ( allocated(filemap_facecomm) ) then
+  deallocate( filemap_facecomm, filemap_rinv )
+end if
 
+if ( fnproc<=6 ) then
+  if ( myid==0 ) then
+    write(6,*) '--> Removing file communication group'
+  end if
+  call ccmpi_commfree(comm_ip)
+end if 
 
 ncidold = -1 ! flag onthefly to load metadata
 
