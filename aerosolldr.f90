@@ -2670,6 +2670,7 @@ end subroutine cldrop
 ! Aerosol scavenging fraction for convective clouds
 
 pure subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho,ntr)
+!$acc routine vector
 
 implicit none
 

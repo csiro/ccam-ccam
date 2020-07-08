@@ -3038,6 +3038,7 @@ if ( myid<nproc ) then
   if ( tracerlist/=' ' ) then
     call init_tracer
   end if
+!$acc update device(ngas)
   call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
   if ( nbd/=0 .or. mbd/=0 ) then
     if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
