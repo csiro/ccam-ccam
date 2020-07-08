@@ -464,7 +464,7 @@
       use const_phys
       use diag_m, only : maxmin
       use estab      
-      use newmpar_m
+!      use newmpar_m
       use parm_m, only : ktau,dt,nmaxpr,diag,ds,iaero,qgmin
       use parmdyn_m
       use sigs_m
