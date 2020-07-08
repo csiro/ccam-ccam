@@ -37,6 +37,7 @@
 /casa_param.F90 -text
 /casa_phenology.F90 -text
 /casa_variable.F90 -text
+/cc_acc.f90 -text
 /cc_omp.f90 -text
 /cfrac_m.f90 -text
 /cldcom_m.f90 -text
