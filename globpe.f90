@@ -988,7 +988,7 @@ call log_off
 if ( myid==0 ) then
   call date_and_time(time=timeval,values=tvals2)
   write(6,*) "End of time loop ", timeval
-  write(6,*) "normal termination of run"
+  write(6,*) "Normal termination of run"
   write(6,*) "End time ", timeval
   aa = sum( real(tvals2(5:8)-tvals1(5:8))*(/ 3600., 60., 1., 0.001 /) )
   if ( aa<0. ) aa = aa + 86400.
@@ -1442,7 +1442,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,nriver,           &
     atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
     always_mspeca,                                                &
-    procmode,compression,hp_output,                               & ! file io
+    procmode,compression,hp_output,fnproc_bcast_max,              & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
@@ -1579,7 +1579,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(117) ) 
+allocate( dumr(33), dumi(118) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1734,6 +1734,7 @@ if ( myid==0 ) then
   dumi(115) = intsch_mode
   dumi(116) = qg_fix
   if ( always_mspeca ) dumi(117) = 1
+  dumi(118) = fnproc_bcast_max
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1887,6 +1888,7 @@ hp_output         = dumi(114)
 intsch_mode       = dumi(115)
 qg_fix            = dumi(116)
 always_mspeca     = dumi(117)==1
+fnproc_bcast_max  = dumi(118)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)

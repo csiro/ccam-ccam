@@ -1253,31 +1253,31 @@ if ( myid==0 ) then
     select case(dmode)
       case(0) ! single file - decompose into six panels
         pnpan = max(1,6/fnproc)
-        do ipf = 0,fnproc-1
-          call face_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:) = duma(:)
-          pjoff(ipf,:) = dumb(:)
+        do ipin = 0,fnproc-1
+          call face_set(pipan,pjpan,pnoff(ipin),duma,dumb,pnpan,pil_g,ipin,fnproc,nxpr,nypr)
+          pioff(ipin,:) = duma(:)
+          pjoff(ipin,:) = dumb(:)
         end do
       case(1) ! face decomposition
         pnpan = max(1,6/fnproc)
-        do ipf = 0,fnproc-1
-          call face_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:) = duma(:)
-          pjoff(ipf,:) = dumb(:)
+        do ipin = 0,fnproc-1
+          call face_set(pipan,pjpan,pnoff(ipin),duma,dumb,pnpan,pil_g,ipin,fnproc,nxpr,nypr)
+          pioff(ipin,:) = duma(:)
+          pjoff(ipin,:) = dumb(:)
         end do
       case(2) ! old uniform decomposition - depreciated
         pnpan = 6
-        do ipf = 0,fnproc-1
-          call uniform_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:) = duma(:)
-          pjoff(ipf,:) = dumb(:)
+        do ipin = 0,fnproc-1
+          call uniform_set(pipan,pjpan,pnoff(ipin),duma,dumb,pnpan,pil_g,ipin,fnproc,nxpr,nypr)
+          pioff(ipin,:) = duma(:)
+          pjoff(ipin,:) = dumb(:)
         end do
       case(3) ! new uniform decomposition
         pnpan = 6
-        do ipf = 0,fnproc-1
-          call dix_set(pipan,pjpan,pnoff(ipf),duma,dumb,pnpan,pil_g,ipf,fnproc,nxpr,nypr)
-          pioff(ipf,:) = duma(:)
-          pjoff(ipf,:) = dumb(:)
+        do ipin = 0,fnproc-1
+          call dix_set(pipan,pjpan,pnoff(ipin),duma,dumb,pnpan,pil_g,ipin,fnproc,nxpr,nypr)
+          pioff(ipin,:) = duma(:)
+          pjoff(ipin,:) = dumb(:)
         end do
     end select
 
@@ -1582,7 +1582,7 @@ if ( allocated(filemap_facecomm) ) then
   deallocate( filemap_facecomm, filemap_rinv )
 end if
 
-if ( fnproc<=6 ) then
+if ( fnproc<=fnproc_bcast_max ) then
   if ( myid==0 ) then
     write(6,*) '--> Removing file communication group'
   end if

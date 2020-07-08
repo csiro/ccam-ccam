@@ -396,6 +396,7 @@ cable_sli_numbers.o : cable_define_types.o
 cable_sli_roots.o : cable_define_types.o cable_sli_numbers.o
 cable_sli_solve.o : cable_define_types.o cable_sli_numbers.o cable_sli_utils.o
 cable_sli_utils.o : cable_define_types.o cable_sli_numbers.o
+cable_soil_parms.o : cable_define_types.o
 cable_soilsnow.o : cable_common.o cable_data.o cable_define_types.o parm_m.o
 carbpools_m.o : cable_define_types.o casa_variable.o parm_m.o
 casa_cnp.o : cable_define_types.o casa_variable.o

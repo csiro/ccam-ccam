@@ -3288,7 +3288,7 @@ use parm_m             ! Model configuration
 implicit none
 
 integer n, ipf
-integer mm, iq, idel, jdel
+integer mm, iq, idel, jdel, ipin
 integer ncount, w, colour
 integer sourceid, newid
 logical, dimension(0:fnproc-1) :: lfile
@@ -3346,15 +3346,15 @@ end if
 ncount = count(lfile(0:fnproc-1))
 allocate( filemap_recv(ncount), filemap_rmod(ncount) )
 ncount = 0
-do w = 0,fnproc-1
-  if ( lfile(w) ) then
+do ipin = 0,fnproc-1
+  if ( lfile(ipin) ) then
     ncount = ncount + 1
-    filemap_recv(ncount) = mod( w, fnresid )
-    filemap_rmod(ncount) = w/fnresid
+    filemap_recv(ncount) = mod( ipin, fnresid )
+    filemap_rmod(ncount) = ipin/fnresid
   end if
 end do
 
-if ( fnproc<=6 ) then
+if ( fnproc<=fnproc_bcast_max ) then
     
   ! Construct bcast comms for single panel case
   allocate( filemap_facecomm(0:fnproc-1), filemap_rinv(0:fnproc-1) )
@@ -3362,13 +3362,13 @@ if ( fnproc<=6 ) then
   if ( myid==0 ) then
     write(6,*) "--> Create Bcast comms for panel input"
   end if
-  do w = 0,fnproc-1
-    sourceid = mod( w, fnresid )
-    if ( lfile(w) .or. myid==sourceid ) then
+  do ipin = 0,fnproc-1
+    sourceid = mod( ipin, fnresid )
+    if ( lfile(ipin) .or. myid==sourceid ) then
       colour = 1
       do ncount = 1,size(filemap_recv)
-        if ( filemap_recv(ncount)+filemap_rmod(ncount)*fnresid==w ) then
-          filemap_rinv(w) = ncount  
+        if ( filemap_recv(ncount)+filemap_rmod(ncount)*fnresid==ipin ) then
+          filemap_rinv(ipin) = ncount  
         end if    
       end do   
     else
@@ -3378,7 +3378,7 @@ if ( fnproc<=6 ) then
     if ( newid<0 ) then
       newid = newid + nproc
     end if  
-    call ccmpi_commsplit(filemap_facecomm(w),comm_world,colour,newid)   
+    call ccmpi_commsplit(filemap_facecomm(ipin),comm_world,colour,newid)   
   end do
   
 else
