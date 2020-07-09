@@ -560,6 +560,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'epsh',epsh)
     call ccnf_put_attg(idnc,'epsp',epsp)
     call ccnf_put_attg(idnc,'epsu',epsu)
+    call ccnf_put_attg(idnc,'fnproc_bcast_max',fnproc_bcast_max)
     call ccnf_put_attg(idnc,'helmmeth',helmmeth)
     call ccnf_put_attg(idnc,'hp_output',hp_output)
     call ccnf_put_attg(idnc,'iaero',iaero)   

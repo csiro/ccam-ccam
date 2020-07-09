@@ -104,6 +104,7 @@ module cc_mpi
       filemap_send, filemap_smod                                           ! file map sent for onthefly
    integer, allocatable, dimension(:), save, public :: filemap_facecomm    ! communicator for face bcast
    integer, allocatable, dimension(:), save, public :: filemap_rinv        ! inverse map for filemap_recv/rmod
+   integer, save, public :: fnproc_bcast_max = 6                           ! max number of input files for bcast method
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -123,7 +124,7 @@ module cc_mpi
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
              face_set, uniform_set, dix_set
-   public :: allocateglobalpack, copyglobalpack, ccmpi_gathermap,           &
+   public :: allocateglobalpack, copyglobalpack,                            &
              ccmpi_gathermap_send2, ccmpi_gathermap_recv2,                  &
              ccmpi_gathermap_send3, ccmpi_gathermap_recv3, getglobalpack_v, &
              setglobalpack_v
@@ -220,9 +221,6 @@ module cc_mpi
    end interface
    interface ccmpi_alltoall
       module procedure ccmpi_alltoall2l
-   end interface
-   interface ccmpi_gathermap
-      module procedure ccmpi_gathermap2, ccmpi_gathermap3
    end interface
    interface ccmpi_filebounds_send
       module procedure ccmpi_filebounds_send2, ccmpi_filebounds_send3
@@ -2140,198 +2138,6 @@ contains
 
    end subroutine ccmpi_gatherall3
 
-   subroutine ccmpi_gathermap2(a,kref)
-
-      integer, intent(in) :: kref
-      real, dimension(ifull), intent(in) :: a
-      real, dimension(ifull,size(specmap_recv)) :: abuf 
-      integer :: ncount, w, iproc, n, iq
-      integer :: ipoff, jpoff, npoff
-      integer :: ipak, jpak
-      integer :: sreq, rcount, jproc
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=4) :: ierr, lsize
-      integer(kind=4) :: lcomm, ldone
-      integer(kind=4) :: itag = 52
-      integer(kind=4), dimension(size(specmap_recv)+size(specmap_send)) :: i_req
-      integer(kind=4), dimension(size(specmap_recv)) :: i_list, donelist
-      
-      ncount = size(specmap_recv)
-      lsize = ifull
-      lcomm = comm_world
-
-      ! Set up the buffers to recv
-      nreq = 0
-      do w = 1,ncount
-         nreq = nreq + 1
-         i_list(nreq) = w
-         call MPI_IRecv( abuf(:,w), lsize, ltype, specmap_recv(w), itag, lcomm, i_req(nreq), ierr )
-      end do
-      rreq = nreq
-
-      ! Set up the buffers to send
-      do w = 1,size(specmap_send)
-         nreq = nreq + 1
-         call MPI_ISend( a, lsize, ltype, specmap_send(w), itag, lcomm, i_req(nreq), ierr )
-      end do
-
-      ! Unpack incomming messages
-      rcount = rreq
-      if ( uniform_decomp ) then
-         do while ( rcount > 0 )
-            call START_LOG(mpiwaitmap_begin) 
-            call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-            call END_LOG(mpiwaitmap_end)
-            rcount = rcount - ldone
-            do jproc = 1,ldone
-               w = i_list(donelist(jproc))
-               iproc = specmap_recv(w)
-               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
-               do n = 1,npan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iq = (n-1)*ipan*jpan
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
-                     reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
-               end do
-            end do
-         end do   
-      else
-         do while ( rcount > 0 )
-            call START_LOG(mpiwaitmap_begin) 
-            call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-            call END_LOG(mpiwaitmap_end)
-            rcount = rcount - ldone
-            do jproc = 1,ldone
-               w = i_list(donelist(jproc))
-               iproc = specmap_recv(w)
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
-               do n = 1,npan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iq = (n-1)*ipan*jpan
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
-                     reshape( abuf(iq+1:iq+ipan*jpan,w), (/ ipan, jpan /) )
-               end do
-            end do
-         end do
-      end if
-      
-      sreq = nreq - rreq
-      if ( sreq > 0 ) then
-         call START_LOG(mpiwaitmap_begin) 
-         call MPI_Waitall( sreq, i_req(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaitmap_end)
-      end if   
-
-   end subroutine ccmpi_gathermap2
-
-   subroutine ccmpi_gathermap3(a,kref)
-
-      integer, intent(in) :: kref
-      real, dimension(:,:), intent(in) :: a
-      real, dimension(ifull,size(a,2),size(specmap_recv)) :: abuf 
-      real, dimension(ifull,size(a,2)) :: cbuf
-      integer :: ncount, w, iproc, k, n, iq, kx
-      integer :: ipoff, jpoff, npoff
-      integer :: ipak, jpak
-      integer :: sreq, rcount, jproc
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=4) :: ierr, lsize
-      integer(kind=4) :: lcomm, ldone
-      integer(kind=4) :: itag = 52
-      integer(kind=4), dimension(size(specmap_recv)+size(specmap_send)) :: i_req
-      integer(kind=4), dimension(size(specmap_recv)) :: i_list, donelist
-
-      kx = size(a,2)
-      ncount = size(specmap_recv)
-      lsize = ifull*kx
-      lcomm = comm_world
-
-      cbuf(1:ifull,1:kx) = a(1:ifull,1:kx)      
-      
-      ! Set up the buffers to recv
-      nreq = 0
-      do w = 1,ncount
-         nreq = nreq + 1
-         i_list(nreq) = w
-         call MPI_IRecv( abuf(:,:,w), lsize, ltype, specmap_recv(w), itag, lcomm, i_req(nreq), ierr )
-      end do
-      rreq = nreq
-      
-      ! Set up the buffers to send
-      do w = 1,size(specmap_send)
-         nreq = nreq + 1
-         call MPI_ISend( cbuf, lsize, ltype, specmap_send(w), itag, lcomm, i_req(nreq), ierr )
-      end do
-
-      ! Unpack incomming messages
-      rcount = rreq
-      if ( uniform_decomp ) then
-         do while ( rcount > 0 )
-            call START_LOG(mpiwaitmap_begin) 
-            call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-            call END_LOG(mpiwaitmap_end)
-            rcount = rcount - ldone
-            do jproc = 1,ldone
-               w = i_list(donelist(jproc))        
-               iproc = specmap_recv(w)
-               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
-               do k = 1,kx
-                  do n = 1,npan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iq = (n-1)*ipan*jpan
-                     globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
-                        reshape( abuf(iq+1:iq+ipan*jpan,k,w), (/ ipan, jpan /) )
-                  end do
-               end do
-            end do
-         end do   
-      else
-         do while ( rcount > 0 )
-            call START_LOG(mpiwaitmap_begin) 
-            call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-            call END_LOG(mpiwaitmap_end)
-            rcount = rcount - ldone
-            do jproc = 1,ldone
-               w = i_list(donelist(jproc))
-               iproc = specmap_recv(w)
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
-               do k = 1,kx
-                  do n = 1,npan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iq = (n-1)*ipan*jpan
-                     globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
-                       reshape( abuf(iq+1:iq+ipan*jpan,k,w), (/ ipan, jpan /) )
-                  end do
-               end do
-            end do
-         end do
-      end if
-      
-      sreq = nreq - rreq
-      if ( sreq > 0 ) then
-         call START_LOG(mpiwaitmap_begin) 
-         call MPI_Waitall( sreq, i_req(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaitmap_end)
-      end if   
-
-   end subroutine ccmpi_gathermap3
-   
    subroutine ccmpi_gathermap_send2(a)
 
       real, dimension(ifull), intent(in) :: a
@@ -10270,7 +10076,7 @@ contains
    subroutine ccmpi_filewinget2(abuf,sinp)
    
       integer :: w, ncount, nlen, cc, ipf
-      integer :: n, is, ie
+      integer :: n, is, ie, ipin
       integer(kind=4) :: lsize, ierr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -10286,15 +10092,15 @@ contains
       nlen = pipan*pjpan*pnpan
       lsize = nlen
       
-      if ( fnproc <= 6 ) then
+      if ( fnproc <= fnproc_bcast_max ) then
         
          ! use Bcast for single input panel
          abuf = 0.
-         do w = 0,fnproc-1
-            lcomm = filemap_facecomm(w) 
-            n = filemap_rinv(w)
-            if ( myid == mod(w,fnresid) ) then
-               ipf = w/fnresid
+         do ipin = 0,fnproc-1
+            lcomm = filemap_facecomm(ipin) 
+            n = filemap_rinv(ipin)
+            if ( myid == mod(ipin,fnresid) ) then
+               ipf = ipin/fnresid
                cc = nlen*ipf
                call START_LOG(bcast_begin)
                call MPI_Bcast( sinp(1+cc:nlen+cc), lsize, ltype, 0_4, lcomm, ierr )
@@ -10313,6 +10119,11 @@ contains
           
       else    
 
+        ! MJT notes - We could use RMA or MPI_Alltoallv for this problem.  RMA fence forces synchronisation
+        ! across processes.  Some implentations of MPI_Alltoallv also can employ synchronisation as they
+        ! are optimsied for most sendcounts and recvcounts are non-zero.  Splitting communicators and using
+        ! MPI_Bcast could work, but is expensive to initialise.  
+          
          ncount = size(filemap_recv)
          lcomm = comm_world
           
@@ -10345,7 +10156,7 @@ contains
    subroutine ccmpi_filewinget3(abuf,sinp)
    
       integer :: n, w, ncount, nlen, kx
-      integer :: cc, ipf
+      integer :: cc, ipf, ipin
       integer :: rcount, jproc
       integer :: is, ie
       integer(kind=4) :: lsize, ierr
@@ -10367,15 +10178,15 @@ contains
       nlen = pipan*pjpan*pnpan
       lsize = nlen*kx
       
-      if ( fnproc <= 6 ) then
+      if ( fnproc <= fnproc_bcast_max ) then
       
          ! use Bcast for single input file  
          abuf = 0.
-         do w = 0,fnproc-1
-            lcomm = filemap_facecomm(w) 
-            n = filemap_rinv(w)
-            if ( myid == mod(w,fnresid) ) then
-               ipf = w/fnresid
+         do ipin = 0,fnproc-1
+            lcomm = filemap_facecomm(ipin) 
+            n = filemap_rinv(ipin)
+            if ( myid == mod(ipin,fnresid) ) then
+               ipf = ipin/fnresid
                cc = nlen*ipf             
                cbuf(:,:,ipf+1) = sinp(1+cc:nlen+cc,1:kx) 
                call START_LOG(bcast_begin)
