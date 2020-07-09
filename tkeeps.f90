@@ -84,7 +84,7 @@ integer, save :: stabmeth = 0     ! Method for stability calculation (0=B&H, 1=L
 integer, save :: tkemeth  = 1     ! Method for TKE calculation (0=D&K84, 1=Hurley)
 integer, save :: upshear  = 0     ! Method for updating shear (0=Host, 1=Sub-timestep)
 real, save :: maxdts      = 120.  ! max timestep for split
-!$acc declare create(buoymeth,tkemeth,stabmeth,maxdts)
+!$acc declare create(buoymeth,tkemeth,stabmeth,maxdts,upshear)
 
 ! physical constants
 real, parameter :: grav  = 9.80616    ! (m s^-2)
@@ -128,7 +128,7 @@ shear=0.
 
 !$acc update device(cm0,minl,maxl,mintke,mineps,ce0,ce1,ce2,ce3)
 !$acc update device(be,ent0,ent1,ent_min,ezmin,entc0,dtrc0,m0,b1,b2,qcmf,mfbeta)
-!$acc update device(buoymeth,tkemeth,stabmeth,maxdts)
+!$acc update device(buoymeth,tkemeth,stabmeth,maxdts,upshear)
 
 return
 end subroutine tkeinit

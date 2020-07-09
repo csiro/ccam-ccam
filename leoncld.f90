@@ -917,7 +917,7 @@ if ( ncloud<=3 ) then
     
   end do
 
-#ifdef GPU
+#ifndef GPU
   if ( diag .and. mydiag ) then
     diag_temp(:) = rcrit(idjd,:)
     write(6,*) 'rcrit ',diag_temp

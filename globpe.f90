@@ -1299,6 +1299,7 @@ use cable_ccam, only : proglai           & ! CABLE
     ,smrf_switch,strf_switch             &
     ,cable_gw_model
 use carbpools_m, only : carbpools_init     ! Carbon pools
+use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
 use cfrac_m                                ! Cloud fraction
@@ -2500,7 +2501,7 @@ minwater = max( 0., minwater )  ! limit ocean minimum water level
 if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (no output in history file)
 if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (output in history file)
 
-!$acc update device(vmodmin,sigbot_gwd,fc2,dt,alphaj,ngwd,iaero,ds,nmr,diag)
+!$acc update device(vmodmin,sigbot_gwd,fc2,dt,alphaj,ngwd,iaero,nmr)
 !$acc update device(qgmin,nlocal,cqmix)
 
 
@@ -2586,6 +2587,7 @@ nsig    = nint(temparray(8))
 ! requires a larger number of MPI messages.
 call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp,uniform_decomp)
 call ccmpi_reinit(new_nproc) 
+call ccacc_init(node_myid,node_nproc)
 
 
 if ( myid==0 ) then
@@ -2597,6 +2599,9 @@ if ( myid==0 ) then
   if ( using_omp ) then
     write(6,*) 'Using OpenMP with number of threads     = ',maxthreads
   end if
+  if ( using_acc ) then
+    write(6,*) 'Using OpenACC with number of GPUs       = ',ngpus  
+  end if    
   write(6,*) 'Reading namelist from ',trim(nmlfile)
   write(6,*) 'ilx,jlx              ',ilx,jlx
   write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
@@ -2969,6 +2974,7 @@ call ccmpi_bcastr8(y_g,0,comm_world)
 call ccmpi_bcastr8(z_g,0,comm_world)
 #endif
 call ccmpi_bcast(ds,0,comm_world)
+!$acc update device(ds)
 
 if ( myid==0 ) then
   write(6,*) "Calling ccmpi_setup"
@@ -3035,6 +3041,7 @@ end if
 if ( tracerlist/=' ' ) then
   call init_tracer
 end if
+!$acc update device(ngas)
 call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
 if ( nbd/=0 .or. mbd/=0 ) then
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then

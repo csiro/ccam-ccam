@@ -177,6 +177,7 @@ select case(nvmix)
 !$omp private(lt,lqg,lqfg,lqlg),                        &
 !$omp private(lstratcloud,lxtg,lu,lv,ltke,leps,lshear), &
 !$omp private(lat,lct,lsavu,lsavv,idjd_t,mydiag_t)
+#ifdef scm
 !$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
 !$acc   pblh,ustar)                                          &
 !$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv)           &
@@ -188,6 +189,14 @@ select case(nvmix)
 !$acc   luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,         &
 !$acc   lrkmsave,lrkhsave,lbuoyproduction,lshearproduction,  &
 !$acc   ltotaltransport)
+#else
+!$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
+!$acc   pblh,ustar)                                          &
+!$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv)           &
+!$acc copyout(at_save,ct_save)
+!$acc loop gang private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,   &
+!$acc   ltke,leps,lshear,lat,lct,lu,lv)
+#endif
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
