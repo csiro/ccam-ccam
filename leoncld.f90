@@ -101,6 +101,8 @@ contains
 subroutine leoncld
 
 use aerointerface                 ! Aerosol interface
+use aerosolldr, only : naero    & ! LDR prognostic aerosols
+                       xtg,xtosav
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use cc_mpi, only : mydiag         ! CC MPI routines
 use cc_omp                        ! CC OpenMP routines
@@ -108,6 +110,7 @@ use cfrac_m                       ! Cloud fraction
 use cloudmod                      ! Prognostic cloud fraction
 use const_phys                    ! Physical constants
 use kuocomb_m                     ! JLM convection
+use latlong_m, only : rlatt       ! Lat/lon coordinates
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
 use morepbl_m                     ! Additional boundary layer diagnostics
@@ -133,6 +136,7 @@ real, dimension(imax,kl) :: lppqfsedice, lpprfreeze, lpprscav, lqccon, lqfg, lqf
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfrac, lt
 real, dimension(imax,kl) :: ldpsldt, lnettend, lstratcloud, lclcon, lcdrop, lrhoa
 real, dimension(ifull,kl) :: clcon, cdrop
+real, dimension(imax,kl,naero) :: lxtg, lxtosav
 logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),                                             &
@@ -141,11 +145,14 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
 
+  lxtg = xtg(is:ie,:,:)
+  lxtosav = xtosav(is:ie,:,:)
+
   ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
   do k = 1,kl
     lrhoa(:,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k))  
   end do
-  call aerodrop(is,lcdrop,lrhoa,outconv=.true.)
+  call aerodrop(lcdrop,lrhoa,lxtg,lxtosav,land(is:ie),rlatt(is:ie),imax,kl,outconv=.true.)
   cdrop(is:ie,:) = lcdrop
 
   ! Calculate convective cloud fraction
