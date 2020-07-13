@@ -101,7 +101,7 @@ contains
 subroutine leoncld
 
 use aerointerface                 ! Aerosol interface
-use aerosolldr, only : naero    & ! LDR prognostic aerosols
+use aerosolldr, only : naero,   & ! LDR prognostic aerosols
                        xtg,xtosav
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use cc_mpi, only : mydiag         ! CC MPI routines
@@ -141,12 +141,17 @@ logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),                                             &
 !$omp private(k,lrhoa,lcdrop,lclcon)
+!$acc parallel copyin(ps,t,xtg,xtosav,land,rlatt,kbsav,ktsav,condc),              &
+!$acc copyout(cdrop,clcon), present(sig)
+!$acc loop gang private(lrhoa,lcdrop,lxtg,lxtosav,lclcon)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
 
-  lxtg = xtg(is:ie,:,:)
-  lxtosav = xtosav(is:ie,:,:)
+  if ( abs(iaero)>=2 ) then
+    lxtg = xtg(is:ie,:,:)
+    lxtosav = xtosav(is:ie,:,:)
+  end if
 
   ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
   do k = 1,kl
@@ -156,9 +161,10 @@ do tile = 1,ntiles
   cdrop(is:ie,:) = lcdrop
 
   ! Calculate convective cloud fraction
-  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie))
+  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),acon,bcon,imax,kl)
   clcon(is:ie,:) = lclcon
 end do
+!$acc end parallel
 !$omp end do nowait
 
 !$omp do schedule(static) private(is,ie),                                             &

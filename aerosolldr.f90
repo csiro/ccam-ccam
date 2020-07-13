@@ -2603,6 +2603,7 @@ end subroutine seasaltem
 ! cloud droplet concentration
 
 subroutine cldrop(cdn,rhoa,convmode,xtg,xtosav,imax,kl)
+!$acc routine vector
 
 implicit none
 

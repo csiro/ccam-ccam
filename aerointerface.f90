@@ -162,7 +162,7 @@ end if
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),cldcon=cldcon(is:ie))
+  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),acon,bcon,imax,kl,cldcon=cldcon(is:ie))
   clcon(is:ie,:) = lclcon    
 end do
 !$omp end do nowait    
@@ -321,11 +321,11 @@ end subroutine aerocalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate cloud droplet size
 subroutine aerodrop(cdn,rhoa,xtg,xtosav,land,rlatt,imax,kl,outconv)
+!$acc routine vector
 
-use aerosolldr              ! LDR prognostic aerosols
-use const_phys              ! Physical constants
-use newmpar_m               ! Grid parameters
-use parm_m                  ! Model configuration
+use aerosolldr, only : aeroindir, naero, cldrop ! LDR prognostic aerosols
+use const_phys                                  ! Physical constants
+use parm_m                                      ! Model configuration
 
 implicit none
 
@@ -341,8 +341,6 @@ real, dimension(imax,kl,naero), intent(in) :: xtg, xtosav
 logical, dimension(imax) :: land
 real, dimension(imax) :: rlatt
 logical convmode
-
-imax = size(cdn,1)
 
 convmode = .true.
 if ( present(outconv) ) then
