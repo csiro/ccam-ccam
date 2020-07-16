@@ -607,9 +607,7 @@ end if
 ! Loop over maximum block size
 ! kblock can be reduced to save memory
 do kb = kbotdav,ktopdav,kblock
-  if ( myid==0 ) then     
-    write(6,*) "Gather data for spectral filter      ",kb,min(kb+kblock-1,ktopdav)
-  end if      
+     
   kln = kb                          ! lower limit of block
   klx = min( kb+kblock-1, ktopdav ) ! upper limit of block
   klt = klx - kln + 1               ! number of levels in block
@@ -629,10 +627,6 @@ do kb = kbotdav,ktopdav,kblock
     call specfastmpi(.1*real(mbd)/(pi*schmidt),pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
   endif  ! (nud_uv==9) .. else ..
   !-----------------------------------------------------------------------
-
-  if ( myid==0 ) then
-    write(6,*) "Distribute data from spectral filter ",kb,min(kb+kblock-1,ktopdav)
-  end if
         
 end do
 
@@ -1816,11 +1810,7 @@ if ( nud_sfh/=0 ) then
 end if
       
 do kbb = ktopmlo,kc,kblock
-      
-  if ( myid==0 ) then
-    write(6,*) "Gather data for MLO filter           ",kbb,min(kbb+kblock-1,kc)
-  end if
-            
+                 
   kln = kbb
   klx = min(kbb+kblock-1, kc)
   klt = klx - kln + 1
@@ -1873,13 +1863,23 @@ do kbb = ktopmlo,kc,kblock
   end if
 
   if ( (nud_uv/=9.and.abs(nmlo)/=1) .or. namip/=0 ) then
+    if (myid==0) then
+      if (klt==1) then
+        write(6,*) "MLO 1D filter - Single level         ",kbb,min(kbb+kblock-1,kc)
+      else
+        write(6,*) "MLO 1D filter - Multiple level       ",kbb,min(kbb+kblock-1,kc)
+      end if
+    end if
     call mlofilterfast(diff_l(:,1:klt),diffs_l(:,1:klt),diffu_l(:,1:klt),diffv_l(:,1:klt),diffh_l(:,1),lblock,klt)
   else
+    if (myid==0) then
+      if (klt==1) then
+        write(6,*) "MLO 2D filter - Single level         ",kbb,min(kbb+kblock-1,kc)
+      else
+        write(6,*) "MLO 2D filter - Multiple level       ",kbb,min(kbb+kblock-1,kc)
+      end if
+    end if
     call mlofilter(diff_l(:,1:klt),diffs_l(:,1:klt),diffu_l(:,1:klt),diffv_l(:,1:klt),diffh_l(:,1),lblock,klt)
-  end if
-
-  if ( myid==0 ) then
-    write(6,*) "Distribute data for MLO filter       ",kbb,min(kbb+kblock-1,kc)
   end if
   
   if ( nud_sst/=0 ) then
@@ -2008,14 +2008,6 @@ real, dimension(ifull_g,kd) :: diff_g ! large common array
 real, dimension(ifull) :: xa_l, xb_l
 logical, intent(in) :: lblock
 
-if (myid==0) then
-  if (kd==1) then
-    write(6,*) "MLO 2D scale-selective filter - Single level filter"
-  else
-    write(6,*) "MLO 2D scale-selective filter - Multiple level filter"
-  end if
-end if
-
 if (nud_sst/=0) then
   call ccmpi_gatherall(diff_l(:,1:kd),diff_g(:,1:kd))
   call mlofilterhost(diff_g,diff_l,kd)
@@ -2123,25 +2115,11 @@ logical, intent(in) :: lblock
 ! eventually will be replaced with mbd once full ocean coupling is complete
 cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
       
-if ( myid==0 ) then
-  if ( kd==1 ) then
-    write(6,*) "MLO 1D scale-selective filter - Single level filter"
-  else
-    write(6,*) "MLO 1D scale-selective filter - Multiple level filter"
-  end if
-end if        
-
 if ( pprocn==pprocx ) then
   call mlospechost_n(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
 else
   call mlospechost(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
 end if
-
-#ifdef debug
-if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*) "MLO end 1D filter"
-end if
-#endif
 
 return
 end subroutine mlofilterfast

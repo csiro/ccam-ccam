@@ -161,8 +161,8 @@ CONTAINS
     REAL, DIMENSION(mp)       :: zstar, rL, phist, csw, psihat,rt0bus
 #ifdef CCAM
     REAL, DIMENSION(mp) :: dum, cansat, dsx, fwsoil, tlfx, tlfy
-    REAL, DIMENSION(mp) :: ecy, hcy, rny, ghwet
-    REAL, DIMENSION(mp,mf) :: gbhu, gbhf, csx
+    REAL(r_2), DIMENSION(mp) :: ecy, hcy, rny, ghwet
+    REAL(r_2), DIMENSION(mp,mf) :: gbhu, gbhf, csx
     REAL, DIMENSION(mp) :: tmp1, tmp2, tmp4
 #endif
 
@@ -1838,6 +1838,9 @@ CONTAINS
          tlfx,       & ! leaf temp prev. iter (K)
          tlfy          ! leaf temp (K)
 
+
+    REAL, INTENT(INOUT)
+    
     REAL(R_2),INTENT(INOUT), DIMENSION(:) ::                                    &
          ecy,        & ! lat heat fl dry big leaf
          hcy,        & ! veg. sens heat

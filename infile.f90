@@ -1583,9 +1583,6 @@ if ( allocated(filemap_facecomm) ) then
 end if
 
 if ( fnproc<=fnproc_bcast_max ) then
-  if ( myid==0 ) then
-    write(6,*) '--> Removing file communication group'
-  end if
   call ccmpi_commfree(comm_ip)
 end if 
 

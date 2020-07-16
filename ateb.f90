@@ -6128,13 +6128,13 @@ u0=exp(-0.9*sqrt(13./4.))
 
 zolog=log(max(h,z0+0.2)/z0)
 cuven=log(max(refheight*h,z0+0.2)/z0)/log(max(h,z0+0.2)/z0)
-cuven=max(cuven*max(1.-3.*h/w,0.),(u0/a)*(h/w)*(1.-exp(-a*max(w/h-3.,0.))))
+cuven=max(cuven*max(1.-3.*h/w,0.),(u0/a)*(h/w)*(1.-exp(max(-a*max(w/h-3.,0.),-40.))))
 uf=(u0/a)*(h/w)*(1.-exp(-3.*a))+cuven
 !uf=(u0/a)*(h/w)*(2.-exp(-a*3.)-exp(-a*(w/h-3.)))
 ur=(u0/a)*exp(-a*3.)*(1.-exp(-a))
 ! MJT suggestion
 cuven=1.-1./zolog
-uv=(u0/a)*exp(-a*max(w/h-3.,0.))*(1.-exp(-a))
+uv=(u0/a)*exp(max(-a*max(w/h-3.,0.),-40.))*(1.-exp(-a))
 uv=max(cuven,uv)
 !uv=(u0/a)*exp(-a*(w/h-3.))*(1.-exp(-a))
 

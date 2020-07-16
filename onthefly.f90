@@ -57,7 +57,7 @@ real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data (multiple files)
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 real, dimension(:), allocatable, save :: gosig_in             ! input ocean levels
-real, dimension(:,:,:,:), allocatable, save :: sx             ! working array for interpolation
+real, dimension(:,:,:), allocatable, save :: sx               ! working array for interpolation
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
 logical allowtrivialfill                                      ! special case where trivial data is allowed
 
@@ -552,7 +552,7 @@ end if ! newfile .and. .not.iop_test
 
 ! allocate working arrays
 allocate( ucc(fwsize), tss_a(fwsize), ucc6(fwsize,6) )
-allocate( sx(-1:ik+2,-1:ik+2,0:npanels,1) )
+allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
 
 ! -------------------------------------------------------------------
 ! read time invariant data when file is first opened
@@ -1971,19 +1971,19 @@ call START_LOG(otf_ints1_begin)
 ! This version distributes mutli-file data
 call ccmpi_filewinget(abuf,s)
 
-sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
-call ccmpi_filewinunpack(sx(:,:,:,1),abuf)
-call sxpanelbounds(sx(:,:,:,1))
+sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
+call ccmpi_filewinunpack(sx,abuf)
+call sxpanelbounds(sx)
 
 if ( iotest ) then
   do n = 1,npan
     iq = (n-1)*ipan*jpan
-    sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,1), (/ ipan*jpan /) )
+    sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
   end do
 else
   sout(1:ifull) = 0.  
   do mm = 1,m_fly     !  was 4, now may be 1
-    call intsb(sx(:,:,:,1),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    call intsb(sx,wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
     sout(1:ifull) = sout(1:ifull) + wrk/real(m_fly)
   end do
 end if
@@ -2021,22 +2021,22 @@ do kb = 1,kx,kblock
     
   if ( iotest ) then
     do k = 1,kn
-      sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
-      call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,k))
-      call sxpanelbounds(sx(:,:,:,1))
+      sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
+      call ccmpi_filewinunpack(sx,abuf(:,:,k))
+      call sxpanelbounds(sx)
       do n = 1,npan
         iq = (n-1)*ipan*jpan
-        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,1), (/ ipan*jpan /) )
+        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
       end do
     end do
   else
     do k = 1,kn
-      sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
+      sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
       sout(1:ifull,k+kb-1) = 0.
-      call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,k))
-      call sxpanelbounds(sx(:,:,:,1))
+      call ccmpi_filewinunpack(sx,abuf(:,:,k))
+      call sxpanelbounds(sx)
       do mm = 1,m_fly     !  was 4, now may be 1
-        call intsb(sx(:,:,:,1),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
+        call intsb(sx,wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
         sout(1:ifull,k+kb-1) = sout(1:ifull,k+kb-1) + wrk/real(m_fly)
       end do
     end do

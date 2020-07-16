@@ -2573,18 +2573,18 @@ contains
             allocate( bnds(iproc)%rbuf(xlen) )
             allocate( bnds(iproc)%r8buf(xlen) )
             bnds(iproc)%rbuflen = xlen
-         end if   
-         iproc = myid
-         if ( bnds(iproc)%sbuflen < xlen ) then
-            if ( allocated(bnds(iproc)%sbuf) ) then
-               deallocate( bnds(iproc)%sbuf )
-               deallocate( bnds(iproc)%s8buf )
-            end if
-            allocate( bnds(iproc)%sbuf(xlen) )
-            allocate( bnds(iproc)%s8buf(xlen) )
-            bnds(iproc)%sbuflen = xlen
-         end if 
-      end do  
+         end if
+      end do   
+      iproc = myid
+      if ( bnds(iproc)%sbuflen < xlen ) then
+         if ( allocated(bnds(iproc)%sbuf) ) then
+            deallocate( bnds(iproc)%sbuf )
+            deallocate( bnds(iproc)%s8buf )
+         end if
+         allocate( bnds(iproc)%sbuf(xlen) )
+         allocate( bnds(iproc)%s8buf(xlen) )
+         bnds(iproc)%sbuflen = xlen
+      end if 
       
       ! allocate globalpack arrays for 1D scale-selective filter
       allocate(globalpack(0:nxproc-1,0:nyproc-1,0:5))

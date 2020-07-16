@@ -68,6 +68,7 @@ ifeq ($(GFORTRAN),yes)
 MPIFC = gfortran
 MPIF77 = gfortran
 FC = mpif90
+FC = gfortran -I/apps/openmpi/3.1.4-ofed45/include
 FCSCM = gfortran
 FHOST = -march=native
 MPIFLAG =
