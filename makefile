@@ -40,7 +40,6 @@ FHOST = -O3 -xCASCADELAKE -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
-IPOFLAG = 
 VTHRESH = -vec-threshold0
 endif
 # OpenMP compile flag

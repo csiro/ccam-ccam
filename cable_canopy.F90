@@ -1838,9 +1838,6 @@ CONTAINS
          tlfx,       & ! leaf temp prev. iter (K)
          tlfy          ! leaf temp (K)
 
-
-    REAL, INTENT(INOUT)
-    
     REAL(R_2),INTENT(INOUT), DIMENSION(:) ::                                    &
          ecy,        & ! lat heat fl dry big leaf
          hcy,        & ! veg. sens heat
