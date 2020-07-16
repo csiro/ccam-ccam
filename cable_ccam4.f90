@@ -52,10 +52,16 @@ interface cable_pack
   module procedure cable_pack_r4_2_r4, cable_pack_r4_2_r8, &
                    cable_pack_i4_2_i4, cable_pack_r4_2_i4, &
                    cable_pack_i4_2_i8, cable_pack_r4_2_i8
+
+#ifndef i8r8
+  module procedure cable_pack_r8_2_r8
+#endif
+#ifdef gfortran
   module procedure cable_pack_r4_2_cr2
 #ifndef i8r8
-  module procedure cable_pack_r8_2_r8, cable_pack_r8_2_cr2
-#endif  
+  module procedure cable_pack_r8_2_cr2
+#endif
+#endif
 end interface
 
 interface cable_unpack
@@ -64,7 +70,11 @@ interface cable_unpack
 #ifndef i8r8
   module procedure cable_unpack_r4_2_r8
   module procedure cable_unpack_r8_2_r8_tile
+#endif
+#ifdef gfortran
+#ifndef i8r8
   module procedure cable_unpack_cr2_2_r8_tile
+#endif
 #endif
 end interface
 
@@ -161,6 +171,46 @@ subroutine cable_pack_r4_2_r8(indata,outdata,inb)
 
 end subroutine cable_pack_r4_2_r8
 
+#ifndef i8r8
+subroutine cable_pack_r8_2_r8(indata,outdata,inb)
+  use newmpar_m, only : ifull
+
+  implicit none
+
+  real(kind=8), dimension(ifull), intent(in) :: indata
+  real(kind=8), dimension(:), intent(out) :: outdata
+  integer, intent(in), optional :: inb
+  integer :: nb, is, ie, js, je, tile
+
+  if ( present(inb) ) then
+    nb = inb
+    do tile = 1,ntiles
+      js=1+(tile-1)*imax
+      je=tile*imax
+      is = tdata(tile)%tind(nb,1)
+      ie = tdata(tile)%tind(nb,2)
+      if ( is<=ie ) then
+        outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+      end if  
+    end do
+  else
+    do tile = 1,ntiles
+      js=1+(tile-1)*imax
+      je=tile*imax
+      do nb = 1,tdata(tile)%maxnb
+        is = tdata(tile)%tind(nb,1)
+        ie = tdata(tile)%tind(nb,2)
+        if ( is<=ie ) then
+          outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+        end if  
+      end do
+    end do
+  end if
+
+end subroutine cable_pack_r8_2_r8
+#endif
+
+#ifdef gfortran
 subroutine cable_pack_r4_2_cr2(indata,outdata,inb)
   use newmpar_m, only : ifull
   use cable_def_types_mod, only : r_2
@@ -200,43 +250,6 @@ subroutine cable_pack_r4_2_cr2(indata,outdata,inb)
 end subroutine cable_pack_r4_2_cr2
 
 #ifndef i8r8
-subroutine cable_pack_r8_2_r8(indata,outdata,inb)
-  use newmpar_m, only : ifull
-
-  implicit none
-
-  real(kind=8), dimension(ifull), intent(in) :: indata
-  real(kind=8), dimension(:), intent(out) :: outdata
-  integer, intent(in), optional :: inb
-  integer :: nb, is, ie, js, je, tile
-
-  if ( present(inb) ) then
-    nb = inb
-    do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
-      is = tdata(tile)%tind(nb,1)
-      ie = tdata(tile)%tind(nb,2)
-      if ( is<=ie ) then
-        outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
-      end if  
-    end do
-  else
-    do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
-      do nb = 1,tdata(tile)%maxnb
-        is = tdata(tile)%tind(nb,1)
-        ie = tdata(tile)%tind(nb,2)
-        if ( is<=ie ) then
-          outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
-        end if  
-      end do
-    end do
-  end if
-
-end subroutine cable_pack_r8_2_r8
-
 subroutine cable_pack_r8_2_cr2(indata,outdata,inb)
   use newmpar_m, only : ifull
   use cable_def_types_mod, only : r_2
@@ -274,6 +287,7 @@ subroutine cable_pack_r8_2_cr2(indata,outdata,inb)
   end if
 
 end subroutine cable_pack_r8_2_cr2
+#endif
 #endif
 
 subroutine cable_pack_i4_2_i4(indata,outdata,inb)
@@ -562,7 +576,10 @@ subroutine cable_unpack_r8_2_r8_tile(indata,outdata,inb)
   end do
 
 end subroutine cable_unpack_r8_2_r8_tile
+#endif
 
+#ifdef gfortran
+#ifndef i8r8
 subroutine cable_unpack_cr2_2_r8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
   use cable_def_types_mod, only : r_2
@@ -586,6 +603,7 @@ subroutine cable_unpack_cr2_2_r8_tile(indata,outdata,inb)
   end do
 
 end subroutine cable_unpack_cr2_2_r8_tile
+#endif
 #endif
 
 subroutine pop_pack_r8_2_r8_tile(indata,outdata,inb)

@@ -174,10 +174,6 @@ integer, save :: mp_global                       ! maximum number of land-points
 real, dimension(:), allocatable, target, save :: sv, vl1, vl2, vl3, vl4
 integer, dimension(:,:), allocatable :: qmap
 
-interface redistribute_work
-  module procedure redistribute_work_r4, redistribute_work_cr2
-end interface
-
 contains
 ! ****************************************************************************
 
@@ -3280,6 +3276,7 @@ use cc_mpi     ! CC MPI routines
 use newmpar_m
 
 implicit none
+
 type(veg_parameter_type), intent(in) :: veg
 type(casa_biome),         intent(inout) :: casabiome
 type(casa_pool),          intent(inout) :: casapool
@@ -3288,49 +3285,49 @@ type(casa_met),           intent(inout) :: casamet
 type(phen_variable),      intent(inout) :: phen
 character(len=*), intent(in) :: fcasapft
 
-real, dimension(mxvt,mplant) :: ratiocnplant
-real, dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
-real, dimension(mso,msoil) :: rationpsoil
+real(kind=8), dimension(mxvt,mplant) :: ratiocnplant
+real(kind=8), dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
+real(kind=8), dimension(mso,msoil) :: rationpsoil
 
-real, dimension(mxvt) :: leafage,woodage,frootage,metage
-real, dimension(mxvt) :: strage,cwdage,micage,slowage,passage,slax
-real, dimension(mxvt) :: xfherbivore,xxkleafcoldmax,xxkleafdrymax
-real, dimension(mxvt) :: xratioNPleafmin,xratioNPleafmax,xratioNPwoodmin,xratioNPwoodmax
-real, dimension(mxvt) :: xratioNPfrootmin,xratioNPfrootmax,xfNminloss,xfNminleach,xnfixrate
-real, dimension(mxvt) :: xnsoilmin,xplab,xpsorb,xpocc
-real, dimension(mxvt) :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
-real, dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
-real, dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
-real, dimension(mxvt) :: xxnpmax,xq10soil,xxkoptlitter,xxkoptsoil,xprodptase
-real, dimension(mxvt) :: xcostnpup,xmaxfinelitter,xmaxcwd,xnintercept,xnslope
-real, dimension(mxvt) :: xla_to_sa,xvcmax_scalar,xdisturbance_interval
-real, dimension(mxvt) :: xDAMM_EnzPool,xDAMM_KMO2,xDAMM_KMcp,xDAMM_Ea,xDAMM_alpha
-real, dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
-real, dimension(mso) :: xkmlabp,xpsorbmax,xfPleach
+real(kind=8), dimension(mxvt) :: leafage,woodage,frootage,metage
+real(kind=8), dimension(mxvt) :: strage,cwdage,micage,slowage,passage,slax
+real(kind=8), dimension(mxvt) :: xfherbivore,xxkleafcoldmax,xxkleafdrymax
+real(kind=8), dimension(mxvt) :: xratioNPleafmin,xratioNPleafmax,xratioNPwoodmin,xratioNPwoodmax
+real(kind=8), dimension(mxvt) :: xratioNPfrootmin,xratioNPfrootmax,xfNminloss,xfNminleach,xnfixrate
+real(kind=8), dimension(mxvt) :: xnsoilmin,xplab,xpsorb,xpocc
+real(kind=8), dimension(mxvt) :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
+real(kind=8), dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
+real(kind=8), dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
+real(kind=8), dimension(mxvt) :: xxnpmax,xq10soil,xxkoptlitter,xxkoptsoil,xprodptase
+real(kind=8), dimension(mxvt) :: xcostnpup,xmaxfinelitter,xmaxcwd,xnintercept,xnslope
+real(kind=8), dimension(mxvt) :: xla_to_sa,xvcmax_scalar,xdisturbance_interval
+real(kind=8), dimension(mxvt) :: xDAMM_EnzPool,xDAMM_KMO2,xDAMM_KMcp,xDAMM_Ea,xDAMM_alpha
+real(kind=8), dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
+real(kind=8), dimension(mso) :: xkmlabp,xpsorbmax,xfPleach
 
 integer :: i, iso, nv, ierr
 integer :: nv0,nv1,nv2,nv3,nv4,nv5,nv6,nv7,nv8,nv9,nv10,nv11,nv12,nv13
 integer :: fflag=0
 
 integer, dimension(mxvt) :: ivt2
-real, dimension(mxvt) :: kroot
-real, dimension(mxvt) :: rootdepth
-real, dimension(mxvt) :: kuptake
-real, dimension(mxvt) :: krootlen
-real, dimension(mxvt) :: kminn
-real, dimension(mxvt) :: kuplabp
-real, dimension(mxvt,mplant) :: fracnpptop
-real, dimension(mxvt,mplant) :: rmplant
-real, dimension(mxvt,mplant) :: ftransnptol
-real, dimension(mxvt,mplant) :: fracligninplant
-real, dimension(mxvt) :: glaimax
-real, dimension(mxvt) :: glaimin
-real, dimension(mxvt) :: xkleafcoldexp
-real, dimension(mxvt) :: xkleafdryexp
-real, dimension(mxvt,mplant) :: rationcplantmin
-real, dimension(mxvt,mplant) :: rationcplantmax
-real, dimension(mxvt,mplant) :: ftranspptol
-real, dimension(mxvt) :: tkshed
+real(kind=8), dimension(mxvt) :: kroot
+real(kind=8), dimension(mxvt) :: rootdepth
+real(kind=8), dimension(mxvt) :: kuptake
+real(kind=8), dimension(mxvt) :: krootlen
+real(kind=8), dimension(mxvt) :: kminn
+real(kind=8), dimension(mxvt) :: kuplabp
+real(kind=8), dimension(mxvt,mplant) :: fracnpptop
+real(kind=8), dimension(mxvt,mplant) :: rmplant
+real(kind=8), dimension(mxvt,mplant) :: ftransnptol
+real(kind=8), dimension(mxvt,mplant) :: fracligninplant
+real(kind=8), dimension(mxvt) :: glaimax
+real(kind=8), dimension(mxvt) :: glaimin
+real(kind=8), dimension(mxvt) :: xkleafcoldexp
+real(kind=8), dimension(mxvt) :: xkleafdryexp
+real(kind=8), dimension(mxvt,mplant) :: rationcplantmin
+real(kind=8), dimension(mxvt,mplant) :: rationcplantmax
+real(kind=8), dimension(mxvt,mplant) :: ftranspptol
+real(kind=8), dimension(mxvt) :: tkshed
 
 if ( trim(fcasapft) /= '' ) fflag = 1
 call ccmpi_bcast(fflag,0,comm_world)
@@ -3594,119 +3591,119 @@ if ( fflag == 1  ) then
   end if
 
   call ccmpi_bcast(ivt2,0,comm_world)
-  call ccmpi_bcast(kroot,0,comm_world)
-  call ccmpi_bcast(rootdepth,0,comm_world)
-  call ccmpi_bcast(kuptake,0,comm_world)
-  call ccmpi_bcast(krootlen,0,comm_world)
-  call ccmpi_bcast(kminn,0,comm_world)
-  call ccmpi_bcast(kuplabp,0,comm_world)
-  call ccmpi_bcast(xfherbivore,0,comm_world)
-  call ccmpi_bcast(leafage,0,comm_world)
-  call ccmpi_bcast(woodage,0,comm_world)
-  call ccmpi_bcast(frootage,0,comm_world)
-  call ccmpi_bcast(metage,0,comm_world)
-  call ccmpi_bcast(strage,0,comm_world)
-  call ccmpi_bcast(cwdage,0,comm_world)
-  call ccmpi_bcast(micage,0,comm_world)
-  call ccmpi_bcast(slowage,0,comm_world)
-  call ccmpi_bcast(passage,0,comm_world)
-  call ccmpi_bcast(clabileage,0,comm_world)
-  call ccmpi_bcast(slax,0,comm_world)
+  call ccmpi_bcastr8(kroot,0,comm_world)
+  call ccmpi_bcastr8(rootdepth,0,comm_world)
+  call ccmpi_bcastr8(kuptake,0,comm_world)
+  call ccmpi_bcastr8(krootlen,0,comm_world)
+  call ccmpi_bcastr8(kminn,0,comm_world)
+  call ccmpi_bcastr8(kuplabp,0,comm_world)
+  call ccmpi_bcastr8(xfherbivore,0,comm_world)
+  call ccmpi_bcastr8(leafage,0,comm_world)
+  call ccmpi_bcastr8(woodage,0,comm_world)
+  call ccmpi_bcastr8(frootage,0,comm_world)
+  call ccmpi_bcastr8(metage,0,comm_world)
+  call ccmpi_bcastr8(strage,0,comm_world)
+  call ccmpi_bcastr8(cwdage,0,comm_world)
+  call ccmpi_bcastr8(micage,0,comm_world)
+  call ccmpi_bcastr8(slowage,0,comm_world)
+  call ccmpi_bcastr8(passage,0,comm_world)
+  call ccmpi_bcastr8(clabileage,0,comm_world)
+  call ccmpi_bcastr8(slax,0,comm_world)
 
-  call ccmpi_bcast(fracnpptop,0,comm_world)
-  call ccmpi_bcast(rmplant,0,comm_world)
+  call ccmpi_bcastr8(fracnpptop,0,comm_world)
+  call ccmpi_bcastr8(rmplant,0,comm_world)
 
-  call ccmpi_bcast(ratiocnplant,0,comm_world)
-  call ccmpi_bcast(ftransnptol,0,comm_world)
-  call ccmpi_bcast(fracligninplant,0,comm_world)
-  call ccmpi_bcast(ratiocnsoil,0,comm_world)
-  call ccmpi_bcast(ratiocnsoilmin,0,comm_world)
-  call ccmpi_bcast(ratiocnsoilmax,0,comm_world)
-  call ccmpi_bcast(glaimax,0,comm_world)
-  call ccmpi_bcast(glaimin,0,comm_world)
+  call ccmpi_bcastr8(ratiocnplant,0,comm_world)
+  call ccmpi_bcastr8(ftransnptol,0,comm_world)
+  call ccmpi_bcastr8(fracligninplant,0,comm_world)
+  call ccmpi_bcastr8(ratiocnsoil,0,comm_world)
+  call ccmpi_bcastr8(ratiocnsoilmin,0,comm_world)
+  call ccmpi_bcastr8(ratiocnsoilmax,0,comm_world)
+  call ccmpi_bcastr8(glaimax,0,comm_world)
+  call ccmpi_bcastr8(glaimin,0,comm_world)
 
-  call ccmpi_bcast(cleaf,0,comm_world)
-  call ccmpi_bcast(cwood,0,comm_world)
-  call ccmpi_bcast(cfroot,0,comm_world)
-  call ccmpi_bcast(cmet,0,comm_world)
-  call ccmpi_bcast(cstr,0,comm_world)
-  call ccmpi_bcast(ccwd,0,comm_world)
-  call ccmpi_bcast(cmic,0,comm_world)
-  call ccmpi_bcast(cslow,0,comm_world)
-  call ccmpi_bcast(cpass,0,comm_world)
+  call ccmpi_bcastr8(cleaf,0,comm_world)
+  call ccmpi_bcastr8(cwood,0,comm_world)
+  call ccmpi_bcastr8(cfroot,0,comm_world)
+  call ccmpi_bcastr8(cmet,0,comm_world)
+  call ccmpi_bcastr8(cstr,0,comm_world)
+  call ccmpi_bcastr8(ccwd,0,comm_world)
+  call ccmpi_bcastr8(cmic,0,comm_world)
+  call ccmpi_bcastr8(cslow,0,comm_world)
+  call ccmpi_bcastr8(cpass,0,comm_world)
 
-  call ccmpi_bcast(tkshed,0,comm_world)
-  call ccmpi_bcast(xxkleafcoldmax,0,comm_world)
-  call ccmpi_bcast(xkleafcoldexp,0,comm_world)
-  call ccmpi_bcast(xxkleafdrymax,0,comm_world)
-  call ccmpi_bcast(xkleafdryexp,0,comm_world)
+  call ccmpi_bcastr8(tkshed,0,comm_world)
+  call ccmpi_bcastr8(xxkleafcoldmax,0,comm_world)
+  call ccmpi_bcastr8(xkleafcoldexp,0,comm_world)
+  call ccmpi_bcastr8(xxkleafdrymax,0,comm_world)
+  call ccmpi_bcastr8(xkleafdryexp,0,comm_world)
 
-  call ccmpi_bcast(rationcplantmin,0,comm_world)
-  call ccmpi_bcast(rationcplantmax,0,comm_world)
-  call ccmpi_bcast(xfnminloss,0,comm_world)
-  call ccmpi_bcast(xfnminleach,0,comm_world)
-  call ccmpi_bcast(xnfixrate,0,comm_world)
+  call ccmpi_bcastr8(rationcplantmin,0,comm_world)
+  call ccmpi_bcastr8(rationcplantmax,0,comm_world)
+  call ccmpi_bcastr8(xfnminloss,0,comm_world)
+  call ccmpi_bcastr8(xfnminleach,0,comm_world)
+  call ccmpi_bcastr8(xnfixrate,0,comm_world)
 
-  call ccmpi_bcast(nleaf,0,comm_world)
-  call ccmpi_bcast(nwood,0,comm_world)
-  call ccmpi_bcast(nfroot,0,comm_world)
-  call ccmpi_bcast(nmet,0,comm_world)
-  call ccmpi_bcast(nstr,0,comm_world)
-  call ccmpi_bcast(ncwd,0,comm_world)
-  call ccmpi_bcast(nmic,0,comm_world)
-  call ccmpi_bcast(nslow,0,comm_world)
-  call ccmpi_bcast(npass,0,comm_world)
-  call ccmpi_bcast(xnsoilmin,0,comm_world)
+  call ccmpi_bcastr8(nleaf,0,comm_world)
+  call ccmpi_bcastr8(nwood,0,comm_world)
+  call ccmpi_bcastr8(nfroot,0,comm_world)
+  call ccmpi_bcastr8(nmet,0,comm_world)
+  call ccmpi_bcastr8(nstr,0,comm_world)
+  call ccmpi_bcastr8(ncwd,0,comm_world)
+  call ccmpi_bcastr8(nmic,0,comm_world)
+  call ccmpi_bcastr8(nslow,0,comm_world)
+  call ccmpi_bcastr8(npass,0,comm_world)
+  call ccmpi_bcastr8(xnsoilmin,0,comm_world)
 
-  call ccmpi_bcast(xrationpleafmin,0,comm_world)
-  call ccmpi_bcast(xrationpleafmax,0,comm_world)
-  call ccmpi_bcast(xrationpwoodmin,0,comm_world)
-  call ccmpi_bcast(xrationpwoodmax,0,comm_world)
-  call ccmpi_bcast(xrationpfrootmin,0,comm_world)
-  call ccmpi_bcast(xrationpfrootmax,0,comm_world)
-  call ccmpi_bcast(ftranspptol,0,comm_world)
+  call ccmpi_bcastr8(xrationpleafmin,0,comm_world)
+  call ccmpi_bcastr8(xrationpleafmax,0,comm_world)
+  call ccmpi_bcastr8(xrationpwoodmin,0,comm_world)
+  call ccmpi_bcastr8(xrationpwoodmax,0,comm_world)
+  call ccmpi_bcastr8(xrationpfrootmin,0,comm_world)
+  call ccmpi_bcastr8(xrationpfrootmax,0,comm_world)
+  call ccmpi_bcastr8(ftranspptol,0,comm_world)
 
-  call ccmpi_bcast(xkmlabp,0,comm_world)
-  call ccmpi_bcast(xpsorbmax,0,comm_world)
-  call ccmpi_bcast(xfpleach,0,comm_world)
-  call ccmpi_bcast(rationpsoil,0,comm_world)
-  call ccmpi_bcast(xxkplab,0,comm_world)
-  call ccmpi_bcast(xxkpsorb,0,comm_world)
-  call ccmpi_bcast(xxkpocc,0,comm_world)
+  call ccmpi_bcastr8(xkmlabp,0,comm_world)
+  call ccmpi_bcastr8(xpsorbmax,0,comm_world)
+  call ccmpi_bcastr8(xfpleach,0,comm_world)
+  call ccmpi_bcastr8(rationpsoil,0,comm_world)
+  call ccmpi_bcastr8(xxkplab,0,comm_world)
+  call ccmpi_bcastr8(xxkpsorb,0,comm_world)
+  call ccmpi_bcastr8(xxkpocc,0,comm_world)
 
-  call ccmpi_bcast(xpleaf,0,comm_world)
-  call ccmpi_bcast(xpwood,0,comm_world)
-  call ccmpi_bcast(xpfroot,0,comm_world)
-  call ccmpi_bcast(xpmet,0,comm_world)
-  call ccmpi_bcast(xpstr,0,comm_world)
-  call ccmpi_bcast(xpcwd,0,comm_world)
-  call ccmpi_bcast(xpmic,0,comm_world)
-  call ccmpi_bcast(xpslow,0,comm_world)
-  call ccmpi_bcast(xppass,0,comm_world)
-  call ccmpi_bcast(xplab,0,comm_world)
-  call ccmpi_bcast(xpsorb,0,comm_world)
-  call ccmpi_bcast(xpocc,0,comm_world)
+  call ccmpi_bcastr8(xpleaf,0,comm_world)
+  call ccmpi_bcastr8(xpwood,0,comm_world)
+  call ccmpi_bcastr8(xpfroot,0,comm_world)
+  call ccmpi_bcastr8(xpmet,0,comm_world)
+  call ccmpi_bcastr8(xpstr,0,comm_world)
+  call ccmpi_bcastr8(xpcwd,0,comm_world)
+  call ccmpi_bcastr8(xpmic,0,comm_world)
+  call ccmpi_bcastr8(xpslow,0,comm_world)
+  call ccmpi_bcastr8(xppass,0,comm_world)
+  call ccmpi_bcastr8(xplab,0,comm_world)
+  call ccmpi_bcastr8(xpsorb,0,comm_world)
+  call ccmpi_bcastr8(xpocc,0,comm_world)
 
-  call ccmpi_bcast(xxnpmax,0,comm_world)
-  call ccmpi_bcast(xq10soil,0,comm_world)
-  call ccmpi_bcast(xxkoptlitter,0,comm_world)
-  call ccmpi_bcast(xxkoptsoil,0,comm_world)
-  call ccmpi_bcast(xprodptase,0,comm_world)
-  call ccmpi_bcast(xcostnpup,0,comm_world)
-  call ccmpi_bcast(xmaxfinelitter,0,comm_world)
-  call ccmpi_bcast(xmaxcwd,0,comm_world)
-  call ccmpi_bcast(xnintercept,0,comm_world)
-  call ccmpi_bcast(xnslope,0,comm_world)
+  call ccmpi_bcastr8(xxnpmax,0,comm_world)
+  call ccmpi_bcastr8(xq10soil,0,comm_world)
+  call ccmpi_bcastr8(xxkoptlitter,0,comm_world)
+  call ccmpi_bcastr8(xxkoptsoil,0,comm_world)
+  call ccmpi_bcastr8(xprodptase,0,comm_world)
+  call ccmpi_bcastr8(xcostnpup,0,comm_world)
+  call ccmpi_bcastr8(xmaxfinelitter,0,comm_world)
+  call ccmpi_bcastr8(xmaxcwd,0,comm_world)
+  call ccmpi_bcastr8(xnintercept,0,comm_world)
+  call ccmpi_bcastr8(xnslope,0,comm_world)
 
-  call ccmpi_bcast(xla_to_sa,0,comm_world)
-  call ccmpi_bcast(xdisturbance_interval,0,comm_world)
-  call ccmpi_bcast(xvcmax_scalar,0,comm_world)
+  call ccmpi_bcastr8(xla_to_sa,0,comm_world)
+  call ccmpi_bcastr8(xdisturbance_interval,0,comm_world)
+  call ccmpi_bcastr8(xvcmax_scalar,0,comm_world)
 
-  call ccmpi_bcast(xdamm_enzpool,0,comm_world)
-  call ccmpi_bcast(xdamm_kmo2,0,comm_world)
-  call ccmpi_bcast(xdamm_kmcp,0,comm_world)
-  call ccmpi_bcast(xdamm_ea,0,comm_world)
-  call ccmpi_bcast(xdamm_alpha,0,comm_world)
+  call ccmpi_bcastr8(xdamm_enzpool,0,comm_world)
+  call ccmpi_bcastr8(xdamm_kmo2,0,comm_world)
+  call ccmpi_bcastr8(xdamm_kmcp,0,comm_world)
+  call ccmpi_bcastr8(xdamm_ea,0,comm_world)
+  call ccmpi_bcastr8(xdamm_alpha,0,comm_world)
   if ( mp_global>0 ) then
     casabiome%ivt2 = ivt2
     casabiome%kroot = kroot
@@ -4017,12 +4014,12 @@ else
 end if
     
 if ( mp_global>0 ) then
-  casabiome%ratioPcplantmin(:,leaf)  = 1./(xratioNPleafmax*ratioCNplant(:,leaf))
-  casabiome%ratioPcplantmax(:,leaf)  = 1./(xratioNPleafmin*ratioCNplant(:,leaf))
-  casabiome%ratioPcplantmin(:,wood)  = 1./(xratioNPwoodmax*ratioCNplant(:,wood))
-  casabiome%ratioPcplantmax(:,wood)  = 1./(xratioNPwoodmin*ratioCNplant(:,wood))
-  casabiome%ratioPcplantmin(:,xroot) = 1./(xratioNPfrootmax*ratioCNplant(:,xroot))
-  casabiome%ratioPcplantmax(:,xroot) = 1./(xratioNPfrootmin*ratioCNplant(:,xroot))
+  casabiome%ratioPcplantmin(:,leaf)  = 1._8/(xratioNPleafmax*ratioCNplant(:,leaf))
+  casabiome%ratioPcplantmax(:,leaf)  = 1._8/(xratioNPleafmin*ratioCNplant(:,leaf))
+  casabiome%ratioPcplantmin(:,wood)  = 1._8/(xratioNPwoodmax*ratioCNplant(:,wood))
+  casabiome%ratioPcplantmax(:,wood)  = 1._8/(xratioNPwoodmin*ratioCNplant(:,wood))
+  casabiome%ratioPcplantmin(:,xroot) = 1._8/(xratioNPfrootmax*ratioCNplant(:,xroot))
+  casabiome%ratioPcplantmax(:,xroot) = 1._8/(xratioNPfrootmin*ratioCNplant(:,xroot))
 
   casabiome%ratioNPplantmin(:,leaf)  = xratioNPleafmin
   casabiome%ratioNPplantmax(:,leaf)  = xratioNPleafmax
@@ -4032,10 +4029,10 @@ if ( mp_global>0 ) then
   casabiome%ratioNPplantmax(:,xroot) = xratioNPfrootmax    
 
   casabiome%sla                = slax
-  casabiome%fraclabile(:,leaf) = deltcasa*0.6    !1/day
-  casabiome%fraclabile(:,xroot)= deltcasa*0.4    !1/day
-  casabiome%fraclabile(:,wood) = 0.
-  casabiome%plantrate(:,leaf)  = deltcasa/(leafage*(1.-xfherbivore))
+  casabiome%fraclabile(:,leaf) = deltcasa*0.6_8    !1/day
+  casabiome%fraclabile(:,xroot)= deltcasa*0.4_8    !1/day
+  casabiome%fraclabile(:,wood) = 0._8
+  casabiome%plantrate(:,leaf)  = deltcasa/(leafage*(1._8-xfherbivore))
   casabiome%plantrate(:,xroot) = deltcasa/frootage
   casabiome%plantrate(:,wood)  = deltcasa/woodage
   casabiome%litterrate(:,metb) = deltcasa/metage
@@ -4053,7 +4050,7 @@ if ( mp_global>0 ) then
   casabiome%q10soil(:)         = xq10soil(:)
   casabiome%xkoptlitter(:)     = xxkoptlitter(:)
   casabiome%xkoptsoil(:)       = xxkoptsoil(:)
-  casabiome%prodptase(:)       = xprodptase(:)/365.   ! convert from yearly to daily
+  casabiome%prodptase(:)       = xprodptase(:)/365._8   ! convert from yearly to daily
   casabiome%costnpup(:)        = xcostnpup(:)
   casabiome%maxfinelitter(:)   = xmaxfinelitter(:)
   casabiome%maxcwd(:)          = xmaxcwd(:)
@@ -4084,32 +4081,32 @@ if ( mp_global>0 ) then
     casapool%plitter(:,cwd)  = xpcwd(veg%iveg)
   elsewhere
     casamet%lnonwood = 1
-    casapool%cplant(:,wood)  = 0.
-    casapool%clitter(:,cwd)  = 0.
-    casapool%nplant(:,wood)  = 0.
-    casapool%nlitter(:,cwd)  = 0.
-    casapool%pplant(:,wood)  = 0.
-    casapool%plitter(:,cwd)  = 0.
+    casapool%cplant(:,wood)  = 0._8
+    casapool%clitter(:,cwd)  = 0._8
+    casapool%nplant(:,wood)  = 0._8
+    casapool%nlitter(:,cwd)  = 0._8
+    casapool%pplant(:,wood)  = 0._8
+    casapool%plitter(:,cwd)  = 0._8
   end where
   if ( cable_pop==1 ) then
    where (casamet%iveg2==forest.or.casamet%iveg2==shrub)
-      casapool%cplant(:,wood)  = 0.01
+      casapool%cplant(:,wood)  = 0.01_8
       casapool%nplant(:,wood)  = casabiome%ratioNCplantmin(veg%iveg,wood)*casapool%cplant(:,wood)
       casapool%pplant(:,wood)  = casabiome%ratioPCplantmin(veg%iveg,wood)* casapool%cplant(:,wood)
     end where
   end if
   casapool%cplant(:,leaf)     = cleaf(veg%iveg)
   casapool%cplant(:,xroot)    = cfroot(veg%iveg)
-  casapool%clabile            = 0.
+  casapool%clabile            = 0._8
   casapool%clitter(:,metb)    = cmet(veg%iveg)
   casapool%clitter(:,str)     = cstr(veg%iveg)
   casapool%csoil(:,mic)       = cmic(veg%iveg)
   casapool%csoil(:,slow)      = cslow(veg%iveg)
   casapool%csoil(:,pass)      = cpass(veg%iveg)
   if ( ccycle==1 ) then
-    casapool%ratioNCplant     = 1./ratioCNplant(veg%iveg,:)  
+    casapool%ratioNCplant     = 1._8/ratioCNplant(veg%iveg,:)  
   end if
-  casapool%dclabiledt         = 0.
+  casapool%dclabiledt         = 0._8
 
   ! initializing glai in case not reading pool file (eg. during spin)
   casamet%glai = max(casabiome%glaimin(veg%iveg), casabiome%sla(veg%iveg)*casapool%cplant(:,leaf))
@@ -4135,21 +4132,21 @@ if ( mp_global>0 ) then
   casapool%psoilocc       = xpocc(veg%iveg)
   casaflux%kmlabp         = xkmlabp(casamet%isorder)
   casaflux%psorbmax       = xpsorbmax(casamet%isorder)
-  casaflux%fpleach        = xfPleach(casamet%isorder)/365.
+  casaflux%fpleach        = xfPleach(casamet%isorder)/365._8
 
-  casapool%ratioNCplant   = 1./ratioCNplant(veg%iveg,:)
+  casapool%ratioNCplant   = 1._8/ratioCNplant(veg%iveg,:)
   casapool%ratioNPplant   = casabiome%ratioNPplantmin(veg%iveg,:)
-  casapool%ratioNClitter  = casapool%nlitter/(casapool%clitter+1.0e-10)
-  casapool%ratioNPlitter  = casapool%nlitter/(casapool%plitter+1.0e-10)
-  casapool%ratioNCsoil    = 1./ratioCNsoil(veg%iveg,:)
+  casapool%ratioNClitter  = casapool%nlitter/(casapool%clitter+1.0e-10_8)
+  casapool%ratioNPlitter  = casapool%nlitter/(casapool%plitter+1.0e-10_8)
+  casapool%ratioNCsoil    = 1._8/ratioCNsoil(veg%iveg,:)
   casapool%ratioNPsoil    = ratioNPsoil(casamet%isorder,:)
-  casapool%ratioNCsoilmin = 1./ratioCNsoilmax(veg%iveg,:)
-  casapool%ratioNCsoilmax = 1./ratioCNsoilmin(veg%iveg,:)
+  casapool%ratioNCsoilmin = 1._8/ratioCNsoilmax(veg%iveg,:)
+  casapool%ratioNCsoilmax = 1._8/ratioCNsoilmin(veg%iveg,:)
   casapool%ratioNCsoilnew = casapool%ratioNCsoilmax
 
   casapool%ratioPCplant   = casabiome%ratioPcplantmax(veg%iveg,:)
-  casapool%ratioPClitter  = casapool%plitter/(casapool%clitter(:,:)+1.0e-10)
-  casapool%ratioPCsoil    = 1./(ratioCNsoil(veg%iveg,:)*ratioNPsoil(casamet%isorder,:))
+  casapool%ratioPClitter  = casapool%plitter/(casapool%clitter(:,:)+1.0e-10_8)
+  casapool%ratioPCsoil    = 1._8/(ratioCNsoil(veg%iveg,:)*ratioNPsoil(casamet%isorder,:))
 
   if ( ccycle<2 ) then
     casapool%Nplant         = casapool%Cplant*casapool%ratioNCplant
@@ -6527,32 +6524,58 @@ implicit none
 
 integer k
 real, dimension(mp_global), intent(in) :: old_sv
+real(kind=8), dimension(mp_global) :: dat
 
 if ( mp_global>0 ) then
 
   if ( any( abs(sv-old_sv)>1.e-8 ) ) then
     
     ! assume common soil texture and soil heat capacity
+    ! (use dat to deal with r_2 when using gfortran)
     do k = 1,ms
-      call redistribute_work(old_sv,ssnow%tgg(:,k))
-      call redistribute_work(old_sv,ssnow%wb(:,k))
-      call redistribute_work(old_sv,ssnow%wbice(:,k))
+      dat = ssnow%tgg(:,k)  
+      call redistribute_work(old_sv,dat)
+      ssnow%tgg(:,k) = dat
+      dat = ssnow%wb(:,k)
+      call redistribute_work(old_sv,dat)
+      ssnow%wb(:,k) = dat
+      dat = ssnow%wbice(:,k)
+      call redistribute_work(old_sv,dat)
+      ssnow%wbice(:,k) = dat
     end do
-    call redistribute_work(old_sv,ssnow%GWwb)
+    dat = ssnow%GWwb
+    call redistribute_work(old_sv,dat)
+    ssnow%GWwb = dat
     if ( soil_struc==1 ) then
       do k = 1,ms
-        call redistribute_work(old_sv,ssnow%tsoil(:,k))
+        dat = ssnow%tsoil(:,k)  
+        call redistribute_work(old_sv,dat)
+        ssnow%tsoil(:,k) = dat
       end do
     end if
     !do k = 1,3
-    !  call redistribute_work(old_sv,ssnow%tggsn(:,k))
-    !  call redistribute_work(old_sv,ssnow%smass(:,k))
-    !  call redistribute_work(old_sv,ssnow%ssdn(:,k))
-    !  call redistribute_work(old_sv,ssnow%sdepth(:,k))
+    !  dat = ssnow%tggsn(:,k)
+    !  call redistribute_work(old_sv,dat)
+    !  ssnow%tggsn(:,k) = dat
+    !  dat = ssnow%smass(:,k)
+    !  call redistribute_work(old_sv,dat)
+    !  ssnow%smass(:,k) = dat
+    !  dat = ssnow%ssdn(:,k)
+    !  call redistribute_work(old_sv,dat)
+    !  ssnow%ssdn(:,k) = dat
+    !  dat = ssnow%sdepth(:,k)
+    !  call redistribute_work(old_sv,dat)
+    !  ssnow%sdepth(:,k) = dat
     !end do
-    !call redistribute_work(old_sv,ssnow%ssdn(:))
-    !call redistribute_work(old_sv,ssnow%snowd(:))
-    !call redistribute_work(old_sv,ssnow%osnowd(:))
+    !dat = ssnow%ssdn(:) 
+    !call redistribute_work(old_sv,dat)
+    !ssnow%ssdn(:) = dat
+    !dat = ssnow%snowd(:)
+    !call redistribute_work(old_sv,dat)
+    !ssnow%snowd(:) = dat
+    !dat = ssnow%osnowd(:)
+    !call redistribute_work(old_sv,dat)
+    !ssnow%osnowd(:) = dat
   
   end if
   
@@ -6561,7 +6584,7 @@ end if
 return
 end subroutine redistribute_tile
 
-subroutine redistribute_work_r4(old_sv,vdata)
+subroutine redistribute_work(old_sv,vdata)
 
 use cc_omp, only : ntiles, imax
 use newmpar_m
@@ -6625,74 +6648,7 @@ do nb = 1,maxnb
 end do  
 
 return
-end subroutine redistribute_work_r4    
-    
-subroutine redistribute_work_cr2(old_sv,vdata)
-
-use cc_omp, only : ntiles, imax
-use cable_def_types_mod, only : r_2
-use newmpar_m
-use soil_m
-
-implicit none
-
-integer tile, nb, iq, is, ie
-real, dimension(mp_global), intent(in) :: old_sv
-real, dimension(ifull,maxnb) :: up_new_svs, up_old_svs
-real, dimension(ifull) :: svs_sum
-real, dimension(maxtile) :: adj_pos_frac, adj_neg_frac, new_svs, old_svs
-real(kind=8) :: ave_neg_vdata
-real(kind=r_2), dimension(mp_global), intent(inout) :: vdata
-real(kind=8), dimension(ifull,maxnb) :: up_vdata
-real(kind=8), dimension(maxtile) :: old_vdata
-
-up_vdata = 0._8
-up_new_svs = 0.
-up_old_svs = 0.
-
-do nb = 1,maxnb
-  call cable_unpack(sv,up_new_svs(:,nb),nb)
-  call cable_unpack(old_sv,up_old_svs(:,nb),nb)
-  call cable_unpack(vdata,up_vdata(:,nb),nb)
-end do  
-svs_sum = sum(up_new_svs,dim=2)
-do nb = 1,maxnb
-  up_new_svs(:,nb) = up_new_svs(:,nb)/svs_sum
-end do
-svs_sum = sum(up_old_svs,dim=2)
-do nb = 1,maxnb
-  up_old_svs(:,nb) = up_old_svs(:,nb)/svs_sum
-end do
-
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  do iq = is,ie
-    new_svs(:) = up_new_svs(iq,:)
-    old_svs(:) = up_old_svs(iq,:)      
-    if ( land(iq) .and. any( abs(new_svs-old_svs)>1.e-8 ) ) then 
-      adj_pos_frac(:) = max( new_svs(:)-old_svs(:), 0. ) ! tiles with increasing fraction
-      adj_neg_frac(:) = max( old_svs(:)-new_svs(:), 0. ) ! tiles with decreasing fraction
-      old_vdata(:) = up_vdata(iq,:)
-      ! combine tiles with decreasing area fraction into one tile
-      ave_neg_vdata = sum( adj_neg_frac(:)*old_vdata )/sum( adj_neg_frac )
-      ! Only change tiles that are increasing in area fraction
-      do nb = 1,tdata(tile)%maxnb
-        if ( adj_pos_frac(nb)>0. ) then  
-          up_vdata(iq,nb) = (old_vdata(nb)*old_svs(nb) + ave_neg_vdata*adj_pos_frac(nb)) &
-                        /(old_svs(nb) + adj_pos_frac(nb))
-        end if  
-      end do
-    end if    
-  end do  
-end do
-
-do nb = 1,maxnb
-  call cable_pack(up_vdata(:,nb),vdata,nb)
-end do  
-
-return
-end subroutine redistribute_work_cr2    
+end subroutine redistribute_work        
 
 ! *************************************************************************************
 ! This subroutine saves CABLE tile data

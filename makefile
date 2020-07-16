@@ -70,7 +70,7 @@ FC = mpif90
 FCSCM = gfortran
 FHOST = -march=native
 MPIFLAG =
-FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FFLAGS = -O3 -mtune=native -mveclibabi=svml -Dgfortran $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
 ZMM =
 IPFLAG =
