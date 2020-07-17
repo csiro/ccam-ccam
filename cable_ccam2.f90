@@ -2581,6 +2581,7 @@ real, dimension(ifull,2) :: albsoilsn
 real, dimension(ifull) :: dummy_pack
 real, dimension(ifull) :: albsoil
 real, dimension(:), allocatable, save :: dummy_unpack
+real(kind=8), dimension(:), allocatable, save :: datr8
 logical, dimension(:), allocatable, save :: pmap_temp
 integer :: tile, popcount
 character(len=*), intent(in) :: fcasapft
@@ -2707,7 +2708,7 @@ if ( mp_global>0 ) then
     allocate( climate_save%scalex_sun(mp_global) )
     allocate( climate_save%scalex_shade(mp_global) )
   end if
-  allocate( dummy_unpack(mp_global) )
+  allocate( dummy_unpack(mp_global), datr8(mp_global) )
   
   ! Cable configuration
   cable_user%ssnow_POTEV = "P-M"
@@ -3063,13 +3064,17 @@ if ( mp_global>0 ) then
     
     call cable_pack(casapoint(:,1),casamet%isorder)
     dummy_pack = casapoint(:,2)/365.*1.E-3
-    call cable_pack(dummy_pack,casaflux%Nmindep)
+    call cable_pack(dummy_pack,datr8)
+    casaflux%Nmindep = datr8
     dummy_pack = casapoint(:,3)/365.
-    call cable_pack(dummy_pack,casaflux%Nminfix)
+    call cable_pack(dummy_pack,datr8)
+    casaflux%Nminfix = datr8
     dummy_pack = casapoint(:,4)/365.
-    call cable_pack(dummy_pack,casaflux%Pdep)
+    call cable_pack(dummy_pack,datr8)
+    casaflux%Pdep = datr8
     dummy_pack = casapoint(:,5)/365.
-    call cable_pack(dummy_pack,casaflux%Pwea)
+    call cable_pack(dummy_pack,datr8)
+    casaflux%Pwea = datr8
 
     where ( veg%iveg==9 .or. veg%iveg==10 ) ! crops
       ! P fertilizer =13 Mt P globally in 1994
@@ -3251,7 +3256,7 @@ if ( mp_global>0 ) then
   albnirdir(:) = albvisnir(:,2) ! To be updated by CABLE
   albnirdif(:) = albvisnir(:,2) ! To be updated by CABLE
 
-  deallocate( dummy_unpack )
+  deallocate( dummy_unpack, datr8 )
   
 else
 
@@ -4889,12 +4894,15 @@ implicit none
   
 integer k
 real, dimension(ifull) :: dummy_pack
+real, dimension(mp_global) :: dat
 
 if ( mp_global>0 ) then
   do k = 1,ms
     call cable_pack(tgg(:,k),ssnow%tgg(:,k))
-    call cable_pack(wb(:,k),ssnow%wb(:,k))
-    call cable_pack(wbice(:,k),ssnow%wbice(:,k))
+    call cable_pack(wb(:,k),dat)
+    ssnow%wb(:,k) = dat
+    call cable_pack(wbice(:,k),dat)
+    ssnow%wbice(:,k) = dat
   end do
   do k = 1,3
     call cable_pack(tggsn(:,k),ssnow%tggsn(:,k))
@@ -4923,7 +4931,8 @@ if ( mp_global>0 ) then
     end do    
   end if
   dummy_pack = real(1-isflag)*tgg(:,1) + real(isflag)*tggsn(:,1) - 273.15
-  call cable_pack(dummy_pack,ssnow%tsurface)
+  call cable_pack(dummy_pack,dat)
+  ssnow%tsurface = dat
   ssnow%rtsoil = 50._8
   canopy%cansto = 0._8
   canopy%ga = 0._8
@@ -5054,10 +5063,12 @@ use soilsnow_m
 implicit none
 
 integer k
+real(kind=8), dimension(mp_global) :: dummy_pack
 
 if ( mp_global>0 ) then
   do k = 1,ms
-    call cable_pack(wb(:,k),ssnow%wb(:,k))
+    call cable_pack(wb(:,k),dummy_pack)
+    ssnow%wb(:,k) = dummy_pack
   end do
 end if
 
@@ -5087,6 +5098,7 @@ integer, dimension(ifull) :: dati
 real, dimension(mp_global) :: dummy_unpack
 real, dimension(mp_global) :: old_sv
 real, dimension(ifull) :: datr
+real(kind=8), dimension(mp_global) :: dummy_pack
 real(kind=8), dimension(ifull) :: dat
 real(kind=8), dimension(ifull,ms) :: datms
 real(kind=8), dimension(ifull,3) :: dat3
@@ -5192,14 +5204,16 @@ else
     call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
-        call cable_pack(datms(:,k),ssnow%wb(:,k),n)
+        call cable_pack(datms(:,k),dummy_pack,n)
+	ssnow%wb(:,k) = dummy_pack
       end do
     end if
     write(vname,'("t",I1.1,"_wbice")') n
     call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
-        call cable_pack(datms(:,k),ssnow%wbice(:,k),n)
+        call cable_pack(datms(:,k),dummy_pack,n)
+	ssnow%wbice(:,k) = dummy_pack
       end do
     end if
     write(vname,'("t",I1.1,"_tggsn")') n
@@ -5258,7 +5272,10 @@ else
     if ( n<=maxnb ) call cable_pack(dat,ssnow%rtsoil(:),n)
     write(vname,'("t",I1.1,"_GWwb")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
-    if ( n<=maxnb ) call cable_pack(dat,ssnow%GWwb(:),n)
+    if ( n<=maxnb ) then
+      call cable_pack(dat,dummy_pack,n)
+      ssnow%GWwb(:) = dummy_pack
+    end if  
     write(vname,'("t",I1.1,"_cansto")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,canopy%cansto(:),n)
@@ -5283,41 +5300,56 @@ else
       do n = 1,maxtile
         write(vname,'("t",I1.1,"_hzero")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,ssnow%h0(:),n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  ssnow%h0(:) = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_s")') n
         call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
         if ( n<=maxnb ) then
           do k = 1,ms
-            call cable_pack(datms(:,k),ssnow%S(:,k),n)
+            call cable_pack(datms(:,k),dummy_pack,n)
+	    ssnow%S(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_tsoil")') n
         call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
         if ( n<=maxnb ) then
           do k = 1,ms
-            call cable_pack(datms(:,k),ssnow%tsoil(:,k),n)
+            call cable_pack(datms(:,k),dummy_pack,n)
+	    ssnow%tsoil(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_thetai")') n
         call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
         if ( n<=maxnb ) then
           do k = 1,ms
-            call cable_pack(datms(:,k),ssnow%thetai(:,k),n)
+            call cable_pack(datms(:,k),dummy_pack,n)
+	    ssnow%thetai(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,ssnow%snowliq(:,1),n) ! currently nsnow_max=1
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n) ! currently nsnow_max=1
+	  ssnow%snowliq(:,1) = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_tsurface")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,ssnow%tsurface(:),n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  ssnow%tsurface(:) = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_nsnow")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         dati = nint(dat)
         if ( n<=maxnb ) call cable_pack(dati,ssnow%nsnow(:),n)
         write(vname,'("t",I1.1,"_fwsoil")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,canopy%fwsoil(:),n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  canopy%fwsoil(:) = dummy_pack
+	end if  
       end do  
     end if
   end if
@@ -5332,68 +5364,80 @@ else
         call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
-            call cable_pack(datmplant(:,k),casapool%cplant(:,k),n)
+            call cable_pack(datmplant(:,k),dummy_pack,n)
+	    casapool%cplant(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_nplant")') n
         call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
-            call cable_pack(datmplant(:,k),casapool%nplant(:,k),n)
+            call cable_pack(datmplant(:,k),dummy_pack,n)
+	    casapool%nplant(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_pplant")') n
         call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
-            call cable_pack(datmplant(:,k),casapool%pplant(:,k),n)
+            call cable_pack(datmplant(:,k),dummy_pack,n)
+	    casapool%pplant(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_clitter")') n
         call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
         if ( n<=maxnb ) then
           do k = 1,mlitter
-            call cable_pack(datmlitter(:,k),casapool%clitter(:,k),n)
+            call cable_pack(datmlitter(:,k),dummy_pack,n)
+	    casapool%clitter(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_nlitter")') n
         call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
         if ( n<=maxnb ) then
           do k = 1,mlitter
-            call cable_pack(datmlitter(:,k),casapool%nlitter(:,k),n)
+            call cable_pack(datmlitter(:,k),dummy_pack,n)
+	    casapool%nlitter(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_plitter")') n
         call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
         if ( n<=maxnb ) then
           do k = 1,mlitter
-            call cable_pack(datmlitter(:,k),casapool%plitter(:,k),n)
+            call cable_pack(datmlitter(:,k),dummy_pack,n)
+	    casapool%plitter(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_csoil")') n
         call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
         if ( n<=maxnb ) then
           do k = 1,msoil
-            call cable_pack(datmsoil(:,k),casapool%csoil(:,k),n)
+            call cable_pack(datmsoil(:,k),dummy_pack,n)
+	    casapool%csoil(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_nsoil")') n
         call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
         if ( n<=maxnb ) then
           do k = 1,msoil
-            call cable_pack(datmsoil(:,k),casapool%nsoil(:,k),n)
+            call cable_pack(datmsoil(:,k),dummy_pack,n)
+	    casapool%nsoil(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_psoil")') n
         call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
         if ( n<=maxnb ) then
           do k = 1,msoil
-            call cable_pack(datmsoil(:,k),casapool%psoil(:,k),n)
+            call cable_pack(datmsoil(:,k),dummy_pack,n)
+	    casapool%psoil(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_glai")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casamet%glai,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casamet%glai = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_phen")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,phen%phen,n)
@@ -5410,56 +5454,102 @@ else
         if ( n<=maxnb ) call cable_pack(dati,phen%doyphase(:,3),n)
         write(vname,'("t",I1.1,"_clabile")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casapool%clabile,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casapool%clabile = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_nsoilmin")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casapool%nsoilmin,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casapool%nsoilmin = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_psoillab")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casapool%psoillab,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casapool%psoillab = dummy_pack 
+	end if  
         write(vname,'("t",I1.1,"_psoilsorb")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casapool%psoilsorb,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casapool%psoilsorb = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_psoilocc")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casapool%psoilocc,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casapool%psoilocc = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_crmplant")') n
         call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
-            call cable_pack(datmplant(:,k),casaflux%crmplant(:,k),n)
+            call cable_pack(datmplant(:,k),dummy_pack,n)
+	    casaflux%crmplant(:,k) = dummy_pack
           end do
         end if
         write(vname,'("t",I1.1,"_fracsapwood")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casaflux%frac_sapwood,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casaflux%frac_sapwood = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_sapwoodarea")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casaflux%sapwood_area,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casaflux%sapwood_area = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_crsoil")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casaflux%crsoil,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casaflux%crsoil = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_cnpp")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casaflux%cnpp,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casaflux%cnpp = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_clabloss")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casaflux%clabloss,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casaflux%clabloss = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_crgplant")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casaflux%crgplant,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casaflux%crgplant = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_stemnpp")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casaflux%stemnpp,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casaflux%stemnpp = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_LAImax")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casabal%laimax,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casabal%laimax = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_Cleafmean")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casabal%cleafmean,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  casabal%cleafmean = dummy_pack
+	end if  
         write(vname,'("t",I1.1,"_Crootmean")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) call cable_pack(dat,casabal%crootmean,n)
+        if ( n<=maxnb ) then
+	  call cable_pack(dat,dummy_pack,n)
+	  dummy_pack = casabal%crootmean
+	end if  
         write(vname,'("t",I1.1,"_fpn")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,canopy%fpn,n)
@@ -7507,6 +7597,8 @@ real(kind=8), dimension(:,:), allocatable, save :: dat5days
 character(len=80) vname
 logical, intent(in) :: local
   
+! use dummy_unpack for kind=r_2 with gfortran
+  
 if ( itype==-1 ) then !just for restart file
   do n = 1,maxtile  ! tile
     datr = 0.
@@ -7521,13 +7613,15 @@ if ( itype==-1 ) then !just for restart file
     end do
     do k = 1,ms
       dat = real(wb(:,k),8)
-      if ( n<=maxnb ) call cable_unpack(ssnow%wb(:,k),dat,n)
+      dummy_unpack = ssnow%wb(:,k)
+      if ( n<=maxnb ) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_wb",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,ms
       dat = real(wbice(:,k),8)
-      if ( n<=maxnb ) call cable_unpack(ssnow%wbice(:,k),dat,n)
+      dummy_unpack = ssnow%wbice(:,k)
+      if ( n<=maxnb ) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_wbice",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
@@ -7589,7 +7683,8 @@ if ( itype==-1 ) then !just for restart file
     write(vname,'("t",I1.1,"_rtsoil")') n
     call histwrt(dat,vname,idnc,iarch,local,.true.)
     dat = 0._8
-    if ( n<=maxnb ) call cable_unpack(ssnow%GWwb,dat,n)
+    ssnow%GWwb = ssnow%GWwb
+    if ( n<=maxnb ) call cable_unpack(dummy_unpack,dat,n)
     write(vname,'("t",I1.1,"_GWwb")') n
     call histwrt(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
@@ -7616,33 +7711,39 @@ if ( itype==-1 ) then !just for restart file
   if ( soil_struc==1 ) then
     do n = 1,maxtile  ! tile
       dat=0._8
-      if (n<=maxnb) call cable_unpack(ssnow%h0,dat,n)
+      dummy_unpack = ssnow%h0
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_hzero")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)   
       do k = 1,ms     ! soil layer
         dat=0._8
-        if (n<=maxnb) call cable_unpack(ssnow%S(:,k),dat,n)
+	dummy_unpack = ssnow%S(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_s",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,ms
         dat=0._8
-        if (n<=maxnb) call cable_unpack(ssnow%tsoil(:,k),dat,n)
+	dummy_unpack = ssnow%tsoil(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,ms
         dat=0._8
-        if (n<=maxnb) call cable_unpack(ssnow%thetai(:,k),dat,n)
+	dummy_unpack = ssnow%thetai(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       dat=0._8
-      if (n<=maxnb) call cable_unpack(ssnow%snowliq(:,1),dat,n)
+      dummy_unpack = ssnow%snowliq(:,1)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(ssnow%tsurface,dat,n)
+      dummy_unpack = ssnow%tsurface
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_tsurface")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
@@ -7653,7 +7754,8 @@ if ( itype==-1 ) then !just for restart file
       write(vname,'("t",I1.1,"_nsnow")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)   
       dat=0._8
-      if (n<=maxnb) call cable_unpack(canopy%fwsoil,dat,n)
+      dummy_unpack = canopy%fwsoil
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_fwsoil")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.) 
     end do
@@ -7662,60 +7764,70 @@ if ( itype==-1 ) then !just for restart file
     do n = 1,maxtile  ! tile
       do k = 1,mplant     
         dat=0._8
-        if (n<=maxnb) call cable_unpack(casapool%cplant(:,k),dat,n)
+	dummy_unpack = casapool%cplant(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,mplant
         dat=0._8
-        if (n<=maxnb) call cable_unpack(casapool%nplant(:,k),dat,n)
+	dummy_unpack = casapool%nplant(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,mplant
         dat=0._8
-        if (n<=maxnb) call cable_unpack(casapool%pplant(:,k),dat,n)
+	dummy_unpack = casapool%pplant(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,mlitter
         dat=0._8
-        if (n<=maxnb) call cable_unpack(casapool%clitter(:,k),dat,n)
+	dummy_unpack = casapool%clitter(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,mlitter
         dat=0._8
-        if (n<=maxnb) call cable_unpack(casapool%nlitter(:,k),dat,n)
+	dummy_unpack = casapool%nlitter(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do  
       do k = 1,mlitter
         dat=0._8
-        if (n<=maxnb) call cable_unpack(casapool%plitter(:,k),dat,n)
+	dummy_unpack = casapool%plitter(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,msoil
         dat=0._8
-        if (n<=maxnb) call cable_unpack(casapool%csoil(:,k),dat,n)
+	dummy_unpack = casapool%csoil(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,msoil
         dat=0._8
-        if (n<=maxnb) call cable_unpack(casapool%nsoil(:,k),dat,n)
+	dummy_unpack = casapool%nsoil(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,msoil
         dat=0._8
-        if (n<=maxnb) call cable_unpack(casapool%psoil(:,k),dat,n)
+	dummy_unpack = casapool%psoil(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casamet%glai(:),dat,n)
+      dummy_unpack = casamet%glai(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_glai")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
@@ -7741,69 +7853,85 @@ if ( itype==-1 ) then !just for restart file
       write(vname,'("t",I1.1,"_doyphase3")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%clabile(:),dat,n)
+      dummy_unpack = casapool%clabile(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_clabile")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%nsoilmin(:),dat,n)
+      dummy_unpack = casapool%nsoilmin(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_nsoilmin")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%psoillab(:),dat,n)
+      dummy_unpack = casapool%psoillab(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_psoillab")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%psoilsorb(:),dat,n)
+      dummy_unpack = casapool%psoilsorb(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_psoilsorb")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casapool%psoilocc(:),dat,n)
+      dummy_unpack = casapool%psoilocc(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_psoilocc")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       do k = 1,mplant     
         dat=0._8
-        if (n<=maxnb) call cable_unpack(casaflux%crmplant(:,k),dat,n)
+	dummy_unpack = casaflux%crmplant(:,k)
+        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
         write(vname,'("t",I1.1,"_crmplant",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casaflux%frac_sapwood(:),dat,n)
+      dummy_unpack = casaflux%frac_sapwood(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_fracsapwood")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casaflux%sapwood_area(:),dat,n)
+      dummy_unpack = casaflux%sapwood_area(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_sapwoodarea")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casaflux%Crsoil(:),dat,n)
+      dummy_unpack = casaflux%Crsoil(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_crsoil")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casaflux%cnpp(:),dat,n)
+      dummy_unpack = casaflux%cnpp(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_cnpp")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casaflux%clabloss(:),dat,n)
+      dummy_unpack = casaflux%clabloss(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_clabloss")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casaflux%crgplant(:),dat,n)
+      dummy_unpack = casaflux%crgplant(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_crgplant")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casaflux%stemnpp(:),dat,n)
+      dummy_unpack = casaflux%stemnpp(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_stemnpp")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casabal%laimax(:),dat,n)
+      dummy_unpack = casabal%laimax(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_LAImax")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casabal%cleafmean(:),dat,n)
+      dummy_unpack = casabal%cleafmean(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_Cleafmean")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      if (n<=maxnb) call cable_unpack(casabal%crootmean(:),dat,n)
+      dummy_unpack = casabal%crootmean(:)
+      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
       write(vname,'("t",I1.1,"_Crootmean")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8

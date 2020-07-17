@@ -19,18 +19,12 @@ ZMM =
 IPFLAG =
 IPOFLAG =
 VTHRESH =
+MPISPECIAL =
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
-FOVERRIDE =
-ZMM =
-IPFLAG =
-IPOFLAG =
-VTHRESH =
 endif
 ifeq ($(BROADWELL),yes)
 FHOST = -O3 -xCORE-AVX2
-FOVERRIDE =
-ZMM =
 IPFLAG = -ip
 IPOFLAG = -ipo
 VTHRESH = -vec-threshold0
@@ -70,7 +64,9 @@ FC = mpif90
 FCSCM = gfortran
 FHOST = -march=native
 MPIFLAG =
-FFLAGS = -O3 -mtune=native -mveclibabi=svml -Dgfortran $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+#MPISPECIAL = -fallow-argument-mismatch
+MPISPECIAL =
+FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
 ZMM =
 IPFLAG =
@@ -94,6 +90,7 @@ CC = pgcc
 FHOST = -O3 -tp=haswell -fast
 #FHOST = -g
 MPIFLAG += -I$(I_MPI_ROOT)/include64 -L$(I_MPI_ROOT)/lib64 -lmpi -lmpiif
+MPISPECIAL =
 FFLAGS = $(FHOST) -Dpgi -DGPU -traceback $(MPIFLAG) $(NCFLAG)
 #FFLAGS = $(FHOST) -Dpgi -D_GPU -traceback $(MPIFLAG) $(NCFLAG)
 #FFLAGS += -Minfo=accel -acc -ta=host
@@ -123,6 +120,7 @@ ZMM =
 IPFLAG =
 IPOFLAG =
 VTHRESH =
+MPISPECIAL =
 PPFLAG90 = -eZ
 PPFLAG77 = -eZ
 PPFLAG90F = -eZ
@@ -256,7 +254,7 @@ clean:
 netcdf_m.o: netcdf_m.f90
 	$(FC) -c $(PPFLAG90) $(NCFLAG) $<
 mpif_m.o: mpif_m.f90
-	$(FC) -c $(PPFLAG90) $(MPIFLAG) $<
+	$(FC) -c $(PPFLAG90) $(MPIFLAG) $(MPISPECIAL) $<
 esfsw_driver.o: esfsw_driver.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(VTHRESH) $<
 esfsw_parameters.o: esfsw_parameters.f90
