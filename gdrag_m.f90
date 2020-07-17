@@ -80,50 +80,6 @@ deallocate(he,helo)
 return
 end subroutine gdrag_end
 
-subroutine gwdrag
-
-use cc_mpi, only : mydiag
-use cc_omp
-use arrays_m
-use newmpar_m
-use nharrs_m
-use parm_m, only : idjd
-use pbl_m
-
-implicit none
-
-integer tile, is, ie
-integer idjd_t
-real, dimension(imax,kl) :: lt, lu, lv
-logical mydiag_t
-
-!$omp do schedule(static) private(is,ie),        &
-!$omp private(lt,lu,lv,idjd_t,mydiag_t)
-!$acc parallel copy(u,v), copyin(t,tss,he)
-!$acc loop gang private(lt,lu,lv)
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  
-  idjd_t = mod(idjd-1,imax) + 1
-  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-  
-  lt = t(is:ie,:)
-  lu = u(is:ie,:)
-  lv = v(is:ie,:)
-  
-  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),idjd_t,mydiag_t,imax,kl)
-
-  u(is:ie,:) = lu
-  v(is:ie,:) = lv
- 
-end do
-!$acc end parallel
-!$omp end do nowait
-
-return
-end subroutine gwdrag
-
 !  this is vectorized jlm version with kbot generalization July 2015
 !  Parameters and suggested values (jlm July 2015):
 !  ngwd  -20  (similar to Chouinard; previously we used weaker gwdrag with -5)
@@ -132,7 +88,7 @@ end subroutine gwdrag
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
-subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag,imax,kl)
+subroutine gwdrag(t,u,v,tss,he,idjd,mydiag,imax,kl)
 !$acc routine vector
 
 use const_phys
@@ -280,6 +236,6 @@ end if
 #endif
 
 return
-end subroutine gwdrag_work
+end subroutine gwdrag
 
 end module gdrag_m

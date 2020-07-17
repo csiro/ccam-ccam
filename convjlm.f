@@ -24,6 +24,7 @@
 
       private
       public convjlm, convjlm_init
+      public timeconv, alfin, entrainn
       
       integer, save :: k500,k600,k700,k900,k980,klon2,komega
 !$acc declare create(k500,k600,k700,k900,k980,klon2,komega)
@@ -316,126 +317,7 @@
 
       end subroutine convjlm_init
       
-      subroutine convjlm
-      
-      use arrays_m   
-      use aerosolldr
-      use cc_mpi, only : mydiag
-      use cc_omp
-      use cfrac_m
-      use extraout_m
-      use kuocomb_m
-      use liqwpar_m  ! ifullw
-      use map_m
-      use morepbl_m
-      use newmpar_m
-      use parm_m
-      use prec_m
-      use sigs_m
-      use soil_m
-      use tracers_m  ! ngas, nllp, ntrac
-      use vvel_m
-      use work2_m   ! for wetfa!    JLM
-
-      implicit none
-
-      include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
-
-      integer :: tile, is, ie
-      integer :: idjd_t
-      integer, dimension(imax)          :: lkbsav, lktsav
-      real, dimension(imax,kl,naero)    :: lxtg
-      real, dimension(imax,kl,ntrac)    :: ltr
-      real, dimension(imax,kl)          :: ldpsldt, lt, lqg
-      real, dimension(imax,kl)          :: lfluxtot
-      real, dimension(imax,kl)          :: lqlg, lu, lv, lqfg
-      real, dimension(imax,kl)          :: lcfrac
-      real, dimension(imax,ndust)       :: ldustwd
-      real, dimension(imax)             :: lso2wd, lso4wd
-      real, dimension(imax)             :: lbcwd, locwd, lsaltwd
-      logical :: mydiag_t
-
-!$omp  do schedule(static) private(is,ie),
-!$omp& private(ldpsldt,lt,lqg,lfluxtot),
-!$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd),
-!$omp& private(lqlg,lqfg,lcfrac,lu,lv,ltr,idjd_t,mydiag_t)
-!$acc parallel copy(t,qg,qlg,qfg,u,v,xtg,dustwd,so2wd,so4wd,bcwd),
-!$acc&  copy(ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav),
-!$acc&  copyin(dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn),
-!$acc&  copyin(em,sgsave),
-!$acc&  copyout(convpsav,cape,condc,condx,conds,condg)
-!$acc loop gang private(ldpsldt,lt,lqg,lqlg,lqfg,lcfrac,lu,lv),
-!$acc&  private(lxtg,ldustwd,lso2wd,lso4wd,lbcwd,locwd,lsaltwd),
-!$acc&  private(ltr,lfluxtot)
-      do tile=1,ntiles
-        is=(tile-1)*imax+1
-        ie=tile*imax
-        
-        idjd_t = mod(idjd-1,imax)+1
-        mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-
-        ldpsldt   = dpsldt(is:ie,:)
-        lt        = t(is:ie,:)
-        lqg       = qg(is:ie,:)
-        lqlg      = qlg(is:ie,:)
-        lqfg      = qfg(is:ie,:)
-        lcfrac    = cfrac(is:ie,:)
-        lu        = u(is:ie,:)
-        lv        = v(is:ie,:) 
-        if ( abs(iaero)>=2 ) then
-          lxtg    = xtg(is:ie,:,:)
-          ldustwd = dustwd(is:ie,:)
-          lso2wd  = so2wd(is:ie)
-          lso4wd  = so4wd(is:ie)
-          lbcwd   = bcwd(is:ie)
-          locwd   = ocwd(is:ie)
-          lsaltwd = saltwd(is:ie)
-        end if
-        if ( ngas>0 ) then
-          ltr = tr(is:ie,:,:)
-        end if
-
-        call convjlm_work(alfin(is:ie),ldpsldt,lt,lqg,
-     &       ps(is:ie),lfluxtot,convpsav(is:ie),cape(is:ie),
-     &       lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd,
-     &       lqlg,condc(is:ie),precc(is:ie),condx(is:ie),
-     &       conds(is:ie),condg(is:ie),precip(is:ie),
-     &       pblh(is:ie),fg(is:ie),wetfac(is:ie),land(is:ie),
-     &       entrainn(is:ie),lu,lv,timeconv(is:ie),em(is:ie),
-     &       kbsav(is:ie),ktsav(is:ie),ltr,lqfg,lcfrac,sgsave(is:ie),
-     &       idjd_t,mydiag_t,entrain,detrain,mbase,nbase,iterconv,
-     &       nuvconv,alfsea,methdetr,methprec,fldown,alflnd,detrainx,
-     &       sigkscb,dsig2,sigksct,rhcv,sig_ct,convtime,tied_con,
-     &       mdelay,nevapcc,convfact,ncvcloud,ldr,rhmois,imax,kl)     ! jlm convective scheme
-
-        t(is:ie,:)       = lt
-        qg(is:ie,:)      = lqg
-        qlg(is:ie,:)     = lqlg
-        qfg(is:ie,:)     = lqfg
-        fluxtot(is:ie,:) = lfluxtot
-        u(is:ie,:)       = lu
-        v(is:ie,:)       = lv
-        if ( abs(iaero)>=2 ) then
-          xtg(is:ie,:,:)  = lxtg
-          dustwd(is:ie,:) = ldustwd
-          so2wd(is:ie) = lso2wd
-          so4wd(is:ie) = lso4wd
-          bcwd(is:ie) = lbcwd
-          ocwd(is:ie) = locwd
-          saltwd(is:ie) = lsaltwd
-        end if
-        if ( ngas>0 ) then
-          tr(is:ie,:,:) = ltr
-        end if
-       
-      end do
-!$acc end parallel
-!$omp end do nowait
-      
-      return
-      end subroutine convjlm     ! jlm convective scheme
-
-      subroutine convjlm_work(alfin,dpsldt,t,qg,ps,
+      subroutine convjlm(alfin,dpsldt,t,qg,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,saltwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,entrainn,u,v,timeconv,em,
@@ -2236,6 +2118,6 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
 !      endif  ! (ntest==-1.and.nproc==1)  
 #endif
       return
-      end subroutine convjlm_work
+      end subroutine convjlm
 
       end module convjlm_m
