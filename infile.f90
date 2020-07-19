@@ -278,7 +278,7 @@ if ( mynproc>0 ) then
         end do
         deallocate( gvar )
       else
-        allocate( gvar(0,0) )  
+        allocate( gvar(1,1) )  
         call ccmpi_gatherx(gvar,rvar,0,comm_ip)
         deallocate( gvar )
       end if
@@ -432,7 +432,7 @@ if ( mynproc>0 ) then
         end do
         deallocate( gvar )
       else
-        allocate( gvar(0,0) )  
+        allocate( gvar(1,1) )  
         call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
         deallocate( gvar )
       end if
@@ -621,7 +621,7 @@ if ( mynproc>0 ) then
         end do
         deallocate( gvar )
       else
-        allocate( gvar(0,0,0) )  
+        allocate( gvar(1,1,1) )  
         call ccmpi_gatherx(gvar,rvar,0,comm_ip)
         deallocate( gvar )
       end if
@@ -810,7 +810,7 @@ if ( mynproc>0 ) then
         end do
         deallocate( gvar )
       else
-        allocate( gvar(0,0,0) )
+        allocate( gvar(1,1,1) )
         call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
         deallocate( gvar )
       end if
@@ -945,7 +945,7 @@ if ( mynproc>0 ) then
         end do
         deallocate( gvar )
       else
-        allocate( gvar(0,0,0,0) )  
+        allocate( gvar(1,1,1,1) )  
         call ccmpi_gatherx(gvar,rvar,0,comm_ip)
         deallocate( gvar )
       end if
@@ -1084,7 +1084,7 @@ if ( mynproc>0 ) then
         end do
         deallocate( gvar )
       else
-        allocate( gvar(0,0,0,0) ) 
+        allocate( gvar(1,1,1,1) ) 
         call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
         deallocate( gvar )
       end if
@@ -2119,7 +2119,7 @@ implicit none
 integer, intent(in) :: idnc, iarch
 real, dimension(ifull), intent(in) :: var
 real, dimension(ifull) :: wvar
-real, dimension(0,0) :: var_t
+real, dimension(1,1) :: var_t
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
@@ -2156,7 +2156,7 @@ implicit none
 integer, intent(in) :: idnc, iarch
 real(kind=8), dimension(ifull), intent(in) :: var
 real(kind=8), dimension(ifull) :: wvar
-real(kind=8), dimension(0,0) :: var_t
+real(kind=8), dimension(1,1) :: var_t
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
@@ -2496,7 +2496,7 @@ integer, intent(in) :: idnc, iarch
 integer :: ll
 real, dimension(:,:), intent(in) :: var
 real, dimension(ifull,size(var,2)) :: wvar
-real, dimension(0,0,0) :: var_g
+real, dimension(1,1,1) :: var_g
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
@@ -2534,7 +2534,7 @@ integer, intent(in) :: idnc, iarch
 integer ll
 real(kind=8), dimension(:,:), intent(in) :: var
 real(kind=8), dimension(ifull,size(var,2)) :: wvar
-real(kind=8), dimension(0,0,0) :: var_g
+real(kind=8), dimension(1,1,1) :: var_g
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
@@ -2878,7 +2878,7 @@ integer, intent(in) :: idnc, iarch
 integer ll, kk
 real, dimension(:,:,:), intent(in) :: var
 real, dimension(ifull,size(var,2),size(var,3)) :: wvar
-real, dimension(0,0,0,0) :: var_g
+real, dimension(1,1,1,1) :: var_g
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
@@ -2917,7 +2917,7 @@ integer, intent(in) :: idnc, iarch
 integer kk, ll
 real(kind=8), dimension(:,:,:), intent(in) :: var
 real(kind=8), dimension(ifull,size(var,2),size(var,3)) :: wvar
-real(kind=8), dimension(0,0,0,0) :: var_g
+real(kind=8), dimension(1,1,1,1) :: var_g
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 

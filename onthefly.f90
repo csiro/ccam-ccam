@@ -988,7 +988,9 @@ else
   end if          
   call doints4(ucc6(:,1:6),udum6(:,1:6))
   zss      = udum6(:,1)
-  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) ocndwn(1:ifull,1) = udum6(1:ifull,2)
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
+    ocndwn(1:ifull,1) = udum6(1:ifull,2)
+  end if  
   tss_l    = udum6(:,3)
   tss_s    = udum6(:,4)
   sicedep  = udum6(:,5)
@@ -1114,7 +1116,14 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
         call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_3d,fill_floor,ocndwn(:,1))
       end if  
     end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
-  end if   ! mlo_found
+  else
+    ! give current depth for default values  
+    ocndwn(:,1) = 0.  
+    do k = 1,wlev  
+      call mloexpdep(1,dum6,k,0)
+      ocndwn(:,1) = ocndwn(:,1) + dum6 ! dum6=dz here
+    end do
+  end if   ! mlo_found ..else..
 end if     ! abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3
 
 !------------------------------------------------------------

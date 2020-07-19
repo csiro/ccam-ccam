@@ -3038,9 +3038,7 @@ call xarrs_init(ifull,iextra,kl)
 if ( nvmix==6 ) then
   call tkeinit(ifull,iextra,kl)
 end if
-if ( tracerlist/=' ' ) then
-  call init_tracer
-end if
+call init_tracer
 !$acc update device(ngas)
 call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
 if ( nbd/=0 .or. mbd/=0 ) then

@@ -70,6 +70,13 @@ real tracmin,tracmax
 character(len=80) :: header
 logical dpoflag
 
+! check for valid tracer data
+if ( tracerlist==' ' ) then
+  allocate( tr(ifull+iextra,kl,ntrac) ) ! for pgfortran  
+  return
+end if    
+
+
 !     first read in a list of tracers, then determine what emission data is required
 !     Each processor read this, perhaps not necessary?
 

@@ -1,3 +1,4 @@
+! Conformal Cubic Atmospheric Model
     
 ! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
@@ -1629,7 +1630,7 @@ real, dimension(wlin) :: dpin, sigin_tmp
 real, dimension(wlev) :: sig
 real, dimension(wfull,wlin) :: sigin
 real x
-logical, dimension(wfull), intent(in) :: wpack
+logical, dimension(imax), intent(in) :: wpack
 type(depthdata), intent(in) :: depth
 
 if ( wfull==0 ) return
@@ -1908,7 +1909,7 @@ type(dgwaterdata), intent(inout) :: dgwater
 type(icedata), intent(inout) :: ice
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
-logical, dimension(size(sg)), intent(in) :: wpack
+logical, dimension(imax), intent(in) :: wpack
 logical, intent(in) :: calcprog ! flag to update prognostic variables (or just calculate fluxes)
 real, dimension(wfull) :: atm_sg,atm_rg,atm_rnd,atm_snd,atm_f,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v,atm_temp,atm_qg
 real, dimension(wfull) :: atm_ps,atm_zmin,atm_zmins,atm_inflow
@@ -4960,7 +4961,7 @@ real, dimension(:,:), intent(in), optional :: ice_temp
 
 if ( present( water_temp ) ) then
   if ( any( water_temp+wrtemp<100. .or. water_temp+wrtemp>400. ) ) then
-    write(6,*) "ERRROR: water_temp is out-of-range in ",trim(message)
+    write(6,*) "ERROR: water_temp is out-of-range in ",trim(message)
     write(6,*) "minval,maxval ",minval(water_temp+wrtemp),maxval(water_temp+wrtemp)
     write(6,*) "minloc,maxloc ",minloc(water_temp+wrtemp),maxloc(water_temp+wrtemp)
     stop -1
@@ -4978,7 +4979,7 @@ end if
 
 if ( present( ice_tsurf ) ) then
   if ( any( ice_tsurf<100. .or. ice_tsurf>400. ) ) then
-    write(6,*) "ERRROR: ice_tsurf is out-of-range in ",trim(message)
+    write(6,*) "ERROR: ice_tsurf is out-of-range in ",trim(message)
     write(6,*) "minval,maxval ",minval(ice_tsurf),maxval(ice_tsurf)
     write(6,*) "minloc,maxloc ",minloc(ice_tsurf),maxloc(ice_tsurf)
     stop -1
@@ -4987,7 +4988,7 @@ end if
 
 if ( present( ice_temp ) ) then
   if ( any( ice_temp<100. .or. ice_temp>400. ) ) then
-    write(6,*) "ERRROR: ice_temp is out-of-range in ",trim(message)
+    write(6,*) "ERROR: ice_temp is out-of-range in ",trim(message)
     write(6,*) "minval,maxval ",minval(ice_temp),maxval(ice_temp)
     write(6,*) "minloc,maxloc ",minloc(ice_temp),maxloc(ice_temp)
     stop -1

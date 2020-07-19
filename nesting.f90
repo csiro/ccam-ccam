@@ -58,6 +58,7 @@ integer, save :: mtimea = -1  ! previous mesonest time (mins)
 integer, save :: mtimeb = -1  ! next mesonest time (mins)
 integer, save :: mtimec = -1
 integer, save :: wl = -1
+integer, save :: nest_iblock = 96
 
 real, dimension(:), allocatable, save :: pslb, tssb, fraciceb
 real, dimension(:), allocatable, save :: psla, tssa
@@ -331,6 +332,7 @@ subroutine nestinb
 use aerosolldr                   ! LDR prognostic aerosols
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
+use cc_omp                       ! CC OpenMP routines
 use dates_m                      ! Date data
 use daviesnudge                  ! Far-field nudging
 use diag_m                       ! Diagnostic routines
@@ -409,6 +411,11 @@ if ( mtimer>mtimeb ) then
     ! define vertical weights
     call setdavvertwgt
     mtimeb = 0
+    ! define nest_iblock
+    nest_iblock = max(maxtilesize,1)
+    do while ( mod(il_g,nest_iblock)/=0 )
+      nest_iblock = nest_iblock - 1
+    end do
   end if
   
   mtimea = mtimeb
@@ -771,10 +778,10 @@ use xyzinfo_m         ! Grid coordinate arrays
 implicit none
 
 integer, intent(in) :: klt
-integer iq, iqg
+integer iq, iqg, k
 real, dimension(ifull,klt), intent(out) :: tbb
 real, dimension(ifull_g,klt), intent(in) :: tt
-real, dimension(ifull_g) :: r, sm ! large working array
+real, dimension(ifull_g) :: xa, ya, za, sm ! large working array
 real, dimension(klt+1) :: local_sum
 real, intent(in) :: cq
 real, dimension(klt+1,ifull_g) :: tt_t
@@ -782,21 +789,22 @@ real, dimension(klt+1,ifull_g) :: tt_t
 ! evaluate the 2D convolution
 call START_LOG(nestcalc_begin)
 
-! discrete normalisation factor
-sm = 1.
+xa = x_g
+ya = y_g
+za = z_g
 
-tt_t(1:klt,:)=transpose(tt)
-tt_t(klt+1,:)=sm(:)
-!$omp parallel do private(iqg,iq,r,local_sum)
+! discrete normalisation factor
+sm = 1./em_g**2
+
+do k = 1,klt
+  tt_t(k,:) = tt(:,k)*sm
+end do
+tt_t(klt+1,:) = sm(:)
+!$omp parallel do private(iqg,iq,local_sum)
 do iq = 1,ifull
   iqg = iq2iqg(iq)  
-  ! calculate distance between targer grid point and all other grid points
-  r(:) = real(x_g(iqg)*x_g(:)+y_g(iqg)*y_g(:)+z_g(iqg)*z_g(:))
-  r(:) = acos(max( min( r(:), 1. ), -1. ))
-  ! evaluate Gaussian weights as a function of distance
-  r(:) = exp(-(cq*r(:))**2)/(em_g(:)**2)
   ! apply low band pass filter
-  local_sum = drpdr_fast(r,tt_t)
+  local_sum = drpdr_fast(iqg,cq,xa,ya,za,tt_t,nest_iblock)
   tbb(iq,1:klt) = local_sum(1:klt)/local_sum(klt+1)
 end do
 !$omp end parallel do
@@ -1195,10 +1203,9 @@ real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(il_g*ipan*(klt+1)) :: dd      ! subset of sparse array
 real, dimension(ipan*jpan*(klt+1),0:2) :: ff
-real, dimension(4*il_g,klt) :: at             ! subset of sparse array
-real, dimension(4*il_g) :: asum, ra           ! subset of sparse array
+real, dimension(il_g) :: at, asum             ! subset of sparse array
 real, dimension(klt+1) :: local_sum
-real(kind=8), dimension(4*il_g) :: xa, ya, za ! subset of shared array
+real, dimension(4*il_g) :: xa, ya, za         ! subset of shared array
 real, dimension(klt+1,4*il_g) :: at_t         ! subset of sparse array
       
 ! matched for panels 1,2 and 3
@@ -1218,7 +1225,7 @@ oe = ioff + ipan
 call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(ipass,me,astr,bstr,cstr,j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,ra,asum,at,local_sum,at_t)
+!$omp private(n,nn,asum,at,local_sum,at_t)
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
@@ -1237,28 +1244,20 @@ do ipass = 0,2
       xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
       ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-      asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
+      asum = 1./em_g(ibeg:iend:a)**2
+      at_t(klt+1,sn:sn+il_g-1) = asum
       do k = 1,klt
-        call getglobalpack_v(at(sn:sn+il_g-1,k),ibeg,iend,k)  
-        at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
+        call getglobalpack_v(at,ibeg,iend,k)
+        at_t(k,sn:sn+il_g-1) = at*asum
       end do
     end do
     
-    at_t(1:klt,:) = transpose(at)
-    at_t(klt+1,1:me) = asum(1:me)
     ! start convolution
     do n = 1,ipan
       nn = n + os - 1
-      ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-      ra(1:me) = acos(max(min(ra(1:me), 1.), -1.))
-      ra(1:me) = exp(-(cq*ra(1:me))**2)
-      ! can also use the lines below which integrate the gaussian
-      ! analytically over the length element (but slower)
-      !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
-      !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      local_sum = drpdr_fast(ra(1:me),at_t) ! calculates sum(ra(1:me)*at(1:me,k)) and sum(ra(1:me)*asum(1:me))
       ibase = n + (j-1)*ipan
-      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = local_sum(1:klt+1) ! = dot_product(ra(1:me)*at(1:me,k))
+      ! dot_product(ra(1:me)*at_t(k,1:me))
+      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = drpdr_fast(nn,cq,xa(1:me),ya(1:me),za(1:me),at_t(:,1:me),nest_iblock) 
     end do  
    
   end do
@@ -1289,20 +1288,20 @@ do ipass = 0,2
       do jpoff = 0,il_g-1,jpan
         sy = jpoff/jpan
         ibase = n + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
-        ra(1+jpoff:jpan+jpoff) = dd(ibase:ibase+ipan*(jpan-1):ipan)
+        at(1+jpoff:jpan+jpoff) = dd(ibase:ibase+ipan*(jpan-1):ipan)
       end do
       ibeg = a*nn + b*1 + c
       iend = a*nn + b*il_g + c
-      call setglobalpack_v(ra(1:il_g),ibeg,iend,k)
+      call setglobalpack_v(at(1:il_g),ibeg,iend,k)
     end do  
     do jpoff = 0,il_g-1,jpan
       sy = jpoff/jpan
       ibase = n + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
-      ra(1+jpoff:jpan+jpoff) = dd(ibase:ibase+ipan*(jpan-1):ipan)
+      at(1+jpoff:jpan+jpoff) = dd(ibase:ibase+ipan*(jpan-1):ipan)
     end do
     ibeg = a*nn + b*1 + c
     iend = a*nn + b*il_g + c
-    call setglobalpack_v(ra(1:il_g),ibeg,iend,0)
+    call setglobalpack_v(at(1:il_g),ibeg,iend,0)
   end do  
 
 end do
@@ -1321,7 +1320,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,ra,asum,at,local_sum,at_t)
+!$omp private(n,nn,asum,at,local_sum,at_t)
 do j = 1,ipan
     
   ! pack from sparse arrays
@@ -1336,25 +1335,18 @@ do j = 1,ipan
     xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-    call getglobalpack_v(asum(sn:sn+il_g-1),ibeg,iend,0)     
+    call getglobalpack_v(asum,ibeg,iend,0) 
+    at_t(klt+1,sn:sn+il_g-1) = asum
     do k = 1,klt
-      call getglobalpack_v(at(sn:sn+il_g-1,k),ibeg,iend,k)  
+      call getglobalpack_v(at,ibeg,iend,k) 
+      at_t(k,sn:sn+il_g-1) = at
     end do
   end do
   
-  at_t(1:klt,:)=transpose(at)
-  at_t(klt+1,1:me)=asum(1:me)
   ! start convolution
   do n = 1,jpan
     nn = n + os - 1
-    ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-    ra(1:me) = acos(max(min(ra(1:me), 1.), -1.))
-    ra(1:me) = exp(-(cq*ra(1:me))**2)
-    ! can also use the lines below which integrate the gaussian
-    ! analytically over the length element (but slower)
-    !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
-    !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    local_sum = drpdr_fast(ra(1:me),at_t)
+    local_sum = drpdr_fast(nn,cq,xa(1:me),ya(1:me),za(1:me),at_t(:,1:me),nest_iblock)
     qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(klt+1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
   end do
   
@@ -1386,12 +1378,12 @@ integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
-real, dimension(4*il_g,klt) :: at
-real, dimension(4*il_g) :: asum, ra
+real, dimension(il_g) :: at, asum
+real, dimension(4*il_g) :: ra
 real, dimension(il_g*jpan*(klt+1)) :: dd
 real, dimension(ipan*jpan*(klt+1),0:2) :: ff
 real, dimension(klt+1) :: local_sum
-real(kind=8), dimension(4*il_g) :: xa, ya, za
+real, dimension(4*il_g) :: xa, ya, za
 real, dimension(klt+1,4*il_g) :: at_t
       
 ! matched for panels 0, 4 and 5
@@ -1411,7 +1403,7 @@ oe = joff + jpan
 call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(ipass,me,astr,bstr,cstr,j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,ra,asum,at,local_sum,at_t)
+!$omp private(n,nn,asum,at,local_sum,at_t)
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
@@ -1430,28 +1422,19 @@ do ipass = 0,2
       xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
       ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-      asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
+      asum = 1./em_g(ibeg:iend:a)**2
+      at_t(klt+1,sn:sn+il_g-1) = asum
       do k = 1,klt
-        call getglobalpack_v(at(sn:sn+il_g-1,k),ibeg,iend,k) 
-        at(sn:sn+il_g-1,k) = at(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
+        call getglobalpack_v(at,ibeg,iend,k) 
+        at_t(k,sn:sn+il_g-1) = at*asum
       end do
     end do
     
-    at_t(1:klt,:)=transpose(at)
-    at_t(klt+1,1:me)=asum(1:me)
     ! start convolution
     do n = 1,jpan
       nn = n + os - 1
-      ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-      ra(1:me) = acos(max( min(ra(1:me), 1.), -1.))
-      ra(1:me) = exp(-(cq*ra(1:me))**2)
-      ! can also use the lines below which integrate the gaussian
-      ! analytically over the length element (but slower)
-      !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
-      !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-      local_sum = drpdr_fast(ra(1:me),at_t)
       ibase = n + (j-1)*jpan
-      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = local_sum(1:klt+1)
+      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = drpdr_fast(nn,cq,xa(1:me),ya(1:me),za(1:me),at_t(:,1:me),nest_iblock)
     end do
     
   end do
@@ -1481,20 +1464,20 @@ do ipass = 0,2
       do jpoff = 0,il_g-1,ipan
         sy = jpoff/ipan
         ibase = n + ipan*jpan*(k-1) + ipan*jpan*(klt+1)*sy
-        ra(1+jpoff:ipan+jpoff) = dd(ibase:ibase+jpan*(ipan-1):jpan)
+        at(1+jpoff:ipan+jpoff) = dd(ibase:ibase+jpan*(ipan-1):jpan)
       end do
       ibeg = a*nn + b*1 + c
       iend = a*nn + b*il_g + c
-      call setglobalpack_v(ra(1:il_g),ibeg,iend,k)
+      call setglobalpack_v(at(1:il_g),ibeg,iend,k)
     end do
     do jpoff = 0,il_g-1,ipan
       sy = jpoff/ipan
       ibase = n + ipan*jpan*klt + ipan*jpan*(klt+1)*sy
-      ra(1+jpoff:ipan+jpoff) = dd(ibase:ibase+jpan*(ipan-1):jpan)
+      at(1+jpoff:ipan+jpoff) = dd(ibase:ibase+jpan*(ipan-1):jpan)
     end do
     ibeg = a*nn + b*1 + c
     iend = a*nn + b*il_g + c
-    call setglobalpack_v(ra(1:il_g),ibeg,iend,0)
+    call setglobalpack_v(at(1:il_g),ibeg,iend,0)
   end do  
 
 end do
@@ -1513,7 +1496,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,ra,asum,at,local_sum,at_t)
+!$omp private(n,nn,asum,at,local_sum,at_t)
 do j = 1,jpan
     
   ! pack data from sparse arrays
@@ -1529,25 +1512,18 @@ do j = 1,jpan
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
     ! v version is faster for getglobalpack  
-    call getglobalpack_v(asum(sn:sn+il_g-1),ibeg,iend,0) 
+    call getglobalpack_v(asum,ibeg,iend,0)
+    at_t(klt+1,sn:sn+il_g-1) = asum
     do k = 1,klt
-      call getglobalpack_v(at(sn:sn+il_g-1,k),ibeg,iend,k)  
+      call getglobalpack_v(at,ibeg,iend,k)
+      at_t(k,sn:sn+il_g-1) = at
     end do
   end do
   
-  at_t(1:klt,:)=transpose(at)
-  at_t(klt+1,1:me)=asum(1:me)
   ! start convolution
   do n = 1,ipan
     nn = n + os - 1
-    ra(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-    ra(1:me) = acos(max(min( ra(1:me), 1.), -1.))
-    ra(1:me) = exp(-(cq*ra(1:me))**2)
-    ! can also use the lines below which integrate the gaussian
-    ! analytically over the length element (but slower)
-    !ra(1) = 2.*erf(cq*0.5*(ds/rearth)
-    !ra(2:me) = erf(cq*(ra(2:me)+0.5*(ds/rearth)))-erf(cq*(ra(2:me)-0.5*(ds/rearth)))
-    local_sum = drpdr_fast(ra(1:me),at_t)
+    local_sum = drpdr_fast(nn,cq,xa(1:me),ya(1:me),za(1:me),at_t(:,1:me),nest_iblock)
     qt(n + ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(klt+1)
   end do
 
@@ -2059,10 +2035,10 @@ use xyzinfo_m          ! Grid coordinate arrays
 implicit none
 
 integer, intent(in) :: kd
-integer iqq, iqqg
+integer iqq, iqqg, k
 real, dimension(ifull_g,kd), intent(in) :: diff_g ! large common array
 real, dimension(ifull,kd), intent(out) :: dd
-real, dimension(ifull_g) :: rr, sm
+real, dimension(ifull_g) :: xa, ya, za, sm
 real, dimension(kd+1) :: local_sum
 real cq
 real, dimension(kd+1,ifull_g) :: diff_g_t ! large common array
@@ -2072,17 +2048,19 @@ cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
 
 call START_LOG(nestcalc_begin)
 dd(:,:) = 0.
-sm(:) = 1.
+sm(:) = 1./em_g
+xa(:) = x_g
+ya(:) = y_g
+za(:) = z_g
 
-diff_g_t(1:kd,:)=transpose(diff_g)
-diff_g_t(kd+1,:)=sm(:)
-!$omp parallel do private(iqqg,iqq,rr,local_sum)
+do k = 1,kd
+  diff_g_t(k,:) = diff_g(:,k)*sm
+end do  
+diff_g_t(kd+1,:) = sm(:)
+!$omp parallel do private(iqqg,iqq,local_sum)
 do iqq = 1,ifull
   iqqg = iq2iqg(iqq)
-  rr(:) = real(x_g(iqqg)*x_g(:)+y_g(iqqg)*y_g(:)+z_g(iqqg)*z_g(:))
-  rr(:) = acos(max( min( rr(:), 1. ), -1. ))
-  rr(:) = exp(-(cq*rr(:))**2)/(em_g(:)**2)
-  local_sum = drpdr_fast(rr,diff_g_t)
+  local_sum = drpdr_fast(iqqg,cq,xa,ya,za,diff_g_t,nest_iblock)
   if ( local_sum(kd+1)>1.e-8 ) then
     dd(iqq,1:kd) = local_sum(1:kd)/local_sum(kd+1)
   end if  
@@ -2393,12 +2371,12 @@ integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real :: psum
 real, dimension(ipan*jpan,kd), intent(out) :: qp
-real, dimension(4*il_g,kd) :: ap      
-real, dimension(4*il_g) :: rr, asum
+real, dimension(il_g) :: ap, asum      
+real, dimension(4*il_g) :: rr
 real, dimension(il_g*ipan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1),0:2) :: yy
 real, dimension(kd+1) :: local_sum
-real(kind=8), dimension(4*il_g) :: xa, ya, za
+real, dimension(4*il_g) :: xa, ya, za
 real, dimension(kd+1,4*il_g) :: ap_t
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
@@ -2415,7 +2393,7 @@ oe = ioff + ipan
 call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(ipass,me,astr,bstr,cstr,j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,rr,asum,ap,local_sum,ap_t)
+!$omp private(n,nn,asum,ap,local_sum,ap_t)
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
@@ -2434,23 +2412,19 @@ do ipass = 0,2
       xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
       ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-      asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
+      asum = 1./em_g(ibeg:iend:a)**2
+      ap_t(kd+1,sn:sn+il_g-1) = asum
       do k = 1,kd
         ! v version is faster for getglobalpack  
-        call getglobalpack_v(ap(sn:sn+il_g-1,k),ibeg,iend,k) 
-        ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
+        call getglobalpack_v(ap,ibeg,iend,k) 
+        ap_t(k,sn:sn+il_g-1) = ap*asum
       end do
     end do
     
-    ap_t(1:kd,:)=transpose(ap)
-    ap_t(kd+1,1:me)=asum(1:me)
     ! start convolution
     do n = 1,ipan
       nn = n + os - 1
-      rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-      rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
-      rr(1:me) = exp(-(cq*rr(1:me))**2)
-      local_sum = drpdr_fast(rr(1:me),ap_t)
+      local_sum = drpdr_fast(nn,cq,xa(1:me),ya(1:me),za(1:me),ap_t(:,1:me),nest_iblock)
       ibase = n + (j-1)*ipan
       yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = local_sum(1:kd+1)
     end do
@@ -2483,20 +2457,20 @@ do ipass = 0,2
       do jpoff = 0,il_g-1,jpan
         sy = jpoff/jpan
         ibase = n + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
-        rr(1+jpoff:jpan+jpoff) = zz(ibase:ibase+ipan*(jpan-1):ipan)
+        ap(1+jpoff:jpan+jpoff) = zz(ibase:ibase+ipan*(jpan-1):ipan)
       end do
       ibeg = a*nn + b*1 + c
       iend = a*nn + b*il_g + c
-      call setglobalpack_v(rr(1:il_g),ibeg,iend,k)
+      call setglobalpack_v(ap(1:il_g),ibeg,iend,k)
     end do  
     do jpoff = 0,il_g-1,jpan
       sy = jpoff/jpan
       ibase = n + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
-      rr(1+jpoff:jpan+jpoff) = zz(ibase:ibase+ipan*(jpan-1):ipan)
+      ap(1+jpoff:jpan+jpoff) = zz(ibase:ibase+ipan*(jpan-1):ipan)
     end do
     ibeg = a*nn + b*1 + c
     iend = a*nn + b*il_g + c
-    call setglobalpack_v(rr(1:il_g),ibeg,iend,0)
+    call setglobalpack_v(ap(1:il_g),ibeg,iend,0)
   end do  
           
 end do
@@ -2515,7 +2489,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,rr,asum,ap,local_sum,ap_t)
+!$omp private(n,nn,asum,ap,local_sum,ap_t)
 do j = 1,ipan
     
   ! pack data from sparse arrays
@@ -2531,21 +2505,18 @@ do j = 1,ipan
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
     ! v version is faster for getglobalpack  
-    call getglobalpack_v(asum(sn:sn+il_g-1),ibeg,iend,0) 
+    call getglobalpack_v(asum,ibeg,iend,0) 
+    ap_t(kd+1,sn:sn+il_g-1) = asum
     do k = 1,kd
-      call getglobalpack_v(ap(sn:sn+il_g-1,k),ibeg,iend,k)  
+      call getglobalpack_v(ap,ibeg,iend,k)
+      ap_t(k,sn:sn+il_g-1) = ap
     end do
   end do
   
-  ap_t(1:kd,:)=transpose(ap)
-  ap_t(kd+1,1:me)=asum(1:me)
   ! start convolution
   do n = 1,jpan
     nn = n + os - 1
-    rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-    rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
-    rr(1:me) = exp(-(cq*rr(1:me))**2)
-    local_sum = drpdr_fast(rr(1:me),ap_t)
+    local_sum = drpdr_fast(nn,cq,xa(1:me),ya(1:me),za(1:me),ap_t(:,1:me),nest_iblock)
     psum = local_sum(kd+1)
     if ( psum>1.e-8 ) then
       qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/psum
@@ -2580,12 +2551,12 @@ integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real :: psum
 real, dimension(ipan*jpan,kd), intent(out) :: qp
-real, dimension(4*il_g,kd) :: ap      
-real, dimension(4*il_g) :: rr, asum
+real, dimension(il_g) :: ap, asum      
+real, dimension(4*il_g) :: rr
 real, dimension(il_g*jpan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1),0:2) :: yy
 real, dimension(kd+1) :: local_sum
-real(kind=8), dimension(4*il_g) :: xa, ya, za
+real, dimension(4*il_g) :: xa, ya, za
 real, dimension(kd+1,4*il_g) :: ap_t
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
@@ -2602,7 +2573,7 @@ oe  =joff + jpan
 call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(ipass,me,astr,bstr,cstr,j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,rr,asum,ap,local_sum,ap_t)
+!$omp private(n,nn,asum,ap,local_sum,ap_t)
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
@@ -2621,22 +2592,18 @@ do ipass = 0,2
       xa(sn:sn+il_g-1) = x_g(ibeg:iend:a)
       ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
       za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
-      asum(sn:sn+il_g-1) = 1./em_g(ibeg:iend:a)**2
+      asum = 1./em_g(ibeg:iend:a)**2
+      ap_t(kd+1,sn:sn+il_g-1) = asum
       do k = 1,kd
-        call getglobalpack_v(ap(sn:sn+il_g-1,k),ibeg,iend,k)           
-        ap(sn:sn+il_g-1,k) = ap(sn:sn+il_g-1,k)*asum(sn:sn+il_g-1)
+        call getglobalpack_v(ap,ibeg,iend,k)           
+        ap_t(k,sn:sn+il_g-1) = ap*asum
       end do
     end do
     
-    ap_t(1:kd,:)=transpose(ap)
-    ap_t(kd+1,1:me)=asum(1:me)
     ! start convolution
     do n = 1,jpan
       nn = n + os - 1
-      rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-      rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
-      rr(1:me) = exp(-(cq*rr(1:me))**2)
-      local_sum = drpdr_fast(rr(1:me),ap_t)
+      local_sum = drpdr_fast(nn,cq,xa(1:me),ya(1:me),za(1:me),ap_t(:,1:me),nest_iblock)
       ibase = n + (j-1)*jpan
       yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = local_sum(1:kd+1)
     end do
@@ -2669,20 +2636,20 @@ do ipass = 0,2
       do jpoff = 0,il_g-1,ipan
         sy = jpoff/ipan
         ibase = n + ipan*jpan*(k-1) + ipan*jpan*(kd+1)*sy
-        rr(1+jpoff:ipan+jpoff) = zz(ibase:ibase+jpan*(ipan-1):jpan)
+        ap(1+jpoff:ipan+jpoff) = zz(ibase:ibase+jpan*(ipan-1):jpan)
       end do
       ibeg = a*nn + b*1 + c
       iend = a*nn + b*il_g + c
-      call setglobalpack_v(rr(1:il_g),ibeg,iend,k)
+      call setglobalpack_v(ap(1:il_g),ibeg,iend,k)
     end do  
     do jpoff = 0,il_g-1,ipan
       sy = jpoff/ipan
       ibase = n + ipan*jpan*kd + ipan*jpan*(kd+1)*sy
-      rr(1+jpoff:ipan+jpoff) = zz(ibase:ibase+jpan*(ipan-1):jpan)
+      ap(1+jpoff:ipan+jpoff) = zz(ibase:ibase+jpan*(ipan-1):jpan)
     end do
     ibeg = a*nn + b*1 + c
     iend = a*nn + b*il_g + c
-    call setglobalpack_v(rr(1:il_g),ibeg,iend,0)
+    call setglobalpack_v(ap(1:il_g),ibeg,iend,0)
   end do  
           
 end do
@@ -2701,7 +2668,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 call START_LOG(nestcalc_begin)
 
 !$omp parallel do private(j,jj,sn,sy,a,b,c,ibeg,iend,xa,ya,za,k), &
-!$omp private(n,nn,rr,asum,ap,local_sum,ap_t)
+!$omp private(n,nn,asum,ap,local_sum,ap_t)
 do j = 1,jpan
     
   ! pack data from sparse arrays
@@ -2717,21 +2684,18 @@ do j = 1,jpan
     ya(sn:sn+il_g-1) = y_g(ibeg:iend:a)
     za(sn:sn+il_g-1) = z_g(ibeg:iend:a)
     ! v version is faster for getglobalpack  
-    call getglobalpack_v(asum(sn:sn+il_g-1),ibeg,iend,0) 
+    call getglobalpack_v(asum,ibeg,iend,0)
+    ap_t(kd+1,sn:sn+il_g-1) = asum
     do k = 1,kd
-      call getglobalpack_v(ap(sn:sn+il_g-1,k),ibeg,iend,k)  
+      call getglobalpack_v(ap,ibeg,iend,k)
+      ap_t(k,sn:sn+il_g-1) = ap
     end do
   end do
   
-  ap_t(1:kd,:)=transpose(ap)
-  ap_t(kd+1,1:me)=asum(1:me)
   ! start convolution
   do n = 1,ipan
     nn = n + os - 1
-    rr(1:me) = real(xa(nn)*xa(1:me)+ya(nn)*ya(1:me)+za(nn)*za(1:me))
-    rr(1:me) = acos(max( min( rr(1:me), 1. ), -1. ))
-    rr(1:me) = exp(-(cq*rr(1:me))**2)
-    local_sum = drpdr_fast(rr(1:me),ap_t)
+    local_sum = drpdr_fast(nn,cq,xa(1:me),ya(1:me),za(1:me),ap_t(:,1:me),nest_iblock)
     psum = local_sum(kd+1)
     if ( psum>1.e-8 ) then
       qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/psum  
@@ -3087,30 +3051,43 @@ ans = ans + iday
 
 end function iabsdate
 
-pure function drpdr_fast(ra,at) result(out_sum)
+pure function drpdr_fast(nn,cq,xa,ya,za,at,iblock) result(out_sum)
 
 implicit none
 
-real, dimension(:), intent(in) :: ra
+integer, intent(in) :: nn, iblock
+integer i, j, kx, ilen, k, l
+real, intent(in) :: cq
+real, dimension(:), intent(in) :: xa, ya, za
 real, dimension(:,:), intent(in) :: at
 real, dimension(size(at,1)) :: out_sum
-real :: at_t, e, t1, t2
+real, dimension(iblock) :: ra
+real at_t, e, t1, t2
+real xa_nn, ya_nn, za_nn
 complex, dimension(size(at,1)) :: local_sum
-integer i, kx, ilen, k
 
-ilen = size(ra,1)
 kx = size(at,1)
+ilen = size(at,2)
 
 local_sum(1:kx) = (0.,0.)
+xa_nn = xa(nn)
+ya_nn = ya(nn)
+za_nn = za(nn)
 
-do i = 1,ilen
-  do k = 1,kx
-    at_t = ra(i)*at(k,i)
-    t1 = at_t + real(local_sum(k))
-    e  = t1 - at_t
-    t2 = ((real(local_sum(k)) - e) + (at_t - (t1 - e))) + aimag(local_sum(k))
-    local_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
-  end do
+do i = 1,ilen,iblock
+  j = i + iblock - 1  
+  ra(:) = xa_nn*xa(i:j) + ya_nn*ya(i:j) + za_nn*za(i:j)
+  ra(:) = acos(max(min(ra(:), 1.), -1.))
+  ra(:) = exp(-(cq*ra(:))**2)
+  do l = 1,iblock
+    do k = 1,kx
+      at_t = ra(l)*at(k,i+l-1)
+      t1 = at_t + real(local_sum(k))
+      e  = t1 - at_t
+      t2 = ((real(local_sum(k)) - e) + (at_t - (t1 - e))) + aimag(local_sum(k))
+      local_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
+    end do
+  end do  
 end do  
 
 out_sum(1:kx) = real(local_sum(1:kx))
