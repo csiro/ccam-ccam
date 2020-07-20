@@ -84,12 +84,12 @@ endif
 ifeq ($(PGI),yes)
 MPIFC = pgfortran
 MPIF77 = pgfortran
-FC = pgfortran
+FC = pgfortran -I$(I_MPI_ROOT)/include64 -L$(I_MPI_ROOT)/lib64 -lmpi -lmpiif 
 FCSCM = pgfortran
 CC = pgcc
 FHOST = -O3 -tp=haswell -fast
 #FHOST = -g
-MPIFLAG += -I$(I_MPI_ROOT)/include64 -L$(I_MPI_ROOT)/lib64 -lmpi -lmpiif
+MPIFLAG +=  
 MPISPECIAL =
 FFLAGS = $(FHOST) -Dpgi -DGPU -traceback $(MPIFLAG) $(NCFLAG)
 #FFLAGS = $(FHOST) -Dpgi -D_GPU -traceback $(MPIFLAG) $(NCFLAG)

@@ -12001,6 +12001,13 @@ contains
    integer, save, public :: fnproc, fnresid, fncount, mynproc              ! number and decomposition of input files
    integer, allocatable, dimension(:), save, public :: pnoff               ! file window panel offset
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
+   integer(kind=4), allocatable, dimension(:), save, public ::              &
+      filemap_recv, filemap_rmod                                           ! file map received for onthefly
+   integer(kind=4), allocatable, dimension(:), save, public ::              &
+      filemap_send, filemap_smod                                           ! file map sent for onthefly
+   integer, allocatable, dimension(:), save, public :: filemap_facecomm    ! communicator for face bcast
+   integer, allocatable, dimension(:), save, public :: filemap_rinv        ! inverse map for filemap_recv/rmod
+   integer, save, public :: fnproc_bcast_max = 6                           ! max number of input files for bcast method
 
    integer, public, save :: histrd3_begin, histrd3_end
    integer, public, save :: histrd4_begin, histrd4_end

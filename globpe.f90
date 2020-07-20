@@ -409,7 +409,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call adjust5
 
     ! check for rounding errors
-    call fixqg(1,ifull)
+    call fixqg(t,qg,qlg,qfg,qrg,qsng,qgrg,stratcloud,1,ifull,kl, &
+               hlcp,hlscp,qg_fix)
     call nantest("after atmosphere dynamics",1,ifull)
       
       
@@ -679,7 +680,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax  
-    call fixqg(js,je)
+    call fixqg(t,qg,qlg,qfg,qrg,qsng,qgrg,stratcloud,js,je,kl, &
+               hlcp,hlscp,qg_fix)
     call nantest("after PBL mixing",js,je)
   end do  
 !$omp end do nowait
@@ -826,7 +828,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! ENSEMBLE --------------------------------------------------
   if ( ensemble_mode>0 ) then
     call update_ensemble
-    call fixqg(1,ifull)
+    call fixqg(t,qg,qlg,qfg,qrg,qsng,qgrg,stratcloud,1,ifull,kl, &
+               hlcp,hlscp,qg_fix)
   end if
   
   
@@ -3501,50 +3504,6 @@ end do
 
 return
 end subroutine proctest_uniform
-    
-!--------------------------------------------------------------------
-! Fix water vapour mixing ratio
-subroutine fixqg(js,je)
-
-use arrays_m                          ! Atmosphere dyamics prognostic arrays
-use const_phys                        ! Physical constants
-use cfrac_m                           ! Cloud fraction
-use estab                             ! Liquid saturation function
-use liqwpar_m                         ! Cloud water mixing ratios
-use newmpar_m                         ! Grid parameters
-use parm_m                            ! Model configuration
-use sigs_m                            ! Atmosphere sigma levels
-
-implicit none
-
-integer, intent(in) :: js, je
-integer k
-real, dimension(js:je) :: qtot, tliq
-
-! requires qg_fix>=1
-if ( qg_fix<=0 ) return
-
-do k = 1,kl
-  qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), 0. )
-  tliq(js:je) = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
-  
-  qfg(js:je,k)   = max( qfg(js:je,k), 0. ) 
-  qlg(js:je,k)   = max( qlg(js:je,k), 0. )
-  qrg(js:je,k)   = max( qrg(js:je,k), 0. )
-  qsng(js:je,k)  = max( qsng(js:je,k), 0. )
-  qgrg(js:je,k)  = max( qgrg(js:je,k), 0. )
-  
-  qg(js:je,k) = max( qtot(js:je) - qlg(js:je,k) - qfg(js:je,k), 0. )
-  t(js:je,k)  = tliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
-  where ( qlg(js:je,k)+qfg(js:je,k)>1.E-8 )
-    stratcloud(js:je,k) = max( stratcloud(js:je,k), 1.E-8 )
-  elsewhere
-    stratcloud(js:je,k) = 0.  
-  end where
-end do
-
-return
-end subroutine fixqg
     
 subroutine fixsat(js,je)
 

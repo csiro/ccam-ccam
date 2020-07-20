@@ -23,7 +23,7 @@ module physics_m
 implicit none
 
 private
-public physics
+public physics, fixqg
 
 contains
 
@@ -34,6 +34,7 @@ use arrays_m                               ! Atmosphere dyamics prognostic array
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
 use cfrac_m                                ! Cloud fraction
+use const_phys, only : hlcp, hlscp         ! Physical constants
 use convjlm_m                              ! Convection
 use convjlm22_m , alfin22 => alfin,      & ! Convection v2
                   timeconv22 => timeconv
@@ -201,7 +202,8 @@ do tile = 1,ntiles
            mdelay,nevapcc,convfact,ncvcloud,ldr,rhmois,imax,kl)     ! split convjlm
   end select
 
-  call fixqg(lt,lqg,lqlg,lqfg,lqrg,lqsng,lqgrg,lstratcloud,imax,kl)
+  call fixqg(lt,lqg,lqlg,lqfg,lqrg,lqsng,lqgrg,lstratcloud,1,imax,kl, &
+             hlcp,hlscp,qg_fix)
 
   t(is:ie,:)       = lt
   qg(is:ie,:)      = lqg
@@ -240,46 +242,45 @@ end do
 return
 end subroutine physics
 
-subroutine fixqg(t,qg,qlg,qfg,qrg,qsng,qgrg,stratcloud,imax,kl)
+! Fix water vapour mixing ratio    
+pure subroutine fixqg(t,qg,qlg,qfg,qrg,qsng,qgrg,stratcloud,is,ie,kl, &
+                      hlcp,hlscp,qg_fix)
 !$acc routine vector
-
-use const_phys, only : hlcp, hlscp                   ! Physical constants
-use parm_m, only : qg_fix                            ! Model configuration
 
 implicit none
 
+integer, intent(in) :: is, ie, kl, qg_fix
 integer k
-integer, intent(in) :: imax, kl
-real, dimension(imax,kl), intent(inout) :: t
-real, dimension(imax,kl), intent(inout) :: qg
-real, dimension(imax,kl), intent(inout) :: qlg
-real, dimension(imax,kl), intent(inout) :: qfg
-real, dimension(imax,kl), intent(inout) :: qrg
-real, dimension(imax,kl), intent(inout) :: qsng
-real, dimension(imax,kl), intent(inout) :: qgrg
-real, dimension(imax,kl), intent(inout) :: stratcloud
-
-real, dimension(1:imax) :: qtot, tliq
+real, intent(in) :: hlcp, hlscp
+real, dimension(:,:), intent(inout) :: t
+real, dimension(:,:), intent(inout) :: qg
+real, dimension(:,:), intent(inout) :: qlg
+real, dimension(:,:), intent(inout) :: qfg
+real, dimension(:,:), intent(inout) :: qrg
+real, dimension(:,:), intent(inout) :: qsng
+real, dimension(:,:), intent(inout) :: qgrg
+real, dimension(:,:), intent(inout) :: stratcloud
+real, dimension(ie-is+1) :: qtot, tliq
 
 ! requires qg_fix>=1
 if ( qg_fix<=0 ) return
 
 do k = 1,kl
-  qtot(:) = max( qg(:,k) + qlg(:,k) + qfg(:,k), 0. )
-  tliq(:) = t(:,k) - hlcp*qlg(:,k) - hlscp*qfg(:,k)
+  qtot(:) = max( qg(is:ie,k) + qlg(is:ie,k) + qfg(is:ie,k), 0. )
+  tliq(:) = t(is:ie,k) - hlcp*qlg(is:ie,k) - hlscp*qfg(is:ie,k)
   
-  qfg(:,k)   = max( qfg(:,k), 0. ) 
-  qlg(:,k)   = max( qlg(:,k), 0. )
-  qrg(:,k)   = max( qrg(:,k), 0. )
-  qsng(:,k)  = max( qsng(:,k), 0. )
-  qgrg(:,k)  = max( qgrg(:,k), 0. )
+  qfg(is:ie,k)   = max( qfg(is:ie,k), 0. ) 
+  qlg(is:ie,k)   = max( qlg(is:ie,k), 0. )
+  qrg(is:ie,k)   = max( qrg(is:ie,k), 0. )
+  qsng(is:ie,k)  = max( qsng(is:ie,k), 0. )
+  qgrg(is:ie,k)  = max( qgrg(is:ie,k), 0. )
   
-  qg(:,k) = max( qtot(:) - qlg(:,k) - qfg(:,k), 0. )
-  t(:,k)  = tliq(:) + hlcp*qlg(:,k) + hlscp*qfg(:,k)
-  where ( qlg(:,k)+qfg(:,k)>1.E-8 )
-    stratcloud(:,k) = max( stratcloud(:,k), 1.E-8 )
+  qg(is:ie,k) = max( qtot(:) - qlg(is:ie,k) - qfg(is:ie,k), 0. )
+  t(is:ie,k)  = tliq(:) + hlcp*qlg(is:ie,k) + hlscp*qfg(is:ie,k)
+  where ( qlg(is:ie,k)+qfg(is:ie,k)>1.E-8 )
+    stratcloud(is:ie,k) = max( stratcloud(is:ie,k), 1.E-8 )
   elsewhere
-    stratcloud(:,k) = 0.  
+    stratcloud(is:ie,k) = 0.  
   end where
 end do
 

@@ -2619,18 +2619,22 @@ real, dimension(imax,kl,naero), intent(in) :: xtg, xtosav
 
 if ( convmode ) then
   ! total grid-box
-  xtgso4 = xtg(:,:,itracso4)
-  xtgbc  = xtg(:,:,itracbc+1)
-  xtgoc  = xtg(:,:,itracoc+1)
-  xtgsa1 = xtg(:,:,itracsa)
-  xtgsa2 = xtg(:,:,itracsa+1)
+  do k = 1,kl  
+    xtgso4(:,k) = xtg(:,k,itracso4)
+    xtgbc(:,k)  = xtg(:,k,itracbc+1)
+    xtgoc(:,k)  = xtg(:,k,itracoc+1)
+    xtgsa1(:,k) = xtg(:,k,itracsa)
+    xtgsa2(:,k) = xtg(:,k,itracsa+1)
+  end do  
 else
   ! outside convective fraction of grid-box
-  xtgso4 = xtosav(:,:,itracso4)
-  xtgbc  = xtosav(:,:,itracbc+1)
-  xtgoc  = xtosav(:,:,itracoc+1)
-  xtgsa1 = xtosav(:,:,itracsa)
-  xtgsa2 = xtosav(:,:,itracsa+1)
+  do k = 1,kl  
+    xtgso4(:,k) = xtosav(:,k,itracso4)
+    xtgbc(:,k)  = xtosav(:,k,itracbc+1)
+    xtgoc(:,k)  = xtosav(:,k,itracoc+1)
+    xtgsa1(:,k) = xtosav(:,k,itracsa)
+    xtgsa2(:,k) = xtosav(:,k,itracsa+1)
+  end do  
 end if
 
 select case(aeroindir)
