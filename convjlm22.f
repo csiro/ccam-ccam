@@ -374,16 +374,18 @@
      
       alfqarr(:)=alfin(:)
       omega(1:imax)=dpsldt(1:imax,komega)   ! JLM
-       
-      tt(1:imax,:)=t(1:imax,:)       
-      qq(1:imax,:)=qg(1:imax,:)      
+      
+      do k = 1,kl
+        tt(1:imax,k)=t(1:imax,k)       
+        qq(1:imax,k)=qg(1:imax,k)
+      end do  
       phi(:,1)=bet(1)*tt(:,1)  ! moved up here May 2012
       do k=2,kl
        do iq=1,imax
         phi(iq,k)=phi(iq,k-1)+bet(k)*tt(iq,k)+betm(k)*tt(iq,k-1)
        enddo     ! iq loop
       enddo      ! k  loop
-       s(1:imax,1)=cp*tt(1:imax,1)+phi(1:imax,1)  ! dry static energy; only level 1 needed here for kkbb calc
+      s(1:imax,1)=cp*tt(1:imax,1)+phi(1:imax,1)  ! dry static energy; only level 1 needed here for kkbb calc
           
 !      if(nproc==1.and.ntiles==1)
 !     &  write(6,*) 'max_alfqarr,alfin:',maxval(alfqarr),maxval(alfin)
@@ -394,7 +396,9 @@
 #endif
 
 !     just does convective; L/S rainfall done later by LDR scheme
-      qliqw(:,:)=0.  ! before itn
+      do k = 1,kl
+        qliqw(:,k)=0.  ! before itn
+      end do  
       kmin(:)=0
       conrev(:)=1000.*ps(:)/(grav*dt) ! factor to convert precip to g/m2/s
       rnrt(:)=0.       ! initialize large-scale rainfall array; before itn
@@ -405,8 +409,10 @@
 
       nuv=0
       facuv=.1*abs(nuvconv) ! just initial value for gfortran
-      fluxt(:,:)=0.     ! just for some compilers
-      fluxtot(:,:)=0.   ! diag for MJT  - total mass flux at level k-.5
+      do k = 1,kl
+        fluxt(:,k)=0.     ! just for some compilers
+        fluxtot(:,k)=0.   ! diag for MJT  - total mass flux at level k-.5
+      end do  
       
 !__________beginning of convective calculation loop____#################################
       do itn=1,abs(iterconv)
@@ -414,17 +420,25 @@
       kb_sav(:)=kl-1   ! preset value for no convection
       kt_sav(:)=kl-1   ! preset value for no convection
       rnrtcn(:)=0.     ! initialize convective rainfall array (pre convpsav)
-      delqliqw(:,:)=0. 
+      do k = 1,kl
+        delqliqw(:,k)=0.
+      end do  
       convpsav(:)=0.
-      dels(:,:)=1.e-20
-      delq(:,:)=0.
+      do k = 1,kl
+        dels(:,k)=1.e-20
+        delq(:,k)=0.
+      end do  
       beta(:)=0. ! MJT suggestion
-      qqsav(:,:)=qq(:,:)       ! for convective scavenging of aerosols  MJT
-      qliqwsav(:,:)=qliqw(:,:) ! for convective scavenging of aerosols  MJT
+      do k = 1,kl
+        qqsav(:,k)=qq(:,k)       ! for convective scavenging of aerosols  MJT
+        qliqwsav(:,k)=qliqw(:,k) ! for convective scavenging of aerosols  MJT
+      end do  
       if(nuvconv.ne.0)then 
         if(nuvconv<0)nuv=abs(nuvconv)  ! Oct 08 nuv=0 for nuvconv>0
-        delu(:,:)=0.
-        delv(:,:)=0.
+        do k = 1,kl
+          delu(:,k)=0.
+          delv(:,k)=0.
+        end do  
         facuv=.1*abs(nuvconv) ! full effect for nuvconv=10
       endif
       
@@ -442,9 +456,9 @@
         s(iq,k)=cp*tt(iq,k)+phi(iq,k)  ! dry static energy
 !       calculate hs
         hs(iq,k)=s(iq,k)+hl*qs(iq,k)   ! saturated moist static energy
+        hs(iq,k)=max(hs(iq,k),s(iq,k)+hl*qq(iq,k))   ! added 21/7/04
        enddo  ! iq loop
       enddo   ! k loop
-      hs(:,:)=max(hs(:,:),s(:,:)+hl*qq(:,:))   ! added 21/7/04
       
       if(itn==1)then  !--------------------------------------
 !      following used to define kb_sav (via kkbb), method chosen by nbase
@@ -463,8 +477,10 @@
 
         !qplume(:,kl)=0. ! 0. just for diag prints  ! JLM
         !splume(:,kl)=0. ! 0. just for diag prints  ! JLM
-        qplume(:,:) = 0. ! MJT suggestion
-        splume(:,:) = 0. ! MJT suggestion
+       do k = 1,kl
+         qplume(:,k) = 0. ! MJT suggestion
+         splume(:,k) = 0. ! MJT suggestion
+       end do  
 !      following just for setting up kb_sav values, so k700 OK
        qplume(:,1)=alfin(:)*qq(:,1)
        splume(:,1)=s(:,1)  
@@ -618,8 +634,10 @@
       endif  ! ((ntest>0.or.nmaxpr==1).and.mydiag)
 #endif
 
-      entrsav(:,:)=0.
-      fluxv0(:,:)=0.  
+      do k = 1,kl
+        entrsav(:,k)=0.
+        fluxv0(:,k)=0.
+      end do  
       do iq=1,imax
         fluxv0(iq,kb_sav(iq))=1.  ! unit reference base mass flux (at level kb+.5)
       enddo
@@ -683,8 +701,10 @@ c      next 4 lines ensure no entrainment into top layer (but maybe could allow)
      &             fluxv0(idjd,1:kt_sav(idjd))
       endif
 #endif
-!      calculate new detrainments and modify fluxq and entrsav      
-       detrx(:,:)=0.  ! this is actually d0 for next few lines
+!      calculate new detrainments and modify fluxq and entrsav 
+       do k = 1,kl
+         detrx(:,k)=0.  ! this is actually d0 for next few lines
+       end do  
        aa(:)=0.  ! this aa is sumd, now +ve
        if(methdetr==-1)then  
         do k=2,kl-2  
@@ -750,7 +770,9 @@ c     &          k,detrx(iq,k),entrain*dsig(k),aa(iq)
          if(kb_sav(iq)<kl-1)beta(iq)=fluxv0(iq,kt_sav(iq)-1)/  ! beta now is +ve scaling factor for detrx
      &         (detrx(iq,kt_sav(iq))+aa(iq))
        enddo    ! iq loop
-       fluxv(:,:)=fluxv0(:,:)  ! fluxv is full flux including dettrainment
+       do k = 1,kl-1
+         fluxv(:,k)=fluxv0(:,k)  ! fluxv is full flux including dettrainment
+       end do  
        do k=2,kl-2  
         do iq=1,imax
          detrx(iq,k)=beta(iq)*detrx(iq,k)  ! before this line detrx is detr0
@@ -1509,8 +1531,10 @@ c           write(6,*)'has tied_con=0'
       ! Convective transport of aerosols - MJT
       if ( abs(iaero)==2 ) then
         do ntr = 1,naero
-          xtgscav(1:imax,1:kl) = 0.
-          s(1:imax,1:kl) = xtg(1:imax,1:kl,ntr)
+          do k = 1,kl  
+            xtgscav(1:imax,k) = 0.
+            s(1:imax,k) = xtg(1:imax,k,ntr)
+          end do  
           do iq = 1,imax
            if ( kt_sav(iq)<kl-1 ) then
              kb = kb_sav(iq)
@@ -1685,8 +1709,10 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
           enddo  ! k loop           
         endif !  (rhmois==0.)
       else      ! for ldr=0
-        qq(1:imax,:)=qq(1:imax,:)+qliqw(1:imax,:)         
-        tt(1:imax,:)=tt(1:imax,:)-hl*qliqw(1:imax,:)/cp   ! evaporate it
+        do k = 1,kl    
+          qq(1:imax,k)=qq(1:imax,k)+qliqw(1:imax,k)         
+          tt(1:imax,k)=tt(1:imax,k)-hl*qliqw(1:imax,k)/cp   ! evaporate it
+        end do  
         !qliqw(1:imax,:)=0.   ! just for final diags
 !       following is old 2014 ldr=0 code for large-scale calculations 
         do k=1,kl   
@@ -1728,7 +1754,9 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
      &              (tt(iq,k),k=1,kl)
         endif
 #endif
-        qliqw(1:imax,:)=0.   ! just for final diags
+        do k = 1,kl
+          qliqw(1:imax,k)=0.   ! just for final diags
+        end do  
         if(nevapls>.0)then ! even newer UKMO (just for ldr=0)
          rKa=2.4e-2
          Dva=2.21
@@ -1786,14 +1814,18 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
      .   (tt(iq,k)-t(iq,k),k=1,kl)
       endif
 #endif
-      qg(1:imax,:)=qq(1:imax,:)                   
+      do k = 1,kl
+        qg(1:imax,k)=qq(1:imax,k)
+      end do  
       condc(1:imax)=.001*dt*rnrtc(1:imax)      ! convective precip for this timestep
       precc(1:imax)=precc(1:imax)+condc(1:imax)       
 !    N.B. condx used to update rnd03,...,rnd24. LS added in leoncld.f       
       condx(1:imax)=condc(1:imax)+.001*dt*rnrt(1:imax) ! total precip for this timestep
       conds(:)=0.   ! (:) here for easy use in VCAM
       precip(1:imax)=precip(1:imax)+condx(1:imax)
-      t(1:imax,:)=tt(1:imax,:)             
+      do k = 1,kl
+        t(1:imax,k)=tt(1:imax,k)
+      end do  
 
 #ifndef GPU
       if(ntest>0.or.(ktau<=2.and.nmaxpr==1))then  ! diag print near bottom

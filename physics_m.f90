@@ -237,7 +237,7 @@ do tile = 1,ntiles
 #endif
 end do
 !$acc end parallel
-!$omp end do
+!$omp end do nowait
 
 return
 end subroutine physics
