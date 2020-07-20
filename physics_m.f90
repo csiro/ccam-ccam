@@ -152,28 +152,26 @@ do tile = 1,ntiles
 
   ! GWDRAG ----------------------------------------------------------------
 #ifndef GPU
-  if ( ccomp_get_thread_num() == 0 ) call START_LOG(gwdrag_begin)
+  call START_LOG(gwdrag_begin)
 #endif
   if ( ngwd<0 ) then
     call gwdrag(lt,lu,lv,tss(is:ie),he(is:ie),idjd_t,mydiag_t,imax,kl) ! <0 for split - only one now allowed
   end if
 #ifndef GPU
   call nantest("after gravity wave drag",is,ie)
-#endif
-#ifndef GPU
-  if ( ccomp_get_thread_num() == 0 ) call END_LOG(gwdrag_end)
+  call END_LOG(gwdrag_end)
 #endif
 
 
   ! CONVECTION ------------------------------------------------------------
 #ifndef GPU
-  if ( ccomp_get_thread_num() == 0 ) call START_LOG(convection_begin)
+  call START_LOG(convection_begin)
 #endif
   convh_ave(is:ie,1:kl) = convh_ave(is:ie,1:kl) - lt(:,1:kl)*real(nperday)/real(nperavg)        
   ! Select convection scheme
   select case ( nkuo )
-!    case(5)
-!      call betts(t,qg,tn,land,ps) ! not called these days
+    !case(5)
+    !  call betts(t,qg,tn,land,ps) ! not called these days
     case(21,22)
       call convjlm22(alfin22(is:ie),ldpsldt,lt,lqg,                  &
            ps(is:ie),lfluxtot,convpsav(is:ie),cape(is:ie),           &
@@ -233,11 +231,11 @@ do tile = 1,ntiles
 
 #ifndef GPU
   call nantest("after convection",is,ie)
-  if ( ccomp_get_thread_num() == 0 ) call END_LOG(convection_end)
+  call END_LOG(convection_end)
 #endif
 end do
 !$acc end parallel
-!$omp end do nowait
+!$omp end do
 
 return
 end subroutine physics

@@ -6718,6 +6718,7 @@ contains
 
    subroutine start_log ( event )
       integer, intent(in) :: event
+      if ( ccomp_get_thread_num() /= 0 ) return
 #ifdef vampir
       VT_USER_START(event_name(event))
 #endif
@@ -6728,10 +6729,10 @@ contains
 
    subroutine end_log ( event )
       integer, intent(in) :: event
+      if ( ccomp_get_thread_num() /= 0 ) return
 #ifdef vampir
       VT_USER_END(event_name(event))
 #endif
-
 #ifdef simple_timer
       tot_time(event) = tot_time(event) + MPI_Wtime() - start_time(event)
 #endif 
