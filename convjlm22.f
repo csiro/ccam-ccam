@@ -1683,9 +1683,9 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
 #endif
       rnrtc(:)=factr(:)*rnrtc(:)    ! N.B. factr applied after itn loop 
       do k=1,kl
-      qq(1:imax,k)=qg(1:imax,k)+factr(:)*(qq(1:imax,k)-qg(1:imax,k))
-      qliqw(1:imax,k)=factr(:)*qliqw(1:imax,k)      
-      tt(1:imax,k)= t(1:imax,k)+factr(:)*(tt(1:imax,k)- t(1:imax,k))
+        qq(1:imax,k)=qg(1:imax,k)+factr(:)*(qq(1:imax,k)-qg(1:imax,k))
+        qliqw(1:imax,k)=factr(:)*qliqw(1:imax,k)      
+        tt(1:imax,k)= t(1:imax,k)+factr(:)*(tt(1:imax,k)- t(1:imax,k))
       enddo
 
 !     update qq, tt for evap of qliqw (qliqw arose from moistening detrainment)
@@ -1797,7 +1797,9 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
           enddo    ! iq loop
          enddo     ! k loop
         endif      ! (nevapls>0)
-        cfrac=.3   ! just a default for radn
+        do k = 1,kl
+          cfrac(:,k)=.3   ! just a default for radn
+        end do  
       endif  ! (ldr.ne.0)
 !_______________end of convective calculations__________________
      

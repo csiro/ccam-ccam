@@ -47,6 +47,7 @@ use map_m                                  ! Grid map arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
+use nlin_m                                 ! Atmosphere non-linear dynamics
 use parm_m                                 ! Model configuration
 use pbl_m                                  ! Boundary layer arrays
 use prec_m                                 ! Precipitation
@@ -171,8 +172,15 @@ do tile = 1,ntiles
   convh_ave(is:ie,1:kl) = convh_ave(is:ie,1:kl) - lt(:,1:kl)*real(nperday)/real(nperavg)        
   ! Select convection scheme
   select case ( nkuo )
-    !case(5)
-    !  call betts(t,qg,tn,land,ps) ! not called these days
+#ifndef GPU
+    case(5)
+!$omp barrier
+!$omp single     
+      if ( tile==1 ) then ! no thread support  
+        call betts(t,qg,tn,land,ps) ! not called these days
+      end if
+!$omp end single
+#endif
     case(21,22)
       call convjlm22(alfin22(is:ie),ldpsldt,lt,lqg,                  &
            ps(is:ie),lfluxtot,convpsav(is:ie),cape(is:ie),           &
