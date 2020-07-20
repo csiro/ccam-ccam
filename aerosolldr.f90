@@ -2602,39 +2602,35 @@ end subroutine seasaltem
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! cloud droplet concentration
 
-subroutine cldrop(istart,cdn,rhoa,convmode)
+subroutine cldrop(cdn,rhoa,convmode,xtg,xtosav,imax,kl)
+!$acc routine vector
 
 implicit none
 
-integer, intent(in) :: istart
-integer k,is,ie,imax,kl
-real, dimension(:,:), intent(in) :: rhoa
-real, dimension(:,:), intent(out) :: cdn
-real, dimension(size(cdn,1),size(cdn,2)) :: xtgso4,xtgbc,xtgoc,xtgsa1,xtgsa2
-real, dimension(size(cdn,1)) :: so4_n,cphil_n,salt_n,Atot
-real, dimension(size(cdn,1)) :: so4mk
+integer, intent(in) :: imax, kl
+integer k
+real, dimension(imax,kl), intent(in) :: rhoa
+real, dimension(imax,kl), intent(out) :: cdn
+real, dimension(imax,kl) :: xtgso4,xtgbc,xtgoc,xtgsa1,xtgsa2
+real, dimension(imax) :: so4_n,cphil_n,salt_n,Atot
+real, dimension(imax) :: so4mk
 logical, intent(in) :: convmode
-
-imax = size(cdn,1)
-kl = size(cdn,2)
-
-is = istart
-ie = istart + imax - 1
+real, dimension(imax,kl,naero), intent(in) :: xtg, xtosav
 
 if ( convmode ) then
   ! total grid-box
-  xtgso4 = xtg(is:ie,:,itracso4)
-  xtgbc  = xtg(is:ie,:,itracbc+1)
-  xtgoc  = xtg(is:ie,:,itracoc+1)
-  xtgsa1 = xtg(is:ie,:,itracsa)
-  xtgsa2 = xtg(is:ie,:,itracsa+1)
+  xtgso4 = xtg(:,:,itracso4)
+  xtgbc  = xtg(:,:,itracbc+1)
+  xtgoc  = xtg(:,:,itracoc+1)
+  xtgsa1 = xtg(:,:,itracsa)
+  xtgsa2 = xtg(:,:,itracsa+1)
 else
   ! outside convective fraction of grid-box
-  xtgso4 = xtosav(is:ie,:,itracso4)
-  xtgbc  = xtosav(is:ie,:,itracbc+1)
-  xtgoc  = xtosav(is:ie,:,itracoc+1)
-  xtgsa1 = xtosav(is:ie,:,itracsa)
-  xtgsa2 = xtosav(is:ie,:,itracsa+1)
+  xtgso4 = xtosav(:,:,itracso4)
+  xtgbc  = xtosav(:,:,itracbc+1)
+  xtgoc  = xtosav(:,:,itracoc+1)
+  xtgsa1 = xtosav(:,:,itracsa)
+  xtgsa2 = xtosav(:,:,itracsa+1)
 end if
 
 select case(aeroindir)

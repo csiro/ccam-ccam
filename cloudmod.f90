@@ -34,22 +34,23 @@ public convectivecloudfrac, convectivecloudarea
 contains
 
 
-subroutine convectivecloudfrac(clcon,kbsav,ktsav,condc,cldcon)
+subroutine convectivecloudfrac(clcon,kbsav,ktsav,condc,acon,bcon,imax,kl,cldcon)
+!$acc routine vector
 
 use parm_m           ! Model configuration
 
 implicit none
 
-include 'kuocom.h'   ! Convection parameters
-
-integer k, kl
-real, dimension(:,:), intent(out) :: clcon
-real, dimension(:), intent(out), optional :: cldcon
-real, dimension(size(clcon,1)) :: cldcon_temp
-real, dimension(size(clcon,1)) :: n, cldcon_local
-integer, dimension(:), intent(in) :: kbsav
-integer, dimension(:), intent(in) :: ktsav
-real, dimension(:), intent(in) :: condc
+integer k
+integer, intent(in) :: imax, kl
+real, dimension(imax,kl), intent(out) :: clcon
+real, dimension(imax), intent(out), optional :: cldcon
+real, dimension(imax) :: cldcon_temp
+real, dimension(imax) :: n, cldcon_local
+integer, dimension(imax), intent(in) :: kbsav
+integer, dimension(imax), intent(in) :: ktsav
+real, dimension(imax), intent(in) :: condc
+real, intent(in) :: acon, bcon
 
 ! MJT notes - This is an old parameterisation from NCAR.  acon and
 ! bcon represent shallow and deep convection, respectively.  It can
@@ -59,10 +60,8 @@ real, dimension(:), intent(in) :: condc
 ! should be noted that acon and bcon are likely to depend on the
 ! spatial resolution.
 
-kl = size(clcon,2)
-
 cldcon_temp = 0. ! for cray compiler
-call convectivecloudarea(cldcon_temp,ktsav,condc)
+call convectivecloudarea(cldcon_temp,ktsav,condc,acon,bcon,imax,kl)
 if ( present(cldcon) ) then
   cldcon = cldcon_temp
 end if
@@ -86,18 +85,18 @@ end do
 return
 end subroutine convectivecloudfrac
 
-pure subroutine convectivecloudarea(cldcon,ktsav,condc)
+pure subroutine convectivecloudarea(cldcon,ktsav,condc,acon,bcon,imax,kl)
+!$acc routine vector
 
-use newmpar_m        ! Grid parameters
 use parm_m           ! Model configuration
 
 implicit none
 
-include 'kuocom.h'   ! Convection parameters
-
-integer, dimension(:), intent(in) :: ktsav
-real, dimension(:), intent(in) :: condc
-real, dimension(:), intent(out) :: cldcon
+integer, intent(in) :: imax, kl
+integer, dimension(imax), intent(in) :: ktsav
+real, dimension(imax), intent(in) :: condc
+real, dimension(imax), intent(out) :: cldcon
+real, intent(in) :: acon, bcon
 
 where ( ktsav<kl-1 )
   cldcon = min( acon+bcon*log(1.+condc*86400./dt), 0.8 ) !NCAR

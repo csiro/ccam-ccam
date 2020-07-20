@@ -101,6 +101,8 @@ contains
 subroutine leoncld
 
 use aerointerface                 ! Aerosol interface
+use aerosolldr, only : naero,   & ! LDR prognostic aerosols
+                       xtg,xtosav
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use cc_mpi, only : mydiag         ! CC MPI routines
 use cc_omp                        ! CC OpenMP routines
@@ -108,6 +110,7 @@ use cfrac_m                       ! Cloud fraction
 use cloudmod                      ! Prognostic cloud fraction
 use const_phys                    ! Physical constants
 use kuocomb_m                     ! JLM convection
+use latlong_m, only : rlatt       ! Lat/lon coordinates
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
 use morepbl_m                     ! Additional boundary layer diagnostics
@@ -133,46 +136,46 @@ real, dimension(imax,kl) :: lppqfsedice, lpprfreeze, lpprscav, lqccon, lqfg, lqf
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfrac, lt
 real, dimension(imax,kl) :: ldpsldt, lnettend, lstratcloud, lclcon, lcdrop, lrhoa
 real, dimension(ifull,kl) :: clcon, cdrop
+real, dimension(imax,kl,naero) :: lxtg, lxtosav
 logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),                                             &
-!$omp private(k,lrhoa,lcdrop,lclcon)
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-
-  ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
-  do k = 1,kl
-    lrhoa(:,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k))  
-  end do
-  call aerodrop(is,lcdrop,lrhoa,outconv=.true.)
-  cdrop(is:ie,:) = lcdrop
-
-  ! Calculate convective cloud fraction
-  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie))
-  clcon(is:ie,:) = lclcon
-end do
-!$omp end do nowait
-
-!$omp do schedule(static) private(is,ie),                                             &
-!$omp private(lcfrac,lgfrac,lrfrac,lsfrac),                                           &
+!$omp private(lcfrac,lgfrac,lrfrac,lsfrac,k,lrhoa),                                   &
 !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl),  &
 !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lt),                &
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,idjd_t,mydiag_t)
 !$acc parallel copy(stratcloud,gfrac,rfrac,sfrac,t,qg,qgrg,qlg,qfg,qrg,qsng,nettend,   &
 !$acc   condg,conds,condx,precip)                                                      &
-!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em)                                &
+!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em,                                &
+!$acc   xtg,xtosav,rlatt,condc),                                                       &
 !$acc copyout(cfrac,qlrad,qfrad,qccon,ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,      &
-!$acc   ppfstayliq,ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)
+!$acc   ppfstayliq,ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,       &
+!$acc   cdrop,clcon), present(sig)
 !$acc loop gang private(lcfrac,lgfrac,lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice, &
 !$acc   lppfstayliq,lppfsubl,lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,        &
 !$acc   lpprscav,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-!$acc   ldpsldt,lnettend,lstratcloud,lclcon,lcdrop)
+!$acc   ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrhoa,lxtg,lxtosav)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  
+
+  if ( abs(iaero)>=2 ) then
+    lxtg = xtg(is:ie,:,:)
+    lxtosav = xtosav(is:ie,:,:)
+  end if
+
+  ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
+  do k = 1,kl
+    lrhoa(:,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k))  
+  end do
+  call aerodrop(lcdrop,lrhoa,lxtg,lxtosav,land(is:ie),rlatt(is:ie),imax,kl,outconv=.true.)
+  cdrop(is:ie,:) = lcdrop
+
+  ! Calculate convective cloud fraction
+  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),acon,bcon,imax,kl)
+  clcon(is:ie,:) = lclcon
+
   idjd_t = mod(idjd-1,imax) + 1
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
   
@@ -190,8 +193,6 @@ do tile = 1,ntiles
   lqfrad   = qfrad(is:ie,:)  
   lt       = t(is:ie,:)
   ldpsldt  = dpsldt(is:ie,:)
-  lclcon   = clcon(is:ie,:)
-  lcdrop   = cdrop(is:ie,:)
   if ( ncloud>=4 ) then
     lnettend    = nettend(is:ie,:)
     lstratcloud = stratcloud(is:ie,:)

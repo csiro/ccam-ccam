@@ -89,6 +89,6 @@ logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., sa
 !logical, save :: pio=.false., mpiio=.true., npio=.false., useiobuffer=.false.
 
 !$acc declare create(vmodmin,sigbot_gwd,fc2,dt,alphaj,ngwd,iaero,ds,nmr)
-!$acc declare create(qgmin,nlocal,cqmix)
+!$acc declare create(qgmin,nlocal,cqmix,qg_fix)
 
 end module parm_m

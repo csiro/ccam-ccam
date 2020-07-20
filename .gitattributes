@@ -113,6 +113,7 @@
 /parmhor_m.f90 -text
 /pbl_m.f90 -text
 /permsurf_m.f90 -text
+/physics_m.f90 -text
 /prec_m.f90 -text
 /rad_utilities.f90 -text
 /raddiag_m.f90 -text
