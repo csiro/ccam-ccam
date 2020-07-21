@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -89,14 +89,15 @@ use cfrac_m                                ! Cloud fraction
 use cloudmod                               ! Prognostic cloud fraction
 use const_phys                             ! Physical constants
 use convjlm_m                              ! Convection
-use convjlm22_m                            ! Convection v2
+use convjlm22_m , alfin22 => alfin,      & ! Convection v2
+                  timeconv22 => timeconv
 use dates_m                                ! Date data
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
 use getopt_m                               ! Command option parsing
 use gdrag_m, only : gdrag_init,gwdrag    & ! Gravity wave drag
-    ,gdrag_sbl
+    ,gdrag_sbl,he
 use histave_m                              ! Time average arrays
 use infile                                 ! Input file routines
 use kuocomb_m                              ! JLM convection
@@ -178,6 +179,7 @@ real, dimension(4) :: ateb_road_thick, ateb_road_cp, ateb_road_cond
 real, dimension(4) :: ateb_slab_thick, ateb_slab_cp, ateb_slab_cond
 real, dimension(:,:), allocatable :: t_save, qg_save, u_save, v_save
 real, dimension(:), allocatable :: psl_save
+real, dimension(1,1,1) :: tr
 character(len=60) comm, comment
 character(len=1024) metforcing, timeoutput, profileoutput
 character(len=1024) lsmforcing, lsmoutput
@@ -607,7 +609,7 @@ do spinup = spinup_start,1,-1
   
     ! GWDRAG
     if ( ngwd<0 .and. .not.nogwdrag ) then
-      call gwdrag  ! <0 for split - only one now allowed
+      call gwdrag(t,u,v,tss,he,idjd,mydiag,ifull,kl)  ! <0 for split - only one now allowed
     end if
     call nantest("after gravity wave drag",1,ifull)
 
@@ -617,9 +619,23 @@ do spinup = spinup_start,1,-1
     if ( .not.noconvection ) then
       select case ( nkuo )
         case(21,22)
-          call convjlm22              ! split convjlm 
+          call convjlm22(alfin22,dpsldt,t,qg,ps,fluxtot,convpsav,    &
+           cape,xtg,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,qlg,condc,   &
+           precc,condx,conds,condg,precip,pblh,fg,wetfac,land,u,v,   &
+           timeconv22,em,kbsav,ktsav,tr,qfg,cfrac,sgsave,kt_saved,   &
+           kb_saved,aug,idjd,mydiag,entrain,detrain,mbase,iterconv,  &
+           nuvconv,alfsea,methdetr,methprec,fldown,alflnd,rhcv,      &
+           convtime,nkuo,rhsat,nevapls,                              &
+           tied_con,mdelay,convfact,ncvcloud,ldr,rhmois,imax,kl)              ! split convjlm 
         case(23,24)
-          call convjlm                ! split convjlm 
+          call convjlm(alfin,dpsldt,t,qg,ps,fluxtot,convpsav,       &
+           cape,xtg,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,qlg,condc,  &
+           precc,condx,conds,condg,precip,pblh,fg,wetfac,land,      &
+           entrainn,u,v,timeconv,em,kbsav,ktsav,tr,qfg,cfrac,       &
+           sgsave,idjd,mydiag,entrain,detrain,mbase,nbase,iterconv, &
+           nuvconv,alfsea,methdetr,methprec,fldown,alflnd,detrainx, &
+           sigkscb,dsig2,sigksct,rhcv,sig_ct,convtime,tied_con,     &
+           mdelay,nevapcc,convfact,ncvcloud,ldr,rhmois,imax,kl)                ! split convjlm 
       end select
     end if    
     call fixqg(1,ifull)
