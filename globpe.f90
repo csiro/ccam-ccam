@@ -408,8 +408,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call adjust5
 
     ! check for rounding errors
-    call fixqg(t,qg,qlg,qfg,qrg,qsng,qgrg,stratcloud,1,ifull,kl, &
-               hlcp,hlscp,qg_fix)
+    call fixqg(1,ifull)
     call nantest("after atmosphere dynamics",1,ifull)
       
       
@@ -760,8 +759,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax  
-    call fixqg(t,qg,qlg,qfg,qrg,qsng,qgrg,stratcloud,js,je,kl, &
-               hlcp,hlscp,qg_fix)
+    call fixqg(js,je)
     call nantest("after PBL mixing",js,je)
   end do  
 !$omp end do nowait
@@ -908,8 +906,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! ENSEMBLE --------------------------------------------------
   if ( ensemble_mode>0 ) then
     call update_ensemble
-    call fixqg(t,qg,qlg,qfg,qrg,qsng,qgrg,stratcloud,1,ifull,kl, &
-               hlcp,hlscp,qg_fix)
+    call fixqg(1,ifull)
   end if
   
   
