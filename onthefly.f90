@@ -2271,6 +2271,7 @@ do while ( nrem>0 )
     do ipf = 1,mynproc
       do n = 1,pnpan
         cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+        ! north boundary
         maska(1:pipan) = abs(a_io(1+cc:pipan+cc)-value)<1.e-20
         csum(1:pipan) = 0.
         ccount(1:pipan) = 0
@@ -2295,30 +2296,55 @@ do while ( nrem>0 )
         end where
         do j = 2,pjpan-1
           cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-          maska(1:pipan:pipan-1) = abs(a_io(1+cc:pipan+cc:pipan-1)-value)<1.e-20
-          csum(1:pipan:pipan-1) = 0.
-          ccount(1:pipan:pipan-1) = 0
-          where ( abs(c_io(1:pipan:pipan-1,j+1,n,ipf)-value)>=1.e-20 )
-            csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(1:pipan:pipan-1,j+1,n,ipf)
-            ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
-          end where
-          where ( abs(c_io(1:pipan:pipan-1,j-1,n,ipf)-value)>=1.e-20 )
-            csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(1:pipan:pipan-1,j-1,n,ipf)
-            ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
-          end where
-          where ( abs(c_io(2:pipan+1:pipan-1,j,n,ipf)-value)>=1.e-20 )
-            csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(2:pipan+1:pipan-1,j,n,ipf)
-            ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
-          end where
-          where ( abs(c_io(0:pipan-1:pipan-1,j,n,ipf)-value)>=1.e-20 )
-            csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(0:pipan-1:pipan-1,j,n,ipf)
-            ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
-          end where
-          where ( maska(1:pipan:pipan-1) .and. ccount(1:pipan:pipan-1)>0 )
-            a_io(1+cc:pipan+cc:pipan-1) = csum(1:pipan:pipan-1)/real(max(ccount(1:pipan:pipan-1),1))
-          end where
+          ! west boundary
+          maska(1) = abs(a_io(1+cc)-value)<1.e-20
+          csum(1) = 0.
+          ccount(1) = 0
+          if ( abs(c_io(1,j+1,n,ipf)-value)>=1.e-20 ) then
+            csum(1) = csum(1) + c_io(1,j+1,n,ipf)
+            ccount(1) = ccount(1) + 1
+          end if
+          if ( abs(c_io(1,j-1,n,ipf)-value)>=1.e-20 ) then
+            csum(1) = csum(1) + c_io(1,j-1,n,ipf)
+            ccount(1) = ccount(1) + 1
+          end if
+          if ( abs(c_io(2,j,n,ipf)-value)>=1.e-20 ) then
+            csum(1) = csum(1) + c_io(2,j,n,ipf)
+            ccount(1) = ccount(1) + 1
+          end if
+          if ( abs(c_io(0,j,n,ipf)-value)>=1.e-20 ) then
+            csum(1) = csum(1) + c_io(0,j,n,ipf)
+            ccount(1) = ccount(1) + 1
+          end if
+          if ( maska(1) .and. ccount(1)>0 ) then
+            a_io(1+cc) = csum(1)/real(max(ccount(1),1))
+          end if
+          ! east boundary
+          maska(pipan) = abs(a_io(pipan+cc)-value)<1.e-20
+          csum(pipan) = 0.
+          ccount(pipan) = 0
+          if ( abs(c_io(pipan,j+1,n,ipf)-value)>=1.e-20 ) then
+            csum(pipan) = csum(pipan) + c_io(pipan,j+1,n,ipf)
+            ccount(pipan) = ccount(pipan) + 1
+          end if
+          if ( abs(c_io(pipan,j-1,n,ipf)-value)>=1.e-20 ) then
+            csum(pipan) = csum(pipan) + c_io(pipan,j-1,n,ipf)
+            ccount(pipan) = ccount(pipan) + 1
+          end if
+          if ( abs(c_io(pipan+1,j,n,ipf)-value)>=1.e-20 ) then
+            csum(pipan) = csum(pipan) + c_io(pipan+1,j,n,ipf)
+            ccount(pipan) = ccount(pipan) + 1
+          end if
+          if ( abs(c_io(pipan-1,j,n,ipf)-value)>=1.e-20 ) then
+            csum(pipan) = csum(pipan) + c_io(pipan-1,j,n,ipf)
+            ccount(pipan) = ccount(pipan) + 1
+          end if
+          if ( maska(pipan) .and. ccount(pipan)>0 ) then
+            a_io(pipan+cc) = csum(pipan)/real(max(ccount(pipan),1))
+          end if
         end do
         cc = (pjpan-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+        ! south boundary
         maska(1:pipan) = abs(a_io(1+cc:pipan+cc)-value)<1.e-20
         csum(1:pipan) = 0.
         ccount(1:pipan) = 0
@@ -2459,6 +2485,7 @@ do while ( any(nrem(:)>0) )
       do ipf = 1,mynproc
         do n = 1,pnpan
           cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+          ! north boundary
           maska(1:pipan) = abs(a_io(1+cc:pipan+cc,k)-value)<1.e-20
           csum(1:pipan) = 0.
           ccount(1:pipan) = 0
@@ -2483,30 +2510,55 @@ do while ( any(nrem(:)>0) )
           end where
           do j = 2,pjpan-1
             cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-            maska(1:pipan:pipan-1) = abs(a_io(1+cc:pipan+cc:pipan-1,k)-value)<1.e-20
-            csum(1:pipan:pipan-1) = 0.
-            ccount(1:pipan:pipan-1) = 0
-            where ( abs(c_io(1:pipan:pipan-1,j+1,n,ipf,k)-value)>=1.e-20 )
-              csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(1:pipan:pipan-1,j+1,n,ipf,k)
-              ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
-            end where
-            where ( abs(c_io(1:pipan:pipan-1,j-1,n,ipf,k)-value)>=1.e-20 )
-              csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(1:pipan:pipan-1,j-1,n,ipf,k)
-              ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
-            end where
-            where ( abs(c_io(2:pipan+1:pipan-1,j,n,ipf,k)-value)>=1.e-20 )
-              csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(2:pipan+1:pipan-1,j,n,ipf,k)
-              ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
-            end where
-            where ( abs(c_io(0:pipan-1:pipan-1,j,n,ipf,k)-value)>=1.e-20 )
-              csum(1:pipan:pipan-1) = csum(1:pipan:pipan-1) + c_io(0:pipan-1:pipan-1,j,n,ipf,k)
-              ccount(1:pipan:pipan-1) = ccount(1:pipan:pipan-1) + 1
-            end where
-            where ( maska(1:pipan:pipan-1) .and. ccount(1:pipan:pipan-1)>0 )
-              a_io(1+cc:pipan+cc:pipan-1,k) = csum(1:pipan:pipan-1)/real(ccount(1:pipan:pipan-1))
-            end where
+            ! west boundary
+            maska(1) = abs(a_io(1+cc,k)-value)<1.e-20
+            csum(1) = 0.
+            ccount(1) = 0
+            if ( abs(c_io(1,j+1,n,ipf,k)-value)>=1.e-20 ) then
+              csum(1) = csum(1) + c_io(1,j+1,n,ipf,k)
+              ccount(1) = ccount(1) + 1
+            end if
+            if ( abs(c_io(1,j-1,n,ipf,k)-value)>=1.e-20 ) then
+              csum(1) = csum(1) + c_io(1,j-1,n,ipf,k)
+              ccount(1) = ccount(1) + 1
+            end if
+            if ( abs(c_io(2,j,n,ipf,k)-value)>=1.e-20 ) then
+              csum(1) = csum(1) + c_io(2,j,n,ipf,k)
+              ccount(1) = ccount(1) + 1
+            end if
+            if ( abs(c_io(0,j,n,ipf,k)-value)>=1.e-20 ) then
+              csum(1) = csum(1) + c_io(0,j,n,ipf,k)
+              ccount(1) = ccount(1) + 1
+            end if
+            if ( maska(1) .and. ccount(1)>0 ) then
+              a_io(1+cc,k) = csum(1)/real(ccount(1))
+            end if
+            ! east boundary
+            maska(pipan) = abs(a_io(pipan+cc,k)-value)<1.e-20
+            csum(pipan) = 0.
+            ccount(pipan) = 0
+            if ( abs(c_io(pipan,j+1,n,ipf,k)-value)>=1.e-20 ) then
+              csum(pipan) = csum(pipan) + c_io(pipan,j+1,n,ipf,k)
+              ccount(pipan) = ccount(pipan) + 1
+            end if
+            if ( abs(c_io(pipan,j-1,n,ipf,k)-value)>=1.e-20 ) then
+              csum(pipan) = csum(pipan) + c_io(pipan,j-1,n,ipf,k)
+              ccount(pipan) = ccount(pipan) + 1
+            end if
+            if ( abs(c_io(pipan+1,j,n,ipf,k)-value)>=1.e-20 ) then
+              csum(pipan) = csum(pipan) + c_io(pipan+1,j,n,ipf,k)
+              ccount(pipan) = ccount(pipan) + 1
+            end if
+            if ( abs(c_io(pipan-1,j,n,ipf,k)-value)>=1.e-20 ) then
+              csum(pipan) = csum(pipan) + c_io(pipan-1,j,n,ipf,k)
+              ccount(pipan) = ccount(pipan) + 1
+            end if
+            if ( maska(pipan) .and. ccount(pipan)>0 ) then
+              a_io(pipan+cc,k) = csum(pipan)/real(ccount(pipan))
+            end if
           end do
           cc = (pjpan-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+          ! south boundary
           maska(1:pipan) = abs(a_io(1+cc:pipan+cc,k)-value)<1.e-20
           csum(1:pipan) = 0.
           ccount(1:pipan) = 0

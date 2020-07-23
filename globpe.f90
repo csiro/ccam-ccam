@@ -72,7 +72,6 @@ use parm_m                                 ! Model configuration
 use parmdyn_m                              ! Dynamics parameters
 use parmhdff_m                             ! Horizontal diffusion parameters
 use pbl_m                                  ! Boundary layer arrays
-use physics_m                              ! Physics interface
 use prec_m                                 ! Precipitation
 use raddiag_m                              ! Radiation diagnostic
 use river                                  ! River routing
@@ -523,10 +522,91 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! aerosol timer (true indicates update oxidants, etc)
   oxidant_update = oxidant_timer<=mins-updateoxidant
 
-    
+  
+  ! MISC (PARALLEL) -------------------------------------------------------
 !$omp parallel
-  call physics
-    
+!$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    ! initialse surface rainfall to zero
+    condc(js:je) = 0. ! default convective rainfall (assumed to be rain)
+    condx(js:je) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
+    conds(js:je) = 0. ! default total ice + snow (convection and large scale)
+    condg(js:je) = 0. ! default total graupel (convection and large scale)
+    ! Held & Suarez or no surf fluxes
+    if ( ntsur<=1 .or. nhstest==2 ) then 
+      eg(js:je)   = 0.
+      fg(js:je)   = 0.
+      cdtq(js:je) = 0.
+      cduv(js:je) = 0.
+    end if     ! (ntsur<=1.or.nhstest==2) 
+    ! Save aerosol concentrations for outside convective fraction of grid box
+    if ( abs(iaero)>=2 ) then
+      xtosav(js:je,1:kl,1:naero) = xtg(js:je,1:kl,1:naero) ! Aerosol mixing ratio outside convective cloud
+    end if
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    call nantest("start of physics",js,je)
+  end do  
+!$omp end do nowait
+
+  
+  ! GWDRAG ----------------------------------------------------------------
+!$omp master
+  call START_LOG(gwdrag_begin)
+!$omp end master
+  if ( ngwd<0 ) then
+    call gwdrag  ! <0 for split - only one now allowed
+  end if
+!$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    call nantest("after gravity wave drag",js,je)
+  end do  
+!$omp end do nowait
+!$omp master
+  call END_LOG(gwdrag_end)
+!$omp end master
+
+  
+  ! CONVECTION ------------------------------------------------------------
+!$omp master
+  call START_LOG(convection_begin)
+!$omp end master
+!$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) - t(js:je,1:kl)*real(nperday)/real(nperavg)        
+  end do
+!$omp end do nowait
+  ! Select convection scheme
+  select case ( nkuo )
+    case(5)
+!$omp barrier  
+!$omp single  
+      call betts(t,qg,tn,land,ps) ! not called these days
+!$omp end single
+    case(21,22)
+      call convjlm22              ! split convjlm 
+    case(23,24)
+      call convjlm                ! split convjlm 
+  end select
+!$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    call fixqg(js,je)
+    call nantest("after convection",js,je)
+  end do  
+!$omp end do nowait
+!$omp master
+  call END_LOG(convection_end)
+!$omp end master
+
+  
   ! CLOUD MICROPHYSICS ----------------------------------------------------
 !$omp master
   call START_LOG(cloud_begin)
@@ -3504,6 +3584,50 @@ end do
 
 return
 end subroutine proctest_uniform
+
+!--------------------------------------------------------------------
+! Fix water vapour mixing ratio
+subroutine fixqg(js,je)
+
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use const_phys                        ! Physical constants
+use cfrac_m                           ! Cloud fraction
+use estab                             ! Liquid saturation function
+use liqwpar_m                         ! Cloud water mixing ratios
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+use sigs_m                            ! Atmosphere sigma levels
+
+implicit none
+
+integer, intent(in) :: js, je
+integer k
+real, dimension(js:je) :: qtot, tliq
+
+! requires qg_fix>=1
+if ( qg_fix<=0 ) return
+
+do k = 1,kl
+  qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), 0. )
+  tliq(js:je) = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
+  
+  qfg(js:je,k)   = max( qfg(js:je,k), 0. ) 
+  qlg(js:je,k)   = max( qlg(js:je,k), 0. )
+  qrg(js:je,k)   = max( qrg(js:je,k), 0. )
+  qsng(js:je,k)  = max( qsng(js:je,k), 0. )
+  qgrg(js:je,k)  = max( qgrg(js:je,k), 0. )
+  
+  qg(js:je,k) = max( qtot(js:je) - qlg(js:je,k) - qfg(js:je,k), 0. )
+  t(js:je,k)  = tliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
+  where ( qlg(js:je,k)+qfg(js:je,k)>1.E-8 )
+    stratcloud(js:je,k) = max( stratcloud(js:je,k), 1.E-8 )
+  elsewhere
+    stratcloud(js:je,k) = 0.  
+  end where
+end do
+
+return
+end subroutine fixqg    
     
 subroutine fixsat(js,je)
 
