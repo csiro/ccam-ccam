@@ -97,10 +97,10 @@ integer idjd_t
 real, dimension(imax,kl) :: lt, lu, lv
 logical mydiag_t
 
-!$omp do schedule(static) private(is,ie),        &
-!$omp private(lt,lu,lv,idjd_t,mydiag_t)
-!$acc parallel copy(u,v), copyin(t,tss,he)
-!$acc loop gang private(lt,lu,lv)
+!$omp do schedule(static) private(is,ie,lt,lu,lv),          &
+!$omp private(tile,idjd_t,mydiag_t)
+!$acc parallel loop copy(u,v), copyin(t,tss,he,ntiles,imax) &
+!$acc   private(lt,lu,lv,tile,is,ie,idjd_t,mydiag_t)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -118,7 +118,7 @@ do tile = 1,ntiles
   v(is:ie,:) = lv
  
 end do
-!$acc end parallel
+!$acc end parallel loop
 !$omp end do nowait
 
 return

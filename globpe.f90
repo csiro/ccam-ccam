@@ -905,7 +905,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
     
   ! ENSEMBLE --------------------------------------------------
   if ( ensemble_mode>0 ) then
+    call START_LOG(ensemble_begin)
     call update_ensemble
+    call END_LOG(ensemble_end)
     call fixqg(1,ifull)
   end if
   

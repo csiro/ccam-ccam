@@ -1292,16 +1292,8 @@ PQTMST=1./PTMST
 do jk = 1,kl
 
   ! Calculate in-cloud ql
-  where ( pclcover(:,jk)>1.e-8 )
-    zlwcic(:,jk)=pmlwc(:,jk)/pclcover(:,jk)
-  elsewhere
-    zlwcic(:,jk)=0.
-  end where
-  where ( pcfcover(:,jk)>1.e-8 )
-    ziwcic(:,jk)=pmiwc(:,jk)/pcfcover(:,jk)
-  elsewhere
-    ziwcic(:,jk)=0.
-  end where
+  zlwcic(:,jk)=pmlwc(:,jk)/max(pclcover(:,jk),1.e-8)
+  ziwcic(:,jk)=pmiwc(:,jk)/max(pcfcover(:,jk),1.e-8)
 
   !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
   ! -- levels are already inverted --
@@ -1357,83 +1349,81 @@ DO JK=KTOP,kl
   ZXTP10(:,JK) = XTO(:,JK,ITRACSO2)
   ZXTP1C(:,JK) = XTO(:,JK,ITRACSO2)
   DO JL=1,imax
-    IF ( ZXTP1(jl)>ZMIN .AND. ZLWCIC(JL,JK)>ZMIN ) THEN
 
-      ZQTP1(jl)=1./PTP1(JL,JK)-ZQ298
-      ZE1=ZE1K*EXP(ZE1H*ZQTP1(jl))
-      ZE2=ZE2K*EXP(ZE2H*ZQTP1(jl))
-      ZE3=ZE3K*EXP(ZE3H*ZQTP1(jl))
+    ZQTP1(jl)=1./PTP1(JL,JK)-ZQ298
+    ZE1=ZE1K*EXP(ZE1H*ZQTP1(jl))
+    ZE2=ZE2K*EXP(ZE2H*ZQTP1(jl))
+    ZE3=ZE3K*EXP(ZE3H*ZQTP1(jl))
 
-      ZLWCL(jl)=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-06
-!    ZLWCL = LWC IN L/CM**3
-      ZLWCV(jl)=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-03
+    ZLWCL(jl)=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-06
+!   ZLWCL = LWC IN L/CM**3
+    ZLWCV(jl)=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-03
 !   ZLWCV = LWC IN VOL/VOL
-      ZFAC1=1./(ZLWCL(jl)*ZAVO)
+    ZFAC1=1./(max(ZLWCL(jl),zmin)*ZAVO)
 !   ZFAC1 CALCULATES MOLECULES PER CM**3 TO MOLE PER LTR H2O
-      ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV(jl)
+    ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV(jl)
 !   ZRKFAC CALCULATES DIMENSIONLESS HENRY-COEFF.
-      ZZA=ZE2*ZRKFAC
-      ZA21=4.39E+11*EXP(-4131./PTP1(JL,JK))
-      ZA22=2.56E+03*EXP(-966./PTP1(JL,JK)) !926 corrected to 966 here
-      ZPH_O3=ZE1*ZRKFAC
-      ZF_O3=ZPH_O3/(1.+ZPH_O3)
-      ZDT=PTMST/5.
+    ZZA=ZE2*ZRKFAC
+    ZA21=4.39E+11*EXP(-4131./PTP1(JL,JK))
+    ZA22=2.56E+03*EXP(-966./PTP1(JL,JK)) !926 corrected to 966 here
+    ZPH_O3=ZE1*ZRKFAC
+    ZF_O3=ZPH_O3/(1.+ZPH_O3)
+    ZDT=PTMST/5.
 
-      ZH2O2M=ZZH2O2(JL,JK)
-      ZSO2M=ZXTP1(jl)*PRHOP1(JL,JK)*6.022E+20/ZMOLGS
-      ZSO4M=ZSO4(JL,JK)*PRHOP1(JL,JK)*6.022E+20/ZMOLGS
+    ZH2O2M=ZZH2O2(JL,JK)
+    ZSO2M=ZXTP1(jl)*PRHOP1(JL,JK)*6.022E+20/ZMOLGS
+    ZSO4M=ZSO4(JL,JK)*PRHOP1(JL,JK)*6.022E+20/ZMOLGS
 
-      ZSUMH2O2=0.
-      ZSUMO3=0.
+    ZSUMH2O2=0.
+    ZSUMO3=0.
 
-      DO JN=1,5
-        ZQ=ZRKH2O2(JL,JK)*ZH2O2M
-        ZSO2MH=ZSO2M*EXP(-ZQ*ZDT)
+    DO JN=1,5
+      ZQ=ZRKH2O2(JL,JK)*ZH2O2M
+      ZSO2MH=ZSO2M*EXP(-ZQ*ZDT)
 
-        ZDSO2H=ZSO2M-ZSO2MH
-        ZH2O2M=ZH2O2M-ZDSO2H
-        ZH2O2M=AMAX1(0.,ZH2O2M)
-        ZSUMH2O2=ZSUMH2O2+ZDSO2H
+      ZDSO2H=ZSO2M-ZSO2MH
+      ZH2O2M=ZH2O2M-ZDSO2H
+      ZH2O2M=AMAX1(0.,ZH2O2M)
+      ZSUMH2O2=ZSUMH2O2+ZDSO2H
 
-        ZSO4M=ZSO4M+ZDSO2H
+      ZSO4M=ZSO4M+ZDSO2H
 !   CALCULATE THE PH VALUE
-        ZSO2L=ZSO2MH*ZFAC1
-        ZSO4L=ZSO4M*ZFAC1
-        ZZB=ZHPBASE+ZSO4L
-        ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
-        ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
-        ZZP=0.5*ZZP
-        ZZP2=ZZP*ZZP
-        ZHP(jl)=-ZZP+SQRT(ZZP2-ZZQ)
-        ZQHP=1./ZHP(jl)
+      ZSO2L=ZSO2MH*ZFAC1
+      ZSO4L=ZSO4M*ZFAC1
+      ZZB=ZHPBASE+ZSO4L
+      ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
+      ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
+      ZZP=0.5*ZZP
+      ZZP2=ZZP*ZZP
+      ZHP(jl)=-ZZP+SQRT(ZZP2-ZZQ)
+      ZQHP=1./ZHP(jl)
 
 !   CALCULATE THE REACTION RATE FOR SO2-O3
-        ZA2=(ZA21+ZA22*ZQHP)*ZFAC1
-        ZHENEFF=1.+ZE3*ZQHP
-        ZP_SO2(jl)=ZZA*ZHENEFF
-        ZF_SO2(jl)=ZP_SO2(jl)/(1.+ZP_SO2(jl))
-        ZRKO3=ZA2*ZF_O3*ZF_SO2(jl)
+      ZA2=(ZA21+ZA22*ZQHP)*ZFAC1
+      ZHENEFF=1.+ZE3*ZQHP
+      ZP_SO2(jl)=ZZA*ZHENEFF
+      ZF_SO2(jl)=ZP_SO2(jl)/(1.+ZP_SO2(jl))
+      ZRKO3=ZA2*ZF_O3*ZF_SO2(jl)
 
-        ZQ=ZZO3(JL,JK)*ZRKO3
-        ZSO2MO=ZSO2MH*EXP(-ZQ*ZDT)
-        ZDSO2O=ZSO2MH-ZSO2MO
-        ZSO4M=ZSO4M+ZDSO2O
-        ZSO2M=ZSO2MO
-        ZSUMO3=ZSUMO3+ZDSO2O
-      end do  !End of iteration loop
+      ZQ=ZZO3(JL,JK)*ZRKO3
+      ZSO2MO=ZSO2MH*EXP(-ZQ*ZDT)
+      ZDSO2O=ZSO2MH-ZSO2MO
+      ZSO4M=ZSO4M+ZDSO2O
+      ZSO2M=ZSO2MO
+      ZSUMO3=ZSUMO3+ZDSO2O
+    end do  !End of iteration loop
 
-      ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*PRHOP1(JL,JK))
-      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
-      ZXTP1C(JL,JK)=ZXTP1(jl)-ZDSO2TOT
-      ZSO4(JL,JK)=ZSO4(JL,JK)+ZDSO2TOT
+    ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*PRHOP1(JL,JK))
+    ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
+    ZXTP1C(JL,JK)=ZXTP1(jl)-ZDSO2TOT
+    ZSO4(JL,JK)=ZSO4(JL,JK)+ZDSO2TOT
 
-      ZHENRY(JL,JK)=ZF_SO2(jl)
+    ZHENRY(JL,JK)=ZF_SO2(jl)
 ! Diagnostic only...
-      ZFAC=PQTMST*PCLCOVER(JL,JK)*ZMOLGS/(6.022E+20*PRHOP1(JL,JK))
-      ZFAC1=ZFAC*rhodz(JL,JK)
-      so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
-      so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
-    END IF
+    ZFAC=PQTMST*PCLCOVER(JL,JK)*ZMOLGS/(6.022E+20*PRHOP1(JL,JK))
+    ZFAC1=ZFAC*rhodz(JL,JK)
+    so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
+    so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
   end do
 end do
 
@@ -1589,83 +1579,81 @@ DO JK=KTOP,kl
   !   HETEROGENEOUS CHEMISTRY
   DO JL=1,imax
     ZXTP1(jl)=XTU(JL,JK,ITRACSO2)
-    IF(ZXTP1(jl)>ZMIN.AND.PCCW(JL,JK)>ZMIN) THEN
-      X=PRHOP1(JL,JK)
+    X=PRHOP1(JL,JK)
 
-      ZQTP1(jl)=1./PTP1(JL,JK)-ZQ298
-      ZE1=ZE1K*EXP(ZE1H*ZQTP1(jl))
-      ZE2=ZE2K*EXP(ZE2H*ZQTP1(jl))
-      ZE3=ZE3K*EXP(ZE3H*ZQTP1(jl))
+    ZQTP1(jl)=1./PTP1(JL,JK)-ZQ298
+    ZE1=ZE1K*EXP(ZE1H*ZQTP1(jl))
+    ZE2=ZE2K*EXP(ZE2H*ZQTP1(jl))
+    ZE3=ZE3K*EXP(ZE3H*ZQTP1(jl))
 
-      ZLWCL(jl)=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-06
-!    ZLWCL = LWC IN L/CM**3
-      ZLWCV(jl)=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-03
+    ZLWCL(jl)=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-06
+!   ZLWCL = LWC IN L/CM**3
+    ZLWCV(jl)=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-03
 !   ZLWCV = LWC IN VOL/VOL
-      ZFAC1=1./(ZLWCL(jl)*ZAVO)
+    ZFAC1=1./(max(ZLWCL(jl),zmin)*ZAVO)
 !   ZFAC1 CALCULATES MOLECULES PER CM**3 TO MOLE PER LTR H2O
-      ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV(jl)
+    ZRKFAC=ZRGAS*PTP1(JL,JK)*ZLWCV(jl)
 !   ZRKFAC CALCULATES DIMENSIONLESS HENRY-COEFF.
-      ZZA=ZE2*ZRKFAC
-      ZA21=4.39E+11*EXP(-4131./PTP1(JL,JK))
-      ZA22=2.56E+03*EXP(-966./PTP1(JL,JK)) !926 corrected to 966 here
-      ZPH_O3=ZE1*ZRKFAC
-      ZF_O3=ZPH_O3/(1.+ZPH_O3)
-      ZDT=PTMST/5.
+    ZZA=ZE2*ZRKFAC
+    ZA21=4.39E+11*EXP(-4131./PTP1(JL,JK))
+    ZA22=2.56E+03*EXP(-966./PTP1(JL,JK)) !926 corrected to 966 here
+    ZPH_O3=ZE1*ZRKFAC
+    ZF_O3=ZPH_O3/(1.+ZPH_O3)
+    ZDT=PTMST/5.
 
-      ZH2O2M=ZZH2O2(JL,JK)
-      ZSO2M=ZXTP1(jl)*X*6.022E+20/ZMOLGS
-      ZSO4M=ZSO4C(JL,JK)*X*6.022E+20/ZMOLGS
+    ZH2O2M=ZZH2O2(JL,JK)
+    ZSO2M=ZXTP1(jl)*X*6.022E+20/ZMOLGS
+    ZSO4M=ZSO4C(JL,JK)*X*6.022E+20/ZMOLGS
 
-      ZSUMH2O2=0.
-      ZSUMO3=0.
+    ZSUMH2O2=0.
+    ZSUMO3=0.
 
-      DO JN=1,5
-        ZQ=ZRKH2O2(JL,JK)*ZH2O2M
-        ZSO2MH=ZSO2M*EXP(-ZQ*ZDT)
+    DO JN=1,5
+      ZQ=ZRKH2O2(JL,JK)*ZH2O2M
+      ZSO2MH=ZSO2M*EXP(-ZQ*ZDT)
 
-        ZDSO2H=ZSO2M-ZSO2MH
-        ZH2O2M=ZH2O2M-ZDSO2H
-        ZH2O2M=AMAX1(0.,ZH2O2M)
-        ZSUMH2O2=ZSUMH2O2+ZDSO2H
+      ZDSO2H=ZSO2M-ZSO2MH
+      ZH2O2M=ZH2O2M-ZDSO2H
+      ZH2O2M=AMAX1(0.,ZH2O2M)
+      ZSUMH2O2=ZSUMH2O2+ZDSO2H
 
-        ZSO4M=ZSO4M+ZDSO2H
+      ZSO4M=ZSO4M+ZDSO2H
 !   CALCULATE THE PH VALUE
-        ZSO2L=ZSO2MH*ZFAC1
-        ZSO4L=ZSO4M*ZFAC1
-        ZZB=ZHPBASE+ZSO4L
-        ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
-        ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
-        ZZP=0.5*ZZP
-        ZZP2=ZZP*ZZP
-        ZHP(jl)=-ZZP+SQRT(ZZP2-ZZQ)
-        ZQHP=1./ZHP(jl)
+      ZSO2L=ZSO2MH*ZFAC1
+      ZSO4L=ZSO4M*ZFAC1
+      ZZB=ZHPBASE+ZSO4L
+      ZZP=(ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
+      ZZQ=-ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
+      ZZP=0.5*ZZP
+      ZZP2=ZZP*ZZP
+      ZHP(jl)=-ZZP+SQRT(ZZP2-ZZQ)
+      ZQHP=1./ZHP(jl)
 
 !   CALCULATE THE REACTION RATE FOR SO2-O3
-        ZA2=(ZA21+ZA22*ZQHP)*ZFAC1
-        ZHENEFF=1.+ZE3*ZQHP
-        ZP_SO2(jl)=ZZA*ZHENEFF
-        ZF_SO2(jl)=ZP_SO2(jl)/(1.+ZP_SO2(jl))
-        ZRKO3=ZA2*ZF_O3*ZF_SO2(jl)
+      ZA2=(ZA21+ZA22*ZQHP)*ZFAC1
+      ZHENEFF=1.+ZE3*ZQHP
+      ZP_SO2(jl)=ZZA*ZHENEFF
+      ZF_SO2(jl)=ZP_SO2(jl)/(1.+ZP_SO2(jl))
+      ZRKO3=ZA2*ZF_O3*ZF_SO2(jl)
 !
-        ZQ=ZZO3(JL,JK)*ZRKO3
-        ZSO2MO=ZSO2MH*EXP(-ZQ*ZDT)
-        ZDSO2O=ZSO2MH-ZSO2MO
-        ZSO4M=ZSO4M+ZDSO2O
-        ZSO2M=ZSO2MO
-        ZSUMO3=ZSUMO3+ZDSO2O
-      ENDDO  !End of iteration loop
+      ZQ=ZZO3(JL,JK)*ZRKO3
+      ZSO2MO=ZSO2MH*EXP(-ZQ*ZDT)
+      ZDSO2O=ZSO2MH-ZSO2MO
+      ZSO4M=ZSO4M+ZDSO2O
+      ZSO2M=ZSO2MO
+      ZSUMO3=ZSUMO3+ZDSO2O
+    ENDDO  !End of iteration loop
 
-      ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*X)
-      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
-      ZXTP1CON(JL,JK)=ZXTP1CON(JL,JK)-ZDSO2TOT
-      ZSO4C(JL,JK)=ZSO4C(JL,JK)+ZDSO2TOT
-      ZHENRYC(JL,JK)=ZF_SO2(jl)
-      ! Diagnostic only...
-      ZFAC=PQTMST*pclcon(jl,jk)*ZMOLGS/(6.022E+20*X)
-      ZFAC1=ZFAC*rhodz(JL,JK)
-      so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
-      so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
-    ENDIF
+    ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*X)
+    ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
+    ZXTP1CON(JL,JK)=ZXTP1CON(JL,JK)-ZDSO2TOT
+    ZSO4C(JL,JK)=ZSO4C(JL,JK)+ZDSO2TOT
+    ZHENRYC(JL,JK)=ZF_SO2(jl)
+    ! Diagnostic only...
+    ZFAC=PQTMST*pclcon(jl,jk)*ZMOLGS/(6.022E+20*X)
+    ZFAC1=ZFAC*rhodz(JL,JK)
+    so2h2(JL)=so2h2(JL)+ZSUMH2O2*ZFAC1
+    so2o3(JL)=so2o3(JL)+ZSUMO3*ZFAC1
   ENDDO
 ENDDO
 
@@ -1947,7 +1935,6 @@ real, dimension(imax) :: zcollefc
 real :: zilcscav, ziicscav,xdep,plambda,zbcscav,xbcscav,zstay_t,xstay,frc
 real :: zmelt,xmelt,zicscav,xicscav
 real :: xfreeze, zfreeze
-logical :: lmask
 
 integer jk,i
 real pqtmst
@@ -1986,113 +1973,87 @@ do JK = KTOP,kl
 
   ! In-cloud ice scavenging (including vertical redistribution when snow
   ! evaporates or falls into a layer). Include accretion of ql by snow.
-  if ( Ecols(ktrac)>zmin ) then
-    do i = 1,imax
-      if ( zclr0(i)>zmin ) then
-        ziicscav = Ecols(ktrac)*pqfsedice(i,jk) !qfsedice is the fractional sedimentation in dt
-        ziicscav = max( min( ziicscav, 1. ), 0. )
-        xdep = pxtp10(i,jk)*ziicscav
-        pdep3d(i,jk) = pdep3d(i,jk) + xdep*pcfcover(i,jk)
-        !pxtp10(i,jk) = pxtp10(i,jk)*(zclear(:)+(1.-ziicscav)*pcfcover(:,jk))/(1.-pclcover(:,jk))
-        pxtp10(i,jk) = pxtp10(i,jk) - xdep*pcfcover(i,jk)/zclr0(i) ! MJT suggestion
-        zdeps(i) = zdeps(i) + xdep*pcfcover(i,jk)*zmtof(i)
-      end if
-    end do
-  end if
+  do i = 1,imax
+    ziicscav = Ecols(ktrac)*pqfsedice(i,jk) !qfsedice is the fractional sedimentation in dt
+    ziicscav = max( min( ziicscav, 1. ), 0. )
+    xdep = pxtp10(i,jk)*ziicscav
+    pdep3d(i,jk) = pdep3d(i,jk) + xdep*pcfcover(i,jk)
+    !pxtp10(i,jk) = pxtp10(i,jk)*(zclear(:)+(1.-ziicscav)*pcfcover(:,jk))/(1.-pclcover(:,jk))
+    pxtp10(i,jk) = pxtp10(i,jk) - xdep*pcfcover(i,jk)/max(zclr0(i),zmin) ! MJT suggestion
+    zdeps(i) = zdeps(i) + xdep*pcfcover(i,jk)*zmtof(i)
+  end do
 
   ! This loop does riming (accretion of liquid water by falling snow)
-  if ( rcoeff(ktrac)>zmin ) then
-    do i = 1,imax
-      if ( pmlwc(i,jk)>zmin ) then
-        zilcscav = Rcoeff(ktrac)*psolub(i,jk)*pmaccr(i,jk)*ptmst/pmlwc(i,jk)
-        zilcscav = max( min( zilcscav, 1. ), 0. )
-        xdep = pxtp1c(i,jk)*zilcscav
-        pdep3d(i,jk) = pdep3d(i,jk) + xdep*pclcover(i,jk)
-        pxtp1c(i,jk) = pxtp1c(i,jk) - xdep
-        zdeps(i) = zdeps(i) + xdep*pclcover(i,jk)*zmtof(i)
-      end if
-    end do
-  end if
+  do i = 1,imax
+    zilcscav = Rcoeff(ktrac)*psolub(i,jk)*pmaccr(i,jk)*ptmst/max(pmlwc(i,jk),zmin)
+    zilcscav = max( min( zilcscav, 1. ), 0. )
+    xdep = pxtp1c(i,jk)*zilcscav
+    pdep3d(i,jk) = pdep3d(i,jk) + xdep*pclcover(i,jk)
+    pxtp1c(i,jk) = pxtp1c(i,jk) - xdep
+    zdeps(i) = zdeps(i) + xdep*pclcover(i,jk)*zmtof(i)
+  end do
 
   ! Below-cloud scavenging by snow
   do i = 1,imax
-    lmask = pfsnow(i,jk)>zmin
-    if ( lmask ) then
-      !plambs(:,jk) = 1.6e3*10**(-0.023*(ttg(1:imax,k)-tfrz)) ! for ice
-      plambda = min( plambs(i,jk), 8.e3 ) !Cut it off at about -30 deg. C
-      zbcscav = zcollefs(ktrac)*plambda*pfsnow(i,jk)*ptmst/(2.*rhos)
-      zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
-      xbcscav = zbcscav*pxtp10(i,jk)
-      pdep3d(i,jk) = pdep3d(i,jk) + xbcscav*zclr0(i)
-      pxtp10(i,jk) = pxtp10(i,jk) - xbcscav
-      zdeps(i) = zdeps(i) + xbcscav*zclr0(i)*zmtof(i)
-    end if
+    !plambs(:,jk) = 1.6e3*10**(-0.023*(ttg(1:imax,k)-tfrz)) ! for ice
+    plambda = min( plambs(i,jk), 8.e3 ) !Cut it off at about -30 deg. C
+    zbcscav = zcollefs(ktrac)*plambda*pfsnow(i,jk)*ptmst/(2.*rhos)
+    zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
+    xbcscav = zbcscav*pxtp10(i,jk)
+    pdep3d(i,jk) = pdep3d(i,jk) + xbcscav*zclr0(i)
+    pxtp10(i,jk) = pxtp10(i,jk) - xbcscav
+    zdeps(i) = zdeps(i) + xbcscav*zclr0(i)*zmtof(i)
   end do
 
   ! Redistribution by snow that evaporates or stays in layer
   do i = 1,imax
-    lmask = pfsnow(i,jk)>zmin .and. zclr0(i)>zmin
-    if ( lmask ) then
-      zstay_t = (pfsubl(i,jk)+pfstayice(i,jk))/pfsnow(i,jk)
-      zstay_t = max( min( 1., zstay_t ), 0. )
-      xstay = zdeps(i)*zstay_t/zmtof(i)
-      pdep3d(i,jk) = pdep3d(i,jk) - xstay
-      pxtp10(i,jk) = pxtp10(i,jk) + xstay/zclr0(i)
-      zdeps(i) = zdeps(i) - xstay*zmtof(i)
-      zdeps(i) = max( 0., zdeps(i) )
-    end if
+    zstay_t = (pfsubl(i,jk)+pfstayice(i,jk))/max(pfsnow(i,jk),zmin)
+    zstay_t = max( min( 1., zstay_t ), 0. )
+    xstay = zdeps(i)*zstay_t/zmtof(i)
+    pdep3d(i,jk) = pdep3d(i,jk) - xstay
+    pxtp10(i,jk) = pxtp10(i,jk) + xstay/max(zclr0(i),zmin)
+    zdeps(i) = zdeps(i) - xstay*zmtof(i)
+    zdeps(i) = max( 0., zdeps(i) )
   end do
 
   ! Melting of snow... 
   do i = 1,imax
-    lmask = pfmelt(i,jk)>zmin
-    if ( lmask ) then
-      zmelt = pfmelt(i,jk)/max(pfsnow(i,jk)+pfmelt(i,jk),zmin) 
-      zmelt = max( min( 1., zmelt ), 0. )
-      xmelt = zmelt*zdeps(i)
-      zdepr(i) = zdepr(i) + xmelt
-      zdeps(i) = zdeps(i) - xmelt
-      zdeps(i) = max( 0., zdeps(i) )
-    end if
+    zmelt = pfmelt(i,jk)/max(pfsnow(i,jk)+pfmelt(i,jk),zmin) 
+    zmelt = max( min( 1., zmelt ), 0. )
+    xmelt = zmelt*zdeps(i)
+    zdepr(i) = zdepr(i) + xmelt
+    zdeps(i) = zdeps(i) - xmelt
+    zdeps(i) = max( 0., zdeps(i) )
   end do
   
   !  In-cloud scavenging by warm-rain processes (autoconversion and collection)
   do i = 1,imax
-    lmask = pmratep(i,jk)>zmin .and. pmlwc(i,jk)>zmin
-    if ( lmask ) then ! MJT suggestion
-      zicscav = psolub(i,jk)*pmratep(i,jk)*ptmst/pmlwc(i,jk)
-      zicscav = max( min( zicscav, 1. ), 0. )
-      xicscav = pxtp1c(i,jk)*zicscav
-      pdep3d(i,jk) = pdep3d(i,jk) + xicscav*pclcover(i,jk)
-      pxtp1c(i,jk) = pxtp1c(i,jk) - xicscav
-      zdepr(i) = zdepr(i) + xicscav*pclcover(i,jk)*zmtof(i)
-    end if
+    zicscav = psolub(i,jk)*pmratep(i,jk)*ptmst/max(pmlwc(i,jk),zmin)
+    zicscav = max( min( zicscav, 1. ), 0. )
+    xicscav = pxtp1c(i,jk)*zicscav
+    pdep3d(i,jk) = pdep3d(i,jk) + xicscav*pclcover(i,jk)
+    pxtp1c(i,jk) = pxtp1c(i,jk) - xicscav
+    zdepr(i) = zdepr(i) + xicscav*pclcover(i,jk)*zmtof(i)
   end do
  
   ! Below-cloud scavenging by stratiform rain (conv done below)
   do i = 1,imax
-    lmask = prscav(i,jk)>zmin
-    if ( lmask ) then
-      zbcscav = zcollefr(ktrac)*prscav(i,jk)
-      zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
-      xbcscav = zbcscav*pxtp10(i,jk)
-      pdep3d(i,jk) = pdep3d(i,jk) + xbcscav*zclr0(i)
-      pxtp10(i,jk) = pxtp10(i,jk) - xbcscav 
-      zdepr(i) = zdepr(i) + xbcscav*zclr0(i)*zmtof(i)
-    end if
+    zbcscav = zcollefr(ktrac)*prscav(i,jk)
+    zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
+    xbcscav = zbcscav*pxtp10(i,jk)
+    pdep3d(i,jk) = pdep3d(i,jk) + xbcscav*zclr0(i)
+    pxtp10(i,jk) = pxtp10(i,jk) - xbcscav 
+    zdepr(i) = zdepr(i) + xbcscav*zclr0(i)*zmtof(i)
   end do
   
   ! Freezing of rain... 
   do i = 1,imax
-    lmask = prfreeze(i,jk)>zmin
-    if ( lmask ) then
-      zfreeze = prfreeze(i,jk)/max(pfprec(i,jk)+prfreeze(i,jk),zmin) 
-      zfreeze = max( min( 1., zfreeze ), 0. )
-      xfreeze = zfreeze*zdepr(i)
-      zdeps(i) = zdeps(i) + xfreeze
-      zdepr(i) = zdepr(i) - xfreeze
-      zdepr(i) = max( 0., zdepr(i) )
-    end if
+    zfreeze = prfreeze(i,jk)/max(pfprec(i,jk)+prfreeze(i,jk),zmin) 
+    zfreeze = max( min( 1., zfreeze ), 0. )
+    xfreeze = zfreeze*zdepr(i)
+    zdeps(i) = zdeps(i) + xfreeze
+    zdepr(i) = zdepr(i) - xfreeze
+    zdepr(i) = max( 0., zdepr(i) )
   end do
   
 end do !   END OF VERTICAL LOOP
@@ -2124,17 +2085,14 @@ do jk = ktop,kl
   
 ! Below-cloud scavenging by convective precipitation
   do i = 1,imax
-    lmask = pfconv(i,jk-1)>zmin .and. fracc(i)>zmin
-    if ( lmask ) then
-      Frc = max( 0., pfconv(i,jk-1)/fracc(i) )
-      zbcscav = zcollefc(i)*fracc(i)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
-      !zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
-      zbcscav = max( min( 1., zbcscav ), 0. ) ! MJT suggestion
-      xbcscav = zbcscav*pxtp10(i,jk)
-      pdep3d(i,jk) = pdep3d(i,jk) + xbcscav*zclr0(i)
-      pxtp10(i,jk) = pxtp10(i,jk) - xbcscav
-      conwd(i,ktrac) = conwd(i,ktrac) + xbcscav*zclr0(i)*zmtof(i)
-    end if
+    Frc = max( 0., pfconv(i,jk-1)/max(fracc(i),zmin) )
+    zbcscav = zcollefc(i)*fracc(i)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
+    !zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
+    zbcscav = max( min( 1., zbcscav ), 0. ) ! MJT suggestion
+    xbcscav = zbcscav*pxtp10(i,jk)
+    pdep3d(i,jk) = pdep3d(i,jk) + xbcscav*zclr0(i)
+    pxtp10(i,jk) = pxtp10(i,jk) - xbcscav
+    conwd(i,ktrac) = conwd(i,ktrac) + xbcscav*zclr0(i)*zmtof(i)
   end do
 
   ! Below-cloud reevaporation of convective rain

@@ -167,22 +167,23 @@ do tile = 1,ntiles
 end do
 !$omp end do nowait    
     
-!$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                              &
-!$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                                &
-!$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),             &
-!$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
+!$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                               &
+!$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                                 &
+!$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),              &
+!$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),               &
 !$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean)
-!$acc parallel copy(xtg,duste,dustdd,dustwd,dust_burden,so4t,dmsso2o,so2so4o,bc_burden,oc_burden,     &
-!$acc   dms_burden,so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd,so4dd,    &
-!$acc   bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                                    &
-!$acc copyin(zoxidant_g,xtosav,emissfield,erod,t,qg,qlg,qfg,stratcloud,ppfprec,ppfmelt,ppfsnow,       &
-!$acc   ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,                      &
-!$acc   clcon,bet,betm,dsig,sig,ps,kbsav,ktsav,wetfac,pblh,tss,condc,snowd,taudar,fg,eg,u10,ustar,    &
-!$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2,isoilm_in,dustden,dustreff,saltden,saltreff)
-!$acc loop gang private(lzoxidant,lxtg,lxtosav,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,       &
-!$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,              &
-!$acc   lppmrate,lppmaccr,lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lclcon,dz,rhoa,                 &
-!$acc   wg,pccw,locean)
+!$acc parallel loop copy(xtg,duste,dustdd,dustwd,dust_burden,so4t,dmsso2o,so2so4o,bc_burden,oc_burden,  &
+!$acc   dms_burden,so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd,so4dd,      &
+!$acc   bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                                      &
+!$acc copyin(zoxidant_g,xtosav,emissfield,erod,t,qg,qlg,qfg,stratcloud,ppfprec,ppfmelt,ppfsnow,         &
+!$acc   ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,                        &
+!$acc   clcon,bet,betm,dsig,sig,ps,kbsav,ktsav,wetfac,pblh,tss,condc,snowd,taudar,fg,eg,u10,ustar,      &
+!$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2,isoilm_in,dustden,dustreff,saltden,saltreff,     &
+!$acc   ntiles,imax,mydiag)                                                                             &
+!$acc private(lzoxidant,lxtg,lxtosav,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,                   &
+!$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,                &
+!$acc   lppmrate,lppmaccr,lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lclcon,dz,rhoa,                   &
+!$acc   wg,pccw,locean,tile,is,ie,idjd_t,mydiag_t)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -312,7 +313,7 @@ do tile = 1,ntiles
 #endif
   
 end do
-!$acc end parallel    
+!$acc end parallel loop   
 !$omp end do nowait
 
 return
