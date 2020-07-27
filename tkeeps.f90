@@ -507,7 +507,7 @@ do kcount = 1,mcount
   dd(:,2:kl-1)=eps(:,2:kl-1)+ddts*eps(:,2:kl-1)/tke(:,2:kl-1)                    &
               *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
   dd(:,2)     =dd(:,2)   -aa(:,2)*eps(:,1)
-  dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mineps
+  !dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mineps ! bug fix for pgfortran
   call thomas(eps(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
 
   ! TKE vertical mixing
@@ -516,7 +516,7 @@ do kcount = 1,mcount
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
   dd(:,2:kl-1)=tke(:,2:kl-1)+ddts*(pps(:,2:kl-1)+ppb(:,2:kl-1)-eps(:,2:kl-1))
   dd(:,2)     =dd(:,2)   -aa(:,2)*tke(:,1)
-  dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mintke
+  !dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mintke ! bug fix for pgfortran
   call thomas(tke(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1))
 
   ! limit decay of TKE and EPS with coupling to mass flux term

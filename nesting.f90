@@ -1230,63 +1230,47 @@ oe = ioff + ipan
 
 call START_LOG(nestcalc_begin)
 
-!$acc data create(ff,xa,ya,za,at_t)
-ipass = 0
-me = maps(ipass)
-call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
-call nestpack(jpan,ns,me,astr,bstr,cstr,xa,ya,za,at_t)  
+do ipass = 0,2
+  me = maps(ipass)
+  call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
+
+  do j = 1,jpan
+    ! pack data from sparse arrays
+    jj = j + ns - 1
+    do sn = 1,me,il_g
+      sy = (sn-1)/il_g
+      a = astr(sy)
+      b = bstr(sy)
+      c = cstr(sy)
+      ibeg = a*sn + b*jj + c
+      iend = a*(sn+il_g-1) + b*jj + c
+      xa(sn:sn+il_g-1,j) = x_g(ibeg:iend:a)
+      ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
+      za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
+      asum = 1./em_g(ibeg:iend:a)**2
+      at_t(klt+1,sn:sn+il_g-1,j) = asum
+      do k = 1,klt
+        call getglobalpack_v(at,ibeg,iend,k)
+        at_t(k,sn:sn+il_g-1,j) = at*asum
+      end do
+    end do
+  end do
+    
+  ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,ibase)
-!$acc update device(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) async(0)
-!$acc parallel loop collapse(2) async(0) copyin(cq,klt,ipan,jpan,os) private(j,n,nn,ibase)
-do j = 1,jpan
-  ! start convolution  
-  do n = 1,ipan
-    nn = n + os - 1
-    ibase = n + (j-1)*ipan
-    ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),nest_iblock) 
+!$acc parallel loop collapse(2) copyin(cq,klt,ipan,jpan,os,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
+!$acc   copyout(ff(:,ipass)) private(j,n,nn,ibase)
+  do j = 1,jpan
+    do n = 1,ipan
+      nn = n + os - 1
+      ibase = n + (j-1)*ipan
+      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),nest_iblock) 
+    end do 
   end do 
-end do 
-!$acc update self(ff(:,ipass)) async(0)
+!$acc end parallel loop
 !$omp end parallel do
-ipass = 1
-me = maps(ipass)
-call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
-call nestpack(jpan,ns,me,astr,bstr,cstr,xa,ya,za,at_t)
-!$omp parallel do schedule(static) private(j,n,nn,ibase)
-!$acc wait(0)
-!$acc update device(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) async(1)
-!$acc parallel loop collapse(2) async(1) copyin(cq,klt,ipan,jpan,os) private(j,n,nn,ibase)
-do j = 1,jpan
-  ! start convolution  
-  do n = 1,ipan
-    nn = n + os - 1
-    ibase = n + (j-1)*ipan
-    ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),nest_iblock) 
-  end do 
-end do 
-!$acc update self(ff(:,ipass)) async(1)
-!$omp end parallel do
-ipass = 2
-me = maps(ipass)
-call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
-call nestpack(jpan,ns,me,astr,bstr,cstr,xa,ya,za,at_t)   
-!$omp parallel do schedule(static) private(j,n,nn,ibase)
-!$acc wait(1)
-!$acc update device(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) async(2)
-!$acc parallel loop collapse(2) async(2) copyin(cq,klt,ipan,jpan,os) private(j,n,nn,ibase)
-!$acc   private(j,n,nn,ibase)
-do j = 1,jpan
-  ! start convolution  
-  do n = 1,ipan
-    nn = n + os - 1
-    ibase = n + (j-1)*ipan
-    ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),nest_iblock) 
-  end do 
-end do 
-!$acc update self(ff(:,ipass)) async(2)
-!$omp end parallel do
-!$acc wait
-!$acc end data
+
+end do
 
 call END_LOG(nestcalc_end)
 
@@ -1336,11 +1320,12 @@ ne = ioff + ipan
 os = joff + 1
 oe = joff + jpan
 
-call START_LOG(nestcalc_begin)
-
 ipass = 3
 me = maps(ipass)
 call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
+
+call START_LOG(nestcalc_begin)
+
 do j = 1,ipan    
   ! pack from sparse arrays
   jj = j + ns - 1
@@ -1427,63 +1412,47 @@ oe = joff + jpan
   
 call START_LOG(nestcalc_begin)
 
-!$acc data create(ff,xa,ya,za,at_t) 
-ipass = 0
-me = maps(ipass)
-call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
-call nestpack(ipan,ns,me,astr,bstr,cstr,xa,ya,za,at_t)
-! start convolution
-!$omp parallel do schedule(static) private(j,n,nn,ibase)
-!$acc update device(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) async(0)
-!$acc parallel loop collapse(2) async(0) copyin(cq,klt,ipan,jpan,os) private(j,n,nn,ibase)
-do j = 1,ipan
-  do n = 1,jpan
-    nn = n + os - 1
-    ibase = n + (j-1)*jpan
-    ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),nest_iblock)
+do ipass = 0,2
+  me = maps(ipass)
+  call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
+
+  do j = 1,ipan      
+    ! pack data from sparse arrays
+    jj = j + ns - 1
+    do sn = 1,me,il_g
+      sy = (sn-1)/il_g
+      a = astr(sy)
+      b = bstr(sy)
+      c = cstr(sy)
+      ibeg = a*sn + b*jj + c
+      iend = a*(sn+il_g-1) + b*jj + c
+      xa(sn:sn+il_g-1,j) = x_g(ibeg:iend:a)
+      ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
+      za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
+      asum = 1./em_g(ibeg:iend:a)**2
+      at_t(klt+1,sn:sn+il_g-1,j) = asum
+      do k = 1,klt
+        call getglobalpack_v(at,ibeg,iend,k) 
+        at_t(k,sn:sn+il_g-1,j) = at*asum
+      end do
+    end do
   end do
-end do
-!$acc update self(ff(:,ipass)) async(0)
-!$omp end parallel do
-ipass = 1
-me = maps(ipass)
-call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
-call nestpack(ipan,ns,me,astr,bstr,cstr,xa,ya,za,at_t)
-! start convolution
+    
+  ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,ibase)
-!$acc wait(0)
-!$acc update device(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) async(1)
-!$acc parallel loop collapse(2) async(1) copyin(cq,klt,ipan,jpan,os) private(j,n,nn,ibase)
-do j = 1,ipan
-  do n = 1,jpan
-    nn = n + os - 1
-    ibase = n + (j-1)*jpan
-    ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),nest_iblock)
+!$acc parallel loop collapse(2) copyin(cq,klt,ipan,jpan,os,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
+!$acc   copyout(ff(:,ipass)) private(j,n,nn,ibase)
+  do j = 1,ipan
+    do n = 1,jpan
+      nn = n + os - 1
+      ibase = n + (j-1)*jpan
+      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),nest_iblock)
+    end do
   end do
-end do
-!$acc update self(ff(:,ipass)) async(1)
-!$omp end parallel do
-ipass = 2
-me = maps(ipass)
-call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
-call nestpack(ipan,ns,me,astr,bstr,cstr,xa,ya,za,at_t)
-! start convolution
-!$omp parallel do schedule(static) private(j,n,nn,ibase)
-!$acc wait(12)
-!$acc update device(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) async(2)
-!$acc parallel loop collapse(2) async(2) copyin(cq,klt,ipan,jpan,os) private(j,n,nn,ibase)
-do j = 1,ipan
-  do n = 1,jpan
-    nn = n + os - 1
-    ibase = n + (j-1)*jpan
-    ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),nest_iblock)
-  end do
-end do
-!$acc update self(ff(:,ipass)) async(2)
+!$acc end parallel loop
 !$omp end parallel do
 
-!$acc wait
-!$acc end data
+end do
 
 call END_LOG(nestcalc_end)
 
@@ -2655,7 +2624,7 @@ do ipass = 0,2
   ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,local_sum,ibase)
 !$acc parallel loop collapse(2) copyin(cq,kd,ipan,jpan,os,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
-!$acc   copyout(yy(:,ipass)) private(j,n,nn,local_sum,ibase)
+!$acc   copyout(yy(:.ipass)) private(j,n,nn,local_sum,ibase)
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
@@ -3108,46 +3077,6 @@ ans = mdays(months)
 ans = ans + iday
 
 end function iabsdate
-
-subroutine nestpack(jpin,ns,me,astr,bstr,cstr,xa,ya,za,at_t)
-
-use cc_mpi             ! CC MPI routines
-use map_m              ! Grid map arrays
-use newmpar_m          ! Grid parameters
-use xyzinfo_m          ! Grid coordinate arrays
-
-implicit none
-
-integer, intent(in) :: jpin,ns,me
-integer j, jj, sn, sy, a, b, c, ibeg, iend
-integer, dimension(0:3), intent(in) :: astr, bstr, cstr
-real, dimension(:,:), intent(out) :: xa, ya, za
-real, dimension(:,:,:), intent(out) :: at_t
-real, dimension(il_g) :: at, asum             ! subset of sparse array
-
-do j = 1,jpin
-  ! pack data from sparse arrays
-  jj = j + ns - 1
-  do sn = 1,me,il_g
-    sy = (sn-1)/il_g
-    a = astr(sy)
-    b = bstr(sy)
-    c = cstr(sy)
-    ibeg = a*sn + b*jj + c
-    iend = a*(sn+il_g-1) + b*jj + c
-    xa(sn:sn+il_g-1,j) = x_g(ibeg:iend:a)
-    ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
-    za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
-    asum = 1./em_g(ibeg:iend:a)**2
-    at_t(klt+1,sn:sn+il_g-1,j) = asum
-    do k = 1,klt
-      call getglobalpack_v(at,ibeg,iend,k)
-      at_t(k,sn:sn+il_g-1,j) = at*asum
-    end do
-  end do
-end do   
-
-end subroutine nestpack
 
 pure function drpdr_fast(nn,cq,xa,ya,za,at,iblock) result(out_sum)
 !$acc routine vector

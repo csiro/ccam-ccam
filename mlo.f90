@@ -95,14 +95,6 @@ interface mloeval
   module procedure mloeval_standard, mloeval_thread
 end interface
 
-interface interpolate_hl
-  module procedure interpolate_hl_1, interpolate_hl_3
-end interface
-
-interface thomas
-  module procedure thomas8i4o, thomas8i8o
-end interface
-
 type turbdata
   real, dimension(:,:), allocatable :: km           ! vertical viscosity at half level
   real, dimension(:,:), allocatable :: ks           ! vertical diffusivity at half level
@@ -2506,8 +2498,8 @@ km = max( cu*sqrt(k)*L, 1.e-6 )
 ks = max( cud*sqrt(k)*L, 1.e-6 )
 
 !km & ks at half levels
-call interpolate_hl(km,fdepth_hl,km_hl)
-call interpolate_hl(ks,fdepth_hl,ks_hl)
+call interpolate_hl_r8(km,fdepth_hl,km_hl)
+call interpolate_hl_r8(ks,fdepth_hl,ks_hl)
 
 if ( calcinloop==0 ) then
   !shear production
@@ -2630,7 +2622,7 @@ do step = 1,nsteps
   dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*k(:,wlev)
 
   !solve using thomas algorithm
-  call thomas(k(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
+  call thomas_r8(k(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
 
   !solve eps
   !setup diagonals
@@ -2672,7 +2664,7 @@ do step = 1,nsteps
   dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*eps(:,wlev)
 
   !solve using thomas algorithm
-  call thomas(eps(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
+  call thomas_r8(eps(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
 
   !limit k & eps
   k = max( k, real(mink,8) )
@@ -2704,8 +2696,8 @@ do step = 1,nsteps
   ks = max( cud*sqrt(k)*L, 1.e-6 )
 
   !km & ks at half levels
-  call interpolate_hl(km,fdepth_hl,km_hl)
-  call interpolate_hl(ks,fdepth_hl,ks_hl)
+  call interpolate_hl_r8(km,fdepth_hl,km_hl)
+  call interpolate_hl_r8(ks,fdepth_hl,ks_hl)
 
 end do
 
@@ -2718,7 +2710,7 @@ ks_out = real(ks_hl,4)
 return
 end subroutine keps
 
-pure subroutine interpolate_hl_1(u,fdepth_hl,u_hl)
+pure subroutine interpolate_hl_r8(u,fdepth_hl,u_hl)
 
 implicit none
 
@@ -2730,9 +2722,9 @@ u_hl(:,1) = 0._8
 u_hl(:,2:wlev) = u(:,1:wlev-1) + fdepth_hl(:,2:wlev)*(u(:,2:wlev)-u(:,1:wlev-1))
 
 return
-end subroutine interpolate_hl_1
+end subroutine interpolate_hl_r8
 
-pure subroutine interpolate_hl_3(u,fdepth_hl,u_hl)
+pure subroutine interpolate_hl(u,fdepth_hl,u_hl)
 
 implicit none
 
@@ -2744,7 +2736,7 @@ u_hl(:,1) = 0.
 u_hl(:,2:wlev) = u(:,1:wlev-1) + fdepth_hl(:,2:wlev)*(u(:,2:wlev)-u(:,1:wlev-1))
 
 return
-end subroutine interpolate_hl_3
+end subroutine interpolate_hl
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Solve for stability functions
@@ -4495,7 +4487,7 @@ end subroutine icetemps
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Solves matrix for temperature conduction
                      
-pure subroutine thomas8i4o(outo,aai,bbi,cci,ddi)
+pure subroutine thomas(outo,aai,bbi,cci,ddi)
 
 implicit none
 
@@ -4526,9 +4518,9 @@ do ii = nlev-1,1,-1
 end do
 
 return
-end subroutine thomas8i4o
+end subroutine thomas
                      
-pure subroutine thomas8i8o(outo,aai,bbi,cci,ddi)
+pure subroutine thomas_r8(outo,aai,bbi,cci,ddi)
 
 implicit none
 
@@ -4559,7 +4551,7 @@ do ii = nlev-1,1,-1
 end do
 
 return
-end subroutine thomas8i8o
+end subroutine thomas_r8
                      
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Determine ice fluxes
