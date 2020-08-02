@@ -873,7 +873,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       u10_3hr(:,n3hr) = u10(:)*u(1:ifull,1)/spare1(:)
       v10_3hr(:,n3hr) = u10(:)*v(1:ifull,1)/spare1(:)
       tscr_3hr(:,n3hr) = tscrn(:)
-      spare1(:) = establ(t(1:ifull,1)) ! spare1 = es
+      spare1(:) = establ(t(1:ifull,1),ifull) ! spare1 = es
       rh1_3hr(1:ifull,n3hr) = 100.*qg(1:ifull,1)*(ps(1:ifull)*sig(1)-spare1(:))/(.622*spare1(:))
     end if    ! (nextout==2)
     n3hr = n3hr + 1
@@ -2580,6 +2580,7 @@ lapsbot = nint(temparray(6))
 isoth   = nint(temparray(7))
 nsig    = nint(temparray(8))
 
+!$acc update device(kl)
       
 !--------------------------------------------------------------
 ! DEFINE newmpar VARIABLES AND DEFAULTS
@@ -2621,6 +2622,7 @@ iquad   = 1 + il_g*((8*npanels)/(npanels+4))  ! grid size for interpolation
 il      = il_g/nxp                            ! local grid size on process in X direction
 jl      = jl_g/nyp                            ! local grid size on process in Y direction
 ifull   = il*jl                               ! total number of local horizontal grid points
+!$acc update device(ifull_g,ifull)
 ! The perimeter of the processor region has length 2*(il+jl).
 ! The first row has 8 possible corner points per panel and the 
 ! second has 16. In practice these are not all distinct so there could
@@ -3642,7 +3644,7 @@ use sigs_m                            ! Atmosphere sigma levels
 implicit none
 
 integer, intent(in) :: js, je
-integer k
+integer k, ilen
 real, dimension(js:je) :: qtot, tliq
 real, dimension(js:je) :: pk, qsi, deles, qsl, qsw, fice
 real, dimension(js:je) :: dqsdt, hlrvap, al, qc
@@ -3650,6 +3652,8 @@ real, parameter :: tice = 233.16
 
 ! requires qg_fix>=2
 if ( qg_fix<=1 ) return
+
+ilen = je - js + 1
 
 do k = 1,kl
   qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), 0. )
@@ -3662,8 +3666,8 @@ do k = 1,kl
     fice(js:je) = 0.
   end where
   pk(js:je) = ps(js:je)*sig(k)
-  qsi(js:je) = qsati(pk(js:je),tliq(js:je))
-  deles(js:je) = esdiffx(tliq(js:je))
+  qsi(js:je) = qsati(pk(js:je),tliq(js:je),ilen)
+  deles(js:je) = esdiffx(tliq(js:je),ilen)
   qsl(js:je) = qsi(js:je) + epsil*deles(js:je)/pk(js:je)
   qsw(js:je) = fice(js:je)*qsi(js:je) + (1.-fice(js:je))*qsl(js:je)
   hlrvap(js:je) = (hl+fice(js:je)*hlf)/rvap
@@ -4384,6 +4388,7 @@ use work3f_m                          ! Grid work arrays
 implicit none
 
 integer, intent(in) :: js, je
+integer k
 integer, dimension(2) :: posmin, posmax
 integer, dimension(3) :: posmin3, posmax3
 character(len=*), intent(in) :: message
@@ -4401,6 +4406,7 @@ if ( any(t(js:je,1:kl)/=t(js:je,1:kl)) ) then
 end if
 
 if ( any(t(js:je,1:kl)<75.) .or. any(t(js:je,1:kl)>425.) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
   posmin = minloc(t(js:je,1:kl))
@@ -4410,6 +4416,7 @@ if ( any(t(js:je,1:kl)<75.) .or. any(t(js:je,1:kl)>425.) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1)
 end if
 
@@ -4419,6 +4426,7 @@ if ( any(u(js:je,1:kl)/=u(js:je,1:kl)) ) then
 end if
 
 if ( any(u(js:je,1:kl)<-400.) .or. any(u(js:je,1:kl)>400.) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(u(js:je,1:kl)),maxval(u(js:je,1:kl))
   posmin = minloc(u(js:je,1:kl))
@@ -4428,6 +4436,7 @@ if ( any(u(js:je,1:kl)<-400.) .or. any(u(js:je,1:kl)>400.) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4437,6 +4446,7 @@ if ( any(v(js:je,1:kl)/=v(js:je,1:kl)) ) then
 end if
 
 if ( any(v(js:je,1:kl)<-400.) .or. any(v(js:je,1:kl)>400.) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(v(js:je,1:kl)),maxval(v(js:je,1:kl))
   posmin = minloc(v(js:je,1:kl))
@@ -4446,6 +4456,7 @@ if ( any(v(js:je,1:kl)<-400.) .or. any(v(js:je,1:kl)>400.) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4455,6 +4466,7 @@ if ( any(qg(js:je,1:kl)/=qg(js:je,1:kl)) ) then
 end if
 
 if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>8.e-2) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in qg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qg(js:je,1:kl)),maxval(qg(js:je,1:kl))
   posmin = minloc(qg(js:je,1:kl))
@@ -4464,6 +4476,7 @@ if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>8.e-2) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4473,6 +4486,7 @@ if ( any(qlg(js:je,1:kl)/=qlg(js:je,1:kl)) ) then
 end if
 
 if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>8.e-2) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qlg(js:je,1:kl)),maxval(qlg(js:je,1:kl))
   posmin = minloc(qlg(js:je,1:kl))
@@ -4482,6 +4496,7 @@ if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>8.e-2) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4491,6 +4506,7 @@ if ( any(qfg(js:je,1:kl)/=qfg(js:je,1:kl)) ) then
 end if
 
 if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>8.e-2) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qfg(js:je,1:kl)),maxval(qfg(js:je,1:kl))
   posmin = minloc(qfg(js:je,1:kl))
@@ -4500,6 +4516,7 @@ if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>8.e-2) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4509,6 +4526,7 @@ if ( any(qrg(js:je,1:kl)/=qrg(js:je,1:kl)) ) then
 end if
 
 if ( any(qrg(js:je,1:kl)<-1.e-8) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at ",trim(message)
   write(6,*) "minval ",minval(qrg(js:je,1:kl))
   posmin = minloc(qrg(js:je,1:kl))
@@ -4518,6 +4536,7 @@ if ( any(qrg(js:je,1:kl)<-1.e-8) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4527,6 +4546,7 @@ if ( any(qsng(js:je,1:kl)/=qsng(js:je,1:kl)) ) then
 end if
 
 if ( any(qsng(js:je,1:kl)<-1.e-8) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at ",trim(message)
   write(6,*) "minval ",minval(qsng(js:je,1:kl))
   posmin = minloc(qsng(js:je,1:kl))
@@ -4536,6 +4556,7 @@ if ( any(qsng(js:je,1:kl)<-1.e-8) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4545,6 +4566,7 @@ if ( any(qgrg(js:je,1:kl)/=qgrg(js:je,1:kl)) ) then
 end if
 
 if ( any(qgrg(js:je,1:kl)<-1.e-8) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at ",trim(message)
   write(6,*) "minval ",minval(qgrg(js:je,1:kl))
   posmin = minloc(qgrg(js:je,1:kl))
@@ -4554,6 +4576,7 @@ if ( any(qgrg(js:je,1:kl)<-1.e-8) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4563,6 +4586,7 @@ if ( any(qlrad(js:je,1:kl)/=qlrad(js:je,1:kl)) ) then
 end if
 
 if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>8.e-2) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in qlrad on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qlrad(js:je,1:kl)),maxval(qlrad(js:je,1:kl))
   posmin = minloc(qlrad(js:je,1:kl))
@@ -4572,6 +4596,7 @@ if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>8.e-2) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4581,6 +4606,7 @@ if ( any(qfrad(js:je,1:kl)/=qfrad(js:je,1:kl)) ) then
 end if
 
 if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>8.e-2) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in qfrad on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(qfrad(js:je,1:kl)),maxval(qfrad(js:je,1:kl))
   posmin = minloc(qfrad(js:je,1:kl))
@@ -4590,6 +4616,7 @@ if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>8.e-2) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4599,6 +4626,7 @@ if ( any(cfrac(js:je,1:kl)/=cfrac(js:je,1:kl)) ) then
 end if
 
 if ( any(cfrac(js:je,1:kl)<-1.e-8) .or. any(cfrac(js:je,1:kl)>1.001) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in cfrac on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(cfrac(js:je,1:kl)),maxval(cfrac(js:je,1:kl))
   posmin = minloc(cfrac(js:je,1:kl))
@@ -4608,6 +4636,7 @@ if ( any(cfrac(js:je,1:kl)<-1.e-8) .or. any(cfrac(js:je,1:kl)>1.001) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4617,6 +4646,7 @@ if ( any(rfrac(js:je,1:kl)/=rfrac(js:je,1:kl)) ) then
 end if
 
 if ( any(rfrac(js:je,1:kl)<-1.e-8) .or. any(rfrac(js:je,1:kl)>1.001) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in rfrac on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(rfrac(js:je,1:kl)),maxval(rfrac(js:je,1:kl))
   posmin = minloc(rfrac(js:je,1:kl))
@@ -4626,6 +4656,7 @@ if ( any(rfrac(js:je,1:kl)<-1.e-8) .or. any(rfrac(js:je,1:kl)>1.001) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4635,6 +4666,7 @@ if ( any(sfrac(js:je,1:kl)/=sfrac(js:je,1:kl)) ) then
 end if
 
 if ( any(sfrac(js:je,1:kl)<-1.e-8) .or. any(sfrac(js:je,1:kl)>1.001) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in sfrac on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(sfrac(js:je,1:kl)),maxval(sfrac(js:je,1:kl))
   posmin = minloc(sfrac(js:je,1:kl))
@@ -4644,6 +4676,7 @@ if ( any(sfrac(js:je,1:kl)<-1.e-8) .or. any(sfrac(js:je,1:kl)>1.001) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4653,6 +4686,7 @@ if ( any(gfrac(js:je,1:kl)/=gfrac(js:je,1:kl)) ) then
 end if
 
 if ( any(gfrac(js:je,1:kl)<-1.e-8) .or. any(gfrac(js:je,1:kl)>1.001) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in gfrac on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(gfrac(js:je,1:kl)),maxval(gfrac(js:je,1:kl))
   posmin = minloc(gfrac(js:je,1:kl))
@@ -4662,6 +4696,7 @@ if ( any(gfrac(js:je,1:kl)<-1.e-8) .or. any(gfrac(js:je,1:kl)>1.001) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4671,6 +4706,7 @@ if ( any(psl(js:je)/=psl(js:je)) ) then
 end if
 
 if ( any(psl(js:je)<-1.5) .or. any(psl(js:je)>0.4) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(psl(js:je)),maxval(psl(js:je))
   posmin(1:1) = minloc(psl(js:je))
@@ -4680,6 +4716,7 @@ if ( any(psl(js:je)<-1.5) .or. any(psl(js:je)>0.4) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin(1:1),posmax(1:1)
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4694,6 +4731,7 @@ if ( any(tss(js:je)/=tss(js:je)) ) then
 end if
 
 if ( any(tss(js:je)<75.) .or. any(tss(js:je)>425.) ) then
+do k = 1,10
   write(6,*) "ERROR: Out-of-range detected in tss on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(tss(js:je)),maxval(tss(js:je))
   posmin(1:1) = minloc(tss(js:je))
@@ -4703,6 +4741,7 @@ if ( any(tss(js:je)<75.) .or. any(tss(js:je)>425.) ) then
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin(1:1),posmax(1:1)
+end do
   call ccmpi_abort(-1) 
 end if
 
@@ -4712,6 +4751,7 @@ if ( abs(iaero)>=2 ) then
     call ccmpi_abort(-1)
   end if
   if ( any(xtg(js:je,1:kl,1:naero)<-1.e-8) .or. any(xtg(js:je,1:kl,1:naero)>6.5e-5) ) then
+do k = 1,10
     write(6,*) "ERROR: Out-of-range detected in xtg on myid=",myid," at ",trim(message)
     write(6,*) "minval,maxval ",minval(xtg(js:je,1:kl,1:naero)),maxval(xtg(js:je,1:kl,1:naero))
     posmin3 = minloc(xtg(js:je,1:kl,1:naero))
@@ -4721,6 +4761,7 @@ if ( abs(iaero)>=2 ) then
     posmin3(1) = iq2iqg(posmin3(1))
     posmax3(1) = iq2iqg(posmax3(1))
     write(6,*) "minloc,maxloc ",posmin3,posmax3
+end do
     call ccmpi_abort(-1) 
   end if  
 end if

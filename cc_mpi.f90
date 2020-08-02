@@ -60,6 +60,7 @@ module cc_mpi
    integer, save, private :: maxbuflen, maxvertlen                         ! bounds buffer size   
    logical, save, public :: uniform_decomp                                 ! uniform decomposition flag
    logical, save, public :: mydiag                                         ! true if diagnostic point id, jd is in my region
+!$acc declare create(mydiag,ipan,jpan)
    
    integer, save, public :: comm_node, node_myid, node_nproc               ! node communicator
    integer, save, public :: comm_nodecaptain, nodecaptain_myid, &
@@ -509,6 +510,7 @@ contains
          end if    
       end if
       maxvertlen = max( kl, ol, 15 )
+!$acc update device(mydiag,ipan,jpan)
       
       
       ! Distribute global arrays over processes

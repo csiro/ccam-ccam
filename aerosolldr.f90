@@ -507,7 +507,7 @@ end do
 ! Calculate integrated column dust loading before settling and deposition
 do k = 1,ndust
   oldduste(:,k) = duste(:,k) ! duste is cumulative dust emissions
-  dcola(:,k) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu+k-1)*dz(:,:), dim=2 )
+  dcola(:,k) = sum( rhoa(:,:)*xtg(:,:,itracdu+k-1)*dz(:,:), dim=2 )
 end do  
 ! Calculate the settling of large dust particles
 call dsettling(dt,rhoa,ttg,dz,aphp1,xtg,dustden,dustreff,imax,kl)
@@ -522,7 +522,7 @@ call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,erod,duste,xtg, &
             dustden,dustreff,imax,kl)
 do k = 1,ndust
   ! Calculate integrated column dust after settling
-  dcolb(:,k) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu+k-1)*dz(:,:), dim=2 )
+  dcolb(:,k) = sum( rhoa(:,:)*xtg(:,:,itracdu+k-1)*dz(:,:), dim=2 )
   ! Calculate deposition flux to surface
   dustdd(:,k) = dustdd(:,k) + (dcola(:,k)-dcolb(:,k))/dt + duste(:,k) - oldduste(:,k)  
 end do  
@@ -547,7 +547,7 @@ end if
 oldsalte = salte ! salte is cumulative salt emissions
 dcola(:,1) = 0.
 do k = 1,nsalt
-  dcola(:,1) = dcola(:,1) + sum( rhoa(:,:)*xtg(1:imax,:,itracsa+k-1)*dz(:,:), dim=2 )
+  dcola(:,1) = dcola(:,1) + sum( rhoa(:,:)*xtg(:,:,itracsa+k-1)*dz(:,:), dim=2 )
 end do
   
 ! Calculate the settling of large dust particles
@@ -571,7 +571,7 @@ end if
 dcolb(:,1) = 0.
 do k = 1,nsalt
   ! Calculate integrated column dust after settling
-  dcolb(:,1) = dcolb(:,1) + sum( rhoa(:,:)*xtg(1:imax,:,itracsa+k-1)*dz(:,:), dim=2 )
+  dcolb(:,1) = dcolb(:,1) + sum( rhoa(:,:)*xtg(:,:,itracsa+k-1)*dz(:,:), dim=2 )
 end do  
 ! Calculate deposition flux to surface
 saltdd = saltdd + (dcola(:,1)-dcolb(:,1))/dt + salte - oldsalte  
@@ -636,34 +636,34 @@ end if
 #endif
 
 do nt = 1,ndust
-  burden(:) = sum( xtg(1:imax,:,nt+itracdu-1)*rhoa(:,:)*dz(:,:), dim=2 )
+  burden(:) = sum( rhoa(:,:)*xtg(:,:,nt+itracdu-1)*dz(:,:), dim=2 )
   dust_burden(:,nt) = dust_burden(:,nt) + burden(:)
 end do
 
 burden(:) = 0.
 do nt = itracbc,itracbc+1
-  burden(:) = burden(:) + sum( xtg(1:imax,:,nt)*rhoa(:,:)*dz(:,:), dim=2 )
+  burden(:) = burden(:) + sum( rhoa(:,:)*xtg(:,:,nt)*dz(:,:), dim=2 )
 end do
 bc_burden(:) = bc_burden(:) + burden(:)
 
 burden(:) = 0.
 do nt = itracoc,itracoc+1
-  burden(:) = burden(:) + sum( xtg(1:imax,:,nt)*rhoa(:,:)*dz(:,:), dim=2 )
+  burden(:) = burden(:) + sum( rhoa(:,:)*xtg(:,:,nt)*dz(:,:), dim=2 )
 end do
 oc_burden(:) = oc_burden(:) + burden(:)
 
-burden(:) = sum( xtg(1:imax,:,itracdms)*rhoa(:,:)*dz(:,:), dim=2 )
+burden(:) = sum( rhoa(:,:)*xtg(:,:,itracdms)*dz(:,:), dim=2 )
 dms_burden(:) = dms_burden(:) + burden(:)
 
-burden(:) = sum( xtg(1:imax,:,itracso2)*rhoa(:,:)*dz(:,:), dim=2 )
+burden(:) = sum( rhoa(:,:)*xtg(:,:,itracso2)*dz(:,:), dim=2 )
 so2_burden(:) = so2_burden(:) + burden(:)
 
-burden(:) = sum( xtg(1:imax,:,itracso4)*rhoa(:,:)*dz(:,:), dim=2 )
+burden(:) = sum( rhoa(:,:)*xtg(:,:,itracso4)*dz(:,:), dim=2 )
 so4_burden(:) = so4_burden(:) + burden(:)
 
 burden(:) = 0.
 do nt = itracsa,itracsa+nsalt-1
-  burden(:) = burden(:) + sum( xtg(1:imax,:,nt)*rhoa(:,:)*dz(:,:), dim=2 )
+  burden(:) = burden(:) + sum( rhoa(:,:)*xtg(:,:,nt)*dz(:,:), dim=2 )
 end do
 salt_burden(:) = salt_burden(:) + burden(:)
 
@@ -2627,22 +2627,22 @@ end subroutine cldrop
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Aerosol scavenging fraction for convective clouds
 
-pure subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho,ntr)
+pure subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho,ntr,knet)
 !$acc routine vector
 
 implicit none
 
-integer, intent(in) :: ntr
-real, dimension(:), intent(out) :: fscav ! scavenging fraction
-real, dimension(size(fscav)), intent(in) :: xpkp1 ! cloud liquid water after precipitation
-real, dimension(size(fscav)), intent(in) :: xpold ! cloud liquid water before precipitation
-real, dimension(size(fscav)), intent(in) :: tt    ! parcel temperature
-real, dimension(size(fscav)), intent(in) :: xs    ! xtg(:,k,3) = so4
-real, dimension(size(fscav)), intent(in) :: rho   ! air density
-real, dimension(size(fscav)) :: f_so2,scav_eff
-real, dimension(size(fscav)) :: zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
-real, dimension(size(fscav)) :: zza,zzb,zzp,zzq,zzp2,zhp,zheneff,p_so2
-logical, dimension(size(fscav)) :: bwkp1 
+integer, intent(in) :: knet, ntr
+real, dimension(knet), intent(out) :: fscav ! scavenging fraction
+real, dimension(knet), intent(in) :: xpkp1 ! cloud liquid water after precipitation
+real, dimension(knet), intent(in) :: xpold ! cloud liquid water before precipitation
+real, dimension(knet), intent(in) :: tt    ! parcel temperature
+real, dimension(knet), intent(in) :: xs    ! xtg(:,k,3) = so4
+real, dimension(knet), intent(in) :: rho   ! air density
+real, dimension(knet) :: f_so2,scav_eff
+real, dimension(knet) :: zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
+real, dimension(knet) :: zza,zzb,zzp,zzq,zzp2,zhp,zheneff,p_so2
+logical, dimension(knet) :: bwkp1 
 
 ! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.

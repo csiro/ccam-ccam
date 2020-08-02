@@ -281,13 +281,13 @@
 !$omp& private(lu,lv),
 !$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd),
 !$omp& private(ltr,idjd_t,mydiag_t)
-!$acc parallel copy(t,qg,qlg,qfg,u,v,xtg,dustwd,so2wd,so4wd,bcwd),
+!$acc parallel loop copy(t,qg,qlg,qfg,u,v,xtg,dustwd,so2wd,so4wd,bcwd),
 !$acc&  copy(ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav,cfrac),
 !$acc&  copy(cape,condc,condx,conds,condg,kt_saved,kb_saved,aug),
 !$acc&  copyin(dpsldt,alfin,ps,pblh,fg,wetfac,land),
 !$acc&  copyin(em,sgsave),
 !$acc&  copyout(convpsav)
-!$acc loop gang private(ldpsldt,lt,lqg,lqlg,lqfg,lcfrac,lu,lv),
+!$acc&  private(ldpsldt,lt,lqg,lqlg,lqfg,lcfrac,lu,lv),
 !$acc&  private(lxtg,ldustwd,lso2wd,lso4wd,lbcwd,locwd,lsaltwd),
 !$acc&  private(ltr,lfluxtot)
       do tile = 1,ntiles
@@ -415,6 +415,7 @@
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
 
       integer, intent(in) :: imax, kl
+      integer knet
       real, dimension(:,:,:), intent(inout)    :: xtg
       real, dimension(:,:,:), intent(inout)    :: tr
       real, dimension(imax,kl), intent(in)         :: dpsldt
@@ -1633,10 +1634,12 @@ c           write(6,*)'has tied_con=0'
         do ntr = 1,naero
           xtgscav(1:imax,1:kl) = 0.
           s(1:imax,1:kl) = xtg(1:imax,1:kl,ntr)
+!$acc loop private(ttsto,qqsto,qlsto,qqold,qlsto,rho,xtgtmp)
           do iq = 1,imax
            if ( kt_sav(iq)<kl-1 ) then
              kb = kb_sav(iq)
              kt = kt_sav(iq)
+             knet = kt - kb + 1
 
              ! convective scavenging of aerosols
              do k = kb,kt
@@ -1654,7 +1657,7 @@ c           write(6,*)'has tied_con=0'
              end do
              ! calculate fraction of aerosols that will be scavenged
              call convscav(fscav(kb:kt),qqsto(kb:kt),qqold(kb:kt),
-     &                  ttsto(kb:kt),xtgtmp(kb:kt),rho(kb:kt),ntr)
+     &                  ttsto(kb:kt),xtgtmp(kb:kt),rho(kb:kt),ntr,knet)
                
              veldt = factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
              fluxup = veldt*s(iq,kb)

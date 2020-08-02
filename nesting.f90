@@ -780,7 +780,7 @@ use xyzinfo_m         ! Grid coordinate arrays
 implicit none
 
 integer, intent(in) :: klt
-integer iq, iqg, k, n, j
+integer iq, iqg, k, n, j, kltp1
 real, dimension(ifull,klt), intent(out) :: tbb
 real, dimension(ifull_g,klt), intent(in) :: tt
 real, dimension(ifull_g) :: xa, ya, za, sm ! large working array
@@ -791,6 +791,7 @@ real, dimension(klt+1,ifull_g) :: tt_t
 ! evaluate the 2D convolution
 call START_LOG(nestcalc_begin)
 
+kltp1 = klt + 1
 xa = x_g
 ya = y_g
 za = z_g
@@ -801,16 +802,17 @@ sm = 1./em_g**2
 do k = 1,klt
   tt_t(k,:) = tt(:,k)*sm
 end do
-tt_t(klt+1,:) = sm(:)
+tt_t(kltp1,:) = sm(:)
 !$omp parallel do schedule(static) private(iqg,iq,local_sum)
-!$acc parallel loop copyin(cq,klt,ifull,ipan,jpan,xa,ya,za,tt_t) copyout(tbb) private(iq,iqg,local_sum,n,j)
+!$acc parallel loop copyin(cq,klt,kltp1,xa,ya,za,tt_t) &
+!$acc   copyout(tbb) private(iq,iqg,local_sum,n,j)
 do iq = 1,ifull
   n = 1 + (iq-1)/(ipan*jpan)  ! In range 1 .. npan
   j = 1 + ( iq - (n-1)*(ipan*jpan) - 1) / ipan
   iqg = iq - (j-1)*ipan - (n-1)*(ipan*jpan)
   ! apply low band pass filter
-  local_sum = drpdr_fast(iqg,cq,xa,ya,za,tt_t,nest_iblock)
-  tbb(iq,1:klt) = local_sum(1:klt)/local_sum(klt+1)
+  local_sum = drpdr_fast(iqg,cq,xa,ya,za,tt_t,ifull_g,kltp1,nest_iblock)
+  tbb(iq,1:klt) = local_sum(1:klt)/local_sum(kltp1)
 end do
 !$acc end parallel loop
 !$omp end parallel do
@@ -1202,7 +1204,7 @@ integer :: j, k, n, ipass
 integer :: jpoff, ibase
 integer :: me, ns, ne, os, oe
 integer :: til, a, b, c, sn, sy, jj, nn
-integer :: ibeg, iend
+integer :: ibeg, iend, ilen, kltp1
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
@@ -1218,6 +1220,8 @@ real, dimension(klt+1,4*il_g,max(ipan,jpan)) :: at_t         ! subset of sparse 
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
+kltp1 = klt + 1
+ilen = ipan*jpan*kltp1
 astr = 0
 bstr = 0
 cstr = 0
@@ -1248,7 +1252,7 @@ do ipass = 0,2
       ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
       za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
       asum = 1./em_g(ibeg:iend:a)**2
-      at_t(klt+1,sn:sn+il_g-1,j) = asum
+      at_t(kltp1,sn:sn+il_g-1,j) = asum
       do k = 1,klt
         call getglobalpack_v(at,ibeg,iend,k)
         at_t(k,sn:sn+il_g-1,j) = at*asum
@@ -1258,13 +1262,14 @@ do ipass = 0,2
     
   ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,ibase)
-!$acc parallel loop collapse(2) copyin(cq,klt,ipan,jpan,os,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
+!$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,ipass,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
 !$acc   copyout(ff(:,ipass)) private(j,n,nn,ibase)
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
       ibase = n + (j-1)*ipan
-      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),nest_iblock) 
+      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = &
+        drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),me,kltp1,nest_iblock) 
     end do 
   end do 
 !$acc end parallel loop
@@ -1351,13 +1356,13 @@ end do
   
 ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,local_sum)
-!$acc parallel loop collapse(2) copyin(cq,klt,ipan,jpan,os,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
+!$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
 !$acc   copyout(qt) private(j,n,nn,local_sum)
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
-    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),nest_iblock)
-    qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(klt+1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
+    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),me,kltp1,nest_iblock)
+    qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(kltp1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
   end do
 end do
 !$acc end parallel loop
@@ -1383,7 +1388,7 @@ integer j, k, n, ipass
 integer jpoff, ibase
 integer me, ns, ne, os, oe
 integer til, a, b, c, sn, sy, jj, nn
-integer ibeg, iend
+integer ibeg, iend, ilen, kltp1
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
@@ -1400,6 +1405,8 @@ real, dimension(klt+1,4*il_g,max(ipan,jpan)) :: at_t
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
+kltp1 = klt + 1
+ilen = ipan*jpan*kltp1
 astr = 0
 bstr = 0
 cstr = 0
@@ -1430,7 +1437,7 @@ do ipass = 0,2
       ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
       za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
       asum = 1./em_g(ibeg:iend:a)**2
-      at_t(klt+1,sn:sn+il_g-1,j) = asum
+      at_t(kltp1,sn:sn+il_g-1,j) = asum
       do k = 1,klt
         call getglobalpack_v(at,ibeg,iend,k) 
         at_t(k,sn:sn+il_g-1,j) = at*asum
@@ -1440,13 +1447,14 @@ do ipass = 0,2
     
   ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,ibase)
-!$acc parallel loop collapse(2) copyin(cq,klt,ipan,jpan,os,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
+!$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
 !$acc   copyout(ff(:,ipass)) private(j,n,nn,ibase)
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
       ibase = n + (j-1)*jpan
-      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),nest_iblock)
+      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = &
+        drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),me,kltp1,nest_iblock)
     end do
   end do
 !$acc end parallel loop
@@ -1532,13 +1540,13 @@ end do
   
 ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,local_sum)
-!$acc parallel loop collapse(2) copyin(cq,klt,ipan,jpan,os,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
+!$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
 !$acc   copyout(qt) private(j,n,nn,local_sum)
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
-    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),nest_iblock)
-    qt(n + ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(klt+1)
+    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),me,kltp1,nest_iblock)
+    qt(n + ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(kltp1)
   end do
 end do
 !$acc end parallel loop
@@ -2049,7 +2057,7 @@ use xyzinfo_m          ! Grid coordinate arrays
 implicit none
 
 integer, intent(in) :: kd
-integer iqq, iqqg, k, n, j
+integer iqq, iqqg, k, n, j, kdp1
 real, dimension(ifull_g,kd), intent(in) :: diff_g ! large common array
 real, dimension(ifull,kd), intent(out) :: dd
 real, dimension(ifull_g) :: xa, ya, za, sm
@@ -2062,6 +2070,7 @@ cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
 
 call START_LOG(nestcalc_begin)
 
+kdp1 = kd + 1
 dd(:,:) = 0.
 sm(:) = 1./em_g(:)**2
 xa(:) = real(x_g(:))
@@ -2070,17 +2079,18 @@ za(:) = real(z_g(:))
 do k = 1,kd
   diff_g_t(k,:) = diff_g(:,k)*sm(:)
 end do  
-diff_g_t(kd+1,:) = sm(:)
+diff_g_t(kdp1,:) = sm(:)
 
 !$omp parallel do schedule(static) private(iqqg,iqq,local_sum)
-!$acc parallel loop copyin(cq,kd,ifull,ipan,jpan,xa,ya,za,diff_g_t) copyout(dd) private(iqq,iqqg,local_sum,n,j)
+!$acc parallel loop copyin(cq,kd,kdp1,xa,ya,za,diff_g_t) &
+!$acc   copyout(dd) private(iqq,iqqg,local_sum,n,j)
 do iqq = 1,ifull
   n = 1 + (iqq-1)/(ipan*jpan)  ! In range 1 .. npan
   j = 1 + ( iqq - (n-1)*(ipan*jpan) - 1) / ipan
   iqqg = iqq - (j-1)*ipan - (n-1)*(ipan*jpan)
-  local_sum = drpdr_fast(iqqg,cq,xa,ya,za,diff_g_t,nest_iblock)
-  if ( local_sum(kd+1)>1.e-8 ) then
-    dd(iqq,1:kd) = local_sum(1:kd)/local_sum(kd+1)
+  local_sum = drpdr_fast(iqqg,cq,xa,ya,za,diff_g_t,ifull_g,kdp1,nest_iblock)
+  if ( local_sum(kdp1)>1.e-8 ) then
+    dd(iqq,1:kd) = local_sum(1:kd)/local_sum(kdp1)
   end if  
 end do
 !$acc end parallel loop
@@ -2384,7 +2394,7 @@ integer, intent(in) :: ppass, kd
 integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
 integer me, k, til, sn, sy, a, b, c, jj, nn
-integer ibeg, iend
+integer ibeg, iend, ilen, kdp1
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
@@ -2400,6 +2410,8 @@ real, dimension(kd+1,4*il_g,max(ipan,jpan)) :: ap_t
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
+kdp1 = kd + 1
+ilen = ipan*jpan*kdp1
 astr = 0
 bstr = 0
 cstr = 0
@@ -2440,14 +2452,14 @@ do ipass = 0,2
     
   ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,local_sum,ibase)
-!$acc parallel loop collapse(2) copyin(cq,kd,ipan,jpan,os,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
-!$acc   copyout(yy(:,ipass)) private(j,n,nn,local_sum,ibase)
+!$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
+!$acc   copyout(yy(:,ipass)) private(j,n,nn,ibase,local_sum)
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
-      local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),nest_iblock)
+      local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
       ibase = n + (j-1)*ipan
-      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = local_sum(1:kd+1)
+      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = local_sum(1:kdp1)
     end do
   end do
 !$acc end parallel loop
@@ -2534,13 +2546,13 @@ end do
   
 ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,local_sum,psum)
-!$acc parallel loop collapse(2) copyin(cq,kd,ipan,jpan,os,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
-!$acc   copyout(qp) private(j,n,nn,local_sum,psum)
+!$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
+!$acc   copyout(qp) private(j,n,nn,psum,local_sum)
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
-    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),nest_iblock)
-    psum = local_sum(kd+1)
+    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
+    psum = local_sum(kdp1)
     if ( psum>1.e-8 ) then
       qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/psum
     end if  
@@ -2568,7 +2580,7 @@ integer, intent(in) :: ppass, kd
 integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
 integer me, k, til, sn, sy, a, b, c, jj, nn
-integer ibeg, iend
+integer ibeg, iend, ilen, kdp1
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
@@ -2584,6 +2596,8 @@ real, dimension(kd+1,4*il_g,max(ipan,jpan)) :: ap_t
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
+kdp1 = kd + 1
+ilen = ipan*jpan*kdp1
 astr = 0
 bstr = 0
 cstr = 0
@@ -2623,14 +2637,14 @@ do ipass = 0,2
     
   ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,local_sum,ibase)
-!$acc parallel loop collapse(2) copyin(cq,kd,ipan,jpan,os,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
-!$acc   copyout(yy(:.ipass)) private(j,n,nn,local_sum,ibase)
+!$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
+!$acc   copyout(yy(:,ipass)) private(j,n,nn,ibase,local_sum)
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
-      local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),nest_iblock)
+      local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
       ibase = n + (j-1)*jpan
-      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = local_sum(1:kd+1)
+      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = local_sum(1:kdp1)
     end do    
   end do
 !$acc end parallel loop
@@ -2707,7 +2721,7 @@ do j = 1,jpan
     za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
     ! v version is faster for getglobalpack  
     call getglobalpack_v(asum,ibeg,iend,0)
-    ap_t(kd+1,sn:sn+il_g-1,j) = asum
+    ap_t(kdp1,sn:sn+il_g-1,j) = asum
     do k = 1,kd
       call getglobalpack_v(ap,ibeg,iend,k)
       ap_t(k,sn:sn+il_g-1,j) = ap
@@ -2717,13 +2731,13 @@ end do
   
 ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,local_sum,psum)
-!$acc parallel loop collapse(2) copyin(cq,kd,ipan,jpan,os,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
-!$acc   copyout(qp) private(j,n,nn,local_sum,psum)
+!$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
+!$acc   copyout(qp) private(j,n,nn,psum,local_sum)
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
-    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),nest_iblock)
-    psum = local_sum(kd+1)
+    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
+    psum = local_sum(kdp1)
     if ( psum>1.e-8 ) then
       qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/psum  
     end if  
@@ -3078,24 +3092,21 @@ ans = ans + iday
 
 end function iabsdate
 
-pure function drpdr_fast(nn,cq,xa,ya,za,at,iblock) result(out_sum)
+pure function drpdr_fast(nn,cq,xa,ya,za,at,ilen,kx,iblock) result(out_sum)
 !$acc routine vector
 
 implicit none
 
-integer, intent(in) :: nn, iblock
-integer i, j, kx, ilen, k, l
+integer, intent(in) :: nn, ilen, kx, iblock
+integer i, j, k, l
 real, intent(in) :: cq
-real, dimension(:), intent(in) :: xa, ya, za
-real, dimension(:,:), intent(in) :: at
-real, dimension(size(at,1)) :: out_sum
+real, dimension(ilen), intent(in) :: xa, ya, za
+real, dimension(kx,ilen), intent(in) :: at
+real, dimension(kx) :: out_sum
 real, dimension(iblock) :: ra
 real at_t, e, t1, t2
 real xa_nn, ya_nn, za_nn
-complex, dimension(size(at,1)) :: local_sum
-
-kx = size(at,1)
-ilen = size(at,2)
+complex, dimension(kx) :: local_sum
 
 local_sum(1:kx) = (0.,0.)
 xa_nn = xa(nn)

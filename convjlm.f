@@ -359,14 +359,14 @@
 !$omp& private(ldpsldt,lt,lqg,lfluxtot),
 !$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd),
 !$omp& private(lqlg,lqfg,lcfrac,lu,lv,ltr,idjd_t,mydiag_t)
-!$acc parallel copy(t,qg,qlg,qfg,u,v,xtg,dustwd,so2wd,so4wd,bcwd),
-!$acc&  copy(ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav),
-!$acc&  copyin(dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn),
-!$acc&  copyin(em,sgsave),
-!$acc&  copyout(convpsav,cape,condc,condx,conds,condg)
-!$acc loop gang private(ldpsldt,lt,lqg,lqlg,lqfg,lcfrac,lu,lv),
-!$acc&  private(lxtg,ldustwd,lso2wd,lso4wd,lbcwd,locwd,lsaltwd),
-!$acc&  private(ltr,lfluxtot)
+!!$acc parallel loop copy(t,qg,qlg,qfg,u,v,xtg,dustwd,so2wd,so4wd),
+!!$acc&  copy(bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav),
+!!$acc&  copyin(dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn),
+!!$acc&  copyin(em,sgsave),
+!!$acc&  copyout(convpsav,cape,condc,condx,conds,condg)
+!!$acc&  private(ldpsldt,lt,lqg,lqlg,lqfg,lcfrac,lu,lv),
+!!$acc&  private(lxtg,ldustwd,lso2wd,lso4wd,lbcwd,locwd,lsaltwd),
+!!$acc&  private(ltr,lfluxtot)
       do tile=1,ntiles
         is=(tile-1)*imax+1
         ie=tile*imax
@@ -429,7 +429,7 @@
         end if
        
       end do
-!$acc end parallel
+!!$acc end parallel
 !$omp end do nowait
       
       return
@@ -504,6 +504,7 @@
 !     parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing (base layers too)
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
       integer, intent(in) :: imax, kl
+      integer knet
       real, dimension(:,:,:), contiguous, intent(inout)    :: xtg
       real, dimension(:,:,:), contiguous, intent(inout)    :: tr
       real, dimension(imax,kl), intent(in)         :: dpsldt
@@ -1961,10 +1962,12 @@ c           print *,'has tied_con=0'
         do ntr = 1,naero
           xtgscav(:,:) = 0.
           s(:,1:kl-2) = xtg(1:imax,1:kl-2,ntr)
+!$acc loop private(ttsto,qqsto,qlsto,qqold,qlold,rho,xtgtmp)
           do iq = 1,imax
            if ( kt_sav(iq)<kl-1 ) then
              kb = kb_sav(iq)
              kt = kt_sav(iq)
+             knet = kt - kb + 1
 
              ! convective scavenging of aerosols
              do k = kb,kt
@@ -1982,7 +1985,7 @@ c           print *,'has tied_con=0'
              end do
              ! calculate fraction of aerosols that will be scavenged
              call convscav(fscav(kb:kt),qqsto(kb:kt),qqold(kb:kt),
-     &                  ttsto(kb:kt),xtgtmp(kb:kt),rho(kb:kt),ntr)
+     &                  ttsto(kb:kt),xtgtmp(kb:kt),rho(kb:kt),ntr,knet)
                
              veldt = factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
              fluxup = veldt*s(iq,kb)

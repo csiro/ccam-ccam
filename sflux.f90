@@ -1019,7 +1019,7 @@ end where                                                                       
                                                                                                ! MLO
 ! pan evaporation diagnostic                                                                   ! MLO
 umag = max( umod, vmodmin )                                                                    ! MLO
-qsttg = qsat(ps(1:imax),tpan)                                                                  ! MLO
+qsttg = qsat(ps,tpan,imax)                                                                  ! MLO
 ri = min(grav*zmin*(1.-tpan*srcp/t)/umag**2,ri_max)                                            ! MLO
                                                                                                ! MLO
 ! stuff to keep tpan over land working                                                         ! MLO
@@ -1028,7 +1028,7 @@ where (ri>0.)                                                                   
 elsewhere                                                                                      ! MLO
   fhd=umod-umod*2.*bprm*ri/(1.+chs*2.*bprm*chnsea*sqrt(-ri*zmin/panzo))                        ! MLO
 end where                                                                                      ! MLO
-qsttg = qsat(ps(1:imax),tpan)                                                                  ! MLO
+qsttg = qsat(ps,tpan,imax)                                                                  ! MLO
                                                                                                ! MLO
 where ( .not.land(1:imax) )                                                                    ! MLO
   snowd = snowd*1000.                                                                          ! MLO
@@ -1048,7 +1048,7 @@ elsewhere                                                                       
   tpan=tpan+ga*dt/(4186.*0.254*1000.)                                                          ! MLO
   epan=rho*chnsea*hl*fhd*(qsttg-qg)                                                            ! MLO
 end where                                                                                      ! MLO
-qsttg = qsat(ps(1:imax),tss)                                                                   ! MLO
+qsttg = qsat(ps,tss,imax)                                                                   ! MLO
 
 return
 end subroutine sflux_mlo_work
@@ -1234,13 +1234,13 @@ urban_elecgas_flux = 0.                                                         
 urban_heating_flux = 0.                                                                          ! urban
 urban_cooling_flux = 0.                                                                          ! urban
 urban_storage_flux = 0.                                                                          ! urban
-call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,rdhyd,rfhyd,upack,ufull)                          ! urban
-call atebenergy(urban_elecgas_flux,"elecgas",0,fp,pd,rdhyd,rfhyd,upack,ufull)                                ! urban
-call atebenergy(urban_heating_flux,"heating",0,fp,pd,rdhyd,rfhyd,upack,ufull)                                ! urban
-call atebenergy(urban_cooling_flux,"cooling",0,fp,pd,rdhyd,rfhyd,upack,ufull)                                ! urban
-call atebenergy(urban_storage_flux,"storage",0,fp,pd,rdhyd,rfhyd,upack,ufull)                                ! urban
+call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,rdhyd,rfhyd,upack,ufull)              ! urban
+call atebenergy(urban_elecgas_flux,"elecgas",0,fp,pd,rdhyd,rfhyd,upack,ufull)                    ! urban
+call atebenergy(urban_heating_flux,"heating",0,fp,pd,rdhyd,rfhyd,upack,ufull)                    ! urban
+call atebenergy(urban_cooling_flux,"cooling",0,fp,pd,rdhyd,rfhyd,upack,ufull)                    ! urban
+call atebenergy(urban_storage_flux,"storage",0,fp,pd,rdhyd,rfhyd,upack,ufull)                    ! urban
 where ( u_sigma>0. )                                                                             ! urban
-  qsttg(1:imax) = qsat(ps(1:imax),tss(1:imax))                                                   ! urban
+  qsttg(1:imax) = qsat(ps,tss,imax)                                                              ! urban
   rnet(1:imax) = sgsave(1:imax) - rgsave(1:imax) - stefbo*tss(1:imax)**4                         ! urban
   taux(1:imax) = rho(1:imax)*cduv(1:imax)*u(1:imax)                                              ! urban
   tauy(1:imax) = rho(1:imax)*cduv(1:imax)*v(1:imax)                                              ! urban

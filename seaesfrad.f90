@@ -480,7 +480,7 @@ do iq_tile = 1,ifull,imax
       Atmos_input(mythread)%rh2o(:,1,kr)    = max(real(qg(istart:iend,k), 8), 2.E-7_8)
       Atmos_input(mythread)%temp(:,1,kr)    = real(dumt(:,k),8)    
       Atmos_input(mythread)%press(:,1,kr)   = real(p2(:,k), 8)
-      Atmos_input(mythread)%rel_hum(:,1,kr) = min(real(qg(istart:iend,k)/qsat(p2(:,k),dumt(:,k)), 8), 1._8)
+      Atmos_input(mythread)%rel_hum(:,1,kr) = min(real(qg(istart:iend,k)/qsat(p2(:,k),dumt(:,k),imax), 8), 1._8)
     end do
     Atmos_input(mythread)%temp(:,1,kl+1)  = real(dumtss, 8)
     Atmos_input(mythread)%press(:,1,kl+1) = real(ps(istart:iend), 8)

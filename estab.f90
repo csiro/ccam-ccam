@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -62,11 +62,12 @@ real ans
 ans=min(max( t_-123.16, 0.), 219.)
 end function tdiff_s
 
-pure function tdiff_v(t_) result(ans)
+pure function tdiff_v(t_,imax_) result(ans)
 !$acc routine vector
 implicit none
-real, dimension(:), intent(in) :: t_
-real, dimension(size(t_)) :: ans
+integer, intent(in) :: imax_
+real, dimension(imax_), intent(in) :: t_
+real, dimension(imax_) :: ans
 ! TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
 ans=min(max( t_-123.16, 0.), 219.)
 end function tdiff_v
@@ -80,12 +81,13 @@ real ans
 ans=min(max( tx_-tfrz, -40.), 1.)
 end function tdiffx_s
 
-pure function tdiffx_v(tx_) result(ans)
+pure function tdiffx_v(tx_,imax_) result(ans)
 !$acc routine vector
 use const_phys
 implicit none
-real, dimension(:), intent(in) :: tx_
-real, dimension(size(tx_)) :: ans
+integer, intent(in) :: imax_
+real, dimension(imax_), intent(in) :: tx_
+real, dimension(imax_) :: ans
 ans=min(max( tx_-tfrz, -40.), 1.)
 end function tdiffx_v
 
@@ -137,13 +139,14 @@ tpos = int(tstore)
 ans = (1.-tfrac)*table(tpos)+ tfrac*table(tpos+1)
 end function establ_s
 
-pure function establ_v(t_) result(ans)
+pure function establ_v(t_,imax_) result(ans)
 !$acc routine vector
 implicit none
-real, dimension(:), intent(in) :: t_
-real, dimension(size(t_)) :: ans
-real, dimension(size(t_)) :: tstore, tfrac
-integer, dimension(size(t_)) :: tpos
+integer, intent(in) :: imax_
+real, dimension(imax_), intent(in) :: t_
+real, dimension(imax_) :: ans
+real, dimension(imax_) :: tstore, tfrac
+integer, dimension(imax_) :: tpos
 real, dimension(0:220), parameter :: table = &
 (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9,                                    & !-146C
    6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9,                                 & !-141C
@@ -177,7 +180,7 @@ real, dimension(0:220), parameter :: table = &
       15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0,     & !61C
       21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0,     & !68C
       29845.0, 31169.0 /)                                                  !70C
-tstore = tdiff(t_)
+tstore = tdiff(t_,imax_)
 tfrac = tstore - aint(tstore)
 tpos = int(tstore)
 ! Arithmetic statement functions to replace call to establ.
@@ -198,14 +201,15 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 ! ans = epsil*establ(t_)/pp_ !Consistent with V4-5 to V4-7
 end function qsat_s
 
-pure function qsat_v(pp_,t_) result(ans)
+pure function qsat_v(pp_,t_,imax_) result(ans)
 !$acc routine vector
 use const_phys
 implicit none
-real, dimension(:), intent(in) :: pp_, t_
-real, dimension(size(pp_)) :: ans
-real, dimension(size(pp_)) :: estore
-estore = establ(t_)
+integer, intent(in) :: imax_
+real, dimension(imax_), intent(in) :: pp_, t_
+real, dimension(imax_) :: ans
+real, dimension(imax_) :: estore
+estore = establ(t_,imax_)
 ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 ! ans = epsil*establ(t_)/(pp_-establ(t_)) !Usual formula
 ! ans = epsil*establ(t_)/pp_ !Consistent with V4-5 to V4-7
@@ -257,13 +261,14 @@ tpos = int(tstore)
 ans = (1.-tfrac)*tablei(tpos)+ tfrac*tablei(tpos+1)
 end function estabi_s
 
-pure function estabi_v(t_) result(ans)
+pure function estabi_v(t_,imax_) result(ans)
 !$acc routine vector
 implicit none
-real, dimension(:), intent(in) :: t_
-real, dimension(size(t_)) :: ans 
-real, dimension(size(t_)) :: tstore, tfrac
-integer, dimension(size(t_)) :: tpos
+integer, intent(in) :: imax_
+real, dimension(imax_), intent(in) :: t_
+real, dimension(imax_) :: ans 
+real, dimension(imax_) :: tstore, tfrac
+integer, dimension(imax_) :: tpos
 real, dimension(0:220), parameter :: tablei = &
 (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9,                                   & !-146C
    6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9,                                & !-141C
@@ -297,7 +302,7 @@ real, dimension(0:220), parameter :: tablei = &
       15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0,    & !61C
       21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0,    & !68C
       29845.0, 31169.0/)                                                  !70C
-tstore = tdiff(t_)
+tstore = tdiff(t_,imax_)
 tfrac = tstore - aint(tstore)
 tpos = int(tstore)
 ans = (1.-tfrac)*tablei(tpos)+ tfrac*tablei(tpos+1)
@@ -316,14 +321,15 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 ! ans = epsil*estabi(t_)/pp_ !Consistent with V4-5 to V4-7
 end function qsati_s
 
-pure function qsati_v(pp_,t_) result(ans)
+pure function qsati_v(pp_,t_,imax_) result(ans)
 !$acc routine vector
 use const_phys
 implicit none
-real, dimension(:), intent(in) :: pp_, t_
-real, dimension(size(pp_)) :: ans
-real, dimension(size(pp_)) :: estore
-estore = estabi(t_)
+integer, intent(in) :: imax_
+real, dimension(imax_), intent(in) :: pp_, t_
+real, dimension(imax_) :: ans
+real, dimension(imax_) :: estore
+estore = estabi(t_,imax_)
 ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 ! ans = epsil*estabi(t_)/(pp_-estabi(t_)) !Usual formula
 ! ans = epsil*estabi(t_)/pp_ !Consistent with V4-5 to V4-7
@@ -348,20 +354,21 @@ tpos = int(tstore)
 ans = (1.-tfrac)*esdiff(tpos)+tfrac*esdiff(tpos+1)
 end function esdiffx_s
 
-pure function esdiffx_v(tx_) result(ans)
+pure function esdiffx_v(tx_,imax_) result(ans)
 !$acc routine vector
 implicit none
-real, dimension(:), intent(in) :: tx_
-real, dimension(size(tx_)) :: ans
-real, dimension(size(tx_)) :: tstore, tfrac
-integer, dimension(size(tx_)) :: tpos
+integer, intent(in) :: imax_
+real, dimension(imax_), intent(in) :: tx_
+real, dimension(imax_) :: ans
+real, dimension(imax_) :: tstore, tfrac
+integer, dimension(imax_) :: tpos
 real, dimension(-40:2), parameter :: esdiff= &
 (/ 6.22, 6.76, 7.32, 7.92, 8.56, 9.23, 9.94,10.68,11.46,12.27,  &
    13.11,13.99,14.89,15.82,16.76,17.73,18.70,19.68,20.65,21.61, &
    22.55,23.45,24.30,25.08,25.78,26.38,26.86,27.18,27.33,27.27, &
    26.96,26.38,25.47,24.20,22.51,20.34,17.64,14.34,10.37, 5.65, &
    0.08, 0.0, 0.0 /)
-tstore = tdiffx(tx_)
+tstore = tdiffx(tx_,imax_)
 tfrac = tstore - aint(tstore)
 tpos = int(tstore)
 ans = (1.-tfrac)*esdiff(tpos)+tfrac*esdiff(tpos+1)

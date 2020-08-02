@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -97,10 +97,11 @@ integer idjd_t
 real, dimension(imax,kl) :: lt, lu, lv
 logical mydiag_t
 
-!$omp do schedule(static) private(is,ie,lt,lu,lv),          &
+!$omp do schedule(static) private(is,ie,lt,lu,lv),           &
 !$omp private(tile,idjd_t,mydiag_t)
-!$acc parallel loop copy(u,v), copyin(t,tss,he,ntiles,imax) &
-!$acc   private(lt,lu,lv,tile,is,ie,idjd_t,mydiag_t)
+!$acc parallel loop copy(u,v),                               &
+!$acc   copyin(t,tss,he,idjd),                               & 
+!$acc   private(tile,is,ie,idjd_t,mydiag_t,lt,lu,lv)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -272,7 +273,7 @@ if ( ntest==1 .and. mydiag ) then ! JLM
     !write(6,*) 'froude2_inv',froude2_inv(iq,kbot:kl)
     write(6,*) 'fni',fni(iq,kbot:kl)
     !write(6,*) 'uux',uux(iq,kbot:kl)
-!   following in reverse k order to assist viewing by grep	 
+    !following in reverse k order to assist viewing by grep	 
     !write(6,*) 'uincr',(-apuw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
     !write(6,*) 'vincr',(-apvw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
   end do

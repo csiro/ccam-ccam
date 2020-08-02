@@ -145,17 +145,17 @@ logical mydiag_t
 !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lt),                &
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,idjd_t,mydiag_t)
-!$acc parallel copy(stratcloud,gfrac,rfrac,sfrac,t,qg,qgrg,qlg,qfg,qrg,qsng,nettend,   &
-!$acc   condg,conds,condx,precip)                                                      &
-!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em,                                &
-!$acc   xtg,xtosav,rlatt,condc),                                                       &
-!$acc copyout(cfrac,qlrad,qfrad,qccon,ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,      &
-!$acc   ppfstayliq,ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,       &
-!$acc   cdrop,clcon), present(sig)
-!$acc loop gang private(lcfrac,lgfrac,lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice, &
-!$acc   lppfstayliq,lppfsubl,lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,        &
-!$acc   lpprscav,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-!$acc   ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrhoa,lxtg,lxtosav)
+!!$acc parallel loop copy(stratcloud,gfrac,rfrac,sfrac,t,qg,qgrg,qlg,qfg,qrg,qsng,      &
+!!$acc   nettend,condg,conds,condx,precip)                                              &
+!!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em,                                &
+!!$acc   xtg,xtosav,rlatt,condc),                                                       &
+!!$acc copyout(cfrac,qlrad,qfrad,qccon,ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,      &
+!!$acc   ppfstayliq,ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,       &
+!!$acc   cdrop,clcon), present(sig),                                                    &
+!!$acc private(lcfrac,lgfrac,lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,           &
+!!$acc   lppfstayliq,lppfsubl,lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,        &
+!!$acc   lpprscav,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
+!!$acc   ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrhoa,lxtg,lxtosav)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -243,7 +243,7 @@ do tile = 1,ntiles
   end if
   
 end do
-!$acc end parallel
+!!$acc end parallel
 !$omp end do nowait
 
 return
@@ -331,7 +331,7 @@ do k = 1,kl
   prf(:,k)    = 0.01*prf_temp    !ps is SI units
   dprf(:,k)   = -0.01*ps*dsig(k) !dsig is -ve
   rhoa(:,k)   = prf_temp/(rdry*t(:,k))             ! air density
-  qsatg(:,k)  = qsat(prf_temp,t(:,k))              ! saturated mixing ratio
+  qsatg(:,k)  = qsat(prf_temp,t(:,k),imax)         ! saturated mixing ratio
   dz(:,k)     = -rdry*dsig(k)*t(:,k)/(grav*sig(k)) ! level thickness in metres 
   dz(:,k)     = min( max(dz(:,k), 1.), 2.e4 )
 end do
@@ -892,8 +892,8 @@ if ( ncloud<=3 ) then
     hlrvap(:) = (hl+fice(:,k)*hlf)/rvap
     ! Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
     pk(:) = 100.0*prf(:,k)
-    qsi(:,k) = qsati(pk,tliq(:,k)) !Ice value
-    deles(:) = esdiffx(tliq(:,k))  ! MJT suggestion
+    qsi(:,k) = qsati(pk,tliq(:,k),imax) !Ice value
+    deles(:) = esdiffx(tliq(:,k),imax)  ! MJT suggestion
     qsl(:,k) = qsi(:,k) + epsil*deles/pk !qs over liquid
     qsw(:,k) = fice(:,k)*qsi(:,k) +    & 
                      (1.-fice(:,k))*qsl(:,k) !Weighted qs at temperature Tliq
@@ -966,8 +966,8 @@ else
   ! MJT notes - we use ttg instead of tliq
   do k = 1,kl
     pk = 100.*prf(:,k)
-    qsi(:,k) = qsati(pk,ttg(:,k)) ! Ice value
-    deles = esdiffx(ttg(:,k))
+    qsi(:,k) = qsati(pk,ttg(:,k),imax) ! Ice value
+    deles = esdiffx(ttg(:,k),imax)
     qsl(:,k) = qsi(:,k) + epsil*deles/pk ! Liquid value
     qsw(:,k) = fice(:,k)*qsi(:,k) + (1.-fice(:,k))*qsl(:,k)        ! Weighted qs at temperature Tliq
   end do
@@ -1252,7 +1252,7 @@ do k = 1,kl
   pfstayliq(:,k)       = 0. 
   pslopes(:,k)         = 0.
   pk(:)                = 100.*prf(:,k)
-  qsatg(:,k)           = qsati(pk(:),ttg(:,k))
+  qsatg(:,k)           = qsati(pk(:),ttg(:,k),imax)
   cifr(:,k)            = qfg(:,k)*stratcloud(:,k)/max( qlg(:,k)+qfg(:,k), 1.e-30 )
   clfr(:,k)            = qlg(:,k)*stratcloud(:,k)/max( qlg(:,k)+qfg(:,k), 1.e-30 )
   cfautorain(:,k)      = 0.
@@ -1996,7 +1996,7 @@ do n = 1,njumps
       qpf(:)     = fluxrain/rhodz !Mix ratio of rain which falls into layer
       clrevap(:) = (1.-clfr(:,k)-cifr(:,k))*qpf
       where ( ttg(:,k)<tfrz .and. ttg(:,k)>=tice )
-        qsl(:)   = qsatg(:,k) + epsil*esdiffx(ttg(:,k))/pk
+        qsl(:)   = qsatg(:,k) + epsil*esdiffx(ttg(:,k),imax)/pk
       elsewhere
         qsl(:)   = qsatg(:,k)
       end where
@@ -2095,7 +2095,7 @@ do n = 1,njumps
       
       ! store for aerosols
       qevap(:,k) = qevap(:,k) + evap
-      prscav(:,k) = prscav(:,k) + tdt*0.24*fcol*pow75(Fr)   !Strat only
+      prscav(:,k) = prscav(:,k) + tdt*0.24*fcol*pow75(Fr,imax)   !Strat only
       
     end if  
     
@@ -2520,11 +2520,12 @@ y=sqrt(x)
 ans=y*sqrt(y)
 end function pow75_s
 
-pure function pow75_v(x) result(ans)
+pure function pow75_v(x,imax) result(ans)
 !$acc routine vector
 implicit none
-real, dimension(:), intent(in) :: x
-real, dimension(size(x)) :: ans, y
+integer, intent(in) :: imax
+real, dimension(imax), intent(in) :: x
+real, dimension(imax) :: ans, y
 y=sqrt(x)
 ans=y*sqrt(y)
 end function pow75_v    
