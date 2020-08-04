@@ -77,7 +77,6 @@ real, save :: b1       = 2.       ! Updraft entrainment coeff (Soares et al (200
 real, save :: b2       = 1./3.    ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
 real, save :: qcmf     = 1.e-4    ! Critical mixing ratio of liquid water before autoconversion
 real, save :: mfbeta   = 0.15     ! Horizontal scale factor
-real, parameter :: max_plumerise = 15000. ! maximum height for plumerise (m)
 !$acc declare create(be,ent0,ent1,ent_min,ezmin,entc0,dtrc0,m0,b1,b2,qcmf,mfbeta)
 ! generic constants
 integer, save :: buoymeth = 1     ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
@@ -152,7 +151,7 @@ subroutine tkemix(kmo,theta,qvg,qlg,qfg,stratcloud,uo,vo,zi,fg,eg,cduv,ps,zz,zzh
 implicit none
 
 integer, intent(in) :: mode, imax, kl
-integer k, imax_p, iq, isbl_p, klm2
+integer k, iq
 integer kcount, mcount
 real, intent(in) :: dt, qgmin
 real, dimension(imax,kl), intent(inout) :: theta,stratcloud,uo,vo
@@ -191,8 +190,8 @@ real, dimension(imax) :: sigkap
 real tff,tempc,thetac,tempt
 real tbb,tqq,tcc,tempv,fc,dc,mc,bvf,rvar
 real cm12, cm34, ddts
-integer, dimension(imax) :: iqmap, iqsbl
 logical, dimension(imax,kl) :: lta
+logical, dimension(imax) :: mask
 
 #ifdef scm
 real, dimension(imax,kl), intent(out) :: wthflux, wqvflux, uwflux, vwflux
@@ -203,7 +202,6 @@ real, dimension(imax,kl) :: wthlflux, wqlflux
 real, dimension(imax,kl) :: wqfflux
 #endif
 
-klm2 = kl - 2
 cm12 = 1./sqrt(cm0)
 cm34 = sqrt(sqrt(cm0**3))
 
@@ -240,8 +238,8 @@ wt0 = fg/(rhos*cp)  ! theta flux
 wq0 = eg/(rhos*lv)  ! qtot flux
 
 ! Fraction for interpolation from full levels to half levels
-fzzh = 0.
 fzzh(:,1:kl-1) = (zzh(:,1:kl-1)-zz(:,1:kl-1))/(zz(:,2:kl)-zz(:,1:kl-1))
+fzzh(:,kl) = 0.
 
 ! Calculate dz at half levels
 dz_hl(:,1:kl-1) = max( zz(:,2:kl) - zz(:,1:kl-1), 1. )
@@ -252,21 +250,21 @@ dz_fl(:,1)    = zzh(:,1)
 dz_fl(:,2:kl) = zzh(:,2:kl) - zzh(:,1:kl-1)
 dz_fl = max( dz_fl, 1. )
 
-pps = 0.
 ppb = 0.
 ppt = 0.
 
 ! Calculate shear term on full levels
 pps(:,1:kl-1) = km(:,1:kl-1)*shear(:,1:kl-1)
+pps(:,kl) = 0.
 
 ! interpolate diffusion coeff and air density to half levels
 call updatekmo(kmo,   km,  fzzh,imax,kl)
 call updatekmo(rhoahl,rhoa,fzzh,imax,kl)
 ! eddy diffusion terms to account for air density with level thickness
-idzm = 0.
-idzp = 0.
+idzm(:,1) = 0.
 idzm(:,2:kl)   = rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl))
 idzp(:,1:kl-1) = rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
+idzp(:,kl) = 0.
 
 aa = 0.
 bb = 0.
@@ -323,28 +321,15 @@ do kcount = 1,mcount
       
     zi_save = zi  
 
-    ! crude pack since pack intrinsic does not work with pgi on gpu
-    imax_p = 0
-    isbl_p = 0
-    do iq = 1,size(wtv0,1)
-      if ( wtv0(iq)>0. ) then
-        ! ustable
-        imax_p = imax_p + 1
-        iqmap(imax_p) = iq
-      else
-        isbl_p = isbl_p + 1
-        iqsbl(isbl_p) = iq
-      end if
-    end do
-    ! unstable boundary layer
-    call plumerise(iqmap(1:imax_p),cm12,                         &
+    ! plume rise model
+    mask = wtv0>0.
+    tke(:,1) = cm12*ustar**2 + ce3*wstar**2
+    tke(:,1) = max(tke(:,1), mintke)
+    call plumerise(mask,                                         &
                    zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,       &
                    zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,     &
-                   stratcloud,km,ustar,wt0,wq0,wtv0,ps,          &
-                   sig,sigkap,tke,eps,imax,kl,imax_p)
-
-    ! stable boundary layer
-    call stablepbl(iqsbl(1:isbl_p),zi,zz,thetav,uo,vo,ustar,imax,kl,isbl_p)
+                   stratcloud,km,wt0,wq0,wtv0,ps,ustar,          &
+                   sig,sigkap,tke,eps,uo,vo,imax,kl)
 
 #ifndef scm
     ! Turn off MF term if small grid spacing (mfbeta=0 implies MF is always non-zero)
@@ -444,11 +429,11 @@ do kcount = 1,mcount
         ppb(iq,1)=(1.-stratcloud(iq,1))*tcc+stratcloud(iq,1)*tbb ! cloud fraction weighted (e.g., Smith 1990)
       end do
 
-      
+    
     case(1) ! Marquet and Geleyn QJRMS (2012) for partially saturated
       call updatekmo(thetalhl,thetal,fzzh,imax,kl)
       call updatekmo(qthl,qtot,fzzh,imax,kl)
-      do k=2,kl-1
+      do k = 2,kl-1
         do iq = 1,imax
           tempt  = theta(iq,k)/sigkap(k)
           tempv = thetav(iq,k)/sigkap(k)
@@ -490,8 +475,8 @@ do kcount = 1,mcount
     call updatekmo(uo_hl,uo,fzzh,imax,kl)
     call updatekmo(vo_hl,vo,fzzh,imax,kl)
     ! pps(:,1) is not used
-    pps(:,1) = kmo(:,1)*(((uo_hl(:,1)-uo(:,1))/(zzh(:,1)-zz(:,1)))**2 + &
-                         ((vo_hl(:,1)-vo(:,1))/(zzh(:,1)-zz(:,1)))**2)
+    !pps(:,1) = kmo(:,1)*(((uo_hl(:,1)-uo(:,1))/(zzh(:,1)-zz(:,1)))**2 + &
+    !                     ((vo_hl(:,1)-vo(:,1))/(zzh(:,1)-zz(:,1)))**2)
     pps(:,2:kl-1) = kmo(:,2:kl-1)*(((uo_hl(:,2:kl-1)-uo_hl(:,1:kl-2))/dz_fl(:,2:kl-1))**2 + &
                            ((vo_hl(:,2:kl-1)-vo_hl(:,1:kl-2))/dz_fl(:,2:kl-1))**2)  
   end if
@@ -514,7 +499,7 @@ do kcount = 1,mcount
   dd(:,2:kl-1)=eps(:,2:kl-1)+ddts*eps(:,2:kl-1)/tke(:,2:kl-1)                    &
               *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
   dd(:,2) = dd(:,2) - ce0*kmo(:,1)*qq(:,2)*eps(:,1)
-  call thomas(eps(:,2:kl-1),aa(:,2:kl-1),bb(:,2:kl-1),cc(:,2:kl-1),dd(:,2:kl-1),imax,klm2)
+  call thomas(eps(:,2:kl-1),aa(:,2:kl-1),bb(:,2:kl-1),cc(:,2:kl-1),dd(:,2:kl-1),imax,kl-2)
   eps = max( eps, mineps )
 
   ! TKE vertical mixing
@@ -523,7 +508,7 @@ do kcount = 1,mcount
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
   dd(:,2:kl-1)=tke(:,2:kl-1)+ddts*(pps(:,2:kl-1)+ppb(:,2:kl-1)-eps(:,2:kl-1))
   dd(:,2) = dd(:,2) - kmo(:,1)*qq(:,2)*tke(:,1)
-  call thomas(tke(:,2:kl-1),aa(:,2:kl-1),bb(:,2:kl-1),cc(:,2:kl-1),dd(:,2:kl-1),imax,klm2)
+  call thomas(tke(:,2:kl-1),aa(:,2:kl-1),bb(:,2:kl-1),cc(:,2:kl-1),dd(:,2:kl-1),imax,kl-2)
   tke = max( tke, mintke )
 
   ! limit decay of TKE and EPS with coupling to mass flux term
@@ -717,145 +702,85 @@ end subroutine tkemix
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Plume rise model
     
-pure subroutine plumerise(iqmap,cm12,                                  &
+pure subroutine plumerise(mask,                                        &
                      zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,           &
                      zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,         &
-                     stratcloud,km,ustar,wt0,wq0,wtv0,ps,              &
-                     sig,sigkap,tke,eps,imax,kl,imax_p)
+                     stratcloud,km,wt0,wq0,wtv0,ps,ustar,              &
+                     sig,sigkap,tke,eps,uo,vo,imax,kl)
 !$acc routine vector
 
-integer, intent(in) :: imax, kl, imax_p
-integer, dimension(imax_p), intent(in) :: iqmap
-integer k, kmax
+integer, intent(in) :: imax, kl
+integer k
 real, dimension(imax,kl), intent(inout) :: mflx, tlup, qvup, qlup, qfup, cfup
 real, dimension(imax,kl), intent(in) :: theta, qvg, qlg, qfg, stratcloud
-real, dimension(imax,kl), intent(in) :: zz, thetal, thetav, km 
+real, dimension(imax,kl), intent(in) :: zz, thetal, thetav, km, uo, vo 
 real, dimension(imax,kl), intent(in) :: dz_hl
 real, dimension(imax,kl), intent(inout) :: tke
 real, dimension(imax,kl), intent(in) :: eps
-real, dimension(imax), intent(in) :: ustar, wt0, wq0, wtv0, ps
+real, dimension(imax), intent(in) :: wt0, wq0, wtv0, ps, ustar
 real, dimension(kl), intent(in) :: sig, sigkap
 real, dimension(imax), intent(inout) :: zi, wstar
-real, intent(in) :: cm12
-real, dimension(imax_p,kl) :: mflx_p, tlup_p, qvup_p, qlup_p, qfup_p, cfup_p
-real, dimension(imax_p,kl) :: zz_p
-real, dimension(imax_p,kl) :: dz_hl_p
-real, dimension(imax_p,kl) ::  w2up, nn, cxup
-real, dimension(imax_p) :: zi_p, tke_p, eps_p, km_p, thetal_p, theta_p, thetav_p
-real, dimension(imax_p) :: qvg_p, qlg_p, qfg_p, stratcloud_p 
-real, dimension(imax_p) :: ustar_p, wstar_p, wt0_p, wq0_p, wtv0_p, ps_p
-real, dimension(imax_p) :: tke1, dzht, ent, templ, pres, upf, qxup, qupsat
-real, dimension(imax_p) :: fice, lx, qcup, dqsdt, al, xp, as, bs, cs
-real, dimension(imax_p) :: thup, tvup, qtup
-
-! packing
-zi_p    = zi(iqmap)
-ustar_p = ustar(iqmap)
-wstar_p = wstar(iqmap)
-wt0_p   = wt0(iqmap)
-wq0_p   = wq0(iqmap)
-wtv0_p  = wtv0(iqmap)
-ps_p    = ps(iqmap)
-do k = 1,kl
-  zz_p(:,k) = zz(iqmap,k)
-  if ( minval(zz_p)<max_plumerise ) kmax = k
-end do
-do k = 1,kl-1
-  dz_hl_p(:,k) = dz_hl(iqmap,k)  
-end do
+real, dimension(imax,kl) ::  w2up, nn, cxup, rino
+real, dimension(imax) :: dzht, ent, templ, pres, upf, qxup, qupsat
+real, dimension(imax) :: fice, lx, qcup, dqsdt, al, xp, as, bs, cs
+real, dimension(imax) :: thup, tvup, qtup, vvk
+real, parameter :: fac = 10. ! originally fac=100.
+real, parameter :: ricr = 0.3
+logical, dimension(imax), intent(in) :: mask
 
 ! Initialise updraft
-tke1 = cm12*ustar_p**2 + ce3*wstar_p**2
-tke1 = max(tke1, mintke)
 do k = 1,kl
   w2up(:,k) = 0.
   nn(:,k) = 0.
-  mflx_p(:,k) = 0.
-  tlup(:,k) = 300.
-  qvup(:,k) = 0.
-  qlup(:,k) = 0.
-  qfup(:,k) = 0.
-  cfup(:,k) = 0.
+  tlup(:,k) = thetal(:,k)
+  qvup(:,k) = qvg(:,k)
+  qlup(:,k) = qlg(:,k)
+  qfup(:,k) = qfg(:,k)
+  cfup(:,k) = stratcloud(:,k)
 end do
-
-theta_p  = theta(iqmap,1)
-thetal_p = thetal(iqmap,1)
-thetav_p = thetav(iqmap,1)
-qvg_p    = qvg(iqmap,1)
-qlg_p    = qlg(iqmap,1)
-qfg_p    = qfg(iqmap,1)
-stratcloud_p = stratcloud(iqmap,1)
-tlup_p(:,1) = thetal_p
-qvup_p(:,1) = qvg_p
-qlup_p(:,1) = qlg_p
-qfup_p(:,1) = qfg_p
-cfup_p(:,1) = stratcloud_p
 
 ! first level -----------------
 
-dzht = zz_p(:,1)
+dzht = zz(:,1)
 ! Entrainment rates
-ent = entfn(zz_p(:,1), zi_p(:), imax_p)
+ent = entfn(zz(:,1), zi(:), imax)
 
 ! initial thermodynamic state
 ! split qtot into components (conservation of thetal and qtot is maintained)
-tlup_p(:,1) = thetal_p + be*wt0_p/sqrt(max(tke1,1.5e-4))       ! Hurley 2007
-qvup_p(:,1) = qvg_p    + be*wq0_p/sqrt(max(tke1,1.5e-4))       ! Hurley 2007
-qlup_p(:,1) = qlg_p
-qfup_p(:,1) = qfg_p
-cfup_p(:,1) = stratcloud_p
+where ( mask )
+  tlup(:,1) = thetal(:,1) + be*wt0/sqrt(max(tke(:,1),1.5e-4))       ! Hurley 2007
+  qvup(:,1) = qvg(:,1)    + be*wq0/sqrt(max(tke(:,1),1.5e-4))       ! Hurley 2007
+  qlup(:,1) = qlg(:,1)
+  qfup(:,1) = qfg(:,1)
+  cfup(:,1) = stratcloud(:,1)
+end where
 ! update updraft velocity and mass flux
-nn(:,1) = grav*be*wtv0_p/(thetav_p*sqrt(max(tke1,1.5e-4))) ! Hurley 2007
-w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent)         ! Hurley 2007
+nn(:,1) = grav*be*wtv0/(thetav(:,1)*sqrt(max(tke(:,1),1.5e-4))) ! Hurley 2007
+w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent)              ! Hurley 2007
 cxup(:,1) = 0.
+rino(:,1) = 0.
 
 
 ! updraft with condensation
-do k = 2,kmax
-  theta_p  = theta(iqmap,k)
-  thetal_p = thetal(iqmap,k)
-  thetav_p = thetav(iqmap,k)
-  qvg_p = qvg(iqmap,k)
-  qlg_p = qlg(iqmap,k)
-  qfg_p = qfg(iqmap,k)
-  stratcloud_p = stratcloud(iqmap,k)
-  tke_p = tke(iqmap,k)
-  eps_p = eps(iqmap,k)
-  km_p  = km(iqmap,k)
-  tlup_p(:,k) = thetal_p
-  qvup_p(:,k) = qvg_p
-  qlup_p(:,k) = qlg_p
-  qfup_p(:,k) = qfg_p
-  cfup_p(:,k) = stratcloud_p
-
-  dzht = dz_hl_p(:,k-1)
+do k = 2,kl
+  dzht = dz_hl(:,k-1)
   ! Entrainment rates
-  ent = entfn(zz_p(:,k), zi_p(:), imax_p)
-  where ( w2up(:,k-1)>0. )
+  ent = entfn(zz(:,k), zi(:), imax)
+  where ( w2up(:,k-1)>0. .and. mask )
     ! entrain air into plume
     ! split qtot into components (conservation of qtot is maintained)
-    tlup_p(:,k) = (tlup_p(:,k-1)+dzht*ent*thetal_p)/(1.+dzht*ent)
-    qvup_p(:,k) = (qvup_p(:,k-1)+dzht*ent*qvg_p   )/(1.+dzht*ent)
-    qlup_p(:,k) = (qlup_p(:,k-1)+dzht*ent*qlg_p   )/(1.+dzht*ent)
-    qfup_p(:,k) = (qfup_p(:,k-1)+dzht*ent*qfg_p   )/(1.+dzht*ent)
-    cfup_p(:,k) = (cfup_p(:,k-1)+dzht*ent*stratcloud_p)/(1.+dzht*ent)
-  elsewhere
-    tlup_p(:,k) = thetal_p
-    qvup_p(:,k) = qvg_p
-    qlup_p(:,k) = qlg_p
-    qfup_p(:,k) = qfg_p
-    cfup_p(:,k) = stratcloud_p
+    tlup(:,k) = (tlup(:,k-1)+dzht*ent*thetal(:,k))/(1.+dzht*ent)
+    qvup(:,k) = (qvup(:,k-1)+dzht*ent*qvg(:,k)   )/(1.+dzht*ent)
+    qlup(:,k) = (qlup(:,k-1)+dzht*ent*qlg(:,k)   )/(1.+dzht*ent)
+    qfup(:,k) = (qfup(:,k-1)+dzht*ent*qfg(:,k)   )/(1.+dzht*ent)
+    cfup(:,k) = (cfup(:,k-1)+dzht*ent*stratcloud(:,k))/(1.+dzht*ent)
   end where
   ! calculate conserved variables
-  qtup = qvup_p(:,k) + qlup_p(:,k) + qfup_p(:,k)    ! qtot,up
-  templ = tlup_p(:,k)/sigkap(k)                     ! templ,up
-  pres = ps_p(:)*sig(k)
-  where ( qfup_p(:,k)>1.e-8 )
-    fice = min( qfup_p(:,k)/(qfup_p(:,k)+qlup_p(:,k)), 1. )
-  elsewhere
-    fice = 0.
-  end where
-  call getqsat(qupsat,templ,pres,fice,imax_p)
+  qtup = qvup(:,k) + qlup(:,k) + qfup(:,k)    ! qtot,up
+  templ = tlup(:,k)/sigkap(k)                 ! templ,up
+  pres = ps(:)*sig(k)
+  fice = min( qfup(:,k)/max(qfup(:,k)+qlup(:,k),1.e-8), 1. )
+  call getqsat(qupsat,templ,pres,fice,imax)
   where ( qtup>qupsat .and. w2up(:,k-1)>0. )
     qxup = qupsat
     cxup(:,k) = 1.
@@ -866,106 +791,50 @@ do k = 2,kmax
   lx = lv + lf*fice
   dqsdt = qupsat*lx/(rv*templ**2)
   al = cp/(cp+lx*dqsdt)
-  qcup = max(al*(qtup-qxup), 0.)                             ! qcondensate,up after redistribution
-  qcup = min(qcup, qcmf)                                     ! limit condensation with simple autoconversion
-  thup = tlup_p(:,k) + sigkap(k)*qcup*lx/cp                  ! theta,up after redistribution
-  tvup = thup + theta_p*(0.61*qxup-qcup)                     ! thetav,up after redistribution
+  qcup = max(al*(qtup-qxup), 0.)                           ! qcondensate,up after redistribution
+  qcup = min(qcup, qcmf)                                   ! limit condensation with simple autoconversion
+  thup = tlup(:,k) + sigkap(k)*qcup*lx/cp                  ! theta,up after redistribution
+  tvup = thup + theta(:,k)*(0.61*qxup-qcup)                ! thetav,up after redistribution
   where ( w2up(:,k-1)>0. )
-    nn(:,k) = grav*(tvup-thetav_p)/thetav_p                          ! calculate buoyancy
+    nn(:,k) = grav*(tvup-thetav(:,K))/thetav(:,k)                    ! calculate buoyancy
     w2up(:,k) = (w2up(:,k-1)+2.*dzht*b2*nn(:,k))/(1.+2.*dzht*b1*ent) ! update updraft velocity
   elsewhere
     nn(:,k) = 0.  
     w2up(:,k) = 0.
   end where
+  vvk(:) = (uo(:,k)-uo(:,1))**2 + (vo(:,k)-vo(:,1))**2 + fac*ustar(:)**2  
+  rino(:,k) = grav*(thetav(:,k)-thetav(:,1))*(zz(:,k)-zz(:,1))/max(thetav(:,1)*vvk,1.e-30)
   ! test if maximum plume height is reached
-  where ( w2up(:,k)<=0. .and. w2up(:,k-1)>0. )
+  where ( w2up(:,k)<=0. .and. w2up(:,k-1)>0. .and. mask )
     as = 2.*b2*(nn(:,k)-nn(:,k-1))/dzht
     bs = 2.*b2*nn(:,k-1)
     cs = w2up(:,k-1)
     xp = -2.*cs/(bs-sqrt(max(bs**2-4.*as*cs,0.)))
     xp = min(max(xp,0.),dzht)
-    zi_p(:) = xp + zz_p(:,k-1)
-  end where
-end do
-          
-thetav_p = thetav(iqmap,1)
-wstar_p = (grav*zi_p*max(wtv0_p,0.)/thetav_p)**(1./3.)
-          
-! update mass flux
-mflx_p(:,1) = m0*sqrt(max(w2up(:,1), 0.))
-do k = 2,kmax
-  dzht = dz_hl_p(:,k-1)
-  upf = mflx_p(:,k-1)/sqrt(max(w2up(:,k-1), 1.e-8))
-  where ( w2up(:,k)>0. )
-    mflx_p(:,k) = (1.-cxup(:,k))*m0*sqrt(max(w2up(:,k), 0.))         &
-                + cxup(:,k)*mflx_p(:,k-1)/(1.+dzht*(dtrc0-entc0))
-    mflx_p(:,k) = min( mflx_p(:,k), upf*sqrt(max(w2up(:,k), 0.)) )
-  elsewhere
-    mflx_p(:,k) = 0.
+    zi(:) = xp + zz(:,k-1)
+  elsewhere ( rino(:,k)>ricr .and. rino(:,k-1)<=ricr .and. .not.mask )
+    xp(:) = (ricr-rino(:,k-1))/(rino(:,k)-rino(:,k-1))
+    xp(:) = min( max(xp(:), 0.), 1.)
+    zi(:) = zz(:,k-1) + xp(:)*(zz(:,k)-zz(:,k-1))
   end where
 end do
 
-! unpacking
-zi(iqmap) = zi_p
-tke(iqmap,1) = tke1
-wstar(iqmap) = wstar_p
-do k = 1,kl
-  mflx(iqmap,k) = mflx_p(:,k)
-  tlup(iqmap,k) = tlup_p(:,k)
-  qvup(iqmap,k) = qvup_p(:,k)
-  qlup(iqmap,k) = qlup_p(:,k)
-  qfup(iqmap,k) = qfup_p(:,k)
-  cfup(iqmap,k) = cfup_p(:,k)
+! update wstar with new zi          
+wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)
+          
+! update mass flux
+mflx(:,1) = m0*sqrt(max(w2up(:,1), 0.))
+do k = 2,kl
+  dzht = dz_hl(:,k-1)
+  upf = mflx(:,k-1)/sqrt(max(w2up(:,k-1), 1.e-8))
+  mflx(:,k) = (1.-cxup(:,k))*m0*sqrt(max(w2up(:,k), 0.))         &
+            + cxup(:,k)*mflx(:,k-1)/(1.+dzht*(dtrc0-entc0))
+  mflx(:,k) = min( mflx(:,k), upf*sqrt(max(w2up(:,k), 0.)) )
 end do
 
 return
 end subroutine plumerise
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-pure subroutine stablepbl(iqsbl,zi,zz,thetav,uo,vo,ustar,imax,kl,imax_p)
-!$acc routine vector
-
-implicit none
-
-integer, intent(in) :: imax, kl, imax_p
-integer i, k, iq
-integer, dimension(imax_p), intent(in) :: iqsbl
-real, dimension(imax), intent(inout) :: zi
-real, dimension(imax), intent(in) :: ustar
-real, dimension(imax,kl), intent(in) :: zz, thetav, uo, vo
-real, dimension(imax_p,kl) :: rino
-real, dimension(imax_p,kl) :: thetav_p, uo_p, vo_p, zz_p
-real, dimension(imax_p) :: vvk, xp, ustar_p, zi_p
-real, parameter :: fac = 10. ! originally fac=100.
-real, parameter :: ricr = 0.3
-
-rino(:,1) = 0.
-xp(:) = 0.
-zi_p(:) = 0.
-ustar_p = ustar(iqsbl)
-do k = 1,kl
-  thetav_p(:,k) = thetav(iqsbl,k)
-  uo_p(:,k) = uo(iqsbl,k)
-  vo_p(:,k) = vo(iqsbl,k)
-  zz_p(:,k) = zz(iqsbl,k)
-end do
-
-do k = 2,kl
-  ! Use Richardson number for pbl height
-  ! Richardson no. is computed using eq. (4.d.18) NCAR technical report, CCM3)
-  vvk(:) = (uo_p(:,k)-uo_p(:,1))**2 + (vo_p(:,k)-vo_p(:,1))**2 + fac*ustar_p(:)**2  
-  rino(:,k) = grav*(thetav_p(:,k)-thetav_p(:,1))*(zz_p(:,k)-zz_p(:,1))/max(thetav_p(:,1)*vvk,1.e-30)
-  where ( rino(:,k)>ricr .and. rino(:,k-1)<=ricr )
-    xp(:) = (ricr-rino(:,k-1))/(rino(:,k)-rino(:,k-1))
-    xp(:) = min( max(xp(:), 0.), 1.)
-    zi_p(:) = zz_p(:,k-1) + xp(:)*(zz_p(:,k)-zz_p(:,k-1))
-  end where
-end do
-
-zi(iqsbl) = zi_p(:)
-  
-return
-end subroutine stablepbl
                      
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tri-diagonal solver (array version)
