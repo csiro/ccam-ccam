@@ -1255,11 +1255,7 @@ do jk = 1,kl
   dmsoh3d(:,jk)=0.
   dmsn33d(:,jk)=0.
 end do
-do jt = 1,naero
-  do jk = 1,kl
-    xte(:,jk,jt)=0.
-  end do
-end do
+xte=0.
 where ( taudar(:)>0.5 )
   zrdayl(:)=1
 elsewhere
@@ -1268,11 +1264,10 @@ end where
 
 ! Calculate xto, tracer mixing ratio outside convective updraughts
 ! Assumes pclcon < 1, but this shouldn't be a problem.
+!$acc loop private(jt)
 do jt = 1,naero
-  do jk = 1,kl
-    xto(:,jk,jt)=(xtm1(:,jk,jt)-pclcon(:,jk)*xtu(:,jk,jt))/(1.-pclcon(:,jk))
-    xto(:,jk,jt)=max(0.,xto(:,jk,jt))
-  end do
+  xto(:,:,jt)=(xtm1(:,:,jt)-pclcon(:,:)*xtu(:,:,jt))/(1.-pclcon(:,:))
+  xto(:,:,jt)=max(0.,xto(:,:,jt))
 end do
 
 #ifdef debugaero
@@ -1304,20 +1299,12 @@ do jk = 1,kl
   
 end do
 
-do jk = 1,kl
-  zhenry(:,jk)=0.
-  zhenryc(:,jk)=0.
-end do
-do jt = 1,naero
-  do jk = 1,kl
-    zdxte(:,jk,jt)=0.
-  end do
-end do
+zhenry=0.
+zhenryc=0.
+zdxte=0.
 
  !   PROCESSES WHICH ARE DIFERENT INSIDE AND OUTSIDE OF CLOUDS
-do jk = 1,kl
-  ZSO4(:,jk)=amax1(XTO(:,jk,ITRACSO4),0.)
-end do
+ZSO4=amax1(XTO(:,:,ITRACSO4),0.)
 
 DO JK=KTOP,kl
   !
@@ -1662,43 +1649,184 @@ ENDDO
 !    CALCULATE THE WET DEPOSITION
 !    (True for all except DMS)
 !
-DO JT=ITRACSO2,naero
-  do jk = 1,kl  
-    zdep3d(:,jk)=0.
-  end do
-    
-  if(jt==itracso2) then        !SO2
-    do jk = 1,kl  
-      zsolub(:,jk)=zhenry(:,jk)
-    end do  
-  elseif(jt==itracso4) then    !sulfate
-    do jk = 1,kl  
-      zxtp10(:,jk)=zso4i(:,jk)
-      zxtp1c(:,jk)=zso4(:,jk)    
-      zxtp1con(:,jk)=zso4c(:,jk)
-      zsolub (:,jk)=0.6
-    end do  
-  elseif(jt==itracbc.or.jt==itracoc)then  !hydrophobic BC and OC
-    do jk = 1,kl  
-      zxtp10(:,jk)=xto(:,jk,jt)
-      zxtp1c(:,jk)=xto(:,jk,jt)
-      zxtp1con(:,jk)=xtu(:,jk,jt)
-      zsolub(:,jk)=0.
-    end do  
-  elseif(jt==itracbc+1.or.jt==itracoc+1)then !hydrophilic BC and OC
-    do jk = 1,kl
-      zxtp10(:,jk)=xto(:,jk,jt)
-      zxtp1c(:,jk)=xto(:,jk,jt)
-      zxtp1con(:,jk)=xtu(:,jk,jt)
-      zsolub(:,jk)=0.2
-    end do  
-  elseif(jt>=itracdu.and.jt<itracdu+ndust)then !hydrophobic dust (first 4 dust vars)
-    do jk = 1,kl  
-      zxtp10(:,jk)=xto(:,jk,jt)
-      zxtp1c(:,jk)=xto(:,jk,jt)
-      zxtp1con(:,jk)=xtu(:,jk,jt)
-      zsolub(:,jk)=0.05
-    end do  
+JT=ITRACSO2
+zdep3d=0.
+zsolub=zhenry
+CALL XTWETDEP( JT,                                   &
+               PTMST,                                &
+               rhodz,                                &
+               PMRATEP, PFPREC,                      &
+               PCLCOVER, zsolub, pmlwc, ptp1,        &
+               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
+               pfstayice,pqfsedice,plambs,           &
+               prscav,prfreeze,pfconv,pclcon,        & 
+               fracc,                                & !Inputs
+               ZXTP10, ZXTP1C,ZDEP3D,conwd,imax,kl)
+!   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
+do JK=KTOP,kl
+  ZXTP1=(1.-pclcover(:,jk)-pclcon(:,jk))*ZXTP10(:,JK)+ &
+           PCLCOVER(:,JK)*ZXTP1C(:,JK)+                &
+           pclcon(:,jk)*zxtp1con(:,jk)
+  zxtp1=max(zxtp1,0.)
+  ZDXTE(:,JK,JT)=(ZXTP1-XTM1(:,JK,JT))*PQTMST  !Total tendency (Dep + chem)
+end do
+! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
+so2wd(:) = so2wd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+!    CHANGE THE TOTAL TENDENCIES
+xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
+
+JT=ITRACSO4
+zdep3d=0.
+zxtp10=zso4i
+zxtp1c=zso4    
+zxtp1con=zso4c
+zsolub=0.6
+CALL XTWETDEP( JT,                                   &
+               PTMST,                                &
+               rhodz,                                &
+               PMRATEP, PFPREC,                      &
+               PCLCOVER, zsolub, pmlwc, ptp1,        &
+               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
+               pfstayice,pqfsedice,plambs,           &
+               prscav,prfreeze,pfconv,pclcon,        & 
+               fracc,                                & !Inputs
+               ZXTP10, ZXTP1C,ZDEP3D,conwd,imax,kl)
+!   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
+do concurrent (JK=KTOP:kl)
+  ZXTP1=(1.-pclcover(:,jk)-pclcon(:,jk))*ZXTP10(:,JK)+ &
+           PCLCOVER(:,JK)*ZXTP1C(:,JK)+                &
+           pclcon(:,jk)*zxtp1con(:,jk)
+  zxtp1=max(zxtp1,0.)
+  ZDXTE(:,JK,JT)=(ZXTP1-XTM1(:,JK,JT))*PQTMST  !Total tendency (Dep + chem)
+end do
+! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
+so4wd(:) = so4wd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+!    CHANGE THE TOTAL TENDENCIES
+xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
+
+JT=itracbc
+zdep3d=0.
+zxtp10=xto(:,:,jt)
+zxtp1c=xto(:,:,jt)
+zxtp1con=xtu(:,:,jt)
+zsolub=0.
+CALL XTWETDEP( JT,                                   &
+               PTMST,                                &
+               rhodz,                                &
+               PMRATEP, PFPREC,                      &
+               PCLCOVER, zsolub, pmlwc, ptp1,        &
+               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
+               pfstayice,pqfsedice,plambs,           &
+               prscav,prfreeze,pfconv,pclcon,        & 
+               fracc,                                & !Inputs
+               ZXTP10, ZXTP1C,ZDEP3D,conwd,imax,kl)
+!   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
+do concurrent (JK=KTOP:kl)
+  ZXTP1=(1.-pclcover(:,jk)-pclcon(:,jk))*ZXTP10(:,JK)+ &
+           PCLCOVER(:,JK)*ZXTP1C(:,JK)+                &
+           pclcon(:,jk)*zxtp1con(:,jk)
+  zxtp1=max(zxtp1,0.)
+  ZDXTE(:,JK,JT)=(ZXTP1-XTM1(:,JK,JT))*PQTMST  !Total tendency (Dep + chem)
+end do
+! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
+bcwd(:) = bcwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+!    CHANGE THE TOTAL TENDENCIES
+xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
+
+JT=itracbc+1
+zdep3d=0.
+zxtp10=xto(:,:,jt)
+zxtp1c=xto(:,:,jt)
+zxtp1con=xtu(:,:,jt)
+zsolub=0.2
+CALL XTWETDEP( JT,                                   &
+               PTMST,                                &
+               rhodz,                                &
+               PMRATEP, PFPREC,                      &
+               PCLCOVER, zsolub, pmlwc, ptp1,        &
+               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
+               pfstayice,pqfsedice,plambs,           &
+               prscav,prfreeze,pfconv,pclcon,        & 
+               fracc,                                & !Inputs
+               ZXTP10, ZXTP1C,ZDEP3D,conwd,imax,kl)
+!   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
+do concurrent (JK=KTOP:kl)
+  ZXTP1=(1.-pclcover(:,jk)-pclcon(:,jk))*ZXTP10(:,JK)+ &
+           PCLCOVER(:,JK)*ZXTP1C(:,JK)+                &
+           pclcon(:,jk)*zxtp1con(:,jk)
+  zxtp1=max(zxtp1,0.)
+  ZDXTE(:,JK,JT)=(ZXTP1-XTM1(:,JK,JT))*PQTMST  !Total tendency (Dep + chem)
+end do
+! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
+bcwd(:) = bcwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+!    CHANGE THE TOTAL TENDENCIES
+xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
+
+JT=itracoc
+zdep3d=0.
+zxtp10=xto(:,:,jt)
+zxtp1c=xto(:,:,jt)
+zxtp1con=xtu(:,:,jt)
+zsolub=0.
+CALL XTWETDEP( JT,                                   &
+               PTMST,                                &
+               rhodz,                                &
+               PMRATEP, PFPREC,                      &
+               PCLCOVER, zsolub, pmlwc, ptp1,        &
+               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
+               pfstayice,pqfsedice,plambs,           &
+               prscav,prfreeze,pfconv,pclcon,        & 
+               fracc,                                & !Inputs
+               ZXTP10, ZXTP1C,ZDEP3D,conwd,imax,kl)
+!   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
+do concurrent (JK=KTOP:kl)
+  ZXTP1=(1.-pclcover(:,jk)-pclcon(:,jk))*ZXTP10(:,JK)+ &
+           PCLCOVER(:,JK)*ZXTP1C(:,JK)+                &
+           pclcon(:,jk)*zxtp1con(:,jk)
+  zxtp1=max(zxtp1,0.)
+  ZDXTE(:,JK,JT)=(ZXTP1-XTM1(:,JK,JT))*PQTMST  !Total tendency (Dep + chem)
+end do
+! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
+ocwd(:) = ocwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+!    CHANGE THE TOTAL TENDENCIES
+xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
+
+JT=itracoc+1
+zdep3d=0.
+zxtp10=xto(:,:,jt)
+zxtp1c=xto(:,:,jt)
+zxtp1con=xtu(:,:,jt)
+zsolub=0.2
+CALL XTWETDEP( JT,                                   &
+               PTMST,                                &
+               rhodz,                                &
+               PMRATEP, PFPREC,                      &
+               PCLCOVER, zsolub, pmlwc, ptp1,        &
+               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
+               pfstayice,pqfsedice,plambs,           &
+               prscav,prfreeze,pfconv,pclcon,        & 
+               fracc,                                & !Inputs
+               ZXTP10, ZXTP1C,ZDEP3D,conwd,imax,kl)
+!   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
+do concurrent (JK=KTOP:kl)
+  ZXTP1=(1.-pclcover(:,jk)-pclcon(:,jk))*ZXTP10(:,JK)+ &
+           PCLCOVER(:,JK)*ZXTP1C(:,JK)+                &
+           pclcon(:,jk)*zxtp1con(:,jk)
+  zxtp1=max(zxtp1,0.)
+  ZDXTE(:,JK,JT)=(ZXTP1-XTM1(:,JK,JT))*PQTMST  !Total tendency (Dep + chem)
+end do
+! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
+ocwd(:) = ocwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
+!    CHANGE THE TOTAL TENDENCIES
+xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
+
+!$acc loop private(zdep3d,zxtp10,zxtp1c,zxtp1con,zsolub)
+DO JT=itracdu,itracdu+ndust-1
+  zdep3d=0.
+  zxtp10=xto(:,:,jt)
+  zxtp1c=xto(:,:,jt)
+  zxtp1con=xtu(:,:,jt)
+  zsolub=0.05
 !  elseif(jt>=itracdu+ndust)then !hydrophilic dust !hydrophilic dust (last 4 dust vars)
 !    do jk = 1,kl
 !      zxtp10(:,jk)=xto(:,jk,jt)
@@ -1706,15 +1834,6 @@ DO JT=ITRACSO2,naero
 !      zxtp1con(:,jk)=xtu(:,jk,jt)
 !      zsolub(:,jk)=1.
 !    end do 
-  elseif(jt>=itracsa.and.jt<itracsa+nsalt)then !salt
-    do jk = 1,kl  
-      zxtp10(:,jk)=xto(:,jk,jt)
-      zxtp1c(:,jk)=xto(:,jk,jt)
-      zxtp1con(:,jk)=xtu(:,jk,jt)
-      zsolub(:,jk)=0.05
-    end do  
-  endif
-
   CALL XTWETDEP( JT,                                   &
                  PTMST,                                &
                  rhodz,                                &
@@ -1725,36 +1844,50 @@ DO JT=ITRACSO2,naero
                  prscav,prfreeze,pfconv,pclcon,        & 
                  fracc,                                & !Inputs
                  ZXTP10, ZXTP1C,ZDEP3D,conwd,imax,kl)
-
-!   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
-  do JK=KTOP,kl
+  !   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
+  do concurrent (JK=KTOP:kl)
     ZXTP1=(1.-pclcover(:,jk)-pclcon(:,jk))*ZXTP10(:,JK)+ &
              PCLCOVER(:,JK)*ZXTP1C(:,JK)+                &
              pclcon(:,jk)*zxtp1con(:,jk)
     zxtp1=max(zxtp1,0.)
     ZDXTE(:,JK,JT)=(ZXTP1-XTM1(:,JK,JT))*PQTMST  !Total tendency (Dep + chem)
   end do
-
   ! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
-  if ( jt==itracso2 ) then
-    so2wd(:) = so2wd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
-  elseif ( jt==itracso4 ) then
-    so4wd(:) = so4wd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
-  elseif ( jt==itracbc .or. jt==itracbc+1 ) then
-    bcwd(:) = bcwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
-  elseif ( jt==itracoc .or. jt==itracoc+1 ) then
-    ocwd(:) = ocwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
-  elseif ( jt>=itracdu .and. jt<itracdu+ndust ) then
-    dustwd(:,jt-itracdu+1) = dustwd(:,jt-itracdu+1) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
-  elseif ( jt>=itracsa .and. jt<itracsa+nsalt ) then
-    saltwd(:) = saltwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )  
-  endif
-  
+  dustwd(:,jt-itracdu+1) = dustwd(:,jt-itracdu+1) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )
   !    CHANGE THE TOTAL TENDENCIES
-  do jk = ktop,kl
-    xte(:,jk,jt) = xte(:,jk,jt) + zdxte(:,jk,jt)
-  end do  
-end do
+  xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
+END DO
+
+DO JT=itracsa,itracsa+nsalt-1
+  zdep3d=0.
+  zxtp10=xto(:,:,jt)
+  zxtp1c=xto(:,:,jt)
+  zxtp1con=xtu(:,:,jt)
+  zsolub=0.05
+  CALL XTWETDEP( JT,                                   &
+                 PTMST,                                &
+                 rhodz,                                &
+                 PMRATEP, PFPREC,                      &
+                 PCLCOVER, zsolub, pmlwc, ptp1,        &
+                 pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
+                 pfstayice,pqfsedice,plambs,           &
+                 prscav,prfreeze,pfconv,pclcon,        & 
+                 fracc,                                & !Inputs
+                 ZXTP10, ZXTP1C,ZDEP3D,conwd,imax,kl)
+  !   CALCULATE NEW CHEMISTRY AND SCAVENGING TENDENCIES
+  do concurrent (JK=KTOP:kl)
+    ZXTP1=(1.-pclcover(:,jk)-pclcon(:,jk))*ZXTP10(:,JK)+ &
+             PCLCOVER(:,JK)*ZXTP1C(:,JK)+                &
+             pclcon(:,jk)*zxtp1con(:,jk)
+    zxtp1=max(zxtp1,0.)
+    ZDXTE(:,JK,JT)=(ZXTP1-XTM1(:,JK,JT))*PQTMST  !Total tendency (Dep + chem)
+  end do
+  ! Note that wd as coded here includes the below-cloud convective scavenging/evaporation
+  saltwd(:) = saltwd(:) + sum( zdep3d(:,:)*rhodz(:,:)*pqtmst, dim=2 )  
+  !    CHANGE THE TOTAL TENDENCIES
+  xte(:,ktop:kl,jt) = xte(:,ktop:kl,jt) + zdxte(:,ktop:kl,jt)
+END DO
+
 
 #ifdef debugaero
 if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then

@@ -691,6 +691,7 @@ logical ltest, tst, interpolate
 logical, dimension(:), allocatable :: lsma_g
 character(len=22) header
 character(len=10) unitstr
+character(len=10) calendar_in
 character(len=80) datestring
 
 ssta = 300.
@@ -717,9 +718,18 @@ if ( amip_mode==1 ) then
     rlon_in    = ahead(6)
     rlat_in    = ahead(7)
     schmidt_in = ahead(8)
-  endif  ! (schmidtx<=0..or.schmidtx>1.)  
+  endif  ! (schmidtx<=0..or.schmidtx>1.)
+  ! original method
   call ccnf_get_attg(ncidx,'leap',leap_in,tst)
   if ( tst ) leap_in = 0
+  ! revised method
+  call ccnf_inq_varid(ncidx,'time',varid_time)
+  call ccnf_get_att(ncidx,varid_time,"calendar",calendar_in,ierr=ierr)
+  if ( ierr==0 ) then
+    if ( calendar_in == "noleap" ) leap_in = 0
+    if ( calendar_in == "standard" ) leap_in = 1
+  end if
+  write(6,*) "Using leap_in = ",leap_in
   call ccnf_inq_dimlen(ncidx,'time',maxarchi)
          
   interpolate = ( il_g/=il_in .or. jl_g/=jl_in .or. abs(rlong0-rlon_in)>1.e-6 .or. abs(rlat0-rlat_in)>1.e-6 .or. &

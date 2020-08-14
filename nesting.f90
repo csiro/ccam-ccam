@@ -626,12 +626,12 @@ do kb = kbotdav,ktopdav,kblock
   ! select nudging option
   if ( nud_uv==9 ) then 
     if ( myid==0 ) then
-      write(6,*) "Two dimensional spectral filter      ",kb,min(kb+kblock-1,ktopdav)
+      write(6,*) "ATM 2D filter                       ",kb,min(kb+kblock-1,ktopdav)
     end if
     call slowspecmpi(.1*real(mbd)/(pi*schmidt),pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
   else
     if ( myid==0 ) then
-      write(6,*) "Separable 1D filter                  ",kb,min(kb+kblock-1,ktopdav)
+      write(6,*) "ATM 1D filter                       ",kb,min(kb+kblock-1,ktopdav)
     end if
     call specfastmpi(.1*real(mbd)/(pi*schmidt),pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
   endif  ! (nud_uv==9) .. else ..
@@ -1204,13 +1204,14 @@ integer :: j, k, n, ipass
 integer :: jpoff, ibase
 integer :: me, ns, ne, os, oe
 integer :: til, a, b, c, sn, sy, jj, nn
-integer :: ibeg, iend, ilen, kltp1
+integer :: ibeg, iend, kltp1
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(il_g*ipan*(klt+1)) :: dd      ! subset of sparse array
 real, dimension(ipan*jpan*(klt+1),0:2) :: ff
+real, dimension(klt+1,ipan,jpan) :: ff_l
 real, dimension(il_g) :: at, asum             ! subset of sparse array
 real, dimension(klt+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za         ! subset of shared array
@@ -1221,7 +1222,6 @@ real, dimension(klt+1,4*il_g,max(ipan,jpan)) :: at_t         ! subset of sparse 
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
 kltp1 = klt + 1
-ilen = ipan*jpan*kltp1
 astr = 0
 bstr = 0
 cstr = 0
@@ -1263,17 +1263,22 @@ do ipass = 0,2
   ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,ibase)
 !$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,ipass,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
-!$acc   copyout(ff(:,ipass)) private(j,n,nn,ibase)
+!$acc   copyout(ff_l) private(j,n,nn)
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
-      ibase = n + (j-1)*ipan
-      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = &
-        drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),me,kltp1,nest_iblock) 
+      ff_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),me,kltp1,nest_iblock) 
     end do 
   end do 
 !$acc end parallel loop
 !$omp end parallel do
+
+  do j = 1,jpan
+    do n = 1,ipan
+      ibase = n + (j-1)*ipan
+      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = ff_l(:,n,j)
+    end do
+  end do
 
 end do
 
@@ -1388,7 +1393,7 @@ integer j, k, n, ipass
 integer jpoff, ibase
 integer me, ns, ne, os, oe
 integer til, a, b, c, sn, sy, jj, nn
-integer ibeg, iend, ilen, kltp1
+integer ibeg, iend, kltp1
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
@@ -1397,6 +1402,7 @@ real, dimension(il_g) :: at, asum
 real, dimension(4*il_g) :: ra
 real, dimension(il_g*jpan*(klt+1)) :: dd
 real, dimension(ipan*jpan*(klt+1),0:2) :: ff
+real, dimension(klt+1,jpan,ipan) :: ff_l
 real, dimension(klt+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
 real, dimension(klt+1,4*il_g,max(ipan,jpan)) :: at_t
@@ -1406,7 +1412,6 @@ real, dimension(klt+1,4*il_g,max(ipan,jpan)) :: at_t
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
 kltp1 = klt + 1
-ilen = ipan*jpan*kltp1
 astr = 0
 bstr = 0
 cstr = 0
@@ -1448,17 +1453,22 @@ do ipass = 0,2
   ! start convolution
 !$omp parallel do schedule(static) private(j,n,nn,ibase)
 !$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
-!$acc   copyout(ff(:,ipass)) private(j,n,nn,ibase)
+!$acc   copyout(ff_l) private(j,n,nn)
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
-      ibase = n + (j-1)*jpan
-      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = &
-        drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),me,kltp1,nest_iblock)
+      ff_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),me,kltp1,nest_iblock)
     end do
   end do
 !$acc end parallel loop
 !$omp end parallel do
+
+  do j = 1,ipan
+    do n = 1,jpan
+      ibase = n + (j-1)*jpan
+      ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = ff_l(:,n,j)
+    end do
+  end do
 
 end do
 
@@ -2089,9 +2099,7 @@ do iqq = 1,ifull
   j = 1 + ( iqq - (n-1)*(ipan*jpan) - 1) / ipan
   iqqg = iqq - (j-1)*ipan - (n-1)*(ipan*jpan)
   local_sum = drpdr_fast(iqqg,cq,xa,ya,za,diff_g_t,ifull_g,kdp1,nest_iblock)
-  if ( local_sum(kdp1)>1.e-8 ) then
-    dd(iqq,1:kd) = local_sum(1:kd)/local_sum(kdp1)
-  end if  
+  dd(iqq,1:kd) = local_sum(1:kd)/max(local_sum(kdp1),1.e-8)
 end do
 !$acc end parallel loop
 !$omp end parallel do
@@ -2394,16 +2402,16 @@ integer, intent(in) :: ppass, kd
 integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
 integer me, k, til, sn, sy, a, b, c, jj, nn
-integer ibeg, iend, ilen, kdp1
+integer ibeg, iend, kdp1
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
-real :: psum
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(il_g) :: ap, asum      
 real, dimension(4*il_g) :: rr
 real, dimension(il_g*ipan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1),0:2) :: yy
+real, dimension(kd+1,ipan,jpan) :: yy_l
 real, dimension(kd+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
 real, dimension(kd+1,4*il_g,max(ipan,jpan)) :: ap_t
@@ -2411,7 +2419,6 @@ real, dimension(kd+1,4*il_g,max(ipan,jpan)) :: ap_t
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
 kdp1 = kd + 1
-ilen = ipan*jpan*kdp1
 astr = 0
 bstr = 0
 cstr = 0
@@ -2451,19 +2458,24 @@ do ipass = 0,2
   end do
     
   ! start convolution
-!$omp parallel do schedule(static) private(j,n,nn,local_sum,ibase)
-!$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
-!$acc   copyout(yy(:,ipass)) private(j,n,nn,ibase,local_sum)
+!$omp parallel do schedule(static) private(j,n,nn,ibase)
+!$acc parallel loop independent collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
+!$acc   copyout(yy_l) private(j,n,nn,ibase)
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
-      local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
-      ibase = n + (j-1)*ipan
-      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = local_sum(1:kdp1)
+      yy_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
     end do
   end do
 !$acc end parallel loop
 !$omp end parallel do
+
+  do j = 1,jpan
+    do n = 1,ipan
+      ibase = n + (j-1)*ipan
+      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = yy_l(:,n,j)
+    end do
+  end do
 
 end do
 
@@ -2545,17 +2557,14 @@ do j = 1,ipan
 end do
   
 ! start convolution
-!$omp parallel do schedule(static) private(j,n,nn,local_sum,psum)
+!$omp parallel do schedule(static) private(j,n,nn,local_sum)
 !$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
-!$acc   copyout(qp) private(j,n,nn,psum,local_sum)
+!$acc   copyout(qp) private(j,n,nn,local_sum)
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
     local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
-    psum = local_sum(kdp1)
-    if ( psum>1.e-8 ) then
-      qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/psum
-    end if  
+    qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/max(local_sum(kdp1), 1.e-8)
   end do
 end do
 !$acc end parallel loop
@@ -2580,16 +2589,16 @@ integer, intent(in) :: ppass, kd
 integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
 integer me, k, til, sn, sy, a, b, c, jj, nn
-integer ibeg, iend, ilen, kdp1
+integer ibeg, iend, kdp1
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
-real :: psum
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(il_g) :: ap, asum      
 real, dimension(4*il_g) :: rr
 real, dimension(il_g*jpan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1),0:2) :: yy
+real, dimension(kd+1,jpan,ipan) :: yy_l
 real, dimension(kd+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
 real, dimension(kd+1,4*il_g,max(ipan,jpan)) :: ap_t
@@ -2597,7 +2606,6 @@ real, dimension(kd+1,4*il_g,max(ipan,jpan)) :: ap_t
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
 kdp1 = kd + 1
-ilen = ipan*jpan*kdp1
 astr = 0
 bstr = 0
 cstr = 0
@@ -2636,19 +2644,24 @@ do ipass = 0,2
   end do
     
   ! start convolution
-!$omp parallel do schedule(static) private(j,n,nn,local_sum,ibase)
+!$omp parallel do schedule(static) private(j,n,nn,ibase)
 !$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
-!$acc   copyout(yy(:,ipass)) private(j,n,nn,ibase,local_sum)
+!$acc   copyout(yy_l) private(j,n,nn,ibase)
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
-      local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
-      ibase = n + (j-1)*jpan
-      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = local_sum(1:kdp1)
+      yy_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
     end do    
   end do
 !$acc end parallel loop
 !$omp end parallel do
+
+  do j = 1,ipan
+    do n = 1,jpan
+      ibase = n + (j-1)*jpan
+      yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = yy_l(:,n,j)
+    end do
+  end do
 
 end do
 
@@ -2730,17 +2743,14 @@ do j = 1,jpan
 end do
   
 ! start convolution
-!$omp parallel do schedule(static) private(j,n,nn,local_sum,psum)
+!$omp parallel do schedule(static) private(j,n,nn,local_sum)
 !$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
-!$acc   copyout(qp) private(j,n,nn,psum,local_sum)
+!$acc   copyout(qp) private(j,n,nn,local_sum)
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
     local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
-    psum = local_sum(kdp1)
-    if ( psum>1.e-8 ) then
-      qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/psum  
-    end if  
+    qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/max(local_sum(kdp1), 1.e-8)  
   end do  
 end do
 !$acc end parallel loop

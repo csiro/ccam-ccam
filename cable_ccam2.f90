@@ -2711,7 +2711,8 @@ if ( mp_global>0 ) then
   allocate( dummy_unpack(mp_global), datr8(mp_global) )
   
   ! Cable configuration
-  cable_user%ssnow_POTEV = "P-M"
+  !cable_user%ssnow_POTEV = "P-M"
+  cable_user%ssnow_POTEV = "H-D" ! default Humidity Deficit
   cable_user%MetType = "defa" ! only 4 characters for "default"
   cable_user%diag_soil_resp = "ON"
   cable_user%leaf_respiration = "ON"

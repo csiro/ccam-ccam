@@ -970,56 +970,56 @@ if (.not.mlo_active) return
 
 select case(mode)
   case(0)
-    do ii = 1,wlev
-      do tile = 1,ntiles
-        is = (tile-1)*imax + 1
-        ie = tile*imax
-        if ( wfull_g(tile)>0 ) then
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      if ( wfull_g(tile)>0 ) then
+        do ii = 1,wlev
           water_g(tile)%temp(:,ii)=pack(sst(is:ie,ii),wpack_g(:,tile))
-          where ( depth_g(tile)%dz(:,ii)<1.e-4 )
-            water_g(tile)%temp(:,ii) = 288.-wrtemp
-          end where
-        end if
-      end do  
+        end do  
+        where ( depth_g(tile)%dz(:,:)<1.e-4 )
+          water_g(tile)%temp(:,:) = 288.-wrtemp
+        end where
+      end if
     end do
   case(1)
-    do ii = 1,wlev
-      do tile = 1,ntiles
-        is = (tile-1)*imax + 1
-        ie = tile*imax
-        if ( wfull_g(tile)>0 ) then
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      if ( wfull_g(tile)>0 ) then
+        do ii = 1,wlev
           water_g(tile)%sal(:,ii) =pack(sst(is:ie,ii),wpack_g(:,tile))
-          where ( depth_g(tile)%dz(:,ii)<1.e-4 )
-            water_g(tile)%sal(:,ii) = 35.
-          end where
-        end if
-      end do 
+        end do  
+        where ( depth_g(tile)%dz(:,:)<1.e-4 )
+          water_g(tile)%sal(:,:) = 35.
+        end where
+      end if
     end do
   case(2)
-    do ii = 1,wlev
-      do tile = 1,ntiles
-        is = (tile-1)*imax + 1
-        ie = tile*imax
-        if ( wfull_g(tile)>0 ) then
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      if ( wfull_g(tile)>0 ) then
+        do ii = 1,wlev
           water_g(tile)%u(:,ii)   =pack(sst(is:ie,ii),wpack_g(:,tile))
-          where ( depth_g(tile)%dz(:,ii)<1.e-4 )
-            water_g(tile)%u(:,ii) = 0.
-          end where
-        end if
-      end do 
+        end do  
+        where ( depth_g(tile)%dz(:,:)<1.e-4 )
+          water_g(tile)%u(:,:) = 0.
+        end where
+      end if
     end do
   case(3)
-    do ii = 1,wlev
-      do tile = 1,ntiles
-        is = (tile-1)*imax + 1
-        ie = tile*imax
-        if ( wfull_g(tile)>0 ) then
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      if ( wfull_g(tile)>0 ) then
+        do ii = 1,wlev
           water_g(tile)%v(:,ii)   =pack(sst(is:ie,ii),wpack_g(:,tile))
-          where ( depth_g(tile)%dz(:,ii)<1.e-4 )
-            water_g(tile)%v(:,ii) = 0.
-          end where
-        end if
-      end do 
+        end do  
+        where ( depth_g(tile)%dz(:,:)<1.e-4 )
+          water_g(tile)%v(:,:) = 0.
+        end where
+      end if
     end do
 end select
 
@@ -1171,44 +1171,44 @@ if (.not.mlo_active) return
 
 select case(mode)
   case(0)
-    do ii=1,wlev
-      do tile = 1,ntiles
-        is = (tile-1)*imax + 1
-        ie = tile*imax
-        if ( wfull_g(tile)>0 ) then
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      if ( wfull_g(tile)>0 ) then
+        do ii = 1,wlev 
           sst(is:ie,ii)=unpack(water_g(tile)%temp(:,ii),wpack_g(:,tile),sst(is:ie,ii))
-        end if
-      end do
+        end do  
+      end if
     end do
   case(1)
-    do ii=1,wlev
-      do tile = 1,ntiles
-        is = (tile-1)*imax + 1
-        ie = tile*imax
-        if ( wfull_g(tile)>0 ) then
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      if ( wfull_g(tile)>0 ) then
+        do ii = 1,wlev 
           sst(is:ie,ii)=unpack(water_g(tile)%sal(:,ii),wpack_g(:,tile),sst(is:ie,ii))
-        end if
-      end do
+        end do
+      end if
     end do
   case(2)
-    do ii=1,wlev
-      do tile = 1,ntiles
-        is = (tile-1)*imax + 1
-        ie = tile*imax
-        if ( wfull_g(tile)>0 ) then
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      if ( wfull_g(tile)>0 ) then
+        do ii = 1,wlev 
           sst(is:ie,ii)=unpack(water_g(tile)%u(:,ii),wpack_g(:,tile),sst(is:ie,ii))
-        end if
-      end do
+        end do
+      end if
     end do
   case(3)
-    do ii=1,wlev
-      do tile = 1,ntiles
-        is = (tile-1)*imax + 1
-        ie = tile*imax
-        if ( wfull_g(tile)>0 ) then
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      if ( wfull_g(tile)>0 ) then
+        do ii = 1,wlev  
           sst(is:ie,ii)=unpack(water_g(tile)%v(:,ii),wpack_g(:,tile),sst(is:ie,ii))
-        end if
-      end do
+        end do
+      end if
     end do
 end select
 
