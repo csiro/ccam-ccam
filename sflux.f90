@@ -373,6 +373,7 @@ do tile = 1,ntiles
 
   ! ----------------------------------------------------------------------
   evap(is:ie) = evap(is:ie) + dt*eg(is:ie)/hl        !time integ value in mm (wrong for snow)
+  !evspsbl = evspsbl + eg/(hl*cls)
   
   ! Update runoff for river routing
   if ( abs(nriver)==1 ) then
@@ -800,6 +801,7 @@ do iq=1,ifull                                                                   
     fg(iq) =fracice(iq)*fgf(iq) + (1.-fracice(iq))*fg(iq)                                        ! sice
     ri(iq) =fracice(iq)*ri_ice  + (1.-fracice(iq))*ri(iq)                                        ! sice
     zo(iq) =fracice(iq)*zoice   + (1.-fracice(iq))*zo(iq)                                        ! sice
+    cls(iq)=fracice(iq)*hls/hl  + (1.-fracice(iq))  ! approximation                              ! sice
     factch(iq)=fracice(iq)*factchice + (1.-fracice(iq))*factch(iq)                               ! sice
     zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                                                       ! sice
     zoq(iq)=zoh(iq)                                                                              ! sice
