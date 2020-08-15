@@ -3726,6 +3726,7 @@ epot_ave(:)          = 0.
 eg_ave(:)            = 0.
 fg_ave(:)            = 0.
 ga_ave(:)            = 0.
+evspsbl(:)           = 0.
 anthropogenic_ave(:) = 0.
 urban_storage_ave(:) = 0.
 anth_elecgas_ave(:)  = 0.
@@ -3895,6 +3896,7 @@ use cable_ccam, only : ccycle              ! CABLE
 use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
     ,frpw,frpr,frs,cnpp,cnbp,fevc        &
     ,plant_turnover,plant_turnover_wood
+use const_phys                             ! Physical constants
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
 use mlo, only : mlodiag                    ! Ocean physics and prognostic arrays
@@ -3932,6 +3934,7 @@ epot_ave(1:ifull)          = epot_ave(1:ifull) + epot
 eg_ave(1:ifull)            = eg_ave(1:ifull) + eg    
 fg_ave(1:ifull)            = fg_ave(1:ifull) + fg
 ga_ave(1:ifull)            = ga_ave(1:ifull) + ga
+evspsbl(1:ifull)           = evspsbl(1:ifull) + eg/(hl*cls)
 anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
 urban_storage_ave(1:ifull) = urban_storage_ave(1:ifull) + urban_storage_flux
 anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull) + urban_elecgas_flux
@@ -4014,7 +4017,8 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   epot_ave(1:ifull)          = epot_ave(1:ifull)/min(ntau,nperavg)
   eg_ave(1:ifull)            = eg_ave(1:ifull)/min(ntau,nperavg)
   fg_ave(1:ifull)            = fg_ave(1:ifull)/min(ntau,nperavg)
-  ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg)   
+  ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg) 
+  evspsbl(1:ifull)           = evspsbl(1:ifull)/min(ntau,nperavg)
   anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull)/min(ntau,nperavg)
   urban_storage_ave(1:ifull) = urban_storage_ave(1:ifull)/min(ntau,nperavg)
   anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull)/min(ntau,nperavg)

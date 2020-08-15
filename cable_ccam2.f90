@@ -364,7 +364,7 @@ do tile = 1,ntiles
                    sigmf(is:ie),lsmass,snage(is:ie),snowd(is:ie),snowmelt(is:ie),lssdn,ssdnn(is:ie),                     &
                    sv(js:je),sgdn(is:ie),swrsave(is:ie),t(is:ie,1),ltgg,ltggsn,theta(is:ie),ltind,ltmap,                 &
                    latmco2,tss(is:ie),ustar(is:ie),vlai(is:ie),vl1(js:je),vl2(js:je),vl3(js:je),vl4(js:je),vmod(is:ie),  &
-                   lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),lair,lbal,c,lcanopy,                         &
+                   lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),cls(is:ie),lair,lbal,c,lcanopy,              &
                    lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,    &
                    lsum_flux,lveg,lclimate_iveg,lclimate_biome,lclimate_min20,lclimate_max20,lclimate_alpha20,           &
                    lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover,        &
@@ -426,7 +426,7 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      frpw,frs,fwet,ga,isflag,land,maxnb,mp,nilitter,niplant,nisoil,plitter,pplant,ps,           &
                      psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sigmf,smass,           &
                      snage,snowd,snowmelt,ssdn,ssdnn,sv,sgdn,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,    &
-                     ustar,vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,air,bal,c,canopy,casabal,       &
+                     ustar,vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,cls,air,bal,c,canopy,casabal,   &
                      casabiome,casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,    &
                      veg,climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,climate_agdd5, &
                      climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,plant_turnover,                 &
@@ -466,7 +466,7 @@ real, dimension(imax), intent(inout) :: albnirdif, albnirdir, albnirsav, albvisd
 real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot, fg, fnee, fpn, frd
 real, dimension(imax), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, rnet, rsmin, runoff
 real, dimension(imax), intent(inout) :: runoff_surface, sigmf, snage, snowd, snowmelt, ssdnn, tss, ustar
-real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
+real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq, cls
 real, dimension(imax), intent(inout) :: climate_min20, climate_max20, climate_alpha20
 real, dimension(imax), intent(inout) :: climate_agdd5
 real, dimension(imax), intent(inout) :: climate_dmoist_min20, climate_dmoist_max20
@@ -882,6 +882,7 @@ where ( land(1:imax) )
   ssdnn = 0.
   snowd = 0.
   snage = 0.
+  cls = 0.
   ! screen and 10m diagnostics - rhscrn calculated in sflux.f
   !tscrn = 0.
   !uscrn = 0.
@@ -931,6 +932,7 @@ do nb = 1,maxnb
   snage = snage + unpack(sv(is:ie)*real(ssnow%snage(is:ie)),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
   snowd = snowd + unpack(sv(is:ie)*real(ssnow%snowd(is:ie)),tmap(:,nb),0.)
   snowmelt = snowmelt + unpack(sv(is:ie)*real(ssnow%smelt(is:ie)),tmap(:,nb),0.)
+  cls = cls + unpack(sv(is:ie)*real(ssnow%cls(is:ie)),tmap(:,nb),0.)
   ! diagnostic
   epot = epot + unpack(sv(is:ie)*real(ssnow%potev(is:ie)),tmap(:,nb),0.)         ! diagnostic in history file
   vlai = vlai + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,nb),0.)

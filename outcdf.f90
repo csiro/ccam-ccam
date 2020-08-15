@@ -1405,6 +1405,8 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,'dew_ave',lname,'W/m2',-100.,1000.,0,cptype)
         lname = 'Avg evaporation'
         call attrib(idnc,dimj,jsize,'evap',lname,'mm',-100.,100.,0,-1)         ! -1 = long
+        lname = 'Evaporation'
+        call attrib(idnc,dimj,jsize,'evspsbl',lname,'kg/m2/s',-100.,100.,0,-1)  ! -1 = long
         lname = 'Avg potential "pan" evaporation'
         call attrib(idnc,dimj,jsize,'epan_ave',lname,'W/m2',-1000.,10.e3,0,cptype)
         lname = 'Avg potential evaporation'
@@ -2611,6 +2613,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
   if ( save_land .or. save_ocean ) then
     call histwrt(dew_ave,'dew_ave',idnc,iarch,local,lave)
     call histwrt(evap,'evap',idnc,iarch,local,lave)
+    call histwrt(evspsbl,'evspsbl',idnc,iarch,local,lave)
     call histwrt(epan_ave,'epan_ave',idnc,iarch,local,lave)
     call histwrt(epot_ave,'epot_ave',idnc,iarch,local,lave)
     call histwrt(eg_ave,'eg_ave',idnc,iarch,local,lave)

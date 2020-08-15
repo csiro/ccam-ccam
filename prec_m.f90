@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -24,10 +24,10 @@ module prec_m
 implicit none
 
 private
-public evap,precip,precc,rnd_3hr,cape
+public evap,precip,precc,rnd_3hr,cape,evspsbl
 public prec_init,prec_end
 
-real, dimension(:), allocatable, save :: evap
+real, dimension(:), allocatable, save :: evap, evspsbl
 real, dimension(:), allocatable, save :: cape, precc, precip
 real, dimension(:,:), allocatable, save :: rnd_3hr
 
@@ -40,9 +40,11 @@ implicit none
 integer, intent(in) :: ifull
 
 allocate(evap(ifull),precip(ifull),precc(ifull),rnd_3hr(ifull,8),cape(ifull))
+allocate(evspsbl(ifull))
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
 evap(:)      = 0.
+evspsbl(:)   = 0.
 precip(:)    = 0.
 precc(:)     = 0.
 rnd_3hr(:,:) = 0.
@@ -56,6 +58,7 @@ subroutine prec_end
 implicit none
 
 deallocate(evap,precip,precc,rnd_3hr,cape)
+deallocate(evspsbl)
 
 return
 end subroutine prec_end

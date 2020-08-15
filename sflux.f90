@@ -900,7 +900,7 @@ do tile = 1,ntiles
                       ustar(is:ie),f(is:ie),water_g(tile),wpack_g(:,tile),wfull_g(tile),depth_g(tile),   &
                       dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),ice_g(tile),                          &
                       tpan(is:ie),epan(is:ie),rnet(is:ie),condx(is:ie),                                  &
-                      conds(is:ie),condg(is:ie),fg(is:ie),eg(is:ie),epot(is:ie),                         &
+                      conds(is:ie),condg(is:ie),fg(is:ie),eg(is:ie),cls(is:ie),epot(is:ie),              &
                       tss(is:ie),cduv(is:ie),cdtq(is:ie),lwatbdy,loutflowmask,land(is:ie),               &
                       fracice(is:ie),sicedep(is:ie),snowd(is:ie),sno(is:ie),grpl(is:ie),qsttg(is:ie),    &
                       vmod(is:ie),zo(is:ie),wetfac(is:ie),                                               &
@@ -929,7 +929,7 @@ end subroutine sflux_mlo
 subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,      &
                           ps,t,qg,sgdn,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy, &
                           ustar,f,water,wpack,wfull,depth,dgice,dgscrn,dgwater,ice,       &
-                          tpan,epan,rnet,condx,conds,condg,fg,eg,epot,                    &
+                          tpan,epan,rnet,condx,conds,condg,fg,eg,cls,epot,                &
                           tss,cduv,cdtq,watbdy,outflowmask,land,                          &
                           fracice,sicedep,snowd,sno,grpl,qsttg,vmod,zo,wetfac,            &
                           zoh,zoq,theta,ga,turb)
@@ -954,7 +954,7 @@ real root, denha, esatf
 real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
 real, dimension(imax), intent(in) :: t, qg
 real, dimension(imax), intent(inout) :: ri, taux, tauy, ustar, tpan, epan, rnet
-real, dimension(imax), intent(inout) :: fg, eg, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
+real, dimension(imax), intent(inout) :: fg, eg, cls, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
 real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh, zoq, ga
 real, dimension(imax), intent(in) :: vmag, rho, azmin, uav, vav, ps, sgdn, sgsave, rgsave, swrsave
 real, dimension(imax), intent(in) :: fbeamvis, fbeamnir, f, condx, conds, condg, vmod, theta
@@ -1004,7 +1004,7 @@ end where                                                                       
 dumrg(:)=-rgsave(:)                                                                            ! MLO
 dumx(:)=condx(:)/dt ! total precip                                                             ! MLO
 dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
-call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,wetfac,epot,epan,fracice,sicedep,snowd,dt,          & ! MLO
+call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,cls,wetfac,epot,epan,fracice,sicedep,snowd,dt,      & ! MLO
              azmin,azmin,sgdn,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),                  & ! MLO
              ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                   & ! MLO
              depth,dgice,dgscrn,dgwater,ice,water,wfull,wpack,turb)                            ! MLO
@@ -1019,7 +1019,7 @@ end where                                                                       
                                                                                                ! MLO
 ! pan evaporation diagnostic                                                                   ! MLO
 umag = max( umod, vmodmin )                                                                    ! MLO
-qsttg = qsat(ps,tpan,imax)                                                                  ! MLO
+qsttg = qsat(ps,tpan,imax)                                                                     ! MLO
 ri = min(grav*zmin*(1.-tpan*srcp/t)/umag**2,ri_max)                                            ! MLO
                                                                                                ! MLO
 ! stuff to keep tpan over land working                                                         ! MLO
@@ -1028,7 +1028,7 @@ where (ri>0.)                                                                   
 elsewhere                                                                                      ! MLO
   fhd=umod-umod*2.*bprm*ri/(1.+chs*2.*bprm*chnsea*sqrt(-ri*zmin/panzo))                        ! MLO
 end where                                                                                      ! MLO
-qsttg = qsat(ps,tpan,imax)                                                                  ! MLO
+qsttg = qsat(ps,tpan,imax)                                                                     ! MLO
                                                                                                ! MLO
 where ( .not.land(1:imax) )                                                                    ! MLO
   snowd = snowd*1000.                                                                          ! MLO
@@ -1048,7 +1048,7 @@ elsewhere                                                                       
   tpan=tpan+ga*dt/(4186.*0.254*1000.)                                                          ! MLO
   epan=rho*chnsea*hl*fhd*(qsttg-qg)                                                            ! MLO
 end where                                                                                      ! MLO
-qsttg = qsat(ps,tss,imax)                                                                   ! MLO
+qsttg = qsat(ps,tss,imax)                                                                      ! MLO
 
 return
 end subroutine sflux_mlo_work
@@ -1109,7 +1109,7 @@ do tile=1,ntiles
                         qsttg(is:ie),rgsave(is:ie),rnet(is:ie),runoff(is:ie),sgdn(is:ie),sgsave(is:ie),              &
                         snowmelt(is:ie),t(is:ie,1),taux(is:ie),tauy(is:ie),tss(is:ie),u(is:ie,1),                    &
                         ustar(is:ie),v(is:ie,1),vmod(is:ie),wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),           &
-                        anthropogenic_flux(is:ie),urban_ts(is:ie),urban_wetfac(is:ie),urban_zom(is:ie),              &
+                        cls(is:ie),anthropogenic_flux(is:ie),urban_ts(is:ie),urban_wetfac(is:ie),urban_zom(is:ie),   &
                         urban_zoh(is:ie),urban_zoq(is:ie),urban_emiss(is:ie),urban_storage_flux(is:ie),              &
                         urban_elecgas_flux(is:ie),urban_heating_flux(is:ie),urban_cooling_flux(is:ie),               &
                         upack_g(:,tile),ufull_g(tile))
@@ -1120,11 +1120,11 @@ end do
 return
 end subroutine sflux_urban
 
-subroutine sflux_urban_work(azmin,oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,              &
+subroutine sflux_urban_work(azmin,oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,                      &
                             fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl, &
                             uzon,vmer,cdtq,cduv,                                                                  &
                             conds,condg,condx,eg,fg,ps,qg,qsttg,rgsave,rnet,runoff,sgdn,sgsave,snowmelt,          &
-                            t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,                                     &
+                            t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,cls,                                 &
                             anthropogenic_flux,urban_ts,urban_wetfac,urban_zom,urban_zoh,urban_zoq,urban_emiss,   &
                             urban_storage_flux,urban_elecgas_flux,urban_heating_flux,urban_cooling_flux,          &
                             upack,ufull)
@@ -1144,7 +1144,7 @@ integer, intent(in) :: ufull
 real, dimension(imax), intent(in) :: uzon,vmer
 real, dimension(imax) :: dumrg,dumx,dums
 real, dimension(imax) :: newsnowmelt
-real, dimension(imax) :: u_fg, u_eg, u_rn
+real, dimension(imax) :: u_fg, u_eg, u_rn, u_cls
 real, dimension(imax) :: zo_work, zoh_work, zoq_work, u_sigma
 real, dimension(imax) :: cduv_work, cdtq_work
 real, dimension(imax), intent(in) :: azmin, oldrunoff, rho, vmag, oldsnowmelt
@@ -1158,7 +1158,7 @@ real, dimension(imax), intent(inout) :: cdtq, cduv
 real, dimension(imax), intent(inout) :: eg, fg, qsttg
 real, dimension(imax), intent(inout) :: rnet, runoff, snowmelt
 real, dimension(imax), intent(inout) :: taux, tauy, tss, ustar, wetfac
-real, dimension(imax), intent(inout) :: zo, zoh, zoq
+real, dimension(imax), intent(inout) :: zo, zoh, zoq, cls
 real, dimension(imax), intent(in) :: qg, t, u, v
 logical, dimension(imax), intent(in) :: upack
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
@@ -1179,10 +1179,11 @@ u_eg = 0.                                                                       
 urban_ts = 0.                                                                                    ! urban
 urban_wetfac = 0.                                                                                ! urban
 u_rn = 0.                                                                                        ! urban
+u_cls = 0.                                                                                       ! urban
 ! call aTEB                                                                                      ! urban
-call atebcalc(u_fg,u_eg,urban_ts,urban_wetfac,u_rn,dt,azmin,sgdn,dumrg,dumx,dums,rho,    &       ! urban
-              t(1:imax),qg(1:imax),ps(1:imax),uzon,vmer,vmodmin,                         &       ! urban
-              fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road, &       ! urban
+call atebcalc(u_fg,u_eg,urban_ts,urban_wetfac,u_rn,u_cls,dt,azmin,sgdn,dumrg,dumx,dums,rho, &    ! urban
+              t(1:imax),qg(1:imax),ps(1:imax),uzon,vmer,vmodmin,                            &    ! urban
+              fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,    &    ! urban
               roof,room,slab,walle,wallw,cnveg,intl,upack,ufull,0,raw=.true.)                    ! urban
 u_sigma = unpack(fp%sigmau,upack,0.)                                                             ! urban
 where ( u_sigma>0. )                                                                             ! urban
@@ -1194,6 +1195,7 @@ where ( u_sigma>0. )                                                            
   ! easier to remove the new runoff and add it again after the                                   ! urban
   ! urban scheme has been updated                                                                ! urban
   runoff = oldrunoff + (1.-u_sigma)*(runoff-oldrunoff) + u_sigma*u_rn                            ! urban
+  cls = (1.-u_sigma)*cls + u_sigma*u_cls                                                         ! urban
 end where                                                                                        ! urban
 ! default urban roughness lengths                                                                ! urban
 urban_zom = 1.e-10                                                                               ! urban
@@ -1488,7 +1490,7 @@ real prz,dirad1,devf,ewwwa,delta_t0
 real delta_t,deltat,es,tsoil
 real, dimension(ifull) :: airr,cc,ccs,condxg,condsg,delta_tx,evapfb1,evapfb2,evapfb3,evapfb4
 real, dimension(ifull) :: evapfb5,evapfb1a,evapfb2a,evapfb3a,evapfb4a,evapfb5a,otgf,rmcmax
-real, dimension(ifull) :: tgfnew,evapfb,dqsttg,tstom,cls,omc
+real, dimension(ifull) :: tgfnew,evapfb,dqsttg,tstom,omc
 real, dimension(ifull) :: ftsoil,rlai,srlai,res,tsigmf,fgf,egg
 real, dimension(ifull) :: evapxf,ewww,fgg,rdg,rgg,residf,fev
 real, dimension(ifull) :: extin,dirad,dfgdt,degdt

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -25,7 +25,7 @@ implicit none
 
 private
 public condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
-public conds,condg
+public conds,condg,cls
 public anthropogenic_flux, urban_tas, urban_ts, urban_wetfac
 public urban_storage_flux, urban_elecgas_flux
 public urban_heating_flux, urban_cooling_flux
@@ -47,6 +47,7 @@ real, dimension(:), allocatable, save :: urban_heating_flux, urban_cooling_flux
 real, dimension(:), allocatable, save :: urban_zom, urban_zoh, urban_zoq, urban_emiss
 real, dimension(:), allocatable, save :: condc, condx, conds, condg, pblh, fg, eg
 real, dimension(:), allocatable, save :: ua150, va150, ua250, va250
+real, dimension(:), allocatable, save :: cls
 
 #ifdef scm
 real, dimension(:,:), allocatable, save :: wth_flux, wq_flux, uw_flux, vw_flux
@@ -78,6 +79,7 @@ allocate( anthropogenic_flux(ifull), urban_tas(ifull), urban_ts(ifull), urban_we
 allocate( urban_storage_flux(ifull), urban_elecgas_flux(ifull) )
 allocate( urban_heating_flux(ifull), urban_cooling_flux(ifull) )
 allocate( urban_zom(ifull), urban_zoh(ifull), urban_zoq(ifull), urban_emiss(ifull) )
+allocate( cls(ifull) )
 
 fg=0.
 eg=0.
@@ -102,6 +104,7 @@ urban_zom          = 0.
 urban_zoh          = 0.
 urban_zoq          = 0.
 urban_emiss        = 0.
+cls                = 1.
 
 #ifdef scm
 allocate( wth_flux(ifull,kl), wq_flux(ifull,kl) )
@@ -145,6 +148,7 @@ deallocate( anthropogenic_flux, urban_tas, urban_ts, urban_wetfac )
 deallocate( urban_storage_flux, urban_elecgas_flux )
 deallocate( urban_heating_flux, urban_cooling_flux )
 deallocate( urban_zom, urban_zoh, urban_zoq, urban_emiss )
+deallocate( cls )
 
 #ifdef scm
 deallocate( wth_flux, wq_flux, uw_flux, vw_flux )
