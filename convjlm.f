@@ -505,16 +505,16 @@
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
       integer, intent(in) :: imax, kl
       integer knet
-      real, dimension(:,:,:), contiguous, intent(inout)    :: xtg
-      real, dimension(:,:,:), contiguous, intent(inout)    :: tr
+      real, dimension(imax,kl,naero), intent(inout)    :: xtg
+      real, dimension(imax,kl,ntrac), intent(inout)    :: tr
       real, dimension(imax,kl), intent(in)         :: dpsldt
       real, dimension(imax,kl), intent(in)         :: cfrac
-      real, dimension(:,:), contiguous, intent(inout)          :: t
-      real, dimension(:,:), contiguous, intent(inout)          :: qg
-      real, dimension(:,:), contiguous, intent(inout)          :: qlg
-      real, dimension(:,:), contiguous, intent(inout)          :: qfg
-      real, dimension(:,:), contiguous, intent(inout)          :: u
-      real, dimension(:,:), contiguous, intent(inout)          :: v
+      real, dimension(imax,kl), intent(inout)          :: t
+      real, dimension(imax,kl), intent(inout)          :: qg
+      real, dimension(imax,kl), intent(inout)          :: qlg
+      real, dimension(imax,kl), intent(inout)          :: qfg
+      real, dimension(imax,kl), intent(inout)          :: u
+      real, dimension(imax,kl), intent(inout)          :: v
       real, dimension(imax,kl), intent(out)            :: fluxtot
       real, dimension(imax,ndust), intent(inout)       :: dustwd
       real, dimension(imax), intent(in)                :: alfin

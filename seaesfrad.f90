@@ -416,11 +416,13 @@ do iq_tile = 1,ifull,imax
         !else
           Aerosol_props%ivol(:,:,:) = 0 ! no mixing of bc with so4
         !end if
-    end select
+      end select
 
     ! define droplet size distribution ------------------------------
-    lxtg = xtg(istart:iend,:,:)
-    lxtosav = xtosav(istart:iend,:,:)
+    if ( abs(iaero)>=2 ) then
+      lxtg = xtg(istart:iend,:,:)
+      lxtosav = xtosav(istart:iend,:,:)
+    end if  
     call aerodrop(cd2,rhoa,lxtg,lxtosav,land(istart:iend),rlatt(istart:iend),imax,kl)
     
     ! Cloud fraction diagnostics ------------------------------------

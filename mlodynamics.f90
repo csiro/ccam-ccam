@@ -244,35 +244,12 @@ end subroutine mlodyninit
 subroutine mlodiffusion
 
 use cc_mpi
-use const_phys
-use indices_m
-use map_m
 use mlo
-use mlodynamicsarrays_m
 use newmpar_m
-use parm_m
-use soil_m
-use vecsuv_m
 
 implicit none
 
-integer k
-real hdif
-real, dimension(ifull+iextra,wlev,3) :: duma
-real, dimension(ifull+iextra,wlev) :: uau,uav
-real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
-real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull,wlev) :: u,v,tt,ss
-real, dimension(ifull,wlev) :: fs,base,outu,outv
-real, dimension(ifull,wlev) :: xfact_iwu, yfact_isv
-real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
-real, dimension(ifull) :: nu,nv,nw
-real, dimension(ifull) :: emi, emu_w, emv_s
-real, dimension(ifull) :: dep_e, dep_n
-real, dimension(ifull) :: duma_n, duma_s, duma_e, duma_w
-real, dimension(ifull) :: v_n, v_s, u_e, u_w
-real, dimension(ifull) :: t_kh_n, t_kh_e
-real, dimension(ifull) :: tx_fact, ty_fact
 
 call START_LOG(waterdiff_begin)
 
@@ -285,154 +262,17 @@ call mloexport3d(0,tt,0)
 call mloexport3d(1,ss,0)
 call mloexport3d(2,u,0)
 call mloexport3d(3,v,0)
-if ( abs(nmlo)>=3 ) then
-  do k = 1,wlev  
-    uau(1:ifull,k) = (av_vmod*u(1:ifull,k)+(1.-av_vmod)*oldu1(1:ifull,k))*ee(1:ifull,k)
-    uav(1:ifull,k) = (av_vmod*v(1:ifull,k)+(1.-av_vmod)*oldv1(1:ifull,k))*ee(1:ifull,k)
-  end do  
-else
-  do k = 1,wlev  
-    uau(1:ifull,k) = u(1:ifull,k)*ee(1:ifull,k)
-    uav(1:ifull,k) = v(1:ifull,k)*ee(1:ifull,k)
-  end do
-end if
-call boundsuv(uau,uav,allvec=.true.)
 
-! Define diffusion scale and grid spacing
-hdif = dt*(ocnsmag/pi)**2
-emi = dd(1:ifull)/em(1:ifull)
+call END_LOG(waterdiff_end)
 
-! calculate diffusion following Smagorinsky
-call unpack_svwu(emu,emv,emv_s,emu_w)
-do k = 1,wlev
-  call unpack_nveu(uau(:,k),uav(:,k),v_n,u_e)  
-  call unpack_svwu(uau(:,k),uav(:,k),v_s,u_w)
-  dudx = 0.5*((u_e-uau(1:ifull,k))*emu(1:ifull)        &
-             +(uau(1:ifull,k)-u_w)*emu_w)/ds
-  dudy = 0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull) &
-             +(uau(1:ifull,k)-uau(isu,k))*emv_s)/ds
-  dvdx = 0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull) &
-             +(uav(1:ifull,k)-uav(iwv,k))*emu_w)/ds
-  dvdy = 0.5*((v_n-uav(1:ifull,k))*emv(1:ifull)        &
-             +(uav(1:ifull,k)-v_s)*emv_s)/ds
-  t_kh(1:ifull,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi
-end do
-call bounds(t_kh(:,1:wlev),nehalf=.true.)
+call mlodiffusion_work(tt,ss,u,v)
 
-! reduce diffusion errors where bathymetry gradients are steep
-if ( mlosigma>=0 .and. mlosigma<=3 ) then
-  ! sigma levels  
-  do k = 1,wlev
-    dep(1:ifull,k) = gosig(1:ifull,k)*dd(1:ifull) !+ gosig(1:ifull,k)*eta(1:ifull)
-  end do  
-  call bounds(dep,nehalf=.true.)
-  do k = 1,wlev
-    call unpack_ne(dep(:,k),dep_n,dep_e)  
-    tx_fact = 1./(1.+(abs(dep_e-dep(1:ifull,k))/ocndelphi)**nf)
-    ty_fact = 1./(1.+(abs(dep_n-dep(1:ifull,k))/ocndelphi)**nf)
-    call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
-    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*tx_fact*eeu(1:ifull,k) ! reduction factor
-    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*ty_fact*eev(1:ifull,k) ! reduction factor
-  end do
-else
-  ! z* levels
-  do k = 1,wlev
-    call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
-    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*eeu(1:ifull,k)
-    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*eev(1:ifull,k)
-  end do
-end if
-call boundsuv(xfact,yfact,stag=-9)
+call START_LOG(waterdiff_begin)
 
-do k = 1,wlev
-  call unpack_svwu(xfact(:,k),yfact(:,k),yfact_isv(:,k),xfact_iwu(:,k))  
-  base(:,k) = emi + xfact(1:ifull,k) + xfact_iwu(:,k) + yfact(1:ifull,k) + yfact_isv(:,k)
-end do
-
-if ( mlodiff==0 ) then
-  ! Laplacian diffusion terms (closure #1)
-  do k = 1,wlev
-    duma(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
-    duma(1:ifull,k,2) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
-    duma(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
-  end do
-  call bounds(duma(:,:,1:3))
-  do k = 1,wlev
-    call unpack_nsew(duma(:,k,1),duma_n,duma_s,duma_e,duma_w)  
-    nu = ( duma(1:ifull,k,1)*emi +                      &
-           xfact(1:ifull,k)*duma_e +                    &
-           xfact_iwu(1:ifull,k)*duma_w +                &
-           yfact(1:ifull,k)*duma_n +                    &
-           yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
-    call unpack_nsew(duma(:,k,2),duma_n,duma_s,duma_e,duma_w)  
-    nv = ( duma(1:ifull,k,2)*emi +                      &
-           xfact(1:ifull,k)*duma_e +                    &
-           xfact_iwu(1:ifull,k)*duma_w +                &
-           yfact(1:ifull,k)*duma_n +                    &
-           yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
-    call unpack_nsew(duma(:,k,3),duma_n,duma_s,duma_e,duma_w)  
-    nw = ( duma(1:ifull,k,3)*emi +                      &
-           xfact(1:ifull,k)*duma_e +                    &
-           xfact_iwu(1:ifull,k)*duma_w +                &
-           yfact(1:ifull,k)*duma_n +                    &
-           yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
-    outu(1:ifull,k) = ax(1:ifull)*nu + ay(1:ifull)*nv + az(1:ifull)*nw
-    outv(1:ifull,k) = bx(1:ifull)*nu + by(1:ifull)*nv + bz(1:ifull)*nw
-  end do
-
-!  Laplacian diffusion and viscosity terms (closure #2)
-!  duma(1:ifull,:,1)=u(1:ifull,:)
-!  duma(1:ifull,:,2)=v(1:ifull,:)
-!  call boundsuv(duma(:,:,1),duma(:,:,2),allvec=.true.)
-!  do k=1,wlev
-!    outu(:,k)=(duma(1:ifull,k,1)*emi+2.*xfact(1:ifull,k)*duma(ieu,k,1)+2.*xfact(iwu,k)*duma(iwu,k,1) &
-!      +yfact(1:ifull,k)*duma(inu,k,1)+yfact(isv,k)*duma(isu,k,1)                                     &
-!      +(yfact(1:ifull,k)-yfact(isv,k))*0.5*(duma(iev,k,2)-duma(iwv,k,2))                             &
-!      +t_kh(1:ifull,k)*0.5*(duma(inv,k,2)+duma(iev,k,2)-duma(isv,k,2)-duma(iwv,k,2)))                &
-!      /base(:,k)
-!    outv(:,k)=(duma(1:ifull,k,2)*emi+2.*yfact(1:ifull,k)*duma(inv,k,2)+2.*yfact(isv,k)*duma(isv,k,2) &
-!      +xfact(1:ifull,k)*duma(iev,k,2)+xfact(iwu,k)*duma(iwv,k,2)                                     &
-!      +(xfact(1:ifull,k)-xfact(iwu,k))*0.5*(duma(inu,k,1)-duma(isu,k,1))                             &
-!      +t_kh(1:ifull,k)*0.5*(duma(inu,k,1)+duma(ieu,k,1)-duma(isu,k,1)-duma(iwu,k,1)))                &
-!      /base(:,k)
-!  end do
-
-  call mloimport3d(2,outu,0)
-  call mloimport3d(3,outv,0)
-  
-else if ( mlodiff==1 ) then
-  outu(1:ifull,:) = u(1:ifull,:)
-  outv(1:ifull,:) = v(1:ifull,:)
-  ! no need to call mloimport3d for u and v
-else
-  write(6,*) "ERROR: Unknown option for mlodiff = ",mlodiff
-  call ccmpi_abort(-1)
-end if
-
-! Potential temperature and salinity
-duma(1:ifull,:,1) = tt(1:ifull,:)
-duma(1:ifull,:,2) = ss(1:ifull,:) - 34.72
-call bounds(duma(:,:,1:2))
-do k = 1,wlev
-  call unpack_nsew(duma(:,k,1),duma_n,duma_s,duma_e,duma_w)  
-  fs(:,k) = ( duma(1:ifull,k,1)*emi +                      &
-              xfact(1:ifull,k)*duma_e +                    &
-              xfact_iwu(1:ifull,k)*duma_w +                &
-              yfact(1:ifull,k)*duma_n +                    &
-              yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
-end do
-fs = max(fs, -wrtemp)
-call mloimport3d(0,fs,0)
-do k = 1,wlev
-  call unpack_nsew(duma(:,k,2),duma_n,duma_s,duma_e,duma_w)    
-  fs(:,k) = ( duma(1:ifull,k,2)*emi +                      &
-              xfact(1:ifull,k)*duma_e +                    &
-              xfact_iwu(1:ifull,k)*duma_w +                &
-              yfact(1:ifull,k)*duma_n +                    &
-              yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
-end do
-fs = max(fs+34.72, 0.)
-call mloimport3d(1,fs,0)
+call mloimport3d(0,tt,0)
+call mloimport3d(1,ss,0)
+call mloimport3d(2,u,0)
+call mloimport3d(3,v,0)
 
 call END_LOG(waterdiff_end)
 
@@ -1486,12 +1326,20 @@ workv = nv(1:ifull,:)
 call mlocheck("end of mlodynamics",water_u=worku,water_v=workv,ice_tsurf=nit(1:ifull,1))
 
 
+! HORIZONTAL DIFFUSION -----------------------------------------------------
+w_t = nt(1:ifull,:)
+w_s = ns(1:ifull,:)
+w_u = nu(1:ifull,:)
+w_v = nv(1:ifull,:)
+call mlodiffusion_work(w_t,w_s,w_u,w_v)
+
+
 ! STORE WATER AND ICE DATA IN MLO ------------------------------------------
 call mloimport(4,neta(1:ifull),0,0)
-call mloimport3d(0,nt,0)
-call mloimport3d(1,ns,0)
-call mloimport3d(2,nu,0)
-call mloimport3d(3,nv,0)
+call mloimport3d(0,w_t,0)
+call mloimport3d(1,w_s,0)
+call mloimport3d(2,w_u,0)
+call mloimport3d(3,w_v,0)
 do ii = 1,4
   call mloimpice(nit(1:ifull,ii),ii,0)
 end do
@@ -3523,8 +3371,6 @@ if (.not.allocated(wtul)) then
       dtvr(1:ifull,k,1)=0.1
       dtvr(1:ifull,k,2)=1.
       dtvr(1:ifull,k,3)=0.5
-      !vd(1:ifull,k)=vin(inv,k)*0.1+vin(1:ifull,k)+vin(isv,k)*0.5
-      !vin(1:ifull,k)=vd(:,k)-va(isv,k)*0.1-va(inv,k)*0.5
     elsewhere (evstest)
       wtvr(1:ifull,k,0)=1.
       wtvr(1:ifull,k,1)=-0.5
@@ -4784,4 +4630,190 @@ call mgmlo(neta,ipice,yy,yyn,yys,yye,yyw,zz,zzn,zzs,zze,zzw,   &
 return
 end subroutine mlomg
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine processes horizontal diffusion, based on Griffies (2000)
+! and McGregor's hordifg.f routines for CCAM.
+subroutine mlodiffusion_work(tt,ss,u,v)
+
+use cc_mpi
+use const_phys
+use indices_m
+use map_m
+use mlo
+use mlodynamicsarrays_m
+use newmpar_m
+use parm_m
+use soil_m
+use vecsuv_m
+
+implicit none
+
+integer k
+real hdif
+real, dimension(ifull+iextra,wlev,3) :: duma
+real, dimension(ifull+iextra,wlev) :: uau,uav
+real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
+real, dimension(ifull+iextra,wlev+1) :: t_kh
+real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
+real, dimension(ifull,wlev) :: base
+real, dimension(ifull,wlev) :: xfact_iwu, yfact_isv
+real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
+real, dimension(ifull) :: nu,nv,nw
+real, dimension(ifull) :: emi, emu_w, emv_s
+real, dimension(ifull) :: dep_e, dep_n
+real, dimension(ifull) :: duma_n, duma_s, duma_e, duma_w
+real, dimension(ifull) :: v_n, v_s, u_e, u_w
+real, dimension(ifull) :: t_kh_n, t_kh_e
+real, dimension(ifull) :: tx_fact, ty_fact
+
+call START_LOG(waterdiff_begin)
+
+if ( abs(nmlo)>=3 ) then
+  do k = 1,wlev  
+    uau(1:ifull,k) = (av_vmod*u(1:ifull,k)+(1.-av_vmod)*oldu1(1:ifull,k))*ee(1:ifull,k)
+    uav(1:ifull,k) = (av_vmod*v(1:ifull,k)+(1.-av_vmod)*oldv1(1:ifull,k))*ee(1:ifull,k)
+  end do  
+else
+  do k = 1,wlev  
+    uau(1:ifull,k) = u(1:ifull,k)*ee(1:ifull,k)
+    uav(1:ifull,k) = v(1:ifull,k)*ee(1:ifull,k)
+  end do
+end if
+call boundsuv(uau,uav,allvec=.true.)
+
+! Define diffusion scale and grid spacing
+hdif = dt*(ocnsmag/pi)**2
+emi = dd(1:ifull)/em(1:ifull)
+
+! calculate diffusion following Smagorinsky
+call unpack_svwu(emu,emv,emv_s,emu_w)
+do k = 1,wlev
+  call unpack_nveu(uau(:,k),uav(:,k),v_n,u_e)  
+  call unpack_svwu(uau(:,k),uav(:,k),v_s,u_w)
+  dudx = 0.5*((u_e-uau(1:ifull,k))*emu(1:ifull)        &
+             +(uau(1:ifull,k)-u_w)*emu_w)/ds
+  dudy = 0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull) &
+             +(uau(1:ifull,k)-uau(isu,k))*emv_s)/ds
+  dvdx = 0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull) &
+             +(uav(1:ifull,k)-uav(iwv,k))*emu_w)/ds
+  dvdy = 0.5*((v_n-uav(1:ifull,k))*emv(1:ifull)        &
+             +(uav(1:ifull,k)-v_s)*emv_s)/ds
+  t_kh(1:ifull,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi
+end do
+call bounds(t_kh(:,1:wlev),nehalf=.true.)
+
+! reduce diffusion errors where bathymetry gradients are steep
+if ( mlosigma>=0 .and. mlosigma<=3 ) then
+  ! sigma levels  
+  do k = 1,wlev
+    dep(1:ifull,k) = gosig(1:ifull,k)*dd(1:ifull) !+ gosig(1:ifull,k)*eta(1:ifull)
+  end do  
+  call bounds(dep,nehalf=.true.)
+  do k = 1,wlev
+    call unpack_ne(dep(:,k),dep_n,dep_e)  
+    tx_fact = 1./(1.+(abs(dep_e-dep(1:ifull,k))/ocndelphi)**nf)
+    ty_fact = 1./(1.+(abs(dep_n-dep(1:ifull,k))/ocndelphi)**nf)
+    call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
+    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*tx_fact*eeu(1:ifull,k) ! reduction factor
+    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*ty_fact*eev(1:ifull,k) ! reduction factor
+  end do
+else
+  ! z* levels
+  do k = 1,wlev
+    call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
+    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*eeu(1:ifull,k)
+    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*eev(1:ifull,k)
+  end do
+end if
+call boundsuv(xfact,yfact,stag=-9)
+
+do k = 1,wlev
+  call unpack_svwu(xfact(:,k),yfact(:,k),yfact_isv(:,k),xfact_iwu(:,k))  
+  base(:,k) = emi + xfact(1:ifull,k) + xfact_iwu(:,k) + yfact(1:ifull,k) + yfact_isv(:,k)
+end do
+
+if ( mlodiff==0 ) then
+  ! Laplacian diffusion terms (closure #1)
+  do k = 1,wlev
+    duma(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
+    duma(1:ifull,k,2) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
+    duma(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
+  end do
+  call bounds(duma(:,:,1:3))
+  do k = 1,wlev
+    call unpack_nsew(duma(:,k,1),duma_n,duma_s,duma_e,duma_w)  
+    nu = ( duma(1:ifull,k,1)*emi +                      &
+           xfact(1:ifull,k)*duma_e +                    &
+           xfact_iwu(1:ifull,k)*duma_w +                &
+           yfact(1:ifull,k)*duma_n +                    &
+           yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
+    call unpack_nsew(duma(:,k,2),duma_n,duma_s,duma_e,duma_w)  
+    nv = ( duma(1:ifull,k,2)*emi +                      &
+           xfact(1:ifull,k)*duma_e +                    &
+           xfact_iwu(1:ifull,k)*duma_w +                &
+           yfact(1:ifull,k)*duma_n +                    &
+           yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
+    call unpack_nsew(duma(:,k,3),duma_n,duma_s,duma_e,duma_w)  
+    nw = ( duma(1:ifull,k,3)*emi +                      &
+           xfact(1:ifull,k)*duma_e +                    &
+           xfact_iwu(1:ifull,k)*duma_w +                &
+           yfact(1:ifull,k)*duma_n +                    &
+           yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
+    u(1:ifull,k) = ax(1:ifull)*nu + ay(1:ifull)*nv + az(1:ifull)*nw
+    v(1:ifull,k) = bx(1:ifull)*nu + by(1:ifull)*nv + bz(1:ifull)*nw
+  end do
+
+!  Laplacian diffusion and viscosity terms (closure #2)
+!  duma(1:ifull,:,1)=u(1:ifull,:)
+!  duma(1:ifull,:,2)=v(1:ifull,:)
+!  call boundsuv(duma(:,:,1),duma(:,:,2),allvec=.true.)
+!  do k=1,wlev
+!    outu(:,k)=(duma(1:ifull,k,1)*emi+2.*xfact(1:ifull,k)*duma(ieu,k,1)+2.*xfact(iwu,k)*duma(iwu,k,1) &
+!      +yfact(1:ifull,k)*duma(inu,k,1)+yfact(isv,k)*duma(isu,k,1)                                     &
+!      +(yfact(1:ifull,k)-yfact(isv,k))*0.5*(duma(iev,k,2)-duma(iwv,k,2))                             &
+!      +t_kh(1:ifull,k)*0.5*(duma(inv,k,2)+duma(iev,k,2)-duma(isv,k,2)-duma(iwv,k,2)))                &
+!      /base(:,k)
+!    outv(:,k)=(duma(1:ifull,k,2)*emi+2.*yfact(1:ifull,k)*duma(inv,k,2)+2.*yfact(isv,k)*duma(isv,k,2) &
+!      +xfact(1:ifull,k)*duma(iev,k,2)+xfact(iwu,k)*duma(iwv,k,2)                                     &
+!      +(xfact(1:ifull,k)-xfact(iwu,k))*0.5*(duma(inu,k,1)-duma(isu,k,1))                             &
+!      +t_kh(1:ifull,k)*0.5*(duma(inu,k,1)+duma(ieu,k,1)-duma(isu,k,1)-duma(iwu,k,1)))                &
+!      /base(:,k)
+!  end do
+  
+else if ( mlodiff==1 ) then
+  ! no need to call mloimport3d for u and v
+else
+  write(6,*) "ERROR: Unknown option for mlodiff = ",mlodiff
+  call ccmpi_abort(-1)
+end if
+
+! Potential temperature and salinity
+duma(1:ifull,:,1) = tt(1:ifull,:)
+duma(1:ifull,:,2) = ss(1:ifull,:) - 34.72
+call bounds(duma(:,:,1:2))
+do k = 1,wlev
+  call unpack_nsew(duma(:,k,1),duma_n,duma_s,duma_e,duma_w)  
+  tt(:,k) = ( duma(1:ifull,k,1)*emi +                      &
+              xfact(1:ifull,k)*duma_e +                    &
+              xfact_iwu(1:ifull,k)*duma_w +                &
+              yfact(1:ifull,k)*duma_n +                    &
+              yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
+end do
+tt = max(tt, -wrtemp)
+
+do k = 1,wlev
+  call unpack_nsew(duma(:,k,2),duma_n,duma_s,duma_e,duma_w)    
+  ss(:,k) = ( duma(1:ifull,k,2)*emi +                      &
+              xfact(1:ifull,k)*duma_e +                    &
+              xfact_iwu(1:ifull,k)*duma_w +                &
+              yfact(1:ifull,k)*duma_n +                    &
+              yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
+end do
+ss = max(ss+34.72, 0.)
+
+call END_LOG(waterdiff_end)
+
+return
+end subroutine mlodiffusion_work              
+                 
 end module mlodynamics

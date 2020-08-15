@@ -479,12 +479,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! nmlo>9   Use external PCOM ocean model
   
   if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
-    ! DYNAMICS ------------------------------------------------------------
+    ! DYNAMICS & DIFFUSION ------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlohadv
     call END_LOG(waterdynamics_end)
-  end if
-  if ( abs(nmlo)>=2 .and. abs(nmlo)<=9 ) then
+  else if ( abs(nmlo)==2 ) then
     ! DIFFUSION -----------------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlodiffusion

@@ -3293,6 +3293,9 @@ ncstatus = nf90_create(fname,nf90_64bit_offset,lncid)
 ncstatus = nf90_create(fname,nf90_netcdf4,lncid)
 #endif
 ncid = lncid
+if ( ncstatus/=nf90_noerr ) then
+  write(6,*) "ERROR: Cannot create fname = ",trim(fname)
+end if
 call ncmsg("create",ncstatus)
 
 return
