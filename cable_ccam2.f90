@@ -2717,6 +2717,7 @@ if ( mp_global>0 ) then
   cable_user%l_new_roughness_soil = .false.
   cable_user%l_rev_corr = .true.
   cable_user%gw_model = cable_gw_model==1
+  cable_runtime%UM = .false.
   select case ( cable_climate )
     case(1)
       cable_user%call_climate = .true.
