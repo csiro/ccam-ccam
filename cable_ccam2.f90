@@ -364,7 +364,7 @@ do tile = 1,ntiles
                    sigmf(is:ie),lsmass,snage(is:ie),snowd(is:ie),snowmelt(is:ie),lssdn,ssdnn(is:ie),                     &
                    sv(js:je),sgdn(is:ie),swrsave(is:ie),t(is:ie,1),ltgg,ltggsn,theta(is:ie),ltind,ltmap,                 &
                    latmco2,tss(is:ie),ustar(is:ie),vlai(is:ie),vl1(js:je),vl2(js:je),vl3(js:je),vl4(js:je),vmod(is:ie),  &
-                   lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),cls(is:ie),lair,lbal,c,lcanopy,              &
+                   lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),evspsbl(is:ie),lair,lbal,c,lcanopy,          &
                    lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,    &
                    lsum_flux,lveg,lclimate_iveg,lclimate_biome,lclimate_min20,lclimate_max20,lclimate_alpha20,           &
                    lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover,        &
@@ -426,10 +426,10 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      frpw,frs,fwet,ga,isflag,land,maxnb,mp,nilitter,niplant,nisoil,plitter,pplant,ps,           &
                      psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sigmf,smass,           &
                      snage,snowd,snowmelt,ssdn,ssdnn,sv,sgdn,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,    &
-                     ustar,vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,cls,air,bal,c,canopy,casabal,   &
-                     casabiome,casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,sum_flux,    &
-                     veg,climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,climate_agdd5, &
-                     climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,plant_turnover,                 &
+                     ustar,vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,evspsbl,air,bal,c,canopy,       &
+                     casabal,casabiome,casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,     &
+                     sum_flux,veg,climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,      &
+                     climate_agdd5,climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,plant_turnover,   &
                      plant_turnover_wood,climate_save,imax)
 
 use const_phys
@@ -463,26 +463,26 @@ real, dimension(imax,msoil), intent(inout) :: csoil, nisoil, psoil
 real, dimension(imax,ms), intent(inout) :: tgg, wb, wbice
 real, dimension(imax,3), intent(inout) :: smass, ssdn, tggsn
 real, dimension(imax), intent(inout) :: albnirdif, albnirdir, albnirsav, albvisdif, albvisdir, albvissav
-real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot, fg, fnee, fpn, frd
+real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot, fg, fnee, fpn, frd, evspsbl
 real, dimension(imax), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, rnet, rsmin, runoff
 real, dimension(imax), intent(inout) :: runoff_surface, sigmf, snage, snowd, snowmelt, ssdnn, tss, ustar
-real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq, cls
+real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
 real, dimension(imax), intent(inout) :: climate_min20, climate_max20, climate_alpha20
 real, dimension(imax), intent(inout) :: climate_agdd5
 real, dimension(imax), intent(inout) :: climate_dmoist_min20, climate_dmoist_max20
 real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
 real, dimension(imax), intent(in) :: sgdn, swrsave, theta, vmod
-real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land
+real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land, cls
 real, dimension(mp), intent(in) :: sv, vl1, vl2, vl3, vl4
-real(kind=8) :: dtr8
+real(kind=8) dtr8
 real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
 real(kind=8), dimension(mp) :: nleaf2met, nleaf2str, nroot2met, nroot2str, nwood2cwd
 real(kind=8), dimension(mp) :: pleaf2met, pleaf2str, proot2met, proot2str, pwood2cwd
 real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
 real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
-real(r_2), dimension(mp,ms) :: bwb, btgg
+!real(r_2), dimension(mp,ms) :: bwb, btgg ! for budget calculation
 logical, dimension(imax,maxtile), intent(in) :: tmap
 logical, dimension(imax), intent(in) :: land
 type(air_type), intent(inout) :: air
@@ -524,8 +524,8 @@ call solargh(fjd,bpyear,r1,dlt,alp,slag)
 call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,imax,coszro2,taudar2)
 
 ! store soil temperature and moisture for budget calculation
-bwb(:,:) = ssnow%wb(:,:)
-btgg(:,:) = ssnow%tgg(:,:)
+!bwb(:,:) = ssnow%wb(:,:)
+!btgg(:,:) = ssnow%tgg(:,:)
 
 ! run CASA CNP once per day
 casaperiod = nint(86400._8*deltpool)
@@ -547,7 +547,7 @@ do nb = 1,maxnb
   met%ua(is:ie)        = real(pack(vmod,       tmap(:,nb)), 8)
   met%ca(is:ie)        = real(pack(atmco2,     tmap(:,nb))*1.e-6, 8)
   met%coszen(is:ie)    = real(pack(coszro2,    tmap(:,nb)), 8)        ! use instantaneous value
-  met%qv(is:ie)        = real(pack(qg(1:imax), tmap(:,nb)),8 )        ! specific humidity in kg/kg
+  met%qv(is:ie)        = real(pack(qg(1:imax), tmap(:,nb)), 8)        ! specific humidity in kg/kg
   met%pmb(is:ie)       = real(pack(ps(1:imax), tmap(:,nb))*0.01, 8)   ! pressure in mb at ref height
   met%precip(is:ie)    = real(pack(condx,      tmap(:,nb)), 8)        ! in mm not mm/sec
   met%precip_sn(is:ie) = real(pack(conds+condg,tmap(:,nb)), 8)        ! in mm not mm/sec
@@ -606,25 +606,25 @@ select case ( soil_struc )
     stop
 end select
 ! adjust for new soil temperature
-ssnow%deltss     = ssnow%tss - ssnow%otss
+ssnow%deltss = ssnow%tss - ssnow%otss
 if ( soil_struc==0 ) then
-  canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
-  canopy%fes       = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
-  canopy%fns       = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
-  canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
-  !canopy%fhs_cor  = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
-  !canopy%fes_cor  = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
-  !canopy%fns_cor  = canopy%fns_cor + ssnow%deltss*ssnow%dfn_dtg
-  !canopy%ga_cor   = canopy%ga_cor + ssnow%deltss*canopy%dgdtg
+  canopy%fhs      = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
+  canopy%fes      = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
+  canopy%fns      = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
+  canopy%ga       = canopy%ga  + ssnow%deltss*canopy%dgdtg
+  !canopy%fhs_cor = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
+  !canopy%fes_cor = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
+  !canopy%fns_cor = canopy%fns_cor + ssnow%deltss*ssnow%dfn_dtg
+  !canopy%ga_cor  = canopy%ga_cor + ssnow%deltss*canopy%dgdtg
   ! MJT fix
   ssnow%wb(:,ms) = ssnow%wb(:,ms) - (ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg)*dtr8 &
                                    /(ssnow%cls*air%rlam*soil%zse(ms)*1000._8) 
 end if
-canopy%fh        = canopy%fhv + canopy%fhs
-canopy%fev       = canopy%fevc + canopy%fevw
-canopy%fe        = canopy%fev + canopy%fes
-canopy%rnet      = canopy%fns + canopy%fnv
-rad%trad         = ( (1._8-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25_8
+canopy%fh   = canopy%fhv + canopy%fhs
+canopy%fev  = canopy%fevc + canopy%fevw
+canopy%fe   = canopy%fev + canopy%fes
+canopy%rnet = canopy%fns + canopy%fnv
+rad%trad    = ( (1._8-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25_8
 
 ! note that conservation is still preserved at this point
 ! canopy%ga    = canopy%rnet - canopy%fh - canopy%fe
@@ -882,13 +882,8 @@ where ( land(1:imax) )
   ssdnn = 0.
   snowd = 0.
   snage = 0.
-  cls = 0.
-  ! screen and 10m diagnostics - rhscrn calculated in sflux.f
-  !tscrn = 0.
-  !uscrn = 0.
-  !qgscrn = 0.
-  !u10 = 0.
 end where
+cls = 0.
 tmps = 0. ! average isflag
 
 do nb = 1,maxnb
@@ -937,9 +932,6 @@ do nb = 1,maxnb
   epot = epot + unpack(sv(is:ie)*real(ssnow%potev(is:ie)),tmap(:,nb),0.)         ! diagnostic in history file
   vlai = vlai + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,nb),0.)
   rsmin = rsmin + unpack(sv(is:ie)*real(canopy%gswx_T(is:ie)),tmap(:,nb),0.)     ! diagnostic in history file
-  !tscrn = tscrn + unpack(sv(is:ie)*real(canopy%tscrn(is:ie)),tmap(:,nb),0.)
-  !uscrn = uscrn + unpack(sv(is:ie)*real(canopy%uscrn(is:ie)),tmap(:,nb),0.)
-  !qgscrn = qgscrn + unpack(sv(is:ie)*real(canopy%qscrn(is:ie)),tmap(:,nb),0.)
 end do
 
 if ( ccycle/=0 ) then
@@ -996,12 +988,12 @@ if ( ccycle/=0 ) then
     cnpp = cnpp + unpack(sv(is:ie)*real(casaflux%cnpp(is:ie))/real(casaperiod),tmap(:,nb),0.)
     cnbp = cnbp + unpack(sv(is:ie)*real(casaflux%Crsoil(is:ie)-casaflux%cnpp(is:ie)-casapool%dClabiledt(is:ie)) &
         /real(casaperiod),tmap(:,nb),0.)
-    if ( diaglevel_carbon > 0 ) then
+    if ( diaglevel_carbon>0 ) then
       fevc = fevc + unpack(sv(is:ie)*real(canopy%fevc(is:ie)),  tmap(:,nb),0.)
       plant_turnover      = plant_turnover      + unpack(sv(is:ie)* &
-                            real(sum(casaflux%Cplant_turnover(is:ie,:),2))/real(casaperiod),  tmap(:,nb),0.)
+                            real(sum(casaflux%Cplant_turnover(is:ie,:),2))/real(casaperiod),tmap(:,nb),0.)
       plant_turnover_wood = plant_turnover_wood + unpack(sv(is:ie)* &
-                            real(casaflux%Cplant_turnover(is:ie,2))/real(casaperiod),         tmap(:,nb),0.)
+                            real(casaflux%Cplant_turnover(is:ie,2))/real(casaperiod),tmap(:,nb),0.)
     end if
   end do
 end if
@@ -1032,6 +1024,7 @@ where ( land(1:imax) )
   cdtq      = cdtq*vmod
   tss       = tss**0.25
   rsmin     = 1./rsmin
+  evspsbl   = evspsbl + eg/(hl*cls)
   ! update albedo and tss before calculating net radiation
   albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif ! for nrad=4
   albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif ! for nrad=4 

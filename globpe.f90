@@ -920,7 +920,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     ! produce some diags & reset most averages once every nperavg
     if ( nmaxpr==1 ) then
       precavge = sum(precip(1:ifull)*wts(1:ifull))
-      evapavge = sum(evap(1:ifull)*wts(1:ifull))   ! in mm/day
+      evapavge = sum(evspsbl(1:ifull)*wts(1:ifull))   ! in mm/day
       pwatr    = 0.   ! in mm
       do k = 1,kl
         pwatr = pwatr - sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))/grav
@@ -3726,7 +3726,6 @@ epot_ave(:)          = 0.
 eg_ave(:)            = 0.
 fg_ave(:)            = 0.
 ga_ave(:)            = 0.
-evspsbl(:)           = 0.
 anthropogenic_ave(:) = 0.
 urban_storage_ave(:) = 0.
 anth_elecgas_ave(:)  = 0.
@@ -3766,7 +3765,8 @@ clh_ave(:)           = 0.
 dni_ave(:)           = 0.
 
 ! zero evap, precip, precc, sno, runoff fields each nperavg (3/12/04) 
-evap(:)              = 0.  
+!evap(:)             = 0.  
+evspsbl(:)           = 0.
 precip(:)            = 0.  ! converted to mm/day in outcdf
 precc(:)             = 0.  ! converted to mm/day in outcdf
 sno(:)               = 0.  ! converted to mm/day in outcdf
@@ -3934,7 +3934,6 @@ epot_ave(1:ifull)          = epot_ave(1:ifull) + epot
 eg_ave(1:ifull)            = eg_ave(1:ifull) + eg    
 fg_ave(1:ifull)            = fg_ave(1:ifull) + fg
 ga_ave(1:ifull)            = ga_ave(1:ifull) + ga
-evspsbl(1:ifull)           = evspsbl(1:ifull) + eg/(hl*cls)
 anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
 urban_storage_ave(1:ifull) = urban_storage_ave(1:ifull) + urban_storage_flux
 anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull) + urban_elecgas_flux
@@ -4018,7 +4017,6 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   eg_ave(1:ifull)            = eg_ave(1:ifull)/min(ntau,nperavg)
   fg_ave(1:ifull)            = fg_ave(1:ifull)/min(ntau,nperavg)
   ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg) 
-  evspsbl(1:ifull)           = evspsbl(1:ifull)/min(ntau,nperavg)
   anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull)/min(ntau,nperavg)
   urban_storage_ave(1:ifull) = urban_storage_ave(1:ifull)/min(ntau,nperavg)
   anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull)/min(ntau,nperavg)
@@ -4193,7 +4191,7 @@ if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
     pwater = pwater-dsig(k)*qtot*ps(iq)/grav
   enddo
   write (6,"('pwater,condc,condx,rndmax,rmc',9f8.3)") pwater,condc(idjd),condx(idjd),rndmax(idjd),cansto(idjd)
-  write (6,"('wetfac,sno,evap,precc,precip',6f8.2)") wetfac(idjd),sno(idjd),evap(idjd),precc(idjd),precip(idjd)
+  write (6,"('wetfac,sno,evap,precc,precip',6f8.2)") wetfac(idjd),sno(idjd),evspsbl(idjd),precc(idjd),precip(idjd)
   write (6,"('tmin,tmax,tscr,tss,tpan',9f8.2)") tminscr(idjd),tmaxscr(idjd),tscrn(idjd),tss(idjd),tpan(idjd)
   write (6,"('u10,ustar,pblh',9f8.2)") u10(idjd),ustar(idjd),pblh(idjd)
   write (6,"('ps,qgscrn',5f8.2,f8.3)") .01*ps(idjd),1000.*qgscrn(idjd)

@@ -1856,8 +1856,8 @@ end subroutine mloexpgamm
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
 
-subroutine mloeval_standard(sst,zo,cd,cds,umod,fg,eg,cls,wetfac,epot,epan,fracice,siced,snowd, &
-                   dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,                     &
+subroutine mloeval_standard(sst,zo,cd,cds,umod,fg,eg,evspsbl,wetfac,epot,epan,fracice,siced, &
+                   snowd,dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,             &
                    visnirratio,fbvis,fbnir,inflow,diag,calcprog)                   
 
 implicit none
@@ -1866,7 +1866,7 @@ integer, intent(in) :: diag
 integer tile, is, ie
 real, intent(in) :: dt
 real, dimension(:), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
-real, dimension(:), intent(inout) :: sst,zo,cd,cds,umod,fg,eg,cls,wetfac,fracice,siced,epot,epan,snowd
+real, dimension(:), intent(inout) :: sst,zo,cd,cds,umod,fg,eg,evspsbl,wetfac,fracice,siced,epot,epan,snowd
 logical, intent(in) :: calcprog ! flag to update prognostic variables (or just calculate fluxes)
 
 do tile = 1,ntiles
@@ -1874,8 +1874,8 @@ do tile = 1,ntiles
   ie = tile*imax
   if ( wfull_g(tile)>0 ) then
     call mloeval_thread(sst(is:ie),zo(is:ie),cd(is:ie),cds(is:ie),umod(is:ie),fg(is:ie),eg(is:ie),    &
-                       cls(is:ie),wetfac(is:ie),epot(is:ie),epan(is:ie),fracice(is:ie),siced(is:ie),  &
-                       snowd(is:ie),dt,zmin(is:ie),zmins(is:ie),sg(is:ie),rg(is:ie),                  &
+                       evspsbl(is:ie),wetfac(is:ie),epot(is:ie),epan(is:ie),fracice(is:ie),           &
+                       siced(is:ie),snowd(is:ie),dt,zmin(is:ie),zmins(is:ie),sg(is:ie),rg(is:ie),     &
                        precp(is:ie),precs(is:ie),uatm(is:ie),vatm(is:ie),temp(is:ie),                 &
                        qg(is:ie),ps(is:ie),f(is:ie),visnirratio(is:ie),fbvis(is:ie),                  &
                        fbnir(is:ie),inflow(is:ie),diag,calcprog,                                      &
@@ -1887,10 +1887,10 @@ end do
 return
 end subroutine mloeval_standard
                    
-subroutine mloeval_thread(sst,zo,cd,cds,umod,fg,eg,cls,wetfac,epot,epan,fracice,siced,snowd, &
-                   dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,                   &
-                   visnirratio,fbvis,fbnir,inflow,diag,calcprog,                             &
-                   depth,dgice,dgscrn,dgwater,ice,water,                                     &
+subroutine mloeval_thread(sst,zo,cd,cds,umod,fg,eg,evspsbl,wetfac,epot,epan,fracice,siced, &
+                   snowd,dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,           &
+                   visnirratio,fbvis,fbnir,inflow,diag,calcprog,                           &
+                   depth,dgice,dgscrn,dgwater,ice,water,                                   &
                    wfull,wpack,turb)                   
 
 implicit none
@@ -1898,7 +1898,7 @@ implicit none
 integer, intent(in) :: wfull, diag
 real, intent(in) :: dt
 real, dimension(imax), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
-real, dimension(imax), intent(inout) :: sst,zo,cd,cds,umod,fg,eg,cls,wetfac,fracice,siced,epot,epan,snowd
+real, dimension(imax), intent(inout) :: sst,zo,cd,cds,umod,fg,eg,evspsbl,wetfac,fracice,siced,epot,epan,snowd
 type(dgicedata), intent(inout) :: dgice
 type(dgscrndata), intent(inout) :: dgscrn
 type(dgwaterdata), intent(inout) :: dgwater
@@ -1952,7 +1952,7 @@ epot   =unpack((1.-ice%fracice)*dgwater%eg  +ice%fracice*dgice%eg/max(dgice%wetf
 fracice=unpack(ice%fracice,wpack,0.)
 siced  =unpack(ice%thick,wpack,0.)
 snowd  =unpack(ice%snowd,wpack,snowd)
-cls    =unpack((1.-ice%fracice)*1  +ice%fracice*ls/lv,wpack,cls)
+evspsbl=unpack((1.-ice%fracice)*dgwater%eg/lv+ice%fracice*dgice%eg/ls,wpack,0.)
 
 return
 end subroutine mloeval_thread
@@ -3934,7 +3934,7 @@ dt_salflx = dt_salflx + dhb*rhoic/dt
 
 ! Surface evap/sublimation (can be >0 or <0)
 ! Note : dt*eg/hl in Kgm/m**2 => mms of water
-subl=dt*pt_egice*lf/(lv*qsnow)        ! net snow+ice sublimation
+subl=dt*pt_egice*ls/(lv*qsnow)        ! net snow+ice sublimation
 ssubl=min(subl,it_dsn)                ! snow only component of sublimation
 isubl=(subl-ssubl)*rhosn/rhoic        ! ice only component of sublimation
 it_dsn=it_dsn-ssubl
@@ -4077,7 +4077,7 @@ dt_salflx=dt_salflx+dhb*rhoic/dt
 
 ! Surface evap/sublimation (can be >0 or <0)
 ! Note : dt*eg/hl in Kgm/m**2 => mms of water
-subl=dt*pt_egice*lf/(lv*qsnow)        ! net snow+ice sublimation
+subl=dt*pt_egice*ls/(lv*qsnow)        ! net snow+ice sublimation
 ssubl=min(subl,it_dsn)                ! snow only component of sublimation
 isubl=(subl-ssubl)*rhosn/rhoic        ! ice only component of sublimation
 it_dsn=it_dsn-ssubl
@@ -4219,7 +4219,7 @@ it_dic=it_dic+dhb
 dt_salflx=dt_salflx+dhb*rhoic/dt
 
 ! Surface evap/sublimation (can be >0 or <0)
-subl=dt*pt_egice*lf/(lv*qsnow)
+subl=dt*pt_egice*ls/(lv*qsnow)
 ssubl=min(subl,it_dsn)             ! snow only component of sublimation
 isubl=(subl-ssubl)*rhosn/rhoic     ! ice only component of sublimation
 it_dsn=it_dsn-ssubl
@@ -4347,7 +4347,7 @@ it_dic=it_dic+dhb
 dt_salflx=dt_salflx+dhb*rhoic/dt
 
 ! Surface evap/sublimation (can be >0 or <0)
-subl=dt*pt_egice*lf/(lv*qsnow)
+subl=dt*pt_egice*ls/(lv*qsnow)
 ssubl=min(subl,it_dsn)             ! snow only component of sublimation
 isubl=(subl-ssubl)*rhosn/rhoic     ! ice only component of sublimation
 it_dsn=it_dsn-ssubl
@@ -4449,7 +4449,7 @@ it_dic=it_dic+dhb
 dt_salflx=dt_salflx+dhb*rhoic/dt
 
 ! Surface evap/sublimation (can be >0 or <0)
-subl=dt*pt_egice*lf/(lv*qsnow)
+subl=dt*pt_egice*ls/(lv*qsnow)
 ssubl=min(subl,it_dsn)             ! snow only component of sublimation
 isubl=(subl-ssubl)*rhosn/rhoic     ! ice only component of sublimation
 it_dsn=it_dsn-ssubl
@@ -4663,7 +4663,7 @@ dgice%cdq=afq*fq
 dgice%umod=vmagn
 dgice%fg=rho*dgice%cdh*cpair*vmagn*(dtsurf-atm_temp/srcp)
 dgice%fg=min(max(dgice%fg,-3000.),3000.)
-dgice%eg=dgice%wetfrac*rho*dgice%cdq*ls*vmagn*(qsat-atm_qg)
+dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsat-atm_qg)
 dgice%eg=min(dgice%eg,d_ndic*qice/(ls*dt))
 dgice%eg=min(max(dgice%eg,-3000.),3000.)
 
@@ -4728,7 +4728,7 @@ tnew=0.5*(tnew+dtsurf)
 call getqsat(qsatnew,dqdt,tnew,atm_ps,wfull)
 dgice%fg=rho*dgice%cdh*cpair*vmagn*(tnew-atm_temp/srcp)
 dgice%fg=min(max(dgice%fg,-3000.),3000.)
-dgice%eg=dgice%wetfrac*rho*dgice%cdq*ls*vmagn*(qsatnew-atm_qg)
+dgice%eg=dgice%wetfrac*rho*dgice%cdq*lv*vmagn*(qsatnew-atm_qg)
 dgice%eg=min(dgice%eg,d_ndic*qice/(ls*dt))
 dgice%eg=min(max(dgice%eg,-3000.),3000.)
 d_ftop=-dgice%fg-dgice%eg+atm_rg-emisice*sbconst*dtsurf**4+atm_sg*(1.-alb)*(1.-eye)

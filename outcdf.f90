@@ -974,14 +974,12 @@ real, dimension(:), allocatable :: ypnt
 real, dimension(:), allocatable :: cabledata
 real, dimension(:), intent(in) :: psl_in
 real, dimension(:,:), intent(in) :: u_in, v_in, t_in, q_in
-real, dimension(ifull) :: aa
-real, dimension(ifull) :: ocndep, ocnheight
+real, dimension(ifull) :: aa, ocndep, ocnheight
 real, dimension(ifull) :: qtot, tv
 real, dimension(ms) :: zsoil
 real, dimension(wlev) :: zocean
 real, dimension(ifull,10) :: micdwn
-real, dimension(ifull,kl) :: tmpry
-real, dimension(ifull,kl) :: rhoa
+real, dimension(ifull,kl) :: tmpry, rhoa
 real, dimension(ifull,wlev) :: oo
 real, dimension(ifull,wlev,8) :: mlodwn
 real, dimension(ifull,3:6) :: ocndwn
@@ -1197,12 +1195,14 @@ if( myid==0 .or. local ) then
     lname = 'Snowfall'
     call attrib(idnc,dimj,jsize,'sno',lname,'mm/day',0.,1300.,0,-1)  ! -1=long
     lname = 'Graupelfall'
-    call attrib(idnc,dimj,jsize,'grpl',lname,'mm/day',0.,1300.,0,-1) ! -1=long    
+    call attrib(idnc,dimj,jsize,'grpl',lname,'mm/day',0.,1300.,0,-1) ! -1=long   
     if ( save_land ) then
       lname = 'Runoff'
       call attrib(idnc,dimj,jsize,'runoff',lname,'mm/day',0.,1300.,0,-1) ! -1=long
       lname = 'Surface runoff'
       call attrib(idnc,dimj,jsize,'mrros',lname,'mm/day',0.,1300.,0,-1) ! -1=long
+      lname = 'Evaporation'
+      call attrib(idnc,dimj,jsize,'evspsbl',lname,'mm/day',-1300.,1300.,0,-1)  ! -1 = long
     end if
     if ( save_land .or. save_ocean ) then
       lname = 'Surface albedo'
@@ -1403,10 +1403,8 @@ if( myid==0 .or. local ) then
       if ( save_land .or. save_ocean ) then
         lname = 'Avg dew flux'
         call attrib(idnc,dimj,jsize,'dew_ave',lname,'W/m2',-100.,1000.,0,cptype)
-        lname = 'Avg evaporation'
-        call attrib(idnc,dimj,jsize,'evap',lname,'mm',-100.,100.,0,-1)         ! -1 = long
-        lname = 'Evaporation'
-        call attrib(idnc,dimj,jsize,'evspsbl',lname,'kg/m2/s',-100.,100.,0,-1)  ! -1 = long
+        !lname = 'Avg evaporation (liquid)'
+        !call attrib(idnc,dimj,jsize,'evap',lname,'mm',-100.,100.,0,-1)         ! -1 = long
         lname = 'Avg potential "pan" evaporation'
         call attrib(idnc,dimj,jsize,'epan_ave',lname,'W/m2',-1000.,10.e3,0,cptype)
         lname = 'Avg potential evaporation'
@@ -2434,6 +2432,8 @@ if ( save_land ) then
   call histwrt(aa,'runoff',idnc,iarch,local,lwrite)
   aa(:) = runoff_surface(1:ifull)*scale_factor
   call histwrt(aa,'mrros',idnc,iarch,local,lwrite)
+  aa(:) = evspsbl*scale_factor
+  call histwrt(aa,'evspsbl',idnc,iarch,local,lwrite)
 end if
 if ( save_land .or. save_ocean ) then
   aa(:) = swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)  
@@ -2612,8 +2612,7 @@ end if
 if ( itype/=-1 ) then  ! these not written to restart file
   if ( save_land .or. save_ocean ) then
     call histwrt(dew_ave,'dew_ave',idnc,iarch,local,lave)
-    call histwrt(evap,'evap',idnc,iarch,local,lave)
-    call histwrt(evspsbl,'evspsbl',idnc,iarch,local,lave)
+    !call histwrt(evap,'evap',idnc,iarch,local,lave)
     call histwrt(epan_ave,'epan_ave',idnc,iarch,local,lave)
     call histwrt(epot_ave,'epot_ave',idnc,iarch,local,lave)
     call histwrt(eg_ave,'eg_ave',idnc,iarch,local,lave)

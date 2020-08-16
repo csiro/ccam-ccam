@@ -3562,7 +3562,7 @@ end subroutine atebsigmau
 ! orn = runoff
 ! diag = diagnostic message mode (0=off, 1=basic messages, 2=more detailed messages, etc)
 
-subroutine atebcalc_standard(ofg,oeg,ots,owf,orn,ocls,dt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,umin,diag,raw)
+subroutine atebcalc_standard(ofg,oeg,ots,owf,orn,oevspsbl,dt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,umin,diag,raw)
 
 implicit none
 
@@ -3570,7 +3570,7 @@ integer, intent(in) :: diag
 integer tile, is, ie
 real, intent(in) :: dt,umin
 real, dimension(ifull), intent(in) :: sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,zmin
-real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf,orn,ocls
+real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf,orn,oevspsbl
 logical, intent(in), optional :: raw
 logical mode
 
@@ -3585,7 +3585,7 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   if ( ufull_g(tile)>0 ) then
-    call atebcalc_thread(ofg(is:ie),oeg(is:ie),ots(is:ie),owf(is:ie),orn(is:ie),ocls(is:ie),dt,       &
+    call atebcalc_thread(ofg(is:ie),oeg(is:ie),ots(is:ie),owf(is:ie),orn(is:ie),oevspsbl(is:ie),dt,   &
                         zmin(is:ie),sg(is:ie),rg(is:ie),rnd(is:ie),snd(is:ie),rho(is:ie),temp(is:ie), &
                         mixr(is:ie),ps(is:ie),uu(is:ie),vv(is:ie),umin,                               &
                         f_g(tile),f_intm(tile),f_road(tile),f_roof(tile),f_slab(tile),f_wall(tile),   &
@@ -3599,9 +3599,9 @@ end do
 return
 end subroutine atebcalc_standard
 
-subroutine atebcalc_thread(ofg,oeg,ots,owf,orn,ocls,dt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv, &
-                    umin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,                &
-                    rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl,                       &
+subroutine atebcalc_thread(ofg,oeg,ots,owf,orn,oevspsbl,dt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps, &
+                    uu,vv,umin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,        &
+                    rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl,                     &
                     upack,ufull,diag,raw)
 
 implicit none
@@ -3610,11 +3610,11 @@ integer, intent(in) :: ufull, diag
 integer ifrac
 real, intent(in) :: dt, umin
 real, dimension(:), intent(in) :: sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,zmin
-real, dimension(:), intent(inout) :: ofg,oeg,ots,owf,orn,ocls
+real, dimension(:), intent(inout) :: ofg,oeg,ots,owf,orn,oevspsbl
 real, dimension(ufull) :: tmp
 real, dimension(ufull) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
-real, dimension(ufull) :: u_fg,u_eg,u_ts,u_wf,u_rn,u_cls
-real, dimension(ufull) :: tmp_fg, tmp_eg, tmp_ts, tmp_wf, tmp_rn, tmp_cls
+real, dimension(ufull) :: u_fg,u_eg,u_ts,u_wf,u_rn,u_evspsbl
+real, dimension(ufull) :: tmp_fg, tmp_eg, tmp_ts, tmp_wf, tmp_rn, tmp_evspsbl
 logical, intent(in), optional :: raw
 logical mode
 logical, dimension(:), intent(in) :: upack
@@ -3652,22 +3652,22 @@ u_eg = 0.
 u_ts = 0.
 u_wf = 0.
 u_rn = 0.
-u_cls = 0.
+u_evspsbl = 0.
 
 do ifrac = 1,nfrac
 
   ! Update urban prognostic variables
-  call atebeval(tmp_fg,tmp_eg,tmp_ts,tmp_wf,tmp_rn,tmp_cls,dt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,  &
-                a_snd,a_zmin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm(ifrac),pd(ifrac),rdhyd(ifrac),            &
-                rfhyd(ifrac),rfveg,road(ifrac),roof(ifrac),room(ifrac),slab(ifrac),walle(ifrac),wallw(ifrac),          &
-                cnveg,intl,ufull,ifrac,diag)
+  call atebeval(tmp_fg,tmp_eg,tmp_ts,tmp_wf,tmp_rn,tmp_evspsbl,dt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,  &
+                a_udir,a_rnd,a_snd,a_zmin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm(ifrac),pd(ifrac),   &
+                rdhyd(ifrac),rfhyd(ifrac),rfveg,road(ifrac),roof(ifrac),room(ifrac),slab(ifrac),walle(ifrac), &
+                wallw(ifrac),cnveg,intl,ufull,ifrac,diag)
 
   u_fg = u_fg + tmp_fg*pd(ifrac)%frac_sigma
   u_eg = u_eg + tmp_eg*pd(ifrac)%frac_sigma
   u_ts = u_ts + (tmp_ts+urbtemp)**4*pd(ifrac)%frac_sigma ! combine as longwave radiation
   u_wf = u_wf + tmp_wf*pd(ifrac)%frac_sigma
   u_rn = u_rn + tmp_rn*pd(ifrac)%frac_sigma
-  u_cls = u_cls + tmp_cls*pd(ifrac)%frac_sigma
+  u_evspsbl = u_evspsbl + tmp_evspsbl*pd(ifrac)%frac_sigma
   
 end do
 
@@ -3680,7 +3680,7 @@ if (mode) then
   ots = unpack(u_ts,upack,ots)
   owf = unpack(u_wf,upack,owf)
   orn = unpack(u_rn,upack,orn)
-  ocls = unpack(u_cls,upack,ocls)
+  oevspsbl = unpack(u_evspsbl,upack,oevspsbl)
 else
   tmp = pack(ofg,upack)
   tmp = (1.-fp%sigmau)*tmp + fp%sigmau*u_fg
@@ -3697,9 +3697,9 @@ else
   tmp = pack(orn,upack)
   tmp = (1.-fp%sigmau)*tmp + fp%sigmau*u_rn
   orn = unpack(tmp,upack,orn)
-  tmp = pack(ocls,upack)
-  tmp = (1.-fp%sigmau)*tmp + fp%sigmau*u_cls
-  ocls = unpack(tmp,upack,ocls)
+  tmp = pack(oevspsbl,upack)
+  tmp = (1.-fp%sigmau)*tmp + fp%sigmau*u_evspsbl
+  oevspsbl = unpack(tmp,upack,oevspsbl)
 end if
 
 return
@@ -3737,8 +3737,8 @@ end subroutine atebcalc_thread
 !  Estimate bulk long wave flux and surface temperature
 !  Estimate bulk sensible and latent heat fluxes
 
-subroutine atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,u_cls,ddt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd, &
-                    a_zmin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,                     &
+subroutine atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,u_evspsbl,ddt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir, &
+                    a_rnd,a_snd,a_zmin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg, &
                     road,roof,room,slab,walle,wallw,cnveg,intl,ufull,ifrac,diag)
 
 implicit none
@@ -3748,7 +3748,7 @@ integer, intent(in) :: diag
 integer k
 real, intent(in) :: ddt
 real, dimension(ufull), intent(in) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
-real, dimension(ufull), intent(out) :: u_fg,u_eg,u_ts,u_wf,u_rn,u_cls
+real, dimension(ufull), intent(out) :: u_fg,u_eg,u_ts,u_wf,u_rn,u_evspsbl
 real, dimension(ufull) :: ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,ggint_intm
 real, dimension(ufull) :: rdsntemp,rfsntemp,rdsnmelt,rfsnmelt,garfsn,gardsn
 real, dimension(ufull) :: wallpsi,roadpsi,fgtop,egtop,qsatr,qsata
@@ -3756,7 +3756,7 @@ real, dimension(ufull) :: cu,fgrooftop,egrooftop
 real, dimension(ufull) :: we,ww,wr,zolog,a,n,zom,zonet,dis
 real, dimension(ufull) :: roofvegwetfac,roadvegwetfac,d_irrigwater
 real, dimension(ufull) :: z_on_l,pa,dts,dtt
-real, dimension(ufull) :: u_alb, u_melt, clstop, clsrooftop
+real, dimension(ufull) :: u_alb, u_melt, evspsbltop, evspsblrooftop
 real, dimension(ufull) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
 real, dimension(ufull) :: rg_roof,rg_road,rg_walle,rg_wallw,rg_vegc,rg_vegr,rg_rfsn,rg_rdsn
 real, dimension(ufull) :: rgint_roof,rgint_walle,rgint_wallw,rgint_slab,zero_flux
@@ -3982,7 +3982,7 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,         
                  d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad,                &
                  d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_canyon,d_traf,d_ac_inside,             &
                  d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
-                 d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,int_infilflux,                &
+                 d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,evspsbltop,int_infilflux,     &
                  int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,           &
                  ggext_intm,ggint_intm,cyc_proportion,cyc_translation,ddt,                       &
                  rgint_roof,rgint_walle,rgint_wallw,rgint_slab,                                  &
@@ -4112,7 +4112,6 @@ fg_road  = aircp*a_rho*(road%nodetemp(:,0)-d_canyontemp)*acond_road
 fgtop = fp%hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_road &
       + (1.-d_rdsndelta)*cnveg%sigma*fg_vegc + d_rdsndelta*fg_rdsn                 &
       + d_traf + d_ac_canyon - int_infilfg
-clstop = (1.-d_rdsndelta)*1. + d_rdsndelta*ls/lv  
 
 ! calculate water/snow budgets for road surface
 call updatewater(ddt,rdhyd%surfwater,rdhyd%soilwater,rdhyd%leafwater,rdhyd%snow,    &
@@ -4166,7 +4165,7 @@ rdhyd%snowalpha(1:ufull) = min(max(rdhyd%snowalpha(1:ufull),minsnowalpha),maxsno
 d_roofrgout = a_rg-d_rfsndelta*rg_rfsn-(1.-d_rfsndelta)*((1.-rfveg%sigma)*rg_roof+rfveg%sigma*rg_vegr)
 fgrooftop   = d_rfsndelta*fg_rfsn+(1.-d_rfsndelta)*((1.-rfveg%sigma)*fg_roof+rfveg%sigma*fg_vegr)
 egrooftop   = d_rfsndelta*eg_rfsn+(1.-d_rfsndelta)*((1.-rfveg%sigma)*eg_roof+rfveg%sigma*eg_vegr)
-clsrooftop  = (1.-d_rfsndelta)*1. + d_rfsndelta*ls/lv 
+evspsbltop  = d_rfsndelta*eg_rfsn/ls+(1.-d_rfsndelta)*((1.-rfveg%sigma)*eg_roof+rfveg%sigma*eg_vegr)/lv
 !fgtop       = d_rdsndelta*fg_rdsn+(1.-d_rdsndelta)*((1.-cnveg%sigma)*fg_road+cnveg%sigma*fg_vegc)   &
 !             +fp%hwratio*(fg_walle+fg_wallw)+d_traf+d_ac_canyon
 !egtop       = d_rdsndelta*eg_rdsn+(1.-d_rdsndelta)*((1.-cnveg%sigma)*eg_road+cnveg%sigma*eg_vegc)
@@ -4190,7 +4189,7 @@ pd%gd_soilmoistchange = pd%gd_soilmoist - pd%gd_soilmoistchange
 u_ts = ((fp%sigmabld*d_roofrgout+(1.-fp%sigmabld)*d_canyonrgout)/sbconst)**0.25 - urbtemp
 u_fg = fp%sigmabld*fgrooftop+(1.-fp%sigmabld)*fgtop+fp%industryfg
 u_eg = fp%sigmabld*egrooftop+(1.-fp%sigmabld)*egtop
-u_cls = fp%sigmabld*clsrooftop+(1.-fp%sigmabld)*clstop
+u_evspsbl = fp%sigmabld*evspsblrooftop + (1.-fp%sigmabld)*evspsbltop
 u_wf = fp%sigmabld*(1.-d_rfsndelta)*((1.-rfveg%sigma)*d_roofdelta       &
       +rfveg%sigma*((1.-d_vegdeltar)*roofvegwetfac+d_vegdeltar))        &
       +(1.-fp%sigmabld)*(1.-d_rdsndelta)*((1.-cnveg%sigma)*d_roaddelta  &
@@ -4819,7 +4818,7 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,   
                        d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad,                &
                        d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_canyon,d_traf,d_ac_inside,             &
                        d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
-                       d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,int_infilflux,                &
+                       d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,evspsbltop,int_infilflux,     &
                        int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,           &
                        ggext_intm,ggint_intm,cyc_proportion,cyc_translation,ddt,                       &
                        rgint_roof,rgint_walle,rgint_wallw,rgint_slab,                                  &
@@ -4843,7 +4842,7 @@ real, dimension(ufull), intent(inout) :: d_tempc,d_mixrc
 real, dimension(ufull), intent(inout) :: d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_canyon,d_traf
 real, dimension(ufull), intent(inout) :: d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,d_cwr
 real, dimension(ufull), intent(inout) :: d_totdepth,d_c1c,d_intgains_bld
-real, dimension(ufull), intent(out) :: fgtop,egtop,int_infilflux
+real, dimension(ufull), intent(out) :: fgtop,egtop,evspsbltop,int_infilflux
 real, dimension(ufull), intent(out) :: acond_road,acond_walle,acond_wallw,acond_vegc,acond_rdsn
 real, dimension(ufull), intent(out) :: int_infilfg
 real, dimension(ufull), intent(out) :: ggint_roof, ggint_walle, ggint_wallw, ggint_road
@@ -5117,6 +5116,8 @@ fgtop = fp%hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_ro
 ! solve for canyon latent heat flux
 egtop = (1.-d_rdsndelta)*(1.-cnveg%sigma)*eg_road + (1.-d_rdsndelta)*cnveg%sigma*eg_vegc &
       + d_rdsndelta*eg_rdsn
+evspsbltop = (1.-d_rdsndelta)*(1.-cnveg%sigma)*eg_road/lv + (1.-d_rdsndelta)*cnveg%sigma*eg_vegc/lv &
+      + d_rdsndelta*eg_rdsn/ls
 
 ! calculate longwave radiation
 if ( lweff/=2 ) then
@@ -5655,7 +5656,7 @@ eg_vegc=d_evapc+d_tranc
 
 ! calculate canyon snow latent heat and ground fluxes
 snevap=min(a_rho*max(0.,rdsnqsat-d_canyonmix)*acond_rdsn,rdhyd%snow/ddt+a_snd-rdsnmelt)
-eg_rdsn=ls*snevap
+eg_rdsn=lv*snevap
 rdsnmelt=rdsnmelt+snevap
 gardsn=(rdsntemp-road%nodetemp(:,0))/ldratio ! use road temperature to represent canyon bottom surface temperature
                                              ! (i.e., we have omitted soil under vegetation temperature)
@@ -5893,7 +5894,7 @@ where ( d_rfsndelta>0. )
   rg_rfsn=snowemiss*(a_rg-sbconst*(rfsntemp+urbtemp)**4)
   fg_rfsn=aircp*a_rho*(rfsntemp-d_tempr)*acond_rfsn
   snevap=min(a_rho*max(0.,rfsnqsat-d_mixrr)*acond_rfsn,rfhyd%snow/ddt+a_snd-rfsnmelt)
-  eg_rfsn=ls*snevap
+  eg_rfsn=lv*snevap
   rfsnmelt=rfsnmelt+snevap
   garfsn=(rfsntemp-roof%nodetemp(:,0))/ldratio
   
