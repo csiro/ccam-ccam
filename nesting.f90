@@ -626,12 +626,12 @@ do kb = kbotdav,ktopdav,kblock
   ! select nudging option
   if ( nud_uv==9 ) then 
     if ( myid==0 ) then
-      write(6,*) "ATM 2D filter                       ",kb,min(kb+kblock-1,ktopdav)
+      write(6,*) "ATM 2D filter                        ",kb,min(kb+kblock-1,ktopdav)
     end if
     call slowspecmpi(.1*real(mbd)/(pi*schmidt),pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
   else
     if ( myid==0 ) then
-      write(6,*) "ATM 1D filter                       ",kb,min(kb+kblock-1,ktopdav)
+      write(6,*) "ATM 1D filter                        ",kb,min(kb+kblock-1,ktopdav)
     end if
     call specfastmpi(.1*real(mbd)/(pi*schmidt),pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
   endif  ! (nud_uv==9) .. else ..
