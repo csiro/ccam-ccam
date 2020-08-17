@@ -473,7 +473,7 @@ real, dimension(imax), intent(inout) :: climate_dmoist_min20, climate_dmoist_max
 real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
 real, dimension(imax), intent(in) :: sgdn, swrsave, theta, vmod
-real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land, cls
+real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land, evspsbl_l
 real, dimension(mp), intent(in) :: sv, vl1, vl2, vl3, vl4
 real(kind=8) dtr8
 real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
@@ -883,7 +883,7 @@ where ( land(1:imax) )
   snowd = 0.
   snage = 0.
 end where
-cls = 0.
+evspsbl_l = 0.
 tmps = 0. ! average isflag
 
 do nb = 1,maxnb
@@ -927,7 +927,9 @@ do nb = 1,maxnb
   snage = snage + unpack(sv(is:ie)*real(ssnow%snage(is:ie)),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
   snowd = snowd + unpack(sv(is:ie)*real(ssnow%snowd(is:ie)),tmap(:,nb),0.)
   snowmelt = snowmelt + unpack(sv(is:ie)*real(ssnow%smelt(is:ie)),tmap(:,nb),0.)
-  cls = cls + unpack(sv(is:ie)*real(ssnow%cls(is:ie)),tmap(:,nb),0.)
+  ! the following is using the calculation for dmce in cable_canopy
+  ! (3.41, SCAM manual, CSIRO tech doc 132)
+  evspsbl_l = evspsbl_l + unpack(sv(is:ie)*real((canopy%fev(is:ie) + canopy%fes(is:ie)/ssnow%cls(is:ie))/C%HL),tmap(:,nb),0.)
   ! diagnostic
   epot = epot + unpack(sv(is:ie)*real(ssnow%potev(is:ie)),tmap(:,nb),0.)         ! diagnostic in history file
   vlai = vlai + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,nb),0.)
@@ -1024,7 +1026,7 @@ where ( land(1:imax) )
   cdtq      = cdtq*vmod
   tss       = tss**0.25
   rsmin     = 1./rsmin
-  evspsbl   = evspsbl + eg/(hl*cls)
+  evspsbl   = evspsbl + evspsbl_l
   ! update albedo and tss before calculating net radiation
   albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif ! for nrad=4
   albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif ! for nrad=4 
