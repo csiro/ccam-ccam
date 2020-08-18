@@ -364,9 +364,9 @@ do tile = 1,ntiles
                    sigmf(is:ie),lsmass,snage(is:ie),snowd(is:ie),snowmelt(is:ie),lssdn,ssdnn(is:ie),                     &
                    sv(js:je),sgdn(is:ie),swrsave(is:ie),t(is:ie,1),ltgg,ltggsn,theta(is:ie),ltind,ltmap,                 &
                    latmco2,tss(is:ie),ustar(is:ie),vlai(is:ie),vl1(js:je),vl2(js:je),vl3(js:je),vl4(js:je),vmod(is:ie),  &
-                   lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),evspsbl(is:ie),lair,lbal,c,lcanopy,          &
-                   lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,    &
-                   lsum_flux,lveg,lclimate_iveg,lclimate_biome,lclimate_min20,lclimate_max20,lclimate_alpha20,           &
+                   lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),evspsbl(is:ie),sbl(is:ie),lair,lbal,c,       &
+                   lcanopy,lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,   &
+                   lssnow,lsum_flux,lveg,lclimate_iveg,lclimate_biome,lclimate_min20,lclimate_max20,lclimate_alpha20,    &
                    lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover,        &
                    lplant_turnover_wood,lclimate_save,imax)
 
@@ -426,7 +426,7 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      frpw,frs,fwet,ga,isflag,land,maxnb,mp,nilitter,niplant,nisoil,plitter,pplant,ps,           &
                      psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sigmf,smass,           &
                      snage,snowd,snowmelt,ssdn,ssdnn,sv,sgdn,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,    &
-                     ustar,vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,evspsbl,air,bal,c,canopy,       &
+                     ustar,vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,evspsbl,sbl,air,bal,c,canopy,   &
                      casabal,casabiome,casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,     &
                      sum_flux,veg,climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,      &
                      climate_agdd5,climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,plant_turnover,   &
@@ -463,7 +463,7 @@ real, dimension(imax,msoil), intent(inout) :: csoil, nisoil, psoil
 real, dimension(imax,ms), intent(inout) :: tgg, wb, wbice
 real, dimension(imax,3), intent(inout) :: smass, ssdn, tggsn
 real, dimension(imax), intent(inout) :: albnirdif, albnirdir, albnirsav, albvisdif, albvisdir, albvissav
-real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot, fg, fnee, fpn, frd, evspsbl
+real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot, fg, fnee, fpn, frd, evspsbl, sbl
 real, dimension(imax), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, rnet, rsmin, runoff
 real, dimension(imax), intent(inout) :: runoff_surface, sigmf, snage, snowd, snowmelt, ssdnn, tss, ustar
 real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
@@ -473,7 +473,7 @@ real, dimension(imax), intent(inout) :: climate_dmoist_min20, climate_dmoist_max
 real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
 real, dimension(imax), intent(in) :: sgdn, swrsave, theta, vmod
-real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land, evspsbl_l
+real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land, evspsbl_l, sbl_l
 real, dimension(mp), intent(in) :: sv, vl1, vl2, vl3, vl4
 real(kind=8) dtr8
 real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
@@ -884,6 +884,7 @@ where ( land(1:imax) )
   snage = 0.
 end where
 evspsbl_l = 0.
+sbl = 0.
 tmps = 0. ! average isflag
 
 do nb = 1,maxnb
@@ -927,7 +928,8 @@ do nb = 1,maxnb
   snage = snage + unpack(sv(is:ie)*real(ssnow%snage(is:ie)),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
   snowd = snowd + unpack(sv(is:ie)*real(ssnow%snowd(is:ie)),tmap(:,nb),0.)
   snowmelt = snowmelt + unpack(sv(is:ie)*real(ssnow%smelt(is:ie)),tmap(:,nb),0.)
-  evspsbl_l = evspsbl_l + unpack(sv(is:ie)*real((canopy%fev(is:ie)+canopy%fesp(is:ie)+canopy%fess/ssnow%cls(is:ie))/C%HL),tmap(:,nb),0.)
+  evspsbl_l = evspsbl_l + unpack(sv(is:ie)*real((canopy%fev(is:ie)+canopy%fesp(is:ie)+canopy%fess(is:ie)/ssnow%cls(is:ie))/C%HL),tmap(:,nb),0.)
+  sbl_l = sbl_l + unpack(sv(is:ie)*real(ssnow%evapsn(is:ie)),tmap(:,nb),0.)
   ! diagnostic
   epot = epot + unpack(sv(is:ie)*real(ssnow%potev(is:ie)),tmap(:,nb),0.)         ! diagnostic in history file
   vlai = vlai + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,nb),0.)
@@ -1025,6 +1027,7 @@ where ( land(1:imax) )
   tss       = tss**0.25
   rsmin     = 1./rsmin
   evspsbl   = evspsbl + evspsbl_l
+  sbl       = sbl + sbl_l
   ! update albedo and tss before calculating net radiation
   albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif ! for nrad=4
   albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif ! for nrad=4 
@@ -2940,9 +2943,9 @@ if ( mp_global>0 ) then
   veg%vcmax_sun   = veg%vcmax
   veg%ejmax_sun   = veg%ejmax
  
-  ssnow%albsoilsn(:,3)=0.05_8    
-  ssnow%t_snwlr=0.05_8
-  ssnow%pudsmx=0._8
+  ssnow%albsoilsn(:,3) = 0.05_8    
+  ssnow%t_snwlr = 0.05_8
+  ssnow%pudsmx = 0._8
   ssnow%zdelta = 0._8
   ssnow%le = 0._8
   

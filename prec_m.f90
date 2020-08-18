@@ -24,11 +24,11 @@ module prec_m
 implicit none
 
 private
-public precip,precc,rnd_3hr,cape,evspsbl
+public precip,precc,rnd_3hr,cape,evspsbl,sbl
 public prec_init,prec_end
 !public evap
 
-real, dimension(:), allocatable, save :: evspsbl
+real, dimension(:), allocatable, save :: evspsbl, sbl
 real, dimension(:), allocatable, save :: cape, precc, precip
 real, dimension(:,:), allocatable, save :: rnd_3hr
 !real, dimension(:), allocatable, save :: evap
@@ -42,12 +42,13 @@ implicit none
 integer, intent(in) :: ifull
 
 allocate(precip(ifull),precc(ifull),rnd_3hr(ifull,8),cape(ifull))
-allocate(evspsbl(ifull))
+allocate(evspsbl(ifull),sbl(ifull))
 !allocate(evap(ifull))
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
 !evap(:)     = 0.
 evspsbl(:)   = 0.
+sbl(:)       = 0.
 precip(:)    = 0.
 precc(:)     = 0.
 rnd_3hr(:,:) = 0.
@@ -61,7 +62,7 @@ subroutine prec_end
 implicit none
 
 deallocate(precip,precc,rnd_3hr,cape)
-deallocate(evspsbl)
+deallocate(evspsbl,sbl)
 !deallocate(evap)
 
 return

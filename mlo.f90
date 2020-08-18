@@ -1856,8 +1856,8 @@ end subroutine mloexpgamm
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
 
-subroutine mloeval_standard(sst,zo,cd,cds,umod,fg,eg,evspsbl,wetfac,epot,epan,fracice,siced, &
-                   snowd,dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,             &
+subroutine mloeval_standard(sst,zo,cd,cds,umod,fg,eg,evspsbl,sbl,wetfac,epot,epan,fracice, &
+                   siced,snowd,dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,     &
                    visnirratio,fbvis,fbnir,inflow,diag,calcprog)                   
 
 implicit none
@@ -1866,7 +1866,7 @@ integer, intent(in) :: diag
 integer tile, is, ie
 real, intent(in) :: dt
 real, dimension(:), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
-real, dimension(:), intent(inout) :: sst,zo,cd,cds,umod,fg,eg,evspsbl,wetfac,fracice,siced,epot,epan,snowd
+real, dimension(:), intent(inout) :: sst,zo,cd,cds,umod,fg,eg,evspsbl,sbl,wetfac,fracice,siced,epot,epan,snowd
 logical, intent(in) :: calcprog ! flag to update prognostic variables (or just calculate fluxes)
 
 do tile = 1,ntiles
@@ -1874,10 +1874,10 @@ do tile = 1,ntiles
   ie = tile*imax
   if ( wfull_g(tile)>0 ) then
     call mloeval_thread(sst(is:ie),zo(is:ie),cd(is:ie),cds(is:ie),umod(is:ie),fg(is:ie),eg(is:ie),    &
-                       evspsbl(is:ie),wetfac(is:ie),epot(is:ie),epan(is:ie),fracice(is:ie),           &
-                       siced(is:ie),snowd(is:ie),dt,zmin(is:ie),zmins(is:ie),sg(is:ie),rg(is:ie),     &
-                       precp(is:ie),precs(is:ie),uatm(is:ie),vatm(is:ie),temp(is:ie),                 &
-                       qg(is:ie),ps(is:ie),f(is:ie),visnirratio(is:ie),fbvis(is:ie),                  &
+                       evspsbl(is:ie),sbl(is:ie),wetfac(is:ie),epot(is:ie),epan(is:ie),               &
+                       fracice(is:ie),siced(is:ie),snowd(is:ie),dt,zmin(is:ie),zmins(is:ie),          &
+                       sg(is:ie),rg(is:ie),precp(is:ie),precs(is:ie),uatm(is:ie),vatm(is:ie),         &
+                       temp(is:ie),qg(is:ie),ps(is:ie),f(is:ie),visnirratio(is:ie),fbvis(is:ie),      &
                        fbnir(is:ie),inflow(is:ie),diag,calcprog,                                      &
                        depth_g(tile),dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),                    &
                        ice_g(tile),water_g(tile),wfull_g(tile),wpack_g(:,tile),turb_g(tile))
@@ -1887,8 +1887,8 @@ end do
 return
 end subroutine mloeval_standard
                    
-subroutine mloeval_thread(sst,zo,cd,cds,umod,fg,eg,evspsbl,wetfac,epot,epan,fracice,siced, &
-                   snowd,dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,           &
+subroutine mloeval_thread(sst,zo,cd,cds,umod,fg,eg,evspsbl,sbl,wetfac,epot,epan,fracice,   &
+                   siced,snowd,dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,     &
                    visnirratio,fbvis,fbnir,inflow,diag,calcprog,                           &
                    depth,dgice,dgscrn,dgwater,ice,water,                                   &
                    wfull,wpack,turb)                   
@@ -1898,7 +1898,7 @@ implicit none
 integer, intent(in) :: wfull, diag
 real, intent(in) :: dt
 real, dimension(imax), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
-real, dimension(imax), intent(inout) :: sst,zo,cd,cds,umod,fg,eg,evspsbl,wetfac,fracice,siced,epot,epan,snowd
+real, dimension(imax), intent(inout) :: sst,zo,cd,cds,umod,fg,eg,evspsbl,sbl,wetfac,fracice,siced,epot,epan,snowd
 type(dgicedata), intent(inout) :: dgice
 type(dgscrndata), intent(inout) :: dgscrn
 type(dgwaterdata), intent(inout) :: dgwater
@@ -1953,6 +1953,7 @@ fracice=unpack(ice%fracice,wpack,0.)
 siced  =unpack(ice%thick,wpack,0.)
 snowd  =unpack(ice%snowd,wpack,snowd)
 evspsbl=unpack((1.-ice%fracice)*dgwater%eg/lv+ice%fracice*dgice%eg/ls,wpack,0.)
+sbl    =unpack(ice%fracice*dgice%eg/ls,wpack,0.)
 
 return
 end subroutine mloeval_thread

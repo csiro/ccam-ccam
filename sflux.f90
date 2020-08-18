@@ -48,7 +48,7 @@ real, parameter :: bprm=5.,cms=5.,chs=2.6,vkar=.4
 real, parameter :: fmroot=.57735     ! was .4 till 7 Feb 1996
 
 real, dimension(:), allocatable :: vmag,azmin,uav,vav,rho
-real, dimension(:), allocatable :: oldrunoff,oldsnowmelt,oldevspsbl
+real, dimension(:), allocatable :: oldrunoff,oldsnowmelt,oldevspsbl,oldsbl
 real, dimension(:), allocatable :: af,aft,ri
 real, dimension(:), allocatable :: fg_ocn, fg_ice, eg_ocn, eg_ice
 real, dimension(:), allocatable :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
@@ -88,7 +88,7 @@ chnsea=(vkar/log(z1onzt))**2   ! should give .00085 for csiro9
 srcp = sig(1)**(rdry/cp)
 
 allocate( vmag(ifull), azmin(ifull), uav(ifull), vav(ifull), rho(ifull) )
-allocate( oldrunoff(ifull), oldsnowmelt(ifull), oldevspsbl(ifull) )
+allocate( oldrunoff(ifull), oldsnowmelt(ifull), oldevspsbl(ifull), oldsbl(ifull) )
 allocate( af(ifull), aft(ifull), ri(ifull) )
 allocate( fg_ocn(ifull), fg_ice(ifull), eg_ocn(ifull), eg_ice(ifull) )
 allocate( taux_ocn(ifull), taux_ice(ifull), tauy_ocn(ifull), tauy_ice(ifull) )
@@ -165,6 +165,7 @@ do tile = 1,ntiles
   oldrunoff(is:ie) = runoff(is:ie)
   oldsnowmelt(is:ie) = snowmelt(is:ie)
   oldevspsbl(is:ie) = evspsbl(is:ie)
+  oldsbl(is:ie) = sbl(is:ie)
   fg_ocn(is:ie)=0.      ! dummy value
   fg_ice(is:ie)=0.      ! dummy value
   eg_ocn(is:ie)=0.      ! dummy value
@@ -414,7 +415,7 @@ use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m, only : ifull         ! Grid parameters
 use parm_m                          ! Model configuration
 use pbl_m                           ! Boundary layer arrays
-use prec_m, only : evspsbl          ! Precipitation
+use prec_m, only : evspsbl, sbl     ! Precipitation
 use riverarrays_m                   ! River data
 use screen_m                        ! Screen level diagnostics
 use soil_m                          ! Soil and surface data
@@ -782,6 +783,7 @@ do iq=1,ifull                                                                   
     ri(iq) =fracice(iq)*ri_ice  + (1.-fracice(iq))*ri(iq)                                        ! sice
     zo(iq) =fracice(iq)*zoice   + (1.-fracice(iq))*zo(iq)                                        ! sice
     evspsbl(iq) = evspsbl(iq) + fracice(iq)*evap_ice(iq) + (1.-fracice(iq))*evap_sea(iq)         ! sice
+    sbl(iq) = sbl(iq) + fracice(iq)*evap_ice(iq)                                                 ! sice
     factch(iq) = fracice(iq)*factchice + (1.-fracice(iq))*factch(iq)                             ! sice
     zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                                                       ! sice
     zoq(iq)=zoh(iq)                                                                              ! sice
@@ -847,7 +849,7 @@ use newmpar_m                      ! Grid parameters
 use parm_m                         ! Model configuration
 use pbl_m                          ! Boundary layer arrays
 use permsurf_m                     ! Fixed surface arrays
-use prec_m, only : evspsbl         ! Precipitation
+use prec_m, only : evspsbl, sbl    ! Precipitation
 use raddiag_m                      ! Radiation diagnostic
 use riverarrays_m                  ! River data
 use soil_m                         ! Soil and surface data
@@ -879,8 +881,8 @@ do tile = 1,ntiles
                       ustar(is:ie),f(is:ie),water_g(tile),wpack_g(:,tile),wfull_g(tile),depth_g(tile),   &
                       dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),ice_g(tile),                          &
                       tpan(is:ie),epan(is:ie),rnet(is:ie),condx(is:ie),                                  &
-                      conds(is:ie),condg(is:ie),fg(is:ie),eg(is:ie),evspsbl(is:ie),epot(is:ie),          &
-                      tss(is:ie),cduv(is:ie),cdtq(is:ie),lwatbdy,loutflowmask,land(is:ie),               &
+                      conds(is:ie),condg(is:ie),fg(is:ie),eg(is:ie),evspsbl(is:ie),sbl(is:ie),           &
+                      epot(is:ie),tss(is:ie),cduv(is:ie),cdtq(is:ie),lwatbdy,loutflowmask,land(is:ie),   &
                       fracice(is:ie),sicedep(is:ie),snowd(is:ie),sno(is:ie),grpl(is:ie),qsttg(is:ie),    &
                       vmod(is:ie),zo(is:ie),wetfac(is:ie),                                               &
                       zoh(is:ie),zoq(is:ie),theta(is:ie),ga(is:ie),turb_g(tile))
@@ -908,7 +910,7 @@ end subroutine sflux_mlo
 subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,      &
                           ps,t,qg,sgdn,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy, &
                           ustar,f,water,wpack,wfull,depth,dgice,dgscrn,dgwater,ice,       &
-                          tpan,epan,rnet,condx,conds,condg,fg,eg,evspsbl,epot,            &
+                          tpan,epan,rnet,condx,conds,condg,fg,eg,evspsbl,sbl,epot,        &
                           tss,cduv,cdtq,watbdy,outflowmask,land,                          &
                           fracice,sicedep,snowd,sno,grpl,qsttg,vmod,zo,wetfac,            &
                           zoh,zoq,theta,ga,turb)
@@ -933,12 +935,12 @@ real root, denha, esatf
 real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
 real, dimension(imax), intent(in) :: t, qg
 real, dimension(imax), intent(inout) :: ri, taux, tauy, ustar, tpan, epan, rnet
-real, dimension(imax), intent(inout) :: fg, eg, evspsbl, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
+real, dimension(imax), intent(inout) :: fg, eg, evspsbl, sbl, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
 real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh, zoq, ga
 real, dimension(imax), intent(in) :: vmag, rho, azmin, uav, vav, ps, sgdn, sgsave, rgsave, swrsave
 real, dimension(imax), intent(in) :: fbeamvis, fbeamnir, f, condx, conds, condg, vmod, theta
 real, dimension(imax) :: neta, oflow, dumw, dumrg, dumx, dums, fhd
-real, dimension(imax) :: umod, umag, levspsbl
+real, dimension(imax) :: umod, umag, levspsbl, lsbl
 logical, dimension(imax), intent(in) :: wpack, outflowmask, land
 type(waterdata), intent(inout) :: water
 type(dgicedata), intent(inout) :: dgice
@@ -983,8 +985,8 @@ end where                                                                       
 dumrg(:)=-rgsave(:)                                                                            ! MLO
 dumx(:)=condx(:)/dt ! total precip                                                             ! MLO
 dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
-call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,levspsbl,wetfac,epot,epan,fracice,sicedep,snowd,dt, & ! MLO
-             azmin,azmin,sgdn,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),                  & ! MLO
+call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,levspsbl,lsbl,wetfac,epot,epan,fracice,sicedep,     & ! MLO
+             snowd,dt,azmin,azmin,sgdn,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),         & ! MLO
              ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                   & ! MLO
              depth,dgice,dgscrn,dgwater,ice,water,wfull,wpack,turb)                            ! MLO
 call mloextra(0,zoh,azmin,0,dgwater,dgice,ice,wpack,wfull)                                     ! MLO
@@ -995,6 +997,7 @@ call mloextra(2,tauy,azmin,0,dgwater,dgice,ice,wpack,wfull)                     
 where ( .not.land(1:imax) )                                                                    ! MLO
   tpan = tss(:) ! assume tss_sh=0.                                                             ! MLO
   evspsbl = evspsbl + levspsbl ! levspsbl should be zero over land                             ! MLO
+  sbl = sbl + lsbl ! lsbl should be zero over land                                             ! MLO
 end where                                                                                      ! MLO
                                                                                                ! MLO
 ! pan evaporation diagnostic                                                                   ! MLO
@@ -1004,9 +1007,9 @@ ri = min(grav*zmin*(1.-tpan*srcp/t)/umag**2,ri_max)                             
                                                                                                ! MLO
 ! stuff to keep tpan over land working                                                         ! MLO
 where (ri>0.)                                                                                  ! MLO
-  fhd=umod/(1.+bprm*ri)**2                                                                     ! MLO
+  fhd = umod/(1.+bprm*ri)**2                                                                   ! MLO
 elsewhere                                                                                      ! MLO
-  fhd=umod-umod*2.*bprm*ri/(1.+chs*2.*bprm*chnsea*sqrt(-ri*zmin/panzo))                        ! MLO
+  fhd = umod-umod*2.*bprm*ri/(1.+chs*2.*bprm*chnsea*sqrt(-ri*zmin/panzo))                      ! MLO
 end where                                                                                      ! MLO
 qsttg = qsat(ps,tpan,imax)                                                                     ! MLO
                                                                                                ! MLO
@@ -1047,7 +1050,7 @@ use newmpar_m                      ! Grid parameters
 use parm_m                         ! Model configuration
 use parmgeom_m                     ! Coordinate data
 use pbl_m                          ! Boundary layer arrays
-use prec_m, only : evspsbl         ! Precipitation
+use prec_m, only : evspsbl, sbl    ! Precipitation
 use raddiag_m                      ! Radiation diagnostic
 use soilsnow_m                     ! Soil, snow and surface data
 use vecsuv_m                       ! Map to cartesian coordinates
@@ -1090,8 +1093,8 @@ do tile=1,ntiles
                         qsttg(is:ie),rgsave(is:ie),rnet(is:ie),runoff(is:ie),sgdn(is:ie),sgsave(is:ie),              &
                         snowmelt(is:ie),t(is:ie,1),taux(is:ie),tauy(is:ie),tss(is:ie),u(is:ie,1),                    &
                         ustar(is:ie),v(is:ie,1),vmod(is:ie),wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),           &
-                        evspsbl(is:ie),oldevspsbl(is:ie),anthropogenic_flux(is:ie),urban_ts(is:ie),                  &
-                        urban_wetfac(is:ie),urban_zom(is:ie),                                                        &
+                        evspsbl(is:ie),oldevspsbl(is:ie),sbl(is:ie),oldsbl(is:ie),anthropogenic_flux(is:ie),         &
+                        urban_ts(is:ie),urban_wetfac(is:ie),urban_zom(is:ie),                                        &
                         urban_zoh(is:ie),urban_zoq(is:ie),urban_emiss(is:ie),urban_storage_flux(is:ie),              &
                         urban_elecgas_flux(is:ie),urban_heating_flux(is:ie),urban_cooling_flux(is:ie),               &
                         upack_g(:,tile),ufull_g(tile))
@@ -1106,7 +1109,7 @@ subroutine sflux_urban_work(azmin,oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_r
                             fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl, &
                             uzon,vmer,cdtq,cduv,                                                                  &
                             conds,condg,condx,eg,fg,ps,qg,qsttg,rgsave,rnet,runoff,sgdn,sgsave,snowmelt,          &
-                            t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,evspsbl,oldevspsbl,                  &
+                            t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,evspsbl,oldevspsbl,sbl,oldsbl,       &
                             anthropogenic_flux,urban_ts,urban_wetfac,urban_zom,urban_zoh,urban_zoq,urban_emiss,   &
                             urban_storage_flux,urban_elecgas_flux,urban_heating_flux,urban_cooling_flux,          &
                             upack,ufull)
@@ -1126,10 +1129,10 @@ integer, intent(in) :: ufull
 real, dimension(imax), intent(in) :: uzon,vmer
 real, dimension(imax) :: dumrg,dumx,dums
 real, dimension(imax) :: newsnowmelt
-real, dimension(imax) :: u_fg, u_eg, u_rn, u_evspsbl
+real, dimension(imax) :: u_fg, u_eg, u_rn, u_evspsbl, u_sbl
 real, dimension(imax) :: zo_work, zoh_work, zoq_work, u_sigma
 real, dimension(imax) :: cduv_work, cdtq_work
-real, dimension(imax), intent(in) :: azmin, oldrunoff, rho, vmag, oldsnowmelt, oldevspsbl
+real, dimension(imax), intent(in) :: azmin, oldrunoff, rho, vmag, oldsnowmelt, oldevspsbl, oldsbl
 real, dimension(imax), intent(inout) :: anthropogenic_flux, urban_ts, urban_wetfac
 real, dimension(imax), intent(inout) :: urban_zom, urban_zoh, urban_zoq, urban_emiss
 real, dimension(imax), intent(inout) :: urban_storage_flux,urban_elecgas_flux
@@ -1140,7 +1143,7 @@ real, dimension(imax), intent(inout) :: cdtq, cduv
 real, dimension(imax), intent(inout) :: eg, fg, qsttg
 real, dimension(imax), intent(inout) :: rnet, runoff, snowmelt
 real, dimension(imax), intent(inout) :: taux, tauy, tss, ustar, wetfac
-real, dimension(imax), intent(inout) :: zo, zoh, zoq, evspsbl
+real, dimension(imax), intent(inout) :: zo, zoh, zoq, evspsbl, sbl
 real, dimension(imax), intent(in) :: qg, t, u, v
 logical, dimension(imax), intent(in) :: upack
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
@@ -1162,9 +1165,10 @@ urban_ts = 0.                                                                   
 urban_wetfac = 0.                                                                                ! urban
 u_rn = 0.                                                                                        ! urban
 u_evspsbl = 0.                                                                                   ! urban
+u_sbl = 0.                                                                                       ! urban
 ! call aTEB                                                                                      ! urban
-call atebcalc(u_fg,u_eg,urban_ts,urban_wetfac,u_rn,u_evspsbl,dt,azmin,sgdn,dumrg,dumx,dums, &    ! urban
-              rho,t(1:imax),qg(1:imax),ps(1:imax),uzon,vmer,vmodmin,                        &    ! urban
+call atebcalc(u_fg,u_eg,urban_ts,urban_wetfac,u_rn,u_evspsbl,u_sbl,dt,azmin,sgdn,dumrg,     &    ! urban
+              dumx,dums,rho,t(1:imax),qg(1:imax),ps(1:imax),uzon,vmer,vmodmin,              &    ! urban
               fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,    &    ! urban
               roof,room,slab,walle,wallw,cnveg,intl,upack,ufull,0,raw=.true.)                    ! urban
 u_sigma = unpack(fp%sigmau,upack,0.)                                                             ! urban
@@ -1178,6 +1182,7 @@ where ( u_sigma>0. )                                                            
   ! urban scheme has been updated                                                                ! urban
   runoff = oldrunoff + (1.-u_sigma)*(runoff-oldrunoff) + u_sigma*u_rn                            ! urban
   evspsbl = oldevspsbl + (1.-u_sigma)*(evspsbl-oldevspsbl) + u_sigma*u_evspsbl                   ! urban
+  sbl = oldsbl + (1.-u_sigma)*(sbl-oldsbl) + u_sigma*u_sbl                                       ! urban
 end where                                                                                        ! urban
 ! default urban roughness lengths                                                                ! urban
 urban_zom = 1.e-10                                                                               ! urban
@@ -1453,7 +1458,7 @@ use nsibd_m                      ! Land-surface arrays
 use parm_m                       ! Model configuration
 use pbl_m                        ! Boundary layer arrays
 use permsurf_m                   ! Fixed surface arrays
-use prec_m, only : evspsbl       ! Precipitation
+use prec_m, only : evspsbl, sbl  ! Precipitation
 use screen_m                     ! Screen level diagnostics
 use sigs_m                       ! Atmosphere sigma levels
 use soil_m                       ! Soil and surface data
@@ -1967,6 +1972,9 @@ do iq=1,ifull  ! all land points in this nsib=3 loop
       eg(iq) = tsigmf(iq)*evapxf(iq) + (1. - tsigmf(iq))*egg(iq)
       evspsbl(iq) = evspsbl(iq) + tsigmf(iq)*evapxf(iq)/hl + (1. - tsigmf(iq))*egg(iq)/(hl*cls(iq))
     endif
+    if ( cls(iq)>1.01 ) then
+      sbl(iq) = sbl(iq) + egg(iq)/(hl*cls(iq))  
+    end if    
     if(nsigmf==2)then
       fg(iq)=tsigmf(iq)*fgf(iq)+fgg(iq)
     else

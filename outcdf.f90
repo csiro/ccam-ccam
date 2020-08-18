@@ -1203,6 +1203,8 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'mrros',lname,'mm/day',0.,1300.,0,-1) ! -1=long
       lname = 'Evaporation'
       call attrib(idnc,dimj,jsize,'evspsbl',lname,'mm/day',-1300.,1300.,0,-1)  ! -1 = long
+      lname = 'Sublimation'
+      call attrib(idnc,dimj,jsize,'sbl',lname,'mm/day',-1300.,1300.,0,-1)  ! -1 = long
     end if
     if ( save_land .or. save_ocean ) then
       lname = 'Surface albedo'
@@ -2434,6 +2436,8 @@ if ( save_land ) then
   call histwrt(aa,'mrros',idnc,iarch,local,lwrite)
   aa(:) = evspsbl*scale_factor
   call histwrt(aa,'evspsbl',idnc,iarch,local,lwrite)
+  aa(:) = sbl*scale_factor
+  call histwrt(aa,'sbl',idnc,iarch,local,lwrite)
 end if
 if ( save_land .or. save_ocean ) then
   aa(:) = swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)  
