@@ -927,9 +927,7 @@ do nb = 1,maxnb
   snage = snage + unpack(sv(is:ie)*real(ssnow%snage(is:ie)),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
   snowd = snowd + unpack(sv(is:ie)*real(ssnow%snowd(is:ie)),tmap(:,nb),0.)
   snowmelt = snowmelt + unpack(sv(is:ie)*real(ssnow%smelt(is:ie)),tmap(:,nb),0.)
-  ! the following is using the calculation for dmce in cable_canopy
-  ! (3.41, SCAM manual, CSIRO tech doc 132)
-  evspsbl_l = evspsbl_l + unpack(sv(is:ie)*real((canopy%fev(is:ie) + canopy%fes(is:ie)/ssnow%cls(is:ie))/C%HL),tmap(:,nb),0.)
+  evspsbl_l = evspsbl_l + unpack(sv(is:ie)*real((canopy%fev(is:ie)+canopy%fesp(is:ie)+canopy%fess/ssnow%cls(is:ie))/C%HL),tmap(:,nb),0.)
   ! diagnostic
   epot = epot + unpack(sv(is:ie)*real(ssnow%potev(is:ie)),tmap(:,nb),0.)         ! diagnostic in history file
   vlai = vlai + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,nb),0.)
