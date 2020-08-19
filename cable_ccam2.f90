@@ -884,7 +884,7 @@ where ( land(1:imax) )
   snage = 0.
 end where
 evspsbl_l = 0.
-sbl = 0.
+sbl_l = 0.
 tmps = 0. ! average isflag
 
 do nb = 1,maxnb
