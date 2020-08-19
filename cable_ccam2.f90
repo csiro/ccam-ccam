@@ -1027,8 +1027,8 @@ where ( land(1:imax) )
   cdtq      = cdtq*vmod
   tss       = tss**0.25
   rsmin     = 1./rsmin
-  evspsbl   = evspsbl + evspsbl_l
-  sbl       = sbl + sbl_l
+  evspsbl   = evspsbl + dt*evspsbl_l
+  sbl       = sbl + dt*sbl_l
   ! update albedo and tss before calculating net radiation
   albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif ! for nrad=4
   albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif ! for nrad=4 

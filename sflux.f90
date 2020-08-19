@@ -803,8 +803,8 @@ do iq=1,ifull                                                                   
 enddo       ! iq loop                                                                            ! sice
 where (.not.land)                                                                                ! sice
   snowd=0.                                                                                       ! sice
-  evspsbl = evspsbl + fracice*evap_ice + (1.-fracice)*evap_sea                                   ! sice
-  sbl = sbl + fracice*evap_ice                                                                   ! sice
+  evspsbl = evspsbl + dt*(fracice*evap_ice + (1.-fracice)*evap_sea)                              ! sice
+  sbl = sbl + dt*fracice*evap_ice                                                                ! sice
 end where                                                                                        ! sice
 if(mydiag.and.nmaxpr==1)then                                                                     ! sice
   write(6,*) 'after sice loop'                                                                   ! sice
@@ -996,8 +996,8 @@ call mloextra(2,tauy,azmin,0,dgwater,dgice,ice,wpack,wfull)                     
                                                                                                ! MLO
 where ( .not.land(1:imax) )                                                                    ! MLO
   tpan = tss(:) ! assume tss_sh=0.                                                             ! MLO
-  evspsbl = evspsbl + levspsbl ! levspsbl should be zero over land                             ! MLO
-  sbl = sbl + lsbl ! lsbl should be zero over land                                             ! MLO
+  evspsbl = evspsbl + dt*levspsbl ! levspsbl should be zero over land                          ! MLO
+  sbl = sbl + dt*lsbl ! lsbl should be zero over land                                          ! MLO
 end where                                                                                      ! MLO
                                                                                                ! MLO
 ! pan evaporation diagnostic                                                                   ! MLO
@@ -1181,8 +1181,8 @@ where ( u_sigma>0. )                                                            
   ! easier to remove the new runoff and add it again after the                                   ! urban
   ! urban scheme has been updated                                                                ! urban
   runoff = oldrunoff + (1.-u_sigma)*(runoff-oldrunoff) + u_sigma*u_rn                            ! urban
-  evspsbl = oldevspsbl + (1.-u_sigma)*(evspsbl-oldevspsbl) + u_sigma*u_evspsbl                   ! urban
-  sbl = oldsbl + (1.-u_sigma)*(sbl-oldsbl) + u_sigma*u_sbl                                       ! urban
+  evspsbl = oldevspsbl + (1.-u_sigma)*(evspsbl-oldevspsbl) + u_sigma*dt*u_evspsbl                ! urban
+  sbl = oldsbl + (1.-u_sigma)*(sbl-oldsbl) + u_sigma*dt*u_sbl                                    ! urban
 end where                                                                                        ! urban
 ! default urban roughness lengths                                                                ! urban
 urban_zom = 1.e-10                                                                               ! urban
@@ -1967,13 +1967,13 @@ do iq=1,ifull  ! all land points in this nsib=3 loop
     ! combined fluxes
     if(snowd(iq)>1.)then
       eg(iq)=tsigmf(iq)*evapxf(iq) + egg(iq)
-      evspsbl(iq) = evspsbl(iq) + tsigmf(iq)*evapxf(iq)/hl + egg(iq)/(hl*cls(iq))
+      evspsbl(iq) = evspsbl(iq) + dt*(tsigmf(iq)*evapxf(iq)/hl + egg(iq)/(hl*cls(iq)))
     else
       eg(iq) = tsigmf(iq)*evapxf(iq) + (1. - tsigmf(iq))*egg(iq)
-      evspsbl(iq) = evspsbl(iq) + tsigmf(iq)*evapxf(iq)/hl + (1. - tsigmf(iq))*egg(iq)/(hl*cls(iq))
+      evspsbl(iq) = evspsbl(iq) + dt*(tsigmf(iq)*evapxf(iq)/hl + (1. - tsigmf(iq))*egg(iq)/(hl*cls(iq)))
     endif
     if ( cls(iq)>1.01 ) then
-      sbl(iq) = sbl(iq) + egg(iq)/(hl*cls(iq))  
+      sbl(iq) = sbl(iq) + dt*egg(iq)/(hl*cls(iq))  
     end if    
     if(nsigmf==2)then
       fg(iq)=tsigmf(iq)*fgf(iq)+fgg(iq)
