@@ -782,8 +782,6 @@ do iq=1,ifull                                                                   
     fg(iq) =fracice(iq)*fgf(iq) + (1.-fracice(iq))*fg(iq)                                        ! sice
     ri(iq) =fracice(iq)*ri_ice  + (1.-fracice(iq))*ri(iq)                                        ! sice
     zo(iq) =fracice(iq)*zoice   + (1.-fracice(iq))*zo(iq)                                        ! sice
-    evspsbl(iq) = evspsbl(iq) + fracice(iq)*evap_ice(iq) + (1.-fracice(iq))*evap_sea(iq)         ! sice
-    sbl(iq) = sbl(iq) + fracice(iq)*evap_ice(iq)                                                 ! sice
     factch(iq) = fracice(iq)*factchice + (1.-fracice(iq))*factch(iq)                             ! sice
     zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                                                       ! sice
     zoq(iq)=zoh(iq)                                                                              ! sice
@@ -805,6 +803,8 @@ do iq=1,ifull                                                                   
 enddo       ! iq loop                                                                            ! sice
 where (.not.land)                                                                                ! sice
   snowd=0.                                                                                       ! sice
+  evspsbl = evspsbl + fracice*evap_ice + (1.-fracice)*evap_sea                                   ! sice
+  sbl = sbl + fracice*evap_ice                                                                   ! sice
 end where                                                                                        ! sice
 if(mydiag.and.nmaxpr==1)then                                                                     ! sice
   write(6,*) 'after sice loop'                                                                   ! sice
