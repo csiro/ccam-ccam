@@ -140,25 +140,13 @@ real, dimension(imax,kl,naero) :: lxtg, lxtosav
 logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),                                             &
-!$omp private(lcfrac,lgfrac,lrfrac,lsfrac,k,lrhoa),                                   &
-!$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl),  &
-!$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
-!$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lt),                &
-!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,idjd_t,mydiag_t)
-!!$acc parallel loop copy(stratcloud,gfrac,rfrac,sfrac,t,qg,qgrg,qlg,qfg,qrg,qsng,      &
-!!$acc   nettend,condg,conds,condx,precip)                                              &
-!!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em,                                &
-!!$acc   xtg,xtosav,rlatt,condc),                                                       &
-!!$acc copyout(cfrac,qlrad,qfrad,qccon,ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,      &
-!!$acc   ppfstayliq,ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,       &
-!!$acc   cdrop,clcon), present(sig),                                                    &
-!!$acc private(lcfrac,lgfrac,lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,           &
-!!$acc   lppfstayliq,lppfsubl,lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,        &
-!!$acc   lpprscav,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-!!$acc   ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrhoa,lxtg,lxtosav)
+!$omp private(lxtg,lxtosav,lrhoa,lclcon,lcdrop,is,ie,k,idjd_t,mydiag_t)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
+
+  idjd_t = mod(idjd-1,imax) + 1
+  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
   if ( abs(iaero)>=2 ) then
     lxtg = xtg(is:ie,:,:)
@@ -175,6 +163,29 @@ do tile = 1,ntiles
   ! Calculate convective cloud fraction
   call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),acon,bcon,imax,kl)
   clcon(is:ie,:) = lclcon
+  
+end do
+!$omp end do nowait
+
+!$omp do schedule(static) private(is,ie),                                             &
+!$omp private(lcfrac,lgfrac,lrfrac,lsfrac,k,lrhoa),                                   &
+!$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl),  &
+!$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
+!$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lt),                &
+!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,idjd_t,mydiag_t)
+!!$acc parallel loop copy(stratcloud,gfrac,rfrac,sfrac,t,qg,qgrg,qlg,qfg,qrg,qsng,      &
+!!$acc   nettend,condg,conds,condx,precip)                                              &
+!!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em,condc,cdrop,clcon),             &
+!!$acc copyout(cfrac,qlrad,qfrad,qccon,ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,      &
+!!$acc   ppfstayliq,ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)       &
+!!$acc present(sig)                                                                     &
+!!$acc private(lcfrac,lgfrac,lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,           &
+!!$acc   lppfstayliq,lppfsubl,lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,        &
+!!$acc   lpprscav,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
+!!$acc   ldpsldt,lnettend,lstratcloud,lclcon,lcdrop)
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
 
   idjd_t = mod(idjd-1,imax) + 1
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
@@ -193,6 +204,8 @@ do tile = 1,ntiles
   lqfrad   = qfrad(is:ie,:)  
   lt       = t(is:ie,:)
   ldpsldt  = dpsldt(is:ie,:)
+  lcdrop   = cdrop(is:ie,:)
+  lclcon   = clcon(is:ie,:)
   if ( ncloud>=4 ) then
     lnettend    = nettend(is:ie,:)
     lstratcloud = stratcloud(is:ie,:)
