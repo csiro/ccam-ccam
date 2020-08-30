@@ -3180,7 +3180,7 @@ if ( abs(iaero)>=2 ) then
         tv(:)     = t(1:ifull,k)*(1.+1.61*qg(1:ifull,k)-qtot(:))   ! virtual temperature
         rhoa(:,k) = ps(1:ifull)*sig(k)/(rdry*tv(:))                ! density of air
       end do
-      call aerodrop(tmpry(:,1:kl),rhoa,xtg,xtosav,land,rlatt,ifull,kl)
+      call aerodrop(1,tmpry(:,1:kl),rhoa)
       call histwrt(tmpry(:,1:kl),'cdn',idnc,iarch,local,.true.)
     end if
   end if

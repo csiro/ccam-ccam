@@ -180,7 +180,6 @@ real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
 real, dimension(imax) :: dzrho, dumtss, alb
 real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif, fbeam, sgn_save
 real, dimension(imax) :: sgn
-real, dimension(imax,kl,naero) :: lxtg, lxtosav
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
 real dhr, cosz, delta
@@ -416,14 +415,10 @@ do iq_tile = 1,ifull,imax
         !else
           Aerosol_props%ivol(:,:,:) = 0 ! no mixing of bc with so4
         !end if
-      end select
+    end select
 
     ! define droplet size distribution ------------------------------
-    if ( abs(iaero)>=2 ) then
-      lxtg = xtg(istart:iend,:,:)
-      lxtosav = xtosav(istart:iend,:,:)
-    end if  
-    call aerodrop(cd2,rhoa,lxtg,lxtosav,land(istart:iend),rlatt(istart:iend),imax,kl)
+    call aerodrop(istart,cd2,rhoa)
     
     ! Cloud fraction diagnostics ------------------------------------
     cloudlo(istart:iend) = 0.

@@ -243,15 +243,12 @@ end subroutine mlodyninit
 ! and McGregor's hordifg.f routines for CCAM.
 subroutine mlodiffusion
 
-use cc_mpi
 use mlo
 use newmpar_m
 
 implicit none
 
 real, dimension(ifull,wlev) :: u,v,tt,ss
-
-call START_LOG(waterdiff_begin)
 
 ! extract data from MLO
 u=0.
@@ -263,18 +260,12 @@ call mloexport3d(1,ss,0)
 call mloexport3d(2,u,0)
 call mloexport3d(3,v,0)
 
-call END_LOG(waterdiff_end)
-
-call mlodiffusion_work(tt,ss,u,v)
-
-call START_LOG(waterdiff_begin)
+call mlodiffusion_work(u,v,tt,ss)
 
 call mloimport3d(0,tt,0)
 call mloimport3d(1,ss,0)
 call mloimport3d(2,u,0)
 call mloimport3d(3,v,0)
-
-call END_LOG(waterdiff_end)
 
 return
 end subroutine mlodiffusion
@@ -1321,18 +1312,13 @@ do mspec_mlo = mspeca_mlo,1,-1
 end do ! mspec_mlo
 
 
-worku = nu(1:ifull,:)
-workv = nv(1:ifull,:)
-call mlocheck("end of mlodynamics",water_u=worku,water_v=workv,ice_tsurf=nit(1:ifull,1))
-
-
-! HORIZONTAL DIFFUSION -----------------------------------------------------
-w_t = nt(1:ifull,:)
-w_s = ns(1:ifull,:)
 w_u = nu(1:ifull,:)
 w_v = nv(1:ifull,:)
-call mlodiffusion_work(w_t,w_s,w_u,w_v)
+w_t = nt(1:ifull,:)
+w_s = ns(1:ifull,:)
+call mlocheck("end of mlodynamics",water_u=w_u,water_v=w_v,ice_tsurf=nit(1:ifull,1))
 
+call mlodiffusion_work(w_u,w_v,w_t,w_s)
 
 ! STORE WATER AND ICE DATA IN MLO ------------------------------------------
 call mloimport(4,neta(1:ifull),0,0)
@@ -1378,14 +1364,14 @@ implicit none
 
 integer iq,i,j,k,n,nn,idel,jdel,intsch,ii
 integer, dimension(ifull,wlev), intent(out) :: nface
-integer, dimension(ifull) :: s_count
+integer s_count
 real, dimension(ifull,wlev), intent(in) :: ubar,vbar
 real, dimension(ifull,wlev), intent(out) :: xg,yg
 real(kind=8), dimension(ifull,wlev), intent(out) :: x3d,y3d,z3d
 real, dimension(ifull,wlev) :: uc,vc,wc
 real, dimension(ifull+iextra,wlev,3) :: s, s_old
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,3) :: sx
-real, dimension(ifull) :: s_tot, s_test
+real s_tot, s_test
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real xxg,yyg
@@ -1407,6 +1393,7 @@ end do
 
 ! convert to grid point numbering
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
+
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
 
@@ -1428,38 +1415,45 @@ end do
 do ii = 1,3 ! 3 iterations of fill should be enough
   s_old(1:ifull,:,:) = s(1:ifull,:,:)
   call bounds(s_old)
-  do nn = 1,3
-    do k = 1,wlev
-      s_tot(:) = 0.
-      s_count(:) = 0
-      s_test(:) = s_old(is,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
-        s_count(:) = s_count(:) + 1
-      end where
-      s_test(:) = s_old(iw,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
-        s_count(:) = s_count(:) + 1
-      end where
-      s_test(:) = s_old(ie,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
-        s_count(:) = s_count(:) + 1
-      end where
-      s_test(:) = s_old(in,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
-        s_count(:) = s_count(:) + 1
-      end where
-      where ( s_count>0 )
-        s(1:ifull,k,nn) = s_tot(1:ifull)/real(s_count(1:ifull))
-      end where
+  do concurrent (nn = 1:3)
+    do concurrent (k = 1:wlev)
+      do concurrent (iq = 1:ifull)
+        if ( s(iq,k,nn)<cxx ) then
+          s_tot = 0.
+          s_count = 0
+          s_test = s_old(is(iq),k,nn)
+          if ( s_test>cxx ) then
+            s_tot = s_tot + s_test
+            s_count = s_count +1
+          end if
+          s_test = s_old(in(iq),k,nn)
+          if ( s_test>cxx ) then
+            s_tot = s_tot + s_test
+            s_count = s_count +1
+          end if 
+          s_test = s_old(ie(iq),k,nn)
+          if ( s_test>cxx ) then
+            s_tot = s_tot + s_test
+            s_count = s_count +1
+          end if
+          s_test = s_old(iw(iq),k,nn)
+          if ( s_test>cxx ) then
+            s_tot = s_tot + s_test
+            s_count = s_count +1
+          end if
+          if ( s_count>0 ) then
+            s(iq,k,nn) = s_tot/real(s_count)
+          end if
+        end if
+      end do
     end do
   end do
 end do
 
 call bounds(s,nrows=2)
+
+!$acc data create(xg,yg,nface,sx,s)
+!$acc update device(xg,yg,nface)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -1501,6 +1495,8 @@ if ( intsch==1 ) then
       end do               ! n loop
     end do                 ! k loop
   end do                   ! nn loop
+
+  !$acc update device(sx)
  
 ! Loop over points that need to be calculated for other processes
   do ii = neighnum,1,-1
@@ -1539,9 +1535,10 @@ if ( intsch==1 ) then
   
   call intssync_send(3)
 
-  do nn = 1,3
-    do k = 1,wlev
-      do iq = 1,ifull
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s)
+  do concurrent (nn = 1:3)
+    do concurrent (k = 1:wlev)
+      do concurrent (iq = 1:ifull)
         idel = int(xg(iq,k))
         xxg  = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
@@ -1570,6 +1567,8 @@ if ( intsch==1 ) then
       end do     ! iq loop
     end do       ! k loop
   end do         ! nn loop
+  !$acc end parallel loop
+  !$acc update self(s)
        
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -1613,6 +1612,8 @@ else     ! if(intsch==1)then
     end do             ! k loop
   end do               ! nn loop
 
+  !$acc update device(sx)
+
 ! For other processes
   do ii = neighnum,1,-1
     do nn = 1,3
@@ -1649,9 +1650,10 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-  do nn = 1,3
-    do k = 1,wlev
-      do iq = 1,ifull
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s)
+  do concurrent (nn = 1:3)
+    do concurrent (k = 1:wlev)
+      do concurrent (iq = 1:ifull)
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
@@ -1680,6 +1682,8 @@ else     ! if(intsch==1)then
       end do
     end do
   end do
+  !$acc end parallel loop
+  !$acc update self(s)
 
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -1701,6 +1705,7 @@ end do
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
+!$acc update device(nface,xg,yg)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -1740,9 +1745,10 @@ if ( intsch==1 ) then
   
   call intssync_send(3)
 
-  do nn = 1,3
-    do k = 1,wlev
-      do iq = 1,ifull
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s)
+  do concurrent (nn = 1:3)
+    do concurrent (k = 1:wlev)
+      do concurrent (iq = 1:ifull)
         idel = int(xg(iq,k))
         xxg  = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
@@ -1770,6 +1776,8 @@ if ( intsch==1 ) then
       end do     ! iq loop
     end do       ! k loop
   end do         ! nn loop
+  !$acc end parallel loop
+  !$acc update self(s)
        
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -1810,9 +1818,10 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-  do nn = 1,3
-    do k = 1,wlev
-      do iq = 1,ifull
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s)
+  do concurrent (nn = 1:3)
+    do concurrent (k = 1:wlev)
+      do concurrent (iq = 1:ifull)
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
@@ -1841,9 +1850,13 @@ else     ! if(intsch==1)then
       end do
     end do
   end do
+  !$acc end parallel loop
+  !$acc update self(s)
 
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
+
+!$acc end data
 
 call intssync_recv(s)
 
@@ -1994,13 +2007,13 @@ integer idel,iq,jdel
 integer i,j,k,n,intsch
 integer ii,ntr,nn
 integer, dimension(ifull,wlev), intent(in) :: nface
-integer, dimension(ifull) :: s_count
+integer s_count
 real, dimension(ifull,wlev), intent(in) :: xg,yg
 real, dimension(:,:,:), intent(inout) :: s
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,size(s,3)) :: sx
 real, dimension(ifull+iextra,wlev,size(s,3)) :: s_old
 real, dimension(ifull,wlev,size(s,3)) :: s_store
-real, dimension(ifull) :: s_tot, s_test
+real s_tot, s_test
 real cmax, cmin, xxg, yyg
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
@@ -2025,33 +2038,37 @@ end do
 do ii = 1,3 ! 3 iterations of fill should be enough
   s_old(1:ifull,:,:) = s(1:ifull,:,:)
   call bounds(s_old)
-  do nn = 1,ntr
-    do k = 1,wlev
-      s_tot(:) = 0.
-      s_count(:) = 0
-      s_test(:) = s_old(is,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
-        s_count(:) = s_count(:) + 1
-      end where
-      s_test(:) = s_old(iw,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
-        s_count(:) = s_count(:) + 1
-      end where
-      s_test(:) = s_old(ie,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
-        s_count(:) = s_count(:) + 1
-      end where
-      s_test(:) = s_old(in,k,nn)
-      where ( s_old(1:ifull,k,nn)<cxx .and. s_test(1:ifull)>cxx )
-        s_tot(:) = s_tot(:) + s_test(:)
-        s_count(:) = s_count(:) + 1
-      end where
-      where ( s_count>0 )
-        s(1:ifull,k,nn) = s_tot(1:ifull)/real(s_count(1:ifull))
-      end where
+  do concurrent (nn = 1:ntr)
+    do concurrent (k = 1:wlev)
+      do concurrent (iq = 1:ifull)
+        if ( s(iq,k,nn)<cxx ) then
+          s_tot = 0.
+          s_count = 0
+          s_test = s_old(is(iq),k,nn)
+          if ( s_test>cxx ) then
+            s_tot = s_tot + s_test
+            s_count = s_count +1
+          end if
+          s_test = s_old(in(iq),k,nn)
+          if ( s_test>cxx ) then
+            s_tot = s_tot + s_test
+            s_count = s_count +1
+          end if 
+          s_test = s_old(ie(iq),k,nn)
+          if ( s_test>cxx ) then
+            s_tot = s_tot + s_test
+            s_count = s_count +1
+          end if
+          s_test = s_old(iw(iq),k,nn)
+          if ( s_test>cxx ) then
+            s_tot = s_tot + s_test
+            s_count = s_count +1
+          end if
+          if ( s_count>0 ) then
+            s(iq,k,nn) = s_tot/real(s_count)
+          end if
+        end if
+      end do
     end do
   end do
 end do
@@ -2143,9 +2160,10 @@ if ( intsch==1 ) then
 
   call intssync_send(ntr)
 
-  do nn = 1,ntr
-    do k=1,wlev      
-      do iq=1,ifull
+  !$acc parallel loop collapse(3) copyin(xg,yg,nface,sx) copyout(s)
+  do concurrent (nn = 1:ntr)
+    do concurrent (k=1:wlev)      
+      do concurrent (iq=1:ifull)
         idel=int(xg(iq,k))
         xxg=xg(iq,k) - real(idel)
         jdel=int(yg(iq,k))
@@ -2179,6 +2197,7 @@ if ( intsch==1 ) then
       end do       ! iq loop
     end do         ! k loop
   end do           ! nn loop
+  !$acc end parallel loop
        
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -2269,9 +2288,10 @@ else     ! if(intsch==1)then
 
   call intssync_send(ntr)
 
-  do nn = 1,ntr
-    do k=1,wlev
-      do iq=1,ifull
+  !$acc parallel loop collapse(3) copyin(xg,yg,nface,sx,s)
+  do concurrent (nn = 1:ntr)
+    do concurrent (k = 1:wlev)
+      do concurrent (iq = 1:ifull)
         idel=int(xg(iq,k))
         xxg=xg(iq,k)-real(idel)
         jdel=int(yg(iq,k))
@@ -2305,14 +2325,15 @@ else     ! if(intsch==1)then
       end do
     end do
   end do
+  !$acc end parallel loop
 
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
 call intssync_recv(s)
 
-do nn=1,ntr
-  do k=1,wlev
+do nn = 1,ntr
+  do k = 1,wlev
     where ( .not.wtr(1:ifull,k) .or. s(1:ifull,k,nn)<cxx+10. )
       s(1:ifull,k,nn) = s_store(1:ifull,k,nn)
     end where
@@ -3371,6 +3392,8 @@ if (.not.allocated(wtul)) then
       dtvr(1:ifull,k,1)=0.1
       dtvr(1:ifull,k,2)=1.
       dtvr(1:ifull,k,3)=0.5
+      !vd(1:ifull,k)=vin(inv,k)*0.1+vin(1:ifull,k)+vin(isv,k)*0.5
+      !vin(1:ifull,k)=vd(:,k)-va(isv,k)*0.1-va(inv,k)*0.5
     elsewhere (evstest)
       wtvr(1:ifull,k,0)=1.
       wtvr(1:ifull,k,1)=-0.5
@@ -4633,7 +4656,7 @@ end subroutine mlomg
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine processes horizontal diffusion, based on Griffies (2000)
 ! and McGregor's hordifg.f routines for CCAM.
-subroutine mlodiffusion_work(tt,ss,u,v)
+subroutine mlodiffusion_work(u,v,tt,ss)
 
 use cc_mpi
 use const_phys
@@ -4768,18 +4791,18 @@ if ( mlodiff==0 ) then
 !  duma(1:ifull,:,2)=v(1:ifull,:)
 !  call boundsuv(duma(:,:,1),duma(:,:,2),allvec=.true.)
 !  do k=1,wlev
-!    outu(:,k)=(duma(1:ifull,k,1)*emi+2.*xfact(1:ifull,k)*duma(ieu,k,1)+2.*xfact(iwu,k)*duma(iwu,k,1) &
+!    u(:,k)=(duma(1:ifull,k,1)*emi+2.*xfact(1:ifull,k)*duma(ieu,k,1)+2.*xfact(iwu,k)*duma(iwu,k,1) &
 !      +yfact(1:ifull,k)*duma(inu,k,1)+yfact(isv,k)*duma(isu,k,1)                                     &
 !      +(yfact(1:ifull,k)-yfact(isv,k))*0.5*(duma(iev,k,2)-duma(iwv,k,2))                             &
 !      +t_kh(1:ifull,k)*0.5*(duma(inv,k,2)+duma(iev,k,2)-duma(isv,k,2)-duma(iwv,k,2)))                &
 !      /base(:,k)
-!    outv(:,k)=(duma(1:ifull,k,2)*emi+2.*yfact(1:ifull,k)*duma(inv,k,2)+2.*yfact(isv,k)*duma(isv,k,2) &
+!    v(:,k)=(duma(1:ifull,k,2)*emi+2.*yfact(1:ifull,k)*duma(inv,k,2)+2.*yfact(isv,k)*duma(isv,k,2) &
 !      +xfact(1:ifull,k)*duma(iev,k,2)+xfact(iwu,k)*duma(iwv,k,2)                                     &
 !      +(xfact(1:ifull,k)-xfact(iwu,k))*0.5*(duma(inu,k,1)-duma(isu,k,1))                             &
 !      +t_kh(1:ifull,k)*0.5*(duma(inu,k,1)+duma(ieu,k,1)-duma(isu,k,1)-duma(iwu,k,1)))                &
 !      /base(:,k)
 !  end do
-  
+
 else if ( mlodiff==1 ) then
   ! no need to call mloimport3d for u and v
 else
@@ -4791,6 +4814,7 @@ end if
 duma(1:ifull,:,1) = tt(1:ifull,:)
 duma(1:ifull,:,2) = ss(1:ifull,:) - 34.72
 call bounds(duma(:,:,1:2))
+
 do k = 1,wlev
   call unpack_nsew(duma(:,k,1),duma_n,duma_s,duma_e,duma_w)  
   tt(:,k) = ( duma(1:ifull,k,1)*emi +                      &
@@ -4814,6 +4838,6 @@ ss = max(ss+34.72, 0.)
 call END_LOG(waterdiff_end)
 
 return
-end subroutine mlodiffusion_work              
-                 
+end subroutine mlodiffusion_work
+
 end module mlodynamics

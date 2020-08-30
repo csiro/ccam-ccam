@@ -141,8 +141,9 @@ if ( intsch==1 ) then
     ! the messages to return, thereby overlapping computation with communication.
     call intssync_send
 
-    do k = 1,kl
-      do iq = 1,ifull    ! non Berm-Stan option
+    !$acc parallel loop collapse(2) copyin(xg,yg,nface,sx) copyout(s)
+    do concurrent (k = 1:kl)
+      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - idel
         jdel = int(yg(iq,k))
@@ -170,6 +171,7 @@ if ( intsch==1 ) then
         s(iq,k) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do       ! iq loop
     end do         ! k loop
+    !$acc end parallel loop
     
   else              ! (nfield<mh_bs)
       
@@ -213,8 +215,9 @@ if ( intsch==1 ) then
     ! the messages to return, thereby overlapping computation with communication.
     call intssync_send
 
-    do k = 1,kl
-      do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
+    !$acc parallel loop collapse(2) copyin(xg,yg,nface,sx) copyout(s)
+    do concurrent (k = 1:kl)
+      do concurrent (iq = 1:ifull)    ! Berm-Stan option here e.g. qg & gases
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - idel
         jdel = int(yg(iq,k))
@@ -247,6 +250,7 @@ if ( intsch==1 ) then
             rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
       end do      ! iq loop
     end do        ! k loop
+    !$acc end parallel loop
     
   end if            ! (nfield<mh_bs)  .. else ..
             
@@ -328,8 +332,9 @@ else     ! if(intsch==1)then
     
     call intssync_send
 
-    do k = 1,kl
-      do iq = 1,ifull    ! non Berm-Stan option
+    !$acc parallel loop collapse(2) copyin(xg,yg,nface,sx) copyout(s)
+    do concurrent (k = 1:kl)
+      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - idel
@@ -358,6 +363,7 @@ else     ! if(intsch==1)then
         s(iq,k) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do       ! iq loop
     end do         ! k loop
+    !$acc end parallel loop
     
   else                 ! (nfield<mh_bs)
       
@@ -400,8 +406,9 @@ else     ! if(intsch==1)then
   
     call intssync_send
 
-    do k = 1,kl
-      do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
+    !$acc parallel loop collapse(2) copyin(xg,yg,nface,sx) copyout(s)
+    do concurrent (k = 1:kl)
+      do concurrent (iq = 1:ifull)    ! Berm-Stan option here e.g. qg & gases
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - idel
         jdel = int(yg(iq,k))
@@ -434,6 +441,7 @@ else     ! if(intsch==1)then
             rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
       end do       ! iq loop
     end do         ! k loop
+    !$acc end parallel loop
     
   end if            ! (nfield<mh_bs)  .. else ..
 
@@ -514,8 +522,9 @@ end do
 
 call intssync_send(1)
 
-do k = 1,kl
-  do iq = 1,ifull
+!$acc parallel loop collapse(2) copyin(xg,yg,nface,sx) copyout(s)
+do concurrent (k = 1:kl)
+  do concurrent (iq = 1:ifull)
     ! Convert face index from 0:npanels to array indices
     idel=int(xg(iq,k))
     xxg=xg(iq,k)-idel
@@ -528,6 +537,7 @@ do k = 1,kl
               + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
+!$acc end parallel loop
 
 call intssync_recv(s)
 

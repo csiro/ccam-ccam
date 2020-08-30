@@ -101,8 +101,6 @@ contains
 subroutine leoncld
 
 use aerointerface                 ! Aerosol interface
-use aerosolldr, only : naero,   & ! LDR prognostic aerosols
-                       xtg,xtosav
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use cc_mpi, only : mydiag         ! CC MPI routines
 use cc_omp                        ! CC OpenMP routines
@@ -110,7 +108,6 @@ use cfrac_m                       ! Cloud fraction
 use cloudmod                      ! Prognostic cloud fraction
 use const_phys                    ! Physical constants
 use kuocomb_m                     ! JLM convection
-use latlong_m, only : rlatt       ! Lat/lon coordinates
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
 use morepbl_m                     ! Additional boundary layer diagnostics
@@ -136,57 +133,47 @@ real, dimension(imax,kl) :: lppqfsedice, lpprfreeze, lpprscav, lqccon, lqfg, lqf
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfrac, lt
 real, dimension(imax,kl) :: ldpsldt, lnettend, lstratcloud, lclcon, lcdrop, lrhoa
 real, dimension(ifull,kl) :: clcon, cdrop
-real, dimension(imax,kl,naero) :: lxtg, lxtosav
 logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),                                             &
-!$omp private(lxtg,lxtosav,lrhoa,lclcon,lcdrop,is,ie,k,idjd_t,mydiag_t)
+!$omp private(k,lrhoa,lcdrop,lclcon)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-
-  idjd_t = mod(idjd-1,imax) + 1
-  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-
-  if ( abs(iaero)>=2 ) then
-    lxtg = xtg(is:ie,:,:)
-    lxtosav = xtosav(is:ie,:,:)
-  end if
 
   ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
   do k = 1,kl
     lrhoa(:,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k))  
   end do
-  call aerodrop(lcdrop,lrhoa,lxtg,lxtosav,land(is:ie),rlatt(is:ie),imax,kl,outconv=.true.)
+  call aerodrop(is,lcdrop,lrhoa,outconv=.true.)
   cdrop(is:ie,:) = lcdrop
 
   ! Calculate convective cloud fraction
-  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),acon,bcon,imax,kl)
+  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie))
   clcon(is:ie,:) = lclcon
-  
 end do
 !$omp end do nowait
 
 !$omp do schedule(static) private(is,ie),                                             &
-!$omp private(lcfrac,lgfrac,lrfrac,lsfrac,k,lrhoa),                                   &
+!$omp private(lcfrac,lgfrac,lrfrac,lsfrac),                                           &
 !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl),  &
 !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lt),                &
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,idjd_t,mydiag_t)
-!!$acc parallel loop copy(stratcloud,gfrac,rfrac,sfrac,t,qg,qgrg,qlg,qfg,qrg,qsng,      &
-!!$acc   nettend,condg,conds,condx,precip)                                              &
-!!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em,condc,cdrop,clcon),             &
-!!$acc copyout(cfrac,qlrad,qfrad,qccon,ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,      &
-!!$acc   ppfstayliq,ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)       &
-!!$acc present(sig)                                                                     &
-!!$acc private(lcfrac,lgfrac,lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,           &
-!!$acc   lppfstayliq,lppfsubl,lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,        &
-!!$acc   lpprscav,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-!!$acc   ldpsldt,lnettend,lstratcloud,lclcon,lcdrop)
+!$acc parallel copy(stratcloud,gfrac,rfrac,sfrac,t,qg,qgrg,qlg,qfg,qrg,qsng,nettend,   &
+!$acc   condg,conds,condx,precip)                                                      &
+!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em,clcon,cdrop)                    &
+!$acc copyout(cfrac,qlrad,qfrad,qccon,ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,      &
+!$acc   ppfstayliq,ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)       &
+!$acc present(sig)                                                                     &
+!$acc private(lcfrac,lgfrac,lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,           &
+!$acc   lppfstayliq,lppfsubl,lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,        &
+!$acc   lpprscav,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
+!$acc   ldpsldt,lnettend,lstratcloud,lclcon,lcdrop)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-
+  
   idjd_t = mod(idjd-1,imax) + 1
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
   
@@ -204,13 +191,11 @@ do tile = 1,ntiles
   lqfrad   = qfrad(is:ie,:)  
   lt       = t(is:ie,:)
   ldpsldt  = dpsldt(is:ie,:)
-  lcdrop   = cdrop(is:ie,:)
   lclcon   = clcon(is:ie,:)
+  lcdrop   = cdrop(is:ie,:)
+  lstratcloud = stratcloud(is:ie,:)
   if ( ncloud>=4 ) then
     lnettend    = nettend(is:ie,:)
-    lstratcloud = stratcloud(is:ie,:)
-  else
-    lstratcloud = cfrac(is:ie,:)
   end if
 
   call leoncld_work(lcfrac,condg(is:ie),conds(is:ie),condx(is:ie),lgfrac,                           &
@@ -235,6 +220,7 @@ do tile = 1,ntiles
   qlrad(is:ie,:) = lqlrad
   qfrad(is:ie,:) = lqfrad
   t(is:ie,:)     = lt
+  stratcloud(is:ie,:) = lstratcloud
   if ( abs(iaero)>=2 ) then
     ppfevap(is:ie,:)    = lppfevap
     ppfmelt(is:ie,:)    = lppfmelt
@@ -252,11 +238,10 @@ do tile = 1,ntiles
   end if
   if ( ncloud>=4 ) then
     nettend(is:ie,:)    = lnettend
-    stratcloud(is:ie,:) = lstratcloud
   end if
   
 end do
-!!$acc end parallel
+!$acc end parallel
 !$omp end do nowait
 
 return
@@ -1010,13 +995,11 @@ end if ! ncloud<=3 ..else..
 pk(:) = 1.e5 ! default
 Tk(:) = 300. ! default
 do k = 1,kl  
-  where ( stratcloud(:,k)>0. )
-    Tk(:) = tliq(:,k) + hlcp*(qlg(:,k)+qfg(:,k))/stratcloud(:,k) !T in liq cloud
-    !fl(:) = qlg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-30)
-  end where
-!dir$ ivdep
+!!dir$ ivdep
   do iq = 1,imax
     if ( stratcloud(iq,k)>0. .and. Tk(iq)<tfrz .and. qlg(iq,k)>1.e-8 ) then
+      Tk(iq) = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/stratcloud(iq,k) !T in liq cloud
+      !fl(iq) = qlg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-30)
       pk(iq)    = 100.*prf(iq,k)
       qs(iq)    = qsati(pk(iq),Tk(iq))
       es        = qs(iq)*pk(iq)/0.622 !ice value
@@ -2002,7 +1985,6 @@ do n = 1,njumps
             crfra(iq)       = cltmp
           end if
         end do
-
       end if     
       
       ! Evaporation of rain
@@ -2103,12 +2085,11 @@ do n = 1,njumps
             mxclfrrain(iq) = max( mxclfrrain(iq), cftmp )
           end if
         end do
-
       end if   
       
       ! store for aerosols
       qevap(:,k) = qevap(:,k) + evap
-      prscav(:,k) = prscav(:,k) + tdt*0.24*fcol*pow75(Fr,imax)   !Strat only
+      prscav(:,k) = prscav(:,k) + tdt*0.24*fcol*pow75(Fr)   !Strat only
       
     end if  
     
@@ -2119,8 +2100,7 @@ do n = 1,njumps
 
     ! Misc ------------------------------------------------------------------------------
 
-    if ( any( fluxrain>0. ) ) then
-    
+    if ( any( fluxrain>0. ) ) then    
       if ( ncloud>=3 ) then  
         ! Accretion of cloud ice by rain to produce snow or grauple (from Lin et al 1983 - praci)
         ! (Neglected in UM and ACCESS 1.3)
@@ -2147,9 +2127,7 @@ do n = 1,njumps
             mxclfrsnow(iq)    = max( mxclfrsnow(iq), cftmp*(1.-xwgt) )
           end if
         end do
-        
       end if  
-      
     end if  
   
     
@@ -2533,12 +2511,11 @@ y=sqrt(x)
 ans=y*sqrt(y)
 end function pow75_s
 
-pure function pow75_v(x,imax) result(ans)
+pure function pow75_v(x) result(ans)
 !$acc routine vector
 implicit none
-integer, intent(in) :: imax
-real, dimension(imax), intent(in) :: x
-real, dimension(imax) :: ans, y
+real, dimension(:), intent(in) :: x
+real, dimension(size(x)) :: ans, y
 y=sqrt(x)
 ans=y*sqrt(y)
 end function pow75_v    

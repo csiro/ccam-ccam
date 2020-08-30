@@ -150,7 +150,7 @@ subroutine tkemix(kmo,theta,qvg,qlg,qfg,stratcloud,uo,vo,zi,fg,eg,cduv,ps,zz,zzh
                   
 implicit none
 
-integer, intent(in) :: mode, imax, kl
+integer, intent(in) :: imax, kl, mode
 integer k, iq
 integer kcount, mcount
 real, intent(in) :: dt, qgmin
@@ -164,31 +164,32 @@ real, dimension(imax,kl), intent(inout) :: eps
 real, dimension(imax), intent(inout) :: zi
 real, dimension(imax), intent(in) :: fg,eg,cduv,ps,rhos,dx
 real, dimension(imax), intent(out) :: ustar_ave
-real, dimension(kl), intent(in) :: sig
+real, dimension(imax), intent(in) :: sig
 real, dimension(imax,kl) :: km,thetav,thetal,qsat
 real, dimension(imax,kl) :: qsatc,qgnc,ff
 real, dimension(imax,kl) :: thetalhl,thetavhl,uo_hl,vo_hl
 real, dimension(imax,kl) :: quhl,qshl,qlhl,qfhl
-real, dimension(imax,kl) :: aa,bb,cc,dd,rr,qq,ss,tt
+real, dimension(imax,kl) :: bb,cc,dd,rr
 real, dimension(imax,kl) :: rhoa,rhoahl
 real, dimension(imax,kl) :: qtot,qthl
 real, dimension(imax,kl) :: tlup,qvup,qlup,qfup
 real, dimension(imax,kl) :: cfup,mflx
 real, dimension(imax,kl) :: pps,ppt,ppb
 real, dimension(imax,kl) :: idzm
-real, dimension(imax,kl) :: idzp
-real, dimension(imax,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
-real, dimension(imax,kl) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
-real, dimension(imax,kl) :: fzzh
+real, dimension(imax,kl-1) :: idzp
+real, dimension(imax,2:kl) :: aa,qq
+real, dimension(imax,kl)   :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
+real, dimension(imax,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
+real, dimension(imax,kl-1) :: fzzh
 real, dimension(imax) :: wt0,wq0,wtv0
 real, dimension(imax) :: wstar,z_on_l,phim
 real, dimension(imax) :: pres,temp
+real :: tff,tempc,thetac,tempt
 real, dimension(imax) :: ustar
+real :: tbb,tqq,tcc,tempv,fc,dc,mc,bvf,rvar
 real, dimension(imax) :: zi_save, zturb, cgmap
 real, dimension(imax) :: templ, dqsdt, al, fice, qc, qt, lx
-real, dimension(imax) :: sigkap
-real tff,tempc,thetac,tempt
-real tbb,tqq,tcc,tempv,fc,dc,mc,bvf,rvar
+real, dimension(kl) :: sigkap
 real cm12, cm34, ddts
 logical, dimension(imax,kl) :: lta
 logical, dimension(imax) :: mask
@@ -239,41 +240,31 @@ wq0 = eg/(rhos*lv)  ! qtot flux
 
 ! Fraction for interpolation from full levels to half levels
 fzzh(:,1:kl-1) = (zzh(:,1:kl-1)-zz(:,1:kl-1))/(zz(:,2:kl)-zz(:,1:kl-1))
-fzzh(:,kl) = 0.
 
 ! Calculate dz at half levels
 dz_hl(:,1:kl-1) = max( zz(:,2:kl) - zz(:,1:kl-1), 1. )
-dz_hl(:,kl) = 0. ! not used
 
 ! Calculate dz at full levels
 dz_fl(:,1)    = zzh(:,1)
 dz_fl(:,2:kl) = zzh(:,2:kl) - zzh(:,1:kl-1)
 dz_fl = max( dz_fl, 1. )
 
-ppb = 0.
-ppt = 0.
-
 ! Calculate shear term on full levels
 pps(:,1:kl-1) = km(:,1:kl-1)*shear(:,1:kl-1)
+
+! set top boundary condition for TKE-eps source terms
 pps(:,kl) = 0.
+ppb(:,kl) = 0.
+ppt(:,1)  = 0.
+ppt(:,kl) = 0.
 
 ! interpolate diffusion coeff and air density to half levels
 call updatekmo(kmo,   km,  fzzh,imax,kl)
 call updatekmo(rhoahl,rhoa,fzzh,imax,kl)
 ! eddy diffusion terms to account for air density with level thickness
-idzm(:,1) = 0.
 idzm(:,2:kl)   = rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl))
 idzp(:,1:kl-1) = rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
-idzp(:,kl) = 0.
 
-aa = 0.
-bb = 0.
-cc = 0.
-dd = 0.
-qq = 0.
-rr = 0.
-ss = 0.
-tt = 0.
 ustar_ave(:) = 0.
 
 ! Main loop to prevent time splitting errors
@@ -282,12 +273,15 @@ ddts   = dt/real(mcount)
 do kcount = 1,mcount
 
   ! Set-up thermodynamic variables temp, theta_v, qtot and saturated mixing ratio
-!$acc loop private(templ,pres,fice)
   do k = 1,kl
     templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
     ! calculate saturated air mixing ratio
-    fice = min( qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-8), 1. )
+    where ( qfg(:,k)>1.e-12 )
+      fice = min( qfg(:,k)/(qfg(:,k)+qlg(:,k)), 1. )
+    elsewhere
+      fice = 0.
+    end where
     call getqsat(qsat(:,k),templ(:),pres(:),fice,imax)
     thetav(:,k) = theta(:,k)*(1.+0.61*qvg(:,k)-qlg(:,k)-qfg(:,k))
     qtot(:,k) = qvg(:,k) + qlg(:,k) + qfg(:,k)
@@ -348,12 +342,12 @@ do kcount = 1,mcount
   
   
   ! calculate tke and eps boundary condition at 1st vertical level
-  z_on_l = -vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar**3,1.E-10))
+  z_on_l = -vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
   z_on_l = min(z_on_l,10.) ! See fig 10 in Beljarrs and Holtslag (1991)
   call calc_phi(phim,z_on_l,imax)
   do iq = 1,imax
-    tke(iq,1) = cm12*ustar(iq)**2+ce3*wstar(iq)**2
-    eps(iq,1) = ustar(iq)**3*phim(iq)/(vkar*zz(iq,1))+grav*wtv0(iq)/thetav(iq,1)
+    tke(iq,1) = cm12*ustar(iq)*ustar(iq)+ce3*wstar(iq)*wstar(iq)
+    eps(iq,1) = ustar(iq)*ustar(iq)*ustar(iq)*phim(iq)/(vkar*zz(iq,1))+grav*wtv0(iq)/thetav(iq,1)
     tke(iq,1) = max( tke(iq,1), mintke )
     tff = cm34*tke(iq,1)*sqrt(tke(iq,1))
     eps(iq,1) = min( eps(iq,1), tff/minl )
@@ -425,11 +419,11 @@ do kcount = 1,mcount
         ppb(iq,1)=(1.-stratcloud(iq,1))*tcc+stratcloud(iq,1)*tbb ! cloud fraction weighted (e.g., Smith 1990)
       end do
 
-    
+      
     case(1) ! Marquet and Geleyn QJRMS (2012) for partially saturated
       call updatekmo(thetalhl,thetal,fzzh,imax,kl)
       call updatekmo(qthl,qtot,fzzh,imax,kl)
-      do k = 2,kl-1
+      do k=2,kl-1
         do iq = 1,imax
           tempt  = theta(iq,k)/sigkap(k)
           tempv = thetav(iq,k)/sigkap(k)
@@ -456,9 +450,15 @@ do kcount = 1,mcount
       
     case(2) ! dry convection from Hurley 2007
       call updatekmo(thetavhl,thetav,fzzh,imax,kl)
-      ppb(:,1)=-grav*km(:,1)*(thetavhl(:,1)-thetav(:,1))/(thetav(:,1)*(zzh(:,1)-zz(:,1)))
       do k=2,kl-1
-        ppb(:,k)=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
+        do iq = 1,imax
+          tcc=-grav*km(iq,k)*(thetavhl(iq,k)-thetavhl(iq,k-1))/(thetav(iq,k)*dz_fl(iq,k))
+          ppb(iq,k)=tcc
+        end do
+      end do
+      do iq = 1,imax
+        tcc=-grav*km(iq,1)*(thetavhl(iq,1)-thetav(iq,1))/(thetav(iq,1)*(zzh(iq,1)-zz(iq,1)))
+        ppb(iq,1)=tcc 
       end do
 
   end select
@@ -471,41 +471,38 @@ do kcount = 1,mcount
     call updatekmo(uo_hl,uo,fzzh,imax,kl)
     call updatekmo(vo_hl,vo,fzzh,imax,kl)
     ! pps(:,1) is not used
-    !pps(:,1) = kmo(:,1)*(((uo_hl(:,1)-uo(:,1))/(zzh(:,1)-zz(:,1)))**2 + &
-    !                     ((vo_hl(:,1)-vo(:,1))/(zzh(:,1)-zz(:,1)))**2)
-    pps(:,2:kl-1) = kmo(:,2:kl-1)*(((uo_hl(:,2:kl-1)-uo_hl(:,1:kl-2))/dz_fl(:,2:kl-1))**2 + &
-                           ((vo_hl(:,2:kl-1)-vo_hl(:,1:kl-2))/dz_fl(:,2:kl-1))**2)  
+    pps(:,1) = kmo(:,1)*(((uo_hl(:,1)-uo(:,1))/(zzh(:,1)-zz(:,1)))**2 + &
+                         ((vo_hl(:,1)-vo(:,1))/(zzh(:,1)-zz(:,1)))**2)
+    do k = 2,kl-1  
+      pps(:,k) = kmo(:,k)*(((uo_hl(:,k)-uo_hl(:,k-1))/dz_fl(:,k))**2 + &
+                           ((vo_hl(:,k)-vo_hl(:,k-1))/dz_fl(:,k))**2)
+    end do  
   end if
   
   ! Pre-calculate eddy diffusivity mixing terms
   ! -ve because gradient is calculated at t+1
-  qq(:,2:kl)=-ddts*idzm(:,2:kl)/dz_hl(:,1:kl-1)
-  rr(:,1:kl-1)=-ddts*idzp(:,1:kl-1)/dz_hl(:,1:kl-1)
-
-  aa = 0.
-  cc = 0.
-  bb = 0.
-  dd = 0.
-
+  qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
+  rr(:,2:kl-1)=-ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
+  
   ! eps vertical mixing
-  aa(:,3:kl-1)=ce0*kmo(:,2:kl-2)*qq(:,3:kl-1)
-  cc(:,2:kl-2)=ce0*kmo(:,2:kl-2)*rr(:,2:kl-2)
+  aa(:,2:kl-1)=ce0*kmo(:,1:kl-2)*qq(:,2:kl-1)
+  cc(:,2:kl-1)=ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
   ! follow Hurley 2007 to make scheme more numerically stable
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+ddts*ce2*eps(:,2:kl-1)/tke(:,2:kl-1)
   dd(:,2:kl-1)=eps(:,2:kl-1)+ddts*eps(:,2:kl-1)/tke(:,2:kl-1)                    &
               *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
-  dd(:,2) = dd(:,2) - ce0*kmo(:,1)*qq(:,2)*eps(:,1)
-  call thomas(eps(:,2:kl-1),aa(:,2:kl-1),bb(:,2:kl-1),cc(:,2:kl-1),dd(:,2:kl-1),imax,kl-2)
-  eps = max( eps, mineps )
+  dd(:,2)     =dd(:,2)   -aa(:,2)*eps(:,1)
+  dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mineps
+  call thomas(eps(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),imax,kl-2)
 
   ! TKE vertical mixing
-  aa(:,3:kl-1)=kmo(:,2:kl-2)*qq(:,3:kl-1)
-  cc(:,2:kl-2)=kmo(:,2:kl-2)*rr(:,2:kl-2)
+  aa(:,2:kl-1)=kmo(:,1:kl-2)*qq(:,2:kl-1)
+  cc(:,2:kl-1)=kmo(:,2:kl-1)*rr(:,2:kl-1)
   bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
   dd(:,2:kl-1)=tke(:,2:kl-1)+ddts*(pps(:,2:kl-1)+ppb(:,2:kl-1)-eps(:,2:kl-1))
-  dd(:,2) = dd(:,2) - kmo(:,1)*qq(:,2)*tke(:,1)
-  call thomas(tke(:,2:kl-1),aa(:,2:kl-1),bb(:,2:kl-1),cc(:,2:kl-1),dd(:,2:kl-1),imax,kl-2)
-  tke = max( tke, mintke )
+  dd(:,2)     =dd(:,2)   -aa(:,2)*tke(:,1)
+  dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mintke
+  call thomas(tke(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),imax,kl-2)
 
   ! limit decay of TKE and EPS with coupling to mass flux term
   if ( tkemeth==1 ) then
@@ -529,11 +526,11 @@ do kcount = 1,mcount
       eps(iq,k) = max(eps(iq,k),tff/maxl,mineps)
     end do
   end do
-
+    
   ! estimate eddy diffusivity mixing coeff
   km = cm0*tke(:,:)**2/eps(:,:)
   call updatekmo(kmo,km,fzzh,imax,kl) ! interpolate diffusion coeffs to half levels
-
+  
   ! update scalars
   
   ! Pre-calculate eddy diffiusivity mixing terms using updated kmo values
@@ -541,24 +538,30 @@ do kcount = 1,mcount
   qq(:,2:kl)  =-ddts*kmo(:,1:kl-1)*idzm(:,2:kl)/dz_hl(:,1:kl-1)
   rr(:,1:kl-1)=-ddts*kmo(:,1:kl-1)*idzp(:,1:kl-1)/dz_hl(:,1:kl-1)
 
-  
   ! updating diffusion and non-local terms for qtot and thetal
   ! Note that vertical interpolation is linear so that qtot can be
   ! decomposed into qv, ql, qf and qr.
-  aa(:,2:kl)=qq(:,2:kl)+ddts*mflx(:,1:kl-1)*(1.-fzzh(:,1:kl-1))*idzm(:,2:kl)
-  cc(:,1:kl-1)=rr(:,1:kl-1)-ddts*mflx(:,2:kl)*fzzh(:,1:kl-1)*idzp(:,1:kl-1)
-  ss(:,2:kl) = mflx(:,2:kl)*fzzh(:,1:kl-1)*idzm(:,2:kl)
-  tt(:,1:kl-1) = mflx(:,1:kl-1)*(1.-fzzh(:,1:kl-1))*idzp(:,1:kl-1) 
-  bb(:,1:kl)=1.-qq(:,1:kl)-rr(:,1:kl)+ddts*(ss(:,1:kl)-tt(:,1:kl))
+  cc(:,1)=rr(:,1)-ddts*mflx(:,2)*fzzh(:,1)*idzp(:,1)
+  bb(:,1)=1.-rr(:,1)-ddts*mflx(:,1)*(1.-fzzh(:,1))*idzp(:,1)
+  aa(:,2:kl-1)=qq(:,2:kl-1)+ddts*mflx(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)
+  cc(:,2:kl-1)=rr(:,2:kl-1)-ddts*mflx(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1)
+  bb(:,2:kl-1)=1.-qq(:,2:kl-1)-rr(:,2:kl-1)+ddts*(mflx(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)         &
+                                                 -mflx(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1))
+  aa(:,kl)=qq(:,kl)+ddts*mflx(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)
+  bb(:,kl)=1.-qq(:,kl)+ddts*mflx(:,kl)*fzzh(:,kl-1)*idzm(:,kl)
+
 
   ! theta vertical mixing
-  ss(:,2:kl) = mflx(:,1:kl-1)*tlup(:,1:kl-1)*(1.-fzzh(:,1:kl-1))*idzm(:,2:kl) &
-              +mflx(:,2:kl)*tlup(:,2:kl)*fzzh(:,1:kl-1)*idzm(:,2:kl)
-  tt(:,1:kl-1) = mflx(:,1:kl-1)*tlup(:,1:kl-1)*(1.-fzzh(:,1:kl-1))*idzp(:,1:kl-1) &
-                +mflx(:,2:kl)*tlup(:,2:kl)*fzzh(:,1:kl-1)*idzp(:,1:kl-1)
-  dd(:,1:kl)=thetal(:,1:kl)+ddts*(ss(:,1:kl)-tt(:,1:kl))
-  dd(:,1) = dd(:,1) + ddts*rhos*wt0/(rhoa(:,1)*dz_fl(:,1))
-  call thomas(thetal,aa,bb,cc,dd,imax,kl)
+  dd(:,1)=thetal(:,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                               &
+                           +mflx(:,2)*tlup(:,2)*fzzh(:,1)*idzp(:,1))                                   &
+                     +ddts*rhos*wt0/(rhoa(:,1)*dz_fl(:,1))
+  dd(:,2:kl-1)=thetal(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*tlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1) &
+                                     +mflx(:,2:kl-1)*tlup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)      &
+                                     -mflx(:,2:kl-1)*tlup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1) &
+                                     -mflx(:,3:kl)*tlup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+  dd(:,kl)=thetal(:,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                   &
+                             +mflx(:,kl)*tlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+  call thomas(thetal,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
 #ifdef scm  
   wthlflux(:,1)=wt0(:)
   wthlflux(:,2:kl)=-kmo(:,1:kl-1)*(thetal(:,2:kl)-thetal(:,1:kl-1))/dz_hl(:,1:kl-1)                    &
@@ -566,14 +569,18 @@ do kcount = 1,mcount
                    +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
+
   ! qv (part of qtot) vertical mixing
-  ss(:,2:kl) = mflx(:,1:kl-1)*qvup(:,1:kl-1)*(1.-fzzh(:,1:kl-1))*idzm(:,2:kl) &
-              +mflx(:,2:kl)*qvup(:,2:kl)*fzzh(:,1:kl-1)*idzm(:,2:kl)
-  tt(:,1:kl-1) = mflx(:,1:kl-1)*qvup(:,1:kl-1)*(1.-fzzh(:,1:kl-1))*idzp(:,1:kl-1) &
-                +mflx(:,2:kl)*qvup(:,2:kl)*fzzh(:,1:kl-1)*idzp(:,1:kl-1)
-  dd(:,1:kl)=qvg(:,1:kl)+ddts*(ss(:,1:kl)-tt(:,1:kl))
-  dd(:,1) = dd(:,1) +ddts*rhos*wq0/(rhoa(:,1)*dz_fl(:,1))
-  call thomas(qvg(:,1:kl),aa,bb,cc,dd,imax,kl)
+  dd(:,1)=qvg(:,1)-ddts*(mflx(:,1)*qvup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                  &
+                           +mflx(:,2)*qvup(:,2)*fzzh(:,1)*idzp(:,1))                                   &
+                           +ddts*rhos*wq0/(rhoa(:,1)*dz_fl(:,1))
+  dd(:,2:kl-1)=qvg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qvup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)    &
+                                   +mflx(:,2:kl-1)*qvup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
+                                   -mflx(:,2:kl-1)*qvup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
+                                   -mflx(:,3:kl)*qvup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+  dd(:,kl)=qvg(:,kl)+ddts*(mflx(:,kl-1)*qvup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                      &
+                          +mflx(:,kl)*qvup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+  call thomas(qvg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
 #ifdef scm
   wqvflux(:,1)=wq0(:)
   wqvflux(:,2:kl)=-kmo(:,1:kl-1)*(qvg(:,2:kl)-qvg(:,1:kl-1))/dz_hl(:,1:kl-1)                           &
@@ -581,13 +588,17 @@ do kcount = 1,mcount
                   +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
+
   ! ql (part of qtot) vertical mixing
-  ss(:,2:kl) = mflx(:,1:kl-1)*qlup(:,1:kl-1)*(1.-fzzh(:,1:kl-1))*idzm(:,2:kl) &
-              +mflx(:,2:kl)*qlup(:,2:kl)*fzzh(:,1:kl-1)*idzm(:,2:kl)
-  tt(:,1:kl-1) = mflx(:,1:kl-1)*qlup(:,1:kl-1)*(1.-fzzh(:,1:kl-1))*idzp(:,1:kl-1) &
-                +mflx(:,2:kl)*qlup(:,2:kl)*fzzh(:,1:kl-1)*idzp(:,1:kl-1)
-  dd(:,1:kl)=qlg(:,1:kl)+ddts*(ss(:,1:kl)-tt(:,1:kl))
-  call thomas(qlg(:,1:kl),aa,bb,cc,dd,imax,kl)
+  dd(:,1)=qlg(:,1)-ddts*(mflx(:,1)*qlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                       &
+                              +mflx(:,2)*qlup(:,2)*fzzh(:,1)*idzp(:,1))
+  dd(:,2:kl-1)=qlg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)         &
+                                        +mflx(:,2:kl-1)*qlup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
+                                        -mflx(:,2:kl-1)*qlup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
+                                        -mflx(:,3:kl)*qlup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+  dd(:,kl)=qlg(:,kl)+ddts*(mflx(:,kl-1)*qlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                           &
+                                +mflx(:,kl)*qlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+  call thomas(qlg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
 #ifdef scm
   wqlflux(:,1)=0.
   wqlflux(:,2:kl)=-kmo(:,1:kl-1)*(qlg(:,2:kl)-qlg(:,1:kl-1))/dz_hl(:,1:kl-1)                                &
@@ -595,13 +606,17 @@ do kcount = 1,mcount
                   +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
+
   ! qf (part of qtot) vertical mixing
-  ss(:,2:kl) = mflx(:,1:kl-1)*qfup(:,1:kl-1)*(1.-fzzh(:,1:kl-1))*idzm(:,2:kl) &
-              +mflx(:,2:kl)*qfup(:,2:kl)*fzzh(:,1:kl-1)*idzm(:,2:kl)
-  tt(:,1:kl-1) = mflx(:,1:kl-1)*qfup(:,1:kl-1)*(1.-fzzh(:,1:kl-1))*idzp(:,1:kl-1) &
-                +mflx(:,2:kl)*qfup(:,2:kl)*fzzh(:,1:kl-1)*idzp(:,1:kl-1)
-  dd(:,:kl)=qfg(:,1:kl)+ddts*(ss(:,1:kl)-tt(:,1:kl))
-  call thomas(qfg(:,1:kl),aa,bb,cc,dd,imax,kl)
+  dd(:,1)=qfg(:,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                       &
+                              +mflx(:,2)*qfup(:,2)*fzzh(:,1)*idzp(:,1))
+  dd(:,2:kl-1)=qfg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)         &
+                                        +mflx(:,2:kl-1)*qfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
+                                        -mflx(:,2:kl-1)*qfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
+                                        -mflx(:,3:kl)*qfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+  dd(:,kl)=qfg(:,kl)+ddts*(mflx(:,kl-1)*qfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                           &
+                                +mflx(:,kl)*qfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+  call thomas(qfg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
 #ifdef scm
   wqfflux(:,1)=0.
   wqfflux(:,2:kl)=-kmo(:,1:kl-1)*(qfg(:,2:kl)-qfg(:,1:kl-1))/dz_hl(:,1:kl-1)                                &
@@ -609,26 +624,30 @@ do kcount = 1,mcount
                   +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
+
   ! cloud fraction vertical mixing
-  ss(:,2:kl) = mflx(:,1:kl-1)*cfup(:,1:kl-1)*(1.-fzzh(:,1:kl-1))*idzm(:,2:kl) &
-              +mflx(:,2:kl)*cfup(:,2:kl)*fzzh(:,1:kl-1)*idzm(:,2:kl)
-  tt(:,1:kl-1) = mflx(:,1:kl-1)*cfup(:,1:kl-1)*(1.-fzzh(:,1:kl-1))*idzp(:,1:kl-1) &
-                +mflx(:,2:kl)*cfup(:,2:kl)*fzzh(:,1:kl-1)*idzp(:,1:kl-1)
-  dd(:,1:kl) = stratcloud(:,1:kl) + ddts*(ss(:,1:kl)-tt(:,1:kl))
-  call thomas(stratcloud(:,1:kl),aa,bb,cc,dd,imax,kl)
+  dd(:,1) = stratcloud(:,1) - ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                 &
+                                   +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
+  dd(:,2:kl-1) = stratcloud(:,2:kl-1) + ddts*(mflx(:,1:kl-2)*cfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)   &
+                                             +mflx(:,2:kl-1)*cfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
+                                             -mflx(:,2:kl-1)*cfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
+                                             -mflx(:,3:kl)*cfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+  dd(:,kl) = stratcloud(:,kl) + ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                     &
+                                     +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+  call thomas(stratcloud,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
   stratcloud(:,:) = min( max( stratcloud(:,:), 0. ), 1. )
 
   
   ! momentum vertical mixing
   aa(:,2:kl)   = qq(:,2:kl)
   cc(:,1:kl-1) = rr(:,1:kl-1)
-  bb(:,1) = 1. - rr(:,1) + ddts*rhos*cduv/(rhoa(:,1)*dz_fl(:,1)) ! implicit  
-  bb(:,2:kl-1) = 1. - qq(:,2:kl-1) - rr(:,2:kl-1)
-  bb(:,kl) = 1. - qq(:,kl)
+  bb(:,1) = 1. - cc(:,1) + ddts*rhos*cduv/(rhoa(:,1)*dz_fl(:,1)) ! implicit  
+  bb(:,2:kl-1) = 1. - aa(:,2:kl-1) - cc(:,2:kl-1)
+  bb(:,kl) = 1. - aa(:,kl)
   dd(:,1:kl) = uo(:,1:kl)
-  call thomas(uo,aa,bb,cc,dd,imax,kl)
+  call thomas(uo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
   dd(:,1:kl) = vo(:,1:kl)
-  call thomas(vo,aa,bb,cc,dd,imax,kl)
+  call thomas(vo,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
   
   
   ! update surface momentum flux
@@ -638,37 +657,37 @@ do kcount = 1,mcount
   ! Account for phase transistions
   do k = 1,kl
     ! Check for -ve values  
-!    qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
-!    qc(:) = max( qfg(:,k) + qlg(:,k), 0. )
+    qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
+    qc(:) = max( qfg(:,k) + qlg(:,k), 0. )
     
-!    qfg(:,k) = max( qfg(:,k), 0. )
-!    qlg(:,k) = max( qlg(:,k), 0. )
+    qfg(:,k) = max( qfg(:,k), 0. )
+    qlg(:,k) = max( qlg(:,k), 0. )
     
     ! account for saturation
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
-!    temp(:) = theta(:,k)/sigkap(k)
-!    templ(:) = thetal(:,k)/sigkap(k)
-!    pres(:) = ps(:)*sig(k)
-!    where ( qfg(:,k)>1.e-8 )
-!      fice = min( qfg(:,k)/(qfg(:,k)+qlg(:,k)), 1. )
-!    elsewhere
-!      fice = 0.
-!    end where
-!    call getqsat(qsat(:,k),templ(:),pres(:),fice,imax)
-!    lx(:) = lv + lf*fice(:)
-!    dqsdt(:) = qsat(:,k)*lx(:)/(rv*templ(:)**2)
-!    al(:) = cp/(cp+lx(:)*dqsdt(:))
-!    qc(:) = max( al(:)*(qt(:) - qsat(:,k)), qc(:) )
-!    where ( temp(:)>=tice )
-!      qfg(:,k) = max( fice(:)*qc(:), 0. )  
-!      qlg(:,k) = max( qc(:) - qfg(:,k), 0. )
-!    end where
-!    
-!    qvg(:,k) = max( qt(:) - qfg(:,k) - qlg(:,k), 0. )
-!    theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
-!    where ( qlg(:,k)+qfg(:,k)>1.e-8 )
-!      stratcloud(:,k) = max( stratcloud(:,k), 1.E-8 )
-!    end where
+    temp(:) = theta(:,k)/sigkap(k)
+    templ(:) = thetal(:,k)/sigkap(k)
+    pres(:) = ps(:)*sig(k)
+    where ( qfg(:,k)>1.e-12 )
+      fice = min( qfg(:,k)/(qfg(:,k)+qlg(:,k)), 1. )
+    elsewhere
+      fice = 0.
+    end where
+    call getqsat(qsat(:,k),templ(:),pres(:),fice,imax)
+    lx(:) = lv + lf*fice(:)
+    dqsdt(:) = qsat(:,k)*lx(:)/(rv*templ(:)**2)
+    al(:) = cp/(cp+lx(:)*dqsdt(:))
+    qc(:) = max( al(:)*(qt(:) - qsat(:,k)), qc(:) )
+    where ( temp(:)>=tice )
+      qfg(:,k) = max( fice(:)*qc(:), 0. )  
+      qlg(:,k) = max( qc(:) - qfg(:,k), 0. )
+    end where
+    
+    qvg(:,k) = max( qt(:) - qfg(:,k) - qlg(:,k), 0. )
+    theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
+    where ( qlg(:,k)+qfg(:,k)>1.E-12 )
+      stratcloud(:,k) = max( stratcloud(:,k), 1.E-8 )
+    end where
   end do  
   
 #ifdef scm
@@ -830,42 +849,41 @@ end do
 
 return
 end subroutine plumerise
-
                      
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tri-diagonal solver (array version)
 
-pure subroutine thomas(outdat,aai,bbi,cci,ddi,imax,kl)
+pure subroutine thomas(outdat,aai,bbi,cci,ddi,imax,klin)
 !$acc routine vector
 
 implicit none
 
-integer, intent(in) :: imax, kl
-real, dimension(imax,kl), intent(in) :: aai
-real, dimension(imax,kl), intent(in) :: bbi,ddi
-real, dimension(imax,kl), intent(in) :: cci
-real, dimension(imax,kl), intent(out) :: outdat
-real, dimension(imax,kl) :: cc, dd
-real n_s
+integer, intent(in) :: imax, klin
+real, dimension(imax,2:klin), intent(in) :: aai
+real, dimension(imax,klin), intent(in) :: bbi,ddi
+real, dimension(imax,klin-1), intent(in) :: cci
+real, dimension(imax,klin), intent(out) :: outdat
+real, dimension(imax,klin) :: cc,dd
+real :: n_s
 integer k, iq
 
-cc(:,1) = cci(:,1)/bbi(:,1)
-dd(:,1) = ddi(:,1)/bbi(:,1)
+cc(:,1)=cci(:,1)/bbi(:,1)
+dd(:,1)=ddi(:,1)/bbi(:,1)
 
-do k = 2,kl-1
+do k=2,klin-1
   do iq = 1,imax
-    n_s = bbi(iq,k)-cc(iq,k-1)*aai(iq,k)
-    cc(iq,k) = cci(iq,k)/n_s
-    dd(iq,k) = (ddi(iq,k)-dd(iq,k-1)*aai(iq,k))/n_s
+    n_s=bbi(iq,k)-cc(iq,k-1)*aai(iq,k)
+    cc(iq,k)=cci(iq,k)/n_s
+    dd(iq,k)=(ddi(iq,k)-dd(iq,k-1)*aai(iq,k))/n_s
   end do
 end do
 do iq = 1,imax
-  n_s = bbi(iq,kl)-cc(iq,kl-1)*aai(iq,kl)
-  dd(iq,kl) = (ddi(iq,kl)-dd(iq,kl-1)*aai(iq,kl))/n_s
-  outdat(iq,kl) = dd(iq,kl)
+  n_s=bbi(iq,klin)-cc(iq,klin-1)*aai(iq,klin)
+  dd(iq,klin)=(ddi(iq,klin)-dd(iq,klin-1)*aai(iq,klin))/n_s
+  outdat(iq,klin)=dd(iq,klin)
 end do
-do k = kl-1,1,-1
-  outdat(:,k) = dd(:,k)-cc(:,k)*outdat(:,k+1)
+do k=klin-1,1,-1
+  outdat(:,k)=dd(:,k)-cc(:,k)*outdat(:,k+1)
 end do
 
 return
@@ -883,71 +901,60 @@ integer, intent(in) :: imax
 real, dimension(imax), intent(in) :: templ
 real, dimension(imax), intent(in) :: ps, fice
 real, dimension(imax), intent(out) :: qsat
-real, dimension(imax) :: estafi, estafl, qsati, qsatl
-!real, dimension(imax) :: estafi, tdiff, tdiffx, rx, rxx
-!real, dimension(imax) :: qsatl, qsati, deles
-!real, dimension(0:220), parameter :: tablei = &
-!(/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9,                                & !-146C
-!   6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9,                             & !-141C
-!   36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9,                          & !-136C
-!   0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648,  & !-131C
-!   0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774,  & !-126C
-!   0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081,   & !-121C
-!   0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866,       & !-116C
-!   0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280,         & !-111C
-!   0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951,            & !-106C
-!   0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143,             & !-101C
-!   .001403, .001719, .002101, .002561, .003117, .003784,             & !-95C
-!   .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658, & !-87C
-!   .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577, & !-78C
-!   .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032,   & !-69C
-!   .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080,    & !-60C
-!   1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476,    & !-51C
-!   3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098,            & !-43C
-!   10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88,    & !-34C
-!   27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85, & !-24C 
-!   77.09, 85.02, 93.70, 103.06, 113.40, 124.68, 136.98, 150.39,      & !-16C
-!   164.99, 180.88, 198.16, 216.94, 237.34, 259.47, 283.49, 309.51,   & !-8C
-!   337.71, 368.23, 401.25, 436.96, 475.54, 517.21, 562.19, 610.70,   & !0C
-!   656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2,   & !8C
-!   1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3,   & !16C
-!   1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1,   & !24C
-!   3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1,   & !32C
-!   5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7,   & !40C
-!   7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0,         & !47C
-!   11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0,    & !54C
-!   15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0,    & !61C
-!   21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0,    & !68C
-!   29845.0, 31169.0 /)                                                 !70C 
-!real, dimension(-40:2), parameter :: esdiff = &
-!(/ 6.22, 6.76, 7.32, 7.92, 8.56, 9.23, 9.94,10.68,11.46,12.27,  &
-!   13.11,13.99,14.89,15.82,16.76,17.73,18.70,19.68,20.65,21.61, &
-!   22.55,23.45,24.30,25.08,25.78,26.38,26.86,27.18,27.33,27.27, &
-!   26.96,26.38,25.47,24.20,22.51,20.34,17.64,14.34,10.37, 5.65, &
-!   0.08, 0., 0. /)
-!integer, dimension(size(templ)) :: ix, ixx
+real, dimension(imax) :: estafi, tdiff, tdiffx, rx, rxx
+real, dimension(imax) :: qsatl, qsati, deles
+real, dimension(0:220), parameter :: tablei = &
+(/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9,                                & !-146C
+   6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9,                             & !-141C
+   36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9,                          & !-136C
+   0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648,  & !-131C
+   0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774,  & !-126C
+   0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081,   & !-121C
+   0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866,       & !-116C
+   0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280,         & !-111C
+   0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951,            & !-106C
+   0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143,             & !-101C
+   .001403, .001719, .002101, .002561, .003117, .003784,             & !-95C
+   .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658, & !-87C
+   .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577, & !-78C
+   .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032,   & !-69C
+   .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080,    & !-60C
+   1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476,    & !-51C
+   3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098,            & !-43C
+   10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88,    & !-34C
+   27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85, & !-24C 
+   77.09, 85.02, 93.70, 103.06, 113.40, 124.68, 136.98, 150.39,      & !-16C
+   164.99, 180.88, 198.16, 216.94, 237.34, 259.47, 283.49, 309.51,   & !-8C
+   337.71, 368.23, 401.25, 436.96, 475.54, 517.21, 562.19, 610.70,   & !0C
+   656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2,   & !8C
+   1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3,   & !16C
+   1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1,   & !24C
+   3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1,   & !32C
+   5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7,   & !40C
+   7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0,         & !47C
+   11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0,    & !54C
+   15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0,    & !61C
+   21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0,    & !68C
+   29845.0, 31169.0 /)                                                 !70C 
+real, dimension(-40:2), parameter :: esdiff = &
+(/ 6.22, 6.76, 7.32, 7.92, 8.56, 9.23, 9.94,10.68,11.46,12.27,  &
+   13.11,13.99,14.89,15.82,16.76,17.73,18.70,19.68,20.65,21.61, &
+   22.55,23.45,24.30,25.08,25.78,26.38,26.86,27.18,27.33,27.27, &
+   26.96,26.38,25.47,24.20,22.51,20.34,17.64,14.34,10.37, 5.65, &
+   0.08, 0., 0. /)
+integer, dimension(size(templ)) :: ix, ixx
 
-!tdiff = min(max( templ(:)-123.16, 0.), 219.)
-!rx = tdiff - aint(tdiff)
-!ix = int(tdiff)
-!estafi = (1.-rx)*tablei(ix) + rx*tablei(ix+1)
-!qsati = 0.622*estafi/max(ps(:)-estafi,0.1)
+tdiff = min(max( templ(:)-123.16, 0.), 219.)
+rx = tdiff - aint(tdiff)
+ix = int(tdiff)
+estafi = (1.-rx)*tablei(ix) + rx*tablei(ix+1)
+qsati = 0.622*estafi/max(ps(:)-estafi,0.1)
 
-!tdiffx = min(max( templ(:)-273.1, -40.), 1.)
-!rxx = tdiffx - aint(tdiffx)
-!ixx = int(tdiffx)
-!deles = (1.-rxx)*esdiff(ixx) + rxx*esdiff(ixx+1)
-!qsatl = qsati + 0.622*deles/ps
-
-!tc used for Magnus formula, see Huang (J. App. Met., 2018, 1265-1272)
-
-!estafi = 610.*exp(ls/rv*(1./273.15-1./templ))
-estafi = 611.21*exp(22.587*(templ-273.16)/(templ-273.16+273.86))  ! Magnus
-qsati = 0.622*estafi/max(ps-estafi,0.1)
-
-!estafl = 610.*exp(lv/rv*(1./273.15-1./templ))
-estafl = 610.94*exp(17.625*(templ-273.16)/(templ-273.16+243.04))  ! Magnus
-qsatl = 0.622*estafl/max(ps-estafl,0.1)
+tdiffx = min(max( templ(:)-273.1, -40.), 1.)
+rxx = tdiffx - aint(tdiffx)
+ixx = int(tdiffx)
+deles = (1.-rxx)*esdiff(ixx) + rxx*esdiff(ixx+1)
+qsatl = qsati + 0.622*deles/ps
 
 qsat = fice*qsati + (1.-fice)*qsatl
 
@@ -965,10 +972,11 @@ implicit none
 integer, intent(in) :: imax, kl
 real, dimension(imax,kl), intent(out) :: kmo
 real, dimension(imax,kl), intent(in) :: km
-real, dimension(imax,kl), intent(in) :: fzhl
+real, dimension(imax,kl-1), intent(in) :: fzhl
 
-kmo(:,1:kl-1) = km(:,1:kl-1)+fzhl(:,1:kl-1)*(km(:,2:kl)-km(:,1:kl-1))
-kmo(:,kl) = 0.
+kmo(:,1:kl-1)=km(:,1:kl-1)+fzhl(:,1:kl-1)*(km(:,2:kl)-km(:,1:kl-1))
+! These terms are never used
+kmo(:,kl)=0.
 
 return
 end subroutine updatekmo

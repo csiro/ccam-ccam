@@ -73,7 +73,7 @@ implicit none
 
 integer, dimension(ifull), intent(in) :: river_accin
 integer, dimension(ifull+iextra) :: river_outloc_cc, river_acc
-integer, dimension(ifull) :: xp_i, xp_j, xp_n, ridx
+integer, dimension(ifull) :: xp_i, xp_j, xp_n
 integer n, iq, iq_g, xp_g, xpb_g, i, j
 integer iqout, maxacc, testacc
 real(kind=8), dimension(ifull+iextra,3) :: xyzbc
@@ -271,9 +271,8 @@ end do
 ! (typically used for lake overflow or in-land sea overflow)
 outflowmask(:) = .false.
 do iq = 1,ifull
-  ridx(iq) = max(river_outdir(iq),1)
   if ( isoilm_in(iq)==-1 .and. river_outdir(iq)>0 ) then
-    if ( ee(xp(iq,ridx(iq)))<=0.5 ) then
+    if ( ee(xp(iq,river_outdir(iq)))<=0.5 ) then
       outflowmask(iq) = .true.
     end if
   end if

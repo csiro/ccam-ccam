@@ -162,33 +162,32 @@ end if
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),acon,bcon,imax,kl,cldcon=cldcon(is:ie))
+  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),cldcon=cldcon(is:ie))
   clcon(is:ie,:) = lclcon    
 end do
 !$omp end do nowait    
     
-!$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                               &
-!$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                                 &
-!$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),              &
-!$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),               &
+!$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                              &
+!$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                                &
+!$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),             &
+!$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
 !$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean)
-!$acc parallel loop copy(xtg,duste,dustdd,dustwd,dust_burden,so4t,dmsso2o,so2so4o,                      &
-!$acc   bc_burden,oc_burden,dms_burden,so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,  &
-!$acc   oce,so2dd,so4dd,bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                      &
-!$acc copyin(zoxidant_g,xtosav,emissfield,erod,t,qg,qlg,qfg,stratcloud,ppfprec,ppfmelt,ppfsnow,         &
-!$acc   ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,                        &
-!$acc   clcon,bet,betm,dsig,sig,ps,kbsav,ktsav,wetfac,pblh,tss,condc,snowd,taudar,fg,eg,u10,ustar,      &
-!$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2,isoilm_in,dustden,dustreff,saltden,saltreff,     &
-!$acc   idjd)                                                                                           &
-!$acc private(lzoxidant,lxtg,lxtosav,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,                   &
-!$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,                &
-!$acc   lppmrate,lppmaccr,lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lclcon,dz,rhoa,                   &
-!$acc   wg,pccw,locean,tile,is,ie,idjd_t,mydiag_t)
+!$acc parallel copy(xtg,duste,dustdd,dustwd,dust_burden,so4t,dmsso2o,so2so4o,bc_burden,oc_burden,     &
+!$acc   dms_burden,so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd,so4dd,    &
+!$acc   bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                                    &
+!$acc copyin(zoxidant_g,xtosav,emissfield,erod,t,qg,qlg,qfg,stratcloud,ppfprec,ppfmelt,ppfsnow,       &
+!$acc   ppfsubl,pplambs,ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,                      &
+!$acc   clcon,bet,betm,dsig,sig,ps,kbsav,ktsav,wetfac,pblh,tss,condc,snowd,taudar,fg,eg,u10,ustar,    &
+!$acc   zo,land,fracice,sigmf,cldcon,cdtq,zdayfac,vso2,isoilm_in,dustden,dustreff,saltden,saltreff)
+!$acc loop gang private(lzoxidant,lxtg,lxtosav,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,       &
+!$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,              &
+!$acc   lppmrate,lppmaccr,lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lclcon,dz,rhoa,                 &
+!$acc   wg,pccw,locean)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   
-  idjd_t = mod(idjd-1,imax) + 1
+  idjd_t = mod(idjd-1,imax)+1
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag 
 
   lzoxidant(:,:,1:4) = zoxidant_g(is:ie,:,1:4)
@@ -313,7 +312,7 @@ do tile = 1,ntiles
 #endif
   
 end do
-!$acc end parallel loop   
+!$acc end parallel    
 !$omp end do nowait
 
 return
@@ -321,27 +320,28 @@ end subroutine aerocalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate cloud droplet size
-subroutine aerodrop(cdn,rhoa,xtg,xtosav,land,rlatt,imax,kl,outconv)
-!$acc routine vector
+subroutine aerodrop(istart,cdn,rhoa,outconv)
 
-use aerosolldr, only : aeroindir, naero, cldrop ! LDR prognostic aerosols
-use const_phys                                  ! Physical constants
-use parm_m                                      ! Model configuration
+use aerosolldr              ! LDR prognostic aerosols
+use const_phys              ! Physical constants
+use latlong_m, only : rlatt ! Lat/lon coordinates
+use newmpar_m               ! Grid parameters
+use parm_m                  ! Model configuration
+use soil_m, only : land     ! Soil and surface data
 
 implicit none
 
-integer, intent(in) :: imax, kl
-integer k,indirmode
-real, dimension(imax,kl), intent(out) :: cdn
-real, dimension(imax,kl), intent(in) :: rhoa
+integer, intent(in) :: istart
+integer k,indirmode,iend,imax
+real, dimension(:,:), intent(out) :: cdn
+real, dimension(:,:), intent(in) :: rhoa
 real, parameter :: cdrops_nh=1.e8, cdropl_nh=3.e8 !Cloud droplet conc sea/land nh
 !real, parameter :: cdrops_sh=1.e8, cdropl_sh=3.e8 !Cloud droplet conc sea/land sh
 real, parameter :: cdrops_sh=.5e8, cdropl_sh=1.e8 !Cloud droplet conc sea/land sh
 logical, intent(in), optional :: outconv
-real, dimension(imax,kl,naero), intent(in) :: xtg, xtosav
-logical, dimension(imax) :: land
-real, dimension(imax) :: rlatt
 logical convmode
+
+imax = size(cdn,1)
 
 convmode = .true.
 if ( present(outconv) ) then
@@ -356,14 +356,15 @@ end if
 select case( indirmode )
   case( 2, 3 )
     ! prognostic aerosols for indirect effects
-    call cldrop(cdn,rhoa,convmode,xtg,xtosav,imax,kl)
+    call cldrop(istart,cdn,rhoa,convmode)
   case default
     ! diagnosed for prescribed aerosol indirect effects
-    where ( land(:).and.rlatt(:)>0. )
+    iend = istart + imax - 1
+    where ( land(istart:iend).and.rlatt(istart:iend)>0. )
       cdn(:,1) = cdropl_nh
-    elsewhere ( land(:) )
+    elsewhere ( land(istart:iend) )
       cdn(:,1) = cdropl_sh
-    elsewhere ( rlatt(:)>0. )
+    elsewhere ( rlatt(istart:iend)>0. )
       cdn(:,1) = cdrops_nh
     elsewhere
       cdn(:,1) = cdrops_sh

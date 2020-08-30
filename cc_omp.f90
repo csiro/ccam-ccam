@@ -35,7 +35,6 @@ module cc_omp
 #endif
    integer, save, public :: maxthreads, ntiles, imax
    integer, save, public :: maxtilesize = 96 ! suggested value
-!$acc declare create(ntiles,imax) 
 
    public ::  ccomp_init
    public ::  ccomp_ntiles
@@ -101,8 +100,6 @@ module cc_omp
 
       imax = ifull/ntiles
       
-!$acc update device(ntiles,imax)
-
       return
    end subroutine ccomp_ntiles
    

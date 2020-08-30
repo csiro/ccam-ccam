@@ -423,8 +423,8 @@ end subroutine sib4
 ! CABLE-CCAM interface
 subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav,cansto,cdtq,cduv,clitter,cnbp, &
                      cnpp,condg,conds,condx,cplant,csoil,eg,epot,fbeamnir,fbeamvis,fg,fnee,fpn,frd,frp,frpr,    &
-                     frpw,frs,fwet,ga,isflag,land,maxnb,mp,nilitter,niplant,nisoil,plitter,pplant,ps,           &
-                     psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sigmf,smass,           &
+                     frpw,frs,fwet,ga,isflag,land,maxnb,mp,nilitter,niplant,nisoil,plitter,pplant,ps,            &
+                     psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sigmf,smass,            &
                      snage,snowd,snowmelt,ssdn,ssdnn,sv,sgdn,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,    &
                      ustar,vlai,vl1,vl2,vl3,vl4,vmod,wb,wbice,wetfac,zo,zoh,zoq,evspsbl,sbl,air,bal,c,canopy,   &
                      casabal,casabiome,casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,     &
@@ -463,26 +463,26 @@ real, dimension(imax,msoil), intent(inout) :: csoil, nisoil, psoil
 real, dimension(imax,ms), intent(inout) :: tgg, wb, wbice
 real, dimension(imax,3), intent(inout) :: smass, ssdn, tggsn
 real, dimension(imax), intent(inout) :: albnirdif, albnirdir, albnirsav, albvisdif, albvisdir, albvissav
-real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot, fg, fnee, fpn, frd, evspsbl, sbl
+real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot, fg, fnee, fpn, frd
 real, dimension(imax), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, rnet, rsmin, runoff
 real, dimension(imax), intent(inout) :: runoff_surface, sigmf, snage, snowd, snowmelt, ssdnn, tss, ustar
-real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
+real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq, evspsbl, sbl
 real, dimension(imax), intent(inout) :: climate_min20, climate_max20, climate_alpha20
 real, dimension(imax), intent(inout) :: climate_agdd5
 real, dimension(imax), intent(inout) :: climate_dmoist_min20, climate_dmoist_max20
 real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
 real, dimension(imax), intent(in) :: sgdn, swrsave, theta, vmod
-real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land, evspsbl_l, sbl_l
+real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land
+real, dimension(imax) :: evspsbl_l, sbl_l
 real, dimension(mp), intent(in) :: sv, vl1, vl2, vl3, vl4
-real(kind=8) dtr8
+real(kind=8) :: dtr8
 real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
 real(kind=8), dimension(mp) :: nleaf2met, nleaf2str, nroot2met, nroot2str, nwood2cwd
 real(kind=8), dimension(mp) :: pleaf2met, pleaf2str, proot2met, proot2str, pwood2cwd
 real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
 real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
 real(r_2), dimension(mp) :: xksoil
-!real(r_2), dimension(mp,ms) :: bwb, btgg ! for budget calculation
 logical, dimension(imax,maxtile), intent(in) :: tmap
 logical, dimension(imax), intent(in) :: land
 type(air_type), intent(inout) :: air
@@ -523,7 +523,7 @@ idoy = int(fjd)
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,imax,coszro2,taudar2)
 
-! store soil temperature and moisture for budget calculation
+!! store soil temperature and moisture for budget calculation
 !bwb(:,:) = ssnow%wb(:,:)
 !btgg(:,:) = ssnow%tgg(:,:)
 
@@ -547,7 +547,7 @@ do nb = 1,maxnb
   met%ua(is:ie)        = real(pack(vmod,       tmap(:,nb)), 8)
   met%ca(is:ie)        = real(pack(atmco2,     tmap(:,nb))*1.e-6, 8)
   met%coszen(is:ie)    = real(pack(coszro2,    tmap(:,nb)), 8)        ! use instantaneous value
-  met%qv(is:ie)        = real(pack(qg(1:imax), tmap(:,nb)), 8)        ! specific humidity in kg/kg
+  met%qv(is:ie)        = real(pack(qg(1:imax), tmap(:,nb)),8 )        ! specific humidity in kg/kg
   met%pmb(is:ie)       = real(pack(ps(1:imax), tmap(:,nb))*0.01, 8)   ! pressure in mb at ref height
   met%precip(is:ie)    = real(pack(condx,      tmap(:,nb)), 8)        ! in mm not mm/sec
   met%precip_sn(is:ie) = real(pack(conds+condg,tmap(:,nb)), 8)        ! in mm not mm/sec
@@ -606,25 +606,25 @@ select case ( soil_struc )
     stop
 end select
 ! adjust for new soil temperature
-ssnow%deltss = ssnow%tss - ssnow%otss
+ssnow%deltss     = ssnow%tss - ssnow%otss
 if ( soil_struc==0 ) then
-  canopy%fhs      = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
-  canopy%fes      = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
-  canopy%fns      = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
-  canopy%ga       = canopy%ga  + ssnow%deltss*canopy%dgdtg
-  !canopy%fhs_cor = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
-  !canopy%fes_cor = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
-  !canopy%fns_cor = canopy%fns_cor + ssnow%deltss*ssnow%dfn_dtg
-  !canopy%ga_cor  = canopy%ga_cor + ssnow%deltss*canopy%dgdtg
+  canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
+  canopy%fes       = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
+  canopy%fns       = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
+  canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
+  !canopy%fhs_cor  = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
+  !canopy%fes_cor  = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
+  !canopy%fns_cor  = canopy%fns_cor + ssnow%deltss*ssnow%dfn_dtg
+  !canopy%ga_cor   = canopy%ga_cor + ssnow%deltss*canopy%dgdtg
   ! MJT fix
   ssnow%wb(:,ms) = ssnow%wb(:,ms) - (ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg)*dtr8 &
                                    /(ssnow%cls*air%rlam*soil%zse(ms)*1000._8) 
 end if
-canopy%fh   = canopy%fhv + canopy%fhs
-canopy%fev  = canopy%fevc + canopy%fevw
-canopy%fe   = canopy%fev + canopy%fes
-canopy%rnet = canopy%fns + canopy%fnv
-rad%trad    = ( (1._8-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25_8
+canopy%fh        = canopy%fhv + canopy%fhs
+canopy%fev       = canopy%fevc + canopy%fevw
+canopy%fe        = canopy%fev + canopy%fes
+canopy%rnet      = canopy%fns + canopy%fnv
+rad%trad         = ( (1._8-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25_8
 
 ! note that conservation is still preserved at this point
 ! canopy%ga    = canopy%rnet - canopy%fh - canopy%fe
@@ -932,6 +932,7 @@ do nb = 1,maxnb
                                 +canopy%fess(is:ie)/ssnow%cls(is:ie))/C%HL),tmap(:,nb),0.)
   sbl_l = sbl_l + unpack(sv(is:ie)*real(ssnow%evapsn(is:ie)/dtr8),tmap(:,nb),0.)
   ! diagnostic
+  ! diagnostic
   epot = epot + unpack(sv(is:ie)*real(ssnow%potev(is:ie)),tmap(:,nb),0.)         ! diagnostic in history file
   vlai = vlai + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,nb),0.)
   rsmin = rsmin + unpack(sv(is:ie)*real(canopy%gswx_T(is:ie)),tmap(:,nb),0.)     ! diagnostic in history file
@@ -991,12 +992,12 @@ if ( ccycle/=0 ) then
     cnpp = cnpp + unpack(sv(is:ie)*real(casaflux%cnpp(is:ie))/real(casaperiod),tmap(:,nb),0.)
     cnbp = cnbp + unpack(sv(is:ie)*real(casaflux%Crsoil(is:ie)-casaflux%cnpp(is:ie)-casapool%dClabiledt(is:ie)) &
         /real(casaperiod),tmap(:,nb),0.)
-    if ( diaglevel_carbon>0 ) then
+    if ( diaglevel_carbon > 0 ) then
       fevc = fevc + unpack(sv(is:ie)*real(canopy%fevc(is:ie)),  tmap(:,nb),0.)
       plant_turnover      = plant_turnover      + unpack(sv(is:ie)* &
-                            real(sum(casaflux%Cplant_turnover(is:ie,:),2))/real(casaperiod),tmap(:,nb),0.)
+                            real(sum(casaflux%Cplant_turnover(is:ie,:),2))/real(casaperiod),  tmap(:,nb),0.)
       plant_turnover_wood = plant_turnover_wood + unpack(sv(is:ie)* &
-                            real(casaflux%Cplant_turnover(is:ie,2))/real(casaperiod),tmap(:,nb),0.)
+                            real(casaflux%Cplant_turnover(is:ie,2))/real(casaperiod),         tmap(:,nb),0.)
     end if
   end do
 end if
@@ -2580,7 +2581,6 @@ real, dimension(ifull,2) :: albsoilsn
 real, dimension(ifull) :: dummy_pack
 real, dimension(ifull) :: albsoil
 real, dimension(:), allocatable, save :: dummy_unpack
-real(kind=8), dimension(:), allocatable, save :: datr8
 logical, dimension(:), allocatable, save :: pmap_temp
 integer :: tile, popcount
 character(len=*), intent(in) :: fcasapft
@@ -2707,7 +2707,7 @@ if ( mp_global>0 ) then
     allocate( climate_save%scalex_sun(mp_global) )
     allocate( climate_save%scalex_shade(mp_global) )
   end if
-  allocate( dummy_unpack(mp_global), datr8(mp_global) )
+  allocate( dummy_unpack(mp_global) )
   
   ! Cable configuration
   !cable_user%ssnow_POTEV = "P-M"
@@ -2721,7 +2721,6 @@ if ( mp_global>0 ) then
   cable_user%l_new_roughness_soil = .false.
   cable_user%l_rev_corr = .true.
   cable_user%gw_model = cable_gw_model==1
-  cable_runtime%UM = .false.
   select case ( cable_climate )
     case(1)
       cable_user%call_climate = .true.
@@ -2944,9 +2943,9 @@ if ( mp_global>0 ) then
   veg%vcmax_sun   = veg%vcmax
   veg%ejmax_sun   = veg%ejmax
  
-  ssnow%albsoilsn(:,3) = 0.05_8    
-  ssnow%t_snwlr = 0.05_8
-  ssnow%pudsmx = 0._8
+  ssnow%albsoilsn(:,3)=0.05_8    
+  ssnow%t_snwlr=0.05_8
+  ssnow%pudsmx=0._8
   ssnow%zdelta = 0._8
   ssnow%le = 0._8
   
@@ -3065,17 +3064,13 @@ if ( mp_global>0 ) then
     
     call cable_pack(casapoint(:,1),casamet%isorder)
     dummy_pack = casapoint(:,2)/365.*1.E-3
-    call cable_pack(dummy_pack,datr8)
-    casaflux%Nmindep = datr8
+    call cable_pack(dummy_pack,casaflux%Nmindep)
     dummy_pack = casapoint(:,3)/365.
-    call cable_pack(dummy_pack,datr8)
-    casaflux%Nminfix = datr8
+    call cable_pack(dummy_pack,casaflux%Nminfix)
     dummy_pack = casapoint(:,4)/365.
-    call cable_pack(dummy_pack,datr8)
-    casaflux%Pdep = datr8
+    call cable_pack(dummy_pack,casaflux%Pdep)
     dummy_pack = casapoint(:,5)/365.
-    call cable_pack(dummy_pack,datr8)
-    casaflux%Pwea = datr8
+    call cable_pack(dummy_pack,casaflux%Pwea)
 
     where ( veg%iveg==9 .or. veg%iveg==10 ) ! crops
       ! P fertilizer =13 Mt P globally in 1994
@@ -3257,7 +3252,7 @@ if ( mp_global>0 ) then
   albnirdir(:) = albvisnir(:,2) ! To be updated by CABLE
   albnirdif(:) = albvisnir(:,2) ! To be updated by CABLE
 
-  deallocate( dummy_unpack, datr8 )
+  deallocate( dummy_unpack )
   
 else
 
@@ -3282,7 +3277,6 @@ use cc_mpi     ! CC MPI routines
 use newmpar_m
 
 implicit none
-
 type(veg_parameter_type), intent(in) :: veg
 type(casa_biome),         intent(inout) :: casabiome
 type(casa_pool),          intent(inout) :: casapool
@@ -3291,49 +3285,49 @@ type(casa_met),           intent(inout) :: casamet
 type(phen_variable),      intent(inout) :: phen
 character(len=*), intent(in) :: fcasapft
 
-real(kind=8), dimension(mxvt,mplant) :: ratiocnplant
-real(kind=8), dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
-real(kind=8), dimension(mso,msoil) :: rationpsoil
+real(kind=r_2), dimension(mxvt,mplant) :: ratiocnplant
+real(kind=r_2), dimension(mxvt,msoil) :: ratiocnsoil,ratiocnsoilmax,ratiocnsoilmin
+real(kind=r_2), dimension(mso,msoil) :: rationpsoil
 
-real(kind=8), dimension(mxvt) :: leafage,woodage,frootage,metage
-real(kind=8), dimension(mxvt) :: strage,cwdage,micage,slowage,passage,slax
-real(kind=8), dimension(mxvt) :: xfherbivore,xxkleafcoldmax,xxkleafdrymax
-real(kind=8), dimension(mxvt) :: xratioNPleafmin,xratioNPleafmax,xratioNPwoodmin,xratioNPwoodmax
-real(kind=8), dimension(mxvt) :: xratioNPfrootmin,xratioNPfrootmax,xfNminloss,xfNminleach,xnfixrate
-real(kind=8), dimension(mxvt) :: xnsoilmin,xplab,xpsorb,xpocc
-real(kind=8), dimension(mxvt) :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
-real(kind=8), dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
-real(kind=8), dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
-real(kind=8), dimension(mxvt) :: xxnpmax,xq10soil,xxkoptlitter,xxkoptsoil,xprodptase
-real(kind=8), dimension(mxvt) :: xcostnpup,xmaxfinelitter,xmaxcwd,xnintercept,xnslope
-real(kind=8), dimension(mxvt) :: xla_to_sa,xvcmax_scalar,xdisturbance_interval
-real(kind=8), dimension(mxvt) :: xDAMM_EnzPool,xDAMM_KMO2,xDAMM_KMcp,xDAMM_Ea,xDAMM_alpha
-real(kind=8), dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
-real(kind=8), dimension(mso) :: xkmlabp,xpsorbmax,xfPleach
+real(kind=r_2), dimension(mxvt) :: leafage,woodage,frootage,metage
+real(kind=r_2), dimension(mxvt) :: strage,cwdage,micage,slowage,passage,slax
+real(kind=r_2), dimension(mxvt) :: xfherbivore,xxkleafcoldmax,xxkleafdrymax
+real(kind=r_2), dimension(mxvt) :: xratioNPleafmin,xratioNPleafmax,xratioNPwoodmin,xratioNPwoodmax
+real(kind=r_2), dimension(mxvt) :: xratioNPfrootmin,xratioNPfrootmax,xfNminloss,xfNminleach,xnfixrate
+real(kind=r_2), dimension(mxvt) :: xnsoilmin,xplab,xpsorb,xpocc
+real(kind=r_2), dimension(mxvt) :: cleaf,cwood,cfroot,cmet,cstr,ccwd,cmic,cslow,cpass,nleaf
+real(kind=r_2), dimension(mxvt) :: nwood,nfroot,nmet,nstr,ncwd,nmic,nslow,npass,xpleaf,xpwood
+real(kind=r_2), dimension(mxvt) :: xpfroot,xpmet,xpstr,xpcwd,xpmic,xpslow,xppass,clabileage
+real(kind=r_2), dimension(mxvt) :: xxnpmax,xq10soil,xxkoptlitter,xxkoptsoil,xprodptase
+real(kind=r_2), dimension(mxvt) :: xcostnpup,xmaxfinelitter,xmaxcwd,xnintercept,xnslope
+real(kind=r_2), dimension(mxvt) :: xla_to_sa,xvcmax_scalar,xdisturbance_interval
+real(kind=r_2), dimension(mxvt) :: xDAMM_EnzPool,xDAMM_KMO2,xDAMM_KMcp,xDAMM_Ea,xDAMM_alpha
+real(kind=r_2), dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
+real(kind=r_2), dimension(mso) :: xkmlabp,xpsorbmax,xfPleach
 
 integer :: i, iso, nv, ierr
 integer :: nv0,nv1,nv2,nv3,nv4,nv5,nv6,nv7,nv8,nv9,nv10,nv11,nv12,nv13
 integer :: fflag=0
 
 integer, dimension(mxvt) :: ivt2
-real(kind=8), dimension(mxvt) :: kroot
-real(kind=8), dimension(mxvt) :: rootdepth
-real(kind=8), dimension(mxvt) :: kuptake
-real(kind=8), dimension(mxvt) :: krootlen
-real(kind=8), dimension(mxvt) :: kminn
-real(kind=8), dimension(mxvt) :: kuplabp
-real(kind=8), dimension(mxvt,mplant) :: fracnpptop
-real(kind=8), dimension(mxvt,mplant) :: rmplant
-real(kind=8), dimension(mxvt,mplant) :: ftransnptol
-real(kind=8), dimension(mxvt,mplant) :: fracligninplant
-real(kind=8), dimension(mxvt) :: glaimax
-real(kind=8), dimension(mxvt) :: glaimin
-real(kind=8), dimension(mxvt) :: xkleafcoldexp
-real(kind=8), dimension(mxvt) :: xkleafdryexp
-real(kind=8), dimension(mxvt,mplant) :: rationcplantmin
-real(kind=8), dimension(mxvt,mplant) :: rationcplantmax
-real(kind=8), dimension(mxvt,mplant) :: ftranspptol
-real(kind=8), dimension(mxvt) :: tkshed
+real(kind=r_2), dimension(mxvt) :: kroot
+real(kind=r_2), dimension(mxvt) :: rootdepth
+real(kind=r_2), dimension(mxvt) :: kuptake
+real(kind=r_2), dimension(mxvt) :: krootlen
+real(kind=r_2), dimension(mxvt) :: kminn
+real(kind=r_2), dimension(mxvt) :: kuplabp
+real(kind=r_2), dimension(mxvt,mplant) :: fracnpptop
+real(kind=r_2), dimension(mxvt,mplant) :: rmplant
+real(kind=r_2), dimension(mxvt,mplant) :: ftransnptol
+real(kind=r_2), dimension(mxvt,mplant) :: fracligninplant
+real(kind=r_2), dimension(mxvt) :: glaimax
+real(kind=r_2), dimension(mxvt) :: glaimin
+real(kind=r_2), dimension(mxvt) :: xkleafcoldexp
+real(kind=r_2), dimension(mxvt) :: xkleafdryexp
+real(kind=r_2), dimension(mxvt,mplant) :: rationcplantmin
+real(kind=r_2), dimension(mxvt,mplant) :: rationcplantmax
+real(kind=r_2), dimension(mxvt,mplant) :: ftranspptol
+real(kind=r_2), dimension(mxvt) :: tkshed
 
 if ( trim(fcasapft) /= '' ) fflag = 1
 call ccmpi_bcast(fflag,0,comm_world)
@@ -3737,295 +3731,295 @@ else
   end if
   if ( mp_global>0 ) then
 
-    leafage =(/ 2.0, 1.5, 1.0, 1.0, 1.0, 0.8, 0.8, 1.0,      0.8,      0.8, 1.0, &
-                1.0, 1.0, 1.0, 1.0, 1.0, 1.0 /)
-    woodage =(/ 70., 60., 80., 40., 40., 1.0, 1.0, 1.0,      1.0,      1.0, 1.0, &
-                1.0, 1.0, 5.0, 1.0, 1.0, 1.0 /)
-    frootage=(/ 18., 10., 10., 10., 5.0, 3.0, 3.0, 3.0, 0.884227, 0.884227, 1.0, &
-                1.0, 1.0, 4.0, 1.0, 1.0, 1.0 /)
-    metage=0.04
-    strage=0.23
-    cwdage=0.824
-    micage=0.137
-    slowage=5.
-    passage=222.22
-    clabileage=0.2
-    slax = (/ 0.007178742, 0.015319264, 0.023103346, 0.026464564, 0.009919764, 0.029590494, &
-              0.022417511, 0.026704118, 0.029590494, 0.022417511,        0.02,        0.02, &
-              0.02,        0.024470894,        0.02,        0.02,        0.02 /)
+    leafage =(/ 2.0_r_2, 1.5_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2, 0.8_r_2, 0.8_r_2, 1.0_r_2,      0.8_r_2,      0.8_r_2, 1.0_r_2, &
+                1.0_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2 /)
+    woodage =(/ 70._r_2, 60._r_2, 80._r_2, 40._r_2, 40._r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2,      1.0_r_2,      1.0_r_2, 1.0_r_2, &
+                1.0_r_2, 1.0_r_2, 5.0_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2 /)
+    frootage=(/ 18._r_2, 10._r_2, 10._r_2, 10._r_2, 5.0_r_2, 3.0_r_2, 3.0_r_2, 3.0_r_2, 0.884227_r_2, 0.884227_r_2, 1.0_r_2, &
+                1.0_r_2, 1.0_r_2, 4.0_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2 /)
+    metage=0.04_r_2
+    strage=0.23_r_2
+    cwdage=0.824_r_2
+    micage=0.137_r_2
+    slowage=5._r_2
+    passage=222.22_r_2
+    clabileage=0.2_r_2
+    slax = (/ 0.007178742_r_2, 0.015319264_r_2, 0.023103346_r_2, 0.026464564_r_2, 0.009919764_r_2, 0.029590494_r_2, &
+              0.022417511_r_2, 0.026704118_r_2, 0.029590494_r_2, 0.022417511_r_2,        0.02_r_2,        0.02_r_2, &
+              0.02_r_2,        0.024470894_r_2,        0.02_r_2,        0.02_r_2,        0.02_r_2 /)
 
-    xfherbivore   =(/ 0.068, 0.406, 0.068, 0.134, 0.022, 0.109, 0.109, 0.109, 0.140, &
-                      0.140, 0.000, 0.000, 0.000, 0.010, 0.000, 0.000, 0.000 /)
-    xxkleafcoldmax=(/   0.2,  0.1,  0.1,  0.6,       1.,  0.2,    0.2,   0.2,   0.3, &
-                        0.3,  0.1,  0.1,  0.1,      0.1,  0.1,    0.1,   0.1 /)
-    xxkleafdrymax =(/   0.1,  0.1,  0.1,   1.,      0.1,  0.1,    0.1,   0.1,   0.1, &
-                        0.1,  0.1,  0.1,  0.1,      0.1,  0.1,    0.1,   0.1 /)
-    xratioNPleafmin =(/ 10.92308, 15.95339, 9.254839, 12.73848, 12.07217, 13.51473,    14.05, &
-                        12.57800, 15.12262,      10.,      13.,      10.,      10.,  16.2336, &
-                             10.,      10.,      10. /)
-    xratioNPleafmax =(/ 12.07288,  17.6327, 10.22903, 14.07938, 13.34292, 14.93733, 15.52895, &
-                          13.902, 16.71447,      10.,      13.,      10.,      10.,  17.9424, &
-                             10.,      10.,      10. /)
-    xratioNPwoodmin =(/ 20.30167, 15.89425, 17.48344, 19.08018, 22.46035,      15.,      15., &
-                           15.96,    20.52,      15.,      15.,      15.,      15.,  17.5275, &
-                             15.,      15.,      15. /)
-    xratioNPwoodmax =(/ 22.43869, 17.56733,  19.3238, 21.08862,  24.8246,      15.,      15., &
-                           17.64,    20.52,      15.,      15.,      15.,      15.,  19.3725, &
-                             15.,      15.,      15. /)
-    xratioNPfrootmin=(/ 20.29341, 15.87155, 17.39767,  19.0601, 22.49363, 15.63498, 16.08255, &
-                        14.49241, 22.69109,      15.,      15.,      15.,      15., 22.13268, &
-                             15.,      15.,      15. /)
-    xratioNPfrootmax=(/ 22.42955, 17.54224,   19.229, 21.06643, 24.86138, 17.28077, 17.77545, &
-                        16.01793, 25.07962,      15.,      15.,      15.,      15., 24.46244, &
-                             15.,      15.,      15. /)
-    xfNminloss=0.05
-    xfNminleach=0.05
-    xnfixrate=(/ 0.08, 2.6, 0.21, 1.64, 0.37, 0.95, 0.95, 0.95, 4., 4., 0., &
-                   0.,  0., 0.35,   0.,   0.,   0. /)
-    xnsoilmin=1000.
+    xfherbivore   =(/ 0.068_r_2, 0.406_r_2, 0.068_r_2, 0.134_r_2, 0.022_r_2, 0.109_r_2, 0.109_r_2, 0.109_r_2, 0.140_r_2, &
+                      0.140_r_2, 0.000_r_2, 0.000_r_2, 0.000_r_2, 0.010_r_2, 0.000_r_2, 0.000_r_2, 0.000_r_2 /)
+    xxkleafcoldmax=(/   0.2_r_2,  0.1_r_2,  0.1_r_2,  0.6_r_2,       1._r_2,  0.2_r_2,    0.2_r_2,   0.2_r_2,   0.3_r_2, &
+                        0.3_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,      0.1_r_2,  0.1_r_2,    0.1_r_2,   0.1_r_2 /)
+    xxkleafdrymax =(/   0.1_r_2,  0.1_r_2,  0.1_r_2,   1._r_2,      0.1_r_2,  0.1_r_2,    0.1_r_2,   0.1_r_2,   0.1_r_2, &
+                        0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,      0.1_r_2,  0.1_r_2,    0.1_r_2,   0.1_r_2 /)
+    xratioNPleafmin =(/ 10.92308_r_2, 15.95339_r_2, 9.254839_r_2, 12.73848_r_2, 12.07217_r_2, 13.51473_r_2,    14.05_r_2, &
+                        12.57800_r_2, 15.12262_r_2,      10._r_2,      13._r_2,      10._r_2,      10._r_2,  16.2336_r_2, &
+                             10._r_2,      10._r_2,      10._r_2 /)
+    xratioNPleafmax =(/ 12.07288_r_2,  17.6327_r_2, 10.22903_r_2, 14.07938_r_2, 13.34292_r_2, 14.93733_r_2, 15.52895_r_2, &
+                          13.902_r_2, 16.71447_r_2,      10._r_2,      13._r_2,      10._r_2,      10._r_2,  17.9424_r_2, &
+                             10._r_2,      10._r_2,      10._r_2 /)
+    xratioNPwoodmin =(/ 20.30167_r_2, 15.89425_r_2, 17.48344_r_2, 19.08018_r_2, 22.46035_r_2,      15._r_2,      15._r_2, &
+                           15.96_r_2,    20.52_r_2,      15._r_2,      15._r_2,      15._r_2,      15._r_2,  17.5275_r_2, &
+                             15._r_2,      15._r_2,      15._r_2 /)
+    xratioNPwoodmax =(/ 22.43869_r_2, 17.56733_r_2,  19.3238_r_2, 21.08862_r_2,  24.8246_r_2,      15._r_2,      15._r_2, &
+                           17.64_r_2,    20.52_r_2,      15._r_2,      15._r_2,      15._r_2,      15._r_2,  19.3725_r_2, &
+                             15._r_2,      15._r_2,      15._r_2 /)
+    xratioNPfrootmin=(/ 20.29341_r_2, 15.87155_r_2, 17.39767_r_2,  19.0601_r_2, 22.49363_r_2, 15.63498_r_2, 16.08255_r_2, &
+                        14.49241_r_2, 22.69109_r_2,      15._r_2,      15._r_2,      15._r_2,      15._r_2, 22.13268_r_2, &
+                             15._r_2,      15._r_2,      15._r_2 /)
+    xratioNPfrootmax=(/ 22.42955_r_2, 17.54224_r_2,   19.229_r_2, 21.06643_r_2, 24.86138_r_2, 17.28077_r_2, 17.77545_r_2, &
+                        16.01793_r_2, 25.07962_r_2,      15._r_2,      15._r_2,      15._r_2,      15._r_2, 24.46244_r_2, &
+                             15._r_2,      15._r_2,      15._r_2 /)
+    xfNminloss=0.05_r_2
+    xfNminleach=0.05_r_2
+    xnfixrate=(/ 0.08_r_2, 2.6_r_2, 0.21_r_2, 1.64_r_2, 0.37_r_2, 0.95_r_2, 0.95_r_2, 0.95_r_2, 4._r_2, 4._r_2, 0._r_2, &
+                   0._r_2,  0._r_2, 0.35_r_2,   0._r_2,   0._r_2,   0._r_2 /)
+    xnsoilmin=1000._r_2
   
-    ratiocnplant(:,leaf)=(/  49.8,  23.1,  59.3,  31.4,  37.6, 34.8,  44.,  49.2,  21.6, &
-                              25.,   30.,   30.,   30.,   50.,  40.,  40.,   40. /)
-    ratiocnplant(:,wood)=(/ 238.1, 134.9, 243.8, 156.2, 142.1, 150., 150., 147.3,  150., &
-                             125.,  150.,  150.,  150.,  150., 150., 135.,  150. /)
-    ratiocnplant(:,xroot)=(/ 73.7,  61.2,   75.,  63.2,  67.1, 64.5, 62.7,   69.,  60.7, &
-                              71.,   71.,   71.,   71.,   71.,  71.,  71.,   71. /)
-    ratiocnsoil(:,mic)=8.
-    ratiocnsoil(:,slow)=(/ 16.1, 12.8, 24.8,  30., 19.3, 13.1, 13.1, 13.1, 13.2, 13.2, &
-                           13.1, 13.1, 13.1, 26.8,  20.,  20.,  20. /)
-    ratiocnsoil(:,pass)=(/ 16.1, 12.8, 24.8,  30., 19.3, 13.1, 13.1, 13.1, 13.2, 13.2, &
-                           13.1, 13.1, 13.1, 26.8,  20.,  20.,  20. /)
-    ratiocnsoilmin(:,mic)=3.
-    ratiocnsoilmin(:,slow)=12.
-    ratiocnsoilmin(:,pass)=7.
-    ratiocnsoilmax(:,mic)=15.
-    ratiocnsoilmax(:,slow)=30.
-    ratiocnsoilmax(:,pass)=15.
+    ratiocnplant(:,leaf)=(/  49.8_r_2,  23.1_r_2,  59.3_r_2,  31.4_r_2,  37.6_r_2, 34.8_r_2,  44._r_2,  49.2_r_2,  21.6_r_2, &
+                              25._r_2,   30._r_2,   30._r_2,   30._r_2,   50._r_2,  40._r_2,  40._r_2,   40._r_2 /)
+    ratiocnplant(:,wood)=(/ 238.1_r_2, 134.9_r_2, 243.8_r_2, 156.2_r_2, 142.1_r_2, 150._r_2, 150._r_2, 147.3_r_2,  150._r_2, &
+                             125._r_2,  150._r_2,  150._r_2,  150._r_2,  150._r_2, 150._r_2, 135._r_2,  150._r_2 /)
+    ratiocnplant(:,xroot)=(/ 73.7_r_2,  61.2_r_2,   75._r_2,  63.2_r_2,  67.1_r_2, 64.5_r_2, 62.7_r_2,   69._r_2,  60.7_r_2, &
+                              71._r_2,   71._r_2,   71._r_2,   71._r_2,   71._r_2,  71._r_2,  71._r_2,   71._r_2 /)
+    ratiocnsoil(:,mic)=8._r_2
+    ratiocnsoil(:,slow)=(/ 16.1_r_2, 12.8_r_2, 24.8_r_2,  30._r_2, 19.3_r_2, 13.1_r_2, 13.1_r_2, 13.1_r_2, 13.2_r_2, 13.2_r_2, &
+                           13.1_r_2, 13.1_r_2, 13.1_r_2, 26.8_r_2,  20._r_2,  20._r_2,  20._r_2 /)
+    ratiocnsoil(:,pass)=(/ 16.1_r_2, 12.8_r_2, 24.8_r_2,  30._r_2, 19.3_r_2, 13.1_r_2, 13.1_r_2, 13.1_r_2, 13.2_r_2, 13.2_r_2, &
+                           13.1_r_2, 13.1_r_2, 13.1_r_2, 26.8_r_2,  20._r_2,  20._r_2,  20._r_2 /)
+    ratiocnsoilmin(:,mic)=3._r_2
+    ratiocnsoilmin(:,slow)=12._r_2
+    ratiocnsoilmin(:,pass)=7._r_2
+    ratiocnsoilmax(:,mic)=15._r_2
+    ratiocnsoilmax(:,slow)=30._r_2
+    ratiocnsoilmax(:,pass)=15._r_2
    
     ! Initial values for CNP pools over 3*plant, 3*litter and 3*soil (=27 pools in total)
-    cleaf  =(/ 384.6037,     273., 96.59814, 150.2638,      88., 137.1714, 137.1714, 137.1714, &
-                   160.,     160.,       0.,       0.,       0.,       0.,       0.,       0., &
-                     0. /)
-    cwood  =(/ 7865.396,   11451., 5683.402, 10833.74,     372.,       0.,       0.,       0., &
-                     0.,       0.,       0.,       0.,       0.,       0.,       0.,       0., &
-                     0. /)
-    cfroot =(/     250.,    2586.,     220.,     220.,     140.,     263.,     263.,     263., &
-                   240.,     240.,       0.,       0.,       0.,       0.,       0.,       0., &
-                     0. /)
-    cmet   =(/ 6.577021, 44.63457, 7.127119, 10.97797, 3.229374, 28.57245, 28.57245, 28.57245, &
-               28.57245, 28.57245,       0.,       0.,       0., 1.457746,       0.,       0., &
-                     0. /)
-    cstr   =(/ 209.1728, 433.7626, 277.7733, 312.5492, 39.44449, 50.91091, 50.91091, 50.91091, &
-               50.91091, 50.91091,       0.,       0.,       0., 4.956338,       0.,       0., &
-                     0. /)
-    ccwd   =(/ 606.0255, 1150.765, 776.7331, 888.5864, 111.5864,       0.,       0.,       0., &
-                     0.,       0.,       0.,       0.,       0., 28.44085,       0.,       0., &
-                     0. /) 
-    cmic   =(/  528.664, 11.37765, 597.0785, 405.5554, 168.0451, 425.6431, 425.6431, 425.6431, &
-               512.4247, 512.4247,       0.,       0.,       0., 57.77585,       0.,       0., &
-                     0. /)
-    cslow  =(/ 13795.94, 311.8092, 16121.12, 11153.25, 4465.478, 5694.437, 5694.437, 5694.437, &
-               6855.438, 6855.438,       0.,       0.,       0., 1325.052,       0.,       0., &
-                     0. /)
-    cpass  =(/ 4425.396 ,13201.81, 5081.802, 5041.192, 1386.477,  4179.92,  4179.92,  4179.92, &
-               5032.137, 5032.137,       0.,       0.,       0., 517.1719,       0.,       0., &
-                     0. /)
-    nleaf  =(/ 7.541249,      9.9, 1.609969, 3.756594, 2.933333, 4.572381, 4.572381, 4.572381, &
-               5.333333, 5.333333       ,0.,       0.,       0.,      0.5,       0.,       0., &
-                     0. /)
-    nwood  =(/ 31.46159,    102.,  22.73361, 80.24989, 2.755555,       0.,       0.,       0., &
-                     0.,      0.,        0.,       0.,       0., 0.125926,       0.,       0., &
-                     0. /)
-    nfroot =(/ 6.097561,      38., 5.365854, 5.365854, 3.414634, 6.414634, 6.414634, 6.414634, &
-               5.853659, 5.853659,       0.,       0.,       0., 1.536585,       0.,       0., &
-                     0. /)
-    nmet   =(/ 0.064481,  0.74391, 0.059393, 0.137225, 0.053823, 0.476208, 0.476208, 0.476208, &
-               0.476208, 0.476208,       0.,       0.,       0., 0.018222,       0.,       0., &
-                     0. /)
-    nstr   =(/ 1.394485, 2.891751, 1.851822, 2.083661, 0.262963, 0.339406, 0.339406, 0.339406, &
-               0.339406, 0.339406,       0.,       0.,       0., 0.033042,       0.,       0., &
-                     0. /)
-    ncwd   =(/ 2.424102, 8.524183, 3.106932, 6.581996, 0.826566,       0.,       0.,       0., &
-                     0.,       0.,       0.,       0.,       0., 0.210673,       0.,       0., &
-                     0. /)
-    nmic   =(/  52.8664, 1.137765, 59.70785, 40.55554, 16.80451, 42.56431, 42.56431, 42.56431, &
-               51.24247, 51.24247,       0.,       0.,       0., 5.777585       ,0.,       0., &
-                     0. /)
-    nslow  =(/ 919.7293, 20.78728, 1074.741, 743.5501, 297.6985, 379.6291, 379.6291, 379.6291, &
-               457.0292, 457.0292,       0.,       0.,       0., 88.33682,       0.,       0., &
-                     0. /)
-    npass  =(/ 295.0264, 880.1209, 338.7868, 336.0795,  92.4318, 278.6613, 278.6613, 278.6613, &
-               335.4758, 335.4758,       0.,       0.,       0., 34.47813,       0.,       0., &
-                     0. /)
-    xpleaf =(/ 0.191648,   0.415,  0.115988, 0.135453, 0.022821,  0.15125,  0.15125,  0.15125, &
-                0.15125, 0.15125,        0.,       0.,       0.,    0.007,       0.,       0., &
-                     0. /)
-    xpwood =(/ 0.953979,    5.88, 0.64438,   2.424778,       0.,       0.,       0.,       0., &
-                     0.,      0.,      0.,         0.,       0.,       0.,       0.,       0., &
-                     0. /)
-    xpfroot=(/ 0.076659,    1.95, 0.080548,  0.141097, 0.037083,  0.15125,  0.15125,  0.15125, &
-                0.15125, 0.15125,       0.,        0.,       0.,  0.00875,       0.,       0., &
-                     0. /)
-    xpmet  =(/ 0.004385, 0.029756, 0.004751, 0.007319, 0.002153, 0.019048, 0.019048, 0.019048, &
-               0.019048, 0.019048,       0.,       0.,       0., 0.000972,       0.,       0., &
-                     0. /)
-    xpstr  =(/ 0.069724, 0.144588, 0.092591, 0.104183, 0.013148,  0.01697,  0.01697,  0.01697, &
-                0.01697,  0.01697,       0.,       0.,       0., 0.001652,       0.,       0., &
-                     0. /)
-    xpcwd  =(/ 0.101004, 0.191794, 0.129456, 0.148095, 0.018598,       0.,       0.,       0., &
-                     0.,       0.,       0.,       0.,       0.,       0.,       0.,       0., &
-                     0. /)
-    xpmic  =(/ 6.872632 , 0.14791, 7.762021,  5.27222, 2.184586, 5.533361, 5.533361, 5.533361, &
-               6.661522, 6.661522,       0.,       0.,       0., 0.751086,       0.,       0., &
-                     0. /)
-    xpslow =(/ 119.5648, 2.702347, 139.7164, 96.66152, 38.70081, 49.35178, 49.35178, 49.35178, &
-                59.4138,  59.4138,       0.,       0.,       0., 11.48379,       0.,       0., &
-                     0. /)
-    xppass =(/ 38.35343, 114.4157, 44.04228, 43.69033, 12.01613, 36.22598, 36.22598, 36.22598, &
-               43.61185, 43.61185,       0.,       0.,       0., 4.482157,       0.,       0., &
-                     0. /)
-    xplab  =(/   26.737,   19.947,   29.107,   30.509,   23.206,   25.538,   25.538,   25.538, &
-                 27.729,   27.729,       0.,       0.,       0.,   21.038,       0.,       0., &
-                  0.103 /)
-    xpsorb =(/   126.73,   92.263,  134.639,  132.012,   173.47,  186.207,  186.207,  186.207, &
-                155.518,  155.518,       0.,       0.,       0.,   255.79,       0.,       0., &
-                  1.176 /)
-    xpocc  =(/  138.571,  120.374,   138.22,  148.083,  114.496,  145.163,  145.163,  145.163, &
-                158.884,  158.884,       0.,       0.,       0.,  108.897,       0.,       0., &
-                  0.688 /)
+    cleaf  =(/ 384.6037_r_2,     273._r_2, 96.59814_r_2, 150.2638_r_2,      88._r_2, 137.1714_r_2, 137.1714_r_2, 137.1714_r_2, &
+                   160._r_2,     160._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    cwood  =(/ 7865.396_r_2,   11451._r_2, 5683.402_r_2, 10833.74_r_2,     372._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    cfroot =(/     250._r_2,    2586._r_2,     220._r_2,     220._r_2,     140._r_2,     263._r_2,     263._r_2,     263._r_2, &
+                   240._r_2,     240._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    cmet   =(/ 6.577021_r_2, 44.63457_r_2, 7.127119_r_2, 10.97797_r_2, 3.229374_r_2, 28.57245_r_2, 28.57245_r_2, 28.57245_r_2, &
+               28.57245_r_2, 28.57245_r_2,       0._r_2,       0._r_2,       0._r_2, 1.457746_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    cstr   =(/ 209.1728_r_2, 433.7626_r_2, 277.7733_r_2, 312.5492_r_2, 39.44449_r_2, 50.91091_r_2, 50.91091_r_2, 50.91091_r_2, &
+               50.91091_r_2, 50.91091_r_2,       0._r_2,       0._r_2,       0._r_2, 4.956338_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    ccwd   =(/ 606.0255_r_2, 1150.765_r_2, 776.7331_r_2, 888.5864_r_2, 111.5864_r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, 28.44085_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /) 
+    cmic   =(/  528.664_r_2, 11.37765_r_2, 597.0785_r_2, 405.5554_r_2, 168.0451_r_2, 425.6431_r_2, 425.6431_r_2, 425.6431_r_2, &
+               512.4247_r_2, 512.4247_r_2,       0._r_2,       0._r_2,       0._r_2, 57.77585_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    cslow  =(/ 13795.94_r_2, 311.8092_r_2, 16121.12_r_2, 11153.25_r_2, 4465.478_r_2, 5694.437_r_2, 5694.437_r_2, 5694.437_r_2, &
+               6855.438_r_2, 6855.438_r_2,       0._r_2,       0._r_2,       0._r_2, 1325.052_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    cpass  =(/ 4425.396_r_2 ,13201.81_r_2, 5081.802_r_2, 5041.192_r_2, 1386.477_r_2,  4179.92_r_2,  4179.92_r_2,  4179.92_r_2, &
+               5032.137_r_2, 5032.137_r_2,       0._r_2,       0._r_2,       0._r_2, 517.1719_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nleaf  =(/ 7.541249_r_2,      9.9_r_2, 1.609969_r_2, 3.756594_r_2, 2.933333_r_2, 4.572381_r_2, 4.572381_r_2, 4.572381_r_2, &
+               5.333333_r_2, 5.333333_r_2       ,0._r_2,       0._r_2,       0._r_2,      0.5_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nwood  =(/ 31.46159_r_2,    102._r_2,  22.73361_r_2, 80.24989_r_2, 2.755555_r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2,      0._r_2,        0._r_2,       0._r_2,       0._r_2, 0.125926_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nfroot =(/ 6.097561_r_2,      38._r_2, 5.365854_r_2, 5.365854_r_2, 3.414634_r_2, 6.414634_r_2, 6.414634_r_2, 6.414634_r_2, &
+               5.853659_r_2, 5.853659_r_2,       0._r_2,       0._r_2,       0._r_2, 1.536585_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nmet   =(/ 0.064481_r_2,  0.74391_r_2, 0.059393_r_2, 0.137225_r_2, 0.053823_r_2, 0.476208_r_2, 0.476208_r_2, 0.476208_r_2, &
+               0.476208_r_2, 0.476208_r_2,       0._r_2,       0._r_2,       0._r_2, 0.018222_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nstr   =(/ 1.394485_r_2, 2.891751_r_2, 1.851822_r_2, 2.083661_r_2, 0.262963_r_2, 0.339406_r_2, 0.339406_r_2, 0.339406_r_2, &
+               0.339406_r_2, 0.339406_r_2,       0._r_2,       0._r_2,       0._r_2, 0.033042_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    ncwd   =(/ 2.424102_r_2, 8.524183_r_2, 3.106932_r_2, 6.581996_r_2, 0.826566_r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, 0.210673_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nmic   =(/  52.8664_r_2, 1.137765_r_2, 59.70785_r_2, 40.55554_r_2, 16.80451_r_2, 42.56431_r_2, 42.56431_r_2, 42.56431_r_2, &
+               51.24247_r_2, 51.24247_r_2,       0._r_2,       0._r_2,       0._r_2, 5.777585_r_2       ,0._r_2,       0._r_2, &
+                     0._r_2 /)
+    nslow  =(/ 919.7293_r_2, 20.78728_r_2, 1074.741_r_2, 743.5501_r_2, 297.6985_r_2, 379.6291_r_2, 379.6291_r_2, 379.6291_r_2, &
+               457.0292_r_2, 457.0292_r_2,       0._r_2,       0._r_2,       0._r_2, 88.33682_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    npass  =(/ 295.0264_r_2, 880.1209_r_2, 338.7868_r_2, 336.0795_r_2,  92.4318_r_2, 278.6613_r_2, 278.6613_r_2, 278.6613_r_2, &
+               335.4758_r_2, 335.4758_r_2,       0._r_2,       0._r_2,       0._r_2, 34.47813_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpleaf =(/ 0.191648_r_2,   0.415_r_2,  0.115988_r_2, 0.135453_r_2, 0.022821_r_2,  0.15125_r_2,  0.15125_r_2,  0.15125_r_2, &
+                0.15125_r_2, 0.15125_r_2,        0._r_2,       0._r_2,       0._r_2,    0.007_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpwood =(/ 0.953979_r_2,    5.88_r_2, 0.64438_r_2,   2.424778_r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2,      0._r_2,      0._r_2,         0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpfroot=(/ 0.076659_r_2,    1.95_r_2, 0.080548_r_2,  0.141097_r_2, 0.037083_r_2,  0.15125_r_2,  0.15125_r_2,  0.15125_r_2, &
+                0.15125_r_2, 0.15125_r_2,       0._r_2,        0._r_2,       0._r_2,  0.00875_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpmet  =(/ 0.004385_r_2, 0.029756_r_2, 0.004751_r_2, 0.007319_r_2, 0.002153_r_2, 0.019048_r_2, 0.019048_r_2, 0.019048_r_2, &
+               0.019048_r_2, 0.019048_r_2,       0._r_2,       0._r_2,       0._r_2, 0.000972_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpstr  =(/ 0.069724_r_2, 0.144588_r_2, 0.092591_r_2, 0.104183_r_2, 0.013148_r_2,  0.01697_r_2,  0.01697_r_2,  0.01697_r_2, &
+                0.01697_r_2,  0.01697_r_2,       0._r_2,       0._r_2,       0._r_2, 0.001652_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpcwd  =(/ 0.101004_r_2, 0.191794_r_2, 0.129456_r_2, 0.148095_r_2, 0.018598_r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpmic  =(/ 6.872632_r_2 , 0.14791_r_2, 7.762021_r_2,  5.27222_r_2, 2.184586_r_2, 5.533361_r_2, 5.533361_r_2, 5.533361_r_2, &
+               6.661522_r_2, 6.661522_r_2,       0._r_2,       0._r_2,       0._r_2, 0.751086_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xpslow =(/ 119.5648_r_2, 2.702347_r_2, 139.7164_r_2, 96.66152_r_2, 38.70081_r_2, 49.35178_r_2, 49.35178_r_2, 49.35178_r_2, &
+                59.4138_r_2,  59.4138_r_2,       0._r_2,       0._r_2,       0._r_2, 11.48379_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xppass =(/ 38.35343_r_2, 114.4157_r_2, 44.04228_r_2, 43.69033_r_2, 12.01613_r_2, 36.22598_r_2, 36.22598_r_2, 36.22598_r_2, &
+               43.61185_r_2, 43.61185_r_2,       0._r_2,       0._r_2,       0._r_2, 4.482157_r_2,       0._r_2,       0._r_2, &
+                     0._r_2 /)
+    xplab  =(/   26.737_r_2,   19.947_r_2,   29.107_r_2,   30.509_r_2,   23.206_r_2,   25.538_r_2,   25.538_r_2,   25.538_r_2, &
+                 27.729_r_2,   27.729_r_2,       0._r_2,       0._r_2,       0._r_2,   21.038_r_2,       0._r_2,       0._r_2, &
+                  0.103_r_2 /)
+    xpsorb =(/   126.73_r_2,   92.263_r_2,  134.639_r_2,  132.012_r_2,   173.47_r_2,  186.207_r_2,  186.207_r_2,  186.207_r_2, &
+                155.518_r_2,  155.518_r_2,       0._r_2,       0._r_2,       0._r_2,   255.79_r_2,       0._r_2,       0._r_2, &
+                  1.176_r_2 /)
+    xpocc  =(/  138.571_r_2,  120.374_r_2,   138.22_r_2,  148.083_r_2,  114.496_r_2,  145.163_r_2,  145.163_r_2,  145.163_r_2, &
+                158.884_r_2,  158.884_r_2,       0._r_2,       0._r_2,       0._r_2,  108.897_r_2,       0._r_2,       0._r_2, &
+                  0.688_r_2 /)
 
-    xkmlabp  =(/ 74.5408,  68.1584,   77.952, 64.41918, 64.41918, 70.5856,  64.5888, 54.1692, &
-                  9.7704,    28.29,   63.963,   32.402 /)
-    xpsorbmax=(/ 745.408, 788.0815, 1110.816,  744.847,  744.847, 816.146, 746.8081, 722.256, &
-                 293.112,   311.19, 373.1175, 615.6381 /)
-    xfPleach =0.0005
-    ratioNPsoil(:,mic)=4.
-    ratioNPsoil(:,slow)=(/ 5., 5., 5., 15., 5., 5., 5., 5., 7., 7., 7., 7. /)
-    ratioNPsoil(:,pass)=(/ 5., 5., 5., 15., 5., 5., 5., 5., 7., 7., 7., 7. /)
+    xkmlabp  =(/ 74.5408_r_2,  68.1584_r_2,   77.952_r_2, 64.41918_r_2, 64.41918_r_2, 70.5856_r_2,  64.5888_r_2, 54.1692_r_2, &
+                  9.7704_r_2,    28.29_r_2,   63.963_r_2,   32.402_r_2 /)
+    xpsorbmax=(/ 745.408_r_2, 788.0815_r_2, 1110.816_r_2,  744.847_r_2,  744.847_r_2, 816.146_r_2, 746.8081_r_2, 722.256_r_2, &
+                 293.112_r_2,   311.19_r_2, 373.1175_r_2, 615.6381_r_2 /)
+    xfPleach =0.0005_r_2
+    ratioNPsoil(:,mic)=4._r_2
+    ratioNPsoil(:,slow)=(/ 5._r_2, 5._r_2, 5._r_2, 15._r_2, 5._r_2, 5._r_2, 5._r_2, 5._r_2, 7._r_2, 7._r_2, 7._r_2, 7._r_2 /)
+    ratioNPsoil(:,pass)=(/ 5._r_2, 5._r_2, 5._r_2, 15._r_2, 5._r_2, 5._r_2, 5._r_2, 5._r_2, 7._r_2, 7._r_2, 7._r_2, 7._r_2 /)
   
-    xxnpmax = (/ 1.510856726, 1.27916225, 1.591076159, 1.186066584, 1.358075681,  1.45621905, &
-                  1.45621905, 1.45621905, 1.210382326, 1.210382326,  1.45621905, 1.365993164, &
-                 1.210382326,         1., 1.399652677,          1.,          1. /)
-    xq10soil = 1.72
-    xxkoptlitter = 0.4
-    xxkoptsoil = (/ 0.33, 0.6, 0.15, 0.6, 0.16, 0.4, 0.3, 0.2, 0.2, 0.25,  1., &
-                    0.65, 0.5,   2., 0.5,   1.,  1. /)
-    xprodptase = (/  0.5, 0.2,  0.5, 0.5,  0.5, 0.5, 0.5, 0.5, 0.5,  0.5, 0.5, &
-                      4., 0.5,  0.5, 0.5,  0.5, 0.5 /)
-    xcostnpup = (/   40., 25.,  40., 40.,  40., 40., 40., 40., 40.,  40., 40., &
-                     40., 40.,  40., 40.,  40., 40. /)
-    xmaxfinelitter = (/ 1524., 384., 1527., 887., 157., 361., 225., 913., 660., 100., &
-                         100., 100.,  100.,  83., 100., 100., 100. /)
-    xmaxcwd = (/ 1795., 613., 1918., 1164., 107., 420., 228., 573., 811., 100., &
-                  100., 100.,  100.,   23., 100., 100., 100. /)
-    xnintercept = (/ 6.32, 4.19,  6.32,  5.73, 14.71,  6.42,    2., 14.71, 4.71, 14.71, &
-                    14.71,   7., 14.71, 14.71, 14.71, 14.71, 14.71 /)
-    xnslope = (/ 18.15, 26.19, 18.15, 29.81, 23.15, 40.96, 8., 23.15, 59.23, 23.15, &
-                 23.15,   10., 23.15, 23.15, 23.15, 23.15, 23.15 /)
-    xla_to_sa = (/ 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., 5000., &
-                   5000., 5000., 5000., 5000., 5000., 5000., 5000. /)
-    xvcmax_scalar = (/ 0.92, 1.10, 0.92, 0.92, 1.25, 1.25, 1.25, 1.25, 1.0, 1.0, &
-                        1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0 /)
-    xdisturbance_interval = (/ 100., 100., 100., 100., 100., 100., 100., 100., 100., &
-                               100., 100., 100., 100., 100., 100., 100., 100. /)
-    xDAMM_EnzPool = (/ 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, &
-                       10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0 /)
-    xDAMM_KMO2 = (/ 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, &
-                    0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01 /)
-    xDAMM_KMcp = (/  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1, &
-                     0.1,  0.1,  0.1,  0.1,  0.1,  0.1,  0.1 /)
-    xDAMM_Ea = (/ 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., 62., &
-                  62., 62., 62., 62., 62. /)
-    xDAMM_alpha = (/ 10.6, 10.4, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6, &
-                     10.6, 10.6, 10.6, 10.6, 10.6, 10.6, 10.6 /)
+    xxnpmax = (/ 1.510856726_r_2, 1.27916225_r_2, 1.591076159_r_2, 1.186066584_r_2, 1.358075681_r_2,  1.45621905_r_2, &
+                  1.45621905_r_2, 1.45621905_r_2, 1.210382326_r_2, 1.210382326_r_2,  1.45621905_r_2, 1.365993164_r_2, &
+                 1.210382326_r_2,         1._r_2, 1.399652677_r_2,          1._r_2,          1._r_2 /)
+    xq10soil = 1.72_r_2
+    xxkoptlitter = 0.4_r_2
+    xxkoptsoil = (/ 0.33_r_2, 0.6_r_2, 0.15_r_2, 0.6_r_2, 0.16_r_2, 0.4_r_2, 0.3_r_2, 0.2_r_2, 0.2_r_2, 0.25_r_2,  1._r_2, &
+                    0.65_r_2, 0.5_r_2,   2._r_2, 0.5_r_2,   1._r_2,  1._r_2 /)
+    xprodptase = (/  0.5_r_2, 0.2_r_2,  0.5_r_2, 0.5_r_2,  0.5_r_2, 0.5_r_2, 0.5_r_2, 0.5_r_2, 0.5_r_2,  0.5_r_2, 0.5_r_2, &
+                      4._r_2, 0.5_r_2,  0.5_r_2, 0.5_r_2,  0.5_r_2, 0.5_r_2 /)
+    xcostnpup = (/   40._r_2, 25._r_2,  40._r_2, 40._r_2,  40._r_2, 40._r_2, 40._r_2, 40._r_2, 40._r_2,  40._r_2, 40._r_2, &
+                     40._r_2, 40._r_2,  40._r_2, 40._r_2,  40._r_2, 40._r_2 /)
+    xmaxfinelitter = (/ 1524._r_2, 384._r_2, 1527._r_2, 887._r_2, 157._r_2, 361._r_2, 225._r_2, 913._r_2, 660._r_2, 100._r_2, &
+                         100._r_2, 100._r_2,  100._r_2,  83._r_2, 100._r_2, 100._r_2, 100._r_2 /)
+    xmaxcwd = (/ 1795._r_2, 613._r_2, 1918._r_2, 1164._r_2, 107._r_2, 420._r_2, 228._r_2, 573._r_2, 811._r_2, 100._r_2, &
+                  100._r_2, 100._r_2,  100._r_2,   23._r_2, 100._r_2, 100._r_2, 100._r_2 /)
+    xnintercept = (/ 6.32_r_2, 4.19_r_2,  6.32_r_2,  5.73_r_2, 14.71_r_2,  6.42_r_2,    2._r_2, 14.71_r_2, 4.71_r_2, 14.71_r_2, &
+                    14.71_r_2,   7._r_2, 14.71_r_2, 14.71_r_2, 14.71_r_2, 14.71_r_2, 14.71_r_2 /)
+    xnslope = (/ 18.15_r_2, 26.19_r_2, 18.15_r_2, 29.81_r_2, 23.15_r_2, 40.96_r_2, 8._r_2, 23.15_r_2, 59.23_r_2, 23.15_r_2, &
+                 23.15_r_2,   10._r_2, 23.15_r_2, 23.15_r_2, 23.15_r_2, 23.15_r_2, 23.15_r_2 /)
+    xla_to_sa = (/ 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, &
+                   5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2, 5000._r_2 /)
+    xvcmax_scalar = (/ 0.92_r_2, 1.10_r_2, 0.92_r_2, 0.92_r_2, 1.25_r_2, 1.25_r_2, 1.25_r_2, 1.25_r_2, 1.0_r_2, 1.0_r_2, &
+                        1.0_r_2,  1.0_r_2,  1.0_r_2,  1.0_r_2,  1.0_r_2,  1.0_r_2,  1.0_r_2 /)
+    xdisturbance_interval = (/ 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, &
+                               100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2, 100._r_2 /)
+    xDAMM_EnzPool = (/ 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, &
+                       10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2, 10.0_r_2 /)
+    xDAMM_KMO2 = (/ 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, &
+                    0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2, 0.01_r_2 /)
+    xDAMM_KMcp = (/  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2, &
+                     0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2,  0.1_r_2 /)
+    xDAMM_Ea = (/ 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2, &
+                  62._r_2, 62._r_2, 62._r_2, 62._r_2, 62._r_2 /)
+    xDAMM_alpha = (/ 10.6_r_2, 10.4_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, &
+                     10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2, 10.6_r_2 /)
   
-    xxkplab = 0.001369863
-    xxkpsorb = (/ 1.8356191E-05, 2.0547975E-05, 1.3698650E-05, 1.4794542E-05, 2.1369894E-05, &
-                  2.3835651E-05, 1.9452083E-05, 2.1095921E-05, 2.7123327E-05, 2.1095921E-05, &
-                  2.7123327E-05, 2.1095921E-05 /)
-    xxkpocc = 2.73973E-05
+    xxkplab = 0.001369863_r_2
+    xxkpsorb = (/ 1.8356191E-05_r_2, 2.0547975E-05_r_2, 1.3698650E-05_r_2, 1.4794542E-05_r_2, 2.1369894E-05_r_2, &
+                  2.3835651E-05_r_2, 1.9452083E-05_r_2, 2.1095921E-05_r_2, 2.7123327E-05_r_2, 2.1095921E-05_r_2, &
+                  2.7123327E-05_r_2, 2.1095921E-05_r_2 /)
+    xxkpocc = 2.73973E-05_r_2
 
     casabiome%ivt2     =(/        3,        3,        3,        3,        2,        1,   1,   2, &
                                   1,        1,        0,        0,        0,        1,   0,   0, &
                                   0 /)
-    casabiome%kroot    =(/      5.5,      3.9,      5.5,      3.9,      2.0,      5.5, 5.5, 5.5, &
-                                5.5,      5.5,      5.5,      5.5,      5.5,      2.0, 2.0, 5.5, &
-                                5.5 /)
-    casabiome%rootdepth=(/      1.5,      1.5,      1.5,      1.5,      0.5,      0.5, 0.5, 0.5, &
-                                0.5,      0.5,      0.5,      0.5,      0.5,      0.5, 0.5, 1.5, &
-                                0.5 /)
-    casabiome%kuptake  =(/      2.0,      1.9,      2.0,      2.0,      1.8,      2.0, 2.0, 2.0, &
-                                1.6,      1.6,      1.6,      1.8,      1.8,      1.8, 1.8, 1.8, &
-                                1.8 /)
-    casabiome%krootlen =(/ 14.87805, 14.38596, 14.02597, 18.94737, 32.30769,      84., 84., 84., &
-                              120.5,    120.5,       0.,       0.,       0., 30.76923,  0.,  0., &
-                                 0. /)
-    casabiome%kminN=2.0
-    casabiome%kuplabP=0.5
-    casabiome%fracnpptoP(:,leaf) =(/ 0.25, 0.20, 0.40, 0.35, 0.35, 0.35, 0.35, 0.50, 0.50, &
-                                     0.50, 0.50, 0.50, 0.50, 0.25, 0.50, 0.60, 0.50 /)
-    casabiome%fracnpptoP(:,wood) =(/ 0.40, 0.35, 0.30, 0.25, 0.25, 0.00, 0.00, 0.10, 0.00, &
-                                     0.00, 0.00, 0.00, 0.00, 0.25, 0.00, 0.40, 0.00 /)
-    casabiome%fracnpptoP(:,xroot)=(/ 0.35, 0.45, 0.30, 0.40, 0.40, 0.65, 0.65, 0.40, 0.50, &
-                                     0.50, 0.50, 0.50, 0.50, 0.50, 0.50, 0.00, 0.50 /)
-    casabiome%rmplant(:,leaf)    =0.1
-    casabiome%rmplant(:,wood)    =(/ 2.0, 1.0, 1.5, 0.8, 0.5, 0.5, 0.4, 1.8, 2.0, 1.0, &
-                                     1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0 /)
-    casabiome%rmplant(:,xroot)   =(/ 10., 2.0, 7.5, 2.5, 4.5, 4.5, 4.0, 15., 25., 10., &
-                                     10., 10., 10., 10., 10., 10., 10. /)
-    casabiome%ftransNPtoL(:,leaf) =0.5
-    casabiome%ftransNPtoL(:,wood) =0.95
-    casabiome%ftransNPtoL(:,xroot)=0.9
-    casabiome%fracligninplant(:,leaf) =(/ 0.25, 0.20, 0.20, 0.20, 0.20, 0.10, 0.10, 0.10, &
-                                          0.10, 0.10, 0.15, 0.15, 0.15, 0.15, 0.15, 0.25, &
-                                          0.10 /)
-    casabiome%fracligninplant(:,wood) =0.4
-    casabiome%fracligninplant(:,xroot)=(/ 0.25, 0.20, 0.20, 0.20, 0.20, 0.10, 0.10, 0.10, &
-                                          0.10, 0.10, 0.15, 0.15, 0.15, 0.15, 0.15, 0.25, &
-                                          0.10 /)
-    !casabiome%glaimax=(/ 7., 7., 7., 7., 3., 3., 3., 3., 6., 6.,  5.,  5., &
-    !                     5., 1., 6., 1., 0. /)
-    casabiome%glaimax=(/ 10., 10., 10., 10., 10., 3., 3., 3., 6., 6.,  5., 5., &
-                          5., 1.,  6.,   1.,  0. /)
-    casabiome%glaimin=(/ 1.,  1., .5,  .5, .1, .1, .1, .1, .1, .1, .05, .05, &
-                        .05, .05, 0., .05, 0. /)
-    phen%TKshed=(/ 268.,   260., 263.15, 268.15, 277.15, 275.15, 275.15, 275.15, 278.15, &
-                 278.15, 277.15, 277.15, 277.15, 277.15, 277.15, 277.15, 283.15 /)
-    casabiome%xkleafcoldexp=3.
-    casabiome%xkleafdryexp=3.
-    casabiome%ratioNCplantmin(:,leaf) =(/     0.02,     0.04, 0.016667, 0.028571,    0.025,  0.02631, &
-                                              0.02,     0.02,     0.04,     0.04, 0.033333,    0.025, &
-                                             0.025, 0.018182,    0.025,    0.025,    0.025 /)
-    casabiome%ratioNCplantmax(:,leaf) =(/    0.024,    0.048,     0.02, 0.034286,     0.03, 0.031572, &
-                                             0.024,    0.024,    0.048,    0.048,     0.04,     0.03, &
-                                              0.03, 0.022222,     0.03,     0.03,     0.03 /)
-    casabiome%ratioNCplantmin(:,wood) =(/    0.004, 0.006667,    0.004, 0.005714, 0.006667, 0.006667, &
-                                          0.006667, 0.006667,    0.008,    0.008, 0.006667, 0.006667, &
-                                          0.006667, 0.006667, 0.006667, 0.007307, 0.006667 /)
-    casabiome%ratioNCplantmax(:,wood) =(/   0.0048,    0.008,   0.0048, 0.006857,    0.008,    0.008, &
-                                             0.008,    0.008,   0.0096,   0.0096,    0.008,    0.008, &
-                                             0.008,    0.008,    0.008, 0.008889,    0.008 /)
-    casabiome%ratioNCplantmin(:,xroot)=(/ 0.012821, 0.014706, 0.012821, 0.014085, 0.014085, 0.014085, &
-                                          0.014085, 0.014085, 0.014085, 0.014085, 0.014085, 0.014085, &
-                                          0.014085, 0.014085, 0.014085, 0.014085, 0.014085 /)
-    casabiome%ratioNCplantmax(:,xroot)=(/ 0.015385, 0.017647, 0.015385, 0.016901, 0.016901, 0.016901, &
-                                          0.016901, 0.016901, 0.016901, 0.016901, 0.016901, 0.016901, &
-                                          0.016901, 0.016901, 0.016901, 0.016901, 0.016901 /)
-    casabiome%ftransPPtoL(:,leaf)=0.5
-    casabiome%ftransPPtoL(:,wood)=0.95
-    casabiome%ftransPPtoL(:,xroot)=0.9
+    casabiome%kroot    =(/      5.5_r_2,      3.9_r_2,      5.5_r_2,      3.9_r_2,      2.0_r_2,      5.5_r_2, 5.5_r_2, 5.5_r_2, &
+                                5.5_r_2,      5.5_r_2,      5.5_r_2,      5.5_r_2,      5.5_r_2,      2.0_r_2, 2.0_r_2, 5.5_r_2, &
+                                5.5_r_2 /)
+    casabiome%rootdepth=(/      1.5_r_2,      1.5_r_2,      1.5_r_2,      1.5_r_2,      0.5_r_2,      0.5_r_2, 0.5_r_2, 0.5_r_2, &
+                                0.5_r_2,      0.5_r_2,      0.5_r_2,      0.5_r_2,      0.5_r_2,      0.5_r_2, 0.5_r_2, 1.5_r_2, &
+                                0.5_r_2 /)
+    casabiome%kuptake  =(/      2.0_r_2,      1.9_r_2,      2.0_r_2,      2.0_r_2,      1.8_r_2,      2.0_r_2, 2.0_r_2, 2.0_r_2, &
+                                1.6_r_2,      1.6_r_2,      1.6_r_2,      1.8_r_2,      1.8_r_2,      1.8_r_2, 1.8_r_2, 1.8_r_2, &
+                                1.8_r_2 /)
+    casabiome%krootlen =(/ 14.87805_r_2, 14.38596_r_2, 14.02597_r_2, 18.94737_r_2, 32.30769_r_2,      84._r_2, 84._r_2, 84._r_2, &
+                              120.5_r_2,    120.5_r_2,       0._r_2,       0._r_2,       0._r_2, 30.76923_r_2,  0._r_2,  0._r_2, &
+                                 0._r_2 /)
+    casabiome%kminN=2.0_r_2
+    casabiome%kuplabP=0.5_r_2
+    casabiome%fracnpptoP(:,leaf) =(/ 0.25_r_2, 0.20_r_2, 0.40_r_2, 0.35_r_2, 0.35_r_2, 0.35_r_2, 0.35_r_2, 0.50_r_2, 0.50_r_2, &
+                                     0.50_r_2, 0.50_r_2, 0.50_r_2, 0.50_r_2, 0.25_r_2, 0.50_r_2, 0.60_r_2, 0.50_r_2 /)
+    casabiome%fracnpptoP(:,wood) =(/ 0.40_r_2, 0.35_r_2, 0.30_r_2, 0.25_r_2, 0.25_r_2, 0.00_r_2, 0.00_r_2, 0.10_r_2, 0.00_r_2, &
+                                     0.00_r_2, 0.00_r_2, 0.00_r_2, 0.00_r_2, 0.25_r_2, 0.00_r_2, 0.40_r_2, 0.00_r_2 /)
+    casabiome%fracnpptoP(:,xroot)=(/ 0.35_r_2, 0.45_r_2, 0.30_r_2, 0.40_r_2, 0.40_r_2, 0.65_r_2, 0.65_r_2, 0.40_r_2, 0.50_r_2, &
+                                     0.50_r_2, 0.50_r_2, 0.50_r_2, 0.50_r_2, 0.50_r_2, 0.50_r_2, 0.00_r_2, 0.50_r_2 /)
+    casabiome%rmplant(:,leaf)    =0.1_r_2
+    casabiome%rmplant(:,wood)    =(/ 2.0_r_2, 1.0_r_2, 1.5_r_2, 0.8_r_2, 0.5_r_2, 0.5_r_2, 0.4_r_2, 1.8_r_2, 2.0_r_2, 1.0_r_2, &
+                                     1.0_r_2, 1.0_r_2, 1.0_r_2, 2.0_r_2, 1.0_r_2, 1.0_r_2, 1.0_r_2 /)
+    casabiome%rmplant(:,xroot)   =(/ 10._r_2, 2.0_r_2, 7.5_r_2, 2.5_r_2, 4.5_r_2, 4.5_r_2, 4.0_r_2, 15._r_2, 25._r_2, 10._r_2, &
+                                     10._r_2, 10._r_2, 10._r_2, 10._r_2, 10._r_2, 10._r_2, 10._r_2 /)
+    casabiome%ftransNPtoL(:,leaf) =0.5_r_2
+    casabiome%ftransNPtoL(:,wood) =0.95_r_2
+    casabiome%ftransNPtoL(:,xroot)=0.9_r_2
+    casabiome%fracligninplant(:,leaf) =(/ 0.25_r_2, 0.20_r_2, 0.20_r_2, 0.20_r_2, 0.20_r_2, 0.10_r_2, 0.10_r_2, 0.10_r_2, &
+                                          0.10_r_2, 0.10_r_2, 0.15_r_2, 0.15_r_2, 0.15_r_2, 0.15_r_2, 0.15_r_2, 0.25_r_2, &
+                                          0.10_r_2 /)
+    casabiome%fracligninplant(:,wood) =0.4_r_2
+    casabiome%fracligninplant(:,xroot)=(/ 0.25_r_2, 0.20_r_2, 0.20_r_2, 0.20_r_2, 0.20_r_2, 0.10_r_2, 0.10_r_2, 0.10_r_2, &
+                                          0.10_r_2, 0.10_r_2, 0.15_r_2, 0.15_r_2, 0.15_r_2, 0.15_r_2, 0.15_r_2, 0.25_r_2, &
+                                          0.10_r_2 /)
+    !casabiome%glaimax=(/ 7._r_2, 7._r_2, 7._r_2, 7._r_2, 3._r_2, 3._r_2, 3._r_2, 3._r_2, 6._r_2, 6._r_2,  5._r_2,  5._r_2, &
+    !                     5._r_2, 1._r_2, 6._r_2, 1._r_2, 0._r_2 /)
+    casabiome%glaimax=(/ 10._r_2, 10._r_2, 10._r_2, 10._r_2, 10._r_2, 3._r_2, 3._r_2, 3._r_2, 6._r_2, 6._r_2,  5._r_2, 5._r_2, &
+                          5._r_2, 1._r_2,  6._r_2,   1._r_2,  0._r_2 /)
+    casabiome%glaimin=(/ 1._r_2,  1._r_2, .5_r_2,  .5_r_2, .1_r_2, .1_r_2, .1_r_2, .1_r_2, .1_r_2, .1_r_2, .05_r_2, .05_r_2, &
+                        .05_r_2, .05_r_2, 0._r_2, .05_r_2, 0._r_2 /)
+    phen%TKshed=(/ 268._r_2,   260._r_2, 263.15_r_2, 268.15_r_2, 277.15_r_2, 275.15_r_2, 275.15_r_2, 275.15_r_2, 278.15_r_2, &
+                 278.15_r_2, 277.15_r_2, 277.15_r_2, 277.15_r_2, 277.15_r_2, 277.15_r_2, 277.15_r_2, 283.15_r_2 /)
+    casabiome%xkleafcoldexp=3._r_2
+    casabiome%xkleafdryexp=3._r_2
+    casabiome%ratioNCplantmin(:,leaf) =(/     0.02_r_2,     0.04_r_2, 0.016667_r_2, 0.028571_r_2,    0.025_r_2,  0.02631_r_2, &
+                                              0.02_r_2,     0.02_r_2,     0.04_r_2,     0.04_r_2, 0.033333_r_2,    0.025_r_2, &
+                                             0.025_r_2, 0.018182_r_2,    0.025_r_2,    0.025_r_2,    0.025_r_2 /)
+    casabiome%ratioNCplantmax(:,leaf) =(/    0.024_r_2,    0.048_r_2,     0.02_r_2, 0.034286_r_2,     0.03_r_2, 0.031572_r_2, &
+                                             0.024_r_2,    0.024_r_2,    0.048_r_2,    0.048_r_2,     0.04_r_2,     0.03_r_2, &
+                                              0.03_r_2, 0.022222_r_2,     0.03_r_2,     0.03_r_2,     0.03_r_2 /)
+    casabiome%ratioNCplantmin(:,wood) =(/    0.004_r_2, 0.006667_r_2,    0.004_r_2, 0.005714_r_2, 0.006667_r_2, 0.006667_r_2, &
+                                          0.006667_r_2, 0.006667_r_2,    0.008_r_2,    0.008_r_2, 0.006667_r_2, 0.006667_r_2, &
+                                          0.006667_r_2, 0.006667_r_2, 0.006667_r_2, 0.007307_r_2, 0.006667_r_2 /)
+    casabiome%ratioNCplantmax(:,wood) =(/   0.0048_r_2,    0.008_r_2,   0.0048_r_2, 0.006857_r_2,    0.008_r_2,    0.008_r_2, &
+                                             0.008_r_2,    0.008_r_2,   0.0096_r_2,   0.0096_r_2,    0.008_r_2,    0.008_r_2, &
+                                             0.008_r_2,    0.008_r_2,    0.008_r_2, 0.008889_r_2,    0.008_r_2 /)
+    casabiome%ratioNCplantmin(:,xroot)=(/ 0.012821_r_2, 0.014706_r_2, 0.012821_r_2, 0.014085_r_2, 0.014085_r_2, 0.014085_r_2, &
+                                          0.014085_r_2, 0.014085_r_2, 0.014085_r_2, 0.014085_r_2, 0.014085_r_2, 0.014085_r_2, &
+                                          0.014085_r_2, 0.014085_r_2, 0.014085_r_2, 0.014085_r_2, 0.014085_r_2 /)
+    casabiome%ratioNCplantmax(:,xroot)=(/ 0.015385_r_2, 0.017647_r_2, 0.015385_r_2, 0.016901_r_2, 0.016901_r_2, 0.016901_r_2, &
+                                          0.016901_r_2, 0.016901_r_2, 0.016901_r_2, 0.016901_r_2, 0.016901_r_2, 0.016901_r_2, &
+                                          0.016901_r_2, 0.016901_r_2, 0.016901_r_2, 0.016901_r_2, 0.016901_r_2 /)
+    casabiome%ftransPPtoL(:,leaf)=0.5_r_2
+    casabiome%ftransPPtoL(:,wood)=0.95_r_2
+    casabiome%ftransPPtoL(:,xroot)=0.9_r_2
 
   end if
 
 end if
     
 if ( mp_global>0 ) then
-  casabiome%ratioPcplantmin(:,leaf)  = 1._8/(xratioNPleafmax*ratioCNplant(:,leaf))
-  casabiome%ratioPcplantmax(:,leaf)  = 1._8/(xratioNPleafmin*ratioCNplant(:,leaf))
-  casabiome%ratioPcplantmin(:,wood)  = 1._8/(xratioNPwoodmax*ratioCNplant(:,wood))
-  casabiome%ratioPcplantmax(:,wood)  = 1._8/(xratioNPwoodmin*ratioCNplant(:,wood))
-  casabiome%ratioPcplantmin(:,xroot) = 1._8/(xratioNPfrootmax*ratioCNplant(:,xroot))
-  casabiome%ratioPcplantmax(:,xroot) = 1._8/(xratioNPfrootmin*ratioCNplant(:,xroot))
+  casabiome%ratioPcplantmin(:,leaf)  = 1._r_2/(xratioNPleafmax*ratioCNplant(:,leaf))
+  casabiome%ratioPcplantmax(:,leaf)  = 1._r_2/(xratioNPleafmin*ratioCNplant(:,leaf))
+  casabiome%ratioPcplantmin(:,wood)  = 1._r_2/(xratioNPwoodmax*ratioCNplant(:,wood))
+  casabiome%ratioPcplantmax(:,wood)  = 1._r_2/(xratioNPwoodmin*ratioCNplant(:,wood))
+  casabiome%ratioPcplantmin(:,xroot) = 1._r_2/(xratioNPfrootmax*ratioCNplant(:,xroot))
+  casabiome%ratioPcplantmax(:,xroot) = 1._r_2/(xratioNPfrootmin*ratioCNplant(:,xroot))
 
   casabiome%ratioNPplantmin(:,leaf)  = xratioNPleafmin
   casabiome%ratioNPplantmax(:,leaf)  = xratioNPleafmax
@@ -4035,10 +4029,10 @@ if ( mp_global>0 ) then
   casabiome%ratioNPplantmax(:,xroot) = xratioNPfrootmax    
 
   casabiome%sla                = slax
-  casabiome%fraclabile(:,leaf) = deltcasa*0.6_8    !1/day
-  casabiome%fraclabile(:,xroot)= deltcasa*0.4_8    !1/day
-  casabiome%fraclabile(:,wood) = 0._8
-  casabiome%plantrate(:,leaf)  = deltcasa/(leafage*(1._8-xfherbivore))
+  casabiome%fraclabile(:,leaf) = deltcasa*0.6_r_2    !1/day
+  casabiome%fraclabile(:,xroot)= deltcasa*0.4_r_2    !1/day
+  casabiome%fraclabile(:,wood) = 0._r_2
+  casabiome%plantrate(:,leaf)  = deltcasa/(leafage*(1._r_2-xfherbivore))
   casabiome%plantrate(:,xroot) = deltcasa/frootage
   casabiome%plantrate(:,wood)  = deltcasa/woodage
   casabiome%litterrate(:,metb) = deltcasa/metage
@@ -4056,7 +4050,7 @@ if ( mp_global>0 ) then
   casabiome%q10soil(:)         = xq10soil(:)
   casabiome%xkoptlitter(:)     = xxkoptlitter(:)
   casabiome%xkoptsoil(:)       = xxkoptsoil(:)
-  casabiome%prodptase(:)       = xprodptase(:)/365._8   ! convert from yearly to daily
+  casabiome%prodptase(:)       = xprodptase(:)/365._r_2   ! convert from yearly to daily
   casabiome%costnpup(:)        = xcostnpup(:)
   casabiome%maxfinelitter(:)   = xmaxfinelitter(:)
   casabiome%maxcwd(:)          = xmaxcwd(:)
@@ -4087,37 +4081,37 @@ if ( mp_global>0 ) then
     casapool%plitter(:,cwd)  = xpcwd(veg%iveg)
   elsewhere
     casamet%lnonwood = 1
-    casapool%cplant(:,wood)  = 0._8
-    casapool%clitter(:,cwd)  = 0._8
-    casapool%nplant(:,wood)  = 0._8
-    casapool%nlitter(:,cwd)  = 0._8
-    casapool%pplant(:,wood)  = 0._8
-    casapool%plitter(:,cwd)  = 0._8
+    casapool%cplant(:,wood)  = 0._r_2
+    casapool%clitter(:,cwd)  = 0._r_2
+    casapool%nplant(:,wood)  = 0._r_2
+    casapool%nlitter(:,cwd)  = 0._r_2
+    casapool%pplant(:,wood)  = 0._r_2
+    casapool%plitter(:,cwd)  = 0._r_2
   end where
   if ( cable_pop==1 ) then
    where (casamet%iveg2==forest.or.casamet%iveg2==shrub)
-      casapool%cplant(:,wood)  = 0.01_8
+      casapool%cplant(:,wood)  = 0.01_r_2
       casapool%nplant(:,wood)  = casabiome%ratioNCplantmin(veg%iveg,wood)*casapool%cplant(:,wood)
       casapool%pplant(:,wood)  = casabiome%ratioPCplantmin(veg%iveg,wood)* casapool%cplant(:,wood)
     end where
   end if
   casapool%cplant(:,leaf)     = cleaf(veg%iveg)
   casapool%cplant(:,xroot)    = cfroot(veg%iveg)
-  casapool%clabile            = 0._8
+  casapool%clabile            = 0._r_2
   casapool%clitter(:,metb)    = cmet(veg%iveg)
   casapool%clitter(:,str)     = cstr(veg%iveg)
   casapool%csoil(:,mic)       = cmic(veg%iveg)
   casapool%csoil(:,slow)      = cslow(veg%iveg)
   casapool%csoil(:,pass)      = cpass(veg%iveg)
   if ( ccycle==1 ) then
-    casapool%ratioNCplant     = 1._8/ratioCNplant(veg%iveg,:)  
+    casapool%ratioNCplant     = 1._r_2/ratioCNplant(veg%iveg,:)  
   end if
-  casapool%dclabiledt         = 0._8
+  casapool%dclabiledt         = 0._r_2
 
   ! initializing glai in case not reading pool file (eg. during spin)
   casamet%glai = max(casabiome%glaimin(veg%iveg), casabiome%sla(veg%iveg)*casapool%cplant(:,leaf))
   casaflux%fNminloss   = xfNminloss(veg%iveg)
-  casaflux%fNminleach  = 10.*xfNminleach(veg%iveg)*deltcasa
+  casaflux%fNminleach  = 10._r_2*xfNminleach(veg%iveg)*deltcasa
   casapool%nplant(:,leaf) = nleaf(veg%iveg)
   casapool%nplant(:,xroot)= nfroot(veg%iveg)
   casapool%nlitter(:,metb)= nmet(veg%iveg)
@@ -4138,21 +4132,21 @@ if ( mp_global>0 ) then
   casapool%psoilocc       = xpocc(veg%iveg)
   casaflux%kmlabp         = xkmlabp(casamet%isorder)
   casaflux%psorbmax       = xpsorbmax(casamet%isorder)
-  casaflux%fpleach        = xfPleach(casamet%isorder)/365._8
+  casaflux%fpleach        = xfPleach(casamet%isorder)/365._r_2
 
-  casapool%ratioNCplant   = 1._8/ratioCNplant(veg%iveg,:)
+  casapool%ratioNCplant   = 1._r_2/ratioCNplant(veg%iveg,:)
   casapool%ratioNPplant   = casabiome%ratioNPplantmin(veg%iveg,:)
-  casapool%ratioNClitter  = casapool%nlitter/(casapool%clitter+1.0e-10_8)
-  casapool%ratioNPlitter  = casapool%nlitter/(casapool%plitter+1.0e-10_8)
-  casapool%ratioNCsoil    = 1._8/ratioCNsoil(veg%iveg,:)
+  casapool%ratioNClitter  = casapool%nlitter/(casapool%clitter+1.0e-10_r_2)
+  casapool%ratioNPlitter  = casapool%nlitter/(casapool%plitter+1.0e-10_r_2)
+  casapool%ratioNCsoil    = 1._r_2/ratioCNsoil(veg%iveg,:)
   casapool%ratioNPsoil    = ratioNPsoil(casamet%isorder,:)
-  casapool%ratioNCsoilmin = 1._8/ratioCNsoilmax(veg%iveg,:)
-  casapool%ratioNCsoilmax = 1._8/ratioCNsoilmin(veg%iveg,:)
+  casapool%ratioNCsoilmin = 1._r_2/ratioCNsoilmax(veg%iveg,:)
+  casapool%ratioNCsoilmax = 1._r_2/ratioCNsoilmin(veg%iveg,:)
   casapool%ratioNCsoilnew = casapool%ratioNCsoilmax
 
   casapool%ratioPCplant   = casabiome%ratioPcplantmax(veg%iveg,:)
-  casapool%ratioPClitter  = casapool%plitter/(casapool%clitter(:,:)+1.0e-10_8)
-  casapool%ratioPCsoil    = 1._8/(ratioCNsoil(veg%iveg,:)*ratioNPsoil(casamet%isorder,:))
+  casapool%ratioPClitter  = casapool%plitter/(casapool%clitter(:,:)+1.0e-10_r_2)
+  casapool%ratioPCsoil    = 1._r_2/(ratioCNsoil(veg%iveg,:)*ratioNPsoil(casamet%isorder,:))
 
   if ( ccycle<2 ) then
     casapool%Nplant         = casapool%Cplant*casapool%ratioNCplant
@@ -4895,15 +4889,12 @@ implicit none
   
 integer k
 real, dimension(ifull) :: dummy_pack
-real, dimension(mp_global) :: dat
 
 if ( mp_global>0 ) then
   do k = 1,ms
     call cable_pack(tgg(:,k),ssnow%tgg(:,k))
-    call cable_pack(wb(:,k),dat)
-    ssnow%wb(:,k) = dat
-    call cable_pack(wbice(:,k),dat)
-    ssnow%wbice(:,k) = dat
+    call cable_pack(wb(:,k),ssnow%wb(:,k))
+    call cable_pack(wbice(:,k),ssnow%wbice(:,k))
   end do
   do k = 1,3
     call cable_pack(tggsn(:,k),ssnow%tggsn(:,k))
@@ -4932,8 +4923,7 @@ if ( mp_global>0 ) then
     end do    
   end if
   dummy_pack = real(1-isflag)*tgg(:,1) + real(isflag)*tggsn(:,1) - 273.15
-  call cable_pack(dummy_pack,dat)
-  ssnow%tsurface = dat
+  call cable_pack(dummy_pack,ssnow%tsurface)
   ssnow%rtsoil = 50._8
   canopy%cansto = 0._8
   canopy%ga = 0._8
@@ -5064,12 +5054,10 @@ use soilsnow_m
 implicit none
 
 integer k
-real(kind=8), dimension(mp_global) :: dummy_pack
 
 if ( mp_global>0 ) then
   do k = 1,ms
-    call cable_pack(wb(:,k),dummy_pack)
-    ssnow%wb(:,k) = dummy_pack
+    call cable_pack(wb(:,k),ssnow%wb(:,k))
   end do
 end if
 
@@ -5099,7 +5087,6 @@ integer, dimension(ifull) :: dati
 real, dimension(mp_global) :: dummy_unpack
 real, dimension(mp_global) :: old_sv
 real, dimension(ifull) :: datr
-real(kind=8), dimension(mp_global) :: dummy_pack
 real(kind=8), dimension(ifull) :: dat
 real(kind=8), dimension(ifull,ms) :: datms
 real(kind=8), dimension(ifull,3) :: dat3
@@ -5205,16 +5192,14 @@ else
     call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
-        call cable_pack(datms(:,k),dummy_pack,n)
-	ssnow%wb(:,k) = dummy_pack
+        call cable_pack(datms(:,k),ssnow%wb(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_wbice")') n
     call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
     if ( n<=maxnb ) then
       do k = 1,ms
-        call cable_pack(datms(:,k),dummy_pack,n)
-	ssnow%wbice(:,k) = dummy_pack
+        call cable_pack(datms(:,k),ssnow%wbice(:,k),n)
       end do
     end if
     write(vname,'("t",I1.1,"_tggsn")') n
@@ -5273,10 +5258,7 @@ else
     if ( n<=maxnb ) call cable_pack(dat,ssnow%rtsoil(:),n)
     write(vname,'("t",I1.1,"_GWwb")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
-    if ( n<=maxnb ) then
-      call cable_pack(dat,dummy_pack,n)
-      ssnow%GWwb(:) = dummy_pack
-    end if  
+    if ( n<=maxnb ) call cable_pack(dat,ssnow%GWwb(:),n)
     write(vname,'("t",I1.1,"_cansto")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     if ( n<=maxnb ) call cable_pack(dat,canopy%cansto(:),n)
@@ -5301,56 +5283,41 @@ else
       do n = 1,maxtile
         write(vname,'("t",I1.1,"_hzero")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  ssnow%h0(:) = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,ssnow%h0(:),n)
         write(vname,'("t",I1.1,"_s")') n
         call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
         if ( n<=maxnb ) then
           do k = 1,ms
-            call cable_pack(datms(:,k),dummy_pack,n)
-	    ssnow%S(:,k) = dummy_pack
+            call cable_pack(datms(:,k),ssnow%S(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_tsoil")') n
         call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
         if ( n<=maxnb ) then
           do k = 1,ms
-            call cable_pack(datms(:,k),dummy_pack,n)
-	    ssnow%tsoil(:,k) = dummy_pack
+            call cable_pack(datms(:,k),ssnow%tsoil(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_thetai")') n
         call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
         if ( n<=maxnb ) then
           do k = 1,ms
-            call cable_pack(datms(:,k),dummy_pack,n)
-	    ssnow%thetai(:,k) = dummy_pack
+            call cable_pack(datms(:,k),ssnow%thetai(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n) ! currently nsnow_max=1
-	  ssnow%snowliq(:,1) = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,ssnow%snowliq(:,1),n) ! currently nsnow_max=1
         write(vname,'("t",I1.1,"_tsurface")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  ssnow%tsurface(:) = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,ssnow%tsurface(:),n)
         write(vname,'("t",I1.1,"_nsnow")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         dati = nint(dat)
         if ( n<=maxnb ) call cable_pack(dati,ssnow%nsnow(:),n)
         write(vname,'("t",I1.1,"_fwsoil")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  canopy%fwsoil(:) = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,canopy%fwsoil(:),n)
       end do  
     end if
   end if
@@ -5365,80 +5332,68 @@ else
         call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
-            call cable_pack(datmplant(:,k),dummy_pack,n)
-	    casapool%cplant(:,k) = dummy_pack
+            call cable_pack(datmplant(:,k),casapool%cplant(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_nplant")') n
         call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
-            call cable_pack(datmplant(:,k),dummy_pack,n)
-	    casapool%nplant(:,k) = dummy_pack
+            call cable_pack(datmplant(:,k),casapool%nplant(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_pplant")') n
         call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
-            call cable_pack(datmplant(:,k),dummy_pack,n)
-	    casapool%pplant(:,k) = dummy_pack
+            call cable_pack(datmplant(:,k),casapool%pplant(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_clitter")') n
         call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
         if ( n<=maxnb ) then
           do k = 1,mlitter
-            call cable_pack(datmlitter(:,k),dummy_pack,n)
-	    casapool%clitter(:,k) = dummy_pack
+            call cable_pack(datmlitter(:,k),casapool%clitter(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_nlitter")') n
         call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
         if ( n<=maxnb ) then
           do k = 1,mlitter
-            call cable_pack(datmlitter(:,k),dummy_pack,n)
-	    casapool%nlitter(:,k) = dummy_pack
+            call cable_pack(datmlitter(:,k),casapool%nlitter(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_plitter")') n
         call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
         if ( n<=maxnb ) then
           do k = 1,mlitter
-            call cable_pack(datmlitter(:,k),dummy_pack,n)
-	    casapool%plitter(:,k) = dummy_pack
+            call cable_pack(datmlitter(:,k),casapool%plitter(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_csoil")') n
         call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
         if ( n<=maxnb ) then
           do k = 1,msoil
-            call cable_pack(datmsoil(:,k),dummy_pack,n)
-	    casapool%csoil(:,k) = dummy_pack
+            call cable_pack(datmsoil(:,k),casapool%csoil(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_nsoil")') n
         call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
         if ( n<=maxnb ) then
           do k = 1,msoil
-            call cable_pack(datmsoil(:,k),dummy_pack,n)
-	    casapool%nsoil(:,k) = dummy_pack
+            call cable_pack(datmsoil(:,k),casapool%nsoil(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_psoil")') n
         call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
         if ( n<=maxnb ) then
           do k = 1,msoil
-            call cable_pack(datmsoil(:,k),dummy_pack,n)
-	    casapool%psoil(:,k) = dummy_pack
+            call cable_pack(datmsoil(:,k),casapool%psoil(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_glai")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casamet%glai = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casamet%glai,n)
         write(vname,'("t",I1.1,"_phen")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,phen%phen,n)
@@ -5455,102 +5410,56 @@ else
         if ( n<=maxnb ) call cable_pack(dati,phen%doyphase(:,3),n)
         write(vname,'("t",I1.1,"_clabile")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casapool%clabile = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casapool%clabile,n)
         write(vname,'("t",I1.1,"_nsoilmin")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casapool%nsoilmin = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casapool%nsoilmin,n)
         write(vname,'("t",I1.1,"_psoillab")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casapool%psoillab = dummy_pack 
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casapool%psoillab,n)
         write(vname,'("t",I1.1,"_psoilsorb")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casapool%psoilsorb = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casapool%psoilsorb,n)
         write(vname,'("t",I1.1,"_psoilocc")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casapool%psoilocc = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casapool%psoilocc,n)
         write(vname,'("t",I1.1,"_crmplant")') n
         call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
         if ( n<=maxnb ) then
           do k = 1,mplant
-            call cable_pack(datmplant(:,k),dummy_pack,n)
-	    casaflux%crmplant(:,k) = dummy_pack
+            call cable_pack(datmplant(:,k),casaflux%crmplant(:,k),n)
           end do
         end if
         write(vname,'("t",I1.1,"_fracsapwood")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casaflux%frac_sapwood = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%frac_sapwood,n)
         write(vname,'("t",I1.1,"_sapwoodarea")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casaflux%sapwood_area = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%sapwood_area,n)
         write(vname,'("t",I1.1,"_crsoil")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casaflux%crsoil = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%crsoil,n)
         write(vname,'("t",I1.1,"_cnpp")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casaflux%cnpp = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%cnpp,n)
         write(vname,'("t",I1.1,"_clabloss")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casaflux%clabloss = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%clabloss,n)
         write(vname,'("t",I1.1,"_crgplant")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casaflux%crgplant = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%crgplant,n)
         write(vname,'("t",I1.1,"_stemnpp")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casaflux%stemnpp = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casaflux%stemnpp,n)
         write(vname,'("t",I1.1,"_LAImax")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casabal%laimax = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casabal%laimax,n)
         write(vname,'("t",I1.1,"_Cleafmean")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  casabal%cleafmean = dummy_pack
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casabal%cleafmean,n)
         write(vname,'("t",I1.1,"_Crootmean")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
-        if ( n<=maxnb ) then
-	  call cable_pack(dat,dummy_pack,n)
-	  dummy_pack = casabal%crootmean
-	end if  
+        if ( n<=maxnb ) call cable_pack(dat,casabal%crootmean,n)
         write(vname,'("t",I1.1,"_fpn")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         if ( n<=maxnb ) call cable_pack(dat,canopy%fpn,n)
@@ -6615,58 +6524,32 @@ implicit none
 
 integer k
 real, dimension(mp_global), intent(in) :: old_sv
-real(kind=8), dimension(mp_global) :: dat
 
 if ( mp_global>0 ) then
 
   if ( any( abs(sv-old_sv)>1.e-8 ) ) then
     
     ! assume common soil texture and soil heat capacity
-    ! (use dat to deal with r_2 when using gfortran)
     do k = 1,ms
-      dat = ssnow%tgg(:,k)  
-      call redistribute_work(old_sv,dat)
-      ssnow%tgg(:,k) = dat
-      dat = ssnow%wb(:,k)
-      call redistribute_work(old_sv,dat)
-      ssnow%wb(:,k) = dat
-      dat = ssnow%wbice(:,k)
-      call redistribute_work(old_sv,dat)
-      ssnow%wbice(:,k) = dat
+      call redistribute_work(old_sv,ssnow%tgg(:,k))
+      call redistribute_work(old_sv,ssnow%wb(:,k))
+      call redistribute_work(old_sv,ssnow%wbice(:,k))
     end do
-    dat = ssnow%GWwb
-    call redistribute_work(old_sv,dat)
-    ssnow%GWwb = dat
+    call redistribute_work(old_sv,ssnow%GWwb)
     if ( soil_struc==1 ) then
       do k = 1,ms
-        dat = ssnow%tsoil(:,k)  
-        call redistribute_work(old_sv,dat)
-        ssnow%tsoil(:,k) = dat
+        call redistribute_work(old_sv,ssnow%tsoil(:,k))
       end do
     end if
     !do k = 1,3
-    !  dat = ssnow%tggsn(:,k)
-    !  call redistribute_work(old_sv,dat)
-    !  ssnow%tggsn(:,k) = dat
-    !  dat = ssnow%smass(:,k)
-    !  call redistribute_work(old_sv,dat)
-    !  ssnow%smass(:,k) = dat
-    !  dat = ssnow%ssdn(:,k)
-    !  call redistribute_work(old_sv,dat)
-    !  ssnow%ssdn(:,k) = dat
-    !  dat = ssnow%sdepth(:,k)
-    !  call redistribute_work(old_sv,dat)
-    !  ssnow%sdepth(:,k) = dat
+    !  call redistribute_work(old_sv,ssnow%tggsn(:,k))
+    !  call redistribute_work(old_sv,ssnow%smass(:,k))
+    !  call redistribute_work(old_sv,ssnow%ssdn(:,k))
+    !  call redistribute_work(old_sv,ssnow%sdepth(:,k))
     !end do
-    !dat = ssnow%ssdn(:) 
-    !call redistribute_work(old_sv,dat)
-    !ssnow%ssdn(:) = dat
-    !dat = ssnow%snowd(:)
-    !call redistribute_work(old_sv,dat)
-    !ssnow%snowd(:) = dat
-    !dat = ssnow%osnowd(:)
-    !call redistribute_work(old_sv,dat)
-    !ssnow%osnowd(:) = dat
+    !call redistribute_work(old_sv,ssnow%ssdn(:))
+    !call redistribute_work(old_sv,ssnow%snowd(:))
+    !call redistribute_work(old_sv,ssnow%osnowd(:))
   
   end if
   
@@ -6739,8 +6622,8 @@ do nb = 1,maxnb
 end do  
 
 return
-end subroutine redistribute_work        
-
+end subroutine redistribute_work    
+    
 ! *************************************************************************************
 ! This subroutine saves CABLE tile data
 subroutine savetiledef(idnc,local,jdim,jsize,c1dim,c2dim,c3dim,c4dim,c5dim,c6dim,c7dim,c1size,c2size,itype)
@@ -7598,8 +7481,6 @@ real(kind=8), dimension(:,:), allocatable, save :: dat5days
 character(len=80) vname
 logical, intent(in) :: local
   
-! use dummy_unpack for kind=r_2 with gfortran
-  
 if ( itype==-1 ) then !just for restart file
   do n = 1,maxtile  ! tile
     datr = 0.
@@ -7614,15 +7495,13 @@ if ( itype==-1 ) then !just for restart file
     end do
     do k = 1,ms
       dat = real(wb(:,k),8)
-      dummy_unpack = ssnow%wb(:,k)
-      if ( n<=maxnb ) call cable_unpack(dummy_unpack,dat,n)
+      if ( n<=maxnb ) call cable_unpack(ssnow%wb(:,k),dat,n)
       write(vname,'("t",I1.1,"_wb",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
     do k = 1,ms
       dat = real(wbice(:,k),8)
-      dummy_unpack = ssnow%wbice(:,k)
-      if ( n<=maxnb ) call cable_unpack(dummy_unpack,dat,n)
+      if ( n<=maxnb ) call cable_unpack(ssnow%wbice(:,k),dat,n)
       write(vname,'("t",I1.1,"_wbice",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
@@ -7684,8 +7563,7 @@ if ( itype==-1 ) then !just for restart file
     write(vname,'("t",I1.1,"_rtsoil")') n
     call histwrt(dat,vname,idnc,iarch,local,.true.)
     dat = 0._8
-    ssnow%GWwb = ssnow%GWwb
-    if ( n<=maxnb ) call cable_unpack(dummy_unpack,dat,n)
+    if ( n<=maxnb ) call cable_unpack(ssnow%GWwb,dat,n)
     write(vname,'("t",I1.1,"_GWwb")') n
     call histwrt(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
@@ -7712,39 +7590,33 @@ if ( itype==-1 ) then !just for restart file
   if ( soil_struc==1 ) then
     do n = 1,maxtile  ! tile
       dat=0._8
-      dummy_unpack = ssnow%h0
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(ssnow%h0,dat,n)
       write(vname,'("t",I1.1,"_hzero")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)   
       do k = 1,ms     ! soil layer
         dat=0._8
-	dummy_unpack = ssnow%S(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(ssnow%S(:,k),dat,n)
         write(vname,'("t",I1.1,"_s",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,ms
         dat=0._8
-	dummy_unpack = ssnow%tsoil(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(ssnow%tsoil(:,k),dat,n)
         write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,ms
         dat=0._8
-	dummy_unpack = ssnow%thetai(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(ssnow%thetai(:,k),dat,n)
         write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       dat=0._8
-      dummy_unpack = ssnow%snowliq(:,1)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(ssnow%snowliq(:,1),dat,n)
       write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = ssnow%tsurface
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(ssnow%tsurface,dat,n)
       write(vname,'("t",I1.1,"_tsurface")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
@@ -7755,8 +7627,7 @@ if ( itype==-1 ) then !just for restart file
       write(vname,'("t",I1.1,"_nsnow")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)   
       dat=0._8
-      dummy_unpack = canopy%fwsoil
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(canopy%fwsoil,dat,n)
       write(vname,'("t",I1.1,"_fwsoil")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.) 
     end do
@@ -7765,70 +7636,60 @@ if ( itype==-1 ) then !just for restart file
     do n = 1,maxtile  ! tile
       do k = 1,mplant     
         dat=0._8
-	dummy_unpack = casapool%cplant(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(casapool%cplant(:,k),dat,n)
         write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,mplant
         dat=0._8
-	dummy_unpack = casapool%nplant(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(casapool%nplant(:,k),dat,n)
         write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,mplant
         dat=0._8
-	dummy_unpack = casapool%pplant(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(casapool%pplant(:,k),dat,n)
         write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,mlitter
         dat=0._8
-	dummy_unpack = casapool%clitter(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(casapool%clitter(:,k),dat,n)
         write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,mlitter
         dat=0._8
-	dummy_unpack = casapool%nlitter(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(casapool%nlitter(:,k),dat,n)
         write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do  
       do k = 1,mlitter
         dat=0._8
-	dummy_unpack = casapool%plitter(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(casapool%plitter(:,k),dat,n)
         write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,msoil
         dat=0._8
-	dummy_unpack = casapool%csoil(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(casapool%csoil(:,k),dat,n)
         write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,msoil
         dat=0._8
-	dummy_unpack = casapool%nsoil(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(casapool%nsoil(:,k),dat,n)
         write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,msoil
         dat=0._8
-	dummy_unpack = casapool%psoil(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(casapool%psoil(:,k),dat,n)
         write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       dat=0._8
-      dummy_unpack = casamet%glai(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casamet%glai(:),dat,n)
       write(vname,'("t",I1.1,"_glai")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
@@ -7854,85 +7715,69 @@ if ( itype==-1 ) then !just for restart file
       write(vname,'("t",I1.1,"_doyphase3")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casapool%clabile(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casapool%clabile(:),dat,n)
       write(vname,'("t",I1.1,"_clabile")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casapool%nsoilmin(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casapool%nsoilmin(:),dat,n)
       write(vname,'("t",I1.1,"_nsoilmin")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casapool%psoillab(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casapool%psoillab(:),dat,n)
       write(vname,'("t",I1.1,"_psoillab")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casapool%psoilsorb(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casapool%psoilsorb(:),dat,n)
       write(vname,'("t",I1.1,"_psoilsorb")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casapool%psoilocc(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casapool%psoilocc(:),dat,n)
       write(vname,'("t",I1.1,"_psoilocc")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       do k = 1,mplant     
         dat=0._8
-	dummy_unpack = casaflux%crmplant(:,k)
-        if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+        if (n<=maxnb) call cable_unpack(casaflux%crmplant(:,k),dat,n)
         write(vname,'("t",I1.1,"_crmplant",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       dat=0._8
-      dummy_unpack = casaflux%frac_sapwood(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casaflux%frac_sapwood(:),dat,n)
       write(vname,'("t",I1.1,"_fracsapwood")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casaflux%sapwood_area(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casaflux%sapwood_area(:),dat,n)
       write(vname,'("t",I1.1,"_sapwoodarea")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casaflux%Crsoil(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casaflux%Crsoil(:),dat,n)
       write(vname,'("t",I1.1,"_crsoil")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casaflux%cnpp(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casaflux%cnpp(:),dat,n)
       write(vname,'("t",I1.1,"_cnpp")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casaflux%clabloss(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casaflux%clabloss(:),dat,n)
       write(vname,'("t",I1.1,"_clabloss")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casaflux%crgplant(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casaflux%crgplant(:),dat,n)
       write(vname,'("t",I1.1,"_crgplant")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casaflux%stemnpp(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casaflux%stemnpp(:),dat,n)
       write(vname,'("t",I1.1,"_stemnpp")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casabal%laimax(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casabal%laimax(:),dat,n)
       write(vname,'("t",I1.1,"_LAImax")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casabal%cleafmean(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casabal%cleafmean(:),dat,n)
       write(vname,'("t",I1.1,"_Cleafmean")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8
-      dummy_unpack = casabal%crootmean(:)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
+      if (n<=maxnb) call cable_unpack(casabal%crootmean(:),dat,n)
       write(vname,'("t",I1.1,"_Crootmean")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)
       dat=0._8

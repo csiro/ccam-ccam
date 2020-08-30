@@ -34,7 +34,6 @@
       subroutine radrive (ixin)
 
       use aerointerface
-      use aerosolldr, only : naero,xtg,xtosav
       use arrays_m
       use ateb, only : atebalb1,atebccangle,atebfbeam
       use cc_mpi
@@ -106,7 +105,6 @@ c     Following are for cloud2 routine
       logical land2(ixin)
       real fbeam(ixin), sgn_save(ixin), sgn(ixin)
 
-      real, dimension(ixin,kl,naero) :: lxtg, lxtosav
 
 c     Stuff from cldset
       real ccd,ccd2,ccd3,ccd4
@@ -497,10 +495,7 @@ c       Stuff needed for cloud2 routine...
         do k=1,kl
           rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*t(istart:iend,k)) !density of air
         end do
-        lxtg = xtg(istart:iend,:,:)
-        lxtosav = xtosav(istart:iend,:,:)
-        call aerodrop(cd2,rhoa,lxtg,lxtosav,land(istart:iend),
-     &                rlatt(istart:iend),imax,kl)
+        call aerodrop(istart,cd2,rhoa)
       endif  ! (ldr.ne.0)
       
 c  Clear sky calculation

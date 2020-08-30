@@ -57,7 +57,7 @@ real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data (multiple files)
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 real, dimension(:), allocatable, save :: gosig_in             ! input ocean levels
-real, dimension(:,:,:), allocatable, save :: sx               ! working array for interpolation
+real, dimension(:,:,:,:), allocatable, save :: sx             ! working array for interpolation
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
 logical allowtrivialfill                                      ! special case where trivial data is allowed
 
@@ -552,7 +552,7 @@ end if ! newfile .and. .not.iop_test
 
 ! allocate working arrays
 allocate( ucc(fwsize), tss_a(fwsize), ucc6(fwsize,6) )
-allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
+allocate( sx(-1:ik+2,-1:ik+2,0:npanels,1) )
 
 ! -------------------------------------------------------------------
 ! read time invariant data when file is first opened
@@ -967,10 +967,10 @@ else
     ucc6(:,3) = fracice_a
     if ( mlo_found ) then
       ucc6(:,4) = ocndep_a
-      call fill_cc4(ucc6(:,1:4),land_a,fill_land,4)
+      call fill_cc4(ucc6(:,1:4),land_a,fill_land)
       ocndep_a = ucc6(:,4)
     else    
-      call fill_cc4(ucc6(:,1:3),land_a,fill_land,3)
+      call fill_cc4(ucc6(:,1:3),land_a,fill_land)
     end if  
     tss_s_a   = ucc6(:,1)
     sicedep_a = ucc6(:,2)
@@ -988,9 +988,7 @@ else
   end if          
   call doints4(ucc6(:,1:6),udum6(:,1:6))
   zss      = udum6(:,1)
-  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
-    ocndwn(1:ifull,1) = udum6(1:ifull,2)
-  end if  
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) ocndwn(1:ifull,1) = udum6(1:ifull,2)
   tss_l    = udum6(:,3)
   tss_s    = udum6(:,4)
   sicedep  = udum6(:,5)
@@ -1116,14 +1114,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
         call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_3d,fill_floor,ocndwn(:,1))
       end if  
     end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
-  else
-    ! give current depth for default values  
-    ocndwn(:,1) = 0.  
-    do k = 1,wlev  
-      call mloexpdep(1,dum6,k,0)
-      ocndwn(:,1) = ocndwn(:,1) + dum6 ! dum6=dz here
-    end do
-  end if   ! mlo_found ..else..
+  end if   ! mlo_found
 end if     ! abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3
 
 !------------------------------------------------------------
@@ -1980,19 +1971,19 @@ call START_LOG(otf_ints1_begin)
 ! This version distributes mutli-file data
 call ccmpi_filewinget(abuf,s)
 
-sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-call ccmpi_filewinunpack(sx,abuf)
-call sxpanelbounds(sx)
+sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
+call ccmpi_filewinunpack(sx(:,:,:,1),abuf)
+call sxpanelbounds(sx(:,:,:,1))
 
 if ( iotest ) then
   do n = 1,npan
     iq = (n-1)*ipan*jpan
-    sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
+    sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,1), (/ ipan*jpan /) )
   end do
 else
   sout(1:ifull) = 0.  
   do mm = 1,m_fly     !  was 4, now may be 1
-    call intsb(sx,wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
+    call intsb(sx(:,:,:,1),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
     sout(1:ifull) = sout(1:ifull) + wrk/real(m_fly)
   end do
 end if
@@ -2030,22 +2021,22 @@ do kb = 1,kx,kblock
     
   if ( iotest ) then
     do k = 1,kn
-      sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-      call ccmpi_filewinunpack(sx,abuf(:,:,k))
-      call sxpanelbounds(sx)
+      sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
+      call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,k))
+      call sxpanelbounds(sx(:,:,:,1))
       do n = 1,npan
         iq = (n-1)*ipan*jpan
-        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
+        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff,1), (/ ipan*jpan /) )
       end do
     end do
   else
     do k = 1,kn
-      sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
+      sx(-1:ik+2,-1:ik+2,0:npanels,1) = 0.
       sout(1:ifull,k+kb-1) = 0.
-      call ccmpi_filewinunpack(sx,abuf(:,:,k))
-      call sxpanelbounds(sx)
+      call ccmpi_filewinunpack(sx(:,:,:,1),abuf(:,:,k))
+      call sxpanelbounds(sx(:,:,:,1))
       do mm = 1,m_fly     !  was 4, now may be 1
-        call intsb(sx,wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
+        call intsb(sx(:,:,:,1),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
         sout(1:ifull,k+kb-1) = sout(1:ifull,k+kb-1) + wrk/real(m_fly)
       end do
     end do
@@ -2144,15 +2135,14 @@ implicit none
 
 integer, dimension(ifull), intent(in) :: nface_l
 integer :: idel, jdel, n, iq
-real, dimension(ifull), intent(inout) :: sout
+real, dimension(ifull), intent(out) :: sout
 real, intent(in), dimension(ifull) :: xg_l, yg_l
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
-
-do iq = 1,ifull   ! runs through list of target points
+do concurrent (iq = 1:ifull)   ! runs through list of target points
   n = nface_l(iq)
   idel = int(xg_l(iq))
   xxg = xg_l(iq) - real(idel)
@@ -2201,11 +2191,11 @@ implicit none
 integer, intent(inout) :: fill_count
 integer nrem, j, n
 integer ncount, cc, ipf, local_count
-integer, dimension(max(pipan,pjpan)) :: ccount
+integer ccount, s, i
 real, parameter :: value=999.       ! missing value flag
 real, dimension(fwsize), intent(inout) :: a_io
 real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc) :: c_io
-real, dimension(max(pipan,pjpan)) :: csum
+real csum
 logical, dimension(fwsize), intent(in) :: land_a
 
 ! only perform fill on processors reading input files
@@ -2234,31 +2224,29 @@ do while ( nrem>0 )
   call ccmpi_filebounds_send(c_io,comm_ip)
   ! update body
   if ( ncount>0 ) then
-    do ipf = 1,mynproc
-      do n = 1,pnpan
-        do j = 2,pjpan-1
-          cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan 
-          csum(2:pipan-1) = 0.
-          ccount(2:pipan-1) = 0
-          where ( abs(c_io(2:pipan-1,j+1,n,ipf)-value)>=1.e-20 )
-            csum(2:pipan-1) = csum(2:pipan-1) + c_io(2:pipan-1,j+1,n,ipf)
-            ccount(2:pipan-1) = ccount(2:pipan-1) + 1
-          end where
-          where ( abs(c_io(2:pipan-1,j-1,n,ipf)-value)>=1.e-20 )
-            csum(2:pipan-1) = csum(2:pipan-1) + c_io(2:pipan-1,j-1,n,ipf)
-            ccount(2:pipan-1) = ccount(2:pipan-1) + 1
-          end where
-          where ( abs(c_io(3:pipan,j,n,ipf)-value)>=1.e-20 )
-            csum(2:pipan-1) = csum(2:pipan-1) + c_io(3:pipan,j,n,ipf)
-            ccount(2:pipan-1) = ccount(2:pipan-1) + 1
-          end where
-          where ( abs(c_io(1:pipan-2,j,n,ipf)-value)>=1.e-20 )
-            csum(2:pipan-1) = csum(2:pipan-1) + c_io(1:pipan-2,j,n,ipf)
-            ccount(2:pipan-1) = ccount(2:pipan-1) + 1
-          end where
-          where ( abs(a_io(2+cc:pipan-1+cc)-value)<1.e-20 .and. ccount(2:pipan-1)>0 )
-            a_io(2+cc:pipan-1+cc) = csum(2:pipan-1)/real(ccount(2:pipan-1))
-          end where
+    do concurrent (ipf = 1:mynproc)
+      do concurrent (n = 1:pnpan)
+        do concurrent (j = 2:pjpan-1)
+          do concurrent (i = 2:pipan-1)
+            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+            if ( abs(a_io(cc+i)-value)<1.e-20 ) then
+              csum = 0.
+              ccount = 0
+              do s = -1,1,2
+                if ( abs(c_io(i,j+s,n,ipf)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j+s,n,ipf)
+                  ccount = ccount + 1
+                end if
+                if ( abs(c_io(i+s,j,n,ipf)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+s,j,n,ipf)
+                  ccount = ccount + 1
+                end if
+              end do
+              if ( ccount>0 ) then        
+                a_io(cc+i) = csum/real(ccount)
+              end if
+            end if
+          end do
         end do
       end do
     end do
@@ -2266,104 +2254,83 @@ do while ( nrem>0 )
   call ccmpi_filebounds_recv(c_io,comm_ip)
   ! update perimeter
   if ( ncount>0 ) then
-    do ipf = 1,mynproc
-      do n = 1,pnpan
-        ! north boundary
-        cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-        csum(1:pipan) = 0.
-        ccount(1:pipan) = 0
-        where ( abs(c_io(1:pipan,2,n,ipf)-value)>=1.e-20 )
-          csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,2,n,ipf)
-          ccount(1:pipan) = ccount(1:pipan) + 1
-        end where
-        where ( abs(c_io(1:pipan,0,n,ipf)-value)>=1.e-20 )
-          csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,0,n,ipf)
-          ccount(1:pipan) = ccount(1:pipan) + 1
-        end where
-        where ( abs(c_io(2:pipan+1,1,n,ipf)-value)>=1.e-20 )
-          csum(1:pipan) = csum(1:pipan) + c_io(2:pipan+1,1,n,ipf)
-          ccount(1:pipan) = ccount(1:pipan) + 1
-        end where
-        where ( abs(c_io(0:pipan-1,1,n,ipf)-value)>=1.e-20 )
-          csum(1:pipan) = csum(1:pipan) + c_io(0:pipan-1,1,n,ipf)
-          ccount(1:pipan) = ccount(1:pipan) + 1
-        end where
-        where ( abs(a_io(1+cc:pipan+cc)-value)<1.e-20 .and. ccount(1:pipan)>0 )
-          a_io(1+cc:pipan+cc) = csum(1:pipan)/real(max(ccount(1:pipan),1))
-        end where
-        ! west boundary
-        csum(2:pjpan-1) = 0.
-        ccount(2:pjpan-1) = 0
-        where ( abs(c_io(1,3:pjpan,n,ipf)-value)>=1.e-20 )
-          csum(2:pjpan) = csum(2:pjpan) + c_io(1,3:pjpan,n,ipf)
-          ccount(2:pjpan) = ccount(2:pjpan) + 1
-        end where
-        where ( abs(c_io(1,1:pjpan-2,n,ipf)-value)>=1.e-20 )
-          csum(2:pjpan) = csum(2:pjpan) + c_io(1,1:pjpan-2,n,ipf)
-          ccount(2:pjpan) = ccount(2:pjpan) + 1
-        end where 
-        where ( abs(c_io(2,2:pjpan-1,n,ipf)-value)>=1.e-20 )
-          csum(2:pjpan) = csum(2:pjpan) + c_io(2,2:pjpan-1,n,ipf)
-          ccount(2:pjpan) = ccount(2:pjpan) + 1
-        end where 
-        where ( abs(c_io(0,2:pjpan-1,n,ipf)-value)>=1.e-20 )
-          csum(2:pjpan) = csum(2:pjpan) + c_io(0,2:pjpan-1,n,ipf)
-          ccount(2:pjpan) = ccount(2:pjpan) + 1
-        end where 
-        do j = 2,pjpan-1
-          cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-          if ( abs(a_io(1+cc)-value)<1.e-20 .and. ccount(j)>0 ) then
-            a_io(1+cc) = csum(j)/real(ccount(j))
+    do concurrent (ipf = 1:mynproc)
+      do concurrent (n = 1:pnpan)
+        do concurrent (i = 1:pipan)
+          cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+          if ( abs(a_io(cc+i)-value)<1.e-20 ) then
+            csum = 0.
+            ccount = 0
+            do s = -1,1,2
+              if ( abs(c_io(i,j+s,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,j+s,n,ipf)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i+s,j,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+s,j,n,ipf)
+                ccount = ccount + 1
+              end if
+            end do
+            if ( ccount>0 ) then        
+              a_io(cc+i) = csum/real(ccount)
+            end if
           end if
-        end do 
-        ! east boundary
-        csum(2:pjpan-1) = 0.
-        ccount(2:pjpan-1) = 0
-        where ( abs(c_io(pipan,3:pjpan,n,ipf)-value)>=1.e-20 )
-          csum(2:pjpan) = csum(2:pjpan) + c_io(pipan,3:pjpan,n,ipf)
-          ccount(2:pjpan) = ccount(2:pjpan) + 1
-        end where
-        where ( abs(c_io(pipan,1:pjpan-2,n,ipf)-value)>=1.e-20 )
-          csum(2:pjpan) = csum(2:pjpan) + c_io(pipan,1:pjpan-2,n,ipf)
-          ccount(2:pjpan) = ccount(2:pjpan) + 1
-        end where 
-        where ( abs(c_io(pipan+1,2:pjpan-1,n,ipf)-value)>=1.e-20 )
-          csum(2:pjpan) = csum(2:pjpan) + c_io(pipan+1,2:pjpan-1,n,ipf)
-          ccount(2:pjpan) = ccount(2:pjpan) + 1
-        end where 
-        where ( abs(c_io(pipan-1,2:pjpan-1,n,ipf)-value)>=1.e-20 )
-          csum(2:pjpan) = csum(2:pjpan) + c_io(pipan-1,2:pjpan-1,n,ipf)
-          ccount(2:pjpan) = ccount(2:pjpan) + 1
-        end where 
-        do j = 2,pjpan-1
-          cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-          if ( abs(a_io(pipan+cc)-value)<1.e-20 .and. ccount(j)>0 ) then
-            a_io(pipan+cc) = csum(j)/real(ccount(j))
+          cc = (pjpan-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+          if ( abs(a_io(cc+i)-value)<1.e-20 ) then
+            csum = 0.
+            ccount = 0
+            do s = -1,1,2
+              if ( abs(c_io(i,j+s,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,j+s,n,ipf)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i+s,j,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+s,j,n,ipf)
+                ccount = ccount + 1
+              end if
+            end do
+            if ( ccount>0 ) then        
+              a_io(cc+i) = csum/real(ccount)
+            end if
           end if
-        end do 
-        ! south boundary
-        cc = (pjpan-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-        csum(1:pipan) = 0.
-        ccount(1:pipan) = 0
-        where ( abs(c_io(1:pipan,pjpan+1,n,ipf)-value)>=1.e-20 )
-          csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,pjpan+1,n,ipf)
-          ccount(1:pipan) = ccount(1:pipan) + 1
-        end where
-        where ( abs(c_io(1:pipan,pjpan-1,n,ipf)-value)>=1.e-20 )
-          csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,pjpan-1,n,ipf)
-          ccount(1:pipan) = ccount(1:pipan) + 1
-        end where
-        where ( abs(c_io(2:pipan+1,pjpan,n,ipf)-value)>=1.e-20 )
-          csum(1:pipan) = csum(1:pipan) + c_io(2:pipan+1,pjpan,n,ipf)
-          ccount(1:pipan) = ccount(1:pipan) + 1
-        end where
-        where ( abs(c_io(0:pipan-1,pjpan,n,ipf)-value)>=1.e-20 )
-          csum(1:pipan) = csum(1:pipan) + c_io(0:pipan-1,pjpan,n,ipf)
-          ccount(1:pipan) = ccount(1:pipan) + 1
-        end where
-        where ( abs(a_io(1+cc:pipan+cc)-value)<1.e-20 .and. ccount(1:pipan)>0 )
-          a_io(1+cc:pipan+cc) = csum(1:pipan)/real(max(ccount(1:pipan),1))
-        end where
+        end do
+        do concurrent (j = 2:pjpan-1)
+          cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+          if ( abs(a_io(cc+1)-value)<1.e-20 ) then
+            csum = 0.
+            ccount = 0
+            do s = -1,1,2
+              if ( abs(c_io(i,j+s,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,j+s,n,ipf)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i+s,j,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+s,j,n,ipf)
+                ccount = ccount + 1
+              end if
+            end do
+            if ( ccount>0 ) then        
+              a_io(cc+1) = csum/real(ccount)
+            end if
+          end if
+          if ( abs(a_io(cc+pipan)-value)<1.e-20 ) then
+            csum = 0.
+            ccount = 0
+            do s = -1,1,2
+              if ( abs(c_io(i,j+s,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,j+s,n,ipf)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i+s,j,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+s,j,n,ipf)
+                ccount = ccount + 1
+              end if
+            end do
+            if ( ccount>0 ) then        
+              a_io(cc+pipan) = csum/real(ccount)
+            end if
+          end if
+        end do
       end do
     end do
     ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )  
@@ -2388,7 +2355,7 @@ call END_LOG(otf_fill_end)
 return
 end subroutine fill_cc1
 
-subroutine fill_cc4_3d(a_io,land_3d,fill_count,kx)
+subroutine fill_cc4_3d(a_io,land_3d,fill_count)
       
 ! routine fills in interior of an array which has undefined points
 ! this version is distributed over processes with input files
@@ -2398,17 +2365,18 @@ use infile          ! Input file routines
 
 implicit none
 
-integer, intent(in) :: kx
+real, dimension(:,:), intent(inout) :: a_io
 integer, intent(inout) :: fill_count
-real, dimension(fwsize,kx), intent(inout) :: a_io
-integer j, n, k
+integer j, n, k, kx
 integer cc, ipf, local_count
-integer, dimension(max(pipan,pjpan)) :: ccount
-integer, dimension(kx) :: ncount, nrem
+integer ccount, s, i
+integer, dimension(size(a_io,2)) :: ncount, nrem
 real, parameter :: value=999.       ! missing value flag
-real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc,kx) :: c_io
-real, dimension(max(pipan,pjpan)) :: csum
-logical, dimension(fwsize,kx), intent(in) :: land_3d
+real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc,size(a_io,2)) :: c_io
+real csum
+logical, dimension(:,:), intent(in) :: land_3d
+
+kx = size(a_io,2)
 
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
@@ -2425,9 +2393,11 @@ end if
 call START_LOG(otf_fill_begin)
 
 
-where ( land_3d(1:fwsize,1:kx) )
-  a_io(1:fwsize,1:kx) = value
-end where
+do k = 1,kx
+  where ( land_3d(1:fwsize,k) )
+    a_io(1:fwsize,k) = value
+  end where
+end do
 
 nrem(:) = 1
 local_count = 0
@@ -2438,33 +2408,31 @@ do while ( any(nrem(:)>0) )
   call ccmpi_filebounds_send(c_io,comm_ip)
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
-  do k = 1,kx
+  do concurrent (k = 1:kx)
     if ( ncount(k)>0 ) then
-      do ipf = 1,mynproc
-        do n = 1,pnpan
-          do j = 2,pjpan-1
-            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-            csum(2:pipan-1) = 0.
-            ccount(2:pipan-1) = 0
-            where ( abs(c_io(2:pipan-1,j+1,n,ipf,k)-value)>=1.e-20 )
-              csum(2:pipan-1) = csum(2:pipan-1) + c_io(2:pipan-1,j+1,n,ipf,k)
-              ccount(2:pipan-1) = ccount(2:pipan-1) + 1
-            end where
-            where ( abs(c_io(2:pipan-1,j-1,n,ipf,k)-value)>=1.e-20 )
-              csum(2:pipan-1) = csum(2:pipan-1) + c_io(2:pipan-1,j-1,n,ipf,k)
-              ccount(2:pipan-1) = ccount(2:pipan-1) + 1
-            end where
-            where ( abs(c_io(3:pipan,j,n,ipf,k)-value)>=1.e-20 )
-              csum(2:pipan-1) = csum(2:pipan-1) + c_io(3:pipan,j,n,ipf,k)
-              ccount(2:pipan-1) = ccount(2:pipan-1) + 1
-            end where
-            where ( abs(c_io(1:pipan-2,j,n,ipf,k)-value)>=1.e-20 )
-              csum(2:pipan-1) = csum(2:pipan-1) + c_io(1:pipan-2,j,n,ipf,k)
-              ccount(2:pipan-1) = ccount(2:pipan-1) + 1
-            end where
-            where ( abs(a_io(2+cc:pipan-1+cc,k)-value)<1.e-20 .and. ccount(2:pipan-1)>0 )
-              a_io(2+cc:pipan-1+cc,k) = csum(2:pipan-1)/real(ccount(2:pipan-1))
-            end where
+      do concurrent (ipf = 1:mynproc)
+        do concurrent (n = 1:pnpan)
+          do concurrent (j = 2:pjpan-1)
+            do concurrent (i = 2:pipan-1)
+              cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+              if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
+                csum = 0.
+                ccount = 0
+                do s = -1,1,2
+                  if ( abs(c_io(i,j+s,n,ipf,k)-value)>=1.e-20 ) then
+                    csum = csum + c_io(i,j+s,n,ipf,k)
+                    ccount = ccount + 1
+                  end if
+                  if ( abs(c_io(i+s,j,n,ipf,k)-value)>=1.e-20 ) then
+                    csum = csum + c_io(i+s,j,n,ipf,k)
+                    ccount = ccount + 1
+                  end if
+                end do
+                if ( ccount>0 ) then        
+                  a_io(cc+i,k) = csum/real(ccount)
+                end if
+              end if
+            end do
           end do
         end do
       end do
@@ -2472,106 +2440,85 @@ do while ( any(nrem(:)>0) )
   end do
   call ccmpi_filebounds_recv(c_io,comm_ip)
   ! update halo
-  do k = 1,kx
+  do concurrent (k = 1:kx)
     if ( ncount(k)>0 ) then  
-      do ipf = 1,mynproc
-        do n = 1,pnpan
-          ! north boundary
-          cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-          csum(1:pipan) = 0.
-          ccount(1:pipan) = 0
-          where ( abs(c_io(1:pipan,2,n,ipf,k)-value)>=1.e-20 )
-            csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,2,n,ipf,k)
-            ccount(1:pipan) = ccount(1:pipan) + 1
-          end where
-          where ( abs(c_io(1:pipan,0,n,ipf,k)-value)>=1.e-20 )
-            csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,0,n,ipf,k)
-            ccount(1:pipan) = ccount(1:pipan) + 1
-          end where
-          where ( abs(c_io(2:pipan+1,1,n,ipf,k)-value)>=1.e-20 )
-            csum(1:pipan) = csum(1:pipan) + c_io(2:pipan+1,1,n,ipf,k)
-            ccount(1:pipan) = ccount(1:pipan) + 1
-          end where
-          where ( abs(c_io(0:pipan-1,1,n,ipf,k)-value)>=1.e-20 )
-            csum(1:pipan) = csum(1:pipan) + c_io(0:pipan-1,1,n,ipf,k)
-            ccount(1:pipan) = ccount(1:pipan) + 1
-          end where
-          where ( abs(a_io(1+cc:pipan+cc,k)-value)<1.e-20 .and. ccount(1:pipan)>0 )
-            a_io(1+cc:pipan+cc,k) = csum(1:pipan)/real(ccount(1:pipan))
-          end where
-          ! west boundary
-          csum(2:pjpan-1) = 0.
-          ccount(2:pjpan-1) = 0
-          where ( abs(c_io(1,3:pjpan,n,ipf,k)-value)>=1.e-20 )
-            csum(2:pjpan) = csum(2:pjpan) + c_io(1,3:pjpan,n,ipf,k)
-            ccount(2:pjpan) = ccount(2:pjpan) + 1
-          end where
-          where ( abs(c_io(1,1:pjpan-2,n,ipf,k)-value)>=1.e-20 )
-            csum(2:pjpan) = csum(2:pjpan) + c_io(1,1:pjpan-2,n,ipf,k)
-            ccount(2:pjpan) = ccount(2:pjpan) + 1
-          end where 
-          where ( abs(c_io(2,2:pjpan-1,n,ipf,k)-value)>=1.e-20 )
-            csum(2:pjpan) = csum(2:pjpan) + c_io(2,2:pjpan-1,n,ipf,k)
-            ccount(2:pjpan) = ccount(2:pjpan) + 1
-          end where 
-          where ( abs(c_io(0,2:pjpan-1,n,ipf,k)-value)>=1.e-20 )
-            csum(2:pjpan) = csum(2:pjpan) + c_io(0,2:pjpan-1,n,ipf,k)
-            ccount(2:pjpan) = ccount(2:pjpan) + 1
-          end where 
-          do j = 2,pjpan-1
-            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-            if ( abs(a_io(1+cc,k)-value)<1.e-20 .and. ccount(j)>0 ) then
-              a_io(1+cc,k) = csum(j)/real(ccount(j))
+      do concurrent (ipf = 1:mynproc)
+        do concurrent (n = 1:pnpan)
+          do concurrent (i = 1:pipan)
+            cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+            if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
+              csum = 0.
+              ccount = 0
+              do s = -1,1,2
+                if ( abs(c_io(i,j+s,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j+s,n,ipf,k)
+                  ccount = ccount + 1
+                end if
+                if ( abs(c_io(i+s,j,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+s,j,n,ipf,k)
+                  ccount = ccount + 1
+                end if
+              end do
+              if ( ccount>0 ) then        
+                a_io(cc+i,k) = csum/real(ccount)
+              end if
             end if
-          end do 
-          ! east boundary
-          csum(2:pjpan-1) = 0.
-          ccount(2:pjpan-1) = 0
-          where ( abs(c_io(pipan,3:pjpan,n,ipf,k)-value)>=1.e-20 )
-            csum(2:pjpan) = csum(2:pjpan) + c_io(pipan,3:pjpan,n,ipf,k)
-            ccount(2:pjpan) = ccount(2:pjpan) + 1
-          end where
-          where ( abs(c_io(pipan,1:pjpan-2,n,ipf,k)-value)>=1.e-20 )
-            csum(2:pjpan) = csum(2:pjpan) + c_io(pipan,1:pjpan-2,n,ipf,k)
-            ccount(2:pjpan) = ccount(2:pjpan) + 1
-          end where 
-          where ( abs(c_io(pipan+1,2:pjpan-1,n,ipf,k)-value)>=1.e-20 )
-            csum(2:pjpan) = csum(2:pjpan) + c_io(pipan+1,2:pjpan-1,n,ipf,k)
-            ccount(2:pjpan) = ccount(2:pjpan) + 1
-          end where 
-          where ( abs(c_io(pipan-1,2:pjpan-1,n,ipf,k)-value)>=1.e-20 )
-            csum(2:pjpan) = csum(2:pjpan) + c_io(pipan-1,2:pjpan-1,n,ipf,k)
-            ccount(2:pjpan) = ccount(2:pjpan) + 1
-          end where 
-          do j = 2,pjpan-1
-            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-            if ( abs(a_io(pipan+cc,k)-value)<1.e-20 .and. ccount(j)>0 ) then
-              a_io(pipan+cc,k) = csum(j)/real(ccount(j))
+            cc = (pjpan-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+            if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
+              csum = 0.
+              ccount = 0
+              do s = -1,1,2
+                if ( abs(c_io(i,j+s,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j+s,n,ipf,k)
+                  ccount = ccount + 1
+                end if
+                if ( abs(c_io(i+s,j,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+s,j,n,ipf,k)
+                  ccount = ccount + 1
+                end if
+              end do
+              if ( ccount>0 ) then        
+                a_io(cc+i,k) = csum/real(ccount)
+              end if
             end if
-          end do 
-          cc = (pjpan-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-          ! south boundary
-          csum(1:pipan) = 0.
-          ccount(1:pipan) = 0
-          where ( abs(c_io(1:pipan,pjpan+1,n,ipf,k)-value)>=1.e-20 )
-            csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,pjpan+1,n,ipf,k)
-            ccount(1:pipan) = ccount(1:pipan) + 1
-          end where
-          where ( abs(c_io(1:pipan,pjpan-1,n,ipf,k)-value)>=1.e-20 )
-            csum(1:pipan) = csum(1:pipan) + c_io(1:pipan,pjpan-1,n,ipf,k)
-            ccount(1:pipan) = ccount(1:pipan) + 1
-          end where
-          where ( abs(c_io(2:pipan+1,pjpan,n,ipf,k)-value)>=1.e-20 )
-            csum(1:pipan) = csum(1:pipan) + c_io(2:pipan+1,pjpan,n,ipf,k)
-            ccount(1:pipan) = ccount(1:pipan) + 1
-          end where
-          where ( abs(c_io(0:pipan-1,pjpan,n,ipf,k)-value)>=1.e-20 )
-            csum(1:pipan) = csum(1:pipan) + c_io(0:pipan-1,pjpan,n,ipf,k)
-            ccount(1:pipan) = ccount(1:pipan) + 1
-          end where
-          where ( abs(a_io(1+cc:pipan+cc,k)-value)<1.e-20 .and. ccount(1:pipan)>0 )
-            a_io(1+cc:pipan+cc,k) = csum(1:pipan)/real(ccount(1:pipan))
-          end where
+          end do
+          do concurrent (j = 2:pjpan-1)
+            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+            if ( abs(a_io(cc+1,k)-value)<1.e-20 ) then
+              csum = 0.
+              ccount = 0
+              do s = -1,1,2
+                if ( abs(c_io(i,j+s,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j+s,n,ipf,k)
+                  ccount = ccount + 1
+                end if
+                if ( abs(c_io(i+s,j,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+s,j,n,ipf,k)
+                  ccount = ccount + 1
+                end if
+              end do
+              if ( ccount>0 ) then        
+                a_io(cc+1,k) = csum/real(ccount)
+              end if
+            end if
+            if ( abs(a_io(cc+pipan,k)-value)<1.e-20 ) then
+              csum = 0.
+              ccount = 0
+              do s = -1,1,2
+                if ( abs(c_io(i,j+s,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j+s,n,ipf,k)
+                  ccount = ccount + 1
+                end if
+                if ( abs(c_io(i+s,j,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+s,j,n,ipf,k)
+                  ccount = ccount + 1
+                end if
+              end do
+              if ( ccount>0 ) then        
+                a_io(cc+pipan,k) = csum/real(ccount)
+              end if
+            end if
+          end do
         end do
       end do
       ncount(k) = count( abs(a_io(1:fwsize,k)-value)<1.E-6 )
@@ -2599,21 +2546,20 @@ call END_LOG(otf_fill_end)
 return
 end subroutine fill_cc4_3d
 
-subroutine fill_cc4_1(a_io,land_a,fill_count,kx)
+subroutine fill_cc4_1(a_io,land_a,fill_count)
 
 implicit none
 
-integer, intent(in) :: kx
 integer, intent(inout) :: fill_count
 integer k
-real, dimension(fwsize,kx), intent(inout) :: a_io
-logical, dimension(fwsize), intent(in) :: land_a
-logical, dimension(fwsize,kx) :: land_3d
+real, dimension(:,:), intent(inout) :: a_io
+logical, dimension(:), intent(in) :: land_a
+logical, dimension(size(a_io,1),size(a_io,2)) :: land_3d
 
-do k = 1,kx
+do k = 1,size(a_io,2)
   land_3d(:,k) = land_a
 end do
-call fill_cc4_3d(a_io,land_3d,fill_count,kx)
+call fill_cc4_3d(a_io,land_3d,fill_count)
 
 return
 end subroutine fill_cc4_1
@@ -2859,7 +2805,7 @@ else
     uvwcc(:,1) = ucc
     uvwcc(:,2) = vcc
     uvwcc(:,3) = wcc
-    call fill_cc4(uvwcc(:,1:3), mask_a, fill_count, 3)
+    call fill_cc4(uvwcc(:,1:3), mask_a, fill_count)
   end if
   call doints4(uvwcc(:,1:3), newuvw(:,1:3))
   
@@ -2917,9 +2863,9 @@ else
     end do  ! k loop  
     ! interpolate all required arrays to new C-C positions
     ! do not need to do map factors and Coriolis on target grid
-    call fill_cc4(ucc, mask_3d, fill_count, ok)
-    call fill_cc4(vcc, mask_3d, fill_count, ok)
-    call fill_cc4(wcc, mask_3d, fill_count, ok)
+    call fill_cc4(ucc, mask_3d, fill_count)
+    call fill_cc4(vcc, mask_3d, fill_count)
+    call fill_cc4(wcc, mask_3d, fill_count)
   end if
   call doints4(ucc, uct)
   call doints4(vcc, vct)
@@ -3198,7 +3144,7 @@ if ( iop_test ) then
 else
   ! for multiple input files
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
-  call fill_cc4(ucc,mask_a,fill_count,size(varout,2))
+  call fill_cc4(ucc,mask_a,fill_count)
   call doints4(ucc, varout)
 end if ! iop_test
 
@@ -3231,7 +3177,7 @@ if ( iop_test ) then
 else
   ! for multiple input files
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
-  call fill_cc4(ucc,mask_3d,fill_count,ok)
+  call fill_cc4(ucc,mask_3d,fill_count)
   call doints4(ucc,u_k)
 end if ! iop_test
 
@@ -3341,7 +3287,7 @@ use parm_m             ! Model configuration
 implicit none
 
 integer n, ipf
-integer mm, iq, idel, jdel, ipin
+integer mm, iq, idel, jdel
 integer ncount, w, colour
 integer sourceid, newid
 logical, dimension(0:fnproc-1) :: lfile
@@ -3399,15 +3345,15 @@ end if
 ncount = count(lfile(0:fnproc-1))
 allocate( filemap_recv(ncount), filemap_rmod(ncount) )
 ncount = 0
-do ipin = 0,fnproc-1
-  if ( lfile(ipin) ) then
+do w = 0,fnproc-1
+  if ( lfile(w) ) then
     ncount = ncount + 1
-    filemap_recv(ncount) = mod( ipin, fnresid )
-    filemap_rmod(ncount) = ipin/fnresid
+    filemap_recv(ncount) = mod( w, fnresid )
+    filemap_rmod(ncount) = w/fnresid
   end if
 end do
 
-if ( fnproc<=fnproc_bcast_max ) then
+if ( fnproc<=6 ) then
     
   ! Construct bcast comms for single panel case
   allocate( filemap_facecomm(0:fnproc-1), filemap_rinv(0:fnproc-1) )
@@ -3415,13 +3361,13 @@ if ( fnproc<=fnproc_bcast_max ) then
   if ( myid==0 ) then
     write(6,*) "--> Create Bcast comms for panel input"
   end if
-  do ipin = 0,fnproc-1
-    sourceid = mod( ipin, fnresid )
-    if ( lfile(ipin) .or. myid==sourceid ) then
+  do w = 0,fnproc-1
+    sourceid = mod( w, fnresid )
+    if ( lfile(w) .or. myid==sourceid ) then
       colour = 1
       do ncount = 1,size(filemap_recv)
-        if ( filemap_recv(ncount)+filemap_rmod(ncount)*fnresid==ipin ) then
-          filemap_rinv(ipin) = ncount  
+        if ( filemap_recv(ncount)+filemap_rmod(ncount)*fnresid==w ) then
+          filemap_rinv(w) = ncount  
         end if    
       end do   
     else
@@ -3431,7 +3377,7 @@ if ( fnproc<=fnproc_bcast_max ) then
     if ( newid<0 ) then
       newid = newid + nproc
     end if  
-    call ccmpi_commsplit(filemap_facecomm(ipin),comm_world,colour,newid)   
+    call ccmpi_commsplit(filemap_facecomm(w),comm_world,colour,newid)   
   end do
   
 else

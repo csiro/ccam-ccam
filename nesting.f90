@@ -1267,7 +1267,7 @@ do ipass = 0,2
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
-      ff_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),me,kltp1,nest_iblock) 
+      ff_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,:,j),me,kltp1,nest_iblock) 
     end do 
   end do 
 !$acc end parallel loop
@@ -1366,7 +1366,7 @@ end do
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
-    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),me,kltp1,nest_iblock)
+    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,:,j),me,kltp1,nest_iblock)
     qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(kltp1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
   end do
 end do
@@ -1457,7 +1457,7 @@ do ipass = 0,2
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
-      ff_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),me,kltp1,nest_iblock)
+      ff_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,:,j),me,kltp1,nest_iblock)
     end do
   end do
 !$acc end parallel loop
@@ -1555,7 +1555,7 @@ end do
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
-    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,1:me,j),me,kltp1,nest_iblock)
+    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,:,j),me,kltp1,nest_iblock)
     qt(n + ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(kltp1)
   end do
 end do
@@ -2464,7 +2464,7 @@ do ipass = 0,2
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
-      yy_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
+      yy_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,:,j),me,kdp1,nest_iblock)
     end do
   end do
 !$acc end parallel loop
@@ -2563,7 +2563,7 @@ end do
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
-    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
+    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,:,j),me,kdp1,nest_iblock)
     qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/max(local_sum(kdp1), 1.e-8)
   end do
 end do
@@ -2650,7 +2650,7 @@ do ipass = 0,2
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
-      yy_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
+      yy_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,:,j),me,kdp1,nest_iblock)
     end do    
   end do
 !$acc end parallel loop
@@ -2749,7 +2749,7 @@ end do
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
-    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,1:me,j),me,kdp1,nest_iblock)
+    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,:,j),me,kdp1,nest_iblock)
     qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/max(local_sum(kdp1), 1.e-8)  
   end do  
 end do

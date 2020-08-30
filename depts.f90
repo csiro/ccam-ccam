@@ -80,6 +80,9 @@ s(1:ifull,:,3) = wc(1:ifull,:)
 
 call bounds(s,nrows=2)
 
+!$acc data create(xg,yg,nface,sx,s)
+!$acc update device(xg,yg,nface)
+
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
   sx(1:ipan,1:jpan,1:npan,1:kl,1:3) = reshape(s(1:ipan*jpan*npan,1:kl,1:3), (/ipan,jpan,npan,kl,3/))
@@ -118,6 +121,8 @@ if ( intsch==1 ) then
     end do            ! k loop
   end do              ! nn loop
 
+  !$acc update device(sx)
+
   ! Loop over points that need to be calculated for other processes
   do ii = neighnum,1,-1
     do nn = 1,3
@@ -154,11 +159,11 @@ if ( intsch==1 ) then
   end do            ! ii loop
 
   call intssync_send(3)
-
-!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
-  do nn = 1,3
-    do k = 1,kl
-      do iq = 1,ifull    ! non Berm-Stan option
+  
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
+  do concurrent (nn = 1:3)
+    do concurrent (k = 1:kl)
+      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
@@ -187,7 +192,8 @@ if ( intsch==1 ) then
       end do   ! iq loop
     end do     ! k loop
   end do       ! nn loop
-!$acc end parallel
+  !$acc end parallel loop
+  !$acc update self(s)
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -229,6 +235,8 @@ else     ! if(intsch==1)then
     end do                ! k loop
   end do                  ! nn loop
 
+  !$acc update device(sx)
+
   ! For other processes
   do ii = neighnum,1,-1
     do nn = 1,3
@@ -265,10 +273,10 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
-  do nn = 1,3
-    do k = 1,kl
-      do iq = 1,ifull    ! non Berm-Stan option
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
+  do concurrent (nn = 1:3)
+    do concurrent (k = 1:kl)
+      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
@@ -297,7 +305,8 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! k loop
   end do              ! nn loop
-!$acc end parallel
+  !$acc end parallel loop
+  !$acc update self(s)
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -313,6 +322,7 @@ end do
 call toij5 (x3d,y3d,z3d)
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
+!$acc update device(nface,xg,yg)
 
 if ( diag .and. mydiag ) then
   write(6,*) '2nd guess for k = ',nlv
@@ -360,10 +370,10 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
 
-!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
-  do nn = 1,3
-    do k = 1,kl
-      do iq = 1,ifull    ! non Berm-Stan option
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
+  do concurrent (nn = 1:3)
+    do concurrent (k = 1:kl)
+      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
@@ -392,7 +402,8 @@ if ( intsch==1 ) then
       end do   ! iq loop
     end do     ! k loop
   end do       ! nn loop
-!$acc end parallel
+  !$acc end parallel loop
+  !$acc update self(s)
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -435,10 +446,10 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-!$acc parallel loop gang vector collapse(3) copyin(xg,yg,nface,sx) copyout(s) 
-  do nn = 1,3
-    do k = 1,kl
-      do iq = 1,ifull    ! non Berm-Stan option
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
+  do concurrent (nn = 1:3)
+    do concurrent (k = 1:kl)
+      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
@@ -468,10 +479,13 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! nn loop
   end do              ! k loop
-!$acc end parallel
+  !$acc end parallel loop
+  !$acc update self(s)
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
+
+!$acc end data
 
 call intssync_recv(s)
 

@@ -2503,7 +2503,7 @@ if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (no out
 if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (output in history file)
 
 !$acc update device(vmodmin,sigbot_gwd,fc2,dt,alphaj,ngwd,iaero,nmr)
-!$acc update device(qgmin,nlocal,cqmix,qg_fix)
+!$acc update device(qgmin,nlocal,cqmix)
 
 
 !--------------------------------------------------------------

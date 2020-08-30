@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -437,7 +437,7 @@ integralm(1:imax)   = max(integralm(1:imax), 1.e-10)
 integralm10(1:imax) = max(integralm10(1:imax), 1.e-10)
 
 tscrn(1:imax)  = temp(1:imax) - tstar(1:imax)*integralh(1:imax)/vkar
-esatb(1:imax)  = establ(tscrn,imax)
+esatb(1:imax)  = establ(tscrn(1:imax),imax)
 qscrn(1:imax)  = mixr(1:imax) - qstar(1:imax)*integralq(1:imax)/vkar
 qscrn(1:imax)  = max(qscrn(1:imax), qgmin)
 qsatb(1:imax)  = 0.622*esatb(1:imax)/(ps(1:imax)-esatb(1:imax))
@@ -474,7 +474,7 @@ use work2_m
 implicit none
       
 integer, intent(in) :: is, ie
-integer tile, ilen
+integer :: tile
 real, dimension(is:ie) :: umag, zminx, smixr
 real, dimension(is:ie) :: ou, ov, atu, atv, iu, iv
 real, dimension(is:ie) :: au, av, es, rho
@@ -483,7 +483,6 @@ real, dimension(is:ie) :: u_ustar, u_tstar, u_qstar, u_thetavstar
 real, dimension(is:ie) :: new_zo, new_zoh, new_zoq, new_tss, new_smixr
     
 tile = ie/imax
-ilen = ie - is + 1
 
 zminx(is:ie) = bet(1)*t(is:ie,1)/grav
 zminx(is:ie) = max( zminx(is:ie), 5. )
@@ -505,7 +504,7 @@ end if
 au(is:ie)   = u(is:ie,1) - ou(is:ie)
 av(is:ie)   = v(is:ie,1) - ov(is:ie)
 umag(is:ie) = max( sqrt(au(is:ie)*au(is:ie)+av(is:ie)*av(is:ie)), vmodmin )
-es(is:ie) = establ(tss(is:ie),ilen)
+es(is:ie) = establ(tss(is:ie),imax)
 qsttg(is:ie) = 0.622*es(is:ie)/(ps(is:ie)-es(is:ie))
 smixr(is:ie) = wetfac(is:ie)*qsttg(is:ie) + (1.-wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
 
@@ -522,7 +521,7 @@ if ( zo_clearing>0. ) then
   end where  
 end if
 
-call screencalc(ilen,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie),    &
+call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie), &
                 ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),new_zo(is:ie),   &
                 new_zoh(is:ie),new_zoq(is:ie),new_tss(is:ie),t(is:ie,1),new_smixr(is:ie), &
                 qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
@@ -553,7 +552,7 @@ where ( sigmu(is:ie)>0. )
   new_zoh(is:ie) = urban_zoh(is:ie)
   new_zoq(is:ie) = urban_zoq(is:ie)
 end where
-call screencalc(ilen,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn(is:ie),u_u10(is:ie),    &
+call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn(is:ie),u_u10(is:ie), &
                 u_ustar(is:ie),u_tstar(is:ie),u_qstar(is:ie),u_thetavstar(is:ie),new_zo(is:ie),       &
                 new_zoh(is:ie),new_zoq(is:ie),new_tss(is:ie),t(is:ie,1),new_smixr(is:ie),             &
                 qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))

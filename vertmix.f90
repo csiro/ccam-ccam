@@ -104,7 +104,6 @@ use parm_m, only : idjd, nmlo, iaero, nvmix
 use pbl_m                           ! Boundary layer arrays
 use savuvt_m                        ! Saved dynamic arrays
 use screen_m                        ! Screen level diagnostics
-use sigs_m
 use soil_m, only : land             ! Soil and surface data
 use soilsnow_m, only : fracice      ! Soil, snow and surface data
 use tkeeps                          ! TKE-EPS boundary layer
@@ -119,7 +118,7 @@ implicit none
 
 include 'kuocom.h'                  ! Convection parameters
 
-integer :: is, ie, tile, k, ntr
+integer :: is, ie, tile, k
 integer :: idjd_t
 real, dimension(imax,kl,naero) :: lxtg
 real, dimension(ifull,kl) :: at_save, ct_save
@@ -173,37 +172,27 @@ end if
 select case(nvmix)
   case(6)  
     ! k-e + MF closure scheme
-
+    
 !$omp do schedule(static) private(is,ie,k),             &
 !$omp private(lt,lqg,lqfg,lqlg),                        &
 !$omp private(lstratcloud,lxtg,lu,lv,ltke,leps,lshear), &
 !$omp private(lat,lct,lsavu,lsavv,idjd_t,mydiag_t)
-#ifdef scm
-!$acc parallel loop copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
-!$acc   pblh,ustar)                                               &
-!$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv)                &
-!$acc copyout(at_save,ct_save,wth_flux,wq_flux,uw_flux,           &
-!$acc   vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave,           &
-!$acc   buoyproduction,shearproduction,totaltransport)            &
-!$acc private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,                  &
-!$acc   ltke,leps,lshear,lat,lct,lu,lv,lwth_flux,lwq_flux,        &
-!$acc   luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,              &
-!$acc   lrkmsave,lrkhsave,lbuoyproduction,lshearproduction,       &
+!$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
+!$acc   pblh,ustar)                                          &
+!$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv)           &
+!$acc copyout(at_save,ct_save,wth_flux,wq_flux,uw_flux,      &
+!$acc   vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave,      &
+!$acc   buoyproduction,shearproduction,totaltransport)
+!$acc loop gang private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,   &
+!$acc   ltke,leps,lshear,lat,lct,lu,lv,lwth_flux,lwq_flux,   &
+!$acc   luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,         &
+!$acc   lrkmsave,lrkhsave,lbuoyproduction,lshearproduction,  &
 !$acc   ltotaltransport)
-#else
-!$acc parallel loop copy(t,qg,qlg,qfg,stratcloud,xtg,              &
-!$acc   tke,eps,u,v,pblh,ustar)                                    &
-!$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv,idjd)            &
-!$acc copyout(at_save,ct_save)                                     &
-!$acc private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,                   &
-!$acc   ltke,leps,lshear,lat,lct,lu,lv,tile,is,ie,idjd_t,mydiag_t, &
-!$acc   k)
-#endif
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
 
-      idjd_t = mod(idjd-1,imax) + 1
+      idjd_t = mod(idjd-1,imax)+1
       mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
   
       lt = t(is:ie,:)
@@ -225,12 +214,12 @@ select case(nvmix)
     
       call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                                      &
                        ps(is:ie),lqg,lqfg,lqlg,lstratcloud,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),           &
-                       ustar(is:ie),ltke,leps,lshear,lat,lct                                             &
+                       ustar(is:ie),ltke,leps,lshear,lat,lct,                                            &
 #ifdef scm
-                      ,lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave, &
-                       lbuoyproduction,lshearproduction,ltotaltransport                                  &
+                       lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave, &
+                       lbuoyproduction,lshearproduction,ltotaltransport,                                 &
 #endif
-                      ,imax,kl,naero)      
+                       imax,kl,naero)      
                        
       t(is:ie,:)          = lt
       qg(is:ie,:)         = lqg
@@ -1162,7 +1151,7 @@ end if      ! (ntest==2)
 ! Temperature
 if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
 rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/ps(1:imax)
-call trim(at,ct,rhs,imax,kl)   ! for t
+call trim(at,ct,rhs)   ! for t
 if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
 do k = 1,kl
   t(1:imax,k) = rhs(:,k)/sigkap(k)
@@ -1192,7 +1181,7 @@ end do
 rhs = qg(1:imax,:)
 rhs(:,1) = rhs(:,1) - (conflux/hl)*eg/ps(1:imax)
 ! could add extra sfce moisture flux term for crank-nicholson
-call trim(at,ct,rhs,imax,kl)    ! for qg
+call trim(at,ct,rhs)    ! for qg
 qg(1:imax,:) = rhs
 if ( diag .and. mydiag ) then
   write(6,*)'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
@@ -1729,52 +1718,56 @@ endif  !  (nlocal==5)
 return
 end subroutine pbldif
 
-pure subroutine trim(a,c,rhs,imax,kl)
+subroutine trim(a,c,rhs,imax,kl)
 !$acc routine vector
 
 implicit none
 
 integer, intent(in) :: imax, kl
-integer k, iq
+integer k, kl, iq, imax
 real, dimension(imax,kl), intent(in) :: a, c
 real, dimension(imax,kl), intent(inout) :: rhs
 real, dimension(imax,kl) :: e, g
-real, dimension(imax) :: b, temp
+real, dimension(imax) :: b
+real :: temp
 
 ! this routine solves the system
 !   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
 !   with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
 !   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
 
-
 ! the Thomas algorithm is used
-b = 1.-c(:,1)
-e(:,1) = c(:,1)/b
-g(:,1) = rhs(:,1)/b
+do iq = 1,imax
+  b(iq)=1.-a(iq,1)-c(iq,1)
+  e(iq,1)=c(iq,1)/b(iq)
+  g(iq,1)=rhs(iq,1)/b(iq)
+end do
 do k = 2,kl-1
-  b = 1.-a(:,k)-c(:,k)
-  temp= 1./(b-a(:,k)*e(:,k-1))
-  e(:,k)=c(:,k)*temp
-  g(:,k)=(rhs(:,k)-a(:,k)*g(:,k-1))*temp
+  do iq = 1,imax
+    b(iq)=1.-a(iq,k)-c(iq,k)
+    temp= 1./(b(iq)-a(iq,k)*e(iq,k-1))
+    e(iq,k)=c(iq,k)*temp
+    g(iq,k)=(rhs(iq,k)-a(iq,k)*g(iq,k-1))*temp
+  end do
 end do
 
 ! do back substitution to give answer now
-b = 1. - a(:,kl)
-rhs(:,kl) = (rhs(:,kl)-a(:,kl)*g(:,kl-1))/(b-a(:,kl)*e(:,kl-1))
+b(:)=1.-a(:,kl)-c(:,kl)
+rhs(:,kl)=(rhs(:,kl)-a(:,kl)*g(:,kl-1))/(b(:)-a(:,kl)*e(:,kl-1))
 do k = kl-1,1,-1
-  rhs(:,k) = g(:,k)-e(:,k)*rhs(:,k+1)
+  rhs(:,k)=g(:,k)-e(:,k)*rhs(:,k+1)
 end do
 
 return
 end subroutine trim
 
 subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                                 &
-                       xtg,cduv,u,v,pblh,ustar,tke,eps,shear,at,ct                              &
+                       xtg,cduv,u,v,pblh,ustar,tke,eps,shear,at,ct,                             &
 #ifdef scm
-                      ,wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave, &
-                       buoyproduction,shearproduction,totaltransport                            &
+                       wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave, &
+                       buoyproduction,shearproduction,totaltransport,                           &
 #endif
-                      ,imax,kl,naero)
+                       imax,kl,naero)
 !$acc routine vector
 
 use const_phys                   ! Physical constants
@@ -1794,15 +1787,15 @@ real, dimension(imax,kl), intent(inout) :: tke, eps
 real, dimension(imax,kl), intent(out) :: at, ct
 real, dimension(imax,kl), intent(in) :: shear
 real, dimension(imax,kl) :: zh
-real, dimension(imax,kl) :: rhs, zg
+real, dimension(imax,kl) :: rhs, gt, zg
 real, dimension(imax,kl) :: rkm, rkh
-real, dimension(imax,kl) :: tmnht
+real, dimension(imax,kl-1) :: tmnht
 real, dimension(imax), intent(inout) :: pblh, ustar
 real, dimension(imax), intent(in) :: em, tss, eg, fg, ps
 real, dimension(imax), intent(in) :: cduv
-real, dimension(imax) :: dz, gt
+real, dimension(imax) :: dz
 real, dimension(imax) :: rhos, dx
-real, dimension(imax) :: sigkap, delh
+real, dimension(kl) :: sigkap, delh
 real rong, rlogs1, rlogs2, rlogh1, rlog12
 #ifdef scm
 real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
@@ -1810,11 +1803,12 @@ real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave, epssave
 real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax,kl), intent(inout) :: buoyproduction, shearproduction
 real, dimension(imax,kl), intent(inout) :: totaltransport
-real, dimension(imax,kl), intent(inout) :: mfsave
+real, dimension(imax,kl-1), intent(inout) :: mfsave
 #endif
 
+
 ! estimate grid spacing for scale aware MF
-dx(:) = ds/em(:)
+dx(:) = ds/em
 
 ! Set-up potential temperature transforms
 rong = rdry/grav
@@ -1881,6 +1875,7 @@ select case(nlocal)
     
 end select
 do k = 1,kl
+  rkh(:,k) = rkm(:,k)
   ! save Km and Kh for output
   rkmsave(:,k) = rkm(:,k)
   rkhsave(:,k) = rkh(:,k)
@@ -1897,11 +1892,14 @@ select case(nlocal)
     call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
                 ustar,dt,qgmin,0,tke,eps,shear,dx,imax,kl)     
 end select
+do k = 1,kl  
+  rkh(:,k) = rkm(:,k)
+end do
 #endif
 
 ! replace counter gradient term
 do k = 1,kl
-  rkh(:,k) = rkm(:,k)*cqmix
+  rkh(:,k) = rkh(:,k)*cqmix
   rkm(:,k) = rkm(:,k)*cqmix
 end do
 
@@ -1911,24 +1909,25 @@ do k = 1,kl
 enddo    !  k loop
 
 ! tracers
-at = 0.
-ct = 0.
-!$acc loop private(dz,gt)
 do k = 1,kl-1
   dz(:) = -tmnht(:,k)*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-  gt(:) = rkh(:,k)*dt*(sig(k+1)-sig(k))/dz(:)**2
-  at(:,k+1) = -gt(:)/dsig(k+1)  
-  ct(:,k) = -gt(:)/dsig(k)
+  gt(:,k) = rkh(:,k)*dt*(sig(k+1)-sig(k))/(dz**2)
+end do      ! k loop
+gt(:,kl) = 0.
+at(:,1) = 0.
+ct(:,kl) = 0.
+do k = 1,kl-1
+  at(:,k+1) =-gt(:,k)/dsig(k+1)  
+  ct(:,k) = -gt(:,k)/dsig(k)
 end do
-
+  
 ! Aerosols
 if ( abs(iaero)>=2 ) then
   do nt = 1,naero
     call trim(at,ct,xtg(:,:,nt),imax,kl)
-    xtg(:,:,nt) = max( xtg(:,:,nt), 0. )
   end do
 end if ! (abs(iaero)>=2)  
-
+      
 return
 end subroutine tkeeps_work
 
