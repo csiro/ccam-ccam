@@ -1985,7 +1985,8 @@ c           print *,'has tied_con=0'
              end do
              ! calculate fraction of aerosols that will be scavenged
              call convscav(fscav(kb:kt),qqsto(kb:kt),qqold(kb:kt),
-     &                  ttsto(kb:kt),xtgtmp(kb:kt),rho(kb:kt),ntr)
+     &                  ttsto(kb:kt),xtgtmp(kb:kt),rho(kb:kt),ntr,
+     &                  knet)
                
              veldt = factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
              fluxup = veldt*s(iq,kb)

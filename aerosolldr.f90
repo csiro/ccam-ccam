@@ -2799,21 +2799,22 @@ end subroutine cldrop
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Aerosol scavenging fraction for convective clouds
 
-pure subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho,ntr)
+pure subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho,ntr,kx)
+!$acc routine vector
 
 implicit none
 
-integer, intent(in) :: ntr
-real, dimension(:), intent(out) :: fscav ! scavenging fraction
-real, dimension(size(fscav)), intent(in) :: xpkp1 ! cloud liquid water after precipitation
-real, dimension(size(fscav)), intent(in) :: xpold ! cloud liquid water before precipitation
-real, dimension(size(fscav)), intent(in) :: tt    ! parcel temperature
-real, dimension(size(fscav)), intent(in) :: xs    ! xtg(:,k,3) = so4
-real, dimension(size(fscav)), intent(in) :: rho   ! air density
-real, dimension(size(fscav)) :: f_so2,scav_eff
-real, dimension(size(fscav)) :: zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
-real, dimension(size(fscav)) :: zza,zzb,zzp,zzq,zzp2,zhp,zheneff,p_so2
-logical, dimension(size(fscav)) :: bwkp1 
+integer, intent(in) :: ntr, kx
+real, dimension(kx), intent(out) :: fscav ! scavenging fraction
+real, dimension(kx), intent(in) :: xpkp1 ! cloud liquid water after precipitation
+real, dimension(kx), intent(in) :: xpold ! cloud liquid water before precipitation
+real, dimension(kx), intent(in) :: tt    ! parcel temperature
+real, dimension(kx), intent(in) :: xs    ! xtg(:,k,3) = so4
+real, dimension(kx), intent(in) :: rho   ! air density
+real, dimension(kx) :: f_so2,scav_eff
+real, dimension(kx) :: zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
+real, dimension(kx) :: zza,zzb,zzp,zzq,zzp2,zhp,zheneff,p_so2
+logical, dimension(kx) :: bwkp1 
 
 ! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.

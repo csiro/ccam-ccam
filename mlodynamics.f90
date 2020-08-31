@@ -2415,8 +2415,6 @@ real, dimension(:,:,:), allocatable, save :: wtur,wtvr
 real, dimension(:,:,:), allocatable, save :: dtul,dtvl
 real, dimension(:,:,:), allocatable, save :: dtur,dtvr
 real, dimension(ifull,0:3) :: nwtu,nwtv
-real, dimension(ifull) :: nud,nvd
-real, dimension(ifull) :: v_n, v_s, u_e, u_w
 real, dimension(:,:), allocatable, save :: stul,stvl
 real, dimension(:,:), allocatable, save :: stur,stvr
 logical, dimension(ifull) :: euetest,euwtest,evntest,evstest
@@ -2424,16 +2422,6 @@ logical, dimension(ifull) :: euewtest,evnstest,eutest,evtest
 logical ltest
 
 call START_LOG(ocnstag_begin)
-
-if ( size(u,1)<ifull .or. size(v,1)<ifull ) then
-  write(6,*) "ERROR: Argument is too small for mlostaguv"
-  call ccmpi_abort(-1)
-end if
-
-if ( size(uout,1)<ifull .or. size(vout,1)<ifull ) then
-  write(6,*) "ERROR: Argument is too small for mlostaguv"
-  call ccmpi_abort(-1)
-end if
 
 if (.not.allocated(wtul)) then
   allocate(wtul(ifull+iextra,wlev,0:3),wtvl(ifull+iextra,wlev,0:3))
@@ -2792,7 +2780,7 @@ if (.not.allocated(wtul)) then
      call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-9)
   end do  
   do k = 1,wlev
-    do i=1,3
+    do i = 1,3
       dtur(1:ifull,k,i)=dtur(1:ifull,k,i)/wtur(1:ifull,k,0)
       dtvr(1:ifull,k,i)=dtvr(1:ifull,k,i)/wtvr(1:ifull,k,0)
       wtur(1:ifull,k,i)=wtur(1:ifull,k,i)/wtur(1:ifull,k,0)
@@ -2806,14 +2794,14 @@ if (.not.allocated(wtul)) then
   
 end if
 
-kx=size(u,2)
-kn=min(kx,wlev)
+kx = size(u,2)
+kn = min(kx,wlev)
 
-do k=1,kn
+do k = 1,kn
   uin(1:ifull,k)=u(1:ifull,k)*ee(1:ifull,k)
   vin(1:ifull,k)=v(1:ifull,k)*ee(1:ifull,k)
 end do
-do k=kn+1,kx
+do k = kn+1,kx
   uin(1:ifull,k)=u(1:ifull,k)*ee(1:ifull,1)
   vin(1:ifull,k)=v(1:ifull,k)*ee(1:ifull,1)
 end do
@@ -2830,14 +2818,14 @@ end if
 if ( ltest ) then
 
   call boundsuv(uin,vin,stag=1)
-  do k=1,kn
-    do iq = 1,ifull  
+  do k = 1,kn
+    do concurrent (iq = 1:ifull)  
       ud(iq,k)=dtul(iq,k,1)*uin(ieeu(iq),k)+dtul(iq,k,2)*uin(ieu(iq),k)+dtul(iq,k,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,k,1)*vin(innv(iq),k)+dtvl(iq,k,2)*vin(inv(iq),k)+dtvl(iq,k,3)*vin(iq,k)
     end do  
   end do
-  do k=kn+1,kx
-    do iq = 1,ifull  
+  do k = kn+1,kx
+    do concurrent (iq = 1:ifull)  
       ud(iq,k)=dtul(iq,1,1)*uin(ieeu(iq),k)+dtul(iq,1,2)*uin(ieu(iq),k)+dtul(iq,1,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,1,1)*vin(innv(iq),k)+dtvl(iq,1,2)*vin(inv(iq),k)+dtvl(iq,1,3)*vin(iq,k)
     end do  
@@ -2845,24 +2833,14 @@ if ( ltest ) then
   
   call boundsuv(ud,vd,stag=-10)
   do k = 1,kn
-    call unpack_nveu(ud(:,k),vd(:,k),v_n,u_e)  
     ! Apply JLM's preconditioner
-    nud(1:ifull)=ud(1:ifull,k)-stul(1:ifull,k)*u_e(1:ifull)
-    nvd(1:ifull)=vd(1:ifull,k)-stvl(1:ifull,k)*v_n(1:ifull)
-    ud(1:ifull,k) = nud(1:ifull)
-    vd(1:ifull,k) = nvd(1:ifull)
-    ua(1:ifull,k) = nud(1:ifull)
-    va(1:ifull,k) = nvd(1:ifull)
+    ua(1:ifull,k) = ud(1:ifull,k)-stul(1:ifull,k)*ud(ieu,k)
+    va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,k)*vd(inv,k)
   end do
   do k = kn+1,kx
-    call unpack_nveu(ud(:,k),vd(:,k),v_n,u_e)  
     ! Apply JLM's preconditioner
-    nud(1:ifull)=ud(1:ifull,k)-stul(1:ifull,1)*u_e(1:ifull)
-    nvd(1:ifull)=vd(1:ifull,k)-stvl(1:ifull,1)*v_n(1:ifull)
-    ud(1:ifull,k) = nud(1:ifull)
-    vd(1:ifull,k) = nvd(1:ifull)
-    ua(1:ifull,k) = nud(1:ifull)
-    va(1:ifull,k) = nvd(1:ifull)
+    ua(1:ifull,k) = ud(1:ifull,k)-stul(1:ifull,1)*ud(ieu,k)
+    va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,1)*vd(inv,k)
   end do
 
   ! There are many ways to handle staggering near coastlines.
@@ -2871,121 +2849,145 @@ if ( ltest ) then
   ! - Zero flux at land boundaries
   ! - The wave amplitude should be preserved
 
-  do itn=1,itnmax        ! each loop is a double iteration
+  !!$acc data create(ud,vd,ua,va,uin,vin,wtul,wtvl,ieu,inv,iwu,isv,ieeu,innv)
+  !!$acc update device(wtul,wtvl,ieu,inv,iwu,isv,ieeu,innv)
+  !!$acc update device(ua(1:ifull,:),va(1:ifull,:))
+
+  !!$acc parallel loop collapse(2) present(ud,vd,ua,va)
+  do k = 1,kx
+    do concurrent (iq = 1:ifull)  
+      ud(iq,k) = ua(iq,k)
+      vd(iq,k) = va(iq,k)
+    end do
+  end do
+  !!$acc end parallel loop
+
+  do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
-    do k=1,kn
-      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
-      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*u_e(iq)+wtul(iq,k,2)*u_w(iq)+wtul(iq,k,3)*ua(ieeu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*v_n(iq)+wtvl(iq,k,2)*v_s(iq)+wtvl(iq,k,3)*va(innv(iq),k)
+    !!$acc update device(ua(ifull+1:ifull+iextra,:),va(ifull+1:ifull+iextra,:))
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,iwu,isv,ieeu,innv)
+    do k = 1,kn
+      do concurrent (iq = 1:ifull)  
+        uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
+        vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
       end do  
     end do
-    do k=kn+1,kx
-      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
-      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*u_e(iq)+wtul(iq,1,2)*u_w(iq)+wtul(iq,1,3)*ua(ieeu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*v_n(iq)+wtvl(iq,1,2)*v_s(iq)+wtvl(iq,1,3)*va(innv(iq),k)
+    !!$acc end parallel loop
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,iwu,isv,ieeu,innv)
+    do k = kn+1,kx
+      do concurrent (iq = 1:ifull)  
+        uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
+        vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
       end do  
     end do
+    !!$acc end parallel loop
+    !!$acc update self(uin(1:ifull,:),vin(1:ifull,:))
     call boundsuv(uin,vin,stag=2)
-    do k=1,kn
-      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
-      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*u_e(iq)+wtul(iq,k,2)*u_w(iq)+wtul(iq,k,3)*uin(ieeu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*v_n(iq)+wtvl(iq,k,2)*v_s(iq)+wtvl(iq,k,3)*vin(innv(iq),k)
+    !!$acc update device(uin(ifull+1:ifull+iextra,:),vin(ifull+1:ifull+iextra,:))
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,iwu,isv,ieeu,innv)
+    do k = 1,kn
+      do concurrent (iq = 1:ifull)  
+        ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(ieeu(iq),k)
+        va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(innv(iq),k)
       end do  
     end do
-    do k=kn+1,kx
-      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
-      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*u_e(iq)+wtul(iq,1,2)*u_w(iq)+wtul(iq,1,3)*uin(ieeu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*v_n(iq)+wtvl(iq,1,2)*v_s(iq)+wtvl(iq,1,3)*vin(innv(iq),k)
+    !!$acc end parallel loop
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,iwu,isv,ieeu,innv)
+    do k = kn+1,kx
+      do concurrent (iq = 1:ifull)  
+        ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(ieeu(iq),k)
+        va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(innv(iq),k)
       end do  
     end do
+    !!$acc end parallel loop
+    !!$acc update self(ua(1:ifull,:),va(1:ifull,:))
   end do                 ! itn=1,itnmax
+ 
+  !!$acc end data
 
 else
 
   call boundsuv(uin,vin)
-  do k=1,kn
-    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
-    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-    do iq = 1,ifull  
-      ud(iq,k)=dtur(iq,k,1)*u_w(iq)+dtur(iq,k,2)*uin(iq,k)+dtur(iq,k,3)*u_e(iq)
-      vd(iq,k)=dtvr(iq,k,1)*v_s(iq)+dtvr(iq,k,2)*vin(iq,k)+dtvr(iq,k,3)*v_n(iq)
+  do k = 1,kn
+    do concurrent (iq = 1:ifull)  
+      ud(iq,k)=dtur(iq,k,1)*uin(iwu(iq),k)+dtur(iq,k,2)*uin(iq,k)+dtur(iq,k,3)*uin(ieu(iq),k)
+      vd(iq,k)=dtvr(iq,k,1)*vin(isv(iq),k)+dtvr(iq,k,2)*vin(iq,k)+dtvr(iq,k,3)*vin(inv(iq),k)
     end do  
   end do
-  do k=kn+1,kx
-    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
-    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-    do iq = 1,ifull  
-      ud(iq,k)=dtur(iq,1,1)*u_w(iq)+dtur(iq,1,2)*uin(iq,k)+dtur(iq,1,3)*u_e(iq)
-      vd(iq,k)=dtvr(iq,1,1)*v_s(iq)+dtvr(iq,1,2)*vin(iq,k)+dtvr(iq,1,3)*v_n(iq)
+  do k = kn+1,kx
+    do concurrent (iq = 1:ifull)  
+      ud(iq,k)=dtur(iq,1,1)*uin(iwu(iq),k)+dtur(iq,1,2)*uin(iq,k)+dtur(iq,1,3)*uin(ieu(iq),k)
+      vd(iq,k)=dtvr(iq,1,1)*vin(isv(iq),k)+dtvr(iq,1,2)*vin(iq,k)+dtvr(iq,1,3)*vin(inv(iq),k)
     end do  
   end do
 
   call boundsuv(ud,vd,stag=-9)
-  do k=1,kn
-    call unpack_svwu(ud(:,k),vd(:,k),v_s,u_w)  
+  do k = 1,kn
     ! Apply JLM's preconditioner
-    nud(1:ifull)=ud(1:ifull,k)-stur(1:ifull,k)*u_w(1:ifull)
-    nvd(1:ifull)=vd(1:ifull,k)-stvr(1:ifull,k)*v_s(1:ifull)
-    ud(1:ifull,k) = nud(1:ifull)
-    vd(1:ifull,k) = nvd(1:ifull)
-    ua(1:ifull,k) = nud(1:ifull)
-    va(1:ifull,k) = nvd(1:ifull)
+    ua(1:ifull,k) = ud(1:ifull,k)-stur(1:ifull,k)*ud(iwu,k)
+    va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,k)*vd(isv,k)
   end do
-  do k=kn+1,kx
-    call unpack_svwu(ud(:,k),vd(:,k),v_s,u_w)  
+  do k = kn+1,kx
     ! Apply JLM's preconditioner
-    nud(1:ifull)=ud(1:ifull,k)-stur(1:ifull,1)*u_w(1:ifull)
-    nvd(1:ifull)=vd(1:ifull,k)-stvr(1:ifull,1)*v_s(1:ifull)
-    ud(1:ifull,k) = nud(1:ifull)
-    vd(1:ifull,k) = nvd(1:ifull)
-    ua(1:ifull,k) = nud(1:ifull)
-    va(1:ifull,k) = nvd(1:ifull)
+    ua(1:ifull,k) = ud(1:ifull,k)-stur(1:ifull,1)*ud(iwu,k)
+    va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,1)*vd(isv,k)
   end do
 
-  do itn=1,itnmax        ! each loop is a double iteration
+  !!$acc data create(ud,vd,ua,va,uin,vin,wtur,wtvr,ieu,inv,iwu,isv,iwwu,issv)
+  !!$acc update device(wtur,wtvr,ieu,inv,iwu,isv,iwwu,issv)
+  !!$acc update device(ua(1:ifull,:),va(1:ifull,:))
+
+  !!$acc parallel loop collapse(2) present(ud,vd,ua,va)
+  do k = 1,kx
+    do concurrent (iq = 1:ifull)  
+      ud(iq,k) = ua(iq,k)
+      vd(iq,k) = va(iq,k)
+    end do
+  end do
+  !!$acc end parallel loop
+
+  do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
-    do k=1,kn
-      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
-      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*u_e(iq)+wtur(iq,k,2)*u_w(iq)+wtur(iq,k,3)*ua(iwwu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*v_n(iq)+wtvr(iq,k,2)*v_s(iq)+wtvr(iq,k,3)*va(issv(iq),k)
+    !!$acc update device(ua(ifull+1:ifull+iextra,:),va(ifull+1:ifull+iextra,:))
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtur,wtvr)
+    do k = 1,kn
+      do concurrent (iq = 1:ifull)  
+        uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
+        vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
       end do  
     end do
-    do k=kn+1,kx
-      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
-      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*u_e(iq)+wtur(iq,1,2)*u_w(iq)+wtur(iq,1,3)*ua(iwwu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*v_n(iq)+wtvr(iq,1,2)*v_s(iq)+wtvr(iq,1,3)*va(issv(iq),k)
+    !!$acc end parallel loop
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtur,wtvr)
+    do k = kn+1,kx
+      do concurrent (iq = 1:ifull)  
+        uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
+        vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
       end do  
     end do
+    !!$acc end parallel loop
+    !!$acc update self(uin(1:ifull,:),vin(1:ifull,:))
     call boundsuv(uin,vin,stag=3)
-    do k=1,kn
-      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
-      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*u_e(iq)+wtur(iq,k,2)*u_w(iq)+wtur(iq,k,3)*uin(iwwu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*v_n(iq)+wtvr(iq,k,2)*v_s(iq)+wtvr(iq,k,3)*vin(issv(iq),k)
+    !!$acc update device(uin(ifull+1:ifull+iextra,:),vin(ifull+1:ifull+iextra,:))
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtur,wtvr)
+    do k = 1,kn
+      do concurrent (iq = 1:ifull)  
+        ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(iwwu(iq),k)
+        va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(issv(iq),k)
       end do  
     end do
-    do k=kn+1,kx
-      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
-      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*u_e(iq)+wtur(iq,1,2)*u_w(iq)+wtur(iq,1,3)*uin(iwwu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*v_n(iq)+wtvr(iq,1,2)*v_s(iq)+wtvr(iq,1,3)*vin(issv(iq),k)
+    !!$acc end parallel loop
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtur,wtvr)
+    do k = kn+1,kx
+      do concurrent (iq = 1:ifull)  
+        ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(iwwu(iq),k)
+        va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(issv(iq),k)
       end do  
     end do
+    !!$acc end parallel loop
+    !!$acc update self(ua(1:ifull,:),va(1:ifull,:))
   end do                 ! itn=1,itnmax
+
+  !!$acc end data
 
 end if
 
@@ -3024,8 +3026,6 @@ real, dimension(ifull+iextra,size(u,2)) :: uin,vin
 real, dimension(ifull+iextra,size(u,2)) :: ua,va
 real, dimension(ifull+iextra,size(u,2)) :: ud,vd
 real, dimension(ifull,0:3) :: nwtu,nwtv
-real, dimension(ifull) :: nud, nvd
-real, dimension(ifull) :: v_n, v_s, u_e, u_w
 real, dimension(:,:,:), allocatable, save :: wtul,wtvl
 real, dimension(:,:,:), allocatable, save :: wtur,wtvr
 real, dimension(:,:,:), allocatable, save :: dtul,dtvl
@@ -3040,16 +3040,6 @@ logical, dimension(ifull) :: eeetest,ewwtest,enntest,esstest
 logical ltest
 
 call START_LOG(ocnstag_begin)
-
-if ( size(u,1)<ifull .or. size(v,1)<ifull ) then
-  write(6,*) "ERROR: Argument is too small for mlounstaguv"
-  call ccmpi_abort(-1)
-end if
-
-if ( size(uout,1)<ifull .or. size(vout,1)<ifull ) then
-  write(6,*) "ERROR: Argument is too small for mlounstaguv"
-  call ccmpi_abort(-1)
-end if
 
 if (.not.allocated(wtul)) then
   allocate(wtul(ifull+iextra,wlev,0:3),wtvl(ifull+iextra,wlev,0:3))
@@ -3519,19 +3509,19 @@ if (.not.allocated(wtul)) then
  
 end if
 
-kx=size(u,2)
-kn=min(kx,wlev)
+kx = size(u,2)
+kn = min(kx,wlev)
 
 zoff=0
 if (present(toff)) then
   if (toff==1) zoff=koff
 end if
 
-do k=1,kn
+do k = 1,kn
   uin(1:ifull,k)=u(1:ifull,k)*eeu(1:ifull,k)
   vin(1:ifull,k)=v(1:ifull,k)*eev(1:ifull,k)
 end do
-do k=kn+1,kx
+do k = kn+1,kx
   uin(1:ifull,k)=u(1:ifull,k)*eeu(1:ifull,1)
   vin(1:ifull,k)=v(1:ifull,k)*eev(1:ifull,1)
 end do
@@ -3547,159 +3537,170 @@ end if
 if (ltest) then
   
   call boundsuv(uin,vin,stag=5)
-  do k=1,kn
-    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-    do iq = 1,ifull  
-      ud(iq,k)=dtul(iq,k,1)*uin(iwwu(iq),k)+dtul(iq,k,2)*u_w(iq)+dtul(iq,k,3)*uin(iq,k)
-      vd(iq,k)=dtvl(iq,k,1)*vin(issv(iq),k)+dtvl(iq,k,2)*v_s(iq)+dtvl(iq,k,3)*vin(iq,k)
+  do k = 1,kn
+    do concurrent (iq = 1:ifull)  
+      ud(iq,k)=dtul(iq,k,1)*uin(iwwu(iq),k)+dtul(iq,k,2)*uin(iwu(iq),k)+dtul(iq,k,3)*uin(iq,k)
+      vd(iq,k)=dtvl(iq,k,1)*vin(issv(iq),k)+dtvl(iq,k,2)*vin(isv(iq),k)+dtvl(iq,k,3)*vin(iq,k)
     end do  
   end do
-  do k=kn+1,kx
-    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-    do iq = 1,ifull  
-      ud(iq,k)=dtul(iq,1,1)*uin(iwwu(iq),k)+dtul(iq,1,2)*u_w(iq)+dtul(iq,1,3)*uin(iq,k)
-      vd(iq,k)=dtvl(iq,1,1)*vin(issv(iq),k)+dtvl(iq,1,2)*v_s(iq)+dtvl(iq,1,3)*vin(iq,k)
+  do k = kn+1,kx
+    do concurrent (iq = 1:ifull)  
+      ud(iq,k)=dtul(iq,1,1)*uin(iwwu(iq),k)+dtul(iq,1,2)*uin(iwu(iq),k)+dtul(iq,1,3)*uin(iq,k)
+      vd(iq,k)=dtvl(iq,1,1)*vin(issv(iq),k)+dtvl(iq,1,2)*vin(isv(iq),k)+dtvl(iq,1,3)*vin(iq,k)
     end do  
   end do
   
   call boundsuv(ud,vd,stag=-9)
   do k=1,kn
-    call unpack_svwu(ud(:,k),vd(:,k),v_s,u_w)  
     ! Apply JLM's preconditioner
-    nud(1:ifull)=ud(1:ifull,k)-stul(1:ifull,k)*u_w(1:ifull)
-    nvd(1:ifull)=vd(1:ifull,k)-stvl(1:ifull,k)*v_s(1:ifull)
-    ud(1:ifull,k) = nud(1:ifull)
-    vd(1:ifull,k) = nvd(1:ifull)
-    ua(1:ifull,k) = nud(1:ifull)
-    va(1:ifull,k) = nvd(1:ifull)
+    ua(1:ifull,k) = ud(1:ifull,k)-stul(1:ifull,k)*ud(iwu,k)
+    va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,k)*vd(isv,k)
   end do
-  do k=kn+1,kx
-    call unpack_svwu(ud(:,k),vd(:,k),v_s,u_w)  
+  do k = kn+1,kx
     ! Apply JLM's preconditioner
-    nud(1:ifull)=ud(1:ifull,k)-stul(1:ifull,1)*u_w(1:ifull)
-    nvd(1:ifull)=vd(1:ifull,k)-stvl(1:ifull,1)*v_s(1:ifull)
-    ud(1:ifull,k) = nud(1:ifull)
-    vd(1:ifull,k) = nvd(1:ifull)
-    ua(1:ifull,k) = nud(1:ifull)
-    va(1:ifull,k) = nvd(1:ifull)
+    ua(1:ifull,k) = ud(1:ifull,k)-stul(1:ifull,1)*ud(iwu,k)
+    va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,1)*vd(isv,k)
   end do
 
-  do itn=1,itnmax        ! each loop is a double iteration
+  !!$acc data create(ud,vd,ua,va,uin,vin,wtul,wtvl,ieu,inv,iwu,isv,iwwu,issv)
+  !!$acc update device(wtul,wtvl,ieu,inv,iwu,isv,iwwu,issv)
+  !!$acc update device(ua(1:ifull,:),va(1:ifull,:))
+
+  !!$acc parallel loop collapse(2) present(ud,vd,ua,va)
+  do k = 1,kx
+    do concurrent (iq = 1:ifull)  
+      ud(iq,k) = ua(iq,k)
+      vd(iq,k) = va(iq,k)
+    end do
+  end do
+  !!$acc end parallel loop
+
+  do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
-    do k=1,kn
-      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
-      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*u_e(iq)+wtul(iq,k,2)*u_w(iq)+wtul(iq,k,3)*ua(iwwu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*v_n(iq)+wtvl(iq,k,2)*v_s(iq)+wtvl(iq,k,3)*va(issv(iq),k)
+    !!$acc update device(ua(ifull+1:ifull+iextra,:),va(ifull+1:ifull+iextra,:))
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtul,wtvl)
+    do k = 1,kn
+      do concurrent (iq = 1:ifull)  
+        uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
+        vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
       end do  
     end do
-    do k=kn+1,kx
-      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
-      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*u_e(iq)+wtul(iq,1,2)*u_w(iq)+wtul(iq,1,3)*ua(iwwu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*v_n(iq)+wtvl(iq,1,2)*v_s(iq)+wtvl(iq,1,3)*va(issv(iq),k)
+    !!$acc end parallel loop
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtul,wtvl)
+    do k = kn+1,kx
+      do concurrent (iq = 1:ifull)  
+        uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
+        vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
       end do  
     end do
+    !!$acc end parallel loop
+    !!$acc update self(uin(1:ifull,:),vin(1:ifull,:))
     call boundsuv(uin,vin,stag=3)
-    do k=1,kn
-      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
-      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*u_e(iq)+wtul(iq,k,2)*u_w(iq)+wtul(iq,k,3)*uin(iwwu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*v_n(iq)+wtvl(iq,k,2)*v_s(iq)+wtvl(iq,k,3)*vin(issv(iq),k)
+    !!$acc update device(uin(ifull+1:ifull+iextra,:),vin(ifull+1:ifull+iextra,:))
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtul,wtvl)
+    do k = 1,kn
+      do concurrent (iq = 1:ifull)  
+        ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(iwwu(iq),k)
+        va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(issv(iq),k)
       end do  
     end do
-    do k=kn+1,kx
-      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
-      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*u_e(iq)+wtul(iq,1,2)*u_w(iq)+wtul(iq,1,3)*uin(iwwu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*v_n(iq)+wtvl(iq,1,2)*v_s(iq)+wtvl(iq,1,3)*vin(issv(iq),k)
+    !!$acc end parallel loop
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtul,wtvl)
+    do k = kn+1,kx
+      do concurrent (iq = 1:ifull)  
+        ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(iwwu(iq),k)
+        va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(issv(iq),k)
       end do  
     end do
-
+    !!$acc end parallel loop
+    !!$acc update self(ua(1:ifull,:),va(1:ifull,:))
   end do                  ! itn=1,itnmax
   
+  !!$acc end data
+
 else
 
   call boundsuv(uin,vin)
-  do k=1,kn
-    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
-    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-    do iq = 1,ifull  
-      ud(iq,k)=dtur(iq,k,1)*u_e(iq)+dtur(iq,k,2)*uin(iq,k)+dtur(iq,k,3)*u_w(iq)
-      vd(iq,k)=dtvr(iq,k,1)*v_n(iq)+dtvr(iq,k,2)*vin(iq,k)+dtvr(iq,k,3)*v_s(iq)
+  do k = 1,kn
+    do concurrent (iq = 1:ifull)  
+      ud(iq,k)=dtur(iq,k,1)*uin(ieu(iq),k)+dtur(iq,k,2)*uin(iq,k)+dtur(iq,k,3)*uin(iwu(iq),k)
+      vd(iq,k)=dtvr(iq,k,1)*vin(inv(iq),k)+dtvr(iq,k,2)*vin(iq,k)+dtvr(iq,k,3)*vin(isv(iq),k)
     end do  
   end do
-  do k=kn+1,kx
-    call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
-    call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-    do iq = 1,ifull  
-      ud(iq,k)=dtur(iq,1,1)*u_e(iq)+dtur(iq,1,2)*uin(iq,k)+dtur(iq,1,3)*u_w(iq)
-      vd(iq,k)=dtvr(iq,1,1)*v_n(iq)+dtvr(iq,1,2)*vin(iq,k)+dtvr(iq,1,3)*v_s(iq)
+  do k = kn+1,kx
+    do concurrent (iq = 1:ifull)  
+      ud(iq,k)=dtur(iq,1,1)*uin(ieu(iq),k)+dtur(iq,1,2)*uin(iq,k)+dtur(iq,1,3)*uin(iwu(iq),k)
+      vd(iq,k)=dtvr(iq,1,1)*vin(inv(iq),k)+dtvr(iq,1,2)*vin(iq,k)+dtvr(iq,1,3)*vin(isv(iq),k)
     end do  
   end do
 
   call boundsuv(ud,vd,stag=-10)
-  do k=1,kn
-    call unpack_nveu(ud(:,k),vd(:,k),v_n,u_e)  
+  do k = 1,kn
     ! Apply JLM's preconditioner
-    nud(1:ifull)=ud(1:ifull,k)-stur(1:ifull,k)*u_e(1:ifull)
-    nvd(1:ifull)=vd(1:ifull,k)-stvr(1:ifull,k)*v_n(1:ifull)
-    ud(1:ifull,k) = nud(1:ifull)
-    vd(1:ifull,k) = nvd(1:ifull)
-    ua(1:ifull,k) = nud(1:ifull)
-    va(1:ifull,k) = nvd(1:ifull)
+    ua(1:ifull,k) = ud(1:ifull,k)-stur(1:ifull,k)*ud(ieu,k)
+    va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,k)*vd(inv,k)
   end do
-  do k=kn+1,kx
-    call unpack_nveu(ud(:,k),vd(:,k),v_n,u_e)  
+  do k = kn+1,kx
     ! Apply JLM's preconditioner
-    nud(1:ifull)=ud(1:ifull,k)-stur(1:ifull,1)*u_e(1:ifull)
-    nvd(1:ifull)=vd(1:ifull,k)-stvr(1:ifull,1)*v_n(1:ifull)
-    ud(1:ifull,k) = nud(1:ifull)
-    vd(1:ifull,k) = nvd(1:ifull)
-    ua(1:ifull,k) = nud(1:ifull)
-    va(1:ifull,k) = nvd(1:ifull)
+    ua(1:ifull,k) = ud(1:ifull,k)-stur(1:ifull,1)*ud(ieu,k)
+    va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,1)*vd(inv,k)
   end do
 
-  do itn=1,itnmax        ! each loop is a double iteration
+  !!$acc data create(ud,vd,ua,va,uin,vin,wtur,wtvr,ieu,inv,iwu,isv,ieeu,innv)
+  !!$acc update device(wtur,wtvr,ieu,inv,iwu,isv,ieeu,innv)
+  !!$acc update device(ua(1:ifull,:),va(1:ifull,:))
+
+  !!$acc parallel loop collapse(2) present(ud,vd,ua,va)
+  do k = 1,kx
+    do concurrent (iq = 1:ifull)  
+      ud(iq,k) = ua(iq,k)
+      vd(iq,k) = va(iq,k)
+    end do
+  end do
+  !!$acc end parallel loop
+
+  do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
-    do k=1,kn
-      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
-      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*u_e(iq)+wtur(iq,k,2)*u_w(iq)+wtur(iq,k,3)*ua(ieeu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*v_n(iq)+wtvr(iq,k,2)*v_s(iq)+wtvr(iq,k,3)*va(innv(iq),k)
+    !!$acc update device(ua(ifull+1:ifull+iextra,:),va(ifull+1:ifull+iextra,:))
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,ieeu,innv,wtur,wtvr)
+    do k = 1,kn
+      do concurrent (iq = 1:ifull)  
+        uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
+        vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
       end do  
     end do
-    do k=kn+1,kx
-      call unpack_nveu(ua(:,k),va(:,k),v_n,u_e)  
-      call unpack_svwu(ua(:,k),va(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*u_e(iq)+wtur(iq,1,2)*u_w(iq)+wtur(iq,1,3)*ua(ieeu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*v_n(iq)+wtvr(iq,1,2)*v_s(iq)+wtvr(iq,1,3)*va(innv(iq),k)
+    !!$acc end parallel loop
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,ieeu,innv,wtur,wtvr)
+    do k = kn+1,kx
+      do concurrent (iq = 1:ifull)  
+        uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
+        vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
       end do  
     end do
+    !!$acc end parallel loop
+    !!$acc update self(uin(1:ifull,:),vin(1:ifull,:))
     call boundsuv(uin,vin,stag=2)
-    do k=1,kn
-      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
-      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*u_e(iq)+wtur(iq,k,2)*u_w(iq)+wtur(iq,k,3)*uin(ieeu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*v_n(iq)+wtvr(iq,k,2)*v_s(iq)+wtvr(iq,k,3)*vin(innv(iq),k)
+    !!$acc update device(uin(ifull+1:ifull+iextra,:),vin(ifull+1:ifull+iextra,:))
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,ieeu,innv,wtur,wtvr)
+    do k = 1,kn
+      do concurrent (iq = 1:ifull)  
+        ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(ieeu(iq),k)
+        va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(innv(iq),k)
       end do  
     end do
-    do k=kn+1,kx
-      call unpack_nveu(uin(:,k),vin(:,k),v_n,u_e)  
-      call unpack_svwu(uin(:,k),vin(:,k),v_s,u_w)  
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*u_e(iq)+wtur(iq,1,2)*u_w(iq)+wtur(iq,1,3)*uin(ieeu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*v_n(iq)+wtvr(iq,1,2)*v_s(iq)+wtvr(iq,1,3)*vin(innv(iq),k)
+    !!$acc end parallel loop
+    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,ieeu,innv,wtur,wtvr)
+    do k = kn+1,kx
+      do concurrent (iq = 1:ifull)  
+        ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(ieeu(iq),k)
+        va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(innv(iq),k)
       end do  
     end do
+    !!$acc end parallel loop
+    !!$acc update self(ua(1:ifull,:),va(1:ifull,:))
   end do                  ! itn=1,itnmax
+
+  !!$acc end data
 
 end if
 
@@ -4671,23 +4672,18 @@ use vecsuv_m
 
 implicit none
 
-integer k
+integer iq, k
 real hdif
 real, dimension(ifull+iextra,wlev,3) :: duma
 real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
 real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
-real, dimension(ifull,wlev) :: base
-real, dimension(ifull,wlev) :: xfact_iwu, yfact_isv
-real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
-real, dimension(ifull) :: nu,nv,nw
-real, dimension(ifull) :: emi, emu_w, emv_s
-real, dimension(ifull) :: dep_e, dep_n
-real, dimension(ifull) :: duma_n, duma_s, duma_e, duma_w
-real, dimension(ifull) :: v_n, v_s, u_e, u_w
-real, dimension(ifull) :: t_kh_n, t_kh_e
-real, dimension(ifull) :: tx_fact, ty_fact
+real base
+real dudx,dvdx,dudy,dvdy
+real nu,nv,nw
+real, dimension(ifull) :: emi
+real tx_fact, ty_fact
 
 call START_LOG(waterdiff_begin)
 
@@ -4709,21 +4705,21 @@ hdif = dt*(ocnsmag/pi)**2
 emi = dd(1:ifull)/em(1:ifull)
 
 ! calculate diffusion following Smagorinsky
-call unpack_svwu(emu,emv,emv_s,emu_w)
 do k = 1,wlev
-  call unpack_nveu(uau(:,k),uav(:,k),v_n,u_e)  
-  call unpack_svwu(uau(:,k),uav(:,k),v_s,u_w)
-  dudx = 0.5*((u_e-uau(1:ifull,k))*emu(1:ifull)        &
-             +(uau(1:ifull,k)-u_w)*emu_w)/ds
-  dudy = 0.5*((uau(inu,k)-uau(1:ifull,k))*emv(1:ifull) &
-             +(uau(1:ifull,k)-uau(isu,k))*emv_s)/ds
-  dvdx = 0.5*((uav(iev,k)-uav(1:ifull,k))*emu(1:ifull) &
-             +(uav(1:ifull,k)-uav(iwv,k))*emu_w)/ds
-  dvdy = 0.5*((v_n-uav(1:ifull,k))*emv(1:ifull)        &
-             +(uav(1:ifull,k)-v_s)*emv_s)/ds
-  t_kh(1:ifull,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi
+  do concurrent (iq = 1:ifull)
+    dudx = 0.5*((uau(ieu(iq),k)-uau(iq,k))*emu(iq)        &
+               +(uau(iq,k)-uau(iwu(iq),k))*emu(iwu(iq)))/ds
+    dudy = 0.5*((uau(inu(iq),k)-uau(iq,k))*emv(iq)        &
+               +(uau(iq,k)-uau(isu(iq),k))*emv(isv(iq)))/ds
+    dvdx = 0.5*((uav(iev(iq),k)-uav(iq,k))*emu(iq)        &
+               +(uav(iq,k)-uav(iwv(iq),k))*emu(iwu(iq)))/ds
+    dvdy = 0.5*((uav(inv(iq),k)-uav(iq,k))*emv(iq)        &
+               +(uav(iq,k)-uav(isv(iq),k))*emv(isv(iq)))/ds
+    t_kh(iq,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi(iq)
+  end do
 end do
 call bounds(t_kh(:,1:wlev),nehalf=.true.)
+
 
 ! reduce diffusion errors where bathymetry gradients are steep
 if ( mlosigma>=0 .and. mlosigma<=3 ) then
@@ -4733,27 +4729,22 @@ if ( mlosigma>=0 .and. mlosigma<=3 ) then
   end do  
   call bounds(dep,nehalf=.true.)
   do k = 1,wlev
-    call unpack_ne(dep(:,k),dep_n,dep_e)  
-    tx_fact = 1./(1.+(abs(dep_e-dep(1:ifull,k))/ocndelphi)**nf)
-    ty_fact = 1./(1.+(abs(dep_n-dep(1:ifull,k))/ocndelphi)**nf)
-    call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
-    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*tx_fact*eeu(1:ifull,k) ! reduction factor
-    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*ty_fact*eev(1:ifull,k) ! reduction factor
+    do concurrent (iq = 1:ifull)
+      tx_fact = 1./(1.+(abs(dep(ie(iq),k)-dep(iq,k))/ocndelphi)**nf)
+      ty_fact = 1./(1.+(abs(dep(in(iq),k)-dep(iq,k))/ocndelphi)**nf)
+      xfact(iq,k) = 0.5*(t_kh(iq,k)+t_kh(ie(iq),k))*tx_fact*eeu(iq,k) ! reduction factor
+      yfact(iq,k) = 0.5*(t_kh(iq,k)+t_kh(in(iq),k))*ty_fact*eev(iq,k) ! reduction factor
+    end do
   end do
 else
   ! z* levels
   do k = 1,wlev
-    call unpack_ne(t_kh(:,k),t_kh_n,t_kh_e)
-    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_e)*eeu(1:ifull,k)
-    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh_n)*eev(1:ifull,k)
+    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(ie,k))*eeu(1:ifull,k)
+    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(in,k))*eev(1:ifull,k)
   end do
 end if
 call boundsuv(xfact,yfact,stag=-9)
 
-do k = 1,wlev
-  call unpack_svwu(xfact(:,k),yfact(:,k),yfact_isv(:,k),xfact_iwu(:,k))  
-  base(:,k) = emi + xfact(1:ifull,k) + xfact_iwu(:,k) + yfact(1:ifull,k) + yfact_isv(:,k)
-end do
 
 if ( mlodiff==0 ) then
   ! Laplacian diffusion terms (closure #1)
@@ -4764,47 +4755,34 @@ if ( mlodiff==0 ) then
   end do
   call bounds(duma(:,:,1:3))
   do k = 1,wlev
-    call unpack_nsew(duma(:,k,1),duma_n,duma_s,duma_e,duma_w)  
-    nu = ( duma(1:ifull,k,1)*emi +                      &
-           xfact(1:ifull,k)*duma_e +                    &
-           xfact_iwu(1:ifull,k)*duma_w +                &
-           yfact(1:ifull,k)*duma_n +                    &
-           yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
-    call unpack_nsew(duma(:,k,2),duma_n,duma_s,duma_e,duma_w)  
-    nv = ( duma(1:ifull,k,2)*emi +                      &
-           xfact(1:ifull,k)*duma_e +                    &
-           xfact_iwu(1:ifull,k)*duma_w +                &
-           yfact(1:ifull,k)*duma_n +                    &
-           yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
-    call unpack_nsew(duma(:,k,3),duma_n,duma_s,duma_e,duma_w)  
-    nw = ( duma(1:ifull,k,3)*emi +                      &
-           xfact(1:ifull,k)*duma_e +                    &
-           xfact_iwu(1:ifull,k)*duma_w +                &
-           yfact(1:ifull,k)*duma_n +                    &
-           yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
-    u(1:ifull,k) = ax(1:ifull)*nu + ay(1:ifull)*nv + az(1:ifull)*nw
-    v(1:ifull,k) = bx(1:ifull)*nu + by(1:ifull)*nv + bz(1:ifull)*nw
+    do concurrent (iq = 1:ifull)
+      base = emi(iq) + xfact(iq,k) + xfact(iwu(iq),k) &
+                     + yfact(iq,k) + yfact(isv(iq),k)
+      nu = ( duma(iq,k,1)*emi(iq) +                       &
+             xfact(iq,k)*duma(ie(iq),k,1) +               &
+             xfact(iwu(iq),k)*duma(iw(iq),k,1) +          &
+             yfact(iq,k)*duma(in(iq),k,1) +               &
+             yfact(isv(iq),k)*duma(is(iq),k,1) )          &
+           / base
+      nv = ( duma(iq,k,2)*emi(iq) +                       &
+             xfact(iq,k)*duma(ie(iq),k,2) +               &
+             xfact(iwu(iq),k)*duma(iw(iq),k,2) +          &
+             yfact(iq,k)*duma(in(iq),k,2) +               &
+             yfact(isv(iq),k)*duma(is(iq),k,2) )          &
+           / base
+      nw = ( duma(iq,k,3)*emi(iq) +                       &
+             xfact(iq,k)*duma(ie(iq),k,3) +               &
+             xfact(iwu(iq),k)*duma(iw(iq),k,3) +          &
+             yfact(iq,k)*duma(in(iq),k,3) +               &
+             yfact(isv(iq),k)*duma(is(iq),k,3) )          &
+           / base
+      u(iq,k) = ax(iq)*nu + ay(iq)*nv + az(iq)*nw
+      v(iq,k) = bx(iq)*nu + by(iq)*nv + bz(iq)*nw
+    end do
   end do
 
-!  Laplacian diffusion and viscosity terms (closure #2)
-!  duma(1:ifull,:,1)=u(1:ifull,:)
-!  duma(1:ifull,:,2)=v(1:ifull,:)
-!  call boundsuv(duma(:,:,1),duma(:,:,2),allvec=.true.)
-!  do k=1,wlev
-!    u(:,k)=(duma(1:ifull,k,1)*emi+2.*xfact(1:ifull,k)*duma(ieu,k,1)+2.*xfact(iwu,k)*duma(iwu,k,1) &
-!      +yfact(1:ifull,k)*duma(inu,k,1)+yfact(isv,k)*duma(isu,k,1)                                     &
-!      +(yfact(1:ifull,k)-yfact(isv,k))*0.5*(duma(iev,k,2)-duma(iwv,k,2))                             &
-!      +t_kh(1:ifull,k)*0.5*(duma(inv,k,2)+duma(iev,k,2)-duma(isv,k,2)-duma(iwv,k,2)))                &
-!      /base(:,k)
-!    v(:,k)=(duma(1:ifull,k,2)*emi+2.*yfact(1:ifull,k)*duma(inv,k,2)+2.*yfact(isv,k)*duma(isv,k,2) &
-!      +xfact(1:ifull,k)*duma(iev,k,2)+xfact(iwu,k)*duma(iwv,k,2)                                     &
-!      +(xfact(1:ifull,k)-xfact(iwu,k))*0.5*(duma(inu,k,1)-duma(isu,k,1))                             &
-!      +t_kh(1:ifull,k)*0.5*(duma(inu,k,1)+duma(ieu,k,1)-duma(isu,k,1)-duma(iwu,k,1)))                &
-!      /base(:,k)
-!  end do
-
 else if ( mlodiff==1 ) then
-  ! no need to call mloimport3d for u and v
+  ! no diffusion applied to momentum
 else
   write(6,*) "ERROR: Unknown option for mlodiff = ",mlodiff
   call ccmpi_abort(-1)
@@ -4814,26 +4792,28 @@ end if
 duma(1:ifull,:,1) = tt(1:ifull,:)
 duma(1:ifull,:,2) = ss(1:ifull,:) - 34.72
 call bounds(duma(:,:,1:2))
-
+!$acc parallel loop collapse(2) copyin(emi,xfact,yfact,iwu,isv,ie,iw,in,is,duma(:,:,1:2)) copyout(tt,ss)
 do k = 1,wlev
-  call unpack_nsew(duma(:,k,1),duma_n,duma_s,duma_e,duma_w)  
-  tt(:,k) = ( duma(1:ifull,k,1)*emi +                      &
-              xfact(1:ifull,k)*duma_e +                    &
-              xfact_iwu(1:ifull,k)*duma_w +                &
-              yfact(1:ifull,k)*duma_n +                    &
-              yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
+  do concurrent (iq = 1:ifull)
+    base = emi(iq) + xfact(iq,k) + xfact(iwu(iq),k) &
+                   + yfact(iq,k) + yfact(isv(iq),k)
+    tt(iq,k) = ( duma(iq,k,1)*emi(iq) +               &
+                 xfact(iq,k)*duma(ie(iq),k,1) +       &
+                 xfact(iwu(iq),k)*duma(iw(iq),k,1) +  &
+                 yfact(iq,k)*duma(in(iq),k,1) +       &
+                 yfact(isv(iq),k)*duma(is(iq),k,1) )  &
+               / base
+    tt(iq,k) = max(tt(iq,k), -wrtemp)
+    ss(iq,k) = ( duma(iq,k,2)*emi(iq) +               &
+                 xfact(iq,k)*duma(ie(iq),k,2) +       &
+                 xfact(iwu(iq),k)*duma(iw(iq),k,2) +  &
+                 yfact(iq,k)*duma(in(iq),k,2) +       &
+                 yfact(isv(iq),k)*duma(is(iq),k,2) )  &
+               / base
+    ss(iq,k) = max(ss(iq,k)+34.72, 0.)
+  end do
 end do
-tt = max(tt, -wrtemp)
-
-do k = 1,wlev
-  call unpack_nsew(duma(:,k,2),duma_n,duma_s,duma_e,duma_w)    
-  ss(:,k) = ( duma(1:ifull,k,2)*emi +                      &
-              xfact(1:ifull,k)*duma_e +                    &
-              xfact_iwu(1:ifull,k)*duma_w +                &
-              yfact(1:ifull,k)*duma_n +                    &
-              yfact_isv(1:ifull,k)*duma_s ) / base(:,k)
-end do
-ss = max(ss+34.72, 0.)
+!$acc end parallel loop
 
 call END_LOG(waterdiff_end)
 

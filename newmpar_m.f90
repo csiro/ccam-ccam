@@ -53,6 +53,7 @@ integer, save :: il, jl                 ! Local processor grid size
 integer, save :: npan                   ! Number of panels for processor
 integer, save :: ifull                  ! Number of grid points for processor
 integer, save :: iextra                 ! Size of halo for processor
+!$acc declare create(ifull,iextra)
 
 integer, parameter :: mxst = 13   ! max_no_of_soil_types
 integer, parameter :: mxvt = 17   ! max_no_of_vegetation_types

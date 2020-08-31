@@ -468,10 +468,10 @@ do iq_tile = 1,ifull,imax
     end if
 
     ! Prepare SEA-ESF arrays ----------------------------------------
-    dumtss = min( max( tss(istart:iend), 100.), 370.)
+    dumtss = min( max( tss(istart:iend), 100.), 365.)
     do k = 1,kl
       kr = kl + 1 - k
-      dumt(:,k) = min( max( t(istart:iend,k), 100.), 370.)
+      dumt(:,k) = min( max( t(istart:iend,k), 100.), 365.)
       p2(:,k) = ps(istart:iend)*sig(k)
       Atmos_input(mythread)%deltaz(:,1,kr)  = real(dz(:,k), 8)
       Atmos_input(mythread)%rh2o(:,1,kr)    = max(real(qg(istart:iend,k), 8), 2.E-7_8)
@@ -798,7 +798,6 @@ do iq_tile = 1,ifull,imax
         end where   
       end do
       sgsave(istart:iend) = sgn   ! Net solar radiation (after solar fit)
-      slwa(istart:iend) = -sgsave(istart:iend) + rgsave(istart:iend)
       if ( ktau>0 ) then
         if ( istart==1 ) koundiag = koundiag + 1  
         cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
@@ -853,6 +852,7 @@ do iq_tile = 1,ifull,imax
     ! Save things for non-radiation time steps ----------------------
     ! Save the value excluding Ts^4 part.  This is allowed to change.
     rgsave(istart:iend) = rgn(istart:iend) - stefbo*tss(istart:iend)**4
+    slwa(istart:iend) = -sgsave(istart:iend) + rgsave(istart:iend)
    
   end if  ! odcalc
 

@@ -951,11 +951,15 @@ CONTAINS
     REAL :: wb_lake_T, rnof2_T, ratio
     INTEGER :: k,j
 
+#ifdef CCAM
+    nglacier = 0
+#else
     IF( cable_runtime%UM ) THEN
        nglacier = 0
     ELSE
        nglacier = 2
     ENDIF
+#endif
 
     CALL smoisturev( dels, ssnow, soil, veg )
 

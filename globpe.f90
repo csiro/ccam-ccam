@@ -2579,8 +2579,6 @@ lapsbot = nint(temparray(6))
 isoth   = nint(temparray(7))
 nsig    = nint(temparray(8))
 
-!$acc update device(kl)
-      
 !--------------------------------------------------------------
 ! DEFINE newmpar VARIABLES AND DEFAULTS
 ! CCAM supports face and uniform grid decomposition over processes
@@ -2621,7 +2619,7 @@ iquad   = 1 + il_g*((8*npanels)/(npanels+4))  ! grid size for interpolation
 il      = il_g/nxp                            ! local grid size on process in X direction
 jl      = jl_g/nyp                            ! local grid size on process in Y direction
 ifull   = il*jl                               ! total number of local horizontal grid points
-!$acc update device(ifull_g,ifull)
+!$acc update device(ifull_g,ifull,iextra,kl)
 ! The perimeter of the processor region has length 2*(il+jl).
 ! The first row has 8 possible corner points per panel and the 
 ! second has 16. In practice these are not all distinct so there could
@@ -3042,7 +3040,7 @@ if ( nvmix==6 ) then
   call tkeinit(ifull,iextra,kl)
 end if
 call init_tracer
-!$acc update device(ngas)
+!$acc update device(ngas,ntrac)
 call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
 if ( nbd/=0 .or. mbd/=0 ) then
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
