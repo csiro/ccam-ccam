@@ -421,6 +421,7 @@ module cc_mpi
    integer, public, save :: allreducepn_begin, allreducepn_end   
    integer, public, save :: precon_begin, precon_end
    integer, public, save :: waterdynamics_begin, waterdynamics_end
+   integer, public, save :: waterunpack_begin, waterunpack_end
    integer, public, save :: watermfix_begin, watermfix_end
    integer, public, save :: waterdeps_begin, waterdeps_end
    integer, public, save :: watereos_begin, watereos_end
@@ -429,6 +430,7 @@ module cc_mpi
    integer, public, save :: waterhelm_begin, waterhelm_end
    integer, public, save :: wateriadv_begin, wateriadv_end
    integer, public, save :: waterdiff_begin, waterdiff_end
+   integer, public, save :: waterpack_begin, waterpack_end
    integer, public, save :: river_begin, river_end
    integer, public, save :: bcast_begin, bcast_end
    integer, public, save :: alltoall_begin, alltoall_end
@@ -454,7 +456,13 @@ module cc_mpi
    integer, public, save :: mgup_begin, mgup_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
    integer, public, save :: mgdown_begin, mgdown_end
-   integer, parameter :: nevents = 78
+   integer, public, save :: p1_begin, p1_end
+   integer, public, save :: p2_begin, p2_end
+   integer, public, save :: p3_begin, p3_end
+   integer, public, save :: p4_begin, p4_end
+   integer, public, save :: p5_begin, p5_end
+   integer, public, save :: p6_begin, p6_end
+   integer, parameter :: nevents = 86
 #ifdef simple_timer
    public :: simple_timer_finalize
    !real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -6787,6 +6795,7 @@ contains
       call add_event(stag_begin,          stag_end,          "Adv_Stag")
       call add_event(waterdynamics_begin, waterdynamics_end, "Waterdynamics")
       call add_event(waterdiff_begin,     waterdiff_end,     "Whordifg")
+      call add_event(waterunpack_begin,   waterunpack_end,   "Water_Unpack")
       call add_event(watereos_begin,      watereos_end,      "Water_EOS")
       call add_event(waterhelm_begin,     waterhelm_end,     "Water_Helm")
       call add_event(watervadv_begin,     watervadv_end,     "Water_Vadv")
@@ -6795,6 +6804,7 @@ contains
       call add_event(wateriadv_begin,     wateriadv_end,     "Water_Iadv")
       call add_event(watermfix_begin,     watermfix_end,     "Water_Mfix")
       call add_event(ocnstag_begin,       ocnstag_end,       "Water_Stag")
+      call add_event(waterpack_begin,     waterpack_end,     "Water_Pack")
       call add_event(river_begin,         river_end,         "River")
       call add_event(outfile_begin,       outfile_end,       "Outfile")
       call add_event(onthefly_begin,      onthefly_end,      "Onthefly")
@@ -6849,6 +6859,12 @@ contains
       call add_event(mpiwaitmg_begin,     mpiwaitmg_end,     "MPI_WaitMG")
       call add_event(mpiwaitfile_begin,   mpiwaitfile_end,   "MPI_WaitFILE")
       call add_event(mpiwaitmapfile_begin,mpiwaitmapfile_end,"MPI_WaitMAPFILE")
+      call add_event(p1_begin,            p1_end,            "Probe1")
+      call add_event(p2_begin,            p2_end,            "Probe2")
+      call add_event(p3_begin,            p3_end,            "Probe3")
+      call add_event(p4_begin,            p4_end,            "Probe4")
+      call add_event(p5_begin,            p5_end,            "Probe5")
+      call add_event(p6_begin,            p6_end,            "Probe6")
       
    end subroutine log_setup
 
@@ -10242,9 +10258,9 @@ contains
          ! Unpack incomming messages
          rcount = rreq
          do while ( rcount > 0 )
-            call START_LOG(mpiwaitmap_begin) 
+            call START_LOG(mpiwaitmapfile_begin) 
             call MPI_Waitsome( rreq, i_req, ldone, donelist, status, ierr )
-            call END_LOG(mpiwaitmap_end)
+            call END_LOG(mpiwaitmapfile_end)
             rcount = rcount - ldone
             do jproc = 1,ldone
                w = i_list(donelist(jproc))

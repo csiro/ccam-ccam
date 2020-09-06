@@ -61,6 +61,7 @@ use kuocomb_m                              ! JLM convection
 use leoncld_mod, only : leoncld            ! Prognostic cloud condensate
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
+use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
@@ -477,7 +478,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! nmlo=2   nmlo=1 plus river-routing and horiontal diffusion
   ! nmlo=3   nmlo=2 plus 3D dynamics
   ! nmlo>9   Use external PCOM ocean model
-  
+
   if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
     ! DYNAMICS & DIFFUSION ------------------------------------------------
     call START_LOG(waterdynamics_begin)
@@ -489,8 +490,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call mlodiffusion
     call END_LOG(waterdynamics_end)
   end if
-      
-      
+    
 #ifdef csircoupled
   ! ***********************************************************************
   ! VCOM ADVECTION
@@ -1333,6 +1333,7 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,nopb,fixedstabfunc,omink => mink    &
     ,omineps => mineps,mlovlevels        &
     ,usepice
+use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
@@ -2982,6 +2983,14 @@ if ( myid==0 ) then
 end if
 call ccmpi_setup(id,jd,idjd,dt)
 
+!$acc update device(in,is,ie,iw)
+!$acc update device(iws,ies,iwn,ien,isw,inw,ise,ine)
+!$acc update device(inn,iss,iee,iww)
+!$acc update device(inv,isv,ieu,iwu)
+!$acc update device(innv,ieeu,issv,iwwu)
+!$acc update device(inu,isu,iev,iwv)
+!$acc update device(lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww)
+!$acc update device(lssw,lsee,lsse,lnww,lnnw,lnee,lnne)
       
 !--------------------------------------------------------------
 ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE

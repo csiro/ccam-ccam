@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -30,12 +30,11 @@ public vadvtvd
       
 contains
 
-subroutine vadvtvd(tarr,uarr,varr,nvadh_pass,nits,tile)
+subroutine vadvtvd(tarr,uarr,varr,nvadh_pass,nits)
 
 use aerosolldr
 use arrays_m
 use cc_mpi
-use cc_omp
 use cfrac_m, only : stratcloud
 use diag_m
 use liqwpar_m  ! ifullw
@@ -47,13 +46,13 @@ use parmdyn_m
 use sigs_m
 use tkeeps, only : tke,eps
 use tracers_m
+use vvel_m
 use xarrs_m
 
 implicit none
 
 include 'kuocom.h'     ! also with kbsav,ktsav
 
-integer, intent(in) :: tile
 integer ntr,k
 integer, dimension(ifull) :: nvadh_pass, nits
 integer, save :: num = 0
@@ -63,55 +62,56 @@ call START_LOG(vadv_begin)
 
 if ( num==0 ) then
   num = 1
-  if ( mydiag .and. ntiles==1 ) then
+  if ( mydiag ) then
     write(6,*) 'In vadvtvd nvadh_pass ',nvadh_pass(idjd)
   end if
 end if
 
+
+!$acc data create(sdot,nvadh_pass,nits,rathb,ratha)
+!$acc update device(sdot,nvadh_pass,nits,rathb,ratha)
+
+
 !     t
-call vadv_work(tarr,nvadh_pass,nits,tile)
-if( (diag.or.nmaxpr==1) .and. mydiag .and. ntiles==1 )then
+call vadv_work(tarr,nvadh_pass,nits,1)
+
+!     u
+call vadv_work(uarr,nvadh_pass,nits,2)
+
+!     v
+call vadv_work(varr,nvadh_pass,nits,3)
+if( diag .and. mydiag )then
 !       These diagnostics don't work with single input/output argument
   write (6,"('tout',9f8.2/4x,9f8.2)") (tarr(idjd,k),k=1,kl)
   write (6,"('t#  ',9f8.2)") diagvals(tarr(:,nlv)) 
-endif
-
-!     u
-call vadv_work(uarr,nvadh_pass,nits,tile)
-if( diag .and. mydiag .and. ntiles==1 )then
   write (6,"('uout',9f8.2/4x,9f8.2)") (uarr(idjd,k),k=1,kl)
   write (6,"('u#  ',9f8.2)") diagvals(uarr(:,nlv)) 
-endif
-
-!     v
-call vadv_work(varr,nvadh_pass,nits,tile)
-if( diag .and. mydiag .and. ntiles==1 )then
   write (6,"('vout',9f8.2/4x,9f8.2)") (varr(idjd,k),k=1,kl)
   write (6,"('v#  ',9f8.2)") diagvals(varr(:,nlv)) 
 endif
 
 !     h_nh
 if ( nh/=0 ) then
-  call vadv_work(h_nh,nvadh_pass,nits,tile)
+  call vadv_work(h_nh,nvadh_pass,nits,4)
 end if
 
 !     pslx
-call vadv_work(pslx,nvadh_pass,nits,tile)
+call vadv_work(pslx,nvadh_pass,nits,1)
 
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
 
   !      qg
-  call vadv_work(qg,nvadh_pass,nits,tile)
+  call vadv_work(qg,nvadh_pass,nits,1)
   if ( diag .and. mydiag ) then
     write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
     write (6,"('qg# ',9f8.2)") diagvals(qg(:,nlv)) 
   end if
 
   if ( ldr/=0 ) then
-    call vadv_work(qlg,nvadh_pass,nits,tile)
-    call vadv_work(qfg,nvadh_pass,nits,tile)
-    call vadv_work(stratcloud,nvadh_pass,nits,tile)
-    if ( diag .and. mydiag .and. ntiles==1 ) then
+    call vadv_work(qlg,nvadh_pass,nits,2)
+    call vadv_work(qfg,nvadh_pass,nits,3)
+    call vadv_work(stratcloud,nvadh_pass,nits,4)
+    if ( diag .and. mydiag ) then
       write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
       write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
       write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
@@ -120,23 +120,26 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   end if      ! if(ldr.ne.0)
 
   if ( nvmix==6 ) then
-    call vadv_work(eps,nvadh_pass,nits,tile)
-    call vadv_work(tke,nvadh_pass,nits,tile)
+    call vadv_work(eps,nvadh_pass,nits,1)
+    call vadv_work(tke,nvadh_pass,nits,2)
   end if      ! if(nvmix.eq.6)
 
   if ( abs(iaero)>=2 ) then
     do ntr = 1,naero
-      call vadv_work(xtg(:,:,ntr),nvadh_pass,nits,tile)
+      call vadv_work(xtg(:,:,ntr),nvadh_pass,nits,mod(ntr,4)+1)
     end do
   end if   ! abs(iaero)>=2
 
   if ( ngas>0 .or. nextout>=4 ) then
     do ntr = 1,ntrac
-      call vadv_work(tr(:,:,ntr),nvadh_pass,nits,tile)
-    end do      ! ntr loop
+      call vadv_work(tr(:,:,ntr),nvadh_pass,nits,mod(ntr,4)+1)
+    end do
   end if        ! (nextout>=4)
  
 end if          ! if(mspec==1)
+
+!$acc wait
+!$acc end data
 
 call END_LOG(vadv_end)
  
@@ -144,87 +147,97 @@ return
 end subroutine vadvtvd
       
 ! Subroutine to perform generic TVD advection
-subroutine vadv_work(tarr,nvadh_pass,nits,tile)
+subroutine vadv_work(tarr,nvadh_pass,nits,asyncbuf)
 
-use cc_mpi
-use cc_omp
 use newmpar_m
 use sigs_m
 use vvel_m
       
 implicit none
       
-integer, intent(in) :: tile
+integer, intent(in) :: asyncbuf
 integer, dimension(ifull), intent(in) :: nits, nvadh_pass
-integer i, k, iq, iqq, kp, kx, js, je
-real, dimension(imax) :: tfact
+integer i, k, iq, kp, kx
 real, dimension(:,:), intent(inout) :: tarr
-real :: rat, phitvd, fluxhi, fluxlo
-real, dimension(imax,0:kl) :: delt, fluxh
-
-js = (tile-1)*imax + 1
-je = tile*imax
-
-tfact = 1./real(nvadh_pass(js:je))
+real rat, phitvd, fluxhi, fluxlo
+real, dimension(ifull,0:kl) :: delt, fluxh
 
 ! The first sub-step is vectorised for all points - MJT
 
+!$acc enter data create(tarr,delt,fluxh) async(asyncbuf)
+!$acc update device(tarr) async(asyncbuf)
+
 !     fluxh(k) is located at level k+.5
-fluxh(1:imax,0)  = 0.
-fluxh(1:imax,kl) = 0.
-
-do k = 1,kl-1
-  delt(1:imax,k) = tarr(js:je,k+1) - tarr(js:je,k)
+!$acc parallel loop collapse(2) present(delt,tarr) async(asyncbuf)
+do concurrent (k = 1:kl-1)
+  do concurrent (iq = 1:ifull)
+    delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
+  end do
 end do  
-delt(1:imax,kl)     = 0.     ! for T,u,v
-delt(1:imax,0)      = min(delt(1:imax,1), tarr(js:je,1))       ! for non-negative tt
+!$acc end parallel loop
+!$acc parallel loop present(fluxh,delt,tarr) async(asyncbuf)
+do concurrent (iq = 1:ifull)
+  fluxh(iq,0)  = 0.
+  fluxh(iq,kl) = 0.
+  delt(iq,kl)  = 0.     ! for T,u,v
+  delt(iq,0)   = 0.
+  !!delt(iq,0)   = min(delt(iq,1), tarr(iq,1))       ! for non-negative tt
+end do
+!$acc end parallel loop
 
-do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-  do iq = 1,imax      
-    iqq = iq+js-1
-    if ( sdot(iqq,k+1)>0. ) then
-      rat = delt(iq,k-1)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-      fluxlo = tarr(iqq,k)
-    else
-      rat = delt(iq,k+1)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-      fluxlo = tarr(iqq,k+1)
-    end if
+!$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,fluxh,nvadh_pass) async(asyncbuf)
+do concurrent (k = 1:kl-1)  ! for fluxh at interior (k + 1/2)  half-levels
+  do concurrent (iq = 1:ifull)      
+    kp = nint(sign(1.,sdot(iq,k+1)))
+    kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+    rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+    fluxlo = tarr(iq,kx)
     phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
     ! higher order scheme
-    fluxhi = rathb(k)*tarr(iqq,k) + ratha(k)*tarr(iqq,k+1) - .5*delt(iq,k)*tfact(iq)*sdot(iqq,k+1)
-    fluxh(iq,k) = sdot(iqq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+    fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
+    fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
   enddo
 enddo      ! k loop
-do k = 1,kl
-  tarr(js:je,k) = tarr(js:je,k) + tfact(1:imax)*(fluxh(1:imax,k-1)-fluxh(1:imax,k)+tarr(js:je,k)*(sdot(js:je,k+1)-sdot(js:je,k)))
+!$acc end parallel loop
+!$acc parallel loop collapse(2) present(tarr,nvadh_pass,fluxh,sdot) async(asyncbuf)
+do concurrent (k = 1:kl)
+  do concurrent (iq = 1:ifull)
+    tarr(iq,k) = tarr(iq,k) + (fluxh(iq,k-1)-fluxh(iq,k) &
+                             +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
+  end do
 end do
+!$acc end parallel loop
 
-! Subsequent substeps if needed.  This is fairly rare so we perform this calculation point-by-point - MJT
-do iq = 1,imax      
-  do i = 2,nits(iq+js-1)
+!$acc parallel loop  present(tarr,sdot,nvadh_pass,nits,fluxh,delt,ratha,rathb) async(asyncbuf)
+do concurrent (iq = 1:ifull) 
+  do i = 2,nits(iq)
     do k = 1,kl-1
-      delt(iq,k) = tarr(iq+js-1,k+1) - tarr(iq+js-1,k)
-    end do     ! k loop
-    delt(iq,kl) = 0.
-    delt(iq,0) = min(delt(iq,1), tarr(iq+js-1,1))       ! for non-negative tt
+      delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
+    end do     ! k loop    
+    !!delt(iq,0) = min(delt(iq,1), tarr(iq,1))       ! for non-negative tt
     do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-      kp = nint(sign(1.,sdot(iq+js-1,k+1)))
+      kp = nint(sign(1.,sdot(iq,k+1)))
       kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
       rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-      fluxlo = tarr(iq+js-1,kx)
+      fluxlo = tarr(iq,kx)
       phitvd = max(0., min(2.*rat, .5+.5*rat, 2.))   ! 0 for -ve rat
       ! higher order scheme
-      fluxhi = rathb(k)*tarr(iq+js-1,k) + ratha(k)*tarr(iq+js-1,k+1) - .5*delt(iq,k)*tfact(iq)*sdot(iq+js-1,k+1)
-      fluxh(iq,k) = sdot(iq+js-1,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+      fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
+      fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
     end do ! k
     do k = 1,kl
-      tarr(iq+js-1,k) = tarr(iq+js-1,k) &
-          + tfact(iq)*(fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq+js-1,k)*(sdot(iq+js-1,k+1)-sdot(iq+js-1,k)))
+      tarr(iq,k) = tarr(iq,k) &
+          + (fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
     end do
   end do   ! i
 end do     ! iq
+!$acc end parallel loop
+
+!$acc update self(tarr) async(asyncbuf)
+
+!$acc exit data delete(tarr,delt,fluxh) async(asyncbuf)
 
 return
 end subroutine vadv_work
-      
+
 end module vadv

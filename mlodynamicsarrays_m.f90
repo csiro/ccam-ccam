@@ -24,10 +24,20 @@ module mlodynamicsarrays_m
 implicit none
 
 private
+public ee, eeu, eev
+public dd, ddu, ddv
+public stwgt
+public gosig, gosigh, godsig
+public godsigu, godsigv, gosighu, gosighv
 public w_ocn, oldu1, oldu2, oldv1, oldv2
 public ipice
 public mlodynamicsarrays_init, mlodynamicsarrays_end
 
+real, dimension(:,:), allocatable, save :: ee, eeu, eev
+real, dimension(:), allocatable, save :: dd, ddu, ddv
+real, dimension(:,:), allocatable, save :: stwgt
+real, dimension(:,:), allocatable, save :: gosig, gosigh, godsig
+real, dimension(:,:), allocatable, save :: godsigu, godsigv, gosighu, gosighv
 real, dimension(:,:), allocatable, save :: w_ocn
 real, dimension(:,:), allocatable, save :: oldu1, oldu2, oldv1, oldv2
 real, dimension(:), allocatable, save :: ipice

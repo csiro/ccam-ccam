@@ -91,8 +91,12 @@
 /map_m.f90 -text
 /microphys_rad.f90 -text
 /mlo.f90 -text
+/mlodepts.f90 -text
+/mlodiffg.f90 -text
 /mlodynamics.f90 -text
 /mlodynamicsarrays_m.f90 -text
+/mloints.f90 -text
+/mlostag.f90 -text
 /morepbl_m.f90 -text
 /mpif_m.f90 -text
 /nesting.f90 -text

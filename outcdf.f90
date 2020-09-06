@@ -171,6 +171,7 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,factchseaice,otaumode               &
     ,alphavis_seaice,alphanir_seaice     &
     ,mlosigma,oclosure,usepice
+use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
@@ -922,6 +923,7 @@ use mlo, only : wlev,mlosave,mlodiag,       &    ! Ocean physics and prognostic 
                 oclosure,mlovlevels
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
+use mlostag                                      ! Ocean dynamics staggering
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use newmpar_m                                    ! Grid parameters
 use nharrs_m                                     ! Non-hydrostatic atmosphere arrays

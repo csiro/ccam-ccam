@@ -178,23 +178,23 @@ select case(nvmix)
 !$omp private(lstratcloud,lxtg,lu,lv,ltke,leps,lshear), &
 !$omp private(lat,lct,lsavu,lsavv,idjd_t,mydiag_t)
 #ifdef scm
-!!$acc parallel loop copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
+!!$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
 !!$acc   pblh,ustar)                                          &
 !!$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv)           &
 !!$acc copyout(at_save,ct_save,wth_flux,wq_flux,uw_flux,      &
 !!$acc   vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave,      &
 !!$acc   buoyproduction,shearproduction,totaltransport)       &
-!!$acc private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,             &
+!!$acc loop gang private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,   &
 !!$acc   ltke,leps,lshear,lat,lct,lu,lv,lwth_flux,lwq_flux,   &
 !!$acc   luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,         &
 !!$acc   lrkmsave,lrkhsave,lbuoyproduction,lshearproduction,  &
 !!$acc   ltotaltransport)
 #else
-!!$acc parallel loop copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
+!!$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
 !!$acc   pblh,ustar)                                          &
 !!$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv)           &
 !!$acc copyout(at_save,ct_save)                               &
-!!$acc private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,             &
+!!$acc loop gang private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,   &
 !!$acc   ltke,leps,lshear,lat,lct,lu,lv)
 #endif
     do tile = 1,ntiles
@@ -1737,8 +1737,7 @@ integer k, iq
 real, dimension(imax,kl), intent(in) :: a, c
 real, dimension(imax,kl), intent(inout) :: rhs
 real, dimension(imax,kl) :: e, g
-real, dimension(imax) :: b
-real :: temp
+real temp, b
 
 ! this routine solves the system
 !   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
@@ -1746,25 +1745,29 @@ real :: temp
 !   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
 
 ! the Thomas algorithm is used
-do iq = 1,imax
-  b(iq)=1.-a(iq,1)-c(iq,1)
-  e(iq,1)=c(iq,1)/b(iq)
-  g(iq,1)=rhs(iq,1)/b(iq)
+do concurrent (iq = 1:imax)
+  b=1.-a(iq,1)-c(iq,1)
+  e(iq,1)=c(iq,1)/b
+  g(iq,1)=rhs(iq,1)/b
 end do
 do k = 2,kl-1
-  do iq = 1,imax
-    b(iq)=1.-a(iq,k)-c(iq,k)
-    temp= 1./(b(iq)-a(iq,k)*e(iq,k-1))
+  do concurrent (iq = 1:imax)
+    b=1.-a(iq,k)-c(iq,k)
+    temp= 1./(b-a(iq,k)*e(iq,k-1))
     e(iq,k)=c(iq,k)*temp
     g(iq,k)=(rhs(iq,k)-a(iq,k)*g(iq,k-1))*temp
   end do
 end do
 
 ! do back substitution to give answer now
-b(:)=1.-a(:,kl)-c(:,kl)
-rhs(:,kl)=(rhs(:,kl)-a(:,kl)*g(:,kl-1))/(b(:)-a(:,kl)*e(:,kl-1))
+do concurrent (iq = 1:imax)
+  b=1.-a(iq,kl)-c(iq,kl)
+  rhs(iq,kl)=(rhs(iq,kl)-a(iq,kl)*g(iq,kl-1))/(b-a(iq,kl)*e(iq,kl-1))
+end do
 do k = kl-1,1,-1
-  rhs(:,k)=g(:,k)-e(:,k)*rhs(:,k+1)
+  do concurrent (iq = 1:imax)
+    rhs(iq,k) = g(iq,k)-e(iq,k)*rhs(iq,k+1)
+  end do
 end do
 
 return
@@ -1788,7 +1791,7 @@ use tkeeps, only : tkemix        ! TKE-EPS boundary layer
 implicit none
 
 integer, intent(in) :: imax, kl, naero
-integer k, nt
+integer k, nt, iq
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
@@ -1796,13 +1799,13 @@ real, dimension(imax,kl), intent(inout) :: tke, eps
 real, dimension(imax,kl), intent(out) :: at, ct
 real, dimension(imax,kl), intent(in) :: shear
 real, dimension(imax,kl) :: zh
-real, dimension(imax,kl) :: rhs, gt, zg
-real, dimension(imax,kl) :: rkm, rkh
-real, dimension(imax,kl-1) :: tmnht
+real, dimension(imax,kl) :: rhs, zg
+real, dimension(imax,kl) :: rkm
+real tmnht
 real, dimension(imax), intent(inout) :: pblh, ustar
 real, dimension(imax), intent(in) :: em, tss, eg, fg, ps
 real, dimension(imax), intent(in) :: cduv
-real, dimension(imax) :: dz
+real dz, gt
 real, dimension(imax) :: rhos, dx
 real, dimension(kl) :: sigkap, delh
 real rong, rlogs1, rlogs2, rlogh1, rlog12
@@ -1825,17 +1828,6 @@ do k = 1,kl
   delh(k)   = -rong*dsig(k)/sig(k)  ! sign of delh defined so always +ve
   sigkap(k) = sig(k)**(-rdry/cp)
 end do      ! k loop
-
-! Calculate half level heights and temperatures
-rlogs1=log(sig(1))
-rlogs2=log(sig(2))
-rlogh1=log(sigmh(2))
-rlog12=1./(rlogs1-rlogs2)
-tmnht(:,1)=(t(:,2)*rlogs1-t(:,1)*rlogs2+(t(:,1)-t(:,2))*rlogh1)*rlog12
-! n.b. an approximate zh (in m) is quite adequate for this routine
-do k = 2,kl-1
-  tmnht(:,k) = ratha(k)*t(:,k+1) + rathb(k)*t(:,k)
-end do      !  k loop
       
 ! note ksc/=0 options are clobbered when nvmix=6
 ! However, nvmix=6 with nlocal=7 supports its own shallow
@@ -1884,7 +1876,6 @@ select case(nlocal)
     
 end select
 do k = 1,kl
-  rkh(:,k) = rkm(:,k)
   ! save Km and Kh for output
   rkmsave(:,k) = rkm(:,k)
   rkhsave(:,k) = rkh(:,k)
@@ -1901,33 +1892,37 @@ select case(nlocal)
     call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
                 ustar,dt,qgmin,0,tke,eps,shear,dx,imax,kl)     
 end select
-do k = 1,kl  
-  rkh(:,k) = rkm(:,k)
-end do
 #endif
 
 ! replace counter gradient term
 do k = 1,kl
-  rkh(:,k) = rkh(:,k)*cqmix
   rkm(:,k) = rkm(:,k)*cqmix
 end do
 
-! transform winds back to Earth reference frame and theta to temp
-do k = 1,kl
-  t(:,k) = rhs(:,k)/sigkap(k)
-enddo    !  k loop
-
 ! tracers
-do k = 1,kl-1
-  dz(:) = -tmnht(:,k)*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-  gt(:,k) = rkh(:,k)*dt*(sig(k+1)-sig(k))/(dz**2)
-end do      ! k loop
-gt(:,kl) = 0.
 at(:,1) = 0.
 ct(:,kl) = 0.
-do k = 1,kl-1
-  at(:,k+1) =-gt(:,k)/dsig(k+1)  
-  ct(:,k) = -gt(:,k)/dsig(k)
+rlogs1=log(sig(1))
+rlogs2=log(sig(2))
+rlogh1=log(sigmh(2))
+rlog12=1./(rlogs1-rlogs2)
+do concurrent (iq = 1:imax)
+  tmnht=(t(iq,2)*rlogs1-t(iq,1)*rlogs2+(t(iq,1)-t(iq,2))*rlogh1)*rlog12  
+  dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
+  gt = rkm(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
+  at(iq,2) =-gt/dsig(2)  
+  ct(iq,1) = -gt/dsig(1)
+end do
+do concurrent (k = 2:kl-1)
+  do concurrent (iq = 1:imax)
+    ! Calculate half level heights and temperatures
+    ! n.b. an approximate zh (in m) is quite adequate for this routine
+    tmnht = ratha(k)*t(iq,k+1) + rathb(k)*t(iq,k)
+    dz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+    gt = rkm(iq,k)*dt*(sig(k+1)-sig(k))/(dz**2)
+    at(iq,k+1) =-gt/dsig(k+1)  
+    ct(iq,k) = -gt/dsig(k)
+  end do
 end do
   
 ! Aerosols
@@ -1936,6 +1931,11 @@ if ( abs(iaero)>=2 ) then
     call trim(at,ct,xtg(:,:,nt),imax,kl)
   end do
 end if ! (abs(iaero)>=2)  
+
+! transform winds back to Earth reference frame and theta to temp
+do k = 1,kl
+  t(:,k) = rhs(:,k)/sigkap(k)
+enddo    !  k loop
       
 return
 end subroutine tkeeps_work

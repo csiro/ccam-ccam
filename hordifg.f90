@@ -208,9 +208,11 @@ select case(nhorjlm)
     ! Smag's actual diffusion also differentiated Dt and Ds
     ! t_kh is kh at t points
     call boundsuv(uav,vav,allvec=.true.)
-    do k = 1,kl
-      hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
+    !$acc parallel loop collapse(2) copyin(hdiff,uav,vav,em,emi) copyout(t_kh(1:ifull,1:kl)) &
+    !$acc   present(ieu,iwu,inu,isu,iev,iwv,inv,isv)
+    do concurrent (k = 1:kl)
       do concurrent (iq = 1:ifull)
+        hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
         dudx = 0.5*(uav(ieu(iq),k)-uav(iwu(iq),k))*em(iq)/ds
         dudy = 0.5*(uav(inu(iq),k)-uav(isu(iq),k))*em(iq)/ds
         dvdx = 0.5*(vav(iev(iq),k)-vav(iwv(iq),k))*em(iq)/ds
@@ -219,12 +221,15 @@ select case(nhorjlm)
         t_kh(iq,k)=sqrt(r1)*hdif*emi(iq)
       end do
     end do
+    !$acc end parallel loop
              
   case(1)
     ! jlm deformation scheme using 3D uc, vc, wc
-    do k = 1,kl
-      hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
+    !$acc parallel loop collapse(2) copyin(hdiff,uc,vc,wc,ps) copyout(t_kh(1:ifull,1:kl)) &
+    !$acc   present(ie,iw,in,is)
+    do concurrent (k = 1:kl)
       do concurrent (iq = 1:ifull)
+        hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
         cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 + (uc(in(iq),k)-uc(is(iq),k))**2 + &
              (vc(ie(iq),k)-vc(iw(iq),k))**2 + (vc(in(iq),k)-vc(is(iq),k))**2 + &
              (wc(ie(iq),k)-wc(iw(iq),k))**2 + (wc(in(iq),k)-wc(is(iq),k))**2
@@ -232,12 +237,15 @@ select case(nhorjlm)
         t_kh(iq,k)= .5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
       end do
     end do
+    !$acc end parallel loop
 
   case(2)
     ! jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
-    do k = 1,kl
-      hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
+    !$acc parallel loop collapse(2) copyin(hdiff,uc,vc,wc,ps,dpsldt) copyout(t_kh(1:ifull,1:kl)) &
+    !$acc   present(ie,iw,in,is)
+    do concurrent (k = 1:kl)
       do concurrent (iq = 1:ifull)
+        hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
         cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 + (uc(in(iq),k)-uc(is(iq),k))**2 + &
              (vc(ie(iq),k)-vc(iw(iq),k))**2 + (vc(in(iq),k)-vc(is(iq),k))**2 + &
              (wc(ie(iq),k)-wc(iw(iq),k))**2 + (wc(in(iq),k)-wc(is(iq),k))**2 + &
@@ -252,29 +260,21 @@ select case(nhorjlm)
   case(3)
     ! K-eps model + Smag
     call boundsuv(uav,vav,allvec=.true.)
-    do k = 1,kl
-      hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
+    !$acc parallel loop collapse(2) copyin(hdiff,uav,vav,em,emi,tke,eps) copyout(t_kh(1:ifull,1:kl)) &
+    !$acc   present(ieu,iwu,inu,isu,iev,iwv,inv,isv)
+    do concurrent (k = 1:kl)
       do concurrent (iq = 1:ifull)
+        hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
         dudx = 0.5*(uav(ieu(iq),k)-uav(iwu(iq),k))*em(iq)/ds
         dudy = 0.5*(uav(inu(iq),k)-uav(isu(iq),k))*em(iq)/ds
         dvdx = 0.5*(vav(iev(iq),k)-vav(iwv(iq),k))*em(iq)/ds
         dvdy = 0.5*(vav(inv(iq),k)-vav(isv(iq),k))*em(iq)/ds
         r1 = (dudx-dvdy)**2+(dvdx+dudy)**2
         t_kh(iq,k) = sqrt(r1)*hdif*emi(iq)
+        t_kh(iq,k)=max( t_kh(iq,k), tke(iq,k)**2/eps(iq,k)*dt*cm0*emi(iq) )
       end do
-    end do      
-    if (nvmix==6) then
-      hdif = dt*cm0
-      do k = 1,kl
-        do concurrent (iq = 1:ifull)
-          tke(iq,k)=max( tke(iq,k), mintke )
-          r1=(cm0**0.75)*tke(iq,k)*sqrt(tke(iq,k))
-          eps(iq,k)=min( eps(iq,k), r1/minl )
-          eps(iq,k)=max( eps(iq,k), r1/maxl, mineps )
-          t_kh(iq,k)=max( t_kh(iq,k), tke(iq,k)**2/eps(iq,k)*hdif*emi(iq) )
-        end do
-      end do
-    end if
+    end do
+    !$acc end parallel loop      
 
   case DEFAULT
     write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm
@@ -352,7 +352,7 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
     work(1:ifull,k,2) = qg(1:ifull,k)
   end do
   call bounds(work(:,:,1:2))
-  !$acc parallel loop collapse(2) copyin(emi,xfact,yfact,work(:,:,1:2),iwu,isv,in,is,ie,iw) copyout(t,qg)
+  !$acc parallel loop collapse(2) copyin(ptemp,emi,xfact,yfact,work(:,:,1:2)) copyout(t,qg)
   do k = 1,kl
     do concurrent (iq = 1:ifull)
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &

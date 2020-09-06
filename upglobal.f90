@@ -67,10 +67,10 @@ real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
 real, dimension(ifull+iextra) :: aa
 real, dimension(ifull,kl) :: theta
 real, dimension(ifull) :: sdmx, tempry
-real, dimension(ifull) :: denb, vecdot, vdot1, vdot2
-real, dimension(ifull) :: vec1x, vec1y, vec1z
-real, dimension(ifull) :: vec2x, vec2y, vec2z
-real, dimension(ifull) :: vec3x, vec3y, vec3z
+real denb, vecdot, vdot1, vdot2
+real vec1x, vec1y, vec1z
+real vec2x, vec2y, vec2z
+real vec3x, vec3y, vec3z
 real, dimension(kl) :: factr
 real(kind=8), dimension(ifull,kl) :: x3d, y3d, z3d
 
@@ -156,17 +156,11 @@ do k = 1,kl
 end do     ! k loop
 
 !-------------------------moved up here May 06---------------------------
-! N.B. this moved one is doing vadv on just extra pslx terms      
+! N.B. this moved one is doing vadv on just extra pslx terms    
 sdmx(:) = maxval(abs(sdot), 2)
 nits(:) = int(1.+sdmx(:)/2.)
 nvadh_pass(:) = 2*nits(:) ! use - for nvadu
-!$omp parallel private(tile)
-!$omp do
-do tile = 1,ntiles
-  call vadvtvd(tx,ux,vx,nvadh_pass,nits,tile)
-end do  
-!$omp end do
-!$omp end parallel
+call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv1'
   write (6,"('tx_a',9f8.2)")   tx(idjd,:)
@@ -188,6 +182,9 @@ if ( nmaxpr==1 .and. nproc==1 ) then
   write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
   write (6,"(9f8.4)") ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
 end if
+
+!$acc data create(xg,yg,nface)
+!$acc update device(xg,yg,nface)
 
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
@@ -279,49 +276,53 @@ if ( diag ) then
 end if
 
 ! rotate wind vector to arrival point
-do k = 1,kl
-  ! the following normalization may be done, but has ~zero effect
-  ! dena=sqrt(x3d(iq)**2+y3d(iq)**2+z3d(iq)**2)
-  ! x3d(iq)=x3d(iq)/dena
-  ! y3d(iq)=y3d(iq)/dena
-  ! z3d(iq)=z3d(iq)/dena
-  ! cross product n1xn2 into vec1
-  vec1x(1:ifull) = real(y3d(1:ifull,k)*z(1:ifull) - y(1:ifull)*z3d(1:ifull,k))
-  vec1y(1:ifull) = real(z3d(1:ifull,k)*x(1:ifull) - z(1:ifull)*x3d(1:ifull,k))
-  vec1z(1:ifull) = real(x3d(1:ifull,k)*y(1:ifull) - x(1:ifull)*y3d(1:ifull,k))
-  denb(1:ifull) = vec1x(1:ifull)**2 + vec1y(1:ifull)**2 + vec1z(1:ifull)**2
-  ! N.B. rotation formula is singular for small denb,
-  ! but the rotation is unnecessary in this case
-  where ( denb(1:ifull)>1.e-4 )
-    vecdot(1:ifull) = real(x3d(1:ifull,k)*x(1:ifull) + y3d(1:ifull,k)*y(1:ifull) + z3d(1:ifull,k)*z(1:ifull))
-    vec2x(1:ifull) = real(x3d(1:ifull,k)*vecdot(1:ifull) - x(1:ifull))
-    vec2y(1:ifull) = real(y3d(1:ifull,k)*vecdot(1:ifull) - y(1:ifull))
-    vec2z(1:ifull) = real(z3d(1:ifull,k)*vecdot(1:ifull) - z(1:ifull))
-    vec3x(1:ifull) = real(x3d(1:ifull,k) - vecdot(1:ifull)*x(1:ifull))
-    vec3y(1:ifull) = real(y3d(1:ifull,k) - vecdot(1:ifull)*y(1:ifull))
-    vec3z(1:ifull) = real(z3d(1:ifull,k) - vecdot(1:ifull)*z(1:ifull))
-    vdot1(1:ifull) = (vec1x(1:ifull)*uc(1:ifull,k) + vec1y(1:ifull)*vc(1:ifull,k) + vec1z(1:ifull)*wc(1:ifull,k))/denb(1:ifull)
-    vdot2(1:ifull) = (vec2x(1:ifull)*uc(1:ifull,k) + vec2y(1:ifull)*vc(1:ifull,k) + vec2z(1:ifull)*wc(1:ifull,k))/denb(1:ifull)
-    uc(1:ifull,k) = vdot1(1:ifull)*vec1x(1:ifull) + vdot2(1:ifull)*vec3x(1:ifull)
-    vc(1:ifull,k) = vdot1(1:ifull)*vec1y(1:ifull) + vdot2(1:ifull)*vec3y(1:ifull)
-    wc(1:ifull,k) = vdot1(1:ifull)*vec1z(1:ifull) + vdot2(1:ifull)*vec3z(1:ifull)
-  end where ! (denb>1.e-4)
-end do ! k
+!$acc parallel loop collapse(2) copyin(x,y,z,x3d,y3d,z3d) copy(uc,vc,wc)
+do concurrent (k = 1:kl)
+  do concurrent (iq = 1:ifull)
+    ! the following normalization may be done, but has ~zero effect
+    ! dena=sqrt(x3d(iq)**2+y3d(iq)**2+z3d(iq)**2)
+    ! x3d(iq)=x3d(iq)/dena
+    ! y3d(iq)=y3d(iq)/dena
+    ! z3d(iq)=z3d(iq)/dena
+    ! cross product n1xn2 into vec1
+    vec1x = real(y3d(iq,k)*z(iq) - y(iq)*z3d(iq,k))
+    vec1y = real(z3d(iq,k)*x(iq) - z(iq)*x3d(iq,k))
+    vec1z = real(x3d(iq,k)*y(iq) - x(iq)*y3d(iq,k))
+    denb = vec1x**2 + vec1y**2 + vec1z**2
+    ! N.B. rotation formula is singular for small denb,
+    ! but the rotation is unnecessary in this case
+    if ( denb>1.e-4 ) then
+      vecdot = real(x3d(iq,k)*x(iq) + y3d(iq,k)*y(iq) + z3d(iq,k)*z(iq))
+      vec2x = real(x3d(iq,k)*vecdot - x(iq))
+      vec2y = real(y3d(iq,k)*vecdot - y(iq))
+      vec2z = real(z3d(iq,k)*vecdot - z(iq))
+      vec3x = real(x3d(iq,k) - vecdot*x(iq))
+      vec3y = real(y3d(iq,k) - vecdot*y(iq))
+      vec3z = real(z3d(iq,k) - vecdot*z(iq))
+      vdot1 = (vec1x*uc(iq,k) + vec1y*vc(iq,k) + vec1z*wc(iq,k))/denb
+      vdot2 = (vec2x*uc(iq,k) + vec2y*vc(iq,k) + vec2z*wc(iq,k))/denb
+      uc(iq,k) = vdot1*vec1x + vdot2*vec3x
+      vc(iq,k) = vdot1*vec1y + vdot2*vec3y
+      wc(iq,k) = vdot1*vec1z + vdot2*vec3z
+    end if ! (denb>1.e-4)
+  end do   ! iq
+end do     ! k
+!$acc end parallel loop
 
-if ( diag ) then
-  if ( mydiag ) then
-    iq = idjd
-    k = nlv
-    vec1x(iq) = real(y3d(iq,k)*z(iq) - y(iq)*z3d(iq,k))
-    vec1y(iq) = real(z3d(iq,k)*x(iq) - z(iq)*x3d(iq,k))
-    vec1z(iq) = real(x3d(iq,k)*y(iq) - x(iq)*y3d(iq,k))
-    denb(iq) = vec1x(iq)**2 + vec1y(iq)**2 + vec1z(iq)**2
-    write(6,*) 'uc,vc,wc after nrot; denb = ',denb(iq)
-  end if
-  call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-  call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-  call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-endif
+!if ( diag ) then
+!  if ( mydiag ) then
+!    iq = idjd
+!    k = nlv
+!    vec1x(iq) = real(y3d(iq,k)*z(iq) - y(iq)*z3d(iq,k))
+!    vec1y(iq) = real(z3d(iq,k)*x(iq) - z(iq)*x3d(iq,k))
+!    vec1z(iq) = real(x3d(iq,k)*y(iq) - x(iq)*y3d(iq,k))
+!    denb(iq) = vec1x(iq)**2 + vec1y(iq)**2 + vec1z(iq)**2
+!    write(6,*) 'uc,vc,wc after nrot; denb = ',denb(iq)
+!  end if
+!  call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+!  call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+!  call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+!endif
 
 ! convert back to conformal-cubic velocity components (unstaggered)
 ! globpea: this can be sped up later
@@ -376,6 +377,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   end if
 end if     ! mspec==1
 
+!$acc end data
 
 do k = 2,kl
   sdot(:,k) = sbar(:,k)
@@ -392,13 +394,7 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('qg_b',9f8.3)")   qg(idjd,:)
 endif
 
-!$omp parallel private(tile)
-!$omp do
-do tile = 1,ntiles
-  call vadvtvd(tx,ux,vx,nvadh_pass,nits,tile)
-end do  
-!$omp end do
-!$omp end parallel
+call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv2'

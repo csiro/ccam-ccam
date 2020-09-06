@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -19,66 +19,123 @@
 
 !------------------------------------------------------------------------------
     
-subroutine depts1(x3d,y3d,z3d,intsch)  ! input ubar,vbar are unstaggered vels for level k
+module mlodepts
+
+implicit none
+
+private
+public mlodeps
+
+contains
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate depature points for MLO semi-Lagrangian advection
+! (This subroutine is based on depts.f)
+
+subroutine mlodeps(ubar,vbar,nface,xg,yg,x3d,y3d,z3d,wtr)
 
 use cc_mpi
 use const_phys
 use indices_m
-use map_m
+use mlo
 use newmpar_m
 use parm_m
 use parmhor_m
-use uvbar_m
 use vecsuv_m
-use work3f_m
 use xyzinfo_m
 
 implicit none
 
-integer, intent(in) :: intsch
-integer iq, k, idel, jdel, nn
-integer i, j, n, ii
-real xxg, yyg
-real, dimension(ifull,kl) :: uc, vc, wc
-real, dimension(ifull+iextra,kl,3) :: s
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,3) :: sx
-real(kind=8), dimension(ifull,kl) :: x3d, y3d, z3d   ! upglobal depts 
+integer iq,i,j,k,n,nn,idel,jdel,intsch,ii
+integer, dimension(ifull,wlev), intent(out) :: nface
+integer s_count
+real, dimension(ifull,wlev), intent(in) :: ubar,vbar
+real, dimension(ifull,wlev), intent(out) :: xg,yg
+real(kind=8), dimension(ifull,wlev), intent(out) :: x3d,y3d,z3d
+real, dimension(ifull,wlev) :: uc,vc,wc
+real, dimension(ifull+iextra,wlev,3) :: s, s_old
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,3) :: sx
+real s_tot, s_test
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
-      
-call START_LOG(depts_begin)
+real xxg,yyg
+real, parameter :: cxx = -9999. ! missing value flag
+logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
 
-do k = 1,kl
-  ! departure point x, y, z is called x3d, y3d, z3d
-  ! first find corresponding cartesian vels
-  uc(1:ifull,k) = (ax(1:ifull)*ubar(1:ifull,k) + bx(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
-  vc(1:ifull,k) = (ay(1:ifull)*ubar(1:ifull,k) + by(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
-  wc(1:ifull,k) = (az(1:ifull)*ubar(1:ifull,k) + bz(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
-  x3d(1:ifull,k) = x(1:ifull) - real(uc(1:ifull,k),8) ! 1st guess
-  y3d(1:ifull,k) = y(1:ifull) - real(vc(1:ifull,k),8)
-  z3d(1:ifull,k) = z(1:ifull) - real(wc(1:ifull,k),8)
+call START_LOG(waterdeps_begin)
+
+! departure point x, y, z is called x3d, y3d, z3d
+! first find corresponding cartesian vels
+do k = 1,wlev
+  uc(:,k) = (ax(1:ifull)*ubar(:,k)+bx(1:ifull)*vbar(:,k))*dt/rearth ! unit sphere 
+  vc(:,k) = (ay(1:ifull)*ubar(:,k)+by(1:ifull)*vbar(:,k))*dt/rearth ! unit sphere 
+  wc(:,k) = (az(1:ifull)*ubar(:,k)+bz(1:ifull)*vbar(:,k))*dt/rearth ! unit sphere 
+  x3d(:,k) = x - uc(:,k) ! 1st guess
+  y3d(:,k) = y - vc(:,k)
+  z3d(:,k) = z - wc(:,k)
 end do
 
 !$acc data create(xg,yg,nface,sx,s)
 
 ! convert to grid point numbering
-call toij5(x3d,y3d,z3d)
+call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
 
-if ( diag .and. mydiag ) then
-  write(6,*) 'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
-  write(6,*) 'uc,vc,wc ',uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
-  write(6,*) 'x,y,z ',x(idjd),y(idjd),z(idjd)
-  write(6,*) '1st guess for k = ',nlv
-  write(6,*) 'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
-  write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
-endif
+intsch = mod(ktau,2)
 
-s(1:ifull,:,1) = uc(1:ifull,:)
-s(1:ifull,:,2) = vc(1:ifull,:)
-s(1:ifull,:,3) = wc(1:ifull,:)
+do k = 1,wlev
+  where (wtr(1:ifull,k))
+    s(1:ifull,k,1) = uc(1:ifull,k) 
+    s(1:ifull,k,2) = vc(1:ifull,k)
+    s(1:ifull,k,3) = wc(1:ifull,k)
+  else where    
+    s(1:ifull,k,1) = cxx - 1. ! missing value flag
+    s(1:ifull,k,2) = cxx - 1.
+    s(1:ifull,k,3) = cxx - 1.
+  end where
+end do
+
+! fill
+do ii = 1,3 ! 3 iterations of fill should be enough
+  s_old(1:ifull,:,:) = s(1:ifull,:,:)
+  call bounds(s_old)
+  do concurrent (nn = 1:3)
+    do concurrent (k = 1:wlev)
+      do concurrent (iq = 1:ifull)
+        if ( s(iq,k,nn)<cxx ) then
+          s_tot = 0.
+          s_count = 0
+          s_test = s_old(is(iq),k,nn)
+          if ( s_test>cxx ) then
+            s_tot = s_tot + s_test
+            s_count = s_count +1
+          end if
+          s_test = s_old(in(iq),k,nn)
+          if ( s_test>cxx ) then
+            s_tot = s_tot + s_test
+            s_count = s_count +1
+          end if 
+          s_test = s_old(ie(iq),k,nn)
+          if ( s_test>cxx ) then
+            s_tot = s_tot + s_test
+            s_count = s_count +1
+          end if
+          s_test = s_old(iw(iq),k,nn)
+          if ( s_test>cxx ) then
+            s_tot = s_tot + s_test
+            s_count = s_count +1
+          end if
+          if ( s_count>0 ) then
+            s(iq,k,nn) = s_tot/real(s_count)
+          end if
+        end if
+      end do
+    end do
+  end do
+end do
 
 call bounds(s,nrows=2)
 
@@ -86,9 +143,10 @@ call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
+
   !$acc parallel loop collapse(5) present(sx,s)
   do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
+    do concurrent (k = 1:wlev)
       do concurrent (n = 1:npan)
         do concurrent (j = 1:jpan)
           do concurrent (i = 1:ipan)
@@ -102,26 +160,26 @@ if ( intsch==1 ) then
   !$acc end parallel loop
   !$acc parallel loop collapse(3) present(s,sx)
   do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
+    do concurrent (k = 1:wlev)
       do concurrent (n = 1:npan)
         do concurrent (j = 1:jpan)
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
-          sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
+          sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
           sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
           iq = j*ipan+(n-1)*ipan*jpan
-          sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
+          sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
-        end do            ! j loop
+        end do
         do concurrent (i = 1:ipan)
           iq = i+(n-1)*ipan*jpan
-          sx(i,0,n,k,nn)      = s(is(iq),k,nn)
+          sx(i,0,n,k,nn)      = s( is(iq),k,nn)
           sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
           iq = i-ipan+n*ipan*jpan
-          sx(i,jpan+1,n,k,nn) = s(in(iq),k,nn)
+          sx(i,jpan+1,n,k,nn) = s( in(iq),k,nn)
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
-        end do            ! i loop
+        end do
         sx(-1,0,n,k,nn)          = s(lwws(n),k,nn)
-        sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),k,nn)
+        sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
         sx(0,-1,n,k,nn)          = s(lwss(n),k,nn)
         sx(ipan+1,0,n,k,nn)      = s(ies(ipan+(n-1)*ipan*jpan),k,nn)
         sx(ipan+2,0,n,k,nn)      = s(lees(n),k,nn)
@@ -131,15 +189,15 @@ if ( intsch==1 ) then
         sx(ipan+2,jpan+1,n,k,nn) = s(leen(n),k,nn)
         sx(ipan+1,jpan+2,n,k,nn) = s(lenn(n),k,nn)
         sx(0,jpan+1,n,k,nn)      = s(iwn(1-ipan+n*ipan*jpan),k,nn)
-        sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),k,nn)
-      end do          ! n loop
-    end do            ! k loop
-  end do              ! nn loop
+        sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),       k,nn)
+      end do               ! n loop
+    end do                 ! k loop
+  end do                   ! nn loop
   !$acc end parallel loop
 
   !$acc update self(sx)
-
-  ! Loop over points that need to be calculated for other processes
+ 
+! Loop over points that need to be calculated for other processes
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -152,7 +210,7 @@ if ( intsch==1 ) then
         k = nint(dpoints(ii)%a(4,iq))
         idel = idel - ioff
         jdel = jdel - joff
-        ! bi-cubic
+        ! bi-cubic interpolation
         cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
         cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
         cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
@@ -170,24 +228,24 @@ if ( intsch==1 ) then
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
         sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
-      end do        ! iq loop
-    end do          ! nn loop
-  end do            ! ii loop
-
-  call intssync_send(3)
+      end do          ! iq loop
+    end do            ! nn loop
+  end do              ! ii loop
   
-  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
+  call intssync_send(3)
+
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s)
   do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
+    do concurrent (k = 1:wlev)
+      do concurrent (iq = 1:ifull)
         idel = int(xg(iq,k))
-        xxg = xg(iq,k) - real(idel)
+        xxg  = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
-        yyg = yg(iq,k) - real(jdel)
+        yyg  = yg(iq,k) - real(jdel)
         idel = min( max( idel - ioff, 0), ipan )
         jdel = min( max( jdel - joff, 0), jpan )
         n = min( max( nface(iq,k) + noff, 1), npan )
-        ! bi-cubic
+        ! bi-cubic interpolation
         cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
         cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
         cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
@@ -205,19 +263,19 @@ if ( intsch==1 ) then
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
-      end do   ! iq loop
-    end do     ! k loop
-  end do       ! nn loop
+      end do     ! iq loop
+    end do       ! k loop
+  end do         ! nn loop
   !$acc end parallel loop
   !$acc update self(s)
-            
+       
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 
   !$acc parallel loop collapse(5) present(sx,s)
   do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
+    do concurrent (k = 1:wlev)
       do concurrent (n = 1:npan)
         do concurrent (j = 1:jpan)
           do concurrent (i = 1:ipan)
@@ -231,22 +289,22 @@ else     ! if(intsch==1)then
   !$acc end parallel loop
   !$acc parallel loop collapse(3) present(s,sx)
   do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
+    do concurrent (k = 1:wlev)
       do concurrent (n = 1:npan)
         do concurrent (j = 1:jpan)
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
-          sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
+          sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
           sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
           iq = j*ipan+(n-1)*ipan*jpan
-          sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
+          sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
         do concurrent (i = 1:ipan)
           iq = i+(n-1)*ipan*jpan
-          sx(i,0,n,k,nn)      = s(is(iq),k,nn)
+          sx(i,0,n,k,nn)      = s( is(iq),k,nn)
           sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
           iq = i-ipan+n*ipan*jpan
-          sx(i,jpan+1,n,k,nn) = s(in(iq),k,nn)
+          sx(i,jpan+1,n,k,nn) = s( in(iq),k,nn)
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
         end do            ! i loop
         sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
@@ -260,15 +318,15 @@ else     ! if(intsch==1)then
         sx(ipan+2,jpan+1,n,k,nn) = s(lnee(n),k,nn)
         sx(ipan+1,jpan+2,n,k,nn) = s(lnne(n),k,nn)
         sx(ipan+1,0,n,k,nn)      = s(ise(ipan+(n-1)*ipan*jpan),k,nn)
-        sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),k,nn)
-      end do              ! n loop
-    end do                ! k loop
-  end do                  ! nn loop
+        sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),         k,nn)
+      end do           ! n loop
+    end do             ! k loop
+  end do               ! nn loop
   !$acc end parallel loop
 
   !$acc update self(sx)
 
-  ! For other processes
+! For other processes
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -280,7 +338,7 @@ else     ! if(intsch==1)then
         k = nint(dpoints(ii)%a(4,iq))
         idel = idel - ioff
         jdel = jdel - joff
-        ! bi-cubic
+        ! bi-cubic interpolation
         cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
         cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
         cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
@@ -300,14 +358,14 @@ else     ! if(intsch==1)then
         sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! nn loop
-  end do              ! ii
+  end do              ! ii loop
 
   call intssync_send(3)
 
-  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s)
   do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
+    do concurrent (k = 1:wlev)
+      do concurrent (iq = 1:ifull)
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
@@ -315,7 +373,7 @@ else     ! if(intsch==1)then
         idel = min( max( idel - ioff, 0), ipan )
         jdel = min( max( jdel - joff, 0), jpan )
         n = min( max( nface(iq,k) + noff, 1), npan )
-        ! bi-cubic
+        ! bi-cubic interpolation
         cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
         cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
         cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
@@ -333,42 +391,41 @@ else     ! if(intsch==1)then
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
-      end do          ! iq loop
-    end do            ! k loop
-  end do              ! nn loop
+      end do
+    end do
+  end do
   !$acc end parallel loop
   !$acc update self(s)
 
-endif                     ! (intsch==1) .. else ..
+end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
 call intssync_recv(s)
 
-do k = 1,kl
-  x3d(1:ifull,k) = x(1:ifull) - 0.5_8*(real(uc(1:ifull,k),8)+real(s(1:ifull,k,1),8)) ! 2nd guess
-  y3d(1:ifull,k) = y(1:ifull) - 0.5_8*(real(vc(1:ifull,k),8)+real(s(1:ifull,k,2),8)) ! 2nd guess
-  z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! 2nd guess
+do k = 1,wlev
+  where ( wtr(1:ifull,k) )
+    x3d(:,k) = x - 0.5*(uc(:,k)+s(1:ifull,k,1)) ! n+1 guess
+    y3d(:,k) = y - 0.5*(vc(:,k)+s(1:ifull,k,2)) ! n+1 guess
+    z3d(:,k) = z - 0.5*(wc(:,k)+s(1:ifull,k,3)) ! n+1 guess
+  elsewhere
+    x3d(:,k) = x
+    y3d(:,k) = y
+    z3d(:,k) = z
+  end where
 end do
 
-call toij5 (x3d,y3d,z3d)
+call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
 
-if ( diag .and. mydiag ) then
-  write(6,*) '2nd guess for k = ',nlv
-  write(6,*) 'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
-  write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
-end if
-
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
-
+ 
   ! Loop over points that need to be calculated for other processes
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
         xxg = dpoints(ii)%a(2,iq) - real(idel)
         jdel = int(dpoints(ii)%a(3,iq))
@@ -376,7 +433,6 @@ if ( intsch==1 ) then
         k = nint(dpoints(ii)%a(4,iq))
         idel = idel - ioff
         jdel = jdel - joff
-        ! bi-cubic
         cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
         cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
         cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
@@ -394,24 +450,23 @@ if ( intsch==1 ) then
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
         sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
-      end do        ! iq loop
-    end do          ! nn loop
-  end do            ! ii loop
-
+      end do          ! iq loop
+    end do            ! nn loop
+  end do              ! ii loop
+  
   call intssync_send(3)
 
-  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s)
   do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
+    do concurrent (k = 1:wlev)
+      do concurrent (iq = 1:ifull)
         idel = int(xg(iq,k))
-        xxg = xg(iq,k) - real(idel)
+        xxg  = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
-        yyg = yg(iq,k) - real(jdel)
+        yyg  = yg(iq,k) - real(jdel)
         idel = min( max( idel - ioff, 0), ipan )
         jdel = min( max( jdel - joff, 0), jpan )
         n = min( max( nface(iq,k) + noff, 1), npan )
-        ! bi-cubic
         cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
         cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
         cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
@@ -429,12 +484,12 @@ if ( intsch==1 ) then
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
         rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
-      end do   ! iq loop
-    end do     ! k loop
-  end do       ! nn loop
+      end do     ! iq loop
+    end do       ! k loop
+  end do         ! nn loop
   !$acc end parallel loop
   !$acc update self(s)
-            
+       
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
@@ -444,7 +499,6 @@ else     ! if(intsch==1)then
     do nn = 1,3
       do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
         xxg = dpoints(ii)%a(2,iq) - real(idel)
         jdel = int(dpoints(ii)%a(3,iq))
@@ -452,7 +506,6 @@ else     ! if(intsch==1)then
         k = nint(dpoints(ii)%a(4,iq))
         idel = idel - ioff
         jdel = jdel - joff
-        ! bi-cubic
         cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
         cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
         cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
@@ -472,15 +525,14 @@ else     ! if(intsch==1)then
         sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! nn loop
-  end do              ! ii
+  end do              ! ii loop
 
   call intssync_send(3)
 
-  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s)
   do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
-        ! Convert face index from 0:npanels to array indices
+    do concurrent (k = 1:wlev)
+      do concurrent (iq = 1:ifull)
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
@@ -488,7 +540,7 @@ else     ! if(intsch==1)then
         idel = min( max( idel - ioff, 0), ipan )
         jdel = min( max( jdel - joff, 0), jpan )
         n = min( max( nface(iq,k) + noff, 1), npan )
-        ! bi-cubic
+        ! bi-cubic interpolation
         cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
         cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
         cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
@@ -506,195 +558,146 @@ else     ! if(intsch==1)then
                  sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
-      end do          ! iq loop
-    end do            ! nn loop
-  end do              ! k loop
+      end do
+    end do
+  end do
   !$acc end parallel loop
   !$acc update self(s)
 
-endif                     ! (intsch==1) .. else ..
+end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
 call intssync_recv(s)
 
-do k = 1,kl
-  x3d(1:ifull,k) = x(1:ifull) - 0.5_8*(real(uc(1:ifull,k),8)+real(s(1:ifull,k,1),8)) ! 3rd guess
-  y3d(1:ifull,k) = y(1:ifull) - 0.5_8*(real(vc(1:ifull,k),8)+real(s(1:ifull,k,2),8)) ! 3rd guess
-  z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! 3rd guess
+do k = 1,wlev
+  where (wtr(1:ifull,k))
+    x3d(:,k) = x - 0.5*(uc(:,k)+s(1:ifull,k,1)) ! n+1 guess
+    y3d(:,k) = y - 0.5*(vc(:,k)+s(1:ifull,k,2)) ! n+1 guess
+    z3d(:,k) = z - 0.5*(wc(:,k)+s(1:ifull,k,3)) ! n+1 guess
+  elsewhere
+    x3d(:,k) = x
+    y3d(:,k) = y
+    z3d(:,k) = z
+  end where
 end do
 
-call toij5(x3d,y3d,z3d)
-
-if ( diag .and. mydiag ) then
-  write(6,*) '3rd guess for k = ',nlv
-  write(6,*) 'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
-  write(6,*) 'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
-end if
-
-! Share off processor departure points.
+call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
+!     Share off processor departure points.
 call deptsync(nface,xg,yg)
 
 !$acc end data
 
-call END_LOG(depts_end)
-      
+call END_LOG(waterdeps_end)
+
 return
-end subroutine depts1
+end subroutine mlodeps
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate indices
+! This code is from depts.f90
 
-subroutine toij5(x3d,y3d,z3d)
+pure subroutine mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 
 use bigxy4_m
 use cc_mpi
+use mlo
 use newmpar_m
 use parm_m
 use parmgeom_m
-use work3f_m
 use xyzinfo_m
 
 implicit none
 
-#ifdef debug
-integer, parameter :: ntest = 0
-integer, parameter :: ndiag = 0
-#endif
-
-#ifdef cray
-integer, save :: num = 0
-integer, dimension(ifull) :: nf
-real, dimension(0:5), parameter :: xgx = (/ 0., 0., 0., 0., 1., 1. /)
-real, dimension(0:5), parameter :: xgy = (/ 1., 1., 0., 0., 0., 0. /)
-real, dimension(0:5), parameter :: xgz = (/ 0., 0.,-1.,-1., 0., 0. /)
-real, dimension(0:5), parameter :: ygx = (/ 0.,-1.,-1., 0., 0., 0. /)
-real, dimension(0:5), parameter :: ygy = (/ 0., 0., 0.,-1.,-1., 0. /)
-real, dimension(0:5), parameter :: ygz = (/ 1., 0., 0., 0., 0., 1. /)
-#endif
-
-integer, parameter :: nmaploop = 3
-integer k, iq, loop, i, j, is, js
-real ri,rj
+integer loop,iq,i,j,is,js
+integer ii
+integer, dimension(ifull,wlev), intent(out) :: nface
+real, dimension(ifull,wlev), intent(out) :: xg,yg
 real xstr,ystr,zstr
 real denxyz,xd,yd,zd
-real(kind=8) alf,alfonsch  ! 6/11/07 esp for 200m
-real(kind=8) dxx,dxy,dyx,dyy
-real(kind=8), dimension(ifull,kl), intent(in) :: x3d,y3d,z3d
+real ri,rj
+real(kind=8), dimension(ifull,wlev), intent(inout) :: x3d,y3d,z3d
 real(kind=8) den
-logical xytest, xztest, yztest
+real(kind=8) alf,alfonsch
+real(kind=8) dxx,dxy,dyx,dyy
+integer, parameter :: nmaploop = 3
 
-#ifdef cray
-! check if divide by itself is working
-if ( num==0 ) then
-  if ( myid==0 ) write(6,*)'checking for ncray'
-  call checkdiv(xstr,ystr,zstr)
-end if
-num = 1
-#endif
-
-! if necessary, transform (x3d, y3d, z3d) to equivalent
-! coordinates (xstr, ystr, zstr) on regular gnomonic panels
-alf           = (1._8-real(schmidt,8)**2)/(1._8+real(schmidt,8)**2)
-alfonsch      = 2._8*real(schmidt,8)/(1._8+real(schmidt,8)**2)  ! same but bit more accurate
+alf = (1._8-schmidt**2)/(1._8+schmidt**2)
+alfonsch = 2._8*schmidt/(1._8+schmidt**2)
 
 !$acc parallel loop collapse(2) copyin(x3d,y3d,z3d,xx4,yy4) present(xg,yg,nface)
-do concurrent (k = 1:kl)
-  do concurrent (iq = 1:ifull)    
-    den  = 1._8 - alf*z3d(iq,k)
-    xstr = real(x3d(iq,k)*(alfonsch/den))
-    ystr = real(y3d(iq,k)*(alfonsch/den))
-    zstr = real(   (z3d(iq,k)-alf)/den)
+do concurrent (ii = 1:wlev)
+  do concurrent (iq = 1:ifull)
 
-!      first deduce departure faces
-!      instead calculate cubic coordinates
-!      The faces are:
-!      0: X=1   1: Z=1   2: Y=1   3: X=-1   4: Z=-1   5: Y=-1
+    !     if necessary, transform (x3d, y3d, z3d) to equivalent
+    !     coordinates (xstr, ystr, zstr) on regular gnomonic panels
+    den=1._8-alf*z3d(iq,ii) ! to force real*8
+    xstr=real(x3d(iq,ii)*(alfonsch/den))
+    ystr=real(y3d(iq,ii)*(alfonsch/den))
+    zstr=real((z3d(iq,ii)-alf)/den)
 
-    denxyz = max(abs(xstr),abs(ystr),abs(zstr) )
-    xd = xstr/denxyz
-    yd = ystr/denxyz
-    zd = zstr/denxyz
-
-    xytest = abs(xd)>abs(yd)
-    xztest = abs(xd)>abs(zd)
-    yztest = abs(yd)>abs(zd)
-    ! all these if statements are replaced by the subsequent cunning code
-    if ( xytest .and. xztest .and. xd>0. ) then
-      nface(iq,k)    =0
-      xg(iq,k) =       yd
-      yg(iq,k) =       zd
-    else if ( xytest .and. xztest ) then
-      nface(iq,k)    =3
-      xg(iq,k) =     -zd
-      yg(iq,k) =     -yd
-    else if ( yztest .and. yd>0. ) then
-      nface(iq,k)    =2
-      xg(iq,k) =     -zd
-      yg(iq,k) =     -xd
-    else if ( yztest ) then
-      nface(iq,k)    =5
-      xg(iq,k) =      xd
-      yg(iq,k) =      zd
-    else if ( zd>0. ) then
-      nface(iq,k)    =1
-      xg(iq,k) =      yd
-      yg(iq,k) =     -xd
-    else
-      nface(iq,k)    =4
-      xg(iq,k) =      xd
-      yg(iq,k) =     -yd
-    end if
-
-#ifdef debug
-  if(ntest==1.and.k==nlv.and.iq=idjd)then
-    iq=idjd
-    write(6,*) 'x3d,y3d,z3d ',x3d(iq),y3d(iq),z3d(iq)
-    den(iq)=1._8-alf*z3d(iq) ! to force real*8
-    write(6,*) 'den ',den
+    !      first deduce departure faces
+    !      instead calculate cubic coordinates
+    !      The faces are:
+    !      0: X=1   1: Z=1   2: Y=1   3: X=-1   4: Z=-1   5: Y=-1
     denxyz=max( abs(xstr),abs(ystr),abs(zstr) )
     xd=xstr/denxyz
     yd=ystr/denxyz
     zd=zstr/denxyz
-    write(6,*) 'k,xstr,ystr,zstr,denxyz ',k,xstr,ystr,zstr,denxyz
-    write(6,*) 'abs(xstr,ystr,zstr) ',abs(xstr),abs(ystr),abs(zstr)
-    write(6,*) 'xd,yd,zd,nface ',xd,yd,zd,nface(iq,k)
-    write(6,*) 'alf,alfonsch ',alf,alfonsch
-  endif
-  if(ndiag==2)then
-  !  call printp('xcub',xd)  ! need to reinstate as arrays for this diag
-  !  call printp('ycub',yd)
-  !  call printp('zcub',zd)
-    write(6,*) 'before xytoiq'
-    call printp('xg  ',xg)
-    call printp('yg  ',yg)
-  endif
-#endif
 
-    ! use 4* resolution grid il --> 4*il
-    xg(iq,k) = min(max(-.99999,xg(iq,k)),.99999)
-    yg(iq,k) = min(max(-.99999,yg(iq,k)),.99999)
-    ! first guess for ri, rj and nearest i,j
-    ri = 1. + (1.+xg(iq,k))*real(2*il_g)
-    rj = 1. + (1.+yg(iq,k))*real(2*il_g)
-    do loop = 1,nmaploop
-      i = nint(ri)
-      j = nint(rj)
-      is = nint(sign(1.,ri-real(i)))
-      js = nint(sign(1.,rj-real(j)))
+    if (abs(xstr-denxyz)<1.E-8) then
+      nface(iq,ii)    =0
+      xg(iq,ii) =      yd
+      yg(iq,ii) =      zd
+    else if (abs(xstr+denxyz)<1.E-8) then
+      nface(iq,ii)    =3
+      xg(iq,ii) =     -zd
+      yg(iq,ii) =     -yd
+    else if (abs(zstr-denxyz)<1.E-8) then
+      nface(iq,ii)    =1
+      xg(iq,ii) =      yd
+      yg(iq,ii) =     -xd
+    else if (abs(zstr+denxyz)<1.E-8) then
+      nface(iq,ii)    =4
+      xg(iq,ii) =      xd
+      yg(iq,ii) =     -yd
+    else if (abs(ystr-denxyz)<1.E-8) then
+      nface(iq,ii)    =2
+      xg(iq,ii) =     -zd
+      yg(iq,ii) =     -xd
+    else
+      nface(iq,ii)    =5
+      xg(iq,ii) =      xd
+      yg(iq,ii) =      zd
+    end if
+
+    !     use 4* resolution grid il --> 4*il
+    xg(iq,ii)=min(max(-.999999,xg(iq,ii)),.999999)
+    yg(iq,ii)=min(max(-.999999,yg(iq,ii)),.999999)
+    !      first guess for ri, rj and nearest i,j
+    ri=1.+(1.+xg(iq,ii))*real(2*il_g)
+    rj=1.+(1.+yg(iq,ii))*real(2*il_g)
+    do loop=1,nmaploop
+      i=nint(ri)
+      j=nint(rj)
+      is=nint(sign(1.,ri-real(i)))
+      js=nint(sign(1.,rj-real(j)))
       ! predict new value for ri, rj
-      dxx = xx4(i+is,j) - xx4(i,j)
-      dyx = xx4(i,j+js) - xx4(i,j)
-      dxy = yy4(i+is,j) - yy4(i,j)
-      dyy = yy4(i,j+js) - yy4(i,j)       
-      den = dxx*dyy - dyx*dxy
-      ri = real(i) + real(is)*real(((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/real(den,8))
-      rj = real(j) + real(js)*real(((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/real(den,8))        
-      ri = min( ri, 1.+1.99999*real(2*il_g) )
-      ri = max( ri, 1.+0.00001*real(2*il_g) )
-      rj = min( rj, 1.+1.99999*real(2*il_g) )
-      rj = max( rj, 1.+0.00001*real(2*il_g) )
+      dxx=xx4(i+is,j)-xx4(i,j)
+      dyx=xx4(i,j+js)-xx4(i,j)
+      dxy=yy4(i+is,j)-yy4(i,j)
+      dyy=yy4(i,j+js)-yy4(i,j)       
+      den=dxx*dyy-dyx*dxy
+      ri = real(i) + real(is)*real(((xg(iq,ii)-xx4(i,j))*dyy-(yg(iq,ii)-yy4(i,j))*dyx)/den)
+      rj = real(j) + real(js)*real(((yg(iq,ii)-yy4(i,j))*dxx-(xg(iq,ii)-xx4(i,j))*dxy)/den)
+      ri = min(ri,1.0+1.999999*real(2*il_g))
+      ri = max(ri,1.0+0.000001*real(2*il_g))
+      rj = min(rj,1.0+1.999999*real(2*il_g))
+      rj = max(rj,1.0+0.000001*real(2*il_g))
     end do  ! loop loop
-    ! expect xg, yg to range between .5 and il+.5
-    xg(iq,k) = 0.25*(ri+3.) - 0.5  ! -.5 for stag; back to normal ri, rj defn
-    yg(iq,k) = 0.25*(rj+3.) - 0.5  ! -.5 for stag  
+    !      expect xg, yg to range between .5 and il+.5
+    xg(iq,ii)=0.25*(ri+3.)-0.5  ! -.5 for stag; back to normal ri, rj defn
+    yg(iq,ii)=0.25*(rj+3.)-0.5  ! -.5 for stag
+
   end do
 end do
 !$acc end parallel loop
@@ -702,4 +705,6 @@ end do
 !$acc update self(xg,yg,nface)
 
 return
-end subroutine toij5
+end subroutine mlotoij5
+
+end module mlodepts
