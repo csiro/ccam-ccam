@@ -56,6 +56,7 @@ real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl) :: sx ! unpacked tracer array
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
+!$acc declare present(xg,yg,nface)
 
 call START_LOG(ints_begin)
 
@@ -69,7 +70,7 @@ if ( intsch==1 ) then
   ! this is intsb           EW interps done first
   ! first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
-  !$acc parallel loop collapse(4) present(sx,s)
+  !$acc parallel loop collapse(4)
   do concurrent (k = 1:kl)
     do concurrent (n = 1:npan)
       do concurrent (j = 1:jpan)
@@ -81,7 +82,7 @@ if ( intsch==1 ) then
     end do
   end do
   !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(s,sx)
+  !$acc parallel loop collapse(2)
   do concurrent (k = 1:kl)
     do concurrent (n = 1:npan)
       do concurrent (j = 1:jpan)
@@ -157,7 +158,7 @@ if ( intsch==1 ) then
     ! the messages to return, thereby overlapping computation with communication.
     call intssync_send(1)
 
-    !$acc parallel loop collapse(2) present(xg,yg,nface,sx,s)
+    !$acc parallel loop collapse(2)
     do concurrent (k = 1:kl)
       do concurrent (iq = 1:ifull)    ! non Berm-Stan option
         idel = int(xg(iq,k))
@@ -231,7 +232,7 @@ if ( intsch==1 ) then
     ! the messages to return, thereby overlapping computation with communication.
     call intssync_send(1)
 
-    !$acc parallel loop collapse(2) present(xg,yg,nface) copyin(sx) copyout(s(1:ifull,1:kl))
+    !$acc parallel loop collapse(2) copyin(sx) copyout(s(1:ifull,1:kl))
     do concurrent (k = 1:kl)
       do concurrent (iq = 1:ifull)    ! Berm-Stan option here e.g. qg & gases
         idel = int(xg(iq,k))
@@ -276,7 +277,7 @@ else     ! if(intsch==1)then
 !       this is intsc           NS interps done first
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
-  !$acc parallel loop collapse(4) present(sx,s)
+  !$acc parallel loop collapse(4)
   do concurrent (k = 1:kl)
     do concurrent (n = 1:npan)
       do concurrent (j = 1:jpan)
@@ -288,7 +289,7 @@ else     ! if(intsch==1)then
     end do
   end do
   !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(s,sx)
+  !$acc parallel loop collapse(2)
   do concurrent (k = 1:kl)
     do concurrent (n = 1:npan)
       do concurrent (j = 1:jpan)
@@ -362,7 +363,7 @@ else     ! if(intsch==1)then
     
     call intssync_send(1)
 
-    !$acc parallel loop collapse(2) present(xg,yg,nface,sx,s)
+    !$acc parallel loop collapse(2)
     do concurrent (k = 1:kl)
       do concurrent (iq = 1:ifull)    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
@@ -436,7 +437,7 @@ else     ! if(intsch==1)then
   
     call intssync_send(1)
 
-    !$acc parallel loop collapse(2) present(xg,yg,nface,sx,s)
+    !$acc parallel loop collapse(2)
     do concurrent (k = 1:kl)
       do concurrent (iq = 1:ifull)    ! Berm-Stan option here e.g. qg & gases
         idel = int(xg(iq,k))
@@ -507,6 +508,7 @@ real xxg, yyg
 real, dimension(ifull,kl), intent(in) :: xg,yg      ! now passed through call
 real, dimension(0:ipan+1,0:jpan+1,1:npan,kl) :: sx
 real, dimension(ifull+iextra,kl), intent(inout) :: s
+!$acc declare present(xg,yg,nface)
 
 !     this one does bi-linear interpolation only
 !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
@@ -519,7 +521,7 @@ call bounds(s,corner=.true.)
 !$acc enter data create(sx,s)
 !$acc update device(s)
 
-!$acc parallel loop collapse(4) present(sx,s)
+!$acc parallel loop collapse(4)
 do concurrent (k = 1:kl)
   do concurrent (n = 1:npan)
     do concurrent (j = 1:jpan)
@@ -531,7 +533,7 @@ do concurrent (k = 1:kl)
   end do
 end do
 !$acc end parallel loop
-!$acc parallel loop collapse(2) present(s,sx) copyin(iw,ie,is,in,iws,ies,iwn,ien)
+!$acc parallel loop collapse(2)
 do concurrent (k = 1:kl)
   do concurrent (n = 1:npan)
     do concurrent (j = 1:jpan)
@@ -571,7 +573,7 @@ end do
 
 call intssync_send(1)
 
-!$acc parallel loop collapse(2) present(xg,yg,nface,sx,s)
+!$acc parallel loop collapse(2)
 do concurrent (k = 1:kl)
   do concurrent (iq = 1:ifull)
     ! Convert face index from 0:npanels to array indices
