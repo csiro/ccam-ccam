@@ -453,7 +453,7 @@ lw_gases_stdtf.o : cc_mpi.o filnames_m.o infile.o gas_tf.o newmpar_m.o rad_utili
 lwr88.o : co2dta_m.o kdacom_m.o newmpar_m.o parm_m.o radisw_m.o tfcom_m.o work3lwr_m.o hcon.h rdparm.h rnddta.h
 microphys_rad.o : esfsw_parameters.o longwave_params.o rad_utilities.o
 mlo.o : cc_omp.o
-mlodepts.obj : bigxy4_m.o cc_mpi.o const_phys.o indices_m.o mlo.o newmpar_.o parm_m.o pargeom_m.o parmhor_m.o vecsuv_m.o xyzinfo_m.o
+mlodepts.o : bigxy4_m.o cc_mpi.o const_phys.o indices_m.o mlo.o newmpar_m.o parm_m.o parmgeom_m.o parmhor_m.o vecsuv_m.o xyzinfo_m.o
 mlodiffg.o : cc_mpi.o const_phys.o indices_m.o map_m.o mlo.o mlodynamicsarrays_m.o newmpar_m.o parm_m.o soil_m.o vecsuv_m.o
 mlodynamics.o : arrays_m.o bigxy4_m.o cc_mpi.o cc_omp.o const_phys.o helmsolve.o indices_m.o infile.o latlong_m.o map_m.o mlo.o mlodepts.o mlodiffg.o mlodynamicsarrays_m.o mloints.o mlostag.o newmpar_m.o nharrs_m.o parm_m.o parmdyn_m.o parmgeom_m.o parmhor_m.o soil_m.o soilsnow_m.o soilv_m.o vecsuv_m.o xyzinfo_m.o 
 mloints.o : cc_mpi.o indices_m.o mlo.o newmpar_m.o parm_m.o parmhor_m.o
