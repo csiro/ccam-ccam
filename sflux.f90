@@ -1213,7 +1213,9 @@ where ( u_sigma>0. )                                                            
 end where                                                                                        ! urban
 ! calculate snowmelt                                                                             ! urban
 newsnowmelt = snowmelt - oldsnowmelt                                                             ! urban
+newsnowmelt = newsnowmelt/dt                                                                     ! urban
 call atebhydro(newsnowmelt,"snowmelt",0,pd,fp,upack,ufull)                                       ! urban
+newsnowmelt = newsnowmelt*dt                                                                     ! urban
 where ( u_sigma>0. )                                                                             ! urban
   snowmelt = oldsnowmelt + newsnowmelt                                                           ! urban
 end where                                                                                        ! urban
