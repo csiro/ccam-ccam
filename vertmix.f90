@@ -1878,7 +1878,7 @@ end select
 do k = 1,kl
   ! save Km and Kh for output
   rkmsave(:,k) = rkm(:,k)
-  rkhsave(:,k) = rkh(:,k)
+  rkhsave(:,k) = rkm(:,k)
   tkesave(:,k) = tke(:,k)
   epssave(:,k) = eps(:,k)
 end do

@@ -3574,7 +3574,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
 
   pf(1:kl) = sig(1:kl)*ps(1)
 
-  qs(1:kl) = qsat(pf,t(1,:))
+  qs(1:kl) = qsat(pf,t(1,:),kl)
   rh(:) = 100.*qg(1,:)/qs(:)
   
   qs(1) = qsat(ps(1),tscrn(1))
@@ -5773,7 +5773,6 @@ clh_ave(:)           = 0.
 dni_ave(:)           = 0.
 
 ! zero evap, precip, precc, sno, runoff fields each nperavg (3/12/04) 
-evap(:)              = 0.  
 precip(:)            = 0.  ! converted to mm/day in outcdf
 precc(:)             = 0.  ! converted to mm/day in outcdf
 sno(:)               = 0.  ! converted to mm/day in outcdf
