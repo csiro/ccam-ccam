@@ -1444,7 +1444,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,nriver,           &
     atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
-    always_mspeca,                                                &
+    always_mspeca,estabmin,                                       &
     procmode,compression,hp_output,fnproc_bcast_max,              & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
@@ -1582,7 +1582,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(118) ) 
+allocate( dumr(34), dumi(118) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1620,6 +1620,7 @@ if ( myid==0 ) then
   dumr(31)  = rhsat
   dumr(32)  = ensemble_rsfactor
   dumr(33)  = zo_clearing
+  dumr(34)  = estabmin
   dumi(1)   = ntau
   dumi(2)   = nwt
   dumi(3)   = nhorps
@@ -1774,6 +1775,7 @@ qgmin             = dumr(30)
 rhsat             = dumr(31)
 ensemble_rsfactor = dumr(32)
 zo_clearing       = dumr(33)
+estabmin          = dumr(34)
 ntau              = dumi(1)
 nwt               = dumi(2)
 nhorps            = dumi(3)
@@ -4225,7 +4227,7 @@ if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
   write (6,"('cfrac',9f8.3/5x,9f8.3)") spmean(:)
   do k = 1,kl
     es        = establ(t(idjd,k))
-    spmean(k) = 100.*qg(idjd,k)*max(ps(idjd)*sig(k)-es,1.)/(.622*es) ! max as for convjlm
+    spmean(k) = 100.*qg(idjd,k)*max(ps(idjd)*sig(k)-es,estabmin)/(.622*es) ! max as for convjlm
   enddo
   write (6,"('rh  ',9f8.3/4x,9f8.3)") spmean(:)
   spmean(:) = ps(idjd)*dpsldt(idjd,:)

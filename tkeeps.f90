@@ -212,11 +212,11 @@ cm34 = sqrt(sqrt(cm0**3))
 
 sigkap(1:kl) = sig(1:kl)**(-rd/cp)
 
-do k = 1,kl
-  do iq = 1,imax
+do concurrent (k = 1:kl)
+  do concurrent (iq = 1:imax)
     ! Impose limits on tke and eps after being advected by the host model
     tke(iq,k) = max(tke(iq,k), mintke)
-    tff      = cm34*tke(iq,k)*sqrt(tke(iq,k))
+    tff       = cm34*tke(iq,k)*sqrt(tke(iq,k))
     eps(iq,k) = min(eps(iq,k), tff/minl)
     eps(iq,k) = max(eps(iq,k), tff/maxl, mineps)
   
@@ -273,15 +273,11 @@ ddts   = dt/real(mcount)
 do kcount = 1,mcount
 
   ! Set-up thermodynamic variables temp, theta_v, qtot and saturated mixing ratio
-  do k = 1,kl
+  do concurrent (k = 1:kl)
     templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
     ! calculate saturated air mixing ratio
-    where ( qfg(:,k)>1.e-12 )
-      fice = min( qfg(:,k)/(qfg(:,k)+qlg(:,k)), 1. )
-    elsewhere
-      fice = 0.
-    end where
+    fice = min( qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-12), 1. )
     call getqsat(qsat(:,k),templ(:),pres(:),fice,imax)
     thetav(:,k) = theta(:,k)*(1.+0.61*qvg(:,k)-qlg(:,k)-qfg(:,k))
     qtot(:,k) = qvg(:,k) + qlg(:,k) + qfg(:,k)
@@ -326,7 +322,7 @@ do kcount = 1,mcount
     ! Based on Boutle et al 2014
     zturb = 0.5*(zi_save + zi)
     cgmap(:) = 1. - tanh(mfbeta*zturb/dx)*max(0.,1.-0.25*dx/zturb)
-    do k = 1,kl
+    do concurrent (k = 1:kl)
       mflx(:,k) = mflx(:,k)*cgmap(:)
     end do
 #endif
@@ -334,10 +330,7 @@ do kcount = 1,mcount
   end if
 
 #ifdef scm  
-  do k = 1,kl-1
-    mfout(:,k) = mflx(:,k)*(1.-fzzh(:,k)) &
-               + mflx(:,k+1)*fzzh(:,k)
-  end do  
+  mfout(:,1:kl-1) = mflx(:,1:kl-1)*(1.-fzzh(:,1:kl-1)) + mflx(:,2:kl)*fzzh(:,1:kl-1)
 #endif
   
   
@@ -345,7 +338,7 @@ do kcount = 1,mcount
   z_on_l = -vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
   z_on_l = min(z_on_l,10.) ! See fig 10 in Beljarrs and Holtslag (1991)
   call calc_phi(phim,z_on_l,imax)
-  do iq = 1,imax
+  do concurrent (iq = 1:imax)
     tke(iq,1) = cm12*ustar(iq)*ustar(iq)+ce3*wstar(iq)*wstar(iq)
     eps(iq,1) = ustar(iq)*ustar(iq)*ustar(iq)*phim(iq)/(vkar*zz(iq,1))+grav*wtv0(iq)/thetav(iq,1)
     tke(iq,1) = max( tke(iq,1), mintke )
@@ -368,7 +361,7 @@ do kcount = 1,mcount
       ff=qfg(:,:)/max(stratcloud(:,:),1.E-8)            ! inside cloud value  assuming max overlap
       dd=qlg(:,:)/max(stratcloud(:,:),1.E-8)            ! inside cloud value assuming max overlap
       do k=1,kl
-        do iq =1,imax
+        do iq=1,imax
           tbb=max(1.-stratcloud(iq,k),1.E-8)
           qgnc(iq,k)=(qvg(iq,k)-(1.-tbb)*qsatc(iq,k))/tbb    ! outside cloud value
           qgnc(iq,k)=min(max(qgnc(iq,k),qgmin),qsatc(iq,k))
@@ -423,9 +416,20 @@ do kcount = 1,mcount
     case(1) ! Marquet and Geleyn QJRMS (2012) for partially saturated
       call updatekmo(thetalhl,thetal,fzzh,imax,kl)
       call updatekmo(qthl,qtot,fzzh,imax,kl)
-      do k=2,kl-1
-        do iq = 1,imax
-          tempt  = theta(iq,k)/sigkap(k)
+      do concurrent (iq = 1:imax)
+        tempt = theta(iq,1)/sigkap(1)
+        tempv = thetav(iq,1)/sigkap(1)
+        rvar = rd*tempv/tempt ! rvar = qd*rd+qv*rv
+        fc=(1.-stratcloud(iq,1))+stratcloud(iq,1)*(lv*rvar/(cp*rv*tempt))
+        dc=(1.+0.61*qvg(iq,1))*lv*qvg(iq,1)/(rd*tempv)
+        mc=(1.+dc)/(1.+lv*qlg(iq,1)/(cp*tempt)+dc*fc)
+        bvf=grav*mc*(thetalhl(iq,1)-thetal(iq,1))/(thetal(iq,1)*(zzh(iq,1)-zz(iq,1)))         &
+           +grav*(mc*fc*1.61-1.)*(tempt/tempv)*(qthl(iq,1)-qtot(iq,1))/(zzh(iq,1)-zz(iq,1))
+        ppb(iq,1) = -km(iq,1)*bvf
+      end do
+      do concurrent (k = 2:kl-1)
+        do concurrent (iq = 1:imax)
+          tempt = theta(iq,k)/sigkap(k)
           tempv = thetav(iq,k)/sigkap(k)
           rvar=rd*tempv/tempt ! rvar = qd*rd+qv*rv
           fc=(1.-stratcloud(iq,k))+stratcloud(iq,k)*(lv*rvar/(cp*rv*tempt))
@@ -435,17 +439,6 @@ do kcount = 1,mcount
              +grav*(mc*fc*1.61-1.)*(tempt/tempv)*(qthl(iq,k)-qthl(iq,k-1))/dz_fl(iq,k)
           ppb(iq,k)=-km(iq,k)*bvf
         end do
-      end do
-      do iq = 1,imax
-        tempt  = theta(iq,1)/sigkap(1)
-        tempv = thetav(iq,1)/sigkap(1)
-        rvar=rd*tempv/tempt ! rvar = qd*rd+qv*rv
-        fc=(1.-stratcloud(iq,1))+stratcloud(iq,1)*(lv*rvar/(cp*rv*tempt))
-        dc=(1.+0.61*qvg(iq,1))*lv*qvg(iq,1)/(rd*tempv)
-        mc=(1.+dc)/(1.+lv*qlg(iq,1)/(cp*tempt)+dc*fc)
-        bvf=grav*mc*(thetalhl(iq,1)-thetal(iq,1))/(thetal(iq,1)*(zzh(iq,1)-zz(iq,1)))         &
-           +grav*(mc*fc*1.61-1.)*(tempt/tempv)*(qthl(iq,1)-qtot(iq,1))/(zzh(iq,1)-zz(iq,1))
-        ppb(iq,1) = -km(iq,1)*bvf
       end do
       
     case(2) ! dry convection from Hurley 2007
@@ -473,7 +466,7 @@ do kcount = 1,mcount
     ! pps(:,1) is not used
     pps(:,1) = kmo(:,1)*(((uo_hl(:,1)-uo(:,1))/(zzh(:,1)-zz(:,1)))**2 + &
                          ((vo_hl(:,1)-vo(:,1))/(zzh(:,1)-zz(:,1)))**2)
-    do k = 2,kl-1  
+    do concurrent (k = 2:kl-1)  
       pps(:,k) = kmo(:,k)*(((uo_hl(:,k)-uo_hl(:,k-1))/dz_fl(:,k))**2 + &
                            ((vo_hl(:,k)-vo_hl(:,k-1))/dz_fl(:,k))**2)
     end do  
@@ -506,8 +499,8 @@ do kcount = 1,mcount
 
   ! limit decay of TKE and EPS with coupling to mass flux term
   if ( tkemeth==1 ) then
-    do k = 2,kl-1
-      do iq = 1,imax
+    do concurrent (k = 2:kl-1)
+      do concurrent (iq = 1:imax)
         tbb = max(1.-0.05*dz_hl(iq,k-1)/250.,0.)
         if ( wstar(iq)>0.5 .and. zz(iq,k)>0.5*zi(iq) .and. zz(iq,k)<0.95*zi(iq) ) then
           tke(iq,k) = max( tke(iq,k), tbb*tke(iq,k-1) )
@@ -518,8 +511,8 @@ do kcount = 1,mcount
   end if
   
   ! apply limits and corrections to tke and eps terms
-  do k = 2,kl-1
-    do iq = 1,imax
+  do concurrent (k = 2:kl-1)
+    do concurrent (iq = 1:imax)
       tke(iq,k) = max(tke(iq,k),mintke)
       tff = cm34*tke(iq,k)*sqrt(tke(iq,k))
       eps(iq,k) = min(eps(iq,k),tff/minl)
@@ -655,24 +648,18 @@ do kcount = 1,mcount
   ustar_ave = ustar_ave + ustar/real(mcount)
 
   ! Account for phase transistions
-  do k = 1,kl
+  do concurrent (k = 1:kl)
     ! Check for -ve values  
     qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
     qc(:) = max( qfg(:,k) + qlg(:,k), 0. )
-    
     qfg(:,k) = max( qfg(:,k), 0. )
     qlg(:,k) = max( qlg(:,k), 0. )
-    
     ! account for saturation
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
     temp(:) = theta(:,k)/sigkap(k)
     templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
-    where ( qfg(:,k)>1.e-12 )
-      fice = min( qfg(:,k)/(qfg(:,k)+qlg(:,k)), 1. )
-    elsewhere
-      fice = 0.
-    end where
+    fice = min( qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-12), 1. )
     call getqsat(qsat(:,k),templ(:),pres(:),fice,imax)
     lx(:) = lv + lf*fice(:)
     dqsdt(:) = qsat(:,k)*lx(:)/(rv*templ(:)**2)
@@ -682,7 +669,6 @@ do kcount = 1,mcount
       qfg(:,k) = max( fice(:)*qc(:), 0. )  
       qlg(:,k) = max( qc(:) - qfg(:,k), 0. )
     end where
-    
     qvg(:,k) = max( qt(:) - qfg(:,k) - qlg(:,k), 0. )
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
     where ( qlg(:,k)+qfg(:,k)>1.E-12 )
@@ -744,7 +730,7 @@ real, parameter :: ricr = 0.3
 logical, dimension(imax), intent(in) :: mask
 
 ! Initialise updraft
-do k = 1,kl
+do concurrent (k = 1:kl)
   w2up(:,k) = 0.
   nn(:,k) = 0.
   tlup(:,k) = thetal(:,k)
@@ -864,26 +850,25 @@ real, dimension(imax,klin), intent(in) :: bbi,ddi
 real, dimension(imax,klin-1), intent(in) :: cci
 real, dimension(imax,klin), intent(out) :: outdat
 real, dimension(imax,klin) :: cc,dd
-real :: n_s
+real n_s
 integer k, iq
 
-cc(:,1)=cci(:,1)/bbi(:,1)
-dd(:,1)=ddi(:,1)/bbi(:,1)
-
-do k=2,klin-1
-  do iq = 1,imax
-    n_s=bbi(iq,k)-cc(iq,k-1)*aai(iq,k)
-    cc(iq,k)=cci(iq,k)/n_s
-    dd(iq,k)=(ddi(iq,k)-dd(iq,k-1)*aai(iq,k))/n_s
+cc(:,1) = cci(:,1)/bbi(:,1)
+dd(:,1) = ddi(:,1)/bbi(:,1)
+do k = 2,klin-1
+  do concurrent (iq = 1:imax)
+    n_s = bbi(iq,k)-cc(iq,k-1)*aai(iq,k)
+    cc(iq,k) = cci(iq,k)/n_s
+    dd(iq,k) = (ddi(iq,k)-dd(iq,k-1)*aai(iq,k))/n_s
   end do
 end do
-do iq = 1,imax
-  n_s=bbi(iq,klin)-cc(iq,klin-1)*aai(iq,klin)
-  dd(iq,klin)=(ddi(iq,klin)-dd(iq,klin-1)*aai(iq,klin))/n_s
-  outdat(iq,klin)=dd(iq,klin)
+do concurrent (iq = 1:imax)
+  n_s = bbi(iq,klin)-cc(iq,klin-1)*aai(iq,klin)
+  dd(iq,klin) = (ddi(iq,klin)-dd(iq,klin-1)*aai(iq,klin))/n_s
+  outdat(iq,klin) = dd(iq,klin)
 end do
-do k=klin-1,1,-1
-  outdat(:,k)=dd(:,k)-cc(:,k)*outdat(:,k+1)
+do k = klin-1,1,-1
+  outdat(:,k) = dd(:,k)-cc(:,k)*outdat(:,k+1)
 end do
 
 return
@@ -948,13 +933,17 @@ tdiff = min(max( templ(:)-123.16, 0.), 219.)
 rx = tdiff - aint(tdiff)
 ix = int(tdiff)
 estafi = (1.-rx)*tablei(ix) + rx*tablei(ix+1)
-qsati = 0.622*estafi/max(ps(:)-estafi,0.1)
+qsati = 0.622*estafi/max(ps(:)-estafi,1.e-10)
 
-tdiffx = min(max( templ(:)-273.1, -40.), 1.)
-rxx = tdiffx - aint(tdiffx)
-ixx = int(tdiffx)
-deles = (1.-rxx)*esdiff(ixx) + rxx*esdiff(ixx+1)
-qsatl = qsati + 0.622*deles/ps
+if ( any(templ<274.1) ) then
+  tdiffx = min(max( templ(:)-273.1, -40.), 1.)
+  rxx = tdiffx - aint(tdiffx)
+  ixx = int(tdiffx)
+  deles = (1.-rxx)*esdiff(ixx) + rxx*esdiff(ixx+1)
+  qsatl = qsati + 0.622*deles/ps
+else
+  qsatl = qsati
+end if
 
 qsat = fice*qsati + (1.-fice)*qsatl
 

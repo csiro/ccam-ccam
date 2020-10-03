@@ -560,8 +560,9 @@
        do iq=1,imax
         pk=ps(iq)*sig(k)
 !       qs(iq,k)=max(.622*es(iq,k)/(pk-es(iq,k)),1.5e-6)  
-        qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),0.1)  
-        dqsdt(iq,k)=qs(iq,k)*pk*hlars/(tt(iq,k)**2*max(pk-es(iq,k),1.))
+        qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),estabmin)  
+        dqsdt(iq,k)=qs(iq,k)*pk*hlars/(tt(iq,k)**2*
+     &    max(pk-es(iq,k),1.e-10))
         s(iq,k)=cp*tt(iq,k)+phi(iq,k)  ! dry static energy
 !       calculate hs
         hs(iq,k)=s(iq,k)+hl*qs(iq,k)   ! saturated moist static energy
@@ -1824,10 +1825,11 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
         do k=klon2,1,-1    ! top down to end up with proper kbsav_ls
          do iq=1,imax
           pk=ps(iq)*sig(k)
-          qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),1.)  
+          qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),estabmin)  
           if(qq(iq,k)>rhsat*qs(iq,k))then
             kbsav_ls(iq)=k
-            gam=hlcp*qs(iq,k)*pk*hlars/(tt(iq,k)**2*max(pk-es(iq,k),1.))
+            gam=hlcp*qs(iq,k)*pk*hlars/(tt(iq,k)**2*
+     &        max(pk-es(iq,k),1.e-10))
             dqrx=(qq(iq,k)-rhsat*qs(iq,k))/(1.+rhsat*gam)
             tt(iq,k)=tt(iq,k)+hlcp*dqrx
             qq(iq,k)=qq(iq,k)-dqrx
@@ -1934,7 +1936,7 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
         do k=1,kl   
          es(iq,k)=establ(tt(iq,k))  ! in diag loop using updated tt
          pk=ps(iq)*sig(k)
-         qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),0.1)  
+         qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),estabmin)  
          s(iq,k)=cp*tt(iq,k)+phi(iq,k)  ! dry static energy
          hs(iq,k)=s(iq,k)+hl*qs(iq,k)   ! saturated moist static energy
         enddo   ! k loop

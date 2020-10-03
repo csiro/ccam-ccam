@@ -27,7 +27,9 @@ implicit none
 
 private
 public establ,estabi,qsat,qsati
-public esdiffx
+public esdiffx,estabmin
+
+real, save :: estabmin = 0.1 ! better to use 1.e-10
 
 interface qsat
   module procedure qsat_s, qsat_v
@@ -196,7 +198,7 @@ real, intent(in) :: pp_, t_
 real ans      
 real estore
 estore = establ(t_)
-ans = epsil*estore/max(pp_-estore,.1) !jlm strato
+ans = epsil*estore/max(pp_-estore,estabmin) !jlm strato
 ! ans = epsil*establ(t_)/(pp_-establ(t_)) !Usual formula
 ! ans = epsil*establ(t_)/pp_ !Consistent with V4-5 to V4-7
 end function qsat_s
@@ -210,7 +212,7 @@ real, dimension(imax_), intent(in) :: pp_, t_
 real, dimension(imax_) :: ans
 real, dimension(imax_) :: estore
 estore = establ(t_,imax_)
-ans = epsil*estore/max(pp_-estore,.1) !jlm strato
+ans = epsil*estore/max(pp_-estore,estabmin) !jlm strato
 ! ans = epsil*establ(t_)/(pp_-establ(t_)) !Usual formula
 ! ans = epsil*establ(t_)/pp_ !Consistent with V4-5 to V4-7
 end function qsat_v
