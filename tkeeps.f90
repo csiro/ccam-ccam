@@ -933,17 +933,13 @@ tdiff = min(max( templ(:)-123.16, 0.), 219.)
 rx = tdiff - aint(tdiff)
 ix = int(tdiff)
 estafi = (1.-rx)*tablei(ix) + rx*tablei(ix+1)
-qsati = 0.622*estafi/max(ps(:)-estafi,1.e-10)
+qsati = 0.622*estafi/max(ps(:)-estafi,0.1)
 
-if ( any(templ<274.1) ) then
-  tdiffx = min(max( templ(:)-273.1, -40.), 1.)
-  rxx = tdiffx - aint(tdiffx)
-  ixx = int(tdiffx)
-  deles = (1.-rxx)*esdiff(ixx) + rxx*esdiff(ixx+1)
-  qsatl = qsati + 0.622*deles/ps
-else
-  qsatl = qsati
-end if
+tdiffx = min(max( templ(:)-273.1, -40.), 1.)
+rxx = tdiffx - aint(tdiffx)
+ixx = int(tdiffx)
+deles = (1.-rxx)*esdiff(ixx) + rxx*esdiff(ixx+1)
+qsatl = qsati + 0.622*deles/ps
 
 qsat = fice*qsati + (1.-fice)*qsatl
 
