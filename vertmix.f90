@@ -396,7 +396,7 @@ use cc_mpi, only : comm_world,       &
 use cc_omp                          ! CC OpenMP routines
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
-use estab, only : establ,estabmin   ! Liquid saturation function
+use estab, only : establ            ! Liquid saturation function
 use newmpar_m                       ! Grid parameters
 use parm_m, only : diag,ktau,        &
     nvmix,dt,nlv,ia,ib,ja,jb,nmaxpr, &
@@ -537,9 +537,9 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
         es=establ(t(iq,k))
         pk=ps(iq)*sig(k)
         !qs(iq,k)=.622*es/max(1.,pk-es)  
-        qs(iq,k)=.622*es/max(pk-es,estabmin)
+        qs(iq,k)=.622*es/(pk-es)
         !dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(1.,pk-es))
-        dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(pk-es,estabmin))
+        dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*(pk-es))
         rhs(iq,k)=rhs(iq,k)-(hlcp*qlg(iq,k)+hlscp*qfg(iq,k))*sigkap(k)   !Convert to thetal - used only to calc Ri
         betat=1./t(iq,k)
         qc=qlg(iq,k)+qfg(iq,k)
@@ -554,7 +554,7 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
       do iq=1,imax
         es=establ(t(iq,k))
         pk=ps(iq)*sig(k)
-        qs(iq,k)=.622*es/max(estabmin,pk-es)  ! still need qs(); max for k=kl
+        qs(iq,k)=.622*es/max(1.,pk-es)  ! still need qs(); max for k=kl
         betat=1./t(iq,k)
         ! qc=qlg(iq,k)+qfg(iq,k)
         ! betaq=delta/(1.+delta*qg(iq,k)-qc)
@@ -565,7 +565,7 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
     endif  ! (sig(k)>.8)
     if(diag.and.mydiag)then
       iq=idjd
-      dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(pk-es,estabmin))
+      dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(pk-es,1.))
       betat=1./t(iq,k)
       qc=qlg(iq,k)+qfg(iq,k)
       fice=qfg(iq,k)/max(qc,1.e-12)
@@ -583,7 +583,7 @@ else       ! other nvmix values (0 or 4+) still need qs()
   do k=1,kl
     do iq=1,imax
       es=establ(t(iq,k))
-      qs(iq,k)=.622*es/max(estabmin,ps(iq)*sig(k)-es)  ! max for k=kl
+      qs(iq,k)=.622*es/max(1.,ps(iq)*sig(k)-es)  ! max for k=kl
     enddo   ! iq loop
   enddo    !  k loop
 endif      ! (nvmix>0.and.nvmix<4).or.nvmix==7

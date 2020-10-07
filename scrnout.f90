@@ -218,7 +218,7 @@ do iq=is,ie              ! all valid points
   endif
   ! use tscrn for calc rhscrn  23/12/05	
   es=establ(tscrn(iq))
-  qsttg(iq)= .622*es/max(ps(iq)-es,estabmin)  ! recalc     
+  qsttg(iq)= .622*es/(ps(iq)-es)  ! recalc     
   rhscrn(iq) = 100.*qgscrn(iq)/qsttg(iq)
 enddo
 
@@ -440,7 +440,7 @@ tscrn(1:imax)  = temp(1:imax) - tstar(1:imax)*integralh(1:imax)/vkar
 esatb(1:imax)  = establ(tscrn(1:imax),imax)
 qscrn(1:imax)  = mixr(1:imax) - qstar(1:imax)*integralq(1:imax)/vkar
 qscrn(1:imax)  = max(qscrn(1:imax), qgmin)
-qsatb(1:imax)  = 0.622*esatb(1:imax)/max(ps(1:imax)-esatb(1:imax),estabmin)
+qsatb(1:imax)  = 0.622*esatb(1:imax)/(ps(1:imax)-esatb(1:imax))
 rhscrn(1:imax) = 100.*min(qscrn(1:imax)/qsatb(1:imax), 1.)
 uscrn(1:imax)  = max(umagn(1:imax)-ustar(1:imax)*integralm(1:imax)/vkar, 0.)
 u10(1:imax)    = max(umagn(1:imax)-ustar(1:imax)*integralm10(1:imax)/vkar, 0.)
@@ -505,7 +505,7 @@ au(is:ie)   = u(is:ie,1) - ou(is:ie)
 av(is:ie)   = v(is:ie,1) - ov(is:ie)
 umag(is:ie) = max( sqrt(au(is:ie)*au(is:ie)+av(is:ie)*av(is:ie)), vmodmin )
 es(is:ie) = establ(tss(is:ie),imax)
-qsttg(is:ie) = 0.622*es(is:ie)/max(ps(is:ie)-es(is:ie),estabmin)
+qsttg(is:ie) = 0.622*es(is:ie)/(ps(is:ie)-es(is:ie))
 smixr(is:ie) = wetfac(is:ie)*qsttg(is:ie) + (1.-wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
 
 new_zo(is:ie) = zo(is:ie)

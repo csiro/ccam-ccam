@@ -3535,8 +3535,11 @@ ix=int(tdiff)
 esatf=(1.-rx)*table(ix) + rx*table(ix+1)
 qsat=0.622*esatf/max(ps-esatf,0.1)
 
+! method #1
 dedt=table(ix+1)-table(ix) ! divide by 1C
 dqdt=qsat*dedt*ps/(esatf*max(ps-esatf,0.1))
+! method #2
+!dqdt=qsat*lv/rvap*qsat*ps/(temp*temp*(ps-0.378*esatf))
 
 return
 end subroutine getqsat

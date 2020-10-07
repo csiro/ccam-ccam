@@ -635,7 +635,7 @@
          do iq=1,imax
           es(iq,1)=establ(tt(iq,1))
           pk=ps(iq)*sig(1)
-          qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),estabmin)  
+          qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),0.1)  
           k=kkbb(iq)  ! for alfqarr calc
 c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25         
          if(fg(iq)>0.)alfqarr(iq)=alfqarr(iq)*         !  mbase>=0;  N.B. qs check done later with qbass
@@ -647,7 +647,7 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
          do iq=1,imax
           es(iq,1)=establ(tt(iq,1))
           pk=ps(iq)*sig(1)
-          qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),estabmin)  
+          qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),0.1)  
           k=kkbb(iq)  ! for alfqarr calc
 c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25         
          if(fg(iq)>0.)alfqarr(iq)=alfqarr(iq)*         !  N.B. qs check done later with qbass
@@ -659,7 +659,7 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
          do iq=1,imax
           es(iq,1)=establ(tt(iq,1))
           pk=ps(iq)*sig(1)
-          qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),estabmin)  
+          qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),0.1)  
           k=kkbb(iq)  ! for alfqarr calc
           if(fg(iq)>0.)alfqarr(iq)=max(wetfac(iq)*qs(iq,1),  !  N.B. qs check done later with qbass
      &           alfqarr(iq)*qg(iq,k980),alfqarr(iq)*qg(iq,k))/qg(iq,k)
@@ -670,7 +670,7 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
          do iq=1,imax
           es(iq,1)=establ(tt(iq,1))
           pk=ps(iq)*sig(1)
-          qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),estabmin)  
+          qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),0.1)  
           k=kkbb(iq)  ! for alfqarr calc
           if(land(iq))then
             if(fg(iq)>0.)alfqarr(iq)=alfqarr(iq)*         !  same as mbase=1
@@ -687,7 +687,7 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
           k=kkbb(iq)  ! for alfqarr calc
           es(iq,k)=establ(tt(iq,k))
           pk=ps(iq)*sig(k)
-          qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),estabmin)  
+          qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),0.1)  
           if(land(iq))then
             if(fg(iq)>0.)alfqarr(iq)=min(qs(iq,k),alfqarr(iq)*       
      &               max(qg(iq,1),qg(iq,k980),qg(iq,k)))
@@ -749,9 +749,8 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
        do iq=1,imax
         pk=ps(iq)*sig(k)
 !       qs(iq,k)=max(.622*es(iq,k)/(pk-es(iq,k)),1.5e-6)  
-        qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),estabmin)  
-        dqsdt(iq,k)=qs(iq,k)*pk*hlars/(tt(iq,k)**2*
-     &    max(pk-es(iq,k),1.e-10))
+        qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),0.1)  
+        dqsdt(iq,k)=qs(iq,k)*pk*hlars/(tt(iq,k)**2*max(pk-es(iq,k),1.))
         s(iq,k)=cp*tt(iq,k)+phi(iq,k)  ! dry static energy
 !       calculate hs
         hs(iq,k)=s(iq,k)+hl*qs(iq,k)   ! saturated moist static energy
@@ -2182,7 +2181,7 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
         do k=1,kl   
          es(iq,k)=establ(tt(iq,k))  ! in diag loop using updated tt
          pk=ps(iq)*sig(k)
-         qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),estabmin)  
+         qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),0.1)  
          s(iq,k)=cp*tt(iq,k)+phi(iq,k)  ! dry static energy
          hs(iq,k)=s(iq,k)+hl*qs(iq,k)   ! saturated moist static energy
         enddo   ! k loop

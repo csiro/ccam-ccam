@@ -2548,7 +2548,8 @@ integer,                       intent(in)    :: naerosol_optical
             fracday_p,    solarflux_p
 
       real, dimension (size(Atmos_input%press,1),    &
-                       size(Atmos_input%press,2)) :: &
+                       size(Atmos_input%press,2),   &
+                                         NSOLWG) ::         &
                  cosangsolar_p
 
       integer :: j, i, k, ng, np, nband, nf, ns, nz
@@ -2699,43 +2700,9 @@ integer,                       intent(in)    :: naerosol_optical
 
 !--------------------------------------------------------------------
  
-!$acc enter data create(sumtr,sumtr_dir,sumre,sumtr_dir_up,sumtrclr,sumreclr, &
-!$acc sumtr_dir_clr,cldfrac_band,cloud_in_column,cloud,cloudfrac, &
-!$acc cldext,cldsct,cldasymm,cloudextopdep,cloudsctopdep,cloudasymfac, &
-!$acc cloud_deltaz,daylight,sctopdepclr,rayopdep,aerosctopdep,aeroasymfac,fclr, &
-!$acc gstrclr,sctopdepovc,fovc,gstrovc,gasopdep,aeroextopdep,taustrclr,omegastrclr, &
-!$acc taustrovc,omegastrovc,cosangsolar_p,dfswbandclr,fswbandclr,hswbandclr, &
-!$acc ufswbandclr,reflectanceclr,transmittanceclr,tlayerdifclr,cosangstr,wtstr, &
-!$acc rlayerdifclr,tlayerdirclr,tlayerdeclr,rlayerdirclr,rlayerdirovc,tlayerdirovc, &
-!$acc tlayerdeovc,rlayerdifovc,tlayerdifovc,rlayerdir,rlayerdif,tlayerdir,tlayerdif, &
-!$acc tlayerde,sfcalb_dir,sfcalb_dif,reflectance,transmittance,tr_dir,tr_dirclr, &
-!$acc wtfac_p,wtfreq,gausswt,fracday_p,solarflux_p,dfswband,ufswband,fswband,gocpdp) &
-!$acc copyin(Cld_spec,Cld_spec%camtsw_band) &
-!$acc copyin(Cldrad_props,Cldrad_props%cldext,Cldrad_props%cldsct,Cldrad_props%cldasymm) &
-!$acc copyin(Astro, Astro%cosz_p,Astro%cosz,Astro%fracday_p,Astro%fracday) &
-!$acc copyin(Surface,Surface%asfc_nir_dir,Surface%asfc_nir_dif) &
-!$acc copyin(Surface%asfc_vis_dir,Surface%asfc_vis_dif) &
-!$acc copyin(Solar_spect,Solar_spect%solflxband) &
-!$acc copyin(Sw_output,Sw_output%bdy_flx,Sw_output%dfsw,Sw_output%ufsw,Sw_output%fsw) &
-!$acc copyin(Sw_output%dfsw_dir_sfc,Sw_output%ufsw_dir_sfc,Sw_output%ufsw_dif_sfc) &
-!$acc copyin(Sw_output%dfsw_vis_sfc,Sw_output%ufsw_vis_sfc,Sw_output%dfsw_vis_sfc_dir) &
-!$acc copyin(Sw_output%ufsw_vis_sfc_dir,Sw_output%ufsw_vis_sfc_dif,Sw_output%hsw) &
-!$acc copyin(Sw_output%dfsw_dir_sfc_clr,Sw_output%dfsw_vis_sfc_clr,Sw_output%bdy_flx_clr) &
-!$acc copyin(Sw_output%dfswcf,Sw_output%ufswcf,Sw_output%fswcf,Sw_output%hswcf)
-
-!$acc update device(cloud_deltaz,daylight,rayopdep,aerosctopdep,aeroasymfac,gausswt,gocpdp, &
-!$acc gasopdep,aeroextopdep,cosangstr,wtstr,wtfreq,fswband,cloud_in_column,cloud,cloudfrac)
       do nprofile=1, nprofiles
         if (do_ica_calcs) then
-!$acc parallel loop collapse(3) present(cldfrac_band,Cld_spec)
-          do concurrent (k=ksrad:kerad)
-            do concurrent (j=jsrad:jerad)
-              do concurrent (i=israd:ierad)
-                cldfrac_band(i,j,k) = Cld_spec%camtsw_band(i,j,k,nprofile)
-              end do
-            end do
-          end do
-!$acc end parallel loop
+          cldfrac_band(:,:,:) = Cld_spec%camtsw_band(:,:,:,nprofile)
         endif
 
 !----------------------------------------------------------------------c
@@ -2745,86 +2712,31 @@ integer,                       intent(in)    :: naerosol_optical
         np = 0
 
         if (Rad_control%do_totcld_forcing) then 
-!$acc parallel loop collapse(3) present(dfswbandclr,fswbandclr,hswbandclr,ufswbandclr)
-          do concurrent (k=ksrad:kerad)
-            do concurrent (j=jsrad:jerad)
-              do concurrent (i=israd:ierad)
-                dfswbandclr(i,j,k,1:nzens) = 0.0
-                fswbandclr(i,j,k,1:nzens) = 0.0
-                hswbandclr(i,j,k,1:nzens) = 0.0
-                ufswbandclr(i,j,k,1:nzens) = 0.0
-              end do
-            end do
-          end do
-!$acc end parallel loop
+          dfswbandclr(:,:,:,1:nzens) = 0.0
+          fswbandclr(:,:,:,1:nzens) = 0.0
+          hswbandclr(:,:,:,1:nzens) = 0.0
+          ufswbandclr(:,:,:,1:nzens) = 0.0
         endif
-!$acc parallel loop collapse(3) present(reflectanceclr,transmittanceclr)
-          do concurrent (k=ksrad:kerad)
-            do concurrent (j=jsrad:jerad)
-              do concurrent (i=israd:ierad)
-                reflectanceclr(i,j,k) = 0.0
-                transmittanceclr(i,j,k) = 0.0
-              end do
-            end do
-          end do
-!$acc end parallel loop
+        reflectanceclr = 0.0
+        transmittanceclr = 0.0
  
 !----------------------------------------------------------------------c
 !    begin band loop                                                   
 !----------------------------------------------------------------------c
         do nband = 1,NBANDS
  
-!$acc parallel loop collapse(4) present(sumtr,sumtr_dir,sumre)
-          do concurrent (nz=1:nzens)
-            do concurrent (k=ksrad:kerad+1)
-              do concurrent (j=jsrad:jerad)
-                do concurrent (i=israd:ierad)
-                  sumtr(i,j,k,nz) = 0.0
-                  sumtr_dir(i,j,k,nz) = 0.0
-                  sumre(i,j,k,nz) = 0.0
-                end do
-              end do
-            end do
-          end do
-!$acc end parallel loop
-
-!$acc parallel loop collapse(3) present(sumtr_dir_up)
-          do concurrent (nz=1:nzens)
-            do concurrent (j=jsrad:jerad)
-              do concurrent (i=israd:ierad)
-                sumtr_dir_up(i,j,nz) = 0.0
-              end do
-            end do
-          end do
-!$acc end parallel loop
-
+          sumtr(:,:,:,1:nzens) = 0.0
+          sumtr_dir(:,:,:,1:nzens) = 0.0
+          sumtr_dir_up(:,:,1:nzens) = 0.0
+          sumre(:,:,:,1:nzens) = 0.0
           if (Rad_control%do_totcld_forcing) then
-!$acc parallel loop collapse(4) present(sumtrclr,sumreclr,sumtr_dir_clr)
-            do concurrent (nz=1:nzens)
-              do concurrent (k=ksrad:kerad+1)
-                do concurrent (j=jsrad:jerad)
-                  do concurrent (i=israd:ierad)
-                    sumtrclr(i,j,k,nz) = 0.0
-                    sumreclr(i,j,k,nz) = 0.0
-                    sumtr_dir_clr(i,j,k,nz) = 0.0
-                  end do
-                end do
-              end do
-            end do
-!$acc end parallel loop
-
+            sumtrclr(:,:,:,1:nzens) = 0.0
+            sumreclr(:,:,:,1:nzens) = 0.0
+            sumtr_dir_clr(:,:,:,1:nzens) = 0.0
           endif
           if (Cldrad_control%do_stochastic_clouds) then
             if (.not. do_ica_calcs) then
-!$acc parallel loop collapse(3) present(cldfrac_band,Cld_spec)
-              do concurrent (k=ksrad:kerad)
-                do concurrent (j=jsrad:jerad)
-                  do concurrent (i=israd:ierad)
-                    cldfrac_band(i,j,k) = Cld_spec%camtsw_band(i,j,k,nband)
-                  end do
-                end do
-              end do
-!$acc end parallel loop
+              cldfrac_band(:,:,:) = Cld_spec%camtsw_band(:,:,:,nband)
             endif
  
 !----------------------------------------------------------------------
@@ -2834,12 +2746,11 @@ integer,                       intent(in)    :: naerosol_optical
 !    the flag indicating that cloud is present in columns with such
 !    points.
 !----------------------------------------------------------------------
-!$acc parallel loop collapse(2) present(cldfrac_band,cloud_in_column,daylight,cloudfrac,cloud)
-            do concurrent ( j = JSRAD:JERAD )
-              do concurrent ( i = ISRAD:IERAD )
+            do j = JSRAD,JERAD
+              do i = ISRAD,IERAD
                 cloud_in_column(i,j) = .false.
                 if (daylight(i,j)) then
-                  do concurrent (k = KSRAD:KERAD )
+                  do k = KSRAD,KERAD
                     if (cldfrac_band(i,j,k) > 0.0)  then
                       cloud_in_column(i,j) = .true.
                       cloud(i,j,k) = .true.
@@ -2850,55 +2761,41 @@ integer,                       intent(in)    :: naerosol_optical
                     endif
                   end do
                 else
-                  do concurrent ( k = KSRAD:KERAD )
+                  do k = KSRAD,KERAD
                     cloud(i,j,k) = .false.
                     cloudfrac(i,j,k) = 0.0
                   end do
                 endif
               end do
             end do
-!$acc end parallel loop
           endif
 
 !---------------------------------------------------------------------
 !    obtain cloud properties from the Cldrad_props input variable.
 !--------------------------------------------------------------------
-!$acc parallel loop collapse(3) present(cldext,cldsct,cldasymm,Cldrad_props)
-          do concurrent (k=ksrad:kerad)
-            do concurrent (j=jsrad:jerad)
-              do concurrent (i=israd:ierad)
-                cldext(i,j,k) = Cldrad_props%cldext(i,j,k,nband,nprofile)
-                cldsct(i,j,k) = Cldrad_props%cldsct(i,j,k,nband,nprofile)
-                cldasymm(i,j,k) = Cldrad_props%cldasymm(i,j,k,nband,nprofile)
-              end do
-            end do
-          end do
-!$acc end parallel loop
+          cldext(:,:,:) = Cldrad_props%cldext(:,:,:,nband,nprofile)
+          cldsct(:,:,:) = Cldrad_props%cldsct(:,:,:,nband,nprofile)
+          cldasymm(:,:,:) = Cldrad_props%cldasymm(:,:,:,nband,nprofile)
 
-!$acc parallel loop collapse(3) present(cldext,cldsct,cldasymm,cloudextopdep,cloudsctopdep, &
-!$acc cloudasymfac,cloud_deltaz,cloud)
-          do concurrent ( k = KSRAD:KERAD )
-            do concurrent ( j = JSRAD:JERAD )
-              do concurrent ( i = ISRAD:IERAD )
-                if ( cloud(i,j,k) ) then
-                  cloudextopdep(i,j,k) = 1.0E-03*cldext(i,j,k) * cloud_deltaz(i,j,k)
-                  cloudsctopdep(i,j,k) = 1.0E-03*cldsct(i,j,k) * cloud_deltaz(i,j,k)
-                  cloudasymfac(i,j,k) = cldasymm(i,j,k)
-                end if
+          do k = KSRAD,KERAD
+            do j = JSRAD,JERAD
+              do i = ISRAD,IERAD
+                  if ( cloud(i,j,k) ) then
+                    cloudextopdep(i,j,k) = 1.0E-03*cldext(i,j,k) * cloud_deltaz(i,j,k)
+                    cloudsctopdep(i,j,k) = 1.0E-03*cldsct(i,j,k) * cloud_deltaz(i,j,k)
+                    cloudasymfac(i,j,k) = cldasymm(i,j,k)
+                  end if
               end do
             end do
           end do
-!$acc end parallel loop
 
 !-----------------------------------------------------------------
 !    define clear sky arrays
 !-----------------------------------------------------------------
           if (nband >= firstrayband ) then
-!$acc parallel loop collapse(3) present(daylight,sctopdepclr,rayopdep,aerosctopdep,aeroasymfac, &
-!$acc sctopdepclr,fclr,gstrclr)
-            do concurrent ( k=ksrad:kerad )
-              do concurrent ( j = JSRAD:JERAD )
-                do concurrent ( i = ISRAD:IERAD )
+            do k=ksrad,kerad
+              do j = JSRAD,JERAD
+                do i = ISRAD,IERAD
                   if ( daylight(i,j) ) then
                     sctopdepclr(i,j,k) = rayopdep(i,j,k,nband) + aerosctopdep(i,j,k,nband)
                     gclr = aeroasymfac(i,j,k,nband)*aerosctopdep(i,j,k,nband)/sctopdepclr(i,j,k)
@@ -2908,17 +2805,14 @@ integer,                       intent(in)    :: naerosol_optical
                 end do
               end do
             end do
-!$acc end parallel loop
           endif
 
 !-----------------------------------------------------------------
 !    define cloudy sky arrays
 !-----------------------------------------------------------------
-!$acc parallel loop collapse(3) present(cloud,sctopdepovc,rayopdep,aerosctopdep, &
-!$acc cloudsctopdep,cloudasymfac,aeroasymfac,fovc,gstrovc)
-          do concurrent ( k = KSRAD:KERAD )
-            do concurrent ( j = JSRAD:JERAD )
-              do concurrent ( i = ISRAD:IERAD )
+          do k = KSRAD,KERAD
+            do j = JSRAD,JERAD
+              do i = ISRAD,IERAD
                 if (cloud(i,j,k)) then
                   sctopdepovc(i,j,k) = rayopdep(i,j,k,nband) +     &
                                    aerosctopdep(i,j,k,nband) +     &
@@ -2939,8 +2833,7 @@ integer,                       intent(in)    :: naerosol_optical
               end do
             end do
           end do
-!$acc end parallel loop
-
+          
 !---------------------------------------------------------------------
 !    begin frequency points in the band loop.                          
 !--------------------------------------------------------------------
@@ -2958,11 +2851,9 @@ integer,                       intent(in)    :: naerosol_optical
 !    spatial columns experiencing sunlight.         
 !--------------------------------------------------------------------
               if (nband >= firstrayband )  then
-!$acc parallel loop collapse(3) present(daylight,gasopdep,rayopdep,aeroextopdep, &
-!$acc sctopdepclr,taustrclr,fclr,omegastrclr)
-                do concurrent ( k=ksrad:kerad )
-                  do concurrent ( j = JSRAD:JERAD )
-                    do concurrent ( i = ISRAD:IERAD )
+                do k=ksrad,kerad
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
                       if ( daylight(i,j) ) then
                         extopdepclr = gasopdep(i,j,k,np,ng) +   &
                                      rayopdep(i,j,k,nband) +    &
@@ -2978,18 +2869,15 @@ integer,                       intent(in)    :: naerosol_optical
                     end do
                   end do
                 end do
-!$acc end parallel loop
               endif
 
 !--------------------------------------------------------------------
 !    calculate the scaled single-scattering quantities for use in the   
 !    delta-eddington routine.                                         
 !--------------------------------------------------------------------
-!$acc parallel loop collapse(3) present(cloud,gasopdep,rayopdep,aeroextopdep, &
-!$acc cloudextopdep,sctopdepovc,taustrovc,fovc,omegastrovc)
-              do concurrent ( k = KSRAD:KERAD )
-                do concurrent ( j = JSRAD:JERAD )
-                  do concurrent ( i = ISRAD:IERAD )
+              do k = KSRAD,KERAD
+                do j = JSRAD,JERAD
+                  do i = ISRAD,IERAD
                     if ( cloud(i,j,k) ) then
                       extopdepovc = gasopdep(i,j,k,np,ng) +    &
                                       rayopdep(i,j,k,nband) +  &
@@ -3007,38 +2895,19 @@ integer,                       intent(in)    :: naerosol_optical
                   end do
                 end do
               end do
-!$acc end parallel loop
 
 !---------------------------------------------------------------------
 !    do calculations for all desired zenith angles.
 !---------------------------------------------------------------------
-              do  nz = 1, nzens
+              do nz = 1, nzens
                 if (Rad_control%hires_coszen) then
-!$acc parallel loop collapse(2) present(cosangsolar_p,Astro)
-                  do concurrent ( j = JSRAD:JERAD )
-                    do concurrent ( i = ISRAD:IERAD )
-                      cosangsolar_p(i,j) = Astro%cosz_p(i,j,nz)   
-                    end do
-                  end do
-!$acc end parallel loop
+                  cosangsolar_p(:,:,ng) = Astro%cosz_p(:,:,nz)   
                 else
-!$acc parallel loop collapse(2) present(cosangsolar_p,Astro)
-                  do concurrent ( j = JSRAD:JERAD )
-                    do concurrent ( i = ISRAD:IERAD )
-                      cosangsolar_p(i,j) = Astro%cosz(i,j)          
-                    end do
-                  end do
-!$acc end parallel loop
+                  cosangsolar_p(:,:,ng) = Astro%cosz(:,:)          
                 endif
 
-!$acc parallel loop collapse(2) present(cosangsolar_p)
-                do concurrent ( j = JSRAD:JERAD )
-                  do concurrent ( i = ISRAD:IERAD )
-                    if (cosangsolar_p(i,j) == 0.0)   &
-                                            cosangsolar_p(i,j) = 1.0
-                  end do
-                end do
-!$acc end parallel loop
+                where (cosangsolar_p(:,:,:) == 0.0)   &
+                                            cosangsolar_p(:,:,:) = 1.0
 
 !---------------------------------------------------------------------
 !    clear sky mode                                                    
@@ -3059,13 +2928,13 @@ integer,                       intent(in)    :: naerosol_optical
                   if (nz == 1) then
                     call deledd     &
                         (ix, jx, kx, taustrclr, omegastrclr, &
-                         gstrclr, cosangsolar_p(:,:), ng, daylight, &
+                         gstrclr, cosangsolar_p(:,:,ng), ng, daylight, &
                          rlayerdirclr, tlayerdirclr, tlayerdeclr, &
                          rlayerdif=rlayerdifclr, tlayerdif=tlayerdifclr)
                   else
                     call deledd     &
                         (ix, jx, kx, taustrclr, omegastrclr, &
-                         gstrclr, cosangsolar_p(:,:), ng, daylight,&
+                         gstrclr, cosangsolar_p(:,:,ng), ng, daylight,&
                          rlayerdirclr, tlayerdirclr, tlayerdeclr)
                   endif
 
@@ -3074,52 +2943,20 @@ integer,                       intent(in)    :: naerosol_optical
 !    this code is not active, since ng == 1.
 !---------------------------------------------------------------------
                   if (ng /= 1) then
-!$acc parallel loop collapse(3) present(tlayerdifclr)
-                    do concurrent ( k = KSRAD:KERAD )
-                      do concurrent ( j = JSRAD:JERAD )
-                        do concurrent ( i = ISRAD:IERAD )
-                          tlayerdifclr(i,j,k) = 0.0       
-                        end do
-                      end do
-                    end do
-!$acc end parallel loop
+                    tlayerdifclr = 0.0       
                     if (NSTREAMS == 1) then
-!$acc parallel loop collapse(3) present(tlayerdifclr,gasopdep,cosangstr)
-                      do concurrent ( k = KSRAD:KERAD )
-                        do concurrent ( j = JSRAD:JERAD )
-                          do concurrent ( i = ISRAD:IERAD )
-                            tlayerdifclr(i,j,k) =   &
-                             exp(-gasopdep(i,j,k,np,ng)/cosangstr(1))
-                          end do
-                        end do
-                      end do
-!$acc end parallel loop
+                      tlayerdifclr(:,:,:) =   &
+                             exp(-gasopdep(:,:,:,np,ng)/cosangstr(1))
                     else
                       do ns = 1,NSTREAMS
-!$acc parallel loop collapse(3) present(tlayerdifclr,gasopdep,cosangstr,wtstr)
-                        do concurrent ( k = KSRAD:KERAD )
-                          do concurrent ( j = JSRAD:JERAD )
-                            do concurrent ( i = ISRAD:IERAD )
-                            tlayerdifclr(i,j,k) =    &
-                                 tlayerdifclr(i,j,k) +  & 
-                                   exp( -gasopdep(i,j,k,np,ng)/&
+                        tlayerdifclr(:,:,:) =    &
+                             tlayerdifclr(:,:,:) +  & 
+                                   exp( -gasopdep(:,:,:,np,ng)/&
                                          cosangstr(ns) )*wtstr(ns)* &
                                          cosangstr(ns)
-                            end do
-                          end do
-                        end do
-!$acc end parallel loop
                       end do
                     endif
-!$acc parallel loop collapse(3) present(rlayerdifclr)
-                    do concurrent ( k = KSRAD:KERAD )
-                      do concurrent ( j = JSRAD:JERAD )
-                        do concurrent ( i = ISRAD:IERAD )
-                          rlayerdifclr(i,j,k) = 0.0
-                        end do
-                      end do
-                    end do
-!$acc end parallel loop
+                    rlayerdifclr = 0.0
                   endif
   
 !---------------------------------------------------------------------
@@ -3132,64 +2969,26 @@ integer,                       intent(in)    :: naerosol_optical
 !    this code is not active, since ng == 1, and all bands see rayleigh
 !    scattering.
 !---------------------------------------------------------------------
-!$acc parallel loop collapse(3) present(tlayerdifclr)
-                  do concurrent ( k = KSRAD:KERAD )
-                    do concurrent ( j = JSRAD:JERAD )
-                      do concurrent ( i = ISRAD:IERAD )
-                        tlayerdifclr(i,j,k) = 0.0       
-                      end do
-                    end do
-                  end do
-!$acc end parallel loop
+                  tlayerdifclr = 0.0       
                   if (NSTREAMS == 1) then
-!$acc parallel loop collapse(3) present(tlayerdifclr,gasopdep,cosangstr)
-                    do concurrent ( k = KSRAD:KERAD )
-                      do concurrent ( j = JSRAD:JERAD )
-                        do concurrent ( i = ISRAD:IERAD )
-                          tlayerdifclr(i,j,k) =     &
-                            exp( -gasopdep(i,j,k,np,ng)/cosangstr(1))
-                        end do
-                      end do
-                    end do
-!$acc end parallel loop
+                    tlayerdifclr(:,:,:) =     &
+                            exp( -gasopdep(:,:,:,np,ng)/cosangstr(1))
                   else
                     do ns = 1,NSTREAMS
-!$acc parallel loop collapse(3) present(tlayerdifclr,gasopdep,cosangstr,wtstr)
-                      do concurrent ( k = KSRAD:KERAD )
-                        do concurrent ( j = JSRAD:JERAD )
-                          do concurrent ( i = ISRAD:IERAD )
-                            tlayerdifclr(i,j,k) =   &
-                              tlayerdifclr(i,j,k) +    &
-                              exp(-gasopdep(i,j,k,np,ng)/&
+                      tlayerdifclr(:,:,:) =   &
+                         tlayerdifclr(:,:,:) +    &
+                              exp(-gasopdep(:,:,:,np,ng)/&
                                 cosangstr(ns))*wtstr(ns)*cosangstr(ns)
-                          end do
-                        end do
-                      end do
-!$acc end parallel loop
                     end do
                   endif
-!$acc parallel loop collapse(3) present(tlayerdirclr,gasopdep,cosangsolar_p,rlayerdirclr)
-                  do concurrent ( k = KSRAD:KERAD )
-                    do concurrent ( j = JSRAD:JERAD )
-                      do concurrent ( i = ISRAD:IERAD )
-                        rlayerdirclr(i,j,k) = 0.0
-                        tlayerdirclr(i,j,k) =      &
-                                  exp( -gasopdep(i,j,k,np,ng) /   &
-                                                 cosangsolar_p(i,j) )
-                      end do
-                    end do
-                  end do
-!$acc end parallel loop
-!$acc parallel loop collapse(3) present(tlayerdeclr,tlayerdirclr,rlayerdifclr)
-                  do concurrent ( k = KSRAD:KERAD )
-                    do concurrent ( j = JSRAD:JERAD )
-                      do concurrent ( i = ISRAD:IERAD )
-                        tlayerdeclr(i,j,k) = tlayerdirclr(i,j,k)
-                        rlayerdifclr(i,j,k) = 0.0
-                      end do
-                    end do
-                  end do
-!$acc end parallel loop
+                  rlayerdirclr(:,:,:) = 0.0
+                  do k=KSRAD,KERAD
+                    tlayerdirclr(:,:,k) =      &
+                                  exp( -gasopdep(:,:,k,np,ng) /   &
+                                                 cosangsolar_p(:,:,ng) )
+                  end do  
+                  tlayerdeclr(:,:,:) = tlayerdirclr(:,:,:)
+                  rlayerdifclr = 0.0
                 endif
 
 !---------------------------------------------------------------------
@@ -3206,28 +3005,20 @@ integer,                       intent(in)    :: naerosol_optical
                 if (nz == 1) then
                   call deledd      &
                        (ix, jx, kx, taustrovc, omegastrovc, gstrovc, &
-                        cosangsolar_p(:,:), ng, daylight, &
+                        cosangsolar_p(:,:,ng), ng, daylight, &
                         rlayerdirovc, tlayerdirovc, tlayerdeovc, &
                         rlayerdif=rlayerdifovc, tlayerdif=tlayerdifovc,&
                         cloud=cloud)
                 else
                   call deledd      &
                        (ix, jx, kx, taustrovc, omegastrovc, gstrovc, &
-                        cosangsolar_p(:,:), ng, daylight, &
+                        cosangsolar_p(:,:,ng), ng, daylight, &
                         rlayerdirovc, tlayerdirovc, tlayerdeovc,   & 
                         cloud=cloud)
                 endif
                 if (ng /= 1) then
-!$acc parallel loop collapse(3) present(tlayerdifovc,rlayerdifovc,tlayerdifclr,rlayerdifclr)
-                  do concurrent ( k = KSRAD:KERAD )
-                    do concurrent ( j = JSRAD:JERAD )
-                      do concurrent ( i = ISRAD:IERAD )
-                        tlayerdifovc(i,j,k) = tlayerdifclr(i,j,k)
-                        rlayerdifovc(i,j,k) = rlayerdifclr(i,j,k)
-                      end do
-                    end do
-                  end do
-!$acc end parallel loop
+                  tlayerdifovc(:,:,:) = tlayerdifclr(:,:,:)
+                  rlayerdifovc(:,:,:) = rlayerdifclr(:,:,:)
                 endif
  
 !-------------------------------------------------------------------- 
@@ -3235,13 +3026,9 @@ integer,                       intent(in)    :: naerosol_optical
 !    overcast sky conditions by the cloud fraction, to calculate the    
 !    resultant values.                                                  
 !---------------------------------------------------------------------- 
-!$acc parallel loop collapse(3) present(rlayerdir,cloudfrac,rlayerdirovc, &
-!$acc rlayerdif,rlayerdifovc,rlayerdifclr,tlayerdir,tlayerdirovc,tlayerdirclr, &
-!$acc tlayerdif,tlayerdifovc,tlayerdifclr,tlayerde,tlayerdeovc,tlayerdeclr,daylight, &
-!$acc cloud,rlayerdirclr)
-                do concurrent ( k=KSRAD:KERAD )
-                  do concurrent ( j = JSRAD:JERAD )
-                    do concurrent ( i = ISRAD:IERAD )
+                do k=KSRAD,KERAD
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
                       if ( cloud(i,j,k) ) then
                         rlayerdir(i,j,k) = cloudfrac(i,j,k)*   &
                                            rlayerdirovc(i,j,k) +  &
@@ -3279,30 +3066,17 @@ integer,                       intent(in)    :: naerosol_optical
                     end do
                   end do
                 end do
-!$acc end parallel loop
  
 !---------------------------------------------------------------------
 !    define the surface albedo (infrared value for infrared bands,      
 !    visible value for the remaining bands).                            
 !----------------------------------------------------------------------c
                 if (nband <= NIRBANDS ) then
-!$acc parallel loop collapse(2) present(sfcalb_dir,sfcalb_dif,Surface)
-                  do concurrent ( j = JSRAD:JERAD )
-                    do concurrent ( i = ISRAD:IERAD )
-                      sfcalb_dir(i,j) = Surface%asfc_nir_dir(i,j)
-                      sfcalb_dif(i,j) = Surface%asfc_nir_dif(i,j)
-                    end do
-                  end do
-!$acc end parallel loop
+                  sfcalb_dir(:,:) = Surface%asfc_nir_dir(:,:)
+                  sfcalb_dif(:,:) = Surface%asfc_nir_dif(:,:)
                 else
-!$acc parallel loop collapse(2) present(sfcalb_dir,sfcalb_dif,Surface)
-                  do concurrent ( j = JSRAD:JERAD )
-                    do concurrent ( i = ISRAD:IERAD )
-                      sfcalb_dir(i,j) = Surface%asfc_vis_dir(i,j)
-                      sfcalb_dif(i,j) = Surface%asfc_vis_dif(i,j)
-                    end do
-                  end do
-!$acc end parallel loop
+                  sfcalb_dir(:,:) = Surface%asfc_vis_dir(:,:)
+                  sfcalb_dif(:,:) = Surface%asfc_vis_dif(:,:)
                 end if
  
 !-------------------------------------------------------------------- 
@@ -3330,22 +3104,14 @@ integer,                       intent(in)    :: naerosol_optical
 !    weight and sum the reflectance and transmittance to calculate the 
 !    band values.                                                     
 !-------------------------------------------------------------------
-!$acc parallel loop collapse(2) present(wtfac_p,wtfreq,gausswt,cosangsolar_p)
-                do concurrent ( j = JSRAD:JERAD)
-                  do concurrent ( i = ISRAD:IERAD )
-                    wtfac_p(i,j) = wtfreq(np)*gausswt(ng)*cosangsolar_p(i,j)
-                  end do
-                end do
-!$acc end parallel loop
+                wtfac_p(:,:) = wtfreq(np)*gausswt(ng)*cosangsolar_p(:,:,ng)
 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
-!$acc parallel loop collapse(3) present(daylight,sumtr,transmittance,wtfac_p, &
-!$acc sumtr_dir,tr_dir,sumre,reflectance)
-                do concurrent ( k = KSRAD:KERAD+1 )
-                  do concurrent ( j = JSRAD:JERAD)
-                    do concurrent ( i = ISRAD:IERAD )
+                do k = KSRAD,KERAD+1
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
                       if ( daylight(i,j) ) then
                         sumtr(i,j,k,nz) = sumtr(i,j,k,nz) +    &
                                       transmittance(i,j,k)*wtfac_p(i,j)
@@ -3357,28 +3123,18 @@ integer,                       intent(in)    :: naerosol_optical
                     end do
                   end do
                 end do
-!$acc end parallel loop
-!$acc parallel loop collapse(2) present(daylight,sumtr_dir_up,tr_dir,sfcalb_dir,wtfac_p)
-                do concurrent ( j = JSRAD:JERAD)
-                  do concurrent ( i = ISRAD:IERAD )
-                    if ( daylight(i,j) ) then
-                      sumtr_dir_up(i,j,nz) = sumtr_dir_up(i,j,nz) + &
-                        tr_dir(i,j,KERAD+1)*sfcalb_dir(i,j)*wtfac_p(i,j)
-                    end if
-                  end do
-                end do
-!$acc end parallel loop
+                where ( daylight )
+                  sumtr_dir_up(:,:,nz) = sumtr_dir_up(:,:,nz) + &
+                    tr_dir(:,:,KERAD+1)*sfcalb_dir(:,:)*wtfac_p(:,:)
+                end where
 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
                 if (Rad_control%do_totcld_forcing) then
-!$acc parallel loop collapse(3) present(cloud_in_column,sumtrclr,transmittanceclr,wtfac_p, &
-!$acc sumtr_dir_clr,tr_dirclr,sumreclr,reflectanceclr,daylight,transmittance,tr_dir, &
-!$acc reflectance)
-                  do concurrent ( k = KSRAD:KERAD+1 )
-                    do concurrent ( j = JSRAD:JERAD )
-                      do concurrent ( i = ISRAD:IERAD )
+                  do k = KSRAD,KERAD+1
+                    do j = JSRAD,JERAD
+                      do i = ISRAD,IERAD
                         if (cloud_in_column(i,j)) then
                           sumtrclr(i,j,k,nz) =    &
                                 sumtrclr(i,j,k,nz) +   &
@@ -3400,7 +3156,6 @@ integer,                       intent(in)    :: naerosol_optical
                       end do
                     end do
                   end do
-!$acc end parallel loop
                 endif
               end do  ! end of nz loop
             end do    ! end of gaussian loop
@@ -3412,92 +3167,52 @@ integer,                       intent(in)    :: naerosol_optical
 !---------------------------------------------------------------------
           do nz = 1,nzens
             if (Rad_control%hires_coszen) then
-!$acc parallel loop collapse(2) present(fracday_p,Astro)
-              do concurrent ( j = JSRAD:JERAD )
-                do concurrent ( i = ISRAD:IERAD )
-                  fracday_p(i,j) = Astro%fracday_p(i,j,nz)
-                end do
-              end do
-!$acc end parallel loop
+              fracday_p(:,:) = Astro%fracday_p(:,:,nz)
             else
-!$acc parallel loop collapse(2) present(fracday_p,Astro)
-              do concurrent ( j = JSRAD:JERAD )
-                do concurrent ( i = ISRAD:IERAD )
-                  fracday_p(i,j) = Astro%fracday(i,j)
-                end do
-              end do
-!$acc end parallel loop
+              fracday_p(:,:) = Astro%fracday(:,:)
             endif
-
-!$acc parallel loop collapse(2) present(solarflux_p,fracday_p,Solar_spect)
-            do concurrent ( j = JSRAD:JERAD )
-              do concurrent ( i = ISRAD:IERAD )
-                solarflux_p(i,j) = fracday_p(i,j)*  &
+            solarflux_p(:,:) = fracday_p(:,:)*  &
                                    Solar_spect%solflxband(nband)*  &
                                                       ssolar/solflxtotal_local
-              end do
-            end do
-!$acc end parallel loop
  
             if (nband == Solar_spect%visible_band_indx) then
-!$acc parallel loop collapse(2) present(solarflux_p,sumre,sumtr,Sw_output)
-              do concurrent ( j = JSRAD:JERAD )
-                do concurrent ( i = ISRAD:IERAD )
-                  Sw_output%bdy_flx(i,j,1,nz) =   &
-                    Sw_output%bdy_flx(i,j,1,nz) + sumre(i,j,1,nz)*   &
-                                                        solarflux_p(i,j)
-                  Sw_output%bdy_flx(i,j,3,nz) =    &
-                    Sw_output%bdy_flx(i,j,3,nz) + sumtr(i,j,KERAD+1,nz)*&
-                                                solarflux_p(i,j) -  &
-                                                sumre(i,j,KERAD+1,nz)* &
-                                                solarflux_p(i,j) 
-                end do
-              end do
-!$acc end parallel loop
-!$acc update self(Sw_output%bdy_flx)
+              Sw_output%bdy_flx(:,:,1,nz) =   &
+                  Sw_output%bdy_flx(:,:,1,nz) + sumre(:,:,1,nz)*   &
+                                                        solarflux_p(:,:)
+              Sw_output%bdy_flx(:,:,3,nz) =    &
+                  Sw_output%bdy_flx(:,:,3,nz) + sumtr(:,:,KERAD+1,nz)*&
+                                                solarflux_p(:,:) -  &
+                                                sumre(:,:,KERAD+1,nz)* &
+                                                solarflux_p(:,:) 
             endif
             if (nband == onepsix_band_indx) then
-!$acc parallel loop collapse(2) present(solarflux_p,sumre,sumtr,Sw_output)
-              do concurrent ( j = JSRAD:JERAD )
-                do concurrent ( i = ISRAD:IERAD )
-                  Sw_output%bdy_flx(i,j,2,nz) =     &
-                    Sw_output%bdy_flx(i,j,2,nz) + sumre(i,j,1,nz)*  &
-                                                        solarflux_p(i,j)
-                  Sw_output%bdy_flx(i,j,4,nz) =    &
-                    Sw_output%bdy_flx(i,j,4,nz) + sumtr(i,j,KERAD+1,nz)*&
-                                                 solarflux_p(i,j) - &
-                                                 sumre(i,j,KERAD+1,nz)*&
-                                                 solarflux_p(i,j)
-                end do
-              end do
-!$acc end parallel loop
-!$acc update self(Sw_output%bdy_flx)
+               Sw_output%bdy_flx(:,:,2,nz) =     &
+                   Sw_output%bdy_flx(:,:,2,nz) + sumre(:,:,1,nz)*  &
+                                                        solarflux_p(:,:)
+               Sw_output%bdy_flx(:,:,4,nz) =    &
+                   Sw_output%bdy_flx(:,:,4,nz) + sumtr(:,:,KERAD+1,nz)*&
+                                                 solarflux_p(:,:) - &
+                                                 sumre(:,:,KERAD+1,nz)*&
+                                                 solarflux_p(:,:)
             endif
           
 !-------------------------------------------------------------------
 !    calculate the band fluxes and heating rates.                       
 !--------------------------------------------------------------------
             if (do_esfsw_band_diagnostics) then
-!$acc parallel loop collapse(3) present(solarflux_p,sumre,sumtr,dfswband,ufswband)
-              do concurrent ( k = KSRAD:KERAD+1 )
-                do concurrent ( j = JSRAD:JERAD )
-                  do concurrent ( i = ISRAD:IERAD )
-                   dfswband(i,j,k,nz) = sumtr(i,j,k,nz)*solarflux_p(i,j) 
-                   ufswband(i,j,k,nz) = sumre(i,j,k,nz)*solarflux_p(i,j)
-                  end do
-                end do
+              do k = KSRAD,KERAD+1
+                dfswband(:,:,k,nz) = sumtr(:,:,k,nz)*solarflux_p(:,:) 
+                ufswband(:,:,k,nz) = sumre(:,:,k,nz)*solarflux_p(:,:)
               end do
-!$acc end parallel loop
             endif
  
 !----------------------------------------------------------------------
 !    sum the band fluxes and heating rates to calculate the total       
 !    spectral values.                                                  
 !------------------------------------------------------------------
-!$acc parallel loop collapse(3) present(solarflux_p,sumre,sumtr,daylight,fswband,Sw_output)
-            do concurrent ( k = KSRAD:KERAD+1 )
-              do concurrent ( j = JSRAD:JERAD )
-                do concurrent ( i = ISRAD:IERAD )
+            do k = KSRAD,KERAD+1
+              do j = JSRAD,JERAD
+                do i = ISRAD,IERAD
                   if ( daylight(i,j) ) then
                     Sw_output%dfsw (i,j,k,nz) =   &
                        Sw_output%dfsw(i,j,k,nz) + sumtr(i,j,k,nz)*&
@@ -3515,12 +3230,9 @@ integer,                       intent(in)    :: naerosol_optical
                 end do
               end do
             end do
-!$acc end parallel loop
-!$acc update self(Sw_output%dfsw,Sw_output%ufsw,Sw_output%fsw)
  
-!$acc parallel loop collapse(2) present(solarflux_p,sumre,sumtr_dir,sumtr_dir_up,daylight,Sw_output)
-            do concurrent ( j = JSRAD:JERAD )
-              do concurrent ( i = ISRAD:IERAD )
+            do j = JSRAD,JERAD
+              do i = ISRAD,IERAD
                 if  ( daylight(i,j) ) then
                   Sw_output%dfsw_dir_sfc(i,j,nz) =   &
                             Sw_output%dfsw_dir_sfc(i,j,nz) +   &
@@ -3534,13 +3246,10 @@ integer,                       intent(in)    :: naerosol_optical
                 end if
               end do
             end do
-!$acc end parallel loop
-!$acc update self(Sw_output%dfsw_dir_sfc,Sw_output%ufsw_dir_sfc,Sw_output%ufsw_dif_sfc)
 
             if (nband > NIRBANDS) then
-!$acc parallel loop collapse(2) present(solarflux_p,sumre,sumtr,sumtr_dir,sumtr_dir_up,daylight,Sw_output)
-              do concurrent ( j = JSRAD:JERAD )
-                do concurrent ( i = ISRAD:IERAD )
+              do j = JSRAD,JERAD
+                do i = ISRAD,IERAD
                   if ( daylight(i,j) ) then
                     Sw_output%dfsw_vis_sfc(i,j,nz) =   &
                           Sw_output%dfsw_vis_sfc(i,j,nz) +   &
@@ -3560,18 +3269,14 @@ integer,                       intent(in)    :: naerosol_optical
                   end if
                 end do
               end do
-!$acc end parallel loop
-!$acc update self(Sw_output%dfsw_vis_sfc,Sw_output%ufsw_vis_sfc,Sw_output%dfsw_vis_sfc_dir)
-!$acc update self(Sw_output%ufsw_vis_sfc_dir,Sw_output%ufsw_vis_sfc_dif)
             endif
 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
-!$acc parallel loop collapse(3) present(daylight,fswband,Sw_output,gocpdp)
-            do concurrent ( k = KSRAD:KERAD )
-              do concurrent ( j = JSRAD:JERAD )
-                do concurrent ( i = ISRAD:IERAD )
+            do k = KSRAD,KERAD
+              do j = JSRAD,JERAD
+                do i = ISRAD,IERAD
                   if ( daylight(i,j) ) then
                     hswband = (fswband(i,j,k+1,nz) -    &
                             fswband(i,j,k,nz) )*gocpdp(i,j,k)
@@ -3581,8 +3286,6 @@ integer,                       intent(in)    :: naerosol_optical
                 end do
               end do
             end do
-!$acc end parallel loop
-!$acc update self(Sw_output%hsw)
 
 !----------------------------------------------------------------------
 !    calculate the band fluxes and heating rates.                       
@@ -3590,149 +3293,78 @@ integer,                       intent(in)    :: naerosol_optical
             if (nprofile == 1) then  ! clr sky need be done only for 
                                      ! first cloud profile
               if (Rad_control%do_totcld_forcing) then
-!$acc parallel loop collapse(2) present(daylight,sumtr_dir_clr,solarflux_p,Sw_output)
-                do concurrent ( j = JSRAD:JERAD )
-                  do concurrent ( i = ISRAD:IERAD )
-                    if ( daylight(i,j) ) then
-                      Sw_output%dfsw_dir_sfc_clr(i,j,nz) =   &
-                        Sw_output%dfsw_dir_sfc_clr(i,j,nz) +   &
-                        sumtr_dir_clr(i,j,KERAD+1,nz)*solarflux_p(i,j)
-                    end if
-                  end do
-                end do
-!$acc end parallel loop
-!$acc update self(Sw_output%dfsw_dir_sfc_clr)
+                where ( daylight )
+                  Sw_output%dfsw_dir_sfc_clr(:,:,nz) =   &
+                     Sw_output%dfsw_dir_sfc_clr(:,:,nz) +   &
+                      sumtr_dir_clr(:,:,KERAD+1,nz)*solarflux_p(:,:)
+                end where
                 if (nband > NIRBANDS) then
-!$acc parallel loop collapse(2) present(daylight,sumtrclr,solarflux_p,Sw_output)
-                  do concurrent ( j = JSRAD:JERAD )
-                    do concurrent ( i = ISRAD:IERAD )
-                      if ( daylight(i,j) ) then
-                        Sw_output%dfsw_vis_sfc_clr(i,j,nz) =   &
-                          Sw_output%dfsw_vis_sfc_clr(i,j,nz) +   &
-                          sumtrclr(i,j,KERAD+1,nz)*solarflux_p(i,j)
-                      end if
-                    end do
-                  end do
-!$acc end parallel loop
-!$acc update self(Sw_output%dfsw_vis_sfc_clr)
+                  where ( daylight )
+                    Sw_output%dfsw_vis_sfc_clr(:,:,nz) =   &
+                       Sw_output%dfsw_vis_sfc_clr(:,:,nz) +   &
+                          sumtrclr(:,:,KERAD+1,nz)*solarflux_p(:,:)
+                  end where
                 endif
                 if (nband == Solar_spect%visible_band_indx) then
-!$acc parallel loop collapse(2) present(sumtrclr,sumreclr,solarflux_p,Sw_output)
-                  do concurrent ( j = JSRAD:JERAD )
-                    do concurrent ( i = ISRAD:IERAD )
-                      Sw_output%bdy_flx_clr(i,j,1,nz) =      &
-                           sumreclr(i,j,1,nz)*solarflux_p(i,j)
-                      Sw_output%bdy_flx_clr(i,j,3,nz) =    &
-                          sumtrclr(i,j,KERAD+1,nz)*solarflux_p(i,j) - &
-                          sumreclr(i,j,KERAD+1,nz)*solarflux_p(i,j) 
-                    end do
-                  end do
-!$acc end parallel loop
-!$acc update self(Sw_output%bdy_flx_clr)
+                  Sw_output%bdy_flx_clr(:,:,1,nz) =      &
+                           sumreclr(:,:,1,nz)*solarflux_p(:,:)
+                  Sw_output%bdy_flx_clr(:,:,3,nz) =    &
+                          sumtrclr(:,:,KERAD+1,nz)*solarflux_p(:,:) - &
+                          sumreclr(:,:,KERAD+1,nz)*solarflux_p(:,:) 
                 endif
                 if (nband == onepsix_band_indx) then
-!$acc parallel loop collapse(2) present(sumtrclr,sumreclr,solarflux_p,Sw_output)
-                  do concurrent ( j = JSRAD:JERAD )
-                    do concurrent ( i = ISRAD:IERAD )
-                      Sw_output%bdy_flx_clr(:,:,2,nz) =    &
+                  Sw_output%bdy_flx_clr(:,:,2,nz) =    &
                           sumreclr(:,:,1,nz)*solarflux_p(:,:)
-                      Sw_output%bdy_flx_clr(:,:,4,nz) =    &
+                  Sw_output%bdy_flx_clr(:,:,4,nz) =    &
                          sumtrclr(:,:,KERAD+1,nz)*solarflux_p(:,:)  -  &
                          sumreclr(:,:,KERAD+1,nz)*solarflux_p(:,:) 
-                    end do
-                  end do
-!$acc end parallel loop
-!$acc update self(Sw_output%bdy_flx_clr)
                 endif
           
                 if (do_esfsw_band_diagnostics) then
-!$acc parallel loop collapse(3) present(dfswbandclr,ufswbandclr,sumtrclr,sumreclr,solarflux_p,Sw_output)
                   do k = KSRAD,KERAD+1
-                    do concurrent ( j = JSRAD:JERAD )
-                      do concurrent ( i = ISRAD:IERAD )
-                        dfswbandclr(i,j,k,nz) =     &
-                               sumtrclr(i,j,k,nz)*solarflux_p(i,j)
-                        ufswbandclr(i,j,k,nz) =    &
-                               sumreclr(i,j,k,nz)*solarflux_p(i,j)
-                      end do
-                    end do
+                    dfswbandclr(:,:,k,nz) =     &
+                               sumtrclr(:,:,k,nz)*solarflux_p(:,:)
+                    ufswbandclr(:,:,k,nz) =    &
+                               sumreclr(:,:,k,nz)*solarflux_p(:,:)
                   end do
-!$acc end parallel loop
                 endif
 
 !----------------------------------------------------------------------c
 !    sum the band fluxes and heating rates to calculate the total     
 !    spectral values.                                                 
 !----------------------------------------------------------------------c
-!$acc parallel loop collapse(3) present(fswbandclr,sumtrclr,sumreclr,solarflux_p,Sw_output)
                 do k = KSRAD,KERAD+1
-                  do concurrent ( j = JSRAD:JERAD )
-                    do concurrent ( i = ISRAD:IERAD )
-                      Sw_output%dfswcf(i,j,k,nz) =    &
-                          Sw_output%dfswcf(i,j,k,nz) +  &
-                                sumtrclr(i,j,k,nz)*solarflux_p(i,j)
-                      Sw_output%ufswcf(i,j,k,nz) =      &
-                          Sw_output%ufswcf(i,j,k,nz) +  &
-                                sumreclr(i,j,k,nz)*solarflux_p(i,j)
-                      fswbandclr(i,j,k,nz) =    &
-                        (sumreclr(i,j,k,nz)*solarflux_p(i,j)) - &
-                        (sumtrclr(i,j,k,nz)*solarflux_p(i,j))
-                      Sw_output%fswcf(i,j,k,nz) =    &
-                                Sw_output%fswcf(i,j,k,nz) +    &
-                                              fswbandclr(i,j,k,nz)
-                    end do
-                  end do
+                  Sw_output%dfswcf(:,:,k,nz) =    &
+                          Sw_output%dfswcf(:,:,k,nz) +  &
+                                sumtrclr(:,:,k,nz)*solarflux_p(:,:)
+                  Sw_output%ufswcf(:,:,k,nz) =      &
+                          Sw_output%ufswcf(:,:,k,nz) +  &
+                                sumreclr(:,:,k,nz)*solarflux_p(:,:)
+                  fswbandclr(:,:,k,nz) =    &
+                        (sumreclr(:,:,k,nz)*solarflux_p(:,:)) - &
+                        (sumtrclr(:,:,k,nz)*solarflux_p(:,:))
+                  Sw_output%fswcf(:,:,k,nz) =    &
+                                Sw_output%fswcf(:,:,k,nz) +    &
+                                              fswbandclr(:,:,k,nz)
                 end do
-!$acc end parallel loop
-!$acc update self(Sw_output%dfswcf,Sw_output%ufswcf,Sw_output%fswcf)
 
 !----------------------------------------------------------------------c
 !    sum the band fluxes and heating rates to calculate the total    
 !    spectral values.                                               
 !----------------------------------------------------------------------c
-!$acc parallel loop collapse(3) present(hswbandclr,fswbandclr,gocpdp,Sw_output)
                 do k = KSRAD,KERAD
-                  do concurrent ( j = JSRAD:JERAD )
-                    do concurrent ( i = ISRAD:IERAD )
-                      hswbandclr(i,j,k,nz) =    &
-                            (fswbandclr(i,j,k+1,nz) -      &
-                                fswbandclr(i,j,k,nz))*gocpdp(i,j,k)
-                      Sw_output%hswcf(i,j,k,nz) =   &
-                               Sw_output%hswcf(i,j,k,nz) +    &
-                                               hswbandclr(i,j,k,nz)
-                    end do
-                  end do
+                  hswbandclr(:,:,k,nz) =    &
+                            (fswbandclr(:,:,k+1,nz) -      &
+                                fswbandclr(:,:,k,nz))*gocpdp(:,:,k)
+                  Sw_output%hswcf(:,:,k,nz) =   &
+                               Sw_output%hswcf(:,:,k,nz) +    &
+                                               hswbandclr(:,:,k,nz)
                 end do
-!$acc end parallel loop
-!$acc update self(Sw_output%hswcf)
               endif
             endif ! (nprofile == 1)
           end do  ! (nz loop)
         end do    ! (end of band loop)
       end do      ! (end of nprofile loop)
-!$acc exit data delete(sumtr,sumtr_dir,sumre,sumtr_dir_up,sumtrclr,sumreclr, &
-!$acc sumtr_dir_clr,cldfrac_band,cloud_in_column,cloud,cloudfrac, &
-!$acc cldext,cldsct,cldasymm,cloudextopdep,cloudsctopdep,cloudasymfac, &
-!$acc cloud_deltaz,daylight,sctopdepclr,rayopdep,aerosctopdep,aeroasymfac,fclr, &
-!$acc gstrclr,sctopdepovc,fovc,gstrovc,gasopdep,aeroextopdep,taustrclr,omegastrclr, &
-!$acc taustrovc,omegastrovc,cosangsolar_p,dfswbandclr,fswbandclr,hswbandclr, &
-!$acc ufswbandclr,reflectanceclr,transmittanceclr,tlayerdifclr,cosangstr,wtstr, &
-!$acc rlayerdifclr,tlayerdirclr,tlayerdeclr,rlayerdirclr,rlayerdirovc,tlayerdirovc, &
-!$acc tlayerdeovc,rlayerdifovc,tlayerdifovc,rlayerdir,rlayerdif,tlayerdir,tlayerdif, &
-!$acc tlayerde,sfcalb_dir,sfcalb_dif,reflectance,transmittance,tr_dir,tr_dirclr, &
-!$acc wtfac_p,wtfreq,gausswt,fracday_p,solarflux_p,dfswband,ufswband,fswband,gocpdp, &
-!$acc Cld_spec,Cld_spec%camtsw_band, &
-!$acc Cldrad_props,Cldrad_props%cldext,Cldrad_props%cldsct,Cldrad_props%cldasymm, &
-!$acc Astro, Astro%cosz_p,Astro%cosz,Astro%fracday_p,Astro%fracday, &
-!$acc Surface,Surface%asfc_nir_dir,Surface%asfc_nir_dif, &
-!$acc Surface%asfc_vis_dir,Surface%asfc_vis_dif, &
-!$acc Solar_spect,Solar_spect%solflxband, &
-!$acc Sw_output,Sw_output%bdy_flx,Sw_output%dfsw,Sw_output%ufsw,Sw_output%fsw, &
-!$acc Sw_output%dfsw_dir_sfc,Sw_output%ufsw_dir_sfc,Sw_output%ufsw_dif_sfc, &
-!$acc Sw_output%dfsw_vis_sfc,Sw_output%ufsw_vis_sfc,Sw_output%dfsw_vis_sfc_dir, &
-!$acc Sw_output%ufsw_vis_sfc_dir,Sw_output%ufsw_vis_sfc_dif,Sw_output%hsw, &
-!$acc Sw_output%dfsw_dir_sfc_clr,Sw_output%dfsw_vis_sfc_clr,Sw_output%bdy_flx_clr, &
-!$acc Sw_output%dfswcf,Sw_output%ufswcf,Sw_output%fswcf,Sw_output%hswcf)
 
 !----------------------------------------------------------------------
 !    if the ica calculation was being done, the fluxes and heating rates
@@ -5049,8 +4681,6 @@ real, dimension (:,:),    intent(in)   :: sfcalb_dir, sfcalb_dif
 logical, dimension (:,:), intent(in)   :: calc_flag
 real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
                                           tr_dir
-!$acc declare present(rlayerdir,rlayerdif,tlayerdir,tlayerdif,tlayerde,sfcalb_dir,sfcalb_dif,calc_flag, &
-!$acc reflectance,transmittance,tr_dir)
 
 !-------------------------------------------------------------------
 !  intent(in) variables:
@@ -5082,7 +4712,8 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
       real, dimension (size(calc_flag,1),size(calc_flag,2),lbound(rlayerdir,3):ubound(rlayerdir,3)+1) ::  &
                             raddupdif2, raddupdir2
 
-      real ::  radddowndif2,  tadddowndir2
+      real, dimension (size(calc_flag,1),size(calc_flag,2),lbound(rlayerdir,3):ubound(rlayerdir,3)  ) ::  &
+                                      radddowndif2,  tadddowndir2
 
       real, dimension (size(calc_flag,1),size(calc_flag,2)) ::      &
               raddupdif2p, raddupdir2p, tlevel2p, radddowndifm,     &
@@ -5124,20 +4755,11 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
 !    radiation incident from above for diffuse beam, reflection of  
 !    direct beam and conversion to diffuse.                           
 !--------------------------------------------------------------------
-!$acc enter data create(raddupdir2p,raddupdif2p,raddupdif2,raddupdir2,tlevel2p, &
-!$acc radddowndifm,tadddowndirm)
-!$acc parallel loop collapse(2) present(raddupdir2p,raddupdif2p)
-      do concurrent ( j = 1:size(calc_flag,2) )
-        do concurrent ( i = 1:size(calc_flag,1) )
-          raddupdif2p(i,j) = sfcalb_dif(i,j)
-          raddupdir2p(i,j) = sfcalb_dir(i,j)
-        end do
-      end do
-!$acc end parallel loop
-      do concurrent ( k = 1:kx )
-!$acc parallel loop collapse(2) present(raddupdif2,raddupdir2,raddupdir2p,raddupdif2p)
-        do concurrent ( j = 1:size(calc_flag,2) )
-          do concurrent ( i = 1:size(calc_flag,1) )
+      raddupdif2p = sfcalb_dif(:,:)
+      raddupdir2p = sfcalb_dir(:,:)
+      do k = kx, 1,-1
+        do j = 1,size(calc_flag,2)
+          do i = 1,size(calc_flag,1)
             dm2tl2    = tlayerdif(i,j,k)/(1.0 - rlayerdif(i,j,k)*     &
                         raddupdif2p(i,j) )
             rdm2tl2    = dm2tl2*raddupdif2p(i,j)     
@@ -5151,7 +4773,6 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
             raddupdif2p(i,j) = raddupdif2(i,j,k)
           end do
         end do
-!$acc end parallel loop
       end do
  
 !---------------------------------------------------------------------
@@ -5164,26 +4785,17 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
 !--------------------------------------------------------------------
 !    initialization for the first scattering layer.                   
 !-------------------------------------------------------------------
-!$acc parallel loop collapse(2) present(tlevel2p,radddowndifm,tadddowndirm)
-      do concurrent ( j = 1:size(calc_flag,2) )
-        do concurrent ( i = 1:size(calc_flag,1) )
-          tlevel2p(i,j)         = tlayerde(i,j,1)
-          radddowndifm(i,j)    =  rlayerdif(i,j,1)
-          tadddowndirm(i,j)    =  tlayerdir(i,j,1)
-        end do
-      end do
-!$acc end parallel loop
-
-      do concurrent ( k= 2:kx)
-!$acc parallel loop collapse(2) present(raddupdif2,tlevel2p, &
-!$acc tadddowndirm,radddowndifm,raddupdir2)
-        do concurrent (j = 1:size(calc_flag,2))
-          do concurrent( i = 1:size(calc_flag,1))
+      tlevel2p         = tlayerde(:,:,1)
+      radddowndifm    =  rlayerdif(:,:,1)
+      tadddowndirm    =  tlayerdir(:,:,1)
+      do k= 2,kx    
+        do j = 1,size(calc_flag,2)
+          do i = 1,size(calc_flag,1)
             dm1tl2 = tlayerdif(i,j,k)/(1.0 - rlayerdif(i,j,k)*  &
                      radddowndifm(i,j))
-            radddowndif2 = rlayerdif(i,j,k) + radddowndifm(i,j)* &
+            radddowndif2(i,j,k) = rlayerdif(i,j,k) + radddowndifm(i,j)* &
                                   tlayerdif(i,j,k)*dm1tl2      
-            tadddowndir2 = tlevel2p(i,j)*(tlayerdir(i,j,k) + &
+            tadddowndir2(i,j,k) = tlevel2p(i,j)*(tlayerdir(i,j,k) + &
                                   rlayerdir(i,j,k)*radddowndifm(i,j)* &
                                   dm1tl2) + (tadddowndirm(i,j) -  &
                                   tlevel2p(i,j))*dm1tl2           
@@ -5205,16 +4817,13 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
                                     raddupdif2(i,j,k))
             end if
             tlevel2p(i,j) = tlevel2p(i,j)*tlayerde (i,j,k) 
-            radddowndifm(i,j) = radddowndif2
-            tadddowndirm(i,j) = tadddowndir2
+            radddowndifm(i,j) = radddowndif2(i,j,k)
+            tadddowndirm(i,j) = tadddowndir2(i,j,k)
           end do
         end do
-!$acc end parallel loop
       end do
-
-!$acc parallel loop collapse(2) present(radddowndifm,raddupdir2p,tlevel2p,tadddowndirm)
-      do concurrent ( j = 1:size(calc_flag,2) )
-        do concurrent ( i = 1:size(calc_flag,1) )
+      do j = 1,size(calc_flag,2)
+        do i = 1,size(calc_flag,1)
 !! CORRECT ???
 !         dm32  = 1.0/(1.0 - sfcalb(i,j)*radddowndifm(i,j))
           dm32          = 1.0/(1.0 - sfcalb_dif(i,j)*   &
@@ -5246,11 +4855,8 @@ real, dimension(:,:,:),   intent(out)  :: reflectance, transmittance, &
           end if
         end do
       end do
-!$acc end parallel loop
 
 !------------------------------------------------------------------
-!$acc exit data delete(raddupdir2p,raddupdif2p,raddupdif2,raddupdir2,tlevel2p, &
-!$acc radddowndifm,tadddowndirm)
 
 
 end subroutine adding 
@@ -5350,7 +4956,6 @@ real, dimension(:,:,:),    intent(out)             :: rlayerdir,   &
 real, dimension(:,:,:),    intent(inout), optional :: rlayerdif,   &
                                                       tlayerdif
 logical, dimension(:,:,:), intent(in), optional    :: cloud         
-!$acc declare present(taustr,omegastr,gstr,cosang,daylight,rlayerdir,tlayerdir,tlayerde,rlayerdif,tlayerdif,cloud)
 
 !----------------------------------------------------------------------
 !  intent(in) variables:
@@ -5398,8 +5003,6 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                                            tlayerde2, tlayerdir2, &
                                            sumr, sumt
 
-      logical, dimension(ix) :: mask
-
 
 !----------------------------------------------------------------------
 !  local variables:
@@ -5425,54 +5028,50 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
-!$acc parallel loop collapse(2) present(cosangstr,wtstr) &
-!$acc private(mask,gstr2,taustr2,omegastr2,cosangzk2) &
-!$acc private(ww,qq,rr,ss,tt,sumr,sumt) &
-!$acc private(rlayerdir2,tlayerdir2,tlayerde2) &
-!$acc private(ntot,rsum,tsum,tmp)
-      do concurrent( k=1:kx )
-        do concurrent ( j=1:jx )
+      do k=1,kx         
+        do j=1,jx         
+
 !---------------------------------------------------------------------
 !    overcast sky mode. note: in this mode, the delta-eddington method
 !    is performed only for spatial points containing a cloud.   
 !-------------------------------------------------------------------
           if (present(cloud)) then
-            mask = cloud(1:ix,j,k)
-            gstr2(1:ix) = gstr(1:ix,j,k)
-            taustr2(1:ix) = taustr(1:ix,j,k)
-            omegastr2(1:ix) = omegastr(1:ix,j,k)
-            cosangzk2(1:ix) = cosang(1:ix,j)
+            nn = count(cloud(1:ix,j,k))
+            gstr2(1:nn) = pack( gstr(1:ix,j,k), cloud(1:ix,j,k) )
+            taustr2(1:nn) = pack( taustr(1:ix,j,k), cloud(1:ix,j,k) )
+            omegastr2(1:nn) = pack( omegastr(1:ix,j,k), cloud(1:ix,j,k) )
+            cosangzk2(1:nn) = pack( cosang(1:ix,j), cloud(1:ix,j,k) )
 !----------------------------------------------------------------------
 !    note: the following are done to avoid the conservative scattering 
 !    case, and to eliminate floating point errors in the exponential 
 !    calculations, respectively.                      
 !----------------------------------------------------------------------c
-            omegastr2(1:ix) = min( omegastr2(1:ix), 9.9999999E-01 )
-            taustr2(1:ix) = min( taustr2(1:ix), 1.0E+02 )
+            omegastr2(1:nn) = min( omegastr2(1:nn), 9.9999999E-01 )
+            taustr2(1:nn) = min( taustr2(1:nn), 1.0E+02 )
 
 !----------------------------------------------------------------------c
 !    clear sky mode. note: in this mode, the delta-eddington method is 
 !    performed for all spatial points.                 
 !----------------------------------------------------------------------c
           else
-            mask = daylight(1:ix,j)
-            gstr2(1:ix) = gstr(1:ix,j,k)
-            taustr2(1:ix) = taustr(1:ix,j,k)
-            omegastr2(1:ix) = omegastr(1:ix,j,k)
-            cosangzk2(1:ix) = cosang(1:ix,j)
+            nn = count(daylight(1:ix,j))
+            gstr2(1:nn) = pack( gstr(1:ix,j,k), daylight(1:ix,j) )
+            taustr2(1:nn) = pack( taustr(1:ix,j,k), daylight(1:ix,j) )
+            omegastr2(1:nn) = pack( omegastr(1:ix,j,k), daylight(1:ix,j) )
+            cosangzk2(1:nn) = pack( cosang(1:ix,j), daylight(1:ix,j) )            
 !----------------------------------------------------------------------c
 !    note: the following are done to avoid the conservative scattering  
 !    case, and to eliminate floating point errors in the exponential 
 !    calculations, respectively.                    
 !----------------------------------------------------------------------c
-            omegastr2(1:ix) = min( omegastr2(1:ix), 9.9999999E-01 )
-            taustr2(1:ix) = min( taustr2(1:ix), 1.0E+02 )
+            omegastr2(1:nn) = min( omegastr2(1:nn), 9.9999999E-01 )
+            taustr2(1:nn) = min( taustr2(1:nn), 1.0E+02 )
           endif
 
 !----------------------------------------------------------------------
 !
 !----------------------------------------------------------------------
-          ntot = ix
+          ntot = nn
 
 !----------------------------------------------------------------------
 !
@@ -5482,7 +5081,6 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
             if ( nstreams==1 ) then
 
               do nn=1,ntot      
-               if ( mask(nn) ) then
 
 !----------------------------------------------------------------------c
 !    direct quantities                                            
@@ -5548,12 +5146,11 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                 sumt(nn) = ( (rr(3)*qq(6)*tt(8) +    &
                            qq(7)*rr(4)*tt(7) -   &
                            tt(5)*tt(6)) + tt(6))
-               end if
               end do  ! ntot loop
               
             else    
+                
               do nn=1,ntot      
-               if ( mask(nn) ) then
 
 !----------------------------------------------------------------------c
 !    direct quantities                                            
@@ -5627,7 +5224,6 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                 sumr(nn) = rsum
                 sumt(nn) = tsum
               
-               end if
               end do  ! ntot loop
               
             end if
@@ -5635,7 +5231,6 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
           else
               
             do nn=1,ntot      
-             if ( mask(nn) ) then
 
 !----------------------------------------------------------------------c
 !    direct quantities                                            
@@ -5679,7 +5274,6 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                                  ss(5) * ss(6) ) + ss(6) )
               tlayerde2(nn) = ss(6)
 
-               end if
             end do  ! ntot loop
 
           end if ! present(tlayerdiff)..
@@ -5687,48 +5281,25 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !     return results in proper locations in (i,j,k) arrays
 !---------------------------------------------------------------------
           if ( present(cloud) ) then
-            where ( cloud(1:ix,j,k) )
-              rlayerdir(1:ix,j,k) = rlayerdir2(1:ix)
-              tlayerdir(1:ix,j,k) = tlayerdir2(1:ix)
-              tlayerde(1:ix,j,k) = tlayerde2(1:ix)
-            elsewhere
-              rlayerdir(1:ix,j,k) = 0.0
-              tlayerdir(1:ix,j,k) = 0.0
-              tlayerde(1:ix,j,k) = 0.0
-            end where
+            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:ntot), cloud(1:ix,j,k), 0. )
+            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:ntot), cloud(1:ix,j,k), 0. )
+            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:ntot), cloud(1:ix,j,k), 0. )
             if ( present(tlayerdif) .and. ng==1 ) then
-              where ( cloud(1:ix,j,k) )
-                rlayerdif(1:ix,j,k) = sumr(1:ix)
-                tlayerdif(1:ix,j,k) = sumt(1:ix)
-              elsewhere
-                rlayerdif(1:ix,j,k) = 0.0
-                tlayerdif(1:ix,j,k) = 0.0
-              end where
+              rlayerdif(1:ix,j,k) = unpack( sumr(1:ntot), cloud(1:ix,j,k), 0. )
+              tlayerdif(1:ix,j,k) = unpack( sumt(1:ntot), cloud(1:ix,j,k), 0. )
             end if
           else
-            where ( daylight(1:ix,j) )
-              rlayerdir(1:ix,j,k) = rlayerdir2(1:ix)
-              tlayerdir(1:ix,j,k) = tlayerdir2(1:ix)
-              tlayerde(1:ix,j,k) = tlayerde2(1:ix)
-            elsewhere
-              rlayerdir(1:ix,j,k) = 0.0
-              tlayerdir(1:ix,j,k) = 0.0
-              tlayerde(1:ix,j,k) = 0.0
-            end where
+            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:ntot), daylight(1:ix,j), 0. )
+            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:ntot), daylight(1:ix,j), 0. )
+            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:ntot), daylight(1:ix,j), 0. )
             if ( present(tlayerdif) .and. ng==1 ) then
-              where ( daylight(1:ix,j) )
-                rlayerdif(1:ix,j,k) = sumr(1:ix)
-                tlayerdif(1:ix,j,k) = sumt(1:ix)
-              elsewhere
-                rlayerdif(1:ix,j,k) = 0.0
-                tlayerdif(1:ix,j,k) = 0.0
-              end where
+              rlayerdif(1:ix,j,k) = unpack( sumr(1:ntot), daylight(1:ix,j), 0. )
+              tlayerdif(1:ix,j,k) = unpack( sumt(1:ntot), daylight(1:ix,j), 0. )
             end if
           end if
 
         end do
       end do
-!$acc end parallel loop
 
 !---------------------------------------------------------------------
  

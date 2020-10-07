@@ -486,7 +486,7 @@ do iq=1,ifull                                                                   
   ! drag coefficients  for momentum cduv                                                         ! sea
   ! for heat and moisture  cdtq                                                                  ! sea
   es = establ(tpan(iq))                                                                          ! sea
-  constz=max(ps(iq)-es,estabmin)                                                                 ! sea
+  constz=max(ps(iq)-es,0.1)                                                                      ! sea
   qsttg(iq)= .98*.622*es/constz  ! with Zeng 1998 for sea water                                  ! sea
   xx=grav*zmin*(1.-tpan(iq)*srcp/t(iq,1))                                                        ! sea
   ri(iq)=min(xx/vmag(iq)**2 , ri_max)                                                            ! sea
@@ -693,7 +693,7 @@ do iq=1,ifull                                                                   
     ! non-leads for sea ice points                                                               ! sice
     ! N.B. tggsn( ,1) holds tice                                                                 ! sice
     es = establ(tggsn(iq,1))                                                                     ! sice
-    constz=max(ps(iq)-es,estabmin)                                                               ! sice
+    constz=max(ps(iq)-es,0.1)                                                                    ! sice
     qsttg(iq)= .622*es/constz                                                                    ! sice
     drst=qsttg(iq)*ps(iq)*hlars/(tggsn(iq,1)**2*constz)                                          ! sice
     xx=grav*zmin*(1.-tggsn(iq,1)*srcp/t(iq,1))                                                   ! sice
@@ -774,7 +774,7 @@ do iq=1,ifull                                                                   
     fgf(iq) =fgf(iq) +deltat*dfgdt(iq)                                                           ! sice
     fev(iq) =fev(iq) +deltat*degdt(iq)                                                           ! sice
     es = establ(tggsn(iq,1))                                                                     ! sice
-    constz=max(ps(iq)-es,estabmin)                                                               ! sice
+    constz=max(ps(iq)-es,0.1)                                                                    ! sice
     qsttg(iq)=.622*es/constz                                                                     ! sice
                                                                                                  ! sice
     ! combine ice and leads contributions here                                                   ! sice
@@ -1212,9 +1212,10 @@ where ( u_sigma>0. )                                                            
   ustar = sqrt(vmod*cduv)                                                                        ! urban
 end where                                                                                        ! urban
 ! calculate snowmelt                                                                             ! urban
-newsnowmelt = (snowmelt - oldsnowmelt)/dt  ! convert to mm/s                                     ! urban
+newsnowmelt = snowmelt - oldsnowmelt                                                             ! urban
+newsnowmelt = newsnowmelt/dt                                                                     ! urban
 call atebhydro(newsnowmelt,"snowmelt",0,pd,fp,upack,ufull)                                       ! urban
-newsnowmelt = newsnowmelt*dt ! convert back to mm                                                ! urban
+newsnowmelt = newsnowmelt*dt                                                                     ! urban
 where ( u_sigma>0. )                                                                             ! urban
   snowmelt = oldsnowmelt + newsnowmelt                                                           ! urban
 end where                                                                                        ! urban
@@ -1276,7 +1277,7 @@ do iq = 1,ifull                                                                 
     ! fh itself was only used outside this loop in sib0 (jlm)                                  ! land
     zobg=zobgin                                                                                ! land
     es = establ(tss(iq))                                                                       ! land
-    qsttg(iq)= .622*es/max(ps(iq)-es,estabmin)  ! prim for scrnout, bur recalc end sib3        ! land
+    qsttg(iq)= .622*es/max(ps(iq)-es,0.1)  ! prim for scrnout, bur recalc end sib3             ! land
     ! factch is sqrt(zo/zt) for land use in unstable fh                                        ! land
     factch(iq)=sqrt(7.4)                                                                       ! land
     if(snowd(iq)>0.)then                                                                       ! land
@@ -1592,7 +1593,7 @@ do iq=1,ifull
     ! bare ground calculation
     tgss=isflag(iq)*tggsn(iq,1) + (1-isflag(iq))*tgg(iq,1)
     esattg=establ(tgss)
-    qsttg(iq)=.622*esattg/max(ps(iq)-esattg,estabmin)
+    qsttg(iq)=.622*esattg/max(ps(iq)-esattg,0.1)
     tgss2=tgss*tgss
     dqsttg(iq)=qsttg(iq)*ps(iq)*hlars/((ps(iq)-esattg)*tgss2)
     rgg(iq) =  stefbo*tgss2**2   ! i.e. stefbo*tgss**4
@@ -1829,7 +1830,7 @@ do icount=1,itnmeth     ! jlm new iteration
   do iq=1,ifull  ! all land points in this nsib=3 loop
     if ( land(iq) ) then
       esatf = establ(tgfnew(iq))
-      qsatgf=.622*esatf/max(ps(iq)-esatf,estabmin)
+      qsatgf=.622*esatf/(ps(iq)-esatf)
       ! wet evaporation
       ewwwa = rho(iq) *(qsatgf-qg(iq,1))/airr(iq) ! in W/m**2 /hl
       ! max available dewfall is 
@@ -1882,7 +1883,7 @@ do icount=1,itnmeth     ! jlm new iteration
       write(6,*) 'ktau,icount,iq,omc,cc ',ktau,icount,iq,omc(iq),cc(iq)
       write(6,*) 'rmc,rmcmax,ewww ',cansto(iq),rmcmax(iq),ewww(iq)
       esatf = establ(tgfnew(iq))  ! value for next itn
-      qsatgf=.622*esatf/max(ps(iq)-esatf,estabmin)
+      qsatgf=.622*esatf/(ps(iq)-esatf)
       ewwwa = rho(iq) *(qsatgf-qg(iq,1))/airr(iq)
       write(6,*) 'esatf,qsatgf,ewwwa ',esatf,qsatgf,ewwwa
       prz = rho(iq)*cp*taftfh(iq)
@@ -1991,7 +1992,7 @@ do iq=1,ifull  ! all land points in this nsib=3 loop
       tss(iq)=tsigmf(iq)*tgf(iq)+(1.-tsigmf(iq))*tgss
     endif       ! tsigmf<= .01
     es = establ(tss(iq))     !  from 27/12/05
-    qsttg(iq)= .622*es/max(ps(iq)-es,estabmin)  ! recal for scrnout, esp. snow    
+    qsttg(iq)= .622*es/max(ps(iq)-es,0.1)  ! recal for scrnout, esp. snow    
 
   end if ! if land(iq)
 enddo    ! iq=1,ifull

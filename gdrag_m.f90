@@ -150,10 +150,12 @@ real, dimension(imax,kl) :: uu,fni,bvnf
 real, dimension(imax,kl) :: theta_full
 real, dimension(imax,kl) :: dtheta_dz_kmh
 real, dimension(imax), intent(in) :: tss, he
+real, dimension(imax) :: dzi, uux, xxx, froude2_inv
 real, dimension(imax) :: temp,fnii
+real, dimension(imax) :: bvng ! to be depreciated
 real, dimension(imax) :: apuw,apvw,alambda,wmag
 real, dimension(kl) :: dsk,sigk
-real dzx, uux, xxx, froude2_inv, bvng, dzi
+real dzx
 logical, intent(in) :: mydiag
 
 ! older values:  
@@ -162,26 +164,21 @@ logical, intent(in) :: mydiag
 !   ngwd=-20 helim=1600. fc2=-.5 sigbot_gw=1. alphaj=0.05
 ! If desire to tune, only need to vary alphaj (increase for stronger GWD)
 
-dsk(1:kl) = -dsig(1:kl)
-sigk(1:kl) = sig(1:kl)**(rdry/cp)
-
-do concurrent (k = 1:kl)
+do k = 1,kl
+  dsk(k) = -dsig(k)
+  sigk(k) = sig(k)**(rdry/cp)
   ! put theta in theta_full()
   theta_full(:,k) = t(:,k)/sigk(k)                ! gwdrag
 end do
 
 !  calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
 dzx = .5*grav*(1.+sig(1))/((1.-sig(1))*rdry)    
-do concurrent (iq = 1:imax)
-  dzi = dzx/t(iq,1)
-  dtheta_dz_kmh(iq,1) = (theta_full(iq,1)-tss(iq))*dzi
-end do
-do concurrent (k = 2:kl)
-  dzx = grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)  
-  do concurrent (iq = 1:imax)
-    dzi = dzx/(t(iq,k-1)+t(iq,k)) 
-    dtheta_dz_kmh(iq,k) = (theta_full(iq,k)-theta_full(iq,k-1))*dzi
-  end do  ! iq loop
+dzi(:) = dzx/t(:,1)
+dtheta_dz_kmh(:,1) = (theta_full(:,1)-tss(:))*dzi(:)    
+do k = 2,kl
+ dzx = grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)  
+ dzi(:) = dzx/(t(:,k-1)+t(:,k)) 
+ dtheta_dz_kmh(:,k) = (theta_full(:,k)-theta_full(:,k-1))*dzi(:)
 end do    ! k loop          
 
 !     form wmag at surface
@@ -191,38 +188,37 @@ wmag(:) = sqrt(max(u(:,1)**2+v(:,1)**2, vmodmin**2)) ! MJT suggestion
 !**** calculate Brunt-Vaisala frequency at full levels (bvnf)
 !      if unstable reference level then no gwd 
 !            - happens automatically via effect on bvnf & alambda
-do concurrent (k = 1:kl-1)
+do k = 1,kl-1
   bvnf(:,k) = sqrt(max(1.e-20, grav*0.5*(dtheta_dz_kmh(:,k)+dtheta_dz_kmh(:,k+1))/theta_full(:,k)) ) ! MJT fixup
 end do    ! k loop
 bvnf(:,kl) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(:,kl)/theta_full(:,kl)))    ! jlm fixup
 
 !**    calc (t*/n*/wmag)/he**2
 if ( sigbot_gwd<.5 ) then !  to be depreciated
-  do concurrent (iq = 1:imax)
-    bvng = sqrt(max(1.e-20, grav*dtheta_dz_kmh(iq,1)/tss(iq))) ! tries to use a sfce value rather than level 1 
-    temp(:) = tss(iq)/max(bvng*wmag(iq)*he(iq)**2, 1.e-10) 
-  end do
+  bvng(:) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(:,1)/tss(:))) ! tries to use a sfce value rather than level 1 
+  temp(:) = tss(:)/max(bvng(:)*wmag(:)*he(:)**2, 1.e-10) 
 else
   temp(:) = theta_full(:,1)/max(bvnf(:,1)*wmag(:)*he(:)**2, 1.e-10)      
 end if
 
-do concurrent (k = 1:kl) ! uu is +ve wind compt in dirn of (u_1,v_1)
+do k = 1,2 ! uu is +ve wind compt in dirn of (u_1,v_1)
   uu(:,k) = max(0., u(:,k)*u(:,1)+v(:,k)*v(:,1))/wmag(:)
 end do    ! k loop
+
 !**** set uu() to zero above if uu() zero below
 !**** uu>0 at k=1, uu>=0 at k=1+1 - only set for k=1+2 to kl  
 do k = 3,kl
   where ( uu(:,k-1)<1.e-20 )
     uu(:,k) = 0.
+  elsewhere
+    uu(:,k) = max(0., u(:,k)*u(:,1)+v(:,k)*v(:,1))/wmag(:)
   end where
 end do    ! k loop
 
-do concurrent (k = kbot:kl)
-  do concurrent (iq = 1:imax)
-    !       calc max(1-Fc**2/F**2,0) : put in fni()
-    froude2_inv = sig(k)*temp(iq)*uu(iq,k)**3/(sigk(k)*bvnf(iq,k)*theta_full(iq,k))
-    fni(iq,k) = max(0., 1.-abs(fc2)*froude2_inv)
-  end do  ! iq loop
+do k = kbot,kl
+  !       calc max(1-Fc**2/F**2,0) : put in fni()
+  froude2_inv(:) = sig(k)*temp(:)*uu(:,k)**3/(sigk(k)*bvnf(:,k)*theta_full(:,k))
+  fni(:,k) = max(0., 1.-abs(fc2)*froude2_inv(:))
 end do    ! k loop
 if ( fc2<0. ) then
   fni(:,kl) = 1.
@@ -231,7 +227,7 @@ end if
 ! form integral of above*uu**2 from sig=sigbot_gwd to sig=0
 fnii(:) = -fni(:,kbot)*dsig(kbot)*uu(:,kbot)*uu(:,kbot)
 do k = kbot+1,kl
-  fnii(:) = fnii(:) - fni(:,k)*dsig(k)*uu(:,k)**2
+  fnii(:) = fnii(:)-fni(:,k)*dsig(k)*uu(:,k)*uu(:,k)
 end do    ! k loop
 
 !     Chouinard et al. use alpha=.01
@@ -247,18 +243,16 @@ end if
 apuw(:) = alambda(:)*u(:,1)/wmag(:)
 apvw(:) = alambda(:)*v(:,1)/wmag(:)
 
-do concurrent (k = kbot:kl)
-  do concurrent (iq = 1:imax)
-    !**** form fni=alambda*max(--,0) and
-    !**** solve for uu at t+1 (implicit solution)
-    uux = 2.*uu(iq,k)/(1.+sqrt(1. + 4.*dt*alambda(iq)*fni(iq,k)*uu(iq,k)))
-    !       N.B. 4.*dt*alambda(iq)*fni(iq,k)*uu(iq,k)) can be ~300
-    !**** form dv/dt due to gw-drag at each level
-    !**** = -alambda.v*/wmag.uu(t+1)**2.max(--,0)
-    xxx = uux**2*fni(iq,k)
-    u(iq,k) = u(iq,k) - apuw(iq)*xxx*dt
-    v(iq,k) = v(iq,k) - apvw(iq)*xxx*dt
-  end do   ! iq loop
+do k = kbot,kl
+  !**** form fni=alambda*max(--,0) and
+  !**** solve for uu at t+1 (implicit solution)
+  uux(:) = 2.*uu(:,k)/(1.+sqrt(1. + 4.*dt*alambda(:)*fni(:,k)*uu(:,k)))
+  !       N.B. 4.*dt*alambda(iq)*fni(iq,k)*uu(iq,k)) can be ~300
+  !**** form dv/dt due to gw-drag at each level
+  !**** = -alambda.v*/wmag.uu(t+1)**2.max(--,0)
+  xxx(:) = uux(:)*uux(:)*fni(:,k)
+  u(:,k) = u(:,k) - apuw(:)*xxx(:)*dt
+  v(:,k) = v(:,k) - apvw(:)*xxx(:)*dt
 end do     ! k loop
 
 
@@ -269,6 +263,7 @@ if ( ntest==1 .and. mydiag ) then ! JLM
     iq,ngwd,alambda(iq),fnii(iq),apuw(iq),apvw(iq),wmag(iq)
     write(6,*) 'temp,bvnf_1,he,tss',   &
       temp(iq),bvnf(iq,1),he(iq),tss(iq)
+    if ( sigbot_gwd<.5 ) write(6,*) 'bvng',bvng(iq) !  to be depreciated
     write(6,*) 't',t(iq,kbot:kl)
     write(6,*) 'theta_full',theta_full(iq,1:kl)
     write(6,*) 'bvnf',bvnf(iq,1:kl)
