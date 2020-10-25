@@ -1528,7 +1528,7 @@ if( myid==0 .or. local ) then
           call attrib(idnc,dimj,jsize,'sgn_ave',lname,'W/m2',-500.,2000.,0,-1) ! -1 = long
           lname = 'Clear sky SW at ground (+ve down)'
           call attrib(idnc,dimj,jsize,'sgc_ave',lname,'W/m2',-500.,2000.,0,cptype)
-          lname = 'Sunshine hours'
+          lname = 'Sunshine hours per day'
           call attrib(idnc,dimj,jsize,'sunhours',lname,'hrs',0.,24.,0,cptype)
           lname = 'Direct normal irradiance'
           call attrib(idnc,dimj,jsize,'dni',lname,'W/m2',-500.,2.e3,0,-1) ! -1 = long
@@ -3285,31 +3285,37 @@ subroutine freqfile
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
+use const_phys                        ! Physical constants
 use dates_m                           ! Date data
 use extraout_m                        ! Additional diagnostics
 use filnames_m                        ! Filenames
 use histave_m                         ! Time average arrays
 use infile                            ! Input file routines
+use liqwpar_m                         ! Cloud water mixing ratios
 use morepbl_m                         ! Additional boundary layer diagnostics
 use newmpar_m                         ! Grid parameters
+use nharrs_m                          ! Non-hydrostatic atmosphere arrays
+use nsibd_m                           ! Land-surface arrays
 use parm_m                            ! Model configuration
 use parmdyn_m                         ! Dynamics parameters
 use parmgeom_m                        ! Coordinate data
 use parmhdff_m                        ! Horizontal diffusion parameters
 use parmhor_m                         ! Horizontal advection parameters
 use pbl_m                             ! Boundary layer arrays
+use prec_m                            ! Precipitation
 use raddiag_m                         ! Radiation diagnostic
 use screen_m                          ! Screen level diagnostics
 use sigs_m                            ! Atmosphere sigma levels
 use soilsnow_m                        ! Soil, snow and surface data
+use soilv_m                           ! Soil parameters
 use tracers_m                         ! Tracer data
       
 implicit none
 
 include 'kuocom.h'                    ! Convection parameters
 
-integer, parameter :: freqvars = 21  ! number of variables to average
-integer, parameter :: runoffvars = 3 ! number of runoff variables
+integer, parameter :: freqvars = 22  ! number of variables to average
+integer, parameter :: runoffvars = 4 ! number of runoff variables
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
@@ -3321,8 +3327,9 @@ integer, dimension(1) :: gpdim
 integer, dimension(5) :: outdim
 integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics
-integer i,j,n,fiarch
+integer i,j,k,n,iq,fiarch
 integer dproc, d4, asize, ssize, idnp, idgpn, idgpo
+integer fsize
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -3331,19 +3338,21 @@ integer, save :: idmtimer = 0
 real, dimension(:,:), allocatable, save :: freqstore
 real, dimension(:,:), allocatable, save :: runoff_old, runoff_store
 real, dimension(ifull) :: umag, pmsl, outdata
+real, dimension(ifull) :: ua_level, va_level, ta_level, hus_level, zg_level
 real, dimension(:,:), allocatable :: xpnt2
 real, dimension(:,:), allocatable :: ypnt2
 real, dimension(:), allocatable :: xpnt
 real, dimension(:), allocatable :: ypnt
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
-real(kind=8) :: tpnt
+real xx
+real(kind=8) tpnt
 logical, save :: first = .true.
-logical :: local
-character(len=1024) :: ffile
-character(len=40) :: lname
-character(len=33) :: grdtim
-character(len=20) :: timorg
+logical local, lday
+character(len=1024) ffile
+character(len=40) lname
+character(len=33) grdtim
+character(len=20) timorg
 
 call START_LOG(outfile_begin)
 
@@ -3356,6 +3365,7 @@ call START_LOG(outfile_begin)
 ! local=.true. if this process needs to write to a file
 
 local = localhist .and. vnode_myid==0
+lday  = mod(ktau,nperday)==0.or.ktau==ntau
 if ( localhist ) then
   dproc = 4
   d4    = 5
@@ -3367,6 +3377,7 @@ else
   asize = 4
   ssize = 3
 end if
+fsize = ssize - 1 ! size of fixed variables
 
 ! allocate arrays and open new file
 if ( first ) then
@@ -3549,6 +3560,12 @@ if ( first ) then
       sdim(1:2) = adim(1:2)
       sdim(3)   = adim(4)
     end if
+    if ( surf_cordex==1 ) then
+      lname = 'Surface geopotential'
+      call attrib(fncid,sdim(1:fsize),fsize,'zht',lname,'m2/s2',-1000.,90.e3,0,-1)
+      lname = 'Soil type'
+      call attrib(fncid,sdim(1:fsize),fsize,'soilt',lname,'none',-650.,650.,0,1)    
+    end if  
     lname='x-component 10m wind'
     call attrib(fncid,sdim,ssize,'uas',lname,'m/s',-130.,130.,0,1)
     lname='y-component 10m wind'     
@@ -3588,7 +3605,16 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'va250',lname,'m/s',-130.,130.,0,1)
     end if
     if ( surf_cordex==1 ) then
-      ! missing sund  
+      lname = 'Maximum screen temperature'  
+      call attrib(fncid,sdim,ssize,'tmaxscr',lname,'K',100.,425.,1,1) ! daily
+      lname = 'Minimum screen temperature'
+      call attrib(fncid,sdim,ssize,'tminscr',lname,'K',100.,425.,1,1) ! daily
+      lname = 'Maximum hourly precip rate'
+      call attrib(fncid,sdim,ssize,'prhmax',lname,'kg/m2/s',0.,2600.,1,-1) ! daily and -1=long
+      lname = 'x-component max 10m wind'
+      call attrib(fncid,sdim,ssize,'u10max',lname,'m/s',-99.,99.,1,1) ! daily
+      lname = 'y-component max 10m wind'
+      call attrib(fncid,sdim,ssize,'v10max',lname,'m/s',-99.,99.,1,1) ! daily
       lname = 'LW downwelling at ground'
       call attrib(fncid,sdim,ssize,'rgdn_ave',lname,'W/m2',-500.,1.e3,0,-1)   ! -1 = long
       lname = 'Avg latent heat flux'
@@ -3601,12 +3627,16 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'rgn_ave',lname,'W/m2',-500.,1000.,0,-1)   ! -1 = long
       lname = 'Avg potential evaporation'
       call attrib(fncid,sdim,ssize,'epot_ave',lname,'W/m2',-1000.,10.e3,0,1)
-      ! missing mrfso - requires wbice
+      lname = 'Soil frozen water content'
+      call attrib(fncid,sdim,ssize,'mrfso',lname,'kg/m2',0.,1300.,0,-1)       ! -1 = long
+      lname = 'Evaporation'
+      call attrib(fncid,sdim,ssize,'evspsbl',lname,'mm/day',0.,1300.,0,-1)    ! -1 = long
       lname = 'Surface runoff'
       call attrib(fncid,sdim,ssize,'mrros',lname,'mm/day',0.,1300.,0,-1)      ! -1 = long
       lname = 'Runoff'
       call attrib(fncid,sdim,ssize,'runoff',lname,'mm/day',0.,1300.,0,-1)     ! -1 = long
-      ! missing mrso - requires wb
+      lname = 'Total soil moisture content'
+      call attrib(fncid,sdim,ssize,'mrso',lname,'kg/m2',0.,1300.,0,-1)        ! -1 = long
       lname = 'Snow melt'
       call attrib(fncid,sdim,ssize,'snm',lname,'mm/day',0.,1300.,0,-1)        ! -1 = long
       lname = 'LW at TOA'
@@ -3624,9 +3654,12 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'tsu',lname,'K',100.,425.,0,1)
       lname = 'PBL depth'
       call attrib(fncid,sdim,ssize,'pblh',lname,'m',0.,13000.,0,1)
-      ! missing prw   - requires mixr
-      ! missing clwvi - requires qlg
-      ! missing clivi - requires qfg
+      lname = 'Precipitable water column'
+      call attrib(fncid,sdim,ssize,'prw',lname,'kg/m2',0.,130.,0,-1)          ! -1 = long
+      lname = 'Liquid water column'
+      call attrib(fncid,sdim,ssize,'clwvi',lname,'kg/m2',0.,130.,0,-1)        ! -1 = long
+      lname = 'Frozen water column'
+      call attrib(fncid,sdim,ssize,'clivi',lname,'kg/m2',0.,130.,0,-1)        ! -1 = long
       lname = 'Hi cloud ave'
       call attrib(fncid,sdim,ssize,'clh',lname,'frac',0.,1.,0,1)
       lname = 'Mid cloud ave'
@@ -3637,6 +3670,39 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'snd',lname,'mm',0.,6500.,0,-1)            ! -1 = long
       lname = 'Sea ice fraction'
       call attrib(fncid,sdim,ssize,'fracice',lname,'none',0.,1.,0,1)
+      lname = 'Sunshine hours per day'
+      call attrib(fncid,sdim,ssize,'sunhours',lname,'hrs',0.,24.,0,1)
+      
+      lname = 'x-component 850hPa wind'
+      call attrib(fncid,sdim,ssize,'ua850',lname,'m/s',-130.,130.,0,1)
+      lname = 'y-component 850hPa wind'     
+      call attrib(fncid,sdim,ssize,'va850',lname,'m/s',-130.,130.,0,1)
+      lname = 'Air temperature at 850hPa'     
+      call attrib(fncid,sdim,ssize,'ta850',lname,'K',100.,425.,0,1)
+      lname = 'Specific humidity at 850hPa'
+      call attrib(fncid,sdim,ssize,'hus850',lname,'none',0.,0.06,0,1)
+      lname = 'Geopotential height at 850hPa'
+      call attrib(fncid,sdim,ssize,'zg850',lname,'m',0.,130000.,0,1)
+      lname = 'x-component 500hPa wind'
+      call attrib(fncid,sdim,ssize,'ua500',lname,'m/s',-130.,130.,0,1)
+      lname = 'y-component 500hPa wind'     
+      call attrib(fncid,sdim,ssize,'va500',lname,'m/s',-130.,130.,0,1)
+      lname = 'Air temperature at 500hPa'     
+      call attrib(fncid,sdim,ssize,'ta500',lname,'K',100.,425.,0,1)
+      lname = 'Specific humidity at 500hPa'
+      call attrib(fncid,sdim,ssize,'hus500',lname,'none',0.,0.06,0,1)
+      lname = 'Geopotential height at 500hPa'
+      call attrib(fncid,sdim,ssize,'zg500',lname,'m',0.,130000.,0,1)
+      lname = 'x-component 200hPa wind'
+      call attrib(fncid,sdim,ssize,'ua200',lname,'m/s',-130.,130.,0,1)
+      lname = 'y-component 200hPa wind'     
+      call attrib(fncid,sdim,ssize,'va200',lname,'m/s',-130.,130.,0,1)
+      lname = 'Air temperature at 200hPa'     
+      call attrib(fncid,sdim,ssize,'ta200',lname,'K',100.,425.,0,1)
+      lname = 'Specific humidity at 200hPa'
+      call attrib(fncid,sdim,ssize,'hus200',lname,'none',0.,0.06,0,1)
+      lname = 'Geopotential height at 200hPa'
+      call attrib(fncid,sdim,ssize,'zg200',lname,'m',0.,130000.,0,1)      
     end if    
 
     ! end definition mode
@@ -3737,6 +3803,12 @@ if ( first ) then
     
   end if ! myid==0 .or. local ..else if ( localhist ) ..
   
+  if ( surf_cordex==1 ) then
+    call histwrt(zs,'zht',fncid,fiarch,local,.true.)
+    outdata(:) = real(isoilm_in(:))  ! use the raw soil data here to classify inland water bodies
+    call histwrt(outdata,'soilt',fncid,fiarch,local,.true.) ! also defines land-sea mask
+  end if  
+  
   first=.false.
   if ( myid==0 ) write(6,*) "Finished initialising high frequency output"
  
@@ -3765,6 +3837,9 @@ if ( surf_cordex==1 ) then
   freqstore(1:ifull,19) = freqstore(1:ifull,19) + cloudhi/real(tbave)
   freqstore(1:ifull,20) = freqstore(1:ifull,20) + cloudmi/real(tbave)
   freqstore(1:ifull,21) = freqstore(1:ifull,21) + cloudlo/real(tbave)
+  where ( sgdn(1:ifull)>120. )
+    freqstore(1:ifull,22) = freqstore(1:ifull,22) + 24./real(tbave)
+  end where  
 end if
 
 ! write data to file
@@ -3781,7 +3856,7 @@ if ( mod(ktau,tbave)==0 ) then
     call ccnf_put_vara(fncid,'ktime',fiarch,ktime)
     call ccnf_put_vara(fncid,'mtimer',fiarch,mtimer)
   end if
-
+  
   ! record output
   umag = sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)
   call mslp(pmsl,psl,zs,t)
@@ -3809,20 +3884,38 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(va250,"va250",fncid,fiarch,local,.true.)      
   end if
   if ( surf_cordex==1 ) then
+    call histwrt(tmaxscr,'tmaxscr',fncid,fiarch,local,lday)
+    call histwrt(tminscr,'tminscr',fncid,fiarch,local,lday)
+    call histwrt(u10max,'u10max',fncid,fiarch,local,lday)
+    call histwrt(v10max,'v10max',fncid,fiarch,local,lday)
+    call histwrt(prhmax,'prhmax',fncid,fiarch,local,lday)    
     call histwrt(freqstore(:,8),"rgdn_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,9),"eg_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,10),"fg_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,11),"sgn_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,12),"rgn_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,13),"epot_ave",fncid,fiarch,local,.true.)
-    outdata = runoff_surface - runoff_old(:,1) + runoff_store(:,1)
-    runoff_old(:,1) = runoff_surface
+    outdata = 0.
+    do k = 1,ms
+      outdata = outdata + wbice(:,k)*zse(k)*330.  
+    end do    
+    call histwrt(outdata,"mrfso",fncid,fiarch,local,.true.)
+    outdata = evspsbl - runoff_old(:,1) + runoff_store(:,1)
+    runoff_old(:,1) = evspsbl
+    call histwrt(outdata,"evspsbl",fncid,fiarch,local,.true.)    
+    outdata = runoff_surface - runoff_old(:,2) + runoff_store(:,2)
+    runoff_old(:,2) = runoff_surface
     call histwrt(outdata,"mrros",fncid,fiarch,local,.true.)
-    outdata = runoff - runoff_old(:,2) + runoff_store(:,2)
-    runoff_old(:,2) = runoff
+    outdata = runoff - runoff_old(:,3) + runoff_store(:,3)
+    runoff_old(:,3) = runoff
     call histwrt(outdata,"runoff",fncid,fiarch,local,.true.)
-    outdata = snowmelt - runoff_old(:,3) + runoff_store(:,3)
-    runoff_old(:,3) = snowmelt
+    outdata = 0.
+    do k = 1,ms
+      outdata = outdata + wb(:,k)*zse(k)*1000.  
+    end do    
+    call histwrt(outdata,"mrso",fncid,fiarch,local,.true.)    
+    outdata = snowmelt - runoff_old(:,4) + runoff_store(:,4)
+    runoff_old(:,4) = snowmelt
     call histwrt(outdata,"snm",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,14),"rtu_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,15),"sint_ave",fncid,fiarch,local,.true.)
@@ -3831,11 +3924,97 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(freqstore(:,18),"tauy",fncid,fiarch,local,.true.)
     call histwrt(tss,"tsu",fncid,fiarch,local,.true.)
     call histwrt(pblh,"pblh",fncid,fiarch,local,.true.)
+    outdata = 0.
+    do k = 1,kl
+      outdata = outdata - dsig(k)*qg(1:ifull,k) ! sign of outdata defined so always positive 
+    end do    
+    outdata = outdata*ps(1:ifull)/grav
+    call histwrt(outdata,"prw",fncid,fiarch,local,.true.)
+    outdata = 0.
+    do k = 1,kl
+      outdata = outdata - dsig(k)*qlg(1:ifull,k) ! sign of outdata defined so always positive  
+    end do    
+    outdata = outdata*ps(1:ifull)/grav
+    call histwrt(outdata,"clwvi",fncid,fiarch,local,.true.)
+    outdata = 0.
+    do k = 1,kl
+      outdata = outdata - dsig(k)*qfg(1:ifull,k) ! sign of outdata defined so always positive 
+    end do    
+    outdata = outdata*ps(1:ifull)/grav
+    call histwrt(outdata,"clivi",fncid,fiarch,local,.true.)
     call histwrt(snowd,"snd",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,19),"clh",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,20),"clm",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,21),"cll",fncid,fiarch,local,.true.)
     call histwrt(fracice,"fracice",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,22),'sunhours',fncid,fiarch,local,.true.) 
+    
+    do iq = 1,ifull
+      do k = 1,kl-1
+        if ( ps(iq)*sig(k)<85000. ) then
+          n = k
+        else
+          exit
+        end if
+     end do   
+     xx = (85000. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
+     ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+     va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+     ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+     hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
+     hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
+     zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
+     zg_level(iq) = zg_level(iq)/grav
+    end do
+    call histwrt(ua_level,'ua850',fncid,fiarch,local,.true.) 
+    call histwrt(va_level,'va850',fncid,fiarch,local,.true.) 
+    call histwrt(ta_level,'ta850',fncid,fiarch,local,.true.) 
+    call histwrt(hus_level,'hus850',fncid,fiarch,local,.true.) 
+    call histwrt(zg_level,'zg850',fncid,fiarch,local,.true.) 
+    do iq = 1,ifull
+      do k = 1,kl-1
+        if ( ps(iq)*sig(k)<50000. ) then
+          n = k
+        else
+          exit
+        end if
+     end do   
+     xx = (50000. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
+     ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+     va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+     ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+     hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
+     hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
+     zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
+     zg_level(iq) = zg_level(iq)/grav
+    end do
+    call histwrt(ua_level,'ua500',fncid,fiarch,local,.true.) 
+    call histwrt(va_level,'va500',fncid,fiarch,local,.true.) 
+    call histwrt(ta_level,'ta500',fncid,fiarch,local,.true.) 
+    call histwrt(hus_level,'hus500',fncid,fiarch,local,.true.) 
+    call histwrt(zg_level,'zg500',fncid,fiarch,local,.true.) 
+    do iq = 1,ifull
+      do k = 1,kl-1
+        if ( ps(iq)*sig(k)<20000. ) then
+          n = k
+        else
+          exit
+        end if
+     end do   
+     xx = (20000. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
+     ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+     va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+     ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+     hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
+     hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
+     zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
+     zg_level(iq) = zg_level(iq)/grav
+    end do
+    call histwrt(ua_level,'ua200',fncid,fiarch,local,.true.) 
+    call histwrt(va_level,'va200',fncid,fiarch,local,.true.) 
+    call histwrt(ta_level,'ta200',fncid,fiarch,local,.true.) 
+    call histwrt(hus_level,'hus200',fncid,fiarch,local,.true.) 
+    call histwrt(zg_level,'zg200',fncid,fiarch,local,.true.)    
   end if
   
   freqstore(:,:) = 0.
@@ -3844,9 +4023,10 @@ if ( mod(ktau,tbave)==0 ) then
 end if
 
 if ( mod(ktau,nperavg)==0 ) then
-  runoff_store(:,1) = runoff_store(:,1) + runoff_surface - runoff_old(:,1)
-  runoff_store(:,2) = runoff_store(:,2) + runoff - runoff_old(:,2)
-  runoff_store(:,3) = runoff_store(:,3) + snowmelt - runoff_old(:,3)
+  runoff_store(:,1) = runoff_store(:,1) + evspsbl - runoff_old(:,1)
+  runoff_store(:,2) = runoff_store(:,2) + runoff_surface - runoff_old(:,2)
+  runoff_store(:,3) = runoff_store(:,3) + runoff - runoff_old(:,3)
+  runoff_store(:,4) = runoff_store(:,4) + snowmelt - runoff_old(:,4)
   runoff_old(:,:) = 0.
 end if
 
