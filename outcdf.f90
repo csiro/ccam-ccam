@@ -3951,20 +3951,20 @@ if ( mod(ktau,tbave)==0 ) then
     
     do iq = 1,ifull
       do k = 1,kl-1
-        if ( ps(iq)*sig(k)<85000. ) then
+        if ( ps(iq)*sig(k)>85000. ) then
           n = k
         else
           exit
         end if
-     end do   
-     xx = (85000. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
-     ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-     va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-     ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
-     hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
-     hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
-     zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
-     zg_level(iq) = zg_level(iq)/grav
+      end do   
+      xx = (85000. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
+      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+      ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+      hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
+      hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
+      zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
+      zg_level(iq) = zg_level(iq)/grav
     end do
     call histwrt(ua_level,'ua850',fncid,fiarch,local,.true.) 
     call histwrt(va_level,'va850',fncid,fiarch,local,.true.) 
@@ -3973,20 +3973,20 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(zg_level,'zg850',fncid,fiarch,local,.true.) 
     do iq = 1,ifull
       do k = 1,kl-1
-        if ( ps(iq)*sig(k)<50000. ) then
+        if ( ps(iq)*sig(k)>50000. ) then
           n = k
         else
           exit
         end if
-     end do   
-     xx = (50000. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
-     ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-     va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-     ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
-     hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
-     hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
-     zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
-     zg_level(iq) = zg_level(iq)/grav
+      end do   
+      xx = (50000. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
+      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+      ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+      hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
+      hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
+      zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
+      zg_level(iq) = zg_level(iq)/grav
     end do
     call histwrt(ua_level,'ua500',fncid,fiarch,local,.true.) 
     call histwrt(va_level,'va500',fncid,fiarch,local,.true.) 
@@ -3995,20 +3995,20 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(zg_level,'zg500',fncid,fiarch,local,.true.) 
     do iq = 1,ifull
       do k = 1,kl-1
-        if ( ps(iq)*sig(k)<20000. ) then
+        if ( ps(iq)*sig(k)>20000. ) then
           n = k
         else
           exit
         end if
-     end do   
-     xx = (20000. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
-     ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-     va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-     ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
-     hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
-     hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
-     zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
-     zg_level(iq) = zg_level(iq)/grav
+      end do   
+      xx = (20000. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
+      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+      ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+      hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
+      hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
+      zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
+      zg_level(iq) = zg_level(iq)/grav
     end do
     call histwrt(ua_level,'ua200',fncid,fiarch,local,.true.) 
     call histwrt(va_level,'va200',fncid,fiarch,local,.true.) 
