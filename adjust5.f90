@@ -69,12 +69,7 @@ real, dimension(ifull,kl) :: helm, rhsl, omgf, e
 real, dimension(ifull+iextra,kl) :: d
 real, dimension(ifull) :: ps_sav, pslxint, pslsav
 real, dimension(ifull) :: delps, bb
-real, dimension(ifull) :: dd_isv, cc_iwu, em_isv, em_iwu
-real, dimension(ifull) :: p_n, p_s, p_e, p_w
-real, dimension(ifull) :: alf_n, alf_e
-real, dimension(ifull) :: alff_n, alff_s, alff_e, alff_w
 real, dimension(ifull) :: ptemp, ptempsav
-real, dimension(ifull) :: d_e, d_n
 real hdt, hdtds
 real alph_p, alph_pm, delneg, delpos
 real const_nh
@@ -221,9 +216,8 @@ end if     ! (nh/=0)
 
 ! form divergence of rhs (xu & xv) terms
 do k = 1,kl
-  call unpack_svwu(cc(:,k),dd(:,k),dd_isv,cc_iwu)  
   ! d is xd in Eq. 157, divided by em**2/ds
-  d(1:ifull,k) = cc(1:ifull,k) - cc_iwu + dd(1:ifull,k) - dd_isv
+  d(1:ifull,k) = cc(1:ifull,k) - cc(iwu,k) + dd(1:ifull,k) - dd(isv,k)
 end do
 
 ! transform p & d to eigenvector space
@@ -297,31 +291,25 @@ if ((diag.or.nmaxpr==1).and.mydiag) then
   write(6,*) 'p & direct n s ',p(idjd,nlv),p(idjd+il,nlv),p(idjd-il,nlv)
 end if
 
-call unpack_ne(alf,alf_n,alf_e)
-call unpack_nsew(alff,alff_n,alff_s,alff_e,alff_w)
 do k = 1,kl
-  call unpack_nsew(p(:,k),p_n,p_s,p_e,p_w)  
   do iq = 1,ifull
-    cc(iq,k) = alfu(iq)*ux(iq,k) - hdtds*emu(iq)*(                              &
-               alf_e(iq)*p_e(iq)-alf(iq)*p(iq,k)-.5*alfe(iq)*(p(iq,k)+p_e(iq))  &
-               +.25*(alff_n(iq)*p_n(iq) +alff(ine(iq))*p(ine(iq),k)             &
-               -alff_s(iq)*p_s(iq) -alff(ise(iq))*p(ise(iq),k)) ) ! Eq. 139
-    dd(iq,k) = alfv(iq)*vx(iq,k) - hdtds*emv(iq)*(                              &
-               alf_n(iq)*p_n(iq)-alf(iq)*p(iq,k)-.5*alfn(iq)*(p(iq,k)+p_n(iq))  &
-               -.25*(alff(ien(iq))*p(ien(iq),k) +alff_e(iq)*p_e(iq)             &
-               -alff(iwn(iq))*p(iwn(iq),k) -alff_w(iq)*p_w(iq)) ) ! Eq. 140
+    cc(iq,k) = alfu(iq)*ux(iq,k) - hdtds*emu(iq)*(                                        &
+               alf(ie(iq))*p(ie(iq),k)-alf(iq)*p(iq,k)-.5*alfe(iq)*(p(iq,k)+p(ie(iq),k))  &
+               +.25*(alff(in(iq))*p(in(iq),k) +alff(ine(iq))*p(ine(iq),k)                 &
+               -alff(is(iq))*p(is(iq),k) -alff(ise(iq))*p(ise(iq),k)) ) ! Eq. 139
+    dd(iq,k) = alfv(iq)*vx(iq,k) - hdtds*emv(iq)*(                                        &
+               alf(in(iq))*p(in(iq),k)-alf(iq)*p(iq,k)-.5*alfn(iq)*(p(iq,k)+p(in(iq),k))  &
+               -.25*(alff(ien(iq))*p(ien(iq),k) +alff(ie(iq))*p(ie(iq),k)                 &
+               -alff(iwn(iq))*p(iwn(iq),k) -alff(iw(iq))*p(iw(iq),k)) ) ! Eq. 140
   end do  
 end do     !  k loop 
 
 call boundsuv(cc,dd,stag=-9) ! only update isv and iwu
 
-call unpack_svwu(emu,emv,em_isv,em_iwu)
-
 ! calculate linear part only of sigma-dot and omega/ps
 do k = 1,kl
-  call unpack_svwu(cc(:,k),dd(:,k),dd_isv,cc_iwu)  
-  d(1:ifull,k) = (cc(1:ifull,k)/emu(1:ifull)-cc_iwu/em_iwu   &
-                 +dd(1:ifull,k)/emv(1:ifull)-dd_isv/em_isv)  &
+  d(1:ifull,k) = (cc(1:ifull,k)/emu(1:ifull)-cc(iwu,k)/emu(iwu)   &
+                 +dd(1:ifull,k)/emv(1:ifull)-dd(isv,k)/emv(isv))  &
                  *em(1:ifull)**2/ds ! Eq. 101
 end do     ! k  loop
 if ( nmaxpr==1 ) then
@@ -341,15 +329,13 @@ if ( nh/=0 .and. ktau<=-knh .and. .not.lrestart ) then  ! e.g. knh=-10, divdamp=
   end if
   call bounds(d)
   do k=1,kl
-    call unpack_ne(d(:,k),d_n,d_e)
-    cc(1:ifull,k)=cc(1:ifull,k)+(d_e-d(1:ifull,k))*divdamp*real(1-knh-ktau)*emu(1:ifull)*dt/(ds*real(abs(knh))) 
-    dd(1:ifull,k)=dd(1:ifull,k)+(d_n-d(1:ifull,k))*divdamp*real(1-knh-ktau)*emv(1:ifull)*dt/(ds*real(abs(knh)))
+    cc(1:ifull,k)=cc(1:ifull,k)+(d(ie,k)-d(1:ifull,k))*divdamp*real(1-knh-ktau)*emu(1:ifull)*dt/(ds*real(abs(knh))) 
+    dd(1:ifull,k)=dd(1:ifull,k)+(d(in,k)-d(1:ifull,k))*divdamp*real(1-knh-ktau)*emv(1:ifull)*dt/(ds*real(abs(knh)))
   end do
   call boundsuv(cc,dd,stag=-9) ! only update isv and iwu
   do k=1,kl
-    call unpack_svwu(cc(:,k),dd(:,k),dd_isv,cc_iwu)  
-    d(1:ifull,k)=(cc(1:ifull,k)/emu(1:ifull)-cc_iwu/em_iwu   &
-                 +dd(1:ifull,k)/emv(1:ifull)-dd_isv/em_isv)  &
+    d(1:ifull,k)=(cc(1:ifull,k)/emu(1:ifull)-cc(iwu,k)/emu(iwu)   &
+                 +dd(1:ifull,k)/emv(1:ifull)-dd(isv,k)/emv(isv))  &
                  *em(1:ifull)**2/ds ! Eq. 101
   end do     ! k  loop
   if ( nmaxpr==1 .and. mydiag ) then

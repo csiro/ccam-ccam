@@ -3950,6 +3950,7 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(freqstore(:,22),'sunhours',fncid,fiarch,local,.true.) 
     
     do iq = 1,ifull
+      n = 1
       do k = 1,kl-1
         if ( ps(iq)*sig(k)>85000. ) then
           n = k

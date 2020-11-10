@@ -2386,7 +2386,7 @@ do n = 1, ndust
   dsrc = max( 0., dsrc )
 
   ! Calculate dust mixing ratio tendency at first model level.
-  a = dsrc / airmas
+  a = dsrc / max(airmas,0.1)
   duste(:,n) = duste(:,n) + dsrc ! Diagnostic
       
   ! Calculate turbulent dry deposition at surface
@@ -2399,7 +2399,7 @@ do n = 1, ndust
   ! solution is x = a/b + (X0-a/b)*exp(-b*tdt).  However, in split form
   ! x = X0 + a*tdt, and x = X0*exp(-b*tdt), or combined
   ! x = (X0 + a*tdt)*exp(-b*tdt)
-  xtg(1:imax,1,n+itracdu-1) = (xtg(1:imax,1,n+itracdu-1)+a*tdt)*exp(-b*tdt)
+  xtg(1:imax,1,n+itracdu-1) = (xtg(1:imax,1,n+itracdu-1)+a*tdt)*exp(-min(b*tdt,50.))
   xtg(1:imax,1,n+itracdu-1) = max( 0., xtg(1:imax,1,n+itracdu-1) )
 
 end do
@@ -2656,7 +2656,7 @@ do n = 1,nsalt
   ! solution is x = a/b + (X0-a/b)*exp(-b*tdt).  However, in split form
   ! x = X0 + a*tdt, and x = X0*exp(-b*tdt), or combined
   ! x = (X0 + a*tdt)*exp(-b*tdt)
-  xtg(1:imax,1,n+itracsa-1) = (xtg(1:imax,1,n+itracsa-1)+a*tdt)*exp(-b*tdt)
+  xtg(1:imax,1,n+itracsa-1) = (xtg(1:imax,1,n+itracsa-1)+a*tdt)*exp(-min(b*tdt,50.))
   xtg(1:imax,1,n+itracsa-1) = max( 0., xtg(1:imax,1,n+itracsa-1) )
 end do    
 

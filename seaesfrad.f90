@@ -264,7 +264,7 @@ do iq_tile = 1,ifull,imax
   if ( nmlo==0 ) then ! prescribed SSTs
     ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
     ! J. Clim. and Appl. Met., v. 27, 214-226)
-    where ( .not.land(istart:iend) .and. coszro2>=0. )
+    where ( .not.land(istart:iend) .and. coszro2>=1.e-10 )
       cuvrf_dir(1:imax) = 0.026/(coszro2**1.7+0.065)                 &
         + 0.15*(coszro2-0.1)*(coszro2-0.5)*(coszro2-1.)
     elsewhere ( .not.land(istart:iend) )
@@ -406,6 +406,7 @@ do iq_tile = 1,ifull,imax
             Aerosol(mythread)%aerosol(:,1,kr,11) = real(xtg(istart:iend,k,13)*dzrho,8)        ! Large jet sea salt (0.5)
           end do
         end if
+        !Aerosol(mythread)%aerosol=min(max(Aerosol(mythread)%aerosol, 0._8), 2.e-4_8)
         Aerosol(mythread)%aerosol=max(Aerosol(mythread)%aerosol, 0._8)
         
         !if ( Rad_control%using_im_bcsul ) then
