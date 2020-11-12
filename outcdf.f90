@@ -3313,6 +3313,7 @@ use tracers_m                         ! Tracer data
 implicit none
 
 include 'kuocom.h'                    ! Convection parameters
+include 'version.h'                   ! Model version data
 
 integer, parameter :: freqvars = 22  ! number of variables to average
 integer, parameter :: runoffvars = 4 ! number of runoff variables
@@ -3543,6 +3544,7 @@ if ( first ) then
     nahead(54)=nt_adv
     call ccnf_put_attg(fncid,'real_header',ahead)
     call ccnf_put_attg(fncid,'int_header',nahead)
+    call ccnf_put_attg(fncid,'version',version)        !   Model version
     if ( local ) then
       call ccnf_put_attg(fncid,'nproc',nproc)
       call ccnf_put_attg(fncid,'procmode',vnode_nproc)
