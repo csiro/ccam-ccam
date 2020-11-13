@@ -1176,7 +1176,7 @@ if( myid==0 .or. local ) then
     end if
     lname ='Scaled Log Surface pressure'
     call attrib(idnc,dimj,jsize,'psf',lname,'none',-1.3,0.2,0,cptype)
-    lname ='Mean sea level pressure'
+    lname ='Sea Level Pressure'
     call attrib(idnc,dimj,jsize,'pmsl',lname,'hPa',800.,1200.,0,cptype)
     if ( save_land .or. save_ocean ) then
       lname = 'Surface roughness'
@@ -1186,22 +1186,22 @@ if( myid==0 .or. local ) then
       lname = 'Leaf area index'
       call attrib(idnc,dimj,jsize,'lai',lname,'none',0.,32.5,0,cptype)
     end if
-    lname = 'Surface temperature'
+    lname = 'Surface Temperature'
     call attrib(idnc,dimj,jsize,'tsu',lname,'K',100.,425.,0,cptype)
     lname = 'Pan temperature'
     call attrib(idnc,dimj,jsize,'tpan',lname,'K',100.,425.,0,cptype)
     lname = 'Precipitation'
     call attrib(idnc,dimj,jsize,'rnd',lname,'mm day-1',0.,1300.,0,-1)  ! -1=long
-    lname = 'Convective precipitation'
+    lname = 'Convective Precipitation'
     call attrib(idnc,dimj,jsize,'rnc',lname,'mm day-1',0.,1300.,0,-1)  ! -1=long
-    lname = 'Snowfall'
+    lname = 'Snowfall Flux'
     call attrib(idnc,dimj,jsize,'sno',lname,'mm day-1',0.,1300.,0,-1)  ! -1=long
     lname = 'Graupelfall'
     call attrib(idnc,dimj,jsize,'grpl',lname,'mm day-1',0.,1300.,0,-1) ! -1=long   
     if ( save_land ) then
       lname = 'Runoff'
       call attrib(idnc,dimj,jsize,'runoff',lname,'mm day-1',0.,1300.,0,-1) ! -1=long
-      lname = 'Surface runoff'
+      lname = 'Surface Runoff'
       call attrib(idnc,dimj,jsize,'mrros',lname,'mm day-1',0.,1300.,0,-1) ! -1=long
       lname = 'Evaporation'
       call attrib(idnc,dimj,jsize,'evspsbl',lname,'mm day-1',-1300.,1300.,0,-1)  ! -1 = long
@@ -1217,7 +1217,7 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'fwet',lname,'none',0.,1.,0,cptype)
     end if
 
-    lname = 'Snow depth (liquid water)'
+    lname = 'Snow Depth' ! liquid water
     call attrib(idnc,dimj,jsize,'snd',lname,'mm',0.,6500.,0,-1)  ! -1=long
     lname = 'Soil temperature lev 1'
     call attrib(idnc,dimj,jsize,'tgg1',lname,'K',100.,425.,0,cptype)
@@ -1298,7 +1298,7 @@ if( myid==0 .or. local ) then
     call attrib(idnc,dimj,jsize,'siced',lname,'m',0.,65.,0,-1)
     lname = 'Sea ice fraction'
     call attrib(idnc,dimj,jsize,'fracice',lname,'none',0.,1.,0,cptype)
-    lname = '10m wind speed'
+    lname = 'Near-Surface Wind Speed'
     call attrib(idnc,dimj,jsize,'u10',lname,'m s-1',0.,130.,0,cptype)
     if ( save_cloud ) then
       lname = 'Maximum CAPE'
@@ -1312,9 +1312,9 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'maxrnd',lname,'mm day-1',0.,2600.,1,-1) ! -1=long
       lname = 'Maximum hourly precip rate'
       call attrib(idnc,dimj,jsize,'prhmax',lname,'kg m-2 s-1',0.,2600.,1,-1) ! -1=long
-      lname = 'Maximum screen temperature'
+      lname = 'Daily Maximum Near-Surface Air Temperature'
       call attrib(idnc,dimj,jsize,'tmaxscr',lname,'K',100.,425.,1,cptype)
-      lname = 'Minimum screen temperature'
+      lname = 'Daily Minimum Near-Surface Air Temperature'
       call attrib(idnc,dimj,jsize,'tminscr',lname,'K',100.,425.,1,cptype)
       lname = 'Maximum screen relative humidity'
       call attrib(idnc,dimj,jsize,'rhmaxscr',lname,'%',0.,200.,1,cptype)
@@ -1413,9 +1413,9 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,'epan_ave',lname,'W m-2',-1000.,10.e3,0,cptype)
         lname = 'Avg potential evaporation'
         call attrib(idnc,dimj,jsize,'epot_ave',lname,'W m-2',-1000.,10.e3,0,cptype)
-        lname = 'Avg latent heat flux'
+        lname = 'Surface Upward Latent Heat Flux'
         call attrib(idnc,dimj,jsize,'eg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
-        lname = 'Avg sensible heat flux'
+        lname = 'Surface Upward Sensible Heat Flux'
         call attrib(idnc,dimj,jsize,'fg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
         lname = 'Avg net radiation'
         call attrib(idnc,dimj,jsize,'rnet_ave',lname,'none',-3000.,3000.,0,-1) ! -1 = long
@@ -1430,13 +1430,13 @@ if( myid==0 .or. local ) then
       end if
     end if
     if ( save_cloud ) then
-      lname = 'Low cloud ave'
+      lname = 'Low Level Cloud Fraction'
       call attrib(idnc,dimj,jsize,'cll',lname,'frac',0.,1.,0,cptype)
-      lname = 'Mid cloud ave'
+      lname = 'Mid Level Cloud Fraction'
       call attrib(idnc,dimj,jsize,'clm',lname,'frac',0.,1.,0,cptype)
-      lname = 'Hi cloud ave'
+      lname = 'High Level Cloud Fraction'
       call attrib(idnc,dimj,jsize,'clh',lname,'frac',0.,1.,0,cptype)
-      lname = 'Total cloud ave'
+      lname = 'Total Cloud Fraction'
       call attrib(idnc,dimj,jsize,'cld',lname,'frac',0.,1.,0,cptype)
     end if
     if ( save_land .or. itype==-1 ) then
@@ -1473,12 +1473,12 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,'mixdepth',lname,'m',0.,1300.,0,cptype)
       end if
     end if
-    lname = 'Screen temperature'
+    lname = 'Near-Surface Air Temperature'
     call attrib(idnc,dimj,jsize,'tscrn',lname,'K',100.,425.,0,cptype)
     lname = 'Screen mixing ratio'
     call attrib(idnc,dimj,jsize,'qgscrn',lname,'kg kg-1',0.,.06,0,cptype)
     if ( itype/=-1 ) then
-      lname = 'Screen relative humidity'
+      lname = 'Near-Surface Relative Humidity'
       call attrib(idnc,dimj,jsize,'rhscrn',lname,'%',0.,200.,0,cptype)
       lname = 'Screen level wind speed'
       call attrib(idnc,dimj,jsize,'uscrn',lname,'m s-1',0.,65.,0,cptype)
@@ -1506,23 +1506,23 @@ if( myid==0 .or. local ) then
     if ( itype/=-1 ) then
       if ( nextout>=1 ) then
         if ( save_radiation ) then
-          lname = 'LW at TOA'
+          lname = 'TOA Outgoing Longwave Radiation'
           call attrib(idnc,dimj,jsize,'rtu_ave',lname,'W m-2',0.,800.,0,-1) ! -1 = long
           lname = 'Clear sky LW at TOA'
           call attrib(idnc,dimj,jsize,'rtc_ave',lname,'W m-2',0.,800.,0,cptype)
-          lname = 'LW downwelling at ground'
+          lname = 'Surface Downwelling Longwave Radiation'
           call attrib(idnc,dimj,jsize,'rgdn_ave',lname,'W m-2',-500.,1.e3,0,-1) ! -1 = long
           lname = 'LW net at ground (+ve up)'
           call attrib(idnc,dimj,jsize,'rgn_ave',lname,'W m-2',-500.,1000.,0,-1) ! -1 = long
           lname = 'Clear sky LW at ground'
           call attrib(idnc,dimj,jsize,'rgc_ave',lname,'W m-2',-500.,1000.,0,cptype)
-          lname = 'Solar in at TOA'
+          lname = 'TOA Incident Shortwave Radiation'
           call attrib(idnc,dimj,jsize,'sint_ave',lname,'W m-2',0.,1600.,0,-1) ! -1 = long
-          lname = 'Solar out at TOA'
+          lname = 'TOA Outgoing Shortwave Radiation'
           call attrib(idnc,dimj,jsize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)  ! -1 = long
           lname = 'Clear sky SW out at TOA'
           call attrib(idnc,dimj,jsize,'soc_ave',lname,'W m-2',0.,900.,0,cptype)
-          lname = 'Solar downwelling at ground'
+          lname = 'Surface Downwelling Shortwave Radiation'
           call attrib(idnc,dimj,jsize,'sgdn_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
           lname = 'Solar net at ground (+ve down)'
           call attrib(idnc,dimj,jsize,'sgn_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
@@ -1550,7 +1550,7 @@ if( myid==0 .or. local ) then
       end if  
     end if
     
-    lname = 'PBL depth'
+    lname = 'Height of Boundary Layer'
     call attrib(idnc,dimj,jsize,'pblh',lname,'m',0.,13000.,0,cptype)
 
         
@@ -1905,7 +1905,7 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'del_p',lname,'hPa',-900.,900.,1,cptype)
       endif  ! (nextout>=4.and.nllp==3)
     end if
-    lname = 'Air temperature'
+    lname = 'Air Temperature'
     call attrib(idnc,dima,asize,'temp',lname,'K',100.,425.,0,cptype)
     lname = 'x-component wind'
     call attrib(idnc,dima,asize,'u',lname,'m s-1',-150.,150.,0,cptype)
@@ -2103,11 +2103,11 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'sgsave',lname,'W m-2',-500.,2000.,0,cptype)
       lname = 'rgsave'
       call attrib(idnc,dimj,jsize,'rgsave',lname,'W m-2',-500.,2000.,0,cptype)
-      lname = 'LW at TOA'
+      lname = 'TOA Outgoing Longwave Radiation'
       call attrib(idnc,dimj,jsize,'rtu',lname,'W m-2',0.,800.,0,-1) ! -1 = long
       lname = 'Clear sky LW at TOA'
       call attrib(idnc,dimj,jsize,'rtc',lname,'W m-2',0.,800.,0,cptype)
-      lname = 'LW downwelling at ground'
+      lname = 'Surface Downwelling Longwave Radiation'
       call attrib(idnc,dimj,jsize,'rgdn',lname,'W m-2',-500.,1.e3,0,-1) ! -1 = long
       lname = 'LW net at ground (+ve up)'
       call attrib(idnc,dimj,jsize,'rgn',lname,'W m-2',-500.,1000.,0,-1) ! -1 = long
@@ -3572,27 +3572,27 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'uas',lname,'m s-1',-130.,130.,0,1)
     lname='y-component 10m wind'     
     call attrib(fncid,sdim,ssize,'vas',lname,'m s-1',-130.,130.,0,1)
-    lname='Screen temperature'     
+    lname='Near-Surface Air Temperature'     
     call attrib(fncid,sdim,ssize,'tscrn',lname,'K',100.,425.,0,1)
-    lname='Screen relative humidity'     
+    lname='Near-Surface Relative Humidity'     
     call attrib(fncid,sdim,ssize,'rhscrn',lname,'%',0.,200.,0,1)
     lname='Precipitation'
     call attrib(fncid,sdim,ssize,'rnd',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
-    lname='Convective precipitation'
+    lname='Convective Precipitation'
     call attrib(fncid,sdim,ssize,'rnc',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
-    lname='Snowfall'
+    lname='Snowfall Flux'
     call attrib(fncid,sdim,ssize,'sno',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
     lname='Graupelfall'
     call attrib(fncid,sdim,ssize,'grpl',lname,'mm day-1',0.,1300.,0,-1)         ! -1=long
-    lname ='Mean sea level pressure'
+    lname ='Sea Level Pressure'
     call attrib(fncid,sdim,ssize,'pmsl',lname,'hPa',800.,1200.,0,1)    
-    lname ='Solar downwelling at ground'
-    call attrib(fncid,sdim,ssize,'sgdn_ave',lname,'W m-2',-500.,2.e3,0,-1)     ! -1 = long 
+    lname ='Surface Downwelling Shortwave Radiation'
+    call attrib(fncid,sdim,ssize,'sgdn_ave',lname,'W m-2',-500.,2.e3,0,-1)      ! -1 = long 
     lname = 'Scaled Log Surface pressure'
     call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.3,0.2,0,1)
     lname = 'Screen mixing ratio'
     call attrib(fncid,sdim,ssize,'qgscrn',lname,'kg kg-1',0.,0.06,0,1)
-    lname = 'Total cloud ave'
+    lname = 'Total Cloud Fraction'
     call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)
     lname = 'Direct normal irradiance'
     call attrib(fncid,sdim,ssize,'dni',lname,'W m-2',-500.,2.e3,0,-1)          ! -1 = long
@@ -3607,9 +3607,9 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'va250',lname,'m s-1',-130.,130.,0,1)
     end if
     if ( surf_cordex==1 ) then
-      lname = 'Maximum screen temperature'  
+      lname = 'Daily Maximum Near-Surface Air Temperature'  
       call attrib(fncid,sdim,ssize,'tmaxscr',lname,'K',100.,425.,1,1) ! daily
-      lname = 'Minimum screen temperature'
+      lname = 'Daily Minimum Near-Surface Air Temperature'
       call attrib(fncid,sdim,ssize,'tminscr',lname,'K',100.,425.,1,1) ! daily
       lname = 'Maximum hourly precip rate'
       call attrib(fncid,sdim,ssize,'prhmax',lname,'kg m-2 s-1',0.,2600.,1,-1) ! daily and -1=long
@@ -3617,11 +3617,11 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'u10max',lname,'m s-1',-99.,99.,1,1) ! daily
       lname = 'y-component max 10m wind'
       call attrib(fncid,sdim,ssize,'v10max',lname,'m s-1',-99.,99.,1,1) ! daily
-      lname = 'LW downwelling at ground'
+      lname = 'Surface Downwelling Longwave Radiation'
       call attrib(fncid,sdim,ssize,'rgdn_ave',lname,'W m-2',-500.,1.e3,0,-1)   ! -1 = long
-      lname = 'Avg latent heat flux'
+      lname = 'Surface Upward Latent Heat Flux'
       call attrib(fncid,sdim,ssize,'eg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
-      lname = 'Avg sensible heat flux'
+      lname = 'Surface Upward Sensible Heat Flux'
       call attrib(fncid,sdim,ssize,'fg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
       lname = 'Solar net at ground (+ve down)'
       call attrib(fncid,sdim,ssize,'sgn_ave',lname,'W m-2',-500.,2000.,0,-1)   ! -1 = long
@@ -3641,34 +3641,34 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'mrso',lname,'kg m-2',0.,1300.,0,-1)         ! -1 = long
       lname = 'Snow melt'
       call attrib(fncid,sdim,ssize,'snm',lname,'mm day-1',0.,1300.,0,-1)        ! -1 = long
-      lname = 'LW at TOA'
-      call attrib(fncid,sdim,ssize,'rtu_ave',lname,'W m-2',0.,800.,0,-1)       ! -1 = long
-      lname = 'Solar in at TOA'
-      call attrib(fncid,sdim,ssize,'sint_ave',lname,'W m-2',0.,1600.,0,-1)     ! -1 = long
-      lname = 'Solar out at TOA'
-      call attrib(fncid,sdim,ssize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)      ! -1 = long
+      lname = 'TOA Outgoing Longwave Radiation'
+      call attrib(fncid,sdim,ssize,'rtu_ave',lname,'W m-2',0.,800.,0,-1)        ! -1 = long
+      lname = 'TOA Incident Shortwave Radiation'
+      call attrib(fncid,sdim,ssize,'sint_ave',lname,'W m-2',0.,1600.,0,-1)      ! -1 = long
+      lname = 'TOA Outgoing Shortwave Radiation'
+      call attrib(fncid,sdim,ssize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)       ! -1 = long
       ! missing wsgsmax
       lname = 'x-component wind stress'
       call attrib(fncid,sdim,ssize,'taux',lname,'N m-2',-50.,50.,0,1)
       lname = 'y-component wind stress'
       call attrib(fncid,sdim,ssize,'tauy',lname,'N m-2',-50.,50.,0,1)
-      lname = 'Surface temperature'
+      lname = 'Surface Temperature'
       call attrib(fncid,sdim,ssize,'tsu',lname,'K',100.,425.,0,1)
-      lname = 'PBL depth'
+      lname = 'Height of Boundary Layer'
       call attrib(fncid,sdim,ssize,'pblh',lname,'m',0.,13000.,0,1)
-      lname = 'Precipitable water column'
+      lname = 'Water Vapor Path'
       call attrib(fncid,sdim,ssize,'prw',lname,'kg m-2',0.,130.,0,-1)          ! -1 = long
-      lname = 'Liquid water column'
+      lname = 'Condensed Water Path'
       call attrib(fncid,sdim,ssize,'clwvi',lname,'kg m-2',0.,130.,0,-1)        ! -1 = long
-      lname = 'Frozen water column'
+      lname = 'Ice Water Path'
       call attrib(fncid,sdim,ssize,'clivi',lname,'kg m-2',0.,130.,0,-1)        ! -1 = long
-      lname = 'Hi cloud ave'
+      lname = 'High Level Cloud Fraction'
       call attrib(fncid,sdim,ssize,'clh',lname,'frac',0.,1.,0,1)
-      lname = 'Mid cloud ave'
+      lname = 'Mid Level Cloud Fraction'
       call attrib(fncid,sdim,ssize,'clm',lname,'frac',0.,1.,0,1)
-      lname = 'Low cloud ave'
+      lname = 'Low Level Cloud Fraction'
       call attrib(fncid,sdim,ssize,'cll',lname,'frac',0.,1.,0,1)
-      lname = 'Snow depth (liquid water)'
+      lname = 'Snow Depth' ! liquid water
       call attrib(fncid,sdim,ssize,'snd',lname,'mm',0.,6500.,0,-1)            ! -1 = long
       lname = 'Sea ice fraction'
       call attrib(fncid,sdim,ssize,'fracice',lname,'none',0.,1.,0,1)
@@ -3679,31 +3679,31 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'ua850',lname,'m s-1',-130.,130.,0,1)
       lname = 'y-component 850hPa wind'     
       call attrib(fncid,sdim,ssize,'va850',lname,'m s-1',-130.,130.,0,1)
-      lname = 'Air temperature at 850hPa'     
+      lname = 'Air Temperature'     
       call attrib(fncid,sdim,ssize,'ta850',lname,'K',100.,425.,0,1)
-      lname = 'Specific humidity at 850hPa'
-      call attrib(fncid,sdim,ssize,'hus850',lname,'none',0.,0.06,0,1)
-      lname = 'Geopotential height at 850hPa'
+      lname = 'Specific Humidity'
+      call attrib(fncid,sdim,ssize,'hus850',lname,'1',0.,0.06,0,1)
+      lname = 'Geopotential Height'
       call attrib(fncid,sdim,ssize,'zg850',lname,'m',0.,130000.,0,1)
       lname = 'x-component 500hPa wind'
       call attrib(fncid,sdim,ssize,'ua500',lname,'m s-1',-130.,130.,0,1)
       lname = 'y-component 500hPa wind'     
       call attrib(fncid,sdim,ssize,'va500',lname,'m s-1',-130.,130.,0,1)
-      lname = 'Air temperature at 500hPa'     
+      lname = 'Air Temperature'     
       call attrib(fncid,sdim,ssize,'ta500',lname,'K',100.,425.,0,1)
-      lname = 'Specific humidity at 500hPa'
-      call attrib(fncid,sdim,ssize,'hus500',lname,'none',0.,0.06,0,1)
-      lname = 'Geopotential height at 500hPa'
+      lname = 'Specific Humidity'
+      call attrib(fncid,sdim,ssize,'hus500',lname,'1',0.,0.06,0,1)
+      lname = 'Geopotential Height'
       call attrib(fncid,sdim,ssize,'zg500',lname,'m',0.,130000.,0,1)
       lname = 'x-component 200hPa wind'
       call attrib(fncid,sdim,ssize,'ua200',lname,'m s-1',-130.,130.,0,1)
       lname = 'y-component 200hPa wind'     
       call attrib(fncid,sdim,ssize,'va200',lname,'m s-1',-130.,130.,0,1)
-      lname = 'Air temperature at 200hPa'     
+      lname = 'Air Temperature'     
       call attrib(fncid,sdim,ssize,'ta200',lname,'K',100.,425.,0,1)
-      lname = 'Specific humidity at 200hPa'
-      call attrib(fncid,sdim,ssize,'hus200',lname,'none',0.,0.06,0,1)
-      lname = 'Geopotential height at 200hPa'
+      lname = 'Specific Humidity'
+      call attrib(fncid,sdim,ssize,'hus200',lname,'1',0.,0.06,0,1)
+      lname = 'Geopotential Height'
       call attrib(fncid,sdim,ssize,'zg200',lname,'m',0.,130000.,0,1)      
     end if    
 
