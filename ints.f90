@@ -71,10 +71,10 @@ if ( intsch==1 ) then
   ! first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
   !$acc parallel loop collapse(4)
-  do concurrent (k = 1:kl)
-    do concurrent (n = 1:npan)
-      do concurrent (j = 1:jpan)
-        do concurrent (i = 1:ipan)
+  do k = 1,kl
+    do n = 1,npan
+      do j = 1,jpan
+        do i = 1,ipan
           iq = i + (j-1)*ipan + (n-1)*ipan*jpan
           sx(i,j,n,k) = s(iq,k)
         end do
@@ -83,9 +83,9 @@ if ( intsch==1 ) then
   end do
   !$acc end parallel loop
   !$acc parallel loop collapse(2)
-  do concurrent (k = 1:kl)
-    do concurrent (n = 1:npan)
-      do concurrent (j = 1:jpan)
+  do k = 1,kl
+    do n = 1,npan
+      do j = 1,jpan
         iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
         sx(0,j,n,k)      = s(iw(iq),k)
         sx(-1,j,n,k)     = s(iww(iq),k)
@@ -93,7 +93,7 @@ if ( intsch==1 ) then
         sx(ipan+1,j,n,k) = s(ie(iq),k)
         sx(ipan+2,j,n,k) = s(iee(iq),k)
       end do            ! j loop
-      do concurrent (i = 1:ipan)
+      do i = 1,ipan
         iq = i + (n-1)*ipan*jpan
         sx(i,0,n,k)      = s(is(iq),k)
         sx(i,-1,n,k)     = s(iss(iq),k)
@@ -122,8 +122,8 @@ if ( intsch==1 ) then
 ! Loop over points that need to be calculated for other processes
   if ( nfield<mh_bs ) then
 
-    do concurrent (ii = 1:neighnum)
-      do concurrent (iq = 1:drlen(ii))
+    do ii = 1,neighnum
+      do iq = 1,drlen(ii)
         ! depature point coordinates
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         idel = int(dpoints(ii)%a(2,iq))
@@ -159,8 +159,8 @@ if ( intsch==1 ) then
     call intssync_send(1)
 
     !$acc parallel loop collapse(2)
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
+    do k = 1,kl
+      do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - idel
         jdel = int(yg(iq,k))
@@ -192,8 +192,8 @@ if ( intsch==1 ) then
     
   else              ! (nfield<mh_bs)
 
-    do concurrent (ii = 1:neighnum)
-      do concurrent (iq = 1:drlen(ii))
+    do ii = 1,neighnum
+      do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         idel = int(dpoints(ii)%a(2,iq))
         xxg = dpoints(ii)%a(2,iq) - idel
@@ -233,8 +233,8 @@ if ( intsch==1 ) then
     call intssync_send(1)
 
     !$acc parallel loop collapse(2) copyin(sx) copyout(s(1:ifull,1:kl))
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)    ! Berm-Stan option here e.g. qg & gases
+    do k = 1,kl
+      do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - idel
         jdel = int(yg(iq,k))
@@ -278,10 +278,10 @@ else     ! if(intsch==1)then
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
   !$acc parallel loop collapse(4)
-  do concurrent (k = 1:kl)
-    do concurrent (n = 1:npan)
-      do concurrent (j = 1:jpan)
-        do concurrent (i = 1:ipan)
+  do k = 1,kl
+    do n = 1,npan
+      do j = 1,jpan
+        do i = 1,ipan
           iq = i + (j-1)*ipan + (n-1)*ipan*jpan
           sx(i,j,n,k) = s(iq,k)
         end do
@@ -290,9 +290,9 @@ else     ! if(intsch==1)then
   end do
   !$acc end parallel loop
   !$acc parallel loop collapse(2)
-  do concurrent (k = 1:kl)
-    do concurrent (n = 1:npan)
-      do concurrent (j = 1:jpan)
+  do k = 1,kl
+    do n = 1,npan
+      do j = 1,jpan
         iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
         sx(0,j,n,k)      = s(iw(iq),k)
         sx(-1,j,n,k)     = s(iww(iq),k)
@@ -300,7 +300,7 @@ else     ! if(intsch==1)then
         sx(ipan+1,j,n,k) = s(ie(iq),k)
         sx(ipan+2,j,n,k) = s(iee(iq),k)
       end do            ! j loop
-      do concurrent (i = 1:ipan)
+      do i = 1,ipan
         iq = i+(n-1)*ipan*jpan
         sx(i,0,n,k)      = s(is(iq),k)
         sx(i,-1,n,k)     = s(iss(iq),k)
@@ -329,8 +329,8 @@ else     ! if(intsch==1)then
   ! For other processes
   if ( nfield < mh_bs ) then
 
-    do concurrent (ii = 1:neighnum)
-      do concurrent (iq = 1:drlen(ii))
+    do ii = 1,neighnum
+      do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
@@ -364,8 +364,8 @@ else     ! if(intsch==1)then
     call intssync_send(1)
 
     !$acc parallel loop collapse(2)
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
+    do k = 1,kl
+      do iq = 1,ifull    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - idel
@@ -398,8 +398,8 @@ else     ! if(intsch==1)then
     
   else                 ! (nfield<mh_bs)
 
-    do concurrent (ii = 1:neighnum)
-      do concurrent (iq = 1:drlen(ii))
+    do ii = 1,neighnum
+      do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
@@ -438,8 +438,8 @@ else     ! if(intsch==1)then
     call intssync_send(1)
 
     !$acc parallel loop collapse(2)
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)    ! Berm-Stan option here e.g. qg & gases
+    do k = 1,kl
+      do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - idel
         jdel = int(yg(iq,k))
@@ -522,10 +522,10 @@ call bounds(s,corner=.true.)
 !$acc update device(s)
 
 !$acc parallel loop collapse(4)
-do concurrent (k = 1:kl)
-  do concurrent (n = 1:npan)
-    do concurrent (j = 1:jpan)
-      do concurrent (i = 1:ipan)
+do k = 1,kl
+  do n = 1,npan
+    do j = 1,jpan
+      do i = 1,ipan
         iq = i + (j-1)*ipan + (n-1)*ipan*jpan
         sx(i,j,n,k) = s(iq,k)
       end do
@@ -534,13 +534,13 @@ do concurrent (k = 1:kl)
 end do
 !$acc end parallel loop
 !$acc parallel loop collapse(2)
-do concurrent (k = 1:kl)
-  do concurrent (n = 1:npan)
-    do concurrent (j = 1:jpan)
+do k = 1,kl
+  do n = 1,npan
+    do j = 1,jpan
       sx(0,j,n,k)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k)
       sx(ipan+1,j,n,k) = s(ie(j*ipan+(n-1)*ipan*jpan),k)
     end do               ! j loop
-    do concurrent (i = 1:ipan)
+    do i = 1,ipan
       sx(i,0,n,k)      = s(is(i+(n-1)*ipan*jpan),k)
       sx(i,jpan+1,n,k) = s(in(i-ipan+n*ipan*jpan),k)
     end do               ! i loop
@@ -555,8 +555,8 @@ end do                   ! k loop
 !$acc update self(sx)
 
 ! Loop over points that need to be calculated for other processes
-do concurrent (ii = 1:neighnum)
-  do concurrent (iq = 1:drlen(ii))
+do ii = 1,neighnum
+  do iq = 1,drlen(ii)
     n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
     !  Need global face index in fproc call
     idel = int(dpoints(ii)%a(2,iq))
@@ -574,8 +574,8 @@ end do
 call intssync_send(1)
 
 !$acc parallel loop collapse(2)
-do concurrent (k = 1:kl)
-  do concurrent (iq = 1:ifull)
+do k = 1,kl
+  do iq = 1,ifull
     ! Convert face index from 0:npanels to array indices
     idel=int(xg(iq,k))
     xxg=xg(iq,k)-idel

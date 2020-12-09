@@ -148,7 +148,7 @@ if ( nvmix==6 ) then
   end do ! k  loop
         
   ! calculate vertical gradients
-  do concurrent (iq = 1:ifull)
+  do iq = 1,ifull
     zgh_b(iq) = ratha(1)*zg(iq,2) + rathb(1)*zg(iq,1) ! upper half level
     r1 = uav(iq,1)
     r2 = ratha(1)*uav(iq,2) + rathb(1)*uav(iq,1)          
@@ -159,7 +159,7 @@ if ( nvmix==6 ) then
     shear(iq,1) = dudz**2 + dvdz**2
   end do
   do k = 2,kl-1
-    do concurrent (iq = 1:ifull)
+    do iq = 1,ifull
       zgh_a(iq) = zgh_b(iq) ! lower half level
       zgh_b(iq) = ratha(k)*zg(iq,k+1) + rathb(k)*zg(iq,k) ! upper half level
       r1 = ratha(k-1)*uav(iq,k) + rathb(k-1)*uav(iq,k-1)
@@ -171,7 +171,7 @@ if ( nvmix==6 ) then
       shear(iq,k) = dudz**2 + dvdz**2
     end do
   end do
-  do concurrent (iq = 1:ifull)
+  do iq = 1,ifull
     zgh_a(iq) = zgh_b(iq) ! lower half level
     r1 = ratha(kl-1)*uav(iq,kl) + rathb(kl-1)*uav(iq,kl-1)
     r2 = uav(iq,kl)          
@@ -211,7 +211,7 @@ select case(nhorjlm)
     !$acc parallel loop collapse(2) copyin(hdiff,uav,vav,em,emi) copyout(t_kh(1:ifull,1:kl)) &
     !$acc   present(ieu,iwu,inu,isu,iev,iwv,inv,isv)
     do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)
+      do iq = 1,ifull
         hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
         dudx = 0.5*(uav(ieu(iq),k)-uav(iwu(iq),k))*em(iq)/ds
         dudy = 0.5*(uav(inu(iq),k)-uav(isu(iq),k))*em(iq)/ds
@@ -228,7 +228,7 @@ select case(nhorjlm)
     !$acc parallel loop collapse(2) copyin(hdiff,uc,vc,wc,ps) copyout(t_kh(1:ifull,1:kl)) &
     !$acc   present(ie,iw,in,is)
     do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)
+      do iq = 1,ifull
         hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
         cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 + (uc(in(iq),k)-uc(is(iq),k))**2 + &
              (vc(ie(iq),k)-vc(iw(iq),k))**2 + (vc(in(iq),k)-vc(is(iq),k))**2 + &
@@ -244,7 +244,7 @@ select case(nhorjlm)
     !$acc parallel loop collapse(2) copyin(hdiff,uc,vc,wc,ps,dpsldt) copyout(t_kh(1:ifull,1:kl)) &
     !$acc   present(ie,iw,in,is)
     do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)
+      do iq = 1,ifull
         hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
         cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 + (uc(in(iq),k)-uc(is(iq),k))**2 + &
              (vc(ie(iq),k)-vc(iw(iq),k))**2 + (vc(in(iq),k)-vc(is(iq),k))**2 + &
@@ -263,7 +263,7 @@ select case(nhorjlm)
     !$acc parallel loop collapse(2) copyin(hdiff,uav,vav,em,emi,tke,eps) copyout(t_kh(1:ifull,1:kl)) &
     !$acc   present(ieu,iwu,inu,isu,iev,iwv,inv,isv)
     do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)
+      do iq = 1,ifull
         hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
         dudx = 0.5*(uav(ieu(iq),k)-uav(iwu(iq),k))*em(iq)/ds
         dudy = 0.5*(uav(inu(iq),k)-uav(isu(iq),k))*em(iq)/ds
@@ -305,7 +305,7 @@ call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
 ! momentum (disabled by default)
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   do k = 1,kl
-    do concurrent (iq = 1:ifull)
+    do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
                     +yfact(iq,k)+yfact(isv(iq),k)  
       ucc = ( emi(iq)*uc(iq,k) +              &
@@ -354,7 +354,7 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
   call bounds(work(:,:,1:2))
   !$acc parallel loop collapse(2) copyin(ptemp,emi,xfact,yfact,work(:,:,1:2)) copyout(t,qg)
   do k = 1,kl
-    do concurrent (iq = 1:ifull)
+    do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
                     +yfact(iq,k)+yfact(isv(iq),k)  
       t(iq,k) = ( emi(iq)*work(iq,k,1) +              &
@@ -380,7 +380,7 @@ else if ( nhorps==-5 ) then
   end do
   call bounds(work(:,:,1))
   do k = 1,kl
-    do concurrent (iq = 1:ifull)
+    do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
                     +yfact(iq,k)+yfact(isv(iq),k)  
       t(iq,k) = ( emi(iq)*work(iq,k,1) +              &
@@ -397,7 +397,7 @@ else if ( nhorps==-3 ) then
   work(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
   call bounds(work(:,:,1))
   do k = 1,kl      
-    do concurrent (iq = 1:ifull)
+    do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
                     +yfact(iq,k)+yfact(isv(iq),k)  
       qg(iq,k) = ( emi(iq)*work(iq,k,1) +               &
@@ -417,7 +417,7 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   work(1:ifull,1:kl,3) = stratcloud(1:ifull,1:kl)
   call bounds(work(:,:,1:3))
   do k = 1,kl
-    do concurrent (iq = 1:ifull)
+    do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
                       +yfact(iq,k)+yfact(isv(iq),k)  
       qlg(iq,k) = ( emi(iq)*work(iq,k,1) +               &
@@ -448,7 +448,7 @@ if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. nvmix==6 ) then
   work(1:ifull,1:kl,2) = eps(1:ifull,1:kl)
   call bounds(work(:,:,1:2))
   do k = 1,kl
-    do concurrent (iq = 1:ifull)
+    do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
                     +yfact(iq,k)+yfact(isv(iq),k)  
       tke(iq,k) = ( emi(iq)*work(iq,k,1) +              &
@@ -476,7 +476,7 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
     call bounds(work(:,:,1:nt))
     do ntr = 1,nt
       do k = 1,kl
-        do concurrent (iq = 1:ifull)
+        do iq = 1,ifull
           base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
                         +yfact(iq,k)+yfact(isv(iq),k)  
           xtg(iq,k,nstart+ntr-1) = ( emi(iq)*work(iq,k,nt) +               &
