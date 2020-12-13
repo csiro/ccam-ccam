@@ -142,7 +142,7 @@ do tile = 1,ntiles
   ie = tile*imax
 
   ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     lrhoa(1:imax,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k))  
   end do
   call aerodrop(is,lcdrop,lrhoa,outconv=.true.)
@@ -359,7 +359,7 @@ endif
 
 
 ! Calculate convective cloud fraction and adjust moisture variables before calling newcloud
-do concurrent (k = 1:kl)
+do k = 1,kl
   where ( clcon(:,k)>0. )  
     !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
     qccon(:,k)  = clcon(:,k)*wcon(:)/rhoa(:,k)  
@@ -413,7 +413,7 @@ call newcloud(dt,land,prf,rhoa,tenv,qenv,qlg,qfg,       &
 
 ! Vertically sub-grid cloud
 ccov(1:imax,1:kl) = stratcloud(1:imax,1:kl)
-do concurrent (k = 2:kl-1)
+do k = 2,kl-1
   where ( stratcloud(:,k-1)<1.e-10 .and. stratcloud(:,k)>1.e-2 .and. stratcloud(:,k+1)<1.e-10 )
     ccov(:,k) = sqrt(stratcloud(:,k))
   end where
@@ -442,7 +442,7 @@ endif
 
 
 !     Weight output variables according to non-convective fraction of grid-box            
-do concurrent (k = 1:kl)
+do k = 1,kl
   t(:,k)  = clcon(:,k)*t(:,k) + (1.-clcon(:,k))*tenv(:,k)
   qg(:,k) = clcon(:,k)*qcl(:,k) + (1.-clcon(:,k))*qenv(:,k)
   where ( k>=kbase(:) .and. k<=ktop(:) )
@@ -479,8 +479,8 @@ endif
 ! Add convective cloud water into fields for radiation
 ! done because sometimes newrain drops out all qlg, ending up with 
 ! zero cloud (although it will be rediagnosed as 1 next timestep)
-do concurrent (k = 1:kl)
-  do concurrent (iq = 1:imax)
+do k = 1,kl
+  do iq = 1,imax
     fl      = max(0., min(1., (t(iq,k)-ticon)/(273.15-ticon)))
     qlrad(iq,k) = qlg(iq,k) + fl*qccon(iq,k)
     qfrad(iq,k) = qfg(iq,k) + (1.-fl)*qccon(iq,k)
@@ -534,14 +534,14 @@ if ( abs(iaero)>=2 ) then
   ppfmelt(:,1) = 0.   !At TOA
   ppfsnow(:,1) = 0.   !At TOA
   pprfreeze(:,1) = 0. !At TOA
-  do concurrent (k = 1:kl-1)
+  do k = 1,kl-1
     ppfprec(:,kl+1-k) = (fluxr(:,k+1)+fluxm(:,k)-fluxf(:,k))*invdt     !flux *entering* layer k
     ppfmelt(:,kl+1-k) = fluxm(:,k)*invdt                               !flux melting in layer k
     ppfsnow(:,kl+1-k) = (fluxi(:,k+1)+fluxs(:,k+1)+fluxg(:,k+1) &
                         -fluxm(:,k)+fluxf(:,k))*invdt                  !flux *entering* layer k
     pprfreeze(:,kl+1-k) = fluxf(:,k)*invdt                             !flux freezing in layer k
   end do
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     ppfevap(:,kl+1-k)    = qevap(:,k)*rhoa(:,k)*dz(:,k)*invdt
     ppfsubl(:,kl+1-k)    = qsubl(:,k)*rhoa(:,k)*dz(:,k)*invdt !flux sublimating or staying in k
     pplambs(:,kl+1-k)    = pslopes(:,k)
@@ -722,8 +722,8 @@ end if
 ! Then calculate the cloud conserved variables qtot and tliq.
 ! Note that qcg is the total cloud water (liquid+frozen)
 
-do concurrent (k = 1:kl)
-  do concurrent (iq = 1:imax)
+do k = 1,kl
+  do iq = 1,imax
     if ( ttg(iq,k)>=tfrz ) then
       fice(iq,k) = 0.
     else if ( ttg(iq,k)>=tice .and. qfg(iq,k)>1.e-12 ) then
@@ -763,7 +763,7 @@ end if
 
 ! Precompute the array of critical relative humidities 
 if ( nclddia==-3 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, (1.-16.*(1.-sig(k))**3) )
     elsewhere
@@ -771,7 +771,7 @@ if ( nclddia==-3 ) then
     end where
   enddo
 else if ( nclddia<0 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, (1.-4.*(1.-sig(k))**2) )
     elsewhere
@@ -779,7 +779,7 @@ else if ( nclddia<0 ) then
     end where
   enddo
 else if ( nclddia==1 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, sig(k)**3 )
     elsewhere
@@ -787,7 +787,7 @@ else if ( nclddia==1 ) then
     end where
   enddo
 else if ( nclddia==2 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=rcrit_l
     elsewhere
@@ -795,7 +795,7 @@ else if ( nclddia==2 ) then
     end where
   enddo
 else if ( nclddia==3 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, sig(k)**2 )          ! .75 for R21 Mk2
     elsewhere
@@ -803,7 +803,7 @@ else if ( nclddia==3 ) then
     end where
   enddo
 else if ( nclddia==4 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, sig(k) )             ! .75 for test Mk2/3
     elsewhere
@@ -811,7 +811,7 @@ else if ( nclddia==4 ) then
     end where
   enddo
 else if ( nclddia==5 ) then  ! default till May 08
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, min(.99,sig(k)) )    ! .75 for same as T63
     elsewhere
@@ -819,7 +819,7 @@ else if ( nclddia==5 ) then  ! default till May 08
     end where
   enddo
 else if ( nclddia==6 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max(rcrit_l*(1.-.15*sig(k)),sig(k)**4)
     elsewhere
@@ -827,7 +827,7 @@ else if ( nclddia==6 ) then
     end where
   enddo
 else if ( nclddia==7 ) then
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max(rcrit_l*(1.-.2*sig(k)),sig(k)**4)
     elsewhere
@@ -838,8 +838,8 @@ else if ( nclddia>7 ) then  ! e.g. 12    JLM
   ! MJT notes - Lopez (2002) "Implementation and validation of a new pronostic large-scale cloud
   ! and precipitation scheme for climate and data-assimilation purposes" Q J R Met Soc 128, 229-257,
   ! has a useful discussion of the dependence of RHcrit on grid spacing
-  do concurrent (k = 1:kl) ! typically set rcrit_l=.75,  rcrit_s=.85
-    do concurrent (iq = 1:imax)
+  do k = 1,kl ! typically set rcrit_l=.75,  rcrit_s=.85
+    do iq = 1,imax
       tk(iq) = ds/(em(iq)*208498.) ! MJT suggestion
       fl = (1.+real(nclddia))*tk(iq)/(1.+real(nclddia)*tk(iq))
       ! for rcit_l=.75 & nclddia=12 get rcrit=(0.751, 0.769, .799, .901, .940, .972, .985) for (200, 100, 50, 10, 5, 2, 1) km
@@ -859,12 +859,12 @@ if ( ncloud<=3 ) then
   ! Calculate cloudy fraction of grid box (stratcloud) and gridbox-mean cloud water
   ! using the triangular PDF of Smith (1990)
 
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     ! Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
     pk(:) = 100.0*prf(:,k)
     qsi(:) = qsati(pk,tliq(:,k),imax)   !Ice value
     deles(:) = esdiffx(tliq(:,k),imax)  ! MJT suggestion
-    do concurrent (iq = 1:imax)
+    do iq = 1,imax
       hlrvap = (hl+fice(iq,k)*hlf)/rvap   
       qsl = qsi(iq) + epsil*deles(iq)/pk(iq)             !qs over liquid
       qsw(iq,k) = fice(iq,k)*qsi(iq) + (1.-fice(iq,k))*qsl !Weighted qs at temperature Tliq
@@ -933,11 +933,11 @@ else
   
   ! Tiedtke prognostic cloud fraction model
   ! MJT notes - we use ttg instead of tliq
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     pk(:) = 100.*prf(:,k)
     qsi(:) = qsati(pk,ttg(:,k),imax) ! Ice value
     deles(:) = esdiffx(ttg(:,k),imax)
-    do concurrent (iq = 1:imax)
+    do iq = 1,imax
       qsl = qsi(iq) + epsil*deles(iq)/pk(iq)               ! Liquid value
       qsw(iq,k) = fice(iq,k)*qsi(iq) + (1.-fice(iq,k))*qsl ! Weighted qs at temperature Tliq
     end do  
@@ -948,7 +948,7 @@ else
 
   decayfac = exp ( -tdt/7200. )      ! Try 2 hrs
   !decayfac = 0.                     ! Instant adjustment (old scheme)
-  do concurrent (k = 1:kl)
+  do k = 1,kl
     where( ttg(:,k)>=Tice )
       qfg(:,k) = fice(:,k)*qcg(:,k)
       qlg(:,k) = qcg(:,k) - qfg(:,k)
@@ -965,8 +965,8 @@ end if ! ncloud<=3 ..else..
 ! Do the vapour deposition calculation in mixed-phase clouds:
 ! Calculate deposition on cloud ice, assuming es(T) is the weighted value of the 
 ! liquid and ice values.
-do concurrent (k = 1:kl)  
-  do concurrent (iq = 1:imax)
+do k = 1,kl  
+  do iq = 1,imax
     if ( stratcloud(iq,k)>0.) then  
       Tk(iq) = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/stratcloud(iq,k) !T in liq cloud  
       if ( Tk(iq)<tfrz .and. qlg(iq,k)>1.e-8 ) then
@@ -997,7 +997,7 @@ do concurrent (k = 1:kl)
 end do    
 
 ! Calculate new values of vapour mixing ratio and temperature
-do concurrent (k = 1:kl)
+do k = 1,kl
   qtg(:,k) = qtot(:,k) - qcg(:,k)
   ttg(:,k) = tliq(:,k) + hlcp*qcg(:,k) + hlfcp*qfg(:,k)
 end do
@@ -1193,7 +1193,7 @@ real, parameter :: gcon = 44.628 ! = 40.74*sqrt(sfcrho)
 
 scm3 = (visk/vdifu)**(1./3.)
 
-do concurrent (k = 1:kl)
+do k = 1,kl
   fluxr(:,k)           = 0.
   fluxi(:,k)           = 0.
   fluxs(:,k)           = 0.
@@ -1227,8 +1227,8 @@ end do
 !njumps = 1
 tdt = tdt_in
 
-do concurrent (k = 1:kl-1)
-  do concurrent (iq = 1:imax)
+do k = 1,kl-1
+  do iq = 1,imax
     if ( clfr(iq,k)>0. ) then
       qcrit = (4.*pi/3.)*rhow*Rcm**3*cdrop(iq,k)/rhoa(iq,k)
       qcic  = qlg(iq,k)/clfr(iq,k) !In cloud value
@@ -1255,8 +1255,8 @@ end do   ! k loop
 ! calculate rate of precipitation of frozen cloud water to snow
 if ( ncloud>=3 ) then
 
-  do concurrent (k = 1:kl)
-    do concurrent (iq = 1:imax)
+  do k = 1,kl
+    do iq = 1,imax
       
       ! autoconversion of ice to snow (from Lin et al 1983)
       ! Threshold from WSM6 scheme, Hong et al 2004, Eq(13) : qi0_crt ~8.e-5
@@ -1285,7 +1285,7 @@ if ( ncloud>=3 ) then
 end if ! ( ncloud>=3 )
 
 ! update density and area fractions
-do concurrent (k = 1:kl)
+do k = 1,kl
   cifr(:,k) = stratcloud(:,k)*qfg(:,k)/max(qlg(:,k)+qfg(:,k),1.e-30 )
   clfr(:,k) = max( stratcloud(:,k)-cifr(:,k), 0. )
   rhov(:,k) = qtg(:,k)*rhoa(:,k)
@@ -1363,7 +1363,7 @@ do n = 1,njumps
   do k = kl-1,1,-1
   
     ! misc fields
-    do concurrent (iq = 1:imax)
+    do iq = 1,imax
       pk(iq)     = 100.*prf(iq,k)
       rhodz(iq)  = rhoa(iq,k)*dz(iq,k)
       denfac(iq) = sqrt(sfcrho/rhoa(iq,k))
@@ -1375,7 +1375,7 @@ do n = 1,njumps
     if ( ncloud>=3 ) then
   
       ! Graupel ---------------------------------------------------------------------------
-      do concurrent (iq = 1:imax)      
+      do iq = 1,imax      
 
         sublflux(iq) = 0.
         fluxgraupel(iq) = fluxgraupel(iq) + fluxautograupel(iq,k)*tdt/tdt_in
@@ -1538,7 +1538,7 @@ do n = 1,njumps
 
      
       ! Snow ------------------------------------------------------------------------------
-      do concurrent (iq = 1:imax)
+      do iq = 1,imax
       
         sublflux(iq) = 0.
         fluxsnow(iq) = fluxsnow(iq) + fluxautosnow(iq,k)*tdt/tdt_in
@@ -1687,7 +1687,7 @@ do n = 1,njumps
 
         
     ! Ice ---------------------------------------------------------------------------------
-    do concurrent (iq = 1:imax)
+    do iq = 1,imax
         
       sublflux(iq) = 0.  
   
@@ -1754,7 +1754,7 @@ do n = 1,njumps
     end select
     vi2 = max( vi2, 0.001 )  
 
-    do concurrent (iq = 1:imax)
+    do iq = 1,imax
     
       ! Set up the parameters for the flux-divergence calculation
       alph         = tdt*vi2(iq)/dz(iq,k)
@@ -1828,7 +1828,7 @@ do n = 1,njumps
     end do ! iq loop   
 
     if ( ncloud>=3 ) then
-      do concurrent (iq = 1:imax)
+      do iq = 1,imax
         if ( fluxice(iq)>0. ) then
             
           ! Accretion of rain by falling ice to produce ice (from Lin et al 1983 - piacr)
@@ -1859,14 +1859,14 @@ do n = 1,njumps
     
     
     ! store slope for aerosols
-    do concurrent (iq = 1:imax)
+    do iq = 1,imax
       slopes_i      = 1.6e3*10**(-0.023*(ttg(iq,k)-tfrz))
       pslopes(iq,k) = pslopes(iq,k) + slopes_i*tdt/tdt_in  
     end do
     
     
     ! Rain --------------------------------------------------------------------------------
-    do concurrent (iq = 1:imax)
+    do iq = 1,imax
       evap(iq) = 0.
 
       ! Add flux of melted snow to fluxrain
@@ -1884,7 +1884,7 @@ do n = 1,njumps
     
     ! Calculate rain fall speed (MJT suggestion)
     if ( ncloud>=2 ) then
-      do concurrent (iq = 1:imax)
+      do iq = 1,imax
         Fr(iq)       = max( fluxrain(iq)/tdt/max(crfra(iq),1.e-15),0.)
         vr2(iq)      = max( 0.1, 11.3*Fr(iq)**(1./9.)/sqrt(rhoa(iq,k)) )  !Actual fall speed
         !vr2(iq)     = max( 0.1, 5./sqrt(rhoa(iq,k)) )                    !Nominal fall speed
@@ -1899,7 +1899,7 @@ do n = 1,njumps
       fthruliq(:) = 1.
     end if
     
-    do concurrent (iq = 1:imax)
+    do iq = 1,imax
 
       alphaf = hls*qsatg(iq,k)/(rvap*ttg(iq,k)**2)
       gam1(iq)   = hlscp*alphaf !(L/cp)*dqsdt (HBG notation)    
@@ -1907,7 +1907,7 @@ do n = 1,njumps
     end do ! iq loop  
     
     if ( ncloud>=3 ) then
-      do concurrent (iq = 1:imax)  
+      do iq = 1,imax  
         if ( fluxrain(iq)>0. ) then
         
           ! Freezing rain to produce graupel (pgfr)
@@ -1941,7 +1941,7 @@ do n = 1,njumps
     end if ! ncloud>=3  
 
     deles(:) = esdiffx(ttg(:,k),imax)
-    do concurrent (iq = 1:imax)  
+    do iq = 1,imax  
       if ( fluxrain(iq)>0. ) then
         
         ! Evaporation of rain
@@ -1984,7 +1984,7 @@ do n = 1,njumps
       
     fcol(:) = 0.
     Fr(:) = 0.
-    do concurrent (iq = 1:imax)  
+    do iq = 1,imax  
       if ( fluxrain(iq)>0. ) then
    
         drl        = evap(iq)*rhoa(iq,k) ! mass
@@ -2017,7 +2017,7 @@ do n = 1,njumps
     end do ! iq loop
       
     if ( ncloud>=3 ) then
-      do concurrent (iq = 1:imax)  
+      do iq = 1,imax  
         if ( fluxrain(iq)>0. ) then
         
           ! Accretion of cloud snow by rain (from Lin et al 1983 - pracs)
@@ -2047,7 +2047,7 @@ do n = 1,njumps
       end do ! iq loop
     end if ! ncloud>=3
 
-    do concurrent (iq = 1:imax)  
+    do iq = 1,imax  
     
       ! store for aerosols
       qevap(iq,k) = qevap(iq,k) + evap(iq)
@@ -2063,7 +2063,7 @@ do n = 1,njumps
     ! Misc ------------------------------------------------------------------------------
 
     if ( ncloud>=3 ) then  
-      do concurrent (iq = 1:imax)    
+      do iq = 1,imax    
         if ( fluxrain(iq)>0. ) then    
             
           ! Accretion of cloud ice by rain to produce snow or grauple (from Lin et al 1983 - praci)
@@ -2108,7 +2108,7 @@ do n = 1,njumps
 
     
     if ( ncloud>=3 ) then
-      do concurrent (iq = 1:imax)  
+      do iq = 1,imax  
         
         ! Grauple
         ! calculate maximum and random overlap for falling graupel
@@ -2168,7 +2168,7 @@ do n = 1,njumps
     end if ! ncloud>=3
 
     
-    do concurrent (iq = 1:imax)
+    do iq = 1,imax
     
       ! Ice
       ! calculate maximum and random overlap for falling ice
@@ -2236,7 +2236,7 @@ precs(:) = precs + fluxr(:,1) + fluxi(:,1) + fluxs(:,1) + fluxg(:,1)
 preci(:) = preci + fluxi(:,1) + fluxs(:,1)
 precg(:) = precg + fluxg(:,1)
 
-do concurrent (k = 1:kl)
+do k = 1,kl
   ! Re-create qtg, qrg, qlg, qfg, qsng and qgrg fields
   qtg(:,k)  = rhov(:,k)/rhoa(:,k)
   qrg(:,k)  = rhor(:,k)/rhoa(:,k)

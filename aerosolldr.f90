@@ -1059,8 +1059,8 @@ PQTMST=1./PTMST
 ZFAC=ALOG(0.5)*PTMST
 
 ZDECAY=EXP(ZFAC/86400.) ! 1 day
-DO CONCURRENT (JK=1:kl)
-  DO CONCURRENT(JL=1:imax)
+do jk = 1,kl
+  do jl = 1,imax
     ZDXTDT=xtg(JL,JK,ITRACBC)*(ZDECAY-1.)
     xtg(JL,JK,ITRACBC)   = xtg(JL,JK,ITRACBC)   + ZDXTDT
     xtg(JL,JK,ITRACBC+1) = xtg(JL,JK,ITRACBC+1) - ZDXTDT
@@ -1068,8 +1068,8 @@ DO CONCURRENT (JK=1:kl)
 end do
 
 ZDECAY=EXP(ZFAC/86400.) ! 1 day
-DO CONCURRENT (JK=1:kl)
-  DO CONCURRENT (JL=1:imax)
+do jk = 1,kl
+  do jl = 1,imax
     ZDXTDT=xtg(JL,JK,ITRACOC)*(ZDECAY-1.)
     xtg(JL,JK,ITRACOC)   = xtg(JL,JK,ITRACOC)   + ZDXTDT
     xtg(JL,JK,ITRACOC+1) = xtg(JL,JK,ITRACOC+1) - ZDXTDT
@@ -1315,8 +1315,8 @@ do jk = 1,kl
   ZSO4(:,jk)=amax1(XTO(:,jk,ITRACSO4),0.)
 end do
 
-DO CONCURRENT (JK=KTOP:kl)
-  DO CONCURRENT (JL=1:imax)
+do jk = ktop,kl
+  do jl = 1,imax
     !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
     if ( zlwcic(jl,jk)>zmin ) then
       ZLWCL=ZLWCIC(JL,JK)*PRHOP1(JL,JK)*1.E-06
@@ -1549,8 +1549,8 @@ do jk = 1,kl
   ZSO4C(:,jk)   =amax1(XTU(:,jk,ITRACSO4),0.)
 end do
 
-DO CONCURRENT (JK=KTOP:kl)
-  DO CONCURRENT (JL=1:imax)
+do jk = ktop,kl
+  do jl = 1,imax
     !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
     if ( PCCW(JL,JK)>ZMIN ) then
       ZLWCL=PCCW(JL,JK)*PRHOP1(JL,JK)*1.E-06
@@ -1805,8 +1805,8 @@ if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
 end if
 #endif
 
-DO CONCURRENT (JK=1:kl)
-  DO CONCURRENT (JL=1:imax)
+do jk = 1,kl
+  do jl = 1,imax
     X=PRHOP1(JL,JK)      
     IF(ZRDAYL(JL)==1) THEN
       !   DAY-TIME CHEMISTRY        
@@ -1996,12 +1996,12 @@ rcoeff_k = rcoeff(ktrac)
 zcollefs_k = zcollefs(ktrac)
 zcollefr_k = zcollefr(ktrac)
 
-do concurrent (i=1:imax)
+do i = 1,imax
   zdepr(i) = 0.
   zdeps(i) = 0.
 end do
-do concurrent (jk=1:kl)
-  do concurrent (i=1:imax)
+do jk = 1,kl
+  do i = 1,imax
     pdep3d(i,jk) = 0.
   end do
 end do
@@ -2009,7 +2009,7 @@ end do
 !     BEGIN OF VERTICAL LOOP
 do JK = KTOP,kl
 
-  do concurrent (i=1:imax)
+  do i = 1,imax
 
     !ZCLEAR = 1. - PCLCOVER(i,JK) - pcfcover(i,jk) - pclcon(i,jk)
     ZCLR0 = 1. - PCLCOVER(i,JK) - pclcon(i,jk) !Clear air or ice cloud (applies to pxtp10)
@@ -2110,7 +2110,7 @@ end do !   END OF VERTICAL LOOP
 !enddo
 
 do jk = ktop,kl
-  do concurrent (i=1:imax)
+  do i = 1,imax
     zmtof = rhodz(i,jk)*pqtmst
     zclr0 = 1. - pclcover(i,jk) - pclcon(i,jk)
 
@@ -2160,8 +2160,8 @@ do jk = ktop,kl
   
 end do
 
-do concurrent (JK=KTOP:kl)
-  do concurrent (i=1:imax)
+do jk = ktop,kl
+  do i = 1,imax
     ZXTP1=(1.-pclcover(i,jk)-pclcon(i,jk))*PXTP10(i,JK)+ &
               PCLCOVER(i,JK)*PXTP1C(i,JK)+               &
               pclcon(i,jk)*pxtp1con(i,jk)
@@ -2172,8 +2172,8 @@ do concurrent (JK=KTOP:kl)
   end do
 end do
 
-do concurrent (jk=1:kl)
-  do concurrent (i=1:imax)
+do jk = 1,kl
+  do i = 1,imax
     wd(i) = wd(i) + pqtmst*pdep3d(i,jk)*rhodz(i,jk)
   end do
 end do

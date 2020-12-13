@@ -1723,13 +1723,13 @@ real temp, b
 !   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
 
 ! the Thomas algorithm is used
-do concurrent (iq = 1:imax)
+do iq = 1,imax
   b=1.-a(iq,1)-c(iq,1)
   e(iq,1)=c(iq,1)/b
   g(iq,1)=rhs(iq,1)/b
 end do
 do k = 2,kl-1
-  do concurrent (iq = 1:imax)
+  do iq = 1,imax
     b=1.-a(iq,k)-c(iq,k)
     temp= 1./(b-a(iq,k)*e(iq,k-1))
     e(iq,k)=c(iq,k)*temp
@@ -1738,12 +1738,12 @@ do k = 2,kl-1
 end do
 
 ! do back substitution to give answer now
-do concurrent (iq = 1:imax)
+do iq = 1,imax
   b=1.-a(iq,kl)-c(iq,kl)
   rhs(iq,kl)=(rhs(iq,kl)-a(iq,kl)*g(iq,kl-1))/(b-a(iq,kl)*e(iq,kl-1))
 end do
 do k = kl-1,1,-1
-  do concurrent (iq = 1:imax)
+  do iq = 1,imax
     rhs(iq,k) = g(iq,k)-e(iq,k)*rhs(iq,k+1)
   end do
 end do
@@ -1883,15 +1883,15 @@ rlogs1=log(sig(1))
 rlogs2=log(sig(2))
 rlogh1=log(sigmh(2))
 rlog12=1./(rlogs1-rlogs2)
-do concurrent (iq = 1:imax)
+do iq = 1,imax
   tmnht=(t(iq,2)*rlogs1-t(iq,1)*rlogs2+(t(iq,1)-t(iq,2))*rlogh1)*rlog12  
   dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
   gt = rkm(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
   at(iq,2) =-gt/dsig(2)  
   ct(iq,1) = -gt/dsig(1)
 end do
-do concurrent (k = 2:kl-1)
-  do concurrent (iq = 1:imax)
+do k = 2,kl-1
+  do iq = 1,imax
     ! Calculate half level heights and temperatures
     ! n.b. an approximate zh (in m) is quite adequate for this routine
     tmnht = ratha(k)*t(iq,k+1) + rathb(k)*t(iq,k)

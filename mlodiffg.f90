@@ -119,8 +119,8 @@ emi = dd(1:ifull)/em(1:ifull)
 ! calculate diffusion following Smagorinsky
 !$acc parallel loop collapse(2) copyin(emu,emv,emi,uau,uav) copyout(t_kh(1:ifull,1:wlev)) &
 !$acc   present(ieu,iwu,inu,isu,iev,iwv,inv,isv)
-do concurrent (k = 1:wlev)
-  do concurrent (iq = 1:ifull)
+do k = 1,wlev
+  do iq = 1,ifull
     dudx = 0.5*((uau(ieu(iq),k)-uau(iq,k))*emu(iq)        &
                +(uau(iq,k)-uau(iwu(iq),k))*emu(iwu(iq)))/ds
     dudy = 0.5*((uau(inu(iq),k)-uau(iq,k))*emv(iq)        &
@@ -144,7 +144,7 @@ if ( mlosigma>=0 .and. mlosigma<=3 ) then
   end do  
   call bounds(dep,nehalf=.true.)
   do k = 1,wlev
-    do concurrent (iq = 1:ifull)
+    do iq = 1,ifull
       tx_fact = 1./(1.+(abs(dep(ie(iq),k)-dep(iq,k))/ocndelphi)**nf)
       ty_fact = 1./(1.+(abs(dep(in(iq),k)-dep(iq,k))/ocndelphi)**nf)
       xfact(iq,k) = 0.5*(t_kh(iq,k)+t_kh(ie(iq),k))*tx_fact*eeu(iq,k) ! reduction factor
@@ -170,7 +170,7 @@ if ( mlodiff==0 ) then
   end do
   call bounds(duma(:,:,1:3))
   do k = 1,wlev
-    do concurrent (iq = 1:ifull)
+    do iq = 1,ifull
       base = emi(iq) + xfact(iq,k) + xfact(iwu(iq),k) &
                      + yfact(iq,k) + yfact(isv(iq),k)
       nu = ( duma(iq,k,1)*emi(iq) +                       &
@@ -209,7 +209,7 @@ duma(1:ifull,:,2) = ss(1:ifull,:) - 34.72
 call bounds(duma(:,:,1:2))
 !$acc parallel loop collapse(2) copyin(emi,xfact,yfact,duma(:,:,1:2)) copyout(tt,ss)
 do k = 1,wlev
-  do concurrent (iq = 1:ifull)
+  do iq = 1,ifull
     base = emi(iq) + xfact(iq,k) + xfact(iwu(iq),k) &
                    + yfact(iq,k) + yfact(isv(iq),k)
     tt(iq,k) = ( duma(iq,k,1)*emi(iq) +               &

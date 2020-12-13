@@ -2143,7 +2143,7 @@ real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
-do concurrent (iq = 1:ifull)   ! runs through list of target points
+do iq = 1,ifull   ! runs through list of target points
   n = nface_l(iq)
   idel = int(xg_l(iq))
   xxg = xg_l(iq) - real(idel)
@@ -2225,10 +2225,10 @@ do while ( nrem>0 )
   call ccmpi_filebounds_send(c_io,comm_ip)
   ! update body
   if ( ncount>0 ) then
-    do concurrent (ipf = 1:mynproc)
-      do concurrent (n = 1:pnpan)
-        do concurrent (j = 2:pjpan-1)
-          do concurrent (i = 2:pipan-1)
+    do ipf =1,mynproc
+      do n = 1,pnpan
+        do j = 2,pjpan-1
+          do i = 2,pipan-1
             cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
             if ( abs(a_io(cc+i)-value)<1.e-20 ) then
               csum = 0.
@@ -2255,9 +2255,9 @@ do while ( nrem>0 )
   call ccmpi_filebounds_recv(c_io,comm_ip)
   ! update perimeter
   if ( ncount>0 ) then
-    do concurrent (ipf = 1:mynproc)
-      do concurrent (n = 1:pnpan)
-        do concurrent (i = 1:pipan)
+    do ipf =1,mynproc
+      do n = 1,pnpan
+        do i = 1,pipan
           cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
           if ( abs(a_io(cc+i)-value)<1.e-20 ) then
             csum = 0.
@@ -2295,7 +2295,7 @@ do while ( nrem>0 )
             end if
           end if
         end do
-        do concurrent (j = 2:pjpan-1)
+        do j = 2,pjpan-1
           cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
           if ( abs(a_io(cc+1)-value)<1.e-20 ) then
             csum = 0.
@@ -2409,12 +2409,12 @@ do while ( any(nrem(:)>0) )
   call ccmpi_filebounds_send(c_io,comm_ip)
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
-  do concurrent (k = 1:kx)
+  do k = 1,kx
     if ( ncount(k)>0 ) then
-      do concurrent (ipf = 1:mynproc)
-        do concurrent (n = 1:pnpan)
-          do concurrent (j = 2:pjpan-1)
-            do concurrent (i = 2:pipan-1)
+      do ipf =1,mynproc
+        do n = 1,pnpan
+          do j = 2,pjpan-1
+            do i = 2,pipan-1
               cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
               if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
                 csum = 0.
@@ -2441,11 +2441,11 @@ do while ( any(nrem(:)>0) )
   end do
   call ccmpi_filebounds_recv(c_io,comm_ip)
   ! update halo
-  do concurrent (k = 1:kx)
+  do k = 1,kx
     if ( ncount(k)>0 ) then  
-      do concurrent (ipf = 1:mynproc)
-        do concurrent (n = 1:pnpan)
-          do concurrent (i = 1:pipan)
+      do ipf =1,mynproc
+        do n = 1,pnpan
+          do i = 1,pipan
             cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
             if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
               csum = 0.
@@ -2483,7 +2483,7 @@ do while ( any(nrem(:)>0) )
               end if
             end if
           end do
-          do concurrent (j = 2:pjpan-1)
+          do j = 2,pjpan-1
             cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
             if ( abs(a_io(cc+1,k)-value)<1.e-20 ) then
               csum = 0.

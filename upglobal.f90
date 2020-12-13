@@ -277,8 +277,8 @@ end if
 
 ! rotate wind vector to arrival point
 !$acc parallel loop collapse(2) copyin(x,y,z,x3d,y3d,z3d) copy(uc,vc,wc)
-do concurrent (k = 1:kl)
-  do concurrent (iq = 1:ifull)
+do k = 1,kl
+  do iq = 1,ifull
     ! the following normalization may be done, but has ~zero effect
     ! dena=sqrt(x3d(iq)**2+y3d(iq)**2+z3d(iq)**2)
     ! x3d(iq)=x3d(iq)/dena

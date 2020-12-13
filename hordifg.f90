@@ -208,7 +208,7 @@ select case(nhorjlm)
     ! Smag's actual diffusion also differentiated Dt and Ds
     ! t_kh is kh at t points
     call boundsuv(uav,vav,allvec=.true.)
-    do concurrent (k = 1:kl)
+    do k = 1,kl
       do iq = 1,ifull
         hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
         dudx = 0.5*(uav(ieu(iq),k)-uav(iwu(iq),k))*em(iq)/ds
@@ -222,7 +222,7 @@ select case(nhorjlm)
              
   case(1)
     ! jlm deformation scheme using 3D uc, vc, wc
-    do concurrent (k = 1:kl)
+    do k = 1,kl
       do iq = 1,ifull
         hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
         cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 + (uc(in(iq),k)-uc(is(iq),k))**2 + &
@@ -235,7 +235,7 @@ select case(nhorjlm)
 
   case(2)
     ! jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
-    do concurrent (k = 1:kl)
+    do k = 1,kl
       do iq = 1,ifull
         hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
         cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 + (uc(in(iq),k)-uc(is(iq),k))**2 + &
@@ -252,7 +252,7 @@ select case(nhorjlm)
   case(3)
     ! K-eps model + Smag
     call boundsuv(uav,vav,allvec=.true.)
-    do concurrent (k = 1:kl)
+    do k = 1,kl
       do iq = 1,ifull
         hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
         dudx = 0.5*(uav(ieu(iq),k)-uav(iwu(iq),k))*em(iq)/ds

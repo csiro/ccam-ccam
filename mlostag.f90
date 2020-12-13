@@ -464,13 +464,13 @@ if ( ltest ) then
 
   call boundsuv(uin,vin,stag=1)
   do k = 1,kn
-    do concurrent (iq = 1:ifull)  
+    do iq = 1,ifull  
       ud(iq,k)=dtul(iq,k,1)*uin(ieeu(iq),k)+dtul(iq,k,2)*uin(ieu(iq),k)+dtul(iq,k,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,k,1)*vin(innv(iq),k)+dtvl(iq,k,2)*vin(inv(iq),k)+dtvl(iq,k,3)*vin(iq,k)
     end do  
   end do
   do k = kn+1,kx
-    do concurrent (iq = 1:ifull)  
+    do iq = 1,ifull  
       ud(iq,k)=dtul(iq,1,1)*uin(ieeu(iq),k)+dtul(iq,1,2)*uin(ieu(iq),k)+dtul(iq,1,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,1,1)*vin(innv(iq),k)+dtvl(iq,1,2)*vin(inv(iq),k)+dtvl(iq,1,3)*vin(iq,k)
     end do  
@@ -494,8 +494,8 @@ if ( ltest ) then
   ! - Zero flux at land boundaries
   ! - The wave amplitude should be preserved
 
-  do concurrent (k = 1:kx)
-    do concurrent (iq = 1:ifull)  
+  do k = 1,kx
+    do iq = 1,ifull  
       ud(iq,k) = ua(iq,k)
       vd(iq,k) = va(iq,k)
     end do
@@ -503,27 +503,27 @@ if ( ltest ) then
 
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
-    do concurrent (k = 1:kn)
-      do concurrent (iq = 1:ifull)  
+    do k = 1,kn
+      do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
       end do  
     end do
-    do concurrent (k = kn+1:kx)
-      do concurrent (iq = 1:ifull)  
+    do k = kn+1,kx
+      do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
       end do  
     end do
     call boundsuv(uin,vin,stag=2)
-    do concurrent (k = 1:kn)
-      do concurrent (iq = 1:ifull)  
+    do k = 1,kn
+      do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(innv(iq),k)
       end do  
     end do
-    do concurrent (k = kn+1:kx)
-      do concurrent (iq = 1:ifull)  
+    do k = kn+1,kx
+      do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(innv(iq),k)
       end do  
@@ -534,13 +534,13 @@ else
 
   call boundsuv(uin,vin)
   do k = 1,kn
-    do concurrent (iq = 1:ifull)  
+    do iq = 1,ifull  
       ud(iq,k)=dtur(iq,k,1)*uin(iwu(iq),k)+dtur(iq,k,2)*uin(iq,k)+dtur(iq,k,3)*uin(ieu(iq),k)
       vd(iq,k)=dtvr(iq,k,1)*vin(isv(iq),k)+dtvr(iq,k,2)*vin(iq,k)+dtvr(iq,k,3)*vin(inv(iq),k)
     end do  
   end do
   do k = kn+1,kx
-    do concurrent (iq = 1:ifull)  
+    do iq = 1,ifull  
       ud(iq,k)=dtur(iq,1,1)*uin(iwu(iq),k)+dtur(iq,1,2)*uin(iq,k)+dtur(iq,1,3)*uin(ieu(iq),k)
       vd(iq,k)=dtvr(iq,1,1)*vin(isv(iq),k)+dtvr(iq,1,2)*vin(iq,k)+dtvr(iq,1,3)*vin(inv(iq),k)
     end do  
@@ -558,8 +558,8 @@ else
     va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,1)*vd(isv,k)
   end do
 
-  do concurrent (k = 1:kx)
-    do concurrent (iq = 1:ifull)  
+  do k = 1,kx
+    do iq = 1,ifull  
       ud(iq,k) = ua(iq,k)
       vd(iq,k) = va(iq,k)
     end do
@@ -568,26 +568,26 @@ else
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
     do k = 1,kn
-      do concurrent (iq = 1:ifull)  
+      do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
       end do  
     end do
     do k = kn+1,kx
-      do concurrent (iq = 1:ifull)  
+      do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
       end do  
     end do
     call boundsuv(uin,vin,stag=3)
     do k = 1,kn
-      do concurrent (iq = 1:ifull)  
+      do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(issv(iq),k)
       end do  
     end do
     do k = kn+1,kx
-      do concurrent (iq = 1:ifull)  
+      do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(issv(iq),k)
       end do  
@@ -1143,13 +1143,13 @@ if (ltest) then
   
   call boundsuv(uin,vin,stag=5)
   do k = 1,kn
-    do concurrent (iq = 1:ifull)  
+    do iq = 1,ifull  
       ud(iq,k)=dtul(iq,k,1)*uin(iwwu(iq),k)+dtul(iq,k,2)*uin(iwu(iq),k)+dtul(iq,k,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,k,1)*vin(issv(iq),k)+dtvl(iq,k,2)*vin(isv(iq),k)+dtvl(iq,k,3)*vin(iq,k)
     end do  
   end do
   do k = kn+1,kx
-    do concurrent (iq = 1:ifull)  
+    do iq = 1,ifull  
       ud(iq,k)=dtul(iq,1,1)*uin(iwwu(iq),k)+dtul(iq,1,2)*uin(iwu(iq),k)+dtul(iq,1,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,1,1)*vin(issv(iq),k)+dtvl(iq,1,2)*vin(isv(iq),k)+dtvl(iq,1,3)*vin(iq,k)
     end do  
@@ -1167,8 +1167,8 @@ if (ltest) then
     va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,1)*vd(isv,k)
   end do
 
-  do concurrent (k = 1:kx)
-    do concurrent (iq = 1:ifull)  
+  do k = 1,kx
+    do iq = 1,ifull  
       ud(iq,k) = ua(iq,k)
       vd(iq,k) = va(iq,k)
     end do
@@ -1176,27 +1176,27 @@ if (ltest) then
 
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
-    do concurrent (k = 1:kn)
-      do concurrent (iq = 1:ifull)  
+    do k = 1,kn
+      do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
       end do  
     end do
-    do concurrent (k = kn+1:kx)
-      do concurrent (iq = 1:ifull)  
+    do k = kn+1,kx
+      do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
       end do  
     end do
     call boundsuv(uin,vin,stag=3)
-    do concurrent (k = 1:kn)
-      do concurrent (iq = 1:ifull)  
+    do k = 1,kn
+      do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(issv(iq),k)
       end do  
     end do
-    do concurrent (k = kn+1:kx)
-      do concurrent (iq = 1:ifull)  
+    do k = kn+1,kx
+      do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(issv(iq),k)
       end do  
@@ -1207,13 +1207,13 @@ else
 
   call boundsuv(uin,vin)
   do k = 1,kn
-    do concurrent (iq = 1:ifull)  
+    do iq = 1,ifull  
       ud(iq,k)=dtur(iq,k,1)*uin(ieu(iq),k)+dtur(iq,k,2)*uin(iq,k)+dtur(iq,k,3)*uin(iwu(iq),k)
       vd(iq,k)=dtvr(iq,k,1)*vin(inv(iq),k)+dtvr(iq,k,2)*vin(iq,k)+dtvr(iq,k,3)*vin(isv(iq),k)
     end do  
   end do
   do k = kn+1,kx
-    do concurrent (iq = 1:ifull)  
+    do iq = 1,ifull  
       ud(iq,k)=dtur(iq,1,1)*uin(ieu(iq),k)+dtur(iq,1,2)*uin(iq,k)+dtur(iq,1,3)*uin(iwu(iq),k)
       vd(iq,k)=dtvr(iq,1,1)*vin(inv(iq),k)+dtvr(iq,1,2)*vin(iq,k)+dtvr(iq,1,3)*vin(isv(iq),k)
     end do  
@@ -1231,8 +1231,8 @@ else
     va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,1)*vd(inv,k)
   end do
 
-  do concurrent (k = 1:kx)
-    do concurrent (iq = 1:ifull)  
+  do k = 1,kx
+    do iq = 1,ifull  
       ud(iq,k) = ua(iq,k)
       vd(iq,k) = va(iq,k)
     end do
@@ -1241,27 +1241,27 @@ else
 
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
-    do concurrent (k = 1:kn)
-      do concurrent (iq = 1:ifull)  
+    do k = 1,kn
+      do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
       end do  
     end do
-    do concurrent (k = kn+1:kx)
-      do concurrent (iq = 1:ifull)  
+    do k = kn+1,kx
+      do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
       end do  
     end do
     call boundsuv(uin,vin,stag=2)
-    do concurrent (k = 1:kn)
-      do concurrent (iq = 1:ifull)  
+    do k = 1,kn
+      do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(innv(iq),k)
       end do  
     end do
-    do concurrent (k = kn+1:kx)
-      do concurrent (iq = 1:ifull)  
+    do k = kn+1,kx
+      do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(innv(iq),k)
       end do  
