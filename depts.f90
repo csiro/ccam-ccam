@@ -22,6 +22,7 @@
 subroutine depts1(x3d,y3d,z3d,intsch)  ! input ubar,vbar are unstaggered vels for level k
 
 use cc_mpi
+use cc_omp
 use const_phys
 use indices_m
 use map_m
@@ -38,6 +39,7 @@ implicit none
 integer, intent(in) :: intsch
 integer iq, k, idel, jdel, nn
 integer i, j, n, ii
+integer tile, ibeg, iend, ip
 real xxg, yyg
 real, dimension(ifull,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl,3) :: s
@@ -87,11 +89,11 @@ call bounds(s,nrows=2)
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
   !$acc parallel loop collapse(5) present(sx,s)
-  do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
-      do concurrent (n = 1:npan)
-        do concurrent (j = 1:jpan)
-          do concurrent (i = 1:ipan)
+  do nn = 1,3
+    do k = 1,kl
+      do n = 1,npan
+        do j = 1,jpan
+          do i = 1,ipan
             iq = i + (j-1)*ipan + (n-1)*ipan*jpan
             sx(i,j,n,k,nn) = s(iq,k,nn)
           end do
@@ -101,10 +103,10 @@ if ( intsch==1 ) then
   end do
   !$acc end parallel loop
   !$acc parallel loop collapse(3) present(s,sx)
-  do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
-      do concurrent (n = 1:npan)
-        do concurrent (j = 1:jpan)
+  do nn = 1,3
+    do k = 1,kl
+      do n = 1,npan
+        do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
           sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
@@ -112,7 +114,7 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-        do concurrent (i = 1:ipan)
+        do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s(is(iq),k,nn)
           sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
@@ -176,10 +178,11 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
   
+#ifdef GPU
   !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
-  do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
+  do nn = 1,3
+    do k = 1,kl
+      do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
@@ -210,17 +213,59 @@ if ( intsch==1 ) then
   end do       ! nn loop
   !$acc end parallel loop
   !$acc update self(s)
+#else
+  !$omp parallel do schedule(static) private(tile,ibeg,iend,nn,k,ip,iq,idel,xxg,jdel,yyg), &
+  !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),    &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  do tile = 1,ntiles
+    ibeg = (tile-1)*imax + 1
+    iend = tile*imax
+    do nn = 1,3
+      do k = 1,kl
+        do ip = 1,imax    ! non Berm-Stan option
+          iq = ibeg + ip - 1  
+          idel = int(xg(iq,k))
+          xxg = xg(iq,k) - real(idel)
+          jdel = int(yg(iq,k))
+          yyg = yg(iq,k) - real(jdel)
+          idel = min( max( idel - ioff, 0), ipan )
+          jdel = min( max( jdel - joff, 0), jpan )
+          n = min( max( nface(iq,k) + noff, 1), npan )
+          ! bi-cubic
+          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul_2 = (1.-xxg)
+          dmul_3 = xxg
+          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+          rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+          rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+          s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        end do   ! iq loop
+      end do     ! k loop
+    end do       ! nn loop
+  end do         ! tile loop  
+  !$omp end parallel do
+#endif
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 
   !$acc parallel loop collapse(5) present(sx,s)
-  do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
-      do concurrent (n = 1:npan)
-        do concurrent (j = 1:jpan)
-          do concurrent (i = 1:ipan)
+  do nn = 1,3
+    do k = 1,kl
+      do n = 1,npan
+        do j = 1,jpan
+          do i = 1,ipan
             iq = i + (j-1)*ipan + (n-1)*ipan*jpan
             sx(i,j,n,k,nn) = s(iq,k,nn)
           end do
@@ -230,10 +275,10 @@ else     ! if(intsch==1)then
   end do
   !$acc end parallel loop
   !$acc parallel loop collapse(3) present(s,sx)
-  do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
-      do concurrent (n = 1:npan)
-        do concurrent (j = 1:jpan)
+  do nn = 1,3
+    do k = 1,kl
+      do n = 1,npan
+        do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
           sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
@@ -241,7 +286,7 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s(ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-        do concurrent (i = 1:ipan)
+        do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s(is(iq),k,nn)
           sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
@@ -304,10 +349,11 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
+#ifdef GPU
   !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
-  do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
+  do nn = 1,3
+    do k = 1,kl
+      do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
@@ -338,7 +384,48 @@ else     ! if(intsch==1)then
   end do              ! nn loop
   !$acc end parallel loop
   !$acc update self(s)
-
+#else
+  !$omp parallel do schedule(static) private(tile,ibeg,iend,nn,k,ip,iq,idel,xxg,jdel,yyg), &
+  !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),    &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  do tile = 1,ntiles
+    ibeg = (tile-1)*imax + 1
+    iend = tile*imax
+    do nn = 1,3
+      do k = 1,kl
+        do ip = 1,imax    ! non Berm-Stan option
+          iq = ibeg + ip - 1
+          idel = int(xg(iq,k))
+          xxg = xg(iq,k) - real(idel)
+          jdel = int(yg(iq,k))
+          yyg = yg(iq,k) - real(jdel)
+          idel = min( max( idel - ioff, 0), ipan )
+          jdel = min( max( jdel - joff, 0), jpan )
+          n = min( max( nface(iq,k) + noff, 1), npan )
+          ! bi-cubic
+          cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul_2 = (1.-yyg)
+          dmul_3 = yyg
+          emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
+          rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
+          rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+          s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        end do          ! iq loop
+      end do            ! k loop
+    end do              ! nn loop
+  end do                ! tile loop
+#endif
+  
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
@@ -400,10 +487,11 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
 
+#ifdef GPU
   !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
-  do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
+  do nn = 1,3
+    do k = 1,kl
+      do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
@@ -434,6 +522,48 @@ if ( intsch==1 ) then
   end do       ! nn loop
   !$acc end parallel loop
   !$acc update self(s)
+#else
+  !$omp parallel do schedule(static) private(tile,ibeg,iend,nn,k,ip,iq,idel,xxg,jdel,yyg), &
+  !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),    &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  do tile = 1,ntiles
+    ibeg = (tile-1)*imax + 1
+    iend = tile*imax
+    do nn = 1,3
+      do k = 1,kl
+        do ip = 1,imax    ! non Berm-Stan option
+          iq = ibeg + ip - 1  
+          idel = int(xg(iq,k))
+          xxg = xg(iq,k) - real(idel)
+          jdel = int(yg(iq,k))
+          yyg = yg(iq,k) - real(jdel)
+          idel = min( max( idel - ioff, 0), ipan )
+          jdel = min( max( jdel - joff, 0), jpan )
+          n = min( max( nface(iq,k) + noff, 1), npan )
+          ! bi-cubic
+          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul_2 = (1.-xxg)
+          dmul_3 = xxg
+          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+          rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+          rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+          s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        end do   ! iq loop
+      end do     ! k loop
+    end do       ! nn loop
+  end do         ! tile loop 
+  !$omp end parallel do
+#endif
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -476,10 +606,11 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
+#ifdef GPU
   !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
-  do concurrent (nn = 1:3)
-    do concurrent (k = 1:kl)
-      do concurrent (iq = 1:ifull)    ! non Berm-Stan option
+  do nn = 1,3
+    do k = 1,kl
+      do iq = 1,ifull    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
         idel = int(xg(iq,k))
         xxg = xg(iq,k) - real(idel)
@@ -511,6 +642,49 @@ else     ! if(intsch==1)then
   end do              ! k loop
   !$acc end parallel loop
   !$acc update self(s)
+#else
+  !$omp parallel do schedule(static) private(tile,ibeg,iend,nn,k,ip,iq,idel,xxg,jdel,yyg), &
+  !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),    &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  do tile = 1,ntiles
+    ibeg = (tile-1)*imax + 1
+    iend = tile*imax
+    do nn = 1,3
+      do k = 1,kl
+        do ip = 1,imax    ! non Berm-Stan option
+          iq = ibeg + ip - 1  
+          ! Convert face index from 0:npanels to array indices
+          idel = int(xg(iq,k))
+          xxg = xg(iq,k) - real(idel)
+          jdel = int(yg(iq,k))
+          yyg = yg(iq,k) - real(jdel)
+          idel = min( max( idel - ioff, 0), ipan )
+          jdel = min( max( jdel - joff, 0), jpan )
+          n = min( max( nface(iq,k) + noff, 1), npan )
+          ! bi-cubic
+          cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul_2 = (1.-yyg)
+          dmul_3 = yyg
+          emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
+          rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
+          rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+          s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        end do          ! iq loop
+      end do            ! nn loop
+    end do              ! k loop
+  end do                ! tile loop  
+  !$omp end parallel do
+#endif
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -542,6 +716,7 @@ return
 end subroutine depts1
 
 
+#ifdef GPU
 subroutine toij5(x3d,y3d,z3d)
 
 use bigxy4_m
@@ -596,8 +771,8 @@ alf           = (1._8-real(schmidt,8)**2)/(1._8+real(schmidt,8)**2)
 alfonsch      = 2._8*real(schmidt,8)/(1._8+real(schmidt,8)**2)  ! same but bit more accurate
 
 !$acc parallel loop collapse(2) copyin(x3d,y3d,z3d,xx4,yy4) present(xg,yg,nface)
-do concurrent (k = 1:kl)
-  do concurrent (iq = 1:ifull)    
+do k = 1,kl
+  do iq = 1,ifull    
     den  = 1._8 - alf*z3d(iq,k)
     xstr = real(x3d(iq,k)*(alfonsch/den))
     ystr = real(y3d(iq,k)*(alfonsch/den))
@@ -698,8 +873,180 @@ do concurrent (k = 1:kl)
   end do
 end do
 !$acc end parallel loop
-
 !$acc update self(xg,yg,nface)
 
 return
 end subroutine toij5
+#else
+subroutine toij5(x3d,y3d,z3d)
+
+use bigxy4_m
+use cc_mpi
+use cc_omp
+use newmpar_m
+use parm_m
+use parmgeom_m
+use work3f_m
+use xyzinfo_m
+
+implicit none
+
+#ifdef debug
+integer, parameter :: ntest = 0
+integer, parameter :: ndiag = 0
+#endif
+
+#ifdef cray
+integer, save :: num = 0
+integer, dimension(ifull) :: nf
+real, dimension(0:5), parameter :: xgx = (/ 0., 0., 0., 0., 1., 1. /)
+real, dimension(0:5), parameter :: xgy = (/ 1., 1., 0., 0., 0., 0. /)
+real, dimension(0:5), parameter :: xgz = (/ 0., 0.,-1.,-1., 0., 0. /)
+real, dimension(0:5), parameter :: ygx = (/ 0.,-1.,-1., 0., 0., 0. /)
+real, dimension(0:5), parameter :: ygy = (/ 0., 0., 0.,-1.,-1., 0. /)
+real, dimension(0:5), parameter :: ygz = (/ 1., 0., 0., 0., 0., 1. /)
+#endif
+
+integer, parameter :: nmaploop = 3
+integer k, iq, loop, i, j, is, js
+integer tile, ibeg, iend, ip, idjd_t
+real ri,rj
+real xstr,ystr,zstr
+real denxyz,xd,yd,zd
+real(kind=8) alf,alfonsch  ! 6/11/07 esp for 200m
+real(kind=8) dxx,dxy,dyx,dyy
+real(kind=8), dimension(ifull,kl), intent(in) :: x3d,y3d,z3d
+real(kind=8) den
+logical xytest, xztest, yztest
+logical mydiag_t
+
+#ifdef cray
+! check if divide by itself is working
+if ( num==0 ) then
+  if ( myid==0 ) write(6,*)'checking for ncray'
+  call checkdiv(xstr,ystr,zstr)
+end if
+num = 1
+#endif
+
+! if necessary, transform (x3d, y3d, z3d) to equivalent
+! coordinates (xstr, ystr, zstr) on regular gnomonic panels
+alf           = (1._8-real(schmidt,8)**2)/(1._8+real(schmidt,8)**2)
+alfonsch      = 2._8*real(schmidt,8)/(1._8+real(schmidt,8)**2)  ! same but bit more accurate
+
+!$omp parallel do schedule(static) private(tile,ibeg,iend,idjd_t,mydiag_t,k,ip,iq,den), &
+!$omp private(xstr,ystr,zstr,denxyz,xd,yd,zd,xytest,xztest,yztest,ri,rj,loop,i,j),      &
+!$omp private(is,js,dxx,dyx,dxy,dyy)
+do tile = 1,ntiles
+  ibeg = (tile-1)*imax + 1
+  iend = tile*imax
+  idjd_t = mod(idjd-1,imax) + 1
+  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag  
+  do k = 1,kl
+    do ip = 1,imax
+      iq = ibeg + ip - 1  
+      den  = 1._8 - alf*z3d(iq,k)
+      xstr = real(x3d(iq,k)*(alfonsch/den))
+      ystr = real(y3d(iq,k)*(alfonsch/den))
+      zstr = real(   (z3d(iq,k)-alf)/den)
+
+!      first deduce departure faces
+!      instead calculate cubic coordinates
+!      The faces are:
+!      0: X=1   1: Z=1   2: Y=1   3: X=-1   4: Z=-1   5: Y=-1
+
+      denxyz = max(abs(xstr),abs(ystr),abs(zstr))
+      xd = xstr/denxyz
+      yd = ystr/denxyz
+      zd = zstr/denxyz
+
+      xytest = abs(xd)>abs(yd)
+      xztest = abs(xd)>abs(zd)
+      yztest = abs(yd)>abs(zd)
+      ! all these if statements are replaced by the subsequent cunning code
+      if ( xytest .and. xztest .and. xd>0. ) then
+        nface(iq,k)    =0
+        xg(iq,k) =       yd
+        yg(iq,k) =       zd
+      else if ( xytest .and. xztest ) then
+        nface(iq,k)    =3
+        xg(iq,k) =     -zd
+        yg(iq,k) =     -yd
+      else if ( yztest .and. yd>0. ) then
+        nface(iq,k)    =2
+        xg(iq,k) =     -zd
+        yg(iq,k) =     -xd
+      else if ( yztest ) then
+        nface(iq,k)    =5
+        xg(iq,k) =      xd
+        yg(iq,k) =      zd
+      else if ( zd>0. ) then
+        nface(iq,k)    =1
+        xg(iq,k) =      yd
+        yg(iq,k) =     -xd
+      else
+        nface(iq,k)    =4
+        xg(iq,k) =      xd
+        yg(iq,k) =     -yd
+      end if
+
+#ifdef debug
+      if(ntest==1.and.k==nlv.and.iq=idjd_t)then
+        iq=idjd_t
+        write(6,*) 'x3d,y3d,z3d ',x3d(iq),y3d(iq),z3d(iq)
+        den(iq)=1._8-alf*z3d(iq) ! to force real*8
+        write(6,*) 'den ',den
+        denxyz=max( abs(xstr),abs(ystr),abs(zstr) )
+        xd=xstr/denxyz
+        yd=ystr/denxyz
+        zd=zstr/denxyz
+        write(6,*) 'k,xstr,ystr,zstr,denxyz ',k,xstr,ystr,zstr,denxyz
+        write(6,*) 'abs(xstr,ystr,zstr) ',abs(xstr),abs(ystr),abs(zstr)
+        write(6,*) 'xd,yd,zd,nface ',xd,yd,zd,nface(iq,k)
+        write(6,*) 'alf,alfonsch ',alf,alfonsch
+      endif
+      if(ndiag==2)then
+      !  call printp('xcub',xd)  ! need to reinstate as arrays for this diag
+      !  call printp('ycub',yd)
+      !  call printp('zcub',zd)
+        write(6,*) 'before xytoiq'
+        call printp('xg  ',xg)
+        call printp('yg  ',yg)
+      endif
+#endif
+
+      ! use 4* resolution grid il --> 4*il
+      xg(iq,k) = min(max(-.99999,xg(iq,k)),.99999)
+      yg(iq,k) = min(max(-.99999,yg(iq,k)),.99999)
+      ! first guess for ri, rj and nearest i,j
+      ri = 1. + (1.+xg(iq,k))*real(2*il_g)
+      rj = 1. + (1.+yg(iq,k))*real(2*il_g)
+      do loop = 1,nmaploop
+        i = nint(ri)
+        j = nint(rj)
+        is = nint(sign(1.,ri-real(i)))
+        js = nint(sign(1.,rj-real(j)))
+        ! predict new value for ri, rj
+        dxx = xx4(i+is,j) - xx4(i,j)
+        dyx = xx4(i,j+js) - xx4(i,j)
+        dxy = yy4(i+is,j) - yy4(i,j)
+        dyy = yy4(i,j+js) - yy4(i,j)       
+        den = dxx*dyy - dyx*dxy
+        ri = real(i) + real(is)*real(((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/real(den,8))
+        rj = real(j) + real(js)*real(((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/real(den,8))        
+        ri = min( ri, 1.+1.99999*real(2*il_g) )
+        ri = max( ri, 1.+0.00001*real(2*il_g) )
+        rj = min( rj, 1.+1.99999*real(2*il_g) )
+        rj = max( rj, 1.+0.00001*real(2*il_g) )
+      end do  ! loop loop
+      ! expect xg, yg to range between .5 and il+.5
+      xg(iq,k) = 0.25*(ri+3.) - 0.5  ! -.5 for stag; back to normal ri, rj defn
+      yg(iq,k) = 0.25*(rj+3.) - 0.5  ! -.5 for stag  
+    end do
+  end do
+end do
+!$omp end parallel do
+
+return
+end subroutine toij5
+#endif

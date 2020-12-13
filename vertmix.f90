@@ -177,26 +177,6 @@ select case(nvmix)
 !$omp private(lt,lqg,lqfg,lqlg),                        &
 !$omp private(lstratcloud,lxtg,lu,lv,ltke,leps,lshear), &
 !$omp private(lat,lct,lsavu,lsavv,idjd_t,mydiag_t)
-#ifdef scm
-!!$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
-!!$acc   pblh,ustar)                                          &
-!!$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv)           &
-!!$acc copyout(at_save,ct_save,wth_flux,wq_flux,uw_flux,      &
-!!$acc   vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave,      &
-!!$acc   buoyproduction,shearproduction,totaltransport)       &
-!!$acc loop gang private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,   &
-!!$acc   ltke,leps,lshear,lat,lct,lu,lv,lwth_flux,lwq_flux,   &
-!!$acc   luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,         &
-!!$acc   lrkmsave,lrkhsave,lbuoyproduction,lshearproduction,  &
-!!$acc   ltotaltransport)
-#else
-!!$acc parallel copy(t,qg,qlg,qfg,stratcloud,xtg,tke,eps,u,v, &
-!!$acc   pblh,ustar)                                          &
-!!$acc copyin(shear,uadj,vadj,em,tss,eg,fg,ps,cduv)           &
-!!$acc copyout(at_save,ct_save)                               &
-!!$acc loop gang private(lt,lqg,lqfg,lqlg,lstratcloud,lxtg,   &
-!!$acc   ltke,leps,lshear,lat,lct,lu,lv)
-#endif
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -266,7 +246,6 @@ select case(nvmix)
 #endif
 
     end do ! tile = 1,ntiles
-!!$acc end parallel
 !$omp end do nowait
 
   case default  
@@ -1728,7 +1707,6 @@ return
 end subroutine pbldif
 
 subroutine trim(a,c,rhs,imax,kl)
-!!$acc routine vector
 
 implicit none
 
@@ -1780,7 +1758,6 @@ subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                 
                        buoyproduction,shearproduction,totaltransport,                           &
 #endif
                        imax,kl,naero)
-!!$acc routine vector
 
 use const_phys                   ! Physical constants
 use parm_m, only : ds, nlocal, iaero, dt, qgmin, cqmix

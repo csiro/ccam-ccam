@@ -208,8 +208,6 @@ select case(nhorjlm)
     ! Smag's actual diffusion also differentiated Dt and Ds
     ! t_kh is kh at t points
     call boundsuv(uav,vav,allvec=.true.)
-    !$acc parallel loop collapse(2) copyin(hdiff,uav,vav,em,emi) copyout(t_kh(1:ifull,1:kl)) &
-    !$acc   present(ieu,iwu,inu,isu,iev,iwv,inv,isv)
     do concurrent (k = 1:kl)
       do iq = 1,ifull
         hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
@@ -221,12 +219,9 @@ select case(nhorjlm)
         t_kh(iq,k)=sqrt(r1)*hdif*emi(iq)
       end do
     end do
-    !$acc end parallel loop
              
   case(1)
     ! jlm deformation scheme using 3D uc, vc, wc
-    !$acc parallel loop collapse(2) copyin(hdiff,uc,vc,wc,ps) copyout(t_kh(1:ifull,1:kl)) &
-    !$acc   present(ie,iw,in,is)
     do concurrent (k = 1:kl)
       do iq = 1,ifull
         hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
@@ -237,12 +232,9 @@ select case(nhorjlm)
         t_kh(iq,k)= .5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
       end do
     end do
-    !$acc end parallel loop
 
   case(2)
     ! jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
-    !$acc parallel loop collapse(2) copyin(hdiff,uc,vc,wc,ps,dpsldt) copyout(t_kh(1:ifull,1:kl)) &
-    !$acc   present(ie,iw,in,is)
     do concurrent (k = 1:kl)
       do iq = 1,ifull
         hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
@@ -260,8 +252,6 @@ select case(nhorjlm)
   case(3)
     ! K-eps model + Smag
     call boundsuv(uav,vav,allvec=.true.)
-    !$acc parallel loop collapse(2) copyin(hdiff,uav,vav,em,emi,tke,eps) copyout(t_kh(1:ifull,1:kl)) &
-    !$acc   present(ieu,iwu,inu,isu,iev,iwv,inv,isv)
     do concurrent (k = 1:kl)
       do iq = 1,ifull
         hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
@@ -274,7 +264,6 @@ select case(nhorjlm)
         t_kh(iq,k)=max( t_kh(iq,k), tke(iq,k)**2/eps(iq,k)*dt*cm0*emi(iq) )
       end do
     end do
-    !$acc end parallel loop      
 
   case DEFAULT
     write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm
@@ -352,7 +341,6 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
     work(1:ifull,k,2) = qg(1:ifull,k)
   end do
   call bounds(work(:,:,1:2))
-  !$acc parallel loop collapse(2) copyin(ptemp,emi,xfact,yfact,work(:,:,1:2)) copyout(t,qg)
   do k = 1,kl
     do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
@@ -372,7 +360,6 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
                  / base
     end do
   end do
-  !$acc end parallel loop
 
 else if ( nhorps==-5 ) then  
   do k = 1,kl

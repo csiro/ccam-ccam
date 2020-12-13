@@ -63,7 +63,6 @@ real, save :: mintke   = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
 real, save :: mineps   = 1.E-11   ! min value for eps (1.0e-6 in TAPM)
 real, save :: minl     = 1.       ! min value for L   (5. in TAPM)
 real, save :: maxl     = 1000.    ! max value for L   (500. in TAPM)
-!$acc declare create(cm0,minl,maxl,mintke,mineps,ce0,ce1,ce2,ce3)
 ! model MF constants
 real, save :: be       = 0.1      ! Surface boundary condition (Hurley (2007) 1., Soares et al (2004) 0.3)
 real, save :: ent0     = 0.25     ! Entrainment constant (Controls height of boundary layer) (Hurley (2007) 0.5)
@@ -77,14 +76,12 @@ real, save :: b1       = 2.       ! Updraft entrainment coeff (Soares et al (200
 real, save :: b2       = 1./3.    ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
 real, save :: qcmf     = 1.e-4    ! Critical mixing ratio of liquid water before autoconversion
 real, save :: mfbeta   = 0.15     ! Horizontal scale factor
-!$acc declare create(be,ent0,ent1,ent_min,ezmin,entc0,dtrc0,m0,b1,b2,qcmf,mfbeta)
 ! generic constants
 integer, save :: buoymeth = 1     ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
 integer, save :: stabmeth = 0     ! Method for stability calculation (0=B&H, 1=Luhar)
 integer, save :: tkemeth  = 1     ! Method for TKE calculation (0=D&K84, 1=Hurley)
 integer, save :: upshear  = 0     ! Method for updating shear (0=Host, 1=Sub-timestep)
 real, save :: maxdts      = 120.  ! max timestep for split
-!$acc declare create(buoymeth,tkemeth,stabmeth,maxdts,upshear)
 
 ! physical constants
 real, parameter :: grav  = 9.80616    ! (m s^-2)
@@ -126,10 +123,6 @@ tke=mintke
 eps=mineps
 shear=0.
 
-!$acc update device(cm0,minl,maxl,mintke,mineps,ce0,ce1,ce2,ce3)
-!$acc update device(be,ent0,ent1,ent_min,ezmin,entc0,dtrc0,m0,b1,b2,qcmf,mfbeta)
-!$acc update device(buoymeth,tkemeth,stabmeth,maxdts,upshear)
-
 return
 end subroutine tkeinit
 
@@ -146,7 +139,6 @@ subroutine tkemix(kmo,theta,qvg,qlg,qfg,stratcloud,uo,vo,zi,fg,eg,cduv,ps,zz,zzh
                   ,shearproduction,totaltransport                                          &
 #endif
                   ,imax,kl)
-!$acc routine vector
                   
 implicit none
 
@@ -722,7 +714,6 @@ pure subroutine plumerise(mask,                                        &
                      zz,dz_hl,theta,thetal,thetav,qvg,qlg,qfg,         &
                      stratcloud,km,wt0,wq0,wtv0,ps,ustar,              &
                      sig,sigkap,tke,eps,uo,vo,imax,kl)
-!$acc routine vector
 
 integer, intent(in) :: imax, kl
 integer k
@@ -854,7 +845,6 @@ end subroutine plumerise
 ! Tri-diagonal solver (array version)
 
 pure subroutine thomas(outdat,aai,bbi,cci,ddi,imax,klin)
-!$acc routine vector
 
 implicit none
 
@@ -893,7 +883,6 @@ end subroutine thomas
 ! Estimate saturation mixing ratio
 
 pure subroutine getqsat(qsat,templ,ps,fice,imax)
-!$acc routine vector
 
 implicit none
 
@@ -965,7 +954,6 @@ end subroutine getqsat
 ! Update diffusion coeffs at half levels
 
 pure subroutine updatekmo(kmo,km,fzhl,imax,kl)
-!$acc routine vector
 
 implicit none
 
@@ -985,7 +973,6 @@ end subroutine updatekmo
 ! Calculate lateral entrainment
 
 pure function entfn(zht,zi,imax) result(ans)
-!$acc routine vector
 
 implicit none
 
@@ -1006,7 +993,6 @@ end function entfn
 ! Calculate phi_m for atmospheric stability
 
 subroutine calc_phi(phim,z_on_l,imax)
-!$acc routine vector
 
 implicit none
 

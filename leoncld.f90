@@ -160,16 +160,6 @@ end do
 !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lt),                &
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,idjd_t,mydiag_t)
-!$acc parallel loop copy(stratcloud,gfrac,rfrac,sfrac,t,qg,qgrg,qlg,qfg,qrg,qsng,      &
-!$acc   nettend,condg,conds,condx,precip)                                              &
-!$acc copyin(dpsldt,clcon,cdrop,kbsav,ktsav,land,ps,em,clcon,cdrop)                    &
-!$acc copyout(cfrac,qlrad,qfrad,qccon,ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,      &
-!$acc   ppfstayliq,ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)       &
-!$acc present(sig)                                                                     &
-!$acc private(lcfrac,lgfrac,lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,           &
-!$acc   lppfstayliq,lppfsubl,lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,        &
-!$acc   lpprscav,lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-!$acc   ldpsldt,lnettend,lstratcloud,lclcon,lcdrop)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -241,7 +231,6 @@ do tile = 1,ntiles
   end if
   
 end do
-!$acc end parallel
 !$omp end do nowait
 
 return
@@ -254,7 +243,6 @@ subroutine leoncld_work(cfrac,condg,conds,condx,gfrac,kbsav,ktsav,land,         
                         ps,qccon,qfg,qfrad,qg,qgrg,qlg,qlrad,qrg,qsng,rfrac,sfrac,t,    &
                         dpsldt,nettend,stratcloud,clcon,cdrop,em,idjd,mydiag,           &
                         ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,imax,kl)
-!$acc routine vector
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -350,7 +338,6 @@ elsewhere
 end where
 
 
-#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   !if ( ktau==1 ) then
   !  write(6,*)'in leoncloud Rcm ',Rcm
@@ -369,7 +356,6 @@ if ( nmaxpr==1 .and. mydiag ) then
   diag_temp(:) = qgrg(idjd,:) 
   write(6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp(:)
 endif
-#endif
 
 
 ! Calculate convective cloud fraction and adjust moisture variables before calling newcloud
@@ -391,7 +377,6 @@ do concurrent (k = 1:kl)
 end do
 
 
-#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newcloud'
   diag_temp(:) = t(idjd,:)
@@ -418,7 +403,6 @@ if ( nmaxpr==1 .and. mydiag ) then
   write(6,"('clc ',9f8.3/4x,9f8.3)") diag_temp
   write(6,*) 'kbase,ktop ',kbase(idjd),ktop(idjd)
 endif
-#endif
 
 
 !     Calculate cloud fraction and cloud water mixing ratios
@@ -436,7 +420,6 @@ do concurrent (k = 2:kl-1)
 end do
      
 
-#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newcloud'
   diag_temp(:) = tenv(idjd,:)
@@ -456,7 +439,6 @@ if ( nmaxpr==1 .and. mydiag ) then
   diag_temp(:) = qenv(idjd,:) ! really new qg
   write (6,"('qnv ',9f8.3/4x,9f8.3)") diag_temp
 endif
-#endif
 
 
 !     Weight output variables according to non-convective fraction of grid-box            
@@ -472,7 +454,6 @@ do concurrent (k = 1:kl)
 end do
 
 
-#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newsnowrain'
   diag_temp(:) = t(idjd,:)
@@ -493,7 +474,6 @@ endif
 !  call maxmin(qsng,'qs',ktau,1.e3,kl)
 !  call maxmin(qgrg,'qg',ktau,1.e3,kl)
 !endif
-#endif
 
 
 ! Add convective cloud water into fields for radiation
@@ -517,7 +497,6 @@ call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                  
                  condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
 
 
-#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newsnowrain'
   diag_temp(:) = t(idjd,:)
@@ -544,7 +523,6 @@ end if
 !  call maxmin(qsng,'qs',ktau,1.e3,kl)
 !  call maxmin(qgrg,'qg',ktau,1.e3,kl)
 !endif
-#endif
 
 
 !--------------------------------------------------------------
@@ -676,7 +654,6 @@ end subroutine leoncld_work
  subroutine newcloud(tdt,land,prf,rhoa,ttg,qtg,qlg,qfg,        &
                      dpsldt,nettend,stratcloud,em,idjd,mydiag, &
                      ncloud,nclddia,rcrit_l,rcrit_s,imax,kl)
-!$acc routine vector
  
 ! This routine is part of the prognostic cloud water scheme
 
@@ -727,7 +704,6 @@ real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 ! Start code : ----------------------------------------------------------
 
 
-#ifndef GPU
 if ( diag.and.mydiag ) then
   write(6,*) 'entering newcloud'
   diag_temp(:) = prf(idjd,:)
@@ -741,7 +717,6 @@ if ( diag.and.mydiag ) then
   diag_temp(:) = qfg(idjd,:)
   write(6,*) 'qfg ',diag_temp
 end if
-#endif
 
 ! First melt cloud ice or freeze cloud water to give correct ice fraction fice.
 ! Then calculate the cloud conserved variables qtot and tliq.
@@ -769,7 +744,6 @@ do concurrent (k = 1:kl)
   end do
 end do
 
-#ifndef GPU
 if ( diag .and. mydiag ) then
   write(6,*) 'within newcloud'
   diag_temp = ttg(idjd,:)
@@ -785,7 +759,6 @@ if ( diag .and. mydiag ) then
   diag_temp = fice(idjd,:)
   write(6,*) 'fice ',diag_temp
 end if
-#endif
 
 
 ! Precompute the array of critical relative humidities 
@@ -916,7 +889,6 @@ if ( ncloud<=3 ) then
     end do ! iq loop
   end do   ! k loop
 
-#ifndef GPU
   if ( diag .and. mydiag ) then
     diag_temp(:) = rcrit(idjd,:)
     write(6,*) 'rcrit ',diag_temp
@@ -939,7 +911,6 @@ if ( ncloud<=3 ) then
     diag_temp(:) = (1.-rcrit(idjd,:))*qsw(idjd,:)
     write(6,*) 'delq ',diag_temp 
   endif
-#endif
 
   ! Assume condensation or evaporation retains ice fraction fice.
   ! Introduce a time-decay factor for cirrus (as suggested by results of Khvorostyanov & Sassen,
@@ -1031,7 +1002,6 @@ do concurrent (k = 1:kl)
   ttg(:,k) = tliq(:,k) + hlcp*qcg(:,k) + hlfcp*qfg(:,k)
 end do
 
-#ifndef GPU
 if ( diag .and. mydiag ) then
    write(6,*) 'at end of newcloud'
    diag_temp(:) = ttg(idjd,:)
@@ -1045,7 +1015,6 @@ if ( diag .and. mydiag ) then
    diag_temp(:) = qtg(idjd,:)
    write(6,*) 'qtg ',diag_temp
 end if
-#endif
 
 return
 end subroutine newcloud
@@ -1098,7 +1067,6 @@ subroutine newsnowrain(tdt_in,rhoa,dz,prf,cdrop,ttg,qlg,qfg,qrg,qsng,qgrg,precs,
                        cfsnow,cfgraupel,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,            &
                        fluxi,fluxs,fluxg,fluxm,fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,        &
                        condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
-!$acc routine vector
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -1329,7 +1297,6 @@ do concurrent (k = 1:kl)
 end do
 
 
-#ifndef GPU
 if ( diag .and. mydiag ) then
   diag_temp(:) = stratcloud(idjd,:)
   write(6,*) 'stratcloud',diag_temp
@@ -1354,7 +1321,6 @@ if ( diag .and. mydiag ) then
   diag_temp(:) = qgrg(idjd,:)
   write(6,*) 'qgrg',diag_temp
 endif  ! (diag.and.mydiag)
-#endif
 
 
 ! Use sub time-step if required
@@ -2316,7 +2282,6 @@ do concurrent (k = 1:kl)
   
 end do  
 
-#ifndef GPU
 !      Adjust cloud fraction (and cloud cover) after precipitation
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'diags from newrain for idjd ',idjd
@@ -2370,14 +2335,12 @@ if ( diag .and. mydiag ) then
   write(6,*) 'fluxm',diag_temp
   write(6,*) 'cifra,fluxsnow',cifra(idjd),fluxsnow(idjd)
 end if  ! (diag.and.mydiag)
-#endif
 
 return
 end subroutine newsnowrain
     
 subroutine progcloud(dt,qc,qtot,press,rho,fice,qs,t,rhcrit, &
                      dpsldt,nettend,stratcloud,imax,kl)
-!$acc routine vector
 
 use const_phys                    ! Physical constants
 use parm_m, only : qgmin          ! Model configuration
@@ -2507,7 +2470,6 @@ return
 end subroutine progcloud    
     
 pure function pow75_s(x) result(ans)
-!$acc routine vector
 implicit none
 real, intent(in) :: x
 real ans, y
@@ -2516,7 +2478,6 @@ ans=y*sqrt(y)
 end function pow75_s
 
 pure function pow75_v(x) result(ans)
-!$acc routine vector
 implicit none
 real, dimension(:), intent(in) :: x
 real, dimension(size(x)) :: ans, y

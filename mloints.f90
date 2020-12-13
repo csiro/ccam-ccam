@@ -35,6 +35,7 @@ contains
 subroutine mlob2ints_bs(s,nface,xg,yg,wtr)
 
 use cc_mpi
+use cc_omp
 use indices_m
 use mlo
 use newmpar_m
@@ -46,6 +47,7 @@ implicit none
 integer idel,iq,jdel
 integer i,j,k,n,intsch
 integer ii,ntr,nn
+integer tile, ibeg, iend, ip
 integer, dimension(ifull,wlev), intent(in) :: nface
 integer s_count
 real, dimension(ifull,wlev), intent(in) :: xg,yg
@@ -78,9 +80,9 @@ end do
 do ii = 1,3 ! 3 iterations of fill should be enough
   s_old(1:ifull,:,:) = s(1:ifull,:,:)
   call bounds(s_old)
-  do concurrent (nn = 1:ntr)
-    do concurrent (k = 1:wlev)
-      do concurrent (iq = 1:ifull)
+  do nn = 1,ntr
+    do k = 1,wlev
+      do iq = 1,ifull
         if ( s(iq,k,nn)<cxx ) then
           s_tot = 0.
           s_count = 0
@@ -122,11 +124,11 @@ call bounds(s,nrows=2)
 if ( intsch==1 ) then
 
   !$acc parallel loop collapse(5) present(sx,s)
-  do concurrent (nn = 1:ntr)
-    do concurrent (k = 1:wlev)
-      do concurrent (n = 1:npan)
-        do concurrent (j = 1:jpan)
-          do concurrent (i = 1:ipan)
+  do nn = 1,ntr
+    do k = 1,wlev
+      do n = 1,npan
+        do j = 1,jpan
+          do i = 1,ipan
             iq = i + (j-1)*ipan + (n-1)*ipan*jpan
             sx(i,j,n,k,nn) = s(iq,k,nn)
           end do
@@ -136,10 +138,10 @@ if ( intsch==1 ) then
   end do
   !$acc end parallel loop
   !$acc parallel loop collapse(3) present(s,sx)
-  do concurrent (nn = 1:ntr)
-    do concurrent (k = 1:wlev)
-      do concurrent (n = 1:npan)
-        do concurrent (j = 1:jpan)
+  do nn = 1,ntr
+    do k = 1,wlev
+      do n = 1,npan
+        do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
           sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
@@ -147,7 +149,7 @@ if ( intsch==1 ) then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-        do concurrent (i = 1:ipan)
+        do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
           sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
@@ -218,10 +220,11 @@ if ( intsch==1 ) then
 
   call intssync_send(ntr)
 
+#ifdef GPU
   !$acc parallel loop collapse(3) copyin(xg,yg,nface) present(s,sx)
-  do concurrent (nn = 1:ntr)
-    do concurrent (k=1:wlev)      
-      do concurrent (iq=1:ifull)
+  do nn = 1,ntr
+    do k = 1,wlev      
+      do iq = 1,ifull
         idel=int(xg(iq,k))
         xxg=xg(iq,k) - real(idel)
         jdel=int(yg(iq,k))
@@ -256,6 +259,53 @@ if ( intsch==1 ) then
     end do         ! k loop
   end do           ! nn loop
   !$acc end parallel loop
+#else
+  !$omp parallel do schedule(static) private(tile,ibeg,iend,nn,k,ip,iq,idel,xxg,jdel,yyg), &
+  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),  &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
+  do tile = 1,ntiles
+    ibeg = (tile-1)*imax + 1
+    iend = tile*imax
+    do nn = 1,ntr
+      do k = 1,wlev      
+        do ip = 1,imax
+          iq = ibeg + ip - 1  
+          idel=int(xg(iq,k))
+          xxg=xg(iq,k) - real(idel)
+          jdel=int(yg(iq,k))
+          yyg=yg(iq,k) - real(jdel)
+          idel = min( max( idel - ioff, 0), ipan )
+          jdel = min( max( jdel - joff, 0), jpan )
+          n = min( max( nface(iq,k) + noff, 1), npan )
+          ! bi-cubic interpolation
+          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul_2 = (1.-xxg)
+          dmul_3 = xxg
+          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                     sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+          cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                     sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+          rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+          rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+          rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+          s(iq,k,nn) = min( max( cmin, &
+              rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
+        end do       ! iq loop
+      end do         ! k loop
+    end do           ! nn loop
+  end do             ! tile
+  !$omp end parallel do
+#endif
        
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -264,11 +314,11 @@ else     ! if(intsch==1)then
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
   !$acc parallel loop collapse(5) present(sx,s)
-  do concurrent (nn = 1:ntr)
-    do concurrent (k = 1:wlev)
-      do concurrent (n = 1:npan)
-        do concurrent (j = 1:jpan)
-          do concurrent (i = 1:ipan)
+  do nn = 1,ntr
+    do k = 1,wlev
+      do n = 1,npan
+        do j = 1,jpan
+          do i = 1,ipan
             iq = i + (j-1)*ipan + (n-1)*ipan*jpan
             sx(i,j,n,k,nn) = s(iq,k,nn)
           end do
@@ -278,10 +328,10 @@ else     ! if(intsch==1)then
   end do
   !$acc end parallel loop
   !$acc parallel loop collapse(3) present(s,sx)
-  do concurrent (nn = 1:ntr)
-    do concurrent (k = 1:wlev)
-      do concurrent (n = 1:npan)
-        do concurrent (j = 1:jpan)
+  do nn = 1,ntr
+    do k = 1,wlev
+      do n = 1,npan
+        do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
           sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
@@ -289,7 +339,7 @@ else     ! if(intsch==1)then
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
         end do            ! j loop
-        do concurrent (i = 1:ipan)
+        do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
           sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
@@ -361,10 +411,11 @@ else     ! if(intsch==1)then
 
   call intssync_send(ntr)
 
+#ifdef GPU
   !$acc parallel loop collapse(3) copyin(xg,yg,nface) present(sx,s)
-  do concurrent (nn = 1:ntr)
-    do concurrent (k = 1:wlev)
-      do concurrent (iq = 1:ifull)
+  do nn = 1,ntr
+    do k = 1,wlev
+      do iq = 1,ifull
         idel=int(xg(iq,k))
         xxg=xg(iq,k)-real(idel)
         jdel=int(yg(iq,k))
@@ -399,6 +450,52 @@ else     ! if(intsch==1)then
     end do
   end do
   !$acc end parallel loop
+#else
+  !$omp parallel do schedule(static) private(tile,ibeg,iend,nn,k,ip,iq,idel,xxg,jdel,yyg), &
+  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),  &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
+  do tile = 1,ntiles
+    ibeg = (tile-1)*imax + 1
+    iend = tile*imax
+    do nn = 1,ntr
+      do k = 1,wlev
+        do ip = 1,imax
+          iq = ibeg + ip - 1  
+          idel=int(xg(iq,k))
+          xxg=xg(iq,k)-real(idel)
+          jdel=int(yg(iq,k))
+          yyg=yg(iq,k)-real(jdel)
+          idel = min( max( idel - ioff, 0), ipan )
+          jdel = min( max( jdel - joff, 0), jpan )
+          n = min( max( nface(iq,k) + noff, 1), npan )
+          ! bi-cubic interpolation
+          cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul_2 = (1.-yyg)
+          dmul_3 = yyg
+          emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                     sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+          cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                     sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+          rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
+          rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
+          rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
+                   sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
+          rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+          s(iq,k,nn) = min( max( cmin, &
+              rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
+        end do
+      end do
+    end do
+  end do  
+#endif
 
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================

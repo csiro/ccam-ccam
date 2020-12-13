@@ -1059,7 +1059,6 @@ PQTMST=1./PTMST
 ZFAC=ALOG(0.5)*PTMST
 
 ZDECAY=EXP(ZFAC/86400.) ! 1 day
-!!$acc parallel loop collapse(2) copy(xtg(:,:,itracbc:itracbc+1))
 DO CONCURRENT (JK=1:kl)
   DO CONCURRENT(JL=1:imax)
     ZDXTDT=xtg(JL,JK,ITRACBC)*(ZDECAY-1.)
@@ -1067,10 +1066,8 @@ DO CONCURRENT (JK=1:kl)
     xtg(JL,JK,ITRACBC+1) = xtg(JL,JK,ITRACBC+1) - ZDXTDT
   end do
 end do
-!!$acc end parallel loop
 
 ZDECAY=EXP(ZFAC/86400.) ! 1 day
-!!$acc parallel loop collapse(2) copy(xtg(:,:,itracoc:itracoc+1))
 DO CONCURRENT (JK=1:kl)
   DO CONCURRENT (JL=1:imax)
     ZDXTDT=xtg(JL,JK,ITRACOC)*(ZDECAY-1.)
@@ -1078,7 +1075,6 @@ DO CONCURRENT (JK=1:kl)
     xtg(JL,JK,ITRACOC+1) = xtg(JL,JK,ITRACOC+1) - ZDXTDT
   end do
 end do
-!!$acc end parallel loop
 
 RETURN
 END subroutine xtsink
@@ -1319,11 +1315,6 @@ do jk = 1,kl
   ZSO4(:,jk)=amax1(XTO(:,jk,ITRACSO4),0.)
 end do
 
-!!$acc data create(prhop1,ptp1,zzh2o2,zzo3,rhodz)
-!!$acc update device(prhop1,ptp1,zzh2o2,zzo3,rhodz)
-
-!!$acc parallel loop collapse(2) copy(zhenry,zxtp10,zxtp1c,zso4,so2h2,so2o3) &
-!!$acc   copyin(zlwcic,xto(:,:,itracso2),pclcover) present(prhop1,ptp1,zzh2o2,zzo3,rhodz)
 DO CONCURRENT (JK=KTOP:kl)
   DO CONCURRENT (JL=1:imax)
     !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
@@ -1432,7 +1423,6 @@ DO CONCURRENT (JK=KTOP:kl)
     END IF
   end do
 end do
-!!$acc end parallel loop
 
 
 ! Repeat the aqueous oxidation calculation for ice clouds.
@@ -1559,8 +1549,6 @@ do jk = 1,kl
   ZSO4C(:,jk)   =amax1(XTU(:,jk,ITRACSO4),0.)
 end do
 
-!!$acc parallel loop collapse(2) copy(zhenryc,zxtp1con,zso4c,so2h2,so2o3) &
-!!$acc   copyin(pccw,xtu(:,:,itracso2),pclcon) present(prhop1,ptp1,zzh2o2,zzo3,rhodz)
 DO CONCURRENT (JK=KTOP:kl)
   DO CONCURRENT (JL=1:imax)
     !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
@@ -1666,20 +1654,12 @@ DO CONCURRENT (JK=KTOP:kl)
     ENDIF
   ENDDO
 ENDDO
-!!$acc end parallel loop
-
-!!$acc end data
 
 !*******************************************************************************
 !
 !    CALCULATE THE WET DEPOSITION
 !    (True for all except DMS)
 !
-
-!!$acc data create(pclcover,pclcon,rhodz,pmratep,pfprec,pmlwc,ptp1,pfsnow,pfsubl,pcfcover,pmaccr, &
-!!$acc   pfmelt,pfstayice,pqfsedice,plambs,prscav,prfreeze,pfconv,fracc)
-!!$acc update device(pclcover,pclcon,rhodz,pmratep,pfprec,pmlwc,ptp1,pfsnow,pfsubl,pcfcover,pmaccr, &
-!!$acc   pfmelt,pfstayice,pqfsedice,plambs,prscav,prfreeze,pfconv,fracc)
 
 JT=ITRACSO2
 zsolub(:,:)=zhenry(:,:)
@@ -1817,8 +1797,6 @@ DO JT=ITRACSA,ITRACSA+NSALT-1
                  xtm1(:,:,jt),xte(:,:,jt),saltwd,imax,kl)
 end do
 
-!!$acc end data
-
 #ifdef debugaero
 if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
   write(6,*) "xtg out-of-range after xtwepdep"
@@ -1827,8 +1805,6 @@ if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
 end if
 #endif
 
-!!$acc parallel loop collapse(2) copy(xte(:,:,itracdms:itracso4),so2oh3d,dmsoh3d,dmsn33d) &
-!!$acc   copyin(zrdayl,zdayfac,xtm1(:,:,itracdms:itracso2),zzoh,zzno2,zzo3,ptp1,prhop1)
 DO CONCURRENT (JK=1:kl)
   DO CONCURRENT (JL=1:imax)
     X=PRHOP1(JL,JK)      
@@ -1897,7 +1873,6 @@ DO CONCURRENT (JK=1:kl)
     ENDIF
   end do
 end do
-!!$acc end parallel loop
 
 #ifdef debugaero
 if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
@@ -2021,30 +1996,19 @@ rcoeff_k = rcoeff(ktrac)
 zcollefs_k = zcollefs(ktrac)
 zcollefr_k = zcollefr(ktrac)
 
-!!$acc enter data create(zdepr,zdeps,zmtof,zclr0,zcollefc,psolub,pxtp10,pxtp1c,pxtp1con,pdep3d,wd)
-!!$acc update device(psolub,pxtp10,pxtp1c,pxtp1con,wd)
-
-!!$acc parallel loop present(zdepr,zdeps)
 do concurrent (i=1:imax)
   zdepr(i) = 0.
   zdeps(i) = 0.
 end do
-!!$acc end parallel loop
-
-!!$acc parallel loop collapse(2) present(pdep3d)
 do concurrent (jk=1:kl)
   do concurrent (i=1:imax)
     pdep3d(i,jk) = 0.
   end do
 end do
-!!$acc end parallel loop
 
 !     BEGIN OF VERTICAL LOOP
 do JK = KTOP,kl
 
-  !!$acc parallel loop present(pxtp1c,pxtp10,pclcover,pcfcover,pclcon,pqfsedice,pdep3d,             &
-  !!$acc   zdeps,zdepr,pmlwc,psolub,pmaccr,plambs,pfsnow,pfsubl,pfstayice,pfmelt,pmratep,prscav,    &
-  !!$acc   prfreeze,pfprec,rhodz)
   do concurrent (i=1:imax)
 
     !ZCLEAR = 1. - PCLCOVER(i,JK) - pcfcover(i,jk) - pclcon(i,jk)
@@ -2131,7 +2095,6 @@ do JK = KTOP,kl
     zdepr(i) = max( 0., zdepr(i) )
 
   end do
-  !!$acc end parallel loop
   
 end do !   END OF VERTICAL LOOP
 
@@ -2147,7 +2110,6 @@ end do !   END OF VERTICAL LOOP
 !enddo
 
 do jk = ktop,kl
-  !!$acc parallel loop present(rhodz,pclcover,pclcon,ptp1,zcollefc,pfconv,fracc,pxtp10,pdep3d)
   do concurrent (i=1:imax)
     zmtof = rhodz(i,jk)*pqtmst
     zclr0 = 1. - pclcover(i,jk) - pclcon(i,jk)
@@ -2195,11 +2157,9 @@ do jk = ktop,kl
     ! end where
 
   end do
-  !!$acc end parallel loop
   
 end do
 
-!!$acc parallel loop collapse(2) copy(xte) copyin(xtm1) present(pxtp10,pxtp1c,pxtp1con,pclcover,pclcon)
 do concurrent (JK=KTOP:kl)
   do concurrent (i=1:imax)
     ZXTP1=(1.-pclcover(i,jk)-pclcon(i,jk))*PXTP10(i,JK)+ &
@@ -2211,18 +2171,12 @@ do concurrent (JK=KTOP:kl)
     xte(i,jk) = xte(i,jk) + zdxte
   end do
 end do
-!!$acc end parallel loop
 
 do concurrent (jk=1:kl)
-  !!$acc parallel loop present(pdep3d,rhodz,wd)
   do concurrent (i=1:imax)
     wd(i) = wd(i) + pqtmst*pdep3d(i,jk)*rhodz(i,jk)
   end do
-  !!$acc end parallel loop
 end do
-
-!!$acc update device(wd)
-!!$acc exit data delete(zdepr,zdeps,zmtof,zclr0,zcollefc,psolub,pxtp10,pxtp1c,pxtp1con,pdep3d,wd)
 
 return
 end subroutine xtwetdep
@@ -2462,7 +2416,6 @@ end subroutine dustem
 !! A simple diagnostic treatment of seasalt aerosol (LDR 3/02)
 !
 !subroutine seasalt(land,fracice,zmid,pblh,v10m,ssn,imax,kl) !Inputs
-!!$acc routine vector
 !
 !implicit none
 !

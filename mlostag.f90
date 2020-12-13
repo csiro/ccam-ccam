@@ -494,62 +494,42 @@ if ( ltest ) then
   ! - Zero flux at land boundaries
   ! - The wave amplitude should be preserved
 
-  !!$acc data create(ud,vd,ua,va,uin,vin,wtul,wtvl)
-  !!$acc update device(wtul,wtvl)
-  !!$acc update device(ua(1:ifull,:),va(1:ifull,:))
-
-  !!$acc parallel loop collapse(2) present(ud,vd,ua,va)
   do concurrent (k = 1:kx)
     do concurrent (iq = 1:ifull)  
       ud(iq,k) = ua(iq,k)
       vd(iq,k) = va(iq,k)
     end do
   end do
-  !!$acc end parallel loop
 
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
-    !!$acc update device(ua(ifull+1:ifull+iextra,:),va(ifull+1:ifull+iextra,:))
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,iwu,isv,ieeu,innv)
     do concurrent (k = 1:kn)
       do concurrent (iq = 1:ifull)  
         uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,iwu,isv,ieeu,innv)
     do concurrent (k = kn+1:kx)
       do concurrent (iq = 1:ifull)  
         uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc update self(uin(1:ifull,:),vin(1:ifull,:))
     call boundsuv(uin,vin,stag=2)
-    !!$acc update device(uin(ifull+1:ifull+iextra,:),vin(ifull+1:ifull+iextra,:))
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,iwu,isv,ieeu,innv)
     do concurrent (k = 1:kn)
       do concurrent (iq = 1:ifull)  
         ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(innv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,iwu,isv,ieeu,innv)
     do concurrent (k = kn+1:kx)
       do concurrent (iq = 1:ifull)  
         ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(innv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc update self(ua(1:ifull,:),va(1:ifull,:))
   end do                 ! itn=1,itnmax
  
-  !!$acc end data
-
 else
 
   call boundsuv(uin,vin)
@@ -578,61 +558,41 @@ else
     va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,1)*vd(isv,k)
   end do
 
-  !!$acc data create(ud,vd,ua,va,uin,vin,wtur,wtvr)
-  !!$acc update device(wtur,wtvr)
-  !!$acc update device(ua(1:ifull,:),va(1:ifull,:))
-
-  !!$acc parallel loop collapse(2) present(ud,vd,ua,va)
   do concurrent (k = 1:kx)
     do concurrent (iq = 1:ifull)  
       ud(iq,k) = ua(iq,k)
       vd(iq,k) = va(iq,k)
     end do
   end do
-  !!$acc end parallel loop
 
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
-    !!$acc update device(ua(ifull+1:ifull+iextra,:),va(ifull+1:ifull+iextra,:))
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtur,wtvr)
     do k = 1,kn
       do concurrent (iq = 1:ifull)  
         uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtur,wtvr)
     do k = kn+1,kx
       do concurrent (iq = 1:ifull)  
         uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc update self(uin(1:ifull,:),vin(1:ifull,:))
     call boundsuv(uin,vin,stag=3)
-    !!$acc update device(uin(ifull+1:ifull+iextra,:),vin(ifull+1:ifull+iextra,:))
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtur,wtvr)
     do k = 1,kn
       do concurrent (iq = 1:ifull)  
         ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(issv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtur,wtvr)
     do k = kn+1,kx
       do concurrent (iq = 1:ifull)  
         ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(issv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc update self(ua(1:ifull,:),va(1:ifull,:))
   end do                 ! itn=1,itnmax
-
-  !!$acc end data
 
 end if
 
@@ -1207,62 +1167,42 @@ if (ltest) then
     va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,1)*vd(isv,k)
   end do
 
-  !!$acc data create(ud,vd,ua,va,uin,vin,wtul,wtvl)
-  !!$acc update device(wtul,wtvl)
-  !!$acc update device(ua(1:ifull,:),va(1:ifull,:))
-
-  !!$acc parallel loop collapse(2) present(ud,vd,ua,va)
   do concurrent (k = 1:kx)
     do concurrent (iq = 1:ifull)  
       ud(iq,k) = ua(iq,k)
       vd(iq,k) = va(iq,k)
     end do
   end do
-  !!$acc end parallel loop
 
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
-    !!$acc update device(ua(ifull+1:ifull+iextra,:),va(ifull+1:ifull+iextra,:))
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtul,wtvl)
     do concurrent (k = 1:kn)
       do concurrent (iq = 1:ifull)  
         uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtul,wtvl)
     do concurrent (k = kn+1:kx)
       do concurrent (iq = 1:ifull)  
         uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc update self(uin(1:ifull,:),vin(1:ifull,:))
     call boundsuv(uin,vin,stag=3)
-    !!$acc update device(uin(ifull+1:ifull+iextra,:),vin(ifull+1:ifull+iextra,:))
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtul,wtvl)
     do concurrent (k = 1:kn)
       do concurrent (iq = 1:ifull)  
         ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(issv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,iwwu,issv,wtul,wtvl)
     do concurrent (k = kn+1:kx)
       do concurrent (iq = 1:ifull)  
         ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(issv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc update self(ua(1:ifull,:),va(1:ifull,:))
   end do                  ! itn=1,itnmax
   
-  !!$acc end data
-
 else
 
   call boundsuv(uin,vin)
@@ -1291,11 +1231,6 @@ else
     va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,1)*vd(inv,k)
   end do
 
-  !!$acc data create(ud,vd,ua,va,uin,vin,wtur,wtvr)
-  !!$acc update device(wtur,wtvr)
-  !!$acc update device(ua(1:ifull,:),va(1:ifull,:))
-
-  !!$acc parallel loop collapse(2) present(ud,vd,ua,va)
   do concurrent (k = 1:kx)
     do concurrent (iq = 1:ifull)  
       ud(iq,k) = ua(iq,k)
@@ -1306,46 +1241,32 @@ else
 
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
-    !!$acc update device(ua(ifull+1:ifull+iextra,:),va(ifull+1:ifull+iextra,:))
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,ieeu,innv,wtur,wtvr)
     do concurrent (k = 1:kn)
       do concurrent (iq = 1:ifull)  
         uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,ieeu,innv,wtur,wtvr)
     do concurrent (k = kn+1:kx)
       do concurrent (iq = 1:ifull)  
         uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc update self(uin(1:ifull,:),vin(1:ifull,:))
     call boundsuv(uin,vin,stag=2)
-    !!$acc update device(uin(ifull+1:ifull+iextra,:),vin(ifull+1:ifull+iextra,:))
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,ieeu,innv,wtur,wtvr)
     do concurrent (k = 1:kn)
       do concurrent (iq = 1:ifull)  
         ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(innv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc parallel loop collapse(2) present(ud,vd,ua,va,uin,vin,ieu,inv,iwu,isv,ieeu,innv,wtur,wtvr)
     do concurrent (k = kn+1:kx)
       do concurrent (iq = 1:ifull)  
         ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(innv(iq),k)
       end do  
     end do
-    !!$acc end parallel loop
-    !!$acc update self(ua(1:ifull,:),va(1:ifull,:))
   end do                  ! itn=1,itnmax
-
-  !!$acc end data
 
 end if
 

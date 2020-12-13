@@ -26,17 +26,13 @@
       public convjlm, convjlm_init
       
       integer, save :: k500,k600,k700,k900,k980,klon2,komega
-!$acc declare create(k500,k600,k700,k900,k980,klon2,komega)
       integer, save :: mcontlnd,mcontsea           
-!$acc declare create(mcontlnd,mcontsea)
       real, save :: convt_frac,tied_a,tied_b
-!$acc declare create(convt_frac,tied_b)
       real, dimension(:), allocatable, save ::  entrainn
       real, dimension(:), allocatable, save ::  timeconv
       real, dimension(:), allocatable, save ::  alfin
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
-!$acc declare create(upin,downex,detrarr)
 
       contains
 
@@ -66,7 +62,6 @@
         k700=kpos(1)
         kpos=minloc(abs(sig-.6)) ! finds k value closest to sig=.6
         k600=kpos(1)
-!$acc update device(k600,k700,k900,k980)
         komega=1
         if(dsig4>.4)then
           kpos=minloc(abs(sig-dsig4)) ! finds k value closest to dsig4
@@ -77,7 +72,6 @@
           k500=k500+1
         enddo
         k500=k500-1    ! level just below .5
-!$acc update device(k500,komega)
         if (myid==0) then
           write(6,*) 'k980 ',k980,sig(k980)
           write(6,*) 'k900 ',k900,sig(k900)
@@ -116,7 +110,6 @@
        do k=1,kl
          if(sig(k)> .5)klon2=k
        enddo
-!$acc update device(klon2)
        if(myid==0)write(6,*) 'klon2,k500',klon2,k500
 !      precalculate detrainment arrays for various methprec
 !      methprec gives the vertical distribution of the detrainment
@@ -241,7 +234,6 @@
         enddo
        enddo
       endif  ! kscsea<=-2
-!$acc update device(downex,upin,detrarr)
       if(myid==0)then
         do kb=1,kl-1
          write (6,"('upin1-kb ',17f7.3)") (upin(k,kb),k=1,kb)
@@ -279,7 +271,6 @@
            write(6,*) 'unsupported convtime value'
            call ccmpi_abort(-1)
         endif  ! (convtime >100) .. else ..
-!$acc update device(mcontlnd,mcontsea,convt_frac)
         if(mydiag)write(6,*) 'convtime,mcontlnd,mcontsea,convt_frac',
      &           convtime,mcontlnd,mcontsea,convt_frac
 
@@ -296,7 +287,6 @@
           tied_b=abs(tied_over)
           tied_a=0.
         endif
-!$acc update device(tied_b)
         if (myid==0) then
           write(6,*) 'ds,tied_over,tied_a,tied_b',
      &                ds,tied_over,tied_a,tied_b
@@ -359,14 +349,6 @@
 !$omp& private(ldpsldt,lt,lqg,lfluxtot),
 !$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd),
 !$omp& private(lqlg,lqfg,lcfrac,lu,lv,ltr,idjd_t,mydiag_t)
-!!$acc parallel loop copy(t,qg,qlg,qfg,u,v,xtg,dustwd,so2wd,so4wd),
-!!$acc&  copy(bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav),
-!!$acc&  copyin(dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn),
-!!$acc&  copyin(em,sgsave),
-!!$acc&  copyout(convpsav,cape,condc,condx,conds,condg)
-!!$acc&  private(ldpsldt,lt,lqg,lqlg,lqfg,lcfrac,lu,lv),
-!!$acc&  private(lxtg,ldustwd,lso2wd,lso4wd,lbcwd,locwd,lsaltwd),
-!!$acc&  private(ltr,lfluxtot)
       do tile=1,ntiles
         is=(tile-1)*imax+1
         ie=tile*imax
@@ -429,7 +411,6 @@
         end if
        
       end do
-!!$acc end parallel
 !$omp end do nowait
       
       return
@@ -444,7 +425,6 @@
      &       nuvconv,alfsea,methdetr,methprec,fldown,alflnd,detrainx,
      &       sigkscb,dsig2,sigksct,rhcv,sig_ct,convtime,tied_con,
      &       mdelay,nevapcc,convfact,ncvcloud,ldr,rhmois,imax,kl)     ! jlm convective scheme
-!$acc routine vector
 
 !     version 1503e removes various fluxh, and keeps prior defn fluxv
 !     version 1503d changes reflux(k) to fluxv()
@@ -702,10 +682,8 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
 !      if(nproc==1.and.ntiles==1)write(6,*) 'max_alfqarr,alfin:',
 !     &                    maxval(alfqarr),maxval(alfin)
 
-#ifndef GPU
       if(ktau==1.and.mydiag)
      &   write(6,"('alfqarr',2f7.3)") alfqarr(idjd)
-#endif
 
 !     just does convective; L/S rainfall done later by LDR scheme
       qliqw(:,:)=0.  ! before itn
@@ -789,7 +767,6 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
        enddo
       endif  ! (nbase<=-7)    
       
-#ifndef GPU
       if(ktau==1.and.mydiag)then
       write(6,*) 'itn,iterconv,nuv,nuvconv ',itn,iterconv,nuv,nuvconv
       write(6,*) 'ntest,methdetr,methprec,detrain',
@@ -846,7 +823,6 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
         enddo
         write(6,*) 'h_sum   ',summ
       endif  ! ((ntest>0.or.nmaxpr==1).and.mydiag)
-#endif
 
 !     Following procedure chooses lowest valid cloud bottom (and base)
        kb_sav(:)=kl-1
@@ -1001,7 +977,6 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
         enddo    ! iq loop             
        enddo     ! ******************** k loop ****************************
        endif   !  nbase>=0 .. else ..
-#ifndef GPU
        if(ntest>1.and.mydiag)then
         ka=1
         do iq=1,imax
@@ -1015,7 +990,6 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
          endif
         enddo
        endif
-#endif
 
       entrsav(:,:)=0.
       detxsav(:,:)=0.
@@ -1023,11 +997,9 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
       do iq=1,imax
         fluxv(iq,kb_sav(iq))=1.  ! unit reference base mass flux (at level k+.5)
       enddo
-#ifndef GPU
       if(nmaxpr==1.and.mydiag)write(6,*) 
      &       'kb_saved,kt_saved,timeconva',
      &       kb_saved(idjd), kt_saved(idjd),timeconv(idjd)
-#endif
      
       kdown(:)=1    ! set to show allowed to check for cloud top; removed mdelay stuff
       kt_sav(:)=kl-1  ! added 2/5/15 for safety with supersaturated layers
@@ -1054,13 +1026,11 @@ c     & qplume(iq,k-1),max(qs(iq,k),qq(iq,k)),qbass(iq,k-1)
               fluxv(iq,k)=0.    ! not to mess up dels above cloud top
               if(kt_sav(iq)==kl-1)kb_sav(iq)=kl-1
             endif  ! (hbase>hs(iq,k))
-#ifndef GPU
             if(ntest>0.and.entrain<0.and.iq==idjd.and.mydiag
      &         )then
               write(6,*) 'k,kb_sav,kt_sav,hbase/cp,hs/cp ',
      &                 k,kb_sav(iq),kt_sav(iq),hbase/cp,hs(iq,k)/cp
             endif
-#endif
           endif   ! (k>kb_sav(iq))
          enddo    ! iq loop
       enddo     ! k loop
@@ -1076,14 +1046,12 @@ c      detxsav(iq,kt_sav(iq))=0.
        qplume(iq,kt_sav(iq))=qplume(iq,kt_sav(iq)-1)
       enddo    ! iq loop
       
-#ifndef GPU
       if(ntest>0.and.mydiag)then
          print *,'before methdetr<0 part, kb_sav,kt_sav',
      &       kb_sav(idjd),kt_sav(idjd)
          write (6,"('fluxv_UP',15f6.3/(8x,15f6.3))")
      &             fluxv(idjd,1:kt_sav(idjd))
       endif
-#endif
       if(methdetr<0)then  
 !      calculate new detrainments and modify fluxq and entrsav      
        detxsav(:,:)=0.
@@ -1119,13 +1087,11 @@ c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
         enddo     ! k loop
        endif   !  (methdetr==-1) .. else ..
        
-#ifndef GPU
        if(ntest>0.and.mydiag)then
          print *,'detxsav',detxsav(idjd,1:kt_sav(idjd))
          print *,'entrsav',entrsav(idjd,1:kt_sav(idjd))
          print *,'in methdetr<0 part, aa_a=',aa(idjd)
        endif
-#endif
 !      and modify fluxv and entrsav  *** assumes entrain<0.  ***     
        do iq=1,imax
          if(kb_sav(iq)<kl-1)aa(iq)=fluxv(iq,kt_sav(iq)-1)/  ! aa now is +ve scaling factor for detxsav
@@ -1140,7 +1106,6 @@ c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
           endif
         enddo    ! iq loop
        enddo     ! k loop
-#ifndef GPU
        if(ntest>0.and.mydiag)then
          print *,'in methdetr<0 part, scaled aa=',aa(idjd)
          print *,'detxsav',detxsav(idjd,1:kt_sav(idjd))
@@ -1148,9 +1113,7 @@ c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
          write (6,"('fluxv_up',15f6.3/(8x,15f6.3))")
      &             fluxv(idjd,1:kt_sav(idjd))
        endif
-#endif
       endif  ! (methdetr<0)
-#ifndef GPU
       if(nmaxpr==1.and.mydiag)then
         iq=idjd
         write (6,"('qplume',f6.3,11f7.3/(5x,12f7.3))")1000.*qplume(iq,:)
@@ -1160,7 +1123,6 @@ c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
         write (6,"('detxsav ',15f6.3/(8x,15f6.3))")
      &            detxsav(iq,1:kt_sav(iq))
       endif
-#endif
      
 !     apply entrainment and detrainment effects to environment    
       if(methdetr<0)then
@@ -1174,11 +1136,9 @@ c     &          k,detxsav(iq,k),entrain*dsig(k),aa(iq)
      &  +min(((dz-dsig2)*detrain+(sigksct-dz)*detrainx)/(sigksct-dsig2)
      &       -detrainx,0.)   ))
         enddo
-#ifndef GPU
         if(mydiag.and.nmaxpr==1)
      &   write(6,*) 'kb_sav,kt_sav,depth,aa',
      &   kb_sav(idjd),kt_sav(idjd),fluxr(idjd),aa(idjd)
-#endif
        else
         do iq=1,imax
           ! typical detrain is .1 for deep clouds  
@@ -1252,12 +1212,10 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
          fldow(iq)=fldownn
        endif
        rnrtcn(iq)=rnrtcn(iq)-fldow(iq)*dprec        ! already has dsk factor
-#ifndef GPU
        if(ntest==1.and.iq==idjd.and.mydiag)then
          write(6,*)'qsk,rnrtcn,totprec',qsk,rnrtcn(iq),totprec 
          write(6,*) 'dprec,rnrtcn ',dprec,rnrtcn(iq)
        endif
-#endif
 !      add in downdraft contributions at level kdown
        dels(iq,kdown(iq))=dels(iq,kdown(iq))-fldow(iq)*s(iq,kdown(iq))
        delq(iq,kdown(iq))=delq(iq,kdown(iq))-fldow(iq)*qsk
@@ -1269,7 +1227,6 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
        endif  ! (nuv>0)
       enddo  ! iq loop
 
-#ifndef GPU
       if(nmaxpr==1.and.mydiag)then
        iq=idjd
        write (6,"('hplume',12f7.2/(5x,12f7.2))")
@@ -1277,7 +1234,6 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
        write (6,"('fluxv_up',15f6.3/(8x,15f6.3))")
      &             fluxv(iq,1:kt_sav(iq))
       endif
-#endif
 !     calculate environment fluxes, fluxh (full levels) and fluxv (now k+.5 levels)
 !     N.B. fluxv usually <1 within downdraft layers
       fluxv(:,0)=0.  ! +ve for downwards subsident air calcs below cloud base
@@ -1307,7 +1263,6 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         endif    ! (kb_sav(iq)<kl)
        enddo     ! iq loop
 
-#ifndef GPU
       if(diag.and.mydiag)then
        iq=idjd
        write (6,"('fluxv_dn',15f6.3/(8x,15f6.3))")
@@ -1334,7 +1289,6 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
        write (6,"('delqa',3p9f8.3/(5x,9f8.3))")delq(iq,1:kt_sav(iq))
        write (6,"('dellq',3p9f8.3/(5x,9f8.3))")delqliqw(iq,1:kt_sav(iq))
       endif
-#endif
 
 !     subsidence effects
       do k=2,kl-1
@@ -1364,7 +1318,6 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         endif
        enddo
       enddo
-#ifndef GPU
       if(ntest>0.and.mydiag)then
         iq=idjd
         write (6,"('delsb',9f8.0/(5x,9f8.0))")
@@ -1392,7 +1345,6 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         enddo
         write(6,*) 'qplume,sum_delh ',qplume(iq,kb_sav(iq)),summ
       endif  ! (ntest>0.and.mydiag)
-#endif
 
 !     calculate actual delq and dels
       do k=1,kl-1    
@@ -1402,7 +1354,6 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
        enddo     ! iq loop
       enddo      ! k loop
 
-#ifndef GPU
       if(diag.and.mydiag)then   ! JLM
         iq=idjd
         write(6,*) "before convpsav calc, after division by dsk"
@@ -1411,7 +1362,6 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         write (6,"('delq3p',3p9f8.3/(7x,9f8.3))")
      &              delq(iq,:)
       endif  ! (diag.and.mydiag)   JLM
-#endif
 
 !----------------------------------------------------------------
 !     calculate base mass flux 
@@ -1454,7 +1404,6 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
        enddo    ! iq loop
       enddo     ! k loop      
-#ifndef GPU
       if(diag.and.mydiag)then    ! JLM
        do k=kl-1,2,-1
         iq=idjd
@@ -1471,9 +1420,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
        enddo     ! k loop      
       endif    ! (diag.and.mydiag)   JLM
-#endif
 
-#ifndef GPU
       if(ntest==2.and.mydiag)then     !######################
         convmax=0.
         do iq=1,imax
@@ -1555,9 +1502,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
          endif
         enddo  ! iq loop
       endif    ! (ntest==2.and.mydiag)    !######################
-#endif
         
-#ifndef GPU
       if(nmaxpr==1.and.mydiag)then
         iq=idjd
         write(6,*) 'Total_a delq (g/kg) & delt for this itn'
@@ -1584,7 +1529,6 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
      &             (hs(iq,:)+convpsav(iq)*dels(iq,:)+
      &              (1.+hlcp*dqsdt(iq,:)))/cp  
       endif
-#endif
 
       if(methdetr<0)qxcess(:)=0.
       if(methdetr==0)qxcess(:)=detrain*rnrtcn(:)             ! e.g. .2* gives 20% detrainment
@@ -1741,7 +1685,6 @@ c           print *,'has tied_con=0'
            enddo
          endif  ! (tied_con>1.)  .. else ..
        endif    ! (convtime<-100.)
-#ifndef GPU
         if(nmaxpr==1.and.mydiag)then
          iq=idjd
          write(6,*) 'kb_sav,kt_sav',kb_sav(iq),kt_sav(iq)
@@ -1750,7 +1693,6 @@ c           print *,'has tied_con=0'
          write(6,*) 'timeconvb,b',timeconv(idjd)
      &    ,max(0.,min(sig(kb_sav(idjd))-sig(k)-.2,.4)*mdelay/.4) 
         endif
-#endif
         do iq=1,imax
          if(convpsav(iq)>0.)then ! used by mdelay options
            timeconv(iq)=timeconv(iq)+dt/60. ! now in minutes
@@ -1768,14 +1710,12 @@ c           print *,'has tied_con=0'
 !     &     fg(iq),sumb,convtim_deep(iq),sig(kb_sav(iq))-sig(kt_sav(iq)),
 !     &    1.e8*dpsldt(iq,k900),factr(iq),kb_sav(iq),kt_sav(iq)
          enddo
-#ifndef GPU
         if(nmaxpr==1.and.mydiag)then
         iq=idjd
         write(6,*)'timeconvc,convpsav,sig_b,sig_t,convt_frac,factr_a',
      &      timeconv(iq),convpsav(iq),sig(kb_sav(iq)),sig(kt_sav(iq)),
      &      convt_frac,factr(iq)
         endif
-#endif
 
         if(tied_b>1.)then ! typical value is 26, used directly with factr
 !         tied_b=26 gives factr [1, .964, .900, .794,.5,.216] for ds = [200, 100, 50, 25,8,2} km     
@@ -1791,7 +1731,6 @@ c           print *,'has tied_con=0'
       enddo   ! iq loop
       endif    ! (itn==1)     ! ************************************************
 
-#ifndef GPU
       if(nmaxpr==1.and.nevapcc.ne.0.and.mydiag)then
        write (6,
      & "('itn,kb_sd,kt_sd,kb,kt,delS,timeconv,entrainn,factr',
@@ -1801,7 +1740,6 @@ c           print *,'has tied_con=0'
      &   sig(kb_sav(idjd))-sig(kt_sav(idjd)),
      &   timeconv(idjd),entrainn(idjd),factr(idjd) 
       endif
-#endif
 
 !      do iq=1,imax
 !       if(ktsav(iq)==kl-1.and.convpsav(iq)>0.)then
@@ -1869,7 +1807,6 @@ c           print *,'has tied_con=0'
        enddo   ! k loop
       endif  ! (methdetr<0)  ..  else .. 
 
-#ifndef GPU
       if(ntest>0.and.mydiag)then
         iq=idjd
         print *,'liqw',convpsav(iq),qxcess(iq),kb_sav(iq),kt_sav(iq),
@@ -1901,30 +1838,25 @@ c           print *,'has tied_con=0'
      &        'ktau,itn,kbsav,ktsav,delt_av,heatlev',
      .        ktau,itn,kb_sav(iq),kt_sav(iq),delt_av,heatlev/delt_av
       endif   ! (ntest>0)
-#endif
       
 !     update u & v using actual delu and delv (i.e. divided by dsk)
       if(nuvconv.ne.0.or.nuv>0)then
-#ifndef GPU
         if(ntest>0.and.mydiag)then
           write(6,*) 'u,v before convection'
           write (6,"('u  ',12f7.2/(3x,12f7.2))") u(idjd,:)
           write (6,"('v  ',12f7.2/(3x,12f7.2))") v(idjd,:)
         endif  ! (ntest>0.and.mydiag)
-#endif
         do k=1,kl-2   
          do iq=1,imax
           u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
           v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
          enddo  ! iq loop
         enddo   ! k loop
-#ifndef GPU
         if(ntest>0.and.mydiag)then
           write(6,*) 'u,v after convection'
           write (6,"('u  ',12f7.2/(3x,12f7.2))") u(idjd,:)
           write (6,"('v  ',12f7.2/(3x,12f7.2))") v(idjd,:)
         endif
-#endif
       endif     ! (nuvconv.ne.0)
 
 !     section for convective transport of trace gases (jlm 22/2/01)
@@ -1962,7 +1894,6 @@ c           print *,'has tied_con=0'
         do ntr = 1,naero
           xtgscav(:,:) = 0.
           s(:,1:kl-2) = xtg(1:imax,1:kl-2,ntr)
-!$acc loop private(ttsto,qqsto,qlsto,qqold,qlold,rho,xtgtmp)
           do iq = 1,imax
            if ( kt_sav(iq)<kl-1 ) then
              kb = kb_sav(iq)
@@ -2048,15 +1979,12 @@ c           print *,'has tied_con=0'
         end do     ! nt loop
       end if   ! (abs(iaero)==2) 
       
-#ifndef GPU
       if(ntest>0.and.mydiag)then
         iq=idjd
         write (6,"('uuc ',12f6.1/(4x,12f6.1))") (u(iq,k),k=1,kl)
         write (6,"('vvc ',12f6.1/(4x,12f6.1))") (v(iq,k),k=1,kl)
       endif  ! (ntest>0.and.mydiag)
-#endif
 
-#ifndef GPU
       if(nmaxpr==1.and.mydiag)then
        iq=idjd
        if(ktau==1.and.itn==1)write(6, "(15x,
@@ -2079,7 +2007,6 @@ c           print *,'has tied_con=0'
      &     omega(idjd),omgtst(idjd)
        write(6,"('fluxt3',3p13f10.3)") fluxt(iq,kb_sav(iq)+1:kt_sav(iq))
       endif
-#endif
 
       if(itn==1)then
         kb_saved(:)=kb_sav(:)
@@ -2104,7 +2031,6 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
       enddo     ! itn=1,abs(iterconv)
 !------------------------------------------------ end of iterations ____#################################
 
-#ifndef GPU
       if(ntest>0.and.mydiag)
      &  write (6,"('C k,fluxtot6',i3,f7.2)")
      &                               (k,1.e6*fluxtot(idjd,k),k=1,kl)
@@ -2112,7 +2038,6 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
         write(6,*) 'convtime,factr,kb_sav,kt_sav',convtime,
      &          factr(idjd),kb_sav(idjd),kt_sav(idjd)
       endif
-#endif
       rnrtc(:)=factr(:)*rnrtc(:)    ! N.B. factr applied after itn loop 
       do k=1,kl
       qq(1:imax,k)=qg(1:imax,k)+factr(:)*(qq(1:imax,k)-qg(1:imax,k))
@@ -2148,7 +2073,6 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
 !_______________end of convective calculations__________________
      
 
-#ifndef GPU
       if(nmaxpr==1.and.mydiag)then
         iq=idjd
         write(6,*) 'Total delq (g/kg) & delt after all itns'
@@ -2157,7 +2081,6 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
         write(6,"('delT_t',12f7.3/(6x,12f7.3))")
      .   (tt(iq,k)-t(iq,k),k=1,kl)
       endif
-#endif
       qg(1:imax,:)=qq(1:imax,:)                   
       condc(1:imax)=.001*dt*rnrtc(1:imax)      ! convective precip for this timestep
       precc(1:imax)=precc(1:imax)+condc(1:imax)       
@@ -2168,7 +2091,6 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
       precip(1:imax)=precip(1:imax)+condx(1:imax)
       t(1:imax,:)=tt(1:imax,:)             
 
-#ifndef GPU
       if(ntest>0.or.(ktau<=2.and.nmaxpr==1))then
        if(mydiag)then
         iq=idjd
@@ -2224,9 +2146,7 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
        endif   ! (mydiag) needed here for maxmin
        call maxmin(rnrtc,'rc',ktau,1.,1)
       endif
-#endif
       
-#ifndef GPU
 !      if(ntest==-1.and.nproc==1.and.ktau==10.and.ntiles==1)then
 !        do k=1,kl
 !         do iq=il*il+1,2*il*il
@@ -2238,7 +2158,6 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
 !         enddo
 !        enddo     
 !      endif  ! (ntest==-1.and.nproc==1)  
-#endif
       return
       end subroutine convjlm_work
 
