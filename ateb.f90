@@ -184,6 +184,9 @@ type pdiagdata
   real, dimension(:), allocatable :: gd_surfdrain,cn_vegwetfac
   real, dimension(:), allocatable :: gd_vegtran,gd_soilmoist,gd_soilmoistchange
   real, dimension(:), allocatable :: frac_sigma
+  real, dimension(:), allocatable :: delintercept, snowt, vegt, swe, surfstor
+  real, dimension(:), allocatable :: snowfrac, salbedo, calbedo, taircanyon
+  real, dimension(:), allocatable :: delswe
   real(kind=8), dimension(:), allocatable :: surferr, atmoserr, surferr_bias, atmoserr_bias
   real(kind=8), dimension(:), allocatable :: storage_flux
   ! real(kind=8), dimension(:,:), allocatable :: storagetot_road, storagetot_walle, storagetot_wallw, storagetot_roof
@@ -543,6 +546,11 @@ do tile = 1,ntiles
     allocate(p_g(ifrac,tile)%storage_flux(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%surferr_bias(ufull_g(tile)),p_g(ifrac,tile)%atmoserr_bias(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%snowmelt(ufull_g(tile)),p_g(ifrac,tile)%frac_sigma(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%delintercept(ufull_g(tile)),p_g(ifrac,tile)%snowt(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%vegt(ufull_g(tile)),p_g(ifrac,tile)%swe(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%surfstor(ufull_g(tile)),p_g(ifrac,tile)%snowfrac(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%salbedo(ufull_g(tile)),p_g(ifrac,tile)%calbedo(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%taircanyon(ufull_g(tile)),p_g(ifrac,tile)%delswe(ufull_g(tile)))
 
     if ( ufull_g(tile)>0 ) then
 
@@ -608,6 +616,16 @@ do tile = 1,ntiles
       p_g(ifrac,tile)%atmoserr_bias=0._8
       p_g(ifrac,tile)%storage_flux=0._8
       p_g(ifrac,tile)%energybalance_init=.true.
+      p_g(ifrac,tile)%delintercept=0.
+      p_g(ifrac,tile)%snowt=273.
+      p_g(ifrac,tile)%vegt=273.
+      p_g(ifrac,tile)%swe=0.
+      p_g(ifrac,tile)%surfstor=0.
+      p_g(ifrac,tile)%snowfrac=0.
+      p_g(ifrac,tile)%salbedo=0.
+      p_g(ifrac,tile)%calbedo=0.
+      p_g(ifrac,tile)%taircanyon=273.
+      p_g(ifrac,tile)%delswe=0.
 
     end if
     
@@ -713,6 +731,11 @@ if ( ateb_active ) then
       deallocate(p_g(ifrac,tile)%rf_vegwetfac,p_g(ifrac,tile)%cn_vegwetfac)
       deallocate(p_g(ifrac,tile)%gd_vegtran,p_g(ifrac,tile)%gd_soilmoist,p_g(ifrac,tile)%gd_soilmoistchange)
       deallocate(p_g(ifrac,tile)%storage_flux,p_g(ifrac,tile)%snowmelt)
+      deallocate(p_g(ifrac,tile)%delintercept,p_g(ifrac,tile)%snowt)
+      deallocate(p_g(ifrac,tile)%vegt,p_g(ifrac,tile)%swe)
+      deallocate(p_g(ifrac,tile)%surfstor,p_g(ifrac,tile)%snowfrac)
+      deallocate(p_g(ifrac,tile)%salbedo,p_g(ifrac,tile)%calbedo)
+      deallocate(p_g(ifrac,tile)%taircanyon,p_g(ifrac,tile)%delswe)
       
     end do  
 
@@ -2713,6 +2736,46 @@ select case(mode)
     ctmp = pack(o_data, upack)
     ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
     o_data = unpack(ctmp, upack, o_data)
+  case("snowt")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%snowt*pd(ifrac)%frac_sigma  
+    end do    
+    ctmp=pack(o_data,upack)
+    ctmp=(1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data=unpack(ctmp,upack,o_data)    
+  case("vegt")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%vegt*pd(ifrac)%frac_sigma  
+    end do    
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)      
+  case("salbedo")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%salbedo*pd(ifrac)%frac_sigma  
+    end do    
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)      
+  case("calbedo")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%calbedo*pd(ifrac)%frac_sigma  
+    end do    
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)    
+  case("taircanyon")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%taircanyon*pd(ifrac)%frac_sigma  
+    end do    
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)      
   case default
     write(6,*) "ERROR: Unknown atebmisc mode ",trim(mode)
     stop
@@ -2947,6 +3010,46 @@ select case(mode)
     ctmp=pack(hydroout,upack)
     ctmp=(1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
     hydroout=unpack(ctmp,upack,hydroout)
+  case("delintercept")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%delintercept*pd(ifrac)%frac_sigma  
+    end do    
+    ctmp=pack(hydroout,upack)
+    ctmp=(1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
+    hydroout=unpack(ctmp,upack,hydroout) 
+  case("swe")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%swe*pd(ifrac)%frac_sigma  
+    end do    
+    ctmp=pack(hydroout,upack)
+    ctmp=(1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
+    hydroout=unpack(ctmp,upack,hydroout)    
+  case("surfstor")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%surfstor*pd(ifrac)%frac_sigma  
+    end do    
+    ctmp=pack(hydroout,upack)
+    ctmp=(1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
+    hydroout=unpack(ctmp,upack,hydroout)   
+  case("snowfrac")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%snowfrac*pd(ifrac)%frac_sigma  
+    end do    
+    ctmp=pack(hydroout,upack)
+    ctmp=(1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
+    hydroout=unpack(ctmp,upack,hydroout) 
+  case("delswe")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%delswe*pd(ifrac)%frac_sigma  
+    end do    
+    ctmp=pack(hydroout,upack)
+    ctmp=(1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
+    hydroout=unpack(ctmp,upack,hydroout)     
   case default
     write(6,*) "ERROR: Unknown atebhydro mode ",trim(mode)
     stop
@@ -3784,7 +3887,7 @@ real, dimension(ufull) :: ggext_roof,ggext_walle,ggext_wallw,ggext_road,ggext_sl
 real, dimension(ufull) :: ggext_impl,ggint_impl
 real, dimension(ufull) :: d_ac_inside, d_intgains_bld, int_infilflux
 real, dimension(ufull) :: cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translation
-real, dimension(ufull) :: int_infilfg
+real, dimension(ufull) :: int_infilfg, delintercept, rf_delsnow, rd_delsnow
 real, dimension(ufull,0:nl) :: inodetemp      ! interim tridiagonal solution
 real, dimension(ufull,1:4)  :: iskintemp      ! interim internal skin temperature
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
@@ -3807,6 +3910,9 @@ where ( a_snd>1.e-10 )
   rfhyd%snowalpha = maxsnowalpha
   rdhyd%snowalpha = maxsnowalpha
 end where
+
+! reset inception of leafe water
+pd%delintercept = 0.
 
 ! calculate water and snow area cover fractions
 d_roofdelta = max(rfhyd%surfwater/maxrfwater,0.)**(2./3.)
@@ -4126,17 +4232,21 @@ fgtop = fp%hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_ro
 call updatewater(ddt,rdhyd%surfwater,rdhyd%soilwater,rdhyd%leafwater,rdhyd%snow,    &
                      rdhyd%den,rdhyd%snowalpha,rdsnmelt,a_rnd,a_snd,eg_road,        &
                      eg_rdsn,d_tranc,d_evapc,d_c1c,d_totdepth, cnveg%lai,wbrelaxc,  &
-                     fp%sfc,fp%swilt,d_irrigwater,ufull)
+                     fp%sfc,fp%swilt,d_irrigwater,delintercept,rd_delsnow,ufull)
 ! record grid irrigation road component [kg m-2 s-1]
 pd%gd_irrig = d_irrigwater*waterden*d_totdepth*cnveg%sigma*(1.-fp%sigmabld)/ddt
+! record leaf intercept component [kg m-2 s-1]
+pd%delintercept = pd%delintercept + delintercept*cnveg%sigma
 
 ! calculate water/snow budgets for roof surface
 call updatewater(ddt,rfhyd%surfwater,rfhyd%soilwater,rfhyd%leafwater,rfhyd%snow,     &
                      rfhyd%den,rfhyd%snowalpha,rfsnmelt,a_rnd,a_snd,eg_roof,         &
                      eg_rfsn,d_tranr,d_evapr,d_c1r,fp%rfvegdepth,rfveg%lai,wbrelaxr, &
-                     fp%sfc,fp%swilt,d_irrigwater,ufull)
+                     fp%sfc,fp%swilt,d_irrigwater,delintercept,rf_delsnow,ufull)
 ! add grid irrigation roof component [kg m-2 s-1]
 pd%gd_irrig = pd%gd_irrig + d_irrigwater*waterden*fp%rfvegdepth*rfveg%sigma*fp%sigmabld/ddt
+! record leaf intercept component [kg m-2 s-1]
+pd%delintercept = pd%delintercept + delintercept*rfveg%sigma
 
 ! area weighted vegetation aerodynamic conductance
 pd%gd_acond_veg = (acond_vegc*cnveg%sigma*(1.-fp%sigmabld) + acond_vegr*rfveg%sigma*fp%sigmabld)/  & 
@@ -4208,6 +4318,28 @@ u_wf = fp%sigmabld*(1.-d_rfsndelta)*((1.-rfveg%sigma)*d_roofdelta       &
 
 pd%snowmelt = fp%sigmabld*rfsnmelt + (1.-fp%sigmabld)*rdsnmelt
 u_melt = lf*(fp%sigmabld*d_rfsndelta*rfsnmelt + (1.-fp%sigmabld)*d_rdsndelta*rdsnmelt)
+
+! calculate average snow temperature and Snow water equivilent
+pd%snowt = ( rfsntemp*d_rfsndelta*(1.-fp%sigmabld) + rdsntemp*d_rdsndelta*fp%sigmabld ) / &
+           max( d_rfsndelta*(1.-fp%sigmabld) + d_rdsndelta*fp%sigmabld, 1.e-10 )
+pd%swe = rfhyd%snow*d_rfsndelta*(1.-fp%sigmabld) + rdhyd%snow*d_rdsndelta*fp%sigmabld
+pd%snowfrac = d_rfsndelta*(1.-fp%sigmabld) + d_rdsndelta*fp%sigmabld
+pd%salbedo = ( rfhyd%snowalpha*d_rfsndelta*(1.-fp%sigmabld) + rdhyd%snowalpha*d_rdsndelta*fp%sigmabld ) / &
+           max( d_rfsndelta*(1.-fp%sigmabld) + d_rdsndelta*fp%sigmabld, 1.e-10 ) 
+pd%delswe = rf_delsnow*d_rfsndelta*(1.-fp%sigmabld) + rd_delsnow*d_rdsndelta*fp%sigmabld
+
+! calculate total liquid water storage
+pd%surfstor = rdhyd%surfwater*(1.-fp%sigmabld)*(1.-d_rfsndelta)*(1.-rfveg%sigma) &
+            + rdhyd%surfwater*fp%sigmabld*(1.-d_rdsndelta)*(1.-cnveg%sigma)
+
+! calculate average vegetation temperture
+pd%vegt = ( cnveg%temp*(1.-fp%sigmabld)*cnveg%sigma + rfveg%temp*fp%sigmabld*rfveg%sigma ) / &
+          max( (1.-fp%sigmabld)*cnveg%sigma + fp%sigmabld*rfveg%sigma, 1.e-10 )
+pd%calbedo = ( cnveg%alpha*(1.-fp%sigmabld)*cnveg%sigma + rfveg%alpha*fp%sigmabld*rfveg%sigma ) / &
+          max( (1.-fp%sigmabld)*cnveg%sigma + fp%sigmabld*rfveg%sigma, 1.e-10 )
+
+! Save canyon air temperature
+pd%taircanyon = d_canyontemp
 
 ! (re)calculate heat roughness length for MOST (diagnostic only)
 call getqsat(a,u_ts,d_sigd)
@@ -4505,7 +4637,8 @@ end subroutine energyclosure
 subroutine updatewater(ddt,surfwater,soilwater,leafwater,snow,den,alpha, &
                        snmelt,a_rnd,a_snd,eg_surf,eg_snow,d_tran,d_evap, &
                        d_c1,d_totdepth,fp_vegrlai,iwbrelax,              &
-                       fp_sfc,fp_swilt,irrigwater,ufull)
+                       fp_sfc,fp_swilt,irrigwater,delintercept,          &
+                       delsnow,ufull)
 
 implicit none
 
@@ -4515,9 +4648,9 @@ real, intent(in) :: ddt
 real, dimension(ufull), intent(inout) :: surfwater,soilwater,leafwater,snow,den,alpha
 real, dimension(ufull), intent(in) :: snmelt,a_rnd,a_snd,eg_surf,eg_snow
 real, dimension(ufull), intent(in) :: d_tran,d_evap,d_c1,d_totdepth,fp_vegrlai
-real, dimension(ufull) :: modrnd
+real, dimension(ufull) :: modrnd, oldleafwater
 real, dimension(ufull), intent(in) :: fp_sfc, fp_swilt
-real, dimension(ufull), intent(out):: irrigwater
+real, dimension(ufull), intent(out):: irrigwater, delintercept, delsnow
 
 modrnd = max(a_rnd-d_evap/lv-max(maxvwatf*fp_vegrlai-leafwater,0.)/ddt,0.) ! rainfall reaching the soil under vegetation
 
@@ -4526,8 +4659,10 @@ modrnd = max(a_rnd-d_evap/lv-max(maxvwatf*fp_vegrlai-leafwater,0.)/ddt,0.) ! rai
 ! Evaporation only occurs from water on leafs.
 surfwater = surfwater+ddt*(a_rnd-eg_surf/lv+snmelt)                                         ! surface
 soilwater = soilwater+ddt*d_c1*(modrnd+snmelt*den/waterden-d_tran/lv)/(waterden*d_totdepth) ! soil
+oldleafwater = leafwater - ddt*d_evap/lv
 leafwater = leafwater+ddt*(a_rnd-d_evap/lv)                                                 ! leaf
 leafwater = min(max(leafwater,0.),maxvwatf*fp_vegrlai)
+delintercept = leafwater - oldleafwater
 
 if (iwbrelax==1) then
   ! increase soil moisture for irrigation
@@ -4539,6 +4674,7 @@ end if
 
 ! snow fields
 snow  = snow + ddt*(a_snd-eg_snow/ls-snmelt)
+delsnow = ddt*(a_snd-eg_snow/ls-snmelt)
 den   = den + (maxsnowden-den)/(0.24/(86400.*ddt)+1.)
 alpha = alpha + (minsnowalpha-alpha)/(0.24/(86400.*ddt)+1.)
 
