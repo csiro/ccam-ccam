@@ -1396,19 +1396,24 @@ if (its_g>500) then
   write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
 end if
 
-!$omp parallel
+!$omp parallel sections
 !$acc data create(its,dtnew,ww,depdum,dzdum)
 !$acc update device(its,dtnew,ww,depdum,dzdum)
 
+!$omp section
 call mlotvd(its,dtnew,ww,uu,depdum,dzdum,1)
+!$omp section
 call mlotvd(its,dtnew,ww,vv,depdum,dzdum,2)
+!$omp section
 call mlotvd(its,dtnew,ww,ss,depdum,dzdum,3)
+!$omp section
 call mlotvd(its,dtnew,ww,tt,depdum,dzdum,4)
+!$omp section
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum,5)
 
 !$acc wait
 !$acc end data
-!$omp end parallel
+!$omp end parallel sections
   
 ss(1:ifull,:)=max(ss(1:ifull,:),0.)
 tt(1:ifull,:)=max(tt(1:ifull,:),-wrtemp)
@@ -1418,7 +1423,6 @@ call END_LOG(watervadv_end)
 return
 end subroutine mlovadv
 
-#ifdef GPU
 subroutine mlotvd(its,dtnew,ww,uu,depdum,dzdum,asyncbuf)
 
 use mlo
@@ -1523,109 +1527,6 @@ end do
 
 return
 end subroutine mlotvd
-#else
-subroutine mlotvd(its,dtnew,ww,uu,depdum,dzdum,asyncbuf)
-
-use cc_omp
-use mlo
-use newmpar_m
-
-implicit none
-
-integer, intent(in) :: asyncbuf
-integer ii,i,iq,kp,kx
-integer tile, ibeg, iend, ip
-integer, dimension(ifull), intent(in) :: its
-real, dimension(ifull), intent(in) :: dtnew
-real, dimension(ifull,0:wlev), intent(in) :: ww
-real, dimension(ifull,wlev), intent(in) :: depdum,dzdum
-real, dimension(:,:), intent(inout) :: uu
-real, dimension(imax,0:wlev) :: ff
-real, dimension(imax,0:wlev) :: delu
-real fl,fh,cc,rr
-
-! f=(w*u) at half levels
-! du/dt = u*dw/dz-df/dz = -w*du/dz
-
-!$omp do schedule(static) private(tile,ibeg,iend,ii,ip,delu,ff,kp,kx,rr,fl,cc,fh,i)
-do tile = 1,ntiles
-  ibeg = (tile-1)*imax + 1
-  iend = tile*imax
-  
-  do ii = 1,wlev-1
-    do ip = 1,imax
-      iq = ibeg + ip - 1  
-      delu(ip,ii) = uu(iq,ii+1) - uu(iq,ii)
-    end do
-  end do
-  do ip = 1,imax
-    ff(ip,0) = 0.
-    ff(ip,wlev) = 0.
-    delu(ip,0) = 0.
-    delu(ip,wlev) = 0.
-  end do
-
-  ! TVD part
-  do ii = 1,wlev-1
-    do ip = 1,imax
-      iq = ibeg + ip - 1  
-      ! +ve ww is downwards to the ocean floor
-      kp = nint(sign(1.,ww(iq,ii)))
-      kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-      rr=delu(ip,ii-kp)/(delu(ip,ii)+sign(1.E-20,delu(ip,ii)))
-      fl=ww(iq,ii)*uu(iq,kx)
-      cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
-      fh = ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))             &
-        - 0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
-        /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-      ff(ip,ii) = fl + cc*(fh-fl)
-      !ff(ip,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
-    end do
-  end do
-  do ii = 1,wlev
-    do ip = 1,imax
-      iq = ibeg + ip - 1  
-      if ( dzdum(iq,ii)>1.e-4 ) then  
-        uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))   &
-                           -ff(ip,ii)+ff(ip,ii-1))/dzdum(iq,ii)
-      end if   
-    end do  
-  end do
-
-
-  do ip = 1,imax
-    iq = ibeg + ip - 1  
-    do i = 2,its(iq)
-      do ii=1,wlev-1
-        delu(ip,ii)=uu(iq,ii+1)-uu(iq,ii)
-      end do
-      ! TVD part
-      do ii=1,wlev-1
-        ! +ve ww is downwards to the ocean floor
-        kp = nint(sign(1.,ww(iq,ii)))
-        kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-        rr=delu(ip,ii-kp)/(delu(ip,ii)+sign(1.E-20,delu(ip,ii)))
-        fl=ww(iq,ii)*uu(iq,kx)
-        cc=max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
-        fh=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))          &
-          -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
-          /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-        ff(ip,ii)=fl+cc*(fh-fl)
-      end do
-      do ii=1,wlev
-        if ( dzdum(iq,ii)>1.e-4 ) then  
-          uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1)) &
-                                        -ff(ip,ii)+ff(ip,ii-1))/dzdum(iq,ii)
-        end if  
-      end do
-    end do
-  end do
-end do
-!$omp end do nowait
-
-return
-end subroutine mlotvd
-#endif
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Use potential temperature and salinity Jacobians to calculate
@@ -2167,6 +2068,7 @@ real, dimension(ifull+iextra,ntr), intent(inout) :: dumc
 real, dimension(ifull+iextra), intent(in) :: niu,niv,spnet
 real(kind=8) odum,dumd,tdum
 
+!$omp parallel do schedule(static) private(n,iq,dumd,odum,tdum)
 !$acc parallel loop collapse(2) copy(dumc) copyin(niu,niv,spnet,emu,emv)
 do n = 1,ntr
   do iq = 1,ifull
@@ -2235,6 +2137,7 @@ do n = 1,ntr
   end do
 end do
 !$acc end parallel loop
+!$omp end parallel do
   
 return
 end subroutine upwind_iceadv

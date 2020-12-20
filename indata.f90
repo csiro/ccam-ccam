@@ -145,7 +145,7 @@ real, dimension(:), allocatable, save :: davt_g
 real, dimension(3*kl+7) :: dumc
 real, dimension(9) :: swilt_diag, sfc_diag
 real, dimension(ms) :: wb_tmpry
-real, dimension(ifull,maxtile) :: svs,vlin,vlinprev,vlinnext,vlinnext2
+real, dimension(ifull,maxtile) :: svs,vlin
 real, dimension(ifull,maxtile) :: casapoint
 real, dimension(:,:), allocatable :: atebparm
 real rlonx, rlatx, alf
@@ -521,9 +521,8 @@ if ( nsib>=1 ) then
   call rdnsib
   if ( nsib==6 .or. nsib==7 ) then ! CABLE
     ! albvisnir at this point holds soil albedo for cable initialisation
-    call loadcbmparm(vegfile,vegprev,vegnext,vegnext2,phenfile,casafile, &
-                     ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,           &
-                     casapoint,greenup,fall,phendoy1)
+    call loadcbmparm(vegfile,phenfile,casafile, &
+                     ivs,svs,vlin,casapoint,greenup,fall,phendoy1)
   end if
   ! special options for standard land surface scheme
   if ( nsib==3 ) then
@@ -730,7 +729,7 @@ call bounds(zs,corner=.true.)
 ! nsib=7 (CABLE land surface scheme with CCAM screen diagnostics)
 if ( nsib==6 .or. nsib==7 ) then
   ! albvisnir at this point holds soil albedo for cable initialisation  
-  call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,casapoint,greenup,fall,phendoy1,casapftfile)
+  call cbmparm(ivs,svs,vlin,casapoint,greenup,fall,phendoy1,casapftfile)
   ! albvisnir at this point holds net albedo
 end if
 

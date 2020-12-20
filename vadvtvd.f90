@@ -67,12 +67,11 @@ if ( num==0 ) then
   end if
 end if
 
-
-!$omp parallel
 !$acc data create(sdot,nvadh_pass,nits,rathb,ratha)
 !$acc update device(sdot,nvadh_pass,nits,rathb,ratha)
+!$omp parallel sections
 
-
+!$omp section
 !     t
 call vadv_work(tarr,nvadh_pass,nits,1)
 
@@ -82,8 +81,6 @@ call vadv_work(uarr,nvadh_pass,nits,2)
 !     v
 call vadv_work(varr,nvadh_pass,nits,3)
 if( diag .and. mydiag )then
-  !$omp barrier  
-  !$omp single  
 !       These diagnostics don't work with single input/output argument
   write (6,"('tout',9f8.2/4x,9f8.2)") (tarr(idjd,k),k=1,kl)
   write (6,"('t#  ',9f8.2)") diagvals(tarr(:,nlv)) 
@@ -91,9 +88,9 @@ if( diag .and. mydiag )then
   write (6,"('u#  ',9f8.2)") diagvals(uarr(:,nlv)) 
   write (6,"('vout',9f8.2/4x,9f8.2)") (varr(idjd,k),k=1,kl)
   write (6,"('v#  ',9f8.2)") diagvals(varr(:,nlv)) 
-  !$omp end single
 endif
 
+!$omp section
 !     h_nh
 if ( nh/=0 ) then
   call vadv_work(h_nh,nvadh_pass,nits,4)
@@ -102,55 +99,62 @@ end if
 !     pslx
 call vadv_work(pslx,nvadh_pass,nits,1)
 
+!      qg
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
-
-  !      qg
   call vadv_work(qg,nvadh_pass,nits,1)
   if ( diag .and. mydiag ) then
-    !$omp barrier 
-    !$omp single  
     write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
     write (6,"('qg# ',9f8.2)") diagvals(qg(:,nlv)) 
-    !$omp end single
   end if
+end if          ! if(mspec==1)
 
+!$omp section
+if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 ) then
     call vadv_work(qlg,nvadh_pass,nits,2)
     call vadv_work(qfg,nvadh_pass,nits,3)
     call vadv_work(stratcloud,nvadh_pass,nits,4)
     if ( diag .and. mydiag ) then
-      !$omp barrier 
-      !$omp single  
       write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
       write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
       write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
       write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv)) 
-      !$omp end single
     end if
   end if      ! if(ldr.ne.0)
+end if          ! if(mspec==1)
 
+!$omp section
+if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( nvmix==6 ) then
     call vadv_work(eps,nvadh_pass,nits,1)
     call vadv_work(tke,nvadh_pass,nits,2)
   end if      ! if(nvmix.eq.6)
+end if          ! if(mspec==1)
 
+!$omp end parallel sections
+
+if ( mspec==1 ) then   ! advect qg and gases after preliminary step
+    
   if ( abs(iaero)>=2 ) then
+    !$omp parallel do private(ntr)  
     do ntr = 1,naero
       call vadv_work(xtg(:,:,ntr),nvadh_pass,nits,mod(ntr,4)+1)
     end do
+    !$omp end parallel do
   end if   ! abs(iaero)>=2
-
+  
   if ( ngas>0 .or. nextout>=4 ) then
+    !$omp parallel do private(ntr)  
     do ntr = 1,ntrac
       call vadv_work(tr(:,:,ntr),nvadh_pass,nits,mod(ntr,4)+1)
     end do
+    !$omp end parallel do
   end if        ! (nextout>=4)
- 
+  
 end if          ! if(mspec==1)
 
 !$acc wait
 !$acc end data
-!$omp end parallel
 
 call END_LOG(vadv_end)
  
@@ -158,7 +162,6 @@ return
 end subroutine vadvtvd
       
 ! Subroutine to perform generic TVD advection
-#ifdef GPU
 subroutine vadv_work(tarr,nvadh_pass,nits,asyncbuf)
 
 use newmpar_m
@@ -249,98 +252,5 @@ end do     ! iq
 
 return
 end subroutine vadv_work
-#else
-subroutine vadv_work(tarr,nvadh_pass,nits,asyncbuf)
-
-use cc_omp
-use newmpar_m
-use sigs_m
-use vvel_m
-      
-implicit none
-      
-integer, intent(in) :: asyncbuf
-integer, dimension(ifull), intent(in) :: nits, nvadh_pass
-integer i, k, iq, ip, kp, kx
-integer is, ie, tile
-real, dimension(:,:), intent(inout) :: tarr
-real rat, phitvd, fluxhi, fluxlo
-real, dimension(imax,0:kl) :: delt, fluxh
-
-!$omp do schedule(static) private(tile,is,ie,k,ip,iq,kp,kx,rat,fluxlo), &
-!$omp private(phitvd,fluxhi,delt,fluxh,i)
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-
-  ! The first sub-step is vectorised for all points - MJT
-
-  !     fluxh(k) is located at level k+.5
-  do k = 1,kl-1
-    do ip = 1,imax
-      iq = is + ip - 1  
-      delt(ip,k) = tarr(iq,k+1) - tarr(iq,k)
-    end do
-   end do  
-  do ip = 1,imax
-    iq = is + ip - 1    
-    fluxh(ip,0)  = 0.
-    fluxh(ip,kl) = 0.
-    delt(ip,kl)  = 0.     ! for T,u,v
-    delt(ip,0)   = 0.
-    !!delt(ip,0)   = min(delt(ip,1), tarr(iq,1))       ! for non-negative tt
-  end do
-
-  do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-    do ip = 1,imax
-      iq = is + ip - 1
-      kp = nint(sign(1.,sdot(iq,k+1)))
-      kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-      rat = delt(ip,k-kp)/(delt(ip,k)+sign(1.e-20,delt(ip,k)))
-      fluxlo = tarr(iq,kx)
-      phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
-      ! higher order scheme
-      fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(ip,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
-      fluxh(ip,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-    enddo
-  enddo      ! k loop
-  do k = 1,kl
-    do ip = 1,imax
-      iq = is + ip - 1
-      tarr(iq,k) = tarr(iq,k) + (fluxh(ip,k-1)-fluxh(ip,k) &
-                               +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
-    end do
-  end do
-
-  do ip = 1,imax
-    iq = is + ip - 1    
-    do i = 2,nits(iq)
-      do k = 1,kl-1
-        delt(ip,k) = tarr(iq,k+1) - tarr(iq,k)
-      end do     ! k loop    
-      !!delt(ip,0) = min(delt(ip,1), tarr(iq,1))       ! for non-negative tt
-      do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-        kp = nint(sign(1.,sdot(iq,k+1)))
-        kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-        rat = delt(ip,k-kp)/(delt(ip,k)+sign(1.e-20,delt(ip,k)))
-        fluxlo = tarr(iq,kx)
-        phitvd = max(0., min(2.*rat, .5+.5*rat, 2.))   ! 0 for -ve rat
-        ! higher order scheme
-        fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(ip,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
-        fluxh(ip,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-      end do ! k
-      do k = 1,kl
-        tarr(iq,k) = tarr(iq,k) &
-            + (fluxh(ip,k-1)-fluxh(ip,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
-      end do
-    end do   ! i
-  end do     ! ip
-
-end do ! tile
-!$omp end do nowait
-
-return
-end subroutine vadv_work
-#endif
 
 end module vadv

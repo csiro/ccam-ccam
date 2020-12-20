@@ -70,7 +70,7 @@ integer ncstatus, ncid, tt
 integer valident, yy, mm, nn
 integer iarchi, maxarchi
 integer kdate_rsav, ktime_rsav
-integer kdate_r, ktime_r
+integer kdate_r, ktime_r, year_r
 integer(kind=8) mtimer
 integer, dimension(1) :: iti
 integer, dimension(4) :: spos, npos
@@ -121,8 +121,16 @@ if ( myid==0 ) then
       call ccnf_get_att(ncid,valident,'units',datestring)
       call processdatestring(datestring,kdate_rsav,ktime_rsav)
       if ( datestring(1:6)=='months' ) then
+        ! fast read  
+        iarchi = 1
+        kdate_r = kdate_rsav
+        call ccnf_get_vara(ncid,valident,iarchi,timer) 
+        mtimer = int(timer,8) ! round down to start of month
+        call datefix_month(kdate_r,mtimer)
+        year_r = kdate_r/10000
+        iarchi = (jyear - year_r)*12 ! assume 1 value per month
+        ! search
         ltest = .true.
-        iarchi = 0
         do while ( ltest .and. iarchi<maxarchi )
           iarchi = iarchi + 1  
           kdate_r = kdate_rsav
@@ -132,8 +140,17 @@ if ( myid==0 ) then
           ltest = (kdate_r/100-jyear*100-jmonth)<0
         end do
       elseif ( datestring(1:4)=="days" ) then
+        ! fast read  
+        iarchi = 1
+        kdate_r = kdate_rsav
+        ktime_r = ktime_rsav
+        call ccnf_get_vara(ncid,valident,iarchi,timer) 
+        mtimer = nint(timer*1440.,8) ! units=days
+        call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
+        year_r = kdate_r/10000
+        iarchi = (jyear - year_r)*12 ! assume 1 value per month
+        ! search          
         ltest = .true.
-        iarchi = 0
         do while ( ltest .and. iarchi<maxarchi )
           iarchi = iarchi + 1  
           kdate_r = kdate_rsav

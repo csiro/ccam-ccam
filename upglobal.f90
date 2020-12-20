@@ -24,7 +24,6 @@ subroutine upglobal
 use aerosolldr             ! LDR prognostic aerosols
 use arrays_m               ! Atmosphere dyamics prognostic arrays
 use cc_mpi                 ! CC MPI routines
-use cc_omp                 ! CC OpenMP routines
 use cfrac_m                ! Cloud fraction
 use const_phys             ! Physical constants
 use diag_m                 ! Diagnostic routines
@@ -276,7 +275,6 @@ if ( diag ) then
 end if
 
 ! rotate wind vector to arrival point
-!$acc parallel loop collapse(2) copyin(x,y,z,x3d,y3d,z3d) copy(uc,vc,wc)
 do k = 1,kl
   do iq = 1,ifull
     ! the following normalization may be done, but has ~zero effect
@@ -307,7 +305,6 @@ do k = 1,kl
     end if ! (denb>1.e-4)
   end do   ! iq
 end do     ! k
-!$acc end parallel loop
 
 !if ( diag ) then
 !  if ( mydiag ) then

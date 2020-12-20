@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -60,14 +60,42 @@ integer, intent(in) :: jyear
 integer k, i, ierr, nlev, iyr
 integer ncidrad, ncidsolar, ncidch4, ncidn2o
 integer ncidcfc11, ncidcfc12, ncidcfc113, ncidhcfc22
+integer cmip_number
 integer, parameter :: lu=15
       
-if (nrad==5) then
+if ( nrad==5 ) then 
     
-  ! SEA-ESF radiation code
-  if (myid==0) then
-    if ( radfile==' ' ) then ! default
-      write(6,*) "Using default CO2 for radiative data"  
+  ! SEA-ESF radiation  
+ 
+  ! identify file format
+  if ( myid==0 ) then
+    cmip_number = -1
+    if ( radfile==' ' ) then
+      cmip_number = 0 ! default
+    else
+      call ccnf_open(radfile,ncidrad,ierr)
+      if ( ierr==0 ) then
+        cmip_number = 6 ! CMIP6
+      else
+        open(lu,file=radfile,form='formatted',status='old')
+        nlev=0
+        read(lu,*,iostat=ierr) nlev
+        if ( nlev>0 ) then
+          cmip_number = 3 ! CMIP3
+        else
+          cmip_number = 5 ! CMIP5  
+        end if  
+      end if    
+    end if  
+  end if
+  call ccmpi_bcast(cmip_number,0,comm_world)
+    
+  ! load concentrations
+  select case (cmip_number)
+    case(0) ! default
+      if ( myid==0 ) then      
+        write(6,*) "Using default CO2 for radiative data"  
+      end if  
       rrvco2  = 0.33e-3
       rrvch4  = 0.
       rrvn2o  = 0.
@@ -75,18 +103,71 @@ if (nrad==5) then
       rrvf12  = 0.
       rrvf113 = 0.
       rrvf22  = 0.
-    else  
+      
+    case(3) ! CMIP3
+      if ( myid==0 ) then
+        ! CMIP3 emission data
+        read(lu,*) (sigin(1),i=nlev,1,-1)
+        read(lu,*) rrvco2
+        close(lu)
+        rdum(1) = rrvco2
+      end if ! myid==0
+      call ccmpi_bcast(rdum(1:1),0,comm_world)
+      rrvco2  = rdum(1)
+      rrvch4  = 0.
+      rrvn2o  = 0.
+      rrvf11  = 0.
+      rrvf12  = 0.
+      rrvf113 = 0.
+      rrvf22  = 0.     
 
-      ! Attempt to open netcdf file
-      call ccnf_open(radfile,ncidrad,ierr)
-      if ( ierr==0 ) then
-          
-        ! CMIP6 format  
-        write(6,*) 'CO2 data read from file ',trim(radfile)
+    case(5) ! CMIP5
+      if ( myid==0 ) then  
+        iyr=-9999
+        do while (iyr<jyear)
+          read(lu,*,iostat=ierr) iyr,rcn(1:35)
+          if (ierr<0) then
+            write(6,*) "ERROR: Cannot find concentration data"
+            call ccmpi_abort(-1)
+          end if
+        end do
+        close(lu)
+        rrvco2=rcn(3)*1.E-6
+        rrvch4=rcn(4)*1.E-9
+        rrvn2o=rcn(5)*1.E-9
+        rrvf11=rcn(20)*1.E-12
+        rrvf12=rcn(21)*1.E-12
+        rrvf113=rcn(22)*1.E-12
+        rrvf22=rcn(27)*1.E-12   
+        rdum(1)=rrvco2
+        rdum(2)=rrvch4
+        rdum(3)=rrvn2o
+        rdum(4)=rrvf11
+        rdum(5)=rrvf12
+        rdum(6)=rrvf113
+        rdum(7)=rrvf22
+        rdum(8)=csolar
+      end if ! myid==0
+      call ccmpi_bcast(rdum(1:8),0,comm_world)
+      rrvco2=rdum(1)
+      rrvch4=rdum(2)
+      rrvn2o=rdum(3)
+      rrvf11=rdum(4)
+      rrvf12=rdum(5)
+      rrvf113=rdum(6)
+      rrvf22=rdum(7)
+      csolar=rdum(8)         
+        
+    case(6) ! CMIP6   
+      if ( myid==0 ) then
+        write(6,*) 'CO2 data read from file ',trim(radfile)  
+        ! radfile is already open
         call readrad2d(ncidrad,'mole_fraction_of_carbon_dioxide_in_air',rrvco2)
         rrvco2 = rrvco2*1.e-6
         call ccnf_close(ncidrad)
-        
+      end if
+      
+      if ( myid==mod(1,nproc) ) then
         write(6,*) 'CH4 data read from file ',trim(ch4file)
         call ccnf_open(ch4file,ncidch4,ierr)
         if ( ierr/=0 ) then
@@ -96,7 +177,9 @@ if (nrad==5) then
         call readrad2d(ncidch4,'mole_fraction_of_methane_in_air',rrvch4)
         rrvch4 = rrvch4*1.e-9
         call ccnf_close(ncidch4)
-        
+      end if
+      
+      if ( myid==mod(2,nproc) ) then
         write(6,*) 'N2O data read from file ',trim(n2ofile)
         call ccnf_open(n2ofile,ncidn2o,ierr)
         if ( ierr/=0 ) then
@@ -106,7 +189,9 @@ if (nrad==5) then
         call readrad2d(ncidn2o,'mole_fraction_of_nitrous_oxide_in_air',rrvn2o)
         rrvn2o = rrvn2o*1.e-9
         call ccnf_close(ncidn2o)
-        
+      end if    
+          
+      if ( myid==mod(3,nproc) ) then
         write(6,*) 'CFC11 data read from file ',trim(cfc11file)
         call ccnf_open(cfc11file,ncidcfc11,ierr)
         if ( ierr/=0 ) then
@@ -116,7 +201,9 @@ if (nrad==5) then
         call readrad2d(ncidcfc11,'mole_fraction_of_cfc11_in_air',rrvf11)
         rrvf11 = rrvf11*1.e-12
         call ccnf_close(ncidcfc11)
-                
+      end if    
+      
+      if ( myid==mod(4,nproc) ) then
         write(6,*) 'CFC12 data read from file ',trim(cfc12file)
         call ccnf_open(cfc12file,ncidcfc12,ierr)
         if ( ierr/=0 ) then
@@ -125,8 +212,10 @@ if (nrad==5) then
         end if
         call readrad2d(ncidcfc12,'mole_fraction_of_cfc12_in_air',rrvf12)
         rrvf12 = rrvf12*1.e-12
-        call ccnf_close(ncidcfc12)
-        
+        call ccnf_close(ncidcfc12) 
+      end if    
+      
+      if ( myid==mod(5,nproc) ) then
         write(6,*) 'CFC113 data read from file ',trim(cfc113file)
         call ccnf_open(cfc113file,ncidcfc113,ierr)
         if ( ierr/=0 ) then
@@ -135,8 +224,10 @@ if (nrad==5) then
         end if
         call readrad2d(ncidcfc113,'mole_fraction_of_cfc113_in_air',rrvf113)
         rrvf113 = rrvf113*1.e-12
-        call ccnf_close(ncidcfc113)
-        
+        call ccnf_close(ncidcfc113)  
+      end if
+      
+      if ( myid==mod(6,nproc) ) then
         write(6,*) 'HCFC22 data read from file ',trim(hcfc22file)
         call ccnf_open(hcfc22file,ncidhcfc22,ierr)
         if ( ierr/=0 ) then
@@ -146,7 +237,9 @@ if (nrad==5) then
         call readrad2d(ncidhcfc22,'mole_fraction_of_hcfc22_in_air',rrvf22)
         rrvf22 = rrvf22*1.e-12
         call ccnf_close(ncidhcfc22)
-        
+      endif
+      
+      if ( myid==mod(7,nproc) ) then
         write(6,*) 'Solar data read from file ',trim(solarfile)
         call ccnf_open(solarfile,ncidsolar,ierr)
         if ( ierr/=0 ) then
@@ -155,47 +248,25 @@ if (nrad==5) then
         end if
         call readrad1d(ncidsolar,'tsi',csolar)
         call ccnf_close(ncidsolar)
+      end if
+      
+      call ccmpi_bcast(rrvco2,0,comm_world)
+      call ccmpi_bcast(rrvch4,mod(1,nproc),comm_world)
+      call ccmpi_bcast(rrvn2o,mod(2,nproc),comm_world)
+      call ccmpi_bcast(rrvf11,mod(3,nproc),comm_world)
+      call ccmpi_bcast(rrvf12,mod(4,nproc),comm_world)
+      call ccmpi_bcast(rrvf113,mod(5,nproc),comm_world)
+      call ccmpi_bcast(rrvf22,mod(6,nproc),comm_world)
+      call ccmpi_bcast(csolar,mod(7,nproc),comm_world)
 
-      else    
-        ! check for ASCII file  
-        write(6,*) 'Radiative data read from file ',trim(radfile)
-        open(lu,file=radfile,form='formatted',status='old')
-        
-        nlev=0
-        read(lu,*,iostat=ierr) nlev
-        if (nlev>0) then ! old format
-        
-          ! CMIP3 emission data
-          read(lu,*) (sigin(1),i=nlev,1,-1)
-          read(lu,*) rrvco2
-          rrvch4=0.
-          rrvn2o=0.
-          rrvf11=0.
-          rrvf12=0.
-          rrvf113=0.
-          rrvf22=0.
-        else
-        
-          ! CMIP5 emission data
-          iyr=-9999
-          do while (iyr<jyear)
-            read(lu,*,iostat=ierr) iyr,rcn(1:35)
-            if (ierr<0) then
-              write(6,*) "ERROR: Cannot find concentration data"
-              call ccmpi_abort(-1)
-            end if
-          end do
-          rrvco2=rcn(3)*1.E-6
-          rrvch4=rcn(4)*1.E-9
-          rrvn2o=rcn(5)*1.E-9
-          rrvf11=rcn(20)*1.E-12
-          rrvf12=rcn(21)*1.E-12
-          rrvf113=rcn(22)*1.E-12
-          rrvf22=rcn(27)*1.E-12            
-        end if ! nlev>0 ..else..
-        close(lu)
-      end if ! ierr==0 ..else..  
-    end if ! radfile==' ' ..else..  
+    case default
+      write(6,*) "ERROR: Internal error.  Unknown cmip_number in co2_read."
+      write(6,*) "cmip_number ",cmip_number
+      stop
+      
+  end select    
+
+  if ( myid==0 ) then
     write(6,*) ' CO2  mixing ratio is ',rrvco2*1e6,' ppmv'
     write(6,*) ' CH4  mixing ratio is ',rrvch4*1e9,' ppbv'
     write(6,*) ' N2O  mixing ratio is ',rrvn2o*1e9,' ppbv'
@@ -204,24 +275,7 @@ if (nrad==5) then
     write(6,*) ' F113 mixing ratio is ',rrvf113*1e12,' pptv'
     write(6,*) ' F22  mixing ratio is ',rrvf22*1e12,' pptv'
     write(6,*) ' Solar constant is    ',csolar,' W/m2'
-    rdum(1)=rrvco2
-    rdum(2)=rrvch4
-    rdum(3)=rrvn2o
-    rdum(4)=rrvf11
-    rdum(5)=rrvf12
-    rdum(6)=rrvf113
-    rdum(7)=rrvf22
-    rdum(8)=csolar
-  end if ! myid==0
-  call ccmpi_bcast(rdum(1:8),0,comm_world)
-  rrvco2=rdum(1)
-  rrvch4=rdum(2)
-  rrvn2o=rdum(3)
-  rrvf11=rdum(4)
-  rrvf12=rdum(5)
-  rrvf113=rdum(6)
-  rrvf22=rdum(7)
-  csolar=rdum(8)
+  end if  
 
 else
       
@@ -332,7 +386,7 @@ implicit none
 integer, intent(in) :: ncid
 integer kdate_rsav, ktime_rsav
 integer idvtime, iarchi, kdate_r, ktime_r
-integer maxarchi
+integer maxarchi, year_r, year_s
 integer(kind=8) :: mtimer
 integer, dimension(2) :: nstart, ncount
 real, dimension(1) :: rdat
@@ -346,8 +400,18 @@ call ccnf_inq_dimlen(ncid,'time',maxarchi)
 call ccnf_inq_varid(ncid,'time',idvtime)
 call ccnf_get_att(ncid,idvtime,'units',datestring)
 call processdatestring(datestring,kdate_rsav,ktime_rsav)
+! fast read
+iarchi = 1
+kdate_r = kdate_rsav
+ktime_r = ktime_rsav
+call ccnf_get_vara(ncid,idvtime,iarchi,timer)
+mtimer = nint(timer,8)*1440_8 ! units=days
+call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
+year_r = kdate_r/10000
+year_s = kdate_s/10000
+iarchi = (year_s - year_r)*12 ! assume 1 value per month
+! search
 ltest = .true.
-iarchi = 0
 do while ( ltest .and. iarchi<maxarchi )
   iarchi = iarchi + 1  
   kdate_r = kdate_rsav
@@ -380,7 +444,7 @@ implicit none
 integer, intent(in) :: ncid
 integer kdate_rsav, ktime_rsav
 integer idvtime, iarchi, kdate_r, ktime_r
-integer maxarchi
+integer maxarchi, year_r, year_s
 integer(kind=8) mtimer
 integer, dimension(1) :: nstart, ncount
 real, dimension(1) :: rdat
@@ -394,8 +458,18 @@ call ccnf_inq_dimlen(ncid,'time',maxarchi)
 call ccnf_inq_varid(ncid,'time',idvtime)
 call ccnf_get_att(ncid,idvtime,'units',datestring)
 call processdatestring(datestring,kdate_rsav,ktime_rsav)
+! fast read
+iarchi = 1
+kdate_r = kdate_rsav
+ktime_r = ktime_rsav
+call ccnf_get_vara(ncid,idvtime,iarchi,timer)
+mtimer = nint(timer,8)*1440_8 ! units=days
+call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
+year_r = kdate_r/10000
+year_s = kdate_s/10000
+iarchi = (year_s - year_r)*12 ! assume 1 value per month
+! search
 ltest = .true.
-iarchi = 0
 do while ( ltest .and. iarchi<maxarchi )
   iarchi = iarchi + 1  
   kdate_r = kdate_rsav

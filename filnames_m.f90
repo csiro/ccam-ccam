@@ -28,7 +28,7 @@ public albfile, icefile, sstfile, topofile, zofile, rsmfile
 public soilfile, vegfile, restfile, surfile, surf_00, surf_12
 public ifile, ofile, so4tfile, eigenv, radfile, o3file
 public mesonest, laifile, albnirfile, urbanfile, bathfile
-public vegprev, vegnext, vegnext2, cnsdir, salfile, oxidantfile
+public cnsdir, salfile, oxidantfile
 public phenfile, casafile, casapftfile
 public ensembleoutfile
 public solarfile, ch4file, n2ofile
@@ -57,9 +57,6 @@ character(len=1024), save :: laifile = ' '
 character(len=1024), save :: albnirfile = ' '
 character(len=1024), save :: urbanfile = ' '
 character(len=1024), save :: bathfile = ' '
-character(len=1024), save :: vegprev = ' '
-character(len=1024), save :: vegnext = ' '
-character(len=1024), save :: vegnext2 = ' '
 character(len=1024), save :: cnsdir = ' '
 character(len=1024), save :: salfile = ' '
 character(len=1024), save :: oxidantfile = ' '

@@ -1415,6 +1415,7 @@ character(len=60) comm, comment
 character(len=47) header
 character(len=10) timeval
 character(len=8) text, rundate
+character(len=1024) vegprev, vegnext, vegnext2 ! depreciated namelist options
 
 #ifdef usempi3
 integer, dimension(3) :: shsize
@@ -1462,7 +1463,7 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
 namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &
     surfile,topofile,vegfile,zofile,surf_00,surf_12,laifile,      &
-    albnirfile,urbanfile,bathfile,vegprev,vegnext,vegnext2,       &
+    albnirfile,urbanfile,bathfile,                                &
     cnsdir,salfile,oxidantfile,casafile,phenfile,casapftfile,     &
     ensembleoutfile,solarfile,ch4file,n2ofile,cfc11file,          &
     cfc12file,cfc113file,hcfc22file,                              &
@@ -1472,7 +1473,8 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_land,diaglevel_maxmin,diaglevel_ocean,              &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
     diaglevel_river,diaglevel_pop,                                &
-    surf_cordex,surf_windfarm
+    surf_cordex,surf_windfarm,                                    &
+    vegprev,vegnext,vegnext2                                        ! depreciated
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,shaltime,        &
@@ -1988,9 +1990,6 @@ call ccmpi_bcast(surfile,0,comm_world)
 call ccmpi_bcast(surf_00,0,comm_world)
 call ccmpi_bcast(surf_12,0,comm_world)
 call ccmpi_bcast(cnsdir,0,comm_world)
-call ccmpi_bcast(vegprev,0,comm_world)
-call ccmpi_bcast(vegnext,0,comm_world)
-call ccmpi_bcast(vegnext2,0,comm_world)
 call ccmpi_bcast(ensembleoutfile,0,comm_world)
 !call ccmpi_bcast(albfile,0,comm_world)
 !call ccmpi_bcast(eigenv,0,comm_world)
@@ -2010,14 +2009,14 @@ call ccmpi_bcast(ensembleoutfile,0,comm_world)
 !call ccmpi_bcast(oxidantfile,0,comm_world)
 !call ccmpi_bcast(casafile,0,comm_world)
 !call ccmpi_bcast(phenfile,0,comm_world)
-!call ccmpi_bcast(solarfile,0,comm_world)
-!call ccmpi_bcast(radfile,0,comm_world)
-!call ccmpi_bcast(ch4file,0,comm_world)
-!call ccmpi_bcast(n2ofile,0,comm_world)
-!call ccmpi_bcast(cfc11file,0,comm_world)
-!call ccmpi_bcast(cfc12file,0,comm_world)
-!call ccmpi_bcast(cfc113file,0,comm_world)
-!call ccmpi_bcast(hcfc22file,0,comm_world)
+call ccmpi_bcast(solarfile,0,comm_world)
+call ccmpi_bcast(radfile,0,comm_world)
+call ccmpi_bcast(ch4file,0,comm_world)
+call ccmpi_bcast(n2ofile,0,comm_world)
+call ccmpi_bcast(cfc11file,0,comm_world)
+call ccmpi_bcast(cfc12file,0,comm_world)
+call ccmpi_bcast(cfc113file,0,comm_world)
+call ccmpi_bcast(hcfc22file,0,comm_world)
 !call ccmpi_bcast(o3file,0,comm_world)
 save_aerosols  = dumi(1)==1
 save_pbl       = dumi(2)==1
