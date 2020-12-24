@@ -92,10 +92,6 @@ real, parameter :: ticon=238.15 !Temp at which conv cloud becomes ice
 real, parameter :: aice=1.016 !Constant in Platt optical depth for ice (SI units)
 real, parameter :: bice=0.68  !Constant in Platt optical depth for ice (SI units)
 
-interface pow75
-  module procedure pow75_s, pow75_v
-end interface
-
 contains
     
 subroutine leoncld
@@ -338,6 +334,7 @@ elsewhere
 end where
 
 
+#ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then
   !if ( ktau==1 ) then
   !  write(6,*)'in leoncloud Rcm ',Rcm
@@ -356,6 +353,7 @@ if ( nmaxpr==1 .and. mydiag ) then
   diag_temp(:) = qgrg(idjd,:) 
   write(6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp(:)
 endif
+#endif
 
 
 ! Calculate convective cloud fraction and adjust moisture variables before calling newcloud
@@ -377,6 +375,7 @@ do k = 1,kl
 end do
 
 
+#ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newcloud'
   diag_temp(:) = t(idjd,:)
@@ -403,6 +402,7 @@ if ( nmaxpr==1 .and. mydiag ) then
   write(6,"('clc ',9f8.3/4x,9f8.3)") diag_temp
   write(6,*) 'kbase,ktop ',kbase(idjd),ktop(idjd)
 endif
+#endif
 
 
 !     Calculate cloud fraction and cloud water mixing ratios
@@ -420,6 +420,7 @@ do k = 2,kl-1
 end do
      
 
+#ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newcloud'
   diag_temp(:) = tenv(idjd,:)
@@ -439,6 +440,7 @@ if ( nmaxpr==1 .and. mydiag ) then
   diag_temp(:) = qenv(idjd,:) ! really new qg
   write (6,"('qnv ',9f8.3/4x,9f8.3)") diag_temp
 endif
+#endif
 
 
 !     Weight output variables according to non-convective fraction of grid-box            
@@ -495,6 +497,7 @@ call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                  
                  condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
 
 
+#ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'after newsnowrain'
   diag_temp(:) = t(idjd,:)
@@ -521,6 +524,7 @@ end if
 !  call maxmin(qsng,'qs',ktau,1.e3,kl)
 !  call maxmin(qgrg,'qg',ktau,1.e3,kl)
 !endif
+#endif
 
 
 !--------------------------------------------------------------
@@ -704,6 +708,7 @@ real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 ! Start code : ----------------------------------------------------------
 
 
+#ifdef debug
 if ( diag.and.mydiag ) then
   write(6,*) 'entering newcloud'
   diag_temp(:) = prf(idjd,:)
@@ -717,6 +722,8 @@ if ( diag.and.mydiag ) then
   diag_temp(:) = qfg(idjd,:)
   write(6,*) 'qfg ',diag_temp
 end if
+#endif
+
 
 ! First melt cloud ice or freeze cloud water to give correct ice fraction fice.
 ! Then calculate the cloud conserved variables qtot and tliq.
@@ -742,6 +749,8 @@ do k = 1,kl
   tliq(:,k) = ttg(:,k) - hlcp*qcg(:,k) - hlfcp*qfg(:,k) 
 end do
 
+
+#ifdef debug
 if ( diag .and. mydiag ) then
   write(6,*) 'within newcloud'
   diag_temp = ttg(idjd,:)
@@ -757,6 +766,7 @@ if ( diag .and. mydiag ) then
   diag_temp = fice(idjd,:)
   write(6,*) 'fice ',diag_temp
 end if
+#endif
 
 
 ! Precompute the array of critical relative humidities 
@@ -886,6 +896,8 @@ if ( ncloud<=3 ) then
     end where
   end do   ! k loop
 
+  
+#ifdef debug
   if ( diag .and. mydiag ) then
     diag_temp(:) = rcrit(idjd,:)
     write(6,*) 'rcrit ',diag_temp
@@ -908,6 +920,8 @@ if ( ncloud<=3 ) then
     diag_temp(:) = (1.-rcrit(idjd,:))*qsw(idjd,:)
     write(6,*) 'delq ',diag_temp 
   endif
+#endif
+
 
   ! Assume condensation or evaporation retains ice fraction fice.
   ! Introduce a time-decay factor for cirrus (as suggested by results of Khvorostyanov & Sassen,
@@ -997,6 +1011,7 @@ do k = 1,kl
   ttg(:,k) = tliq(:,k) + hlcp*qcg(:,k) + hlfcp*qfg(:,k)
 end do
 
+#ifdef debug
 if ( diag .and. mydiag ) then
    write(6,*) 'at end of newcloud'
    diag_temp(:) = ttg(idjd,:)
@@ -1010,6 +1025,7 @@ if ( diag .and. mydiag ) then
    diag_temp(:) = qtg(idjd,:)
    write(6,*) 'qtg ',diag_temp
 end if
+#endif
 
 return
 end subroutine newcloud
@@ -1232,11 +1248,11 @@ do k = 1,kl-1
       qcic  = qlg(iq,k)/clfr(iq,k) !In cloud value
       if ( qcic>=qcrit ) then
         Crate    = Aurate*rhoa(iq,k)*(rhoa(iq,k)/(cdrop(iq,k)*rhow))**(1./3.)
-        ql1      = 1./pow75(qcic**(-4./3.)+(4./3.)*Crate*tdt)
+        ql1      = 1./(qcic**(-4./3.)+(4./3.)*Crate*tdt)**0.75
         ql1      = max( ql1, qcrit ) !Intermediate qlg after auto
         Frb      = dz(iq,k)*rhoa(iq,k)*(qcic-ql1)/tdt
         Frb      = min( Frb, 1.e10 ) ! prevent overflow
-        cdts     = tdt*0.5*Ecol*0.24*pow75(Frb) ! old
+        cdts     = tdt*0.5*Ecol*0.24*Frb**0.75 ! old
         selfcoll = min( ql1, ql1*cdts )
         ql2      = ql1 - selfcoll
         ql       = clfr(iq,k)*ql2
@@ -1295,6 +1311,7 @@ do k = 1,kl
 end do
 
 
+#ifdef debug
 if ( diag .and. mydiag ) then
   diag_temp(:) = stratcloud(idjd,:)
   write(6,*) 'stratcloud',diag_temp
@@ -1319,6 +1336,7 @@ if ( diag .and. mydiag ) then
   diag_temp(:) = qgrg(idjd,:)
   write(6,*) 'qgrg',diag_temp
 endif  ! (diag.and.mydiag)
+#endif
 
 
 ! Use sub time-step if required
@@ -2002,7 +2020,7 @@ do n = 1,njumps
         if ( fluxrain(iq)>0. .and. rl>1.e-15 ) then
           Fr(iq)       = max(fluxrain(iq),0.)/tdt/max(crfra(iq),1.e-15)
           fcol(iq)     = crfra(iq)
-          cdt          = tdt*Ecol*0.24*fcol(iq)*pow75(Fr(iq))
+          cdt          = tdt*Ecol*0.24*fcol(iq)*Fr(iq)**0.75
           coll         = max( min( rhol(iq,k), rhol(iq,k)*cdt/(1.+0.5*cdt) ), 0. ) ! mass
           lflux        = coll*dz(iq,k)                                            ! flux
           dql          = coll/rhoa(iq,k)                                          ! mixing ratio
@@ -2052,7 +2070,7 @@ do n = 1,njumps
         
       ! store for aerosols
       qevap(:,k) = qevap(:,k) + evap
-      prscav(:,k) = prscav(:,k) + tdt*0.24*fcol*pow75(Fr)   !Strat only
+      prscav(:,k) = prscav(:,k) + tdt*0.24*fcol*Fr**0.75   !Strat only
       
     end if ! fluxrain>0.
 
@@ -2291,6 +2309,8 @@ if ( nmaxpr==1 .and. mydiag ) then
   write (6,"('cfgraupel ',9f8.3/6x,9f8.3)") diag_temp
 end if
 
+
+#ifdef debug
 ! Diagnostics for debugging
 if ( diag .and. mydiag ) then
   diag_temp(:) = stratcloud(idjd,:)
@@ -2331,6 +2351,7 @@ if ( diag .and. mydiag ) then
   write(6,*) 'fluxm',diag_temp
   write(6,*) 'cifra,fluxsnow',cifra(idjd),fluxsnow(idjd)
 end if  ! (diag.and.mydiag)
+#endif
 
 return
 end subroutine newsnowrain
@@ -2464,21 +2485,5 @@ end do
 
 return
 end subroutine progcloud    
-    
-pure function pow75_s(x) result(ans)
-implicit none
-real, intent(in) :: x
-real ans, y
-y=sqrt(x)
-ans=y*sqrt(y)
-end function pow75_s
-
-pure function pow75_v(x) result(ans)
-implicit none
-real, dimension(:), intent(in) :: x
-real, dimension(size(x)) :: ans, y
-y=sqrt(x)
-ans=y*sqrt(y)
-end function pow75_v    
     
 end module leoncld_mod

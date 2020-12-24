@@ -3131,18 +3131,20 @@ elsewhere
 end where
 do ii=2,wlev-1 
   where ( depth%depth_hl(:,ii+1)<depth%depth_hl(:,wlev+1) )
-    d_rad(:,ii)=netvis*(exp(-depth%depth_hl(:,ii+1)*d_zcr/mu_1)-exp(-depth%depth_hl(:,ii)*d_zcr/mu_1)) &
-               +netnir*(exp(-depth%depth_hl(:,ii+1)*d_zcr/mu_2)-exp(-depth%depth_hl(:,ii)*d_zcr/mu_2))
+    d_rad(:,ii)=netvis*(exp(max(-depth%depth_hl(:,ii+1)*d_zcr/mu_1,-50.)) &
+                       -exp(max(-depth%depth_hl(:,ii)*d_zcr/mu_1,-50.)))  &
+               +netnir*(exp(max(-depth%depth_hl(:,ii+1)*d_zcr/mu_2,-50.)) &
+                       -exp(max(-depth%depth_hl(:,ii)*d_zcr/mu_2,-50.)))
   elsewhere ( depth%dz(:,ii)>1.e-4 )
-    d_rad(:,ii)=-netvis*exp(-depth%depth_hl(:,ii)*d_zcr/mu_1) &
-                -netnir*exp(-depth%depth_hl(:,ii)*d_zcr/mu_2) ! remainder
+    d_rad(:,ii)=-netvis*exp(max(-depth%depth_hl(:,ii)*d_zcr/mu_1,-50.)) &
+                -netnir*exp(max(-depth%depth_hl(:,ii)*d_zcr/mu_2,-50.)) ! remainder
   elsewhere
     d_rad(:,ii)=0.  
   end where 
 end do
 where ( depth%dz(:,wlev)>1.e-4 )
-  d_rad(:,wlev)=-netvis*exp(-depth%depth_hl(:,wlev)*d_zcr/mu_1) &
-                -netnir*exp(-depth%depth_hl(:,wlev)*d_zcr/mu_2) ! remainder
+  d_rad(:,wlev)=-netvis*exp(max(-depth%depth_hl(:,wlev)*d_zcr/mu_1,-50.)) &
+                -netnir*exp(max(-depth%depth_hl(:,wlev)*d_zcr/mu_2,-50.)) ! remainder
 elsewhere
   d_rad(:,wlev)=0.
 end where

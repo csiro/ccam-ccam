@@ -2596,6 +2596,9 @@ if ( myid==0 ) then
 #ifdef usempi3
   write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
 #endif
+#ifdef i8r8
+  write(6,*) 'Using double precision mode'
+#endif
   if ( using_omp ) then
     write(6,*) 'Using OpenMP with number of threads     = ',maxthreads
   end if

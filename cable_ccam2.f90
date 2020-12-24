@@ -20,8 +20,7 @@
 !------------------------------------------------------------------------------
 
 ! CABLE interface originally developed by the CABLE group
-! Subsequently modified by MJT for maxtile=5 tile mosaic and SEAESF radiation scheme
-
+! Subsequently modified by MJT for tile mosaic and SEAESF radiation scheme
 ! Thanks to Paul Ryan for OMP routines
     
 ! - Currently all tiles have the same soil texture, but independent soil temperatures,
@@ -2163,7 +2162,7 @@ end if
 return
 end subroutine loadcbmparm
 
-
+! legacy code for IGBP vegetation classes    
 subroutine convertigbp(ivs,svs,vlin)
 
 use cc_mpi
@@ -2408,6 +2407,7 @@ integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
 integer, dimension(:), allocatable, save :: cveg
 integer(kind=4), dimension(:), allocatable, save :: Iwood
 integer(kind=4), dimension(:,:), allocatable, save :: disturbance_interval
+integer, dimension(0:maxtile) :: stat_count, global_stat_count
 integer i,iq,n,k,ipos,ilat,ivp,is,ie
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
@@ -2656,12 +2656,13 @@ if ( mp_global>0 ) then
   ! pack biome data into CABLE vector
   ! prepare LAI arrays for temporal interpolation (PWCB)  
   do tile = 1,ntiles
+    ! tile is the spatial decomposition and maxtile is the mosaic of vegetation PFTs  
     allocate(tdata(tile)%tmap(imax,maxtile))
     tdata(tile)%tmap = .false.
   end do
   allocate( qmap(ifull,maxtile) )
   qmap = -1 ! missing
-
+  
   ipos = 0
   do tile = 1,ntiles
     is = 1 + (tile-1)*imax
@@ -3090,6 +3091,25 @@ else
     call casa_readbiome(veg,casabiome,casapool,casaflux,casamet,phen,fcasapft)
   end if
   
+end if
+  
+! statistics
+stat_count(:) = 0
+global_stat_count(:) = 0
+do iq = 1,ifull
+  if ( land(iq) ) then  
+    landcount = count( svs(iq,:)>0. )
+    stat_count(landcount) = stat_count(landcount) + 1
+    stat_count(0) = stat_count(0) + 1
+  end if  
+end do  
+call ccmpi_reduce(stat_count,global_stat_count,"sum",0,comm_world)
+if ( myid==0 ) then
+  write(6,*) "CABLE statistics:"
+  do n = 1,maxtile
+    write(6,'(A,I1.1,A,F5.1,A)') "   Percentage of gridpoints with ",n," tile(s) is ", &
+        100.*real(global_stat_count(n))/real(global_stat_count(0)),"%"
+  end do  
 end if
   
 if (myid==0) write(6,*) "Finished defining CABLE and CASA CNP arrays"

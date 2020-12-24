@@ -8384,9 +8384,9 @@ contains
 
       ! Global communicator
 #ifdef _OPENMP
-      call MPI_Init_Thread(MPI_THREAD_FUNNELED, lprovided, lerr)
-      if ( lprovided < MPI_THREAD_FUNNELED ) then
-         write(6,*) "ERROR: MPI does not support MPI_THREAD_FUNNELED"
+      call MPI_Init_Thread(MPI_THREAD_SERIALIZED, lprovided, lerr)
+      if ( lprovided < MPI_THREAD_SERIALIZED ) then
+         write(6,*) "ERROR: MPI does not support MPI_THREAD_SERIALIZED"
          call ccmpi_abort(-1)
       end if
 #else

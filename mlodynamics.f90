@@ -1321,7 +1321,6 @@ real vec2x,vec2y,vec2z,vecdot
 real vec3x,vec3y,vec3z,vdot1,vdot2
 real(kind=8), dimension(ifull,size(cou,2)), intent(in) :: x3d,y3d,z3d
 
-!$acc parallel loop collapse(2) copyin(x3d,y3d,z3d,x,y,z) copy(cou,cov,cow)
 do k = 1,wlev
   do iq = 1,ifull
     !         cross product n1xn2 into vec1
@@ -1347,7 +1346,6 @@ do k = 1,wlev
     end if
   end do ! iq
 end do   ! k
-!$acc end parallel loop
 
 return
 end subroutine mlorot
@@ -1358,172 +1356,158 @@ end subroutine mlorot
 subroutine mlovadv(dtin,ww,uu,vv,ss,tt,mm,depdum,idzdum,wtr,cnum)
 
 use cc_mpi
+use cc_omp
 use mlo
 use newmpar_m
 
 implicit none
 
 integer, intent(in) :: cnum
-integer ii,iq,its_g
-integer, dimension(ifull) :: its
+integer ii,iq,its_g,js,je,tile
+integer, dimension(imax) :: its
 real, intent(in) :: dtin
-real, dimension(ifull) :: dtnew
+real, dimension(imax) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
 real, dimension(ifull,wlev), intent(in) :: depdum,idzdum
 real, dimension(:,:), intent(inout) :: uu,vv,ss,tt,mm
-real, dimension(ifull,wlev) :: dzdum
+real, dimension(imax,0:wlev) :: ww_l
+real, dimension(imax,wlev) :: dat_l, depdum_l, dzdum
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
 
 call START_LOG(watervadv_begin)
 
-dzdum = max(idzdum(:,:),1.E-10)
+!$omp parallel private(tile,iq,ii,its,js,je,its_g,ww_l,dzdum,depdum_l,dtnew,dat_l)
+!$omp do
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+
+  dzdum    = max(idzdum(js:je,:),1.E-10)
+  ww_l     = ww(js:je,:)
+  depdum_l = depdum(js:je,:)
   
-! reduce time step to ensure stability
-do iq = 1,ifull
-  dtnew(iq)=dtin
-  do ii = 1,wlev-1
-    if ( wtr(iq,ii) ) then
-      ! this trick works if dzdum(iq,ii)<dzdum(iq,ii+1)
-      dtnew(iq)=min(dtnew(iq),0.3*dzdum(iq,ii)/max(abs(ww(iq,ii)),1.E-12))
-    end if
+  ! reduce time step to ensure stability
+  dtnew(:)=dtin
+  do iq = 1,imax
+    do ii = 1,wlev-1
+      if ( wtr(iq+js-1,ii) ) then
+        ! this trick works if dzdum(iq,ii)<dzdum(iq,ii+1)
+        dtnew(iq)=min(dtnew(iq),0.3*dzdum(iq,ii)/max(abs(ww_l(iq,ii)),1.E-12))
+      end if
+    end do
   end do
-  its(iq)=int(dtin/(dtnew(iq)+0.01))+1
-  dtnew(iq)=dtin/real(its(iq))
-end do
+  its(1:imax)=int(dtin/(dtnew(:)+0.01))+1
+  its_g=maxval(its(:))
+  if (its_g>500) then
+    write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
+  end if
+  dtnew(:)=dtin/real(its(:))
 
-its_g=maxval(its(:))
-if (its_g>500) then
-  write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
-end if
-
-!$omp parallel sections
-!$acc data create(its,dtnew,ww,depdum,dzdum)
-!$acc update device(its,dtnew,ww,depdum,dzdum)
-
-!$omp section
-call mlotvd(its,dtnew,ww,uu,depdum,dzdum,1)
-!$omp section
-call mlotvd(its,dtnew,ww,vv,depdum,dzdum,2)
-!$omp section
-call mlotvd(its,dtnew,ww,ss,depdum,dzdum,3)
-!$omp section
-call mlotvd(its,dtnew,ww,tt,depdum,dzdum,4)
-!$omp section
-call mlotvd(its,dtnew,ww,mm,depdum,dzdum,5)
-
-!$acc wait
-!$acc end data
-!$omp end parallel sections
+  dat_l = uu(js:je,:)
+  call mlotvd(its,dtnew,ww_l,dat_l,depdum_l,dzdum)
+  uu(js:je,:) = dat_l
+  dat_l = vv(js:je,:)
+  call mlotvd(its,dtnew,ww_l,dat_l,depdum_l,dzdum)
+  vv(js:je,:) = dat_l
+  dat_l = ss(js:je,:) - 34.72
+  call mlotvd(its,dtnew,ww_l,dat_l,depdum_l,dzdum)
+  ss(js:je,:) = max( dat_l+34.72, 0. )
+  dat_l = tt(js:je,:)
+  call mlotvd(its,dtnew,ww_l,dat_l,depdum_l,dzdum)
+  tt(js:je,:) = max( dat_l, -wrtemp )
+  dat_l = mm(js:je,:)
+  call mlotvd(its,dtnew,ww_l,dat_l,depdum_l,dzdum)
+  mm(js:je,:) = dat_l
   
-ss(1:ifull,:)=max(ss(1:ifull,:),0.)
-tt(1:ifull,:)=max(tt(1:ifull,:),-wrtemp)
+end do
+!$omp end do
+!$omp end parallel
 
 call END_LOG(watervadv_end)
 
 return
 end subroutine mlovadv
 
-subroutine mlotvd(its,dtnew,ww,uu,depdum,dzdum,asyncbuf)
+pure subroutine mlotvd(its,dtnew,ww,uu,depadj,dzadj)
 
+use cc_omp
 use mlo
 use newmpar_m
 
 implicit none
 
-integer, intent(in) :: asyncbuf
 integer ii,i,iq,kp,kx
-integer, dimension(ifull), intent(in) :: its
-real, dimension(ifull), intent(in) :: dtnew
-real, dimension(ifull,0:wlev), intent(in) :: ww
-real, dimension(ifull,wlev), intent(in) :: depdum,dzdum
-real, dimension(:,:), intent(inout) :: uu
-real, dimension(ifull,0:wlev) :: ff
-real, dimension(ifull,0:wlev) :: delu
+integer, dimension(imax), intent(in) :: its
+real, dimension(imax), intent(in) :: dtnew
+real, dimension(imax,0:wlev), intent(in) :: ww
+real, dimension(imax,wlev), intent(in) :: depadj,dzadj
+real, dimension(imax,wlev), intent(inout) :: uu
+real, dimension(imax,0:wlev) :: ff, delu
 real fl,fh,cc,rr
 
 ! f=(w*u) at half levels
 ! du/dt = u*dw/dz-df/dz = -w*du/dz
 
-!$acc enter data create(uu,ff,delu) async(asyncbuf)
-!$acc update device(uu) async(asyncbuf)
-
-!$acc parallel loop collapse(2) present(delu,uu) async(asyncbuf)
+delu(1:imax,0) = 0.
 do ii = 1,wlev-1
-  do iq = 1,ifull
-    delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
-  end do
+  delu(1:imax,ii) = uu(1:imax,ii+1) - uu(1:imax,ii)
 end do
-!$acc end parallel loop
-!$acc parallel loop present(ff,delu) async(asyncbuf)
-do iq = 1,ifull
-  ff(iq,0) = 0.
-  ff(iq,wlev) = 0.
-  delu(iq,0) = 0.
-  delu(iq,wlev) = 0.
-end do
-!$acc end parallel loop
+delu(1:imax,wlev) = 0.
+ff(1:imax,0) = 0.
+ff(1:imax,wlev) = 0.
 
 ! TVD part
-!$acc parallel loop collapse(2) present(ww,delu,uu,dzdum,depdum,dtnew,ff) async(asyncbuf)
 do ii = 1,wlev-1
-  do iq = 1,ifull
-    ! +ve ww is downwards to the ocean floor
+  ! +ve ww is downwards to the ocean floor
+  do iq = 1,imax
     kp = nint(sign(1.,ww(iq,ii)))
-    kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-    rr=delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
-    fl=ww(iq,ii)*uu(iq,kx)
+    kx = ii + (1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
+    rr = delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
+    fl = ww(iq,ii)*uu(iq,kx)
     cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
     fh = ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))             &
       - 0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
-      /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
+     /max(depadj(iq,ii+1)-depadj(iq,ii),1.E-10)
     ff(iq,ii) = fl + cc*(fh-fl)
-    !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
-  end do
-end do
-!$acc end parallel loop
-!$acc parallel loop collapse(2) present(uu,dtnew,ff,ww) async(asyncbuf)
-do ii = 1,wlev
-  do iq = 1,ifull
-    if ( dzdum(iq,ii)>1.e-4 ) then  
-      uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))   &
-                         -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
-    end if   
+    !ff(iq,ii) = ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
   end do  
 end do
-!$acc end parallel loop
+do ii = 1,wlev
+  where ( dzadj(1:imax,ii)>1.e-4 )  
+    uu(1:imax,ii) = uu(1:imax,ii) + dtnew*(uu(1:imax,ii)*(ww(1:imax,ii)-ww(1:imax,ii-1))   &
+                                  -ff(1:imax,ii)+ff(1:imax,ii-1))/dzadj(1:imax,ii)
+  end where  
+end do
 
-!$acc parallel loop present(uu,its,dtnew,ww,depdum,dzdum,ff,delu) async(asyncbuf)
-do iq = 1,ifull
+do iq = 1,imax
   do i = 2,its(iq)
-    do ii=1,wlev-1
-      delu(iq,ii)=uu(iq,ii+1)-uu(iq,ii)
+
+    do ii = 1,wlev-1
+      delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
     end do
+
     ! TVD part
     do ii=1,wlev-1
       ! +ve ww is downwards to the ocean floor
       kp = nint(sign(1.,ww(iq,ii)))
-      kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-      rr=delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
-      fl=ww(iq,ii)*uu(iq,kx)
-      cc=max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
-      fh=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))          &
+      kx = ii + (1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
+      rr = delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
+      fl = ww(iq,ii)*uu(iq,kx)
+      cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
+      fh = ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))            &
         -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
-        /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-      ff(iq,ii)=fl+cc*(fh-fl)
+        /max(depadj(iq,ii+1)-depadj(iq,ii),1.E-10)
+      ff(iq,ii) = fl + cc*(fh-fl)
     end do
-    do ii=1,wlev
-      if ( dzdum(iq,ii)>1.e-4 ) then  
-        uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1)) &
-                                      -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
+    do ii = 1,wlev
+      if ( dzadj(iq,ii)>1.e-4 ) then  
+        uu(iq,ii) = uu(iq,ii) + dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1)) &
+                              -ff(iq,ii)+ff(iq,ii-1))/dzadj(iq,ii)
       end if  
     end do
+
   end do
 end do
-!$acc end parallel loop
-
-!$acc update self(uu) async(asyncbuf)
-
-!$acc exit data delete(uu,ff,delu) async(asyncbuf)
 
 return
 end subroutine mlotvd
