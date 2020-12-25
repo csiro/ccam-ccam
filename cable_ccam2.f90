@@ -6205,6 +6205,8 @@ end subroutine fixtile
 
 subroutine redistribute_tile(old_sv)
 
+use cc_mpi
+
 implicit none
 
 integer k
@@ -6220,6 +6222,11 @@ if ( mp_global>0 ) then
       call redistribute_work(old_sv,ssnow%wb(:,k))
       call redistribute_work(old_sv,ssnow%wbice(:,k))
     end do
+    if ( any(ssnow%tgg>400.) ) then
+      write(6,*) "ERROR: Invalid temperature for CABLE redistribute_tile"
+      write(6,*) "ssnow%tgg ",maxval(ssnow%tgg)
+      call ccmpi_abort(-1)
+    end if  
     call redistribute_work(old_sv,ssnow%GWwb)
     if ( soil_struc==1 ) then
       do k = 1,ms
@@ -6255,11 +6262,11 @@ integer tile, nb, iq, is, ie
 real, dimension(mp_global), intent(in) :: old_sv
 real, dimension(ifull,maxnb) :: up_new_svs, up_old_svs
 real, dimension(ifull) :: svs_sum
-real, dimension(maxtile) :: adj_pos_frac, adj_neg_frac, new_svs, old_svs
+real, dimension(maxnb) :: adj_pos_frac, adj_neg_frac, new_svs, old_svs
 real(kind=8) :: ave_neg_vdata
 real(kind=8), dimension(mp_global), intent(inout) :: vdata
 real(kind=8), dimension(ifull,maxnb) :: up_vdata
-real(kind=8), dimension(maxtile) :: old_vdata
+real(kind=8), dimension(maxnb) :: old_vdata
 
 up_vdata = 0._8
 up_new_svs = 0.
@@ -6272,11 +6279,15 @@ do nb = 1,maxnb
 end do  
 svs_sum = sum(up_new_svs,dim=2)
 do nb = 1,maxnb
-  up_new_svs(:,nb) = up_new_svs(:,nb)/svs_sum
+  where ( land(1:ifull) )  
+    up_new_svs(:,nb) = up_new_svs(:,nb)/max(svs_sum(:),1.e-10)
+  end where  
 end do
 svs_sum = sum(up_old_svs,dim=2)
 do nb = 1,maxnb
-  up_old_svs(:,nb) = up_old_svs(:,nb)/svs_sum
+  where ( land(1:ifull) )  
+    up_old_svs(:,nb) = up_old_svs(:,nb)/max(svs_sum(:),1.e-10)
+  end where  
 end do
 
 do tile = 1,ntiles
@@ -6292,7 +6303,7 @@ do tile = 1,ntiles
       ! combine tiles with decreasing area fraction into one tile
       ave_neg_vdata = sum( adj_neg_frac(:)*old_vdata )/sum( adj_neg_frac )
       ! Only change tiles that are increasing in area fraction
-      do nb = 1,tdata(tile)%maxnb
+      do nb = 1,maxnb
         if ( adj_pos_frac(nb)>0. ) then  
           up_vdata(iq,nb) = (old_vdata(nb)*old_svs(nb) + ave_neg_vdata*adj_pos_frac(nb)) &
                         /(old_svs(nb) + adj_pos_frac(nb))
