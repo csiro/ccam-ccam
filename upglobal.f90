@@ -24,7 +24,6 @@ subroutine upglobal
 use aerosolldr             ! LDR prognostic aerosols
 use arrays_m               ! Atmosphere dyamics prognostic arrays
 use cc_mpi                 ! CC MPI routines
-use cc_omp                 ! CC OpenMP routines
 use cfrac_m                ! Cloud fraction
 use const_phys             ! Physical constants
 use diag_m                 ! Diagnostic routines
@@ -57,7 +56,7 @@ include 'kuocom.h'         ! Convection parameters
 
 integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
 integer ii, intsch, iq, jj, k, kk
-integer idjdd, nstart, tile
+integer idjdd, nstart
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits, nvadh_pass
 #ifdef debug
@@ -160,13 +159,7 @@ end do     ! k loop
 sdmx(:) = maxval(abs(sdot), 2)
 nits(:) = int(1.+sdmx(:)/2.)
 nvadh_pass(:) = 2*nits(:) ! use - for nvadu
-!$omp parallel private(tile)
-!$omp do
-do tile = 1,ntiles
-  call vadvtvd(tx,ux,vx,nvadh_pass,nits,tile)
-end do  
-!$omp end do
-!$omp end parallel
+call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv1'
   write (6,"('tx_a',9f8.2)")   tx(idjd,:)
@@ -398,13 +391,7 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('qg_b',9f8.3)")   qg(idjd,:)
 endif
 
-!$omp parallel private(tile)
-!$omp do
-do tile = 1,ntiles
-  call vadvtvd(tx,ux,vx,nvadh_pass,nits,tile)
-end do  
-!$omp end do
-!$omp end parallel
+call vadvtvd(tx,ux,vx,nvadh_pass,nits)
 
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv2'
