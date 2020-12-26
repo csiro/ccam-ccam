@@ -2600,10 +2600,10 @@ if ( myid==0 ) then
   write(6,*) 'Using double precision mode'
 #endif
   if ( using_omp ) then
-    write(6,*) 'Using OpenMP with number of threads     = ',maxthreads
+    write(6,*) 'Using OpenMP with number of threads      = ',maxthreads
   end if
   if ( using_acc ) then
-    write(6,*) 'Using OpenACC with number of GPUs       = ',ngpus  
+    write(6,*) 'Using OpenACC with number of GPUs        = ',ngpus  
   end if    
   write(6,*) 'Reading namelist from ',trim(nmlfile)
   write(6,*) 'ilx,jlx              ',ilx,jlx
