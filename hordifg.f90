@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -139,7 +139,7 @@ do k = 1,kl
 end do
 
 ! Calculate shear for tke
-if ( nvmix==6 ) then
+if ( nvmix==6 .or. nvmix==9 ) then
 
   ! calculate height on full levels
   zg(:,1) = (zs(1:ifull)+bet(1)*t(1:ifull,1))/grav
@@ -181,7 +181,7 @@ if ( nvmix==6 ) then
     dvdz = (r2-r1)/(zg(iq,kl)-zgh_a(iq))
     shear(iq,k) = dudz**2 + dvdz**2
   end do
-end if ! nvmix=6
+end if ! nvmix=6 .or. nvmix==9
       
 ! usual deformation for nhorjlm=1 or nhorjlm=2
 if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
@@ -430,7 +430,7 @@ if ( nhorps==-4 .and. ldr/=0 ) then
 end if       ! (ldr/=0.and.nhorps==-4)
 
 ! apply horizontal diffusion to TKE and EPS terms (disabled by default)
-if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. nvmix==6 ) then
+if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   work(1:ifull,1:kl,1) = tke(1:ifull,1:kl)
   work(1:ifull,1:kl,2) = eps(1:ifull,1:kl)
   call bounds(work(:,:,1:2))
@@ -452,7 +452,7 @@ if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. nvmix==6 ) then
                   / base
     end do
   end do
-end if   ! (nvmix==6)
+end if   ! (nvmix==6.or.nvmix==9)
 
 ! prgnostic aerosols (disabled by default)
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then

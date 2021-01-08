@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -30,10 +30,11 @@
 ! nvmix=3  Local Ri mixing
 ! nvmix=6  Prognostic k-e tubulence closure
 ! nvmix=7  Jing Huang's local Ri scheme (with axmlsq=9.)
+! nvmix=9  Coupled atmosphere-ocean mixing
 
 ! nlocal=0 No counter gradient term
 ! nlocal=6 Holtslag and Boville non-local term
-! nlocal=7 Mass flux based counter gradient (requires nvmix=6)
+! nlocal=7 Mass flux based counter gradient (requires nvmix=6 or nvmix=9)
       
 ! kscmom   0 off, 1 turns on shal_conv momentum (usual) (requires nvmix<6)
     
@@ -89,6 +90,7 @@ use carbpools_m                     ! Carbon pools
 use cc_mpi                          ! CC MPI routines
 use cc_omp                          ! CC OpenMP routines
 use cfrac_m                         ! Cloud fraction
+use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use extraout_m                      ! Additional diagnostics
 use kuocomb_m                       ! JLM convection
@@ -127,7 +129,7 @@ real, dimension(imax,kl) :: lcfrac, lu, lv, lstratcloud
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
 real, dimension(imax,kl) :: lat, lct
 real, dimension(ifull) :: uadj, vadj
-real, dimension(imax) :: lou, lov, liu, liv
+real, dimension(imax) :: lou, lov, liu, liv, lrho
 logical :: mydiag_t
 #ifdef scm
 real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
@@ -139,10 +141,10 @@ real, dimension(imax,numtracer) :: lco2em
 real, dimension(imax,kl,ntrac) :: ltr
 real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 #endif
-   
-if ( nmlo/=0 ) then
-!$omp do schedule(static) private(is,ie,k),             &
-!$omp private(lou,lov,liu,liv)
+
+if ( nmlo/=0 .and. nvmix/=9 ) then
+  !$omp do schedule(static) private(is,ie,k),             &
+  !$omp private(lou,lov,liu,liv)
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
@@ -157,26 +159,26 @@ if ( nmlo/=0 ) then
     uadj(is:ie) = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
     vadj(is:ie) = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
   end do
-!$omp end do nowait
+  !$omp end do nowait
 else
-!$omp do schedule(static) private(is,ie,k)
+  !$omp do schedule(static) private(is,ie,k)
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
     uadj(is:ie) = 0.
     vadj(is:ie) = 0.
   end do
-!$omp end do nowait  
+  !$omp end do nowait  
 end if
 
 select case(nvmix)
-  case(6)  
+  case(6,9)  
     ! k-e + MF closure scheme
     
-!$omp do schedule(static) private(is,ie,k),             &
-!$omp private(lt,lqg,lqfg,lqlg),                        &
-!$omp private(lstratcloud,lxtg,lu,lv,ltke,leps,lshear), &
-!$omp private(lat,lct,lsavu,lsavv,idjd_t,mydiag_t)
+    !$omp do schedule(static) private(is,ie,k),             &
+    !$omp private(lt,lqg,lqfg,lqlg),                        &
+    !$omp private(lstratcloud,lxtg,lu,lv,ltke,leps,lshear), &
+    !$omp private(lat,lct,lsavu,lsavv,idjd_t,mydiag_t)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -203,12 +205,12 @@ select case(nvmix)
     
       call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                                      &
                        ps(is:ie),lqg,lqfg,lqlg,lstratcloud,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),           &
-                       ustar(is:ie),ltke,leps,lshear,lat,lct,                                            &
+                       ustar(is:ie),ltke,leps,lshear,lat,lct,land(is:ie),                                &
 #ifdef scm
                        lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave, &
                        lbuoyproduction,lshearproduction,ltotaltransport,                                 &
 #endif
-                       imax,kl,naero)      
+                       imax,kl,naero,tile)      
                        
       t(is:ie,:)          = lt
       qg(is:ie,:)         = lqg
@@ -245,9 +247,23 @@ select case(nvmix)
       totaltransport(is:ie,:) = ltotaltransport
 #endif
 
-    end do ! tile = 1,ntiles
-!$omp end do nowait
+      lrho(1:imax) = ps(is:ie)/(rdry*tss(is:ie))
+      taux(is:ie) = lrho(1:imax)*cduv(is:ie)*(u(is:ie,1)-uadj(is:ie))
+      tauy(is:ie) = lrho(1:imax)*cduv(is:ie)*(v(is:ie,1)-vadj(is:ie))
 
+    end do ! tile = 1,ntiles
+    !$omp end do nowait
+
+    if ( nmlo/=0 .and. nvmix==9 ) then  
+      !$omp do schedule(static) private(is,ie,k)      
+      do tile = 1,ntiles
+        is = (tile-1)*imax + 1
+        ie = tile*imax
+        call mlosurf("sst",tss(is:ie),0,water_g(tile),ice_g(tile),wpack_g(:,tile),wfull_g(tile))
+      end do
+      !$omp end do nowait      
+    end if
+    
   case default  
       ! JLM's local Ri scheme
     
@@ -1752,22 +1768,22 @@ return
 end subroutine trim
 
 subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                                 &
-                       xtg,cduv,u,v,pblh,ustar,tke,eps,shear,at,ct,                             &
+                       xtg,cduv,u,v,pblh,ustar,tke,eps,shear,at,ct,land,                        &
 #ifdef scm
                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave, &
                        buoyproduction,shearproduction,totaltransport,                           &
 #endif
-                       imax,kl,naero)
+                       imax,kl,naero, tile)
 
 use const_phys                   ! Physical constants
-use parm_m, only : ds, nlocal, iaero, dt, qgmin, cqmix
+use parm_m, only : ds, nlocal, iaero, dt, qgmin, cqmix, nvmix
                                  ! Model configuration
 use sigs_m                       ! Atmosphere sigma levels
 use tkeeps, only : tkemix        ! TKE-EPS boundary layer
 
 implicit none
 
-integer, intent(in) :: imax, kl, naero
+integer, intent(in) :: imax, kl, naero, tile
 integer k, nt, iq
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
@@ -1779,13 +1795,14 @@ real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, zg
 real, dimension(imax,kl) :: rkm
 real tmnht
-real, dimension(imax), intent(inout) :: pblh, ustar
-real, dimension(imax), intent(in) :: em, tss, eg, fg, ps
+real, dimension(imax), intent(inout) :: pblh, ustar, eg, fg
+real, dimension(imax), intent(in) :: em, tss, ps
 real, dimension(imax), intent(in) :: cduv
 real dz, gt
 real, dimension(imax) :: rhos, dx
 real, dimension(kl) :: sigkap, delh
 real rong, rlogs1, rlogs2, rlogh1, rlog12
+logical, dimension(imax), intent(in) :: land
 #ifdef scm
 real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
 real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave, epssave
@@ -1806,8 +1823,8 @@ do k = 1,kl
   sigkap(k) = sig(k)**(-rdry/cp)
 end do      ! k loop
       
-! note ksc/=0 options are clobbered when nvmix=6
-! However, nvmix=6 with nlocal=7 supports its own shallow
+! note ksc/=0 options are clobbered when nvmix=6 or nvmix=9
+! However, nvmix=6 or nvmix=9 with nlocal=7 supports its own shallow
 ! convection options
 
 ! calculate height on full levels
@@ -1839,18 +1856,35 @@ do k = 1,kl
   tkesave(:,k) = -1. ! missing value
 end do
 ! Evaluate EDMF scheme
-select case(nlocal)
-  case(0) ! no counter gradient
-    call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                ustar,dt,qgmin,1,tke,eps,shear,dx,                                   &
-                wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
-                shearproduction,totaltransport,imax,kl)
-  case(7) ! mass-flux counter gradient
-    call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                ustar,dt,qgmin,0,tke,eps,shear,dx,                                   &
-                wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
-                shearproduction,totaltransport,imax,kl)
-    
+select case(nvmix)
+  case(6)
+    select case(nlocal)
+      case(0) ! atm only, no counter gradient
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                    ustar,dt,qgmin,1,tke,eps,shear,dx,                                   &
+                    wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
+                    shearproduction,totaltransport,land,tile,imax,kl)
+      case(7) ! atm only, mass-flux counter gradient
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                    ustar,dt,qgmin,0,tke,eps,shear,dx,                                   &
+                    wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
+                    shearproduction,totaltransport,land,tile,imax,kl)
+    end select    
+  case(9)
+    select case(nlocal)
+      case(0) ! coupled atm-ocn, no counter gradient
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                    ustar,dt,qgmin,3,tke,eps,shear,dx,                                   &
+                    wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
+                    shearproduction,totaltransport,land,tile,imax,kl)          
+      case(7) ! coupled atm-ocn, mass-flux counter gradient 
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                    ustar,dt,qgmin,2,tke,eps,shear,dx,                                   &
+                    wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
+                    shearproduction,totaltransport,land,tile,imax,kl)          
+    end select    
+end select
+          
 end select
 do k = 1,kl
   ! save Km and Kh for output
@@ -1861,13 +1895,25 @@ do k = 1,kl
 end do
 #else
 ! Evaluate EDMF scheme
-select case(nlocal)
-  case(0) ! no counter gradient
-    call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                ustar,dt,qgmin,1,tke,eps,shear,dx,imax,kl) 
-  case(7) ! mass-flux counter gradient
-    call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                ustar,dt,qgmin,0,tke,eps,shear,dx,imax,kl)     
+select case(nvmix)
+  case(6)  
+    select case(nlocal)
+      case(0) ! atm only, no counter gradient
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                    ustar,dt,qgmin,1,tke,eps,shear,dx,land,tile,imax,kl) 
+      case(7) ! atm only, mass-flux counter gradient
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                    ustar,dt,qgmin,0,tke,eps,shear,dx,land,tile,imax,kl)     
+    end select
+  case(9)
+    select case(nlocal)
+      case(0) ! coupled atm-ocn, no counter gradient
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                    ustar,dt,qgmin,3,tke,eps,shear,dx,land,tile,imax,kl) 
+      case(7) ! coupled atm-ocn, mass-flux counter gradient
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
+                    ustar,dt,qgmin,2,tke,eps,shear,dx,land,tile,imax,kl)     
+    end select
 end select
 #endif
 

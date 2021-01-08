@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1310,7 +1310,7 @@ if( myid==0 .or. local ) then
     if ( itype/=-1 .and. save_maxmin ) then
       lname = 'Maximum precip rate in a timestep'
       call attrib(idnc,dimj,jsize,'maxrnd',lname,'mm day-1',0.,2600.,1,-1) ! -1=long
-      lname = 'Maximum hourly precip rate'
+      lname = 'Daily Maximum Hourly Precipitation Rate'
       call attrib(idnc,dimj,jsize,'prhmax',lname,'kg m-2 s-1',0.,2600.,1,-1) ! -1=long
       lname = 'Daily Maximum Near-Surface Air Temperature'
       call attrib(idnc,dimj,jsize,'tmaxscr',lname,'K',100.,425.,1,cptype)
@@ -1973,7 +1973,7 @@ if( myid==0 .or. local ) then
     end if
         
     ! TURBULENT MIXING ----------------------------------------------
-    if ( nvmix==6 .and. (diaglevel_pbl>5.or.itype==-1) ) then
+    if ( (nvmix==6.or.nvmix==9) .and. (diaglevel_pbl>5.or.itype==-1) ) then
       call attrib(idnc,dima,asize,'tke','Turbulent Kinetic Energy','m2 s-2',0.,65.,0,cptype)
       call attrib(idnc,dima,asize,'eps','Eddy dissipation rate','m2 s-3',0.,6.5,0,cptype)
     end if
@@ -3122,7 +3122,7 @@ if ( ldr/=0 ) then
 endif
       
 ! TURBULENT MIXING --------------------------------------------
-if ( nvmix==6 .and. (diaglevel_pbl>5.or.itype==-1) ) then
+if ( (nvmix==6.or.nvmix==9) .and. (diaglevel_pbl>5.or.itype==-1) ) then
   call histwrt(tke,'tke',idnc,iarch,local,.true.)
   call histwrt(eps,'eps',idnc,iarch,local,.true.)
   !do k = 1,kl
@@ -3611,7 +3611,7 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'tmaxscr',lname,'K',100.,425.,1,1) ! daily
       lname = 'Daily Minimum Near-Surface Air Temperature'
       call attrib(fncid,sdim,ssize,'tminscr',lname,'K',100.,425.,1,1) ! daily
-      lname = 'Maximum hourly precip rate'
+      lname = 'Daily Maximum Hourly Precipitation Rate'
       call attrib(fncid,sdim,ssize,'prhmax',lname,'kg m-2 s-1',0.,2600.,1,-1) ! daily and -1=long
       lname = 'x-component max 10m wind'
       call attrib(fncid,sdim,ssize,'u10max',lname,'m s-1',-99.,99.,1,1) ! daily

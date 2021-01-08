@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1794,7 +1794,7 @@ if ( nested/=1 .and. nested/=3 ) then
 
   !------------------------------------------------------------------
   ! TKE-eps data
-  if ( nested==0 .and. nvmix==6 ) then
+  if ( nested==0 .and. (nvmix==6.or.nvmix==9) ) then
     call gethist4a('tke',tke,5)
     if ( all(tke(1:ifull,:)<1.e-20) ) tke(1:ifull,:)=1.5E-4
     call gethist4a('eps',eps,5)

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1565,10 +1565,13 @@ ateb_zocanyon    = zocanyon
 ateb_zoroof      = zoroof
 lapsbot          = 0
 io_nest          = 1
-npa              = 0  ! depreciated
-npb              = 0  ! depreciated
-cgmap_offset     = 0. ! depreciated
-cgmap_scale      = 0. ! depreciated
+npa              = 0   ! depreciated
+npb              = 0   ! depreciated
+cgmap_offset     = 0.  ! depreciated
+cgmap_scale      = 0.  ! depreciated
+vegprev          = ' ' ! depreciated
+vegnext          = ' ' ! depreciated
+vegnext2         = ' ' ! depreciated
 
 
 ! All processors read the namelist, so no MPI comms are needed
@@ -2482,6 +2485,10 @@ if ( dt>3600. ) then
   write(6,*) "ERROR: dt must be less or equal to 3600."
   call ccmpi_abort(-1)
 end if
+if ( nvmix==9 .and. nmlo==0 ) then
+  write(6,*) "ERROR: nvmix=9 requires nmlo/=0"
+  call ccmpi_abort(-1)
+end if
 nperday = nint(24.*3600./dt)           ! time-steps in one day
 nperhr  = nint(3600./dt)               ! time-steps in one hour
 if ( nwt==-99 )     nwt = nperday      ! set default nwt to 24 hours
@@ -3047,7 +3054,7 @@ call work2_init(ifull,nsib)
 call work3_init(ifull,nsib)
 call work3f_init(ifull,kl)
 call xarrs_init(ifull,iextra,kl)
-if ( nvmix==6 ) then
+if ( nvmix==6 .or. nvmix==9 ) then
   call tkeinit(ifull,iextra,kl)
 end if
 call init_tracer

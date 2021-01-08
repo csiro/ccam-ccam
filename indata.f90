@@ -865,7 +865,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   elsewhere
     depth = 0.  
   end where
-  call mloinit(ifull,depth,0)
+  call mloinit(ifull,depth,f,0)
   call mlodyninit
 end if   ! if nmlo/=0 .and. abd(nmlo)<=9
 

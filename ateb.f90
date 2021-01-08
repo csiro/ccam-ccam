@@ -180,17 +180,18 @@ type pdiagdata
   real, dimension(:), allocatable :: lzom, lzoh, cndzmin, cduv, cdtq
   real, dimension(:), allocatable :: tscrn, qscrn, uscrn, u10, emiss, snowmelt
   real, dimension(:), allocatable :: bldheat, bldcool, traf, intgains_full
-  real, dimension(:), allocatable :: rf_vegwetfac,gd_irrig,gd_acond_veg
-  real, dimension(:), allocatable :: gd_surfdrain,cn_vegwetfac
-  real, dimension(:), allocatable :: gd_vegtran,gd_soilmoist,gd_soilmoistchange
+  real, dimension(:), allocatable :: irrig,acond_vegw
+  real, dimension(:), allocatable :: surfrunoff,soilwetness,soilwater
+  real, dimension(:), allocatable :: transveg,soilmoist,delsoilmoist
+  real, dimension(:), allocatable :: rootmoistc
   real, dimension(:), allocatable :: frac_sigma
   real, dimension(:), allocatable :: delintercept, snowt, vegt, swe, surfstor
-  real, dimension(:), allocatable :: snowfrac, salbedo, calbedo, taircanyon
+  real, dimension(:), allocatable :: snowfrac, salbedo, calbedo, taircanyon, ulai
   real, dimension(:), allocatable :: delswe
   real(kind=8), dimension(:), allocatable :: surferr, atmoserr, surferr_bias, atmoserr_bias
   real(kind=8), dimension(:), allocatable :: storage_flux
   ! real(kind=8), dimension(:,:), allocatable :: storagetot_road, storagetot_walle, storagetot_wallw, storagetot_roof
-  logical :: energybalance_init
+  logical :: first_call
 end type pdiagdata
 
 type(facetdata), dimension(:,:), allocatable, save :: roof_g, road_g, walle_g, wallw_g, slab_g, intm_g, room_g
@@ -266,7 +267,7 @@ real, save         :: maxrdwater=1.        ! Maximum road water (kg m^-2)
 real, save         :: maxrfsn=1.           ! Maximum roof snow (kg m^-2)
 real, save         :: maxrdsn=1.           ! Maximum road snow (kg m^-2)
 real, save         :: maxvwatf=0.1         ! Factor multiplied to LAI to predict maximum leaf water (kg m^-2)
-real, save         :: acfactor=5.          ! Air conditioning inefficiency factor
+real, save         :: acfactor=2.          ! Air conditioning inefficiency factor
 real, save         :: ac_heatcap=10.       ! Maximum heating/cooling capacity (W m^-3)
 real, save         :: ac_coolcap=10.       ! Maximum heating/cooling capacity (W m^-3)
 real, save         :: ac_deltat=1.         ! Comfort range for temperatures (+-K)
@@ -537,14 +538,14 @@ do tile = 1,ntiles
     allocate(p_g(ifrac,tile)%tscrn(ufull_g(tile)),p_g(ifrac,tile)%qscrn(ufull_g(tile)),p_g(ifrac,tile)%uscrn(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%u10(ufull_g(tile)),p_g(ifrac,tile)%emiss(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%bldheat(ufull_g(tile)),p_g(ifrac,tile)%bldcool(ufull_g(tile)),p_g(ifrac,tile)%traf(ufull_g(tile)))
-    allocate(p_g(ifrac,tile)%gd_surfdrain(ufull_g(tile)),p_g(ifrac,tile)%gd_irrig(ufull_g(tile)))
-    allocate(p_g(ifrac,tile)%rf_vegwetfac(ufull_g(tile)),p_g(ifrac,tile)%cn_vegwetfac(ufull_g(tile)))
-    allocate(p_g(ifrac,tile)%gd_vegtran(ufull_g(tile)), p_g(ifrac,tile)%gd_acond_veg(ufull_g(tile)))
-    allocate(p_g(ifrac,tile)%gd_soilmoist(ufull_g(tile)),p_g(ifrac,tile)%gd_soilmoistchange(ufull_g(tile)))
-    allocate(p_g(ifrac,tile)%intgains_full(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%surfrunoff(ufull_g(tile)),p_g(ifrac,tile)%irrig(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%transveg(ufull_g(tile)), p_g(ifrac,tile)%acond_vegw(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%soilmoist(ufull_g(tile)),p_g(ifrac,tile)%delsoilmoist(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%rootmoistc(ufull_g(tile)), p_g(ifrac,tile)%ulai(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%intgains_full(ufull_g(tile)),p_g(ifrac,tile)%storage_flux(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%surferr(ufull_g(tile)),p_g(ifrac,tile)%atmoserr(ufull_g(tile)))
-    allocate(p_g(ifrac,tile)%storage_flux(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%surferr_bias(ufull_g(tile)),p_g(ifrac,tile)%atmoserr_bias(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%soilwetness(ufull_g(tile)),p_g(ifrac,tile)%soilwater(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%snowmelt(ufull_g(tile)),p_g(ifrac,tile)%frac_sigma(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%delintercept(ufull_g(tile)),p_g(ifrac,tile)%snowt(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%vegt(ufull_g(tile)),p_g(ifrac,tile)%swe(ufull_g(tile)))
@@ -595,14 +596,15 @@ do tile = 1,ntiles
       p_g(ifrac,tile)%emiss=0.97                                                  ! updated in atebcalc
       p_g(ifrac,tile)%bldheat=0.
       p_g(ifrac,tile)%bldcool=0.
-      p_g(ifrac,tile)%gd_surfdrain=0.
-      p_g(ifrac,tile)%rf_vegwetfac=0.
-      p_g(ifrac,tile)%cn_vegwetfac=0.
-      p_g(ifrac,tile)%gd_vegtran=0.
-      p_g(ifrac,tile)%gd_soilmoist=rdhyd_g(ifrac,tile)%soilwater*waterden*4.*0.25
-      p_g(ifrac,tile)%gd_soilmoistchange=0.
-      p_g(ifrac,tile)%gd_irrig=0.
-      p_g(ifrac,tile)%gd_acond_veg=0.1
+      p_g(ifrac,tile)%surfrunoff=0.
+      p_g(ifrac,tile)%soilwetness=0.
+      p_g(ifrac,tile)%soilwater=0.
+      p_g(ifrac,tile)%transveg=0.
+      p_g(ifrac,tile)%soilmoist=rdhyd_g(ifrac,tile)%soilwater*waterden*4.
+      p_g(ifrac,tile)%rootmoistc=rdhyd_g(ifrac,tile)%soilwater*waterden*4.
+      p_g(ifrac,tile)%delsoilmoist=0.
+      p_g(ifrac,tile)%irrig=0.
+      p_g(ifrac,tile)%acond_vegw=0.1
       p_g(ifrac,tile)%traf=0.
       p_g(ifrac,tile)%intgains_full=0.
       if ( ifrac==1 ) then 
@@ -615,7 +617,7 @@ do tile = 1,ntiles
       p_g(ifrac,tile)%surferr_bias=0._8
       p_g(ifrac,tile)%atmoserr_bias=0._8
       p_g(ifrac,tile)%storage_flux=0._8
-      p_g(ifrac,tile)%energybalance_init=.true.
+      p_g(ifrac,tile)%first_call=.true.
       p_g(ifrac,tile)%delintercept=0.
       p_g(ifrac,tile)%snowt=273.
       p_g(ifrac,tile)%vegt=273.
@@ -626,6 +628,7 @@ do tile = 1,ntiles
       p_g(ifrac,tile)%calbedo=0.
       p_g(ifrac,tile)%taircanyon=273.
       p_g(ifrac,tile)%delswe=0.
+      p_g(ifrac,tile)%ulai=1.
 
     end if
     
@@ -727,9 +730,10 @@ if ( ateb_active ) then
       deallocate(p_g(ifrac,tile)%tscrn,p_g(ifrac,tile)%qscrn,p_g(ifrac,tile)%uscrn,p_g(ifrac,tile)%u10,p_g(ifrac,tile)%emiss)
       deallocate(p_g(ifrac,tile)%surferr,p_g(ifrac,tile)%atmoserr,p_g(ifrac,tile)%surferr_bias,p_g(ifrac,tile)%atmoserr_bias)
       deallocate(p_g(ifrac,tile)%bldheat,p_g(ifrac,tile)%bldcool,p_g(ifrac,tile)%traf,p_g(ifrac,tile)%intgains_full)
-      deallocate(p_g(ifrac,tile)%gd_surfdrain,p_g(ifrac,tile)%gd_irrig,p_g(ifrac,tile)%gd_acond_veg)
-      deallocate(p_g(ifrac,tile)%rf_vegwetfac,p_g(ifrac,tile)%cn_vegwetfac)
-      deallocate(p_g(ifrac,tile)%gd_vegtran,p_g(ifrac,tile)%gd_soilmoist,p_g(ifrac,tile)%gd_soilmoistchange)
+      deallocate(p_g(ifrac,tile)%surfrunoff,p_g(ifrac,tile)%irrig,p_g(ifrac,tile)%acond_vegw)
+      deallocate(p_g(ifrac,tile)%soilwetness,p_g(ifrac,tile)%soilwater)
+      deallocate(p_g(ifrac,tile)%transveg,p_g(ifrac,tile)%soilmoist,p_g(ifrac,tile)%delsoilmoist)
+      deallocate(p_g(ifrac,tile)%rootmoistc,p_g(ifrac,tile)%ulai)
       deallocate(p_g(ifrac,tile)%storage_flux,p_g(ifrac,tile)%snowmelt)
       deallocate(p_g(ifrac,tile)%delintercept,p_g(ifrac,tile)%snowt)
       deallocate(p_g(ifrac,tile)%vegt,p_g(ifrac,tile)%swe)
@@ -2450,13 +2454,13 @@ end subroutine atebsaved
 ! This subroutine collects and passes energy closure information to atebwrap
 
 subroutine energyrecord(o_atmoserr,o_atmoserr_bias,o_surferr,o_surferr_bias, &
-                        o_heating,o_cooling,o_intgains,o_traf,o_bldtemp,o_scrntemp)
+                        o_heating,o_cooling,o_intgains,o_traf,o_bldtemp)
 
 implicit none
 
 integer tile, is, ie, ifrac
 real, dimension(ifull), intent(out) :: o_atmoserr,o_atmoserr_bias,o_surferr,o_surferr_bias
-real, dimension(ifull), intent(out) :: o_heating,o_cooling,o_intgains,o_traf,o_bldtemp,o_scrntemp
+real, dimension(ifull), intent(out) :: o_heating,o_cooling,o_intgains,o_traf,o_bldtemp
 
 o_atmoserr = 0.
 o_atmoserr_bias = 0.
@@ -2467,7 +2471,6 @@ o_cooling = 0.
 o_intgains = 0.
 o_traf = 0.
 o_bldtemp = 0.
-o_scrntemp = 0.
 
 if ( .not.ateb_active ) return
 
@@ -2499,8 +2502,6 @@ do tile = 1,ntiles
           + unpack(p_g(ifrac,tile)%traf*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
       o_bldtemp(is:ie) = o_bldtemp(is:ie)              &
           + unpack((room_g(ifrac,tile)%nodetemp(:,1)+urbtemp)*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
-      o_scrntemp(is:ie) = o_scrntemp(is:ie)            &
-          + unpack((p_g(ifrac,tile)%tscrn+urbtemp)*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
     
     end do  
   end if
@@ -2592,94 +2593,6 @@ select case(mode)
     ctmp = pack(o_data, upack)
     ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
     o_data = unpack(ctmp, upack, o_data)
-  case("gridsurfdrain")
-    dtmp = 0.
-    do ifrac = 1,nfrac
-      dtmp = dtmp + real(pd(ifrac)%gd_surfdrain)*pd(ifrac)%frac_sigma
-    end do  
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
-  case("roofvegwetfac")
-    dtmp = 0.
-    do ifrac = 1,nfrac
-      dtmp = dtmp + real(pd(ifrac)%rf_vegwetfac)*pd(ifrac)%frac_sigma
-    end do  
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
-  case("canyonvegwetfac")
-    dtmp = 0.
-    do ifrac = 1,nfrac
-      dtmp = dtmp + real(pd(ifrac)%cn_vegwetfac)*pd(ifrac)%frac_sigma
-    end do  
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
-  case("gridvegtranspiration")
-    dtmp = 0.
-    do ifrac = 1,nfrac
-      dtmp = dtmp + real(pd(ifrac)%gd_vegtran)*pd(ifrac)%frac_sigma
-    end do  
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
-  case("gridsoilmoisture")
-    dtmp = 0.
-    do ifrac = 1,nfrac
-      dtmp = dtmp + real(pd(ifrac)%gd_soilmoist)*pd(ifrac)%frac_sigma
-    end do  
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
-  case("gridsoilmoisturechange")
-    dtmp = 0.
-    do ifrac = 1,nfrac
-      dtmp = dtmp + real(pd(ifrac)%gd_soilmoistchange)*pd(ifrac)%frac_sigma
-    end do  
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
-  case("gridirrigation")
-    dtmp = 0.
-    do ifrac = 1,nfrac
-      dtmp = dtmp + real(pd(ifrac)%gd_irrig)*pd(ifrac)%frac_sigma
-    end do  
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
-  case("canyonsoilwaterfrac")
-    dtmp = 0.
-    do ifrac = 1,nfrac
-      dtmp = dtmp + real(rdhyd(ifrac)%soilwater)*pd(ifrac)%frac_sigma
-    end do  
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
-  case("roofsoilwaterfrac")
-    dtmp = 0.
-    do ifrac = 1,nfrac
-      dtmp = dtmp + real(rfhyd(ifrac)%soilwater)*pd(ifrac)%frac_sigma
-    end do  
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
-  case("gridsnowmelt")
-    dtmp = 0.
-    do ifrac = 1,nfrac
-      dtmp = dtmp + real(pd(ifrac)%snowmelt)*pd(ifrac)%frac_sigma
-    end do  
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)   
-  case("gridaeroconductionveg")
-    dtmp = 0.
-    do ifrac = 1,nfrac
-      dtmp = dtmp + real(pd(ifrac)%gd_acond_veg)*pd(ifrac)%frac_sigma
-    end do  
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)  
   case default
     write(6,*) "ERROR: Unknown atebenergy mode ",trim(mode)
     stop
@@ -2704,14 +2617,14 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   if ( ufull_g(tile)>0 ) then
-    call atebmisc_thread(o_data(is:ie),mode,diag,f_g(tile),p_g(:,tile),upack_g(:,tile),ufull_g(tile))
+    call atebmisc_thread(o_data(is:ie),mode,diag,room_g(:,tile),f_g(tile),p_g(:,tile),upack_g(:,tile),ufull_g(tile))
   end if
 end do
 
 return
 end subroutine atebmisc_standard
 
-subroutine atebmisc_thread(o_data,mode,diag,fp,pd,upack,ufull)
+subroutine atebmisc_thread(o_data,mode,diag,room,fp,pd,upack,ufull)
 
 implicit none
 
@@ -2722,6 +2635,7 @@ real, dimension(ufull) :: ctmp, dtmp
 character(len=*), intent(in) :: mode
 logical, dimension(:), intent(in) :: upack
 type(fparmdata), intent(in) :: fp
+type(facetdata), dimension(nfrac), intent(in) :: room
 type(pdiagdata), dimension(nfrac), intent(in) :: pd
 
 if ( diag>=2 ) write(6,*) "THREAD: Extract energy output"
@@ -2751,7 +2665,15 @@ select case(mode)
     end do    
     ctmp = pack(o_data, upack)
     ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)      
+    o_data = unpack(ctmp, upack, o_data)
+  case("tairbuilding")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + (room(ifrac)%nodetemp(:,1)+urbtemp)*pd(ifrac)%frac_sigma  
+    end do    
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
   case("salbedo")
     dtmp = 0.
     do ifrac = 1,nfrac
@@ -2767,7 +2689,15 @@ select case(mode)
     end do    
     ctmp = pack(o_data, upack)
     ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)    
+    o_data = unpack(ctmp, upack, o_data)
+  case("urbanlai")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%ulai*pd(ifrac)%frac_sigma  
+    end do    
+    ctmp = pack(o_data, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    o_data = unpack(ctmp, upack, o_data)
   case("taircanyon")
     dtmp = 0.
     do ifrac = 1,nfrac
@@ -2775,7 +2705,7 @@ select case(mode)
     end do    
     ctmp = pack(o_data, upack)
     ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)      
+    o_data = unpack(ctmp+urbtemp, upack, o_data)      
   case default
     write(6,*) "ERROR: Unknown atebmisc mode ",trim(mode)
     stop
@@ -3010,6 +2940,62 @@ select case(mode)
     ctmp=pack(hydroout,upack)
     ctmp=(1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
     hydroout=unpack(ctmp,upack,hydroout)
+  case("soilmoisture")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%soilmoist*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(hydroout, upack)
+    ctmp =(1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
+    hydroout=unpack(ctmp,upack,hydroout)
+  case("soilwet")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%soilwetness*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(hydroout, upack)
+    ctmp =(1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
+    hydroout=unpack(ctmp,upack,hydroout)
+  case("delsoilmoist")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%delsoilmoist*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(hydroout, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    hydroout=unpack(ctmp,upack,hydroout)
+  case("rootmoisture")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%rootmoistc*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(hydroout, upack)
+    ctmp =(1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
+    hydroout=unpack(ctmp,upack,hydroout)
+  case("irrigation")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%irrig*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(hydroout, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    hydroout=unpack(ctmp,upack,hydroout)
+  case("transpirationveg")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%transveg*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(hydroout, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    hydroout = unpack(ctmp, upack, hydroout)
+  case("aeroconductionveg")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%acond_vegw*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(hydroout, upack)
+    ctmp = (1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
+    hydroout=unpack(ctmp,upack,hydroout)
   case("delintercept")
     dtmp = 0.
     do ifrac = 1,nfrac
@@ -3017,7 +3003,7 @@ select case(mode)
     end do    
     ctmp=pack(hydroout,upack)
     ctmp=(1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
-    hydroout=unpack(ctmp,upack,hydroout) 
+    hydroout=unpack(ctmp,upack,hydroout)
   case("swe")
     dtmp = 0.
     do ifrac = 1,nfrac
@@ -3049,7 +3035,23 @@ select case(mode)
     end do    
     ctmp=pack(hydroout,upack)
     ctmp=(1.-fp%sigmau)*ctmp+fp%sigmau*dtmp
-    hydroout=unpack(ctmp,upack,hydroout)     
+    hydroout=unpack(ctmp,upack,hydroout)
+  case("surfrunoff")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%surfrunoff*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(hydroout, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    hydroout = unpack(ctmp, upack, hydroout)
+  case("soilwaterfrac")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + pd(ifrac)%soilwater*pd(ifrac)%frac_sigma
+    end do  
+    ctmp = pack(hydroout, upack)
+    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
+    hydroout = unpack(ctmp, upack, hydroout)
   case default
     write(6,*) "ERROR: Unknown atebhydro mode ",trim(mode)
     stop
@@ -3884,7 +3886,7 @@ real, dimension(ufull) :: d_totdepth,d_netemiss,d_netrad,d_topu
 real, dimension(ufull) :: d_cwa,d_cw0,d_cww,d_cwr,d_cra,d_crr,d_crw
 real, dimension(ufull) :: d_canyontemp,d_canyonmix,d_traf
 real, dimension(ufull) :: ggext_roof,ggext_walle,ggext_wallw,ggext_road,ggext_slab,ggext_intm
-real, dimension(ufull) :: ggext_impl,ggint_impl
+real, dimension(ufull) :: ggext_impl,ggint_impl,tmp
 real, dimension(ufull) :: d_ac_inside, d_intgains_bld, int_infilflux
 real, dimension(ufull) :: cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translation
 real, dimension(ufull) :: int_infilfg, delintercept, rf_delsnow, rd_delsnow
@@ -3964,8 +3966,9 @@ sg_rfsn  = (1.-rfhyd%snowalpha)*sg_rfsn*a_sg
 sg_rdsn  = (1.-rdhyd%snowalpha)*sg_rdsn*a_sg
 
 ! calculate long wave reflections to nrefl order (pregenerated before canyonflux subroutine)
-call getlwcoeff(d_netemiss,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,d_cwr,d_rdsndelta,wallpsi,roadpsi,cnveg%sigma,fp_road%emiss,  &
-                cnveg%emiss,fp_wall%emiss)
+call getlwcoeff(d_netemiss,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,d_cwr,d_rdsndelta, &
+                wallpsi,roadpsi,cnveg%sigma,fp_road%emiss,cnveg%emiss,fp_wall%emiss)
+                
 pd%emiss = d_rfsndelta*snowemiss+(1.-d_rfsndelta)*((1.-rfveg%sigma)*fp_roof%emiss+rfveg%sigma*rfveg%emiss)
 pd%emiss = fp%sigmabld*pd%emiss+(1.-fp%sigmabld)*(2.*fp_wall%emiss*fp%effhwratio*d_cwa+d_netemiss*d_cra) ! diagnostic only
 
@@ -4234,7 +4237,7 @@ call updatewater(ddt,rdhyd%surfwater,rdhyd%soilwater,rdhyd%leafwater,rdhyd%snow,
                      eg_rdsn,d_tranc,d_evapc,d_c1c,d_totdepth, cnveg%lai,wbrelaxc,  &
                      fp%sfc,fp%swilt,d_irrigwater,delintercept,rd_delsnow,ufull)
 ! record grid irrigation road component [kg m-2 s-1]
-pd%gd_irrig = d_irrigwater*waterden*d_totdepth*cnveg%sigma*(1.-fp%sigmabld)/ddt
+pd%irrig = d_irrigwater*waterden*d_totdepth*cnveg%sigma*(1.-fp%sigmabld)/ddt
 ! record leaf intercept component [kg m-2 s-1]
 pd%delintercept = pd%delintercept + delintercept*cnveg%sigma
 
@@ -4244,12 +4247,12 @@ call updatewater(ddt,rfhyd%surfwater,rfhyd%soilwater,rfhyd%leafwater,rfhyd%snow,
                      eg_rfsn,d_tranr,d_evapr,d_c1r,fp%rfvegdepth,rfveg%lai,wbrelaxr, &
                      fp%sfc,fp%swilt,d_irrigwater,delintercept,rf_delsnow,ufull)
 ! add grid irrigation roof component [kg m-2 s-1]
-pd%gd_irrig = pd%gd_irrig + d_irrigwater*waterden*fp%rfvegdepth*rfveg%sigma*fp%sigmabld/ddt
+pd%irrig = pd%irrig + d_irrigwater*waterden*fp%rfvegdepth*rfveg%sigma*fp%sigmabld/ddt
 ! record leaf intercept component [kg m-2 s-1]
 pd%delintercept = pd%delintercept + delintercept*rfveg%sigma
 
 ! area weighted vegetation aerodynamic conductance
-pd%gd_acond_veg = (acond_vegc*cnveg%sigma*(1.-fp%sigmabld) + acond_vegr*rfveg%sigma*fp%sigmabld)/  & 
+pd%acond_vegw = (acond_vegc*cnveg%sigma*(1.-fp%sigmabld) + acond_vegr*rfveg%sigma*fp%sigmabld)/  & 
                (rfveg%sigma*fp%sigmabld + cnveg%sigma*(1.-fp%sigmabld))
 
 ! calculate runoff (leafwater runoff already accounted for in precip reaching canyon floor) [kg m-2]
@@ -4261,10 +4264,10 @@ u_rn = max(rfhyd%surfwater-maxrfwater,0.)*fp%sigmabld*(1.-rfveg%sigma)          
       +max(rdhyd%soilwater-fp%ssat,0.)*waterden*d_totdepth*cnveg%sigma*(1.-fp%sigmabld)    ! canyveg saturation runnoff
 
 ! diagnose surface drainage rate [kg m-2 s-1]
-pd%gd_surfdrain = u_rn/ddt
+pd%surfrunoff = u_rn/ddt
 
 ! diagnose total vegetation transpiration [kg m-2 s-1]
-pd%gd_vegtran = (d_tranc*cnveg%sigma*(1.-fp%sigmabld) + d_tranr*rfveg%sigma*fp%sigmabld)/lv
+pd%transveg = (d_tranc*cnveg%sigma*(1.-fp%sigmabld) + d_tranr*rfveg%sigma*fp%sigmabld)/lv
 
 ! remove round-off problems
 rdhyd%soilwater(1:ufull) = min(max(rdhyd%soilwater(1:ufull),fp%swilt),fp%ssat)
@@ -4294,15 +4297,32 @@ sblrooftop  = d_rfsndelta*eg_rfsn/ls
 roofvegwetfac = max(min((rfhyd%soilwater-fp%swilt)/(fp%sfc-fp%swilt),1.),0.)
 roadvegwetfac = max(min((rdhyd%soilwater-fp%swilt)/(fp%sfc-fp%swilt),1.),0.)
 
-pd%rf_vegwetfac = roofvegwetfac
-pd%cn_vegwetfac = roadvegwetfac
+! area weighted soil water (canyon and roof)
+pd%soilwater = (rdhyd%soilwater*cnveg%sigma*(1.-fp%sigmabld) + rfhyd%soilwater*rfveg%sigma*fp%sigmabld) / &
+               max(cnveg%sigma*(1.-fp%sigmabld) + rfveg%sigma*fp%sigmabld, 1.e-10)
 
-! record previous gd_soilmoist, then update
-pd%gd_soilmoistchange = pd%gd_soilmoist
-pd%gd_soilmoist = rfhyd%soilwater*waterden*fp%rfvegdepth*rfveg%sigma*fp%sigmabld      & ! roof integrated soil moisture
-                + rdhyd%soilwater*waterden*d_totdepth*cnveg%sigma*(1.-fp%sigmabld)      ! cany integrated soil moisture
-! calculate difference in gd_moist
-pd%gd_soilmoistchange = pd%gd_soilmoist - pd%gd_soilmoistchange
+! record previous soilmoist
+tmp = pd%soilmoist
+
+! update soilmoist only in areas which support vegetation (i.e. have soil moisture)
+pd%soilmoist = ( rdhyd%soilwater*waterden*d_totdepth*cnveg%sigma*(1.-fp%sigmabld)   &  ! canyon integrated soil moisture
+               + rfhyd%soilwater*waterden*fp%rfvegdepth*rfveg%sigma*fp%sigmabld ) / &  ! roof integrated soil moisture
+               max(cnveg%sigma*(1.-fp%sigmabld) + rfveg%sigma*fp%sigmabld, 1.e-10)     ! limited to areas with soil
+
+! calculate difference in soilmoist, weighted over entire grid (i.e. include dry area under roads + buildings)
+if ( pd%first_call ) then
+  pd%delsoilmoist = 0.
+else
+  pd%delsoilmoist = (pd%soilmoist - tmp)*(rfveg%sigma*fp%sigmabld + cnveg%sigma*(1.-fp%sigmabld))
+end if
+
+! rootmoist calculated only for canyon veg subgrid
+pd%rootmoistc = rdhyd%soilwater*waterden*d_totdepth
+
+! soilwetness: (soil moisture - wilting) / (saturation - wilting).
+tmp = (rdhyd%soilwater*cnveg%sigma*(1.-fp%sigmabld) + rfhyd%soilwater*rfveg%sigma*fp%sigmabld) / &
+      max(cnveg%sigma*(1.-fp%sigmabld) + rfveg%sigma*fp%sigmabld, 1.e-10)
+pd%soilwetness = (tmp-fp%swilt)/(fp%ssat-fp%swilt)
 
 ! calculate longwave, sensible heat latent heat outputs
 ! estimate surface temp from outgoing longwave radiation
@@ -4320,7 +4340,7 @@ pd%snowmelt = fp%sigmabld*rfsnmelt + (1.-fp%sigmabld)*rdsnmelt
 u_melt = lf*(fp%sigmabld*d_rfsndelta*rfsnmelt + (1.-fp%sigmabld)*d_rdsndelta*rdsnmelt)
 
 ! calculate average snow temperature and Snow water equivilent
-pd%snowt = ( rfsntemp*d_rfsndelta*(1.-fp%sigmabld) + rdsntemp*d_rdsndelta*fp%sigmabld ) / &
+pd%snowt = ( (rfsntemp+urbtemp)*d_rfsndelta*(1.-fp%sigmabld) + (rdsntemp+urbtemp)*d_rdsndelta*fp%sigmabld ) / &
            max( d_rfsndelta*(1.-fp%sigmabld) + d_rdsndelta*fp%sigmabld, 1.e-10 )
 pd%swe = rfhyd%snow*d_rfsndelta*(1.-fp%sigmabld) + rdhyd%snow*d_rdsndelta*fp%sigmabld
 pd%snowfrac = d_rfsndelta*(1.-fp%sigmabld) + d_rdsndelta*fp%sigmabld
@@ -4332,10 +4352,12 @@ pd%delswe = rf_delsnow*d_rfsndelta*(1.-fp%sigmabld) + rd_delsnow*d_rdsndelta*fp%
 pd%surfstor = rdhyd%surfwater*(1.-fp%sigmabld)*(1.-d_rfsndelta)*(1.-rfveg%sigma) &
             + rdhyd%surfwater*fp%sigmabld*(1.-d_rdsndelta)*(1.-cnveg%sigma)
 
-! calculate average vegetation temperture
-pd%vegt = ( cnveg%temp*(1.-fp%sigmabld)*cnveg%sigma + rfveg%temp*fp%sigmabld*rfveg%sigma ) / &
+! calculate average vegetation temperature
+pd%vegt = ( (cnveg%temp+urbtemp)*(1.-fp%sigmabld)*cnveg%sigma + (rfveg%temp+urbtemp)*fp%sigmabld*rfveg%sigma ) / &
           max( (1.-fp%sigmabld)*cnveg%sigma + fp%sigmabld*rfveg%sigma, 1.e-10 )
 pd%calbedo = ( cnveg%alpha*(1.-fp%sigmabld)*cnveg%sigma + rfveg%alpha*fp%sigmabld*rfveg%sigma ) / &
+          max( (1.-fp%sigmabld)*cnveg%sigma + fp%sigmabld*rfveg%sigma, 1.e-10 )
+pd%ulai = ( cnveg%lai*(1.-fp%sigmabld)*cnveg%sigma + rfveg%lai*fp%sigmabld*rfveg%sigma ) / &
           max( (1.-fp%sigmabld)*cnveg%sigma + fp%sigmabld*rfveg%sigma, 1.e-10 )
 
 ! Save canyon air temperature
@@ -4560,8 +4582,8 @@ select case(conductmeth)
   end select
 
 ! first call do not calculate comparison with last timestep (return) 
-if ( pd%energybalance_init ) then
-  pd%energybalance_init = .false.
+if ( pd%first_call ) then
+  pd%first_call = .false.
   return
 end if  
   

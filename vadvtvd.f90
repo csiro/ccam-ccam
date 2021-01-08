@@ -125,10 +125,10 @@ end if          ! if(mspec==1)
 
 !$omp section
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
-  if ( nvmix==6 ) then
+  if ( nvmix==6 .or. nvmix==9 ) then
     call vadv_work(eps,nvadh_pass,nits,1)
     call vadv_work(tke,nvadh_pass,nits,2)
-  end if      ! if(nvmix.eq.6)
+  end if      ! if(nvmix==6 .or. nvmix==9 )
 end if          ! if(mspec==1)
 
 !$omp end parallel sections

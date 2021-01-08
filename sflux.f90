@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -878,7 +878,7 @@ do tile = 1,ntiles
                       uav(is:ie),vav(is:ie),                                                             &
                       ps(is:ie),t(is:ie,1),qg(is:ie,1),sgdn(is:ie),sgsave(is:ie),rgsave(is:ie),          &
                       swrsave(is:ie),fbeamvis(is:ie),fbeamnir(is:ie),taux(is:ie),tauy(is:ie),            &
-                      ustar(is:ie),f(is:ie),water_g(tile),wpack_g(:,tile),wfull_g(tile),depth_g(tile),   &
+                      ustar(is:ie),water_g(tile),wpack_g(:,tile),wfull_g(tile),depth_g(tile),            &
                       dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),ice_g(tile),                          &
                       tpan(is:ie),epan(is:ie),rnet(is:ie),condx(is:ie),                                  &
                       conds(is:ie),condg(is:ie),fg(is:ie),eg(is:ie),evspsbl(is:ie),sbl(is:ie),           &
@@ -909,7 +909,7 @@ end subroutine sflux_mlo
 
 subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,      &
                           ps,t,qg,sgdn,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy, &
-                          ustar,f,water,wpack,wfull,depth,dgice,dgscrn,dgwater,ice,       &
+                          ustar,water,wpack,wfull,depth,dgice,dgscrn,dgwater,ice,         &
                           tpan,epan,rnet,condx,conds,condg,fg,eg,evspsbl,sbl,epot,        &
                           tss,cduv,cdtq,watbdy,outflowmask,land,                          &
                           fracice,sicedep,snowd,sno,grpl,qsttg,vmod,zo,wetfac,            &
@@ -929,7 +929,7 @@ use soil_m, only : zmin              ! Soil and surface data
 
 implicit none
 
-integer iq
+integer iq, calcprog
 integer, intent(in) :: wfull
 real root, denha, esatf
 real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
@@ -938,7 +938,7 @@ real, dimension(imax), intent(inout) :: ri, taux, tauy, ustar, tpan, epan, rnet
 real, dimension(imax), intent(inout) :: fg, eg, evspsbl, sbl, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
 real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh, zoq, ga
 real, dimension(imax), intent(in) :: vmag, rho, azmin, uav, vav, ps, sgdn, sgsave, rgsave, swrsave
-real, dimension(imax), intent(in) :: fbeamvis, fbeamnir, f, condx, conds, condg, vmod, theta
+real, dimension(imax), intent(in) :: fbeamvis, fbeamnir, condx, conds, condg, vmod, theta
 real, dimension(imax) :: neta, oflow, dumw, dumrg, dumx, dums, fhd
 real, dimension(imax) :: umod, umag, levspsbl, lsbl
 logical, dimension(imax), intent(in) :: wpack, outflowmask, land
@@ -957,6 +957,14 @@ if ( abs(nmlo)==1 ) then                                                        
   ! set free surface to zero when water is not conserved                                       ! MLO
   neta=0.                                                                                      ! MLO
   call mloimport(4,neta,0,0,water,depth,wpack,wfull)                                           ! MLO
+end if                                                                                         ! MLO
+                                                                                               ! MLO
+! only update fluxes if using coupled mixing (calcprog=.false.)                                ! MLO
+! prognostic variables are then updated in tkeeps.f90                                          ! MLO
+if ( nvmix/=9 ) then                                                                           ! MLO
+  calcprog=0 ! update ocean and sea-ice                                                        ! MLO
+else                                                                                           ! MLO
+  calcprog=3 ! update sea-ice thermodynamics only                                                             ! MLO
 end if                                                                                         ! MLO
                                                                                                ! MLO
 ! inflow and outflow model for rivers                                                          ! MLO
@@ -987,7 +995,7 @@ dumx(:)=condx(:)/dt ! total precip                                              
 dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
 call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,levspsbl,lsbl,wetfac,epot,epan,fracice,sicedep,     & ! MLO
              snowd,dt,azmin,azmin,sgdn,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),         & ! MLO
-             ps(1:imax),f(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,.true.,                   & ! MLO
+             ps(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,calcprog,                           & ! MLO
              depth,dgice,dgscrn,dgwater,ice,water,wfull,wpack,turb)                            ! MLO
 call mloextra(0,zoh,azmin,0,dgwater,dgice,ice,wpack,wfull)                                     ! MLO
 call mloextra(3,zoq,azmin,0,dgwater,dgice,ice,wpack,wfull)                                     ! MLO
@@ -1018,9 +1026,6 @@ where ( .not.land(1:imax) )                                                     
   ga = 0.                                                                                      ! MLO
   sno = sno + conds                                                                            ! MLO
   grpl = grpl + condg                                                                          ! MLO
-  ! This cduv accounts for a moving surface                                                    ! MLO
-  cduv = cduv*umod                                                                             ! MLO
-  cdtq = cdtq*umod                                                                             ! MLO
   ustar = sqrt(cduv*umod)                                                                      ! MLO
 elsewhere                                                                                      ! MLO
   ! assume gflux = 0                                                                           ! MLO
@@ -1238,7 +1243,7 @@ where ( u_sigma>0. )                                                            
 end where                                                                                        ! urban
 ! calculate emissivity                                                                           ! urban
 urban_emiss = 0.                                                                                 ! urban
-call atebmisc(urban_emiss,"emissivity",0,fp,pd,upack,ufull)                                      ! urban
+call atebmisc(urban_emiss,"emissivity",0,room,fp,pd,upack,ufull)                                 ! urban
 
 end subroutine sflux_urban_work
 

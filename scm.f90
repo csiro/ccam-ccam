@@ -463,7 +463,7 @@ call vegpar_init(ifull)
 call work2_init(ifull,nsib)
 call work3_init(ifull,nsib)
 call work3f_init(ifull,kl)
-if ( nvmix==6 ) then
+if ( nvmix==6 .or. nvmix==9 ) then
   call tkeinit(ifull,iextra,kl)
 end if
 
@@ -570,7 +570,7 @@ do spinup = spinup_start,1,-1
       write(6,*) "rnet,fg,eg ",rnet(1),fg(1),eg(1)
       write(6,*) "storage,anthro ",urban_storage_flux(1),anthropogenic_flux(1)
     end if
-    if ( nvmix==6 ) then
+    if ( nvmix==6 .or. nvmix==9 ) then
       write(6,*) "tke,eps,kh ",tke(1,1),eps(1,1),cm0*tke(1,1)*tke(1,1)/eps(1,1)
     end if
     if ( abs(nurban)==1 ) then
@@ -822,7 +822,7 @@ r1=ratha(kl-1)*vav(1:ifull,kl)+rathb(kl-1)*vav(1:ifull,kl-1)
 r2=vav(1:ifull,kl)          
 dvdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
 
-if ( nvmix==6 ) then
+if ( nvmix==6 .or. nvmix==9 ) then
   do k = 1,kl
     shear(:,k) = dudz(:,k)**2 + dvdz(:,k)**2
   end do
@@ -2010,7 +2010,7 @@ if ( scm_mode=="sublime" ) then
         call vertadv(stratcloud,wadv,height_model,dz_model)  
       end if
     end if
-    if ( nvmix==6 ) then
+    if ( nvmix==6 .or. nvmix==9 ) then
       call vertadv(eps,wadv,height_model,dz_model)
       call vertadv(tke,wadv,height_model,dz_model)
     end if
@@ -2215,7 +2215,7 @@ elseif ( scm_mode=="CCAM" ) then
         call vertadv(stratcloud,wadv,height_model,dz_model)  
       end if
     end if
-    if ( nvmix==6 ) then
+    if ( nvmix==6 .or. nvmix==9 ) then
       call vertadv(eps,wadv,height_model,dz_model)
       call vertadv(tke,wadv,height_model,dz_model)
     end if
@@ -2592,7 +2592,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
       call ccnf_put_attg(timencid,'massflux','?')
       call ccnf_put_attg(timencid,'lengthscale','?')
       call ccnf_put_attg(timencid,'kprofile','?')
-    else if ( nvmix==6 ) then
+    else if ( nvmix==6 .or. nvmix==9 ) then
       call ccnf_put_attg(timencid,'turbulencescheme','EDMF')
       call ccnf_put_attg(timencid,'eddydiff','TKE-EPS')
       call ccnf_put_attg(timencid,'massflux','updraft')
@@ -3268,7 +3268,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
       call ccnf_put_attg(profilencid,'massflux','?')
       call ccnf_put_attg(profilencid,'lengthscale','?')
       call ccnf_put_attg(profilencid,'kprofile','?')
-    else if ( nvmix==6 ) then
+    else if ( nvmix==6 .or. nvmix==9 ) then
       call ccnf_put_attg(profilencid,'turbulencescheme','EDMF')
       call ccnf_put_attg(profilencid,'eddydiff','TKE-EPS')
       call ccnf_put_attg(profilencid,'massflux','updraft')
@@ -4165,7 +4165,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
   cc(1,2:kl) = rkhsave(1,1:kl-1)
   cc(1,kl+1) = 0.
   call ccnf_put_vara(profilencid,'Kh',spos(1:2),npos(1:2),cc)
-  if ( nvmix==6 ) then
+  if ( nvmix==6 .or. nvmix==9 ) then
     cc(1,1) = 0.
     cc(1,2:kl) = mfsave(1,1:kl-1)
     cc(1,kl+1) = 0.  
@@ -4873,7 +4873,7 @@ if ( ldr/=0 ) then
   end if    
 end if
 
-if ( nvmix==6 ) then
+if ( nvmix==6 .or. nvmix==9 ) then
   call histrd(iarchi,ier,'tke',tke,ifull)
   call histrd(iarchi,ier,'eps',eps,ifull)
 end if
@@ -5297,7 +5297,7 @@ if ( ldr/=0 ) then
   end if
 end if    
 
-if ( nvmix==6 ) then
+if ( nvmix==6 .or. nvmix==9 ) then
   call attrib(idnc,dima,asize,'tke','Turbulent Kinetic Energy','m2/s2',0.,65.,0,itype)
   call attrib(idnc,dima,asize,'eps','Eddy dissipation rate','m2/s3',0.,6.5,0,itype)
 end if
@@ -5650,7 +5650,7 @@ if ( ldr/=0 ) then
   end if
 end if
 
-if ( nvmix==6 ) then
+if ( nvmix==6 .or. nvmix==9 ) then
   call histwrt(tke,'tke',idnc,iarch,local,.true.)
   call histwrt(eps,'eps',idnc,iarch,local,.true.)
 end if

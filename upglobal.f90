@@ -363,10 +363,10 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     endif
   endif  ! (ngas>0.or.nextout>=4)
-  if ( nvmix==6 ) then
+  if ( nvmix==6 .or. nvmix==9 ) then
     call ints(tke,intsch,nface,xg,yg,4)
     call ints(eps,intsch,nface,xg,yg,4)
-  endif                 ! nvmix==6
+  endif                 ! nvmix==6 .or. nvmix==9
   if ( abs(iaero)>=2 ) then
     do nstart = 1,naero
       call ints(xtg(:,:,nstart),intsch,nface,xg,yg,5)
