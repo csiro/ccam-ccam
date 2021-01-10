@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1111,7 +1111,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   end where
 
   
-  call mlocheck("seaice advection",ice_tsurf=nit(1:ifull,1))
+  call mlocheck("seaice advection",ice_tsurf=nit(1:ifull,1), &
+                ice_u=niu(1:ifull),ice_v=niv(1:ifull))
   
   
   ! unstagged currents and ice velocity

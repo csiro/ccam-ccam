@@ -5624,7 +5624,8 @@ u10  =max(umag-ustar*integralm10/vkar,0.)
 return
 end subroutine scrntile
 
-subroutine mlocheck(message,water_temp,water_u,water_v,ice_tsurf,ice_temp)
+subroutine mlocheck(message,water_temp,water_u,water_v,ice_tsurf,ice_temp, &
+                    ice_u,ice_v)
 
 implicit none
 
@@ -5632,6 +5633,7 @@ character(len=*), intent(in) :: message
 real, dimension(:,:), intent(in), optional :: water_temp, water_u, water_v
 real, dimension(:), intent(in), optional :: ice_tsurf
 real, dimension(:,:), intent(in), optional :: ice_temp
+real, dimension(:), intent(in), optional :: ice_u, ice_v
 
 if ( present( water_temp ) ) then
   if ( any( water_temp+wrtemp<100. .or. water_temp+wrtemp>400. ) ) then
@@ -5665,6 +5667,15 @@ if ( present( ice_temp ) ) then
     write(6,*) "ERROR: ice_temp is out-of-range in ",trim(message)
     write(6,*) "minval,maxval ",minval(ice_temp),maxval(ice_temp)
     write(6,*) "minloc,maxloc ",minloc(ice_temp),maxloc(ice_temp)
+    stop -1
+  end if
+end if  
+
+if ( present( ice_u ) .and. present( ice_v ) ) then
+  if ( any(abs(ice_u)>40.) .or. any(abs(ice_v)>40.) ) then
+    write(6,*) "ERROR: ice velocity out-of-range in ",trim(message)
+    write(6,*) "u ",minval(ice_u),maxval(ice_u)
+    write(6,*) "v ",minval(ice_v),maxval(ice_v)
     stop -1
   end if
 end if  
