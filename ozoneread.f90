@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -55,7 +55,7 @@ contains
 ! This subroutine reads ozone fields
 
 ! This version supports CMIP3, CMIP5 and CMIP6 file formats            
-subroutine o3_read(sigma,jyear,jmonth)
+subroutine o3_read(sigma,year_in,month_in)
 
 use cc_mpi
 use filnames_m
@@ -64,7 +64,8 @@ use newmpar_m
 
 implicit none
       
-integer, intent(in) :: jyear, jmonth
+integer, intent(in) :: year_in, month_in
+integer jyear, jmonth
 integer nlev, i, k, ierr
 integer ncstatus, ncid, tt
 integer valident, yy, mm, nn
@@ -85,6 +86,15 @@ character(len=80) datestring
 logical tst, ltest
 
 real, parameter :: sigtol = 1.e-3
+
+jyear = year_in
+jmonth = month_in
+if ( jyear>2099 ) then
+  if ( myid==0 ) then  
+    write(6,*) "Extending ozone from year 2099 for target ",jyear
+  end if  
+  jyear = 2099
+end if
       
 !--------------------------------------------------------------
 ! Read montly ozone data for interpolation
