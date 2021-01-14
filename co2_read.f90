@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -33,7 +33,7 @@ public co2_read
     
 contains
 
-subroutine co2_read(sigma,jyear,csolar)
+subroutine co2_read(sigma,year_in,csolar)
 
 !  This routine reads the CO2 transmission coefficients from the
 !  co2_datafile (filename set in namelist)
@@ -56,13 +56,15 @@ real, parameter :: sigtol=1e-3
 real, dimension(kl) :: sigin
 real, dimension(35) :: rcn
 real, dimension(8) :: rdum
-integer, intent(in) :: jyear
-integer k, i, ierr, nlev, iyr
+integer, intent(in) :: year_in
+integer k, i, ierr, nlev, iyr, jyear
 integer ncidrad, ncidsolar, ncidch4, ncidn2o
 integer ncidcfc11, ncidcfc12, ncidcfc113, ncidhcfc22
 integer cmip_number
 integer, parameter :: lu=15
-      
+
+jyear = year_in
+
 if ( nrad==5 ) then 
     
   ! SEA-ESF radiation  
@@ -122,6 +124,12 @@ if ( nrad==5 ) then
       rrvf22  = 0.     
 
     case(5) ! CMIP5
+      if ( jyear>2500 ) then
+        if ( myid==0 ) then  
+          write(6,*) "Extending concentration data beyond 2500 for year ",jyear  
+        end if
+        jyear = 2500
+      end if    
       if ( myid==0 ) then  
         iyr=-9999
         do while (iyr<jyear)
@@ -160,9 +168,12 @@ if ( nrad==5 ) then
         
     case(6) ! CMIP6   
       if ( myid==0 ) then
+        if ( jyear>2500 ) then  
+          write(6,*) 'Extending concentration data from 2500 for year ',jyear  
+        end if
         write(6,*) 'CO2 data read from file ',trim(radfile)  
         ! radfile is already open
-        call readrad2d(ncidrad,'mole_fraction_of_carbon_dioxide_in_air',rrvco2)
+        call readrad2d(ncidrad,'mole_fraction_of_carbon_dioxide_in_air',rrvco2,jmax=2500)
         rrvco2 = rrvco2*1.e-6
         call ccnf_close(ncidrad)
       end if
@@ -174,7 +185,7 @@ if ( nrad==5 ) then
           write(6,*) "ERROR: Cannot read CH4 data from file ",trim(ch4file)
           call ccmpi_abort(-1)
         end if
-        call readrad2d(ncidch4,'mole_fraction_of_methane_in_air',rrvch4)
+        call readrad2d(ncidch4,'mole_fraction_of_methane_in_air',rrvch4,jmax=2500)
         rrvch4 = rrvch4*1.e-9
         call ccnf_close(ncidch4)
       end if
@@ -186,7 +197,7 @@ if ( nrad==5 ) then
           write(6,*) "ERROR: Cannot read N2O data from file ",trim(n2ofile)
           call ccmpi_abort(-1)
         end if
-        call readrad2d(ncidn2o,'mole_fraction_of_nitrous_oxide_in_air',rrvn2o)
+        call readrad2d(ncidn2o,'mole_fraction_of_nitrous_oxide_in_air',rrvn2o,jmax=2500)
         rrvn2o = rrvn2o*1.e-9
         call ccnf_close(ncidn2o)
       end if    
@@ -198,7 +209,7 @@ if ( nrad==5 ) then
           write(6,*) "ERROR: Cannot read CFC11 data from file ",trim(cfc11file)
           call ccmpi_abort(-1)
         end if
-        call readrad2d(ncidcfc11,'mole_fraction_of_cfc11_in_air',rrvf11)
+        call readrad2d(ncidcfc11,'mole_fraction_of_cfc11_in_air',rrvf11,jmax=2500)
         rrvf11 = rrvf11*1.e-12
         call ccnf_close(ncidcfc11)
       end if    
@@ -210,7 +221,7 @@ if ( nrad==5 ) then
           write(6,*) "ERROR: Cannot read CFC12 data from file ",trim(cfc12file)
           call ccmpi_abort(-1)
         end if
-        call readrad2d(ncidcfc12,'mole_fraction_of_cfc12_in_air',rrvf12)
+        call readrad2d(ncidcfc12,'mole_fraction_of_cfc12_in_air',rrvf12,jmax=2500)
         rrvf12 = rrvf12*1.e-12
         call ccnf_close(ncidcfc12) 
       end if    
@@ -222,7 +233,7 @@ if ( nrad==5 ) then
           write(6,*) "ERROR: Cannot read CFC113 data from file ",trim(cfc113file)
           call ccmpi_abort(-1)
         end if
-        call readrad2d(ncidcfc113,'mole_fraction_of_cfc113_in_air',rrvf113)
+        call readrad2d(ncidcfc113,'mole_fraction_of_cfc113_in_air',rrvf113,jmax=2500)
         rrvf113 = rrvf113*1.e-12
         call ccnf_close(ncidcfc113)  
       end if
@@ -234,19 +245,22 @@ if ( nrad==5 ) then
           write(6,*) "ERROR: Cannot read HCFC22 data from file ",trim(hcfc22file)
           call ccmpi_abort(-1)
         end if
-        call readrad2d(ncidhcfc22,'mole_fraction_of_hcfc22_in_air',rrvf22)
+        call readrad2d(ncidhcfc22,'mole_fraction_of_hcfc22_in_air',rrvf22,jmax=2500)
         rrvf22 = rrvf22*1.e-12
         call ccnf_close(ncidhcfc22)
       endif
       
       if ( myid==mod(7,nproc) ) then
+        if ( jyear>2300 ) then
+          write(6,*) 'Extending solar data from 2300 for year ',jyear   
+        end if              
         write(6,*) 'Solar data read from file ',trim(solarfile)
         call ccnf_open(solarfile,ncidsolar,ierr)
         if ( ierr/=0 ) then
           write(6,*) "ERROR: Cannot read solar data from file ",trim(solarfile)
           call ccmpi_abort(-1)
         end if
-        call readrad1d(ncidsolar,'tsi',csolar)
+        call readrad1d(ncidsolar,'tsi',csolar,jmax=2300)
         call ccnf_close(ncidsolar)
       end if
       
@@ -375,7 +389,7 @@ end if
 return
 end subroutine co2_read
 
-subroutine readrad2d(ncid,vname,rrvc)
+subroutine readrad2d(ncid,vname,rrvc,jmax)
 
 use cc_mpi
 use infile
@@ -384,9 +398,10 @@ use stime_m
 implicit none
 
 integer, intent(in) :: ncid
+integer, intent(in), optional :: jmax
 integer kdate_rsav, ktime_rsav
 integer idvtime, iarchi, kdate_r, ktime_r
-integer maxarchi, year_r, year_s
+integer maxarchi, year_r, year_s, month_s
 integer(kind=8) :: mtimer
 integer, dimension(2) :: nstart, ncount
 real, dimension(1) :: rdat
@@ -409,6 +424,10 @@ mtimer = nint(timer,8)*1440_8 ! units=days
 call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
 year_r = kdate_r/10000
 year_s = kdate_s/10000
+month_s = kdate_s/100 - year_s*100
+if ( present(jmax) ) then
+  year_s = min( year_s, jmax )
+end if
 iarchi = (year_s - year_r)*12 ! assume 1 value per month
 ! search
 ltest = .true.
@@ -419,7 +438,7 @@ do while ( ltest .and. iarchi<maxarchi )
   call ccnf_get_vara(ncid,idvtime,iarchi,timer)
   mtimer = nint(timer,8)*1440_8 ! units=days
   call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
-  ltest = (kdate_r/100-kdate_s/100)<0
+  ltest = (kdate_r/100-year_s*100-month_s)<0
 end do
 if ( ltest ) then
   write(6,*) "ERROR: Search failed with ltest,iarchi = ",ltest,iarchi
@@ -433,7 +452,7 @@ rrvc = rdat(1)
 
 end subroutine readrad2d
     
-subroutine readrad1d(ncid,vname,csolar)
+subroutine readrad1d(ncid,vname,csolar,jmax)
 
 use cc_mpi
 use infile
@@ -442,9 +461,10 @@ use stime_m
 implicit none
 
 integer, intent(in) :: ncid
+integer, intent(in), optional :: jmax
 integer kdate_rsav, ktime_rsav
 integer idvtime, iarchi, kdate_r, ktime_r
-integer maxarchi, year_r, year_s
+integer maxarchi, year_r, year_s, month_s
 integer(kind=8) mtimer
 integer, dimension(1) :: nstart, ncount
 real, dimension(1) :: rdat
@@ -467,6 +487,10 @@ mtimer = nint(timer,8)*1440_8 ! units=days
 call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
 year_r = kdate_r/10000
 year_s = kdate_s/10000
+month_s = kdate_s/100 - year_s*100
+if ( present(jmax) ) then
+  year_s = min( year_s, jmax )
+end if
 iarchi = (year_s - year_r)*12 ! assume 1 value per month
 ! search
 ltest = .true.
@@ -477,7 +501,7 @@ do while ( ltest .and. iarchi<maxarchi )
   call ccnf_get_vara(ncid,idvtime,iarchi,timer)
   mtimer = nint(timer,8)*1440_8 ! units=days
   call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
-  ltest = (kdate_r/100-kdate_s/100)<0
+  ltest = (kdate_r/100-year_s*100-month_s)<0
 end do
 if ( ltest ) then
   write(6,*) "ERROR: Search failed with ltest,iarchi = ",ltest,iarchi
