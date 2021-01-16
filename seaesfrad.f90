@@ -1475,7 +1475,9 @@ Rad_control%nzens_iz                    = .true.
 Rad_control%using_im_bcsul              = .false.
 Rad_control%using_im_bcsul_iz           = .true.
 
-if ( myid==0 ) write(6,*) "Reading SEA-ESF model datasets" 
+if ( myid==0 ) then
+  write(6,*) "Reading SEA-ESF model datasets" 
+end if
 call sealw99_init(pref,Lw_tables)
 call esfsw_parameters_init
 call esfsw_driver_init
@@ -1849,6 +1851,11 @@ do k = 1,kl-1
     nmid = k
   end if
 end do
+
+if ( myid==0 ) then
+  write(6,*) "siglow,sigmid = ",siglow,sigmid
+  write(6,*) "nlow,nmid     = ",nlow,nmid
+end if
 
 ! initialise VIS fraction of SW radiation
 swrsave(:) = 0.5
