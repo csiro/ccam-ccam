@@ -3058,31 +3058,31 @@ use sigs_m                       ! Atmosphere sigma levels
 implicit none
 
 integer klow, khigh, k
-real siglow, sighigh
+real slow, shigh
 
 if ( mbd==0 ) return
 
-siglow = sig(kbotdav) - sigramplow
-sighigh = sig(ktopdav) + sigramphigh
+slow = sig(kbotdav) - sigramplow
+shigh = sig(ktopdav) + sigramphigh
 
 do klow = 1,kl-1
-  if ( siglow>=sig(klow) ) exit
+  if ( slow>=sig(klow) ) exit
 end do
 do khigh = kl,2,-1
-  if ( sighigh<=sig(khigh) ) exit
+  if ( shigh<=sig(khigh) ) exit
 end do
 
 do k = 1,kbotdav-1
   vertwgt(k) = 0.
 end do
 do k = kbotdav,klow-1
-  vertwgt(k) = (sig(kbotdav)-sig(k))/(sig(kbotdav)-siglow)
+  vertwgt(k) = (sig(kbotdav)-sig(k))/(sig(kbotdav)-slow)
 end do
 do k = klow,khigh
   vertwgt(k) = 1.
 end do
 do k = khigh+1,ktopdav
-  vertwgt(k) = (sig(k)-sig(ktopdav))/(sighigh-sig(ktopdav))
+  vertwgt(k) = (sig(k)-sig(ktopdav))/(shigh-sig(ktopdav))
 end do
 do k = ktopdav+1,kl
   vertwgt(k) = 0.

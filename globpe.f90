@@ -1455,6 +1455,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
+    siglow,sigmid,                                                &
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
     saltlargemtn,                                                 &
     o3_vert_interpolate,                                          & ! ozone
@@ -1909,7 +1910,7 @@ if ( nstn>0 ) then
     call ccmpi_bcast(name_stn(i),0,comm_world)
   end do
 end if
-allocate( dumr(8), dumi(10) )
+allocate( dumr(10), dumi(10) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -1922,6 +1923,8 @@ if ( myid==0 ) then
   dumr(6)  = carbmtn
   dumr(7)  = saltsmallmtn
   dumr(8)  = saltlargemtn
+  dumr(9)  = siglow
+  dumr(10) = sigmid
   dumi(1)  = mins_rad
   dumi(2)  = liqradmethod
   dumi(3)  = iceradmethod
@@ -1945,6 +1948,8 @@ so4mtn              = dumi(5)
 carbmtn             = dumr(6)
 saltsmallmtn        = dumr(7)
 saltlargemtn        = dumr(8)
+siglow              = dumr(9)
+sigmid              = dumr(10)
 mins_rad            = dumi(1)
 liqradmethod        = dumi(2)
 iceradmethod        = dumi(3)

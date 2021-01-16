@@ -126,7 +126,6 @@ C Local work arrays and variables
 
       real ab, cfl, cldht, deltai, diffk, dz, em, eps, f1, f2, fcon
       real onem, qlpath, refac, refac1, refac2, re1, re2, rhoa
-      real siglow, sigmid
       real sigmai, tciwc, tclwc, temp_correction, tmid
       real trani, tranw, wice, wliq
 
@@ -148,8 +147,8 @@ c.... "low" cloud up to half level closest to p/Ps=.68 (~800mbs)
 c.... "mid" cloud up to half level closest to p/Ps=.44 (~400mbs)
 c       siglow=.8
 c       sigmid=.4
-        siglow=.68
-        sigmid=.44
+c       siglow=.68
+c       sigmid=.44
         f1=1.
         f2=1.
         do k=1,kl-1

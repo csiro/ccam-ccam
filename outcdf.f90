@@ -670,6 +670,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'saltlargemtn',saltlargemtn)
     call ccnf_put_attg(idnc,'saltsmallmtn',saltsmallmtn)
     call ccnf_put_attg(idnc,'seasaltradmethod',seasaltradmethod)
+    call ccnf_put_attg(idnc,'siglow',siglow)
+    call ccnf_put_attg(idnc,'sigmid',sigmid)
     call ccnf_put_attg(idnc,'so4mtn',so4mtn)
     call ccnf_put_attg(idnc,'so4radmethod',so4radmethod)
     call ccnf_put_attg(idnc,'sw_diff_streams',sw_diff_streams)

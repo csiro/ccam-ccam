@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -47,8 +47,6 @@ public csolar
 
 real, parameter :: rhow     = 1000.            ! Density of water (kg/m^3)
 real, save      :: csolar   = 1365.            ! Solar constant in W/m^2
-real, parameter :: siglow   = 0.68             ! sigma level for top of low cloud (diagnostic)
-real, parameter :: sigmid   = 0.44             ! sigma level for top of medium cloud (diagnostic)
 real, parameter :: ratco2mw = 1.519449738      ! conversion factor for CO2 diagnostic
 integer, parameter :: naermodels         = 218 ! number of aerosol optical models
 integer, parameter :: N_AEROSOL_BANDS_FR = 8
@@ -264,7 +262,7 @@ do iq_tile = 1,ifull,imax
   if ( nmlo==0 ) then ! prescribed SSTs
     ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
     ! J. Clim. and Appl. Met., v. 27, 214-226)
-    where ( .not.land(istart:iend) .and. coszro2>=1.e-10 )
+    where ( .not.land(istart:iend) .and. coszro2>=0. )
       cuvrf_dir(1:imax) = 0.026/(coszro2**1.7+0.065)                 &
         + 0.15*(coszro2-0.1)*(coszro2-0.5)*(coszro2-1.)
     elsewhere ( .not.land(istart:iend) )
