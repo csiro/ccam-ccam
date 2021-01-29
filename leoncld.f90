@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -32,7 +32,10 @@
 ! ncloud = 0    Standard LDR cloud microphysics with water vapour, liquid cloud and ice cloud
 ! ncloud = 2    Same as ncloud=0, but with prognostic rain and modified cfrac
 ! ncloud = 3    Same as ncloud=2, but with prognostic graupel and snow, as well as modified cfrac
-! ncloud = 4    Use prognostic cloud fraction based on Tiedtke from GFDL-CM3, but autoconversion from ncloud=0
+! ncloud = 4    Use prognostic cloud fraction based on Tiedtke from GFDL-CM3
+! ncloud = 10   Same as ncloud=0 with Tiedtke from GFDL-CM3
+! ncloud = 12   Same as ncloud=2 with Tiedtke from GFDL-CM3
+! ncloud = 13   Same as ncloud=3 with Tiedtke from GFDL-CM3 (i.e., same as ncloud=4)
    
 !                            Water vapour (qg)
 !
@@ -180,7 +183,7 @@ do tile = 1,ntiles
   lclcon   = clcon(is:ie,:)
   lcdrop   = cdrop(is:ie,:)
   lstratcloud = stratcloud(is:ie,:)
-  if ( ncloud>=4 ) then
+  if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) ) then
     lnettend    = nettend(is:ie,:)
   end if
 
@@ -190,7 +193,7 @@ do tile = 1,ntiles
                     lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
                     ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
                     ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),idjd_t,mydiag_t,           &
-                    ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,imax,kl)
+                    ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,cld_decay,imax,kl)
 
   cfrac(is:ie,:) = lcfrac
   gfrac(is:ie,:) = lgfrac
@@ -222,7 +225,7 @@ do tile = 1,ntiles
     pprfreeze(is:ie,:)  = lpprfreeze
     pprscav(is:ie,:)    = lpprscav
   end if
-  if ( ncloud>=4 ) then
+  if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) ) then
     nettend(is:ie,:)    = lnettend
   end if
   
@@ -238,7 +241,8 @@ subroutine leoncld_work(cfrac,condg,conds,condx,gfrac,kbsav,ktsav,land,         
                         pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,precip,    &
                         ps,qccon,qfg,qfrad,qg,qgrg,qlg,qlrad,qrg,qsng,rfrac,sfrac,t,    &
                         dpsldt,nettend,stratcloud,clcon,cdrop,em,idjd,mydiag,           &
-                        ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,imax,kl)
+                        ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,cld_decay,       &
+                        imax,kl)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -279,11 +283,11 @@ real, dimension(imax), intent(inout) :: condx
 real, dimension(imax), intent(inout) :: precip
 real, dimension(imax), intent(in) :: ps
 real, dimension(imax), intent(in) :: em
-real, intent(in) :: rcrit_l, rcrit_s, rcm
+real, intent(in) :: rcrit_l, rcrit_s, rcm, cld_decay
 logical, intent(in) :: mydiag
 logical, dimension(imax), intent(in) :: land
 
-integer, dimension(imax) :: kbase,ktop          !Bottom and top of convective cloud 
+integer, dimension(imax) :: kbase,ktop  !Bottom and top of convective cloud 
 real, dimension(imax,kl) :: prf      !Pressure on full levels (hPa)
 real, dimension(imax,kl) :: dprf     !Pressure thickness (hPa)
 real, dimension(imax,kl) :: rhoa     !Air density (kg/m3)
@@ -293,10 +297,10 @@ real, dimension(imax,kl) :: qsatg    !Saturation mixing ratio
 real, dimension(imax,kl) :: qcl      !Vapour mixing ratio inside convective cloud
 real, dimension(imax,kl) :: qenv     !Vapour mixing ratio outside convective cloud
 real, dimension(imax,kl) :: tenv     !Temperature outside convective cloud
-real, dimension(imax) :: precs                  !Amount of stratiform precipitation in timestep (mm)
-real, dimension(imax) :: preci                  !Amount of stratiform snowfall in timestep (mm)
-real, dimension(imax) :: precg                  !Amount of stratiform graupel in timestep (mm)
-real, dimension(imax) :: wcon                   !Convective cloud water content (in-cloud, prescribed)
+real, dimension(imax) :: precs       !Amount of stratiform precipitation in timestep (mm)
+real, dimension(imax) :: preci       !Amount of stratiform snowfall in timestep (mm)
+real, dimension(imax) :: precg       !Amount of stratiform graupel in timestep (mm)
+real, dimension(imax) :: wcon        !Convective cloud water content (in-cloud, prescribed)
 
 integer k, iq
 real, dimension(imax,kl) :: qevap, qsubl, qauto, qcoll, qaccr, qaccf
@@ -408,7 +412,8 @@ endif
 !     Calculate cloud fraction and cloud water mixing ratios
 call newcloud(dt,land,prf,rhoa,tenv,qenv,qlg,qfg,       &
               dpsldt,nettend,stratcloud,em,idjd,mydiag, &
-              ncloud,nclddia,rcrit_l,rcrit_s,imax,kl)
+              ncloud,nclddia,rcrit_l,rcrit_s,           &
+              cld_decay,imax,kl)
 
 
 ! Vertically sub-grid cloud
@@ -655,7 +660,8 @@ end subroutine leoncld_work
 
  subroutine newcloud(tdt,land,prf,rhoa,ttg,qtg,qlg,qfg,        &
                      dpsldt,nettend,stratcloud,em,idjd,mydiag, &
-                     ncloud,nclddia,rcrit_l,rcrit_s,imax,kl)
+                     ncloud,nclddia,rcrit_l,rcrit_s,           &
+                     cld_decay,imax,kl)
  
 ! This routine is part of the prognostic cloud water scheme
 
@@ -680,7 +686,7 @@ real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
 real, dimension(imax), intent(in) :: em
 real, intent(in) :: tdt
-real, intent(in) :: rcrit_l, rcrit_s
+real, intent(in) :: rcrit_l, rcrit_s, cld_decay
 logical, intent(in) :: mydiag
 logical, dimension(imax), intent(in) :: land
 
@@ -689,19 +695,19 @@ real, dimension(imax,kl) :: qsw
 real, dimension(imax,kl) :: qcg, qtot, tliq
 real, dimension(imax,kl) :: fice, qcold, rcrit
 real, dimension(imax) :: tk
-real es, Aprpr, Bprpr, Cice
-real qi0, fd, Crate, Qfdep
-real fl
 real, dimension(imax) :: pk, deles
-real, dimension(imax) :: diag_temp
 real, dimension(imax) :: qsi, qsl
 real, dimension(imax) :: qfnew, hlrvap
 real, dimension(imax) :: qs, dqsdt
 real, dimension(imax) :: al, qc, delq
+real, dimension(kl) :: diag_temp
+real decayfac
+real es, Aprpr, Bprpr, Cice
+real qi0, fd, Crate, Qfdep
+real fl
 
 integer k, iq
 
-real decayfac
 real, parameter :: rhoic = 700.
 real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 
@@ -861,7 +867,7 @@ else if ( nclddia>7 ) then  ! e.g. 12    JLM
 end if  ! (nclddia<0)  .. else ..
 
 
-if ( ncloud<=3 ) then
+if ( ncloud/=4 .and. ncloud<10 ) then
   ! usual diagnostic cloud fraction
       
   ! Calculate cloudy fraction of grid box (stratcloud) and gridbox-mean cloud water
@@ -927,7 +933,7 @@ if ( ncloud<=3 ) then
   ! Introduce a time-decay factor for cirrus (as suggested by results of Khvorostyanov & Sassen,
   ! JAS, 55, 1822-1845, 1998). Their suggested range for the time constant is 0.5 to 2 hours.
   ! The grid-box-mean values of qtg and ttg are adjusted later on (below).
-  decayfac = exp ( -tdt/7200. )      ! Try 2 hrs
+  decayfac = exp ( -tdt/cld_decay )  ! Try 2 hrs
   !decayfac = 0.                     ! Instant adjustment (old scheme)
   do k = 1,kl
     where( ttg(:,k)>=Tice )
@@ -955,7 +961,7 @@ else
   call progcloud(tdt,qcg,qtot,prf,rhoa,fice,qsw,ttg,rcrit,  &
                  dpsldt,nettend,stratcloud,imax,kl)
 
-  decayfac = exp ( -tdt/7200. )      ! Try 2 hrs
+  decayfac = exp ( -tdt/cld_decay )  ! Try 2 hrs
   !decayfac = 0.                     ! Instant adjustment (old scheme)
   do k = 1,kl
     where( ttg(:,k)>=Tice )
@@ -968,7 +974,7 @@ else
     end where
   end do  
   
-end if ! ncloud<=3 ..else..
+end if ! ncloud/=4 .and. ncloud<10 ..else..
 
 
 ! Do the vapour deposition calculation in mixed-phase clouds:
@@ -1267,7 +1273,7 @@ do k = 1,kl-1
 end do   ! k loop
 
 ! calculate rate of precipitation of frozen cloud water to snow
-if ( ncloud>=3 ) then
+if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
 
   do k = 1,kl
     do iq = 1,imax
@@ -1296,7 +1302,7 @@ if ( ncloud>=3 ) then
     end do ! iq loop 
   end do   ! k loop
   
-end if ! ( ncloud>=3 )
+end if ! ( ncloud==3 .or. ncloud==4 .or. ncloud==13 )
 
 ! update density and area fractions
 do k = 1,kl
@@ -1340,7 +1346,7 @@ endif  ! (diag.and.mydiag)
 
 
 ! Use sub time-step if required
-if ( ncloud>=3 ) then
+if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
   njumps = int(tdt_in/(maxlintime+0.01)) + 1
   tdt    = tdt_in/real(njumps)
 else
@@ -1388,7 +1394,7 @@ do n = 1,njumps
       cfmelt(iq)     = 0.
     end do
     
-    if ( ncloud>=3 ) then
+    if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
   
       ! Graupel ---------------------------------------------------------------------------
       sublflux(:) = 0.
@@ -1721,7 +1727,7 @@ do n = 1,njumps
         
       end if  ! fluxsnow(iq)>0.
      
-    end if ! ncloud>=3
+    end if ! ncloud==3 .or. ncloud==4 .or. ncloud==13
 
         
     ! Ice ---------------------------------------------------------------------------------
@@ -1865,7 +1871,7 @@ do n = 1,njumps
         end if
       end do
       
-      if ( ncloud>=3 ) then
+      if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
         ! Accretion of rain by falling ice to produce ice (from Lin et al 1983 - piacr)
         ! (see UM and ACCESS 1.3 piacr-c for an alternate formulation)
         do iq = 1,imax
@@ -1915,7 +1921,7 @@ do n = 1,njumps
     crfra(:) = max( rdclfrrain + mxclfrrain - rdclfrrain*mxclfrrain, 1.e-15 )
       
     ! Calculate rain fall speed (MJT suggestion)
-    if ( ncloud>=2 ) then
+    if ( ncloud==2 .or. ncloud==3 .or. ncloud==4 .or. ncloud==12 .or. ncloud==13 ) then
       do iq = 1,imax
         Fr(iq)       = max( fluxrain(iq)/tdt/max(crfra(iq),1.e-15),0.)
         vr2(iq)      = max( 0.1, 11.3*Fr(iq)**(1./9.)/sqrt(rhoa(iq,k)) )  !Actual fall speed
@@ -1936,7 +1942,7 @@ do n = 1,njumps
     
     if ( any( fluxrain>0. ) ) then    
     
-      if ( ncloud>=3 ) then
+      if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
       
         do iq = 1,imax
           rn = max(fluxrain(iq),0.)/dz(iq,k)
@@ -1964,7 +1970,7 @@ do n = 1,njumps
           end if
         end do
 
-      end if ! ncloud>=3  
+      end if ! ncloud==3 .or. ncloud==4 .or. ncloud==13
           
       ! Evaporation of rain
       qpf(:)     = fluxrain/rhodz !Mix ratio of rain which falls into layer
@@ -2039,7 +2045,7 @@ do n = 1,njumps
         fluxrain(iq) = max( fluxrain(iq) - lflux, 0. ) !To avoid roundoff -ve's
       end do
       
-      if ( ncloud>=3 ) then
+      if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
           
         ! Accretion of cloud snow by rain (from Lin et al 1983 - pracs)
         do iq = 1,imax
@@ -2066,7 +2072,7 @@ do n = 1,njumps
           end if
         end do
 
-      end if ! ncloud>=3        
+      end if ! ncloud==3 .or. ncloud==4 .or. ncloud==13        
         
       ! store for aerosols
       qevap(:,k) = qevap(:,k) + evap
@@ -2083,7 +2089,7 @@ do n = 1,njumps
 
     if ( any( fluxrain>0. ) ) then
     
-      if ( ncloud>=3 ) then  
+      if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then  
         ! Accretion of cloud ice by rain to produce snow or grauple (from Lin et al 1983 - praci)
         ! (Neglected in UM and ACCESS 1.3)
         do iq = 1,imax
@@ -2127,7 +2133,7 @@ do n = 1,njumps
     fluxf(:,k) = fluxf(:,k) + fluxfreeze(:)
 
     
-    if ( ncloud>=3 ) then
+    if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
         
       ! Grauple
       ! calculate maximum and random overlap for falling graupel
@@ -2183,7 +2189,7 @@ do n = 1,njumps
       ! Now fluxsnow is flux leaving layer k
       fluxs(:,k) = fluxs(:,k) + fluxsnow
         
-    end if ! ncloud>=3
+    end if ! ncloud==3 .or. ncloud==4 .or. ncloud==13
 
     
     ! Ice
@@ -2380,13 +2386,13 @@ real, parameter :: u00ramp = 0.01
 ! background erosion scale in 1/secs
 erosion_scale = 1.E-6
 
-!if ( ncloud>=5 ) then
+!if ( ncloud==15 ) then
 !  ! convert convective mass flux from half levels to full levels
 !  do k = 1,kl-1
 !    cmflx(:,k) = rathb(k)*fluxtot(:,k)+ratha(k)*fluxtot(:,k+1)
 !  end do
 !  cmflx(:,kl) = rathb(kl)*fluxtot(:,kl)
-!else ! ncloud==4
+!else ! ncloud==4 .or. ncloud==10 .or. ncloud==12 .or. ncloud==13
 !  ! use convective area fraction in leoncld.f, instead of convective mass flux
 !  cmflx = 0.
 !end if

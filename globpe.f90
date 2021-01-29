@@ -1125,7 +1125,7 @@ data ksc/-95/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/
 data tied_con/2./,tied_over/0./,tied_rh/.75/
 ! Other moist physics options
 data acon/.2/,bcon/.07/,rcm/.92e-5/
-data rcrit_l/.75/,rcrit_s/.85/ 
+data rcrit_l/.75/,rcrit_s/.85/,cld_decay/7200./
 ! Cloud options
 data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
 data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
@@ -1485,7 +1485,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,                                                          &
-    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls                      ! cloud
+    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay            ! cloud
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -2050,7 +2050,7 @@ diaglevel_pop       = dumi(21)
 surf_cordex         = dumi(22)
 surf_windfarm       = dumi(23)
 deallocate( dumi )
-allocate( dumr(33), dumi(21) )
+allocate( dumr(34), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2088,6 +2088,7 @@ if ( myid==0 ) then
   dumr(31) = rcm
   dumr(32) = rcrit_l
   dumr(33) = rcrit_s
+  dumr(34) = cld_decay
   dumi(1)  = iterconv
   dumi(2)  = ksc
   dumi(3)  = kscmom
@@ -2145,6 +2146,7 @@ bcon           = dumr(30)
 rcm            = dumr(31)
 rcrit_l        = dumr(32)
 rcrit_s        = dumr(33)
+cld_decay      = dumr(34)
 iterconv       = dumi(1) 
 ksc            = dumi(2)
 kscmom         = dumi(3)

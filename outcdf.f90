@@ -683,6 +683,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'alflnd',alflnd)
     call ccnf_put_attg(idnc,'alfsea',alfsea)
     call ccnf_put_attg(idnc,'bcon',bcon)
+    call ccnf_put_attg(idnc,'cld_decay',cld_decay)
     call ccnf_put_attg(idnc,'cldh_lnd',cldh_lnd)
     call ccnf_put_attg(idnc,'cldl_lnd',cldl_lnd)
     call ccnf_put_attg(idnc,'cldm_lnd',cldm_lnd)

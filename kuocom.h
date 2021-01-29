@@ -29,7 +29,7 @@
      &     fldown,rhcv,rhmois,rhsat,shaltime,                           &
      &     sigcb,sigcll,sigkscb,sig_ct,sigksct,                         &
      &     tied_con,tied_over,tied_rh
-      real acon,bcon,rcm,rcrit_l,rcrit_s
+      real acon,bcon,rcm,rcrit_l,rcrit_s,cld_decay
       
       common/kuocom/                                                    &
      &   alflnd                                                         & ! land-weighting ratio for cloud bases         [1.15]
@@ -84,4 +84,5 @@
      &  ,bcon                                                           & ! Rate at which conv cloud frac increases with R   [.07]
      &  ,rcm                                                            & ! Threshold cloud dropl R for coalescence to begin [1e-5]
      &  ,rcrit_l                                                        & ! rcrit_land for ldr newcloud                      [.75]
-     &  ,rcrit_s                                                          ! rcrit_sea  for ldr newcloud                      [.85]
+     &  ,rcrit_s                                                        & ! rcrit_sea  for ldr newcloud                      [.85]
+     &  ,cld_decay                                                        ! time-decay factor for cirrus                     [7200.]

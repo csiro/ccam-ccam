@@ -586,20 +586,23 @@ do iq_tile = 1,ifull,imax
     Astro(mythread)%cosz(:,1)    = max(real(coszro, 8), 0._8)
     Astro(mythread)%fracday(:,1) = real(taudar, 8)
 
-    
+    call START_LOG(radlw_begin)
     call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input(mythread),         &
                           Rad_gases(mythread), Aerosol(mythread), Aerosol_props,  &
                           Cldrad_props(mythread), Cld_spec(mythread),             &
                           Aerosol_diags(mythread), Lw_output(mythread),           &
                           Lw_diagnostics(mythread), Lw_clouds(mythread),          &
                           Optical(mythread), Gas_tf(mythread))
+    call END_LOG(radlw_end)
 
     
+    call START_LOG(radsw_begin)
     call shortwave_driver (1, imax, 1, 1, Atmos_input(mythread), Surface(mythread),  &
                            Astro(mythread), Aerosol(mythread), Aerosol_props,        &
                            Rad_gases(mythread), Cldrad_props(mythread),              &
                            Cld_spec(mythread), Sw_output(mythread:mythread),         &
                            Aerosol_diags(mythread), r)
+    call END_LOG(radsw_end)
 
     
     ! store shortwave and fbeam data --------------------------------

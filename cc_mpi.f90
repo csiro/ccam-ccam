@@ -409,6 +409,8 @@ module cc_mpi
    integer, public, save :: cloud_begin, cloud_end
    integer, public, save :: radnet_begin, radnet_end
    integer, public, save :: radinit_begin, radinit_end
+   integer, public, save :: radSW_begin, radSW_end
+   integer, public, save :: radLW_begin, radLW_end
    integer, public, save :: sfluxnet_begin, sfluxnet_end
    integer, public, save :: sfluxwater_begin, sfluxwater_end
    integer, public, save :: sfluxland_begin, sfluxland_end
@@ -462,7 +464,7 @@ module cc_mpi
    integer, public, save :: p4_begin, p4_end
    integer, public, save :: p5_begin, p5_end
    integer, public, save :: p6_begin, p6_end
-   integer, parameter :: nevents = 86
+   integer, parameter :: nevents = 88
 #ifdef simple_timer
    public :: simple_timer_finalize
    !real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
@@ -6826,6 +6828,8 @@ contains
       call add_event(cloud_begin,         cloud_end,         "Cloud")
       call add_event(radnet_begin,        radnet_end,        "Rad")
       call add_event(radinit_begin,       radinit_end,       "Rad_init")
+      call add_event(radsw_begin,         radsw_end,         "Rad_SW")
+      call add_event(radlw_begin,         radlw_end,         "Rad_LW")
       call add_event(sfluxnet_begin,      sfluxnet_end,      "Sflux")
       call add_event(sfluxwater_begin,    sfluxwater_end,    "Sflux_water")
       call add_event(sfluxland_begin,     sfluxland_end,     "Sflux_land")
