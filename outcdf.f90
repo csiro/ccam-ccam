@@ -734,6 +734,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'tied_con',tied_con)
     call ccnf_put_attg(idnc,'tied_over',tied_over)
     call ccnf_put_attg(idnc,'tied_rh',tied_rh)
+    call ccnf_put_attg(idnc,'vdeposition_mode',vdeposition_mode)
 
     ! boundary layer turbulence and gravity wave
     call ccnf_put_attg(idnc,'alphaj',alphaj)    

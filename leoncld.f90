@@ -193,7 +193,8 @@ do tile = 1,ntiles
                     lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
                     ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
                     ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),idjd_t,mydiag_t,           &
-                    ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,cld_decay,imax,kl)
+                    ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,cld_decay,vdeposition_mode,      &
+                    imax,kl)
 
   cfrac(is:ie,:) = lcfrac
   gfrac(is:ie,:) = lgfrac
@@ -242,7 +243,7 @@ subroutine leoncld_work(cfrac,condg,conds,condx,gfrac,kbsav,ktsav,land,         
                         ps,qccon,qfg,qfrad,qg,qgrg,qlg,qlrad,qrg,qsng,rfrac,sfrac,t,    &
                         dpsldt,nettend,stratcloud,clcon,cdrop,em,idjd,mydiag,           &
                         ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,cld_decay,       &
-                        imax,kl)
+                        vdeposition_mode,imax,kl)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -252,7 +253,7 @@ use sigs_m                        ! Atmosphere sigma levels
 
 implicit none
 
-integer, intent(in) :: idjd, ncloud, nclddia, nevapls, ldr
+integer, intent(in) :: idjd, ncloud, nclddia, nevapls, ldr, vdeposition_mode
 integer, intent(in) :: imax, kl
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
@@ -413,7 +414,7 @@ endif
 call newcloud(dt,land,prf,rhoa,tenv,qenv,qlg,qfg,       &
               dpsldt,nettend,stratcloud,em,idjd,mydiag, &
               ncloud,nclddia,rcrit_l,rcrit_s,           &
-              cld_decay,imax,kl)
+              cld_decay,vdeposition_mode,imax,kl)
 
 
 ! Vertically sub-grid cloud
@@ -661,7 +662,7 @@ end subroutine leoncld_work
  subroutine newcloud(tdt,land,prf,rhoa,ttg,qtg,qlg,qfg,        &
                      dpsldt,nettend,stratcloud,em,idjd,mydiag, &
                      ncloud,nclddia,rcrit_l,rcrit_s,           &
-                     cld_decay,imax,kl)
+                     cld_decay,vdeposition_mode,imax,kl)
  
 ! This routine is part of the prognostic cloud water scheme
 
@@ -673,7 +674,7 @@ use sigs_m                        ! Atmosphere sigma levels
 implicit none
 
 ! Argument list
-integer, intent(in) :: idjd, ncloud, nclddia
+integer, intent(in) :: idjd, ncloud, nclddia, vdeposition_mode
 integer, intent(in) :: imax, kl
 real, dimension(imax,kl), intent(in) :: prf
 real, dimension(imax,kl), intent(in) :: rhoa
@@ -980,36 +981,67 @@ end if ! ncloud/=4 .and. ncloud<10 ..else..
 ! Do the vapour deposition calculation in mixed-phase clouds:
 ! Calculate deposition on cloud ice, assuming es(T) is the weighted value of the 
 ! liquid and ice values.
-do k = 1,kl  
-  do iq = 1,imax
-    if ( stratcloud(iq,k)>0.) then  
-      Tk(iq) = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/stratcloud(iq,k) !T in liq cloud  
-      if ( Tk(iq)<tfrz .and. qlg(iq,k)>1.e-8 ) then
-        !fl = qlg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-30)
-        pk(iq)    = 100.*prf(iq,k)
-        qs(iq)    = qsati(pk(iq),Tk(iq))
-        es        = qs(iq)*pk(iq)/0.622 !ice value
-        Aprpr     = hl/(rKa*Tk(iq))*(hls/(rvap*Tk(iq))-1.)
-        Bprpr     = rvap*Tk(iq)/((Dva/pk(iq))*es)
-        deles(iq) = (1.-fice(iq,k))*esdiffx(Tk(iq))
-        Cice      = 1.e3*exp(12.96*deles(iq)/es - 0.639) !Meyers et al 1992
-        qi0       = cm0*Cice/rhoa(iq,k) !Initial ice mixing ratio
-        ! Next 2 lines are for assumption of fully mixed ql and qf (also a line further down).
-        qi0       = max(qi0, qfg(iq,k)/stratcloud(iq,k)) !Assume all qf and ql are mixed
-        fd        = 1.       !Fraction of cloud in which deposition occurs
-        !fd        = fl      !Or, use option of adjacent ql,qf
-        Crate     = 7.8*((Cice/rhoa(iq,k))**2/rhoic)**(1./3.)*deles(iq)/((Aprpr+Bprpr)*es)
-        qfdep     = fd*stratcloud(iq,k)*sqrt(((2./3.)*Crate*tdt+qi0**(2./3.))**3)
-        ! Also need this line for fully-mixed option...
-        qfdep     = qfdep - qfg(iq,k)
-        qfdep      = min(qfdep, qlg(iq,k))
-        qlg(iq,k) = qlg(iq,k) - qfdep
-        qfg(iq,k) = qfg(iq,k) + qfdep
-        fice(iq,k) = qfg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-30)
-      end if
-    end if  
-  end do
-end do    
+if ( vdeposition_mode==0 ) then
+  do k = 1,kl  
+    do iq = 1,imax
+      if ( stratcloud(iq,k)>0.) then  
+        Tk(iq) = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/stratcloud(iq,k) !T in liq cloud  
+        if ( Tk(iq)<tfrz .and. qlg(iq,k)>1.e-8 ) then
+          pk(iq)    = 100.*prf(iq,k)
+          qs(iq)    = qsati(pk(iq),Tk(iq))
+          es        = qs(iq)*pk(iq)/0.622 !ice value
+          Aprpr     = hl/(rKa*Tk(iq))*(hls/(rvap*Tk(iq))-1.)
+          Bprpr     = rvap*Tk(iq)/((Dva/pk(iq))*es)
+          deles(iq) = (1.-fice(iq,k))*esdiffx(Tk(iq))
+          Cice      = 1.e3*exp(12.96*deles(iq)/es - 0.639) !Meyers et al 1992
+          qi0       = cm0*Cice/rhoa(iq,k) !Initial ice mixing ratio
+          ! Next 2 lines are for assumption of fully mixed ql and qf (also a line further down).
+          qi0       = max(qi0, qfg(iq,k)/stratcloud(iq,k)) !Assume all qf and ql are mixed
+          fd        = 1.       !Fraction of cloud in which deposition occurs
+          Crate     = 7.8*((Cice/rhoa(iq,k))**2/rhoic)**(1./3.)*deles(iq)/((Aprpr+Bprpr)*es)
+          qfdep     = fd*stratcloud(iq,k)*sqrt(((2./3.)*Crate*tdt+qi0**(2./3.))**3)
+          ! Also need this line for fully-mixed option...
+          qfdep     = qfdep - qfg(iq,k)
+          qfdep      = min(qfdep, qlg(iq,k))
+          qlg(iq,k) = qlg(iq,k) - qfdep
+          qfg(iq,k) = qfg(iq,k) + qfdep
+          fice(iq,k) = qfg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-30)
+        end if
+      end if  
+    end do
+  end do    
+else
+  do k = 1,kl  
+    do iq = 1,imax
+      if ( stratcloud(iq,k)>0.) then  
+        Tk(iq) = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/stratcloud(iq,k) !T in liq cloud  
+        if ( Tk(iq)<tfrz .and. qlg(iq,k)>1.e-8 ) then
+          fl = qlg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-30)
+          pk(iq)    = 100.*prf(iq,k)
+          qs(iq)    = qsati(pk(iq),Tk(iq))
+          es        = qs(iq)*pk(iq)/0.622 !ice value
+          Aprpr     = hl/(rKa*Tk(iq))*(hls/(rvap*Tk(iq))-1.)
+          Bprpr     = rvap*Tk(iq)/((Dva/pk(iq))*es)
+          deles(iq) = (1.-fice(iq,k))*esdiffx(Tk(iq))
+          Cice      = 1.e3*exp(12.96*deles(iq)/es - 0.639) !Meyers et al 1992
+          qi0       = cm0*Cice/rhoa(iq,k) !Initial ice mixing ratio
+          ! Next 2 lines are for assumption of fully mixed ql and qf (also a line further down).
+          qi0       = max(qi0, qfg(iq,k)/stratcloud(iq,k)) !Assume all qf and ql are mixed
+          fd        = fl      !Or, use option of adjacent ql,qf
+          Crate     = 7.8*((Cice/rhoa(iq,k))**2/rhoic)**(1./3.)*deles(iq)/((Aprpr+Bprpr)*es)
+          qfdep     = fd*stratcloud(iq,k)*sqrt(((2./3.)*Crate*tdt+qi0**(2./3.))**3)
+          ! Also need this line for fully-mixed option...
+          qfdep     = qfdep - qfg(iq,k)
+          qfdep      = min(qfdep, qlg(iq,k))
+          qlg(iq,k) = qlg(iq,k) - qfdep
+          qfg(iq,k) = qfg(iq,k) + qfdep
+          fice(iq,k) = qfg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-30)
+        end if
+      end if  
+    end do
+  end do    
+    
+end if
 
 ! Calculate new values of vapour mixing ratio and temperature
 do k = 1,kl
