@@ -1130,7 +1130,7 @@ data rcrit_l/.75/,rcrit_s/.85/,cld_decay/7200./
 data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
 data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
 data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
-data ncloud/0/
+data ncloud/0/,vdeposition_mode/0/
 
 end
       
@@ -1485,7 +1485,8 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,                                                          &
-    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay            ! cloud
+    rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
+    vdeposition_mode
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
