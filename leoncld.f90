@@ -194,7 +194,7 @@ do tile = 1,ntiles
                     ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
                     ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),idjd_t,mydiag_t,           &
                     ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,cld_decay,vdeposition_mode,      &
-                    imax,kl)
+                    tiedtke_form,imax,kl)
 
   cfrac(is:ie,:) = lcfrac
   gfrac(is:ie,:) = lgfrac
@@ -243,7 +243,7 @@ subroutine leoncld_work(cfrac,condg,conds,condx,gfrac,kbsav,ktsav,land,         
                         ps,qccon,qfg,qfrad,qg,qgrg,qlg,qlrad,qrg,qsng,rfrac,sfrac,t,    &
                         dpsldt,nettend,stratcloud,clcon,cdrop,em,idjd,mydiag,           &
                         ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,cld_decay,       &
-                        vdeposition_mode,imax,kl)
+                        vdeposition_mode,tiedtke_form,imax,kl)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -254,6 +254,7 @@ use sigs_m                        ! Atmosphere sigma levels
 implicit none
 
 integer, intent(in) :: idjd, ncloud, nclddia, nevapls, ldr, vdeposition_mode
+integer, intent(in) :: tiedtke_form
 integer, intent(in) :: imax, kl
 integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
@@ -414,7 +415,8 @@ endif
 call newcloud(dt,land,prf,rhoa,tenv,qenv,qlg,qfg,       &
               dpsldt,nettend,stratcloud,em,idjd,mydiag, &
               ncloud,nclddia,rcrit_l,rcrit_s,           &
-              cld_decay,vdeposition_mode,imax,kl)
+              cld_decay,vdeposition_mode,tiedtke_form,  &
+              imax,kl)
 
 
 ! Vertically sub-grid cloud
@@ -662,7 +664,8 @@ end subroutine leoncld_work
  subroutine newcloud(tdt,land,prf,rhoa,ttg,qtg,qlg,qfg,        &
                      dpsldt,nettend,stratcloud,em,idjd,mydiag, &
                      ncloud,nclddia,rcrit_l,rcrit_s,           &
-                     cld_decay,vdeposition_mode,imax,kl)
+                     cld_decay,vdeposition_mode,tiedtke_form,  &
+                     imax,kl)
  
 ! This routine is part of the prognostic cloud water scheme
 
@@ -675,6 +678,7 @@ implicit none
 
 ! Argument list
 integer, intent(in) :: idjd, ncloud, nclddia, vdeposition_mode
+integer, intent(in) :: tiedtke_form
 integer, intent(in) :: imax, kl
 real, dimension(imax,kl), intent(in) :: prf
 real, dimension(imax,kl), intent(in) :: rhoa
@@ -960,7 +964,8 @@ else
   end do
   
   call progcloud(tdt,qcg,qtot,prf,rhoa,fice,qsw,ttg,rcrit,  &
-                 dpsldt,nettend,stratcloud,imax,kl)
+                 dpsldt,nettend,stratcloud,tiedtke_form,    &
+                 imax,kl)
 
   decayfac = exp ( -tdt/cld_decay )  ! Try 2 hrs
   !decayfac = 0.                     ! Instant adjustment (old scheme)
@@ -1002,7 +1007,7 @@ if ( vdeposition_mode==0 ) then
           qfdep     = fd*stratcloud(iq,k)*sqrt(((2./3.)*Crate*tdt+qi0**(2./3.))**3)
           ! Also need this line for fully-mixed option...
           qfdep     = qfdep - qfg(iq,k)
-          qfdep      = min(qfdep, qlg(iq,k))
+          qfdep     = min(qfdep, qlg(iq,k))
           qlg(iq,k) = qlg(iq,k) - qfdep
           qfg(iq,k) = qfg(iq,k) + qfdep
           fice(iq,k) = qfg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-30)
@@ -1011,6 +1016,7 @@ if ( vdeposition_mode==0 ) then
     end do
   end do    
 else
+  ! use ql/(qf+ql) for deposition  
   do k = 1,kl  
     do iq = 1,imax
       if ( stratcloud(iq,k)>0.) then  
@@ -1025,14 +1031,13 @@ else
           deles(iq) = (1.-fice(iq,k))*esdiffx(Tk(iq))
           Cice      = 1.e3*exp(12.96*deles(iq)/es - 0.639) !Meyers et al 1992
           qi0       = cm0*Cice/rhoa(iq,k) !Initial ice mixing ratio
-          ! Next 2 lines are for assumption of fully mixed ql and qf (also a line further down).
           qi0       = max(qi0, qfg(iq,k)/stratcloud(iq,k)) !Assume all qf and ql are mixed
           fd        = fl      !Or, use option of adjacent ql,qf
           Crate     = 7.8*((Cice/rhoa(iq,k))**2/rhoic)**(1./3.)*deles(iq)/((Aprpr+Bprpr)*es)
           qfdep     = fd*stratcloud(iq,k)*sqrt(((2./3.)*Crate*tdt+qi0**(2./3.))**3)
           ! Also need this line for fully-mixed option...
           qfdep     = qfdep - qfg(iq,k)
-          qfdep      = min(qfdep, qlg(iq,k))
+          qfdep     = min(qfdep, qlg(iq,k))
           qlg(iq,k) = qlg(iq,k) - qfdep
           qfg(iq,k) = qfg(iq,k) + qfdep
           fice(iq,k) = qfg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-30)
@@ -2394,23 +2399,27 @@ end if  ! (diag.and.mydiag)
 return
 end subroutine newsnowrain
     
-subroutine progcloud(dt,qc,qtot,press,rho,fice,qs,t,rhcrit, &
-                     dpsldt,nettend,stratcloud,imax,kl)
+subroutine progcloud(dt,qc,qtot,press,rho,fice,qs,t,rcrit, &
+                     dpsldt,nettend,stratcloud,tiedtke_form, &
+                     imax,kl)
 
 use const_phys                    ! Physical constants
 use parm_m, only : qgmin          ! Model configuration
 
 implicit none
 
+integer, intent(in) :: tiedtke_form
 integer, intent(in) :: imax, kl
 integer k
 real, dimension(imax,kl), intent(inout) :: qc ! condensate = qf + ql
-real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, t, rhcrit, press
+real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, t, rcrit, press
 real, dimension(imax,kl), intent(in) :: dpsldt
 real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
+real, dimension(imax,kl) :: xf
 real, dimension(imax) :: aa, bb, cc, at, a_dt, b_dt, cf1, cfeq, cfbar
-real, dimension(imax) :: qv, omega, hlrvap, dqsdT, gamma, xf, dqs
+real, dimension(imax) :: qv, omega, hlrvap, dqsdT, gamma, dqs
+real, dimension(imax) :: delq
 real, intent(in) :: dt
 real erosion_scale
 real, parameter :: u00ramp = 0.01
@@ -2448,6 +2457,29 @@ erosion_scale = 1.E-6
 ! BB = -(1+gamma*cf)
 ! CC = ((omega + grav*mflx)/(cp*rho)+netten)*dqsdT*dt
 
+select case(tiedtke_form)
+  case default ! Old MJT suggestion
+    do k = 1,kl
+      qv = qtot(:,k) - qc(:,k)
+      xf(:,k) = max(min( (qv/qs(:,k) - rcrit(:,k) - u00ramp ) / ( 2.*u00ramp ), 1. ), 0. )
+    end do
+  case(1) ! Original GFDL-AM3
+    do k = 1,kl
+      qv = qtot(:,k) - qc(:,k)
+      where ( qv>0.8*qs(:,k) )
+        xf(:,k) = 1.
+      elsewhere
+        xf(:,k) = 0.
+      end where
+    end do
+  case(2) ! new MJT suggestion
+    do k = 1,kl
+      qv = qtot(:,k) - qc(:,k)
+      delq = (1. - rcrit(:,k))*qs(:,k)
+      xf(:,k) = max( min( (qv-qs(:,k)+delq)/(2.*delq), 1.), 0. )
+    end do    
+end select
+
 do k = 1,kl
   stratcloud(:,k) = max( min( stratcloud(:,k), 1. ), 0. )  
     
@@ -2457,21 +2489,19 @@ do k = 1,kl
   hlrvap = (hl+fice(:,k)*hlf)/rvap
   dqsdT = qs(:,k)*hlrvap/(t(:,k)**2)
   gamma = (hlcp+fice(:,k)*hlfcp)*dqsdT
-  
-  xf = max(min( (qv/qs(:,k) - rhcrit(:,k) - u00ramp ) / ( 2.*u00ramp ), 1. ), 0. ) ! MJT suggestion
-  
+ 
   !cc = ((omega + grav*cmflx(:,k))/(cp*rho(:,k))+nettend(:,k))*dt*dqsdT
   cc = (omega/(cp*rho(:,k))+nettend(:,k))*dt*dqsdT ! neglect cmflx
   at = 1.-stratcloud(:,k)
-  aa = 0.5*at*at/max( qs(:,k)-qv, 1.e-20 )
+  aa = 0.5*at**2/max( qs(:,k)-qv, 1.e-20 )
   bb = 1.+gamma*stratcloud(:,k)
-  where ( cc<=0. .and. xf>0. )
+  where ( cc<=0. .and. xf(:,k)>0. )
     !dqs = ( bb - sqrt( bb*bb - 2.*gamma*xf*aa*cc ) ) / ( gamma*xf*aa ) ! GFDL style
     !dqs = min( dqs, cc/(1. + 0.5*bb) )                                 ! GFDL style
-    dqs = 2.*cc/( bb + sqrt( bb*bb - 2.*gamma*xf*aa*cc ) ) ! alternative form of quadratic equation
-                                                           ! note that aa and bb have been multipled by 2 and -1, respectively.
+    dqs = 2.*cc/( bb + sqrt( bb*bb - 2.*gamma*xf(:,k)*aa*cc ) ) ! alternative form of quadratic equation
+                                                                ! note that aa and bb have been multipled by 2 and -1, respectively.
     ! Large scale cloud formation via condensation (A)
-    a_dt = -xf*aa*dqs
+    a_dt = -xf(:,k)*aa*dqs
   elsewhere
     ! da = 0, so dqs can be solved from a linear equation
     dqs = cc/bb

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -22,7 +22,7 @@
       integer iterconv,ksc,kscmom,kscsea,kuocb,ldr,mbase,               &
      &        mdelay,methdetr,methprec,nbase,nclddia,ncvcloud,ncvmix,   &
      &        nevapcc,nevapls,nkuo,nrhcrit,nstab_cld,nuvconv,ncloud,    &
-     &        vdeposition_mode
+     &        vdeposition_mode,tiedtke_form
 
       real alflnd,alfsea ,cldh_lnd,cldm_lnd,cldl_lnd,cldh_sea,cldm_sea, &
      &     cldl_sea,convfact,convtime,                                  &
@@ -79,7 +79,8 @@
      &  ,tied_over                                                      & ! tiedtke overshooting constant                [2.]
      &  ,tied_rh                                                        & ! tiedtke RH trigger:                          [.75]
      &  ,ncloud                                                         & ! New options for microphysics 0 = original    [0]
-     &  ,vdeposition_mode                                                 ! New options for ice deposition 0 = original  [0]
+     &  ,vdeposition_mode                                               & ! New options for ice deposition 0 = original  [0]
+     &  ,tiedtke_form                                                     ! Options for Tiedtke cloud formation          [0]
 
       common/ldr/                                                       &
      &   acon                                                           & ! Cloud fraction for non-precipitating convection  [.2]
