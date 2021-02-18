@@ -961,6 +961,7 @@ else
     deles = esdiffx(ttg(:,k),imax)
     qsl(:) = qsi(:) + epsil*deles/pk ! Liquid value
     qsw(:,k) = fice(:,k)*qsi(:) + (1.-fice(:,k))*qsl(:)        ! Weighted qs at temperature Tliq
+    qcg(:,k) = qlg(:,k) + qfg(:,k)
   end do
   
   call progcloud(tdt,qcg,qtot,prf,rhoa,fice,qsw,ttg,rcrit,  &
