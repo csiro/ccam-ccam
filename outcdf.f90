@@ -3351,6 +3351,7 @@ real, dimension(:), allocatable :: xpnt
 real, dimension(:), allocatable :: ypnt
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
+real, dimension(kl) :: phil
 real xx
 real(kind=8) tpnt
 logical, save :: first = .true.
@@ -3601,15 +3602,15 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)
     lname = 'Direct normal irradiance'
     call attrib(fncid,sdim,ssize,'dni',lname,'W m-2',-500.,2.e3,0,-1)          ! -1 = long
-    if ( diaglevel_pbl>3 .or. surf_windfarm==1 ) then
+    if ( surf_windfarm==1 ) then
       lname='x-component 150m wind'
-      call attrib(fncid,sdim,ssize,'ua150',lname,'m s-1',-130.,130.,0,1)
+      call attrib(fncid,sdim,ssize,'ua150m',lname,'m s-1',-130.,130.,0,1)
       lname='y-component 150m wind'     
-      call attrib(fncid,sdim,ssize,'va150',lname,'m s-1',-130.,130.,0,1)
+      call attrib(fncid,sdim,ssize,'va150m',lname,'m s-1',-130.,130.,0,1)
       lname='x-component 250m wind'
-      call attrib(fncid,sdim,ssize,'ua250',lname,'m s-1',-130.,130.,0,1)
+      call attrib(fncid,sdim,ssize,'ua250m',lname,'m s-1',-130.,130.,0,1)
       lname='y-component 250m wind'     
-      call attrib(fncid,sdim,ssize,'va250',lname,'m s-1',-130.,130.,0,1)
+      call attrib(fncid,sdim,ssize,'va250m',lname,'m s-1',-130.,130.,0,1)
     end if
     if ( surf_cordex==1 ) then
       lname = 'Daily Maximum Near-Surface Air Temperature'  
@@ -3884,11 +3885,43 @@ if ( mod(ktau,tbave)==0 ) then
   call histwrt(qgscrn,"qgscrn",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,6),"cld",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,7),"dni",fncid,fiarch,local,.true.)
-  if ( diaglevel_pbl>3 .or. surf_windfarm==1 ) then
-    call histwrt(ua150,"ua150",fncid,fiarch,local,.true.)
-    call histwrt(va150,"va150",fncid,fiarch,local,.true.)
-    call histwrt(ua250,"ua250",fncid,fiarch,local,.true.)
-    call histwrt(va250,"va250",fncid,fiarch,local,.true.)      
+  if ( surf_windfarm==1 ) then
+	do iq = 1,ifull
+	  phil(1) = bet(1)*t(iq,1)
+	  do k = 2,kl
+	    phil(k) = phil(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+	  end do
+	  do k = 1,kl-1
+	    if ( phil(k)/grav<150. ) then
+		  n = k
+		else
+		  exit
+		end if
+	  end do
+	  xx = (150.*grav-phil(n))/(phil(n+1)-phil(n))
+	  ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+	  va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+	end do	
+    call histwrt(ua_level,"ua150m",fncid,fiarch,local,.true.)
+    call histwrt(va_level,"va150m",fncid,fiarch,local,.true.)
+	do iq = 1,ifull
+	  phil(1) = bet(1)*t(iq,1)
+	  do k = 2,kl
+	    phil(k) = phil(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+	  end do
+	  do k = 1,kl-1
+	    if ( phil(k)/grav<250. ) then
+		  n = k
+		else
+		  exit
+		end if
+	  end do
+	  xx = (250.*grav-phil(n))/(phil(n+1)-phil(n))
+	  ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+	  va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+	end do
+    call histwrt(ua_level,"ua250m",fncid,fiarch,local,.true.)
+    call histwrt(va_level,"va250m",fncid,fiarch,local,.true.)      
   end if
   if ( surf_cordex==1 ) then
     call histwrt(tmaxscr,'tmaxscr',fncid,fiarch,local,lday)

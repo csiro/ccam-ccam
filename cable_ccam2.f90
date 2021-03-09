@@ -2412,7 +2412,7 @@ integer i,iq,n,k,ipos,ilat,ivp,is,ie
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
 integer(kind=4) mp_POP
-real ivmax
+real ivmax, landsum
 real, dimension(ifull,maxtile), intent(in) :: svs,vlin
 real, dimension(ifull,5), intent(in) :: casapoint
 real, dimension(ifull,2) :: albsoilsn
@@ -2465,7 +2465,13 @@ do tile = 1,ntiles
       if ( landcount==0 ) then
         write(6,*) "ERROR: No CABLE tiles assigned to land point: myid,iq,tile",myid,iq,tile
         call ccmpi_abort(-1)
-      end if
+	  end if
+	  landsum = sum(svs(iq,:))
+	  if ( landsum<0.99 .or. landsum>1.01 ) then
+		write(6,*) "ERROR: CABLE tiles do not sum to 1."
+		write(6,*) "myid,iq,tile,landsum ",myid,iq,tile,landsum
+		call ccmpi_abort(-1)
+	  end if
     end if
   end do
 end do
