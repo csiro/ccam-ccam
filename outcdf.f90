@@ -2024,6 +2024,14 @@ if( myid==0 .or. local ) then
       end if
     end if
     
+    ! MAX WINDS
+    if ( output_windmax/=0 ) then
+      lname = 'x-component wind max'
+      call attrib(idnc,dima,asize,'u_max',lname,'m s-1',-150.,150.,0,cptype)
+      lname = 'y-component wind max'
+      call attrib(idnc,dima,asize,'v_max',lname,'m s-1',-150.,150.,0,cptype)        
+    end if
+    
     ! RESTART ---------------------------------------------------
     if ( itype==-1 ) then   ! extra stuff just written for restart file
       lname= 'Tendency of surface pressure'
@@ -3193,6 +3201,11 @@ if ( abs(iaero)>=2 ) then
   end if
 end if
 
+if ( output_windmax/=0 ) then
+  call histwrt(u_max,'u_max',idnc,iarch,local,.true.)
+  call histwrt(v_max,'v_max',idnc,iarch,local,.true.)  
+end if
+
 !**************************************************************
 ! RESTART ONLY DATA
 !**************************************************************
@@ -3351,7 +3364,7 @@ real, dimension(:), allocatable :: xpnt
 real, dimension(:), allocatable :: ypnt
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
-real, dimension(kl) :: phil
+real, dimension(kl) :: phi_local
 real xx
 real(kind=8) tpnt
 logical, save :: first = .true.
@@ -3887,36 +3900,36 @@ if ( mod(ktau,tbave)==0 ) then
   call histwrt(freqstore(:,7),"dni",fncid,fiarch,local,.true.)
   if ( surf_windfarm==1 ) then
 	do iq = 1,ifull
-	  phil(1) = bet(1)*t(iq,1)
+	  phi_local(1) = bet(1)*t(iq,1)
 	  do k = 2,kl
-	    phil(k) = phil(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+	    phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
 	  end do
 	  do k = 1,kl-1
-	    if ( phil(k)/grav<150. ) then
+	    if ( phi_local(k)/grav<150. ) then
 		  n = k
 		else
 		  exit
 		end if
 	  end do
-	  xx = (150.*grav-phil(n))/(phil(n+1)-phil(n))
+	  xx = (150.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
 	  ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
 	  va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
 	end do	
     call histwrt(ua_level,"ua150m",fncid,fiarch,local,.true.)
     call histwrt(va_level,"va150m",fncid,fiarch,local,.true.)
 	do iq = 1,ifull
-	  phil(1) = bet(1)*t(iq,1)
+	  phi_local(1) = bet(1)*t(iq,1)
 	  do k = 2,kl
-	    phil(k) = phil(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+	    phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
 	  end do
 	  do k = 1,kl-1
-	    if ( phil(k)/grav<250. ) then
+	    if ( phi_local(k)/grav<250. ) then
 		  n = k
 		else
 		  exit
 		end if
 	  end do
-	  xx = (250.*grav-phil(n))/(phil(n+1)-phil(n))
+	  xx = (250.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
 	  ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
 	  va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
 	end do

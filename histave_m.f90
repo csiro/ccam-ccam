@@ -38,6 +38,7 @@ public cnpp_ave,cnbp_ave
 public anthropogenic_ave, urban_storage_ave, tmaxurban, tminurban
 public anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 !public tgg_ave
+public u_max, v_max
 public histave_init,histave_end
 public fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
 
@@ -54,15 +55,17 @@ real, dimension(:), allocatable, save :: cnpp_ave,cnbp_ave
 real, dimension(:), allocatable, save :: anthropogenic_ave, urban_storage_ave, tmaxurban, tminurban
 real, dimension(:), allocatable, save :: anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 real, dimension(:), allocatable, save :: fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
+real, dimension(:,:), allocatable, save :: u_max, v_max
 !real, dimension(:,:), allocatable, save :: tgg_ave
 
 contains
 
-subroutine histave_init(ifull,kl,ms,ccycle)
+subroutine histave_init(ifull,kl,ms,ccycle,output_windmax)
 
 implicit none
 
-integer, intent(in) :: ifull,kl,ms,ccycle
+integer, intent(in) :: ifull,kl,ms
+integer, intent(in) :: output_windmax,ccycle
 
 allocate(eg_ave(ifull),fg_ave(ifull),ga_ave(ifull),epan_ave(ifull),dew_ave(ifull))
 allocate(cbas_ave(ifull),ctop_ave(ifull),rndmax(ifull),prhmax(ifull),prhour(ifull))
@@ -142,6 +145,12 @@ if ( ccycle/=0 ) then
   end if
 end if
 
+if ( output_windmax/=0 ) then
+  allocate( u_max(ifull,kl), v_max(ifull,kl) )
+  u_max = 0.
+  v_max = 0.
+end if
+
 return
 end subroutine histave_init
 
@@ -169,6 +178,10 @@ if ( allocated(fpn_ave) ) then
   if ( diaglevel_carbon > 0 ) then
     deallocate(fevc_ave)
   end if
+end if
+
+if ( allocated(u_max) ) then
+  deallocate(u_max,v_max)
 end if
 
 return

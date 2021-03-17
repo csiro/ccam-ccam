@@ -1473,7 +1473,7 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_land,diaglevel_maxmin,diaglevel_ocean,              &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
     diaglevel_river,diaglevel_pop,                                &
-    surf_cordex,surf_windfarm,                                    &
+    surf_cordex,surf_windfarm,output_windmax,                     &
     vegprev,vegnext,vegnext2                                        ! depreciated
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
@@ -1961,7 +1961,7 @@ aeroindir           = dumi(8)
 o3_vert_interpolate = dumi(9)
 o3_time_interpolate = dumi(10)
 deallocate( dumr, dumi )
-allocate( dumi(23) )
+allocate( dumi(24) )
 dumi = 0
 if ( myid==0 ) then
   read(99, datafile)
@@ -1988,6 +1988,7 @@ if ( myid==0 ) then
   dumi(21) = diaglevel_pop
   dumi(22) = surf_cordex
   dumi(23) = surf_windfarm
+  dumi(24) = output_windmax
 end if
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(ifile,0,comm_world)
@@ -2049,6 +2050,7 @@ diaglevel_river     = dumi(20)
 diaglevel_pop       = dumi(21)
 surf_cordex         = dumi(22)
 surf_windfarm       = dumi(23)
+output_windmax      = dumi(24)
 deallocate( dumi )
 allocate( dumr(34), dumi(23) )
 dumr = 0.
@@ -3035,7 +3037,7 @@ call dpsdt_init(ifull,epsp)
 call epst_init(ifull)
 call extraout_init(ifull,nextout)
 call gdrag_init(ifull)
-call histave_init(ifull,kl,ms,ccycle)
+call histave_init(ifull,kl,ms,ccycle,output_windmax)
 call kuocomb_init(ifull,kl)
 call liqwpar_init(ifull,iextra,kl)
 call morepbl_init(ifull,diaglevel_pbl)
@@ -3857,6 +3859,11 @@ if ( abs(iaero)>=2 ) then
   salt_burden   = 0.  ! Salt burden
 end if
 
+if ( output_windmax/=0 ) then
+  u_max = 0.
+  v_max = 0.
+end if
+
 return
 end subroutine zero_nperavg
     
@@ -3868,7 +3875,7 @@ use histave_m                              ! Time average arrays
 
 implicit none
 
-prhour(:) = 0.
+prhour(:) = 0. ! for calculating prhmax
 
 return
 end subroutine zero_nperhour
@@ -4036,6 +4043,17 @@ dni_ave(1:ifull)   = dni_ave(1:ifull)  + dni(1:ifull)
 where ( sgdn(1:ifull)>120. )
   sunhours(1:ifull) = sunhours(1:ifull) + 86400.
 end where
+
+if ( output_windmax/=0 ) then
+  do k = 1,kl
+    spare1 = u(1:ifull,k)**2 + v(1:ifull,k)**2
+    spare2 = u_max(1:ifull,k)**2 + v_max(1:ifull,k)**2
+    where ( spare2 > spare1 )
+      u_max(1:ifull,k) = u(1:ifull,k)
+      v_max(1:ifull,k) = v(1:ifull,k)
+    end where
+  end do
+end if
 
 if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   cape_ave(1:ifull)          = cape_ave(1:ifull)/min(ntau,nperavg)
