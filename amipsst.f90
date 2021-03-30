@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -622,8 +622,10 @@ elseif ( ktau>0 ) then
   call mloexport(0,old,1,0)
   delta = new - old
   do k = 1,kbotmlo
+    old = 273.16 - wrtemp  
     call mloexport(0,old,k,0)
     old = wgt*delta + old
+    old = min( max( old, 260.-wrtemp ), 380.-wrtemp )
     call mloimport(0,old,k,0)
   end do  
   do k = 1,ms
