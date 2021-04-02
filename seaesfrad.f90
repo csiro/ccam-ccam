@@ -35,7 +35,7 @@ use rad_utilities_mod, only : atmos_input_type,surface_type,astronomy_type,aeros
                               Sw_control,Lw_control, Rad_control,Cldrad_control,Lw_parameters,     &
                               thickavg,lw_clouds_type,optical_path_type,gas_tf_type
 use esfsw_driver_mod, only : swresf,esfsw_driver_init
-use sealw99_mod, only : sealw99,sealw99_init, sealw99_time_vary
+use sealw99_mod, only : sealw99,sealw99_init,sealw99_time_vary,linecatalog_form,continuum_form
 use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init,sw_resolution,sw_diff_streams
 use microphys_rad_mod, only : microphys_rad_init,microphys_sw_driver,microphys_lw_driver,          &
                               lwemiss_calc,lwem_form
@@ -43,7 +43,7 @@ use microphys_rad_mod, only : microphys_rad_init,microphys_sw_driver,microphys_l
 private
 public seaesfrad_settime, seaesfrad, seaesfrad_init, sw_resolution, sw_diff_streams, liqradmethod, iceradmethod
 public carbonradmethod, so4radmethod, dustradmethod, seasaltradmethod, lwem_form
-public csolar
+public csolar, linecatalog_form, continuum_form, do_co2_10um
 
 real, parameter :: rhow     = 1000.            ! Density of water (kg/m^3)
 real, save      :: csolar   = 1365.            ! Solar constant in W/m^2
@@ -66,6 +66,7 @@ integer, save :: seasaltradmethod = 0 ! Method for sea-salt direct effects (0=on
 logical, parameter :: do_totcld_forcing  = .true.
 logical, parameter :: include_volcanoes  = .false.
 logical, save :: do_aerosol_forcing ! =.true. when abs(iaero)>=2
+logical, save :: do_co2_10um = .false.
 
 integer, save :: nlow, nmid
 real(kind=8), dimension(:,:), allocatable, save :: pref
@@ -1424,6 +1425,41 @@ call solargh(fjd,bpyear,r1,dlt,alp,slag)
 call co2_read(sig,jyear,csolar)
 rrco2 = rrvco2*ratco2mw
 
+! fixes
+if ( trim(linecatalog_form)=="hitran_2000" ) then
+  if ( rrvco2 > 1600.e-6 ) then
+    write(6,*) "ERROR: CO2 concentration is above maximum of 1600. ppmv"
+    write(6,*) "Consider using linecatalog_form=hitran_2012"
+    call ccmpi_abort(-1)
+  end if    
+  if ( rrvch4 > 4000.e-9 ) then
+    write(6,*) "ERROR: CH4 concentration is above maximum of 4000. ppbv"
+    write(6,*) "Consider using linecatalog_form=hitran_2012"
+    call ccmpi_abort(-1)
+  end if    
+  if ( rrvn2o > 500.e-9 ) then
+    write(6,*) "ERROR: N2O concentration is above maximum of 500. ppbv"
+    write(6,*) "Consider using linecatalog_form=hitran_2012"
+    call ccmpi_abort(-1)
+  end if    
+else if ( trim(linecatalog_form)=="hitran_2012" ) then
+  if ( rrvco2 > 10000.e-6 ) then
+    write(6,*) "ERROR: CO2 concentration is above maximum of 10000. ppmv"
+    call ccmpi_abort(-1)
+  end if    
+  if ( rrvch4 > 6000.e-9 ) then
+    write(6,*) "ERROR: CH4 concentration is above maximum of 6000. ppbv"
+    call ccmpi_abort(-1)
+  end if    
+  if ( rrvn2o > 800.e-9 ) then
+    write(6,*) "ERROR: N2O concentration is above maximum of 800. ppbv"
+    call ccmpi_abort(-1)
+  end if   
+else
+  write(6,*) "ERROR: Unknown option linecatalog_form ",trim(linecatalog_form)
+  call ccmpi_abort(-1)
+end if
+
 ! initialise ozone
 if ( amipo3 ) then
   if ( myid==0 ) write(6,*) "AMIP2 ozone input"
@@ -1464,6 +1500,7 @@ Lw_control%do_ch4                       = rrvch4>0.
 Lw_control%do_n2o                       = rrvch4>0.
 Lw_control%do_h2o                       = .true.
 Lw_control%do_cfc                       = rrvch4>0.
+Lw_control%do_co2_10um                  = do_co2_10um
 Rad_control%using_solar_timeseries_data = .false.
 Rad_control%do_totcld_forcing           = do_totcld_forcing
 Rad_control%rad_time_step               = nint(real(kountr)*dt)

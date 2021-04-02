@@ -205,7 +205,7 @@ integer tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim, ubdim
 integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
 integer icy, icm, icd, ich, icmi, ics, idv
-integer namipo3, nalways_mspeca
+integer namipo3, nalways_mspeca, ndo_co2_10um
 integer, save :: idnc_hist=0, iarch_hist=0
 integer :: idnc, iarch
 real, dimension(:), intent(in) :: psl_in
@@ -659,9 +659,17 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'carbmtn',carbmtn)
     call ccnf_put_attg(idnc,'carbonradmethod',carbonradmethod)
     call ccnf_put_attg(idnc,'ch_dust',ch_dust)
+    call ccnf_put_attg(idnc,'continuum_form',continuum_form)
     call ccnf_put_attg(idnc,'csolar',csolar)
+    if ( do_co2_10um ) then
+      ndo_co2_10um = 1
+    else
+      ndo_co2_10um = 0
+    end if      
+    call ccnf_put_attg(idnc,'do_co2_10um',ndo_co2_10um)
     call ccnf_put_attg(idnc,'dustradmethod',dustradmethod)
     call ccnf_put_attg(idnc,'iceradmethod',iceradmethod)
+    call ccnf_put_attg(idnc,'linecatalog_form',linecatalog_form)
     call ccnf_put_attg(idnc,'liqradmethod',liqradmethod)
     call ccnf_put_attg(idnc,'lwem_form',lwem_form)
     call ccnf_put_attg(idnc,'mins_rad',mins_rad)

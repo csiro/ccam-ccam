@@ -201,7 +201,7 @@ module cc_mpi
       module procedure ccmpi_bcast3r, ccmpi_bcast4r, ccmpi_bcast5r, ccmpi_bcast1s
    end interface
    interface ccmpi_bcastr8
-      module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
+      module procedure ccmpi_bcast1r8, ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
    end interface
    interface ccmpi_gatherx
       module procedure ccmpi_gatherx2r,  ccmpi_gatherx3r,  ccmpi_gatherx4r
@@ -7878,6 +7878,21 @@ contains
       end do
    
    end subroutine ccmpi_bcast1s
+   
+   subroutine ccmpi_bcast1r8(ldat,host,comm)
+   
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, ierr
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+      real(kind=8), intent(inout) :: ldat
+      
+      lhost = host
+      lcomm = comm
+      call START_LOG(bcast_end)
+      call MPI_Bcast(ldat,1_4,ltype,lhost,lcomm,ierr)
+      call END_LOG(bcast_end)
+   
+   end subroutine ccmpi_bcast1r8
    
    subroutine ccmpi_bcast2r8(ldat,host,comm)
    

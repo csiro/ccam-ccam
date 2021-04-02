@@ -515,9 +515,14 @@ type gas_tf_type
                                           co2nbl,   &
                                           n2o9c,   &
                                           tn2o17
+     real, dimension(:,:,:), allocatable :: co2990nbl
+     real, dimension(:,:,:), allocatable :: co2900nbl
+     real, dimension(:,:,:), allocatable :: co21070nbl
      real, dimension(:,:,:,:), allocatable :: co2spnb
-     real, dimension(:,:),     allocatable :: a1,    &
-                                          a2
+     real, dimension(:,:,:), allocatable :: co2990spnb
+     real, dimension(:,:,:), allocatable :: co2900spnb
+     real, dimension(:,:,:), allocatable :: co21070spnb
+     real, dimension(:,:),   allocatable :: a1, a2
 end type gas_tf_type
 
 !------------------------------------------------------------------
@@ -548,6 +553,7 @@ type longwave_control_type
     logical           :: do_lwcldemiss_iz
     logical           :: do_h2o_iz
     logical           :: do_o3_iz 
+    logical           :: do_co2_10um
 end type longwave_control_type
 
 !---------------------------------------------------------------------
@@ -1206,7 +1212,8 @@ type (longwave_control_type),  public, save   ::    &
                                          .false., .false., .false.,  &
                                          .false., .false.,  &
                                          .false., .false.,  &
-                                         .false., .false., .false.   )
+                                         .false., .false., .false., &
+                                         .false. )
 
 type (shortwave_control_type), public, save   ::  &
     Sw_control = shortwave_control_type( .false., .false., .false. , &

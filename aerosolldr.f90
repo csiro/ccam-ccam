@@ -168,7 +168,7 @@ subroutine aldrinit(ifull,iextra,kl,sig)
 implicit none
 
 integer, intent(in) :: ifull,iextra,kl
-integer pos(1)
+integer k
 real, dimension(kl), intent(in) :: sig
 
 allocate(xtg(ifull+iextra,kl,naero),xtgsav(ifull,kl,naero))
@@ -225,28 +225,55 @@ salt_burden=0.
 ! MJT - define injection levels
 
 ! scale to CSIRO9 18 levels
-! jk2 is top of level=1, bottom of level=2
-!pos=maxloc(sig,sig<=0.993) ! 65m
-!jk2=max(pos(1),2)
-jk2=2
-! jk3 is top of level=2, bottom of level=3
-pos=maxloc(sig,sig<=0.967) ! 300m
-jk3=max(pos(1),jk2+1)
-! jk4 is top of level=3, bottom of level=4
-pos=maxloc(sig,sig<=0.930) ! 600m
-jk4=max(pos(1),jk3+1)
-! jk5 is top of level=4, bottom of level=5
-pos=maxloc(sig,sig<=0.882) ! 1,000m
-jk5=max(pos(1),jk4+1)
-! jk6 is top of level=5, bottom of level=6
-pos=maxloc(sig,sig<=0.800) ! 1,800m
-jk6=max(pos(1),jk5+1)
-! jk8 is top of level=7, bottom of level=8
-pos=maxloc(sig,sig<=0.530) ! 5,000m
-jk8=max(pos(1),jk6+1)
-! jk9 is top of level=8, bottom of level=9
-pos=maxloc(sig,sig<=0.350) ! 8,000m
-jk9=max(pos(1),jk8+1)
+jk2=2 ! jk2 is top of level=1, bottom of level=2
+jk3=3
+do k = 3,kl
+  if ( sig(k)<=0.967 ) then ! 300m
+    jk3 = k ! jk3 is top of level=2, bottom of level=3
+  else
+    exit
+  end if
+end do
+jk4 = jk3 + 1
+do k = jk3+1,kl
+  if ( sig(k)<=0.930 ) then ! 600m
+    jk4 = k ! jk4 is top of level=3, bottom of level=4
+  else
+    exit
+  end if
+end do
+jk5 = jk4 + 1
+do k = jk4+1,kl
+  if ( sig(k)<=0.882 ) then ! 1,000m
+    jk5 = k ! jk5 is top of level=4, bottom of level=5
+  else
+    exit
+  end if
+end do
+jk6 = jk5 + 1
+do k = jk5+1,kl
+  if ( sig(k)<=0.800 ) then ! 1,800m
+    jk6 = k ! jk6 is top of level=5, bottom of level=6
+  else
+    exit
+  end if
+end do
+jk8 = jk6 + 1
+do k = jk6+1,kl
+  if ( sig(k)<=0.530 ) then ! 5,000m
+    jk8 = k ! jk8 is top of level=7, bottom of level=8
+  else
+    exit
+  end if
+end do
+jk9 = jk8 + 1
+do k = jk8+1,kl
+  if ( sig(k)<=0.350 ) then ! 8,000m
+    jk9 = k ! jk9 is top of level=8, bottom of level=9
+  else
+    exit
+  end if
+end do
 
 !$acc update device(jk2,jk3,jk4,jk5,jk6,jk8,jk9)
 !$acc update device(enhanceu10,aeroindir)

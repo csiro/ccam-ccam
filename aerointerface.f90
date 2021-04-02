@@ -410,6 +410,7 @@ logical tst
 
 if ( myid==0 ) write(6,*) "Initialise LDR prognostic aerosols"
 
+if ( myid==0 ) write(6,*) "-->Allocate interface arrays"
 allocate( ppfprec(ifull,kl), ppfmelt(ifull,kl) )
 allocate( ppfsnow(ifull,kl) )
 allocate( ppfevap(ifull,kl), ppfsubl(ifull,kl) )
@@ -435,6 +436,7 @@ pprfreeze = 0.
 zdayfac = 0.
 opticaldepth = 0.
 
+if ( myid==0 ) write(6,*) "-->Allocate prognostic arrays"
 call aldrinit(ifull,iextra,kl,sig)
 
 if ( myid==0 ) then

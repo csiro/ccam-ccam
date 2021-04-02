@@ -1454,7 +1454,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
-    siglow,sigmid,                                                &
+    siglow,sigmid,linecatalog_form,continuum_form,do_co2_10um,    &
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
     saltlargemtn,                                                 &
     o3_vert_interpolate,                                          & ! ozone
@@ -1910,7 +1910,7 @@ if ( nstn>0 ) then
     call ccmpi_bcast(name_stn(i),0,comm_world)
   end do
 end if
-allocate( dumr(10), dumi(10) )
+allocate( dumr(10), dumi(11) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -1935,11 +1935,14 @@ if ( myid==0 ) then
   dumi(8)  = aeroindir
   dumi(9)  = o3_vert_interpolate
   dumi(10) = o3_time_interpolate
+  if ( do_co2_10um ) dumi(11) = 1
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(sw_resolution,0,comm_world)
 call ccmpi_bcast(lwem_form,0,comm_world)
+call ccmpi_bcast(linecatalog_form,0,comm_world)
+call ccmpi_bcast(continuum_form,0,comm_world)
 bpyear              = dumr(1)
 qgmin               = dumr(2)
 ch_dust             = dumr(3)
@@ -1960,6 +1963,7 @@ seasaltradmethod    = dumi(7)
 aeroindir           = dumi(8)
 o3_vert_interpolate = dumi(9)
 o3_time_interpolate = dumi(10)
+do_co2_10um         = dumi(11)==1
 deallocate( dumr, dumi )
 allocate( dumi(24) )
 dumi = 0

@@ -274,6 +274,9 @@ logical, save :: module_is_initialized      = .false. ! module has been
 !
 subroutine optical_path_init(pref)
 
+use cc_mpi
+use filnames_m
+
 !--------------------------------------------------------------------
 !    optical_path_init is the constructor for optical_path_mod.
 !--------------------------------------------------------------------
@@ -284,13 +287,18 @@ subroutine optical_path_init(pref)
 
       real                    :: awide_c, bwide_c, awide_n, bwide_n, &
                                  awide, bwide
-!      integer, dimension(5)   :: no_h2o12001400bands = &
-!                                  (/ 1, 2, 4, 10, 20 /)
+      real                    :: dum
+      real, dimension(NBLY_RSB) :: dummy_n
+      real, dimension(20) :: dummy_ch4n2o ! 20 = max(no_h2o12001400bands)
+      integer, dimension(5)   :: no_h2o12001400bands = &
+                                  (/ 1, 2, 4, 10, 20 /)
       real, dimension(20)     :: arndm_12001400, brndm_12001400,    &
                                  ap_12001400, bp_12001400,          &
                                  atp_12001400, btp_12001400,        &
                                  fbdlo_12001400, fbdhi_12001400
       integer                 :: m
+      character(len=1024) :: filename
+      integer :: ierr, k, subb
 
 !---------------------------------------------------------------------
 !  local variables:
@@ -378,43 +386,77 @@ subroutine optical_path_init(pref)
 !---------------------------------------------------------------------
 !    read needed data from raduiation input files.
 !---------------------------------------------------------------------
-      if (trim(Lw_control%linecatalog_form) == 'hitran_1992' ) then
+      if (trim(Lw_control%linecatalog_form) == 'hitran_2012' ) then
         if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-            trim(Lw_control%continuum_form) == 'ckd2.4' ) then
-          awide_c=0.308562E+01   ! ckd rndm coeff for 560-800 band
-          bwide_c=0.503352E-01   ! ckd rndm coeff for 560-800 band
+            trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+            trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
+          if ( myid==0 ) then  
+            filename = trim(cnsdir) // '/bandpar_h2o_ckd_560800'
+            open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
+            write(6,*) "Reading ",trim(filename)
+            if ( ierr/=0 ) then
+              write(6,*) "ERROR: Cannot read ",trim(filename)
+              call ccmpi_abort(-1)
+            end if  
+            read(11,'(5e14.6)') awide_c
+            read(11,'(5e14.6)') bwide_c
+            close(11)
+          end if
+          call ccmpi_bcastr8(awide_c,0,comm_world)
+          call ccmpi_bcastr8(bwide_c,0,comm_world)
         else if (trim(Lw_control%continuum_form) == 'rsb' ) then
-          awide_n=0.309494E+01   ! rsb rndm coeff for 560-800 band
-          bwide_n=0.503391E-01   ! rsb rndm coeff for 560-800 band
-          betawd=0.347839E+02    ! rsb cont coeff for 560-800 band
-          !  rsb cont coeff for 8 comb bands (160-560) and 8 wide bands (560-1400)
-          betacm=(/ 0.000000E+00,  0.000000E+00,  0.000000E+00,  0.000000E+00,  0.188625E+03, &
-                    0.144293E+03,  0.174098E+03,  0.909365E+02,  0.565430E+02,  0.343645E+02, &
-                    0.198461E+02,  0.113124E+02,  0.754175E+01,  0.589554E+01,  0.495227E+01, &
-                    0.000000E+00 /)
-        endif
-      else if (trim(Lw_control%linecatalog_form) == 'hitran_2000' ) then
+          if ( myid==0 ) then  
+            filename = trim(cnsdir) // '/bandpar_h2o_rsb_speccombwidebds_hi00'
+            open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
+            write(6,*) "Reading ",trim(filename)
+            if ( ierr/=0 ) then
+              write(6,*) "ERROR: Cannot read ",trim(filename)
+              call ccmpi_abort(-1)
+            end if  
+            read(11,'(5e14.6)') awide_n
+            read(11,'(5e14.6)') bwide_n
+            read(11,'(5e14.6)') dum
+            read(11,'(5e14.6)') dum
+            read(11,'(5e14.6)') dum
+            read(11,'(5e14.6)') dum
+            read(11,'(5e14.6)') dum
+            read(11,'(5e14.6)') dum
+            read(11,'(5e14.6)') betawd
+            read(11,'(5e14.6)') (dummy_n(k),k=1,NBLY_RSB)
+            read(11,'(5e14.6)') (dummy_n(k),k=1,NBLY_RSB)
+            read(11,'(5e14.6)') (dummy_n(k),k=1,NBLY_RSB)
+            read(11,'(5e14.6)') (dummy_n(k),k=1,NBLY_RSB)
+            read(11,'(5e14.6)') (dummy_n(k),k=1,NBLY_RSB)
+            read(11,'(5e14.6)') (dummy_n(k),k=1,NBLY_RSB)
+            read(11,'(5e14.6)') (dummy_n(k),k=1,NBLY_RSB)
+            read(11,'(5e14.6)') (dummy_n(k),k=1,NBLY_RSB)
+            read(11,'(5e14.6)') (betacm(k),k=1,NBLY_RSB)
+            close(11)
+          end if
+          call ccmpi_bcastr8(awide_n,0,comm_world)
+          call ccmpi_bcastr8(bwide_n,0,comm_world)
+          call ccmpi_bcastr8(betawd,0,comm_world)
+          call ccmpi_bcastr8(betacm,0,comm_world)
+        end if 
+      else if (trim(Lw_control%linecatalog_form) == 'hitran_2000' ) then 
         if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-            trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+            trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+            trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
           awide_c=0.301958E+01   ! ckd rndm coeff for 560-800 band
           bwide_c=0.632957E-01   ! ckd rndm coeff for 560-800 band
-        else if (trim(Lw_control%continuum_form) == 'rsb' ) then
-          awide_n=0.303048E+01   ! rsb rndm coeff for 560-800 band
-          bwide_n=0.633003E-01   ! rsb rndm coeff for 560-800 band
-          betawd=0.347839E+02    ! rsb cont coeff for 560-800 band
-          !  rsb cont coeff for 8 comb bands (160-560) and 8 wide bands (560-1400)
-          betacm=(/ 0.000000E+00,  0.000000E+00,  0.000000E+00,  0.000000E+00,  0.188625E+03, &
-                    0.144293E+03,  0.174098E+03,  0.909365E+02,  0.565430E+02,  0.343645E+02, &
-                    0.198461E+02,  0.113124E+02,  0.754175E+01,  0.589554E+01,  0.495227E+01, &
-                    0.000000E+00 /)
-        endif
-      endif
+        else
+          write(6,*) "ERROR: rsb is not suppported for hitran_2000"
+          stop
+        end if
+      end if
 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' .or.  &
+          trim(Lw_control%continuum_form) == 'bps2.0' ) then
         awide = awide_c
         bwide = bwide_c
       else if (trim(Lw_control%continuum_form) == 'rsb' ) then
@@ -428,10 +470,22 @@ subroutine optical_path_init(pref)
 !---------------------------------------------------------------------
       ab15wd = awide*bwide
 
-      if (trim(Lw_control%linecatalog_form) == 'hitran_1992') then
-        ao3rnd=(/ 0.516411E+02,  0.237768E+04,  0.331449E+02 /)
-        bo3rnd=(/ 0.670035E+01,  0.955445E+01,  0.856424E+01 /)
-      else if (trim(Lw_control%linecatalog_form) == 'hitran_2000') then
+      if (trim(Lw_control%linecatalog_form) == 'hitran_2012') then
+        if ( myid==0 ) then  
+          filename = trim(cnsdir) // '/o39001200_hi12_data'
+          open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
+          write(6,*) "Reading ",trim(filename)
+          if ( ierr/=0 ) then
+            write(6,*) "ERROR: Cannot read ",trim(filename)
+            call ccmpi_abort(-1)
+          end if  
+          read(11,'(3e14.6)') (ao3rnd(k),k=1,3)
+          read(11,'(3e14.6)') (bo3rnd(k),k=1,3)
+          close(11)
+        end if
+        call ccmpi_bcastr8(ao3rnd,0,comm_world)
+        call ccmpi_bcastr8(bo3rnd,0,comm_world)
+      else if (trim(Lw_control%linecatalog_form) == 'hitran_2000') then  
         ao3rnd=(/ 0.935491E+01,  0.238222E+04,  0.332118E+02 /)
         bo3rnd=(/ 0.818858E+01,  0.959483E+01,  0.861819E+01 /)
       endif
@@ -461,187 +515,129 @@ subroutine optical_path_init(pref)
 !---------------------------------------------------------------------
       if (NBTRGE > 0) then
         allocate ( csfah2o(2, NBTRGE) )
-        if (trim(Lw_control%linecatalog_form) == 'hitran_1992') then
-
-!  read and process data for sub-band number from data matching NBTRGE
-!  then exit subb loop
-        select case(NBTRGE)
-          case(1)
-            arndm_12001400(1)=0.416516E+02
-            brndm_12001400(1)=0.993856E-01
-            ap_12001400(1)=0.115749E-01
-            bp_12001400(1)=-0.425616E-04
-            atp_12001400(1)=0.119546E-01
-            btp_12001400(1)=-0.343610E-04
-            fbdlo_12001400(1)=0.120000E+04
-            fbdhi_12001400(1)=0.140000E+04
-          case(2)
-            arndm_12001400(1:2)=(/ 0.191916E+01,  0.813840E+02 /)
-            brndm_12001400(1:2)=(/ 0.191841E+00,  0.147305E+00 /)
-            ap_12001400(1:2)=(/ 0.174097E-01,  0.114313E-01 /)
-            bp_12001400(1:2)=(/ -0.317609E-04, -0.432460E-04 /)
-            atp_12001400(1:2)=(/ 0.179228E-01,  0.109031E-01 /)
-            btp_12001400(1:2)=(/ -0.347266E-04, -0.361374E-04 /)
-            fbdlo_12001400(1:2)=(/ 0.120000E+04,  0.130000E+04 /)
-            fbdhi_12001400(1:2)=(/ 0.130000E+04,  0.140000E+04 /)
-          case(4)
-            arndm_12001400(1:4)=(/ 0.676625E+00,  0.316169E+01,  0.208415E+02,  0.141927E+03 /)
-            brndm_12001400(1:4)=(/ 0.155982E+00,  0.249785E+00,  0.247080E+00,  0.152715E+00 /)
-            ap_12001400(1:4)=(/ 0.166392E-01,  0.175692E-01,  0.175389E-01,  0.105481E-01 /)
-            bp_12001400(1:4)=(/ -0.428283E-04, -0.295058E-04, -0.566292E-04, -0.443731E-04 /)
-            atp_12001400(1:4)=(/ 0.184822E-01,  0.177179E-01,  0.140172E-01,  0.938797E-02 /)
-            btp_12001400(1:4)=(/ -0.337057E-04, -0.351393E-04, -0.386980E-04, -0.366436E-04 /)
-            fbdlo_12001400(1:4)=(/ 0.120000E+04,  0.125000E+04,  0.130000E+04,  0.135000E+04 /)
-            fbdhi_12001400(1:4)=(/ 0.125000E+04,  0.130000E+04,  0.135000E+04,  0.140000E+04 /)
-          case(10)
-            arndm_12001400(1:10)=(/ 0.587965E+00,  0.501611E+00,  0.740500E+00,  0.555079E+01,  0.221491E+01, &
-                              0.141263E+02,  0.215772E+02,  0.208761E+02,  0.112267E+03,  0.238073E+03 /)
-            brndm_12001400(1:10)=(/ 0.136093E+00,  0.215200E+00,  0.215289E+00,  0.196231E+00,  0.433159E+00, &
-                              0.279419E+00,  0.263223E+00,  0.202895E+00,  0.211683E+00,  0.151673E+00 /)
-            ap_12001400(1:10)=(/ 0.189824E-01,  0.175350E-01,  0.142808E-01,  0.142165E-01,  0.260793E-01, &
-                           0.182821E-01,  0.199166E-01,  0.147737E-01,  0.124860E-01,  0.951027E-02 /)
-            bp_12001400(1:10)=(/ -0.660707E-04, -0.275910E-04, -0.274332E-04, -0.415313E-04, -0.524774E-04, &
-                           -0.573604E-04, -0.721160E-04, -0.477693E-04, -0.483700E-04, -0.441301E-04 /)
-            atp_12001400(1:10)=(/ 0.179076E-01,  0.188315E-01,  0.165058E-01,  0.163390E-01,  0.198982E-01, &
-                            0.156372E-01,  0.143535E-01,  0.116195E-01,  0.100036E-01,  0.846707E-02 /)
-            btp_12001400(1:10)=(/ -0.493954E-04, -0.282847E-04, -0.155592E-04, -0.389195E-04, -0.380731E-04, &
-                            -0.462165E-04, -0.410551E-04, -0.260344E-04, -0.367164E-04, -0.385911E-04 /)
-            fbdlo_12001400(1:10)=(/ 0.120000E+04,  0.122000E+04,  0.124000E+04,  0.126000E+04,  0.128000E+04, &
-                              0.130000E+04,  0.132000E+04,  0.134000E+04,  0.136000E+04,  0.138000E+04 /)
-            fbdhi_12001400(1:10)=(/ 0.122000E+04,  0.124000E+04,  0.126000E+04,  0.128000E+04,  0.130000E+04, &
-                              0.132000E+04,  0.134000E+04,  0.136000E+04,  0.138000E+04,  0.140000E+04 /)
-          case(20)
-            arndm_12001400=(/ 0.290804E-01,  0.114685E+01,  0.895400E+00,  0.107823E+00,  0.120397E+01, &
-                              0.277030E+00,  0.646725E+01,  0.463433E+01,  0.319042E+01,  0.123940E+01, &
-                              0.211250E+01,  0.261400E+02,  0.630879E+01,  0.368457E+02,  0.328004E+02, &
-                              0.895182E+01,  0.117313E+03,  0.107221E+03,  0.138428E+03,  0.337719E+03 /)
-            brndm_12001400=(/ 0.374292E+00,  0.185647E+00,  0.245272E+00,  0.329443E+00,  0.133894E+00, &
-                              0.569070E+00,  0.303969E+00,  0.101321E+00,  0.457348E+00,  0.455111E+00, &
-                              0.294776E+00,  0.387918E+00,  0.392153E+00,  0.276787E+00,  0.207107E+00, &
-                              0.254630E+00,  0.227533E+00,  0.195926E+00,  0.122482E+00,  0.184826E+00 /)
-            ap_12001400=(/ 0.155986E-01,  0.190849E-01,  0.170891E-01,  0.204949E-01,  0.137236E-01, &
-                           0.163386E-01,  0.173767E-01,  0.992271E-02,  0.246727E-01,  0.298153E-01, &
-                           0.195828E-01,  0.181777E-01,  0.141307E-01,  0.211370E-01,  0.139938E-01, &
-                           0.177067E-01,  0.149364E-01,  0.100010E-01,  0.121674E-01,  0.846801E-02 /)
-            bp_12001400=(/ 0.801432E-06, -0.680987E-04, -0.387130E-04,  0.494540E-04, -0.408797E-04, &
-                           0.235786E-04, -0.521802E-04, -0.428909E-04, -0.510800E-04, -0.656237E-04, &
-                          -0.603673E-04, -0.571917E-04, -0.994268E-05, -0.880330E-04, -0.464280E-04, &
-                          -0.581427E-04, -0.661838E-04, -0.358409E-04, -0.587810E-04, -0.401985E-04 /)
-            atp_12001400=(/ 0.197886E-01,  0.174551E-01,  0.196549E-01,  0.168556E-01,  0.186971E-01, &
-                            0.143132E-01,  0.187366E-01,  0.116607E-01,  0.183220E-01,  0.224222E-01, &
-                            0.136826E-01,  0.161362E-01,  0.131733E-01,  0.149621E-01,  0.110063E-01, &
-                            0.126772E-01,  0.111216E-01,  0.877621E-02,  0.105100E-01,  0.740604E-02 /)
-            btp_12001400=(/ -0.961351E-05, -0.589351E-04, -0.368548E-04, -0.874701E-05, -0.209928E-04, &
-                            -0.125020E-04, -0.539426E-04, -0.172776E-04, -0.402745E-04, -0.371294E-04, &
-                            -0.275732E-04, -0.512105E-04, -0.169612E-04, -0.534664E-04, -0.264250E-04, &
-                            -0.258023E-04, -0.470294E-04, -0.259680E-04, -0.411320E-04, -0.380929E-04 /)
-            fbdlo_12001400=(/ 0.120000E+04,  0.121000E+04,  0.122000E+04,  0.123000E+04,  0.124000E+04, &
-                              0.125000E+04,  0.126000E+04,  0.127000E+04,  0.128000E+04,  0.129000E+04, &
-                              0.130000E+04,  0.131000E+04,  0.132000E+04,  0.133000E+04,  0.134000E+04, &
-                              0.135000E+04,  0.136000E+04,  0.137000E+04,  0.138000E+04,  0.139000E+04 /)
-            fbdhi_12001400=(/ 0.121000E+04,  0.122000E+04,  0.123000E+04,  0.124000E+04,  0.125000E+04, &
-                              0.126000E+04,  0.127000E+04,  0.128000E+04,  0.129000E+04,  0.130000E+04, &
-                              0.131000E+04,  0.132000E+04,  0.133000E+04,  0.134000E+04,  0.135000E+04, &
-                              0.136000E+04,  0.137000E+04,  0.138000E+04,  0.139000E+04,  0.140000E+04 /)
-          case DEFAULT
-            stop
-        end select
-
-
-        else if (trim(Lw_control%linecatalog_form) ==    &
-                                                    'hitran_2000') then
-
-!----------------------------------------------------------------------
-!     read in random coefficients for 1200-1400 freq region, spacing
-!     through the data until  those appropriate for NBTRGE h2o bands
-!     are reached. note: unless a continuum is inserted beyond 1200
-!     cm-1, the band coefficients are independent of continuum type.
-!---------------------------------------------------------------------
-
-!  read and process data for sub-band number from data matching NBTRGE
-!  then exit subb loop
-        select case(NBTRGE)
-          case(1)
-            arndm_12001400(1)=0.412880E+02
-            brndm_12001400(1)=0.966614E-01
-            ap_12001400(1)=0.115482E-01
-            bp_12001400(1)=-0.427264E-04
-            atp_12001400(1)=0.114609E-01
-            btp_12001400(1)=-0.322336E-04
-            fbdlo_12001400(1)=0.120000E+04
-            fbdhi_12001400(1)=0.140000E+04
-          case(2)
-            arndm_12001400(1:2)=(/ 0.191065E+01,  0.806654E+02 /)
-            brndm_12001400(1:2)=(/ 0.184858E+00,  0.143407E+00 /)
-            ap_12001400(1:2)=(/ 0.172245E-01,  0.114082E-01 /)
-            bp_12001400(1:2)=(/ -0.325793E-04, -0.433741E-04 /)
-            atp_12001400(1:2)=(/ 0.170169E-01,  0.104838E-01 /)
-            btp_12001400(1:2)=(/ -0.312602E-04, -0.339963E-04 /)
-            fbdlo_12001400(1:2)=(/ 0.120000E+04,  0.130000E+04 /)
-            fbdhi_12001400(1:2)=(/ 0.130000E+04,  0.140000E+04 /)
-          case(4)
-            arndm_12001400(1:4)=(/ 0.675182E+00,  0.314613E+01,  0.205516E+02,  0.140779E+03 /)
-            brndm_12001400(1:4)=(/ 0.158068E+00,  0.236136E+00,  0.235728E+00,  0.150391E+00 /)
-            ap_12001400(1:4)=(/ 0.165079E-01,  0.173730E-01,  0.174685E-01,  0.105372E-01 /)
-            bp_12001400(1:4)=(/ -0.442296E-04, -0.301872E-04, -0.566547E-04, -0.444603E-04 /)
-            atp_12001400(1:4)=(/ 0.176427E-01,  0.167800E-01,  0.133792E-01,  0.909761E-02 /)
-            btp_12001400(1:4)=(/ -0.319400E-04, -0.310542E-04, -0.349289E-04, -0.350310E-04 /)
-            fbdlo_12001400(1:4)=(/ 0.120000E+04,  0.125000E+04,  0.130000E+04,  0.135000E+04 /)
-            fbdhi_12001400(1:4)=(/ 0.125000E+04,  0.130000E+04,  0.135000E+04,  0.140000E+04 /)
-          case(10)
-            arndm_12001400(1:10)=(/ 0.587212E+00,  0.504156E+00,  0.732838E+00,  0.558190E+01,  0.214717E+01, &
-                              0.139281E+02,  0.211453E+02,  0.207560E+02,  0.111190E+03,  0.236308E+03 /)
-            brndm_12001400(1:10)=(/ 0.136375E+00,  0.219181E+00,  0.222263E+00,  0.187925E+00,  0.401376E+00, &
-                              0.256241E+00,  0.257634E+00,  0.199375E+00,  0.205552E+00,  0.150706E+00 /)
-            ap_12001400(1:10)=(/ 0.189766E-01,  0.172322E-01,  0.141207E-01,  0.140981E-01,  0.259737E-01, &
-                           0.181963E-01,  0.198438E-01,  0.147694E-01,  0.124512E-01,  0.951141E-02 /)
-            bp_12001400(1:10)=(/ -0.667137E-04, -0.297209E-04, -0.293168E-04, -0.423107E-04, -0.523946E-04, &
-                           -0.574488E-04, -0.720077E-04, -0.479275E-04, -0.483423E-04, -0.442389E-04 /)
-            atp_12001400(1:10)=(/ 0.174040E-01,  0.178565E-01,  0.155997E-01,  0.154890E-01,  0.189041E-01, &
-                            0.149298E-01,  0.137804E-01,  0.111018E-01,  0.963473E-02,  0.825957E-02 /)
-            btp_12001400(1:10)=(/ -0.478302E-04, -0.263436E-04, -0.146212E-04, -0.361877E-04, -0.317459E-04, &
-                            -0.419165E-04, -0.378009E-04, -0.221163E-04, -0.346624E-04, -0.375865E-04 /)
-            fbdlo_12001400(1:10)=(/ 0.120000E+04,  0.122000E+04,  0.124000E+04,  0.126000E+04,  0.128000E+04, &
-                              0.130000E+04,  0.132000E+04,  0.134000E+04,  0.136000E+04,  0.138000E+04 /)
-            fbdhi_12001400(1:10)=(/ 0.122000E+04,  0.124000E+04,  0.126000E+04,  0.128000E+04,  0.130000E+04, &
-                              0.132000E+04,  0.134000E+04,  0.136000E+04,  0.138000E+04,  0.140000E+04 /)
-          case(20)
-            arndm_12001400=(/ 0.298891E-01,  0.114453E+01,  0.902294E+00,  0.106017E+00,  0.119317E+01, &
-                              0.272503E+00,  0.646850E+01,  0.469530E+01,  0.309780E+01,  0.119654E+01, &
-                              0.206962E+01,  0.257866E+02,  0.629791E+01,  0.359927E+02,  0.326113E+02, &
-                              0.890073E+01,  0.115211E+03,  0.107168E+03,  0.135470E+03,  0.337147E+03 /)
-            brndm_12001400=(/ 0.404623E+00,  0.181677E+00,  0.248830E+00,  0.344113E+00,  0.135865E+00, &
-                              0.600568E+00,  0.274657E+00,  0.109030E+00,  0.425958E+00,  0.418903E+00, &
-                              0.285444E+00,  0.351285E+00,  0.377525E+00,  0.271518E+00,  0.200774E+00, &
-                              0.256075E+00,  0.221675E+00,  0.189610E+00,  0.123262E+00,  0.182728E+00 /)
-            ap_12001400=(/ 0.151611E-01,  0.190941E-01,  0.168423E-01,  0.198881E-01,  0.135927E-01, &
-                           0.160874E-01,  0.172402E-01,  0.988010E-02,  0.246151E-01,  0.295935E-01, &
-                           0.195042E-01,  0.180925E-01,  0.139668E-01,  0.211081E-01,  0.139838E-01, &
-                           0.177246E-01,  0.149078E-01,  0.100029E-01,  0.121846E-01,  0.848362E-02 /)
-            bp_12001400=(/ -0.535779E-05, -0.686794E-04, -0.404492E-04,  0.475014E-04, -0.425424E-04, &
-                            0.214896E-04, -0.527283E-04, -0.436842E-04, -0.511716E-04, -0.645196E-04, &
-                           -0.616710E-04, -0.571851E-04, -0.110017E-04, -0.881747E-04, -0.465653E-04, &
-                           -0.584604E-04, -0.662463E-04, -0.359156E-04, -0.590085E-04, -0.403508E-04 /)
-            atp_12001400=(/ 0.189796E-01,  0.170025E-01,  0.186607E-01,  0.159306E-01,  0.176166E-01, &
-                            0.136103E-01,  0.179920E-01,  0.110189E-01,  0.173651E-01,  0.213890E-01, &
-                            0.132172E-01,  0.153795E-01,  0.122693E-01,  0.145617E-01,  0.104277E-01, &
-                            0.122428E-01,  0.107757E-01,  0.838954E-02,  0.100411E-01,  0.733440E-02 /)
-            btp_12001400=(/ -0.128161E-04, -0.567071E-04, -0.348601E-04, -0.691342E-05, -0.192358E-04, &
-                            -0.120450E-04, -0.505353E-04, -0.178919E-04, -0.340849E-04, -0.304614E-04, &
-                            -0.246008E-04, -0.466424E-04, -0.132054E-04, -0.506650E-04, -0.226853E-04, &
-                            -0.216704E-04, -0.452188E-04, -0.237336E-04, -0.394515E-04, -0.372429E-04 /)
-            fbdlo_12001400=(/ 0.120000E+04,  0.121000E+04,  0.122000E+04,  0.123000E+04,  0.124000E+04, &
-                              0.125000E+04,  0.126000E+04,  0.127000E+04,  0.128000E+04,  0.129000E+04, &
-                              0.130000E+04,  0.131000E+04,  0.132000E+04,  0.133000E+04,  0.134000E+04, &
-                              0.135000E+04,  0.136000E+04,  0.137000E+04,  0.138000E+04,  0.139000E+04 /)
-            fbdhi_12001400=(/ 0.121000E+04,  0.122000E+04,  0.123000E+04,  0.124000E+04,  0.125000E+04, &
-                              0.126000E+04,  0.127000E+04,  0.128000E+04,  0.129000E+04,  0.130000E+04, &
-                              0.131000E+04,  0.132000E+04,  0.133000E+04,  0.134000E+04,  0.135000E+04, &
-                              0.136000E+04,  0.137000E+04,  0.138000E+04,  0.139000E+04,  0.140000E+04 /)
-          case DEFAULT
-            stop
-        end select
-        
+        if (trim(Lw_control%linecatalog_form) == 'hitran_2012') then
+          if ( myid==0 ) then  
+            filename = trim(cnsdir) // '/bandpar_h2o_ckdsea_12001400_hi12_data'
+            open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
+            write(6,*) "Reading ",trim(filename)
+            if ( ierr/=0 ) then
+              write(6,*) "ERROR: Cannot read ",trim(filename)
+              call ccmpi_abort(-1)
+            end if  
+            do subb = 1,5
+              if ( nbtrge == no_h2o12001400bands(subb)) then
+                read(11,'(5e14.6)') (arndm_12001400(k),k=1,NBTRGE)
+                read(11,'(5e14.6)') (brndm_12001400(k),k=1,NBTRGE)
+                read(11,'(5e14.6)') (ap_12001400(k),k=1,NBTRGE)
+                read(11,'(5e14.6)') (bp_12001400(k),k=1,NBTRGE)
+                read(11,'(5e14.6)') (atp_12001400(k),k=1,NBTRGE)
+                read(11,'(5e14.6)') (btp_12001400(k),k=1,NBTRGE)
+                read(11,'(5e14.6)') (fbdlo_12001400(k),k=1,NBTRGE)
+                read(11,'(5e14.6)') (fbdhi_12001400(k),k=1,NBTRGE)
+                exit
+              else
+                read(11,'(5e14.6)') (dummy_ch4n2o(k),k=1,no_h2o12001400bands(subb))  
+                read(11,'(5e14.6)') (dummy_ch4n2o(k),k=1,no_h2o12001400bands(subb))
+                read(11,'(5e14.6)') (dummy_ch4n2o(k),k=1,no_h2o12001400bands(subb))
+                read(11,'(5e14.6)') (dummy_ch4n2o(k),k=1,no_h2o12001400bands(subb))
+                read(11,'(5e14.6)') (dummy_ch4n2o(k),k=1,no_h2o12001400bands(subb))
+                read(11,'(5e14.6)') (dummy_ch4n2o(k),k=1,no_h2o12001400bands(subb))
+                read(11,'(5e14.6)') (dummy_ch4n2o(k),k=1,no_h2o12001400bands(subb))
+                read(11,'(5e14.6)') (dummy_ch4n2o(k),k=1,no_h2o12001400bands(subb))
+              end if
+            end do  
+            close(11)
+          end if
+          call ccmpi_bcastr8(arndm_12001400,0,comm_world)
+          call ccmpi_bcastr8(brndm_12001400,0,comm_world)
+          call ccmpi_bcastr8(ap_12001400,0,comm_world)
+          call ccmpi_bcastr8(bp_12001400,0,comm_world)
+          call ccmpi_bcastr8(atp_12001400,0,comm_world)
+          call ccmpi_bcastr8(btp_12001400,0,comm_world)
+          call ccmpi_bcastr8(fbdlo_12001400,0,comm_world)
+          call ccmpi_bcastr8(fbdhi_12001400,0,comm_world)
+        else if (trim(Lw_control%linecatalog_form) == 'hitran_2000') then  
+          select case(NBTRGE)
+            case(1)
+              arndm_12001400(1)=0.412880E+02
+              brndm_12001400(1)=0.966614E-01
+              ap_12001400(1)=0.115482E-01
+              bp_12001400(1)=-0.427264E-04
+              atp_12001400(1)=0.114609E-01
+              btp_12001400(1)=-0.322336E-04
+              fbdlo_12001400(1)=0.120000E+04
+              fbdhi_12001400(1)=0.140000E+04
+            case(2)
+              arndm_12001400(1:2)=(/ 0.191065E+01,  0.806654E+02 /)
+              brndm_12001400(1:2)=(/ 0.184858E+00,  0.143407E+00 /)
+              ap_12001400(1:2)=(/ 0.172245E-01,  0.114082E-01 /)
+              bp_12001400(1:2)=(/ -0.325793E-04, -0.433741E-04 /)
+              atp_12001400(1:2)=(/ 0.170169E-01,  0.104838E-01 /)
+              btp_12001400(1:2)=(/ -0.312602E-04, -0.339963E-04 /)
+              fbdlo_12001400(1:2)=(/ 0.120000E+04,  0.130000E+04 /)
+              fbdhi_12001400(1:2)=(/ 0.130000E+04,  0.140000E+04 /)
+            case(4)
+              arndm_12001400(1:4)=(/ 0.675182E+00,  0.314613E+01,  0.205516E+02,  0.140779E+03 /)
+              brndm_12001400(1:4)=(/ 0.158068E+00,  0.236136E+00,  0.235728E+00,  0.150391E+00 /)
+              ap_12001400(1:4)=(/ 0.165079E-01,  0.173730E-01,  0.174685E-01,  0.105372E-01 /)
+              bp_12001400(1:4)=(/ -0.442296E-04, -0.301872E-04, -0.566547E-04, -0.444603E-04 /)
+              atp_12001400(1:4)=(/ 0.176427E-01,  0.167800E-01,  0.133792E-01,  0.909761E-02 /)
+              btp_12001400(1:4)=(/ -0.319400E-04, -0.310542E-04, -0.349289E-04, -0.350310E-04 /)
+              fbdlo_12001400(1:4)=(/ 0.120000E+04,  0.125000E+04,  0.130000E+04,  0.135000E+04 /)
+              fbdhi_12001400(1:4)=(/ 0.125000E+04,  0.130000E+04,  0.135000E+04,  0.140000E+04 /)
+            case(10)
+              arndm_12001400(1:10)=(/ 0.587212E+00,  0.504156E+00,  0.732838E+00,  0.558190E+01,  0.214717E+01, &
+                                0.139281E+02,  0.211453E+02,  0.207560E+02,  0.111190E+03,  0.236308E+03 /)
+              brndm_12001400(1:10)=(/ 0.136375E+00,  0.219181E+00,  0.222263E+00,  0.187925E+00,  0.401376E+00, &
+                                0.256241E+00,  0.257634E+00,  0.199375E+00,  0.205552E+00,  0.150706E+00 /)
+              ap_12001400(1:10)=(/ 0.189766E-01,  0.172322E-01,  0.141207E-01,  0.140981E-01,  0.259737E-01, &
+                             0.181963E-01,  0.198438E-01,  0.147694E-01,  0.124512E-01,  0.951141E-02 /)
+              bp_12001400(1:10)=(/ -0.667137E-04, -0.297209E-04, -0.293168E-04, -0.423107E-04, -0.523946E-04, &
+                             -0.574488E-04, -0.720077E-04, -0.479275E-04, -0.483423E-04, -0.442389E-04 /)
+              atp_12001400(1:10)=(/ 0.174040E-01,  0.178565E-01,  0.155997E-01,  0.154890E-01,  0.189041E-01, &
+                              0.149298E-01,  0.137804E-01,  0.111018E-01,  0.963473E-02,  0.825957E-02 /)
+              btp_12001400(1:10)=(/ -0.478302E-04, -0.263436E-04, -0.146212E-04, -0.361877E-04, -0.317459E-04, &
+                              -0.419165E-04, -0.378009E-04, -0.221163E-04, -0.346624E-04, -0.375865E-04 /)
+              fbdlo_12001400(1:10)=(/ 0.120000E+04,  0.122000E+04,  0.124000E+04,  0.126000E+04,  0.128000E+04, &
+                                0.130000E+04,  0.132000E+04,  0.134000E+04,  0.136000E+04,  0.138000E+04 /)
+              fbdhi_12001400(1:10)=(/ 0.122000E+04,  0.124000E+04,  0.126000E+04,  0.128000E+04,  0.130000E+04, &
+                                0.132000E+04,  0.134000E+04,  0.136000E+04,  0.138000E+04,  0.140000E+04 /)
+            case(20)
+              arndm_12001400=(/ 0.298891E-01,  0.114453E+01,  0.902294E+00,  0.106017E+00,  0.119317E+01, &
+                                0.272503E+00,  0.646850E+01,  0.469530E+01,  0.309780E+01,  0.119654E+01, &
+                                0.206962E+01,  0.257866E+02,  0.629791E+01,  0.359927E+02,  0.326113E+02, &
+                                0.890073E+01,  0.115211E+03,  0.107168E+03,  0.135470E+03,  0.337147E+03 /)
+              brndm_12001400=(/ 0.404623E+00,  0.181677E+00,  0.248830E+00,  0.344113E+00,  0.135865E+00, &
+                                0.600568E+00,  0.274657E+00,  0.109030E+00,  0.425958E+00,  0.418903E+00, &
+                                0.285444E+00,  0.351285E+00,  0.377525E+00,  0.271518E+00,  0.200774E+00, &
+                                0.256075E+00,  0.221675E+00,  0.189610E+00,  0.123262E+00,  0.182728E+00 /)
+              ap_12001400=(/ 0.151611E-01,  0.190941E-01,  0.168423E-01,  0.198881E-01,  0.135927E-01, &
+                             0.160874E-01,  0.172402E-01,  0.988010E-02,  0.246151E-01,  0.295935E-01, &
+                             0.195042E-01,  0.180925E-01,  0.139668E-01,  0.211081E-01,  0.139838E-01, &
+                             0.177246E-01,  0.149078E-01,  0.100029E-01,  0.121846E-01,  0.848362E-02 /)
+              bp_12001400=(/ -0.535779E-05, -0.686794E-04, -0.404492E-04,  0.475014E-04, -0.425424E-04, &
+                              0.214896E-04, -0.527283E-04, -0.436842E-04, -0.511716E-04, -0.645196E-04, &
+                             -0.616710E-04, -0.571851E-04, -0.110017E-04, -0.881747E-04, -0.465653E-04, &
+                             -0.584604E-04, -0.662463E-04, -0.359156E-04, -0.590085E-04, -0.403508E-04 /)
+              atp_12001400=(/ 0.189796E-01,  0.170025E-01,  0.186607E-01,  0.159306E-01,  0.176166E-01, &
+                              0.136103E-01,  0.179920E-01,  0.110189E-01,  0.173651E-01,  0.213890E-01, &
+                              0.132172E-01,  0.153795E-01,  0.122693E-01,  0.145617E-01,  0.104277E-01, &
+                              0.122428E-01,  0.107757E-01,  0.838954E-02,  0.100411E-01,  0.733440E-02 /)
+              btp_12001400=(/ -0.128161E-04, -0.567071E-04, -0.348601E-04, -0.691342E-05, -0.192358E-04, &
+                              -0.120450E-04, -0.505353E-04, -0.178919E-04, -0.340849E-04, -0.304614E-04, &
+                              -0.246008E-04, -0.466424E-04, -0.132054E-04, -0.506650E-04, -0.226853E-04, &
+                              -0.216704E-04, -0.452188E-04, -0.237336E-04, -0.394515E-04, -0.372429E-04 /)
+              fbdlo_12001400=(/ 0.120000E+04,  0.121000E+04,  0.122000E+04,  0.123000E+04,  0.124000E+04, &
+                                0.125000E+04,  0.126000E+04,  0.127000E+04,  0.128000E+04,  0.129000E+04, &
+                                0.130000E+04,  0.131000E+04,  0.132000E+04,  0.133000E+04,  0.134000E+04, &
+                                0.135000E+04,  0.136000E+04,  0.137000E+04,  0.138000E+04,  0.139000E+04 /)
+              fbdhi_12001400=(/ 0.121000E+04,  0.122000E+04,  0.123000E+04,  0.124000E+04,  0.125000E+04, &
+                                0.126000E+04,  0.127000E+04,  0.128000E+04,  0.129000E+04,  0.130000E+04, &
+                                0.131000E+04,  0.132000E+04,  0.133000E+04,  0.134000E+04,  0.135000E+04, &
+                                0.136000E+04,  0.137000E+04,  0.138000E+04,  0.139000E+04,  0.140000E+04 /)
+            case DEFAULT
+              stop
+          end select
         endif
         
         do m=1,NBTRGE
@@ -655,7 +651,9 @@ subroutine optical_path_init(pref)
 !
 !------------------------------------------------------------------
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' .or.  &
+          trim(Lw_control%continuum_form) == 'bps2.0') then
         call optical_ckd_init
       endif
 
@@ -864,7 +862,8 @@ logical,                   intent(in)            :: including_aerosols
 !    paths for the rsb (Roberts) continuum.
 !---------------------------------------------------------------------
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
         call optical_path_ckd  (atmden, press, temp, rh2o, Optical)
       else if (trim(Lw_control%continuum_form) == 'rsb' ) then
         call optical_rbts  (temp, rh2o, Optical)
@@ -1086,7 +1085,9 @@ logical,                   intent(in)            :: including_aerosols
       endif
 
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' .or.  &
+          trim(Lw_control%continuum_form) == 'bps2.0' ) then
         call get_totch2obd(6, Optical, totch2o_tmp)
         tmp2(:,:,KS:KE) = tmp2(:,:,KS:KE) + diffac*   &
                           totch2o_tmp(:,:,KS+1:KE+1)
@@ -1124,7 +1125,9 @@ logical,                   intent(in)            :: including_aerosols
         tmp1(:,:,:) = 0.0
       endif
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' .or.  &
+          trim(Lw_control%continuum_form) == 'bps2.0' ) then
         tmp1(:,:,KS:KE) = tmp1(:,:,KS:KE) + diffac*   &
                           Optical%totch2obdwd(:,:,KS+1:KE+1)
       else if (trim(Lw_control%continuum_form) == 'rsb' ) then
@@ -1183,7 +1186,8 @@ logical,                   intent(in)            :: including_aerosols
 !    division of relevant values of cnttau.
 !---------------------------------------------------------------------
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5') then
         call get_totch2obd(4, Optical, totch2o_tmp)
         tmp1(:,:,KS:KE) = diffac*totch2o_tmp(:,:,KS+1:KE+1)
         call get_totch2obd(5, Optical, totch2o_tmp)
@@ -1388,7 +1392,8 @@ logical,                   intent(in)            :: including_aerosols
 !
 !---------------------------------------------------------------------
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
         call get_totch2obd(6, Optical, totch2o_tmp)
       endif
 
@@ -1409,8 +1414,9 @@ logical,                   intent(in)            :: including_aerosols
         avpho3(:,:,kp+k-1) = Optical%tphio3(:,:,kp+k) -    &
                              Optical%tphio3(:,:,k) 
         avpho3 (:,:,kp+k-1) = max(avpho3 (:,:,kp+k-1),1.0e-12)
-        if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-            trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+      if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
           avckdwd(:,:,kp+k-1) = Optical%totch2obdwd(:,:,kp+k) -   &
                                 Optical%totch2obdwd(:,:,k)
           avckdo3(:,:,kp+k-1) = totch2o_tmp(:,:,kp+k) -  &
@@ -1476,7 +1482,8 @@ logical,                   intent(in)            :: including_aerosols
       endif
 
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
         tmp1(:,:,k:KE) = tmp1(:,:,k:KE) + diffac*   &
                          avckdwd    (:,:,k:KE)
       else if (trim(Lw_control%continuum_form) == 'rsb' ) then
@@ -1541,7 +1548,8 @@ logical,                   intent(in)            :: including_aerosols
       endif
 
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
         tmp2(:,:,k:KE) = tmp2(:,:,k:KE) + diffac*   &
                          avckdo3  (:,:,k:KE) 
       else if (trim(Lw_control%continuum_form) == 'rsb' ) then
@@ -1667,7 +1675,8 @@ logical,                   intent(in)            :: including_aerosols
         tmp1     (:,:,KE) = 0.0
       endif
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
         tmp1(:,:,KE) = tmp1(:,:,KE) + diffac*   &
                        Optical%xch2obdwd   (:,:,KE)
       else if (trim(Lw_control%continuum_form) == 'rsb' ) then
@@ -1730,7 +1739,8 @@ logical,                   intent(in)            :: including_aerosols
       endif
 
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
         tmp2(:,:,KE) = tmp2(:,:,KE) + diffac*Optical%xch2obd  (:,:,KE,6)
       else if (trim(Lw_control%continuum_form) == 'rsb' ) then
         tmp2(:,:,KE) = tmp2(:,:,KE) + betacm(14)*Optical%cntval (:,:,KE)
@@ -1880,7 +1890,8 @@ type(atmos_input_type),    intent(in)    :: Atmos_input
 !    continuum band 1
 !-----------------------------------------------------------------------
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
         csuba(:,:,KS+1:KE)  = diffac*Optical%xch2obd(:,:,KS+1:KE,4)*  &
                               delpr1(:,:,KS+1:KE)
         csubb(:,:,KS+1:KE)  = diffac*Optical%xch2obd(:,:,KS:KE-1,4)*  &
@@ -1903,7 +1914,8 @@ type(atmos_input_type),    intent(in)    :: Atmos_input
 !    continuum band 2
 !---------------------------------------------------------------------
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
         csuba(:,:,KS+1:KE)  = diffac*Optical%xch2obd(:,:,KS+1:KE,5)*   &
                               delpr1(:,:,KS+1:KE)
         csubb(:,:,KS+1:KE)  = diffac*Optical%xch2obd(:,:,KS:KE-1,5)*  &
@@ -1926,7 +1938,8 @@ type(atmos_input_type),    intent(in)    :: Atmos_input
 !    continuum band 3
 !--------------------------------------------------------------------
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
         csuba(:,:,KS+1:KE)  = diffac*Optical%xch2obd(:,:,KS+1:KE,7)*   &
                               delpr1(:,:,KS+1:KE)
         csubb(:,:,KS+1:KE)  = diffac*Optical%xch2obd(:,:,KS:KE-1,7)*  &
@@ -1949,7 +1962,8 @@ type(atmos_input_type),    intent(in)    :: Atmos_input
 !    ozone band
 !--------------------------------------------------------------------
       if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-          trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+          trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+          trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
         csuba(:,:,KS+1:KE)  = diffac*Optical%xch2obd(:,:,KS+1:KE,6)*   &
                               delpr1(:,:,KS+1:KE)
         csubb(:,:,KS+1:KE)  = diffac*Optical%xch2obd(:,:,KS:KE-1,6)*  &
@@ -2332,7 +2346,8 @@ logical,                   intent(in)            :: including_aerosols
        !endif
  
        !if (trim(Lw_control%continuum_form) == 'ckd2.1' .or.     &
-       !    trim(Lw_control%continuum_form) == 'ckd2.4' ) then
+       !    trim(Lw_control%continuum_form) == 'ckd2.4' .or.     &
+       !    trim(Lw_control%continuum_form) == 'mt_ckd2.5' ) then
        !  deallocate (Optical%xch2obd        )
        !  deallocate (Optical%totch2obdwd    )
        !  deallocate (Optical%xch2obdwd      )
@@ -2437,6 +2452,9 @@ end subroutine optical_path_end
 !
 subroutine optical_ckd_init
 
+use cc_mpi
+use filnames_m
+
 !------------------------------------------------------------------
 !    optical_ckd_init reads ckd2.1 or ckd2.4 self and foreign-broadened
 !    h2o continuum coefficients, corrections, and coefficients for
@@ -2475,6 +2493,9 @@ subroutine optical_ckd_init
 
 !---------------------------------------------------------------------
       integer  :: k, j, ihih2o
+      
+      character(len=1024) :: filename
+      integer :: ierr
 
 !--------------------------------------------------------------------
 !   local variables:
@@ -2496,11 +2517,75 @@ subroutine optical_ckd_init
 !    call routine to allocate radfunc table
 !---------------------------------------------------------------------
       call table_alloc (radfunc, 40, 300)
-
-!--------------------------------------------------------------------
-!    read h2o (original) data
-!    data are at frequencies 5 - 19995 cm-1, at 10 cm-1 intervals
-!-------------------------------------------------------------------
+      
+      if (trim(Lw_control%linecatalog_form) == 'hitran_2012' ) then
+        if (trim(Lw_control%continuum_form) == 'ckd2.1'  .or.    &
+            trim(Lw_control%continuum_form) == 'ckd2.4') then      
+          if ( myid==0 ) then  
+            filename = trim(cnsdir) // '/h2ockd2.1_data'
+            open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
+            write(6,*) "Reading ",trim(filename)
+            if ( ierr/=0 ) then
+              write(6,*) "ERROR: Cannot read ",trim(filename)
+              call ccmpi_abort(-1)
+            end if  
+            read(11,'(3e12.1,i8)') v1sh2o_296, v2sh2o_296, dvsh2o_296, nptsh2o_296
+            read(11,'(5e14.5)') (ssh2o_296(k),k=1,2000)
+            read(11,'(3f12.1,i8)') v1sh2o_260, v2sh2o_260, dvsh2o_260, nptsh2o_260
+            read(11,'(5e14.5)') (ssh2o_260(k),k=1,2000)
+            read(11,'(3f12.1,i8)') v1fh2o, v2fh2o, dvfh2o, nptfh2o
+            read(11,'(5e14.5)') (sfh2o(k),k=1,2000)
+            close(11)
+          end if
+          call ccmpi_bcastr8(v1sh2o_296,0,comm_world)
+          call ccmpi_bcastr8(v2sh2o_296,0,comm_world)
+          call ccmpi_bcastr8(dvsh2o_296,0,comm_world)
+          call ccmpi_bcast(nptsh2o_296,0,comm_world)
+          call ccmpi_bcastr8(ssh2o_296,0,comm_world)
+          call ccmpi_bcastr8(v1sh2o_260,0,comm_world)
+          call ccmpi_bcastr8(v2sh2o_260,0,comm_world)
+          call ccmpi_bcastr8(dvsh2o_260,0,comm_world)
+          call ccmpi_bcast(nptsh2o_260,0,comm_world)
+          call ccmpi_bcastr8(ssh2o_260,0,comm_world) 
+          call ccmpi_bcastr8(v1fh2o,0,comm_world)
+          call ccmpi_bcastr8(v2fh2o,0,comm_world)
+          call ccmpi_bcastr8(dvfh2o,0,comm_world)
+          call ccmpi_bcast(nptfh2o,0,comm_world)
+          call ccmpi_bcastr8(sfh2o,0,comm_world)
+        else if (trim(Lw_control%continuum_form) == 'mt_ckd2.5') then
+          if ( myid==0 ) then  
+            filename = trim(cnsdir) // '/h2omt_ckd2.5_data'
+            open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
+            write(6,*) "Reading ",trim(filename)
+            if ( ierr/=0 ) then
+              write(6,*) "ERROR: Cannot read ",trim(filename)
+              call ccmpi_abort(-1)
+            end if  
+            read(11,'(3e12.1,i8)') v1sh2o_296, v2sh2o_296, dvsh2o_296, nptsh2o_296
+            read(11,'(5e14.5)') (ssh2o_296(k),k=1,2000)
+            read(11,'(3f12.1,i8)') v1sh2o_260, v2sh2o_260, dvsh2o_260, nptsh2o_260
+            read(11,'(5e14.5)') (ssh2o_260(k),k=1,2000)
+            read(11,'(3f12.1,i8)') v1fh2o, v2fh2o, dvfh2o, nptfh2o
+            read(11,'(5e14.5)') (sfh2o(k),k=1,2000)
+            close(11)
+          end if
+          call ccmpi_bcastr8(v1sh2o_296,0,comm_world)
+          call ccmpi_bcastr8(v2sh2o_296,0,comm_world)
+          call ccmpi_bcastr8(dvsh2o_296,0,comm_world)
+          call ccmpi_bcast(nptsh2o_296,0,comm_world)
+          call ccmpi_bcastr8(ssh2o_296,0,comm_world)
+          call ccmpi_bcastr8(v1sh2o_260,0,comm_world)
+          call ccmpi_bcastr8(v2sh2o_260,0,comm_world)
+          call ccmpi_bcastr8(dvsh2o_260,0,comm_world)
+          call ccmpi_bcast(nptsh2o_260,0,comm_world)
+          call ccmpi_bcastr8(ssh2o_260,0,comm_world) 
+          call ccmpi_bcastr8(v1fh2o,0,comm_world)
+          call ccmpi_bcastr8(v2fh2o,0,comm_world)
+          call ccmpi_bcastr8(dvfh2o,0,comm_world)
+          call ccmpi_bcast(nptfh2o,0,comm_world)
+          call ccmpi_bcastr8(sfh2o,0,comm_world)    
+        end if
+      else if (trim(Lw_control%linecatalog_form) == 'hitran_2000' ) then
         v1sh2o_296=         5.0
         v2sh2o_296=     19995.0
         dvsh2o_296=        10.0
@@ -3725,11 +3810,46 @@ subroutine optical_ckd_init
                    0.00000E+00,   0.00000E+00,   0.00000E+00,   0.00000E+00,   0.00000E+00, &
                    0.00000E+00,   0.00000E+00,   0.00000E+00,   0.00000E+00,   0.00000E+00, &
                    0.00000E+00,   0.00000E+00,   0.00000E+00,   0.00000E+00,   0.00000E+00 /)
-
-!--------------------------------------------------------------------
-!    read h2o corrected data
-!--------------------------------------------------------------------
-      if (trim(Lw_control%continuum_form) == 'ckd2.1') then
+      end if    
+        
+      if (trim(Lw_control%linecatalog_form) == 'hitran_2012' ) then
+        if (trim(Lw_control%continuum_form) == 'ckd2.1') then
+          if ( myid==0 ) then  
+            filename = trim(cnsdir) // '/h2ockd2.1_corrdata'
+            open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
+            write(6,*) "Reading ",trim(filename)
+            if ( ierr/=0 ) then
+              write(6,*) "ERROR: Cannot read ",trim(filename)
+              call ccmpi_abort(-1)
+            end if  
+            read(11,'(5e13.6)') (sfac(k),k=1,2000)
+            read(11,'(5e13.6)') (fscal(k),k=1,2000)
+            read(11,'(5e13.6)') (tmpfctrs(k),k=1,2000)
+            close(11)
+          end if
+          call ccmpi_bcastr8(sfac,0,comm_world)
+          call ccmpi_bcastr8(fscal,0,comm_world)
+          call ccmpi_bcastr8(tmpfctrs,0,comm_world)
+        else if (trim(Lw_control%continuum_form) == 'ckd2.4') then
+          if ( myid==0 ) then  
+            filename = trim(cnsdir) // '/h2ockd2.4_corrdata'
+            open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
+            write(6,*) "Reading ",trim(filename)
+            if ( ierr/=0 ) then
+              write(6,*) "ERROR: Cannot read ",trim(filename)
+              call ccmpi_abort(-1)
+            end if  
+            read(11,'(5e13.6)') (sfac(k),k=1,2000)
+            read(11,'(5e13.6)') (fscal(k),k=1,2000)
+            read(11,'(5e13.6)') (tmpfctrs(k),k=1,2000)
+            close(11)
+          end if
+          call ccmpi_bcastr8(sfac,0,comm_world)
+          call ccmpi_bcastr8(fscal,0,comm_world)
+          call ccmpi_bcastr8(tmpfctrs,0,comm_world)
+        endif
+      else if (trim(Lw_control%linecatalog_form) == 'hitran_2000' ) then  
+        if (trim(Lw_control%continuum_form) == 'ckd2.1') then  
         sfac(1:500)=(/                                                                &
                 0.991625E+00, 0.991466E+00, 0.991303E+00, 0.991136E+00, 0.990964E+00, &
                 0.990787E+00, 0.990605E+00, 0.990417E+00, 0.990224E+00, 0.990025E+00, &
@@ -4942,7 +5062,7 @@ subroutine optical_ckd_init
                    -0.344421E-01,-0.345578E-01,-0.346738E-01,-0.347902E-01,-0.349070E-01, &
                    -0.350236E-01,-0.351406E-01,-0.352574E-01,-0.353742E-01,-0.354914E-01, &
                    -0.356083E-01,-0.357263E-01,-0.358441E-01,-0.359618E-01, 0.000000E+00 /)
-      else if (trim(Lw_control%continuum_form) == 'ckd2.4') then
+        else if (trim(Lw_control%continuum_form) == 'ckd2.4') then
         sfac(1:500)=(/                                                                &
                 0.991624E+00, 0.991466E+00, 0.991303E+00, 0.991136E+00, 0.990964E+00, &
                 0.990787E+00, 0.990605E+00, 0.990417E+00, 0.990224E+00, 0.990025E+00, &
@@ -6155,11 +6275,28 @@ subroutine optical_ckd_init
                    -0.344421E-01,-0.345578E-01,-0.346738E-01,-0.347902E-01,-0.349070E-01, &
                    -0.350237E-01,-0.351405E-01,-0.352574E-01,-0.353742E-01,-0.354913E-01, &
                    -0.356084E-01,-0.357262E-01,-0.358441E-01,-0.359618E-01,-0.360799E-01 /)
-      endif
+
+        end if  
+      end if    
 
 !--------------------------------------------------------------------
 !    read radfn data
 !--------------------------------------------------------------------
+      if (trim(Lw_control%linecatalog_form) == 'hitran_2012' ) then
+        if ( myid==0 ) then  
+          filename = trim(cnsdir) // '/radfn_5-2995_100-490k'
+          open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
+          write(6,*) "Reading ",trim(filename)
+          if ( ierr/=0 ) then
+            write(6,*) "ERROR: Cannot read ",trim(filename)
+            call ccmpi_abort(-1)
+          end if  
+          read(11,'(8f14.6)') ((radfunc%vae(k,j),radfunc%td(k,j),k=1,40), j=1,300)
+          close(11)
+        end if
+        call ccmpi_bcastr8(radfunc%vae,0,comm_world)
+        call ccmpi_bcastr8(radfunc%td,0,comm_world)
+      else if (trim(Lw_control%linecatalog_form) == 'hitran_2000' ) then  
        radfunc%vae( 1,:)=(/      0.035954,      0.107492,      0.177934,      0.246598,      0.312873, &
                                      0.376235,      0.436263,      0.492643,      0.545171,      0.593741, &
                                      0.638337,      0.679025,      0.715928,      0.749223,      0.779117, &
@@ -10960,6 +11097,8 @@ subroutine optical_ckd_init
                                     0.000000,      0.000000,      0.000000,      0.000000,      0.000000, &
                                     0.000000,      0.000000,      0.000000,      0.000000,      0.000000, &
                                     0.000000,      0.000000,      0.000000,      0.000000,      0.000000 /)
+  
+      end if    
 
 !---------------------------------------------------------------------
       do k=1,40
