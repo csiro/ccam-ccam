@@ -6149,7 +6149,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
       npos(2) = NSTDCO2LVLS
       npos(3) = ntbnd(nf)
       call ccnf_open(ncname,ncid,ncstatus)
-      if ( ncstatus/=0 ) then
+      if ( ncstatus == 0 ) then
         write(6,*) "Reading ",trim(ncname)
         call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
         if ( tst ) then
@@ -6184,7 +6184,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
         npos(2) = NSTDCO2LVLS
         npos(3) = ntbnd(nf)
         call ccnf_open(ncname,ncid,ncstatus)
-        if ( ncstatus/=0 ) then
+        if ( ncstatus == 0 ) then
           write(6,*) "Reading ",trim(ncname)
           call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
           if ( tst ) then
