@@ -346,7 +346,7 @@ do kcount = 1,mcount
   
   
   ! calculate tke and eps boundary condition at 1st vertical level
-  z_on_l = -vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
+  z_on_l = -vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar**3,1.E-10))
   z_on_l = min(z_on_l,10.) ! See fig 10 in Beljarrs and Holtslag (1991)
   call calc_phi(phim,z_on_l,imax)
   do iq = 1,imax
@@ -1027,7 +1027,7 @@ subroutine unpack_coupled(deptho_dz,deptho_dz_hl,rad_o,                   &
 
 use mlo, only : mloexport, mloexpdep, mlodiag, mloexpice, mlodiagice, wlev, &
                 water_g, dgwater_g, ice_g, dgice_g, wpack_g, wfull_g,       &
-                depth_g
+                depth_g, minwater
 
 implicit none
 
@@ -1048,7 +1048,7 @@ call mloexport("eta",neta,0,0,water_g(tile),wpack_g(:,tile),wfull_g(tile))
 deptho_max = 0.
 call mloexpdep("depth_hl",deptho_max,wlev+1,0,depth_g(tile),wpack_g(:,tile),wfull_g(tile))
 
-d_zcr = 1. + neta/max(deptho_max,1.e-4)
+d_zcr = max( 1. + neta/max(deptho_max,1.e-4), minwater/max(deptho_max,1.e-4) )
 
 do k = 1,wlev
   call mloexpdep("depth_dz_fl",deptho_dz(:,k),k,0,depth_g(tile),wpack_g(:,tile),wfull_g(tile))
