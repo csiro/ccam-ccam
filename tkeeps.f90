@@ -1106,7 +1106,7 @@ call mlodiagice("fg",icefg_a,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mlodiagice("fracice_save",fracice,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mlodiagice("mass",imass,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mlodiagice("cd",cd_ice,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiagice("cd_bot",cd_ice,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
+call mlodiagice("cd_bot",cdbot_ice,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
 
 return
 end subroutine unpack_coupled
@@ -1794,8 +1794,8 @@ select case(aoi_mode)
     call thomas(yy(:,1:kl+wlev+1),aad(:,2:kl+wlev+1),bbd(:,1:kl+wlev+1),ccd(:,1:kl+wlev),ddd(:,1:kl+wlev+1),imax,kl+wlev+1)
     call thomas(qq(:,1:kl+wlev+1),aad(:,2:kl+wlev+1),bbd(:,1:kl+wlev+1),ccd(:,1:kl+wlev),uu(:,1:kl+wlev+1),imax,kl+wlev+1)
     ! Solve for x = y - {(v^t y)/(1 + (v^t q))} q
-    t1(:) = vv(:,kl)*yy(:,kl) + vv(:,kl+1)*yy(:,kl+wlev+1) + vv(:,kl+wlev+1)*yy(:,kl+wlev+1)
-    t2(:) = vv(:,kl)*qq(:,kl) + vv(:,kl+1)*qq(:,kl+wlev+1) + vv(:,kl+wlev+1)*qq(:,kl+wlev+1)
+    t1(:) = vv(:,kl)*yy(:,kl) + vv(:,kl+1)*yy(:,kl+1) + vv(:,kl+wlev+1)*yy(:,kl+wlev+1)
+    t2(:) = vv(:,kl)*qq(:,kl) + vv(:,kl+1)*qq(:,kl+1) + vv(:,kl+wlev+1)*qq(:,kl+wlev+1)
     do k = 1,kl+wlev+1
       xx(:,k) = yy(:,k) - qq(:,k)*t1(:)/(1.+t2(:))
     end do  
