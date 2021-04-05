@@ -439,7 +439,7 @@ workdata = nt(1:ifull,:)
 worku = nu(1:ifull,:)
 workv = nv(1:ifull,:)
 call mlocheck("start of mlodynamics",water_temp=workdata,water_u=worku,water_v=workv, &
-                  ice_tsurf=nit(1:ifull,1),ice_u=i_u,ice_v=i_v)
+                  ice_tsurf=nit(1:ifull,1))
 
 
 do mspec_mlo = mspeca_mlo,1,-1
@@ -1052,17 +1052,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   niv(1:ifull) = niv(1:ifull) + ibv*dipdyv - ibv*dt*fv(1:ifull)*dipdxv
   niu(1:ifull) = niu(1:ifull)*eeu(1:ifull,1)
   niv(1:ifull) = niv(1:ifull)*eev(1:ifull,1)
-  ! fix
-  if ( any(abs(niu(1:ifull))>30.) .or. any(abs(niv(1:ifull))>30.) ) then
-    write(6,*) "WARN: Excessive sea-ice velocity in dynamical solver"
-    write(6,*) "niu ",minval(niu(1:ifull)),maxval(niu(1:ifull))
-    write(6,*) "niv ",minval(niv(1:ifull)),maxval(niv(1:ifull))
-  end if  
-  niu(1:ifull) = min(max( niu(1:ifull), -35.), 35.)
-  niv(1:ifull) = min(max( niv(1:ifull), -35.), 35.)
   call boundsuv(niu,niv,stag=-9)
-  
-  call mlocheck("ice solver",ice_u=niu(1:ifull),ice_v=niv(1:ifull))
 
   ! Normalisation factor for conserving ice flow in and out of gridbox
   call unpack_svwu(niu,niv,ni_isv,ni_iwu)
@@ -1135,17 +1125,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   nv(1:ifull,:) = tav(:,1:wlev)
   niu(1:ifull) = tau(:,wlev+1)
   niv(1:ifull) = tav(:,wlev+1)
-  ! fix
-  if ( any(abs(niu(1:ifull))>30.) .or. any(abs(niv(1:ifull))>30.) ) then
-    write(6,*) "WARN: Excessive sea-ice velocity after unstagger"
-    write(6,*) "niu ",minval(niu(1:ifull)),maxval(niu(1:ifull))
-    write(6,*) "niv ",minval(niv(1:ifull)),maxval(niv(1:ifull))
-  end if  
-  niu(1:ifull) = min(max( niu(1:ifull), -35.), 35.)
-  niv(1:ifull) = min(max( niv(1:ifull), -35.), 35.)
-  
-  call mlocheck("seaice unstagger",ice_tsurf=nit(1:ifull,1), &
-                ice_u=niu(1:ifull),ice_v=niv(1:ifull))  
   
   call END_LOG(wateriadv_end)
 
@@ -1295,8 +1274,7 @@ w_u = nu(1:ifull,:)
 w_v = nv(1:ifull,:)
 w_t = nt(1:ifull,:)
 w_s = ns(1:ifull,:)
-call mlocheck("end of mlodynamics",water_u=w_u,water_v=w_v,ice_tsurf=nit(1:ifull,1), &
-              ice_u=niu(1:ifull),ice_v=niv(1:ifull))
+call mlocheck("end of mlodynamics",water_u=w_u,water_v=w_v,ice_tsurf=nit(1:ifull,1))
 
 call mlodiffusion_work(w_u,w_v,w_t,w_s)
 
