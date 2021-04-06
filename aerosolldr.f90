@@ -365,7 +365,7 @@ end subroutine aldrloaderod
 subroutine aldrcalc(dt,sig,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,                    &
                     ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,stratcloud,clcon,cldcon,pccw,rhoa,vt, &
                     pfprec,pfmelt,pfsnow,pfsubl,plambs,pmrate,pmaccr,pfstayice,                    &
-                    pqfsedice,prscav,prfreeze,zdayfac,kbsav,xtg,duste,dustdd,xtosav,               &
+                    pqfsedice,prscav,prfreeze,pfevap,zdayfac,kbsav,xtg,duste,dustdd,xtosav,        &
                     dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,                    &
                     so2_burden,so4_burden,erod,zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,              &
                     emissfield,vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,salte,saltdd,     &
@@ -409,6 +409,7 @@ real, dimension(imax,kl), intent(in) :: pfsubl, plambs, pmrate         ! from LD
 real, dimension(imax,kl), intent(in) :: pmaccr, pqfsedice, prscav      ! from LDR prog cloud
 real, dimension(imax,kl), intent(in) :: prfreeze                       ! from LDR prog cloud
 real, dimension(imax,kl), intent(in) :: pfstayice                      ! from LDR prog cloud
+real, dimension(imax,kl), intent(in) :: pfevap                         ! from LDR prog cloud
 logical, dimension(imax), intent(in) :: land   ! land/water mask (t=land).  Water includes lakes and ocean
 logical, dimension(imax), intent(in) :: locean ! sea mask without lakes (t=ocean)
 real, dimension(imax,kl,naero), intent(inout) :: xtg
@@ -641,7 +642,7 @@ fracc = cldcon ! MJT suggestion (use NCAR scheme)
 call xtchemie(2, dt, zdayfac, aphp1, pmrate, pfprec,                    & !Inputs
               pclcover, pmlwc, prhop1, ptp1, taudar, xtm1,              & !Inputs
               pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,     & !Inputs
-              pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,            & !Inputs
+              pqfsedice,plambs,prscav,prfreeze,pfevap,pclcon,fracc,     & !Inputs
               pccw,pfconv,xtu,                                          & !Inputs
               xte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                   & !Output
               zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,             &
@@ -1112,7 +1113,8 @@ END subroutine xtsink
 SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                      & !Inputs
                     PCLCOVER, PMLWC, PRHOP1, PTP1, taudar, xtm1,                     & !Inputs
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstayice,            & !Inputs
-                    pqfsedice,plambs,prscav,prfreeze,pclcon,fracc,pccw,pfconv,xtu,   & !Inputs
+                    pqfsedice,plambs,prscav,prfreeze,pfevap,pclcon,fracc,pccw,       & !Inputs
+                    pfconv,xtu,                                                      & !Inputs
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3,                               & !Outputs
                     zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,                    &
                     imax,kl)                                                           !Inputs
@@ -1138,6 +1140,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
 ! pfmelt: snowfall flux melting in layer k (kg/m2/s)
 ! pfstayice: snowfall flux staying in layer k (kg/m2/s)
 ! pqfsedice: fractional ice sedimentation in timestep
+! pfevap: rainfall flux evaporating in layer k (kg/m2/s)
 ! plambs: slope (lambda) for snow crystal size distribution (m**-1)
 ! prscav: fractional rain scavenging rate in time step (needs to be mult. by coll. eff.)
 ! pclcon: convective cloud fraction
@@ -1198,6 +1201,7 @@ real pqfsedice(imax,kl)
 real plambs(imax,kl)
 real prscav(imax,kl)
 real prfreeze(imax,kl)
+real pfevap(imax,kl)
 real pclcon(imax,kl)
 real pccw(imax,kl)
 real, dimension(imax) :: taudar
@@ -1697,7 +1701,7 @@ CALL XTWETDEP( JT,                                   &
                PCLCOVER, zsolub, pmlwc, ptp1,        &
                pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
                pfstayice,pqfsedice,plambs,           &
-               prscav,prfreeze,pfconv,pclcon,        & 
+               prscav,prfreeze,pfevap,pfconv,pclcon, & 
                fracc,                                & !Inputs
                ZXTP10, ZXTP1C, ZXTP1CON,             &
                xtm1(:,:,jt),xte(:,:,jt),so2wd,imax,kl)
@@ -1714,7 +1718,7 @@ CALL XTWETDEP( JT,                                   &
                PCLCOVER, zsolub, pmlwc, ptp1,        &
                pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
                pfstayice,pqfsedice,plambs,           &
-               prscav,prfreeze,pfconv,pclcon,        & 
+               prscav,prfreeze,pfevap,pfconv,pclcon, &  
                fracc,                                & !Inputs
                ZXTP10, ZXTP1C, ZXTP1CON,             &
                xtm1(:,:,jt),xte(:,:,jt),so4wd,imax,kl)
@@ -1731,7 +1735,7 @@ CALL XTWETDEP( JT,                                   &
                PCLCOVER, zsolub, pmlwc, ptp1,        &
                pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
                pfstayice,pqfsedice,plambs,           &
-               prscav,prfreeze,pfconv,pclcon,        & 
+               prscav,prfreeze,pfevap,pfconv,pclcon, &  
                fracc,                                & !Inputs
                ZXTP10, ZXTP1C, ZXTP1CON,             &
                xtm1(:,:,jt),xte(:,:,jt),bcwd,imax,kl)
@@ -1748,7 +1752,7 @@ CALL XTWETDEP( JT,                                   &
                PCLCOVER, zsolub, pmlwc, ptp1,        &
                pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
                pfstayice,pqfsedice,plambs,           &
-               prscav,prfreeze,pfconv,pclcon,        & 
+               prscav,prfreeze,pfevap,pfconv,pclcon, &  
                fracc,                                & !Inputs
                ZXTP10, ZXTP1C, ZXTP1CON,             &
                xtm1(:,:,jt),xte(:,:,jt),bcwd,imax,kl)
@@ -1765,7 +1769,7 @@ CALL XTWETDEP( JT,                                   &
                PCLCOVER, zsolub, pmlwc, ptp1,        &
                pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
                pfstayice,pqfsedice,plambs,           &
-               prscav,prfreeze,pfconv,pclcon,        & 
+               prscav,prfreeze,pfevap,pfconv,pclcon, &  
                fracc,                                & !Inputs
                ZXTP10, ZXTP1C, ZXTP1CON,             &
                xtm1(:,:,jt),xte(:,:,jt),ocwd,imax,kl)
@@ -1782,7 +1786,7 @@ CALL XTWETDEP( JT,                                   &
                PCLCOVER, zsolub, pmlwc, ptp1,        &
                pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
                pfstayice,pqfsedice,plambs,           &
-               prscav,prfreeze,pfconv,pclcon,        & 
+               prscav,prfreeze,pfevap,pfconv,pclcon, &  
                fracc,                                & !Inputs
                ZXTP10, ZXTP1C, ZXTP1CON,             &
                xtm1(:,:,jt),xte(:,:,jt),ocwd,imax,kl)
@@ -1799,7 +1803,7 @@ DO JT=ITRACDU,ITRACDU+NDUST-1
                  PCLCOVER, zsolub, pmlwc, ptp1,        &
                  pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
                  pfstayice,pqfsedice,plambs,           &
-                 prscav,prfreeze,pfconv,pclcon,        & 
+                 prscav,prfreeze,pfevap,pfconv,pclcon, &  
                  fracc,                                & !Inputs
                  ZXTP10, ZXTP1C, ZXTP1CON,             &
                  xtm1(:,:,jt),xte(:,:,jt),             &
@@ -1818,7 +1822,7 @@ DO JT=ITRACSA,ITRACSA+NSALT-1
                  PCLCOVER, zsolub, pmlwc, ptp1,        &
                  pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
                  pfstayice,pqfsedice,plambs,           &
-                 prscav,prfreeze,pfconv,pclcon,        & 
+                 prscav,prfreeze,pfevap,pfconv,pclcon, &  
                  fracc,                                & !Inputs
                  ZXTP10, ZXTP1C, ZXTP1CON,             &
                  xtm1(:,:,jt),xte(:,:,jt),saltwd,imax,kl)
@@ -1927,7 +1931,8 @@ SUBROUTINE XTWETDEP(KTRAC,                                                 &
                     PMRATEP, PFPREC,                                       &
                     PCLCOVER, PSOLUB, pmlwc, ptp1,                         &
                     pfsnow,pfsubl,pcfcover,pmaccr,pfmelt,pfstayice,        &
-                    pqfsedice,plambs,prscav,prfreeze,pfconv,pclcon,fracc,  & !Inputs
+                    pqfsedice,plambs,prscav,prfreeze,pfevap,pfconv,        &
+                    pclcon,fracc,                                          & !Inputs
                     PXTP10, PXTP1C, PXTP1CON, xtm1, xte, wd, imax, kl)       !In & Out
 !$acc routine vector
 
@@ -1981,6 +1986,7 @@ real, dimension(imax,kl), intent(in) :: pqfsedice
 real, dimension(imax,kl), intent(in) :: plambs
 real, dimension(imax,kl), intent(in) :: prscav
 real, dimension(imax,kl), intent(in) :: prfreeze
+real, dimension(imax,kl), intent(in) :: pfevap
 real, dimension(imax,kl), intent(in) :: xtm1
 real, dimension(imax,kl), intent(inout) :: xte
 real, dimension(imax), intent(inout) :: wd
@@ -2094,17 +2100,23 @@ do JK = KTOP,kl
     end if
 #endif   
 
-    ! MJT - suggested removal
-    !! Redistribution by snow that evaporates or stays in layer
-    !if ( pfsnow(i,jk)>zmin .and. zclr0>zmin ) then
-    !  zstay_t = (pfsubl(i,jk)+pfstayice(i,jk))/pfsnow(i,jk)
-    !  zstay_t = max( min( 1., zstay_t ), 0. )
-    !  xstay = max( zdeps(i)*zstay_t/zmtof, 0. )
-    !  pdep3d(i,jk) = pdep3d(i,jk) - xstay
-    !  pxtp10(i,jk) = pxtp10(i,jk) + xstay/zclr0
-    !  zdeps(i) = zdeps(i) - xstay*zmtof
-    !  zdeps(i) = max( 0., zdeps(i) )
-    !end if
+    ! Redistribution by snow that evaporates or stays in layer
+    if ( pfsnow(i,jk)>zmin .and. zclr0>zmin ) then
+      !zstay_t = (pfsubl(i,jk)+pfstayice(i,jk))/pfsnow(i,jk)        
+      zstay_t = pfsubl(i,jk)/pfsnow(i,jk) ! MJT suggestion
+      zstay_t = max( min( 1., zstay_t ), 0. )
+      xstay = max( zdeps(i)*zstay_t/zmtof, 0. )
+      pdep3d(i,jk) = pdep3d(i,jk) - xstay
+      pxtp10(i,jk) = pxtp10(i,jk) + xstay/zclr0
+      zdeps(i) = zdeps(i) - xstay*zmtof
+      zdeps(i) = max( 0., zdeps(i) )
+#ifdef debugaero
+      if ( PCLCOVER(i,jk)*pxtp1c(i,jk)>6.5e-6 ) then
+        write(6,*) "xtg out-of-range after xtwepdep - redistribution of snow that sublimates"
+        write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk),i,jk
+      end if
+#endif         
+    end if
 
     ! Melting of snow... 
     zmelt = pfmelt(i,jk)/max(pfsnow(i,jk)+pfmelt(i,jk),zmin) 
@@ -2124,7 +2136,7 @@ do JK = KTOP,kl
       zdepr(i) = zdepr(i) + xicscav*pclcover(i,jk)*zmtof
 #ifdef debugaero
       if ( PCLCOVER(i,jk)*pxtp1c(i,jk)>6.5e-6 ) then
-        write(6,*) "xtg out-of-range after xtwepdep - redistribution of snow that evaporates"
+        write(6,*) "xtg out-of-range after xtwepdep - in-cloud scavenging by warm rain processes"
         write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk),i,jk
       end if
 #endif        
@@ -2144,17 +2156,23 @@ do JK = KTOP,kl
     end if
 #endif   
 
-    ! MJT - suggested removal
-    !! Redistribution by rain that evaporates or stays in layer
-    !if ( pfrain(i,jk)>zmin .and. zclr0>zmin ) then
-    !  zstay_t = (pfevap(i,jk)+pfstayliq(i,jk))/pfrain(i,jk)
-    !  zstay_t = max( min( 1., zstay_t ), 0. )
-    !  xstay = max( zdepr(i)*zstay_t/zmtof, 0. )
-    !  pdep3d(i,jk) = pdep3d(i,jk) - xstay
-    !  pxtp10(i,jk) = pxtp10(i,jk) + xstay/zclr0
-    !  zdepr(i) = zdepr(i) - xstay*zmtof
-    !  zdepr(i) = max( 0., zdepr(i) )
-    !end if
+    ! MJT - suggestion (only include evaporation)
+    ! Redistribution by rain that evaporates or stays in layer
+    if ( pfprec(i,jk)>zmin .and. zclr0>zmin ) then
+      zstay_t = pfevap(i,jk)/pfprec(i,jk)
+      zstay_t = max( min( 1., zstay_t ), 0. )
+      xstay = max( zdepr(i)*zstay_t/zmtof, 0. )
+      pdep3d(i,jk) = pdep3d(i,jk) - xstay
+      pxtp10(i,jk) = pxtp10(i,jk) + xstay/zclr0
+      zdepr(i) = zdepr(i) - xstay*zmtof
+      zdepr(i) = max( 0., zdepr(i) )
+#ifdef debugaero
+      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
+        write(6,*) "xtg out-of-range after xtwepdep - redistribution of rain that evaporates"
+        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
+      end if
+#endif         
+    end if
 
     ! Freezing of rain... 
     zfreeze = prfreeze(i,jk)/max(pfprec(i,jk)+prfreeze(i,jk),zmin) 

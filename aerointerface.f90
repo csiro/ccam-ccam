@@ -96,7 +96,7 @@ real, dimension(imax,kl,4) :: lzoxidant
 real, dimension(imax,kl) :: lt, lqg, lqlg, lqfg, lstratcloud
 real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfsubl, lpplambs
 real, dimension(imax,kl) :: lppmrate, lppmaccr, lppfstayice, lppqfsedice
-real, dimension(imax,kl) :: lpprscav, lpprfreeze
+real, dimension(imax,kl) :: lpprscav, lpprfreeze, lppfevap
 real, dimension(imax,kl) :: lclcon
 real, dimension(imax,kl) :: dz, rhoa, pccw
 real, dimension(imax,ndust) :: lduste, ldustdd, ldust_burden, ldustwd
@@ -171,7 +171,7 @@ end do
 !$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                                &
 !$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),             &
 !$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
-!$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean)
+!$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
 !$acc parallel copy(xtg,duste,dustdd,dustwd,dust_burden,so4t,dmsso2o,so2so4o,bc_burden,oc_burden,     &
 !$acc   dms_burden,so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd,so4dd,    &
 !$acc   bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                                    &
@@ -182,7 +182,7 @@ end do
 !$acc loop gang private(lzoxidant,lxtg,lxtosav,lduste,ldustdd,ldustwd,ldust_burden,lemissfield,       &
 !$acc   lerod,lt,lqg,lqlg,lqfg,lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,              &
 !$acc   lppmrate,lppmaccr,lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lclcon,dz,rhoa,                 &
-!$acc   wg,pccw,locean)
+!$acc   wg,pccw,locean,lppfevap)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -215,6 +215,7 @@ do tile = 1,ntiles
   lppqfsedice        = ppqfsedice(is:ie,:)
   lpprscav           = pprscav(is:ie,:)
   lpprfreeze         = pprfreeze(is:ie,:)
+  lppfevap           = ppfevap(is:ie,:)
   lclcon             = clcon(is:ie,:)
 
   !zg(:,1) = bet(1)*lt(:,1)/grav
@@ -258,7 +259,7 @@ do tile = 1,ntiles
                 lstratcloud,lclcon,cldcon(is:ie),pccw,rhoa,            &
                 cdtq(is:ie),lppfprec,lppfmelt,lppfsnow,                &
                 lppfsubl,lpplambs,lppmrate,lppmaccr,lppfstayice,       &
-                lppqfsedice,lpprscav,lpprfreeze,                       &
+                lppqfsedice,lpprscav,lpprfreeze,lppfevap,              &
                 zdayfac(is:ie),kbsav(is:ie),lxtg,lduste,ldustdd,       &
                 lxtosav,dmsso2o(is:ie),so2so4o(is:ie),                 &
                 ldust_burden,bc_burden(is:ie),oc_burden(is:ie),        &
