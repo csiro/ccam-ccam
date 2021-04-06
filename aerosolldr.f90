@@ -2094,22 +2094,17 @@ do JK = KTOP,kl
     end if
 #endif   
 
-    ! Redistribution by snow that evaporates or stays in layer
-    if ( pfsnow(i,jk)>zmin .and. zclr0>zmin ) then
-      zstay_t = (pfsubl(i,jk)+pfstayice(i,jk))/pfsnow(i,jk)
-      zstay_t = max( min( 1., zstay_t ), 0. )
-      xstay = max( zdeps(i)*zstay_t/zmtof, 0. )
-      pdep3d(i,jk) = pdep3d(i,jk) - xstay
-      pxtp10(i,jk) = pxtp10(i,jk) + xstay/zclr0
-      zdeps(i) = zdeps(i) - xstay*zmtof
-      zdeps(i) = max( 0., zdeps(i) )
-#ifdef debugaero
-      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
-        write(6,*) "xtg out-of-range after xtwepdep - redistribution by snow that evaporates"
-        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
-      end if
-#endif        
-    end if
+    ! MJT - suggested removal
+    !! Redistribution by snow that evaporates or stays in layer
+    !if ( pfsnow(i,jk)>zmin .and. zclr0>zmin ) then
+    !  zstay_t = (pfsubl(i,jk)+pfstayice(i,jk))/pfsnow(i,jk)
+    !  zstay_t = max( min( 1., zstay_t ), 0. )
+    !  xstay = max( zdeps(i)*zstay_t/zmtof, 0. )
+    !  pdep3d(i,jk) = pdep3d(i,jk) - xstay
+    !  pxtp10(i,jk) = pxtp10(i,jk) + xstay/zclr0
+    !  zdeps(i) = zdeps(i) - xstay*zmtof
+    !  zdeps(i) = max( 0., zdeps(i) )
+    !end if
 
     ! Melting of snow... 
     zmelt = pfmelt(i,jk)/max(pfsnow(i,jk)+pfmelt(i,jk),zmin) 
@@ -2148,7 +2143,19 @@ do JK = KTOP,kl
       write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
     end if
 #endif   
-  
+
+    ! MJT - suggested removal
+    !! Redistribution by rain that evaporates or stays in layer
+    !if ( pfrain(i,jk)>zmin .and. zclr0>zmin ) then
+    !  zstay_t = (pfevap(i,jk)+pfstayliq(i,jk))/pfrain(i,jk)
+    !  zstay_t = max( min( 1., zstay_t ), 0. )
+    !  xstay = max( zdepr(i)*zstay_t/zmtof, 0. )
+    !  pdep3d(i,jk) = pdep3d(i,jk) - xstay
+    !  pxtp10(i,jk) = pxtp10(i,jk) + xstay/zclr0
+    !  zdepr(i) = zdepr(i) - xstay*zmtof
+    !  zdepr(i) = max( 0., zdepr(i) )
+    !end if
+
     ! Freezing of rain... 
     zfreeze = prfreeze(i,jk)/max(pfprec(i,jk)+prfreeze(i,jk),zmin) 
     zfreeze = max( min( 1., zfreeze ), 0. )
