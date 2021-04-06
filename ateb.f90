@@ -1,6 +1,6 @@
 ! UCLEM urban canopy model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the UCLEM urban canopy model
 !
@@ -4697,8 +4697,8 @@ end if
 ! snow fields
 snow  = snow + ddt*(a_snd-eg_snow/ls-snmelt)
 delsnow = ddt*(a_snd-eg_snow/ls-snmelt)
-den   = den + (maxsnowden-den)/(0.24/(86400.*ddt)+1.)
-alpha = alpha + (minsnowalpha-alpha)/(0.24/(86400.*ddt)+1.)
+den   = den + (maxsnowden-den)/(86400./(0.24*ddt)+1.)
+alpha = alpha + (minsnowalpha-alpha)/(86400./(0.24*ddt)+1.)
 
 return
 end subroutine updatewater
