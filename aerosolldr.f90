@@ -87,13 +87,13 @@ integer, parameter :: ncarb = 4
 integer, parameter :: ndust = 4
 integer, parameter :: nsalt = 2
 integer, parameter :: naero = nsulf+ncarb+ndust+nsalt ! Tracers: DMS, SO2, SO4, BCO, BCI, OCO, OCI, DUST(4), SALT(2)
-integer, parameter :: itracdms = 1                  ! Index for DMS tracer
-integer, parameter :: itracso2 = 2                  ! Index for SO2 tracer
-integer, parameter :: itracso4 = 3                  ! Index for SO4 tracer
-integer, parameter :: itracbc = nsulf+1             ! Index for BC tracer (hydrophobic, hydrophillic)
-integer, parameter :: itracoc = nsulf+3             ! Index for OC tracer (hydrophobic, hydrophillic)
-integer, parameter :: itracdu = nsulf+ncarb+1       ! Index for dust tracer
-integer, parameter :: itracsa = nsulf+ncarb+ndust+1 ! Index for salt tracer
+integer, parameter :: itracdms = 1                  ! Index for DMS tracer (1)
+integer, parameter :: itracso2 = 2                  ! Index for SO2 tracer (2)
+integer, parameter :: itracso4 = 3                  ! Index for SO4 tracer (3)
+integer, parameter :: itracbc = nsulf+1             ! Index for BC tracer (hydrophobic (4), hydrophillic (5))
+integer, parameter :: itracoc = nsulf+3             ! Index for OC tracer (hydrophobic (6), hydrophillic (7))
+integer, parameter :: itracdu = nsulf+ncarb+1       ! Index for dust tracer (8-11)
+integer, parameter :: itracsa = nsulf+ncarb+ndust+1 ! Index for salt tracer (12-13)
 integer, parameter :: ndcls = 3                     ! Number of dust emission classes (sand, silt, clay)
 
 ! emission indices
@@ -116,7 +116,7 @@ integer, parameter :: iocna  = 15     ! Natural organic
 ! options
 integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed for emissions (0=none, 1=quadrature, 2=linear)
 integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+salt, 1=SO4, 2=None)
-real, parameter :: zmin     = 1.e-20            ! Minimum concentration tolerance
+real, parameter :: zmin     = 1.e-10            ! Minimum concentration tolerance
 !$acc declare create(enhanceu10,aeroindir)
 
 ! physical constants
@@ -2039,7 +2039,7 @@ do JK = KTOP,kl
   do i = 1,imax
 
     !ZCLEAR = 1. - PCLCOVER(i,JK) - pcfcover(i,jk) - pclcon(i,jk)
-    ZCLR0 = 1. - PCLCOVER(i,JK) - pclcon(i,jk) !Clear air or ice cloud (applies to pxtp10)
+    ZCLR0 = max( 1. - PCLCOVER(i,JK) - pclcon(i,jk), 0. ) !Clear air or ice cloud (applies to pxtp10)
     ZMTOF = rhodz(i,jk)*pqtmst
     PXTP1C(i,JK) = AMAX1( 0., PXTP1C(i,JK) )
     PXTP10(i,JK) = AMAX1( 0., PXTP10(i,JK) )
@@ -2049,21 +2049,33 @@ do JK = KTOP,kl
     if ( zclr0>zmin ) then
       ziicscav = Ecols_k*pqfsedice(i,jk) !qfsedice is the fractional sedimentation in dt
       ziicscav = max( min( ziicscav, 1. ), 0. )
-      xdep = pxtp10(i,jk)*ziicscav
-      pdep3d(i,jk) = pdep3d(i,jk) + xdep*pcfcover(i,jk)
+      xdep = max( pxtp10(i,jk)*ziicscav*pcfcover(i,jk), 0.)
+      pdep3d(i,jk) = pdep3d(i,jk) + xdep
       !pxtp10(i,jk) = pxtp10(i,jk)*(zclear+(1.-ziicscav)*pcfcover(:,jk))/(1.-pclcover(:,jk))
-      pxtp10(i,jk) = pxtp10(i,jk) - xdep*pcfcover(i,jk)/zclr0 ! MJT suggestion
-      zdeps(i) = zdeps(i) + xdep*pcfcover(i,jk)*zmtof
+      pxtp10(i,jk) = pxtp10(i,jk) - xdep/zclr0 ! MJT suggestion
+      zdeps(i) = zdeps(i) + xdep*zmtof
+#ifdef debugaero
+      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
+        write(6,*) "xtg out-of-range after xtwepdep - incloud scavenging"
+        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
+      end if
+#endif      
     end if
 
     ! This loop does riming (accretion of liquid water by falling snow)
     if ( pmlwc(i,jk)>zmin ) then
       zilcscav = Rcoeff_k*psolub(i,jk)*pmaccr(i,jk)*ptmst/pmlwc(i,jk)
       zilcscav = max( min( zilcscav, 1. ), 0. )
-      xdep = pxtp1c(i,jk)*zilcscav
+      xdep = max( pxtp1c(i,jk)*zilcscav, 0. )
       pdep3d(i,jk) = pdep3d(i,jk) + xdep*pclcover(i,jk)
       pxtp1c(i,jk) = pxtp1c(i,jk) - xdep
       zdeps(i) = zdeps(i) + xdep*pclcover(i,jk)*zmtof
+#ifdef debugaero
+      if ( PCLCOVER(i,jk)*pxtp1c(i,jk)>6.5e-6 ) then
+        write(6,*) "xtg out-of-range after xtwepdep - accretion of liquid water by falling snow"
+        write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk),i,jk
+      end if
+#endif  
     end if
 
     ! Below-cloud scavenging by snow
@@ -2071,20 +2083,32 @@ do JK = KTOP,kl
     plambda = min( plambs(i,jk), 8.e3 ) !Cut it off at about -30 deg. C
     zbcscav = zcollefs_k*plambda*pfsnow(i,jk)*ptmst/(2.*rhos)
     zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
-    xbcscav = zbcscav*pxtp10(i,jk)
+    xbcscav = max( zbcscav*pxtp10(i,jk), 0. )
     pdep3d(i,jk) = pdep3d(i,jk) + xbcscav*zclr0
     pxtp10(i,jk) = pxtp10(i,jk) - xbcscav
     zdeps(i) = zdeps(i) + xbcscav*zclr0*zmtof
+#ifdef debugaero
+    if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
+      write(6,*) "xtg out-of-range after xtwepdep - below cloud scavenging by snow"
+      write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
+    end if
+#endif   
 
     ! Redistribution by snow that evaporates or stays in layer
     if ( pfsnow(i,jk)>zmin .and. zclr0>zmin ) then
       zstay_t = (pfsubl(i,jk)+pfstayice(i,jk))/pfsnow(i,jk)
       zstay_t = max( min( 1., zstay_t ), 0. )
-      xstay = zdeps(i)*zstay_t/zmtof
+      xstay = max( zdeps(i)*zstay_t/zmtof, 0. )
       pdep3d(i,jk) = pdep3d(i,jk) - xstay
       pxtp10(i,jk) = pxtp10(i,jk) + xstay/zclr0
       zdeps(i) = zdeps(i) - xstay*zmtof
       zdeps(i) = max( 0., zdeps(i) )
+#ifdef debugaero
+      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
+        write(6,*) "xtg out-of-range after xtwepdep - redistribution by snow that evaporates"
+        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
+      end if
+#endif        
     end if
 
     ! Melting of snow... 
@@ -2099,19 +2123,31 @@ do JK = KTOP,kl
     if ( pmlwc(i,jk)>zmin ) then ! MJT suggestion
       zicscav = psolub(i,jk)*pmratep(i,jk)*ptmst/pmlwc(i,jk)
       zicscav = max( min( zicscav, 1. ), 0. )
-      xicscav = pxtp1c(i,jk)*zicscav
+      xicscav = max( pxtp1c(i,jk)*zicscav, 0. )
       pdep3d(i,jk) = pdep3d(i,jk) + xicscav*pclcover(i,jk)
       pxtp1c(i,jk) = pxtp1c(i,jk) - xicscav
       zdepr(i) = zdepr(i) + xicscav*pclcover(i,jk)*zmtof
+#ifdef debugaero
+      if ( PCLCOVER(i,jk)*pxtp1c(i,jk)>6.5e-6 ) then
+        write(6,*) "xtg out-of-range after xtwepdep - redistribution of snow that evaporates"
+        write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk),i,jk
+      end if
+#endif        
     end if
  
     ! Below-cloud scavenging by stratiform rain (conv done below)
     zbcscav = zcollefr_k*prscav(i,jk)
     zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
-    xbcscav = zbcscav*pxtp10(i,jk)
+    xbcscav = max( zbcscav*pxtp10(i,jk), 0. )
     pdep3d(i,jk) = pdep3d(i,jk) + xbcscav*zclr0
     pxtp10(i,jk) = pxtp10(i,jk) - xbcscav 
     zdepr(i) = zdepr(i) + xbcscav*zclr0*zmtof
+#ifdef debugaero
+    if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
+      write(6,*) "xtg out-of-range after xtwepdep - below cloud scavenging by stratiform rain"
+      write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
+    end if
+#endif   
   
     ! Freezing of rain... 
     zfreeze = prfreeze(i,jk)/max(pfprec(i,jk)+prfreeze(i,jk),zmin) 
@@ -2156,10 +2192,16 @@ do jk = ktop,kl
       zbcscav = zcollefc*fracc(i)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
       !zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
       zbcscav = max( min( 1., zbcscav ), 0. ) ! MJT suggestion
-      xbcscav = zbcscav*pxtp10(i,jk)
+      xbcscav = max( zbcscav*pxtp10(i,jk), 0. )
       pdep3d(i,jk) = pdep3d(i,jk) + xbcscav*zclr0
       pxtp10(i,jk) = pxtp10(i,jk) - xbcscav
       !conwd(i,ktrac) = conwd(i,ktrac) + xbcscav*zclr0*zmtof
+#ifdef debugaero
+      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
+        write(6,*) "xtg out-of-range after xtwepdep - below cloud scavenging by convective precipitation"
+        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
+      end if
+#endif       
     end if
 
     ! Below-cloud reevaporation of convective rain
@@ -2176,7 +2218,7 @@ do jk = ktop,kl
     ! end where
     ! where ( lmask(:) )
     !   zevap = max( 0., min( 1., zevap ) )
-    !   xevap = conwd(:,ktrac)*zevap/zmtof(:) !xevap is the grid-box-mean m.r. change
+    !   xevap = max( conwd(:,ktrac)*zevap/zmtof(:), 0. ) !xevap is the grid-box-mean m.r. change
     !   pdep3d(:,jk) = pdep3d(:,jk) - xevap
     !   pxtp10(:,jk) = pxtp10(:,jk) + xevap/zclr0(:)
     !   conwd(:,ktrac) = conwd(:,ktrac) - xevap*zmtof(:)

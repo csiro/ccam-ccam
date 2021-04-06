@@ -155,7 +155,7 @@ endif
 
 # Testing - I/O and fpmodel
 ifeq ($(TEST),yes)
-FFLAGS += $(DEBUGFLAG)
+FFLAGS += $(DEBUGFLAG) -Ddebugaero
 endif
 
 # Build with 64 ints/reals
