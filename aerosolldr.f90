@@ -79,7 +79,6 @@ real, dimension(:), allocatable, save :: dms_burden         ! Diagnostic - DMS b
 real, dimension(:), allocatable, save :: so2_burden         ! Diagnostic - so2 burden
 real, dimension(:), allocatable, save :: so4_burden         ! Diagnostic - so4 burden
 real, dimension(:), allocatable, save :: salt_burden        ! Diagnostic - salt burden
-!$acc declare create(jk2,jk3,jk4,jk5,jk6,jk8,jk9)
 
 ! tracers
 integer, parameter :: nsulf = 3
@@ -117,7 +116,6 @@ integer, parameter :: iocna  = 15     ! Natural organic
 integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed for emissions (0=none, 1=quadrature, 2=linear)
 integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+salt, 1=SO4, 2=None)
 real, parameter :: zmin     = 1.e-10            ! Minimum concentration tolerance
-!$acc declare create(enhanceu10,aeroindir)
 
 ! physical constants
 real, parameter :: grav      = 9.80616          ! Gravitation constant
@@ -130,7 +128,6 @@ real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/
 ! emission and deposition constants
 real, save :: zvolcemi       = 8.               ! Total emission from volcanoes (TgS/yr)
 real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
-!$acc declare create(zvolcemi,ch_dust)
 
 ! Indirect effect coefficients
 ! converts from mass (kg/m3) to number concentration (1/m3) for dist'n
@@ -143,7 +140,6 @@ real, save :: saltlargemtn = 1.1e14             ! Nillson et al. number mode rad
 !real, save :: carbmtn = 2.30e17                ! counts Aitken mode as well as accumulation mode carb aerosols
 !real, save :: saltsmallmtn = 3.79e17           ! Herzog number mode radius = 0.035 um, sd=1.92, rho=2.165 g/cm3
 !real, save :: saltlargemtn = 7.25e14           ! Herzog number mode radius = 0.35 um, sd=1.7, rho=2.165
-!$acc declare create(so4mtn,carbmtn,saltsmallmtn,saltlargemtn)
 
 ! Dust coefficients
 real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /)    ! Density of dust (kg/m3)
@@ -275,11 +271,6 @@ do k = jk8+1,kl
   end if
 end do
 
-!$acc update device(jk2,jk3,jk4,jk5,jk6,jk8,jk9)
-!$acc update device(enhanceu10,aeroindir)
-!$acc update device(zvolcemi,ch_dust)
-!$acc update device(so4mtn,carbmtn,saltsmallmtn,saltlargemtn)
-
 return
 end subroutine aldrinit
 
@@ -370,7 +361,6 @@ subroutine aldrcalc(dt,sig,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m, 
                     so2_burden,so4_burden,erod,zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,              &
                     emissfield,vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,salte,saltdd,     &
                     saltwd,salt_burden,dustden,dustreff,saltden,saltreff,locean,imax,kl)
-!$acc routine vector
 
 implicit none
 
@@ -705,7 +695,6 @@ SUBROUTINE XTEMISS(ztmst, rhoa, TSM1M, SEAICEM, ZZSPEED,                        
                    XTE, PXTEMS, bbem,                                            & !Outputs
                    emissfield,vso2,dmse,so2e,so4e,bce,oce,xtg,so2dd,so4dd,bcdd,ocdd, &
                    imax,kl)                                                     !Inputs
-!$acc routine vector
 
 !
 !    THIS ROUTINE CALCULATES THE LOWER BOUNDARY CONDITIONS
@@ -1058,7 +1047,6 @@ end subroutine xtemiss
 ! xt sink
 
 SUBROUTINE XTSINK(PTMST,xtg,imax,kl)
-!$acc routine vector
 
 !
 !   *XTSINK*  CALCULATES THE DECREASE OF TRACER CONCENTRATION
@@ -1118,7 +1106,6 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3,                               & !Outputs
                     zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,                    &
                     imax,kl)                                                           !Inputs
-!$acc routine vector
 
 ! Inputs
 ! ktop: top level for aerosol processes (set to 1, counting downwards from top)
@@ -1934,7 +1921,6 @@ SUBROUTINE XTWETDEP(KTRAC,                                                 &
                     pqfsedice,plambs,prscav,prfreeze,pfevap,pfconv,        &
                     pclcon,fracc,                                          & !Inputs
                     PXTP10, PXTP1C, PXTP1CON, xtm1, xte, wd, imax, kl)       !In & Out
-!$acc routine vector
 
 !
 !   *XTWETDEP* CALCULATES THE WET DEPOSITION OF TRACE GASES OR AEROSOLS
@@ -2279,7 +2265,6 @@ end subroutine xtwetdep
 ! Dust settling
 
 subroutine dsettling(tdt,rhoa,tmp,delz,prf,xtg,dustden,dustreff,imax,kl)
-!$acc routine vector
 
 implicit none
 
@@ -2355,7 +2340,6 @@ end subroutine dsettling
 
 subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,erod,duste,xtg, &
                   dustden,dustreff,imax,kl)
-!$acc routine vector
 
 implicit none
 
@@ -2575,7 +2559,6 @@ end subroutine dustem
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! sea salt settling
 subroutine ssettling(tdt,rhoa,tmp,delz,prf,xtg,saltden,saltreff,imax,kl)
-!$acc routine vector
 
 implicit none
 
@@ -2639,7 +2622,6 @@ end subroutine ssettling
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! sea salt emissions
 subroutine seasaltem(tdt,v10m,vt,rhoa,dz1,salte,xtg,saltreff,locean,imax,kl)
-!$acc routine vector
 
 implicit none
 
@@ -2781,7 +2763,6 @@ end subroutine cldrop
 ! Aerosol scavenging fraction for convective clouds
 
 pure subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho,ntr,kx)
-!$acc routine vector
 
 implicit none
 

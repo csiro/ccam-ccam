@@ -3075,7 +3075,6 @@ if ( nvmix==6 .or. nvmix==9 ) then
   call tkeinit(ifull,iextra,kl)
 end if
 call init_tracer
-!$acc update device(ngas,ntrac)
 call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
 if ( nbd/=0 .or. mbd/=0 ) then
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then

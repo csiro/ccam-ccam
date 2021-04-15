@@ -803,7 +803,12 @@ do k = 1,klt
   tt_t(k,:) = tt(:,k)*sm
 end do
 tt_t(kltp1,:) = sm(:)
+#ifdef GPU
+!$omp target teams distribute parallel do schedule(static) map(to:xa,ya,za,tt_t) map(from:tbb) private(iqg,iq,local_sum) &
+!$omp shared(cq,klt,kltp1,nest_iblock)
+#else
 !$omp parallel do schedule(static) private(iqg,iq,local_sum)
+#endif
 !$acc parallel loop copyin(cq,klt,kltp1,xa,ya,za,tt_t) &
 !$acc   copyout(tbb) private(iq,iqg,local_sum,n,j)
 do iq = 1,ifull
@@ -815,7 +820,10 @@ do iq = 1,ifull
   tbb(iq,1:klt) = local_sum(1:klt)/local_sum(kltp1)
 end do
 !$acc end parallel loop
+#ifdef GPU
+#else
 !$omp end parallel do
+#endif
 
 call END_LOG(nestcalc_end)
 
@@ -1239,8 +1247,10 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
+#ifndef GPU  
   !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
+#endif
   do j = 1,jpan
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -1262,10 +1272,17 @@ do ipass = 0,2
       end do
     end do
   end do
+#ifndef GPU
   !$omp end do nowait
+#endif
     
   ! start convolution
+#ifdef GPU
+  !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:jpan),ya(:,1:jpan),za(:,1:jpan),at_t(:,:,1:jpan)) &
+  !$omp  map(from:ff_l) private(j,n,nn) shared(me,os,cq,klt,kltp1,ipass,nest_iblock)
+#else
   !$omp do schedule(static) private(j,n,nn)
+#endif
   !$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,ipass,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
   !$acc   copyout(ff_l) private(j,n,nn)
   do j = 1,jpan
@@ -1275,17 +1292,24 @@ do ipass = 0,2
     end do 
   end do 
   !$acc end parallel loop
+#ifdef GPU
+#else
   !$omp end do nowait
+#endif
 
+#ifndef GPU
   !$omp do schedule(static) private(j,n,ibase)
+#endif
   do j = 1,jpan
     do n = 1,ipan
       ibase = n + (j-1)*ipan
       ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = ff_l(:,n,j)
     end do
   end do
+#ifndef GPU
   !$omp end do
   !$omp end parallel
+#endif
 
 end do
 
@@ -1343,8 +1367,10 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
+#ifndef GPU
 !$omp parallel
 !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
+#endif
 do j = 1,ipan    
   ! pack from sparse arrays
   jj = j + ns - 1
@@ -1366,10 +1392,17 @@ do j = 1,ipan
     end do
   end do
 end do
+#ifndef GPU
 !$omp end do nowait
+#endif
   
 ! start convolution
+#ifdef GPU
+!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),at_t(:,:,1:ipan)) &
+!$omp  map(from:qt) private(j,n,nn,local_sum) shared(me,os,cq,klt,kltp1,nest_iblock)
+#else
 !$omp do schedule(static) private(j,n,nn,local_sum)
+#endif
 !$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
 !$acc   copyout(qt) private(j,n,nn,local_sum)
 do j = 1,ipan
@@ -1380,8 +1413,11 @@ do j = 1,ipan
   end do
 end do
 !$acc end parallel loop
+#ifdef GPU
+#else
 !$omp end do
 !$omp end parallel
+#endif
 
 call END_LOG(nestcalc_end)
 
@@ -1438,8 +1474,10 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
+#ifndef GPU
   !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
+#endif
   do j = 1,ipan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -1461,10 +1499,17 @@ do ipass = 0,2
       end do
     end do
   end do
+#ifndef GPU
   !$omp end do nowait
+#endif
   
   ! start convolution
+#ifdef GPU
+  !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),at_t(:,:,1:ipan)) &
+  !$omp  map(from:ff_l) private(j,n,nn) shared(me,os,cq,klt,kltp1,ipass,nest_iblock)
+#else
   !$omp do schedule(static) private(j,n,nn)
+#endif
   !$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
   !$acc   copyout(ff_l) private(j,n,nn)
   do j = 1,ipan
@@ -1474,17 +1519,24 @@ do ipass = 0,2
     end do
   end do
   !$acc end parallel loop
+#ifdef GPU
+#else
   !$omp end do nowait
+#endif
 
+#ifndef GPU
   !$omp do schedule(static) private(j,n,ibase)
+#endif
   do j = 1,ipan
     do n = 1,jpan
       ibase = n + (j-1)*jpan
       ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = ff_l(:,n,j)
     end do
   end do
+#ifndef GPU  
   !$omp end do
   !$omp end parallel
+#endif
 
 end do
 
@@ -1541,8 +1593,10 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
+#ifndef GPU
 !$omp parallel
 !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
+#endif
 do j = 1,jpan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -1565,10 +1619,17 @@ do j = 1,jpan
     end do
   end do
 end do
+#ifndef GPU
 !$omp end do nowait
+#endif
   
 ! start convolution
+#ifdef GPU
+!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:jpan),ya(:,1:jpan),za(:,1:jpan),at_t(:,:,1:jpan)) &
+!$omp  map(from:qt) private(j,n,nn,local_sum) shared(me,os,cq,klt,kltp1,ipass,nest_iblock)
+#else
 !$omp do schedule(static) private(j,n,nn,local_sum)
+#endif
 !$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
 !$acc   copyout(qt) private(j,n,nn,local_sum)
 do j = 1,jpan
@@ -1579,9 +1640,12 @@ do j = 1,jpan
   end do
 end do
 !$acc end parallel loop
+#ifdef GPU
+#else
 !$omp end do
 !$omp end parallel
-    
+#endif
+
 call END_LOG(nestcalc_end)
 
 return  
@@ -2111,7 +2175,12 @@ do k = 1,kd
 end do  
 diff_g_t(kdp1,:) = sm(:)
 
+#ifdef GPU
+!$omp target teams distribute parallel do schedule(static) map(to:xa,ya,za,diff_g_t) &
+!$omp  map(from:dd) private(iqq,iqqg,local_sum,n,j) shared(cq,kd,kdp1,nest_iblock)
+#else
 !$omp parallel do schedule(static) private(iqqg,iqq,local_sum)
+#endif
 !$acc parallel loop copyin(cq,kd,kdp1,xa,ya,za,diff_g_t) &
 !$acc   copyout(dd) private(iqq,iqqg,local_sum,n,j)
 do iqq = 1,ifull
@@ -2122,7 +2191,10 @@ do iqq = 1,ifull
   dd(iqq,1:kd) = local_sum(1:kd)/max(local_sum(kdp1),1.e-8)
 end do
 !$acc end parallel loop
+#ifdef GPU
+#else
 !$omp end parallel do
+#endif
 
 call END_LOG(nestcalc_end)
 
@@ -2454,8 +2526,10 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
+#ifndef GPU
   !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
+#endif
   do j = 1,jpan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -2478,12 +2552,19 @@ do ipass = 0,2
       end do
     end do
   end do
+#ifndef GPU
   !$omp end do nowait
+#endif
     
   ! start convolution
+#ifdef GPU
+  !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:jpan),ya(:,1:jpan),za(:,1:jpan),ap_t(:,:,1:jpan)) &
+  !$omp  map(from:yy_l) private(j,n,nn) shared(me,os,cq,kd,kdp1,ipass,nest_iblock)
+#else
   !$omp do schedule(static) private(j,n,nn)
+#endif
   !$acc parallel loop independent collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
-  !$acc   copyout(yy_l) private(j,n,nn,ibase)
+  !$acc   copyout(yy_l) private(j,n,nn)
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
@@ -2491,17 +2572,24 @@ do ipass = 0,2
     end do
   end do
   !$acc end parallel loop
+#ifdef GPU
+#else
   !$omp end do
+#endif
 
+#ifndef GPU
   !$omp do schedule(static) private(j,n,ibase)
+#endif
   do j = 1,jpan
     do n = 1,ipan
       ibase = n + (j-1)*ipan
       yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = yy_l(:,n,j)
     end do
   end do
+#ifndef GPU  
   !$omp end do
   !$omp end parallel
+#endif
 
 end do
 
@@ -2559,8 +2647,10 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
+#ifndef GPU
 !$omp parallel
 !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
+#endif
 do j = 1,ipan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -2583,10 +2673,17 @@ do j = 1,ipan
     end do
   end do
 end do
+#ifndef GPU
 !$omp end do nowait
+#endif
   
 ! start convolution
+#ifdef GPU
+!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),ap_t(:,:,1:jpan)) &
+!$omp  map(from:qp) private(j,n,nn,local_sum) shared(me,os,cq,kd,kdp1,ipass,nest_iblock)
+#else
 !$omp do schedule(static) private(j,n,nn,local_sum)
+#endif
 !$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
 !$acc   copyout(qp) private(j,n,nn,local_sum)
 do j = 1,ipan
@@ -2597,8 +2694,11 @@ do j = 1,ipan
   end do
 end do
 !$acc end parallel loop
+#ifdef GPU
+#else
 !$omp end do
 !$omp end parallel
+#endif
 
 call END_LOG(nestcalc_end)
       
@@ -2651,8 +2751,10 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
+#ifndef GPU  
   !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
+#endif
   do j = 1,ipan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -2674,12 +2776,19 @@ do ipass = 0,2
       end do
     end do
   end do
+#ifndef GPU  
   !$omp end do nowait
+#endif
     
   ! start convolution
+#ifdef GPU
+  !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),ap_t(:,:,1:ipan)) &
+  !$omp  map(from:yy_l) private(j,n,nn) shared(me,os,cq,kd,kdp1,ipass,nest_iblock)
+#else
   !$omp do schedule(static) private(j,n,nn)
+#endif
   !$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
-  !$acc   copyout(yy_l) private(j,n,nn,ibase)
+  !$acc   copyout(yy_l) private(j,n,nn)
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
@@ -2687,17 +2796,24 @@ do ipass = 0,2
     end do    
   end do
   !$acc end parallel loop
+#ifdef GPU
+#else
   !$omp end do nowait
+#endif
 
+#ifndef GPU
   !$omp do schedule(static) private(j,n,ibase)
+#endif
   do j = 1,ipan
     do n = 1,jpan
       ibase = n + (j-1)*jpan
       yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = yy_l(:,n,j)
     end do
   end do
+#ifndef GPU
   !$omp end do
   !$omp end parallel
+#endif
 
 end do
 
@@ -2755,8 +2871,10 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
+#ifndef GPU
 !$omp parallel
 !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
+#endif
 do j = 1,jpan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -2779,10 +2897,17 @@ do j = 1,jpan
     end do
   end do
 end do
+#ifndef GPU
 !$omp end do nowait
+#endif
   
 ! start convolution
+#ifdef GPU
+!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:jpan),ya(:,1:jpan),za(:,1:jpan),ap_t(:,:,1:jpan)) &
+!$omp  map(from:qp) private(j,n,nn,local_sum) shared(me,os,cq,kd,kdp1,ipass,nest_iblock)
+#else
 !$omp do schedule(static) private(j,n,nn,local_sum)
+#endif
 !$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
 !$acc   copyout(qp) private(j,n,nn,local_sum)
 do j = 1,jpan
@@ -2793,8 +2918,11 @@ do j = 1,jpan
   end do  
 end do
 !$acc end parallel loop
+#ifdef GPU
+#else
 !$omp end do
 !$omp end parallel
+#endif
     
 call END_LOG(nestcalc_end)
       

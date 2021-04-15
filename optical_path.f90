@@ -3812,6 +3812,9 @@ use filnames_m
                    0.00000E+00,   0.00000E+00,   0.00000E+00,   0.00000E+00,   0.00000E+00 /)
       end if    
         
+      sfac = 1.
+      fscal = 1.
+      tmpfctrs = 1.
       if (trim(Lw_control%linecatalog_form) == 'hitran_2012' ) then
         if (trim(Lw_control%continuum_form) == 'ckd2.1') then
           if ( myid==0 ) then  

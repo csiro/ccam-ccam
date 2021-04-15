@@ -40,7 +40,6 @@ real, dimension(:,:,:), allocatable, save :: trpm
 real, dimension(:), allocatable, save :: acloss_g
 character(len=13), dimension(:), save, allocatable :: tracname
 character(len=13), dimension(:), save, allocatable :: tractype
-!$acc declare create(ngas,ntrac)
 
 contains
 
