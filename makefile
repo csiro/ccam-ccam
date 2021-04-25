@@ -23,12 +23,6 @@ MPISPECIAL =
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
 endif
-ifeq ($(BROADWELL),yes)
-FHOST = -O3 -xCORE-AVX2
-IPFLAG = -ip
-IPOFLAG = -ipo
-VTHRESH = -vec-threshold0
-endif
 ifeq ($(CASCADELAKE),yes)
 FHOST = -O3 -xCASCADELAKE -fimf-use-svml
 FOVERRIDE = -qoverride-limits
@@ -66,7 +60,7 @@ FHOST = -march=native
 MPIFLAG =
 #MPISPECIAL = -fallow-argument-mismatch
 MPISPECIAL =
-FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FFLAGS = -O3 -mtune=native -mveclibabi=svml -Dgfortran $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
 ZMM =
 IPFLAG =

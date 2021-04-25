@@ -1524,6 +1524,11 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
 
+! some defaults to avoid confusion
+tblock = 0
+kmlo = 0
+ateb_ac_copmax = 0.
+
 !--------------------------------------------------------------
 ! READ COMMAND LINE OPTIONS
 nmlfile = "input"

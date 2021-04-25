@@ -12083,7 +12083,7 @@ contains
      module procedure ccmpi_reduce1rr8
    end interface
    interface ccmpi_bcastr8
-      module procedure ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
+      module procedure ccmpi_bcast1r8, ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
    end interface   
    
    contains
@@ -12467,6 +12467,11 @@ contains
       character(len=*), intent(in) :: op
       gdat = ldat
    end subroutine ccmpi_reduce1rr8 
+   
+   subroutine ccmpi_bcast1r8(ldat,host,comm)
+      integer, intent(in) :: host, comm
+      real(kind=8), intent(inout) :: ldat
+   end subroutine ccmpi_bcast1r8   
    
    subroutine ccmpi_bcast2r8(ldat,host,comm)
       integer, intent(in) :: host, comm

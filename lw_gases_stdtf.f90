@@ -5814,68 +5814,83 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
       logical tst
  
       data (input_lblco2name(n,1),n=1,nfreq_bands_sea_co2)/            &
-        'cns_co2_0_HITRAN2012_490850_495lyr', 'cns_co2_0_HITRAN2012_490630_495lyr', 'cns_co2_0_HITRAN2012_630700_495lyr', &
-        'cns_co2_0_HITRAN2012_700850_495lyr', 'cns_co2_0_43um', 'cns_co2_0_HITRAN2012_9901070_495lyr', &
-        'cns_co2_0_HITRAN2012_900990_495lyr', 'cns_co2_0_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_0_HITRAN2012_490850_495lyr      ', 'cns_co2_0_HITRAN2012_490630_495lyr      ', &
+        'cns_co2_0_HITRAN2012_630700_495lyr      ', 'cns_co2_0_HITRAN2012_700850_495lyr      ', &
+        'cns_co2_0_43um                          ', 'cns_co2_0_HITRAN2012_9901070_495lyr     ', &
+        'cns_co2_0_HITRAN2012_900990_495lyr      ', 'cns_co2_0_HITRAN2012_10701200_495lyr    '  /
       data (input_lblco2name(n,2),n=1,nfreq_bands_sea_co2)/            &
-        'cns_co2_165_HITRAN2012_490850_495lyr', 'cns_co2_165_HITRAN2012_490630_495lyr', 'cns_co2_165_HITRAN2012_630700_495lyr', &
-        'cns_co2_165_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_165_HITRAN2012_9901070_495lyr', &
-        'cns_co2_165_HITRAN2012_900990_495lyr', 'cns_co2_165_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_165_HITRAN2012_490850_495lyr    ', 'cns_co2_165_HITRAN2012_490630_495lyr    ', &
+        'cns_co2_165_HITRAN2012_630700_495lyr    ', 'cns_co2_165_HITRAN2012_700850_495lyr    ', &
+        'cnsco2_0_43um                           ', 'cns_co2_165_HITRAN2012_9901070_495lyr   ', &
+        'cns_co2_165_HITRAN2012_900990_495lyr    ', 'cns_co2_165_HITRAN2012_10701200_495lyr  '  /
       data (input_lblco2name(n,3),n=1,nfreq_bands_sea_co2)/            &
-        'cns_co2_300_HITRAN2012_490850_495lyr', 'cns_co2_300_HITRAN2012_490630_495lyr', 'cns_co2_300_HITRAN2012_630700_495lyr', &
-        'cns_co2_300_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_300_HITRAN2012_9901070_495lyr', &
-        'cns_co2_300_HITRAN2012_900990_495lyr', 'cns_co2_300_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_300_HITRAN2012_490850_495lyr    ', 'cns_co2_300_HITRAN2012_490630_495lyr    ', &
+        'cns_co2_300_HITRAN2012_630700_495lyr    ', 'cns_co2_300_HITRAN2012_700850_495lyr    ', &
+        'cnsco2_0_43um                           ', 'cns_co2_300_HITRAN2012_9901070_495lyr   ', &
+        'cns_co2_300_HITRAN2012_900990_495lyr    ', 'cns_co2_300_HITRAN2012_10701200_495lyr  '  /
       data (input_lblco2name(n,4),n=1,nfreq_bands_sea_co2)/            &
-        'cns_co2_330_HITRAN2012_490850_495lyr', 'cns_co2_330_HITRAN2012_490630_495lyr', 'cns_co2_330_HITRAN2012_630700_495lyr', &
-        'cns_co2_330_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_330_HITRAN2012_9901070_495lyr', &
-        'cns_co2_330_HITRAN2012_900990_495lyr', 'cns_co2_330_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_330_HITRAN2012_490850_495lyr    ', 'cns_co2_330_HITRAN2012_490630_495lyr    ', &
+        'cns_co2_330_HITRAN2012_630700_495lyr    ', 'cns_co2_330_HITRAN2012_700850_495lyr    ', &
+        'cnsco2_0_43um                           ', 'cns_co2_330_HITRAN2012_9901070_495lyr   ', &
+        'cns_co2_330_HITRAN2012_900990_495lyr    ', 'cns_co2_330_HITRAN2012_10701200_495lyr  '  /
       data (input_lblco2name(n,5),n=1,nfreq_bands_sea_co2)/            &
-        'cns_co2_348_HITRAN2012_490850_495lyr', 'cns_co2_348_HITRAN2012_490630_495lyr', 'cns_co2_348_HITRAN2012_630700_495lyr', &
-        'cns_co2_348_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_348_HITRAN2012_9901070_495lyr', &
-        'cns_co2_348_HITRAN2012_900990_495lyr', 'cns_co2_348_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_348_HITRAN2012_490850_495lyr    ', 'cns_co2_348_HITRAN2012_490630_495lyr    ', &
+        'cns_co2_348_HITRAN2012_630700_495lyr    ', 'cns_co2_348_HITRAN2012_700850_495lyr    ', &
+        'cnsco2_0_43um                           ', 'cns_co2_348_HITRAN2012_9901070_495lyr   ', &
+        'cns_co2_348_HITRAN2012_900990_495lyr    ', 'cns_co2_348_HITRAN2012_10701200_495lyr  '  /
       data (input_lblco2name(n,6),n=1,nfreq_bands_sea_co2)/            &
-        'cns_co2_356_HITRAN2012_490850_495lyr', 'cns_co2_356_HITRAN2012_490630_495lyr', 'cns_co2_356_HITRAN2012_630700_495lyr', &
-        'cns_co2_356_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_356_HITRAN2012_9901070_495lyr', &
-        'cns_co2_356_HITRAN2012_900990_495lyr', 'cns_co2_356_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_356_HITRAN2012_490850_495lyr    ', 'cns_co2_356_HITRAN2012_490630_495lyr    ', &
+        'cns_co2_356_HITRAN2012_630700_495lyr    ', 'cns_co2_356_HITRAN2012_700850_495lyr    ', &
+        'cnsco2_0_43um                           ', 'cns_co2_356_HITRAN2012_9901070_495lyr   ', &
+        'cns_co2_356_HITRAN2012_900990_495lyr    ', 'cns_co2_356_HITRAN2012_10701200_495lyr  '  /
       data (input_lblco2name(n,7),n=1,nfreq_bands_sea_co2)/            &
-        'cns_co2_360_HITRAN2012_490850_495lyr', 'cns_co2_360_HITRAN2012_490630_495lyr', 'cns_co2_360_HITRAN2012_630700_495lyr', &
-        'cns_co2_360_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_360_HITRAN2012_9901070_495lyr', &
-        'cns_co2_360_HITRAN2012_900990_495lyr', 'cns_co2_360_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_360_HITRAN2012_490850_495lyr    ', 'cns_co2_360_HITRAN2012_490630_495lyr    ', &
+        'cns_co2_360_HITRAN2012_630700_495lyr    ', 'cns_co2_360_HITRAN2012_700850_495lyr    ', &
+        'cnsco2_0_43um                           ', 'cns_co2_360_HITRAN2012_9901070_495lyr   ', &
+        'cns_co2_360_HITRAN2012_900990_495lyr    ', 'cns_co2_360_HITRAN2012_10701200_495lyr  '  /
       data (input_lblco2name(n,8),n=1,nfreq_bands_sea_co2)/            &
-        'cns_co2_600_HITRAN2012_490850_495lyr', 'cns_co2_600_HITRAN2012_490630_495lyr', 'cns_co2_600_HITRAN2012_630700_495lyr', &
-        'cns_co2_600_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_600_HITRAN2012_9901070_495lyr', &
-        'cns_co2_600_HITRAN2012_900990_495lyr', 'cns_co2_600_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_600_HITRAN2012_490850_495lyr    ', 'cns_co2_600_HITRAN2012_490630_495lyr    ', &
+        'cns_co2_600_HITRAN2012_630700_495lyr    ', 'cns_co2_600_HITRAN2012_700850_495lyr    ', &
+        'cnsco2_0_43um                           ', 'cns_co2_600_HITRAN2012_9901070_495lyr   ', &
+        'cns_co2_600_HITRAN2012_900990_495lyr    ', 'cns_co2_600_HITRAN2012_10701200_495lyr  '  /
       data (input_lblco2name(n,9),n=1,nfreq_bands_sea_co2)/            &
-        'cns_co2_660_HITRAN2012_490850_495lyr', 'cns_co2_660_HITRAN2012_490630_495lyr', 'cns_co2_660_HITRAN2012_630700_495lyr', &
-        'cns_co2_660_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_660_HITRAN2012_9901070_495lyr', &
-        'cns_co2_660_HITRAN2012_900990_495lyr', 'cns_co2_660_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_660_HITRAN2012_490850_495lyr    ', 'cns_co2_660_HITRAN2012_490630_495lyr    ', &
+        'cns_co2_660_HITRAN2012_630700_495lyr    ', 'cns_co2_660_HITRAN2012_700850_495lyr    ', &
+        'cnsco2_0_43um                           ', 'cns_co2_660_HITRAN2012_9901070_495lyr   ', &
+        'cns_co2_660_HITRAN2012_900990_495lyr    ', 'cns_co2_660_HITRAN2012_10701200_495lyr  '  /
       data (input_lblco2name(n,10),n=1,nfreq_bands_sea_co2)/           &
-        'cns_co2_1320_HITRAN2012_490850_495lyr', 'cns_co2_1320_HITRAN2012_490630_495lyr', 'cns_co2_1320_HITRAN2012_630700_495lyr', &
-        'cns_co2_1320_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_1320_HITRAN2012_9901070_495lyr', &
-        'cns_co2_1320_HITRAN2012_900990_495lyr', 'cns_co2_1320_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_1320_HITRAN2012_490850_495lyr   ', 'cns_co2_1320_HITRAN2012_490630_495lyr   ', &
+        'cns_co2_1320_HITRAN2012_630700_495lyr   ', 'cns_co2_1320_HITRAN2012_700850_495lyr   ', &
+        'cnsco2_0_43um                           ', 'cns_co2_1320_HITRAN2012_9901070_495lyr  ', &
+        'cns_co2_1320_HITRAN2012_900990_495lyr   ', 'cns_co2_1320_HITRAN2012_10701200_495lyr '  /
       data (input_lblco2name(n,11),n=1,nfreq_bands_sea_co2)/           &
-        'cns_co2_1600_HITRAN2012_490850_495lyr', 'cns_co2_1600_HITRAN2012_490630_495lyr', 'cns_co2_1600_HITRAN2012_630700_495lyr', &
-        'cns_co2_1600_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_1600_HITRAN2012_9901070_495lyr', &
-        'cns_co2_1600_HITRAN2012_900990_495lyr', 'cns_co2_1600_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_1600_HITRAN2012_490850_495lyr   ', 'cns_co2_1600_HITRAN2012_490630_495lyr   ', &
+        'cns_co2_1600_HITRAN2012_630700_495lyr   ', 'cns_co2_1600_HITRAN2012_700850_495lyr   ', &
+        'cnsco2_0_43um                           ', 'cns_co2_1600_HITRAN2012_9901070_495lyr  ', &
+        'cns_co2_1600_HITRAN2012_900990_495lyr   ', 'cns_co2_1600_HITRAN2012_10701200_495lyr '  /
       data (input_lblco2name(n,12),n=1,nfreq_bands_sea_co2)/           &
-        'cns_co2_2000_HITRAN2012_490850_495lyr', 'cns_co2_2000_HITRAN2012_490630_495lyr', 'cns_co2_2000_HITRAN2012_630700_495lyr', &
-        'cns_co2_2000_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_2000_HITRAN2012_9901070_495lyr', &
-        'cns_co2_2000_HITRAN2012_900990_495lyr', 'cns_co2_2000_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_2000_HITRAN2012_490850_495lyr   ', 'cns_co2_2000_HITRAN2012_490630_495lyr   ', &
+        'cns_co2_2000_HITRAN2012_630700_495lyr   ', 'cns_co2_2000_HITRAN2012_700850_495lyr   ', &
+        'cnsco2_0_43um                           ', 'cns_co2_2000_HITRAN2012_9901070_495lyr  ', &
+        'cns_co2_2000_HITRAN2012_900990_495lyr   ', 'cns_co2_2000_HITRAN2012_10701200_495lyr '  /
       data (input_lblco2name(n,13),n=1,nfreq_bands_sea_co2)/           &
-        'cns_co2_5000_HITRAN2012_490850_495lyr', 'cns_co2_5000_HITRAN2012_490630_495lyr', 'cns_co2_5000_HITRAN2012_630700_495lyr', &
-        'cns_co2_5000_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_5000_HITRAN2012_9901070_495lyr', &
-        'cns_co2_5000_HITRAN2012_900990_495lyr', 'cns_co2_5000_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_5000_HITRAN2012_490850_495lyr   ', 'cns_co2_5000_HITRAN2012_490630_495lyr   ', &
+        'cns_co2_5000_HITRAN2012_630700_495lyr   ', 'cns_co2_5000_HITRAN2012_700850_495lyr   ', &
+        'cnsco2_0_43um                           ', 'cns_co2_5000_HITRAN2012_9901070_495lyr  ', &
+        'cns_co2_5000_HITRAN2012_900990_495lyr   ', 'cns_co2_5000_HITRAN2012_10701200_495lyr '  /
       data (input_lblco2name(n,14),n=1,nfreq_bands_sea_co2)/           &
-        'cns_co2_10000_HITRAN2012_490850_495lyr', 'cns_co2_10000_HITRAN2012_490630_495lyr', 'cns_co2_10000_HITRAN2012_630700_495lyr', &
-        'cns_co2_10000_HITRAN2012_700850_495lyr', 'cnsco2_0_43um', 'cns_co2_10000_HITRAN2012_9901070_495lyr', &
-        'cns_co2_10000_HITRAN2012_900990_495lyr', 'cns_co2_10000_HITRAN2012_10701200_495lyr'  /
+        'cns_co2_10000_HITRAN2012_490850_495lyr  ', 'cns_co2_10000_HITRAN2012_490630_495lyr  ', &
+        'cns_co2_10000_HITRAN2012_630700_495lyr  ', 'cns_co2_10000_HITRAN2012_700850_495lyr  ', &
+        'cnsco2_0_43um                           ', 'cns_co2_10000_HITRAN2012_9901070_495lyr ', &
+        'cns_co2_10000_HITRAN2012_900990_495lyr  ', 'cns_co2_10000_HITRAN2012_10701200_495lyr'  /
+
  
       data (input_lblch4name(n,1),n=1,nfreq_bands_sea_ch4)/          &
-        'cns_ch4_0_HITRAN2012_12001400_495lyr'/
+        'cns_ch4_0_HITRAN2012_12001400_495lyr   '/
       data (input_lblch4name(n,2),n=1,nfreq_bands_sea_ch4)/          &
-        'cns_ch4_300_HITRAN2012_12001400_495lyr'/
+        'cns_ch4_300_HITRAN2012_12001400_495lyr '/
       data (input_lblch4name(n,3),n=1,nfreq_bands_sea_ch4)/          &
-        'cns_ch4_700_HITRAN2012_12001400_495lyr'/
+        'cns_ch4_700_HITRAN2012_12001400_495lyr '/
       data (input_lblch4name(n,4),n=1,nfreq_bands_sea_ch4)/          &
         'cns_ch4_1250_HITRAN2012_12001400_495lyr'/
       data (input_lblch4name(n,5),n=1,nfreq_bands_sea_ch4)/          &
@@ -5890,23 +5905,32 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
         'cns_ch4_6000_HITRAN2012_12001400_495lyr'/
  
       data (input_lbln2oname(n,1),n=1,nfreq_bands_sea_n2o)/           &
-        'cns_n2o_0_HITRAN2012_12001400_495lyr', 'cns_n2o_0_HITRAN2012_10701200_495lyr', 'cns_n2o_0_HITRAN2012_560630_495lyr'/
+        'cns_n2o_0_HITRAN2012_12001400_495lyr  ', 'cns_n2o_0_HITRAN2012_10701200_495lyr  ', &
+        'cns_n2o_0_HITRAN2012_560630_495lyr    '/
       data (input_lbln2oname(n,2),n=1,nfreq_bands_sea_n2o)/           &
-        'cns_n2o_180_HITRAN2012_12001400_495lyr', 'cns_n2o_180_HITRAN2012_10701200_495lyr', 'cns_n2o_180_HITRAN2012_560630_495lyr'/
+        'cns_n2o_180_HITRAN2012_12001400_495lyr', 'cns_n2o_180_HITRAN2012_10701200_495lyr', &
+        'cns_n2o_180_HITRAN2012_560630_495lyr  '/
       data (input_lbln2oname(n,3),n=1,nfreq_bands_sea_n2o)/           &
-        'cns_n2o_275_HITRAN2012_12001400_495lyr', 'cns_n2o_275_HITRAN2012_10701200_495lyr', 'cns_n2o_275_HITRAN2012_560630_495lyr'/
+        'cns_n2o_275_HITRAN2012_12001400_495lyr', 'cns_n2o_275_HITRAN2012_10701200_495lyr', &
+        'cns_n2o_275_HITRAN2012_560630_495lyr  '/
       data (input_lbln2oname(n,4),n=1,nfreq_bands_sea_n2o)/           &
-        'cns_n2o_310_HITRAN2012_12001400_495lyr', 'cns_n2o_310_HITRAN2012_10701200_495lyr', 'cns_n2o_310_HITRAN2012_560630_495lyr'/
+        'cns_n2o_310_HITRAN2012_12001400_495lyr', 'cns_n2o_310_HITRAN2012_10701200_495lyr', &
+        'cns_n2o_310_HITRAN2012_560630_495lyr  '/
       data (input_lbln2oname(n,5),n=1,nfreq_bands_sea_n2o)/           &
-        'cns_n2o_340_HITRAN2012_12001400_495lyr', 'cns_n2o_340_HITRAN2012_10701200_495lyr', 'cns_n2o_340_HITRAN2012_560630_495lyr'/
+        'cns_n2o_340_HITRAN2012_12001400_495lyr', 'cns_n2o_340_HITRAN2012_10701200_495lyr', &
+        'cns_n2o_340_HITRAN2012_560630_495lyr  '/
       data (input_lbln2oname(n,6),n=1,nfreq_bands_sea_n2o)/           &
-        'cns_n2o_375_HITRAN2012_12001400_495lyr', 'cns_n2o_375_HITRAN2012_10701200_495lyr', 'cns_n2o_375_HITRAN2012_560630_495lyr'/
+        'cns_n2o_375_HITRAN2012_12001400_495lyr', 'cns_n2o_375_HITRAN2012_10701200_495lyr', &
+        'cns_n2o_375_HITRAN2012_560630_495lyr  '/
       data (input_lbln2oname(n,7),n=1,nfreq_bands_sea_n2o)/           &
-        'cns_n2o_500_HITRAN2012_12001400_495lyr', 'cns_n2o_500_HITRAN2012_10701200_495lyr', 'cns_n2o_500_HITRAN2012_560630_495lyr'/
+        'cns_n2o_500_HITRAN2012_12001400_495lyr', 'cns_n2o_500_HITRAN2012_10701200_495lyr', &
+        'cns_n2o_500_HITRAN2012_560630_495lyr  '/
       data (input_lbln2oname(n,8),n=1,nfreq_bands_sea_n2o)/           &
-        'cns_n2o_600_HITRAN2012_12001400_495lyr', 'cns_n2o_600_HITRAN2012_10701200_495lyr', 'cns_n2o_600_HITRAN2012_560630_495lyr'/
+        'cns_n2o_600_HITRAN2012_12001400_495lyr', 'cns_n2o_600_HITRAN2012_10701200_495lyr', &
+        'cns_n2o_600_HITRAN2012_560630_495lyr  '/
       data (input_lbln2oname(n,9),n=1,nfreq_bands_sea_n2o)/           &
-        'cns_n2o_800_HITRAN2012_12001400_495lyr', 'cns_n2o_800_HITRAN2012_10701200_495lyr', 'cns_n2o_800_HITRAN2012_560630_495lyr'/
+        'cns_n2o_800_HITRAN2012_12001400_495lyr', 'cns_n2o_800_HITRAN2012_10701200_495lyr', &
+        'cns_n2o_800_HITRAN2012_560630_495lyr  '/
 
 !--------------------------------------------------------------------
 !  local variables:

@@ -386,7 +386,7 @@ do kcount = 1,mcount
                            tlup,qvup,qlup,qfup,cfup,fg,eg,rhos, &
                            ustar,cduv,                          &
                            tke,eps,mflx,fzzh,idzp,idzm,dz_hl,   &
-                           rhoa(:,1),dz_fl(:,1),                &
+                           rhoa(:,1),dz_fl(:,1),sigkap,         &
 #ifdef scm
                            wthflux,wqvflux,uwflux,vwflux,       &
 #endif
@@ -397,7 +397,7 @@ do kcount = 1,mcount
                          tlup,qvup,qlup,qfup,cfup,fg,eg,rhos, &
                          ustar,cduv,                          &
                          tke,eps,mflx,fzzh,idzp,idzm,dz_hl,   &
-                         rhoa(:,1),dz_fl(:,1),                &
+                         rhoa(:,1),dz_fl(:,1),sigkap,         &
 #ifdef scm
                          wthflux,wqvflux,uwflux,vwflux,       &
 #endif
@@ -845,7 +845,7 @@ subroutine update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,va, &
                              tlup,qvup,qlup,qfup,cfup,fg,eg,rhos, &
                              ustar,cduv,                          &
                              tke,eps,mflx,fzzh,idzp,idzm,dz_hl,   &
-                             rhoa1,dz_fl1,                        &
+                             rhoa1,dz_fl1,sigkap,                 &
 #ifdef scm
                              wthflux,wqvflux,uwflux,vwflux,       &
 #endif
@@ -866,6 +866,7 @@ real, dimension(imax,2:kl) :: qq, aa
 real, dimension(imax), intent(inout) :: fg, eg, ustar
 real, dimension(imax), intent(in) :: rhos, rhoa1, dz_fl1, cduv
 real, dimension(imax) :: wt0, wq0
+real, dimension(kl), intent(in) :: sigkap
 real, intent(in) :: ddts
 
 #ifdef scm
@@ -1417,7 +1418,7 @@ do k = 1,kl
 end do
 
 #ifdef scm
-wqvflux(:,1)=wq0(:)
+wqvflux(:,1)=wq0_a(:)
 wqvflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qvg(:,2:kl)-qvg(:,1:kl-1))/dz_hl(:,1:kl-1)         &
                 +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))   &
                 +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
@@ -1443,8 +1444,8 @@ end do
 
 #ifdef scm
 wqlflux(:,1)=0.
-wqlflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qlg(:,2:kl)-qlg(:,1:kl-1))/dz_hl(:,1:kl-1)                            &
-                +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                    &
+wqlflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qlg(:,2:kl)-qlg(:,1:kl-1))/dz_hl(:,1:kl-1)         &
+                +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))   &
                 +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
@@ -1468,8 +1469,8 @@ end do
 
 #ifdef scm
 wqfflux(:,1)=0.
-wqfflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qfg(:,2:kl)-qfg(:,1:kl-1))/dz_hl(:,1:kl-1)                            &
-                +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                    &
+wqfflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qfg(:,2:kl)-qfg(:,1:kl-1))/dz_hl(:,1:kl-1)                &
+                +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))          &
                 +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 

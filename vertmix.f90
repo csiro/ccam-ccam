@@ -1885,7 +1885,6 @@ select case(nvmix)
     end select    
 end select
           
-end select
 do k = 1,kl
   ! save Km and Kh for output
   rkmsave(:,k) = rkm(:,k)

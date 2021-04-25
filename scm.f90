@@ -184,6 +184,7 @@ character(len=1024) lsmforcing, lsmoutput
 character(len=80) scm_mode
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) :: optarg
+character(len=1024) vegprev, vegnext, vegnext2 ! depreciated namelist options
 logical oxidant_update
 logical fixtsurf, nolatent, noradiation
 logical nogwdrag, noconvection, nocloud, noaerosol, novertmix
@@ -1364,7 +1365,7 @@ if (nsib>=1) then
     greenup  = -50
     fall     = 367
     phendoy1 = 2    
-    call cbmparm(ivs,svs,vlinprev,vlin,vlinnext,vlinnext2,casapoint,greenup,fall,phendoy1,casapftfile)
+    call cbmparm(ivs,svs,vlin,casapoint,greenup,fall,phendoy1,casapftfile)
     ! albvisnir at this point holds net albedo
   end if
 end if
@@ -1570,7 +1571,7 @@ if (nmlo/=0.and.abs(nmlo)<=9) then
   elsewhere
     depth=max(depth,2.*minwater)
   end where
-  call mloinit(ifull,depth,0)
+  call mloinit(ifull,depth,f,0)
 end if
 
 !-----------------------------------------------------------------
