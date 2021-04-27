@@ -6213,7 +6213,6 @@ use cc_mpi
 implicit none
 
 integer k
-real(kind=8), dimension(mp_global) :: dat8
 real, dimension(mp_global), intent(in) :: old_sv
 
 if ( mp_global>0 ) then
@@ -6223,26 +6222,18 @@ if ( mp_global>0 ) then
     ! assume common soil texture and soil heat capacity
     do k = 1,ms
       call redistribute_work(old_sv,ssnow%tgg(:,k))
-      dat8 = ssnow%wb(:,k)
-      call redistribute_work(old_sv,dat8)
-      ssnow%wb(:,k) = dat8
-      dat8 = ssnow%wbice(:,k) 
-      call redistribute_work(old_sv,dat8)
-      ssnow%wbice(:,k) = dat8
+      call redistribute_work(old_sv,ssnow%wb(:,k))
+      call redistribute_work(old_sv,ssnow%wbice(:,k))
     end do
     if ( any(ssnow%tgg>400.) ) then
       write(6,*) "ERROR: Invalid temperature for CABLE redistribute_tile"
       write(6,*) "ssnow%tgg ",maxval(ssnow%tgg)
       call ccmpi_abort(-1)
     end if  
-    dat8 = ssnow%GWwb
-    call redistribute_work(old_sv,dat8)
-    ssnow%GWwb = dat8
+    call redistribute_work(old_sv,ssnow%GWwb)
     if ( soil_struc==1 ) then
       do k = 1,ms
-        dat8 = ssnow%tsoil(:,k)
-        call redistribute_work(old_sv,dat8)
-        ssnow%tsoil(:,k) = dat8
+        call redistribute_work(old_sv,ssnow%tsoil(:,k))
       end do
     end if
     !do k = 1,3

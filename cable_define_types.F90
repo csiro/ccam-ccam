@@ -43,7 +43,11 @@ MODULE cable_def_types_mod
 
   INTEGER, PARAMETER ::                                                        &
        i_d  = KIND(9), &
+#ifndef CCAM
        r_2  = KIND(1.d0),&!SELECTED_REAL_KIND(12, 50), &
+#else
+       r_2  = kind(1._8), &
+#endif
        n_tiles = 17,  & ! # possible no of different
        ncp = 3,       & ! # vegetation carbon stores
        ncs = 2,       & ! # soil carbon stores
