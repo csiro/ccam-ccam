@@ -522,8 +522,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   
   ! MISC (PARALLEL) -------------------------------------------------------
-!$omp parallel
-!$omp do schedule(static) private(js,je)
+  !$omp parallel
+  !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
@@ -547,102 +547,102 @@ do ktau = 1,ntau   ! ****** start of main time loop
     je = tile*imax
     call nantest("start of physics",js,je)
   end do  
-!$omp end do nowait
+  !$omp end do nowait
 
   
   ! GWDRAG ----------------------------------------------------------------
-!$omp master
+  !$omp master
   call START_LOG(gwdrag_begin)
-!$omp end master
+  !$omp end master
   if ( ngwd<0 ) then
     call gwdrag  ! <0 for split - only one now allowed
   end if
-!$omp do schedule(static) private(js,je)
+  !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
     call nantest("after gravity wave drag",js,je)
   end do  
-!$omp end do nowait
-!$omp master
+  !$omp end do nowait
+  !$omp master
   call END_LOG(gwdrag_end)
-!$omp end master
+  !$omp end master
 
   
   ! CONVECTION ------------------------------------------------------------
-!$omp master
+  !$omp master
   call START_LOG(convection_begin)
-!$omp end master
-!$omp do schedule(static) private(js,je)
+  !$omp end master
+  !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
     convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) - t(js:je,1:kl)*real(nperday)/real(nperavg)        
   end do
-!$omp end do nowait
+  !$omp end do nowait
   ! Select convection scheme
   select case ( nkuo )
     case(5)
-!$omp barrier  
-!$omp single  
+      !$omp barrier  
+      !$omp single  
       call betts(t,qg,tn,land,ps) ! not called these days
-!$omp end single
+      !$omp end single
     case(21,22)
       call convjlm22              ! split convjlm 
     case(23,24)
       call convjlm                ! split convjlm 
   end select
-!$omp do schedule(static) private(js,je)
+  !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
     call fixqg(js,je)
     call nantest("after convection",js,je)
   end do  
-!$omp end do nowait
-!$omp master
+  !$omp end do nowait
+  !$omp master
   call END_LOG(convection_end)
-!$omp end master
+  !$omp end master
 
   
   ! CLOUD MICROPHYSICS ----------------------------------------------------
-!$omp master
+  !$omp master
   call START_LOG(cloud_begin)
-!$omp end master
+  !$omp end master
   if ( ldr/=0 ) then
     ! LDR microphysics scheme
     call leoncld
   end if
-!$omp do schedule(static) private(js,je)
+  !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
     convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) + t(js:je,1:kl)*real(nperday)/real(nperavg)    
     call nantest("after cloud microphysics",js,je) 
   end do  
-!$omp end do nowait
-!$omp master    
+  !$omp end do nowait
+  !$omp master    
   call END_LOG(cloud_end)
-!$omp end master
+  !$omp end master
     
     
   ! RADIATION -------------------------------------------------------------
-!$omp master
+  !$omp master
   call START_LOG(radnet_begin)
-!$omp end master
+  !$omp end master
   if ( ncloud>=4 ) then
-!$omp do schedule(static) private(js,je)
+    !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
       nettend(js:je,1:kl) = nettend(js:je,1:kl) + t(js:je,1:kl)/dt
     end do
-!$omp end do nowait
+    !$omp end do nowait
   end if   ! (ncloud>=4)
   select case ( nrad )
     case(4)
-!$omp barrier  
-!$omp single  
+      !$omp barrier  
+      !$omp single  
       ! Fels-Schwarzkopf radiation
       if ( nhstest<0 ) then    ! aquaplanet test -1 to -8  
         mtimer_sav = mtimer
@@ -652,31 +652,31 @@ do ktau = 1,ntau   ! ****** start of main time loop
       else
         call radrive(il*nrows_rad)  
       end if    ! (nhstest<0)
-!$omp end single
+      !$omp end single
     case(5)
       ! GFDL SEA-EFS radiation
       call seaesfrad(koundiag)
     case DEFAULT
       ! use preset slwa array (use +ve nrad)
-!$omp do schedule(static) private(js,je)
+      !$omp do schedule(static) private(js,je)
       do tile = 1,ntiles
         js = (tile-1)*imax + 1
         je = tile*imax
         slwa(js:je) = -real(10*nrad)
       end do
-!$omp end do nowait
+      !$omp end do nowait
   end select
-!$omp do schedule(static) private(js,je)  
+  !$omp do schedule(static) private(js,je)  
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
     t(js:je,1:kl) = t(js:je,1:kl) - dt*(sw_tend(js:je,1:kl)+lw_tend(js:je,1:kl))
     call nantest("after radiation",js,je)    
   end do
-!$omp end do nowait
-!$omp master
+  !$omp end do nowait
+  !$omp master
   call END_LOG(radnet_end)
-!$omp end master
+  !$omp end master
 
     
   ! HELD & SUAREZ ---------------------------------------------------------
@@ -687,9 +687,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
     
   ! SURFACE FLUXES ---------------------------------------------
   ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
-!$omp master
+  !$omp master
   call START_LOG(sfluxnet_begin)
-!$omp end master
+  !$omp end master
   if ( diag .and. ntiles==1 ) then
     call maxmin(u,'#u',ktau,1.,kl)
     call maxmin(v,'#v',ktau,1.,kl)
@@ -699,98 +699,98 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( ntsur>1 ) then
     call sflux
   endif   ! (ntsur>1)    
-!$omp do schedule(static) private(js,je)  
+  !$omp do schedule(static) private(js,je)  
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax 
     call nantest("after surface fluxes",js,je)
   end do  
-!$omp end do nowait
-!$omp master
+  !$omp end do nowait
+  !$omp master
   call END_LOG(sfluxnet_end)
-!$omp end master
+  !$omp end master
 
 
   ! AEROSOLS --------------------------------------------------------------
   ! MJT notes - aerosols called before vertical mixing so that convective
   ! and strat cloud can be separated in a way that is consistent with
   ! cloud microphysics
-!$omp master
+  !$omp master
   call START_LOG(aerosol_begin)
-!$omp end master
+  !$omp end master
   if ( abs(iaero)>=2 ) then
     call aerocalc(oxidant_update,mins)
   end if
-!$omp do schedule(static) private(js,je)
+  !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax  
     call nantest("after aerosols",js,je)
   end do  
-!$omp end do nowait
-!$omp master
+  !$omp end do nowait
+  !$omp master
   call END_LOG(aerosol_end)
-!$omp end master
+  !$omp end master
     
     
   ! VERTICAL MIXING ------------------------------------------------------
-!$omp master
+  !$omp master
   call START_LOG(vertmix_begin)
   if ( nmaxpr==1 ) then
     if ( mydiag .and. ntiles==1 ) then
       write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
     end if
   end if
-!$omp end master
+  !$omp end master
   if ( ntsur>=1 ) then
     call vertmix
   endif  ! (ntsur>=1)
   if ( ncloud>=4 ) then
-!$omp do schedule(static) private(js,je)
+    !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
       nettend(js:je,1:kl) = nettend(js:je,1:kl) - t(js:je,1:kl)/dt
     end do
-!$omp end do nowait
+    !$omp end do nowait
   end if   ! (ncloud>=4)
-!$omp do schedule(static) private(js,je)
+  !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax  
     call fixqg(js,je)
     call nantest("after PBL mixing",js,je)
   end do  
-!$omp end do nowait
-!$omp master
+  !$omp end do nowait
+  !$omp master
   if ( nmaxpr==1 ) then
     if ( mydiag .and. ntiles==1 ) then
       write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
     end if
   end if
   call END_LOG(vertmix_end)
-!$omp end master
+  !$omp end master
 
 
   ! MISC (PARALLEL) -------------------------------------------------------
   ! Update diagnostics for consistancy in history file
-!$omp do schedule(static) private(js,je)
+  !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax  
     call fixsat(js,je) ! if qg_fix>1, then removes supersaturated qg
   end do  
-!$omp end do nowait
+  !$omp end do nowait
   if ( rescrn>0 ) then
-!$omp do schedule(static) private(js,je)
+    !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax  
       call autoscrn(js,je)
     end do
-!$omp end do nowait
+    !$omp end do nowait
   end if
-!$omp do schedule(static) private(js,je)
+  !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax  
@@ -804,9 +804,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end do
     rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
   end do  
-!$omp end do nowait
+  !$omp end do nowait
   
-!$omp end parallel
+  !$omp end parallel
 
 
   ! MISC (SINGLE) ---------------------------------------------------------
@@ -3089,7 +3089,7 @@ if ( nbd/=0 .or. mbd/=0 ) then
   end if
 end if
 ! Remaining arrays are allocated in indata.f90, since their
-! definition requires additional input data (e.g, land-surface)
+! dimension size requires additional input data (e.g, land-surface)
 
   
 !--------------------------------------------------------------
@@ -3331,7 +3331,7 @@ call printa('wb6  ',wb,0,ms,ia,ib,ja,jb,0.,100.)
 !--------------------------------------------------------------
 ! NRUN COUNTER
 if ( myid==0 ) then
-  open(11, file='nrun.dat',status='unknown')
+  open(11, file='nrun.dat', status='unknown')
   if ( nrun==0 ) then
     read(11,*,iostat=ierr) nrun
     nrun = nrun + 1
@@ -4206,6 +4206,7 @@ use screen_m                               ! Screen level diagnostics
 use sigs_m                                 ! Atmosphere sigma levels
 use soil_m                                 ! Soil and surface data
 use soilsnow_m                             ! Soil, snow and surface data
+use sumdd_m                                ! High precision sum
 use tracers_m                              ! Tracer data
 use vegpar_m                               ! Vegetation arrays
 use vvel_m                                 ! Additional vertical velocity
@@ -4219,7 +4220,9 @@ integer, intent(in) :: mins_gmt, nmaxprsav
 integer iq, k, isoil
 real, dimension(ifull,kl) :: dums
 real, dimension(kl) :: spmean
-real, dimension(9) :: temparray, gtemparray
+!real, dimension(9) :: temparray, gtemparray
+real, dimension(ifull) :: tmparr
+complex, dimension(9) :: local_sum, global_sum
 real qtot, pwater, es, psavge, spavge, pslavge
 real preccavge, precavge, gke, clhav, cllav
 real clmav, cltav
@@ -4327,27 +4330,46 @@ if ( mod(ktau,nmaxpr)==0 .or. ktau==ntau ) then
   call maxmin(sno,'sn',ktau,1.,1)        ! as mm during timestep
   call maxmin(rhscrn,'rh',ktau,1.,1)
   call maxmin(ps,'ps',ktau,.01,1)
-  psavge    = sum(ps(1:ifull)*wts(1:ifull))
-  pslavge   = sum(psl(1:ifull)*wts(1:ifull))
-  preccavge = sum(precc(1:ifull)*wts(1:ifull))
-  precavge  = sum(precip(1:ifull)*wts(1:ifull))
-  ! KE calculation, not taking into account pressure weighting
-  gke = 0.
+  ! MJT notes, these lines need SUMDD
+  local_sum(:) = cmplx(0.,0.)
+  tmparr(1:ifull) = ps(1:ifull)*wts(1:ifull)
+  call drpdr_local(tmparr, local_sum(1))
+  tmparr(1:ifull) = psl(1:ifull)*wts(1:ifull)
+  call drpdr_local(tmparr, local_sum(2))
+  tmparr(1:ifull) = precc(1:ifull)*wts(1:ifull)
+  call drpdr_local(tmparr, local_sum(3))
+  tmparr(1:ifull) = precip(1:ifull)*wts(1:ifull)
+  call drpdr_local(tmparr, local_sum(4))
+  ! KE calculation, not taking into account pressure weighting  
+  tmparr(1:ifull) = 0.
   do k = 1,kl
-    gke = gke - sum( 0.5 * wts(1:ifull) * dsig(k) * ( u(1:ifull,k)**2 + v(1:ifull,k)**2 ) )
+    tmparr(1:ifull) = tmparr(1:ifull) - 0.5 * wts(1:ifull) * dsig(k) * ( u(1:ifull,k)**2 + v(1:ifull,k)**2 )
   end do
-  cllav = sum(wts(1:ifull)*cloudlo(1:ifull))
-  clmav = sum(wts(1:ifull)*cloudmi(1:ifull))
-  clhav = sum(wts(1:ifull)*cloudhi(1:ifull))
-  cltav = sum(wts(1:ifull)*cloudtot(1:ifull))
-
+  call drpdr_local(tmparr, local_sum(5))
+  tmparr(1:ifull) = cloudlo(1:ifull)*wts(1:ifull)
+  call drpdr_local(tmparr, local_sum(6))
+  tmparr(1:ifull) = cloudmi(1:ifull)*wts(1:ifull)
+  call drpdr_local(tmparr, local_sum(7))  
+  tmparr(1:ifull) = cloudhi(1:ifull)*wts(1:ifull)
+  call drpdr_local(tmparr, local_sum(8))  
+  tmparr(1:ifull) = cloudtot(1:ifull)*wts(1:ifull)
+  call drpdr_local(tmparr, local_sum(9))    
   ! All this combined into a single reduction
-  temparray = (/ psavge, pslavge, preccavge, precavge, gke, cllav, clmav,clhav, cltav /)
-  call ccmpi_reduce(temparray(1:9),gtemparray(1:9),"sum",0,comm_world)
+  global_sum(:) = cmplx(0.,0.)
+  call ccmpi_allreduce( local_sum, global_sum, "sumdr", comm_world )
+  psavge    = real(global_sum(1))
+  pslavge   = real(global_sum(2))
+  preccavge = real(global_sum(3))
+  precavge  = real(global_sum(4))
+  gke       = real(global_sum(5))
+  cllav     = real(global_sum(6))
+  clmav     = real(global_sum(7))
+  clhav     = real(global_sum(8))
+  cltav     = real(global_sum(9))
   if ( myid==0 ) then
-    write(6,97) gtemparray(1:5) ! psavge,pslavge,preccavge,precavge,gke
+    write(6,97) psavge,pslavge,preccavge,precavge,gke
 97  format(' average ps, psl, precc, prec, gke: ',f10.2,f10.6,2f6.2,f7.2)
-    write(6,971) gtemparray(6:9) ! cllav,clmav,clhav,cltav
+    write(6,971) cllav,clmav,clhav,cltav
 971 format(' global_average cll, clm, clh, clt: ',4f6.2)
   end if
   if ( mydiag ) then
