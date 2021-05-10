@@ -153,6 +153,10 @@ if ( myid==0 .or. pfall ) then
         rlong0x  = ahead(6)
         rlat0x   = ahead(7)
         schmidtx = ahead(8)
+        if ( schmidtx<=0. .or. schmidtx>1. ) then
+          write(6,*) "ERROR: Invalid schmidt in input file"
+          call ccmpi_abort(-1)
+        end if  
       endif  ! (schmidtx<=0..or.schmidtx>1.)
     end if   ! ierx==0 ..else..
     call ccnf_get_attg(ncid,'version',versionstring,ierr=ierx)
@@ -290,7 +294,7 @@ if ( myid==0 ) write(6,*) "Leaving onthefly"
 call END_LOG(onthefly_end)
 
 return
-                    end subroutine onthefly
+end subroutine onthefly
 
 
 ! *****************************************************************************
