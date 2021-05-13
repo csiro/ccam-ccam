@@ -315,7 +315,7 @@ do iq_tile = 1,ifull,imax
       if ( nmlo==0 ) then ! prescribed SSTs
         ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
         ! J. Clim. and Appl. Met., v. 27, 214-226)
-        where ( .not.land(istart:iend) .and. coszro>=0. )
+        where ( .not.land(istart:iend) .and. coszro>0. )
           cuvrf_dir(1:imax) = 0.026/(coszro**1.7+0.065)                 &
             + 0.15*(coszro-0.1)*(coszro-0.5)*(coszro-1.)
         elsewhere ( .not.land(istart:iend) )
