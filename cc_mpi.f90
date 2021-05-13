@@ -467,8 +467,7 @@ module cc_mpi
    integer, parameter :: nevents = 88
 #ifdef simple_timer
    public :: simple_timer_finalize
-   !real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
-   integer(kind=8), dimension(nevents), save :: tot_time = 0_8, start_time
+   real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
 #endif
    character(len=15), dimension(nevents), save :: event_name
    real, save, public :: mpiinit_time, total_time
@@ -6737,22 +6736,18 @@ contains
       VT_USER_START(event_name(event))
 #endif
 #ifdef simple_timer
-      !start_time(event) = MPI_Wtime()
-      call system_clock( start_time(event) ) 
+      start_time(event) = MPI_Wtime()
 #endif 
    end subroutine start_log
 
    subroutine end_log ( event )
       integer, intent(in) :: event
-      integer(kind=8) :: end_time
       if ( ccomp_get_thread_num() /= 0 ) return
 #ifdef vampir
       VT_USER_END(event_name(event))
 #endif
 #ifdef simple_timer
-      !tot_time(event) = tot_time(event) + MPI_Wtime() - start_time(event)
-      call system_clock( end_time )
-      tot_time(event) = tot_time(event) + (end_time-start_time(event))
+      tot_time(event) = tot_time(event) + MPI_Wtime() - start_time(event)
 #endif 
    end subroutine end_log
 
@@ -6897,7 +6892,6 @@ contains
       integer :: i
       integer(kind=4) :: ierr, llen, lcomm
       real(kind=8), dimension(nevents) :: emean, emax, emin
-      real(kind=8), dimension(nevents) :: tot_time_r
       real, dimension(2) :: time_l, time_mean, time_max, time_min
       
       llen = nevents
@@ -6905,12 +6899,11 @@ contains
       emean = 0._8
       emax = 0._8
       emin = 0._8
-      tot_time_r = real(tot_time,8)/1000000.
-      call MPI_Reduce(tot_time_r, emean, llen, MPI_DOUBLE_PRECISION, &
+      call MPI_Reduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, 0_4, lcomm, ierr )
-      call MPI_Reduce(tot_time_r, emax, llen, MPI_DOUBLE_PRECISION,  &
+      call MPI_Reduce(tot_time, emax, llen, MPI_DOUBLE_PRECISION,  &
                       MPI_MAX, 0_4, lcomm, ierr )
-      call MPI_Reduce(tot_time_r, emin, llen, MPI_DOUBLE_PRECISION,  &
+      call MPI_Reduce(tot_time, emin, llen, MPI_DOUBLE_PRECISION,  &
                       MPI_MIN, 0_4, lcomm, ierr )
       if ( myid == 0 ) then
          write(6,*) "==============================================="
