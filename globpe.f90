@@ -3557,19 +3557,19 @@ newnproc = nproc_low
 nxp = nxp_test
 nyp = nyp_test
 
-! try uniform decomposition
-do nproc_low = nproc,1,-1
-  call proctest_uniform(npanels,il_g,nproc_low,nxp_test,nyp_test)
-  if ( nxp_test>0 ) exit
-end do
-
-! chose decomposition based on the larger number of processes
-if ( nproc_low>newnproc ) then
-  uniform_test = .true.
-  newnproc = nproc_low
-  nxp = nxp_test
-  nyp = nyp_test
-end if
+!! try uniform decomposition
+!do nproc_low = nproc,1,-1
+!  call proctest_uniform(npanels,il_g,nproc_low,nxp_test,nyp_test)
+!  if ( nxp_test>0 ) exit
+!end do
+!
+!! chose decomposition based on the larger number of processes
+!if ( nproc_low>newnproc ) then
+!  uniform_test = .true.
+!  newnproc = nproc_low
+!  nxp = nxp_test
+!  nyp = nyp_test
+!end if
 
 return
 end subroutine reducenproc
