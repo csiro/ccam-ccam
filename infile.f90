@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1284,15 +1284,15 @@ if ( myid==0 ) then
     ptest = .false.
     if ( nproc==fnproc ) then
       if ( pil_g==il_g .and. pjl_g==jl_g ) then
-        if ( uniform_decomp ) then
-          if ( dmode==3 ) then
-            ptest = .true.
-          end if
-        else
-          if ( dmode==1 ) then
-            ptest = .true.
-          end if
+        !if ( uniform_decomp ) then
+        !  if ( dmode==3 ) then
+        !    ptest = .true.
+        !  end if
+        !else
+        if ( dmode==1 ) then
+          ptest = .true.
         end if
+        !end if
       end if
     end if
 

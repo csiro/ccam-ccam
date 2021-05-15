@@ -58,7 +58,7 @@ module cc_mpi
    integer, parameter, public :: maxcolour = 2                             ! maximum number of colours for iterative solvers
    
    integer, save, private :: maxbuflen, maxvertlen                         ! bounds buffer size   
-   logical, save, public :: uniform_decomp                                 ! uniform decomposition flag
+   !logical, save, public :: uniform_decomp                                ! uniform decomposition flag
    logical, save, public :: mydiag                                         ! true if diagnostic point id, jd is in my region
    !$acc declare create(mydiag,ipan,jpan)
    
@@ -504,20 +504,20 @@ contains
       
       
       ! Decompose grid over processes
-      if ( uniform_decomp ) then
-         call proc_setup_uniform(id,jd,idjd)
-         ! may require two boundries from the same process
-         maxbuflen = (max(ipan,jpan)+4)*2*2*2*npan
+      !if ( uniform_decomp ) then
+      !   call proc_setup_uniform(id,jd,idjd)
+      !   ! may require two boundries from the same process
+      !   maxbuflen = (max(ipan,jpan)+4)*2*2*2*npan
+      !else
+      call proc_setup(id,jd,idjd)
+      if ( nproc < npanels+1 ) then
+         ! possible to have two boundaries from the same process 
+         maxbuflen = (il_g+4)*2*2*2*npan + 4
       else
-         call proc_setup(id,jd,idjd)
-         if ( nproc < npanels+1 ) then
-            ! possible to have two boundaries from the same process 
-            maxbuflen = (il_g+4)*2*2*2*npan + 4
-         else
-            ! only one boundary can be sent from a process 
-            maxbuflen = (max(ipan,jpan)+4)*2*2 + 4
-         end if    
-      end if
+         ! only one boundary can be sent from a process 
+         maxbuflen = (max(ipan,jpan)+4)*2*2 + 4
+      end if    
+      !end if
       maxvertlen = max( kl, ol, 15 )
 !$acc update device(mydiag,ipan,jpan)
       
@@ -787,19 +787,19 @@ contains
       
       
       ! prepare comm groups - used by scale-selective filter
-      if ( uniform_decomp ) then
-         npta = 6                     ! number of panels per processor
-         mproc = nproc                ! number of processors per panel
-         pprocn = 0                   ! start panel
-         pprocx = 5                   ! end panel
-         hproc = 0                    ! host processor for panel
-      else
-         npta = max( 6/nproc, 1 )     ! number of panels per processor
-         mproc = max( nproc/6, 1 )    ! number of processors per panel
-         pprocn = myid*npta/mproc     ! start panel
-         pprocx = pprocn + npta - 1   ! end panel
-         hproc = pprocn*mproc/npta    ! host processor for panel
-      end if
+      !if ( uniform_decomp ) then
+      !   npta = 6                     ! number of panels per processor
+      !   mproc = nproc                ! number of processors per panel
+      !   pprocn = 0                   ! start panel
+      !   pprocx = 5                   ! end panel
+      !   hproc = 0                    ! host processor for panel
+      !else
+      npta = max( 6/nproc, 1 )     ! number of panels per processor
+      mproc = max( nproc/6, 1 )    ! number of processors per panel
+      pprocn = myid*npta/mproc     ! start panel
+      pprocx = pprocn + npta - 1   ! end panel
+      hproc = pprocn*mproc/npta    ! host processor for panel
+      !end if
 
       ! comm between work groups with captain hproc
       colour = hproc
@@ -841,29 +841,29 @@ contains
       integer :: slen
       
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do n = 1,npan
-               do j = 1,jpan
-                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                  slen = (j-1)*ipan + (n-1)*ipan*jpan
-                  sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
-               end do
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do n = 1,npan
+      !         do j = 1,jpan
+      !            iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !            slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !            sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do n = 1,npan
+            do j = 1,jpan
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+               slen = (j-1)*ipan + (n-1)*ipan*jpan
+               sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
             end do
          end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do n = 1,npan
-               do j = 1,jpan
-                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                  slen = (j-1)*ipan + (n-1)*ipan*jpan
-                  sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
       lsize = ifull
       lcomm = comm_world
@@ -908,29 +908,29 @@ contains
       integer :: slen
       
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do n = 1,npan
-               do j = 1,jpan
-                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                  slen = (j-1)*ipan + (n-1)*ipan*jpan
-                  sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
-               end do
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do n = 1,npan
+      !         do j = 1,jpan
+      !            iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !            slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !            sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do n = 1,npan
+            do j = 1,jpan
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+               slen = (j-1)*ipan + (n-1)*ipan*jpan
+               sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
             end do
          end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do n = 1,npan
-               do j = 1,jpan
-                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                  slen = (j-1)*ipan + (n-1)*ipan*jpan
-                  sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
       lsize = ifull
       lcomm = comm_world
@@ -975,29 +975,29 @@ contains
       integer :: slen
       
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do n = 1,npan
-               do j = 1,jpan
-                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                  slen = (j-1)*ipan + (n-1)*ipan*jpan
-                  sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
-               end do
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do n = 1,npan
+      !         do j = 1,jpan
+      !            iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !            slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !            sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do n = 1,npan
+            do j = 1,jpan
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+               slen = (j-1)*ipan + (n-1)*ipan*jpan
+               sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
             end do
          end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do n = 1,npan
-               do j = 1,jpan
-                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                  slen = (j-1)*ipan + (n-1)*ipan*jpan
-                  sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
       lsize = ifull
       lcomm = comm_world
@@ -1052,33 +1052,33 @@ contains
       kx = size(af,2)
 
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do k = 1,kx
-            do iproc = 0,nproc-1
-               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               do n = 1,npan
-                  do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
-                  end do
+      !if ( uniform_decomp ) then
+      !   do k = 1,kx
+      !      do iproc = 0,nproc-1
+      !         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !         do n = 1,npan
+      !            do j = 1,jpan
+      !               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !               slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !               sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do k = 1,kx
+         do iproc = 0,nproc-1
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            do n = 1,npan
+               do j = 1,jpan
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = (j-1)*ipan + (n-1)*ipan*jpan
+                  sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
                end do
             end do
          end do
-      else
-         do k = 1,kx
-            do iproc = 0,nproc-1
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               do n = 1,npan
-                  do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
-                  end do
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
       lsize = ifull*kx
       lcomm = comm_world
@@ -1145,33 +1145,33 @@ contains
       kx = size(af,2)
       
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do k = 1,kx 
-            do iproc = 0,nproc-1
-               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               do n = 1,npan
-                  do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
-                  end do
+      !if ( uniform_decomp ) then
+      !   do k = 1,kx 
+      !      do iproc = 0,nproc-1
+      !         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !         do n = 1,npan
+      !            do j = 1,jpan
+      !               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !               slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !               sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do k = 1,kx 
+         do iproc = 0,nproc-1
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            do n = 1,npan
+               do j = 1,jpan
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = (j-1)*ipan + (n-1)*ipan*jpan
+                  sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
                end do
             end do
          end do
-      else
-         do k = 1,kx 
-            do iproc = 0,nproc-1
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               do n = 1,npan
-                  do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
-                  end do
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
       lsize = ifull*kx
       lcomm = comm_world
@@ -1238,33 +1238,33 @@ contains
       kx = size(af,2)
 
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do k = 1,kx
-            do iproc = 0,nproc-1
-               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               do n = 1,npan
-                  do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
-                  end do
+      !if ( uniform_decomp ) then
+      !   do k = 1,kx
+      !      do iproc = 0,nproc-1
+      !         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !         do n = 1,npan
+      !            do j = 1,jpan
+      !               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !               slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !               sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do k = 1,kx
+         do iproc = 0,nproc-1
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            do n = 1,npan
+               do j = 1,jpan
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = (j-1)*ipan + (n-1)*ipan*jpan
+                  sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
                end do
             end do
          end do
-      else
-         do k = 1,kx
-            do iproc = 0,nproc-1
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               do n = 1,npan
-                  do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                     slen = (j-1)*ipan + (n-1)*ipan*jpan
-                     sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
-                  end do
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
       lsize = ifull*kx
       lcomm = comm_world
@@ -1339,37 +1339,37 @@ contains
       lx = size(af,3)
 
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do l = 1,lx 
-            do k = 1,kx
-               do iproc = 0,nproc-1
-                  call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-                  do n = 1,npan
-                     do j = 1,jpan
-                        iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                        slen = (j-1)*ipan + (n-1)*ipan*jpan
-                        sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
-                     end do   
-                  end do
+      !if ( uniform_decomp ) then
+      !   do l = 1,lx 
+      !      do k = 1,kx
+      !         do iproc = 0,nproc-1
+      !            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !            do n = 1,npan
+      !               do j = 1,jpan
+      !                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !                  slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !                  sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
+      !               end do   
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do l = 1,lx 
+         do k = 1,kx
+            do iproc = 0,nproc-1
+               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+               do n = 1,npan
+                  do j = 1,jpan
+                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                     slen = (j-1)*ipan + (n-1)*ipan*jpan
+                     sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
+                  end do   
                end do
             end do
          end do
-      else
-         do l = 1,lx 
-            do k = 1,kx
-               do iproc = 0,nproc-1
-                  call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-                  do n = 1,npan
-                     do j = 1,jpan
-                        iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                        slen = (j-1)*ipan + (n-1)*ipan*jpan
-                        sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
-                     end do   
-                  end do
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
       lsize = ifull*kx*lx
       lcomm = comm_world
@@ -1438,37 +1438,37 @@ contains
       lx = size(af,3)
       
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do l = 1,lx  
-            do k = 1,kx 
-               do iproc = 0,nproc-1
-                  call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-                  do n = 1,npan
-                     do j = 1,jpan
-                        iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                        slen = (j-1)*ipan + (n-1)*ipan*jpan
-                        sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
-                     end do   
-                  end do
+      !if ( uniform_decomp ) then
+      !   do l = 1,lx  
+      !      do k = 1,kx 
+      !         do iproc = 0,nproc-1
+      !            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !            do n = 1,npan
+      !               do j = 1,jpan
+      !                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !                  slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !                  sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
+      !               end do   
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do l = 1,lx  
+         do k = 1,kx 
+            do iproc = 0,nproc-1
+               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+               do n = 1,npan
+                  do j = 1,jpan
+                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                     slen = (j-1)*ipan + (n-1)*ipan*jpan
+                     sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
+                  end do   
                end do
             end do
          end do
-      else
-         do l = 1,lx  
-            do k = 1,kx 
-               do iproc = 0,nproc-1
-                  call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-                  do n = 1,npan
-                     do j = 1,jpan
-                        iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
-                        slen = (j-1)*ipan + (n-1)*ipan*jpan
-                        sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
-                     end do   
-                  end do
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
       lsize = ifull*kx*lx
       lcomm = comm_world
@@ -1537,31 +1537,31 @@ contains
       call END_LOG(gathercc_end)
 
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do n = 1,npan
-               do j = 1,jpan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                  iq = (j-1)*ipan + (n-1)*ipan*jpan
-                  ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
-               end do
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do n = 1,npan
+      !         do j = 1,jpan
+      !            ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !            iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !            iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !            ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do n = 1,npan
+            do j = 1,jpan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+               iq = (j-1)*ipan + (n-1)*ipan*jpan
+               ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
             end do
          end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do n = 1,npan
-               do j = 1,jpan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                  iq = (j-1)*ipan + (n-1)*ipan*jpan
-                  ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
    end subroutine host_gather2
    
@@ -1607,31 +1607,31 @@ contains
       call END_LOG(gathercc_end)
 
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do n = 1,npan
-               do j = 1,jpan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                  iq = (j-1)*ipan + (n-1)*ipan*jpan
-                  ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
-               end do
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do n = 1,npan
+      !         do j = 1,jpan
+      !            ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !            iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !            iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !            ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do n = 1,npan
+            do j = 1,jpan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+               iq = (j-1)*ipan + (n-1)*ipan*jpan
+               ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
             end do
          end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do n = 1,npan
-               do j = 1,jpan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                  iq = (j-1)*ipan + (n-1)*ipan*jpan
-                  ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
       
    end subroutine host_gather2r8
    
@@ -1686,35 +1686,35 @@ contains
       end if   
 
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                     iq = (j-1)*ipan + (n-1)*ipan*jpan
-                     ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
-                  end do
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do k = 1,kx
+      !         do n = 1,npan
+      !            do j = 1,jpan
+      !               ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !               iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !               ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do k = 1,kx
+            do n = 1,npan
+               do j = 1,jpan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+                  ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
                end do
             end do
          end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                     iq = (j-1)*ipan + (n-1)*ipan*jpan
-                     ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
-                  end do
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
    end subroutine host_gather3
    
@@ -1779,35 +1779,35 @@ contains
       end if  
 
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                     iq = (j-1)*ipan + (n-1)*ipan*jpan
-                     ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
-                  end do
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do k = 1,kx
+      !         do n = 1,npan
+      !            do j = 1,jpan
+      !               ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !               iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !               ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do k = 1,kx
+            do n = 1,npan
+               do j = 1,jpan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+                  ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
                end do
             end do
          end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                     iq = (j-1)*ipan + (n-1)*ipan*jpan
-                     ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
-                  end do
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
    end subroutine host_gather3r8
    
@@ -1873,39 +1873,39 @@ contains
       end if   
 
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do l = 1,lx
-               do k = 1,kx
-                  do n = 1,npan
-                     do j = 1,jpan
-                        ! Global indices are i+ipoff, j+jpoff, n-npoff
-                        iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                        iq = (j-1)*ipan + (n-1)*ipan*jpan
-                        ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
-                     end do  
-                  end do
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do l = 1,lx
+      !         do k = 1,kx
+      !            do n = 1,npan
+      !               do j = 1,jpan
+      !                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !                  ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
+      !               end do  
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do l = 1,lx
+            do k = 1,kx
+               do n = 1,npan
+                  do j = 1,jpan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                     iq = (j-1)*ipan + (n-1)*ipan*jpan
+                     ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
+                  end do   
                end do
             end do
          end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do l = 1,lx
-               do k = 1,kx
-                  do n = 1,npan
-                     do j = 1,jpan
-                        ! Global indices are i+ipoff, j+jpoff, n-npoff
-                        iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                        iq = (j-1)*ipan + (n-1)*ipan*jpan
-                        ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
-                     end do   
-                  end do
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
    end subroutine host_gather4
    
@@ -1972,39 +1972,39 @@ contains
       end if   
 
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do l = 1,lx
-               do k = 1,kx
-                  do n = 1,npan
-                     do j = 1,jpan
-                        ! Global indices are i+ipoff, j+jpoff, n-npoff
-                        iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                        iq = (j-1)*ipan + (n-1)*ipan*jpan
-                        ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
-                     end do   
-                  end do
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do l = 1,lx
+      !         do k = 1,kx
+      !            do n = 1,npan
+      !               do j = 1,jpan
+      !                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !                  ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
+      !               end do   
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do l = 1,lx
+            do k = 1,kx
+               do n = 1,npan
+                  do j = 1,jpan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                     iq = (j-1)*ipan + (n-1)*ipan*jpan
+                     ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
+                  end do   
                end do
             end do
          end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do l = 1,lx
-               do k = 1,kx
-                  do n = 1,npan
-                     do j = 1,jpan
-                        ! Global indices are i+ipoff, j+jpoff, n-npoff
-                        iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                        iq = (j-1)*ipan + (n-1)*ipan*jpan
-                        ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
-                     end do   
-                  end do
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
    end subroutine host_gather4r8
    
@@ -2060,31 +2060,31 @@ contains
       call END_LOG(allgathercc_end)
 
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do n = 1,npan
-               do j = 1,jpan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                  iq = (j-1)*ipan + (n-1)*ipan*jpan
-                  ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
-               end do
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do n = 1,npan
+      !         do j = 1,jpan
+      !            ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !            iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !            iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !            ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do n = 1,npan
+            do j = 1,jpan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+               iq = (j-1)*ipan + (n-1)*ipan*jpan
+               ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
             end do
          end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do n = 1,npan
-               do j = 1,jpan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                  iq = (j-1)*ipan + (n-1)*ipan*jpan
-                  ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
    end subroutine ccmpi_gatherall2
    
@@ -2118,35 +2118,35 @@ contains
       end if   
 
       ! map array in order of processor rank
-      if ( uniform_decomp ) then
-         do iproc = 0,nproc-1
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                     iq = (j-1)*ipan + (n-1)*ipan*jpan
-                     ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
-                  end do
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do k = 1,kx
+      !         do n = 1,npan
+      !            do j = 1,jpan
+      !               ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !               iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !               ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do k = 1,kx
+            do n = 1,npan
+               do j = 1,jpan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+                  ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
                end do
             end do
          end do
-      else
-         do iproc = 0,nproc-1
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            do k = 1,kx
-               do n = 1,npan
-                  do j = 1,jpan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
-                     iq = (j-1)*ipan + (n-1)*ipan*jpan
-                     ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
-                  end do
-               end do
-            end do
-         end do
-      end if
+      end do
+      !end if
 
    end subroutine ccmpi_gatherall3
 
@@ -2203,47 +2203,47 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
-      if ( uniform_decomp ) then
-         do while ( rcount > 0 )
-            call START_LOG(mpiwaitmap_begin) 
-            call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
-            call END_LOG(mpiwaitmap_end)
-            rcount = rcount - ldone
-            do jproc = 1,ldone
-               w = rlist(donelist(jproc))
-               iproc = specmap_recv(w)
-               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
-               do n = 1,npan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iq = (n-1)*ipan*jpan
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
-                     reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
-               end do
-            end do
-         end do   
-      else
-         do while ( rcount > 0 )
-            call START_LOG(mpiwaitmap_begin) 
-            call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
-            call END_LOG(mpiwaitmap_end)
-            rcount = rcount - ldone
-            do jproc = 1,ldone
-               w = rlist(donelist(jproc))
-               iproc = specmap_recv(w)
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
-               do n = 1,npan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iq = (n-1)*ipan*jpan
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
-                     reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
-               end do
+      !if ( uniform_decomp ) then
+      !   do while ( rcount > 0 )
+      !      call START_LOG(mpiwaitmap_begin) 
+      !      call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+      !      call END_LOG(mpiwaitmap_end)
+      !      rcount = rcount - ldone
+      !      do jproc = 1,ldone
+      !         w = rlist(donelist(jproc))
+      !         iproc = specmap_recv(w)
+      !         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !         ipak = ipoff/ipan
+      !         jpak = jpoff/jpan
+      !         do n = 1,npan
+      !            ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !            iq = (n-1)*ipan*jpan
+      !            globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+      !               reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+      !         end do
+      !      end do
+      !   end do   
+      !else
+      do while ( rcount > 0 )
+         call START_LOG(mpiwaitmap_begin) 
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+         call END_LOG(mpiwaitmap_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            w = rlist(donelist(jproc))
+            iproc = specmap_recv(w)
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            ipak = ipoff/ipan
+            jpak = jpoff/jpan
+            do n = 1,npan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iq = (n-1)*ipan*jpan
+               globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+                  reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
             end do
          end do
-      end if
+      end do
+      !end if
       
       sreq = nreq - rreq
       if ( sreq > 0 ) then
@@ -2309,51 +2309,51 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
-      if ( uniform_decomp ) then
-         do while ( rcount > 0 )
-            call START_LOG(mpiwaitmap_begin) 
-            call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
-            call END_LOG(mpiwaitmap_end)
-            rcount = rcount - ldone
-            do jproc = 1,ldone
-               w = rlist(donelist(jproc))        
-               iproc = specmap_recv(w)
-               call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
-               do k = 1,kx
-                  do n = 1,npan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iq = (n-1)*ipan*jpan + (k-1)*ifull
-                     globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
-                        reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
-                  end do
-               end do
-            end do
-         end do   
-      else
-         do while ( rcount > 0 )
-            call START_LOG(mpiwaitmap_begin) 
-            call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
-            call END_LOG(mpiwaitmap_end)
-            rcount = rcount - ldone
-            do jproc = 1,ldone
-               w = rlist(donelist(jproc))
-               iproc = specmap_recv(w)
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
-               do k = 1,kx
-                  do n = 1,npan
-                     ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iq = (n-1)*ipan*jpan + (k-1)*ifull
-                     globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
-                       reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
-                  end do
+      !if ( uniform_decomp ) then
+      !   do while ( rcount > 0 )
+      !      call START_LOG(mpiwaitmap_begin) 
+      !      call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+      !      call END_LOG(mpiwaitmap_end)
+      !      rcount = rcount - ldone
+      !      do jproc = 1,ldone
+      !         w = rlist(donelist(jproc))        
+      !         iproc = specmap_recv(w)
+      !         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !         ipak = ipoff/ipan
+      !         jpak = jpoff/jpan
+      !         do k = 1,kx
+      !            do n = 1,npan
+      !               ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !               iq = (n-1)*ipan*jpan + (k-1)*ifull
+      !               globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+      !                  reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+      !            end do
+      !         end do
+      !      end do
+      !   end do   
+      !else
+      do while ( rcount > 0 )
+         call START_LOG(mpiwaitmap_begin) 
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+         call END_LOG(mpiwaitmap_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            w = rlist(donelist(jproc))
+            iproc = specmap_recv(w)
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            ipak = ipoff/ipan
+            jpak = jpoff/jpan
+            do k = 1,kx
+               do n = 1,npan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iq = (n-1)*ipan*jpan + (k-1)*ifull
+                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+                    reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
                end do
             end do
          end do
-      end if
+      end do
+      !end if
       
       sreq = nreq - rreq
       if ( sreq > 0 ) then
@@ -2526,31 +2526,31 @@ contains
       integer :: ipoff, jpoff, npoff
    
       ncount = size(specmap_recv)
-      if ( uniform_decomp ) then
-         do w = 1,ncount
-            iproc = specmap_recv(w)
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
-            do n = 1,npan
-               ! Global indices are i+ipoff, j+jpoff, n-npoff
-               globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefout+1:krefout+kx) = &
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
-            end do
+      !if ( uniform_decomp ) then
+      !   do w = 1,ncount
+      !      iproc = specmap_recv(w)
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      ipak = ipoff/ipan
+      !      jpak = jpoff/jpan
+      !      do n = 1,npan
+      !         ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !         globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefout+1:krefout+kx) = &
+      !            globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
+      !      end do
+      !   end do
+      !else
+      do w = 1,ncount
+         iproc = specmap_recv(w)
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         ipak = ipoff/ipan
+         jpak = jpoff/jpan
+         do n = 1,npan
+            ! Global indices are i+ipoff, j+jpoff, n-npoff
+            globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefout+1:krefout+kx) = &
+               globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
          end do
-      else
-         do w = 1,ncount
-            iproc = specmap_recv(w)
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
-            do n = 1,npan
-               ! Global indices are i+ipoff, j+jpoff, n-npoff
-               globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefout+1:krefout+kx) = &
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
-            end do
-         end do
-      end if
+      end do
+      !end if
    
    end subroutine copyglobalpack
 
@@ -2603,31 +2603,31 @@ contains
       ! allocate globalpack arrays for 1D scale-selective filter
       allocate(globalpack(0:nxproc-1,0:nyproc-1,0:5))
       ncount = size(specmap_ext)
-      if ( uniform_decomp ) then
-         do w = 1,ncount
-            iproc = specmap_ext(w)
-            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
-            ! Global indices are i+ipoff, j+jpoff, n-npoff
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
-            do n = 1,npan
-               allocate(globalpack(ipak,jpak,n-npoff)%localdata(ipan,jpan,0:kx))
-               globalpack(ipak,jpak,n-npoff)%localdata = 0.
-            end do
+      !if ( uniform_decomp ) then
+      !   do w = 1,ncount
+      !      iproc = specmap_ext(w)
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !      ipak = ipoff/ipan
+      !      jpak = jpoff/jpan
+      !      do n = 1,npan
+      !         allocate(globalpack(ipak,jpak,n-npoff)%localdata(ipan,jpan,0:kx))
+      !         globalpack(ipak,jpak,n-npoff)%localdata = 0.
+      !      end do
+      !   end do
+      !else
+      do w = 1,ncount
+         iproc = specmap_ext(w)
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         ! Global indices are i+ipoff, j+jpoff, n-npoff
+         ipak = ipoff/ipan
+         jpak = jpoff/jpan
+         do n = 1,npan
+            allocate(globalpack(ipak,jpak,n-npoff)%localdata(ipan,jpan,0:kx))
+            globalpack(ipak,jpak,n-npoff)%localdata = 0.
          end do
-      else
-         do w = 1,ncount
-            iproc = specmap_ext(w)
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            ! Global indices are i+ipoff, j+jpoff, n-npoff
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
-            do n = 1,npan
-               allocate(globalpack(ipak,jpak,n-npoff)%localdata(ipan,jpan,0:kx))
-               globalpack(ipak,jpak,n-npoff)%localdata = 0.
-            end do
-         end do
-      end if
+      end do
+      !end if
       
       deallocate(specmap_ext) ! not needed after allocation of global sparse arrays
    
@@ -6303,11 +6303,11 @@ contains
 
       ip = (i-1)/ipan
       jp = (j-1)/jpan
-      if ( uniform_decomp ) then
-         fpout = ip + jp*nxproc
-      else
-         fpout = ip + jp*nxproc + n*nxproc*nyproc/npan
-      end if
+      !if ( uniform_decomp ) then
+      !   fpout = ip + jp*nxproc
+      !else
+      fpout = ip + jp*nxproc + n*nxproc*nyproc/npan
+      !end if
    
    end function fproc
 
@@ -6453,42 +6453,42 @@ contains
 
    end subroutine proc_setup
 
-   subroutine proc_setup_uniform(id,jd,idjd)
-!     Routine to set up offsets etc for the uniform decomposition
-      integer :: i, j, n, nd, jdf, idjd_g
-      integer, intent(in) :: id, jd
-      integer, intent(out) :: idjd
-      integer, dimension(0:npanels) :: ipoff, jpoff
-
-      call dix_set( ipan, jpan, noff, ipoff, jpoff, npan, il_g, myid, nproc, nxproc, nyproc)
-      ioff = ipoff(0)
-      joff = jpoff(0)
-
-!     Check that the values calculated here match those set as parameters
-      if ( ipan /= il ) then
-         write(6,*) "Error, parameter mismatch, ipan /= il", ipan, il
-         call ccmpi_abort(-1)
-      end if
-      if ( jpan*npan /= jl ) then
-         write(6,*) "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
-         call ccmpi_abort(-1)
-      end if
-
-      ! Convert standard jd to a face index
-      nd = (jd-1)/il_g ! 0: to match fproc
-      jdf = jd - nd*il_g
-      mydiag = ( myid == fproc(id,jdf,nd) )
-      ! Convert global indices to ones on this processors region
-      idjd_g = id + (jd-1)*il_g
-      if ( mydiag ) then
-         call indv_mpi(idjd_g,i,j,n)
-         idjd = indp(i,j,n)
-      else
-         ! This should never be used so set a value that will give a bounds error
-         idjd = huge(1)
-      end if
-
-   end subroutine proc_setup_uniform
+!   subroutine proc_setup_uniform(id,jd,idjd)
+!!     Routine to set up offsets etc for the uniform decomposition
+!      integer :: i, j, n, nd, jdf, idjd_g
+!      integer, intent(in) :: id, jd
+!      integer, intent(out) :: idjd
+!      integer, dimension(0:npanels) :: ipoff, jpoff
+!
+!      call dix_set( ipan, jpan, noff, ipoff, jpoff, npan, il_g, myid, nproc, nxproc, nyproc)
+!      ioff = ipoff(0)
+!      joff = jpoff(0)
+!
+!!     Check that the values calculated here match those set as parameters
+!      if ( ipan /= il ) then
+!         write(6,*) "Error, parameter mismatch, ipan /= il", ipan, il
+!         call ccmpi_abort(-1)
+!      end if
+!      if ( jpan*npan /= jl ) then
+!         write(6,*) "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
+!         call ccmpi_abort(-1)
+!      end if
+!
+!      ! Convert standard jd to a face index
+!      nd = (jd-1)/il_g ! 0: to match fproc
+!      jdf = jd - nd*il_g
+!      mydiag = ( myid == fproc(id,jdf,nd) )
+!      ! Convert global indices to ones on this processors region
+!      idjd_g = id + (jd-1)*il_g
+!      if ( mydiag ) then
+!         call indv_mpi(idjd_g,i,j,n)
+!         idjd = indp(i,j,n)
+!      else
+!         ! This should never be used so set a value that will give a bounds error
+!         idjd = huge(1)
+!      end if
+!
+!   end subroutine proc_setup_uniform
 
    subroutine face_set(ipan_l, jpan_l, noff_l, ioff_l, joff_l, npan_l, il_gx, myid_l, nproc_l, nxproc_l, nyproc_l)
       integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
@@ -11998,7 +11998,7 @@ contains
    
    integer, parameter, public :: nagg = 3                                  ! maximum number of levels to aggregate for message
                                                                            ! passing
-   logical, save, public :: uniform_decomp                                 ! uniform decomposition flag
+   !logical, save, public :: uniform_decomp                                 ! uniform decomposition flag
    integer, save, public :: vnode_nproc, comm_vnode, vnode_myid
    integer, save, public :: vnode_vleaderid
    integer, save, public :: vleader_nproc, comm_vleader, vleader_myid

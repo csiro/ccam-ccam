@@ -996,7 +996,7 @@ if ( mg_maxlevel_local>0 ) then
     do i = 2,itrbgn
       do k = 1,kl
         ! post smoothing
-	do iq = 1,ng
+        do iq = 1,ng
           w(iq,k) = (mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
                    + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
                    - rhs(iq,k,g))/(helm(iq,k,g)-mg(g)%zz(iq))
@@ -1333,7 +1333,7 @@ do itr = 2,itr_mg
                       - rhs(iq,k,g) )/( helm(iq,k,g) - mg(g)%zz(iq) )
           end do
         end do
-	v(1:ng,1:klim,g) = w(1:ng,1:klim)
+        v(1:ng,1:klim,g) = w(1:ng,1:klim)
         call mgbounds(g,v(:,1:klim,g),klim=klim)
       end do
     
@@ -1440,7 +1440,7 @@ do itr = 2,itr_mg
                      - rhs(iq,k,g))/(helm(iq,k,g)-mg(g)%zz(iq))
           end do
         end do
-	v(1:ng,1:klim,g) = w(1:ng,1:klim)
+        v(1:ng,1:klim,g) = w(1:ng,1:klim)
       end do
 
       call mgbounds(g,v(:,1:klim,g),klim=klim) ! for next mgbcast
@@ -3824,13 +3824,13 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
 
   else if ( .not.lglob ) then ! collect all data to one processor
     lglob = .true.
-    if ( uniform_decomp ) then
-      mg(1)%merge_len = mxpr*mypr
-    else
-      mg(1)%merge_len = min( 6*mxpr*mypr, nproc )
-      mg(1)%npanx = 1
-      mg_npan = 6
-    end if
+    !if ( uniform_decomp ) then
+    !  mg(1)%merge_len = mxpr*mypr
+    !else
+    mg(1)%merge_len = min( 6*mxpr*mypr, nproc )
+    mg(1)%npanx = 1
+    mg_npan = 6
+    !end if
 
     mg(1)%merge_row = mxpr
     mg(1)%nmax = mg(1)%merge_len
@@ -3844,58 +3844,58 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
     end if
       
     ! find gather members
-    if ( uniform_decomp ) then
-      allocate( mg(1)%merge_list(mg(1)%merge_len) )
-      iqq = 0
+    !if ( uniform_decomp ) then
+    !  allocate( mg(1)%merge_list(mg(1)%merge_len) )
+    !  iqq = 0
+    !  do jj = 1,mil_g,hjpan
+    !    do ii = 1,mil_g,hipan
+    !      iqq = iqq + 1
+    !      mg(1)%merge_list(iqq) = mg_fproc(1,ii,jj,0)
+    !    end do
+    !  end do
+    !  if ( iqq/=mg(1)%merge_len ) then
+    !    write(6,*) "ERROR: merge_len mismatch ",iqq,mg(1)%merge_len,1
+    !    call ccmpi_abort(-1)
+    !  end if
+    !  mg(1)%merge_pos = -1
+    !  do i = 1,mg(1)%merge_len
+    !    if ( mg(1)%merge_list(i)==myid ) then
+    !      mg(1)%merge_pos = i
+    !      exit
+    !    end if
+    !  end do
+    !  if ( mg(1)%merge_pos<1 ) then
+    !    write(6,*) "ERROR: Invalid merge_pos g,pos ",1,mg(1)%merge_pos
+    !    call ccmpi_abort(-1)
+    !  end if
+    !else
+    allocate( mg(1)%merge_list(mg(1)%merge_len) )      
+    iqq = 0
+    do n = 1,6/npan
+      nn = (n-1)*npan
       do jj = 1,mil_g,hjpan
         do ii = 1,mil_g,hipan
           iqq = iqq + 1
-          mg(1)%merge_list(iqq) = mg_fproc(1,ii,jj,0)
+          mg(1)%merge_list(iqq) = mg_fproc(1,ii,jj,nn)
         end do
       end do
-      if ( iqq/=mg(1)%merge_len ) then
-        write(6,*) "ERROR: merge_len mismatch ",iqq,mg(1)%merge_len,1
-        call ccmpi_abort(-1)
-      end if
-      mg(1)%merge_pos = -1
-      do i = 1,mg(1)%merge_len
-        if ( mg(1)%merge_list(i)==myid ) then
-          mg(1)%merge_pos = i
-          exit
-        end if
-      end do
-      if ( mg(1)%merge_pos<1 ) then
-        write(6,*) "ERROR: Invalid merge_pos g,pos ",1,mg(1)%merge_pos
-        call ccmpi_abort(-1)
-      end if
-    else
-      allocate( mg(1)%merge_list(mg(1)%merge_len) )      
-      iqq = 0
-      do n = 1,6/npan
-        nn = (n-1)*npan
-        do jj = 1,mil_g,hjpan
-          do ii = 1,mil_g,hipan
-            iqq = iqq + 1
-            mg(1)%merge_list(iqq) = mg_fproc(1,ii,jj,nn)
-          end do
-        end do
-      end do
-      if ( iqq/=mg(1)%merge_len ) then
-        write(6,*) "ERROR: merge_len mismatch ",iqq,mg(1)%merge_len,1
-        stop
-      end if
-      mg(1)%merge_pos = -1
-      do i = 1,mg(1)%merge_len
-        if ( mg(1)%merge_list(i)==myid ) then
-          mg(1)%merge_pos=i
-          exit
-        end if
-      end do
-      if ( mg(1)%merge_pos<1 ) then
-        write(6,*) "ERROR: Invalid merge_pos g,pos ",1,mg(1)%merge_pos
-        call ccmpi_abort(-1)
-      end if
+    end do
+    if ( iqq/=mg(1)%merge_len ) then
+      write(6,*) "ERROR: merge_len mismatch ",iqq,mg(1)%merge_len,1
+      stop
     end if
+    mg(1)%merge_pos = -1
+    do i = 1,mg(1)%merge_len
+      if ( mg(1)%merge_list(i)==myid ) then
+        mg(1)%merge_pos=i
+        exit
+      end if
+    end do
+    if ( mg(1)%merge_pos<1 ) then
+      write(6,*) "ERROR: Invalid merge_pos g,pos ",1,mg(1)%merge_pos
+      call ccmpi_abort(-1)
+    end if
+    !end if
 
     ! modify mg_fproc for remaining processor
     mg(1)%procmap(:) = myid
@@ -3908,9 +3908,9 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
     if ( myid==0 ) then
       write(6,*) "--> Multi-grid toplevel                   ",1,mipan,mjpan
     end if
-    if ( .not.uniform_decomp ) then
-      mg(1)%npanx = 1  
-    end if
+    !if ( .not.uniform_decomp ) then
+    mg(1)%npanx = 1  
+    !end if
     mg(1)%merge_pos = 1
   end if
     
@@ -4090,13 +4090,13 @@ do g = 2,mg_maxlevel
     
     else if ( .not.lglob ) then ! collect all data to one processor
       lglob = .true.
-      if ( uniform_decomp ) then
-        mg(g)%merge_len = mxpr*mypr
-      else
-        mg(g)%merge_len = min( 6*mxpr*mypr, nproc )
-        mg(g)%npanx = 1
-        mg_npan = 6
-      end if
+      !if ( uniform_decomp ) then
+      !  mg(g)%merge_len = mxpr*mypr
+      !else
+      mg(g)%merge_len = min( 6*mxpr*mypr, nproc )
+      mg(g)%npanx = 1
+      mg_npan = 6
+      !end if
 
       mg(g)%merge_row = mxpr
       mg(g)%nmax = mg(g)%merge_len
@@ -4110,58 +4110,58 @@ do g = 2,mg_maxlevel
       end if
       
       ! find gather members
-      if ( uniform_decomp ) then
-        allocate( mg(g)%merge_list(mg(g)%merge_len) )
-        iqq = 0
+      !if ( uniform_decomp ) then
+      !  allocate( mg(g)%merge_list(mg(g)%merge_len) )
+      !  iqq = 0
+      !  do jj = 1,mil_g,hjpan
+      !    do ii = 1,mil_g,hipan
+      !      iqq = iqq + 1
+      !      mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,0)
+      !    end do
+      !  end do
+      !  if ( iqq/=mg(g)%merge_len ) then
+      !    write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
+      !    call ccmpi_abort(-1)
+      !  end if
+      !  mg(g)%merge_pos = -1
+      !  do i = 1,mg(g)%merge_len
+      !    if ( mg(g)%merge_list(i)==myid ) then
+      !      mg(g)%merge_pos = i
+      !      exit
+      !    end if
+      !  end do
+      !  if ( mg(g)%merge_pos<1 ) then
+      !    write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
+      !    call ccmpi_abort(-1)
+      !  end if
+      !else
+      allocate( mg(g)%merge_list(mg(g)%merge_len) )      
+      iqq = 0
+      do n = 1,6/npan
+        nn = (n-1)*npan
         do jj = 1,mil_g,hjpan
           do ii = 1,mil_g,hipan
             iqq = iqq + 1
-            mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,0)
+            mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,nn)
           end do
         end do
-        if ( iqq/=mg(g)%merge_len ) then
-          write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
-          call ccmpi_abort(-1)
-        end if
-        mg(g)%merge_pos = -1
-        do i = 1,mg(g)%merge_len
-          if ( mg(g)%merge_list(i)==myid ) then
-            mg(g)%merge_pos = i
-            exit
-          end if
-        end do
-        if ( mg(g)%merge_pos<1 ) then
-          write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
-          call ccmpi_abort(-1)
-        end if
-      else
-        allocate( mg(g)%merge_list(mg(g)%merge_len) )      
-        iqq = 0
-        do n = 1,6/npan
-          nn = (n-1)*npan
-          do jj = 1,mil_g,hjpan
-            do ii = 1,mil_g,hipan
-              iqq = iqq + 1
-              mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,nn)
-            end do
-          end do
-        end do
-        if ( iqq/=mg(g)%merge_len ) then
-          write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
-          stop
-        end if
-        mg(g)%merge_pos = -1
-        do i = 1,mg(g)%merge_len
-          if ( mg(g)%merge_list(i)==myid ) then
-            mg(g)%merge_pos=i
-            exit
-          end if
-        end do
-        if ( mg(g)%merge_pos<1 ) then
-          write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
-          call ccmpi_abort(-1)
-        end if
+      end do
+      if ( iqq/=mg(g)%merge_len ) then
+        write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
+        stop
       end if
+      mg(g)%merge_pos = -1
+      do i = 1,mg(g)%merge_len
+        if ( mg(g)%merge_list(i)==myid ) then
+          mg(g)%merge_pos=i
+          exit
+        end if
+      end do
+      if ( mg(g)%merge_pos<1 ) then
+        write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
+        call ccmpi_abort(-1)
+      end if
+      !end if
 
       ! modify mg_fproc for remaining processor
       mg(g)%procmap(:) = myid
@@ -4174,9 +4174,9 @@ do g = 2,mg_maxlevel
       if ( myid==0 ) then
         write(6,*) "--> Multi-grid toplevel                   ",g,mipan,mjpan
       end if
-      if ( .not.uniform_decomp ) then
-        mg(g)%npanx = 1  
-      end if
+      !if ( .not.uniform_decomp ) then
+      mg(g)%npanx = 1  
+      !end if
       mg(g)%merge_pos = 1
     end if
 
@@ -4212,7 +4212,8 @@ do g = 2,mg_maxlevel
   dcol = mjpan/ncol
   npanx = mg_npan
   
-  if ( .not.uniform_decomp .and. lglob ) then
+  !if ( .not.uniform_decomp .and. lglob ) then
+  if ( lglob ) then
     npanx = 1
     dcol = 6*mjpan/ncol
   end if

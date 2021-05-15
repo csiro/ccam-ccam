@@ -1262,6 +1262,6 @@ integer, parameter :: r16 = kind(1._16)
 integer, intent(in) :: kl
 real(kind=r16), dimension(kl), intent(out) :: sig
 real(kind=r16), dimension(kl+1), intent(in) :: sigmh
-sig(1:kl) = .5+r16*(sigmh(2:kl+1)+sigmh(1:kl))
+sig(1:kl) = .5_r16*(sigmh(2:kl+1)+sigmh(1:kl))
 return
 end subroutine sightosig

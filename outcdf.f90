@@ -1079,11 +1079,11 @@ if( myid==0 .or. local ) then
     if ( local ) then
       call ccnf_put_attg(idnc,'nproc',nproc)
       call ccnf_put_attg(idnc,'procmode',vnode_nproc)
-      if ( uniform_decomp ) then
-        call ccnf_put_attg(idnc,'decomp','uniform1')
-      else
-        call ccnf_put_attg(idnc,'decomp','face')
-      end if
+      !if ( uniform_decomp ) then
+      !  call ccnf_put_attg(idnc,'decomp','uniform1')
+      !else
+      call ccnf_put_attg(idnc,'decomp','face')
+      !end if
     endif           
 
 !   Sigma levels
@@ -3575,11 +3575,11 @@ if ( first ) then
     if ( local ) then
       call ccnf_put_attg(fncid,'nproc',nproc)
       call ccnf_put_attg(fncid,'procmode',vnode_nproc)
-      if ( uniform_decomp ) then
-        call ccnf_put_attg(fncid,'decomp','uniform1')
-      else
-        call ccnf_put_attg(fncid,'decomp','face')
-      end if
+      !if ( uniform_decomp ) then
+      !  call ccnf_put_attg(fncid,'decomp','uniform1')
+      !else
+      call ccnf_put_attg(fncid,'decomp','face')
+      !end if
     end if 
     ! define variables
     if ( local ) then

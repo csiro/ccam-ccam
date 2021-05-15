@@ -2612,9 +2612,8 @@ nsig    = nint(temparray(8))
 ! DEFINE newmpar VARIABLES AND DEFAULTS
 ! CCAM supports face and uniform grid decomposition over processes
 ! Face decomposition reduces the number of MPI messages, but only works for factors or multiples
-! of six processes.  Uniform decomposition is less restrictive on the number of processes, but
-! requires a larger number of MPI messages.
-call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp,uniform_decomp)
+! of six processes.
+call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp)
 call ccmpi_reinit(new_nproc) 
 call ccacc_init(node_myid,node_nproc)
 
@@ -2639,11 +2638,11 @@ if ( myid==0 ) then
   write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
   write(6,*) 'kl,ol                ',kl,ol
   write(6,*) 'lapsbot,isoth,nsig   ',lapsbot,isoth,nsig
-  if ( uniform_decomp ) then
-    write(6,*) "Using uniform grid decomposition"
-  else
-    write(6,*) "Using face grid decomposition"
-  end if
+  !if ( uniform_decomp ) then
+  !  write(6,*) "Using uniform grid decomposition"
+  !else
+  write(6,*) "Using face grid decomposition"
+  !end if
 end if
 jl_g    = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
 ifull_g = il_g*jl_g                           ! total number of global horizontal grid points
@@ -2656,11 +2655,11 @@ ifull   = il*jl                               ! total number of local horizontal
 ! The first row has 8 possible corner points per panel and the 
 ! second has 16. In practice these are not all distinct so there could
 ! be some optimisation.
-if ( uniform_decomp ) then
-  npan = npanels + 1               ! number of panels on this process
-else
-  npan = max(1, (npanels+1)/nproc) ! number of panels on this process
-end if
+!if ( uniform_decomp ) then
+!  npan = npanels + 1               ! number of panels on this process
+!else
+npan = max(1, (npanels+1)/nproc) ! number of panels on this process
+!end if
 iextra = (4*(il+jl)+24)*npan + 4   ! size of halo for MPI message passing
 call ccomp_ntiles
 if ( myid==0 ) then
@@ -3533,7 +3532,7 @@ end subroutine change_defaults
 
 !--------------------------------------------------------------
 ! Find valid nproc
-subroutine reducenproc(npanels,il_g,nproc,newnproc,nxp,nyp,uniform_test)
+subroutine reducenproc(npanels,il_g,nproc,newnproc,nxp,nyp)
 
 use cc_mpi                                 ! CC MPI routines
 
@@ -3542,13 +3541,13 @@ implicit none
 integer, intent(in) :: il_g, nproc, npanels
 integer, intent(out) :: newnproc, nxp, nyp
 integer nproc_low, nxp_test, nyp_test
-logical, intent(out) :: uniform_test
+!logical, intent(out) :: uniform_test
 
 nxp_test = 0
 nyp_test = 0
 
 ! try face decompositoin
-uniform_test = .false.
+!uniform_test = .false.
 do nproc_low = nproc,1,-1
   call proctest_face(npanels,il_g,nproc_low,nxp_test,nyp_test)
   if ( nxp_test>0 ) exit
