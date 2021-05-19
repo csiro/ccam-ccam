@@ -1235,33 +1235,3 @@ end if
 return
 end subroutine scaler
       
-subroutine sigtosigh(sig,sigmh,kl)
-implicit none
-#ifdef pgi
-integer, parameter :: r16 = kind(1._8)
-#else
-integer, parameter :: r16 = kind(1._16)
-#endif
-integer, intent(in) :: kl
-! these routines are written from top down
-real(kind=r16), dimension(kl), intent(in) :: sig
-real(kind=r16), dimension(kl+1), intent(out) :: sigmh
-sigmh(1)=1._r16
-sigmh(2:kl)=.5_r16*(sig(1:kl-1)+sig(2:kl))
-sigmh(kl+1)=0._r16
-return
-end subroutine sigtosigh
-      
-subroutine sightosig(sig,sigmh,kl)
-implicit none
-#ifdef pgi
-integer, parameter :: r16 = kind(1._8)
-#else
-integer, parameter :: r16 = kind(1._16)
-#endif
-integer, intent(in) :: kl
-real(kind=r16), dimension(kl), intent(out) :: sig
-real(kind=r16), dimension(kl+1), intent(in) :: sigmh
-sig(1:kl) = .5_r16*(sigmh(2:kl+1)+sigmh(1:kl))
-return
-end subroutine sightosig

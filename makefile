@@ -23,12 +23,35 @@ MPISPECIAL =
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
 endif
+ifeq ($(BROADWELL),yes)
+FHOST = -O3 -xCORE-AVX2 -fimf-use-svml
+FOVERRIDE = -qoverride-limits
+ZMM = -qopt-zmm-usage=high
+IPFLAG = -ip
+VTHRESH = -vec-threshold0
+endif
+ifeq ($(SKYLAKE),yes)
+FHOST = -O3 -xSKYLAKE-AVX512 -fimf-use-svml
+FOVERRIDE = -qoverride-limits
+ZMM = -qopt-zmm-usage=high
+IPFLAG = -ip
+VTHRESH = -vec-threshold0
+endif
 ifeq ($(CASCADELAKE),yes)
 FHOST = -O3 -xCASCADELAKE -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
 VTHRESH = -vec-threshold0
+endif
+ifeq ($(ZEN3),yes)
+FHOST = -O3 -axCORE-AVX2
+FOVERRIDE =
+ZMM =
+IPFLAG =
+IPOFLAG =
+VTHRESH =
+MPISPECIAL =
 endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
@@ -66,6 +89,17 @@ ZMM =
 IPFLAG =
 IPOFLAG =
 VTHRESH =
+ifeq ($(ZEN3),yes))
+FHOST =  -O3 -fstack-arrays -fallow-argument-mismatch -march=native -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
+MPIFLAG = -Dusempi3
+MPISPECIAL = -fallow-argument-mismatch
+FFLAGS = -O3 -ftree-vectorize -fstack-arrays -fallow-argument-mismatch -march=native -lmvec -Dgfortran $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
+FOVERRIDE = 
+ZMM = 
+IPFLAG = 
+IPOFLAG =
+VTHRESH =
+endif
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
