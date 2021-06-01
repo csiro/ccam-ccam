@@ -54,7 +54,6 @@ end interface esdiffx
 contains
 
 pure function tdiff_s(t_) result(ans)
-!$acc routine vector
 implicit none
 real, intent(in) :: t_
 real ans
@@ -63,7 +62,6 @@ ans=min(max( t_-123.16, 0.), 219.)
 end function tdiff_s
 
 pure function tdiff_v(t_,imax_) result(ans)
-!$acc routine vector
 implicit none
 integer, intent(in) :: imax_
 real, dimension(imax_), intent(in) :: t_
@@ -73,7 +71,6 @@ ans=min(max( t_-123.16, 0.), 219.)
 end function tdiff_v
 
 pure function tdiffx_s(tx_) result(ans)
-!$acc routine vector
 use const_phys
 implicit none
 real, intent(in) :: tx_
@@ -82,7 +79,6 @@ ans=min(max( tx_-tfrz, -40.), 1.)
 end function tdiffx_s
 
 pure function tdiffx_v(tx_,imax_) result(ans)
-!$acc routine vector
 use const_phys
 implicit none
 integer, intent(in) :: imax_
@@ -92,7 +88,6 @@ ans=min(max( tx_-tfrz, -40.), 1.)
 end function tdiffx_v
 
 pure function establ_s(t_) result(ans)
-!$acc routine vector
 implicit none
 integer tpos
 real, intent(in) :: t_
@@ -140,7 +135,6 @@ ans = (1.-tfrac)*table(tpos)+ tfrac*table(tpos+1)
 end function establ_s
 
 pure function establ_v(t_,imax_) result(ans)
-!$acc routine vector
 implicit none
 integer, intent(in) :: imax_
 real, dimension(imax_), intent(in) :: t_
@@ -189,7 +183,6 @@ ans = (1.-tfrac)*table(tpos)+ tfrac*table(tpos+1)
 end function establ_v
 
 pure function qsat_s(pp_,t_) result(ans)
-!$acc routine vector
 use const_phys
 implicit none
 real, intent(in) :: pp_, t_
@@ -202,7 +195,6 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 end function qsat_s
 
 pure function qsat_v(pp_,t_,imax_) result(ans)
-!$acc routine vector
 use const_phys
 implicit none
 integer, intent(in) :: imax_
@@ -216,7 +208,6 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 end function qsat_v
 
 pure function estabi_s(t_) result(ans)
-!$acc routine vector
 implicit none
 integer tpos
 real, intent(in) :: t_
@@ -262,7 +253,6 @@ ans = (1.-tfrac)*tablei(tpos)+ tfrac*tablei(tpos+1)
 end function estabi_s
 
 pure function estabi_v(t_,imax_) result(ans)
-!$acc routine vector
 implicit none
 integer, intent(in) :: imax_
 real, dimension(imax_), intent(in) :: t_
@@ -309,7 +299,6 @@ ans = (1.-tfrac)*tablei(tpos)+ tfrac*tablei(tpos+1)
 end function estabi_v
 
 pure function qsati_s(pp_,t_) result(ans)
-!$acc routine vector
 use const_phys
 implicit none
 real, intent(in) :: pp_, t_
@@ -322,7 +311,6 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 end function qsati_s
 
 pure function qsati_v(pp_,t_,imax_) result(ans)
-!$acc routine vector
 use const_phys
 implicit none
 integer, intent(in) :: imax_
@@ -336,7 +324,6 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 end function qsati_v
 
 pure function esdiffx_s(tx_) result(ans)
-!$acc routine vector
 implicit none
 integer tpos
 real, intent(in) :: tx_
@@ -355,7 +342,6 @@ ans = (1.-tfrac)*esdiff(tpos)+tfrac*esdiff(tpos+1)
 end function esdiffx_s
 
 pure function esdiffx_v(tx_,imax_) result(ans)
-!$acc routine vector
 implicit none
 integer, intent(in) :: imax_
 real, dimension(imax_), intent(in) :: tx_

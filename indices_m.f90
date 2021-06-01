@@ -49,14 +49,6 @@ integer, dimension(:), allocatable, save :: inu,iev,iwv,isu                 ! al
 integer, dimension(:), allocatable, save :: innu,ieev                       ! allvec.and.nrows=2
 integer, dimension(:), allocatable, save :: lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 integer, dimension(:), allocatable, save :: lssw,lsee,lsse,lnww,lnnw,lnee,lnne
-!$acc declare create(in,is,ie,iw)
-!$acc declare create(iws,ies,iwn,ien,isw,inw,ise,ine)
-!$acc declare create(inn,iss,iee,iww)
-!$acc declare create(inv,isv,ieu,iwu)
-!$acc declare create(innv,ieeu,issv,iwwu)
-!$acc declare create(inu,isu,iev,iwv)
-!$acc declare create(lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww)
-!$acc declare create(lssw,lsee,lsse,lnww,lnnw,lnee,lnne)
 integer, parameter, dimension(0:5) :: npann_g = (/ 1, 103, 3, 105, 5, 101 /)
 integer, parameter, dimension(0:5) :: npans_g = (/ 104, 0, 100, 2, 102, 4 /)
 integer, parameter, dimension(0:5) :: npane_g = (/ 102, 2, 104, 4, 100, 0 /)

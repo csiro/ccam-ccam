@@ -2315,7 +2315,7 @@ CONTAINS
                casaflux%Cnpp(npt)
           WRITE(*,*) 'dcplandt',  casapool%dcplantdt(npt,:), SUM(casapool%dcplantdt(npt,:))
           WRITE(*,*) 'rmplant, rgplant',  casaflux%crmplant(npt,:) , casaflux%crgplant(npt)
-          WRITE(*,*), 'dclabile',  casapool%dClabiledt(npt)* deltpool
+          WRITE(*,*) 'dclabile',  casapool%dClabiledt(npt)* deltpool
 
           !  STOP
        ENDIF

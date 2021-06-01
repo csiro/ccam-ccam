@@ -58,8 +58,6 @@ integer, save :: mtimea = -1  ! previous mesonest time (mins)
 integer, save :: mtimeb = -1  ! next mesonest time (mins)
 integer, save :: mtimec = -1
 integer, save :: wl = -1
-integer, save :: nest_iblock = 96
-!$acc declare create(nest_iblock)
 
 real, dimension(:), allocatable, save :: pslb, tssb, fraciceb
 real, dimension(:), allocatable, save :: psla, tssa
@@ -412,12 +410,6 @@ if ( mtimer>mtimeb ) then
     ! define vertical weights
     call setdavvertwgt
     mtimeb = 0
-    ! define nest_iblock
-    nest_iblock = max(maxtilesize,1)
-    do while ( mod(il_g,nest_iblock)/=0 )
-      nest_iblock = nest_iblock - 1
-    end do
-!$acc update device(nest_iblock)
   end if
   
   mtimea = mtimeb
@@ -780,13 +772,14 @@ use xyzinfo_m         ! Grid coordinate arrays
 implicit none
 
 integer, intent(in) :: klt
-integer iq, iqg, k, n, j, kltp1
+integer iq, iqg, k, n, j, kltp1, ii
 real, dimension(ifull,klt), intent(out) :: tbb
 real, dimension(ifull_g,klt), intent(in) :: tt
 real, dimension(ifull_g) :: xa, ya, za, sm ! large working array
-real, dimension(klt+1) :: local_sum
 real, intent(in) :: cq
 real, dimension(klt+1,ifull_g) :: tt_t
+real t1, t2, cat_t, e, ra
+complex, dimension(klt+1) :: clocal_sum
 
 ! evaluate the 2D convolution
 call START_LOG(nestcalc_begin)
@@ -803,26 +796,49 @@ do k = 1,klt
   tt_t(k,:) = tt(:,k)*sm
 end do
 tt_t(kltp1,:) = sm(:)
+#ifdef _OPENMP
 #ifdef GPU
-!$omp target teams distribute parallel do schedule(static) map(to:xa,ya,za,tt_t) map(from:tbb) private(iqg,iq,local_sum) &
-!$omp shared(cq,klt,kltp1,nest_iblock)
+!$omp target teams distribute parallel do schedule(static) map(to:xa,ya,za,tt_t) &
+!$omp   map(from:tbb) private(iqg,iq,n,j,k,clocal_sum,ii,ra,cat_t,t1,t2,e)
 #else
-!$omp parallel do schedule(static) private(iqg,iq,local_sum)
+!$omp parallel do schedule(static) private(iqg,iq,n,j,k,clocal_sum,ii,ra,cat_t,t1,t2,e)
 #endif
+#else
 !$acc parallel loop copyin(cq,klt,kltp1,xa,ya,za,tt_t) &
-!$acc   copyout(tbb) private(iq,iqg,local_sum,n,j)
+!$acc   copyout(tbb) private(iq,iqg,n,j,k,clocal_sum,ii,ra,cat_t,t1,t2,e)
+#endif
 do iq = 1,ifull
   n = 1 + (iq-1)/(ipan*jpan)  ! In range 1 .. npan
   j = 1 + ( iq - (n-1)*(ipan*jpan) - 1) / ipan
   iqg = iq - (j-1)*ipan - (n-1)*(ipan*jpan)
   ! apply low band pass filter
-  local_sum = drpdr_fast(iqg,cq,xa,ya,za,tt_t,ifull_g,kltp1,nest_iblock)
-  tbb(iq,1:klt) = local_sum(1:klt)/local_sum(kltp1)
+  do k = 1,kltp1   
+    clocal_sum(k) = (0.,0.)
+  end do
+  do ii = 1,ifull_g
+    ra = xa(iqg)*xa(ii) + ya(iqg)*ya(ii) + za(iqg)*za(ii)
+    ra = acos(max(min(ra, 1.), -1.))
+    ra = exp(-min((cq*ra)**2,50.))
+    do k = 1,kltp1
+      cat_t = ra*tt_t(k,ii)
+      t1 = cat_t + real(clocal_sum(k))
+      e  = t1 - cat_t
+      t2 = ((real(clocal_sum(k)) - e) + (cat_t - (t1 - e))) + aimag(clocal_sum(k))
+      clocal_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
+    end do  
+  end do
+  do k = 1,klt
+    tbb(iq,k) = real(clocal_sum(k))/real(clocal_sum(kltp1))
+  end do      
 end do
-!$acc end parallel loop
+#ifdef _OPENMP
 #ifdef GPU
+!$omp end target teams distribute parallel do
 #else
 !$omp end parallel do
+#endif
+#else
+!$acc end parallel loop
 #endif
 
 call END_LOG(nestcalc_end)
@@ -1208,22 +1224,24 @@ use xyzinfo_m          ! Grid coordinate arrays
 implicit none
       
 integer, intent(in) :: ppass, klt
-integer :: j, k, n, ipass
-integer :: jpoff, ibase
-integer :: me, ns, ne, os, oe
-integer :: til, a, b, c, sn, sy, jj, nn
-integer :: ibeg, iend, kltp1
+integer j, k, n, ipass
+integer jpoff, ibase
+integer me, ns, ne, os, oe
+integer til, a, b, c, sn, sy, jj, nn
+integer ibeg, iend, kltp1
+integer ii
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
+real ra, cat_t, e, t1, t2
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(il_g*ipan*(klt+1)) :: dd      ! subset of sparse array
 real, dimension(ipan*jpan*(klt+1),0:2) :: ff
 real, dimension(klt+1,ipan,jpan) :: ff_l
 real, dimension(il_g) :: at, asum             ! subset of sparse array
-real, dimension(klt+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za         ! subset of shared array
 real, dimension(klt+1,4*il_g,max(ipan,jpan)) :: at_t         ! subset of sparse array
+complex, dimension(klt+1) :: clocal_sum
       
 ! matched for panels 1,2 and 3
       
@@ -1277,24 +1295,49 @@ do ipass = 0,2
 #endif
     
   ! start convolution
+  ! (ifx crashes with pure function)
+#ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:jpan),ya(:,1:jpan),za(:,1:jpan),at_t(:,:,1:jpan)) &
-  !$omp  map(from:ff_l) private(j,n,nn) shared(me,os,cq,klt,kltp1,ipass,nest_iblock)
+  !$omp  map(from:ff_l) private(j,n,nn,k,clocal_sum,ii,ra,cat_t,t1,e,t2)
 #else
-  !$omp do schedule(static) private(j,n,nn)
+  !$omp do schedule(static) private(j,n,nn,k,clocal_sum,ii,ra,cat_t,t1,e,t2)
 #endif
+#else
   !$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,ipass,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
-  !$acc   copyout(ff_l) private(j,n,nn)
+  !$acc   copyout(ff_l) private(j,n,nn,k,clocal_sum,ii,ra,cat_t,t1,e,t2)
+#endif
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
-      ff_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,:,j),me,kltp1,nest_iblock) 
+      do k = 1,kltp1   
+        clocal_sum(k) = (0.,0.)
+      end do
+      do ii = 1,me
+        ra = xa(nn,j)*xa(ii,j) + ya(nn,j)*ya(ii,j) + za(nn,j)*za(ii,j)
+        ra = acos(max(min(ra, 1.), -1.))
+        ra = exp(-min((cq*ra)**2,50.))
+        do k = 1,kltp1
+          cat_t = ra*at_t(k,ii,j)
+          t1 = cat_t + real(clocal_sum(k))
+          e  = t1 - cat_t
+          t2 = ((real(clocal_sum(k)) - e) + (cat_t - (t1 - e))) + aimag(clocal_sum(k))
+          clocal_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
+        end do  
+      end do
+      do k = 1,kltp1
+        ff_l(k,n,j) = real(clocal_sum(k))
+       end do      
     end do 
   end do 
-  !$acc end parallel loop
+#ifdef _OPENMP  
 #ifdef GPU
+  !$omp end target teams distribute parallel do
 #else
   !$omp end do nowait
+#endif
+#else
+  !$acc end parallel loop
 #endif
 
 #ifndef GPU
@@ -1397,26 +1440,49 @@ end do
 #endif
   
 ! start convolution
+#ifdef _OPENMP
 #ifdef GPU
 !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),at_t(:,:,1:ipan)) &
-!$omp  map(from:qt) private(j,n,nn,local_sum) shared(me,os,cq,klt,kltp1,nest_iblock)
+!$omp  map(from:qt) private(j,n,nn,k,clocal_sum,ii,ra,cat_t,t1,t2,e)
 #else
-!$omp do schedule(static) private(j,n,nn,local_sum)
+!$omp do schedule(static) private(j,n,nn,k,clocal_sum,ii,ra,cat_t,t1,t2,e)
 #endif
+#else
 !$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
-!$acc   copyout(qt) private(j,n,nn,local_sum)
+!$acc   copyout(qt) private(j,n,nn,k,clocal_sum,ii,ra,cat_t,t1,t2,e)
+#endif
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
-    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,:,j),me,kltp1,nest_iblock)
-    qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(kltp1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
+    do k = 1,kltp1   
+      clocal_sum(k) = (0.,0.)
+    end do
+    do ii = 1,me
+      ra = xa(nn,j)*xa(ii,j) + ya(nn,j)*ya(ii,j) + za(nn,j)*za(ii,j)
+      ra = acos(max(min(ra, 1.), -1.))
+      ra = exp(-min((cq*ra)**2,50.))
+      do k = 1,kltp1
+        cat_t = ra*at_t(k,ii,j)
+        t1 = cat_t + real(clocal_sum(k))
+        e  = t1 - cat_t
+        t2 = ((real(clocal_sum(k)) - e) + (cat_t - (t1 - e))) + aimag(clocal_sum(k))
+        clocal_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
+      end do  
+    end do
+    do k = 1,klt
+      qt(j+ipan*(n-1),k) = real(clocal_sum(k))/real(clocal_sum(kltp1))
+    end do       
   end do
 end do
-!$acc end parallel loop
+#ifdef _OPENMP
 #ifdef GPU
+!$omp end target teams distribute parallel do
 #else
 !$omp end do
 !$omp end parallel
+#endif
+#else
+!$acc end parallel loop
 #endif
 
 call END_LOG(nestcalc_end)
@@ -1440,18 +1506,19 @@ integer jpoff, ibase
 integer me, ns, ne, os, oe
 integer til, a, b, c, sn, sy, jj, nn
 integer ibeg, iend, kltp1
+integer ii
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
+real cat_t, ra, t1, t2, e
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(il_g) :: at, asum
-real, dimension(4*il_g) :: ra
 real, dimension(il_g*jpan*(klt+1)) :: dd
 real, dimension(ipan*jpan*(klt+1),0:2) :: ff
 real, dimension(klt+1,jpan,ipan) :: ff_l
-real, dimension(klt+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
 real, dimension(klt+1,4*il_g,max(ipan,jpan)) :: at_t
+complex, dimension(klt+1) :: clocal_sum
       
 ! matched for panels 0, 4 and 5
       
@@ -1504,24 +1571,48 @@ do ipass = 0,2
 #endif
   
   ! start convolution
+#ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),at_t(:,:,1:ipan)) &
-  !$omp  map(from:ff_l) private(j,n,nn) shared(me,os,cq,klt,kltp1,ipass,nest_iblock)
+  !$omp  map(from:ff_l) private(j,n,nn,k,clocal_sum,ii,ra,cat_t,t1,t2,e)
 #else
-  !$omp do schedule(static) private(j,n,nn)
+  !$omp do schedule(static) private(j,n,nn,k,clocal_sum,ii,ra,cat_t,t1,t2,e)
 #endif
+#else
   !$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
-  !$acc   copyout(ff_l) private(j,n,nn)
+  !$acc   copyout(ff_l) private(j,n,nn,k,clocal_sum,ii,ra,cat_t,t1,t2,e)
+#endif
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
-      ff_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,:,j),me,kltp1,nest_iblock)
+      do k = 1,kltp1   
+        clocal_sum(k) = (0.,0.)
+      end do
+      do ii = 1,me
+        ra = xa(nn,j)*xa(ii,j) + ya(nn,j)*ya(ii,j) + za(nn,j)*za(ii,j)
+        ra = acos(max(min(ra, 1.), -1.))
+        ra = exp(-min((cq*ra)**2,50.))
+        do k = 1,kltp1
+          cat_t = ra*at_t(k,ii,j)
+          t1 = cat_t + real(clocal_sum(k))
+          e  = t1 - cat_t
+          t2 = ((real(clocal_sum(k)) - e) + (cat_t - (t1 - e))) + aimag(clocal_sum(k))
+          clocal_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
+        end do  
+      end do
+      do k = 1,kltp1
+        ff_l(k,n,j) = real(clocal_sum(k))
+       end do        
     end do
   end do
-  !$acc end parallel loop
+#ifdef _OPENMP
 #ifdef GPU
+  !$omp end target teams distribute parallel do
 #else
   !$omp end do nowait
+#endif
+#else
+  !$acc end parallel loop
 #endif
 
 #ifndef GPU
@@ -1624,26 +1715,49 @@ end do
 #endif
   
 ! start convolution
+#ifdef _OPENMP
 #ifdef GPU
 !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:jpan),ya(:,1:jpan),za(:,1:jpan),at_t(:,:,1:jpan)) &
-!$omp  map(from:qt) private(j,n,nn,local_sum) shared(me,os,cq,klt,kltp1,ipass,nest_iblock)
+!$omp  map(from:qt) private(j,n,nn,k,clocal_sum,ii,ra,cat_t,t1,t2,e)
 #else
-!$omp do schedule(static) private(j,n,nn,local_sum)
+!$omp do schedule(static) private(j,n,nn,k,clocal_sum,ii,ra,cat_t,t1,t2,e)
 #endif
+#else
 !$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
-!$acc   copyout(qt) private(j,n,nn,local_sum)
+!$acc   copyout(qt) private(j,n,nn,k,clocal_sum,ii,ra,cat_t,t1,t2,e)
+#endif
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
-    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,:,j),me,kltp1,nest_iblock)
-    qt(n + ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(kltp1)
+    do k = 1,kltp1   
+      clocal_sum(k) = (0.,0.)
+    end do
+    do ii = 1,me
+      ra = xa(nn,j)*xa(ii,j) + ya(nn,j)*ya(ii,j) + za(nn,j)*za(ii,j)
+      ra = acos(max(min(ra, 1.), -1.))
+      ra = exp(-min((cq*ra)**2,50.))
+      do k = 1,kltp1
+        cat_t = ra*at_t(k,ii,j)
+        t1 = cat_t + real(clocal_sum(k))
+        e  = t1 - cat_t
+        t2 = ((real(clocal_sum(k)) - e) + (cat_t - (t1 - e))) + aimag(clocal_sum(k))
+        clocal_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
+      end do  
+    end do
+    do k = 1,klt
+      qt(n + ipan*(j-1),k) = real(clocal_sum(k))/real(clocal_sum(kltp1))
+    end do     
   end do
 end do
-!$acc end parallel loop
+#ifdef _OPENMP
 #ifdef GPU
+!$omp end target teams distribute parallel do
 #else
 !$omp end do
 !$omp end parallel
+#endif
+#else
+!$acc end parallel loop
 #endif
 
 call END_LOG(nestcalc_end)
@@ -2152,12 +2266,14 @@ implicit none
 
 integer, intent(in) :: kd
 integer iqq, iqqg, k, n, j, kdp1
+integer ii
 real, dimension(ifull_g,kd), intent(in) :: diff_g ! large common array
 real, dimension(ifull,kd), intent(out) :: dd
 real, dimension(ifull_g) :: xa, ya, za, sm
-real, dimension(kd+1) :: local_sum
 real cq
+real cap_t, t1, t2, e, ra
 real, dimension(kd+1,ifull_g) :: diff_g_t ! large common array
+complex, dimension(kd+1) :: clocal_sum
 
 ! eventually will be replaced with mbd once full ocean coupling is complete
 cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
@@ -2175,25 +2291,48 @@ do k = 1,kd
 end do  
 diff_g_t(kdp1,:) = sm(:)
 
+#ifdef _OPENMP
 #ifdef GPU
 !$omp target teams distribute parallel do schedule(static) map(to:xa,ya,za,diff_g_t) &
-!$omp  map(from:dd) private(iqq,iqqg,local_sum,n,j) shared(cq,kd,kdp1,nest_iblock)
+!$omp  map(from:dd) private(iqq,iqqg,n,j,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
 #else
-!$omp parallel do schedule(static) private(iqqg,iqq,local_sum)
+!$omp parallel do schedule(static) private(iqqg,iqq,n,j,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
 #endif
+#else
 !$acc parallel loop copyin(cq,kd,kdp1,xa,ya,za,diff_g_t) &
-!$acc   copyout(dd) private(iqq,iqqg,local_sum,n,j)
+!$acc   copyout(dd) private(iqq,iqqg,n,j,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
+#endif
 do iqq = 1,ifull
   n = 1 + (iqq-1)/(ipan*jpan)  ! In range 1 .. npan
   j = 1 + ( iqq - (n-1)*(ipan*jpan) - 1) / ipan
   iqqg = iqq - (j-1)*ipan - (n-1)*(ipan*jpan)
-  local_sum = drpdr_fast(iqqg,cq,xa,ya,za,diff_g_t,ifull_g,kdp1,nest_iblock)
-  dd(iqq,1:kd) = local_sum(1:kd)/max(local_sum(kdp1),1.e-8)
+  do k = 1,kdp1   
+    clocal_sum(k) = (0.,0.)
+  end do
+  do ii = 1,ifull_g
+    ra = xa(iqqg)*xa(ii) + ya(iqqg)*ya(ii) + za(iqqg)*za(ii)
+    ra = acos(max(min(ra, 1.), -1.))
+    ra = exp(-min((cq*ra)**2,50.))
+    do k = 1,kdp1
+      cap_t = ra*diff_g_t(k,ii)
+      t1 = cap_t + real(clocal_sum(k))
+      e  = t1 - cap_t
+      t2 = ((real(clocal_sum(k)) - e) + (cap_t - (t1 - e))) + aimag(clocal_sum(k))
+      clocal_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
+    end do  
+  end do
+  do k = 1,kd
+    dd(iqq,k) = real(clocal_sum(k))/max(real(clocal_sum(kdp1)),1.e-8)
+  end do   
 end do
-!$acc end parallel loop
+#ifdef _OPENMP
 #ifdef GPU
+!$omp end target teams distribute parallel do
 #else
 !$omp end parallel do
+#endif
+#else
+!$acc end parallel loop
 #endif
 
 call END_LOG(nestcalc_end)
@@ -2495,18 +2634,20 @@ integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
 integer me, k, til, sn, sy, a, b, c, jj, nn
 integer ibeg, iend, kdp1
+integer ii
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
+real ra, t1, t2, e, cap_t
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(il_g) :: ap, asum      
-real, dimension(4*il_g) :: rr
 real, dimension(il_g*ipan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1),0:2) :: yy
 real, dimension(kd+1,ipan,jpan) :: yy_l
 real, dimension(kd+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
 real, dimension(kd+1,4*il_g,max(ipan,jpan)) :: ap_t
+complex, dimension(kd+1) :: clocal_sum
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
@@ -2557,24 +2698,48 @@ do ipass = 0,2
 #endif
     
   ! start convolution
+#ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:jpan),ya(:,1:jpan),za(:,1:jpan),ap_t(:,:,1:jpan)) &
-  !$omp  map(from:yy_l) private(j,n,nn) shared(me,os,cq,kd,kdp1,ipass,nest_iblock)
+  !$omp  map(from:yy_l) private(j,n,nn,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
 #else
-  !$omp do schedule(static) private(j,n,nn)
+  !$omp do schedule(static) private(j,n,nn,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
 #endif
+#else
   !$acc parallel loop independent collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
-  !$acc   copyout(yy_l) private(j,n,nn)
+  !$acc   copyout(yy_l) private(j,n,nn,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
+#endif
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
-      yy_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,:,j),me,kdp1,nest_iblock)
+      do k = 1,kdp1   
+        clocal_sum(k) = (0.,0.)
+      end do
+      do ii = 1,me
+        ra = xa(nn,j)*xa(ii,j) + ya(nn,j)*ya(ii,j) + za(nn,j)*za(ii,j)
+        ra = acos(max(min(ra, 1.), -1.))
+        ra = exp(-min((cq*ra)**2,50.))
+        do k = 1,kdp1
+          cap_t = ra*ap_t(k,ii,j)
+          t1 = cap_t + real(clocal_sum(k))
+          e  = t1 - cap_t
+          t2 = ((real(clocal_sum(k)) - e) + (cap_t - (t1 - e))) + aimag(clocal_sum(k))
+          clocal_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
+        end do  
+      end do
+      do k = 1,kdp1
+        yy_l(k,n,j) = real(clocal_sum(k))
+      end do       
     end do
   end do
-  !$acc end parallel loop
+#ifdef _OPENMP  
 #ifdef GPU
+  !$omp end target teams distribute parallel do
 #else
   !$omp end do
+#endif
+#else
+  !$acc end parallel loop
 #endif
 
 #ifndef GPU
@@ -2678,26 +2843,49 @@ end do
 #endif
   
 ! start convolution
+#ifdef _OPENMP
 #ifdef GPU
-!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),ap_t(:,:,1:jpan)) &
-!$omp  map(from:qp) private(j,n,nn,local_sum) shared(me,os,cq,kd,kdp1,ipass,nest_iblock)
+!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),ap_t(:,:,1:ipan)) &
+!$omp  map(from:qp) private(j,n,nn,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
 #else
-!$omp do schedule(static) private(j,n,nn,local_sum)
+!$omp do schedule(static) private(j,n,nn,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
 #endif
+#else
 !$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
-!$acc   copyout(qp) private(j,n,nn,local_sum)
+!$acc   copyout(qp) private(j,n,nn,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
+#endif
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
-    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,:,j),me,kdp1,nest_iblock)
-    qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/max(local_sum(kdp1), 1.e-8)
+    do k = 1,kdp1   
+      clocal_sum(k) = (0.,0.)
+    end do
+    do ii = 1,me
+      ra = xa(nn,j)*xa(ii,j) + ya(nn,j)*ya(ii,j) + za(nn,j)*za(ii,j)
+      ra = acos(max(min(ra, 1.), -1.))
+      ra = exp(-min((cq*ra)**2,50.))
+      do k = 1,kdp1
+        cap_t = ra*ap_t(k,ii,j)
+        t1 = cap_t + real(clocal_sum(k))
+        e  = t1 - cap_t
+        t2 = ((real(clocal_sum(k)) - e) + (cap_t - (t1 - e))) + aimag(clocal_sum(k))
+        clocal_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
+      end do  
+    end do
+    do k = 1,kd
+      qp(j+ipan*(n-1),k) = real(clocal_sum(k))/max(real(clocal_sum(kdp1)),1.e-8)
+    end do      
   end do
 end do
-!$acc end parallel loop
+#ifdef _OPENMP
 #ifdef GPU
+!$omp end target teams distribute parallel do
 #else
 !$omp end do
 !$omp end parallel
+#endif
+#else
+!$acc end parallel loop
 #endif
 
 call END_LOG(nestcalc_end)
@@ -2720,18 +2908,19 @@ integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
 integer me, k, til, sn, sy, a, b, c, jj, nn
 integer ibeg, iend, kdp1
+integer ii
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
+real ra, cap_t, t1, t2, e
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(il_g) :: ap, asum      
-real, dimension(4*il_g) :: rr
 real, dimension(il_g*jpan*(kd+1)) :: zz
 real, dimension(ipan*jpan*(kd+1),0:2) :: yy
 real, dimension(kd+1,jpan,ipan) :: yy_l
-real, dimension(kd+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
 real, dimension(kd+1,4*il_g,max(ipan,jpan)) :: ap_t
+complex, dimension(kd+1) :: clocal_sum
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
@@ -2781,24 +2970,48 @@ do ipass = 0,2
 #endif
     
   ! start convolution
+#ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),ap_t(:,:,1:ipan)) &
-  !$omp  map(from:yy_l) private(j,n,nn) shared(me,os,cq,kd,kdp1,ipass,nest_iblock)
+  !$omp  map(from:yy_l) private(j,n,nn,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
 #else
-  !$omp do schedule(static) private(j,n,nn)
+  !$omp do schedule(static) private(j,n,nn,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
 #endif
+#else
   !$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
-  !$acc   copyout(yy_l) private(j,n,nn)
+  !$acc   copyout(yy_l) private(j,n,nn,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
+#endif
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
-      yy_l(:,n,j) = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,:,j),me,kdp1,nest_iblock)
+      do k = 1,kdp1   
+        clocal_sum(k) = (0.,0.)
+      end do
+      do ii = 1,me
+        ra = xa(nn,j)*xa(ii,j) + ya(nn,j)*ya(ii,j) + za(nn,j)*za(ii,j)
+        ra = acos(max(min(ra, 1.), -1.))
+        ra = exp(-min((cq*ra)**2,50.))
+        do k = 1,kdp1
+          cap_t = ra*ap_t(k,ii,j)
+          t1 = cap_t + real(clocal_sum(k))
+          e  = t1 - cap_t
+          t2 = ((real(clocal_sum(k)) - e) + (cap_t - (t1 - e))) + aimag(clocal_sum(k))
+          clocal_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
+        end do  
+      end do
+      do k = 1,kdp1
+        yy_l(k,n,j) = real(clocal_sum(k))
+      end do         
     end do    
   end do
-  !$acc end parallel loop
+#ifdef _OPENMP
 #ifdef GPU
+  !$omp end target teams distribute parallel do
 #else
   !$omp end do nowait
+#endif
+#else
+  !$acc end parallel loop
 #endif
 
 #ifndef GPU
@@ -2902,26 +3115,49 @@ end do
 #endif
   
 ! start convolution
+#ifdef _OPENMP
 #ifdef GPU
 !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:jpan),ya(:,1:jpan),za(:,1:jpan),ap_t(:,:,1:jpan)) &
-!$omp  map(from:qp) private(j,n,nn,local_sum) shared(me,os,cq,kd,kdp1,ipass,nest_iblock)
+!$omp  map(from:qp) private(j,n,nn,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
 #else
-!$omp do schedule(static) private(j,n,nn,local_sum)
+!$omp do schedule(static) private(j,n,nn,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
 #endif
+#else
 !$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
-!$acc   copyout(qp) private(j,n,nn,local_sum)
+!$acc   copyout(qp) private(j,n,nn,k,clocal_sum,ii,ra,cap_t,t1,t2,e)
+#endif
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
-    local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,:,j),me,kdp1,nest_iblock)
-    qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/max(local_sum(kdp1), 1.e-8)  
+    do k = 1,kdp1   
+      clocal_sum(k) = (0.,0.)
+    end do
+    do ii = 1,me
+      ra = xa(nn,j)*xa(ii,j) + ya(nn,j)*ya(ii,j) + za(nn,j)*za(ii,j)
+      ra = acos(max(min(ra, 1.), -1.))
+      ra = exp(-min((cq*ra)**2,50.))
+      do k = 1,kdp1
+        cap_t = ra*ap_t(k,ii,j)
+        t1 = cap_t + real(clocal_sum(k))
+        e  = t1 - cap_t
+        t2 = ((real(clocal_sum(k)) - e) + (cap_t - (t1 - e))) + aimag(clocal_sum(k))
+        clocal_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
+      end do  
+    end do
+    do k = 1,kd
+      qp(n+ipan*(j-1),k) = real(clocal_sum(k))/max(real(clocal_sum(kdp1)),1.e-8)
+    end do       
   end do  
 end do
-!$acc end parallel loop
+#ifdef _OPENMP
 #ifdef GPU
+!$omp end target teams distribute parallel do
 #else
 !$omp end do
 !$omp end parallel
+#endif
+#else
+!$acc end parallel loop
 #endif
     
 call END_LOG(nestcalc_end)
@@ -3228,7 +3464,7 @@ end subroutine setdavvertwgt
 !     at a time, so iyear0=iyear except for the case 
 !     when kdate is Dec. and kdate_r is the following Jan.
 
-pure function iabsdate(kdate_r,kdate) result(ans)
+function iabsdate(kdate_r,kdate) result(ans)
 
 use parm_m
 
@@ -3269,47 +3505,5 @@ ans = mdays(months)
 ans = ans + iday
 
 end function iabsdate
-
-pure function drpdr_fast(nn,cq,xa,ya,za,at,ilen,kx,iblock) result(out_sum)
-!$acc routine vector
-
-implicit none
-
-integer, intent(in) :: nn, ilen, kx, iblock
-integer i, j, k, l
-real, intent(in) :: cq
-real, dimension(ilen), intent(in) :: xa, ya, za
-real, dimension(kx,ilen), intent(in) :: at
-real, dimension(kx) :: out_sum
-real, dimension(iblock) :: ra
-real at_t, e, t1, t2
-real xa_nn, ya_nn, za_nn
-complex, dimension(kx) :: local_sum
-
-local_sum(1:kx) = (0.,0.)
-xa_nn = xa(nn)
-ya_nn = ya(nn)
-za_nn = za(nn)
-
-do i = 1,ilen,iblock
-  j = i + iblock - 1  
-  ra(:) = xa_nn*xa(i:j) + ya_nn*ya(i:j) + za_nn*za(i:j)
-  ra(:) = acos(max(min(ra(:), 1.), -1.))
-  ra(:) = exp(-min((cq*ra(:))**2,50.))
-  do l = 1,iblock
-    do k = 1,kx
-      at_t = ra(l)*at(k,i+l-1)
-      t1 = at_t + real(local_sum(k))
-      e  = t1 - at_t
-      t2 = ((real(local_sum(k)) - e) + (at_t - (t1 - e))) + aimag(local_sum(k))
-      local_sum(k) = cmplx( t1 + t2, t2 - ((t1 + t2) - t1) )
-    end do
-  end do  
-end do  
-
-out_sum(1:kx) = real(local_sum(1:kx))
-
-return
-end function drpdr_fast
     
 end module nesting

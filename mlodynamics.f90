@@ -1362,22 +1362,18 @@ if (its_g>500) then
 end if
 
 !$omp parallel sections
-!$acc data create(its,dtnew,ww,depdum,dzdum)
-!$acc update device(its,dtnew,ww,depdum,dzdum)
 
 !$omp section
-call mlotvd(its,dtnew,ww,uu,depdum,dzdum,1)
+call mlotvd(its,dtnew,ww,uu,depdum,dzdum)
 !$omp section
-call mlotvd(its,dtnew,ww,vv,depdum,dzdum,2)
+call mlotvd(its,dtnew,ww,vv,depdum,dzdum)
 !$omp section
-call mlotvd(its,dtnew,ww,ss,depdum,dzdum,3)
+call mlotvd(its,dtnew,ww,ss,depdum,dzdum)
 !$omp section
-call mlotvd(its,dtnew,ww,tt,depdum,dzdum,4)
+call mlotvd(its,dtnew,ww,tt,depdum,dzdum)
 !$omp section
-call mlotvd(its,dtnew,ww,mm,depdum,dzdum,5)
+call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
 
-!$acc wait
-!$acc end data
 !$omp end parallel sections
   
 ss(1:ifull,:)=max(ss(1:ifull,:),0.)
@@ -1388,14 +1384,13 @@ call END_LOG(watervadv_end)
 return
 end subroutine mlovadv
 
-subroutine mlotvd(its,dtnew,ww,uu,depdum,dzdum,asyncbuf)
+subroutine mlotvd(its,dtnew,ww,uu,depdum,dzdum)
 
 use mlo
 use newmpar_m
 
 implicit none
 
-integer, intent(in) :: asyncbuf
 integer ii,i,iq,kp,kx
 integer, dimension(ifull), intent(in) :: its
 real, dimension(ifull), intent(in) :: dtnew
@@ -1409,27 +1404,19 @@ real fl,fh,cc,rr
 ! f=(w*u) at half levels
 ! du/dt = u*dw/dz-df/dz = -w*du/dz
 
-!$acc enter data create(uu,ff,delu) async(asyncbuf)
-!$acc update device(uu) async(asyncbuf)
-
-!$acc parallel loop collapse(2) present(delu,uu) async(asyncbuf)
 do ii = 1,wlev-1
   do iq = 1,ifull
     delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
   end do
 end do
-!$acc end parallel loop
-!$acc parallel loop present(ff,delu) async(asyncbuf)
 do iq = 1,ifull
   ff(iq,0) = 0.
   ff(iq,wlev) = 0.
   delu(iq,0) = 0.
   delu(iq,wlev) = 0.
 end do
-!$acc end parallel loop
 
 ! TVD part
-!$acc parallel loop collapse(2) present(ww,delu,uu,dzdum,depdum,dtnew,ff) async(asyncbuf)
 do ii = 1,wlev-1
   do iq = 1,ifull
     ! +ve ww is downwards to the ocean floor
@@ -1445,8 +1432,6 @@ do ii = 1,wlev-1
     !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
   end do
 end do
-!$acc end parallel loop
-!$acc parallel loop collapse(2) present(uu,dtnew,ff,ww) async(asyncbuf)
 do ii = 1,wlev
   do iq = 1,ifull
     if ( dzdum(iq,ii)>1.e-4 ) then  
@@ -1455,9 +1440,7 @@ do ii = 1,wlev
     end if   
   end do  
 end do
-!$acc end parallel loop
 
-!$acc parallel loop present(uu,its,dtnew,ww,depdum,dzdum,ff,delu) async(asyncbuf)
 do iq = 1,ifull
   do i = 2,its(iq)
     do ii=1,wlev-1
@@ -1484,9 +1467,6 @@ do iq = 1,ifull
     end do
   end do
 end do
-!$acc end parallel loop
-!$acc update self(uu) async(asyncbuf)
-!$acc exit data delete(uu,ff,delu) async(asyncbuf)
 
 return
 end subroutine mlotvd
@@ -2038,7 +2018,6 @@ real(kind=8) dumd
 
 
 !$omp parallel do schedule(static) private(n,iq,dumd,odum,tdum)
-!$acc parallel loop collapse(2) copy(dumc) copyin(niu,niv,spnet,emu,emv)
 do n = 1,ntr
   do iq = 1,ifull
     dumd=real(dumc(iq,n),8)
@@ -2106,7 +2085,6 @@ do n = 1,ntr
   end do
   dumc(1:ifull,n) = dum_out(1:ifull)
 end do
-!$acc end parallel loop
 !$omp end parallel do
   
 return

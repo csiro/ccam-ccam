@@ -115,9 +115,6 @@ end do
 
 call bounds(s,nrows=2)
 
-!$acc data create(s,sx)
-!$acc update device(s)
-
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
 
@@ -161,8 +158,6 @@ if ( intsch==1 ) then
       end do           ! n loop
     end do             ! k loop
   end do               ! nn loop
-
-  !$acc update device(sx)
 
   ! Loop over points that need to be calculated for other processes
   do ii=1,neighnum
@@ -208,7 +203,6 @@ if ( intsch==1 ) then
   !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),       &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),  &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
-  !$acc parallel loop collapse(3) copyin(xg,yg,nface) present(s,sx)
   do nn = 1,ntr
     do k = 1,wlev      
       do iq = 1,ifull
@@ -245,7 +239,6 @@ if ( intsch==1 ) then
       end do       ! iq loop
     end do         ! k loop
   end do           ! nn loop
-  !$acc end parallel loop
   !$omp end parallel do
        
 !========================   end of intsch=1 section ====================
@@ -295,8 +288,6 @@ else     ! if(intsch==1)then
     end do             ! k loop
   end do               ! nn loop
 
-  !$acc update device(sx)
-
   ! For other processes
   do ii=neighnum,1,-1
     do nn = 1,ntr
@@ -342,7 +333,6 @@ else     ! if(intsch==1)then
   !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),       &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),  &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
-  !$acc parallel loop collapse(3) copyin(xg,yg,nface) present(sx,s)
   do nn = 1,ntr
     do k = 1,wlev
       do iq = 1,ifull
@@ -379,14 +369,10 @@ else     ! if(intsch==1)then
       end do
     end do
   end do
-  !$acc end parallel loop
   !$omp end parallel do
 
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
-
-!$acc update self(s)
-!$acc end data
 
 call intssync_recv(s)
 

@@ -45,13 +45,11 @@ IPFLAG = -ip
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(ZEN3),yes)
-FHOST = -O3 -axCORE-AVX2
-FOVERRIDE =
-ZMM =
-IPFLAG =
-IPOFLAG =
-VTHRESH =
-MPISPECIAL =
+FHOST = -O3 -axCORE-AVX2 -fimf-use-svml
+FOVERRIDE = -qoverride-limits
+ZMM = -qopt-zmm-usage=high
+IPFLAG = -ip
+VTHRESH = -vec-threshold0
 endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
@@ -436,6 +434,7 @@ casa_phenology.o : casa_dimension.o
 cable_soil_params.o : cable_define_types.o
 casa_variable.o : cable_define_types.o casa_dimension.o casa_param.o
 cc_mpi.o : cc_omp.o const_phys.o indices_m.o latlong_m.o map_m.o newmpar_m.o sumdd_m.o vecsuv_m.o workglob_m.o xyzinfo_m.o
+cc_omp.o : newmpar_m.o
 ifneq ($(SCM),yes)
 cc_mpi.o : mpif_m.o
 endif
