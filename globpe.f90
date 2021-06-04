@@ -61,6 +61,7 @@ use kuocomb_m                              ! JLM convection
 use leoncld_mod, only : leoncld            ! Prognostic cloud condensate
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
+use mlo                                    ! Ocean physics and prognostic arrays
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -488,6 +489,12 @@ do ktau = 1,ntau   ! ****** start of main time loop
     ! DIFFUSION -----------------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlodiffusion
+    call END_LOG(waterdynamics_end)
+  end if
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
+    ! CREATE OR DESTROY SEA ICE -------------------------------------------  
+    call START_LOG(waterdynamics_begin)
+    call mlonewice
     call END_LOG(waterdynamics_end)
   end if
     

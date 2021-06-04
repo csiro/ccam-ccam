@@ -59,7 +59,7 @@ private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
        mloimport3d,mloexport3d,mlovlevels,mlocheck,mlodiagice,mlo_updatediag,mlo_updatekm,           &
-       mlosurf
+       mlosurf,mlonewice
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,nsteps,usepice,minicemass,cdbot,rhowt,cp0
@@ -2714,13 +2714,13 @@ if ( calcprog==0 .or. calcprog==2 ) then
   ice%v = ice%v + dt*(dgice%tauyica-dgice%tauyicw)/dgice%imass
     
 end if
-if ( calcprog==0 .or. calcprog==2 .or. calcprog==3 ) then
-
-  ! create or destroy ice
-  ! MJT notes - this is done after the flux calculations to agree with the albedo passed to the radiation
-  call mlonewice(d_timelt,d_zcr,d_neta,diag,depth,ice,water,wfull)
-
-end if
+!if ( calcprog==0 .or. calcprog==2 .or. calcprog==3 ) then
+!
+!  ! create or destroy ice
+!  ! MJT notes - this is done after the flux calculations to agree with the albedo passed to the radiation
+!  call mlonewice(d_timelt,d_zcr,d_neta,diag,depth,ice,water,wfull)
+!
+!end if
 if ( calcprog==0 ) then
   
   ! update water
@@ -4265,13 +4265,28 @@ dgwater%ws0 = dgwater%ws0 - ice%fracice*d_salflx*water%sal(:,1)/rhowt
 d_neta = d_neta - dt*ice%fracice*d_salflx/rhowt
 
 return
-end subroutine mloice
+                  end subroutine mloice
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Form seaice before flux calculations
 
-subroutine mlonewice(d_timelt,d_zcr,d_neta,diag,   &
-                     depth,ice,water,wfull)
+subroutine mlonewice
+
+implicit none
+
+integer tile, is, ie
+
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  if ( wfull_g(tile)>0 ) then
+    call mlonewice_thread(0,depth_g(tile),ice_g(tile),water_g(tile),wfull_g(tile))  
+  end if
+end do
+
+end subroutine mlonewice
+                  
+subroutine mlonewice_thread(diag,depth,ice,water,wfull)
 
 implicit none
 
@@ -4281,8 +4296,8 @@ integer iqw, ii
 real aa, bb, dsf, deldz, delt
 real, dimension(wfull,wlev) :: sdic
 real, dimension(wfull) :: newdic, cdic
-real, dimension(wfull), intent(inout) :: d_zcr, d_neta
-real, dimension(wfull), intent(in) :: d_timelt
+real, dimension(wfull) :: d_zcr, d_neta
+real, dimension(wfull) :: d_timelt
 type(icedata), intent(inout) :: ice
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
@@ -4291,6 +4306,10 @@ real, parameter :: newicetemp = 273.16
 logical, dimension(wfull) :: lnewice, lremove
 
 if (diag>=1) write(6,*) "Form new ice"
+
+call calcmelt(d_timelt,water,wfull)
+d_zcr = max(1.+water%eta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))  
+d_neta = water%eta
 
 ! limits on ice formation due to water avaliability
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.)
@@ -4397,10 +4416,12 @@ do iqw=1,wfull
   end if
 end do
 
+water%eta = d_neta
+
 call mlocheck("MLO-icemelt",ice_tsurf=ice%tsurf,ice_temp=ice%temp)
 
 return
-end subroutine mlonewice
+end subroutine mlonewice_thread
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update sea ice prognostic variables
@@ -4658,7 +4679,7 @@ return
 end subroutine icetemps1s2i
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate ice temperature for two layers and snow (from Mk3 seaice.f)
+! Calculate ice temperature for one layer and snow (from Mk3 seaice.f)
 
 ! Solve for snow surface temperature (implicit time scheme)
 !
@@ -4940,7 +4961,7 @@ return
 end subroutine icetempi2i
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate ice temperature for two layers and no snow
+! Calculate ice temperature for one layer and no snow
 
 ! Solve for surface ice temperature (implicit time scheme)
 !
