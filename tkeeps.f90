@@ -1095,16 +1095,16 @@ ibot = nint(rbot)
 
 i_u = 0.
 i_v = 0.
+fracice = 0.
 call mloexpice("u",i_u,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mloexpice("v",i_v,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
+call mloexpice("fracice",fracice,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
 
 icefg_a = 0.
-fracice = 0.
 imass = 100.
 cd_ice = 0.
 cdbot_ice = 0.
 call mlodiagice("fg",icefg_a,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiagice("fracice_save",fracice,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mlodiagice("mass",imass,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mlodiagice("cd",cd_ice,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mlodiagice("cd_bot",cdbot_ice,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))

@@ -85,6 +85,7 @@ use seaesfrad_m                            ! SEA-ESF radiation
 use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
 use soil_m                                 ! Soil and surface data
+use soilsnow_m                             ! Soil, snow and surface data
 use timeseries, only : write_ts            ! Tracer time series
 use tracermodule, only : tracer_mass     & ! Tracer routines
    ,interp_tracerflux
@@ -495,6 +496,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
     ! CREATE OR DESTROY SEA ICE -------------------------------------------  
     call START_LOG(waterdynamics_begin)
     call mlonewice
+    call mloexpice("fracice",fracice,0)
+    call mloexpice("thick",sicedep,0)
+    call mloexpice("snowd",snowd,0)
+    call mlosurf("sst",tss,0)
     call END_LOG(waterdynamics_end)
   end if
     

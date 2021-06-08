@@ -3358,7 +3358,7 @@ do w = 0,fnproc-1
   end if
 end do
 
-if ( fnproc<=6 ) then
+if ( fnproc<=fnproc_bcast_max ) then
     
   ! Construct bcast comms for single panel case
   allocate( filemap_facecomm(0:fnproc-1), filemap_rinv(0:fnproc-1) )

@@ -181,7 +181,6 @@ type dgicedata
   real, dimension(:), allocatable :: tauyica        ! water/ice v-component stress (N/m2)
   real, dimension(:), allocatable :: tauxicw        ! water/ice u-component stress (N/m2)
   real, dimension(:), allocatable :: tauyicw        ! water/ice v-component stress (N/m2)
-  real, dimension(:), allocatable :: fracice_save   ! fraction of ice used for fluxes
   real, dimension(:), allocatable :: imass          ! mass of ice (kg)
   !real(kind=8), dimension(:), allocatable :: deleng         ! Change in energy stored
 end type dgicedata
@@ -427,7 +426,7 @@ do tile = 1,ntiles
   allocate(dgice_g(tile)%wetfrac(wfull_g(tile)),dgwater_g(tile)%mixind(wfull_g(tile)))
   allocate(dgice_g(tile)%tauxica(wfull_g(tile)),dgice_g(tile)%tauyica(wfull_g(tile)))
   allocate(dgice_g(tile)%tauxicw(wfull_g(tile)),dgice_g(tile)%tauyicw(wfull_g(tile)))
-  allocate(dgice_g(tile)%imass(wfull_g(tile)),dgice_g(tile)%fracice_save(wfull_g(tile)))
+  allocate(dgice_g(tile)%imass(wfull_g(tile)))
   allocate(dgice_g(tile)%cd_bot(wfull_g(tile)))
   allocate(dgscrn_g(tile)%temp(wfull_g(tile)),dgscrn_g(tile)%u2(wfull_g(tile)),dgscrn_g(tile)%qg(wfull_g(tile)))
   allocate(dgscrn_g(tile)%u10(wfull_g(tile)))
@@ -507,7 +506,6 @@ do tile = 1,ntiles
     dgice_g(tile)%tauxicw=0.
     dgice_g(tile)%tauyicw=0.
     dgice_g(tile)%imass=0.
-    dgice_g(tile)%fracice_save=0.
     dgscrn_g(tile)%temp=273.2
     dgscrn_g(tile)%qg=0.
     dgscrn_g(tile)%u2=0.
@@ -807,7 +805,7 @@ if ( mlo_active ) then
     deallocate(dgice_g(tile)%wetfrac,dgwater_g(tile)%mixind)
     deallocate(dgice_g(tile)%tauxica,dgice_g(tile)%tauyica)
     deallocate(dgice_g(tile)%tauxicw,dgice_g(tile)%tauyicw)
-    deallocate(dgice_g(tile)%imass,dgice_g(tile)%fracice_save)
+    deallocate(dgice_g(tile)%imass)
     deallocate(dgice_g(tile)%cd_bot)
     deallocate(dgscrn_g(tile)%temp,dgscrn_g(tile)%u2,dgscrn_g(tile)%qg,dgscrn_g(tile)%u10)
     deallocate(depth_g(tile)%depth,depth_g(tile)%dz,depth_g(tile)%depth_hl,depth_g(tile)%dz_hl)
@@ -1675,7 +1673,7 @@ select case(mode)
     tsn=unpack(ice%temp(:,1),wpack,tsn)
   case("temp2")
     tsn=unpack(ice%temp(:,2),wpack,tsn)
-  case("temp3")
+  case("fracice")
     tsn=unpack(ice%fracice,wpack,tsn)
   case("thick")
     tsn=unpack(ice%thick,wpack,tsn)
@@ -1876,8 +1874,6 @@ select case(mode)
     mld = unpack(dgice%cd,wpack,0.)
   case("cd_bot")
     mld = unpack(dgice%cd_bot,wpack,0.)
-  case("fracice_save")
-    mld = unpack(dgice%fracice_save,wpack,0.)
   case default
     write(6,*) "ERROR: Invalid mode for mlodiagice with mode = ",trim(mode)
     stop
@@ -4265,7 +4261,7 @@ dgwater%ws0 = dgwater%ws0 - ice%fracice*d_salflx*water%sal(:,1)/rhowt
 d_neta = d_neta - dt*ice%fracice*d_salflx/rhowt
 
 return
-                  end subroutine mloice
+end subroutine mloice
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Form seaice before flux calculations
@@ -5282,8 +5278,6 @@ real, dimension(wfull) :: wavail, f0
 real zohseaice, zoqseaice
 
 if (diag>=1) write(6,*) "Calculate ice fluxes"
-
-dgice%fracice_save = ice%fracice
 
 ! Prevent unrealistic fluxes due to poor input surface temperature
 dtsurf=min(ice%tsurf,273.2)
