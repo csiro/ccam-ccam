@@ -1540,6 +1540,9 @@ namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
 tblock = 0
 kmlo = 0
 ateb_ac_copmax = 0.
+ateb_ac_smooth = 0.
+zimax = 0.
+tkecduv = 0.
 
 !--------------------------------------------------------------
 ! READ COMMAND LINE OPTIONS
