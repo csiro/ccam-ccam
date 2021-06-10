@@ -547,9 +547,11 @@ do iq_tile = 1,ifull,imax
         end do
       end do
     end if
-    Cld_spec(mythread)%nmxolw(i,1) = count( Cld_spec(mythread)%cmxolw(i,1,:)>0._8 )
-    Cld_spec(mythread)%nrndlw(i,1) = count( Cld_spec(mythread)%crndlw(i,1,:)>0._8 )
-    Cld_spec(mythread)%ncldsw(i,1) = count( Cld_spec(mythread)%camtsw(i,1,:)>0._8 )
+    do i = 1,imax
+      Cld_spec(mythread)%nmxolw(i,1) = count( Cld_spec(mythread)%cmxolw(i,1,:)>0._8 )
+      Cld_spec(mythread)%nrndlw(i,1) = count( Cld_spec(mythread)%crndlw(i,1,:)>0._8 )
+      Cld_spec(mythread)%ncldsw(i,1) = count( Cld_spec(mythread)%camtsw(i,1,:)>0._8 )
+    end do  
 
     ! cloud microphysics for radiation
     ! cfrac, qlrad and qfrad also include convective cloud as well as qfg and qlg
