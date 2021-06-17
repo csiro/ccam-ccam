@@ -467,7 +467,7 @@ module cc_mpi
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
 #endif
-   character(len=15), dimension(nevents), save :: event_name
+   character(len=20), dimension(nevents), save :: event_name
    real, save, public :: mpiinit_time, total_time
 
 #ifdef vampir
