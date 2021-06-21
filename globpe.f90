@@ -2886,7 +2886,7 @@ if ( myid==0 ) then
   write(6,*)' m_fly  io_in io_nest io_out io_rest  nwt  nperavg'
   write(6,'(i5,4i7,3i8)') m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg
   write(6,*)' hp_output procmode compression'
-  write(6,'(i5,l5,2i5)') hp_output,procmode,compression
+  write(6,'(i5,2i5)') hp_output,procmode,compression
 
   write(6, cardin)
   write(6, skyin)
