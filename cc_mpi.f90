@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -828,7 +828,7 @@ contains
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do n = 1,npan
             do j = 1,jpan
-               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
                slen = (j-1)*ipan + (n-1)*ipan*jpan
                sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
             end do
@@ -882,7 +882,7 @@ contains
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do n = 1,npan
             do j = 1,jpan
-               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
                slen = (j-1)*ipan + (n-1)*ipan*jpan
                sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
             end do
@@ -936,7 +936,7 @@ contains
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do n = 1,npan
             do j = 1,jpan
-               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
                slen = (j-1)*ipan + (n-1)*ipan*jpan
                sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
             end do
@@ -1001,7 +1001,7 @@ contains
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             do n = 1,npan
                do j = 1,jpan
-                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
                   slen = (j-1)*ipan + (n-1)*ipan*jpan
                   sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
                end do
@@ -1079,7 +1079,7 @@ contains
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             do n = 1,npan
                do j = 1,jpan
-                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
                   slen = (j-1)*ipan + (n-1)*ipan*jpan
                   sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
                end do
@@ -1157,7 +1157,7 @@ contains
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             do n = 1,npan
                do j = 1,jpan
-                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
                   slen = (j-1)*ipan + (n-1)*ipan*jpan
                   sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
                end do
@@ -1237,14 +1237,14 @@ contains
       kx = size(af,2)
       lx = size(af,3)
 
-      ! map array in order of processor rank
+      ! reorder array in order of processor rank
       do l = 1,lx 
          do k = 1,kx
             do iproc = 0,nproc-1
                call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
                do n = 1,npan
                   do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
                      slen = (j-1)*ipan + (n-1)*ipan*jpan
                      sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
                   end do   
@@ -1326,7 +1326,7 @@ contains
                call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
                do n = 1,npan
                   do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
                      slen = (j-1)*ipan + (n-1)*ipan*jpan
                      sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
                   end do   
@@ -1407,7 +1407,7 @@ contains
          do n = 1,npan
             do j = 1,jpan
                ! Global indices are i+ipoff, j+jpoff, n-npoff
-               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
                iq = (j-1)*ipan + (n-1)*ipan*jpan
                ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
             end do
@@ -1463,7 +1463,7 @@ contains
          do n = 1,npan
             do j = 1,jpan
                ! Global indices are i+ipoff, j+jpoff, n-npoff
-               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
                iq = (j-1)*ipan + (n-1)*ipan*jpan
                ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
             end do
@@ -1529,7 +1529,7 @@ contains
             do n = 1,npan
                do j = 1,jpan
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
                   iq = (j-1)*ipan + (n-1)*ipan*jpan
                   ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
                end do
@@ -1606,7 +1606,7 @@ contains
             do n = 1,npan
                do j = 1,jpan
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
                   iq = (j-1)*ipan + (n-1)*ipan*jpan
                   ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
                end do
@@ -1685,7 +1685,7 @@ contains
                do n = 1,npan
                   do j = 1,jpan
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
                      iq = (j-1)*ipan + (n-1)*ipan*jpan
                      ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
                   end do   
@@ -1766,7 +1766,7 @@ contains
                do n = 1,npan
                   do j = 1,jpan
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
                      iq = (j-1)*ipan + (n-1)*ipan*jpan
                      ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
                   end do   
@@ -1834,7 +1834,7 @@ contains
          do n = 1,npan
             do j = 1,jpan
                ! Global indices are i+ipoff, j+jpoff, n-npoff
-               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
                iq = (j-1)*ipan + (n-1)*ipan*jpan
                ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
             end do
@@ -1879,7 +1879,7 @@ contains
             do n = 1,npan
                do j = 1,jpan
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
                   iq = (j-1)*ipan + (n-1)*ipan*jpan
                   ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
                end do
@@ -2070,7 +2070,7 @@ contains
       integer :: c_ipak, c_jpak
       real, dimension(:), intent(in) :: datain
       
-      il2 = il_g*il_g
+      il2 = il_g**2
       
       iqg = ibeg - 1
       b_n = iqg/il2
@@ -2145,7 +2145,7 @@ contains
       integer :: c_ipak, c_jpak
       real, dimension(:), intent(out) :: dataout
       
-      il2 = il_g*il_g
+      il2 = il_g**2
       
       iqg = ibeg - 1
       b_n = iqg/il2
@@ -5904,9 +5904,9 @@ contains
       ! Calculate local i, j, n from global iq
 
       ! Global i, j, n
-      n = (iq - 1)/(il_g*il_g)
-      j = 1 + (iq - n*il_g*il_g - 1)/il_g
-      i = iq - (j - 1)*il_g - n*il_g*il_g
+      n = (iq - 1)/(il_g**2)
+      j = 1 + (iq - n*il_g**2 - 1)/il_g
+      i = iq - (j - 1)*il_g - n*il_g**2
       if ( fproc(i,j,n) /= myid ) then
          write(*,"(a,5i5)") "Consistency failure in indv_mpi", myid, iq, i, j, n
          call ccmpi_abort(-1)
@@ -5923,7 +5923,7 @@ contains
 
       ! Calculate a 1D global index from the global indices
       ! n in range 0:npanels
-      iq = i + (j-1)*il_g + n*il_g*il_g
+      iq = i + (j-1)*il_g + n*il_g**2
    end function indglobal
 
    pure function indg(i,j,n) result(iq)
@@ -5932,7 +5932,7 @@ contains
 
       ! Calculate a 1D global index from the local processors indices
       ! n in range 1..npan
-      iq = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
+      iq = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g**2
    end function indg
 
    pure function indp(i,j,n) result(iq)
@@ -5978,9 +5978,9 @@ contains
       integer :: qpout
       integer :: i, j, n
 
-      n = (iqg - 1) / (il_g*il_g)
-      j = 1 + (iqg - n*il_g*il_g - 1)/il_g
-      i = iqg - (j - 1)*il_g - n*il_g*il_g
+      n = (iqg - 1) / (il_g**2)
+      j = 1 + (iqg - n*il_g**2 - 1)/il_g
+      i = iqg - (j - 1)*il_g - n*il_g**2
 
       qpout = fproc(i,j,n)
    
@@ -6033,8 +6033,8 @@ contains
       
       ! calculate global i,j,n
       tg = iqg - 1
-      ng = tg/(il_g*il_g)
-      tg = tg - ng*il_g*il_g
+      ng = tg/(il_g**2)
+      tg = tg - ng*il_g**2
       jg = tg/il_g
       tg = tg - jg*il_g
       ig = tg
@@ -6112,43 +6112,6 @@ contains
       end if
 
    end subroutine proc_setup
-
-!   subroutine proc_setup_uniform(id,jd,idjd)
-!!     Routine to set up offsets etc for the uniform decomposition
-!      integer :: i, j, n, nd, jdf, idjd_g
-!      integer, intent(in) :: id, jd
-!      integer, intent(out) :: idjd
-!      integer, dimension(0:npanels) :: ipoff, jpoff
-!
-!      call dix_set( ipan, jpan, noff, ipoff, jpoff, npan, il_g, myid, nproc, nxproc, nyproc)
-!      ioff = ipoff(0)
-!      joff = jpoff(0)
-!
-!!     Check that the values calculated here match those set as parameters
-!      if ( ipan /= il ) then
-!         write(6,*) "Error, parameter mismatch, ipan /= il", ipan, il
-!         call ccmpi_abort(-1)
-!      end if
-!      if ( jpan*npan /= jl ) then
-!         write(6,*) "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
-!         call ccmpi_abort(-1)
-!      end if
-!
-!      ! Convert standard jd to a face index
-!      nd = (jd-1)/il_g ! 0: to match fproc
-!      jdf = jd - nd*il_g
-!      mydiag = ( myid == fproc(id,jdf,nd) )
-!      ! Convert global indices to ones on this processors region
-!      idjd_g = id + (jd-1)*il_g
-!      if ( mydiag ) then
-!         call indv_mpi(idjd_g,i,j,n)
-!         idjd = indp(i,j,n)
-!      else
-!         ! This should never be used so set a value that will give a bounds error
-!         idjd = huge(1)
-!      end if
-!
-!   end subroutine proc_setup_uniform
 
    subroutine face_set(ipan_l, jpan_l, noff_l, ioff_l, joff_l, npan_l, il_gx, myid_l, nproc_l, nxproc_l, nyproc_l)
       integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
@@ -6560,9 +6523,6 @@ contains
       
       llen = nevents
       lcomm = comm_world
-      emean = 0._8
-      emax = 0._8
-      emin = 0._8
       call MPI_Reduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, 0_4, lcomm, ierr )
       call MPI_Reduce(tot_time, emax, llen, MPI_DOUBLE_PRECISION,  &
@@ -6582,20 +6542,16 @@ contains
       end if
       
       llen = 2
-      time_mean = 0.
-      time_max = 0.
-      time_min = 0.
       time_l(1:2) = (/ mpiinit_time, total_time /)
       call MPI_Reduce(time_l, time_mean, llen, MPI_REAL, &
                       MPI_SUM, 0_4, lcomm, ierr )
-      time_mean = time_mean/real(nproc)
       call MPI_Reduce(time_l, time_max, llen, MPI_REAL,  &
                       MPI_MAX, 0_4, lcomm, ierr )
       call MPI_Reduce(time_l, time_min, llen, MPI_REAL,  &
                       MPI_MIN, 0_4, lcomm, ierr )
       if ( myid == 0 ) then
-         write(*,"(a,3f10.3)") "MPI_Initialise ",time_mean(1),time_min(1),time_max(1)
-         write(*,"(a,3f10.3)") "Total_Time     ",time_mean(2),time_min(2),time_max(2)
+         write(*,"(a,3f10.3)") "MPI_Initialise ",time_mean(1)/nproc,time_min(1),time_max(1)
+         write(*,"(a,3f10.3)") "Total_Time     ",time_mean(2)/nproc,time_min(2),time_max(2)
       end if   
         
    end subroutine simple_timer_finalize
@@ -8063,6 +8019,7 @@ contains
       call MPI_Init_Thread(MPI_THREAD_SERIALIZED, lprovided, lerr)
       if ( lprovided < MPI_THREAD_SERIALIZED ) then
          write(6,*) "ERROR: MPI does not support MPI_THREAD_SERIALIZED"
+         write(6,*) "Try disabling OpenMP in CCAM and recompile"
          call ccmpi_abort(-1)
       end if
 #else
@@ -8411,6 +8368,11 @@ contains
       tdat(hoz_len*kx+1:ilen) = dsolmax(1:kx)
 
       lcomm = mg(g)%comm_merge
+      if ( lcomm == 0 ) then
+         write(6,*) "ERROR: Invalid communication handle detected for mgcollectreduce"
+         write(6,*) "myid,g,merge_len ",myid,g,mg(g)%merge_len
+         call ccmpi_abort(-1)
+      end if
       call START_LOG(gathermg_begin)
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
       call END_LOG(gathermg_end)
@@ -8491,6 +8453,11 @@ contains
       tdat(1:ilen) = reshape( vdat(1:hoz_len,1:kx), (/ hoz_len*kx /) )
 
       lcomm = mg(g)%comm_merge
+      if ( lcomm == 0 ) then
+         write(6,*) "ERROR: Invalid communication handle detected for mgcollect1"
+         write(6,*) "myid,g,merge_len ",myid,g,mg(g)%merge_len
+         call ccmpi_abort(-1)
+      end if
       call START_LOG(gathermg_begin)
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
       call END_LOG(gathermg_end)
@@ -8572,6 +8539,11 @@ contains
       tdat(hoz_len*kx+1:ilen) = reshape( smaxmin(1:kx,1:2), (/ kx*2 /) )
 
       lcomm = mg(g)%comm_merge
+      if ( lcomm == 0 ) then
+         write(6,*) "ERROR: Invalid communication handle detected for mgcollectxn"
+         write(6,*) "myid,g,merge_len ",myid,g,mg(g)%merge_len
+         call ccmpi_abort(-1)
+      end if      
       call START_LOG(gathermg_begin)
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
       call END_LOG(gathermg_end)
@@ -10666,7 +10638,7 @@ contains
       call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
       call END_LOG(gatherfile_end)
 
-      ! map array in order of processor rank
+      ! reorder array in order of processor rank
       do iproc = 0,fnresid-1
          do k = 1,kx 
             do ipf = 0,fncount-1
@@ -10726,7 +10698,7 @@ contains
       real, dimension(pil_g*pjl_g), intent(in) :: a1
       real, dimension(pipan*pjpan*pnpan*fncount,0:fnresid-1) :: sbuf
 
-      ! map array in order of processor rank
+      ! reorder array in order of processor rank
       do iproc = 0,fnresid-1
          do ipf = 0,fncount-1
             ip = iproc + ipf*fnresid

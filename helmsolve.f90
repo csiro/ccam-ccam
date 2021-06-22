@@ -3681,7 +3681,6 @@ mxpr = il_g/ipan            ! number of processors over rows
 mypr = il_g/jpan            ! number of processors over columns
 
 ! calculate number of levels
-mg_maxlevel = 1
 g = 1
 gp = 2
 do while ( mod( il_g, gp )==0 )
@@ -3690,16 +3689,16 @@ do while ( mod( il_g, gp )==0 )
 end do
 mg_maxlevel = g
 mg_maxlevel_local = mg_maxlevel
+gmax = mg_maxlevel - 1
 
 if ( myid==0 ) then
-  write(6,*) "Initialise multi-grid arrays"
+  write(6,*) "Initialise multi-grid arrays with maxlevel=",mg_maxlevel
 end if
 
 allocate( mg(mg_maxlevel) )
-mg(:)%comm_merge = 0
-
 allocate( mg_bnds(0:nproc-1,mg_maxlevel) )
-
+mg(:)%comm_merge = 0
+mg(:)%merge_len = 1
 hipan = mipan
 hjpan = mjpan
 
@@ -3784,7 +3783,6 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
           do iia = 1,mipan,hipan
             ! update fproc map with processor that owns this data
             mg(1)%procmap(mg_fproc_1(1,i+iia-1,j+jja-1,nn)) = cid  
-            !mg(1)%fproc(i+iia-1,j+jja-1,nn) = cid
           end do
         end do
       end do
@@ -3814,7 +3812,6 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
               do iia = 1,mipan
                 ! update fproc map with processor that owns this data
                 mg(1)%procmap(mg_fproc_1(1,i+iia-1,j+jja-1,nn)) = cid
-                !mg(1)%fproc(i+iia-1,j+jja-1,nn) = cid
               end do
             end do
           end do
@@ -3824,13 +3821,9 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
 
   else if ( .not.lglob ) then ! collect all data to one processor
     lglob = .true.
-    !if ( uniform_decomp ) then
-    !  mg(1)%merge_len = mxpr*mypr
-    !else
     mg(1)%merge_len = min( 6*mxpr*mypr, nproc )
     mg(1)%npanx = 1
     mg_npan = 6
-    !end if
 
     mg(1)%merge_row = mxpr
     mg(1)%nmax = mg(1)%merge_len
@@ -3844,31 +3837,6 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
     end if
       
     ! find gather members
-    !if ( uniform_decomp ) then
-    !  allocate( mg(1)%merge_list(mg(1)%merge_len) )
-    !  iqq = 0
-    !  do jj = 1,mil_g,hjpan
-    !    do ii = 1,mil_g,hipan
-    !      iqq = iqq + 1
-    !      mg(1)%merge_list(iqq) = mg_fproc(1,ii,jj,0)
-    !    end do
-    !  end do
-    !  if ( iqq/=mg(1)%merge_len ) then
-    !    write(6,*) "ERROR: merge_len mismatch ",iqq,mg(1)%merge_len,1
-    !    call ccmpi_abort(-1)
-    !  end if
-    !  mg(1)%merge_pos = -1
-    !  do i = 1,mg(1)%merge_len
-    !    if ( mg(1)%merge_list(i)==myid ) then
-    !      mg(1)%merge_pos = i
-    !      exit
-    !    end if
-    !  end do
-    !  if ( mg(1)%merge_pos<1 ) then
-    !    write(6,*) "ERROR: Invalid merge_pos g,pos ",1,mg(1)%merge_pos
-    !    call ccmpi_abort(-1)
-    !  end if
-    !else
     allocate( mg(1)%merge_list(mg(1)%merge_len) )      
     iqq = 0
     do n = 1,6/npan
@@ -3895,7 +3863,6 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
       write(6,*) "ERROR: Invalid merge_pos g,pos ",1,mg(1)%merge_pos
       call ccmpi_abort(-1)
     end if
-    !end if
 
     ! modify mg_fproc for remaining processor
     mg(1)%procmap(:) = myid
@@ -3908,9 +3875,7 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
     if ( myid==0 ) then
       write(6,*) "--> Multi-grid toplevel                   ",1,mipan,mjpan
     end if
-    !if ( .not.uniform_decomp ) then
     mg(1)%npanx = 1  
-    !end if
     mg(1)%merge_pos = 1
   end if
     
@@ -3943,6 +3908,8 @@ allocate( mg(1)%ine(np), mg(1)%ien(np), mg(1)%inw(np), mg(1)%iwn(np) )
 allocate( mg(1)%ise(np), mg(1)%ies(np), mg(1)%isw(np), mg(1)%iws(np) )
 
 call mg_index(1,mil_g,mipan,mjpan)
+
+gmax = min( mg_maxlevel-1, mg_maxlevel_local )
 
 if ( mg_maxlevel>1 ) then
   allocate( mg(1)%fine(mg(1)%ifull_fine), mg(1)%fine_n(mg(1)%ifull_fine) )
@@ -3985,9 +3952,11 @@ do g = 2,mg_maxlevel
   mg(g)%nmax = 1
   
   ! check for multi-grid gather
-  if ( mod(mipan,2)/=0 .or. mod(mjpan,2)/=0 .or. g==mg_maxlevel ) then ! grid cannot be subdivided on current processor
+  if ( mod(mipan,2)/=0 .or. mod(mjpan,2)/=0 .or. g==mg_maxlevel ) then
+    ! grid cannot be subdivided on current processor
  
-    if ( mod(mxpr,2)==0 .and. mod(mypr,2)==0 .and. g<mg_maxlevel ) then ! collect data over adjacent processors (proc=4)
+    if ( mod(mxpr,2)==0 .and. mod(mypr,2)==0 .and. g<mg_maxlevel ) then
+      ! collect data over adjacent processors (proc=4)
 
       ! This case occurs when there are multiple processors on a panel.
       ! Consequently, npan should be 1 or 6.
@@ -4090,13 +4059,9 @@ do g = 2,mg_maxlevel
     
     else if ( .not.lglob ) then ! collect all data to one processor
       lglob = .true.
-      !if ( uniform_decomp ) then
-      !  mg(g)%merge_len = mxpr*mypr
-      !else
       mg(g)%merge_len = min( 6*mxpr*mypr, nproc )
       mg(g)%npanx = 1
       mg_npan = 6
-      !end if
 
       mg(g)%merge_row = mxpr
       mg(g)%nmax = mg(g)%merge_len
@@ -4109,32 +4074,6 @@ do g = 2,mg_maxlevel
         write(6,*) "--> Multi-grid gatherall at level         ",g,mipan,mjpan
       end if
       
-      ! find gather members
-      !if ( uniform_decomp ) then
-      !  allocate( mg(g)%merge_list(mg(g)%merge_len) )
-      !  iqq = 0
-      !  do jj = 1,mil_g,hjpan
-      !    do ii = 1,mil_g,hipan
-      !      iqq = iqq + 1
-      !      mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,0)
-      !    end do
-      !  end do
-      !  if ( iqq/=mg(g)%merge_len ) then
-      !    write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
-      !    call ccmpi_abort(-1)
-      !  end if
-      !  mg(g)%merge_pos = -1
-      !  do i = 1,mg(g)%merge_len
-      !    if ( mg(g)%merge_list(i)==myid ) then
-      !      mg(g)%merge_pos = i
-      !      exit
-      !    end if
-      !  end do
-      !  if ( mg(g)%merge_pos<1 ) then
-      !    write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
-      !    call ccmpi_abort(-1)
-      !  end if
-      !else
       allocate( mg(g)%merge_list(mg(g)%merge_len) )      
       iqq = 0
       do n = 1,6/npan
@@ -4161,7 +4100,6 @@ do g = 2,mg_maxlevel
         write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
         call ccmpi_abort(-1)
       end if
-      !end if
 
       ! modify mg_fproc for remaining processor
       mg(g)%procmap(:) = myid
@@ -4174,9 +4112,7 @@ do g = 2,mg_maxlevel
       if ( myid==0 ) then
         write(6,*) "--> Multi-grid toplevel                   ",g,mipan,mjpan
       end if
-      !if ( .not.uniform_decomp ) then
       mg(g)%npanx = 1  
-      !end if
       mg(g)%merge_pos = 1
     end if
 
@@ -4212,7 +4148,6 @@ do g = 2,mg_maxlevel
   dcol = mjpan/ncol
   npanx = mg_npan
   
-  !if ( .not.uniform_decomp .and. lglob ) then
   if ( lglob ) then
     npanx = 1
     dcol = 6*mjpan/ncol
