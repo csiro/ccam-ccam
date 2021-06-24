@@ -7548,7 +7548,7 @@ contains
    subroutine ccmpi_gatherx2r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7561,7 +7561,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7572,7 +7572,7 @@ contains
    subroutine ccmpi_gatherx3r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7585,7 +7585,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7596,7 +7596,7 @@ contains
     subroutine ccmpi_gatherx4r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7609,7 +7609,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7620,7 +7620,7 @@ contains
    subroutine ccmpi_gatherx23r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7633,7 +7633,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7644,7 +7644,7 @@ contains
    subroutine ccmpi_gatherx34r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7657,7 +7657,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7668,7 +7668,7 @@ contains
    subroutine ccmpi_gatherx45r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7681,7 +7681,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7692,7 +7692,7 @@ contains
    subroutine ccmpi_gatherx2i(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -7705,7 +7705,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7716,7 +7716,7 @@ contains
    subroutine ccmpi_gatherx3i(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -7729,7 +7729,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7740,7 +7740,7 @@ contains
    subroutine ccmpi_gatherx23l(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
       logical, dimension(:,:), intent(out) :: gdat
       logical, dimension(:), intent(in) :: ldat
 
@@ -7748,7 +7748,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,MPI_LOGICAL,gdat,lsize,MPI_LOGICAL,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,MPI_LOGICAL,gdat,lsize,MPI_LOGICAL,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7759,7 +7759,7 @@ contains
    subroutine ccmpi_gatherx2rr8(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:), intent(out) :: gdat
       real(kind=8), dimension(:), intent(in) :: ldat
@@ -7768,7 +7768,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7779,7 +7779,7 @@ contains
    subroutine ccmpi_gatherx3rr8(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:), intent(in) :: ldat
@@ -7788,7 +7788,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7799,7 +7799,7 @@ contains
    subroutine ccmpi_gatherx23rr8(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:), intent(out) :: gdat
       real(kind=8), dimension(:), intent(in) :: ldat
@@ -7808,7 +7808,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7819,7 +7819,7 @@ contains
    subroutine ccmpi_gatherx34rr8(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:), intent(in) :: ldat
@@ -7828,7 +7828,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7839,7 +7839,7 @@ contains
    subroutine ccmpi_gatherx45rr8(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:,:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:,:), intent(in) :: ldat
@@ -7848,7 +7848,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7859,7 +7859,7 @@ contains
    subroutine ccmpi_scatterx2r(gdat,ldat,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7872,7 +7872,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(scatter_begin)
-      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7883,7 +7883,7 @@ contains
    subroutine ccmpi_scatterx32r(gdat,ldat,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7896,7 +7896,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(scatter_begin)
-      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7907,7 +7907,7 @@ contains
    subroutine ccmpi_scatterx3r(gdat,ldat,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7920,7 +7920,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(scatter_begin)
-      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7931,7 +7931,7 @@ contains
    subroutine ccmpi_scatterx32l(gdat,ldat,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
+      integer(kind=4) :: lsize, lhost, lcomm, ierr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7944,7 +7944,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(scatter_begin)
-      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,ierr)
 #ifdef safe
       call MPI_Barrier( lcomm, ierr )
 #endif
@@ -7955,7 +7955,7 @@ contains
    subroutine ccmpi_allgatherx2i(gdat,ldat,comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) lsize, lcomm, lerr
+      integer(kind=4) lsize, lcomm, ierr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -7967,7 +7967,7 @@ contains
       lcomm = comm
       lsize = size(ldat)
       call START_LOG(allgather_begin)
-      call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,lerr)
+      call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,ierr)
       call END_LOG(allgather_end)
       
    end subroutine ccmpi_allgatherx2i
