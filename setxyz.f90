@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -634,13 +634,13 @@ if (schmidtin>=0.) then  ! (schmidt<0. is to finish of stuff needed for onthefly
   write(6,*) 'for all j & myid=0, ratmin,ratmax = ',ratmin,ratmax
   write(6,*) 'with imin,jmin,imax,jmax ',imin,jmin,imax,jmax
   write (6,"('1st 10 ratios',10f6.3)") (em_g(iq)/em_g(ie_g(iq)),iq=1,10)
-  numpts=0
-  do iq=1,ifull_g
-    rlatdeg=rlatt_g(iq)*180./pi
-    rlondeg=rlongg_g(iq)*180./pi
-    if(rlatdeg>20..and.rlatdeg<60..and.rlondeg>230..and.rlatdeg<300.)numpts=numpts+1
-  enddo
-  write(6,*) 'points in SGMIP region ',numpts
+  !numpts=0
+  !do iq=1,ifull_g
+  !  rlatdeg=rlatt_g(iq)*180./pi
+  !  rlondeg=rlongg_g(iq)*180./pi
+  !  if(rlatdeg>20..and.rlatdeg<60..and.rlondeg>230..and.rlatdeg<300.)numpts=numpts+1
+  !enddo
+  !write(6,*) 'points in SGMIP region ',numpts
 
 end if
 

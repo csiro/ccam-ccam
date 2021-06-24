@@ -24,7 +24,7 @@
 ! Currently, only LDR aerosols are supported.  However, the xtg arrays should be moved to
 ! here in the future, so that there is a common interface for advection and outcdf.
 
-! - This subroutine assumes only one month at a time is integrated in RCM mode.
+! This subroutine assumes only one month at a time is integrated in RCM mode.
 
 module aerointerface
 
@@ -388,7 +388,7 @@ integer, dimension(2) :: spos, npos
 integer, dimension(3) :: idum
 integer, dimension(4) :: sposs, nposs
 real, dimension(:,:), allocatable, save :: dumg
-real, dimension(ifull,16) :: duma
+real, dimension(:,:), allocatable, save :: duma
 real, dimension(:,:,:), allocatable, save :: oxidantdum
 real, dimension(:), allocatable, save :: rlon, rlat
 real, dimension(:), allocatable, save :: rpack
@@ -429,7 +429,7 @@ if ( myid==0 ) write(6,*) "-->Allocate prognostic arrays"
 call aldrinit(ifull,iextra,kl,sig)
 
 if ( myid==0 ) then
-  allocate( dumg(ifull_g,16) )
+  allocate( dumg(ifull_g,16), duma(ifull,16) )
   write(6,*) "Opening emissions file ",trim(aerofile)
   call ccnf_open(aerofile,ncid,ncstatus)
   call ncmsg('Aerosol emissions',ncstatus)
@@ -569,6 +569,8 @@ if ( myid==0 ) then
   do i = 1,16
     call aldrloademiss(i,duma(:,i))
   end do
+  deallocate( dumg, duma )
+  allocate( dumg(ifull_g,3), duma(ifull,3) )
   ! load dust fields
   write(6,*) "Loading emissions for dust (sand)"
   call ccnf_inq_varid(ncid,'sandem',varid,tst)
@@ -596,7 +598,7 @@ if ( myid==0 ) then
   do i=1,3
     call aldrloaderod(i,duma(:,i))
   end do
-  deallocate( dumg )
+  deallocate( dumg, duma )
   ! load oxidant fields
   write(6,*) "Opening oxidants file ",trim(oxidantfile)
   call ccnf_open(oxidantfile,ncid,ncstatus)

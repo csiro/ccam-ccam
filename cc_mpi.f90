@@ -547,6 +547,8 @@ contains
          fv(1:ifull)     = dum(1:ifull,13)
          rlatt(1:ifull)  = dum(1:ifull,14)
          rlongg(1:ifull) = dum(1:ifull,15)
+         deallocate( dum, dum_g )
+         allocate( dum_g(ifull_g,8), dum(ifull,8) )
          dum_g(1:ifull_g,1:4) = rlat4(1:ifull_g,1:4)
          dum_g(1:ifull_g,5:8) = rlong4(1:ifull_g,1:4)
          call ccmpi_distribute(dum(:,1:8),dum_g(:,1:8))
@@ -580,6 +582,8 @@ contains
          fv(1:ifull)     = dum(1:ifull,13)
          rlatt(1:ifull)  = dum(1:ifull,14)
          rlongg(1:ifull) = dum(1:ifull,15)
+         deallocate( dum )
+         allocate( dum(ifull,8) )
          call ccmpi_distribute(dum(:,1:8))
          rlat4_l(1:ifull,1:4)  = dum(1:ifull,1:4)
          rlong4_l(1:ifull,1:4) = dum(1:ifull,5:8)
@@ -839,6 +843,9 @@ contains
       lcomm = comm_world
       call START_LOG(scattercc_begin)
       call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scattercc_end)
       
    end subroutine host_distribute2
@@ -863,6 +870,9 @@ contains
       lcomm = comm_world
       call START_LOG(scattercc_begin)      
       call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scattercc_end)
       
    end subroutine proc_distribute2
@@ -893,6 +903,9 @@ contains
       lcomm = comm_world
       call START_LOG(scattercc_begin)
       call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scattercc_end)
       
    end subroutine host_distribute2r8
@@ -912,6 +925,9 @@ contains
       lcomm = comm_world
       call START_LOG(scattercc_begin)
       call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scattercc_end)
       
    end subroutine proc_distribute2r8
@@ -947,6 +963,9 @@ contains
       lcomm = comm_world
       call START_LOG(scattercc_begin)
       call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scattercc_end)
       
    end subroutine host_distribute2i
@@ -971,6 +990,9 @@ contains
       lcomm = comm_world
       call START_LOG(scattercc_begin)
       call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scattercc_end)
 
    end subroutine proc_distribute2i
@@ -1011,16 +1033,13 @@ contains
 
       lsize = ifull*kx
       lcomm = comm_world
-      if ( size(af,1) == ifull ) then
-         call START_LOG(scattercc_begin)
-         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-      else
-         call START_LOG(scattercc_begin)
-         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )  
-         call END_LOG(scattercc_end)
-         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
-      end if   
+      call START_LOG(scattercc_begin)
+      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )  
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(scattercc_end)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
 
    end subroutine host_distribute3
 
@@ -1047,16 +1066,13 @@ contains
       kx = size(af,2)
       lsize = ifull*kx
       lcomm = comm_world
-      if ( size(af,1) == ifull ) then
-         call START_LOG(scattercc_begin)
-         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-      else
-         call START_LOG(scattercc_begin)
-         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr ) 
-         call END_LOG(scattercc_end)
-         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
-      end if   
+      call START_LOG(scattercc_begin)
+      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr ) 
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(scattercc_end)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
 
    end subroutine proc_distribute3
 
@@ -1089,16 +1105,13 @@ contains
 
       lsize = ifull*kx
       lcomm = comm_world
-      if ( size(af,1) == ifull ) then
-         call START_LOG(scattercc_begin)
-         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-      else
-         call START_LOG(scattercc_begin) 
-         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
-      end if    
+      call START_LOG(scattercc_begin) 
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(scattercc_end)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
 
    end subroutine host_distribute3r8
    
@@ -1118,16 +1131,13 @@ contains
       kx = size(af,2)
       lsize = ifull*kx
       lcomm = comm_world
-      if ( size(af,1) == ifull ) then
-         call START_LOG(scattercc_begin)
-         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-      else
-         call START_LOG(scattercc_begin) 
-         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr ) 
-         call END_LOG(scattercc_end)
-         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
-      end if   
+      call START_LOG(scattercc_begin) 
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr ) 
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(scattercc_end)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
 
    end subroutine proc_distribute3r8
 
@@ -1167,16 +1177,13 @@ contains
 
       lsize = ifull*kx
       lcomm = comm_world
-      if ( size(af,1) == ifull ) then
-         call START_LOG(scattercc_begin)
-         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-      else
-         call START_LOG(scattercc_begin) 
-         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
-      end if   
+      call START_LOG(scattercc_begin) 
+      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(scattercc_end)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
 
    end subroutine host_distribute3i
 
@@ -1203,16 +1210,13 @@ contains
       kx = size(af,2)
       lsize = ifull*kx
       lcomm = comm_world
-      if ( size(af,1) == ifull ) then
-         call START_LOG(scattercc_begin)
-         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-      else
-         call START_LOG(scattercc_begin) 
-         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
-      end if   
+      call START_LOG(scattercc_begin) 
+      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(scattercc_end)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
 
    end subroutine proc_distribute3i   
    
@@ -1255,16 +1259,13 @@ contains
 
       lsize = ifull*kx*lx
       lcomm = comm_world
-      if ( size(af,1) == ifull ) then
-         call START_LOG(scattercc_begin)
-         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-      else
-         call START_LOG(scattercc_begin) 
-         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-         af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
-      end if   
+      call START_LOG(scattercc_begin) 
+      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(scattercc_end)
+      af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
 
    end subroutine host_distribute4
 
@@ -1292,16 +1293,13 @@ contains
       lx = size(af,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      if ( size(af,1) == ifull ) then
-         call START_LOG(scattercc_begin)
-         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-      else
-         call START_LOG(scattercc_begin) 
-         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr ) 
-         call END_LOG(scattercc_end)
-         af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
-      end if   
+      call START_LOG(scattercc_begin) 
+      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr ) 
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(scattercc_end)
+      af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
 
    end subroutine proc_distribute4
 
@@ -1337,16 +1335,13 @@ contains
 
       lsize = ifull*kx*lx
       lcomm = comm_world
-      if ( size(af,1) == ifull ) then
-         call START_LOG(scattercc_begin)
-         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-      else
-         call START_LOG(scattercc_begin) 
-         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-         af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
-      end if
+      call START_LOG(scattercc_begin) 
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(scattercc_end)
+      af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
 
    end subroutine host_distribute4r8
    
@@ -1367,16 +1362,13 @@ contains
       lx = size(af,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      if ( size(af,1) == ifull ) then
-         call START_LOG(scattercc_begin)
-         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
-         call END_LOG(scattercc_end)
-      else
-         call START_LOG(scattercc_begin) 
-         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr ) 
-         call END_LOG(scattercc_end)
-         af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
-      end if   
+      call START_LOG(scattercc_begin) 
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr ) 
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(scattercc_end)
+      af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
 
    end subroutine proc_distribute4r8
 
@@ -1399,6 +1391,9 @@ contains
       lcomm = comm_world
       call START_LOG(gathercc_begin)
       call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gathercc_end)
 
       ! map array in order of processor rank
@@ -1436,6 +1431,9 @@ contains
       lcomm = comm_world
       call START_LOG(gathercc_begin)
       call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gathercc_end)
 
    end subroutine proc_gather2
@@ -1455,6 +1453,9 @@ contains
       lcomm = comm_world
       call START_LOG(gathercc_begin)
       call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gathercc_end)
 
       ! map array in order of processor rank
@@ -1488,6 +1489,9 @@ contains
       lcomm = comm_world
       call START_LOG(gathercc_begin)
       call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gathercc_end)
       
    end subroutine proc_gather2r8
@@ -1511,16 +1515,13 @@ contains
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      if ( size(a,1) == ifull ) then
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      else    
-         atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      end if   
+      atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+      call START_LOG(gathercc_begin)
+      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(gathercc_end)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -1560,16 +1561,13 @@ contains
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      if ( size(a,1) == ifull ) then
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      else    
-         atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      end if   
+      atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+      call START_LOG(gathercc_begin)
+      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(gathercc_end)
 
    end subroutine proc_gather3
 
@@ -1588,16 +1586,13 @@ contains
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      if ( size(a,1) == ifull ) then
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      else    
-         atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      end if  
+      atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+      call START_LOG(gathercc_begin)
+      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(gathercc_end)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -1633,16 +1628,13 @@ contains
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      if ( size(a,1) == ifull ) then
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr ) 
-         call END_LOG(gathercc_end)
-      else    
-         atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      end if   
+      atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+      call START_LOG(gathercc_begin)
+      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(gathercc_end)
       
    end subroutine proc_gather3r8
    
@@ -1666,16 +1658,13 @@ contains
       lx = size(a,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      if ( size(a,1) == ifull ) then
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      else    
-         atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      end if   
+      atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
+      call START_LOG(gathercc_begin)
+      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(gathercc_end)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -1718,16 +1707,13 @@ contains
       lx = size(a,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      if ( size(a,1) == ifull ) then
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      else    
-         atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      end if   
+      atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
+      call START_LOG(gathercc_begin)
+      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(gathercc_end)
 
    end subroutine proc_gather4
 
@@ -1747,16 +1733,13 @@ contains
       lx = size(a,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      if ( size(a,1) == ifull ) then
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      else    
-         atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      end if   
+      atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
+      call START_LOG(gathercc_begin)
+      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(gathercc_end)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -1795,16 +1778,13 @@ contains
       lx = size(a,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      if ( size(a,1) == ifull ) then
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      else    
-         atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
-         call START_LOG(gathercc_begin)
-         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-         call END_LOG(gathercc_end)
-      end if   
+      atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
+      call START_LOG(gathercc_begin)
+      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(gathercc_end)
 
    end subroutine proc_gather4r8
    
@@ -1826,6 +1806,9 @@ contains
       lcomm = comm_world
       call START_LOG(allgathercc_begin)
       call MPI_AllGather( a, lsize, ltype, abuf, lsize, ltype, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(allgathercc_end)
 
       ! map array in order of processor rank
@@ -1861,16 +1844,13 @@ contains
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      if ( size(a,1) == ifull ) then
-         call START_LOG(allgathercc_begin)
-         call MPI_AllGather( a, lsize, ltype, abuf, lsize, ltype, lcomm, ierr ) 
-         call END_LOG(allgathercc_end)
-      else    
-         atemp(:,:) = a(1:ifull,1:kx)
-         call START_LOG(allgathercc_begin)
-         call MPI_AllGather( atemp, lsize, ltype, abuf, lsize, ltype, lcomm, ierr )
-         call END_LOG(allgathercc_end)
-      end if   
+      atemp(:,:) = a(1:ifull,1:kx)
+      call START_LOG(allgathercc_begin)
+      call MPI_AllGather( atemp, lsize, ltype, abuf, lsize, ltype, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
+      call END_LOG(allgathercc_end)
 
       ! map array in order of processor rank
       do iproc = 0,nproc-1
@@ -7582,6 +7562,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx2r
@@ -7603,6 +7586,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx3r
@@ -7624,6 +7610,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx4r
@@ -7645,6 +7634,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx23r
@@ -7666,6 +7658,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx34r
@@ -7687,6 +7682,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx45r
@@ -7708,6 +7706,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx2i
@@ -7729,6 +7730,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx3i
@@ -7745,6 +7749,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,MPI_LOGICAL,gdat,lsize,MPI_LOGICAL,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx23l
@@ -7762,6 +7769,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx2rr8
@@ -7779,6 +7789,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx3rr8
@@ -7796,6 +7809,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx23rr8
@@ -7813,6 +7829,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx34rr8
@@ -7830,6 +7849,9 @@ contains
       lsize = size(ldat)
       call START_LOG(gather_begin)
       call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx45rr8
@@ -7851,6 +7873,9 @@ contains
       lsize = size(ldat)
       call START_LOG(scatter_begin)
       call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scatter_end)
       
    end subroutine ccmpi_scatterx2r
@@ -7872,6 +7897,9 @@ contains
       lsize = size(ldat)
       call START_LOG(scatter_begin)
       call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scatter_end)
       
    end subroutine ccmpi_scatterx32r
@@ -7893,6 +7921,9 @@ contains
       lsize = size(ldat)
       call START_LOG(scatter_begin)
       call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scatter_end)
       
    end subroutine ccmpi_scatterx3r
@@ -7914,6 +7945,9 @@ contains
       lsize = size(ldat)
       call START_LOG(scatter_begin)
       call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scatter_end)
       
    end subroutine ccmpi_scatterx32l
@@ -8368,13 +8402,11 @@ contains
       tdat(hoz_len*kx+1:ilen) = dsolmax(1:kx)
 
       lcomm = mg(g)%comm_merge
-      if ( lcomm == 0 ) then
-         write(6,*) "ERROR: Invalid communication handle detected for mgcollectreduce"
-         write(6,*) "myid,g,merge_len ",myid,g,mg(g)%merge_len
-         call ccmpi_abort(-1)
-      end if
       call START_LOG(gathermg_begin)
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gathermg_end)
 
       ! unpack buffers (nmax is zero unless this is the host processor)
@@ -8453,13 +8485,11 @@ contains
       tdat(1:ilen) = reshape( vdat(1:hoz_len,1:kx), (/ hoz_len*kx /) )
 
       lcomm = mg(g)%comm_merge
-      if ( lcomm == 0 ) then
-         write(6,*) "ERROR: Invalid communication handle detected for mgcollect1"
-         write(6,*) "myid,g,merge_len ",myid,g,mg(g)%merge_len
-         call ccmpi_abort(-1)
-      end if
       call START_LOG(gathermg_begin)
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gathermg_end)
 
       ! unpack buffers (nmax is zero unless this is the host processor)
@@ -8539,13 +8569,11 @@ contains
       tdat(hoz_len*kx+1:ilen) = reshape( smaxmin(1:kx,1:2), (/ kx*2 /) )
 
       lcomm = mg(g)%comm_merge
-      if ( lcomm == 0 ) then
-         write(6,*) "ERROR: Invalid communication handle detected for mgcollectxn"
-         write(6,*) "myid,g,merge_len ",myid,g,mg(g)%merge_len
-         call ccmpi_abort(-1)
-      end if      
       call START_LOG(gathermg_begin)
       call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gathermg_end)
 
       ! unpack buffers (nmax is zero unless this is the host processor)
@@ -10573,6 +10601,9 @@ contains
       lcomm = comm
       call START_LOG(gatherfile_begin)
       call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gatherfile_end)
 
       ! map array in order of processor rank
@@ -10612,6 +10643,9 @@ contains
       lcomm = comm
       call START_LOG(gatherfile_begin)
       call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gatherfile_end)
 
    end subroutine proc_filegather2
@@ -10636,6 +10670,9 @@ contains
       lcomm = comm
       call START_LOG(gatherfile_begin)
       call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gatherfile_end)
 
       ! reorder array in order of processor rank
@@ -10679,6 +10716,9 @@ contains
       lcomm = comm
       call START_LOG(gatherfile_begin)
       call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(gatherfile_end)
 
    end subroutine proc_filegather3
@@ -10716,6 +10756,9 @@ contains
       lcomm = comm
       call START_LOG(scatterfile_begin)
       call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scatterfile_end)
       
    end subroutine host_filedistribute2
@@ -10741,6 +10784,9 @@ contains
       lcomm = comm
       call START_LOG(scatterfile_begin)
       call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,lcomm,ierr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scatterfile_end)
       
    end subroutine proc_filedistribute2
@@ -10782,6 +10828,9 @@ contains
       lcomm = comm
       call START_LOG(scatterfile_begin)
       call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scatterfile_end)
       
    end subroutine host_filedistribute3
@@ -10809,6 +10858,9 @@ contains
       lcomm = comm
       call START_LOG(scatterfile_begin)
       call MPI_Scatter(sbuf,lsize,ltype,af,lsize,ltype,0_4,lcomm,ierr)
+#ifdef safe
+      call MPI_Barrier( lcomm, ierr )
+#endif
       call END_LOG(scatterfile_end)
       
    end subroutine proc_filedistribute3

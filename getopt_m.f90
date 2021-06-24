@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -478,16 +478,13 @@ module getopt_m
 contains
 
 !   subroutine getopt (optstring, nopt, opt, longopts, longind, long_only)
-   subroutine getopt (optstring, optind, opt, optarg, longopts, longind, mpi )
+   subroutine getopt (optstring, optind, opt, optarg, longopts, longind )
       character(len=*), intent(in) :: optstring
       integer, intent(out) :: optind
       integer, intent(out) :: opt
       character(len=*), intent(out) :: optarg
       type(loption), dimension(:), target, intent(in), optional :: longopts
       integer, intent(inout), optional :: longind
-!!!   If program is run under mpi, using mpirun, iargc is includes mpirun
-!!!   arguments.
-      logical, intent(in), optional :: mpi
 !      logical, intent(in), optional :: long_only
 
 !  The next char to be scanned in the option-element
@@ -528,11 +525,6 @@ contains
          optind = 1
          !!! Need to use iargc()+1 to get the same result as with C
          argc = command_argument_count()+1
-         if ( present(mpi) ) then
-            if ( mpi ) then
-               argc = argc - 4 ! Offset for mpirun -np X
-            end if
-         end if
          allocate ( argv(0:argc-1) )
          do i=0,argc-1
             !call getarg(i,argv(i))

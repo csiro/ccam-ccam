@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -73,12 +73,13 @@ endif  ! (sig(1)<sig(kl))
 if ( myid==0 ) then
   write(6,*) 'final sig values: ',sig
   write(6,*) 'final sigmh values: ',sigmh
-  open(28,file='eigenv.out')
 end if
 call eigs(isoth,tbar,dt,epsp,epsh,nh,sig,sigmh,bet,betm,lbam,lemat,leinv)
 if ( myid==0 ) then
   write(6,*) 'about to write to 28 '
+  open(28,file='eigenv.out',status='new')  
   write(28,*)kl,lapsbot,isoth,nsig,'   kl,lapsbot,isoth,nsig'
+  close(28)
 end if
 !     re-order the eigenvectors if necessary
 nchng = 1

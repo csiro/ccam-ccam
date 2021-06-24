@@ -3622,7 +3622,7 @@ if ( first ) then
     lname = 'Total Cloud Fraction'
     call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)
     lname = 'Direct normal irradiance'
-    call attrib(fncid,sdim,ssize,'dni',lname,'W m-2',-500.,2.e3,0,-1)          ! -1 = long
+    call attrib(fncid,sdim,ssize,'dni',lname,'W m-2',-500.,2.e3,0,-1)           ! -1 = long
     if ( surf_windfarm==1 ) then
       lname='x-component 150m wind'
       call attrib(fncid,sdim,ssize,'ua150m',lname,'m s-1',-130.,130.,0,1)
@@ -4116,7 +4116,6 @@ implicit none
 ! this one will ignore negative zs (i.e. over the ocean)
 
 integer, save :: lev = -1
-integer, dimension(1) :: pos
 real c, conr, con
 real, dimension(ifull), intent(out) :: pmsl
 real, dimension(ifull), intent(in) :: psl, zs
@@ -4126,8 +4125,11 @@ real, dimension(:,:), intent(in) :: t
 c = grav/stdlapse
 conr = c/rdry
 if ( lev<0 ) then
-  pos = minloc(abs(sig-0.9),sig>=0.9)
-  lev = pos(1)
+  lev = 1
+  do while ( sig(lev)>=0.9 .and. lev<kl )
+    lev = lev + 1
+  end do
+  lev = lev - 1
   if ( myid==0 ) then
     write(6,*) "Reducing ps to MSLP with lev,sig ",lev,sig(lev) 
   end if
