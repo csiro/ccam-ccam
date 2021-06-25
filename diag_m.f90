@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -45,8 +45,10 @@ contains
       real, dimension(:,:), intent(in) :: a
       integer, intent(in) :: ktau, level, i1, i2, j1, j2
       real, intent(in) :: bias, facti
-
+      
+      if ( level<1 .or. level>size(a,2) ) return
       call printa1(name,a(:,level),ktau,level,i1,i2,j1,j2,bias,facti)
+
    end subroutine printa2
 
    subroutine printa1(name,a,ktau,level,i1,i2,j1,j2,bias,facti)
@@ -60,6 +62,7 @@ contains
       integer, intent(in) :: ktau, level, i1, i2, j1, j2
       real, intent(in) :: bias, facti
       integer i, j, ja, jb, n, n2, ilocal, jlocal, nlocal
+      integer iq
       real fact, atmp
 
       ! The indices i1, i2, j1, j2 are global
@@ -79,7 +82,9 @@ contains
          ! This will be consistent for 1-6 processors at least
          nlocal = n + noff
          if(abs(facti)<1.e-20) then ! facti==0.
-            atmp = abs(a(indp(ipan/2,jpan/2,nlocal)))
+            iq = indp(ipan/2,jpan/2,nlocal)
+            iq = max(1, min( iq, size(a) ) )
+            atmp = abs(a(iq))
             if ( atmp > 0 ) then
                fact = 10./atmp
             else 
@@ -97,7 +102,9 @@ contains
                nlocal = n + noff
                ilocal = i - ioff
                jlocal = j - n*il_g - joff
-               write(unit=*,fmt="(f11.6)", advance="no") (a(indp(ilocal,jlocal,nlocal))-bias)*fact
+               iq = indp(ilocal,jlocal,nlocal)
+               iq = max(1, min( iq, size(a) ) )
+               write(unit=*,fmt="(f11.6)", advance="no") (a(iq)-bias)*fact
             end do
             write(*,*)
          end do
@@ -122,6 +129,8 @@ contains
       real, dimension(2,kup) :: gumax, gumin
       real, dimension(kup) :: gout
       real gmax, gmin
+      
+      if ( kup<12 ) return
       
       gumax = 0.
       gumin = 0.
