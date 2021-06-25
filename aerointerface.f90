@@ -691,15 +691,19 @@ if ( myid==0 ) then
   deallocate(oxidantdum,rlat,rlon)
 else
   ! load emission fields
+  allocate( duma(ifull,16) )  
   call ccmpi_distribute(duma(:,1:16))  
   do i = 1,16
     call aldrloademiss(i,duma(:,i))
   end do
+  deallocate( duma )
+  allocate( duma(ifull,3) )
   ! load dust fields (sand, silt, clay)
   call ccmpi_distribute(duma(:,1:3))  
   do i = 1,3
     call aldrloaderod(i,duma(:,i))
   end do
+  deallocate( duma )
   ! load oxidant fields
   call ccmpi_bcast(idum(1:3),0,comm_world)
   ilon = idum(1)
