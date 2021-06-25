@@ -77,7 +77,7 @@ end if
 call eigs(isoth,tbar,dt,epsp,epsh,nh,sig,sigmh,bet,betm,lbam,lemat,leinv)
 if ( myid==0 ) then
   write(6,*) 'about to write to 28 '
-  open(28,file='eigenv.out',status='new')  
+  open(28,file='eigenv.out',status='unknown')  
   write(28,*)kl,lapsbot,isoth,nsig,'   kl,lapsbot,isoth,nsig'
   close(28)
 end if
