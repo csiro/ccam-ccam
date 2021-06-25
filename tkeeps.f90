@@ -119,9 +119,9 @@ integer, intent(in) :: ifull,iextra,kl
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
 allocate(shear(ifull,kl))
 
-tke=mintke
-eps=mineps
-shear=0.
+tke(1:ifull+iextra,1:kl)=mintke
+eps(1:ifull+iextra,1:kl)=mineps
+shear(1:ifull,1:kl)=0.
 
 return
 end subroutine tkeinit
