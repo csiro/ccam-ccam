@@ -964,7 +964,7 @@ end if                                                                          
 if ( nvmix/=9 ) then                                                                           ! MLO
   calcprog=0 ! update ocean and sea-ice                                                        ! MLO
 else                                                                                           ! MLO
-  calcprog=3 ! update sea-ice thermodynamics only                                                             ! MLO
+  calcprog=3 ! update sea-ice thermodynamics only                                              ! MLO
 end if                                                                                         ! MLO
                                                                                                ! MLO
 ! inflow and outflow model for rivers                                                          ! MLO

@@ -1100,7 +1100,7 @@ call mloexpice("v",i_v,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
 
 icefg_a = 0.
 fracice = 0.
-imass = 0.
+imass = 100.
 cd_ice = 0.
 cdbot_ice = 0.
 call mlodiagice("fg",icefg_a,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))

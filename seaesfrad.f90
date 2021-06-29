@@ -466,6 +466,11 @@ do iq_tile = 1,ifull,imax
         cloudhi(istart:iend) = cloudhi(istart:iend) + cfrac(istart:iend,k)*(1.-cloudhi(istart:iend))
       end do
     end if
+    do i = 1,imax
+      Cld_spec(mythread)%nmxolw(i,1) = count( Cld_spec(mythread)%cmxolw(i,1,:)>0._8 )
+      Cld_spec(mythread)%nrndlw(i,1) = count( Cld_spec(mythread)%crndlw(i,1,:)>0._8 )
+      Cld_spec(mythread)%ncldsw(i,1) = count( Cld_spec(mythread)%camtsw(i,1,:)>0._8 )
+    end do
 
     ! Prepare SEA-ESF arrays ----------------------------------------
     dumtss = min( max( tss(istart:iend), 100.), 365.)
@@ -1589,6 +1594,9 @@ do mythread = 0,maxthreads-1
   allocate( Cld_spec(mythread)%camtsw(imax, 1, kl) )
   allocate( Cld_spec(mythread)%cmxolw(imax, 1, kl) )
   allocate( Cld_spec(mythread)%crndlw(imax, 1, kl) )
+  allocate( Cld_spec(mythread)%ncldsw(imax, 1) )
+  allocate( Cld_spec(mythread)%nmxolw(imax, 1) )
+  allocate( Cld_spec(mythread)%nrndlw(imax, 1) )
   
   allocate( Surface(mythread)%asfc_vis_dir(imax, 1) )
   allocate( Surface(mythread)%asfc_nir_dir(imax, 1) )
