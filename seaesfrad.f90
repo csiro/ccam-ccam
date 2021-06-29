@@ -466,11 +466,6 @@ do iq_tile = 1,ifull,imax
         cloudhi(istart:iend) = cloudhi(istart:iend) + cfrac(istart:iend,k)*(1.-cloudhi(istart:iend))
       end do
     end if
-    do i = 1,imax
-      Cld_spec(mythread)%nmxolw(i,1) = count( Cld_spec(mythread)%cmxolw(i,1,:)>0._8 )
-      Cld_spec(mythread)%nrndlw(i,1) = count( Cld_spec(mythread)%crndlw(i,1,:)>0._8 )
-      Cld_spec(mythread)%ncldsw(i,1) = count( Cld_spec(mythread)%camtsw(i,1,:)>0._8 )
-    end do
 
     ! Prepare SEA-ESF arrays ----------------------------------------
     dumtss = min( max( tss(istart:iend), 100.), 365.)
@@ -552,6 +547,11 @@ do iq_tile = 1,ifull,imax
         end do
       end do
     end if
+    do i = 1,imax
+      Cld_spec(mythread)%nmxolw(i,1) = count( Cld_spec(mythread)%cmxolw(i,1,:)>0._8 )
+      Cld_spec(mythread)%nrndlw(i,1) = count( Cld_spec(mythread)%crndlw(i,1,:)>0._8 )
+      Cld_spec(mythread)%ncldsw(i,1) = count( Cld_spec(mythread)%camtsw(i,1,:)>0._8 )
+    end do  
 
     ! cloud microphysics for radiation
     ! cfrac, qlrad and qfrad also include convective cloud as well as qfg and qlg
@@ -1433,31 +1433,31 @@ rrco2 = rrvco2*ratco2mw
 ! fixes
 if ( trim(linecatalog_form)=="hitran_2000" ) then
   if ( rrvco2 > 1600.e-6 ) then
-    write(6,*) "ERROR: CO2 concentration is above maximum of 1600. ppmv"
+    write(6,*) "ERROR: CO2 concentration is above maximum of 1600 ppmv"
     write(6,*) "Consider using linecatalog_form=hitran_2012"
     call ccmpi_abort(-1)
   end if    
   if ( rrvch4 > 4000.e-9 ) then
-    write(6,*) "ERROR: CH4 concentration is above maximum of 4000. ppbv"
+    write(6,*) "ERROR: CH4 concentration is above maximum of 4000 ppbv"
     write(6,*) "Consider using linecatalog_form=hitran_2012"
     call ccmpi_abort(-1)
   end if    
   if ( rrvn2o > 500.e-9 ) then
-    write(6,*) "ERROR: N2O concentration is above maximum of 500. ppbv"
+    write(6,*) "ERROR: N2O concentration is above maximum of 500 ppbv"
     write(6,*) "Consider using linecatalog_form=hitran_2012"
     call ccmpi_abort(-1)
   end if    
 else if ( trim(linecatalog_form)=="hitran_2012" ) then
   if ( rrvco2 > 10000.e-6 ) then
-    write(6,*) "ERROR: CO2 concentration is above maximum of 10000. ppmv"
+    write(6,*) "ERROR: CO2 concentration is above maximum of 10000 ppmv"
     call ccmpi_abort(-1)
   end if    
   if ( rrvch4 > 6000.e-9 ) then
-    write(6,*) "ERROR: CH4 concentration is above maximum of 6000. ppbv"
+    write(6,*) "ERROR: CH4 concentration is above maximum of 6000 ppbv"
     call ccmpi_abort(-1)
   end if    
   if ( rrvn2o > 800.e-9 ) then
-    write(6,*) "ERROR: N2O concentration is above maximum of 800. ppbv"
+    write(6,*) "ERROR: N2O concentration is above maximum of 800 ppbv"
     call ccmpi_abort(-1)
   end if   
 else
@@ -1605,7 +1605,7 @@ do mythread = 0,maxthreads-1
 
   allocate( Astro(mythread)%cosz(imax, 1) )
   allocate( Astro(mythread)%fracday(imax, 1) )
-  Astro(mythread)%rrsun = 1./(r1*r1)
+  Astro(mythread)%rrsun = 1./(r1**2)
 
   allocate( Lw_output(mythread)%heatra(imax, 1, kl) )
   allocate( Lw_output(mythread)%flxnet(imax, 1, kl+1) )

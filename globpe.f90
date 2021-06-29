@@ -61,6 +61,7 @@ use kuocomb_m                              ! JLM convection
 use leoncld_mod, only : leoncld            ! Prognostic cloud condensate
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
+use mlo                                    ! Ocean physics and prognostic arrays
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -84,6 +85,7 @@ use seaesfrad_m                            ! SEA-ESF radiation
 use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
 use soil_m                                 ! Soil and surface data
+use soilsnow_m                             ! Soil, snow and surface data
 use timeseries, only : write_ts            ! Tracer time series
 use tracermodule, only : tracer_mass     & ! Tracer routines
    ,interp_tracerflux
@@ -488,6 +490,16 @@ do ktau = 1,ntau   ! ****** start of main time loop
     ! DIFFUSION -----------------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlodiffusion
+    call END_LOG(waterdynamics_end)
+  end if
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
+    ! CREATE OR DESTROY SEA ICE -------------------------------------------  
+    call START_LOG(waterdynamics_begin)
+    call mlonewice
+    call mloexpice("fracice",fracice,0)
+    call mloexpice("thick",sicedep,0)
+    call mloexpice("snowd",snowd,0)
+    call mlosurf("sst",tss,0)
     call END_LOG(waterdynamics_end)
   end if
     
@@ -2534,9 +2546,6 @@ minwater = max( 0., minwater )  ! limit ocean minimum water level
 if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (no output in history file)
 if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (output in history file)
 
-!$acc update device(vmodmin,sigbot_gwd,fc2,dt,alphaj,ngwd,iaero,nmr)
-!$acc update device(qgmin,nlocal,cqmix)
-
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -2653,15 +2662,14 @@ iquad   = 1 + il_g*((8*npanels)/(npanels+4))  ! grid size for interpolation
 il      = il_g/nxp                            ! local grid size on process in X direction
 jl      = jl_g/nyp                            ! local grid size on process in Y direction
 ifull   = il*jl                               ! total number of local horizontal grid points
-!$acc update device(ifull_g,ifull,iextra,kl)
 ! The perimeter of the processor region has length 2*(il+jl).
 ! The first row has 8 possible corner points per panel and the 
 ! second has 16. In practice these are not all distinct so there could
 ! be some optimisation.
 !if ( uniform_decomp ) then
-!  npan = npanels + 1               ! number of panels on this process
+!  npan = npanels + 1              ! number of panels on this process
 !else
-npan = max(1, (npanels+1)/nproc) ! number of panels on this process
+npan = max(1, (npanels+1)/nproc)   ! number of panels on this process
 !end if
 iextra = (4*(il+jl)+24)*npan + 4   ! size of halo for MPI message passing
 call ccomp_ntiles
@@ -2878,7 +2886,7 @@ if ( myid==0 ) then
   write(6,*)' m_fly  io_in io_nest io_out io_rest  nwt  nperavg'
   write(6,'(i5,4i7,3i8)') m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg
   write(6,*)' hp_output procmode compression'
-  write(6,'(i5,l5,2i5)') hp_output,procmode,compression
+  write(6,'(i5,2i5)') hp_output,procmode,compression
 
   write(6, cardin)
   write(6, skyin)
@@ -3009,22 +3017,12 @@ call ccmpi_bcastr8(y_g,0,comm_world)
 call ccmpi_bcastr8(z_g,0,comm_world)
 #endif
 call ccmpi_bcast(ds,0,comm_world)
-!$acc update device(ds)
 
 if ( myid==0 ) then
   write(6,*) "Calling ccmpi_setup"
 end if
 call ccmpi_setup(id,jd,idjd,dt)
 
-!$acc update device(in,is,ie,iw)
-!$acc update device(iws,ies,iwn,ien,isw,inw,ise,ine)
-!$acc update device(inn,iss,iee,iww)
-!$acc update device(inv,isv,ieu,iwu)
-!$acc update device(innv,ieeu,issv,iwwu)
-!$acc update device(inu,isu,iev,iwv)
-!$acc update device(lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww)
-!$acc update device(lssw,lsee,lsse,lnww,lnnw,lnee,lnne)
-      
 !--------------------------------------------------------------
 ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
 if ( myid==0 ) then
@@ -3604,25 +3602,25 @@ end subroutine proctest_face
     
 !--------------------------------------------------------------
 ! TEST GRID DECOMPOSITION - UNIFORM
-subroutine proctest_uniform(npanels,il_g,nproc,nxp,nyp)
-
-implicit none
-
-integer, intent(in) :: il_g, nproc, npanels
-integer, intent(out) :: nxp, nyp
-integer jl_g
-
-jl_g = il_g + npanels*il_g     ! size of grid along all panels (usually 6*il_g)
-nxp = nint(sqrt(real(nproc)))  ! number of processes in X direction
-nyp = nproc/nxp                ! number of processes in Y direction
-! search for vaild process decomposition.  CCAM enforces the same grid size on each process
-do while ( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,nyp)/=0) .and. nxp>0 )
-  nxp = nxp - 1
-  nyp = nproc/max(nxp,1)
-end do
-
-return
-end subroutine proctest_uniform
+!subroutine proctest_uniform(npanels,il_g,nproc,nxp,nyp)
+!
+!implicit none
+!
+!integer, intent(in) :: il_g, nproc, npanels
+!integer, intent(out) :: nxp, nyp
+!integer jl_g
+!
+!jl_g = il_g + npanels*il_g     ! size of grid along all panels (usually 6*il_g)
+!nxp = nint(sqrt(real(nproc)))  ! number of processes in X direction
+!nyp = nproc/nxp                ! number of processes in Y direction
+!! search for vaild process decomposition.  CCAM enforces the same grid size on each process
+!do while ( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,nyp)/=0) .and. nxp>0 )
+!  nxp = nxp - 1
+!  nyp = nproc/max(nxp,1)
+!end do
+!
+!return
+!end subroutine proctest_uniform
 
 !--------------------------------------------------------------------
 ! Fix water vapour mixing ratio

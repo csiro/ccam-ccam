@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -60,7 +60,6 @@ module cc_mpi
    integer, save, private :: maxbuflen, maxvertlen                         ! bounds buffer size   
    !logical, save, public :: uniform_decomp                                ! uniform decomposition flag
    logical, save, public :: mydiag                                         ! true if diagnostic point id, jd is in my region
-   !$acc declare create(mydiag,ipan,jpan)
    
    integer, save, public :: comm_node, node_myid, node_nproc               ! node communicator
    integer, save, public :: comm_nodecaptain, nodecaptain_myid, &
@@ -6731,23 +6730,27 @@ contains
 
    subroutine start_log ( event )
       integer, intent(in) :: event
+      integer(kind=8) :: begin_time, count_rate, count_max
       if ( ccomp_get_thread_num() /= 0 ) return
 #ifdef vampir
       VT_USER_START(event_name(event))
 #endif
 #ifdef simple_timer
-      start_time(event) = MPI_Wtime()
+      call system_clock( begin_time, count_rate, count_max )
+      start_time(event) = real(begin_time,8)/real(count_rate,8)
 #endif 
    end subroutine start_log
 
    subroutine end_log ( event )
       integer, intent(in) :: event
+      integer(kind=8) :: end_time, count_rate, count_max
       if ( ccomp_get_thread_num() /= 0 ) return
 #ifdef vampir
       VT_USER_END(event_name(event))
 #endif
 #ifdef simple_timer
-      tot_time(event) = tot_time(event) + MPI_Wtime() - start_time(event)
+      call system_clock( end_time, count_rate, count_max )
+      tot_time(event) = tot_time(event) + ( real(end_time,8)/real(count_rate,8) - start_time(event) )
 #endif 
    end subroutine end_log
 
