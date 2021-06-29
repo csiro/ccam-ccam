@@ -56,10 +56,14 @@ real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl) :: sx ! unpacked tracer array
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
+!$acc declare present(xg,yg,nface)
 
 call START_LOG(ints_begin)
 
 call bounds(s,nrows=2) ! also includes corners
+
+!$acc enter data create(sx,s)
+!$acc update device(s)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -104,7 +108,9 @@ if ( intsch==1 ) then
     end do          ! n loop
   end do            ! k loop
 
-  ! Loop over points that need to be calculated for other processes
+  !$acc update device(sx)
+
+! Loop over points that need to be calculated for other processes
   if ( nfield<mh_bs ) then
 
     do ii = 1,neighnum
@@ -137,7 +143,7 @@ if ( intsch==1 ) then
         rmul_4 = sx(idel,  jdel+2,n,k)*dmul_2 + sx(idel+1,jdel+2,n,k)*dmul_3
         sextra(ii)%a(iq) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do      ! iq loop
-    end do        ! ii loop
+    end do          ! ii loop
 
     ! Send messages to other processors.  We then start the calculation for this processor while waiting for
     ! the messages to return, thereby overlapping computation with communication.
@@ -146,6 +152,7 @@ if ( intsch==1 ) then
     !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),               &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),  &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
+    !$acc parallel loop collapse(2)
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
@@ -175,6 +182,7 @@ if ( intsch==1 ) then
         s(iq,k) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do       ! iq loop
     end do         ! k loop
+    !$acc end parallel loop
     !$omp end parallel do
     
   else              ! (nfield<mh_bs)
@@ -222,6 +230,7 @@ if ( intsch==1 ) then
     !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),               &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),  &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
+    !$acc parallel loop collapse(2) copyin(sx) copyout(s(1:ifull,1:kl))
     do k = 1,kl
       do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
         idel = int(xg(iq,k))
@@ -256,6 +265,7 @@ if ( intsch==1 ) then
             rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
       end do      ! iq loop
     end do        ! k loop
+    !$acc end parallel loop
     !$omp end parallel do
 
   end if            ! (nfield<mh_bs)  .. else ..
@@ -302,6 +312,8 @@ else     ! if(intsch==1)then
     end do              ! n loop
   end do                ! k loop
 
+  !$acc update device(sx)
+
   ! For other processes
   if ( nfield < mh_bs ) then
 
@@ -342,6 +354,7 @@ else     ! if(intsch==1)then
     !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),               &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),  &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
+    !$acc parallel loop collapse(2)
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
@@ -372,6 +385,7 @@ else     ! if(intsch==1)then
         s(iq,k) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do       ! iq loop
     end do         ! k loop
+    !$acc end parallel loop
     !$omp end parallel do
     
   else                 ! (nfield<mh_bs)
@@ -418,6 +432,7 @@ else     ! if(intsch==1)then
     !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),               &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),  &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
+    !$acc parallel loop collapse(2)
     do k = 1,kl
       do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
         idel = int(xg(iq,k))
@@ -452,12 +467,16 @@ else     ! if(intsch==1)then
             rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
       end do       ! iq loop
     end do         ! k loop
+    !$acc end parallel loop
     !$omp end parallel do
     
   end if            ! (nfield<mh_bs)  .. else ..
 
 end if               ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
+
+!$acc update self(s(1:ifull,1:kl))
+!$acc exit data delete(sx,s)
 
 call intssync_recv(s)
       
@@ -487,6 +506,7 @@ real xxg, yyg
 real, dimension(ifull,kl), intent(in) :: xg,yg      ! now passed through call
 real, dimension(0:ipan+1,0:jpan+1,1:npan,kl) :: sx
 real, dimension(ifull+iextra,kl), intent(inout) :: s
+!$acc declare present(xg,yg,nface)
 
 !     this one does bi-linear interpolation only
 !     first extend s arrays into sx - this one -1:il+2 & -1:il+2
@@ -495,6 +515,9 @@ real, dimension(ifull+iextra,kl), intent(inout) :: s
 call START_LOG(ints_begin)
 
 call bounds(s,corner=.true.)
+
+!$acc enter data create(sx,s)
+!$acc update device(s)
 
 sx(1:ipan,1:jpan,1:npan,1:kl) = reshape(s(1:ipan*jpan*npan,1:kl), (/ipan,jpan,npan,kl/))
 do k = 1,kl
@@ -516,6 +539,8 @@ do k = 1,kl
   end do                 ! n loop
 end do                   ! k loop
 
+!$acc update device(sx)
+
 ! Loop over points that need to be calculated for other processes
 do ii = 1,neighnum
   do iq = 1,drlen(ii)
@@ -536,6 +561,7 @@ end do
 call intssync_send(1)
 
 !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
+!$acc parallel loop collapse(2)
 do k = 1,kl
   do iq = 1,ifull
     ! Convert face index from 0:npanels to array indices
@@ -550,6 +576,9 @@ do k = 1,kl
               + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
+!$acc end parallel loop
+!$acc update self(s(1:ifull,1:kl))
+!$acc exit data delete(s,sx)
 !$omp end parallel do
 
 call intssync_recv(s)

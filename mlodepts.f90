@@ -76,6 +76,8 @@ do k = 1,wlev
   z3d(:,k) = z - wc(:,k)
 end do
 
+!$acc data create(xg,yg,nface,sx,s)
+
 ! convert to grid point numbering
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 
@@ -137,6 +139,8 @@ end do
 
 call bounds(s,nrows=2)
 
+!$acc update device(s)
+
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
 
@@ -177,6 +181,8 @@ if ( intsch==1 ) then
       end do               ! n loop
     end do                 ! k loop
   end do                   ! nn loop
+
+  !$acc update device(sx)
  
   ! Loop over points that need to be calculated for other processes
   do ii = 1,neighnum
@@ -218,6 +224,7 @@ if ( intsch==1 ) then
   !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s)
   do nn = 1,3
     do k = 1,wlev
       do iq = 1,ifull
@@ -249,6 +256,8 @@ if ( intsch==1 ) then
       end do     ! iq loop
     end do       ! k loop
   end do         ! nn loop
+  !$acc end parallel loop
+  !$acc update self(s)
   !$omp end parallel do
        
 !========================   end of intsch=1 section ====================
@@ -293,6 +302,8 @@ else     ! if(intsch==1)then
     end do             ! k loop
   end do               ! nn loop
 
+  !$acc update device(sx)
+
   ! For other processes
   do ii = 1,neighnum
     do nn = 1,3
@@ -332,6 +343,7 @@ else     ! if(intsch==1)then
   !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s)
   do nn = 1,3
     do k = 1,wlev
       do iq = 1,ifull
@@ -363,6 +375,8 @@ else     ! if(intsch==1)then
       end do
     end do
   end do
+  !$acc end parallel loop
+  !$acc update self(s)
   !$omp end parallel do
 
 end if                     ! (intsch==1) .. else ..
@@ -427,6 +441,7 @@ if ( intsch==1 ) then
   !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s)
   do nn = 1,3
     do k = 1,wlev
       do iq = 1,ifull
@@ -457,6 +472,8 @@ if ( intsch==1 ) then
       end do     ! iq loop
     end do       ! k loop
   end do         ! nn loop
+  !$acc end parallel loop
+  !$acc update self(s)
   !$omp end parallel do    
        
 !========================   end of intsch=1 section ====================
@@ -501,6 +518,7 @@ else     ! if(intsch==1)then
   !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s)
   do nn = 1,3
     do k = 1,wlev
       do iq = 1,ifull
@@ -532,6 +550,8 @@ else     ! if(intsch==1)then
       end do
     end do
   end do
+  !$acc end parallel loop
+  !$acc update self(s)
   !$omp end parallel do
 
 end if                     ! (intsch==1) .. else ..
@@ -554,6 +574,8 @@ end do
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
+
+!$acc end data
 
 call END_LOG(waterdeps_end)
 
@@ -594,6 +616,7 @@ alfonsch = 2._8*schmidt/(1._8+schmidt**2)
 
 !$omp parallel do schedule(static) private(ii,iq,den,xstr,ystr,zstr), &
 !$omp private(denxyz,xd,yd,zd,ri,rj,i,j,loop,is,js,dxx,dxy,dyx,dyy)
+!$acc parallel loop collapse(2) copyin(x3d,y3d,z3d,xx4,yy4) present(xg,yg,nface)
 do ii = 1,wlev
   do iq = 1,ifull
 
@@ -669,6 +692,8 @@ do ii = 1,wlev
 
   end do
 end do
+!$acc end parallel loop
+!$acc update self(xg,yg,nface)
 !$omp end parallel do
 
 return

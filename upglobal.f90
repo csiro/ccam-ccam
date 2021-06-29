@@ -182,6 +182,9 @@ if ( nmaxpr==1 .and. nproc==1 ) then
   write (6,"(9f8.4)") ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
 end if
 
+!$acc data create(xg,yg,nface)
+!$acc update device(xg,yg,nface)
+
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
   if ( nh/=0 ) then
@@ -370,6 +373,8 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     end do
   end if
 end if     ! mspec==1
+
+!$acc end data
 
 do k = 2,kl
   sdot(:,k) = sbar(:,k)

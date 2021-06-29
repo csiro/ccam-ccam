@@ -1237,6 +1237,7 @@ else
       vd(iq,k) = va(iq,k)
     end do
   end do
+  !!$acc end parallel loop
 
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)

@@ -35,6 +35,7 @@ integer, save :: nproc                  ! Number of processors to use
 integer, save :: kl                     ! Atmosphere vertical levels
 integer, save :: ol                     ! Ocean vertical levels
 integer, parameter :: ms = 6      ! Soil levels in surface scheme
+!$acc declare create(kl)
 
 integer, save :: il_g                   ! Global grid size in X-dir
 integer, save :: jl_g                   ! Global grid size in Y-dir
@@ -42,6 +43,7 @@ integer, save :: ifull_g                ! Number of global grid points
 integer, save :: nrows_rad              ! Subset of grid for radiation
 integer, parameter :: npanels = 5 ! Cubic panels (0-5)
 integer, save :: iquad                  ! iquad is only used globally
+!$acc declare create(ifull_g)
 !     for     npanels:   0          5        13
 !                  jl:   -         6*il     14*il
 !                quad:   1         4*il+1   6*il+1
@@ -51,6 +53,7 @@ integer, save :: il, jl                 ! Local processor grid size
 integer, save :: npan                   ! Number of panels for processor
 integer, save :: ifull                  ! Number of grid points for processor
 integer, save :: iextra                 ! Size of halo for processor
+!$acc declare create(ifull,iextra)
 
 integer, parameter :: mxst = 13   ! max_no_of_soil_types
 integer, parameter :: mxvt = 17   ! max_no_of_vegetation_types

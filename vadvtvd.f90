@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -67,17 +67,19 @@ if ( num==0 ) then
   end if
 end if
 
+!$acc data create(sdot,nvadh_pass,nits,rathb,ratha)
+!$acc update device(sdot,nvadh_pass,nits,rathb,ratha)
 !$omp parallel sections
 
 !$omp section
 !     t
-call vadv_work(tarr,nvadh_pass,nits)
+call vadv_work(tarr,nvadh_pass,nits,1)
 
 !     u
-call vadv_work(uarr,nvadh_pass,nits)
+call vadv_work(uarr,nvadh_pass,nits,2)
 
 !     v
-call vadv_work(varr,nvadh_pass,nits)
+call vadv_work(varr,nvadh_pass,nits,3)
 if( diag .and. mydiag )then
 !       These diagnostics don't work with single input/output argument
   write (6,"('tout',9f8.2/4x,9f8.2)") (tarr(idjd,k),k=1,kl)
@@ -91,15 +93,15 @@ endif
 !$omp section
 !     h_nh
 if ( nh/=0 ) then
-  call vadv_work(h_nh,nvadh_pass,nits)
+  call vadv_work(h_nh,nvadh_pass,nits,4)
 end if
 
 !     pslx
-call vadv_work(pslx,nvadh_pass,nits)
+call vadv_work(pslx,nvadh_pass,nits,1)
 
 !      qg
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
-  call vadv_work(qg,nvadh_pass,nits)
+  call vadv_work(qg,nvadh_pass,nits,1)
   if ( diag .and. mydiag ) then
     write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
     write (6,"('qg# ',9f8.2)") diagvals(qg(:,nlv)) 
@@ -109,9 +111,9 @@ end if          ! if(mspec==1)
 !$omp section
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 ) then
-    call vadv_work(qlg,nvadh_pass,nits)
-    call vadv_work(qfg,nvadh_pass,nits)
-    call vadv_work(stratcloud,nvadh_pass,nits)
+    call vadv_work(qlg,nvadh_pass,nits,2)
+    call vadv_work(qfg,nvadh_pass,nits,3)
+    call vadv_work(stratcloud,nvadh_pass,nits,4)
     if ( diag .and. mydiag ) then
       write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
       write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
@@ -119,13 +121,13 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
       write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv)) 
     end if
   end if      ! if(ldr.ne.0)
-end if        ! if(mspec==1)
+end if          ! if(mspec==1)
 
 !$omp section
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( nvmix==6 .or. nvmix==9 ) then
-    call vadv_work(eps,nvadh_pass,nits)
-    call vadv_work(tke,nvadh_pass,nits)
+    call vadv_work(eps,nvadh_pass,nits,1)
+    call vadv_work(tke,nvadh_pass,nits,2)
   end if      ! if(nvmix==6 .or. nvmix==9 )
 end if          ! if(mspec==1)
 
@@ -136,7 +138,7 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( abs(iaero)>=2 ) then
     !$omp parallel do private(ntr)  
     do ntr = 1,naero
-      call vadv_work(xtg(:,:,ntr),nvadh_pass,nits)
+      call vadv_work(xtg(:,:,ntr),nvadh_pass,nits,mod(ntr,4)+1)
     end do
     !$omp end parallel do
   end if   ! abs(iaero)>=2
@@ -144,12 +146,15 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ngas>0 .or. nextout>=4 ) then
     !$omp parallel do private(ntr)  
     do ntr = 1,ntrac
-      call vadv_work(tr(:,:,ntr),nvadh_pass,nits)
+      call vadv_work(tr(:,:,ntr),nvadh_pass,nits,mod(ntr,4)+1)
     end do
     !$omp end parallel do
   end if        ! (nextout>=4)
   
 end if          ! if(mspec==1)
+
+!$acc wait
+!$acc end data
 
 call END_LOG(vadv_end)
  
@@ -157,7 +162,7 @@ return
 end subroutine vadvtvd
       
 ! Subroutine to perform generic TVD advection
-subroutine vadv_work(tarr,nvadh_pass,nits)
+subroutine vadv_work(tarr,nvadh_pass,nits,asyncbuf)
 
 use newmpar_m
 use sigs_m
@@ -165,6 +170,7 @@ use vvel_m
       
 implicit none
       
+integer, intent(in) :: asyncbuf
 integer, dimension(ifull), intent(in) :: nits, nvadh_pass
 integer i, k, iq, kp, kx
 real, dimension(:,:), intent(inout) :: tarr
@@ -173,12 +179,18 @@ real, dimension(ifull,0:kl) :: delt, fluxh
 
 ! The first sub-step is vectorised for all points - MJT
 
+!$acc enter data create(tarr,delt,fluxh) async(asyncbuf)
+!$acc update device(tarr) async(asyncbuf)
+
 !     fluxh(k) is located at level k+.5
+!$acc parallel loop collapse(2) present(delt,tarr) async(asyncbuf)
 do k = 1,kl-1
   do iq = 1,ifull
     delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
   end do
 end do  
+!$acc end parallel loop
+!$acc parallel loop present(fluxh,delt,tarr) async(asyncbuf)
 do iq = 1,ifull
   fluxh(iq,0)  = 0.
   fluxh(iq,kl) = 0.
@@ -186,7 +198,9 @@ do iq = 1,ifull
   delt(iq,0)   = 0.
   !!delt(iq,0)   = min(delt(iq,1), tarr(iq,1))       ! for non-negative tt
 end do
+!$acc end parallel loop
 
+!$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,fluxh,nvadh_pass) async(asyncbuf)
 do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
   do iq = 1,ifull      
     kp = nint(sign(1.,sdot(iq,k+1)))
@@ -199,13 +213,17 @@ do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
     fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
   enddo
 enddo      ! k loop
+!$acc end parallel loop
+!$acc parallel loop collapse(2) present(tarr,nvadh_pass,fluxh,sdot) async(asyncbuf)
 do k = 1,kl
   do iq = 1,ifull
     tarr(iq,k) = tarr(iq,k) + (fluxh(iq,k-1)-fluxh(iq,k) &
                              +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
   end do
 end do
+!$acc end parallel loop
 
+!$acc parallel loop  present(tarr,sdot,nvadh_pass,nits,fluxh,delt,ratha,rathb) async(asyncbuf)
 do iq = 1,ifull 
   do i = 2,nits(iq)
     do k = 1,kl-1
@@ -228,6 +246,9 @@ do iq = 1,ifull
     end do
   end do   ! i
 end do     ! iq
+!$acc end parallel loop
+!$acc update self(tarr) async(asyncbuf)
+!$acc exit data delete(tarr,delt,fluxh) async(asyncbuf)
 
 return
 end subroutine vadv_work

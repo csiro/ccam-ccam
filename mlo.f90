@@ -59,7 +59,7 @@ private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
        mloimport3d,mloexport3d,mlovlevels,mlocheck,mlodiagice,mlo_updatediag,mlo_updatekm,           &
-       mlosurf,mlonewice
+       mlosurf
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,nsteps,usepice,minicemass,cdbot,rhowt,cp0
@@ -181,6 +181,7 @@ type dgicedata
   real, dimension(:), allocatable :: tauyica        ! water/ice v-component stress (N/m2)
   real, dimension(:), allocatable :: tauxicw        ! water/ice u-component stress (N/m2)
   real, dimension(:), allocatable :: tauyicw        ! water/ice v-component stress (N/m2)
+  real, dimension(:), allocatable :: fracice_save   ! fraction of ice used for fluxes
   real, dimension(:), allocatable :: imass          ! mass of ice (kg)
   !real(kind=8), dimension(:), allocatable :: deleng         ! Change in energy stored
 end type dgicedata
@@ -426,7 +427,7 @@ do tile = 1,ntiles
   allocate(dgice_g(tile)%wetfrac(wfull_g(tile)),dgwater_g(tile)%mixind(wfull_g(tile)))
   allocate(dgice_g(tile)%tauxica(wfull_g(tile)),dgice_g(tile)%tauyica(wfull_g(tile)))
   allocate(dgice_g(tile)%tauxicw(wfull_g(tile)),dgice_g(tile)%tauyicw(wfull_g(tile)))
-  allocate(dgice_g(tile)%imass(wfull_g(tile)))
+  allocate(dgice_g(tile)%imass(wfull_g(tile)),dgice_g(tile)%fracice_save(wfull_g(tile)))
   allocate(dgice_g(tile)%cd_bot(wfull_g(tile)))
   allocate(dgscrn_g(tile)%temp(wfull_g(tile)),dgscrn_g(tile)%u2(wfull_g(tile)),dgscrn_g(tile)%qg(wfull_g(tile)))
   allocate(dgscrn_g(tile)%u10(wfull_g(tile)))
@@ -506,6 +507,7 @@ do tile = 1,ntiles
     dgice_g(tile)%tauxicw=0.
     dgice_g(tile)%tauyicw=0.
     dgice_g(tile)%imass=0.
+    dgice_g(tile)%fracice_save=0.
     dgscrn_g(tile)%temp=273.2
     dgscrn_g(tile)%qg=0.
     dgscrn_g(tile)%u2=0.
@@ -805,7 +807,7 @@ if ( mlo_active ) then
     deallocate(dgice_g(tile)%wetfrac,dgwater_g(tile)%mixind)
     deallocate(dgice_g(tile)%tauxica,dgice_g(tile)%tauyica)
     deallocate(dgice_g(tile)%tauxicw,dgice_g(tile)%tauyicw)
-    deallocate(dgice_g(tile)%imass)
+    deallocate(dgice_g(tile)%imass,dgice_g(tile)%fracice_save)
     deallocate(dgice_g(tile)%cd_bot)
     deallocate(dgscrn_g(tile)%temp,dgscrn_g(tile)%u2,dgscrn_g(tile)%qg,dgscrn_g(tile)%u10)
     deallocate(depth_g(tile)%depth,depth_g(tile)%dz,depth_g(tile)%depth_hl,depth_g(tile)%dz_hl)
@@ -1673,7 +1675,7 @@ select case(mode)
     tsn=unpack(ice%temp(:,1),wpack,tsn)
   case("temp2")
     tsn=unpack(ice%temp(:,2),wpack,tsn)
-  case("fracice")
+  case("temp3")
     tsn=unpack(ice%fracice,wpack,tsn)
   case("thick")
     tsn=unpack(ice%thick,wpack,tsn)
@@ -1874,6 +1876,8 @@ select case(mode)
     mld = unpack(dgice%cd,wpack,0.)
   case("cd_bot")
     mld = unpack(dgice%cd_bot,wpack,0.)
+  case("fracice_save")
+    mld = unpack(dgice%fracice_save,wpack,0.)
   case default
     write(6,*) "ERROR: Invalid mode for mlodiagice with mode = ",trim(mode)
     stop
@@ -2665,7 +2669,6 @@ call getrho(atm_ps,depth,ice,dgwater,water,wfull)
 ! MJT notes - a limit of minicemass=10 can cause reproducibility issues with
 ! single precision and multple processes
 dgice%imass = max(rhoic*ice%thick+rhosn*ice%snowd, minicemass) 
-!dgice%imass = 1000. !test
 
 ! split adjustment of free surface and ice thickness to ensure conservation
 d_ndsn=ice%snowd
@@ -2710,13 +2713,13 @@ if ( calcprog==0 .or. calcprog==2 ) then
   ice%v = ice%v + dt*(dgice%tauyica-dgice%tauyicw)/dgice%imass
     
 end if
-!if ( calcprog==0 .or. calcprog==2 .or. calcprog==3 ) then
-!
-!  ! create or destroy ice
-!  ! MJT notes - this is done after the flux calculations to agree with the albedo passed to the radiation
-!  call mlonewice(d_timelt,d_zcr,d_neta,diag,depth,ice,water,wfull)
-!
-!end if
+if ( calcprog==0 .or. calcprog==2 .or. calcprog==3 ) then
+
+  ! create or destroy ice
+  ! MJT notes - this is done after the flux calculations to agree with the albedo passed to the radiation
+  call mlonewice(d_timelt,d_zcr,d_neta,diag,depth,ice,water,wfull)
+
+end if
 if ( calcprog==0 ) then
   
   ! update water
@@ -4224,9 +4227,8 @@ integer, intent(in) :: diag
 integer, intent(in) :: wfull
 integer, dimension(wfull), intent(inout) :: d_nk
 real, intent(in) :: dt
-real, dimension(wfull), intent(inout) :: d_ftop, d_tb, d_fb
+real, dimension(wfull), intent(inout) :: d_ftop, d_tb, d_fb, d_timelt
 real, dimension(wfull), intent(inout) :: d_neta
-real, dimension(wfull), intent(in) :: d_timelt
 type(dgicedata), intent(in) :: dgice
 type(icedata), intent(inout) :: ice
 type(waterdata), intent(in) :: water
@@ -4266,34 +4268,18 @@ end subroutine mloice
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Form seaice before flux calculations
 
-subroutine mlonewice
-
-implicit none
-
-integer tile, is, ie
-
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  if ( wfull_g(tile)>0 ) then
-    call mlonewice_thread(0,depth_g(tile),ice_g(tile),water_g(tile),wfull_g(tile))  
-  end if
-end do
-
-end subroutine mlonewice
-                  
-subroutine mlonewice_thread(diag,depth,ice,water,wfull)
+subroutine mlonewice(d_timelt,d_zcr,d_neta,diag,   &
+                     depth,ice,water,wfull)
 
 implicit none
 
 integer, intent(in) :: wfull
 integer, intent(in) :: diag
-integer iqw, ii
+integer iqw, ii, maxlevel
 real aa, bb, dsf, deldz, delt
 real, dimension(wfull,wlev) :: sdic
 real, dimension(wfull) :: newdic, cdic
-real, dimension(wfull) :: d_zcr, d_neta
-real, dimension(wfull) :: d_timelt
+real, dimension(wfull), intent(inout) :: d_timelt, d_zcr, d_neta
 type(icedata), intent(inout) :: ice
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
@@ -4302,10 +4288,6 @@ real, parameter :: newicetemp = 273.16
 logical, dimension(wfull) :: lnewice, lremove
 
 if (diag>=1) write(6,*) "Form new ice"
-
-call calcmelt(d_timelt,water,wfull)
-d_zcr = max(1.+water%eta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))  
-d_neta = water%eta
 
 ! limits on ice formation due to water avaliability
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.)
@@ -4317,7 +4299,7 @@ end where
 
 ! search for water temperatures that are below freezing
 sdic=0.
-newdic=0.
+maxlevel=1
 do iqw=1,wfull
   if ( maxnewice(iqw)>0. ) then
     dsf=0.  
@@ -4329,10 +4311,12 @@ do iqw=1,wfull
       sdic(iqw,ii)=max(d_timelt(iqw)-water%temp(iqw,ii)-wrtemp,0.)*cp0*rhowt*deldz &
                    /qice/(1.-ice%fracice(iqw))
       dsf=dsf+deldz
-      newdic(iqw) = newdic(iqw) + sdic(iqw,ii)
+      maxlevel=max(maxlevel,ii)
+      if (bb<=0.) exit
     end do
   end if
 end do
+newdic=sum(sdic,dim=2)
 newdic=min(newdic,maxnewice)
 lnewice = newdic>icemin
 where ( .not.lnewice )
@@ -4345,7 +4329,7 @@ d_zcr=max(1.+d_neta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
 ! Adjust temperature in water column to balance the energy cost of ice formation
 ! Energy = qice*newdic = del_temp*c0*rhowt*dz*d_zcr
 cdic=0.
-do ii=1,wlev
+do ii=1,maxlevel
   sdic(:,ii)=max(min(sdic(:,ii),newdic-cdic),0.)
   cdic=cdic+sdic(:,ii)  
   where ( lnewice .and. depth%dz(:,ii)>1.e-4 )
@@ -4400,6 +4384,7 @@ do iqw=1,wfull
                             /(rhowt*depth%dz(iqw,ii)*d_zcr(iqw)))
       end if  
       dsf = dsf + deldz
+      if ( bb<=0. ) exit
     end do
 
     ! remove ice
@@ -4412,12 +4397,10 @@ do iqw=1,wfull
   end if
 end do
 
-water%eta = d_neta
-
 call mlocheck("MLO-icemelt",ice_tsurf=ice%tsurf,ice_temp=ice%temp)
 
 return
-end subroutine mlonewice_thread
+end subroutine mlonewice
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update sea ice prognostic variables
@@ -4435,9 +4418,8 @@ integer, intent(in) :: wfull
 integer, dimension(wfull), intent(inout) :: d_nk
 integer, dimension(wfull) :: dt_nk
 real, intent(in) :: dt
-real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_salflx
+real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_salflx
 real, dimension(wfull), intent(inout) :: d_wavail
-real, dimension(wfull), intent(in) :: d_timelt
 type(dgicedata), intent(in) :: dgice
 type(icedata), intent(inout) :: ice
 real, dimension(wfull) :: it_tn0,it_tn1,it_tn2
@@ -4675,7 +4657,7 @@ return
 end subroutine icetemps1s2i
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate ice temperature for one layer and snow (from Mk3 seaice.f)
+! Calculate ice temperature for two layers and snow (from Mk3 seaice.f)
 
 ! Solve for snow surface temperature (implicit time scheme)
 !
@@ -4957,7 +4939,7 @@ return
 end subroutine icetempi2i
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate ice temperature for one layer and no snow
+! Calculate ice temperature for two layers and no snow
 
 ! Solve for surface ice temperature (implicit time scheme)
 !
@@ -5257,9 +5239,8 @@ integer itr
 integer, intent(in) :: wfull
 real, dimension(wfull), intent(in) :: atm_sg,atm_rg,atm_rnd,atm_vnratio,atm_fbvis,atm_fbnir,atm_u,atm_v
 real, dimension(wfull), intent(in) :: atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins
-real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_ndsn,d_ndic
+real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_ndsn,d_ndic
 real, dimension(wfull), intent(inout) :: d_nsto,d_delstore
-real, dimension(wfull), intent(in) :: d_timelt
 integer, dimension(wfull), intent(inout) :: d_nk
 type(dgicedata), intent(inout) :: dgice
 type(icedata), intent(inout) :: ice
@@ -5279,6 +5260,8 @@ real zohseaice, zoqseaice
 
 if (diag>=1) write(6,*) "Calculate ice fluxes"
 
+dgice%fracice_save = ice%fracice
+
 ! Prevent unrealistic fluxes due to poor input surface temperature
 dtsurf=min(ice%tsurf,273.2)
 uu=atm_u-ice%u
@@ -5288,8 +5271,8 @@ sig=exp(-grav*atm_zmins/(rdry*atm_temp))
 srcp=sig**(rdry/cpair)
 rho=atm_ps/(rdry*dtsurf)
 
-zohseaice=zoseaice/(factchseaice**2)
-zoqseaice=zoseaice/(factchseaice**2)
+zohseaice=zoseaice/(factchseaice*factchseaice)
+zoqseaice=zoseaice/(factchseaice*factchseaice)
 dumazmin=max(atm_zmin,zoseaice+0.2)
 dumazmins=max(atm_zmin,zoseaice+0.2)
 af=vkar*vkar/(log(dumazmin/zoseaice)*log(dumazmin/zoseaice))
@@ -5376,9 +5359,9 @@ do itr=1,10 ! max iterations
   dgice%cd = af*fm*vmagn
   dgice%cd_bot = 0.00536*icemagn
   ! MJT notes - use rhowt reference density for Boussinesq fluid approximation
-  g=ice%u-newiu+dt*(rho*dgice%cd*uu+rhowt*dgice%cd_bot*du)/dgice%imass
-  h=ice%v-newiv+dt*(rho*dgice%cd*vv+rhowt*dgice%cd_bot*dv)/dgice%imass
-  dgu=-1.-dt*(rho*dgice%cd*(1.+(uu/vmagn)**2)+rhowt*dgice%cd_bot*(1.+(du/icemagn)**2))/dgice%imass
+  g=ice%u-newiu+dt*(rho*dgice%cd*uu+rhowt*0.00536*icemagn*du)/dgice%imass
+  h=ice%v-newiv+dt*(rho*dgice%cd*vv+rhowt*0.00536*icemagn*dv)/dgice%imass
+  dgu=-1.-dt*(rho*dgice%cd*(1.+(uu/vmagn)**2)+rhowt*0.00536*icemagn*(1.+(du/icemagn)**2))/dgice%imass
   dhu=-dt*(rho*dgice%cd*uu*vv/(vmagn**2)+rhowt*dgice%cd_bot*du*dv/(icemagn**2))/dgice%imass
   dgv=dhu
   dhv=-1.-dt*(rho*dgice%cd*(1.+(vv/vmagn)**2)+rhowt*dgice%cd_bot*(1.+(dv/icemagn)**2))/dgice%imass

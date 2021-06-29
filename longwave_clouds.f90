@@ -669,7 +669,7 @@ type(lw_output_type),         intent(inout) :: Lw_output
 !--------------------------------------------------------------------
 !
 !--------------------------------------------------------------------
-!      kmxolw = MAXVAL(Cld_spec%nmxolw)
+      kmxolw = MAXVAL(Cld_spec%nmxolw)
 
 !--------------------------------------------------------------------
 !
@@ -752,8 +752,6 @@ type(lw_output_type),         intent(inout) :: Lw_output
 !---------------------------------------------------------------------- 
 !    obtain the pressures and fluxes of the top and bottom of the cloud.
 !---------------------------------------------------------------------- 
-      kmxolw = min( maxval(itopmxo), maxval(ibtmmxo) )
-      
       if (kmxolw .NE. 0) then
         do kc=1,kmxolw 
           do j=JS,JE

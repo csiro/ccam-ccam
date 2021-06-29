@@ -117,6 +117,8 @@ hdif = dt*(ocnsmag/pi)**2
 emi = dd(1:ifull)/em(1:ifull)
 
 ! calculate diffusion following Smagorinsky
+!$acc parallel loop collapse(2) copyin(emu,emv,emi,uau,uav) copyout(t_kh(1:ifull,1:wlev)) &
+!$acc   present(ieu,iwu,inu,isu,iev,iwv,inv,isv)
 do k = 1,wlev
   do iq = 1,ifull
     dudx = 0.5*((uau(ieu(iq),k)-uau(iq,k))*emu(iq)        &
@@ -130,6 +132,7 @@ do k = 1,wlev
     t_kh(iq,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi(iq)
   end do
 end do
+!$acc end parallel loop
 call bounds(t_kh(:,1:wlev),nehalf=.true.)
 
 
@@ -204,6 +207,7 @@ end if
 duma(1:ifull,:,1) = tt(1:ifull,:)
 duma(1:ifull,:,2) = ss(1:ifull,:) - 34.72
 call bounds(duma(:,:,1:2))
+!$acc parallel loop collapse(2) copyin(emi,xfact,yfact,duma(:,:,1:2)) copyout(tt,ss)
 do k = 1,wlev
   do iq = 1,ifull
     base = emi(iq) + xfact(iq,k) + xfact(iwu(iq),k) &
@@ -224,6 +228,7 @@ do k = 1,wlev
     ss(iq,k) = max(ss(iq,k)+34.72, 0.)
   end do
 end do
+!$acc end parallel loop
 
 call END_LOG(waterdiff_end)
 

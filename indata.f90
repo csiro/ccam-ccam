@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -398,6 +398,8 @@ end if
 ! zmin here is approx height of the lowest level in the model
 zmin = -rdry*280.*log(sig(1))/grav
 if ( myid==0 ) write(6,*) 'zmin = ',zmin
+
+!$acc update device(sig,dsig,sigmh,bet,betm,ratha,rathb)
 
 !--------------------------------------------------------------
 ! READ OROGRAPHY (io_in and nhstest)

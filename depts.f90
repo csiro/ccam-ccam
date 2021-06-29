@@ -59,6 +59,8 @@ do k = 1,kl
   z3d(1:ifull,k) = z(1:ifull) - real(wc(1:ifull,k),8)
 end do
 
+!$acc data create(xg,yg,nface,sx,s)
+
 ! convert to grid point numbering
 call toij5(x3d,y3d,z3d)
 
@@ -79,6 +81,8 @@ s(1:ifull,:,2) = vc(1:ifull,:)
 s(1:ifull,:,3) = wc(1:ifull,:)
 
 call bounds(s,nrows=2)
+
+!$acc update device(s)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -117,6 +121,8 @@ if ( intsch==1 ) then
       end do          ! n loop
     end do            ! k loop
   end do              ! nn loop
+
+  !$acc update device(sx)
 
   ! Loop over points that need to be calculated for other processes
   do ii = 1,neighnum
@@ -158,6 +164,7 @@ if ( intsch==1 ) then
   !$omp parallel do schedule(static) collapse(2) private(nn,k,iq,idel,xxg,jdel,yyg),    &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
   do nn = 1,3
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -189,6 +196,8 @@ if ( intsch==1 ) then
       end do   ! iq loop
     end do     ! k loop
   end do       ! nn loop
+  !$acc end parallel loop
+  !$acc update self(s)
   !$omp end parallel do  
             
 !========================   end of intsch=1 section ====================
@@ -231,6 +240,8 @@ else     ! if(intsch==1)then
     end do                ! k loop
   end do                  ! nn loop
 
+  !$acc update device(sx)
+
   ! For other processes
   do ii = 1,neighnum
     do nn = 1,3
@@ -270,6 +281,7 @@ else     ! if(intsch==1)then
   !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),    &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
   do nn = 1,3
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -301,6 +313,8 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! k loop
   end do              ! nn loop
+  !$acc end parallel loop
+  !$acc update self(s)
   !$omp end parallel do  
   
 endif                     ! (intsch==1) .. else ..
@@ -367,6 +381,7 @@ if ( intsch==1 ) then
   !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),    &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
   do nn = 1,3
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -398,6 +413,8 @@ if ( intsch==1 ) then
       end do   ! iq loop
     end do     ! k loop
   end do       ! nn loop
+  !$acc end parallel loop
+  !$acc update self(s)
   !$omp end parallel do
             
 !========================   end of intsch=1 section ====================
@@ -444,6 +461,7 @@ else     ! if(intsch==1)then
   !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),    &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  !$acc parallel loop collapse(3) present(xg,yg,nface,sx,s) 
   do nn = 1,3
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -476,6 +494,8 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! nn loop
   end do              ! k loop
+  !$acc end parallel loop
+  !$acc update self(s)
   !$omp end parallel do
 
 endif                     ! (intsch==1) .. else ..
@@ -499,6 +519,8 @@ end if
 
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
+
+!$acc end data
 
 call END_LOG(depts_end)
       
@@ -561,6 +583,7 @@ alfonsch      = 2._8*real(schmidt,8)/(1._8+real(schmidt,8)**2)  ! same but bit m
 !$omp parallel do schedule(static) private(k,iq,den),                               &
 !$omp private(xstr,ystr,zstr,denxyz,xd,yd,zd,xytest,xztest,yztest,ri,rj,loop,i,j),  &
 !$omp private(is,js,dxx,dyx,dxy,dyy)
+!$acc parallel loop collapse(2) copyin(x3d,y3d,z3d,xx4,yy4) present(xg,yg,nface)
 do k = 1,kl
   do iq = 1,ifull    
     den  = 1._8 - alf*z3d(iq,k)
@@ -662,6 +685,8 @@ do k = 1,kl
     yg(iq,k) = 0.25*(rj+3.) - 0.5  ! -.5 for stag  
   end do
 end do
+!$acc end parallel loop
+!$acc update self(xg,yg,nface)
 !$omp end parallel do
 
 return
