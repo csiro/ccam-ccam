@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -54,17 +54,17 @@
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
       integer kpos(1)
 
-        kpos=minloc(abs(sig(1:kl)-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
+        kpos=minloc(abs(sig-.98)) ! finds k value closest to sig=.98  level 2 for L18 & L27
         k980=kpos(1)
-        kpos=minloc(abs(sig(1:kl)-.9)) ! finds k value closest to sig=.9
+        kpos=minloc(abs(sig-.9)) ! finds k value closest to sig=.9
         k900=kpos(1)
-        kpos=minloc(abs(sig(1:kl)-.7)) ! finds k value closest to sig=.7
+        kpos=minloc(abs(sig-.7)) ! finds k value closest to sig=.7
         k700=kpos(1)
-        kpos=minloc(abs(sig(1:kl)-.6)) ! finds k value closest to sig=.6
+        kpos=minloc(abs(sig-.6)) ! finds k value closest to sig=.6
         k600=kpos(1)
         komega=1
         if(dsig4>.4)then
-          kpos=minloc(abs(sig(1:kl)-dsig4)) ! finds k value closest to dsig4
+          kpos=minloc(abs(sig-dsig4)) ! finds k value closest to dsig4
           komega=kpos(1)
         endif
         k500=1

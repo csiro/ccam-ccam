@@ -58,6 +58,7 @@ module cc_mpi
    integer, parameter, public :: maxcolour = 2                             ! maximum number of colours for iterative solvers
    
    integer, save, private :: maxbuflen, maxvertlen                         ! bounds buffer size   
+   !logical, save, public :: uniform_decomp                                ! uniform decomposition flag
    logical, save, public :: mydiag                                         ! true if diagnostic point id, jd is in my region
    
    integer, save, public :: comm_node, node_myid, node_nproc               ! node communicator
@@ -467,7 +468,7 @@ module cc_mpi
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
 #endif
-   character(len=20), dimension(nevents), save :: event_name
+   character(len=15), dimension(nevents), save :: event_name
    real, save, public :: mpiinit_time, total_time
 
 #ifdef vampir
@@ -502,6 +503,11 @@ contains
       
       
       ! Decompose grid over processes
+      !if ( uniform_decomp ) then
+      !   call proc_setup_uniform(id,jd,idjd)
+      !   ! may require two boundries from the same process
+      !   maxbuflen = (max(ipan,jpan)+4)*2*2*2*npan
+      !else
       call proc_setup(id,jd,idjd)
       if ( nproc < npanels+1 ) then
          ! possible to have two boundaries from the same process 
@@ -510,12 +516,14 @@ contains
          ! only one boundary can be sent from a process 
          maxbuflen = (max(ipan,jpan)+4)*2*2 + 4
       end if    
+      !end if
       maxvertlen = max( kl, ol, 15 )
+!$acc update device(mydiag,ipan,jpan)
       
       
       ! Distribute global arrays over processes
       if ( myid == 0 ) then
-         allocate( dum_g(ifull_g,23), dum(ifull,23) ) 
+         allocate( dum_g(ifull_g,15), dum(ifull,15) ) 
          dum_g(1:ifull_g,1)  = wts_g(1:ifull_g)
          dum_g(1:ifull_g,2)  = em_g(1:ifull_g)
          dum_g(1:ifull_g,3)  = emu_g(1:ifull_g)
@@ -531,9 +539,7 @@ contains
          dum_g(1:ifull_g,13) = fv_g(1:ifull_g)
          dum_g(1:ifull_g,14) = rlatt_g(1:ifull_g)
          dum_g(1:ifull_g,15) = rlongg_g(1:ifull_g)
-         dum_g(1:ifull_g,16:19) = rlat4(1:ifull_g,1:4)
-         dum_g(1:ifull_g,20:23) = rlong4(1:ifull_g,1:4)
-         call ccmpi_distribute(dum(:,1:23),dum_g(:,1:23)) 
+         call ccmpi_distribute(dum(:,1:15),dum_g(:,1:15)) 
          wts(1:ifull)    = dum(1:ifull,1)
          em(1:ifull)     = dum(1:ifull,2)
          emu(1:ifull)    = dum(1:ifull,3)
@@ -549,8 +555,11 @@ contains
          fv(1:ifull)     = dum(1:ifull,13)
          rlatt(1:ifull)  = dum(1:ifull,14)
          rlongg(1:ifull) = dum(1:ifull,15)
-         rlat4_l(1:ifull,1:4)  = dum(1:ifull,16:19)
-         rlong4_l(1:ifull,1:4) = dum(1:ifull,20:23)
+         dum_g(1:ifull_g,1:4) = rlat4(1:ifull_g,1:4)
+         dum_g(1:ifull_g,5:8) = rlong4(1:ifull_g,1:4)
+         call ccmpi_distribute(dum(:,1:8),dum_g(:,1:8))
+         rlat4_l(1:ifull,1:4)  = dum(1:ifull,1:4)
+         rlong4_l(1:ifull,1:4) = dum(1:ifull,5:8)
          deallocate( dum_g, dum )
          allocate( dumr8_g(ifull_g,3), dumr8(ifull,3) )
          dumr8_g(1:ifull_g,1) = x_g(1:ifull_g)
@@ -562,8 +571,8 @@ contains
          z(1:ifull) = dumr8(1:ifull,3)
          deallocate( dumr8_g, dumr8 )
       else
-         allocate( dum(ifull,23) )
-         call ccmpi_distribute(dum(:,1:23))
+         allocate( dum(ifull,15) )
+         call ccmpi_distribute(dum(:,1:15))
          wts(1:ifull)    = dum(1:ifull,1)
          em(1:ifull)     = dum(1:ifull,2)
          emu(1:ifull)    = dum(1:ifull,3)
@@ -579,8 +588,9 @@ contains
          fv(1:ifull)     = dum(1:ifull,13)
          rlatt(1:ifull)  = dum(1:ifull,14)
          rlongg(1:ifull) = dum(1:ifull,15)
-         rlat4_l(1:ifull,1:4)  = dum(1:ifull,16:19)
-         rlong4_l(1:ifull,1:4) = dum(1:ifull,20:23)
+         call ccmpi_distribute(dum(:,1:8))
+         rlat4_l(1:ifull,1:4)  = dum(1:ifull,1:4)
+         rlong4_l(1:ifull,1:4) = dum(1:ifull,5:8)
          deallocate( dum )         
          allocate( dumr8(ifull,3) )
          call ccmpi_distributer8(dumr8(:,1:3))
@@ -776,11 +786,19 @@ contains
       
       
       ! prepare comm groups - used by scale-selective filter
+      !if ( uniform_decomp ) then
+      !   npta = 6                     ! number of panels per processor
+      !   mproc = nproc                ! number of processors per panel
+      !   pprocn = 0                   ! start panel
+      !   pprocx = 5                   ! end panel
+      !   hproc = 0                    ! host processor for panel
+      !else
       npta = max( 6/nproc, 1 )     ! number of panels per processor
       mproc = max( nproc/6, 1 )    ! number of processors per panel
       pprocn = myid*npta/mproc     ! start panel
       pprocx = pprocn + npta - 1   ! end panel
       hproc = pprocn*mproc/npta    ! host processor for panel
+      !end if
 
       ! comm between work groups with captain hproc
       colour = hproc
@@ -822,16 +840,29 @@ contains
       integer :: slen
       
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do n = 1,npan
+      !         do j = 1,jpan
+      !            iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !            slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !            sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
+      !         end do
+      !      end do
+      !   end do
+      !else
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do n = 1,npan
             do j = 1,jpan
-               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                slen = (j-1)*ipan + (n-1)*ipan*jpan
                sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
             end do
          end do
       end do
+      !end if
 
       lsize = ifull
       lcomm = comm_world
@@ -876,16 +907,29 @@ contains
       integer :: slen
       
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do n = 1,npan
+      !         do j = 1,jpan
+      !            iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !            slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !            sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
+      !         end do
+      !      end do
+      !   end do
+      !else
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do n = 1,npan
             do j = 1,jpan
-               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                slen = (j-1)*ipan + (n-1)*ipan*jpan
                sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
             end do
          end do
       end do
+      !end if
 
       lsize = ifull
       lcomm = comm_world
@@ -930,16 +974,29 @@ contains
       integer :: slen
       
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do n = 1,npan
+      !         do j = 1,jpan
+      !            iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !            slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !            sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
+      !         end do
+      !      end do
+      !   end do
+      !else
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do n = 1,npan
             do j = 1,jpan
-               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                slen = (j-1)*ipan + (n-1)*ipan*jpan
                sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
             end do
          end do
       end do
+      !end if
 
       lsize = ifull
       lcomm = comm_world
@@ -994,25 +1051,46 @@ contains
       kx = size(af,2)
 
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do k = 1,kx
+      !      do iproc = 0,nproc-1
+      !         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !         do n = 1,npan
+      !            do j = 1,jpan
+      !               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !               slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !               sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
       do k = 1,kx
          do iproc = 0,nproc-1
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             do n = 1,npan
                do j = 1,jpan
-                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                   slen = (j-1)*ipan + (n-1)*ipan*jpan
                   sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
                end do
             end do
          end do
       end do
+      !end if
 
       lsize = ifull*kx
       lcomm = comm_world
-      call START_LOG(scattercc_begin)
-      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )  
-      call END_LOG(scattercc_end)
-      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      if ( size(af,1) == ifull ) then
+         call START_LOG(scattercc_begin)
+         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+      else
+         call START_LOG(scattercc_begin)
+         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )  
+         call END_LOG(scattercc_end)
+         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      end if   
 
    end subroutine host_distribute3
 
@@ -1039,10 +1117,16 @@ contains
       kx = size(af,2)
       lsize = ifull*kx
       lcomm = comm_world
-      call START_LOG(scattercc_begin)
-      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr ) 
-      call END_LOG(scattercc_end)
-      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      if ( size(af,1) == ifull ) then
+         call START_LOG(scattercc_begin)
+         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+      else
+         call START_LOG(scattercc_begin)
+         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr ) 
+         call END_LOG(scattercc_end)
+         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      end if   
 
    end subroutine proc_distribute3
 
@@ -1060,25 +1144,46 @@ contains
       kx = size(af,2)
       
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do k = 1,kx 
+      !      do iproc = 0,nproc-1
+      !         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !         do n = 1,npan
+      !            do j = 1,jpan
+      !               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !               slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !               sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
       do k = 1,kx 
          do iproc = 0,nproc-1
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             do n = 1,npan
                do j = 1,jpan
-                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                   slen = (j-1)*ipan + (n-1)*ipan*jpan
                   sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
                end do
             end do
          end do
       end do
+      !end if
 
       lsize = ifull*kx
       lcomm = comm_world
-      call START_LOG(scattercc_begin) 
-      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
-      call END_LOG(scattercc_end)
-      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      if ( size(af,1) == ifull ) then
+         call START_LOG(scattercc_begin)
+         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+      else
+         call START_LOG(scattercc_begin) 
+         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      end if    
 
    end subroutine host_distribute3r8
    
@@ -1098,10 +1203,16 @@ contains
       kx = size(af,2)
       lsize = ifull*kx
       lcomm = comm_world
-      call START_LOG(scattercc_begin) 
-      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr ) 
-      call END_LOG(scattercc_end)
-      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      if ( size(af,1) == ifull ) then
+         call START_LOG(scattercc_begin)
+         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+      else
+         call START_LOG(scattercc_begin) 
+         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr ) 
+         call END_LOG(scattercc_end)
+         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      end if   
 
    end subroutine proc_distribute3r8
 
@@ -1126,25 +1237,46 @@ contains
       kx = size(af,2)
 
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do k = 1,kx
+      !      do iproc = 0,nproc-1
+      !         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !         do n = 1,npan
+      !            do j = 1,jpan
+      !               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !               slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !               sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
       do k = 1,kx
          do iproc = 0,nproc-1
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             do n = 1,npan
                do j = 1,jpan
-                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                   slen = (j-1)*ipan + (n-1)*ipan*jpan
                   sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
                end do
             end do
          end do
       end do
+      !end if
 
       lsize = ifull*kx
       lcomm = comm_world
-      call START_LOG(scattercc_begin) 
-      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
-      call END_LOG(scattercc_end)
-      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      if ( size(af,1) == ifull ) then
+         call START_LOG(scattercc_begin)
+         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+      else
+         call START_LOG(scattercc_begin) 
+         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      end if   
 
    end subroutine host_distribute3i
 
@@ -1171,10 +1303,16 @@ contains
       kx = size(af,2)
       lsize = ifull*kx
       lcomm = comm_world
-      call START_LOG(scattercc_begin) 
-      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
-      call END_LOG(scattercc_end)
-      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      if ( size(af,1) == ifull ) then
+         call START_LOG(scattercc_begin)
+         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+      else
+         call START_LOG(scattercc_begin) 
+         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+         af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      end if   
 
    end subroutine proc_distribute3i   
    
@@ -1199,14 +1337,30 @@ contains
       kx = size(af,2)
       lx = size(af,3)
 
-      ! reorder array in order of processor rank
+      ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do l = 1,lx 
+      !      do k = 1,kx
+      !         do iproc = 0,nproc-1
+      !            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !            do n = 1,npan
+      !               do j = 1,jpan
+      !                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !                  slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !                  sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
+      !               end do   
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
       do l = 1,lx 
          do k = 1,kx
             do iproc = 0,nproc-1
                call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
                do n = 1,npan
                   do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
+                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                      slen = (j-1)*ipan + (n-1)*ipan*jpan
                      sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
                   end do   
@@ -1214,13 +1368,20 @@ contains
             end do
          end do
       end do
+      !end if
 
       lsize = ifull*kx*lx
       lcomm = comm_world
-      call START_LOG(scattercc_begin) 
-      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
-      call END_LOG(scattercc_end)
-      af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      if ( size(af,1) == ifull ) then
+         call START_LOG(scattercc_begin)
+         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+      else
+         call START_LOG(scattercc_begin) 
+         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+         af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      end if   
 
    end subroutine host_distribute4
 
@@ -1248,10 +1409,16 @@ contains
       lx = size(af,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      call START_LOG(scattercc_begin) 
-      call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr ) 
-      call END_LOG(scattercc_end)
-      af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      if ( size(af,1) == ifull ) then
+         call START_LOG(scattercc_begin)
+         call MPI_Scatter( sbuf, lsize, ltype, af, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+      else
+         call START_LOG(scattercc_begin) 
+         call MPI_Scatter( sbuf, lsize, ltype, aftemp, lsize, ltype, 0_4, lcomm, ierr ) 
+         call END_LOG(scattercc_end)
+         af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      end if   
 
    end subroutine proc_distribute4
 
@@ -1270,13 +1437,29 @@ contains
       lx = size(af,3)
       
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do l = 1,lx  
+      !      do k = 1,kx 
+      !         do iproc = 0,nproc-1
+      !            call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !            do n = 1,npan
+      !               do j = 1,jpan
+      !                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+      !                  slen = (j-1)*ipan + (n-1)*ipan*jpan
+      !                  sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
+      !               end do   
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
       do l = 1,lx  
          do k = 1,kx 
             do iproc = 0,nproc-1
                call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
                do n = 1,npan
                   do j = 1,jpan
-                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2
+                     iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
                      slen = (j-1)*ipan + (n-1)*ipan*jpan
                      sbuf(slen+1:slen+ipan,k,l,iproc) = a1(iq+1:iq+ipan,k,l)
                   end do   
@@ -1284,13 +1467,20 @@ contains
             end do
          end do
       end do
+      !end if
 
       lsize = ifull*kx*lx
       lcomm = comm_world
-      call START_LOG(scattercc_begin) 
-      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
-      call END_LOG(scattercc_end)
-      af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      if ( size(af,1) == ifull ) then
+         call START_LOG(scattercc_begin)
+         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+      else
+         call START_LOG(scattercc_begin) 
+         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+         af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      end if
 
    end subroutine host_distribute4r8
    
@@ -1311,10 +1501,16 @@ contains
       lx = size(af,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      call START_LOG(scattercc_begin) 
-      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr ) 
-      call END_LOG(scattercc_end)
-      af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      if ( size(af,1) == ifull ) then
+         call START_LOG(scattercc_begin)
+         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+         call END_LOG(scattercc_end)
+      else
+         call START_LOG(scattercc_begin) 
+         call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr ) 
+         call END_LOG(scattercc_end)
+         af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      end if   
 
    end subroutine proc_distribute4r8
 
@@ -1340,17 +1536,31 @@ contains
       call END_LOG(gathercc_end)
 
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do n = 1,npan
+      !         do j = 1,jpan
+      !            ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !            iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !            iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !            ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
+      !         end do
+      !      end do
+      !   end do
+      !else
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do n = 1,npan
             do j = 1,jpan
                ! Global indices are i+ipoff, j+jpoff, n-npoff
-               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                iq = (j-1)*ipan + (n-1)*ipan*jpan
                ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
             end do
          end do
       end do
+      !end if
 
    end subroutine host_gather2
    
@@ -1396,17 +1606,31 @@ contains
       call END_LOG(gathercc_end)
 
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do n = 1,npan
+      !         do j = 1,jpan
+      !            ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !            iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !            iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !            ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
+      !         end do
+      !      end do
+      !   end do
+      !else
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do n = 1,npan
             do j = 1,jpan
                ! Global indices are i+ipoff, j+jpoff, n-npoff
-               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                iq = (j-1)*ipan + (n-1)*ipan*jpan
                ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
             end do
          end do
       end do
+      !end if
       
    end subroutine host_gather2r8
    
@@ -1449,25 +1673,47 @@ contains
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
-      call START_LOG(gathercc_begin)
-      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-      call END_LOG(gathercc_end)
+      if ( size(a,1) == ifull ) then
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      else    
+         atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      end if   
 
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do k = 1,kx
+      !         do n = 1,npan
+      !            do j = 1,jpan
+      !               ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !               iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !               ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do k = 1,kx
             do n = 1,npan
                do j = 1,jpan
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                   iq = (j-1)*ipan + (n-1)*ipan*jpan
                   ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
                end do
             end do
          end do
       end do
+      !end if
 
    end subroutine host_gather3
    
@@ -1492,10 +1738,16 @@ contains
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
-      call START_LOG(gathercc_begin)
-      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-      call END_LOG(gathercc_end)
+      if ( size(a,1) == ifull ) then
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      else    
+         atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      end if   
 
    end subroutine proc_gather3
 
@@ -1514,25 +1766,47 @@ contains
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
-      call START_LOG(gathercc_begin)
-      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-      call END_LOG(gathercc_end)
+      if ( size(a,1) == ifull ) then
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      else    
+         atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      end if  
 
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do k = 1,kx
+      !         do n = 1,npan
+      !            do j = 1,jpan
+      !               ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !               iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !               ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do k = 1,kx
             do n = 1,npan
                do j = 1,jpan
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                   iq = (j-1)*ipan + (n-1)*ipan*jpan
                   ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
                end do
             end do
          end do
       end do
+      !end if
 
    end subroutine host_gather3r8
    
@@ -1553,10 +1827,16 @@ contains
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
-      call START_LOG(gathercc_begin)
-      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-      call END_LOG(gathercc_end)
+      if ( size(a,1) == ifull ) then
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr ) 
+         call END_LOG(gathercc_end)
+      else    
+         atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      end if   
       
    end subroutine proc_gather3r8
    
@@ -1580,12 +1860,35 @@ contains
       lx = size(a,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
-      call START_LOG(gathercc_begin)
-      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-      call END_LOG(gathercc_end)
+      if ( size(a,1) == ifull ) then
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      else    
+         atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      end if   
 
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do l = 1,lx
+      !         do k = 1,kx
+      !            do n = 1,npan
+      !               do j = 1,jpan
+      !                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !                  ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
+      !               end do  
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do l = 1,lx
@@ -1593,7 +1896,7 @@ contains
                do n = 1,npan
                   do j = 1,jpan
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
+                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                      iq = (j-1)*ipan + (n-1)*ipan*jpan
                      ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
                   end do   
@@ -1601,6 +1904,7 @@ contains
             end do
          end do
       end do
+      !end if
 
    end subroutine host_gather4
    
@@ -1626,10 +1930,16 @@ contains
       lx = size(a,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
-      call START_LOG(gathercc_begin)
-      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-      call END_LOG(gathercc_end)
+      if ( size(a,1) == ifull ) then
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      else    
+         atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      end if   
 
    end subroutine proc_gather4
 
@@ -1649,12 +1959,35 @@ contains
       lx = size(a,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
-      call START_LOG(gathercc_begin)
-      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-      call END_LOG(gathercc_end)
+      if ( size(a,1) == ifull ) then
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      else    
+         atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      end if   
 
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do l = 1,lx
+      !         do k = 1,kx
+      !            do n = 1,npan
+      !               do j = 1,jpan
+      !                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !                  ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
+      !               end do   
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do l = 1,lx
@@ -1662,7 +1995,7 @@ contains
                do n = 1,npan
                   do j = 1,jpan
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
+                     iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                      iq = (j-1)*ipan + (n-1)*ipan*jpan
                      ag(iqg+1:iqg+ipan,k,l) = abuf(iq+1:iq+ipan,k,l,iproc)
                   end do   
@@ -1670,6 +2003,7 @@ contains
             end do
          end do
       end do
+      !end if
 
    end subroutine host_gather4r8
    
@@ -1691,10 +2025,16 @@ contains
       lx = size(a,3)
       lsize = ifull*kx*lx
       lcomm = comm_world
-      atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
-      call START_LOG(gathercc_begin)
-      call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
-      call END_LOG(gathercc_end)
+      if ( size(a,1) == ifull ) then
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( a, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      else    
+         atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
+         call START_LOG(gathercc_begin)
+         call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
+         call END_LOG(gathercc_end)
+      end if   
 
    end subroutine proc_gather4r8
    
@@ -1719,17 +2059,31 @@ contains
       call END_LOG(allgathercc_end)
 
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do n = 1,npan
+      !         do j = 1,jpan
+      !            ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !            iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !            iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !            ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
+      !         end do
+      !      end do
+      !   end do
+      !else
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do n = 1,npan
             do j = 1,jpan
                ! Global indices are i+ipoff, j+jpoff, n-npoff
-               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                iq = (j-1)*ipan + (n-1)*ipan*jpan
                ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
             end do
          end do
       end do
+      !end if
 
    end subroutine ccmpi_gatherall2
    
@@ -1751,25 +2105,47 @@ contains
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-      atemp(:,:) = a(1:ifull,1:kx)
-      call START_LOG(allgathercc_begin)
-      call MPI_AllGather( atemp, lsize, ltype, abuf, lsize, ltype, lcomm, ierr )
-      call END_LOG(allgathercc_end)
+      if ( size(a,1) == ifull ) then
+         call START_LOG(allgathercc_begin)
+         call MPI_AllGather( a, lsize, ltype, abuf, lsize, ltype, lcomm, ierr ) 
+         call END_LOG(allgathercc_end)
+      else    
+         atemp(:,:) = a(1:ifull,1:kx)
+         call START_LOG(allgathercc_begin)
+         call MPI_AllGather( atemp, lsize, ltype, abuf, lsize, ltype, lcomm, ierr )
+         call END_LOG(allgathercc_end)
+      end if   
 
       ! map array in order of processor rank
+      !if ( uniform_decomp ) then
+      !   do iproc = 0,nproc-1
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      do k = 1,kx
+      !         do n = 1,npan
+      !            do j = 1,jpan
+      !               ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+      !               iq = (j-1)*ipan + (n-1)*ipan*jpan
+      !               ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
+      !            end do
+      !         end do
+      !      end do
+      !   end do
+      !else
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do k = 1,kx
             do n = 1,npan
                do j = 1,jpan
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g**2 ! True global 1D index
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
                   iq = (j-1)*ipan + (n-1)*ipan*jpan
                   ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
                end do
             end do
          end do
       end do
+      !end if
 
    end subroutine ccmpi_gatherall3
 
@@ -1826,6 +2202,27 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
+      !if ( uniform_decomp ) then
+      !   do while ( rcount > 0 )
+      !      call START_LOG(mpiwaitmap_begin) 
+      !      call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+      !      call END_LOG(mpiwaitmap_end)
+      !      rcount = rcount - ldone
+      !      do jproc = 1,ldone
+      !         w = rlist(donelist(jproc))
+      !         iproc = specmap_recv(w)
+      !         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !         ipak = ipoff/ipan
+      !         jpak = jpoff/jpan
+      !         do n = 1,npan
+      !            ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !            iq = (n-1)*ipan*jpan
+      !            globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+      !               reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+      !         end do
+      !      end do
+      !   end do   
+      !else
       do while ( rcount > 0 )
          call START_LOG(mpiwaitmap_begin) 
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
@@ -1845,6 +2242,7 @@ contains
             end do
          end do
       end do
+      !end if
       
       sreq = nreq - rreq
       if ( sreq > 0 ) then
@@ -1910,6 +2308,29 @@ contains
 
       ! Unpack incomming messages
       rcount = rreq
+      !if ( uniform_decomp ) then
+      !   do while ( rcount > 0 )
+      !      call START_LOG(mpiwaitmap_begin) 
+      !      call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+      !      call END_LOG(mpiwaitmap_end)
+      !      rcount = rcount - ldone
+      !      do jproc = 1,ldone
+      !         w = rlist(donelist(jproc))        
+      !         iproc = specmap_recv(w)
+      !         call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !         ipak = ipoff/ipan
+      !         jpak = jpoff/jpan
+      !         do k = 1,kx
+      !            do n = 1,npan
+      !               ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !               iq = (n-1)*ipan*jpan + (k-1)*ifull
+      !               globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+      !                  reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+      !            end do
+      !         end do
+      !      end do
+      !   end do   
+      !else
       do while ( rcount > 0 )
          call START_LOG(mpiwaitmap_begin) 
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
@@ -1931,6 +2352,7 @@ contains
             end do
          end do
       end do
+      !end if
       
       sreq = nreq - rreq
       if ( sreq > 0 ) then
@@ -1954,7 +2376,7 @@ contains
       integer :: c_ipak, c_jpak
       real, dimension(:), intent(in) :: datain
       
-      il2 = il_g**2
+      il2 = il_g*il_g
       
       iqg = ibeg - 1
       b_n = iqg/il2
@@ -2029,7 +2451,7 @@ contains
       integer :: c_ipak, c_jpak
       real, dimension(:), intent(out) :: dataout
       
-      il2 = il_g**2
+      il2 = il_g*il_g
       
       iqg = ibeg - 1
       b_n = iqg/il2
@@ -2103,6 +2525,19 @@ contains
       integer :: ipoff, jpoff, npoff
    
       ncount = size(specmap_recv)
+      !if ( uniform_decomp ) then
+      !   do w = 1,ncount
+      !      iproc = specmap_recv(w)
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      ipak = ipoff/ipan
+      !      jpak = jpoff/jpan
+      !      do n = 1,npan
+      !         ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !         globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefout+1:krefout+kx) = &
+      !            globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
+      !      end do
+      !   end do
+      !else
       do w = 1,ncount
          iproc = specmap_recv(w)
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
@@ -2114,6 +2549,7 @@ contains
                globalpack(ipak,jpak,n-npoff)%localdata(:,:,krefin+1:krefin+kx)
          end do
       end do
+      !end if
    
    end subroutine copyglobalpack
 
@@ -2166,6 +2602,19 @@ contains
       ! allocate globalpack arrays for 1D scale-selective filter
       allocate(globalpack(0:nxproc-1,0:nyproc-1,0:5))
       ncount = size(specmap_ext)
+      !if ( uniform_decomp ) then
+      !   do w = 1,ncount
+      !      iproc = specmap_ext(w)
+      !      call proc_region_dix(iproc,ipoff,jpoff,npoff,nxproc,ipan,jpan)
+      !      ! Global indices are i+ipoff, j+jpoff, n-npoff
+      !      ipak = ipoff/ipan
+      !      jpak = jpoff/jpan
+      !      do n = 1,npan
+      !         allocate(globalpack(ipak,jpak,n-npoff)%localdata(ipan,jpan,0:kx))
+      !         globalpack(ipak,jpak,n-npoff)%localdata = 0.
+      !      end do
+      !   end do
+      !else
       do w = 1,ncount
          iproc = specmap_ext(w)
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
@@ -2177,6 +2626,7 @@ contains
             globalpack(ipak,jpak,n-npoff)%localdata = 0.
          end do
       end do
+      !end if
       
       deallocate(specmap_ext) ! not needed after allocation of global sparse arrays
    
@@ -5788,9 +6238,9 @@ contains
       ! Calculate local i, j, n from global iq
 
       ! Global i, j, n
-      n = (iq - 1)/(il_g**2)
-      j = 1 + (iq - n*il_g**2 - 1)/il_g
-      i = iq - (j - 1)*il_g - n*il_g**2
+      n = (iq - 1)/(il_g*il_g)
+      j = 1 + (iq - n*il_g*il_g - 1)/il_g
+      i = iq - (j - 1)*il_g - n*il_g*il_g
       if ( fproc(i,j,n) /= myid ) then
          write(*,"(a,5i5)") "Consistency failure in indv_mpi", myid, iq, i, j, n
          call ccmpi_abort(-1)
@@ -5807,7 +6257,7 @@ contains
 
       ! Calculate a 1D global index from the global indices
       ! n in range 0:npanels
-      iq = i + (j-1)*il_g + n*il_g**2
+      iq = i + (j-1)*il_g + n*il_g*il_g
    end function indglobal
 
    pure function indg(i,j,n) result(iq)
@@ -5816,7 +6266,7 @@ contains
 
       ! Calculate a 1D global index from the local processors indices
       ! n in range 1..npan
-      iq = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g**2
+      iq = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
    end function indg
 
    pure function indp(i,j,n) result(iq)
@@ -5852,7 +6302,11 @@ contains
 
       ip = (i-1)/ipan
       jp = (j-1)/jpan
+      !if ( uniform_decomp ) then
+      !   fpout = ip + jp*nxproc
+      !else
       fpout = ip + jp*nxproc + n*nxproc*nyproc/npan
+      !end if
    
    end function fproc
 
@@ -5862,9 +6316,9 @@ contains
       integer :: qpout
       integer :: i, j, n
 
-      n = (iqg - 1) / (il_g**2)
-      j = 1 + (iqg - n*il_g**2 - 1)/il_g
-      i = iqg - (j - 1)*il_g - n*il_g**2
+      n = (iqg - 1) / (il_g*il_g)
+      j = 1 + (iqg - n*il_g*il_g - 1)/il_g
+      i = iqg - (j - 1)*il_g - n*il_g*il_g
 
       qpout = fproc(i,j,n)
    
@@ -5917,16 +6371,17 @@ contains
       
       ! calculate global i,j,n
       tg = iqg - 1
-      ng = tg/(il_g**2)
-      tg = tg - ng*il_g**2
+      ng = tg/(il_g*il_g)
+      tg = tg - ng*il_g*il_g
       jg = tg/il_g
       tg = tg - jg*il_g
       ig = tg
       ig = ig + 1
       jg = jg + 1
    
-      ! MJT notes - we use two colours to ensure
-      ! all processes have work on different faces
+      ! MJT notes - we use two colours for both
+      ! uniform_decomp and face_decomp to ensure
+      ! the results are bit-reproducible
       icol = mod( ig + jg + ng*il_g, 2 ) + 1
    
    end function findcolour
@@ -5996,6 +6451,43 @@ contains
       end if
 
    end subroutine proc_setup
+
+!   subroutine proc_setup_uniform(id,jd,idjd)
+!!     Routine to set up offsets etc for the uniform decomposition
+!      integer :: i, j, n, nd, jdf, idjd_g
+!      integer, intent(in) :: id, jd
+!      integer, intent(out) :: idjd
+!      integer, dimension(0:npanels) :: ipoff, jpoff
+!
+!      call dix_set( ipan, jpan, noff, ipoff, jpoff, npan, il_g, myid, nproc, nxproc, nyproc)
+!      ioff = ipoff(0)
+!      joff = jpoff(0)
+!
+!!     Check that the values calculated here match those set as parameters
+!      if ( ipan /= il ) then
+!         write(6,*) "Error, parameter mismatch, ipan /= il", ipan, il
+!         call ccmpi_abort(-1)
+!      end if
+!      if ( jpan*npan /= jl ) then
+!         write(6,*) "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
+!         call ccmpi_abort(-1)
+!      end if
+!
+!      ! Convert standard jd to a face index
+!      nd = (jd-1)/il_g ! 0: to match fproc
+!      jdf = jd - nd*il_g
+!      mydiag = ( myid == fproc(id,jdf,nd) )
+!      ! Convert global indices to ones on this processors region
+!      idjd_g = id + (jd-1)*il_g
+!      if ( mydiag ) then
+!         call indv_mpi(idjd_g,i,j,n)
+!         idjd = indp(i,j,n)
+!      else
+!         ! This should never be used so set a value that will give a bounds error
+!         idjd = huge(1)
+!      end if
+!
+!   end subroutine proc_setup_uniform
 
    subroutine face_set(ipan_l, jpan_l, noff_l, ioff_l, joff_l, npan_l, il_gx, myid_l, nproc_l, nxproc_l, nyproc_l)
       integer, intent(in) :: myid_l, nproc_l, npan_l, il_gx
@@ -6407,6 +6899,9 @@ contains
       
       llen = nevents
       lcomm = comm_world
+      emean = 0._8
+      emax = 0._8
+      emin = 0._8
       call MPI_Reduce(tot_time, emean, llen, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, 0_4, lcomm, ierr )
       call MPI_Reduce(tot_time, emax, llen, MPI_DOUBLE_PRECISION,  &
@@ -6426,16 +6921,20 @@ contains
       end if
       
       llen = 2
+      time_mean = 0.
+      time_max = 0.
+      time_min = 0.
       time_l(1:2) = (/ mpiinit_time, total_time /)
       call MPI_Reduce(time_l, time_mean, llen, MPI_REAL, &
                       MPI_SUM, 0_4, lcomm, ierr )
+      time_mean = time_mean/real(nproc)
       call MPI_Reduce(time_l, time_max, llen, MPI_REAL,  &
                       MPI_MAX, 0_4, lcomm, ierr )
       call MPI_Reduce(time_l, time_min, llen, MPI_REAL,  &
                       MPI_MIN, 0_4, lcomm, ierr )
       if ( myid == 0 ) then
-         write(*,"(a,3f10.3)") "MPI_Initialise ",time_mean(1)/nproc,time_min(1),time_max(1)
-         write(*,"(a,3f10.3)") "Total_Time     ",time_mean(2)/nproc,time_min(2),time_max(2)
+         write(*,"(a,3f10.3)") "MPI_Initialise ",time_mean(1),time_min(1),time_max(1)
+         write(*,"(a,3f10.3)") "Total_Time     ",time_mean(2),time_min(2),time_max(2)
       end if   
         
    end subroutine simple_timer_finalize
@@ -7452,7 +7951,7 @@ contains
    subroutine ccmpi_gatherx2r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7465,7 +7964,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx2r
@@ -7473,7 +7972,7 @@ contains
    subroutine ccmpi_gatherx3r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7486,7 +7985,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx3r
@@ -7494,7 +7993,7 @@ contains
     subroutine ccmpi_gatherx4r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7507,7 +8006,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx4r
@@ -7515,7 +8014,7 @@ contains
    subroutine ccmpi_gatherx23r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7528,7 +8027,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx23r
@@ -7536,7 +8035,7 @@ contains
    subroutine ccmpi_gatherx34r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7549,7 +8048,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx34r
@@ -7557,7 +8056,7 @@ contains
    subroutine ccmpi_gatherx45r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7570,7 +8069,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx45r
@@ -7578,7 +8077,7 @@ contains
    subroutine ccmpi_gatherx2i(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -7591,7 +8090,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx2i
@@ -7599,7 +8098,7 @@ contains
    subroutine ccmpi_gatherx3i(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -7612,7 +8111,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx3i
@@ -7620,7 +8119,7 @@ contains
    subroutine ccmpi_gatherx23l(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
       logical, dimension(:,:), intent(out) :: gdat
       logical, dimension(:), intent(in) :: ldat
 
@@ -7628,7 +8127,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,MPI_LOGICAL,gdat,lsize,MPI_LOGICAL,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,MPI_LOGICAL,gdat,lsize,MPI_LOGICAL,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx23l
@@ -7636,7 +8135,7 @@ contains
    subroutine ccmpi_gatherx2rr8(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:), intent(out) :: gdat
       real(kind=8), dimension(:), intent(in) :: ldat
@@ -7645,7 +8144,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx2rr8
@@ -7653,7 +8152,7 @@ contains
    subroutine ccmpi_gatherx3rr8(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:), intent(in) :: ldat
@@ -7662,7 +8161,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx3rr8
@@ -7670,7 +8169,7 @@ contains
    subroutine ccmpi_gatherx23rr8(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:), intent(out) :: gdat
       real(kind=8), dimension(:), intent(in) :: ldat
@@ -7679,7 +8178,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx23rr8
@@ -7687,7 +8186,7 @@ contains
    subroutine ccmpi_gatherx34rr8(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:), intent(in) :: ldat
@@ -7696,7 +8195,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx34rr8
@@ -7704,7 +8203,7 @@ contains
    subroutine ccmpi_gatherx45rr8(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:,:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:,:), intent(in) :: ldat
@@ -7713,7 +8212,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx45rr8
@@ -7721,7 +8220,7 @@ contains
    subroutine ccmpi_scatterx2r(gdat,ldat,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7734,7 +8233,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(scatter_begin)
-      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(scatter_end)
       
    end subroutine ccmpi_scatterx2r
@@ -7742,7 +8241,7 @@ contains
    subroutine ccmpi_scatterx32r(gdat,ldat,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7755,7 +8254,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(scatter_begin)
-      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(scatter_end)
       
    end subroutine ccmpi_scatterx32r
@@ -7763,7 +8262,7 @@ contains
    subroutine ccmpi_scatterx3r(gdat,ldat,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7776,7 +8275,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(scatter_begin)
-      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(scatter_end)
       
    end subroutine ccmpi_scatterx3r
@@ -7784,7 +8283,7 @@ contains
    subroutine ccmpi_scatterx32l(gdat,ldat,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, ierr
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
 #ifdef i8r8
       integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -7797,7 +8296,7 @@ contains
       lhost = host
       lsize = size(ldat)
       call START_LOG(scatter_begin)
-      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,ierr)
+      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
       call END_LOG(scatter_end)
       
    end subroutine ccmpi_scatterx32l
@@ -7805,7 +8304,7 @@ contains
    subroutine ccmpi_allgatherx2i(gdat,ldat,comm)
    
       integer, intent(in) :: comm
-      integer(kind=4) lsize, lcomm, ierr
+      integer(kind=4) lsize, lcomm, lerr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -7817,7 +8316,7 @@ contains
       lcomm = comm
       lsize = size(ldat)
       call START_LOG(allgather_begin)
-      call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,ierr)
+      call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,lerr)
       call END_LOG(allgather_end)
       
    end subroutine ccmpi_allgatherx2i
@@ -7903,7 +8402,6 @@ contains
       call MPI_Init_Thread(MPI_THREAD_SERIALIZED, lprovided, lerr)
       if ( lprovided < MPI_THREAD_SERIALIZED ) then
          write(6,*) "ERROR: MPI does not support MPI_THREAD_SERIALIZED"
-         write(6,*) "Try disabling OpenMP in CCAM and recompile"
          call ccmpi_abort(-1)
       end if
 #else
@@ -10507,7 +11005,7 @@ contains
       call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
       call END_LOG(gatherfile_end)
 
-      ! reorder array in order of processor rank
+      ! map array in order of processor rank
       do iproc = 0,fnresid-1
          do k = 1,kx 
             do ipf = 0,fncount-1
@@ -10567,7 +11065,7 @@ contains
       real, dimension(pil_g*pjl_g), intent(in) :: a1
       real, dimension(pipan*pjpan*pnpan*fncount,0:fnresid-1) :: sbuf
 
-      ! reorder array in order of processor rank
+      ! map array in order of processor rank
       do iproc = 0,fnresid-1
          do ipf = 0,fncount-1
             ip = iproc + ipf*fnresid
@@ -11503,6 +12001,7 @@ contains
    
    integer, parameter, public :: nagg = 3                                  ! maximum number of levels to aggregate for message
                                                                            ! passing
+   !logical, save, public :: uniform_decomp                                 ! uniform decomposition flag
    integer, save, public :: vnode_nproc, comm_vnode, vnode_myid
    integer, save, public :: vnode_vleaderid
    integer, save, public :: vleader_nproc, comm_vleader, vleader_myid

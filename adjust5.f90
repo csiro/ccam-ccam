@@ -73,7 +73,7 @@ real, dimension(ifull) :: ptemp, ptempsav
 real hdt, hdtds
 real alph_p, alph_pm, delneg, delpos
 real const_nh
-real sumx, temp_a, temp_b
+real sumx
 real, save :: dtsave = 0.
 
 call START_LOG(adjust_begin)
@@ -217,11 +217,7 @@ end if     ! (nh/=0)
 ! form divergence of rhs (xu & xv) terms
 do k = 1,kl
   ! d is xd in Eq. 157, divided by em**2/ds
-  do iq = 1,ifull
-    temp_a = cc(iq,k) - cc(iwu(iq),k)
-    temp_b = dd(iq,k) - dd(isv(iq),k)
-    d(iq,k) = temp_a + temp_b
-  end do  
+  d(1:ifull,k) = cc(1:ifull,k) - cc(iwu,k) + dd(1:ifull,k) - dd(isv,k)
 end do
 
 ! transform p & d to eigenvector space
@@ -338,11 +334,9 @@ if ( nh/=0 .and. ktau<=-knh .and. .not.lrestart ) then  ! e.g. knh=-10, divdamp=
   end do
   call boundsuv(cc,dd,stag=-9) ! only update isv and iwu
   do k=1,kl
-    do iq = 1,ifull  
-      temp_a = cc(iq,k)/emu(iq)-cc(iwu(iq),k)/emu(iwu(iq))   
-      temp_b = dd(iq,k)/emv(iq)-dd(isv(iq),k)/emv(isv(iq))
-      d(iq,k)=(temp_a+temp_b)*em(iq)**2/ds ! Eq. 101
-    end do  
+    d(1:ifull,k)=(cc(1:ifull,k)/emu(1:ifull)-cc(iwu,k)/emu(iwu)   &
+                 +dd(1:ifull,k)/emv(1:ifull)-dd(isv,k)/emv(isv))  &
+                 *em(1:ifull)**2/ds ! Eq. 101
   end do     ! k  loop
   if ( nmaxpr==1 .and. mydiag ) then
     write(6,*) 'after div damping'
