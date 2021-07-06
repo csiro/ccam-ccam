@@ -37,6 +37,13 @@ ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
 VTHRESH = -vec-threshold0
 endif
+ifeq ($(MAUI),yes)
+FHOST = -O3 -xSKYLAKE-AVX512
+FOVERRIDE = -qoverride-limits
+ZMM =
+IPFLAG = -ip
+VTHRESH = -vec-threshold0
+endif
 ifeq ($(CASCADELAKE),yes)
 FHOST = -O3 -xCASCADELAKE -fimf-use-svml
 FOVERRIDE = -qoverride-limits
