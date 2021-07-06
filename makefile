@@ -37,13 +37,6 @@ ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
 VTHRESH = -vec-threshold0
 endif
-ifeq ($(MAUI),yes)
-FHOST = -O3 -xSKYLAKE-AVX512
-FOVERRIDE = -qoverride-limits
-ZMM =
-IPFLAG = -ip
-VTHRESH = -vec-threshold0
-endif
 ifeq ($(CASCADELAKE),yes)
 FHOST = -O3 -xCASCADELAKE -fimf-use-svml
 FOVERRIDE = -qoverride-limits
@@ -160,6 +153,44 @@ PPFLAG90F = -eZ
 REAL8FLAG = -s real64
 INT8FLAG = -s integer64
 DEBUGFLAG =
+endif
+
+# MAUI compiler options
+ifeq ($(MAUI),yes)
+MPIFC = ftn
+MPIF77 = ftn
+FC = ftn
+FCSCM = ftn
+ifneq ($(CUSTOM),yes)
+NCFLAG = -I $(NETCDF_ROOT)/include
+ifeq ($(NCCLIB),yes)
+NCFLAG += -Dncclib
+endif
+ifeq ($(NOMPI3),yes)
+MPIFLAG =
+else
+MPIFLAG = -Dusempi3
+endif
+FHOST = -O3 -xSKYLAKE-AVX512
+MPIFLAG =
+MPISPECIAL =
+ifeq ($(OMP),yes)
+OMPFLAG = -qopenmp -qno-openmp-simd
+else
+OMPFLAG =
+endif
+FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG) $(NCFLAG) $(OMPFLAG)
+FOVERRIDE = -qoverride-limits
+ZMM =
+IPFLAG = -ip
+IPOFLAG =
+VTHRESH = -vec-threshold0
+PPFLAG90 = -fpp
+PPFLAG77 = -fpp
+PPFLAG90F = -fpp
+REAL8FLAG = -r8
+INT8FLAG = -i8
+DEBUGFLAG = -check all -debug all -fpe0
 endif
 
 # IBM compiler options
