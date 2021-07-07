@@ -161,16 +161,7 @@ MPIFC = ftn
 MPIF77 = ftn
 FC = ftn
 FCSCM = ftn
-ifneq ($(CUSTOM),yes)
-NCFLAG = -I $(NETCDF_ROOT)/include
-ifeq ($(NCCLIB),yes)
-NCFLAG += -Dncclib
-endif
-ifeq ($(NOMPI3),yes)
-MPIFLAG =
-else
 MPIFLAG = -Dusempi3
-endif
 FHOST = -O3 -xSKYLAKE-AVX512
 MPIFLAG =
 MPISPECIAL =
