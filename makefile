@@ -161,9 +161,9 @@ MPIFC = ftn
 MPIF77 = ftn
 FC = ftn
 FCSCM = ftn
+NCFLAG = -I $(NETCDF_ROOT)/include
 MPIFLAG = -Dusempi3
 FHOST = -O3 -xSKYLAKE-AVX512
-MPIFLAG =
 MPISPECIAL =
 ifeq ($(OMP),yes)
 OMPFLAG = -qopenmp -qno-openmp-simd
