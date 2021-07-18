@@ -62,7 +62,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mlosurf,mlonewice
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
-public oclosure,pdl,pdu,nsteps,usepice,minicemass,cdbot,rhowt,cp0
+public oclosure,pdl,pdu,nsteps,usepice,minicemass,cdbot,rhowt,cp0,ominl,omaxl
 
 #ifdef CCAM
 public water_g,ice_g,wpack_g,wfull_g
@@ -225,6 +225,8 @@ real, save :: pdu    = 2.7                ! Zoom factor near the surface for mlo
 real, save :: pdl    = 0.0                ! Zoom factor near the bottom for mlosigma==gotm
 real, save :: mink   = 1.e-8              ! Minimum k
 real, save :: mineps = 1.e-11             ! Minimum eps
+real, save :: ominl  = 1.e-2              ! Minimum L
+real, save :: omaxl  = 1.e20              ! Maximum L
 
 ! model parameters
 real, save :: mxd      = 5002.18          ! Max depth (m)
@@ -3103,8 +3105,14 @@ do ii = 2,wlev-1
     n2(:,ii) = -grav/wrtrho*(d_rho_hl(:,ii)-d_rho_hl(:,ii+1))/depth%dz(:,ii)
   end where  
 end do
-n2(:,1) = n2(:,2) ! MJT suggestion
-n2(:,wlev) = n2(:,wlev-1) ! MJT suggestion
+where ( depth%dz(:,1)>1.e-4 )
+  ! MJT suggestion
+  n2(:,1) = -grav/wrtrho*(dgwater%rho(:,1)-d_rho_hl(:,2))/(depth%depth_hl(:,2)-depth%depth(:,1))
+end where
+where ( depth%dz(:,wlev)>1.e-4 )
+  ! MJT suggestion
+  n2(:,wlev) = -grav/wrtrho*(d_rho_hl(:,wlev-1)-dgwater%rho(:,wlev))/(depth%depth(:,wlev)-depth%depth_hl(:,wlev-1))
+end where
 
 !initial conditions
 do ii = 1,wlev
@@ -3142,19 +3150,22 @@ L = cu0**3*k**1.5/eps
 if ( limitL==1 ) then
   minL = cu0**3*mink**1.5/mineps
   do ii = 2,wlev-1  
+    L(:,ii) = max( L(:,ii), real(minL,8) )
     where ( n2(:,ii) > 0._8 )
-      L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),real(minL,8))
+      L(:,ii) = min( L(:,ii), sqrt(0.56_8*k(:,ii)/n2(:,ii)) )
     end where
   end do
 end if
+L(:,:) = max( min( L(:,:), omaxl), ominl )
 
 !stability functions
 if ( fixedstabfunc==1 ) then
-  alpha = 0.0_8
+  alpha = 0._8
   cu = (cu0 + 2.182_8*alpha)/(1.0 + 20.4_8*alpha + 53.12_8*alpha**2)
   cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
 else
   alpha = L**2*n2/k
+  alpha = max( min( alpha, 0.56), -0.0466 ) ! SHOC (before eq 6.7.5)
   cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
   cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
 end if
@@ -3340,11 +3351,13 @@ do step = 1,nsteps
   if ( limitL==1 ) then
     minL = cu0**3*mink**1.5/mineps
     do ii = 2,wlev-1
+      L(:,ii) = max( L(:,ii), real(minL,8) )
       where ( n2(:,ii) > 0.0_8 )
-        L(:,ii) = max(min(L(:,ii),sqrt(0.56_8*k(:,ii))/n2(:,ii)),real(minL,8))
+        L(:,ii) = min( L(:,ii), sqrt(0.56_8*k(:,ii)/n2(:,ii)) )
       end where
     end do
   end if
+  L(:,:) = max( min( L(:,:), omaxl), ominl )
 
   !stability functions
   if ( fixedstabfunc==1 ) then
@@ -3353,6 +3366,7 @@ do step = 1,nsteps
     cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
   else
     alpha = L**2*n2/k
+    alpha = max( min( alpha, 0.56), -0.0466 ) ! SHOC (before eq 6.7.5)
     cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
     cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
   end if

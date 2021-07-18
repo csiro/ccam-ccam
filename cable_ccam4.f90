@@ -1359,10 +1359,8 @@ subroutine setp_soil(soil,lsoil,tile)
     lsoil%zshh => soil%zshh !ms
     lsoil%soilcol => soil%soilcol(is:ie)
     lsoil%albsoilf => soil%albsoilf(is:ie)
-
     lsoil%cnsd => soil%cnsd(is:ie)
     lsoil%pwb_min => soil%pwb_min(is:ie)
-
     lsoil%albsoil => soil%albsoil(is:ie,:)
 
     lsoil%nhorizons => soil%nhorizons(is:ie)
@@ -1370,9 +1368,27 @@ subroutine setp_soil(soil,lsoil,tile)
     lsoil%clitt => soil%clitt(is:ie)
     lsoil%zeta => soil%zeta(is:ie)
     lsoil%fsatmax => soil%fsatmax(is:ie)
+    
     lsoil%swilt_vec => soil%swilt_vec(is:ie,:)
     lsoil%ssat_vec => soil%ssat_vec(is:ie,:)
     lsoil%sfc_vec => soil%sfc_vec(is:ie,:)
+    lsoil%rhosoil_vec => soil%rhosoil_vec(is:ie,:)
+    lsoil%sucs_vec => soil%sucs_vec(is:ie,:)
+    lsoil%bch_vec => soil%bch_vec(is:ie,:)
+    lsoil%hyds_vec => soil%hyds_vec(is:ie,:)
+    lsoil%watr => soil%watr(is:ie,:)
+    lsoil%cnsd_vec => soil%cnsd_vec(is:ie,:)
+    lsoil%clay_vec => soil%clay_vec(is:ie,:)
+    lsoil%sand_vec => soil%sand_vec(is:ie,:)
+    lsoil%silt_vec => soil%silt_vec(is:ie,:)
+    
+    lsoil%GWsucs_vec => soil%GWsucs_vec(is:ie)
+    lsoil%GWhyds_vec => soil%GWhyds_vec(is:ie)
+    lsoil%GWbch_vec => soil%GWbch_vec(is:ie)
+    lsoil%GWrhosoil_vec => soil%GWrhosoil_vec(is:ie)
+    lsoil%GWssat_vec => soil%GWssat_vec(is:ie)
+    lsoil%GWwatr => soil%GWwatr(is:ie)
+    lsoil%GWdz => soil%GWdz(is:ie)
     
     lsoil%heat_cap_lower_limit => soil%heat_cap_lower_limit(is:ie,:)
     

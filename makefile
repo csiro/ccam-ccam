@@ -152,7 +152,7 @@ PPFLAG77 = -eZ
 PPFLAG90F = -eZ
 REAL8FLAG = -s real64
 INT8FLAG = -s integer64
-DEBUGFLAG =
+DEBUGFLAG = -g
 endif
 
 # MAUI compiler options

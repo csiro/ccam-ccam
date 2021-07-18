@@ -170,7 +170,8 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,minwater,mxd,zomode,zoseaice        &
     ,factchseaice,otaumode               &
     ,alphavis_seaice,alphanir_seaice     &
-    ,mlosigma,oclosure,usepice
+    ,mlosigma,oclosure,usepice,ominl     &
+    ,omaxl
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use newmpar_m                              ! Grid parameters
@@ -854,6 +855,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ocndelphi',ocndelphi)
     call ccnf_put_attg(idnc,'ocneps',ocneps)
     call ccnf_put_attg(idnc,'ocnsmag',ocnsmag)
+    call ccnf_put_attg(idnc,'omaxl',omaxl)
+    call ccnf_put_attg(idnc,'ominl',ominl)
     call ccnf_put_attg(idnc,'otaumode',otaumode)
     call ccnf_put_attg(idnc,'rivercoeff',rivercoeff)
     call ccnf_put_attg(idnc,'rivermd',rivermd)

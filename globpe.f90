@@ -1343,7 +1343,7 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,limitL,fixedce3,calcinloop,nops     &
     ,nopb,fixedstabfunc,omink => mink    &
     ,omineps => mineps,mlovlevels        &
-    ,usepice
+    ,usepice,ominl,omaxl
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -1530,7 +1530,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,nodrift, &
     kmlo,                                                         &
     pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    & ! k-e
-    nops,nopb,fixedstabfunc,omink,omineps,oclosure,               &
+    nops,nopb,fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,   &
     rivermd,basinmd,rivercoeff,                                   & ! River
     mlomfix                                                         ! Depreciated
 ! tracer namelist
@@ -2403,7 +2403,7 @@ ateb_statsmeth    = dumi(29)
 ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(15), dumi(21) )
+allocate( dumr(17), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2428,6 +2428,8 @@ if ( myid==0 ) then
   dumr(13) = omink
   dumr(14) = omineps
   dumr(15) = ocndelphi
+  dumr(16) = ominl
+  dumr(17) = omaxl
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2467,6 +2469,8 @@ pdu             = dumr(12)
 omink           = dumr(13)
 omineps         = dumr(14)
 ocndelphi       = dumr(15)
+ominl           = dumr(16)
+omaxl           = dumr(17)
 mlodiff         = dumi(1)
 usetide         = dumi(2) 
 zomode          = dumi(3) 
@@ -3542,13 +3546,11 @@ implicit none
 integer, intent(in) :: il_g, nproc, npanels
 integer, intent(out) :: newnproc, nxp, nyp
 integer nproc_low, nxp_test, nyp_test
-!logical, intent(out) :: uniform_test
 
 nxp_test = 0
 nyp_test = 0
 
 ! try face decompositoin
-!uniform_test = .false.
 do nproc_low = nproc,1,-1
   call proctest_face(npanels,il_g,nproc_low,nxp_test,nyp_test)
   if ( nxp_test>0 ) exit
@@ -3556,20 +3558,6 @@ end do
 newnproc = nproc_low
 nxp = nxp_test
 nyp = nyp_test
-
-!! try uniform decomposition
-!do nproc_low = nproc,1,-1
-!  call proctest_uniform(npanels,il_g,nproc_low,nxp_test,nyp_test)
-!  if ( nxp_test>0 ) exit
-!end do
-!
-!! chose decomposition based on the larger number of processes
-!if ( nproc_low>newnproc ) then
-!  uniform_test = .true.
-!  newnproc = nproc_low
-!  nxp = nxp_test
-!  nyp = nyp_test
-!end if
 
 return
 end subroutine reducenproc
@@ -3600,28 +3588,6 @@ end if
 return
 end subroutine proctest_face
     
-!--------------------------------------------------------------
-! TEST GRID DECOMPOSITION - UNIFORM
-!subroutine proctest_uniform(npanels,il_g,nproc,nxp,nyp)
-!
-!implicit none
-!
-!integer, intent(in) :: il_g, nproc, npanels
-!integer, intent(out) :: nxp, nyp
-!integer jl_g
-!
-!jl_g = il_g + npanels*il_g     ! size of grid along all panels (usually 6*il_g)
-!nxp = nint(sqrt(real(nproc)))  ! number of processes in X direction
-!nyp = nproc/nxp                ! number of processes in Y direction
-!! search for vaild process decomposition.  CCAM enforces the same grid size on each process
-!do while ( (mod(il_g,max(nxp,1))/=0.or.mod(nproc,max(nxp,1))/=0.or.mod(il_g,nyp)/=0) .and. nxp>0 )
-!  nxp = nxp - 1
-!  nyp = nproc/max(nxp,1)
-!end do
-!
-!return
-!end subroutine proctest_uniform
-
 !--------------------------------------------------------------------
 ! Fix water vapour mixing ratio
 subroutine fixqg(js,je)

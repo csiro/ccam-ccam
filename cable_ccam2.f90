@@ -2555,8 +2555,8 @@ if ( mp_global>0 ) then
   
   ! Cable configuration
   !cable_user%ssnow_POTEV = "P-M"
-  cable_user%ssnow_POTEV = "H-D" ! default Humidity Deficit
-  cable_user%MetType = "defa" ! only 4 characters for "default"
+  cable_user%ssnow_POTEV = "HDM" ! default Humidity Deficit
+  cable_user%MetType = "defa"    ! only 4 characters for "default"
   cable_user%diag_soil_resp = "ON"
   cable_user%leaf_respiration = "ON"
   cable_user%run_diag_level = "NONE"
@@ -2565,7 +2565,8 @@ if ( mp_global>0 ) then
   cable_user%l_new_roughness_soil = .false.
   cable_user%l_rev_corr = .true.
   cable_user%gw_model = cable_gw_model==1
-  select case ( cable_climate )
+  cable_user%soil_thermal_fix = .true.
+    select case ( cable_climate )
     case(1)
       cable_user%call_climate = .true.
       cable_user%phenology_switch = "climate"
@@ -4275,6 +4276,11 @@ use soilv_m
 implicit none
 
 type(soil_parameter_type), intent(inout) :: soil
+!real, dimension(mp_global) :: ssat_bounded, rho_soil_bulk
+!real, parameter :: ssat_hi = 0.65
+!real, parameter :: ssat_lo = 0.15
+!real, parameter :: rhob_hi = 2300.
+!real, parameter :: rhob_lo = 810.
 integer isoil, k
 integer, dimension(1) :: nstart, ncount
 
@@ -4392,6 +4398,10 @@ if ( mp_global>0 ) then
     soil%bch_vec(:,k)     = soil%bch
     soil%hyds_vec(:,k)    = soil%hyds
     soil%watr(:,k)        = 0.01_8
+    soil%cnsd_vec(:,k)    = soil%cnsd
+    soil%clay_vec(:,k)    = soil%clay
+    soil%sand_vec(:,k)    = soil%sand
+    soil%silt_vec(:,k)    = soil%silt
   end do
   soil%GWsucs_vec    = soil%sucs*1000._8
   soil%GWhyds_vec    = soil%hyds*1000._8
@@ -4401,6 +4411,33 @@ if ( mp_global>0 ) then
   soil%GWwatr        = 0.01_8
   soil%GWdz          = 20._8
   soil%GWdz = max( 1._8, min( 20._8, soil%GWdz - sum(soil%zse,dim=1) ) )
+  
+  soil%heat_cap_lower_limit = 0.01 ! recalculated in cable_soilsnow.F90
+  
+  ! UM appears to only support isoilm=2 or soilm=9
+  
+  !if ( cable_user%gw_model ) then
+  !  do k = 1,ms
+  !    soil%hyds_vec(:,k) = soil%hyds_vec(:,k) * exp(-gw_parms%hkrz*(znode(k)-gw_params%zdepth) )
+  !  end do
+  !  soil%hyds(:) = soil%hyds_vec(:,1)
+  !end if
+  
+  !if ( cable_user%soil_thermal_fix ) then
+  !  do k = 1,ms
+  !    ssat_bounded = min( ssat_hi, max( ssat_lo, soil%ssat_vec(:,k) ) )  
+  !    rho_soil_bulk = min( rhob_hi, max( rhob_lo, (2700.*(1.-ssat_bounded)) ) )
+  !    where ( soil%isoilm(:) /= 9 )
+  !     soil%rhosoil_vec(:,k) = 2700.
+  !      soil%cnsd_vec(:,k) = ( 0.135*(1.-ssat_bounded(:)) + 64.7/rho_soil_bulk(:) ) &
+  !                         / ( 1.-0.947*(1.-ssat_bounded(:)) )
+  !    end where    
+  !  end do
+  !  where ( soil%isoilm(:) /= 9 )
+  !    soil%rhosoil(:) = soil%rhosoil_vec(:,1)
+  !    soil%cnsd(:) = soil%cnsd_vec(:,1)
+  !  end where  
+  !end if
   
   ! depeciated
   !bgc%ratecp(:) = real(ratecp(:),8)/
