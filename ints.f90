@@ -143,9 +143,20 @@ if ( intsch==1 ) then
     ! the messages to return, thereby overlapping computation with communication.
     call intssync_send(1)
 
+#ifdef _OPENMP
+#ifdef GPU
+    !$omp target teams distribute parallel do collapse(2) shedule(static)             &
+    !$omp map(to:sx) map(tofrom:s) private(k,iq,idel,xxg,jdel,yyg)                    &
+    !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)   &
+    !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
+#else
     !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),               &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),  &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
+#else
+    !$acc parallel loop collapse(2) copyin(sx) copy(s)
+#endif
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
@@ -175,7 +186,15 @@ if ( intsch==1 ) then
         s(iq,k) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do       ! iq loop
     end do         ! k loop
+#ifdef _OPENMP
+#ifdef GPU
+    !$omp end target teams distribute parallel do
+#else
     !$omp end parallel do
+#endif
+#else
+    !$acc end parallel loop
+#endif
     
   else              ! (nfield<mh_bs)
 
@@ -219,9 +238,20 @@ if ( intsch==1 ) then
     ! the messages to return, thereby overlapping computation with communication.
     call intssync_send(1)
 
+#ifdef _OPENMP
+#ifdef GPU
+    !$omp target teams distribute parallel do collapse(2) shedule(static)             &
+    !$omp map(to:sx) map(tofrom:s) private(k,iq,idel,xxg,jdel,yyg)                    &
+    !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)   &
+    !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
+#else
     !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),               &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),  &
-    !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
+    !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
+#else
+    !$acc parallel loop collapse(2) copyin(sx) copy(s)
+#endif
     do k = 1,kl
       do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
         idel = int(xg(iq,k))
@@ -256,7 +286,15 @@ if ( intsch==1 ) then
             rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
       end do      ! iq loop
     end do        ! k loop
+#ifdef _OPENMP
+#ifdef GPU
+    !$omp end target teams distribute parallel do
+#else
     !$omp end parallel do
+#endif
+#else
+    !$acc end parallel loop
+#endif
 
   end if            ! (nfield<mh_bs)  .. else ..
             
@@ -339,9 +377,20 @@ else     ! if(intsch==1)then
     
     call intssync_send(1)
 
+#ifdef _OPENMP
+#ifdef GPU
+    !$omp target teams distribute parallel do collapse(2) shedule(static)             &
+    !$omp map(to:sx) map(tofrom:s) private(k,iq,idel,xxg,jdel,yyg)                    &
+    !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)   &
+    !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
+#else
     !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),               &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),  &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
+#else
+    !$acc parallel loop collapse(2) copyin(sx) copy(s)
+#endif
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
@@ -372,7 +421,15 @@ else     ! if(intsch==1)then
         s(iq,k) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do       ! iq loop
     end do         ! k loop
+#ifdef _OPENMP
+#ifdef GPU
+    !$omp end target teams distribute parallel do
+#else
     !$omp end parallel do
+#endif
+#else
+    !$acc end parallel loop
+#endif
     
   else                 ! (nfield<mh_bs)
 
@@ -415,9 +472,20 @@ else     ! if(intsch==1)then
   
     call intssync_send(1)
 
+#ifdef _OPENMP
+#ifdef GPU
+    !$omp target teams distribute parallel do collapse(2) shedule(static)             &
+    !$omp map(to:sx) map(tofrom:s) private(k,iq,idel,xxg,jdel,yyg)                    &
+    !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)   &
+    !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
+#else
     !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),               &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),  &
-    !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
+    !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
+#else
+    !$acc parallel loop collapse(2) copyin(sx) copy(s)
+#endif
     do k = 1,kl
       do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
         idel = int(xg(iq,k))
@@ -452,7 +520,15 @@ else     ! if(intsch==1)then
             rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
       end do       ! iq loop
     end do         ! k loop
+#ifdef _OPENMP
+#ifdef GPU
+    !$omp end target teams distribute parallel do
+#else
     !$omp end parallel do
+#endif
+#else
+    !$acc end parallel loop
+#endif
     
   end if            ! (nfield<mh_bs)  .. else ..
 
@@ -535,7 +611,16 @@ end do
 
 call intssync_send(1)
 
-!$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
+#ifdef _OPENMP
+#ifdef GPU
+    !$omp target teams distribute parallel do collapse(2) shedule(static)             &
+    !$omp map(to:sx) map(tofrom:s) private(k,iq,idel,xxg,jdel,yyg,n)
+#else
+    !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
+#endif
+#else
+    !$acc parallel loop collapse(2) copyin(sx) copy(s)
+#endif
 do k = 1,kl
   do iq = 1,ifull
     ! Convert face index from 0:npanels to array indices
@@ -550,7 +635,15 @@ do k = 1,kl
               + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
-!$omp end parallel do
+#ifdef _OPENMP
+#ifdef GPU
+    !$omp end target teams distribute parallel do
+#else
+    !$omp end parallel do
+#endif
+#else
+    !$acc end parallel loop
+#endif
 
 call intssync_recv(s)
 

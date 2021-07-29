@@ -518,7 +518,6 @@ contains
       end if    
       !end if
       maxvertlen = max( kl, ol, 15 )
-!$acc update device(mydiag,ipan,jpan)
       
       
       ! Distribute global arrays over processes

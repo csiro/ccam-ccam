@@ -695,6 +695,15 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Calculate depature points
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp target data map(to:xg,yg,nface)
+#endif
+#else
+  !$acc data create(xg,yg,nface)
+  !$acc update device(xg,yg,nface)
+#endif
+  
   ! Convert (u,v) to cartesian coordinates (U,V,W)
   do ii = 1,wlev
     cou(1:ifull,ii,1) = ax(1:ifull)*uau(:,ii) + bx(1:ifull)*uav(:,ii)
@@ -726,6 +735,13 @@ do mspec_mlo = mspeca_mlo,1,-1
     mps(1:ifull,ii) = cou(1:ifull,ii,3)
   end do
 
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp end target data
+#endif
+#else
+  !$acc end data
+#endif
 
   workdata = nt(1:ifull,:)
   call mlocheck("horizontal advection",water_temp=workdata,water_u=uau,water_v=uav)

@@ -1747,12 +1747,12 @@ neta(1:ifull+iextra)  = dumc(1:ifull+iextra,1)
 ipice(1:ifull+iextra) = dumc(1:ifull+iextra,2)  
 
 ! residual - ocean
-w(1:ifull,1)=(-neta(1:ifull)*(iyy(1:ifull)*neta(1:ifull)                             &
-              +iyyn(1:ifull)*dumc(in,1)+iyys(1:ifull)*dumc(is,1)       &
-              +iyye(1:ifull)*dumc(ie,1)+iyyw(1:ifull)*dumc(iw,1))      &
-             -(izz(1:ifull,1)*neta(1:ifull)                                              &
-              +izzn(1:ifull,1)*dumc(in,1)+izzs(1:ifull,1)*dumc(is,1)   &
-              +izze(1:ifull,1)*dumc(ie,1)+izzw(1:ifull,1)*dumc(iw,1))  &
+w(1:ifull,1)=(-neta(1:ifull)*(iyy(1:ifull)*neta(1:ifull)           &
+              +iyyn(1:ifull)*neta(in)+iyys(1:ifull)*neta(is)       &
+              +iyye(1:ifull)*neta(ie)+iyyw(1:ifull)*neta(iw))      &
+             -(izz(1:ifull,1)*neta(1:ifull)                        &
+              +izzn(1:ifull,1)*neta(in)+izzs(1:ifull,1)*neta(is)   &
+              +izze(1:ifull,1)*neta(ie)+izzw(1:ifull,1)*neta(iw))  &
              -ihh(1:ifull)*neta(1:ifull)+irhs(1:ifull,1))*ee(1:ifull)
 
 ! upscale ocean fields
@@ -1766,13 +1766,13 @@ w(1:ifull,8)  = izzn(:,1) + iyyn*neta(1:ifull)
 w(1:ifull,9)  = izzs(:,1) + iyys*neta(1:ifull)
 w(1:ifull,10) = izze(:,1) + iyye*neta(1:ifull)
 w(1:ifull,11) = izzw(:,1) + iyyw*neta(1:ifull)
-w(1:ifull,12) = iyyn*dumc_n(1:ifull,1) + iyys*dumc_s(1:ifull,1)                         &
-              + iyye*dumc_e(1:ifull,1) + iyyw*dumc_w(1:ifull,1)                         &
+w(1:ifull,12) = iyyn*neta(in) + iyys*neta(is)  &
+              + iyye*neta(ie) + iyyw*neta(iw)  &
               + iyy*neta(1:ifull) + ihh(:)
 
 ! residual - ice
-w(1:ifull,13) =(- izzn(1:ifull,2)*dumc(in,2) - izzs(1:ifull,2)*dumc(is,2)     &
-                - izze(1:ifull,2)*dumc(ie,2) - izzw(1:ifull,2)*dumc(iw,2)     &
+w(1:ifull,13) =(- izzn(1:ifull,2)*ipice(in) - izzs(1:ifull,2)*ipice(is)     &
+                - izze(1:ifull,2)*ipice(ie) - izzw(1:ifull,2)*ipice(iw)     &
                 - izz(1:ifull,2)*ipice(1:ifull) + irhs(1:ifull,2))*ee(1:ifull)
 where ( ipice(1:ifull)>=ipmax(1:ifull) )
   w(1:ifull,13) = 0. ! improves convergence
@@ -1831,7 +1831,7 @@ if ( mg_maxlevel_local>0 ) then
                           +w(mg(1)%fine_e(iq),17)+w(mg(1)%fine_ne(iq),17))
     zziw(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,18)+w(mg(1)%fine_n(iq) ,18)  &
                           +w(mg(1)%fine_e(iq),18)+w(mg(1)%fine_ne(iq),18))
-  end do  
+  end do
 
   ! merge grids if insufficent points on this processor
   if ( mg(2)%merge_len>1 ) then
@@ -1885,7 +1885,7 @@ if ( mg_maxlevel_local>0 ) then
 
     ! update
     ! possibly use colours here, although v is reset to zero every iteration
-    ! assume zero for first guess of residual (also avoids additional bounds call)
+    ! assume zero for first guess of residual (avoids additional bounds call)
     bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
     cu(1:ng) = -rhs(1:ng,g)    
     v(:,1:2,g) = 0.
@@ -2079,23 +2079,23 @@ if ( mg_maxlevel_local>0 ) then
     cu(1:ng) = -rhs(1:ng,g)
     v(:,1:2,g) = 0.
     v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1))) ! ocean
-    v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                                        ! ice
+    v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                                                 ! ice
     do itrc = 1,itr_mgice
       ! store previous guess for convegence test
       ws(1:ng,1:2) = v(1:ng,1:2,g)
       do nc = 1,3
 
         ! ocean
-        bu(1:mg_ifull_maxcolour) = yyncu(:,nc)*v(col_iqn(:,nc),1,g) + yyscu(:,nc)*v(col_iqs(:,nc),1,g)     &
-                                 + yyecu(:,nc)*v(col_iqe(:,nc),1,g) + yywcu(:,nc)*v(col_iqw(:,nc),1,g)     &
-                                 + zzhhcu(:,nc)
-        cu(1:mg_ifull_maxcolour) = zzncu(:,nc)*v(col_iqn(:,nc),1,g) + zzscu(:,nc)*v(col_iqs(:,nc),1,g)     &
-                                 + zzecu(:,nc)*v(col_iqe(:,nc),1,g) + zzwcu(:,nc)*v(col_iqw(:,nc),1,g)     &
-                                 - rhscu(:,nc)
         do iq = 1,mg_ifull_maxcolour
+          bu(iq) = yyncu(iq,nc)*v(col_iqn(iq,nc),1,g) + yyscu(iq,nc)*v(col_iqs(iq,nc),1,g)     &
+                 + yyecu(iq,nc)*v(col_iqe(iq,nc),1,g) + yywcu(iq,nc)*v(col_iqw(iq,nc),1,g)     &
+                 + zzhhcu(iq,nc)
+          cu(iq) = zzncu(iq,nc)*v(col_iqn(iq,nc),1,g) + zzscu(iq,nc)*v(col_iqs(iq,nc),1,g)     &
+                 + zzecu(iq,nc)*v(col_iqe(iq,nc),1,g) + zzwcu(iq,nc)*v(col_iqw(iq,nc),1,g)     &
+                 - rhscu(iq,nc)
           v(col_iq(iq,nc),1,g) = -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyzcu(iq,nc)*cu(iq),0.1)))
-        end do  
-        
+        end do 
+
         ! ice
         do iq = 1,mg_ifull_maxcolour
           v(col_iq(iq,nc),2,g) = ( - zzincu(iq,nc)*v(col_iqn(iq,nc),2,g) - zziscu(iq,nc)*v(col_iqs(iq,nc),2,g)     &
@@ -2108,7 +2108,7 @@ if ( mg_maxlevel_local>0 ) then
       dsolmax(1:2) = maxval( abs( v(1:ng,1:2,g) - ws(1:ng,1:2) ) )
       if ( dsolmax(1)<tol .and. dsolmax(2)<itol ) exit
     end do
-    
+
   end if
   
   ! downscale grid
@@ -2125,6 +2125,7 @@ if ( mg_maxlevel_local>0 ) then
                   + 0.25*v(mg(g+1)%coarse_c(iq),k,g+1)
       end do  
     end do  
+
 
     ! extension
     ! No mgbounds as the v halo has already been updated and
@@ -2356,17 +2357,17 @@ do itr = 2,itr_mgice
   dsolmax_g = 0.
   dsolmax_g(1)   = maxval( abs( dumc(1:ifull,1) - neta(1:ifull) ) )
   dsolmax_g(2)   = maxval( abs( dumc(1:ifull,2) - ipice(1:ifull) ) )
-  neta(1:ifull)  = dumc(1:ifull,1)
-  ipice(1:ifull) = dumc(1:ifull,2)  
+  neta(1:ifull+iextra)  = dumc(1:ifull+iextra,1)
+  ipice(1:ifull+iextra) = dumc(1:ifull+iextra,2)  
 
   ! residual - ocean
-  w(1:ifull,1)=(-neta(1:ifull)*(iyy(1:ifull)*neta(1:ifull)+iyyn(1:ifull)*dumc(in,1)  &
-                                                          +iyys(1:ifull)*dumc(is,1)  &
-                                                          +iyye(1:ifull)*dumc(ie,1)  &
-                                                          +iyyw(1:ifull)*dumc(iw,1)) &
-               -(izz(1:ifull,1)*neta(1:ifull)                                        &
-                +izzn(1:ifull,1)*dumc(in,1)+izzs(1:ifull,1)*dumc(is,1)               &
-                +izze(1:ifull,1)*dumc(ie,1)+izzw(1:ifull,1)*dumc(iw,1))              &
+  w(1:ifull,1)=(-neta(1:ifull)*(iyy(1:ifull)*neta(1:ifull)+iyyn(1:ifull)*neta(in)  &
+                                                          +iyys(1:ifull)*neta(is)  &
+                                                          +iyye(1:ifull)*neta(ie)  &
+                                                          +iyyw(1:ifull)*neta(iw)) &
+               -(izz(1:ifull,1)*neta(1:ifull)                                      &
+                +izzn(1:ifull,1)*neta(in)+izzs(1:ifull,1)*neta(is)                 &
+                +izze(1:ifull,1)*neta(ie)+izzw(1:ifull,1)*neta(iw))                &
                -ihh(1:ifull)*neta(1:ifull)+irhs(1:ifull,1))*ee(1:ifull)
   
   w(1:ifull,2)  =  izz(1:ifull,1) +  iyy(1:ifull)*neta(1:ifull)
@@ -2374,13 +2375,13 @@ do itr = 2,itr_mgice
   w(1:ifull,4)  = izzs(1:ifull,1) + iyys(1:ifull)*neta(1:ifull)
   w(1:ifull,5)  = izze(1:ifull,1) + iyye(1:ifull)*neta(1:ifull)
   w(1:ifull,6)  = izzw(1:ifull,1) + iyyw(1:ifull)*neta(1:ifull)
-  w(1:ifull,7)  = iyyn*dumc_n(1:ifull,1) + iyys*dumc_s(1:ifull,1)     &
-                + iyye*dumc_e(1:ifull,1) + iyyw*dumc_w(1:ifull,1)     &
+  w(1:ifull,7)  = iyyn*neta(in) + iyys*neta(is)     &
+                + iyye*neta(ie) + iyyw*neta(iw)     &
                 + iyy*neta(1:ifull) + ihh
   
   ! residual ice
-  w(1:ifull,8)  =(- izzn(1:ifull,2)*dumc(in,2) - izzs(1:ifull,2)*dumc(is,2)     &
-                  - izze(1:ifull,2)*dumc(ie,2) - izzw(1:ifull,2)*dumc(iw,2)     &
+  w(1:ifull,8)  =(- izzn(1:ifull,2)*ipice(in) - izzs(1:ifull,2)*ipice(is)     &
+                  - izze(1:ifull,2)*ipice(ie) - izzw(1:ifull,2)*ipice(iw)     &
                   - izz(1:ifull,2)*ipice(1:ifull) + irhs(1:ifull,2))*ee(1:ifull)
   where ( ipice(1:ifull)>=ipmax(1:ifull) )
     w(1:ifull,8) = 0. ! improves convergence
@@ -2465,7 +2466,7 @@ do itr = 2,itr_mgice
       
       do i = 2,itrbgn
         ! ocean - post smoothing
-	do iq = 1,ng
+        do iq = 1,ng
           bu(iq) = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
                  + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
                  + zz(iq,g) + hh(iq,g)
@@ -2477,10 +2478,10 @@ do itr = 2,itr_mgice
         
         ! ice - post smoothing
         do iq = 1,ng
-	  bu(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
+          bu(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
                      - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
                      + rhsi(iq,g) ) / zzi(iq,g)
-	end do
+        end do
         v(1:ng,2,g) = bu(1:ng)
         call mgbounds(g,v(:,1:2,g))
       end do
@@ -2654,6 +2655,7 @@ do itr = 2,itr_mgice
                     + 0.25*v(mg(g+1)%coarse_c(iq),k,g+1)
         end do  
       end do  
+
       
       ! extension
       ! No mgbounds as the v halo has already been updated and

@@ -200,9 +200,20 @@ if ( intsch==1 ) then
 
   call intssync_send(ntr)
 
-  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),       &
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp target teams distribute parallel do collapse(3) shedule(static)                    &
+  !$omp map(to:sx) map(tofrom:s) private(nn,k,iq,idel,xxg,jdel,yyg)                        &
+  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
+#else
+  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),       &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),  &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
+#endif
+#else
+  !$acc parallel loop collapse(3) copyin(sx) copy(s)
+#endif
   do nn = 1,ntr
     do k = 1,wlev      
       do iq = 1,ifull
@@ -239,7 +250,15 @@ if ( intsch==1 ) then
       end do       ! iq loop
     end do         ! k loop
   end do           ! nn loop
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp end target teams distribute parallel do
+#else
   !$omp end parallel do
+#endif
+#else
+  !$acc end parallel loop
+#endif
        
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -330,9 +349,20 @@ else     ! if(intsch==1)then
 
   call intssync_send(ntr)
 
-  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),       &
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp target teams distribute parallel do collapse(3) shedule(static)                    &
+  !$omp map(to:sx) map(tofrom:s) private(nn,k,iq,idel,xxg,jdel,yyg)                        &
+  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
+#else
+  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),       &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),  &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
+#endif
+#else
+  !$acc parallel loop collapse(3) copyin(sx) copy(s)
+#endif
   do nn = 1,ntr
     do k = 1,wlev
       do iq = 1,ifull
@@ -369,7 +399,15 @@ else     ! if(intsch==1)then
       end do
     end do
   end do
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp end target teams distribute parallel do
+#else
   !$omp end parallel do
+#endif
+#else
+  !$acc end parallel loop
+#endif
 
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
