@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -177,82 +177,8 @@ if ( intsch==1 ) then
       end do               ! n loop
     end do                 ! k loop
   end do                   ! nn loop
- 
-  ! Loop over points that need to be calculated for other processes
-  do ii = 1,neighnum
-    do nn = 1,3
-      do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        !  Need global face index in fproc call
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
-        idel = idel - ioff
-        jdel = jdel - joff
-        ! bi-cubic interpolation
-        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul_2 = (1.-xxg)
-        dmul_3 = xxg
-        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
-        rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
-        rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
-        rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
-      end do          ! iq loop
-    end do            ! nn loop
-  end do              ! ii loop
-  
-  call intssync_send(3)
 
-  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
-  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
-  do nn = 1,3
-    do k = 1,wlev
-      do iq = 1,ifull
-        idel = int(xg(iq,k))
-        xxg  = xg(iq,k) - real(idel)
-        jdel = int(yg(iq,k))
-        yyg  = yg(iq,k) - real(jdel)
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
-        ! bi-cubic interpolation
-        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul_2 = (1.-xxg)
-        dmul_3 = xxg
-        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
-        rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
-        rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
-        rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
-      end do     ! iq loop
-    end do       ! k loop
-  end do         ! nn loop
-  !$omp end parallel do
-       
-!========================   end of intsch=1 section ====================
-else     ! if(intsch==1)then
+else
 !======================== start of intsch=2 section ====================
 
   sx(1:ipan,1:jpan,1:npan,1:wlev,1:3) = reshape( s(1:ipan*jpan*npan,1:wlev,1:3), (/ ipan, jpan, npan, wlev, 3 /) )
@@ -293,6 +219,87 @@ else     ! if(intsch==1)then
     end do             ! k loop
   end do               ! nn loop
 
+end if
+
+!======================== start of intsch=1 section ====================
+if ( intsch==1 ) then  
+  ! Loop over points that need to be calculated for other processes
+  do ii = 1,neighnum
+    do nn = 1,3
+      do iq = 1,drlen(ii)
+        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+        !  Need global face index in fproc call
+        idel = int(dpoints(ii)%a(2,iq))
+        xxg = dpoints(ii)%a(2,iq) - real(idel)
+        jdel = int(dpoints(ii)%a(3,iq))
+        yyg = dpoints(ii)%a(3,iq) - real(jdel)
+        k = nint(dpoints(ii)%a(4,iq))
+        idel = idel - ioff
+        jdel = jdel - joff
+        ! bi-cubic interpolation
+        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        dmul_2 = (1.-xxg)
+        dmul_3 = xxg
+        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+        rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+        rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+        rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+      end do          ! iq loop
+    end do            ! nn loop
+  end do              ! ii loop
+  
+  call intssync_send(3)
+
+  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
+  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+  do nn = 1,3
+    do k = 1,wlev
+      do iq = 1,ifull
+        idel = int(xg(iq,k))
+        xxg  = xg(iq,k) - real(idel)
+        jdel = int(yg(iq,k))
+        yyg  = yg(iq,k) - real(jdel)
+        idel = min( max( idel - ioff, 0), ipan )
+        jdel = min( max( jdel - joff, 0), jpan )
+        n = min( max( nface(iq,k) + noff, 1), npan )
+        ! bi-cubic interpolation
+        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        dmul_2 = (1.-xxg)
+        dmul_3 = xxg
+        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+        rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+        rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+        rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+        s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+      end do     ! iq loop
+    end do       ! k loop
+  end do         ! nn loop
+  !$omp end parallel do
+       
+!========================   end of intsch=1 section ====================
+else     ! if(intsch==1)then
+!======================== start of intsch=2 section ====================
+  
   ! For other processes
   do ii = 1,neighnum
     do nn = 1,3
@@ -329,7 +336,7 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
+  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
   do nn = 1,3
@@ -424,7 +431,7 @@ if ( intsch==1 ) then
   
   call intssync_send(3)
 
-  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
+  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
   do nn = 1,3
@@ -457,7 +464,7 @@ if ( intsch==1 ) then
       end do     ! iq loop
     end do       ! k loop
   end do         ! nn loop
-  !$omp end parallel do    
+  !$omp end parallel do
        
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -498,7 +505,7 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
+  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
   do nn = 1,3

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -30,20 +30,16 @@ module cc_acc
    implicit none
    private
 
-#ifdef _OPENACC
-   logical, parameter, public :: using_acc = .true.
-#else
-   logical, parameter, public :: using_acc = .false.
-#endif
-   integer, save, public :: ngpus, gpuid
+   integer, save, private :: gpuid
 
    public ::  ccacc_init
 
    contains
 
-   subroutine ccacc_init(myid,nproc)
+   subroutine ccacc_init(myid,nproc,ngpus)
 
      integer, intent(in) :: myid, nproc
+     integer, intent(out) :: ngpus
 
 #ifdef _OPENACC
      integer :: device_num

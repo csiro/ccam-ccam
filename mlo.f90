@@ -2399,7 +2399,6 @@ real, dimension(:,:), intent(in) :: tt
 real, dimension(:), intent(in) :: pxtr
 real, dimension(:,:), intent(in) :: ss,ddz
 real, dimension(:,:), intent(out) :: odensity,alpha,beta
-real, dimension(size(tt,1)) :: rho0
 logical, intent(in), optional :: rawrho
 logical rawmode
 
@@ -2410,7 +2409,7 @@ if ( present( rawrho ) ) then
   rawmode = rawrho
 end if
 
-call calcdensity(odensity,alpha,beta,rho0,tt,ss,ddz,pxtr)
+call calcdensity(odensity,alpha,beta,tt,ss,ddz,pxtr)
 
 if ( .not.rawmode ) then
   odensity = odensity + wrtrho
@@ -3156,7 +3155,7 @@ if ( limitL==1 ) then
     end where
   end do
 end if
-L(:,:) = max( min( L(:,:), omaxl), ominl )
+L(:,:) = max( min( L(:,:), real(omaxl,8)), real(ominl,8) )
 
 !stability functions
 if ( fixedstabfunc==1 ) then
@@ -3165,13 +3164,13 @@ if ( fixedstabfunc==1 ) then
   cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
 else
   alpha = L**2*n2/k
-  alpha = max( min( alpha, 0.56), -0.0466 ) ! SHOC (before eq 6.7.5)
+  alpha = max( min( alpha, 0.56_8), -0.0466_8 ) ! SHOC (before eq 6.7.5)
   cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
   cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
 end if
 
-km = max( cu*sqrt(k)*L, 1.e-6 )
-ks = max( cud*sqrt(k)*L, 1.e-6 )
+km = max( cu*sqrt(k)*L, 1.e-6_8 )
+ks = max( cud*sqrt(k)*L, 1.e-6_8 )
 
 !km & ks at half levels
 call interpolate_hl_r8(km,fdepth_hl,km_hl)
@@ -3357,7 +3356,7 @@ do step = 1,nsteps
       end where
     end do
   end if
-  L(:,:) = max( min( L(:,:), omaxl), ominl )
+  L(:,:) = max( min( L(:,:), real(omaxl,8)), real(ominl,8) )
 
   !stability functions
   if ( fixedstabfunc==1 ) then
@@ -3366,13 +3365,13 @@ do step = 1,nsteps
     cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
   else
     alpha = L**2*n2/k
-    alpha = max( min( alpha, 0.56), -0.0466 ) ! SHOC (before eq 6.7.5)
+    alpha = max( min( alpha, 0.56_8), -0.0466_8 ) ! SHOC (before eq 6.7.5)
     cu = (cu0 + 2.182_8*alpha)/(1.0_8 + 20.4_8*alpha + 53.12_8*alpha**2)
     cud = 0.6985_8/(1.0_8 + 17.34_8*alpha)
   end if
 
-  km = max( cu*sqrt(k)*L, 1.e-6 )
-  ks = max( cud*sqrt(k)*L, 1.e-6 )
+  km = max( cu*sqrt(k)*L, 1.e-6_8 )
+  ks = max( cud*sqrt(k)*L, 1.e-6_8 )
 
   !km & ks at half levels
   call interpolate_hl_r8(km,fdepth_hl,km_hl)
@@ -3755,7 +3754,7 @@ subroutine getrho(atm_ps,depth,ice,dgwater,water,wfull)
 implicit none
 
 integer, intent(in) :: wfull
-real, dimension(wfull) :: rho0,pxtr
+real, dimension(wfull) :: pxtr
 real, dimension(wfull), intent(in) :: atm_ps
 type(icedata), intent(in) :: ice
 type(waterdata), intent(in) :: water
@@ -3767,7 +3766,7 @@ if ( usepice==1 ) then
   pxtr = pxtr + grav*ice%fracice*(ice%thick*rhoic+ice%snowd*rhosn)
 end if
 ! neglect eta adjustment
-call calcdensity(dgwater%rho,dgwater%alpha,dgwater%beta,rho0,water%temp,water%sal,depth%dz,pxtr)
+call calcdensity(dgwater%rho,dgwater%alpha,dgwater%beta,water%temp,water%sal,depth%dz,pxtr)
 
 return
 end subroutine getrho
@@ -3852,102 +3851,105 @@ end subroutine getwflux
 !     Hydrographic Profiles to Achieve Static Stablilty, Journal of
 !     Atmospheric and Oceanic Technology, Vol 12, 381-389,  April 1995
                     
-subroutine calcdensity(d_rho,d_alpha,d_beta,rho0,tt,ss,ddz,pxtr)
+subroutine calcdensity(d_rho,d_alpha,d_beta,tt,ss,ddz,pxtr)
 
 implicit none
 
-integer wlx,ii
+integer ifx,wlx,ii,iqw
 real, dimension(:,:), intent(in) :: tt ! potential temperature
 real, dimension(:,:), intent(in) :: ss,ddz
 real, dimension(:,:), intent(out) :: d_rho,d_alpha,d_beta
 real, dimension(:), intent(in) :: pxtr
-real, dimension(:), intent(out) :: rho0
-real, dimension(size(tt,1)) :: t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32,ptot
-real, dimension(size(tt,1)) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
-real, dimension(size(tt,1)) :: drhodt,drhods,rs0
+real, dimension(size(tt,1)) :: ptot
+real t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32,rho0
+real drho0dt,drho0ds,dskdt,dskds,sk,sks
+real drhodt,drhods,rs0
 real, parameter :: density = 1035.
 
 wlx = size(tt,2)
+ifx = size(tt,1)
 
 ptot = pxtr*1.E-5 ! convert Pa to bars
 
 do ii = 1,wlx
-  t = min(max(tt(:,ii)+(wrtemp-273.16),-2.2),100.)
-  s = min(max(ss(:,ii),0.),maxsal)
-  p1   = ptot + grav*density*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
-  ptot = ptot + grav*density*ddz(:,ii)*1.E-5
-  t2 = t*t
-  t3 = t2*t
-  t4 = t3*t
-  t5 = t4*t
-  s2 = s*s
-  s3 = s2*s
-  p2 = p1*p1
-  s32 = sqrt(s3)
+  do iqw = 1,ifx
+    t = min(max(tt(iqw,ii)+(wrtemp-273.16),-2.2),100.)
+    s = min(max(ss(iqw,ii),0.),maxsal)
+    p1   = ptot(iqw) + grav*density*0.5*ddz(iqw,ii)*1.E-5 ! hydrostatic approximation
+    ptot(iqw) = ptot(iqw) + grav*density*ddz(iqw,ii)*1.E-5
+    t2 = t*t
+    t3 = t2*t
+    t4 = t3*t
+    t5 = t4*t
+    s2 = s*s
+    s3 = s2*s
+    p2 = p1*p1
+    s32 = sqrt(s3)
 
-  rs0 = (999.842594 - wrtrho) + 6.793952e-2*t(:)                          &
-         - 9.095290e-3*t2(:) + 1.001685e-4*t3(:)                          &
-         - 1.120083e-6*t4(:) + 6.536332e-9*t5(:) ! density for sal=0.
-  rho0 = rs0+ s(:)*(0.824493 - 4.0899e-3*t(:)                             &
-         + 7.6438e-5*t2(:)                                                &
-         - 8.2467e-7*t3(:) + 5.3875e-9*t4(:))                             &
-         + s32(:)*(-5.72466e-3 + 1.0227e-4*t(:)                           &
-         - 1.6546e-6*t2(:)) + 4.8314e-4*s2(:)    ! + sal terms    
-  drho0dt=6.793952e-2                                                     &
-         - 2.*9.095290e-3*t(:) + 3.*1.001685e-4*t2(:)                     &
-         - 4.*1.120083e-6*t3(:) + 5.*6.536332e-9*t4(:)                    &
-         + s(:)*( -4.0899e-3 + 2.*7.6438e-5*t(:)                          &
-         - 3.*8.2467e-7*t2(:) + 4.*5.3875e-9*t3(:))                       &
-         + s32(:)*(1.0227e-4 - 2.*1.6546e-6*t(:))
-  drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:)                   &
-         - 8.2467e-7*t3(:) + 5.3875e-9*t4(:))                             &
-         + 1.5*sqrt(s(:))*(-5.72466e-3 + 1.0227e-4*t(:)                   &
-         - 1.6546e-6*t2(:)) + 2.*4.8314e-4*s(:)
+    rs0 = (999.842594 - wrtrho) + 6.793952e-2*t                          &
+           - 9.095290e-3*t2 + 1.001685e-4*t3                             &
+           - 1.120083e-6*t4 + 6.536332e-9*t5 ! density for sal=0.
+    rho0 = rs0+ s*(0.824493 - 4.0899e-3*t                                &
+           + 7.6438e-5*t2                                                &
+           - 8.2467e-7*t3 + 5.3875e-9*t4)                                &
+           + s32*(-5.72466e-3 + 1.0227e-4*t                              &
+           - 1.6546e-6*t2) + 4.8314e-4*s2    ! + sal terms    
+    drho0dt=6.793952e-2                                                  &
+           - 2.*9.095290e-3*t + 3.*1.001685e-4*t2                        &
+           - 4.*1.120083e-6*t3 + 5.*6.536332e-9*t4                       &
+           + s*( -4.0899e-3 + 2.*7.6438e-5*t                             &
+           - 3.*8.2467e-7*t2 + 4.*5.3875e-9*t3)                          &
+           + s32*(1.0227e-4 - 2.*1.6546e-6*t)
+    drho0ds= (0.824493 - 4.0899e-3*t + 7.6438e-5*t2                      &
+           - 8.2467e-7*t3 + 5.3875e-9*t4)                                &
+           + 1.5*sqrt(s)*(-5.72466e-3 + 1.0227e-4*t                      &
+           - 1.6546e-6*t2) + 2.*4.8314e-4*s
     
-  sks = 1.965933e4 + 1.444304e2*t(:) - 1.706103*t2(:)                 &
-              + 9.648704e-3*t3(:)  - 4.190253e-5*t4(:)                &
-              + p1(:)*(3.186519 + 2.212276e-2*t(:)                    &
-              - 2.984642e-4*t2(:) + 1.956415e-6*t3(:))                &
-              + p2(:)*(2.102898e-4 - 1.202016e-5*t(:)                 &
-              + 1.394680e-7*t2(:)) ! sal=0.
-  sk=sks+ s(:)*(52.84855 - 3.101089e-1*t(:)                           &
-              + 6.283263e-3*t2(:) -5.084188e-5*t3(:))                 &
-              + s32(:)*(3.886640e-1 + 9.085835e-3*t(:)                &
-              - 4.619924e-4*t2(:))                                    &
-              + p1(:)*s(:)*(6.704388e-3  -1.847318e-4*t(:)            &
-              + 2.059331e-7*t2(:)) + 1.480266e-4*p1(:)*s32(:)         &
-              +p2(:)*s(:)*(-2.040237e-6 &
-              + 6.128773e-8*t(:) + 6.207323e-10*t2(:)) ! + sal terms             
-  dskdt= 1.444304e2 - 2.*1.706103*t(:)                                &
-              + 3.*9.648704e-3*t2(:)  - 4.*4.190253e-5*t3(:)          &
-              + s(:)*( - 3.101089e-1                                  &
-              + 2.*6.283263e-3*t(:) -3.*5.084188e-5*t2(:))            &
-              + s32(:)*(9.085835e-3                                   &
-              - 2.*4.619924e-4*t(:))                                  &
-              + p1(:)*(2.212276e-2                                    &
-              - 2.*2.984642e-4*t(:) + 3.*1.956415e-6*t2(:))           &
-              + p1(:)*s(:)*(-1.847318e-4                              &
-              + 2.*2.059331e-7*t(:))                                  &
-              + p2(:)*(- 1.202016e-5                                  &
-              + 2.*1.394680e-7*t(:)) +p2(:)*s(:)*(                    &
-              + 6.128773e-8 + 2.*6.207323e-10*t(:))
-  dskds=(52.84855 - 3.101089e-1*t(:)                                  &
-              + 6.283263e-3*t2(:) -5.084188e-5*t3(:))                 &
-              + 1.5*sqrt(s(:))*(3.886640e-1 + 9.085835e-3*t(:)        &
-              - 4.619924e-4*t2(:))                                    &
-              + p1(:)*(6.704388e-3  -1.847318e-4*t(:)                 &
-              + 2.059331e-7*t2(:)) + 1.5*1.480266e-4*p1(:)*sqrt(s(:)) &
-              +p2(:)*(-2.040237e-6                                    &
-              + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
+    sks = 1.965933e4 + 1.444304e2*t - 1.706103*t2                        &
+                + 9.648704e-3*t3  - 4.190253e-5*t4                       &
+                + p1*(3.186519 + 2.212276e-2*t                           &
+                - 2.984642e-4*t2 + 1.956415e-6*t3)                       &
+                + p2*(2.102898e-4 - 1.202016e-5*t                        &
+                + 1.394680e-7*t2) ! sal=0.
+    sk=sks+ s*(52.84855 - 3.101089e-1*t                                  &
+                + 6.283263e-3*t2 -5.084188e-5*t3)                        &
+                + s32*(3.886640e-1 + 9.085835e-3*t                       &
+                - 4.619924e-4*t2)                                        &
+                + p1*s*(6.704388e-3  -1.847318e-4*t                      &
+                + 2.059331e-7*t2) + 1.480266e-4*p1*s32                   &
+                +p2*s*(-2.040237e-6 &
+                + 6.128773e-8*t + 6.207323e-10*t2) ! + sal terms             
+    dskdt= 1.444304e2 - 2.*1.706103*t                                   &
+                + 3.*9.648704e-3*t2  - 4.*4.190253e-5*t3                &
+                + s*( - 3.101089e-1                                     &
+                + 2.*6.283263e-3*t -3.*5.084188e-5*t2)                  &
+                + s32*(9.085835e-3                                      &
+                - 2.*4.619924e-4*t)                                     &
+                + p1*(2.212276e-2                                       &
+                - 2.*2.984642e-4*t + 3.*1.956415e-6*t2)                 &
+                + p1*s*(-1.847318e-4                                    &
+                + 2.*2.059331e-7*t)                                     &
+                + p2*(- 1.202016e-5                                     &
+                + 2.*1.394680e-7*t) +p2*s*(                             &
+                + 6.128773e-8 + 2.*6.207323e-10*t)
+    dskds=(52.84855 - 3.101089e-1*t                                     &
+                + 6.283263e-3*t2 -5.084188e-5*t3)                       &
+                + 1.5*sqrt(s)*(3.886640e-1 + 9.085835e-3*t              &
+                - 4.619924e-4*t2)                                       &
+                + p1*(6.704388e-3  -1.847318e-4*t                       &
+                + 2.059331e-7*t2) + 1.5*1.480266e-4*p1*sqrt(s)          &
+                +p2*(-2.040237e-6                                       &
+                + 6.128773e-8*t + 6.207323e-10*t2)
        
-  d_rho(:,ii)=(rho0*sk + wrtrho*p1)/max(sk-p1,1.)
+    d_rho(iqw,ii)=(rho0*sk + wrtrho*p1)/max(sk-p1,1.)
   
-  drhodt=drho0dt*sk/max(sk-p1,1.)-(rho0+wrtrho)*p1*dskdt/(max(sk-p1,1.)**2)
-  drhods=drho0ds*sk/max(sk-p1,1.)-(rho0+wrtrho)*p1*dskds/(max(sk-p1,1.)**2)
+    drhodt=drho0dt*sk/max(sk-p1,1.)-(rho0+wrtrho)*p1*dskdt/(max(sk-p1,1.)**2)
+    drhods=drho0ds*sk/max(sk-p1,1.)-(rho0+wrtrho)*p1*dskds/(max(sk-p1,1.)**2)
   
-  d_alpha(:,ii)=-drhodt              ! Large et al (1993) convention
-  d_beta(:,ii)=drhods                ! Large et al (1993) convention
-  
+    d_alpha(iqw,ii)=-drhodt              ! Large et al (1993) convention
+    d_beta(iqw,ii)=drhods                ! Large et al (1993) convention
+
+  end do  
 end do
 
 return

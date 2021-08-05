@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -146,7 +146,7 @@ if ( intsch==1 ) then
 #ifdef _OPENMP
 #ifdef GPU
     !$omp target teams distribute parallel do collapse(2) shedule(static)             &
-    !$omp map(to:sx) map(tofrom:s) private(k,iq,idel,xxg,jdel,yyg)                    &
+    !$omp map(to:sx) map(from:s) private(k,iq,idel,xxg,jdel,yyg)                      &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)   &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
 #else
@@ -155,7 +155,7 @@ if ( intsch==1 ) then
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
-    !$acc parallel loop collapse(2) copyin(sx) copy(s)
+    !$acc parallel loop collapse(2) copyin(sx) copyout(s) present(xg,yg,nface)
 #endif
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -241,7 +241,7 @@ if ( intsch==1 ) then
 #ifdef _OPENMP
 #ifdef GPU
     !$omp target teams distribute parallel do collapse(2) shedule(static)             &
-    !$omp map(to:sx) map(tofrom:s) private(k,iq,idel,xxg,jdel,yyg)                    &
+    !$omp map(to:sx) map(from:s) private(k,iq,idel,xxg,jdel,yyg)                      &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)   &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
 #else
@@ -250,7 +250,7 @@ if ( intsch==1 ) then
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
-    !$acc parallel loop collapse(2) copyin(sx) copy(s)
+    !$acc parallel loop collapse(2) copyin(sx) copyout(s) present(xg,yg,nface)
 #endif
     do k = 1,kl
       do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
@@ -380,7 +380,7 @@ else     ! if(intsch==1)then
 #ifdef _OPENMP
 #ifdef GPU
     !$omp target teams distribute parallel do collapse(2) shedule(static)             &
-    !$omp map(to:sx) map(tofrom:s) private(k,iq,idel,xxg,jdel,yyg)                    &
+    !$omp map(to:sx) map(from:s) private(k,iq,idel,xxg,jdel,yyg)                      &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)   &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
 #else
@@ -389,7 +389,7 @@ else     ! if(intsch==1)then
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
-    !$acc parallel loop collapse(2) copyin(sx) copy(s)
+    !$acc parallel loop collapse(2) copyin(sx) copyout(s) present(xg,yg,nface)
 #endif
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
@@ -475,7 +475,7 @@ else     ! if(intsch==1)then
 #ifdef _OPENMP
 #ifdef GPU
     !$omp target teams distribute parallel do collapse(2) shedule(static)             &
-    !$omp map(to:sx) map(tofrom:s) private(k,iq,idel,xxg,jdel,yyg)                    &
+    !$omp map(to:sx) map(from:s) private(k,iq,idel,xxg,jdel,yyg)                      &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)   &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
 #else
@@ -484,7 +484,7 @@ else     ! if(intsch==1)then
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
-    !$acc parallel loop collapse(2) copyin(sx) copy(s)
+    !$acc parallel loop collapse(2) copyin(sx) copyout(s) present(xg,yg,nface)
 #endif
     do k = 1,kl
       do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
@@ -614,12 +614,12 @@ call intssync_send(1)
 #ifdef _OPENMP
 #ifdef GPU
     !$omp target teams distribute parallel do collapse(2) shedule(static)             &
-    !$omp map(to:sx) map(tofrom:s) private(k,iq,idel,xxg,jdel,yyg,n)
+    !$omp map(to:sx) map(from:s) private(k,iq,idel,xxg,jdel,yyg,n)
 #else
     !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
 #endif
 #else
-    !$acc parallel loop collapse(2) copyin(sx) copy(s)
+    !$acc parallel loop collapse(2) copyin(sx) copyout(s) present(xg,yg,nface)
 #endif
 do k = 1,kl
   do iq = 1,ifull

@@ -144,7 +144,6 @@ end if
 ! CCAM has been optimised around MPI for parallel processing, although
 ! CCAM does support OMP parallel threads for its physical parameterisations
 call ccmpi_init
-call ccomp_init
 
 ! Start banner
 if ( myid==0 ) then
@@ -1406,6 +1405,7 @@ integer secs_rad, nversion
 integer mstn, io_nest, mbd_min
 integer opt, nopt
 integer ateb_intairtmeth, ateb_intmassmeth
+integer ngpus
 integer npa, npb, tkecduv, tblock  ! depreciated namelist options
 integer o3_time_interpolate        ! depreciated namelist options
 integer kmlo                       ! depreciated namelist options
@@ -2631,35 +2631,7 @@ nsig    = nint(temparray(8))
 ! of six processes.
 call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp)
 call ccmpi_reinit(new_nproc) 
-call ccacc_init(node_myid,node_nproc)
 
-
-if ( myid==0 ) then
-  write(6,'(a20," running for nproc    =",i7)') version,nproc
-  write(6,*) 'Using defaults for nversion              = ',nversion
-#ifdef usempi3
-  write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
-#endif
-#ifdef i8r8
-  write(6,*) 'Using double precision mode'
-#endif
-  if ( using_omp ) then
-    write(6,*) 'Using OpenMP with number of threads      = ',maxthreads
-  end if
-  if ( using_acc ) then
-    write(6,*) 'Using OpenACC with number of GPUs        = ',ngpus  
-  end if    
-  write(6,*) 'Reading namelist from ',trim(nmlfile)
-  write(6,*) 'ilx,jlx              ',ilx,jlx
-  write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
-  write(6,*) 'kl,ol                ',kl,ol
-  write(6,*) 'lapsbot,isoth,nsig   ',lapsbot,isoth,nsig
-  !if ( uniform_decomp ) then
-  !  write(6,*) "Using uniform grid decomposition"
-  !else
-  write(6,*) "Using face grid decomposition"
-  !end if
-end if
 jl_g    = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
 ifull_g = il_g*jl_g                           ! total number of global horizontal grid points
 iquad   = 1 + il_g*((8*npanels)/(npanels+4))  ! grid size for interpolation
@@ -2670,22 +2642,43 @@ ifull   = il*jl                               ! total number of local horizontal
 ! The first row has 8 possible corner points per panel and the 
 ! second has 16. In practice these are not all distinct so there could
 ! be some optimisation.
-!if ( uniform_decomp ) then
-!  npan = npanels + 1              ! number of panels on this process
-!else
 npan = max(1, (npanels+1)/nproc)   ! number of panels on this process
-!end if
 iextra = (4*(il+jl)+24)*npan + 4   ! size of halo for MPI message passing
-call ccomp_ntiles
-if ( myid==0 ) then
-  write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
-end if  
 ! nrows_rad is a subgrid decomposition for older radiation routines
 nrows_rad = max( min( maxtilesize/il, jl ), 1 ) 
 do while( mod(jl, nrows_rad)/=0 )
   nrows_rad = nrows_rad - 1
 end do
+
+call ccomp_init(node_myid,node_nproc,ngpus)
+call ccacc_init(node_myid,node_nproc,ngpus)
+
 if ( myid==0 ) then
+  write(6,'(a20," running for nproc    =",i7)') version,nproc
+  write(6,*) 'Using defaults for nversion              = ',nversion
+#ifdef usempi3
+  write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
+#endif
+#ifdef i8r8
+  write(6,*) 'Using double precision mode'
+#endif
+#ifdef _OPENMPI
+  write(6,*) 'Using OpenMP with number of threads      = ',maxthreads
+#ifdef GPU
+  write(6,*) 'Using OpenMP with number of GPUs         = ',ngpus
+#endif
+#else
+#ifdef _OPENACC
+  write(6,*) 'Using OpenACC with number of GPUs        = ',ngpus  
+#endif
+#endif
+  write(6,*) 'Reading namelist from ',trim(nmlfile)
+  write(6,*) 'ilx,jlx              ',ilx,jlx
+  write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
+  write(6,*) 'kl,ol                ',kl,ol
+  write(6,*) 'lapsbot,isoth,nsig   ',lapsbot,isoth,nsig
+  write(6,*) "Using face grid decomposition"
+  write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
   write(6,*) "il_g,jl_g,il,jl ",il_g,jl_g,il,jl
   write(6,*) "nxp,nyp         ",nxp,nyp
 end if

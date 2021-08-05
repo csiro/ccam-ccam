@@ -1377,20 +1377,28 @@ if (its_g>500) then
   write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
 end if
 
-!$omp parallel sections
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target data map(to:its,dtnew,ww,depdum,dzdum)
+#endif
+#else
+!$acc data create(its,dtnew,ww,depdum,dzdum)
+!$acc update device(its,dtnew,ww,depdum,dzdum)
+#endif
 
-!$omp section
 call mlotvd(its,dtnew,ww,uu,depdum,dzdum)
-!$omp section
 call mlotvd(its,dtnew,ww,vv,depdum,dzdum)
-!$omp section
 call mlotvd(its,dtnew,ww,ss,depdum,dzdum)
-!$omp section
 call mlotvd(its,dtnew,ww,tt,depdum,dzdum)
-!$omp section
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
 
-!$omp end parallel sections
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target data
+#endif
+#else
+!$acc end data
+#endif
   
 ss(1:ifull,:)=max(ss(1:ifull,:),0.)
 tt(1:ifull,:)=max(tt(1:ifull,:),-wrtemp)
@@ -1420,19 +1428,73 @@ real fl,fh,cc,rr
 ! f=(w*u) at half levels
 ! du/dt = u*dw/dz-df/dz = -w*du/dz
 
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target enter data map(to:uu) map(alloc:delu,ff)
+#endif
+#else
+!$acc enter data create(uu,delu,ff)
+!$acc update device(uu)
+#endif
+
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target teams distribute parallel do collpase(2) shedule(static) private(ii,iq)
+#else
+!$omp parallel do collapse(2) schedule(static) private(ii,iq)
+#endif
+#else
+!$acc parallel loop collapse(2) present(delu,uu)
+#endif
 do ii = 1,wlev-1
   do iq = 1,ifull
     delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
   end do
 end do
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target teams distribute parallel do
+#else
+!$omp end parallel do
+#endif
+#else 
+!$acc end parallel loop
+#endif
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target teams distribute parallel do shedule(static) private(iq)
+#else
+!$omp parallel do schedule(static) private(iq)
+#endif
+#else
+!$acc parallel loop present(ff,delu) 
+#endif
 do iq = 1,ifull
   ff(iq,0) = 0.
   ff(iq,wlev) = 0.
   delu(iq,0) = 0.
   delu(iq,wlev) = 0.
 end do
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target teams distribute parallel do
+#else
+!$omp end parallel do
+#endif
+#else 
+!$acc end parallel loop
+#endif
 
 ! TVD part
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target teams distribute parallel do collpase(2) shedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
+#else
+!$omp parallel do collapse(2) schedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
+#endif
+#else
+!$acc parallel loop collapse(2) present(ww,delu,uu,dtnew,depdum)
+#endif
 do ii = 1,wlev-1
   do iq = 1,ifull
     ! +ve ww is downwards to the ocean floor
@@ -1448,6 +1510,24 @@ do ii = 1,wlev-1
     !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
   end do
 end do
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target teams distribute parallel do
+#else
+!$omp end parallel do
+#endif
+#else 
+!$acc end parallel loop
+#endif
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target teams distribute parallel do collpase(2) shedule(static) private(ii,iq)
+#else
+!$omp parallel do collapse(2) schedule(static) private(ii,iq)
+#endif
+#else
+!$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum)
+#endif
 do ii = 1,wlev
   do iq = 1,ifull
     if ( dzdum(iq,ii)>1.e-4 ) then  
@@ -1456,7 +1536,26 @@ do ii = 1,wlev
     end if   
   end do  
 end do
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target teams distribute parallel do
+#else
+!$omp end parallel do
+#endif
+#else 
+!$acc end parallel loop
+#endif
 
+
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target teams distribute parallel do shedule(static) private(iq,i,ii,kp,kx,rr,fl,cc,fh)
+#else
+!$omp parallel do schedule(static) private(iq,i,ii,kp,kx,rr,fl,cc,fh)
+#endif
+#else
+!$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum)
+#endif
 do iq = 1,ifull
   do i = 2,its(iq)
     do ii=1,wlev-1
@@ -1483,6 +1582,24 @@ do iq = 1,ifull
     end do
   end do
 end do
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target teams distribute parallel do
+#else
+!$omp end parallel do
+#endif
+#else 
+!$acc end parallel loop
+#endif
+
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target exit data map(from:uu)
+#endif
+#else
+!$acc update self(uu)
+!$acc exit data delete(uu,delu,ff)
+#endif
 
 return
 end subroutine mlotvd

@@ -52,9 +52,10 @@ public comm_ip
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, dimension(:), allocatable, save :: pprid
-integer, dimension(:), allocatable, save :: ppanid
+integer, dimension(:), allocatable, save :: ppanid, ppiid, ppjid
 integer, save :: ncidold = -1
 integer, save :: comm_ip
+integer, save :: pil_single = 48
 logical, dimension(:), allocatable, save :: pfown
 logical, save :: ptest, pfall, resprocformat
 
@@ -151,7 +152,7 @@ character(len=*), intent(in) :: name
 
 call START_LOG(histrd3_begin)
 
-if ( ifull==6*pil_g*pil_g .or. ptest ) then
+if ( ifull==6*pil_g**2 .or. ptest ) then
 
   ! read local arrays
   call hr3p(iarchi,ier,name,.true.,var)
@@ -171,7 +172,7 @@ else
 
   ! gather and distribute (i.e., change in number of processors) 
   if ( myid==0 ) then
-     allocate( globvar(6*pil_g*pil_g) )
+     allocate( globvar(6*pil_g**2) )
      globvar(:) = 0.
      call hr3p(iarchi,ier,name,.false.,globvar)
      if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
@@ -241,7 +242,7 @@ if ( mynproc>0 ) then
         start(1:4)  = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
       else
-        start(1:3)  = (/ 1, 1+ppanid(ipf)*pjpan, iarchi /)
+        start(1:3)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
         ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
       end if  
       ! obtain scaling factors and offsets from attributes
@@ -269,7 +270,7 @@ if ( mynproc>0 ) then
           ip = ipf*fnresid + jpf - 1
           do n = 0,pnpan-1
             no = n - pnoff(ip) + 1
-            ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
+            ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g**2
             cc = n*pipan*pjpan - pipan
             do j = 1,pjpan
               var(1+j*pil_g+ca:pipan+j*pil_g+ca) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,jpf)
@@ -313,7 +314,7 @@ character(len=*), intent(in) :: name
 
 call START_LOG(histrd3_begin)
 
-if ( ifull==6*pil_g*pil_g .or. ptest ) then
+if ( ifull==6*pil_g**2 .or. ptest ) then
   ! read local arrays without gather and distribute (e.g., restart file)
   call hr3pr8(iarchi,ier,name,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
@@ -330,7 +331,7 @@ if ( ifull==6*pil_g*pil_g .or. ptest ) then
 else
   ! read local arrays with gather and distribute (i.e., change in number of processors) 
   if ( myid==0 ) then
-    allocate( globvar(6*pil_g*pil_g) )
+    allocate( globvar(6*pil_g**2) )
     globvar(:) = 0.
     call hr3pr8(iarchi,ier,name,.false.,globvar)
     if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
@@ -394,7 +395,7 @@ if ( mynproc>0 ) then
         start(1:4)  = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
       else
-        start(1:3)  = (/ 1, 1+ppanid(ipf)*pjpan, iarchi /)
+        start(1:3)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
         ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
       end if 
       ! obtain scaling factors and offsets from attributes
@@ -423,7 +424,7 @@ if ( mynproc>0 ) then
           ip = ipf*fnresid + jpf - 1
           do n = 0,pnpan-1
             no = n - pnoff(ip) + 1
-            ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g*pil_g
+            ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g**2
             cc = n*pipan*pjpan - pipan
             do j = 1,pjpan
               var(1+j*pil_g+ca:pipan+j*pil_g+ca) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,jpf)
@@ -468,7 +469,7 @@ call START_LOG(histrd4_begin)
 
 kk = size(var,2)
 
-if ( ifull==6*pil_g*pil_g .or. ptest ) then
+if ( ifull==6*pil_g**2 .or. ptest ) then
   ! read local arrays without gather and distribute
   call hr4p(iarchi,ier,name,kk,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
@@ -485,7 +486,7 @@ if ( ifull==6*pil_g*pil_g .or. ptest ) then
 else 
   ! read local arrays with gather and distribute
   if ( myid==0 ) then
-    allocate( globvar(6*pil_g*pil_g,kk) )
+    allocate( globvar(6*pil_g**2,kk) )
     globvar(:,:) = 0.
     call hr4p(iarchi,ier,name,kk,.false.,globvar)     
     if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
@@ -545,7 +546,7 @@ if ( mynproc>0 ) then
         start(1:5)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
         ncount(1:5) = (/ pipan, pjpan*pnpan, kk, 1, 1 /)
       else
-        start(1:4)  = (/ 1, 1+ppanid(ipf)*pjpan, 1, iarchi /)
+        start(1:4)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, kk, 1 /)
       end if    
       ! obtain scaling factors and offsets from attributes
@@ -563,7 +564,7 @@ if ( mynproc>0 ) then
         start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
       else
-        start(1:3) = (/ 1, 1+ppanid(ipf)*pjpan, iarchi /)
+        start(1:3) = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
         ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
       end if    
       do k = 1,kk        
@@ -611,7 +612,7 @@ if ( mynproc>0 ) then
           do k = 1,kk
             do n = 0,pnpan-1
               no = n - pnoff(ip) + 1   ! global panel number of local file
-              ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+              ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g**2 - pil_g
               cc = n*pipan*pjpan - pipan
               do j = 1,pjpan
                 var(1+j*pil_g+ca:pipan+j*pil_g+ca,k) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,jpf)
@@ -657,7 +658,7 @@ call START_LOG(histrd4_begin)
 
 kk = size(var,2)
 
-if ( ifull==6*pil_g*pil_g .or. ptest ) then
+if ( ifull==6*pil_g**2 .or. ptest ) then
   ! read local arrays without gather and distribute
   call hr4pr8(iarchi,ier,name,kk,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
@@ -674,7 +675,7 @@ if ( ifull==6*pil_g*pil_g .or. ptest ) then
 else
   ! gather and distribute
   if ( myid==0 ) then
-    allocate( globvar(6*pil_g*pil_g,kk) )
+    allocate( globvar(6*pil_g**2,kk) )
     globvar(:,:) = 0._8
     call hr4pr8(iarchi,ier,name,kk,.false.,globvar)     
     if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
@@ -732,7 +733,7 @@ if ( mynproc>0 ) then
         start(1:5)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
         ncount(1:5) = (/ pipan, pjpan*pnpan, kk, 1, 1 /)
       else
-        start(1:4)  = (/ 1, 1+ppanid(ipf)*pjpan, 1, iarchi /)
+        start(1:4)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, kk, 1 /)   
       end if    
       ! obtain scaling factors and offsets from attributes
@@ -750,7 +751,7 @@ if ( mynproc>0 ) then
         start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
       else
-        start(1:3) = (/ 1, 1+ppanid(ipf)*pjpan, iarchi /)
+        start(1:3) = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
         ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
       end if    
       do k = 1,kk        
@@ -800,7 +801,7 @@ if ( mynproc>0 ) then
           do k = 1,kk
             do n = 0,pnpan-1
               no = n - pnoff(ip) + 1   ! global panel number of local file
-              ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+              ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g**2 - pil_g
               cc = n*pipan*pjpan - pipan
               do j = 1,pjpan
                 var(1+j*pil_g+ca:pipan+j*pil_g+ca,k) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,jpf)
@@ -845,7 +846,7 @@ call START_LOG(histrd5_begin)
 kk = size(var,2)
 ll = size(var,3)
 
-if ( ifull==6*pil_g*pil_g .or. ptest ) then
+if ( ifull==6*pil_g**2 .or. ptest ) then
   ! read local arrays without gather and distribute
   call hr5p(iarchi,ier,name,kk,ll,.true.,var)
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
@@ -854,7 +855,7 @@ if ( ifull==6*pil_g*pil_g .or. ptest ) then
 else    
   ! read local arrays with gather and distribute
   if ( myid==0 ) then
-    allocate( globvar(6*pil_g*pil_g,kk,ll) )
+    allocate( globvar(6*pil_g**2,kk,ll) )
     globvar(:,:,:) = 0.
     call hr5p(iarchi,ier,name,kk,ll,.false.,globvar)     
     if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
@@ -905,7 +906,7 @@ if ( mynproc>0 ) then
       start(1:6)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
       ncount(1:6) = (/ pipan, pjpan*pnpan, kk, ll, 1, 1 /)
     else
-      start(1:5)  = (/ 1, 1+ppanid(ipf)*pjpan, 1, 1, iarchi /)
+      start(1:5)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, 1, iarchi /)
       ncount(1:5) = (/ pipan, pjpan*pnpan, kk, ll, 1 /)   
     end if    
     ! obtain scaling factors and offsets from attributes
@@ -934,7 +935,7 @@ if ( mynproc>0 ) then
             do k = 1,kk
               do n = 0,pnpan-1
                 no = n - pnoff(ip) + 1   ! global panel number of local file
-                ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+                ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g**2 - pil_g
                 cc = n*pipan*pjpan - pipan
                 do j = 1,pjpan
                   var(1+j*pil_g+ca:pipan+j*pil_g+ca,k,l) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,l,jpf)
@@ -982,7 +983,7 @@ call START_LOG(histrd5_begin)
 kk = size(var,2)
 ll = size(var,3)
 
-if ( ifull==6*pil_g*pil_g .or. ptest ) then
+if ( ifull==6*pil_g**2 .or. ptest ) then
   ! read local arrays without gather and distribute
   call hr5pr8(iarchi,ier,name,kk,ll,.true.,var)
   if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
@@ -991,7 +992,7 @@ if ( ifull==6*pil_g*pil_g .or. ptest ) then
 else    
   ! read local arrays with gather and distribute
   if ( myid==0 ) then
-    allocate( globvar(6*pil_g*pil_g,kk,ll) )
+    allocate( globvar(6*pil_g**2,kk,ll) )
     globvar(:,:,:) = 0._8
     call hr5pr8(iarchi,ier,name,kk,ll,.false.,globvar)     
     if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
@@ -1044,7 +1045,7 @@ if ( mynproc>0 ) then
       start(1:6)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
       ncount(1:6) = (/ pipan, pjpan*pnpan, kk, ll, 1, 1 /)
     else
-      start(1:5)  = (/ 1, 1+ppanid(ipf)*pjpan, 1, 1, iarchi /)
+      start(1:5)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, 1, iarchi /)
       ncount(1:5) = (/ pipan, pjpan*pnpan, kk, ll, 1 /)   
     end if    
     ! obtain scaling factors and offsets from attributes
@@ -1073,7 +1074,7 @@ if ( mynproc>0 ) then
             do k = 1,kk
               do n = 0,pnpan-1
                 no = n - pnoff(ip) + 1   ! global panel number of local file
-                ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g*pil_g - pil_g
+                ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g**2 - pil_g
                 cc = n*pipan*pjpan - pipan
                 do j = 1,pjpan
                   var(1+j*pil_g+ca:pipan+j*pil_g+ca,k,l) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,l,jpf)
@@ -1116,6 +1117,7 @@ integer, intent(out) :: ncid, ier
 integer is, ipf, dmode
 integer ipin, ipin_f, ipin_new, nxpr, nypr
 integer ltst, der, myrank, resprocmode
+integer nxp_test
 integer, dimension(:,:), allocatable, save :: dum_off
 integer, dimension(:,:), allocatable, save :: resprocdata_inv
 integer, dimension(:), allocatable, save :: resprocmap_inv
@@ -1237,10 +1239,14 @@ if ( myid==0 ) then
         
     ! special case for single file input
     if ( dmode==0 ) then
+      nxp_test = max( min( pil_g/pil_single, int(sqrt(real(nproc)/6.)) ), 1 )
+      do while ( mod(pil_g,nxp_test)/=0 .and. nxp_test>1 )
+        nxp_test = nxp_test - 1
+      end do  
+      fnproc = nxp_test**2*6
       if ( myid==0 ) then
-        write(6,*) "--> Decompose single file into six panels"
-      end if
-      fnproc = 6
+        write(6,*) "--> Decompose single file into sections = ",fnproc
+      end if      
     end if  
     
     if ( allocated(pioff) ) then
@@ -1251,7 +1257,7 @@ if ( myid==0 ) then
     allocate( pnoff(0:fnproc-1) )
         
     select case(dmode)
-      case(0) ! single file - decompose into six panels
+      case(0) ! single file - decompose into multiple sections
         pnpan = max(1,6/fnproc)
         do ipin = 0,fnproc-1
           call face_set(pipan,pjpan,pnoff(ipin),duma,dumb,pnpan,pil_g,ipin,fnproc,nxpr,nypr)
@@ -1272,7 +1278,7 @@ if ( myid==0 ) then
           pioff(ipin,:) = duma(:)
           pjoff(ipin,:) = dumb(:)
         end do
-      case(3) ! new uniform decomposition
+      case(3) ! new uniform decomposition - depreciated
         pnpan = 6
         do ipin = 0,fnproc-1
           call dix_set(pipan,pjpan,pnoff(ipin),duma,dumb,pnpan,pil_g,ipin,fnproc,nxpr,nypr)
@@ -1284,15 +1290,9 @@ if ( myid==0 ) then
     ptest = .false.
     if ( nproc==fnproc ) then
       if ( pil_g==il_g .and. pjl_g==jl_g ) then
-        !if ( uniform_decomp ) then
-        !  if ( dmode==3 ) then
-        !    ptest = .true.
-        !  end if
-        !else
         if ( dmode==1 ) then
           ptest = .true.
         end if
-        !end if
       end if
     end if
 
@@ -1392,9 +1392,11 @@ if ( allocated(pncid) ) then
 end if
 if ( mynproc>0 ) then
   allocate( pncid(0:mynproc-1), pfown(0:mynproc-1) )
-  allocate( ppanid(0:mynproc-1) )
+  allocate( ppanid(0:mynproc-1), ppiid(0:mynproc-1), ppjid(0:mynproc-1) )
   pfown(:) = .false.
   ppanid(:) = 0
+  ppiid(:) = 1
+  ppjid(:) = 1
 end if
 ! Rank 0 can start with the second file, because the first file has already been opened
 if ( myid==0 ) then 
@@ -1485,15 +1487,8 @@ if ( mynproc>0 ) then
    
   else  
     
-    ! single input file decomposed into six panels
-
-    do ipf = 0,mynproc-1
-      ipin = ipf*fnresid + myid  
-      ppanid(ipf) = ipin
-    end do    
-    
+    ! single input file decomposed into multiple sections
     do ipf = is,mynproc-1
-      ipin = ipf*fnresid + myid
       pfown(ipf) = .true.
       der = nf90_open(ifile,nf90_nowrite,pncid(ipf))
       if ( der/=nf90_noerr ) then
@@ -1533,6 +1528,32 @@ pnoff(0:fnproc-1)     = dum_off(0:fnproc-1,13)
 deallocate( dum_off )
 
 
+! single input file decomposed into multiple sections
+if ( dmode==0 ) then
+  if ( mynproc>0 ) then
+    if ( pnpan/=1 ) then
+      write(6,*) "ERROR: Decomposing single input file requires pnpan=1"
+      call ccmpi_abort(-1)
+    end if
+    do ipf = 0,mynproc-1
+      ipin = ipf*fnresid + myid  
+      ppanid(ipf) = 1 - pnoff(ipin)
+      ppiid(ipf) = pioff(ipin,0) + 1 ! assumes face decomposition
+      ppjid(ipf) = pjoff(ipin,0) + 1 ! assumes face decomposition
+    end do 
+  end if
+end if
+
+! final checks
+if ( .not.resprocformat ) then
+  do ipf = 0,mynproc-1  
+    if ( pnpan>1 .and. ppjid(ipf)>1 ) then
+      write(6,*) "ERROR: segment of input file requested over multiple panels"
+      call ccmpi_abort(-1)
+    end if    
+  end do    
+end if
+
 if ( myid==0 ) then
   write(6,*) "--> Ready to read data from input file"
 end if
@@ -1563,7 +1584,7 @@ if ( allocated(pncid) ) then
     end if
   end do
   deallocate( pfown, pncid )
-  deallocate( ppanid )
+  deallocate( ppanid, ppiid, ppjid )
 end if
 
 if ( allocated(pprid) ) then

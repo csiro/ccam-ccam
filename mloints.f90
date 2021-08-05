@@ -203,7 +203,7 @@ if ( intsch==1 ) then
 #ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(3) shedule(static)                    &
-  !$omp map(to:sx) map(tofrom:s) private(nn,k,iq,idel,xxg,jdel,yyg)                        &
+  !$omp map(to:sx) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg)                        &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
 #else
@@ -212,7 +212,7 @@ if ( intsch==1 ) then
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
 #endif
 #else
-  !$acc parallel loop collapse(3) copyin(sx) copy(s)
+  !$acc parallel loop collapse(3) copyin(sx) copyout(s) present(xg,yg,nface)
 #endif
   do nn = 1,ntr
     do k = 1,wlev      
@@ -352,7 +352,7 @@ else     ! if(intsch==1)then
 #ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(3) shedule(static)                    &
-  !$omp map(to:sx) map(tofrom:s) private(nn,k,iq,idel,xxg,jdel,yyg)                        &
+  !$omp map(to:sx) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg)                        &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
 #else
@@ -361,7 +361,7 @@ else     ! if(intsch==1)then
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
 #endif
 #else
-  !$acc parallel loop collapse(3) copyin(sx) copy(s)
+  !$acc parallel loop collapse(3) copyin(sx) copyout(s) present(xg,yg,nface)
 #endif
   do nn = 1,ntr
     do k = 1,wlev

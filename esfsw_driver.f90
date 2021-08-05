@@ -4990,18 +4990,23 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !----------------------------------------------------------------------
 !  local variables:
 
-      real        :: qq(7), rr(5), ss(8), tt(8), ww(4)
+      real        :: qq1, qq2, qq3, qq4, qq5, qq6, qq7
+      real        :: rr1, rr2, rr3, rr4, rr5
+      real        :: ss1, ss2, ss3, ss4, ss5, ss6, ss7, ss8
+      real        :: tt1, tt2, tt3, tt4, tt5, tt6, tt7, tt8
+      real        :: ww1, ww2, ww3, ww4
       real        :: rsum, tsum
       real        :: tmp
       real, parameter :: onedi3 = 1.0/3.0           
       real, parameter :: twodi3 = 2.0/3.0             
-      integer     :: k, ns, j, nn, ntot
+      integer     :: k, ns, j, nn
 
-      real,    dimension(ix)                  ::   &
-                                          gstr2, taustr2, omegastr2, &
-                                           cosangzk2, rlayerdir2,    &
-                                           tlayerde2, tlayerdir2, &
-                                           sumr, sumt
+      !real,    dimension(ix)                  ::   &
+      !                                    gstr2, taustr2, omegastr2, &
+      !                                     cosangzk2, rlayerdir2,    &
+      !                                     tlayerde2, tlayerdir2, &
+      !                                     sumr, sumt
+      logical, dimension(ix,jx,kx) :: ltest
 
 
 !----------------------------------------------------------------------
@@ -5025,53 +5030,17 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !---------------------------------------------------------------------
 
 
-!---------------------------------------------------------------------
-!
-!---------------------------------------------------------------------
-      do k=1,kx         
-        do j=1,jx         
-
-!---------------------------------------------------------------------
-!    overcast sky mode. note: in this mode, the delta-eddington method
-!    is performed only for spatial points containing a cloud.   
-!-------------------------------------------------------------------
-          if (present(cloud)) then
-            nn = count(cloud(1:ix,j,k))
-            gstr2(1:nn) = pack( gstr(1:ix,j,k), cloud(1:ix,j,k) )
-            taustr2(1:nn) = pack( taustr(1:ix,j,k), cloud(1:ix,j,k) )
-            omegastr2(1:nn) = pack( omegastr(1:ix,j,k), cloud(1:ix,j,k) )
-            cosangzk2(1:nn) = pack( cosang(1:ix,j), cloud(1:ix,j,k) )
-!----------------------------------------------------------------------
-!    note: the following are done to avoid the conservative scattering 
-!    case, and to eliminate floating point errors in the exponential 
-!    calculations, respectively.                      
-!----------------------------------------------------------------------c
-            omegastr2(1:nn) = min( omegastr2(1:nn), 9.9999999E-01 )
-            taustr2(1:nn) = min( taustr2(1:nn), 1.0E+02 )
-
-!----------------------------------------------------------------------c
-!    clear sky mode. note: in this mode, the delta-eddington method is 
-!    performed for all spatial points.                 
-!----------------------------------------------------------------------c
-          else
-            nn = count(daylight(1:ix,j))
-            gstr2(1:nn) = pack( gstr(1:ix,j,k), daylight(1:ix,j) )
-            taustr2(1:nn) = pack( taustr(1:ix,j,k), daylight(1:ix,j) )
-            omegastr2(1:nn) = pack( omegastr(1:ix,j,k), daylight(1:ix,j) )
-            cosangzk2(1:nn) = pack( cosang(1:ix,j), daylight(1:ix,j) )            
-!----------------------------------------------------------------------c
-!    note: the following are done to avoid the conservative scattering  
-!    case, and to eliminate floating point errors in the exponential 
-!    calculations, respectively.                    
-!----------------------------------------------------------------------c
-            omegastr2(1:nn) = min( omegastr2(1:nn), 9.9999999E-01 )
-            taustr2(1:nn) = min( taustr2(1:nn), 1.0E+02 )
-          endif
-
-!----------------------------------------------------------------------
-!
-!----------------------------------------------------------------------
-          ntot = nn
+           if ( present(cloud) ) then
+             ltest = cloud
+           else
+             do k=1,kx
+               do j=1,jx
+                 do nn=1,ix
+                   ltest(nn,j,k) = daylight(nn,j)
+                 end do
+               end do
+             end do
+           end if
 
 !----------------------------------------------------------------------
 !
@@ -5080,49 +5049,58 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 
             if ( nstreams==1 ) then
 
-              do nn=1,ntot      
+              do k=1,kx
+                do j=1,jx
+                  do nn=1,ix
+                    rlayerdir(nn,j,k) = 0.
+                    tlayerdir(nn,j,k) = 0.
+                    tlayerde(nn,j,k) = 0.
+                    rlayerdif(nn,j,k) = 0.
+                    tlayerdif(nn,j,k) = 0.
+
+                    if ( ltest(nn,j,k) ) then      
 
 !----------------------------------------------------------------------c
 !    direct quantities                                            
 !----------------------------------------------------------------------c
-                ww(1) = omegastr2(nn)
-                ww(2) = gstr2(nn)
-                ww(3) = taustr2(nn)
-                ww(4) = cosangzk2(nn)
+                      ww1 = min( omegastr(nn,j,k), 9.9999999E-01 )
+                      ww2 = gstr(nn,j,k)
+                      ww3 = min( taustr(nn,j,k), 1.0E+02 )
+                      ww4 = cosang(nn,j)
 
-                qq(1) = 3.0 * ( 1.0 - ww(1) )
-                qq(2) = 1.0 - ww(1) * ww(2)
-                qq(3) = qq(1)/qq(2)
-                qq(4) = sqrt( qq(1) * qq(2) )
-                qq(5) = sqrt (qq(3))
-                qq(6) = 1.0 + twodi3 * qq(5)         
-                qq(7) = 1.0 - twodi3 * qq(5)       
+                      qq1 = 3.0 * ( 1.0 - ww1 )
+                      qq2 = 1.0 - ww1 * ww2
+                      qq3 = qq1/qq2
+                      qq4 = sqrt( qq1 * qq2 )
+                      qq5 = sqrt (qq3)
+                      qq6 = 1.0 + twodi3 * qq5         
+                      qq7 = 1.0 - twodi3 * qq5       
 
-                rr(1) = 1./qq(6)
-                rr(2) = qq(7)*rr(1)
-                rr(3) = exp( -ww(3) * qq(4) )
-                rr(4) = 1.0/rr(3)
-                rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
+                      rr1 = 1./qq6
+                      rr2 = qq7*rr1
+                      rr3 = exp( -ww3 * qq4 )
+                      rr4 = 1.0/rr3
+                      rr5 = 1.0/(qq6 * rr4 - qq7 * rr3 * rr2 )
 
-                tmp   = 1.0 - (qq(4)*ww(4)) ** 2
-                if ( abs(tmp)<1.e-20 ) tmp=1.e-20 ! MJT suggestion
-                ss(1) = 0.75 * ww(1)/tmp
-                ss(2) = ss(1)*ww(4)*( 1.0 + ww(2)*qq(1)*onedi3)
-                ss(3) = ss(1)*(1.0 + ww(2)*qq(1)*ww(4)** 2 )
-                ss(4) = ss(2) - twodi3*ss(3)     
-                ss(5) = ss(2) + twodi3*ss(3)     
-                ss(6) = exp( -ww(3) / ww(4) )
-                ss(7) = (ss(4)*ss(6) - ss(5)*rr(3)*rr(2))*rr(5)
-                ss(8) = (ss(5) - qq(7)*ss(7))*rr(1)
+                      tmp   = 1.0 - (qq4*ww4) ** 2
+                      if ( abs(tmp)<1.e-20 ) tmp=1.e-20 ! MJT suggestion
+                      ss1 = 0.75 * ww1/tmp
+                      ss2 = ss1*ww4*( 1.0 + ww2*qq1*onedi3)
+                      ss3 = ss1*(1.0 + ww2*qq1*ww4** 2 )
+                      ss4 = ss2 - twodi3*ss3     
+                      ss5 = ss2 + twodi3*ss3     
+                      ss6 = exp( -ww3 / ww4 )
+                      ss7 = (ss4*ss6 - ss5*rr3*rr2)*rr5
+                      ss8 = (ss5 - qq7*ss7)*rr1
                 
 !----------------------------------------------------------------------
 !
 !----------------------------------------------------------------------
-                rlayerdir2(nn) = qq(7) * ss(8) + qq(6)*ss(7) - ss(4)
-                tlayerdir2(nn) = ((rr(3) * qq(6) * ss(8) + &
-                                   qq(7) * rr(4) * ss(7) -  &
-                                   ss(5) * ss(6) ) + ss(6) )
-                tlayerde2(nn) = ss(6)
+                      rlayerdir(nn,j,k) = qq7 * ss8 + qq6*ss7 - ss4
+                      tlayerdir(nn,j,k) = ((rr3 * qq6 * ss8 + &
+                                            qq7 * rr4 * ss7 -  &
+                                            ss5 * ss6 ) + ss6 )
+                      tlayerde(nn,j,k) = ss6
 
 !----------------------------------------------------------------------c
 !    diffuse quantities                                       
@@ -5130,179 +5108,181 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !    this calculation is done only for ng=1.                 
 !----------------------------------------------------------------------c
  
-                tt(1) = 0.75 * ww(1)            / ( 1.0 - ( qq(4) * &
-                        cosangstr(1) ) ** 2 )
-                tt(2) = tt(1) * cosangstr(1) * ( 1.0 +  &
-                        ww(2)        * qq(1) * onedi3 )
-                tt(3) = tt(1) * ( 1.0 + ww(2)        * qq(1)*&
-                        cosangstr(1) ** 2 )
-                tt(4) = tt(2) - twodi3 * tt(3)
-                tt(5) = tt(2) + twodi3 * tt(3)
-                tt(6) = exp( -ww(3)          / cosangstr(1) )
-                tt(7) = ( tt(4) * tt(6) - tt(5) *  &
-                        rr(3) * rr(2)   ) * rr(5)
-                tt(8) = ( tt(5) - qq(7) * tt(7) )*rr(1)
-                sumr(nn) = (qq(7)*tt(8) + qq(6)*tt(7) - tt(4))
-                sumt(nn) = ( (rr(3)*qq(6)*tt(8) +    &
-                           qq(7)*rr(4)*tt(7) -   &
-                           tt(5)*tt(6)) + tt(6))
-              end do  ! ntot loop
-              
+                      tt1 = 0.75 * ww1            / ( 1.0 - ( qq4 * &
+                              cosangstr(1) ) ** 2 )
+                      tt2 = tt1 * cosangstr(1) * ( 1.0 +  &
+                              ww2        * qq1 * onedi3 )
+                      tt3 = tt1 * ( 1.0 + ww2        * qq1*&
+                              cosangstr(1) ** 2 )
+                      tt4 = tt2 - twodi3 * tt3
+                      tt5 = tt2 + twodi3 * tt3
+                      tt6 = exp( -ww3          / cosangstr(1) )
+                      tt7 = ( tt4 * tt6 - tt5 *  &
+                              rr3 * rr2   ) * rr5
+                      tt8 = ( tt5 - qq7 * tt7 )*rr1
+                      rlayerdif(nn,j,k) = (qq7*tt8 + qq6*tt7 - tt4)
+                      tlayerdif(nn,j,k) = ( (rr3*qq6*tt8 +    &
+                                 qq7*rr4*tt7 -   &
+                                 tt5*tt6) + tt6)
+
+                    end if
+
+                  end do  ! ntot loop
+                end do
+              end do
+
             else    
                 
-              do nn=1,ntot      
+              do k=1,kx
+                do j=1,jx
+                  do nn=1,ix
+                    rlayerdir(nn,j,k) = 0.
+                    tlayerdir(nn,j,k) = 0.
+                    tlayerde(nn,j,k) = 0.
+                    rlayerdif(nn,j,k) = 0.
+                    tlayerdif(nn,j,k) = 0.
+                    if ( ltest(nn,j,k) ) then     
 
 !----------------------------------------------------------------------c
 !    direct quantities                                            
 !----------------------------------------------------------------------c
-                ww(1) = omegastr2(nn)
-                ww(2) = gstr2(nn)
-                ww(3) = taustr2(nn)
-                ww(4) = cosangzk2(nn)
+                      ww1 = min( omegastr(nn,j,k), 9.9999999E-01 )
+                      ww2 = gstr(nn,j,k)
+                      ww3 = min( taustr(nn,j,k), 1.0E+02 )
+                      ww4 = cosang(nn,j)
 
-                qq(1) = 3.0 * ( 1.0 - ww(1) )
-                qq(2) = 1.0 - ww(1) * ww(2)
-                qq(3) = qq(1)/qq(2)
-                qq(4) = sqrt( qq(1) * qq(2) )
-                qq(5) = sqrt (qq(3))
-                qq(6) = 1.0 + twodi3 * qq(5)         
-                qq(7) = 1.0 - twodi3 * qq(5)       
+                      qq1 = 3.0 * ( 1.0 - ww1 )
+                      qq2 = 1.0 - ww1 * ww2
+                      qq3 = qq1/qq2
+                      qq4 = sqrt( qq1 * qq2 )
+                      qq5 = sqrt (qq3)
+                      qq6 = 1.0 + twodi3 * qq5         
+                      qq7 = 1.0 - twodi3 * qq5       
 
-                rr(1) = 1./qq(6)
-                rr(2) = qq(7)*rr(1)
-                rr(3) = exp( -ww(3)          * qq(4) )
-                rr(4) = 1.0/rr(3)
-                rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
+                      rr1 = 1./qq6
+                      rr2 = qq7*rr1
+                      rr3 = exp( -ww3          * qq4 )
+                      rr4 = 1.0/rr3
+                      rr5 = 1.0/(qq6 * rr4 - qq7 * rr3 * rr2 )
 
-                tmp   = 1.0 - (qq(4)*ww(4)) ** 2
-                if ( abs(tmp)<1.e-20 ) tmp=1.e-20 ! MJT suggestion
-                ss(1) = 0.75 * ww(1)/tmp
-                ss(2) = ss(1)*ww(4)*( 1.0 + ww(2)*qq(1)*onedi3)
-                ss(3) = ss(1)*(1.0 + ww(2)*qq(1)*ww(4)** 2 )
-                ss(4) = ss(2) - twodi3*ss(3)     
-                ss(5) = ss(2) + twodi3*ss(3)     
-                ss(6) = exp( -ww(3) / ww(4) )
-                ss(7) = (ss(4)*ss(6) - ss(5)*rr(3)*rr(2))*rr(5)
-                ss(8) = (ss(5) - qq(7)*ss(7))*rr(1)
+                      tmp   = 1.0 - (qq4*ww4) ** 2
+                      if ( abs(tmp)<1.e-20 ) tmp=1.e-20 ! MJT suggestion
+                      ss1 = 0.75 * ww1/tmp
+                      ss2 = ss1*ww4*( 1.0 + ww2*qq1*onedi3)
+                      ss3 = ss1*(1.0 + ww2*qq1*ww4** 2 )
+                      ss4 = ss2 - twodi3*ss3     
+                      ss5 = ss2 + twodi3*ss3     
+                      ss6 = exp( -ww3 / ww4 )
+                      ss7 = (ss4*ss6 - ss5*rr3*rr2)*rr5
+                      ss8 = (ss5 - qq7*ss7)*rr1
 
 !----------------------------------------------------------------------
 !
 !----------------------------------------------------------------------
-                rlayerdir2(nn) = qq(7) * ss(8) + qq(6)*ss(7) - ss(4)
-                tlayerdir2(nn) = ((rr(3) * qq(6) * ss(8) + &
-                                   qq(7) * rr(4) * ss(7) -  &
-                                   ss(5) * ss(6) ) + ss(6) )
-                tlayerde2(nn) = ss(6)
+                      rlayerdir(nn,j,k) = qq7 * ss8 + qq6*ss7 - ss4
+                      tlayerdir(nn,j,k) = ((rr3 * qq6 * ss8 + &
+                                            qq7 * rr4 * ss7 -  &
+                                            ss5 * ss6 ) + ss6 )
+                      tlayerde(nn,j,k) = ss6
 
 !----------------------------------------------------------------------c
 !    diffuse quantities                                       
 !    notes: the number of streams for the diffuse beam is fixed at 4.   
 !    this calculation is done only for ng=1.                 
 !----------------------------------------------------------------------c
-                rsum = 0.0
-                tsum = 0.0
-                do ns = 1,NSTREAMS
-                  tt(1) = 0.75 * ww(1)            / ( 1.0 - ( qq(4) * &
-                          cosangstr(ns) ) ** 2 )
-                  tt(2) = tt(1) * cosangstr(ns) * ( 1.0 +  &
-                          ww(2)        * qq(1) * onedi3 )
-                  tt(3) = tt(1) * ( 1.0 + ww(2)        * qq(1)*&
-                          cosangstr(ns) ** 2 )
-                  tt(4) = tt(2) - twodi3 * tt(3)
-                  tt(5) = tt(2) + twodi3 * tt(3)
-                  tt(6) = exp( -ww(3)          / cosangstr(ns) )
-                  tt(7) = ( tt(4) * tt(6) - tt(5) *  &
-                          rr(3) * rr(2)   ) * rr(5)
-                  tt(8) = ( tt(5) - qq(7) * tt(7) )*rr(1)
-                  rsum = rsum + (qq(7)*tt(8) + qq(6)*tt(7) - tt(4))* &
-                         wtstr(ns)*cosangstr(ns)
-                  tsum = tsum + ((rr(3)*qq(6)*tt(8) +   &
-                                  qq(7)*rr(4)*tt(7) -   &
-                                  tt(5)*tt(6)) + tt(6))*  &
-                                  wtstr(ns)*cosangstr(ns)
-                end do
-                sumr(nn) = rsum
-                sumt(nn) = tsum
+                      rsum = 0.0
+                      tsum = 0.0
+                      do ns = 1,NSTREAMS
+                        tt1 = 0.75 * ww1            / ( 1.0 - ( qq4 * &
+                                cosangstr(ns) ) ** 2 )
+                        tt2 = tt1 * cosangstr(ns) * ( 1.0 +  &
+                                ww2        * qq1 * onedi3 )
+                        tt3 = tt1 * ( 1.0 + ww2        * qq1*&
+                                cosangstr(ns) ** 2 )
+                        tt4 = tt2 - twodi3 * tt3
+                        tt5 = tt2 + twodi3 * tt3
+                        tt6 = exp( -ww3          / cosangstr(ns) )
+                        tt7 = ( tt4 * tt6 - tt5 *  &
+                                rr3 * rr2   ) * rr5
+                        tt8 = ( tt5 - qq7 * tt7 )*rr1
+                        rsum = rsum + (qq7*tt8 + qq6*tt7 - tt4)* &
+                               wtstr(ns)*cosangstr(ns)
+                        tsum = tsum + ((rr3*qq6*tt8 +   &
+                                        qq7*rr4*tt7 -   &
+                                        tt5*tt6) + tt6)*  &
+                                        wtstr(ns)*cosangstr(ns)
+                      end do
+                      rlayerdif(nn,j,k) = rsum
+                      tlayerdif(nn,j,k) = tsum
               
-              end do  ! ntot loop
+                    end if
+                  end do  ! ntot loop
+                end do
+              end do
               
             end if
              
           else
               
-            do nn=1,ntot      
+            do k=1,kx
+              do j=1,jx
+                do nn=1,ix 
+                  rlayerdir(nn,j,k) = 0.
+                  tlayerdir(nn,j,k) = 0.
+                  tlayerde(nn,j,k) = 0.
+                  if ( ltest(nn,j,k) ) then 
 
 !----------------------------------------------------------------------c
 !    direct quantities                                            
 !----------------------------------------------------------------------c
-              ww(1) = omegastr2(nn)
-              ww(2) = gstr2(nn)
-              ww(3) = taustr2(nn)
-              ww(4) = cosangzk2(nn)
+                    ww1 = min( omegastr(nn,j,k), 9.9999999E-01 )
+                    ww2 = gstr(nn,j,k)
+                    ww3 = min( taustr(nn,j,k), 1.0E+02 )
+                    ww4 = cosang(nn,j)
 
-              qq(1) = 3.0 * ( 1.0 - ww(1) )
-              qq(2) = 1.0 - ww(1) * ww(2)
-              qq(3) = qq(1)/qq(2)
-              qq(4) = sqrt( qq(1) * qq(2) )
-              qq(5) = sqrt( qq(3) )
-              qq(6) = 1.0 + twodi3 * qq(5)         
-              qq(7) = 1.0 - twodi3 * qq(5)       
+                    qq1 = 3.0 * ( 1.0 - ww1 )
+                    qq2 = 1.0 - ww1 * ww2
+                    qq3 = qq1/qq2
+                    qq4 = sqrt( qq1 * qq2 )
+                    qq5 = sqrt( qq3 )
+                    qq6 = 1.0 + twodi3 * qq5         
+                    qq7 = 1.0 - twodi3 * qq5       
 
-              rr(1) = 1./qq(6)
-              rr(2) = qq(7)*rr(1)
-              rr(3) = exp( -ww(3) * qq(4) )
-              rr(4) = 1.0/rr(3)
-              rr(5) = 1.0/(qq(6) * rr(4) - qq(7) * rr(3) * rr(2) )
+                    rr1 = 1./qq6
+                    rr2 = qq7*rr1
+                    rr3 = exp( -ww3 * qq4 )
+                    rr4 = 1.0/rr3
+                    rr5 = 1.0/(qq6 * rr4 - qq7 * rr3 * rr2 )
 
-              tmp   = 1.0 - (qq(4)*ww(4)) ** 2
-              if ( abs(tmp)<1.e-20 ) tmp=1.e-20 ! MJT suggestion
-              ss(1) = 0.75 * ww(1)/tmp
-              ss(2) = ss(1)*ww(4)*( 1.0 + ww(2)*qq(1)*onedi3)
-              ss(3) = ss(1)*(1.0 + ww(2)*qq(1)*ww(4)** 2 )
-              ss(4) = ss(2) - twodi3*ss(3)     
-              ss(5) = ss(2) + twodi3*ss(3)     
-              ss(6) = exp( -ww(3) / ww(4) )
-              ss(7) = (ss(4)*ss(6) - ss(5)*rr(3)*rr(2))*rr(5)
-              ss(8) = (ss(5) - qq(7)*ss(7))*rr(1)
+                    tmp   = 1.0 - (qq4*ww4) ** 2
+                    if ( abs(tmp)<1.e-20 ) tmp=1.e-20 ! MJT suggestion
+                    ss1 = 0.75 * ww1/tmp
+                    ss2 = ss1*ww4*( 1.0 + ww2*qq1*onedi3)
+                    ss3 = ss1*(1.0 + ww2*qq1*ww4** 2 )
+                    ss4 = ss2 - twodi3*ss3     
+                    ss5 = ss2 + twodi3*ss3     
+                    ss6 = exp( -ww3 / ww4 )
+                    ss7 = (ss4*ss6 - ss5*rr3*rr2)*rr5
+                    ss8 = (ss5 - qq7*ss7)*rr1
 
 !----------------------------------------------------------------------
 !
 !----------------------------------------------------------------------
-              rlayerdir2(nn) = qq(7) * ss(8) + qq(6)*ss(7) - ss(4)
-              tlayerdir2(nn) = ((rr(3) * qq(6) * ss(8) + &
-                                 qq(7) * rr(4) * ss(7) -  &
-                                 ss(5) * ss(6) ) + ss(6) )
-              tlayerde2(nn) = ss(6)
+                    rlayerdir(nn,j,k) = qq7 * ss8 + qq6*ss7 - ss4
+                    tlayerdir(nn,j,k) = ((rr3 * qq6 * ss8 + &
+                                          qq7 * rr4 * ss7 -  &
+                                          ss5 * ss6 ) + ss6 )
+                    tlayerde(nn,j,k) = ss6
 
-            end do  ! ntot loop
+                  end if
+                end do  ! ntot loop
+              end do
+            end do
 
           end if ! present(tlayerdiff)..
-!---------------------------------------------------------------------
-!     return results in proper locations in (i,j,k) arrays
-!---------------------------------------------------------------------
-          if ( present(cloud) ) then
-            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:ntot), cloud(1:ix,j,k), 0. )
-            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:ntot), cloud(1:ix,j,k), 0. )
-            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:ntot), cloud(1:ix,j,k), 0. )
-            if ( present(tlayerdif) .and. ng==1 ) then
-              rlayerdif(1:ix,j,k) = unpack( sumr(1:ntot), cloud(1:ix,j,k), 0. )
-              tlayerdif(1:ix,j,k) = unpack( sumt(1:ntot), cloud(1:ix,j,k), 0. )
-            end if
-          else
-            rlayerdir(1:ix,j,k) = unpack( rlayerdir2(1:ntot), daylight(1:ix,j), 0. )
-            tlayerdir(1:ix,j,k) = unpack( tlayerdir2(1:ntot), daylight(1:ix,j), 0. )
-            tlayerde(1:ix,j,k) = unpack( tlayerde2(1:ntot), daylight(1:ix,j), 0. )
-            if ( present(tlayerdif) .and. ng==1 ) then
-              rlayerdif(1:ix,j,k) = unpack( sumr(1:ntot), daylight(1:ix,j), 0. )
-              tlayerdif(1:ix,j,k) = unpack( sumt(1:ntot), daylight(1:ix,j), 0. )
-            end if
-          end if
-
-        end do
-      end do
 
 !---------------------------------------------------------------------
- 
+
 end subroutine deledd
 
 

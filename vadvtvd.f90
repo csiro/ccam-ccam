@@ -67,9 +67,15 @@ if ( num==0 ) then
   end if
 end if
 
-!$omp parallel sections
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target data map(to:sdot,rathb,ratha,nvadh_pass,nits)
+#endif
+#else
+!$acc data create(sdot,rathb,ratha,nvadh_pass,nits)
+!$acc update device(sdot,rathb,ratha,nvadh_pass,nits)
+#endif
 
-!$omp section
 !     t
 call vadv_work(tarr,nvadh_pass,nits)
 
@@ -88,7 +94,6 @@ if( diag .and. mydiag )then
   write (6,"('v#  ',9f8.2)") diagvals(varr(:,nlv)) 
 endif
 
-!$omp section
 !     h_nh
 if ( nh/=0 ) then
   call vadv_work(h_nh,nvadh_pass,nits)
@@ -106,7 +111,6 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   end if
 end if          ! if(mspec==1)
 
-!$omp section
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 ) then
     call vadv_work(qlg,nvadh_pass,nits)
@@ -121,7 +125,6 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   end if      ! if(ldr.ne.0)
 end if        ! if(mspec==1)
 
-!$omp section
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( nvmix==6 .or. nvmix==9 ) then
     call vadv_work(eps,nvadh_pass,nits)
@@ -129,27 +132,30 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   end if      ! if(nvmix==6 .or. nvmix==9 )
 end if          ! if(mspec==1)
 
-!$omp end parallel sections
 
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
     
   if ( abs(iaero)>=2 ) then
-    !$omp parallel do private(ntr)  
     do ntr = 1,naero
       call vadv_work(xtg(:,:,ntr),nvadh_pass,nits)
     end do
-    !$omp end parallel do
   end if   ! abs(iaero)>=2
   
   if ( ngas>0 .or. nextout>=4 ) then
-    !$omp parallel do private(ntr)  
     do ntr = 1,ntrac
       call vadv_work(tr(:,:,ntr),nvadh_pass,nits)
     end do
-    !$omp end parallel do
   end if        ! (nextout>=4)
   
 end if          ! if(mspec==1)
+
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target data
+#endif
+#else
+!$acc end data
+#endif
 
 call END_LOG(vadv_end)
  
@@ -173,20 +179,73 @@ real, dimension(ifull,0:kl) :: delt, fluxh
 
 ! The first sub-step is vectorised for all points - MJT
 
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target enter data map(to:tarr) map(alloc:delt,fluxh)
+#endif
+#else
+!$acc enter data create(tarr,delt,fluxh)
+!$acc update device(tarr)
+#endif
+
 !     fluxh(k) is located at level k+.5
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
+#else
+!$omp parallel do collapse(2) schedule(static) private(k,iq)
+#endif
+#else
+!$acc parallel loop collapse(2) present(delt,tarr)
+#endif
 do k = 1,kl-1
   do iq = 1,ifull
     delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
   end do
-end do  
+end do
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target teams distribute parallel do
+#else
+!$omp end parallel do
+#endif
+#else 
+!$acc end parallel loop
+#endif
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target teams distribute parallel do schedule(static) private(iq)
+#else
+!$omp parallel do schedule(static) private(iq)
+#endif
+#else
+!$acc parallel loop present(fluxh,delt) 
+#endif
 do iq = 1,ifull
   fluxh(iq,0)  = 0.
   fluxh(iq,kl) = 0.
   delt(iq,kl)  = 0.     ! for T,u,v
   delt(iq,0)   = 0.
-  !!delt(iq,0)   = min(delt(iq,1), tarr(iq,1))       ! for non-negative tt
 end do
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target teams distribute parallel do
+#else
+!$omp end parallel do
+#endif
+#else 
+!$acc end parallel loop
+#endif
 
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,kp,kx,rat,fluxlo,phitvd,fluxhi)
+#else
+!$omp parallel do collapse(2) schedule(static) private(k,iq,kp,kx,rat,fluxlo,phitvd,fluxhi)
+#endif
+#else
+!$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_pass)
+#endif
 do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
   do iq = 1,ifull      
     kp = nint(sign(1.,sdot(iq,k+1)))
@@ -199,19 +258,54 @@ do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
     fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
   enddo
 enddo      ! k loop
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target teams distribute parallel do
+#else
+!$omp end parallel do
+#endif
+#else 
+!$acc end parallel loop
+#endif
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
+#else
+!$omp parallel do collapse(2) schedule(static) private(k,iq)
+#endif
+#else
+!$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_pass)
+#endif
 do k = 1,kl
   do iq = 1,ifull
     tarr(iq,k) = tarr(iq,k) + (fluxh(iq,k-1)-fluxh(iq,k) &
                              +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
   end do
 end do
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target teams distribute parallel do
+#else
+!$omp end parallel do
+#endif
+#else 
+!$acc end parallel loop
+#endif
 
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target teams distribute parallel do schedule(static) private(iq,i,k,kp,kx,rat,fluxlo,phitvd,fluxhi)
+#else
+!$omp parallel do schedule(static) private(iq,i,k,kp,kx,rat,fluxlo,phitvd,fluxhi)
+#endif
+#else
+!$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_pass,fluxh)
+#endif
 do iq = 1,ifull 
   do i = 2,nits(iq)
     do k = 1,kl-1
       delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
     end do     ! k loop    
-    !!delt(iq,0) = min(delt(iq,1), tarr(iq,1))       ! for non-negative tt
     do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
       kp = nint(sign(1.,sdot(iq,k+1)))
       kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
@@ -228,6 +322,24 @@ do iq = 1,ifull
     end do
   end do   ! i
 end do     ! iq
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target teams distribute parallel do
+#else
+!$omp end parallel do
+#endif
+#else 
+!$acc end parallel loop
+#endif
+
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target exit data map(from:tarr)
+#endif
+#else
+!$acc update self(tarr)
+!$acc exit data delete(tarr,delt,fluxh)
+#endif
 
 return
 end subroutine vadv_work

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -22,38 +22,24 @@
 module cc_omp
 
 #ifdef _OPENMP
-   use omp_lib, only : omp_get_max_threads, omp_get_thread_num
+   use omp_lib, only : omp_get_max_threads, omp_get_thread_num,     &
+                       omp_get_default_device, omp_get_num_devices, &
+                       omp_set_default_device
 #endif
 
    implicit none
    private
 
-#ifdef _OPENMP
-   logical, parameter, public :: using_omp = .true.
-#else
-   logical, parameter, public :: using_omp = .false.
-#endif
    integer, save, public :: maxthreads, ntiles, imax
    integer, save, public :: maxtilesize = 96 ! suggested value
+   integer, save, private :: gpuid
 
    public ::  ccomp_init
-   public ::  ccomp_ntiles
    public ::  ccomp_mythread
    public ::  ccomp_get_thread_num
 
    contains
-
-   function ccomp_get_max_threads() result(nthreads)
-      integer :: nthreads
-
-#ifdef _OPENMP
-      nthreads = omp_get_max_threads()
-#else
-      nthreads = 1
-#endif
-
-   end function ccomp_get_max_threads
-
+    
    function ccomp_get_thread_num() result(threadn)
       integer :: threadn
 
@@ -65,15 +51,31 @@ module cc_omp
 
    end function ccomp_get_thread_num
 
-   subroutine ccomp_init
-
-      maxthreads = ccomp_get_max_threads()
-
-   end subroutine ccomp_init
-      
-   subroutine ccomp_ntiles
+   subroutine ccomp_init(myid,nproc,ngpus)
       use newmpar_m, only : ifull
       integer :: i, tmp
+      integer, intent(in) :: myid, nproc
+      integer, intent(out) :: ngpus
+   
+#ifdef _OPENMP      
+      maxthreads = omp_get_max_threads()
+#else
+      maxthreads = 1
+#endif
+
+#ifdef _OPENMP
+#ifdef GPU
+      ngpus = omp_get_num_devices()
+      call omp_set_default_device(mod(myid,nproc))
+      gpuid = omp_get_default_device()
+#else
+      ngpus = 0
+      gpuid = -1
+#endif
+#else
+      ngpus = 0
+      gpuid = -1
+#endif      
 
       !find a tiling at least as much as the number of threads 
       ntiles = ifull
@@ -87,7 +89,6 @@ module cc_omp
       !find the next biggest maxtilesize if maxtilesize isn't already a factor of ifull
       maxtilesize = min( max( maxtilesize, 1 ), ifull )
       tmp = maxtilesize
-      !do i = tmp,ifull
       do i = tmp,1,-1
          if ( mod(ifull,i) == 0 ) then
             maxtilesize = i
@@ -101,7 +102,7 @@ module cc_omp
       imax = ifull/ntiles
       
       return
-   end subroutine ccomp_ntiles
+   end subroutine ccomp_init
    
    subroutine ccomp_mythread(mythread)
       integer, intent(out) :: mythread
@@ -111,7 +112,7 @@ module cc_omp
 #else
       mythread = 0
 #endif
-   
+
       return
    end subroutine ccomp_mythread
  
