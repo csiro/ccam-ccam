@@ -446,7 +446,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
     
   ! HORIZONTAL DIFFUSION ----------------------------------------------------
   if ( nhor<0 ) then
-    call START_LOG(hordifg_begin)  
+    call START_LOG(hordifg_begin) 
+    call nantest("before atm horizontal diffusion",1,ifull) 
     call hordifgt
     if ( diag .and. mydiag ) then
       write(6,*) 'after hordifgt t ',t(idjd,:)
@@ -1564,35 +1565,36 @@ end do
 
 !--------------------------------------------------------------
 ! READ NAMELISTS AND SET PARAMETER DEFAULTS
-nversion         = 0
-comm             = ' '
-comment          = ' '
-ia               = -1   ! diagnostic index
-ib               = -1   ! diagnostic index
-ntbar            = -1
-ktau             = 0
-ol               = 20   ! default ocean levels
-nhor             = -157
-nhorps           = -1
-khor             = -8
-khdif            = 2
-nhorjlm          = 1
-ngas             = 0
-atebnmlfile      = 0
-ateb_energytol   = 4.
-ateb_intairtmeth = 0
-ateb_intmassmeth = 0
-ateb_zocanyon    = zocanyon
-ateb_zoroof      = zoroof
-lapsbot          = 0
-io_nest          = 1
-npa              = 0   ! depreciated
-npb              = 0   ! depreciated
-cgmap_offset     = 0.  ! depreciated
-cgmap_scale      = 0.  ! depreciated
-vegprev          = ' ' ! depreciated
-vegnext          = ' ' ! depreciated
-vegnext2         = ' ' ! depreciated
+nversion            = 0
+comm                = ' '
+comment             = ' '
+ia                  = -1   ! diagnostic index
+ib                  = -1   ! diagnostic index
+ntbar               = -1
+ktau                = 0
+ol                  = 20   ! default ocean levels
+nhor                = -157
+nhorps              = -1
+khor                = -8
+khdif               = 2
+nhorjlm             = 1
+ngas                = 0
+atebnmlfile         = 0
+ateb_energytol      = 4.
+ateb_intairtmeth    = 0
+ateb_intmassmeth    = 0
+ateb_zocanyon       = zocanyon
+ateb_zoroof         = zoroof
+lapsbot             = 0
+io_nest             = 1
+npa                 = 0   ! depreciated
+npb                 = 0   ! depreciated
+cgmap_offset        = 0.  ! depreciated
+cgmap_scale         = 0.  ! depreciated
+o3_time_interpolate = 0   ! depreciated
+vegprev             = ' ' ! depreciated
+vegnext             = ' ' ! depreciated
+vegnext2            = ' ' ! depreciated
 
 
 ! All processors read the namelist, so no MPI comms are needed
@@ -1930,7 +1932,7 @@ if ( nstn>0 ) then
     call ccmpi_bcast(name_stn(i),0,comm_world)
   end do
 end if
-allocate( dumr(10), dumi(11) )
+allocate( dumr(10), dumi(10) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -1954,8 +1956,7 @@ if ( myid==0 ) then
   dumi(7)  = seasaltradmethod
   dumi(8)  = aeroindir
   dumi(9)  = o3_vert_interpolate
-  dumi(10) = o3_time_interpolate
-  if ( do_co2_10um ) dumi(11) = 1
+  if ( do_co2_10um ) dumi(10) = 1
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1982,8 +1983,7 @@ dustradmethod       = dumi(6)
 seasaltradmethod    = dumi(7)
 aeroindir           = dumi(8)
 o3_vert_interpolate = dumi(9)
-o3_time_interpolate = dumi(10)
-do_co2_10um         = dumi(11)==1
+do_co2_10um         = dumi(10)==1
 deallocate( dumr, dumi )
 allocate( dumi(24) )
 dumi = 0
@@ -2686,7 +2686,6 @@ end if
 ! some default values for unspecified parameters
 if ( ia<0 ) ia = il/2          ! diagnostic point
 if ( ib<0 ) ib = ia + 3        ! diagnostic point
-!if ( ldr==0 ) mbase = 0       ! convection
 dsig4 = max(dsig2+.01, dsig4)  ! convection
 
 ! check nudging settings - adjust mbd scale parameter to satisfy mbd_maxscale and mbd_maxgrid settings

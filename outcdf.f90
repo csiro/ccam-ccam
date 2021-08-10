@@ -1082,11 +1082,7 @@ if( myid==0 .or. local ) then
     if ( local ) then
       call ccnf_put_attg(idnc,'nproc',nproc)
       call ccnf_put_attg(idnc,'procmode',vnode_nproc)
-      !if ( uniform_decomp ) then
-      !  call ccnf_put_attg(idnc,'decomp','uniform1')
-      !else
       call ccnf_put_attg(idnc,'decomp','face')
-      !end if
     endif           
 
 !   Sigma levels
@@ -2174,8 +2170,9 @@ if( myid==0 .or. local ) then
     end if
       
     if ( myid==0 ) write(6,*) 'finished defining attributes'
-!   Leave define mode
+    !   Leave define mode
     call ccnf_enddef(idnc)
+    if ( myid==0 ) write(6,*) 'define coordinate data'
 
     if ( local ) then
       ! procformat
@@ -2227,6 +2224,8 @@ if( myid==0 .or. local ) then
       call ccnf_put_vara(idnc,idoc,1,wlev,zocean)
     end if
     
+    if ( myid==0 ) write(6,*) 'define procformat data'
+    
     ! procformat
     if ( local ) then
       ! store local processor id in output file
@@ -2257,9 +2256,11 @@ if( myid==0 .or. local ) then
       end if
       deallocate(procoffset)
     end if
-
+   
     call ccnf_put_vara(idnc,'ds',1,ds)
     call ccnf_put_vara(idnc,'dt',1,dt)
+    
+    if ( myid==0 ) write(6,*) 'define special land-surface data'
     
     if ( itype==-1 .or. diaglevel_pop>=9 ) then
       if ( cable_pop==1 ) then
@@ -2308,7 +2309,7 @@ if( myid==0 .or. local ) then
     
   end if ! iarch==1
   ! -----------------------------------------------------------      
-
+  
   ! set time to number of minutes since start 
   call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
   call ccnf_put_vara(idnc,'timer',iarch,timer)   ! to be depreciated
@@ -2364,6 +2365,7 @@ elseif ( localhist ) then
     
 end if ! myid == 0 .or. local ..else.. localhist ...
 
+if ( myid==0 ) write(6,*) 'write variable data to file'
 
 ! extract data from ocean model
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then

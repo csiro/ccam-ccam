@@ -64,7 +64,8 @@ use parmdyn_m
 use parmhdff_m
 use savuvt_m
 use sigs_m
-use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl
+use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl, &
+                   dwdx,dwdy
 use vecsuv_m
 use vvel_m
 
@@ -76,6 +77,7 @@ real, dimension(ifull+iextra,kl,3) :: work
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
+real, dimension(ifull+iextra,kl) :: ww
 real, dimension(ifull) :: emi
 real, dimension(ifull,kl) :: zg
 real, dimension(ifull) :: zgh_a, zgh_b
@@ -84,6 +86,7 @@ real dudx, dudy, dvdx, dvdy, dudz, dvdz
 real r1, r2, cc, base
 real ucc, vcc, wcc
 real delphi, hdif
+real tv
 integer iq, k, nhora, nhorx
 integer nstart, nend, nt, ntr
 integer, save :: kmax=-1
@@ -141,6 +144,46 @@ end do
 ! Calculate shear for tke
 if ( nvmix==6 .or. nvmix==9 ) then
 
+  ! calculate vertical velocity in m/s
+  ! omega = ps*dpsldt
+  ! ww = -R/g * (T+Tnhs) * dpsldt/sig
+  do iq = 1,ifull
+    tv = t(iq,1)*(1.+0.61*qg(iq,1)-qlg(iq,1)-qfg(iq,1))
+    !tnhs(iq,1) = phi_nh(iq,1)/bet(1)
+    ww(iq,1) = (dpsldt(iq,1)/sig(1)-dpsdt(iq)/(864.*ps(iq))) &
+               *(-rdry/grav)*tv
+  end do  
+  do k = 2,kl
+    do iq = 1,ifull  
+      tv = t(iq,k)*(1.+0.61*qg(iq,k)-qlg(iq,k)-qfg(iq,k))
+      !tnhs(iq,k) = (phi_nh(iq,k)-phi_nh(iq,k-1)-betm(k)*tnhs(iq,k-1))/bet(k)
+      ww(iq,k) = (dpsldt(iq,k)/sig(k)-dpsdt(iq)/(864.*ps(iq))) &
+                 *(-rdry/grav)*tv
+    end do  
+  end do
+  call bounds(ww)
+  do k = 1,kl
+    do iq = 1,ifull  
+      dwdx(iq,k) = 0.5*(ww(ie(iq),k)-ww(iw(iq),k))*em(iq)/ds
+      dwdy(iq,k) = 0.5*(ww(in(iq),k)-ww(is(iq),k))*em(iq)/ds
+    end do
+  end do
+  if ( nhorx==1 ) then
+    do k = 1,kl
+      do iq = 1,ifull
+        dwdx(iq,k) = dwdx(iq,k)*tx_fact(iq)
+        dwdy(iq,k) = dwdy(iq,k)*ty_fact(iq)
+      end do
+    end do
+  else if ( nhorx>=7 ) then
+    do k = 1,kmax
+      do iq = 1,ifull
+        dwdx(iq,k) = dwdx(iq,k)*tx_fact(iq)
+        dwdy(iq,k) = dwdy(iq,k)*ty_fact(iq)
+      end do
+    end do
+  end if
+  
   ! calculate height on full levels
   zg(:,1) = (zs(1:ifull)+bet(1)*t(1:ifull,1))/grav
   do k = 2,kl
@@ -156,7 +199,7 @@ if ( nvmix==6 .or. nvmix==9 ) then
     r1 = vav(iq,1)
     r2 = ratha(1)*vav(iq,2) + rathb(1)*vav(iq,1)          
     dvdz = (r2-r1)/(zgh_b(iq)-zg(iq,1))
-    shear(iq,1) = dudz**2 + dvdz**2
+    shear(iq,1) = (dudz+dwdx(iq,1))**2 + (dvdz+dwdy(iq,1))**2
   end do
   do k = 2,kl-1
     do iq = 1,ifull
@@ -168,7 +211,7 @@ if ( nvmix==6 .or. nvmix==9 ) then
       r1 = ratha(k-1)*vav(iq,k) + rathb(k-1)*vav(iq,k-1)
       r2 = ratha(k)*vav(iq,k+1) + rathb(k)*vav(iq,k)          
       dvdz = (r2-r1)/(zgh_b(iq)-zgh_a(iq))
-      shear(iq,k) = dudz**2 + dvdz**2
+      shear(iq,k) = (dudz+dwdx(iq,k))**2 + (dvdz+dwdy(iq,k))**2
     end do
   end do
   do iq = 1,ifull
@@ -179,8 +222,9 @@ if ( nvmix==6 .or. nvmix==9 ) then
     r1 = ratha(kl-1)*vav(iq,kl) + rathb(kl-1)*vav(iq,kl-1)
     r2 = vav(iq,kl)          
     dvdz = (r2-r1)/(zg(iq,kl)-zgh_a(iq))
-    shear(iq,k) = dudz**2 + dvdz**2
+    shear(iq,kl) = (dudz+dwdx(iq,kl))**2 + (dvdz+dwdy(iq,kl))**2
   end do
+  
 end if ! nvmix=6 .or. nvmix==9
       
 ! usual deformation for nhorjlm=1 or nhorjlm=2

@@ -44,13 +44,13 @@ module tkeeps
 implicit none
 
 private
-public tkeinit,tkemix,tkeend,tke,eps,shear
+public tkeinit,tkemix,tkeend,tke,eps,shear,dwdx,dwdy
 public cm0,ce0,ce1,ce2,ce3,be,ent0,ent1,entc0,ezmin,dtrc0
 public m0,b1,b2,qcmf,ent_min,mfbeta
 public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
 public tkemeth,upshear
 
-real, dimension(:,:), allocatable, save :: shear
+real, dimension(:,:), allocatable, save :: shear,dwdx,dwdy
 real, dimension(:,:), allocatable, save :: tke,eps
 
 ! model ED constants
@@ -118,10 +118,13 @@ integer, intent(in) :: ifull,iextra,kl
 
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
 allocate(shear(ifull,kl))
+allocate(dwdx(ifull,kl),dwdy(ifull,kl))
 
 tke(1:ifull+iextra,1:kl)=mintke
 eps(1:ifull+iextra,1:kl)=mineps
 shear(1:ifull,1:kl)=0.
+dwdx(1:ifull,1:kl)=0.
+dwdy(1:ifull,1:kl)=0.
 
 return
 end subroutine tkeinit
@@ -135,7 +138,7 @@ end subroutine tkeinit
 ! mode=3 combined atm-ocn and no mass flux
 
 subroutine tkemix(kmo,theta,qvg,qlg,qfg,stratcloud,ua,va,zi,fg,eg,cduv,ps,zz,zzh,sig,rhos, &
-                  ustar_ave,dt,qgmin,mode,tke,eps,shear,dx,                                &
+                  ustar_ave,dt,qgmin,mode,tke,eps,shear,dwdx,dwdy,dx,                      &
 #ifdef scm
                   wthflux,wqvflux,uwflux,vwflux,mfout,buoyproduction,                      &
                   shearproduction,totaltransport,                                          &
@@ -159,7 +162,7 @@ real, dimension(imax,kl), intent(inout) :: theta,stratcloud,ua,va
 real, dimension(imax,kl), intent(inout) :: qvg,qlg,qfg
 real, dimension(imax,kl), intent(out) :: kmo
 real, dimension(imax,kl), intent(in) :: zz,zzh
-real, dimension(imax,kl), intent(in) :: shear
+real, dimension(imax,kl), intent(in) :: shear, dwdx, dwdy
 real, dimension(imax,kl), intent(inout) :: tke
 real, dimension(imax,kl), intent(inout) :: eps
 real, dimension(imax), intent(inout) :: zi,fg,eg
@@ -779,11 +782,11 @@ select case(buoymeth)
     call updatekmo(ua_hl,ua,fzzh,imax,kl)
     call updatekmo(va_hl,va,fzzh,imax,kl)
     ! pps(:,1) is not used
-    pps(:,1) = kmo(:,1)*(((ua_hl(:,1)-ua(:,1))/(zzh(:,1)-zz(:,1)))**2 + &
-                         ((va_hl(:,1)-va(:,1))/(zzh(:,1)-zz(:,1)))**2)
+    pps(:,1) = kmo(:,1)*(((ua_hl(:,1)-ua(:,1))/(zzh(:,1)-zz(:,1)) + dwdx(:,1))**2 + &
+                         ((va_hl(:,1)-va(:,1))/(zzh(:,1)-zz(:,1)) + dwdy(:,1))**2)
     do k = 2,kl-1  
-      pps(:,k) = kmo(:,k)*(((ua_hl(:,k)-ua_hl(:,k-1))/dz_fl(:,k))**2 + &
-                           ((va_hl(:,k)-va_hl(:,k-1))/dz_fl(:,k))**2)
+      pps(:,k) = kmo(:,k)*(((ua_hl(:,k)-ua_hl(:,k-1))/dz_fl(:,k) + dwdx(:,k))**2 + &
+                           ((va_hl(:,k)-va_hl(:,k-1))/dz_fl(:,k) + dwdy(:,k))**2)
     end do  
   end if
   

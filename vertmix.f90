@@ -126,7 +126,7 @@ real, dimension(imax,kl,naero) :: lxtg
 real, dimension(ifull,kl) :: at_save, ct_save
 real, dimension(imax,kl) :: lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lcfrac, lu, lv, lstratcloud
-real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
+real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear, ldwdx, ldwdy
 real, dimension(imax,kl) :: lat, lct
 real, dimension(ifull) :: uadj, vadj
 real, dimension(imax) :: lou, lov, liu, liv, lrho
@@ -197,6 +197,8 @@ select case(nvmix)
       ltke   = tke(is:ie,:)
       leps   = eps(is:ie,:)
       lshear = shear(is:ie,:)
+      ldwdx  = dwdx(is:ie,:)
+      ldwdy  = dwdy(is:ie,:)
       ! Adjustment for moving ocean surface
       do k = 1,kl
         lu(:,k) = u(is:ie,k) - uadj(is:ie)
@@ -205,7 +207,7 @@ select case(nvmix)
     
       call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                                      &
                        ps(is:ie),lqg,lqfg,lqlg,lstratcloud,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),           &
-                       ustar(is:ie),ltke,leps,lshear,lat,lct,land(is:ie),                                &
+                       ustar(is:ie),ltke,leps,lshear,ldwdx,ldwdy,lat,lct,land(is:ie),                    &
 #ifdef scm
                        lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave, &
                        lbuoyproduction,lshearproduction,ltotaltransport,                                 &
@@ -1768,7 +1770,7 @@ return
 end subroutine trim
 
 subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                                 &
-                       xtg,cduv,u,v,pblh,ustar,tke,eps,shear,at,ct,land,                        &
+                       xtg,cduv,u,v,pblh,ustar,tke,eps,shear,dwdx,dwdy,at,ct,land,              &
 #ifdef scm
                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave, &
                        buoyproduction,shearproduction,totaltransport,                           &
@@ -1790,7 +1792,7 @@ real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(inout) :: tke, eps
 real, dimension(imax,kl), intent(out) :: at, ct
-real, dimension(imax,kl), intent(in) :: shear
+real, dimension(imax,kl), intent(in) :: shear, dwdx, dwdy
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, zg
 real, dimension(imax,kl) :: rkm
@@ -1861,12 +1863,12 @@ select case(nvmix)
     select case(nlocal)
       case(0) ! atm only, no counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,1,tke,eps,shear,dx,                                   &
+                    ustar,dt,qgmin,1,tke,eps,shear,dwdx,dwdy,dx,                         &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,tile,imax,kl)
       case(7) ! atm only, mass-flux counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,0,tke,eps,shear,dx,                                   &
+                    ustar,dt,qgmin,0,tke,eps,shear,dwdx,dwdy,dx,                         &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,tile,imax,kl)
     end select    
@@ -1874,12 +1876,12 @@ select case(nvmix)
     select case(nlocal)
       case(0) ! coupled atm-ocn, no counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,3,tke,eps,shear,dx,                                   &
+                    ustar,dt,qgmin,3,tke,eps,shear,dwdx,dwdy,dx,                         &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,tile,imax,kl)          
       case(7) ! coupled atm-ocn, mass-flux counter gradient 
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,2,tke,eps,shear,dx,                                   &
+                    ustar,dt,qgmin,2,tke,eps,shear,dwdx,dwdy,dx,                         &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,tile,imax,kl)          
     end select    
@@ -1899,19 +1901,19 @@ select case(nvmix)
     select case(nlocal)
       case(0) ! atm only, no counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,1,tke,eps,shear,dx,land,tile,imax,kl) 
+                    ustar,dt,qgmin,1,tke,eps,shear,dwdx,dwdy,dx,land,tile,imax,kl) 
       case(7) ! atm only, mass-flux counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,0,tke,eps,shear,dx,land,tile,imax,kl)     
+                    ustar,dt,qgmin,0,tke,eps,shear,dwdx,dwdy,dx,land,tile,imax,kl)     
     end select
   case(9)
     select case(nlocal)
       case(0) ! coupled atm-ocn, no counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,3,tke,eps,shear,dx,land,tile,imax,kl) 
+                    ustar,dt,qgmin,3,tke,eps,shear,dwdx,dwdy,dx,land,tile,imax,kl) 
       case(7) ! coupled atm-ocn, mass-flux counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,2,tke,eps,shear,dx,land,tile,imax,kl)     
+                    ustar,dt,qgmin,2,tke,eps,shear,dwdx,dwdy,dx,land,tile,imax,kl)     
     end select
 end select
 #endif
