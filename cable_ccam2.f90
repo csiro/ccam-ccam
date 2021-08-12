@@ -6385,7 +6385,7 @@ integer, intent(in) :: itype
   
 if (myid==0.or.local) then
   if (myid==0) then
-    write(6,*) "Defining CABLE tile data"
+    write(6,*) "define CABLE tile data"
   end if
   if ( itype==-1 ) then !just for restart file
     do n = 1,maxtile
