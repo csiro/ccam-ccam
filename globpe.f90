@@ -4652,7 +4652,7 @@ if ( any(psl(js:je)/=psl(js:je)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(psl(js:je)<-1.5) .or. any(psl(js:je)>0.4) ) then
+if ( any(psl(js:je)<-1.6) .or. any(psl(js:je)>0.4) ) then
   write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(psl(js:je)),maxval(psl(js:je))
   posmin(1:1) = minloc(psl(js:je))
