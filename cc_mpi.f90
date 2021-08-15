@@ -204,7 +204,7 @@ module cc_mpi
    interface ccmpi_gatherx
       module procedure ccmpi_gatherx2r,  ccmpi_gatherx3r,  ccmpi_gatherx4r
       module procedure ccmpi_gatherx23r, ccmpi_gatherx34r, ccmpi_gatherx45r
-      module procedure ccmpi_gatherx2i,  ccmpi_gatherx3i
+      module procedure ccmpi_gatherx2i,  ccmpi_gatherx3i, ccmpi_gatherx23i
       module procedure ccmpi_gatherx23l
    end interface
    interface ccmpi_gatherxr8
@@ -7744,6 +7744,27 @@ contains
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx3i
+
+   subroutine ccmpi_gatherx23i(gdat,ldat,host,comm)
+
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lsize, lhost, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_INTEGER8
+#else
+      integer(kind=4), parameter :: ltype = MPI_INTEGER
+#endif 
+      integer, dimension(:,:), intent(out) :: gdat
+      integer, dimension(:), intent(in) :: ldat
+
+      lcomm = comm
+      lhost = host
+      lsize = size(ldat)
+      call START_LOG(gather_begin)
+      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+      call END_LOG(gather_end)
+      
+   end subroutine ccmpi_gatherx23i
    
    subroutine ccmpi_gatherx23l(gdat,ldat,host,comm)
 
@@ -8281,10 +8302,9 @@ contains
             vleader_nproc = lsize
             call MPI_Comm_Rank(lcommout, lrank, lerr)
             vleader_myid = lrank
-            vnode_vleaderid = vleader_myid
             ! Communicate procmode id
             lcomm = comm_vnode
-            lrank = vnode_vleaderid
+            lrank = vleader_myid
             call MPI_Bcast( lrank, 1_4, MPI_INTEGER, 0_4, lcomm, lerr )
             vnode_vleaderid = lrank
          end if

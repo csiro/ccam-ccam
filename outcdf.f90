@@ -984,7 +984,8 @@ integer, dimension(5), intent(in) :: dimc1, dimc3, dimc4, dimc5, dimc6, dimc7
 integer, dimension(4) :: dimj
 integer, dimension(3) :: dimk
 integer, dimension(:), allocatable :: vnode_dat
-integer, dimension(:), allocatable :: procnode, procoffset
+integer, dimension(:,:), allocatable :: procnode
+integer, dimension(:), allocatable :: procdata
 real, dimension(:,:), allocatable :: xpnt2
 real, dimension(:,:), allocatable :: ypnt2
 real, dimension(:), allocatable :: xpnt
@@ -2251,40 +2252,21 @@ if( myid==0 .or. local ) then
       call ccmpi_barrier(comm_world)
 #endif
       ! store file id for a given processor number in output file number 000000
-      if ( myid==0 ) then
-        allocate( procnode(nproc) )
-      else
-        allocate( procnode(1) ) ! not used
-      end if
-      if ( myid==0 ) write(6,*) '--> gather virtual node leader ranks'  
-      call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
-      if ( myid==0 ) then
-        call ccnf_put_vara(idnc,idgpnode,(/1/),(/nproc/),procnode)  
-      end if
-      deallocate(procnode)
-#ifdef debugoutcdf
-      call ccmpi_barrier(comm_world)
-#endif
       ! store offset within a file for a given processor number in output file number 000000
       if ( myid==0 ) then
-        allocate( procoffset(nproc) )
+        allocate( procnode(2,nproc), procdata(nproc) )
       else
-        allocate( procoffset(1) ) ! not used
+        allocate( procnode(2,1), procdata(1) ) ! not used
       end if
-      if ( procmode==1 ) then
-         procoffset(:) = 0 
-         if ( vnode_myid/=0 ) then
-            write(6,*) "ERROR: vnode_myid/=0 when procmode=1"
-            call ccmpi_abort(-1)
-         end if         
-      else     
-         if ( myid==0 ) write(6,*) '--> gather virtual node worker ranks'  
-         call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
-      end if
+      if ( myid==0 ) write(6,*) '--> gather virtual node ranks'  
+      call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
       if ( myid==0 ) then
-        call ccnf_put_vara(idnc,idgpoff,(/1/),(/nproc/),procoffset)  
+        procdata(:) = procnode(1,:)  
+        call ccnf_put_vara(idnc,idgpnode,(/1/),(/nproc/),procdata)  
+        procdata(:) = procnode(2,:)
+        call ccnf_put_vara(idnc,idgpoff,(/1/),(/nproc/),procdata)  
       end if
-      deallocate(procoffset)
+      deallocate(procnode,procdata)
 #ifdef debugoutcdf
       call ccmpi_barrier(comm_world)
 #endif
@@ -2400,15 +2382,9 @@ elseif ( localhist ) then
 #ifdef debugoutcdf
     call ccmpi_barrier(comm_world)
 #endif
-    allocate(procnode(1)) ! not used
-    call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
+    allocate(procnode(2,1)) ! not used
+    call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
     deallocate(procnode)
-#ifdef debugoutcdf
-    call ccmpi_barrier(comm_world)
-#endif
-    allocate(procoffset(1)) ! not used
-    call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
-    deallocate(procoffset)
 #ifdef debugoutcdf
     call ccmpi_barrier(comm_world)
 #endif    
