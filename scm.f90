@@ -108,7 +108,13 @@ use mlo, only : mlodiag,wlev,mxd,mindep  & ! Ocean physics and prognostic arrays
    ,minwater,zomode,zoseaice             &
    ,factchseaice,minwater,mxd,mindep     &
    ,alphavis_seaice,alphanir_seaice      &
-   ,otaumode
+   ,otaumode,mlo_ema,mlosigma,oclosure   &
+   ,pdl,pdu,nsteps,k_mode,eps_mode       &
+   ,limitL,fixedce3,nops,nopb            &
+   ,fixedstabfunc,omink => mink          &
+   ,omineps => mineps,mlovlevels         &
+   ,usepice,ominl,omaxl                  &
+   ,mlo_timeave_length
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use nharrs_m, only : nharrs_init         & ! Non-hydrostatic atmosphere arrays
@@ -156,7 +162,7 @@ integer opt, nopt
 integer, save :: iarch_nudge = 0
 integer nud_ql, nud_qf
 integer tblock
-integer o3_time_interpolate ! depreciated
+integer o3_time_interpolate, calcinloop ! depreciated
 real, dimension(1000) :: press_in
 real press_surf, gridres, soil_albedo_vis, soil_albedo_nir, vlai_in
 real es
@@ -170,7 +176,7 @@ real ateb_heatprop, ateb_coolprop
 real ateb_zovegc, ateb_sigmu
 real ps_adj
 real ateb_energytol
-real cgmap_offset, cgmap_scale, tke_umin
+real cgmap_offset, cgmap_scale, tke_umin, tkecduv,zimax
 real ateb_ac_smooth, ateb_ac_copmax
 real, dimension(4) :: ateb_roof_thick, ateb_roof_cp, ateb_roof_cond
 real, dimension(4) :: ateb_wall_thick, ateb_wall_cp, ateb_wall_cond
@@ -260,9 +266,11 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         &
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & !EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
-    stabmeth,tke_umin,tkemeth,qcmf,ezmin,ent_min,                 &
+    stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,                   &
+    tke_timeave_length,                                           &
     amxlsq,dvmodmin,                                              & !JH PBL scheme
-    ngwd,helim,fc2,sigbot_gwd,alphaj                                !GWdrag
+    ngwd,helim,fc2,sigbot_gwd,alphaj,                             & !GWdrag
+    tke_umin,tkecduv,zimax                                          ! depreciated
 ! land, urban and carbon namelist
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
@@ -282,7 +290,10 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 ! ocean namelist
 namelist/mlonml/zomode,zoseaice,                                  &
     factchseaice,minwater,mxd,mindep,otaumode,                    &
-    alphavis_seaice,alphanir_seaice
+    alphavis_seaice,alphanir_seaice,mlosigma,                     &
+    pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    & ! k-e
+    nops,nopb,fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,   &
+    mlo_timeave_length    
 
 data comment/' '/,comm/' '/
 
@@ -582,6 +593,7 @@ do spinup = spinup_start,1,-1
 
     ! calculate shear
     call calcshear
+    call calcshear_mlo
   
     ! Update saved arrays
     savu(1:ifull,:) = u(1:ifull,:)
@@ -774,16 +786,21 @@ use nharrs_m
 use parm_m
 use savuvt_m
 use sigs_m
-use tkeeps, only : shear
+use tkeeps, only : shear,update_ema
 
 implicit none
 
 integer k
-real, dimension(ifull,kl) :: uav, vav
 real, dimension(ifull,kl) :: dudz, dvdz
-real, dimension(ifull,kl) :: zg
+real, dimension(ifull,kl) :: zg, ww
+real, dimension(ifull,kl) :: w_ema, u_ema, v_ema
 real, dimension(ifull,2) :: zgh
 real, dimension(ifull) :: r1, r2
+
+ww = 0.
+call update_ema(ww,w_ema,dt)
+call update_ema(u,u_ema,dt)
+call update_ema(v,v_ema,dt)
 
 ! calculate height on full levels
 zg(:,1) = (zs(1:ifull)+bet(1)*t(1:ifull,1))/grav
@@ -791,36 +808,30 @@ do k=2,kl
   zg(:,k) = zg(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
 end do ! k  loop
 
-do k=1,kl        
-  ! weighted horizontal velocities
-  uav(1:ifull,k)=av_vmod*u(1:ifull,k)+(1.-av_vmod)*savu(1:ifull,k)
-  vav(1:ifull,k)=av_vmod*v(1:ifull,k)+(1.-av_vmod)*savv(1:ifull,k)
-end do
-
 ! calculate vertical gradients
 zgh(:,2)=ratha(1)*zg(:,2)+rathb(1)*zg(:,1) ! upper half level
-r1=uav(1:ifull,1)
-r2=ratha(1)*uav(1:ifull,2)+rathb(1)*uav(1:ifull,1)          
+r1=u_ema(1:ifull,1)
+r2=ratha(1)*u_ema(1:ifull,2)+rathb(1)*u_ema(1:ifull,1)          
 dudz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
-r1=vav(1:ifull,1)
-r2=ratha(1)*vav(1:ifull,2)+rathb(1)*vav(1:ifull,1)          
+r1=v_ema(1:ifull,1)
+r2=ratha(1)*v_ema(1:ifull,2)+rathb(1)*v_ema(1:ifull,1)          
 dvdz(1:ifull,1)=(r2-r1)/(zgh(1:ifull,2)-zg(1:ifull,1))
 do k=2,kl-1
   zgh(:,1)=zgh(:,2) ! lower half level
   zgh(:,2)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k) ! upper half level
-  r1=ratha(k-1)*uav(1:ifull,k)+rathb(k-1)*uav(1:ifull,k-1)
-  r2=ratha(k)*uav(1:ifull,k+1)+rathb(k)*uav(1:ifull,k)          
+  r1=ratha(k-1)*u_ema(1:ifull,k)+rathb(k-1)*u_ema(1:ifull,k-1)
+  r2=ratha(k)*u_ema(1:ifull,k+1)+rathb(k)*u_ema(1:ifull,k)          
   dudz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
-  r1=ratha(k-1)*vav(1:ifull,k)+rathb(k-1)*vav(1:ifull,k-1)
-  r2=ratha(k)*vav(1:ifull,k+1)+rathb(k)*vav(1:ifull,k)          
+  r1=ratha(k-1)*v_ema(1:ifull,k)+rathb(k-1)*v_ema(1:ifull,k-1)
+  r2=ratha(k)*v_ema(1:ifull,k+1)+rathb(k)*v_ema(1:ifull,k)          
   dvdz(1:ifull,k)=(r2-r1)/(zgh(1:ifull,2)-zgh(1:ifull,1))
 end do
 zgh(:,1)=zgh(:,2) ! lower half level
-r1=ratha(kl-1)*uav(1:ifull,kl)+rathb(kl-1)*uav(1:ifull,kl-1)
-r2=uav(1:ifull,kl)          
+r1=ratha(kl-1)*u_ema(1:ifull,kl)+rathb(kl-1)*u_ema(1:ifull,kl-1)
+r2=u_ema(1:ifull,kl)          
 dudz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
-r1=ratha(kl-1)*vav(1:ifull,kl)+rathb(kl-1)*vav(1:ifull,kl-1)
-r2=vav(1:ifull,kl)          
+r1=ratha(kl-1)*v_ema(1:ifull,kl)+rathb(kl-1)*v_ema(1:ifull,kl-1)
+r2=v_ema(1:ifull,kl)          
 dvdz(1:ifull,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,1))
 
 if ( nvmix==6 .or. nvmix==9 ) then
@@ -830,6 +841,49 @@ if ( nvmix==6 .or. nvmix==9 ) then
 end if  
 
 end subroutine calcshear
+
+subroutine calcshear_mlo
+
+use mlo
+use newmpar_m
+use parm_m
+
+implicit none
+
+integer k, iq
+real, dimension(ifull,wlev) :: u_ema, v_ema, dz
+real, dimension(ifull,wlev) :: u_hl, v_hl
+real, dimension(ifull) :: shear
+real dudz, dvdz
+
+if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
+  call mlo_ema(dt,"uvw")  
+  dz = 0.
+  u_ema = 0.
+  v_ema = 0.
+  do k = 1,wlev
+    call mloexport("u_ema",u_ema(:,k),k,0)
+    call mloexport("v_ema",v_ema(:,k),k,0)
+    call mloexpdep(1,dz(:,k),k,0)
+  end do
+  call mlo_interpolate_hl(u_ema,u_hl)
+  call mlo_interpolate_hl(v_ema,v_hl)
+end if   
+do k = 2,wlev-1
+  do iq = 1,ifull  
+    if ( dz(iq,k)>1.e-4 ) then
+      dudz = (u_hl(iq,k+1) - u_hl(iq,k-1))/dz(iq,k)
+      dvdz = (v_hl(iq,k+1) - v_hl(iq,k-1))/dz(iq,k)
+      shear(iq) = dudz**2 + dvdz**2
+    else
+      shear(iq) = 0.  
+    end if
+  end do  
+  call mloimport("shear",shear,k,0)  
+end do
+
+return
+end subroutine calcshear_mlo
     
 subroutine initialscm(scm_mode,metforcing,lsmforcing,press_in,press_surf,z_in,ivegt_in, &
                       isoil_in,soil_albedo_vis,soil_albedo_nir,vlai_in,ateb_bldheight,  &

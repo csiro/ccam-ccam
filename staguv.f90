@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -116,106 +116,118 @@ if ( nstag==3 ) then
 #endif
          
   ! precalculate rhs terms with iwwu2 & issv2
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull  
       ud(iq,k)=uin(iq,k)/2.+uin(ieu(iq),k)+uin(ieeu(iq),k)/10.
       vd(iq,k)=vin(iq,k)/2.+vin(inv(iq),k)+vin(innv(iq),k)/10.
     end do
-  end do  
+  end do
+  !$omp end parallel do
 
   call boundsuv(ud,vd,stag=-10) ! inv, ieu
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull  
       ua(iq,k)=ud(iq,k)-ud(ieu(iq),k)/2. ! 1st guess
       va(iq,k)=vd(iq,k)-vd(inv(iq),k)/2. ! 1st guess
-    end do
-  end do  
-
-  do k = 1,kx
-    do iq = 1,ifull  
       ug(iq,k)=ua(iq,k)
       vg(iq,k)=va(iq,k)
     end do
   end do
+  !$omp end parallel do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+    !$omp parallel do schedule(static) private(k,iq)
     do k = 1,kx
       do iq = 1,ifull  
         uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
         vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
       end do
-    end do  
+    end do
+    !$omp end parallel do
     call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+    !$omp parallel do schedule(static) private(k,iq)
     do k = 1,kx
       do iq = 1,ifull  
         ua(iq,k)=(ug(iq,k)-uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
         va(iq,k)=(vg(iq,k)-vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
       end do
-    end do  
+    end do
+    !$omp end parallel do
   end do                  ! itn=1,itnmax
   call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull  
       uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
       vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
     end do
   end do  
+  !$omp end parallel do
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull  
       uout(iq,k)=(ug(iq,k)-uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
       vout(iq,k)=(vg(iq,k)-vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
     end do
-  end do 
+  end do
+  !$omp end parallel do
 
 else !if ( nstag==4 ) then
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
 
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull  
       ua(iq,k)=-0.05*uin(iwwu(iq),k)-0.4*uin(iwu(iq),k)+0.75*uin(iq,k)+0.5*uin(ieu(iq),k) ! 1st guess
       va(iq,k)=-0.05*vin(issv(iq),k)-0.4*vin(isv(iq),k)+0.75*vin(iq,k)+0.5*vin(inv(iq),k) ! 1st guess
-    end do
-  end do  
-
-  do k = 1,kx
-    do iq = 1,ifull  
       ug(iq,k)=ua(iq,k)
       vg(iq,k)=va(iq,k)
     end do
-  end do  
+  end do
+  !$omp end parallel do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+    !$omp parallel do schedule(static) private(k,iq)
     do k = 1,kx
       do iq = 1,ifull  
         uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
         vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
       end do
-    end do  
+    end do
+    !$omp end parallel do
     call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+    !$omp parallel do schedule(static) private(k,iq)
     do k = 1,kx
       do iq = 1,ifull  
         ua(iq,k)=(ug(iq,k)-uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
         va(iq,k)=(vg(iq,k)-vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
       end do
     end do  
+    !$omp end parallel do
   end do                 ! itn=1,itnmax
   call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull      
       uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
       vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
     end do
   end do  
+  !$omp end parallel do
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull      
       uout(iq,k)=(ug(iq,k)-uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
       vout(iq,k)=(vg(iq,k)-vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
     end do
   end do  
+  !$omp end parallel do
  
 end if
 
@@ -272,106 +284,118 @@ endif  ! (nstagu==0)
 if ( nstagu==3 ) then
   call boundsuv(uin,vin,stag=5) ! issv, isv, iwwu, iwu
   ! precalculate rhs terms with iwwu2 & issv2
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull  
       ud(iq,k)=uin(iq,k)/2.+uin(iwu(iq),k)+uin(iwwu(iq),k)/10.
       vd(iq,k)=vin(iq,k)/2.+vin(isv(iq),k)+vin(issv(iq),k)/10.
     end do
   end do  
+  !$omp end parallel do
 
   call boundsuv(ud,vd,stag=-9) ! isv, iwu
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull  
       ua(iq,k)=ud(iq,k)-ud(iwu(iq),k)/2. ! 1st guess
       va(iq,k)=vd(iq,k)-vd(isv(iq),k)/2. ! 1st guess
-    end do
-  end do  
-
-  do k = 1,kx
-    do iq = 1,ifull  
       ug(iq,k)=ua(iq,k)
       vg(iq,k)=va(iq,k)
     end do
   end do  
+  !$omp end parallel do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+    !$omp parallel do schedule(static) private(k,iq)    
     do k = 1,kx
       do iq = 1,ifull  
         uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
         vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
       end do
     end do
+    !$omp end parallel do
     call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+    !$omp parallel do schedule(static) private(k,iq)
     do k = 1,kx
       do iq = 1,ifull  
         ua(iq,k)=(ug(iq,k)-uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
         va(iq,k)=(vg(iq,k)-vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
       end do
     end do
+    !$omp end parallel do
   end do                 ! itn=1,itnmax
   call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull  
       uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
       vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
     end do
   end do  
+  !$omp end parallel do
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull  
       uout(iq,k)=(ug(iq,k)-uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
       vout(iq,k)=(vg(iq,k)-vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
     end do
   end do
+  !$omp end parallel do
 
 else !if ( nstagu==4 ) then
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
 
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull  
       ua(iq,k)=-0.05*uin(ieeu(iq),k)-0.4*uin(ieu(iq),k)+0.75*uin(iq,k)+0.5*uin(iwu(iq),k) ! 1st guess
       va(iq,k)=-0.05*vin(innv(iq),k)-0.4*vin(inv(iq),k)+0.75*vin(iq,k)+0.5*vin(isv(iq),k) ! 1st guess
-    end do
-  end do  
-
-  do k = 1,kx
-    do iq = 1,ifull  
       ug(iq,k)=ua(iq,k)
       vg(iq,k)=va(iq,k)
     end do
   end do  
+  !$omp end parallel do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+    !$omp parallel do schedule(static) private(k,iq)
     do k = 1,kx
       do iq = 1,ifull  
         uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
         vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
       end do
     end do  
+    !$omp end parallel do
     call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+    !$omp parallel do schedule(static) private(k,iq)
     do k = 1,kx
       do iq = 1,ifull  
         ua(iq,k)=(ug(iq,k)-uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
         va(iq,k)=(vg(iq,k)-vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
       end do
     end do  
+    !$omp end parallel do
   enddo                  ! itn=1,itnmax
   call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull      
       uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
       vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
     end do
   end do  
+  !$omp end parallel do
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kx
     do iq = 1,ifull  
       uout(iq,k)=(ug(iq,k)-uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
       vout(iq,k)=(vg(iq,k)-vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
     end do
   end do  
+  !$omp end parallel do
       
 end if
 

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -29,7 +29,7 @@ public dd, ddu, ddv
 public stwgt
 public gosig, gosigh, godsig
 public godsigu, godsigv, gosighu, gosighv
-public w_ocn, oldu1, oldu2, oldv1, oldv2
+public oldu1, oldu2, oldv1, oldv2
 public ipice
 public mlodynamicsarrays_init, mlodynamicsarrays_end
 
@@ -38,7 +38,6 @@ real, dimension(:), allocatable, save :: dd, ddu, ddv
 real, dimension(:,:), allocatable, save :: stwgt
 real, dimension(:,:), allocatable, save :: gosig, gosigh, godsig
 real, dimension(:,:), allocatable, save :: godsigu, godsigv, gosighu, gosighv
-real, dimension(:,:), allocatable, save :: w_ocn
 real, dimension(:,:), allocatable, save :: oldu1, oldu2, oldv1, oldv2
 real, dimension(:), allocatable, save :: ipice
 
@@ -50,11 +49,9 @@ implicit none
 
 integer, intent(in) :: ifull, iextra, wlev
 
-allocate(w_ocn(ifull,wlev))
 allocate(oldu1(ifull,wlev),oldv1(ifull,wlev))
 allocate(oldu2(ifull,wlev),oldv2(ifull,wlev))
 allocate(ipice(ifull+iextra))
-w_ocn(:,:)=0.
 oldu1(:,:)=0.
 oldv1(:,:)=0.
 oldu2(:,:)=0.
@@ -69,7 +66,6 @@ subroutine mlodynamicsarrays_end
 implicit none
 
 if ( allocated( oldu1 ) ) then
-  deallocate( w_ocn )  
   deallocate( oldu1, oldu2, oldv1, oldv2 )
   deallocate( ipice )
 end if

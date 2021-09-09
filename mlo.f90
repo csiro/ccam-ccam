@@ -59,10 +59,11 @@ private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
        mloimport3d,mloexport3d,mlovlevels,mlocheck,mlodiagice,mlo_updatediag,mlo_updatekm,           &
-       mlosurf,mlonewice
+       mlosurf,mlonewice,mlo_ema,mlo_interpolate_hl
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,nsteps,usepice,minicemass,cdbot,rhowt,cp0,ominl,omaxl
+public mlo_timeave_length
 
 #ifdef CCAM
 public water_g,ice_g,wpack_g,wfull_g
@@ -74,7 +75,7 @@ public dgwaterdata,dgicedata,dgscrndata,depthdata
 public turb_g
 public turbdata
 public mink,mineps
-public k_mode,eps_mode,limitL,fixedce3,calcinloop
+public k_mode,eps_mode,limitL,fixedce3
 public nops,nopb,fixedstabfunc
 #endif
 
@@ -110,12 +111,19 @@ type waterdata
   real, dimension(:,:), allocatable :: sal          ! water layer salinity (PSU)
   real, dimension(:,:), allocatable :: u            ! water u-current (m/s)
   real, dimension(:,:), allocatable :: v            ! water v-current (m/s)
+  real, dimension(:,:), allocatable :: w            ! water v-current (m/s)
   real, dimension(:), allocatable :: eta            ! water free surface height (m)
   real, dimension(:), allocatable :: ubot           ! water u-current at bottom from previous time-step (m/s)
   real, dimension(:), allocatable :: vbot           ! water v-current at bottom from previous time-step (m/s)  
   real, dimension(:), allocatable :: utop           ! water u-current at top from previous time-step (m/s)
   real, dimension(:), allocatable :: vtop           ! water v-current at top from previous time-step (m/s)  
   integer, dimension(:), allocatable :: ibot        ! index of bottom layer
+  real, dimension(:,:), allocatable :: u_ema        ! exponential average of u
+  real, dimension(:,:), allocatable :: v_ema        ! exponential average of v
+  real, dimension(:,:), allocatable :: w_ema        ! exponential average of w 
+  real, dimension(:,:), allocatable :: temp_ema     ! exponential average of temp
+  real, dimension(:,:), allocatable :: sal_ema      ! exponential average of sal
+  real, dimension(:,:), allocatable :: shear        ! shear calculated from u_ema, v_ema and w_ema  
 end type waterdata
 
 type icedata
@@ -217,7 +225,6 @@ integer, save :: k_mode        = 2        ! 0=fully explicit k, 1=implicit k, 2=
 integer, save :: eps_mode      = 2        ! 0=fully explicit eps, 1=implicit eps, 2=implicit eps & pb
 integer, save :: limitL        = 1        ! 0=no length scale limit, 1=limit length scale
 integer, save :: fixedce3      = 0        ! 0=dynamic ce3, 1=fixed ce3
-integer, save :: calcinloop    = 0        ! 0=shear & production outside coupling loop, 1=inside
 integer, save :: nops          = 0        ! 0=calculate shear production, 1=no shear production
 integer, save :: nopb          = 0        ! 0=calculate buoyancy production, 1=no buoyancy production
 integer, save :: fixedstabfunc = 0        ! 0=dynamic stability functions, 1=fixed stability functions
@@ -282,6 +289,10 @@ real, parameter :: chs=2.6                ! 5.3 in rams
 real, parameter :: cms=5.                 ! 7.4 in rams
 real, parameter :: fmroot=0.57735
 real, parameter :: rimax=(1./fmroot-1.)/bprm
+
+! Time averaging
+real, save :: mlo_timeave_length = 0. ! Time period for averaging source terms (Ps, Pb, Pt) in seconds
+                                      ! 0 indicates alpha=2/3
 
 interface mloeval
   module procedure mloeval_standard, mloeval_thread
@@ -398,10 +409,15 @@ do tile = 1,ntiles
   
   allocate(water_g(tile)%temp(wfull_g(tile),wlev),water_g(tile)%sal(wfull_g(tile),wlev))
   allocate(water_g(tile)%u(wfull_g(tile),wlev),water_g(tile)%v(wfull_g(tile),wlev))
+  allocate(water_g(tile)%w(wfull_g(tile),wlev))
   allocate(water_g(tile)%eta(wfull_g(tile)))
   allocate(water_g(tile)%ubot(wfull_g(tile)),water_g(tile)%vbot(wfull_g(tile)))
   allocate(water_g(tile)%utop(wfull_g(tile)),water_g(tile)%vtop(wfull_g(tile)))
   allocate(water_g(tile)%ibot(wfull_g(tile)))
+  allocate(water_g(tile)%u_ema(wfull_g(tile),wlev),water_g(tile)%v_ema(wfull_g(tile),wlev))
+  allocate(water_g(tile)%w_ema(wfull_g(tile),wlev))
+  allocate(water_g(tile)%temp_ema(wfull_g(tile),wlev),water_g(tile)%sal_ema(wfull_g(tile),wlev))
+  allocate(water_g(tile)%shear(wfull_g(tile),wlev))
   allocate(ice_g(tile)%temp(wfull_g(tile),0:2),ice_g(tile)%thick(wfull_g(tile)),ice_g(tile)%snowd(wfull_g(tile)))
   allocate(ice_g(tile)%fracice(wfull_g(tile)),ice_g(tile)%tsurf(wfull_g(tile)),ice_g(tile)%store(wfull_g(tile)))
   allocate(ice_g(tile)%u(wfull_g(tile)),ice_g(tile)%v(wfull_g(tile)))
@@ -445,13 +461,20 @@ do tile = 1,ntiles
     water_g(tile)%sal=35.             ! PSU
     water_g(tile)%u=0.                ! m/s
     water_g(tile)%v=0.                ! m/s
+    water_g(tile)%w=0.                ! m/s
     water_g(tile)%eta=0.              ! m
     water_g(tile)%ubot=0.             ! m/s
     water_g(tile)%vbot=0.             ! m/s
     water_g(tile)%utop=0.             ! m/s
     water_g(tile)%vtop=0.             ! m/s
     water_g(tile)%ibot=wlev
-
+    water_g(tile)%u_ema=0.            ! m/s
+    water_g(tile)%v_ema=0.            ! m/s
+    water_g(tile)%w_ema=0.            ! m/s
+    water_g(tile)%temp_ema=0.         ! K
+    water_g(tile)%sal_ema=0.          ! PSU
+    water_g(tile)%shear=0.
+    
     ice_g(tile)%thick=0.              ! m
     ice_g(tile)%snowd=0.              ! m
     ice_g(tile)%fracice=0.            ! %
@@ -491,6 +514,7 @@ do tile = 1,ntiles
     dgwater_g(tile)%ws0=0.
     dgwater_g(tile)%wu0=0.
     dgwater_g(tile)%wv0=0.
+    
     dgice_g(tile)%visdiralb=0.65
     dgice_g(tile)%visdifalb=0.65
     dgice_g(tile)%nirdiralb=0.65
@@ -775,10 +799,15 @@ if ( mlo_active ) then
   do tile = 1,ntiles
 
     deallocate(water_g(tile)%temp,water_g(tile)%sal,water_g(tile)%u,water_g(tile)%v)
+    deallocate(water_g(tile)%w)
     deallocate(water_g(tile)%eta)
     deallocate(water_g(tile)%ubot,water_g(tile)%vbot)
     deallocate(water_g(tile)%utop,water_g(tile)%vtop)
     deallocate(water_g(tile)%ibot)
+    deallocate(water_g(tile)%u_ema,water_g(tile)%v_ema)
+    deallocate(water_g(tile)%w_ema)
+    deallocate(water_g(tile)%temp_ema,water_g(tile)%sal_ema)
+    deallocate(water_g(tile)%shear)    
     deallocate(ice_g(tile)%temp,ice_g(tile)%thick,ice_g(tile)%snowd)
     deallocate(ice_g(tile)%fracice,ice_g(tile)%tsurf,ice_g(tile)%store)
     deallocate(ice_g(tile)%u,ice_g(tile)%v)
@@ -1102,6 +1131,11 @@ select case(mode)
     where ( depth%dz(:,ilev)<1.e-4 )
       water%v(:,ilev) = 0.
     end where
+  case("w")
+    water%w(:,ilev)=pack(sst,wpack)
+    where ( depth%dz(:,ilev)<1.e-4 )
+      water%w(:,ilev) = 0.
+    end where    
   case("eta")
     water%eta=pack(sst,wpack)
   case("utop")
@@ -1112,8 +1146,38 @@ select case(mode)
     water%ubot=pack(sst,wpack)
   case("vbot")
     water%vbot=pack(sst,wpack)
+  case("u_ema")
+    water%u_ema(:,ilev)=pack(sst,wpack)
+    where ( depth%dz(:,ilev)<1.e-4 )
+      water%u_ema(:,ilev) = 0.
+    end where
+  case("v_ema")
+    water%v_ema(:,ilev)=pack(sst,wpack)
+    where ( depth%dz(:,ilev)<1.e-4 )
+      water%v_ema(:,ilev) = 0.
+    end where
+  case("w_ema")
+    water%w_ema(:,ilev)=pack(sst,wpack)
+    where ( depth%dz(:,ilev)<1.e-4 )
+      water%w_ema(:,ilev) = 0.
+    end where
+  case("temp_ema")
+    water%temp_ema(:,ilev)=pack(sst,wpack)
+    where ( depth%dz(:,ilev)<1.e-4 )
+      water%temp_ema(:,ilev) = 0.
+    end where    
+  case("sal_ema")
+    water%sal_ema(:,ilev)=pack(sst,wpack)
+    where ( depth%dz(:,ilev)<1.e-4 )
+      water%sal_ema(:,ilev) = 0.
+    end where 
+  case("shear")
+    water%shear(:,ilev)=pack(sst,wpack)
+    where ( depth%dz(:,ilev)<1.e-4 )
+      water%shear(:,ilev) = 0.
+    end where        
   case default
-    write(6,*) "ERROR: Invalid mode for mloexport with mode = ",trim(mode)
+    write(6,*) "ERROR: Invalid mode for mloimport with mode = ",trim(mode)
     stop
 end select
 
@@ -1451,6 +1515,18 @@ select case(mode)
     sst=unpack(water%vbot,wpack,sst)
   case("ibot")
     sst=unpack(real(water%ibot),wpack,sst)
+  case("u_ema")
+    sst=unpack(water%u_ema(:,ilev),wpack,sst)
+  case("v_ema")
+    sst=unpack(water%v_ema(:,ilev),wpack,sst)
+  case("w_ema")
+    sst=unpack(water%w_ema(:,ilev),wpack,sst)
+  case("temp_ema")
+    sst=unpack(water%temp_ema(:,ilev),wpack,sst)    
+  case("sal_ema")
+    sst=unpack(water%sal_ema(:,ilev),wpack,sst)    
+  case("shear")
+    sst=unpack(water%shear(:,ilev),wpack,sst)      
 end select
 
 return
@@ -1776,23 +1852,23 @@ select case(mode)
       mld = unpack(dgwater%wt0,wpack,0.)
     end if
   case("cdh")
-     mld = unpack(dgwater%cdh,wpack,0.) 
+    mld = unpack(dgwater%cdh,wpack,0.) 
   case("cd")
-     mld = unpack(dgwater%cd,wpack,0.) 
+    mld = unpack(dgwater%cd,wpack,0.) 
   case("cd_bot")
-     mld = unpack(dgwater%cd_bot,wpack,0.) 
+    mld = unpack(dgwater%cd_bot,wpack,0.) 
   case("wt0")
-     mld = unpack(dgwater%wt0,wpack,0.) 
+    mld = unpack(dgwater%wt0,wpack,0.) 
   case("wt0_rad")
-     mld = unpack(dgwater%wt0_rad,wpack,0.) 
+    mld = unpack(dgwater%wt0_rad,wpack,0.) 
   case("wt0_melt")
-     mld = unpack(dgwater%wt0_melt,wpack,0.)      
+    mld = unpack(dgwater%wt0_melt,wpack,0.)      
   case("wt0_eg")
-     mld = unpack(dgwater%wt0_eg,wpack,0.) 
+    mld = unpack(dgwater%wt0_eg,wpack,0.) 
   case("wt0_fb")
-     mld = unpack(dgwater%wt0_fb,wpack,0.) 
+    mld = unpack(dgwater%wt0_fb,wpack,0.) 
   case("ws0")
-     mld = unpack(dgwater%ws0,wpack,0.) 
+    mld = unpack(dgwater%ws0,wpack,0.) 
   case default
     write(6,*) "ERROR: Invalid mode for mlodiag with mode = ",trim(mode)
     stop
@@ -1827,7 +1903,6 @@ end select
 
 return
 end subroutine mlo_update_diag_imax
-
 
 subroutine mlo_diagice_ifull(mode,mld,diag)
 
@@ -2711,13 +2786,18 @@ if ( calcprog==0 .or. calcprog==2 ) then
   ice%v = ice%v + dt*(dgice%tauyica-dgice%tauyicw)/dgice%imass
     
 end if
-!if ( calcprog==0 .or. calcprog==2 .or. calcprog==3 ) then
-!
-!  ! create or destroy ice
-!  ! MJT notes - this is done after the flux calculations to agree with the albedo passed to the radiation
-!  call mlonewice(d_timelt,d_zcr,d_neta,diag,depth,ice,water,wfull)
-!
-!end if
+#ifndef CCAM
+if ( calcprog==0 .or. calcprog==2 .or. calcprog==3 ) then
+
+  ! create or destroy ice
+  ! MJT notes - this is done after the flux calculations to agree with the albedo passed to the radiation
+  call mlonewice_thread(diag,depth,ice,water,wfull)
+
+  ! Update exponential time weighted average
+  call mlo_ema_thread(dt,water,wfull,"uvw")
+  
+end if
+#endif
 if ( calcprog==0 ) then
   
   ! update water
@@ -3046,7 +3126,6 @@ real(kind=8), dimension(wfull,wlev) :: km  !km on full level
 real(kind=8), dimension(wfull,wlev) :: ks  !ks on full level
 real(kind=8), dimension(wfull,wlev) :: ps  !shear production
 real(kind=8), dimension(wfull,wlev) :: pb  !buoyancy production
-real(kind=8), dimension(wfull,wlev) :: shear  !shear
 real(kind=8), dimension(wfull,wlev) :: n2  !Brunt-Vaisala frequency
 real(kind=8), dimension(wfull,wlev) :: ce3 !eps Buoyancy coefficient
 real(kind=8), dimension(wfull,wlev) :: L   !Length scale
@@ -3055,13 +3134,13 @@ real(kind=8), dimension(wfull,wlev) :: cud !Galperin stability function
 real(kind=8), dimension(wfull,wlev) :: alpha !non-dimensional buoyancy parameter
 
 real(kind=8), dimension(wfull,wlev) :: fdepth_hl !fraction depth
-real(kind=8), dimension(wfull,wlev) :: u_hl      !water%u at half level
-real(kind=8), dimension(wfull,wlev) :: v_hl      !water%v at half level
 real(kind=8), dimension(wfull,wlev) :: d_rho_hl  !d_rho at half level
 real(kind=8), dimension(wfull,wlev) :: km_hl     !km on half level
 real(kind=8), dimension(wfull,wlev) :: ks_hl     !ks on half level
 
 real, dimension(wfull) :: d_ustar
+real, dimension(wfull) :: pxtr_ema
+real, dimension(wfull,wlev) :: rho_ema, alpha_ema, beta_ema
 
 real :: dtt
 real :: minL
@@ -3078,24 +3157,13 @@ real, parameter :: sigmaeps = 1.08   !eps Schmidt number
 
 d_ustar = max(sqrt(sqrt(dgwater%wu0**2+dgwater%wv0**2)),1.E-6)
 
-!fraction for interpolation
 fdepth_hl(:,2:wlev) = (depth%depth_hl(:,2:wlev)-depth%depth(:,1:wlev-1))/max(depth%depth(:,2:wlev)-depth%depth(:,1:wlev-1),1.e-8)
 
-!u & v at half levels
-call interpolate_hl(water%u,fdepth_hl,u_hl)
-call interpolate_hl(water%v,fdepth_hl,v_hl)
-
-!d_rho at half levels
-call interpolate_hl(dgwater%rho,fdepth_hl,d_rho_hl)
-
-!shear (full levels)
-shear = 0.
-do ii = 2,wlev-1
-  where ( depth%dz(:,ii)>1.e-4 )  
-    shear(:,ii) = ( ((u_hl(:,ii+1)-u_hl(:,ii))/depth%dz(:,ii))**2 + &
-                    ((v_hl(:,ii+1)-v_hl(:,ii))/depth%dz(:,ii))**2 )
-  end where  
-end do
+! calculate rho_ema from temp_ema and sal_ema
+call mlo_ema(dt,"ts")
+pxtr_ema(:) = 0. ! neglect surface pressure
+call calcdensity(rho_ema,alpha_ema,beta_ema,water%temp_ema,water%sal_ema,depth%dz,pxtr_ema)
+call interpolate_hl(rho_ema,fdepth_hl,d_rho_hl)
 
 !n2 (full levels)
 n2 = 0.
@@ -3106,11 +3174,11 @@ do ii = 2,wlev-1
 end do
 where ( depth%dz(:,1)>1.e-4 )
   ! MJT suggestion
-  n2(:,1) = -grav/wrtrho*(dgwater%rho(:,1)-d_rho_hl(:,2))/(depth%depth_hl(:,2)-depth%depth(:,1))
+  n2(:,1) = -grav/wrtrho*(rho_ema(:,1)-d_rho_hl(:,2))/(depth%depth_hl(:,2)-depth%depth(:,1))
 end where
 where ( depth%dz(:,wlev)>1.e-4 )
   ! MJT suggestion
-  n2(:,wlev) = -grav/wrtrho*(d_rho_hl(:,wlev-1)-dgwater%rho(:,wlev))/(depth%depth(:,wlev)-depth%depth_hl(:,wlev-1))
+  n2(:,wlev) = -grav/wrtrho*(d_rho_hl(:,wlev-1)-rho_ema(:,wlev))/(depth%depth(:,wlev)-depth%depth_hl(:,wlev-1))
 end where
 
 !initial conditions
@@ -3176,15 +3244,18 @@ ks = max( cud*sqrt(k)*L, 1.e-6_8 )
 call interpolate_hl_r8(km,fdepth_hl,km_hl)
 call interpolate_hl_r8(ks,fdepth_hl,ks_hl)
 
-if ( calcinloop==0 ) then
+!coupling loop
+dtt = dt/real(nsteps,8)
+do step = 1,nsteps
+
   !shear production
   if ( nops==0 ) then
     do ii=2,wlev-1
-      ps(:,ii) = km(:,ii)*shear(:,ii)
+      ps(:,ii) = km(:,ii)*real(water%shear(:,ii),8)
     end do
   else
     do ii=2,wlev-1
-      ps(:,ii) = 0.0_8
+      ps(:,ii) = 0._8
     end do
   end if
 
@@ -3195,7 +3266,7 @@ if ( calcinloop==0 ) then
     end do
   else
     do ii=2,wlev-1
-      pb(:,ii) = 0.0_8
+      pb(:,ii) = 0._8
     end do
   end if
 
@@ -3203,55 +3274,13 @@ if ( calcinloop==0 ) then
   if ( fixedce3==1 ) then
     ce3 = ce3stable
   else if ( fixedce3==0 ) then
-    do ii = 2,wlev-1
-      where( pb(:,ii) < 0.0_8 )
+    do ii=2,wlev-1
+      where( pb(:,ii) < 0._8 )
         ce3(:,ii) = ce3unstable
       else where
         ce3(:,ii) = ce3stable
       endwhere
     end do
-  end if
-end if
-
-!coupling loop
-dtt = dt/real(nsteps,8)
-do step = 1,nsteps
-
-  if ( calcinloop==1 ) then
-    !shear production
-    if ( nops==0 ) then
-      do ii=2,wlev-1
-        ps(:,ii) = km(:,ii)*shear(:,ii)
-      end do
-    else
-      do ii=2,wlev-1
-        ps(:,ii) = 0.0_8
-      end do
-    end if
-
-    !buoyancy production
-    if ( nopb==0 ) then
-      do ii=2,wlev-1
-        pb(:,ii) = -ks(:,ii)*n2(:,ii)
-      end do
-    else
-      do ii=2,wlev-1
-        pb(:,ii) = 0.0_8
-      end do
-    end if
-
-    !calculate ce3
-    if ( fixedce3==1 ) then
-      ce3 = ce3stable
-    else if ( fixedce3==0 ) then
-      do ii=2,wlev-1
-        where( pb(:,ii) < 0.0_8 )
-          ce3(:,ii) = ce3unstable
-        else where
-          ce3(:,ii) = ce3stable
-        endwhere
-      end do
-    end if
   end if
 
   !solve k
@@ -3387,6 +3416,53 @@ ks_out = real(ks_hl,4)
 
 return
 end subroutine keps
+
+subroutine mlo_interpolate_hl(u,u_hl)
+
+implicit none
+
+integer tile, is, ie
+real, dimension(:,:), intent(in) :: u
+real, dimension(:,:), intent(out) :: u_hl
+real, dimension(imax,wlev) :: uloc, uloc_hl
+
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  if ( wfull_g(tile)>0 ) then
+    uloc(:,:) = u(is:ie,:)  
+    call interpolate_hl_imax(uloc,uloc_hl,depth_g(tile),wpack_g(:,tile),wfull_g(tile))  
+    u_hl(is:ie,:) = uloc_hl(:,:)
+  end if
+end do
+
+end subroutine mlo_interpolate_hl
+
+pure subroutine interpolate_hl_imax(u,u_hl,depth,wpack,wfull)
+
+implicit none
+
+integer, intent(in) :: wfull
+integer ii
+real, dimension(imax,wlev), intent(in) :: u
+real, dimension(imax,wlev), intent(out) :: u_hl
+real, dimension(wfull,wlev) :: upack
+real, dimension(wfull) :: fdepth_hl, upack_hl
+logical, dimension(imax), intent(in) :: wpack
+type(depthdata), intent(in) :: depth
+
+u_hl(:,1) = 0.
+do ii = 1,wlev
+  upack(:,ii) = pack(u(:,ii),wpack)
+end do  
+do ii = 2,wlev
+  fdepth_hl = (depth%depth_hl(:,ii)-depth%depth(:,ii-1))/max(depth%depth(:,ii)-depth%depth(:,ii-1),1.e-8)
+  upack_hl = upack(:,ii-1) + fdepth_hl*(upack(:,ii)-upack(:,ii-1))
+  u_hl(:,ii) = unpack(upack_hl,wpack,0.)
+end do
+
+return
+end subroutine interpolate_hl_imax
 
 pure subroutine interpolate_hl_r8(u,fdepth_hl,u_hl)
 
@@ -3864,7 +3940,6 @@ real, dimension(size(tt,1)) :: ptot
 real t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32,rho0
 real drho0dt,drho0ds,dskdt,dskds,sk,sks
 real drhodt,drhods,rs0
-real, parameter :: density = 1035.
 
 wlx = size(tt,2)
 ifx = size(tt,1)
@@ -3875,8 +3950,8 @@ do ii = 1,wlx
   do iqw = 1,ifx
     t = min(max(tt(iqw,ii)+(wrtemp-273.16),-2.2),100.)
     s = min(max(ss(iqw,ii),0.),maxsal)
-    p1   = ptot(iqw) + grav*density*0.5*ddz(iqw,ii)*1.E-5 ! hydrostatic approximation
-    ptot(iqw) = ptot(iqw) + grav*density*ddz(iqw,ii)*1.E-5
+    p1   = ptot(iqw) + grav*wrtrho*0.5*ddz(iqw,ii)*1.E-5 ! hydrostatic approximation
+    ptot(iqw) = ptot(iqw) + grav*wrtrho*ddz(iqw,ii)*1.E-5
     t2 = t*t
     t3 = t2*t
     t4 = t3*t
@@ -5382,7 +5457,7 @@ bot=rho*(dgice%cdh*cpair+dgice%cdq*dgice%wetfrac*dqdt*ls)
 ! iterative method to estimate ice velocity after stress from wind and currents are applied
 newiu=ice%u
 newiv=ice%v
-do itr=1,10 ! max iterations
+do itr=1,10 ! maximum number of iterations
   uu=atm_u-newiu
   vv=atm_v-newiv
   du=fluxwgt*water%u(:,1)+(1.-fluxwgt)*water%utop-newiu
@@ -5400,7 +5475,7 @@ do itr=1,10 ! max iterations
   dhv=-1.-dt*(rho*dgice%cd*(1.+(vv/vmagn)**2)+rhowt*dgice%cd_bot*(1.+(dv/icemagn)**2))/dgice%imass
   ! Min det is around 1.
   det=dgu*dhv-dgv*dhu
-  newiu=newiu-0.9*( g*dhv-h*dgv)/det
+  newiu=newiu-0.9*( g*dhv-h*dgv)/det ! 0.9 is to help solution converge by underestimating the change each iteration.
   newiv=newiv-0.9*(-g*dhu+h*dgu)/det
 end do
 
@@ -5409,8 +5484,8 @@ uu=atm_u-newiu
 vv=atm_v-newiv
 du=fluxwgt*water%u(:,1)+(1.-fluxwgt)*water%utop-newiu
 dv=fluxwgt*water%v(:,1)+(1.-fluxwgt)*water%vtop-newiv
-vmagn=sqrt(max(uu*uu+vv*vv,1.E-4))
-icemagn=sqrt(max(du*du+dv*dv,1.E-8))
+vmagn=sqrt(max(uu**2+vv**2,1.E-4))
+icemagn=sqrt(max(du**2+dv**2,1.E-8))
 dgice%cd = af*fm*vmagn
 dgice%cd_bot = 0.00536*icemagn
 dgice%tauxica=rho*dgice%cd*uu
@@ -5418,8 +5493,6 @@ dgice%tauyica=rho*dgice%cd*vv
 ! MJT notes - use rhowt reference density for Boussinesq fluid approximation
 dgice%tauxicw=-rhowt*dgice%cd_bot*du
 dgice%tauyicw=-rhowt*dgice%cd_bot*dv
-!dgice%tauxicw=(ice%u-newiu)*dgice%imass/dt+dgice%tauxica
-!dgice%tauyicw=(ice%v-newiv)*dgice%imass/dt+dgice%tauyica
 ustar=sqrt(sqrt(max(dgice%tauxicw**2+dgice%tauyicw**2,0.))/rhowt)
 ustar=max(ustar,5.E-4)
 
@@ -5656,6 +5729,78 @@ u10  =max(umag-ustar*integralm10/vkar,0.)
 
 return
 end subroutine scrntile
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Update exponential weighted moving average
+
+subroutine mlo_ema(dt,mode)
+
+implicit none
+
+integer tile, is, ie
+real, intent(in) :: dt
+character(len=*), intent(in) :: mode
+
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  if ( wfull_g(tile)>0 ) then
+    call mlo_ema_thread(dt,water_g(tile),wfull_g(tile),mode)  
+  end if
+end do
+
+end subroutine mlo_ema
+
+subroutine mlo_ema_thread(dt,water,wfull,mode)
+
+implicit none
+
+integer, intent(in) :: wfull
+integer ii, iqw
+real, intent(in) :: dt
+real alpha, nstep
+type(waterdata), intent(inout) :: water
+character(len=*), intent(in) :: mode
+
+nstep = max( mlo_timeave_length/dt, 1. ) ! this is a real value
+alpha = 2./(nstep + 1.) 
+
+select case(mode)
+  case("uvw")
+    do ii = 1,wlev
+      do iqw = 1,wfull
+        water%u_ema(iqw,ii) = alpha*water%u(iqw,ii) + (1.-alpha)*water%u_ema(iqw,ii)
+        water%v_ema(iqw,ii) = alpha*water%v(iqw,ii) + (1.-alpha)*water%v_ema(iqw,ii)
+        water%w_ema(iqw,ii) = alpha*water%w(iqw,ii) + (1.-alpha)*water%w_ema(iqw,ii)
+      end do
+    end do
+  case("ts")      
+    do ii = 1,wlev
+      do iqw = 1,wfull
+        water%temp_ema(iqw,ii) = alpha*water%temp(iqw,ii) + (1.-alpha)*water%temp_ema(iqw,ii)
+        water%sal_ema(iqw,ii) = alpha*water%sal(iqw,ii) + (1.-alpha)*water%sal_ema(iqw,ii)
+      end do
+    end do
+  case("reset")
+    do ii = 1,wlev
+      do iqw = 1,wfull
+        water%u_ema(iqw,ii) = water%u(iqw,ii)
+        water%v_ema(iqw,ii) = water%v(iqw,ii)  
+        water%w_ema(iqw,ii) = 0.
+        water%temp_ema(iqw,ii) = water%temp(iqw,ii)
+        water%sal_ema(iqw,ii) = water%sal(iqw,ii)
+      end do
+    end do
+  case default
+    write(6,*) "ERROR: Unknown option for mlo_ema ",trim(mode)
+    stop
+end select
+  
+return
+end subroutine mlo_ema_thread
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Internal error checking routines
 
 subroutine mlocheck(message,water_temp,water_u,water_v,ice_tsurf,ice_temp, &
                     ice_u,ice_v)

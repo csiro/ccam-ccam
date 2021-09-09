@@ -318,19 +318,6 @@ else
   stop
 end if
 
-! already rescaled in aeroemiss
-!if (index==iso2b1.or.index==iso2b2.or.index==iso2a1.or.index==iso2a2) then
-!  ! convert SO2 emissions to kgS/m2/s
-!  emissfield(:,index)=0.5*emissfield(:,index)
-!end if
-
-!if (index==iocna) then
-! Default yield for natural organics is about 13%, or 16.4 TgC p.a., which may be
-! a gross underestimate e.g., Tsigaridis & Kanakidou, Atmos. Chem. Phys. (2003) and
-! Kanakidou et al., Atmos. Chem. Phys. (2005). Try 35 TgC for now.
-!  emissfield(:,index)=(35./16.4)*emissfield(:,index)
-!end if
-
 return
 end subroutine aldrloademiss
 
@@ -2052,7 +2039,7 @@ do JK = KTOP,kl
 #ifdef debugaero
       if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
         write(6,*) "xtg out-of-range after xtwetdep - incloud scavenging"
-        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
+        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
       end if
 #endif      
     end if
@@ -2068,7 +2055,7 @@ do JK = KTOP,kl
 #ifdef debugaero
       if ( PCLCOVER(i,jk)*pxtp1c(i,jk)>6.5e-6 ) then
         write(6,*) "xtg out-of-range after xtwetdep - accretion of liquid water by falling snow"
-        write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk),i,jk
+        write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk),i,kl-jk+1
       end if
 #endif  
     end if
@@ -2084,7 +2071,7 @@ do JK = KTOP,kl
 #ifdef debugaero
     if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
       write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by snow"
-      write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
+      write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
     end if
 #endif   
 
@@ -2094,6 +2081,8 @@ do JK = KTOP,kl
       zstay_t = pfsubl(i,jk)/(pfsnow(i,jk)+pfsubl(i,jk)) ! MJT suggestion
       zstay_t = max( min( 1., zstay_t ), 0. )
       xstay = max( zdeps(i)*zstay_t/zmtof, 0. )
+      !limit sublimation to prevent crash - MJT suggestion
+      xstay = max( min( xstay, 6.4e-6/(1.-pclcover(i,jk)-pclcon(i,jk)) - pxtp10(i,jk) ), 0. )
       pdep3d(i,jk) = pdep3d(i,jk) - xstay*zclr0
       pxtp10(i,jk) = pxtp10(i,jk) + xstay
       zdeps(i) = zdeps(i) - xstay*zclr0*zmtof
@@ -2101,8 +2090,9 @@ do JK = KTOP,kl
 #ifdef debugaero
       if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
         write(6,*) "xtg out-of-range after xtwetdep - redistribution of snow that sublimates"
-        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
+        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
         write(6,*) "zstay_t,xstay,zclr0 ",zstay_t,xstay,zclr0
+        write(6,*) "zmtof ",zmtof
       end if
 #endif         
     end if
@@ -2137,7 +2127,7 @@ do JK = KTOP,kl
 #ifdef debugaero
       if ( PCLCOVER(i,jk)*pxtp1c(i,jk)>6.5e-6 ) then
         write(6,*) "xtg out-of-range after xtwetdep - in-cloud scavenging by warm rain processes"
-        write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk),i,jk
+        write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk),i,kl-jk+1
       end if
 #endif        
     end if
@@ -2152,7 +2142,7 @@ do JK = KTOP,kl
 #ifdef debugaero
     if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
       write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by stratiform rain"
-      write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
+      write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk
       write(6,*) "pclcover,pclcon,tot ",pclcover(i,jk),pclcon(i,jk),(1.-pclcover(i,jk)-pclcon(i,jk))
       write(6,*) "xbcscav,zbcscav,prscav ",xbcscav,zbcscav,prscav(i,jk)
     end if
@@ -2165,6 +2155,8 @@ do JK = KTOP,kl
       zstay_t = pfevap(i,jk)/(pfprec(i,jk)+pfevap(i,jk)) ! MJT suggestion
       zstay_t = max( min( 1., zstay_t ), 0. )
       xstay = max( zdepr(i)*zstay_t/zmtof, 0. )
+      !limit sublimation to prevent crash - MJT suggestion
+      xstay = max( min( xstay, 6.4e-6/(1.-pclcover(i,jk)-pclcon(i,jk)) - pxtp10(i,jk) ), 0. )      
       pdep3d(i,jk) = pdep3d(i,jk) - xstay*zclr0
       pxtp10(i,jk) = pxtp10(i,jk) + xstay
       zdepr(i) = zdepr(i) - xstay*zclr0*zmtof
@@ -2172,7 +2164,7 @@ do JK = KTOP,kl
 #ifdef debugaero
       if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
         write(6,*) "xtg out-of-range after xtwetdep - redistribution of rain that evaporates"
-        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
+        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
       end if
 #endif         
     end if
@@ -2238,7 +2230,7 @@ do jk = ktop,kl
 #ifdef debugaero
       if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
         write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by convective precipitation"
-        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,jk
+        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
       end if
 #endif       
     end if

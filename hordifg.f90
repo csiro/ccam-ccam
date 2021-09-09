@@ -65,7 +65,7 @@ use parmhdff_m
 use savuvt_m
 use sigs_m
 use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl, &
-                   dwdx,dwdy
+                   u_ema,v_ema,w_ema,update_ema
 use vecsuv_m
 use vvel_m
 
@@ -77,7 +77,7 @@ real, dimension(ifull+iextra,kl,3) :: work
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
-real, dimension(ifull+iextra,kl) :: ww
+real, dimension(ifull,kl) :: ww, dwdx, dwdy
 real, dimension(ifull) :: emi
 real, dimension(ifull,kl) :: zg
 real, dimension(ifull) :: zgh_a, zgh_b
@@ -147,13 +147,7 @@ if ( nvmix==6 .or. nvmix==9 ) then
   ! calculate vertical velocity in m/s
   ! omega = ps*dpsldt
   ! ww = -R/g * (T+Tnhs) * dpsldt/sig
-  do iq = 1,ifull
-    tv = t(iq,1)*(1.+0.61*qg(iq,1)-qlg(iq,1)-qfg(iq,1))
-    !tnhs(iq,1) = phi_nh(iq,1)/bet(1)
-    ww(iq,1) = (dpsldt(iq,1)/sig(1)-dpsdt(iq)/(864.*ps(iq))) &
-               *(-rdry/grav)*tv
-  end do  
-  do k = 2,kl
+  do k = 1,kl
     do iq = 1,ifull  
       tv = t(iq,k)*(1.+0.61*qg(iq,k)-qlg(iq,k)-qfg(iq,k))
       !tnhs(iq,k) = (phi_nh(iq,k)-phi_nh(iq,k-1)-betm(k)*tnhs(iq,k-1))/bet(k)
@@ -161,11 +155,17 @@ if ( nvmix==6 .or. nvmix==9 ) then
                  *(-rdry/grav)*tv
     end do  
   end do
-  call bounds(ww)
+
+  ! time averaging of source terms for tke-eps
+  call update_ema(ww,w_ema,dt)
+  call update_ema(uav,u_ema,dt)
+  call update_ema(vav,v_ema,dt)
+  
+  call bounds(w_ema)
   do k = 1,kl
     do iq = 1,ifull  
-      dwdx(iq,k) = 0.5*(ww(ie(iq),k)-ww(iw(iq),k))*em(iq)/ds
-      dwdy(iq,k) = 0.5*(ww(in(iq),k)-ww(is(iq),k))*em(iq)/ds
+      dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
+      dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
     end do
   end do
   if ( nhorx==1 ) then
@@ -184,20 +184,21 @@ if ( nvmix==6 .or. nvmix==9 ) then
     end do
   end if
   
-  ! calculate height on full levels
+  ! calculate height on full levels (hydrostatic terms)
   zg(:,1) = (zs(1:ifull)+bet(1)*t(1:ifull,1))/grav
   do k = 2,kl
     zg(:,k) = zg(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
   end do ! k  loop
-        
+  !zg = zg + phi_nh(1:ifull,:)/grav
+  
   ! calculate vertical gradients
   do iq = 1,ifull
     zgh_b(iq) = ratha(1)*zg(iq,2) + rathb(1)*zg(iq,1) ! upper half level
-    r1 = uav(iq,1)
-    r2 = ratha(1)*uav(iq,2) + rathb(1)*uav(iq,1)          
+    r1 = u_ema(iq,1)
+    r2 = ratha(1)*u_ema(iq,2) + rathb(1)*u_ema(iq,1)          
     dudz = (r2-r1)/(zgh_b(iq)-zg(iq,1))
-    r1 = vav(iq,1)
-    r2 = ratha(1)*vav(iq,2) + rathb(1)*vav(iq,1)          
+    r1 = v_ema(iq,1)
+    r2 = ratha(1)*v_ema(iq,2) + rathb(1)*v_ema(iq,1)          
     dvdz = (r2-r1)/(zgh_b(iq)-zg(iq,1))
     shear(iq,1) = (dudz+dwdx(iq,1))**2 + (dvdz+dwdy(iq,1))**2
   end do
@@ -205,22 +206,22 @@ if ( nvmix==6 .or. nvmix==9 ) then
     do iq = 1,ifull
       zgh_a(iq) = zgh_b(iq) ! lower half level
       zgh_b(iq) = ratha(k)*zg(iq,k+1) + rathb(k)*zg(iq,k) ! upper half level
-      r1 = ratha(k-1)*uav(iq,k) + rathb(k-1)*uav(iq,k-1)
-      r2 = ratha(k)*uav(iq,k+1) + rathb(k)*uav(iq,k)          
+      r1 = ratha(k-1)*u_ema(iq,k) + rathb(k-1)*u_ema(iq,k-1)
+      r2 = ratha(k)*u_ema(iq,k+1) + rathb(k)*u_ema(iq,k)          
       dudz = (r2-r1)/(zgh_b(iq)-zgh_a(iq))
-      r1 = ratha(k-1)*vav(iq,k) + rathb(k-1)*vav(iq,k-1)
-      r2 = ratha(k)*vav(iq,k+1) + rathb(k)*vav(iq,k)          
+      r1 = ratha(k-1)*v_ema(iq,k) + rathb(k-1)*v_ema(iq,k-1)
+      r2 = ratha(k)*v_ema(iq,k+1) + rathb(k)*v_ema(iq,k)          
       dvdz = (r2-r1)/(zgh_b(iq)-zgh_a(iq))
       shear(iq,k) = (dudz+dwdx(iq,k))**2 + (dvdz+dwdy(iq,k))**2
     end do
   end do
   do iq = 1,ifull
     zgh_a(iq) = zgh_b(iq) ! lower half level
-    r1 = ratha(kl-1)*uav(iq,kl) + rathb(kl-1)*uav(iq,kl-1)
-    r2 = uav(iq,kl)          
+    r1 = ratha(kl-1)*u_ema(iq,kl) + rathb(kl-1)*u_ema(iq,kl-1)
+    r2 = u_ema(iq,kl)          
     dudz = (r2-r1)/(zg(iq,kl)-zgh_a(iq))
-    r1 = ratha(kl-1)*vav(iq,kl) + rathb(kl-1)*vav(iq,kl-1)
-    r2 = vav(iq,kl)          
+    r1 = ratha(kl-1)*v_ema(iq,kl) + rathb(kl-1)*v_ema(iq,kl-1)
+    r2 = v_ema(iq,kl)          
     dvdz = (r2-r1)/(zg(iq,kl)-zgh_a(iq))
     shear(iq,kl) = (dudz+dwdx(iq,kl))**2 + (dvdz+dwdy(iq,kl))**2
   end do
@@ -252,6 +253,7 @@ select case(nhorjlm)
     ! Smag's actual diffusion also differentiated Dt and Ds
     ! t_kh is kh at t points
     call boundsuv(uav,vav,allvec=.true.)
+    !$omp parallel do schedule(static) private(k,iq,hdif,dudx,dudy,dvdx,dvdy,r1)
     do k = 1,kl
       do iq = 1,ifull
         hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
@@ -263,9 +265,11 @@ select case(nhorjlm)
         t_kh(iq,k)=sqrt(r1)*hdif*emi(iq)
       end do
     end do
+    !$omp end parallel do
              
   case(1)
     ! jlm deformation scheme using 3D uc, vc, wc
+    !$omp parallel do schedule(static) private(k,iq,hdif,cc)  
     do k = 1,kl
       do iq = 1,ifull
         hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
@@ -276,9 +280,11 @@ select case(nhorjlm)
         t_kh(iq,k)= .5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
       end do
     end do
+    !$omp end parallel do
 
   case(2)
     ! jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
+    !$omp parallel do schedule(static) private(k,iq,hdif,cc)
     do k = 1,kl
       do iq = 1,ifull
         hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
@@ -292,10 +298,12 @@ select case(nhorjlm)
         t_kh(iq,k)= .5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
       end do
     enddo
+    !$omp end parallel do
 
   case(3)
     ! K-eps model + Smag
     call boundsuv(uav,vav,allvec=.true.)
+    !$omp parallel do schedule(static) private(k,iq,hdif,dudx,dudy,dvdx,dvdy,r1)
     do k = 1,kl
       do iq = 1,ifull
         hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
@@ -308,6 +316,7 @@ select case(nhorjlm)
         t_kh(iq,k)=max( t_kh(iq,k), tke(iq,k)**2/eps(iq,k)*dt*cm0*emi(iq) )
       end do
     end do
+    !$omp end parallel do
 
   case DEFAULT
     write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm
@@ -337,6 +346,7 @@ call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
 
 ! momentum (disabled by default)
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
+  !$omp parallel do schedule(static) private(k,iq,base,ucc,vcc,wcc)
   do k = 1,kl
     do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
@@ -363,6 +373,7 @@ if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
       v(iq,k) = bx(iq)*ucc + by(iq)*vcc + bz(iq)*wcc
     end do
   end do
+  !$omp end parallel do
 end if   ! nhorps==0 .or. nhorps==-2
 
 if ( diag .and. mydiag ) then
@@ -385,6 +396,7 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
     work(1:ifull,k,2) = qg(1:ifull,k)
   end do
   call bounds(work(:,:,1:2))
+  !$omp parallel do schedule(static) private(k,iq,base)
   do k = 1,kl
     do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
@@ -404,12 +416,14 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
                  / base
     end do
   end do
+  !$omp end parallel do
 
 else if ( nhorps==-5 ) then  
   do k = 1,kl
     work(1:ifull,k,1) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
   end do
   call bounds(work(:,:,1))
+  !$omp parallel do schedule(static) private(k,iq,base)
   do k = 1,kl
     do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
@@ -423,10 +437,12 @@ else if ( nhorps==-5 ) then
       t(iq,k) = ptemp(iq)*t(iq,k)
     end do
   end do
+  !$omp end parallel do
 
 else if ( nhorps==-3 ) then  
   work(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
   call bounds(work(:,:,1))
+  !$omp parallel do schedule(static) private(k,iq,base)
   do k = 1,kl      
     do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
@@ -439,6 +455,7 @@ else if ( nhorps==-3 ) then
                  / base
     end do
   end do
+  !$omp end parallel do
 end if
 
 ! cloud microphysics (disabled by default) 
@@ -447,6 +464,7 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   work(1:ifull,1:kl,2) = qfg(1:ifull,1:kl)
   work(1:ifull,1:kl,3) = stratcloud(1:ifull,1:kl)
   call bounds(work(:,:,1:3))
+  !$omp parallel do schedule(static) private(k,iq,base)
   do k = 1,kl
     do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
@@ -471,6 +489,7 @@ if ( nhorps==-4 .and. ldr/=0 ) then
                          / base
     end do
   end do
+  !$omp end parallel do
 end if       ! (ldr/=0.and.nhorps==-4)
 
 ! apply horizontal diffusion to TKE and EPS terms (disabled by default)
@@ -478,6 +497,7 @@ if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   work(1:ifull,1:kl,1) = tke(1:ifull,1:kl)
   work(1:ifull,1:kl,2) = eps(1:ifull,1:kl)
   call bounds(work(:,:,1:2))
+  !$omp parallel do schedule(static) private(k,iq,base)
   do k = 1,kl
     do iq = 1,ifull
       base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
@@ -496,6 +516,7 @@ if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
                   / base
     end do
   end do
+  !$omp end parallel do
 end if   ! (nvmix==6.or.nvmix==9)
 
 ! prgnostic aerosols (disabled by default)
@@ -505,6 +526,7 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
     nt = nend - nstart + 1
     work(1:ifull,1:kl,1:nt) = xtg(1:ifull,1:kl,nstart:nend)
     call bounds(work(:,:,1:nt))
+    !$omp parallel do collapse(2) schedule(static) private(ntr,k,iq,base)
     do ntr = 1,nt
       do k = 1,kl
         do iq = 1,ifull
@@ -519,6 +541,7 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
         end do
       end do
     end do
+    !$omp end parallel do
   end do
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 

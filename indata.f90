@@ -2187,7 +2187,13 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   end do
   do k = 1,3
     call mloexpice(tggsn(:,k),k,0)
-  end do 
+  end do
+  if ( .not.lrestart ) then
+    if ( myid==0 ) then
+      write(6,*) "Reset EMA for mlo"  
+    end if    
+    call mlo_ema(dt,"reset")
+  end if
 end if
 
 

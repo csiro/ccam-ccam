@@ -171,6 +171,7 @@ endif
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then  
   ! Loop over points that need to be calculated for other processes
+
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -209,12 +210,12 @@ if ( intsch==1 ) then
   
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp target teams distribute parallel do collapse(3) schedule(static)                &
-  !$omp map(to:xg,yg,nface) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg),             &
+  !$omp target teams distribute parallel do collapse(3) schedule(static),               &
+  !$omp map(to:xg,yg,nface) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg,n),           &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #else
-  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),    &
+  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg,n),  &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
@@ -299,17 +300,17 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii
-
+  
   call intssync_send(3)
 
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp target teams distribute parallel do collapse(3) schedule(static)                &
-  !$omp map(to:xg,yg,nface) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg),             &
+  !$omp target teams distribute parallel do collapse(3) schedule(static),               &
+  !$omp map(to:xg,yg,nface) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg,n),           &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #else
-  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),    &
+  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg,n),  &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
@@ -420,12 +421,12 @@ if ( intsch==1 ) then
 
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp target teams distribute parallel do collapse(3) schedule(static)                &
-  !$omp map(to:xg,yg,nface) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg),             &
+  !$omp target teams distribute parallel do collapse(3) schedule(static),               &
+  !$omp map(to:xg,yg,nface) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg,n),           &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #else
-  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),    &
+  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg,n),  &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
@@ -516,12 +517,12 @@ else     ! if(intsch==1)then
 
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp target teams distribute parallel do collapse(3) schedule(static)                &
-  !$omp map(to:xg,yg,nface) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg),             &
+  !$omp target teams distribute parallel do collapse(3) schedule(static),               &
+  !$omp map(to:xg,yg,nface) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg,n),           &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #else
-  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),    &
+  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg,n),  &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
@@ -640,7 +641,7 @@ alfonsch = 2._8*real(schmidt,8)/(1._8+real(schmidt,8)**2)  ! same but bit more a
 
 #ifdef _OPENMP
 #ifdef GPU
-!$omp target teams distribute parallel do collapse(2) schedule(static)              &
+!$omp target teams distribute parallel do collapse(2) schedule(static),             &
 !$omp map(to:x3d,y3d,z3d) map(from:xg,yg,nface) private(k,iq,den),                  &
 !$omp private(xstr,ystr,zstr,denxyz,xd,yd,zd,xytest,xztest,yztest,ri,rj,loop,i,j),  &
 !$omp private(is,js,dxx,dyx,dxy,dyy)

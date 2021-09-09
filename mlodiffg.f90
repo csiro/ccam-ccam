@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -77,6 +77,7 @@ use indices_m
 use map_m
 use mlo
 use mlodynamicsarrays_m
+use nharrs_m, only : lrestart
 use newmpar_m
 use parm_m
 use soil_m
@@ -89,10 +90,14 @@ real hdif
 real, dimension(ifull+iextra,wlev,3) :: duma
 real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
+real, dimension(ifull+iextra,wlev) :: w_ema
 real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
+real, dimension(ifull,wlev) :: dz, u_hl, v_hl, u_ema, v_ema
+real, dimension(ifull) :: shear
 real base
 real dudx,dvdx,dudy,dvdy
+real dudz,dvdz,dwdx,dwdy
 real nu,nv,nw
 real, dimension(ifull) :: emi
 real tx_fact, ty_fact
@@ -110,13 +115,46 @@ else
     uav(1:ifull,k) = v(1:ifull,k)*ee(1:ifull,k)
   end do
 end if
-call boundsuv(uau,uav,allvec=.true.)
 
 ! Define diffusion scale and grid spacing
 hdif = dt*(ocnsmag/pi)**2
 emi = dd(1:ifull)/em(1:ifull)
 
+! calculate shear from EMA
+call mlo_ema(dt,"uvw")
+dz = 0.
+u_ema = 0.
+v_ema = 0.
+w_ema = 0.
+do k = 1,wlev
+  call mloexport("u_ema",u_ema(:,k),k,0)
+  call mloexport("v_ema",v_ema(:,k),k,0)
+  call mloexport("w_ema",w_ema(:,k),k,0)
+  call mloexpdep(1,dz(:,k),k,0)
+end do
+call mlo_interpolate_hl(u_ema,u_hl)
+call mlo_interpolate_hl(v_ema,v_hl)
+call bounds(w_ema)
+do k = 2,wlev-1
+  do iq = 1,ifull  
+    if ( dz(iq,k)>1.e-4 ) then
+      dwdx = 0.5*((w_ema(ie(iq),k)-w_ema(iq,k))*emu(iq)*eeu(iq,k) &
+                 +(w_ema(iq,k)-w_ema(iw(iq),k))*emu(iwu(iq))*eeu(iwu(iq),k))/ds
+      dwdy = 0.5*((w_ema(in(iq),k)-w_ema(iq,k))*emv(iq)*eev(iq,k) &
+                 +(w_ema(iq,k)-w_ema(is(iq),k))*emv(isv(iq))*eev(isv(iq),k))/ds
+      dudz = (u_hl(iq,k+1) - u_hl(iq,k-1))/dz(iq,k)
+      dvdz = (v_hl(iq,k+1) - v_hl(iq,k-1))/dz(iq,k)
+      shear(iq) = (dudz+dwdx)**2 + (dvdz+dwdy)**2
+    else
+      shear(iq) = 0.  
+    end if
+  end do  
+  call mloimport("shear",shear,k,0)  
+end do
+
 ! calculate diffusion following Smagorinsky
+call boundsuv(uau,uav,allvec=.true.)
+!$omp parallel do schedule(static) private(k,iq,dudx,dvdx,dudy,dvdy)
 do k = 1,wlev
   do iq = 1,ifull
     dudx = 0.5*((uau(ieu(iq),k)-uau(iq,k))*emu(iq)        &
@@ -130,6 +168,7 @@ do k = 1,wlev
     t_kh(iq,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi(iq)
   end do
 end do
+!$omp end parallel do
 call bounds(t_kh(:,1:wlev),nehalf=.true.)
 
 
@@ -166,6 +205,7 @@ if ( mlodiff==0 ) then
     duma(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
   end do
   call bounds(duma(:,:,1:3))
+  !$omp parallel do schedule(static) private(k,iq,base,nu,nv,nw)
   do k = 1,wlev
     do iq = 1,ifull
       base = emi(iq) + xfact(iq,k) + xfact(iwu(iq),k) &
@@ -192,6 +232,7 @@ if ( mlodiff==0 ) then
       v(iq,k) = bx(iq)*nu + by(iq)*nv + bz(iq)*nw
     end do
   end do
+  !$omp end parallel do
 
 else if ( mlodiff==1 ) then
   ! no diffusion applied to momentum
@@ -204,6 +245,7 @@ end if
 duma(1:ifull,:,1) = tt(1:ifull,:)
 duma(1:ifull,:,2) = ss(1:ifull,:) - 34.72
 call bounds(duma(:,:,1:2))
+!$omp parallel do schedule(static) private(k,iq,base)
 do k = 1,wlev
   do iq = 1,ifull
     base = emi(iq) + xfact(iq,k) + xfact(iwu(iq),k) &
@@ -224,6 +266,7 @@ do k = 1,wlev
     ss(iq,k) = max(ss(iq,k)+34.72, 0.)
   end do
 end do
+!$omp end parallel do
 
 call END_LOG(waterdiff_end)
 

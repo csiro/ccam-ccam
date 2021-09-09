@@ -171,7 +171,7 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,factchseaice,otaumode               &
     ,alphavis_seaice,alphanir_seaice     &
     ,mlosigma,oclosure,usepice,ominl     &
-    ,omaxl
+    ,omaxl,mlo_timeave_length
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use newmpar_m                              ! Grid parameters
@@ -562,7 +562,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'epsh',epsh)
     call ccnf_put_attg(idnc,'epsp',epsp)
     call ccnf_put_attg(idnc,'epsu',epsu)
-    call ccnf_put_attg(idnc,'fnproc_bcast_max',fnproc_bcast_max)
     call ccnf_put_attg(idnc,'helmmeth',helmmeth)
     call ccnf_put_attg(idnc,'hp_output',hp_output)
     call ccnf_put_attg(idnc,'iaero',iaero)   
@@ -779,8 +778,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'qcmf',qcmf)
     call ccnf_put_attg(idnc,'sigbot_gwd',sigbot_gwd)    
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
+    call ccnf_put_attg(idnc,'tke_timeave_length',tke_timeave_length)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
-    call ccnf_put_attg(idnc,'upshear',upshear)
 
     ! land, urban and carbon
     call ccnf_put_attg(idnc,'ateb_ac_coolcap',ateb_ac_coolcap)
@@ -845,6 +844,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'factchseaice',factchseaice)
     call ccnf_put_attg(idnc,'mindep',mindep)
     call ccnf_put_attg(idnc,'minwater',minwater)
+    call ccnf_put_attg(idnc,'mlo_timeave_length',mlo_timeave_length)
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
     call ccnf_put_attg(idnc,'mlomfix',mlomfix)
@@ -957,7 +957,9 @@ use sigs_m                                       ! Atmosphere sigma levels
 use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
 use soilv_m                                      ! Soil parameters
-use tkeeps, only : tke,eps                       ! TKE-EPS boundary layer
+use tkeeps, only : tke,eps,u_ema,v_ema,w_ema, &  ! TKE-EPS boundary layer
+                   thetal_ema,qv_ema,ql_ema,  &
+                   qf_ema,cf_ema,tke_ema
 use tracermodule, only : writetrpm               ! Tracer routines
 use tracers_m                                    ! Tracer data
 use vegpar_m                                     ! Vegetation arrays
@@ -1950,11 +1952,25 @@ if( myid==0 .or. local ) then
         lname = "Ocean Eddy Diffusivity"
         call attrib(idnc,dimo,osize,"kso",lname,'m2 s-1',0.,10.,0,cptype)
       end if  
-      if ( oclosure==1 .and. (diaglevel_ocean>5.or.itype==-1) ) then
-        lname = "Ocean Turbulent Kinetic Energy"
-        call attrib(idnc,dimo,osize,"tkeo",lname,'m2 s-2',0.,65.,0,cptype)
-        lname = "Ocean Eddy dissipation rate"
-        call attrib(idnc,dimo,osize,"epso",lname,'m2 s-3',0.,6.5,0,cptype)
+      if ( oclosure==1 ) then
+        if (diaglevel_ocean>5 .or. itype==-1 ) then
+          lname = "Ocean Turbulent Kinetic Energy"
+          call attrib(idnc,dimo,osize,"tkeo",lname,'m2 s-2',0.,65.,0,cptype)
+          lname = "Ocean Eddy dissipation rate"
+          call attrib(idnc,dimo,osize,"epso",lname,'m2 s-3',0.,6.5,0,cptype)
+        end if
+        if ( itype==-1 ) then
+          lname = "x-component exponential weighted current"
+          call attrib(idnc,dimo,osize,"uo_ema",lname,'m s-1',-65.,65.,0,cptype)
+          lname = "y-component exponential weighted current"
+          call attrib(idnc,dimo,osize,"vo_ema",lname,'m s-1',-65.,65.,0,cptype)
+          lname = "exponential weighted vertical current"
+          call attrib(idnc,dimo,osize,"wo_ema",lname,'m s-1',-6.5,6.5,0,cptype)
+          lname = "Exponential weighted temp"
+          call attrib(idnc,dimo,osize,"temp_ema",lname,'K',100.,425.,0,cptype)
+          lname = "Exponential weighted sal"
+          call attrib(idnc,dimo,osize,"sal_ema",lname,'PSU',0.,130.,0,cptype)
+        end if
       end if  
     end if
     
@@ -1986,9 +2002,22 @@ if( myid==0 .or. local ) then
     end if
         
     ! TURBULENT MIXING ----------------------------------------------
-    if ( (nvmix==6.or.nvmix==9) .and. (diaglevel_pbl>5.or.itype==-1) ) then
-      call attrib(idnc,dima,asize,'tke','Turbulent Kinetic Energy','m2 s-2',0.,65.,0,cptype)
-      call attrib(idnc,dima,asize,'eps','Eddy dissipation rate','m2 s-3',0.,6.5,0,cptype)
+    if ( nvmix==6 .or. nvmix==9 ) then
+      if ( diaglevel_pbl>5 .or. itype==-1 ) then
+        call attrib(idnc,dima,asize,'tke','Turbulent Kinetic Energy','m2 s-2',0.,65.,0,cptype)
+        call attrib(idnc,dima,asize,'eps','Eddy dissipation rate','m2 s-3',0.,6.5,0,cptype)
+      end if
+      if ( itype==-1 ) then
+        call attrib(idnc,dima,asize,'u_ema','x-component exponentially weighted moving average wind','m s',-150.,150.,0,cptype)
+        call attrib(idnc,dima,asize,'v_ema','y-component exponentially weighted moving average wind','m s',-150.,150.,0,cptype)
+        call attrib(idnc,dima,asize,'w_ema','Exponentially weighted moving average vertical wind','m s',-150.,150.,0,cptype)
+        call attrib(idnc,dima,asize,'thetal_ema','Exponentially weighted moving average thetal','K',100.,425.,0,cptype)
+        call attrib(idnc,dima,asize,'qv_ema','Exponentially weighted moving average qv','kg kg-1',0.,.065,0,cptype)
+        call attrib(idnc,dima,asize,'ql_ema','Exponentially weighted moving average ql','kg kg-1',0.,.065,0,cptype)
+        call attrib(idnc,dima,asize,'qf_ema','Exponentially weighted moving average qf','kg kg-1',0.,.065,0,cptype)
+        call attrib(idnc,dima,asize,'cf_ema','Exponentially weighted moving average cf','m2 s-2',0.,65.,0,cptype)        
+        call attrib(idnc,dima,asize,'tke_ema','Exponentially weighted moving average te','frac',0.,1.,0,cptype)        
+      end if    
     end if
 
     ! TRACER --------------------------------------------------------
@@ -2258,7 +2287,7 @@ if( myid==0 .or. local ) then
       else
         allocate( procnode(2,1), procdata(1) ) ! not used
       end if
-      if ( myid==0 ) write(6,*) '--> gather virtual node ranks'  
+      if ( myid==0 ) write(6,*) '--> gather leader ranks'  
       call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
       if ( myid==0 ) then
         procdata(:) = procnode(1,:)  
@@ -3140,14 +3169,47 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     call histwrt(mlodwn(:,:,2),"so",idnc,iarch,local,.true.)
     call histwrt(mlodwn(:,:,3),"uo",idnc,iarch,local,.true.)
     call histwrt(mlodwn(:,:,4),"vo",idnc,iarch,local,.true.)
-    call histwrt(w_ocn,"wo",idnc,iarch,local,.true.)
+    do k = 1,wlev  
+      oo(:,k) = 0.  
+      call mloexport("w",oo(:,k),k,0)
+    end do  
+    call histwrt(oo,"wo",idnc,iarch,local,.true.)
     if ( diaglevel_ocean>5 ) then
       call histwrt(mlodwn(:,:,5),"kmo",idnc,iarch,local,lwrite)
       call histwrt(mlodwn(:,:,6),"kso",idnc,iarch,local,lwrite)
     end if  
-    if ( oclosure==1 .and. (diaglevel_ocean>5.or.itype==-1) ) then
-      call histwrt(mlodwn(:,:,7),'tkeo',idnc,iarch,local,.true.)
-      call histwrt(mlodwn(:,:,8),'epso',idnc,iarch,local,.true.)
+    if ( oclosure==1 ) then
+      if ( diaglevel_ocean>5 .or. itype==-1 ) then
+        call histwrt(mlodwn(:,:,7),'tkeo',idnc,iarch,local,.true.)
+        call histwrt(mlodwn(:,:,8),'epso',idnc,iarch,local,.true.)
+      end if
+      if ( itype==-1 ) then  
+        do k = 1,wlev  
+          oo(:,k) = 0.  
+          call mloexport("u_ema",oo(:,k),k,0)
+        end do  
+        call histwrt(oo,'uo_ema',idnc,iarch,local,.true.)
+        do k = 1,wlev  
+          oo(:,k) = 0.  
+          call mloexport("v_ema",oo(:,k),k,0)
+        end do  
+        call histwrt(oo,'vo_ema',idnc,iarch,local,.true.)
+        do k = 1,wlev  
+          oo(:,k) = 0.  
+          call mloexport("w_ema",oo(:,k),k,0)
+        end do  
+        call histwrt(oo,'wo_ema',idnc,iarch,local,.true.)
+        do k = 1,wlev  
+          oo(:,k) = 0.  
+          call mloexport("temp_ema",oo(:,k),k,0)
+        end do  
+        call histwrt(oo,'temp_ema',idnc,iarch,local,.true.)
+        do k = 1,wlev  
+          oo(:,k) = 0.  
+          call mloexport("sal_ema",oo(:,k),k,0)
+        end do  
+        call histwrt(oo,'sal_ema',idnc,iarch,local,.true.)
+      end if
     end if  
   end if
 end if
@@ -3180,13 +3242,26 @@ if ( ldr/=0 ) then
 endif
       
 ! TURBULENT MIXING --------------------------------------------
-if ( (nvmix==6.or.nvmix==9) .and. (diaglevel_pbl>5.or.itype==-1) ) then
-  call histwrt(tke,'tke',idnc,iarch,local,.true.)
-  call histwrt(eps,'eps',idnc,iarch,local,.true.)
-  !do k = 1,kl
-  !  tmpry(:,k) = cm0*max(tke(1:ifull,k),mintke)**2/max(eps(1:ifull,k),mineps)
-  !end do
-  !call histwrt(tmpry,"Km",idnc,iarch,local,.true.)
+if ( nvmix==6 .or. nvmix==9 ) then
+  if ( diaglevel_pbl>5 .or. itype==-1 ) then
+    call histwrt(tke,'tke',idnc,iarch,local,.true.)
+    call histwrt(eps,'eps',idnc,iarch,local,.true.)
+    !do k = 1,kl
+    !  tmpry(:,k) = cm0*max(tke(1:ifull,k),mintke)**2/max(eps(1:ifull,k),mineps)
+    !end do
+    !call histwrt(tmpry,"Km",idnc,iarch,local,.true.)
+  end if
+  if ( itype==-1 ) then
+    call histwrt(u_ema,'u_ema',idnc,iarch,local,.true.)
+    call histwrt(v_ema,'v_ema',idnc,iarch,local,.true.)
+    call histwrt(w_ema,'w_ema',idnc,iarch,local,.true.)
+    call histwrt(thetal_ema,'thetal_ema',idnc,iarch,local,.true.)
+    call histwrt(qv_ema,'qv_ema',idnc,iarch,local,.true.)
+    call histwrt(ql_ema,'ql_ema',idnc,iarch,local,.true.)
+    call histwrt(qf_ema,'qf_ema',idnc,iarch,local,.true.)
+    call histwrt(cf_ema,'cf_ema',idnc,iarch,local,.true.)
+    call histwrt(tke_ema,'tke_ema',idnc,iarch,local,.true.)
+  end if  
 end if
 
 ! TRACERS -----------------------------------------------------
@@ -3194,12 +3269,11 @@ if ( ngas>0 ) then
   if ( itype==-1 ) then ! restart
     do igas = 1,ngas
       write(trnum,'(i3.3)') igas
-      call histwrt(tr(:,:,igas),    'tr'//trnum,  idnc,iarch,local,.true.)
+      call histwrt(tr(:,:,igas),'tr'//trnum,  idnc,iarch,local,.true.)
     enddo ! igas loop
   else                  ! history
     do igas = 1,ngas
       write(trnum,'(i3.3)') igas
-      !call histwrt(tr(:,:,igas),    'tr'//trnum,  idnc,iarch,local,.true.)
       call histwrt(traver(:,:,igas),'trav'//trnum,idnc,iarch,local,lave)
       ! rml 14/5/10 option to write out local time afternoon average
       if ( writetrpm ) then

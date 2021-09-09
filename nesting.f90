@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1246,10 +1246,8 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU  
   !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#endif
   do j = 1,jpan
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -1271,9 +1269,7 @@ do ipass = 0,2
       end do
     end do
   end do
-#ifndef GPU
   !$omp end do nowait
-#endif
     
   ! start convolution
 #ifdef _OPENMP
@@ -1303,19 +1299,15 @@ do ipass = 0,2
   !$acc end parallel loop
 #endif
 
-#ifndef GPU
   !$omp do schedule(static) private(j,n,ibase)
-#endif
   do j = 1,jpan
     do n = 1,ipan
       ibase = n + (j-1)*ipan
       ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = ff_l(:,n,j)
     end do
   end do
-#ifndef GPU
   !$omp end do
   !$omp end parallel
-#endif
 
 end do
 
@@ -1373,10 +1365,8 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
 !$omp parallel
 !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#endif
 do j = 1,ipan    
   ! pack from sparse arrays
   jj = j + ns - 1
@@ -1398,9 +1388,7 @@ do j = 1,ipan
     end do
   end do
 end do
-#ifndef GPU
 !$omp end do nowait
-#endif
   
 ! start convolution
 #ifdef _OPENMP
@@ -1487,10 +1475,8 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU
   !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#endif
   do j = 1,ipan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -1512,9 +1498,7 @@ do ipass = 0,2
       end do
     end do
   end do
-#ifndef GPU
   !$omp end do nowait
-#endif
   
   ! start convolution
 #ifdef _OPENMP
@@ -1544,19 +1528,15 @@ do ipass = 0,2
   !$acc end parallel loop
 #endif
 
-#ifndef GPU
   !$omp do schedule(static) private(j,n,ibase)
-#endif
   do j = 1,ipan
     do n = 1,jpan
       ibase = n + (j-1)*jpan
       ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = ff_l(:,n,j)
     end do
   end do
-#ifndef GPU  
   !$omp end do
   !$omp end parallel
-#endif
 
 end do
 
@@ -1613,10 +1593,8 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
 !$omp parallel
 !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#endif
 do j = 1,jpan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -1639,9 +1617,7 @@ do j = 1,jpan
     end do
   end do
 end do
-#ifndef GPU
 !$omp end do nowait
-#endif
   
 ! start convolution
 #ifdef _OPENMP
@@ -2556,10 +2532,8 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU
   !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#endif
   do j = 1,jpan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -2582,9 +2556,7 @@ do ipass = 0,2
       end do
     end do
   end do
-#ifndef GPU
   !$omp end do nowait
-#endif
     
   ! start convolution
 #ifdef _OPENMP
@@ -2614,19 +2586,15 @@ do ipass = 0,2
   !$acc end parallel loop
 #endif
 
-#ifndef GPU
   !$omp do schedule(static) private(j,n,ibase)
-#endif
   do j = 1,jpan
     do n = 1,ipan
       ibase = n + (j-1)*ipan
       yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = yy_l(:,n,j)
     end do
   end do
-#ifndef GPU  
   !$omp end do
   !$omp end parallel
-#endif
 
 end do
 
@@ -2684,10 +2652,8 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
 !$omp parallel
 !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#endif
 do j = 1,ipan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -2710,9 +2676,7 @@ do j = 1,ipan
     end do
   end do
 end do
-#ifndef GPU
 !$omp end do nowait
-#endif
   
 ! start convolution
 #ifdef _OPENMP
@@ -2795,10 +2759,8 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU  
   !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#endif
   do j = 1,ipan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -2820,9 +2782,7 @@ do ipass = 0,2
       end do
     end do
   end do
-#ifndef GPU  
   !$omp end do nowait
-#endif
     
   ! start convolution
 #ifdef _OPENMP
@@ -2852,19 +2812,15 @@ do ipass = 0,2
   !$acc end parallel loop
 #endif
 
-#ifndef GPU
   !$omp do schedule(static) private(j,n,ibase)
-#endif
   do j = 1,ipan
     do n = 1,jpan
       ibase = n + (j-1)*jpan
       yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = yy_l(:,n,j)
     end do
   end do
-#ifndef GPU
   !$omp end do
   !$omp end parallel
-#endif
 
 end do
 
@@ -2922,10 +2878,8 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
 !$omp parallel
 !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#endif
 do j = 1,jpan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -2948,9 +2902,7 @@ do j = 1,jpan
     end do
   end do
 end do
-#ifndef GPU
 !$omp end do nowait
-#endif
   
 ! start convolution
 #ifdef _OPENMP

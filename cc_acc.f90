@@ -30,7 +30,7 @@ module cc_acc
    implicit none
    private
 
-   integer, save, private :: gpuid
+   integer, save, private :: gpuid = -1
 
    public ::  ccacc_init
 
@@ -39,8 +39,9 @@ module cc_acc
    subroutine ccacc_init(myid,nproc,ngpus)
 
      integer, intent(in) :: myid, nproc
-     integer, intent(out) :: ngpus
+     integer, intent(inout) :: ngpus
 
+#ifndef _OPENMP     
 #ifdef _OPENACC
      integer :: device_num
      integer(acc_device_kind) :: devicetype
@@ -50,12 +51,8 @@ module cc_acc
 
      call acc_set_device_num(mod(myid,nproc),devicetype)
      gpuid = acc_get_device_num(devicetype)
-#else
-     ngpus=0
-     gpuid=-1
 #endif
-
-!   write(6,*)"Number of GPUS, assigned GPU",myid,ngpus,gpuid
+#endif
 
    end subroutine ccacc_init
  

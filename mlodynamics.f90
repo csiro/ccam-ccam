@@ -299,6 +299,7 @@ real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull,wlev) :: rhobaru, rhobarv, rhobar
 real, dimension(ifull,wlev) :: depdum,dzdum,mfixdum
 real, dimension(ifull,wlev) :: mps, workdata, worku, workv
+real, dimension(ifull,wlev) :: w_ocn
 real, dimension(ifull,0:wlev) :: nw
 real, dimension(ifull,4) :: i_it
 real, dimension(ifull,3) :: gamm
@@ -1262,11 +1263,14 @@ call mlodiffusion_work(w_u,w_v,w_t,w_s)
 
 ! STORE WATER AND ICE DATA IN MLO ------------------------------------------
 call START_LOG(waterpack_begin)
-call mloimport3d(0,w_t,0)
-call mloimport3d(1,w_s,0)
-call mloimport3d(2,w_u,0)
-call mloimport3d(3,w_v,0)
-call mloimport(4,neta(1:ifull),0,0)
+do ii = 1,wlev
+  call mloimport("temp",w_t(:,ii),ii,0)
+  call mloimport("sal",w_s(:,ii),ii,0)
+  call mloimport("u",w_u(:,ii),ii,0)
+  call mloimport("v",w_v(:,ii),ii,0)
+  call mloimport("w",w_ocn(:,ii),ii,0)
+end do    
+call mloimport("eta",neta(1:ifull),0,0)
 do ii = 1,4
   call mloimpice(nit(1:ifull,ii),ii,0)
 end do
@@ -1380,23 +1384,54 @@ end if
 #ifdef _OPENMP
 #ifdef GPU
 !$omp target data map(to:its,dtnew,ww,depdum,dzdum)
+#else
+!$omp parallel sections
 #endif
 #else
 !$acc data create(its,dtnew,ww,depdum,dzdum)
 !$acc update device(its,dtnew,ww,depdum,dzdum)
 #endif
 
+#ifdef _OPENMP
+#ifndef GPU
+!$omp section
+#endif
+#endif
 call mlotvd(its,dtnew,ww,uu,depdum,dzdum)
+#ifdef _OPENMP
+#ifndef GPU
+!$omp section
+#endif
+#endif
 call mlotvd(its,dtnew,ww,vv,depdum,dzdum)
+#ifdef _OPENMP
+#ifndef GPU
+!$omp section
+#endif
+#endif
 call mlotvd(its,dtnew,ww,ss,depdum,dzdum)
+#ifdef _OPENMP
+#ifndef GPU
+!$omp section
+#endif
+#endif
 call mlotvd(its,dtnew,ww,tt,depdum,dzdum)
+#ifdef _OPENMP
+#ifndef GPU
+!$omp section
+#endif
+#endif
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
 
 #ifdef _OPENMP
 #ifdef GPU
 !$omp end target data
+#else
+!$omp end sections
+!$omp end parallel
 #endif
 #else
+!$acc wait
 !$acc end data
 #endif
   
@@ -1416,6 +1451,8 @@ use newmpar_m
 implicit none
 
 integer ii,i,iq,kp,kx
+integer, parameter :: async_length = 2
+integer, save :: async_counter = -1
 integer, dimension(ifull), intent(in) :: its
 real, dimension(ifull), intent(in) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
@@ -1428,23 +1465,23 @@ real fl,fh,cc,rr
 ! f=(w*u) at half levels
 ! du/dt = u*dw/dz-df/dz = -w*du/dz
 
+async_counter = mod( async_counter+1, async_length )
+
 #ifdef _OPENMP
 #ifdef GPU
 !$omp target enter data map(to:uu) map(alloc:delu,ff)
 #endif
 #else
-!$acc enter data create(uu,delu,ff)
-!$acc update device(uu)
+!$acc enter data create(uu,delu,ff) async(async_counter)
+!$acc update device(uu) async(async_counter)
 #endif
 
 #ifdef _OPENMP
 #ifdef GPU
-!$omp target teams distribute parallel do collpase(2) shedule(static) private(ii,iq)
-#else
-!$omp parallel do collapse(2) schedule(static) private(ii,iq)
+!$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
 #endif
 #else
-!$acc parallel loop collapse(2) present(delu,uu)
+!$acc parallel loop collapse(2) present(delu,uu) async(async_counter)
 #endif
 do ii = 1,wlev-1
   do iq = 1,ifull
@@ -1454,20 +1491,16 @@ end do
 #ifdef _OPENMP
 #ifdef GPU
 !$omp end target teams distribute parallel do
-#else
-!$omp end parallel do
 #endif
 #else 
 !$acc end parallel loop
 #endif
 #ifdef _OPENMP
 #ifdef GPU
-!$omp target teams distribute parallel do shedule(static) private(iq)
-#else
-!$omp parallel do schedule(static) private(iq)
+!$omp target teams distribute parallel do schedule(static) private(iq)
 #endif
 #else
-!$acc parallel loop present(ff,delu) 
+!$acc parallel loop present(ff,delu) async(async_counter)
 #endif
 do iq = 1,ifull
   ff(iq,0) = 0.
@@ -1478,8 +1511,6 @@ end do
 #ifdef _OPENMP
 #ifdef GPU
 !$omp end target teams distribute parallel do
-#else
-!$omp end parallel do
 #endif
 #else 
 !$acc end parallel loop
@@ -1488,12 +1519,10 @@ end do
 ! TVD part
 #ifdef _OPENMP
 #ifdef GPU
-!$omp target teams distribute parallel do collpase(2) shedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
-#else
-!$omp parallel do collapse(2) schedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
+!$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
 #endif
 #else
-!$acc parallel loop collapse(2) present(ww,delu,uu,dtnew,depdum)
+!$acc parallel loop collapse(2) present(ww,delu,uu,dtnew,depdum) async(async_counter)
 #endif
 do ii = 1,wlev-1
   do iq = 1,ifull
@@ -1513,20 +1542,16 @@ end do
 #ifdef _OPENMP
 #ifdef GPU
 !$omp end target teams distribute parallel do
-#else
-!$omp end parallel do
 #endif
 #else 
 !$acc end parallel loop
 #endif
 #ifdef _OPENMP
 #ifdef GPU
-!$omp target teams distribute parallel do collpase(2) shedule(static) private(ii,iq)
-#else
-!$omp parallel do collapse(2) schedule(static) private(ii,iq)
+!$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
 #endif
 #else
-!$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum)
+!$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum) async(async_counter)
 #endif
 do ii = 1,wlev
   do iq = 1,ifull
@@ -1539,8 +1564,6 @@ end do
 #ifdef _OPENMP
 #ifdef GPU
 !$omp end target teams distribute parallel do
-#else
-!$omp end parallel do
 #endif
 #else 
 !$acc end parallel loop
@@ -1549,12 +1572,10 @@ end do
 
 #ifdef _OPENMP
 #ifdef GPU
-!$omp target teams distribute parallel do shedule(static) private(iq,i,ii,kp,kx,rr,fl,cc,fh)
-#else
-!$omp parallel do schedule(static) private(iq,i,ii,kp,kx,rr,fl,cc,fh)
+!$omp target teams distribute parallel do schedule(static) private(iq,i,ii,kp,kx,rr,fl,cc,fh)
 #endif
 #else
-!$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum)
+!$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum) async(async_counter)
 #endif
 do iq = 1,ifull
   do i = 2,its(iq)
@@ -1585,8 +1606,6 @@ end do
 #ifdef _OPENMP
 #ifdef GPU
 !$omp end target teams distribute parallel do
-#else
-!$omp end parallel do
 #endif
 #else 
 !$acc end parallel loop
@@ -1597,8 +1616,8 @@ end do
 !$omp target exit data map(from:uu)
 #endif
 #else
-!$acc update self(uu)
-!$acc exit data delete(uu,delu,ff)
+!$acc update self(uu) async(async_counter)
+!$acc exit data delete(uu,delu,ff) async(async_counter)
 #endif
 
 return

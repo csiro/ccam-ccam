@@ -1340,10 +1340,11 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,alphavis_seaice,alphanir_seaice     &
     ,otaumode,mlosigma,wlev,oclosure     &
     ,pdl,pdu,nsteps,k_mode,eps_mode      &
-    ,limitL,fixedce3,calcinloop,nops     &
+    ,limitL,fixedce3,nops                &
     ,nopb,fixedstabfunc,omink => mink    &
     ,omineps => mineps,mlovlevels        &
-    ,usepice,ominl,omaxl
+    ,usepice,ominl,omaxl                 &
+    ,mlo_timeave_length
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -1406,10 +1407,10 @@ integer secs_rad, nversion
 integer mstn, io_nest, mbd_min
 integer opt, nopt
 integer ateb_intairtmeth, ateb_intmassmeth
-integer ngpus
 integer npa, npb, tkecduv, tblock  ! depreciated namelist options
 integer o3_time_interpolate        ! depreciated namelist options
-integer kmlo                       ! depreciated namelist options
+integer kmlo, calcinloop           ! depreciated namelist options
+integer fnproc_bcast_max           ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -1458,11 +1459,11 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,nriver,           &
     atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
     always_mspeca,                                                &
-    procmode,compression,hp_output,fnproc_bcast_max,              & ! file io
+    procmode,compression,hp_output,                               & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
-    npa,npb,cgmap_offset,cgmap_scale,procformat                     ! depreciated
+    npa,npb,cgmap_offset,cgmap_scale,procformat,fnproc_bcast_max    ! depreciated
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
@@ -1502,7 +1503,8 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
-    stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,upshear,           &
+    stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,                   &
+    tke_timeave_length,                                           &
     amxlsq,dvmodmin,                                              & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
     tkecduv,zimax                                                   ! depreciated
@@ -1530,10 +1532,11 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
     alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,nodrift, &
     kmlo,                                                         &
-    pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    & ! k-e
-    nops,nopb,fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,   &
+    pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,nops,nopb,     & ! k-e
+    fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
+    mlo_timeave_length,                                           &
     rivermd,basinmd,rivercoeff,                                   & ! River
-    mlomfix                                                         ! Depreciated
+    mlomfix,calcinloop                                              ! Depreciated
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
 
@@ -1610,7 +1613,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(118) ) 
+allocate( dumr(33), dumi(117) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1765,7 +1768,6 @@ if ( myid==0 ) then
   dumi(115) = intsch_mode
   dumi(116) = qg_fix
   if ( always_mspeca ) dumi(117) = 1
-  dumi(118) = fnproc_bcast_max
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1919,7 +1921,6 @@ hp_output         = dumi(114)
 intsch_mode       = dumi(115)
 qg_fix            = dumi(116)
 always_mspeca     = dumi(117)==1
-fnproc_bcast_max  = dumi(118)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -2199,7 +2200,7 @@ nevapls          = dumi(21)
 vdeposition_mode = dumi(22)
 tiedtke_form     = dumi(23)
 deallocate( dumr, dumi )
-allocate( dumr(29), dumi(5) )
+allocate( dumr(30), dumi(4) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2238,48 +2239,48 @@ if ( myid==0 ) then
   dumr(27) = ent_min
   dumr(28) = mfbeta
   dumr(29) = dvmodmin
+  dumr(30) = tke_timeave_length
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
   dumi(4)  = ngwd
-  dumi(5)  = upshear
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
-be         = dumr(1)
-cm0        = dumr(2)
-ce0        = dumr(3)
-ce1        = dumr(4)
-ce2        = dumr(5)
-ce3        = dumr(6)
-cqmix      = dumr(7)
-ent0       = dumr(8)
-ent1       = dumr(9)
-entc0      = dumr(10)
-dtrc0      = dumr(11)
-m0         = dumr(12)
-b1         = dumr(13)
-b2         = dumr(14)
-maxdts     = dumr(15)
-mintke     = dumr(16)
-mineps     = dumr(17) 
-minl       = dumr(18)
-maxl       = dumr(19)
-qcmf       = dumr(20)
-ezmin      = dumr(21)
-amxlsq     = dumr(22)
-helim      = dumr(23)
-fc2        = dumr(24)
-sigbot_gwd = dumr(25)
-alphaj     = dumr(26)
-ent_min    = dumr(27)
-mfbeta     = dumr(28)
-dvmodmin   = dumr(29)
-buoymeth   = dumi(1)
-stabmeth   = dumi(2)
-tkemeth    = dumi(3)
-ngwd       = dumi(4)
-upshear    = dumi(5)
+be                 = dumr(1)
+cm0                = dumr(2)
+ce0                = dumr(3)
+ce1                = dumr(4)
+ce2                = dumr(5)
+ce3                = dumr(6)
+cqmix              = dumr(7)
+ent0               = dumr(8)
+ent1               = dumr(9)
+entc0              = dumr(10)
+dtrc0              = dumr(11)
+m0                 = dumr(12)
+b1                 = dumr(13)
+b2                 = dumr(14)
+maxdts             = dumr(15)
+mintke             = dumr(16)
+mineps             = dumr(17) 
+minl               = dumr(18)
+maxl               = dumr(19)
+qcmf               = dumr(20)
+ezmin              = dumr(21)
+amxlsq             = dumr(22)
+helim              = dumr(23)
+fc2                = dumr(24)
+sigbot_gwd         = dumr(25)
+alphaj             = dumr(26)
+ent_min            = dumr(27)
+mfbeta             = dumr(28)
+dvmodmin           = dumr(29)
+tke_timeave_length = dumr(30)
+buoymeth           = dumi(1)
+stabmeth           = dumi(2)
+tkemeth            = dumi(3)
+ngwd               = dumi(4)
 deallocate( dumr, dumi )
 allocate( dumr(23), dumi(31) )
 dumr = 0.
@@ -2403,7 +2404,7 @@ ateb_statsmeth    = dumi(29)
 ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(17), dumi(21) )
+allocate( dumr(18), dumi(20) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2430,6 +2431,7 @@ if ( myid==0 ) then
   dumr(15) = ocndelphi
   dumr(16) = ominl
   dumr(17) = omaxl
+  dumr(18) = mlo_timeave_length
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2445,53 +2447,52 @@ if ( myid==0 ) then
   dumi(13) = eps_mode
   dumi(14) = limitL
   dumi(15) = fixedce3
-  dumi(16) = calcinloop
-  dumi(17) = nops
-  dumi(18) = nopb
-  dumi(19) = fixedstabfunc
-  dumi(20) = mlomfix
-  dumi(21) = nodrift
+  dumi(16) = nops
+  dumi(17) = nopb
+  dumi(18) = fixedstabfunc
+  dumi(19) = mlomfix
+  dumi(20) = nodrift
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
-ocnsmag         = dumr(1) 
-ocneps          = dumr(2) 
-zoseaice        = dumr(3) 
-factchseaice    = dumr(4)
-minwater        = dumr(5) 
-mxd             = dumr(6)
-mindep          = dumr(7)
-alphavis_seaice = dumr(8)
-alphanir_seaice = dumr(9)
-rivercoeff      = dumr(10)
-pdl             = dumr(11)
-pdu             = dumr(12)
-omink           = dumr(13)
-omineps         = dumr(14)
-ocndelphi       = dumr(15)
-ominl           = dumr(16)
-omaxl           = dumr(17)
-mlodiff         = dumi(1)
-usetide         = dumi(2) 
-zomode          = dumi(3) 
-otaumode        = dumi(4) 
-rivermd         = dumi(5)
-basinmd         = dumi(6)
-mlojacobi       = dumi(7)
-usepice         = dumi(8)
-mlosigma        = dumi(9)
-oclosure        = dumi(10)
-nsteps          = dumi(11)
-k_mode          = dumi(12)
-eps_mode        = dumi(13)
-limitL          = dumi(14)
-fixedce3        = dumi(15)
-calcinloop      = dumi(16)
-nops            = dumi(17)
-nopb            = dumi(18)
-fixedstabfunc   = dumi(19)
-mlomfix         = dumi(20)
-nodrift         = dumi(21)
+ocnsmag            = dumr(1) 
+ocneps             = dumr(2) 
+zoseaice           = dumr(3) 
+factchseaice       = dumr(4)
+minwater           = dumr(5) 
+mxd                = dumr(6)
+mindep             = dumr(7)
+alphavis_seaice    = dumr(8)
+alphanir_seaice    = dumr(9)
+rivercoeff         = dumr(10)
+pdl                = dumr(11)
+pdu                = dumr(12)
+omink              = dumr(13)
+omineps            = dumr(14)
+ocndelphi          = dumr(15)
+ominl              = dumr(16)
+omaxl              = dumr(17)
+mlo_timeave_length = dumr(18)
+mlodiff            = dumi(1)
+usetide            = dumi(2) 
+zomode             = dumi(3) 
+otaumode           = dumi(4) 
+rivermd            = dumi(5)
+basinmd            = dumi(6)
+mlojacobi          = dumi(7)
+usepice            = dumi(8)
+mlosigma           = dumi(9)
+oclosure           = dumi(10)
+nsteps             = dumi(11)
+k_mode             = dumi(12)
+eps_mode           = dumi(13)
+limitL             = dumi(14)
+fixedce3           = dumi(15)
+nops               = dumi(16)
+nopb               = dumi(17)
+fixedstabfunc      = dumi(18)
+mlomfix            = dumi(19)
+nodrift            = dumi(20)
 if ( oclosure==0 ) then
   nsteps = 1
 end if
@@ -2654,7 +2655,7 @@ call ccomp_init(node_myid,node_nproc,ngpus)
 call ccacc_init(node_myid,node_nproc,ngpus)
 
 if ( myid==0 ) then
-  write(6,'(a20," running for nproc    =",i7)') version,nproc
+  write(6,'(a20," running for nproc    = ",i12)') version,nproc
   write(6,*) 'Using defaults for nversion              = ',nversion
 #ifdef usempi3
   write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
@@ -2662,7 +2663,7 @@ if ( myid==0 ) then
 #ifdef i8r8
   write(6,*) 'Using double precision mode'
 #endif
-#ifdef _OPENMPI
+#ifdef _OPENMP
   write(6,*) 'Using OpenMP with number of threads      = ',maxthreads
 #ifdef GPU
   write(6,*) 'Using OpenMP with number of GPUs         = ',ngpus

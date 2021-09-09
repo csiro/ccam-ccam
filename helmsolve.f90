@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -893,7 +893,7 @@ do k = 1,kl
     end do  
   end do
   
-end do
+end do ! k loop
 
 do nc = 1,maxcolour
   do iq = 1,ifull_colour(nc)
@@ -930,6 +930,7 @@ do i = 1,itrbgn
     ! calcuate non-border points while waiting for halo to update
     isc = ifull_colour_border(nc) + 1
     iec = ifull_colour(nc)
+    !$omp parallel do schedule(static) private(k,iq)
     do k = 1,kl
       do iq = isc,iec  
         iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)     &
@@ -942,11 +943,13 @@ do i = 1,itrbgn
         iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
       end do  
     end do
+    !$omp end parallel do
     call bounds_colour_recv(iv,nc)
-  end do
-end do
+  end do ! nc (colour) loop
+end do   ! i (itr) loop
 
 ! calculate residual
+!$omp parallel do schedule(static) private(k,iq)
 do k = 1,kl
   do iq = 1,ifull
     w(iq,k) = -izzn(iq)*iv(in(iq),k) - izzw(iq)*iv(iw(iq),k) &
@@ -956,6 +959,7 @@ do k = 1,kl
     w(iq,k+kl) = ihelm(iq,k)
   end do  
 end do
+!$omp end parallel do
 
 ! For when the inital grid cannot be upscaled - note helm and smaxmin_g are also included
 call mgcollect(1,w(:,1:2*kl),smaxmin_g(1:2*kl,1:2))
@@ -1001,8 +1005,8 @@ if ( mg_maxlevel_local>0 ) then
                    + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
                    - rhs(iq,k,g))/(helm(iq,k,g)-mg(g)%zz(iq))
         end do
+        v(1:ng,k,g) = w(1:ng,k)  
       end do
-      v(1:ng,1:kl,g) = w(1:ng,1:kl)
       call mgbounds(g,v(:,1:kl,g))
     end do
   
@@ -1183,6 +1187,7 @@ do i = 1,itrend
     ! calculate non-boundary grid points while waiting for the halo to be updated
     isc = ifull_colour_border(nc) + 1
     iec = ifull_colour(nc)
+    !$omp parallel do schedule(static) private(k,iq)
     do k = 1,kl
       do iq = isc,iec  
         iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
@@ -1195,16 +1200,15 @@ do i = 1,itrend
         iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
       end do  
     end do
+    !$omp end parallel do
     call bounds_colour_recv(iv,nc)
-  end do
-end do
+  end do ! nc (colour) loop
+end do   ! i (itr) loop
 
 do k = 1,kl
-
   ! remove offsets
   savg(k) = 0.5*(smaxmin_g(k,1)+smaxmin_g(k,2))
   sdif(k) = smaxmin_g(k,1) - smaxmin_g(k,2)
-
   iv(:,k) = iv(:,k) - savg(k)
   irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)
   ! re-pack colour arrays at fine level to remove offsets
@@ -1213,7 +1217,7 @@ do k = 1,kl
       rhsc(iq,k,nc) = irhs(iqx(iq,nc),k)
     end do  
   end do
-end do
+end do ! k loop
 
 call END_LOG(mgsetup_end)
 
@@ -1253,6 +1257,7 @@ do itr = 2,itr_mg
       ! calculate non-boundary grid points while waiting for halo to update
       isc = ifull_colour_border(nc) + 1
       iec = ifull_colour(nc)
+      !$omp parallel do schedule(static) private(k,iq)
       do k = 1,klim
         do iq = isc,iec  
           iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
@@ -1265,10 +1270,12 @@ do itr = 2,itr_mg
           iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
         end do  
       end do
+      !$omp end parallel do
       call bounds_colour_recv(iv,nc,klim=klim)
-    end do
-  end do
-  
+    end do ! nc (colour) loop
+  end do   ! i (itr) loop
+
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,klim
     ! test for convergence
     dsolmax_g(k) = maxval(abs(iv(1:ifull,k)-iv_old(1:ifull,k))) ! cannot vectorise with -fp-precise
@@ -1280,6 +1287,7 @@ do itr = 2,itr_mg
               +irhs(iq,k)+iv(iq,k)*(ihelm(iq,k)-izz(iq))
     end do
   end do
+  !$omp end parallel do
   
   ! For when the inital grid cannot be upscaled
   call mgcollect(1,w(:,1:klim),dsolmax_g(1:klim),klim=klim)
@@ -1512,6 +1520,7 @@ do itr = 2,itr_mg
       call bounds_colour_send(iv_new,nc,klim=klim)
       isc = ifull_colour_border(nc) + 1
       iec = ifull_colour(nc)
+      !$omp parallel do schedule(static) private(k,iq)
       do k = 1,klim
         do iq = isc,iec  
           iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
@@ -1524,9 +1533,10 @@ do itr = 2,itr_mg
           iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
         end do  
       end do
+      !$omp end parallel do
       call bounds_colour_recv(iv,nc,klim=klim)
-    end do
-  end do
+    end do ! nc (colour) loop
+  end do   ! i (itr) loop
 
   call END_LOG(mgfine_end)
 

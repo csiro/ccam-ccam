@@ -323,7 +323,7 @@ use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
 use mlo, only : wlev,micdwn,mloregrid,wrtemp, &
-    mloexpdep,mink,mineps,oclosure             ! Ocean physics and prognostic arrays
+    mloexpdep,mink,mineps,oclosure,mloimport   ! Ocean physics and prognostic arrays
 use mlodynamics                                ! Ocean dynamics
 use mlodynamicsarrays_m                        ! Ocean dynamics data
 use mlostag                                    ! Ocean dynamics staggering
@@ -346,7 +346,9 @@ use sigs_m                                     ! Atmosphere sigma levels
 use soil_m                                     ! Soil and surface data
 use soilv_m                                    ! Soil parameters
 use stime_m                                    ! File date data
-use tkeeps, only : tke,eps                     ! TKE-EPS boundary layer
+use tkeeps, only : tke,eps,u_ema,v_ema,w_ema, &
+    thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,   &
+    tke_ema                                    ! TKE-EPS boundary layer
 use tracers_m                                  ! Tracer data
 use utilities                                  ! Grid utilities
 use vecsuv_m                                   ! Map to cartesian coordinates
@@ -380,6 +382,7 @@ real, dimension(:), intent(out) :: psl, zss, tss, fracice
 real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
 real, dimension(ifull,6) :: udum6
+real, dimension(ifull,wlev) :: oo
 real, dimension(:,:), allocatable :: ucc6
 real, dimension(:), allocatable :: ucc
 real, dimension(:), allocatable :: fracice_a, sicedep_a
@@ -1751,6 +1754,26 @@ if ( nested/=1 .and. nested/=3 ) then
       if ( oclosure==1 ) then
         call fillhist4o('tkeo',mlodwn(:,:,7),land_3d,fill_floor,ocndwn(:,1))  
         call fillhist4o('epso',mlodwn(:,:,8),land_3d,fill_floor,ocndwn(:,1))
+        call fillhist4o('uo_ema',oo,land_3d,fill_floor,ocndwn(:,1))
+        do k = 1,wlev
+          call mloimport('u_ema',oo(:,k),k,0)
+        end do  
+        call fillhist4o('vo_ema',oo,land_3d,fill_floor,ocndwn(:,1))
+        do k = 1,wlev
+          call mloimport('v_ema',oo(:,k),k,0)
+        end do  
+        call fillhist4o('wo_ema',oo,land_3d,fill_floor,ocndwn(:,1))
+        do k = 1,wlev
+          call mloimport('w_ema',oo(:,k),k,0)
+        end do         
+        call fillhist4o('temp_ema',oo,land_3d,fill_floor,ocndwn(:,1))
+        do k = 1,wlev
+          call mloimport('temp_ema',oo(:,k),k,0)
+        end do  
+        call fillhist4o('sal_ema',oo,land_3d,fill_floor,ocndwn(:,1))
+        do k = 1,wlev
+          call mloimport('sal_ema',oo(:,k),k,0)
+        end do  
       end if  
     end if  
   end if
@@ -1803,6 +1826,15 @@ if ( nested/=1 .and. nested/=3 ) then
     if ( all(tke(1:ifull,:)<1.e-20) ) tke(1:ifull,:)=1.5E-4
     call gethist4a('eps',eps,5)
     if  (all(eps(1:ifull,:)<1.e-20) ) eps(1:ifull,:)=1.E-7
+    call gethist4a('u_ema',u_ema,5)
+    call gethist4a('v_ema',v_ema,5)
+    call gethist4a('w_ema',w_ema,5)
+    call gethist4a('thetal_ema',thetal_ema,5)
+    call gethist4a('qv_ema',qv_ema,5)
+    call gethist4a('ql_ema',ql_ema,5)
+    call gethist4a('qf_ema',qf_ema,5)
+    call gethist4a('cf_ema',cf_ema,5)
+    call gethist4a('tke_ema',cf_ema,5)
   end if
 
   !------------------------------------------------------------------
@@ -3307,10 +3339,6 @@ if ( allocated(filemap_send) ) then
   write(6,*) "ERROR: Close input file before opening a new file"
   call ccmpi_abort(-1)
 end if
-if ( allocated(filemap_facecomm) ) then
-  write(6,*) "ERROR: Close input file before opening a new file"
-  call ccmpi_abort(-1)
-end if
 if ( allocated(axs_w) ) then
   deallocate( axs_w, ays_w, azs_w )
   deallocate( bxs_w, bys_w, bzs_w )
@@ -3358,65 +3386,34 @@ do w = 0,fnproc-1
   end if
 end do
 
-if ( fnproc<=fnproc_bcast_max ) then
-    
-  ! Construct bcast comms for single panel case
-  allocate( filemap_facecomm(0:fnproc-1), filemap_rinv(0:fnproc-1) )
-  filemap_rinv(:) = -1
-  if ( myid==0 ) then
-    write(6,*) "--> Create Bcast comms for panel input"
-  end if
-  do w = 0,fnproc-1
-    sourceid = mod( w, fnresid )
-    if ( lfile(w) .or. myid==sourceid ) then
-      colour = 1
-      do ncount = 1,size(filemap_recv)
-        if ( filemap_recv(ncount)+filemap_rmod(ncount)*fnresid==w ) then
-          filemap_rinv(w) = ncount  
-        end if    
-      end do   
-    else
-      colour = -1
-    end if  
-    newid = myid - sourceid
-    if ( newid<0 ) then
-      newid = newid + nproc
-    end if  
-    call ccmpi_commsplit(filemap_facecomm(w),comm_world,colour,newid)   
-  end do
-  
-else
-    
-  ! Construct a map of processes that need this file
-  if ( myid==0 ) then
-    write(6,*) "--> Create map of processes that need this file"  
-  end if
-  allocate( tempmap_send(nproc*fncount), tempmap_smod(nproc*fncount) )
-  tempmap_send(:) = -1
-  tempmap_smod(:) = -1
-  ncount = 0
-  do ipf = 0,fncount-1
-    lproc(:) = .false.
-    do w = 1,size(filemap_recv)
-      if ( filemap_rmod(w) == ipf ) then
-        lproc(filemap_recv(w)) = .true.
-      end if
-    end do  
-    call ccmpi_alltoall(lproc,comm_world) ! global transpose
-    do w = 0,nproc-1
-      if ( lproc(w) ) then
-        ncount = ncount + 1
-        tempmap_send(ncount) = w
-        tempmap_smod(ncount) = ipf
-      end if
-    end do  
-  end do
-  allocate( filemap_send(ncount), filemap_smod(ncount) )
-  filemap_send(1:ncount) = tempmap_send(1:ncount)
-  filemap_smod(1:ncount) = tempmap_smod(1:ncount)
-  deallocate( tempmap_send, tempmap_smod )
-
+! Construct a map of processes that need this file
+if ( myid==0 ) then
+  write(6,*) "--> Create map of processes that need this file"  
 end if
+allocate( tempmap_send(nproc*fncount), tempmap_smod(nproc*fncount) )
+tempmap_send(:) = -1
+tempmap_smod(:) = -1
+ncount = 0
+do ipf = 0,fncount-1
+  lproc(:) = .false.
+  do w = 1,size(filemap_recv)
+    if ( filemap_rmod(w) == ipf ) then
+      lproc(filemap_recv(w)) = .true.
+    end if
+  end do  
+  call ccmpi_alltoall(lproc,comm_world) ! global transpose
+  do w = 0,nproc-1
+    if ( lproc(w) ) then
+      ncount = ncount + 1
+      tempmap_send(ncount) = w
+      tempmap_smod(ncount) = ipf
+    end if
+  end do  
+end do
+allocate( filemap_send(ncount), filemap_smod(ncount) )
+filemap_send(1:ncount) = tempmap_send(1:ncount)
+filemap_smod(1:ncount) = tempmap_smod(1:ncount)
+deallocate( tempmap_send, tempmap_smod )
 
 ! Define halo indices for ccmpi_filebounds
 if ( myid==0 ) then

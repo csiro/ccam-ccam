@@ -145,7 +145,7 @@ if ( intsch==1 ) then
 
 #ifdef _OPENMP
 #ifdef GPU
-    !$omp target teams distribute parallel do collapse(2) shedule(static)             &
+    !$omp target teams distribute parallel do collapse(2) schedule(static),           &
     !$omp map(to:sx) map(from:s) private(k,iq,idel,xxg,jdel,yyg)                      &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)   &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
@@ -240,7 +240,7 @@ if ( intsch==1 ) then
 
 #ifdef _OPENMP
 #ifdef GPU
-    !$omp target teams distribute parallel do collapse(2) shedule(static)             &
+    !$omp target teams distribute parallel do collapse(2) schedule(static)            &
     !$omp map(to:sx) map(from:s) private(k,iq,idel,xxg,jdel,yyg)                      &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)   &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
@@ -379,7 +379,7 @@ else     ! if(intsch==1)then
 
 #ifdef _OPENMP
 #ifdef GPU
-    !$omp target teams distribute parallel do collapse(2) shedule(static)             &
+    !$omp target teams distribute parallel do collapse(2) schedule(static)            &
     !$omp map(to:sx) map(from:s) private(k,iq,idel,xxg,jdel,yyg)                      &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)   &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
@@ -474,7 +474,7 @@ else     ! if(intsch==1)then
 
 #ifdef _OPENMP
 #ifdef GPU
-    !$omp target teams distribute parallel do collapse(2) shedule(static)             &
+    !$omp target teams distribute parallel do collapse(2) schedule(static)            &
     !$omp map(to:sx) map(from:s) private(k,iq,idel,xxg,jdel,yyg)                      &
     !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)   &
     !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
@@ -613,7 +613,7 @@ call intssync_send(1)
 
 #ifdef _OPENMP
 #ifdef GPU
-    !$omp target teams distribute parallel do collapse(2) shedule(static)             &
+    !$omp target teams distribute parallel do collapse(2) schedule(static),           &
     !$omp map(to:sx) map(from:s) private(k,iq,idel,xxg,jdel,yyg,n)
 #else
     !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
@@ -624,10 +624,10 @@ call intssync_send(1)
 do k = 1,kl
   do iq = 1,ifull
     ! Convert face index from 0:npanels to array indices
-    idel=int(xg(iq,k))
-    xxg=xg(iq,k)-idel
-    jdel=int(yg(iq,k))
-    yyg=yg(iq,k)-jdel
+    idel = int(xg(iq,k))
+    xxg = xg(iq,k) - idel
+    jdel = int(yg(iq,k))
+    yyg = yg(iq,k) - jdel
     idel = min( max( idel - ioff, 0), ipan )
     jdel = min( max( jdel - joff, 0), jpan )
     n = min( max( nface(iq,k) + noff, 1), npan )

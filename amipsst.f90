@@ -665,7 +665,7 @@ integer imonth, iyear, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
 integer varid, iarchx, maxarchi, iernc, lsmid, varid_time
 integer kdate_r, ktime_r
 integer kdate_rsav, ktime_rsav
-integer iq, mm
+integer iq, mm, k
 integer, dimension(3) :: spos, npos
 #ifdef i8r8
 integer, dimension(nihead) :: nahead
@@ -878,8 +878,10 @@ if ( amip_mode==1 ) then
   end if 
   
   if ( interpolate ) then
-    call fill_cc4(ssta_g(:,1:5),lsma_g)
-    call doints4(ssta_g(:,1:5),ssta_l(:,1:5))
+    do k = 1,5  
+      call fill_cc1(ssta_g(:,k),lsma_g)
+      call doints1(ssta_g(:,k),ssta_l(:,k))
+    end do  
     call ccmpi_distribute(ssta(:,1:5), ssta_l(:,1:5))
   else
     call ccmpi_distribute(ssta(:,1:5), ssta_g(:,1:5))
@@ -940,8 +942,10 @@ if ( amip_mode==1 ) then
     end if
 
     if ( interpolate ) then
-      call fill_cc4(ssta_g(:,1:5),lsma_g)
-      call doints4(ssta_g(:,1:5),ssta_l(:,1:5))
+      do k = 1,5  
+        call fill_cc1(ssta_g(:,k),lsma_g)
+        call doints1(ssta_g(:,k),ssta_l(:,k))
+      end do  
       call ccmpi_distribute(aice(:,1:5), ssta_l(:,1:5))
     else
       call ccmpi_distribute(aice(:,1:5), ssta_g(:,1:5))
@@ -998,8 +1002,10 @@ if ( amip_mode==1 ) then
     end if
     
     if ( interpolate ) then
-      call fill_cc4(ssta_g(:,1:5),lsma_g)
-      call doints4(ssta_g(:,1:5),ssta_l(:,1:5))
+      do k = 1,5  
+        call fill_cc1(ssta_g(:,k),lsma_g)
+        call doints1(ssta_g(:,k),ssta_l(:,k))
+      end do  
       call ccmpi_distribute(asal(:,1:5), ssta_l(:,1:5))
     else
       call ccmpi_distribute(asal(:,1:5), ssta_g(:,1:5))
@@ -1290,6 +1296,7 @@ logical, save :: interpolate = .false.
 logical, dimension(:), allocatable, save :: lsma_g
 character(len=10), save :: unitstr
 character(len=80) datestring
+character(len=10) calendarstring
 
 if ( .not.allocated(ssta) ) then
   allocate(ssta(ifull),fraciceb(ifull))
@@ -1325,6 +1332,11 @@ if ( mod(ktau,nperday)==0 ) then
       end if  ! (schmidtx<=0..or.schmidtx>1.)  
       call ccnf_get_attg(ncidx,'leap',leap_in,tst)
       if ( tst ) leap_in = 0
+      call ccnf_inq_varid(ncidx,'time',varid_time)
+      call ccnf_get_att(ncidx,varid_time,'calendar',calendarstring,ierr)
+      if ( ierr==0 ) then
+        if ( trim(calendarstring)=="standard" ) leap_in = 1
+      end if        
       call ccnf_inq_dimlen(ncidx,'time',maxarchi)
          
       interpolate = ( il_g/=il_in .or. jl_g/=jl_in .or. abs(rlong0-rlon_in)>1.e-6 .or. abs(rlat0-rlat_in)>1.e-6 .or. &
@@ -1453,8 +1465,8 @@ if ( mod(ktau,nperday)==0 ) then
       ssta_g(:,1) = ssta_g(:,1) + 273.16
     end if  
     if ( interpolate ) then
-      call fill_cc4(ssta_g(:,1:1),lsma_g)
-      call doints4(ssta_g(:,1:1),ssta_l(:,1:1))
+      call fill_cc1(ssta_g(:,1),lsma_g)
+      call doints1(ssta_g(:,1),ssta_l(:,1))
       call ccmpi_distribute(ssta, ssta_l(:,1))
     else
       call ccmpi_distribute(ssta, ssta_g(:,1))
@@ -1479,8 +1491,8 @@ if ( mod(ktau,nperday)==0 ) then
       ssta_g(:,1) = sc*ssta_g(:,1) + of
       !ssta_g(:,1) = 100.*ssta_g(:,1)  
       if ( interpolate ) then
-        call fill_cc4(ssta_g(:,1:1),lsma_g)
-        call doints4(ssta_g(:,1:1),ssta_l(:,1:1))
+        call fill_cc1(ssta_g(:,1),lsma_g)
+        call doints1(ssta_g(:,1),ssta_l(:,1))
         call ccmpi_distribute(fraciceb, ssta_l(:,1))
       else
         call ccmpi_distribute(fraciceb, ssta_g(:,1))
@@ -1568,34 +1580,31 @@ end if ! if (nmlo==0) ..else..
 return
 end subroutine amipsst_day
 
-subroutine doints4(s,sout)
+subroutine doints1(s,sout)
       
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 
 implicit none
       
-integer mm, k, kx
-real, dimension(:,:), intent(in) :: s
-real, dimension(:,:), intent(inout) :: sout
+integer mm
+real, dimension(:), intent(in) :: s
+real, dimension(:), intent(inout) :: sout
 real, dimension(ifull_g) :: wrk
 real, dimension(-1:ik+2,-1:ik+2,0:npanels) :: sx
 
-kx = size(sout,2)
 sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
 
-do k = 1,kx
-  sout(1:ifull_g,k) = 0.
-  sx(1:ik,1:ik,0:npanels) = reshape( s(1:6*ik*ik,k), (/ ik, ik, npanels+1 /) )
-  call sxpanelbounds(sx)
-  do mm = 1,m_fly
-    call intsb(sx,wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
-    sout(1:ifull_g,k) = sout(1:ifull_g,k) + wrk/real(m_fly)
-  end do
+sout(1:ifull_g) = 0.
+sx(1:ik,1:ik,0:npanels) = reshape( s(1:6*ik*ik), (/ ik, ik, npanels+1 /) )
+call sxpanelbounds(sx)
+do mm = 1,m_fly
+  call intsb(sx,wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
+  sout(1:ifull_g) = sout(1:ifull_g) + wrk/real(m_fly)
 end do
 
 return
-end subroutine doints4
+end subroutine doints1
 
 subroutine sxpanelbounds(sx_l)
 
@@ -1690,7 +1699,6 @@ real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
-
 do iq = 1,ifull_g   ! runs through list of target points
   n = nface_l(iq)
   idel = int(xg_l(iq))
@@ -1727,72 +1735,52 @@ end subroutine intsb
 ! *****************************************************************************
 ! FILL ROUTINES
 
-subroutine fill_cc4(a_io,land)
+subroutine fill_cc1(a_io,land)
       
 ! routine fills in interior of an array which has undefined points
 ! this version is distributed over processes with input files
 
 implicit none
 
-real, dimension(:,:), intent(inout) :: a_io
-integer nrem, j, n, k, kx, cc
-integer, dimension(ik) :: ccount
-integer, dimension(size(a_io,2)) :: ncount
+real, dimension(:), intent(inout) :: a_io
+integer nrem, j, n, cc, i
+integer ccount
 real, parameter :: value=999.  ! missing value flag
 real, dimension(-1:ik+2,-1:ik+2,6) :: c_io
-real, dimension(ik) :: csum
+real, dimension(4) :: s_test
 logical, dimension(:), intent(in) :: land
-logical, dimension(ik) :: maska
+logical, dimension(4) :: l_test
 
-kx = size(a_io,2)
+where ( land(1:6*ik*ik) )
+  a_io(1:6*ik*ik) = value
+end where
 
-do k = 1,kx
-  where ( land(1:6*ik*ik) )
-    a_io(1:6*ik*ik,k) = value
-  end where
-end do
-
-nrem = 1
+nrem = count( abs(a_io(1:6*ik*ik)-value)<1.E-6 )
 c_io = value
 
 do while ( nrem>0 )
-  do k = 1,kx
-    c_io(1:ik,1:ik,1:6) = reshape( a_io(1:6*ik*ik,k), (/ ik, ik, 6 /) )  
-    call sxpanelbounds(c_io(:,:,:))
-    ncount(k) = count( abs(a_io(1:6*ik*ik,k)-value)<1.e-6 )
-    if ( ncount(k)>0 ) then
-      do n = 1,6
-        do j = 1,ik
-          cc = (j-1)*ik + (n-1)*ik*ik
-          maska(1:ik) = abs(a_io(1+cc:ik+cc,k)-value)<1.e-20
-          csum(1:ik) = 0.
-          ccount(1:ik) = 0
-          where ( abs(c_io(1:ik,j+1,n)-value)>=1.e-20 )
-            csum(1:ik) = csum(1:ik) + c_io(1:ik,j+1,n)
-            ccount(1:ik) = ccount(1:ik) + 1
-          end where
-          where ( abs(c_io(1:ik,j-1,n)-value)>=1.e-20 )
-            csum(1:ik) = csum(1:ik) + c_io(1:ik,j-1,n)
-            ccount(1:ik) = ccount(1:ik) + 1
-          end where
-          where ( abs(c_io(2:ik+1,j,n)-value)>=1.e-20 )
-            csum(1:ik) = csum(1:ik) + c_io(2:ik+1,j,n)
-            ccount(1:ik) = ccount(1:ik) + 1
-          end where
-          where ( abs(c_io(0:ik-1,j,n)-value)>=1.e-20 )
-            csum(1:ik) = csum(1:ik) + c_io(0:ik-1,j,n)
-            ccount(1:ik) = ccount(1:ik) + 1
-          end where
-          where ( maska(1:ik) .and. ccount(1:ik)>0 )
-            a_io(1+cc:ik+cc,k) = csum(1:ik)/real(ccount(1:ik))
-          end where
-        end do
-      end do
-      ncount(k) = count( abs(a_io(1:6*ik*ik,k)-value)<1.E-6 )
-    end if
+  c_io(1:ik,1:ik,1:6) = reshape( a_io(1:6*ik*ik), (/ ik, ik, 6 /) )  
+  call sxpanelbounds(c_io(:,:,:))
+  do n = 1,6
+    do j = 1,ik
+      cc = (j-1)*ik + (n-1)*ik**2
+      do i = 1,ik
+        if ( abs(a_io(cc+i)-value)<1.e-6 ) then
+          s_test(1) = c_io(i,j+1,n)
+          s_test(2) = c_io(i,j-1,n)
+          s_test(3) = c_io(i+1,j,n)
+          s_test(4) = c_io(i-1,j,n)
+          l_test(:) = abs(s_test(:)-value)>=1.e-6
+          ccount = count(l_test)
+          if ( ccount>0 ) then
+            a_io(cc+i) = sum(s_test,l_test)/real(ccount)
+          end if
+        end if  
+      end do   
+    end do
   end do
+  nrem = count( abs(a_io(1:6*ik*ik)-value)<1.E-6 )
   ! test for convergence
-  nrem = ncount(kx)  
   if ( nrem==6*ik*ik ) then
     write(6,*) "Cannot perform fill as all points are trivial"    
     a_io = 0.
@@ -1801,6 +1789,6 @@ do while ( nrem>0 )
 end do
 
 return
-end subroutine fill_cc4
+end subroutine fill_cc1
 
 end module amipsst_m

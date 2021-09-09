@@ -32,7 +32,7 @@ module cc_omp
 
    integer, save, public :: maxthreads, ntiles, imax
    integer, save, public :: maxtilesize = 96 ! suggested value
-   integer, save, private :: gpuid
+   integer, save, private :: gpuid = -1
 
    public ::  ccomp_init
    public ::  ccomp_mythread
@@ -55,26 +55,16 @@ module cc_omp
       use newmpar_m, only : ifull
       integer :: i, tmp
       integer, intent(in) :: myid, nproc
-      integer, intent(out) :: ngpus
+      integer, intent(inout) :: ngpus
    
-#ifdef _OPENMP      
-      maxthreads = omp_get_max_threads()
-#else
       maxthreads = 1
-#endif
-
 #ifdef _OPENMP
+      maxthreads = omp_get_max_threads()
 #ifdef GPU
       ngpus = omp_get_num_devices()
       call omp_set_default_device(mod(myid,nproc))
       gpuid = omp_get_default_device()
-#else
-      ngpus = 0
-      gpuid = -1
 #endif
-#else
-      ngpus = 0
-      gpuid = -1
 #endif      
 
       !find a tiling at least as much as the number of threads 

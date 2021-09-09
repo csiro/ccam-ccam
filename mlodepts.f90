@@ -35,6 +35,7 @@ contains
 
 subroutine mlodeps(ubar,vbar,nface,xg,yg,x3d,y3d,z3d,wtr)
 
+use bigxy4_m
 use cc_mpi
 use const_phys
 use indices_m
@@ -56,12 +57,14 @@ real(kind=8), dimension(ifull,wlev), intent(out) :: x3d,y3d,z3d
 real, dimension(ifull,wlev) :: uc,vc,wc
 real, dimension(ifull+iextra,wlev,3) :: s, s_old
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,3) :: sx
-real s_tot, s_test
+real, dimension(4) :: s_test
+real s_tot
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
-real xxg,yyg
+real xxg, yyg
 real, parameter :: cxx = -9999. ! missing value flag
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
+logical, dimension(4) :: l_test
 
 call START_LOG(waterdeps_begin)
 
@@ -75,12 +78,6 @@ do k = 1,wlev
   y3d(:,k) = y - vc(:,k)
   z3d(:,k) = z - wc(:,k)
 end do
-
-! convert to grid point numbering
-call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
-
-! Share off processor departure points.
-call deptsync(nface,xg,yg)
 
 intsch = mod(ktau,2)
 
@@ -104,29 +101,14 @@ do ii = 1,3 ! 3 iterations of fill should be enough
     do k = 1,wlev
       do iq = 1,ifull
         if ( s(iq,k,nn)<cxx ) then
-          s_tot = 0.
-          s_count = 0
-          s_test = s_old(is(iq),k,nn)
-          if ( s_test>cxx ) then
-            s_tot = s_tot + s_test
-            s_count = s_count +1
-          end if
-          s_test = s_old(in(iq),k,nn)
-          if ( s_test>cxx ) then
-            s_tot = s_tot + s_test
-            s_count = s_count +1
-          end if 
-          s_test = s_old(ie(iq),k,nn)
-          if ( s_test>cxx ) then
-            s_tot = s_tot + s_test
-            s_count = s_count +1
-          end if
-          s_test = s_old(iw(iq),k,nn)
-          if ( s_test>cxx ) then
-            s_tot = s_tot + s_test
-            s_count = s_count +1
-          end if
+          s_test(1) = s_old(is(iq),k,nn)  
+          s_test(2) = s_old(in(iq),k,nn)
+          s_test(3) = s_old(ie(iq),k,nn)
+          s_test(4) = s_old(iw(iq),k,nn)
+          l_test(:) = s_test(:)>cxx
+          s_count = count( l_test )
           if ( s_count>0 ) then
+            s_tot = sum( s_test(:), l_test(:) )  
             s(iq,k,nn) = s_tot/real(s_count)
           end if
         end if
@@ -221,6 +203,21 @@ else
 
 end if
 
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp target data map(to:sx,xx4,yy4)
+#endif
+#else
+  !$acc data create(sx,xx4,yy4)
+  !$acc update device(sx,xx4,yy4)
+#endif  
+
+! convert to grid point numbering
+call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
+
+! Share off processor departure points.
+call deptsync(nface,xg,yg)
+
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then  
   ! Loop over points that need to be calculated for other processes
@@ -260,9 +257,20 @@ if ( intsch==1 ) then
   
   call intssync_send(3)
 
-  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp target teams distribute parallel do collapse(3) schedule(static)                  &
+  !$omp map(to:xg,yg,nface) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg),               &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+#else
+  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
+  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
+#else
+  !$acc parallel loop collapse(3) copyin(xg,yg,nface) copyout(s) present(sx)
+#endif
   do nn = 1,3
     do k = 1,wlev
       do iq = 1,ifull
@@ -294,7 +302,15 @@ if ( intsch==1 ) then
       end do     ! iq loop
     end do       ! k loop
   end do         ! nn loop
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp end target teams distribute parallel do
+#else
   !$omp end parallel do
+#endif
+#else
+  !$acc end parallel loop
+#endif
        
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -336,9 +352,20 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp target teams distribute parallel do collapse(3) schedule(static)                  &
+  !$omp map(to:xg,yg,nface) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg),               &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+#else
+  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
+  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
+#else
+  !$acc parallel loop collapse(3) copyin(xg,yg,nface) copyout(s) present(sx)
+#endif
   do nn = 1,3
     do k = 1,wlev
       do iq = 1,ifull
@@ -370,7 +397,15 @@ else     ! if(intsch==1)then
       end do
     end do
   end do
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp end target teams distribute parallel do
+#else
   !$omp end parallel do
+#endif
+#else
+  !$acc end parallel loop
+#endif
 
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -431,9 +466,20 @@ if ( intsch==1 ) then
   
   call intssync_send(3)
 
-  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp target teams distribute parallel do collapse(3) schedule(static)                  &
+  !$omp map(to:xg,yg,nface) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg),               &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+#else
+  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
+  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
+#else
+  !$acc parallel loop collapse(3) copyin(xg,yg,nface) copyout(s) present(sx)
+#endif
   do nn = 1,3
     do k = 1,wlev
       do iq = 1,ifull
@@ -464,7 +510,15 @@ if ( intsch==1 ) then
       end do     ! iq loop
     end do       ! k loop
   end do         ! nn loop
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp end target teams distribute parallel do
+#else
   !$omp end parallel do
+#endif
+#else
+  !$acc end parallel loop
+#endif 
        
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -505,9 +559,20 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp target teams distribute parallel do collapse(3) schedule(static)                  &
+  !$omp map(to:xg,yg,nface) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg),               &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+#else
+  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),      &
+  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
+  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
+#else
+  !$acc parallel loop collapse(3) copyin(xg,yg,nface) copyout(s) present(sx)
+#endif
   do nn = 1,3
     do k = 1,wlev
       do iq = 1,ifull
@@ -539,7 +604,15 @@ else     ! if(intsch==1)then
       end do
     end do
   end do
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp end target teams distribute parallel do
+#else
   !$omp end parallel do
+#endif
+#else
+  !$acc end parallel loop
+#endif
 
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -561,6 +634,14 @@ end do
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
+
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target data
+#endif
+#else
+!$acc end data
+#endif
 
 call END_LOG(waterdeps_end)
 
@@ -599,8 +680,18 @@ integer, parameter :: nmaploop = 3
 alf = (1._8-schmidt**2)/(1._8+schmidt**2)
 alfonsch = 2._8*schmidt/(1._8+schmidt**2)
 
-!$omp parallel do schedule(static) private(ii,iq,den,xstr,ystr,zstr), &
+#ifdef _OPENMP
+#ifdef GPU
+!$omp target teams distribute parallel do collapse(2) schedule(static)              &
+!$omp map(to:x3d,y3d,z3d) map(from:xg,yg,nface) private(ii,iq,den,xstr,ystr,zstr),  &
 !$omp private(denxyz,xd,yd,zd,ri,rj,i,j,loop,is,js,dxx,dxy,dyx,dyy)
+#else
+!$omp parallel do schedule(static) private(ii,iq,den,xstr,ystr,zstr),               &
+!$omp private(denxyz,xd,yd,zd,ri,rj,i,j,loop,is,js,dxx,dxy,dyx,dyy)
+#endif
+#else
+!$acc parallel loop collapse(2) copyin(x3d,y3d,z3d) copyout(xg,yg,nface) present(xx4,yy4)
+#endif
 do ii = 1,wlev
   do iq = 1,ifull
 
@@ -676,7 +767,15 @@ do ii = 1,wlev
 
   end do
 end do
+#ifdef _OPENMP
+#ifdef GPU
+!$omp end target teams distribute parallel do
+#else
 !$omp end parallel do
+#endif
+#else
+!$acc end parallel loop
+#endif
 
 return
 end subroutine mlotoij5

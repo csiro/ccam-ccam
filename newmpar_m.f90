@@ -24,7 +24,7 @@ module newmpar_m
 implicit none
 
 private
-public nproc, kl, ol, ms
+public nproc, kl, ol, ms, ngpus
 public il_g, jl_g, ifull_g, nrows_rad, npanels, iquad
 public nxp, nyp, il, jl, npan, ifull, iextra
 public mxst, mxvt
@@ -32,6 +32,7 @@ public mxst, mxvt
 !     This version is for the MPI code. Variables with suffix _g
 !     are truly global, others refer to a processor's own region.
 integer, save :: nproc                  ! Number of processors to use
+integer, save :: ngpus = 0              ! Number of GPUS to use
 integer, save :: kl                     ! Atmosphere vertical levels
 integer, save :: ol                     ! Ocean vertical levels
 integer, parameter :: ms = 6      ! Soil levels in surface scheme

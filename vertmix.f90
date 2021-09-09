@@ -54,13 +54,23 @@ contains
 
 subroutine vertmix_init
 
-use cc_mpi                              ! CC MPI routines
-use parm_m                              ! Model configuration
-use sigs_m                              ! Atmosphere sigma levels
+use arrays_m                        ! Atmosphere dyamics prognostic arrays
+use cc_mpi                          ! CC MPI routines
+use cfrac_m                         ! Cloud fraction
+use const_phys                      ! Physical constants
+use liqwpar_m                       ! Cloud water mixing ratios
+use newmpar_m                       ! Grid parameters
+use nharrs_m                        ! Non-hydrostatic atmosphere arrays
+use parm_m                          ! Model configuration
+use sigs_m                          ! Atmosphere sigma levels
+use tkeeps                          ! TKE-EPS boundary layer
 
 implicit none
 
 include 'kuocom.h'                  ! Convection parameters
+
+integer k
+real, dimension(kl) :: sigkap
 
 ! set ksctop for shallow convection
 ksctop = 1    ! ksctop will be first level below sigkcst
@@ -76,6 +86,27 @@ if ( ksc/=0 .and. nvmix/=6 ) then
     write(6,*)'For shallow convection:'
     write(6,*)'ksc,kscbase,ksctop,kscsea ',ksc,kscbase,ksctop,kscsea
     write(6,"(' sigkscb,sigksct,tied_con,tied_over,tied_rh:',5f8.3)") sigkscb,sigksct,tied_con,tied_over,tied_rh
+  end if
+end if  
+
+! reset time averaging at start of simulation
+if ( nvmix==6 .or. nvmix==9 ) then
+  if ( .not.lrestart ) then
+    if ( myid==0 ) then
+      write(6,*) "Reset EMA for tke-eps"
+    end if  
+    do k = 1,kl
+      sigkap(k)       = sig(k)**(-rdry/cp)
+      thetal_ema(:,k) = (t(1:ifull,k)-(hl*qlg(1:ifull,k)+hls*qfg(1:ifull,k))/cp)*sigkap(k)
+      qv_ema(:,k)     = qg(1:ifull,k)
+      ql_ema(:,k)     = qlg(1:ifull,k)
+      qf_ema(:,k)     = qfg(1:ifull,k)
+      cf_ema(:,k)     = stratcloud(1:ifull,k)
+      u_ema(1:ifull,1:kl) = u(1:ifull,1:kl)
+      v_ema(1:ifull,1:kl) = v(1:ifull,1:kl)
+      w_ema(1:ifull,1:kl) = 0.
+      tke_ema(1:ifull,1:kl) = tke(1:ifull,1:kl)
+    end do
   end if
 end if  
 
@@ -101,11 +132,12 @@ use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m                       ! Grid parameters
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays
 use nsibd_m                         ! Land-surface arrays
-use parm_m, only : idjd, nmlo, iaero, nvmix
+use parm_m, only : idjd, nmlo, iaero, nvmix, ktau
                                     ! Model configuration
 use pbl_m                           ! Boundary layer arrays
 use savuvt_m                        ! Saved dynamic arrays
 use screen_m                        ! Screen level diagnostics
+use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : land             ! Soil and surface data
 use soilsnow_m, only : fracice      ! Soil, snow and surface data
 use tkeeps                          ! TKE-EPS boundary layer
@@ -126,8 +158,10 @@ real, dimension(imax,kl,naero) :: lxtg
 real, dimension(ifull,kl) :: at_save, ct_save
 real, dimension(imax,kl) :: lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lcfrac, lu, lv, lstratcloud
-real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear, ldwdx, ldwdy
+real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
 real, dimension(imax,kl) :: lat, lct
+real, dimension(imax,kl) :: lthetal_ema, lqv_ema, lql_ema, lqf_ema, lcf_ema
+real, dimension(imax,kl) :: ltke_ema
 real, dimension(ifull) :: uadj, vadj
 real, dimension(imax) :: lou, lov, liu, liv, lrho
 logical :: mydiag_t
@@ -172,7 +206,7 @@ else
 end if
 
 select case(nvmix)
-  case(6,9)  
+case(6,9)  
     ! k-e + MF closure scheme
     
     !$omp do schedule(static) private(is,ie,k),             &
@@ -197,17 +231,22 @@ select case(nvmix)
       ltke   = tke(is:ie,:)
       leps   = eps(is:ie,:)
       lshear = shear(is:ie,:)
-      ldwdx  = dwdx(is:ie,:)
-      ldwdy  = dwdy(is:ie,:)
       ! Adjustment for moving ocean surface
       do k = 1,kl
         lu(:,k) = u(is:ie,k) - uadj(is:ie)
         lv(:,k) = v(is:ie,k) - vadj(is:ie)
       end do  
+      lthetal_ema = thetal_ema(is:ie,:)
+      lqv_ema     = qv_ema(is:ie,:)
+      lql_ema     = ql_ema(is:ie,:)
+      lqf_ema     = qf_ema(is:ie,:)
+      lcf_ema     = cf_ema(is:ie,:)
+      ltke_ema    = tke_ema(is:ie,:)
     
       call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                                      &
                        ps(is:ie),lqg,lqfg,lqlg,lstratcloud,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),           &
-                       ustar(is:ie),ltke,leps,lshear,ldwdx,ldwdy,lat,lct,land(is:ie),                    &
+                       ustar(is:ie),ltke,leps,lshear,lat,lct,land(is:ie),lthetal_ema,lqv_ema,lql_ema,    &
+                       lqf_ema,lcf_ema,ltke_ema,                                                         &
 #ifdef scm
                        lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave, &
                        lbuoyproduction,lshearproduction,ltotaltransport,                                 &
@@ -230,6 +269,12 @@ select case(nvmix)
         u(is:ie,k) = lu(:,k) + uadj(is:ie)
         v(is:ie,k) = lv(:,k) + vadj(is:ie)
       end do  
+      thetal_ema(is:ie,:) = lthetal_ema
+      qv_ema(is:ie,:)     = lqv_ema
+      ql_ema(is:ie,:)     = lql_ema
+      qf_ema(is:ie,:)     = lqf_ema
+      cf_ema(is:ie,:)     = lcf_ema
+      tke_ema(is:ie,:)    = ltke_ema
 #ifdef scm
 #ifdef _OPENMP
       write(6,*) "ERROR: scm requires OMP is disabled"
@@ -1769,11 +1814,12 @@ end do
 return
 end subroutine trim
 
-subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                                 &
-                       xtg,cduv,u,v,pblh,ustar,tke,eps,shear,dwdx,dwdy,at,ct,land,              &
+subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                                   &
+                       xtg,cduv,u,v,pblh,ustar,tke,eps,shear,at,ct,land,thetal_ema,qv_ema,ql_ema, &
+                       qf_ema,cf_ema,tke_ema,                                                     & 
 #ifdef scm
-                       wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave, &
-                       buoyproduction,shearproduction,totaltransport,                           &
+                       wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave,   &
+                       buoyproduction,shearproduction,totaltransport,                             &
 #endif
                        imax,kl,naero, tile)
 
@@ -1792,7 +1838,9 @@ real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(inout) :: tke, eps
 real, dimension(imax,kl), intent(out) :: at, ct
-real, dimension(imax,kl), intent(in) :: shear, dwdx, dwdy
+real, dimension(imax,kl), intent(in) :: shear
+real, dimension(imax,kl), intent(inout) :: thetal_ema, qv_ema, ql_ema, qf_ema, cf_ema
+real, dimension(imax,kl), intent(inout) :: tke_ema
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, zg
 real, dimension(imax,kl) :: rkm
@@ -1826,10 +1874,10 @@ do k = 1,kl
 end do      ! k loop
       
 ! note ksc/=0 options are clobbered when nvmix=6 or nvmix=9
-! However, nvmix=6 or nvmix=9 with nlocal=7 supports its own shallow
-! convection options
+! However, nvmix=6 or nvmix=9 supports its own shallow
+! convection options with nlocal=7
 
-! calculate height on full levels
+! calculate height on full levels (neglect surface height)
 zg(:,1) = bet(1)*t(:,1)/grav
 zh(:,1) = t(:,1)*delh(1)
 do k = 2,kl-1
@@ -1863,12 +1911,14 @@ select case(nvmix)
     select case(nlocal)
       case(0) ! atm only, no counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,1,tke,eps,shear,dwdx,dwdy,dx,                         &
+                    ustar,dt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,   &
+                    cf_ema,tke_ema,                                                      &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,tile,imax,kl)
       case(7) ! atm only, mass-flux counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,0,tke,eps,shear,dwdx,dwdy,dx,                         &
+                    ustar,dt,qgmin,0,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,   &
+                    cf_ema,tke_ema,                                                      &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,tile,imax,kl)
     end select    
@@ -1876,12 +1926,14 @@ select case(nvmix)
     select case(nlocal)
       case(0) ! coupled atm-ocn, no counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,3,tke,eps,shear,dwdx,dwdy,dx,                         &
+                    ustar,dt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,   &
+                    cf_ema,tke_ema,                                                      &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,tile,imax,kl)          
       case(7) ! coupled atm-ocn, mass-flux counter gradient 
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,2,tke,eps,shear,dwdx,dwdy,dx,                         &
+                    ustar,dt,qgmin,2,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,   &
+                    cf_ema,tke_ema,                                                      &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,tile,imax,kl)          
     end select    
@@ -1901,19 +1953,23 @@ select case(nvmix)
     select case(nlocal)
       case(0) ! atm only, no counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,1,tke,eps,shear,dwdx,dwdy,dx,land,tile,imax,kl) 
+                    ustar,dt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,   &
+                    cf_ema,tke_ema,land,tile,imax,kl) 
       case(7) ! atm only, mass-flux counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,0,tke,eps,shear,dwdx,dwdy,dx,land,tile,imax,kl)     
+                    ustar,dt,qgmin,0,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,   &
+                    cf_ema,tke_ema,land,tile,imax,kl)     
     end select
   case(9)
     select case(nlocal)
       case(0) ! coupled atm-ocn, no counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,3,tke,eps,shear,dwdx,dwdy,dx,land,tile,imax,kl) 
+                    ustar,dt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,   &
+                    cf_ema,tke_ema,land,tile,imax,kl) 
       case(7) ! coupled atm-ocn, mass-flux counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos, &
-                    ustar,dt,qgmin,2,tke,eps,shear,dwdx,dwdy,dx,land,tile,imax,kl)     
+                    ustar,dt,qgmin,2,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,   &
+                    cf_ema,tke_ema,land,tile,imax,kl)     
     end select
 end select
 #endif

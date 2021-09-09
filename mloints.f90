@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -53,12 +53,14 @@ real, dimension(:,:,:), intent(inout) :: s
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,size(s,3)) :: sx
 real, dimension(ifull+iextra,wlev,size(s,3)) :: s_old
 real, dimension(ifull,wlev,size(s,3)) :: s_store
-real s_tot, s_test
+real, dimension(4) :: s_test
+real s_tot
 real cmax, cmin, xxg, yyg
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real, parameter :: cxx = -9999. ! missing value flag
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
+logical, dimension(4) :: l_test
 
 call START_LOG(waterints_begin)
 
@@ -82,29 +84,14 @@ do ii = 1,3 ! 3 iterations of fill should be enough
     do k = 1,wlev
       do iq = 1,ifull
         if ( s(iq,k,nn)<cxx ) then
-          s_tot = 0.
-          s_count = 0
-          s_test = s_old(is(iq),k,nn)
-          if ( s_test>cxx ) then
-            s_tot = s_tot + s_test
-            s_count = s_count +1
-          end if
-          s_test = s_old(in(iq),k,nn)
-          if ( s_test>cxx ) then
-            s_tot = s_tot + s_test
-            s_count = s_count +1
-          end if 
-          s_test = s_old(ie(iq),k,nn)
-          if ( s_test>cxx ) then
-            s_tot = s_tot + s_test
-            s_count = s_count +1
-          end if
-          s_test = s_old(iw(iq),k,nn)
-          if ( s_test>cxx ) then
-            s_tot = s_tot + s_test
-            s_count = s_count +1
-          end if
+          s_test(1) = s_old(is(iq),k,nn)  
+          s_test(2) = s_old(in(iq),k,nn)
+          s_test(3) = s_old(ie(iq),k,nn)
+          s_test(4) = s_old(iw(iq),k,nn)
+          l_test(:) = s_test(:)>cxx
+          s_count = count( l_test )
           if ( s_count>0 ) then
+            s_tot = sum( s_test(:), l_test(:) )  
             s(iq,k,nn) = s_tot/real(s_count)
           end if
         end if
@@ -160,9 +147,9 @@ if ( intsch==1 ) then
   end do               ! nn loop
 
   ! Loop over points that need to be calculated for other processes
-  do ii=1,neighnum
+  do ii = 1,neighnum
     do nn = 1,ntr
-      do iq=1,drlen(ii)
+      do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         idel = int(dpoints(ii)%a(2,iq))
         xxg = dpoints(ii)%a(2,iq) - real(idel)
@@ -202,12 +189,12 @@ if ( intsch==1 ) then
 
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp target teams distribute parallel do collapse(3) shedule(static)                    &
-  !$omp map(to:sx) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg)                        &
+  !$omp target teams distribute parallel do collapse(3) schedule(static)                   &
+  !$omp map(to:sx) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg)                          &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
 #else
-  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),       &
+  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),       &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),  &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
 #endif
@@ -308,9 +295,9 @@ else     ! if(intsch==1)then
   end do               ! nn loop
 
   ! For other processes
-  do ii=neighnum,1,-1
+  do ii = neighnum,1,-1
     do nn = 1,ntr
-      do iq=1,drlen(ii)
+      do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
@@ -351,12 +338,12 @@ else     ! if(intsch==1)then
 
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp target teams distribute parallel do collapse(3) shedule(static)                    &
-  !$omp map(to:sx) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg)                        &
+  !$omp target teams distribute parallel do collapse(3) schedule(static)                   &
+  !$omp map(to:sx) map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg)                          &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
 #else
-  !$omp parallel do collapse(3) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),       &
+  !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,idel,xxg,jdel,yyg),       &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),  &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
 #endif

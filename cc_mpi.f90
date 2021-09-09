@@ -101,9 +101,6 @@ module cc_mpi
       filemap_recv, filemap_rmod                                           ! file map received for onthefly
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       filemap_send, filemap_smod                                           ! file map sent for onthefly
-   integer, allocatable, dimension(:), save, public :: filemap_facecomm    ! communicator for face bcast
-   integer, allocatable, dimension(:), save, public :: filemap_rinv        ! inverse map for filemap_recv/rmod
-   integer, save, public :: fnproc_bcast_max = 6                           ! max number of input files for bcast method
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -9780,64 +9777,35 @@ contains
       nlen = pipan*pjpan*pnpan
       lsize = nlen
       
-      if ( fnproc <= fnproc_bcast_max ) then
-        
-         ! use Bcast for single input panel
-         abuf = 0.
-         do ipin = 0,fnproc-1
-            lcomm = filemap_facecomm(ipin) 
-            n = filemap_rinv(ipin)
-            if ( myid == mod(ipin,fnresid) ) then
-               ipf = ipin/fnresid
-               cc = nlen*ipf
-               call START_LOG(bcast_begin)
-               call MPI_Bcast( sinp(1+cc:nlen+cc), lsize, ltype, 0_4, lcomm, ierr )
-               call END_LOG(bcast_end)
-               if ( n > 0 ) then
-                  abuf(1:nlen,n) = sinp(1+cc:nlen+cc)
-               end if   
-            else
-               if ( n > 0 ) then 
-                  call START_LOG(bcast_begin)
-                  call MPI_Bcast( abuf(1:nlen,n), lsize, ltype, 0_4, lcomm, ierr )
-                  call END_LOG(bcast_end)
-               end if   
-            end if   
-         end do
+      ! MJT notes - We could use RMA or MPI_Alltoallv for this problem.  RMA fence forces synchronisation
+      ! across processes.  Some implentations of MPI_Alltoallv also can employ synchronisation as they
+      ! are optimsied for most sendcounts and recvcounts are non-zero.  Splitting communicators and using
+      ! MPI_Bcast could work, but is expensive to initialise.  
           
-      else    
-
-        ! MJT notes - We could use RMA or MPI_Alltoallv for this problem.  RMA fence forces synchronisation
-        ! across processes.  Some implentations of MPI_Alltoallv also can employ synchronisation as they
-        ! are optimsied for most sendcounts and recvcounts are non-zero.  Splitting communicators and using
-        ! MPI_Bcast could work, but is expensive to initialise.  
+      ncount = size(filemap_recv)
+      lcomm = comm_world
           
-         ncount = size(filemap_recv)
-         lcomm = comm_world
-          
-         !     Set up the buffers to recv
-         nreq = 0
-         do w = 1,ncount
-            ipf = filemap_rmod(w)
-            itag = 50 + ipf
-            nreq  = nreq + 1
-            call MPI_IRecv( abuf(:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
-         end do
+      !     Set up the buffers to recv
+      nreq = 0
+      do w = 1,ncount
+         ipf = filemap_rmod(w)
+         itag = 50 + ipf
+         nreq  = nreq + 1
+         call MPI_IRecv( abuf(:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
+      end do
       
-         !     Set up the buffers to send
-         do w = 1,size(filemap_send)
-            ipf = filemap_smod(w)
-            itag = 50 + ipf
-            cc = nlen*ipf
-            nreq  = nreq + 1
-            call MPI_ISend( sinp(1+cc:nlen+cc), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
-         end do
+      !     Set up the buffers to send
+      do w = 1,size(filemap_send)
+         ipf = filemap_smod(w)
+         itag = 50 + ipf
+         cc = nlen*ipf
+         nreq  = nreq + 1
+         call MPI_ISend( sinp(1+cc:nlen+cc), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
+      end do
       
-         call START_LOG(mpiwaitmapfile_begin) 
-         call MPI_Waitall( nreq, i_req, status, ierr )
-         call END_LOG(mpiwaitmapfile_end)
-         
-      end if   
+      call START_LOG(mpiwaitmapfile_begin) 
+      call MPI_Waitall( nreq, i_req, status, ierr )
+      call END_LOG(mpiwaitmapfile_end)
       
    end subroutine ccmpi_filewinget2
 
@@ -9866,84 +9834,53 @@ contains
       kx = size(sinp,2)
       nlen = pipan*pjpan*pnpan
       lsize = nlen*kx
-      
-      if ( fnproc <= fnproc_bcast_max ) then
-      
-         ! use Bcast for single input file  
-         abuf = 0.
-         do ipin = 0,fnproc-1
-            lcomm = filemap_facecomm(ipin) 
-            n = filemap_rinv(ipin)
-            if ( myid == mod(ipin,fnresid) ) then
-               ipf = ipin/fnresid
-               cc = nlen*ipf             
-               cbuf(:,:,ipf+1) = sinp(1+cc:nlen+cc,1:kx) 
-               call START_LOG(bcast_begin)
-               call MPI_Bcast( cbuf(:,:,ipf+1), lsize, ltype, 0_4, lcomm, ierr )
-               call END_LOG(bcast_end)
-               if ( n > 0 ) then
-                  abuf(1:nlen,n,1:kx) = cbuf(1:nlen,1:kx,ipf+1) 
-               end if   
-            else
-               if ( n > 0 ) then
-                  call START_LOG(bcast_begin) 
-                  call MPI_Bcast( bbuf(:,:,n), lsize, ltype, 0_4, lcomm, ierr )
-                  call END_LOG(bcast_end)
-                  abuf(1:nlen,n,1:kx) = bbuf(1:nlen,1:kx,n)
-               end if
-            end if
-         end do      
-         
-      else   
 
-         ncount = size(filemap_recv)
-         lcomm = comm_world
+      ncount = size(filemap_recv)
+      lcomm = comm_world
           
-         do ipf = 0,mynproc-1
-            cc = nlen*ipf 
-            cbuf(1:nlen,1:kx,ipf+1) = sinp(1+cc:nlen+cc,1:kx)
-         end do  
+      do ipf = 0,mynproc-1
+         cc = nlen*ipf 
+         cbuf(1:nlen,1:kx,ipf+1) = sinp(1+cc:nlen+cc,1:kx)
+      end do  
       
-         !     Set up the buffers to recv
-         nreq = 0
-         do w = 1,ncount
-            ipf = filemap_rmod(w)
-            itag = 51 + ipf
-            nreq  = nreq + 1
-            i_list(nreq) = w
-            call MPI_IRecv( bbuf(:,:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
+      !     Set up the buffers to recv
+      nreq = 0
+      do w = 1,ncount
+         ipf = filemap_rmod(w)
+         itag = 51 + ipf
+         nreq  = nreq + 1
+         i_list(nreq) = w
+         call MPI_IRecv( bbuf(:,:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
+      end do
+      rreq = nreq
+      
+      !     Set up the buffers to send
+      do w = 1,size(filemap_send)
+         ipf = filemap_smod(w)
+         itag = 51 + ipf
+         nreq  = nreq + 1
+         call MPI_ISend( cbuf(:,:,ipf+1), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )  
+      end do
+      
+      ! Unpack incomming messages
+      rcount = rreq
+      do while ( rcount > 0 )
+         call START_LOG(mpiwaitmapfile_begin) 
+         call MPI_Waitsome( rreq, i_req, ldone, donelist, status, ierr )
+         call END_LOG(mpiwaitmapfile_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            w = i_list(donelist(jproc))
+            abuf(1:nlen,w,1:kx) = bbuf(1:nlen,1:kx,w)
          end do
-         rreq = nreq
+      end do
       
-         !     Set up the buffers to send
-         do w = 1,size(filemap_send)
-            ipf = filemap_smod(w)
-            itag = 51 + ipf
-            nreq  = nreq + 1
-            call MPI_ISend( cbuf(:,:,ipf+1), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )  
-         end do
-      
-         ! Unpack incomming messages
-         rcount = rreq
-         do while ( rcount > 0 )
-            call START_LOG(mpiwaitmapfile_begin) 
-            call MPI_Waitsome( rreq, i_req, ldone, donelist, status, ierr )
-            call END_LOG(mpiwaitmapfile_end)
-            rcount = rcount - ldone
-            do jproc = 1,ldone
-               w = i_list(donelist(jproc))
-               abuf(1:nlen,w,1:kx) = bbuf(1:nlen,1:kx,w)
-            end do
-         end do
-      
-         sreq = nreq - rreq
-         if ( sreq > 0 ) then
-            call START_LOG(mpiwaitmapfile_begin) 
-            call MPI_Waitall( sreq, i_req(rreq+1:nreq), status, ierr )
-            call END_LOG(mpiwaitmapfile_end)
-         end if
-         
-      end if   
+      sreq = nreq - rreq
+      if ( sreq > 0 ) then
+         call START_LOG(mpiwaitmapfile_begin) 
+         call MPI_Waitall( sreq, i_req(rreq+1:nreq), status, ierr )
+         call END_LOG(mpiwaitmapfile_end)
+      end if
       
    end subroutine ccmpi_filewinget3
    
@@ -11670,9 +11607,6 @@ contains
       filemap_recv, filemap_rmod                                           ! file map received for onthefly
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       filemap_send, filemap_smod                                           ! file map sent for onthefly
-   integer, allocatable, dimension(:), save, public :: filemap_facecomm    ! communicator for face bcast
-   integer, allocatable, dimension(:), save, public :: filemap_rinv        ! inverse map for filemap_recv/rmod
-   integer, save, public :: fnproc_bcast_max = 6                           ! max number of input files for bcast method
 
    integer, public, save :: histrd3_begin, histrd3_end
    integer, public, save :: histrd4_begin, histrd4_end

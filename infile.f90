@@ -55,7 +55,7 @@ integer, dimension(:), allocatable, save :: pprid
 integer, dimension(:), allocatable, save :: ppanid, ppiid, ppjid
 integer, save :: ncidold = -1
 integer, save :: comm_ip
-integer, save :: pil_single = 48
+integer, save :: pil_single = 48 ! grid size for single file decomposition
 logical, dimension(:), allocatable, save :: pfown
 logical, save :: ptest, pfall, resprocformat
 
@@ -1599,13 +1599,6 @@ end if
 if ( allocated(filemap_send) ) then
   deallocate( filemap_send, filemap_smod )
 end if
-if ( allocated(filemap_facecomm) ) then
-  deallocate( filemap_facecomm, filemap_rinv )
-end if
-
-if ( fnproc<=fnproc_bcast_max ) then
-  call ccmpi_commfree(comm_ip)
-end if 
 
 ncidold = -1 ! flag onthefly to load metadata
 
@@ -1637,27 +1630,6 @@ real, dimension(:), allocatable, save :: sigin_save
 real, dimension(:), allocatable, save :: wta
       
 kk = size(told,2)
-
-if ( size(told,1)<ifull ) then
-  write(6,*) "ERROR: told is too small in vertint"
-  stop
-end if
-
-if ( size(t,1)<ifull ) then
-  write(6,*) "ERROR: t is too small in vertint"
-  stop
-end if
-
-if ( size(t,2)/=kl ) then
-  write(6,*) "ERROR: Mismatch in number of vertical levels for t in vertint"
-  stop
-end if
-
-if ( size(sigin)/=kk ) then
-  write(6,*) "ERROR: Mismatch in number of vertical levels for sigin in vertint"
-  write(6,*) "Expecting ",kk," and recieved ",size(sigin)
-  stop
-end if
 
 if ( kk==kl ) then
   if ( all(abs(sig-sigin)<0.0001) ) then
@@ -2237,11 +2209,6 @@ do v = 1,vnode_nproc
   var_g(1:ifull,v) = var_t(1:ifull,v)
 end do
 
-!if ( any( var_g/=var_g ) ) then
-!  write(6,*) "ERROR: NaN detected in write for fw3lp ",trim(sname)
-!  call ccmpi_abort(-1)
-!end if
-
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
@@ -2299,11 +2266,6 @@ call ccmpi_gather(var(1:ifull), globvar(1:ifull_g))
 
 start = (/ 1, 1, iarch /)
 ncount = (/ il_g, jl_g, 1 /)
-
-!if ( any( globvar/=globvar ) ) then
-!  write(6,*) "ERROR: NaN detected in write for fw3a ",trim(sname)
-!  call ccmpi_abort(-1)
-!end if
 
 !     find variable index
 lidnc = idnc
@@ -2388,11 +2350,6 @@ do v = 1,vnode_nproc
   var_g(1:ifull,v) = var_t(1:ifull,v)
 end do
 
-!if ( any( var_g/=var_g ) ) then
-!  write(6,*) "ERROR: NaN detected in write for fw3lpr8 ",trim(sname)
-!  call ccmpi_abort(-1)
-!end if
-
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
@@ -2450,11 +2407,6 @@ call ccmpi_gatherr8(var(1:ifull), globvar(1:ifull_g))
 
 start = (/ 1, 1, iarch /)
 ncount = (/ il_g, jl_g, 1 /)
-
-!if ( any( globvar/=globvar ) ) then
-!  write(6,*) "ERROR: NaN detected in write for fw3ar8 ",trim(sname)
-!  call ccmpi_abort(-1)
-!end if
 
 !     find variable index
 lidnc = idnc
@@ -2614,11 +2566,6 @@ ncount = (/ il, jl, ll, vnode_nproc, 1 /)
 
 call ccmpi_gatherx(var_g,var,0,comm_vnode)
 
-!if ( any( var_g/=var_g ) ) then
-!  write(6,*) "ERROR: NaN detected in write for fw4lp ",trim(sname)
-!  call ccmpi_abort(-1)
-!end if
-
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
@@ -2682,11 +2629,6 @@ allocate( globvar(1:ifull_g,1:ll), ipack(1:ifull_g,1:ll) )
 call ccmpi_gather(var(1:ifull,1:ll), globvar(1:ifull_g,1:ll))
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, ll, 1 /)
-
-!if ( any( globvar/=globvar ) ) then
-!  write(6,*) "ERROR: NaN detected in write for fw4a ",trim(sname)
-!  call ccmpi_abort(-1)
-!end if
 
 !     find variable index
 lidnc = idnc
@@ -2999,11 +2941,6 @@ ncount = (/ il, jl, kk, ll, vnode_nproc, 1 /)
 
 call ccmpi_gatherx(var_g,var,0,comm_vnode)
 
-!if ( any( var_g/=var_g ) ) then
-!  write(6,*) "ERROR: NaN detected in write for fw5lp ",trim(sname)
-!  call ccmpi_abort(-1)
-!end if
-
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
@@ -3149,11 +3086,6 @@ ncount = (/ il, jl, kk, ll, vnode_nproc, 1 /)
 !end if
 
 call ccmpi_gatherxr8(var_g,var,0,comm_vnode)
-
-!if ( any( var_g/=var_g ) ) then
-!  write(6,*) "ERROR: NaN detected in write for fw5lpr8 ",trim(sname)
-!  call ccmpi_abort(-1)
-!end if
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
