@@ -184,6 +184,33 @@ INT8FLAG = -i8
 DEBUGFLAG = -check all -debug all -fpe0
 endif
 
+# llvm compiler options
+ifeq ($(FLANG),yes)
+MPIFC = mpifort
+MPIF77 = mpif77
+FC = mpifort
+FCSCM = flang
+FHOST = -march=native
+MPIFLAG =
+#MPISPECIAL = -fallow-argument-mismatch
+MPISPECIAL =
+FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FOVERRIDE =
+ZMM =
+IPFLAG =
+IPOFLAG =
+VTHRESH =
+PPFLAG90 = -x f95-cpp-input
+PPFLAG77 = -x f77-cpp-input
+PPFLAG90F =
+REAL8FLAG = -fdefault-real-8
+INT8FLAG = -fdefault-int-8
+DEBUGFLAG = -g -Wall -Wextra -fbounds-check
+REAL8FLAG = -r8
+INT8FLAG = -i8
+endif
+
+
 # IBM compiler options
 #ifeq ($(IBM),yes)
 #FC = xlf
