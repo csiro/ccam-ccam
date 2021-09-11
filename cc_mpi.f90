@@ -213,7 +213,7 @@ module cc_mpi
       module procedure ccmpi_scatterx32l
    end interface
    interface ccmpi_allgatherx
-      module procedure ccmpi_allgatherx2i, ccmpi_allgatherx2r, ccmpi_allgatherx32r
+      module procedure ccmpi_allgatherx2i, ccmpi_allgatherx2r
    end interface
    interface ccmpi_alltoall
       module procedure ccmpi_alltoall2l
@@ -7983,26 +7983,6 @@ contains
       call END_LOG(allgather_end)
       
    end subroutine ccmpi_allgatherx2r
-   
-   subroutine ccmpi_allgatherx32r(gdat,ldat,comm)
-   
-      integer, intent(in) :: comm
-      integer(kind=4) lsize, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif  
-      real, dimension(:,:), intent(in) :: ldat
-      real, dimension(:), intent(out) :: gdat
-   
-      lcomm = comm
-      lsize = size(ldat)
-      call START_LOG(allgather_begin)
-      call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,lerr)
-      call END_LOG(allgather_end)
-      
-   end subroutine ccmpi_allgatherx32r
    
    subroutine ccmpi_alltoall2l(gdat,comm)
    
