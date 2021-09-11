@@ -128,7 +128,7 @@ integer, intent(in) :: ifull,iextra,kl
 
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
 allocate(shear(ifull,kl))
-allocate(u_ema(ifull+iextra,kl), v_ema(ifull+iextra,kl), w_ema(ifull+iextra,kl))
+allocate(u_ema(ifull,kl), v_ema(ifull,kl), w_ema(ifull+iextra,kl))
 allocate(thetal_ema(ifull,kl), qv_ema(ifull,kl), ql_ema(ifull,kl), qf_ema(ifull,kl))
 allocate(cf_ema(ifull,kl))
 allocate(tke_ema(ifull,kl))
@@ -390,7 +390,7 @@ do kcount = 1,mcount
   ! Update TKE and eps terms
   call update_tkeeps(tke,eps,ppb,pps,ppt,qvg,qlg,qfg,stratcloud,thetal,         &
                      ua,va,zzh,zz,sigkap,idzp,idzm,wstar,zi,thetal_ema,qv_ema,  &
-                     ql_ema,qf_ema,cf_ema,ddts,qgmin,cm34,imax,kl)
+                     ql_ema,qf_ema,cf_ema,tke_ema,ddts,qgmin,cm34,imax,kl)
   
 #ifdef CCAM
   if ( mode==2 .or. mode==3 ) then
@@ -639,7 +639,7 @@ end subroutine plumerise
 
 subroutine update_tkeeps(tke,eps,ppb,pps,ppt,qvg,qlg,qfg,stratcloud,thetal,         &
                          ua,va,zzh,zz,sigkap,idzp,idzm,wstar,zi,thetal_ema,qv_ema,  &
-                         ql_ema,qf_ema,cf_ema,ddts,qgmin,cm34,imax,kl)
+                         ql_ema,qf_ema,cf_ema,tke_ema,ddts,qgmin,cm34,imax,kl)
 
 implicit none
 
@@ -653,6 +653,7 @@ real, dimension(imax,kl), intent(in) :: ua, va
 real, dimension(imax,kl), intent(in) :: idzm
 real, dimension(imax,kl), intent(in) :: zzh, zz
 real, dimension(imax,kl), intent(inout) :: thetal_ema, qv_ema, ql_ema, qf_ema, cf_ema
+real, dimension(imax,kl), intent(inout) :: tke_ema
 real, dimension(imax,kl-1), intent(in) :: idzp
 real, dimension(imax,kl) :: qsatc, qgnc, thetalhl, quhl, qshl, qlhl, qfhl
 real, dimension(imax,kl) :: qthl, thetavhl, kmo, ua_hl, va_hl, qtot
@@ -689,9 +690,6 @@ do k = 1,kl
   qtot(:,k) = qvg(:,k) + qlg(:,k) + qfg(:,k)
   theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
   thetav(:,k) = theta(:,k)*(1.+0.61*qvg(:,k)-qlg(:,k)-qfg(:,k))
-end do  
-
-do k = 1,kl
   qtot_ema(:,k) = qv_ema(:,k) + ql_ema(:,k) + qf_ema(:,k)  
   theta_ema(:,k) = thetal_ema(:,k) + sigkap(k)*(lv*ql_ema(:,k)+ls*qf_ema(:,k))/cp
   thetav_ema(:,k) = theta_ema(:,k)*(1.+0.61*qv_ema(:,k)-ql_ema(:,k)-qf_ema(:,k))    
@@ -806,11 +804,10 @@ select case(buoymeth)
       end do
 
   end select
-
+    
   ! Calculate transport source term on full levels
   ppt(:,2:kl-1)= kmo(:,2:kl-1)*idzp(:,2:kl-1)*(tke_ema(:,3:kl)-tke_ema(:,2:kl-1))/dz_hl(:,2:kl-1)  &
                -kmo(:,1:kl-2)*idzm(:,2:kl-1)*(tke_ema(:,2:kl-1)-tke_ema(:,1:kl-2))/dz_hl(:,1:kl-2)
-  
   
   ! Pre-calculate eddy diffusivity mixing terms
   ! -ve because gradient is calculated at t+1
@@ -2032,7 +2029,7 @@ real alpha, nstep
 real, dimension(:,:), intent(in) :: field
 real, dimension(:,:), intent(inout) :: ema
 
-imax = size(field,1)
+imax = min( size(field,1), size(ema,1) )
 kx = size(field,2)
 
 nstep = max( tke_timeave_length/dt, 1. ) ! this is a real value

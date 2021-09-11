@@ -671,12 +671,14 @@ if ( newfile ) then
     end if
     write(6,*) "nested,retopo_test              =",nested,retopo_test
     write(6,*) "soilt_found,mlo_found,zht_found =",soilt_found,mlo_found,zht_found
+    write(6,*) "mlo2_found,mloice_found         =",mlo2_found,mloice_found
+    write(6,*) "mixr_found,aero_found           =",mixr_found,aero_found
+    write(6,*) "urban1_found,urban2_found       =",urban1_found,urban2_found
     write(6,*) "allowtrivialfill                =",allowtrivialfill
     if ( zht_needed .and. .not.zht_found .and. .not.allowtrivialfill ) then
       write(6,*) "ERROR: Surface height is required but not found in input file"
       call ccmpi_abort(-1)
     end if     
-    write(6,*) "urban1_found,urban2_found = ",urban1_found,urban2_found
   end if  
       
   ! determine whether surface temperature needs to be interpolated (tss_test=.false.)
@@ -819,7 +821,7 @@ else
   soilt_found   = iers(4)==0
   mlo_found     = iers(5)==0
   mlo2_found    = iers(6)==0
-  urban1_found   = iers(7)==0
+  urban1_found  = iers(7)==0
   urban2_found  = iers(8)==0
   mloice_found  = iers(9)==0
   zht_found     = iers(10)==0
@@ -1834,7 +1836,7 @@ if ( nested/=1 .and. nested/=3 ) then
     call gethist4a('ql_ema',ql_ema,5)
     call gethist4a('qf_ema',qf_ema,5)
     call gethist4a('cf_ema',cf_ema,5)
-    call gethist4a('tke_ema',cf_ema,5)
+    call gethist4a('tke_ema',tke_ema,5)
   end if
 
   !------------------------------------------------------------------

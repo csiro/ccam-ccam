@@ -2163,7 +2163,7 @@ implicit none
 integer, intent(in) :: ntr
 integer iq, n
 real, dimension(ifull+iextra,ntr), intent(inout) :: dumc
-real, dimension(ifull) :: dum_out
+real, dimension(ifull,ntr) :: dum_out
 real, dimension(ifull+iextra), intent(in) :: niu,niv,spnet
 real odum, tdum
 real(kind=8) dumd
@@ -2233,12 +2233,13 @@ do n = 1,ntr
     end if
     dumd=dumd+real(odum,8)
 
-    dum_out(iq)=real(max(dumd,0._8))
+    dum_out(iq,n)=real(max(dumd,0._8))
   end do
-  dumc(1:ifull,n) = dum_out(1:ifull)
 end do
 !$omp end parallel do
   
+dumc(1:ifull,1:ntr) = dum_out(1:ifull,1:ntr)
+
 return
 end subroutine upwind_iceadv
 

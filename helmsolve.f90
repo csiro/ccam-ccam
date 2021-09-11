@@ -1615,7 +1615,6 @@ real, dimension(mg_maxsize,2:gmax+1) :: rhs, rhsi
 real, dimension(mg_maxsize,18) :: w
 real, dimension(mg_maxsize) :: bu, cu
 real, dimension(mg_maxsize,2) :: ws
-!real, dimension(mg_maxsize) :: v_n, v_s, v_e, v_w
 real, dimension(mg_ifull_maxcolour,3) :: zzhhcu, zzncu, zzscu, zzecu, zzwcu, rhscu
 real, dimension(mg_ifull_maxcolour,3) :: zzicu, zzincu, zziscu, zziecu, zziwcu, rhsicu
 real, dimension(mg_ifull_maxcolour,3) :: yyzcu, yyncu, yyscu, yyecu, yywcu
@@ -1920,8 +1919,8 @@ if ( mg_maxlevel_local>0 ) then
       
       ! ice - post smoothing
       do iq = 1,ng
-        bu(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),1,g) - zzis(iq,g)*v(mg(g)%is(iq),1,g) &
-                   - zzie(iq,g)*v(mg(g)%ie(iq),1,g) - zziw(iq,g)*v(mg(g)%iw(iq),1,g) &
+        bu(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
+                   - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
                    + rhsi(iq,g) ) / zzi(iq,g)
       end do
       v(1:ng,2,g) = bu(1:ng)
@@ -1941,9 +1940,9 @@ if ( mg_maxlevel_local>0 ) then
                                               +yye(iq,g)*v(mg(g)%ie(iq),1,g)  &
 					      +yyw(iq,g)*v(mg(g)%iw(iq),1,g)) &
                -(zz(iq,g)*v(iq,1,g)+zzn(iq,g)*v(mg(g)%in(iq),1,g)             &
-	                           +zzs(iq,g)*v(mg(g)%is(iq),1,g)             &
+                                   +zzs(iq,g)*v(mg(g)%is(iq),1,g)             &
                                    +zze(iq,g)*v(mg(g)%ie(iq),1,g)             &
-				   +zzw(iq,g)*v(mg(g)%iw(iq),1,g))            &
+                                   +zzw(iq,g)*v(mg(g)%iw(iq),1,g))            &
                 -hh(iq,g)*v(iq,1,g)+rhs(iq,g)
     end do
     do iq = 1,ng4
@@ -2686,10 +2685,10 @@ do itr = 2,itr_mgice
         v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1)))
         ! ice - post smoothing
         do iq = 1,ng
-	  bu(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
+          bu(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
                      - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
                      + rhsi(iq,g) ) / zzi(iq,g)
-	end do
+        end do
         v(1:ng,2,g) = bu(1:ng)
       end do
       

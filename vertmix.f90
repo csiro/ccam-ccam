@@ -102,10 +102,10 @@ if ( nvmix==6 .or. nvmix==9 ) then
       ql_ema(:,k)     = qlg(1:ifull,k)
       qf_ema(:,k)     = qfg(1:ifull,k)
       cf_ema(:,k)     = stratcloud(1:ifull,k)
-      u_ema(1:ifull,1:kl) = u(1:ifull,1:kl)
-      v_ema(1:ifull,1:kl) = v(1:ifull,1:kl)
-      w_ema(1:ifull,1:kl) = 0.
-      tke_ema(1:ifull,1:kl) = tke(1:ifull,1:kl)
+      u_ema(:,k)      = u(1:ifull,k)
+      v_ema(:,k)      = v(1:ifull,kl)
+      w_ema(1:ifull,k) = 0.
+      tke_ema(:,k)    = tke(1:ifull,k)
     end do
   end if
 end if  
@@ -206,7 +206,7 @@ else
 end if
 
 select case(nvmix)
-case(6,9)  
+  case(6,9)  
     ! k-e + MF closure scheme
     
     !$omp do schedule(static) private(is,ie,k),             &
