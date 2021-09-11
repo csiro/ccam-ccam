@@ -276,6 +276,9 @@ dz_fl(:,1)    = zzh(:,1)
 dz_fl(:,2:kl) = zzh(:,2:kl) - zzh(:,1:kl-1)
 dz_fl = max( dz_fl, 1. )
 
+! Calculate shear term on full levels
+pps(:,1:kl-1) = km(:,1:kl-1)*shear(:,1:kl-1)
+
 ! interpolate diffusion coeff and air density to half levels
 call updatekmo(kmo,   km,  fzzh,imax,kl)
 call updatekmo(rhoahl,rhoa,fzzh,imax,kl)
@@ -701,9 +704,6 @@ call updatekmo(kmo,km,fzzh,imax,kl)
 ! top boundary condition to avoid unphysical behaviour at the top of the model
 tke(:,kl) = mintke
 eps(:,kl) = mineps
-
-! Calculate shear term on full levels
-pps(:,1:kl-1) = km(:,1:kl-1)*shear(:,1:kl-1)
 
 ! Calculate buoyancy term
 select case(buoymeth)

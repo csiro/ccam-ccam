@@ -3240,6 +3240,17 @@ end if
 km = max( cu*sqrt(k)*L, 1.e-6_8 )
 ks = max( cud*sqrt(k)*L, 1.e-6_8 )
 
+!shear production
+if ( nops==0 ) then
+  do ii=2,wlev-1
+    ps(:,ii) = km(:,ii)*real(water%shear(:,ii),8)
+  end do
+else
+  do ii=2,wlev-1
+    ps(:,ii) = 0._8
+  end do
+end if
+
 !km & ks at half levels
 call interpolate_hl_r8(km,fdepth_hl,km_hl)
 call interpolate_hl_r8(ks,fdepth_hl,ks_hl)
@@ -3247,17 +3258,6 @@ call interpolate_hl_r8(ks,fdepth_hl,ks_hl)
 !coupling loop
 dtt = dt/real(nsteps,8)
 do step = 1,nsteps
-
-  !shear production
-  if ( nops==0 ) then
-    do ii=2,wlev-1
-      ps(:,ii) = km(:,ii)*real(water%shear(:,ii),8)
-    end do
-  else
-    do ii=2,wlev-1
-      ps(:,ii) = 0._8
-    end do
-  end if
 
   !buoyancy production
   if ( nopb==0 ) then
