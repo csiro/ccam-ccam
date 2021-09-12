@@ -123,7 +123,7 @@ module cc_mpi
    public :: allocateglobalpack, copyglobalpack,                            &
              ccmpi_gathermap_send2, ccmpi_gathermap_recv2,                  &
              ccmpi_gathermap_send3, ccmpi_gathermap_recv3, getglobalpack_v, &
-             setglobalpack_v
+             setglobalpack_v, ccmpi_gathermap_wait
    public :: ccmpi_filewinget, ccmpi_filewinunpack, ccmpi_filebounds_setup, &
              ccmpi_filebounds_send, ccmpi_filebounds_recv,                  &
              ccmpi_filegather, ccmpi_filedistribute, procarray
@@ -1921,54 +1921,7 @@ contains
 
    end subroutine ccmpi_gathermap_send2
 
-   subroutine ccmpi_gathermap_recv2(kref)
-
-      integer, intent(in) :: kref
-      integer :: ncount, w, iproc, n, iq
-      integer :: ipoff, jpoff, npoff
-      integer :: ipak, jpak
-      integer :: sreq, rcount, jproc
-      integer(kind=4) :: ierr, lsize
-      integer(kind=4) :: lcomm, ldone
-      integer(kind=4), dimension(size(specmap_recv)) :: donelist
-      integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
-      
-      ncount = size(specmap_recv)
-      lsize = ifull
-      lcomm = comm_world
-
-      ! Unpack incomming messages
-      rcount = rreq
-      do while ( rcount > 0 )
-         call START_LOG(mpiwaitmap_begin) 
-         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
-         call END_LOG(mpiwaitmap_end)
-         rcount = rcount - ldone
-         do jproc = 1,ldone
-            w = rlist(donelist(jproc))
-            iproc = specmap_recv(w)
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
-            do n = 1,npan
-               ! Global indices are i+ipoff, j+jpoff, n-npoff
-               iq = (n-1)*ipan*jpan
-               globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
-                  reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
-            end do
-         end do
-      end do
-      
-      sreq = nreq - rreq
-      if ( sreq > 0 ) then
-         call START_LOG(mpiwaitmap_begin) 
-         call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
-         call END_LOG(mpiwaitmap_end)
-      end if   
-
-   end subroutine ccmpi_gathermap_recv2
-
-    subroutine ccmpi_gathermap_send3(a)
+   subroutine ccmpi_gathermap_send3(a)
 
       real, dimension(:,:), intent(in) :: a
       integer :: ncount, w, kx
@@ -2003,8 +1956,87 @@ contains
          call MPI_ISend( bnds(myid)%sbuf, lsize, ltype, specmap_send(w), itag, lcomm, ireq(nreq), ierr )
       end do
 
-    end subroutine ccmpi_gathermap_send3
-  
+   end subroutine ccmpi_gathermap_send3
+
+   subroutine ccmpi_gathermap_wait
+
+      integer(kind=4) :: ierr
+      integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+      
+      if ( nreq > 0 ) then
+         call START_LOG(mpiwaitmap_begin) 
+         call MPI_Waitall( nreq, ireq(1:nreq), status, ierr )
+         call END_LOG(mpiwaitmap_end)
+         nreq = 0
+      end if   
+
+   end subroutine ccmpi_gathermap_wait
+   
+   subroutine ccmpi_gathermap_recv2(kref)
+
+      integer, intent(in) :: kref
+      integer :: ncount, w, iproc, n, iq
+      integer :: ipoff, jpoff, npoff
+      integer :: ipak, jpak
+      integer :: sreq, rcount, jproc
+      integer(kind=4) :: ierr
+      integer(kind=4) :: ldone
+      integer(kind=4), dimension(size(specmap_recv)) :: donelist
+      integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+      
+      ncount = size(specmap_recv)
+      
+      if ( nreq > 0 ) then
+
+         ! Unpack incomming messages
+         rcount = rreq
+         do while ( rcount > 0 )
+            call START_LOG(mpiwaitmap_begin) 
+            call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+            call END_LOG(mpiwaitmap_end)
+            rcount = rcount - ldone
+            do jproc = 1,ldone
+               w = rlist(donelist(jproc))
+               iproc = specmap_recv(w)
+               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+               ipak = ipoff/ipan
+               jpak = jpoff/jpan
+               do n = 1,npan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iq = (n-1)*ipan*jpan
+                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+                     reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+               end do
+            end do
+         end do
+      
+         sreq = nreq - rreq
+         if ( sreq > 0 ) then
+            call START_LOG(mpiwaitmap_begin) 
+            call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+            call END_LOG(mpiwaitmap_end)
+         end if   
+         nreq = 0
+      
+      else
+
+         do w = 1,ncount
+            iproc = specmap_recv(w)
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            ipak = ipoff/ipan
+            jpak = jpoff/jpan
+            do n = 1,npan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iq = (n-1)*ipan*jpan
+               globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+                  reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+            end do
+         end do
+
+      end if
+
+   end subroutine ccmpi_gathermap_recv2
+
    subroutine ccmpi_gathermap_recv3(kx,kref)
 
       integer, intent(in) :: kx, kref
@@ -2012,24 +2044,49 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
       integer :: sreq, rcount, jproc
-      integer(kind=4) :: ierr, lsize
-      integer(kind=4) :: lcomm, ldone
+      integer(kind=4) :: ierr, ldone
       integer(kind=4), dimension(size(specmap_recv)) :: donelist
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
 
       ncount = size(specmap_recv)
-      lsize = ifull*kx
-      lcomm = comm_world
 
-      ! Unpack incomming messages
-      rcount = rreq
-      do while ( rcount > 0 )
-         call START_LOG(mpiwaitmap_begin) 
-         call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
-         call END_LOG(mpiwaitmap_end)
-         rcount = rcount - ldone
-         do jproc = 1,ldone
-            w = rlist(donelist(jproc))
+      if ( nreq > 0 ) then
+          
+         ! Unpack incomming messages
+         rcount = rreq
+         do while ( rcount > 0 )
+            call START_LOG(mpiwaitmap_begin) 
+            call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+            call END_LOG(mpiwaitmap_end)
+            rcount = rcount - ldone
+            do jproc = 1,ldone
+               w = rlist(donelist(jproc))
+               iproc = specmap_recv(w)
+               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+               ipak = ipoff/ipan
+               jpak = jpoff/jpan
+               do k = 1,kx
+                  do n = 1,npan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iq = (n-1)*ipan*jpan + (k-1)*ifull
+                     globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+                        reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+                  end do
+               end do
+            end do
+         end do
+      
+         sreq = nreq - rreq
+         if ( sreq > 0 ) then
+            call START_LOG(mpiwaitmap_begin) 
+            call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+            call END_LOG(mpiwaitmap_end)
+         end if 
+         nreq = 0
+      
+      else
+
+         do w = 1,ncount
             iproc = specmap_recv(w)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             ipak = ipoff/ipan
@@ -2043,14 +2100,8 @@ contains
                end do
             end do
          end do
-      end do
-      
-      sreq = nreq - rreq
-      if ( sreq > 0 ) then
-         call START_LOG(mpiwaitmap_begin) 
-         call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
-         call END_LOG(mpiwaitmap_end)
-      end if   
+          
+      end if
 
    end subroutine ccmpi_gathermap_recv3
     

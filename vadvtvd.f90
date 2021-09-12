@@ -349,7 +349,7 @@ end do
 !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,kp,kx,rat,fluxlo,phitvd,fluxhi)
 #endif
 #else
-!$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_pass) async(async_counter)
+!$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_pass,fluxh) async(async_counter)
 #endif
 do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
   do iq = 1,ifull      
