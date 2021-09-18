@@ -859,10 +859,20 @@ psl(1:ifull) = 0.
 if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
   if ( iop_test ) then
     call histrd(iarchi,ier,'psf',psl,ifull)
+    if ( minval(psl(1:ifull))<-1.6 .or. maxval(psl(1:ifull))>0.4 ) then
+      write(6,*) "ERROR: Input psf is out of range"
+      write(6,*) "minval,maxval ",minval(psl(1:ifull)),maxval(psl(1:ifull))
+      call ccmpi_abort(-1)
+    end if
   else
     allocate( psl_a(fwsize) )
     psl_a(:) = 0.
     call histrd(iarchi,ier,'psf',psl_a,6*ik*ik)
+    if ( minval(psl_a)<-1.6 .or. maxval(psl_a)>0.4 ) then
+      write(6,*) "ERROR: Input psf is out of range"
+      write(6,*) "minval,maxval ",minval(psl_a),maxval(psl_a)
+      call ccmpi_abort(-1)
+    end if    
   end if
 endif
 
@@ -2685,26 +2695,6 @@ real, dimension(ifull) :: psnew, psold, pslold
 real, dimension(kl) :: told, qgold
 real sig2
 integer iq, k, kk, kold
-
-if ( size(t,1)<ifull ) then
-  write(6,*) "ERROR: t is too small in retopo"
-  call ccmpi_abort(-1)
-end if
-
-if ( size(t,2)/=kl ) then
-  write(6,*) "ERROR: incorrect number of vertical levels for t in retopo"
-  call ccmpi_abort(-1)
-end if
-
-if ( size(qg,1)<ifull ) then
-  write(6,*) "ERROR: qg is too small in retopo"
-  call ccmpi_abort(-1)
-end if
-
-if ( size(qg,2)/=kl ) then
-  write(6,*) "ERROR: incorrect number of vertical levels for qg in retopo"
-  call ccmpi_abort(-1)
-end if
 
 pslold(1:ifull) = psl(1:ifull)
 psold(1:ifull)  = 1.e5*exp(psl(1:ifull))

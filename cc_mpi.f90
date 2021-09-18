@@ -213,7 +213,7 @@ module cc_mpi
       module procedure ccmpi_scatterx32l
    end interface
    interface ccmpi_allgatherx
-      module procedure ccmpi_allgatherx2i, ccmpi_allgatherx2r
+      module procedure ccmpi_allgatherx2i, ccmpi_allgatherx2r, ccmpi_allgatherx32r
    end interface
    interface ccmpi_alltoall
       module procedure ccmpi_alltoall2l
@@ -1939,8 +1939,6 @@ contains
       lsize = ifull*kx
       lcomm = comm_world
 
-      bnds(myid)%sbuf(1:ifull*kx) = reshape( a(1:ifull,1:kx), (/ ifull*kx /) )      
-      
       ! Set up the buffers to recv
       nreq = 0
       do w = 1,ncount
@@ -1951,6 +1949,7 @@ contains
       rreq = nreq
       
       ! Set up the buffers to send
+      bnds(myid)%sbuf(1:ifull*kx) = reshape( a(1:ifull,1:kx), (/ ifull*kx /) )
       do w = 1,size(specmap_send)
          nreq = nreq + 1
          call MPI_ISend( bnds(myid)%sbuf, lsize, ltype, specmap_send(w), itag, lcomm, ireq(nreq), ierr )
@@ -1961,11 +1960,17 @@ contains
    subroutine ccmpi_gathermap_wait
 
       integer(kind=4) :: ierr
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
       
       if ( nreq > 0 ) then
          call START_LOG(mpiwaitmap_begin) 
+#ifdef pgi
          call MPI_Waitall( nreq, ireq(1:nreq), status, ierr )
+#else
+         call MPI_Waitall( nreq, ireq(1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitmap_end)
          nreq = 0
       end if   
@@ -1982,7 +1987,9 @@ contains
       integer(kind=4) :: ierr
       integer(kind=4) :: ldone
       integer(kind=4), dimension(size(specmap_recv)) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
       
       ncount = size(specmap_recv)
       
@@ -1992,7 +1999,11 @@ contains
          rcount = rreq
          do while ( rcount > 0 )
             call START_LOG(mpiwaitmap_begin) 
+#ifdef pgi
             call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
+            call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
             call END_LOG(mpiwaitmap_end)
             rcount = rcount - ldone
             do jproc = 1,ldone
@@ -2013,7 +2024,11 @@ contains
          sreq = nreq - rreq
          if ( sreq > 0 ) then
             call START_LOG(mpiwaitmap_begin) 
+#ifdef pgi
             call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+            call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
             call END_LOG(mpiwaitmap_end)
          end if   
          nreq = 0
@@ -2046,7 +2061,9 @@ contains
       integer :: sreq, rcount, jproc
       integer(kind=4) :: ierr, ldone
       integer(kind=4), dimension(size(specmap_recv)) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
 
       ncount = size(specmap_recv)
 
@@ -2056,7 +2073,11 @@ contains
          rcount = rreq
          do while ( rcount > 0 )
             call START_LOG(mpiwaitmap_begin) 
+#ifdef pgi
             call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
+            call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
             call END_LOG(mpiwaitmap_end)
             rcount = rcount - ldone
             do jproc = 1,ldone
@@ -2079,7 +2100,11 @@ contains
          sreq = nreq - rreq
          if ( sreq > 0 ) then
             call START_LOG(mpiwaitmap_begin) 
+#ifdef pgi
             call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+            call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
             call END_LOG(mpiwaitmap_end)
          end if 
          nreq = 0
@@ -2544,7 +2569,9 @@ contains
       integer, dimension(:,:), allocatable :: dums, dumr
       integer(kind=4) :: ierr, itag=0
       integer(kind=4) :: llen, lproc, lcomm
+#ifdef pgi
       integer(kind=4), dimension(:,:), allocatable :: status
+#endif
 #ifdef i8r8
       integer(kind=4), parameter :: ltypei = MPI_INTEGER8
       integer(kind=4), parameter :: ltyper = MPI_DOUBLE_PRECISION
@@ -3391,7 +3418,9 @@ contains
       ! ireq needs 1 point for the MPI_Waitall which can use ireq(rreq+1)
       allocate( ireq(max(2*neighnum,1)), rlist(max(neighnum,1)) )
       allocate( dums(7,neighnum), dumr(7,neighnum) )
+#ifdef pgi
       allocate( status(MPI_STATUS_SIZE,size(ireq)) )
+#endif
 
       
       ! Communicate lengths for rlenh, rlen, rlenx and rlen2
@@ -3422,7 +3451,11 @@ contains
                             itag, lcomm, ireq(nreq), ierr )
          end if
       end do
+#ifdef pgi
       call MPI_Waitall( nreq, ireq, status, ierr )
+#else
+      call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
+#endif
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
          if ( bnds(rproc)%rlen2 > 0 ) then
@@ -3472,8 +3505,12 @@ contains
             call MPI_ISend( bnds(sproc)%request_list, llen, &
                  ltypei, lproc, itag, lcomm, ireq(nreq), ierr )
          end if
-      end do      
+      end do
+#ifdef pgi
       call MPI_Waitall( nreq, ireq, status, ierr )
+#else
+      call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
+#endif
 
 !     Now deallocate arrays that are no longer needed
       allocate( dumi(maxbuflen) )
@@ -3942,7 +3979,11 @@ contains
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
+#ifdef pgi
       call MPI_Waitall( nreq, ireq, status, ierr )
+#else
+      call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
+#endif
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
          if ( bnds(rproc)%rlen_eev_fn > 0 ) then
@@ -3990,7 +4031,11 @@ contains
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
+#ifdef pgi
       call MPI_Waitall( nreq, ireq, status, ierr )
+#else
+      call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
+#endif
 
       ! Deallocate arrays that are no longer needed
       ! Note that the request_list for myid is still allocated
@@ -4035,7 +4080,11 @@ contains
                   lproc, itag, lcomm, ireq(nreq), ierr )
          end if
       end do
+#ifdef pgi
       call MPI_Waitall( nreq, ireq, status, ierr )
+#else
+      call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
+#endif
       
       do iproc = 1,neighnum
          rproc = neighlist(iproc)
@@ -4076,10 +4125,12 @@ contains
                   lproc, itag, lcomm, ireq(nreq), ierr )
          end if
       end do
+#ifdef pgi
       call MPI_Waitall( nreq, ireq, status, ierr )
-      
-      
       deallocate( status )
+#else
+      call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
+#endif
       
       
       do iproc = 1,neighnum
@@ -4327,7 +4378,9 @@ contains
       integer(kind=4) :: ierr, itag=1, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -4403,7 +4456,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef pgi
          call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4421,7 +4478,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwait_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr)
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr)
+#endif
          call END_LOG(mpiwait_end)
       end if   
 
@@ -4441,7 +4502,9 @@ contains
       integer(kind=4) :: ierr, itag=2, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -4521,7 +4584,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef pgi
          call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4541,7 +4608,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwait_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr)
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr)
+#endif
          call END_LOG(mpiwait_end)
       end if
 
@@ -4560,9 +4631,11 @@ contains
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION      
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#endif
       
       kx = size(t,2)
       double = .false.
@@ -4637,7 +4710,11 @@ contains
       rcount = rreq
       do while ( rcount>0 )
          call START_LOG(mpiwait_begin)
+#ifdef pgi
          call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4657,7 +4734,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwait_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
       end if   
 
@@ -4677,7 +4758,9 @@ contains
       integer(kind=4) :: ierr, itag=3, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -4763,7 +4846,11 @@ contains
          rcount = rreq
          do while ( rcount > 0 )
             call START_LOG(mpiwait_begin)
+#ifdef pgi
             call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, status, ierr )
+#else
+            call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
             call END_LOG(mpiwait_end)
             rcount = rcount - ldone
             do jproc = 1,ldone
@@ -4785,7 +4872,11 @@ contains
          sreq = nreq - rreq
          if ( sreq > 0 ) then
             call START_LOG(mpiwait_begin)
+#ifdef pgi
             call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+            call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
             call END_LOG(mpiwait_end)
          end if
 
@@ -4902,7 +4993,9 @@ contains
       integer :: rcount, jproc, iq, k
       integer(kind=4) :: ierr, sreq, lproc, ldone
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
 
       if ( lcolour<1 .or. lcolour>maxcolour ) then
          write(6,*) "ERROR: Invalid colour for bounds_colour_recv"
@@ -4922,7 +5015,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef pgi
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -4965,7 +5062,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwait_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
       end if   
 
@@ -4991,7 +5092,9 @@ contains
       integer(kind=4) :: ierr, itag=5, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
 
       double = .false.
       extra = .false.
@@ -5218,7 +5321,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef pgi
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -5305,7 +5412,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwait_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
       end if   
 
@@ -5327,7 +5438,9 @@ contains
       integer(kind=4) :: ierr, itag=6, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -5583,7 +5696,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwait_begin)
+#ifdef pgi
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -5682,7 +5799,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwait_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwait_end)
       end if
 
@@ -5820,7 +5941,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwaitdep_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitdep_end)
       end if
 
@@ -5879,13 +6004,19 @@ contains
       integer :: rcount
       integer(kind=4) :: ierr, ldone, sreq
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
       
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaitdep_begin)
+#ifdef pgi
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitdep_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -5900,7 +6031,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwaitdep_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitdep_end)
       end if
 
@@ -5912,7 +6047,9 @@ contains
       integer :: rcount, ntr, l
       integer(kind=4) :: ierr, ldone, sreq
       integer(kind=4), dimension(neighnum) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
 
       ntr = size(s,3)
       
@@ -5920,7 +6057,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaitdep_begin)
+#ifdef pgi
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitdep_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -5937,7 +6078,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwaitdep_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitdep_end)
       end if
 
@@ -8035,6 +8180,26 @@ contains
       
    end subroutine ccmpi_allgatherx2r
    
+    subroutine ccmpi_allgatherx32r(gdat,ldat,comm)
+   
+      integer, intent(in) :: comm
+      integer(kind=4) lsize, lcomm, lerr
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif  
+      real, dimension(:,:), intent(in) :: ldat
+      real, dimension(:), intent(out) :: gdat
+   
+      lcomm = comm
+      lsize = size(ldat)
+      call START_LOG(allgather_begin)
+      call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,lerr)
+      call END_LOG(allgather_end)
+      
+   end subroutine ccmpi_allgatherx32r
+   
    subroutine ccmpi_alltoall2l(gdat,comm)
    
       integer, intent(in) :: comm
@@ -8887,7 +9052,9 @@ contains
       integer :: iext, iproc, xlen, jx, nc, xlev, rproc, sproc
       integer :: ntest, ncount
       integer(kind=4) :: itag=22, lproc, ierr, llen, lcomm
+#ifdef pgi
       integer(kind=4), dimension(:,:), allocatable :: status
+#endif
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -9334,7 +9501,9 @@ contains
             allocate( ireq(max(2*ntest,1)) )
             allocate( rlist(max(ntest,1)) )
          end if
+#ifdef pgi
          allocate( status(MPI_STATUS_SIZE,size(ireq)) )
+#endif         
   
          ! set up neighbour lists
          allocate ( mg(g)%neighlist(mg(g)%neighnum) )
@@ -9376,7 +9545,11 @@ contains
                call MPI_ISend( dums(:,iproc), 2_4, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
             end if
          end do
+#ifdef pgi
          call MPI_Waitall( nreq, ireq, status, ierr )
+#else
+         call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
+#endif
          do iproc = 1,mg(g)%neighnum
             rproc = mg(g)%neighlist(iproc)
             if ( mg_bnds(rproc,g)%rlenx > 0 ) then
@@ -9409,12 +9582,16 @@ contains
             call MPI_ISend( mg_bnds(lproc,g)%request_list(1), llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end do      
+#ifdef pgi
          call MPI_Waitall( nreq, ireq, status, ierr )
+         deallocate( status )
+#else
+         call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
+#endif
          nreq = 0
          rreq = 0
-        
-         deallocate( status )
 
+         
          ! At the moment send_lists use global indices. Convert these to local.
          do iproc = mg(g)%neighnum,1,-1
             sproc = mg(g)%neighlist(iproc)  ! Send to
@@ -9583,7 +9760,9 @@ contains
       integer(kind=4) :: ierr, itag=20, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(size(ireq)) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif      
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -9636,7 +9815,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaitmg_begin)
+#ifdef pgi
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitmg_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -9654,7 +9837,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwaitmg_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitmg_end)
       end if   
 
@@ -9673,7 +9860,9 @@ contains
       integer(kind=4) :: ierr, itag=20, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(size(ireq)) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -9735,7 +9924,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaitmg_begin)
+#ifdef pgi
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitmg_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -9755,7 +9948,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwaitmg_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitmg_end)
       end if   
 
@@ -9817,7 +10014,9 @@ contains
       integer(kind=4) :: lcomm
       integer(kind=4) :: itag = 50
       integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(filemap_recv)+size(filemap_send)) :: status
+#endif      
       real, dimension(:), intent(in) :: sinp
       real, dimension(pipan*pjpan*pnpan,size(filemap_recv)), intent(out) :: abuf 
 
@@ -9851,7 +10050,11 @@ contains
       end do
       
       call START_LOG(mpiwaitmapfile_begin) 
+#ifdef pgi
       call MPI_Waitall( nreq, i_req, status, ierr )
+#else
+      call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
+#endif
       call END_LOG(mpiwaitmapfile_end)
       
    end subroutine ccmpi_filewinget2
@@ -9872,7 +10075,9 @@ contains
       integer(kind=4) :: itag = 51
       integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req
       integer(kind=4), dimension(size(filemap_recv)) :: i_list, donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(filemap_recv)+size(filemap_send)) :: status
+#endif
       real, dimension(:,:), intent(in) :: sinp
       real, dimension(:,:,:), intent(out) :: abuf
       real, dimension(pipan*pjpan*pnpan,size(sinp,2),size(filemap_recv)) :: bbuf
@@ -9913,7 +10118,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaitmapfile_begin) 
+#ifdef pgi
          call MPI_Waitsome( rreq, i_req, ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitmapfile_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -9924,8 +10133,12 @@ contains
       
       sreq = nreq - rreq
       if ( sreq > 0 ) then
-         call START_LOG(mpiwaitmapfile_begin) 
+         call START_LOG(mpiwaitmapfile_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, i_req(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, i_req(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitmapfile_end)
       end if
       
@@ -9961,7 +10174,9 @@ contains
       integer :: iproc, jproc, iloc, jloc, nloc, floc
       integer(kind=4) :: lproc, lcomm, llen, ierr
       integer(kind=4) :: itag=42
+#ifdef pgi
       integer(kind=4), dimension(:,:), allocatable :: status
+#endif
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
 #else
@@ -10158,7 +10373,9 @@ contains
          allocate( ireq(max(2*fileneighnum,1)) )
          allocate( rlist(max(fileneighnum,1)) )
       end if
+#ifdef pgi
       allocate( status(MPI_STATUS_SIZE,size(ireq)) )
+#endif
 
       ! Now, for each processor send the length of points I want.
       allocate( dumi(4,fileneighnum) )
@@ -10177,7 +10394,11 @@ contains
          dumi(4,jproc) = filebnds(iproc)%rlenx
          call MPI_ISend( dumi(3:4,jproc), 2_4, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
       end do
+#ifdef pgi
       call MPI_Waitall( nreq, ireq, status, ierr )
+#else
+      call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
+#endif
       do jproc = 1,fileneighnum
          iproc = fileneighlist(jproc)
          filebnds(iproc)%slen = dumi(1,jproc)
@@ -10208,11 +10429,17 @@ contains
             lproc = iproc
             call MPI_ISend( filebnds(iproc)%request_list(:,i), llen, &
                  ltype, lproc, itag, lcomm, ireq(nreq), ierr )
-         end do      
+         end do
+#ifdef pgi
          call MPI_Waitall( nreq, ireq, status, ierr )
+#else
+         call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
+#endif
       end do
       
+#ifdef pgi
       deallocate( status )
+#endif      
       
 
       ! convert send_list and unpack_list to local indices
@@ -10363,7 +10590,9 @@ contains
       integer, dimension(fileneighnum) :: rslen
       integer(kind=4) :: lproc, ierr, ldone, sreq, lcomm
       integer(kind=4), dimension(fileneighnum) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
       real, dimension(0:pipan+1,0:pjpan+1,pnpan,1:fncount), intent(inout) :: sdat
       logical, intent(in), optional :: corner
       logical :: extra
@@ -10397,7 +10626,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaitfile_begin)
+#ifdef pgi
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitfile_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -10417,7 +10650,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwaitfile_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitfile_end)
       end if   
 
@@ -10494,7 +10731,9 @@ contains
       integer, dimension(fileneighnum) :: rslen
       integer(kind=4) :: lproc, ierr, ldone, sreq, lcomm
       integer(kind=4), dimension(fileneighnum) :: donelist
+#ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
+#endif
       real, dimension(0:,0:,1:,1:,1:), intent(inout) :: sdat
       logical, intent(in), optional :: corner
       logical :: extra
@@ -10531,7 +10770,11 @@ contains
       rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaitfile_begin)
+#ifdef pgi
          call MPI_Waitsome( rreq, ireq, ldone, donelist, status, ierr )
+#else
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitfile_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
@@ -10552,7 +10795,11 @@ contains
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwaitfile_begin)
+#ifdef pgi
          call MPI_Waitall( sreq, ireq(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
          call END_LOG(mpiwaitfile_end)
       end if   
       
