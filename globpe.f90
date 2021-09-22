@@ -349,7 +349,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       elsewhere
         epst(1:ifull) = 0.
       end where
-    endif ! (ktau>2.and.epsp>1..and.epsp<2.)
+    end if ! (ktau>2.and.epsp>1..and.epsp<2.)
 
     if ( ktau<10 .and. mydiag ) then
       write(6,*)'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),ubar(idjd,1)
@@ -2763,9 +2763,7 @@ if ( myid==0 ) write(6,*) "kblock ",kblock
 ! REMAP MPI PROCESSES
 
 ! Optimise the MPI process ranks to reduce inter-node message passing
-#ifdef usempi3
 call ccmpi_remap
-#endif
 
 
 !--------------------------------------------------------------

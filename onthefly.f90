@@ -2013,7 +2013,7 @@ integer mm, n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(ifull) :: wrk
-real, dimension(pipan*pjpan*pnpan,size(filemap_recv)) :: abuf
+real, dimension(pipan*pjpan*pnpan,size(filemap_req)) :: abuf
 
 call START_LOG(otf_ints1_begin)
 
@@ -2055,7 +2055,7 @@ integer mm, k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(ifull) :: wrk
-real, dimension(pipan*pjpan*pnpan,size(filemap_recv),kblock) :: abuf
+real, dimension(pipan*pjpan*pnpan,size(filemap_req),kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
 
@@ -3319,10 +3319,16 @@ integer n, ipf
 integer mm, iq, idel, jdel
 integer ncount, w, colour
 integer sourceid, newid
+integer ncount_a, ncount_b
 logical, dimension(0:fnproc-1) :: lfile
 integer, dimension(:), allocatable :: tempmap_send, tempmap_smod
-logical, dimension(0:nproc-1) :: lproc
+integer, dimension(:), allocatable :: tempmap_recv, tempmap_rmod
+logical, dimension(0:nproc-1) :: lproc, lproc_t
 
+if ( allocated(filemap_req) ) then
+  write(6,*) "ERROR: Close input file before opening a new file"
+  call ccmpi_abort(-1)
+end if
 if ( allocated(filemap_recv) ) then
   write(6,*) "ERROR: Close input file before opening a new file"
   call ccmpi_abort(-1)
@@ -3368,44 +3374,69 @@ if ( myid==0 ) then
   write(6,*) "--> Create map of files required by this process"
 end if
 ncount = count(lfile(0:fnproc-1))
-allocate( filemap_recv(ncount), filemap_rmod(ncount) )
+allocate( filemap_req(ncount), filemap_qmod(ncount) )
 ncount = 0
 do w = 0,fnproc-1
   if ( lfile(w) ) then
     ncount = ncount + 1
-    filemap_recv(ncount) = mod( w, fnresid )
-    filemap_rmod(ncount) = w/fnresid
+    filemap_req(ncount) = mod( w, fnresid )
+    filemap_qmod(ncount) = w/fnresid
   end if
 end do
 
 ! Construct a map of processes that need this file
 if ( myid==0 ) then
-  write(6,*) "--> Create map of processes that need this file"  
+  write(6,*) "--> Create map for communication between processes"  
 end if
 allocate( tempmap_send(nproc*fncount), tempmap_smod(nproc*fncount) )
+allocate( tempmap_recv(nproc*fncount), tempmap_rmod(nproc*fncount) )
 tempmap_send(:) = -1
 tempmap_smod(:) = -1
-ncount = 0
+tempmap_recv(:) = -1
+tempmap_rmod(:) = -1
+ncount_a = 0
+ncount_b = 0
 do ipf = 0,fncount-1
   lproc(:) = .false.
-  do w = 1,size(filemap_recv)
-    if ( filemap_rmod(w) == ipf ) then
-      lproc(filemap_recv(w)) = .true.
+  do w = 1,size(filemap_req)
+    if ( filemap_qmod(w) == ipf ) then
+      lproc(filemap_req(w)) = .true.
     end if
-  end do  
-  call ccmpi_alltoall(lproc,comm_world) ! global transpose
+  end do 
+  call ccmpi_allreduce(lproc,lproc_t,"or",comm_node)
+  ncount = 0
   do w = 0,nproc-1
-    if ( lproc(w) ) then
+    if ( lproc_t(w) ) then
       ncount = ncount + 1
-      tempmap_send(ncount) = w
-      tempmap_smod(ncount) = ipf
+      if ( mod(ncount,node_nproc)/=node_myid ) then
+        lproc_t(w) = .false.
+      end if
+    end if
+    if ( lproc_t(w) ) then
+      ncount_b = ncount_b + 1
+      tempmap_recv(ncount_b) = w
+      tempmap_rmod(ncount_b) = ipf
+    end if
+  end do
+  call ccmpi_alltoall(lproc_t,comm_world) ! global transpose
+  do w = 0,nproc-1
+    if ( lproc_t(w) ) then
+      ncount_a = ncount_a + 1
+      tempmap_send(ncount_a) = w
+      tempmap_smod(ncount_a) = ipf
     end if
   end do  
 end do
-allocate( filemap_send(ncount), filemap_smod(ncount) )
-filemap_send(1:ncount) = tempmap_send(1:ncount)
-filemap_smod(1:ncount) = tempmap_smod(1:ncount)
+allocate( filemap_send(ncount_a), filemap_smod(ncount_a) )
+allocate( filemap_recv(ncount_b), filemap_rmod(ncount_b) )
+filemap_send(1:ncount_a) = tempmap_send(1:ncount_a)
+filemap_smod(1:ncount_a) = tempmap_smod(1:ncount_a)
+filemap_recv(1:ncount_b) = tempmap_recv(1:ncount_b)
+filemap_rmod(1:ncount_b) = tempmap_rmod(1:ncount_b)
 deallocate( tempmap_send, tempmap_smod )
+deallocate( tempmap_recv, tempmap_rmod )
+
+call ccmpi_filewininit(kblock)
 
 ! Define halo indices for ccmpi_filebounds
 if ( myid==0 ) then

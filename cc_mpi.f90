@@ -81,11 +81,16 @@ module cc_mpi
    integer, save, public :: neighnum                                       ! number of neighbours
 
    integer(kind=4), allocatable, dimension(:), save, public ::              &
-      specmap_recv                                                         ! gather map recived for spectral filter
+      specmap_req                                                          ! gather map required for spectral filter
+   integer(kind=4), allocatable, dimension(:), save, public ::              &
+      specmap_recv                                                         ! gather map recieved for spectral filter
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       specmap_send                                                         ! gather map sent for spectral filter
    integer, allocatable, dimension(:), save, public :: specmap_ext         ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
+   real, dimension(:,:,:,:,:,:), pointer, save, private :: nodepack        ! node buffer for spectral filter
+   real, dimension(:,:,:,:,:,:), allocatable, target, save, private :: nodepack_dummy
+   integer, save, private :: nodepack_win
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata
    end type globalpack_info
@@ -98,9 +103,14 @@ module cc_mpi
    integer, allocatable, dimension(:), save, public :: pnoff               ! file window panel offset
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), allocatable, dimension(:), save, public ::              &
+      filemap_req, filemap_qmod                                            ! file map requested for onthefly
+   integer(kind=4), allocatable, dimension(:), save, public ::              &
       filemap_recv, filemap_rmod                                           ! file map received for onthefly
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       filemap_send, filemap_smod                                           ! file map sent for onthefly
+   real, dimension(:,:,:,:), pointer, save, private :: nodefile            ! node buffer for file map
+   real, dimension(:,:,:,:), allocatable, target, save, private :: nodefile_dummy
+   integer, save, private :: nodefile_win
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -126,7 +136,8 @@ module cc_mpi
              setglobalpack_v, ccmpi_gathermap_wait
    public :: ccmpi_filewinget, ccmpi_filewinunpack, ccmpi_filebounds_setup, &
              ccmpi_filebounds_send, ccmpi_filebounds_recv,                  &
-             ccmpi_filegather, ccmpi_filedistribute, procarray
+             ccmpi_filegather, ccmpi_filedistribute, procarray,             &
+             ccmpi_filewininit, ccmpi_filewinfinalize
 #ifdef usempi3
    public :: ccmpi_allocshdata, ccmpi_allocshdatar8, ccmpi_remap
    public :: ccmpi_shepoch, ccmpi_freeshdata
@@ -190,6 +201,7 @@ module cc_mpi
    interface ccmpi_allreduce
       module procedure ccmpi_allreduce1i, ccmpi_allreduce2i, ccmpi_allreduce1r, ccmpi_allreduce2r
       module procedure ccmpi_allreduce3r, ccmpi_allreduce1c, ccmpi_allreduce2c
+      module procedure ccmpi_allreduce2l
    end interface
    interface ccmpi_bcast
       module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast1r, ccmpi_bcast2r
@@ -250,7 +262,7 @@ module cc_mpi
 #ifdef usempi3
    interface ccmpi_allocshdata
       module procedure ccmpi_allocshdata2r, ccmpi_allocshdata3r, ccmpi_allocshdata4r
-      module procedure ccmpi_allocshdata5r
+      module procedure ccmpi_allocshdata5r, ccmpi_allocshdata7r
       module procedure ccmpi_allocshdata2i, ccmpi_allocshdata3i, ccmpi_allocshdata5i
    end interface
    interface ccmpi_allocshdatar8
@@ -1889,7 +1901,7 @@ contains
    subroutine ccmpi_gathermap_send2(a)
 
       real, dimension(ifull), intent(in) :: a
-      integer :: ncount, w
+      integer :: w
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -1899,16 +1911,16 @@ contains
       integer(kind=4) :: lcomm
       integer(kind=4) :: itag = 52
         
-      ncount = size(specmap_recv)
       lsize = ifull
       lcomm = comm_world
 
       ! Set up the buffers to recv
       nreq = 0
-      do w = 1,ncount
+      do w = 1,size(specmap_recv)
          nreq = nreq + 1
          rlist(nreq) = w
-         call MPI_IRecv( bnds(specmap_recv(w))%rbuf, lsize, ltype, specmap_recv(w), itag, lcomm, ireq(nreq), ierr )
+         call MPI_IRecv( bnds(specmap_recv(w))%rbuf, lsize, ltype, specmap_recv(w), itag, lcomm, ireq(nreq), &
+                         ierr )
       end do
       rreq = nreq
 
@@ -1924,7 +1936,7 @@ contains
    subroutine ccmpi_gathermap_send3(a)
 
       real, dimension(:,:), intent(in) :: a
-      integer :: ncount, w, kx
+      integer :: w, kx
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -1935,16 +1947,16 @@ contains
       integer(kind=4) :: itag = 52
 
       kx = size(a,2)
-      ncount = size(specmap_recv)
       lsize = ifull*kx
       lcomm = comm_world
 
       ! Set up the buffers to recv
       nreq = 0
-      do w = 1,ncount
+      do w = 1,size(specmap_recv)
          nreq = nreq + 1
          rlist(nreq) = w
-         call MPI_IRecv( bnds(specmap_recv(w))%rbuf, lsize, ltype, specmap_recv(w), itag, lcomm, ireq(nreq), ierr )
+         call MPI_IRecv( bnds(specmap_recv(w))%rbuf, lsize, ltype, specmap_recv(w), itag, lcomm, ireq(nreq), &
+                         ierr )
       end do
       rreq = nreq
       
@@ -1980,18 +1992,15 @@ contains
    subroutine ccmpi_gathermap_recv2(kref)
 
       integer, intent(in) :: kref
-      integer :: ncount, w, iproc, n, iq
+      integer :: w, iproc, n, iq
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
       integer :: sreq, rcount, jproc
-      integer(kind=4) :: ierr
-      integer(kind=4) :: ldone
+      integer(kind=4) :: ierr, lcomm, ldone
       integer(kind=4), dimension(size(specmap_recv)) :: donelist
 #ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
 #endif
-      
-      ncount = size(specmap_recv)
       
       if ( nreq > 0 ) then
 
@@ -2015,7 +2024,7 @@ contains
                do n = 1,npan
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iq = (n-1)*ipan*jpan
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+                  nodepack(:,:,1,ipak+1,jpak+1,n-npoff+1) = &
                      reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
                end do
             end do
@@ -2035,7 +2044,8 @@ contains
       
       else
 
-         do w = 1,ncount
+         ! ccmpi_gathermap_wait has already been called
+         do w = 1,size(specmap_recv)
             iproc = specmap_recv(w)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             ipak = ipoff/ipan
@@ -2043,29 +2053,49 @@ contains
             do n = 1,npan
                ! Global indices are i+ipoff, j+jpoff, n-npoff
                iq = (n-1)*ipan*jpan
-               globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+               nodepack(:,:,1,ipak+1,jpak+1,n-npoff+1) = &
                   reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
             end do
          end do
 
       end if
 
+      call START_LOG(mpiwaitmap_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpiwaitmap_end)
+
+      ! unpack for process
+      do w = 1,size(specmap_req)
+         iproc = specmap_req(w)
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         ipak = ipoff/ipan
+         jpak = jpoff/jpan
+         do n = 1,npan
+            globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+               nodepack(:,:,1,ipak+1,jpak+1,n-npoff+1)
+         end do   
+      end do   
+      
+      call START_LOG(mpiwaitmap_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpiwaitmap_end)
+   
    end subroutine ccmpi_gathermap_recv2
 
    subroutine ccmpi_gathermap_recv3(kx,kref)
 
       integer, intent(in) :: kx, kref
-      integer :: ncount, w, iproc, k, n, iq
+      integer :: w, iproc, k, n, iq
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
       integer :: sreq, rcount, jproc
-      integer(kind=4) :: ierr, ldone
+      integer(kind=4) :: ierr, ldone, lcomm
       integer(kind=4), dimension(size(specmap_recv)) :: donelist
 #ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
 #endif
-
-      ncount = size(specmap_recv)
 
       if ( nreq > 0 ) then
           
@@ -2090,7 +2120,7 @@ contains
                   do n = 1,npan
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
                      iq = (n-1)*ipan*jpan + (k-1)*ifull
-                     globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+                     nodepack(:,:,k,ipak+1,jpak+1,n-npoff+1) = &
                         reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
                   end do
                end do
@@ -2111,7 +2141,7 @@ contains
       
       else
 
-         do w = 1,ncount
+         do w = 1,size(specmap_recv)
             iproc = specmap_recv(w)
             call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
             ipak = ipoff/ipan
@@ -2120,7 +2150,7 @@ contains
                do n = 1,npan
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iq = (n-1)*ipan*jpan + (k-1)*ifull
-                  globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+                  nodepack(:,:,k,ipak+1,jpak+1,n-npoff+1) = &
                     reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
                end do
             end do
@@ -2128,6 +2158,30 @@ contains
           
       end if
 
+      call START_LOG(mpiwaitmap_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpiwaitmap_end)
+
+      ! unpack for process
+      do w = 1,size(specmap_req)
+         iproc = specmap_req(w)
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         ipak = ipoff/ipan
+         jpak = jpoff/jpan
+         do k = 1,kx
+            do n = 1,npan
+               globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
+                  nodepack(:,:,k,ipak+1,jpak+1,n-npoff+1)
+            end do
+         end do   
+      end do 
+
+      call START_LOG(mpiwaitmap_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpiwaitmap_end)
+      
    end subroutine ccmpi_gathermap_recv3
     
    subroutine setglobalpack_v(datain,ibeg,iend,k)
@@ -2291,9 +2345,9 @@ contains
       integer :: w, n, ncount, iproc, ipak, jpak
       integer :: ipoff, jpoff, npoff
    
-      ncount = size(specmap_recv)
+      ncount = size(specmap_req)
       do w = 1,ncount
-         iproc = specmap_recv(w)
+         iproc = specmap_req(w)
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          ipak = ipoff/ipan
          jpak = jpoff/jpan
@@ -2317,17 +2371,23 @@ contains
       integer :: ncount, w, ipak, jpak, n, iproc
       integer :: ipoff, jpoff, npoff
       integer :: xlen
+      integer, dimension(6) :: shsize
       
+      ! increase request list size
       xlen = size(specmap_recv) + size(specmap_send)
       if ( size(ireq)<xlen ) then
          deallocate( ireq )
          allocate( ireq(xlen) )
       end if
+      
+      ! increase receive list size
       xlen = size(specmap_recv)
       if ( size(rlist)<xlen ) then
          deallocate( rlist )
          allocate( rlist(xlen) )
       end if
+      
+      ! increase receive buffers
       xlen = ifull*ky
       do w = 1,size(specmap_recv)
          iproc = specmap_recv(w) 
@@ -2340,7 +2400,10 @@ contains
             allocate( bnds(iproc)%r8buf(xlen) )
             bnds(iproc)%rbuflen = xlen
          end if
-      end do   
+      end do 
+      
+      ! increase send buffer
+      xlen = ifull*ky
       iproc = myid
       if ( bnds(iproc)%sbuflen < xlen ) then
          if ( allocated(bnds(iproc)%sbuf) ) then
@@ -2366,8 +2429,20 @@ contains
             globalpack(ipak,jpak,n-npoff)%localdata = 0.
          end do
       end do
-      
-      deallocate(specmap_ext) ! not needed after allocation of global sparse arrays
+   
+      ! allocated shared memory for internal node buffer
+#ifdef usempi3
+      shsize(1) = ipan
+      shsize(2) = jpan
+      shsize(3) = kx
+      shsize(4) = nxproc
+      shsize(5) = nyproc
+      shsize(6) = 6
+      call ccmpi_allocshdata(nodepack,shsize(1:6),nodepack_win)
+#else
+      allocate( nodepack_dummy(ipan,jpan,kx,nxproc,pyproc,6) )
+      nodepack => nodepack_dummy
+#endif
    
    end subroutine allocateglobalpack
    
@@ -7492,6 +7567,34 @@ contains
    
    end subroutine ccmpi_allreduce2c
    
+   subroutine ccmpi_allreduce2l(ldat,gdat,op,comm)
+   
+      integer, intent(in) :: comm
+      integer(kind=4) :: lop, lcomm, ierr, lsize
+      integer(kind=4), parameter :: ltype = MPI_LOGICAL
+      logical, dimension(:), intent(in) :: ldat
+      logical, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+
+      lcomm = comm
+      lsize = size(ldat)
+      
+      select case( op )
+         case( "or" )
+            lop = MPI_LOR
+         case( "and" )
+            lop = MPI_LAND
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call ccmpi_abort(-1)
+      end select
+      
+      call START_LOG(allreduce_begin)
+      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, ierr )
+      call END_LOG(allreduce_end)
+   
+   end subroutine ccmpi_allreduce2l
+   
    subroutine ccmpi_abort(ierrin)
    
       integer, intent(in) :: ierrin
@@ -8302,84 +8405,64 @@ contains
          call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr) ! redefine comm_world
          comm_world = lcommout
          nproc = newnproc
+         if ( myid >= nproc ) then
+            call ccmpi_finalize
+            stop
+         end if    
       end if
       
-      if ( myid < nproc ) then
-   
 #ifdef usempi3
-         if ( nproc > 1 ) then
+      ! Intra-node communicator 
+      lid = myid
+      lcommin = comm_world
+      call MPI_Comm_split_type(lcommin, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
+      call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
+      call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
+      comm_node  = lcommout
+      node_nproc = lproc
+      node_myid  = lid
 
-            ! Intra-node communicator 
-            lid = myid
-            lcommin = comm_world
-            call MPI_Comm_split_type(lcommin, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
-            call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
-            call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
-            comm_node  = lcommout
-            node_nproc = lproc
-            node_myid  = lid
+      ! Inter-node commuicator
+      lcolour = node_myid
+      lid = myid
+      lcommin = comm_world
+      call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
+      call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of nodes that have rank node_myid
+      call MPI_Comm_rank(lcommout, lid, lerr)   ! Node id for process rank node_myid
+      comm_nodecaptain  = lcommout
+      nodecaptain_nproc = lproc
+      nodecaptain_myid  = lid
 
-            ! Inter-node commuicator
-            lcolour = node_myid
-            lid = myid
-            lcommin = comm_world
-            call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
-            call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of nodes that have rank node_myid
-            call MPI_Comm_rank(lcommout, lid, lerr)   ! Node id for process rank node_myid
-            comm_nodecaptain  = lcommout
-            nodecaptain_nproc = lproc
-            nodecaptain_myid  = lid
-
-            ! Communicate node id 
-            lid = nodecaptain_myid
-            lcommout = comm_node
-            call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
-            node_captainid = lid
-            
-         else
-             
-            comm_node  = comm_world
-            node_nproc = nproc
-            node_myid  = myid
-         
-            comm_nodecaptain  = comm_world
-            nodecaptain_nproc = nproc
-            nodecaptain_myid  = myid
-         
-            node_captainid = myid
-            
-         end if
+      ! Communicate node id 
+      lid = nodecaptain_myid
+      lcommout = comm_node
+      call MPI_Bcast(lid, 1_4, MPI_INTEGER, 0_4, lcommout, lerr)
+      node_captainid = lid
       
-         if ( myid==0 .and. (node_myid/=0.or.nodecaptain_myid/=0) ) then
-            write(6,*) "ERROR: Intra-node communicator failed"
-            write(6,*) "myid, node_myid, nodecaptain_myid ",myid,node_myid,nodecaptain_myid
-            call ccmpi_abort(-1)
-         end if
-#else
-         ! each process is treated as a node
-         lcommin = comm_world
-         lcolour = myid
-         lid = 0
-         call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
-         comm_node  = lcommout
-         node_nproc = 1
-         node_myid  = 0
-      
-         comm_nodecaptain = comm_world
-         nodecaptain_nproc = nproc
-         nodecaptain_myid = myid
-      
-         node_captainid = myid
-#endif
-
-      else
-         call ccmpi_finalize
-         stop
+      if ( myid==0 .and. (node_myid/=0.or.nodecaptain_myid/=0) ) then
+         write(6,*) "ERROR: Intra-node communicator failed"
+         write(6,*) "myid, node_myid, nodecaptain_myid ",myid,node_myid,nodecaptain_myid
+         call ccmpi_abort(-1)
       end if
+#else
+      ! each process is treated as a node
+      lcommin = comm_world
+      lcolour = myid
+      lid = 0
+      call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
+      comm_node  = lcommout
+      node_nproc = 1
+      node_myid  = 0
+      
+      comm_nodecaptain = comm_world
+      nodecaptain_nproc = nproc
+      nodecaptain_myid = myid
+      
+      node_captainid = myid
+#endif
 
    end subroutine ccmpi_reinit
    
-#ifdef usempi3
    subroutine ccmpi_remap
    
       integer :: node_nx, node_ny, node_dx, node_dy
@@ -8388,7 +8471,8 @@ contains
       integer :: testid, newid
       integer(kind=4) :: ref_nodecaptain_nproc
       integer(kind=4) :: lerr, lid, lcommin, lcommout
-      
+
+#ifdef usempi3
       lcommin = comm_world
       node_nx = 0
       node_ny = 0
@@ -8442,9 +8526,9 @@ contains
             call MPI_Comm_Free(lcommin, lerr) 
          end if
       end if
+#endif   
    
    end subroutine ccmpi_remap
-#endif   
    
    subroutine ccmpi_finalize
    
@@ -10005,40 +10089,43 @@ contains
    
       integer :: w, ncount, nlen, cc, ipf
       integer :: n, is, ie, ipin
-      integer(kind=4) :: lsize, ierr
+      integer :: rcount, jproc
+      integer :: ip, no, ca, cb
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: lcomm
+      integer(kind=4) :: lcomm, lsize, ierr, sreq, ldone
       integer(kind=4) :: itag = 50
       integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req
+      integer(kind=4), dimension(size(filemap_recv)) :: i_list, donelist      
 #ifdef pgi
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(filemap_recv)+size(filemap_send)) :: status
 #endif      
       real, dimension(:), intent(in) :: sinp
-      real, dimension(pipan*pjpan*pnpan,size(filemap_recv)), intent(out) :: abuf 
+      real, dimension(pipan*pjpan*pnpan,size(filemap_req)), intent(out) :: abuf 
+      real, dimension(pipan*pjpan*pnpan,size(filemap_recv)):: bbuf 
 
       nlen = pipan*pjpan*pnpan
       lsize = nlen
+      lcomm = comm_world
       
       ! MJT notes - We could use RMA or MPI_Alltoallv for this problem.  RMA fence forces synchronisation
       ! across processes.  Some implentations of MPI_Alltoallv also can employ synchronisation as they
       ! are optimsied for most sendcounts and recvcounts are non-zero.  Splitting communicators and using
       ! MPI_Bcast could work, but is expensive to initialise.  
           
-      ncount = size(filemap_recv)
-      lcomm = comm_world
-          
       !     Set up the buffers to recv
       nreq = 0
-      do w = 1,ncount
+      do w = 1,size(filemap_recv)
          ipf = filemap_rmod(w)
          itag = 50 + ipf
          nreq  = nreq + 1
-         call MPI_IRecv( abuf(:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
+         i_list(nreq) = w
+         call MPI_IRecv( bbuf(:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
       end do
+      rreq = nreq
       
       !     Set up the buffers to send
       do w = 1,size(filemap_send)
@@ -10049,29 +10136,78 @@ contains
          call MPI_ISend( sinp(1+cc:nlen+cc), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
       end do
       
-      call START_LOG(mpiwaitmapfile_begin) 
+      ! Unpack incomming messages
+      rcount = rreq
+      do while ( rcount > 0 )
+         call START_LOG(mpiwaitmapfile_begin) 
 #ifdef pgi
-      call MPI_Waitall( nreq, i_req, status, ierr )
+         call MPI_Waitsome( rreq, i_req, ldone, donelist, status, ierr )
 #else
-      call MPI_Waitall( nreq, i_req, MPI_STATUSES_IGNORE, ierr )
+         call MPI_Waitsome( rreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
 #endif
+         call END_LOG(mpiwaitmapfile_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            w = i_list(donelist(jproc))
+            ip = filemap_recv(w) + filemap_rmod(w)*fnresid
+            do n = 0,pnpan-1
+               no = n - pnoff(ip) + 1
+               ca = pioff(ip,no)
+               cb = pjoff(ip,no)
+               cc = n*pipan*pjpan
+               nodefile(1+ca:pipan+ca,1+cb:pjpan+cb,no+1,1) = reshape( bbuf(1+cc:pipan*pjpan+cc,w), (/ pipan, pjpan /) )
+            end do
+         end do
+      end do
+      
+      sreq = nreq - rreq
+      if ( sreq > 0 ) then
+         call START_LOG(mpiwaitmapfile_begin)
+#ifdef pgi
+         call MPI_Waitall( sreq, i_req(rreq+1:nreq), status, ierr )
+#else
+         call MPI_Waitall( sreq, i_req(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr )
+#endif
+         call END_LOG(mpiwaitmapfile_end)
+      end if
+      nreq = 0
+
+      call START_LOG(mpiwaitmapfile_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpiwaitmapfile_end)
+
+      do w = 1,size(filemap_req)
+         ip = filemap_req(w) + filemap_qmod(w)*fnresid
+         do n = 0,pnpan-1
+            no = n - pnoff(ip) + 1
+            ca = pioff(ip,no)
+            cb = pjoff(ip,no)
+            cc = n*pipan*pjpan
+            abuf(1+cc:pipan*pjpan+cc,w) = reshape( nodefile(1+ca:pipan+ca,1+cb:pjpan+cb,no+1,1), (/ pipan*pjpan /) )
+         end do
+      end do  
+      
+      call START_LOG(mpiwaitmapfile_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
       call END_LOG(mpiwaitmapfile_end)
       
    end subroutine ccmpi_filewinget2
 
    subroutine ccmpi_filewinget3(abuf,sinp)
    
-      integer :: n, w, ncount, nlen, kx
+      integer :: n, w, nlen, kx
       integer :: cc, ipf, ipin
       integer :: rcount, jproc
-      integer :: is, ie
-      integer(kind=4) :: lsize, ierr
+      integer :: is, ie, k
+      integer :: ip, no, ca, cb
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: lcomm, sreq, ldone
+      integer(kind=4) :: lcomm, sreq, ldone, lsize, ierr
       integer(kind=4) :: itag = 51
       integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req
       integer(kind=4), dimension(size(filemap_recv)) :: i_list, donelist
@@ -10086,18 +10222,11 @@ contains
       kx = size(sinp,2)
       nlen = pipan*pjpan*pnpan
       lsize = nlen*kx
-
-      ncount = size(filemap_recv)
       lcomm = comm_world
           
-      do ipf = 0,mynproc-1
-         cc = nlen*ipf 
-         cbuf(1:nlen,1:kx,ipf+1) = sinp(1+cc:nlen+cc,1:kx)
-      end do  
-      
       !     Set up the buffers to recv
       nreq = 0
-      do w = 1,ncount
+      do w = 1,size(filemap_recv)
          ipf = filemap_rmod(w)
          itag = 51 + ipf
          nreq  = nreq + 1
@@ -10107,6 +10236,10 @@ contains
       rreq = nreq
       
       !     Set up the buffers to send
+      do ipf = 0,mynproc-1
+         cc = nlen*ipf 
+         cbuf(1:nlen,1:kx,ipf+1) = sinp(1+cc:nlen+cc,1:kx)
+      end do
       do w = 1,size(filemap_send)
          ipf = filemap_smod(w)
          itag = 51 + ipf
@@ -10127,7 +10260,16 @@ contains
          rcount = rcount - ldone
          do jproc = 1,ldone
             w = i_list(donelist(jproc))
-            abuf(1:nlen,w,1:kx) = bbuf(1:nlen,1:kx,w)
+            ip = filemap_recv(w) + filemap_rmod(w)*fnresid
+            do k = 1,kx
+               do n = 0,pnpan-1
+                  no = n - pnoff(ip) + 1
+                  ca = pioff(ip,no)
+                  cb = pjoff(ip,no)
+                  cc = n*pipan*pjpan
+                  nodefile(1+ca:pipan+ca,1+cb:pjpan+cb,no+1,k) = reshape( bbuf(1+cc:pipan*pjpan+cc,k,w), (/ pipan, pjpan /) )
+                end do  
+            end do
          end do
       end do
       
@@ -10141,19 +10283,41 @@ contains
 #endif
          call END_LOG(mpiwaitmapfile_end)
       end if
+      nreq = 0
+
+      call START_LOG(mpiwaitmapfile_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpiwaitmapfile_end)
+
+      do w = 1,size(filemap_req)
+         ip = filemap_req(w) + filemap_qmod(w)*fnresid
+         do k = 1,kx
+            do n = 0,pnpan-1
+               no = n - pnoff(ip) + 1
+               ca = pioff(ip,no)
+               cb = pjoff(ip,no)
+               cc = n*pipan*pjpan
+               abuf(1+cc:pipan*pjpan+cc,w,k) = reshape( nodefile(1+ca:pipan+ca,1+cb:pjpan+cb,no+1,k), (/ pipan*pjpan /) )
+            end do  
+         end do
+      end do  
+      
+      call START_LOG(mpiwaitmapfile_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpiwaitmapfile_end)
       
    end subroutine ccmpi_filewinget3
    
    subroutine ccmpi_filewinunpack(sout,abuf)
 
-      integer :: ncount, w, ip, n, no, ca, cb, cc
+      integer :: w, ip, n, no, ca, cb, cc
       real, dimension(-1:,-1:,0:), intent(inout) :: sout
       real, dimension(:,:), intent(in) :: abuf
-
-      ncount = size(filemap_recv)
       
-      do w = 1,ncount
-         ip = filemap_recv(w) + filemap_rmod(w)*fnresid
+      do w = 1,size(filemap_req)
+         ip = filemap_req(w) + filemap_qmod(w)*fnresid
          do n = 0,pnpan-1
             no = n - pnoff(ip) + 1
             ca = pioff(ip,no)
@@ -10164,6 +10328,40 @@ contains
       end do
       
    end subroutine ccmpi_filewinunpack
+
+   subroutine ccmpi_filewininit(kblock)
+   
+      integer, intent(in) :: kblock
+      integer, dimension(4) :: shsize
+      
+      ! allocated shared memory for internal node buffer
+#ifdef usempi3
+      shsize(1) = pil_g
+      shsize(2) = pil_g
+      shsize(3) = 6
+      shsize(4) = kblock
+      call ccmpi_allocshdata(nodefile,shsize(1:4),nodefile_win)
+#else
+      allocate( nodefile_dummy(pil_g,pil_g,6,kblock) )
+      nodefile => nodefile_dummy
+#endif
+   
+   end subroutine ccmpi_filewininit
+   
+   subroutine ccmpi_filewinfinalize
+   
+      integer, dimension(4) :: shsize
+      
+      nullify(nodefile)
+#ifdef usempi3
+      ! Previously deallocating memory triggered bugs in the MPI library
+      ! Here we will leave the memory allocated for now.
+      !call ccmpi_freeshdata(nodefile_win)
+#else
+      deallocate( nodefile_dummy )
+#endif
+   
+   end subroutine ccmpi_filewinfinalize
    
    subroutine ccmpi_filebounds_setup(comm)
 
@@ -11593,6 +11791,50 @@ contains
 
    end subroutine ccmpi_allocshdata5r 
 
+   subroutine ccmpi_allocshdata7r(pdata,sshape,win,comm_in,myid_in)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      integer, intent(out) :: win
+      integer, intent(in), optional :: comm_in, myid_in
+      integer :: lmyid
+      integer, dimension(6), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, pointer, dimension(:,:,:,:,:,:) :: pdata 
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      if ( present(comm_in) ) then
+         lcomm = comm_in
+      else
+         lcomm = comm_node
+      end if
+      if ( present(myid_in) ) then
+         lmyid = myid_in
+      else
+         lmyid = node_myid
+      end if
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( lmyid == 0 ) then
+         lsize = sshape(1)*sshape(2)*sshape(3)*sshape(4)*sshape(5)*sshape(6)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( lmyid /= 0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata7r 
+   
    subroutine ccmpi_allocshdata2i(pdata,sshape,win,comm_in,myid_in)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 

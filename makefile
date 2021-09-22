@@ -140,7 +140,7 @@ endif
 ifeq ($(CRAY),yes)
 FC = ftn
 FCSCM = ftn
-FFLAGS = -h noomp -Dusenc_mod
+FFLAGS = -h noomp -h noacc -Dusenc_mod
 FOVERRIDE =
 ZMM =
 IPFLAG =
@@ -152,7 +152,7 @@ PPFLAG77 = -eZ
 PPFLAG90F = -eZ
 REAL8FLAG = -s real64
 INT8FLAG = -s integer64
-DEBUGFLAG = -g
+DEBUGFLAG = -g -R b -K trap=fp
 endif
 
 # MAUI compiler options

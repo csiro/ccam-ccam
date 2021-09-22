@@ -3073,6 +3073,10 @@ logical, save :: first = .true.
 if ( .not.first ) return
 first = .false.
 
+if ( myid==0 ) then
+  write(6,*) "Create map for spectral nudging data"
+end if
+
 ! length of the 1D convolution for each 'pass'
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 ! flag for data required from processor rank
@@ -3132,20 +3136,53 @@ do ppass = pprocn,pprocx
       end do
   end select
 end do
-     
-! Construct a map of processes that this data will be sent to
+
+! Construct a map of processes that this process requires
+if ( myid==0 ) then
+  write(6,*) "--> Create map of processes required by this process"
+end if
 ncount = count(lproc)
-allocate(specmap_recv(ncount))
+allocate(specmap_req(ncount))
 ncount = 0
 do iproc = 0,nproc-1
   if ( lproc(iproc) ) then
+    ncount = ncount + 1
+    specmap_req(ncount) = iproc
+  end if
+end do
+
+! Create create a list of processes receiving data (node aware)
+! (use lproc_t for node communication as lproc will define memory
+!  allocated to sparse arrays below)
+if ( myid==0 ) then
+  write(6,*) "--> Create map of processes received by this process"
+end if
+call ccmpi_allreduce(lproc,lproc_t,"or",comm_node) ! collect required data for node on node_myid==0
+! redistribute node messages across cores on the node
+ncount = 0
+do iproc = 0,nproc-1
+  if ( lproc_t(iproc) ) then
+    ncount = ncount + 1
+    if ( mod(ncount,node_nproc)/=node_myid ) then
+      lproc_t(iproc) = .false.
+    end if
+  end if
+end do
+! construct list of required messages for this process on behalf of the node
+ncount = count(lproc_t)
+allocate(specmap_recv(ncount))
+ncount = 0
+do iproc = 0,nproc-1
+  if ( lproc_t(iproc) ) then
     ncount = ncount + 1
     specmap_recv(ncount) = iproc
   end if
 end do
 
 ! Construct a map of processes that is required by this rank
-lproc_t = lproc
+if ( myid==0 ) then
+  write(6,*) "--> Create map of processes sent by this process"
+end if
 call ccmpi_alltoall(lproc_t,comm_world) ! global transpose
 ncount = count(lproc_t(0:nproc-1))
 allocate( specmap_send(ncount) )
@@ -3209,8 +3246,11 @@ do ppass = pprocn,pprocx
   end select
 end do
 
+if ( myid==0 ) then
+  write(6,*) "--> Allocating buffers on each process"
+end if
 ncount = count(lproc)
-allocate(specmap_ext(ncount))
+allocate(specmap_ext(ncount)) ! for allocating internal buffers on each process
 ncount = 0
 do iproc = 0,nproc-1
   if ( lproc(iproc) ) then
@@ -3224,10 +3264,11 @@ if ( npta==1 ) then
   ! face version (nproc>=6)
   kx = min(ky,kblock)
 else
-  ! normal version
+  ! general version
   kx = 2*min(ky,kblock) ! extra memory for copy
 end if
 call allocateglobalpack(kx,ky)
+deallocate(specmap_ext)
       
 return
 end subroutine specinit

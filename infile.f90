@@ -1593,12 +1593,17 @@ end if
 if (allocated(pioff)) then
   deallocate(pioff,pjoff,pnoff)
 end if
+if ( allocated(filemap_req) ) then
+  deallocate( filemap_req, filemap_qmod )
+end if
 if ( allocated(filemap_recv) ) then
   deallocate( filemap_recv, filemap_rmod )
 end if
 if ( allocated(filemap_send) ) then
   deallocate( filemap_send, filemap_smod )
 end if
+
+call ccmpi_filewinfinalize
 
 ncidold = -1 ! flag onthefly to load metadata
 
