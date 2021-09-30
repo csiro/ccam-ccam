@@ -52,6 +52,8 @@ IPFLAG = -ip
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(MAGNUS),yes)
+FC = ftn
+FCSCM = ftn
 FHOST = -O3 -xHost -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
