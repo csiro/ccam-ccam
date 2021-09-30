@@ -54,7 +54,7 @@ endif
 ifeq ($(MAGNUS),yes)
 FC = ftn
 FCSCM = ftn
-FHOST = -O3 -xHost -fimf-use-svml
+FHOST = -O3 -xHost
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
