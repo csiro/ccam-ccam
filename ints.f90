@@ -59,7 +59,8 @@ real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
 call START_LOG(ints_begin)
 
-call bounds(s,nrows=2) ! also includes corners
+! now call bounds before calling ints
+!call bounds(s,nrows=2) ! also includes corners
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -141,7 +142,7 @@ if ( intsch==1 ) then
 
     ! Send messages to other processors.  We then start the calculation for this processor while waiting for
     ! the messages to return, thereby overlapping computation with communication.
-    call intssync_send(1)
+    call intssync_send
 
 #ifdef _OPENMP
 #ifdef GPU
@@ -163,9 +164,9 @@ if ( intsch==1 ) then
         xxg = xg(iq,k) - idel
         jdel = int(yg(iq,k))
         yyg = yg(iq,k) - jdel
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
+        idel = min( max(idel - ioff, 0), ipan)
+        jdel = min( max(jdel - joff, 0), jpan)
+        n = min( max(nface(iq,k) + noff, 1), npan)
         ! bi-cubic
         cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
         cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
@@ -232,11 +233,11 @@ if ( intsch==1 ) then
         sextra(ii)%a(iq) = min( max( cmin, &
             rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
       end do      ! iq loop
-    end do          ! ii loop
+    end do        ! ii loop
 
     ! Send messages to other processors.  We then start the calculation for this processor while waiting for
     ! the messages to return, thereby overlapping computation with communication.
-    call intssync_send(1)
+    call intssync_send
 
 #ifdef _OPENMP
 #ifdef GPU
@@ -258,9 +259,9 @@ if ( intsch==1 ) then
         xxg = xg(iq,k) - idel
         jdel = int(yg(iq,k))
         yyg = yg(iq,k) - jdel
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
+        idel = min( max(idel - ioff, 0), ipan)
+        jdel = min( max(jdel - joff, 0), jpan)
+        n = min( max(nface(iq,k) + noff, 1), npan)
         ! bi-cubic
         cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
         cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
@@ -375,7 +376,7 @@ else     ! if(intsch==1)then
       end do         ! iq loop
     end do             ! ii
     
-    call intssync_send(1)
+    call intssync_send
 
 #ifdef _OPENMP
 #ifdef GPU
@@ -398,9 +399,9 @@ else     ! if(intsch==1)then
         xxg = xg(iq,k) - idel
         jdel = int(yg(iq,k))
         yyg = yg(iq,k) - jdel
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
+        idel = min( max(idel - ioff, 0), ipan)
+        jdel = min( max(jdel - joff, 0), jpan)
+        n = min( max(nface(iq,k) + noff, 1), npan)
         ! bi-cubic
         cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
         cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
@@ -470,7 +471,7 @@ else     ! if(intsch==1)then
       end do      ! iq loop
     end do          ! ii loop
   
-    call intssync_send(1)
+    call intssync_send
 
 #ifdef _OPENMP
 #ifdef GPU
@@ -492,9 +493,9 @@ else     ! if(intsch==1)then
         xxg = xg(iq,k) - idel
         jdel = int(yg(iq,k))
         yyg = yg(iq,k) - jdel
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
+        idel = min( max(idel - ioff, 0), ipan)
+        jdel = min( max(jdel - joff, 0), jpan)
+        n = min( max(nface(iq,k) + noff, 1), npan)
         ! bi-cubic
         cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
         cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
@@ -570,7 +571,8 @@ real, dimension(ifull+iextra,kl), intent(inout) :: s
 
 call START_LOG(ints_begin)
 
-call bounds(s,corner=.true.)
+! now call bounds before calling ints_bl
+!call bounds(s,corner=.true.)
 
 sx(1:ipan,1:jpan,1:npan,1:kl) = reshape(s(1:ipan*jpan*npan,1:kl), (/ipan,jpan,npan,kl/))
 do k = 1,kl
@@ -609,7 +611,7 @@ do ii = 1,neighnum
   end do
 end do
 
-call intssync_send(1)
+call intssync_send
 
 #ifdef _OPENMP
 #ifdef GPU
@@ -628,11 +630,11 @@ do k = 1,kl
     xxg = xg(iq,k) - idel
     jdel = int(yg(iq,k))
     yyg = yg(iq,k) - jdel
-    idel = min( max( idel - ioff, 0), ipan )
-    jdel = min( max( jdel - joff, 0), jpan )
-    n = min( max( nface(iq,k) + noff, 1), npan )
+    idel = min( max(idel - ioff, 0), ipan)
+    jdel = min( max(jdel - joff, 0), jpan)
+    n = min( max(nface(iq,k) + noff, 1), npan)
     s(iq,k) =      yyg*(xxg*sx(idel+1,jdel+1,n,k)+(1.-xxg)*sx(idel,jdel+1,n,k)) &
-              + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
+            + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
 #ifdef _OPENMP

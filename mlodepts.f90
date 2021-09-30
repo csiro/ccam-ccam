@@ -278,9 +278,9 @@ if ( intsch==1 ) then
         xxg  = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
         yyg  = yg(iq,k) - real(jdel)
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
+        idel = min( max(idel - ioff, 0), ipan)
+        jdel = min( max(jdel - joff, 0), jpan)
+        n = min( max(nface(iq,k) + noff, 1), npan)
         ! bi-cubic interpolation
         cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
         cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
@@ -373,9 +373,9 @@ else     ! if(intsch==1)then
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
         yyg = yg(iq,k) - real(jdel)
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
+        idel = min( max(idel - ioff, 0), ipan)
+        jdel = min( max(jdel - joff, 0), jpan)
+        n = min( max(nface(iq,k) + noff, 1), npan)
         ! bi-cubic interpolation
         cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
         cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
@@ -487,9 +487,9 @@ if ( intsch==1 ) then
         xxg  = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
         yyg  = yg(iq,k) - real(jdel)
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
+        idel = min( max(idel - ioff, 0), ipan)
+        jdel = min( max(jdel - joff, 0), jpan)
+        n = min( max(nface(iq,k) + noff, 1), npan)
         cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
         cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
         cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
@@ -580,9 +580,9 @@ else     ! if(intsch==1)then
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
         yyg = yg(iq,k) - real(jdel)
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
+        idel = min( max(idel - ioff, 0), ipan)
+        jdel = min( max(jdel - joff, 0), jpan)
+        n = min( max(nface(iq,k) + noff, 1), npan)
         ! bi-cubic interpolation
         cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
         cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.

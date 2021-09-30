@@ -43,7 +43,7 @@ real xxg, yyg
 real, dimension(ifull,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl,3) :: s
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,3) :: sx
-real(kind=8), dimension(ifull,kl) :: x3d, y3d, z3d   ! upglobal depts 
+real(kind=8), dimension(ifull,kl), intent(out) :: x3d, y3d, z3d   ! upglobal depts 
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
       
@@ -58,11 +58,10 @@ do k = 1,kl
   x3d(1:ifull,k) = x(1:ifull) - real(uc(1:ifull,k),8) ! 1st guess
   y3d(1:ifull,k) = y(1:ifull) - real(vc(1:ifull,k),8)
   z3d(1:ifull,k) = z(1:ifull) - real(wc(1:ifull,k),8)
-end do
-
-s(1:ifull,:,1) = uc(1:ifull,:)
-s(1:ifull,:,2) = vc(1:ifull,:)
-s(1:ifull,:,3) = wc(1:ifull,:)
+  s(1:ifull,k,1) = uc(1:ifull,k)
+  s(1:ifull,k,2) = vc(1:ifull,k)
+  s(1:ifull,k,3) = wc(1:ifull,k)
+end do  
 
 call bounds(s,nrows=2)
 
@@ -229,9 +228,9 @@ if ( intsch==1 ) then
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
         yyg = yg(iq,k) - real(jdel)
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
+        idel = min( max(idel - ioff, 0), ipan)
+        jdel = min( max(jdel - joff, 0), jpan)
+        n = min( max(nface(iq,k) + noff, 1), npan)
         ! bi-cubic
         cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
         cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
@@ -324,9 +323,9 @@ else     ! if(intsch==1)then
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
         yyg = yg(iq,k) - real(jdel)
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
+        idel = min( max(idel - ioff, 0), ipan)
+        jdel = min( max(jdel - joff, 0), jpan)
+        n = min( max(nface(iq,k) + noff, 1), npan)
         ! bi-cubic
         cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
         cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
@@ -440,9 +439,9 @@ if ( intsch==1 ) then
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
         yyg = yg(iq,k) - real(jdel)
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
+        idel = min( max(idel - ioff, 0), ipan)
+        jdel = min( max(jdel - joff, 0), jpan)
+        n = min( max(nface(iq,k) + noff, 1), npan)
         ! bi-cubic
         cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
         cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
@@ -537,9 +536,9 @@ else     ! if(intsch==1)then
         xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
         yyg = yg(iq,k) - real(jdel)
-        idel = min( max( idel - ioff, 0), ipan )
-        jdel = min( max( jdel - joff, 0), jpan )
-        n = min( max( nface(iq,k) + noff, 1), npan )
+        idel = min( max(idel - ioff, 0), ipan)
+        jdel = min( max(jdel - joff, 0), jpan)
+        n = min( max(nface(iq,k) + noff, 1), npan)
         ! bi-cubic
         cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
         cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.

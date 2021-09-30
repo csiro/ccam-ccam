@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -182,6 +182,49 @@ if ( nmaxpr==1 .and. nproc==1 ) then
   write (6,"(9f8.4)") ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
 end if
 
+! call bounds before calling ints
+call START_LOG(ints_begin)
+if ( mup/=0 ) then
+  call bounds(dd,corner=.true.)
+  call bounds(pslx,nrows=2)
+  if ( nh/=0 ) then
+    call bounds(h_nh,nrows=2)
+  end if ! nh/=0
+  call bounds(tx,nrows=2)
+end if    ! mup/=0
+do k = 1,kl
+  uc(1:ifull,k) = ax(1:ifull)*ux(1:ifull,k) + bx(1:ifull)*vx(1:ifull,k)
+  vc(1:ifull,k) = ay(1:ifull)*ux(1:ifull,k) + by(1:ifull)*vx(1:ifull,k)
+  wc(1:ifull,k) = az(1:ifull)*ux(1:ifull,k) + bz(1:ifull)*vx(1:ifull,k)
+end do
+if ( mup/=0 ) then
+  call bounds(uc,nrows=2)
+  call bounds(vc,nrows=2)
+  call bounds(wc,nrows=2)
+end if
+if ( mspec==1 .and. mup/=0 ) then
+  if ( ldr/=0 ) then
+    call bounds(qg,nrows=2)
+    call bounds(qlg,nrows=2)
+    call bounds(qfg,nrows=2)
+    call bounds(stratcloud,nrows=2)
+  else
+    call bounds(qg,nrows=2)
+  end if    ! ldr/=0
+  if ( ngas>0 ) then
+    call bounds(tr,nrows=2)
+  end if
+  if ( nvmix==6 .or. nvmix==9 ) then
+    call bounds(tke,nrows=2)
+    call bounds(eps,nrows=2)
+  endif                 ! nvmix==6 .or. nvmix==9
+  if ( abs(iaero)>=2 ) then
+    call bounds(xtg,nrows=2)
+  end if
+end if     ! mspec==1
+call END_LOG(ints_end)
+
+
 #ifdef _OPENMP
 #ifdef GPU
 !$omp target data map(to:xg,yg,nface)
@@ -193,13 +236,10 @@ end if
 
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
+  call ints(pslx,intsch,nface,xg,yg,1)
   if ( nh/=0 ) then
     ! non-hydrostatic version
-    call ints(pslx,intsch,nface,xg,yg,1)
     call ints(h_nh,intsch,nface,xg,yg,1)
-  else
-    ! hydrostatic version
-    call ints(pslx,intsch,nface,xg,yg,1)
   end if ! nh/=0
   call ints(tx,intsch,nface,xg,yg,3)
 end if    ! mup/=0
@@ -216,43 +256,37 @@ if ( nmaxpr==1 .and. nproc==1 ) then
   write (6,"('aa#',9f8.4)") ((aa(ii+jj*il),ii=idjd-1,idjd+1),jj=-1,1)
   write (6,"('dd1#',9f8.4)") ((dd(ii+jj*il,1),ii=idjd-1,idjd+1),jj=-1,1)
   write (6,"('dd_a',9f8.4)") dd(idjd,:)
-  write (6,"('nface',18i4)") nface(idjd,:)
+ write (6,"('nface',18i4)") nface(idjd,:)
   write (6,"('xg',9f8.4)") xg(idjd,:)
   write (6,"('yg',9f8.4)") yg(idjd,:)
-  write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+ write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
   idjdd=max(5+2*il,min(idjd,ifull-4-2*il))  ! for following prints
   write (6,"(39f8.4)") ((pslx(ii+jj*il,nlv),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
-  uc(1:ifull,1)=-pslx(1:ifull,1)*dsig(1) 
-  do k=2,kl
-    uc(1:ifull,1)=uc(1:ifull,1)-pslx(1:ifull,k)*dsig(k)
-  enddo
-  write(6,*) 'integ pslx after advection'
-  write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-  write (6,"(9f8.4)") ((uc(ii+jj*il,1),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
-  write(6,*) 'corresp integ ps after advection'
-  write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-  write (6,"(9f8.2)") ((1.e5*exp(uc(ii+jj*il,1)),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
-end if
-!     now comes ux & vx section
-if ( diag ) then
-  if ( mydiag ) then
-    write(6,*) 'unstaggered now as uavx and vavx: globpea uses ux & vx'
-    write(6,*) 'ux ',(ux(idjd,kk),kk=1,nlv)
-  end if
-  call printa('uavx',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
-  if ( mydiag ) write(6,*) 'vx ',(vx(idjd,kk),kk=1,nlv)
-  call printa('vavx',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
-  if ( mydiag ) write(6,*)'unstaggered u and v as uav and vav: globpea uses u & v'
-  call printa('uav ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
-  call printa('vav ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
+! uc(1:ifull,1)=-pslx(1:ifull,1)*dsig(1) 
+! do k=2,kl
+!    uc(1:ifull,1)=uc(1:ifull,1)-pslx(1:ifull,k)*dsig(k)
+! enddo
+!  write(6,*) 'integ pslx after advection'
+!  write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+!  write (6,"(9f8.4)") ((uc(ii+jj*il,1),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+!  write(6,*) 'corresp integ ps after advection'
+!  write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+!  write (6,"(9f8.2)") ((1.e5*exp(uc(ii+jj*il,1)),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
 end if
 
-!      convert uavx, vavx to cartesian velocity components
-do k = 1,kl
-  uc(1:ifull,k) = ax(1:ifull)*ux(1:ifull,k) + bx(1:ifull)*vx(1:ifull,k)
-  vc(1:ifull,k) = ay(1:ifull)*ux(1:ifull,k) + by(1:ifull)*vx(1:ifull,k)
-  wc(1:ifull,k) = az(1:ifull)*ux(1:ifull,k) + bz(1:ifull)*vx(1:ifull,k)
-end do
+!     now comes ux & vx section
+!if ( diag ) then
+!  if ( mydiag ) then
+!    write(6,*) 'unstaggered now as uavx and vavx: globpea uses ux & vx'
+!    write(6,*) 'ux ',(ux(idjd,kk),kk=1,nlv)
+!  end if
+!  call printa('uavx',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
+!  if ( mydiag ) write(6,*) 'vx ',(vx(idjd,kk),kk=1,nlv)
+!  call printa('vavx',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
+!  if ( mydiag ) write(6,*)'unstaggered u and v as uav and vav: globpea uses u & v'
+!  call printa('uav ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
+!  call printa('vav ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
+!end if
 
 if ( diag ) then
   if ( mydiag ) then
@@ -311,21 +345,6 @@ do k = 1,kl
     end if ! (denb>1.e-4)
   end do   ! iq
 end do     ! k
-
-!if ( diag ) then
-!  if ( mydiag ) then
-!    iq = idjd
-!    k = nlv
-!    vec1x(iq) = real(y3d(iq,k)*z(iq) - y(iq)*z3d(iq,k))
-!    vec1y(iq) = real(z3d(iq,k)*x(iq) - z(iq)*x3d(iq,k))
-!    vec1z(iq) = real(x3d(iq,k)*y(iq) - x(iq)*y3d(iq,k))
-!    denb(iq) = vec1x(iq)**2 + vec1y(iq)**2 + vec1z(iq)**2
-!    write(6,*) 'uc,vc,wc after nrot; denb = ',denb(iq)
-!  end if
-!  call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-!  call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-!  call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-!endif
 
 ! convert back to conformal-cubic velocity components (unstaggered)
 ! globpea: this can be sped up later
