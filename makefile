@@ -51,6 +51,13 @@ ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip
 VTHRESH = -vec-threshold0
 endif
+ifeq ($(MAGNUS),yes)
+FHOST = -O3 -xHost -fimf-use-svml
+FOVERRIDE = -qoverride-limits
+ZMM = -qopt-zmm-usage=high
+IPFLAG = -ip
+VTHRESH = -vec-threshold0
+endif
 # OpenMP compile flag
 ifeq ($(OMP),yes)
 OMPFLAG = -qopenmp -qno-openmp-simd
