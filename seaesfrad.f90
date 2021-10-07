@@ -399,13 +399,17 @@ do iq_tile = 1,ifull,imax
         if ( seasaltradmethod/=-1 ) then
           do k = 1,kl
             kr = kl + 1 - k
-            !Aerosol(mythread)%aerosol(:,1,kr,10) = real(xtg(istart:iend,k,12)*dzrho         & ! Small film sea salt (0.1)
-            !                                           +xtg(istart:iend,k,13)*dzrho,8)        ! Large jet sea salt (0.5)
             Aerosol(mythread)%aerosol(:,1,kr,10) = real(xtg(istart:iend,k,12)*dzrho,8)        ! Small film sea salt (0.1)
             Aerosol(mythread)%aerosol(:,1,kr,11) = real(xtg(istart:iend,k,13)*dzrho,8)        ! Large jet sea salt (0.5)
           end do
         end if
-        !Aerosol(mythread)%aerosol=min(max(Aerosol(mythread)%aerosol, 0._8), 2.e-4_8)
+#ifdef seaesfdebug
+        if ( any( Aerosol(mythread)%aerosol>1.e-3 ) ) then
+          write(6,*) "WARN: seaesf detects high aerosol concentrations "
+          write(6,*) "xtg,maxloc ",maxval(Aerosol(mythread)%aerosol),maxloc(Aerosol(mythread)%aerosol)
+        end if  
+#endif
+        Aerosol(mythread)%aerosol=min(max(Aerosol(mythread)%aerosol, 0._8), 1.e-3_8)
         Aerosol(mythread)%aerosol=max(Aerosol(mythread)%aerosol, 0._8)
         
         !if ( Rad_control%using_im_bcsul ) then

@@ -3734,6 +3734,10 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)
     lname = 'Direct normal irradiance'
     call attrib(fncid,sdim,ssize,'dni',lname,'W m-2',-500.,2.e3,0,-1)          ! -1 = long
+    lname='x-component 100m wind'
+    call attrib(fncid,sdim,ssize,'ua100m',lname,'m s-1',-130.,130.,0,1)
+    lname='y-component 100m wind'     
+    call attrib(fncid,sdim,ssize,'va100m',lname,'m s-1',-130.,130.,0,1)
     if ( surf_windfarm==1 ) then
       lname='x-component 150m wind'
       call attrib(fncid,sdim,ssize,'ua150m',lname,'m s-1',-130.,130.,0,1)
@@ -4017,41 +4021,59 @@ if ( mod(ktau,tbave)==0 ) then
   call histwrt(qgscrn,"qgscrn",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,6),"cld",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,7),"dni",fncid,fiarch,local,.true.)
+  do iq = 1,ifull
+    phi_local(1) = bet(1)*t(iq,1)
+    do k = 2,kl
+      phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+    end do
+    do k = 1,kl-1
+      if ( phi_local(k)/grav<100. ) then
+        n = k
+      else
+        exit
+      end if
+    end do
+    xx = (100.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
+    ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+    va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+  end do	
+  call histwrt(ua_level,"ua100m",fncid,fiarch,local,.true.)
+  call histwrt(va_level,"va100m",fncid,fiarch,local,.true.)
   if ( surf_windfarm==1 ) then
-	do iq = 1,ifull
-	  phi_local(1) = bet(1)*t(iq,1)
-	  do k = 2,kl
-	    phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
-	  end do
-	  do k = 1,kl-1
-	    if ( phi_local(k)/grav<150. ) then
-		  n = k
-		else
-		  exit
-		end if
-	  end do
-	  xx = (150.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
-	  ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-	  va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-	end do	
+    do iq = 1,ifull
+      phi_local(1) = bet(1)*t(iq,1)
+      do k = 2,kl
+        phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+      end do
+      do k = 1,kl-1
+        if ( phi_local(k)/grav<150. ) then
+          n = k
+        else
+          exit
+        end if
+      end do
+      xx = (150.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
+      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+    end do	
     call histwrt(ua_level,"ua150m",fncid,fiarch,local,.true.)
     call histwrt(va_level,"va150m",fncid,fiarch,local,.true.)
-	do iq = 1,ifull
-	  phi_local(1) = bet(1)*t(iq,1)
-	  do k = 2,kl
-	    phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
-	  end do
-	  do k = 1,kl-1
-	    if ( phi_local(k)/grav<250. ) then
-		  n = k
-		else
-		  exit
-		end if
-	  end do
-	  xx = (250.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
-	  ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-	  va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-	end do
+    do iq = 1,ifull
+      phi_local(1) = bet(1)*t(iq,1)
+      do k = 2,kl
+        phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+      end do
+      do k = 1,kl-1
+        if ( phi_local(k)/grav<250. ) then
+          n = k
+        else
+          exit
+        end if
+      end do
+      xx = (250.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
+      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+    end do
     call histwrt(ua_level,"ua250m",fncid,fiarch,local,.true.)
     call histwrt(va_level,"va250m",fncid,fiarch,local,.true.)      
   end if

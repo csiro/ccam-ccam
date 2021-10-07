@@ -445,7 +445,7 @@ real, parameter :: beta = 0.65
 integer nt,k
 
 #ifdef debugaero
-if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+if ( maxval(xtg(1:imax,:,:))>6.5e-5 ) then
   write(6,*) "xtg out-of-range at start of aldrcalc"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
@@ -494,7 +494,7 @@ do nt = 1,naero
 end do
 
 #ifdef debugaero
-if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+if ( maxval(xtg(1:imax,:,:))>6.5e-5 ) then
   write(6,*) "xtg out-of-range after xtemiss"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
@@ -514,7 +514,7 @@ end do
 call dsettling(dt,rhoa,ttg,dz,aphp1,xtg,dustden,dustreff,imax,kl)
 
 #ifdef debugaero
-if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+if ( maxval(xtg(1:imax,:,:))>6.5e-5 ) then
   write(6,*) "xtg out-of-range after dsettling"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
@@ -531,7 +531,7 @@ do k = 1,ndust
 end do  
 
 #ifdef debugaero
-if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+if ( maxval(xtg(1:imax,:,:))>6.5e-5 ) then
   write(6,*) "xtg out-of-range after dustem"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
@@ -541,7 +541,7 @@ end if
 call xtsink(dt,xtg,imax,kl)
 
 #ifdef debugaero
-if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+if ( maxval(xtg(1:imax,:,:))>6.5e-5 ) then
   write(6,*) "xtg out-of-range after xtsink"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
@@ -557,7 +557,7 @@ end do
 call ssettling(dt,rhoa,ttg,dz,aphp1,xtg,saltden,saltreff,imax,kl)
 
 #ifdef debugaero
-if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+if ( maxval(xtg(1:imax,:,:))>6.5e-5 ) then
   write(6,*) "xtg out-of-range after ssettling"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
@@ -567,7 +567,7 @@ end if
 call seasaltem(dt,veff,vt,rhoa(:,1),dz(:,1),salte,xtg,saltreff,locean,imax,kl)
 
 #ifdef debugaero
-if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+if ( maxval(xtg(1:imax,:,:))>6.5e-5 ) then
   write(6,*) "xtg out-of-range after seasaltem"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
@@ -582,7 +582,7 @@ end do
 saltdd = saltdd + (dcola(:,1)-dcolb(:,1))/dt + salte - oldsalte  
 
 #ifdef debugaero
-if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+if ( maxval(xtg(1:imax,:,:))>6.5e-5 ) then
   write(6,*) "xtg out-of-range after seasalt"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
@@ -633,7 +633,7 @@ dmsso2o(:) = dmsso2o(:) + dmsoh(:) + dmsn3(:)             ! oxidation of DMS to 
 so2so4o(:) = so2so4o(:) + so2oh(:) + so2h2(:) + so2o3(:)  ! oxidation of SO2 to SO4
 
 #ifdef debugaero
-if ( maxval(xtg(1:imax,:,:))>6.5e-6 ) then
+if ( maxval(xtg(1:imax,:,:))>6.5e-5 ) then
   write(6,*) "xtg out-of-range after xtchemie"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
 end if
@@ -1274,7 +1274,7 @@ do jt = 1,naero
 end do
 
 #ifdef debugaero
-if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
+if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-5 ) then
   write(6,*) "xtg is out-of-range at start of xtchemie"
   write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
                                   maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
@@ -1803,7 +1803,7 @@ DO JT=ITRACSA,ITRACSA+NSALT-1
 end do
 
 #ifdef debugaero
-if ( any(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST>6.5e-6) ) then
+if ( any(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST>6.5e-5) ) then
   write(6,*) "xtg out-of-range after xtwetdep"
   write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
                                   maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
@@ -1880,7 +1880,7 @@ do jk = 1,kl
 end do
 
 #ifdef debugaero
-if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-6 ) then
+if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-5 ) then
   write(6,*) "xtg out-of-range after day/night chemistry"
   write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST), &
                                   maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
@@ -2037,7 +2037,7 @@ do JK = KTOP,kl
       pxtp10(i,jk) = pxtp10(i,jk) - xdep*pcfcover(i,jk)/zclr0 ! MJT suggestion
       zdeps(i) = zdeps(i) + xdep*pcfcover(i,jk)*zmtof
 #ifdef debugaero
-      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
+      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-5 ) then
         write(6,*) "xtg out-of-range after xtwetdep - incloud scavenging"
         write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
       end if
@@ -2053,7 +2053,7 @@ do JK = KTOP,kl
       pxtp1c(i,jk) = pxtp1c(i,jk) - xdep
       zdeps(i) = zdeps(i) + xdep*pclcover(i,jk)*zmtof
 #ifdef debugaero
-      if ( PCLCOVER(i,jk)*pxtp1c(i,jk)>6.5e-6 ) then
+      if ( PCLCOVER(i,jk)*pxtp1c(i,jk)>6.5e-5 ) then
         write(6,*) "xtg out-of-range after xtwetdep - accretion of liquid water by falling snow"
         write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk),i,kl-jk+1
       end if
@@ -2069,7 +2069,7 @@ do JK = KTOP,kl
     pxtp10(i,jk) = pxtp10(i,jk) - xbcscav
     zdeps(i) = zdeps(i) + xbcscav*zclr0*zmtof
 #ifdef debugaero
-    if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
+    if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-5 ) then
       write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by snow"
       write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
     end if
@@ -2082,13 +2082,13 @@ do JK = KTOP,kl
       zstay_t = max( min( 1., zstay_t ), 0. )
       xstay = max( zdeps(i)*zstay_t/zmtof, 0. )
       !limit sublimation to prevent crash - MJT suggestion
-      xstay = max( min( xstay, 6.4e-6/(1.-pclcover(i,jk)-pclcon(i,jk)) - pxtp10(i,jk) ), 0. )
+      !xstay = max( min( xstay, 6.4e-6/(1.-pclcover(i,jk)-pclcon(i,jk)) - pxtp10(i,jk) ), 0. )
       pdep3d(i,jk) = pdep3d(i,jk) - xstay*zclr0
       pxtp10(i,jk) = pxtp10(i,jk) + xstay
       zdeps(i) = zdeps(i) - xstay*zclr0*zmtof
       zdeps(i) = max( 0., zdeps(i) )
 #ifdef debugaero
-      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
+      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-5 ) then
         write(6,*) "xtg out-of-range after xtwetdep - redistribution of snow that sublimates"
         write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
         write(6,*) "zstay_t,xstay,zclr0 ",zstay_t,xstay,zclr0
@@ -2125,7 +2125,7 @@ do JK = KTOP,kl
       pxtp1c(i,jk) = pxtp1c(i,jk) - xicscav
       zdepr(i) = zdepr(i) + xicscav*pclcover(i,jk)*zmtof
 #ifdef debugaero
-      if ( PCLCOVER(i,jk)*pxtp1c(i,jk)>6.5e-6 ) then
+      if ( PCLCOVER(i,jk)*pxtp1c(i,jk)>6.5e-5 ) then
         write(6,*) "xtg out-of-range after xtwetdep - in-cloud scavenging by warm rain processes"
         write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk),i,kl-jk+1
       end if
@@ -2140,7 +2140,7 @@ do JK = KTOP,kl
     pxtp10(i,jk) = pxtp10(i,jk) - xbcscav 
     zdepr(i) = zdepr(i) + xbcscav*zclr0*zmtof
 #ifdef debugaero
-    if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
+    if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-5 ) then
       write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by stratiform rain"
       write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk
       write(6,*) "pclcover,pclcon,tot ",pclcover(i,jk),pclcon(i,jk),(1.-pclcover(i,jk)-pclcon(i,jk))
@@ -2156,13 +2156,13 @@ do JK = KTOP,kl
       zstay_t = max( min( 1., zstay_t ), 0. )
       xstay = max( zdepr(i)*zstay_t/zmtof, 0. )
       !limit sublimation to prevent crash - MJT suggestion
-      xstay = max( min( xstay, 6.4e-6/(1.-pclcover(i,jk)-pclcon(i,jk)) - pxtp10(i,jk) ), 0. )      
+      !xstay = max( min( xstay, 6.4e-6/(1.-pclcover(i,jk)-pclcon(i,jk)) - pxtp10(i,jk) ), 0. )      
       pdep3d(i,jk) = pdep3d(i,jk) - xstay*zclr0
       pxtp10(i,jk) = pxtp10(i,jk) + xstay
       zdepr(i) = zdepr(i) - xstay*zclr0*zmtof
       zdepr(i) = max( 0., zdepr(i) )
 #ifdef debugaero
-      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
+      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-5 ) then
         write(6,*) "xtg out-of-range after xtwetdep - redistribution of rain that evaporates"
         write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
       end if
@@ -2228,7 +2228,7 @@ do jk = ktop,kl
       pxtp10(i,jk) = pxtp10(i,jk) - xbcscav
       !conwd(i,ktrac) = conwd(i,ktrac) + xbcscav*zclr0*zmtof
 #ifdef debugaero
-      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-6 ) then
+      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-5 ) then
         write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by convective precipitation"
         write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
       end if
