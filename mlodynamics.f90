@@ -21,12 +21,12 @@
     
 ! These subroutines handle dynamics for the Mixed-Layer-Ocean model
 
-! - Horizontal diffusion
 ! - Ocean dynamics
 ! - Ice dynamics
 
 ! This module links to mlo.f90 which solves for 1D physics of ocean
-! and ice processes.  Currently the code assumes the hydrostatic
+! and ice processes, as well as mlodiffg.f90 for horizontal
+! diffusion.  Currently the code assumes the hydrostatic
 ! approximation which is reasonably valid to 1km resolution.
 
 ! Ocean and sea-ice dynamics are based on the R-grid used by CCAM.
@@ -1230,14 +1230,6 @@ do mspec_mlo = mspeca_mlo,1,-1
           ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
         end do  
     end select
-    !if ( nodrift==1 ) then
-    !  odum = (ns(1:ifull,1)-34.7)*ee(1:ifull,1)*em(1:ifull)**2
-    !  call mlosum(odum,lsum)
-    !  call ccmpi_allreduce(lsum,gsum,"sumdr",comm_world)
-    !  delta = real(gsum)/real(emsum)
-    !  ns(1:ifull,1) = (ns(1:ifull,1) - delta)*ee(1:ifull,1)
-    !  ns(1:ifull,1) = max( ns(1:ifull,1), 0. )
-    !end if
   end if
 
   if ( myid==0 .and. (ktau<=5.or.maxglobseta>tol.or.maxglobip>itol) ) then
@@ -2020,6 +2012,12 @@ do jj = 1,2
     end do
   end do
 end do
+
+! for agressive salinity gradients
+drhodxu(1:ifull,1:wlev,2) = min( max( drhodxu(1:ifull,1:wlev,2), -8.e-4 ), 8.e-4 )
+drhodyu(1:ifull,1:wlev,2) = min( max( drhodyu(1:ifull,1:wlev,2), -8.e-4 ), 8.e-4 )
+drhodxv(1:ifull,1:wlev,2) = min( max( drhodxv(1:ifull,1:wlev,2), -8.e-4 ), 8.e-4 )
+drhodyv(1:ifull,1:wlev,2) = min( max( drhodyv(1:ifull,1:wlev,2), -8.e-4 ), 8.e-4 )
 
 return
 end subroutine zstar2

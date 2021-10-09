@@ -3181,7 +3181,7 @@ where ( depth%dz(:,wlev)>1.e-4 )
   n2(:,wlev) = -grav/wrtrho*(d_rho_hl(:,wlev-1)-rho_ema(:,wlev))/(depth%depth(:,wlev)-depth%depth_hl(:,wlev-1))
 end where
 
-!initial conditions
+!update arrays based on current state
 do ii = 1,wlev
   where ( depth%dz(:,ii)>1.e-4 )  
     k(:,ii) = turb%k(:,ii)
@@ -3283,6 +3283,51 @@ do step = 1,nsteps
     end do
   end if
 
+  !solve eps
+  !setup diagonals
+  aa = 0._8
+  bb = 1._8
+  cc = 0._8
+  dd = eps
+  do ii=2,wlev-1
+    where ( depth%dz(:,ii)*depth%dz_hl(:,ii  )>1.e-4 )  
+      aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  )*sigmaeps)
+    end where
+    where ( depth%dz(:,ii)*depth%dz_hl(:,ii+1)>1.e-4 )
+      cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1)*sigmaeps)
+    end where  
+    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii)
+  end do
+  if ( eps_mode==0 ) then !explicit eps
+    do ii = 2,wlev-1
+      where ( depth%dz(:,ii)>1.e-4 )  
+        dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) - ce2*eps(:,ii))
+      end where
+    end do  
+  else if ( eps_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
+    do ii = 2,wlev-1
+      where ( depth%dz(:,ii)>1.e-4 )  
+        bb(:,ii) = bb(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
+        dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
+      end where
+    end do  
+  else if ( eps_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
+    do ii = 2,wlev-1
+      where ( depth%dz(:,ii)>1.e-4 .and. (ce1*ps(:,ii)+ce3(:,ii)*pb(:,ii))>0.0_8 )
+        bb(:,ii) = bb(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
+        dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
+      elsewhere ( depth%dz(:,ii)>1.e-4 )
+        bb(:,ii) = bb(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce2 - ce3(:,ii)*pb(:,ii)/eps(:,ii))
+        dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii))
+      end where
+    end do  
+  end if
+  dd(:,2     ) = dd(:,2     ) - aa(:,2     )*eps(:,1)
+  dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*eps(:,wlev)
+
+  !solve using thomas algorithm
+  call thomas_r8(eps(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
+
   !solve k
   !setup diagonals
   aa = 0._8
@@ -3327,49 +3372,8 @@ do step = 1,nsteps
 
   !solve using thomas algorithm
   call thomas_r8(k(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
-
-  !solve eps
-  !setup diagonals
-  dd = eps
-  do ii=2,wlev-1
-    where ( depth%dz(:,ii)*depth%dz_hl(:,ii  )>1.e-4 )  
-      aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  )*sigmaeps)
-    end where
-    where ( depth%dz(:,ii)*depth%dz_hl(:,ii+1)>1.e-4 )
-      cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1)*sigmaeps)
-    end where  
-    bb(:,ii) = 1.0_8 - aa(:,ii) - cc(:,ii)
-  end do
-  if ( eps_mode==0 ) then !explicit eps
-    do ii = 2,wlev-1
-      where ( depth%dz(:,ii)>1.e-4 )  
-        dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) - ce2*eps(:,ii))
-      end where
-    end do  
-  else if ( eps_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
-    do ii = 2,wlev-1
-      where ( depth%dz(:,ii)>1.e-4 )  
-        bb(:,ii) = bb(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
-        dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
-      end where
-    end do  
-  else if ( eps_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
-    do ii = 2,wlev-1
-      where ( depth%dz(:,ii)>1.e-4 .and. (ce1*ps(:,ii)+ce3(:,ii)*pb(:,ii))>0.0_8 )
-        bb(:,ii) = bb(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
-        dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
-      elsewhere ( depth%dz(:,ii)>1.e-4 )
-        bb(:,ii) = bb(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce2 - ce3(:,ii)*pb(:,ii)/eps(:,ii))
-        dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii))
-      end where
-    end do  
-  end if
-  dd(:,2     ) = dd(:,2     ) - aa(:,2     )*eps(:,1)
-  dd(:,wlev-1) = dd(:,wlev-1) - cc(:,wlev-1)*eps(:,wlev)
-
-  !solve using thomas algorithm
-  call thomas_r8(eps(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
-
+ 
+  
   !limit k & eps
   k = max( k, real(mink,8) )
   eps = max( eps, real(mineps,8) )
