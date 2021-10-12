@@ -94,6 +94,7 @@ real, dimension(ifull+iextra,wlev) :: w_ema
 real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
 real, dimension(ifull,wlev) :: dz, u_hl, v_hl, u_ema, v_ema
+real, dimension(ifull,wlev) :: workdata2
 real, dimension(ifull) :: shear
 real base
 real dudx,dvdx,dudy,dvdy
@@ -243,6 +244,11 @@ end if
 
 ! Potential temperature and salinity
 duma(1:ifull,:,1) = tt(1:ifull,:)
+! MJT notes - only apply salinity diffusion to salt water
+workdata2(1:ifull,:) = ss(1:ifull,:)
+where( workdata2(1:ifull,:)<2. )
+  ss(1:ifull,:) = 34.72
+end where
 duma(1:ifull,:,2) = ss(1:ifull,:) - 34.72
 call bounds(duma(:,:,1:2))
 !$omp parallel do schedule(static) private(k,iq,base)
@@ -263,10 +269,14 @@ do k = 1,wlev
                  yfact(iq,k)*duma(in(iq),k,2) +       &
                  yfact(isv(iq),k)*duma(is(iq),k,2) )  &
                / base
-    ss(iq,k) = max(ss(iq,k)+34.72, 0.)
+    ss(iq,k) = ss(iq,k) + 34.72
   end do
 end do
 !$omp end parallel do
+! MJT notes - only apply salinity diffusion to salt water
+where ( workdata2(1:ifull,1:wlev)<2. )
+  ss(1:ifull,1:wlev) = workdata2(1:ifull,1:wlev)
+end where
 
 call END_LOG(waterdiff_end)
 

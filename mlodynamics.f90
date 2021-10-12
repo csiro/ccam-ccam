@@ -287,18 +287,18 @@ real, dimension(ifull) :: sdiv
 real, dimension(ifull) :: gosigu, gosigv
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: cc
-real, dimension(ifull+iextra,wlev) :: eou,eov,ccu,ccv
-real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns
-real, dimension(ifull+iextra,9) :: data_c,data_d
+real, dimension(ifull+iextra,wlev) :: eou, eov, ccu, ccv
+real, dimension(ifull+iextra,wlev) :: nu, nv, nt, ns
+real, dimension(ifull+iextra,9) :: data_c, data_d
 real, dimension(ifull+iextra,4) :: nit
-real, dimension(ifull,wlev+1) :: tau,tav,ttau,ttav
-real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s
-real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav
-real, dimension(ifull,wlev) :: kku,kkv,oou,oov
-real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull,wlev+1) :: tau, tav, ttau, ttav
+real, dimension(ifull,wlev) :: w_u, w_v, w_t, w_s
+real, dimension(ifull,wlev) :: nuh, nvh, xg, yg, uau, uav
+real, dimension(ifull,wlev) :: kku, kkv, oou, oov
+real, dimension(ifull,wlev) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
 real, dimension(ifull,wlev) :: rhobaru, rhobarv, rhobar
 real, dimension(ifull,wlev) :: depdum,dzdum,mfixdum
-real, dimension(ifull,wlev) :: mps, workdata, worku, workv
+real, dimension(ifull,wlev) :: mps, workdata, workdata2, worku, workv
 real, dimension(ifull,wlev) :: w_ocn
 real, dimension(ifull,0:wlev) :: nw
 real, dimension(ifull,4) :: i_it
@@ -425,11 +425,13 @@ if ( ktau==1 .and. .not.lrestart ) then
 end if
 
 
+call mlosalfix(ns)
 workdata = nt(1:ifull,:)
+workdata2 = ns(1:ifull,:)
 worku = nu(1:ifull,:)
 workv = nv(1:ifull,:)
-call mlocheck("start of mlodynamics",water_temp=workdata,water_u=worku,water_v=workv, &
-                  ice_tsurf=nit(1:ifull,1))
+call mlocheck("start of mlodynamics",water_temp=workdata,water_sal=workdata2,water_u=worku, &
+                  water_v=workv,ice_tsurf=nit(1:ifull,1))
 
 
 do mspec_mlo = mspeca_mlo,1,-1
@@ -689,8 +691,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlovadv(hdt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr,1)
 
   
+  call mlosalfix(ns)
   workdata = nt(1:ifull,:)
-  call mlocheck("first vertical advection",water_temp=workdata,water_u=uau,water_v=uav)
+  workdata2 = ns(1:ifull,:)
+  call mlocheck("first vertical advection",water_temp=workdata,water_sal=workdata2, &
+                water_u=uau,water_v=uav)
 
 
   ! Calculate depature points
@@ -712,7 +717,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     cou(1:ifull,ii,3) = az(1:ifull)*uau(:,ii) + bz(1:ifull)*uav(:,ii)
   end do
   ! Horizontal advection for U, V, W
-  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr)
+  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,(/.false.,.false.,.false./))
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
   ! Convert (U,V,W) back to conformal cubic coordinates
@@ -726,13 +731,19 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Horizontal advection for T, S and continuity
   do ii = 1,wlev
     cou(1:ifull,ii,1) = nt(1:ifull,ii)
+    ! MJT notes - only advect salinity for salt water
+    workdata2(1:ifull,ii) = ns(1:ifull,ii)
     cou(1:ifull,ii,2) = ns(1:ifull,ii) - 34.72
     cou(1:ifull,ii,3) = mps(1:ifull,ii)
   end do
-  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr)
+  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,(/.false.,.true.,.false./))
   do ii = 1,wlev
     nt(1:ifull,ii) = max( cou(1:ifull,ii,1), -wrtemp )
-    ns(1:ifull,ii) = max( cou(1:ifull,ii,2) + 34.72, 0. )
+    ! MJT notes - only advect salinity for salt water
+    ns(1:ifull,ii) = cou(1:ifull,ii,2) + 34.72
+    where ( workdata2(1:ifull,ii)<2. )
+      ns(1:ifull,ii) = workdata2(1:ifull,ii)
+    end where  
     mps(1:ifull,ii) = cou(1:ifull,ii,3)
   end do
 
@@ -744,8 +755,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   !$acc end data
 #endif
 
+  call mlosalfix(ns)
   workdata = nt(1:ifull,:)
-  call mlocheck("horizontal advection",water_temp=workdata,water_u=uau,water_v=uav)
+  workdata2 = ns(1:ifull,:)
+  call mlocheck("horizontal advection",water_temp=workdata,water_sal=workdata2, &
+                water_u=uau,water_v=uav)
 
 
   ! Vertical advection (second call for 0.5*dt)
@@ -754,8 +768,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlovadv(hdt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr,2)
 
 
+  call mlosalfix(ns)
   workdata = nt(1:ifull,:)
-  call mlocheck("second vertical advection",water_temp=workdata,water_u=uau,water_v=uav)
+  workdata2 = ns(1:ifull,:)
+  call mlocheck("second vertical advection",water_temp=workdata,water_sal=workdata2, &
+                water_u=uau,water_v=uav)
 
 
   xps(:) = mps(1:ifull,1)*godsig(1:ifull,1)
@@ -1195,41 +1212,74 @@ do mspec_mlo = mspeca_mlo,1,-1
     select case( mlomfix )
       case(1)
         do ii = 1,wlev
-          ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
-          mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)*ee(1:ifull,ii)
+          ! MJT notes - only apply salinity conservation to salt water  
+          workdata2(1:ifull,ii) = ns(1:ifull,ii)  
+          where ( workdata2(1:ifull,ii)<2. )
+            ns(1:ifull,ii) = 34.72
+          end where  
+          where ( w_s(:,ii)<2. )
+            mfixdum(:,ii) = (ns(1:ifull,ii)-34.72)*dd(1:ifull)*ee(1:ifull,ii)
+          elsewhere    
+            mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)*ee(1:ifull,ii)
+          end where  
         end do
         call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
         alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
         do ii = 1,wlev
-          where( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )    
+          where ( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 .and. w_s(:,ii)<2. )    
+            ns(1:ifull,ii) = 34.72                                                      &
+                           +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
+                           /dd(1:ifull)
+          elsewhere ( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )   
             ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
                            +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
                            /dd(1:ifull)
-          elsewhere
-            ns(1:ifull,ii) = w_s(:,ii)              
           end where
+          ! MJT notes - only apply salinity conservation to salt water
+          where ( workdata2(1:ifull,ii)<2. )
+            ns(1:ifull,ii) = workdata2(1:ifull,ii)
+          end where  
         end do  
       case(2)
         do ii = 1,wlev
-          ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
-          mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)*ee(1:ifull,ii)
+          ! MJT notes - only apply salinity conservation to salt water  
+          workdata2(1:ifull,ii) = ns(1:ifull,ii)
+          where ( workdata2(1:ifull,ii)<2. )
+            ns(1:ifull,ii) = 34.72
+          end where
+          where ( w_s(:,ii)<2. )
+            mfixdum(:,ii) = (ns(1:ifull,ii)-34.72)*max(dd(1:ifull)+w_e(1:ifull),minwater)*ee(1:ifull,ii)
+          elsewhere    
+            mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)*ee(1:ifull,ii)
+          end where  
         end do
         call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
         alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
         do ii = 1,wlev
-          where( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )    
+          where ( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 .and. w_s(:,ii)<2. )    
+            ns(1:ifull,ii) = 34.72                                                      &
+                           +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
+                           /max(dd(1:ifull)+w_e(1:ifull),minwater)
+          elsewhere ( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )
             ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
                            +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
                            /max(dd(1:ifull)+w_e(1:ifull),minwater)
-          elsewhere
-            ns(1:ifull,ii) = w_s(:,ii)              
           end where
+          ! MJT notes - only apply salinity conservation to salt water
+          where ( workdata2(1:ifull,ii)<2. )
+            ns(1:ifull,ii) = workdata2(1:ifull,ii)
+          end where  
         end do            
       case default
         do ii = 1,wlev
           ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
         end do  
-    end select
+      end select
+      
+    call mlosalfix(ns)      
+    workdata2 = ns(1:ifull,:)
+    call mlocheck("conservation fix",water_sal=workdata2)
+      
   end if
 
   if ( myid==0 .and. (ktau<=5.or.maxglobseta>tol.or.maxglobip>itol) ) then
@@ -1245,13 +1295,18 @@ do mspec_mlo = mspeca_mlo,1,-1
 end do ! mspec_mlo
 
 
+call mlosalfix(ns)
 w_u = nu(1:ifull,:)
 w_v = nv(1:ifull,:)
 w_t = nt(1:ifull,:)
 w_s = ns(1:ifull,:)
-call mlocheck("end of mlodynamics",water_u=w_u,water_v=w_v,ice_tsurf=nit(1:ifull,1))
+call mlocheck("end of mlodynamics",water_temp=w_t,water_sal=w_s,water_u=w_u,water_v=w_v, &
+              ice_tsurf=nit(1:ifull,1))
 
 call mlodiffusion_work(w_u,w_v,w_t,w_s)
+
+call mlosalfix(w_s)
+call mlocheck("after diffusion",water_temp=w_t,water_sal=w_s,water_u=w_u,water_v=w_v)
 
 ! STORE WATER AND ICE DATA IN MLO ------------------------------------------
 call START_LOG(waterpack_begin)
@@ -2014,10 +2069,10 @@ do jj = 1,2
 end do
 
 ! for agressive salinity gradients
-drhodxu(1:ifull,1:wlev,2) = min( max( drhodxu(1:ifull,1:wlev,2), -8.e-4 ), 8.e-4 )
-drhodyu(1:ifull,1:wlev,2) = min( max( drhodyu(1:ifull,1:wlev,2), -8.e-4 ), 8.e-4 )
-drhodxv(1:ifull,1:wlev,2) = min( max( drhodxv(1:ifull,1:wlev,2), -8.e-4 ), 8.e-4 )
-drhodyv(1:ifull,1:wlev,2) = min( max( drhodyv(1:ifull,1:wlev,2), -8.e-4 ), 8.e-4 )
+!drhodxu(1:ifull,1:wlev,2) = min( max( drhodxu(1:ifull,1:wlev,2), -4.e-4 ), 4.e-4 )
+!drhodyu(1:ifull,1:wlev,2) = min( max( drhodyu(1:ifull,1:wlev,2), -4.e-4 ), 4.e-4 )
+!drhodxv(1:ifull,1:wlev,2) = min( max( drhodxv(1:ifull,1:wlev,2), -4.e-4 ), 4.e-4 )
+!drhodyv(1:ifull,1:wlev,2) = min( max( drhodyv(1:ifull,1:wlev,2), -4.e-4 ), 4.e-4 )
 
 return
 end subroutine zstar2

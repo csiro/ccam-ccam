@@ -44,6 +44,7 @@ integer fwsize                                                ! size of temporar
 integer, save :: nemi = -1                                    ! land-sea mask method (3=soilt, 2=zht, 1=ocndepth, -1=fail)
 integer, save :: fill_land = 0                                ! number of iterations required for land fill
 integer, save :: fill_floor = 0                               ! number of iterations required for floor fill (3d ocean)
+integer, save :: fill_floorlake = 0                           ! number of iterations required for floor+lake fill (3d ocean)
 integer, save :: fill_sea = 0                                 ! number of iterations required for ocean fill
 integer, save :: fill_nourban = 0                             ! number of iterations required for urban fill
 integer, save :: native_ccam = 0                              ! is host CCAM (native_ccam=1) or cdfivdar (native_ccam=0)
@@ -398,8 +399,9 @@ logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
 logical zht_needed, zht_found, urban1_found, urban2_found
 logical aero_found
-logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
+logical, dimension(:), allocatable, save :: land_a, landlake_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
+logical, dimension(:,:), allocatable, save :: landlake_3d
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
@@ -462,20 +464,24 @@ if ( .not.allocated(nface4) ) then
 end if
 if ( newfile ) then
   if ( allocated(sigin) ) then
-    deallocate( sigin, gosig_in, land_a, land_3d, sea_a, nourban_a )
+    deallocate( sigin, gosig_in, land_a, landlake_a, land_3d, landlake_3d, sea_a, nourban_a )
   end if
-  allocate( sigin(kk), gosig_in(ok), land_a(fwsize), land_3d(fwsize,ok), sea_a(fwsize), nourban_a(fwsize) )
-  sigin     = 1.
-  gosig_in  = 1.
-  land_a    = .false.
-  land_3d   = .false.
-  sea_a     = .true.
-  nourban_a = .false.
+  allocate( sigin(kk), gosig_in(ok), land_a(fwsize), landlake_a(fwsize), land_3d(fwsize,ok) )
+  allocate( landlake_3d(fwsize,ok), sea_a(fwsize), nourban_a(fwsize) )
+  sigin       = 1.
+  gosig_in    = 1.
+  land_a      = .false.
+  landlake_a  = .false.
+  land_3d     = .false.
+  landlake_3d = .false.
+  sea_a       = .true.
+  nourban_a   = .false.
   ! reset fill counters
-  fill_land    = 0
-  fill_floor   = 0
-  fill_sea     = 0
-  fill_nourban = 0
+  fill_land      = 0
+  fill_floor     = 0
+  fill_floorlake = 0
+  fill_sea       = 0
+  fill_nourban   = 0
   ! reset land-sea mask search
   nemi = -1
 end if
@@ -707,6 +713,7 @@ if ( newfile ) then
         if ( fwsize>0 ) then
           nemi = 2  
           land_a = zss_a>0. ! 2nd guess for land-sea mask
+          landlake_a = land_a
         end if
       end if
     else
@@ -719,6 +726,7 @@ if ( newfile ) then
           zss_a = 0.  ! ocean everywhere
           nemi = 2  
           land_a = zss_a>0. ! 2nd guess for land-sea mask
+          landlake_a = land_a
         end if
       end if
     end if    
@@ -732,6 +740,7 @@ if ( newfile ) then
       if ( fwsize>0 ) then
         nemi = 3
         land_a = nint(ucc)>0 ! 1st guess for land-sea mask
+        landlake_a = nint(ucc)/=0
       end if  
     end if
   end if  
@@ -750,6 +759,7 @@ if ( newfile ) then
         if ( nemi==-1 ) then
           nemi = 2  
           land_a = ocndep_a<0.1 ! 3rd guess for land-sea mask
+          landlake_a = land_a
         end if  
       end if
     end if  
@@ -775,6 +785,9 @@ if ( newfile ) then
       end if
     end if
     sea_a = .not.land_a
+    do k = 1,ok
+      landlake_3d(:,k) = land_3d(:,k) .or. landlake_a
+    end do  
   end if  
   
   ! check that land-sea mask is definied
@@ -785,7 +798,7 @@ if ( newfile ) then
       call ccmpi_abort(-1)
     end if  
     if ( myid==0 ) then
-      write(6,*)'Land-sea mask using nemi = ',nemi
+      write(6,*) "Land-sea mask using nemi = ",nemi
     end if
   end if  
   
@@ -1120,10 +1133,15 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     ! ocean salinity
     if ( (nested/=1.or.nud_sss/=0) .and. ok>0 ) then
       if ( mlo2_found ) then
-        call fillhist4o('so',mlodwn(:,:,2),land_3d,fill_floor,ocndwn(:,1))  
+        call fillhist4o('so',mlodwn(:,:,2),landlake_3d,fill_floorlake,ocndwn(:,1))  
       else    
-        call fillhist4o('sal',mlodwn(:,:,2),land_3d,fill_floor,ocndwn(:,1))
+        call fillhist4o('sal',mlodwn(:,:,2),landlake_3d,fill_floorlake,ocndwn(:,1))
       end if  
+      do k = 1,wlev
+        where ( isoilm_in == -1 )
+          mlodwn(1:ifull,k,2) = 0. ! freshwater lakes
+        end where
+      end do  
       mlodwn(1:ifull,1:wlev,2) = max( mlodwn(1:ifull,1:wlev,2), 0. )
     end if ! (nestesd/=1.or.nud_sss/=0) ..else..
     ! ocean currents

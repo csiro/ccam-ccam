@@ -2188,6 +2188,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   do k = 1,3
     call mloexpice(tggsn(:,k),k,0)
   end do
+  ! time averaging for turbulent mixing
   if ( .not.lrestart ) then
     if ( myid==0 ) then
       write(6,*) "Reset EMA for mlo"  

@@ -3991,7 +3991,7 @@ if ( mod(ktau,tbave)==0 ) then
     
   if ( myid==0 .or. local ) then
     if ( myid==0 ) then
-      write(6,*) "Write high-frequency output"
+      write(6,*) "write high-frequency output"
     end if
     fiarch = ktau/tbave
     tpnt = real(ktau,8)*(real(dt,8)/60._8)

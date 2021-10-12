@@ -1950,7 +1950,7 @@ do kbb = ktopmlo,kc,kblock
       kb = k - kln + 1
       old = sssb(:,k)
       call mloexport(1,old,k,0)
-      where ( wtr(:,k) )
+      where ( wtr(:,k) .and. old>28. )
         diffs_l(:,kb) = sssb(:,k) - old
       elsewhere
         diffs_l(:,kb) = 0.
@@ -2025,16 +2025,20 @@ do kbb = ktopmlo,kc,kblock
       kb = k-kln+1
       old = sssb(:,ka)
       call mloexport(1,old,k,0)
-      old = old + diffs_l(:,kb)*nudgewgt
-      old = max(old, 0.)
+      where ( old>28. )
+        old = old + diffs_l(:,kb)*nudgewgt
+        old = max(old, 0.)
+      end where  
       call mloimport(1,old,k,0)
     end do
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = sssb(:,ka)
         call mloexport(1,old,k,0)
-        old = old + diffs_l(:,kb)*nudgewgt ! kb saved from above loop
-        old = max(old, 0.)
+        where ( old>28. )
+          old = old + diffs_l(:,kb)*nudgewgt ! kb saved from above loop
+          old = max(old, 0.)
+        end where  
         call mloimport(1,old,k,0)
       end do
     end if
@@ -3020,8 +3024,10 @@ if (nud_sss/=0) then
     ka=min(k,wl)
     old=sssb(:,ka)
     call mloexport(1,old,k,0)
-    old=old*(1.-wgt)+sssb(:,ka)*wgt
-    old=max(old,0.)
+    where ( old>28. )
+      old=old*(1.-wgt)+sssb(:,ka)*wgt
+      old=max(old,0.)
+    end where  
     call mloimport(1,old,k,0)
   end do
 end if

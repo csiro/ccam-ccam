@@ -222,7 +222,7 @@ real, dimension(imax,2:wlev) :: deptho_dz_hl
 real, dimension(imax,wlev) :: rad_o
 real, dimension(imax) :: cd_water, cdh_water, cdbot_water, wt0rad_o, wt0melt_o, wt0eg_o
 real, dimension(imax,wlev) :: w_t, w_s, w_u, w_v
-real, dimension(imax) :: icefg_a, wt0fb_o, ws0_o
+real, dimension(imax) :: icefg_a, wt0fb_o, ws0_o, ws0subsurf_o
 real, dimension(imax) :: fracice, i_u, i_v, imass, cd_ice, cdbot_ice
 logical, dimension(imax), intent(in) :: land
 #endif
@@ -294,8 +294,8 @@ if ( mode==2 .or. mode==3 ) then
   call unpack_coupled(deptho_dz,deptho_dz_hl,rad_o,                   &
                       w_t,w_s,w_u,w_v,cd_water,cdh_water,cdbot_water, &
                       wt0rad_o,wt0melt_o,wt0eg_o,                     &
-                      icefg_a,wt0fb_o,ws0_o,i_u,i_v,imass,fracice,    &
-                      cd_ice,cdbot_ice,ibot,imax,tile)
+                      icefg_a,wt0fb_o,ws0_o,ws0subsurf_o,i_u,i_v,     &
+                      imass,fracice,cd_ice,cdbot_ice,ibot,imax,tile)
 end if
 #endif
 
@@ -404,12 +404,12 @@ do kcount = 1,mcount
                         cd_water,cdh_water,cdbot_water,         &
                         wt0rad_o,wt0melt_o,                     &
                         wt0eg_o,icefg_a,wt0fb_o,ws0_o,          &
-                        i_u,i_v,imass,fracice,                  &
+                        ws0subsurf_o,i_u,i_v,imass,fracice,     &
                         cd_ice,cdbot_ice,ibot,land,sigkap,      &
 #ifdef scm
                         wthflux,wqvflux,uwflux,vwflux,          &
 #endif
-                        ddts,mcount,imax,kl,tile)  
+                        ddts,imax,kl,tile)  
   else
     call update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,va, &
                            tlup,qvup,qlup,qfup,cfup,fg,eg,rhos, &
@@ -419,7 +419,7 @@ do kcount = 1,mcount
 #ifdef scm
                            wthflux,wqvflux,uwflux,vwflux,       &
 #endif
-                           ddts,mcount,imax,kl)
+                           ddts,imax,kl)
   end if
 #else
   call update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,va, &
@@ -430,7 +430,7 @@ do kcount = 1,mcount
 #ifdef scm
                          wthflux,wqvflux,uwflux,vwflux,       &
 #endif
-                         ddts,mcount,imax,kl)
+                         ddts,imax,kl)
 #endif
   
   ustar_ave = ustar_ave + ustar/real(mcount)
@@ -871,11 +871,11 @@ subroutine update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,va, &
 #ifdef scm
                              wthflux,wqvflux,uwflux,vwflux,       &
 #endif
-                             ddts,mcount,imax,kl)
+                             ddts,imax,kl)
 
 implicit none
 
-integer, intent(in) :: imax, kl, mcount
+integer, intent(in) :: imax, kl
 integer k
 real, dimension(imax,kl), intent(inout) :: thetal, qvg, qlg, qfg, stratcloud, ua, va
 real, dimension(imax,kl), intent(in) :: tlup, qvup, qlup, qfup, cfup
@@ -1045,8 +1045,8 @@ end subroutine update_atmosphere
 subroutine unpack_coupled(deptho_dz,deptho_dz_hl,rad_o,                   &
                           w_t,w_s,w_u,w_v,cd_water,cdh_water,cdbot_water, &
                           wt0rad_o,wt0melt_o,wt0eg_o,                     &
-                          icefg_a,wt0fb_o,ws0_o,i_u,i_v,imass,fracice,    &
-                          cd_ice,cdbot_ice,ibot,imax,tile)
+                          icefg_a,wt0fb_o,ws0_o,ws0subsurf_o,i_u,i_v,     &
+                          imass,fracice,cd_ice,cdbot_ice,ibot,imax,tile)
 
 use mlo, only : mloexport, mloexpdep, mlodiag, mloexpice, mlodiagice, wlev, &
                 water_g, dgwater_g, ice_g, dgice_g, wpack_g, wfull_g,       &
@@ -1062,7 +1062,7 @@ real, dimension(imax,2:wlev), intent(out) :: deptho_dz_hl
 real, dimension(imax,wlev), intent(out) :: rad_o
 real, dimension(imax), intent(out) :: cd_water, cdh_water, cdbot_water, wt0rad_o, wt0melt_o, wt0eg_o
 real, dimension(imax,wlev), intent(out) :: w_t, w_s, w_u, w_v
-real, dimension(imax), intent(out) :: icefg_a, wt0fb_o, ws0_o, fracice
+real, dimension(imax), intent(out) :: icefg_a, wt0fb_o, ws0_o, ws0subsurf_o, fracice
 real, dimension(imax), intent(out) :: i_u, i_v, imass, cd_ice, cdbot_ice
 real, dimension(imax) :: d_zcr, rbot, neta, deptho_max
 
@@ -1090,6 +1090,7 @@ wt0melt_o = 0.
 wt0eg_o = 0.
 wt0fb_o = 0.
 ws0_o = 0.
+ws0subsurf_o = 0.
 call mlodiag("cd",cd_water,0,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mlodiag("cdh",cdh_water,0,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mlodiag("cd_bot",cdbot_water,0,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
@@ -1098,6 +1099,7 @@ call mlodiag("wt0_melt",wt0melt_o,0,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(ti
 call mlodiag("wt0_eg",wt0eg_o,0,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mlodiag("wt0_fb",wt0fb_o,0,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mlodiag("ws0",ws0_o,0,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
+call mlodiag("ws0_subsurf",ws0subsurf_o,0,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
 
 w_t = 0.
 w_s = 0.
@@ -1171,20 +1173,20 @@ subroutine update_coupled(thetal,qvg,qlg,qfg,stratcloud,ua,va,    &
                           cd_water,cdh_water,cdbot_water,         &
                           wt0rad_o,wt0melt_o,                     &
                           wt0eg_o,icefg_a,wt0fb_o,ws0_o,          &
-                          i_u,i_v,imass,fracice,                  &
+                          ws0subsurf_o,i_u,i_v,imass,fracice,     &
                           cd_ice,cdbot_ice,ibot,land,sigkap,      &
 #ifdef scm
                           wthflux,wqvflux,uwflux,vwflux,          &
 #endif
-                          ddts,mcount,imax,kl,tile)
+                          ddts,imax,kl,tile)
 
 use mlo, only : wlev, mlo_updatekm, mlodiag, dgwater_g, wpack_g, wfull_g, &
                 mlo_updatediag, water_g, turb_g, wrtemp, cp0, depth_g,    &
-                cdbot, rhowt, ice_g, mlocheck
+                cdbot, rhowt, ice_g, mlocheck, minsfc, mlosalfix
                           
 implicit none
 
-integer, intent(in) :: imax, kl, mcount, tile
+integer, intent(in) :: imax, kl, tile
 integer, dimension(imax), intent(in) :: ibot
 integer k, kn, iq
 real, dimension(imax,kl), intent(inout) :: thetal, qvg, qlg, qfg, stratcloud, ua, va
@@ -1208,10 +1210,11 @@ real, dimension(imax,wlev) :: gammas_o
 real, dimension(imax,1) :: bb_i, dd_i, tt_i
 real, dimension(imax), intent(inout) :: fg, eg, ustar
 real, dimension(imax), intent(in) :: rhos, rhoa1, dz_fl1, cduv, ps
-real, dimension(imax), intent(in) :: icefg_a, wt0fb_o, ws0_o
+real, dimension(imax), intent(in) :: icefg_a, wt0fb_o, ws0_o, ws0subsurf_o
 real, dimension(imax), intent(in) :: fracice, imass, cd_ice, cdbot_ice
 real, dimension(imax) :: wt0_a, wq0_a, f_ao, f_oa, f_ai, f_ia, f_oi, f_io
 real, dimension(imax) :: wt0_o, wu0_o, wv0_o
+real, dimension(imax) :: fulldeptho, targetdeptho, deltazo
 real, dimension(imax), intent(inout) :: i_u, i_v
 real, dimension(imax) :: t1, t3, t4
 real, dimension(kl), intent(in) :: sigkap
@@ -1222,6 +1225,9 @@ logical, dimension(imax), intent(in) :: land
 real, dimension(imax,kl), intent(out) :: wthflux, wqvflux, uwflux, vwflux
 real, dimension(imax,kl) :: wthlflux, wqlflux, wqfflux
 #endif
+
+call mlocheck("Before coupled-mixing",water_temp=w_t,water_sal=w_s,water_u=w_u, &
+              water_v=w_v,ice_u=i_u,ice_v=i_v)
 
 ! Calculate surface fluxes
 wq0_a = eg/(rhos*lv)  ! qtot flux
@@ -1271,18 +1277,18 @@ where ( deptho_dz(:,wlev)>1.e-4 )
   rhs_o(:,wlev) = -ks_o(:,wlev)*gammas_o(:,wlev)/deptho_dz(:,wlev)
 end where
 
-where ( deptho_dz_hl(:,2)*deptho_dz(:,1)>1.e-4 )
+where ( deptho_dz(:,2)*deptho_dz(:,1)>1.e-4 )
   cc_o(:,1) = -ddts*ks_o(:,2)/(deptho_dz_hl(:,2)*deptho_dz(:,1))
 end where
 do k = 2,wlev-1
-  where ( deptho_dz_hl(:,k)*deptho_dz(:,k)>1.e-4 )
+  where ( deptho_dz(:,k-1)*deptho_dz(:,k)>1.e-4 )
     aa_o(:,k) = -ddts*ks_o(:,k)/(deptho_dz_hl(:,k)*deptho_dz(:,k))
   end where
-  where ( deptho_dz_hl(:,k+1)*deptho_dz(:,k)>1.e-4 )
+  where ( deptho_dz(:,k+1)*deptho_dz(:,k)>1.e-4 )
     cc_o(:,k) = -ddts*ks_o(:,k+1)/(deptho_dz_hl(:,k+1)*deptho_dz(:,k))
   end where  
 end do
-where ( deptho_dz_hl(:,wlev)*deptho_dz(:,wlev)>1.e-4 )
+where ( deptho_dz(:,wlev-1)*deptho_dz(:,wlev)>1.e-4 )
   aa_o(:,wlev) = -ddts*ks_o(:,wlev)/(deptho_dz_hl(:,wlev)*deptho_dz(:,wlev))
 end where
 
@@ -1398,20 +1404,20 @@ aa_a(:,kl) = rr(:,1)-ddts*mflx(:,2)*fzzh(:,1)*idzp(:,1)
 bb_a(:,kl) = 1.-rr(:,1)-ddts*mflx(:,1)*(1.-fzzh(:,1))*idzp(:,1)
 
 
-where ( deptho_dz_hl(:,2)*deptho_dz(:,1)>1.e-4 )
+where ( deptho_dz(:,2)*deptho_dz(:,1)>1.e-4 )
   cc_o(:,1) = -ddts*ks_o(:,2)/(deptho_dz_hl(:,2)*deptho_dz(:,1))
 end where
 bb_o(:,1) = 1. - cc_o(:,1)
 do k = 2,wlev-1
-  where ( deptho_dz_hl(:,k)*deptho_dz(:,k)>1.e-4 )  
+  where ( deptho_dz(:,k-1)*deptho_dz(:,k)>1.e-4 )  
     aa_o(:,k) = -ddts*ks_o(:,k)/(deptho_dz_hl(:,k)*deptho_dz(:,k)) 
   end where
-  where ( deptho_dz_hl(:,k+1)*deptho_dz(:,k)>1.e-4 )
+  where ( deptho_dz(:,k+1)*deptho_dz(:,k)>1.e-4 )
     cc_o(:,k) = -ddts*ks_o(:,k+1)/(deptho_dz_hl(:,k+1)*deptho_dz(:,k))
   end where
   bb_o(:,k) = 1. - aa_o(:,k) - cc_o(:,k)
 end do
-where ( deptho_dz_hl(:,wlev)*deptho_dz(:,wlev)>1.e-4 )
+where ( deptho_dz(:,wlev-1)*deptho_dz(:,wlev)>1.e-4 )
   aa_o(:,wlev) = -ddts*ks_o(:,wlev)/(deptho_dz_hl(:,wlev)*deptho_dz(:,wlev))
 end where
 bb_o(:,wlev) = 1. - aa_o(:,wlev)
@@ -1515,12 +1521,18 @@ do k = 1,kl
 end do
 
 ! sal - ocean
+fulldeptho = 0.
+targetdeptho = max( min( minsfc, sum( deptho_dz, dim=2 ) ), 1.e-4 )
 do k = 1,wlev
   dd_o(:,k) = w_s(:,k) + ddts*rhs_o(:,k)*ws0_o
+  where ( deptho_dz(:,k)>1.e-4 )
+    deltazo = max( min( deptho_dz(:,k), targetdeptho-fulldeptho ), 0. )
+    fulldeptho = fulldeptho + deltazo
+    dd_o(:,k) = dd_o(:,k) - ddts*ws0subsurf_o*deltazo/(deptho_dz(:,k)*targetdeptho)
+  end where
 end do
-! include sea-ice flux
 where ( .not.land(1:imax) )
-  dd_o(:,wlev) = dd_o(:,wlev) - ddts*ws0_o/deptho_dz(:,1)
+  dd_o(:,1) = dd_o(:,1) - ddts*ws0_o/deptho_dz(:,1)
 end where
 call thomas(w_s,aa_o(:,2:wlev),bb_o(:,1:wlev),cc_o(:,1:wlev-1),dd_o(:,1:wlev),imax,wlev)
 
@@ -1546,20 +1558,20 @@ elsewhere
   bb_a(:,kl) = bb_a(:,kl) + ddts*(t1(:)*(1.-fracice(:))+t3(:)*fracice(:))/(rhoa1(:)*dz_fl1(:))
 end where  
 
-where ( deptho_dz_hl(:,2)*deptho_dz(:,1) > 1.e-4 )
+where ( deptho_dz(:,2)*deptho_dz(:,1) > 1.e-4 )
   cc_o(:,1) = -ddts*km_o(:,2)/(deptho_dz_hl(:,2)*deptho_dz(:,1))
 end where
 bb_o(:,1) = 1. - cc_o(:,1)
 do k = 2,wlev-1
-  where ( deptho_dz_hl(:,k)*deptho_dz(:,k) > 1.e-4 )  
+  where ( deptho_dz(:,k-1)*deptho_dz(:,k) > 1.e-4 )  
     aa_o(:,k) = -ddts*km_o(:,k)/(deptho_dz_hl(:,k)*deptho_dz(:,k)) 
   end where
-  where ( deptho_dz_hl(:,k+1)*deptho_dz(:,k) > 1.e-4 )
+  where ( deptho_dz(:,k+1)*deptho_dz(:,k) > 1.e-4 )
     cc_o(:,k) = -ddts*km_o(:,k+1)/(deptho_dz_hl(:,k+1)*deptho_dz(:,k))
   end where
   bb_o(:,k) = 1. - aa_o(:,k) - cc_o(:,k)
 end do
-where ( deptho_dz_hl(:,wlev)*deptho_dz(:,wlev) > 1.e-4 )
+where ( deptho_dz(:,wlev-1)*deptho_dz(:,wlev) > 1.e-4 )
   aa_o(:,wlev) = -ddts*km_o(:,wlev)/(deptho_dz_hl(:,wlev)*deptho_dz(:,wlev))
 end where
 bb_o(:,wlev) = 1. - aa_o(:,wlev)
@@ -1654,8 +1666,9 @@ wv0_o = wv0_o + fracice*cdbot_ice*(w_v(:,1)-i_v(:))
 call mlo_updatediag("wu0",wu0_o,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mlo_updatediag("wv0",wv0_o,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
 
-call mlocheck("Coupled-mixing",water_temp=w_t,water_u=w_u,water_v=w_v, &
-              ice_u=i_u,ice_v=i_v)
+call mlosalfix(w_s)
+call mlocheck("Coupled-mixing",water_temp=w_t,water_sal=w_s,water_u=w_u, &
+              water_v=w_v,ice_u=i_u,ice_v=i_v)
 
 #ifdef scm
 uwflux(:,1) = 0.

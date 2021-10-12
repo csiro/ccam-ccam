@@ -969,11 +969,13 @@ end if                                                                          
                                                                                                ! MLO
 ! inflow and outflow model for rivers                                                          ! MLO
 if ( abs(nmlo)>=2 ) then                                                                       ! MLO
+  ! river inflow                                                                               ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO
   where ( .not.land(1:imax) )                                                                  ! MLO
     dumw(1:imax) = watbdy(1:imax)/dt                                                           ! MLO
     watbdy(1:imax) = 0.                                                                        ! MLO
   end where                                                                                    ! MLO
+  ! lake outflow                                                                               ! MLO
   neta(1:imax) = 0.                                                                            ! MLO
   call mloexport(4,neta,0,0,water,wpack,wfull)                                                 ! MLO
   where ( outflowmask(1:imax) )                                                                ! MLO
