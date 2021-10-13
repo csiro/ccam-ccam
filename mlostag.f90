@@ -966,51 +966,51 @@ if (.not.allocated(wtul)) then
       wtur(1:ifull,k,2)=-0.1
       wtur(1:ifull,k,3)=0.
       dtur(1:ifull,k,1)=0.
-      dtur(1:ifull,k,2)=1.
+      dtur(1:ifull,k,2)=1.1
       dtur(1:ifull,k,3)=0.5
       
     !  #   ##  #   * X |   E   |     unstaggered
-    !  #   ##  0     X *             staggered
+    !  #   ##  0     X *       E     staggered
     elsewhere (euetest)
       wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=-1./3.
-      wtur(1:ifull,k,2)=0.
+      wtur(1:ifull,k,1)=0.
+      wtur(1:ifull,k,2)=-0.5/1.1
       wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.
-      dtur(1:ifull,k,2)=1.
+      dtur(1:ifull,k,1)=0.1/1.1
+      dtur(1:ifull,k,2)=1.5/1.1
       dtur(1:ifull,k,3)=0.
 
     !  |   W   | X *   #  ##  #     unstaggered
     !          W X     0  ##  #     staggered
     elsewhere (ewwtest)
       wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=0.
-      wtur(1:ifull,k,2)=-1./3.
+      wtur(1:ifull,k,1)=-0.1/1.5
+      wtur(1:ifull,k,2)=0.
       wtur(1:ifull,k,3)=0.
       dtur(1:ifull,k,1)=0.
       dtur(1:ifull,k,2)=0.
-      dtur(1:ifull,k,3)=1.
+      dtur(1:ifull,k,3)=1.6/1.5
 
     !  #   W   |   *   #  ##  #     unstaggered
     !  #       W       #  ##  #     staggered
     elsewhere (ewtest)
       wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=0.
+      wtur(1:ifull,k,1)=-0.1/1.5
       wtur(1:ifull,k,2)=0.
       wtur(1:ifull,k,3)=0.
       dtur(1:ifull,k,1)=0.
       dtur(1:ifull,k,2)=0.
-      dtur(1:ifull,k,3)=1.
+      dtur(1:ifull,k,3)=1.6/1.5
 
     !  #   ##  #   *   |  E   #     unstaggered
     !  #   ##  #       *      #     staggered
     elsewhere (eutest)
       wtur(1:ifull,k,0)=1.
       wtur(1:ifull,k,1)=0.
-      wtur(1:ifull,k,2)=0.
+      wtur(1:ifull,k,2)=-0.5/1.1
       wtur(1:ifull,k,3)=0.
       dtur(1:ifull,k,1)=0.
-      dtur(1:ifull,k,2)=1.
+      dtur(1:ifull,k,2)=1.6/1.1
       dtur(1:ifull,k,3)=0.
     elsewhere
       wtur(1:ifull,k,0)=0.
