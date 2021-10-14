@@ -1111,10 +1111,11 @@ do mspec_mlo = mspeca_mlo,1,-1
     nit(1:ifull,2) = 273.16
   end where
 
+  ! fix for excessive sea-ice
+  !ndic(1:ifull) = min( ndic(1:ifull), icemax )
   
   call mlocheck("seaice advection",ice_tsurf=nit(1:ifull,1), &
-                ice_u=niu(1:ifull),ice_v=niv(1:ifull),       &
-                ice_thick=ndic(1:ifull))
+                ice_u=niu(1:ifull),ice_v=niv(1:ifull))
   
   
   ! unstagged currents and ice velocity
@@ -1307,8 +1308,7 @@ w_v = nv(1:ifull,:)
 w_t = nt(1:ifull,:)
 w_s = ns(1:ifull,:)
 call mlocheck("end of mlodynamics",water_temp=w_t,water_sal=w_s,water_u=w_u,water_v=w_v, &
-              ice_tsurf=nit(1:ifull,1),ice_u=niu(1:ifull),ice_v=niv(1:ifull),            &
-              ice_thick=ndic(1:ifull))
+              ice_tsurf=nit(1:ifull,1),ice_u=niu(1:ifull),ice_v=niv(1:ifull))
 
 call mlodiffusion_work(w_u,w_v,w_t,w_s)
 

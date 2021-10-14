@@ -59,7 +59,7 @@ private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
        mloimport3d,mloexport3d,mlovlevels,mlocheck,mlodiagice,mlo_updatediag,mlo_updatekm,           &
-       mlosurf,mlonewice,mlo_ema,mlo_interpolate_hl,minsfc,minsal,mlosalfix
+       mlosurf,mlonewice,mlo_ema,mlo_interpolate_hl,minsfc,minsal,mlosalfix,icemax
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,nsteps,usepice,minicemass,cdbot,rhowt,cp0,ominl,omaxl
@@ -934,8 +934,7 @@ do tile = 1,ntiles
     call mlosalfix(water_g(tile)%sal)
     call mlocheck("MLO-load",water_temp=water_g(tile)%temp,water_sal=water_g(tile)%sal, &
                   water_u=water_g(tile)%u,water_v=water_g(tile)%v,                      &
-                  ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp,                &
-                  ice_thick=ice_g(tile)%thick)
+                  ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp)
 
   end if
 
@@ -999,8 +998,7 @@ do tile = 1,ntiles
 
     call mlocheck("MLO-save",water_temp=water_g(tile)%temp,water_sal=water_g(tile)%sal, &
                   water_u=water_g(tile)%u,water_v=water_g(tile)%v,                      &
-                  ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp,                &
-                  ice_thick=ice_g(tile)%thick)
+                  ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp)
 
   end if
 
@@ -2710,8 +2708,7 @@ if (diag>=1) write(6,*) "Evaluate MLO"
 
 call mlosalfix(water%sal)
 call mlocheck("MLO-start",water_temp=water%temp,water_sal=water%sal,water_u=water%u, &
-              water_v=water%v,ice_tsurf=ice%tsurf,ice_temp=ice%temp,                 &
-              ice_thick=ice%thick)
+              water_v=water%v,ice_tsurf=ice%tsurf,ice_temp=ice%temp)
 
 ! Set default values for invalid points
 do ii = 1,wlev
@@ -4358,9 +4355,9 @@ d_salflx=0.                                               ! fresh water flux
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.) ! water avaliable for freezing
 
 ! Ice depth limitation for poor initial conditions
-xxx=max(ice%thick-icemax,0.)
-ice%thick=ice%thick-xxx    
-d_salflx=d_salflx-rhoic*xxx/dt ! fresh water leaving ocean to ice
+!xxx=max(ice%thick-icemax,0.)
+!ice%thick=ice%thick-xxx    
+!d_salflx=d_salflx-rhoic*xxx/dt ! fresh water leaving ocean to ice
 
 ! update ice prognostic variables
 call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_wavail,diag, &
@@ -4730,7 +4727,7 @@ it_tn2(:)  =ans(:,4)
 fl=2.*conc*(dt_tb-it_tn2)
 dhb=dt*(fl-dt_fb)/qice                ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic)
+dhb=min(dhb,dt_wavail*rhowt/rhoic,icemax-it_dic)
 flnew=dt_fb+dhb*qice/dt
 it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic) ! Modify temperature if limit is reached
 it_tn2=it_tn2+(flnew-fl)/(cpi*it_dic) ! Modify temperature if limit is reached
@@ -4874,7 +4871,7 @@ it_tn1(:)  =ans(:,3)
 fl=2.*conc*(dt_tb-it_tn1)
 dhb=dt*(fl-dt_fb)/qice                      ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic)
+dhb=min(dhb,dt_wavail*rhowt/rhoic,icemax-it_dic)
 flnew=dt_fb+dhb*qice/dt
 it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic-gammi) ! modify temperature if limit is reached
 
@@ -5016,7 +5013,7 @@ it_tn2(:)  =ans(:,3)
 fl=2.*conb*(dt_tb-it_tn2)
 dhb=dt*(fl-dt_fb)/qice                   ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic)
+dhb=min(dhb,dt_wavail*rhowt/rhoic,icemax-it_dic)
 flnew=dt_fb+dhb*qice/dt
 it_tn1=it_tn1+2.*(flnew-fl)/(cpi*it_dic) ! modify temperature if limit is reached
 it_tn2=it_tn2+2.*(flnew-fl)/(cpi*it_dic) ! modify temperature if limit is reached
@@ -5145,7 +5142,7 @@ it_tn1(:)  =ans(:,2)
 fl=2.*conb*(dt_tb-it_tn1)                   ! flux between t1 and bottom
 dhb=dt*(fl-dt_fb)/qice                      ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic)
+dhb=min(dhb,dt_wavail*rhowt/rhoic,icemax-it_dic)
 flnew=dt_fb+dhb*qice/dt                     ! final excess flux from below
 it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic)       ! does nothing unless a limit is reached
 
@@ -5247,7 +5244,7 @@ tnew=(it_tsurf*gamm/dt+dt_ftop-pt_egice*lf/lv+con*dt_tb)/(gamm/dt+con)    ! pred
 f0=con*(dt_tb-tnew)                                                       ! first guess of flux from below
 dhb=dt*(f0-dt_fb)/qice                                                    ! excess flux converted to change in ice thickness
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic)
+dhb=min(dhb,dt_wavail*rhowt/rhoic,icemax-it_dic)
 f0=dhb*qice/dt+dt_fb                                                      ! final flux from below
 it_tsurf=it_tsurf+dt*(dt_ftop-pt_egice*lf/lv+f0)/gamm                     ! update ice/snow temperature
 
@@ -5913,14 +5910,14 @@ if ( present( ice_u ) .and. present( ice_v ) ) then
   end if
 end if  
 
-if ( present( ice_thick ) ) then
-  if ( any(ice_thick>10.) ) then
-    write(6,*) "ERROR: ice thickness is out-of-range in ",trim(message)
-    write(6,*) "maxval ",maxval(ice_thick)
-    write(6,*) "maxloc ",maxloc(ice_thick)
-    stop -1
-  end if
-end if
+!if ( present( ice_thick ) ) then
+!  if ( any(ice_thick>10.) ) then
+!    write(6,*) "ERROR: ice thickness is out-of-range in ",trim(message)
+!    write(6,*) "maxval ",maxval(ice_thick)
+!    write(6,*) "maxloc ",maxloc(ice_thick)
+!    stop -1
+!  end if
+!end if
 
 return
 end subroutine mlocheck
