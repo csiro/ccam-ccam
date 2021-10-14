@@ -964,32 +964,29 @@ else
     ! fix rounding errors
     fracice_a(1:fwsize) = min( fracice_a(1:fwsize), 1. )
 
-    if ( siced_found ) then          ! i.e. sicedep read in 
-      if ( .not.fracice_found ) then ! i.e. sicedep read in; fracice not read in
-        where ( sicedep_a(1:fwsize)>0. )
-          fracice_a(1:fwsize) = 1.
-        end where
-      end if
-    else                        ! sicedep not read in
-      if ( fracice_found ) then ! i.e. only fracice read in;  done in indata, nestin
-                                ! but needed here for onthefly (different dims) 28/8/08
-        where ( fracice_a(1:fwsize)>0.01 )
-          sicedep_a(1:fwsize) = 2.
-        elsewhere
-          sicedep_a(1:fwsize) = 0.
-          fracice_a(1:fwsize) = 0.
-        end where
-      else
-        ! neither sicedep nor fracice read in
-        sicedep_a(1:fwsize) = 0.  ! Oct 08
+    if ( siced_found .and. fracice_found ) then
+      ! do nothing
+    else if ( siced_found ) then       ! i.e. sicedep read in, fracice not read in
+      where ( sicedep_a(1:fwsize)>0. )
+        fracice_a(1:fwsize) = 1.
+      end where
+    else if ( fracice_found ) then     ! i.e. only fracice read in;  sicedep not read in
+      where ( fracice_a(1:fwsize)>0.01 )
+        sicedep_a(1:fwsize) = 2.
+      elsewhere
+        sicedep_a(1:fwsize) = 0.
         fracice_a(1:fwsize) = 0.
-        if ( myid==0 ) write(6,*) 'pre-setting siced in onthefly from tss'
-        where ( abs(tss_a(1:fwsize))<=271.6 ) ! for ERA-Interim
-          sicedep_a(1:fwsize) = 1.  ! Oct 08  ! previously 271.2
-          fracice_a(1:fwsize) = 1.
-        end where
-      end if  ! fracice_found ..else..
-    end if    ! siced_found .. else ..    for sicedep
+      end where
+    else
+      ! neither sicedep nor fracice read in
+      sicedep_a(1:fwsize) = 0.  ! Oct 08
+      fracice_a(1:fwsize) = 0.
+      if ( myid==0 ) write(6,*) 'pre-setting siced in onthefly from tss'
+      where ( abs(tss_a(1:fwsize))<=271.6 ) ! for ERA-Interim
+        sicedep_a(1:fwsize) = 1.  ! Oct 08  ! previously 271.2
+        fracice_a(1:fwsize) = 1.
+      end where
+    end if  ! siced_found .and. fracice_found ..else..
 
     ! fill surface temperature and sea-ice
     tss_l_a(1:fwsize) = abs(tss_a(1:fwsize))
@@ -1101,6 +1098,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
         + 0.136974583E-17*depth(1:ifull)**6  &
         - 0.935923382E-22*depth(1:ifull)**7
       mlodwn(1:ifull,k,1) = mlodwn(1:ifull,k,1) - wrtemp + tss(1:ifull) - 18.4231944
+      mlodwn(1:ifull,k,1) = max( mlodwn(1:ifull,k,1), 271.2-wrtemp )
     elsewhere
       mlodwn(1:ifull,k,1) = 275.16 - wrtemp
     end where

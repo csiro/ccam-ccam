@@ -431,7 +431,8 @@ workdata2 = ns(1:ifull,:)
 worku = nu(1:ifull,:)
 workv = nv(1:ifull,:)
 call mlocheck("start of mlodynamics",water_temp=workdata,water_sal=workdata2,water_u=worku, &
-                  water_v=workv,ice_tsurf=nit(1:ifull,1))
+              water_v=workv,ice_tsurf=nit(1:ifull,1),ice_u=niu(1:ifull),ice_v=niv(1:ifull), &
+              ice_thick=ndic(1:ifull))
 
 
 do mspec_mlo = mspeca_mlo,1,-1
@@ -1112,7 +1113,8 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   
   call mlocheck("seaice advection",ice_tsurf=nit(1:ifull,1), &
-                ice_u=niu(1:ifull),ice_v=niv(1:ifull))
+                ice_u=niu(1:ifull),ice_v=niv(1:ifull),       &
+                ice_thick=ndic(1:ifull))
   
   
   ! unstagged currents and ice velocity
@@ -1125,6 +1127,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   nv(1:ifull,:) = tav(:,1:wlev)
   niu(1:ifull) = tau(:,wlev+1)
   niv(1:ifull) = tav(:,wlev+1)
+  
+  worku = nu(1:ifull,:)
+  workv = nv(1:ifull,:)
+  call mlocheck("unstagger",water_u=worku,water_v=workv,ice_u=niu(1:ifull),ice_v=niv(1:ifull))
   
   call END_LOG(wateriadv_end)
 
@@ -1301,7 +1307,8 @@ w_v = nv(1:ifull,:)
 w_t = nt(1:ifull,:)
 w_s = ns(1:ifull,:)
 call mlocheck("end of mlodynamics",water_temp=w_t,water_sal=w_s,water_u=w_u,water_v=w_v, &
-              ice_tsurf=nit(1:ifull,1))
+              ice_tsurf=nit(1:ifull,1),ice_u=niu(1:ifull),ice_v=niv(1:ifull),            &
+              ice_thick=ndic(1:ifull))
 
 call mlodiffusion_work(w_u,w_v,w_t,w_s)
 

@@ -1887,8 +1887,7 @@ real, dimension(ifull,wlev,2), intent(in) :: suvb
 real, dimension(ifull,1) :: diffh_l
 real, dimension(ifull,kblock) :: diff_l,diffs_l
 real, dimension(ifull,kblock) :: diffu_l,diffv_l
-real, dimension(ifull) :: dz
-real, dimension(ifull) :: old
+real, dimension(ifull) :: dz, old, newo
 logical lblock
 logical, dimension(ifull,wlev) :: wtr
 real nudgewgt
@@ -1950,7 +1949,7 @@ do kbb = ktopmlo,kc,kblock
       kb = k - kln + 1
       old = sssb(:,k)
       call mloexport(1,old,k,0)
-      where ( wtr(:,k) .and. old>28. )
+      where ( wtr(:,k) .and. old>28. .and. sssb(:,k)>28. )
         diffs_l(:,kb) = sssb(:,k) - old
       elsewhere
         diffs_l(:,kb) = 0.
@@ -2004,16 +2003,20 @@ do kbb = ktopmlo,kc,kblock
       kb = k - kln + 1
       old = sstb(:,ka)
       call mloexport(0,old,k,0)
-      old = old + diff_l(:,kb)*nudgewgt
-      old = min( max( old, 260.-wrtemp ), 380.-wrtemp )
+      newo = old + diff_l(:,kb)*nudgewgt
+      where (  newo>271.2-wrtemp )
+        old = newo
+      end where  
       call mloimport(0,old,k,0)
     end do
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = sstb(:,ka)
         call mloexport(0,old,k,0)
-        old = old + diff_l(:,kb)*nudgewgt ! kb saved from above loop
-        old = min( max( old, 260.-wrtemp ), 380.-wrtemp )
+        newo = old + diff_l(:,kb)*nudgewgt ! kb saved from above loop
+        where ( newo>271.2-wrtemp )
+          old = newo
+        end where  
         call mloimport(0,old,k,0)
       end do
     end if
@@ -2993,7 +2996,8 @@ end subroutine mlospeclocal_right
 ! Relaxtion method for mlo
 subroutine mlonudge(new,sssb,suvb,sfh,wl)
 
-use mlo, only : mloimport,mloexport,wlev ! Ocean physics and prognostic arrays
+use mlo, only : mloimport,mloexport, &
+                wrtemp,wlev              ! Ocean physics and prognostic arrays
 use newmpar_m                            ! Grid parameters
 use parm_m                               ! Model configuration
       
@@ -3004,7 +3008,7 @@ integer k,ka,i
 real, dimension(ifull), intent(in) :: sfh
 real, dimension(ifull,wlev), intent(in) :: new,sssb
 real, dimension(ifull,wlev,2), intent(in) :: suvb
-real, dimension(ifull) :: old
+real, dimension(ifull) :: old, newo
 real wgt
       
 wgt=dt/real(nud_hrs*3600)
@@ -3014,7 +3018,10 @@ if (nud_sst/=0) then
     ka=min(k,wl)
     old=new(:,ka)
     call mloexport(0,old,k,0)
-    old=old*(1.-wgt)+new(:,ka)*wgt
+    newo=old*(1.-wgt)+new(:,ka)*wgt
+    where ( newo>271.2-wrtemp )
+      old=newo
+    end where
     call mloimport(0,old,k,0)
   end do
 end if
@@ -3024,7 +3031,7 @@ if (nud_sss/=0) then
     ka=min(k,wl)
     old=sssb(:,ka)
     call mloexport(1,old,k,0)
-    where ( old>28. )
+    where ( old>28. .and. sssb(:,ka)>28. )
       old=old*(1.-wgt)+sssb(:,ka)*wgt
       old=max(old,0.)
     end where  

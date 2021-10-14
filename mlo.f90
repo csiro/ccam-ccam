@@ -934,7 +934,8 @@ do tile = 1,ntiles
     call mlosalfix(water_g(tile)%sal)
     call mlocheck("MLO-load",water_temp=water_g(tile)%temp,water_sal=water_g(tile)%sal, &
                   water_u=water_g(tile)%u,water_v=water_g(tile)%v,                      &
-                  ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp)
+                  ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp,                &
+                  ice_thick=ice_g(tile)%thick)
 
   end if
 
@@ -998,7 +999,8 @@ do tile = 1,ntiles
 
     call mlocheck("MLO-save",water_temp=water_g(tile)%temp,water_sal=water_g(tile)%sal, &
                   water_u=water_g(tile)%u,water_v=water_g(tile)%v,                      &
-                  ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp)
+                  ice_tsurf=ice_g(tile)%tsurf,ice_temp=ice_g(tile)%temp,                &
+                  ice_thick=ice_g(tile)%thick)
 
   end if
 
@@ -2708,7 +2710,8 @@ if (diag>=1) write(6,*) "Evaluate MLO"
 
 call mlosalfix(water%sal)
 call mlocheck("MLO-start",water_temp=water%temp,water_sal=water%sal,water_u=water%u, &
-              water_v=water%v,ice_tsurf=ice%tsurf,ice_temp=ice%temp)
+              water_v=water%v,ice_tsurf=ice%tsurf,ice_temp=ice%temp,                 &
+              ice_thick=ice%thick)
 
 ! Set default values for invalid points
 do ii = 1,wlev
@@ -2755,7 +2758,6 @@ call getrho(atm_ps,depth,ice,dgwater,water,wfull)
 ! MJT notes - a limit of minicemass=10 can cause reproducibility issues with
 ! single precision and multple processes
 dgice%imass = max(rhoic*ice%thick+rhosn*ice%snowd, minicemass) 
-!dgice%imass = 1000. !test
 
 ! split adjustment of free surface and ice thickness to ensure conservation
 d_ndsn=ice%snowd
@@ -2832,7 +2834,8 @@ water%vbot = vbot_save
 
 call mlosalfix(water%sal)
 call mlocheck("MLO-end",water_temp=water%temp,water_sal=water%sal,water_u=water%u, &
-              water_v=water%v,ice_tsurf=ice%tsurf,ice_temp=ice%temp)
+              water_v=water%v,ice_tsurf=ice%tsurf,ice_temp=ice%temp,               &
+              ice_thick=ice%thick)
 
 
 ! energy conservation check
@@ -4363,9 +4366,9 @@ d_salflx=d_salflx-rhoic*xxx/dt ! fresh water leaving ocean to ice
 call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_wavail,diag, &
                 dgice,ice,wfull)
 
-dgwater%ws0_subsurf = dgwater%ws0_subsurf - ice%fracice*d_salflx*water%sal(:,1)/rhowt
-
-d_neta = d_neta - dt*ice%fracice*d_salflx/rhowt
+! MJT notes - Remove salt flux between ice and water for now
+!dgwater%ws0_subsurf = dgwater%ws0_subsurf - ice%fracice*d_salflx*water%sal(:,1)/rhowt
+!d_neta = d_neta - dt*ice%fracice*d_salflx/rhowt
 
 return
 end subroutine mloice
@@ -4418,6 +4421,7 @@ d_neta = water%eta
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.)
 where ( ice%fracice<0.999 )
   maxnewice=d_wavail*rhowt/rhoic/(1.-ice%fracice)
+  maxnewice=min( maxnewice, (icemax-0.1-ice%thick*ice%fracice)/(1.-ice%fracice) )
 elsewhere
   maxnewice=0.
 end where
@@ -4457,8 +4461,9 @@ do ii=1,wlev
   cdic=cdic+sdic(:,ii)  
   where ( lnewice .and. depth%dz(:,ii)>1.e-4 )
     water%temp(:,ii)=water%temp(:,ii)+(1.-ice%fracice)*qice*sdic(:,ii)/(cp0*rhowt*depth%dz(:,ii)*d_zcr)
-    water%sal(:,ii) =water%sal(:,ii)*(1.+(1.-ice%fracice)*sdic(:,ii)*rhoic &
-                      /(rhowt*depth%dz(:,ii)*d_zcr))
+    ! MJT notes - remove salt flux between ice and water for now
+    !water%sal(:,ii) =water%sal(:,ii)*(1.+(1.-ice%fracice)*sdic(:,ii)*rhoic &
+    !                  /(rhowt*depth%dz(:,ii)*d_zcr))
   end where
 end do
 
@@ -4475,7 +4480,7 @@ end do
 
 call mlosalfix(water%sal)
 call mlocheck("MLO-newice",water_temp=water%temp,water_sal=water%sal,ice_tsurf=ice%tsurf, &
-              ice_temp=ice%temp)
+              ice_temp=ice%temp,ice_thick=ice%thick)
 
 ! removal
 lremove = ice%thick<=icemin .and. ice%fracice>0.
@@ -4505,8 +4510,9 @@ do iqw=1,wfull
       sdic(iqw,ii) = newdic(iqw)*deldz/minsfc
       if ( depth%dz(iqw,ii)>1.e-4 ) then
         water%temp(iqw,ii) = water%temp(iqw,ii)-delt*(deldz/minsfc)/(cp0*rhowt*depth%dz(iqw,ii)*d_zcr(iqw))
-        water%sal(iqw,ii) = water%sal(iqw,ii)/(1.+ice%fracice(iqw)*sdic(iqw,ii)*rhoic &
-                            /(rhowt*depth%dz(iqw,ii)*d_zcr(iqw)))
+        ! MJT notes - remove salt flux between ice and water for now
+        !water%sal(iqw,ii) = water%sal(iqw,ii)/(1.+ice%fracice(iqw)*sdic(iqw,ii)*rhoic &
+        !                    /(rhowt*depth%dz(iqw,ii)*d_zcr(iqw)))
       end if  
       dsf = dsf + deldz
     end do
@@ -4521,11 +4527,12 @@ do iqw=1,wfull
   end if
 end do
 
-water%eta = d_neta
+! MJT notes - remove salt flux between ice and water for now
+!water%eta = d_neta
 
 call mlosalfix(water%sal)
 call mlocheck("MLO-icemelt",water_temp=water%temp,water_sal=water%sal,ice_tsurf=ice%tsurf, &
-              ice_temp=ice%temp)
+              ice_temp=ice%temp,ice_thick=ice%thick)
 
 return
 end subroutine mlonewice_thread
@@ -4622,15 +4629,20 @@ do pc=1,5
     d_nk         =unpack(dt_nk(1:nc(pc)),pqpack(:,pc),d_nk)
     select case(pc)
       case(1)
-        call mlocheck("MLO-icetemps1s2i",ice_tsurf=ice%tsurf,ice_temp=ice%temp)
+        call mlocheck("MLO-icetemps1s2i",ice_tsurf=ice%tsurf,ice_temp=ice%temp, &
+                      ice_thick=ice%thick)
       case(2)
-        call mlocheck("MLO-icetemps1s1i",ice_tsurf=ice%tsurf,ice_temp=ice%temp)  
+        call mlocheck("MLO-icetemps1s1i",ice_tsurf=ice%tsurf,ice_temp=ice%temp, &
+                      ice_thick=ice%thick)
       case(3)
-        call mlocheck("MLO-icetempi2i",ice_tsurf=ice%tsurf,ice_temp=ice%temp)    
+        call mlocheck("MLO-icetempi2i",ice_tsurf=ice%tsurf,ice_temp=ice%temp,   &
+                      ice_thick=ice%thick)
       case(4)
-        call mlocheck("MLO-icetempi1i",ice_tsurf=ice%tsurf,ice_temp=ice%temp)  
+        call mlocheck("MLO-icetempi1i",ice_tsurf=ice%tsurf,ice_temp=ice%temp,   &
+                      ice_thick=ice%thick)  
       case(5)
-        call mlocheck("MLO-icetemps",ice_tsurf=ice%tsurf,ice_temp=ice%temp)    
+        call mlocheck("MLO-icetemps",ice_tsurf=ice%tsurf,ice_temp=ice%temp,     &
+                      ice_thick=ice%thick)
     end select
   end if
 end do
@@ -5834,7 +5846,7 @@ end subroutine mlo_ema_thread
 ! Internal error checking routines
 
 subroutine mlocheck(message,water_temp,water_sal,water_u,water_v,ice_tsurf,ice_temp, &
-                    ice_u,ice_v)
+                    ice_u,ice_v,ice_thick)
 
 implicit none
 
@@ -5843,6 +5855,7 @@ real, dimension(:,:), intent(in), optional :: water_temp, water_sal, water_u, wa
 real, dimension(:), intent(in), optional :: ice_tsurf
 real, dimension(:,:), intent(in), optional :: ice_temp
 real, dimension(:), intent(in), optional :: ice_u, ice_v
+real, dimension(:), intent(in), optional :: ice_thick
 
 if ( present( water_temp ) ) then
   if ( any( water_temp+wrtemp<100. .or. water_temp+wrtemp>400. ) ) then
@@ -5893,12 +5906,21 @@ end if
 
 if ( present( ice_u ) .and. present( ice_v ) ) then
   if ( any(abs(ice_u)>40.) .or. any(abs(ice_v)>40.) ) then
-    write(6,*) "ERROR: ice velocity out-of-range in ",trim(message)
+    write(6,*) "ERROR: ice velocity is out-of-range in ",trim(message)
     write(6,*) "u ",minval(ice_u),maxval(ice_u)
     write(6,*) "v ",minval(ice_v),maxval(ice_v)
     stop -1
   end if
 end if  
+
+if ( present( ice_thick ) ) then
+  if ( any(ice_thick>10.) ) then
+    write(6,*) "ERROR: ice thickness is out-of-range in ",trim(message)
+    write(6,*) "maxval ",maxval(ice_thick)
+    write(6,*) "maxloc ",maxloc(ice_thick)
+    stop -1
+  end if
+end if
 
 return
 end subroutine mlocheck
