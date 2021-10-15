@@ -304,9 +304,10 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
         end if
       end if
       if ( wl==1 ) then ! switch to 2D if 3D data is missing
-        call mloexpmelt(timelt)
+        !call mloexpmelt(timelt)
         !timelt = min( timelt, 271.2, tgg(:,1) )
-        timelt = min( timelt, tgg(:,1) )
+        !timelt = min( timelt, tgg(:,1) )
+        timelt = tgg(:,1)  
         dumaa(:,1,1) = (cona*tssa+conb*tssb)*(1.-fraciceb) + timelt*fraciceb
         dumaa(:,1,1) = dumaa(:,1,1) - wrtemp
       end if
@@ -530,7 +531,8 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
           if ( wl==1 ) then ! switch to 2D data if 3D is missing
             call mloexpmelt(timelt)
             !timelt(:) = min( timelt(:), 271.2, tgg(:,1) )
-            timelt(:) = min( timelt(:), tgg(:,1) )
+            !timelt(:) = min( timelt(:), tgg(:,1) )
+            timelt = tgg(:,1)
             sssc(:,1,1) = (cona*tssa(:) + (1.-cona)*tssb(:))*(1.-fraciceb(:)) + timelt*fraciceb(:)
             sssc(:,1,1) = sssc(:,1,1) - wrtemp
           end if
@@ -1870,7 +1872,7 @@ subroutine mlofilterhub(sstb,sssb,suvb,sfh,wl)
 
 use cc_mpi                                          ! CC MPI routines
 use mlo, only : mloimport,mloexport,mloexpdep, &    ! Ocean physics and prognostic arrays
-                wlev,wrtemp
+                wlev,wrtemp,minsal,mloexpmelt
 use mlodynamicsarrays_m                             ! Ocean dynamics data
 use newmpar_m                                       ! Grid parameters
 use parm_m                                          ! Model configuration
@@ -1887,7 +1889,8 @@ real, dimension(ifull,wlev,2), intent(in) :: suvb
 real, dimension(ifull,1) :: diffh_l
 real, dimension(ifull,kblock) :: diff_l,diffs_l
 real, dimension(ifull,kblock) :: diffu_l,diffv_l
-real, dimension(ifull) :: dz, old, newo
+real, dimension(ifull) :: dz
+real, dimension(ifull) :: old, timelt
 logical lblock
 logical, dimension(ifull,wlev) :: wtr
 real nudgewgt
@@ -1949,7 +1952,7 @@ do kbb = ktopmlo,kc,kblock
       kb = k - kln + 1
       old = sssb(:,k)
       call mloexport(1,old,k,0)
-      where ( wtr(:,k) .and. old>28. .and. sssb(:,k)>28. )
+      where ( wtr(:,k) .and. old>minsal .and. sssb(:,k)>minsal )
         diffs_l(:,kb) = sssb(:,k) - old
       elsewhere
         diffs_l(:,kb) = 0.
@@ -1998,25 +2001,20 @@ do kbb = ktopmlo,kc,kblock
   end if
   
   if ( nud_sst/=0 ) then
+    call mloexpmelt(timelt)
     do k = kln,klx
       ka = min(wl, k)
       kb = k - kln + 1
       old = sstb(:,ka)
       call mloexport(0,old,k,0)
-      newo = old + diff_l(:,kb)*nudgewgt
-      where (  newo>271.2-wrtemp )
-        old = newo
-      end where  
+      old = old + max( diff_l(:,kb)*nudgewgt, timelt-wrtemp-old )
       call mloimport(0,old,k,0)
     end do
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = sstb(:,ka)
         call mloexport(0,old,k,0)
-        newo = old + diff_l(:,kb)*nudgewgt ! kb saved from above loop
-        where ( newo>271.2-wrtemp )
-          old = newo
-        end where  
+        old = old + max( diff_l(:,kb)*nudgewgt, timelt-wrtemp-old )
         call mloimport(0,old,k,0)
       end do
     end if
@@ -2028,9 +2026,9 @@ do kbb = ktopmlo,kc,kblock
       kb = k-kln+1
       old = sssb(:,ka)
       call mloexport(1,old,k,0)
-      where ( old>28. )
+      where ( old>minsal )
+        diffs_l(:,kb) = max( diffs_l(:,kb), (minsal-old)/nudgewgt )
         old = old + diffs_l(:,kb)*nudgewgt
-        old = max(old, 0.)
       end where  
       call mloimport(1,old,k,0)
     end do
@@ -2038,9 +2036,9 @@ do kbb = ktopmlo,kc,kblock
       do k = kc+1,kbotmlo
         old = sssb(:,ka)
         call mloexport(1,old,k,0)
-        where ( old>28. )
+        where ( old>minsal )
+          diffs_l(:,kb) = max( diffs_l(:,kb), (minsal-old)/nudgewgt )  
           old = old + diffs_l(:,kb)*nudgewgt ! kb saved from above loop
-          old = max(old, 0.)
         end where  
         call mloimport(1,old,k,0)
       end do
@@ -2997,7 +2995,8 @@ end subroutine mlospeclocal_right
 subroutine mlonudge(new,sssb,suvb,sfh,wl)
 
 use mlo, only : mloimport,mloexport, &
-                wrtemp,wlev              ! Ocean physics and prognostic arrays
+                minsal,wlev,wrtemp,  &
+                mloexpmelt               ! Ocean physics and prognostic arrays
 use newmpar_m                            ! Grid parameters
 use parm_m                               ! Model configuration
       
@@ -3008,20 +3007,18 @@ integer k,ka,i
 real, dimension(ifull), intent(in) :: sfh
 real, dimension(ifull,wlev), intent(in) :: new,sssb
 real, dimension(ifull,wlev,2), intent(in) :: suvb
-real, dimension(ifull) :: old, newo
+real, dimension(ifull) :: old, timelt
 real wgt
       
 wgt=dt/real(nud_hrs*3600)
 
 if (nud_sst/=0) then
+  call mloexpmelt(timelt)  
   do k=ktopmlo,kbotmlo
     ka=min(k,wl)
     old=new(:,ka)
     call mloexport(0,old,k,0)
-    newo=old*(1.-wgt)+new(:,ka)*wgt
-    where ( newo>271.2-wrtemp )
-      old=newo
-    end where
+    old=old*(1.-wgt)+max(new(:,ka),timelt-wrtemp)*wgt
     call mloimport(0,old,k,0)
   end do
 end if
@@ -3031,7 +3028,7 @@ if (nud_sss/=0) then
     ka=min(k,wl)
     old=sssb(:,ka)
     call mloexport(1,old,k,0)
-    where ( old>28. .and. sssb(:,ka)>28. )
+    where ( old>minsal .and. sssb(:,ka)>minsal )
       old=old*(1.-wgt)+sssb(:,ka)*wgt
       old=max(old,0.)
     end where  

@@ -4355,13 +4355,17 @@ d_salflx=0.                                               ! fresh water flux
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.) ! water avaliable for freezing
 
 ! Ice depth limitation for poor initial conditions
-!xxx=max(ice%thick-icemax,0.)
-!ice%thick=ice%thick-xxx    
-!d_salflx=d_salflx-rhoic*xxx/dt ! fresh water leaving ocean to ice
+xxx=max(ice%thick-icemax,0.)
+ice%thick=ice%thick-xxx   
+! no temperature or salinity conservation
 
 ! update ice prognostic variables
 call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_wavail,diag, &
                 dgice,ice,wfull)
+
+xxx=max(ice%thick-icemax,0.)
+ice%thick=ice%thick-xxx 
+! no temperature or salinity conservation
 
 ! MJT notes - Remove salt flux between ice and water for now
 !dgwater%ws0_subsurf = dgwater%ws0_subsurf - ice%fracice*d_salflx*water%sal(:,1)/rhowt
@@ -4405,7 +4409,6 @@ type(icedata), intent(inout) :: ice
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
 real, dimension(wfull) :: maxnewice, d_wavail
-real, parameter :: newicetemp = 273.16
 logical, dimension(wfull) :: lnewice, lremove
 
 if (diag>=1) write(6,*) "Form new ice"
@@ -4418,7 +4421,7 @@ d_neta = water%eta
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.)
 where ( ice%fracice<0.999 )
   maxnewice=d_wavail*rhowt/rhoic/(1.-ice%fracice)
-  maxnewice=min( maxnewice, (icemax-0.1-ice%thick*ice%fracice)/(1.-ice%fracice) )
+  maxnewice=min( maxnewice, (icemax-ice%thick*ice%fracice)/(1.-ice%fracice) )
 elsewhere
   maxnewice=0.
 end where
@@ -4447,8 +4450,7 @@ where ( .not.lnewice )
   newdic = 0.
 end where
 
-d_neta=d_neta-newdic*(1.-ice%fracice)*rhoic/rhowt
-d_zcr=max(1.+d_neta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
+!d_neta=d_neta-newdic*(1.-ice%fracice)*rhoic/rhowt
 
 ! Adjust temperature in water column to balance the energy cost of ice formation
 ! Energy = qice*newdic = del_temp*c0*rhowt*dz*d_zcr
@@ -4468,7 +4470,7 @@ end do
 do iqw=1,wfull
   if ( lnewice(iqw) ) then
     ice%thick(iqw)=ice%thick(iqw)*ice%fracice(iqw)+newdic(iqw)*(1.-ice%fracice(iqw))
-    ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+newicetemp*(1.-ice%fracice(iqw))
+    ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+d_timelt(iqw)*(1.-ice%fracice(iqw))
     ice%store(iqw)=ice%store(iqw)*ice%fracice(iqw)
     ice%snowd(iqw)=ice%snowd(iqw)*ice%fracice(iqw)
     ice%fracice(iqw)=1.
@@ -4486,8 +4488,7 @@ where ( lremove )
 elsewhere
   newdic=0.
 end where
-d_neta=d_neta+ice%fracice*newdic*rhoic/rhowt
-d_zcr=max(1.+d_neta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
+!d_neta=d_neta+ice%fracice*newdic*rhoic/rhowt
 
 do iqw=1,wfull
   if ( lremove(iqw) ) then
@@ -4496,7 +4497,7 @@ do iqw=1,wfull
     delt=ice%fracice(iqw)*ice%thick(iqw)*qice
     delt=delt+ice%fracice(iqw)*ice%snowd(iqw)*qsnow
     delt=delt-ice%fracice(iqw)*ice%store(iqw)
-    delt=delt-ice%fracice(iqw)*gammi*(ice%tsurf(iqw)-newicetemp) ! change from when ice formed
+    delt=delt-ice%fracice(iqw)*gammi*(ice%tsurf(iqw)-d_timelt(iqw)) ! change from when ice formed
     
     ! adjust temperature and salinity in water column
     dsf = 0.
@@ -4727,7 +4728,7 @@ it_tn2(:)  =ans(:,4)
 fl=2.*conc*(dt_tb-it_tn2)
 dhb=dt*(fl-dt_fb)/qice                ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic,icemax-it_dic)
+dhb=min(dhb,dt_wavail*rhowt/rhoic)
 flnew=dt_fb+dhb*qice/dt
 it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic) ! Modify temperature if limit is reached
 it_tn2=it_tn2+(flnew-fl)/(cpi*it_dic) ! Modify temperature if limit is reached
@@ -4871,7 +4872,7 @@ it_tn1(:)  =ans(:,3)
 fl=2.*conc*(dt_tb-it_tn1)
 dhb=dt*(fl-dt_fb)/qice                      ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic,icemax-it_dic)
+dhb=min(dhb,dt_wavail*rhowt/rhoic)
 flnew=dt_fb+dhb*qice/dt
 it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic-gammi) ! modify temperature if limit is reached
 
@@ -5013,7 +5014,7 @@ it_tn2(:)  =ans(:,3)
 fl=2.*conb*(dt_tb-it_tn2)
 dhb=dt*(fl-dt_fb)/qice                   ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic,icemax-it_dic)
+dhb=min(dhb,dt_wavail*rhowt/rhoic)
 flnew=dt_fb+dhb*qice/dt
 it_tn1=it_tn1+2.*(flnew-fl)/(cpi*it_dic) ! modify temperature if limit is reached
 it_tn2=it_tn2+2.*(flnew-fl)/(cpi*it_dic) ! modify temperature if limit is reached
@@ -5142,7 +5143,7 @@ it_tn1(:)  =ans(:,2)
 fl=2.*conb*(dt_tb-it_tn1)                   ! flux between t1 and bottom
 dhb=dt*(fl-dt_fb)/qice                      ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic,icemax-it_dic)
+dhb=min(dhb,dt_wavail*rhowt/rhoic)
 flnew=dt_fb+dhb*qice/dt                     ! final excess flux from below
 it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic)       ! does nothing unless a limit is reached
 
@@ -5244,7 +5245,7 @@ tnew=(it_tsurf*gamm/dt+dt_ftop-pt_egice*lf/lv+con*dt_tb)/(gamm/dt+con)    ! pred
 f0=con*(dt_tb-tnew)                                                       ! first guess of flux from below
 dhb=dt*(f0-dt_fb)/qice                                                    ! excess flux converted to change in ice thickness
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic,icemax-it_dic)
+dhb=min(dhb,dt_wavail*rhowt/rhoic)
 f0=dhb*qice/dt+dt_fb                                                      ! final flux from below
 it_tsurf=it_tsurf+dt*(dt_ftop-pt_egice*lf/lv+f0)/gamm                     ! update ice/snow temperature
 

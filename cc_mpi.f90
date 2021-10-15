@@ -472,10 +472,8 @@ module cc_mpi
    integer, public, save :: p5_begin, p5_end
    integer, public, save :: p6_begin, p6_end
    integer, parameter :: nevents = 88
-#ifdef simple_timer
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
-#endif
    character(len=15), dimension(nevents), save :: event_name
    real, save, public :: mpiinit_time, total_time
 
@@ -6628,10 +6626,8 @@ contains
 #ifdef vampir
       VT_USER_START(event_name(event))
 #endif
-#ifdef simple_timer
       call system_clock( begin_time, count_rate, count_max )
       start_time(event) = real(begin_time,8)/real(count_rate,8)
-#endif 
    end subroutine start_log
 
    subroutine end_log ( event )
@@ -6641,10 +6637,8 @@ contains
 #ifdef vampir
       VT_USER_END(event_name(event))
 #endif
-#ifdef simple_timer
       call system_clock( end_time, count_rate, count_max )
       tot_time(event) = tot_time(event) + ( real(end_time,8)/real(count_rate,8) - start_time(event) )
-#endif 
    end subroutine end_log
 
    subroutine log_off()
@@ -6666,12 +6660,6 @@ contains
    end subroutine log_flush
 
    subroutine log_setup()
-#ifdef vampir
-#ifdef simple_timer
-      write(6,*) "ERROR: vampir and simple_timer should not be compiled together"
-      call ccmpi_abort(-1)
-#endif
-#endif
 
       call add_event(maincalc_begin,      maincalc_end,      "MainCalc")
       call add_event(indata_begin,        indata_end,        "Indata")
@@ -6782,7 +6770,6 @@ contains
         
    end subroutine add_event
 
-#ifdef simple_timer
    subroutine simple_timer_finalize
       ! Calculate the mean, min and max times for each case
       integer :: i
@@ -6831,7 +6818,6 @@ contains
       end if   
         
    end subroutine simple_timer_finalize
-#endif
 
    ! Read and distribute a global variable
    ! Optional arguments for format and to skip over records

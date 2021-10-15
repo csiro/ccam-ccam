@@ -493,7 +493,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call END_LOG(waterdynamics_end)
   end if
   if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
-    ! CREATE OR DESTROY SEA ICE -------------------------------------------  
+    ! SEA ICE and RIVER INFLOW --------------------------------------------  
     call START_LOG(waterdynamics_begin)
     call mlonewice
     call mloexpice("fracice",fracice,0)
@@ -1021,10 +1021,8 @@ call date_and_time(values=times_total_b)
 total_time = sum( real(times_total_b(5:8)-times_total_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
 if ( total_time<0 ) total_time = total_time + 86400.
   
-#ifdef simple_timer
 ! report subroutine timings
 call simple_timer_finalize
-#endif
 
 ! Complete
 if ( myid==0 ) then
