@@ -4363,8 +4363,9 @@ ice%thick=ice%thick-xxx
 call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_wavail,diag, &
                 dgice,ice,wfull)
 
+! Ice depth limitation for poor initial conditions
 xxx=max(ice%thick-icemax,0.)
-ice%thick=ice%thick-xxx 
+ice%thick=ice%thick-xxx   
 ! no temperature or salinity conservation
 
 ! MJT notes - Remove salt flux between ice and water for now
@@ -4408,7 +4409,7 @@ real, dimension(wfull) :: d_timelt
 type(icedata), intent(inout) :: ice
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
-real, dimension(wfull) :: maxnewice, d_wavail
+real, dimension(wfull) :: maxnewice, d_wavail, xxx
 logical, dimension(wfull) :: lnewice, lremove
 
 if (diag>=1) write(6,*) "Form new ice"
@@ -4421,7 +4422,6 @@ d_neta = water%eta
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.)
 where ( ice%fracice<0.999 )
   maxnewice=d_wavail*rhowt/rhoic/(1.-ice%fracice)
-  maxnewice=min( maxnewice, (icemax-ice%thick*ice%fracice)/(1.-ice%fracice) )
 elsewhere
   maxnewice=0.
 end where
@@ -4476,6 +4476,11 @@ do iqw=1,wfull
     ice%fracice(iqw)=1.
   end if
 end do
+
+! Ice depth limitation for poor initial conditions
+xxx=max(ice%thick-icemax,0.)
+ice%thick=ice%thick-xxx   
+! no temperature or salinity conservation
 
 call mlosalfix(water%sal)
 call mlocheck("MLO-newice",water_temp=water%temp,water_sal=water%sal,ice_tsurf=ice%tsurf, &

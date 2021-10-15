@@ -304,10 +304,9 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
         end if
       end if
       if ( wl==1 ) then ! switch to 2D if 3D data is missing
-        !call mloexpmelt(timelt)
+        call mloexpmelt(timelt)
         !timelt = min( timelt, 271.2, tgg(:,1) )
-        !timelt = min( timelt, tgg(:,1) )
-        timelt = tgg(:,1)  
+        timelt = min( timelt+0.01, tgg(:,1) )
         dumaa(:,1,1) = (cona*tssa+conb*tssb)*(1.-fraciceb) + timelt*fraciceb
         dumaa(:,1,1) = dumaa(:,1,1) - wrtemp
       end if
@@ -531,8 +530,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
           if ( wl==1 ) then ! switch to 2D data if 3D is missing
             call mloexpmelt(timelt)
             !timelt(:) = min( timelt(:), 271.2, tgg(:,1) )
-            !timelt(:) = min( timelt(:), tgg(:,1) )
-            timelt = tgg(:,1)
+            timelt(:) = min( timelt(:)+0.01, tgg(:,1) )
             sssc(:,1,1) = (cona*tssa(:) + (1.-cona)*tssb(:))*(1.-fraciceb(:)) + timelt*fraciceb(:)
             sssc(:,1,1) = sssc(:,1,1) - wrtemp
           end if
@@ -2001,20 +1999,20 @@ do kbb = ktopmlo,kc,kblock
   end if
   
   if ( nud_sst/=0 ) then
-    call mloexpmelt(timelt)
+    !call mloexpmelt(timelt)
     do k = kln,klx
       ka = min(wl, k)
       kb = k - kln + 1
       old = sstb(:,ka)
       call mloexport(0,old,k,0)
-      old = old + max( diff_l(:,kb)*nudgewgt, timelt-wrtemp-old )
+      old = old + max( diff_l(:,kb)*nudgewgt, 275.16-wrtemp-old )
       call mloimport(0,old,k,0)
     end do
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = sstb(:,ka)
         call mloexport(0,old,k,0)
-        old = old + max( diff_l(:,kb)*nudgewgt, timelt-wrtemp-old )
+        old = old + max( diff_l(:,kb)*nudgewgt, 275.16-wrtemp-old )
         call mloimport(0,old,k,0)
       end do
     end if
@@ -3013,12 +3011,12 @@ real wgt
 wgt=dt/real(nud_hrs*3600)
 
 if (nud_sst/=0) then
-  call mloexpmelt(timelt)  
+  !call mloexpmelt(timelt)  
   do k=ktopmlo,kbotmlo
     ka=min(k,wl)
     old=new(:,ka)
     call mloexport(0,old,k,0)
-    old=old*(1.-wgt)+max(new(:,ka),timelt-wrtemp)*wgt
+    old=old*(1.-wgt)+max(new(:,ka),275.16-wrtemp)*wgt
     call mloimport(0,old,k,0)
   end do
 end if

@@ -1098,7 +1098,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
         + 0.136974583E-17*depth(1:ifull)**6  &
         - 0.935923382E-22*depth(1:ifull)**7
       mlodwn(1:ifull,k,1) = mlodwn(1:ifull,k,1) - wrtemp + tss(1:ifull) - 18.4231944
-      mlodwn(1:ifull,k,1) = max( mlodwn(1:ifull,k,1), 271.2-wrtemp )
+      mlodwn(1:ifull,k,1) = max( mlodwn(1:ifull,k,1), 275.16-wrtemp )
     elsewhere
       mlodwn(1:ifull,k,1) = 275.16 - wrtemp
     end where
@@ -1107,12 +1107,12 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     elsewhere
       mlodwn(1:ifull,k,2) = 0.    ! sal (freshwater)  
     end where    
-    mlodwn(1:ifull,k,3) = 0.    ! uoc
-    mlodwn(1:ifull,k,4) = 0.    ! voc
-    mlodwn(1:ifull,k,5) = 0.    ! km
-    mlodwn(1:ifull,k,6) = 0.    ! ks
-    mlodwn(1:ifull,k,7) = mink  ! tke
-    mlodwn(1:ifull,k,8) = mineps ! eps
+    mlodwn(1:ifull,k,3) = 0.      ! uoc
+    mlodwn(1:ifull,k,4) = 0.      ! voc
+    mlodwn(1:ifull,k,5) = 0.      ! km
+    mlodwn(1:ifull,k,6) = 0.      ! ks
+    mlodwn(1:ifull,k,7) = mink    ! tke
+    mlodwn(1:ifull,k,8) = mineps  ! eps
   end do  
   if ( mlo_found ) then
     ! ocean potential temperature
