@@ -2782,6 +2782,9 @@ if ( calcprog==0 .or. calcprog==2 .or. calcprog==3 ) then
   ice%store = d_nsto
   call mloice(dt,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_neta,diag, &
               depth,dgice,ice,dgwater,water,wfull)
+  d_ndic = ice%thick
+  d_ndsn = ice%snowd
+  d_nsto = ice%store
   
 end if
 if ( calcprog==0 .or. calcprog==2 ) then
@@ -2814,7 +2817,6 @@ if ( calcprog==0 .or. calcprog==2 .or. calcprog==3 ) then
 
   ! adjust surface height
   water%eta = d_neta
-  ice%snowd = d_ndsn
 
 end if
 
@@ -5561,7 +5563,7 @@ dgwater%wt0_fb = ice%fracice*d_fb/(wrtrho*cp0)
 dgwater%wt0 = dgwater%wt0 + dgwater%wt0_fb
 
 ! update snow depth
-d_ndsn = d_ndsn + dt*(atm_rnd+atm_snd)/wrtrho
+d_ndsn = d_ndsn + dt*(atm_rnd+atm_snd)/rhosn
 
 return
 end subroutine iceflux
