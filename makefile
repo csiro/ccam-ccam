@@ -240,8 +240,6 @@ endif
 ifeq ($(VT),yes)
 FC = vtfort -vt:fc mpif90 -vt:inst manual
 FFLAGS += -Dvampir -DVTRACE
-else
-FFLAGS += -Dsimple_timer
 endif
 
 # Testing - I/O and fpmodel

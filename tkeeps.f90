@@ -1182,7 +1182,7 @@ subroutine update_coupled(thetal,qvg,qlg,qfg,stratcloud,ua,va,    &
 
 use mlo, only : wlev, mlo_updatekm, mlodiag, dgwater_g, wpack_g, wfull_g, &
                 mlo_updatediag, water_g, turb_g, wrtemp, cp0, depth_g,    &
-                cdbot, rhowt, ice_g, mlocheck, minsfc, mlosalfix
+                cdbot, wrtrho, ice_g, mlocheck, minsfc, mlosalfix
                           
 implicit none
 
@@ -1352,15 +1352,15 @@ where ( deptho_dz(:,wlev)>1.e-4 )
   dd_o(:,wlev) = dd_o(:,wlev) - ddts*rad_o(:,wlev)/deptho_dz(:,wlev)
 end where
 where ( .not.land(1:imax) )
-  bb_o(:,1) = bb_o(:,1) + ddts*t1(:)*(1.-fracice(:))/(rhowt*cp0*deptho_dz(:,1))
-  dd_o(:,1) = dd_o(:,1) - ddts*t1(:)*(1.-fracice(:))*wrtemp/(rhowt*cp0*deptho_dz(:,1))
+  bb_o(:,1) = bb_o(:,1) + ddts*t1(:)*(1.-fracice(:))/(wrtrho*cp0*deptho_dz(:,1))
+  dd_o(:,1) = dd_o(:,1) - ddts*t1(:)*(1.-fracice(:))*wrtemp/(wrtrho*cp0*deptho_dz(:,1))
   dd_o(:,1) = dd_o(:,1) - ddts*(wt0rad_o+wt0melt_o+wt0eg_o)/deptho_dz(:,1)
-  dd_o(:,1) = dd_o(:,1) + ddts*t1(:)*(1.-fracice(:))/(rhowt*cp0)*sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp/deptho_dz(:,1)
+  dd_o(:,1) = dd_o(:,1) + ddts*t1(:)*(1.-fracice(:))/(wrtrho*cp0)*sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp/deptho_dz(:,1)
   dd_o(:,1) = dd_o(:,1) - ddts*wt0fb_o/deptho_dz(:,1)
 end where  
 where ( .not.land(1:imax) )
   f_ao(:) = -ddts*t1(:)*(1.-fracice(:))/cp/(rhoa1(:)*dz_fl1(:))
-  f_oa(:) = -ddts*t1(:)*(1.-fracice(:))/(rhowt*cp0*deptho_dz(:,1))
+  f_oa(:) = -ddts*t1(:)*(1.-fracice(:))/(wrtrho*cp0*deptho_dz(:,1))
 end where  
 call solve_sherman_morrison(aa_a,bb_a,cc_a,dd_a,tt_a,  &
                             aa_o,bb_o,cc_o,dd_o,w_t,   &
@@ -1379,7 +1379,7 @@ where ( .not.land(1:imax) )
   fg = (1.-fracice)*t1*(w_t(:,1)+wrtemp-thetal(:,1)-sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp) &
       + fracice*icefg_a
   wt0_o = wt0rad_o + wt0melt_o + wt0eg_o + wt0fb_o &
-         + (1.-fracice)*t1*(w_t(:,1)-thetal(:,1)-sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp)/(rhowt*cp0)
+         + (1.-fracice)*t1*(w_t(:,1)-thetal(:,1)-sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp)/(wrtrho*cp0)
 end where 
 call mlo_updatediag("wt0",wt0_o,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
 
@@ -1540,7 +1540,7 @@ call thomas(w_s,aa_o(:,2:wlev),bb_o(:,1:wlev),cc_o(:,1:wlev-1),dd_o(:,1:wlev),im
 
 t1 = rhos(:)*cd_water
 t3 = rhos(:)*cd_ice
-t4 = rhowt*cdbot_ice
+t4 = wrtrho*cdbot_ice
 
 bb_a(:,1) = 1.-qq(:,kl)
 cc_a(:,1) = qq(:,kl)
@@ -1576,7 +1576,7 @@ where ( deptho_dz(:,wlev-1)*deptho_dz(:,wlev) > 1.e-4 )
 end where
 bb_o(:,wlev) = 1. - aa_o(:,wlev)
 where ( .not.land(1:imax) )
-  bb_o(:,1) = bb_o(:,1) + ddts*(t1(:)*(1.-fracice(:))+t4(:)*fracice(:))/(rhowt*deptho_dz(:,1))
+  bb_o(:,1) = bb_o(:,1) + ddts*(t1(:)*(1.-fracice(:))+t4(:)*fracice(:))/(wrtrho*deptho_dz(:,1))
 end where
 ! bottom drag
 do iq = 1,imax
@@ -1593,10 +1593,10 @@ end where
 
 where ( .not.land(1:imax) )
   f_ao(:) = -ddts*t1(:)*(1.-fracice(:))/(rhoa1(:)*dz_fl1(:))
-  f_oa(:) = -ddts*t1(:)*(1.-fracice(:))/(rhowt*deptho_dz(:,1))
+  f_oa(:) = -ddts*t1(:)*(1.-fracice(:))/(wrtrho*deptho_dz(:,1))
   f_ai(:) = -ddts*t3(:)*fracice(:)/(rhoa1(:)*dz_fl1(:))
   f_ia(:) = -ddts*t3(:)/imass
-  f_oi(:) = -ddts*t4(:)*fracice(:)/(rhowt*deptho_dz(:,1))
+  f_oi(:) = -ddts*t4(:)*fracice(:)/(wrtrho*deptho_dz(:,1))
   f_io(:) = -ddts*t4(:)/imass
 end where  
 
@@ -1659,8 +1659,8 @@ elsewhere
 end where
 
 ! update wu0 and wv0
-wu0_o = -(1.-fracice)*rhoa1*cd_water*(ua(:,1)-w_u(:,1))/rhowt
-wv0_o = -(1.-fracice)*rhoa1*cd_water*(va(:,1)-w_v(:,1))/rhowt
+wu0_o = -(1.-fracice)*rhoa1*cd_water*(ua(:,1)-w_u(:,1))/wrtrho
+wv0_o = -(1.-fracice)*rhoa1*cd_water*(va(:,1)-w_v(:,1))/wrtrho
 wu0_o = wu0_o + fracice*cdbot_ice*(w_u(:,1)-i_u(:))
 wv0_o = wv0_o + fracice*cdbot_ice*(w_v(:,1)-i_v(:))
 call mlo_updatediag("wu0",wu0_o,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))

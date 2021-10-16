@@ -62,7 +62,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mlosurf,mlonewice,mlo_ema,mlo_interpolate_hl,minsfc,minsal,mlosalfix,icemax
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
-public oclosure,pdl,pdu,nsteps,usepice,minicemass,cdbot,rhowt,cp0,ominl,omaxl
+public oclosure,pdl,pdu,nsteps,usepice,minicemass,cdbot,cp0,ominl,omaxl
 public mlo_timeave_length
 
 #ifdef CCAM
@@ -242,7 +242,7 @@ real, save :: mindep   = 1.               ! Thickness of first layer (m)
 real, save :: minwater = 10.              ! Minimum water depth (m)
 real, parameter :: ric     = 0.3          ! Critical Ri for diagnosing mixed layer depth
 real, parameter :: epsilon = 0.1          ! Ratio of surface layer and mixed layer thickness
-real, parameter :: minsfc  = 10.          ! Minimum thickness to average surface layer properties (m)
+real, parameter :: minsfc  = 5.           ! Minimum thickness to average surface layer properties (m)
 real, parameter :: minsal  = 28.          ! Minimum non-zero salinity for error checking (PSU)
 real, parameter :: maxsal  = 50.          ! Maximum salinity used in density and melting point calculations (PSU)
 real, parameter :: mu_1    = 23.          ! VIS depth (m) - Type I
@@ -263,7 +263,6 @@ real, parameter :: rdry    = 287.04       ! Specific gas const for dry air
 real, parameter :: rvap    = 461.5        ! Gas constant for water vapor
 ! water parameters
 real, parameter :: cp0   = 3990.          ! heat capacity of mixed layer (J kg^-1 K^-1)
-real, parameter :: rhowt = 1025.          ! reference water density (Boussinesq fluid) (kg/m3)
 real, parameter :: salwt = 34.72          ! reference water salinity (PSU)
 ! ice parameters
 real, save      :: alphavis_seaice = 0.85 ! visible seaice albedo
@@ -2841,7 +2840,7 @@ call mlocheck("MLO-end",water_temp=water%temp,water_sal=water%sal,water_u=water%
 !do ii=1,wlev
 !  dgwater%deleng=dgwater%deleng+real((water%temp(:,ii)*d_zcr-oldwatertemp(:,ii)*oldzcr)*depth%dz(:,ii),8)
 !end do
-!dgwater%deleng=dgwater%deleng*real(rhowt*cp0/dt,8)
+!dgwater%deleng=dgwater%deleng*real(wrtrho*cp0/dt,8)
 !dgice%deleng=real(ice%store-oldicestore,8)
 !dgice%deleng=dgice%deleng+real((ice%fracice*ice%tsurf-oldicefrac*oldicetemp(:,0))*gammi,8)
 !dgice%deleng=dgice%deleng+real((ice%fracice*ice%temp(:,0)*ice%snowd-oldicefrac*oldicetemp(:,1)*oldicesnowd)*cps,8)
@@ -2965,7 +2964,7 @@ if ( otaumode==1 ) then
   rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))                     ! implicit
   bb(:,1) = 1._8 - cc(:,1)
   bb(:,1) = bb(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd             &
-                                         /(rhowt*depth%dz(:,1)*d_zcr)      ! implicit  
+                                         /(wrtrho*depth%dz(:,1)*d_zcr)      ! implicit  
 else
   bb(:,1) = 1._8 - cc(:,1)                                                 ! explicit  
 end if
@@ -2995,14 +2994,14 @@ do ii = 1,wlev
 end do
 if ( otaumode==1 ) then
   dd(:,1) = dd(:,1) + dt*((1.-ice%fracice)*rho*dgwater%cd*atm_u               &
-                      +ice%fracice*dgice%tauxicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
+                      +ice%fracice*dgice%tauxicw)/(wrtrho*depth%dz(:,1)*d_zcr)   ! implicit
 else
   dd(:,1) = dd(:,1) - dt*dgwater%wu0/(depth%dz(:,1)*d_zcr)                      ! explicit
 end if
 call thomas(water%u,aa,bb,cc,dd)
 if ( otaumode==1 ) then
   dgwater%wu0 = -((1.-ice%fracice)*rho*dgwater%cd*(atm_u-water%u(:,1))  &
-          +ice%fracice*dgice%tauxicw)/rhowt                                     ! implicit
+          +ice%fracice*dgice%tauxicw)/wrtrho                                     ! implicit
 end if
 
 ! V diffusion term
@@ -3011,14 +3010,14 @@ do ii = 1,wlev
 end do
 if ( otaumode==1 ) then
   dd(:,1) = dd(:,1) + dt*((1.-ice%fracice)*rho*dgwater%cd*atm_v               &
-                      +ice%fracice*dgice%tauyicw)/(rhowt*depth%dz(:,1)*d_zcr)   ! implicit
+                      +ice%fracice*dgice%tauyicw)/(wrtrho*depth%dz(:,1)*d_zcr)   ! implicit
 else
   dd(:,1) = dd(:,1) - dt*dgwater%wv0/(depth%dz(:,1)*d_zcr)                      ! explicit
 end if
 call thomas(water%v,aa,bb,cc,dd)
 if ( otaumode==1 ) then
   dgwater%wv0 = -((1.-ice%fracice)*rho*dgwater%cd*(atm_v-water%v(:,1))  &
-          +ice%fracice*dgice%tauyicw)/rhowt                                     ! implicit
+          +ice%fracice*dgice%tauyicw)/wrtrho                                     ! implicit
 end if
 
 
@@ -3920,21 +3919,21 @@ elsewhere
   dgwater%rad(:,wlev)=0.
 end where
 do ii=1,wlev
-  dgwater%rad(:,ii)=dgwater%rad(:,ii)*(1.-ice%fracice)*atm_sg/(cp0*rhowt)
+  dgwater%rad(:,ii)=dgwater%rad(:,ii)*(1.-ice%fracice)*atm_sg/(cp0*wrtrho)
 end do
 
 ! Boundary conditions
-! MJT notes - use rhowt reference density for Boussinesq fluid approximation
-dgwater%wu0=-(1.-ice%fracice)*dgwater%taux/rhowt
-dgwater%wv0=-(1.-ice%fracice)*dgwater%tauy/rhowt
-dgwater%wt0_eg = -(1.-ice%fracice)*(-dgwater%eg)/(rhowt*cp0)
-dgwater%wt0_rad = -(1.-ice%fracice)*(atm_rg-sbconst*(water%temp(:,1)+wrtemp)**4)/(rhowt*cp0)
-dgwater%wt0_melt = (1.-ice%fracice)*lf*atm_snd/(rhowt*cp0) ! melting snow
-dgwater%wt0=-(1.-ice%fracice)*(-dgwater%fg)/(rhowt*cp0) + dgwater%wt0_eg + dgwater%wt0_rad + dgwater%wt0_melt
-dgwater%ws0=(1.-ice%fracice)*(atm_rnd+atm_snd-dgwater%eg/lv)*water%sal(:,1)/rhowt
-dgwater%ws0_subsurf=atm_inflow*water%sal(:,1)/rhowt ! inflow under ice
+! MJT notes - use wrtrho reference density for Boussinesq fluid approximation
+dgwater%wu0=-(1.-ice%fracice)*dgwater%taux/wrtrho
+dgwater%wv0=-(1.-ice%fracice)*dgwater%tauy/wrtrho
+dgwater%wt0_eg = -(1.-ice%fracice)*(-dgwater%eg)/(wrtrho*cp0)
+dgwater%wt0_rad = -(1.-ice%fracice)*(atm_rg-sbconst*(water%temp(:,1)+wrtemp)**4)/(wrtrho*cp0)
+dgwater%wt0_melt = (1.-ice%fracice)*lf*atm_snd/(wrtrho*cp0) ! melting snow
+dgwater%wt0=-(1.-ice%fracice)*(-dgwater%fg)/(wrtrho*cp0) + dgwater%wt0_eg + dgwater%wt0_rad + dgwater%wt0_melt
+dgwater%ws0=(1.-ice%fracice)*(atm_rnd+atm_snd-dgwater%eg/lv)*water%sal(:,1)/wrtrho
+dgwater%ws0_subsurf=atm_inflow*water%sal(:,1)/wrtrho ! inflow under ice
 
-d_neta=d_neta+dt*(atm_inflow+(1.-ice%fracice)*(atm_rnd+atm_snd))/rhowt
+d_neta=d_neta+dt*(atm_inflow+(1.-ice%fracice)*(atm_rnd+atm_snd))/wrtrho
 
 return
 end subroutine getwflux
@@ -4369,8 +4368,8 @@ ice%thick=ice%thick-xxx
 ! no temperature or salinity conservation
 
 ! MJT notes - Remove salt flux between ice and water for now
-!dgwater%ws0_subsurf = dgwater%ws0_subsurf - ice%fracice*d_salflx*water%sal(:,1)/rhowt
-!d_neta = d_neta - dt*ice%fracice*d_salflx/rhowt
+dgwater%ws0_subsurf = dgwater%ws0_subsurf - ice%fracice*d_salflx*water%sal(:,1)/wrtrho
+d_neta = d_neta - dt*ice%fracice*d_salflx/wrtrho
 
 return
 end subroutine mloice
@@ -4421,7 +4420,7 @@ d_neta = water%eta
 ! limits on ice formation due to water avaliability
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.)
 where ( ice%fracice<0.999 )
-  maxnewice=d_wavail*rhowt/rhoic/(1.-ice%fracice)
+  maxnewice=d_wavail*wrtrho/rhoic/(1.-ice%fracice)
 elsewhere
   maxnewice=0.
 end where
@@ -4436,8 +4435,8 @@ do iqw=1,wfull
       aa=depth%dz(iqw,ii)*d_zcr(iqw)
       bb=max(minsfc-dsf,0.)
       deldz=min(aa,bb)
-      ! Energy = sdic*qice*(1-fracice) = del_temp*cp0*rhowt*deldz
-      sdic(iqw,ii)=max(d_timelt(iqw)-water%temp(iqw,ii)-wrtemp,0.)*cp0*rhowt*deldz &
+      ! Energy = sdic*qice*(1-fracice) = del_temp*cp0*wrtrho*deldz
+      sdic(iqw,ii)=max(d_timelt(iqw)-water%temp(iqw,ii)-wrtemp,0.)*cp0*wrtrho*deldz &
                    /qice/(1.-ice%fracice(iqw))
       dsf=dsf+deldz
       newdic(iqw) = newdic(iqw) + sdic(iqw,ii)
@@ -4450,19 +4449,19 @@ where ( .not.lnewice )
   newdic = 0.
 end where
 
-!d_neta=d_neta-newdic*(1.-ice%fracice)*rhoic/rhowt
+d_neta=d_neta-newdic*(1.-ice%fracice)*rhoic/wrtrho
 
 ! Adjust temperature in water column to balance the energy cost of ice formation
-! Energy = qice*newdic = del_temp*c0*rhowt*dz*d_zcr
+! Energy = qice*newdic = del_temp*c0*wrtrho*dz*d_zcr
 cdic=0.
 do ii=1,wlev
   sdic(:,ii)=max(min(sdic(:,ii),newdic-cdic),0.)
   cdic=cdic+sdic(:,ii)  
   where ( lnewice .and. depth%dz(:,ii)>1.e-4 )
-    water%temp(:,ii)=water%temp(:,ii)+(1.-ice%fracice)*qice*sdic(:,ii)/(cp0*rhowt*depth%dz(:,ii)*d_zcr)
+    water%temp(:,ii)=water%temp(:,ii)+(1.-ice%fracice)*qice*sdic(:,ii)/(cp0*wrtrho*depth%dz(:,ii)*d_zcr)
     ! MJT notes - remove salt flux between ice and water for now
-    !water%sal(:,ii) =water%sal(:,ii)*(1.+(1.-ice%fracice)*sdic(:,ii)*rhoic &
-    !                  /(rhowt*depth%dz(:,ii)*d_zcr))
+    water%sal(:,ii) =water%sal(:,ii)*(1.+(1.-ice%fracice)*sdic(:,ii)*rhoic &
+                      /(wrtrho*depth%dz(:,ii)*d_zcr))
   end where
 end do
 
@@ -4489,11 +4488,11 @@ call mlocheck("MLO-newice",water_temp=water%temp,water_sal=water%sal,ice_tsurf=i
 ! removal
 lremove = ice%thick<=icemin .and. ice%fracice>0.
 where ( lremove )
-  newdic=(ice%thick*rhoic+ice%snowd*rhosn)/rhowt
+  newdic=(ice%thick*rhoic+ice%snowd*rhosn)/wrtrho
 elsewhere
   newdic=0.
 end where
-!d_neta=d_neta+ice%fracice*newdic*rhoic/rhowt
+d_neta=d_neta+ice%fracice*newdic*rhoic/wrtrho
 
 do iqw=1,wfull
   if ( lremove(iqw) ) then
@@ -4512,10 +4511,10 @@ do iqw=1,wfull
       deldz = min(aa,bb)
       sdic(iqw,ii) = newdic(iqw)*deldz/minsfc
       if ( depth%dz(iqw,ii)>1.e-4 ) then
-        water%temp(iqw,ii) = water%temp(iqw,ii)-delt*(deldz/minsfc)/(cp0*rhowt*depth%dz(iqw,ii)*d_zcr(iqw))
+        water%temp(iqw,ii) = water%temp(iqw,ii)-delt*(deldz/minsfc)/(cp0*wrtrho*depth%dz(iqw,ii)*d_zcr(iqw))
         ! MJT notes - remove salt flux between ice and water for now
-        !water%sal(iqw,ii) = water%sal(iqw,ii)/(1.+ice%fracice(iqw)*sdic(iqw,ii)*rhoic &
-        !                    /(rhowt*depth%dz(iqw,ii)*d_zcr(iqw)))
+        water%sal(iqw,ii) = water%sal(iqw,ii)/(1.+ice%fracice(iqw)*sdic(iqw,ii)*rhoic &
+                            /(wrtrho*depth%dz(iqw,ii)*d_zcr(iqw)))
       end if  
       dsf = dsf + deldz
     end do
@@ -4531,7 +4530,7 @@ do iqw=1,wfull
 end do
 
 ! MJT notes - remove salt flux between ice and water for now
-!water%eta = d_neta
+water%eta = d_neta
 
 call mlosalfix(water%sal)
 call mlocheck("MLO-icemelt",water_temp=water%temp,water_sal=water%sal,ice_tsurf=ice%tsurf, &
@@ -4733,7 +4732,7 @@ it_tn2(:)  =ans(:,4)
 fl=2.*conc*(dt_tb-it_tn2)
 dhb=dt*(fl-dt_fb)/qice                ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic)
+dhb=min(dhb,dt_wavail*wrtrho/rhoic)
 flnew=dt_fb+dhb*qice/dt
 it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic) ! Modify temperature if limit is reached
 it_tn2=it_tn2+(flnew-fl)/(cpi*it_dic) ! Modify temperature if limit is reached
@@ -4767,11 +4766,11 @@ it_dic=it_dic-smax
 dt_salflx=dt_salflx-smax*rhoic/dt
 
 ! the following are snow to ice processes
-xxx=it_dic+it_dsn-(rhosn*it_dsn+rhoic*it_dic)/rhowt ! white ice formation
-excess=max(it_dsn-xxx,0.)*rhosn/rhowt               ! white ice formation
-excess=excess+max(it_dsn-excess*rhowt/rhosn-0.2,0.)*rhosn/rhowt  ! Snow depth limitation and conversion to ice
-it_dsn = it_dsn - excess*rhowt/rhosn
-it_dic = it_dic + excess*rhowt/rhoic
+xxx=it_dic+it_dsn-(rhosn*it_dsn+rhoic*it_dic)/wrtrho ! white ice formation
+excess=max(it_dsn-xxx,0.)*rhosn/wrtrho               ! white ice formation
+excess=min( excess, it_dsn*rhosn/wrtrho )
+it_dsn = it_dsn - excess*wrtrho/rhosn
+it_dic = it_dic + excess*wrtrho/rhoic
 
 ! Snow melt
 snmelt = max(it_tsurf-273.16,0.)*gammi/qsnow
@@ -4877,7 +4876,7 @@ it_tn1(:)  =ans(:,3)
 fl=2.*conc*(dt_tb-it_tn1)
 dhb=dt*(fl-dt_fb)/qice                      ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic)
+dhb=min(dhb,dt_wavail*wrtrho/rhoic)
 flnew=dt_fb+dhb*qice/dt
 it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic-gammi) ! modify temperature if limit is reached
 
@@ -4908,11 +4907,11 @@ it_dic=it_dic-smax
 dt_salflx=dt_salflx-smax*rhoic/dt
 
 ! the following are snow to ice processes
-xxx=it_dic+it_dsn-(rhosn*it_dsn+rhoic*it_dic)/rhowt ! white ice formation
-excess=max(it_dsn-xxx,0.)*rhosn/rhowt               ! white ice formation
-excess=excess+max(it_dsn-excess*rhowt/rhosn-0.2,0.)*rhosn/rhowt  ! Snow depth limitation and conversion to ice
-it_dsn=it_dsn-excess*rhowt/rhosn
-it_dic=it_dic+excess*rhowt/rhoic
+xxx=it_dic+it_dsn-(rhosn*it_dsn+rhoic*it_dic)/wrtrho ! white ice formation
+excess=max(it_dsn-xxx,0.)*rhosn/wrtrho               ! white ice formation
+excess=min( excess, it_dsn*rhosn/wrtrho )
+it_dsn=it_dsn-excess*wrtrho/rhosn
+it_dic=it_dic+excess*wrtrho/rhoic
 
 ! Snow melt
 snmelt=max(it_tsurf-273.16,0.)*gammi/qsnow
@@ -5019,7 +5018,7 @@ it_tn2(:)  =ans(:,3)
 fl=2.*conb*(dt_tb-it_tn2)
 dhb=dt*(fl-dt_fb)/qice                   ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic)
+dhb=min(dhb,dt_wavail*wrtrho/rhoic)
 flnew=dt_fb+dhb*qice/dt
 it_tn1=it_tn1+2.*(flnew-fl)/(cpi*it_dic) ! modify temperature if limit is reached
 it_tn2=it_tn2+2.*(flnew-fl)/(cpi*it_dic) ! modify temperature if limit is reached
@@ -5148,7 +5147,7 @@ it_tn1(:)  =ans(:,2)
 fl=2.*conb*(dt_tb-it_tn1)                   ! flux between t1 and bottom
 dhb=dt*(fl-dt_fb)/qice                      ! first guess of excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic)
+dhb=min(dhb,dt_wavail*wrtrho/rhoic)
 flnew=dt_fb+dhb*qice/dt                     ! final excess flux from below
 it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic)       ! does nothing unless a limit is reached
 
@@ -5250,7 +5249,7 @@ tnew=(it_tsurf*gamm/dt+dt_ftop-pt_egice*lf/lv+con*dt_tb)/(gamm/dt+con)    ! pred
 f0=con*(dt_tb-tnew)                                                       ! first guess of flux from below
 dhb=dt*(f0-dt_fb)/qice                                                    ! excess flux converted to change in ice thickness
 dhb=max(dhb,-it_dic)
-dhb=min(dhb,dt_wavail*rhowt/rhoic)
+dhb=min(dhb,dt_wavail*wrtrho/rhoic)
 f0=dhb*qice/dt+dt_fb                                                      ! final flux from below
 it_tsurf=it_tsurf+dt*(dt_ftop-pt_egice*lf/lv+f0)/gamm                     ! update ice/snow temperature
 
@@ -5502,13 +5501,13 @@ do itr=1,10 ! maximum number of iterations
   icemagn=sqrt(max(du**2+dv**2,1.E-8))
   dgice%cd = af*fm*vmagn
   dgice%cd_bot = 0.00536*icemagn
-  ! MJT notes - use rhowt reference density for Boussinesq fluid approximation
-  g=ice%u-newiu+dt*(rho*dgice%cd*uu+rhowt*dgice%cd_bot*du)/dgice%imass
-  h=ice%v-newiv+dt*(rho*dgice%cd*vv+rhowt*dgice%cd_bot*dv)/dgice%imass
-  dgu=-1.-dt*(rho*dgice%cd*(1.+(uu/vmagn)**2)+rhowt*dgice%cd_bot*(1.+(du/icemagn)**2))/dgice%imass
-  dhu=-dt*(rho*dgice%cd*uu*vv/(vmagn**2)+rhowt*dgice%cd_bot*du*dv/(icemagn**2))/dgice%imass
+  ! MJT notes - use wrtrho reference density for Boussinesq fluid approximation
+  g=ice%u-newiu+dt*(rho*dgice%cd*uu+wrtrho*dgice%cd_bot*du)/dgice%imass
+  h=ice%v-newiv+dt*(rho*dgice%cd*vv+wrtrho*dgice%cd_bot*dv)/dgice%imass
+  dgu=-1.-dt*(rho*dgice%cd*(1.+(uu/vmagn)**2)+wrtrho*dgice%cd_bot*(1.+(du/icemagn)**2))/dgice%imass
+  dhu=-dt*(rho*dgice%cd*uu*vv/(vmagn**2)+wrtrho*dgice%cd_bot*du*dv/(icemagn**2))/dgice%imass
   dgv=dhu
-  dhv=-1.-dt*(rho*dgice%cd*(1.+(vv/vmagn)**2)+rhowt*dgice%cd_bot*(1.+(dv/icemagn)**2))/dgice%imass
+  dhv=-1.-dt*(rho*dgice%cd*(1.+(vv/vmagn)**2)+wrtrho*dgice%cd_bot*(1.+(dv/icemagn)**2))/dgice%imass
   ! Min det is around 1.
   det=dgu*dhv-dgv*dhu
   newiu=newiu-0.9*( g*dhv-h*dgv)/det ! 0.9 is to help solution converge by underestimating the change each iteration.
@@ -5526,18 +5525,18 @@ dgice%cd = af*fm*vmagn
 dgice%cd_bot = 0.00536*icemagn
 dgice%tauxica=rho*dgice%cd*uu
 dgice%tauyica=rho*dgice%cd*vv
-! MJT notes - use rhowt reference density for Boussinesq fluid approximation
-dgice%tauxicw=-rhowt*dgice%cd_bot*du
-dgice%tauyicw=-rhowt*dgice%cd_bot*dv
-ustar=sqrt(sqrt(max(dgice%tauxicw**2+dgice%tauyicw**2,0.))/rhowt)
+! MJT notes - use wrtrho reference density for Boussinesq fluid approximation
+dgice%tauxicw=-wrtrho*dgice%cd_bot*du
+dgice%tauyicw=-wrtrho*dgice%cd_bot*dv
+ustar=sqrt(sqrt(max(dgice%tauxicw**2+dgice%tauyicw**2,0.))/wrtrho)
 ustar=max(ustar,5.E-4)
 
 ! bottom flux
-d_fb=cp0*rhowt*0.006*ustar*(d_tb-d_timelt)
+d_fb=cp0*wrtrho*0.006*ustar*(d_tb-d_timelt)
 d_fb=min(max(d_fb,-1000.),1000.)
 
 wavail=max(depth%depth_hl(:,wlev+1)+water%eta-minwater,0.)
-f0=wavail*rhowt/rhoic*qice/dt
+f0=wavail*wrtrho/rhoic*qice/dt
 d_fb=max(d_fb,-f0)
 
 ! Re-calculate fluxes to prevent overshoot (predictor-corrector)
@@ -5555,14 +5554,14 @@ d_ftop=-dgice%fg-dgice%eg+atm_rg-emisice*sbconst*dtsurf**4+atm_sg*(1.-alb)*(1.-e
 d_ftop=d_ftop+lf*atm_rnd ! rain (mm/sec) to W/m**2
 
 ! update water boundary conditions
-! MJT notes - use rhowt reference density for Boussinesq fluid approximation
-dgwater%wu0 = dgwater%wu0 - ice%fracice*dgice%tauxicw/rhowt
-dgwater%wv0 = dgwater%wv0 - ice%fracice*dgice%tauyicw/rhowt
-dgwater%wt0_fb = ice%fracice*d_fb/(rhowt*cp0)
+! MJT notes - use wrtrho reference density for Boussinesq fluid approximation
+dgwater%wu0 = dgwater%wu0 - ice%fracice*dgice%tauxicw/wrtrho
+dgwater%wv0 = dgwater%wv0 - ice%fracice*dgice%tauyicw/wrtrho
+dgwater%wt0_fb = ice%fracice*d_fb/(wrtrho*cp0)
 dgwater%wt0 = dgwater%wt0 + dgwater%wt0_fb
 
 ! update snow depth
-d_ndsn = d_ndsn + dt*(atm_rnd+atm_snd)/rhowt
+d_ndsn = d_ndsn + dt*(atm_rnd+atm_snd)/wrtrho
 
 return
 end subroutine iceflux
@@ -5917,7 +5916,7 @@ if ( present( ice_u ) .and. present( ice_v ) ) then
 end if  
 
 !if ( present( ice_thick ) ) then
-!  if ( any(ice_thick>10.) ) then
+!  if ( any(ice_thick>icemax) ) then
 !    write(6,*) "ERROR: ice thickness is out-of-range in ",trim(message)
 !    write(6,*) "maxval ",maxval(ice_thick)
 !    write(6,*) "maxloc ",maxloc(ice_thick)
