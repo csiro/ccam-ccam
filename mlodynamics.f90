@@ -1685,7 +1685,7 @@ subroutine tsjacobi(nti,nsi,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
                     rhobar,rhobaru,rhobarv)
 
 use indices_m
-use mlo, only : wlev, wrtemp, mloexpdensity
+use mlo, only : wlev, wrtemp, mloexpdensity, minsal, maxsal
 use mlodynamicsarrays_m
 use newmpar_m
 
@@ -1708,7 +1708,11 @@ end do
 call mloexpdensity(lrho,alpha,beta,nti,nsi,dzdum_rho,pice,0,rawrho=.true.)
 
 na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
-na(:,:,2) = min(max(0.,  nsi),50. )-34.72
+where ( nsi<2. )
+  na(:,:,2) = 0. ! 34.72 PSU with offset
+elsewhere  
+  na(:,:,2) = min(max(minsal, nsi),maxsal)-34.72
+end where  
 
 if ( mlojacobi==0 ) then !off
   do ii = 1,wlev

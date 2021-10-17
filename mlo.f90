@@ -59,7 +59,7 @@ private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
        mloimport3d,mloexport3d,mlovlevels,mlocheck,mlodiagice,mlo_updatediag,mlo_updatekm,           &
-       mlosurf,mlonewice,mlo_ema,mlo_interpolate_hl,minsfc,minsal,mlosalfix,icemax
+       mlosurf,mlonewice,mlo_ema,mlo_interpolate_hl,minsfc,minsal,maxsal,mlosalfix,icemax
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,nsteps,usepice,minicemass,cdbot,cp0,ominl,omaxl
