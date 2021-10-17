@@ -149,7 +149,7 @@ end if
 #endif
 #else
   !$acc data create(sx,xx4,yy4)
-  !$acc update device(sx)
+  !$acc update device(sx,xx4,yy4)
 #endif
 
 ! convert to grid point numbering

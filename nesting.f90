@@ -1285,7 +1285,11 @@ do ipass = 0,2
       end do
     end do
   end do
+#ifdef GPU
+  !$omp end do
+#else
   !$omp end do nowait
+#endif
     
   ! start convolution
 #ifdef _OPENMP
@@ -1408,7 +1412,11 @@ do j = 1,ipan
     end do
   end do
 end do
+#ifdef GPU
+!$omp end do
+#else
 !$omp end do nowait
+#endif
   
 ! start convolution
 #ifdef _OPENMP
@@ -1434,11 +1442,12 @@ end do
 !$omp end target teams distribute parallel do
 #else
 !$omp end do
-!$omp end parallel
 #endif
 #else
 !$acc end parallel loop
 #endif
+
+!$omp end parallel
 
 call END_LOG(nestcalc_end)
 
@@ -1518,7 +1527,11 @@ do ipass = 0,2
       end do
     end do
   end do
+#ifdef gpu
+  !$omp end do
+#else
   !$omp end do nowait
+#endif
   
   ! start convolution
 #ifdef _OPENMP
@@ -1642,7 +1655,11 @@ do j = 1,jpan
     end do
   end do
 end do
+#ifdef GPU
+!$omp end do
+#else
 !$omp end do nowait
+#endif
   
 ! start convolution
 #ifdef _OPENMP
@@ -1663,12 +1680,17 @@ do j = 1,jpan
     qt(n + ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(kltp1)
   end do
 end do
-!$acc end parallel loop
+#ifdef _OPENMP
 #ifdef GPU
+!$omp end target teams distribute parallel do
 #else
 !$omp end do
-!$omp end parallel
 #endif
+#else
+!$acc end parallel loop
+#endif
+
+!$omp end parallel
 
 call END_LOG(nestcalc_end)
 
@@ -2597,7 +2619,11 @@ do ipass = 0,2
       end do
     end do
   end do
+#ifdef GPU
+  !$omp end do
+#else
   !$omp end do nowait
+#endif
     
   ! start convolution
 #ifdef _OPENMP
@@ -2621,7 +2647,7 @@ do ipass = 0,2
 #ifdef GPU
   !$omp end target teams distribute parallel do
 #else
-  !$omp end do
+  !$omp end do nowait
 #endif
 #else
   !$acc end parallel loop
@@ -2721,7 +2747,11 @@ do j = 1,ipan
     end do
   end do
 end do
+#ifdef GPU
+!$omp end do
+#else
 !$omp end do nowait
+#endif
   
 ! start convolution
 #ifdef _OPENMP
@@ -2747,11 +2777,12 @@ end do
 !$omp end target teams distribute parallel do
 #else
 !$omp end do
-!$omp end parallel
 #endif
 #else
 !$acc end parallel loop
 #endif
+
+!$omp end parallel
 
 call END_LOG(nestcalc_end)
       
@@ -2827,7 +2858,11 @@ do ipass = 0,2
       end do
     end do
   end do
+#ifdef GPU
+  !$omp end do
+#else
   !$omp end do nowait
+#endif
     
   ! start convolution
 #ifdef _OPENMP
@@ -2951,7 +2986,11 @@ do j = 1,jpan
     end do
   end do
 end do
+#ifdef GPU
+!$omp end do
+#else
 !$omp end do nowait
+#endif
   
 ! start convolution
 #ifdef _OPENMP
@@ -2977,12 +3016,13 @@ end do
 !$omp end target teams distribute parallel do
 #else
 !$omp end do
-!$omp end parallel
 #endif
 #else
 !$acc end parallel loop
 #endif
-    
+
+!$omp end parallel
+
 call END_LOG(nestcalc_end)
       
 return  
