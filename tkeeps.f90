@@ -1201,7 +1201,7 @@ real, dimension(imax), intent(in) :: cd_water, cdh_water, cdbot_water, wt0rad_o,
 real, dimension(imax,wlev), intent(in) :: deptho_dz
 real, dimension(imax,2:wlev), intent(in) :: deptho_dz_hl
 real, dimension(imax,wlev), intent(in) :: rad_o
-real, dimension(imax) :: t0_o, wt0eg_o
+real, dimension(imax) :: wt0eg_o
 real, dimension(imax,wlev), intent(inout) :: w_t, w_s, w_u, w_v
 real, dimension(imax,wlev) :: km_o, ks_o, rhs_o
 real, dimension(imax,wlev) :: bb_o, cc_o, dd_o
@@ -1264,7 +1264,6 @@ rhs_o = 0.
 ! update ocean eddy diffusivity possibly including prognostic tke and eps
 call mlo_updatekm(km_o,ks_o,gammas_o,ddts,ps,0,depth_g(tile),ice_g(tile),dgwater_g(tile),water_g(tile), &
                   turb_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiag("t0",t0_o,0,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
 where ( deptho_dz(:,1)>1.e-4 )
   rhs_o(:,1) = ks_o(:,2)*gammas_o(:,2)/deptho_dz(:,1)
 end where
@@ -1335,19 +1334,19 @@ elsewhere
 end where  
 
 bb_o(:,1) = 1. - cc_o(:,1)
-dd_o(:,1) = w_t(:,1) + ddts*rhs_o(:,1)*t0_o
+dd_o(:,1) = w_t(:,1) + ddts*rhs_o(:,1)
 where ( deptho_dz(:,1)>1.e-4 )
   dd_o(:,1) = dd_o(:,1) - ddts*rad_o(:,1)/deptho_dz(:,1)
 end where
 do k = 2,wlev-1
   bb_o(:,k) = 1. - aa_o(:,k) - cc_o(:,k)
-  dd_o(:,k) = w_t(:,k) + ddts*rhs_o(:,k)*t0_o
+  dd_o(:,k) = w_t(:,k) + ddts*rhs_o(:,k)
   where ( deptho_dz(:,k)>1.e-4 )
     dd_o(:,k) = dd_o(:,k) - ddts*rad_o(:,k)/deptho_dz(:,k)
   end where
 end do
 bb_o(:,wlev) = 1. - aa_o(:,wlev)
-dd_o(:,wlev) = w_t(:,wlev) + ddts*rhs_o(:,wlev)*t0_o
+dd_o(:,wlev) = w_t(:,wlev) + ddts*rhs_o(:,wlev)
 where ( deptho_dz(:,wlev)>1.e-4 )
   dd_o(:,wlev) = dd_o(:,wlev) - ddts*rad_o(:,wlev)/deptho_dz(:,wlev)
 end where

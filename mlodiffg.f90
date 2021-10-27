@@ -93,12 +93,10 @@ real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
 real, dimension(ifull+iextra,wlev) :: w_ema
 real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
-real, dimension(ifull,wlev) :: dz, u_hl, v_hl, u_ema, v_ema
 real, dimension(ifull,wlev) :: workdata2
-real, dimension(ifull) :: shear
+real, dimension(ifull) :: dwdx, dwdy
 real base
 real dudx,dvdx,dudy,dvdy
-real dudz,dvdz,dwdx,dwdy
 real nu,nv,nw
 real, dimension(ifull) :: emi
 real tx_fact, ty_fact
@@ -123,34 +121,20 @@ emi = dd(1:ifull)/em(1:ifull)
 
 ! calculate shear from EMA
 call mlo_ema(dt,"uvw")
-dz = 0.
-u_ema = 0.
-v_ema = 0.
 w_ema = 0.
 do k = 1,wlev
-  call mloexport("u_ema",u_ema(:,k),k,0)
-  call mloexport("v_ema",v_ema(:,k),k,0)
   call mloexport("w_ema",w_ema(:,k),k,0)
-  call mloexpdep(1,dz(:,k),k,0)
 end do
-call mlo_interpolate_hl(u_ema,u_hl)
-call mlo_interpolate_hl(v_ema,v_hl)
 call bounds(w_ema)
 do k = 2,wlev-1
   do iq = 1,ifull  
-    if ( dz(iq,k)>1.e-4 ) then
-      dwdx = 0.5*((w_ema(ie(iq),k)-w_ema(iq,k))*emu(iq)*eeu(iq,k) &
-                 +(w_ema(iq,k)-w_ema(iw(iq),k))*emu(iwu(iq))*eeu(iwu(iq),k))/ds
-      dwdy = 0.5*((w_ema(in(iq),k)-w_ema(iq,k))*emv(iq)*eev(iq,k) &
-                 +(w_ema(iq,k)-w_ema(is(iq),k))*emv(isv(iq))*eev(isv(iq),k))/ds
-      dudz = (u_hl(iq,k+1) - u_hl(iq,k-1))/dz(iq,k)
-      dvdz = (v_hl(iq,k+1) - v_hl(iq,k-1))/dz(iq,k)
-      shear(iq) = (dudz+dwdx)**2 + (dvdz+dwdy)**2
-    else
-      shear(iq) = 0.  
-    end if
+    dwdx(iq) = 0.5*((w_ema(ie(iq),k)-w_ema(iq,k))*emu(iq)*eeu(iq,k) &
+                   +(w_ema(iq,k)-w_ema(iw(iq),k))*emu(iwu(iq))*eeu(iwu(iq),k))/ds
+    dwdy(iq) = 0.5*((w_ema(in(iq),k)-w_ema(iq,k))*emv(iq)*eev(iq,k) &
+                   +(w_ema(iq,k)-w_ema(is(iq),k))*emv(isv(iq))*eev(isv(iq),k))/ds
   end do  
-  call mloimport("shear",shear,k,0)  
+  call mloimport("dwdx",dwdx,k,0)  
+  call mloimport("dwdy",dwdy,k,0)  
 end do
 
 ! calculate diffusion following Smagorinsky
