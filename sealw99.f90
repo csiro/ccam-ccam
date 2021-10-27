@@ -5201,8 +5201,8 @@ logical,                   intent(in)            :: including_aerosols
 !     bands for h2o.
 !--------------------------------------------------------------------
       if (NBTRGE > 0) then
-        do m=1,NBTRGE
-          if (Lw_control%do_h2o) then
+        if (Lw_control%do_h2o) then
+          do m=1,NBTRGE  
           do kk = KS,KE+1
              do j = 1,size(avphilog(:,:,:),2)
                 do i = 1,size(avphilog(:,:,:),1)
@@ -5244,7 +5244,9 @@ logical,                   intent(in)            :: including_aerosols
                         KS, KE, m)
           call looktab (tab1a, ixo1, iyop, dt1, dup,   &
                         trans_band1(:,:,:,6+m), KS, KE+1, m)
+           end do 
          else
+          do m=1,NBTRGE    
           iyo1(:,:,KS:KE+1) = 1
           iyop1(:,:,KS:KE+1) = 1
           du1(:,:,KS:KE+1) = 0.0
@@ -5257,8 +5259,8 @@ logical,                   intent(in)            :: including_aerosols
                         e1cts2f(:,:,:,m), KS, KE, m)
           call looktab (tab1a, ixo1, iyop1, dt1, dup1,   &
                         trans_band1(:,:,:,6+m), KS, KE+1, m)
+          end do
         endif
-        enddo
 
 !--------------------------------------------------------------------
 !     the special case emissf(:,:,KE+1,m) for layer KE+1 is obtained by 
@@ -5866,39 +5868,50 @@ logical,                   intent(in)            :: including_aerosols
 !     emissbf (other levels).
 !-------------------------------------------------------------------
       if (nbtrge > 0) then
-        do m=1,NBTRGE
-   if (Lw_control%do_h2o) then
-          do kk = k,KE+1
-             do j = 1,size(avphilog(:,:,:),2)
+        if (Lw_control%do_h2o) then
+          do m=1,NBTRGE
+            do kk = k,KE+1
+              do j = 1,size(avphilog(:,:,:),2)
                 do i = 1,size(avphilog(:,:,:),1)
                    avphilog(i,j,kk) = LOG10(Optical%avephif(i,j,kk,m))
                 end do
-             end do
-          end do
-          call locate_in_table (mass_1, avphilog, du, iyo, k, KE+1)
-          iyo(:,:,k:KE+1) = iyo(:,:,k:KE+1) + 1
-          call looktab (tab2a, ixoe2, iyo, dte2, du, &
-                        trans_band2(:,:,:,6+m), k, KE+1, m)
-          call looktab (tab2a, ixok, iyo, dtk, du, &
-                        trans_band1(:,:,:,6+m), k, KE, m)
-   else
-      iyo1(:,:,k:KE+1) = 1
-      du1(:,:,k:KE+1) = 0.0
-      call looktab (tab2a, ixoe2, iyo1, dte2, du1, &
-                    trans_band2(:,:,:,6+m), k, KE+1, m)
-      call looktab (tab2a, ixok, iyo1, dtk, du1, &
-                    trans_band1(:,:,:,6+m), k, KE, m)
-   endif
-       ttmp0(:,:,:)=trans_band1(:,:,:,6+m)
-       do kk = k+1,KE+1
-          do j = 1,size(trans_band1(:,:,:,:),2)
-             do i = 1,size(trans_band1(:,:,:,:),1)
-                trans_band1(i,j,kk,6+m) = ttmp0(i,j,kk+k-(k+1))
-             end do
-          end do
-       end do
-      enddo
+              end do
+            end do
+            call locate_in_table (mass_1, avphilog, du, iyo, k, KE+1)
+            iyo(:,:,k:KE+1) = iyo(:,:,k:KE+1) + 1
+            call looktab (tab2a, ixoe2, iyo, dte2, du, &
+                          trans_band2(:,:,:,6+m), k, KE+1, m)
+            call looktab (tab2a, ixok, iyo, dtk, du, &
+                          trans_band1(:,:,:,6+m), k, KE, m)
+            ttmp0(:,:,:)=trans_band1(:,:,:,6+m)
+            do kk = k+1,KE+1
+               do j = 1,size(trans_band1(:,:,:,:),2)
+                  do i = 1,size(trans_band1(:,:,:,:),1)
+                    trans_band1(i,j,kk,6+m) = ttmp0(i,j,kk+k-(k+1))
+                  end do
+               end do
+            end do
+          enddo
+        else       
+          do m=1,NBTRGE
+            iyo1(:,:,k:KE+1) = 1
+            du1(:,:,k:KE+1) = 0.0
+            call looktab (tab2a, ixoe2, iyo1, dte2, du1, &
+                          trans_band2(:,:,:,6+m), k, KE+1, m)
+            call looktab (tab2a, ixok, iyo1, dtk, du1, &
+                          trans_band1(:,:,:,6+m), k, KE, m)
+            ttmp0(:,:,:)=trans_band1(:,:,:,6+m)
+            do kk = k+1,KE+1
+              do j = 1,size(trans_band1(:,:,:,:),2)
+                do i = 1,size(trans_band1(:,:,:,:),1)
+                  trans_band1(i,j,kk,6+m) = ttmp0(i,j,kk+k-(k+1))
+                end do
+              end do
+            end do
+          enddo
+        end if 
 
+        
 !----------------------------------------------------------------------
 !     the special case emissf(:,:,KE) for layer KE is obtained by 
 !     averaging the values for KE and KE+1. note that emissf(:,:,KE+1,m)
@@ -6286,8 +6299,8 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
 !     in the 1200-1400 range.
 !---------------------------------------------------------------------
       if (nbtrge > 0) then
+        if (Lw_control%do_h2o) then
         do m=1,NBTRGE
-    if (Lw_control%do_h2o) then
           do j = 1,size(ylog(:,:,:),2)
              do i = 1,size(ylog(:,:,:),1)
                 ylog(i,j,KE  ) = ALOG10(Optical%vrpfh2o(i,j,KE,m))
@@ -6308,13 +6321,15 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
 !---------------------------------------------------------------------
           call looktab (tab2a, ixsp, iysp, dxsp, dysp, &
                         emissf(:,:,:,m), KE, KE+1, m)
-   else
-        iysp1(:,:,KE:KE+1) = 1
-        dysp1(:,:,KE:KE+1) = 0.0
-        call looktab (tab2a, ixsp, iysp1, dxsp, dysp1, &
-                      emissf(:,:,:,m), KE, KE+1, m)
-   endif
         enddo
+        else
+        do m=1,NBTRGE
+          iysp1(:,:,KE:KE+1) = 1
+          dysp1(:,:,KE:KE+1) = 0.0
+          call looktab (tab2a, ixsp, iysp1, dxsp, dysp1, &
+                        emissf(:,:,:,m), KE, KE+1, m)
+        enddo
+        end if
       endif
 !-----------------------------------------------------------------------
 !     compute nearby layer transmissivities for h2o.
@@ -6343,8 +6358,8 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
 !     in the 1200-1400 range.
 !------------------------------------------------------------------
       if (nbtrge > 0) then
+        if (Lw_control%do_h2o) then
         do m=1,NBTRGE
-   if (Lw_control%do_h2o) then
           do kk = KS,KE+1
              do j = 1,size(ylog(:,:,:),2)
                 do i = 1,size(ylog(:,:,:),1)
@@ -6356,13 +6371,15 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
           iysp(:,:,KS:KE+1) = iysp(:,:,KS:KE+1) + 1
           call looktab (tab3a, ixsp, iysp, dxsp, dysp, &
                         emd1f(:,:,:,m), KS, KE+1, m)
-    else
-      iysp1(:,:,KS:KE+1) = 1
-      dysp1(:,:,KS:KE+1) = 0.0
-      call looktab (tab3a, ixsp, iysp1, dxsp, dysp1, &
-                    emd1f(:,:,:,m), KS, KE+1, m)
-    endif
         enddo
+        else
+        do m=1,NBTRGE
+          iysp1(:,:,KS:KE+1) = 1
+          dysp1(:,:,KS:KE+1) = 0.0
+          call looktab (tab3a, ixsp, iysp1, dxsp, dysp1, &
+                        emd1f(:,:,:,m), KS, KE+1, m)
+        enddo
+        end if
       endif
 
 !---------------------------------------------------------------------
@@ -6392,8 +6409,8 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
 !     in the 1200-1400 range.
 !---------------------------------------------------------------------
       if (nbtrge > 0 ) then
+        if (Lw_control%do_h2o) then
         do m=1,NBTRGE
-    if (Lw_control%do_h2o) then
           do kk = KS+1,KE+1
              do j = 1,size(ylog(:,:,:),2)
                 do i = 1,size(ylog(:,:,:),1)
@@ -6405,13 +6422,15 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
           iysp(:,:,KS+1:KE+1) = iysp(:,:,KS+1:KE+1) + 1
           call looktab (tab3a, ixsp, iysp, dxsp, dysp, &
                         emd2f(:,:,:,m), KS+1, KE+1, m)
-    else
-      iysp1(:,:,KS+1:KE+1) = 1
-      dysp1(:,:,KS+1:KE+1) = 0.0
-      call looktab (tab3a, ixsp, iysp1, dxsp, dysp1, &
-                    emd2f(:,:,:,m), KS+1, KE+1, m)
-    endif
         enddo
+        else
+        do m=1,NBTRGE
+          iysp1(:,:,KS+1:KE+1) = 1
+          dysp1(:,:,KS+1:KE+1) = 0.0
+          call looktab (tab3a, ixsp, iysp1, dxsp, dysp1, &
+                        emd2f(:,:,:,m), KS+1, KE+1, m)
+        enddo
+        end if
       endif
 
 !---------------------------------------------------------------------- 
@@ -6451,8 +6470,8 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
     endif
 
      if (nbtrge > 0) then
+       if (Lw_control%do_h2o) then
        do m=1,NBTRGE
-     if (Lw_control%do_h2o) then
          do j = 1,size(emspecf(:,:,:,:),2)
             do i = 1,size(emspecf(:,:,:,:),1)
                emspecf(i,j,KS,m   ) = (emd1f(i,j,KS,m)*Optical%empl1f(i,j,KS,m) -   &
@@ -6469,8 +6488,10 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
                               Optical%emx2f(i,j,m)
             end do
          end do
-     else
-       do j = 1,size(emspecf(:,:,:,:),2)
+       enddo
+       else
+       do m=1,NBTRGE
+         do j = 1,size(emspecf(:,:,:,:),2)
            do i = 1,size(emspecf(:,:,:,:),1)
                emspecf(i,j,KS,m   ) = (emd1f(i,j,KS,m) - emd1f(i,j,KE+1,m)) / &
                             (Atmos_input%press(i,j,KE) - Atmos_input%pflux(i,j,KE)) + &
@@ -6484,9 +6505,9 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
                           (Atmos_input%pflux(i,j,KE+1) - Atmos_input%press(i,j,KE))
              end do
           end do
-        endif
-
        enddo
+       end if
+
      endif
 
 !--------------------------------------------------------------------
@@ -6800,8 +6821,8 @@ real, dimension (:,:,:),   intent(inout) ::  tcfc8
 !     in the 1200-1400 range.
 !------------------------------------------------------------------
       if (nbtrge > 0) then
+        if (Lw_control%do_h2o) then
         do m=1,NBTRGE
-    if (Lw_control%do_h2o) then
           do kk = KS,KE+1
              do j = 1,size(ylog(:,:,:),2)
                 do i = 1,size(ylog(:,:,:),1)
@@ -6813,13 +6834,16 @@ real, dimension (:,:,:),   intent(inout) ::  tcfc8
           iysp(:,:,KS:KE+1) = iysp(:,:,KS:KE+1) + 1
           call looktab (tab3a, ixsp, iysp, dxsp, dysp, &
                         emd1f(:,:,:,m), KS, KE+1, m)
-    else
+        enddo
+        else
+        do m=1,NBTRGE
           iysp1(:,:,KS:KE+1) = 1
           dysp1(:,:,KS:KE+1) = 0.0
           call looktab (tab3a, ixsp, iysp1, dxsp, dysp1, &
                         emd1f(:,:,:,m), KS, KE+1, m)
-    endif
         enddo
+        end if
+
       endif
 
 !---------------------------------------------------------------------
@@ -6849,8 +6873,8 @@ real, dimension (:,:,:),   intent(inout) ::  tcfc8
 !     in the 1200-1400 range.
 !---------------------------------------------------------------------
       if (nbtrge > 0) then
+        if (Lw_control%do_h2o) then
         do m=1,NBTRGE
-   if (Lw_control%do_h2o) then
           do kk = KS+1,KE+1
              do j = 1,size(ylog(:,:,:),2)
                 do i = 1,size(ylog(:,:,:),1)
@@ -6862,13 +6886,16 @@ real, dimension (:,:,:),   intent(inout) ::  tcfc8
           iysp(:,:,KS+1:KE+1) = iysp(:,:,KS+1:KE+1) + 1
           call looktab (tab3a, ixsp, iysp, dxsp, dysp, &
                         emd2f(:,:,:,m), KS+1, KE+1, m)
-    else
+        enddo
+        else
+        do m=1,NBTRGE
           iysp1(:,:,KS+1:KE+1) = 1
           dysp1(:,:,KS+1:KE+1) = 0.0
           call looktab (tab3a, ixsp, iysp1, dxsp, dysp1, &
                         emd2f(:,:,:,m), KS+1, KE+1, m)
-    endif
         enddo
+        end if
+
       endif
 
 !---------------------------------------------------------------------- 

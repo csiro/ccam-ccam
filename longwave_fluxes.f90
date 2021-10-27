@@ -429,6 +429,7 @@ integer, dimension(:),        intent(in)     ::  cld_ind
 !
 !---------------------------------------------------------------------
       do m=1, nbands
+        if (Rad_control%do_totcld_forcing) then
         do kp=klevel+1,KE+1
           do j=jsrad,jerad
             do i=israd,ierad   
@@ -436,52 +437,82 @@ integer, dimension(:),        intent(in)     ::  cld_ind
               Lw_diagnostics%fluxn(i,j,kp,m) =    &
                           Lw_diagnostics%fluxn(i,j,kp,m) + flux_tmp*   &
                           cld_trans(i,j,kp, cld_ind(m))
-
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
-              if (Rad_control%do_totcld_forcing) then
                 Lw_diagnostics%fluxncf(i,j,kp,m) =   &
                             Lw_diagnostics%fluxncf(i,j,kp,m) + flux_tmp 
-
-              endif
             end do
           end do
         end do
+        else
+        do kp=klevel+1,KE+1
+          do j=jsrad,jerad
+            do i=israd,ierad   
+              flux_tmp = source(i,j,klevel,m)*trans(i,j,kp,m)
+              Lw_diagnostics%fluxn(i,j,kp,m) =    &
+                          Lw_diagnostics%fluxn(i,j,kp,m) + flux_tmp*   &
+                          cld_trans(i,j,kp, cld_ind(m))
+!---------------------------------------------------------------------
+!
+!---------------------------------------------------------------------
+            end do
+          end do
+        end do
+        end if
 
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
         flux4(:,:)  = 0.0
         flux4a(:,:) = 0.0
+        if (Rad_control%do_totcld_forcing) then
         do kp=klevel+1,KE+1
           do j=jsrad,jerad
             do i=israd,ierad   
               flux_tmp2 = source(i,j,kp,m)*trans2(i,j,kp,m)
               flux4(i,j) = flux4(i,j) + flux_tmp2*  &
                            cld_trans(i,j,kp, cld_ind(m))
-              if (Rad_control%do_totcld_forcing) then
-                flux4a (i,j) = flux4a (i,j) + flux_tmp2        
-              endif
+              flux4a (i,j) = flux4a (i,j) + flux_tmp2        
             end do
           end do
         end do
-
+        else
+        do kp=klevel+1,KE+1
+          do j=jsrad,jerad
+            do i=israd,ierad   
+              flux_tmp2 = source(i,j,kp,m)*trans2(i,j,kp,m)
+              flux4(i,j) = flux4(i,j) + flux_tmp2*  &
+                           cld_trans(i,j,kp, cld_ind(m))
+            end do
+          end do
+        end do
+        end if
+        
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------
+        if (Rad_control%do_totcld_forcing) then
         do j=jsrad,jerad
           do i=israd,ierad   
             Lw_diagnostics%fluxn  (i,j,klevel,m) =   &
                                Lw_diagnostics%fluxn  (i,j,klevel,m) +  &
                                flux4    (i,j       )
-            if (Rad_control%do_totcld_forcing) then
               Lw_diagnostics%fluxncf(i,j,klevel,m) =  &
                                Lw_diagnostics%fluxncf(i,j,klevel,m) +  &
                                flux4a   (i,j       )
-            endif
           end do
         end do
+        else
+        do j=jsrad,jerad
+          do i=israd,ierad   
+            Lw_diagnostics%fluxn  (i,j,klevel,m) =   &
+                               Lw_diagnostics%fluxn  (i,j,klevel,m) +  &
+                               flux4    (i,j       )
+          end do
+        end do
+        end if
+        
       end do  ! (nbands loop)
 
 !---------------------------------------------------------------------

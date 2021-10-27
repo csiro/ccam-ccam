@@ -2242,7 +2242,7 @@ CONTAINS
                 ! Medlyn BE et al (2011) Global Change Biology 17: 2134-2144.
              ELSEIF(cable_user%GS_SWITCH == 'medlyn') THEN
 
-                gswmin = veg%g0(i)
+                gswmin(i,:) = veg%g0(i)
 
                 IF (dsx(i) < 50.0) THEN
                    vpd  = 0.05 ! kPa

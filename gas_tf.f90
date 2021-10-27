@@ -1739,17 +1739,19 @@ real, dimension (:,:,:,:), intent(inout) :: tch4n2oe
 !--------------------------------------------------------------------
 !    pressure interpolation
 !--------------------------------------------------------------------
-      do kp=krows,krowe
-        if (Lw_control%do_co2) then
+      if (Lw_control%do_co2) then
+        do kp=krows,krowe
         co2p  (:,:,kp) = Gas_tf%a1(:,:)*co251(kcol,kp) +  &
                          Gas_tf%a2(:,:)*co258(kcol,kp)
         dco2dt(:,:,kp) = 1.0E-02*(Gas_tf%a1(:,:)*cdt51(kcol,kp) +   &
                                   Gas_tf%a2(:,:)*cdt58(kcol,kp))
         d2cdt2(:,:,kp) = 1.0E-03*(Gas_tf%a1(:,:)*c2d51(kcol,kp) +   &
                                   Gas_tf%a2(:,:)*c2d58(kcol,kp))
-        endif
-        if (Lw_control%do_ch4) then
-          if (Lw_control%do_ch4lbltmpint) then
+        end do
+      endif
+      if (Lw_control%do_ch4) then
+        if (Lw_control%do_ch4lbltmpint) then
+          do kp=krows,krowe
             ch4p (:,:,kp)  = Gas_tf%a1(:,:)*ch451(kcol,kp) +  &
                              Gas_tf%a2(:,:)*ch458(kcol,kp)
             dch4dt(:,:,kp) = 1.0E-02* &
@@ -1758,10 +1760,12 @@ real, dimension (:,:,:,:), intent(inout) :: tch4n2oe
             d2ch4dt2(:,:,kp) = 1.0E-03*  &
                                (Gas_tf%a1(:,:)*ch4d2t51(kcol,kp) +  &
                                 Gas_tf%a2(:,:)*ch4d2t58(kcol,kp))
-          endif
+          end do
         endif
-        if (Lw_control%do_n2o) then
-          if (Lw_control%do_n2olbltmpint) then
+      endif
+      if (Lw_control%do_n2o) then
+        if (Lw_control%do_n2olbltmpint) then
+          do kp=krows,krowe
             n2op (:,:,kp)  = Gas_tf%a1(:,:)*n2o51(kcol,kp) +&
                              Gas_tf%a2(:,:)*n2o58(kcol,kp)
             n2o17p(:,:,kp) = Gas_tf%a1(:,:)*n2o71(kcol,kp) + &
@@ -1786,31 +1790,31 @@ real, dimension (:,:,:,:), intent(inout) :: tch4n2oe
             d2n2o9dt2(:,:,kp) = 1.0E-03* &
                                 (Gas_tf%a1(:,:)*n2od2t91(kcol,kp) +   &
                                  Gas_tf%a2(:,:)*n2od2t98(kcol,kp))
-          endif
+          end do  
         endif
-      enddo
+      endif
 
 !---------------------------------------------------------------------
 !    temperature interpolation
 !---------------------------------------------------------------------
+      if (Lw_control%do_co2) then
       do kp=krows,krowe
-        if (Lw_control%do_co2) then
         co21r (:,:,kp) = co2p(:,:,kp) + dift(:,:,kp)*(dco2dt(:,:,kp) +&
                          0.5E+00*dift(:,:,kp)*d2cdt2(:,:,kp))
-        endif
       enddo
+      end if
 
 !---------------------------------------------------------------------
 !    correction for finite width of co2 bands
 !    (Eqs. 7a-7c, Ref. (2))
 !---------------------------------------------------------------------
+      if (Lw_control%do_co2) then
       do kp=krows,krowe
-        if (Lw_control%do_co2) then
         co21r(:,:,kp) = co21r(:,:,kp)*(1.0E+00 -  &
                         Gas_tf%tlsqu(:,:,kcol)) +  &
                         Gas_tf%tlsqu(:,:,kcol)
-        endif
       enddo
+      end if
 
 !----------------------------------------------------------------------
 !    save the values which are needed elsewhere
@@ -2140,12 +2144,12 @@ real, dimension (:,:,:),   intent(out)   ::  co2990c, co2990r, co2900c, co2900r,
 
 !    temperature interpolation
 !---------------------------------------------------------------------
+      if (Lw_control%do_co2) then
       do kp=krows,krowe
-        if (Lw_control%do_co2) then
         co2900r (:,:,kp) = co2p(:,:,kp) + dift(:,:,kp)*(dco2dt(:,:,kp) +&
                          0.5E+00*dift(:,:,kp)*d2cdt2(:,:,kp))
-        endif
       enddo
+      end if
 !--------------------------------------------------------------------
 !    pressure interpolation for 990-1070 cm-1 band
 !--------------------------------------------------------------------
