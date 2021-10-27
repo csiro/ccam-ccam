@@ -1379,7 +1379,7 @@ where ( .not.land(1:imax) )
   fg = (1.-fracice)*t1*(w_t(:,1)+wrtemp-thetal(:,1)-sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp) &
       + fracice*icefg_a
   wt0_o = wt0rad_o + wt0melt_o + wt0eg_o + wt0fb_o &
-         + (1.-fracice)*t1*(w_t(:,1)+wrtemp-thetal(:,1)-sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp)/(wrtrho*cp0) &
+         + (1.-fracice)*t1*(w_t(:,1)+wrtemp-thetal(:,1)-sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp)/(wrtrho*cp0)
 end where 
 call mlo_updatediag("wt0",wt0_o,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
 
