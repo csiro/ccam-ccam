@@ -619,17 +619,17 @@ elseif ( ktau>0 ) then
   timelt = min(timelt,271.2)
   new = tgg(:,1)*(1.-fraciceb(:)) + timelt(:)*fraciceb(:) - wrtemp
   wgt = dt/real(nud_hrs*3600)
-  call mloexport(0,old,1,0)
+  call mloexport("temp",old,1,0)
   delta = new - old
   do k = 1,kbotmlo
     old = 273.16 - wrtemp  
-    call mloexport(0,old,k,0)
+    call mloexport("temp",old,k,0)
     old = wgt*delta + old
     old = min( max( old, 260.-wrtemp ), 380.-wrtemp )
-    call mloimport(0,old,k,0)
+    call mloimport("temp",old,k,0)
   end do  
   do k = 1,ms
-    call mloexport(0,tgg(:,k),k,0)
+    call mloexport("temp",tgg(:,k),k,0)
     where ( tgg(:,k)<100. )
       tgg(:,k) = tgg(:,k) + wrtemp
     end where    
@@ -1562,15 +1562,15 @@ elseif ( ktau>0 ) then
   timelt = min(timelt,271.2)
   newsst = ssta*(1.-fraciceb(:)) + timelt(:)*fraciceb(:) - wrtemp
   wgt = dt/real(nud_hrs*3600)
-  call mloexport(0,oldsst,1,0)
+  call mloexport("temp",oldsst,1,0)
   deltasst = newsst - oldsst
   do k = 1,kbotmlo
-    call mloexport(0,oldsst,k,0)
+    call mloexport("temp",oldsst,k,0)
     newsst = wgt*deltasst + oldsst
-    call mloimport(0,newsst,k,0)
+    call mloimport("temp",newsst,k,0)
   end do  
   do k = 1,ms
-    call mloexport(0,tgg(:,k),k,0)
+    call mloexport("temp",tgg(:,k),k,0)
     where ( tgg(:,k)<100. )
       tgg(:,k) = tgg(:,k) + wrtemp
     end where    
@@ -1750,6 +1750,7 @@ real, dimension(-1:ik+2,-1:ik+2,6) :: c_io
 real, dimension(4) :: s_test
 logical, dimension(:), intent(in) :: land
 logical, dimension(4) :: l_test
+
 
 where ( land(1:6*ik*ik) )
   a_io(1:6*ik*ik) = value

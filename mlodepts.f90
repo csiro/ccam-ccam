@@ -74,9 +74,9 @@ do k = 1,wlev
   uc(:,k) = (ax(1:ifull)*ubar(:,k)+bx(1:ifull)*vbar(:,k))*dt/rearth ! unit sphere 
   vc(:,k) = (ay(1:ifull)*ubar(:,k)+by(1:ifull)*vbar(:,k))*dt/rearth ! unit sphere 
   wc(:,k) = (az(1:ifull)*ubar(:,k)+bz(1:ifull)*vbar(:,k))*dt/rearth ! unit sphere 
-  x3d(:,k) = x - uc(:,k) ! 1st guess
-  y3d(:,k) = y - vc(:,k)
-  z3d(:,k) = z - wc(:,k)
+  x3d(:,k) = x - real(uc(:,k),8) ! 1st guess
+  y3d(:,k) = y - real(vc(:,k),8)
+  z3d(:,k) = z - real(wc(:,k),8)
 end do
 
 intsch = mod(ktau,2)
@@ -414,9 +414,9 @@ call intssync_recv(s)
 
 do k = 1,wlev
   where ( wtr(1:ifull,k) )
-    x3d(:,k) = x - 0.5*(uc(:,k)+s(1:ifull,k,1)) ! n+1 guess
-    y3d(:,k) = y - 0.5*(vc(:,k)+s(1:ifull,k,2)) ! n+1 guess
-    z3d(:,k) = z - 0.5*(wc(:,k)+s(1:ifull,k,3)) ! n+1 guess
+    x3d(:,k) = x - 0.5_8*(real(uc(:,k),8)+real(s(1:ifull,k,1),8)) ! n+1 guess
+    y3d(:,k) = y - 0.5_8*(real(vc(:,k),8)+real(s(1:ifull,k,2),8)) ! n+1 guess
+    z3d(:,k) = z - 0.5_8*(real(wc(:,k),8)+real(s(1:ifull,k,3),8)) ! n+1 guess
   elsewhere
     x3d(:,k) = x
     y3d(:,k) = y
@@ -621,9 +621,9 @@ call intssync_recv(s)
 
 do k = 1,wlev
   where (wtr(1:ifull,k))
-    x3d(:,k) = x - 0.5*(uc(:,k)+s(1:ifull,k,1)) ! n+1 guess
-    y3d(:,k) = y - 0.5*(vc(:,k)+s(1:ifull,k,2)) ! n+1 guess
-    z3d(:,k) = z - 0.5*(wc(:,k)+s(1:ifull,k,3)) ! n+1 guess
+    x3d(:,k) = x - 0.5_8*(real(uc(:,k),8)+real(s(1:ifull,k,1),8)) ! n+1 guess
+    y3d(:,k) = y - 0.5_8*(real(vc(:,k),8)+real(s(1:ifull,k,2),8)) ! n+1 guess
+    z3d(:,k) = z - 0.5_8*(real(wc(:,k),8)+real(s(1:ifull,k,3),8)) ! n+1 guess
   elsewhere
     x3d(:,k) = x
     y3d(:,k) = y
@@ -646,7 +646,7 @@ call deptsync(nface,xg,yg)
 call END_LOG(waterdeps_end)
 
 return
-    end subroutine mlodeps
+end subroutine mlodeps
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate indices
@@ -706,7 +706,7 @@ do ii = 1,wlev
     !      instead calculate cubic coordinates
     !      The faces are:
     !      0: X=1   1: Z=1   2: Y=1   3: X=-1   4: Z=-1   5: Y=-1
-    denxyz=max( abs(xstr),abs(ystr),abs(zstr) )
+    denxyz=max( abs(xstr), abs(ystr), abs(zstr) )
     xd=xstr/denxyz
     yd=ystr/denxyz
     zd=zstr/denxyz

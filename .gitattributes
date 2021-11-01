@@ -89,6 +89,7 @@
 /lwout_m.f90 -text
 /makefile -text
 /map_m.f90 -text
+/mgcloud.f90 -text
 /microphys_rad.f90 -text
 /mlo.f90 -text
 /mlodepts.f90 -text

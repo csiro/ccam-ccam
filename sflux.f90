@@ -892,14 +892,14 @@ do tile = 1,ntiles
   end if
   
   do k = 1,ms 
-    call mloexport(0,tgg(is:ie,k),k,0,water_g(tile),wpack_g(:,tile),wfull_g(tile)) 
+    call mloexport("temp",tgg(is:ie,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile)) 
     where ( tgg(is:ie,k)<100. )     
       tgg(is:ie,k) = tgg(is:ie,k) + wrtemp 
     end where                 
-  end do                      
-  do k = 1,3                   
-    call mloexpice(tggsn(is:ie,k),k,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile)) 
-  end do 
+  end do          
+  call mloexpice("tsurf",tggsn(is:ie,1),0,ice_g(tile),wpack_g(:,tile),wfull_g(tile)) 
+  call mloexpice("temp0",tggsn(is:ie,2),0,ice_g(tile),wpack_g(:,tile),wfull_g(tile)) 
+  call mloexpice("temp1",tggsn(is:ie,3),0,ice_g(tile),wpack_g(:,tile),wfull_g(tile)) 
 
 end do
 !$omp end do nowait
@@ -952,13 +952,6 @@ type(turbdata), intent(inout) :: turb
 
 umod = vmod ! this is vmod, but accounts for moving surface                                    ! MLO
                                                                                                ! MLO
-if ( abs(nmlo)==1 ) then                                                                       ! MLO
-  ! Single column                                                                              ! MLO
-  ! set free surface to zero when water is not conserved                                       ! MLO
-  neta=0.                                                                                      ! MLO
-  call mloimport(4,neta,0,0,water,depth,wpack,wfull)                                           ! MLO
-end if                                                                                         ! MLO
-                                                                                               ! MLO
 ! only update fluxes if using coupled mixing (calcprog=.false.)                                ! MLO
 ! prognostic variables are then updated in tkeeps.f90                                          ! MLO
 if ( nvmix/=9 ) then                                                                           ! MLO
@@ -968,7 +961,12 @@ else                                                                            
 end if                                                                                         ! MLO
                                                                                                ! MLO
 ! inflow and outflow model for rivers                                                          ! MLO
-if ( abs(nmlo)>=2 ) then                                                                       ! MLO
+if ( abs(nmlo)==1 ) then                                                                       ! MLO
+  ! Single column                                                                              ! MLO
+  ! set free surface to zero when water is not conserved                                       ! MLO
+  neta=0.                                                                                      ! MLO
+  call mloimport("eta",neta,0,0,water,depth,wpack,wfull)                                           ! MLO
+else if ( abs(nmlo)>=2 ) then                                                                       ! MLO
   ! river inflow                                                                               ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO
   where ( .not.land(1:imax) )                                                                  ! MLO
@@ -977,13 +975,13 @@ if ( abs(nmlo)>=2 ) then                                                        
   end where                                                                                    ! MLO
   ! lake outflow                                                                               ! MLO
   neta(1:imax) = 0.                                                                            ! MLO
-  call mloexport(4,neta,0,0,water,wpack,wfull)                                                 ! MLO
+  call mloexport("eta",neta,0,0,water,depth,wpack,wfull)                                                 ! MLO
   where ( outflowmask(1:imax) )                                                                ! MLO
     oflow(:) = max( neta(1:imax), 0. )                                                         ! MLO
     watbdy(1:imax) = watbdy(1:imax) + 1000.*oflow(:)                                           ! MLO
     neta(1:imax) = neta(1:imax) - oflow(:)                                                     ! MLO
   end where                                                                                    ! MLO
-  call mloimport(4,neta,0,0,water,depth,wpack,wfull)                                           ! MLO
+  call mloimport("eta",neta,0,0,water,depth,wpack,wfull)                                           ! MLO
 else                                                                                           ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO
 end if                                                                                         ! MLO

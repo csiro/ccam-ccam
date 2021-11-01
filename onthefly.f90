@@ -549,12 +549,14 @@ if ( newfile .and. .not.iop_test ) then
   end if                  ! (myid==0)
 
   ! setup interpolation arrays
+  !$omp parallel do schedule(static) private(mm)
   do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
     call latltoij(rlong4_l(:,mm),rlat4_l(:,mm),      & !input
                   rlong0x,rlat0x,schmidtx,           & !input
                   xg4(:,mm),yg4(:,mm),nface4(:,mm),  & !output (source)
                   xx4,yy4,ik)
   end do
+  !$omp end parallel do
 
   nullify( xx4, yy4 )
   deallocate( xy4_dummy )  
@@ -773,9 +775,7 @@ if ( newfile ) then
         ! found z* ocean levels  
         land_3d = .false.  
         do k = 1,ok
-          where ( land_a .or. gosig_in(k)>=ocndep_a ) 
-            land_3d(:,k) = .true.
-          end where  
+          land_3d(:,k) = ( land_a .or. gosig_in(k)>=ocndep_a ) 
         end do
       else
         ! found sigma ocean levels  
@@ -1673,24 +1673,6 @@ if ( nested/=1 .and. nested/=3 ) then
   end if    
 
   !------------------------------------------------------------------
-  ! Read CABLE/CASA aggregate C+N+P pools
-  !if ( nsib>=6 ) then
-  !  if ( ccycle/=0 ) then
-  !    if ( carbon_found ) then
-  !      call fillhist4('cplant',cplant,sea_a,fill_sea)
-  !      call fillhist4('nplant',niplant,sea_a,fill_sea)
-  !      call fillhist4('pplant',pplant,sea_a,fill_sea)
-  !      call fillhist4('clitter',clitter,sea_a,fill_sea)
-  !      call fillhist4('nlitter',nilitter,sea_a,fill_sea)
-  !      call fillhist4('plitter',plitter,sea_a,fill_sea)
-  !      call fillhist4('csoil',csoil,sea_a,fill_sea)
-  !      call fillhist4('nsoil',nisoil,sea_a,fill_sea)
-  !      call fillhist4('psoil',psoil,sea_a,fill_sea)
-  !    end if ! carbon_found
-  !  end if   ! ccycle==0 ..else..
-  !end if     ! if nsib==6.or.nsib==7
-
-  !------------------------------------------------------------------
   ! Read urban data
   if ( nurban/=0 ) then
     if ( urban1_found ) then
@@ -1842,7 +1824,7 @@ if ( nested/=1 .and. nested/=3 ) then
       gfrac(1:ifull,1:kl) = max( gfrac(1:ifull,1:kl), 0. )
       gfrac(1:ifull,1:kl) = min( gfrac(1:ifull,1:kl), 1. )
     end if
-    if ( ncloud>=4 ) then
+    if ( ncloud>=4 .and. ncloud<=13 ) then
       call gethist4a('strat_nt',nettend,5)    ! STRAT NET TENDENCY
     end if ! (ncloud>=4)
   end if   ! (nested==0)
@@ -2047,10 +2029,12 @@ if ( iotest ) then
   end do
 else
   sout(1:ifull) = 0.  
+  !$omp parallel do schedule(static) private(mm,wrk)
   do mm = 1,m_fly     !  was 4, now may be 1
     call intsb(sx(:,:,:),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
     sout(1:ifull) = sout(1:ifull) + wrk/real(m_fly)
   end do
+  !$omp end parallel do
 end if
 
 call END_LOG(otf_ints1_end)
@@ -2095,6 +2079,7 @@ do kb = 1,kx,kblock
       end do
     end do
   else
+    !$omp parallel do schedule(static) private(k,sx,mm,wrk)  
     do k = 1,kn
       sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
       sout(1:ifull,k+kb-1) = 0.
@@ -2105,6 +2090,7 @@ do kb = 1,kx,kblock
         sout(1:ifull,k+kb-1) = sout(1:ifull,k+kb-1) + wrk/real(m_fly)
       end do
     end do
+    !$omp end parallel do
   end if
 
 end do
@@ -2123,6 +2109,7 @@ implicit none
 integer i, n, n_w, n_e, n_n, n_s
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(inout) :: sx_l
 
+!$omp parallel do schedule(static) private(n,n_w,n_e,n_n,n_s,i)
 do n = 0,npanels
   if ( mod(n,2)==0 ) then
     n_w = mod(n+5, 6)
@@ -2180,6 +2167,7 @@ do n = 0,npanels
     sx_l(ik+1,ik+2,n) = sx_l(2,ik,n_e)       ! enn  
   end if   ! mod(n,2)==0 ..else..
 end do       ! n loop
+!$omp end parallel do
 
 return
 end subroutine sxpanelbounds
@@ -2473,6 +2461,7 @@ do while ( any(nrem(:)>0) )
   call ccmpi_filebounds_send(c_io,comm_ip)
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
+  !$omp parallel do schedule(static) private(k,ipf,n,j,i,cc,csum,ccount)
   do k = 1,kx
     if ( ncount(k)>0 ) then
       do ipf =1,mynproc
@@ -2503,6 +2492,7 @@ do while ( any(nrem(:)>0) )
       end do
     end if
   end do
+  !$omp end parallel do
   call ccmpi_filebounds_recv(c_io,comm_ip)
   ! update halo
   do k = 1,kx
@@ -3364,6 +3354,7 @@ end if
 
 ! calculate which grid points and input files are needed by this processor
 lfile(:) = .false.
+!$omp parallel do schedule(static) private(mm,iq,idel,jdel,n)
 do mm = 1,m_fly
   do iq = 1,ifull
     idel = int(xg4(iq,mm))
@@ -3384,6 +3375,7 @@ do mm = 1,m_fly
     lfile(procarray(idel+1,jdel-1,n)) = .true.   
   end do
 end do
+!$omp end parallel do
 
 ! Construct a map of files to be accessed by this process
 if ( myid==0 ) then

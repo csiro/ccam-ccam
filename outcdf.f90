@@ -39,6 +39,9 @@ private
 public outfile, freqfile, mslp
 
 character(len=3), dimension(12), parameter :: month = (/'jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'/)
+integer, parameter :: cordex_levels = 17
+integer, dimension(cordex_levels) :: cordex_level_data = &
+    (/ 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 70, 50, 30, 20, 10 /)
 
 contains
 
@@ -1567,7 +1570,6 @@ if( myid==0 .or. local ) then
     
     lname = 'Height of Boundary Layer'
     call attrib(idnc,dimj,jsize,'pblh',lname,'m',0.,13000.,0,cptype)
-
         
     ! AEROSOL OPTICAL DEPTHS ------------------------------------
     if ( abs(iaero)>=2 .and. nrad==5 ) then
@@ -1934,7 +1936,7 @@ if( myid==0 .or. local ) then
       lname = 'Convective heating'
       call attrib(idnc,dima,asize,'convh_ave',lname,'K day-1',-10.,20.,0,cptype)
     end if
-
+    
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = "Ocean temperature"
       call attrib(idnc,dimo,osize,"thetao",lname,'K',100.,425.,0,cptype)
@@ -1996,7 +1998,7 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'sfrac','Snow fraction',   'none',0.,1.,0,cptype)
         call attrib(idnc,dima,asize,'gfrac','Graupel fraction','none',0.,1.,0,cptype)
       end if
-      if ( ncloud>=4 .and. (itype==-1.or.diaglevel_cloud>5) ) then
+      if ( (ncloud>=4.and.ncloud<=13) .and. (itype==-1.or.diaglevel_cloud>5) ) then
         call attrib(idnc,dima,asize,'strat_nt','Strat net temp tendency','K s-1',-50.,50.,0,cptype)
       end if
     end if
@@ -2441,10 +2443,10 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   ocnheight(:) = min(max(ocnheight(:), -130.), 130.)
   ocndwn(:,3:4) = 0. ! oldutop, oldvtop
   ocndwn(:,5:6) = 0. ! oldubot, oldvbot
-  call mloexport(5,ocndwn(:,3),0,0)
-  call mloexport(6,ocndwn(:,4),0,0)
-  call mloexport(7,ocndwn(:,5),0,0)
-  call mloexport(8,ocndwn(:,6),0,0)
+  call mloexport("utop",ocndwn(:,3),0,0)
+  call mloexport("vtop",ocndwn(:,4),0,0)
+  call mloexport("ubot",ocndwn(:,5),0,0)
+  call mloexport("vbot",ocndwn(:,6),0,0)
 end if
 
 
@@ -3236,7 +3238,7 @@ if ( ldr/=0 ) then
     call histwrt(sfrac,'sfrac',idnc,iarch,local,.true.)
     call histwrt(gfrac,'gfrac',idnc,iarch,local,.true.)
   end if
-  if ( ncloud>=4 .and. (itype==-1.or.diaglevel_cloud>5) ) then 
+  if ( (ncloud>=4.and.ncloud<=13) .and. (itype==-1.or.diaglevel_cloud>5) ) then 
     call histwrt(nettend,'strat_nt',idnc,iarch,local,.true.)
   end if
 endif
@@ -3246,11 +3248,7 @@ if ( nvmix==6 .or. nvmix==9 ) then
   if ( diaglevel_pbl>5 .or. itype==-1 ) then
     call histwrt(tke,'tke',idnc,iarch,local,.true.)
     call histwrt(eps,'eps',idnc,iarch,local,.true.)
-    !do k = 1,kl
-    !  tmpry(:,k) = cm0*max(tke(1:ifull,k),mintke)**2/max(eps(1:ifull,k),mineps)
-    !end do
-    !call histwrt(tmpry,"Km",idnc,iarch,local,.true.)
-  end if
+  end if  
   if ( itype==-1 ) then
     call histwrt(u_ema,'u_ema',idnc,iarch,local,.true.)
     call histwrt(v_ema,'v_ema',idnc,iarch,local,.true.)
@@ -3467,7 +3465,7 @@ integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics
 integer i,j,k,n,iq,fiarch
 integer dproc, d4, asize, ssize, idnp, idgpn, idgpo
-integer fsize
+integer fsize, press_level
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -3489,7 +3487,7 @@ real(kind=8) tpnt
 logical, save :: first = .true.
 logical local, lday
 character(len=1024) ffile
-character(len=40) lname
+character(len=40) lname, vname
 character(len=33) grdtim
 character(len=20) timorg
 
@@ -3704,7 +3702,9 @@ if ( first ) then
       lname = 'Surface geopotential'
       call attrib(fncid,sdim(1:fsize),fsize,'zht',lname,'m2/s2',-1000.,90.e3,0,-1)
       lname = 'Soil type'
-      call attrib(fncid,sdim(1:fsize),fsize,'soilt',lname,'none',-650.,650.,0,1)    
+      call attrib(fncid,sdim(1:fsize),fsize,'soilt',lname,'none',-650.,650.,0,1)
+      lname = 'Urban fraction'
+      call attrib(fncid,sdim(1:fsize),fsize,'sigmu',lname,'none',0.,3.25,0,1)
     end if  
     lname='x-component 10m wind'
     call attrib(fncid,sdim,ssize,'uas',lname,'m s-1',-130.,130.,0,1)
@@ -3817,36 +3817,24 @@ if ( first ) then
       lname = 'Sunshine hours per day'
       call attrib(fncid,sdim,ssize,'sunhours',lname,'hrs',0.,24.,0,1)
       
-      lname = 'x-component 850hPa wind'
-      call attrib(fncid,sdim,ssize,'ua850',lname,'m s-1',-130.,130.,0,1)
-      lname = 'y-component 850hPa wind'     
-      call attrib(fncid,sdim,ssize,'va850',lname,'m s-1',-130.,130.,0,1)
-      lname = 'Air Temperature'     
-      call attrib(fncid,sdim,ssize,'ta850',lname,'K',100.,425.,0,1)
-      lname = 'Specific Humidity'
-      call attrib(fncid,sdim,ssize,'hus850',lname,'1',0.,0.06,0,1)
-      lname = 'Geopotential Height'
-      call attrib(fncid,sdim,ssize,'zg850',lname,'m',0.,130000.,0,1)
-      lname = 'x-component 500hPa wind'
-      call attrib(fncid,sdim,ssize,'ua500',lname,'m s-1',-130.,130.,0,1)
-      lname = 'y-component 500hPa wind'     
-      call attrib(fncid,sdim,ssize,'va500',lname,'m s-1',-130.,130.,0,1)
-      lname = 'Air Temperature'     
-      call attrib(fncid,sdim,ssize,'ta500',lname,'K',100.,425.,0,1)
-      lname = 'Specific Humidity'
-      call attrib(fncid,sdim,ssize,'hus500',lname,'1',0.,0.06,0,1)
-      lname = 'Geopotential Height'
-      call attrib(fncid,sdim,ssize,'zg500',lname,'m',0.,130000.,0,1)
-      lname = 'x-component 200hPa wind'
-      call attrib(fncid,sdim,ssize,'ua200',lname,'m s-1',-130.,130.,0,1)
-      lname = 'y-component 200hPa wind'     
-      call attrib(fncid,sdim,ssize,'va200',lname,'m s-1',-130.,130.,0,1)
-      lname = 'Air Temperature'     
-      call attrib(fncid,sdim,ssize,'ta200',lname,'K',100.,425.,0,1)
-      lname = 'Specific Humidity'
-      call attrib(fncid,sdim,ssize,'hus200',lname,'1',0.,0.06,0,1)
-      lname = 'Geopotential Height'
-      call attrib(fncid,sdim,ssize,'zg200',lname,'m',0.,130000.,0,1)      
+      do k = 1,cordex_levels
+        press_level = cordex_level_data(k)
+        call cordex_name(lname,"x-component ",press_level,"hPa wind")
+        call cordex_name(vname,"ua",press_level)
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
+        call cordex_name(lname,"y-component ",press_level,"hPa wind")
+        call cordex_name(vname,"va",press_level)
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
+        lname = 'Air Temperature'     
+        call cordex_name(vname,"ta",press_level)
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'K',100.,425.,0,1)
+        lname = 'Specific Humidity'
+        call cordex_name(vname,"hus",press_level)
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'1',0.,0.06,0,1)
+        lname = 'Geopotential Height'
+        call cordex_name(vname,"zg",press_level)
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m',0.,130000.,0,1)
+      end do  
     end if    
 
     ! end definition mode
@@ -3951,6 +3939,7 @@ if ( first ) then
     call histwrt(zs,'zht',fncid,fiarch,local,.true.)
     outdata(:) = real(isoilm_in(:))  ! use the raw soil data here to classify inland water bodies
     call histwrt(outdata,'soilt',fncid,fiarch,local,.true.) ! also defines land-sea mask
+    call histwrt(sigmu,'sigmu',fncid,fiarch,local,.true.)
   end if  
   
   first=.false.
@@ -4143,73 +4132,38 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(fracice,"fracice",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,22),'sunhours',fncid,fiarch,local,.true.) 
     
-    do iq = 1,ifull
-      n = 1
-      do k = 1,kl-1
-        if ( ps(iq)*sig(k)>85000. ) then
-          n = k
-        else
-          exit
-        end if
-      end do   
-      xx = (85000. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
-      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-      ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
-      hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
-      hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
-      zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
-      zg_level(iq) = zg_level(iq)/grav
-    end do
-    call histwrt(ua_level,'ua850',fncid,fiarch,local,.true.) 
-    call histwrt(va_level,'va850',fncid,fiarch,local,.true.) 
-    call histwrt(ta_level,'ta850',fncid,fiarch,local,.true.) 
-    call histwrt(hus_level,'hus850',fncid,fiarch,local,.true.) 
-    call histwrt(zg_level,'zg850',fncid,fiarch,local,.true.) 
-    do iq = 1,ifull
-      do k = 1,kl-1
-        if ( ps(iq)*sig(k)>50000. ) then
-          n = k
-        else
-          exit
-        end if
-      end do   
-      xx = (50000. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
-      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-      ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
-      hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
-      hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
-      zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
-      zg_level(iq) = zg_level(iq)/grav
-    end do
-    call histwrt(ua_level,'ua500',fncid,fiarch,local,.true.) 
-    call histwrt(va_level,'va500',fncid,fiarch,local,.true.) 
-    call histwrt(ta_level,'ta500',fncid,fiarch,local,.true.) 
-    call histwrt(hus_level,'hus500',fncid,fiarch,local,.true.) 
-    call histwrt(zg_level,'zg500',fncid,fiarch,local,.true.) 
-    do iq = 1,ifull
-      do k = 1,kl-1
-        if ( ps(iq)*sig(k)>20000. ) then
-          n = k
-        else
-          exit
-        end if
-      end do   
-      xx = (20000. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
-      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-      ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
-      hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
-      hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
-      zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
-      zg_level(iq) = zg_level(iq)/grav
-    end do
-    call histwrt(ua_level,'ua200',fncid,fiarch,local,.true.) 
-    call histwrt(va_level,'va200',fncid,fiarch,local,.true.) 
-    call histwrt(ta_level,'ta200',fncid,fiarch,local,.true.) 
-    call histwrt(hus_level,'hus200',fncid,fiarch,local,.true.) 
-    call histwrt(zg_level,'zg200',fncid,fiarch,local,.true.)    
+    do j = 1,cordex_levels
+      press_level = cordex_level_data(j)
+      !$omp simd private (n,k,xx)
+      do iq = 1,ifull
+        n = 1
+        do k = 1,kl-1
+          if ( ps(iq)*sig(k)>real(press_level)*100. ) then
+            n = k
+          else
+            exit
+          end if
+        end do   
+        xx = (real(press_level)*100. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
+        ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+        va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+        ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+        hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
+        hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
+        zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
+        zg_level(iq) = zg_level(iq)/grav
+      end do
+      call cordex_name(vname,"ua",press_level)
+      call histwrt(ua_level,trim(vname),fncid,fiarch,local,.true.) 
+      call cordex_name(vname,"va",press_level)
+      call histwrt(va_level,trim(vname),fncid,fiarch,local,.true.) 
+      call cordex_name(vname,"ta",press_level)
+      call histwrt(ta_level,trim(vname),fncid,fiarch,local,.true.) 
+      call cordex_name(vname,"hus",press_level)
+      call histwrt(hus_level,trim(vname),fncid,fiarch,local,.true.) 
+      call cordex_name(vname,"zg",press_level)
+      call histwrt(zg_level,trim(vname),fncid,fiarch,local,.true.) 
+    end do  
   end if
   
   freqstore(:,:) = 0.
@@ -4236,6 +4190,44 @@ call END_LOG(outfile_end)
       
 return
 end subroutine freqfile
+
+subroutine cordex_name(lname,stringa,press_level,stringb)
+
+use cc_mpi, only : ccmpi_abort
+
+implicit none
+
+integer, intent(in) :: press_level
+character(len=*), intent(out) :: lname
+character(len=*), intent(in) :: stringa
+character(len=*), intent(in), optional :: stringb
+
+if ( present(stringb) ) then
+  if ( press_level>=1000 ) then
+    write(lname,'(A,I4.4,A)') trim(stringa),press_level,trim(stringb)
+  else if (press_level>=100 ) then
+    write(lname,'(A,I3.3,A)') trim(stringa),press_level,trim(stringb)  
+  else if ( press_level>=10 ) then
+    write(lname,'(A,I2.2,A)') trim(stringa),press_level,trim(stringb)  
+  else
+    write(6,*) "ERROR: Unexpected output pressure level in cordex_name"
+    call ccmpi_abort(-1)
+  end if
+else
+  if ( press_level>=1000 ) then
+    write(lname,'(A,I4.4)') trim(stringa),press_level
+  else if (press_level>=100 ) then
+    write(lname,'(A,I3.3)') trim(stringa),press_level
+  else if ( press_level>=10 ) then
+    write(lname,'(A,I2.2)') trim(stringa),press_level
+  else
+    write(6,*) "ERROR: Unexpected output pressure level in cordex_name"
+    call ccmpi_abort(-1)
+  end if
+end if
+
+return
+end subroutine cordex_name
 
 subroutine mslp(pmsl,psl,zs,t)
 

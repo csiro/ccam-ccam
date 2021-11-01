@@ -364,16 +364,17 @@ call mloexport3d(0,w_t,0)
 call mloexport3d(1,w_s,0)
 call mloexport3d(2,w_u,0)
 call mloexport3d(3,w_v,0)
-call mloexport(4,w_e,0,0)
-do ii = 1,4
-  call mloexpice(i_it(:,ii),ii,0)
-end do
-call mloexpice(nfracice,5,0)
-call mloexpice(ndic,6,0)
-call mloexpice(ndsn,7,0)
-call mloexpice(i_sto,8,0)
-call mloexpice(i_u,9,0)
-call mloexpice(i_v,10,0)
+call mloexport("eta",w_e,0,0)
+call mloexpice("tsurf",i_it(:,1),0)
+call mloexpice("temp0",i_it(:,2),0)
+call mloexpice("temp1",i_it(:,3),0)
+call mloexpice("temp2",i_it(:,4),0)
+call mloexpice("fracice",nfracice,0)
+call mloexpice("thick",ndic,0)
+call mloexpice("snowd",ndsn,0)
+call mloexpice("store",i_sto,0)
+call mloexpice("u",i_u,0)
+call mloexpice("v",i_v,0)
 where ( wtr(1:ifull,1) )
   fracice(1:ifull) = nfracice(1:ifull)  
   sicedep(1:ifull) = ndic(1:ifull)
@@ -425,7 +426,6 @@ if ( ktau==1 .and. .not.lrestart ) then
 end if
 
 
-call mlosalfix(ns)
 workdata = nt(1:ifull,:)
 workdata2 = ns(1:ifull,:)
 worku = nu(1:ifull,:)
@@ -692,7 +692,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlovadv(hdt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr,1)
 
   
-  call mlosalfix(ns)
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
   call mlocheck("first vertical advection",water_temp=workdata,water_sal=workdata2, &
@@ -756,7 +755,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   !$acc end data
 #endif
 
-  call mlosalfix(ns)
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
   call mlocheck("horizontal advection",water_temp=workdata,water_sal=workdata2, &
@@ -769,7 +767,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlovadv(hdt,nw,uau,uav,ns,nt,mps,depdum,dzdum,wtr,2)
 
 
-  call mlosalfix(ns)
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
   call mlocheck("second vertical advection",water_temp=workdata,water_sal=workdata2, &
@@ -1283,7 +1280,6 @@ do mspec_mlo = mspeca_mlo,1,-1
         end do  
       end select
       
-    call mlosalfix(ns)      
     workdata2 = ns(1:ifull,:)
     call mlocheck("conservation fix",water_sal=workdata2)
       
@@ -1302,7 +1298,6 @@ do mspec_mlo = mspeca_mlo,1,-1
 end do ! mspec_mlo
 
 
-call mlosalfix(ns)
 w_u = nu(1:ifull,:)
 w_v = nv(1:ifull,:)
 w_t = nt(1:ifull,:)
@@ -1312,7 +1307,6 @@ call mlocheck("end of mlodynamics",water_temp=w_t,water_sal=w_s,water_u=w_u,wate
 
 call mlodiffusion_work(w_u,w_v,w_t,w_s)
 
-call mlosalfix(w_s)
 call mlocheck("after diffusion",water_temp=w_t,water_sal=w_s,water_u=w_u,water_v=w_v)
 
 ! STORE WATER AND ICE DATA IN MLO ------------------------------------------
@@ -1325,15 +1319,16 @@ do ii = 1,wlev
   call mloimport("w",w_ocn(:,ii),ii,0)
 end do    
 call mloimport("eta",neta(1:ifull),0,0)
-do ii = 1,4
-  call mloimpice(nit(1:ifull,ii),ii,0)
-end do
-call mloimpice(nfracice(1:ifull),5,0)
-call mloimpice(ndic(1:ifull),6,0)
-call mloimpice(ndsn(1:ifull),7,0)
-call mloimpice(nsto(1:ifull),8,0)
-call mloimpice(niu(1:ifull),9,0)
-call mloimpice(niv(1:ifull),10,0)
+call mloimpice("tsurf",nit(1:ifull,1),0)
+call mloimpice("temp0",nit(1:ifull,2),0)
+call mloimpice("temp1",nit(1:ifull,3),0)
+call mloimpice("temp2",nit(1:ifull,4),0)
+call mloimpice("fracice",nfracice(1:ifull),0)
+call mloimpice("thick",ndic(1:ifull),0)
+call mloimpice("snowd",ndsn(1:ifull),0)
+call mloimpice("store",nsto(1:ifull),0)
+call mloimpice("u",niu(1:ifull),0)
+call mloimpice("v",niv(1:ifull),0)
 where ( wtr(1:ifull,1) )
   fracice = nfracice(1:ifull)
   sicedep = ndic(1:ifull)
@@ -1481,8 +1476,7 @@ call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
 #ifdef GPU
 !$omp end target data
 #else
-!$omp end sections
-!$omp end parallel
+!$omp end parallel sections
 #endif
 #else
 !$acc wait
@@ -2233,7 +2227,7 @@ real odum, tdum
 real(kind=8) dumd
 
 
-!$omp parallel do schedule(static) private(n,iq,dumd,odum,tdum)
+!$omp parallel do schedule(static) private(n,iq,dumd,dum_out,odum,tdum)
 do n = 1,ntr
   do iq = 1,ifull
     dumd=real(dumc(iq,n),8)

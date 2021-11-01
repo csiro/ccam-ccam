@@ -126,6 +126,7 @@ do k = 1,wlev
   call mloexport("w_ema",w_ema(:,k),k,0)
 end do
 call bounds(w_ema)
+!$omp parallel do schedule(static) private(k,iq)
 do k = 2,wlev-1
   do iq = 1,ifull  
     dwdx(iq) = 0.5*((w_ema(ie(iq),k)-w_ema(iq,k))*emu(iq)*eeu(iq,k) &
@@ -136,6 +137,7 @@ do k = 2,wlev-1
   call mloimport("dwdx",dwdx,k,0)  
   call mloimport("dwdy",dwdy,k,0)  
 end do
+!$omp end parallel do
 
 ! calculate diffusion following Smagorinsky
 call boundsuv(uau,uav,allvec=.true.)
@@ -164,6 +166,7 @@ if ( mlosigma>=0 .and. mlosigma<=3 ) then
     dep(1:ifull,k) = gosig(1:ifull,k)*dd(1:ifull) !+ gosig(1:ifull,k)*eta(1:ifull)
   end do  
   call bounds(dep,nehalf=.true.)
+  !$omp parallel do schedule(static) private(k,iq,tx_fact,ty_fact)
   do k = 1,wlev
     do iq = 1,ifull
       tx_fact = 1./(1.+(abs(dep(ie(iq),k)-dep(iq,k))/ocndelphi)**nf)
@@ -172,12 +175,15 @@ if ( mlosigma>=0 .and. mlosigma<=3 ) then
       yfact(iq,k) = 0.5*(t_kh(iq,k)+t_kh(in(iq),k))*ty_fact*eev(iq,k) ! reduction factor
     end do
   end do
+  !$omp end parallel do
 else
   ! z* levels
+  !$omp parallel do schedule(static) private(k)
   do k = 1,wlev
     xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(ie,k))*eeu(1:ifull,k)
     yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(in,k))*eev(1:ifull,k)
   end do
+  !$omp end parallel do
 end if
 call boundsuv(xfact,yfact,stag=-9)
 

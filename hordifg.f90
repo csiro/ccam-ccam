@@ -162,12 +162,14 @@ if ( nvmix==6 .or. nvmix==9 ) then
   call update_ema(vav,v_ema,dt)
   
   call bounds(w_ema)
+  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kl
     do iq = 1,ifull  
       dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
       dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
     end do
   end do
+  !$omp end parallel do
   if ( nhorx==1 ) then
     do k = 1,kl
       do iq = 1,ifull
@@ -205,7 +207,7 @@ if ( nvmix==6 .or. nvmix==9 ) then
   do k = 2,kl-1
     do iq = 1,ifull
       zgh_a(iq) = zgh_b(iq) ! lower half level
-      zgh_b(iq) = ratha(k)*zg(iq,k+1) + rathb(k)*zg(iq,k) ! upper half level
+      zgh_b(iq) = ratha(k)*zg(iq,k+1) + rathb(k)*zg(iq,k)     ! upper half level
       r1 = ratha(k-1)*u_ema(iq,k) + rathb(k-1)*u_ema(iq,k-1)
       r2 = ratha(k)*u_ema(iq,k+1) + rathb(k)*u_ema(iq,k)          
       dudz = (r2-r1)/(zgh_b(iq)-zgh_a(iq))

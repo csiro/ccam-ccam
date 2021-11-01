@@ -621,10 +621,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp master
   call START_LOG(cloud_begin)
   !$omp end master
-  if ( ldr/=0 ) then
-    ! LDR microphysics scheme
-    call leoncld
-  end if
+  call leoncld
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -642,7 +639,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp master
   call START_LOG(radnet_begin)
   !$omp end master
-  if ( ncloud>=4 ) then
+  if ( ncloud>=4 .and. ncloud<=13 ) then
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
@@ -650,7 +647,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       nettend(js:je,1:kl) = nettend(js:je,1:kl) + t(js:je,1:kl)/dt
     end do
     !$omp end do nowait
-  end if   ! (ncloud>=4)
+  end if   ! (ncloud>=4 .and. nclouod<=13)
   select case ( nrad )
     case(4)
       !$omp barrier  
@@ -757,7 +754,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( ntsur>=1 ) then
     call vertmix
   endif  ! (ntsur>=1)
-  if ( ncloud>=4 ) then
+  if ( ncloud>=4 .and. ncloud<=13 ) then
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
@@ -765,7 +762,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       nettend(js:je,1:kl) = nettend(js:je,1:kl) - t(js:je,1:kl)/dt
     end do
     !$omp end do nowait
-  end if   ! (ncloud>=4)
+  end if   ! (ncloud>=4 .and. ncloud<=13 )
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -3042,7 +3039,7 @@ call gdrag_init(ifull)
 call histave_init(ifull,kl,ms,ccycle,output_windmax)
 call kuocomb_init(ifull,kl)
 call liqwpar_init(ifull,iextra,kl)
-call morepbl_init(ifull,diaglevel_pbl)
+call morepbl_init(ifull,kl)
 call nharrs_init(ifull,iextra,kl)
 call nlin_init(ifull,kl)
 call nsibd_init(ifull,nsib,cable_climate)

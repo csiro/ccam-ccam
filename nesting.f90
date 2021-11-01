@@ -1939,7 +1939,7 @@ end do
 
 if ( nud_sfh/=0 ) then
   old = sfh
-  call mloexport(4,old,0,0)
+  call mloexport("eta",old,0,0)
   where ( wtr(:,1) )
     diffh_l(:,1) = sfh - old
   elsewhere
@@ -1958,7 +1958,7 @@ do kbb = ktopmlo,kc,kblock
     do k = kln,klx
       kb = k - kln + 1
       old = sstb(:,k)
-      call mloexport(0,old,k,0)
+      call mloexport("temp",old,k,0)
       where ( wtr(:,k) )
         diff_l(:,kb) = sstb(:,k) - old
       elsewhere
@@ -1971,7 +1971,7 @@ do kbb = ktopmlo,kc,kblock
     do k = kln,klx
       kb = k - kln + 1
       old = sssb(:,k)
-      call mloexport(1,old,k,0)
+      call mloexport("sal",old,k,0)
       where ( wtr(:,k) .and. old>minsal .and. sssb(:,k)>minsal )
         diffs_l(:,kb) = sssb(:,k) - old
       elsewhere
@@ -1984,14 +1984,14 @@ do kbb = ktopmlo,kc,kblock
     do k = kln,klx
       kb = k - kln + 1
       old = suvb(:,k,1)
-      call mloexport(2,old,k,0)
+      call mloexport("u",old,k,0)
       where ( wtr(:,k) )
         diffu_l(:,kb) = suvb(:,k,1) - old
       elsewhere
         diffu_l(:,kb) = 0.
       end where
       old = suvb(:,k,2)
-      call mloexport(3,old,k,0)
+      call mloexport("v",old,k,0)
       where ( wtr(:,k) )
         diffv_l(:,kb) = suvb(:,k,2) - old
       elsewhere
@@ -2026,16 +2026,16 @@ do kbb = ktopmlo,kc,kblock
       ka = min(wl, k)
       kb = k - kln + 1
       old = sstb(:,ka)
-      call mloexport(0,old,k,0)
+      call mloexport("temp",old,k,0)
       old = old + max( diff_l(:,kb)*nudgewgt, 275.16-wrtemp-old )
-      call mloimport(0,old,k,0)
+      call mloimport("temp",old,k,0)
     end do
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = sstb(:,ka)
-        call mloexport(0,old,k,0)
+        call mloexport("temp",old,k,0)
         old = old + max( diff_l(:,kb)*nudgewgt, 275.16-wrtemp-old )
-        call mloimport(0,old,k,0)
+        call mloimport("temp",old,k,0)
       end do
     end if
   end if
@@ -2045,22 +2045,22 @@ do kbb = ktopmlo,kc,kblock
       ka = min(wl, k)
       kb = k-kln+1
       old = sssb(:,ka)
-      call mloexport(1,old,k,0)
+      call mloexport("sal",old,k,0)
       where ( old>minsal )
         diffs_l(:,kb) = max( diffs_l(:,kb), (minsal-old)/nudgewgt )
         old = old + diffs_l(:,kb)*nudgewgt
       end where  
-      call mloimport(1,old,k,0)
+      call mloimport("sal",old,k,0)
     end do
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = sssb(:,ka)
-        call mloexport(1,old,k,0)
+        call mloexport("sal",old,k,0)
         where ( old>minsal )
           diffs_l(:,kb) = max( diffs_l(:,kb), (minsal-old)/nudgewgt )  
           old = old + diffs_l(:,kb)*nudgewgt ! kb saved from above loop
         end where  
-        call mloimport(1,old,k,0)
+        call mloimport("sal",old,k,0)
       end do
     end if
   end if
@@ -2070,9 +2070,9 @@ do kbb = ktopmlo,kc,kblock
       ka = min(wl, k)
       kb = k - kln + 1
       old = suvb(:,ka,1)
-      call mloexport(2,old,k,0)
+      call mloexport("u",old,k,0)
       old = old + diffu_l(:,kb)*nudgewgt
-      call mloimport(2,old,k,0)
+      call mloimport("u",old,k,0)
       if ( allocated(oldu1) ) then
         oldu1(:,k) = oldu1(:,k) + diffu_l(:,kb)*nudgewgt
         oldu2(:,k) = oldu2(:,k) + diffu_l(:,kb)*nudgewgt
@@ -2081,9 +2081,9 @@ do kbb = ktopmlo,kc,kblock
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = suvb(:,ka,1)
-        call mloexport(2,old,k,0)
+        call mloexport("u",old,k,0)
         old = old + diffu_l(:,kb)*nudgewgt ! kb saved from above loop
-        call mloimport(2,old,k,0)
+        call mloimport("u",old,k,0)
         if ( allocated(oldu1) ) then
           oldu1(:,k) = oldu1(:,k) + diffu_l(:,kb)*nudgewgt
           oldu2(:,k) = oldu2(:,k) + diffu_l(:,kb)*nudgewgt
@@ -2094,9 +2094,9 @@ do kbb = ktopmlo,kc,kblock
       ka = min(wl, k)
       kb = k - kln + 1
       old = suvb(:,ka,2)
-      call mloexport(3,old,k,0)
+      call mloexport("v",old,k,0)
       old = old + diffv_l(:,kb)*nudgewgt
-      call mloimport(3,old,k,0)
+      call mloimport("v",old,k,0)
       if ( allocated(oldv1) ) then
         oldv1(:,k) = oldv1(:,k) + diffv_l(:,kb)*nudgewgt
         oldv2(:,k) = oldv2(:,k) + diffv_l(:,kb)*nudgewgt
@@ -2105,9 +2105,9 @@ do kbb = ktopmlo,kc,kblock
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = suvb(:,ka,2)
-        call mloexport(3,old,k,0)
+        call mloexport("v",old,k,0)
         old = old + diffv_l(:,kb)*nudgewgt
-        call mloimport(3,old,k,0)
+        call mloimport("v",old,k,0)
         if ( allocated(oldv1) ) then
           oldv1(:,k) = oldv1(:,k) + diffv_l(:,kb)*nudgewgt
           oldv2(:,k) = oldv2(:,k) + diffv_l(:,kb)*nudgewgt
@@ -2120,9 +2120,9 @@ end do
      
 if ( nud_sfh/=0 ) then
   old = sfh
-  call mloexport(4,old,0,0)
+  call mloexport("eta",old,0,0)
   old = old + diffh_l(:,1)*nudgewgt
-  call mloimport(4,old,0,0)
+  call mloimport("eta",old,0,0)
 end if
 
 return
@@ -3055,9 +3055,9 @@ if (nud_sst/=0) then
   do k=ktopmlo,kbotmlo
     ka=min(k,wl)
     old=new(:,ka)
-    call mloexport(0,old,k,0)
+    call mloexport("temp",old,k,0)
     old=old*(1.-wgt)+max(new(:,ka),275.16-wrtemp)*wgt
-    call mloimport(0,old,k,0)
+    call mloimport("temp",old,k,0)
   end do
 end if
       
@@ -3065,32 +3065,35 @@ if (nud_sss/=0) then
   do k=ktopmlo,kbotmlo
     ka=min(k,wl)
     old=sssb(:,ka)
-    call mloexport(1,old,k,0)
+    call mloexport("sal",old,k,0)
     where ( old>minsal .and. sssb(:,ka)>minsal )
       old=old*(1.-wgt)+sssb(:,ka)*wgt
       old=max(old,0.)
     end where  
-    call mloimport(1,old,k,0)
+    call mloimport("sal",old,k,0)
   end do
 end if
       
 if (nud_ouv/=0) then
-  do i=2,3
-    do k=ktopmlo,kbotmlo
-      ka=min(k,wl)
-      old=suvb(:,ka,i-1)
-      call mloexport(i,old,k,0)
-      old=old*(1.-wgt)+suvb(:,ka,i-1)*wgt
-      call mloimport(i,old,k,0)
-    end do
+  do k=ktopmlo,kbotmlo
+    ka=min(k,wl)
+    old=suvb(:,ka,1)
+    call mloexport("u",old,k,0)
+    old=old*(1.-wgt)+suvb(:,ka,1)*wgt
+    call mloimport("u",old,k,0)
+    ka=min(k,wl)
+    old=suvb(:,ka,2)
+    call mloexport("v",old,k,0)
+    old=old*(1.-wgt)+suvb(:,ka,2)*wgt
+    call mloimport("v",old,k,0) 
   end do
 end if
 
 if (nud_sfh/=0) then
   old=sfh
-  call mloexport(4,old,0,0)
+  call mloexport("eta",old,0,0)
   old=old*(1.-wgt)+sfh*wgt
-  call mloimport(4,old,0,0)
+  call mloimport("eta",old,0,0)
 end if
       
 return

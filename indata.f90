@@ -2174,20 +2174,20 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
     snowd(1:ifull) = micdwn(1:ifull,7)*1000.
   end where   
   call mloload(mlodwn,ocndwn(:,2),micdwn,0)
-  call mloimport(5,ocndwn(:,3),0,0)
-  call mloimport(6,ocndwn(:,4),0,0)
-  call mloimport(7,ocndwn(:,5),0,0)
-  call mloimport(8,ocndwn(:,6),0,0)
+  call mloimport("utop",ocndwn(:,3),0,0)
+  call mloimport("vtop",ocndwn(:,4),0,0)
+  call mloimport("ubot",ocndwn(:,5),0,0)
+  call mloimport("vbot",ocndwn(:,6),0,0)
   deallocate(micdwn)
   do k = 1,ms
-    call mloexport(0,tgg(:,k),k,0)
+    call mloexport("temp",tgg(:,k),k,0)
     where ( tgg(:,k)<100. )
       tgg(:,k) = tgg(:,k) + wrtemp
     end where    
   end do
-  do k = 1,3
-    call mloexpice(tggsn(:,k),k,0)
-  end do
+  call mloexpice("tsurf",tggsn(:,1),0)
+  call mloexpice("temp0",tggsn(:,2),0)
+  call mloexpice("temp1",tggsn(:,3),0)
   ! time averaging for turbulent mixing
   if ( .not.lrestart ) then
     if ( myid==0 ) then

@@ -657,7 +657,7 @@ do spinup = spinup_start,1,-1
     rgn_ave_before = rgn_ave
 
     ! RADIATON
-    if ( ncloud>=4 ) then
+    if ( ncloud>=4 .and. ncloud<=13 ) then
       nettend(1:ifull,1:kl) = nettend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
     end if  
     select case ( nrad )
@@ -1692,14 +1692,14 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   call mloload(mlodwn,ocndwn(:,2),micdwn,0)
   deallocate( micdwn )
   do k = 1,ms
-    call mloexport(0,tgg(:,k),k,0)
+    call mloexport("temp",tgg(:,k),k,0)
     where ( tgg(:,k)<100. )
       tgg(:,k) = tgg(:,k) + wrtemp
     end where    
   end do
-  do k = 1,3
-    call mloexpice(tggsn(:,k),k,0)
-  end do 
+  call mloexpice("tsurf",tggsn(:,1),0)
+  call mloexpice("temp0",tggsn(:,2),0)
+  call mloexpice("temp1",tggsn(:,3),0)
 end if  
 
 !-----------------------------------------------------------------
@@ -2061,7 +2061,7 @@ if ( scm_mode=="sublime" ) then
     if ( ldr/=0 ) then
       call vertadv(qlg,wadv,height_model,dz_model)
       call vertadv(qfg,wadv,height_model,dz_model)
-      if ( ncloud>=4 ) then
+      if ( (ncloud>=4.and.ncloud<=13) .or. ncloud==20 .or. ncloud==22 ) then
         call vertadv(stratcloud,wadv,height_model,dz_model)  
       end if
     end if
@@ -2266,7 +2266,7 @@ elseif ( scm_mode=="CCAM" ) then
     if ( ldr/=0 ) then
       call vertadv(qlg,wadv,height_model,dz_model)
       call vertadv(qfg,wadv,height_model,dz_model)
-      if ( ncloud>=4 ) then
+      if ( (ncloud>=4.and.ncloud<=13) .or. ncloud==20 .or. ncloud==22 ) then
         call vertadv(stratcloud,wadv,height_model,dz_model)  
       end if
     end if
@@ -3992,7 +3992,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
       tmp(:)=wtflux(1,:)
       call vout(tmp,aa(1),zh,3.3,kl-1)
       call ccnf_put_vara(timencid,'wt_3m',iarch,aa(1))
-      tmp(:)=tkesave(1,:)
+      tmp(:)=tke(1,:)
       call vout(tmp,aa(1),zh,3.3,kl-1)
       call ccnf_put_vara(timencid,'TKE_3m',iarch,aa(1))
       tmp(:)=uw_flux(1,:)
@@ -4004,7 +4004,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
       tmp(:)=wtflux(1,:)
       call vout(tmp,aa(1),zh,7.03,kl-1)
       call ccnf_put_vara(timencid,'wt_7m',iarch,aa(1))
-      tmp(:)=tkesave(1,:)
+      tmp(:)=tke(1,:)
       call vout(tmp,aa(1),zh,7.03,kl-1)
       call ccnf_put_vara(timencid,'TKE_7m',iarch,aa(1))
       tmp(:)=uw_flux(1,:)
@@ -4016,7 +4016,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
       tmp(:)=wtflux(1,:)
       call vout(tmp,aa(1),zh,15.43,kl-1)
       call ccnf_put_vara(timencid,'wt_15m',iarch,aa(1))
-      tmp(:)=tkesave(1,:)
+      tmp(:)=tke(1,:)
       call vout(tmp,aa(1),zh,15.43,kl-1)
       call ccnf_put_vara(timencid,'TKE_15m',iarch,aa(1))
       tmp(:)=uw_flux(1,:)
@@ -4028,7 +4028,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
       tmp(:)=wtflux(1,:)
       call vout(tmp,aa(1),zh,22.79,kl-1)
       call ccnf_put_vara(timencid,'wt_23m',iarch,aa(1))
-      tmp(:)=tkesave(1,:)
+      tmp(:)=tke(1,:)
       call vout(tmp,aa(1),zh,22.79,kl-1)
       call ccnf_put_vara(timencid,'TKE_23m',iarch,aa(1))
       tmp(:)=uw_flux(1,:)
@@ -4040,7 +4040,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
       tmp(:)=wtflux(1,:)
       call vout(tmp,aa(1),zh,30.15,kl-1)
       call ccnf_put_vara(timencid,'wt_30m',iarch,aa(1))
-      tmp(:)=tkesave(1,:)
+      tmp(:)=tke(1,:)
       call vout(tmp,aa(1),zh,30.15,kl-1)
       call ccnf_put_vara(timencid,'TKE_30m',iarch,aa(1))
       tmp(:)=uw_flux(1,:)
@@ -4052,7 +4052,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
       tmp(:)=wtflux(1,:)
       call vout(tmp,aa(1),zh,37.51,kl-1)
       call ccnf_put_vara(timencid,'wt_38m',iarch,aa(1))
-      tmp(:)=tkesave(1,:)
+      tmp(:)=tke(1,:)
       call vout(tmp,aa(1),zh,37.51,kl-1)
       call ccnf_put_vara(timencid,'TKE_38m',iarch,aa(1))
     else
@@ -4239,7 +4239,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
     bb(1,:) = lw_tend(1,1:kl)
     call ccnf_put_vara(profilencid,'dT_dt_lwrad',spos(1:2),npos(1:2),bb)
   end if    
-  bb(1,:) = tkesave(1,1:kl)
+  bb(1,:) = tke(1,1:kl)
   call ccnf_put_vara(profilencid,'TKE',spos(1:2),npos(1:2),bb)
   bb(1,:) = shearproduction(1,1:kl)
   call ccnf_put_vara(profilencid,'shear',spos(1:2),npos(1:2),bb)
@@ -4247,7 +4247,7 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
   call ccnf_put_vara(profilencid,'buoy',spos(1:2),npos(1:2),bb)
   bb(1,:) = totaltransport(1,1:kl)
   call ccnf_put_vara(profilencid,'trans',spos(1:2),npos(1:2),bb)
-  bb(1,:) = epssave(1,1:kl)
+  bb(1,:) = eps(1,1:kl)
   call ccnf_put_vara(profilencid,'dissi',spos(1:2),npos(1:2),bb)
   npos(1) = kl+1
   if ( scm_mode=="gabls4" ) then
@@ -4774,21 +4774,21 @@ call histrd(iarchi,ier,'tgg6',tgg(:,6),ifull)
 
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   call histrd(iarchi,ier,'ocheight',ocndwn,ifull)  
-  call mloimport(4,ocndwn,0,0)
+  call mloimport("eta",ocndwn,0,0)
   call histrd(iarchi,ier,'tggsn1',tggsn(:,1),ifull)
   call histrd(iarchi,ier,'tggsn2',tggsn(:,2),ifull)
   call histrd(iarchi,ier,'tggsn3',tggsn(:,3),ifull)
   call histrd(iarchi,ier,'tggsn4',ocndwn,ifull)
-  call mloimpice(tggsn(:,1),1,0)
-  call mloimpice(tggsn(:,2),2,0)
-  call mloimpice(tggsn(:,3),3,0)
-  call mloimpice(ocndwn,4,0)
+  call mloimpice("tsurf",tggsn(:,1),0)
+  call mloimpice("temp0",tggsn(:,2),0)
+  call mloimpice("temp1",tggsn(:,3),0)
+  call mloimpice("temp2",ocndwn,0)
   call histrd(iarchi,ier,'sto',ocndwn,ifull)
-  call mloimpice(ocndwn,8,0)
+  call mloimpice("store",ocndwn,0)
   call histrd(iarchi,ier,'uic',ocndwn,ifull)
-  call mloimpice(ocndwn,9,0)
+  call mloimpice("u",ocndwn,0)
   call histrd(iarchi,ier,'vic',ocndwn,ifull)
-  call mloimpice(ocndwn,10,0)
+  call mloimpice("v",ocndwn,0)
 end if
 
 call histrd(iarchi,ier,'wb1',wb(:,1),ifull)
@@ -4802,10 +4802,10 @@ call histrd(iarchi,ier,'siced',sicedep,ifull)
 call histrd(iarchi,ier,'fracice',fracice,ifull)
 
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  call mloimpice(fracice,5,0)
-  call mloimpice(sicedep,6,0)
+  call mloimpice("fracice",fracice,0)
+  call mloimpice("thick",sicedep,0)
   ocndwn = snowd*1.e-3
-  call mloimpice(ocndwn,7,0)
+  call mloimpice("snowd",ocndwn,0)
 end if
 
 call histrd(iarchi,ier,'pblh',pblh,ifull)

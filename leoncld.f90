@@ -36,6 +36,9 @@
 ! ncloud = 10   Same as ncloud=0 with Tiedtke from GFDL-CM3
 ! ncloud = 12   Same as ncloud=2 with Tiedtke from GFDL-CM3
 ! ncloud = 13   Same as ncloud=3 with Tiedtke from GFDL-CM3 (i.e., same as ncloud=4)
+! ncloud = 20   Same as ncloud=3 with MG cloud
+! ncloud = 21   Same as ncloud=3 with 2nd moment condensate
+! ncloud = 22   Same as ncloud=3 with MG cloud and 2nd momement condensate
    
 !                            Water vapour (qg)
 !
@@ -247,6 +250,8 @@ subroutine leoncld_work(cfrac,condg,conds,condx,gfrac,kbsav,ktsav,land,         
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
+use mgcloud_m , only : mg_progcld, mg_2cond
+                                  ! MG cloud microphysics            
 use parm_m, only : iaero, nmaxpr, dt
                                   ! Model configuration
 use sigs_m                        ! Atmosphere sigma levels
@@ -412,11 +417,15 @@ endif
 
 
 !     Calculate cloud fraction and cloud water mixing ratios
-call newcloud(dt,land,prf,rhoa,tenv,qenv,qlg,qfg,       &
-              dpsldt,nettend,stratcloud,em,pblh,idjd,   &
-              mydiag,ncloud,nclddia,rcrit_l,rcrit_s,    &
-              cld_decay,vdeposition_mode,tiedtke_form,  &
-              imax,kl)
+if ( ncloud==20 .or. ncloud==22 ) then
+  call mg_progcld
+else
+  call newcloud(dt,land,prf,rhoa,tenv,qenv,qlg,qfg,       &
+                dpsldt,nettend,stratcloud,em,pblh,idjd,   &
+                mydiag,ncloud,nclddia,rcrit_l,rcrit_s,    &
+                cld_decay,vdeposition_mode,tiedtke_form,  &
+                imax,kl)
+end if
 
 
 ! Vertically sub-grid cloud
@@ -498,11 +507,15 @@ end do
 
 
 !     Calculate precipitation and related processes
-call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                    &
-                 precs,qg,stratcloud,rfrac,sfrac,gfrac,preci,precg,qevap,qsubl,   &
-                 qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,           &
-                 fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,              &
-                 condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
+if ( ncloud==21 .or. ncloud==22 ) then
+  call mg_2cond
+else
+  call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                    &
+                   precs,qg,stratcloud,rfrac,sfrac,gfrac,preci,precg,qevap,qsubl,   &
+                   qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,           &
+                   fluxf,pfstayice,pfstayliq,pqfsedice,pslopes,prscav,              &
+                   condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
+end if
 
 
 #ifdef debug
@@ -782,33 +795,6 @@ end if
 
 
 ! Precompute the array of critical relative humidities 
-!if ( nclddia==-4 ) then
-!  ! Van Weverberg K, Boutle I, Morcrette C and Newsom R
-!  ! Towards retriving critical relative humidity from ground-based remote-sensing observations
-!  ! Q J R Meteorolo Soc 142 2867-2881 DOI: 10.1002/qj.2874  
-!    k = 1
-!    
-!    do k = 2,kl-1
-!      pk(:) = 100.*prf(:,k)
-!      qsi(:) = qsati(pk,tliq(:,k),imax)      !Ice value
-!      deles(:) = esdiffx(tliq(:,k),imax)     ! MJT suggestion
-!      qsl(:) = qsi(:) + epsil*deles(:)/pk(:) !qs over liquid
-!      do iq = 1,imax
-!        hlrvap = (hl+fice(iq,k)*hlf)/rvap
-!        qs = fice(iq,k)*qsi(iq) + (1.-fice(iq,k))*qsl(iq) !Weighted qs at temperature Tliq
-!        dqsdt = qs*hlrvap/tliq(iq,k)**2
-!        al = 1./(1.+(hlcp+fice(iq,k)*hlfcp)*dqsdt)  !Smith's notation
-!        bl = al*temp(iq,k)/theta(iq,k)*dqsdt
-!        thetal_dash =
-!        qt_dash = 
-!        sigmas_sq = al**2*qt_dash**2 - 2.*al*bl*qt_dash*thetal_dash + bl**2*thetal_dash**2  
-!        rcrit(iq,k) = 1. - sqrt(6.*sigmas_sq)/(al*qs)
-!      end do    
-!    end do    
-!    
-!    k = kl
-!    
-!else
 if ( nclddia==-3 ) then
   do k = 1,kl
     where ( land(:) )

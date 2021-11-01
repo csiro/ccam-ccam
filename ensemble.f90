@@ -282,12 +282,12 @@ if ( namip==0 ) then  ! namip SSTs/sea-ice take precedence
     timelt = min(timelt,271.2)
     new = (cona*tssa + conb*tssb)*(1.-fraciceb(:)) + timelt*fraciceb(:) - wrtemp
     wgt = dt/real(nud_hrs*3600)
-    call mloexport(0,old,1,0)
+    call mloexport("temp",old,1,0)
     delta = new - old
     do k = 1,wlev
-      call mloexport(0,old,k,0)
+      call mloexport("temp",old,k,0)
       old = wgt*delta + old
-      call mloimport(0,old,k,0)
+      call mloimport("temp",old,k,0)
     end do  
   end if ! (nmlo==0) ..else..
 end if   ! (namip==0)

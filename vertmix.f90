@@ -132,7 +132,7 @@ use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m                       ! Grid parameters
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays
 use nsibd_m                         ! Land-surface arrays
-use parm_m, only : idjd, nmlo, iaero, nvmix, ktau
+use parm_m, only : idjd, nmlo, iaero, nvmix, ktau, dt
                                     ! Model configuration
 use pbl_m                           ! Boundary layer arrays
 use savuvt_m                        ! Saved dynamic arrays
@@ -152,22 +152,21 @@ implicit none
 
 include 'kuocom.h'                  ! Convection parameters
 
-integer :: is, ie, tile, k
+integer :: is, ie, tile, k, iq, nt
 integer :: idjd_t
-real, dimension(imax,kl,naero) :: lxtg
-real, dimension(ifull,kl) :: at_save, ct_save
+real, dimension(imax,kl) :: lxtg
 real, dimension(imax,kl) :: lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lcfrac, lu, lv, lstratcloud
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
 real, dimension(imax,kl) :: lat, lct
 real, dimension(imax,kl) :: lthetal_ema, lqv_ema, lql_ema, lqf_ema, lcf_ema
 real, dimension(imax,kl) :: ltke_ema
+real, dimension(imax,kl) :: lrkmsave, lrkhsave
 real, dimension(ifull) :: uadj, vadj
 real, dimension(imax) :: lou, lov, liu, liv, lrho
 logical :: mydiag_t
 #ifdef scm
 real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
-real, dimension(imax,kl) :: ltkesave, lepssave, lrkmsave, lrkhsave
 real, dimension(imax,kl) :: lbuoyproduction, lshearproduction, ltotaltransport
 real, dimension(imax,kl-1) :: lmfsave
 #else
@@ -175,6 +174,7 @@ real, dimension(imax,numtracer) :: lco2em
 real, dimension(imax,kl,ntrac) :: ltr
 real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 #endif
+real tmnht, dz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 
 if ( nmlo/=0 .and. nvmix/=9 ) then
   !$omp do schedule(static) private(is,ie,k),             &
@@ -186,10 +186,10 @@ if ( nmlo/=0 .and. nvmix/=9 ) then
     lov = 0.
     liu = 0.
     liv = 0.
-    call mloexport(2,lou,1,0,water_g(tile),wpack_g(:,tile),wfull_g(tile))
-    call mloexport(3,lov,1,0,water_g(tile),wpack_g(:,tile),wfull_g(tile))
-    call mloexpice(liu, 9,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
-    call mloexpice(liv,10,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
+    call mloexport("u",lou,1,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+    call mloexport("v",lov,1,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+    call mloexpice("u",liu,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
+    call mloexpice("v",liv,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
     uadj(is:ie) = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
     vadj(is:ie) = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
   end do
@@ -206,13 +206,14 @@ else
 end if
 
 select case(nvmix)
-  case(6,9)  
+case(6,9)  
     ! k-e + MF closure scheme
     
     !$omp do schedule(static) private(is,ie,k),             &
     !$omp private(lt,lqg,lqfg,lqlg),                        &
-    !$omp private(lstratcloud,lxtg,lu,lv,ltke,leps,lshear), &
-    !$omp private(lat,lct,lsavu,lsavv,idjd_t,mydiag_t)
+    !$omp private(lstratcloud,lu,lv,ltke,leps,lshear),      &
+    !$omp private(lrkmsave,lrkhsave,lsavu,lsavv),           &
+    !$omp private(idjd_t,mydiag_t)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -225,9 +226,6 @@ select case(nvmix)
       lqfg = qfg(is:ie,:)
       lqlg = qlg(is:ie,:)
       lstratcloud = stratcloud(is:ie,:)
-      if ( abs(iaero)>=2 ) then
-        lxtg = xtg(is:ie,:,:)
-      end if
       ltke   = tke(is:ie,:)
       leps   = eps(is:ie,:)
       lshear = shear(is:ie,:)
@@ -243,13 +241,13 @@ select case(nvmix)
       lcf_ema     = cf_ema(is:ie,:)
       ltke_ema    = tke_ema(is:ie,:)
     
-      call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                                      &
-                       ps(is:ie),lqg,lqfg,lqlg,lstratcloud,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),           &
-                       ustar(is:ie),ltke,leps,lshear,lat,lct,land(is:ie),lthetal_ema,lqv_ema,lql_ema,    &
-                       lqf_ema,lcf_ema,ltke_ema,                                                         &
+      call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                           &
+                       ps(is:ie),lqg,lqfg,lqlg,lstratcloud,cduv(is:ie),lu,lv,pblh(is:ie),     &
+                       ustar(is:ie),ltke,leps,lshear,land(is:ie),lthetal_ema,lqv_ema,lql_ema, &
+                       lqf_ema,lcf_ema,ltke_ema,lrkmsave,lrkhsave,                            &
 #ifdef scm
-                       lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,ltkesave,lepssave,lrkmsave,lrkhsave, &
-                       lbuoyproduction,lshearproduction,ltotaltransport,                                 &
+                       lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,                          &
+                       lbuoyproduction,lshearproduction,ltotaltransport,                      &
 #endif
                        imax,kl,naero,tile)      
                        
@@ -258,13 +256,8 @@ select case(nvmix)
       qfg(is:ie,:)        = lqfg
       qlg(is:ie,:)        = lqlg
       stratcloud(is:ie,:) = lstratcloud
-      at_save(is:ie,:)    = lat
-      ct_save(is:ie,:)    = lct
-      if ( abs(iaero)>=2 ) then
-        xtg(is:ie,:,:) = lxtg
-      end if
-      tke(is:ie,:) = ltke
-      eps(is:ie,:) = leps
+      tke(is:ie,:)        = ltke
+      eps(is:ie,:)        = leps
       do k = 1,kl  
         u(is:ie,k) = lu(:,k) + uadj(is:ie)
         v(is:ie,k) = lv(:,k) + vadj(is:ie)
@@ -275,15 +268,13 @@ select case(nvmix)
       qf_ema(is:ie,:)     = lqf_ema
       cf_ema(is:ie,:)     = lcf_ema
       tke_ema(is:ie,:)    = ltke_ema
+      rkmsave(is:ie,:)    = lrkmsave
+      rkhsave(is:ie,:)    = lrkhsave  
 #ifdef scm
 #ifdef _OPENMP
       write(6,*) "ERROR: scm requires OMP is disabled"
       stop
 #endif
-      rkmsave(is:ie,:) = lrkmsave
-      rkhsave(is:ie,:) = lrkhsave  
-      tkesave(is:ie,:) = ltkesave
-      epssave(is:ie,:) = lepssave
       wth_flux(is:ie,:) = lwth_flux 
       wq_flux(is:ie,:) = lwq_flux 
       uw_flux(is:ie,:) = luw_flux 
@@ -312,12 +303,12 @@ select case(nvmix)
     end if
     
   case default  
-      ! JLM's local Ri scheme
+    ! JLM's local Ri scheme
     
-!$omp do schedule(static) private(is,ie,k),               &
-!$omp private(lt,lqg,lqfg,lqlg),                          &
-!$omp private(lcfrac,lstratcloud,lxtg,lu,lv,lsavu,lsavv), &
-!$omp private(lat,lct,idjd_t,mydiag_t)
+    !$omp do schedule(static) private(is,ie,k),               &
+    !$omp private(lt,lqg,lqfg,lqlg),                          &
+    !$omp private(lcfrac,lstratcloud,lu,lv,lsavu,lsavv),      &
+    !$omp private(lrkmsave,lrkhsave,idjd_t,mydiag_t)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -331,9 +322,6 @@ select case(nvmix)
       lqlg = qlg(is:ie,:)
       lcfrac = cfrac(is:ie,:)
       lstratcloud = stratcloud(is:ie,:)
-      if ( abs(iaero)>=2 ) then
-        lxtg = xtg(is:ie,:,:)
-      end if
       ! Adjustment for moving ocean surface
       do k = 1,kl
         lu(:,k) = u(is:ie,k) - uadj(is:ie)
@@ -342,14 +330,14 @@ select case(nvmix)
         lsavv(:,k) = savv(is:ie,k) - vadj(is:ie)
       end do  
     
-      call vertmix_work(lt,tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),               &
-                        ps(is:ie),lqg,lqfg,lqlg,lstratcloud,                                                       &
-                        condc(is:ie),lcfrac,lxtg,cduv(is:ie),lu,lv,pblh(is:ie),lsavu,lsavv,land(is:ie),            &
-                        tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),                   &
-                        lat,lct,                                                                                   &
+      call vertmix_work(lt,tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),  &
+                        ps(is:ie),lqg,lqfg,lqlg,lstratcloud,                                          &
+                        condc(is:ie),lcfrac,cduv(is:ie),lu,lv,pblh(is:ie),lsavu,lsavv,land(is:ie),    &
+                        tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),      &
+                        lrkmsave,lrkhsave,                                                            &
 #ifdef scm
-                        lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,lrkmsave,lrkhsave,                            &
-                        lbuoyproduction,lshearproduction,ltotaltransport,                                          &
+                        lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,                                 &
+                        lbuoyproduction,lshearproduction,ltotaltransport,                             &
 #endif
                         idjd_t,mydiag_t)
                         
@@ -359,11 +347,8 @@ select case(nvmix)
       qlg(is:ie,:)        = lqlg
       cfrac(is:ie,:)      = lcfrac
       stratcloud(is:ie,:) = lstratcloud
-      at_save(is:ie,:)    = lat
-      ct_save(is:ie,:)    = lct
-      if ( abs(iaero)>=2 ) then
-        xtg(is:ie,:,:) = lxtg
-      end if
+      rkmsave(is:ie,:)    = lrkmsave
+      rkhsave(is:ie,:)    = lrkhsave  
       do k = 1,kl  
         u(is:ie,k) = lu(:,k) + uadj(is:ie)
         v(is:ie,k) = lv(:,k) + vadj(is:ie)
@@ -373,8 +358,6 @@ select case(nvmix)
       write(6,*) "ERROR: scm requires OMP is disabled"
       stop
 #endif
-      rkmsave(is:ie,:) = lrkmsave
-      rkhsave(is:ie,:) = lrkhsave  
       wth_flux(is:ie,:) = lwth_flux 
       wq_flux(is:ie,:) = lwq_flux 
       uw_flux(is:ie,:) = luw_flux 
@@ -386,37 +369,76 @@ select case(nvmix)
 #endif
 
     end do ! tile = 1,ntiles
-!$omp end do nowait
+    !$omp end do nowait
 
 end select
-    
+
+!$omp do schedule(static) private(is,ie,k),   &
+!$omp private(lt,lat,lct,idjd_t,mydiag_t),    &
+!$omp private(ltr,lco2em,loh,lstrloss,ljmcf), &
+!$omp private(lxtg,lrkmsave)
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  idjd_t = mod(idjd-1,imax)+1
+  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+
+  lt       = t(is:ie,:)
+  lrkmsave = rkmsave(is:ie,:)
+  
+  ! tracers
+  rong = rdry/grav
+  lat(:,1) = 0.
+  lct(:,kl) = 0.
+  rlogs1=log(sig(1))
+  rlogs2=log(sig(2))
+  rlogh1=log(sigmh(2))
+  rlog12=1./(rlogs1-rlogs2)
+  do iq = 1,imax
+    tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+    dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
+    gt = lrkmsave(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
+    lat(iq,2) = -gt/dsig(2)  
+    lct(iq,1) = -gt/dsig(1)
+  end do
+  do k = 2,kl-1
+    do iq = 1,imax
+      ! Calculate half level heights and temperatures
+      ! n.b. an approximate zh (in m) is quite adequate for this routine
+      tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
+      dz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+      gt = lrkmsave(iq,k)*dt*(sig(k+1)-sig(k))/(dz**2)
+      lat(iq,k+1) = -gt/dsig(k+1)  
+      lct(iq,k) = -gt/dsig(k)
+    end do
+  end do
+  
+  ! Aerosols
+  if ( abs(iaero)>=2 ) then
+    do nt = 1,naero
+      lxtg = xtg(is:ie,:,nt)    
+      call trim(lat,lct,lxtg,imax,kl)
+      xtg(is:ie,:,nt) = lxtg
+    end do
+  end if ! (abs(iaero)>=2)    
 
 #ifndef scm
-if ( ngas>0 ) then 
-!$omp do schedule(static) private(is,ie,k),  &
-!$omp private(lt,lat,lct,idjd_t,mydiag_t),   &
-!$omp private(ltr,lco2em,loh,lstrloss,ljmcf)
-  do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
-    idjd_t = mod(idjd-1,imax)+1
-    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+  if ( ngas>0 ) then 
     ltr      = tr(is:ie,:,:)
     lco2em   = co2em(is:ie,:)
     loh      = oh(is:ie,:)
     lstrloss = strloss(is:ie,:)
     ljmcf    = jmcf(is:ie,:)
-    lat      = at_save(is:ie,:)
-    lct      = ct_save(is:ie,:)
     lt       = t(is:ie,:)
     ! Tracers
     call tracervmix(lat,lct,lt,ps(is:ie),cdtq(is:ie),ltr,fnee(is:ie),fpn(is:ie),             &
                     frp(is:ie),frs(is:ie),lco2em,loh,lstrloss,ljmcf,mcfdep(is:ie),tile,imax)
     tr(is:ie,:,:) = ltr
-  end do ! tile = 1,ntiles
-!$omp end do nowait
-end if 
+  end if
 #endif
+  
+end do ! tile = 1,ntiles
+!$omp end do nowait
    
 return
 end subroutine vertmix
@@ -424,10 +446,10 @@ end subroutine vertmix
 !--------------------------------------------------------------
 ! Control subroutine for vertical mixing
 subroutine vertmix_work(t,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,stratcloud,condc,cfrac, &
-                        xtg,cduv,u,v,pblh,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,        &
-                        at,ct,                                                                 &
+                        cduv,u,v,pblh,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,            &
+                        rkmsave,rkhsave,                                                       &
 #ifdef scm
-                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,rkmsave,rkhsave,               &
+                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,                               &
                         buoyproduction,shearproduction,totaltransport,                         &
 #endif
                         idjd,mydiag)
@@ -462,14 +484,14 @@ real, parameter :: vkar4=0.4                 ! coefficients for Louis scheme
 real, parameter :: bprmj=5.                  ! coefficients for Louis scheme
 real, parameter :: cmj=5.                    ! coefficients for Louis scheme
 real, parameter :: chj=2.6                   ! coefficients for Louis scheme
-real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v, cfrac
-real, dimension(imax,kl), intent(out) :: at, ct
 real, dimension(imax,kl), intent(in) :: savu, savv
+real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax), intent(inout) :: pblh, ustar
 real, dimension(imax), intent(in) :: tss, eg, fg, convpsav, ps, condc
 real, dimension(imax), intent(in) :: cduv, tscrn, qgscrn, f, condx, zs
+real, dimension(imax,kl) :: at, ct
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, guv, gt
 real, dimension(imax,kl) :: au, cu
@@ -478,7 +500,7 @@ real, dimension(imax,kl) :: rkm, rkh
 real, dimension(imax,kl) :: qs, betatt, betaqt, delthet, ri, rk_shal, thee
 real, dimension(imax,kl) :: thebas
 real, dimension(imax,kl-1) :: tmnht
-real, dimension(imax) :: dz, dzr
+real, dimension(imax) :: dz, dzr, zg
 real, dimension(imax) :: zhv, dvmod, dqtot, x, csq, sqmxl, fm, fh, theeb
 real, dimension(imax) :: sigsp
 real, dimension(kl) :: sighkap,sigkap,delons,delh
@@ -493,7 +515,6 @@ logical, dimension(imax), intent(in) :: land
 #ifdef scm
 real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
 real, dimension(imax,kl), intent(inout) :: vw_flux
-real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax,kl), intent(inout) :: buoyproduction, shearproduction
 real, dimension(imax,kl), intent(inout) :: totaltransport
 real, dimension(imax,kl-1), intent(inout) :: mfsave
@@ -1215,11 +1236,12 @@ if ( diag ) then
     call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
   end if  
 end if
- 
-#ifdef scm
+
 ! Save Km and Kh for output
 rkmsave(:,:) = rkm(:,:)
 rkhsave(:,:) = rkh(:,:)
+
+#ifdef scm
 ! counter-gradied included in pbldif.f90
 wth_flux(:,1) = fg(:)*rdry*t(1:imax,1)/(ps(1:imax)*cp)
 do k = 1,kl-1
@@ -1259,15 +1281,6 @@ if ( ldr/=0 ) then
   ! now do stratcloud
   call trim(at,ct,stratcloud,imax,kl)
 end if    ! (ldr/=0)
-  
-!--------------------------------------------------------------
-! Aerosols
-if ( abs(iaero)>=2 ) then
-  do nt = 1,naero
-    call trim(at,ct,xtg(:,:,nt),imax,kl)
-    xtg(:,:,nt) = max( xtg(:,:,nt), 0. )
-  end do
-end if ! (abs(iaero)>=2)
 
 !--------------------------------------------------------------
 ! Momentum terms
@@ -1814,49 +1827,45 @@ end do
 return
 end subroutine trim
 
-subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                                   &
-                       xtg,cduv,u,v,pblh,ustar,tke,eps,shear,at,ct,land,thetal_ema,qv_ema,ql_ema, &
-                       qf_ema,cf_ema,tke_ema,                                                     & 
+subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                         &
+                       cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,ql_ema, &
+                       qf_ema,cf_ema,tke_ema,rkmsave,rkhsave,                           & 
 #ifdef scm
-                       wth_flux,wq_flux,uw_flux,vw_flux,mfsave,tkesave,epssave,rkmsave,rkhsave,   &
-                       buoyproduction,shearproduction,totaltransport,                             &
+                       wth_flux,wq_flux,uw_flux,vw_flux,mfsave,                         &
+                       buoyproduction,shearproduction,totaltransport,                   &
 #endif
-                       imax,kl,naero, tile)
+                       imax,kl,naero,tile)
 
 use const_phys                   ! Physical constants
 use parm_m, only : ds, nlocal, iaero, dt, qgmin, cqmix, nvmix
                                  ! Model configuration
 use sigs_m                       ! Atmosphere sigma levels
-use tkeeps, only : tkemix        ! TKE-EPS boundary layer
+use tkeeps, only : tkemix, cm0   ! TKE-EPS boundary layer
 
 implicit none
 
 integer, intent(in) :: imax, kl, naero, tile
 integer k, nt, iq
-real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(inout) :: tke, eps
-real, dimension(imax,kl), intent(out) :: at, ct
 real, dimension(imax,kl), intent(in) :: shear
 real, dimension(imax,kl), intent(inout) :: thetal_ema, qv_ema, ql_ema, qf_ema, cf_ema
 real, dimension(imax,kl), intent(inout) :: tke_ema
+real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, zg
 real, dimension(imax,kl) :: rkm
-real tmnht
 real, dimension(imax), intent(inout) :: pblh, ustar, eg, fg
 real, dimension(imax), intent(in) :: em, tss, ps
 real, dimension(imax), intent(in) :: cduv
-real dz, gt
 real, dimension(imax) :: rhos, dx
 real, dimension(kl) :: sigkap, delh
-real rong, rlogs1, rlogs2, rlogh1, rlog12
+real rong
 logical, dimension(imax), intent(in) :: land
 #ifdef scm
 real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
-real, dimension(imax,kl), intent(inout) :: vw_flux, tkesave, epssave
-real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
+real, dimension(imax,kl), intent(inout) :: vw_flux
 real, dimension(imax,kl), intent(inout) :: buoyproduction, shearproduction
 real, dimension(imax,kl), intent(inout) :: totaltransport
 real, dimension(imax,kl-1), intent(inout) :: mfsave
@@ -1938,14 +1947,7 @@ select case(nvmix)
                     shearproduction,totaltransport,land,tile,imax,kl)          
     end select    
 end select
-          
-do k = 1,kl
-  ! save Km and Kh for output
-  rkmsave(:,k) = rkm(:,k)
-  rkhsave(:,k) = rkm(:,k)
-  tkesave(:,k) = tke(:,k)
-  epssave(:,k) = eps(:,k)
-end do
+
 #else
 ! Evaluate EDMF scheme
 select case(nvmix)
@@ -1974,46 +1976,13 @@ select case(nvmix)
 end select
 #endif
 
-! replace counter gradient term
 do k = 1,kl
+  ! replace counter gradient term
   rkm(:,k) = rkm(:,k)*cqmix
-end do
-
-! tracers
-at(:,1) = 0.
-ct(:,kl) = 0.
-rlogs1=log(sig(1))
-rlogs2=log(sig(2))
-rlogh1=log(sigmh(2))
-rlog12=1./(rlogs1-rlogs2)
-do iq = 1,imax
-  tmnht=(t(iq,2)*rlogs1-t(iq,1)*rlogs2+(t(iq,1)-t(iq,2))*rlogh1)*rlog12  
-  dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
-  gt = rkm(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
-  at(iq,2) =-gt/dsig(2)  
-  ct(iq,1) = -gt/dsig(1)
-end do
-do k = 2,kl-1
-  do iq = 1,imax
-    ! Calculate half level heights and temperatures
-    ! n.b. an approximate zh (in m) is quite adequate for this routine
-    tmnht = ratha(k)*t(iq,k+1) + rathb(k)*t(iq,k)
-    dz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-    gt = rkm(iq,k)*dt*(sig(k+1)-sig(k))/(dz**2)
-    at(iq,k+1) =-gt/dsig(k+1)  
-    ct(iq,k) = -gt/dsig(k)
-  end do
-end do
-  
-! Aerosols
-if ( abs(iaero)>=2 ) then
-  do nt = 1,naero
-    call trim(at,ct,xtg(:,:,nt),imax,kl)
-  end do
-end if ! (abs(iaero)>=2)  
-
-! transform winds back to Earth reference frame and theta to temp
-do k = 1,kl
+  ! save Km and Kh for output
+  rkmsave(:,k) = rkm(:,k)
+  rkhsave(:,k) = rkm(:,k)
+  ! transform winds back to Earth reference frame and theta to temp
   t(:,k) = rhs(:,k)/sigkap(k)
 enddo    !  k loop
       

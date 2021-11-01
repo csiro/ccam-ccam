@@ -30,12 +30,12 @@ public anthropogenic_flux, urban_tas, urban_ts, urban_wetfac
 public urban_storage_flux, urban_elecgas_flux
 public urban_heating_flux, urban_cooling_flux
 public urban_zom, urban_zoh, urban_zoq, urban_emiss
+public rkmsave, rkhsave
 public morepbl_init, morepbl_end
 
 #ifdef scm
 public wth_flux, wq_flux, uw_flux, vw_flux
-public tkesave, epssave, mfsave
-public rkmsave, rkhsave
+public mfsave
 public buoyproduction, shearproduction, totaltransport
 #endif
 
@@ -45,29 +45,21 @@ real, dimension(:), allocatable, save :: urban_storage_flux, urban_elecgas_flux
 real, dimension(:), allocatable, save :: urban_heating_flux, urban_cooling_flux
 real, dimension(:), allocatable, save :: urban_zom, urban_zoh, urban_zoq, urban_emiss
 real, dimension(:), allocatable, save :: condc, condx, conds, condg, pblh, fg, eg
+real, dimension(:,:), allocatable, save :: rkmsave, rkhsave
 
 #ifdef scm
 real, dimension(:,:), allocatable, save :: wth_flux, wq_flux, uw_flux, vw_flux
-real, dimension(:,:), allocatable, save :: tkesave, epssave, mfsave
-real, dimension(:,:), allocatable, save :: rkmsave, rkhsave
+real, dimension(:,:), allocatable, save :: mfsave
 real, dimension(:,:), allocatable, save :: buoyproduction, shearproduction, totaltransport
 #endif
 
 contains
 
-#ifdef scm
 subroutine morepbl_init(ifull,kl)
-#else
-subroutine morepbl_init(ifull,diaglevel_pbl)
-#endif
 
 implicit none
 
-#ifdef scm
 integer, intent(in) :: ifull, kl
-#else
-integer, intent(in) :: ifull, diaglevel_pbl
-#endif
 
 allocate( condx(ifull), fg(ifull), eg(ifull), epot(ifull) )
 allocate( condc(ifull), rnet(ifull), pblh(ifull), epan(ifull) )
@@ -76,6 +68,7 @@ allocate( anthropogenic_flux(ifull), urban_tas(ifull), urban_ts(ifull), urban_we
 allocate( urban_storage_flux(ifull), urban_elecgas_flux(ifull) )
 allocate( urban_heating_flux(ifull), urban_cooling_flux(ifull) )
 allocate( urban_zom(ifull), urban_zoh(ifull), urban_zoq(ifull), urban_emiss(ifull) )
+allocate( rkmsave(ifull,kl), rkhsave(ifull,kl) )
 
 fg=0.
 eg=0.
@@ -100,23 +93,20 @@ urban_zom          = 0.
 urban_zoh          = 0.
 urban_zoq          = 0.
 urban_emiss        = 0.
+rkmsave=0.
+rkhsave=0.
 
 #ifdef scm
 allocate( wth_flux(ifull,kl), wq_flux(ifull,kl) )
 allocate( uw_flux(ifull,kl), vw_flux(ifull,kl) )
-allocate( tkesave(ifull,kl), epssave(ifull,kl), mfsave(ifull,kl-1) )
-allocate( rkmsave(ifull,kl), rkhsave(ifull,kl) )
+allocate( mfsave(ifull,kl-1) )
 allocate( buoyproduction(ifull,kl), shearproduction(ifull,kl) )
 allocate( totaltransport(ifull,kl) )
 wth_flux=0.
 wq_flux=0.
 uw_flux=0.
 vw_flux=0.
-tkesave=0.
-epssave=0.
 mfsave=0.
-rkmsave=0.
-rkhsave=0.
 buoyproduction=0.
 shearproduction=0.
 totaltransport=0.
@@ -135,11 +125,11 @@ deallocate( anthropogenic_flux, urban_tas, urban_ts, urban_wetfac )
 deallocate( urban_storage_flux, urban_elecgas_flux )
 deallocate( urban_heating_flux, urban_cooling_flux )
 deallocate( urban_zom, urban_zoh, urban_zoq, urban_emiss )
+deallocate( rkmsave, rkhsave )
 
 #ifdef scm
 deallocate( wth_flux, wq_flux, uw_flux, vw_flux )
-deallocate( tkesave, epssave, mfsave )
-deallocate( rkmsave, rkhsave )
+deallocate( mfsave )
 deallocate( buoyproduction, shearproduction )
 deallocate( totaltransport )
 #endif
