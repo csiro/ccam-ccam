@@ -3881,7 +3881,7 @@ real, dimension(ufull) :: acond_vegc,acond_vegr,acond_rfsn,acond_rdsn
 real, dimension(ufull) :: abase_road,abase_walle,abase_wallw,abase_vegc,abase_rdsn
 real, dimension(ufull) :: d_roofdelta,d_roaddelta,d_vegdeltac,d_vegdeltar,d_rfsndelta,d_rdsndelta
 real, dimension(ufull) :: d_tempc,d_mixrc,d_tempr,d_mixrr,d_sigd,d_sigr,d_rfdzmin
-real, dimension(ufull) :: d_ac_canyon,d_canyonrgout,d_roofrgout,d_tranc,d_evapc,d_tranr,d_evapr,d_c1c,d_c1r
+real, dimension(ufull) :: d_ac_canyon,d_canyonrgout,d_roofrgout,d_tranc,d_evapc,d_tranr,d_evapr
 real, dimension(ufull) :: d_totdepth,d_netemiss,d_netrad,d_topu
 real, dimension(ufull) :: d_cwa,d_cw0,d_cww,d_cwr,d_cra,d_crr,d_crw
 real, dimension(ufull) :: d_canyontemp,d_canyonmix,d_traf
@@ -3942,8 +3942,6 @@ d_mixrr = a_mixr*qsatr/qsata
 
 ! calculate soil data
 d_totdepth = sum(fp_road%depth,2)
-call getc1(d_c1c,ufull)
-call getc1(d_c1r,ufull)
 
 ! calculate shortwave reflections
 ! Here we modify the effective canyon geometry to account for in-canyon vegetation
@@ -4100,7 +4098,7 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,         
                  d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad,                &
                  d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_canyon,d_traf,d_ac_inside,             &
                  d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
-                 d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,evspsbltop,sbltop,            &
+                 d_cwr,d_totdepth,d_intgains_bld,fgtop,egtop,evspsbltop,sbltop,            &
                  int_infilflux,int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,        &
                  ggint_slab,ggext_intm,ggint_intm,cyc_proportion,cyc_translation,ddt,            &
                  rgint_roof,rgint_walle,rgint_wallw,rgint_slab,                                  &
@@ -4114,7 +4112,7 @@ eg_roof = 0. ! For cray compiler
 call solveroof(sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,acond_rfsn,d_rfsndelta, &
                sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr,d_vegdeltar,                          &
                sg_roof,rg_roof,eg_roof,acond_roof,d_roofdelta,                                  &
-               a_rg,a_umag,a_rho,a_rnd,a_snd,d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,   &
+               a_rg,a_umag,a_rho,a_rnd,a_snd,d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,         &
                d_sigr,ddt,fp_roof,rfhyd,rfveg,roof,fp,ufull)
 
 ggext_roof = (1.-d_rfsndelta)*(sg_roof+rg_roof-eg_roof+aircp*a_rho*d_tempr*acond_roof) &
@@ -4234,7 +4232,7 @@ fgtop = fp%hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_ro
 ! calculate water/snow budgets for road surface
 call updatewater(ddt,rdhyd%surfwater,rdhyd%soilwater,rdhyd%leafwater,rdhyd%snow,    &
                      rdhyd%den,rdhyd%snowalpha,rdsnmelt,a_rnd,a_snd,eg_road,        &
-                     eg_rdsn,d_tranc,d_evapc,d_c1c,d_totdepth, cnveg%lai,wbrelaxc,  &
+                     eg_rdsn,d_tranc,d_evapc,d_totdepth, cnveg%lai,wbrelaxc,        &
                      fp%sfc,fp%swilt,d_irrigwater,delintercept,rd_delsnow,ufull)
 ! record grid irrigation road component [kg m-2 s-1]
 pd%irrig = d_irrigwater*waterden*d_totdepth*cnveg%sigma*(1.-fp%sigmabld)/ddt
@@ -4244,7 +4242,7 @@ pd%delintercept = pd%delintercept + delintercept*cnveg%sigma
 ! calculate water/snow budgets for roof surface
 call updatewater(ddt,rfhyd%surfwater,rfhyd%soilwater,rfhyd%leafwater,rfhyd%snow,     &
                      rfhyd%den,rfhyd%snowalpha,rfsnmelt,a_rnd,a_snd,eg_roof,         &
-                     eg_rfsn,d_tranr,d_evapr,d_c1r,fp%rfvegdepth,rfveg%lai,wbrelaxr, &
+                     eg_rfsn,d_tranr,d_evapr,fp%rfvegdepth,rfveg%lai,wbrelaxr,       &
                      fp%sfc,fp%swilt,d_irrigwater,delintercept,rf_delsnow,ufull)
 ! add grid irrigation roof component [kg m-2 s-1]
 pd%irrig = pd%irrig + d_irrigwater*waterden*fp%rfvegdepth*rfveg%sigma*fp%sigmabld/ddt
@@ -4658,7 +4656,7 @@ end subroutine energyclosure
                             
 subroutine updatewater(ddt,surfwater,soilwater,leafwater,snow,den,alpha, &
                        snmelt,a_rnd,a_snd,eg_surf,eg_snow,d_tran,d_evap, &
-                       d_c1,d_totdepth,fp_vegrlai,iwbrelax,              &
+                       d_totdepth,fp_vegrlai,iwbrelax,                   &
                        fp_sfc,fp_swilt,irrigwater,delintercept,          &
                        delsnow,ufull)
 
@@ -4669,7 +4667,7 @@ integer, intent(in) :: iwbrelax
 real, intent(in) :: ddt
 real, dimension(ufull), intent(inout) :: surfwater,soilwater,leafwater,snow,den,alpha
 real, dimension(ufull), intent(in) :: snmelt,a_rnd,a_snd,eg_surf,eg_snow
-real, dimension(ufull), intent(in) :: d_tran,d_evap,d_c1,d_totdepth,fp_vegrlai
+real, dimension(ufull), intent(in) :: d_tran,d_evap,d_totdepth,fp_vegrlai
 real, dimension(ufull) :: modrnd, oldleafwater
 real, dimension(ufull), intent(in) :: fp_sfc, fp_swilt
 real, dimension(ufull), intent(out):: irrigwater, delintercept, delsnow
@@ -4680,7 +4678,7 @@ modrnd = max(a_rnd-d_evap/lv-max(maxvwatf*fp_vegrlai-leafwater,0.)/ddt,0.) ! rai
 ! note that since sigmaf=1, then there is no soil evaporation, only transpiration.
 ! Evaporation only occurs from water on leafs.
 surfwater = surfwater+ddt*(a_rnd-eg_surf/lv+snmelt)                                         ! surface
-soilwater = soilwater+ddt*d_c1*(modrnd+snmelt*den/waterden-d_tran/lv)/(waterden*d_totdepth) ! soil
+soilwater = soilwater+ddt*(modrnd+snmelt*den/waterden-d_tran/lv)/(waterden*d_totdepth) ! soil
 oldleafwater = leafwater - ddt*d_evap/lv
 leafwater = leafwater+ddt*(a_rnd-d_evap/lv)                                                 ! leaf
 leafwater = min(max(leafwater,0.),maxvwatf*fp_vegrlai)
@@ -4987,7 +4985,7 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,   
                        d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad,                &
                        d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_canyon,d_traf,d_ac_inside,             &
                        d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
-                       d_cwr,d_totdepth,d_c1c,d_intgains_bld,fgtop,egtop,evspsbltop,sbltop,            &
+                       d_cwr,d_totdepth,d_intgains_bld,fgtop,egtop,evspsbltop,sbltop,                  &
                        int_infilflux,int_infilfg,ggint_roof,ggint_walle,ggint_wallw,ggint_road,        &
                        ggint_slab,ggext_intm,ggint_intm,cyc_proportion,cyc_translation,ddt,            &
                        rgint_roof,rgint_walle,rgint_wallw,rgint_slab,                                  &
@@ -5010,7 +5008,7 @@ real, dimension(ufull), intent(out) :: d_ac_inside
 real, dimension(ufull), intent(inout) :: d_tempc,d_mixrc
 real, dimension(ufull), intent(inout) :: d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_canyon,d_traf
 real, dimension(ufull), intent(inout) :: d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,d_cwr
-real, dimension(ufull), intent(inout) :: d_totdepth,d_c1c,d_intgains_bld
+real, dimension(ufull), intent(inout) :: d_totdepth,d_intgains_bld
 real, dimension(ufull), intent(out) :: fgtop,egtop,evspsbltop,sbltop,int_infilflux
 real, dimension(ufull), intent(out) :: acond_road,acond_walle,acond_wallw,acond_vegc,acond_rdsn
 real, dimension(ufull), intent(out) :: int_infilfg
@@ -5195,7 +5193,7 @@ do l = 1,ncyits
                   sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat, &
                   a_rg,a_rho,a_rnd,a_snd,                                                       &
                   d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                     &
-                  d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,                               &
+                  d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,                                     &
                   effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                  &
                   lwflux_walle_vegc,lwflux_wallw_vegc,ddt,                                      &
                   cnveg,fp,fp_wall,rdhyd,road,walle,wallw,ufull)
@@ -5207,7 +5205,7 @@ do l = 1,ncyits
                     sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat, &
                     a_rg,a_rho,a_rnd,a_snd,                                                       &
                     d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                     &
-                    d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,                               &
+                    d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,                                     &
                     effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                  &
                     lwflux_walle_vegc,lwflux_wallw_vegc,ddt,                                      &
                     cnveg,fp,fp_wall,rdhyd,road,walle,wallw,ufull)
@@ -5752,7 +5750,7 @@ subroutine canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,re
                       sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat,  &
                       a_rg,a_rho,a_rnd,a_snd,                                                        &
                       d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                      &
-                      d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac,                                &
+                      d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,                                      &
                       effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                   &
                       lwflux_walle_vegc,lwflux_wallw_vegc,ddt,                                       &
                       cnveg,fp,fp_wall,rdhyd,road,walle,wallw,ufull)
@@ -5769,7 +5767,7 @@ real, dimension(ufull), intent(in) :: a_rg,a_rho,a_rnd,a_snd,d_sigd
 real, dimension(ufull), intent(in) :: ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,lwflux_walle_vegc,lwflux_wallw_vegc
 real, dimension(ufull), intent(out) :: effvegc,effrdsn
 real, dimension(ufull), intent(inout) :: d_canyontemp,d_canyonmix,d_netrad,d_tranc,d_evapc
-real, dimension(ufull), intent(inout) :: d_cra,d_crr,d_crw,d_totdepth,d_c1c,d_vegdeltac
+real, dimension(ufull), intent(inout) :: d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac
 real, dimension(ufull) :: ff,f1,f2,f3,f4
 real, dimension(ufull) :: snevap
 type(vegdata), intent(in) :: cnveg
@@ -5820,7 +5818,7 @@ rdsnmelt=min(max(0.,rdsntemp+(urbtemp-273.16))*icecp*rdhyd%snow/(ddt*lf),rdhyd%s
 
 ! calculate latent heat of transpiration and evaporation of in-canyon vegetation
 d_tranc=lv*min(max((1.-dumvegdelta)*a_rho*(vegqsat-d_canyonmix)/(1./max(acond_vegc,1.e-10)+res),0.), &
-               max((rdhyd%soilwater-fp%swilt)*d_totdepth*waterden/(d_c1c*ddt),0.))
+               max((rdhyd%soilwater-fp%swilt)*d_totdepth*waterden/ddt,0.))
 d_evapc=lv*min(dumvegdelta*a_rho*(vegqsat-d_canyonmix)*acond_vegc,rdhyd%leafwater/ddt+a_rnd)
 eg_vegc=d_evapc+d_tranc
 
@@ -5846,7 +5844,7 @@ end subroutine canyonflux
 subroutine solveroof(sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,acond_rfsn,d_rfsndelta, &
                      sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr,d_vegdeltar,                          &
                      sg_roof,rg_roof,eg_roof,acond_roof,d_roofdelta,                                  &
-                     a_rg,a_umag,a_rho,a_rnd,a_snd,d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,   &
+                     a_rg,a_umag,a_rho,a_rnd,a_snd,d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,         &
                      d_sigr,ddt,fp_roof,rfhyd,rfveg,roof,fp,ufull)
 
 implicit none
@@ -5859,7 +5857,7 @@ real, dimension(ufull), intent(inout) :: rg_vegr,fg_vegr,eg_vegr,acond_vegr
 real, dimension(ufull), intent(inout) :: rg_roof,eg_roof,acond_roof
 real, dimension(ufull), intent(in) :: sg_rfsn,sg_vegr,sg_roof
 real, dimension(ufull), intent(in) :: a_rg,a_umag,a_rho,a_rnd,a_snd
-real, dimension(ufull), intent(inout) :: d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,d_sigr
+real, dimension(ufull), intent(inout) :: d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_sigr
 real, dimension(ufull), intent(inout) :: d_rfsndelta,d_vegdeltar,d_roofdelta
 real, dimension(ufull) :: lzomroof,lzohroof,qsatr,dts,dtt,cdroof,z_on_l,newval,ldratio
 real, dimension(ufull) :: aa,dd,ee
@@ -5902,7 +5900,7 @@ if ( any( d_rfsndelta>0. .or. rfveg%sigma>0. ) ) then
   oldval(:,2)=rfsntemp+0.5
   call roofflux(evctveg,rfsntemp,rfsnmelt,garfsn,sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr, &
                 sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,acond_rfsn,a_rg,a_umag,a_rho,a_rnd,a_snd,    &
-                d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,d_sigr,d_vegdeltar,          &
+                d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_sigr,d_vegdeltar,                &
                 d_rfsndelta,ddt,fp,fp_roof,rfhyd,rfveg,roof,ufull)
   ! turn off roof snow and roof vegetation if they are not needed
   where ( rfveg%sigma>0. )
@@ -5915,7 +5913,7 @@ if ( any( d_rfsndelta>0. .or. rfveg%sigma>0. ) ) then
     evctx=evctveg
     call roofflux(evctveg,rfsntemp,rfsnmelt,garfsn,sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr, &
                   sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,acond_rfsn,a_rg,a_umag,a_rho,a_rnd,a_snd,    &
-                  d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,d_sigr,d_vegdeltar,          &
+                  d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_sigr,d_vegdeltar,                &
                   d_rfsndelta,ddt,fp,fp_roof,rfhyd,rfveg,roof,ufull)
     evctx=evctveg-evctx
     where ( abs(evctx(:,1))>tol .and. rfveg%sigma>0. )
@@ -5974,7 +5972,7 @@ end subroutine solveroof
 
 subroutine roofflux(evct,rfsntemp,rfsnmelt,garfsn,sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr,   &
                     sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,acond_rfsn,a_rg,a_umag,a_rho,a_rnd,a_snd,   &
-                    d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,d_sigr,d_vegdeltar,         &
+                    d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_sigr,d_vegdeltar,               &
                     d_rfsndelta,ddt,fp,fp_roof,rfhyd,rfveg,roof,ufull)
 
 implicit none
@@ -5987,7 +5985,7 @@ real, dimension(ufull), intent(inout) :: rfsnmelt,garfsn
 real, dimension(ufull), intent(inout) :: rg_vegr,fg_vegr,eg_vegr,acond_vegr
 real, dimension(ufull), intent(inout) :: rg_rfsn,fg_rfsn,eg_rfsn,acond_rfsn
 real, dimension(ufull), intent(in) :: a_rg,a_umag,a_rho,a_rnd,a_snd
-real, dimension(ufull), intent(inout) :: d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_c1r,d_sigr
+real, dimension(ufull), intent(inout) :: d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,d_sigr
 real, dimension(ufull), intent(inout) :: d_vegdeltar,d_rfsndelta
 real, dimension(ufull) :: lzomvegr,lzohvegr,vwetfac,dts,dtt,z_on_l,ff,f1,f2,f3,f4,cdvegr
 real, dimension(ufull) :: vegqsat,dumvegdelta,res,sndepth,snlambda,ldratio,lzosnow,rfsnqsat,cdrfsn
@@ -6037,7 +6035,7 @@ where ( rfveg%sigma>0. )
 
   ! calculate transpiration and evaporation of roof vegetation
   d_tranr=lv*min(max((1.-dumvegdelta)*a_rho*(vegqsat-d_mixrr)/(1./acond_vegr+res),0.), &
-                 max((rfhyd%soilwater-fp%swilt)*fp%rfvegdepth*waterden/(d_c1r*ddt),0.))
+                 max((rfhyd%soilwater-fp%swilt)*fp%rfvegdepth*waterden/ddt,0.))
   d_evapr=lv*min(dumvegdelta*a_rho*(vegqsat-d_mixrr)*acond_vegr,rfhyd%leafwater/ddt+a_rnd)
   eg_vegr=d_evapr+d_tranr
   
@@ -6397,24 +6395,6 @@ d_topu=max(d_topu,0.1)
 
 return
 end subroutine gettopu
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Estimate c1 factor for soil moisture availability
-
-subroutine getc1(dc1,ufull)
-
-implicit none
-
-integer, intent(in) :: ufull
-real, dimension(ufull), intent(out) :: dc1
-
-!n=min(max(moist/fp_ssat,0.218),1.)
-!dc1=(1.78*n+0.253)/(2.96*n-0.581)
-
-dc1=1.478 ! simplify water conservation
-
-return
-end subroutine getc1
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate screen diagnostics

@@ -440,6 +440,9 @@ end if
 iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
          abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3) .and. &
          native_ccam==1
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+  iotest = iotest .and. (wlev==ok)
+end if
 iop_test = iotest .and. ptest
 
 if ( iotest ) then
@@ -694,10 +697,10 @@ if ( newfile ) then
   if ( myid==0 ) then
     if ( tss_test ) then
       write(6,*) "Surface temperature does not require interpolation"
-      write(6,*) "tss_test,siced_found,fracice_found,iotest =",tss_test,siced_found,fracice_found,iotest
+      write(6,*) "tss_test,siced_found,fracice_found,iotest,iop_test =",tss_test,siced_found,fracice_found,iotest,iop_test
     else
       write(6,*) "Surface temperature requires interpolation"
-      write(6,*) "tss_test,siced_found,fracice_found,iotest =",tss_test,siced_found,fracice_found,iotest
+      write(6,*) "tss_test,siced_found,fracice_found,iotest,iop_test =",tss_test,siced_found,fracice_found,iotest,iop_test
     end if
   end if
   

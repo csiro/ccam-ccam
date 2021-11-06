@@ -1430,58 +1430,24 @@ if (its_g>500) then
   write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
 end if
 
-#ifdef _OPENMP
-#ifdef GPU
-!$omp target data map(to:its,dtnew,ww,depdum,dzdum)
-#else
 !$omp parallel sections
-#endif
-#else
 !$acc data create(its,dtnew,ww,depdum,dzdum)
 !$acc update device(its,dtnew,ww,depdum,dzdum)
-#endif
 
-#ifdef _OPENMP
-#ifndef GPU
 !$omp section
-#endif
-#endif
 call mlotvd(its,dtnew,ww,uu,depdum,dzdum)
-#ifdef _OPENMP
-#ifndef GPU
 !$omp section
-#endif
-#endif
 call mlotvd(its,dtnew,ww,vv,depdum,dzdum)
-#ifdef _OPENMP
-#ifndef GPU
 !$omp section
-#endif
-#endif
 call mlotvd(its,dtnew,ww,ss,depdum,dzdum)
-#ifdef _OPENMP
-#ifndef GPU
 !$omp section
-#endif
-#endif
 call mlotvd(its,dtnew,ww,tt,depdum,dzdum)
-#ifdef _OPENMP
-#ifndef GPU
 !$omp section
-#endif
-#endif
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
 
-#ifdef _OPENMP
-#ifdef GPU
-!$omp end target data
-#else
 !$omp end parallel sections
-#endif
-#else
 !$acc wait
 !$acc end data
-#endif
   
 ss(1:ifull,:)=max(ss(1:ifull,:),0.)
 tt(1:ifull,:)=max(tt(1:ifull,:),-wrtemp)

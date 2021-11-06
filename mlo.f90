@@ -2118,25 +2118,29 @@ select case(mode)
         end if
       end if
       do ii = 1,wlev
-        if ( depth%depth(iqw,ii)<=dpin(1) ) then
-          newdatb(iqw,ii) = newdata(iqw,1)
-        else
-          ! search down column.  May have multiple levels with same depth, so
-          ! we want the first level of the same depth.
-          jj_found = wlin  
-          do jj = 2,wlin
-            if ( depth%depth(iqw,ii)<dpin(jj) ) then
-              jj_found = jj  
-              exit
-            end if
-          end do  
-          if ( depth%depth(iqw,ii)<dpin(jj_found) ) then
-            x = (depth%depth(iqw,ii)-dpin(jj_found-1))/max(dpin(jj_found)-dpin(jj_found-1),1.e-20)
-            newdatb(iqw,ii) = newdata(iqw,jj_found)*x + newdata(iqw,jj_found-1)*(1.-x)
+        if ( depth%dz(iqw,ii)<=1.e-4 ) then
+          newdatb(iqw,ii) = 0.  
+        else    
+          if ( depth%depth(iqw,ii)<=dpin(1) ) then
+            newdatb(iqw,ii) = newdata(iqw,1)
           else
-            newdatb(iqw,ii) = newdata(iqw,wlin)
+            ! search down column.  May have multiple levels with same depth, so
+            ! we want the first level of the same depth.
+            jj_found = wlin  
+            do jj = 2,wlin
+              if ( depth%depth(iqw,ii)<dpin(jj) ) then
+                jj_found = jj  
+                exit
+              end if
+            end do  
+            if ( depth%depth(iqw,ii)<dpin(jj_found) ) then
+              x = (depth%depth(iqw,ii)-dpin(jj_found-1))/max(dpin(jj_found)-dpin(jj_found-1),1.e-20)
+              newdatb(iqw,ii) = newdata(iqw,jj_found)*x + newdata(iqw,jj_found-1)*(1.-x)
+            else
+              newdatb(iqw,ii) = newdata(iqw,jj_found-1)
+            end if
           end if
-        end if
+        end if  
       end do
     end do
   case(2,3) ! interpolate to sigma level
@@ -2169,7 +2173,7 @@ select case(mode)
 end select
 
 do ii = 1,wlev
-  mlodat(:,ii) = unpack(newdatb(:,ii),wpack,mlodat(:,ii))
+  mlodat(:,ii) = unpack(newdatb(:,ii),wpack,0.)
 end do
 
 return
@@ -2759,7 +2763,7 @@ if ( otaumode==1 ) then
   bb(:,1) = bb(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd             &
                                          /(wrtrho*depth%dz(:,1)*d_zcr)      ! implicit  
 else
-  bb(:,1) = 1._8 - cc(:,1)                                                 ! explicit  
+  bb(:,1) = 1._8 - cc(:,1)                                                  ! explicit  
 end if
 do ii = 2,wlev-1
   where ( depth%dz(:,ii-1)*depth%dz(:,ii)>1.e-4 )  
@@ -2789,7 +2793,7 @@ if ( otaumode==1 ) then
   dd(:,1) = dd(:,1) + dt*((1.-ice%fracice)*rho*dgwater%cd*atm_u               &
                       +ice%fracice*dgice%tauxicw)/(wrtrho*depth%dz(:,1)*d_zcr)   ! implicit
 else
-  dd(:,1) = dd(:,1) - dt*dgwater%wu0/(depth%dz(:,1)*d_zcr)                      ! explicit
+  dd(:,1) = dd(:,1) - dt*dgwater%wu0/(depth%dz(:,1)*d_zcr)                       ! explicit
 end if
 call thomas(water%u,aa,bb,cc,dd)
 if ( otaumode==1 ) then

@@ -2926,7 +2926,7 @@ end if
 ! SHARED MEMORY AND FILE IO CONFIGURATION
 
 ! This is the procformat IO system where a single output file is
-! written per node
+! written per (virtual) node
 call ccmpi_procformat_init(localhist,procmode) 
 
 
@@ -2947,22 +2947,16 @@ call ccmpi_allocshdatar8(y_g,shsize(1:1),y_g_win)
 call ccmpi_allocshdatar8(z_g,shsize(1:1),z_g_win)
 #else
 ! Allocate xx4, yy4, em_g, x_g, y_g and z_g for each process
-allocate( xx4_dummy(iquad,iquad), yy4_dummy(iquad,iquad) )
-xx4 => xx4_dummy
-yy4 => yy4_dummy
-allocate( em_g_dummy(ifull_g) )
-em_g => em_g_dummy
-allocate( x_g_dummy(ifull_g), y_g_dummy(ifull_g), z_g_dummy(ifull_g) )
-x_g => x_g_dummy
-y_g => y_g_dummy
-z_g => z_g_dummy
+allocate( xx4(iquad,iquad), yy4(iquad,iquad) )
+allocate( em_g(ifull_g) )
+allocate( x_g(ifull_g), y_g(ifull_g), z_g(ifull_g) )
 #endif
 call xyzinfo_init(ifull_g,ifull,myid)
-call indices_init(ifull,npan)
 call map_init(ifull_g,ifull,iextra,myid)
 call latlong_init(ifull_g,ifull,myid)      
 call vecsuv_init(ifull_g,ifull,iextra,myid)
 call workglob_init(ifull_g,ifull,myid)
+call indices_init(ifull,npan)
 
 
 !--------------------------------------------------------------
@@ -2979,24 +2973,15 @@ end if
 ! em_g, x_g, y_g and z_g are for the scale-selective filter (1D and 2D versions)
 #ifdef usempi3
 ! use shared memory for global arrays common to all processes
-call ccmpi_shepoch(xx4_win)
-if ( node_myid==0 ) call ccmpi_bcastr8(xx4,0,comm_nodecaptain)
-call ccmpi_shepoch(xx4_win)
-call ccmpi_shepoch(yy4_win)
-if ( node_myid==0 ) call ccmpi_bcastr8(yy4,0,comm_nodecaptain)
-call ccmpi_shepoch(yy4_win)
-call ccmpi_shepoch(em_g_win)
-if ( node_myid==0 ) call ccmpi_bcast(em_g,0,comm_nodecaptain)
-call ccmpi_shepoch(em_g_win)
-call ccmpi_shepoch(x_g_win)
-if ( node_myid==0 ) call ccmpi_bcastr8(x_g,0,comm_nodecaptain)
-call ccmpi_shepoch(x_g_win)
-call ccmpi_shepoch(y_g_win)
-if ( node_myid==0 ) call ccmpi_bcastr8(y_g,0,comm_nodecaptain)
-call ccmpi_shepoch(y_g_win)
-call ccmpi_shepoch(z_g_win)
-if ( node_myid==0 ) call ccmpi_bcastr8(z_g,0,comm_nodecaptain)
-call ccmpi_shepoch(z_g_win)
+if ( node_myid==0 ) then
+  call ccmpi_bcastr8(xx4,0,comm_nodecaptain)
+  call ccmpi_bcastr8(yy4,0,comm_nodecaptain)
+  call ccmpi_bcast(em_g,0,comm_nodecaptain)
+  call ccmpi_bcastr8(x_g,0,comm_nodecaptain)
+  call ccmpi_bcastr8(y_g,0,comm_nodecaptain)
+  call ccmpi_bcastr8(z_g,0,comm_nodecaptain)
+end if
+call ccmpi_barrier(comm_node)
 #else
 ! make copies of global arrays on all processes
 call ccmpi_bcastr8(xx4,0,comm_world)
@@ -3022,7 +3007,6 @@ if ( myid==0 ) then
   deallocate( f_g, fu_g, fv_g )
   deallocate( dmdx_g, dmdy_g )
   deallocate( rlatt_g, rlongg_g )
-  !deallocate( rlong4, rlat4 )
 end if
 
 
