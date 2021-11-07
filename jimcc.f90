@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -101,7 +101,6 @@ subroutine jimcc(em4,ax4,ay4,az4,xx4,yy4,il)
 !     xx-->xx4, yy-->yy4, fm-->em4, dxa-->ax4, dxb-->ay4, dxc-->az4
 implicit none
 integer, parameter :: ipanel = 2
-integer, parameter :: ngrmax = 1
 integer, intent(in) :: il
 integer, save :: num = 0
 integer np, ngr, i, j
@@ -114,90 +113,77 @@ real(kind=8), dimension(:,:), pointer :: xx4, yy4 ! avoid intent for pointers
 !         = 3  at i,j+.5      positions
 !         = 4  at i+.5,j+.5   positions
 
-if ( size(xx4,1)/=1+4*il .or. size(xx4,2)/=1+4*il ) then
-  write(6,*) "ERROR: xx4 argument is invalid in jimcc"
-  stop
-end if
-
-if ( size(yy4,1)/=1+4*il .or. size(yy4,2)/=1+4*il ) then
-  write(6,*) "ERROR: yy4 argument is invalid in jimcc"
-  stop
-end if
-
 allocate( xa(4*il+1,4*il+1), xb(4*il+1,4*il+1), xc(4*il+1,4*il+1) )
 
 np = 4*il + 1
 CALL INROT
 
-do ngr=1,ngrmax
-  call rgrid(xa,xb,xc,ax4,ay4,az4,em4,np,ipanel,ngr)
+call rgrid(xa,xb,xc,ax4,ay4,az4,em4,np,ipanel,ngr)
 ! these are values on the sphere
 
-  if(num==0)then
-   do j=1,np,np-1
-    do i=1,np,np-1
-     write(6,*)'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
-    enddo
-   enddo
-   do j=np/4,np+1-np/4,np+1-np/4-np/4
-    do i=np/4,np+1-np/4,np+1-np/4-np/4
-     write(6,*)'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
-    enddo
-   enddo
-   write(6,*)'in jimcc xa,xb,xc: ',1,5,xa(1,5),xb(1,5),xc(1,5)
-   write(6,*)'now imposing 8-fold symmetry (jlm)'
-  endif  ! (num==0)
-
-  do i=1,(np+1)/2
-    xc(i,1)=max(-1.,xc(i,1)) ! for rounding errors
+if(num==0)then
+ do j=1,np,np-1
+  do i=1,np,np-1
+   write(6,*)'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
   enddo
-  do j=1,(np+1)/2
-   do i=j+1,(np+1/2)  ! rest of bottom LH corner
-    xa(j,i)=xa(i,j)
-    xb(j,i)=xc(i,j)
-    xc(j,i)=xb(i,j)
-   enddo
-   do i=1,np/2        ! all of bottom RH corner
-    xa(np+1-i,j)=xa(i,j)
-    xb(np+1-i,j)=-xb(i,j)
-    xc(np+1-i,j)=xc(i,j)
-   enddo
-   do i=1,np          ! all of top half
-    xa(i,np+1-j)=xa(i,j)
-    xb(i,np+1-j)=xb(i,j)
-    xc(i,np+1-j)=-xc(i,j)
-   enddo
+ enddo
+ do j=np/4,np+1-np/4,np+1-np/4-np/4
+  do i=np/4,np+1-np/4,np+1-np/4-np/4
+   write(6,*)'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
   enddo
+ enddo
+ write(6,*)'in jimcc xa,xb,xc: ',1,5,xa(1,5),xb(1,5),xc(1,5)
+ write(6,*)'now imposing 8-fold symmetry (jlm)'
+endif  ! (num==0)
 
-  if(num==0)then
-   num=1
-   do j=1,np,np-1
-    do i=1,np,np-1
-     write(6,*)'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
-    enddo
-   enddo
-   do j=np/4,np+1-np/4,np+1-np/4-np/4
-    do i=np/4,np+1-np/4,np+1-np/4-np/4
-     write(6,*)'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
-    enddo
-   enddo
-   write(6,*)'in jimcc xa,xb,xc: ',1,5,xa(1,5),xb(1,5),xc(1,5)
-  endif  ! (num==0)
+do i=1,(np+1)/2
+  xc(i,1)=max(-1.,xc(i,1)) ! for rounding errors
+enddo
+do j=1,(np+1)/2
+ do i=j+1,(np+1/2)  ! rest of bottom LH corner
+  xa(j,i)=xa(i,j)
+  xb(j,i)=xc(i,j)
+  xc(j,i)=xb(i,j)
+ enddo
+ do i=1,np/2        ! all of bottom RH corner
+  xa(np+1-i,j)=xa(i,j)
+  xb(np+1-i,j)=-xb(i,j)
+  xc(np+1-i,j)=xc(i,j)
+ enddo
+ do i=1,np          ! all of top half
+  xa(i,np+1-j)=xa(i,j)
+  xb(i,np+1-j)=xb(i,j)
+  xc(i,np+1-j)=-xc(i,j)
+ enddo
+enddo
+
+if(num==0)then
+ num=1
+ do j=1,np,np-1
+  do i=1,np,np-1
+   write(6,*)'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
+  enddo
+ enddo
+ do j=np/4,np+1-np/4,np+1-np/4-np/4
+  do i=np/4,np+1-np/4,np+1-np/4-np/4
+    write(6,*)'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
+  enddo
+ enddo
+ write(6,*)'in jimcc xa,xb,xc: ',1,5,xa(1,5),xb(1,5),xc(1,5)
+endif  ! (num==0)
 
 ! now convert these to just x,y values on the cube
-  do j=1,np
-   do i=1,np
-    xx4(i,j)=real(xb(i,j),8)/real(xa(i,j),8)
-    yy4(i,j)=real(xc(i,j),8)/real(xa(i,j),8)
-   enddo
-  enddo
+do j=1,np
+ do i=1,np
+  xx4(i,j)=real(xb(i,j),8)/real(xa(i,j),8)
+  yy4(i,j)=real(xc(i,j),8)/real(xa(i,j),8)
+ enddo
+enddo
 
- enddo  ! ngr loop
- 
- deallocate( xa, xb, xc )
+deallocate( xa, xb, xc )
 
- return
- end subroutine jimcc
+return
+end subroutine jimcc
 
 !------------------------------------------------------------------------------!
 !   R.J.Purser, National Meteorological Center, Washington D.C.  1994          !

@@ -2082,18 +2082,18 @@ do kb = 1,kx,kblock
       end do
     end do
   else
-    !$omp parallel do schedule(static) private(k,sx,mm,wrk)  
     do k = 1,kn
       sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
       sout(1:ifull,k+kb-1) = 0.
       call ccmpi_filewinunpack(sx(:,:,:),abuf(:,:,k))
       call sxpanelbounds(sx(:,:,:))
+      !$omp parallel do schedule(static) private(mm,wkr)
       do mm = 1,m_fly     !  was 4, now may be 1
         call intsb(sx(:,:,:),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
         sout(1:ifull,k+kb-1) = sout(1:ifull,k+kb-1) + wrk/real(m_fly)
       end do
+      !$omp end parallel do      
     end do
-    !$omp end parallel do
   end if
 
 end do

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -76,31 +76,6 @@ real dsfact
 real den, dot,eps,dx2,dy2,sumwts,ratmin,ratmax,rat
 real rlatdeg,rlondeg
 real, intent(inout) :: ds
-
-if ( size(x)/=ik*ik*6 ) then
-  write(6,*) "ERROR: x argument is invalid in setxyz"
-  call ccmpi_abort(-1)
-end if
-
-if ( size(y)/=ik*ik*6 ) then
-  write(6,*) "ERROR: y argument is invalid in setxyz"
-  call ccmpi_abort(-1)
-end if
-
-if ( size(z)/=ik*ik*6 ) then
-  write(6,*) "ERROR: z argument is invalid in setxyz"
-  call ccmpi_abort(-1)
-end if
-
-if ( size(xx4,1)/=1+4*ik .or. size(xx4,2)/=1+4*ik ) then
-  write(6,*) "ERROR: xx4 argument is invalid in setxyz"
-  call ccmpi_abort(-1)
-end if
-
-if ( size(yy4,1)/=1+4*ik .or. size(yy4,2)/=1+4*ik ) then
-  write(6,*) "ERROR: yy4 argument is invalid in setxyz"
-  call ccmpi_abort(-1)
-end if
 
 allocate( axx(ik*ik*6), ayy(ik*ik*6), azz(ik*ik*6) )
 allocate( bxx(ik*ik*6), byy(ik*ik*6), bzz(ik*ik*6) )
