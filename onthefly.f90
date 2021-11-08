@@ -2087,7 +2087,7 @@ do kb = 1,kx,kblock
       sout(1:ifull,k+kb-1) = 0.
       call ccmpi_filewinunpack(sx(:,:,:),abuf(:,:,k))
       call sxpanelbounds(sx(:,:,:))
-      !$omp parallel do schedule(static) private(mm,wkr)
+      !$omp parallel do schedule(static) private(mm,wrk)
       do mm = 1,m_fly     !  was 4, now may be 1
         call intsb(sx(:,:,:),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
         sout(1:ifull,k+kb-1) = sout(1:ifull,k+kb-1) + wrk/real(m_fly)

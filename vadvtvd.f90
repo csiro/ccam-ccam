@@ -199,6 +199,7 @@ end subroutine vadvtvd
 subroutine vadv_work(tarr,nvadh_pass,nits)
 
 use newmpar_m
+use parmvert_m
 use sigs_m
 use vvel_m
       
@@ -236,20 +237,37 @@ do iq = 1,ifull
 end do
 !$acc end parallel loop
 
-!$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_pass,fluxh) async(async_counter)
-do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-  do iq = 1,ifull      
-    kp = nint(sign(1.,sdot(iq,k+1)))
-    kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-    rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-    fluxlo = tarr(iq,kx)
-    phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
-    ! higher order scheme
-    fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
-    fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-  enddo
-enddo      ! k loop
-!$acc end parallel loop
+if ( ntvd==2 ) then ! MC
+  !$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_pass,fluxh) async(async_counter)
+  do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+    do iq = 1,ifull      
+      kp = nint(sign(1.,sdot(iq,k+1)))
+      kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+      rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+      fluxlo = tarr(iq,kx)
+      phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
+      ! higher order scheme
+      fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
+      fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+    enddo
+  enddo      ! k loop
+  !$acc end parallel loop
+else if ( ntvd==3 ) then ! superbee
+  !$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_pass,fluxh) async(async_counter)
+  do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+    do iq = 1,ifull      
+      kp = nint(sign(1.,sdot(iq,k+1)))
+      kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+      rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+      fluxlo = tarr(iq,kx)
+      phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+      ! higher order scheme
+      fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
+      fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+    enddo
+  enddo      ! k loop
+  !$acc end parallel loop
+end if
 !$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_pass) async(async_counter)
 do k = 1,kl
   do iq = 1,ifull
@@ -259,29 +277,55 @@ do k = 1,kl
 end do
 !$acc end parallel loop
 
-!$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_pass,fluxh) async(async_counter)
-do iq = 1,ifull 
-  do i = 2,nits(iq)
-    do k = 1,kl-1
-      delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
-    end do     ! k loop    
-    do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-      kp = nint(sign(1.,sdot(iq,k+1)))
-      kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-      rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-      fluxlo = tarr(iq,kx)
-      phitvd = max(0., min(2.*rat, .5+.5*rat, 2.))   ! 0 for -ve rat
-      ! higher order scheme
-      fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
-      fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-    end do ! k
-    do k = 1,kl
-      tarr(iq,k) = tarr(iq,k) &
-          + (fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
-    end do
-  end do   ! i
-end do     ! iq
-!$acc end parallel loop
+if ( ntvd==2 ) then ! MC
+  !$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_pass,fluxh) async(async_counter)
+  do iq = 1,ifull 
+    do i = 2,nits(iq)
+      do k = 1,kl-1
+        delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
+      end do     ! k loop    
+      do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+        kp = nint(sign(1.,sdot(iq,k+1)))
+        kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+        rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+        fluxlo = tarr(iq,kx)
+        phitvd = max(0., min(2.*rat, .5+.5*rat, 2.))   ! 0 for -ve rat
+        ! higher order scheme
+        fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
+        fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+      end do ! k
+      do k = 1,kl
+        tarr(iq,k) = tarr(iq,k) &
+            + (fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
+      end do
+    end do   ! i
+  end do     ! iq
+  !$acc end parallel loop
+else
+  !$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_pass,fluxh) async(async_counter)
+  do iq = 1,ifull 
+    do i = 2,nits(iq)
+      do k = 1,kl-1
+        delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
+      end do     ! k loop    
+      do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+        kp = nint(sign(1.,sdot(iq,k+1)))
+        kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+        rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+        fluxlo = tarr(iq,kx)
+        phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+        ! higher order scheme
+        fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
+        fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+      end do ! k
+      do k = 1,kl
+        tarr(iq,k) = tarr(iq,k) &
+            + (fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
+      end do
+    end do   ! i
+  end do     ! iq
+  !$acc end parallel loop
+end if
 
 !$acc update self(tarr) async(async_counter)
 !$acc exit data delete(tarr,delt,fluxh) async(async_counter)

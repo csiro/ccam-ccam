@@ -116,6 +116,7 @@
 /parmgeom_m.f90 -text
 /parmhdff_m.f90 -text
 /parmhor_m.f90 -text
+/parmvert_m.f90 -text
 /pbl_m.f90 -text
 /permsurf_m.f90 -text
 /prec_m.f90 -text

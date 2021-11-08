@@ -1353,6 +1353,7 @@ use parmdyn_m                              ! Dynamics parameters
 use parmgeom_m                             ! Coordinate data
 use parmhdff_m                             ! Horizontal diffusion parameters
 use parmhor_m                              ! Horizontal advection parameters
+use parmvert_m                             ! Vertical advection parameters
 use pbl_m                                  ! Boundary layer arrays
 use permsurf_m, only : permsurf_init       ! Fixed surface arrays
 use prec_m                                 ! Precipitation
@@ -1453,7 +1454,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,nriver,           &
     atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
-    always_mspeca,                                                &
+    always_mspeca,ntvd,                                           &
     procmode,compression,hp_output,                               & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
@@ -1526,7 +1527,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
     alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,nodrift, &
-    kmlo,                                                         &
+    kmlo,mlontvd,                                                 &
     pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,nops,nopb,     & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,                                           &
@@ -1608,7 +1609,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(117) ) 
+allocate( dumr(33), dumi(118) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1763,6 +1764,7 @@ if ( myid==0 ) then
   dumi(115) = intsch_mode
   dumi(116) = qg_fix
   if ( always_mspeca ) dumi(117) = 1
+  dumi(118) = ntvd
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1916,6 +1918,7 @@ hp_output         = dumi(114)
 intsch_mode       = dumi(115)
 qg_fix            = dumi(116)
 always_mspeca     = dumi(117)==1
+ntvd              = dumi(118)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -2399,7 +2402,7 @@ ateb_statsmeth    = dumi(29)
 ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(18), dumi(20) )
+allocate( dumr(18), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2447,6 +2450,7 @@ if ( myid==0 ) then
   dumi(18) = fixedstabfunc
   dumi(19) = mlomfix
   dumi(20) = nodrift
+  dumi(21) = mlontvd
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2488,6 +2492,7 @@ nopb               = dumi(17)
 fixedstabfunc      = dumi(18)
 mlomfix            = dumi(19)
 nodrift            = dumi(20)
+mlontvd             = dumi(21)
 if ( oclosure==0 ) then
   nsteps = 1
 end if
@@ -2747,10 +2752,11 @@ if ( mbd_mlo/=0 ) then
     mbd_mlo = mbd_min
   end if
 end if
+! number of vertical levels in spectral nudging for MPI.
 if ( kblock<0 ) then
   kblock = max(kl, ol) ! must occur before indata
 end if
-if ( myid==0 ) write(6,*) "kblock ",kblock
+if ( myid==0 ) write(6,*) "Using vertical kblock = ",kblock
 
 ! **** do namelist fixes above this line ***
 

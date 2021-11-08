@@ -185,6 +185,7 @@ use parmdyn_m                              ! Dynamics parameters
 use parmgeom_m                             ! Coordinate data
 use parmhdff_m                             ! Horizontal diffusion parameters
 use parmhor_m                              ! Horizontal advection parameters
+use parmvert_m                             ! Vertical advection parameters
 use river                                  ! River routing
 use seaesfrad_m                            ! SEA-ESF radiation
 use tkeeps                                 ! TKE-EPS boundary layer
@@ -625,6 +626,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ntbar',ntbar)
     call ccnf_put_attg(idnc,'ntsea',ntsea)
     call ccnf_put_attg(idnc,'ntsur',ntsur)
+    call ccnf_put_attg(idnc,'ntvd',ntvd)
     call ccnf_put_attg(idnc,'nud_aero',nud_aero)
     call ccnf_put_attg(idnc,'nud_hrs',nud_hrs)
     call ccnf_put_attg(idnc,'nud_ouv',nud_ouv)
@@ -852,6 +854,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
     call ccnf_put_attg(idnc,'mlomfix',mlomfix)
     call ccnf_put_attg(idnc,'mlosigma',mlosigma)
+    call ccnf_put_attg(idnc,'mlontvd',mlontvd)
     call ccnf_put_attg(idnc,'mxd',mxd)
     call ccnf_put_attg(idnc,'nodrift',nodrift)
     call ccnf_put_attg(idnc,'oclosure',oclosure)
