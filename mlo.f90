@@ -2118,29 +2118,25 @@ select case(mode)
         end if
       end if
       do ii = 1,wlev
-        if ( depth%dz(iqw,ii)<=1.e-4 ) then
-          newdatb(iqw,ii) = 0.  
-        else    
-          if ( depth%depth(iqw,ii)<=dpin(1) ) then
-            newdatb(iqw,ii) = newdata(iqw,1)
-          else
-            ! search down column.  May have multiple levels with same depth, so
-            ! we want the first level of the same depth.
-            jj_found = wlin  
-            do jj = 2,wlin
-              if ( depth%depth(iqw,ii)<dpin(jj) ) then
-                jj_found = jj  
-                exit
-              end if
-            end do  
-            if ( depth%depth(iqw,ii)<dpin(jj_found) ) then
-              x = (depth%depth(iqw,ii)-dpin(jj_found-1))/max(dpin(jj_found)-dpin(jj_found-1),1.e-20)
-              newdatb(iqw,ii) = newdata(iqw,jj_found)*x + newdata(iqw,jj_found-1)*(1.-x)
-            else
-              newdatb(iqw,ii) = newdata(iqw,jj_found-1)
+        if ( depth%depth(iqw,ii)<=dpin(1) ) then
+          newdatb(iqw,ii) = newdata(iqw,1)
+        else
+          ! search down column.  May have multiple levels with same depth, so
+          ! we want the first level of the same depth.
+          jj_found = wlin  
+          do jj = 2,wlin
+            if ( depth%depth(iqw,ii)<dpin(jj) ) then
+              jj_found = jj  
+              exit
             end if
+          end do  
+          if ( depth%depth(iqw,ii)<dpin(jj_found) ) then
+            x = (depth%depth(iqw,ii)-dpin(jj_found-1))/max(dpin(jj_found)-dpin(jj_found-1),1.e-20)
+            newdatb(iqw,ii) = newdata(iqw,jj_found)*x + newdata(iqw,jj_found-1)*(1.-x)
+          else
+            newdatb(iqw,ii) = newdata(iqw,wlin)
           end if
-        end if  
+        end if
       end do
     end do
   case(2,3) ! interpolate to sigma level
@@ -2173,7 +2169,7 @@ select case(mode)
 end select
 
 do ii = 1,wlev
-  mlodat(:,ii) = unpack(newdatb(:,ii),wpack,0.)
+  mlodat(:,ii) = unpack(newdatb(:,ii),wpack,mlodat(:,ii))
 end do
 
 return
@@ -2738,11 +2734,11 @@ call thomas(water%temp,aa,bb,cc,dd)
 
 ! SALINITY
 fulldepth = 0.
-targetdepth = max( min( minsfc, sum( depth%dz, dim=2 )*d_zcr ), 1.e-4 )
+targetdepth = min( minsfc, sum( depth%dz, dim=2 )*d_zcr )
 do ii = 1,wlev
   deltaz = max( min( depth%dz(:,ii)*d_zcr, targetdepth-fulldepth ), 0.)
   fulldepth = fulldepth + deltaz
-  dd(:,ii) = water%sal(:,ii) - dt*dgwater%ws0_subsurf*deltaz/(depth%dz(:,ii)*d_zcr*targetdepth)
+  dd(:,ii) = water%sal(:,ii) - dt*dgwater%ws0_subsurf*deltaz/max(depth%dz(:,ii)*d_zcr*targetdepth,1.e-4)
   dd(:,ii) = dd(:,ii) + dt*rhs(:,ii)*dgwater%ws0  
 end do
 dd(:,1) = dd(:,1) - dt*dgwater%ws0/(depth%dz(:,1)*d_zcr)

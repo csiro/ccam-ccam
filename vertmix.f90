@@ -177,7 +177,7 @@ real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 real tmnht, dz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 
 if ( nmlo/=0 .and. nvmix/=9 ) then
-  !$omp do schedule(static) private(is,ie,k),             &
+  !$omp do schedule(static) private(is,ie), &
   !$omp private(lou,lov,liu,liv)
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
@@ -195,7 +195,7 @@ if ( nmlo/=0 .and. nvmix/=9 ) then
   end do
   !$omp end do nowait
 else
-  !$omp do schedule(static) private(is,ie,k)
+  !$omp do schedule(static) private(is,ie)
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
@@ -213,6 +213,8 @@ case(6,9)
     !$omp private(lt,lqg,lqfg,lqlg),                        &
     !$omp private(lstratcloud,lu,lv,ltke,leps,lshear),      &
     !$omp private(lrkmsave,lrkhsave,lsavu,lsavv),           &
+    !$omp private(lthetal_ema,lqv_ema,lql_ema,lqf_ema),     &
+    !$omp private(lcf_ema,ltke_ema),                        &
     !$omp private(idjd_t,mydiag_t)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
@@ -293,7 +295,7 @@ case(6,9)
     !$omp end do nowait
 
     if ( nmlo/=0 .and. nvmix==9 ) then  
-      !$omp do schedule(static) private(is,ie,k)      
+      !$omp do schedule(static) private(is,ie)      
       do tile = 1,ntiles
         is = (tile-1)*imax + 1
         ie = tile*imax
@@ -373,10 +375,11 @@ case(6,9)
 
 end select
 
-!$omp do schedule(static) private(is,ie,k),   &
-!$omp private(lt,lat,lct,idjd_t,mydiag_t),    &
-!$omp private(ltr,lco2em,loh,lstrloss,ljmcf), &
-!$omp private(lxtg,lrkmsave)
+!$omp do schedule(static) private(is,ie,iq,k,nt),   &
+!$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
+!$omp private(ltr,lco2em,loh,lstrloss,ljmcf),       &
+!$omp private(lxtg,lrkmsave,rong,rlogs1,rlogs2),    &
+!$omp private(rlogh1,rlog12,tmnht,dz,gt) 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax

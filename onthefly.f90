@@ -2013,7 +2013,7 @@ implicit none
 integer mm, n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
-real, dimension(ifull) :: wrk
+real, dimension(ifull,m_fly) :: wrk
 real, dimension(pipan*pjpan*pnpan,size(filemap_req)) :: abuf
 
 call START_LOG(otf_ints1_begin)
@@ -2031,13 +2031,12 @@ if ( iotest ) then
     sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
   end do
 else
-  sout(1:ifull) = 0.  
-  !$omp parallel do schedule(static) private(mm,wrk)
+  !$omp parallel do schedule(static) private(mm)
   do mm = 1,m_fly     !  was 4, now may be 1
-    call intsb(sx(:,:,:),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
-    sout(1:ifull) = sout(1:ifull) + wrk/real(m_fly)
+    call intsb(sx(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
   !$omp end parallel do
+  sout(1:ifull) = sum(wrk,dim=2)/real(m_fly)
 end if
 
 call END_LOG(otf_ints1_end)
@@ -2057,7 +2056,7 @@ implicit none
 integer mm, k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
-real, dimension(ifull) :: wrk
+real, dimension(ifull,m_fly) :: wrk
 real, dimension(pipan*pjpan*pnpan,size(filemap_req),kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
@@ -2084,15 +2083,14 @@ do kb = 1,kx,kblock
   else
     do k = 1,kn
       sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-      sout(1:ifull,k+kb-1) = 0.
       call ccmpi_filewinunpack(sx(:,:,:),abuf(:,:,k))
       call sxpanelbounds(sx(:,:,:))
-      !$omp parallel do schedule(static) private(mm,wrk)
+      !$omp parallel do schedule(static) private(mm)
       do mm = 1,m_fly     !  was 4, now may be 1
-        call intsb(sx(:,:,:),wrk,nface4(:,mm),xg4(:,mm),yg4(:,mm))
-        sout(1:ifull,k+kb-1) = sout(1:ifull,k+kb-1) + wrk/real(m_fly)
-      end do
-      !$omp end parallel do      
+        call intsb(sx(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
+      end do  
+      !$omp end parallel do
+      sout(1:ifull,k+kb-1) = sum(wrk,dim=2)/real(m_fly)
     end do
   end if
 
@@ -2112,7 +2110,6 @@ implicit none
 integer i, n, n_w, n_e, n_n, n_s
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(inout) :: sx_l
 
-!$omp parallel do schedule(static) private(n,n_w,n_e,n_n,n_s,i)
 do n = 0,npanels
   if ( mod(n,2)==0 ) then
     n_w = mod(n+5, 6)
@@ -2170,7 +2167,6 @@ do n = 0,npanels
     sx_l(ik+1,ik+2,n) = sx_l(2,ik,n_e)       ! enn  
   end if   ! mod(n,2)==0 ..else..
 end do       ! n loop
-!$omp end parallel do
 
 return
 end subroutine sxpanelbounds
@@ -2280,7 +2276,7 @@ do while ( nrem>0 )
   call ccmpi_filebounds_send(c_io,comm_ip)
   ! update body
   if ( ncount>0 ) then
-    do ipf =1,mynproc
+    do ipf = 1,mynproc
       do n = 1,pnpan
         do j = 2,pjpan-1
           do i = 2,pipan-1
@@ -2464,10 +2460,10 @@ do while ( any(nrem(:)>0) )
   call ccmpi_filebounds_send(c_io,comm_ip)
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
-  !$omp parallel do schedule(static) private(k,ipf,n,j,i,cc,csum,ccount)
+  !$omp parallel do schedule(static) private(k,ipf,n,j,i,s,cc,csum,ccount)
   do k = 1,kx
     if ( ncount(k)>0 ) then
-      do ipf =1,mynproc
+      do ipf = 1,mynproc
         do n = 1,pnpan
           do j = 2,pjpan-1
             do i = 2,pipan-1
@@ -3357,7 +3353,6 @@ end if
 
 ! calculate which grid points and input files are needed by this processor
 lfile(:) = .false.
-!$omp parallel do schedule(static) private(mm,iq,idel,jdel,n)
 do mm = 1,m_fly
   do iq = 1,ifull
     idel = int(xg4(iq,mm))
@@ -3378,7 +3373,6 @@ do mm = 1,m_fly
     lfile(procarray(idel+1,jdel-1,n)) = .true.   
   end do
 end do
-!$omp end parallel do
 
 ! Construct a map of files to be accessed by this process
 if ( myid==0 ) then

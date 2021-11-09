@@ -1274,7 +1274,7 @@ do mspec_mlo = mspeca_mlo,1,-1
           where ( workdata2(1:ifull,ii)<2. )
             ns(1:ifull,ii) = workdata2(1:ifull,ii)
           end where  
-        end do            
+        end do
       case default
         do ii = 1,wlev
           ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
@@ -1673,7 +1673,8 @@ else
     case default
       write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
       stop
-  end select  
+  end select
+  !$omp parallel do schedule(static) private(ii,iq,absu,bbsu,absv,bbsv)    
   do ii = 1,wlev
     do iq = 1,ifull
       absu = 0.5*(alpha(iq,ii)+alpha(ie(iq),ii))*eeu(iq,ii)
@@ -1687,6 +1688,7 @@ else
       drhobardyv(iq,ii) = -absv*dnadyv(iq,ii,1) + bbsv*dnadyv(iq,ii,2)
     end do
   end do
+  !$omp end parallel do
 
   ! integrate density gradient  
   drhobardxu(:,1) = drhobardxu(:,1)*godsigu(1:ifull,1)
@@ -2004,6 +2006,7 @@ real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
 
 ! rhobar = int_0^sigma rho dsigma / sigma
 
+!$omp parallel do collapse(2) schedule(static) private(jj,ii,iq)
 do jj = 1,2
   do ii = 1,wlev
     do iq = 1,ifull
@@ -2018,12 +2021,7 @@ do jj = 1,2
     end do
   end do
 end do
-
-! for agressive salinity gradients
-!drhodxu(1:ifull,1:wlev,2) = min( max( drhodxu(1:ifull,1:wlev,2), -4.e-4 ), 4.e-4 )
-!drhodyu(1:ifull,1:wlev,2) = min( max( drhodyu(1:ifull,1:wlev,2), -4.e-4 ), 4.e-4 )
-!drhodxv(1:ifull,1:wlev,2) = min( max( drhodxv(1:ifull,1:wlev,2), -4.e-4 ), 4.e-4 )
-!drhodyv(1:ifull,1:wlev,2) = min( max( drhodyv(1:ifull,1:wlev,2), -4.e-4 ), 4.e-4 )
+!$omp end parallel do
 
 return
 end subroutine zstar2
