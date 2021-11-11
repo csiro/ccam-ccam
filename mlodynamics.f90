@@ -702,7 +702,9 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Calculate depature points
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
+#ifdef GPU
   !$omp target data map(to:xg,yg,nface)
+#endif
   !$acc data create(xg,yg,nface)
   !$acc update device(xg,yg,nface)
   
@@ -743,7 +745,9 @@ do mspec_mlo = mspeca_mlo,1,-1
     mps(1:ifull,ii) = cou(1:ifull,ii,3)
   end do
 
+#ifdef GPU
   !$omp end target data
+#endif
   !$acc end data
 
   workdata = nt(1:ifull,:)
@@ -1421,24 +1425,40 @@ if (its_g>500) then
   write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
 end if
 
+#ifdef GPU
 !$omp target data map(to:its,dtnew,ww,depdum,dzdum)
+#else
 !$omp parallel sections
+#endif
 !$acc data create(its,dtnew,ww,depdum,dzdum)
 !$acc update device(its,dtnew,ww,depdum,dzdum)
 
+#ifndef GPU
 !$omp section
+#endif
 call mlotvd(its,dtnew,ww,uu,depdum,dzdum)
+#ifndef GPU
 !$omp section
+#endif
 call mlotvd(its,dtnew,ww,vv,depdum,dzdum)
+#ifndef GPU
 !$omp section
+#endif
 call mlotvd(its,dtnew,ww,ss,depdum,dzdum)
+#ifndef GPU
 !$omp section
+#endif
 call mlotvd(its,dtnew,ww,tt,depdum,dzdum)
+#ifndef GPU
 !$omp section
+#endif
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
 
-!$omp end parallel sections
+#ifdef GPU
 !$omp end target data
+#else
+!$omp end parallel sections
+#endif
 !$acc wait
 !$acc end data
   
@@ -1476,12 +1496,16 @@ async_counter = mod( async_counter+1, async_length )
 
 if ( mlontvd==0 ) then ! MC
 
+#ifdef GPU
   !$omp target enter data map(to:uu) map(alloc:delu,ff)
+#endif
   !$acc enter data create(uu,delu,ff) async(async_counter)
   !$acc update device(uu) async(async_counter)
 
 #ifdef _OPENMP
+#ifdef GPU
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
+#endif
 #else
   !$acc parallel loop collapse(2) present(delu,uu) async(async_counter)
 #endif
@@ -1491,8 +1515,10 @@ if ( mlontvd==0 ) then ! MC
     end do
   end do
 #ifdef _OPENMP
+#ifdef GPU
   !$omp end target teams distribute parallel do
   !$omp target teams distribute parallel do schedule(static) private(iq)
+#endif
 #else
   !$acc end parallel loop
   !$acc parallel loop present(ff,delu) async(async_counter)
@@ -1504,14 +1530,18 @@ if ( mlontvd==0 ) then ! MC
     delu(iq,wlev) = 0.
   end do
 #ifdef _OPENMP
+#ifdef GPU
   !$omp end target teams distribute parallel do
+#endif
 #else
   !$acc end parallel loop
 #endif
 
 ! TVD part
 #ifdef _OPENMP
+#ifdef GPU
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
+#endif
 #else
   !$acc parallel loop collapse(2) present(ww,delu,uu,dtnew,depdum) async(async_counter)
 #endif
@@ -1531,8 +1561,10 @@ if ( mlontvd==0 ) then ! MC
    end do
   end do
 #ifdef _OPENMP
+#ifdef GPU
   !$omp end target teams distribute parallel do
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
+#endif
 #else
   !$acc end parallel loop
   !$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum) async(async_counter)
@@ -1546,13 +1578,17 @@ if ( mlontvd==0 ) then ! MC
     end do  
   end do
 #ifdef _OPENMP
+#ifdef GPU
   !$omp end target teams distribute parallel do
+#endif
 #else
   !$acc end parallel loop
 #endif
 
 #ifdef _OPENMP
+#ifdef GPU
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(iq,i,ii,kp,kx,rr,fl,cc,fh)
+#endif
 #else
   !$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum) async(async_counter)
 #endif
@@ -1583,23 +1619,31 @@ if ( mlontvd==0 ) then ! MC
     end do
   end do
 #ifdef _OPENMP
+#ifdef GPU
   !$omp end target teams distribute parallel do
+#endif
 #else
   !$acc end parallel loop
 #endif
 
+#ifdef GPU
   !$omp target exit data map(from:uu)
+#endif
   !$acc update self(uu) async(async_counter)
   !$acc exit data delete(uu,delu,ff) async(async_counter)
 
 else if ( mlontvd==1 ) then ! Superbee
 
+#ifdef GPU
   !$omp target enter data map(to:uu) map(alloc:delu,ff)
+#endif
   !$acc enter data create(uu,delu,ff) async(async_counter)
   !$acc update device(uu) async(async_counter)
 
 #ifdef _OPENMP
+#ifdef GPU
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
+#endif
 #else
   !$acc parallel loop collapse(2) present(delu,uu) async(async_counter)
 #endif
@@ -1609,8 +1653,10 @@ else if ( mlontvd==1 ) then ! Superbee
     end do
   end do
 #ifdef _OPENMP
+#ifdef GPU
   !$omp end target teams distribute parallel do
   !$omp target teams distribute parallel do schedule(static) private(iq)
+#endif
 #else
   !$acc end parallel loop
   !$acc parallel loop present(ff,delu) async(async_counter)
@@ -1622,14 +1668,18 @@ else if ( mlontvd==1 ) then ! Superbee
     delu(iq,wlev) = 0.
   end do
 #ifdef _OPENMP
+#ifdef GPU
   !$omp end target teams distribute parallel do
+#endif
 #else
   !$acc end parallel loop
 #endif
 
 ! TVD part
 #ifdef _OPENMP
+#ifdef GPU
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
+#endif
 #else
   !$acc parallel loop collapse(2) present(ww,delu,uu,dtnew,depdum) async(async_counter)
 #endif
@@ -1649,8 +1699,10 @@ else if ( mlontvd==1 ) then ! Superbee
    end do
   end do
 #ifdef _OPENMP
+#ifdef GPU
   !$omp end target teams distribute parallel do
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
+#endif
 #else
   !$acc end parallel loop
   !$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum) async(async_counter)
@@ -1664,13 +1716,17 @@ else if ( mlontvd==1 ) then ! Superbee
     end do  
   end do
 #ifdef _OPENMP
+#ifdef GPU
   !$omp end target teams distribute parallel do
+#endif
 #else
   !$acc end parallel loop
 #endif
 
 #ifdef _OPENMP
+#ifdef GPU
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(iq,i,ii,kp,kx,rr,fl,cc,fh)
+#endif
 #else
   !$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum) async(async_counter)
 #endif
@@ -1701,12 +1757,16 @@ else if ( mlontvd==1 ) then ! Superbee
     end do
   end do
 #ifdef _OPENMP
+#ifdef GPU
   !$omp end target teams distribute parallel do
+#endif
 #else
   !$acc end parallel loop
 #endif
 
+#ifdef GPU
   !$omp target exit data map(from:uu)
+#endif
   !$acc update self(uu) async(async_counter)
   !$acc exit data delete(uu,delu,ff) async(async_counter)
     

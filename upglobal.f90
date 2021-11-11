@@ -225,7 +225,9 @@ end if     ! mspec==1
 call END_LOG(ints_end)
 
 
+#ifdef GPU
 !$omp target data map(to:xg,yg,nface)
+#endif
 !$acc data create(xg,yg,nface)
 !$acc update device(xg,yg,nface)
 
@@ -394,7 +396,9 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   end if
 end if     ! mspec==1
 
+#ifdef GPU
 !$omp end target data
+#endif
 !$acc end data
 
 do k = 2,kl
