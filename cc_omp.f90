@@ -51,10 +51,10 @@ module cc_omp
 
    end function ccomp_get_thread_num
 
-   subroutine ccomp_init(myid,nproc,ngpus)
+   subroutine ccomp_init(myid,ngpus)
       use newmpar_m, only : ifull
       integer :: i, tmp
-      integer, intent(in) :: myid, nproc
+      integer, intent(in) :: myid
       integer, intent(inout) :: ngpus
    
       maxthreads = 1
@@ -62,7 +62,7 @@ module cc_omp
       maxthreads = omp_get_max_threads()
 #ifdef GPU
       ngpus = omp_get_num_devices()
-      call omp_set_default_device(mod(myid,nproc))
+      call omp_set_default_device(mod(myid,ngpus))
       gpuid = omp_get_default_device()
 #endif
 #endif      

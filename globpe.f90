@@ -2651,8 +2651,13 @@ do while( mod(jl, nrows_rad)/=0 )
   nrows_rad = nrows_rad - 1
 end do
 
-call ccomp_init(node_myid,node_nproc,ngpus)
-call ccacc_init(node_myid,node_nproc,ngpus)
+#ifdef usempi3
+call ccomp_init(node_myid,ngpus)
+call ccacc_init(node_myid,ngpus)
+#else
+call ccomp_init(myid,ngpus)
+call ccacc_init(myid,ngpus)
+#endif
 
 if ( myid==0 ) then
   write(6,'(a20," running for nproc    = ",i12)') version,nproc

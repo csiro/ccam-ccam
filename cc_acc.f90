@@ -36,9 +36,9 @@ module cc_acc
 
    contains
 
-   subroutine ccacc_init(myid,nproc,ngpus)
+   subroutine ccacc_init(myid,ngpus)
 
-     integer, intent(in) :: myid, nproc
+     integer, intent(in) :: myid
      integer, intent(inout) :: ngpus
 
 #ifndef _OPENMP     
@@ -49,7 +49,7 @@ module cc_acc
      devicetype = acc_get_device_type()
      ngpus = acc_get_num_devices(devicetype)
 
-     call acc_set_device_num(mod(myid,nproc),devicetype)
+     call acc_set_device_num(mod(myid,ngpus),devicetype)
      gpuid = acc_get_device_num(devicetype)
 #endif
 #endif
