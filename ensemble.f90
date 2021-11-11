@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -86,14 +86,14 @@ integer mtimeb_old
 real timerm, cona, conb, wgt
 real, dimension(ifull) :: dd, old, new, delta
 real, dimension(ifull) :: zsb, timelt
-real, dimension(:), allocatable :: psl_pos, psl_neg
+real, dimension(ifull) :: psl_pos, psl_neg
 real, dimension(:), allocatable, save :: u_rms, v_rms
 real, dimension(:), allocatable, save :: t_rms
 real, dimension(ifull,3) :: duma
 real, dimension(ifull,6) :: dumd
 real, dimension(ifull,kl) :: ee
-real, dimension(:,:), allocatable :: u_pos, v_pos, t_pos
-real, dimension(:,:), allocatable :: u_neg, v_neg, t_neg
+real, dimension(ifull,kl) :: u_pos, v_pos, t_pos
+real, dimension(ifull,kl) :: u_neg, v_neg, t_neg
 real, dimension(ifull,ms,3) :: dumg
 real, dimension(ifull,kl,5) :: dumv
 real, dimension(ifull,3,3) :: dums
@@ -200,10 +200,6 @@ if ( mtimer>=mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
       if ( myid==0 ) then
         write(6,*) "Create ensemble initial conditions"  
       end if    
-      allocate( psl_pos(ifull), psl_neg(ifull) )
-      allocate( u_pos(ifull,kl), u_neg(ifull,kl) )
-      allocate( v_pos(ifull,kl), v_neg(ifull,kl) )
-      allocate( t_pos(ifull,kl), t_neg(ifull,kl) )
       dd(:) = psl(1:ifull) - pslb
       psl_pos(:) = max( min( pslb + dd, 0.3 ), -1.4 )
       psl_neg(:) = max( min( pslb - dd, 0.3 ), -1.4 )
@@ -220,10 +216,6 @@ if ( mtimer>=mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
       call saveoutput(num,psl_pos,u_pos,v_pos,t_pos,qg)
       num = num + 1 ! even = neg
       call saveoutput(num,psl_neg,u_neg,v_neg,t_neg,qg)
-      deallocate( psl_pos, psl_neg )
-      deallocate( u_pos, u_neg )
-      deallocate( v_pos, v_neg )
-      deallocate( t_pos, t_neg )
       psl(1:ifull) = pslb(:)
       u(1:ifull,:) = ub(:,:)
       v(1:ifull,:) = vb(:,:)

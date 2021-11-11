@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -68,11 +68,13 @@ end interface
 
 interface pop_pack
   module procedure pop_pack_r8_2_r8_tile, pop_pack_i4_2_i4_tile
+  !module procedure pop_pack_r8_2_dp_tile
 end interface
 
 interface pop_unpack
   module procedure pop_unpack_r8_2_r8_tile, pop_unpack_i4_2_r8_tile
   module procedure pop_unpack_i8_2_r8_tile
+  !module procedure pop_unpack_dp_2_r8_tile
 end interface
 
 interface setp
@@ -486,14 +488,37 @@ subroutine cable_unpack_r8_2_r8_tile(indata,outdata,inb)
 end subroutine cable_unpack_r8_2_r8_tile
 #endif
 
+!subroutine pop_pack_r8_2_dp_tile(indata,outdata,inb)
+!  use newmpar_m, only : ifull
+!  use TypeDef, only : dp
+!
+!  implicit none
+!
+!  real(kind=8), dimension(ifull), intent(in) :: indata
+!  real(kind=dp), dimension(:), intent(inout) :: outdata
+!  integer, intent(in) :: inb
+!  integer :: nb, is, ie, js, je, tile
+!
+!  nb = inb
+!  do tile = 1,ntiles
+!    is = tdata(tile)%pind(nb,1)
+!    ie = tdata(tile)%pind(nb,2)
+!    if ( is<=ie ) then
+!      js=1+(tile-1)*imax
+!      je=tile*imax
+!      outdata(is:ie) =  pack(real(indata(js:je),dp),tdata(tile)%pmap(:,nb))
+!    end if  
+!  end do
+!
+!end subroutine pop_pack_r8_2_dp_tile
+
 subroutine pop_pack_r8_2_r8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-  use TypeDef, only : dp
 
   implicit none
 
   real(kind=8), dimension(ifull), intent(in) :: indata
-  real(kind=dp), dimension(:), intent(inout) :: outdata
+  real(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -533,13 +558,36 @@ subroutine pop_pack_i4_2_i4_tile(indata,outdata,inb)
 
 end subroutine pop_pack_i4_2_i4_tile
 
+!subroutine pop_unpack_dp_2_r8_tile(indata,outdata,inb)
+!  use newmpar_m, only : ifull
+!  use TypeDef, only : dp
+!
+!  implicit none
+!
+!  real(kind=dp), dimension(:), intent(in) :: indata
+!  real(kind=8), dimension(ifull), intent(out) :: outdata
+!  integer, intent(in) :: inb
+!  integer :: is, ie, js, je, tile, nb
+!
+!  nb = inb
+!  do tile =1,ntiles
+!    is = tdata(tile)%pind(nb,1)
+!    ie = tdata(tile)%pind(nb,2)
+!    if ( is<=ie ) then
+!      js=1+(tile-1)*imax
+!      je=tile*imax
+!      outdata(js:je) = unpack(real(indata(is:ie),8),tdata(tile)%pmap(:,nb),0._8)
+!    end if  
+!  end do
+!
+!end subroutine pop_unpack_dp_2_r8_tile
+
 subroutine pop_unpack_r8_2_r8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-  use TypeDef, only : dp
 
   implicit none
 
-  real(kind=dp), dimension(:), intent(in) :: indata
+  real(kind=8), dimension(:), intent(in) :: indata
   real(kind=8), dimension(ifull), intent(out) :: outdata
   integer, intent(in) :: inb
   integer :: is, ie, js, je, tile, nb

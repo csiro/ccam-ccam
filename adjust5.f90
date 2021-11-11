@@ -732,14 +732,16 @@ ratio = 0. ! for cray compiler
 
 select case(mfix)
   case(3) ! newer scheme - preferred
-    !$omp parallel do collapse(2) schedule(static) private(i,k)  
+    !$omp parallel if(ntr>1)
+    !$omp do collapse(2) schedule(static) private(i,k)  
     do i = 1,ntr
       do k = 1,kl
         s(1:ifull,k,i) = s(1:ifull,k,i) - ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull) 
         s(1:ifull,k,i) = pssav(1:ifull)*s(1:ifull,k,i)*(1.+0.5*s(1:ifull,k,i))
       end do   ! k loop
     end do
-    !$omp end parallel do
+    !$omp end do
+    !$omp end parallel
     call ccglobal_posneg(s,delpos,delneg,dsig)
     if ( llim ) then
       ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
@@ -747,7 +749,8 @@ select case(mfix)
       ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
     end if
     alph_g(1:ntr) = min(ratio(1:ntr), sqrt(ratio(1:ntr)))
-    !$omp parallel do collapse(2) schedule(static) private(i,k)
+    !$omp parallel if(ntr>1)
+    !$omp do collapse(2) schedule(static) private(i,k)
     do i = 1,ntr
       do k = 1,kl
         s(1:ifull,k,i) = alph_g(i)*max(0., s(1:ifull,k,i))+min(0., s(1:ifull,k,i))/max(1., alph_g(i))
@@ -755,16 +758,19 @@ select case(mfix)
         s(1:ifull,k,i) = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull) + s(1:ifull,k,i)*(1.-0.5*s(1:ifull,k,i))
       end do    ! k  loop
     end do
-    !$omp end parallel do
+    !$omp end do
+    !$omp end parallel
 
   case(2)
-    !$omp parallel do collapse(2) schedule(static) private(i,k)  
+    !$omp parallel if(ntr>1)
+    !$omp do collapse(2) schedule(static) private(i,k)  
     do i = 1,ntr
       do k = 1,kl
         s(1:ifull,k,i) = s(1:ifull,k,i) - ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull) 
       end do   ! k loop
     end do
-    !$omp end parallel do
+    !$omp end do
+    !$omp end parallel
     call ccglobal_posneg(s,delpos,delneg,dsig)
     if ( llim ) then
       ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
@@ -773,23 +779,27 @@ select case(mfix)
       ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
       alph_g(1:ntr) = sqrt(ratio(1:ntr))
     end if
-    !$omp parallel do collapse(2) schedule(static) private(i,k)
+    !$omp parallel if(ntr>1)
+    !$omp do collapse(2) schedule(static) private(i,k)
     do i = 1,ntr
       do k = 1,kl
         s(1:ifull,k,i) = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull) &
             + alph_g(i)*max(0., s(1:ifull,k,i))+min(0., s(1:ifull,k,i))/max(1., alph_g(i))
       end do    ! k  loop
     end do
-    !$omp end parallel do
+    !$omp end do
+    !$omp end parallel
 
   case(1) ! original scheme
-    !$omp parallel do collapse(2) schedule(static) private(i,k)  
+    !$omp parallel if(ntr>1)
+    !$omp do collapse(2) schedule(static) private(i,k)  
     do i = 1,ntr
       do k = 1,kl
         s(1:ifull,k,i) = s(1:ifull,k,i) - ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull) 
       end do   ! k loop
     end do
-    !$omp end parallel do
+    !$omp end do
+    !$omp end parallel
     call ccglobal_posneg(s,delpos,delneg,dsig)
     if ( llim ) then
       ratio(1:ntr) = -delneg(1:ntr)/max(delpos(1:ntr), 1.e-30)
@@ -797,14 +807,16 @@ select case(mfix)
       ratio(1:ntr) = -delneg(1:ntr)/delpos(1:ntr)
     end if
     alph_g(1:ntr) = min(ratio(1:ntr), sqrt(ratio(1:ntr)))
-    !$omp parallel do collapse(2) schedule(static) private(i,k)        
+    !$omp parallel if(ntr>1)
+    !$omp do collapse(2) schedule(static) private(i,k)        
     do i = 1,ntr
       do k = 1,kl
         s(1:ifull,k,i) = ssav_in(1:ifull,k,i)*pssav(1:ifull)/ps(1:ifull) &
             + alph_g(i)*max(0., s(1:ifull,k,i))+min(0., s(1:ifull,k,i))/max(1., alph_g(i))
       end do    ! k  loop
     end do
-    !$omp end parallel do
+    !$omp end do
+    !$omp end parallel
    
   case default    
     write(6,*) "ERROR: Unknow mfix option ",mfix

@@ -702,14 +702,9 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Calculate depature points
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
-!#ifdef _OPENMP
-!#ifdef GPU
-!  !$omp target data map(to:xg,yg,nface)
-!#endif
-!#else
+  !$omp target data map(to:xg,yg,nface)
   !$acc data create(xg,yg,nface)
   !$acc update device(xg,yg,nface)
-!#endif
   
   ! Convert (u,v) to cartesian coordinates (U,V,W)
   do ii = 1,wlev
@@ -748,13 +743,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     mps(1:ifull,ii) = cou(1:ifull,ii,3)
   end do
 
-!#ifdef _OPENMP
-!#ifdef GPU
-!  !$omp end target data
-!#endif
-!#else
+  !$omp end target data
   !$acc end data
-!#endif
 
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
@@ -1431,6 +1421,7 @@ if (its_g>500) then
   write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
 end if
 
+!$omp target data map(to:its,dtnew,ww,depdum,dzdum)
 !$omp parallel sections
 !$acc data create(its,dtnew,ww,depdum,dzdum)
 !$acc update device(its,dtnew,ww,depdum,dzdum)
@@ -1447,6 +1438,7 @@ call mlotvd(its,dtnew,ww,tt,depdum,dzdum)
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
 
 !$omp end parallel sections
+!$omp end target data
 !$acc wait
 !$acc end data
   
@@ -1482,28 +1474,47 @@ real fl,fh,cc,rr
 
 async_counter = mod( async_counter+1, async_length )
 
-!$acc enter data create(uu,delu,ff) async(async_counter)
-!$acc update device(uu) async(async_counter)
+if ( mlontvd==0 ) then ! MC
 
-!$acc parallel loop collapse(2) present(delu,uu) async(async_counter)
-do ii = 1,wlev-1
-  do iq = 1,ifull
-    delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
+  !$omp target enter data map(to:uu) map(alloc:delu,ff)
+  !$acc enter data create(uu,delu,ff) async(async_counter)
+  !$acc update device(uu) async(async_counter)
+
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
+#else
+  !$acc parallel loop collapse(2) present(delu,uu) async(async_counter)
+#endif
+  do ii = 1,wlev-1
+    do iq = 1,ifull
+      delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
+    end do
   end do
-end do
-!$acc end parallel loop
-!$acc parallel loop present(ff,delu) async(async_counter)
-do iq = 1,ifull
-  ff(iq,0) = 0.
-  ff(iq,wlev) = 0.
-  delu(iq,0) = 0.
-  delu(iq,wlev) = 0.
-end do
-!$acc end parallel loop
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+  !$omp target teams distribute parallel do schedule(static) private(iq)
+#else
+  !$acc end parallel loop
+  !$acc parallel loop present(ff,delu) async(async_counter)
+#endif
+  do iq = 1,ifull
+    ff(iq,0) = 0.
+    ff(iq,wlev) = 0.
+    delu(iq,0) = 0.
+    delu(iq,wlev) = 0.
+  end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
+  !$acc end parallel loop
+#endif
 
 ! TVD part
-if ( mlontvd==0 ) then ! MC
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
+#else
   !$acc parallel loop collapse(2) present(ww,delu,uu,dtnew,depdum) async(async_counter)
+#endif
   do ii = 1,wlev-1
     do iq = 1,ifull
       ! +ve ww is downwards to the ocean floor
@@ -1519,40 +1530,32 @@ if ( mlontvd==0 ) then ! MC
      !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
    end do
   end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
+#else
   !$acc end parallel loop
-else if ( mlontvd==1 ) then ! Superbee
-  !$acc parallel loop collapse(2) present(ww,delu,uu,dtnew,depdum) async(async_counter)
-  do ii = 1,wlev-1
+  !$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum) async(async_counter)
+#endif
+  do ii = 1,wlev
     do iq = 1,ifull
-      ! +ve ww is downwards to the ocean floor
-      kp = nint(sign(1.,ww(iq,ii)))
-      kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-      rr=delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
-      fl=ww(iq,ii)*uu(iq,kx)
-      cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
-      fh = ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))             &
-        - 0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
-        /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-      ff(iq,ii) = fl + cc*(fh-fl)
-     !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
-   end do
+      if ( dzdum(iq,ii)>1.e-4 ) then  
+        uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))   &
+                           -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
+      end if   
+    end do  
   end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
   !$acc end parallel loop
-end if
-!$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum) async(async_counter)
-do ii = 1,wlev
-  do iq = 1,ifull
-    if ( dzdum(iq,ii)>1.e-4 ) then  
-      uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))   &
-                         -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
-    end if   
-  end do  
-end do
-!$acc end parallel loop
+#endif
 
-
-if ( mlontvd==0 ) then ! MC
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(iq,i,ii,kp,kx,rr,fl,cc,fh)
+#else
   !$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum) async(async_counter)
+#endif
   do iq = 1,ifull
     do i = 2,its(iq)
       do ii=1,wlev-1
@@ -1579,9 +1582,98 @@ if ( mlontvd==0 ) then ! MC
       end do
     end do
   end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
   !$acc end parallel loop
+#endif
+
+  !$omp target exit data map(from:uu)
+  !$acc update self(uu) async(async_counter)
+  !$acc exit data delete(uu,delu,ff) async(async_counter)
+
 else if ( mlontvd==1 ) then ! Superbee
+
+  !$omp target enter data map(to:uu) map(alloc:delu,ff)
+  !$acc enter data create(uu,delu,ff) async(async_counter)
+  !$acc update device(uu) async(async_counter)
+
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
+#else
+  !$acc parallel loop collapse(2) present(delu,uu) async(async_counter)
+#endif
+  do ii = 1,wlev-1
+    do iq = 1,ifull
+      delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
+    end do
+  end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+  !$omp target teams distribute parallel do schedule(static) private(iq)
+#else
+  !$acc end parallel loop
+  !$acc parallel loop present(ff,delu) async(async_counter)
+#endif
+  do iq = 1,ifull
+    ff(iq,0) = 0.
+    ff(iq,wlev) = 0.
+    delu(iq,0) = 0.
+    delu(iq,wlev) = 0.
+  end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
+  !$acc end parallel loop
+#endif
+
+! TVD part
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
+#else
+  !$acc parallel loop collapse(2) present(ww,delu,uu,dtnew,depdum) async(async_counter)
+#endif
+  do ii = 1,wlev-1
+    do iq = 1,ifull
+      ! +ve ww is downwards to the ocean floor
+      kp = nint(sign(1.,ww(iq,ii)))
+      kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
+      rr=delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
+      fl=ww(iq,ii)*uu(iq,kx)
+      cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
+      fh = ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))             &
+        - 0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
+        /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
+      ff(iq,ii) = fl + cc*(fh-fl)
+     !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
+   end do
+  end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
+#else
+  !$acc end parallel loop
+  !$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum) async(async_counter)
+#endif
+  do ii = 1,wlev
+    do iq = 1,ifull
+      if ( dzdum(iq,ii)>1.e-4 ) then  
+        uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))   &
+                           -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
+      end if   
+    end do  
+  end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
+  !$acc end parallel loop
+#endif
+
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(iq,i,ii,kp,kx,rr,fl,cc,fh)
+#else
   !$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum) async(async_counter)
+#endif
   do iq = 1,ifull
     do i = 2,its(iq)
       do ii=1,wlev-1
@@ -1608,11 +1700,20 @@ else if ( mlontvd==1 ) then ! Superbee
       end do
     end do
   end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
   !$acc end parallel loop
-end if
+#endif
 
-!$acc update self(uu) async(async_counter)
-!$acc exit data delete(uu,delu,ff) async(async_counter)
+  !$omp target exit data map(from:uu)
+  !$acc update self(uu) async(async_counter)
+  !$acc exit data delete(uu,delu,ff) async(async_counter)
+    
+else
+  write(6,*) "ERROR: Unknown option mlontvd ",mlontvd
+  stop
+endif
 
 return
 end subroutine mlotvd

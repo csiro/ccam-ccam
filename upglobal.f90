@@ -59,9 +59,6 @@ integer ii, intsch, iq, jj, k, kk
 integer idjdd, nstart
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits, nvadh_pass
-#ifdef debug
-integer, save :: num_hight = 0
-#endif
 real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
 real, dimension(ifull+iextra) :: aa
 real, dimension(ifull,kl) :: theta
@@ -72,6 +69,9 @@ real vec2x, vec2y, vec2z
 real vec3x, vec3y, vec3z
 real, dimension(kl) :: factr
 real(kind=8), dimension(ifull,kl) :: x3d, y3d, z3d
+#ifdef debug
+integer, save :: num_hight = 0
+#endif
 
 call START_LOG(upglobal_begin)
 
@@ -225,14 +225,9 @@ end if     ! mspec==1
 call END_LOG(ints_end)
 
 
-#ifdef _OPENMP
-#ifdef GPU
 !$omp target data map(to:xg,yg,nface)
-#endif
-#else
 !$acc data create(xg,yg,nface)
 !$acc update device(xg,yg,nface)
-#endif
 
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
@@ -399,13 +394,8 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   end if
 end if     ! mspec==1
 
-#ifdef _OPENMP
-#ifdef GPU
 !$omp end target data
-#endif
-#else
 !$acc end data
-#endif
 
 do k = 2,kl
   sdot(:,k) = sbar(:,k)

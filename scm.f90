@@ -845,42 +845,13 @@ end subroutine calcshear
 subroutine calcshear_mlo
 
 use mlo
-use newmpar_m
 use parm_m
 
 implicit none
 
-integer k, iq
-real, dimension(ifull,wlev) :: u_ema, v_ema, dz
-real, dimension(ifull,wlev) :: u_hl, v_hl
-real, dimension(ifull) :: shear
-real dudz, dvdz
-
 if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
   call mlo_ema(dt,"uvw")  
-  dz = 0.
-  u_ema = 0.
-  v_ema = 0.
-  do k = 1,wlev
-    call mloexport("u_ema",u_ema(:,k),k,0)
-    call mloexport("v_ema",v_ema(:,k),k,0)
-    call mloexpdep(1,dz(:,k),k,0)
-  end do
-  call mlo_interpolate_hl(u_ema,u_hl)
-  call mlo_interpolate_hl(v_ema,v_hl)
 end if   
-do k = 2,wlev-1
-  do iq = 1,ifull  
-    if ( dz(iq,k)>1.e-4 ) then
-      dudz = (u_hl(iq,k+1) - u_hl(iq,k-1))/dz(iq,k)
-      dvdz = (v_hl(iq,k+1) - v_hl(iq,k-1))/dz(iq,k)
-      shear(iq) = dudz**2 + dvdz**2
-    else
-      shear(iq) = 0.  
-    end if
-  end do  
-  call mloimport("shear",shear,k,0)  
-end do
 
 return
 end subroutine calcshear_mlo
@@ -2584,6 +2555,7 @@ use raddiag_m                              ! Radiation diagnostic
 use sigs_m                                 ! Atmosphere sigma levels
 use screen_m                               ! Screen level diagnostics
 use soilsnow_m                             ! Soil, snow and surface data
+use tkeeps, only : tke,eps
 use work2_m                                ! Diagnostic arrays
 use histave_m                              ! Averaged over multiple timesteps
 

@@ -1915,7 +1915,6 @@ do k = 1,kl
   uw_flux(:,k) = 0.
   vw_flux(:,k) = 0.
   mfsave(:,k) = 0.
-  tkesave(:,k) = -1. ! missing value
 end do
 ! Evaluate EDMF scheme
 select case(nvmix)

@@ -162,6 +162,39 @@ if ( nvmix==6 .or. nvmix==9 ) then
   call update_ema(vav,v_ema,dt)
   
   call bounds(w_ema)
+  if ( nhorx==1 ) then
+    !$omp parallel do schedule(static) private(k,iq)
+    do k = 1,kl
+      do iq = 1,ifull  
+        dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
+        dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
+        dwdx(iq,k) = dwdx(iq,k)*tx_fact(iq)
+        dwdy(iq,k) = dwdy(iq,k)*ty_fact(iq)
+      end do
+    end do
+    !$omp end parallel do
+  else if ( nhorx>=7 ) then
+    !$omp parallel
+    !$omp do schedule(static) private(k,iq)
+    do k = 1,kmax
+      do iq = 1,ifull  
+        dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
+        dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
+        dwdx(iq,k) = dwdx(iq,k)*tx_fact(iq)
+        dwdy(iq,k) = dwdy(iq,k)*ty_fact(iq)
+      end do
+    end do
+    !$omp end do nowait
+    !$omp do schedule(static) private(k,iq)
+    do k = kmax+1,kl
+      do iq = 1,ifull  
+        dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
+        dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
+      end do
+    end do
+    !$omp end do nowait
+    !$omp end parallel
+  else
   !$omp parallel do schedule(static) private(k,iq)
   do k = 1,kl
     do iq = 1,ifull  
@@ -170,20 +203,7 @@ if ( nvmix==6 .or. nvmix==9 ) then
     end do
   end do
   !$omp end parallel do
-  if ( nhorx==1 ) then
-    do k = 1,kl
-      do iq = 1,ifull
-        dwdx(iq,k) = dwdx(iq,k)*tx_fact(iq)
-        dwdy(iq,k) = dwdy(iq,k)*ty_fact(iq)
-      end do
-    end do
-  else if ( nhorx>=7 ) then
-    do k = 1,kmax
-      do iq = 1,ifull
-        dwdx(iq,k) = dwdx(iq,k)*tx_fact(iq)
-        dwdy(iq,k) = dwdy(iq,k)*ty_fact(iq)
-      end do
-    end do
+      
   end if
   
   ! calculate height on full levels (hydrostatic terms)
@@ -327,20 +347,39 @@ end select
 
 
 call bounds(t_kh,nehalf=.true.)
-do k = 1,kl
-  xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
-  yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
-end do    
 if ( nhorx==1 ) then
+  !$omp parallel do schedule(static) private(k)  
   do k = 1,kl
+    xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
+    yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
     xfact(1:ifull,k) = xfact(1:ifull,k)*tx_fact(1:ifull)
     yfact(1:ifull,k) = yfact(1:ifull,k)*ty_fact(1:ifull)
   end do    
+  !$omp end parallel do
 else if ( nhorx>=7 ) then
+  !$omp parallel
+  !$omp do schedule(static) private(k)
   do k = 1,kmax
+    xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
+    yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
     xfact(1:ifull,k) = xfact(1:ifull,k)*tx_fact(1:ifull)
     yfact(1:ifull,k) = yfact(1:ifull,k)*ty_fact(1:ifull)
-  end do
+  end do    
+  !$omp end do nowait
+  !$omp do schedule(static) private(k)
+  do k = kmax+1,kl
+    xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
+    yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
+  end do    
+  !$omp end do nowait
+  !$omp end parallel
+else
+  !$omp parallel do schedule(static) private(k)
+  do k = 1,kl
+    xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
+    yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
+  end do    
+  !$omp end parallel do
 end if
 call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
                                    ! only update iwu and isv values

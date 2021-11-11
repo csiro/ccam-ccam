@@ -113,9 +113,9 @@ if ( intsch==1 ) then
         ! depature point coordinates
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - idel
+        xxg = dpoints(ii)%a(2,iq) - real(idel)
         jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - jdel
+        yyg = dpoints(ii)%a(3,iq) - real(jdel)
         k = nint(dpoints(ii)%a(4,iq))
         idel = idel - ioff
         jdel = jdel - joff
@@ -161,9 +161,9 @@ if ( intsch==1 ) then
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
-        xxg = xg(iq,k) - idel
+        xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
-        yyg = yg(iq,k) - jdel
+        yyg = yg(iq,k) - real(jdel)
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
@@ -203,9 +203,9 @@ if ( intsch==1 ) then
       do iq = 1,drlen(ii)
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - idel
+        xxg = dpoints(ii)%a(2,iq) - real(idel)
         jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - jdel
+        yyg = dpoints(ii)%a(3,iq) - real(jdel)
         k = nint(dpoints(ii)%a(4,iq))
         idel = idel - ioff
         jdel = jdel - joff
@@ -256,9 +256,9 @@ if ( intsch==1 ) then
     do k = 1,kl
       do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
         idel = int(xg(iq,k))
-        xxg = xg(iq,k) - idel
+        xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
-        yyg = yg(iq,k) - jdel
+        yyg = yg(iq,k) - real(jdel)
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
@@ -349,9 +349,9 @@ else     ! if(intsch==1)then
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - idel
+        xxg = dpoints(ii)%a(2,iq) - real(idel)
         jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - jdel
+        yyg = dpoints(ii)%a(3,iq) - real(jdel)
         k = nint(dpoints(ii)%a(4,iq))
         idel = idel - ioff
         jdel = jdel - joff
@@ -396,9 +396,9 @@ else     ! if(intsch==1)then
       do iq = 1,ifull    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
         idel = int(xg(iq,k))
-        xxg = xg(iq,k) - idel
+        xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
-        yyg = yg(iq,k) - jdel
+        yyg = yg(iq,k) - real(jdel)
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
@@ -439,9 +439,9 @@ else     ! if(intsch==1)then
         n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
         idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - idel
+        xxg = dpoints(ii)%a(2,iq) - real(idel)
         jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - jdel
+        yyg = dpoints(ii)%a(3,iq) - real(jdel)
         k = nint(dpoints(ii)%a(4,iq))
         idel = idel - ioff
         jdel = jdel - joff
@@ -490,9 +490,9 @@ else     ! if(intsch==1)then
     do k = 1,kl
       do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
         idel = int(xg(iq,k))
-        xxg = xg(iq,k) - idel
+        xxg = xg(iq,k) - real(idel)
         jdel = int(yg(iq,k))
-        yyg = yg(iq,k) - jdel
+        yyg = yg(iq,k) - real(jdel)
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
@@ -600,9 +600,9 @@ do ii = 1,neighnum
     n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
     !  Need global face index in fproc call
     idel = int(dpoints(ii)%a(2,iq))
-    xxg = dpoints(ii)%a(2,iq) - idel
+    xxg = dpoints(ii)%a(2,iq) - real(idel)
     jdel = int(dpoints(ii)%a(3,iq))
-    yyg = dpoints(ii)%a(3,iq) - jdel
+    yyg = dpoints(ii)%a(3,iq) - real(jdel)
     k = nint(dpoints(ii)%a(4,iq))
     idel = idel - ioff
     jdel = jdel - joff

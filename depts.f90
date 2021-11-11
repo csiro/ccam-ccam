@@ -143,14 +143,9 @@ else
 
 end if
 
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target data map(to:sx,xx4,yy4)
-#endif
-#else
-  !$acc data create(sx,xx4,yy4)
-  !$acc update device(sx,xx4,yy4)
-#endif
+!$omp target data map(to:sx,xx4,yy4)
+!$acc data create(sx,xx4,yy4)
+!$acc update device(sx,xx4,yy4)
 
 ! convert to grid point numbering
 call toij5(x3d,y3d,z3d)
@@ -592,13 +587,8 @@ end if
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
 
-#ifdef _OPENMP
-#ifdef GPU
 !$omp end target data
-#endif
-#else
 !$acc end data
-#endif
 
 call END_LOG(depts_end)
       

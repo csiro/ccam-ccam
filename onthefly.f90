@@ -552,14 +552,12 @@ if ( newfile .and. .not.iop_test ) then
   end if                  ! (myid==0)
 
   ! setup interpolation arrays
-  !$omp parallel do schedule(static) private(mm)
   do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
     call latltoij(rlong4_l(:,mm),rlat4_l(:,mm),      & !input
                   rlong0x,rlat0x,schmidtx,           & !input
                   xg4(:,mm),yg4(:,mm),nface4(:,mm),  & !output (source)
                   xx4,yy4,ik)
   end do
-  !$omp end parallel do
 
   nullify( xx4, yy4 )
   deallocate( xy4_dummy )  

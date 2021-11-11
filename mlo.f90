@@ -5586,7 +5586,8 @@ select case(mode)
       end do
     end do
     ! vertical contribution to shear
-    fdepth_hl(:,2:wlev) = real((depth%depth_hl(:,2:wlev)-depth%depth(:,1:wlev-1))/max(depth%depth(:,2:wlev)-depth%depth(:,1:wlev-1),1.e-8),8)
+    fdepth_hl(:,2:wlev) = real((depth%depth_hl(:,2:wlev)-depth%depth(:,1:wlev-1)) &
+      /max(depth%depth(:,2:wlev)-depth%depth(:,1:wlev-1),1.e-8),8)
     call interpolate_hl(water%u_ema,fdepth_hl,u_hl)    
     call interpolate_hl(water%v_ema,fdepth_hl,v_hl)
     do ii = 2,wlev-1

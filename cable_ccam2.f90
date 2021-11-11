@@ -4329,17 +4329,17 @@ else
   if ( myid==0 ) then
     nstart(1) = 1
     ncount(1) = lncveg_numsoil
-    call ccnf_get_vara(ncidveg,'silt',nstart,ncount,silt)
-    call ccnf_get_vara(ncidveg,'clay',nstart,ncount,clay)
-    call ccnf_get_vara(ncidveg,'sand',nstart,ncount,sand)
+    call ccnf_get_vara(ncidveg,'silt',nstart,ncount,silt(1:lncveg_numsoil))
+    call ccnf_get_vara(ncidveg,'clay',nstart,ncount,clay(1:lncveg_numsoil))
+    call ccnf_get_vara(ncidveg,'sand',nstart,ncount,sand(1:lncveg_numsoil))
     call ccnf_get_vara(ncidveg,'swilt',nstart,ncount,swilt(1:lncveg_numsoil))
     call ccnf_get_vara(ncidveg,'sfc',nstart,ncount,sfc(1:lncveg_numsoil))
     call ccnf_get_vara(ncidveg,'ssat',nstart,ncount,ssat(1:lncveg_numsoil))
-    call ccnf_get_vara(ncidveg,'bch',nstart,ncount,bch)
-    call ccnf_get_vara(ncidveg,'hyds',nstart,ncount,hyds)
-    call ccnf_get_vara(ncidveg,'sucs',nstart,ncount,sucs)
-    call ccnf_get_vara(ncidveg,'rhosoil',nstart,ncount,rhos)
-    call ccnf_get_vara(ncidveg,'css',nstart,ncount,css)
+    call ccnf_get_vara(ncidveg,'bch',nstart,ncount,bch(1:lncveg_numsoil))
+    call ccnf_get_vara(ncidveg,'hyds',nstart,ncount,hyds(1:lncveg_numsoil))
+    call ccnf_get_vara(ncidveg,'sucs',nstart,ncount,sucs(1:lncveg_numsoil))
+    call ccnf_get_vara(ncidveg,'rhosoil',nstart,ncount,rhos(1:lncveg_numsoil))
+    call ccnf_get_vara(ncidveg,'css',nstart,ncount,css(1:lncveg_numsoil))
   end if
   call ccmpi_bcast(silt,0,comm_world)
   call ccmpi_bcast(clay,0,comm_world)

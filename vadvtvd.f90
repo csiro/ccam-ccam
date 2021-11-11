@@ -67,6 +67,7 @@ if ( num==0 ) then
   end if
 end if
 
+!$omp target data map(to:sdot,ratha,rathb,nvadh_pass,nits)
 !$omp parallel
 !$omp sections
 !$acc data create(sdot,rathb,ratha,nvadh_pass,nits)
@@ -187,6 +188,7 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
 end if          ! if(mspec==1)
 
 !$omp end parallel
+!$omp end target data
 !$acc wait
 !$acc end data
 
@@ -217,28 +219,47 @@ async_counter = mod(async_counter+1, async_length)
 
 ! The first sub-step is vectorised for all points.
 
-!$acc enter data create(tarr,delt,fluxh) async(async_counter)
-!$acc update device(tarr) async(async_counter)
-
-!     fluxh(k) is located at level k+.5
-!$acc parallel loop collapse(2) present(delt,tarr) async(async_counter)
-do k = 1,kl-1
-  do iq = 1,ifull
-    delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
-  end do
-end do
-!$acc end parallel loop
-!$acc parallel loop present(fluxh,delt) async(async_counter)
-do iq = 1,ifull
-  fluxh(iq,0)  = 0.
-  fluxh(iq,kl) = 0.
-  delt(iq,kl)  = 0.     ! for T,u,v
-  delt(iq,0)   = 0.
-end do
-!$acc end parallel loop
-
 if ( ntvd==2 ) then ! MC
+
+  !$omp target enter data map(to:tarr) map(alloc:delt,fluxh)
+  !$acc enter data create(tarr,delt,fluxh) async(async_counter)
+  !$acc update device(tarr) async(async_counter)
+
+  !     fluxh(k) is located at level k+.5
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
+#else
+  !$acc parallel loop collapse(2) present(delt,tarr) async(async_counter)
+#endif
+  do k = 1,kl-1
+    do iq = 1,ifull
+      delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
+    end do
+  end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+  !$omp target teams distribute parallel do schedule(static) private(iq)
+#else
+  !$acc end parallel loop
+  !$acc parallel loop present(fluxh,delt) async(async_counter)
+#endif
+  do iq = 1,ifull
+    fluxh(iq,0)  = 0.
+    fluxh(iq,kl) = 0.
+    delt(iq,kl)  = 0.     ! for T,u,v
+    delt(iq,0)   = 0.
+  end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
+  !$acc end parallel loop
+#endif
+
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,kp,kx,rat,fluxlo,phitvd,fluxhi)
+#else
   !$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_pass,fluxh) async(async_counter)
+#endif
   do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
     do iq = 1,ifull      
       kp = nint(sign(1.,sdot(iq,k+1)))
@@ -251,34 +272,34 @@ if ( ntvd==2 ) then ! MC
       fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
     enddo
   enddo      ! k loop
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
   !$acc end parallel loop
-else if ( ntvd==3 ) then ! superbee
-  !$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_pass,fluxh) async(async_counter)
-  do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-    do iq = 1,ifull      
-      kp = nint(sign(1.,sdot(iq,k+1)))
-      kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-      rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-      fluxlo = tarr(iq,kx)
-      phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-      ! higher order scheme
-      fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
-      fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-    enddo
-  enddo      ! k loop
-  !$acc end parallel loop
-end if
-!$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_pass) async(async_counter)
-do k = 1,kl
-  do iq = 1,ifull
-    tarr(iq,k) = tarr(iq,k) + (fluxh(iq,k-1)-fluxh(iq,k) &
-                             +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
-  end do
-end do
-!$acc end parallel loop
+#endif
 
-if ( ntvd==2 ) then ! MC
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
+#else
+  !$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_pass) async(async_counter)
+#endif
+  do k = 1,kl
+    do iq = 1,ifull
+      tarr(iq,k) = tarr(iq,k) + (fluxh(iq,k-1)-fluxh(iq,k) &
+                               +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
+    end do
+  end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
+  !$acc end parallel loop
+#endif
+
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(iq,i,k,kp,kx,rat,fluxlo,phitvd,fluxhi)
+#else
   !$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_pass,fluxh) async(async_counter)
+#endif
   do iq = 1,ifull 
     do i = 2,nits(iq)
       do k = 1,kl-1
@@ -300,9 +321,97 @@ if ( ntvd==2 ) then ! MC
       end do
     end do   ! i
   end do     ! iq
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
   !$acc end parallel loop
-else
+#endif
+
+  !$omp target exit data map(from:tarr)
+  !$acc update self(tarr) async(async_counter)
+  !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
+
+else if ( ntvd==3 ) then ! Superbee
+
+  !$omp target enter data map(to:tarr) map(alloc:delt,fluxh)
+  !$acc enter data create(tarr,delt,fluxh) async(async_counter)
+  !$acc update device(tarr) async(async_counter)
+
+  !     fluxh(k) is located at level k+.5
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
+#else
+  !$acc parallel loop collapse(2) present(delt,tarr) async(async_counter)
+#endif
+  do k = 1,kl-1
+    do iq = 1,ifull
+      delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
+    end do
+  end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+  !$omp target teams distribute parallel do schedule(static) private(iq)
+#else
+  !$acc end parallel loop
+  !$acc parallel loop present(fluxh,delt) async(async_counter)
+#endif
+  do iq = 1,ifull
+    fluxh(iq,0)  = 0.
+    fluxh(iq,kl) = 0.
+    delt(iq,kl)  = 0.     ! for T,u,v
+    delt(iq,0)   = 0.
+  end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
+  !$acc end parallel loop
+#endif
+
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,kp,kx,rat,fluxlo,phitvd,fluxhi)
+#else
+  !$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_pass,fluxh) async(async_counter)
+#endif
+  do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+    do iq = 1,ifull      
+      kp = nint(sign(1.,sdot(iq,k+1)))
+      kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+      rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+      fluxlo = tarr(iq,kx)
+      phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+      ! higher order scheme
+      fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
+      fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+    enddo
+  enddo      ! k loop
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
+  !$acc end parallel loop
+#endif
+
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
+#else
+  !$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_pass) async(async_counter)
+#endif
+  do k = 1,kl
+    do iq = 1,ifull
+      tarr(iq,k) = tarr(iq,k) + (fluxh(iq,k-1)-fluxh(iq,k) &
+                               +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
+    end do
+  end do
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
+  !$acc end parallel loop
+#endif
+
+#ifdef _OPENMP
+  !$omp target teams distribute parallel do collapse(2) schedule(static) private(iq,i,k,kp,kx,rat,fluxlo,phitvd,fluxhi)
+#else
   !$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_pass,fluxh) async(async_counter)
+#endif
   do iq = 1,ifull 
     do i = 2,nits(iq)
       do k = 1,kl-1
@@ -324,11 +433,22 @@ else
       end do
     end do   ! i
   end do     ! iq
+#ifdef _OPENMP
+  !$omp end target teams distribute parallel do
+#else
   !$acc end parallel loop
-end if
+#endif
 
-!$acc update self(tarr) async(async_counter)
-!$acc exit data delete(tarr,delt,fluxh) async(async_counter)
+  !$omp target exit data map(from:tarr)
+  !$acc update self(tarr) async(async_counter)
+  !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
+    
+else
+
+  write(6,*) "ERROR: Unknown option ntvd ",ntvd
+  stop
+    
+end if
 
 return
 end subroutine vadv_work

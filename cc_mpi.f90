@@ -109,7 +109,6 @@ module cc_mpi
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       filemap_send, filemap_smod                                           ! file map sent for onthefly
    real, dimension(:,:,:,:), pointer, save, private :: nodefile            ! node buffer for file map
-   real, dimension(:,:,:,:), allocatable, target, save, private :: nodefile_dummy
    integer, save, private :: nodefile_win
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
@@ -7939,7 +7938,7 @@ contains
       
    end subroutine ccmpi_gatherx3r
 
-    subroutine ccmpi_gatherx4r(gdat,ldat,host,comm)
+   subroutine ccmpi_gatherx4r(gdat,ldat,host,comm)
 
       integer, intent(in) :: host, comm
       integer(kind=4) :: lsize, lhost, lcomm, lerr
@@ -10374,8 +10373,7 @@ contains
       shsize(4) = kblock
       call ccmpi_allocshdata(nodefile,shsize(1:4),nodefile_win)
 #else
-      allocate( nodefile_dummy(pil_g,pil_g,6,kblock) )
-      nodefile => nodefile_dummy
+      allocate( nodefile(pil_g,pil_g,6,kblock) )
 #endif
    
    end subroutine ccmpi_filewininit
@@ -10384,14 +10382,14 @@ contains
    
       integer, dimension(4) :: shsize
       
-      nullify(nodefile)
 #ifdef usempi3
       ! Previously deallocating memory triggered bugs in the MPI library
       ! Here we will leave the memory allocated for now.
       !call ccmpi_freeshdata(nodefile_win)
 #else
-      deallocate( nodefile_dummy )
+      deallocate( nodefile )
 #endif
+      nullify(nodefile)
    
    end subroutine ccmpi_filewinfinalize
    
@@ -12175,6 +12173,8 @@ contains
    integer, allocatable, dimension(:), save, public :: pnoff               ! file window panel offset
    integer, allocatable, dimension(:,:), save, public :: pioff, pjoff      ! file window coordinate offset
    integer(kind=4), allocatable, dimension(:), save, public ::              &
+      filemap_req, filemap_qmod                                            ! file map requested for onthefly
+   integer(kind=4), allocatable, dimension(:), save, public ::              &
       filemap_recv, filemap_rmod                                           ! file map received for onthefly
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       filemap_send, filemap_smod                                           ! file map sent for onthefly
@@ -12197,6 +12197,7 @@ contains
    public :: ccmpi_gatherx, ccmpi_distribute, ccmpi_reduce, ccmpi_bcastr8
    public :: ccmpi_reducer8, ccmpi_distributer8, ccmpi_gatherxr8, ccmpi_gatherr8
    public :: dix_set, face_set, uniform_set
+   public :: ccmpi_filewininit, ccmpi_filewinfinalize
    public :: start_log, end_log
    
    interface ccmpi_bcast
@@ -12649,6 +12650,13 @@ contains
    subroutine end_log( event )
       integer, intent(in) :: event
    end subroutine end_log
+   
+   subroutine ccmpi_filewininit(kblock)
+      integer, intent(in) :: kblock
+   end subroutine ccmpi_filewininit
+   
+   subroutine ccmpi_filewinfinalize
+   end subroutine ccmpi_filewinfinalize
 #endif
 
 end module cc_mpi
