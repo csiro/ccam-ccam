@@ -1280,14 +1280,14 @@ where ( deptho_dz(:,2)*deptho_dz(:,1)>1.e-4 )
   cc_o(:,1) = -ddts*ks_o(:,2)/(deptho_dz_hl(:,2)*deptho_dz(:,1))
 end where
 do k = 2,wlev-1
-  where ( deptho_dz(:,k-1)*deptho_dz(:,k)>1.e-4 )
+  where ( deptho_dz(:,k)*deptho_dz(:,k)>1.e-4 )
     aa_o(:,k) = -ddts*ks_o(:,k)/(deptho_dz_hl(:,k)*deptho_dz(:,k))
   end where
   where ( deptho_dz(:,k+1)*deptho_dz(:,k)>1.e-4 )
     cc_o(:,k) = -ddts*ks_o(:,k+1)/(deptho_dz_hl(:,k+1)*deptho_dz(:,k))
   end where  
 end do
-where ( deptho_dz(:,wlev-1)*deptho_dz(:,wlev)>1.e-4 )
+where ( deptho_dz(:,wlev)*deptho_dz(:,wlev)>1.e-4 )
   aa_o(:,wlev) = -ddts*ks_o(:,wlev)/(deptho_dz_hl(:,wlev)*deptho_dz(:,wlev))
 end where
 
