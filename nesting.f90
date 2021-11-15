@@ -1298,7 +1298,7 @@ do ipass = 0,2
   ! start convolution
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:jpan),ya(:,1:jpan),za(:,1:jpan),at_t(:,:,1:jpan)) &
+  !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa,ya,za,at_t) &
   !$omp  map(from:ff_l) private(j,n,nn)
 #else
   !$omp do schedule(static) private(j,n,nn)
@@ -1438,7 +1438,7 @@ end do
 ! start convolution
 #ifdef _OPENMP
 #ifdef GPU
-!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),at_t(:,:,1:ipan)) &
+!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa,ya,za,at_t) &
 !$omp  map(from:qt) private(j,n,nn,local_sum)
 #else
 !$omp do schedule(static) private(j,n,nn,local_sum)
@@ -1556,7 +1556,7 @@ do ipass = 0,2
   ! start convolution
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),at_t(:,:,1:ipan)) &
+  !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa,ya,za,at_t) &
   !$omp  map(from:ff_l) private(j,n,nn)
 #else
   !$omp do schedule(static) private(j,n,nn)
@@ -1696,7 +1696,7 @@ end do
 ! start convolution
 #ifdef _OPENMP
 #ifdef GPU
-!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:jpan),ya(:,1:jpan),za(:,1:jpan),at_t(:,:,1:jpan)) &
+!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa,ya,za,at_t) &
 !$omp  map(from:qt) private(j,n,nn,local_sum)
 #else
 !$omp do schedule(static) private(j,n,nn,local_sum)
@@ -2663,7 +2663,7 @@ do ipass = 0,2
   ! start convolution
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:jpan),ya(:,1:jpan),za(:,1:jpan),ap_t(:,:,1:jpan)) &
+  !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa,ya,za,ap_t) &
   !$omp  map(from:yy_l) private(j,n,nn)
 #else
   !$omp do schedule(static) private(j,n,nn)
@@ -2803,7 +2803,7 @@ end do
 ! start convolution
 #ifdef _OPENMP
 #ifdef GPU
-!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),ap_t(:,:,1:jpan)) &
+!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa,ya,za,ap_t) &
 !$omp  map(from:qp) private(j,n,nn,local_sum)
 #else
 !$omp do schedule(static) private(j,n,nn,local_sum)
@@ -2917,7 +2917,7 @@ do ipass = 0,2
   ! start convolution
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:ipan),ya(:,1:ipan),za(:,1:ipan),ap_t(:,:,1:ipan)) &
+  !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa,ya,za,ap_t) &
   !$omp  map(from:yy_l) private(j,n,nn)
 #else
   !$omp do schedule(static) private(j,n,nn)
@@ -3057,7 +3057,7 @@ end do
 ! start convolution
 #ifdef _OPENMP
 #ifdef GPU
-!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa(:,1:jpan),ya(:,1:jpan),za(:,1:jpan),ap_t(:,:,1:jpan)) &
+!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa,ya,za,ap_t) &
 !$omp  map(from:qp) private(j,n,nn,local_sum)
 #else
 !$omp do schedule(static) private(j,n,nn,local_sum)
