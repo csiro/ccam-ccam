@@ -2437,7 +2437,7 @@ contains
       shsize(6) = 6
       call ccmpi_allocshdata(nodepack,shsize(1:6),nodepack_win)
 #else
-      allocate( nodepack_dummy(ipan,jpan,kx,nxproc,pyproc,6) )
+      allocate( nodepack_dummy(ipan,jpan,kx,nxproc,nyproc,6) )
       nodepack => nodepack_dummy
 #endif
    
