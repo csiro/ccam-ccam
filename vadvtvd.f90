@@ -351,7 +351,7 @@ if ( ntvd==2 ) then ! MC
 
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(iq,i,k,kp,kx,rat,fluxlo,phitvd,fluxhi)
+  !$omp target teams distribute parallel do schedule(static) private(iq,i,k,kp,kx,rat,fluxlo,phitvd,fluxhi)
 #endif
 #else
   !$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_pass,fluxh) async(async_counter)
@@ -485,7 +485,7 @@ else if ( ntvd==3 ) then ! Superbee
 
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(iq,i,k,kp,kx,rat,fluxlo,phitvd,fluxhi)
+  !$omp target teams distribute parallel do schedule(static) private(iq,i,k,kp,kx,rat,fluxlo,phitvd,fluxhi)
 #endif
 #else
   !$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_pass,fluxh) async(async_counter)
