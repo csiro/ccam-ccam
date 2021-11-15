@@ -86,7 +86,7 @@ MPIFC = gfortran
 MPIF77 = gfortran
 FC = mpif90
 FCSCM = gfortran
-FHOST = -march=native -fopenmp -DGPU
+FHOST = -march=native -fopenmp
 MPIFLAG =
 #MPISPECIAL = -fallow-argument-mismatch
 MPISPECIAL =
