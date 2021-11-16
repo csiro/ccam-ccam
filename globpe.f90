@@ -906,7 +906,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
   endif
   ! write high temporal frequency fields
   if ( surfile/=' ' ) then
-    call freqfile
+    call freqfile_cordex
+  end if
+  if ( freqfile/=' ' ) then
+    call freqfile_10
   end if
 
     
@@ -1454,7 +1457,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,nriver,           &
     atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
-    always_mspeca,ntvd,                                           &
+    always_mspeca,ntvd,tbave10,                                   &
     procmode,compression,hp_output,                               & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
@@ -1473,7 +1476,7 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
 namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &
     surfile,topofile,vegfile,zofile,surf_00,surf_12,laifile,      &
-    albnirfile,urbanfile,bathfile,                                &
+    albnirfile,urbanfile,bathfile,freqfile,                       &
     cnsdir,salfile,oxidantfile,casafile,phenfile,casapftfile,     &
     ensembleoutfile,solarfile,ch4file,n2ofile,cfc11file,          &
     cfc12file,cfc113file,hcfc22file,                              &
@@ -1609,7 +1612,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(118) ) 
+allocate( dumr(33), dumi(119) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1765,6 +1768,7 @@ if ( myid==0 ) then
   dumi(116) = qg_fix
   if ( always_mspeca ) dumi(117) = 1
   dumi(118) = ntvd
+  dumi(119) = tbave10  
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1919,6 +1923,7 @@ intsch_mode       = dumi(115)
 qg_fix            = dumi(116)
 always_mspeca     = dumi(117)==1
 ntvd              = dumi(118)
+tbave10           = dumi(119)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -2050,6 +2055,7 @@ call ccmpi_bcast(cfc12file,0,comm_world)
 call ccmpi_bcast(cfc113file,0,comm_world)
 call ccmpi_bcast(hcfc22file,0,comm_world)
 !call ccmpi_bcast(o3file,0,comm_world)
+call ccmpi_bcast(freqfile,0,comm_world)
 save_aerosols  = dumi(1)==1
 save_pbl       = dumi(2)==1
 save_cloud     = dumi(3)==1
@@ -2931,7 +2937,18 @@ if ( surfile /= ' ' ) then
     call ccmpi_abort(-1)
   end if
 end if
-
+if ( freqfile /= ' ' ) then
+  if ( tbave10<=0 ) then
+    write(6,*) "ERROR: tbave10 must be greater than zero"
+    write(6,*) "tbave10 ",tbave10
+    call ccmpi_abort(-1)  
+  end if
+  if ( mod(ntau, tbave10)/=0 ) then
+    write(6,*) "ERROR: tave must be a factor of ntau"
+    write(6,*) "ntau,tbave10 ",ntau,tbave10
+    call ccmpi_abort(-1)
+  end if
+end if
 
 !--------------------------------------------------------------
 ! SHARED MEMORY AND FILE IO CONFIGURATION

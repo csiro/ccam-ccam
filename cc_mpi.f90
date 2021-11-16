@@ -4514,7 +4514,6 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
-            !$omp simd
             do iq = 1,send_len
                bnds(lproc)%sbuf(iq) = t(bnds(lproc)%send_list(iq))
             end do   
@@ -4541,7 +4540,6 @@ contains
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
             ! unpack_list(iq) is index into extended region
-            !$omp simd
             do iq = 1,rslen(iproc)
                t(ifull+bnds(lproc)%unpack_list(iq)) = bnds(lproc)%rbuf(iq)
             end do   
@@ -4643,7 +4641,6 @@ contains
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
             do k = 1, kx
-               !$omp simd 
                do iq = 1,send_len
                   bnds(lproc)%sbuf(iq+(k-1)*send_len) = t(bnds(lproc)%send_list(iq),k)
                end do
@@ -4671,7 +4668,6 @@ contains
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
             do k = 1,kx
-               !$omp simd 
                do iq = 1,rslen(iproc)
                   t(ifull+bnds(lproc)%unpack_list(iq),k) &
                       = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc))
@@ -4771,7 +4767,6 @@ contains
          if ( send_len > 0 ) then
             lproc = neighlist(iproc)  ! Send to
             do k = 1,kx
-               !$omp simd 
                do iq = 1,send_len
                   bnds(lproc)%s8buf(iq+(k-1)*send_len) = t(bnds(lproc)%send_list(iq),k)
                end do
@@ -4799,7 +4794,6 @@ contains
             iproc = rlist(mproc)  ! Recv from
             lproc = neighlist(iproc)
             do k = 1,kx
-               !$omp simd 
                do iq = 1,rslen(iproc)
                   t(ifull+bnds(lproc)%unpack_list(iq),k) &
                       = bnds(lproc)%r8buf(iq+(k-1)*rslen(iproc))
@@ -4907,7 +4901,6 @@ contains
                lproc = neighlist(iproc)  ! Send to
                do l = 1,ntot
                   do k = 1,kx
-                     !$omp simd 
                      do iq = 1,send_len
                         bnds(lproc)%sbuf(iq+(k-1)*send_len+(l-1)*send_len*kx) = &
                           t(bnds(lproc)%send_list(iq),k,l+nstart-1)
@@ -4938,7 +4931,6 @@ contains
                lproc = neighlist(iproc)
                do l = 1,ntot
                   do k = 1,kx
-                     !$omp simd 
                      do iq = 1,rslen(iproc)
                         t(ifull+bnds(lproc)%unpack_list(iq),k,l+nstart-1)              &
                              = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc)+(l-1)*rslen(iproc)*kx)
@@ -5020,7 +5012,6 @@ contains
          iend = bnds(lproc)%slenh_fn(lcolour)
          if ( iend >= ibeg ) then
             do k = 1,kx 
-               !$omp simd 
                do iq = 1,iend-ibeg+1
                   bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1))  &
                       = t(bnds(lproc)%send_list(iq+ibeg-1),k)
@@ -5032,7 +5023,6 @@ contains
          iend = bnds(lproc)%slen_fn(lcolour)
          if ( iend >= ibeg ) then
             do k = 1,kx
-               !$omp simd 
                do iq = 1,iend-ibeg+1
                   bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1))  &
                       = t(bnds(lproc)%send_list(iq+ibeg-1),k)
@@ -5045,7 +5035,6 @@ contains
             iend = bnds(lproc)%slenx_fn(lcolour)
             if ( iend >= ibeg ) then
                do k = 1,kx 
-                  !$omp simd 
                   do iq = 1,iend-ibeg+1
                      bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1))  &
                          = t(bnds(lproc)%send_list(iq+ibeg-1),k)
@@ -5112,7 +5101,6 @@ contains
             ibeg = bnds(lproc)%rlenh_bg(lcolour)
             iend = bnds(lproc)%rlenh_fn(lcolour)
             do k = 1,kx
-               !$omp simd 
                do iq = 1,iend-ibeg+1
                   t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
                       = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
@@ -5122,7 +5110,6 @@ contains
             ibeg = bnds(lproc)%rlen_bg(lcolour)
             iend = bnds(lproc)%rlen_fn(lcolour)
             do k = 1,kx
-               !$omp simd 
                do iq = 1,iend-ibeg+1
                   t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
                       = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
@@ -5133,7 +5120,6 @@ contains
                ibeg = bnds(lproc)%rlenx_bg(lcolour)
                iend = bnds(lproc)%rlenx_fn(lcolour)
                do k = 1,kx
-                  !$omp simd 
                   do iq = 1,iend-ibeg+1
                      t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
                          = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
@@ -5309,7 +5295,6 @@ contains
          iqq = 0
          if ( fsvwu ) then
             iqz = iqq - bnds(lproc)%slen_sv_bg + 1 
-            !$omp simd
             do iq = bnds(lproc)%slen_sv_bg,bnds(lproc)%slen_wu_fn
                ! Use abs because sign is used as u/v flag
                if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
@@ -5322,7 +5307,6 @@ contains
          end if
          if ( fnveu ) then
             iqz = iqq - bnds(lproc)%slen_nv_bg + 1 
-            !$omp simd
             do iq = bnds(lproc)%slen_nv_bg,bnds(lproc)%slen_eu_fn
                ! Use abs because sign is used as u/v flag
                if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
@@ -5335,7 +5319,6 @@ contains
          end if
          if ( fssvwwu ) then
             iqz = iqq - bnds(lproc)%slen_ssv_bg + 1 
-            !$omp simd
             do iq = bnds(lproc)%slen_ssv_bg,bnds(lproc)%slen_wwu_fn
                ! Use abs because sign is used as u/v flag
                if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
@@ -5348,7 +5331,6 @@ contains
          end if
          if ( fnnveeu ) then
             iqz = iqq - bnds(lproc)%slen_nnv_bg + 1 
-            !$omp simd
             do iq = bnds(lproc)%slen_nnv_bg,bnds(lproc)%slen_eeu_fn
                ! Use abs because sign is used as u/v flag
                if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
@@ -5361,7 +5343,6 @@ contains
          end if
          if ( fsuev ) then
             iqz = iqq - bnds(lproc)%slen_su_bg + 1 
-            !$omp simd
             do iq = bnds(lproc)%slen_su_bg,bnds(lproc)%slen_ev_fn
                ! Use abs because sign is used as u/v flag
                if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
@@ -5374,7 +5355,6 @@ contains
          end if
          if ( fnnueev ) then
             iqz = iqq - bnds(lproc)%slen_nnu_bg + 1 
-            !$omp simd
             do iq = bnds(lproc)%slen_nnu_bg,bnds(lproc)%slen_eev_fn
                ! Use abs because sign is used as u/v flag
                if ( bnds(lproc)%send_list_uv(iq)>0 .neqv. bnds(lproc)%send_swap(iq) ) then
@@ -5395,7 +5375,6 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      !$omp simd
       do iq = 1,myrlen
          ! request_list is same as send_list in this case
          ! unpack_list(iq) is index into extended region 
@@ -5428,7 +5407,6 @@ contains
             iqq = 0
             if ( fsvwu ) then
                iqz = iqq - bnds(lproc)%rlen_sv_bg + 1 
-               !$omp simd
                do iq = bnds(lproc)%rlen_sv_bg,bnds(lproc)%rlen_wu_fn
                   ! unpack_list(iq) is index into extended region
                   if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
@@ -5441,7 +5419,6 @@ contains
             end if
             if ( fnveu ) then
                iqz = iqq - bnds(lproc)%rlen_nv_bg + 1 
-               !$omp simd
                do iq = bnds(lproc)%rlen_nv_bg,bnds(lproc)%rlen_eu_fn
                   ! unpack_list(iq) is index into extended region
                   if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
@@ -5454,7 +5431,6 @@ contains
             end if
             if ( fssvwwu ) then
                iqz = iqq - bnds(lproc)%rlen_ssv_bg + 1 
-               !$omp simd
                do iq = bnds(lproc)%rlen_ssv_bg,bnds(lproc)%rlen_wwu_fn
                   ! unpack_list(iq) is index into extended region
                   if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
@@ -5467,7 +5443,6 @@ contains
             end if
             if ( fnnveeu ) then
                iqz = iqq - bnds(lproc)%rlen_nnv_bg + 1 
-               !$omp simd
                do iq = bnds(lproc)%rlen_nnv_bg,bnds(lproc)%rlen_eeu_fn
                   ! unpack_list(iq) is index into extended region
                   if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
@@ -5480,7 +5455,6 @@ contains
             end if
             if ( fsuev ) then
                iqz = iqq - bnds(lproc)%rlen_su_bg + 1 
-               !$omp simd
                do iq = bnds(lproc)%rlen_su_bg,bnds(lproc)%rlen_ev_fn
                   ! unpack_list(iq) is index into extended region
                   if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
@@ -5493,7 +5467,6 @@ contains
             end if
             if ( fnnueev ) then
                iqz = iqq - bnds(lproc)%rlen_nnu_bg + 1 
-               !$omp simd
                do iq = bnds(lproc)%rlen_nnu_bg,bnds(lproc)%rlen_eev_fn
                   ! unpack_list(iq) is index into extended region
                   if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
@@ -5677,7 +5650,6 @@ contains
          if ( fsvwu ) then
             do k = 1,kx
                iqz = iqq - bnds(sproc)%slen_sv_bg + 1 
-               !$omp simd
                do iq = bnds(sproc)%slen_sv_bg,bnds(sproc)%slen_wu_fn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
@@ -5693,7 +5665,6 @@ contains
          if ( fnveu ) then
             do k = 1,kx 
                iqz = iqq - bnds(sproc)%slen_nv_bg + 1 
-               !$omp simd
                do iq = bnds(sproc)%slen_nv_bg,bnds(sproc)%slen_eu_fn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
@@ -5709,7 +5680,6 @@ contains
          if ( fssvwwu ) then
             do k = 1,kx 
                iqz = iqq - bnds(sproc)%slen_ssv_bg + 1 
-               !$omp simd
                do iq = bnds(sproc)%slen_ssv_bg,bnds(sproc)%slen_wwu_fn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
@@ -5725,7 +5695,6 @@ contains
          if ( fnnveeu ) then
             do k = 1,kx
                iqz = iqq - bnds(sproc)%slen_nnv_bg + 1 
-               !$omp simd
                do iq = bnds(sproc)%slen_nnv_bg,bnds(sproc)%slen_eeu_fn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
@@ -5741,7 +5710,6 @@ contains
          if ( fsuev ) then
             do k = 1,kx 
                iqz = iqq - bnds(sproc)%slen_su_bg + 1 
-               !$omp simd
                do iq = bnds(sproc)%slen_su_bg,bnds(sproc)%slen_ev_fn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
@@ -5757,7 +5725,6 @@ contains
          if ( fnnueev ) then
             do k = 1,kx 
                iqz = iqq - bnds(sproc)%slen_nnu_bg + 1 
-               !$omp simd
                do iq = bnds(sproc)%slen_nnu_bg,bnds(sproc)%slen_eev_fn
                   ! send_list_uv(iq) is point index.
                   ! Use abs because sign is used as u/v flag
@@ -5782,7 +5749,6 @@ contains
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
       do k = 1,kx
-         !$omp simd 
          do iq = 1,myrlen
             ! request_list is same as send_list in this case
             ! unpack_list(iq) is index into extended region
@@ -5817,7 +5783,6 @@ contains
             if ( fsvwu ) then
                do k = 1,kx  
                   iqz = iqq - bnds(rproc)%rlen_sv_bg + 1 
-                  !$omp simd
                   do iq = bnds(rproc)%rlen_sv_bg,bnds(rproc)%rlen_wu_fn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -5832,7 +5797,6 @@ contains
             if ( fnveu ) then
                do k = 1,kx 
                   iqz = iqq - bnds(rproc)%rlen_nv_bg + 1 
-                  !$omp simd
                   do iq = bnds(rproc)%rlen_nv_bg,bnds(rproc)%rlen_eu_fn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -5847,7 +5811,6 @@ contains
             if ( fssvwwu ) then
                do k = 1,kx 
                   iqz = iqq - bnds(rproc)%rlen_ssv_bg + 1 
-                  !$omp simd
                   do iq = bnds(rproc)%rlen_ssv_bg,bnds(rproc)%rlen_wwu_fn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -5862,7 +5825,6 @@ contains
             if ( fnnveeu ) then
                do k = 1,kx 
                   iqz = iqq - bnds(rproc)%rlen_nnv_bg + 1 
-                  !$omp simd
                   do iq = bnds(rproc)%rlen_nnv_bg,bnds(rproc)%rlen_eeu_fn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -5877,7 +5839,6 @@ contains
             if ( fsuev ) then
                do k = 1,kx 
                   iqz = iqq - bnds(rproc)%rlen_su_bg + 1 
-                  !$omp simd
                   do iq = bnds(rproc)%rlen_su_bg,bnds(rproc)%rlen_ev_fn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -5892,7 +5853,6 @@ contains
             if ( fnnueev ) then
                do k = 1,kx 
                   iqz = iqq - bnds(rproc)%rlen_nnu_bg + 1 
-                  !$omp simd
                   do iq = bnds(rproc)%rlen_nnu_bg,bnds(rproc)%rlen_eev_fn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
@@ -6133,7 +6093,6 @@ contains
          rcount = rcount - ldone
          do jproc = 1,ldone
             iproc = rlist(donelist(jproc))
-            !$omp simd
             do iq = 1,dslen(iproc)
                s(dindex(iproc)%a(iq,1),dindex(iproc)%a(iq,2)) = dbuf(iproc)%b(iq)
             end do   
@@ -6180,7 +6139,6 @@ contains
          do jproc = 1,ldone
             iproc = rlist(donelist(jproc))
             do l = 1,ntr
-               !$omp simd 
                do iq = 1,dslen(iproc)
                   s(dindex(iproc)%a(iq,1),dindex(iproc)%a(iq,2),l) = dbuf(iproc)%b(iq+(l-1)*dslen(iproc))
                end do
@@ -9913,7 +9871,6 @@ contains
          send_len = sslen(iproc)
          if ( send_len > 0 ) then
             lproc = mg(g)%neighlist(iproc)  ! Send to
-            !$omp simd
             do iq = 1,send_len
                bnds(lproc)%sbuf(iq) = vdat(mg_bnds(lproc,g)%send_list(iq))
             end do   
@@ -9938,7 +9895,6 @@ contains
             iproc = rlist(donelist(jproc))  ! Recv from
             lproc = mg(g)%neighlist(iproc)
             recv_len = rslen(iproc)
-            !$omp simd
             do iq = 1,recv_len
                vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq)) &
                    = bnds(lproc)%rbuf(iq)
@@ -10023,7 +9979,6 @@ contains
          if ( send_len > 0 ) then
             lproc = mg(g)%neighlist(iproc)  ! Send to
             do k = 1,kx
-               !$omp simd 
                do iq = 1,send_len
                   bnds(lproc)%sbuf(iq+(k-1)*send_len) = vdat(mg_bnds(lproc,g)%send_list(iq),k)
                end do
@@ -10050,7 +10005,6 @@ contains
             lproc = mg(g)%neighlist(iproc)
             recv_len = rslen(iproc)
             do k = 1,kx
-               !$omp simd 
                do iq = 1,recv_len
                   vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq),k) &
                       = bnds(lproc)%rbuf(iq+(k-1)*recv_len)
@@ -10939,7 +10893,6 @@ contains
             llen = send_len*kx
             lproc = fileneighlist(iproc)  ! Send to
             do k = 1,kx
-               !$omp simd 
                do iq = 1,send_len
                   bnds(lproc)%sbuf(iq+(k-1)*send_len) = sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2),      &
                                                              filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4),k)
@@ -10986,7 +10939,6 @@ contains
       ! See if there are any points on my own processor that need
       ! to be fixed up.
       do k = 1,kx
-         !$omp simd 
          do iq = 1,myrlen
             ! request_list is same as send_list in this case
             sdat(filebnds(myid)%unpack_list(iq,1),filebnds(myid)%unpack_list(iq,2),     &
@@ -11012,7 +10964,6 @@ contains
             iproc = rlist(mproc)  ! Recv from
             lproc = fileneighlist(iproc)
             do k = 1,kx
-               !$omp simd 
                do iq = 1,rslen(iproc)
                   sdat(filebnds(lproc)%unpack_list(iq,1),filebnds(lproc)%unpack_list(iq,2),     &
                        filebnds(lproc)%unpack_list(iq,3),filebnds(lproc)%unpack_list(iq,4),k) = &

@@ -33,6 +33,7 @@ public phenfile, casafile, casapftfile
 public ensembleoutfile
 public solarfile, ch4file, n2ofile
 public cfc11file, cfc12file, cfc113file, hcfc22file
+public freqfile
 
 character(len=1024), save :: albfile = ' '
 character(len=1024), save :: icefile = ' '
@@ -71,5 +72,6 @@ character(len=1024), save :: cfc11file = ' '
 character(len=1024), save :: cfc12file = ' '
 character(len=1024), save :: cfc113file = ' '
 character(len=1024), save :: hcfc22file = ' '
+character(len=1024), save :: freqfile = ' '
 
 end module filnames_m

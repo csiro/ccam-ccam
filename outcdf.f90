@@ -36,7 +36,7 @@
 module outcdf
     
 private
-public outfile, freqfile, mslp
+public outfile, freqfile_cordex, freqfile_10, mslp
 
 character(len=3), dimension(12), parameter :: month = (/'jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'/)
 integer, parameter :: cordex_levels = 17
@@ -3419,7 +3419,7 @@ end subroutine openhist
 !--------------------------------------------------------------
 ! HIGH FREQUENCY OUTPUT FILES
       
-subroutine freqfile
+subroutine freqfile_cordex
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
@@ -3522,7 +3522,7 @@ fsize = ssize - 1 ! size of fixed variables
 ! allocate arrays and open new file
 if ( first ) then
   if ( myid==0 ) then
-    write(6,*) "Initialise high frequency output"
+    write(6,*) "Initialise high frequency output (cordex)"
   end if
   allocate(freqstore(ifull,freqvars))
   allocate(runoff_old(ifull,runoffvars),runoff_store(ifull,runoffvars))
@@ -3946,7 +3946,7 @@ if ( first ) then
   end if  
   
   first=.false.
-  if ( myid==0 ) write(6,*) "Finished initialising high frequency output"
+  if ( myid==0 ) write(6,*) "Finished initialising high frequency output (cordex)"
  
 end if
 
@@ -3983,7 +3983,7 @@ if ( mod(ktau,tbave)==0 ) then
     
   if ( myid==0 .or. local ) then
     if ( myid==0 ) then
-      write(6,*) "write high-frequency output"
+      write(6,*) "write high-frequency output (cordex)"
     end if
     fiarch = ktau/tbave
     tpnt = real(ktau,8)*(real(dt,8)/60._8)
@@ -4192,7 +4192,446 @@ end if
 call END_LOG(outfile_end)
       
 return
-end subroutine freqfile
+end subroutine freqfile_cordex
+
+subroutine freqfile_10
+
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use cc_mpi                            ! CC MPI routines
+use const_phys                        ! Physical constants
+use dates_m                           ! Date data
+use extraout_m                        ! Additional diagnostics
+use filnames_m                        ! Filenames
+use histave_m                         ! Time average arrays
+use infile                            ! Input file routines
+use liqwpar_m                         ! Cloud water mixing ratios
+use morepbl_m                         ! Additional boundary layer diagnostics
+use newmpar_m                         ! Grid parameters
+use nharrs_m                          ! Non-hydrostatic atmosphere arrays
+use nsibd_m                           ! Land-surface arrays
+use parm_m                            ! Model configuration
+use parmdyn_m                         ! Dynamics parameters
+use parmgeom_m                        ! Coordinate data
+use parmhdff_m                        ! Horizontal diffusion parameters
+use parmhor_m                         ! Horizontal advection parameters
+use pbl_m                             ! Boundary layer arrays
+use prec_m                            ! Precipitation
+use raddiag_m                         ! Radiation diagnostic
+use screen_m                          ! Screen level diagnostics
+use sigs_m                            ! Atmosphere sigma levels
+use soilsnow_m                        ! Soil, snow and surface data
+use soilv_m                           ! Soil parameters
+use tracers_m                         ! Tracer data
+      
+implicit none
+
+include 'kuocom.h'                    ! Convection parameters
+include 'version.h'                   ! Model version data
+
+integer, parameter :: freqvars = 2  ! number of variables to average
+integer, parameter :: nihead   = 54
+integer, parameter :: nrhead   = 14
+integer, dimension(nihead) :: nahead
+integer, dimension(:), allocatable :: vnode_dat
+integer, dimension(:), allocatable :: procnode, procoffset
+integer, dimension(5) :: adim
+integer, dimension(4) :: sdim
+integer, dimension(1) :: gpdim
+integer, dimension(5) :: outdim
+integer ixp,iyp,izp,tlen
+integer icy,icm,icd,ich,icmi,ics
+integer i,j,k,n,iq,fiarch
+integer dproc, d4, asize, ssize, idnp, idgpn, idgpo
+integer fsize, press_level
+integer, save :: fncid = -1
+integer, save :: idnt = 0
+integer, save :: idkdate = 0
+integer, save :: idktime = 0
+integer, save :: idmtimer = 0
+real, dimension(:,:), allocatable, save :: freqstore
+real, dimension(ifull) :: umag, outdata
+real, dimension(:,:), allocatable :: xpnt2
+real, dimension(:,:), allocatable :: ypnt2
+real, dimension(:), allocatable :: xpnt
+real, dimension(:), allocatable :: ypnt
+real, dimension(1) :: zpnt
+real, dimension(nrhead) :: ahead
+real xx
+real(kind=8) tpnt
+logical, save :: first = .true.
+logical local, lday
+character(len=1024) ffile
+character(len=40) lname, vname
+character(len=33) grdtim
+character(len=20) timorg
+
+call START_LOG(outfile_begin)
+
+! localhist=.true. indicates that the output will be written in parallel.
+
+! localhist=.true. indicates that procformat mode is active where one 'node' captian will
+! write the output for that 'node' of processes.  Procformat supports virtual nodes, although
+! they cannot be split across physical nodes.
+
+! local=.true. if this process needs to write to a file
+
+local = localhist .and. vnode_myid==0
+lday  = mod(ktau,nperday)==0.or.ktau==ntau
+if ( localhist ) then
+  dproc = 4
+  d4    = 5
+  asize = 5
+  ssize = 4
+else
+  dproc = -1
+  d4    = 4
+  asize = 4
+  ssize = 3
+end if
+fsize = ssize - 1 ! size of fixed variables
+
+! allocate arrays and open new file
+if ( first ) then
+  if ( myid==0 ) then
+    write(6,*) "Initialise high frequency output (10)"
+  end if
+  allocate(freqstore(ifull,freqvars))
+  freqstore(:,:) = 0.
+  if ( local ) then
+    write(ffile,"(a,'.',i6.6)") trim(freqfile), vnode_vleaderid
+  else
+    ffile = freqfile
+  end if
+  if ( myid==0 .or. local ) then
+    call ccnf_create(ffile,fncid)
+    ! Turn off the data filling
+    call ccnf_nofill(fncid)
+    ! Create dimensions
+    if ( local ) then
+      call ccnf_def_dim(fncid,'longitude',il,adim(1))
+      call ccnf_def_dim(fncid,'latitude',jl,adim(2))
+    else
+      call ccnf_def_dim(fncid,'longitude',il_g,adim(1))
+      call ccnf_def_dim(fncid,'latitude',jl_g,adim(2))
+    endif
+    call ccnf_def_dim(fncid,'lev',1,adim(3))
+    if ( local ) then
+      call ccnf_def_dim(fncid,'processor',vnode_nproc,adim(dproc)) 
+      if ( myid==0 ) then
+        call ccnf_def_dim(fncid,'gprocessor',nproc,gpdim(1)) 
+      else
+        gpdim(1)=0
+      end if
+    end if
+    if ( unlimitedhist ) then
+      call ccnf_def_dimu(fncid,'time',adim(d4))
+    else
+      tlen = ntau/tbave10
+      call ccnf_def_dim(fncid,'time',tlen,adim(d4))  
+    end if
+    ! Define coords.
+    if ( local ) then
+      outdim(1) = adim(1)
+      outdim(2) = adim(dproc)
+      call ccnf_def_var(fncid,'longitude','float',2,outdim(1:2),ixp)        
+    else
+      call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
+    end if
+    call ccnf_put_att(fncid,ixp,'point_spacing','even')
+    call ccnf_put_att(fncid,ixp,'units','degrees_east')
+    if ( local ) then
+      outdim(1) = adim(2)
+      outdim(2) = adim(dproc)
+      call ccnf_def_var(fncid,'latitude','float',2,outdim(1:2),iyp)
+    else
+      call ccnf_def_var(fncid,'latitude','float',1,adim(2:2),iyp)
+    end if
+    call ccnf_put_att(fncid,iyp,'point_spacing','even')
+    call ccnf_put_att(fncid,iyp,'units','degrees_north')
+    call ccnf_def_var(fncid,'lev','float',1,adim(3:3),izp)
+    call ccnf_put_att(fncid,izp,'positive','down')
+    call ccnf_put_att(fncid,izp,'point_spacing','uneven')
+    call ccnf_put_att(fncid,izp,'units','sigma_level')
+    if ( local ) then
+      call ccnf_def_var(fncid,'processor','float',1,adim(dproc:dproc),idnp)  
+      if ( myid==0 ) then
+        call ccnf_def_var(fncid,'gprocnode','int',1,gpdim(1:1),idgpn)
+        call ccnf_def_var(fncid,'gprocoffset','int',1,gpdim(1:1),idgpo)
+      end if
+    end if
+    call ccnf_def_var(fncid,'time','double',1,adim(d4:d4),idnt)
+    call ccnf_put_att(fncid,idnt,'point_spacing','even')
+    icy=kdate/10000
+    icm=max(1,min(12,(kdate-icy*10000)/100))
+    icd=max(1,min(31,(kdate-icy*10000-icm*100)))
+    if ( icy<100 ) then
+      icy=icy+1900
+    end if
+    ich=ktime/100
+    icmi=(ktime-ich*100)
+    ics=0
+    write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
+    call ccnf_put_att(fncid,idnt,'time_origin',timorg)
+    write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
+    call ccnf_put_att(fncid,idnt,'units',grdtim)
+    if ( leap==0 ) then
+      call ccnf_put_att(fncid,idnt,'calendar','noleap')
+    end if
+    call ccnf_def_var(fncid,'kdate','int',1,adim(d4:d4),idkdate)
+    call ccnf_def_var(fncid,'ktime','int',1,adim(d4:d4),idktime)
+    call ccnf_def_var(fncid,'mtimer','int',1,adim(d4:d4),idmtimer)
+    ! header data
+    ahead(1)=ds
+    ahead(2)=0.  !difknbd
+    ahead(3)=0.  ! was rhkuo for kuo scheme
+    ahead(4)=0.  !du
+    ahead(5)=rlong0     ! needed by cc2hist
+    ahead(6)=rlat0      ! needed by cc2hist
+    ahead(7)=schmidt    ! needed by cc2hist
+    ahead(8)=0.  !stl2
+    ahead(9)=0.  !relaxt
+    ahead(10)=0.  !hourbd
+    ahead(11)=tss_sh
+    ahead(12)=vmodmin
+    ahead(13)=av_vmod
+    ahead(14)=epsp
+    nahead(1)=il_g       ! needed by cc2hist
+    nahead(2)=jl_g       ! needed by cc2hist
+    nahead(3)=1          ! needed by cc2hist (turns off 3D fields)
+    nahead(4)=5
+    nahead(5)=0          ! nsd not used now
+    nahead(6)=io_in
+    nahead(7)=nbd
+    nahead(8)=0          ! not needed now  
+    nahead(9)=mex
+    nahead(10)=mup
+    nahead(11)=2 ! nem
+    nahead(12)=mtimer
+    nahead(13)=0         ! nmi
+    nahead(14)=nint(dt)  ! needed by cc2hist
+    nahead(15)=0         ! not needed now 
+    nahead(16)=nhor
+    nahead(17)=nkuo
+    nahead(18)=khdif
+    nahead(19)=kl        ! needed by cc2hist (was kwt)
+    nahead(20)=0  !iaa
+    nahead(21)=0  !jaa
+    nahead(22)=-4
+    nahead(23)=0       ! not needed now      
+    nahead(24)=0  !lbd
+    nahead(25)=nrun
+    nahead(26)=0
+    nahead(27)=khor
+    nahead(28)=ksc
+    nahead(29)=kountr
+    nahead(30)=1 ! ndiur
+    nahead(31)=0  ! spare
+    nahead(32)=nhorps
+    nahead(33)=0
+    nahead(34)=ms        ! needed by cc2hist
+    nahead(35)=ntsur
+    nahead(36)=nrad
+    nahead(37)=kuocb
+    nahead(38)=nvmix
+    nahead(39)=ntsea
+    nahead(40)=0  
+    nahead(41)=nextout
+    nahead(42)=il
+    nahead(43)=ntrac     ! needed by cc2hist
+    nahead(44)=nsib
+    nahead(45)=nrungcm
+    nahead(46)=ncvmix
+    nahead(47)=ngwd
+    nahead(48)=lgwd
+    nahead(49)=mup
+    nahead(50)=nritch_t
+    nahead(51)=ldr
+    nahead(52)=nevapls
+    nahead(53)=nevapcc
+    nahead(54)=nt_adv
+    call ccnf_put_attg(fncid,'real_header',ahead)
+    call ccnf_put_attg(fncid,'int_header',nahead)
+    call ccnf_put_attg(fncid,'version',version)        !   Model version
+    if ( local ) then
+      call ccnf_put_attg(fncid,'nproc',nproc)
+      call ccnf_put_attg(fncid,'procmode',vnode_nproc)
+      call ccnf_put_attg(fncid,'decomp','face')
+    end if 
+    ! define variables
+    if ( local ) then
+      sdim(1:2) = adim(1:2) 
+      sdim(3:4) = adim(4:5)
+    else
+      sdim(1:2) = adim(1:2)
+      sdim(3)   = adim(4)
+    end if
+    lname='x-component 10m wind'
+    call attrib(fncid,sdim,ssize,'uas',lname,'m s-1',-130.,130.,0,1)
+    lname='y-component 10m wind'     
+    call attrib(fncid,sdim,ssize,'vas',lname,'m s-1',-130.,130.,0,1)
+    lname='Near-Surface Air Temperature'     
+    call attrib(fncid,sdim,ssize,'tscrn',lname,'K',100.,425.,0,1)
+    lname='Near-Surface Relative Humidity'     
+    call attrib(fncid,sdim,ssize,'rhscrn',lname,'%',0.,200.,0,1)
+    lname='Precipitation'
+    call attrib(fncid,sdim,ssize,'rnd',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
+    lname='Convective Precipitation'
+    call attrib(fncid,sdim,ssize,'rnc',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
+    lname = 'Scaled Log Surface pressure'
+    call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.3,0.2,0,1)
+    lname = 'Screen mixing ratio'
+    call attrib(fncid,sdim,ssize,'qgscrn',lname,'kg kg-1',0.,0.06,0,1)
+
+    ! end definition mode
+    call ccnf_enddef(fncid)
+    if ( local ) then
+      ! procformat
+      allocate(xpnt(il),xpnt2(il,vnode_nproc))
+      do i = 1,ipan
+        xpnt(i) = float(i + ioff)
+      end do
+      call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
+      call ccnf_put_vara(fncid,ixp,(/1,1/),(/il,vnode_nproc/),xpnt2)
+      deallocate(xpnt,xpnt2)
+      allocate(ypnt(jl),ypnt2(jl,vnode_nproc))
+      do n = 1,npan
+        do j = 1,jpan
+          i = j + (n-1)*jpan  
+          ypnt(i) = float(j + joff + (n-noff)*il_g)
+        end do
+      end do
+      call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
+      call ccnf_put_vara(fncid,iyp,(/1,1/),(/jl,vnode_nproc/),ypnt2)
+      deallocate(ypnt,ypnt2)
+    else
+      allocate(xpnt(il_g))
+      do i=1,il_g
+        xpnt(i) = float(i)
+      end do
+      call ccnf_put_vara(fncid,ixp,1,il_g,xpnt(1:il_g))
+      deallocate(xpnt)
+      allocate(ypnt(jl_g))
+      do j=1,jl_g
+        ypnt(j) = float(j)
+      end do
+      call ccnf_put_vara(fncid,iyp,1,jl_g,ypnt(1:jl_g))
+      deallocate(ypnt)
+    end if
+    zpnt(1)=1.
+    call ccnf_put_vara(fncid,izp,1,1,zpnt(1:1))
+    
+    if ( local ) then
+      ! store local processor order in output file  
+      allocate( vnode_dat(vnode_nproc) )  
+      call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+      call ccnf_put_vara(fncid,idnp,(/1/),(/vnode_nproc/),vnode_dat)
+      deallocate( vnode_dat )
+      ! store file id for a given processor number in output file number 000000
+      if ( myid==0 ) then
+        allocate( procnode(nproc) )
+      else
+        allocate( procnode(1) ) ! not used
+      end if  
+      call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
+      if ( myid==0 ) then
+        call ccnf_put_vara(fncid,idgpn,(/1/),(/nproc/),procnode)  
+      end if
+      deallocate(procnode)
+      ! store offset within a file for a given processor number in output file number 000000
+      if ( myid==0 ) then
+        allocate( procoffset(nproc) )
+      else
+        allocate( procoffset(1) ) ! not used
+      end if
+      call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
+      if ( myid==0 ) then
+        call ccnf_put_vara(fncid,idgpo,(/1/),(/nproc/),procoffset)  
+      end if
+      deallocate(procoffset)
+    end if
+    
+  else if ( localhist ) then
+    
+    allocate(xpnt(il),xpnt2(il,vnode_nproc))
+    do i = 1,ipan
+      xpnt(i) = float(i + ioff)
+    end do
+    call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
+    deallocate(xpnt,xpnt2)
+    allocate(ypnt(jl),ypnt2(jl,vnode_nproc))
+    do n = 1,npan
+      do j = 1,jpan
+        i = j + (n-1)*jpan  
+        ypnt(i) = float(j + joff + (n-noff)*il_g)
+      end do
+    end do
+    call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
+    deallocate(ypnt,ypnt2)
+    
+    allocate( vnode_dat(vnode_nproc) )
+    call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+    deallocate( vnode_dat )
+    allocate(procnode(1)) ! not used
+    call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
+    deallocate(procnode)
+    allocate(procoffset(1)) ! not used
+    call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
+    deallocate(procoffset)
+    
+  end if ! myid==0 .or. local ..else if ( localhist ) ..
+  
+  first=.false.
+  if ( myid==0 ) write(6,*) "Finished initialising high frequency output (10)"
+ 
+end if
+
+! store output
+freqstore(1:ifull,1) = freqstore(1:ifull,1) + condx*(86400./dt/real(tbave10))
+freqstore(1:ifull,2) = freqstore(1:ifull,2) + condc*(86400./dt/real(tbave10))
+
+! write data to file
+if ( mod(ktau,tbave10)==0 ) then
+    
+  if ( myid==0 .or. local ) then
+    if ( myid==0 ) then
+      write(6,*) "write high-frequency output (10)"
+    end if
+    fiarch = ktau/tbave10
+    tpnt = real(ktau,8)*(real(dt,8)/60._8)
+    call ccnf_put_vara(fncid,'time',fiarch,tpnt)
+    call ccnf_put_vara(fncid,'kdate',fiarch,kdate)
+    call ccnf_put_vara(fncid,'ktime',fiarch,ktime)
+    call ccnf_put_vara(fncid,'mtimer',fiarch,mtimer)
+  end if
+  
+  ! record output
+  umag = sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)
+  outdata = u10*u(1:ifull,1)/max(umag,1.E-6)
+  call histwrt(outdata,"uas",fncid,fiarch,local,.true.)
+  outdata = u10*v(1:ifull,1)/max(umag,1.E-6)
+  call histwrt(outdata,"vas",fncid,fiarch,local,.true.)
+  call histwrt(tscrn,"tscrn",fncid,fiarch,local,.true.)
+  call histwrt(rhscrn,"rhscrn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,1),"rnd",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,2),"rnc",fncid,fiarch,local,.true.)
+  call histwrt(psl,"psf",fncid,fiarch,local,.true.)
+  call histwrt(qgscrn,"qgscrn",fncid,fiarch,local,.true.)
+  
+  freqstore(:,:) = 0.
+
+end if
+
+if ( myid==0 .or. local ) then
+  ! close file at end of run
+  if ( ktau==ntau ) then
+    call ccnf_close(fncid)
+  end if
+end if
+      
+call END_LOG(outfile_end)
+      
+return
+end subroutine freqfile_10
 
 subroutine cordex_name(lname,stringa,press_level,stringb)
 
