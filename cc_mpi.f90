@@ -10347,12 +10347,11 @@ contains
    end subroutine ccmpi_filewininit
    
    subroutine ccmpi_filewinfinalize
-   
-      integer, dimension(4) :: shsize
       
 #ifdef usempi3
       ! Previously deallocating memory triggered bugs in the MPI library
-      ! Here we will leave the memory allocated for now.
+      ! Here we will leave the memory allocated for now and deallocate
+      ! just before mpi_finalize with ccmpi_filewinfinalize_exit
       if ( nodefile_count <= size(nodefilesave_win) ) then
          nodefilesave_win(nodefile_count) = nodefile_win
       end if   
@@ -10369,9 +10368,6 @@ contains
       integer :: i
    
 #ifdef usempi3
-      !if ( myid == 0 ) then
-      !   write(6,*) "Closing filewin with nodefile_count = ",nodefile_count
-      !end if
       do i = 1,nodefile_count
          call ccmpi_freeshdata(nodefilesave_win(i))
       end do   
