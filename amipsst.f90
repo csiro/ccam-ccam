@@ -686,9 +686,7 @@ real, dimension(:), allocatable :: axs_a, ays_a, azs_a
 real, dimension(:), allocatable :: bxs_a, bys_a, bzs_a
 real, dimension(:), allocatable :: wts_a
 real(kind=8), dimension(:,:), pointer :: xx4, yy4
-real(kind=8), dimension(:,:), allocatable, target :: xx4_dummy, yy4_dummy
 real(kind=8), dimension(:), pointer :: z_a, x_a, y_a
-real(kind=8), dimension(:), allocatable, target :: z_a_dummy, x_a_dummy, y_a_dummy
 logical ltest, tst, interpolate
 logical, dimension(:), allocatable :: lsma_g
 character(len=22) header
@@ -739,17 +737,12 @@ if ( amip_mode==1 ) then
     write(6,*) "leap_in = ",leap_in
     
     allocate( nface4(ifull_g,4), xg4(ifull_g,4), yg4(ifull_g,4) )
-    allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
-    xx4 => xx4_dummy
-    yy4 => yy4_dummy
+    allocate( xx4(1+4*ik,1+4*ik), yy4(1+4*ik,1+4*ik) )
     write(6,*) "Defining input file grid"
     allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
     allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
-    allocate( x_a_dummy(ik*ik*6), y_a_dummy(ik*ik*6), z_a_dummy(ik*ik*6) )
+    allocate( x_a(ik*ik*6), y_a(ik*ik*6), z_a(ik*ik*6) )
     allocate( wts_a(ik*ik*6) )
-    x_a => x_a_dummy
-    y_a => y_a_dummy
-    z_a => z_a_dummy
     !   following setxyz call is for source data geom    ****   
     do iq = 1,ik*ik*6
       axs_a(iq) = real(iq)
@@ -758,10 +751,10 @@ if ( amip_mode==1 ) then
     end do 
     call setxyz(ik,rlon_in,rlat_in,-schmidt_in,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4, &
                 id,jd,ktau,ds)
-    nullify( x_a, y_a, z_a )
-    deallocate( x_a_dummy, y_a_dummy, z_a_dummy ) 
+    deallocate( x_a, y_a, z_a ) 
     deallocate( axs_a, ays_a, azs_a, bxs_a, bys_a, bzs_a )
     deallocate( wts_a ) 
+    nullify( x_a, y_a, z_a )    
     ! setup interpolation arrays
     do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
       call latltoij(rlong4(:,mm),rlat4(:,mm),          & !input
@@ -769,8 +762,8 @@ if ( amip_mode==1 ) then
                     xg4(:,mm),yg4(:,mm),nface4(:,mm),  & !output (source)
                     xx4,yy4,ik)
     end do
-    nullify( xx4, yy4 )
-    deallocate( xx4_dummy, yy4_dummy )    
+    deallocate( xx4, yy4 )    
+    nullify( xx4, yy4 )    
     allocate( ssta_g(ik*ik*6,5), ssta_l(ifull_g,5), lsma_g(ik*ik*6) )
     lsma_g = .false.
     ssta_g = 0.
@@ -1287,9 +1280,7 @@ real, dimension(:), allocatable :: lsmr_g
 real, dimension(:,:), allocatable :: ssta_g, ssta_l
 real, dimension(:), allocatable, save :: fraciceb, ssta
 real(kind=8), dimension(:,:), pointer :: xx4, yy4
-real(kind=8), dimension(:,:), allocatable, target :: xx4_dummy, yy4_dummy
 real(kind=8), dimension(:), pointer :: z_a, x_a, y_a
-real(kind=8), dimension(:), allocatable, target :: z_a_dummy, x_a_dummy, y_a_dummy
 logical tst, ltest
 logical, save :: firstcall = .true.
 logical, save :: interpolate = .false.
@@ -1347,17 +1338,12 @@ if ( mod(ktau,nperday)==0 ) then
         write(6,*) "Interpolation is required for AMIPSST"
     
         allocate( nface4(ifull_g,4), xg4(ifull_g,4), yg4(ifull_g,4) )
-        allocate( xx4_dummy(1+4*ik,1+4*ik), yy4_dummy(1+4*ik,1+4*ik) )
-        xx4 => xx4_dummy
-        yy4 => yy4_dummy
+        allocate( xx4(1+4*ik,1+4*ik), yy4(1+4*ik,1+4*ik) )
         write(6,*) "Defining input file grid"
         allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
         allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
-        allocate( x_a_dummy(ik*ik*6), y_a_dummy(ik*ik*6), z_a_dummy(ik*ik*6) )
+        allocate( x_a(ik*ik*6), y_a(ik*ik*6), z_a(ik*ik*6) )
         allocate( wts_a(ik*ik*6) )
-        x_a => x_a_dummy
-        y_a => y_a_dummy
-        z_a => z_a_dummy
         !   following setxyz call is for source data geom    ****   
         do iq = 1,ik*ik*6
           axs_a(iq) = real(iq)
@@ -1366,10 +1352,10 @@ if ( mod(ktau,nperday)==0 ) then
         end do 
         call setxyz(ik,rlon_in,rlat_in,-schmidt_in,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4, &
                     id,jd,ktau,ds)
-        nullify( x_a, y_a, z_a )
-        deallocate( x_a_dummy, y_a_dummy, z_a_dummy ) 
+        deallocate( x_a, y_a, z_a ) 
         deallocate( axs_a, ays_a, azs_a, bxs_a, bys_a, bzs_a )
         deallocate( wts_a ) 
+        nullify( x_a, y_a, z_a )
         ! setup interpolation arrays
         do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
           call latltoij(rlong4(:,mm),rlat4(:,mm),          & !input
@@ -1377,8 +1363,8 @@ if ( mod(ktau,nperday)==0 ) then
                         xg4(:,mm),yg4(:,mm),nface4(:,mm),  & !output (source)
                         xx4,yy4,ik)
         end do
+        deallocate( xx4, yy4 )   
         nullify( xx4, yy4 )
-        deallocate( xx4_dummy, yy4_dummy )   
         allocate( lsma_g(ik*ik*6) )
         lsma_g = .false.
         call ccnf_inq_varid(ncidx,'lsm',lsmid,tst)
