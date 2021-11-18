@@ -1031,9 +1031,6 @@ if ( myid==0 ) then
   call finishbanner
 end if
 
-nullify(xx4, yy4)
-nullify(em_g)
-nullify(x_g, y_g, z_g)
 #ifdef usempi3
 call ccmpi_freeshdata(xx4_win)
 call ccmpi_freeshdata(yy4_win)
@@ -1041,11 +1038,20 @@ call ccmpi_freeshdata(em_g_win)
 call ccmpi_freeshdata(x_g_win)
 call ccmpi_freeshdata(y_g_win)
 call ccmpi_freeshdata(z_g_win)
+if ( mbd/=0 .and. nud_uv/=9 ) then
+  call deallocateglobalpack
+end if
+call ccmpi_filewinfinalize_exit
 #else
-deallocate(xx4_dummy, yy4_dummy)
-deallocate(em_g_dummy)
-deallocate(x_g_dummy, y_g_dummy, z_g_dummy)
+deallocate(xx4, yy4)
+deallocate(em_g)
+deallocate(x_g, y_g, z_g)
 #endif
+nullify(xx4, yy4)
+nullify(em_g)
+nullify(x_g, y_g, z_g)
+
+
   
 !****************************************************************
 

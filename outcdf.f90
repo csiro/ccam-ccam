@@ -3447,6 +3447,7 @@ use sigs_m                            ! Atmosphere sigma levels
 use soilsnow_m                        ! Soil, snow and surface data
 use soilv_m                           ! Soil parameters
 use tracers_m                         ! Tracer data
+use work2_m                           ! Diagnostic arrays
       
 implicit none
 
@@ -3522,7 +3523,7 @@ fsize = ssize - 1 ! size of fixed variables
 ! allocate arrays and open new file
 if ( first ) then
   if ( myid==0 ) then
-    write(6,*) "Initialise high frequency output (cordex)"
+    write(6,*) "Initialise CORDEX output"
   end if
   allocate(freqstore(ifull,freqvars))
   allocate(runoff_old(ifull,runoffvars),runoff_store(ifull,runoffvars))
@@ -3687,11 +3688,7 @@ if ( first ) then
     if ( local ) then
       call ccnf_put_attg(fncid,'nproc',nproc)
       call ccnf_put_attg(fncid,'procmode',vnode_nproc)
-      !if ( uniform_decomp ) then
-      !  call ccnf_put_attg(fncid,'decomp','uniform1')
-      !else
       call ccnf_put_attg(fncid,'decomp','face')
-      !end if
     end if 
     ! define variables
     if ( local ) then
@@ -3741,16 +3738,6 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'ua100m',lname,'m s-1',-130.,130.,0,1)
     lname='y-component 100m wind'     
     call attrib(fncid,sdim,ssize,'va100m',lname,'m s-1',-130.,130.,0,1)
-    if ( surf_windfarm==1 ) then
-      lname='x-component 150m wind'
-      call attrib(fncid,sdim,ssize,'ua150m',lname,'m s-1',-130.,130.,0,1)
-      lname='y-component 150m wind'     
-      call attrib(fncid,sdim,ssize,'va150m',lname,'m s-1',-130.,130.,0,1)
-      lname='x-component 250m wind'
-      call attrib(fncid,sdim,ssize,'ua250m',lname,'m s-1',-130.,130.,0,1)
-      lname='y-component 250m wind'     
-      call attrib(fncid,sdim,ssize,'va250m',lname,'m s-1',-130.,130.,0,1)
-    end if
     if ( surf_cordex==1 ) then
       lname = 'Daily Maximum Near-Surface Air Temperature'  
       call attrib(fncid,sdim,ssize,'tmaxscr',lname,'K',100.,425.,1,1) ! daily
@@ -3819,6 +3806,8 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'fracice',lname,'none',0.,1.,0,1)
       lname = 'Sunshine hours per day'
       call attrib(fncid,sdim,ssize,'sunhours',lname,'hrs',0.,24.,0,1)
+      lname = 'Surface roughness'
+      call attrib(fncid,sdim,ssize,'zolnd',lname,'m',0.,65.,0,-1) ! -1=long
       
       do k = 1,cordex_levels
         press_level = cordex_level_data(k)
@@ -3946,7 +3935,7 @@ if ( first ) then
   end if  
   
   first=.false.
-  if ( myid==0 ) write(6,*) "Finished initialising high frequency output (cordex)"
+  if ( myid==0 ) write(6,*) "Finished initialising CORDEX output"
  
 end if
 
@@ -3983,7 +3972,7 @@ if ( mod(ktau,tbave)==0 ) then
     
   if ( myid==0 .or. local ) then
     if ( myid==0 ) then
-      write(6,*) "write high-frequency output (cordex)"
+      write(6,*) "write CORDEX output"
     end if
     fiarch = ktau/tbave
     tpnt = real(ktau,8)*(real(dt,8)/60._8)
@@ -4031,44 +4020,6 @@ if ( mod(ktau,tbave)==0 ) then
   end do	
   call histwrt(ua_level,"ua100m",fncid,fiarch,local,.true.)
   call histwrt(va_level,"va100m",fncid,fiarch,local,.true.)
-  if ( surf_windfarm==1 ) then
-    do iq = 1,ifull
-      phi_local(1) = bet(1)*t(iq,1)
-      do k = 2,kl
-        phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
-      end do
-      do k = 1,kl-1
-        if ( phi_local(k)/grav<150. ) then
-          n = k
-        else
-          exit
-        end if
-      end do
-      xx = (150.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
-      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-    end do	
-    call histwrt(ua_level,"ua150m",fncid,fiarch,local,.true.)
-    call histwrt(va_level,"va150m",fncid,fiarch,local,.true.)
-    do iq = 1,ifull
-      phi_local(1) = bet(1)*t(iq,1)
-      do k = 2,kl
-        phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
-      end do
-      do k = 1,kl-1
-        if ( phi_local(k)/grav<250. ) then
-          n = k
-        else
-          exit
-        end if
-      end do
-      xx = (250.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
-      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-    end do
-    call histwrt(ua_level,"ua250m",fncid,fiarch,local,.true.)
-    call histwrt(va_level,"va250m",fncid,fiarch,local,.true.)      
-  end if
   if ( surf_cordex==1 ) then
     call histwrt(tmaxscr,'tmaxscr',fncid,fiarch,local,lday)
     call histwrt(tminscr,'tminscr',fncid,fiarch,local,lday)
@@ -4134,6 +4085,11 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(freqstore(:,21),"cll",fncid,fiarch,local,.true.)
     call histwrt(fracice,"fracice",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,22),'sunhours',fncid,fiarch,local,.true.) 
+    if ( all(zo<1.e-8) ) then
+      call histwrt(zo,'zolnd',fncid,fiarch,local,.false.) 
+    else
+      call histwrt(zo,'zolnd',fncid,fiarch,local,.true.)  
+    end if
     
     do j = 1,cordex_levels
       press_level = cordex_level_data(j)
@@ -4228,7 +4184,7 @@ implicit none
 include 'kuocom.h'                    ! Convection parameters
 include 'version.h'                   ! Model version data
 
-integer, parameter :: freqvars = 2  ! number of variables to average
+integer, parameter :: freqvars = 5  ! number of variables to average
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
@@ -4256,6 +4212,8 @@ real, dimension(:), allocatable :: xpnt
 real, dimension(:), allocatable :: ypnt
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
+real, dimension(kl) :: phi_local
+real, dimension(ifull) :: ua_level, va_level
 real xx
 real(kind=8) tpnt
 logical, save :: first = .true.
@@ -4293,7 +4251,7 @@ fsize = ssize - 1 ! size of fixed variables
 ! allocate arrays and open new file
 if ( first ) then
   if ( myid==0 ) then
-    write(6,*) "Initialise high frequency output (10)"
+    write(6,*) "Initialise sub hourly output"
   end if
   allocate(freqstore(ifull,freqvars))
   freqstore(:,:) = 0.
@@ -4477,10 +4435,27 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'rnd',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
     lname='Convective Precipitation'
     call attrib(fncid,sdim,ssize,'rnc',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
+    lname ='Surface Downwelling Shortwave Radiation'
+    call attrib(fncid,sdim,ssize,'sgdn_ave',lname,'W m-2',-500.,2.e3,0,-1)      ! -1 = long 
     lname = 'Scaled Log Surface pressure'
     call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.3,0.2,0,1)
     lname = 'Screen mixing ratio'
     call attrib(fncid,sdim,ssize,'qgscrn',lname,'kg kg-1',0.,0.06,0,1)
+    lname = 'Total Cloud Fraction'
+    call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)    
+    lname = 'Direct normal irradiance'
+    call attrib(fncid,sdim,ssize,'dni',lname,'W m-2',-500.,2.e3,0,-1)          ! -1 = long
+    if ( surf_windfarm==1 ) then
+      lname='x-component 150m wind'
+      call attrib(fncid,sdim,ssize,'ua150m',lname,'m s-1',-130.,130.,0,1)
+      lname='y-component 150m wind'     
+      call attrib(fncid,sdim,ssize,'va150m',lname,'m s-1',-130.,130.,0,1)
+      lname='x-component 250m wind'
+      call attrib(fncid,sdim,ssize,'ua250m',lname,'m s-1',-130.,130.,0,1)
+      lname='y-component 250m wind'     
+      call attrib(fncid,sdim,ssize,'va250m',lname,'m s-1',-130.,130.,0,1)
+    end if    
+    
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -4581,20 +4556,23 @@ if ( first ) then
   end if ! myid==0 .or. local ..else if ( localhist ) ..
   
   first=.false.
-  if ( myid==0 ) write(6,*) "Finished initialising high frequency output (10)"
+  if ( myid==0 ) write(6,*) "Finished initialising sub hourly output"
  
 end if
 
 ! store output
 freqstore(1:ifull,1) = freqstore(1:ifull,1) + condx*(86400./dt/real(tbave10))
 freqstore(1:ifull,2) = freqstore(1:ifull,2) + condc*(86400./dt/real(tbave10))
+freqstore(1:ifull,3) = freqstore(1:ifull,3) + sgdn/real(tbave10)
+freqstore(1:ifull,4) = freqstore(1:ifull,4) + cloudtot/real(tbave10)
+freqstore(1:ifull,5) = freqstore(1:ifull,5) + dni/real(tbave10)
 
 ! write data to file
 if ( mod(ktau,tbave10)==0 ) then
     
   if ( myid==0 .or. local ) then
     if ( myid==0 ) then
-      write(6,*) "write high-frequency output (10)"
+      write(6,*) "write sub-hourly output"
     end if
     fiarch = ktau/tbave10
     tpnt = real(ktau,8)*(real(dt,8)/60._8)
@@ -4614,8 +4592,49 @@ if ( mod(ktau,tbave10)==0 ) then
   call histwrt(rhscrn,"rhscrn",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,1),"rnd",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,2),"rnc",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,3),"sgdn_ave",fncid,fiarch,local,.true.)
   call histwrt(psl,"psf",fncid,fiarch,local,.true.)
   call histwrt(qgscrn,"qgscrn",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,4),"cld",fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,5),"dni",fncid,fiarch,local,.true.)  
+  if ( surf_windfarm==1 ) then
+    do iq = 1,ifull
+      phi_local(1) = bet(1)*t(iq,1)
+      do k = 2,kl
+        phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+      end do
+      do k = 1,kl-1
+        if ( phi_local(k)/grav<150. ) then
+          n = k
+        else
+          exit
+        end if
+      end do
+      xx = (150.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
+      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+    end do	
+    call histwrt(ua_level,"ua150m",fncid,fiarch,local,.true.)
+    call histwrt(va_level,"va150m",fncid,fiarch,local,.true.)
+    do iq = 1,ifull
+      phi_local(1) = bet(1)*t(iq,1)
+      do k = 2,kl
+        phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+      end do
+      do k = 1,kl-1
+        if ( phi_local(k)/grav<250. ) then
+          n = k
+        else
+          exit
+        end if
+      end do
+      xx = (250.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
+      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+    end do
+    call histwrt(ua_level,"ua250m",fncid,fiarch,local,.true.)
+    call histwrt(va_level,"va250m",fncid,fiarch,local,.true.)      
+  end if
   
   freqstore(:,:) = 0.
 

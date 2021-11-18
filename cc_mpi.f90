@@ -89,7 +89,6 @@ module cc_mpi
    integer, allocatable, dimension(:), save, public :: specmap_ext         ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
    real, dimension(:,:,:,:,:,:), pointer, save, private :: nodepack        ! node buffer for spectral filter
-   real, dimension(:,:,:,:,:,:), allocatable, target, save, private :: nodepack_dummy
    integer, save, private :: nodepack_win
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata
@@ -109,7 +108,9 @@ module cc_mpi
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       filemap_send, filemap_smod                                           ! file map sent for onthefly
    real, dimension(:,:,:,:), pointer, save, private :: nodefile            ! node buffer for file map
-   integer, save, private :: nodefile_win
+   integer, save, private :: nodefile_win, nodefileold_win
+   integer, save, private :: nodefile_count = 0
+   
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
@@ -132,11 +133,12 @@ module cc_mpi
    public :: allocateglobalpack, copyglobalpack,                            &
              ccmpi_gathermap_send2, ccmpi_gathermap_recv2,                  &
              ccmpi_gathermap_send3, ccmpi_gathermap_recv3, getglobalpack_v, &
-             setglobalpack_v, ccmpi_gathermap_wait
+             setglobalpack_v, ccmpi_gathermap_wait, deallocateglobalpack
    public :: ccmpi_filewinget, ccmpi_filewinunpack, ccmpi_filebounds_setup, &
              ccmpi_filebounds_send, ccmpi_filebounds_recv,                  &
              ccmpi_filegather, ccmpi_filedistribute, procarray,             &
-             ccmpi_filewininit, ccmpi_filewinfinalize
+             ccmpi_filewininit, ccmpi_filewinfinalize,                      &
+             ccmpi_filewinfinalize_exit
 #ifdef usempi3
    public :: ccmpi_allocshdata, ccmpi_allocshdatar8, ccmpi_remap
    public :: ccmpi_shepoch, ccmpi_freeshdata
@@ -2437,11 +2439,21 @@ contains
       shsize(6) = 6
       call ccmpi_allocshdata(nodepack,shsize(1:6),nodepack_win)
 #else
-      allocate( nodepack_dummy(ipan,jpan,kx,nxproc,nyproc,6) )
-      nodepack => nodepack_dummy
+      allocate( nodepack(ipan,jpan,kx,nxproc,nyproc,6) )
 #endif
    
    end subroutine allocateglobalpack
+   
+   subroutine deallocateglobalpack
+   
+#ifdef usempi3
+      call ccmpi_freeshdata(nodepack_win)
+#else
+      deallocate( nodepack)
+#endif
+      nullify( nodepack )
+   
+   end subroutine deallocateglobalpack
    
    subroutine ccglobal_posneg2(array, delpos, delneg)
       ! Calculate global sums of positive and negative values of array
@@ -10326,6 +10338,7 @@ contains
       shsize(3) = 6
       shsize(4) = kblock
       call ccmpi_allocshdata(nodefile,shsize(1:4),nodefile_win)
+      nodefile_count = nodefile_count + 1
 #else
       allocate( nodefile(pil_g,pil_g,6,kblock) )
 #endif
@@ -10339,6 +10352,9 @@ contains
 #ifdef usempi3
       ! Previously deallocating memory triggered bugs in the MPI library
       ! Here we will leave the memory allocated for now.
+      if ( nodefile_count==1 ) then
+         nodefileold_win = nodefile_win
+      end if   
       !call ccmpi_freeshdata(nodefile_win)
 #else
       deallocate( nodefile )
@@ -10346,6 +10362,19 @@ contains
       nullify(nodefile)
    
    end subroutine ccmpi_filewinfinalize
+   
+   subroutine ccmpi_filewinfinalize_exit
+   
+#ifdef usempi3
+      if ( nodefile_count>=1 ) then
+         call ccmpi_freeshdata(nodefile_win)
+         if ( nodefile_count>=2 ) then
+            call ccmpi_freeshdata(nodefileold_win) 
+         end if   
+      end if    
+#endif
+   
+   end subroutine ccmpi_filewinfinalize_exit
    
    subroutine ccmpi_filebounds_setup(comm)
 
