@@ -405,9 +405,7 @@ logical, dimension(:,:), allocatable, save :: landlake_3d
 
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
-real(kind=8), dimension(:,:,:), allocatable, target, save :: xy4_dummy
 real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
-real(kind=8), dimension(:), allocatable, target, save :: z_a_dummy, x_a_dummy, y_a_dummy
 
 ! iotest      indicates no interpolation required
 ! ptest       indicates the grid decomposition of the mesonest file is the same as the model, including the same number of processes
@@ -493,9 +491,7 @@ end if
 ! Determine input grid coordinates and interpolation arrays
 if ( newfile .and. .not.iop_test ) then
     
-  allocate( xy4_dummy(1+4*ik,1+4*ik,2) )
-  xx4 => xy4_dummy(:,:,1)
-  yy4 => xy4_dummy(:,:,2)
+  allocate( xx4(1+4*ik,1+4*ik), yy4(1+4*ik,1+4*ik) )
 
   if ( m_fly==1 ) then
     rlong4_l(:,1) = rlongg(:)*180./pi
@@ -510,11 +506,8 @@ if ( newfile .and. .not.iop_test ) then
     end if
     allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
     allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
-    allocate( x_a_dummy(ik*ik*6), y_a_dummy(ik*ik*6), z_a_dummy(ik*ik*6) )
+    allocate( x_a(ik*ik*6), y_a(ik*ik*6), z_a(ik*ik*6) )
     allocate( wts_a(ik*ik*6) )
-    x_a => x_a_dummy
-    y_a => y_a_dummy
-    z_a => z_a_dummy
     !   following setxyz call is for source data geom    ****   
     do iq = 1,ik*ik*6
       axs_a(iq) = real(iq)
@@ -523,12 +516,13 @@ if ( newfile .and. .not.iop_test ) then
     end do 
     call setxyz(ik,rlong0x,rlat0x,-schmidtx,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4, &
                 id,jd,ktau,ds)
-    nullify( x_a, y_a, z_a )
-    deallocate( x_a_dummy, y_a_dummy, z_a_dummy )
+    deallocate( x_a, y_a, z_a )
     deallocate( wts_a )
+    nullify( x_a, y_a, z_a )
   end if ! (myid==0)
   
-  call ccmpi_bcastr8(xy4_dummy,0,comm_world)
+  call ccmpi_bcastr8(xx4,0,comm_world)
+  call ccmpi_bcastr8(yy4,0,comm_world)
   
   ! calculate the rotated coords for host and model grid
   rotpoles = calc_rotpole(rlong0x,rlat0x)
@@ -545,7 +539,7 @@ if ( newfile .and. .not.iop_test ) then
       do i = 1,3
         write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpole(i,j),j=1,3)
       enddo
-      write(6,*)'xx4,yy4 ',xy4_dummy(id,jd,1),xy4_dummy(id,jd,2)
+      write(6,*)'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
       write(6,*)'before latltoij for id,jd: ',id,jd
       write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,schmidtx
     end if                ! (nmaxpr==1)
@@ -559,8 +553,8 @@ if ( newfile .and. .not.iop_test ) then
                   xx4,yy4,ik)
   end do
 
-  nullify( xx4, yy4 )
-  deallocate( xy4_dummy )  
+  deallocate( xx4, yy4 )  
+  nullify( xx4, yy4 )  
   
   ! Define filemap for multi-file method
   call file_wininit
