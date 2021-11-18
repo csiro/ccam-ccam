@@ -10369,9 +10369,9 @@ contains
       integer :: i
    
 #ifdef usempi3
-      if ( myid == 0 ) then
-         write(6,*) "Closing filewin with nodefile_count = ",nodefile_count
-      end if
+      !if ( myid == 0 ) then
+      !   write(6,*) "Closing filewin with nodefile_count = ",nodefile_count
+      !end if
       do i = 1,nodefile_count
          call ccmpi_freeshdata(nodefilesave_win(i))
       end do   
