@@ -108,7 +108,8 @@ module cc_mpi
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       filemap_send, filemap_smod                                           ! file map sent for onthefly
    real, dimension(:,:,:,:), pointer, save, private :: nodefile            ! node buffer for file map
-   integer, save, private :: nodefile_win, nodefileold_win
+   integer, save, private :: nodefile_win
+   integer, save, private, dimension(3) :: nodefilesave_win
    integer, save, private :: nodefile_count = 0
    
    
@@ -10352,8 +10353,8 @@ contains
 #ifdef usempi3
       ! Previously deallocating memory triggered bugs in the MPI library
       ! Here we will leave the memory allocated for now.
-      if ( nodefile_count==1 ) then
-         nodefileold_win = nodefile_win
+      if ( nodefile_count <= size(nodefilesave_win) ) then
+         nodefilesave_win(nodefile_count) = nodefile_win
       end if   
       !call ccmpi_freeshdata(nodefile_win)
 #else
@@ -10365,13 +10366,15 @@ contains
    
    subroutine ccmpi_filewinfinalize_exit
    
+      integer :: i
+   
 #ifdef usempi3
-      if ( nodefile_count>=1 ) then
-         call ccmpi_freeshdata(nodefile_win)
-         if ( nodefile_count>=2 ) then
-            call ccmpi_freeshdata(nodefileold_win) 
-         end if   
-      end if    
+      if ( myid == 0 ) then
+         write(6,*) "Closing filewin with nodefile_count = ",nodefile_count
+      end if
+      do i = 1,nodefile_count
+         call ccmpi_freeshdata(nodefilesave_win(i))
+      end do   
 #endif
    
    end subroutine ccmpi_filewinfinalize_exit
