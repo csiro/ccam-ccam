@@ -1671,6 +1671,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   call mloexpice("tsurf",tggsn(:,1),0)
   call mloexpice("temp0",tggsn(:,2),0)
   call mloexpice("temp1",tggsn(:,3),0)
+  call mlo_ema(dt,'reset')
 end if  
 
 !-----------------------------------------------------------------

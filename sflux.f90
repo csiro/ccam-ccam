@@ -965,8 +965,9 @@ if ( abs(nmlo)==1 ) then                                                        
   ! Single column                                                                              ! MLO
   ! set free surface to zero when water is not conserved                                       ! MLO
   neta=0.                                                                                      ! MLO
-  call mloimport("eta",neta,0,0,water,depth,wpack,wfull)                                           ! MLO
-else if ( abs(nmlo)>=2 ) then                                                                       ! MLO
+  call mloimport("eta",neta,0,0,water,depth,wpack,wfull)                                       ! MLO
+  dumw(1:imax) = 0.                                                                            ! MLO  
+else if ( abs(nmlo)>=2 ) then                                                                  ! MLO
   ! river inflow                                                                               ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO
   where ( .not.land(1:imax) )                                                                  ! MLO
@@ -975,13 +976,13 @@ else if ( abs(nmlo)>=2 ) then                                                   
   end where                                                                                    ! MLO
   ! lake outflow                                                                               ! MLO
   neta(1:imax) = 0.                                                                            ! MLO
-  call mloexport("eta",neta,0,0,water,depth,wpack,wfull)                                                 ! MLO
+  call mloexport("eta",neta,0,0,water,depth,wpack,wfull)                                       ! MLO
   where ( outflowmask(1:imax) )                                                                ! MLO
     oflow(:) = max( neta(1:imax), 0. )                                                         ! MLO
     watbdy(1:imax) = watbdy(1:imax) + 1000.*oflow(:)                                           ! MLO
     neta(1:imax) = neta(1:imax) - oflow(:)                                                     ! MLO
   end where                                                                                    ! MLO
-  call mloimport("eta",neta,0,0,water,depth,wpack,wfull)                                           ! MLO
+  call mloimport("eta",neta,0,0,water,depth,wpack,wfull)                                       ! MLO
 else                                                                                           ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO
 end if                                                                                         ! MLO

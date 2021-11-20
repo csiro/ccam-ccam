@@ -1051,7 +1051,6 @@ nullify(xx4, yy4)
 nullify(em_g)
 nullify(x_g, y_g, z_g)
 
-
   
 !****************************************************************
 
@@ -2504,7 +2503,7 @@ nopb               = dumi(17)
 fixedstabfunc      = dumi(18)
 mlomfix            = dumi(19)
 nodrift            = dumi(20)
-mlontvd             = dumi(21)
+mlontvd            = dumi(21)
 if ( oclosure==0 ) then
   nsteps = 1
 end if

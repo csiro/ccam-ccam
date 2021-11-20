@@ -2751,15 +2751,15 @@ where ( depth%dz(:,2)*depth%dz(:,1)>1.e-4 )
   cc(:,1) = -dt*km_hl(:,2)/(depth%dz_hl(:,2)*depth%dz(:,1)*d_zcr**2)
 end where
 if ( otaumode==1 ) then
-  atu = atm_u - fluxwgt*water%u(:,1) - (1.-fluxwgt)*water%utop             ! implicit
-  atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*water%vtop             ! implicit
-  vmagn = sqrt(max(atu*atu+atv*atv,1.e-4))                                 ! implicit
-  rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))                     ! implicit
+  atu = atm_u - fluxwgt*water%u(:,1) - (1.-fluxwgt)*water%utop    ! implicit
+  atv = atm_v - fluxwgt*water%v(:,1) - (1.-fluxwgt)*water%vtop    ! implicit
+  vmagn = sqrt(max(atu**2+atv**2,1.e-4))                          ! implicit
+  rho = atm_ps/(rdry*max(water%temp(:,1)+wrtemp,271.))            ! implicit
   bb(:,1) = 1._8 - cc(:,1)
-  bb(:,1) = bb(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd             &
-                                         /(wrtrho*depth%dz(:,1)*d_zcr)      ! implicit  
+  bb(:,1) = bb(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd        &
+                      /(wrtrho*depth%dz(:,1)*d_zcr)               ! implicit  
 else
-  bb(:,1) = 1._8 - cc(:,1)                                                  ! explicit  
+  bb(:,1) = 1._8 - cc(:,1)                                        ! explicit  
 end if
 do ii = 2,wlev-1
   where ( depth%dz(:,ii-1)*depth%dz(:,ii)>1.e-4 )  
@@ -2815,7 +2815,6 @@ end if
 
 
 ! --- Turn off coriolis terms as this is processed in mlodynamics.f90 ---
-!! Split U and V coriolis terms
 !xp = 1. + (0.5*dt*atm_f)**2
 !xm = 1. - (0.5*dt*atm_f)**2
 !do ii = 1,wlev
@@ -2918,8 +2917,6 @@ call getmixdepth(d_zcr,depth,dgwater,water,wfull)
 select case(oclosure)
   case(1)
     ! k-e  
-    km_hl = 0.
-    ks_hl = 0.
     call keps(km_hl,ks_hl,depth,dgwater,water,turb,dt,wfull)
   case default
     ! kpp
@@ -3982,7 +3979,7 @@ select case(zomode)
 end select
 dumazmin=max(atm_zmin,dgwater%zo+0.2)
 afroot=vkar/log(dumazmin/dgwater%zo)
-af=afroot*afroot
+af=afroot**2
 
 select case(zomode)
   case(0) ! Charnock CSIRO9
@@ -4132,7 +4129,6 @@ xxx=max(ice%thick-icemax,0.)
 ice%thick=ice%thick-xxx   
 ! no temperature or salinity conservation
 
-! MJT notes - Remove salt flux between ice and water for now
 dgwater%ws0_subsurf = dgwater%ws0_subsurf - ice%fracice*d_salflx*water%sal(:,1)/wrtrho
 d_neta = d_neta - dt*ice%fracice*d_salflx/wrtrho
 
@@ -5593,8 +5589,8 @@ select case(mode)
     do ii = 2,wlev-1
       do iqw = 1,wfull  
         if ( depth%dz(iqw,ii)>1.e-4 ) then  
-          water%dudz(iqw,ii) = real(u_hl(iqw,ii+1)-u_hl(iqw,ii-1))/depth%dz(iqw,ii)
-          water%dvdz(iqw,ii) = real(v_hl(iqw,ii+1)-v_hl(iqw,ii-1))/depth%dz(iqw,ii)
+          water%dudz(iqw,ii) = real(u_hl(iqw,ii+1)-u_hl(iqw,ii))/depth%dz(iqw,ii)
+          water%dvdz(iqw,ii) = real(v_hl(iqw,ii+1)-v_hl(iqw,ii))/depth%dz(iqw,ii)
         else
           water%dudz(iqw,ii) = 0.
           water%dvdz(iqw,ii) = 0.

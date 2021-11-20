@@ -1408,17 +1408,17 @@ call START_LOG(watervadv_begin)
 dzdum = max(idzdum(:,:),1.E-10)
   
 ! reduce time step to ensure stability
-do iq = 1,ifull
-  dtnew(iq)=dtin
-  do ii = 1,wlev-1
+dtnew(:) = dtin
+do ii = 1,wlev-1
+  do iq = 1,ifull    
     if ( wtr(iq,ii) ) then
       ! this trick works if dzdum(iq,ii)<dzdum(iq,ii+1)
       dtnew(iq)=min(dtnew(iq),0.3*dzdum(iq,ii)/max(abs(ww(iq,ii)),1.E-12))
     end if
   end do
-  its(iq)=int(dtin/(dtnew(iq)+0.01))+1
-  dtnew(iq)=dtin/real(its(iq))
 end do
+its(:) = int(dtin/(dtnew(:)+0.01))+1
+dtnew(:) = dtin/real(its(:))
 
 its_g=maxval(its(:))
 if (its_g>500) then
@@ -1511,7 +1511,12 @@ if ( mlontvd==0 ) then ! MC
 #endif
   do ii = 1,wlev-1
     do iq = 1,ifull
-      delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
+      ff(iq,ii) = 0.  
+      if ( dzdum(iq,ii+1)>1.e-4 ) then
+        delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
+      else
+        delu(iq,ii) = 0.  
+      end if    
     end do
   end do
 #ifdef _OPENMP
@@ -1556,7 +1561,9 @@ if ( mlontvd==0 ) then ! MC
       fh = ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))             &
         - 0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
         /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-      ff(iq,ii) = fl + cc*(fh-fl)
+      if ( dzdum(iq,ii+1)>1.e-4 ) then
+        ff(iq,ii) = fl + cc*(fh-fl)
+      end if
      !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
    end do
   end do
@@ -1595,7 +1602,11 @@ if ( mlontvd==0 ) then ! MC
   do iq = 1,ifull
     do i = 2,its(iq)
       do ii=1,wlev-1
-        delu(iq,ii)=uu(iq,ii+1)-uu(iq,ii)
+        if ( dzdum(iq,ii+1)>1.e-4 ) then
+          delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
+        else
+          delu(iq,ii) = 0.  
+        end if 
       end do
       ! TVD part
       do ii=1,wlev-1
@@ -1608,7 +1619,9 @@ if ( mlontvd==0 ) then ! MC
         fh=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))          &
           -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
           /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-       ff(iq,ii)=fl+cc*(fh-fl)
+        if ( dzdum(iq,ii+1)>1.e-4 ) then 
+          ff(iq,ii)=fl+cc*(fh-fl)
+        end if 
       end do
       do ii=1,wlev
         if ( dzdum(iq,ii)>1.e-4 ) then  
@@ -1649,7 +1662,12 @@ else if ( mlontvd==1 ) then ! Superbee
 #endif
   do ii = 1,wlev-1
     do iq = 1,ifull
-      delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
+      ff(iq,ii) = 0.  
+      if ( dzdum(iq,ii+1)>1.e-4 ) then
+        delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
+      else
+        delu(iq,ii) = 0.  
+      end if    
     end do
   end do
 #ifdef _OPENMP
@@ -1688,13 +1706,15 @@ else if ( mlontvd==1 ) then ! Superbee
       ! +ve ww is downwards to the ocean floor
       kp = nint(sign(1.,ww(iq,ii)))
       kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-      rr=delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
-      fl=ww(iq,ii)*uu(iq,kx)
+      rr = delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
+      fl = ww(iq,ii)*uu(iq,kx)
       cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
       fh = ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))             &
         - 0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
         /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-      ff(iq,ii) = fl + cc*(fh-fl)
+      if ( dzdum(iq,ii+1)>1.e-4 ) then
+        ff(iq,ii) = fl + cc*(fh-fl)
+      end if  
      !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
    end do
   end do
@@ -1732,11 +1752,15 @@ else if ( mlontvd==1 ) then ! Superbee
 #endif
   do iq = 1,ifull
     do i = 2,its(iq)
-      do ii=1,wlev-1
-        delu(iq,ii)=uu(iq,ii+1)-uu(iq,ii)
+      do ii = 1,wlev-1
+        if ( dzdum(iq,ii+1)>1.e-4 ) then
+          delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
+        else
+          delu(iq,ii) = 0.  
+        end if 
       end do
       ! TVD part
-      do ii=1,wlev-1
+      do ii = 1,wlev-1
         ! +ve ww is downwards to the ocean floor
         kp = nint(sign(1.,ww(iq,ii)))
         kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
@@ -1746,9 +1770,11 @@ else if ( mlontvd==1 ) then ! Superbee
         fh=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))          &
           -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
           /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-       ff(iq,ii)=fl+cc*(fh-fl)
+        if ( dzdum(iq,ii+1)>1.e-4 ) then 
+          ff(iq,ii)=fl+cc*(fh-fl)
+        end if  
       end do
-      do ii=1,wlev
+      do ii = 1,wlev
         if ( dzdum(iq,ii)>1.e-4 ) then  
           uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1)) &
                                         -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
