@@ -45,7 +45,7 @@ IPFLAG = -ip
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(ZEN3),yes)
-FHOST = -O3 -axCORE-AVX2 -align array32byte -fimf-use-svml
+FHOST = -O3 -axCORE-AVX2 -align array32byte -fimf-use-svml -Dstacklimit
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 IPFLAG = -ip

@@ -1841,6 +1841,10 @@ if ( nested/=1 .and. nested/=3 ) then
     call gethist4a('cf_ema',cf_ema,5)
     call gethist4a('tke_ema',tke_ema,5)
   end if
+  if ( nested==0 ) then
+    call gethist4a('rkm',rkmsave,5)  
+    call gethist4a('rkh',rkhsave,5)
+  end if
 
   !------------------------------------------------------------------
   ! Tracer data

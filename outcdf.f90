@@ -2024,6 +2024,10 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'tke_ema','Exponentially weighted moving average te','frac',0.,1.,0,cptype)        
       end if    
     end if
+    if ( itype==-1 ) then
+      call attrib(idnc,dima,asize,'rkm','Diffusion coefficient for momentum','m2 s-1',0.,1.,0,cptype)
+      call attrib(idnc,dima,asize,'rkh','Diffusion coefficient for heat','m2 s-1',0.,1.,0,cptype)
+    end if
 
     ! TRACER --------------------------------------------------------
     if ( ngas>0 ) then
@@ -3264,6 +3268,10 @@ if ( nvmix==6 .or. nvmix==9 ) then
     call histwrt(tke_ema,'tke_ema',idnc,iarch,local,.true.)
   end if  
 end if
+if ( itype==-1 ) then
+  call histwrt(rkmsave,'rkm',idnc,iarch,local,.true.)
+  call histwrt(rkhsave,'rkh',idnc,iarch,local,.true.)
+end if
 
 ! TRACERS -----------------------------------------------------
 if ( ngas>0 ) then
@@ -4093,7 +4101,6 @@ if ( mod(ktau,tbave)==0 ) then
     
     do j = 1,cordex_levels
       press_level = cordex_level_data(j)
-      !$omp simd private (n,k,xx)
       do iq = 1,ifull
         n = 1
         do k = 1,kl-1
