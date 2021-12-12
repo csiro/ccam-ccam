@@ -2256,7 +2256,7 @@ if(nstn>0)then
     write(*,"(a)") ' lu istn jstn  iq   slon   slat land rlong  rlat' &
                 // ' isoil iveg zs(m) alb  wb3  wet3 vlai  zo   he'
   end if
-  call ccmpi_barrier(comm_world)
+  !call ccmpi_barrier(comm_world)
   do nn=1,nstn
     call latltoij(slon(nn),slat(nn),rlong0,rlat0,schmidt,ri,rj,nface,xx4,yy4,il_g)
     ! These are global indices
@@ -2312,15 +2312,15 @@ if(nstn>0)then
       iveg=ivegt(iq)
       isoil = isoilm(iq)
       wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
-      write(6,98)iunp(nn),istn(nn),jstn(nn),iq,slon(nn),slat(nn),   &
-                 land(iq),rlongg(iq)*180/pi,rlatt(iq)*180/pi,       &
-                 isoilm(iq),ivegt(iq),zs(iq)/grav,albvisnir(iq,1),  &
-                 wb(iq,3),wet3,vlai(iq),zolnd(iq),he(iq),           &
-                 myid             
+      !write(6,98)iunp(nn),istn(nn),jstn(nn),iq,slon(nn),slat(nn),   &
+      !           land(iq),rlongg(iq)*180/pi,rlatt(iq)*180/pi,       &
+      !           isoilm(iq),ivegt(iq),zs(iq)/grav,albvisnir(iq,1),  &
+      !           wb(iq,3),wet3,vlai(iq),zolnd(iq),he(iq),           &
+      !           myid             
     end if               ! mystn
-98  format(i3,i4,i5,i6,2f7.2 ,l3,2f7.2, i3,i6,f7.1,f5.2,4f5.2,f7.1,i4)
+!98  format(i3,i4,i5,i6,2f7.2 ,l3,2f7.2, i3,i6,f7.1,f5.2,4f5.2,f7.1,i4)
     ! Put a barrier here to force stations to be printed in the right order
-    call ccmpi_barrier(comm_world)
+    !call ccmpi_barrier(comm_world)
   enddo  ! nn=1,nstn
 endif     !  (nstn>0)
 

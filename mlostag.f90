@@ -511,45 +511,9 @@ if ( ltest ) then
   ! - The wave amplitude should be preserved
 
   do itn = 1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=2)
-    !$omp parallel 
-    !$omp do schedule(static) private(k,iq)     
-    do k = 1,kn
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)      
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
-      end do  
-    end do
-    !$omp end do
-    !$omp end parallel     
-    call boundsuv(uin,vin,stag=2)
-    !$omp parallel 
-    !$omp do schedule(static) private(k,iq)        
-    do k = 1,kn
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(ieeu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(innv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)        
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(ieeu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(innv(iq),k)
-      end do  
-    end do
-    !$omp end do
-    !$omp end parallel     
-  end do                 ! itn=1,itnmax
+    call calc_st(wtul,wtvl,ud,vd,ua,va,uin,vin)  
+    call calc_st(wtul,wtvl,ud,vd,uin,vin,ua,va)
+  end do                 ! itn=1,itnmax    
  
 else
 
@@ -596,44 +560,8 @@ else
   !$omp end parallel   
 
   do itn = 1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=3)
-    !$omp parallel 
-    !$omp do schedule(static) private(k,iq)       
-    do k = 1,kn
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)      
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
-      end do  
-    end do
-    !$omp end do
-    !$omp end parallel     
-    call boundsuv(uin,vin,stag=3)
-    !$omp parallel 
-    !$omp do schedule(static) private(k,iq)      
-    do k = 1,kn
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(iwwu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(issv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)     
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(iwwu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(issv(iq),k)
-      end do  
-    end do
-    !$omp end do
-    !$omp end parallel     
+    call calc_sf(wtur,wtvr,ud,vd,ua,va,uin,vin)  
+    call calc_sf(wtur,wtvr,ud,vd,uin,vin,ua,va)
   end do                 ! itn=1,itnmax
 
 end if
@@ -1227,44 +1155,8 @@ if (ltest) then
   !$omp end parallel   
 
   do itn = 1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=3)
-    !$omp parallel 
-    !$omp do schedule(static) private(k,iq)      
-    do k = 1,kn
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)      
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
-      end do  
-    end do
-    !$omp end do
-    !$omp end parallel     
-    call boundsuv(uin,vin,stag=3)
-    !$omp parallel 
-    !$omp do schedule(static) private(k,iq)     
-    do k = 1,kn
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(iwwu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(issv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)     
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(iwwu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(issv(iq),k)
-      end do  
-    end do
-    !$omp end do
-    !$omp end parallel     
+    call calc_ut(wtul,wtvl,ud,vd,ua,va,uin,vin)  
+    call calc_ut(wtul,wtvl,ud,vd,uin,vin,ua,va)
   end do                  ! itn=1,itnmax
   
 else
@@ -1312,44 +1204,8 @@ else
   !$omp end parallel   
 
   do itn = 1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=2)
-    !$omp parallel 
-    !$omp do schedule(static) private(k,iq)      
-    do k = 1,kn
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)       
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
-      end do  
-    end do
-    !$omp end do
-    !$omp end parallel      
-    call boundsuv(uin,vin,stag=2)
-    !$omp parallel 
-    !$omp do schedule(static) private(k,iq)   
-    do k = 1,kn
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(ieeu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(innv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)     
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(ieeu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(innv(iq),k)
-      end do  
-    end do
-    !$omp end do
-    !$omp end parallel      
+    call calc_uf(wtur,wtvr,ud,vd,ua,va,uin,vin)  
+    call calc_uf(wtur,wtvr,ud,vd,uin,vin,ua,va)
   end do                  ! itn=1,itnmax
 
 end if
@@ -1367,5 +1223,470 @@ call END_LOG(ocnstag_end)
 
 return
 end subroutine mlounstaguv
+
+subroutine calc_st(wtul,wtvl,ud,vd,ua,va,uin,vin)
+
+use cc_mpi
+use indices_m
+use mlo
+use newmpar_m
+
+implicit none
+
+integer k, kx, n, i, j, iq, kn
+real, dimension(:,:,0:), intent(in) :: wtul, wtvl
+real, dimension(:,:), intent(in) :: ud, vd
+real, dimension(:,:), intent(inout) :: ua, va
+real, dimension(:,:), intent(out) :: uin, vin
+
+kx = size(ud,2)
+kn = min(kx,wlev)
+
+call boundsuv_send(ua,va,stag=2)
+!$omp parallel 
+!$omp do schedule(static) private(k,iq,n,i,j)     
+do k = 1,kn
+  do n = 1,npan
+    do j = 3,jpan-2
+      do i = 3,ipan-2
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan  
+        uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(iq+1,k)+wtul(iq,k,2)*ua(iq-1,k)+wtul(iq,k,3)*ua(iq+2,k)
+        vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(iq+ipan,k)+wtvl(iq,k,2)*va(iq-ipan,k)+wtvl(iq,k,3)*va(iq+2*ipan,k)
+      end do  
+    end do
+  end do
+end do  
+!$omp end do nowait
+!$omp do schedule(static) private(k,iq,n,i,j)      
+do k = kn+1,kx
+  do n = 1,npan
+    do j = 3,jpan-2
+      do i = 3,ipan-2
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan  
+        uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(iq+1,k)+wtul(iq,1,2)*ua(iq-1,k)+wtul(iq,1,3)*ua(iq+2,k)
+        vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(iq+ipan,k)+wtvl(iq,1,2)*va(iq-ipan,k)+wtvl(iq,1,3)*va(iq+2*ipan,k)
+      end do  
+    end do
+  end do  
+end do
+!$omp end do
+!$omp end parallel     
+call boundsuv_recv(ua,va,stag=2)
+do k = 1,kn
+  do n = 1,npan
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
+      iq = 2 + (j-1)*ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
+      iq = ipan - 1 + (j-1)*ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
+      iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
+    end do  
+    do i = 3,ipan-2
+      iq = i + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
+      iq = i + ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
+      iq = i + (jpan-2)*ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
+      iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
+    end do
+  end do
+end do  
+do k = kn+1,kx
+  do n = 1,npan
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
+      iq = 2 + (j-1)*ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
+      iq = ipan - 1 + (j-1)*ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
+      iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
+    end do  
+    do i = 3,ipan-2
+      iq = i + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
+      iq = i + ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
+      iq = i + (jpan-2)*ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
+      iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan 
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
+    end do    
+  end do
+end do  
+
+return
+end subroutine calc_st
+
+subroutine calc_sf(wtur,wtvr,ud,vd,ua,va,uin,vin)
+
+use cc_mpi
+use indices_m
+use mlo
+use newmpar_m
+
+implicit none
+
+integer k, kx, n, i, j, iq, kn
+real, dimension(:,:,0:), intent(in) :: wtur, wtvr
+real, dimension(:,:), intent(in) :: ud, vd
+real, dimension(:,:), intent(inout) :: ua, va
+real, dimension(:,:), intent(out) :: uin, vin
+
+kx = size(ud,2)
+kn = min(kx,wlev)
+
+call boundsuv_send(ua,va,stag=3)
+!$omp parallel 
+!$omp do schedule(static) private(k,iq,n,i,j)       
+do k = 1,kn
+  do n = 1,npan
+    do j = 3,jpan-2
+      do i = 3,ipan-2
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan  
+        uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(iq+1,k)+wtur(iq,k,2)*ua(iq-1,k)+wtur(iq,k,3)*ua(iq-2,k)
+        vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(iq+ipan,k)+wtvr(iq,k,2)*va(iq-ipan,k)+wtvr(iq,k,3)*va(iq-2*ipan,k)
+      end do  
+    end do
+  end do
+end do  
+!$omp end do nowait
+!$omp do schedule(static) private(k,iq,n,i,j)      
+do k = kn+1,kx
+  do n = 1,npan
+    do j = 3,jpan-2
+      do i = 3,ipan-2
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan  
+        uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(iq+1,k)+wtur(iq,1,2)*ua(iq-1,k)+wtur(iq,1,3)*ua(iq-2,k)
+        vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(iq+ipan,k)+wtvr(iq,1,2)*va(iq-ipan,k)+wtvr(iq,1,3)*va(iq-2*ipan,k)
+      end do  
+    end do
+  end do
+end do
+!$omp end do
+!$omp end parallel     
+call boundsuv_recv(ua,va,stag=3)
+do k = 1,kn
+  do n = 1,npan
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
+      iq = 2 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
+      iq = ipan - 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
+      iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
+    end do  
+    do i = 3,ipan-2
+      iq = i + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
+      iq = i + ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
+      iq = i + (jpan-2)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
+      iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
+    end do
+  end do
+end do 
+do k = kn+1,kx
+  do n = 1,npan
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
+      iq = 2 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
+      iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
+      iq = ipan - 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
+    end do  
+    do i = 3,ipan-2
+      iq = i + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
+      iq = i + ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
+      iq = i + (jpan-2)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
+      iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
+    end do    
+  end do
+end do
+
+return
+end subroutine calc_sf
+
+
+subroutine calc_ut(wtul,wtvl,ud,vd,ua,va,uin,vin)
+
+use cc_mpi
+use indices_m
+use mlo
+use newmpar_m
+
+implicit none
+
+integer k, kx, n, i, j, iq, kn
+real, dimension(:,:,0:), intent(in) :: wtul, wtvl
+real, dimension(:,:), intent(in) :: ud, vd
+real, dimension(:,:), intent(inout) :: ua, va
+real, dimension(:,:), intent(out) :: uin, vin
+
+kx = size(ud,2)
+kn = min(kx,wlev)
+
+call boundsuv_send(ua,va,stag=3)
+!$omp parallel 
+!$omp do schedule(static) private(k,iq,n,i,j)      
+do k = 1,kn
+  do n = 1,npan
+    do j = 3,jpan-2
+      do i = 3,ipan-2
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan  
+        uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(iq+1,k)+wtul(iq,k,2)*ua(iq-1,k)+wtul(iq,k,3)*ua(iq-2,k)
+        vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(iq+ipan,k)+wtvl(iq,k,2)*va(iq-ipan,k)+wtvl(iq,k,3)*va(iq-2*ipan,k)
+      end do  
+    end do
+  end do
+end do
+!$omp end do nowait
+!$omp do schedule(static) private(k,iq,n,i,j)      
+do k = kn+1,kx
+  do n = 1,npan
+    do j = 3,jpan-2
+      do i = 3,ipan-2
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan  
+        uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(iq+1,k)+wtul(iq,1,2)*ua(iq-1,k)+wtul(iq,1,3)*ua(iq-2,k)
+        vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(iq+ipan,k)+wtvl(iq,1,2)*va(iq-ipan,k)+wtvl(iq,1,3)*va(iq-2*ipan,k)
+      end do  
+    end do
+  end do
+end do
+!$omp end do
+!$omp end parallel     
+call boundsuv_recv(ua,va,stag=3)
+do k = 1,kn
+  do n = 1,npan
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
+      iq = 2 + (j-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
+      iq = ipan - 1 + (j-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
+      iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
+    end do
+    do i = 3,ipan-2
+      iq = i + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
+      iq = i + ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
+      iq = i + (jpan-2)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
+      iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
+    end do
+  end do  
+end do
+do k = kn+1,kx
+  do n = 1,npan
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
+      iq = 2 + (j-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
+      iq = ipan - 1 + (j-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
+      iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
+    end do
+    do i = 3,ipan-2
+      iq = i + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
+      iq = i + ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
+      iq = i + (jpan-2)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
+      iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
+    end do    
+  end do
+end do  
+
+return
+end subroutine calc_ut
+
+subroutine calc_uf(wtur,wtvr,ud,vd,ua,va,uin,vin)
+
+use cc_mpi
+use indices_m
+use mlo
+use newmpar_m
+
+implicit none
+
+integer k, kx, n, i, j, iq, kn
+real, dimension(:,:,0:), intent(in) :: wtur, wtvr
+real, dimension(:,:), intent(in) :: ud, vd
+real, dimension(:,:), intent(inout) :: ua, va
+real, dimension(:,:), intent(out) :: uin, vin
+
+kx = size(ud,2)
+kn = min(kx,wlev)
+
+call boundsuv_send(ua,va,stag=2)
+!$omp parallel 
+!$omp do schedule(static) private(k,iq,n,i,j)      
+do k = 1,kn
+  do n = 1,npan
+    do j = 3,jpan-2
+      do i = 3,ipan-2
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan  
+        uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(iq+1,k)+wtur(iq,k,2)*ua(iq-1,k)+wtur(iq,k,3)*ua(iq+2,k)
+        vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(iq+ipan,k)+wtvr(iq,k,2)*va(iq-ipan,k)+wtvr(iq,k,3)*va(iq+2*ipan,k)
+      end do  
+    end do
+  end do
+end do
+!$omp end do nowait
+!$omp do schedule(static) private(k,iq,n,i,j)       
+do k = kn+1,kx
+  do n = 1,npan
+    do j = 3,jpan-2
+      do i = 3,ipan-2
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan  
+        uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(iq+1,k)+wtur(iq,1,2)*ua(iq-1,k)+wtur(iq,1,3)*ua(iq+2,k)
+        vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(iq+ipan,k)+wtvr(iq,1,2)*va(iq-ipan,k)+wtvr(iq,1,3)*va(iq+2*ipan,k)
+      end do  
+    end do
+  end do
+end do
+!$omp end do
+!$omp end parallel      
+call boundsuv_recv(ua,va,stag=2)
+do k = 1,kn
+  do n = 1,npan
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
+      iq = 2 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
+      iq = ipan - 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
+      iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
+    end do  
+    do i = 3,ipan-2
+      iq = i + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
+      iq = i + ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
+      iq = i + (jpan-2)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
+      iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
+    end do
+  end do
+end do  
+do k = kn+1,kx
+  do n = 1,npan
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
+      iq = 2 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
+      iq = ipan - 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
+      iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
+    end do  
+    do i = 3,ipan-2
+      iq = i + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
+      iq = i + ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
+      iq = i + (jpan-2)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
+      iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
+      vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
+    end do    
+  end do
+end do
+
+return
+end subroutine calc_uf
 
 end module mlostag

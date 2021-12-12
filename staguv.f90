@@ -138,43 +138,11 @@ if ( nstag==3 ) then
   !$omp end parallel do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    !$omp parallel do schedule(static) private(k,iq)
-    do k = 1,kx
-      do iq = 1,ifull  
-        uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
-        vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
-      end do
-    end do
-    !$omp end parallel do
-    call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    !$omp parallel do schedule(static) private(k,iq)
-    do k = 1,kx
-      do iq = 1,ifull  
-        ua(iq,k)=(ug(iq,k)-uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
-        va(iq,k)=(vg(iq,k)-vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
-      end do
-    end do
-    !$omp end parallel do
+    call calc_s3(ug,vg,ua,va,uin,vin)
+    call calc_s3(ug,vg,uin,vin,ua,va)
   end do                  ! itn=1,itnmax
-  call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  !$omp parallel do schedule(static) private(k,iq)
-  do k = 1,kx
-    do iq = 1,ifull  
-      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
-      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
-    end do
-  end do  
-  !$omp end parallel do
-  call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  !$omp parallel do schedule(static) private(k,iq)
-  do k = 1,kx
-    do iq = 1,ifull  
-      uout(iq,k)=(ug(iq,k)-uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
-      vout(iq,k)=(vg(iq,k)-vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
-    end do
-  end do
-  !$omp end parallel do
+  call calc_s3(ug,vg,ua,va,uin,vin)
+  call calc_s3(ug,vg,uin,vin,uout,vout)
 
 else !if ( nstag==4 ) then
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
@@ -191,43 +159,11 @@ else !if ( nstag==4 ) then
   !$omp end parallel do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    !$omp parallel do schedule(static) private(k,iq)
-    do k = 1,kx
-      do iq = 1,ifull  
-        uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
-        vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
-      end do
-    end do
-    !$omp end parallel do
-    call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    !$omp parallel do schedule(static) private(k,iq)
-    do k = 1,kx
-      do iq = 1,ifull  
-        ua(iq,k)=(ug(iq,k)-uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
-        va(iq,k)=(vg(iq,k)-vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
-      end do
-    end do  
-    !$omp end parallel do
-  end do                 ! itn=1,itnmax
-  call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  !$omp parallel do schedule(static) private(k,iq)
-  do k = 1,kx
-    do iq = 1,ifull      
-      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
-      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
-    end do
-  end do  
-  !$omp end parallel do
-  call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  !$omp parallel do schedule(static) private(k,iq)
-  do k = 1,kx
-    do iq = 1,ifull      
-      uout(iq,k)=(ug(iq,k)-uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
-      vout(iq,k)=(vg(iq,k)-vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
-    end do
-  end do  
-  !$omp end parallel do
+    call calc_s4(ug,vg,ua,va,uin,vin)
+    call calc_s4(ug,vg,uin,vin,ua,va)
+  end do                 ! itn=1,itnmax  
+  call calc_s4(ug,vg,ua,va,uin,vin)
+  call calc_s4(ug,vg,uin,vin,uout,vout)
  
 end if
 
@@ -305,44 +241,12 @@ if ( nstagu==3 ) then
   end do  
   !$omp end parallel do
 
-  do itn=1,itnmax-1        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    !$omp parallel do schedule(static) private(k,iq)    
-    do k = 1,kx
-      do iq = 1,ifull  
-        uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
-        vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
-      end do
-    end do
-    !$omp end parallel do
-    call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    !$omp parallel do schedule(static) private(k,iq)
-    do k = 1,kx
-      do iq = 1,ifull  
-        ua(iq,k)=(ug(iq,k)-uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
-        va(iq,k)=(vg(iq,k)-vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
-      end do
-    end do
-    !$omp end parallel do
-  end do                 ! itn=1,itnmax
-  call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  !$omp parallel do schedule(static) private(k,iq)
-  do k = 1,kx
-    do iq = 1,ifull  
-      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
-      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
-    end do
-  end do  
-  !$omp end parallel do
-  call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  !$omp parallel do schedule(static) private(k,iq)
-  do k = 1,kx
-    do iq = 1,ifull  
-      uout(iq,k)=(ug(iq,k)-uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
-      vout(iq,k)=(vg(iq,k)-vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
-    end do
-  end do
-  !$omp end parallel do
+  do itn = 1,itnmax-1        ! each loop is a double iteration
+    call calc_u3(ug,vg,ua,va,uin,vin)
+    call calc_u3(ug,vg,uin,vin,ua,va)
+  end do ! itn=1,itnmax
+  call calc_u3(ug,vg,ua,va,uin,vin)
+  call calc_u3(ug,vg,uin,vin,uout,vout)  
 
 else !if ( nstagu==4 ) then
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
@@ -359,43 +263,11 @@ else !if ( nstagu==4 ) then
   !$omp end parallel do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    !$omp parallel do schedule(static) private(k,iq)
-    do k = 1,kx
-      do iq = 1,ifull  
-        uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
-        vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
-      end do
-    end do  
-    !$omp end parallel do
-    call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    !$omp parallel do schedule(static) private(k,iq)
-    do k = 1,kx
-      do iq = 1,ifull  
-        ua(iq,k)=(ug(iq,k)-uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
-        va(iq,k)=(vg(iq,k)-vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
-      end do
-    end do  
-    !$omp end parallel do
+    call calc_u4(ug,vg,ua,va,uin,vin)  
+    call calc_u4(ug,vg,uin,vin,ua,va)
   enddo                  ! itn=1,itnmax
-  call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  !$omp parallel do schedule(static) private(k,iq)
-  do k = 1,kx
-    do iq = 1,ifull      
-      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
-      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
-    end do
-  end do  
-  !$omp end parallel do
-  call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  !$omp parallel do schedule(static) private(k,iq)
-  do k = 1,kx
-    do iq = 1,ifull  
-      uout(iq,k)=(ug(iq,k)-uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
-      vout(iq,k)=(vg(iq,k)-vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
-    end do
-  end do  
-  !$omp end parallel do
+  call calc_u4(ug,vg,ua,va,uin,vin)  
+  call calc_u4(ug,vg,uin,vin,uout,vout)
       
 end if
 
@@ -403,5 +275,272 @@ call END_LOG(stag_end)
 
 return
 end subroutine unstaguv
+
+subroutine calc_s3(ug,vg,ua,va,uin,vin)
+
+use cc_mpi
+use indices_m
+use newmpar_m
+
+implicit none
+
+integer k, kx, n, i, j, iq
+real, dimension(:,:), intent(in) :: ug, vg
+real, dimension(:,:), intent(inout) :: ua, va
+real, dimension(:,:), intent(out) :: uin, vin
+
+kx = size(ug,2)
+
+call boundsuv_send(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+!$omp parallel do schedule(static) private(k,iq,n,i,j)
+do k = 1,kx
+  do n = 1,npan
+    do j = 3,jpan-2
+      do i = 3,ipan-2
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan  
+        uin(iq,k)=(ug(iq,k)-ua(iq-1,k)/10. +ua(iq+2,k)/4.)/.95
+        vin(iq,k)=(vg(iq,k)-va(iq-ipan,k)/10. +va(iq+2*ipan,k)/4.)/.95
+      end do
+    end do
+  end do
+end do  
+!$omp end parallel do
+call boundsuv_recv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+do k = 1,kx
+  do n = 1,npan
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+      iq = 2 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+      iq = ipan - 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+      iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+    end do
+    do i = 3,ipan-2
+      iq = i + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+      iq = i + ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+      iq = i + (jpan-2)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+      iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+    end do
+  end do
+end do
+
+return
+end subroutine calc_s3
+
+subroutine calc_s4(ug,vg,ua,va,uin,vin)
+
+use cc_mpi
+use indices_m
+use newmpar_m
+
+implicit none
+
+integer k, kx, n, i, j, iq
+real, dimension(:,:), intent(in) :: ug, vg
+real, dimension(:,:), intent(inout) :: ua, va
+real, dimension(:,:), intent(out) :: uin, vin
+
+kx = size(ug,2)
+
+call boundsuv_send(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+!$omp parallel do schedule(static) private(k,iq,n,i,j)
+do k = 1,kx
+  do n = 1,npan
+    do j = 3,jpan-2
+      do i = 3,ipan-2
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan  
+        uin(iq,k)=(ug(iq,k)-ua(iq+1,k)/10. +ua(iq-2,k)/4.)/.95
+        vin(iq,k)=(vg(iq,k)-va(iq+ipan,k)/10. +va(iq-2*ipan,k)/4.)/.95
+      end do
+    end do
+  end do
+end do  
+!$omp end parallel do
+call boundsuv_recv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+do k = 1,kx
+  do n = 1,npan
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+      iq = 2 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+      iq = ipan - 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+      iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+    end do
+    do i = 3,ipan-2
+      iq = i + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+      iq = i + ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+      iq = i + (jpan-2)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+      iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+    end do    
+  end do
+end do
+
+return
+end subroutine calc_s4
+
+subroutine calc_u3(ug,vg,ua,va,uin,vin)
+
+use cc_mpi
+use indices_m
+use newmpar_m
+
+implicit none
+
+integer k, kx, n, i, j, iq
+real, dimension(:,:), intent(in) :: ug, vg
+real, dimension(:,:), intent(inout) :: ua, va
+real, dimension(:,:), intent(out) :: uin, vin
+
+kx = size(ug,2)
+
+call boundsuv_send(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+!$omp parallel do schedule(static) private(k,iq,n,i,j)
+do k = 1,kx
+  do n = 1,npan
+    do j = 3,jpan-2
+      do i = 3,ipan-2
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan  
+        uin(iq,k)=(ug(iq,k)-ua(iq+1,k)/10. +ua(iq-2,k)/4.)/.95
+        vin(iq,k)=(vg(iq,k)-va(iq+ipan,k)/10. +va(iq-2*ipan,k)/4.)/.95
+      end do
+    end do
+  end do
+end do  
+!$omp end parallel do
+call boundsuv_recv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+do k = 1,kx
+  do n = 1,npan
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+      iq = 2 + (j-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+      iq = ipan - 1 + (j-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+      iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+    end do  
+    do i = 3,ipan-2
+      iq = i + (n-1)*ipan*jpan
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+      iq = i + ipan + (n-1)*ipan*jpan
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+      iq = i + (jpan-2)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+      iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+    end do    
+  end do
+end do
+
+return
+end subroutine calc_u3
+
+subroutine calc_u4(ug,vg,ua,va,uin,vin)
+
+use cc_mpi
+use indices_m
+use newmpar_m
+
+implicit none
+
+integer k, kx, n, i, j, iq
+real, dimension(:,:), intent(in) :: ug, vg
+real, dimension(:,:), intent(inout) :: ua, va
+real, dimension(:,:), intent(out) :: uin, vin
+
+kx = size(ug,2)
+
+call boundsuv_send(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+
+!$omp parallel do schedule(static) private(k,iq,n,i,j)
+do k = 1,kx
+  do n = 1,npan
+    do j = 3,jpan-2
+      do i = 3,ipan-2
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan  
+        uin(iq,k)=(ug(iq,k)-ua(iq-1,k)/10. +ua(iq+2,k)/4.)/.95
+        vin(iq,k)=(vg(iq,k)-va(iq-ipan,k)/10. +va(iq+2*ipan,k)/4.)/.95
+      end do
+    end do  
+  end do
+end do  
+!$omp end parallel do
+
+call boundsuv_recv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+
+do k = 1,kx
+  do n = 1,npan
+    do j = 1,jpan
+      iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+      iq = 2 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+      iq = ipan - 1 + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+      iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+    end do
+    do i = 3,ipan-2
+      iq = i + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+      iq = i + ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+      iq = i + (jpan-2)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+      iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+    end do    
+  end do
+end do  
+
+return
+end subroutine calc_u4
 
 end module staguvmod

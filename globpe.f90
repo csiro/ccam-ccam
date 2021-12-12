@@ -957,20 +957,20 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   ! DAILY DIAGNOSTICS ----------------------------------------
   if ( mod(ktau,nperday)==0 ) then   ! re-set at the end of each 24 hours
-    if ( ntau<10*nperday .and. nstn>0 ) then     ! print stn info
-      do nn = 1,nstn
-        if ( mystn(nn) ) then
-          i = istn(nn)
-          j = jstn(nn)
-          iq = i+(j-1)*il
-          write(6,956) ktau,iunp(nn),name_stn(nn),rnd_3hr(iq,4),rnd_3hr(iq,8), &
-                       tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
-                       tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
-                       tmaxscr(iq)-273.16,tminscr(iq)-273.16
-956       format(i5,i3,a5,6f7.1)
-        end if               
-      end do
-    end if  ! (ntau<10*nperday)
+    !if ( ntau<10*nperday .and. nstn>0 ) then     ! print stn info
+    !  do nn = 1,nstn
+    !    if ( mystn(nn) ) then
+    !      i = istn(nn)
+    !      j = jstn(nn)
+    !      iq = i+(j-1)*il
+    !      write(6,956) ktau,iunp(nn),name_stn(nn),rnd_3hr(iq,4),rnd_3hr(iq,8), &
+    !                   tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
+    !                   tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
+    !                   tmaxscr(iq)-273.16,tminscr(iq)-273.16
+!956       format(i5,i3,a5,6f7.1)
+    !    end if               
+    !  end do
+    !end if  ! (ntau<10*nperday)
     call zero_nperday
   endif   ! (mod(ktau,nperday)==0)
   
