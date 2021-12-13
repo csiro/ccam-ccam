@@ -915,9 +915,6 @@ call bounds(iv)
 ! Before sending convegence testing data in smaxmin_g and ihelm weights, we perform one iteration of the solver
 ! that can be updated with the smaxmin_g and ihelm arrays
 
-!$acc data create(zznc,zzwc,zzec,zzsc,zzc,rhsc,rhelmc,iqx)
-!$acc update device(zznc,zzwc,zzec,zzsc,zzc,rhsc,rhelmc,iqx)
-
 ! update on model grid using colours
 do i = 1,itrbgn
   do nc = 1,maxcolour
@@ -937,30 +934,20 @@ do i = 1,itrbgn
     ! calcuate non-border points while waiting for halo to update
     isc = ifull_colour_border(nc) + 1
     iec = ifull_colour(nc)
-#ifdef _OPENMP
     !$omp parallel do schedule(static) private(k,iq)
-#else
-    !$acc parallel loop collapse(2) copyin(iv) copy(iv_new) present(zznc,zzsc,zzec,zzwc,zzc,iqx,rhelmc,rhsc)
-#endif
     do k = 1,kl
       do iq = isc,iec  
-        iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqx(iq,nc)+ipan,k)     &
-                   + zzwc(iq,nc)*iv(iqx(iq,nc)-1,k)                    &
-                   + zzec(iq,nc)*iv(iqx(iq,nc)+1,k)                    &
-                   + zzsc(iq,nc)*iv(iqx(iq,nc)-ipan,k)                 &
+        iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)     &
+                   + zzwc(iq,nc)*iv(iqw(iq,nc),k)                 &
+                   + zzec(iq,nc)*iv(iqe(iq,nc),k)                 &
+                   + zzsc(iq,nc)*iv(iqs(iq,nc),k)                 &
                    - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
       end do
-    end do
-#ifdef _OPENMP
-    !$omp end parallel do
-#else
-    !$acc end parallel loop
-#endif
-    do k = 1,kl
       do iq = 1,ifull_colour(nc)
         iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
       end do  
     end do
+    !$omp end parallel do
     call bounds_colour_recv(iv,nc)
   end do ! nc (colour) loop
 end do   ! i (itr) loop
@@ -1204,30 +1191,20 @@ do i = 1,itrend
     ! calculate non-boundary grid points while waiting for the halo to be updated
     isc = ifull_colour_border(nc) + 1
     iec = ifull_colour(nc)
-#ifdef _OPENMP
     !$omp parallel do schedule(static) private(k,iq)
-#else
-    !$acc parallel loop collapse(2) copyin(iv) copy(iv_new) present(zznc,zzsc,zzec,zzwc,zzc,iqx,rhelmc,rhsc)
-#endif
     do k = 1,kl
       do iq = isc,iec  
-        iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqx(iq,nc)+ipan,k)     &
-                   + zzwc(iq,nc)*iv(iqx(iq,nc)-1,k)                    &
-                   + zzec(iq,nc)*iv(iqx(iq,nc)+1,k)                    &
-                   + zzsc(iq,nc)*iv(iqx(iq,nc)-ipan,k)                 &
+        iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                   + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                   + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                   + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
                    - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
-      end do
-    end do
-#ifdef _OPENMP
-    !$omp end parallel do
-#else
-    !$acc end parallel loop
-#endif
-    do k = 1,kl
+      end do  
       do iq = 1,ifull_colour(nc)
         iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
       end do  
     end do
+    !$omp end parallel do
     call bounds_colour_recv(iv,nc)
   end do ! nc (colour) loop
 end do   ! i (itr) loop
@@ -1248,9 +1225,8 @@ do k = 1,kl
 end do ! k loop
 !$omp end parallel do
 
-!$acc update device(rhsc)
-
 call END_LOG(mgsetup_end)
+
 
 
 
@@ -1287,30 +1263,20 @@ do itr = 2,itr_mg
       ! calculate non-boundary grid points while waiting for halo to update
       isc = ifull_colour_border(nc) + 1
       iec = ifull_colour(nc)
-#ifdef _OPENMP
-      !$omp parallel do schedule(static) private(k,iq)
-#else
-      !$acc parallel loop collapse(2) copyin(iv(:,1:klim)) copy(iv_new(:,1:klim)) present(zznc,zzsc,zzec,zzwc,zzc,iqx,rhelmc,rhsc)
-#endif
+      !$omp  parallel do schedule(static) private(k,iq)
       do k = 1,klim
         do iq = isc,iec  
-          iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqx(iq,nc)+ipan,k)     &
-                     + zzwc(iq,nc)*iv(iqx(iq,nc)-1,k)                    &
-                     + zzec(iq,nc)*iv(iqx(iq,nc)+1,k)                    &
-                     + zzsc(iq,nc)*iv(iqx(iq,nc)-ipan,k)                 &
+          iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                     + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                     + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                     + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
                      - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
-        end do
-      end do
-#ifdef _OPENMP
-      !$omp end parallel do
-#else
-      !$acc end parallel loop
-#endif
-      do k = 1,klim
+        end do  
         do iq = 1,ifull_colour(nc)
           iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
         end do  
       end do
+      !$omp end parallel do
       call bounds_colour_recv(iv,nc,klim=klim)
     end do ! nc (colour) loop
   end do   ! i (itr) loop
@@ -1560,30 +1526,20 @@ do itr = 2,itr_mg
       call bounds_colour_send(iv_new,nc,klim=klim)
       isc = ifull_colour_border(nc) + 1
       iec = ifull_colour(nc)
-#ifdef _OPENMP
       !$omp parallel do schedule(static) private(k,iq)
-#else
-      !$acc parallel loop collapse(2) copyin(iv(:,1:klim)) copy(iv_new(:,1:klim)) present(zznc,zzsc,zzec,zzwc,zzc,iqx,rhelmc,rhsc)
-#endif
       do k = 1,klim
         do iq = isc,iec  
-          iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqx(iq,nc)+ipan,k)     &
-                     + zzwc(iq,nc)*iv(iqx(iq,nc)-1,k)                    &
-                     + zzec(iq,nc)*iv(iqx(iq,nc)+1,k)                    &
-                     + zzsc(iq,nc)*iv(iqx(iq,nc)-ipan,k)                 &
+          iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                     + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                     + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                     + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
                      - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
-        end do
-      end do
-#ifdef _OPENMP
-      !$omp end parallel do
-#else
-      !$acc end parallel loop
-#endif
-      do k = 1,klim
+        end do  
         do iq = 1,ifull_colour(nc)
           iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
         end do  
       end do
+      !$omp end parallel do
       call bounds_colour_recv(iv,nc,klim=klim)
     end do ! nc (colour) loop
   end do   ! i (itr) loop
@@ -1603,7 +1559,6 @@ do itr = 2,itr_mg
  
 end do
 
-!$acc end data
 
 ! Combine offsets back into solution
 do k = 1,kl
@@ -3936,9 +3891,13 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
 
   else if ( .not.lglob ) then ! collect all data to one processor
     lglob = .true.
+    !if ( uniform_decomp ) then
+    !  mg(1)%merge_len = mxpr*mypr
+    !else
     mg(1)%merge_len = min( 6*mxpr*mypr, nproc )
     mg(1)%npanx = 1
     mg_npan = 6
+    !end if
 
     mg(1)%merge_row = mxpr
     mg(1)%nmax = mg(1)%merge_len
@@ -3952,6 +3911,31 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
     end if
       
     ! find gather members
+    !if ( uniform_decomp ) then
+    !  allocate( mg(1)%merge_list(mg(1)%merge_len) )
+    !  iqq = 0
+    !  do jj = 1,mil_g,hjpan
+    !    do ii = 1,mil_g,hipan
+    !      iqq = iqq + 1
+    !      mg(1)%merge_list(iqq) = mg_fproc(1,ii,jj,0)
+    !    end do
+    !  end do
+    !  if ( iqq/=mg(1)%merge_len ) then
+    !    write(6,*) "ERROR: merge_len mismatch ",iqq,mg(1)%merge_len,1
+    !    call ccmpi_abort(-1)
+    !  end if
+    !  mg(1)%merge_pos = -1
+    !  do i = 1,mg(1)%merge_len
+    !    if ( mg(1)%merge_list(i)==myid ) then
+    !      mg(1)%merge_pos = i
+    !      exit
+    !    end if
+    !  end do
+    !  if ( mg(1)%merge_pos<1 ) then
+    !    write(6,*) "ERROR: Invalid merge_pos g,pos ",1,mg(1)%merge_pos
+    !    call ccmpi_abort(-1)
+    !  end if
+    !else
     allocate( mg(1)%merge_list(mg(1)%merge_len) )      
     iqq = 0
     do n = 1,6/npan
@@ -3978,6 +3962,7 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
       write(6,*) "ERROR: Invalid merge_pos g,pos ",1,mg(1)%merge_pos
       call ccmpi_abort(-1)
     end if
+    !end if
 
     ! modify mg_fproc for remaining processor
     mg(1)%procmap(:) = myid
@@ -3990,7 +3975,9 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
     if ( myid==0 ) then
       write(6,*) "--> Multi-grid toplevel                   ",1,mipan,mjpan
     end if
+    !if ( .not.uniform_decomp ) then
     mg(1)%npanx = 1  
+    !end if
     mg(1)%merge_pos = 1
   end if
     
@@ -4170,9 +4157,13 @@ do g = 2,mg_maxlevel
     
     else if ( .not.lglob ) then ! collect all data to one processor
       lglob = .true.
+      !if ( uniform_decomp ) then
+      !  mg(g)%merge_len = mxpr*mypr
+      !else
       mg(g)%merge_len = min( 6*mxpr*mypr, nproc )
       mg(g)%npanx = 1
       mg_npan = 6
+      !end if
 
       mg(g)%merge_row = mxpr
       mg(g)%nmax = mg(g)%merge_len
@@ -4186,6 +4177,31 @@ do g = 2,mg_maxlevel
       end if
       
       ! find gather members
+      !if ( uniform_decomp ) then
+      !  allocate( mg(g)%merge_list(mg(g)%merge_len) )
+      !  iqq = 0
+      !  do jj = 1,mil_g,hjpan
+      !    do ii = 1,mil_g,hipan
+      !      iqq = iqq + 1
+      !      mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,0)
+      !    end do
+      !  end do
+      !  if ( iqq/=mg(g)%merge_len ) then
+      !    write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
+      !    call ccmpi_abort(-1)
+      !  end if
+      !  mg(g)%merge_pos = -1
+      !  do i = 1,mg(g)%merge_len
+      !    if ( mg(g)%merge_list(i)==myid ) then
+      !      mg(g)%merge_pos = i
+      !      exit
+      !    end if
+      !  end do
+      !  if ( mg(g)%merge_pos<1 ) then
+      !    write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
+      !    call ccmpi_abort(-1)
+      !  end if
+      !else
       allocate( mg(g)%merge_list(mg(g)%merge_len) )      
       iqq = 0
       do n = 1,6/npan
@@ -4212,6 +4228,7 @@ do g = 2,mg_maxlevel
         write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
         call ccmpi_abort(-1)
       end if
+      !end if
 
       ! modify mg_fproc for remaining processor
       mg(g)%procmap(:) = myid
@@ -4224,7 +4241,9 @@ do g = 2,mg_maxlevel
       if ( myid==0 ) then
         write(6,*) "--> Multi-grid toplevel                   ",g,mipan,mjpan
       end if
+      !if ( .not.uniform_decomp ) then
       mg(g)%npanx = 1  
+      !end if
       mg(g)%merge_pos = 1
     end if
 
@@ -4260,6 +4279,7 @@ do g = 2,mg_maxlevel
   dcol = mjpan/ncol
   npanx = mg_npan
   
+  !if ( .not.uniform_decomp .and. lglob ) then
   if ( lglob ) then
     npanx = 1
     dcol = 6*mjpan/ncol
