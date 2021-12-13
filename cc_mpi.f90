@@ -127,7 +127,6 @@ module cc_mpi
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
              bounds_colour_send, bounds_colour_recv, boundsr8,              &
              ccmpi_reinit, ccmpi_alltoall, ccmpi_procformat_init
-   public :: bounds_send, bounds_recv, boundsuv_send, boundsuv_recv
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
@@ -177,18 +176,6 @@ module cc_mpi
    end interface
    interface boundsr8
       module procedure bounds3r8
-   end interface
-   interface bounds_send
-      module procedure bounds4_send
-   end interface
-   interface bounds_recv
-      module procedure bounds4_recv
-   end interface   
-   interface boundsuv_send
-      module procedure boundsuv3_send
-   end interface
-   interface boundsuv_recv
-      module procedure boundsuv3_recv
    end interface
    interface intssync_send
       module procedure intssync_send3, intssync_send4
