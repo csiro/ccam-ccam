@@ -146,12 +146,20 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
       write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
       call ccmpi_abort(-1)
     endif   ! (io_in==1)
-    
     call setdavvertwgt
-    
     ! record time of saved data
     !mtimeb = mtimer
-    mtimeb = 0
+    khour_r = ktime_r/100
+    khour   = ktime/100
+    kdhour = khour_r - khour
+    kmin_r = ktime_r - 100*khour_r
+    kmin   = ktime   - 100*khour
+    kdmin  = kmin_r - kmin
+    kddate = iabsdate(kdate_r,kdate) - iabsdate(kdate,kdate)
+    mtimeb = 1440*kddate + 60*kdhour + kdmin
+    if ( myid==0 ) then
+      write(6,*) "Starting mtimea at ",mtimeb  
+    end if
   endif       ! (.not.allocated(ta))
       
 ! transfer mtimeb fields to mtimea and update sice variables
@@ -409,7 +417,17 @@ if ( mtimer>mtimeb ) then
     end if
     ! define vertical weights
     call setdavvertwgt
-    mtimeb = 0
+    khour_r = ktime_r/100
+    khour   = ktime/100
+    kdhour = khour_r - khour
+    kmin_r = ktime_r - 100*khour_r
+    kmin   = ktime   - 100*khour
+    kdmin  = kmin_r - kmin
+    kddate = iabsdate(kdate_r,kdate) - iabsdate(kdate,kdate)
+    mtimeb = 1440*kddate + 60*kdhour + kdmin
+    if ( myid==0 ) then
+      write(6,*) "Starting mtimea at ",mtimeb  
+    end if
   end if
   
   mtimea = mtimeb

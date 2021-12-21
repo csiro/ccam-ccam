@@ -108,7 +108,8 @@ real, dimension(:), intent(out) :: psl, zss, tss, fracice, snowd
 real, dimension(:), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
 real, dimension(11) :: rdum
-logical ltest
+logical, save :: firstcall = .true.
+logical ltest, first
 character(len=80) datestring
 character(len=80) versionstring
 
@@ -124,7 +125,7 @@ end if
 ! metadata on myid=0 and broadcast that data to all processors.
 if ( myid==0 .or. pfall ) then
     
-    ! Locate new file and read grid metadata --------------------------
+  ! Locate new file and read grid metadata --------------------------
   if ( ncid/=ncidold ) then
     if ( myid==0 ) then
       write(6,*) 'Reading new file metadata'
@@ -219,6 +220,19 @@ if ( myid==0 .or. pfall ) then
       end if
     else
       ! valid date found  
+      if ( nested==1 .and. firstcall ) then
+        ! move back to previous time-step  
+        firstcall = .false.
+        if ( myid==0 ) then
+          write(6,*) 'Adjust search for firstcall'  
+        end if
+        iarchi = max( iarchi-1, 1 )
+        kdate_r = kdate_rsav
+        ktime_r = ktime_rsav
+        call ccnf_get_vara(ncid,idvtime,iarchi,timer)
+        mtimer = nint(timer,8)
+        call datefix(kdate_r,ktime_r,mtimer)
+      end if  
       if ( myid==0 ) then
         write(6,*) 'Search succeeded with ltest,iarchi =',ltest, iarchi
         write(6,*) '                   kdate_r,ktime_r =',kdate_r, ktime_r
