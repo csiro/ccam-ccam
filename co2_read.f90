@@ -392,6 +392,7 @@ end subroutine co2_read
 subroutine readrad2d(ncid,vname,rrvc,jmax)
 
 use cc_mpi
+use dates_m, only : kdate
 use infile
 use stime_m
 
@@ -423,8 +424,8 @@ call ccnf_get_vara(ncid,idvtime,iarchi,timer)
 mtimer = nint(timer,8)*1440_8 ! units=days
 call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
 year_r = kdate_r/10000
-year_s = kdate_s/10000
-month_s = kdate_s/100 - year_s*100
+year_s = kdate/10000
+month_s = kdate/100 - year_s*100
 if ( present(jmax) ) then
   year_s = min( year_s, jmax )
 end if
@@ -455,6 +456,7 @@ end subroutine readrad2d
 subroutine readrad1d(ncid,vname,csolar,jmax)
 
 use cc_mpi
+use dates_m, only : kdate
 use infile
 use stime_m
 
@@ -486,8 +488,8 @@ call ccnf_get_vara(ncid,idvtime,iarchi,timer)
 mtimer = nint(timer,8)*1440_8 ! units=days
 call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
 year_r = kdate_r/10000
-year_s = kdate_s/10000
-month_s = kdate_s/100 - year_s*100
+year_s = kdate/10000
+month_s = kdate/100 - year_s*100
 if ( present(jmax) ) then
   year_s = min( year_s, jmax )
 end if

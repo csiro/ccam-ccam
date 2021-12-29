@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -617,7 +617,6 @@ if ( myid==0 ) then
   nposs(2) = ilat
   nposs(3) = ilev
   nposs(4) = 1
-  ! use kdate_s as kdate has not yet been defined
   jyear = kdatein/10000
   jmonth = (kdatein-jyear*10000)/100
   write(6,*) "Processing oxidant file for month ",jmonth

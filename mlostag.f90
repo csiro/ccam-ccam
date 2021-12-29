@@ -480,10 +480,11 @@ if ( ltest ) then
     end do  
   end do
   !$omp end do
-  !$omp end parallel
-  
+
+  !$omp master
   call boundsuv(ud,vd,stag=-10)
-  !$omp parallel
+  !$omp end master
+  !$omp barrier
   !$omp do schedule(static) private(k,iq)  
   do k = 1,kn
     ! Apply JLM's preconditioner
@@ -502,7 +503,6 @@ if ( ltest ) then
     vd(1:ifull,k) = va(1:ifull,k)
   end do
   !$omp end do
-  !$omp end parallel  
 
   ! There are many ways to handle staggering near coastlines.
   ! This version supports the following properties:
@@ -511,8 +511,10 @@ if ( ltest ) then
   ! - The wave amplitude should be preserved
 
   do itn = 1,itnmax        ! each loop is a double iteration
+    !$omp master  
     call boundsuv(ua,va,stag=2)
-    !$omp parallel 
+    !$omp end master
+    !$omp barrier
     !$omp do schedule(static) private(k,iq)     
     do k = 1,kn
       do iq = 1,ifull  
@@ -529,9 +531,10 @@ if ( ltest ) then
       end do  
     end do
     !$omp end do
-    !$omp end parallel     
+    !$omp master
     call boundsuv(uin,vin,stag=2)
-    !$omp parallel 
+    !$omp end master
+    !$omp barrier
     !$omp do schedule(static) private(k,iq)        
     do k = 1,kn
       do iq = 1,ifull  
@@ -548,8 +551,9 @@ if ( ltest ) then
       end do  
     end do
     !$omp end do
-    !$omp end parallel     
   end do                 ! itn=1,itnmax
+  
+  !$omp end parallel
  
 else
 
@@ -571,10 +575,11 @@ else
     end do  
   end do
   !$omp end do
-  !$omp end parallel    
 
+  !$omp master
   call boundsuv(ud,vd,stag=-9)
-  !$omp parallel 
+  !$omp end master
+  !$omp barrier
   !$omp do schedule(static) private(k,iq)   
   do k = 1,kn
     ! Apply JLM's preconditioner
@@ -593,11 +598,12 @@ else
     vd(1:ifull,k) = va(1:ifull,k)
   end do
   !$omp end do
-  !$omp end parallel   
 
   do itn = 1,itnmax        ! each loop is a double iteration
+    !$omp master  
     call boundsuv(ua,va,stag=3)
-    !$omp parallel 
+    !$omp end master
+    !$omp barrier
     !$omp do schedule(static) private(k,iq)       
     do k = 1,kn
       do iq = 1,ifull  
@@ -614,9 +620,10 @@ else
       end do  
     end do
     !$omp end do
-    !$omp end parallel     
+    !$omp master
     call boundsuv(uin,vin,stag=3)
-    !$omp parallel 
+    !$omp end master
+    !$omp barrier
     !$omp do schedule(static) private(k,iq)      
     do k = 1,kn
       do iq = 1,ifull  
@@ -633,8 +640,9 @@ else
       end do  
     end do
     !$omp end do
-    !$omp end parallel     
   end do                 ! itn=1,itnmax
+  
+  !$omp end parallel
 
 end if
 
@@ -1202,10 +1210,11 @@ if (ltest) then
     end do  
   end do
   !$omp end do
-  !$omp end parallel       
-  
+
+  !$omp master
   call boundsuv(ud,vd,stag=-9)
-  !$omp parallel 
+  !$omp end master
+  !$omp barrier
   !$omp do schedule(static) private(k,iq)    
   do k=1,kn
     ! Apply JLM's preconditioner
@@ -1224,11 +1233,12 @@ if (ltest) then
     vd(1:ifull,k) = va(1:ifull,k)    
   end do
   !$omp end do
-  !$omp end parallel   
 
   do itn = 1,itnmax        ! each loop is a double iteration
+    !$omp master  
     call boundsuv(ua,va,stag=3)
-    !$omp parallel 
+    !$omp end master
+    !$omp barrier
     !$omp do schedule(static) private(k,iq)      
     do k = 1,kn
       do iq = 1,ifull  
@@ -1245,9 +1255,10 @@ if (ltest) then
       end do  
     end do
     !$omp end do
-    !$omp end parallel     
+    !$omp master
     call boundsuv(uin,vin,stag=3)
-    !$omp parallel 
+    !$omp end master
+    !$omp barrier
     !$omp do schedule(static) private(k,iq)     
     do k = 1,kn
       do iq = 1,ifull  
@@ -1264,8 +1275,9 @@ if (ltest) then
       end do  
     end do
     !$omp end do
-    !$omp end parallel     
   end do                  ! itn=1,itnmax
+  
+  !$omp end parallel
   
 else
 
@@ -1287,10 +1299,11 @@ else
     end do  
   end do
   !$omp end do
-  !$omp end parallel   
 
+  !$omp master
   call boundsuv(ud,vd,stag=-10)
-  !$omp parallel 
+  !$omp end master
+  !$omp barrier
   !$omp do schedule(static) private(k,iq)     
   do k = 1,kn
     ! Apply JLM's preconditioner
@@ -1309,11 +1322,12 @@ else
     vd(1:ifull,k) = va(1:ifull,k)    
   end do
   !$omp end do
-  !$omp end parallel   
 
   do itn = 1,itnmax        ! each loop is a double iteration
+    !$omp master  
     call boundsuv(ua,va,stag=2)
-    !$omp parallel 
+    !$omp end master
+    !$omp barrier
     !$omp do schedule(static) private(k,iq)      
     do k = 1,kn
       do iq = 1,ifull  
@@ -1330,9 +1344,10 @@ else
       end do  
     end do
     !$omp end do
-    !$omp end parallel      
+    !$omp master
     call boundsuv(uin,vin,stag=2)
-    !$omp parallel 
+    !$omp end master
+    !$omp barrier
     !$omp do schedule(static) private(k,iq)   
     do k = 1,kn
       do iq = 1,ifull  
@@ -1349,8 +1364,9 @@ else
       end do  
     end do
     !$omp end do
-    !$omp end parallel      
   end do                  ! itn=1,itnmax
+  
+  !$omp end parallel
 
 end if
 

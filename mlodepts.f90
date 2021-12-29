@@ -203,14 +203,11 @@ else
 
 end if
 
-#ifdef _OPENMP
 #ifdef GPU
-  !$omp target data map(to:sx,xx4,yy4)
+!$omp target data map(to:sx,xx4,yy4)
 #endif
-#else
-  !$acc data create(sx,xx4,yy4)
-  !$acc update device(sx,xx4,yy4)
-#endif  
+!$acc data create(sx,xx4,yy4)
+!$acc update device(sx,xx4,yy4)
 
 ! convert to grid point numbering
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
@@ -635,13 +632,10 @@ call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 !     Share off processor departure points.
 call deptsync(nface,xg,yg)
 
-#ifdef _OPENMP
 #ifdef GPU
 !$omp end target data
 #endif
-#else
 !$acc end data
-#endif
 
 call END_LOG(waterdeps_end)
 

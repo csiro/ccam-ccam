@@ -329,28 +329,19 @@ end select
 
 
 call bounds(t_kh,nehalf=.true.)
+do k = 1,kl
+  xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
+  yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
+end do
 if ( nhorx==1 ) then
   do k = 1,kl
-    xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
-    yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
     xfact(1:ifull,k) = xfact(1:ifull,k)*tx_fact(1:ifull)
     yfact(1:ifull,k) = yfact(1:ifull,k)*ty_fact(1:ifull)
   end do    
 else if ( nhorx>=7 ) then
   do k = 1,kmax
-    xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
-    yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
     xfact(1:ifull,k) = xfact(1:ifull,k)*tx_fact(1:ifull)
     yfact(1:ifull,k) = yfact(1:ifull,k)*ty_fact(1:ifull)
-  end do    
-  do k = kmax+1,kl
-    xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
-    yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
-  end do    
-else
-  do k = 1,kl
-    xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
-    yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
   end do    
 end if
 call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will

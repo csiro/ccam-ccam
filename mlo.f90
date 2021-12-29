@@ -2566,6 +2566,9 @@ call iceflux(dt,atm_sg,atm_rg,atm_rnd,atm_snd,atm_vnratio,atm_fbvis,atm_fbnir,at
              atm_ps,atm_zmin,atm_zmins,d_ftop,d_tb,d_fb,d_timelt,d_nk,d_ndsn,d_ndic,d_nsto,d_neta,           &
              d_delstore,diag,dgwater,dgice,ice,water,depth,wfull)
 
+! solve for mixed layer depth (calculated at full levels)
+call getmixdepth(d_zcr,depth,dgwater,water,wfull)
+
 if ( calcprog==0 .or. calcprog==2 .or. calcprog==3 ) then
 
   ! update ice
@@ -2830,7 +2833,7 @@ call mlocheck("MLO-mixing",water_temp=water%temp,water_sal=water%sal,water_u=wat
 return
 end subroutine mlocalc
 
-subroutine mlo_updatekm_imax(km_o,ks_o,gammas_o,dt,ps,diag, &
+subroutine mlo_updatekm_imax(km_o,ks_o,gammas_o,dt,diag, &
                              depth,ice,dgwater,water,turb,wpack,wfull)                   
 
 implicit none
@@ -2839,9 +2842,8 @@ integer, intent(in) :: wfull, diag
 integer ii, iqw
 real, intent(in) :: dt
 real, dimension(imax,wlev), intent(out) :: km_o, ks_o, gammas_o
-real, dimension(imax), intent(in) :: ps
 real, dimension(wfull,wlev) :: gammas, km_hl, ks_hl
-real, dimension(wfull) :: atm_ps, d_zcr, t0
+real, dimension(wfull) :: d_zcr, t0
 logical, dimension(imax), intent(in) :: wpack
 type(icedata), intent(in) :: ice
 type(dgwaterdata), intent(inout) :: dgwater
@@ -2859,10 +2861,8 @@ if (wfull==0) return
 km_hl = 0.
 ks_hl = 0.
 gammas = 0.
-atm_ps = pack(ps,wpack)
 d_zcr = max(1.+water%eta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
 
-call getrho(atm_ps,depth,ice,dgwater,water,wfull)
 call mlo_calc_k(km_hl,ks_hl,gammas,dt,d_zcr,depth,dgwater,water,turb,wfull)
 
 do ii = 1,wlev
@@ -2909,9 +2909,6 @@ type(turbdata), intent(inout) :: turb
 km_hl = 0.
 ks_hl = 0.
 gammas = 0.
-
-! solve for mixed layer depth (calculated at full levels)
-call getmixdepth(d_zcr,depth,dgwater,water,wfull)
 
 ! solve for stability functions and non-local term (calculated at half levels)
 select case(oclosure)
@@ -5645,17 +5642,6 @@ if ( present( water_temp ) ) then
     stop -1
   end if
 end if  
-
-!if ( present( water_sal ) ) then
-!  if ( any( water_sal>2. .and. water_sal<minsal ) ) then
-!    write(6,*) "ERROR: water_sal is out-of-range in ",trim(message)
-!    write(6,*) "minval,maxval ",minval(water_sal,mask=water_sal>2..and.water_sal<minsal), &
-!                                maxval(water_sal,mask=water_sal>2..and.water_sal<minsal)
-!    write(6,*) "minloc,maxloc ",minloc(water_sal,mask=water_sal>2..and.water_sal<minsal), &
-!                                maxloc(water_sal,mask=water_sal>2..and.water_sal<minsal)
-!    stop -1
-!  end if
-!end if
 
 if ( present( water_u ) .and. present( water_v ) ) then
   if ( any(abs(water_u)>40.) .or. any(abs(water_v)>40.) ) then

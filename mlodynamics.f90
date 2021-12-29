@@ -289,7 +289,7 @@ real, dimension(ifull) :: gosigu, gosigv
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev+1) :: cc
 real, dimension(ifull+iextra,wlev) :: eou, eov, ccu, ccv
-real, dimension(ifull+iextra,wlev) :: nu, nv, nt, ns
+real, dimension(ifull+iextra,wlev) :: nu, nv, nt, ns, mps
 real, dimension(ifull+iextra,9) :: data_c, data_d
 real, dimension(ifull+iextra,4) :: nit
 real, dimension(ifull,wlev+1) :: tau, tav, ttau, ttav
@@ -299,7 +299,7 @@ real, dimension(ifull,wlev) :: kku, kkv, oou, oov
 real, dimension(ifull,wlev) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
 real, dimension(ifull,wlev) :: rhobaru, rhobarv, rhobar
 real, dimension(ifull,wlev) :: depdum,dzdum,mfixdum
-real, dimension(ifull,wlev) :: mps, workdata, workdata2, worku, workv
+real, dimension(ifull,wlev) :: workdata, workdata2, worku, workv
 real, dimension(ifull,wlev) :: w_ocn
 real, dimension(ifull,0:wlev) :: nw
 real, dimension(ifull,4) :: i_it
@@ -715,7 +715,9 @@ do mspec_mlo = mspeca_mlo,1,-1
     cou(1:ifull,ii,3) = az(1:ifull)*uau(:,ii) + bz(1:ifull)*uav(:,ii)
   end do
   ! Horizontal advection for U, V, W
-  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,(/.false.,.false.,.false./))
+  call mlob2ints_bs(cou(:,:,1),nface,xg,yg,wtr,.false.)
+  call mlob2ints_bs(cou(:,:,2),nface,xg,yg,wtr,.false.)
+  call mlob2ints_bs(cou(:,:,3),nface,xg,yg,wtr,.false.)
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
   ! Convert (U,V,W) back to conformal cubic coordinates
@@ -728,21 +730,20 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Horizontal advection for T, S and continuity
   do ii = 1,wlev
-    cou(1:ifull,ii,1) = nt(1:ifull,ii)
     ! MJT notes - only advect salinity for salt water
     workdata2(1:ifull,ii) = ns(1:ifull,ii)
-    cou(1:ifull,ii,2) = ns(1:ifull,ii) - 34.72
-    cou(1:ifull,ii,3) = mps(1:ifull,ii)
+    ns(1:ifull,ii) = ns(1:ifull,ii) - 34.72
   end do
-  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,(/.false.,.true.,.false./))
+  call mlob2ints_bs(nt,nface,xg,yg,wtr,.false.)
+  call mlob2ints_bs(ns,nface,xg,yg,wtr,.true.)
+  call mlob2ints_bs(mps,nface,xg,yg,wtr,.false.)
   do ii = 1,wlev
-    nt(1:ifull,ii) = max( cou(1:ifull,ii,1), -wrtemp )
+    nt(1:ifull,ii) = max( nt(1:ifull,ii), -wrtemp )
     ! MJT notes - only advect salinity for salt water
-    ns(1:ifull,ii) = cou(1:ifull,ii,2) + 34.72
+    ns(1:ifull,ii) = ns(1:ifull,ii) + 34.72
     where ( workdata2(1:ifull,ii)<2. )
       ns(1:ifull,ii) = workdata2(1:ifull,ii)
     end where  
-    mps(1:ifull,ii) = cou(1:ifull,ii,3)
   end do
 
 #ifdef GPU
@@ -1500,14 +1501,14 @@ if ( mlontvd==0 ) then ! MC
   !$omp target enter data map(to:uu) map(alloc:delu,ff)
 #endif
   !$acc enter data create(uu,delu,ff) async(async_counter)
-  !$acc update device(uu) async(async_counter)
+  !$acc update device(uu,dzdum) async(async_counter)
 
 #ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
 #endif
 #else
-  !$acc parallel loop collapse(2) present(delu,uu) async(async_counter)
+  !$acc parallel loop collapse(2) present(delu,uu,ff,dzdum) async(async_counter)
 #endif
   do ii = 1,wlev-1
     do iq = 1,ifull
@@ -1548,7 +1549,7 @@ if ( mlontvd==0 ) then ! MC
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
 #endif
 #else
-  !$acc parallel loop collapse(2) present(ww,delu,uu,dtnew,depdum) async(async_counter)
+  !$acc parallel loop collapse(2) present(ff,ww,delu,uu,dtnew,depdum,dzdum) async(async_counter)
 #endif
   do ii = 1,wlev-1
     do iq = 1,ifull
@@ -1658,7 +1659,7 @@ else if ( mlontvd==1 ) then ! Superbee
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
 #endif
 #else
-  !$acc parallel loop collapse(2) present(delu,uu) async(async_counter)
+  !$acc parallel loop collapse(2) present(delu,uu,ff,dzdum) async(async_counter)
 #endif
   do ii = 1,wlev-1
     do iq = 1,ifull
@@ -1699,7 +1700,7 @@ else if ( mlontvd==1 ) then ! Superbee
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
 #endif
 #else
-  !$acc parallel loop collapse(2) present(ww,delu,uu,dtnew,depdum) async(async_counter)
+  !$acc parallel loop collapse(2) present(ff,ww,delu,uu,dtnew,depdum,dzdum) async(async_counter)
 #endif
   do ii = 1,wlev-1
     do iq = 1,ifull

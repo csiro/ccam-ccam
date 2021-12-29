@@ -143,7 +143,9 @@ else
 
 end if
 
+#ifdef GPU
 !$omp target data map(to:sx,xx4,yy4)
+#endif
 !$acc data create(sx,xx4,yy4)
 !$acc update device(sx,xx4,yy4)
 
@@ -587,7 +589,9 @@ end if
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
 
+#ifdef GPU
 !$omp end target data
+#endif
 !$acc end data
 
 call END_LOG(depts_end)

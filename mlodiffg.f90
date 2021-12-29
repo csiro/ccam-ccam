@@ -260,6 +260,7 @@ call mlodiffcalc(work_ss,xfact,yfact,emi)
 #ifdef GPU
 !$omp end target data
 #else
+!$omp end sections
 !$omp end parallel
 #endif
 !$acc wait

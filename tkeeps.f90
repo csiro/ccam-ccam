@@ -468,11 +468,18 @@ do kcount = 1,mcount
     end where
   end do  
 
-end do
+#ifdef CCAM
+  if ( mode==2 .or. mode==3 ) then
+    call pack_coupled_ts(w_t,w_s,imax,tile)
+  end if
+#endif
+  
+end do ! kcount loop
+
 
 #ifdef CCAM
 if ( mode==2 .or. mode==3 ) then
-  call pack_coupled(w_t,w_s,w_u,w_v,i_u,i_v,imax,tile)
+  call pack_coupled_uv(w_u,w_v,i_u,i_v,imax,tile)  
   fg = fg_ave
 end if
 #endif
@@ -807,7 +814,7 @@ select case(buoymeth)
     
   ! Calculate transport source term on full levels
   ppt(:,2:kl-1)= kmo(:,2:kl-1)*idzp(:,2:kl-1)*(tke_ema(:,3:kl)-tke_ema(:,2:kl-1))/dz_hl(:,2:kl-1)  &
-               -kmo(:,1:kl-2)*idzm(:,2:kl-1)*(tke_ema(:,2:kl-1)-tke_ema(:,1:kl-2))/dz_hl(:,1:kl-2)
+                -kmo(:,1:kl-2)*idzm(:,2:kl-1)*(tke_ema(:,2:kl-1)-tke_ema(:,1:kl-2))/dz_hl(:,1:kl-2)
   
   ! Pre-calculate eddy diffusivity mixing terms
   ! -ve because gradient is calculated at t+1
@@ -1136,7 +1143,25 @@ call mlodiagice("cd_bot",cdbot_ice,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile)
 return
 end subroutine unpack_coupled
 
-subroutine pack_coupled(w_t,w_s,w_u,w_v,i_u,i_v,imax,tile)
+subroutine pack_coupled_ts(w_t,w_s,imax,tile)
+
+use mlo, only : mloimport, mloimpice, wlev, water_g, depth_g, wpack_g, wfull_g
+
+implicit none
+
+integer, intent(in) :: tile, imax
+integer k
+real, dimension(imax,wlev), intent(in) :: w_t, w_s
+
+do k = 1,wlev
+  call mloimport("temp",w_t(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+  call mloimport("sal",w_s(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+end do
+
+return
+end subroutine pack_coupled_ts
+
+subroutine pack_coupled_uv(w_u,w_v,i_u,i_v,imax,tile)
 
 use mlo, only : mloimport, mloimpice, wlev, water_g, ice_g, depth_g, wpack_g, wfull_g
 
@@ -1144,12 +1169,10 @@ implicit none
 
 integer, intent(in) :: tile, imax
 integer k
-real, dimension(imax,wlev), intent(in) :: w_t, w_s, w_u, w_v
+real, dimension(imax,wlev), intent(in) :: w_u, w_v
 real, dimension(imax), intent(in) :: i_u, i_v
 
 do k = 1,wlev
-  call mloimport("temp",w_t(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-  call mloimport("sal",w_s(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
   call mloimport("u",w_u(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
   call mloimport("v",w_v(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
 end do
@@ -1158,7 +1181,7 @@ call mloimpice("u",i_u,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
 call mloimpice("v",i_v,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
 
 return
-end subroutine pack_coupled
+end subroutine pack_coupled_uv
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update coupled
@@ -1262,7 +1285,7 @@ dd_o = 0.
 rhs_o = 0.
 
 ! update ocean eddy diffusivity possibly including prognostic tke and eps
-call mlo_updatekm(km_o,ks_o,gammas_o,ddts,ps,0,depth_g(tile),ice_g(tile),dgwater_g(tile),water_g(tile), &
+call mlo_updatekm(km_o,ks_o,gammas_o,ddts,0,depth_g(tile),ice_g(tile),dgwater_g(tile),water_g(tile), &
                   turb_g(tile),wpack_g(:,tile),wfull_g(tile))
 where ( deptho_dz(:,1)>1.e-4 )
   rhs_o(:,1) = ks_o(:,2)*gammas_o(:,2)/deptho_dz(:,1)
@@ -1389,6 +1412,9 @@ wthlflux(:,2:kl)=-kmo_a(:,1:kl-1)*(thetal(:,2:kl)-thetal(:,1:kl-1))/dz_hl(:,1:kl
                  +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
+
+! set-up decoupled atmosphere and ocean matrices
+
 bb_a(:,1) = 1.-qq(:,kl)+ddts*mflx(:,kl)*fzzh(:,kl-1)*idzm(:,kl)
 cc_a(:,1) = qq(:,kl)+ddts*mflx(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)
 do k = 2,kl-1
@@ -1401,7 +1427,6 @@ do k = 2,kl-1
 end do
 aa_a(:,kl) = rr(:,1)-ddts*mflx(:,2)*fzzh(:,1)*idzp(:,1)
 bb_a(:,kl) = 1.-rr(:,1)-ddts*mflx(:,1)*(1.-fzzh(:,1))*idzp(:,1)
-
 
 where ( deptho_dz(:,2)*deptho_dz(:,1)>1.e-4 )
   cc_o(:,1) = -ddts*ks_o(:,2)/(deptho_dz_hl(:,2)*deptho_dz(:,1))
@@ -1521,13 +1546,13 @@ end do
 
 ! sal - ocean
 fulldeptho = 0.
-targetdeptho = max( min( minsfc, sum( deptho_dz, dim=2 ) ), 1.e-4 )
+targetdeptho = min( minsfc, sum( deptho_dz, dim=2 ) )
 do k = 1,wlev
   dd_o(:,k) = w_s(:,k) + ddts*rhs_o(:,k)*ws0_o
   where ( deptho_dz(:,k)>1.e-4 )
     deltazo = max( min( deptho_dz(:,k), targetdeptho-fulldeptho ), 0. )
     fulldeptho = fulldeptho + deltazo
-    dd_o(:,k) = dd_o(:,k) - ddts*ws0subsurf_o*deltazo/(deptho_dz(:,k)*targetdeptho)
+    dd_o(:,k) = dd_o(:,k) - ddts*ws0subsurf_o*deltazo/max(deptho_dz(:,k)*targetdeptho,1.e-4)
   end where
 end do
 where ( .not.land(1:imax) )
