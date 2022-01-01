@@ -186,10 +186,10 @@ if ( nmlo/=0 .and. nvmix/=9 ) then
     lov = 0.
     liu = 0.
     liv = 0.
-    call mloexport("u",lou,1,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-    call mloexport("v",lov,1,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-    call mloexpice("u",liu,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
-    call mloexpice("v",liv,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
+    call mloexport("u",lou,1,0,water_g(tile),depth_g(tile))
+    call mloexport("v",lov,1,0,water_g(tile),depth_g(tile))
+    call mloexpice("u",liu,0,ice_g(tile),depth_g(tile))
+    call mloexpice("v",liv,0,ice_g(tile),depth_g(tile))
     uadj(is:ie) = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
     vadj(is:ie) = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
   end do
@@ -299,7 +299,7 @@ case(6,9)
       do tile = 1,ntiles
         is = (tile-1)*imax + 1
         ie = tile*imax
-        call mlosurf("sst",tss(is:ie),0,water_g(tile),ice_g(tile),wpack_g(:,tile),wfull_g(tile))
+        call mlosurf("sst",tss(is:ie),0,water_g(tile),ice_g(tile),depth_g(tile))
       end do
       !$omp end do nowait      
     end if

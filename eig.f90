@@ -79,6 +79,7 @@ call eigs(isoth,tbar,dt,epsp,epsh,nh,sig,sigmh,bet,betm,lbam,lemat,leinv)
 if ( myid==0 ) then
   write(6,*) 'about to write to 28 '
   write(28,*)kl,lapsbot,isoth,nsig,'   kl,lapsbot,isoth,nsig'
+  close(28)
 end if
 !     re-order the eigenvectors if necessary
 nchng = 1
@@ -263,7 +264,7 @@ integer, dimension(kl*kl) :: iwork,local
 integer, dimension(kl) :: indic
 integer i,j,k,l,m
 integer k1,l1,kon,ivec
-real(kind=r16), dimension(:), allocatable :: prfact,subdia,work ! use allocatable for cray compiler
+real(kind=r16), dimension(kl) :: prfact,subdia,work ! use allocatable for cray compiler
 real(kind=r16), dimension(kl,kl) :: a,vecr,veci
 real(kind=r16), dimension(kl) :: evr,evi
 real(kind=r16) d1,d2,d3,enorm
@@ -319,9 +320,6 @@ real(kind=r16) r,r1,ex,eps
 !            0              not found      not found
 !            1              found          not found
 !            2              found          found
-
-
-allocate( prfact(kl), subdia(kl), work(kl) )
 
 call scaler(a,veci,prfact,enorm)
 ! the computation of the eigenvalues of the normalised
@@ -490,8 +488,6 @@ do i = 1,kl
     end do
   end if
 end do
-
-deallocate( prfact, subdia, work )
 
 return
 end subroutine eigenp

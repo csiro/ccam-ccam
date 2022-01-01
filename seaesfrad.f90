@@ -404,12 +404,12 @@ do iq_tile = 1,ifull,imax
           end do
         end if
 #ifdef seaesfdebug
-        if ( any( Aerosol(mythread)%aerosol>1.e-3 ) ) then
+        if ( any( Aerosol(mythread)%aerosol>2.e-4 ) ) then
           write(6,*) "WARN: seaesf detects high aerosol concentrations "
           write(6,*) "xtg,maxloc ",maxval(Aerosol(mythread)%aerosol),maxloc(Aerosol(mythread)%aerosol)
         end if  
 #endif
-        Aerosol(mythread)%aerosol=min(max(Aerosol(mythread)%aerosol, 0._8), 1.e-3_8)
+        Aerosol(mythread)%aerosol=min(max(Aerosol(mythread)%aerosol, 0._8), 2.e-4_8)
         Aerosol(mythread)%aerosol=max(Aerosol(mythread)%aerosol, 0._8)
         
         !if ( Rad_control%using_im_bcsul ) then
@@ -1128,15 +1128,24 @@ implicit none
 
 integer, intent(in) :: imax, kl
 integer iq, k, kr
+integer, dimension(imax) :: tpos
 real, dimension(imax,kl), intent(in) :: cfrac, qlrad, qfrad, prf, ttg
 real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop, Rice, conl, coni
 real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa
-real, dimension(imax,kl) :: eps, rk, Wice, basesize, xwgt
+real, dimension(imax,kl) :: eps, rk, Wice
+real, dimension(imax) :: basesize, tstore, tfrac
 real :: liqparm
 ! parameters
 logical :: do_brenguier   ! Adjust effective radius for vertically stratified cloud
 real :: scale_factor      ! account for the plane-parallel homogenous cloud bias  (e.g. Cahalan effect)
+! data
+! MJT notes - add one extra index for overflow
+integer, parameter :: n_donner = 8
+real, dimension(n_donner+1), parameter :: temp_donner = &
+    (/ 215.66, 220.66, 225.66, 230.66, 235.66, 240.66, 245.66, 250.66, 250.66 /)
+real, dimension(n_donner+1), parameter :: rad_donner =  &
+    (/   20.2,   21.6,   39.9,   42.5,   63.9,   93.5,   80.8,  100.6,  100.6 /)
 
 scale_factor = 1.
 liqparm = -0.003e-6
@@ -1241,39 +1250,20 @@ select case(iceradmethod)
   case(1)
     !Donner et al (1997)
     ! linear interpolation by MJT
-    where ( ttg(:,:)>250.66 )
-      basesize(:,:) = 100.6
-    elsewhere ( ttg(:,:)>245.66 )
-      xwgt(:,:) = (ttg(:,:)-245.66)/5.
-      basesize(:,:) = 80.8*(1.-xwgt(:,:)) + xwgt(:,:)*100.6
-    elsewhere ( ttg(:,:)>240.66 )
-      xwgt(:,:) = (ttg(:,:)-240.66)/5.
-      basesize(:,:) = 93.5*(1.-xwgt(:,:)) + xwgt(:,:)*80.6
-    elsewhere ( ttg(:,:)>235.66 )
-      xwgt(:,:) = (ttg(:,:)-235.66)/5.
-      basesize(:,:) = 63.6*(1.-xwgt(:,:)) + xwgt(:,:)*93.6
-    elsewhere ( ttg(:,:)>230.66 )
-      xwgt(:,:) = (ttg(:,:)-230.66)/5.
-      basesize(:,:) = 42.5*(1.-xwgt(:,:)) + xwgt(:,:)*63.6
-    elsewhere ( ttg(:,:)>225.66 )
-      xwgt(:,:) = (ttg(:,:)-225.66)/5.
-      basesize(:,:) = 39.9*(1.-xwgt(:,:)) + xwgt(:,:)*42.5
-    elsewhere ( ttg(:,:)>220.66 )
-      xwgt(:,:) = (ttg(:,:)-220.66)/5.
-      basesize(:,:) = 21.6*(1.-xwgt(:,:)) + xwgt(:,:)*39.9
-    elsewhere ( ttg(:,:)>215.66 )
-      xwgt(:,:) = (ttg(:,:)-215.66)/5.
-      basesize(:,:) = 20.2*(1.-xwgt(:,:)) + xwgt(:,:)*21.6
-    elsewhere
-      basesize(:,:) = 20.2
-    end where
-    where ( qfrad(:,:)>1.e-8 .and. cfrac(:,:)>1.e-4 )
-      Wice(:,:) = rhoa(:,:)*qfrad(:,:)/cfrac(:,:) ! kg/m**3
-      reffi(:,:) = 5.e-7*basesize(:,:)
-    elsewhere
-      Wice(:,:) = 0.
-      reffi(:,:) = 0.
-    end where
+    do k = 1,kl
+      tstore(:) = (ttg(:,k) - temp_donner(1))/(temp_donner(2) - temp_donner(1)) + 1.
+      tstore(:) = min( max( tstore(:), 1. ), real(n_donner) )
+      tfrac(:) = tstore(:) - aint(tstore(:))
+      tpos(:) = int(tstore)
+      basesize(:) = (1.-tfrac(:))*rad_donner(tpos(:)) + tfrac(:)*rad_donner(tpos(:)+1)
+      where ( qfrad(:,k)>1.e-8 .and. cfrac(:,k)>1.e-4 )
+        Wice(:,k) = rhoa(:,k)*qfrad(:,k)/cfrac(:,k) ! kg/m**3
+        reffi(:,k) = 5.e-7*basesize(:)
+      elsewhere
+        Wice(:,k) = 0.
+        reffi(:,k) = 0.
+      end where
+    end do  
    
   case(2)
     ! Fu 2007

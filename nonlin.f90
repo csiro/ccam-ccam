@@ -149,9 +149,9 @@ if ( diag .or. nmaxpr==1 ) then
 end if
 
 if ( nhstest==1 ) then ! Held and Suarez test case
-!$omp parallel
+  !$omp parallel
   call hs_phys
-!$omp end parallel
+  !$omp end parallel
 endif
 
 if ( diag ) then
@@ -235,7 +235,7 @@ if ( nh/=0 ) then
       ! and only involves phi_nh as the hydrostatic component
       ! is eliminated.
       ! t_nh = -(sig/rdry)*d(phi_nh)/d(sig)
-      ! so phi_nh(k) - phi_nh(k-1) = bet(k)*t_nh(k) + betm(k)*t_nh(k-1)
+      ! phi_nh(k) - phi_nh(k-1) = bet(k)*t_nh(k) + betm(k)*t_nh(k-1)
       t_nh(:) = phi_nh(:,1)/bet(1)
       h_nh(1:ifull,1) = h_nh(1:ifull,1) + t_nh(:)*invconst_nh/tbar2d(:)
       do k = 2,kl
@@ -345,7 +345,6 @@ end if                     ! (diag)
 do k = 1,kl
   ux(1:ifull,k) = u(1:ifull,k) + ux(1:ifull,k)
   vx(1:ifull,k) = v(1:ifull,k) + vx(1:ifull,k)
-     
   tx(1:ifull,k) = tx(1:ifull,k) + 0.5*dt*tn(1:ifull,k)
 end do  
 

@@ -2554,7 +2554,7 @@ if ( mp_global>0 ) then
   allocate( dummy_unpack(mp_global) )
   
   ! Cable configuration
-  !cable_user%ssnow_POTEV = "P-M"
+  !cable_user%ssnow_POTEV = "P-M" ! Penman Monteith
   cable_user%ssnow_POTEV = "HDM" ! default Humidity Deficit
   cable_user%MetType = "defa"    ! only 4 characters for "default"
   cable_user%diag_soil_resp = "ON"
@@ -2566,7 +2566,7 @@ if ( mp_global>0 ) then
   cable_user%l_rev_corr = .true.
   cable_user%gw_model = cable_gw_model==1
   cable_user%soil_thermal_fix = .true.
-    select case ( cable_climate )
+  select case ( cable_climate )
     case(1)
       cable_user%call_climate = .true.
       cable_user%phenology_switch = "climate"

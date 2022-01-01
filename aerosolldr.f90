@@ -720,15 +720,8 @@ logical, dimension(imax), intent(in) :: LOLAND      !Land flag
 ! Some diagnostics
 real, dimension(imax), intent(out) :: bbem
 
-integer jk,jt
+integer jk,jt,iq
 
-real, dimension(imax,2) :: ZVDRD
-real, dimension(imax) :: gdp, zdmsemiss
-real, dimension(imax) :: zhilbco, zhilbcy, zhiloco, zhilocy
-real, dimension(imax) :: zhilso2, zhilso4
-real, dimension(imax) :: zdmscon, ZSST, ScDMS, zVdms, wtliss
-real, dimension(imax) :: VpCO2, VpCO2liss
-real, dimension(imax) :: zvd2ice, zvd4ice, zvd2nof, zvd4nof
 real, dimension(imax,15), intent(in) :: emissfield
 real, dimension(imax), intent(in) :: vso2
 real, dimension(imax), intent(inout) :: dmse
@@ -741,6 +734,11 @@ real, dimension(imax), intent(inout) :: so2dd
 real, dimension(imax), intent(inout) :: so4dd
 real, dimension(imax), intent(inout) :: bcdd
 real, dimension(imax), intent(inout) :: ocdd
+real zdmscon, zsst, scdms, vpco2, zvdms, vpco2liss
+real wtliss, gdp, zdmsemiss
+real zhilbco, zhilbcy, zhiloco, zhilocy, zhilso2, zhilso4
+real zvd2nof, zvd4nof
+real zvdrd1, zvdrd2
 !
 
 !     M WATER EQUIVALENT  CRITICAL SNOW HEIGHT (FROM *SURF*)
@@ -772,67 +770,77 @@ xte(:,:,:) = 0.
 !
 !   CALCULATE DMS EMISSIONS FOLLOWING LISS+MERLIVAT
 !   DMS SEAWATER CONC. FROM KETTLE ET AL.
-ZDMSCON(:) = EMISSFIELD(:,idmso)*(1.-SEAICEM(:))**2
-ZSST(:) = min( TSM1M(:)-273.15, 45. )   ! Even Saltzman Sc formula has trouble over 45 deg C
-! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
-ScDMS(:) = 2674. - 147.12*ZSST(:) + 3.726*ZSST(:)**2 - 0.038*ZSST(:)**3 !Sc for DMS (Saltzman et al.)
-! Nightingale (2000) scheme (J. Biogeochem. Cycles, 14, 373-387)
-! For this scheme, zzspeed is the 10m wind adjusted to neutral stability.
-VpCO2(:) = a_vpco2*zzspeed(:)*zzspeed(:) + b_vpco2*zzspeed(:) !Nightingale et al
-!  ZZSPEED:  10-M WINDS
-where ( ZZSPEED(:)<3.6 )
-  zVdms(:) = VpCO2(:)*(ScCO2/ScDMS(:))**(2./3.)
-elsewhere ( zzspeed(:)<20. )
-  ! Phase in Liss & Merlivat from 13 to 18 m/s, since Nightingale is doubtful for high windspeeds,
-  ! due to limited data.
-  VpCO2liss(:) = 5.9*ZZSPEED(:) - 49.3
-  wtliss(:) = min( max( (zzspeed(:)-13.)/5., 0. ), 1. )
-  VpCO2(:) = wtliss(:)*VpCO2liss(:) + (1.-wtliss(:))*VpCO2(:)        
-  zVdms(:) = VpCO2(:)*sqrt(ScCO2/ScDMS(:))
-elsewhere
-  ! limit wind speed to 20 m/s for emissions - MJT suggestion  
-  VpCO2liss(:) = 5.9*20. - 49.3
-  wtliss(:) = 1.
-  VpCO2(:) = VpCO2liss(:)
-  zVdms(:) = VpCO2(:)*sqrt(ScCO2/ScDMS(:))
-end where
-where ( loland(:) )
-  !zdmsemiss(:) = emissfield(:,idmst) !kg/m2/s
-  zdmsemiss(:) = (1./1.938)*emissfield(:,idmst) !kgS/m2/s
-elsewhere
-  zdmsemiss(:) = ZDMSCON(:)*ZVDMS(:)*32.06e-11/3600.
-  ! NANOMOL/LTR*CM/HOUR --> KG/M**2/SEC
-end where
-jk = 1
-gdp(:) = 1./(rhoa(:,jk)*dz(:,jk))
-xte(:,jk,itracdms) = xte(:,jk,itracdms) + zdmsemiss(:)*gdp(:)
+
+do iq = 1,imax
+  ZDMSCON = EMISSFIELD(iq,idmso)*(1.-SEAICEM(iq))**2
+  ZSST = min( TSM1M(iq)-273.15, 45. )   ! Even Saltzman Sc formula has trouble over 45 deg C
+  ! The formula for ScDMS from Saltzman et al (1993) is given by Kettle & Andreae (ref below)
+  ScDMS = 2674. - 147.12*ZSST + 3.726*ZSST**2 - 0.038*ZSST**3 !Sc for DMS (Saltzman et al.)
+  ! Nightingale (2000) scheme (J. Biogeochem. Cycles, 14, 373-387)
+  ! For this scheme, zzspeed is the 10m wind adjusted to neutral stability.
+  VpCO2 = a_vpco2*zzspeed(iq)**2 + b_vpco2*zzspeed(iq) !Nightingale et al
+  !  ZZSPEED:  10-M WINDS
+  if ( ZZSPEED(iq)<3.6 ) then
+    zVdms = VpCO2*(ScCO2/ScDMS)**(2./3.)
+  else if ( zzspeed(iq)<20. ) then
+    ! Phase in Liss & Merlivat from 13 to 18 m/s, since Nightingale is doubtful for high windspeeds,
+    ! due to limited data.
+    VpCO2liss = 5.9*ZZSPEED(iq) - 49.3
+    wtliss = min( max( (zzspeed(iq)-13.)/5., 0. ), 1. )
+    VpCO2 = wtliss*VpCO2liss + (1.-wtliss)*VpCO2        
+    zVdms = VpCO2*sqrt(ScCO2/ScDMS)
+  else
+    ! limit wind speed to 20 m/s for emissions - MJT suggestion  
+    VpCO2liss = 5.9*20. - 49.3
+    wtliss = 1.
+    VpCO2 = VpCO2liss
+    zVdms = VpCO2*sqrt(ScCO2/ScDMS)
+  end if
+  if ( loland(iq) ) then
+    zdmsemiss = (1./1.938)*emissfield(iq,idmst) !kgS/m2/s
+  else
+    zdmsemiss = ZDMSCON*ZVDMS*32.06e-11/3600.
+    ! NANOMOL/LTR*CM/HOUR --> KG/M**2/SEC
+  end if
+  gdp = 1./(rhoa(iq,1)*dz(iq,1))
+  xte(iq,1,itracdms) = xte(iq,1,itracdms) + zdmsemiss*gdp
+end do
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
 PXTEMS(:,ITRACSO4)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.03
 ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via vertmix.
-jk=1
-gdp(:)=1./(rhoa(:,jk)*dz(:,jk))
-xte(:,jk,itracso2)  =xte(:,jk,itracso2)  +pxtems(:,itracso2)*gdp
-xte(:,jk,itracso4)  =xte(:,jk,itracso4)  +pxtems(:,itracso4)*gdp
+do iq = 1,imax
+  gdp=1./(rhoa(iq,1)*dz(iq,1))
+  xte(iq,1,itracso2)  =xte(iq,1,itracso2)  +pxtems(iq,itracso2)*gdp
+  xte(iq,1,itracso4)  =xte(iq,1,itracso4)  +pxtems(iq,itracso4)*gdp
+end do
 
 !  EMISSION OF ANTHROPOGENIC SO2 IN THE NEXT HIGHER LEVEL PLUS BIOMASS BURNING
 do jk=jk2,jk3-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk3-jk2)
-  XTE(:,JK,ITRACSO2)  =XTE(:,JK,ITRACSO2)  +0.97*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO2 emission
-  XTE(:,JK,ITRACSO4)  =XTE(:,JK,ITRACSO4)  +0.03*EMISSFIELD(:,iso2a2)*gdp !100% of the "above 100m" SO4 emission
+  do iq = 1,imax
+    gdp=1./(rhoa(iq,jk)*dz(iq,jk))/real(jk3-jk2)
+    XTE(iq,JK,ITRACSO2)  =XTE(iq,JK,ITRACSO2)  +0.97*EMISSFIELD(iq,iso2a2)*gdp !100% of the "above 100m" SO2 emission
+    XTE(iq,JK,ITRACSO4)  =XTE(iq,JK,ITRACSO4)  +0.03*EMISSFIELD(iq,iso2a2)*gdp !100% of the "above 100m" SO4 emission
+  end do
 end do
 do jk=jk3,jk4-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk4-jk3)
-  xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
+  do iq = 1,imax
+    gdp=1./(rhoa(iq,jk)*dz(iq,jk))/real(jk4-jk3)
+    xte(iq,jk,ITRACSO2)=xte(iq,jk,ITRACSO2)+0.3*emissfield(iq,iso2b2)*gdp
+  end do
 end do
 do jk=jk4,jk5-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk5-jk4)
-  xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.4*emissfield(:,iso2b2)*gdp
+  do iq = 1,imax
+    gdp=1./(rhoa(iq,jk)*dz(iq,jk))/real(jk5-jk4)
+    xte(iq,jk,ITRACSO2)=xte(iq,jk,ITRACSO2)+0.4*emissfield(iq,iso2b2)*gdp
+  end do
 end do
 do jk=jk5,jk6-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk6-jk5)
-  xte(:,jk,ITRACSO2)=xte(:,jk,ITRACSO2)+0.3*emissfield(:,iso2b2)*gdp
+  do iq = 1,imax
+    gdp=1./(rhoa(iq,jk)*dz(iq,jk))/real(jk6-jk5)
+    xte(iq,jk,ITRACSO2)=xte(iq,jk,ITRACSO2)+0.3*emissfield(iq,iso2b2)*gdp
+  end do
 end do
   
 !    VOLCANIC BACKGROUND EMISSIONS 
@@ -841,16 +849,21 @@ end do
 !    1. PRE-INTRA ERUPTION IN LEVEL IVOLC-HEIGHT (=TOP OF VOLCANO)
 !    2. POST-EXTRA ERUPTION IN LEVEL 15 -16 (CA 550-1736M)
 !    3. EXPLOSIVE ERUPTION IN LEVEL 10 - 11 (CA 5000-7900M)
-jk=1
-gdp=1./(rhoa(:,jk)*dz(:,jk))
-XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI*0.36*vso2*gdp
+do iq = 1,imax
+  gdp=1./(rhoa(iq,1)*dz(iq,1))
+  XTE(iq,1,ITRACSO2)=XTE(iq,1,ITRACSO2)+ZVOLCEMI*0.36*vso2(iq)*gdp
+end do
 do jk=jk4,jk6-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk6-jk4)
-  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI*0.36*vso2*gdp
+  do iq = 1,imax
+    gdp=1./(rhoa(iq,jk)*dz(iq,jk))/real(jk6-jk4)
+    XTE(iq,jk,ITRACSO2)=XTE(iq,jk,ITRACSO2)+ZVOLCEMI*0.36*vso2(iq)*gdp
+  end do
 end do
 do jk=jk8,jk9-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk9-jk8)
-  XTE(:,jk,ITRACSO2)=XTE(:,jk,ITRACSO2)+ZVOLCEMI*0.28*vso2*gdp
+  do iq = 1,imax
+    gdp=1./(rhoa(iq,jk)*dz(iq,jk))/real(jk9-jk8)
+    XTE(iq,jk,ITRACSO2)=XTE(iq,jk,ITRACSO2)+ZVOLCEMI*0.28*vso2(iq)*gdp
+  end do
 end do
 
 
@@ -862,12 +875,13 @@ PXTEMS(:,ITRACBC+1)=0.2*EMISSFIELD(:,ibca1)
 PXTEMS(:,ITRACOC)  =0.5*(EMISSFIELD(:,ioca1)+EMISSFIELD(:,iocna))
 PXTEMS(:,ITRACOC+1)=0.5*(EMISSFIELD(:,ioca1)+EMISSFIELD(:,iocna))
 ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via vertmix.
-jk=1
-gdp=1./(rhoa(:,jk)*dz(:,jk))
-xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +pxtems(:,itracbc)*gdp
-xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+pxtems(:,itracbc+1)*gdp
-xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +pxtems(:,itracoc)*gdp
-xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+pxtems(:,itracoc+1)*gdp
+do iq = 1,imax
+  gdp=1./(rhoa(iq,1)*dz(iq,1))
+  xte(iq,1,itracbc)  =xte(iq,1,itracbc)  +pxtems(iq,itracbc)*gdp
+  xte(iq,1,itracbc+1)=xte(iq,1,itracbc+1)+pxtems(iq,itracbc+1)*gdp
+  xte(iq,1,itracoc)  =xte(iq,1,itracoc)  +pxtems(iq,itracoc)*gdp
+  xte(iq,1,itracoc+1)=xte(iq,1,itracoc+1)+pxtems(iq,itracoc+1)*gdp
+end do
 ! Inject the upper-level fossil-fuel emissions into layer 2
 ! Assume BC 80% hydrophobic, OC 50%.
 PXTEMS(:,ITRACBC)  =0.8*EMISSFIELD(:,ibca2)
@@ -876,11 +890,13 @@ PXTEMS(:,ITRACOC)  =0.5*EMISSFIELD(:,ioca2)
 PXTEMS(:,ITRACOC+1)=0.5*EMISSFIELD(:,ioca2)
 ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via vertmix.
 do jk=jk2,jk3-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk3-jk2)
-  xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +pxtems(:,itracbc)*gdp
-  xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+pxtems(:,itracbc+1)*gdp
-  xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +pxtems(:,itracoc)*gdp
-  xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+pxtems(:,itracoc+1)*gdp
+  do iq = 1,imax
+    gdp=1./(rhoa(iq,jk)*dz(iq,jk))/real(jk3-jk2)
+    xte(iq,jk,itracbc)  =xte(iq,jk,itracbc)  +pxtems(iq,itracbc)*gdp
+    xte(iq,jk,itracbc+1)=xte(iq,jk,itracbc+1)+pxtems(iq,itracbc+1)*gdp
+    xte(iq,jk,itracoc)  =xte(iq,jk,itracoc)  +pxtems(iq,itracoc)*gdp
+    xte(iq,jk,itracoc+1)=xte(iq,jk,itracoc+1)+pxtems(iq,itracoc+1)*gdp
+  end do
 end do
 ! Inject the lower-level biomass emissions into layer 2 (NB: Doesn't include biofuel any more)
 ! Assume BC and OC both 50% hydrophobic.
@@ -890,11 +906,13 @@ PXTEMS(:,ITRACOC)  =0.5*EMISSFIELD(:,iocb1)
 PXTEMS(:,ITRACOC+1)=0.5*EMISSFIELD(:,iocb1)
 ! Apply these here as a tendency (XTE)
 do jk=jk2,jk3-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk3-jk2)
-  xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +pxtems(:,itracbc)*gdp
-  xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+pxtems(:,itracbc+1)*gdp
-  xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +pxtems(:,itracoc)*gdp
-  xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+pxtems(:,itracoc+1)*gdp
+  do iq = 1,imax
+    gdp=1./(rhoa(iq,jk)*dz(iq,jk))/real(jk3-jk2)
+    xte(iq,jk,itracbc)  =xte(iq,jk,itracbc)  +pxtems(iq,itracbc)*gdp
+    xte(iq,jk,itracbc+1)=xte(iq,jk,itracbc+1)+pxtems(iq,itracbc+1)*gdp
+    xte(iq,jk,itracoc)  =xte(iq,jk,itracoc)  +pxtems(iq,itracoc)*gdp
+    xte(iq,jk,itracoc+1)=xte(iq,jk,itracoc+1)+pxtems(iq,itracoc+1)*gdp
+  end do
 end do
 ! Inject the upper-level biomass emissions into layers 3-5 (30%, 40%, 30%)
 ! Assume BC and OC both 50% hydrophobic.
@@ -904,25 +922,31 @@ PXTEMS(:,ITRACOC)  =0.5*EMISSFIELD(:,iocb2)
 PXTEMS(:,ITRACOC+1)=0.5*EMISSFIELD(:,iocb2)
 ! Apply these here as a tendency (XTE)
 do jk=jk3,jk4-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk4-jk3)
-  xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +0.3*pxtems(:,itracbc)*gdp
-  xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+0.3*pxtems(:,itracbc+1)*gdp
-  xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +0.3*pxtems(:,itracoc)*gdp
-  xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+0.3*pxtems(:,itracoc+1)*gdp
+  do iq = 1,imax
+    gdp=1./(rhoa(iq,jk)*dz(iq,jk))/real(jk4-jk3)
+    xte(iq,jk,itracbc)  =xte(iq,jk,itracbc)  +0.3*pxtems(iq,itracbc)*gdp
+    xte(iq,jk,itracbc+1)=xte(iq,jk,itracbc+1)+0.3*pxtems(iq,itracbc+1)*gdp
+    xte(iq,jk,itracoc)  =xte(iq,jk,itracoc)  +0.3*pxtems(iq,itracoc)*gdp
+    xte(iq,jk,itracoc+1)=xte(iq,jk,itracoc+1)+0.3*pxtems(iq,itracoc+1)*gdp
+  end do
 end do
 do jk=jk4,jk5-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk5-jk4)
-  xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +0.4*pxtems(:,itracbc)*gdp
-  xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+0.4*pxtems(:,itracbc+1)*gdp
-  xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +0.4*pxtems(:,itracoc)*gdp
-  xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+0.4*pxtems(:,itracoc+1)*gdp
+  do iq = 1,imax
+    gdp=1./(rhoa(iq,jk)*dz(iq,jk))/real(jk5-jk4)
+    xte(iq,jk,itracbc)  =xte(iq,jk,itracbc)  +0.4*pxtems(iq,itracbc)*gdp
+    xte(iq,jk,itracbc+1)=xte(iq,jk,itracbc+1)+0.4*pxtems(iq,itracbc+1)*gdp
+    xte(iq,jk,itracoc)  =xte(iq,jk,itracoc)  +0.4*pxtems(iq,itracoc)*gdp
+    xte(iq,jk,itracoc+1)=xte(iq,jk,itracoc+1)+0.4*pxtems(iq,itracoc+1)*gdp
+  end do
 end do
 do jk=jk5,jk6-1
-  gdp=1./(rhoa(:,jk)*dz(:,jk))/real(jk6-jk5)
-  xte(:,jk,itracbc)  =xte(:,jk,itracbc)  +0.3*pxtems(:,itracbc)*gdp
-  xte(:,jk,itracbc+1)=xte(:,jk,itracbc+1)+0.3*pxtems(:,itracbc+1)*gdp
-  xte(:,jk,itracoc)  =xte(:,jk,itracoc)  +0.3*pxtems(:,itracoc)*gdp
-  xte(:,jk,itracoc+1)=xte(:,jk,itracoc+1)+0.3*pxtems(:,itracoc+1)*gdp
+  do iq = 1,imax
+    gdp=1./(rhoa(iq,jk)*dz(iq,jk))/real(jk6-jk5)
+    xte(iq,jk,itracbc)  =xte(iq,jk,itracbc)  +0.3*pxtems(iq,itracbc)*gdp
+    xte(iq,jk,itracbc+1)=xte(iq,jk,itracbc+1)+0.3*pxtems(iq,itracbc+1)*gdp
+    xte(iq,jk,itracoc)  =xte(iq,jk,itracoc)  +0.3*pxtems(iq,itracoc)*gdp
+    xte(iq,jk,itracoc+1)=xte(iq,jk,itracoc+1)+0.3*pxtems(iq,itracoc+1)*gdp
+  end do
 end do
 
 !   --------------------------------------------------------------
@@ -930,97 +954,88 @@ end do
 !*      2.    DRY DEPOSITION.
 !             --- ----------
 
-!      DRY DEPOSITION OF SO2, SO4
-
-!           - MELTING/NOT MELTING SEAICE-
-where ( tsm1m>=(tmelt-0.1) )
-  zvd2ice = 0.8E-2
-  zvd4ice = 0.2E-2
-elsewhere
-  zvd2ice = 0.1E-2
-  zvd4ice = 0.025E-2
-end where
-
-!         -  SNOW/NO SNOW -
-where ( PSNOW>ZSNCRI .and. tsm1m>=tmelt )
-!            - MELTING/NOT MELTING SNOW -
-  ZVD2NOF=0.8E-2
-  ZVD4NOF=0.2E-2
-elsewhere ( PSNOW>ZSNCRI )
-  ZVD2NOF=0.1E-2
-  ZVD4NOF=0.025E-2
-elsewhere ( tsm1m<=tmelt )
-!           -  FROZEN SOIL -
-  ZVD2NOF=0.2E-2
-  ZVD4NOF=0.025E-2
-elsewhere
-!           - PARTLY WET -
-  ZVD2NOF=max(min(ZVWC2*WSM1M-ZVW02,0.8E-2),0.2E-2)
-  ZVD4NOF=max(min(ZVWC4*WSM1M-ZVW04,0.2E-2),0.025E-2)
-end where
-    
-!     -  SEA -
-where (.NOT.LOLAND)
-!         - SEA ICE -
-  ZVDRD(:,1)=(1.-SEAICEM(:))*0.8E-2+SEAICEM(:)*ZVD2ICE(:) !So leads agree with ocean
-  ZVDRD(:,2)=(1.-SEAICEM(:))*0.2E-2+SEAICEM(:)*ZVD4ICE(:)
-elsewhere
-!      - LAND -
-  ZVDRD(:,1)=PFOREST(:)*0.8E-2+(1.-PFOREST(:))*ZVD2NOF(:)
-  ZVDRD(:,2)=PFOREST(:)*0.2E-2+(1.-PFOREST(:))*ZVD4NOF(:)
-end where
-
-
 ! Sulfur emission diagnostic (hard-coded for 3 sulfur variables)
 do jk=1,kl
   dmse=dmse+xte(:,jk,ITRACDMS)*rhoa(:,jk)*dz(:,jk)   !Above surface
   so2e=so2e+xte(:,jk,ITRACSO2)*rhoa(:,jk)*dz(:,jk)   !Above surface
   so4e=so4e+xte(:,jk,ITRACSO4)*rhoa(:,jk)*dz(:,jk)   !Above surface
-enddo
 
-! Assume that BC and OC emissions are passed in through xte()
-do jt=ITRACBC,ITRACBC+1
-  do jk=1,kl
-    bce=bce+xte(:,jk,jt)*rhoa(:,jk)*dz(:,jk)
-  enddo
-enddo
-do jt=ITRACOC,ITRACOC+1
-  do jk=1,kl
-    oce=oce+xte(:,jk,jt)*rhoa(:,jk)*dz(:,jk)
-  enddo
+  ! Assume that BC and OC emissions are passed in through xte()
+  bce=bce+(xte(:,jk,ITRACBC)+xte(:,jk,ITRACBC+1))*rhoa(:,jk)*dz(:,jk)
+  oce=oce+(xte(:,jk,ITRACOC)+xte(:,jk,ITRACOC+1))*rhoa(:,jk)*dz(:,jk)
 enddo
 
 ! Total biomass burning primary emissions (note 1.3 for organic carbon)
 bbem=emissfield(:,ibcb1)+emissfield(:,ibcb2)+1.3*(emissfield(:,iocb1)+emissfield(:,iocb2))
 
-! ZVDRD   DRY DEPOSITION VELOCITY IN M/S
-! ZVDRD(JL,1)  FOR SO2 GAS
-! ZVDRD(JL,2)  FOR AEROSOLS
-gdp=1./(rhoa(:,1)*dz(:,1))
+do iq = 1,imax
 
-zhilso2=(xtg(1:imax,1,itracso2)+xte(1:imax,1,itracso2)*ztmst)   &
-       *(1.-exp(-ztmst*zvdrd(:,1)/dz(:,1)))/(ztmst*gdp)
-xte(:,1,ITRACSO2)  =xte(:,1,ITRACSO2)  -zhilso2*gdp
+!      DRY DEPOSITION OF SO2, SO4
+
+  !         -  SNOW/NO SNOW -
+  if ( PSNOW(iq)>ZSNCRI .and. tsm1m(iq)>=tmelt ) then
+  !            - MELTING/NOT MELTING SNOW -
+    ZVD2NOF=0.8E-2
+    ZVD4NOF=0.2E-2
+  else if ( PSNOW(iq)>ZSNCRI ) then
+    ZVD2NOF=0.1E-2
+    ZVD4NOF=0.025E-2
+  else if ( tsm1m(iq)<=tmelt ) then
+  !           -  FROZEN SOIL -
+    ZVD2NOF=0.2E-2
+    ZVD4NOF=0.025E-2
+  else
+  !           - PARTLY WET -
+    ZVD2NOF=max(min(ZVWC2*WSM1M(iq)-ZVW02,0.8E-2),0.2E-2)
+    ZVD4NOF=max(min(ZVWC4*WSM1M(iq)-ZVW04,0.2E-2),0.025E-2)
+  end if
+
+  ! ZVDRD   DRY DEPOSITION VELOCITY IN M/S
+  ! ZVDRD1  FOR SO2 GAS
+  ! ZVDRD2  FOR AEROSOLS
+
+  !     -  SEA -
+  if ( .NOT.LOLAND(iq) .and. tsm1m(iq)>=(tmelt-0.1) ) then
+  !         - MELTING SEA ICE -
+    ZVDRD1=(1.-SEAICEM(iq))*0.8E-2+SEAICEM(iq)*0.8E-2 !So leads agree with ocean
+    ZVDRD2=(1.-SEAICEM(iq))*0.2E-2+SEAICEM(iq)*0.2E-2
+  else if ( .not.loland(iq) ) then
+  !         - NOT MELTING SEA ICE -
+    ZVDRD1=(1.-SEAICEM(iq))*0.8E-2+SEAICEM(iq)*0.1E-2 !So leads agree with ocean
+    ZVDRD2=(1.-SEAICEM(iq))*0.2E-2+SEAICEM(iq)*0.025E-2
+  else
+  !      - LAND -
+    ZVDRD1=PFOREST(iq)*0.8E-2+(1.-PFOREST(iq))*ZVD2NOF
+    ZVDRD2=PFOREST(iq)*0.2E-2+(1.-PFOREST(iq))*ZVD4NOF
+  end if
+
+
+  gdp=1./(rhoa(iq,1)*dz(iq,1))
+
+  zhilso2=(xtg(iq,1,itracso2)+xte(iq,1,itracso2)*ztmst)   &
+         *(1.-exp(-ztmst*zvdrd1/dz(iq,1)))/(ztmst*gdp)
+  xte(iq,1,ITRACSO2)  =xte(iq,1,ITRACSO2)  -zhilso2*gdp
   
-zhilso4=(xtg(1:imax,1,itracso4)+xte(1:imax,1,itracso4)*ztmst)   &
-       *(1.-exp(-ztmst*zvdrd(:,2)/dz(:,1)))/(ztmst*gdp)
-xte(:,1,ITRACSO4)  =xte(:,1,ITRACSO4)  -zhilso4*gdp
+  zhilso4=(xtg(iq,1,itracso4)+xte(iq,1,itracso4)*ztmst)   &
+         *(1.-exp(-ztmst*zvdrd2/dz(iq,1)))/(ztmst*gdp)
+  xte(iq,1,ITRACSO4)  =xte(iq,1,ITRACSO4)  -zhilso4*gdp
 
-ZHILBCO=(xtg(1:imax,1,ITRACBC)+xte(1:imax,1,itracbc)*ztmst)     &
-       *(1.-exp(-ztmst*ZVDPHOBIC/dz(:,1)))/(ztmst*gdp)
-xte(:,1,itracbc)  =xte(:,1,itracbc)    -zhilbco*gdp
+  ZHILBCO=(xtg(iq,1,ITRACBC)+xte(iq,1,itracbc)*ztmst)     &
+         *(1.-exp(-ztmst*ZVDPHOBIC/dz(iq,1)))/(ztmst*gdp)
+  xte(iq,1,itracbc)  =xte(iq,1,itracbc)    -zhilbco*gdp
 
-ZHILBCY=(xtg(1:imax,1,ITRACBC+1)+xte(1:imax,1,itracbc+1)*ztmst) &
-       *(1.-exp(-ztmst*ZVDRD(:,2)/dz(:,1)))/(ztmst*gdp)
-xte(:,1,itracbc+1)=xte(:,1,itracbc+1)  -zhilbcy*gdp
+  ZHILBCY=(xtg(iq,1,ITRACBC+1)+xte(iq,1,itracbc+1)*ztmst) &
+         *(1.-exp(-ztmst*ZVDRD2/dz(iq,1)))/(ztmst*gdp)
+  xte(iq,1,itracbc+1)=xte(iq,1,itracbc+1)  -zhilbcy*gdp
 
-ZHILOCO=(xtg(1:imax,1,ITRACOC)+xte(1:imax,1,itracoc)*ztmst)     &
-       *(1.-exp(-ztmst*ZVDPHOBIC/dz(:,1)))/(ztmst*gdp)
-xte(:,1,itracoc)  =xte(:,1,itracoc)    -zhiloco*gdp
+  ZHILOCO=(xtg(iq,1,ITRACOC)+xte(iq,1,itracoc)*ztmst)     &
+         *(1.-exp(-ztmst*ZVDPHOBIC/dz(iq,1)))/(ztmst*gdp)
+  xte(iq,1,itracoc)  =xte(iq,1,itracoc)    -zhiloco*gdp
 
-ZHILOCY=(xtg(1:imax,1,ITRACOC+1)+xte(1:imax,1,itracoc+1)*ztmst) &
-       *(1.-exp(-ztmst*ZVDRD(:,2)/dz(:,1)))/(ztmst*gdp)
-xte(:,1,itracoc+1)=xte(:,1,itracoc+1)  -zhilocy*gdp
+  ZHILOCY=(xtg(iq,1,ITRACOC+1)+xte(iq,1,itracoc+1)*ztmst) &
+         *(1.-exp(-ztmst*ZVDRD2/dz(iq,1)))/(ztmst*gdp)
+  xte(iq,1,itracoc+1)=xte(iq,1,itracoc+1)  -zhilocy*gdp
+end do
 
 so2dd=so2dd+zhilso2
 so4dd=so4dd+zhilso4

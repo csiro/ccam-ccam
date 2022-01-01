@@ -4852,6 +4852,11 @@ if (iernc==0) then ! Netcdf file
   if(ilx/=il_g.or.jlx/=jl_g.or.abs(rlong0x-rlong0)>=1.e-20.or.abs(rlat0x-rlat0)>=1.e-20.or. &
       abs(schmidtx-schmidt)>=1.e-20) then
     write(6,*) 'wrong data file supplied'
+    if ( ilx/=il_g ) write(6,*) "ilx,il_g ",ilx,il_g
+    if ( jlx/=jl_g ) write(6,*) "jlx,jl_g ",jlx,jl_g
+    if ( rlong0x/=rlong0 ) write(6,*) "rlong0x,rlong0 ",rlong0x,rlong0
+    if ( rlat0x/=rlat0 ) write(6,*) "rlat0x,rlat0 ",rlat0x,rlat0
+    if ( schmidtx/=schmidt ) write(6,*) "schmidtx,schmidt ",schmidtx,schmidt
     call ccmpi_abort(-1)
   end if
   spos(1:3)=1

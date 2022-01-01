@@ -2915,7 +2915,7 @@ contains
          bnds(n)%slen_ssv_bg = 0
          bnds(n)%slen_wwu_fn = 0
          bnds(n)%slen_nnv_bg = 0
-         bnds(n)%slen_eeu_fn = 0     
+         bnds(n)%slen_eeu_fn = 0    
       end do   
 
 !     In the first pass through, set up list of points to be requested from
@@ -8365,6 +8365,7 @@ contains
       call MPI_Init_Thread(MPI_THREAD_SERIALIZED, lprovided, lerr)
       if ( lprovided < MPI_THREAD_SERIALIZED ) then
          write(6,*) "ERROR: MPI does not support MPI_THREAD_SERIALIZED"
+         write(6,*) "       Unable to support hybrid MPI+OpenMP"
          call ccmpi_abort(-1)
       end if
 #else
@@ -8489,19 +8490,19 @@ contains
          ! calculate virtual node decomposition
          node_nx = max( int(sqrt(real(new_node_nproc))), 1 )
          node_ny = new_node_nproc / node_nx
-         node_dx = nxp/node_nx
-         node_dy = nyp/node_ny
+         node_dx = nxp / node_nx
+         node_dy = nyp / node_ny
          do while ( (node_nx*node_dx/=nxp.or.node_ny*node_dy/=nyp.or.node_nx*node_ny/=new_node_nproc) .and. node_nx>0 )
             node_nx = node_nx - 1
-            node_ny = new_node_nproc/max( node_nx, 1 )
-            node_dx = nxp/max( node_nx, 1 )
-            node_dy = nyp/node_ny
+            node_ny = new_node_nproc / max( node_nx, 1 )
+            node_dx = nxp / max( node_nx, 1 )
+            node_dy = nyp / node_ny
          end do   
 
         ! remap ranks if a valid decomposition has been found
          if ( myid == 0 ) then
             write(6,*) "Remapping ranks using node_nx,node_ny ",node_nx,node_ny
-            write(6,*) "node_dx,node_dy                       ",node_dx,node_dy
+            write(6,*) "with node_dx,node_dy                  ",node_dx,node_dy
          end if
          do testid = 0,nproc-1
             oldrank = testid 
@@ -8513,7 +8514,7 @@ contains
             oldrank = oldrank - tx*node_nx
             cx = oldrank                           ! x-column position in node
             newid = ty*node_dx*node_nx*node_ny + tx*node_nx*node_ny + cy*node_nx + cx
-            if ( newid==myid ) then
+            if ( newid == myid ) then
                lid = testid
                exit
             end if   
@@ -8553,9 +8554,6 @@ contains
          ! configure procmode
          if ( procmode == 0 ) then
             ! procmode=0 uses existing nodes, even if they have different numbers of processes
-            if ( myid == 0 ) then
-               write(6,*) "Configure procformat output with nodes=",nodecaptain_nproc
-            end if
             ! Intra-procmode communicator 
             comm_vnode  = comm_node
             vnode_nproc = node_nproc
@@ -8567,10 +8565,13 @@ contains
             ! Communicate procmode id
             vnode_vleaderid = node_captainid
             procmode = node_nproc ! can be different on different nodes
+            if ( myid == 0 ) then
+               write(6,*) "Configure procformat output with procmode=",procmode
+            end if
          else
             ! user specified procmode>0 
             procmode = max(procmode, 1) 
-            do while ( mod(node_nproc, procmode)/=0 )
+            do while ( mod(node_nproc,procmode) /= 0 )
                procmode = procmode - 1 ! can be different on different nodes
             end do  
             if ( myid == 0 ) then
@@ -8602,14 +8603,11 @@ contains
             call MPI_Bcast( lrank, 1_4, MPI_INTEGER, 0_4, lcomm, lerr )
             vnode_vleaderid = lrank
          end if
-         if ( myid==0 ) then
-            if ( vnode_myid /= 0 ) then
-               write(6,*) "ERROR: vnode_myid/=0 with myid==0"
-               call ccmpi_abort(-1)
-            end if   
+         ! just an internal check to make sure there are no errors
+         if ( myid==0 .and. vnode_myid/=0 ) then
+            write(6,*) "ERROR: vnode_myid/=0 with myid==0"
+            call ccmpi_abort(-1)
          end if   
-         !call ccmpi_node_leader ! setup comm_vleader and comm_reordered with myid2
-         !call ccmpi_node_ioreaders
 #else
          if ( myid == 0 ) then  
             write(6,*) "Set procmode=1 as CCAM was compiled without -Dusempi3"

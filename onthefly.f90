@@ -2046,7 +2046,10 @@ else
     call intsb(sx(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
   end do
   !$omp end parallel do
-  sout(1:ifull) = sum(wrk,dim=2)/real(m_fly)
+  sout(1:ifull) = wrk(:,1)/real(m_fly)
+  do mm = 2,m_fly
+    sout(1:ifull) = sout(1:ifull) + wrk(:,mm)/real(m_fly)
+  end do  
 end if
 
 call END_LOG(otf_ints1_end)
@@ -2100,7 +2103,10 @@ do kb = 1,kx,kblock
         call intsb(sx(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
       end do  
       !$omp end parallel do
-      sout(1:ifull,k+kb-1) = sum(wrk,dim=2)/real(m_fly)
+      sout(1:ifull,k+kb-1) = wrk(:,1)/real(m_fly)
+      do mm = 2,m_fly
+        sout(1:ifull,k+kb-1) = sout(1:ifull,k+kb-1) + wrk(:,mm)/real(m_fly)
+      end do  
     end do
   end if
 
@@ -2286,24 +2292,30 @@ do while ( nrem>0 )
   call ccmpi_filebounds_send(c_io,comm_ip)
   ! update body
   if ( ncount>0 ) then
-    do ipf = 1,mynproc
-      do n = 1,pnpan
-        do j = 2,pjpan-1
-          do i = 2,pipan-1
+    do concurrent (ipf = 1:mynproc)
+      do concurrent (n = 1:pnpan)
+        do concurrent (j = 2:pjpan-1)
+          do concurrent (i = 2:pipan-1)
             cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
             if ( abs(a_io(cc+i)-value)<1.e-20 ) then
               csum = 0.
               ccount = 0
-              do s = -1,1,2
-                if ( abs(c_io(i,j+s,n,ipf)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i,j+s,n,ipf)
-                  ccount = ccount + 1
-                end if
-                if ( abs(c_io(i+s,j,n,ipf)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i+s,j,n,ipf)
-                  ccount = ccount + 1
-                end if
-              end do
+              if ( abs(c_io(i,j-1,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,j-1,n,ipf)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i,j+1,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,j+1,n,ipf)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i-1,j,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i-1,j,n,ipf)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i+1,j,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+1,j,n,ipf)
+                ccount = ccount + 1
+              end if
               if ( ccount>0 ) then        
                 a_io(cc+i) = csum/real(ccount)
               end if
@@ -2316,23 +2328,29 @@ do while ( nrem>0 )
   call ccmpi_filebounds_recv(c_io,comm_ip)
   ! update perimeter
   if ( ncount>0 ) then
-    do ipf =1,mynproc
-      do n = 1,pnpan
-        do i = 1,pipan
+    do concurrent (ipf = 1:mynproc)
+      do concurrent (n = 1:pnpan)
+        do concurrent (i = 1:pipan)
           cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
           if ( abs(a_io(cc+i)-value)<1.e-20 ) then
             csum = 0.
             ccount = 0
-            do s = -1,1,2
-              if ( abs(c_io(i,1+s,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(i,1+s,n,ipf)
-                ccount = ccount + 1
-              end if
-              if ( abs(c_io(i+s,1,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+s,1,n,ipf)
-                ccount = ccount + 1
-              end if
-            end do
+            if ( abs(c_io(i,0,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(i,0,n,ipf)
+              ccount = ccount + 1
+            end if
+            if ( abs(c_io(i,2,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(i,2,n,ipf)
+              ccount = ccount + 1
+            end if
+            if ( abs(c_io(i-1,1,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(i-1,1,n,ipf)
+              ccount = ccount + 1
+            end if
+            if ( abs(c_io(i+1,1,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(i+1,1,n,ipf)
+              ccount = ccount + 1
+            end if
             if ( ccount>0 ) then        
               a_io(cc+i) = csum/real(ccount)
             end if
@@ -2341,36 +2359,48 @@ do while ( nrem>0 )
           if ( abs(a_io(cc+i)-value)<1.e-20 ) then
             csum = 0.
             ccount = 0
-            do s = -1,1,2
-              if ( abs(c_io(i,pjpan+s,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(i,pjpan+s,n,ipf)
-                ccount = ccount + 1
-              end if
-              if ( abs(c_io(i+s,pjpan,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+s,pjpan,n,ipf)
-                ccount = ccount + 1
-              end if
-            end do
+            if ( abs(c_io(i,pjpan-1,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(i,pjpan-1,n,ipf)
+              ccount = ccount + 1
+            end if
+            if ( abs(c_io(i,pjpan+1,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(i,pjpan+1,n,ipf)
+              ccount = ccount + 1
+            end if
+            if ( abs(c_io(i-1,pjpan,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(i-1,pjpan,n,ipf)
+              ccount = ccount + 1
+            end if
+            if ( abs(c_io(i+1,pjpan,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(i+1,pjpan,n,ipf)
+              ccount = ccount + 1
+            end if
             if ( ccount>0 ) then        
               a_io(cc+i) = csum/real(ccount)
             end if
           end if
         end do
-        do j = 2,pjpan-1
+        do concurrent (j = 2:pjpan-1)
           cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
           if ( abs(a_io(cc+1)-value)<1.e-20 ) then
             csum = 0.
             ccount = 0
-            do s = -1,1,2
-              if ( abs(c_io(1,j+s,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(1,j+s,n,ipf)
-                ccount = ccount + 1
-              end if
-              if ( abs(c_io(1+s,j,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(1+s,j,n,ipf)
-                ccount = ccount + 1
-              end if
-            end do
+            if ( abs(c_io(1,j-1,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(1,j-1,n,ipf)
+              ccount = ccount + 1
+            end if
+            if ( abs(c_io(1,j+1,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(1,j+1,n,ipf)
+              ccount = ccount + 1
+            end if
+            if ( abs(c_io(0,j,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(0,j,n,ipf)
+              ccount = ccount + 1
+            end if
+            if ( abs(c_io(2,j,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(2,j,n,ipf)
+              ccount = ccount + 1
+            end if
             if ( ccount>0 ) then        
               a_io(cc+1) = csum/real(ccount)
             end if
@@ -2378,16 +2408,22 @@ do while ( nrem>0 )
           if ( abs(a_io(cc+pipan)-value)<1.e-20 ) then
             csum = 0.
             ccount = 0
-            do s = -1,1,2
-              if ( abs(c_io(pipan,j+s,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(pipan,j+s,n,ipf)
-                ccount = ccount + 1
-              end if
-              if ( abs(c_io(pipan+s,j,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(pipan+s,j,n,ipf)
-                ccount = ccount + 1
-              end if
-            end do
+            if ( abs(c_io(pipan,j-1,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(pipan,j-1,n,ipf)
+              ccount = ccount + 1
+            end if
+            if ( abs(c_io(pipan,j+1,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(pipan,j+1,n,ipf)
+              ccount = ccount + 1
+            end if
+            if ( abs(c_io(pipan-1,j,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(pipan-1,j,n,ipf)
+              ccount = ccount + 1
+            end if
+            if ( abs(c_io(pipan+1,j,n,ipf)-value)>=1.e-20 ) then
+              csum = csum + c_io(pipan+1,j,n,ipf)
+              ccount = ccount + 1
+            end if
             if ( ccount>0 ) then        
               a_io(cc+pipan) = csum/real(ccount)
             end if
@@ -2471,26 +2507,32 @@ do while ( any(nrem(:)>0) )
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
   !$omp parallel do schedule(static) private(k,ipf,n,j,i,s,cc,csum,ccount)
-  do k = 1,kx
+  do concurrent (k = 1:kx)
     if ( ncount(k)>0 ) then
-      do ipf = 1,mynproc
-        do n = 1,pnpan
-          do j = 2,pjpan-1
-            do i = 2,pipan-1
+      do concurrent (ipf = 1:mynproc)
+        do concurrent (n = 1:pnpan)
+          do concurrent (j = 2:pjpan-1)
+            do concurrent (i = 2:pipan-1)
               cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
               if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
                 csum = 0.
                 ccount = 0
-                do s = -1,1,2
-                  if ( abs(c_io(i,j+s,n,ipf,k)-value)>=1.e-20 ) then
-                    csum = csum + c_io(i,j+s,n,ipf,k)
-                    ccount = ccount + 1
-                  end if
-                  if ( abs(c_io(i+s,j,n,ipf,k)-value)>=1.e-20 ) then
-                    csum = csum + c_io(i+s,j,n,ipf,k)
-                    ccount = ccount + 1
-                  end if
-                end do
+                if ( abs(c_io(i,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j-1,n,ipf,k)
+                  ccount = ccount + 1
+                end if
+                if ( abs(c_io(i,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j+1,n,ipf,k)
+                  ccount = ccount + 1
+                end if
+                if ( abs(c_io(i-1,j,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i-1,j,n,ipf,k)
+                  ccount = ccount + 1
+                end if
+                if ( abs(c_io(i+1,j,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+1,j,n,ipf,k)
+                  ccount = ccount + 1
+                end if
                 if ( ccount>0 ) then        
                   a_io(cc+i,k) = csum/real(ccount)
                 end if
@@ -2504,25 +2546,31 @@ do while ( any(nrem(:)>0) )
   !$omp end parallel do
   call ccmpi_filebounds_recv(c_io,comm_ip)
   ! update halo
-  do k = 1,kx
+  do concurrent (k = 1:kx)
     if ( ncount(k)>0 ) then  
-      do ipf =1,mynproc
-        do n = 1,pnpan
-          do i = 1,pipan
+      do concurrent (ipf = 1:mynproc)
+        do concurrent (n = 1:pnpan)
+          do concurrent (i = 1:pipan)
             cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
             if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
               csum = 0.
               ccount = 0
-              do s = -1,1,2
-                if ( abs(c_io(i,1+s,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i,1+s,n,ipf,k)
-                  ccount = ccount + 1
-                end if
-                if ( abs(c_io(i+s,1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i+s,1,n,ipf,k)
-                  ccount = ccount + 1
-                end if
-              end do
+              if ( abs(c_io(i,0,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,0,n,ipf,k)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i,2,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,2,n,ipf,k)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i-1,1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i-1,1,n,ipf,k)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i+1,1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+1,1,n,ipf,k)
+                ccount = ccount + 1
+              end if
               if ( ccount>0 ) then        
                 a_io(cc+i,k) = csum/real(ccount)
               end if
@@ -2531,36 +2579,48 @@ do while ( any(nrem(:)>0) )
             if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
               csum = 0.
               ccount = 0
-              do s = -1,1,2
-                if ( abs(c_io(i,pjpan+s,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i,pjpan+s,n,ipf,k)
-                  ccount = ccount + 1
-                end if
-                if ( abs(c_io(i+s,pjpan,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i+s,pjpan,n,ipf,k)
-                  ccount = ccount + 1
-                end if
-              end do
+              if ( abs(c_io(i,pjpan-1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,pjpan-1,n,ipf,k)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i,pjpan+1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,pjpan+1,n,ipf,k)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i-1,pjpan,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i-1,pjpan,n,ipf,k)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(i+1,pjpan,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+1,pjpan,n,ipf,k)
+                ccount = ccount + 1
+              end if
               if ( ccount>0 ) then        
                 a_io(cc+i,k) = csum/real(ccount)
               end if
             end if
           end do
-          do j = 2,pjpan-1
+          do concurrent (j = 2:pjpan-1)
             cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
             if ( abs(a_io(cc+1,k)-value)<1.e-20 ) then
               csum = 0.
               ccount = 0
-              do s = -1,1,2
-                if ( abs(c_io(1,j+s,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(1,j+s,n,ipf,k)
-                  ccount = ccount + 1
-                end if
-                if ( abs(c_io(1+s,j,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(1+s,j,n,ipf,k)
-                  ccount = ccount + 1
-                end if
-              end do
+              if ( abs(c_io(1,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(1,j-1,n,ipf,k)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(1,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(1,j+1,n,ipf,k)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(0,j,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(0,j,n,ipf,k)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(2,j,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(2,j,n,ipf,k)
+                ccount = ccount + 1
+              end if
               if ( ccount>0 ) then        
                 a_io(cc+1,k) = csum/real(ccount)
               end if
@@ -2568,16 +2628,22 @@ do while ( any(nrem(:)>0) )
             if ( abs(a_io(cc+pipan,k)-value)<1.e-20 ) then
               csum = 0.
               ccount = 0
-              do s = -1,1,2
-                if ( abs(c_io(pipan,j+s,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(pipan,j+s,n,ipf,k)
-                  ccount = ccount + 1
-                end if
-                if ( abs(c_io(pipan+s,j,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(pipan+s,j,n,ipf,k)
-                  ccount = ccount + 1
-                end if
-              end do
+              if ( abs(c_io(pipan,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(pipan,j-1,n,ipf,k)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(pipan,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(pipan,j+1,n,ipf,k)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(pipan-1,j,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(pipan-1,j,n,ipf,k)
+                ccount = ccount + 1
+              end if
+              if ( abs(c_io(pipan+1,j,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(pipan+1,j,n,ipf,k)
+                ccount = ccount + 1
+              end if
               if ( ccount>0 ) then        
                 a_io(cc+pipan,k) = csum/real(ccount)
               end if

@@ -267,7 +267,7 @@ select case(nhorjlm)
     call boundsuv(uav,vav,allvec=.true.)
     do k = 1,kl
       do iq = 1,ifull
-        hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
+        hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
         dudx = 0.5*(uav(ieu(iq),k)-uav(iwu(iq),k))*em(iq)/ds
         dudy = 0.5*(uav(inu(iq),k)-uav(isu(iq),k))*em(iq)/ds
         dvdx = 0.5*(vav(iev(iq),k)-vav(iwv(iq),k))*em(iq)/ds
@@ -332,7 +332,7 @@ call bounds(t_kh,nehalf=.true.)
 do k = 1,kl
   xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
   yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
-end do
+end do  
 if ( nhorx==1 ) then
   do k = 1,kl
     xfact(1:ifull,k) = xfact(1:ifull,k)*tx_fact(1:ifull)

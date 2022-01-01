@@ -2013,7 +2013,7 @@ CONTAINS
     k = 0
 
 
-    !kdcorbin, 08/10 - doing all points all the time
+    !kdcorbin, 08/10 - doing all points all the time    
     DO WHILE (k < C%MAXITER)
        k = k + 1
        DO i=1,mp

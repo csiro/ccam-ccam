@@ -5129,14 +5129,15 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 
             if ( nstreams==1 ) then
 
+              rlayerdir = 0.
+              tlayerdir = 0.
+              tlayerde = 0.
+              rlayerdif = 0.
+              tlayerdif = 0.
+                
               do k=1,kx
                 do j=1,jx
                   do nn=1,ix
-                    rlayerdir(nn,j,k) = 0.
-                    tlayerdir(nn,j,k) = 0.
-                    tlayerde(nn,j,k) = 0.
-                    rlayerdif(nn,j,k) = 0.
-                    tlayerdif(nn,j,k) = 0.
 
                     if ( ltest(nn,j,k) ) then      
 
@@ -5162,8 +5163,8 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                       rr4 = 1.0/rr3
                       rr5 = 1.0/(qq6 * rr4 - qq7 * rr3 * rr2 )
 
-                      tmp   = 1.0 - (qq4*ww4) ** 2
-                      if ( abs(tmp)<1.e-20 ) tmp=1.e-20 ! MJT suggestion
+                      tmp = 1.0 - (qq4*ww4) ** 2
+                      tmp = sign(1.,tmp)*max(abs(tmp),1.e-20) ! MJT suggestion
                       ss1 = 0.75 * ww1/tmp
                       ss2 = ss1*ww4*( 1.0 + ww2*qq1*onedi3)
                       ss3 = ss1*(1.0 + ww2*qq1*ww4** 2 )
@@ -5212,15 +5213,16 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
               end do
 
             else    
+
+              rlayerdir = 0.
+              tlayerdir = 0.
+              tlayerde = 0.
+              rlayerdif = 0.
+              tlayerdif = 0.
                 
               do k=1,kx
                 do j=1,jx
                   do nn=1,ix
-                    rlayerdir(nn,j,k) = 0.
-                    tlayerdir(nn,j,k) = 0.
-                    tlayerde(nn,j,k) = 0.
-                    rlayerdif(nn,j,k) = 0.
-                    tlayerdif(nn,j,k) = 0.
                     if ( ltest(nn,j,k) ) then     
 
 !----------------------------------------------------------------------c
@@ -5245,8 +5247,8 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                       rr4 = 1.0/rr3
                       rr5 = 1.0/(qq6 * rr4 - qq7 * rr3 * rr2 )
 
-                      tmp   = 1.0 - (qq4*ww4) ** 2
-                      if ( abs(tmp)<1.e-20 ) tmp=1.e-20 ! MJT suggestion
+                      tmp = 1.0 - (qq4*ww4) ** 2
+                      tmp = sign(1.,tmp)*max(abs(tmp),1.e-20) ! MJT suggestion
                       ss1 = 0.75 * ww1/tmp
                       ss2 = ss1*ww4*( 1.0 + ww2*qq1*onedi3)
                       ss3 = ss1*(1.0 + ww2*qq1*ww4** 2 )
@@ -5303,13 +5305,14 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
             end if
              
           else
+
+            rlayerdir = 0.
+            tlayerdir = 0.
+            tlayerde = 0.
               
             do k=1,kx
               do j=1,jx
                 do nn=1,ix 
-                  rlayerdir(nn,j,k) = 0.
-                  tlayerdir(nn,j,k) = 0.
-                  tlayerde(nn,j,k) = 0.
                   if ( ltest(nn,j,k) ) then 
 
 !----------------------------------------------------------------------c
@@ -5334,8 +5337,8 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                     rr4 = 1.0/rr3
                     rr5 = 1.0/(qq6 * rr4 - qq7 * rr3 * rr2 )
 
-                    tmp   = 1.0 - (qq4*ww4) ** 2
-                    if ( abs(tmp)<1.e-20 ) tmp=1.e-20 ! MJT suggestion
+                    tmp = 1.0 - (qq4*ww4) ** 2
+                    tmp = sign(1.,tmp)*max(abs(tmp),1.e-20) ! MJT suggestion
                     ss1 = 0.75 * ww1/tmp
                     ss2 = ss1*ww4*( 1.0 + ww2*qq1*onedi3)
                     ss3 = ss1*(1.0 + ww2*qq1*ww4** 2 )
@@ -5370,4 +5373,4 @@ end subroutine deledd
 !#####################################################################
 
 
-                   end module esfsw_driver_mod
+end module esfsw_driver_mod

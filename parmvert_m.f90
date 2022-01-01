@@ -26,6 +26,8 @@ implicit none
 private
 public ntvd
 
-integer, save :: ntvd=2
+integer, save :: ntvd=2   !  2 MC phi flux-limiter
+!                            3 superbee flux-limiter (usual)
+
 
 end module parmvert_m

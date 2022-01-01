@@ -1056,8 +1056,7 @@ subroutine unpack_coupled(deptho_dz,deptho_dz_hl,rad_o,                   &
                           imass,fracice,cd_ice,cdbot_ice,ibot,imax,tile)
 
 use mlo, only : mloexport, mloexpdep, mlodiag, mloexpice, mlodiagice, wlev, &
-                water_g, dgwater_g, ice_g, dgice_g, wpack_g, wfull_g,       &
-                depth_g, minwater
+                water_g, dgwater_g, ice_g, dgice_g, depth_g, minwater
 
 implicit none
 
@@ -1074,18 +1073,18 @@ real, dimension(imax), intent(out) :: i_u, i_v, imass, cd_ice, cdbot_ice
 real, dimension(imax) :: d_zcr, rbot, neta, deptho_max
 
 neta = 0.
-call mloexport("eta",neta,0,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+call mloexport("eta",neta,0,0,water_g(tile),depth_g(tile))
 deptho_max = 0.
-call mloexpdep("depth_hl",deptho_max,wlev+1,0,depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+call mloexpdep("depth_hl",deptho_max,wlev+1,0,depth_g(tile))
 
 d_zcr = max( 1. + neta/max(deptho_max,1.e-4), minwater/max(deptho_max,1.e-4) )
 
 do k = 1,wlev
-  call mloexpdep("depth_dz_fl",deptho_dz(:,k),k,0,depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+  call mloexpdep("depth_dz_fl",deptho_dz(:,k),k,0,depth_g(tile))
   deptho_dz(:,k) = deptho_dz(:,k)*d_zcr
 end do
 do k = 2,wlev
-  call mloexpdep("depth_dz_hl",deptho_dz_hl(:,k),k,0,depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+  call mloexpdep("depth_dz_hl",deptho_dz_hl(:,k),k,0,depth_g(tile))
   deptho_dz_hl(:,k) = deptho_dz_hl(:,k)*d_zcr
 end do
 
@@ -1098,54 +1097,54 @@ wt0eg_o = 0.
 wt0fb_o = 0.
 ws0_o = 0.
 ws0subsurf_o = 0.
-call mlodiag("cd",cd_water,0,0,dgwater_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiag("cdh",cdh_water,0,0,dgwater_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiag("cd_bot",cdbot_water,0,0,dgwater_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiag("wt0_rad",wt0rad_o,0,0,dgwater_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiag("wt0_melt",wt0melt_o,0,0,dgwater_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiag("wt0_eg",wt0eg_o,0,0,dgwater_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiag("wt0_fb",wt0fb_o,0,0,dgwater_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiag("ws0",ws0_o,0,0,dgwater_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiag("ws0_subsurf",ws0subsurf_o,0,0,dgwater_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+call mlodiag("cd",cd_water,0,0,dgwater_g(tile),depth_g(tile))
+call mlodiag("cdh",cdh_water,0,0,dgwater_g(tile),depth_g(tile))
+call mlodiag("cd_bot",cdbot_water,0,0,dgwater_g(tile),depth_g(tile))
+call mlodiag("wt0_rad",wt0rad_o,0,0,dgwater_g(tile),depth_g(tile))
+call mlodiag("wt0_melt",wt0melt_o,0,0,dgwater_g(tile),depth_g(tile))
+call mlodiag("wt0_eg",wt0eg_o,0,0,dgwater_g(tile),depth_g(tile))
+call mlodiag("wt0_fb",wt0fb_o,0,0,dgwater_g(tile),depth_g(tile))
+call mlodiag("ws0",ws0_o,0,0,dgwater_g(tile),depth_g(tile))
+call mlodiag("ws0_subsurf",ws0subsurf_o,0,0,dgwater_g(tile),depth_g(tile))
 
 w_t = 0.
 w_s = 0.
 w_u = 0.
 w_v = 0.
 do k = 1,wlev
-  call mloexport("temp",w_t(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-  call mloexport("sal",w_s(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-  call mloexport("u",w_u(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-  call mloexport("v",w_v(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-  call mlodiag("rad",rad_o(:,k),k,0,dgwater_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+  call mloexport("temp",w_t(:,k),k,0,water_g(tile),depth_g(tile))
+  call mloexport("sal",w_s(:,k),k,0,water_g(tile),depth_g(tile))
+  call mloexport("u",w_u(:,k),k,0,water_g(tile),depth_g(tile))
+  call mloexport("v",w_v(:,k),k,0,water_g(tile),depth_g(tile))
+  call mlodiag("rad",rad_o(:,k),k,0,dgwater_g(tile),depth_g(tile))
 end do
 
 rbot = 0.
-call mloexport("ibot",rbot,0,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+call mloexport("ibot",rbot,0,0,water_g(tile),depth_g(tile))
 ibot = nint(rbot)
 
 i_u = 0.
 i_v = 0.
 fracice = 0.
-call mloexpice("u",i_u,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mloexpice("v",i_v,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mloexpice("fracice",fracice,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
+call mloexpice("u",i_u,0,ice_g(tile),depth_g(tile))
+call mloexpice("v",i_v,0,ice_g(tile),depth_g(tile))
+call mloexpice("fracice",fracice,0,ice_g(tile),depth_g(tile))
 
 icefg_a = 0.
 imass = 100.
 cd_ice = 0.
 cdbot_ice = 0.
-call mlodiagice("fg",icefg_a,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiagice("mass",imass,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiagice("cd",cd_ice,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlodiagice("cd_bot",cdbot_ice,0,dgice_g(tile),wpack_g(:,tile),wfull_g(tile))
+call mlodiagice("fg",icefg_a,0,dgice_g(tile),depth_g(tile))
+call mlodiagice("mass",imass,0,dgice_g(tile),depth_g(tile))
+call mlodiagice("cd",cd_ice,0,dgice_g(tile),depth_g(tile))
+call mlodiagice("cd_bot",cdbot_ice,0,dgice_g(tile),depth_g(tile))
 
 return
 end subroutine unpack_coupled
 
 subroutine pack_coupled_ts(w_t,w_s,imax,tile)
 
-use mlo, only : mloimport, mloimpice, wlev, water_g, depth_g, wpack_g, wfull_g
+use mlo, only : mloimport, mloimpice, wlev, water_g, depth_g
 
 implicit none
 
@@ -1154,8 +1153,8 @@ integer k
 real, dimension(imax,wlev), intent(in) :: w_t, w_s
 
 do k = 1,wlev
-  call mloimport("temp",w_t(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-  call mloimport("sal",w_s(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+  call mloimport("temp",w_t(:,k),k,0,water_g(tile),depth_g(tile))
+  call mloimport("sal",w_s(:,k),k,0,water_g(tile),depth_g(tile))
 end do
 
 return
@@ -1163,7 +1162,7 @@ end subroutine pack_coupled_ts
 
 subroutine pack_coupled_uv(w_u,w_v,i_u,i_v,imax,tile)
 
-use mlo, only : mloimport, mloimpice, wlev, water_g, ice_g, depth_g, wpack_g, wfull_g
+use mlo, only : mloimport, mloimpice, wlev, water_g, ice_g, depth_g
 
 implicit none
 
@@ -1173,12 +1172,12 @@ real, dimension(imax,wlev), intent(in) :: w_u, w_v
 real, dimension(imax), intent(in) :: i_u, i_v
 
 do k = 1,wlev
-  call mloimport("u",w_u(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
-  call mloimport("v",w_v(:,k),k,0,water_g(tile),depth_g(tile),wpack_g(:,tile),wfull_g(tile))
+  call mloimport("u",w_u(:,k),k,0,water_g(tile),depth_g(tile))
+  call mloimport("v",w_v(:,k),k,0,water_g(tile),depth_g(tile))
 end do
 
-call mloimpice("u",i_u,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mloimpice("v",i_v,0,ice_g(tile),wpack_g(:,tile),wfull_g(tile))
+call mloimpice("u",i_u,0,ice_g(tile),depth_g(tile))
+call mloimpice("v",i_v,0,ice_g(tile),depth_g(tile))
 
 return
 end subroutine pack_coupled_uv
@@ -1203,7 +1202,7 @@ subroutine update_coupled(thetal,qvg,qlg,qfg,stratcloud,ua,va,    &
 #endif
                           ddts,imax,kl,tile)
 
-use mlo, only : wlev, mlo_updatekm, dgwater_g, wpack_g, wfull_g,          &
+use mlo, only : wlev, mlo_updatekm, dgwater_g,                            &
                 mlo_updatediag, water_g, turb_g, wrtemp, cp0, depth_g,    &
                 cdbot, wrtrho, ice_g, mlocheck, minsfc
                           
@@ -1286,7 +1285,7 @@ rhs_o = 0.
 
 ! update ocean eddy diffusivity possibly including prognostic tke and eps
 call mlo_updatekm(km_o,ks_o,gammas_o,ddts,0,depth_g(tile),ice_g(tile),dgwater_g(tile),water_g(tile), &
-                  turb_g(tile),wpack_g(:,tile),wfull_g(tile))
+                  turb_g(tile))
 where ( deptho_dz(:,1)>1.e-4 )
   rhs_o(:,1) = ks_o(:,2)*gammas_o(:,2)/deptho_dz(:,1)
 end where
@@ -1403,7 +1402,7 @@ where ( .not.land(1:imax) )
   wt0_o = wt0rad_o + wt0melt_o + wt0eg_o + wt0fb_o &
          + (1.-fracice)*t1*(w_t(:,1)+wrtemp-thetal(:,1)-sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp)/(wrtrho*cp0)
 end where 
-call mlo_updatediag("wt0",wt0_o,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
+call mlo_updatediag("wt0",wt0_o,0,dgwater_g(tile),depth_g(tile))
 
 #ifdef scm  
 wthlflux(:,1)=fg/(rhos*cp)  ! theta flux
@@ -1687,8 +1686,8 @@ wu0_o = -(1.-fracice)*rhoa1*cd_water*(ua(:,1)-w_u(:,1))/wrtrho
 wv0_o = -(1.-fracice)*rhoa1*cd_water*(va(:,1)-w_v(:,1))/wrtrho
 wu0_o = wu0_o + fracice*cdbot_ice*(w_u(:,1)-i_u(:))
 wv0_o = wv0_o + fracice*cdbot_ice*(w_v(:,1)-i_v(:))
-call mlo_updatediag("wu0",wu0_o,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
-call mlo_updatediag("wv0",wv0_o,0,dgwater_g(tile),wpack_g(:,tile),wfull_g(tile))
+call mlo_updatediag("wu0",wu0_o,0,dgwater_g(tile),depth_g(tile))
+call mlo_updatediag("wv0",wv0_o,0,dgwater_g(tile),depth_g(tile))
 
 call mlocheck("Coupled-mixing",water_temp=w_t,water_sal=w_s,water_u=w_u, &
               water_v=w_v,ice_u=i_u,ice_v=i_v)

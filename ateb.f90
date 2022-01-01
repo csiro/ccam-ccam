@@ -3221,7 +3221,6 @@ integer, intent(in) :: is,ifin,diag
 integer ib,ie,ifinish
 integer tile, js, je, kstart, kfinish, jstart, jfinish
 real, dimension(ifin), intent(in) :: sg,cosin
-! use imax as maximum wfull_g
 real, dimension(imax) :: tmpr,tmpk,tmprat
 real, dimension(imax) :: lsg,lcosin
 real, intent(in) :: fjd
@@ -3288,10 +3287,13 @@ implicit none
 integer, intent(in) :: is,ifin,diag
 integer ucount,ib,ie,ifinish,albmode
 integer tile, js, je, kstart, kfinish, jstart, jfinish
+integer ifrac
 integer, intent(in), optional :: split
 real, dimension(ifin), intent(inout) :: alb
-! use imax as maximum wfull_g
 real, dimension(imax) :: ualb,utmp
+real, dimension(imax) :: dumfbeam,snowdeltac,snowdeltar
+real, dimension(imax) :: tmpalb,wallpsi,roadpsi
+real, dimension(imax) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
 logical, intent(in), optional :: raw
 logical outmode
 
@@ -3321,7 +3323,45 @@ do tile = 1,ntiles
       if ( ib<=ie ) then
 
         ucount = ie - ib + 1  
-        call atebalbcalc(ib,ucount,tile,ualb(ib:ie),albmode,diag)
+
+        select case(albmode)
+          case default ! net albedo
+            dumfbeam(ib:ie)=f_g(tile)%fbeam(ib:ie)
+          case(1)      ! direct albedo
+            dumfbeam(ib:ie)=1.
+          case(2)      ! diffuse albedo
+            dumfbeam(ib:ie)=0.
+        end select
+
+        ualb(ib:ie) = 0.  
+        do ifrac = 1,nfrac  
+  
+          ! roof
+          snowdeltar(ib:ie)=rfhyd_g(ifrac,tile)%snow(ib:ie)/(rfhyd_g(ifrac,tile)%snow(ib:ie)+maxrfsn)
+  
+          ! canyon
+          snowdeltac(ib:ie)=rdhyd_g(ifrac,tile)%snow(ib:ie)/(rdhyd_g(ifrac,tile)%snow(ib:ie)+maxrdsn)
+          call getswcoeff(sg_roof(ib:ie),sg_vegr(ib:ie),sg_road(ib:ie),sg_walle(ib:ie),sg_wallw(ib:ie),      &
+                          sg_vegc(ib:ie),sg_rfsn(ib:ie),sg_rdsn(ib:ie),wallpsi(ib:ie),roadpsi(ib:ie),        &
+                          f_g(tile)%hwratio(ib:ie),f_g(tile)%effhwratio(ib:ie),f_g(tile)%vangle(ib:ie),      &
+                          f_g(tile)%hangle(ib:ie),dumfbeam(ib:ie),cnveg_g(tile)%sigma(ib:ie),                &
+                          f_road(tile)%alpha(ib:ie),cnveg_g(tile)%alpha(ib:ie),f_wall(tile)%alpha(ib:ie),    &
+                          rdhyd_g(ifrac,tile)%snowalpha(ib:ie),snowdeltac(ib:ie))
+          sg_walle(ib:ie)=sg_walle(ib:ie)*f_g(tile)%coeffbldheight(ib:ie)
+          sg_wallw(ib:ie)=sg_wallw(ib:ie)*f_g(tile)%coeffbldheight(ib:ie)
+
+          call getnetalbedo(tmpalb(ib:ie),sg_roof(ib:ie),sg_vegr(ib:ie),sg_road(ib:ie),sg_walle(ib:ie),       &
+                            sg_wallw(ib:ie),sg_vegc(ib:ie),sg_rfsn(ib:ie),sg_rdsn(ib:ie),                     &
+                            f_g(tile)%hwratio(ib:ie),f_g(tile)%sigmabld(ib:ie),rfveg_g(tile)%sigma(ib:ie),    &
+                            f_roof(tile)%alpha(ib:ie),rfveg_g(tile)%alpha(ib:ie),                             &
+                            cnveg_g(tile)%sigma(ib:ie),f_road(tile)%alpha(ib:ie),                             &
+                            f_wall(tile)%alpha(ib:ie),cnveg_g(tile)%alpha(ib:ie),                             &
+                            rfhyd_g(ifrac,tile)%snowalpha(ib:ie),rdhyd_g(ifrac,tile)%snowalpha(ib:ie),        &
+                            snowdeltar(ib:ie),snowdeltac(ib:ie))
+
+          ualb(ib:ie) = ualb(ib:ie) + tmpalb(ib:ie)*p_g(ifrac,tile)%frac_sigma(ib:ie)
+        end do  
+
 
         if (outmode) then
           alb(jstart:jfinish)=unpack(ualb(ib:ie),upack_g(kstart:kfinish,tile),alb(jstart:jfinish))
@@ -3338,65 +3378,6 @@ end do
 
 return
 end subroutine atebalb1
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Albedo calculations
-
-subroutine atebalbcalc(is,ifin,tile,alb,albmode,diag)
-
-implicit none
-
-integer, intent(in) :: is,ifin,tile,diag,albmode
-integer ie, ifrac
-real, dimension(ifin), intent(out) :: alb
-real, dimension(ifin) :: tmpalb
-real, dimension(ifin) :: snowdeltac, snowdeltar
-real, dimension(ifin) :: wallpsi,roadpsi
-real, dimension(ifin) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
-real, dimension(ifin) :: dumfbeam
-
-if ( diag>=1 ) write(6,*) "Calculate urban albedo"
-
-ie = ifin + is - 1
-
-select case(albmode)
-  case default ! net albedo
-    dumfbeam=f_g(tile)%fbeam(is:ie)
-  case(1)      ! direct albedo
-    dumfbeam=1.
-  case(2)      ! diffuse albedo
-    dumfbeam=0.
-end select
-
-alb = 0.  
-do ifrac = 1,nfrac  
-  
-  ! roof
-  snowdeltar=rfhyd_g(ifrac,tile)%snow(is:ie)/(rfhyd_g(ifrac,tile)%snow(is:ie)+maxrfsn)
-  
-  ! canyon
-  snowdeltac=rdhyd_g(ifrac,tile)%snow(is:ie)/(rdhyd_g(ifrac,tile)%snow(is:ie)+maxrdsn)
-  call getswcoeff(sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi, &
-                  f_g(tile)%hwratio(is:ie),f_g(tile)%effhwratio(is:ie),f_g(tile)%vangle(is:ie),      &
-                  f_g(tile)%hangle(is:ie),dumfbeam,cnveg_g(tile)%sigma(is:ie),                       &
-                  f_road(tile)%alpha(is:ie),cnveg_g(tile)%alpha(is:ie),f_wall(tile)%alpha(is:ie),    &
-                  rdhyd_g(ifrac,tile)%snowalpha(is:ie),snowdeltac)
-  sg_walle=sg_walle*f_g(tile)%coeffbldheight(is:ie)
-  sg_wallw=sg_wallw*f_g(tile)%coeffbldheight(is:ie)
-
-  call getnetalbedo(tmpalb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,         &
-                    f_g(tile)%hwratio(is:ie),f_g(tile)%sigmabld(is:ie),rfveg_g(tile)%sigma(is:ie),    &
-                    f_roof(tile)%alpha(is:ie),rfveg_g(tile)%alpha(is:ie),                             &
-                    cnveg_g(tile)%sigma(is:ie),f_road(tile)%alpha(is:ie),                             &
-                    f_wall(tile)%alpha(is:ie),cnveg_g(tile)%alpha(is:ie),                             &
-                    rfhyd_g(ifrac,tile)%snowalpha(is:ie),rdhyd_g(ifrac,tile)%snowalpha(is:ie),        &
-                    snowdeltar,snowdeltac)
-
-  alb = alb + tmpalb*p_g(ifrac,tile)%frac_sigma
-end do  
-
-return
-end subroutine atebalbcalc
 
 subroutine getnetalbedo(alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,  &
                         fp_hwratio,fp_sigmabld,fp_vegsigmar,fp_roofalpha,fp_vegalphar,          &
@@ -3484,7 +3465,6 @@ integer tile, js, je, kstart, kfinish, jstart, jfinish
 real, intent(in) :: fjd,slag,dt,sdlt
 real cdlt
 real, dimension(ifin), intent(in) :: cosin,rlon,rlat
-! use imax as maximum wfull_g
 real, dimension(imax) :: hloc,x,y,lattmp
 
 ! cosin = cosine of zenith angle

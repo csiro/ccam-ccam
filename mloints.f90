@@ -53,7 +53,6 @@ real, dimension(:,:), intent(inout) :: s
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev) :: sx
 real, dimension(ifull+iextra,wlev) :: s_old
 real, dimension(ifull,wlev) :: s_store
-real, dimension(4) :: s_test
 real s_tot
 real cmax, cmin, xxg, yyg
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
@@ -61,7 +60,6 @@ real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real, parameter :: cxx = -9999. ! missing value flag
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
 logical, intent(in) :: sal_test
-logical, dimension(4) :: l_test
 
 call START_LOG(waterints_begin)
 
@@ -86,19 +84,30 @@ end if
 do ii = 1,3 ! 3 iterations of fill should be enough
   s_old(1:ifull,:) = s(1:ifull,:)
   call bounds(s_old)
-  do k = 1,wlev
-    do iq = 1,ifull
+  do concurrent (k = 1:wlev)
+    do concurrent (iq = 1:ifull)
       if ( s(iq,k)<cxx ) then
-        s_test(1) = s_old(is(iq),k)  
-        s_test(2) = s_old(in(iq),k)
-        s_test(3) = s_old(ie(iq),k)
-        s_test(4) = s_old(iw(iq),k)
-        l_test(:) = s_test(:)>cxx
-        s_count = count( l_test )
-        if ( s_count>0 ) then
-          s_tot = sum( s_test(:), l_test(:) )  
-          s(iq,k) = s_tot/real(s_count)
+        s_tot = 0.
+        s_count = 0
+        if ( s_old(is(iq),k)>=cxx ) then
+          s_tot = s_tot + s_old(is(iq),k)
+          s_count = s_count + 1
         end if
+        if ( s_old(in(iq),k)>=cxx ) then
+          s_tot = s_tot + s_old(in(iq),k)
+          s_count = s_count + 1
+        end if
+        if ( s_old(iw(iq),k)>=cxx ) then
+          s_tot = s_tot + s_old(iw(iq),k)
+          s_count = s_count + 1
+        end if
+        if ( s_old(ie(iq),k)>=cxx ) then
+          s_tot = s_tot + s_old(ie(iq),k)
+          s_count = s_count + 1
+        end if
+        if ( s_count>0 ) then
+          s(iq,k) = s_tot/real(s_count)
+        end if  
       end if
     end do
   end do

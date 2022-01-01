@@ -985,7 +985,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     
   ! Flush trace information to disk to save memory.
   call log_flush()
-
     
 end do                  ! *** end of main time loop
   
