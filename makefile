@@ -423,22 +423,22 @@ casa_variable.o: casa_variable.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 POP.o: POP.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
-#estab.o: estab.f90
-#	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
-#helmsolve.o: helmsolve.f90
-#	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
-#ints.o: ints.f90
-#	$(FC) -c $(FFLAGS) $(IPFLAG) $(ZMM) $(PPFLAG90) $<
-#leoncld.o: leoncld.f90
-#	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
+estab.o: estab.f90
+	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
+helmsolve.o: helmsolve.f90
+	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
+ints.o: ints.f90
+	$(FC) -c $(FFLAGS) $(IPFLAG) $(ZMM) $(PPFLAG90) $<
+leoncld.o: leoncld.f90
+	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 seaesfrad.o: seaesfrad.f90
 	$(FC) -c $(FFLAGS) $(VTHRESH) $(PPFLAG90) $<
 stacklimit.o: stacklimit.c
 	$(CC) -c stacklimit.c
-#tkeeps.o: tkeeps.f90
-#	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
-#vertmix.o: vertmix.f90
-#	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
+tkeeps.o: tkeeps.f90
+	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
+vertmix.o: vertmix.f90
+	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 version.h: FORCE
 	rm -f brokenver tmpver
 	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
@@ -477,7 +477,7 @@ cable_constants.o : cable_define_types.o
 cable_data.o : cable_constants.o
 cable_gw_hydro.o : cable_define_types.o cable_common.o cable_soilsnow.o cable_data.o
 cable_optimiseJVratio.o : cable_canopy.o cable_data.o cable_define_types.o POP.o
-cable_pft_parms.o : cable_define_types.o
+cable_pft_params.o : cable_define_types.o
 cable_psm.o : cable_common.o cable_define_types.o
 cable_radiation.o : cable_common.o cable_data.o cable_define_types.o
 cable_roughness.o : cable_common.o cable_data.o cable_define_types.o
@@ -486,7 +486,7 @@ cable_sli_numbers.o : cable_define_types.o
 cable_sli_roots.o : cable_define_types.o cable_sli_numbers.o
 cable_sli_solve.o : cable_define_types.o cable_sli_numbers.o cable_sli_utils.o
 cable_sli_utils.o : cable_define_types.o cable_sli_numbers.o
-cable_soil_parms.o : cable_define_types.o
+cable_soil_params.o : cable_define_types.o
 cable_soilsnow.o : cable_common.o cable_data.o cable_define_types.o parm_m.o
 carbpools_m.o : cable_define_types.o casa_variable.o parm_m.o
 casa_cnp.o : cable_define_types.o casa_variable.o

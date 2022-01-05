@@ -10353,8 +10353,10 @@ contains
       ! Previously deallocating memory triggered bugs in the MPI library
       ! Here we will leave the memory allocated for now and deallocate
       ! just before mpi_finalize with ccmpi_filewinfinalize_exit
-      if ( nodefile_count <= size(nodefilesave_win) ) then
-         nodefilesave_win(nodefile_count) = nodefile_win
+      if ( nodefile_count > 0 ) then
+         if ( nodefile_count <= size(nodefilesave_win) ) then
+            nodefilesave_win(nodefile_count) = nodefile_win
+         end if   
       end if   
       !call ccmpi_freeshdata(nodefile_win)
 #else

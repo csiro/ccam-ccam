@@ -2027,6 +2027,15 @@ do jk = 1,kl
   end do
 end do
 
+! Search for convective cloud base
+!kbase(:) = kl+1
+!do jk = ktop,kl
+!  where ( pclcon(:,jk)>zmin )
+!    kbase(:) = k
+!  end where
+!enddo
+
+
 !     BEGIN OF VERTICAL LOOP
 do JK = KTOP,kl
 
@@ -2203,25 +2212,9 @@ do JK = KTOP,kl
     zdepr(i) = zdepr(i) - xfreeze
     zdepr(i) = max( 0., zdepr(i) )
 
-  end do
-  
-end do !   END OF VERTICAL LOOP
 
 ! Now do the convective below-cloud bit...
 ! In-cloud convective bit was done in convjlm.
-
-! Search for convective cloud base
-!kbase(:) = kl+1
-!do jk = ktop,kl
-!  where ( pclcon(:,jk)>zmin )
-!    kbase(:) = k
-!  end where
-!enddo
-
-do jk = ktop,kl
-  do i = 1,imax
-    zmtof = rhodz(i,jk)*pqtmst
-    zclr0 = 1. - pclcover(i,jk) - pclcon(i,jk)
 
     ! Use collection efficiencies for rain below melting level, snow above
 
@@ -2271,12 +2264,6 @@ do jk = ktop,kl
     !   conwd(:,ktrac) = max( 0., conwd(:,ktrac) )
     ! end where
 
-  end do
-  
-end do
-
-do jk = ktop,kl
-  do i = 1,imax
     ZXTP1=(1.-pclcover(i,jk)-pclcon(i,jk))*PXTP10(i,JK)+ &
               PCLCOVER(i,JK)*PXTP1C(i,JK)+               &
               pclcon(i,jk)*pxtp1con(i,jk)
