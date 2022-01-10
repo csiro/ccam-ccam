@@ -360,7 +360,6 @@ eov      = 0.            ! working array
 cc       = 0.
 
 ! EXPORT WATER AND ICE DATA FROM MLO ------------------------------------------
-call START_LOG(waterunpack_begin)
 call mloexport3d(0,w_t,0)
 call mloexport3d(1,w_s,0)
 call mloexport3d(2,w_u,0)
@@ -381,7 +380,6 @@ where ( wtr(1:ifull,1) )
   sicedep(1:ifull) = ndic(1:ifull)
   snowd(1:ifull)   = ndsn(1:ifull)*1000.
 end where  
-call END_LOG(waterunpack_end)
 
 ! estimate tidal forcing (assumes leap days)
 if ( usetide==1 ) then
@@ -1306,7 +1304,6 @@ call mlodiffusion_work(w_u,w_v,w_t,w_s)
 call mlocheck("after diffusion",water_temp=w_t,water_sal=w_s,water_u=w_u,water_v=w_v)
 
 ! STORE WATER AND ICE DATA IN MLO ------------------------------------------
-call START_LOG(waterpack_begin)
 do ii = 1,wlev
   call mloimport("temp",w_t(:,ii),ii,0)
   call mloimport("sal",w_s(:,ii),ii,0)
@@ -1330,7 +1327,6 @@ where ( wtr(1:ifull,1) )
   sicedep = ndic(1:ifull)
   snowd = ndsn(1:ifull)*1000.
 end where
-call END_LOG(waterpack_end)
 
 return
 end subroutine mlohadv

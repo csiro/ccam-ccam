@@ -3952,12 +3952,12 @@ type(icedata), intent(in) :: ice
 type(waterdata), intent(in) :: water
 type(depthdata), intent(in) :: depth
 real, dimension(imax) :: qsat,dqdt,ri,rho,srcp
-real, dimension(imax) :: fm,fh,fq,con,consea,afroot,af,daf
-real, dimension(imax) :: den,dfm,dden,dcon,sig,factch,root
-real, dimension(imax) :: aft,afq,atu,atv,dcs,facqch
+real, dimension(imax) :: af, aft, afq, factch, facqch
+real, dimension(imax) :: atu, atv
 real, dimension(imax) :: vmagn,egmax,d_wavail,dumwatertemp
-real, dimension(imax) :: dumazmin, dumazmins
 real ztv, umag, uoave, voave
+real consea, dumazmin, afroot, daf, fm, con, dcon, dden
+real dfm, den, dcs, sig, root, dumazmins, fh, fq
 ! momentum flux parameters
 real, parameter :: charnck = 0.018
 real, parameter :: chn10   = 0.00125
@@ -3974,70 +3974,73 @@ real, parameter :: zcoq2 = 0.62
 if (diag>=1.and.ntiles==1) write(6,*) "Calculate ocean fluxes"
 
 dumwatertemp=max(water%temp(:,1)+wrtemp,271.)
-sig=exp(-grav*max(atm_zmins,3.)/(rdry*atm_temp))
-srcp=sig**(rdry/cpair)
+do iqw = 1,imax
+  sig = exp(-grav*max(atm_zmins(iqw),3.)/(rdry*atm_temp(iqw)))
+  srcp(iqw) = sig**(rdry/cpair)
+end do  
 atu=atm_u-fluxwgt*water%u(:,1)-(1.-fluxwgt)*water%utop
 atv=atm_v-fluxwgt*water%v(:,1)-(1.-fluxwgt)*water%vtop
-vmagn=sqrt(max(atu*atu+atv*atv,1.e-4))
+vmagn=sqrt(max(atu**2+atv**2,1.e-4))
 rho=atm_ps/(rdry*dumwatertemp)
 ri=min(grav*(max(atm_zmin,3.)*max(atm_zmin,3.)/max(atm_zmins,3.))*(1.-dumwatertemp*srcp/atm_temp)/vmagn**2,rimax)
 
 call getqsat(qsat,dqdt,dumwatertemp,atm_ps)
-if (zomode==0) then ! CSIRO9
-  qsat=0.98*qsat ! with Zeng 1998 for sea water
-end if
+if (zomode==0) qsat=0.98*qsat ! with Zeng 1998 for sea water
 
 select case(zomode)
   case(0,1) ! Charnock
-    consea=vmagn*charnck/grav
-    dgwater%zo=0.001    ! first guess
-    do it=1,4
-      dumazmin=max(atm_zmin,dgwater%zo+0.2)
-      afroot=vkar/log(dumazmin/dgwater%zo)
-      af=afroot*afroot
-      daf=2.*af*afroot/(vkar*dgwater%zo)
-      where ( ri>=0. ) ! stable water points                                     
-        fm=1./(1.+bprm*ri)**2
-        con=consea*fm*vmagn
-        dcon=0.
-      elsewhere        ! unstable water points
-        den=1.+af*cms*2.*bprm*sqrt(-ri*dumazmin/dgwater%zo)
-        fm=1.-2.*bprm*ri/den
-        con=consea*fm*vmagn
-        dden=daf*cms*2.*bprm*sqrt(-ri*dumazmin/dgwater%zo)+af*cms*bprm*sqrt(-ri)*dumazmin &
-            /(sqrt(dumazmin/dgwater%zo)*dgwater%zo*dgwater%zo)
-        dfm=2.*bprm*ri*dden/(den*den)
-        dcon=consea*dfm*vmagn
-      end where
-      dgwater%zo=dgwater%zo-(dgwater%zo-con*af)/(1.-dcon*af-con*daf)
-      dgwater%zo=min(max(dgwater%zo,1.5e-5),6.)
+    do iqw = 1,imax
+      consea=vmagn(iqw)*charnck/grav
+      dgwater%zo(iqw)=0.001    ! first guess
+      do it=1,4
+        dumazmin=max(atm_zmin(iqw),dgwater%zo(iqw)+0.2)
+        afroot=vkar/log(dumazmin/dgwater%zo(iqw))
+        af(iqw)=afroot**2
+        daf=2.*af(iqw)*afroot/(vkar*dgwater%zo(iqw))
+        if ( ri(iqw)>=0. ) then ! stable water points                                     
+          fm=1./(1.+bprm*ri(iqw))**2
+          con=consea*fm*vmagn(iqw)
+          dcon=0.
+        else                    ! unstable water points
+          den=1.+af(iqw)*cms*2.*bprm*sqrt(-ri(iqw)*dumazmin/dgwater%zo(iqw))
+          fm=1.-2.*bprm*ri(iqw)/den
+          con=consea*fm*vmagn(iqw)
+          dden=daf*cms*2.*bprm*sqrt(-ri(iqw)*dumazmin/dgwater%zo(iqw))+af(iqw)*cms*bprm*sqrt(-ri(iqw))*dumazmin &
+              /(sqrt(dumazmin/dgwater%zo(iqw))*dgwater%zo(iqw)**2)
+          dfm=2.*bprm*ri(iqw)*dden/(den**2)
+          dcon=consea*dfm*vmagn(iqw)
+        end if
+        dgwater%zo(iqw)=dgwater%zo(iqw)-(dgwater%zo(iqw)-con*af(iqw))/(1.-dcon*af(iqw)-con*daf)
+        dgwater%zo(iqw)=min(max(dgwater%zo(iqw),1.5e-5),6.)
+      end do  ! iqw
     end do    ! it=1,4
   case(2) ! Beljaars
-    dgwater%zo=0.001    ! first guess
-    do it=1,4
-      dumazmin=max(atm_zmin,dgwater%zo+0.2)
-      afroot=vkar/log(dumazmin/dgwater%zo)
-      af=afroot**2
-      daf=2.*af*afroot/(vkar*dgwater%zo)
-      where ( ri>=0. ) ! stable water points
-        fm=1./(1.+bprm*ri)**2
-        consea=zcom1*vmagn**2*af*fm/grav+zcom2*gnu/(vmagn*sqrt(fm*af))
-        dcs=(zcom1*vmagn**2/grav-0.5*zcom2*gnu/(vmagn*sqrt(fm*af)*fm*af))*(fm*daf)
-      elsewhere        ! unstable water points
-        con=cms*2.*bprm*sqrt(-ri*dumazmin/dgwater%zo)
-        den=1.+af*con
-        fm=1.-2.*bprm*ri/den
-        dfm=2.*bprm*ri*(con*daf+af*cms*bprm*sqrt(-ri)*dumazmin/(sqrt(dumazmin/dgwater%zo)*dgwater%zo**2))/(den**2)
-        consea=zcom1*vmagn**2*af*fm/grav+zcom2*gnu/(vmagn*sqrt(fm*af))
-        dcs=(zcom1*vmagn**2/grav-0.5*zcom2*gnu/(vmagn*sqrt(fm*af)*fm*af))*(fm*daf+dfm*af)
-      end where
-      dgwater%zo=dgwater%zo-(dgwater%zo-consea)/(1.-dcs)      
-      dgwater%zo=min(max(dgwater%zo,1.5e-5),6.)
+    do iqw = 1,imax  
+      dgwater%zo(iqw)=0.001    ! first guess
+      do it=1,4
+        dumazmin=max(atm_zmin(iqw),dgwater%zo(iqw)+0.2)
+        afroot=vkar/log(dumazmin/dgwater%zo(iqw))
+        af(iqw)=afroot**2
+        daf=2.*af(iqw)*afroot/(vkar*dgwater%zo(iqw))
+        if ( ri(iqw)>=0. ) then ! stable water points
+          fm=1./(1.+bprm*ri(iqw))**2
+          consea=zcom1*vmagn(iqw)**2*af(iqw)*fm/grav+zcom2*gnu/(vmagn(iqw)*sqrt(fm*af(iqw)))
+          dcs=(zcom1*vmagn(iqw)**2/grav-0.5*zcom2*gnu/(vmagn(iqw)*sqrt(fm*af(iqw))*fm*af(iqw)))*(fm*daf)
+        else              ! unstable water points
+          con=cms*2.*bprm*sqrt(-ri(iqw)*dumazmin/dgwater%zo(iqw))
+          den=1.+af(iqw)*con
+          fm=1.-2.*bprm*ri(iqw)/den
+          dfm=2.*bprm*ri(iqw)*(con*daf+af(iqw)*cms*bprm*sqrt(-ri(iqw))*dumazmin &
+              /(sqrt(dumazmin/dgwater%zo(iqw))*dgwater%zo(iqw)**2))/(den**2)
+          consea=zcom1*vmagn(iqw)**2*af(iqw)*fm/grav+zcom2*gnu/(vmagn(iqw)*sqrt(fm*af(iqw)))
+          dcs=(zcom1*vmagn(iqw)**2/grav-0.5*zcom2*gnu/(vmagn(iqw)*sqrt(fm*af(iqw))*fm*af(iqw)))*(fm*daf+dfm*af(iqw))
+        end if
+        dgwater%zo(iqw)=dgwater%zo(iqw)-(dgwater%zo(iqw)-consea)/(1.-dcs)      
+        dgwater%zo(iqw)=min(max(dgwater%zo(iqw),1.5e-5),6.)
+      end do  ! iqw
     end do    ! it=1,4
 end select
-dumazmin=max(atm_zmin,dgwater%zo+0.2)
-afroot=vkar/log(dumazmin/dgwater%zo)
-af=afroot**2
+af=(vkar/log(max(atm_zmin,dgwater%zo+0.2)/dgwater%zo))**2
 
 select case(zomode)
   case(0) ! Charnock CSIRO9
@@ -4051,45 +4054,47 @@ select case(zomode)
   case(1) ! Charnock zot=zom
     dgwater%zoh=dgwater%zo
     dgwater%zoq=dgwater%zo
-    dumazmins=max(atm_zmins,dgwater%zo+0.2)
-    aft=(vkar/(log(dumazmins/dgwater%zo)))**2
+    aft=(vkar/(log(max(atm_zmins,dgwater%zo+0.2)/dgwater%zo)))**2
     afq=aft
     factch=1.
     facqch=1.
   case(2) ! Beljaars
     dgwater%zoh=max(zcoh1+zcoh2*gnu/(vmagn*sqrt(fm*af)),1.5E-7)
     dgwater%zoq=max(zcoq1+zcoq2*gnu/(vmagn*sqrt(fm*af)),1.5E-7)
-    dumazmins=max(atm_zmins,dgwater%zo+0.2,dgwater%zoh+0.2,dgwater%zoq+0.2)
-    aft=vkar**2/(log(dumazmins/dgwater%zo)*log(dumazmins/dgwater%zoh))
-    afq=vkar**2/(log(dumazmins/dgwater%zo)*log(dumazmins/dgwater%zoq))
+    do iqw = 1,imax
+      dumazmins=max(atm_zmins(iqw),dgwater%zo(iqw)+0.2,dgwater%zoh(iqw)+0.2,dgwater%zoq(iqw)+0.2)
+      aft(iqw)=vkar**2/(log(dumazmins/dgwater%zo(iqw))*log(dumazmins/dgwater%zoh(iqw)))
+      afq(iqw)=vkar**2/(log(dumazmins/dgwater%zo(iqw))*log(dumazmins/dgwater%zoq(iqw)))
+    end do  
     factch=sqrt(dgwater%zo/dgwater%zoh)
     facqch=sqrt(dgwater%zo/dgwater%zoq)
 end select
 
-where (ri>=0.)
-  fm=1./(1.+bprm*ri)**2  ! no zo contrib for stable
-  fh=fm
-  fq=fm
-elsewhere        ! ri is -ve
-  dumazmin=max(atm_zmin,dgwater%zo+0.2)
-  root=sqrt(-ri*dumazmin/dgwater%zo)
-  den=1.+cms*2.*bprm*af*root
-  fm=1.-2.*bprm*ri/den
-  dumazmins=max(atm_zmins,dgwater%zo+0.2)
-  root=sqrt(-ri*dumazmins/dgwater%zo)
-  den=1.+chs*2.*bprm*factch*aft*root
-  fh=1.-2.*bprm*ri/den
-  den=1.+chs*2.*bprm*facqch*afq*root
-  fq=1.-2.*bprm*ri/den
-end where
-
 ! update drag
-dgwater%cd=af*fm*vmagn
-dgwater%cdh=aft*fh*vmagn
-dgwater%cdq=afq*fq*vmagn
-dgwater%umod=vmagn
-
 do iqw = 1,imax
+  ! top  
+  if (ri(iqw)>=0.) then
+    fm=1./(1.+bprm*ri(iqw))**2  ! no zo contrib for stable
+    fh=fm
+    fq=fm
+  else  ! ri is -ve
+    dumazmin=max(atm_zmin(iqw),dgwater%zo(iqw)+0.2)
+    root=sqrt(-ri(iqw)*dumazmin/dgwater%zo(iqw))
+    den=1.+cms*2.*bprm*af(iqw)*root
+    fm=1.-2.*bprm*ri(iqw)/den
+    dumazmins=max(atm_zmins(iqw),dgwater%zo(iqw)+0.2)
+    root=sqrt(-ri(iqw)*dumazmins/dgwater%zo(iqw))
+    den=1.+chs*2.*bprm*factch(iqw)*aft(iqw)*root
+    fh=1.-2.*bprm*ri(iqw)/den
+    den=1.+chs*2.*bprm*facqch(iqw)*afq(iqw)*root
+    fq=1.-2.*bprm*ri(iqw)/den
+  end if
+  dgwater%cd(iqw)=af(iqw)*fm*vmagn(iqw)
+  dgwater%cdh(iqw)=aft(iqw)*fh*vmagn(iqw)
+  dgwater%cdq(iqw)=afq(iqw)*fq*vmagn(iqw)
+  dgwater%umod(iqw)=vmagn(iqw)
+
+  ! bottom
   ii = water%ibot(iqw)  
   uoave = fluxwgt*water%u(iqw,ii) + (1.-fluxwgt)*water%ubot(iqw)
   voave = fluxwgt*water%v(iqw,ii) + (1.-fluxwgt)*water%vbot(iqw)
@@ -4164,7 +4169,6 @@ type(waterdata), intent(in) :: water
 type(depthdata), intent(in) :: depth
 type(dgwaterdata), intent(inout) :: dgwater
 real, dimension(imax) :: d_salflx, d_wavail
-real, dimension(imax) :: xxx
 
 if (diag>=1) write(6,*) "Update ice thermodynamic model"
 
@@ -4172,8 +4176,7 @@ d_salflx=0.                                               ! fresh water flux
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.) ! water avaliable for freezing
 
 ! Ice depth limitation for poor initial conditions
-xxx=max(ice%thick-icemax,0.)
-ice%thick=ice%thick-xxx   
+ice%thick=ice%thick-max(ice%thick-icemax,0.)  
 ! no temperature or salinity conservation
 
 ! update ice prognostic variables
@@ -4181,8 +4184,7 @@ call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_wavail,diag, &
                 dgice,ice)
 
 ! Ice depth limitation for poor initial conditions
-xxx=max(ice%thick-icemax,0.)
-ice%thick=ice%thick-xxx   
+ice%thick=ice%thick-max(ice%thick-icemax,0.)  
 ! no temperature or salinity conservation
 
 dgwater%ws0_subsurf = dgwater%ws0_subsurf - ice%fracice*d_salflx*water%sal(:,1)/wrtrho
@@ -4214,16 +4216,15 @@ implicit none
 
 integer, intent(in) :: diag
 integer iqw, ii
-real aa, bb, dsf, deldz, delt
+real aa, bb, deldz
+real d_wavail, maxnewice
 real, dimension(imax,wlev) :: sdic
-real, dimension(imax) :: newdic, cdic
 real, dimension(imax) :: d_zcr, d_neta
 real, dimension(imax) :: d_timelt
+real, dimension(imax) :: newdic, cdic, dsf, delt
 type(icedata), intent(inout) :: ice
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
-real, dimension(imax) :: maxnewice, d_wavail, xxx
-logical, dimension(imax) :: lnewice, lremove
 
 if (diag>=1) write(6,*) "Form new ice"
 if ( .not.mlo_active ) return
@@ -4237,114 +4238,124 @@ elsewhere
 end where
 d_neta = water%eta
 
-! limits on ice formation due to water avaliability
-d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.)
-where ( ice%fracice<0.999 )
-  maxnewice=d_wavail*wrtrho/rhoic/(1.-ice%fracice)
-elsewhere
-  maxnewice=0.
-end where
-
 ! search for water temperatures that are below freezing
-sdic=0.
-newdic=0.
-do iqw=1,imax
-  if ( maxnewice(iqw)>0. ) then
-    dsf=0.  
-    do ii=1,wlev-1
+newdic = 0.
+sdic = 0.
+dsf = 0.
+do ii = 1,wlev-1
+  do iqw = 1,imax
+    if ( depth%dz(iqw,ii)>1.e-4 ) then  
       aa=depth%dz(iqw,ii)*d_zcr(iqw)
-      bb=max(minsfc-dsf,0.)
+      bb=max(minsfc-dsf(iqw),0.)
       deldz=min(aa,bb)
       ! Energy = sdic*qice*(1-fracice) = del_temp*cp0*wrtrho*deldz
       sdic(iqw,ii)=max(d_timelt(iqw)-water%temp(iqw,ii)-wrtemp,0.)*cp0*wrtrho*deldz &
                    /qice/(1.-ice%fracice(iqw))
-      dsf=dsf+deldz
+      dsf(iqw)=dsf(iqw)+deldz
       newdic(iqw) = newdic(iqw) + sdic(iqw,ii)
-    end do
+    end if  
+  end do ! iqw
+end do   ! ii
+
+do iqw = 1,imax
+  ! limits on ice formation due to water avaliability  
+  d_wavail=max(depth%depth_hl(iqw,wlev+1)+d_neta(iqw)-minwater,0.)
+  if ( ice%fracice(iqw)<0.999 .and. depth%dz(iqw,1)>1.e-4 ) then
+    maxnewice=d_wavail*wrtrho/rhoic/(1.-ice%fracice(iqw))
+  else
+    maxnewice=0.
   end if
+  newdic(iqw)=min(newdic(iqw),maxnewice)
+  if ( newdic(iqw)>icemin ) then
+    d_neta(iqw)=d_neta(iqw)-newdic(iqw)*(1.-ice%fracice(iqw))*rhoic/wrtrho  
+  else
+    newdic(iqw) = 0.
+  end if  
+end do ! iqw
+
+cdic = 0.
+do ii = 1,wlev
+  do iqw = 1,imax
+    if ( newdic(iqw)>icemin ) then  
+      ! Adjust temperature in water column to balance the energy cost of ice formation
+      ! Energy = qice*newdic = del_temp*c0*wrtrho*dz*d_zcr
+      sdic(iqw,ii)=max(min(sdic(iqw,ii),newdic(iqw)-cdic(iqw)),0.)
+      cdic(iqw)=cdic(iqw)+sdic(iqw,ii)  
+      water%temp(iqw,ii)=water%temp(iqw,ii)+(1.-ice%fracice(iqw))*qice*sdic(iqw,ii) &
+          /(cp0*wrtrho*depth%dz(iqw,ii)*d_zcr(iqw))
+      ! MJT notes - remove salt flux between ice and water for now
+      water%sal(iqw,ii) =water%sal(iqw,ii)*(1.+(1.-ice%fracice(iqw))*sdic(iqw,ii)*rhoic &
+                        /(wrtrho*depth%dz(iqw,ii)*d_zcr(iqw)))
+    end if
+  end do
 end do
-newdic=min(newdic,maxnewice)
-lnewice = newdic>icemin
-where ( .not.lnewice )
-  newdic = 0.
-end where
 
-d_neta=d_neta-newdic*(1.-ice%fracice)*rhoic/wrtrho
-
-! Adjust temperature in water column to balance the energy cost of ice formation
-! Energy = qice*newdic = del_temp*c0*wrtrho*dz*d_zcr
-cdic=0.
-do ii=1,wlev
-  sdic(:,ii)=max(min(sdic(:,ii),newdic-cdic),0.)
-  cdic=cdic+sdic(:,ii)  
-  where ( lnewice .and. depth%dz(:,ii)>1.e-4 )
-    water%temp(:,ii)=water%temp(:,ii)+(1.-ice%fracice)*qice*sdic(:,ii)/(cp0*wrtrho*depth%dz(:,ii)*d_zcr)
-    ! MJT notes - remove salt flux between ice and water for now
-    water%sal(:,ii) =water%sal(:,ii)*(1.+(1.-ice%fracice)*sdic(:,ii)*rhoic &
-                      /(wrtrho*depth%dz(:,ii)*d_zcr))
-  end where
-end do
-
-! form new sea-ice
-do iqw=1,imax
-  if ( lnewice(iqw) ) then
+do iqw = 1,imax
+  if ( newdic(iqw)>icemin ) then    
+    ! form new sea-ice
     ice%thick(iqw)=ice%thick(iqw)*ice%fracice(iqw)+newdic(iqw)*(1.-ice%fracice(iqw))
     ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+d_timelt(iqw)*(1.-ice%fracice(iqw))
     ice%store(iqw)=ice%store(iqw)*ice%fracice(iqw)
     ice%snowd(iqw)=ice%snowd(iqw)*ice%fracice(iqw)
     ice%fracice(iqw)=1.
   end if
-end do
 
-! Ice depth limitation for poor initial conditions
-xxx=max(ice%thick-icemax,0.)
-ice%thick=ice%thick-xxx   
-! no temperature or salinity conservation
+  ! Ice depth limitation for poor initial conditions
+  ice%thick(iqw)=ice%thick(iqw)-max(ice%thick(iqw)-icemax,0.)  
+  ! no temperature or salinity conservation
+end do  
 
 call mlocheck("MLO-newice",water_temp=water%temp,water_sal=water%sal,ice_tsurf=ice%tsurf, &
               ice_temp=ice%temp,ice_thick=ice%thick)
 
-! removal
-lremove = ice%thick<=icemin .and. ice%fracice>0.
-where ( lremove )
-  newdic=(ice%thick*rhoic+ice%snowd*rhosn)/wrtrho
-elsewhere
-  newdic=0.
-end where
-d_neta=d_neta+ice%fracice*newdic*rhoic/wrtrho
-
-do iqw=1,imax
-  if ( lremove(iqw) ) then
-
+do iqw = 1,imax
+  if ( ice%thick(iqw)<=icemin .and. ice%fracice(iqw)>0. .and. depth%dz(iqw,1)>1.e-4 ) then
+    ! removal
+    newdic(iqw)=(ice%thick(iqw)*rhoic+ice%snowd(iqw)*rhosn)/wrtrho
+    d_neta(iqw)=d_neta(iqw)+ice%fracice(iqw)*newdic(iqw)*rhoic/wrtrho
     ! update average temperature and salinity
-    delt=ice%fracice(iqw)*ice%thick(iqw)*qice
-    delt=delt+ice%fracice(iqw)*ice%snowd(iqw)*qsnow
-    delt=delt-ice%fracice(iqw)*ice%store(iqw)
-    delt=delt-ice%fracice(iqw)*gammi*(ice%tsurf(iqw)-d_timelt(iqw)) ! change from when ice formed
-    
-    ! adjust temperature and salinity in water column
-    dsf = 0.
-    do ii = 1,wlev
+    delt(iqw)=ice%fracice(iqw)*ice%thick(iqw)*qice
+    delt(iqw)=delt(iqw)+ice%fracice(iqw)*ice%snowd(iqw)*qsnow
+    delt(iqw)=delt(iqw)-ice%fracice(iqw)*ice%store(iqw)
+    delt(iqw)=delt(iqw)-ice%fracice(iqw)*gammi*(ice%tsurf(iqw)-d_timelt(iqw)) ! change from when ice formed
+  else
+    newdic(iqw)=0.
+    delt(iqw)=0.
+  end if
+end do
+
+sdic = 0.
+dsf = 0.
+do ii = 1,wlev
+  do iqw = 1,imax
+    if ( ice%thick(iqw)<=icemin .and. ice%fracice(iqw)>0. .and. depth%dz(iqw,ii)>1.e-4 ) then  
+      ! adjust temperature and salinity in water column
       aa = depth%dz(iqw,ii)*d_zcr(iqw)
-      bb = max(minsfc-dsf,0.)
+      bb = max(minsfc-dsf(iqw),0.)
       deldz = min(aa,bb)
       sdic(iqw,ii) = newdic(iqw)*deldz/minsfc
-      if ( depth%dz(iqw,ii)>1.e-4 ) then
-        water%temp(iqw,ii) = water%temp(iqw,ii)-delt*(deldz/minsfc)/(cp0*wrtrho*depth%dz(iqw,ii)*d_zcr(iqw))
-        ! MJT notes - remove salt flux between ice and water for now
-        water%sal(iqw,ii) = water%sal(iqw,ii)/(1.+ice%fracice(iqw)*sdic(iqw,ii)*rhoic &
-                            /(wrtrho*depth%dz(iqw,ii)*d_zcr(iqw)))
-      end if  
-      dsf = dsf + deldz
-    end do
+      water%temp(iqw,ii) = water%temp(iqw,ii)-delt(iqw)*(deldz/minsfc)/(cp0*wrtrho*depth%dz(iqw,ii)*d_zcr(iqw))
+      ! MJT notes - remove salt flux between ice and water for now
+      water%sal(iqw,ii) = water%sal(iqw,ii)/(1.+ice%fracice(iqw)*sdic(iqw,ii)*rhoic &
+                          /(wrtrho*depth%dz(iqw,ii)*d_zcr(iqw)))
+      dsf(iqw) = dsf(iqw) + deldz
+    end if  
+  end do
+end do  
 
+do iqw = 1,imax
+  if ( ice%thick(iqw)<=icemin .or. depth%dz(iqw,1)<=1.e-4 ) then
     ! remove ice
     ice%fracice(iqw)=0.
     ice%thick(iqw)=0.
     ice%snowd(iqw)=0.
     ice%store(iqw)=0.
     ice%tsurf(iqw)=273.16
-    ice%temp(iqw,:)=273.16
+    ice%temp(iqw,0)=273.16
+    ice%temp(iqw,1)=273.16
+    ice%temp(iqw,2)=273.16
+    ice%u(iqw)=0.
+    ice%v(iqw)=0.
   end if
 end do
 
@@ -5122,30 +5133,32 @@ pure subroutine thomas(outo,aai,bbi,cci,ddi)
 
 implicit none
 
-integer ii, nlev
+integer ii, nlev, iqw, nlen
 real, dimension(:,:), intent(out) :: outo
 real, dimension(:,2:), intent(in) :: aai
 real, dimension(:,:), intent(in) :: bbi,ddi
 real, dimension(:,:), intent(in) :: cci
-real, dimension(size(outo,1),size(outo,2)) :: cc, dd, ans
-real, dimension(size(outo,1)) :: n
+real, dimension(size(outo,1),size(outo,2)) :: cc, dd
+real n
 
+nlen = size(outo,1)
 nlev = size(outo,2)
 cc(:,1) = cci(:,1)/bbi(:,1)
 dd(:,1) = ddi(:,1)/bbi(:,1)
 
 do ii = 2,nlev-1
-  n = bbi(:,ii)-cc(:,ii-1)*aai(:,ii)
-  cc(:,ii) = cci(:,ii)/n
-  dd(:,ii) = (ddi(:,ii)-dd(:,ii-1)*aai(:,ii))/n
+  do iqw = 1,nlen  
+    n = bbi(iqw,ii)-cc(iqw,ii-1)*aai(iqw,ii)
+    cc(iqw,ii) = cci(iqw,ii)/n
+    dd(iqw,ii) = (ddi(iqw,ii)-dd(iqw,ii-1)*aai(iqw,ii))/n
+  end do  
 end do
-n = bbi(:,nlev)-cc(:,nlev-1)*aai(:,nlev)
-dd(:,nlev) = (ddi(:,nlev)-dd(:,nlev-1)*aai(:,nlev))/n
-ans(:,nlev) = dd(:,nlev)
-outo(:,nlev) = real(ans(:,nlev))
+do iqw = 1,nlen
+  n = bbi(iqw,nlev)-cc(iqw,nlev-1)*aai(iqw,nlev)
+  outo(iqw,nlev) = (ddi(iqw,nlev)-dd(iqw,nlev-1)*aai(iqw,nlev))/n
+end do  
 do ii = nlev-1,1,-1
-  ans(:,ii) = dd(:,ii)-cc(:,ii)*ans(:,ii+1)
-  outo(:,ii) = real(ans(:,ii))
+  outo(:,ii) = dd(:,ii)-cc(:,ii)*outo(:,ii+1)
 end do
 
 return
@@ -5155,30 +5168,32 @@ pure subroutine thomas_r8(outo,aai,bbi,cci,ddi)
 
 implicit none
 
-integer ii, nlev
+integer ii, nlev, nlen, iqw
 real(kind=8), dimension(:,:), intent(out) :: outo
 real(kind=8), dimension(:,2:), intent(in) :: aai
 real(kind=8), dimension(:,:), intent(in) :: bbi,ddi
 real(kind=8), dimension(:,:), intent(in) :: cci
-real(kind=8), dimension(size(outo,1),size(outo,2)) :: cc, dd, ans
-real(kind=8), dimension(size(outo,1)) :: n
+real(kind=8), dimension(size(outo,1),size(outo,2)) :: cc, dd
+real(kind=8) n
 
+nlen = size(outo,1)
 nlev = size(outo,2)
 cc(:,1) = cci(:,1)/bbi(:,1)
 dd(:,1) = ddi(:,1)/bbi(:,1)
 
 do ii = 2,nlev-1
-  n = bbi(:,ii)-cc(:,ii-1)*aai(:,ii)
-  cc(:,ii) = cci(:,ii)/n
-  dd(:,ii) = (ddi(:,ii)-dd(:,ii-1)*aai(:,ii))/n
+  do iqw = 1,nlen
+    n = bbi(iqw,ii)-cc(iqw,ii-1)*aai(iqw,ii)
+    cc(iqw,ii) = cci(iqw,ii)/n
+    dd(iqw,ii) = (ddi(iqw,ii)-dd(iqw,ii-1)*aai(iqw,ii))/n
+  end do  
 end do
-n = bbi(:,nlev)-cc(:,nlev-1)*aai(:,nlev)
-dd(:,nlev) = (ddi(:,nlev)-dd(:,nlev-1)*aai(:,nlev))/n
-ans(:,nlev) = dd(:,nlev)
-outo(:,nlev) = ans(:,nlev)
+do iqw = 1,nlen
+  n = bbi(iqw,nlev)-cc(iqw,nlev-1)*aai(iqw,nlev)
+  outo(iqw,nlev) = (ddi(iqw,nlev)-dd(iqw,nlev-1)*aai(iqw,nlev))/n
+end do  
 do ii = nlev-1,1,-1
-  ans(:,ii) = dd(:,ii)-cc(:,ii)*ans(:,ii+1)
-  outo(:,ii) = ans(:,ii)
+  outo(:,ii) = dd(:,ii)-cc(:,ii)*outo(:,ii+1)
 end do
 
 return
@@ -5391,6 +5406,7 @@ subroutine scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag, 
 implicit none
 
 integer, intent(in) :: diag
+integer iqw
 real, dimension(imax), intent(in) :: atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins
 type(dgicedata), intent(in) :: dgice
 type(dgscrndata), intent(inout) :: dgscrn
@@ -5398,8 +5414,9 @@ type(dgwaterdata), intent(in) :: dgwater
 type(icedata), intent(in) :: ice
 type(waterdata), intent(in) :: water
 real, dimension(imax) :: tscrn,qgscrn,uscrn,u10,dumtemp
-real, dimension(imax) :: smixr,qsat,dqdt,atu,atv,dmag
+real, dimension(imax) :: smixr,qsat,dqdt,atu_v,atv_v
 real, dimension(imax) :: zohseaice,zoqseaice,zoxseaice
+real dmag, atu, atv
 
 if (diag>=1) write(6,*) "Calculate 2m diagnostics"
 
@@ -5411,37 +5428,41 @@ if (zomode==0) then
 else
   smixr=qsat
 end if
-atu=atm_u-water%u(:,1)
-atv=atm_v-water%v(:,1)
+atu_v=atm_u-water%u(:,1)
+atv_v=atm_v-water%v(:,1)
 call scrntile(dgscrn%temp,dgscrn%qg,uscrn,u10,dgwater%zo,dgwater%zoh,dgwater%zoq,dumtemp, &
-    smixr,atu,atv,atm_temp,atm_qg,atm_zmin,atm_zmins,diag)
-dmag=sqrt(max(atu*atu+atv*atv,1.E-4))
-atu=(atm_u-water%u(:,1))*uscrn/dmag+water%u(:,1)
-atv=(atm_v-water%v(:,1))*uscrn/dmag+water%v(:,1)
-dgscrn%u2=sqrt(atu*atu+atv*atv)
-atu=(atm_u-water%u(:,1))*u10/dmag+water%u(:,1)
-atv=(atm_v-water%v(:,1))*u10/dmag+water%v(:,1)
-dgscrn%u10=sqrt(atu*atu+atv*atv)
+    smixr,atu_v,atv_v,atm_temp,atm_qg,atm_zmin,atm_zmins,diag)
+do iqw = 1,imax
+  dmag=sqrt(max(atu_v(iqw)**2+atv_v(iqw)**2,1.E-4))
+  atu=(atm_u(iqw)-water%u(iqw,1))*uscrn(iqw)/dmag+water%u(iqw,1)
+  atv=(atm_v(iqw)-water%v(iqw,1))*uscrn(iqw)/dmag+water%v(iqw,1)
+  dgscrn%u2(iqw)=sqrt(atu**2+atv**2)
+  atu=(atm_u(iqw)-water%u(iqw,1))*u10(iqw)/dmag+water%u(iqw,1)
+  atv=(atm_v(iqw)-water%v(iqw,1))*u10(iqw)/dmag+water%v(iqw,1)
+  dgscrn%u10(iqw)=sqrt(atu**2+atv**2)
+end do  
 
 ! ice
 call getqsat(qsat,dqdt,ice%tsurf,atm_ps)
 smixr=dgice%wetfrac*qsat+(1.-dgice%wetfrac)*min(qsat,atm_qg)
-atu=atm_u-ice%u
-atv=atm_v-ice%v
+atu_v=atm_u-ice%u
+atv_v=atm_v-ice%v
 zoxseaice(:)=zoseaice
 zohseaice(:)=zoseaice/(factchseaice*factchseaice)
 zoqseaice(:)=zohseaice(:)
 call scrntile(tscrn,qgscrn,uscrn,u10,zoxseaice,zohseaice,zoqseaice,ice%tsurf, &
-    smixr,atu,atv,atm_temp,atm_qg,atm_zmin,atm_zmins,diag)
-dgscrn%temp=(1.-ice%fracice)*dgscrn%temp+ice%fracice*tscrn
-dgscrn%qg=(1.-ice%fracice)*dgscrn%qg+ice%fracice*qgscrn
-dmag=sqrt(max(atu*atu+atv*atv,1.E-4))
-atu=(atm_u-ice%u)*uscrn/dmag+ice%u
-atv=(atm_v-ice%v)*uscrn/dmag+ice%v
-dgscrn%u2=(1.-ice%fracice)*dgscrn%u2+ice%fracice*sqrt(atu*atu+atv*atv)
-atu=(atm_u-ice%u)*u10/dmag+ice%u
-atv=(atm_v-ice%v)*u10/dmag+ice%v
-dgscrn%u10=(1.-ice%fracice)*dgscrn%u10+ice%fracice*sqrt(atu*atu+atv*atv)
+    smixr,atu_v,atv_v,atm_temp,atm_qg,atm_zmin,atm_zmins,diag)
+do iqw = 1,imax
+  dgscrn%temp(iqw)=(1.-ice%fracice(iqw))*dgscrn%temp(iqw)+ice%fracice(iqw)*tscrn(iqw)
+  dgscrn%qg(iqw)=(1.-ice%fracice(iqw))*dgscrn%qg(iqw)+ice%fracice(iqw)*qgscrn(iqw)
+  dmag=sqrt(max(atu_v(iqw)**2+atv_v(iqw)**2,1.E-4))
+  atu=(atm_u(iqw)-ice%u(iqw))*uscrn(iqw)/dmag+ice%u(iqw)
+  atv=(atm_v(iqw)-ice%v(iqw))*uscrn(iqw)/dmag+ice%v(iqw)
+  dgscrn%u2=(1.-ice%fracice(iqw))*dgscrn%u2(iqw)+ice%fracice(iqw)*sqrt(atu**2+atv**2)
+  atu=(atm_u(iqw)-ice%u(iqw))*u10(iqw)/dmag+ice%u(iqw)
+  atv=(atm_v(iqw)-ice%v(iqw))*u10(iqw)/dmag+ice%v(iqw)
+  dgscrn%u10=(1.-ice%fracice(iqw))*dgscrn%u10(iqw)+ice%fracice(iqw)*sqrt(atu**2+atv**2)
+end do
 
 return
 end subroutine scrncalc

@@ -686,12 +686,10 @@ if ( newfile ) then
     else  
       write(6,*) "Surface height is not required with zht_needed =",zht_needed
     end if
-    write(6,*) "nested,retopo_test              =",nested,retopo_test
-    write(6,*) "soilt_found,mlo_found,zht_found =",soilt_found,mlo_found,zht_found
-    write(6,*) "mlo2_found,mloice_found         =",mlo2_found,mloice_found
-    write(6,*) "mixr_found,aero_found           =",mixr_found,aero_found
-    write(6,*) "urban1_found,urban2_found       =",urban1_found,urban2_found
-    write(6,*) "allowtrivialfill                =",allowtrivialfill
+    write(6,*) "nested,retopo_test                            =",nested,retopo_test
+    write(6,*) "soilt_found,mlo_found,mlo2_found,mloice_found =",soilt_found,mlo_found,mlo2_found,mloice_found
+    write(6,*) "zht_found,mixr_found,aero_found,urban1_found  =",zht_found,mixr_found,aero_found,urban1_found
+    write(6,*) "urban2_found,allowtrivialfill                 =",urban2_found,allowtrivialfill
     if ( zht_needed .and. .not.zht_found .and. .not.allowtrivialfill ) then
       write(6,*) "ERROR: Surface height is required but not found in input file"
       call ccmpi_abort(-1)
@@ -2292,10 +2290,10 @@ do while ( nrem>0 )
   call ccmpi_filebounds_send(c_io,comm_ip)
   ! update body
   if ( ncount>0 ) then
-    do concurrent (ipf = 1:mynproc)
-      do concurrent (n = 1:pnpan)
-        do concurrent (j = 2:pjpan-1)
-          do concurrent (i = 2:pipan-1)
+    do ipf = 1,mynproc
+      do n = 1,pnpan
+        do j = 2,pjpan-1
+          do i = 2,pipan-1
             cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
             if ( abs(a_io(cc+i)-value)<1.e-20 ) then
               csum = 0.
@@ -2328,9 +2326,9 @@ do while ( nrem>0 )
   call ccmpi_filebounds_recv(c_io,comm_ip)
   ! update perimeter
   if ( ncount>0 ) then
-    do concurrent (ipf = 1:mynproc)
-      do concurrent (n = 1:pnpan)
-        do concurrent (i = 1:pipan)
+    do ipf = 1,mynproc
+      do n = 1,pnpan
+        do i = 1,pipan
           cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
           if ( abs(a_io(cc+i)-value)<1.e-20 ) then
             csum = 0.
@@ -2380,7 +2378,7 @@ do while ( nrem>0 )
             end if
           end if
         end do
-        do concurrent (j = 2:pjpan-1)
+        do j = 2,pjpan-1
           cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
           if ( abs(a_io(cc+1)-value)<1.e-20 ) then
             csum = 0.
@@ -2507,12 +2505,12 @@ do while ( any(nrem(:)>0) )
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
   !$omp parallel do schedule(static) private(k,ipf,n,j,i,s,cc,csum,ccount)
-  do concurrent (k = 1:kx)
+  do k = 1,kx
     if ( ncount(k)>0 ) then
-      do concurrent (ipf = 1:mynproc)
-        do concurrent (n = 1:pnpan)
-          do concurrent (j = 2:pjpan-1)
-            do concurrent (i = 2:pipan-1)
+      do ipf = 1,mynproc
+        do n = 1,pnpan
+          do j = 2,pjpan-1
+            do i = 2,pipan-1
               cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
               if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
                 csum = 0.
@@ -2546,11 +2544,11 @@ do while ( any(nrem(:)>0) )
   !$omp end parallel do
   call ccmpi_filebounds_recv(c_io,comm_ip)
   ! update halo
-  do concurrent (k = 1:kx)
+  do k = 1,kx
     if ( ncount(k)>0 ) then  
-      do concurrent (ipf = 1:mynproc)
-        do concurrent (n = 1:pnpan)
-          do concurrent (i = 1:pipan)
+      do ipf = 1,mynproc
+        do n = 1,pnpan
+          do i = 1,pipan
             cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
             if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
               csum = 0.
@@ -2600,7 +2598,7 @@ do while ( any(nrem(:)>0) )
               end if
             end if
           end do
-          do concurrent (j = 2:pjpan-1)
+          do j = 2,pjpan-1
             cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
             if ( abs(a_io(cc+1,k)-value)<1.e-20 ) then
               csum = 0.

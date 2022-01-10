@@ -42,6 +42,9 @@ character(len=3), dimension(12), parameter :: month = (/'jan','feb','mar','apr',
 integer, parameter :: cordex_levels = 17
 integer, dimension(cordex_levels) :: cordex_level_data = &
     (/ 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 70, 50, 30, 20, 10 /)
+integer, parameter :: windfarm_levels = 2
+integer, dimension(windfarm_levels) :: windfarm_level_data = &
+    (/ 150, 250 /)
 
 contains
 
@@ -72,8 +75,10 @@ select case(iout)
     select case(io_rest)  
       case(0)  ! No output
       case(1)  ! NetCDF 
-        if ( myid==0 ) write(6,*) "restart write of data to netCDF"
-        call cdfout(-1,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
+        if ( myid==0 ) then
+          write(6,*) "Restart write of data to netCDF"
+        end if  
+        call cdfout(-1,iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
       case default
         if ( myid==0 ) then
           write(6,*) "ERROR: unsupported file format io_rest ",io_rest
@@ -85,7 +90,7 @@ select case(iout)
     select case(io_out)
       case(0)  ! No output
       case(1)  ! NetCDF
-        call cdfout(1,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
+        call cdfout(1,iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
       case default
         if ( myid==0 ) then
           write(6,*) "ERROR: unsupported file format io_out ",io_out
@@ -94,8 +99,10 @@ select case(iout)
         end if
     end select
   case(21)    
-    if ( myid==0 ) write(6,*) "ensemble write of data to netCDF"
-    call cdfout(-1,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
+     if ( myid==0 ) then
+       write(6,*) "Ensemble write of data to netCDF"
+     end if
+    call cdfout(-1,iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
   case default  
     if ( myid==0 ) then
       write(6,*) "ERROR: Unknown output file option iout=",iout
@@ -111,7 +118,7 @@ end subroutine outfile
     
 !--------------------------------------------------------------
 ! CONFIGURE DIMENSIONS FOR OUTPUT NETCDF FILES
-subroutine cdfout(itype,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
+subroutine cdfout(itype,iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
 
 use aerosolldr                             ! LDR prognostic aerosols
 use ateb, only :                         & ! Urban
@@ -198,14 +205,13 @@ include 'kuocom.h'                         ! Convection parameters
 integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
 integer, dimension(nihead) :: nahead
-integer, intent(in) :: itype
+integer, intent(in) :: itype, iout
 integer, dimension(5) :: dima, dims, dimo
-integer, dimension(6) :: dimc2
-integer, dimension(5) :: dimc1, dimc3, dimc4, dimc5, dimc6, dimc7
+integer, dimension(6,7) :: dimc
 integer, dimension(2) :: dimpx, dimpy
 integer, dimension(1) :: dimpg
+integer, dimension(6) :: idc ! 1=idcp, 2=idc2p, 3=idc91p, 4=idc31p, 5=idc20y, 6=idc5d
 integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgpnode, idgpoff
-integer idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim, ubdim
 integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
@@ -337,13 +343,13 @@ if ( myid==0 .or. local ) then
       dimpy = (/ ydim, pdim /)
       dimpg = (/ gpdim /)
       ! cable dimensions
-      dimc1 = (/ xdim, ydim, cpdim, pdim, tdim /)
-      dimc2 = (/ xdim, ydim, cpdim, c2pdim, pdim, tdim /)
-      dimc3 = (/ xdim, ydim, c91pdim, pdim, tdim /)
-      dimc4 = (/ xdim, ydim, c31pdim, pdim, tdim /)
-      dimc5 = (/ xdim, ydim, c20ydim, pdim, tdim /)
-      dimc6 = (/ xdim, ydim, c5ddim, pdim, tdim /)
-      dimc7 = (/ xdim, ydim, cadim, pdim, tdim /)
+      dimc(:,1) = (/ xdim, ydim, cpdim, pdim, tdim, 0 /)
+      dimc(:,2) = (/ xdim, ydim, cpdim, c2pdim, pdim, tdim /)
+      dimc(:,3) = (/ xdim, ydim, c91pdim, pdim, tdim, 0 /)
+      dimc(:,4) = (/ xdim, ydim, c31pdim, pdim, tdim, 0 /)
+      dimc(:,5) = (/ xdim, ydim, c20ydim, pdim, tdim, 0 /)
+      dimc(:,6) = (/ xdim, ydim, c5ddim, pdim, tdim, 0 /)
+      dimc(:,7) = (/ xdim, ydim, cadim, pdim, tdim, 0 /)
     else
       ! atmosphere dimensions
       dima = (/ xdim, ydim, zdim, tdim, 0 /)
@@ -356,13 +362,13 @@ if ( myid==0 .or. local ) then
       dimpy = (/ ydim, 0 /)
       dimpg = (/ 0 /)
       ! cable dimensions
-      dimc1 = (/ xdim, ydim, cpdim, tdim, 0 /)
-      dimc2 = (/ xdim, ydim, cpdim, c2pdim, tdim, 0 /)
-      dimc3 = (/ xdim, ydim, c91pdim, tdim, 0 /)
-      dimc4 = (/ xdim, ydim, c31pdim, tdim, 0 /)
-      dimc5 = (/ xdim, ydim, c20ydim, tdim, 0 /)
-      dimc6 = (/ xdim, ydim, c5ddim, tdim, 0 /)
-      dimc7 = (/ xdim, ydim, cadim, tdim, 0 /)
+      dimc(:,1) = (/ xdim, ydim, cpdim, tdim, 0, 0 /)
+      dimc(:,2) = (/ xdim, ydim, cpdim, c2pdim, tdim, 0 /)
+      dimc(:,3) = (/ xdim, ydim, c91pdim, tdim, 0, 0 /)
+      dimc(:,4) = (/ xdim, ydim, c31pdim, tdim, 0, 0 /)
+      dimc(:,5) = (/ xdim, ydim, c20ydim, tdim, 0, 0 /)
+      dimc(:,6) = (/ xdim, ydim, c5ddim, tdim, 0, 0 /)
+      dimc(:,7) = (/ xdim, ydim, cadim, tdim, 0, 0 /)
     end if
 
     ! Define coords.
@@ -424,16 +430,16 @@ if ( myid==0 .or. local ) then
     
     if ( itype==-1 .or. diaglevel_pop>=9 ) then
       if ( cable_pop==1 ) then
-        call ccnf_def_var(idnc,'cable_patch','float',1,dimc1(3:3),idcp)  
-        call ccnf_def_var(idnc,'cable_cohort','float',1,dimc2(4:4),idc2p)  
+        call ccnf_def_var(idnc,'cable_patch','float',1,dimc(3:3,1),idc(1))  
+        call ccnf_def_var(idnc,'cable_cohort','float',1,dimc(4:4,2),idc(2))  
       end if
     end if
     if ( itype==-1 ) then
       if ( cable_climate==1 ) then
-        call ccnf_def_var(idnc,'cable_91days','float',1,dimc3(3:3),idc91p)
-        call ccnf_def_var(idnc,'cable_31days','float',1,dimc4(3:3),idc31p)
-        call ccnf_def_var(idnc,'cable_20years','float',1,dimc5(3:3),idc20y)
-        call ccnf_def_var(idnc,'cable_5days','float',1,dimc6(3:3),idc5d)
+        call ccnf_def_var(idnc,'cable_91days','float',1,dimc(3:3,3),idc(3))
+        call ccnf_def_var(idnc,'cable_31days','float',1,dimc(3:3,4),idc(4))
+        call ccnf_def_var(idnc,'cable_20years','float',1,dimc(3:3,5),idc(5))
+        call ccnf_def_var(idnc,'cable_5days','float',1,dimc(3:3,6),idc(6))
       end if
     end if    
 
@@ -878,20 +884,21 @@ endif ! (myid==0.or.local)
 
 
 ! openhist writes some fields so needs to be called by all processes
-call openhist(iarch,itype,dima,dimo,dimc1,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7, &
-              local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgpnode,idgpoff,      &
-              idcp,idc2p,idc91p,idc31p,idc20y,idc5d,                           &
-              psl_in,u_in,v_in,t_in,q_in)
+call openhist(iarch,itype,iout,dima,dimo,dimc,                              &
+              local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgpnode,idgpoff,   &
+              idc,psl_in,u_in,v_in,t_in,q_in)
 
 
 ! close netcdf file if required
 if ( myid==0 .or. local ) then
   if ( ktau==ntau .or. itype==-1 ) then
     if ( myid==0 ) then
-      if ( itype==1 ) then  
+      if ( iout==19 ) then
+        write(6,*) "closing netCDF restart idnc=",idnc
+      else if ( iout==20 ) then  
         write(6,*) "closing netCDF ofile idnc=",idnc
       else
-        write(6,*) "closing netCDF restart idnc=",idnc
+        write(6,*) "closing netCDF ensemble idnc=",idnc
       end if  
     end if
     call ccnf_close(idnc)
@@ -910,10 +917,9 @@ end subroutine cdfout
       
 !--------------------------------------------------------------
 ! CREATE ATTRIBUTES AND WRITE OUTPUT
-subroutine openhist(iarch,itype,dima,dimo,dimc1,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7, &
-                    local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgpnode,idgpoff,      &
-                    idcp,idc2p,idc91p,idc31p,idc20y,idc5d,                           &
-                    psl_in,u_in,v_in,t_in,q_in)
+subroutine openhist(iarch,itype,iout,dima,dimo,dimc,                             &
+                    local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgpnode,idgpoff,  &
+                    idc,psl_in,u_in,v_in,t_in,q_in)
 
 use aerointerface                                ! Aerosol interface
 use aerosolldr                                   ! LDR prognostic aerosols
@@ -978,17 +984,17 @@ implicit none
 include 'kuocom.h'                               ! Convection parameters
 include 'version.h'                              ! Model version data
 
-integer, intent(in) :: iarch, itype
+integer, intent(in) :: iarch, itype, iout
 integer, intent(in) :: ixp, iyp, idlev, idms, idoc, idproc, idgpnode, idgpoff
-integer, intent(in) :: idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer idum, cptype
-integer asize, osize, jsize, ksize, dproc, d4, c1size, c2size
+integer asize, osize, jsize, ksize, dproc, d4
 integer ifrac
+integer, dimension(2) :: csize
+integer, dimension(6), intent(in) :: idc
 integer, dimension(5), intent(in) :: dima, dimo
-integer, dimension(6), intent(in) :: dimc2
-integer, dimension(5), intent(in) :: dimc1, dimc3, dimc4, dimc5, dimc6, dimc7
+integer, dimension(6,7), intent(in) :: dimc
 integer, dimension(4) :: dimj
 integer, dimension(3) :: dimk
 integer, dimension(:), allocatable :: vnode_dat
@@ -1041,11 +1047,11 @@ else
   cptype = -1
 end if
 
-! dima is for 4-D atm (3 dimensions+time)
-! dimo is for 4-D ocn (3 dimensions+time)
+! dima is for 4-D atmosphere (3 dimensions+time)
+! dimo is for 4-D ocean (3 dimensions+time)
 ! dimj is for 3-D (2 dimensions+time)
 ! dimk is for 2-D (2 dimension without time)
-! dimc1-7 is for cable POP npatch (3 dimensions+time)
+! dimc is for cable POP npatch (3 dimensions+time)
 if ( localhist ) then
   dimj(1:2) = dima(1:2)
   dimj(3:4) = dima(4:5)
@@ -1060,12 +1066,12 @@ else
   dproc = -1
   d4 = 4
 end if
-asize  = d4
-osize  = d4
-jsize  = d4 - 1
-ksize  = d4 - 2
-c1size = d4
-c2size = d4 + 1
+asize = d4
+osize = d4
+jsize = d4 - 1
+ksize = d4 - 2
+csize(1) = d4
+csize(2) = d4 + 1
 
 
 if( myid==0 .or. local ) then
@@ -1075,9 +1081,7 @@ if( myid==0 .or. local ) then
 
 !   Create global attributes
 !   Model run number
-    if ( myid==0 ) then
-      write(6,*) 'nrun=',nrun
-    end if
+    if ( myid==0 ) write(6,*) 'nrun=',nrun
     call ccnf_put_attg(idnc,'nrun',nrun)
 
 !   Experiment description
@@ -1095,9 +1099,7 @@ if( myid==0 .or. local ) then
     endif           
 
 !   Sigma levels
-    if ( myid==0 ) then
-      write(6,*) 'sig=',sig
-    end if
+    if ( myid==0 ) write(6,*) 'sig=',sig
     call ccnf_put_attg(idnc,'sigma',sig)
 
     lname = 'year-month-day at start of run'
@@ -1146,9 +1148,7 @@ if( myid==0 .or. local ) then
       call ccnf_put_att(idnc,idv,'long_name',lname)     
     end if
 
-    if ( myid==0 ) then
-      write(6,*) 'define attributes of variables with ',nextout
-    end if
+    if ( myid==0 ) write(6,*) '--> define attributes of variables with ',nextout
 
     ! For time invariant surface fields
     lname = 'Surface geopotential'
@@ -2205,10 +2205,10 @@ if( myid==0 .or. local ) then
     endif  ! (itype==-1)
         
     if ( nsib==6 .or. nsib==7 ) then
-      call savetiledef(idnc,local,dimj,jsize,dimc1,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7,c1size,c2size,itype)
+      call savetiledef(idnc,local,dimj,jsize,dimc,csize,itype)
     end if
       
-    if ( myid==0 ) write(6,*) 'finished defining attributes'
+    if ( myid==0 ) write(6,*) '--> finished defining attributes'
     !   Leave define mode
     call ccnf_enddef(idnc)
 
@@ -2216,7 +2216,7 @@ if( myid==0 .or. local ) then
 #ifdef debugoutcdf
       call ccmpi_barrier(comm_world)
 #endif
-      if ( myid==0 ) write(6,*) 'write coordinate data'
+      if ( myid==0 ) write(6,*) '--> write coordinate data'
       ! procformat
       allocate(xpnt(il),xpnt2(il,vnode_nproc))
       do i = 1,ipan
@@ -2272,7 +2272,7 @@ if( myid==0 .or. local ) then
       call ccmpi_barrier(comm_world)
 #endif
       ! store local processor id in output file
-      if ( myid==0 ) write(6,*) 'write procformat data'
+      if ( myid==0 ) write(6,*) '--> write procformat data'
       allocate(vnode_dat(vnode_nproc))
       if ( procmode==1 ) then
          vnode_dat(:) = myid
@@ -2313,7 +2313,7 @@ if( myid==0 .or. local ) then
     call ccnf_put_vara(idnc,'ds',1,ds)
     call ccnf_put_vara(idnc,'dt',1,dt)
     
-    if ( myid==0 ) write(6,*) 'write land tile data'
+    if ( myid==0 ) write(6,*) '--> write land tile data'
     
     if ( itype==-1 .or. diaglevel_pop>=9 ) then
       if ( cable_pop==1 ) then
@@ -2321,13 +2321,13 @@ if( myid==0 .or. local ) then
         do i = 1,POP_NPATCH
           cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idcp,1,POP_NPATCH,cabledata)
+        call ccnf_put_vara(idnc,idc(1),1,POP_NPATCH,cabledata)
         deallocate( cabledata )
         allocate( cabledata(POP_NCOHORT) )
         do i = 1,POP_NCOHORT
           cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idc2p,1,POP_NCOHORT,cabledata)
+        call ccnf_put_vara(idnc,idc(2),1,POP_NCOHORT,cabledata)
         deallocate( cabledata )
       end if
     end if
@@ -2337,33 +2337,31 @@ if( myid==0 .or. local ) then
         do i = 1,91
           cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idc91p,1,91,cabledata)
+        call ccnf_put_vara(idnc,idc(3),1,91,cabledata)
         deallocate( cabledata )
         allocate( cabledata(31) )
         do i = 1,31
           cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idc31p,1,31,cabledata)
+        call ccnf_put_vara(idnc,idc(4),1,31,cabledata)
         deallocate( cabledata )
         allocate( cabledata(20) )
         do i = 1,20
           cabledata(i) = real(i)
         end do
-        call ccnf_put_vara(idnc,idc20y,1,20,cabledata)
+        call ccnf_put_vara(idnc,idc(5),1,20,cabledata)
         deallocate( cabledata )
         allocate( cabledata(120) )
         do i = 1,120
           cabledata(i) = real(i)
         end do
-        call ccnf_put_vara(idnc,idc5d,1,120,cabledata)
+        call ccnf_put_vara(idnc,idc(6),1,120,cabledata)
         deallocate( cabledata )
       end if    
     end if    
     
   end if ! iarch==1
   ! -----------------------------------------------------------      
-  
-  if ( myid==0 ) write(6,*) 'write time data'
   
   ! set time to number of minutes since start 
   call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
@@ -2435,7 +2433,15 @@ end if ! myid == 0 .or. local ..else.. localhist ...
 call ccmpi_barrier(comm_world)
 #endif
 
-if ( myid==0 ) write(6,*) 'write variable data to file'
+if ( myid==0 ) then
+  if ( iout==19 ) then
+    write(6,*) 'write variable data to restart'
+  else if ( iout==20 ) then
+    write(6,*) 'write variable data to ofile'  
+  else
+    write(6,*) 'write variable data to ensemble'  
+  end if  
+end if
 
 ! extract data from ocean model
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
@@ -3418,7 +3424,13 @@ if ( synchist ) then
 end if
 
 if ( myid==0 ) then
-  write(6,*) "finished writing to ofile"    
+  if ( iout==19 ) then  
+    write(6,*) "finished writing to restart" 
+  else if ( iout==20 ) then  
+    write(6,*) "finished writing to ofile"  
+  else
+    write(6,*) "finished writing to ensemble"
+  end if  
 end if
 
 return
@@ -3477,7 +3489,7 @@ integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics
 integer i,j,k,n,iq,fiarch
 integer dproc, d4, asize, ssize, idnp, idgpn, idgpo
-integer fsize, press_level
+integer fsize, press_level, height_level
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -3746,6 +3758,17 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'ua100m',lname,'m s-1',-130.,130.,0,1)
     lname='y-component 100m wind'     
     call attrib(fncid,sdim,ssize,'va100m',lname,'m s-1',-130.,130.,0,1)
+    if ( surf_windfarm==1 ) then    
+      do j = 1,windfarm_levels  
+        height_level = windfarm_level_data(j)
+        call cordex_name(lname,"x-component ",height_level,"m wind")
+        call cordex_name(vname,"ua",height_level,"m")
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
+        call cordex_name(lname,"y-component ",height_level,"m wind")
+        call cordex_name(vname,"va",height_level,"m")
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
+      end do  
+    end if    
     if ( surf_cordex==1 ) then
       lname = 'Daily Maximum Near-Surface Air Temperature'  
       call attrib(fncid,sdim,ssize,'tmaxscr',lname,'K',100.,425.,1,1) ! daily
@@ -4028,6 +4051,31 @@ if ( mod(ktau,tbave)==0 ) then
   end do	
   call histwrt(ua_level,"ua100m",fncid,fiarch,local,.true.)
   call histwrt(va_level,"va100m",fncid,fiarch,local,.true.)
+  if ( surf_windfarm==1 ) then
+    do j = 1,windfarm_levels  
+      height_level = windfarm_level_data(j)  
+      do iq = 1,ifull
+        phi_local(1) = bet(1)*t(iq,1)
+        do k = 2,kl
+          phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+        end do
+        do k = 1,kl-1
+          if ( phi_local(k)/grav<real(height_level) ) then
+            n = k
+          else
+            exit
+          end if
+        end do
+        xx = (real(height_level)*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
+        ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+        va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+      end do	
+      call cordex_name(vname,"ua",height_level,"m")
+      call histwrt(ua_level,vname,fncid,fiarch,local,.true.)
+      call cordex_name(vname,"va",height_level,"m")
+      call histwrt(va_level,vname,fncid,fiarch,local,.true.)  
+    end do  
+  end if    
   if ( surf_cordex==1 ) then
     call histwrt(tmaxscr,'tmaxscr',fncid,fiarch,local,lday)
     call histwrt(tminscr,'tminscr',fncid,fiarch,local,lday)
@@ -4191,7 +4239,7 @@ implicit none
 include 'kuocom.h'                    ! Convection parameters
 include 'version.h'                   ! Model version data
 
-integer, parameter :: freqvars = 5  ! number of variables to average
+integer, parameter :: freqvars = 2  ! number of variables to average
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
 integer, dimension(nihead) :: nahead
@@ -4205,7 +4253,7 @@ integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics
 integer i,j,k,n,iq,fiarch
 integer dproc, d4, asize, ssize, idnp, idgpn, idgpo
-integer fsize, press_level
+integer fsize, press_level, height_level
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -4442,27 +4490,8 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'rnd',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
     lname='Convective Precipitation'
     call attrib(fncid,sdim,ssize,'rnc',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
-    lname ='Surface Downwelling Shortwave Radiation'
-    call attrib(fncid,sdim,ssize,'sgdn_ave',lname,'W m-2',-500.,2.e3,0,-1)      ! -1 = long 
     lname = 'Scaled Log Surface pressure'
     call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.3,0.2,0,1)
-    lname = 'Screen mixing ratio'
-    call attrib(fncid,sdim,ssize,'qgscrn',lname,'kg kg-1',0.,0.06,0,1)
-    lname = 'Total Cloud Fraction'
-    call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)    
-    lname = 'Direct normal irradiance'
-    call attrib(fncid,sdim,ssize,'dni',lname,'W m-2',-500.,2.e3,0,-1)          ! -1 = long
-    if ( surf_windfarm==1 ) then
-      lname='x-component 150m wind'
-      call attrib(fncid,sdim,ssize,'ua150m',lname,'m s-1',-130.,130.,0,1)
-      lname='y-component 150m wind'     
-      call attrib(fncid,sdim,ssize,'va150m',lname,'m s-1',-130.,130.,0,1)
-      lname='x-component 250m wind'
-      call attrib(fncid,sdim,ssize,'ua250m',lname,'m s-1',-130.,130.,0,1)
-      lname='y-component 250m wind'     
-      call attrib(fncid,sdim,ssize,'va250m',lname,'m s-1',-130.,130.,0,1)
-    end if    
-    
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -4570,9 +4599,6 @@ end if
 ! store output
 freqstore(1:ifull,1) = freqstore(1:ifull,1) + condx*(86400./dt/real(tbave10))
 freqstore(1:ifull,2) = freqstore(1:ifull,2) + condc*(86400./dt/real(tbave10))
-freqstore(1:ifull,3) = freqstore(1:ifull,3) + sgdn/real(tbave10)
-freqstore(1:ifull,4) = freqstore(1:ifull,4) + cloudtot/real(tbave10)
-freqstore(1:ifull,5) = freqstore(1:ifull,5) + dni/real(tbave10)
 
 ! write data to file
 if ( mod(ktau,tbave10)==0 ) then
@@ -4599,49 +4625,7 @@ if ( mod(ktau,tbave10)==0 ) then
   call histwrt(rhscrn,"rhscrn",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,1),"rnd",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,2),"rnc",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,3),"sgdn_ave",fncid,fiarch,local,.true.)
   call histwrt(psl,"psf",fncid,fiarch,local,.true.)
-  call histwrt(qgscrn,"qgscrn",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,4),"cld",fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,5),"dni",fncid,fiarch,local,.true.)  
-  if ( surf_windfarm==1 ) then
-    do iq = 1,ifull
-      phi_local(1) = bet(1)*t(iq,1)
-      do k = 2,kl
-        phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
-      end do
-      do k = 1,kl-1
-        if ( phi_local(k)/grav<150. ) then
-          n = k
-        else
-          exit
-        end if
-      end do
-      xx = (150.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
-      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-    end do	
-    call histwrt(ua_level,"ua150m",fncid,fiarch,local,.true.)
-    call histwrt(va_level,"va150m",fncid,fiarch,local,.true.)
-    do iq = 1,ifull
-      phi_local(1) = bet(1)*t(iq,1)
-      do k = 2,kl
-        phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
-      end do
-      do k = 1,kl-1
-        if ( phi_local(k)/grav<250. ) then
-          n = k
-        else
-          exit
-        end if
-      end do
-      xx = (250.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
-      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-    end do
-    call histwrt(ua_level,"ua250m",fncid,fiarch,local,.true.)
-    call histwrt(va_level,"va250m",fncid,fiarch,local,.true.)      
-  end if
   
   freqstore(:,:) = 0.
 

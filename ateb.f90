@@ -4432,16 +4432,23 @@ real, dimension(ufull),     intent(in)    :: ggint_impl         ! implicit updat
 real, dimension(ufull,0:nl),intent(in)    :: nodetemp           ! temperature of each node
 real, dimension(ufull,0:nl),intent(out)   :: inodetemp          ! updated temperature solution
 real, dimension(ufull,nl),  intent(in)    :: depth,volcp,lambda ! facet depth, heat capacity, conductivity
+#ifdef CCAM
+real, dimension(ufull,nl)         :: cap,res            ! layer capacitance & resistance
+real, dimension(ufull,0:nl)       :: ggA,ggB,ggC,ggD    ! tridiagonal matrices
+real ggX                                                ! tridiagonal coefficient
+real, dimension(ufull)            :: ans                ! tridiagonal solution
+#else
 real(kind=8), dimension(ufull,nl)         :: cap,res            ! layer capacitance & resistance
 real(kind=8), dimension(ufull,0:nl)       :: ggA,ggB,ggC,ggD    ! tridiagonal matrices
-real(kind=8), dimension(ufull)            :: ggX                ! tridiagonal coefficient
+real(kind=8) ggX                                                ! tridiagonal coefficient
 real(kind=8), dimension(ufull)            :: ans                ! tridiagonal solution
+#endif
 real, intent(in)                          :: ddt                ! timestep
-integer k
+integer k, iqu
 
-res = real(depth,8)/real(lambda,8)
-cap = real(depth,8)*real(volcp,8)
-
+#ifdef CCAM
+res = depth/lambda
+cap = depth*volcp
 select case(conductmeth)
   case(0) !!!!!!!!! half-layer conduction !!!!!!!!!!!
     ggA(:,1)      =-2./res(:,1)
@@ -4469,9 +4476,51 @@ select case(conductmeth)
 end select
 ! tridiagonal solver (Thomas algorithm) to solve node temperatures
 do k=1,nl
-  ggX(:)   = ggA(:,k)/ggB(:,k-1)
-  ggB(:,k) = ggB(:,k)-ggX(:)*ggC(:,k-1)
-  ggD(:,k) = ggD(:,k)-ggX(:)*ggD(:,k-1)
+  do iqu = 1,ufull
+    ggX   = ggA(iqu,k)/ggB(iqu,k-1)
+    ggB(iqu,k) = ggB(iqu,k)-ggX*ggC(iqu,k-1)
+    ggD(iqu,k) = ggD(iqu,k)-ggX*ggD(iqu,k-1)
+  end do  
+end do
+inodetemp(:,nl) = ggD(:,nl)/ggB(:,nl)
+do k=nl-1,0,-1
+  inodetemp(:,k) = (ggD(:,k) - ggC(:,k)*inodetemp(:,k+1))/ggB(:,k)
+end do
+#else
+res = real(depth,8)/real(lambda,8)
+cap = real(depth,8)*real(volcp,8)
+select case(conductmeth)
+  case(0) !!!!!!!!! half-layer conduction !!!!!!!!!!!
+    ggA(:,1)      =-2._8/res(:,1)
+    ggA(:,2:nl)   =-2._8/(res(:,1:nl-1) +res(:,2:nl))
+    ggB(:,0)      = 2._8/res(:,1) + ggext_impl
+    ggB(:,1)      = 2._8/res(:,1) +2._8/(res(:,1)+res(:,2)) + cap(:,1)/real(ddt,8)
+    ggB(:,2:nl-1) = 2._8/(res(:,1:nl-2) +res(:,2:nl-1)) +2._8/(res(:,2:nl-1) & 
+                      +res(:,3:nl)) +cap(:,2:nl-1)/real(ddt,8)
+    ggB(:,nl)     = 2._8/(res(:,nl-1)+res(:,nl)) + cap(:,nl)/real(ddt,8) + ggint_impl
+    ggC(:,0)      =-2._8/res(:,1)
+    ggC(:,1:nl-1) =-2._8/(res(:,1:nl-1)+res(:,2:nl))
+    ggD(:,0)      = ggext
+    ggD(:,1:nl-1) = nodetemp(:,1:nl-1)*cap(:,1:nl-1)/real(ddt,8)
+    ggD(:,nl)     = nodetemp(:,nl)*cap(:,nl)/real(ddt,8) - ggint - rgint
+  case(1) !!!!!!!!! interface conduction !!!!!!!!!!!
+    ggA(:,1:nl)   = -1._8/res(:,1:nl)
+    ggB(:,0)      =  1._8/res(:,1) +0.5_8*cap(:,1)/ddt + ggext_impl
+    ggB(:,1:nl-1) =  1._8/res(:,1:nl-1) +1._8/res(:,2:nl) +0.5_8*(cap(:,1:nl-1) &
+                       +cap(:,2:nl))/ddt
+    ggB(:,nl)     =  1._8/res(:,nl) + 0.5_8*cap(:,nl)/real(ddt,8) + ggint_impl
+    ggC(:,0:nl-1) = -1._8/res(:,1:nl)
+    ggD(:,0)      = nodetemp(:,0)*0.5_8*cap(:,1)/real(ddt,8) + ggext
+    ggD(:,1:nl-1) = nodetemp(:,1:nl-1)*0.5_8*(cap(:,1:nl-1)+cap(:,2:nl))/real(ddt,8)
+    ggD(:,nl)     = nodetemp(:,nl)*0.5_8*cap(:,nl)/ddt - ggint - rgint
+end select
+! tridiagonal solver (Thomas algorithm) to solve node temperatures
+do k=1,nl
+  do iqu = 1,ufull
+    ggX = ggA(iqu,k)/ggB(iqu,k-1)
+    ggB(iqu,k) = ggB(iqu,k)-ggX*ggC(iqu,k-1)
+    ggD(iqu,k) = ggD(iqu,k)-ggX*ggD(iqu,k-1)
+  end do  
 end do
 ans = ggD(:,nl)/ggB(:,nl)
 inodetemp(:,nl) = real(ans)
@@ -4479,6 +4528,7 @@ do k=nl-1,0,-1
   ans = (ggD(:,k) - ggC(:,k)*ans)/ggB(:,k)
   inodetemp(:,k) = real(ans)
 end do
+#endif
 
 end subroutine solvetridiag
 
@@ -4794,14 +4844,15 @@ end subroutine dyerhicks
 ! Estimate roughness length for heat
 !
 
-subroutine getlna(lna,cd,umag,zmin,ilzom,mode)
+pure subroutine getlna(lna,cd,umag,zmin,ilzom,mode)
 
 implicit none
 
 integer, intent(in) :: mode
+integer iqu
 real, dimension(:), intent(out) :: lna
 real, dimension(:), intent(in) :: cd,umag,zmin,ilzom
-real, dimension(size(lna)) :: re
+real re
 real, parameter :: nu = 1.461E-5
 !real, parameter :: eta0 = 1.827E-5
 !real, parameter :: t0 = 291.15
@@ -4813,16 +4864,15 @@ select case(mode) ! roughness length for heat
   case(1) ! zot=zom/10.
     lna=2.3
   case(2) ! Kanda et al 2007
-    re=max(sqrt(cd)*umag*zmin*exp(-ilzom)/nu,10.)
-    !lna=2.46*re**0.25-2. !(Brutsaet, 1982)
-    lna=1.29*re**0.25-2.  !(Kanda et al, 2007)
+    do iqu = 1,size(lna)
+      re=max(sqrt(cd(iqu))*umag(iqu)*zmin(iqu)*exp(-ilzom(iqu))/nu,10.)
+      !lna(iqu)=2.46*re**0.25-2. !(Brutsaet, 1982)
+      lna(iqu)=1.29*re**0.25-2.  !(Kanda et al, 2007)
+    end do  
   case(3) ! zot=zom (neglect molecular diffusion)
     lna=0.
   case(4) ! user defined
     ! no change
-  case DEFAULT
-    write(6,*) "ERROR: Unknown getlna mode ",mode
-    stop
 end select
 
 return

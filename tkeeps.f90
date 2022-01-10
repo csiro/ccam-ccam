@@ -505,7 +505,7 @@ pure subroutine plumerise(mask,                                        &
                      sig,sigkap,tke,eps,ua,va,imax,kl)
 
 integer, intent(in) :: imax, kl
-integer k
+integer k, iq
 real, dimension(imax,kl), intent(inout) :: mflx, tlup, qvup, qlup, qfup, cfup
 real, dimension(imax,kl), intent(in) :: qvg, qlg, qfg, stratcloud
 real, dimension(imax,kl), intent(in) :: zz, thetal, ua, va 
@@ -516,10 +516,11 @@ real, dimension(imax), intent(in) :: wt0, wq0, ps, ustar
 real, dimension(kl), intent(in) :: sig, sigkap
 real, dimension(imax), intent(inout) :: zi, wstar
 real, dimension(imax,kl) ::  w2up, nn, cxup, rino
-real, dimension(imax,kl) :: theta, thetav, km
-real, dimension(imax) :: dzht, ent, templ, pres, upf, qxup, qupsat
-real, dimension(imax) :: fice, lx, qcup, dqsdt, al, xp, as, bs, cs
-real, dimension(imax) :: thup, tvup, qtup, vvk, wtv0
+real, dimension(imax,kl) :: theta, thetav
+real, dimension(imax) :: ent, qupsat
+real, dimension(imax) :: wtv0, fice, pres, templ
+real dzht, qtup, qxup, lx, dqsdt, al, qcup, thup, tvup
+real vvk, as, bs, cs, xp, upf
 real, parameter :: fac = 10. ! originally fac=100.
 real, parameter :: ricr = 0.3
 logical, dimension(imax), intent(in) :: mask
@@ -528,7 +529,6 @@ logical, dimension(imax), intent(in) :: mask
 do k = 1,kl
   theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
   thetav(:,k) = theta(:,k)*(1.+0.61*qvg(:,k)-qlg(:,k)-qfg(:,k))
-  km(:,k) = cm0*tke(:,k)**2/eps(:,k)
 end do 
 
 wtv0(:) = wt0(:) + theta(:,1)*0.61*wq0(:) ! thetav flux
@@ -547,82 +547,86 @@ end do
 
 ! first level -----------------
 
-dzht = zz(:,1)
 ! Entrainment rates
 ent = entfn(zz(:,1), zi(:), imax)
 
-! initial thermodynamic state
-! split qtot into components (conservation of thetal and qtot is maintained)
-where ( mask )
-  tlup(:,1) = thetal(:,1) + be*wt0/sqrt(max(tke(:,1),1.5e-4))       ! Hurley 2007
-  qvup(:,1) = qvg(:,1)    + be*wq0/sqrt(max(tke(:,1),1.5e-4))       ! Hurley 2007
-  qlup(:,1) = qlg(:,1)
-  qfup(:,1) = qfg(:,1)
-  cfup(:,1) = stratcloud(:,1)
-end where
-! update updraft velocity and mass flux
-nn(:,1) = grav*be*wtv0/(thetav(:,1)*sqrt(max(tke(:,1),1.5e-4))) ! Hurley 2007
-w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent)              ! Hurley 2007
-cxup(:,1) = 0.
-rino(:,1) = 0.
+do iq = 1,imax
+  dzht = zz(iq,1)
+  ! initial thermodynamic state
+  ! split qtot into components (conservation of thetal and qtot is maintained)
+  if ( mask(iq) ) then
+    tlup(iq,1) = thetal(iq,1) + be*wt0(iq)/sqrt(max(tke(iq,1),1.5e-4))       ! Hurley 2007
+    qvup(iq,1) = qvg(iq,1)    + be*wq0(iq)/sqrt(max(tke(iq,1),1.5e-4))       ! Hurley 2007
+    qlup(iq,1) = qlg(iq,1)
+    qfup(iq,1) = qfg(iq,1)
+    cfup(iq,1) = stratcloud(iq,1)
+  end if
+  ! update updraft velocity and mass flux
+  nn(iq,1) = grav*be*wtv0(iq)/(thetav(iq,1)*sqrt(max(tke(iq,1),1.5e-4))) ! Hurley 2007
+  w2up(iq,1) = 2.*dzht*b2*nn(iq,1)/(1.+2.*dzht*b1*ent(iq))               ! Hurley 2007
+  cxup(iq,1) = 0.
+  rino(iq,1) = 0.
+end do
 
 
 ! updraft with condensation
 do k = 2,kl
-  dzht = dz_hl(:,k-1)
   ! Entrainment rates
   ent = entfn(zz(:,k), zi(:), imax)
-  where ( w2up(:,k-1)>0. .and. mask )
-    ! entrain air into plume
-    ! split qtot into components (conservation of qtot is maintained)
-    tlup(:,k) = (tlup(:,k-1)+dzht*ent*thetal(:,k))/(1.+dzht*ent)
-    qvup(:,k) = (qvup(:,k-1)+dzht*ent*qvg(:,k)   )/(1.+dzht*ent)
-    qlup(:,k) = (qlup(:,k-1)+dzht*ent*qlg(:,k)   )/(1.+dzht*ent)
-    qfup(:,k) = (qfup(:,k-1)+dzht*ent*qfg(:,k)   )/(1.+dzht*ent)
-    cfup(:,k) = (cfup(:,k-1)+dzht*ent*stratcloud(:,k))/(1.+dzht*ent)
-  end where
-  ! calculate conserved variables
-  qtup = qvup(:,k) + qlup(:,k) + qfup(:,k)    ! qtot,up
-  templ = tlup(:,k)/sigkap(k)                 ! templ,up
+  templ = tlup(:,k)/sigkap(k)     ! templ,up
   pres = ps(:)*sig(k)
   fice = min( qfup(:,k)/max(qfup(:,k)+qlup(:,k),1.e-8), 1. )
   call getqsat(qupsat,templ,pres,fice,imax)
-  where ( qtup>qupsat .and. w2up(:,k-1)>0. )
-    qxup = qupsat
-    cxup(:,k) = 1.
-  elsewhere
-    qxup = qtup
-    cxup(:,k) = 0.
-  end where
-  lx = lv + lf*fice
-  dqsdt = qupsat*lx/(rv*templ**2)
-  al = cp/(cp+lx*dqsdt)
-  qcup = max(al*(qtup-qxup), 0.)                           ! qcondensate,up after redistribution
-  qcup = min(qcup, qcmf)                                   ! limit condensation with simple autoconversion
-  thup = tlup(:,k) + sigkap(k)*qcup*lx/cp                  ! theta,up after redistribution
-  tvup = thup + theta(:,k)*(0.61*qxup-qcup)                ! thetav,up after redistribution
-  where ( w2up(:,k-1)>0. )
-    nn(:,k) = grav*(tvup-thetav(:,k))/thetav(:,k)                    ! calculate buayancy
-    w2up(:,k) = (w2up(:,k-1)+2.*dzht*b2*nn(:,k))/(1.+2.*dzht*b1*ent) ! update updraft velocity
-  elsewhere
-    nn(:,k) = 0.  
-    w2up(:,k) = 0.
-  end where
-  vvk(:) = (ua(:,k)-ua(:,1))**2 + (va(:,k)-va(:,1))**2 + fac*ustar(:)**2  
-  rino(:,k) = grav*(thetav(:,k)-thetav(:,1))*(zz(:,k)-zz(:,1))/max(thetav(:,1)*vvk,1.e-30)
-  ! test if maximum plume height is reached
-  where ( w2up(:,k)<=0. .and. w2up(:,k-1)>0. .and. mask ) ! unstable
-    as = 2.*b2*(nn(:,k)-nn(:,k-1))/dzht
-    bs = 2.*b2*nn(:,k-1)
-    cs = w2up(:,k-1)
-    xp = -2.*cs/(bs-sqrt(max(bs**2-4.*as*cs,0.)))
-    xp = min(max(xp,0.),dzht)
-    zi(:) = xp + zz(:,k-1)
-  elsewhere ( rino(:,k)>ricr .and. rino(:,k-1)<=ricr .and. .not.mask ) ! stable
-    xp(:) = (ricr-rino(:,k-1))/(rino(:,k)-rino(:,k-1))
-    xp(:) = min( max(xp(:), 0.), 1.)
-    zi(:) = zz(:,k-1) + xp(:)*(zz(:,k)-zz(:,k-1))
-  end where
+  do iq = 1,imax
+    dzht = dz_hl(iq,k-1)
+    if ( w2up(iq,k-1)>0. .and. mask(iq) ) then
+      ! entrain air into plume
+      ! split qtot into components (conservation of qtot is maintained)
+      tlup(iq,k) = (tlup(iq,k-1)+dzht*ent(iq)*thetal(iq,k))/(1.+dzht*ent(iq))
+      qvup(iq,k) = (qvup(iq,k-1)+dzht*ent(iq)*qvg(iq,k)   )/(1.+dzht*ent(iq))
+      qlup(iq,k) = (qlup(iq,k-1)+dzht*ent(iq)*qlg(iq,k)   )/(1.+dzht*ent(iq))
+      qfup(iq,k) = (qfup(iq,k-1)+dzht*ent(iq)*qfg(iq,k)   )/(1.+dzht*ent(iq))
+      cfup(iq,k) = (cfup(iq,k-1)+dzht*ent(iq)*stratcloud(iq,k))/(1.+dzht*ent(iq))
+    end if
+    ! calculate conserved variables
+    qtup = qvup(iq,k) + qlup(iq,k) + qfup(iq,k)    ! qtot,up
+    if ( qtup>qupsat(iq) .and. w2up(iq,k-1)>0. ) then
+      qxup = qupsat(iq)
+      cxup(iq,k) = 1.
+    else
+      qxup = qtup
+      cxup(iq,k) = 0.
+    end if
+    lx = lv + lf*fice(iq)
+    dqsdt = qupsat(iq)*lx/(rv*templ(iq)**2)
+    al = cp/(cp+lx*dqsdt)
+    qcup = max(al*(qtup-qxup), 0.)                           ! qcondensate,up after redistribution
+    qcup = min(qcup, qcmf)                                   ! limit condensation with simple autoconversion
+    thup = tlup(iq,k) + sigkap(k)*qcup*lx/cp                 ! theta,up after redistribution
+    tvup = thup + theta(iq,k)*(0.61*qxup-qcup)               ! thetav,up after redistribution
+    if ( w2up(iq,k-1)>0. ) then
+      nn(iq,k) = grav*(tvup-thetav(iq,k))/thetav(iq,k)                        ! calculate buayancy
+      w2up(iq,k) = (w2up(iq,k-1)+2.*dzht*b2*nn(iq,k))/(1.+2.*dzht*b1*ent(iq)) ! update updraft velocity
+    else
+      nn(iq,k) = 0.  
+      w2up(iq,k) = 0.
+    end if
+    vvk = (ua(iq,k)-ua(iq,1))**2 + (va(iq,k)-va(iq,1))**2 + fac*ustar(iq)**2  
+    rino(iq,k) = grav*(thetav(iq,k)-thetav(iq,1))*(zz(iq,k)-zz(iq,1))/max(thetav(iq,1)*vvk,1.e-30)
+    ! test if maximum plume height is reached
+    if ( w2up(iq,k)<=0. .and. w2up(iq,k-1)>0. .and. mask(iq) ) then ! unstable
+      as = 2.*b2*(nn(iq,k)-nn(iq,k-1))/dzht
+      bs = 2.*b2*nn(iq,k-1)
+      cs = w2up(iq,k-1)
+      xp = -2.*cs/(bs-sqrt(max(bs**2-4.*as*cs,0.)))
+      xp = min(max(xp,0.),dzht)
+      zi(iq) = xp + zz(iq,k-1)
+    else if ( rino(iq,k)>ricr .and. rino(iq,k-1)<=ricr .and. .not.mask(iq) ) then ! stable
+      xp = (ricr-rino(iq,k-1))/(rino(iq,k)-rino(iq,k-1))
+      xp = min( max(xp, 0.), 1.)
+      zi(iq) = zz(iq,k-1) + xp*(zz(iq,k)-zz(iq,k-1))
+    end if
+  end do
 end do
 
 ! update wstar with new zi          
@@ -631,11 +635,13 @@ wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)
 ! update mass flux
 mflx(:,1) = m0*sqrt(max(w2up(:,1), 0.))
 do k = 2,kl
-  dzht = dz_hl(:,k-1)
-  upf = mflx(:,k-1)/sqrt(max(w2up(:,k-1), 1.e-8))
-  mflx(:,k) = (1.-cxup(:,k))*m0*sqrt(max(w2up(:,k), 0.))         &
-            + cxup(:,k)*mflx(:,k-1)/(1.+dzht*(dtrc0-entc0))
-  mflx(:,k) = min( mflx(:,k), upf*sqrt(max(w2up(:,k), 0.)) )
+  do iq = 1,imax
+    dzht = dz_hl(iq,k-1)
+    upf = mflx(iq,k-1)/sqrt(max(w2up(iq,k-1), 1.e-8))
+    mflx(iq,k) = (1.-cxup(iq,k))*m0*sqrt(max(w2up(iq,k), 0.))         &
+               + cxup(iq,k)*mflx(iq,k-1)/(1.+dzht*(dtrc0-entc0))
+    mflx(iq,k) = min( mflx(iq,k), upf*sqrt(max(w2up(iq,k), 0.)) )
+  end do
 end do
 
 return

@@ -129,8 +129,8 @@ module cc_mpi
              ccmpi_reinit, ccmpi_alltoall, ccmpi_procformat_init
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
-   public :: ind, indx, indp, indg, iq2iqg, indv_mpi, indglobal, fproc,     &
-             face_set, uniform_set, dix_set
+   public :: indp, indg, iq2iqg, iqg2iq, indv_mpi, fproc, face_set,         &
+             uniform_set, dix_set
    public :: allocateglobalpack, copyglobalpack,                            &
              ccmpi_gathermap_send2, ccmpi_gathermap_recv2,                  &
              ccmpi_gathermap_send3, ccmpi_gathermap_recv3, getglobalpack_v, &
@@ -325,8 +325,11 @@ module cc_mpi
    
    type dpoints_info
       real, dimension(:,:), allocatable :: a
-      real, dimension(:), allocatable :: b
    end type dpoints_info
+   type dbuf_info
+      real, dimension(:,:), allocatable :: a
+      real, dimension(:), allocatable :: b
+   end type dbuf_info   
    type dindex_info
       integer, dimension(:,:), allocatable :: a
    end type dindex_info
@@ -336,7 +339,7 @@ module cc_mpi
    
    ! Off processor departure points
    type(dpoints_info), allocatable, dimension(:), public, save :: dpoints ! request list from other proc
-   type(dpoints_info), allocatable, dimension(:), private, save :: dbuf   ! recv buffer
+   type(dbuf_info), allocatable, dimension(:), private, save :: dbuf      ! recv buffer
    type(dindex_info), allocatable, dimension(:), private, save :: dindex  ! request list for my proc
    type(sextra_info), allocatable, dimension(:), public, save :: sextra   ! send buffer
    ! Number of points for each processor.
@@ -2728,129 +2731,97 @@ contains
                iqg = indg(i,j,n)  ! Global
 
                iqq = in_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  in(iq) = indp(iloc,jloc,nloc)
+                  in(iq) = iqg2iq(iqq)
                end if
                iqq = inn_g(iqg)   ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  inn(iq) = indp(iloc,jloc,nloc)
+                  inn(iq) = iqg2iq(iqq)
                end if
 
                iqq = is_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  is(iq) = indp(iloc,jloc,nloc)
+                  is(iq) = iqg2iq(iqq)
                end if
                iqq = iss_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  iss(iq) = indp(iloc,jloc,nloc)
+                  iss(iq) = iqg2iq(iqq)
                end if
 
                iqq = ie_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  ie(iq) = indp(iloc,jloc,nloc)
+                  ie(iq) = iqg2iq(iqq)
                end if
                iqq = iee_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  iee(iq) = indp(iloc,jloc,nloc)
+                  iee(iq) = iqg2iq(iqq)
                end if
 
                iqq = iw_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  iw(iq) = indp(iloc,jloc,nloc)
+                  iw(iq) = iqg2iq(iqq)
                end if
                iqq = iww_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  iww(iq) = indp(iloc,jloc,nloc)
+                  iww(iq) = iqg2iq(iqq)
                end if
 
                ! Note that the model only needs a limited set of the diagonal
                ! index arrays
                iqq = ine_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  ine(iq) = indp(iloc,jloc,nloc)
+                  ine(iq) = iqg2iq(iqq)
                end if
 
                iqq = ise_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  ise(iq) = indp(iloc,jloc,nloc)
+                  ise(iq) = iqg2iq(iqq)
                end if
 
                iqq = ien_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  ien(iq) = indp(iloc,jloc,nloc)
+                  ien(iq) = iqg2iq(iqq)
                end if
 
                iqq = iwn_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  iwn(iq) = indp(iloc,jloc,nloc)
+                  iwn(iq) = iqg2iq(iqq)
                end if
 
                iqq = inw_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  inw(iq) = indp(iloc,jloc,nloc)
+                  inw(iq) = iqg2iq(iqq)
                end if
 
                iqq = isw_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  isw(iq) = indp(iloc,jloc,nloc)
+                  isw(iq) = iqg2iq(iqq)
                end if
 
                iqq = ies_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  ies(iq) = indp(iloc,jloc,nloc)
+                  ies(iq) = iqg2iq(iqq)
                end if
 
                iqq = iws_g(iqg)    ! Global neighbour index
-               rproc = qproc(iqq) ! Processor that has this point
-               if ( rproc == myid ) then ! Just copy the value
+               if ( qproc(iqq) == myid ) then ! Just copy the value
                   ! Convert global iqq to local value
-                  call indv_mpi(iqq,iloc,jloc,nloc)
-                  iws(iq) = indp(iloc,jloc,nloc)
+                  iws(iq) = iqg2iq(iqq)
                end if
 
             end do
@@ -4253,15 +4224,13 @@ contains
          do iq = 1,bnds(sproc)%slen2
             ! send_list(iq) is global point index, i, j, n are local
             iqq = bnds(sproc)%send_list(iq)
-            call indv_mpi(iqq,i,j,n)
-            bnds(sproc)%send_list(iq) = indp(i,j,n)
+            bnds(sproc)%send_list(iq) = iqg2iq(iqq)
          end do
          do iq = 1,bnds(sproc)%slen_eev_fn
             ! send_list(iq) is global point index, i, j, n are local
             ! Use abs because sign is used as u/v flag
             iqq = abs(bnds(sproc)%send_list_uv(iq))
-            call indv_mpi(iqq,i,j,n)
-            bnds(sproc)%send_list_uv(iq) = sign(indp(i,j,n),bnds(sproc)%send_list_uv(iq))
+            bnds(sproc)%send_list_uv(iq) = sign(iqg2iq(iqq),bnds(sproc)%send_list_uv(iq))
          end do
       end do
       if ( bnds(myid)%rlen2 /= 0 ) then
@@ -4270,8 +4239,7 @@ contains
       end if
       do iq = 1,bnds(myid)%rlen_eev_fn
          iqq = abs(bnds(myid)%request_list_uv(iq))
-         call indv_mpi(iqq,i,j,n)
-         bnds(myid)%request_list_uv(iq) = sign(indp(i,j,n),bnds(myid)%request_list_uv(iq))
+         bnds(myid)%request_list_uv(iq) = sign(iqg2iq(iqq),bnds(myid)%request_list_uv(iq))
       end do
 
       
@@ -6174,7 +6142,7 @@ contains
 
    end subroutine intssync_recv4
    
-   subroutine indv_mpi(iq, i, j, n)
+   pure subroutine indv_mpi(iq, i, j, n)
       integer , intent(in) :: iq
       integer , intent(out) :: i
       integer , intent(out) :: j
@@ -6183,35 +6151,22 @@ contains
       ! Calculate local i, j, n from global iq
 
       ! Global i, j, n
-      n = (iq - 1)/(il_g*il_g)
-      j = 1 + (iq - n*il_g*il_g - 1)/il_g
-      i = iq - (j - 1)*il_g - n*il_g*il_g
-      if ( fproc(i,j,n) /= myid ) then
-         write(*,"(a,5i5)") "Consistency failure in indv_mpi", myid, iq, i, j, n
-         call ccmpi_abort(-1)
-      end if
+      n = (iq - 1)/(il_g**2)
+      j = 1 + (iq - n*il_g**2 - 1)/il_g
+      i = iq - (j - 1)*il_g - n*il_g**2
       ! Reduced to values on my processor
       j = j - joff
       i = i - ioff
       n = n + noff      
    end subroutine indv_mpi
 
-   pure function indglobal(i,j,n) result(iq)
+   pure function indg(i,j,n) result(iqg)
       integer, intent(in) :: i, j, n
-      integer :: iq
-
-      ! Calculate a 1D global index from the global indices
-      ! n in range 0:npanels
-      iq = i + (j-1)*il_g + n*il_g*il_g
-   end function indglobal
-
-   pure function indg(i,j,n) result(iq)
-      integer, intent(in) :: i, j, n
-      integer :: iq
+      integer :: iqg
 
       ! Calculate a 1D global index from the local processors indices
       ! n in range 1..npan
-      iq = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
+      iqg = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
    end function indg
 
    pure function indp(i,j,n) result(iq)
@@ -6229,15 +6184,25 @@ contains
       integer :: i, j, n
 
       ! Calculate global iqg from local iq
-
-      ! MJT bug fix (should be ipan and jpan, not il and jl)
-      ! Calculate local i, j, n
       n = 1 + (iq-1)/(ipan*jpan)  ! In range 1 .. npan
-      j = 1 + ( iq - (n-1)*(ipan*jpan) - 1) / ipan
-      i = iq - (j-1)*ipan - (n-1)*(ipan*jpan)
-      iqg = indg(i,j,n)
+      j = 1 + ( iq - (n-1)*ipan*jpan - 1) / ipan
+      i = iq - (j-1)*ipan - (n-1)*ipan*jpan
+      iqg = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g**2
 
-   end function iq2iqg
+  end function iq2iqg
+  
+  pure function iqg2iq(iqg) result(iq)
+      integer, intent(in) :: iqg
+      integer :: iq
+      integer :: i, j, n
+
+      ! Calculate local iq from global iqg
+      n = (iqg - 1)/(il_g**2)
+      j = 1 + (iqg - n*il_g**2 - 1)/il_g
+      i = iqg - (j - 1)*il_g - n*il_g**2
+      iq = i-ioff + (j-joff-1)*ipan + (n+noff-1)*ipan*jpan
+
+   end function iqg2iq
 
    pure function fproc(i,j,n) result(fpout)
       ! locates processor that owns a global grid point
@@ -6245,9 +6210,7 @@ contains
       integer :: fpout
       integer :: ip, jp
 
-      ip = (i-1)/ipan
-      jp = (j-1)/jpan
-      fpout = ip + jp*nxproc + n*nxproc*nyproc/npan
+      fpout = (i-1)/ipan + ((j-1)/jpan)*nxproc + n*nxproc*nyproc/npan
    
    end function fproc
 
@@ -6260,8 +6223,7 @@ contains
       n = (iqg - 1) / (il_g*il_g)
       j = 1 + (iqg - n*il_g*il_g - 1)/il_g
       i = iqg - (j - 1)*il_g - n*il_g*il_g
-
-      qpout = fproc(i,j,n)
+      qpout = (i-1)/ipan + ((j-1)/jpan)*nxproc + n*nxproc*nyproc/npan
    
    end function qproc
 
@@ -6271,36 +6233,12 @@ contains
       integer iq
       integer i, j, n
       
-      n = (iq_g - 1)/(mil_g*mil_g)
-      j = 1 + (iq_g - n*mil_g*mil_g - 1)/mil_g
-      i = iq_g - (j - 1)*mil_g - n*mil_g*mil_g
-
-      n = n + mnoff  
-      j = j - mjoff
-      i = i - mioff
-      
-      iq = i + (j-1)*mipan + (n-1)*mipan*mjpan
+      n = (iq_g - 1)/(mil_g**2)
+      j = 1 + (iq_g - n*mil_g**2 - 1)/mil_g
+      i = iq_g - (j - 1)*mil_g - n*mil_g**2
+      iq = i-mioff + (j-mjoff-1)*mipan + (n + mnoff-1)*mipan*mjpan
    
    end function indx_indv
-
-   pure function indx(i,j,n,il,jl) result(iq)
-      ! more general version of ind function
-
-      integer, intent(in) :: i, j, n, il, jl
-      integer iq
-
-      iq = i + (j-1)*il + n*il*jl
-
-   end function indx
-   
-   pure function ind(i,j,n) result(iq)
-
-      integer, intent(in) :: i, j, n
-      integer iq
-
-      iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-
-   end function ind
    
    pure function findcolour(iqg) result(icol)
    
@@ -6360,8 +6298,7 @@ contains
          larray(n) = ifull + iext
       else
          ! If it's on this processor, just use the local index
-         call indv_mpi(iqq,iloc,jloc,nloc)
-         larray(n) = indp(iloc,jloc,nloc)
+         larray(n) = iqg2iq(iqq)
       end if
       
    end subroutine fix_index2
@@ -6384,8 +6321,7 @@ contains
       ! Convert global indices to ones on this processors region
       idjd_g = id + (jd-1)*il_g
       if ( mydiag ) then
-         call indv_mpi(idjd_g,i,j,n)
-         idjd = indp(i,j,n)
+         idjd = iqg2iq(idjd_g)
       else
          ! This should never be used so set a value that will give a bounds error
          idjd = huge(1)
@@ -9157,7 +9093,7 @@ contains
       do n = 0,npanels
          do j = 1,mil_g
             do i = 1,mil_g
-               iq = indx(i,j,n,mil_g,mil_g)
+               iq = i + (j-1)*mil_g + n*mil_g**2 
                if ( mg_qproc(iq,mil_g,g) /= myid ) then
                   ! found grid point that does not belong to myid
                   lglob = .false.
@@ -9210,89 +9146,77 @@ contains
          do n = 1,npan
             do j = 1,mjpan
                do i = 1,mipan
-                  iq = indx(i,j,n-1,mipan,mjpan)                 ! Local
-                  iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g) ! Global
+                  iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              ! Local
+                  iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 ! Global
 
                   iqq = jn_g(iqg,mil_g)         ! Global neighbour index
-                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
-                  if ( rproc == myid ) then ! Just copy the value
+                  if ( mg_qproc(iqq,mil_g,g) == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      mg(g)%in(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = js_g(iqg,mil_g)         ! Global neighbour index
-                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
-                  if ( rproc == myid ) then ! Just copy the value
+                  if ( mg_qproc(iqq,mil_g,g) == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      mg(g)%is(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = je_g(iqg,mil_g)         ! Global neighbour index
-                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
-                  if ( rproc == myid ) then ! Just copy the value
+                  if ( mg_qproc(iqq,mil_g,g) == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      mg(g)%ie(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jw_g(iqg,mil_g)         ! Global neighbour index
-                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
-                  if ( rproc == myid ) then ! Just copy the value
+                  if ( mg_qproc(iqq,mil_g,g) == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      mg(g)%iw(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
             
                   iqq = jne_g(iqg,mil_g)        ! Global neighbour index
-                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
-                  if ( rproc == myid ) then ! Just copy the value
+                  if ( mg_qproc(iqq,mil_g,g) == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      mg(g)%ine(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if      
 
                   iqq = jen_g(iqg,mil_g)        ! Global neighbour index
-                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
-                  if ( rproc == myid ) then ! Just copy the value
+                  if ( mg_qproc(iqq,mil_g,g) == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      mg(g)%ien(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jnw_g(iqg,mil_g)        ! Global neighbour index
-                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
-                  if ( rproc == myid ) then ! Just copy the value
+                  if ( mg_qproc(iqq,mil_g,g) == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      mg(g)%inw(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
  
                   iqq = jwn_g(iqg,mil_g)        ! Global neighbour index
-                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
-                  if ( rproc == myid ) then ! Just copy the value
+                  if ( mg_qproc(iqq,mil_g,g) == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      mg(g)%iwn(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jse_g(iqg,mil_g)        ! Global neighbour index
-                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
-                  if ( rproc == myid ) then ! Just copy the value
+                  if ( mg_qproc(iqq,mil_g,g) == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      mg(g)%ise(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jes_g(iqg,mil_g)        ! Global neighbour index
-                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
-                  if ( rproc == myid ) then ! Just copy the value
+                  if ( mg_qproc(iqq,mil_g,g) == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      mg(g)%ies(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
 
                   iqq = jsw_g(iqg,mil_g)        ! Global neighbour index
-                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
-                  if ( rproc == myid ) then ! Just copy the value
+                  if ( mg_qproc(iqq,mil_g,g) == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      mg(g)%isw(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
  
                   iqq = jws_g(iqg,mil_g)        ! Global neighbour index
-                  rproc = mg_qproc(iqq,mil_g,g) ! Processor that has this point
-                  if ( rproc == myid ) then ! Just copy the value
+                  if ( mg_qproc(iqq,mil_g,g) == myid ) then ! Just copy the value
                      ! Convert global iqq to local value
                      mg(g)%iws(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
                   end if
@@ -9309,8 +9233,8 @@ contains
             !     Start with N edge
             j = mjpan
             do i = 1,mipan
-               iq = indx(i,j,n-1,mipan,mjpan)  !  Local index 
-               iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
+               iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
+               iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
                iqq = jn_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
@@ -9329,8 +9253,8 @@ contains
             !     E edge
             i = mipan
             do j = 1,mjpan
-               iq = indx(i,j,n-1,mipan,mjpan)  !  Local index 
-               iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
+               iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
+               iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
                iqq = je_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
@@ -9349,8 +9273,8 @@ contains
             !     W edge
             i = 1
             do j = 1,mjpan
-               iq = indx(i,j,n-1,mipan,mjpan)  !  Local index  
-               iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
+               iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
+               iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
                iqq = jw_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
@@ -9369,8 +9293,8 @@ contains
             !     S edge
             j = 1
             do i = 1,mipan
-               iq = indx(i,j,n-1,mipan,mjpan)  !  Local index
-               iqg = indx(i+mioff,j+mjoff,n-noff,mil_g,mil_g)
+               iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
+               iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
                iqq = js_g(iqg,mil_g)
                ! Which processor has this point
                rproc = mg_qproc(iqq,mil_g,g)
@@ -9393,8 +9317,8 @@ contains
          do n = 1,npan
             
             ! NE, EN
-            iq = indx(mipan,mjpan,n-1,mipan,mjpan)  !  Local index
-            iqg = indx(mipan+mioff,mjpan+mjoff,n-noff,mil_g,mil_g)
+            iq = mipan + (mjpan-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
+            iqg = mipan+mioff + (mjpan+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
             iqq = jne_g(iqg,mil_g)
             ! Which processor has this point
             rproc = mg_qproc(iqq,mil_g,g)
@@ -9427,8 +9351,8 @@ contains
             end if
 
             ! SE, ES
-            iq = indx(mipan,1,n-1,mipan,mjpan)  !  Local index
-            iqg = indx(mipan+mioff,1+mjoff,n-noff,mil_g,mil_g)
+            iq = mipan + (n-1)*mipan*mjpan                      !  Local index
+            iqg = mipan+mioff + mjoff*mil_g + (n-noff)*mil_g**2 !  Global index
             iqq = jse_g(iqg,mil_g)
             ! Which processor has this point
             rproc = mg_qproc(iqq,mil_g,g)
@@ -9461,8 +9385,8 @@ contains
             end if
 
             ! NW, WN
-            iq = indx(1,mjpan,n-1,mipan,mjpan)  !  Local index
-            iqg = indx(1+mioff,mjpan+mjoff,n-noff,mil_g,mil_g)
+            iq = 1 + (mjpan-1)*mipan + (n-1)*mipan*mjpan              !  Local index
+            iqg = 1+mioff + (mjpan+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
             iqq = jnw_g(iqg,mil_g)
             ! Which processor has this point
             rproc = mg_qproc(iqq,mil_g,g)
@@ -9495,8 +9419,8 @@ contains
             end if
 
             ! SW, WS
-            iq = indx(1,1,n-1,mipan,mjpan)  !  Local index
-            iqg = indx(1+mioff,1+mjoff,n-noff,mil_g,mil_g)
+            iq = 1 + (n-1)*mipan*mjpan                        !  Local index
+            iqg = 1+mioff + (mjoff)*mil_g + (n-noff)*mil_g**2 !  Global index
             iqq = jsw_g(iqg,mil_g)
             ! Which processor has this point
             rproc = mg_qproc(iqq,mil_g,g)
@@ -9537,7 +9461,7 @@ contains
          do n = 1,npan
             do j = 1,mjpan
                do i = 1,mipan
-                  iq = indx(i,j,n-1,mipan,mjpan)   ! Local
+                  iq = i + (j-1)*mipan + (n-1)*mipan*mjpan !  Local index
                   ! Except at corners, ien = ine etc.
                   if ( i > 1 ) then
                      mg(g)%inw(iq) = mg(g)%in(mg(g)%iw(iq))
@@ -9741,16 +9665,15 @@ contains
             do n = 0,npanels
                do j = 1,mil_g
                   do i = 1,mil_g
-                     iq = indx(i,j,n,mil_g,mil_g)
-
+                     iqg = i + (j-1)*mil_g + n*mil_g**2 !  Global index 
                      jx = mod( i+j+n*mil_g, 2 )
                      select case( n+jx*(npanels+1) )
                         case( 0, 1, 3, 4 )
-                           mg_colourmask(iq) = 1
+                           mg_colourmask(iqg) = 1
                         case( 2, 5, 6, 9 )
-                           mg_colourmask(iq) = 2
+                           mg_colourmask(iqg) = 2
                         case( 7, 8, 10, 11 )
-                           mg_colourmask(iq) = 3
+                           mg_colourmask(iqg) = 3
                      end select
                   end do
                end do

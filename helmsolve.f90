@@ -874,41 +874,37 @@ ng4 = 0
 klim = kl
 
 !$omp parallel
-!$omp do schedule(static) private(k,nc,iq)
+!$omp do schedule(static) private(k)
 do k = 1,kl
-
   iv(ifull+1:ifull+iextra,k) = 0. ! for IBM compiler
   iv_new(:,k) = 0.                ! for IBM compiler
   vdum(:) = 0.
-
   ! determine max/min for convergence calculations
   smaxmin_g(k,1) = maxval(iv(1:ifull,k))
   smaxmin_g(k,2) = minval(iv(1:ifull,k))
   smaxmin_g(k+kl,1) = 0.
   smaxmin_g(k+kl,2) = 0. 
+end do
+!$omp end do nowait
   
-  ! pack colour arrays at fine level
-  ! note that the packing reorders the calculation to update the border points first
-  !dummy2(1:ifull) = 1./(ihelm(1:ifull,k)-izz(1:ifull))
-  do nc = 1,maxcolour
-    do iq = 1,ifull_colour(nc)  
-      rhelmc(iq,k,nc) = ihelm(iqx(iq,nc),k)
-      rhsc(iq,k,nc)   = jrhs(iqx(iq,nc),k)
-    end do  
+! pack colour arrays at fine level
+! note that the packing reorders the calculation to update the border points first
+!$omp do schedule(static) private(k,nc)
+do nc = 1,maxcolour
+  do k = 1,kl  
+    rhelmc(1:ifull_colour(nc),k,nc) = ihelm(iqx(1:ifull_colour(nc),nc),k)
+    rhsc(1:ifull_colour(nc),k,nc)   = jrhs(iqx(1:ifull_colour(nc),nc),k)
   end do
-  
-end do ! k loop
+end do
 !$omp end do nowait
 
-!$omp do schedule(static) private(nc,iq)
+!$omp do schedule(static) private(nc)
 do nc = 1,maxcolour
-  do iq = 1,ifull_colour(nc)
-    zznc(iq,nc) = izzn(iqx(iq,nc))
-    zzwc(iq,nc) = izzw(iqx(iq,nc))
-    zzec(iq,nc) = izze(iqx(iq,nc))
-    zzsc(iq,nc) = izzs(iqx(iq,nc))
-    zzc(iq,nc) = izz(iqx(iq,nc))
-  end do  
+  zznc(1:ifull_colour(nc),nc) = izzn(iqx(1:ifull_colour(nc),nc))
+  zzwc(1:ifull_colour(nc),nc) = izzw(iqx(1:ifull_colour(nc),nc))
+  zzec(1:ifull_colour(nc),nc) = izze(iqx(1:ifull_colour(nc),nc))
+  zzsc(1:ifull_colour(nc),nc) = izzs(iqx(1:ifull_colour(nc),nc))
+  zzc(1:ifull_colour(nc),nc) = izz(iqx(1:ifull_colour(nc),nc))
 end do
 !$omp end do
 
@@ -967,7 +963,7 @@ do k = 1,kl
   do iq = 1,ifull
     w(iq,k) = -izzn(iq)*iv(in(iq),k) - izzw(iq)*iv(iw(iq),k) &
               -izze(iq)*iv(ie(iq),k) - izzs(iq)*iv(is(iq),k) &
-                + jrhs(iq,k) + iv(iq,k)*(ihelm(iq,k)-izz(iq))
+            + jrhs(iq,k) + iv(iq,k)*(ihelm(iq,k)-izz(iq))
     ! also include ihelm weights for upscaled grid
     w(iq,k+kl) = ihelm(iq,k)
   end do  
@@ -1059,21 +1055,18 @@ if ( mg_maxlevel_local>0 ) then
     ng = mg(g)%ifull
     do k = 1,kl
       do nc = 1,3
-        do iq = 1,mg_ifull_maxcolour
-          helmc_c(iq,nc,k) = helm(col_iq(iq,nc),k,g) - mg(g)%zz(col_iq(iq,nc))
-          rhsc_c(iq,nc,k) = rhs(col_iq(iq,nc),k,g)
-        end do  
+        helmc_c(1:mg_ifull_maxcolour,nc,k) = helm(col_iq(1:mg_ifull_maxcolour,nc),k,g) &
+            - mg(g)%zz(col_iq(1:mg_ifull_maxcolour,nc))
+        rhsc_c(1:mg_ifull_maxcolour,nc,k) = rhs(col_iq(1:mg_ifull_maxcolour,nc),k,g)
       end do
       v(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
       sdifc(k) = max( maxval(v(1:ng,k,g),dim=1) - minval(v(1:ng,k,g),dim=1), 1.e-20 )      
     end do
     do nc = 1,3
-      do iq = 1,mg_ifull_maxcolour  
-        zznc_c(iq,nc) = mg(g)%zzn(col_iq(iq,nc))
-        zzec_c(iq,nc) = mg(g)%zze(col_iq(iq,nc))
-        zzsc_c(iq,nc) = mg(g)%zzs(col_iq(iq,nc))
-        zzwc_c(iq,nc) = mg(g)%zzw(col_iq(iq,nc))
-      end do  
+      zznc_c(1:mg_ifull_maxcolour,nc) = mg(g)%zzn(col_iq(1:mg_ifull_maxcolour,nc))
+      zzec_c(1:mg_ifull_maxcolour,nc) = mg(g)%zze(col_iq(1:mg_ifull_maxcolour,nc))
+      zzsc_c(1:mg_ifull_maxcolour,nc) = mg(g)%zzs(col_iq(1:mg_ifull_maxcolour,nc))
+      zzwc_c(1:mg_ifull_maxcolour,nc) = mg(g)%zzw(col_iq(1:mg_ifull_maxcolour,nc))
     end do
     klimc = kl
     do itrc = 1,itr_mg
@@ -1081,6 +1074,7 @@ if ( mg_maxlevel_local>0 ) then
         vsavc(1:ng) = v(1:ng,k,g)
         do nc = 1,3
           do iq = 1,mg_ifull_maxcolour  
+            ! 3 colours makes it safe to update  
             v(col_iq(iq,nc),k,g) = ( zznc_c(iq,nc)*v(col_iqn(iq,nc),k,g) &
                                    + zzec_c(iq,nc)*v(col_iqe(iq,nc),k,g) &
                                    + zzsc_c(iq,nc)*v(col_iqs(iq,nc),k,g) &
@@ -1420,6 +1414,7 @@ do itr = 2,itr_mg
           vsavc(1:ng) = v(1:ng,k,g)
           do nc = 1,3
             do iq = 1,mg_ifull_maxcolour  
+              ! 3 colours makes it safe to update  
               v(col_iq(iq,nc),k,g) = ( zznc_c(iq,nc)*v(col_iqn(iq,nc),k,g) &
                                      + zzec_c(iq,nc)*v(col_iqe(iq,nc),k,g) &
                                      + zzsc_c(iq,nc)*v(col_iqs(iq,nc),k,g) &
@@ -1628,6 +1623,7 @@ integer iq_a, iq_c
 integer nc, isc, iec, k
 real, intent(in) :: tol, itol
 real, intent(out) :: maxglobseta, maxglobip
+real bu, cu
 real, dimension(ifull+iextra), intent(inout) :: neta, ipice
 real, dimension(ifull+iextra), intent(in) :: ee, dd
 real, dimension(ifull+iextra), intent(in) :: ipmax
@@ -1649,8 +1645,8 @@ real, dimension(mg_maxsize,2:gmax+1) :: hh
 real, dimension(mg_maxsize,2:gmax+1) :: zzi, zzin, zzis, zzie, zziw
 real, dimension(mg_maxsize,2:gmax+1) :: rhs, rhsi
 real, dimension(mg_maxsize,18) :: w
-real, dimension(mg_maxsize) :: bu, cu
 real, dimension(mg_maxsize,2) :: ws
+real, dimension(mg_maxsize) :: vnew
 real, dimension(mg_ifull_maxcolour,3) :: zzhhcu, zzncu, zzscu, zzecu, zzwcu, rhscu
 real, dimension(mg_ifull_maxcolour,3) :: zzicu, zzincu, zziscu, zziecu, zziwcu, rhsicu
 real, dimension(mg_ifull_maxcolour,3) :: yyzcu, yyncu, yyscu, yyecu, yywcu
@@ -1691,30 +1687,29 @@ dsolmax_g = 0.
 
 ! pack colour arrays
 !$omp parallel
-!$omp do schedule(static) private(nc,iq)
+!$omp do schedule(static) private(nc)
 do nc = 1,maxcolour
-  do iq = 1,ifull_colour(nc)  
-    yyc(iq,nc)      = iyy(iqx(iq,nc))
-    yync(iq,nc)     = iyyn(iqx(iq,nc))
-    yysc(iq,nc)     = iyys(iqx(iq,nc))
-    yyec(iq,nc)     = iyye(iqx(iq,nc))
-    yywc(iq,nc)     = iyyw(iqx(iq,nc))
-    zzhhc(iq,nc)    = izz(iqx(iq,nc),1) + ihh(iqx(iq,nc))
-    zznc(iq,nc)     = izzn(iqx(iq,nc),1)
-    zzsc(iq,nc)     = izzs(iqx(iq,nc),1)
-    zzec(iq,nc)     = izze(iqx(iq,nc),1)
-    zzwc(iq,nc)     = izzw(iqx(iq,nc),1)
-    rhsc(iq,nc)     = irhs(iqx(iq,nc),1)
-    zzcice(iq,nc)   = izz(iqx(iq,nc),2)
-    zzncice(iq,nc)  = izzn(iqx(iq,nc),2)
-    zzscice(iq,nc)  = izzs(iqx(iq,nc),2)
-    zzecice(iq,nc)  = izze(iqx(iq,nc),2)
-    zzwcice(iq,nc)  = izzw(iqx(iq,nc),2)
-    rhscice(iq,nc)  = irhs(iqx(iq,nc),2)
-    ddc(iq,nc)      = dd(iqx(iq,nc))
-    eec(iq,nc)      = ee(iqx(iq,nc))
-    ipmaxc(iq,nc)   = ipmax(iqx(iq,nc))
-  end do  
+  yyc(1:ifull_colour(nc),nc)      = iyy(iqx(1:ifull_colour(nc),nc))
+  yync(1:ifull_colour(nc),nc)     = iyyn(iqx(1:ifull_colour(nc),nc))
+  yysc(1:ifull_colour(nc),nc)     = iyys(iqx(1:ifull_colour(nc),nc))
+  yyec(1:ifull_colour(nc),nc)     = iyye(iqx(1:ifull_colour(nc),nc))
+  yywc(1:ifull_colour(nc),nc)     = iyyw(iqx(1:ifull_colour(nc),nc))
+  zzhhc(1:ifull_colour(nc),nc)    = izz(iqx(1:ifull_colour(nc),nc),1) &
+      + ihh(iqx(1:ifull_colour(nc),nc))
+  zznc(1:ifull_colour(nc),nc)     = izzn(iqx(1:ifull_colour(nc),nc),1)
+  zzsc(1:ifull_colour(nc),nc)     = izzs(iqx(1:ifull_colour(nc),nc),1)
+  zzec(1:ifull_colour(nc),nc)     = izze(iqx(1:ifull_colour(nc),nc),1)
+  zzwc(1:ifull_colour(nc),nc)     = izzw(iqx(1:ifull_colour(nc),nc),1)
+  rhsc(1:ifull_colour(nc),nc)     = irhs(iqx(1:ifull_colour(nc),nc),1)
+  zzcice(1:ifull_colour(nc),nc)   = izz(iqx(1:ifull_colour(nc),nc),2)
+  zzncice(1:ifull_colour(nc),nc)  = izzn(iqx(1:ifull_colour(nc),nc),2)
+  zzscice(1:ifull_colour(nc),nc)  = izzs(iqx(1:ifull_colour(nc),nc),2)
+  zzecice(1:ifull_colour(nc),nc)  = izze(iqx(1:ifull_colour(nc),nc),2)
+  zzwcice(1:ifull_colour(nc),nc)  = izzw(iqx(1:ifull_colour(nc),nc),2)
+  rhscice(1:ifull_colour(nc),nc)  = irhs(iqx(1:ifull_colour(nc),nc),2)
+  ddc(1:ifull_colour(nc),nc)      = dd(iqx(1:ifull_colour(nc),nc))
+  eec(1:ifull_colour(nc),nc)      = ee(iqx(1:ifull_colour(nc),nc))
+  ipmaxc(1:ifull_colour(nc),nc)   = ipmax(iqx(1:ifull_colour(nc),nc))
 end do
 !$omp end do nowait
 
@@ -1729,14 +1724,12 @@ call bounds(dumc(:,1:2))
 do i = 1,itrbgn
   do nc = 1,maxcolour
 
-    !$omp do schedule(static) private(k,iq)
+    !$omp do schedule(static) private(k)
     do k = 1,2    
-      do iq = 1,ifull_colour(nc)  
-        dumc_n(iq,k) = dumc(iqn(iq,nc),k)
-        dumc_s(iq,k) = dumc(iqs(iq,nc),k)
-        dumc_e(iq,k) = dumc(iqe(iq,nc),k)
-        dumc_w(iq,k) = dumc(iqw(iq,nc),k)
-      end do  
+      dumc_n(1:ifull_colour(nc),k) = dumc(iqn(1:ifull_colour(nc),nc),k)
+      dumc_s(1:ifull_colour(nc),k) = dumc(iqs(1:ifull_colour(nc),nc),k)
+      dumc_e(1:ifull_colour(nc),k) = dumc(iqe(1:ifull_colour(nc),nc),k)
+      dumc_w(1:ifull_colour(nc),k) = dumc(iqw(1:ifull_colour(nc),nc),k)
     end do  
     !$omp end do
       
@@ -1746,14 +1739,14 @@ do i = 1,itrbgn
     !$omp section
     ! ocean
     do iq = 1,ifull_colour_border(nc)
-      bu(iq)=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
-            +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
-            +zzhhc(iq,nc)
-      cu(iq)=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
-            +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
-            -rhsc(iq,nc)        
+      bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
+        +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
+        +zzhhc(iq,nc)
+      cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
+        +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
+        -rhsc(iq,nc)        
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),    &
-         -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
+         -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
     end do  
     
     !$omp section
@@ -1777,14 +1770,14 @@ do i = 1,itrbgn
     !$omp section
     ! ocean
     do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-      bu(iq)=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
-            +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
-            +zzhhc(iq,nc)
-      cu(iq)=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
-            +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
-            -rhsc(iq,nc)   
+      bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
+        +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
+        +zzhhc(iq,nc)
+      cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
+        +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
+        -rhsc(iq,nc)   
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),     &
-         -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
+         -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
     end do  
     
     !$omp section
@@ -1869,46 +1862,44 @@ if ( mg_maxlevel_local>0 ) then
   ! restriction
   ! (since this always operates within a panel, then ine = ien is always true)
   ng4 = mg(1)%ifull_fine
-  do iq = 1,ng4
-    rhs(iq,2)=0.25*(w(mg(1)%fine(iq)  ,1)+w(mg(1)%fine_n(iq) ,1)           &
-                   +w(mg(1)%fine_e(iq),1)+w(mg(1)%fine_ne(iq),1))
-    yyz(iq,2) =0.25*dfac*(w(mg(1)%fine(iq)  ,2)+w(mg(1)%fine_n(iq) ,2)     &
-                         +w(mg(1)%fine_e(iq),2)+w(mg(1)%fine_ne(iq),2))
-    yyn(iq,2) =0.25*dfac*(w(mg(1)%fine(iq)  ,3)+w(mg(1)%fine_n(iq) ,3)     &
-                         +w(mg(1)%fine_e(iq),3)+w(mg(1)%fine_ne(iq),3))
-    yys(iq,2) =0.25*dfac*(w(mg(1)%fine(iq)  ,4)+w(mg(1)%fine_n(iq) ,4)     &
-                         +w(mg(1)%fine_e(iq),4)+w(mg(1)%fine_ne(iq),4))
-    yye(iq,2) =0.25*dfac*(w(mg(1)%fine(iq)  ,5)+w(mg(1)%fine_n(iq) ,5)     &
-                         +w(mg(1)%fine_e(iq),5)+w(mg(1)%fine_ne(iq),5))
-    yyw(iq,2) =0.25*dfac*(w(mg(1)%fine(iq)  ,6)+w(mg(1)%fine_n(iq) ,6)     &
-                         +w(mg(1)%fine_e(iq),6)+w(mg(1)%fine_ne(iq),6))
-    zz(iq,2) =0.25*dfac*(w(mg(1)%fine(iq)  ,7)+w(mg(1)%fine_n(iq) ,7)    &
-                        +w(mg(1)%fine_e(iq),7)+w(mg(1)%fine_ne(iq),7))
-    zzn(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,8)+w(mg(1)%fine_n(iq) ,8)    &
-                        +w(mg(1)%fine_e(iq),8)+w(mg(1)%fine_ne(iq),8))
-    zzs(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,9)+w(mg(1)%fine_n(iq) ,9)    &
-                        +w(mg(1)%fine_e(iq),9)+w(mg(1)%fine_ne(iq),9))
-    zze(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,10)+w(mg(1)%fine_n(iq) ,10)    &
-                        +w(mg(1)%fine_e(iq),10)+w(mg(1)%fine_ne(iq),10))
-    zzw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,11)+w(mg(1)%fine_n(iq) ,11)    &
-                        +w(mg(1)%fine_e(iq),11)+w(mg(1)%fine_ne(iq),11))
-    hh(iq,2)    =0.25*(w(mg(1)%fine(iq)  ,12)+w(mg(1)%fine_n(iq) ,12)      &
-                      +w(mg(1)%fine_e(iq),12)+w(mg(1)%fine_ne(iq),12))
+  rhs(1:ng4,2)=0.25*(w(mg(1)%fine(1:ng4)  ,1)+w(mg(1)%fine_n(1:ng4) ,1)           &
+                    +w(mg(1)%fine_e(1:ng4),1)+w(mg(1)%fine_ne(1:ng4),1))
+  yyz(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,2)+w(mg(1)%fine_n(1:ng4) ,2)     &
+                          +w(mg(1)%fine_e(1:ng4),2)+w(mg(1)%fine_ne(1:ng4),2))
+  yyn(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,3)+w(mg(1)%fine_n(1:ng4) ,3)     &
+                          +w(mg(1)%fine_e(1:ng4),3)+w(mg(1)%fine_ne(1:ng4),3))
+  yys(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,4)+w(mg(1)%fine_n(1:ng4) ,4)     &
+                          +w(mg(1)%fine_e(1:ng4),4)+w(mg(1)%fine_ne(1:ng4),4))
+  yye(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,5)+w(mg(1)%fine_n(1:ng4) ,5)     &
+                          +w(mg(1)%fine_e(1:ng4),5)+w(mg(1)%fine_ne(1:ng4),5))
+  yyw(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,6)+w(mg(1)%fine_n(1:ng4) ,6)     &
+                          +w(mg(1)%fine_e(1:ng4),6)+w(mg(1)%fine_ne(1:ng4),6))
+  zz(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,7)+w(mg(1)%fine_n(1:ng4) ,7)    &
+                         +w(mg(1)%fine_e(1:ng4),7)+w(mg(1)%fine_ne(1:ng4),7))
+  zzn(1:ng4,2)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,8)+w(mg(1)%fine_n(1:ng4) ,8)    &
+                         +w(mg(1)%fine_e(1:ng4),8)+w(mg(1)%fine_ne(1:ng4),8))
+  zzs(1:ng4,2)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,9)+w(mg(1)%fine_n(1:ng4) ,9)    &
+                         +w(mg(1)%fine_e(1:ng4),9)+w(mg(1)%fine_ne(1:ng4),9))
+  zze(1:ng4,2)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,10)+w(mg(1)%fine_n(1:ng4) ,10)    &
+                         +w(mg(1)%fine_e(1:ng4),10)+w(mg(1)%fine_ne(1:ng4),10))
+  zzw(1:ng4,2)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,11)+w(mg(1)%fine_n(1:ng4) ,11)    &
+                         +w(mg(1)%fine_e(1:ng4),11)+w(mg(1)%fine_ne(1:ng4),11))
+  hh(1:ng4,2)    =0.25*(w(mg(1)%fine(1:ng4)  ,12)+w(mg(1)%fine_n(1:ng4) ,12)      &
+                       +w(mg(1)%fine_e(1:ng4),12)+w(mg(1)%fine_ne(1:ng4),12))
     
-    rhsi(iq,2)=0.25*(w(mg(1)%fine(iq)  ,13)+w(mg(1)%fine_n(iq) ,13)        &
-                    +w(mg(1)%fine_e(iq),13)+w(mg(1)%fine_ne(iq),13))
-    ! special treatment of ice
-    zzi(iq,2) =0.25*dfaci*(w(mg(1)%fine(iq)  ,14)+w(mg(1)%fine_n(iq) ,14)  &
-                          +w(mg(1)%fine_e(iq),14)+w(mg(1)%fine_ne(iq),14))
-    zzin(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,15)+w(mg(1)%fine_n(iq) ,15)  &
-                          +w(mg(1)%fine_e(iq),15)+w(mg(1)%fine_ne(iq),15))
-    zzis(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,16)+w(mg(1)%fine_n(iq) ,16)  &
-                          +w(mg(1)%fine_e(iq),16)+w(mg(1)%fine_ne(iq),16))
-    zzie(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,17)+w(mg(1)%fine_n(iq) ,17)  &
-                          +w(mg(1)%fine_e(iq),17)+w(mg(1)%fine_ne(iq),17))
-    zziw(iq,2)=0.25*dfaci*(w(mg(1)%fine(iq)  ,18)+w(mg(1)%fine_n(iq) ,18)  &
-                          +w(mg(1)%fine_e(iq),18)+w(mg(1)%fine_ne(iq),18))
-  end do
+  rhsi(1:ng4,2)=0.25*(w(mg(1)%fine(1:ng4)  ,13)+w(mg(1)%fine_n(1:ng4) ,13)        &
+                     +w(mg(1)%fine_e(1:ng4),13)+w(mg(1)%fine_ne(1:ng4),13))
+  ! special treatment of ice
+  zzi(1:ng4,2) =0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,14)+w(mg(1)%fine_n(1:ng4) ,14)  &
+                           +w(mg(1)%fine_e(1:ng4),14)+w(mg(1)%fine_ne(1:ng4),14))
+  zzin(1:ng4,2)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,15)+w(mg(1)%fine_n(1:ng4) ,15)  &
+                           +w(mg(1)%fine_e(1:ng4),15)+w(mg(1)%fine_ne(1:ng4),15))
+  zzis(1:ng4,2)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,16)+w(mg(1)%fine_n(1:ng4) ,16)  &
+                           +w(mg(1)%fine_e(1:ng4),16)+w(mg(1)%fine_ne(1:ng4),16))
+  zzie(1:ng4,2)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,17)+w(mg(1)%fine_n(1:ng4) ,17)  &
+                           +w(mg(1)%fine_e(1:ng4),17)+w(mg(1)%fine_ne(1:ng4),17))
+  zziw(1:ng4,2)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,18)+w(mg(1)%fine_n(1:ng4) ,18)  &
+                           +w(mg(1)%fine_e(1:ng4),18)+w(mg(1)%fine_ne(1:ng4),18))
 
   ! merge grids if insufficent points on this processor
   if ( mg(2)%merge_len>1 ) then
@@ -1963,10 +1954,12 @@ if ( mg_maxlevel_local>0 ) then
     ! update
     ! possibly use colours here, although v is reset to zero every iteration
     ! assume zero for first guess of residual (avoids additional bounds call)
-    bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
-    cu(1:ng) = -rhs(1:ng,g)    
     v(:,1:2,g) = 0.
-    v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1)))
+    do iq = 1,ng
+      bu = zz(iq,g) + hh(iq,g)
+      cu = -rhs(iq,g)    
+      v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1)))
+    end do  
     v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)
     call mgbounds(g,v(:,1:2,g))
     
@@ -1974,24 +1967,23 @@ if ( mg_maxlevel_local>0 ) then
 
       ! ocean - post smoothing
       do iq = 1,ng
-        bu(iq) = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
-               + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
-               + zz(iq,g) + hh(iq,g)
-        cu(iq) = zzn(iq,g)*v(mg(g)%in(iq),1,g) + zzs(iq,g)*v(mg(g)%is(iq),1,g) &
-               + zze(iq,g)*v(mg(g)%ie(iq),1,g) + zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
-               - rhs(iq,g)
+        bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
+           + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
+           + zz(iq,g) + hh(iq,g)
+        cu = zzn(iq,g)*v(mg(g)%in(iq),1,g) + zzs(iq,g)*v(mg(g)%is(iq),1,g) &
+           + zze(iq,g)*v(mg(g)%ie(iq),1,g) + zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
+           - rhs(iq,g)
+        vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1)))
       end do
-      do iq = 1,ng
-        v(iq,1,g) = -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyz(iq,g)*cu(iq),0.1)))
-      end do
+      v(1:ng,1,g) = vnew(1:ng)
       
       ! ice - post smoothing
       do iq = 1,ng
-        bu(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
-                   - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
-                   + rhsi(iq,g) ) / zzi(iq,g)
+        vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
+                     - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
+                     + rhsi(iq,g) ) / zzi(iq,g)
       end do
-      v(1:ng,2,g) = bu(1:ng)
+      v(1:ng,2,g) = vnew(1:ng)
       
       call mgbounds(g,v(:,1:2,g))
     end do
@@ -2013,20 +2005,18 @@ if ( mg_maxlevel_local>0 ) then
                                    +zzw(iq,g)*v(mg(g)%iw(iq),1,g))            &
                 -hh(iq,g)*v(iq,1,g)+rhs(iq,g)
     end do
-    do iq = 1,ng4
-      w(iq,1)=0.25*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
-                   +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
-      w(iq,2) = 0.25*dfac*(yyz(mg(g)%fine(iq)  ,g)+yyz(mg(g)%fine_n(iq) ,g) &
-                          +yyz(mg(g)%fine_e(iq),g)+yyz(mg(g)%fine_ne(iq),g))
-      w(iq,3) = 0.25*dfac*(yyn(mg(g)%fine(iq)  ,g)+yyn(mg(g)%fine_n(iq) ,g) &
-                          +yyn(mg(g)%fine_e(iq),g)+yyn(mg(g)%fine_ne(iq),g))
-      w(iq,4) = 0.25*dfac*(yys(mg(g)%fine(iq)  ,g)+yys(mg(g)%fine_n(iq) ,g) &
-                          +yys(mg(g)%fine_e(iq),g)+yys(mg(g)%fine_ne(iq),g))
-      w(iq,5) = 0.25*dfac*(yye(mg(g)%fine(iq)  ,g)+yye(mg(g)%fine_n(iq) ,g) &
-                          +yye(mg(g)%fine_e(iq),g)+yye(mg(g)%fine_ne(iq),g))
-      w(iq,6) = 0.25*dfac*(yyw(mg(g)%fine(iq)  ,g)+yyw(mg(g)%fine_n(iq) ,g) &
-                          +yyw(mg(g)%fine_e(iq),g)+yyw(mg(g)%fine_ne(iq),g))
-    end do
+    w(1:ng4,1)=0.25*(ws(mg(g)%fine(1:ng4)  ,1)+ws(mg(g)%fine_n(1:ng4) ,1) &
+                    +ws(mg(g)%fine_e(1:ng4),1)+ws(mg(g)%fine_ne(1:ng4),1))
+    w(1:ng4,2) = 0.25*dfac*(yyz(mg(g)%fine(1:ng4)  ,g)+yyz(mg(g)%fine_n(1:ng4) ,g) &
+                           +yyz(mg(g)%fine_e(1:ng4),g)+yyz(mg(g)%fine_ne(1:ng4),g))
+    w(1:ng4,3) = 0.25*dfac*(yyn(mg(g)%fine(1:ng4)  ,g)+yyn(mg(g)%fine_n(1:ng4) ,g) &
+                           +yyn(mg(g)%fine_e(1:ng4),g)+yyn(mg(g)%fine_ne(1:ng4),g))
+    w(1:ng4,4) = 0.25*dfac*(yys(mg(g)%fine(1:ng4)  ,g)+yys(mg(g)%fine_n(1:ng4) ,g) &
+                           +yys(mg(g)%fine_e(1:ng4),g)+yys(mg(g)%fine_ne(1:ng4),g))
+    w(1:ng4,5) = 0.25*dfac*(yye(mg(g)%fine(1:ng4)  ,g)+yye(mg(g)%fine_n(1:ng4) ,g) &
+                           +yye(mg(g)%fine_e(1:ng4),g)+yye(mg(g)%fine_ne(1:ng4),g))
+    w(1:ng4,6) = 0.25*dfac*(yyw(mg(g)%fine(1:ng4)  ,g)+yyw(mg(g)%fine_n(1:ng4) ,g) &
+                          +yyw(mg(g)%fine_e(1:ng4),g)+yyw(mg(g)%fine_ne(1:ng4),g))
     
     ws(1:ng,1) = zz(1:ng,g) + yyz(1:ng,g)*v(1:ng,1,g)
     do iq = 1,ng4
@@ -2072,21 +2062,19 @@ if ( mg_maxlevel_local>0 ) then
                  -zzie(iq,g)*v(mg(g)%ie(iq),2,g)-zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
                  -zzi(iq,g)*v(iq,2,g)+rhsi(iq,g)
     end do
-    do iq = 1,ng4
-      w(iq,13)=0.25*(ws(mg(g)%fine(iq)  ,2)+ws(mg(g)%fine_n(iq) ,2)  &
-                    +ws(mg(g)%fine_e(iq),2)+ws(mg(g)%fine_ne(iq),2))
-      ! special treatment of ice (neglect dfac)
-      w(iq,14) = 0.25*dfaci*(zzi(mg(g)%fine(iq)  ,g)+zzi(mg(g)%fine_n(iq) ,g)    &
-                            +zzi(mg(g)%fine_e(iq),g)+zzi(mg(g)%fine_ne(iq),g))
-      w(iq,15) = 0.25*dfaci*(zzin(mg(g)%fine(iq)  ,g)+zzin(mg(g)%fine_n(iq) ,g) &
-                            +zzin(mg(g)%fine_e(iq),g)+zzin(mg(g)%fine_ne(iq),g))
-      w(iq,16) = 0.25*dfaci*(zzis(mg(g)%fine(iq)  ,g)+zzis(mg(g)%fine_n(iq) ,g) &
-                            +zzis(mg(g)%fine_e(iq),g)+zzis(mg(g)%fine_ne(iq),g))
-      w(iq,17) = 0.25*dfaci*(zzie(mg(g)%fine(iq)  ,g)+zzie(mg(g)%fine_n(iq) ,g) &
-                            +zzie(mg(g)%fine_e(iq),g)+zzie(mg(g)%fine_ne(iq),g))
-      w(iq,18) = 0.25*dfaci*(zziw(mg(g)%fine(iq)  ,g)+zziw(mg(g)%fine_n(iq) ,g) &
-                            +zziw(mg(g)%fine_e(iq),g)+zziw(mg(g)%fine_ne(iq),g))
-    end do
+    w(1:ng4,13)=0.25*(ws(mg(g)%fine(1:ng4)  ,2)+ws(mg(g)%fine_n(1:ng4) ,2)  &
+                     +ws(mg(g)%fine_e(1:ng4),2)+ws(mg(g)%fine_ne(1:ng4),2))
+    ! special treatment of ice (neglect dfac)
+    w(1:ng4,14) = 0.25*dfaci*(zzi(mg(g)%fine(1:ng4)  ,g)+zzi(mg(g)%fine_n(1:ng4) ,g)    &
+                             +zzi(mg(g)%fine_e(1:ng4),g)+zzi(mg(g)%fine_ne(1:ng4),g))
+    w(1:ng4,15) = 0.25*dfaci*(zzin(mg(g)%fine(1:ng4)  ,g)+zzin(mg(g)%fine_n(1:ng4) ,g) &
+                             +zzin(mg(g)%fine_e(1:ng4),g)+zzin(mg(g)%fine_ne(1:ng4),g))
+    w(1:ng4,16) = 0.25*dfaci*(zzis(mg(g)%fine(1:ng4)  ,g)+zzis(mg(g)%fine_n(1:ng4) ,g) &
+                             +zzis(mg(g)%fine_e(1:ng4),g)+zzis(mg(g)%fine_ne(1:ng4),g))
+    w(1:ng4,17) = 0.25*dfaci*(zzie(mg(g)%fine(1:ng4)  ,g)+zzie(mg(g)%fine_n(1:ng4) ,g) &
+                             +zzie(mg(g)%fine_e(1:ng4),g)+zzie(mg(g)%fine_ne(1:ng4),g))
+    w(1:ng4,18) = 0.25*dfaci*(zziw(mg(g)%fine(1:ng4)  ,g)+zziw(mg(g)%fine_n(1:ng4) ,g) &
+                             +zziw(mg(g)%fine_e(1:ng4),g)+zziw(mg(g)%fine_ne(1:ng4),g))
     
     ! merge grids if insufficent points on this processor
     if ( mg(g+1)%merge_len>1 ) then
@@ -2127,36 +2115,37 @@ if ( mg_maxlevel_local>0 ) then
     ! pack yy by colour
     ! pack zz,hh and rhs by colour
     do nc = 1,3
-      do iq = 1,mg_ifull_maxcolour
-        ! ocean  
-        yyzcu(iq,nc)  = yyz(col_iq(iq,nc),g)
-        yyncu(iq,nc)  = yyn(col_iq(iq,nc),g)
-        yyscu(iq,nc)  = yys(col_iq(iq,nc),g)
-        yyecu(iq,nc)  = yye(col_iq(iq,nc),g)
-        yywcu(iq,nc)  = yyw(col_iq(iq,nc),g)
-        zzhhcu(iq,nc) = zz(col_iq(iq,nc),g) + hh(col_iq(iq,nc),g)
-        zzncu(iq,nc)  = zzn(col_iq(iq,nc),g)
-        zzscu(iq,nc)  = zzs(col_iq(iq,nc),g)
-        zzecu(iq,nc)  = zze(col_iq(iq,nc),g)
-        zzwcu(iq,nc)  = zzw(col_iq(iq,nc),g)
-        rhscu(iq,nc)  = rhs(col_iq(iq,nc),g)
-        ! ice
-        zzicu(iq,nc)   = zzi(col_iq(iq,nc),g)
-        zzincu(iq,nc)  = zzin(col_iq(iq,nc),g)
-        zziscu(iq,nc)  = zzis(col_iq(iq,nc),g)
-        zziecu(iq,nc)  = zzie(col_iq(iq,nc),g)
-        zziwcu(iq,nc)  = zziw(col_iq(iq,nc),g)
-        rhsicu(iq,nc)  = rhsi(col_iq(iq,nc),g)
-      end do  
+      ! ocean  
+      yyzcu(1:mg_ifull_maxcolour,nc)  = yyz(col_iq(1:mg_ifull_maxcolour,nc),g)
+      yyncu(1:mg_ifull_maxcolour,nc)  = yyn(col_iq(1:mg_ifull_maxcolour,nc),g)
+      yyscu(1:mg_ifull_maxcolour,nc)  = yys(col_iq(1:mg_ifull_maxcolour,nc),g)
+      yyecu(1:mg_ifull_maxcolour,nc)  = yye(col_iq(1:mg_ifull_maxcolour,nc),g)
+      yywcu(1:mg_ifull_maxcolour,nc)  = yyw(col_iq(1:mg_ifull_maxcolour,nc),g)
+      zzhhcu(1:mg_ifull_maxcolour,nc) = zz(col_iq(1:mg_ifull_maxcolour,nc),g) &
+          + hh(col_iq(1:mg_ifull_maxcolour,nc),g)
+      zzncu(1:mg_ifull_maxcolour,nc)  = zzn(col_iq(1:mg_ifull_maxcolour,nc),g)
+      zzscu(1:mg_ifull_maxcolour,nc)  = zzs(col_iq(1:mg_ifull_maxcolour,nc),g)
+      zzecu(1:mg_ifull_maxcolour,nc)  = zze(col_iq(1:mg_ifull_maxcolour,nc),g)
+      zzwcu(1:mg_ifull_maxcolour,nc)  = zzw(col_iq(1:mg_ifull_maxcolour,nc),g)
+      rhscu(1:mg_ifull_maxcolour,nc)  = rhs(col_iq(1:mg_ifull_maxcolour,nc),g)
+      ! ice
+      zzicu(1:mg_ifull_maxcolour,nc)   = zzi(col_iq(1:mg_ifull_maxcolour,nc),g)
+      zzincu(1:mg_ifull_maxcolour,nc)  = zzin(col_iq(1:mg_ifull_maxcolour,nc),g)
+      zziscu(1:mg_ifull_maxcolour,nc)  = zzis(col_iq(1:mg_ifull_maxcolour,nc),g)
+      zziecu(1:mg_ifull_maxcolour,nc)  = zzie(col_iq(1:mg_ifull_maxcolour,nc),g)
+      zziwcu(1:mg_ifull_maxcolour,nc)  = zziw(col_iq(1:mg_ifull_maxcolour,nc),g)
+      rhsicu(1:mg_ifull_maxcolour,nc)  = rhsi(col_iq(1:mg_ifull_maxcolour,nc),g)
     end do  
   
     ! solve non-linear water free surface and solve for ice with coloured SOR
     ! first guess
-    bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
-    cu(1:ng) = -rhs(1:ng,g)
     v(:,1:2,g) = 0.
-    v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1))) ! ocean
-    v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                                                 ! ice
+    do iq = 1,ng
+      bu = zz(iq,g) + hh(iq,g)
+      cu = -rhs(iq,g)
+      v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1))) ! ocean
+    end do  
+    v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                       ! ice
     do itrc = 1,itr_mgice
       ! store previous guess for convegence test
       ws(1:ng,1:2) = v(1:ng,1:2,g)
@@ -2164,20 +2153,22 @@ if ( mg_maxlevel_local>0 ) then
 
         ! ocean
         do iq = 1,mg_ifull_maxcolour
-          bu(iq) = yyncu(iq,nc)*v(col_iqn(iq,nc),1,g) + yyscu(iq,nc)*v(col_iqs(iq,nc),1,g)     &
-                 + yyecu(iq,nc)*v(col_iqe(iq,nc),1,g) + yywcu(iq,nc)*v(col_iqw(iq,nc),1,g)     &
-                 + zzhhcu(iq,nc)
-          cu(iq) = zzncu(iq,nc)*v(col_iqn(iq,nc),1,g) + zzscu(iq,nc)*v(col_iqs(iq,nc),1,g)     &
-                 + zzecu(iq,nc)*v(col_iqe(iq,nc),1,g) + zzwcu(iq,nc)*v(col_iqw(iq,nc),1,g)     &
-                 - rhscu(iq,nc)
-          v(col_iq(iq,nc),1,g) = -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyzcu(iq,nc)*cu(iq),0.1)))
+          bu = yyncu(iq,nc)*v(col_iqn(iq,nc),1,g) + yyscu(iq,nc)*v(col_iqs(iq,nc),1,g)     &
+             + yyecu(iq,nc)*v(col_iqe(iq,nc),1,g) + yywcu(iq,nc)*v(col_iqw(iq,nc),1,g)     &
+             + zzhhcu(iq,nc)
+          cu = zzncu(iq,nc)*v(col_iqn(iq,nc),1,g) + zzscu(iq,nc)*v(col_iqs(iq,nc),1,g)     &
+             + zzecu(iq,nc)*v(col_iqe(iq,nc),1,g) + zzwcu(iq,nc)*v(col_iqw(iq,nc),1,g)     &
+             - rhscu(iq,nc)
+          ! 3 colours makes it safe to update
+          v(col_iq(iq,nc),1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyzcu(iq,nc)*cu,0.1)))
         end do 
 
         ! ice
         do iq = 1,mg_ifull_maxcolour
+          ! 3 colours makes it safe to update  
           v(col_iq(iq,nc),2,g) = ( - zzincu(iq,nc)*v(col_iqn(iq,nc),2,g) - zziscu(iq,nc)*v(col_iqs(iq,nc),2,g)     &
                                    - zziecu(iq,nc)*v(col_iqe(iq,nc),2,g) - zziwcu(iq,nc)*v(col_iqw(iq,nc),2,g)     &
-                                  + rhsicu(iq,nc) ) / zzicu(iq,nc)
+                                   + rhsicu(iq,nc) ) / zzicu(iq,nc)
         end do
 
       end do
@@ -2214,24 +2205,23 @@ if ( mg_maxlevel_local>0 ) then
       call mgbounds(g,v(:,1:2,g))
       ! ocean - post smoothing
       do iq = 1,ng
-        bu(iq) = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
-               + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
-               + zz(iq,g) + hh(iq,g)
-        cu(iq) = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
-               + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
-               - rhs(iq,g)
+        bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
+           + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
+           + zz(iq,g) + hh(iq,g)
+        cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
+           + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
+           - rhs(iq,g)
+        vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1)))
       end do
-      do iq = 1,ng
-        v(iq,1,g) = -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyz(iq,g)*cu(iq),0.1)))
-      end do
+      v(1:ng,1,g) = vnew(1:ng)
       
       ! ice - post smoothing
       do iq = 1,ng
-        bu(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
-                   - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
-                   + rhsi(iq,g) ) / zzi(iq,g)
+        vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
+                     - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
+                     + rhsi(iq,g) ) / zzi(iq,g)
       end do
-      v(1:ng,2,g) = bu(1:ng)
+      v(1:ng,2,g) = vnew(1:ng)
       
     end do
     
@@ -2289,14 +2279,12 @@ do i = 1,itrend
   ! post smoothing
   do nc = 1,maxcolour
 
-    !$omp do schedule(static) private(k,iq)
+    !$omp do schedule(static) private(k)
     do k = 1,2
-      do iq = 1,ifull_colour(nc)  
-        dumc_n(iq,k) = dumc(iqn(iq,nc),k)
-        dumc_s(iq,k) = dumc(iqs(iq,nc),k)
-        dumc_e(iq,k) = dumc(iqe(iq,nc),k)
-        dumc_w(iq,k) = dumc(iqw(iq,nc),k)
-      end do
+      dumc_n(1:ifull_colour(nc),k) = dumc(iqn(1:ifull_colour(nc),nc),k)
+      dumc_s(1:ifull_colour(nc),k) = dumc(iqs(1:ifull_colour(nc),nc),k)
+      dumc_e(1:ifull_colour(nc),k) = dumc(iqe(1:ifull_colour(nc),nc),k)
+      dumc_w(1:ifull_colour(nc),k) = dumc(iqw(1:ifull_colour(nc),nc),k)
     end do  
     !$omp end do
       
@@ -2306,14 +2294,14 @@ do i = 1,itrend
     !$omp section
     ! ocean
     do iq = 1,ifull_colour_border(nc)
-      bu(iq)=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
-            +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
-            +zzhhc(iq,nc)
-      cu(iq)=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
-            +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
-            -rhsc(iq,nc)     
+      bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
+        +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
+        +zzhhc(iq,nc)
+      cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
+        +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
+        -rhsc(iq,nc)     
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),    &
-         -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
+         -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
     end do  
     
     !$omp section
@@ -2337,14 +2325,14 @@ do i = 1,itrend
     !$omp section
     ! ocean
     do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-      bu(iq)=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
-            +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
-            +zzhhc(iq,nc)
-      cu(iq)=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
-            +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
-            -rhsc(iq,nc)   
+      bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
+        +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
+        +zzhhc(iq,nc)
+      cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
+        +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
+        -rhsc(iq,nc)   
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),              &
-         -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
+         -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
     end do  
     
     !$omp section
@@ -2387,14 +2375,12 @@ do itr = 2,itr_mgice
   
     do nc = 1,maxcolour
 
-      !$omp do schedule(static) private(k,iq)
+      !$omp do schedule(static) private(k)
       do k = 1,2
-        do iq = 1,ifull_colour(nc)  
-          dumc_n(iq,k) = dumc(iqn(iq,nc),k)
-          dumc_s(iq,k) = dumc(iqs(iq,nc),k)
-          dumc_e(iq,k) = dumc(iqe(iq,nc),k)
-          dumc_w(iq,k) = dumc(iqw(iq,nc),k)
-        end do
+        dumc_n(1:ifull_colour(nc),k) = dumc(iqn(1:ifull_colour(nc),nc),k)
+        dumc_s(1:ifull_colour(nc),k) = dumc(iqs(1:ifull_colour(nc),nc),k)
+        dumc_e(1:ifull_colour(nc),k) = dumc(iqe(1:ifull_colour(nc),nc),k)
+        dumc_w(1:ifull_colour(nc),k) = dumc(iqw(1:ifull_colour(nc),nc),k)
       end do  
       !$omp end do
       
@@ -2404,14 +2390,14 @@ do itr = 2,itr_mgice
       !$omp section
       ! ocean
       do iq = 1,ifull_colour_border(nc)
-        bu(iq) = yync(iq,nc)*dumc_n(iq,1) + yysc(iq,nc)*dumc_s(iq,1) &
-               + yyec(iq,nc)*dumc_e(iq,1) + yywc(iq,nc)*dumc_w(iq,1) &
-               + zzhhc(iq,nc)
-        cu(iq) = zznc(iq,nc)*dumc_n(iq,1) + zzsc(iq,nc)*dumc_s(iq,1) &
-               + zzec(iq,nc)*dumc_e(iq,1) + zzwc(iq,nc)*dumc_w(iq,1) &
-               - rhsc(iq,nc)   
+        bu = yync(iq,nc)*dumc_n(iq,1) + yysc(iq,nc)*dumc_s(iq,1) &
+           + yyec(iq,nc)*dumc_e(iq,1) + yywc(iq,nc)*dumc_w(iq,1) &
+           + zzhhc(iq,nc)
+        cu = zznc(iq,nc)*dumc_n(iq,1) + zzsc(iq,nc)*dumc_s(iq,1) &
+           + zzec(iq,nc)*dumc_e(iq,1) + zzwc(iq,nc)*dumc_w(iq,1) &
+           - rhsc(iq,nc)   
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),           &
-           -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
+           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
       end do
         
       !$omp section
@@ -2436,14 +2422,14 @@ do itr = 2,itr_mgice
       !$omp section
       ! ocean
       do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-        bu(iq)=yync(iq,nc)*dumc_n(iq,1) + yysc(iq,nc)*dumc_s(iq,1) &
-             + yyec(iq,nc)*dumc_e(iq,1) + yywc(iq,nc)*dumc_w(iq,1) &
-             + zzhhc(iq,nc)
-        cu(iq)=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)   &
-              +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)   &
-              -rhsc(iq,nc)
+        bu=yync(iq,nc)*dumc_n(iq,1) + yysc(iq,nc)*dumc_s(iq,1) &
+         + yyec(iq,nc)*dumc_e(iq,1) + yywc(iq,nc)*dumc_w(iq,1) &
+         + zzhhc(iq,nc)
+        cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)   &
+          +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)   &
+          -rhsc(iq,nc)
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),           &
-           -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
+           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
       end do
         
       !$omp section
@@ -2526,25 +2512,23 @@ do itr = 2,itr_mgice
     ! restriction
     ! (since this always operates within a panel, then ine = ien is always true)
     ng4 = mg(1)%ifull_fine
-    do iq = 1,ng4
-      rhs(iq,2)=0.25*(w(mg(1)%fine(iq)  ,1)+w(mg(1)%fine_n(iq) ,1)       &
-                     +w(mg(1)%fine_e(iq),1)+w(mg(1)%fine_ne(iq),1))
-      zz(iq,2) =0.25*dfac*(w(mg(1)%fine(iq)  ,2)+w(mg(1)%fine_n(iq) ,2)   &
-                          +w(mg(1)%fine_e(iq),2)+w(mg(1)%fine_ne(iq),2))
-      zzn(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,3)+w(mg(1)%fine_n(iq) ,3)   &
-                          +w(mg(1)%fine_e(iq),3)+w(mg(1)%fine_ne(iq),3))
-      zzs(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,4)+w(mg(1)%fine_n(iq) ,4)   &
-                          +w(mg(1)%fine_e(iq),4)+w(mg(1)%fine_ne(iq),4))
-      zze(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,5)+w(mg(1)%fine_n(iq) ,5)   &
-                          +w(mg(1)%fine_e(iq),5)+w(mg(1)%fine_ne(iq),5))
-      zzw(iq,2)=0.25*dfac*(w(mg(1)%fine(iq)  ,6)+w(mg(1)%fine_n(iq) ,6)   &
-                           +w(mg(1)%fine_e(iq),6)+w(mg(1)%fine_ne(iq),6))
-      hh(iq,2)    =0.25*(w(mg(1)%fine(iq)  ,7)+w(mg(1)%fine_n(iq) ,7)     &
-                        +w(mg(1)%fine_e(iq),7)+w(mg(1)%fine_ne(iq),7))
+    rhs(1:ng4,2)=0.25*(w(mg(1)%fine(1:ng4)  ,1)+w(mg(1)%fine_n(1:ng4) ,1)       &
+                      +w(mg(1)%fine_e(1:ng4),1)+w(mg(1)%fine_ne(1:ng4),1))
+    zz(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,2)+w(mg(1)%fine_n(1:ng4) ,2)   &
+                           +w(mg(1)%fine_e(1:ng4),2)+w(mg(1)%fine_ne(1:ng4),2))
+    zzn(1:ng4,2)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,3)+w(mg(1)%fine_n(1:ng4) ,3)   &
+                           +w(mg(1)%fine_e(1:ng4),3)+w(mg(1)%fine_ne(1:ng4),3))
+    zzs(1:ng4,2)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,4)+w(mg(1)%fine_n(1:ng4) ,4)   &
+                           +w(mg(1)%fine_e(1:ng4),4)+w(mg(1)%fine_ne(1:ng4),4))
+    zze(1:ng4,2)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,5)+w(mg(1)%fine_n(1:ng4) ,5)   &
+                           +w(mg(1)%fine_e(1:ng4),5)+w(mg(1)%fine_ne(1:ng4),5))
+    zzw(1:ng4,2)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,6)+w(mg(1)%fine_n(1:ng4) ,6)   &
+                           +w(mg(1)%fine_e(1:ng4),6)+w(mg(1)%fine_ne(1:ng4),6))
+    hh(1:ng4,2)    =0.25*(w(mg(1)%fine(1:ng4)  ,7)+w(mg(1)%fine_n(1:ng4) ,7)     &
+                         +w(mg(1)%fine_e(1:ng4),7)+w(mg(1)%fine_ne(1:ng4),7))
       
-      rhsi(iq,2)=0.25*(w(mg(1)%fine(iq)  ,8)+w(mg(1)%fine_n(iq) ,8)      &
-                      +w(mg(1)%fine_e(iq),8)+w(mg(1)%fine_ne(iq),8))
-    end do  
+    rhsi(1:ng4,2)=0.25*(w(mg(1)%fine(1:ng4)  ,8)+w(mg(1)%fine_n(1:ng4) ,8)      &
+                       +w(mg(1)%fine_e(1:ng4),8)+w(mg(1)%fine_ne(1:ng4),8))
 
     ! merge grids if insufficent points on this processor
     if ( mg(2)%merge_len>1 ) then
@@ -2582,32 +2566,35 @@ do itr = 2,itr_mgice
       ! update
       ! possibly use colours here, although v is reset to zero every iteration
       ! assume zero for first guess of residual (also avoids additional bounds call)
-      bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
-      cu(1:ng) = -rhs(1:ng,g)
       v(:,1:2,g) = 0.
-      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1)))
+      do iq = 1,ng
+        bu = zz(iq,g) + hh(iq,g)
+        cu = -rhs(iq,g)
+        v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1)))
+      end do  
       v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)
       call mgbounds(g,v(:,1:2,g))
       
       do i = 2,itrbgn
         ! ocean - post smoothing
         do iq = 1,ng
-          bu(iq) = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
-                 + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
-                 + zz(iq,g) + hh(iq,g)
-          cu(iq) = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
-                 + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
-                 - rhs(iq,g)
+          bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
+             + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
+             + zz(iq,g) + hh(iq,g)
+          cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
+             + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
+             - rhs(iq,g)
+          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1)))
         end do
-        v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1)))
+        v(1:ng,1,g) = vnew(1:ng)
         
         ! ice - post smoothing
         do iq = 1,ng
-          bu(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
-                     - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
-                     + rhsi(iq,g) ) / zzi(iq,g)
+          vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
+                       - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
+                       + rhsi(iq,g) ) / zzi(iq,g)
         end do
-        v(1:ng,2,g) = bu(1:ng)
+        v(1:ng,2,g) = vnew(1:ng)
         call mgbounds(g,v(:,1:2,g))
       end do
     
@@ -2710,47 +2697,50 @@ do itr = 2,itr_mgice
       ! pack rhsc_c by colour
       ! pack zz,hh and rhs by colour
       do nc = 1,3
-        do iq = 1,mg_ifull_maxcolour  
-          ! ocean  
-          zzhhcu(iq,nc) = zz(col_iq(iq,nc),g) + hh(col_iq(iq,nc),g)
-          zzncu(iq,nc)  = zzn(col_iq(iq,nc),g)
-          zzscu(iq,nc)  = zzs(col_iq(iq,nc),g)
-          zzecu(iq,nc)  = zze(col_iq(iq,nc),g)
-          zzwcu(iq,nc)  = zzw(col_iq(iq,nc),g)
-          rhscu(iq,nc)  = rhs(col_iq(iq,nc),g)
-          ! ice
-          rhsicu(iq,nc) = rhsi(col_iq(iq,nc),g)
-        end do  
+        ! ocean  
+        zzhhcu(1:mg_ifull_maxcolour,nc) = zz(col_iq(1:mg_ifull_maxcolour,nc),g) &
+            + hh(col_iq(1:mg_ifull_maxcolour,nc),g)
+        zzncu(1:mg_ifull_maxcolour,nc)  = zzn(col_iq(1:mg_ifull_maxcolour,nc),g)
+        zzscu(1:mg_ifull_maxcolour,nc)  = zzs(col_iq(1:mg_ifull_maxcolour,nc),g)
+        zzecu(1:mg_ifull_maxcolour,nc)  = zze(col_iq(1:mg_ifull_maxcolour,nc),g)
+        zzwcu(1:mg_ifull_maxcolour,nc)  = zzw(col_iq(1:mg_ifull_maxcolour,nc),g)
+        rhscu(1:mg_ifull_maxcolour,nc)  = rhs(col_iq(1:mg_ifull_maxcolour,nc),g)
+        ! ice
+        rhsicu(1:mg_ifull_maxcolour,nc) = rhsi(col_iq(1:mg_ifull_maxcolour,nc),g)
       end do  
   
       ! solve non-linear water free surface and solve for ice with coloured SOR
       ! first guess
-      bu(1:ng) = zz(1:ng,g) + hh(1:ng,g)
-      cu(1:ng) = -rhs(1:ng,g)
       v(:,1:2,g) = 0.
-      v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1))) ! ocean
-      v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                                        ! ice
+      do iq = 1,ng
+        bu = zz(iq,g) + hh(iq,g)
+        cu = -rhs(iq,g)
+        v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1))) ! ocean
+      end do  
+      v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                       ! ice
       do itrc = 1,itr_mgice
         ! store previous guess for convegence test
         ws(1:ng,1:2) = v(1:ng,1:2,g)
         do nc = 1,3
         
           ! ocean
-          bu(1:mg_ifull_maxcolour) = yyncu(:,nc)*v(col_iqn(:,nc),1,g) + yyscu(:,nc)*v(col_iqs(:,nc),1,g) &
-                                   + yyecu(:,nc)*v(col_iqe(:,nc),1,g) + yywcu(:,nc)*v(col_iqw(:,nc),1,g) &
-                                   + zzhhcu(:,nc)
-          cu(1:mg_ifull_maxcolour) = zzncu(:,nc)*v(col_iqn(:,nc),1,g) + zzscu(:,nc)*v(col_iqs(:,nc),1,g) &
-                                   + zzecu(:,nc)*v(col_iqe(:,nc),1,g) + zzwcu(:,nc)*v(col_iqw(:,nc),1,g) &
-                                   - rhscu(:,nc)
-          do iq = 1,mg_ifull_maxcolour
-            v(col_iq(iq,nc),1,g) = -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyzcu(iq,nc)*cu(iq),0.1)))
+          do iq = 1,mg_ifull_maxcolour  
+            bu = yyncu(iq,nc)*v(col_iqn(iq,nc),1,g) + yyscu(iq,nc)*v(col_iqs(iq,nc),1,g) &
+               + yyecu(iq,nc)*v(col_iqe(iq,nc),1,g) + yywcu(iq,nc)*v(col_iqw(iq,nc),1,g) &
+               + zzhhcu(iq,nc)
+            cu = zzncu(iq,nc)*v(col_iqn(iq,nc),1,g) + zzscu(iq,nc)*v(col_iqs(iq,nc),1,g) &
+               + zzecu(iq,nc)*v(col_iqe(iq,nc),1,g) + zzwcu(iq,nc)*v(col_iqw(iq,nc),1,g) &
+               - rhscu(iq,nc)
+            ! 3 colours makes it safe to update
+            v(col_iq(iq,nc),1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyzcu(iq,nc)*cu,0.1))) 
           end do  
       
           ! ice
           do iq = 1,mg_ifull_maxcolour
+            ! 3 colours makes it safe to update  
             v(col_iq(iq,nc),2,g) = ( - zzincu(iq,nc)*v(col_iqn(iq,nc),2,g) - zziscu(iq,nc)*v(col_iqs(iq,nc),2,g)     &
                                      - zziecu(iq,nc)*v(col_iqe(iq,nc),2,g) - zziwcu(iq,nc)*v(col_iqw(iq,nc),2,g)     &
-                                    + rhsicu(iq,nc) ) / zzicu(iq,nc)
+                                     + rhsicu(iq,nc) ) / zzicu(iq,nc)
           end do
           
         end do
@@ -2791,21 +2781,22 @@ do itr = 2,itr_mgice
         call mgbounds(g,v(:,1:2,g))  
         ! ocean - post smoothing
         do iq = 1,ng
-          bu(iq) = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
-                 + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
-                 + zz(iq,g) + hh(iq,g)
-          cu(iq) = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
-                 + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
-                 - rhs(iq,g)
+          bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
+             + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
+             + zz(iq,g) + hh(iq,g)
+          cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
+             + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
+             - rhs(iq,g)
+          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1)))
         end do
-        v(1:ng,1,g) = -2.*cu(1:ng)/(bu(1:ng)+sqrt(max(bu(1:ng)**2-4.*yyz(1:ng,g)*cu(1:ng),0.1)))
+        v(1:ng,1,g) = vnew(1:ng)
         ! ice - post smoothing
         do iq = 1,ng
-          bu(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
-                     - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
-                     + rhsi(iq,g) ) / zzi(iq,g)
+          vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
+                       - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
+                       + rhsi(iq,g) ) / zzi(iq,g)
         end do
-        v(1:ng,2,g) = bu(1:ng)
+        v(1:ng,2,g) = vnew(1:ng)
       end do
       
       call mgbounds(g,v(:,1:2,g)) ! for next mgbcast
@@ -2865,14 +2856,12 @@ do itr = 2,itr_mgice
   do i = 1,itrend
     do nc = 1,maxcolour
 
-      !$omp do schedule(static) private(k,iq)  
+      !$omp do schedule(static) private(k)  
       do k = 1,2
-        do iq = 1,ifull_colour(nc)  
-          dumc_n(iq,k) = dumc(iqn(iq,nc),k)
-          dumc_s(iq,k) = dumc(iqs(iq,nc),k)
-          dumc_e(iq,k) = dumc(iqe(iq,nc),k)
-          dumc_w(iq,k) = dumc(iqw(iq,nc),k)
-        end do
+        dumc_n(1:ifull_colour(nc),k) = dumc(iqn(1:ifull_colour(nc),nc),k)
+        dumc_s(1:ifull_colour(nc),k) = dumc(iqs(1:ifull_colour(nc),nc),k)
+        dumc_e(1:ifull_colour(nc),k) = dumc(iqe(1:ifull_colour(nc),nc),k)
+        dumc_w(1:ifull_colour(nc),k) = dumc(iqw(1:ifull_colour(nc),nc),k)
       end do  
       !$omp end do
       
@@ -2882,14 +2871,14 @@ do itr = 2,itr_mgice
       !$omp section
       ! ocean
       do iq = 1,ifull_colour_border(nc)
-        bu(iq)=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
-              +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
-              +zzhhc(iq,nc)
-        cu(iq)=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
-              +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
-              -rhsc(iq,nc)    
+        bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
+          +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
+          +zzhhc(iq,nc)
+        cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
+          +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
+          -rhsc(iq,nc)    
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),              &
-           -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
+           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
       end do  
 
       !$omp section
@@ -2913,14 +2902,14 @@ do itr = 2,itr_mgice
       !$omp section
       ! ocean
       do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-        bu(iq)=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
-              +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
-              +zzhhc(iq,nc)
-        cu(iq)=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
-              +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
-              -rhsc(iq,nc)   
+        bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
+          +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
+          +zzhhc(iq,nc)
+        cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
+          +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
+          -rhsc(iq,nc)   
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),              &
-           -2.*cu(iq)/(bu(iq)+sqrt(max(bu(iq)**2-4.*yyc(iq,nc)*cu(iq),0.1))) )
+           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
       end do
  
       !$omp section
@@ -4095,7 +4084,7 @@ if ( mg_maxlevel>1 ) then
   do n = 1,mg_npan
     do jj = 1,mjpan,2
       do ii = 1,mipan,2
-        iq = indx(ii,jj,n-1,mipan,mjpan)
+        iq = ii + (jj-1)*mipan + (n-1)*mipan*mjpan
         iqq = iqq + 1
         mg(1)%fine(iqq) = iq
       end do
@@ -4381,7 +4370,7 @@ do g = 2,mg_maxlevel
     do n = 1,mg_npan
       do jj = 1,mjpan,2
         do ii = 1,mipan,2
-          iq = indx(ii,jj,n-1,mipan,mjpan)
+          iq = ii + (jj-1)*mipan + (n-1)*mipan*mjpan
           iqq = iqq + 1
           mg(g)%fine(iqq) = iq
         end do
@@ -4422,28 +4411,28 @@ do g = 2,mg_maxlevel
         do ii = sii,eii
           iia = 2*(ii-sii) + 1
        
-          iqq = indx(ii,jj,n-1,mipan,mjpan)   ! coarse grid
+          iqq = ii + (jj-1)*mipan + (n-1)*mipan*mjpan     ! coarse grid
         
           ! odd, odd          
-          iq = indx(iia,jja,n-1,2*drow,2*dcol)     ! fine grid
+          iq = iia + (jja-1)*2*drow + (n-1)*4*drow*dcol   ! fine grid
           mg(g)%coarse_a(iq) =          iqq
           mg(g)%coarse_b(iq) = mg(g)%is(iqq)
           mg(g)%coarse_c(iq) = mg(g)%iw(iqq)
         
           ! odd, even
-          iq = indx(iia,jja+1,n-1,2*drow,2*dcol)   ! fine grid
+          iq = iia + jja*2*drow + (n-1)*4*drow*dcol       ! fine grid
           mg(g)%coarse_a(iq) =          iqq
           mg(g)%coarse_b(iq) = mg(g)%in(iqq)
           mg(g)%coarse_c(iq) = mg(g)%iw(iqq)
           
           ! even, odd
-          iq = indx(iia+1,jja,n-1,2*drow,2*dcol)   ! fine grid 
+          iq = iia+1 + (jja-1)*2*drow + (n-1)*4*drow*dcol ! fine grid  
           mg(g)%coarse_a(iq) =          iqq
           mg(g)%coarse_b(iq) = mg(g)%is(iqq)
           mg(g)%coarse_c(iq) = mg(g)%ie(iqq)
 
           ! even, even
-          iq = indx(iia+1,jja+1,n-1,2*drow,2*dcol) ! fine grid
+          iq = iia+1 + jja*2*drow + (n-1)*4*drow*dcol     ! fine grid
           mg(g)%coarse_a(iq) =          iqq
           mg(g)%coarse_b(iq) = mg(g)%in(iqq)
           mg(g)%coarse_c(iq) = mg(g)%ie(iqq)

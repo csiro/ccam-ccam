@@ -90,7 +90,7 @@ FHOST = -march=native -fopenmp
 MPIFLAG =
 #MPISPECIAL = -fallow-argument-mismatch
 MPISPECIAL =
-FFLAGS = -O3 -mtune=native -mveclibabi=svml -Dgfortran $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
 ZMM =
 IPFLAG =
@@ -106,6 +106,9 @@ ZMM =
 IPFLAG = 
 IPOFLAG =
 VTHRESH =
+endif
+ifeq ($(GPU),yes)
+FFLAGS += -DGPU -foffload=nvptx-none
 endif
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input

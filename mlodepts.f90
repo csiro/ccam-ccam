@@ -95,9 +95,9 @@ end do
 do ii = 1,3 ! 3 iterations of fill should be enough
   s_old(1:ifull,:,:) = s(1:ifull,:,:)
   call bounds(s_old)
-  do concurrent (nn = 1:3)
-    do concurrent (k = 1:wlev)
-      do concurrent (iq = 1:ifull)
+  do nn = 1,3
+    do k = 1,wlev
+      do iq = 1,ifull
         if ( s(iq,k,nn)<cxx ) then
           s_tot = 0.
           s_count = 0

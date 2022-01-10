@@ -1293,35 +1293,35 @@ real, parameter :: gcon = 44.628 ! = 40.74*sqrt(sfcrho)
 
 scm3 = (visk/vdifu)**(1./3.)
 
+fluxr           = 0.
+fluxi           = 0.
+fluxs           = 0.
+fluxg           = 0. 
+fluxm           = 0.  
+fluxf           = 0.
+fluxautorain    = 0.
+fluxautosnow    = 0.
+fluxautograupel = 0.
+qevap           = 0.
+qauto           = 0.
+qcoll           = 0.
+qsubl           = 0.
+qaccr           = 0.
+qaccf           = 0.
+pqfsedice       = 0.
+prscav          = 0.  
+pfstayice       = 0.  
+pfstayliq       = 0. 
+pslopes         = 0.
 do k = 1,kl
-  fluxr(:,k)           = 0.
-  fluxi(:,k)           = 0.
-  fluxs(:,k)           = 0.
-  fluxg(:,k)           = 0. 
-  fluxm(:,k)           = 0.  
-  fluxf(:,k)           = 0.
-  fluxautorain(:,k)    = 0.
-  fluxautosnow(:,k)    = 0.
-  fluxautograupel(:,k) = 0.
-  qevap(:,k)           = 0.
-  qauto(:,k)           = 0.
-  qcoll(:,k)           = 0.
-  qsubl(:,k)           = 0.
-  qaccr(:,k)           = 0.
-  qaccf(:,k)           = 0.
-  pqfsedice(:,k)       = 0.
-  prscav(:,k)          = 0.  
-  pfstayice(:,k)       = 0.  
-  pfstayliq(:,k)       = 0. 
-  pslopes(:,k)         = 0.
-  pk(:)                = 100.*prf(:,k)
-  qsatg(:,k)           = qsati(pk(:),ttg(:,k),imax)
-  cifr(:,k)            = qfg(:,k)*stratcloud(:,k)/max( qlg(:,k)+qfg(:,k), 1.e-30 )
-  clfr(:,k)            = qlg(:,k)*stratcloud(:,k)/max( qlg(:,k)+qfg(:,k), 1.e-30 )
-  cfautorain(:,k)      = 0.
-  cfautosnow(:,k)      = 0.
-  cfautograupel(:,k)   = 0.
+  pk(:)         = 100.*prf(:,k)
+  qsatg(:,k)    = qsati(pk(:),ttg(:,k),imax)
 end do
+cifr            = qfg*stratcloud/max( qlg+qfg, 1.e-30 )
+clfr            = qlg*stratcloud/max( qlg+qfg, 1.e-30 )
+cfautorain      = 0.
+cfautosnow      = 0.
+cfautograupel   = 0.
 
 ! Use full timestep for autoconversion
 !njumps = 1

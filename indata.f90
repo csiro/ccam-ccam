@@ -1358,7 +1358,8 @@ if ( nhstest<0 ) then
       do n = 0,5
         do j = 1,il_g
           do i = 1,il_g
-            davt_g(indglobal(i,j,n)) = uin + mod(n,3) + vin*mod(mod(i,2)+mod(j,2),2)
+            iqg = i+(j-1)*il_g+n*il_g**2  
+            davt_g(iqg) = uin + mod(n,3) + vin*mod(mod(i,2)+mod(j,2),2)
           end do ! i loop
         end do   ! j loop
       end do     ! n loop
@@ -1952,7 +1953,6 @@ if ( nbd/=0 .and. nud_hrs/=0 )then
   if ( myid==0 ) then
     allocate(davt_g(ifull_g))
     ! Set up the weights using global array and indexing
-    ! This needs the global function indglobal for calculating the 1D index
     davt_g(:) = 0.
     if ( nbd==1 ) then
       davt_g(:) = 1./nud_hrs !  e.g. 1/48
@@ -1963,7 +1963,8 @@ if ( nbd/=0 .and. nud_hrs/=0 )then
         do i=1,il_g
           dist=max(abs(i-centi),abs(j-centi)) ! dist from centre of panel
           distx=dist/(.5*il_g) ! between 0. and 1.
-          davt_g(indglobal(j,i,4))=(1.-distx)/abs(nud_hrs) !  e.g. 1/24
+          iqg = j + (i-1)*il_g + 4*il_g**2
+          davt_g(iqg)=(1.-distx)/abs(nud_hrs) !  e.g. 1/24
         enddo            ! i loop
       enddo              ! j loop
     endif                !  (nbd==-1) 
@@ -1973,7 +1974,8 @@ if ( nbd/=0 .and. nud_hrs/=0 )then
         do i=1,il_g
           dist=max(abs(i-centi),abs(j-centi)) ! dist from centre of panel
           distx=dist/(.5*il_g) ! between 0. and 1.
-          davt_g(indglobal(j,i,4))=(1.-distx**2)/abs(nud_hrs) !  e.g. 1/24
+          iqg = j + (i-1)*il_g + 4*il_g**2
+          davt_g(iqg)=(1.-distx**2)/abs(nud_hrs) !  e.g. 1/24
         enddo            ! i loop
       enddo              ! j loop
     endif                !  (nbd==-2) 
@@ -1983,16 +1985,17 @@ if ( nbd/=0 .and. nud_hrs/=0 )then
           ! linearly between 0 (at il/2) and 1/abs(nud_hrs) (at il+1)
           rhs=(j-il_g/2)/((il_g/2+1.)*nud_hrs)
           do i=1,il_g
-            if(n==0)davt_g(indglobal(i,il_g+1-j,n))=rhs
-            if(n==2)davt_g(indglobal(j,i,n))=rhs
-            if(n==3)davt_g(indglobal(j,i,n))=rhs
-            if(n==5)davt_g(indglobal(i,il_g+1-j,n))=rhs
+            if(n==0)davt_g(i+(il_g-j)*il_g+n*il_g**2)=rhs
+            if(n==2)davt_g(j+(i-1)*il_g+n*il_g**2)=rhs
+            if(n==3)davt_g(j+(i-1)*il_g+n*il_g**2)=rhs
+            if(n==5)davt_g(i+(il_g-j)*il_g+n*il_g**2)=rhs
           enddo          ! i loop
         enddo            ! j loop
       enddo              ! n loop
       do j=1,il_g          ! full nudging on furthest panel
         do i=1,il_g
-          davt_g(indglobal(j,i,4))=1./nud_hrs !  e.g. 1/48
+          iqg = j + (i-1)*il_g + 4*il_g**2  
+          davt_g(iqg)=1./nud_hrs !  e.g. 1/48
         enddo            ! i loop
       enddo              ! j loop
     endif                !  (nbd==-3) 
@@ -2002,16 +2005,17 @@ if ( nbd/=0 .and. nud_hrs/=0 )then
           ! linearly between 0 (at j=.5) and 1/nud_hrs (at j=il+.5)
           rhs=(j-.5)/(il_g*nud_hrs)
           do i=1,il_g
-            if(n==0)davt_g(indglobal(i,il_g+1-j,n))=rhs
-            if(n==2)davt_g(indglobal(j,i,n))=rhs
-            if(n==3)davt_g(indglobal(j,i,n))=rhs
-            if(n==5)davt_g(indglobal(i,il_g+1-j,n))=rhs
+            if(n==0)davt_g(i+(il_g-j)*il_g+n*il_g**2)=rhs
+            if(n==2)davt_g(j+(i-1)*il_g+n*il_g**2)=rhs
+            if(n==3)davt_g(j+(i-1)*il_g+n*il_g**2)=rhs
+            if(n==5)davt_g(i+(il_g-j)*il_g+n*il_g**2)=rhs
           enddo          ! i loop
         enddo            ! j loop
       enddo              ! n loop
       do j=1,il_g        ! full nudging on furthest panel
         do i=1,il_g
-          davt_g(indglobal(j,i,4))=1./nud_hrs !  e.g. 1/48
+          iqg = j + (i-1)*il_g + 4*il_g**2  
+          davt_g(iqg)=1./nud_hrs !  e.g. 1/48
         enddo            ! i loop
       enddo              ! j loop
     endif                !  (nbd==-4) 
@@ -2021,10 +2025,10 @@ if ( nbd/=0 .and. nud_hrs/=0 )then
           ! linearly between 0 (at j=.5) and 1/nud_hrs (at j=il+.5)
           rhs=(.5*il_g+j-.5)/(1.5*il_g*nud_hrs)
           do i=1,il_g
-            if(n==0)davt_g(indglobal(i,il_g+1-j,n))=rhs
-            if(n==2)davt_g(indglobal(j,i,n))=rhs
-            if(n==3)davt_g(indglobal(j,i,n))=rhs
-            if(n==5)davt_g(indglobal(i,il_g+1-j,n))=rhs
+            if(n==0)davt_g(i+(il_g-j)*il_g+n*il_g**2)=rhs
+            if(n==2)davt_g(j+(i-1)*il_g+n*il_g**2)=rhs
+            if(n==3)davt_g(j+(i-1)*il_g+n*il_g**2)=rhs
+            if(n==5)davt_g(i+(il_g-j)*il_g+n*il_g**2)=rhs
           enddo          ! i loop
         enddo            ! j loop
       enddo              ! n loop
@@ -2032,34 +2036,42 @@ if ( nbd/=0 .and. nud_hrs/=0 )then
       do j=1,il_g
         do i=1,il_g
           rhs=max(abs(i-.5-ril2),abs(j-.5-ril2))/(1.5*il_g*nud_hrs)
-          davt_g(indglobal(i,il_g+1-j,1))=rhs  ! panel 1
+          iqg = i + (il_g-j)*il_g + il_g**2
+          davt_g(iqg)=rhs  ! panel 1
         enddo
       enddo
       do j=1,il_g        ! full nudging on furthest panel
         do i=1,il_g
-          davt_g(indglobal(j,i,4))=1./nud_hrs !  e.g. 1/48
+          iqg = j + (i-1)*il_g + 4*il_g**2  
+          davt_g(iqg)=1./nud_hrs !  e.g. 1/48
         enddo            ! i loop
       enddo              ! j loop
     endif                !  (nbd==-5)
     if ( abs(nbd)==6 ) then ! more like 1-way nesting
       do j=1,il_g   ! full nudging on all further panels; 6 rows on 1
         do i=1,il_g
-          davt_g(indglobal(j,i,0))=1./nud_hrs !  e.g. 1/48
-          davt_g(indglobal(j,i,2))=1./nud_hrs !  e.g. 1/48
-          davt_g(indglobal(j,i,3))=1./nud_hrs !  e.g. 1/48
-          davt_g(indglobal(j,i,4))=1./nud_hrs !  e.g. 1/48
-          davt_g(indglobal(j,i,5))=1./nud_hrs !  e.g. 1/48
-          davt_g(indglobal(j,i,1))=0.
+          iqg = j + (i-1)*il_g  
+          davt_g(iqg)=1./nud_hrs !  e.g. 1/48
+          iqg = j + (i-1)*il_g + 2*il_g**2
+          davt_g(iqg)=1./nud_hrs !  e.g. 1/48
+          iqg = j + (i-1)*il_g + 3*il_g**2
+          davt_g(iqg)=1./nud_hrs !  e.g. 1/48
+          iqg = j + (i-1)*il_g + 4*il_g**2
+          davt_g(iqg)=1./nud_hrs !  e.g. 1/48
+          iqg = j + (i-1)*il_g + 5*il_g**2
+          davt_g(iqg)=1./nud_hrs !  e.g. 1/48
+          iqg = j + (i-1)*il_g + il_g**2
+          davt_g(iqg)=0.
         enddo            ! i loop
       enddo              ! j loop
       do j=0,5
         ! linearly between 0 and 1/abs(nud_hrs) over 6 rows
         rhs=(6-j)/(6.*nud_hrs)
         do i=1+j,il_g-j
-          davt_g(indglobal(i,j+1,1))=rhs
-          davt_g(indglobal(i,il_g-j,1))=rhs
-          davt_g(indglobal(j+1,i,1))=rhs
-          davt_g(indglobal(il_g-j,i,1))=rhs
+          davt_g(i+j*il_g+il_g**2)=rhs
+          davt_g(i+(il_g-j-1)*il_g+il_g**2)=rhs
+          davt_g(j+1+(i-1)*il_g+il_g**2)=rhs
+          davt_g(il_g-j+(i-1)*il_g+il_g**2)=rhs
         enddo         ! i loop
       enddo           ! j loop
     endif             !  (nbd==-6)
@@ -2069,16 +2081,17 @@ if ( nbd/=0 .and. nud_hrs/=0 )then
           ! linearly between 0 (at j=.5) and 1/nud_hrs (at j=il/2)
           rhs=min((j-.5)/(.5*il_g*nud_hrs),1./nud_hrs)
           do i=1,il_g
-            if(n==0)davt_g(indglobal(i,il_g+1-j,n))=rhs
-            if(n==2)davt_g(indglobal(j,i,n))=rhs
-            if(n==3)davt_g(indglobal(j,i,n))=rhs
-            if(n==5)davt_g(indglobal(i,il_g+1-j,n))=rhs
+            if(n==0)davt_g(i+(il_g-j)*il_g+n*il_g**2)=rhs
+            if(n==2)davt_g(j+(i-1)*il_g+n*il_g**2)=rhs
+            if(n==3)davt_g(j+(i-1)*il_g+n*il_g**2)=rhs
+            if(n==5)davt_g(i+(il_g-j)*il_g+n*il_g**2)=rhs
           enddo          ! i loop
         enddo            ! j loop
       enddo              ! n loop
       do j=1,il_g        ! full nudging on furthest panel
         do i=1,il_g
-          davt_g(indglobal(j,i,4))=1./nud_hrs !  e.g. 1/48
+          iqg = j + (i-1)*il_g + 4*il_g**2  
+          davt_g(iqg)=1./nud_hrs !  e.g. 1/48
         enddo            ! i loop
       enddo              ! j loop
     endif                !  (nbd==-7)  
@@ -2309,7 +2322,7 @@ if(nstn>0)then
       istn(nn) = ii
       jstn(nn) = jj+(n-1)*jpan
       iq = istn(nn) + (jstn(nn)-1)*ipan
-      iveg=ivegt(iq)
+      iveg = ivegt(iq)
       isoil = isoilm(iq)
       wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
       !write(6,98)iunp(nn),istn(nn),jstn(nn),iq,slon(nn),slat(nn),   &

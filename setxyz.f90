@@ -33,7 +33,7 @@ contains
 subroutine setxyz(ik,rlong0,rlat0,schmidtin,x,y,z,wts,ax,ay,az,bx,by,bz,xx4,yy4, &
                   id,jd,ktau,ds)
     
-use cc_mpi, only : indx, ccmpi_abort
+use cc_mpi, only : ccmpi_abort
 use const_phys
 use indices_m
 use jimcc_m
@@ -138,54 +138,54 @@ if ( schmidtin>=0. ) then
         end select
         ! set up x0, y0, z0 coords on cube -1 to 1
         ! avoids earlier equivalencing of x,x0  etc
-        x(indx(i,j,0,ikk,ikk))= 1.
-        y(indx(i,j,0,ikk,ikk))=xx
-        z(indx(i,j,0,ikk,ikk))=yy
-        x(indx(i,j,3,ikk,ikk))=-1.
-        z(indx(i,j,3,ikk,ikk))=-xx
-        y(indx(i,j,3,ikk,ikk))=-yy
-        x(indx(i,j,1,ikk,ikk))=-yy
-        y(indx(i,j,1,ikk,ikk))=xx
-        z(indx(i,j,1,ikk,ikk))= 1.
-        y(indx(i,j,4,ikk,ikk))=-yy
-        x(indx(i,j,4,ikk,ikk))=xx
-        z(indx(i,j,4,ikk,ikk))=-1.
-        x(indx(i,j,2,ikk,ikk))=-yy
-        y(indx(i,j,2,ikk,ikk))= 1.
-        z(indx(i,j,2,ikk,ikk))=-xx
-        z(indx(i,j,5,ikk,ikk))=yy
-        y(indx(i,j,5,ikk,ikk))=-1.
-        x(indx(i,j,5,ikk,ikk))=xx
+        iq = i + (j-1)*ikk            ! i,j,0
+        x(iq)= 1.
+        y(iq)=xx
+        z(iq)=yy
+        iq = i + (j-1)*ikk + 3*ikk**2 ! i,j,3
+        x(iq)=-1.
+        z(iq)=-xx
+        y(iq)=-yy
+        iq = i + (j-1)*ikk + ikk**2   ! i,j,1
+        x(iq)=-yy
+        y(iq)=xx
+        z(iq)= 1.
+        iq = i + (j-1)*ikk + 4*ikk**2 ! i,j,4
+        y(iq)=-yy
+        x(iq)=xx
+        z(iq)=-1.
+        iq = i + (j-1)*ikk + 2*ikk**2 ! i,j,2
+        x(iq)=-yy
+        y(iq)= 1.
+        z(iq)=-xx
+        iq = i + (j-1)*ikk + 5*ikk**2 ! i,j,5
+        z(iq)=yy
+        y(iq)=-1.
+        x(iq)=xx
       enddo  ! i loop
     enddo   ! j loop
     do iq=1,6*ik*ik
-      call norm8(x(iq),y(iq),z(iq),den1) ! x, y, z are coords on sphere  -1 to 1
+      ! x, y, z are coords on sphere  -1 to 1
+      den1=sqrt(x(iq)**2+y(iq)**2+z(iq)**2)
+      x(iq)=x(iq)/den1
+      y(iq)=y(iq)/den1
+      z(iq)=z(iq)/den1
       x4_iq_m=x(iq)*schmidt*(1.+alf)/(1.+alf*z(iq))
       y4_iq_m=y(iq)*schmidt*(1.+alf)/(1.+alf*z(iq))
       z4_iq_m=(alf+z(iq))/(1.+alf*z(iq)) 
       ! here is calculation of rlong4, rlat4
       ! also provide latitudes and longitudes (-pi to pi)
-      !if(rlong0==0..and.rlat0==90.)then
-      !  xx=x4_iq_m
-      !  yy=y4_iq_m
-      !  zz=z4_iq_m
-      !else
-        ! x4(), y4(z), z4() are "local" coords with z4 out of central panel
-        ! while xx, yy, zz are "true" Cartesian values
-        ! xx is new x after rot by rlong0 then rlat0
-        xx=rotpole(1,1)*x4_iq_m+rotpole(1,2)*y4_iq_m+rotpole(1,3)*z4_iq_m
-        yy=rotpole(2,1)*x4_iq_m+rotpole(2,2)*y4_iq_m+rotpole(2,3)*z4_iq_m
-        zz=rotpole(3,1)*x4_iq_m+rotpole(3,2)*y4_iq_m+rotpole(3,3)*z4_iq_m
-      !endif
+      ! x4(), y4(z), z4() are "local" coords with z4 out of central panel
+      ! while xx, yy, zz are "true" Cartesian values
+      ! xx is new x after rot by rlong0 then rlat0
+      xx=rotpole(1,1)*x4_iq_m+rotpole(1,2)*y4_iq_m+rotpole(1,3)*z4_iq_m
+      yy=rotpole(2,1)*x4_iq_m+rotpole(2,2)*y4_iq_m+rotpole(2,3)*z4_iq_m
+      zz=rotpole(3,1)*x4_iq_m+rotpole(3,2)*y4_iq_m+rotpole(3,3)*z4_iq_m
       rlat4(iq,m)=real(asin(zz))
-      !if(yy/=0..or.xx/=0.)then
-        rlong4(iq,m)=real(atan2(yy,xx))                       ! N.B. -pi to pi
-        if(rlong4(iq,m)<0.)  then
-          rlong4(iq,m)=rlong4(iq,m)+2.*pi ! 0 to 2*pi  09-25-1997
-        end if
-      !else
-      !  rlong4(iq,m)=0.    ! a default value for NP/SP
-      !endif
+      rlong4(iq,m)=real(atan2(yy,xx))                       ! N.B. -pi to pi
+      if(rlong4(iq,m)<0.)  then
+        rlong4(iq,m)=rlong4(iq,m)+2.*pi ! 0 to 2*pi  09-25-1997
+      end if
       ! convert long4 and lat4 (used by cctocc4) to degrees	
       rlat4(iq,m)=rlat4(iq,m)*180./pi
       rlong4(iq,m)=rlong4(iq,m)*180./pi
@@ -205,19 +205,21 @@ if ( schmidtin>=0. ) then
     do i=1,ikk
       do n=0,5
         ! average Purser em is pi/2
-        em_g(indx(i,j,n,ikk,ikk))=pi/(2.*em4(4*i-1,4*j-1))
-        emu_g(indx(i,j,n,ikk,ikk))=pi/(2.*em4(4*i+1,4*j-1))
-        emv_g(indx(i,j,n,ikk,ikk))=pi/(2.*em4(4*i-1,4*j+1))
+        iq = i + (j-1)*ikk + n*ikk**2   ! i,j,n
+        em_g(iq)=pi/(2.*em4(4*i-1,4*j-1))
+        emu_g(iq)=pi/(2.*em4(4*i+1,4*j-1))
+        emv_g(iq)=pi/(2.*em4(4*i-1,4*j+1))
       enddo ! n loop
-      ax(indx(i,j,0,ikk,ikk))=ax4(4*i-1,4*j-1)
-      ay(indx(i,j,0,ikk,ikk))=ay4(4*i-1,4*j-1)
-      az(indx(i,j,0,ikk,ikk))=az4(4*i-1,4*j-1)
+      iq = i + (j-1)*ikk ! i,j,0
+      ax(iq)=ax4(4*i-1,4*j-1)
+      ay(iq)=ay4(4*i-1,4*j-1)
+      az(iq)=az4(4*i-1,4*j-1)
     enddo  ! i loop
   enddo   ! j loop
   if(ktau<=1)then
-    write(6,*) 'ax6 (1,1,0) & (2,2,0) ',ax(indx(1,1,0,ikk,ikk)),ax(indx(2,2,0,ikk,ikk))
-    write(6,*) 'ay6 (1,1,0) & (2,2,0) ',ay(indx(1,1,0,ikk,ikk)),ay(indx(2,2,0,ikk,ikk))
-    write(6,*) 'az6 (1,1,0) & (2,2,0) ',az(indx(1,1,0,ikk,ikk)),az(indx(2,2,0,ikk,ikk))
+    write(6,*) 'ax6 (1,1,0) & (2,2,0) ',ax(1),ax(2+ikk)
+    write(6,*) 'ay6 (1,1,0) & (2,2,0) ',ay(1),ay(2+ikk)
+    write(6,*) 'az6 (1,1,0) & (2,2,0) ',az(1),az(2+ikk)
   endif ! (ktau<=1)
 end if ! (schmidt>=0.)
       
@@ -228,28 +230,38 @@ do j=1,ikk
 
     ! set up x0, y0, z0 coords on cube -1 to 1
     ! avoids earlier equivalencing of x,x0  etc
-    x(indx(i,j,0,ikk,ikk))= 1.
-    y(indx(i,j,0,ikk,ikk))=xx
-    z(indx(i,j,0,ikk,ikk))=yy
-    x(indx(i,j,3,ikk,ikk))=-1.
-    z(indx(i,j,3,ikk,ikk))=-xx
-    y(indx(i,j,3,ikk,ikk))=-yy
-    x(indx(i,j,1,ikk,ikk))=-yy
-    y(indx(i,j,1,ikk,ikk))=xx
-    z(indx(i,j,1,ikk,ikk))= 1.
-    y(indx(i,j,4,ikk,ikk))=-yy
-    x(indx(i,j,4,ikk,ikk))=xx
-    z(indx(i,j,4,ikk,ikk))=-1.
-    x(indx(i,j,2,ikk,ikk))=-yy
-    y(indx(i,j,2,ikk,ikk))= 1.
-    z(indx(i,j,2,ikk,ikk))=-xx
-    z(indx(i,j,5,ikk,ikk))=yy
-    y(indx(i,j,5,ikk,ikk))=-1.
-    x(indx(i,j,5,ikk,ikk))=xx
+    iq = i + (j-1)*ikk            ! i,j,0
+    x(iq)= 1.
+    y(iq)=xx
+    z(iq)=yy
+    iq = i + (j-1)*ikk + 3*ikk**2 ! i,j,3
+    x(iq)=-1.
+    z(iq)=-xx
+    y(iq)=-yy
+    iq = i + (j-1)*ikk + ikk**2   ! i,j,1
+    x(iq)=-yy
+    y(iq)=xx
+    z(iq)= 1.
+    iq = i + (j-1)*ikk + 4*ikk**2 ! i,j,4
+    y(iq)=-yy
+    x(iq)=xx
+    z(iq)=-1.
+    iq = i + (j-1)*ikk + 2*ikk**2 ! i,j,2
+    x(iq)=-yy
+    y(iq)= 1.
+    z(iq)=-xx
+    iq = i + (j-1)*ikk + 5*ikk**2 ! i,j,5
+    z(iq)=yy
+    y(iq)=-1.
+    x(iq)=xx
   enddo  ! i loop
 enddo   ! j loop
 do iq=1,ik*ik*6
-  call norm8(x(iq),y(iq),z(iq),den1) ! x, y, z are coords on sphere  -1 to 1
+  ! x, y, z are coords on sphere  -1 to 1  
+  den1=sqrt(x(iq)**2+y(iq)**2+z(iq)**2)
+  x(iq)=x(iq)/den1
+  y(iq)=y(iq)/den1
+  z(iq)=z(iq)/den1
 enddo   ! iq loop
 if(ktau==0) write(6,*) 'basic grid length ds =',ds
 
@@ -287,35 +299,35 @@ write(6,*) 'ktau,ikk,schmidtin ',ktau,ikk,schmidtin
 if(ktau==0.and.schmidtin>0.)then
   write(6,*) 'On each panel (ntang=0)_em_g for (1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
   do n=0,npanels
-    iq11=indx(1,1,n,ikk,ikk)
-    iq12=indx(1,2,n,ikk,ikk)
-    iq13=indx(1,3,n,ikk,ikk)
-    iq22=indx(2,2,n,ikk,ikk)
-    iq32=indx(3,2,n,ikk,ikk)
-    iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
-    iqnn=indx(ikk,ikk,n,ikk,ikk)
+    iq11= 1 + n*ikk**2
+    iq12= 1 + ikk + n*ikk**2
+    iq13= 1 + 2*ikk + n*ikk**2
+    iq22= 2 + ikk + n*ikk**2
+    iq32= 3 + ikk + n*ikk**2
+    iqcc= (ikk+1)/2 + ((ikk+1)/2-1)*ikk + n*ikk**2
+    iqnn= ikk + (ikk-1)*ikk + n*ikk**2
     write(6,'(i3,7f8.3)') n,em_g(iq11),em_g(iq12),em_g(iq13),em_g(iq22),em_g(iq32),em_g(iqcc),em_g(iqnn)
   enddo
   write(6,*) 'On each panel (ntang=0)_emu_g for (1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
   do n=0,npanels
-    iq11=indx(1,1,n,ikk,ikk)
-    iq12=indx(1,2,n,ikk,ikk)
-    iq13=indx(1,3,n,ikk,ikk)
-    iq22=indx(2,2,n,ikk,ikk)
-    iq32=indx(3,2,n,ikk,ikk)
-    iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
-    iqnn=indx(ikk,ikk,n,ikk,ikk)
+    iq11= 1 + n*ikk**2
+    iq12= 1 + ikk + n*ikk**2
+    iq13= 1 + 2*ikk + n*ikk**2
+    iq22= 2 + ikk + n*ikk**2
+    iq32= 3 + ikk + n*ikk**2
+    iqcc= (ikk+1)/2 + ((ikk+1)/2-1)*ikk + n*ikk**2
+    iqnn= ikk + (ikk-1)*ikk + n*ikk**2
     write(6,'(i3,7f8.3)') n,emu_g(iq11),emu_g(iq12),emu_g(iq13),emu_g(iq22),emu_g(iq32),emu_g(iqcc),emu_g(iqnn)
   enddo
   write(6,*) 'On each panel (ntang=0)_emv_g for (1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
   do n=0,npanels
-    iq11=indx(1,1,n,ikk,ikk)
-    iq12=indx(1,2,n,ikk,ikk)
-    iq13=indx(1,3,n,ikk,ikk)
-    iq22=indx(2,2,n,ikk,ikk)
-    iq32=indx(3,2,n,ikk,ikk)
-    iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
-    iqnn=indx(ikk,ikk,n,ikk,ikk)
+    iq11= 1 + n*ikk**2
+    iq12= 1 + ikk + n*ikk**2
+    iq13= 1 + 2*ikk + n*ikk**2
+    iq22= 2 + ikk + n*ikk**2
+    iq32= 3 + ikk + n*ikk**2
+    iqcc= (ikk+1)/2 + ((ikk+1)/2-1)*ikk + n*ikk**2
+    iqnn= ikk + (ikk-1)*ikk + n*ikk**2
     write(6,'(i3,7f8.3)') n,emv_g(iq11),emv_g(iq12),emv_g(iq13),emv_g(iq22),emv_g(iq32),emv_g(iqcc),emv_g(iqnn)
   enddo
 endif  ! (ktau.eq.0.and.schmidtin>0.)
@@ -330,18 +342,18 @@ if(schmidtin<0.)then
     n_s=mod(n+4,6)
     do j=1,ikk
       do i=1,ikk
-        iq=indx(i,j,n,ikk,ikk)
+        iq= i + (j-1)*ikk + n*ikk**2
         iqp=iq+1
         iqm=iq-1
-        if(i==1)iqm=indx(ikk,j,n_w,ikk,ikk)
-        if(i==ikk)iqp=indx(ikk+1-j,1,n_e,ikk,ikk)
+        if(i==1)iqm=ikk + (j-1)*ikk + n_w*ikk**2
+        if(i==ikk)iqp=ikk+1-j + n_e*ikk**2
         ax(iq)=real(x(iqp)-x(iqm))
         az(iq)=real(z(iqp)-z(iqm))
         ay(iq)=real(y(iqp)-y(iqm))
         iqp=iq+ikk
         iqm=iq-ikk
-        if(j==1)iqm=indx(ikk,ikk+1-i,n_s,ikk,ikk)
-        if(j==ikk)iqp=indx(i,1,n_n,ikk,ikk)
+        if(j==1)iqm=ikk + (ikk-i)*ikk + n_s*ikk**2
+        if(j==ikk)iqp=i + n_n*ikk**2
         bx(iq)=real(x(iqp)-x(iqm))
         by(iq)=real(y(iqp)-y(iqm))
         bz(iq)=real(z(iqp)-z(iqm))
@@ -355,18 +367,18 @@ if(schmidtin<0.)then
     n_s=mod(n+5,6)
     do j=1,ikk
       do i=1,ikk
-        iq=indx(i,j,n,ikk,ikk)
+        iq= i + (j-1)*ikk + n*ikk**2
         iqp=iq+1
         iqm=iq-1
-        if(i==1)iqm=indx(ikk+1-j,ikk,n_w,ikk,ikk)
-        if(i==ikk)iqp=indx(1,j,n_e,ikk,ikk)
+        if(i==1)iqm=ikk+1-j + (ikk-1)*ikk + n_w*ikk**2
+        if(i==ikk)iqp=1 + (j-1)*ikk + n_e*ikk**2
         ax(iq)=real(x(iqp)-x(iqm))
         ay(iq)=real(y(iqp)-y(iqm))
         az(iq)=real(z(iqp)-z(iqm))
         iqp=iq+ikk
         iqm=iq-ikk
-        if(j==1)iqm=indx(i,ikk,n_s,ikk,ikk)
-        if(j==ikk)iqp=indx(1,ikk+1-i,n_n,ikk,ikk)
+        if(j==1)iqm=i + (ikk-1)*ikk + n_s*ikk**2
+        if(j==ikk)iqp=1 + (ikk-i)*ikk + n_n*ikk**2
         bx(iq)=real(x(iqp)-x(iqm))
         by(iq)=real(y(iqp)-y(iqm))
         bz(iq)=real(z(iqp)-z(iqm))
@@ -388,8 +400,14 @@ endif   ! (schmidtin<0.  ... else)
 call cross3b(axx,ayy,azz, bx,by,bz, x,y,z, ik*ik*6)
 call cross3(bxx,byy,bzz, x,y,z, ax,ay,az, ik*ik*6)
 do iq=1,ikk*ikk*6
-  call norm(axx(iq),ayy(iq),azz(iq),den)
-  call norm(bxx(iq),byy(iq),bzz(iq),den)
+  den = sqrt(axx(iq)**2+ayy(iq)**2+azz(iq)**2)
+  axx(iq) = axx(iq)/den
+  ayy(iq) = ayy(iq)/den
+  azz(iq) = azz(iq)/den
+  den = sqrt(bxx(iq)**2+byy(iq)**2+bzz(iq)**2)
+  bxx(iq) = bxx(iq)/den
+  byy(iq) = byy(iq)/den
+  bzz(iq) = bzz(iq)/den
   ! make sure they are perpendicular & normalize
   dot=axx(iq)*bxx(iq)+ayy(iq)*byy(iq)+azz(iq)*bzz(iq)
   eps=-dot/(1.+sqrt(1.-dot*dot))
@@ -399,8 +417,14 @@ do iq=1,ikk*ikk*6
   bx(iq)=bxx(iq)+eps*axx(iq)
   by(iq)=byy(iq)+eps*ayy(iq)
   bz(iq)=bzz(iq)+eps*azz(iq)
-  call norm(ax(iq),ay(iq),az(iq),den)
-  call norm(bx(iq),by(iq),bz(iq),den)
+  den = sqrt(ax(iq)**2+ay(iq)**2+az(iq)**2)
+  ax(iq) = ax(iq)/den
+  ay(iq) = ay(iq)/den
+  az(iq) = az(iq)/den
+  den = sqrt(bx(iq)**2+by(iq)**2+bz(iq)**2)
+  bx(iq) = bx(iq)/den
+  by(iq) = by(iq)/den
+  bz(iq) = bz(iq)/den
 enddo   ! iq loop
 if (schmidtin>=0.) then  ! (schmidt<0. is to finish of stuff needed for onthefly
         
@@ -505,53 +529,53 @@ if (schmidtin>=0.) then  ! (schmidt<0. is to finish of stuff needed for onthefly
   if(ktau==0)then
     write(6,*) 'At centre of the faces:'
     do n=0,npanels
-      iq=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
+      iq=(ikk+1)/2 + ((ikk+1)/2-1)*ikk + n*ikk**2
       write(6,'(" n,iq,x,y,z,long,lat,f ",i2,i7,3f7.3,2f8.2,f9.5)') n,iq,x(iq),y(iq),z(iq),   &
           rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi,f_g(iq)
     enddo
     write(6,*) 'At mid-x along edges:'
     do n=0,npanels
-      iq=indx((ikk+1)/2,1,n,ikk,ikk)
+      iq=(ikk+1)/2 + n*ikk**2
       write(6,'(" n,iq,x,y,z,long,lat,f_g ",i2,i7,3f7.3,2f8.2,f9.5)') n,iq,x(iq),y(iq),z(iq), &
          rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi,f_g(iq)
     enddo
     write(6,*) 'At mid-y along edges:'
     do n=0,npanels
-      iq=indx(1,(ikk+1)/2,n,ikk,ikk)
+      iq=1 + ((ikk+1)/2-1)*ikk + n*ikk**2
       write(6,'(" n,iq,x,y,z,long,lat,f_g ",i2,i7,3f7.3,2f8.2,f9.5)') n,iq,x(iq),y(iq),z(iq), &
          rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi,f_g(iq)
     enddo
     write(6,*) 'On each panel final_em_g for (1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
     do n=0,npanels
-      iq11=indx(1,1,n,ikk,ikk)
-      iq12=indx(1,2,n,ikk,ikk)
-      iq13=indx(1,3,n,ikk,ikk)
-      iq22=indx(2,2,n,ikk,ikk)
-      iq32=indx(3,2,n,ikk,ikk)
-      iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
-      iqnn=indx(ikk,ikk,n,ikk,ikk)
+      iq11= 1 + n*ikk**2
+      iq12= 1 + ikk + n*ikk**2
+      iq13= 1 + 2*ikk + n*ikk**2
+      iq22= 2 + ikk + n*ikk**2
+      iq32= 3 + ikk + n*ikk**2
+      iqcc= (ikk+1)/2 + ((ikk+1)/2-1)*ikk + n*ikk**2
+      iqnn= ikk + (ikk-1)*ikk + n*ikk**2
       write(6,'(i3,7f8.3)') n,em_g(iq11),em_g(iq12),em_g(iq13),em_g(iq22),em_g(iq32),em_g(iqcc),em_g(iqnn)
     enddo
     write(6,*) 'On each panel final_emu_g for (1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
     do n=0,npanels
-      iq11=indx(1,1,n,ikk,ikk)
-      iq12=indx(1,2,n,ikk,ikk)
-      iq13=indx(1,3,n,ikk,ikk)
-      iq22=indx(2,2,n,ikk,ikk)
-      iq32=indx(3,2,n,ikk,ikk)
-      iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
-      iqnn=indx(ikk,ikk,n,ikk,ikk)
+      iq11= 1 + n*ikk**2
+      iq12= 1 + ikk + n*ikk**2
+      iq13= 1 + 2*ikk + n*ikk**2
+      iq22= 2 + ikk + n*ikk**2
+      iq32= 3 + ikk + n*ikk**2
+      iqcc= (ikk+1)/2 + ((ikk+1)/2-1)*ikk + n*ikk**2
+      iqnn= ikk + (ikk-1)*ikk + n*ikk**2
       write(6,'(i3,7f8.3)') n,emu_g(iq11),emu_g(iq12),emu_g(iq13),emu_g(iq22),emu_g(iq32),emu_g(iqcc),emu_g(iqnn)
     enddo
     write(6,*) 'On each panel final_emv_g for (1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
     do n=0,npanels
-      iq11=indx(1,1,n,ikk,ikk)
-      iq12=indx(1,2,n,ikk,ikk)
-      iq13=indx(1,3,n,ikk,ikk)
-      iq22=indx(2,2,n,ikk,ikk)
-      iq32=indx(3,2,n,ikk,ikk)
-      iqcc=indx((ikk+1)/2,(ikk+1)/2,n,ikk,ikk)
-      iqnn=indx(ikk,ikk,n,ikk,ikk)
+      iq11= 1 + n*ikk**2
+      iq12= 1 + ikk + n*ikk**2
+      iq13= 1 + 2*ikk + n*ikk**2
+      iq22= 2 + ikk + n*ikk**2
+      iq32= 3 + ikk + n*ikk**2
+      iqcc= (ikk+1)/2 + ((ikk+1)/2-1)*ikk + n*ikk**2
+      iqnn= ikk + (ikk-1)*ikk + n*ikk**2
       write(6,'(i3,7f8.3)') n,emv_g(iq11),emv_g(iq12),emv_g(iq13),emv_g(iq22),emv_g(iq32),emv_g(iqcc),emv_g(iqnn)
     enddo
   endif  ! (ktau.eq.0)
@@ -568,7 +592,7 @@ if (schmidtin>=0.) then  ! (schmidt<0. is to finish of stuff needed for onthefly
   ratmax=0.
   do n=0,npanels
     do i=1,ikk
-      iq=indx(i,ikk/2,n,ikk,ikk)
+      iq=i + ((ikk/2)-1)*ikk + n*ikk**2
       rat=em_g(iq)/em_g(ie_g(iq))
       if(rat<ratmin)then
         ratmin=rat
@@ -581,7 +605,7 @@ if (schmidtin>=0.) then  ! (schmidt<0. is to finish of stuff needed for onthefly
     enddo
     if(num==1)then
       write(6,*) 'em_g ratio for j=ikk/2 on npanel ',n
-      write (6,"(12f6.3)") (em_g(indx(i,ikk/2,n,ikk,ikk))/em_g(ie_g(indx(i,ikk/2,n,ikk,ikk))),i=1,ikk)
+      write (6,"(12f6.3)") (em_g(i+((ikk/2)-1)*ikk+n*ikk**2)/em_g(ie_g(i+((ikk/2)-1)*ikk+n*ikk**2)),i=1,ikk)
     endif
   enddo
   write(6,*) 'for j=ikk/2 & myid=0, ratmin,ratmax = ',ratmin,ratmax
@@ -591,7 +615,7 @@ if (schmidtin>=0.) then  ! (schmidt<0. is to finish of stuff needed for onthefly
   do n=0,npanels
     do j=1,ikk
       do i=1,ikk
-        iq=indx(i,j,n,ikk,ikk)
+        iq = i + (j-1)*ikk + n*ikk**2
         rat=em_g(iq)/em_g(ie_g(iq))
         if(rat<ratmin)then
           ratmin=rat
@@ -626,34 +650,6 @@ deallocate( em4, ax4, ay4, az4 )
 return
 end subroutine setxyz
 
-subroutine norm(a,b,c,den)
-
-implicit none
-
-real, intent(inout) :: a,b,c,den
-
-den=sqrt(a*a+b*b+c*c)
-a=a/den
-b=b/den
-c=c/den
-
-return
-end subroutine norm
-
-subroutine norm8(a,b,c,den)
-
-implicit none
-
-real(kind=8), intent(inout) :: a,b,c,den
-
-den=sqrt(a*a+b*b+c*c)
-a=a/den
-b=b/den
-c=c/den
-
-return
-end subroutine norm8
-    
 subroutine cross3(c1,c2,c3,a1,a2,a3,b1,b2,b3, ifull_g)
 !     calculate vector components of c = a x b
 !     where each RHS component represents 3 vector components
