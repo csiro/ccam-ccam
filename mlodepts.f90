@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -50,14 +50,13 @@ implicit none
 
 integer iq,i,j,k,n,nn,idel,jdel,intsch,ii
 integer, dimension(ifull,wlev), intent(out) :: nface
-integer s_count
 real, dimension(ifull,wlev), intent(in) :: ubar,vbar
 real, dimension(ifull,wlev), intent(out) :: xg,yg
 real(kind=8), dimension(ifull,wlev), intent(out) :: x3d,y3d,z3d
 real, dimension(ifull,wlev) :: uc,vc,wc
 real, dimension(ifull+iextra,wlev,3) :: s, s_old
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,3) :: sx
-real s_tot
+real s_tot, s_count
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real xxg, yyg
@@ -100,25 +99,25 @@ do ii = 1,3 ! 3 iterations of fill should be enough
       do iq = 1,ifull
         if ( s(iq,k,nn)<cxx ) then
           s_tot = 0.
-          s_count = 0
+          s_count = 0.
           if ( s_old(is(iq),k,nn)>=cxx ) then
             s_tot = s_tot + s_old(is(iq),k,nn)
-            s_count = s_count + 1
+            s_count = s_count + 1.
           end if
           if ( s_old(in(iq),k,nn)>=cxx ) then
             s_tot = s_tot + s_old(in(iq),k,nn)
-            s_count = s_count + 1
+            s_count = s_count + 1.
           end if
           if ( s_old(iw(iq),k,nn)>=cxx ) then
             s_tot = s_tot + s_old(iw(iq),k,nn)
-            s_count = s_count + 1
+            s_count = s_count + 1.
           end if
           if ( s_old(ie(iq),k,nn)>=cxx ) then
             s_tot = s_tot + s_old(ie(iq),k,nn)
-            s_count = s_count + 1
+            s_count = s_count + 1.
           end if
-          if ( s_count>0 ) then
-            s(iq,k,nn) = s_tot/real(s_count)
+          if ( s_count>0. ) then
+            s(iq,k,nn) = s_tot/s_count
           end if
         end if
       end do
@@ -230,13 +229,13 @@ if ( intsch==1 ) then
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+        n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
         !  Need global face index in fproc call
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
+        idel = int(dpoints(ii)%a(iq,2))
+        xxg = dpoints(ii)%a(iq,2) - real(idel)
+        jdel = int(dpoints(ii)%a(iq,3))
+        yyg = dpoints(ii)%a(iq,3) - real(jdel)
+        k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
         ! bi-cubic interpolation
@@ -326,12 +325,12 @@ else     ! if(intsch==1)then
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
+        n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
+        idel = int(dpoints(ii)%a(iq,2))
+        xxg = dpoints(ii)%a(iq,2) - real(idel)
+        jdel = int(dpoints(ii)%a(iq,3))
+        yyg = dpoints(ii)%a(iq,3) - real(jdel)
+        k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
         ! bi-cubic interpolation
@@ -441,12 +440,12 @@ if ( intsch==1 ) then
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
+        n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
+        idel = int(dpoints(ii)%a(iq,2))
+        xxg = dpoints(ii)%a(iq,2) - real(idel)
+        jdel = int(dpoints(ii)%a(iq,3))
+        yyg = dpoints(ii)%a(iq,3) - real(jdel)
+        k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
         cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
@@ -534,12 +533,12 @@ else     ! if(intsch==1)then
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
+        n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
+        idel = int(dpoints(ii)%a(iq,2))
+        xxg = dpoints(ii)%a(iq,2) - real(idel)
+        jdel = int(dpoints(ii)%a(iq,3))
+        yyg = dpoints(ii)%a(iq,3) - real(jdel)
+        k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
         cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.

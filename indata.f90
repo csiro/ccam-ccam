@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -133,6 +133,7 @@ integer, dimension(ifull) :: river_acc
 integer, dimension(ifull,maxtile) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
 integer, dimension(1) :: nstart, ncount
+integer, dimension(ifull) :: dumf
 real, dimension(ifull) :: zss, aa, zsmask
 real, dimension(ifull) :: rlai, depth
 real, dimension(ifull,5) :: duma
@@ -140,6 +141,9 @@ real, dimension(ifull,6) :: ocndwn
 real, dimension(ifull,wlev,8) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
 real, dimension(ifull,kl,9) :: dumb
+real, dimension(ifull,ms,3) :: dumca
+real, dimension(ifull,3,3) :: dumi
+real, dimension(ifull,3) :: dums
 real, dimension(:,:), allocatable, save :: global2d, local2d
 real, dimension(:), allocatable, save :: davt_g
 real, dimension(3*kl+7) :: dumc
@@ -1038,9 +1042,15 @@ if ( io_in<4 ) then
 else
 
   ! read in namelist for uin,vin,tbarr etc. for special runs
-  if (myid==0) write(6,*)'Read IC from namelist tinit'
+  if (myid==0) then
+    write(6,*) '============================================================================'  
+    write(6,*)'Read IC from namelist tinit'
+  end if  
   read (99, tin)
-  if (myid==0) write(6, tin)
+  if (myid==0) then
+    write(6, tin)
+    write(6,*) '============================================================================'
+  end if  
 
 endif   ! (io_in<4)
 
@@ -1378,15 +1388,17 @@ end if     ! (nhstest<0)
 !     nrungcm<0 controls presets for snowd, wb, tgg and other soil variables
 !     they can be: preset/read_in_from_previous_run
 !                  written_out/not_written_out    after 24 h as follows:
-!          nrungcm = -1  preset           | not written to separate file
-!                    -2  preset           |     written  
-!                    -3  read_in          |     written  (usual for NWP)
-!                    -4  read_in          | not written  (usual for netCDF input)
-!                    -5  read_in (not wb) |     written  (should be good)
-!                    -6 same as -1 bit tapered wb over dry interio of Aust
-!                   -14 same as -4, but ignores date (usual for climatology) and requires netcdf format
-!                   -24 same as -4, but requires netcdf format
-!                    >5 like -1 but sets most wb percentages
+!          nrungcm = -1  preset             | not written to separate file
+!                    -2  preset             |     written  
+!                    -3  read_in            |     written  (usual for NWP)
+!                    -4  read_in            | not written  (usual for netCDF input)
+!                    -5  read_in (not wb)   |     written  (should be good)
+!                    -6  same as -1 bit tapered wb over dry interio of Aust
+!                    -7  read_in (not land) | not written  (for ocean data without clobbering soil data)
+!                   -14  same as -4, but ignores date (usual for climatology) and requires netcdf format
+!                   -17  same as -7, but ignores date (usual for climatology without bisosphere) and requires netcdf
+!                   -24  same as -4, but requires netcdf format
+!                    >5  like -1 but sets most wb percentages
 
 ! preset soil data
 if ( .not.lrestart ) then
@@ -1529,6 +1541,43 @@ if ( .not.lrestart ) then
       end where
     end if  ! ier==0
   endif     !  (nrungcm<=-3.and.nrungcm>=-5)
+  
+  ! ocean and aerosol recycle
+  if ( nrungcm==-7 .or. nrungcm==-17 ) then
+    if ( myid==0 ) then
+      write(6,*) '============================================================================'  
+      write(6,*) 'Opening surface data input from ',trim(surf_00)
+    end if
+    call histopen(ncid,surf_00,ier,fileerror=.true.)
+    ! NETCDF file format
+    ! clobber ifile surface data with surfin surface data
+    kdate_s = kdate_sav
+    ktime_s = ktime_sav
+    if ( myid==0 ) then
+      write(6,*) 'Replacing surface data (ignore biosphere) with input from ',trim(surf_00)
+    end if
+    call onthefly(4,kdate,ktime,duma(:,1),duma(:,2),duma(:,3),duma(:,4),  &
+                  duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),          &
+                  dumb(:,:,4),dumca(:,:,1),dumca(:,:,2),dumca(:,:,3),     &
+                  dums(:,1),dumb(:,:,5),dumb(:,:,6),                      &
+                  dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),dumi(:,:,1),        &
+                  dumi(:,:,2),dumi(:,:,3),                                &
+                  dums(:,2),dums(:,3),dumf,mlodwn,ocndwn,xtgdwn)
+    call histclose
+    if ( myid==0 ) then
+      write(6,*) '============================================================================'
+    end if  
+    if ( kdate/=kdate_sav .or. ktime/=ktime_sav ) then
+      if ( myid==0 ) then
+        write(6,*) 'WARN: Could not locate correct date/time'
+        write(6,*) '      Using infile surface data'
+        write(6,*) "kdate,    ktime     ",kdate,ktime
+        write(6,*) "kdate_sav,ktime_sav ",kdate_sav,ktime_sav
+      end if
+      kdate = kdate_sav
+      ktime = ktime_sav
+    endif
+  end if ! nrungcm==-7 .or. nrungcm==-17
 
   if ( nrungcm==4 ) then !  wb fix for ncep input 
     ! this is related to eak's temporary fix for soil moisture

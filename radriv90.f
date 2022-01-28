@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -103,7 +103,8 @@ c     Following are for cloud2 routine
      &     qc2(ixin,kl),cd2(ixin,kl),p2(ixin,kl),
      &     dp2(ixin,kl),cll(ixin),clm(ixin),clh(ixin)
       logical land2(ixin)
-      real fbeam(ixin), sgn_save(ixin), sgn(ixin)
+      real fbeam(ixin), sgn(ixin)
+      !real sgn_save(ixin)
 
 
 c     Stuff from cldset
@@ -522,12 +523,16 @@ c         write(24,*)coszro2
           iq=i+(j-1)*il  
           soutclr(iq) = ufsw(i,1)*h1m3 ! solar out top
           sgclr(iq)   = -fsw(i,lp1)*h1m3  ! solar absorbed at the surface
+          talb = swrsave(iq)*albvisnir(iq,1)
+     &         -(1.-swrsave(iq))*albvisnir(iq,2)
+          sgdclr(iq) = sgclr(i) / ( 1. - talb )          
         end do
       else ! .not.clforflag
         do i=1,imax
           iq=i+(j-1)*il  
           soutclr(iq) = 0.
           sgclr(iq) = 0.
+          sgdclr(iq) = 0.
         end do
       endif
 
@@ -565,6 +570,7 @@ c       write(24,*)coszro2
      &             fbeamvis(istart:iend))
       fbeamnir(istart:iend)=fbeamvis(istart:iend)
       fbeam = fbeamvis(istart:iend)
+      sgdndir(istart:iend) = sgdn(istart:iend)*fbeam
       where ( coszro<=1.e-5 )
         dni(istart:iend) = 0.
       elsewhere
@@ -594,6 +600,7 @@ c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
          rgclr(iq) = grnflxclr(i)*h1m3                   ! clear sky longwave at surface
          ! rgn is net upwards = sigma T^4 - Rdown
          rgdn(iq) = stefbo*temp(i,lp1)**4 - rgn(iq)
+         rgdclr(iq) = stefbo*temp(i,lp1)**4 - rgclr(iq)
       end do
 
       do k=1,kl
@@ -621,21 +628,25 @@ c     to remove these factors.
 c           The sun isn't up at all over the radiation period so no 
 c           fitting need be done.
             sgdn_amp(iq) = 0.
+            sgdndir_amp(iq) = 0.
             sgn_amp(iq)  = 0.
             dni_amp(iq)  = 0.
             sint_amp(iq) = 0.
             sout_amp(iq) = 0.
             soutclr_amp(iq) = 0.
             sgclr_amp(iq)   = 0.
+            sgdclr_amp(iq)  = 0.
             sw_tend_amp(iq,1:kl) = 0.
          else
             sgdn_amp(iq) = sgdn(iq) / (coszro(i)*taudar(i))
+            sgdndir_amp(iq) = sgdndir(iq) / (coszro(i)*taudar(i))
             sgn_amp(iq)  = sgn(i) / (coszro(i)*taudar(i))
             dni_amp(iq)  = dni(iq) / taudar(i)
             sint_amp(iq) = sint(iq) / (coszro(i)*taudar(i))
             sout_amp(iq) = sout(iq) / (coszro(i)*taudar(i))
             soutclr_amp(iq) = soutclr(iq) / (coszro(i)*taudar(i))
             sgclr_amp(iq)   = sgclr(iq) / (coszro(i)*taudar(i))
+            sgdclr_amp(iq)  = sgdclr(iq) / (coszro(i)*taudar(i))
             sw_tend_amp(iq,1:kl) = sw_tend(iq,1:kl)
      &                      / (coszro(i)*taudar(i))
          end if
@@ -671,16 +682,19 @@ c     cloud amounts for saving
       do i=1,imax
        iq=i+(j-1)*il
        sgdn(iq) = sgdn_amp(iq)*coszro2(i)*taudar2(i)
-       talb = swrsave(iq)*albvisnir(iq,1)
-     &      + (1.-swrsave(iq))*albvisnir(iq,2)
-       sgn(i)  = sgdn(iq)*(1.-talb)
-       sgn_save(i) = sgn_amp(iq)*coszro2(i)*taudar2(i)
+       sgdndir(iq) = sgdndir_amp(iq)*coszro2(i)*taudar2(i)
+       !talb = swrsave(iq)*albvisnir(iq,1)
+     & !     + (1.-swrsave(iq))*albvisnir(iq,2)
+       !sgn(i)  = sgdn(iq)*(1.-talb)
+       !sgn_save(i) = sgn_amp(iq)*coszro2(i)*taudar2(i)
+       sgn(i) = sgn_amp(iq)*coszro2(i)*taudar2(i)
        dni(iq)  = dni_amp(iq)*taudar2(i)
        sint(iq) = sint_amp(iq)*coszro2(i)*taudar2(i)
        sout(iq) = sout_amp(iq)*coszro2(i)*taudar2(i)
-       sout(iq) = sout(iq) + sgn_save(i) - sgn(i)
+       !sout(iq) = sout(iq) + sgn_save(i) - sgn(i)
        soutclr(iq) = soutclr_amp(iq)*coszro2(i)*taudar2(i)
        sgclr(iq)   = sgclr_amp(iq)*coszro2(i)*taudar2(i)
+       sgdclr(iq)  = sgdclr_amp(iq)*coszro2(i)*taudar2(i)
       end do
             
 ! Set up the CC model radiation fields

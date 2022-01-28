@@ -287,18 +287,18 @@ contains
       real, dimension(:,:), intent(in) :: speed
       real, dimension(:), intent(out) :: spmean_g
       real, intent(out) :: spavge_g
-      real, dimension(ifull) :: tmpb
+      real, dimension(ifull,kl) :: tmpb
       complex, dimension(kl) :: tmpc,tmpc_g
       integer k
       
-      tmpc=(0.,0.)
-      do k=1,kl
-         tmpb=speed(1:ifull,k)*wts(1:ifull)
-         call drpdr_local(tmpb,tmpc(k))
+      do k = 1,kl
+         tmpb(1:ifull,k) = speed(1:ifull,k)*wts(1:ifull)
       end do
-      tmpc_g=(0.,0.)
+      tmpc(1:kl) = cmplx(0.,0.)
+      call drpdr_local_v(tmpb(1:ifull,1:kl),tmpc(1:kl))
+      tmpc_g(1:kl) = cmplx(0.,0.)
       call ccmpi_reduce(tmpc,tmpc_g,"sumdr",0,comm_world)
-      spmean_g=real(tmpc_g)
+      spmean_g(1:kl) = real(tmpc_g(1:kl))
       spavge_g = 0.0
       do k=1,kl
          spavge_g = spavge_g-dsig(k)*spmean_g(k) ! dsig is -ve

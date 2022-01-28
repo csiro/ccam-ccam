@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -111,12 +111,12 @@ if ( intsch==1 ) then
     do ii = 1,neighnum
       do iq = 1,drlen(ii)
         ! depature point coordinates
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
+        n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
+        idel = int(dpoints(ii)%a(iq,2))
+        xxg = dpoints(ii)%a(iq,2) - real(idel)
+        jdel = int(dpoints(ii)%a(iq,3))
+        yyg = dpoints(ii)%a(iq,3) - real(jdel)
+        k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
         ! bi-cubic
@@ -201,12 +201,12 @@ if ( intsch==1 ) then
 
     do ii = 1,neighnum
       do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
+        n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
+        idel = int(dpoints(ii)%a(iq,2))
+        xxg = dpoints(ii)%a(iq,2) - real(idel)
+        jdel = int(dpoints(ii)%a(iq,3))
+        yyg = dpoints(ii)%a(iq,3) - real(jdel)
+        k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
         ! bi-cubic
@@ -346,13 +346,13 @@ else     ! if(intsch==1)then
 
     do ii = 1,neighnum
       do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+        n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
         !  Need global face index in fproc call
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
+        idel = int(dpoints(ii)%a(iq,2))
+        xxg = dpoints(ii)%a(iq,2) - real(idel)
+        jdel = int(dpoints(ii)%a(iq,3))
+        yyg = dpoints(ii)%a(iq,3) - real(jdel)
+        k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
         ! bi-cubic
@@ -436,13 +436,13 @@ else     ! if(intsch==1)then
 
     do ii = 1,neighnum
       do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+        n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
         !  Need global face index in fproc call
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
+        idel = int(dpoints(ii)%a(iq,2))
+        xxg = dpoints(ii)%a(iq,2) - real(idel)
+        jdel = int(dpoints(ii)%a(iq,3))
+        yyg = dpoints(ii)%a(iq,3) - real(jdel)
+        k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
         ! bi-cubic
@@ -546,7 +546,6 @@ end subroutine ints
 subroutine ints_bl(s,intsch,nface,xg,yg)  ! not usually called
 
 use cc_mpi             ! CC MPI routines
-use cc_omp             ! CC OMP routines
 use indices_m          ! Grid index arrays
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
@@ -557,7 +556,6 @@ implicit none
 integer idel, iq, jdel
 integer i, j, k, n
 integer ii
-integer tile, ibeg, iend, ip
 integer, intent(in) :: intsch
 integer, dimension(ifull,kl), intent(in) :: nface
 real xxg, yyg
@@ -597,13 +595,13 @@ end do                   ! k loop
 ! Loop over points that need to be calculated for other processes
 do ii = 1,neighnum
   do iq = 1,drlen(ii)
-    n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+    n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
     !  Need global face index in fproc call
-    idel = int(dpoints(ii)%a(2,iq))
-    xxg = dpoints(ii)%a(2,iq) - real(idel)
-    jdel = int(dpoints(ii)%a(3,iq))
-    yyg = dpoints(ii)%a(3,iq) - real(jdel)
-    k = nint(dpoints(ii)%a(4,iq))
+    idel = int(dpoints(ii)%a(iq,2))
+    xxg = dpoints(ii)%a(iq,2) - real(idel)
+    jdel = int(dpoints(ii)%a(iq,3))
+    yyg = dpoints(ii)%a(iq,3) - real(jdel)
+    k = nint(dpoints(ii)%a(iq,4))
     idel = idel - ioff
     jdel = jdel - joff
     sextra(ii)%a(iq) =      yyg*(xxg*sx(idel+1,jdel+1,n,k)+(1.-xxg)*sx(idel,jdel+1,n,k)) &

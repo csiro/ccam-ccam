@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -21,8 +21,9 @@
     
 module sumdd_m
    implicit none
-   public drpdr, drpdr_local
-   integer(kind=4), save :: MPI_SUMDR
+   public drpdr, drpdr_local, drpdr_local_v
+   private
+   integer(kind=4), save, public :: MPI_SUMDR
 contains
    pure subroutine drpdr (dra, drb, len, itype) 
 !  Modification of original codes written by David H. Bailey. 
@@ -84,15 +85,16 @@ contains
       real, dimension(:,:), intent(in)  :: array
       complex, dimension(:), intent(inout) :: local_sum
       real, dimension(size(array,2)) :: e, t1, t2 
-      integer :: i, n, ntr
+      real, dimension(size(array,2),size(array,1)) :: array_t
+      integer :: i, n
       
-      ntr = size(array,2)
+      array_t(:,:) = transpose(array)
 
       do i = 1,size(array,1)
-         do n = 1,ntr
-            t1(n) = array(i,n) + real(local_sum(n))
-            e(n) = t1(n) - array(i,n) 
-            t2(n) = ((real(local_sum(n)) - e(n)) + (array(i,n) - (t1(n) - e(n))))  + aimag(local_sum(n))
+         do n = 1,size(array,2)
+            t1(n) = array_t(n,i) + real(local_sum(n))
+            e(n) = t1(n) - array_t(n,i) 
+            t2(n) = ((real(local_sum(n)) - e(n)) + (array_t(n,i) - (t1(n) - e(n))))  + aimag(local_sum(n))
             local_sum(n) = cmplx(t1(n) + t2(n), t2(n) - ((t1(n) + t2(n)) - t1(n)))
          end do
       end do

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -171,13 +171,13 @@ if ( intsch==1 ) then
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+        n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
         !  Need global face index in fproc call
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
+        idel = int(dpoints(ii)%a(iq,2))
+        xxg = dpoints(ii)%a(iq,2) - real(idel)
+        jdel = int(dpoints(ii)%a(iq,3))
+        yyg = dpoints(ii)%a(iq,3) - real(jdel)
+        k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
         ! bi-cubic
@@ -267,12 +267,12 @@ else     ! if(intsch==1)then
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
+        n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
+        idel = int(dpoints(ii)%a(iq,2))
+        xxg = dpoints(ii)%a(iq,2) - real(idel)
+        jdel = int(dpoints(ii)%a(iq,3))
+        yyg = dpoints(ii)%a(iq,3) - real(jdel)
+        k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
         ! bi-cubic
@@ -382,13 +382,13 @@ if ( intsch==1 ) then
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+        n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
         !  Need global face index in fproc call
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
+        idel = int(dpoints(ii)%a(iq,2))
+        xxg = dpoints(ii)%a(iq,2) - real(idel)
+        jdel = int(dpoints(ii)%a(iq,3))
+        yyg = dpoints(ii)%a(iq,3) - real(jdel)
+        k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
         ! bi-cubic
@@ -478,13 +478,13 @@ else     ! if(intsch==1)then
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
-        n = nint(dpoints(ii)%a(1,iq)) + noff ! Local index
+        n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
         !  Need global face index in fproc call
-        idel = int(dpoints(ii)%a(2,iq))
-        xxg = dpoints(ii)%a(2,iq) - real(idel)
-        jdel = int(dpoints(ii)%a(3,iq))
-        yyg = dpoints(ii)%a(3,iq) - real(jdel)
-        k = nint(dpoints(ii)%a(4,iq))
+        idel = int(dpoints(ii)%a(iq,2))
+        xxg = dpoints(ii)%a(iq,2) - real(idel)
+        jdel = int(dpoints(ii)%a(iq,3))
+        yyg = dpoints(ii)%a(iq,3) - real(jdel)
+        k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
         ! bi-cubic
@@ -639,7 +639,7 @@ alfonsch = 2._8*real(schmidt,8)/(1._8+real(schmidt,8)**2)  ! same but bit more a
 !$omp private(xstr,ystr,zstr,denxyz,xd,yd,zd,xytest,xztest,yztest,ri,rj,loop,i,j),  &
 !$omp private(is,js,dxx,dyx,dxy,dyy)
 #else
-!$omp parallel do collapse(2) schedule(static) private(k,iq,den),                   &
+!$omp parallel do schedule(static) private(k,iq,den),                               &
 !$omp private(xstr,ystr,zstr,denxyz,xd,yd,zd,xytest,xztest,yztest,ri,rj,loop,i,j),  &
 !$omp private(is,js,dxx,dyx,dxy,dyy)
 #endif

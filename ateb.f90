@@ -1,6 +1,6 @@
 ! UCLEM urban canopy model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the UCLEM urban canopy model
 !
@@ -209,12 +209,12 @@ integer, save      :: resmeth=1            ! Canyon sensible heat transfer (0=Ma
                                            ! 3=Harman (fixed width))
 integer, save      :: useonewall=0         ! Combine both wall energy budgets into a single wall (0=two walls, 1=single wall) 
 integer, save      :: zohmeth=1            ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
-integer, save      :: acmeth=1             ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible, COP of 1.0)
+integer, save      :: acmeth=1             ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible, 3=COP of 1.0)
 integer, save      :: intairtmeth=0        ! Internal air temperature (0=prescribed, 1=aggregated varying, 2=fractional varying)
 integer, save      :: intmassmeth=2        ! Internal thermal mass (0=none, 1=one floor, 2=dynamic floor number)
-integer, save      :: cvcoeffmeth=1        ! Internal surface convection heat transfer coefficient (0=DOE,1=ISO6946,2=fixed)
+integer, save      :: cvcoeffmeth=1        ! Internal surface convection heat transfer coefficient (0=DOE, 1=ISO6946, 2=fixed)
 integer, save      :: statsmeth=1          ! Use statistically based diurnal QF amendments (0=off, 1=on) from Thatcher 2007 
-integer, save      :: infilmeth=1          ! Method to calculate infiltration rate (0=constant,1=EnergyPlus/BLAST,2=ISO)
+integer, save      :: infilmeth=1          ! Method to calculate infiltration rate (0=constant, 1=EnergyPlus/BLAST, 2=ISO)
 integer, save      :: nrefl=3              ! Number of canyon reflections for radiation (default=3)
 integer, save      :: vegmode=2            ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out/in=X/Y.
                                            ! Negative values are X=abs(vegmode))
@@ -2150,7 +2150,7 @@ subroutine init_lwcoeff(fp,intl,ufull)
 ! local variables
 integer, intent(in) :: ufull
 real, dimension(ufull,4,4) :: chi
-real, dimension(4,4)         :: krondelta
+real, dimension(4,4)       :: krondelta
 real, dimension(ufull)     :: h, w
 real, dimension(ufull,4)   :: epsil   ! floor, wall, ceiling, wall emissivity array
 integer :: i, j
@@ -3386,6 +3386,7 @@ subroutine getnetalbedo(alb,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg
 
 implicit none
 
+integer iqu
 real, dimension(:), intent(out) :: alb
 real, dimension(:), intent(in) :: sg_roof, sg_vegr, sg_road, sg_walle, sg_wallw, sg_vegc
 real, dimension(:), intent(in) :: sg_rfsn, sg_rdsn
@@ -3393,18 +3394,21 @@ real, dimension(:), intent(in) :: fp_hwratio, fp_sigmabld
 real, dimension(:), intent(in) :: fp_vegsigmar, fp_roofalpha, fp_vegalphar
 real, dimension(:), intent(in) :: fp_vegsigmac, fp_roadalpha, fp_vegalphac, fp_wallalpha
 real, dimension(:), intent(in) :: roofalpha, roadalpha, snowdeltar, snowdeltac
-real, dimension(size(alb)) :: albu, albr
+real albu, albr
 
-! canyon
-albu=1.-(fp_hwratio*(sg_walle+sg_wallw)*(1.-fp_wallalpha)+snowdeltac*sg_rdsn*(1.-roadalpha)                 &
-    +(1.-snowdeltac)*((1.-fp_vegsigmac)*sg_road*(1.-fp_roadalpha)+fp_vegsigmac*sg_vegc*(1.-fp_vegalphac)))
-
-! roof
-albr=(1.-snowdeltar)*((1.-fp_vegsigmar)*sg_roof*fp_roofalpha+fp_vegsigmar*sg_vegr*fp_vegalphar) &
-    +snowdeltar*sg_rfsn*roofalpha
-
-! net
-alb=fp_sigmabld*albr+(1.-fp_sigmabld)*albu
+do iqu = 1,size(alb)
+  ! canyon
+  albu=1.-(fp_hwratio(iqu)*(sg_walle(iqu)+sg_wallw(iqu))*(1.-fp_wallalpha(iqu))         &
+      +snowdeltac(iqu)*sg_rdsn(iqu)*(1.-roadalpha(iqu))                                 &
+      +(1.-snowdeltac(iqu))*((1.-fp_vegsigmac(iqu))*sg_road(iqu)*(1.-fp_roadalpha(iqu)) &
+      +fp_vegsigmac(iqu)*sg_vegc(iqu)*(1.-fp_vegalphac(iqu))))
+  ! roof
+  albr=(1.-snowdeltar(iqu))*((1.-fp_vegsigmar(iqu))*sg_roof(iqu)*fp_roofalpha(iqu) &
+      +fp_vegsigmar(iqu)*sg_vegr(iqu)*fp_vegalphar(iqu))                           &
+      +snowdeltar(iqu)*sg_rfsn(iqu)*roofalpha(iqu)
+  ! net
+  alb(iqu)=fp_sigmabld(iqu)*albr+(1.-fp_sigmabld(iqu))*albu
+end do
 
 return
 end subroutine getnetalbedo
@@ -3460,12 +3464,12 @@ subroutine atebccangle(is,ifin,cosin,rlon,rlat,fjd,slag,dt,sdlt)
 implicit none
 
 integer, intent(in) :: is,ifin
-integer ifinish,ib,ie
+integer ifinish, ib, ie, iqu
 integer tile, js, je, kstart, kfinish, jstart, jfinish
 real, intent(in) :: fjd,slag,dt,sdlt
-real cdlt
+real cdlt, x, y
 real, dimension(ifin), intent(in) :: cosin,rlon,rlat
-real, dimension(imax) :: hloc,x,y,lattmp
+real, dimension(imax) :: hloc,lattmp
 
 ! cosin = cosine of zenith angle
 ! rlon = longitude
@@ -3477,6 +3481,8 @@ real, dimension(imax) :: hloc,x,y,lattmp
 if (.not.ateb_active) return
 
 ifinish = is + ifin - 1
+
+cdlt=sqrt(min(max(1.-sdlt**2,0.),1.))
 
 do tile = 1,ntiles
   js = (tile-1)*imax + 1 ! js:je is the tile portion of 1:ifull
@@ -3492,22 +3498,26 @@ do tile = 1,ntiles
       ie = count(upack_g(kstart:kfinish,tile))+ib-1
       if ( ib<=ie ) then
 
-        cdlt=sqrt(min(max(1.-sdlt*sdlt,0.),1.))
-
         lattmp(ib:ie)=pack(rlat(jstart:jfinish),upack_g(kstart:kfinish,tile))
 
         ! from CCAM zenith.f
         hloc(ib:ie)=2.*pi*fjd+slag+pi+pack(rlon(jstart:jfinish),upack_g(kstart:kfinish,tile))+dt*pi/86400.
+        
         ! estimate azimuth angle
-        x(ib:ie)=sin(-hloc(ib:ie))*cdlt
-        y(ib:ie)=-cos(-hloc(ib:ie))*cdlt*sin(lattmp(ib:ie))+cos(lattmp(ib:ie))*sdlt
-        !azimuth=atan2(x,y)
-        f_g(tile)%hangle(ib:ie)=0.5*pi-atan2(x(ib:ie),y(ib:ie))
+        do iqu = ib,ie
+          x=sin(-hloc(iqu))*cdlt
+          y=-cos(-hloc(iqu))*cdlt*sin(lattmp(iqu))+cos(lattmp(iqu))*sdlt
+          !azimuth=atan2(x,y)
+          f_g(tile)%hangle(iqu)=0.5*pi-atan2(x,y)
+        end do  
+        
         f_g(tile)%vangle(ib:ie)=acos(pack(cosin(jstart:jfinish),upack_g(kstart:kfinish,tile)))
         f_g(tile)%ctime(ib:ie)=min(max(mod(0.5*hloc(ib:ie)/pi-0.5,1.),0.),1.)
         ! calculate weekdayload loading
         f_g(tile)%weekdayload(ib:ie)=1.0
-        if ( (mod(floor(fjd),7)==3) .or. (mod(floor(fjd),7)==4) ) f_g(tile)%weekdayload(ib:ie)=0.9  ! weekend = 90%
+        if ( (mod(floor(fjd),7)==3) .or. (mod(floor(fjd),7)==4) ) then
+          f_g(tile)%weekdayload(ib:ie)=0.9  ! weekend = 90%
+        end if  
       end if
     end if
   end if

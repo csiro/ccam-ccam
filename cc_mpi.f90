@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -2475,13 +2475,12 @@ contains
       integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
       complex, dimension(2) :: local_sum, global_sum
-      real, dimension(ifull) :: tmparr 
+      real, dimension(ifull,2) :: tmparr 
 
       local_sum(1:2) = cmplx(0., 0.)
-      tmparr(1:ifull)  = max(0., array(1:ifull)*wts(1:ifull))
-      call drpdr_local(tmparr, local_sum(1))
-      tmparr(1:ifull)  = min(0., array(1:ifull)*wts(1:ifull))
-      call drpdr_local(tmparr, local_sum(2))
+      tmparr(1:ifull,1) = max(0., array(1:ifull)*wts(1:ifull))
+      tmparr(1:ifull,2) = min(0., array(1:ifull)*wts(1:ifull))
+      call drpdr_local_v(tmparr(:,1:2), local_sum(1:2))
       global_sum(1:2) = cmplx(0., 0.)
       lcomm = comm_world
       call START_LOG(allreducepn_begin)
@@ -2507,16 +2506,21 @@ contains
       integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
       complex, dimension(2) :: local_sum, global_sum
-      real, dimension(ifull) :: tmparr
+      complex, dimension(2*size(array,2)) :: local_sum_t
+      real, dimension(ifull,2*size(array,2)) :: tmparr
        
       kx = size(array,2)   
+      do k = 1,kx
+         tmparr(1:ifull,k) = max(0., abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
+         tmparr(1:ifull,k+kx) = min(0., abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
+      end do ! k loop
+      local_sum_t(1:2*kx) = cmplx(0., 0.)
+      call drpdr_local_v(tmparr, local_sum_t)
       local_sum(1:2) = cmplx(0., 0.)
       do k = 1,kx
-         tmparr(1:ifull) = max(0., abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
-         call drpdr_local(tmparr, local_sum(1))
-         tmparr(1:ifull) = min(0., abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
-         call drpdr_local(tmparr, local_sum(2))
-      end do ! k loop
+         call drpdr(local_sum_t(k:k), local_sum(1), 1, ltype)
+         call drpdr(local_sum_t(k+kx:k+kx), local_sum(2), 1, ltype)
+      end do
       global_sum(1:2) = cmplx(0., 0.)
       lcomm = comm_world
       call START_LOG(allreducepn_begin)
@@ -2542,16 +2546,21 @@ contains
       integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
       complex, dimension(2) :: local_sum, global_sum
-      real, dimension(ifull) :: tmparr
+      complex, dimension(2*size(array,2)) :: local_sum_t
+      real, dimension(ifull,2*size(array,2)) :: tmparr
        
       kx = size(array,2)   
+      do k = 1,kx
+         tmparr(1:ifull,k) = max(0., abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
+         tmparr(1:ifull,k+kx) = min(0., abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
+      end do ! k loop
+      local_sum_t(1:2*kx) = cmplx(0., 0.)
+      call drpdr_local_v(tmparr, local_sum_t)
       local_sum(1:2) = cmplx(0., 0.)
       do k = 1,kx
-         tmparr(1:ifull) = max(0., abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
-         call drpdr_local(tmparr, local_sum(1))
-         tmparr(1:ifull) = min(0., abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
-         call drpdr_local(tmparr, local_sum(2))
-      end do ! k loop
+         call drpdr(local_sum_t(k:k), local_sum(1), 1, ltype)
+         call drpdr(local_sum_t(k+kx:k+kx), local_sum(2), 1, ltype)
+      end do
       global_sum(1:2) = cmplx(0., 0.)
       lcomm = comm_world
       call START_LOG(allreducepn_begin)

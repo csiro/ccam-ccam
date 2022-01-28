@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -68,13 +68,11 @@ end interface
 
 interface pop_pack
   module procedure pop_pack_r8_2_r8_tile, pop_pack_i4_2_i4_tile
-  !module procedure pop_pack_r8_2_dp_tile
 end interface
 
 interface pop_unpack
   module procedure pop_unpack_r8_2_r8_tile, pop_unpack_i4_2_r8_tile
   module procedure pop_unpack_i8_2_r8_tile
-  !module procedure pop_unpack_dp_2_r8_tile
 end interface
 
 interface setp

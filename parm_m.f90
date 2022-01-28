@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2016-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2016-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -29,7 +29,7 @@ public kountr,nrad,nvmix,nlocal
 public nhstest,namip,nspecial,newrough,nsib
 public ntaft,ntsea,ntsur,ntsur2,lgwd,newztsea,nglacier,mbd
 public mbd_mlo,nbd,kbotdav,kbotu,nud_p,nud_q,nud_t,nud_uv
-public nud_hrs,nudu_hrs,ktau,ndi,ndi2,ntau,nperavg,nperday,nperhr
+public nud_hrs,nudu_hrs,ktau,ndi,ndi2,ntau,nperavg,nperday,nperhr,nper6hr
 public nmaxpr,nlv,ia,ib,ja,jb,id,jd,idjd
 public io_in,io_out,io_rest
 public nwt,nrun,nextout,m_fly,nsemble,tbave,tbave10
@@ -55,13 +55,14 @@ public nstagin, nstaguin
 public hp_output, surf_cordex, surf_windfarm, output_windmax
 public ensemble_mode, ensemble_period, ensemble_rsfactor
 public siglow, sigmid
+public wgcoeff, wg_tau, wg_prob
 
 integer, save :: ngwd=-5, nrungcm=-1, newtop=1
 integer, save :: kountr=0, nrad=4, nvmix=3, nlocal=6
 integer, save :: nhstest=0, namip=0, nspecial=0, newrough=0, nsib=3
 integer, save :: ntaft=2, ntsea=6, ntsur=6, ntsur2, lgwd=0, newztsea=1, nglacier=1, mbd=0
 integer, save :: mbd_mlo=0, nbd=0, kbotdav=4, kbotu=0, nud_p=0, nud_q=0, nud_t=0, nud_uv=1
-integer, save :: nud_hrs=24, nudu_hrs=0, ktau, ndi=1, ndi2=0, ntau, nperavg=-99, nperday, nperhr
+integer, save :: nud_hrs=24, nudu_hrs=0, ktau, ndi=1, ndi2=0, ntau, nperavg=-99, nperday, nperhr, nper6hr
 integer, save :: nmaxpr=99, nlv=1, ia=1, ib=1, ja=1, jb=1, id=1, jd=1, idjd
 integer, save :: io_in=1, io_out=1, io_rest=1
 integer, save :: nwt=-99, nrun=0, nextout=3, m_fly=4, nsemble=0, tbave=1, tbave10=1
@@ -85,6 +86,7 @@ real, save :: bpyear=0., helim=800., fc2=1., sigbot_gwd=0., alphaj=1.e-6, divdam
 real, save :: sigramplow=0., sigramphigh=0., amxlsq=100., dvmodmin=1., siburbanfrac=1., cqmix=2.5
 real, save :: ensemble_rsfactor=0.1
 real, save :: siglow=0.68, sigmid=0.44
+real, save :: wgcoeff=-1., wg_tau=3., wg_prob=0.5
 logical, save :: diag=.false., localhist=.false., unlimitedhist=.true., synchist=.false., amipo3=.false.
 logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_land=.true., save_maxmin=.true.
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -434,6 +434,7 @@ ntiles = 1
 
 nperday = nint(24.*3600./dt)           ! time-steps in one day
 nperhr  = nint(3600./dt)               ! time-steps in one hour
+nper6hr = nint(6.*3600./dt)            ! time-steps in six hours
 nperavg = nwt
 
 schmidt = gridres*real(il_g)/(90.*112.)
@@ -5770,30 +5771,29 @@ urban_storage_ave(:) = 0.
 anth_elecgas_ave(:)  = 0.
 anth_heating_ave(:)  = 0.
 anth_cooling_ave(:)  = 0.
-!tasurban_ave(:)      = 0.
-tmaxurban(:)         = urban_tas
-tminurban(:)         = urban_tas
 rnet_ave(:)          = 0.
-sunhours(:)          = 0.
 riwp_ave(:)          = 0.
 rlwp_ave(:)          = 0.
-!qscrn_ave(:)         = 0.
-!tscr_ave(:)          = 0.
 wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
+taux_ave(:)          = 0.
+tauy_ave(:)          = 0.
 
 ! radiation
 sint_ave(:)          = 0.
 sot_ave(:)           = 0.
 soc_ave(:)           = 0.
 sgdn_ave(:)          = 0.
+sgdndir_ave(:)       = 0.
 sgn_ave(:)           = 0.
 rtu_ave(:)           = 0.
 rtc_ave(:)           = 0.
 rgdn_ave(:)          = 0.
 rgn_ave(:)           = 0.
 rgc_ave(:)           = 0.
+rgdc_ave(:)          = 0.
 sgc_ave(:)           = 0.
+sgdc_ave(:)          = 0.
 cld_ave(:)           = 0.
 cll_ave(:)           = 0.
 clm_ave(:)           = 0.
@@ -5873,6 +5873,7 @@ subroutine zero_nperday
 use histave_m                              ! Time average arrays
 use parm_m                                 ! Model configuration
 use prec_m                                 ! Precipitation
+use raddiag_m                              ! Radiation diagnostic
 use screen_m                               ! Screen level diagnostics
 
 implicit none
@@ -5889,6 +5890,10 @@ v1max(:)    = 0.
 u2max(:)    = 0.
 v2max(:)    = 0.
 rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
+tmaxurban(:)= urban_tas
+tminurban(:)= urban_tas
+wsgsmax(:)  = 0.
+sunhours(:) = 0.
 
 !if ( nextout >= 4 ) then
 !  call setllp ! reset once per day
@@ -5953,21 +5958,15 @@ urban_storage_ave(1:ifull) = urban_storage_ave(1:ifull) + urban_storage_flux
 anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull) + urban_elecgas_flux
 anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull) + urban_heating_flux
 anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull) + urban_cooling_flux
-!tasurban_ave(1:ifull)      = tasurban_ave(1:ifull) + urban_tas
 tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urban_tas )
 tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
 rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
-!tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
-!qscrn_ave(1:ifull)         = qscrn_ave(1:ifull) + qgscrn 
 wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
-!tsu_ave(1:ifull)           = tsu_ave(1:ifull) + tss
-!call mslp(spare2,psl,zs,t) ! calculate MSLP from psl
-!spare2 = spare2/100.       ! convert MSLP to hPa
-!psl_ave(1:ifull)           = psl_ave(1:ifull) + spare2(1:ifull)
-!spare1(1:ifull)            = 0.
-!call mlodiag(spare1,0)     ! obtain ocean mixed level depth
-!mixdep_ave(1:ifull)        = mixdep_ave(1:ifull) + spare1(1:ifull)
+taux_ave(1:ifull)          = taux_ave(1:ifull) + taux
+tauy_ave(1:ifull)          = tauy_ave(1:ifull) + tauy
+wsgsmax(1:ifull)           = max( wsgsmax(1:ifull, wsgs )
+
 spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
 spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
 do iq = 1,ifull
@@ -6008,6 +6007,7 @@ end if
 
 sgn_ave(1:ifull)  = sgn_ave(1:ifull)  + sgsave(1:ifull)
 sgdn_ave(1:ifull) = sgdn_ave(1:ifull) + sgdn(1:ifull)
+sgdndir_ave(1:ifull) = sgdndir_ave(1:ifull) + sgdndir(1:ifull)
 sint_ave(1:ifull)  = sint_ave(1:ifull) + sint(1:ifull)
 sot_ave(1:ifull)   = sot_ave(1:ifull)  + sout(1:ifull)
 soc_ave(1:ifull)   = soc_ave(1:ifull)  + soutclr(1:ifull)
@@ -6016,14 +6016,16 @@ rtc_ave(1:ifull)   = rtc_ave(1:ifull)  + rtclr(1:ifull)
 rgn_ave(1:ifull)   = rgn_ave(1:ifull)  + rgn(1:ifull)
 rgc_ave(1:ifull)   = rgc_ave(1:ifull)  + rgclr(1:ifull)
 rgdn_ave(1:ifull)  = rgdn_ave(1:ifull) + rgdn(1:ifull)
+rgdc_ave(1:ifull)  = rgdc_ave(1:ifull) + rgdclr(1:ifull)
 sgc_ave(1:ifull)   = sgc_ave(1:ifull)  + sgclr(1:ifull)
+sgdc_ave(1:ifull)  = sgdc_ave(1:ifull) + sgdclr(1:ifull)
 cld_ave(1:ifull)   = cld_ave(1:ifull)  + cloudtot(1:ifull)
 cll_ave(1:ifull)   = cll_ave(1:ifull)  + cloudlo(1:ifull)
 clm_ave(1:ifull)   = clm_ave(1:ifull)  + cloudmi(1:ifull)
 clh_ave(1:ifull)   = clh_ave(1:ifull)  + cloudhi(1:ifull)
 dni_ave(1:ifull)   = dni_ave(1:ifull)  + dni(1:ifull)
 where ( sgdn(1:ifull)>120. )
-  sunhours(1:ifull) = sunhours(1:ifull) + 86400.
+  sunhours(1:ifull) = sunhours(1:ifull) + dt/3600.
 end where
 
 if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
@@ -6041,7 +6043,6 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull)/min(ntau,nperavg)  
   !tasurban_ave(1:ifull)      = tasurban_ave(1:ifull)/min(ntau,nperavg)
   rnet_ave(1:ifull)          = rnet_ave(1:ifull)/min(ntau,nperavg)
-  sunhours(1:ifull)          = sunhours(1:ifull)/min(ntau,nperavg)
   riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
   rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
   !tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
@@ -6055,6 +6056,7 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   !mixdep_ave(1:ifull) = mixdep_ave(1:ifull)/min(ntau,nperavg)
   sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
   sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
+  sgdndir_ave(1:ifull) = sgdndir_ave(1:ifull)/min(ntau,nperavg)
   sint_ave(1:ifull)   = sint_ave(1:ifull)/min(ntau,nperavg)
   sot_ave(1:ifull)    = sot_ave(1:ifull)/min(ntau,nperavg)
   soc_ave(1:ifull)    = soc_ave(1:ifull)/min(ntau,nperavg)
@@ -6063,7 +6065,9 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/min(ntau,nperavg)
   rgn_ave(1:ifull)    = rgn_ave(1:ifull)/min(ntau,nperavg)   
   rgc_ave(1:ifull)    = rgc_ave(1:ifull)/min(ntau,nperavg)
+  rgdc_ave(1:ifull)   = rgdc_ave(1:ifull)/min(ntau,nperavg)
   sgc_ave(1:ifull)    = sgc_ave(1:ifull)/min(ntau,nperavg)
+  sgdc_ave(1:ifull)   = sgdc_ave(1:ifull)/min(ntau,nperavg)
   cld_ave(1:ifull)    = cld_ave(1:ifull)/min(ntau,nperavg)
   cll_ave(1:ifull)    = cll_ave(1:ifull)/min(ntau,nperavg)
   clm_ave(1:ifull)    = clm_ave(1:ifull)/min(ntau,nperavg)

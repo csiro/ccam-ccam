@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -2096,8 +2096,11 @@ else
 endif
 ier = nf90_put_att(lcdfid,idv,'FORTRAN_format','G11.4')
 call ncmsg("FORTRAN_format",ier)
-if ( daily>0 ) then
+if ( daily==1 ) then
   ier = nf90_put_att(lcdfid,idv,'valid_time','daily')
+  call ncmsg("valid_time",ier)
+else if ( daily==2 ) then
+  ier = nf90_put_att(lcdfid,idv,'valid_time','6hr')
   call ncmsg("valid_time",ier)
 endif
       

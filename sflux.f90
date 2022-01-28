@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -53,7 +53,7 @@ real, dimension(:), allocatable :: af,aft,ri
 real, dimension(:), allocatable :: fg_ocn, fg_ice, eg_ocn, eg_ice
 real, dimension(:), allocatable :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
 real, dimension(:), allocatable :: river_inflow
-real, dimension(:), allocatable :: tss_save
+!real, dimension(:), allocatable :: tss_save
 
 #ifdef csircoupled
 real, dimension(:), allocatable :: dumrg, dumx
@@ -93,7 +93,7 @@ allocate( af(ifull), aft(ifull), ri(ifull) )
 allocate( fg_ocn(ifull), fg_ice(ifull), eg_ocn(ifull), eg_ice(ifull) )
 allocate( taux_ocn(ifull), taux_ice(ifull), tauy_ocn(ifull), tauy_ice(ifull) )
 allocate( river_inflow(ifull) )
-allocate( tss_save(ifull) )
+!allocate( tss_save(ifull) )
 #ifdef csircoupled
 allocate( dumrg(ifull), dumx(ifull) )
 allocate( dumtaux_ocn(ifull), dumtauy_ocn(ifull) )
@@ -143,7 +143,8 @@ use xyzinfo_m
 implicit none
     
 integer is, ie, tile, iq, k
-real, dimension(imax) :: rg_error, qsat_tmp
+real, dimension(imax) :: qsat_tmp
+!real, dimension(imax) :: rg_error
 
 !     stability dependent drag coefficients using Louis (1979,blm) f'
 !     n.b. cduv, cdtq are returned as drag coeffs mult by vmod
@@ -180,7 +181,8 @@ do tile = 1,ntiles
   uav(is:ie) = av_vmod*u(is:ie,1) + (1.-av_vmod)*savu(is:ie,1)   
   vav(is:ie) = av_vmod*v(is:ie,1) + (1.-av_vmod)*savv(is:ie,1)  
   vmag(is:ie) = max( sqrt(uav(is:ie)**2+vav(is:ie)**2), vmodmin )    ! vmag used to calculate ri
-  tss_save(is:ie) = tss(is:ie)
+  !tss_save(is:ie) = tss(is:ie)
+  rnet(is:ie) = sgsave(is:ie) - rgsave(is:ie)
 
   taux(is:ie) = 0.      ! dummy value
   tauy(is:ie) = 0.      ! dummy value  
@@ -349,22 +351,20 @@ do tile = 1,ntiles
   end if
 
   ! ----------------------------------------------------------------------
-  ! now use evspsbl to account for snow and ice
-  !evap(is:ie) = evap(is:ie) + dt*eg(is:ie)/hl        !time integ value in mm (wrong for snow)
   
   ! Update runoff for river routing
   if ( abs(nriver)==1 ) then
     watbdy(is:ie) = watbdy(is:ie) + runoff(is:ie) - oldrunoff(is:ie) ! runoff in mm
   end if
   
-  ! correct longwave radiation due to change in tss
-  if ( odcalc ) then
-    rg_error(1:imax) = stefbo*( tss_save(is:ie)**4 - tss(is:ie)**4 )
-    rt(is:ie) = rt(is:ie) + rg_error(1:imax)
-    rtclr(is:ie) = rtclr(is:ie) + rg_error(1:imax)
-    rgn(is:ie) = rgn(is:ie) - rg_error(1:imax)
-    rgclr(is:ie) = rgclr(is:ie) - rg_error(1:imax)
-  end if  
+  !! correct longwave radiation due to change in tss
+  !if ( odcalc ) then
+  !  rg_error(1:imax) = stefbo*( tss_save(is:ie)**4 - tss(is:ie)**4 )
+  !  rt(is:ie) = rt(is:ie) + rg_error(1:imax)
+  !  rtclr(is:ie) = rtclr(is:ie) + rg_error(1:imax)
+  !  rgn(is:ie) = rgn(is:ie) - rg_error(1:imax)
+  !  rgclr(is:ie) = rgclr(is:ie) - rg_error(1:imax)
+  !end if  
   
   
   !***  end of surface updating loop
@@ -623,7 +623,6 @@ do iq=1,ifull                                                                   
   fg(iq)=conh*fh(iq)*(tpan(iq)-theta(iq))                                                        ! sea
   eg(iq)=conw*fq*(qsttg(iq)-qg(iq,1))                                                            ! sea
   evap_sea(iq)=eg(iq)/hl                                                                         ! sea
-  rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tpan(iq)**4                                              ! sea
   zoh(iq)=zo(iq)/(factch(iq)**2)                                                                 ! sea
   zoq(iq)=zo(iq)/(facqch**2)                                                                     ! sea
   ! cduv is now drag coeff *vmod                                                                 ! sea
@@ -791,7 +790,6 @@ do iq=1,ifull                                                                   
     ! N.B. potential evaporation is now eg+eg2                                                   ! sice
     epot(iq) =fracice(iq)*epotice + (1.-fracice(iq))*epot(iq)                                    ! sice
     tss(iq) = fracice(iq)*tggsn(iq,1)+(1.-fracice(iq))*tpan(iq)                                  ! sice
-    rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4                                             ! sice
     ! Surface stresses taux, tauy: diagnostic only - unstag now                                  ! sice
     taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                                            ! sice
     tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                                            ! sice
@@ -880,7 +878,7 @@ do tile = 1,ntiles
                       swrsave(is:ie),fbeamvis(is:ie),fbeamnir(is:ie),taux(is:ie),tauy(is:ie),            &
                       ustar(is:ie),water_g(tile),depth_g(tile),                                          &
                       dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),ice_g(tile),                          &
-                      tpan(is:ie),epan(is:ie),rnet(is:ie),condx(is:ie),                                  &
+                      tpan(is:ie),epan(is:ie),condx(is:ie),                                              &
                       conds(is:ie),condg(is:ie),fg(is:ie),eg(is:ie),evspsbl(is:ie),sbl(is:ie),           &
                       epot(is:ie),tss(is:ie),cduv(is:ie),cdtq(is:ie),lwatbdy,loutflowmask,land(is:ie),   &
                       fracice(is:ie),sicedep(is:ie),snowd(is:ie),sno(is:ie),grpl(is:ie),qsttg(is:ie),    &
@@ -910,7 +908,7 @@ end subroutine sflux_mlo
 subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,      &
                           ps,t,qg,sgdn,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy, &
                           ustar,water,depth,dgice,dgscrn,dgwater,ice,                     &
-                          tpan,epan,rnet,condx,conds,condg,fg,eg,evspsbl,sbl,epot,        &
+                          tpan,epan,condx,conds,condg,fg,eg,evspsbl,sbl,epot,             &
                           tss,cduv,cdtq,watbdy,outflowmask,land,                          &
                           fracice,sicedep,snowd,sno,grpl,qsttg,vmod,zo,wetfac,            &
                           zoh,zoq,theta,ga,turb)
@@ -933,7 +931,7 @@ integer iq, calcprog
 real root, denha, esatf
 real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
 real, dimension(imax), intent(in) :: t, qg
-real, dimension(imax), intent(inout) :: ri, taux, tauy, ustar, tpan, epan, rnet
+real, dimension(imax), intent(inout) :: ri, taux, tauy, ustar, tpan, epan
 real, dimension(imax), intent(inout) :: fg, eg, evspsbl, sbl, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
 real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh, zoq, ga
 real, dimension(imax), intent(in) :: vmag, rho, azmin, uav, vav, ps, sgdn, sgsave, rgsave, swrsave
@@ -987,9 +985,6 @@ else                                                                            
 end if                                                                                         ! MLO
                                                                                                ! MLO
 ! Ocean mixing                                                                                 ! MLO
-where (.not.land(1:imax))                                                                      ! MLO
-  rnet(:)=sgsave(:)-rgsave(:)-stefbo*tss(:)**4 ! use tss as should be tss(t=tau) for MLO       ! MLO
-end where                                                                                      ! MLO
 dumrg(:)=-rgsave(:)                                                                            ! MLO
 dumx(:)=condx(:)/dt ! total precip                                                             ! MLO
 dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
@@ -1095,7 +1090,7 @@ do tile=1,ntiles
                         slab_g(:,tile),walle_g(:,tile),wallw_g(:,tile),cnveg_g(tile),intl_g(tile),                   &
                         luzon,lvmer,cdtq(is:ie),cduv(is:ie),conds(is:ie),                                            &
                         condg(is:ie),condx(is:ie),eg(is:ie),fg(is:ie),ps(is:ie),qg(is:ie,1),                         &
-                        qsttg(is:ie),rgsave(is:ie),rnet(is:ie),runoff(is:ie),sgdn(is:ie),sgsave(is:ie),              &
+                        qsttg(is:ie),rgsave(is:ie),runoff(is:ie),sgdn(is:ie),sgsave(is:ie),                          &
                         snowmelt(is:ie),t(is:ie,1),taux(is:ie),tauy(is:ie),tss(is:ie),u(is:ie,1),                    &
                         ustar(is:ie),v(is:ie,1),vmod(is:ie),wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),           &
                         evspsbl(is:ie),oldevspsbl(is:ie),sbl(is:ie),oldsbl(is:ie),anthropogenic_flux(is:ie),         &
@@ -1113,7 +1108,7 @@ end subroutine sflux_urban
 subroutine sflux_urban_work(azmin,oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,                      &
                             fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl, &
                             uzon,vmer,cdtq,cduv,                                                                  &
-                            conds,condg,condx,eg,fg,ps,qg,qsttg,rgsave,rnet,runoff,sgdn,sgsave,snowmelt,          &
+                            conds,condg,condx,eg,fg,ps,qg,qsttg,rgsave,runoff,sgdn,sgsave,snowmelt,               &
                             t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,evspsbl,oldevspsbl,sbl,oldsbl,       &
                             anthropogenic_flux,urban_ts,urban_wetfac,urban_zom,urban_zoh,urban_zoq,urban_emiss,   &
                             urban_storage_flux,urban_elecgas_flux,urban_heating_flux,urban_cooling_flux,          &
@@ -1146,7 +1141,7 @@ real, dimension(imax), intent(in) :: conds, condg, condx
 real, dimension(imax), intent(in) :: ps, rgsave, sgdn, sgsave, vmod
 real, dimension(imax), intent(inout) :: cdtq, cduv
 real, dimension(imax), intent(inout) :: eg, fg, qsttg
-real, dimension(imax), intent(inout) :: rnet, runoff, snowmelt
+real, dimension(imax), intent(inout) :: runoff, snowmelt
 real, dimension(imax), intent(inout) :: taux, tauy, tss, ustar, wetfac
 real, dimension(imax), intent(inout) :: zo, zoh, zoq, evspsbl, sbl
 real, dimension(imax), intent(in) :: qg, t, u, v
@@ -1237,7 +1232,6 @@ call atebenergy(urban_cooling_flux,"cooling",0,fp,pd,rdhyd,rfhyd,upack,ufull)   
 call atebenergy(urban_storage_flux,"storage",0,fp,pd,rdhyd,rfhyd,upack,ufull)                    ! urban
 where ( u_sigma>0. )                                                                             ! urban
   qsttg(1:imax) = qsat(ps,tss,imax)                                                              ! urban
-  rnet(1:imax) = sgsave(1:imax) - rgsave(1:imax) - stefbo*tss(1:imax)**4                         ! urban
   taux(1:imax) = rho(1:imax)*cduv(1:imax)*u(1:imax)                                              ! urban
   tauy(1:imax) = rho(1:imax)*cduv(1:imax)*v(1:imax)                                              ! urban
 end where                                                                                        ! urban

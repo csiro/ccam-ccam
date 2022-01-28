@@ -2717,12 +2717,12 @@ subroutine cldrop(istart,cdn,rhoa,convmode)
 implicit none
 
 integer, intent(in) :: istart
-integer k,is,ie,imax,kl
+integer k,is,ie,imax,kl,iq
 real, dimension(:,:), intent(in) :: rhoa
 real, dimension(:,:), intent(out) :: cdn
 real, dimension(size(cdn,1),size(cdn,2)) :: xtgso4,xtgbc,xtgoc,xtgsa1,xtgsa2
-real, dimension(size(cdn,1)) :: so4_n,cphil_n,salt_n,Atot
-real, dimension(size(cdn,1)) :: so4mk
+real so4_n,cphil_n,salt_n,Atot
+real so4mk
 logical, intent(in) :: convmode
 
 imax = size(cdn,1)
@@ -2750,21 +2750,25 @@ end if
 select case(aeroindir)
   case(0)
     do k = 1,kl
-      ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
-      so4_n = so4mtn * (132.14/32.06) * rhoa(:,k) * xtgso4(:,k)
-      ! Factor of 1.3 converts from OC to organic matter (OM) 
-      cphil_n = carbmtn * rhoa(:,k) * (xtgbc(:,k)+1.3*xtgoc(:,k))
-      salt_n = saltsmallmtn*rhoa(:,k)*xtgsa1(:,k) + saltlargemtn*rhoa(:,k)*xtgsa2(:,k)
-      ! Jones et al., modified to account for hydrophilic carb aerosols as well
-      Atot = max( so4_n + cphil_n + salt_n, 0. )
-      cdn(:,k) = max( 1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)) )
+      do iq = 1,imax 
+        ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
+        so4_n = so4mtn * (132.14/32.06) * rhoa(iq,k) * xtgso4(iq,k)
+        ! Factor of 1.3 converts from OC to organic matter (OM) 
+        cphil_n = carbmtn * rhoa(iq,k) * (xtgbc(iq,k)+1.3*xtgoc(iq,k))
+        salt_n = saltsmallmtn*rhoa(iq,k)*xtgsa1(iq,k) + saltlargemtn*rhoa(iq,k)*xtgsa2(iq,k)
+        ! Jones et al., modified to account for hydrophilic carb aerosols as well
+        Atot = max( so4_n + cphil_n + salt_n, 0. )
+        cdn(iq,k) = max( 1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)) )
+      end do  
     end do
 
   case(1)
     ! Use ECHAM SO4 to get cdn_strat.
     do k = 1,kl
-      so4mk = max( 1.e-5, 3.e9*rhoa(:,k)*xtgso4(:,k) ) ! x 3 to convert to ug/m3 SO4
-      cdn(:,k) = max( 2.e7, 1.62e8*so4mk**0.41 )       !Combined land/ocean.
+      do iq = 1,imax
+        so4mk = max( 1.e-5, 3.e9*rhoa(iq,k)*xtgso4(iq,k) ) ! x 3 to convert to ug/m3 SO4
+        cdn(iq,k) = max( 2.e7, 1.62e8*so4mk**0.41 )        !Combined land/ocean.
+      end do  
     end do
     
   case default

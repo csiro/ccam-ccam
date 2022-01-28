@@ -509,8 +509,8 @@ cloud2.o : diag_m.o cc_mpi.o const_phys.o leoncld.o newmpar_m.o parm_m.o radisw_
 cloud.o : extraout_m.o newmpar_m.o parm_m.o radisw_m.o rdparm.h
 cloudmod.o : const_phys.o newmpar_m.o parm_m.o sigs_m.o kuocom.h
 co2_read.o : cc_mpi.o co2dta_m.o dates_m.o filnames_m.o infile.o newmpar_m.o parm_m.o radisw_m.o stime_m.o rdparm.h
-convjlm.o : aerosolldr.o arrays_m.o cc_mpi.o cc_omp.o cfrac_m.o const_phys.o diag_m.o estab.o extraout_m.o kuocomb_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o parmdyn_m.o prec_m.o sigs_m.o soil_m.o tkeeps.o tracers_m.o vvel_m.o work2_m.o kuocom.h
-convjlm22.o : aerosolldr.o arrays_m.o cc_mpi.o cc_omp.o cfrac_m.o const_phys.o diag_m.o estab.o extraout_m.o kuocomb_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o parmdyn_m.o prec_m.o sigs_m.o soil_m.o tkeeps.o tracers_m.o vvel_m.o work2_m.o kuocom.h
+convjlm.o : aerosolldr.o arrays_m.o cc_mpi.o cc_omp.o cfrac_m.o const_phys.o diag_m.o estab.o extraout_m.o kuocomb_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o parmdyn_m.o prec_m.o sigs_m.o soil_m.o tracers_m.o vvel_m.o work2_m.o kuocom.h
+convjlm22.o : aerosolldr.o arrays_m.o cc_mpi.o cc_omp.o cfrac_m.o const_phys.o diag_m.o estab.o extraout_m.o kuocomb_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o parmdyn_m.o prec_m.o sigs_m.o soil_m.o tracers_m.o vvel_m.o work2_m.o kuocom.h
 daviesnudge.o : aerosolldr.o arrays_m.o cc_mpi.o newmpar_m.o parm_m.o sigs_m.o
 depts.o : bigxy4_m.o cc_mpi.o const_phys.o indices_m.o map_m.o newmpar_m.o parm_m.o parmhor_m.o parmgeom_m.o uvbar_m.o vecsuv_m.o work3f_m.o xyzinfo_m.o 
 diag_m.o : cc_mpi.o newmpar_m.o parm_m.o sigs_m.o sumdd_m.o xyzinfo_m.o

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -317,15 +317,17 @@ do tile = 1,ntiles
     ! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
     latmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
     ico2 = 0
-    do igas = 1,ngas
-      if ( trim(tractype(igas))=='online' .and. trim(tracname(igas))=='cbmnep' ) then
-        ico2 = igas
-        exit
+    if ( ngas>0 ) then
+      do igas = 1,ngas
+        if ( trim(tractype(igas))=='online' .and. trim(tracname(igas))=='cbmnep' ) then
+          ico2 = igas
+          exit
+        end if
+      end do
+      if ( ico2>0 ) then
+        latmco2 = tr(1:imax,1,ico2) ! use interactive tracers
       end if
-    end do
-    if ( ico2>0 ) then
-      latmco2 = tr(1:imax,1,ico2) ! use interactive tracers
-    end if
+    end if  
     
     !set pointers to pass through
     call setp(air,lair,tile)
@@ -546,7 +548,7 @@ do nb = 1,maxnb
   met%ua(is:ie)        = real(pack(vmod,       tmap(:,nb)), 8)
   met%ca(is:ie)        = real(pack(atmco2,     tmap(:,nb))*1.e-6, 8)
   met%coszen(is:ie)    = real(pack(coszro2,    tmap(:,nb)), 8)        ! use instantaneous value
-  met%qv(is:ie)        = real(pack(qg(1:imax), tmap(:,nb)),8 )        ! specific humidity in kg/kg
+  met%qv(is:ie)        = real(pack(qg(1:imax), tmap(:,nb)), 8)        ! specific humidity in kg/kg
   met%pmb(is:ie)       = real(pack(ps(1:imax), tmap(:,nb))*0.01, 8)   ! pressure in mb at ref height
   met%precip(is:ie)    = real(pack(condx,      tmap(:,nb)), 8)        ! in mm not mm/sec
   met%precip_sn(is:ie) = real(pack(conds+condg,tmap(:,nb)), 8)        ! in mm not mm/sec
@@ -559,7 +561,7 @@ do nb = 1,maxnb
   rad%fbeam(is:ie,1)   = real(pack(fbeamvis,         tmap(:,nb)), 8)
   rad%fbeam(is:ie,2)   = real(pack(fbeamnir,         tmap(:,nb)), 8)
   rough%za_tq(is:ie)   = real(pack(bet(1)*t(1:imax), tmap(:,nb))/grav, 8) ! reference height
-  rough%za_tq(is:ie)   = max( rough%za_tq(is:ie), veg%hc(is:ie)+1. )
+  rough%za_tq(is:ie)   = max( rough%za_tq(is:ie), veg%hc(is:ie)+1._8 )
 end do
 met%doy        = real(fjd, 8)
 met%hod        = (met%doy-int(met%doy))*24._8 + rad%longitude/15._8

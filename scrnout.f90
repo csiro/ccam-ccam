@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -304,8 +304,8 @@ endif
 return
 end subroutine scrnout
       
-subroutine screencalc(imax,qscrn,rhscrn,tscrn,uscrn,u10,ustar,tstar,qstar,thetavstar,zo,zoh,zoq,stemp, &
-                      temp,smixr,mixr,umag,ps,zmin,sig)
+subroutine screencalc(imax,qscrn,rhscrn,tscrn,uscrn,u10,u10gs_var,ustar,tstar,qstar,thetavstar, &
+                      zo,zoh,zoq,stemp,temp,smixr,mixr,umag,ugs_var,ps,zmin,sig)
  
 use const_phys
 use estab
@@ -315,9 +315,9 @@ implicit none
 
 integer, intent(in) :: imax
 integer ic
-real, dimension(imax), intent(out) :: qscrn,rhscrn,tscrn,uscrn,u10
+real, dimension(imax), intent(out) :: qscrn,rhscrn,tscrn,uscrn,u10,u10gs_var
 real, dimension(imax), intent(out) :: ustar,tstar,qstar,thetavstar
-real, dimension(imax), intent(in) :: zo,zoh,zoq,stemp,temp,umag
+real, dimension(imax), intent(in) :: zo,zoh,zoq,stemp,temp,umag,ugs_var
 real, dimension(imax), intent(in) :: smixr,mixr,ps,zmin
 real, dimension(imax) :: lzom,lzoh,lzoq,thetav,sthetav
 real, dimension(imax) :: z_on_l,z0_on_l,zt_on_l,z10_on_l
@@ -444,7 +444,8 @@ qsatb(1:imax)  = 0.622*esatb(1:imax)/(ps(1:imax)-esatb(1:imax))
 rhscrn(1:imax) = 100.*min(qscrn(1:imax)/qsatb(1:imax), 1.)
 uscrn(1:imax)  = max(umagn(1:imax)-ustar(1:imax)*integralm(1:imax)/vkar, 0.)
 u10(1:imax)    = max(umagn(1:imax)-ustar(1:imax)*integralm10(1:imax)/vkar, 0.)
-      
+u10gs_var(1:imax)   = max(ugs_var(1:imax)-ustar(1:imax)*integralm10(1:imax)/vkar, 0.)
+
 return
 end subroutine screencalc
       
@@ -458,7 +459,7 @@ use extraout_m
 use liqwpar_m
 use mlo
 use morepbl_m, only : urban_tas, urban_zom, urban_zoh, urban_zoq, &
-                      urban_ts, urban_wetfac
+                      urban_ts, urban_wetfac, ugs_var, wsgs
 use newmpar_m
 use nharrs_m
 use nsibd_m, only : sigmu
@@ -475,10 +476,10 @@ implicit none
       
 integer, intent(in) :: is, ie
 integer :: tile
-real, dimension(is:ie) :: umag, zminx, smixr
+real, dimension(is:ie) :: umag, zminx, smixr, u10gs_var
 real, dimension(is:ie) :: ou, ov, atu, atv, iu, iv
 real, dimension(is:ie) :: au, av, es, rho
-real, dimension(is:ie) :: u_qgscrn, u_rhscrn, u_uscrn, u_u10
+real, dimension(is:ie) :: u_qgscrn, u_rhscrn, u_uscrn, u_u10, u_u10gs_var
 real, dimension(is:ie) :: u_ustar, u_tstar, u_qstar, u_thetavstar
 real, dimension(is:ie) :: new_zo, new_zoh, new_zoq, new_tss, new_smixr
     
@@ -521,10 +522,10 @@ if ( zo_clearing>0. ) then
   end where  
 end if
 
-call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie), &
-                ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),new_zo(is:ie),   &
-                new_zoh(is:ie),new_zoq(is:ie),new_tss(is:ie),t(is:ie,1),new_smixr(is:ie), &
-                qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
+call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie),               &
+                u10gs_var(is:ie),ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),              &
+                new_zo(is:ie),new_zoh(is:ie),new_zoq(is:ie),new_tss(is:ie),t(is:ie,1),new_smixr(is:ie), &
+                qg(is:ie,1),umag(is:ie),ugs_var(is:ie),ps(is:ie),zminx(is:ie),sig(1))
 
 rho(is:ie) = ps(is:ie)/(rdry*tss(is:ie))
 cduv(is:ie) = ustar(is:ie)**2/umag(is:ie)
@@ -537,6 +538,8 @@ uscrn(is:ie) = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
 atu(is:ie)   = au(is:ie)*u10(is:ie)/umag(is:ie) + ou(is:ie)
 atv(is:ie)   = av(is:ie)*u10(is:ie)/umag(is:ie) + ov(is:ie)      
 u10(is:ie)   = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
+
+wsgs(is:ie) = sqrt(max(u10gs_var(is:ie),0.))*wgcoeff + u10(is:ie)
 
 
 ! urban tile
@@ -552,10 +555,10 @@ where ( sigmu(is:ie)>0. )
   new_zoh(is:ie) = urban_zoh(is:ie)
   new_zoq(is:ie) = urban_zoq(is:ie)
 end where
-call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn(is:ie),u_u10(is:ie), &
-                u_ustar(is:ie),u_tstar(is:ie),u_qstar(is:ie),u_thetavstar(is:ie),new_zo(is:ie),       &
-                new_zoh(is:ie),new_zoq(is:ie),new_tss(is:ie),t(is:ie,1),new_smixr(is:ie),             &
-                qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
+call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn(is:ie),u_u10(is:ie),   &
+                u_u10gs_var(is:ie),u_ustar(is:ie),u_tstar(is:ie),u_qstar(is:ie),u_thetavstar(is:ie),    &
+                new_zo(is:ie),new_zoh(is:ie),new_zoq(is:ie),new_tss(is:ie),t(is:ie,1),new_smixr(is:ie), &
+                qg(is:ie,1),umag(is:ie),ugs_var(is:ie),ps(is:ie),zminx(is:ie),sig(1))
 
 return
 end subroutine autoscrn

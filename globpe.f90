@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1418,7 +1418,7 @@ real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
-real targetlev, dsx, pwatr_l, pwatr
+real targetlev, dsx, pwatr_l, pwatr, tscale
 real ateb_zocanyon, ateb_zoroof
 real ateb_energytol
 real cgmap_offset, cgmap_scale      ! depreciated namelist options
@@ -1508,6 +1508,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL s
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
     stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,                   &
     tke_timeave_length,                                           &
+    wg_tau,wg_prob,                                               & ! wind gusts
     amxlsq,dvmodmin,                                              & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
     tkecduv,zimax                                                   ! depreciated
@@ -2208,7 +2209,7 @@ nevapls          = dumi(21)
 vdeposition_mode = dumi(22)
 tiedtke_form     = dumi(23)
 deallocate( dumr, dumi )
-allocate( dumr(30), dumi(4) )
+allocate( dumr(32), dumi(4) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2248,6 +2249,8 @@ if ( myid==0 ) then
   dumr(28) = mfbeta
   dumr(29) = dvmodmin
   dumr(30) = tke_timeave_length
+  dumr(31) = wg_tau
+  dumr(32) = wg_prob
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
@@ -2285,6 +2288,8 @@ ent_min            = dumr(27)
 mfbeta             = dumr(28)
 dvmodmin           = dumr(29)
 tke_timeave_length = dumr(30)
+wg_tau             = dumr(31)
+wg_prob            = dumr(32)
 buoymeth           = dumi(1)
 stabmeth           = dumi(2)
 tkemeth            = dumi(3)
@@ -2543,6 +2548,7 @@ if ( nvmix==9 .and. nmlo==0 ) then
 end if
 nperday = nint(24.*3600./dt)           ! time-steps in one day
 nperhr  = nint(3600./dt)               ! time-steps in one hour
+nper6hr = nint(6.*3600./dt)            ! time-steps in six hours
 if ( nwt==-99 )     nwt = nperday      ! set default nwt to 24 hours
 if ( nperavg==-99 ) nperavg = nwt      ! set default nperavg to nwt
 if ( nwrite==0 )    nwrite = nperday   ! only used for outfile IEEE
@@ -2771,7 +2777,22 @@ end if
 if ( kblock<0 ) then
   kblock = max(kl, ol) ! must occur before indata
 end if
-if ( myid==0 ) write(6,*) "Using vertical kblock = ",kblock
+if ( myid==0 ) then
+  write(6,*) "Using vertical kblock = ",kblock
+end if
+if ( wgcoeff<0. ) then
+  if ( nvmix==6 .and. nvmix==7 ) then  
+    tscale = max( max( tke_timeave_length, dt ), wg_tau )
+  else
+    tscale = max( dt, wg_tau )  
+  end if
+  ! Wichers et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
+  wgcoeff = sqrt(max(0.,-2.*log(-sqrt(2.*pi)*(tscale/wg_tau)*log(wg_prob))))
+  if ( myid==0 ) then
+    write(6,*) "Adjusting wgcoeff for wgcoeff,wg_prob = ",wgcoeff,wg_prob
+  end if
+end if
+
 
 ! **** do namelist fixes above this line ***
 
@@ -3736,11 +3757,7 @@ urban_storage_ave(:) = 0.
 anth_elecgas_ave(:)  = 0.
 anth_heating_ave(:)  = 0.
 anth_cooling_ave(:)  = 0.
-!tasurban_ave(:)      = 0.
-tmaxurban(:)         = urban_tas
-tminurban(:)         = urban_tas
 rnet_ave(:)          = 0.
-sunhours(:)          = 0.
 riwp_ave(:)          = 0.
 rlwp_ave(:)          = 0.
 rhscr_ave(:)         = 0.
@@ -3756,13 +3773,16 @@ sint_ave(:)          = 0.
 sot_ave(:)           = 0.
 soc_ave(:)           = 0.
 sgdn_ave(:)          = 0.
+sgdndir_ave(:)       = 0.
 sgn_ave(:)           = 0.
 rtu_ave(:)           = 0.
 rtc_ave(:)           = 0.
 rgdn_ave(:)          = 0.
 rgn_ave(:)           = 0.
 rgc_ave(:)           = 0.
+rgdc_ave(:)          = 0.
 sgc_ave(:)           = 0.
+sgdc_ave(:)          = 0.
 cld_ave(:)           = 0.
 cll_ave(:)           = 0.
 clm_ave(:)           = 0.
@@ -3862,8 +3882,10 @@ end subroutine zero_nperhour
 subroutine zero_nperday
 
 use histave_m                              ! Time average arrays
+use morepbl_m                              ! Additional boundary layer diagnostics
 use parm_m                                 ! Model configuration
 use prec_m                                 ! Precipitation
+use raddiag_m                              ! Radiation diagnostic
 use screen_m                               ! Screen level diagnostics
 
 implicit none
@@ -3881,6 +3903,10 @@ v1max(:)    = 0.
 u2max(:)    = 0.
 v2max(:)    = 0.
 rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
+tmaxurban(:)= urban_tas
+tminurban(:)= urban_tas
+wsgsmax(:)  = 0.
+sunhours(:) = 0.
 
 if ( nextout>=4 ) then
   call setllp ! reset once per day
@@ -3959,6 +3985,7 @@ wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
 taux_ave(1:ifull)          = taux_ave(1:ifull) + taux
 tauy_ave(1:ifull)          = tauy_ave(1:ifull) + tauy
+wsgsmax(1:ifull)           = max( wsgsmax(1:ifull), wsgs )
 
 spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
 spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
@@ -3998,8 +4025,9 @@ if ( ccycle/=0 ) then
   end if
 end if
 
-sgn_ave(1:ifull)   = sgn_ave(1:ifull)  + sgsave(1:ifull)
-sgdn_ave(1:ifull)  = sgdn_ave(1:ifull) + sgdn(1:ifull)
+sgn_ave(1:ifull)     = sgn_ave(1:ifull)  + sgsave(1:ifull)
+sgdn_ave(1:ifull)    = sgdn_ave(1:ifull) + sgdn(1:ifull)
+sgdndir_ave(1:ifull) = sgdndir_ave(1:ifull) + sgdndir(1:ifull)
 if ( .not.always_mspeca ) then
   sint_ave(1:ifull)  = sint_ave(1:ifull) + sint(1:ifull)
   sot_ave(1:ifull)   = sot_ave(1:ifull)  + sout(1:ifull)
@@ -4009,7 +4037,9 @@ if ( .not.always_mspeca ) then
   rgn_ave(1:ifull)   = rgn_ave(1:ifull)  + rgn(1:ifull)
   rgc_ave(1:ifull)   = rgc_ave(1:ifull)  + rgclr(1:ifull)
   rgdn_ave(1:ifull)  = rgdn_ave(1:ifull) + rgdn(1:ifull)
+  rgdc_ave(1:ifull)  = rgdc_ave(1:ifull) + rgdclr(1:ifull)
   sgc_ave(1:ifull)   = sgc_ave(1:ifull)  + sgclr(1:ifull)
+  sgdc_ave(1:ifull)  = sgdc_ave(1:ifull) + sgdclr(1:ifull)
   cld_ave(1:ifull)   = cld_ave(1:ifull)  + cloudtot(1:ifull)
   cll_ave(1:ifull)   = cll_ave(1:ifull)  + cloudlo(1:ifull)
   clm_ave(1:ifull)   = clm_ave(1:ifull)  + cloudmi(1:ifull)
@@ -4017,7 +4047,7 @@ if ( .not.always_mspeca ) then
 end if
 dni_ave(1:ifull)   = dni_ave(1:ifull)  + dni(1:ifull)
 where ( sgdn(1:ifull)>120. )
-  sunhours(1:ifull) = sunhours(1:ifull) + 86400.
+  sunhours(1:ifull) = sunhours(1:ifull) + dt/3600.
 end where
 
 if ( output_windmax/=0 ) then
@@ -4045,7 +4075,6 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull)/min(ntau,nperavg)
   anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull)/min(ntau,nperavg) 
   rnet_ave(1:ifull)          = rnet_ave(1:ifull)/min(ntau,nperavg)
-  sunhours(1:ifull)          = sunhours(1:ifull)/min(ntau,nperavg)
   riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
   rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
   tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
@@ -4054,10 +4083,11 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     wb_ave(1:ifull,k)    = wb_ave(1:ifull,k)/min(ntau,nperavg)
     wbice_ave(1:ifull,k) = wbice_ave(1:ifull,k)/min(ntau,nperavg)
   end do
-  taux_ave(1:ifull)   = taux_ave(1:ifull)/min(ntau,nperavg)
-  tauy_ave(1:ifull)   = tauy_ave(1:ifull)/min(ntau,nperavg)
-  sgn_ave(1:ifull)    = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
-  sgdn_ave(1:ifull)   = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
+  taux_ave(1:ifull)    = taux_ave(1:ifull)/min(ntau,nperavg)
+  tauy_ave(1:ifull)    = tauy_ave(1:ifull)/min(ntau,nperavg)
+  sgn_ave(1:ifull)     = sgn_ave(1:ifull)/min(ntau,nperavg)  ! Dec07 because of solar fit
+  sgdn_ave(1:ifull)    = sgdn_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
+  sgdndir_ave(1:ifull) = sgdndir_ave(1:ifull)/min(ntau,nperavg) ! because of solar fit
   if ( always_mspeca ) then
     sint_ave(1:ifull)   = sint_ave(1:ifull)/max(koundiag,1)
     sot_ave(1:ifull)    = sot_ave(1:ifull)/max(koundiag,1)
@@ -4067,7 +4097,9 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/max(koundiag,1)
     rgn_ave(1:ifull)    = rgn_ave(1:ifull)/max(koundiag,1)
     rgc_ave(1:ifull)    = rgc_ave(1:ifull)/max(koundiag,1)
+    rgdc_ave(1:ifull)   = rgdc_ave(1:ifull)/max(koundiag,1)
     sgc_ave(1:ifull)    = sgc_ave(1:ifull)/max(koundiag,1)
+    sgdc_ave(1:ifull)   = sgdc_ave(1:ifull)/max(koundiag,1)
     cld_ave(1:ifull)    = cld_ave(1:ifull)/max(koundiag,1)
     cll_ave(1:ifull)    = cll_ave(1:ifull)/max(koundiag,1)
     clm_ave(1:ifull)    = clm_ave(1:ifull)/max(koundiag,1)
@@ -4081,7 +4113,9 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     rgdn_ave(1:ifull)   = rgdn_ave(1:ifull)/min(ntau,nperavg)
     rgn_ave(1:ifull)    = rgn_ave(1:ifull)/min(ntau,nperavg)
     rgc_ave(1:ifull)    = rgc_ave(1:ifull)/min(ntau,nperavg)
+    rgdc_ave(1:ifull)   = rgdc_ave(1:ifull)/min(ntau,nperavg)
     sgc_ave(1:ifull)    = sgc_ave(1:ifull)/min(ntau,nperavg)
+    sgdc_ave(1:ifull)   = sgdc_ave(1:ifull)/min(ntau,nperavg)
     cld_ave(1:ifull)    = cld_ave(1:ifull)/min(ntau,nperavg)
     cll_ave(1:ifull)    = cll_ave(1:ifull)/min(ntau,nperavg)
     clm_ave(1:ifull)    = clm_ave(1:ifull)/min(ntau,nperavg)
@@ -4188,8 +4222,7 @@ integer, intent(in) :: mins_gmt, nmaxprsav
 integer iq, k, isoil
 real, dimension(ifull,kl) :: dums
 real, dimension(kl) :: spmean
-!real, dimension(9) :: temparray, gtemparray
-real, dimension(ifull) :: tmparr
+real, dimension(ifull,9) :: tmparr
 complex, dimension(9) :: local_sum, global_sum
 real qtot, pwater, es, psavge, spavge, pslavge
 real preccavge, precavge, gke, clhav, cllav
@@ -4300,28 +4333,20 @@ if ( mod(ktau,nmaxpr)==0 .or. ktau==ntau ) then
   call maxmin(ps,'ps',ktau,.01,1)
   ! MJT notes, these lines need SUMDD
   local_sum(:) = cmplx(0.,0.)
-  tmparr(1:ifull) = ps(1:ifull)*wts(1:ifull)
-  call drpdr_local(tmparr, local_sum(1))
-  tmparr(1:ifull) = psl(1:ifull)*wts(1:ifull)
-  call drpdr_local(tmparr, local_sum(2))
-  tmparr(1:ifull) = precc(1:ifull)*wts(1:ifull)
-  call drpdr_local(tmparr, local_sum(3))
-  tmparr(1:ifull) = precip(1:ifull)*wts(1:ifull)
-  call drpdr_local(tmparr, local_sum(4))
+  tmparr(1:ifull,1) = ps(1:ifull)*wts(1:ifull)
+  tmparr(1:ifull,2) = psl(1:ifull)*wts(1:ifull)
+  tmparr(1:ifull,3) = precc(1:ifull)*wts(1:ifull)
+  tmparr(1:ifull,4) = precip(1:ifull)*wts(1:ifull)
   ! KE calculation, not taking into account pressure weighting  
-  tmparr(1:ifull) = 0.
+  tmparr(1:ifull,5) = 0.
   do k = 1,kl
-    tmparr(1:ifull) = tmparr(1:ifull) - 0.5 * wts(1:ifull) * dsig(k) * ( u(1:ifull,k)**2 + v(1:ifull,k)**2 )
+    tmparr(1:ifull,5) = tmparr(1:ifull,5) - 0.5 * wts(1:ifull) * dsig(k) * ( u(1:ifull,k)**2 + v(1:ifull,k)**2 )
   end do
-  call drpdr_local(tmparr, local_sum(5))
-  tmparr(1:ifull) = cloudlo(1:ifull)*wts(1:ifull)
-  call drpdr_local(tmparr, local_sum(6))
-  tmparr(1:ifull) = cloudmi(1:ifull)*wts(1:ifull)
-  call drpdr_local(tmparr, local_sum(7))  
-  tmparr(1:ifull) = cloudhi(1:ifull)*wts(1:ifull)
-  call drpdr_local(tmparr, local_sum(8))  
-  tmparr(1:ifull) = cloudtot(1:ifull)*wts(1:ifull)
-  call drpdr_local(tmparr, local_sum(9))    
+  tmparr(1:ifull,6) = cloudlo(1:ifull)*wts(1:ifull)
+  tmparr(1:ifull,7) = cloudmi(1:ifull)*wts(1:ifull)
+  tmparr(1:ifull,8) = cloudhi(1:ifull)*wts(1:ifull)
+  tmparr(1:ifull,9) = cloudtot(1:ifull)*wts(1:ifull)
+  call drpdr_local_v(tmparr(:,1:9), local_sum(1:9))
   ! All this combined into a single reduction
   global_sum(:) = cmplx(0.,0.)
   call ccmpi_allreduce( local_sum, global_sum, "sumdr", comm_world )

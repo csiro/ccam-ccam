@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -215,11 +215,12 @@ real, dimension(:), intent(in) :: rlongin, rlatin
 real, intent(in) :: rlong0, rlat0, schmidt
 real, dimension(:), intent(out) :: xout, yout
 real, dimension(3,3) :: rotpolei
-real, dimension(size(nf)) :: xa, ya, za, xx, yy, zz, xgrid, ygrid
+real, dimension(size(nf)) :: xgrid, ygrid
 real, dimension(size(nf)) :: ri, rj
+real xa, ya, za, xx, yy, zz
 real(kind=8), dimension(:,:), pointer :: xx4, yy4 ! avoid intent for pointers
 real(kind=8) dxx,dyy,dxy,dyx
-real(kind=8), dimension(size(nf)) :: x, y, z, denxyz
+real(kind=8) x, y, z, denxyz
 real(kind=8) alf, den
 
 alf = (1._8-schmidt**2)/(1._8+schmidt**2)
@@ -230,60 +231,56 @@ num=num+1
 if (num<numtst) write(6,*) 'a rlongin,rlatin ',rlongin(1),rlatin(1)
 #endif
 
-xa=cos(rlongin*pi/180.)*cos(rlatin*pi/180.)
-ya=sin(rlongin*pi/180.)*cos(rlatin*pi/180.)
-za=sin(rlatin*pi/180.)
+do iq = 1,size(nf)
 
-#ifdef debug
-if (num<numtst) write(6,*) 'b xa,ya,za ',xa(1),ya(1),za(1)
-#endif
+  xa=cos(rlongin(iq)*pi/180.)*cos(rlatin(iq)*pi/180.)
+  ya=sin(rlongin(iq)*pi/180.)*cos(rlatin(iq)*pi/180.)
+  za=sin(rlatin(iq)*pi/180.)
 
-x=rotpolei(1,1)*xa+rotpolei(1,2)*ya+rotpolei(1,3)*za
-y=rotpolei(2,1)*xa+rotpolei(2,2)*ya+rotpolei(2,3)*za
-z=rotpolei(3,1)*xa+rotpolei(3,2)*ya+rotpolei(3,3)*za
+  x=rotpolei(1,1)*xa+rotpolei(1,2)*ya+rotpolei(1,3)*za
+  y=rotpolei(2,1)*xa+rotpolei(2,2)*ya+rotpolei(2,3)*za
+  z=rotpolei(3,1)*xa+rotpolei(3,2)*ya+rotpolei(3,3)*za
 
-#ifdef debug
-if (num<numtst) write(6,*) 'c x,y,z ',x(1),y(1),z(1)
-#endif
+  !     if necessary, transform physical (x, y, z) to equivalent coordinates
+  !     on regular gnomonic panels
+  x=x*(1._8-alf)/(real(schmidt,8)*(1._8-alf*z))
+  y=y*(1._8-alf)/(real(schmidt,8)*(1._8-alf*z))
+  z=(z-alf)/(1._8-alf*z)
 
-!     if necessary, transform physical (x, y, z) to equivalent coordinates
-!     on regular gnomonic panels
-x=x*(1._8-alf)/(real(schmidt,8)*(1._8-alf*z))
-y=y*(1._8-alf)/(real(schmidt,8)*(1._8-alf*z))
-z=(z-alf)/(1._8-alf*z)
+  denxyz=max( abs(x),abs(y),abs(z) )
+  xx=real(x/denxyz)
+  yy=real(y/denxyz)
+  zz=real(z/denxyz)
+  !       deduce corresponding face
+  !        if(ncray.eq.1)then
+  !         all these if statements are replaced by the subsequent cunning code
+  if ( abs(abs(x)-denxyz)<1.e-30_8 .and. abs(x-denxyz)<1.e-30_8 ) then      ! Cray
+    nf(iq)    =0                                                            ! Cray
+    xgrid(iq) =       yy                                                    ! Cray
+    ygrid(iq) =       zz                                                    ! Cray
+  else if ( abs(abs(x)-denxyz)<1.e-30_8 ) then                              ! Cray  
+    nf(iq)    =3                                                            ! Cray
+    xgrid (iq)=     -zz                                                     ! Cray
+    ygrid(iq) =     -yy                                                     ! Cray
+  else if ( abs(abs(z)-denxyz)<1.e-30_8 .and. abs(z-denxyz)<1.e-30_8 ) then ! Cray
+    nf(iq)    =1                                                            ! Cray
+    xgrid(iq) =      yy                                                     ! Cray
+    ygrid(iq) =     -xx                                                     ! Cray
+  else if ( abs(abs(z)-denxyz)<1.e-30_8 ) then                              ! Cray
+    nf(iq)    =4                                                            ! Cray
+    xgrid(iq) =      xx                                                     ! Cray
+    ygrid(iq) =     -yy                                                     ! Cray
+  else if ( abs(y-denxyz)<1.e-30_8 ) then                                   ! Cray
+    nf(iq)    =2                                                            ! Cray
+    xgrid(iq) =     -zz                                                     ! Cray
+    ygrid(iq) =     -xx                                                     ! Cray
+  else                                                                      ! Cray
+    nf(iq)    =5                                                            ! Cray
+    xgrid(iq) =      xx                                                     ! Cray
+    ygrid(iq) =      zz                                                     ! Cray
+  end if                                                                    ! Cray
 
-denxyz=max( abs(x),abs(y),abs(z) )
-xx=real(x/denxyz)
-yy=real(y/denxyz)
-zz=real(z/denxyz)
-!       deduce corresponding face
-!        if(ncray.eq.1)then
-!         all these if statements are replaced by the subsequent cunning code
-where ( abs(abs(x)-denxyz)<1.e-30_8 .and. abs(x-denxyz)<1.e-30_8 )     ! Cray
-  nf    =0                                                             ! Cray
-  xgrid =       yy                                                     ! Cray
-  ygrid =       zz                                                     ! Cray
-elsewhere ( abs(abs(x)-denxyz)<1.e-30_8 )                              ! Cray  
-  nf    =3                                                             ! Cray
-  xgrid =     -zz                                                      ! Cray
-  ygrid =     -yy                                                      ! Cray
-elsewhere ( abs(abs(z)-denxyz)<1.e-30_8 .and. abs(z-denxyz)<1.e-30_8 ) ! Cray
-  nf    =1                                                             ! Cray
-  xgrid =      yy                                                      ! Cray
-  ygrid =     -xx                                                      ! Cray
-elsewhere ( abs(abs(z)-denxyz)<1.e-30_8 )                              ! Cray
-  nf    =4                                                             ! Cray
-  xgrid =      xx                                                      ! Cray
-  ygrid =     -yy                                                      ! Cray
-elsewhere ( abs(y-denxyz)<1.e-30_8 )                                   ! Cray
-  nf    =2                                                             ! Cray
-  xgrid =     -zz                                                      ! Cray
-  ygrid =     -xx                                                      ! Cray
-elsewhere                                                              ! Cray
-  nf    =5                                                             ! Cray
-  xgrid =      xx                                                      ! Cray
-  ygrid =      zz                                                      ! Cray
-end where                                                              ! Cray
+end do
 
 !       convert to grid point numbering
 !       the xytoij routine follows
