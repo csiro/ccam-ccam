@@ -1496,11 +1496,11 @@ if ( nested/=1 .and. nested/=3 ) then
   
   !------------------------------------------------------------------
   ! Read snow and soil tempertaure
+  call gethist1('snd',snowd)
+  where ( .not.land(1:ifull) .and. (sicedep(1:ifull)<1.e-20 .or. nmlo==0) )
+    snowd(1:ifull) = 0.
+  end where
   if ( nested/=4 ) then
-    call gethist1('snd',snowd)
-    where ( .not.land(1:ifull) .and. (sicedep(1:ifull)<1.e-20 .or. nmlo==0) )
-      snowd(1:ifull) = 0.
-    end where
     if ( all(tgg_found(1:ms)) ) then
       call fillhist4('tgg',tgg,sea_a,fill_sea)
     else

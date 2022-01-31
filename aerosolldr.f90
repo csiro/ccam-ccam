@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -2296,10 +2296,9 @@ real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(ndust), intent(in) :: dustden, dustreff
 
 ! Local work arrays and variables
-real, dimension(imax) :: c_stokes, corr, c_cun
-real, dimension(imax) :: newxtg, b, dfall
-real, dimension(imax) :: vd_cor
-integer nt,k
+real, dimension(imax) :: dfall
+real c_stokes, corr, c_cun, vd_cor, b, newxtg
+integer nt,k,iq
 
 ! Start code : ----------------------------------------------------------
 
@@ -2309,42 +2308,46 @@ do nt = 1, NDUST
   ! DUSTREFF    effective radius of soil class (m)
   ! grav        gravity                        (m/s2)
   ! 0.5         upper limit with temp correction (already incorporated with dzmin_gbl - MJT)
-  
+
   ! Solve at the model top
-  ! Dynamic viscosity
-  C_Stokes = 1.458E-6*TMP(1:imax,kl)**1.5/(TMP(1:imax,kl)+110.4) 
-  ! Cuningham correction
-  Corr = 6.6E-8*prf(:,kl)/1013.*TMP(1:imax,kl)/293.15
-  C_Cun = 1. + 1.249*corr/dustreff(nt)
-  ! Settling velocity
-  Vd_cor(:) = 2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
+  do iq = 1,imax
+    ! Dynamic viscosity
+    C_Stokes = 1.458E-6*TMP(iq,kl)**1.5/(TMP(iq,kl)+110.4) 
+    ! Cuningham correction
+    Corr = 6.6E-8*prf(iq,kl)/1013.*TMP(iq,kl)/293.15
+    C_Cun = 1. + 1.249*corr/dustreff(nt)
+    ! Settling velocity
+    Vd_cor = 2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
   
-  ! Update mixing ratio
-  b = tdt*VD_cor(:)/DELZ(:,kl)
-  newxtg = xtg(1:imax,kl,nt+itracdu-1)*exp(-b)
-  newxtg = max( newxtg, 0. )
-  dfall = max( xtg(1:imax,kl,nt+itracdu-1) - newxtg, 0. )
-  xtg(1:imax,kl,nt+itracdu-1) = newxtg
+    ! Update mixing ratio
+    b = tdt*VD_cor/DELZ(iq,kl)
+    newxtg = xtg(iq,kl,nt+itracdu-1)*exp(-b)
+    newxtg = max( newxtg, 0. )
+    dfall(iq) = max( xtg(iq,kl,nt+itracdu-1) - newxtg, 0. )
+    xtg(iq,kl,nt+itracdu-1) = newxtg
+  end do
   
   ! Solve each vertical layer successively (layer k)
   do k = kl-1,1,-1
-    ! Dynamic viscosity
-    C_Stokes = 1.458E-6*TMP(1:imax,k)**1.5/(TMP(1:imax,k)+110.4) 
-    ! Cuningham correction
-    Corr = 6.6E-8*prf(:,k)/1013.*TMP(1:imax,k)/293.15
-    C_Cun = 1. + 1.249*corr/dustreff(nt)
-    ! Settling velocity
-    Vd_cor(:) = 2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
+    do iq = 1,imax
+      ! Dynamic viscosity
+      C_Stokes = 1.458E-6*TMP(iq,k)**1.5/(TMP(iq,k)+110.4) 
+      ! Cuningham correction
+      Corr = 6.6E-8*prf(iq,k)/1013.*TMP(iq,k)/293.15
+      C_Cun = 1. + 1.249*corr/dustreff(nt)
+      ! Settling velocity
+      Vd_cor = 2./9.*grav*dustden(nt)*dustreff(nt)**2/C_Stokes*C_Cun
       
-    ! Update mixing ratio
-    b = tdt*Vd_cor(:)/DELZ(:,k)
-    dfall = dfall * delz(:,k+1)*rhoa(:,k+1)/(delz(:,k)*rhoa(:,k))
-    ! Fout = 1.-exp(-b)
-    ! Fthru = 1.-Fout/b
-    newxtg = xtg(1:imax,k,nt+itracdu-1)*exp(-b) + dfall*(1.-exp(-b))/b
-    newxtg = max( newxtg, 0. )
-    dfall = max( xtg(1:imax,k,nt+itracdu-1) + dfall - newxtg, 0. )
-    xtg(1:imax,k,nt+itracdu-1) = newxtg
+      ! Update mixing ratio
+      b = tdt*Vd_cor/DELZ(iq,k)
+      dfall(iq) = dfall(iq) * delz(iq,k+1)*rhoa(iq,k+1)/(delz(iq,k)*rhoa(iq,k))
+      ! Fout = 1.-exp(-b)
+      ! Fthru = 1.-Fout/b
+      newxtg = xtg(iq,k,nt+itracdu-1)*exp(-b) + dfall(iq)*(1.-exp(-b))/b
+      newxtg = max( newxtg, 0. )
+      dfall(iq) = max( xtg(iq,k,nt+itracdu-1) + dfall(iq) - newxtg, 0. )
+      xtg(iq,k,nt+itracdu-1) = newxtg
+    end do
   end do
   
 end do
@@ -2370,16 +2373,14 @@ real, dimension(imax), intent(in) :: dz1        !Lowest layer thickness (m)
 real, dimension(imax), intent(in) :: vt         !Transfer velocity at surface for dry deposition (m/s)
 real, dimension(imax), intent(in) :: snowd      !Snow depth (mm equivalent water)
 real, dimension(imax) :: snowa     !Estimated snow areal coverage
-real, dimension(imax) :: u_ts0,u_ts,veff
-real, dimension(imax) :: srce,dsrc,airmas
-real, dimension(imax) :: a,b
-real, dimension(imax) :: airden
+real, dimension(imax) :: airmas, airden
 real, dimension(imax,ndcls), intent(in) :: erod
 real, dimension(imax,ndust), intent(inout) :: duste
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(ndust), intent(in) :: dustden, dustreff
-real g,den,diam
-integer n,m
+real g, den, diam
+real u_ts0, u_ts, srce, dsrc, a, b, veff
+integer n, m ,iq
 
 real, parameter :: w_dust = 15. ! maxmium wind speed for dust emissions
 
@@ -2396,9 +2397,7 @@ g = grav*1.e2
 airden = rhoa*1.e-3
 
 ! Convert snow depth to estimated areal coverage (see Zender et al 2003, JGR 108, D14, 4416)
-! Must convert from mm to m, then adjust by rho_l/rho_s=10.
 ! 0.05 m is the geometrical snow thickness for 100% areal coverage.
-!hsnow = snowd*0.01 !Geometrical snow thickness in metres
 snowa = min( 1., snowd/5. )
 airmas = dz1 * rhoa  ! kg/m2
 
@@ -2408,48 +2407,51 @@ do n = 1, ndust
   diam = 2.*dustreff(n)*1.e2
   ! Pointer to the 3 classes considered in the source data files
   m = ipoint(n)
+
+  do iq = 1,imax
   
-  ! Following is from Ginoux et al (2004) Env. Modelling & Software.
-  u_ts0 = 0.13*1.e-2*sqrt(den*g*diam/airden)*sqrt(1.+0.006/den/g/diam**2.5)/ &
-          sqrt(1.928*(1331.*diam**1.56+0.38)**0.092-1.)
+    ! Following is from Ginoux et al (2004) Env. Modelling & Software.
+    u_ts0 = 0.13*1.e-2*sqrt(den*g*diam/airden(iq))*sqrt(1.+0.006/den/g/diam**2.5)/ &
+            sqrt(1.928*(1331.*diam**1.56+0.38)**0.092-1.)
   
-  ! Case of surface dry enough to erode
-  where ( wg<0.1 )
-    !Tuning suggested for Asian source by P. Ginoux
-    u_ts = max( 0., u_ts0*(1.2+0.2*alog10(max( 1.e-3, wg ))) )
-  elsewhere
-    ! Case of wet surface, no erosion
-    u_ts = 100.
-  end where
+    ! Case of surface dry enough to erode
+    if ( wg(iq)<0.1 ) then
+      !Tuning suggested for Asian source by P. Ginoux
+      u_ts = max( 0., u_ts0*(1.2+0.2*alog10(max( 1.e-3, wg(iq) ))) )
+    else
+      ! Case of wet surface, no erosion
+      u_ts = 100.
+    end if
   
-  ! MJT notes - erod should be zero for ocean points
+    ! MJT notes - erod should be zero for ocean points
     
-  !srce = frac_s(n)*erod(i,m)*dxy(i) ! (m2)
-  srce = frac_s(n)*erod(:,m) ! (fraction) - MJT suggestion
-  where ( w10m < w_dust )
-    dsrc = (1.-snowa)*Ch_dust*srce*W10m*W10m*(W10m-u_ts) ! (kg/s/m2)
-  elsewhere
-    ! limit maximum wind speed to w_dust m/s for emissions - MJT sugestion  
-    dsrc = (1.-snowa)*Ch_dust*srce*w_dust*w_dust*(w_dust-u_ts) ! (kg/s/m2)  
-  end where
-  dsrc = max( 0., dsrc )
+    !srce = frac_s(n)*erod(iq,m)*dxy(iq) ! (m2)
+    srce = frac_s(n)*erod(iq,m) ! (fraction) - MJT suggestion
+    if ( w10m(iq) < w_dust ) then
+      dsrc = (1.-snowa(iq))*Ch_dust*srce*W10m(iq)**2*(W10m(iq)-u_ts) ! (kg/s/m2)
+    else
+      ! limit maximum wind speed to w_dust m/s for emissions - MJT sugestion  
+      dsrc = (1.-snowa(iq))*Ch_dust*srce*w_dust**2*(w_dust-u_ts) ! (kg/s/m2)  
+    end if
+    dsrc = max( 0., dsrc )
 
-  ! Calculate dust mixing ratio tendency at first model level.
-  a = dsrc / max(airmas,0.1)
-  duste(:,n) = duste(:,n) + dsrc ! Diagnostic
+    ! Calculate dust mixing ratio tendency at first model level.
+    a = dsrc / max(airmas(iq),0.1)
+    duste(iq,n) = duste(iq,n) + dsrc ! Diagnostic
       
-  ! Calculate turbulent dry deposition at surface
-  ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
-  veff = max( Vt*(wg+(1.-wg)*exp(-max( 0., w10m-u_ts0 ))), 0. )
-  b = Veff / dz1
+    ! Calculate turbulent dry deposition at surface
+    ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
+    veff = max( Vt(iq)*(wg(iq)+(1.-wg(iq))*exp(-max( 0., w10m(iq)-u_ts0 ))), 0. )
+    b = Veff / dz1(iq)
 
-  ! Update mixing ratio
-  ! Write in form dx/dt = a - b*x (a = source term, b = drydep term)
-  ! solution is x = a/b + (X0-a/b)*exp(-b*tdt).  However, in split form
-  ! x = X0 + a*tdt, and x = X0*exp(-b*tdt), or combined
-  ! x = (X0 + a*tdt)*exp(-b*tdt)
-  xtg(1:imax,1,n+itracdu-1) = (xtg(1:imax,1,n+itracdu-1)+a*tdt)*exp(-min(b*tdt,50.))
-  xtg(1:imax,1,n+itracdu-1) = max( 0., xtg(1:imax,1,n+itracdu-1) )
+    ! Update mixing ratio
+    ! Write in form dx/dt = a - b*x (a = source term, b = drydep term)
+    ! solution is x = a/b + (X0-a/b)*exp(-b*tdt).  However, in split form
+    ! x = X0 + a*tdt, and x = X0*exp(-b*tdt), or combined
+    ! x = (X0 + a*tdt)*exp(-b*tdt)
+    xtg(iq,1,n+itracdu-1) = (xtg(iq,1,n+itracdu-1)+a*tdt)*exp(-min(b*tdt,50.))
+    xtg(iq,1,n+itracdu-1) = max( 0., xtg(iq,1,n+itracdu-1) )
+  end do
 
 end do
 
@@ -2587,48 +2589,51 @@ real, dimension(imax,kl), intent(in) :: delz !Layer thickness (m)
 real, dimension(imax,kl), intent(in) :: prf  !Pressure (hPa)
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(nsalt), intent(in) :: saltden, saltreff
-real, dimension(imax) :: c_stokes, corr, c_cun
-real, dimension(imax) :: newxtg, b, dfall
-real, dimension(imax) :: vd_cor
-integer nt, k
+real, dimension(imax) :: dfall
+real vd_cor, newxtg, b, c_stokes, corr, c_cun
+integer nt, k, iq
 
 do nt = 1,nsalt
   
   ! Solve at the model top
-  ! Dynamic viscosity
-  C_Stokes = 1.458E-6*TMP(1:imax,kl)**1.5/(TMP(1:imax,kl)+110.4) 
-  ! Cuningham correction
-  Corr = 6.6E-8*prf(:,kl)/1013.*TMP(1:imax,kl)/293.15
-  C_Cun = 1. + 1.249*corr/saltreff(nt)
-  ! Settling velocity
-  Vd_cor(:) = 2./9.*grav*saltden(nt)*saltreff(nt)**2/C_Stokes*C_Cun
+  do iq = 1,imax
+    ! Dynamic viscosity
+    C_Stokes = 1.458E-6*TMP(iq,kl)**1.5/(TMP(iq,kl)+110.4) 
+    ! Cuningham correction
+    Corr = 6.6E-8*prf(iq,kl)/1013.*TMP(iq,kl)/293.15
+    C_Cun = 1. + 1.249*corr/saltreff(nt)
+    ! Settling velocity
+    Vd_cor = 2./9.*grav*saltden(nt)*saltreff(nt)**2/C_Stokes*C_Cun
   
-  ! Update mixing ratio
-  b = tdt*VD_cor(:)/DELZ(:,kl)
-  newxtg = xtg(1:imax,kl,nt+itracsa-1)*exp(-b)
-  newxtg = max( newxtg, 0. )
-  dfall = max( xtg(1:imax,kl,nt+itracsa-1) - newxtg, 0. )
-  xtg(1:imax,kl,nt+itracsa-1) = newxtg
+    ! Update mixing ratio
+    b = tdt*VD_cor/DELZ(iq,kl)
+    newxtg = xtg(iq,kl,nt+itracsa-1)*exp(-b)
+    newxtg = max( newxtg, 0. )
+    dfall(iq) = max( xtg(iq,kl,nt+itracsa-1) - newxtg, 0. )
+    xtg(iq,kl,nt+itracsa-1) = newxtg
+  end do
   
   ! Solve each vertical layer successively (layer k)
   do k = kl-1,1,-1
-    ! Dynamic viscosity
-    C_Stokes = 1.458E-6*TMP(1:imax,k)**1.5/(TMP(1:imax,k)+110.4) 
-    ! Cuningham correction
-    Corr = 6.6E-8*prf(:,k)/1013.*TMP(1:imax,k)/293.15
-    C_Cun = 1. + 1.249*corr/saltreff(nt)
-    ! Settling velocity
-    Vd_cor(:) = 2./9.*grav*saltden(nt)*saltreff(nt)**2/C_Stokes*C_Cun
+    do iq = 1,imax
+      ! Dynamic viscosity
+      C_Stokes = 1.458E-6*TMP(iq,k)**1.5/(TMP(iq,k)+110.4) 
+      ! Cuningham correction
+      Corr = 6.6E-8*prf(iq,k)/1013.*TMP(iq,k)/293.15
+      C_Cun = 1. + 1.249*corr/saltreff(nt)
+      ! Settling velocity
+      Vd_cor = 2./9.*grav*saltden(nt)*saltreff(nt)**2/C_Stokes*C_Cun
       
-    ! Update mixing ratio
-    b = tdt*Vd_cor(:)/DELZ(:,k)
-    dfall = dfall * delz(:,k+1)*rhoa(:,k+1)/(delz(:,k)*rhoa(:,k))
-    ! Fout = 1.-exp(-b)
-    ! Fthru = 1.-Fout/b
-    newxtg = xtg(1:imax,k,nt+itracsa-1)*exp(-b) + dfall*(1.-exp(-b))/b
-    newxtg = max( newxtg, 0. )
-    dfall = max( xtg(1:imax,k,nt+itracsa-1) + dfall - newxtg, 0. )
-    xtg(1:imax,k,nt+itracsa-1) = newxtg
+      ! Update mixing ratio
+      b = tdt*Vd_cor/DELZ(iq,k)
+      dfall(iq) = dfall(iq) * delz(iq,k+1)*rhoa(iq,k+1)/(delz(iq,k)*rhoa(iq,k))
+      ! Fout = 1.-exp(-b)
+      ! Fthru = 1.-Fout/b
+      newxtg = xtg(iq,k,nt+itracsa-1)*exp(-b) + dfall(iq)*(1.-exp(-b))/b
+      newxtg = max( newxtg, 0. )
+      dfall(iq) = max( xtg(iq,k,nt+itracsa-1) + dfall(iq) - newxtg, 0. )
+      xtg(iq,k,nt+itracsa-1) = newxtg
+    end do
   end do
   
 end do
@@ -2643,16 +2648,16 @@ subroutine seasaltem(tdt,v10m,vt,rhoa,dz1,salte,xtg,saltreff,locean,imax,kl)
 implicit none
 
 integer, intent(in) :: imax, kl
-integer n
+integer n, iq
 real, intent(in) :: tdt
+real df0dd, dfdd, ftw, fsw, a, b, veff, diam
 real, dimension(imax), intent(in) :: v10m    ! 10m wind speed
 real, dimension(imax), intent(in) :: vt      ! transfer velocity
 real, dimension(imax), intent(in) :: dz1     ! layer thickness
 real, dimension(imax), intent(in) :: rhoa    ! air density
 real, dimension(imax), intent(inout) :: salte
 real, dimension(imax,kl,naero), intent(inout) :: xtg
-real, dimension(imax) :: wu10, dfdd, df0dd, a, b, veff, diam
-real, dimension(imax) :: ftw, fsw
+real, dimension(imax) :: wu10
 real, dimension(nsalt) :: mtnfactor
 real, dimension(nsalt), intent(in) :: saltreff
 real, dimension(nsalt), parameter :: saltrange = (/ 0.4e-6, 3.5e-6 /) ! 0.1-0.5um and 0.5-4um
@@ -2681,29 +2686,32 @@ do n = 1,nsalt
   fsw = 0.12*diam**(-0.71)
   !fsw = 5.85*e-5*diam**-1.7 ! sal = 0.
   
-  dfdd = wu10*df0dd*ftw*fsw  ! number/micro/m^2/s
-  
-  where ( locean )
-    a = dfdd*2.*saltrange(n)*1.e6/(rhoa*dz1) ! number/kg/s
-  elsewhere
-    a = 0.
-  end where 
-  
-  a = a/mtnfactor(n) ! kg/kg/s  
-  
-  salte = salte + a*rhoa*dz1 ! Diagnostic
-  
-  ! Calculate turbulent dry deposition at surface
-  veff = Vt
-  b = Veff / dz1
+  do iq = 1,imax
 
-  ! Update mixing ratio
-  ! Write in form dx/dt = a - b*x (a = source term, b = drydep term)
-  ! solution is x = a/b + (X0-a/b)*exp(-b*tdt).  However, in split form
-  ! x = X0 + a*tdt, and x = X0*exp(-b*tdt), or combined
-  ! x = (X0 + a*tdt)*exp(-b*tdt)
-  xtg(1:imax,1,n+itracsa-1) = (xtg(1:imax,1,n+itracsa-1)+a*tdt)*exp(-min(b*tdt,50.))
-  xtg(1:imax,1,n+itracsa-1) = max( 0., xtg(1:imax,1,n+itracsa-1) )
+    dfdd = wu10(iq)*df0dd*ftw*fsw  ! number/micro/m^2/s
+  
+    if ( locean(iq) ) then
+      a = dfdd*2.*saltrange(n)*1.e6/(rhoa(iq)*dz1(iq)) ! number/kg/s
+    else
+      a = 0.
+    end if 
+  
+    a = a/mtnfactor(n) ! kg/kg/s  
+  
+    salte(iq) = salte(iq) + a*rhoa(iq)*dz1(iq) ! Diagnostic
+  
+    ! Calculate turbulent dry deposition at surface
+    veff = Vt(iq)
+    b = Veff / dz1(iq)
+
+    ! Update mixing ratio
+    ! Write in form dx/dt = a - b*x (a = source term, b = drydep term) 
+    ! solution is x = a/b + (X0-a/b)*exp(-b*tdt).  However, in split form
+    ! x = X0 + a*tdt, and x = X0*exp(-b*tdt), or combined
+    ! x = (X0 + a*tdt)*exp(-b*tdt)
+    xtg(iq,1,n+itracsa-1) = (xtg(iq,1,n+itracsa-1)+a*tdt)*exp(-min(b*tdt,50.))
+    xtg(iq,1,n+itracsa-1) = max( 0., xtg(iq,1,n+itracsa-1) )
+  end do
 end do    
 
 return
