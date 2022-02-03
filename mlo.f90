@@ -4216,27 +4216,23 @@ implicit none
 
 integer, intent(in) :: diag
 integer iqw, ii
-real aa, bb, dsf, deldz, delt
+real aa, bb, deldz
 real, dimension(imax,wlev) :: sdic
-real, dimension(imax) :: newdic, cdic
+real, dimension(imax) :: newdic, cdic, dsf, delt
 real, dimension(imax) :: d_zcr, d_neta
 real, dimension(imax) :: d_timelt
 type(icedata), intent(inout) :: ice
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
-real, dimension(imax) :: maxnewice, d_wavail, xxx
-logical, dimension(imax) :: lnewice, lremove
+real, dimension(imax) :: maxnewice, d_wavail
+logical, dimension(imax) :: lremove
 
 if (diag>=1) write(6,*) "Form new ice"
 if ( .not.mlo_active ) return
 if ( .not.depth%data_allocated ) return
 
 call calcmelt(d_timelt,water)
-where ( depth%dz(:,1)>=1.e-4 )
-  d_zcr = max(1.+water%eta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))  
-elsewhere
-  d_zcr = 1.
-end where
+d_zcr = max(1.+water%eta/max(depth%depth_hl(:,wlev+1),1.e-4),minwater/max(depth%depth_hl(:,wlev+1),1.e-4))  
 d_neta = water%eta
 
 ! limits on ice formation due to water avaliability
@@ -4248,59 +4244,56 @@ elsewhere
 end where
 
 ! search for water temperatures that are below freezing
-sdic=0.
-newdic=0.
-do iqw=1,imax
-  if ( maxnewice(iqw)>0. ) then
-    dsf=0.  
-    do ii=1,wlev-1
-      aa=depth%dz(iqw,ii)*d_zcr(iqw)
-      bb=max(minsfc-dsf,0.)
-      deldz=min(aa,bb)
+sdic = 0.
+newdic = 0.
+dsf = 0.
+do ii = 1,wlev-1
+  do iqw = 1,imax
+    if ( maxnewice(iqw)>0. ) then
+      aa = depth%dz(iqw,ii)*d_zcr(iqw)
+      bb = max(minsfc-dsf(iqw), 0.)
+      deldz = min(aa, bb)
       ! Energy = sdic*qice*(1-fracice) = del_temp*cp0*wrtrho*deldz
-      sdic(iqw,ii)=max(d_timelt(iqw)-water%temp(iqw,ii)-wrtemp,0.)*cp0*wrtrho*deldz &
+      sdic(iqw,ii) = max(d_timelt(iqw)-water%temp(iqw,ii)-wrtemp,0.)*cp0*wrtrho*deldz &
                    /qice/(1.-ice%fracice(iqw))
-      dsf=dsf+deldz
-      newdic(iqw) = newdic(iqw) + sdic(iqw,ii)
-    end do
-  end if
+      dsf(iqw) = dsf(iqw) + deldz
+    end if
+  end do
+  newdic(:) = newdic(:) + sdic(:,ii)
 end do
 newdic=min(newdic,maxnewice)
-lnewice = newdic>icemin
-where ( .not.lnewice )
+where ( newdic<=icemin )
   newdic = 0.
 end where
 
-d_neta=d_neta-newdic*(1.-ice%fracice)*rhoic/wrtrho
+d_neta = d_neta - newdic*(1.-ice%fracice)*rhoic/wrtrho
 
 ! Adjust temperature in water column to balance the energy cost of ice formation
 ! Energy = qice*newdic = del_temp*c0*wrtrho*dz*d_zcr
-cdic=0.
-do ii=1,wlev
+cdic = 0.
+do ii = 1,wlev
   sdic(:,ii)=max(min(sdic(:,ii),newdic-cdic),0.)
   cdic=cdic+sdic(:,ii)  
-  where ( lnewice .and. depth%dz(:,ii)>1.e-4 )
-    water%temp(:,ii)=water%temp(:,ii)+(1.-ice%fracice)*qice*sdic(:,ii)/(cp0*wrtrho*depth%dz(:,ii)*d_zcr)
+  where ( newdic>icemin .and. depth%dz(:,ii)>1.e-4 )
+    water%temp(:,ii)=water%temp(:,ii)+(1.-ice%fracice)*qice*sdic(:,ii) &
+        /(cp0*wrtrho*max(depth%dz(:,ii)*d_zcr,1.e-4))
     ! MJT notes - remove salt flux between ice and water for now
     water%sal(:,ii) =water%sal(:,ii)*(1.+(1.-ice%fracice)*sdic(:,ii)*rhoic &
-                      /(wrtrho*depth%dz(:,ii)*d_zcr))
+                      /(wrtrho*max(depth%dz(:,ii)*d_zcr,1.e-4)))
   end where
 end do
 
 ! form new sea-ice
-do iqw=1,imax
-  if ( lnewice(iqw) ) then
-    ice%thick(iqw)=ice%thick(iqw)*ice%fracice(iqw)+newdic(iqw)*(1.-ice%fracice(iqw))
-    ice%tsurf(iqw)=ice%tsurf(iqw)*ice%fracice(iqw)+d_timelt(iqw)*(1.-ice%fracice(iqw))
-    ice%store(iqw)=ice%store(iqw)*ice%fracice(iqw)
-    ice%snowd(iqw)=ice%snowd(iqw)*ice%fracice(iqw)
-    ice%fracice(iqw)=1.
-  end if
-end do
+where ( newdic>icemin )
+  ice%thick(:)=ice%thick(:)*ice%fracice(:)+newdic(:)*(1.-ice%fracice(:))
+  ice%tsurf(:)=ice%tsurf(:)*ice%fracice(:)+d_timelt(:)*(1.-ice%fracice(:))
+  ice%store(:)=ice%store(:)*ice%fracice(:)
+  ice%snowd(:)=ice%snowd(:)*ice%fracice(:)
+  ice%fracice(:)=1.
+end where
 
 ! Ice depth limitation for poor initial conditions
-xxx=max(ice%thick-icemax,0.)
-ice%thick=ice%thick-xxx   
+ice%thick=ice%thick-max(ice%thick-icemax,0.)  
 ! no temperature or salinity conservation
 
 call mlocheck("MLO-newice",water_temp=water%temp,water_sal=water%sal,ice_tsurf=ice%tsurf, &
@@ -4315,40 +4308,44 @@ elsewhere
 end where
 d_neta=d_neta+ice%fracice*newdic*rhoic/wrtrho
 
-do iqw=1,imax
-  if ( lremove(iqw) ) then
+! update average temperature and salinity
+where ( lremove )
+  delt=ice%fracice(:)*ice%thick(:)*qice
+  delt=delt+ice%fracice(:)*ice%snowd(:)*qsnow
+  delt=delt-ice%fracice(:)*ice%store(:)
+  delt=delt-ice%fracice(:)*gammi*(ice%tsurf(:)-d_timelt(:)) ! change from when ice formed
+end where
 
-    ! update average temperature and salinity
-    delt=ice%fracice(iqw)*ice%thick(iqw)*qice
-    delt=delt+ice%fracice(iqw)*ice%snowd(iqw)*qsnow
-    delt=delt-ice%fracice(iqw)*ice%store(iqw)
-    delt=delt-ice%fracice(iqw)*gammi*(ice%tsurf(iqw)-d_timelt(iqw)) ! change from when ice formed
-    
-    ! adjust temperature and salinity in water column
-    dsf = 0.
-    do ii = 1,wlev
+dsf = 0.
+do ii = 1,wlev
+  do iqw = 1,imax
+    if ( lremove(iqw) .and. depth%dz(iqw,ii)>1.e-4 ) then
+      ! adjust temperature and salinity in water column
       aa = depth%dz(iqw,ii)*d_zcr(iqw)
-      bb = max(minsfc-dsf,0.)
+      bb = max(minsfc-dsf(iqw),0.)
       deldz = min(aa,bb)
       sdic(iqw,ii) = newdic(iqw)*deldz/minsfc
-      if ( depth%dz(iqw,ii)>1.e-4 ) then
-        water%temp(iqw,ii) = water%temp(iqw,ii)-delt*(deldz/minsfc)/(cp0*wrtrho*depth%dz(iqw,ii)*d_zcr(iqw))
-        ! MJT notes - remove salt flux between ice and water for now
-        water%sal(iqw,ii) = water%sal(iqw,ii)/(1.+ice%fracice(iqw)*sdic(iqw,ii)*rhoic &
-                            /(wrtrho*depth%dz(iqw,ii)*d_zcr(iqw)))
-      end if  
-      dsf = dsf + deldz
-    end do
+      water%temp(iqw,ii) = water%temp(iqw,ii)-delt(iqw)*(deldz/minsfc) &
+          /(cp0*wrtrho*depth%dz(iqw,ii)*d_zcr(iqw))
+      ! MJT notes - remove salt flux between ice and water for now
+      water%sal(iqw,ii) = water%sal(iqw,ii)/(1.+ice%fracice(iqw)*sdic(iqw,ii)*rhoic &
+                          /(wrtrho*depth%dz(iqw,ii)*d_zcr(iqw)))
+      dsf(iqw) = dsf(iqw) + deldz
+    end if
+  end do
+end do  
 
-    ! remove ice
-    ice%fracice(iqw)=0.
-    ice%thick(iqw)=0.
-    ice%snowd(iqw)=0.
-    ice%store(iqw)=0.
-    ice%tsurf(iqw)=273.16
-    ice%temp(iqw,:)=273.16
-  end if
-end do
+! remove ice
+where ( lremove )
+  ice%fracice(:)=0.
+  ice%thick(:)=0.
+  ice%snowd(:)=0.
+  ice%store(:)=0.
+  ice%tsurf(:)=273.16
+  ice%temp(:,0)=273.16
+  ice%temp(:,1)=273.16
+  ice%temp(:,2)=273.16
+end where
 
 ! MJT notes - remove salt flux between ice and water for now
 water%eta = d_neta

@@ -650,8 +650,8 @@ contains
       drlen(:) = 0
       do dproc = 1,neighnum
         iproc = neighlist(dproc)
-        allocate( dpoints(dproc)%a(4,bnds(iproc)%len) )
-        allocate( dbuf(dproc)%a(4,bnds(iproc)%len) )
+        allocate( dpoints(dproc)%a(bnds(iproc)%len,4) )
+        allocate( dbuf(dproc)%a(bnds(iproc)%len,4) )
         allocate( dbuf(dproc)%b(nagg*bnds(iproc)%len) )
         allocate( dindex(dproc)%a(bnds(iproc)%len,2) )
         allocate( sextra(dproc)%a(nagg*bnds(iproc)%len) )
@@ -5895,7 +5895,8 @@ contains
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
-#endif   
+#endif  
+      real, dimension(4,maxbuflen*maxvertlen,neighnum) :: buf_dpoints, buf_dbuf 
 
       ! This does nothing in the one processor case
       if ( neighnum < 1 ) return
@@ -5913,7 +5914,7 @@ contains
          lproc = neighlist(iproc)  ! Recv from
          ! Use the maximum size in the recv call.
          llen = 4*bnds(lproc)%len
-         call MPI_IRecv( dpoints(iproc)%a, llen, ltype, lproc, &
+         call MPI_IRecv( buf_dpoints(:,:,iproc), llen, ltype, lproc, &
                       itag, lcomm, ireq(iproc), ierr )
       end do
       nreq = neighnum
@@ -5936,7 +5937,10 @@ contains
                xn = max( min( dslen(dproc), bnds(iproc)%len ), 1 )
                ! Since nface is a small integer it can be exactly represented by a
                ! real. It is simpler to send like this than use a proper structure.
-               dbuf(dproc)%a(:,xn) = (/ real(nface(iq,k)), xg(iq,k), yg(iq,k), real(k) /)
+               dbuf(dproc)%a(xn,1) = real(nface(iq,k))
+               dbuf(dproc)%a(xn,2) = xg(iq,k)
+               dbuf(dproc)%a(xn,3) = yg(iq,k)
+               dbuf(dproc)%a(xn,4) = real(k)
                dindex(dproc)%a(xn,1) = iq
                dindex(dproc)%a(xn,2) = k
             end if
@@ -5945,12 +5949,12 @@ contains
  
       ! Check for errors
       if ( dslen(0) > 0 ) then
-         ip = min( il_g, max( 1, nint(dbuf(0)%a(2,1)) ) )
-         jp = min( il_g, max( 1, nint(dbuf(0)%a(3,1)) ) )
+         ip = min( il_g, max( 1, nint(dbuf(0)%a(1,2)) ) )
+         jp = min( il_g, max( 1, nint(dbuf(0)%a(1,3)) ) )
          iproc = fproc(ip,jp,nint(dbuf(0)%a(1,1)))
          write(6,*) "myid,dslen,len ",myid,dslen(0),0
          write(6,*) "Example error iq,k,iproc ",dindex(0)%a(1,1),dindex(0)%a(1,2),iproc
-         write(6,*) "dbuf ",dbuf(0)%a(:,1)
+         write(6,*) "dbuf ",dbuf(0)%a(1,:)
          write(6,*) "neighlist ",neighlist
          write(6,*) "ERROR: Wind speed is very large and the departure point is"
          write(6,*) "       further away than the neighbouring processes. This"
@@ -5964,7 +5968,7 @@ contains
          if ( dslen(dproc) > bnds(iproc)%len ) then
             write(6,*) "myid,dslen,len ",myid,dslen(dproc),bnds(iproc)%len
             write(6,*) "Example error iq,k,iproc ",dindex(dproc)%a(1,1),dindex(dproc)%a(1,2),iproc
-            write(6,*) "dbuf ",dbuf(dproc)%a(:,1)
+            write(6,*) "dbuf ",dbuf(dproc)%a(1,:)
             write(6,*) "neighlist ",neighlist
             write(6,*) "ERROR: Wind speed is very large and the departure point is"
             write(6,*) "       further away than the neighbouring processes. This"
@@ -5977,12 +5981,13 @@ contains
 
       ! Send request list
       rreq = nreq
-      do iproc = neighnum,1,-1
+      do iproc = 1,neighnum
          lproc = neighlist(iproc)  ! Send to
          ! Send, even if length is zero
          nreq = nreq + 1
          llen = 4*dslen(iproc)
-         call MPI_ISend( dbuf(iproc)%a, llen, ltype, lproc, &
+         buf_dbuf(1:4,1:dslen(iproc),iproc) = transpose( dbuf(iproc)%a(1:dslen(iproc),1:4) )
+         call MPI_ISend( buf_dbuf(:,:,iproc), llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
       end do
       
@@ -5996,7 +6001,9 @@ contains
          do jproc = 1,ldone
             ! Now get the actual sizes from the status
             call MPI_Get_count( status(:,jproc), ltype, ncount, ierr )
-            drlen(donelist(jproc)) = ncount/4
+            iproc = donelist(jproc)
+            drlen(iproc) = ncount/4
+            dpoints(iproc)%a(1:drlen(iproc),1:4) = transpose( buf_dpoints(1:4,1:drlen(iproc),iproc) )
          end do
       end do
 
