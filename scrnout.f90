@@ -634,62 +634,65 @@ do k = kmax+1,kl
   dp(:) = pl(:,k-1) - pl(:,k)
 
   do iq = 1,imax
-    nloop = 1 + int( dp(iq)/pinc )
-    dp(iq) = dp(iq)/real(nloop)
       
-    do n = 1,nloop
-      pl1 = pl2(iq)
-      tl1 = tl2(iq)
-      th1 = th2(iq)
-      qv1 = qv2(iq)
-      ql1 = ql2(iq)
-      qi1 = qi2(iq)
-      thv1 = thv2(iq)
+    if ( doit(iq) ) then  
+      nloop = 1 + int( dp(iq)/pinc )
+      dp(iq) = dp(iq)/real(nloop)
+      
+      do n = 1,nloop
+        pl1 = pl2(iq)
+        tl1 = tl2(iq)
+        th1 = th2(iq)
+        qv1 = qv2(iq)
+        ql1 = ql2(iq)
+        qi1 = qi2(iq)
+        thv1 = thv2(iq)
      
-      pl2(iq) = pl2(iq) - dp(iq)
-      pil2(iq) = (pl2(iq)/1.e5)**(rdry/cp)
-      thlast = th1
+        pl2(iq) = pl2(iq) - dp(iq)
+        pil2(iq) = (pl2(iq)/1.e5)**(rdry/cp)
+        thlast = th1
       
-      icount = 0
-      not_converged = .true.
-      do while( not_converged .and. icount<101 )
-        icount = icount + 1
-        tl2(iq) = thlast*pil2(iq)
-        fliq = max(min((tl2(iq)-233.15)/(273.15-233.15),1.),0.)
-        fice = 1. - fliq
-        qv2(iq) = min( qt(iq), qsat(pl2(iq),tl2(iq)) )
-        qi2(iq) = max( fice*(qt(iq)-qv2(iq)), 0. )
-        ql2(iq) = max( qt(iq)-qv2(iq)-qi2(iq), 0. )
+        icount = 0
+        not_converged = .true.
+        do while( not_converged .and. icount<101 )
+          icount = icount + 1
+          tl2(iq) = thlast*pil2(iq)
+          fliq = max(min((tl2(iq)-233.15)/(273.15-233.15),1.),0.)
+          fice = 1. - fliq
+          qv2(iq) = min( qt(iq), qsat(pl2(iq),tl2(iq)) )
+          qi2(iq) = max( fice*(qt(iq)-qv2(iq)), 0. )
+          ql2(iq) = max( qt(iq)-qv2(iq)-qi2(iq), 0. )
   
-        tbarl = 0.5*(tl1+tl2(iq))
-        qvbar = 0.5*(qv1+qv2(iq))
-        qlbar = 0.5*(ql1+ql2(iq))
-        qibar = 0.5*(qi1+qi2(iq))
+          tbarl = 0.5*(tl1+tl2(iq))
+          qvbar = 0.5*(qv1+qv2(iq))
+          qlbar = 0.5*(ql1+ql2(iq))
+          qibar = 0.5*(qi1+qi2(iq))
 
-        lhv = lv1 - lv2*tbarl
-        lhs = ls1 - ls2*tbarl
-        lhf = lhs - lhv
+          lhv = lv1 - lv2*tbarl
+          lhs = ls1 - ls2*tbarl
+          lhf = lhs - lhv
 
-        rm = rdry + rvap*qvbar
-        cpm = cp + cpv*qvbar + 4190.*qlbar + 2118.636*qibar
-        th2(iq) = th1*exp(  lhv*(ql2(iq)-ql1)/(cpm*tbarl)    &
-                           +lhs*(qi2(iq)-qi1)/(cpm*tbarl)    &
-                           +(rm/cpm-rdry/cp)*alog(pl2(iq)/pl1) )
+          rm = rdry + rvap*qvbar
+          cpm = cp + cpv*qvbar + 4190.*qlbar + 2118.636*qibar
+          th2(iq) = th1*exp(  lhv*(ql2(iq)-ql1)/(cpm*tbarl)    &
+                             +lhs*(qi2(iq)-qi1)/(cpm*tbarl)    &
+                             +(rm/cpm-rdry/cp)*alog(pl2(iq)/pl1) )
 
-        if ( abs(th2(iq)-thlast)>0.0002 ) then
-          thlast=thlast+0.2*(th2(iq)-thlast)
-        else
-          not_converged = .false.
-        end if
-      end do ! do while not_converged
+          if ( abs(th2(iq)-thlast)>0.0002 ) then
+            thlast=thlast+0.2*(th2(iq)-thlast)
+          else
+            not_converged = .false.
+          end if
+        end do ! do while not_converged
 
-      ! pseudoadiabat
-      qt(iq)  = qv2(iq)
-      ql2(iq) = 0.
-      qi2(iq) = 0.
+        ! pseudoadiabat
+        qt(iq)  = qv2(iq)
+        ql2(iq) = 0.
+        qi2(iq) = 0.
 
-    end do ! nloop
-  end do   ! iq loop  
+      end do ! nloop
+    end if   ! doit
+  end do     ! iq loop  
 
   thv2(:) = th2(:)*(1.+1.61*qv2(:))/(1.+qv2(:)+ql2(:)+qi2(:))
   b2(:) = grav*( thv2(:)-thv(:,k) )/thv(:,k)
