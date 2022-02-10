@@ -561,7 +561,7 @@ call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn
                 qg(is:ie,1),umag(is:ie),ugs_var(is:ie),ps(is:ie),zminx(is:ie),sig(1))
 
 return
-    end subroutine autoscrn
+end subroutine autoscrn
 
 ! Calculate CAPE and CIN
 ! This differs from the value used in convection, but is comparable with

@@ -3464,6 +3464,7 @@ subroutine freqfile_cordex
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
+use cc_omp, only : ntiles, imax       ! CC OpenMP routines
 use const_phys                        ! Physical constants
 use dates_m                           ! Date data
 use dpsdt_m                           ! Vertical velocity
@@ -3509,7 +3510,7 @@ integer, dimension(4) :: sdim
 integer, dimension(1) :: gpdim
 integer, dimension(5) :: outdim
 integer, dimension(1) :: msdim
-integer idms
+integer idms,js,je,tile
 integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics
 integer i,j,k,n,iq,fiarch
@@ -4107,6 +4108,16 @@ end do
 
 ! write data to file
 if ( mod(ktau,tbave)==0 ) then
+    
+  if ( rescrn>0 ) then
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call capecalc(js,je)
+    end do
+    !$omp end do
+  end if
     
   if ( myid==0 .or. local ) then
     if ( myid==0 ) then
