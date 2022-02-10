@@ -2591,60 +2591,75 @@ do while ( any(nrem(:)>0) )
   call ccmpi_filebounds_send(c_io,comm_ip,corner=.true.)
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
-  !$omp parallel do schedule(static) private(k,ipf,n,j,i,cc,csum,ccount)
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp target teams distribute parallel do collapse(5) schedule(static), &
+  !$omp map(a_io) map(to:c_io) private(k,ipf,n,j,i,cc,csum,ccount)
+#else
+  !$omp parallel do collapse(4) schedule(static) private(k,ipf,n,j,i,cc,csum,ccount)
+#endif
+#else
+  !$acc parallel loop collapse(5) copy(a_io) copyin(c_io)
+#endif
   do k = 1,kx
-    if ( ncount(k)>0 ) then
-      do ipf = 1,mynproc
-        do n = 1,pnpan
-          do j = 2,pjpan-1
-            do i = 2,pipan-1
-              cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-              if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
-                csum = 0.
-                ccount = 0.
-                if ( abs(c_io(i-1,j-1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i-1,j-1,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-                if ( abs(c_io(i,j-1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i,j-1,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-                if ( abs(c_io(i+1,j-1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i+1,j-1,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-                if ( abs(c_io(i-1,j,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i-1,j,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-                if ( abs(c_io(i+1,j,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i+1,j,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-                if ( abs(c_io(i-1,j+1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i-1,j+1,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-                if ( abs(c_io(i,j+1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i,j+1,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-                if ( abs(c_io(i+1,j+1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i+1,j+1,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-                if ( ccount>0. ) then        
-                  a_io(cc+i,k) = csum/ccount
-                end if
+    do ipf = 1,mynproc
+      do n = 1,pnpan
+        do j = 2,pjpan-1
+          do i = 2,pipan-1
+            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+            if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
+              csum = 0.
+              ccount = 0.
+              if ( abs(c_io(i-1,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i-1,j-1,n,ipf,k)
+                ccount = ccount + 1.
               end if
-            end do
+              if ( abs(c_io(i,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,j-1,n,ipf,k)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i+1,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+1,j-1,n,ipf,k)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i-1,j,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i-1,j,n,ipf,k)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i+1,j,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+1,j,n,ipf,k)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i-1,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i-1,j+1,n,ipf,k)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,j+1,n,ipf,k)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i+1,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+1,j+1,n,ipf,k)
+                ccount = ccount + 1.
+              end if
+              if ( ccount>0. ) then        
+                a_io(cc+i,k) = csum/ccount
+              end if
+            end if
           end do
         end do
       end do
-    end if
+    end do
   end do
+#ifdef _OPENMP
+#ifdef GPU
+  !$omp end target teams distribute parallel do
+#else
   !$omp end parallel do
+#endif
+#else
+  !$acc end parallel loop
+#endif
   call ccmpi_filebounds_recv(c_io,comm_ip,corner=.true.)
   ! update halo
   do k = 1,kx

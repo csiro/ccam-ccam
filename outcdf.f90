@@ -1579,11 +1579,13 @@ if( myid==0 .or. local ) then
     
     lname = 'Height of Boundary Layer'
     call attrib(idnc,dimj,jsize,'pblh',lname,'m',0.,13000.,0,cptype)
-    if ( save_pbl .or. itype==-1 ) then  
-      lname = 'Near-Surface Wind Speed of Gust'
-      call attrib(idnc,dimj,jsize,'wsgs',lname,'m s-1',0.,350.,0,cptype)
-      lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
-      call attrib(idnc,dimj,jsize,'wsgsmax',lname,'m s-1',0.,350.,1,cptype)
+    if ( save_pbl .and. itype==1 ) then
+      if ( rescrn>0 ) then  
+        lname = 'Near-Surface Wind Speed of Gust'
+        call attrib(idnc,dimj,jsize,'wsgs',lname,'m s-1',0.,350.,0,cptype)
+        lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
+        call attrib(idnc,dimj,jsize,'wsgsmax',lname,'m s-1',0.,350.,1,cptype)
+      end if  
     end if  
     
     ! AEROSOL OPTICAL DEPTHS ------------------------------------
@@ -2830,9 +2832,11 @@ end if
 
 ! TURBULENT MIXING --------------------------------------------
 call histwrt(pblh,'pblh',idnc,iarch,local,.true.)
-if ( save_pbl .or. itype==-1 ) then 
-  call histwrt(wsgs,'wsgs',idnc,iarch,local,.true.)  
-  call histwrt(wsgsmax,'wsgsmax',idnc,iarch,local,lday)  
+if ( save_pbl .and. itype==1 ) then 
+  if ( rescrn>0 ) then  
+    call histwrt(wsgs,'wsgs',idnc,iarch,local,.true.)  
+    call histwrt(wsgsmax,'wsgsmax',idnc,iarch,local,lday)  
+  end if  
 end if
 
 ! AEROSOL OPTICAL DEPTH ---------------------------------------
@@ -3868,8 +3872,14 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'rgc_ave',lname,'W m-2',0.,800.,iattdaily,-1)   ! -1 = long
       lname = 'Surface Downwelling Clear-Sky Longwave Radiation'
       call attrib(fncid,sdim,ssize,'rgdc_ave',lname,'W m-2',0.,800.,iattdaily,-1)  ! -1 = long
-      lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
-      call attrib(fncid,sdim,ssize,'wsgsmax',lname,'m s-1',0.,350.,iattdaily,1)
+      if ( rescrn>0 ) then
+        lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
+        call attrib(fncid,sdim,ssize,'wsgsmax',lname,'m s-1',0.,350.,iattdaily,1)
+        lname = 'Convective Available Potential Energy'
+        call attrib(fncid,sdim,ssize,'CAPE',lname,'J kg-1',0.,35.,0,1)
+        lname = 'Convective Inhibition'
+        call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',0.,35.,0,1)
+      end if
       lname = 'x-component wind stress'
       call attrib(fncid,sdim,ssize,'taux',lname,'N m-2',-50.,50.,iatt6hr,1)
       lname = 'y-component wind stress'
@@ -4230,7 +4240,11 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(freqstore(:,22),"rgc_ave",fncid,fiarch,local,lday)
     call histwrt(freqstore(:,23),"rgdc_ave",fncid,fiarch,local,lday)
     if ( lday ) freqstore(:,18:23) = 0.
-    call histwrt(wsgsmax,'wsgsmax',fncid,fiarch,local,lday)
+    if ( rescrn>0 ) then
+      call histwrt(wsgsmax,'wsgsmax',fncid,fiarch,local,lday)
+      call histwrt(cape_d,'CAPE',fncid,fiarch,local,.true.)
+      call histwrt(cin_d,'CIN',fncid,fiarch,local,.true.)
+    end if  
     call histwrt(freqstore(:,24),"taux",fncid,fiarch,local,l6hr)
     call histwrt(freqstore(:,25),"tauy",fncid,fiarch,local,l6hr)
     if ( l6hr ) freqstore(:,24:25) = 0.

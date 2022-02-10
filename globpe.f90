@@ -796,6 +796,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       js = (tile-1)*imax + 1
       je = tile*imax  
       call autoscrn(js,je)
+      call capecalc(js,je)
     end do
     !$omp end do nowait
   end if

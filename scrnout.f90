@@ -561,4 +561,177 @@ call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn
                 qg(is:ie,1),umag(is:ie),ugs_var(is:ie),ps(is:ie),zminx(is:ie),sig(1))
 
 return
-end subroutine autoscrn
+    end subroutine autoscrn
+
+! Calculate CAPE and CIN
+! This differs from the value used in convection, but is comparable with
+! other models.  Hence we refer to this as diagnosed CAPE and CIN.
+subroutine capecalc(js,je)
+
+use arrays_m
+use cc_omp, only : imax
+use const_phys
+use estab
+use newmpar_m
+use prec_m
+use sigs_m
+
+implicit none
+
+integer, intent(in) :: js, je
+integer k, n, iq, icount, nloop
+integer, parameter :: kmax = 1 ! default for source parcel at surface
+real, dimension(imax,kl) :: pl, tl, pil, th, thv
+real, dimension(imax) :: th2, pil2, pl2, tl2, thv2, qv2, b2
+real, dimension(imax) :: narea, ql2, qi2, qt, capel, cinl
+real, dimension(imax) :: dz, frac, parea, dp, b1, qs
+real pl1, tl1, th1, qv1, ql1, qi1, thv1
+real tbarl, qvbar, qlbar, qibar, lhv, lhs, lhf
+real rm, cpm, thlast, fliq, fice
+real, parameter :: pinc = 100. ! Pressure increment (Pa) - smaller is more accurate
+real, parameter :: lv1 = 2501000. + (4190.-cpv)*273.15
+real, parameter :: lv2 = 4190. - cpv
+real, parameter :: ls1 = 2836017. + (2118.636-cpv)*273.15
+real, parameter :: ls2 = 2188.636 - cpv
+logical, dimension(imax) :: doit
+logical not_converged
+
+capel(:) = 0.
+cinl(:) = 0.
+!cape_lvl(:,:) = 0.
+!cin_lvl(:,:) = 0.
+
+! Following code is based on Bryan (NCAR) citing
+! Bolton 1980 MWR p1046 and Bryan and Fritsch 2004 MWR p2421
+
+do k = 1,kl
+  pl(:,k) = ps(js:je)*sig(k)
+  tl(:,k) = t(js:je,k)
+  pil(:,k) = (pl(:,k)/1.e5)**(rdry/cp)
+  qs(:) = qsat(pl(:,k),tl(:,k),imax)
+  th(:,k) = tl(:,k)/pil(:,k)
+  thv(:,k) = th(:,k)*(1.+1.61*qs(:))/(1.+qs(:))
+end do  
+
+! define initial parcel properties
+th2(:) = th(:,kmax)
+pil2(:) = pil(:,kmax)
+pl2(:) = pl(:,kmax)
+tl2(:) = tl(:,kmax)
+thv2(:) = thv(:,kmax)
+qv2(:) = qsat(pl(:,kmax),tl(:,kmax),imax)
+ql2(:) = 0.
+qi2(:) = 0.
+qt(:) = qv2(:)
+b2(:) = 0.
+narea(:) = 0.
+doit(:) = .true.
+
+! start ascent of parcel
+do k = kmax+1,kl
+    
+  b1(:) = b2(:)  
+  dp(:) = pl(:,k-1) - pl(:,k)
+
+  do iq = 1,imax
+    nloop = 1 + int( dp(iq)/pinc )
+    dp(iq) = dp(iq)/real(nloop)
+      
+    do n = 1,nloop
+      pl1 = pl2(iq)
+      tl1 = tl2(iq)
+      th1 = th2(iq)
+      qv1 = qv2(iq)
+      ql1 = ql2(iq)
+      qi1 = qi2(iq)
+      thv1 = thv2(iq)
+     
+      pl2(iq) = pl2(iq) - dp(iq)
+      pil2(iq) = (pl2(iq)/1.e5)**(rdry/cp)
+      thlast = th1
+      
+      icount = 0
+      not_converged = .true.
+      do while( not_converged .and. icount<101 )
+        icount = icount + 1
+        tl2(iq) = thlast*pil2(iq)
+        fliq = max(min((tl2(iq)-233.15)/(273.15-233.15),1.),0.)
+        fice = 1. - fliq
+        qv2(iq) = min( qt(iq), qsat(pl2(iq),tl2(iq)) )
+        qi2(iq) = max( fice*(qt(iq)-qv2(iq)), 0. )
+        ql2(iq) = max( qt(iq)-qv2(iq)-qi2(iq), 0. )
+  
+        tbarl = 0.5*(tl1+tl2(iq))
+        qvbar = 0.5*(qv1+qv2(iq))
+        qlbar = 0.5*(ql1+ql2(iq))
+        qibar = 0.5*(qi1+qi2(iq))
+
+        lhv = lv1 - lv2*tbarl
+        lhs = ls1 - ls2*tbarl
+        lhf = lhs - lhv
+
+        rm = rdry + rvap*qvbar
+        cpm = cp + cpv*qvbar + 4190.*qlbar + 2118.636*qibar
+        th2(iq) = th1*exp(  lhv*(ql2(iq)-ql1)/(cpm*tbarl)    &
+                           +lhs*(qi2(iq)-qi1)/(cpm*tbarl)    &
+                           +(rm/cpm-rdry/cp)*alog(pl2(iq)/pl1) )
+
+        if ( abs(th2(iq)-thlast)>0.0002 ) then
+          thlast=thlast+0.2*(th2(iq)-thlast)
+        else
+          not_converged = .false.
+        end if
+      end do ! do while not_converged
+
+      ! pseudoadiabat
+      qt(iq)  = qv2(iq)
+      ql2(iq) = 0.
+      qi2(iq) = 0.
+
+    end do ! nloop
+  end do   ! iq loop  
+
+  thv2(:) = th2(:)*(1.+1.61*qv2(:))/(1.+qv2(:)+ql2(:)+qi2(:))
+  b2(:) = grav*( thv2(:)-thv(:,k) )/thv(:,k)
+  dz(:) = -(cp/grav)*0.5*(thv(:,k)+thv(:,k-1))*(pil(:,k)-pil(:,k-1))
+	
+  ! calculate contributions to CAPE and CIN
+  where ( b2>=0. .and. b1<0. .and. doit )
+    ! first time entering positive region
+    frac = b2/(b2-b1)
+    parea = 0.5*b2*dz*frac
+    narea = narea-0.5*b1*dz*(1.-frac)
+    cinl = cinl + narea
+    narea = 0.
+  elsewhere ( b2<0. .and. b1>0. .and. doit )  
+    ! first time entering negative region  
+    frac = b1/(b1-b2)
+    parea = 0.5*b1*dz*frac
+    narea = -0.5*b2*dz*(1.0-frac)
+  elsewhere ( b2<0. .and. doit )  
+    ! continue negative buoyancy region
+    parea = 0.
+    narea = narea-0.5*dz*(b1+b2)
+  elsewhere ( doit )
+    ! continue positive buoyancy region  
+    parea = 0.5*dz*(b1+b2)
+    narea = 0.
+  end where
+  
+  where ( doit )
+    capel = capel + max(0.,parea)
+    !cape_lvl(:,k) = parea
+    !cin_lvl(:,k) = narea
+  end where  
+
+  where ( pl(:,k)<=1.e4 .and. b2<0. )
+    doit = .false. ! stop calculation
+  end where  
+
+end do ! k loop
+    
+cape_d(js:je) = capel(:)
+cin_d(js:je) = cinl(:)
+
+return
+end subroutine capecalc
