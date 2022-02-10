@@ -702,12 +702,14 @@ do k = kmax+1,kl
     parea = 0.5*b2*dz*frac
     narea = narea-0.5*b1*dz*(1.-frac)
     cinl = cinl + narea
+    capel = capel + max(0.,parea)
     narea = 0.
   elsewhere ( b2<0. .and. b1>0. .and. doit )  
     ! first time entering negative region  
     frac = b1/(b1-b2)
     parea = 0.5*b1*dz*frac
     narea = -0.5*b2*dz*(1.0-frac)
+    capel = capel + max(0.,parea)
   elsewhere ( b2<0. .and. doit )  
     ! continue negative buoyancy region
     parea = 0.
@@ -716,17 +718,19 @@ do k = kmax+1,kl
     ! continue positive buoyancy region  
     parea = 0.5*dz*(b1+b2)
     narea = 0.
+    capel = capel + max(0.,parea)
   end where
   
-  where ( doit )
-    capel = capel + max(0.,parea)
-    !cape_lvl(:,k) = parea
-    !cin_lvl(:,k) = narea
-  end where  
+  !where ( doit )
+  !  cape_lvl(:,k) = parea
+  !  cin_lvl(:,k) = narea
+  !end where  
 
   where ( pl(:,k)<=1.e4 .and. b2<0. )
     doit = .false. ! stop calculation
   end where  
+  
+  if ( all( .not.doit ) ) exit
 
 end do ! k loop
     
