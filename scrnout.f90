@@ -588,7 +588,8 @@ real, dimension(imax) :: dz, frac, parea, dp, b1, qs
 real pl1, tl1, th1, qv1, ql1, qi1, thv1
 real tbarl, qvbar, qlbar, qibar, lhv, lhs, lhf
 real rm, cpm, thlast, fliq, fice
-real, parameter :: pinc = 100. ! Pressure increment (Pa) - smaller is more accurate
+!real, parameter :: pinc = 100. ! Pressure increment (Pa) - smaller is more accurate
+real, parameter :: pinc = 1000.
 real, parameter :: lv1 = 2501000. + (4190.-cpv)*273.15
 real, parameter :: lv2 = 4190. - cpv
 real, parameter :: ls1 = 2836017. + (2118.636-cpv)*273.15
@@ -633,13 +634,14 @@ do k = kmax+1,kl
   b1(:) = b2(:)  
   dp(:) = pl(:,k-1) - pl(:,k)
 
-  do iq = 1,imax
-      
-    if ( doit(iq) ) then  
-      nloop = 1 + int( dp(iq)/pinc )
-      dp(iq) = dp(iq)/real(nloop)
-      
-      do n = 1,nloop
+  nloop = 1 + int( 1.e5*(sig(k-1)-sig(k))/pinc )
+  dp(:) = (pl(:,k-1)-pl(:,k))/real(nloop)  
+  
+  do n = 1,nloop
+  
+    do iq = 1,imax
+      if ( doit(iq) ) then  
+          
         pl1 = pl2(iq)
         tl1 = tl2(iq)
         th1 = th2(iq)
@@ -690,9 +692,9 @@ do k = kmax+1,kl
         ql2(iq) = 0.
         qi2(iq) = 0.
 
-      end do ! nloop
-    end if   ! doit
-  end do     ! iq loop  
+      end if ! doit        
+    end do   ! iq loop
+  end do     ! n loop  
 
   thv2(:) = th2(:)*(1.+1.61*qv2(:))/(1.+qv2(:)+ql2(:)+qi2(:))
   b2(:) = grav*( thv2(:)-thv(:,k) )/thv(:,k)
