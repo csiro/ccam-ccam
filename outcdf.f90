@@ -3841,27 +3841,27 @@ if ( first ) then
       lname = 'Avg potential evaporation'
       call attrib(fncid,sdim,ssize,'epot_ave',lname,'W m-2',-1000.,10.e3,0,1)
       lname = 'Soil Frozen Water Content'
-      call attrib(fncid,sdim,ssize,'mrfso',lname,'kg m-2',0.,1300.,iatt6hr,-1)  ! -1 = long
+      call attrib(fncid,sdim,ssize,'mrfso',lname,'kg m-2',0.,1300.,iatt6hr,-1)     ! -1 = long
       lname = 'Frozen Water Content in Upper Portion of Soil Column'
-      call attrib(fncid,sdim,ssize,'mrfsos',lname,'kg m-2',0.,1300.,iatt6hr,-1)  ! -1 = long
+      call attrib(fncid,sdim,ssize,'mrfsos',lname,'kg m-2',0.,1300.,iatt6hr,-1)    ! -1 = long
       lname = 'Evaporation'
-      call attrib(fncid,sdim,ssize,'evspsbl',lname,'mm day-1',0.,1300.,0,-1)    ! -1 = long
+      call attrib(fncid,sdim,ssize,'evspsbl',lname,'mm day-1',0.,1300.,0,-1)       ! -1 = long
       lname = 'Surface runoff'
-      call attrib(fncid,sdim,ssize,'mrros',lname,'mm day-1',0.,1300.,iatt6hr,-1)  ! -1 = long
+      call attrib(fncid,sdim,ssize,'mrros',lname,'mm day-1',0.,1300.,iatt6hr,-1)   ! -1 = long
       lname = 'Runoff' ! mrro after pcc2hist
-      call attrib(fncid,sdim,ssize,'runoff',lname,'mm day-1',0.,1300.,iatt6hr,-1) ! -1 = long
+      call attrib(fncid,sdim,ssize,'runoff',lname,'mm day-1',0.,1300.,iatt6hr,-1)  ! -1 = long
       lname = 'Total Soil Moisture Content'
-      call attrib(fncid,sdim,ssize,'mrso',lname,'kg m-2',0.,1300.,iatt6hr,-1)   ! -1 = long
+      call attrib(fncid,sdim,ssize,'mrso',lname,'kg m-2',0.,1300.,iatt6hr,-1)      ! -1 = long
       lname = 'Moisture in Upper Portion of Soil Column'
-      call attrib(fncid,sdim,ssize,'mrsos',lname,'kg m-2',0.,1300.,iatt6hr,-1)   ! -1 = long
-      lname = 'Snow melt'
-      call attrib(fncid,sdim,ssize,'snm',lname,'mm day-1',0.,1300.,iatt6hr,-1)  ! -1 = long
+      call attrib(fncid,sdim,ssize,'mrsos',lname,'kg m-2',0.,1300.,iatt6hr,-1)     ! -1 = long
+      lname = 'Snow melt' 
+      call attrib(fncid,sdim,ssize,'snm',lname,'mm day-1',0.,1300.,iatt6hr,-1)     ! -1 = long
       lname = 'TOA Outgoing Longwave Radiation'
-      call attrib(fncid,sdim,ssize,'rtu_ave',lname,'W m-2',0.,800.,0,-1)        ! -1 = long
+      call attrib(fncid,sdim,ssize,'rtu_ave',lname,'W m-2',0.,800.,0,-1)           ! -1 = long
       lname = 'TOA Incident Shortwave Radiation'
-      call attrib(fncid,sdim,ssize,'sint_ave',lname,'W m-2',0.,1600.,0,-1)      ! -1 = long
+      call attrib(fncid,sdim,ssize,'sint_ave',lname,'W m-2',0.,1600.,0,-1)         ! -1 = long
       lname = 'TOA Outgoing Shortwave Radiation'
-      call attrib(fncid,sdim,ssize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)       ! -1 = long
+      call attrib(fncid,sdim,ssize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)          ! -1 = long
       lname = 'Clear sky SW out at TOA'
       call attrib(fncid,sdim,ssize,'soc_ave',lname,'W m-2',0.,1000.,iattdaily,-1)  ! -1 = long
       lname = 'Clear sky SW at ground (+ve down)'
@@ -4824,26 +4824,26 @@ character(len=*), intent(in), optional :: stringb
 
 if ( present(stringb) ) then
   if ( press_level>=1000 ) then
-    write(lname,'(A,I4.4,A)') trim(stringa),press_level,trim(stringb)
+    write(lname,'(A,I4.4,A)') stringa,press_level,stringb
   else if (press_level>=100 ) then
-    write(lname,'(A,I3.3,A)') trim(stringa),press_level,trim(stringb)  
+    write(lname,'(A,I3.3,A)') stringa,press_level,stringb
   else if ( press_level>=10 ) then
-    write(lname,'(A,I2.2,A)') trim(stringa),press_level,trim(stringb)  
+    write(lname,'(A,I2.2,A)') stringa,press_level,stringb
   else if ( press_level>=1 ) then
-    write(lname,'(A,I1.1,A)') trim(stringa),press_level,trim(stringb)  
+    write(lname,'(A,I1.1,A)') stringa,press_level,stringb
   else
     write(6,*) "ERROR: Unexpected output pressure level in cordex_name"
     call ccmpi_abort(-1)
   end if
 else
   if ( press_level>=1000 ) then
-    write(lname,'(A,I4.4)') trim(stringa),press_level
+    write(lname,'(A,I4.4)') stringa,press_level
   else if (press_level>=100 ) then
-    write(lname,'(A,I3.3)') trim(stringa),press_level
+    write(lname,'(A,I3.3)') stringa,press_level
   else if ( press_level>=10 ) then
-    write(lname,'(A,I2.2)') trim(stringa),press_level
+    write(lname,'(A,I2.2)') stringa,press_level
   else if ( press_level>=1 ) then
-    write(lname,'(A,I1.1)') trim(stringa),press_level
+    write(lname,'(A,I1.1)') stringa,press_level
   else
     write(6,*) "ERROR: Unexpected output pressure level in cordex_name"
     call ccmpi_abort(-1)
