@@ -1941,14 +1941,14 @@ if( myid==0 .or. local ) then
     end if
     lname = 'Air Temperature'
     call attrib(idnc,dima,asize,'temp',lname,'K',100.,425.,0,cptype)
+    lname = 'Water mixing ratio'
+    call attrib(idnc,dima,asize,'mixr',lname,'kg kg-1',0.,.065,0,cptype)
     lname = 'x-component wind'
     call attrib(idnc,dima,asize,'u',lname,'m s-1',-150.,150.,0,cptype)
     lname = 'y-component wind'
     call attrib(idnc,dima,asize,'v',lname,'m s-1',-150.,150.,0,cptype)
     lname = 'vertical velocity'
     call attrib(idnc,dima,asize,'omega',lname,'Pa s-1',-65.,65.,0,cptype)
-    lname = 'Water mixing ratio'
-    call attrib(idnc,dima,asize,'mixr',lname,'kg kg-1',0.,.065,0,cptype)
     if ( save_cloud ) then
       lname = 'Convective heating'
       call attrib(idnc,dima,asize,'convh_ave',lname,'K day-1',-10.,20.,0,cptype)
@@ -2551,6 +2551,7 @@ aa(:) = grpl(1:ifull)*scale_factor
 call histwrt(aa,'grpl',idnc,iarch,local,lwrite)
 if ( save_land ) then
   aa(:) = runoff(1:ifull)*scale_factor
+  print *,"runoff ",minval(runoff),maxval(runoff)
   call histwrt(aa,'runoff',idnc,iarch,local,lwrite)
   aa(:) = runoff_surface(1:ifull)*scale_factor
   call histwrt(aa,'mrros',idnc,iarch,local,lwrite)
@@ -3181,13 +3182,13 @@ end if
 ! ATMOSPHERE DYNAMICS ------------------------------------------
 lwrite = (ktau>0)
 call histwrt(t_in,'temp',idnc,iarch,local,.true.)
+call histwrt(q_in,'mixr',idnc,iarch,local,.true.)
 call histwrt(u_in,'u',idnc,iarch,local,.true.)
 call histwrt(v_in,'v',idnc,iarch,local,.true.)
 do k = 1,kl
   tmpry(1:ifull,k) = ps(1:ifull)*dpsldt(1:ifull,k)
 enddo
 call histwrt(tmpry(:,1:kl),'omega',idnc,iarch,local,lwrite_0)
-call histwrt(q_in,'mixr',idnc,iarch,local,.true.)
 if ( save_cloud ) then
   call histwrt(convh_ave,'convh_ave',idnc,iarch,local,lave)
 end if
@@ -4229,12 +4230,12 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(outdata,"runoff",fncid,fiarch,local,l6hr)
     outdata = 0.
     do k = 1,ms
-      outdata = outdata + (wb(:,k)-wbice(:,k))*zse(k)*1000.  
+      outdata = outdata + wb(:,k)*zse(k)*1000.  
     end do    
     call histwrt(outdata,"mrso",fncid,fiarch,local,l6hr)
     outdata = 0.
     do k = 1,ms
-      outdata = outdata + (wb(:,k)-wbice(:,k))*shallow_zse(k)*1000.  
+      outdata = outdata + wb(:,k)*shallow_zse(k)*1000.  
     end do    
     call histwrt(outdata,"mrsos",fncid,fiarch,local,l6hr)   
     outdata = snowmelt - runoff_old(:,4) + runoff_store(:,4)
@@ -4328,7 +4329,7 @@ if ( mod(ktau,tbave)==0 ) then
     do k = 1,ms
       call cordex_name(vname,"tgg",k)  
       call histwrt(outdata,vname,fncid,fiarch,local,l6hr)
-      outdata = (wb(:,k)-wbice(:,k))*zse(k)*1000.  
+      outdata = wb(:,k)*zse(k)*1000.  
       call cordex_name(vname,"mrsol",k)  
       call histwrt(outdata,vname,fncid,fiarch,local,l6hr)
       outdata = wbice(:,k)*zse(k)*900.  
