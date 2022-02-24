@@ -1170,6 +1170,8 @@ if( myid==0 .or. local ) then
     lname = 'Soil type'
     call attrib(idnc,dimk,ksize,'soilt',lname,'none',-650.,650.,0,cptype)
     if ( save_land ) then
+      lname = 'Capacity of Soil to Store Water'
+      call attrib(idnc,dimk,ksize,'mrsofc',lname,'none',0.,6.5,0,cptype)        
       lname = 'Vegetation type'
       call attrib(idnc,dimk,ksize,'vegt',lname,'none',0.,650.,0,cptype)
       lname = 'Capacity of Soil to Store Water'
@@ -2498,6 +2500,8 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   aa(:) = real(isoilm_in(:))  ! use the raw soil data here to classify inland water bodies
   call histwrt(aa,'soilt',idnc,iarch,local,.true.) ! also defines land-sea mask
   if ( save_land ) then
+    aa(:) = sfc(isoilm)*sum(zse)
+    call histwrt(aa,'mrsofc',idnc,iarch,local,.true.)      
     aa(:) = real(ivegt(:))
     call histwrt(aa,'vegt',idnc,iarch,local,.true.)
     aa(:) = sfc(isoilm)*sum(zse)
