@@ -2555,7 +2555,6 @@ aa(:) = grpl(1:ifull)*scale_factor
 call histwrt(aa,'grpl',idnc,iarch,local,lwrite)
 if ( save_land ) then
   aa(:) = runoff(1:ifull)*scale_factor
-  print *,"runoff ",minval(runoff),maxval(runoff)
   call histwrt(aa,'runoff',idnc,iarch,local,lwrite)
   aa(:) = runoff_surface(1:ifull)*scale_factor
   call histwrt(aa,'mrros',idnc,iarch,local,lwrite)
